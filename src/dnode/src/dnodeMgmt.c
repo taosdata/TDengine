@@ -24,7 +24,7 @@
 #include "tqueue.h"
 #include "tsync.h"
 #include "ttimer.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tglobal.h"
 #include "dnode.h"
 #include "vnode.h"
@@ -444,12 +444,12 @@ static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg) {
   SCreateMnodeMsg *pCfg = pMsg->pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   if (pCfg->dnodeId != dnodeGetDnodeId()) {
-    dError("dnodeId:%d, in create mnode msg is not equal with saved dnodeId:%d", pCfg->dnodeId, dnodeGetDnodeId());
+    dDebug("dnodeId:%d, in create mnode msg is not equal with saved dnodeId:%d", pCfg->dnodeId, dnodeGetDnodeId());
     return TSDB_CODE_MND_DNODE_ID_NOT_CONFIGURED;
   }
 
   if (strcmp(pCfg->dnodeEp, tsLocalEp) != 0) {
-    dError("dnodeEp:%s, in create mnode msg is not equal with saved dnodeEp:%s", pCfg->dnodeEp, tsLocalEp);
+    dDebug("dnodeEp:%s, in create mnode msg is not equal with saved dnodeEp:%s", pCfg->dnodeEp, tsLocalEp);
     return TSDB_CODE_MND_DNODE_EP_NOT_CONFIGURED;
   }
 

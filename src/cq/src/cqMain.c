@@ -40,15 +40,14 @@
 
 typedef struct {
   int32_t  vgId;
+  int32_t  master;
+  int32_t  num;      // number of continuous streams
   char     user[TSDB_USER_LEN];
   char     pass[TSDB_PASSWORD_LEN];
   char     db[TSDB_DB_NAME_LEN];
   FCqWrite cqWrite;
-  void    *ahandle;
-  int32_t  num;      // number of continuous streams
   struct SCqObj *pHead;
   void    *dbConn;
-  int32_t  master;
   void    *tmrCtrl;
   pthread_mutex_t mutex;
 } SCqContext;
@@ -70,6 +69,9 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row);
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj);
 
 void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
+  if (tsEnableStream == 0) {
+    return NULL;
+  }
   SCqContext *pContext = calloc(sizeof(SCqContext), 1);
   if (pContext == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -90,7 +92,6 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
   tstrncpy(pContext->db, db, sizeof(pContext->db));
   pContext->vgId = pCfg->vgId;
   pContext->cqWrite = pCfg->cqWrite;
-  pContext->ahandle = ahandle;
   tscEmbedded = 1;
 
   pthread_mutex_init(&pContext->mutex, NULL);
@@ -101,6 +102,9 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
 }
 
 void cqClose(void *handle) {
+  if (tsEnableStream == 0) {
+    return;
+  }
   SCqContext *pContext = handle;
   if (handle == NULL) return;
 
@@ -131,6 +135,9 @@ void cqClose(void *handle) {
 }
 
 void cqStart(void *handle) {
+  if (tsEnableStream == 0) {
+    return;
+  }
   SCqContext *pContext = handle;
   if (pContext->dbConn || pContext->master) return;
 
@@ -149,6 +156,9 @@ void cqStart(void *handle) {
 }
 
 void cqStop(void *handle) {
+  if (tsEnableStream == 0) {
+    return;
+  }
   SCqContext *pContext = handle;
   cInfo("vgId:%d, stop all CQs", pContext->vgId);
   if (pContext->dbConn == NULL || pContext->master == 0) return;
@@ -176,6 +186,9 @@ void cqStop(void *handle) {
 }
 
 void *cqCreate(void *handle, uint64_t uid, int32_t tid, char *sqlStr, STSchema *pSchema) {
+  if (tsEnableStream == 0) {
+    return NULL;
+  }
   SCqContext *pContext = handle;
 
   SCqObj *pObj = calloc(sizeof(SCqObj), 1);
@@ -205,6 +218,9 @@ void *cqCreate(void *handle, uint64_t uid, int32_t tid, char *sqlStr, STSchema *
 }
 
 void cqDrop(void *handle) {
+  if (tsEnableStream == 0) {
+    return;
+  }
   SCqObj *pObj = handle;
   SCqContext *pContext = pObj->pContext;
 
@@ -241,8 +257,12 @@ static void doCreateStream(void *param, TAOS_RES *result, int32_t code) {
   SCqObj* pObj = (SCqObj*)param;
   SCqContext* pContext = pObj->pContext;
   SSqlObj* pSql = (SSqlObj*)result;
-  pContext->dbConn = pSql->pTscObj;
+  if (atomic_val_compare_exchange_ptr(&(pContext->dbConn), NULL, pSql->pTscObj) != NULL) {
+    taos_close(pSql->pTscObj);
+  }
+  pthread_mutex_lock(&pContext->mutex);
   cqCreateStream(pContext, pObj);
+  pthread_mutex_unlock(&pContext->mutex);
 }
 
 static void cqProcessCreateTimer(void *param, void *tmrId) {
@@ -253,7 +273,9 @@ static void cqProcessCreateTimer(void *param, void *tmrId) {
     cDebug("vgId:%d, try connect to TDengine", pContext->vgId);
     taos_connect_a(NULL, pContext->user, pContext->pass, pContext->db, 0, doCreateStream, param, NULL);
   } else {
+    pthread_mutex_lock(&pContext->mutex);
     cqCreateStream(pContext, pObj);
+    pthread_mutex_unlock(&pContext->mutex);
   }
 }
 
@@ -267,12 +289,14 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
   }
   pObj->tmrId = 0;
 
-  pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, 0, pObj, NULL);
-  if (pObj->pStream) {
-    pContext->num++;
-    cInfo("vgId:%d, id:%d CQ:%s is openned", pContext->vgId, pObj->tid, pObj->sqlStr);
-  } else {
-    cError("vgId:%d, id:%d CQ:%s, failed to open", pContext->vgId, pObj->tid, pObj->sqlStr);
+  if (pObj->pStream == NULL) {
+    pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, 0, pObj, NULL);
+    if (pObj->pStream) {
+      pContext->num++;
+      cInfo("vgId:%d, id:%d CQ:%s is openned", pContext->vgId, pObj->tid, pObj->sqlStr);
+    } else {
+      cError("vgId:%d, id:%d CQ:%s, failed to open", pContext->vgId, pObj->tid, pObj->sqlStr);
+    }
   }
 }
 
@@ -334,7 +358,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   pHead->version = 0;
 
   // write into vnode write queue
-  pContext->cqWrite(pContext->ahandle, pHead, TAOS_QTYPE_CQ, NULL);
+  pContext->cqWrite(pContext->vgId, pHead, TAOS_QTYPE_CQ, NULL);
   free(buffer);
 }
 

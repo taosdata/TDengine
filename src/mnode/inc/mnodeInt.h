@@ -41,9 +41,9 @@ extern int32_t sdbDebugFlag;
 #define sdbDebug(...) { if (sdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("SDB ", sdbDebugFlag, __VA_ARGS__); }}
 #define sdbTrace(...) { if (sdbDebugFlag & DEBUG_TRACE) { taosPrintLog("SDB ", sdbDebugFlag, __VA_ARGS__); }}
 
-#define mLError(...) { monitorSaveLog(2, __VA_ARGS__); mError(__VA_ARGS__) }
-#define mLWarn(...)  { monitorSaveLog(1, __VA_ARGS__); mWarn(__VA_ARGS__)  }
-#define mLInfo(...)  { monitorSaveLog(0, __VA_ARGS__); mInfo(__VA_ARGS__) }
+#define mLError(...) { monSaveLog(2, __VA_ARGS__); mError(__VA_ARGS__) }
+#define mLWarn(...)  { monSaveLog(1, __VA_ARGS__); mWarn(__VA_ARGS__)  }
+#define mLInfo(...)  { monSaveLog(0, __VA_ARGS__); mInfo(__VA_ARGS__) }
 
 #ifdef __cplusplus
 }

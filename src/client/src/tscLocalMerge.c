@@ -198,6 +198,7 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
 
   if (numOfFlush == 0 || numOfBuffer == 0) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
+    pCmd->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT; // no result, set the result empty
     tscDebug("%p retrieved no data", pSql);
     return;
   }
@@ -330,22 +331,19 @@ void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrd
   pReducer->nResultBufSize = pMemBuffer[0]->pageSize * 16;
   pReducer->pResultBuf = (tFilePage *)calloc(1, pReducer->nResultBufSize + sizeof(tFilePage));
 
-  pReducer->finalRowSize = tscGetResRowLength(pQueryInfo->exprList);
   pReducer->resColModel = finalmodel;
   pReducer->resColModel->capacity = pReducer->nResultBufSize;
-
   pReducer->finalModel = pFFModel;
 
-  assert(pReducer->finalRowSize > 0);
-  if (pReducer->finalRowSize > 0) {
-    pReducer->resColModel->capacity /= pReducer->finalRowSize;
+  if (finalmodel->rowSize > 0) {
+    pReducer->resColModel->capacity /= finalmodel->rowSize;
   }
-  assert(pReducer->finalRowSize <= pReducer->rowSize);
 
+  assert(finalmodel->rowSize > 0 && finalmodel->rowSize <= pReducer->rowSize);
   pReducer->pFinalRes = calloc(1, pReducer->rowSize * pReducer->resColModel->capacity);
 
   if (pReducer->pTempBuffer == NULL || pReducer->discardData == NULL || pReducer->pResultBuf == NULL ||
-      /*pReducer->pBufForInterpo == NULL || */pReducer->pFinalRes == NULL || pReducer->prevRowOfInput == NULL) {
+      pReducer->pFinalRes == NULL || pReducer->prevRowOfInput == NULL) {
     tfree(pReducer->pTempBuffer);
     tfree(pReducer->discardData);
     tfree(pReducer->pResultBuf);
@@ -723,10 +721,16 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   // final result depends on the fields number
   memset(pSchema, 0, sizeof(SSchema) * size);
+
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
-    SSchema *p1 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
+    SSchema p1 = {0};
+    if (pExpr->colInfo.colIndex != TSDB_TBNAME_COLUMN_INDEX) {
+      p1 = *tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
+    } else {
+      p1 = tGetTableNameColumnSchema();
+    }
 
     int32_t inter = 0;
     int16_t type = -1;
@@ -745,7 +749,8 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
         functionId = TSDB_FUNC_LAST;
       }
 
-      getResultDataInfo(p1->type, p1->bytes, functionId, 0, &type, &bytes, &inter, 0, false);
+      int32_t ret = getResultDataInfo(p1.type, p1.bytes, functionId, 0, &type, &bytes, &inter, 0, false);
+      assert(ret == TSDB_CODE_SUCCESS);
     }
 
     pSchema[i].type = (uint8_t)type;
@@ -920,7 +925,7 @@ static void genFinalResWithoutFill(SSqlRes* pRes, SLocalReducer *pLocalReducer, 
     savePrevRecordAndSetupFillInfo(pLocalReducer, pQueryInfo, pLocalReducer->pFillInfo);
   }
 
-  memcpy(pRes->data, pBeforeFillData->data, (size_t)(pRes->numOfRows * pLocalReducer->finalRowSize));
+  memcpy(pRes->data, pBeforeFillData->data, (size_t)(pRes->numOfRows * pLocalReducer->finalModel->rowSize));
 
   pRes->numOfClauseTotal += pRes->numOfRows;
   pBeforeFillData->num = 0;
@@ -1256,7 +1261,7 @@ bool genFinalResults(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool noMoreCur
   tColModelCompact(pModel, pResBuf, pModel->capacity);
 
   if (tscIsSecondStageQuery(pQueryInfo)) {
-    pLocalReducer->finalRowSize = doArithmeticCalculate(pQueryInfo, pResBuf, pModel->rowSize, pLocalReducer->finalRowSize);
+    doArithmeticCalculate(pQueryInfo, pResBuf, pModel->rowSize, pLocalReducer->finalModel->rowSize);
   }
 
 #ifdef _DEBUG_VIEW
@@ -1627,7 +1632,8 @@ void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen)
 }
 
 int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
-  char* pbuf = calloc(1, pOutput->num * rowSize);
+  int32_t maxRowSize = MAX(rowSize, finalRowSize);
+  char* pbuf = calloc(1, pOutput->num * maxRowSize);
 
   size_t size = tscNumOfFields(pQueryInfo);
   SArithmeticSupport arithSup = {0};
@@ -1660,7 +1666,6 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
     offset += pSup->field.bytes;
   }
 
-  assert(finalRowSize <= rowSize);
   memcpy(pOutput->data, pbuf, pOutput->num * offset);
 
   tfree(pbuf);

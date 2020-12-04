@@ -20,7 +20,7 @@
 #include "tsystem.h"
 #include "tutil.h"
 #include "tgrant.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tglobal.h"
 #include "mnode.h"
 #include "dnode.h"
@@ -58,16 +58,8 @@ int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
     rpcRsp->rsp = epSet;
     rpcRsp->len = sizeof(SRpcEpSet);
 
-    mDebug("msg:%p, ahandle:%p type:%s in mpeer queue will be redirected, numOfEps:%d inUse:%d", pMsg,
-           pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
-    for (int32_t i = 0; i < epSet->numOfEps; ++i) {
-      if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort + TSDB_PORT_DNODEDNODE) {
-        epSet->inUse = (i + 1) % epSet->numOfEps;
-        mDebug("mpeer:%d ep:%s:%u, set inUse to %d", i, epSet->fqdn[i], htons(epSet->port[i]), epSet->inUse);
-      } else {
-        mDebug("mpeer:%d ep:%s:%u", i, epSet->fqdn[i], htons(epSet->port[i]));
-      }
-    }
+    mDebug("msg:%p, ahandle:%p type:%s in mpeer queue is redirected, numOfEps:%d inUse:%d", pMsg, pMsg->rpcMsg.ahandle,
+           taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
 
     return TSDB_CODE_RPC_REDIRECT;
   }

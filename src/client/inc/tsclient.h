@@ -246,11 +246,14 @@ typedef struct SQueryInfo {
   int16_t          fillType;      // final result fill type
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
-  struct STSBuf *  tsBuf;
+  struct STSBuf   *tsBuf;
   int64_t *        fillVal;       // default value for fill
   char *           msg;           // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;   // limit for current sub clause
+
   int64_t          prjOffset;     // offset value in the original sql expression, only applied at client side
+  int64_t          tableLimit;    // table limit in case of super table projection query + global order + limit
+
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
   int16_t          resColumnId;   // result column id
 } SQueryInfo;
@@ -333,7 +336,7 @@ typedef struct STscObj {
   char               superAuth : 1;
   uint32_t           connId;
   uint64_t           rid;      // ref ID returned by taosAddRef
-  struct SSqlObj *   pHb;
+  int64_t            hbrid;
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
   SRpcCorEpSet       *tscCorMgmtEpSet;
@@ -374,7 +377,7 @@ typedef struct SSqlObj {
   struct SSqlObj **pSubs;
 
   struct SSqlObj  *prev, *next;
-  struct SSqlObj **self;
+  int64_t          self;
 } SSqlObj;
 
 typedef struct SSqlStream {
@@ -508,7 +511,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
 }
 
 extern SCacheObj*    tscMetaCache;
-extern SCacheObj*    tscObjCache;
+extern int           tscObjRef;
 extern void *    tscTmr;
 extern void *    tscQhandle;
 extern int       tscKeepConn[];

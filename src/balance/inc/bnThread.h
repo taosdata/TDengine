@@ -13,24 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_BALANCE_H
-#define TDENGINE_BALANCE_H
+#ifndef TDENGINE_BALANCE_THREAD_H
+#define TDENGINE_BALANCE_THREAD_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "bnInt.h"
 
-struct SVgObj;
-struct SDnodeObj;
-
-int32_t balanceInit();
-void    balanceCleanUp();
-void    balanceAsyncNotify();
-void    balanceSyncNotify();
-void    balanceReset();
-int32_t balanceAllocVnodes(struct SVgObj *pVgroup);
-int32_t balanceAlterDnode(struct SDnodeObj *pDnode, int32_t vnodeId, int32_t dnodeId);
-int32_t balanceDropDnode(struct SDnodeObj *pDnode);
+int32_t bnInitThread();
+void    bnCleanupThread();
+void    bnNotify();
+void    bnStartTimer(int64_t mseconds);
 
 #ifdef __cplusplus
 }

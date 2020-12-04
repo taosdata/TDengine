@@ -137,6 +137,12 @@ if [ "$2" != "sim" ]; then
   elif [ "$1" == "pytest" ]; then
     echo "### run Python full test ###"
     runPyCaseOneByOne fulltest.sh
+  elif [ "$1" == "p1" ]; then
+    echo "### run Python_1 test ###"
+    runPyCaseOneByOne pytest_1.sh
+  elif [ "$1" == "p2" ]; then
+    echo "### run Python_2 test ###"
+    runPyCaseOneByOne pytest_2.sh
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
     exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then

@@ -16,12 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tgrant.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tglobal.h"
 #include "tconfig.h"
 #include "tutil.h"
 #include "tsocket.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tsync.h"
 #include "tdataformat.h"
 #include "mnode.h"
@@ -39,6 +39,7 @@
 #include "mnodeCluster.h"
 
 int32_t tsAccessSquence = 0;
+int64_t        tsDnodeRid = -1;
 static void *  tsDnodeSdb = NULL;
 static int32_t tsDnodeUpdateSize = 0;
 extern void *  tsMnodeSdb;
@@ -114,7 +115,7 @@ static int32_t mnodeDnodeActionDelete(SSdbRow *pRow) {
   mnodeDropAllDnodeVgroups(pDnode);
 #endif  
   mnodeDropMnodeLocal(pDnode->dnodeId);
-  balanceAsyncNotify();
+  bnNotify();
   mnodeUpdateDnodeEps();
 
   mDebug("dnode:%d, all vgroups is dropped from sdb", pDnode->dnodeId);
@@ -187,7 +188,8 @@ int32_t mnodeInitDnodes() {
     .fpRestored   = mnodeDnodeActionRestored
   };
 
-  tsDnodeSdb = sdbOpenTable(&desc);
+  tsDnodeRid = sdbOpenTable(&desc);
+  tsDnodeSdb = sdbGetTableByRid(tsDnodeRid);
   if (tsDnodeSdb == NULL) {
     mError("failed to init dnodes data");
     return -1;
@@ -206,13 +208,14 @@ int32_t mnodeInitDnodes() {
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_VNODES, mnodeRetrieveVnodes);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DNODE, mnodeGetDnodeMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DNODE, mnodeRetrieveDnodes);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DNODE, mnodeCancelGetNextDnode);
  
   mDebug("table:dnodes table is created");
   return 0;
 }
 
 void mnodeCleanupDnodes() {
-  sdbCloseTable(tsDnodeSdb);
+  sdbCloseTable(tsDnodeRid);
   pthread_mutex_destroy(&tsDnodeEpsMutex);
   free(tsDnodeEps);
   tsDnodeEps = NULL;
@@ -221,6 +224,10 @@ void mnodeCleanupDnodes() {
 
 void *mnodeGetNextDnode(void *pIter, SDnodeObj **pDnode) { 
   return sdbFetchRow(tsDnodeSdb, pIter, (void **)pDnode); 
+}
+
+void mnodeCancelGetNextDnode(void *pIter) {
+  sdbFreeIter(tsDnodeSdb, pIter);
 }
 
 int32_t mnodeGetDnodesNum() {
@@ -241,8 +248,6 @@ int32_t mnodeGetOnlinDnodesCpuCoreNum() {
     mnodeDecDnodeRef(pDnode);
   }
 
-  sdbFreeIter(pIter);
-
   if (cpuCores < 2) cpuCores = 2;
   return cpuCores;
 }
@@ -259,8 +264,6 @@ int32_t mnodeGetOnlineDnodesNum() {
     mnodeDecDnodeRef(pDnode);
   }
 
-  sdbFreeIter(pIter);
-
   return onlineDnodes;
 }
 
@@ -276,13 +279,12 @@ void *mnodeGetDnodeByEp(char *ep) {
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
     if (strcmp(ep, pDnode->dnodeEp) == 0) {
-      sdbFreeIter(pIter);
+      mnodeCancelGetNextDnode(pIter);
       return pDnode;
     }
     mnodeDecDnodeRef(pDnode);
   }
 
-  sdbFreeIter(pIter);
 
   return NULL;
 }
@@ -345,7 +347,7 @@ static int32_t mnodeProcessCfgDnodeMsg(SMnodeMsg *pMsg) {
       return TSDB_CODE_MND_INVALID_DNODE_CFG_OPTION;
     }
 
-    int32_t code = balanceAlterDnode(pDnode, vnodeId, dnodeId);
+    int32_t code = bnAlterDnode(pDnode, vnodeId, dnodeId);
     mnodeDecDnodeRef(pDnode);
     return code;
   } else {
@@ -464,7 +466,10 @@ static void mnodeUpdateDnodeEps() {
   while (1) {
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
-    if (dnodesNum >= totalDnodes) break;
+    if (dnodesNum >= totalDnodes) {
+      mnodeCancelGetNextDnode(pIter);
+      break;
+    }
 
     SDnodeEp *pEp = &tsDnodeEps->dnodeEps[dnodesNum];
     dnodesNum++;
@@ -474,7 +479,6 @@ static void mnodeUpdateDnodeEps() {
     mnodeDecDnodeRef(pDnode);
   }
 
-  sdbFreeIter(pIter);
   pthread_mutex_unlock(&tsDnodeEpsMutex);
 }
 
@@ -587,8 +591,8 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     mInfo("dnode:%d, from offline to online", pDnode->dnodeId);
     pDnode->status = TAOS_DN_STATUS_READY;
     pDnode->offlineReason = TAOS_DN_OFF_ONLINE;
-    balanceSyncNotify();
-    balanceAsyncNotify();
+    bnCheckModules();
+    bnNotify();
   }
 
   if (openVnodes != pDnode->openVnodes) {
@@ -704,7 +708,7 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
 #ifndef _SYNC
   int32_t code = mnodeDropDnode(pDnode, pMsg);
 #else
-  int32_t code = balanceDropDnode(pDnode);
+  int32_t code = bnDropDnode(pDnode);
 #endif  
   mnodeDecDnodeRef(pDnode);
   return code;
@@ -1100,7 +1104,7 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
     pDnode = mnodeGetDnodeByEp(pShow->payload);
   } else {
     void *pIter = mnodeGetNextDnode(NULL, (SDnodeObj **)&pDnode);
-    sdbFreeIter(pIter);
+    mnodeCancelGetNextDnode(pIter);
   }
 
   if (pDnode != NULL) {
@@ -1148,7 +1152,6 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
 
       mnodeDecVgroupRef(pVgroup);
     }
-    sdbFreeIter(pIter);
   } else {
     numOfRows = 0;
   }
@@ -1179,12 +1182,12 @@ static char* mnodeGetDnodeAlternativeRoleStr(int32_t alternativeRole) {
 
 #ifndef _SYNC
 
-int32_t balanceInit() { return TSDB_CODE_SUCCESS; }
-void    balanceCleanUp() {}
-void    balanceAsyncNotify() {}
-void    balanceSyncNotify() {}
-void    balanceReset() {}
-int32_t balanceAlterDnode(struct SDnodeObj *pDnode, int32_t vnodeId, int32_t dnodeId) { return TSDB_CODE_SYN_NOT_ENABLED; }
+int32_t bnInit() { return TSDB_CODE_SUCCESS; }
+void    bnCleanUp() {}
+void    bnNotify() {}
+void    bnCheckModules() {}
+void    bnReset() {}
+int32_t bnAlterDnode(struct SDnodeObj *pDnode, int32_t vnodeId, int32_t dnodeId) { return TSDB_CODE_SYN_NOT_ENABLED; }
 
 char* syncRole[] = {
   "offline",
@@ -1194,7 +1197,7 @@ char* syncRole[] = {
   "master"
 };
 
-int32_t balanceAllocVnodes(SVgObj *pVgroup) {
+int32_t bnAllocVnodes(SVgObj *pVgroup) {
   void *     pIter = NULL;
   SDnodeObj *pDnode = NULL;
   SDnodeObj *pSelDnode = NULL;
@@ -1216,8 +1219,6 @@ int32_t balanceAllocVnodes(SVgObj *pVgroup) {
     }
     mnodeDecDnodeRef(pDnode);
   }
-
-  sdbFreeIter(pIter);
 
   if (pSelDnode == NULL) {
     mError("failed to alloc vnode to vgroup");

@@ -19,7 +19,7 @@
 #include "tglobal.h"
 #include "trpc.h"
 #include "tsync.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tutil.h"
 #include "tsocket.h"
 #include "tdataformat.h"
@@ -34,6 +34,7 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 
+int64_t              tsMnodeRid = -1;
 static void *        tsMnodeSdb = NULL;
 static int32_t       tsMnodeUpdateSize = 0;
 static SRpcEpSet     tsMnodeEpSetForShell;
@@ -123,7 +124,7 @@ static int32_t mnodeMnodeActionRestored() {
       pMnode->role = TAOS_SYNC_ROLE_MASTER;
       mnodeDecMnodeRef(pMnode);
     }
-    sdbFreeIter(pIter);
+    mnodeCancelGetNextMnode(pIter);
   }
 
   mnodeUpdateMnodeEpSet();
@@ -153,7 +154,8 @@ int32_t mnodeInitMnodes() {
     .fpRestored   = mnodeMnodeActionRestored
   };
 
-  tsMnodeSdb = sdbOpenTable(&desc);
+  tsMnodeRid = sdbOpenTable(&desc);
+  tsMnodeSdb = sdbGetTableByRid(tsMnodeRid);
   if (tsMnodeSdb == NULL) {
     mError("failed to init mnodes data");
     return -1;
@@ -161,13 +163,14 @@ int32_t mnodeInitMnodes() {
 
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_MNODE, mnodeGetMnodeMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_MNODE, mnodeRetrieveMnodes);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_MNODE, mnodeCancelGetNextMnode);
 
   mDebug("table:mnodes table is created");
   return TSDB_CODE_SUCCESS;
 }
 
 void mnodeCleanupMnodes() {
-  sdbCloseTable(tsMnodeSdb);
+  sdbCloseTable(tsMnodeRid);
   tsMnodeSdb = NULL;
   mnodeMnodeDestroyLock();
 }
@@ -190,6 +193,10 @@ void mnodeDecMnodeRef(SMnodeObj *pMnode) {
 
 void *mnodeGetNextMnode(void *pIter, SMnodeObj **pMnode) { 
   return sdbFetchRow(tsMnodeSdb, pIter, (void **)pMnode); 
+}
+
+void mnodeCancelGetNextMnode(void *pIter) {
+  sdbFreeIter(tsMnodeSdb, pIter);
 }
 
 void mnodeUpdateMnodeEpSet() {
@@ -239,8 +246,6 @@ void mnodeUpdateMnodeEpSet() {
   tsMnodeEpSetForShell.numOfEps = index;
   tsMnodeEpSetForPeer.numOfEps = index;
 
-  sdbFreeIter(pIter);
-
   mnodeMnodeUnLock();
 }
 
@@ -248,12 +253,30 @@ void mnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet) {
   mnodeMnodeRdLock();
   *epSet = tsMnodeEpSetForPeer;
   mnodeMnodeUnLock();
+
+  for (int32_t i = 0; i < epSet->numOfEps; ++i) {
+    if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort + TSDB_PORT_DNODEDNODE) {
+      epSet->inUse = (i + 1) % epSet->numOfEps;
+      mTrace("mnode:%d, for peer ep:%s:%u, set inUse to %d", i, epSet->fqdn[i], htons(epSet->port[i]), epSet->inUse);
+    } else {
+      mTrace("mpeer:%d, for peer ep:%s:%u", i, epSet->fqdn[i], htons(epSet->port[i]));
+    }
+  }
 }
 
 void mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet) {
   mnodeMnodeRdLock();
   *epSet = tsMnodeEpSetForShell;
   mnodeMnodeUnLock();
+
+  for (int32_t i = 0; i < epSet->numOfEps; ++i) {
+    if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
+      epSet->inUse = (i + 1) % epSet->numOfEps;
+      mTrace("mnode:%d, for shell ep:%s:%u, set inUse to %d", i, epSet->fqdn[i], htons(epSet->port[i]), epSet->inUse);
+    } else {
+      mTrace("mnode:%d, for shell ep:%s:%u", i, epSet->fqdn[i], htons(epSet->port[i]));
+    }
+  }
 }
 
 char* mnodeGetMnodeMasterEp() {

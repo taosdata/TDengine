@@ -4248,7 +4248,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     tExprTreeDestroy(&p, NULL);
     
     taosArrayDestroy(colList);
-    if (taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0 && !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0 && !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "filter on tag not supported for normal table");
     }
   }
@@ -4256,6 +4256,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
   pCondExpr->pTagCond = NULL;
   return ret;
 }
+
 int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, SSqlObj* pSql) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -5102,7 +5103,7 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
   const int tokenDebugFlagEnd = 20;
   const SDNodeDynConfOption cfgOptions[] = {
       {"resetLog", 8},    {"resetQueryCache", 15},  {"balance", 7},     {"monitor", 7},
-      {"debugFlag", 9},   {"monitorDebugFlag", 16}, {"vDebugFlag", 10}, {"mDebugFlag", 10},
+      {"debugFlag", 9},   {"monDebugFlag", 12},     {"vDebugFlag", 10}, {"mDebugFlag", 10},
       {"cDebugFlag", 10}, {"httpDebugFlag", 13},    {"qDebugflag", 10}, {"sdbDebugFlag", 12},
       {"uDebugFlag", 10}, {"tsdbDebugFlag", 13},    {"sDebugflag", 10}, {"rpcDebugFlag", 12},
       {"dDebugFlag", 10}, {"mqttDebugFlag", 13},    {"wDebugFlag", 10}, {"tmrDebugFlag", 12},
@@ -5306,15 +5307,18 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
 
     // keep original limitation value in globalLimit
     pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
-    pQueryInfo->prjOffset = pQueryInfo->limit.offset;
+    pQueryInfo->prjOffset   = pQueryInfo->limit.offset;
+    pQueryInfo->tableLimit  = -1;
 
     if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
       /*
-       * the limitation/offset value should be removed during retrieve data from virtual node,
-       * since the global order are done in client side, so the limitation should also
-       * be done at the client side.
+       * the offset value should be removed during retrieve data from virtual node, since the
+       * global order are done in client side, so the offset is applied at the client side
+       * However, note that the maximum allowed number of result for each table should be less
+       * than or equal to the value of limit.
        */
       if (pQueryInfo->limit.limit > 0) {
+        pQueryInfo->tableLimit = pQueryInfo->limit.limit + pQueryInfo->limit.offset;
         pQueryInfo->limit.limit = -1;
       }
 
@@ -6648,7 +6652,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pS
       
       return TSDB_CODE_SUCCESS;
     } else {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "not support filter expression");
     }
     
   } else {

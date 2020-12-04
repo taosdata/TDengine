@@ -165,10 +165,10 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
       if (pRsp->streamId) tscKillStream(pObj, htonl(pRsp->streamId));
     }
   } else {
-    tscDebug("%p heartbeat failed, code:%s", pObj->pHb, tstrerror(code));
+    tscDebug("%" PRId64 " heartbeat failed, code:%s", pObj->hbrid, tstrerror(code));
   }
 
-  if (pObj->pHb != NULL) {
+  if (pObj->hbrid != 0) {
     int32_t waitingDuring = tsShellActivityTimer * 500;
     tscDebug("%p send heartbeat in %dms", pSql, waitingDuring);
 
@@ -183,20 +183,12 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
   STscObj *pObj = taosAcquireRef(tscRefId, rid);
   if (pObj == NULL) return; 
 
-  SSqlObj* pHB = pObj->pHb;
-
-  void** p = taosCacheAcquireByKey(tscObjCache, &pHB, sizeof(TSDB_CACHE_PTR_TYPE));
-  if (p == NULL) {
-    tscWarn("%p HB object has been released already", pHB);
-    taosReleaseRef(tscRefId, pObj->rid);
-    return;
-  }
-
-  assert(*pHB->self == pHB);
+  SSqlObj* pHB = taosAcquireRef(tscObjRef, pObj->hbrid);
+  assert(pHB->self == pObj->hbrid);
 
   pHB->retry = 0;
   int32_t code = tscProcessSql(pHB);
-  taosCacheRelease(tscObjCache, (void**) &p, false);
+  taosReleaseRef(tscObjRef, pObj->hbrid);
 
   if (code != TSDB_CODE_SUCCESS) {
     tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
@@ -226,7 +218,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .msgType = pSql->cmd.msgType,
       .pCont   = pMsg,
       .contLen = pSql->cmd.payloadLen,
-      .ahandle = pSql,
+      .ahandle = (void*)pSql->self,
       .handle  = NULL,
       .code    = 0
   };
@@ -237,26 +229,24 @@ int tscSendMsgToServer(SSqlObj *pSql) {
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   TSDB_CACHE_PTR_TYPE handle = (TSDB_CACHE_PTR_TYPE) rpcMsg->ahandle;
-  void** p = taosCacheAcquireByKey(tscObjCache, &handle, sizeof(TSDB_CACHE_PTR_TYPE));
-  if (p == NULL) {
+  SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, handle);
+  if (pSql == NULL) {
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
-
-  SSqlObj* pSql = *p;
-  assert(pSql != NULL);
+  assert(pSql->self == handle);
 
   STscObj *pObj = pSql->pTscObj;
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  assert(*pSql->self == pSql);
   pSql->rpcRid = -1;
 
   if (pObj->signature != pObj) {
     tscDebug("%p DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command, pObj, pObj->signature);
 
-    taosCacheRelease(tscObjCache, (void**) &p, true);
+    taosRemoveRef(tscObjRef, pSql->self);
+    taosReleaseRef(tscObjRef, pSql->self);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -266,10 +256,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     tscDebug("%p sqlObj needs to be released or DB connection is closed, cmd:%d type:%d, pObj:%p signature:%p",
         pSql, pCmd->command, pQueryInfo->type, pObj, pObj->signature);
 
-    void** p1 = p;
-    taosCacheRelease(tscObjCache, (void**) &p1, false);
-
-    taosCacheRelease(tscObjCache, (void**) &p, true);
+    taosRemoveRef(tscObjRef, pSql->self);
+    taosReleaseRef(tscObjRef, pSql->self);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -312,7 +300,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
       // if there is an error occurring, proceed to the following error handling procedure.
       if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-        taosCacheRelease(tscObjCache, (void**) &p, false);
+        taosReleaseRef(tscObjRef, pSql->self);
         rpcFreeCont(rpcMsg->pCont);
         return;
       }
@@ -380,11 +368,10 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
 
-  void** p1 = p;
-  taosCacheRelease(tscObjCache, (void**) &p1, false);
+  taosReleaseRef(tscObjRef, pSql->self);
 
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
-    taosCacheRelease(tscObjCache, (void **)&p, true);
+    taosRemoveRef(tscObjRef, pSql->self);
     tscDebug("%p sqlObj is automatically freed", pSql);
   }
 
@@ -687,6 +674,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
   pQueryMsg->numOfTags      = htonl(numOfTags);
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
+  pQueryMsg->tableLimit     = htobe64(pQueryInfo->tableLimit);
   
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryMsg->numOfOutput = htons((int16_t)numOfOutput);  // this is the stage one output column number
@@ -2010,7 +1998,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
 
 // TODO multithread problem
 static void createHBObj(STscObj* pObj) {
-  if (pObj->pHb != NULL) {
+  if (pObj->hbrid != 0) {
     return;
   }
 
@@ -2042,7 +2030,7 @@ static void createHBObj(STscObj* pObj) {
   registerSqlObj(pSql);
   tscDebug("%p HB is allocated, pObj:%p", pSql, pObj);
 
-  pObj->pHb = pSql;
+  pObj->hbrid = pSql->self;
 }
 
 int tscProcessConnectRsp(SSqlObj *pSql) {
