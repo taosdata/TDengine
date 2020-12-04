@@ -399,14 +399,16 @@ int main(int argc, char** argv) {
 //  join_mt0.t1=join_mt1.t1 and join_mt0.c2=99;;", NULL);
 //  return 0;
 
+
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
     executeSQL(conn, "use test", NULL);
-    for(int32_t i = 0; i < 10000; ++i) {
-      char t[1024] = {0};
-      sprintf(t, "insert into tm0 values(%d, %d) tm1 values(%d, %d)", 1000000 + i * 6000, i%100, 1000000 + i * 6000 + i * 10, i%110);
-      TAOS_RES* res = taos_query(conn, t);
-      taos_free_result(res);
-    }
+    executeSQL(conn, "select top(k, 1), K from t1", NULL);
+//    for(int32_t i = 0; i < 10000; ++i) {
+//      char t[1024] = {0};
+//      sprintf(t, "insert into tm0 values(%d, %d) tm1 values(%d, %d)", 1000000 + i * 6000, i%100, 1000000 + i * 6000 + i * 10, i%110);
+//      TAOS_RES* res = taos_query(conn, t);
+//      taos_free_result(res);
+//    }
 
 //    executeSQL(conn, "select ts from m1 order by ts desc limit 5", NULL);
 
