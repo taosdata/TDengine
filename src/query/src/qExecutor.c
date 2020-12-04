@@ -4064,6 +4064,9 @@ void finalizeQueryResult(SQueryRuntimeEnv *pRuntimeEnv) {
        * the top and bottom query
        */
       buf->numOfRows = (uint16_t)getNumOfResult(pRuntimeEnv);
+      if (pRuntimeEnv->groupbyNormalCol && !pRuntimeEnv->topBotQuery) {
+         buf->numOfRows = 1;
+      }
     }
 
   } else {
