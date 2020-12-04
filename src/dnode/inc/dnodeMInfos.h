@@ -24,9 +24,9 @@ extern "C" {
 
 int32_t dnodeInitMInfos();
 void    dnodeCleanupMInfos();
-void    dnodeUpdateMInfos(SMnodeInfos *minfos);
-void    dnodeUpdateEpSetForPeer(SRpcEpSet *epSet);
-void    dnodeGetMInfos(SMnodeInfos *minfos);
+void    dnodeUpdateMInfos(SMInfos *pMinfos);
+void    dnodeUpdateEpSetForPeer(SRpcEpSet *pEpSet);
+void    dnodeGetMInfos(SMInfos *pMinfos);
 bool    dnodeIsMasterEp(char *ep);
 
 #ifdef __cplusplus

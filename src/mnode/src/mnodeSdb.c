@@ -224,11 +224,13 @@ void sdbUpdateMnodeRoles() {
       sdbInfo("vgId:1, mnode:%d, role:%s", pMnode->mnodeId, syncRole[pMnode->role]);
       if (pMnode->mnodeId == dnodeGetDnodeId()) tsSdbMgmt.role = pMnode->role;
       mnodeDecMnodeRef(pMnode);
+    } else {
+      sdbDebug("vgId:1, mnode:%d not found", roles.nodeId[i]);
     }
   }
 
   mnodeUpdateClusterId();
-  mnodeUpdateMnodeEpSet();
+  mnodeUpdateMnodeEpSet(NULL);
 }
 
 static uint32_t sdbGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion) {
@@ -308,18 +310,20 @@ void sdbUpdateAsync() {
 }
 
 void sdbUpdateSync(void *pMnodes) {
-  SMnodeInfos *mnodes = pMnodes;
+  SMInfos *pMinfos = pMnodes;
   if (!mnodeIsRunning()) {
     mDebug("vgId:1, mnode not start yet, update sync config later");
     return;
   }
 
-  mDebug("vgId:1, update sync config in sync module, mnodes:%p", pMnodes);
+  mDebug("vgId:1, update sync config, pMnodes:%p", pMnodes);
 
   SSyncCfg syncCfg = {0};
   int32_t  index = 0;
 
-  if (mnodes == NULL) {
+  if (pMinfos == NULL) {
+    mDebug("vgId:1, mInfos not input, use mInfos in sdb, numOfMnodes:%d", syncCfg.replica);
+
     void *pIter = NULL;
     while (1) {
       SMnodeObj *pMnode = NULL;
@@ -339,16 +343,17 @@ void sdbUpdateSync(void *pMnodes) {
       mnodeDecMnodeRef(pMnode);
     }
     syncCfg.replica = index;
-    mDebug("vgId:1, mnodes info not input, use infos in sdb, numOfMnodes:%d", syncCfg.replica);
   } else {
-    for (index = 0; index < mnodes->mnodeNum; ++index) {
-      SMnodeInfo *node = &mnodes->mnodeInfos[index];
+    mDebug("vgId:1, mInfos input, numOfMnodes:%d", syncCfg.replica);
+
+    for (index = 0; index < pMinfos->mnodeNum; ++index) {
+      SMInfo *node = &pMinfos->mnodeInfos[index];
       syncCfg.nodeInfo[index].nodeId = node->mnodeId;
       taosGetFqdnPortFromEp(node->mnodeEp, syncCfg.nodeInfo[index].nodeFqdn, &syncCfg.nodeInfo[index].nodePort);
       syncCfg.nodeInfo[index].nodePort += TSDB_PORT_SYNC;
     }
     syncCfg.replica = index;
-    mDebug("vgId:1, mnodes info input, numOfMnodes:%d", syncCfg.replica);
+    mnodeUpdateMnodeEpSet(pMnodes);
   }
 
   syncCfg.quorum = (syncCfg.replica == 1) ? 1 : 2;
@@ -1102,4 +1107,8 @@ static void *sdbWorkerFp(void *pWorker) {
   }
 
   return NULL;
+}
+
+int32_t sdbGetReplicaNum() {
+  return tsSdbMgmt.cfg.replica;
 }

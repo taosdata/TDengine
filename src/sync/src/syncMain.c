@@ -548,7 +548,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   pPeer->pSyncNode = pNode;
   pPeer->refCount = 1;
 
-  sInfo("%s, it is configured", pPeer->id);
+  sInfo("%s, it is configured, ep:%s:%u", pPeer->id, pPeer->fqdn, pPeer->port);
   int32_t ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || (ret > 0) || (ret == 0 && pPeer->port > tsSyncPort)) {
     int32_t checkMs = 100 + (pNode->vgId * 10) % 100;
