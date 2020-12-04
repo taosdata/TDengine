@@ -191,9 +191,16 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 void tscProcessActivityTimer(void *handle, void *tmrId) {
   int64_t rid = (int64_t) handle;
   STscObj *pObj = taosAcquireRef(tscRefId, rid);
-  if (pObj == NULL) return; 
+  if (pObj == NULL) {
+    return;
+  }
 
   SSqlObj* pHB = taosAcquireRef(tscObjRef, pObj->hbrid);
+  if (pHB == NULL) {
+    taosReleaseRef(tscRefId, rid);
+    return;
+  }
+
   assert(pHB->self == pObj->hbrid);
 
   pHB->retry = 0;
