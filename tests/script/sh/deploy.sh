@@ -120,7 +120,7 @@ echo "cDebugFlag             143"                >> $TAOS_CFG
 echo "jnidebugFlag           143"                >> $TAOS_CFG
 echo "odbcdebugFlag          143"                >> $TAOS_CFG
 echo "httpDebugFlag          143"                >> $TAOS_CFG
-echo "monitorDebugFlag       143"                >> $TAOS_CFG
+echo "monDebugFlag           143"                >> $TAOS_CFG
 echo "mqttDebugFlag          143"                >> $TAOS_CFG
 echo "qdebugFlag             143"                >> $TAOS_CFG
 echo "rpcDebugFlag           143"                >> $TAOS_CFG

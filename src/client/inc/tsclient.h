@@ -246,11 +246,14 @@ typedef struct SQueryInfo {
   int16_t          fillType;      // final result fill type
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
-  struct STSBuf *  tsBuf;
+  struct STSBuf   *tsBuf;
   int64_t *        fillVal;       // default value for fill
   char *           msg;           // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;   // limit for current sub clause
+
   int64_t          prjOffset;     // offset value in the original sql expression, only applied at client side
+  int64_t          tableLimit;    // table limit in case of super table projection query + global order + limit
+
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
   int16_t          resColumnId;   // result column id
 } SQueryInfo;

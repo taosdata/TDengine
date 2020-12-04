@@ -51,10 +51,12 @@ class TdeInstance():
     def prepareGcovEnv(cls, env):
         # Ref: https://gcc.gnu.org/onlinedocs/gcc/Cross-profiling.html
         bPath = cls._getBuildPath() # build PATH
-        numSegments = len(bPath.split('/')) - 1 # "/x/TDengine/build" should yield 3
-        numSegments = numSegments - 1 # DEBUG only
-        env['GCOV_PREFIX'] = bPath + '/svc_gcov'
+        numSegments = len(bPath.split('/')) # "/x/TDengine/build" should yield 3
+        # numSegments += 2 # cover "/src" after build
+        # numSegments = numSegments - 1 # DEBUG only
+        env['GCOV_PREFIX'] = bPath + '/src_s' # Server side source
         env['GCOV_PREFIX_STRIP'] = str(numSegments) # Strip every element, plus, ENV needs strings
+        # VERY VERY important note: GCOV data collection NOT effective upon SIG_KILL
         Logging.info("Preparing GCOV environement to strip {} elements and use path: {}".format(
             numSegments, env['GCOV_PREFIX'] ))
 
@@ -258,14 +260,15 @@ class TdeSubProcess:
         TdeInstance.prepareGcovEnv(myEnv)
 
         # print(myEnv)
-        # print(myEnv.items())
+        # print("Starting TDengine with env: ", myEnv.items())
         # print("Starting TDengine via Shell: {}".format(cmdLineStr))
 
         useShell = True    
         self.subProcess = subprocess.Popen(
-            ' '.join(cmdLine) if useShell else cmdLine,
-            shell=useShell,
-            # svcCmdSingle, shell=True, # capture core dump?
+            # ' '.join(cmdLine) if useShell else cmdLine,
+            # shell=useShell,
+            ' '.join(cmdLine),
+            shell=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             # bufsize=1, # not supported in binary mode
@@ -273,7 +276,8 @@ class TdeSubProcess:
             env=myEnv
             )  # had text=True, which interferred with reading EOF
 
-    STOP_SIGNAL = signal.SIGKILL # What signal to use (in kill) to stop a taosd process?
+    STOP_SIGNAL = signal.SIGKILL # signal.SIGKILL/SIGINT # What signal to use (in kill) to stop a taosd process?
+    SIG_KILL_RETCODE = 137 # ref: https://stackoverflow.com/questions/43268156/process-finished-with-exit-code-137-in-pycharm
 
     def stop(self):
         """
@@ -320,8 +324,12 @@ class TdeSubProcess:
         retCode = self.subProcess.returncode # should always be there
         # May throw subprocess.TimeoutExpired exception above, therefore
         # The process is guranteed to have ended by now
-        self.subProcess = None        
-        if retCode != 0: # != (- signal.SIGINT):
+        self.subProcess = None       
+        if retCode == self.SIG_KILL_RETCODE:
+            Logging.info("TSP.stop(): sub proc KILLED, as expected")
+        elif retCode == (- self.STOP_SIGNAL):
+            Logging.info("TSP.stop(), sub process STOPPED, as expected")
+        elif retCode != 0: # != (- signal.SIGINT):
             Logging.error("TSP.stop(): Failed to stop sub proc properly w/ SIG {}, retCode={}".format(
                 self.STOP_SIGNAL, retCode))
         else:

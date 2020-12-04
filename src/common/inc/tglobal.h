@@ -125,6 +125,9 @@ extern char    tsMonitorDbName[];
 extern char    tsInternalPass[];
 extern int32_t tsMonitorInterval;
 
+// stream
+extern int32_t tsEnableStream;
+
 // internal
 extern int32_t tsPrintAuth;
 extern int32_t tscEmbedded;
@@ -176,7 +179,7 @@ extern int32_t tmrDebugFlag;
 extern int32_t sdbDebugFlag;
 extern int32_t httpDebugFlag;
 extern int32_t mqttDebugFlag;
-extern int32_t monitorDebugFlag;
+extern int32_t monDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t odbcDebugFlag;

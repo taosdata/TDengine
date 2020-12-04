@@ -14,9 +14,9 @@ public final class JdbcTaosdemoConfig {
     //Destination database. Default is 'test'
     private String dbName = "test";
     //keep
-    private int keep = 3650;
+    private int keep = 36500;
     //days
-    private int days = 10;
+    private int days = 120;
 
     //Super table Name. Default is 'meters'
     private String stbName = "meters";
