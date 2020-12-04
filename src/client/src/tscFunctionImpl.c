@@ -2466,7 +2466,7 @@ static bool percentile_function_setup(SQLFunctionCtx *pCtx) {
 static void percentile_function(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
   
-  SResultRowCellInfo *    pResInfo = GET_RES_INFO(pCtx);
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   // the first stage, only acquire the min/max value
@@ -2567,12 +2567,14 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
   double v = pCtx->param[0].nType == TSDB_DATA_TYPE_INT ? pCtx->param[0].i64Key : pCtx->param[0].dKey;
   
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  tMemBucket * pMemBucket = ((SPercentileInfo *)GET_ROWCELL_INTERBUF(pResInfo))->pMemBucket;
-  
-  if (pMemBucket->total > 0) {  // check for null
-    *(double *)pCtx->aOutputBuf = getPercentile(pMemBucket, v);
-  } else {
+  SPercentileInfo* ppInfo = (SPercentileInfo *) GET_ROWCELL_INTERBUF(pResInfo);
+
+  tMemBucket * pMemBucket = ppInfo->pMemBucket;
+  if (pMemBucket == NULL || pMemBucket->total == 0) {  // check for null
+    assert(ppInfo->numOfElems == 0);
     setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+  } else {
+    *(double *)pCtx->aOutputBuf = getPercentile(pMemBucket, v);
   }
   
   tMemBucketDestroy(pMemBucket);
