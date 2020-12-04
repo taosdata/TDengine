@@ -20,7 +20,7 @@
 #include "tgrant.h"
 #include "tglobal.h"
 #include "tname.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tdataformat.h"
 #include "mnode.h"
 #include "mnodeDef.h"
@@ -250,7 +250,7 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
   }
 
   if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > pCfg->daysToKeep) {
-    mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, pCfg->daysToKeep);
+    mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep2, TSDB_MIN_KEEP, pCfg->daysToKeep);
     return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
 
@@ -1004,7 +1004,7 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
   mDebug("db:%s, all vgroups is altered", pDb->name);
   mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
-  balanceAsyncNotify();
+  bnNotify();
 
   return TSDB_CODE_SUCCESS;
 }

@@ -39,6 +39,7 @@ void tscInitConnCb(void *param, TAOS_RES *result, int code) {
     tscSlowQueryConnInitialized = true;
     tscSaveSlowQueryFp(sql, NULL);
   }
+  taos_free_result(result);
 }
 
 void tscAddIntoSqlList(SSqlObj *pSql) {
@@ -69,6 +70,7 @@ void tscSaveSlowQueryFpCb(void *param, TAOS_RES *result, int code) {
   } else {
     tscDebug("success to save slow query, code:%d", code);
   }
+  taos_free_result(result);
 }
 
 void tscSaveSlowQueryFp(void *handle, void *tmrId) {

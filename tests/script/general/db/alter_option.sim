@@ -115,31 +115,31 @@ if $data7_db != 20,20,20 then
   return -1
 endi
 
-sql alter database db keep 10
-sql show databases
-print keep $data7_db
-if $data7_db != 20,20,10 then 
-  return -1
-endi
-
 sql alter database db keep 20
 sql show databases
 print keep $data7_db
-if $data7_db != 20,20,20 then 
+if $data7_db != 20,20,20 then
   return -1
 endi
 
 sql alter database db keep 30
 sql show databases
 print keep $data7_db
-if $data7_db != 20,20,30 then 
+if $data7_db != 20,20,30 then
+  return -1
+endi
+
+sql alter database db keep 40
+sql show databases
+print keep $data7_db
+if $data7_db != 20,20,40 then
   return -1
 endi
 
 sql alter database db keep 40
 sql alter database db keep 30
 sql alter database db keep 20
-sql alter database db keep 10
+sql_error alter database db keep 10
 sql_error alter database db keep 9
 sql_error alter database db keep 1
 sql alter database db keep 0

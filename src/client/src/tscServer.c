@@ -684,6 +684,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
   pQueryMsg->numOfTags      = htonl(numOfTags);
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
+  pQueryMsg->tableLimit     = htobe64(pQueryInfo->tableLimit);
   
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryMsg->numOfOutput = htons((int16_t)numOfOutput);  // this is the stage one output column number
@@ -2058,6 +2059,10 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   if (pConnect->epSet.numOfEps > 0) {
     tscEpSetHtons(&pConnect->epSet);
     tscUpdateMgmtEpSet(&pConnect->epSet);
+
+    for (int i = 0; i < pConnect->epSet.numOfEps; ++i) {
+      tscDebug("%p epSet.fqdn[%d]: %s, pObj:%p", pSql, i, pConnect->epSet.fqdn[i], pObj);
+    }
   } 
 
   strcpy(pObj->sversion, pConnect->serverVersion);

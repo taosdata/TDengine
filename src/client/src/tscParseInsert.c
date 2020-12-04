@@ -630,11 +630,17 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-static void tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
+static int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
   pBlocks->tid = pTableMeta->id.tid;
   pBlocks->uid = pTableMeta->id.uid;
   pBlocks->sversion = pTableMeta->sversion;
-  pBlocks->numOfRows += numOfRows;
+
+  if (pBlocks->numOfRows + numOfRows >= INT16_MAX) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  } else {
+    pBlocks->numOfRows += numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 // data block is disordered, sort it in ascending order
@@ -722,7 +728,11 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableList, char **st
   }
 
   SSubmitBlk *pBlocks = (SSubmitBlk *)(dataBuf->pData);
-  tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
+  code = tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscInvalidSQLErrMsg(pCmd->payload, "too many rows in sql, total number of rows should be less than 32767", *str);
+    return code;
+  }
 
   dataBuf->vgId = pTableMeta->vgroupInfo.vgId;
   dataBuf->numOfTables = 1;
@@ -1384,7 +1394,10 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
   STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
 
   SSubmitBlk *pBlocks = (SSubmitBlk *)(pTableDataBlocks->pData);
-  tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
+  code = tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return tscInvalidSQLErrMsg(pCmd->payload, "too many rows in sql, total number of rows should be less than 32767", NULL);
+  }
 
   if ((code = tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks)) != TSDB_CODE_SUCCESS) {
     return code;
