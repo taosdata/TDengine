@@ -48,7 +48,7 @@ void    mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet);
 char*   mnodeGetMnodeMasterEp();
 
 void    mnodeGetMnodeInfos(void *mnodes);
-void    mnodeUpdateMnodeEpSet();
+void    mnodeUpdateMnodeEpSet(SMInfos *pMnodes);
 
 #ifdef __cplusplus
 }
