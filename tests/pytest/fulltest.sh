@@ -19,6 +19,7 @@ python3 ./test.py -f insert/randomNullCommit.py
 python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
+python3 ./test.py -f insert/before_1970.py
 
 python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
@@ -228,6 +229,7 @@ python3 ./test.py -f update/merge_commit_data2.py
 python3 ./test.py -f update/merge_commit_data2_update0.py
 python3 ./test.py -f update/merge_commit_last-0.py
 python3 ./test.py -f update/merge_commit_last.py
+python3 ./test.py -f update/bug_td2279.py
 
 # wal
 python3 ./test.py -f wal/addOldWalTest.py

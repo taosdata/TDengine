@@ -78,7 +78,7 @@ class DbConn:
         if nRows != 1:
             raise taos.error.ProgrammingError(
                 "Unexpected result for query: {}, rows = {}".format(sql, nRows), 
-                (0x991 if nRows==0 else 0x992)
+                (CrashGenError.INVALID_EMPTY_RESULT if nRows==0 else CrashGenError.INVALID_MULTIPLE_RESULT)
             )
         if self.getResultRows() != 1 or self.getResultCols() != 1:
             raise RuntimeError("Unexpected result set for query: {}".format(sql))
@@ -349,7 +349,8 @@ class DbConnNative(DbConn):
 
     def execute(self, sql):
         if (not self.isOpen):
-            raise RuntimeError("Cannot execute database commands until connection is open")
+            raise CrashGenError(
+                "Cannot exec SQL unless db connection is open", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))
         self._lastSql = sql
         nRows = self._tdSql.execute(sql)
@@ -360,8 +361,8 @@ class DbConnNative(DbConn):
 
     def query(self, sql):  # return rows affected
         if (not self.isOpen):
-            raise RuntimeError(
-                "Cannot query database until connection is open")
+            raise CrashGenError(
+                "Cannot query database until connection is open, restarting?", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))
         self._lastSql = sql
         nRows = self._tdSql.query(sql)

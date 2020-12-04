@@ -426,8 +426,7 @@ static void count_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   }
   
   SET_VAL(pCtx, 1, 1);
-  
-  *((int64_t *)pCtx->aOutputBuf) += 1;
+  *((int64_t *)pCtx->aOutputBuf) += pCtx->size;
   
   // do not need it actually
   SResultRowCellInfo *pInfo = GET_RES_INFO(pCtx);
@@ -3632,114 +3631,119 @@ static bool twa_function_setup(SQLFunctionCtx *pCtx) {
   return true;
 }
 
-static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t size) {
+static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t tsIndex, int32_t index, int32_t size) {
   int32_t notNullElems = 0;
   TSKEY *primaryKey = pCtx->ptsList;
   
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
   int32_t i = index;
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
 
   if (pCtx->start.key != INT64_MIN) {
-    assert(pCtx->start.key < primaryKey[index] && pInfo->lastKey == INT64_MIN);
+    assert((pCtx->start.key < primaryKey[tsIndex + i] && pCtx->order == TSDB_ORDER_ASC) ||
+               (pCtx->start.key > primaryKey[tsIndex + i] && pCtx->order == TSDB_ORDER_DESC));
 
-    pInfo->lastKey = primaryKey[index];
-    GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, 0));
+    assert(pInfo->lastKey == INT64_MIN);
+
+    pInfo->lastKey = primaryKey[tsIndex + i];
+    GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
 
     pInfo->dOutput += ((pInfo->lastValue + pCtx->start.val) / 2) * (pInfo->lastKey - pCtx->start.key);
 
     pInfo->hasResult = DATA_SET_FLAG;
-    pInfo->win.skey  = pCtx->start.key;
+    pInfo->win.skey = pCtx->start.key;
     notNullElems++;
-    i += 1;
+    i += step;
   } else if (pInfo->lastKey == INT64_MIN) {
-    pInfo->lastKey = primaryKey[index];
-    GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, 0));
+    pInfo->lastKey = primaryKey[tsIndex + i];
+    GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
 
     pInfo->hasResult = DATA_SET_FLAG;
-    pInfo->win.skey  = pInfo->lastKey;
+    pInfo->win.skey = pInfo->lastKey;
     notNullElems++;
-    i += 1;
+    i += step;
   }
 
   // calculate the value of
   switch(pCtx->inputType) {
     case TSDB_DATA_TYPE_TINYINT: {
-      int8_t *val = (int8_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (; i < size; i++) {
+      int8_t *val = (int8_t*) GET_INPUT_CHAR_INDEX(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i] - pInfo->lastKey);
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
         pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i];
+        pInfo->lastKey = primaryKey[i + tsIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t *val = (int16_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (; i < size; i++) {
+      int16_t *val = (int16_t*) GET_INPUT_CHAR_INDEX(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i] - pInfo->lastKey);
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
         pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i];
+        pInfo->lastKey = primaryKey[i + tsIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_INT: {
-      int32_t *val = (int32_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (; i < size; i++) {
+      int32_t *val = (int32_t*) GET_INPUT_CHAR_INDEX(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i] - pInfo->lastKey);
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
         pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i];
+        pInfo->lastKey = primaryKey[i + tsIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_BIGINT: {
-      int64_t *val = (int64_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (; i < size; i++) {
+      int64_t *val = (int64_t*) GET_INPUT_CHAR_INDEX(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i] - pInfo->lastKey);
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
         pInfo->lastValue = (double) val[i];
-        pInfo->lastKey = primaryKey[i];
+        pInfo->lastKey = primaryKey[i + tsIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
-      float *val = (float*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (; i < size; i++) {
+      float *val = (float*) GET_INPUT_CHAR_INDEX(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i] - pInfo->lastKey);
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
         pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i];
+        pInfo->lastKey = primaryKey[i + tsIndex];
       }
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      double *val = (double*) GET_INPUT_CHAR_INDEX(pCtx, index);
-      for (; i < size; i++) {
+      double *val = (double*) GET_INPUT_CHAR_INDEX(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i] - pInfo->lastKey);
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
         pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i];
+        pInfo->lastKey = primaryKey[i + tsIndex];
       }
       break;
     }
@@ -3764,16 +3768,13 @@ static void twa_function(SQLFunctionCtx *pCtx) {
   STwaInfo *   pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   // skip null value
-  int32_t i = 0;
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  int32_t i = (pCtx->order == TSDB_ORDER_ASC)? 0:(pCtx->size - 1);
   while (pCtx->hasNull && i < pCtx->size && isNull((char *)data + pCtx->inputBytes * i, pCtx->inputType)) {
-    i++;
+    i += step;
   }
-  
-  if (i >= pCtx->size) {
-    return;
-  }
-  
-  int32_t notNullElems = twa_function_impl(pCtx, pCtx->startOffset, pCtx->size);
+
+  int32_t notNullElems = twa_function_impl(pCtx, pCtx->startOffset, i, pCtx->size);
   SET_VAL(pCtx, notNullElems, 1);
   
   if (notNullElems > 0) {
@@ -3791,11 +3792,136 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
     return;
   }
 
-  int32_t notNullElems = twa_function_impl(pCtx, index, 1);
+  int32_t notNullElems = 0;
+  TSKEY *primaryKey = pCtx->ptsList;
+
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+
+  STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  int32_t i = pCtx->startOffset;
+  int32_t size = pCtx->size;
+
+  if (pCtx->start.key != INT64_MIN) {
+    assert(pInfo->lastKey == INT64_MIN);
+
+    pInfo->lastKey = primaryKey[index];
+    GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
+
+    pInfo->dOutput += ((pInfo->lastValue + pCtx->start.val) / 2) * (pInfo->lastKey - pCtx->start.key);
+
+    pInfo->hasResult = DATA_SET_FLAG;
+    pInfo->win.skey = pCtx->start.key;
+    notNullElems++;
+    i += 1;
+  } else if (pInfo->lastKey == INT64_MIN) {
+    pInfo->lastKey = primaryKey[index];
+    GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
+
+    pInfo->hasResult = DATA_SET_FLAG;
+    pInfo->win.skey = pInfo->lastKey;
+    notNullElems++;
+    i += 1;
+  }
+
+  // calculate the value of
+  switch(pCtx->inputType) {
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t *val = (int8_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
+      for (; i < size; i++) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
+        pInfo->lastValue = val[i];
+        pInfo->lastKey = primaryKey[i + index];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t *val = (int16_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
+      for (; i < size; i++) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
+        pInfo->lastValue = val[i];
+        pInfo->lastKey = primaryKey[i + index];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      int32_t *val = (int32_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
+      for (; i < size; i++) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
+        pInfo->lastValue = val[i];
+        pInfo->lastKey = primaryKey[i + index];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t *val = (int64_t*) GET_INPUT_CHAR_INDEX(pCtx, index);
+      for (; i < size; i++) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
+        pInfo->lastValue = (double) val[i];
+        pInfo->lastKey = primaryKey[i + index];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float *val = (float*) GET_INPUT_CHAR_INDEX(pCtx, index);
+      for (; i < size; i++) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
+        pInfo->lastValue = val[i];
+        pInfo->lastKey = primaryKey[i + index];
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double *val = (double*) GET_INPUT_CHAR_INDEX(pCtx, index);
+      for (; i < size; i++) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
+        pInfo->lastValue = val[i];
+        pInfo->lastKey = primaryKey[i + index];
+      }
+      break;
+    }
+    default: assert(0);
+  }
+
+  // the last interpolated time window value
+  if (pCtx->end.key != INT64_MIN) {
+    pInfo->dOutput  += ((pInfo->lastValue + pCtx->end.val) / 2) * (pCtx->end.key - pInfo->lastKey);
+    pInfo->lastValue = pCtx->end.val;
+    pInfo->lastKey   = pCtx->end.key;
+  }
+
+  pInfo->win.ekey  = pInfo->lastKey;
+
   SET_VAL(pCtx, notNullElems, 1);
 
+  if (notNullElems > 0) {
+    pResInfo->hasResult = DATA_SET_FLAG;
+  }
+
   if (pCtx->stableQuery) {
-    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
     memcpy(pCtx->aOutputBuf, GET_ROWCELL_INTERBUF(pResInfo), sizeof(STwaInfo));
   }
 }

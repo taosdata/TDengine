@@ -78,10 +78,10 @@ static void dnodeAllocModules() {
 
   tsModule[TSDB_MOD_MONITOR].enable    = (tsEnableMonitorModule == 1);
   tsModule[TSDB_MOD_MONITOR].name      = "monitor";
-  tsModule[TSDB_MOD_MONITOR].initFp    = monitorInitSystem;
-  tsModule[TSDB_MOD_MONITOR].cleanUpFp = monitorCleanUpSystem;
-  tsModule[TSDB_MOD_MONITOR].startFp   = monitorStartSystem;
-  tsModule[TSDB_MOD_MONITOR].stopFp    = monitorStopSystem;
+  tsModule[TSDB_MOD_MONITOR].initFp    = monInitSystem;
+  tsModule[TSDB_MOD_MONITOR].cleanUpFp = monCleanupSystem;
+  tsModule[TSDB_MOD_MONITOR].startFp   = monStartSystem;
+  tsModule[TSDB_MOD_MONITOR].stopFp    = monStopSystem;
   if (tsEnableMonitorModule) {
     dnodeSetModuleStatus(TSDB_MOD_MONITOR);
   }

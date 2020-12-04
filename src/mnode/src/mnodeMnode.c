@@ -19,7 +19,7 @@
 #include "tglobal.h"
 #include "trpc.h"
 #include "tsync.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tutil.h"
 #include "tsocket.h"
 #include "tdataformat.h"

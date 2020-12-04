@@ -267,16 +267,18 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
     return terrno;
   }
 
-  SCqCfg cqCfg = {0};
-  sprintf(cqCfg.user, "_root");
-  strcpy(cqCfg.pass, tsInternalPass);
-  strcpy(cqCfg.db, pVnode->db);
-  cqCfg.vgId = vnode;
-  cqCfg.cqWrite = vnodeWriteToCache;
-  pVnode->cq = cqOpen(pVnode, &cqCfg);
-  if (pVnode->cq == NULL) {
-    vnodeCleanUp(pVnode);
-    return terrno;
+  if (tsEnableStream) {
+    SCqCfg cqCfg = {0};
+    sprintf(cqCfg.user, "_root");
+    strcpy(cqCfg.pass, tsInternalPass);
+    strcpy(cqCfg.db, pVnode->db);
+    cqCfg.vgId = vnode;
+    cqCfg.cqWrite = vnodeWriteToCache;
+    pVnode->cq = cqOpen(pVnode, &cqCfg);
+    if (pVnode->cq == NULL) {
+      vnodeCleanUp(pVnode);
+      return terrno;
+    }
   }
 
   STsdbAppH appH = {0};
