@@ -591,13 +591,13 @@ typedef struct {
 typedef struct {
   int32_t mnodeId;
   char    mnodeEp[TSDB_EP_LEN];
-} SMnodeInfo;
+} SMInfo;
 
 typedef struct {
-  int8_t     inUse;
-  int8_t     mnodeNum;
-  SMnodeInfo mnodeInfos[TSDB_MAX_REPLICA];
-} SMnodeInfos;
+  int8_t inUse;
+  int8_t mnodeNum;
+  SMInfo mnodeInfos[TSDB_MAX_REPLICA];
+} SMInfos;
 
 typedef struct {
   int32_t  numOfMnodes;               // tsNumOfMnodes
@@ -632,7 +632,7 @@ typedef struct {
 } SStatusMsg;
 
 typedef struct {
-  SMnodeInfos   mnodes;
+  SMInfos       mnodes;
   SDnodeCfg     dnodeCfg;
   SVgroupAccess vgAccess[];
 } SStatusRsp;
@@ -761,7 +761,7 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   char    dnodeEp[TSDB_EP_LEN];  // end point, hostname:port
-  SMnodeInfos mnodes;
+  SMInfos mnodes;
 } SCreateMnodeMsg;
 
 typedef struct {
