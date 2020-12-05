@@ -15,14 +15,16 @@ fi
 #
 echo "generate release notes>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>"
 cd $communityDir/
+#git log origin/$fromBranch..origin/$toBranch --pretty=format:'%b' > ./releaseNotes.tmp
 git log origin/$fromBranch..origin/$toBranch --pretty=format:'%s' > ./releaseNotes.tmp
+
 # fix
 echo "Release Notes" > ReleaseNotes
 echo "" >> ReleaseNotes
 # fix
 echo "FIX BUGS:" >> ReleaseNotes
 grep '\[[tT][dD]-.*\] *<hotfix>:' ./releaseNotes.tmp | sed 's/ *<hotfix>//' | awk -F: '{print $1 ":" $2}' >> ReleaseNotes
-# grep '\[[tT][dD]-.*\] *<fix>:' ./releaseNotes.tmp | sed 's/ *<fix>//' | awk -F: '{print $1 ":" $2}'
+grep '\[[tT][dD]-.*\] *<fix>:' ./releaseNotes.tmp | sed 's/ *<fix>//' | awk -F: '{print $1 ":" $2}' >> ReleaseNotes
 echo "" >> ReleaseNotes
 
 # enhance
