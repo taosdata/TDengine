@@ -24,7 +24,7 @@ extern "C" {
 
 int32_t vnodeInitCWorker();
 void    vnodeCleanupCWorker();
-int32_t vnodeWriteIntoCQueue(SVReadMsg *pRead);
+int32_t vnodeWriteIntoCQueue(SVnodeObj *pVnode, SVReadMsg *pRead);
 
 #ifdef __cplusplus
 }

@@ -116,9 +116,9 @@ int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qt
   }
 
   pRead->qtype = qtype;
-  
+
   if (pRead->msgType == TSDB_MSG_TYPE_CM_KILL_QUERY) {
-    return vnodeWriteIntoCQueue(pRead);
+    return vnodeWriteIntoCQueue(pVnode, pRead);
   } else {
     atomic_add_fetch_32(&pVnode->refCount, 1);
     atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
