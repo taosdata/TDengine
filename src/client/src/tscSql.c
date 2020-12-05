@@ -605,7 +605,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
        cmd == TSDB_SQL_RETRIEVE ||
        cmd == TSDB_SQL_FETCH)) {
     pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
+    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_CANCEL_QUERY;
     tscDebug("%p send msg to dnode to free qhandle ASAP before free sqlObj, command:%s", pSql, sqlCmd[pCmd->command]);
 
     tscProcessSql(pSql);

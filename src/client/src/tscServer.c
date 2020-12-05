@@ -396,7 +396,8 @@ int doProcessSql(SSqlObj *pSql) {
       pCmd->command == TSDB_SQL_CONNECT ||
       pCmd->command == TSDB_SQL_HB ||
       pCmd->command == TSDB_SQL_META ||
-      pCmd->command == TSDB_SQL_STABLEVGROUP) {
+      pCmd->command == TSDB_SQL_STABLEVGROUP||
+      pCmd->command == TSDB_SQL_CANCEL_QUERY) {
     pRes->code = tscBuildMsg[pCmd->command](pSql, NULL);
   }
   
@@ -454,7 +455,6 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pRetrieveMsg->qhandle = htobe64(pSql->res.qhandle);
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
-  pRetrieveMsg->free = htons(pQueryInfo->type);
 
   // todo valid the vgroupId at the client side
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -1391,6 +1391,43 @@ int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
 
   tscDumpEpSetFromVgroupInfo(&pTableMetaInfo->pTableMeta->corVgroupInfo, &pSql->epSet);
 
+  return TSDB_CODE_SUCCESS;
+}
+
+int tscBuildCancelQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+  SCancelQueryMsg *pCancelMsg = (SCancelQueryMsg*) pSql->cmd.payload;
+  pCancelMsg->qhandle = htobe64(pSql->res.qhandle);
+
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    int32_t vgIndex = pTableMetaInfo->vgroupIndex;
+    if (pTableMetaInfo->pVgroupTables == NULL) {
+      SVgroupsInfo *pVgroupInfo = pTableMetaInfo->vgroupList;
+      assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
+
+      pCancelMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
+      tscDebug("%p build cancel query msg from vgId:%d, vgIndex:%d", pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex);
+    } else {
+      int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+      assert(vgIndex >= 0 && vgIndex < numOfVgroups);
+
+      SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, vgIndex);
+
+      pCancelMsg->header.vgId = htonl(pTableIdList->vgInfo.vgId);
+      tscDebug("%p build cancel query msg from vgId:%d, vgIndex:%d", pSql, pTableIdList->vgInfo.vgId, vgIndex);
+    }
+  } else {
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+    pCancelMsg->header.vgId = htonl(pTableMeta->vgroupInfo.vgId);
+    tscDebug("%p build cancel query msg from only one vgroup, vgId:%d", pSql, pTableMeta->vgroupInfo.vgId);
+  }
+
+  pSql->cmd.payloadLen = sizeof(SCancelQueryMsg);
+  pSql->cmd.msgType = TSDB_MSG_TYPE_CANCEL_QUERY;
+
+  pCancelMsg->header.contLen = htonl(sizeof(SCancelQueryMsg));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2396,6 +2433,7 @@ void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_CFG_DNODE] = tscBuildCfgDnodeMsg;
   tscBuildMsg[TSDB_SQL_ALTER_TABLE] = tscBuildAlterTableMsg;
   tscBuildMsg[TSDB_SQL_UPDATE_TAGS_VAL] = tscBuildUpdateTagMsg;
+  tscBuildMsg[TSDB_SQL_CANCEL_QUERY] = tscBuildCancelQueryMsg;
   tscBuildMsg[TSDB_SQL_ALTER_DB] = tscAlterDbMsg;
 
   tscBuildMsg[TSDB_SQL_CONNECT] = tscBuildConnectMsg;
