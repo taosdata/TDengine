@@ -25,6 +25,7 @@
 #include "vnode.h"
 #include "vnodeInt.h"
 #include "tqueue.h"
+#include "vnodeCancel.h"
 
 static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SVReadMsg *pRead);
 static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead);
@@ -115,13 +116,15 @@ int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qt
   }
 
   pRead->qtype = qtype;
-
-  atomic_add_fetch_32(&pVnode->refCount, 1);
-  atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
-  vTrace("vgId:%d, write into vrqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedRMsg);
-
-  taosWriteQitem(pVnode->rqueue, qtype, pRead);
-  return TSDB_CODE_SUCCESS;
+  
+  if (pRead->msgType == TSDB_MSG_TYPE_CM_KILL_QUERY) {
+    return vnodeWriteIntoCQueue(pRead);
+  } else {
+    atomic_add_fetch_32(&pVnode->refCount, 1);
+    atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
+    vTrace("vgId:%d, write into vrqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedRMsg);
+    return taosWriteQitem(pVnode->rqueue, qtype, pRead);
+  }
 }
 
 static int32_t vnodePutItemIntoReadQueue(SVnodeObj *pVnode, void **qhandle, void *ahandle) {

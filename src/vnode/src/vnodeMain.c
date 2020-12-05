@@ -27,6 +27,7 @@
 #include "dnode.h"
 #include "vnodeCfg.h"
 #include "vnodeVersion.h"
+#include "vnodeCancel.h"
 
 static SHashObj*tsVnodesHash;
 static void     vnodeCleanUp(SVnodeObj *pVnode);
@@ -63,6 +64,7 @@ int32_t vnodeInitResources() {
 
   vnodeInitWriteFp();
   vnodeInitReadFp();
+  vnodeInitCWorker();
 
   tsVnodesHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (tsVnodesHash == NULL) {
@@ -79,6 +81,7 @@ int32_t vnodeInitResources() {
 }
 
 void vnodeCleanupResources() {
+  vnodeCleanupCWorker();
   tsdbDestroyCommitQueue();
 
   if (tsVnodesHash != NULL) {
