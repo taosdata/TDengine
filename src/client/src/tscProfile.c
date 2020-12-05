@@ -20,8 +20,10 @@
 #include "tutil.h"
 #include "taosmsg.h"
 
+#include "taos.h"
+
 void  tscSaveSlowQueryFp(void *handle, void *tmrId);
-void *tscSlowQueryConn = NULL;
+TAOS *tscSlowQueryConn = NULL;
 bool  tscSlowQueryConnInitialized = false;
 
 void tscInitConnCb(void *param, TAOS_RES *result, int code) {
@@ -37,6 +39,7 @@ void tscInitConnCb(void *param, TAOS_RES *result, int code) {
     tscSlowQueryConnInitialized = true;
     tscSaveSlowQueryFp(sql, NULL);
   }
+  taos_free_result(result);
 }
 
 void tscAddIntoSqlList(SSqlObj *pSql) {
@@ -67,6 +70,7 @@ void tscSaveSlowQueryFpCb(void *param, TAOS_RES *result, int code) {
   } else {
     tscDebug("success to save slow query, code:%d", code);
   }
+  taos_free_result(result);
 }
 
 void tscSaveSlowQueryFp(void *handle, void *tmrId) {
@@ -220,7 +224,7 @@ void tscKillStream(STscObj *pObj, uint32_t killId) {
 }
 
 int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
-  SCMHeartBeatMsg *pHeartbeat = pMsg;
+  SHeartBeatMsg *pHeartbeat = pMsg;
   int allocedQueriesNum = pHeartbeat->numOfQueries;
   int allocedStreamsNum = pHeartbeat->numOfStreams;
   
@@ -275,7 +279,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
   }
 
   int32_t msgLen = pHeartbeat->numOfQueries * sizeof(SQueryDesc) + pHeartbeat->numOfStreams * sizeof(SStreamDesc) +
-                   sizeof(SCMHeartBeatMsg);
+                   sizeof(SHeartBeatMsg);
   pHeartbeat->connId = htonl(pObj->connId);
   pHeartbeat->numOfQueries = htonl(pHeartbeat->numOfQueries);
   pHeartbeat->numOfStreams = htonl(pHeartbeat->numOfStreams);

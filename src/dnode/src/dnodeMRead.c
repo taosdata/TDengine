@@ -35,46 +35,46 @@ typedef struct {
 typedef struct {
   int32_t curNum;
   int32_t maxNum;
-  SMReadWorker *readWorker;
+  SMReadWorker *worker;
 } SMReadWorkerPool;
 
-static SMReadWorkerPool tsMReadPool;
+static SMReadWorkerPool tsMReadWP;
 static taos_qset        tsMReadQset;
 static taos_queue       tsMReadQueue;
 
-static void *dnodeProcessMnodeReadQueue(void *param);
+static void *dnodeProcessMReadQueue(void *param);
 
-int32_t dnodeInitMnodeRead() {
+int32_t dnodeInitMRead() {
   tsMReadQset = taosOpenQset();
 
-  tsMReadPool.maxNum = tsNumOfCores * tsNumOfThreadsPerCore / 2;
-  tsMReadPool.maxNum = MAX(2, tsMReadPool.maxNum);
-  tsMReadPool.maxNum = MIN(4, tsMReadPool.maxNum);
-  tsMReadPool.curNum = 0;
-  tsMReadPool.readWorker = (SMReadWorker *)calloc(sizeof(SMReadWorker), tsMReadPool.maxNum);
+  tsMReadWP.maxNum = tsNumOfCores * tsNumOfThreadsPerCore / 2;
+  tsMReadWP.maxNum = MAX(2, tsMReadWP.maxNum);
+  tsMReadWP.maxNum = MIN(4, tsMReadWP.maxNum);
+  tsMReadWP.curNum = 0;
+  tsMReadWP.worker = (SMReadWorker *)calloc(sizeof(SMReadWorker), tsMReadWP.maxNum);
 
-  if (tsMReadPool.readWorker == NULL) return -1;
-  for (int32_t i = 0; i < tsMReadPool.maxNum; ++i) {
-    SMReadWorker *pWorker = tsMReadPool.readWorker + i;
+  if (tsMReadWP.worker == NULL) return -1;
+  for (int32_t i = 0; i < tsMReadWP.maxNum; ++i) {
+    SMReadWorker *pWorker = tsMReadWP.worker + i;
     pWorker->workerId = i;
     dDebug("dnode mread worker:%d is created", i);
   }
 
-  dDebug("dnode mread is opened, workers:%d qset:%p", tsMReadPool.maxNum, tsMReadQset);
+  dDebug("dnode mread is initialized, workers:%d qset:%p", tsMReadWP.maxNum, tsMReadQset);
   return 0;
 }
 
-void dnodeCleanupMnodeRead() {
-  for (int32_t i = 0; i < tsMReadPool.maxNum; ++i) {
-    SMReadWorker *pWorker = tsMReadPool.readWorker + i;
+void dnodeCleanupMRead() {
+  for (int32_t i = 0; i < tsMReadWP.maxNum; ++i) {
+    SMReadWorker *pWorker = tsMReadWP.worker + i;
     if (pWorker->thread) {
       taosQsetThreadResume(tsMReadQset);
     }
     dDebug("dnode mread worker:%d is closed", i);
   }
 
-  for (int32_t i = 0; i < tsMReadPool.maxNum; ++i) {
-    SMReadWorker *pWorker = tsMReadPool.readWorker + i;
+  for (int32_t i = 0; i < tsMReadWP.maxNum; ++i) {
+    SMReadWorker *pWorker = tsMReadWP.worker + i;
     dDebug("dnode mread worker:%d start to join", i);
     if (pWorker->thread) {
       pthread_join(pWorker->thread, NULL);
@@ -86,64 +86,63 @@ void dnodeCleanupMnodeRead() {
 
   taosCloseQset(tsMReadQset);
   tsMReadQset = NULL;
-  free(tsMReadPool.readWorker);
+  free(tsMReadWP.worker);
 }
 
-int32_t dnodeAllocateMnodeRqueue() {
+int32_t dnodeAllocMReadQueue() {
   tsMReadQueue = taosOpenQueue();
   if (tsMReadQueue == NULL) return TSDB_CODE_DND_OUT_OF_MEMORY;
 
   taosAddIntoQset(tsMReadQset, tsMReadQueue, NULL);
 
-  for (int32_t i = tsMReadPool.curNum; i < tsMReadPool.maxNum; ++i) {
-    SMReadWorker *pWorker = tsMReadPool.readWorker + i;
+  for (int32_t i = tsMReadWP.curNum; i < tsMReadWP.maxNum; ++i) {
+    SMReadWorker *pWorker = tsMReadWP.worker + i;
     pWorker->workerId = i;
 
     pthread_attr_t thAttr;
     pthread_attr_init(&thAttr);
     pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-    if (pthread_create(&pWorker->thread, &thAttr, dnodeProcessMnodeReadQueue, pWorker) != 0) {
+    if (pthread_create(&pWorker->thread, &thAttr, dnodeProcessMReadQueue, pWorker) != 0) {
       dError("failed to create thread to process mread queue, reason:%s", strerror(errno));
     }
 
     pthread_attr_destroy(&thAttr);
-    tsMReadPool.curNum = i + 1;
-    dDebug("dnode mread worker:%d is launched, total:%d", pWorker->workerId, tsMReadPool.maxNum);
+    tsMReadWP.curNum = i + 1;
+    dDebug("dnode mread worker:%d is launched, total:%d", pWorker->workerId, tsMReadWP.maxNum);
   }
 
   dDebug("dnode mread queue:%p is allocated", tsMReadQueue);
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeFreeMnodeRqueue() {
+void dnodeFreeMReadQueue() {
   dDebug("dnode mread queue:%p is freed", tsMReadQueue);
   taosCloseQueue(tsMReadQueue);
   tsMReadQueue = NULL;
 }
 
-void dnodeDispatchToMnodeReadQueue(SRpcMsg *pMsg) {
+void dnodeDispatchToMReadQueue(SRpcMsg *pMsg) {
   if (!mnodeIsRunning() || tsMReadQueue == NULL) {
     dnodeSendRedirectMsg(pMsg, true);
-    rpcFreeCont(pMsg->pCont);
-    return;
+  } else {
+    SMnodeMsg *pRead = mnodeCreateMsg(pMsg);
+    taosWriteQitem(tsMReadQueue, TAOS_QTYPE_RPC, pRead);
   }
 
-  SMnodeMsg *pRead = (SMnodeMsg *)taosAllocateQitem(sizeof(SMnodeMsg));
-  mnodeCreateMsg(pRead, pMsg);
-  taosWriteQitem(tsMReadQueue, TAOS_QTYPE_RPC, pRead);
+  rpcFreeCont(pMsg->pCont);
 }
 
-static void dnodeFreeMnodeReadMsg(SMnodeMsg *pRead) {
+static void dnodeFreeMReadMsg(SMnodeMsg *pRead) {
   mnodeCleanupMsg(pRead);
   taosFreeQitem(pRead);
 }
 
-static void dnodeSendRpcMnodeReadRsp(SMnodeMsg *pRead, int32_t code) {
+static void dnodeSendRpcMReadRsp(SMnodeMsg *pRead, int32_t code) {
   if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return;
   if (code == TSDB_CODE_MND_ACTION_NEED_REPROCESSED) {
     // may be a auto create req, should put into write queue
-    dnodeReprocessMnodeWriteMsg(pRead);
+    dnodeReprocessMWriteMsg(pRead);
     return;
   }
 
@@ -155,23 +154,24 @@ static void dnodeSendRpcMnodeReadRsp(SMnodeMsg *pRead, int32_t code) {
   };
 
   rpcSendResponse(&rpcRsp);
-  dnodeFreeMnodeReadMsg(pRead);
+  dnodeFreeMReadMsg(pRead);
 }
 
-static void *dnodeProcessMnodeReadQueue(void *param) {
-  SMnodeMsg *pReadMsg;
+static void *dnodeProcessMReadQueue(void *param) {
+  SMnodeMsg *pRead;
   int32_t    type;
   void *     unUsed;
-  
+
   while (1) {
-    if (taosReadQitemFromQset(tsMReadQset, &type, (void **)&pReadMsg, &unUsed) == 0) {
+    if (taosReadQitemFromQset(tsMReadQset, &type, (void **)&pRead, &unUsed) == 0) {
       dDebug("qset:%p, mnode read got no message from qset, exiting", tsMReadQset);
       break;
     }
 
-    dDebug("%p, msg:%s will be processed in mread queue", pReadMsg->rpcMsg.ahandle, taosMsg[pReadMsg->rpcMsg.msgType]);    
-    int32_t code = mnodeProcessRead(pReadMsg);    
-    dnodeSendRpcMnodeReadRsp(pReadMsg, code);   
+    dTrace("msg:%p, app:%p type:%s will be processed in mread queue", pRead->rpcMsg.ahandle, pRead,
+           taosMsg[pRead->rpcMsg.msgType]);
+    int32_t code = mnodeProcessRead(pRead);
+    dnodeSendRpcMReadRsp(pRead, code);
   }
 
   return NULL;

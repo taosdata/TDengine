@@ -142,7 +142,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
   获取最近一次API调用失败的原因，返回值为错误代码。
 
 
-**注意**：对于单个数据库连接，在同一时刻只能有一个线程使用该连接调用API，否则会有未定义的行为出现并可能导致客户端crash。客户端应用可以通过建立多个连接进行多线程的数据写入或查询处理。
+**注意**：对于每个数据库应用，2.0及以上版本 TDengine 推荐只建立一个连接。同时在应用中将该连接 (TAOS*) 结构体传递到不同的线程共享使用。基于 TAOS 结构体发出的查询、写入等操作具有多线程安全性。C 语言的连接器可以按照需求动态建立面向数据库的新连接（该过程对用户不可见），同时建议只有在程序最后退出的时候才调用 taos_close 关闭连接。
 
 
 ### 异步查询API
@@ -615,6 +615,43 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 - restfulRowLimit: 返回结果集（JSON格式）的最大条数，默认值为10240
 - httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式
 - httpDebugFlag: 日志开关，131：仅错误和报警信息，135：调试信息，143：非常详细的调试信息，默认131
+
+## CSharp Connector
+
+在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
+
+#### 安装TDengine客户端
+
+C#连接器需要使用`libtaos.so`和`taos.h`。因此，在使用C#连接器之前，需在程序运行的Windows环境安装TDengine的Windows客户端，以便获得相关驱动文件。
+
+安装完成后，在文件夹`C:/TDengine/examples/C#`中，将会看到两个文件
+
+- TDengineDriver.cs 调用taos.dll文件的Native C方法
+- TDengineTest.cs 参考程序示例
+
+在文件夹`C:\Windows\System32`，将会看到`taos.dll`文件
+
+#### 使用方法
+
+- 将C#接口文件TDengineDriver.cs加入到应用程序所在.NET项目中
+- 参考TDengineTest.cs来定义数据库连接参数，及执行数据插入、查询等操作的方法
+- 因为C#接口需要用到`taos.dll`文件，用户可以将`taos.dll`文件加入.NET解决方案中
+
+#### 注意事项
+
+- `taos.dll`文件使用x64平台编译，所以.NET项目在生成.exe文件时，“解决方案”/“项目”的“平台”请均选择“x64”。
+- 此.NET接口目前已经在Visual Studio 2013/2015/2017中验证过，其它VS版本尚待验证。
+
+#### 第三方驱动
+
+Maikebing.Data.Taos是一个TDengine的ADO.Net提供器，支持linux，windows。该开发包由热心贡献者`麦壳饼@@maikebing`提供，具体请参考
+
+```
+//接口下载
+https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos   
+//用法说明    
+https://www.taosdata.com/blog/2020/11/02/1901.html                    
+```
 
 
 ## Go Connector

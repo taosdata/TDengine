@@ -1,4 +1,4 @@
-sleep 3000
+sleep 500
 sql connect
 
 $dbPrefix = lm1_db
@@ -703,13 +703,13 @@ sql select twa(c1), twa(c2), twa(c3), twa(c4), twa(c5), twa(c6) from $tb where t
 if $rows != 1 then
   return -1
 endi
-if $data00 != 4.499549955 then
+if $data00 != 4.500000000 then
   return -1
 endi
-if $data02 != 4.499549955 then
+if $data02 != 4.500000000 then
   return -1
 endi
-if $data05 != 4.499549955 then
+if $data05 != 4.500000000 then
   return -1
 endi
 
@@ -717,10 +717,12 @@ sql select first(c1), first(c2), first(c3), first(c4), first(c5), first(c6) from
 if $rows != 0 then
   return -1
 endi
+
 sql select first(c1), first(c2), first(c3), first(c4), first(c5), first(c6) from $tb where ts >= $ts0 and ts <= $tsu interval(30m) limit 3 offset 1
 if $rows != 3 then
   return -1
 endi
+
 if $data01 != 3 then
   return -1
 endi
@@ -730,7 +732,6 @@ endi
 if $data23 != 9.00000 then
   return -1
 endi
-
 
 sql select last(c1), last(c2), last(c3), last(c4), last(c5), last(c6) from $tb where ts >= $ts0 and ts <= $tsu limit 5 offset 1
 if $rows != 0 then

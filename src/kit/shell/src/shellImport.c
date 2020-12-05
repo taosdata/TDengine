@@ -204,7 +204,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
     int32_t code = taos_errno(pSql);
     
     if (code != 0) {
-      fprintf(stderr, "DB error: %s: %s (%d)\n", taos_errstr(con), fname, lineNo);
+      fprintf(stderr, "DB error: %s: %s (%d)\n", taos_errstr(pSql), fname, lineNo);
     }
     
     /* free local resouce: allocated memory/metric-meta refcnt */
@@ -243,7 +243,7 @@ static void shellRunImportThreads(SShellArguments* args)
     pThread->totalThreads = args->threadNum;
     pThread->taos = taos_connect(args->host, args->user, args->password, args->database, tsDnodeShellPort);
     if (pThread->taos == NULL) {
-      fprintf(stderr, "ERROR: thread:%d failed connect to TDengine, error:%s\n", pThread->threadIndex, taos_errstr(pThread->taos));
+      fprintf(stderr, "ERROR: thread:%d failed connect to TDengine, error:%s\n", pThread->threadIndex, "null taos"/*taos_errstr(pThread->taos)*/);
       exit(0);
     }
 

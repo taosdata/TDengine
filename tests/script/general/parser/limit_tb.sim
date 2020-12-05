@@ -1,4 +1,4 @@
-sleep 3000
+sleep 500
 sql connect
 
 $dbPrefix = lm_db
@@ -327,22 +327,22 @@ sql select twa(c1), twa(c2), twa(c3), twa(c4), twa(c5), twa(c6) from $tb where t
 if $rows != 1 then
   return -1
 endi
-if $data00 != 4.000000000 then
+if $data00 != 4.500000000 then
   return -1
 endi
-if $data01 != 4.000000000 then
+if $data01 != 4.500000000 then
   return -1
 endi
-if $data02 != 4.000000000 then
+if $data02 != 4.500000000 then
   return -1
 endi
-if $data03 != 4.000000000 then
+if $data03 != 4.500000000 then
   return -1
 endi
-if $data04 != 4.000000000 then
+if $data04 != 4.500000000 then
   return -1
 endi
-if $data05 != 4.000000000 then
+if $data05 != 4.500000000 then
   return -1
 endi
 
@@ -690,13 +690,13 @@ sql select twa(c1), twa(c2), twa(c3), twa(c4), twa(c5), twa(c6) from $tb where t
 if $rows != 1 then
   return -1
 endi
-if $data00 != 4.000000000 then
+if $data00 != 4.500000000 then
   return -1
 endi
-if $data02 != 4.000000000 then
+if $data02 != 4.500000000 then
   return -1
 endi
-if $data05 != 4.000000000 then
+if $data05 != 4.500000000 then
   return -1
 endi
 

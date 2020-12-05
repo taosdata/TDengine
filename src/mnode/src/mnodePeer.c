@@ -20,7 +20,7 @@
 #include "tsystem.h"
 #include "tutil.h"
 #include "tgrant.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tglobal.h"
 #include "mnode.h"
 #include "dnode.h"
@@ -47,7 +47,7 @@ void mnodeAddPeerRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg)) {
 
 int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
   if (pMsg->rpcMsg.pCont == NULL) {
-    mError("%p, msg:%s in mpeer queue, content is null", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
+    mError("msg:%p, ahandle:%p type:%s in mpeer queue, content is null", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_INVALID_MSG_LEN;
   }
 
@@ -58,22 +58,15 @@ int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
     rpcRsp->rsp = epSet;
     rpcRsp->len = sizeof(SRpcEpSet);
 
-    mDebug("%p, msg:%s in mpeer queue will be redirected, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle,
+    mDebug("msg:%p, ahandle:%p type:%s in mpeer queue is redirected, numOfEps:%d inUse:%d", pMsg, pMsg->rpcMsg.ahandle,
            taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
-    for (int32_t i = 0; i < epSet->numOfEps; ++i) {
-      if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort + TSDB_PORT_DNODEDNODE) {
-        epSet->inUse = (i + 1) % epSet->numOfEps;
-        mDebug("mnode index:%d ep:%s:%u, set inUse to %d", i, epSet->fqdn[i], htons(epSet->port[i]), epSet->inUse);
-      } else {
-        mDebug("mnode index:%d ep:%s:%u", i, epSet->fqdn[i], htons(epSet->port[i]));
-      }
-    }
 
     return TSDB_CODE_RPC_REDIRECT;
   }
 
   if (tsMnodeProcessPeerMsgFp[pMsg->rpcMsg.msgType] == NULL) {
-    mError("%p, msg:%s in mpeer queue, not processed", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
+    mError("msg:%p, ahandle:%p type:%s in mpeer queue, not processed", pMsg, pMsg->rpcMsg.ahandle,
+           taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_MSG_NOT_PROCESSED;
   }
 
@@ -82,13 +75,14 @@ int32_t mnodeProcessPeerReq(SMnodeMsg *pMsg) {
 
 void mnodeProcessPeerRsp(SRpcMsg *pMsg) {
   if (!sdbIsMaster()) {
-    mError("%p, msg:%s is not processed for it is not master", pMsg->ahandle, taosMsg[pMsg->msgType]);
+    mError("msg:%p, ahandle:%p type:%s  is not processed for it is not master", pMsg, pMsg->ahandle,
+           taosMsg[pMsg->msgType]);
     return;
   }
 
   if (tsMnodeProcessPeerRspFp[pMsg->msgType]) {
     (*tsMnodeProcessPeerRspFp[pMsg->msgType])(pMsg);
   } else {
-    mError("%p, msg:%s is not processed", pMsg->ahandle, taosMsg[pMsg->msgType]);
+    mError("msg:%p, ahandle:%p type:%s is not processed", pMsg, pMsg->ahandle, taosMsg[pMsg->msgType]);
   }
 }

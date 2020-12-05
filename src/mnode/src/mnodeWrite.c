@@ -17,7 +17,7 @@
 #include "os.h"
 #include "taosdef.h"
 #include "tsched.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tgrant.h"
 #include "tglobal.h"
 #include "trpc.h"
@@ -43,7 +43,7 @@ void mnodeAddWriteMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *mnodeMsg))
 
 int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
   if (pMsg->rpcMsg.pCont == NULL) {
-    mError("app:%p:%p, msg:%s content is null", pMsg->rpcMsg.ahandle, pMsg, taosMsg[pMsg->rpcMsg.msgType]);
+    mError("msg:%p, app:%p type:%s content is null", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_INVALID_MSG_LEN;
   }
 
@@ -54,36 +54,26 @@ int32_t mnodeProcessWrite(SMnodeMsg *pMsg) {
     rpcRsp->rsp = epSet;
     rpcRsp->len = sizeof(SRpcEpSet);
 
-    mDebug("app:%p:%p, msg:%s in write queue, will be redirected, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle, pMsg,
-           taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
-    for (int32_t i = 0; i < epSet->numOfEps; ++i) {
-      if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
-        epSet->inUse = (i + 1) % epSet->numOfEps;
-        mDebug("app:%p:%p, mnode index:%d ep:%s:%d, set inUse to %d", pMsg->rpcMsg.ahandle, pMsg, i, epSet->fqdn[i],
-               htons(epSet->port[i]), epSet->inUse);
-      } else {
-        mDebug("app:%p:%p, mnode index:%d ep:%s:%d", pMsg->rpcMsg.ahandle, pMsg, i, epSet->fqdn[i],
-               htons(epSet->port[i]));
-      }
-    }
+    mDebug("msg:%p, app:%p type:%s in write queue, is redirected, numOfEps:%d inUse:%d", pMsg,
+           pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
 
     return TSDB_CODE_RPC_REDIRECT;
   }
 
   if (tsMnodeProcessWriteMsgFp[pMsg->rpcMsg.msgType] == NULL) {
-    mError("app:%p:%p, msg:%s not processed", pMsg->rpcMsg.ahandle, pMsg, taosMsg[pMsg->rpcMsg.msgType]);
+    mError("msg:%p, app:%p type:%s not processed", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_MSG_NOT_PROCESSED;
   }
 
   int32_t code = mnodeInitMsg(pMsg);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("app:%p:%p, msg:%s not processed, reason:%s", pMsg->rpcMsg.ahandle, pMsg, taosMsg[pMsg->rpcMsg.msgType],
+    mError("msg:%p, app:%p type:%s not processed, reason:%s", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType],
            tstrerror(code));
     return code;
   }
 
   if (!pMsg->pUser->writeAuth) {
-    mError("app:%p:%p, msg:%s not processed, no write auth", pMsg->rpcMsg.ahandle, pMsg,
+    mError("msg:%p, app:%p type:%s not processed, no write auth", pMsg, pMsg->rpcMsg.ahandle,
            taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_NO_RIGHTS;
   }

@@ -3,9 +3,9 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 500
 sql connect
-sleep 3000
+sleep 500
 
 $db = dytag_db
 $tbNum = 10
@@ -96,5 +96,10 @@ if $rows != 14 then
   return -1
 endi
 
+print ===============================> td-1765
+sql create table m1(ts timestamp, k int) tags(a binary(4), b nchar(4));
+sql create table tm0 using m1 tags('abcd', 'abcd');
+sql_error alter table tm0 set tag b = 'abcd1';
+sql_error alter table tm0 set tag a = 'abcd1';
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

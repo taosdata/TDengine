@@ -17,7 +17,7 @@
 #include "os.h"
 #include "taosdef.h"
 #include "tsched.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tgrant.h"
 #include "ttimer.h"
 #include "tglobal.h"
@@ -47,6 +47,7 @@ void *tsMnodeTmr = NULL;
 static bool tsMgmtIsRunning = false;
 
 static const SMnodeComponent tsMnodeComponents[] = {
+  {"sdbref",  sdbInitRef,       sdbCleanUpRef},
   {"profile", mnodeInitProfile, mnodeCleanupProfile},
   {"cluster", mnodeInitCluster, mnodeCleanupCluster},
   {"accts",   mnodeInitAccts,   mnodeCleanupAccts},
@@ -57,7 +58,7 @@ static const SMnodeComponent tsMnodeComponents[] = {
   {"tables",  mnodeInitTables,  mnodeCleanupTables},  
   {"mnodes",  mnodeInitMnodes,  mnodeCleanupMnodes},
   {"sdb",     sdbInit,          sdbCleanUp},
-  {"balance", balanceInit,      balanceCleanUp},
+  {"balance", bnInit,           bnCleanUp},
   {"grant",   grantInit,        grantCleanUp},
   {"show",    mnodeInitShow,    mnodeCleanUpShow}
 };
@@ -96,9 +97,9 @@ int32_t mnodeStartSystem() {
     return -1;
   }
 
-  dnodeAllocateMnodeWqueue();
-  dnodeAllocateMnodeRqueue();
-  dnodeAllocateMnodePqueue();
+  dnodeAllocMWritequeue();
+  dnodeAllocMReadQueue();
+  dnodeAllocateMPeerQueue();
 
   if (mnodeInitComponents() != 0) {
     return -1;
@@ -123,16 +124,18 @@ int32_t mnodeInitSystem() {
 }
 
 void mnodeCleanupSystem() {
-  mInfo("starting to clean up mnode");
-  tsMgmtIsRunning = false;
+  if (tsMgmtIsRunning) {
+    mInfo("starting to clean up mnode");
+    tsMgmtIsRunning = false;
 
-  dnodeFreeMnodeWqueue();
-  dnodeFreeMnodeRqueue();
-  dnodeFreeMnodePqueue();
-  mnodeCleanupTimer();
-  mnodeCleanupComponents(sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]) - 1);
-  
-  mInfo("mnode is cleaned up");
+    dnodeFreeMWritequeue();
+    dnodeFreeMReadQueue();
+    dnodeFreeMPeerQueue();
+    mnodeCleanupTimer();
+    mnodeCleanupComponents(sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]) - 1);
+
+    mInfo("mnode is cleaned up");
+  }
 }
 
 void mnodeStopSystem() {

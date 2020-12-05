@@ -5,7 +5,7 @@ with open("README.md", "r") as fh:
 
 setuptools.setup(
     name="taos",
-    version="2.0.0",
+    version="2.0.3",
     author="Taosdata Inc.",
     author_email="support@taosdata.com",
     description="TDengine python client package",

@@ -361,11 +361,11 @@ void tMemBucketDestroy(tMemBucket *pBucket) {
   }
 
   destroyResultBuf(pBucket->pBuffer);
-  taosTFree(pBucket->pSlots);
-  taosTFree(pBucket);
+  tfree(pBucket->pSlots);
+  tfree(pBucket);
 }
 
-void tMemBucketUpdateBoundingBox(MinMaxEntry *r, char *data, int32_t dataType) {
+void tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataType) {
   switch (dataType) {
     case TSDB_DATA_TYPE_INT: {
       int32_t val = *(int32_t *)data;
@@ -680,7 +680,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
         }
 
         double val = (1 - fraction) * td + fraction * nd;
-        taosTFree(buffer);
+        tfree(buffer);
 
         return val;
       } else {  // incur a second round bucket split

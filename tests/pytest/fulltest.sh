@@ -18,10 +18,14 @@ python3 ./test.py -f insert/multi.py
 python3 ./test.py -f insert/randomNullCommit.py
 python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
+python3 ./test.py -f insert/insertIntoTwoTables.py
+python3 ./test.py -f insert/before_1970.py
 
+python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
 python3 ./test.py -f table/db_table.py
+python3 ./test.py -f table/create_sensitive.py
 #python3 ./test.py -f table/tablename-boundary.py
 
 # tag
@@ -148,14 +152,24 @@ python3 ./test.py -f query/select_last_crash.py
 python3 ./test.py -f query/queryNullValueTest.py
 python3 ./test.py -f query/queryInsertValue.py
 python3 ./test.py -f query/queryConnection.py
+python3 ./test.py -f query/queryCountCSVData.py
 python3 ./test.py -f query/natualInterval.py
+python3 ./test.py -f query/bug1471.py
+#python3 ./test.py -f query/dataLossTest.py
+python3 ./test.py -f query/bug1874.py
+python3 ./test.py -f query/bug1875.py
+python3 ./test.py -f query/bug1876.py
+python3 ./test.py -f query/bug2218.py
+python3 ./test.py -f query/bug2117.py
+python3 ./test.py -f query/bug2143.py
+python3 ./test.py -f query/sliding.py 
 
 #stream
 python3 ./test.py -f stream/metric_1.py
 python3 ./test.py -f stream/new.py
 python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
-python3 ./test.py -f stream/parser.py
+#python3 ./test.py -f stream/parser.py
 python3 ./test.py -f stream/history.py
 
 #alter table
@@ -183,7 +197,7 @@ python3 ./test.py -f functions/function_leastsquares.py -r 1
 python3 ./test.py -f functions/function_max.py -r 1
 python3 ./test.py -f functions/function_min.py -r 1
 python3 ./test.py -f functions/function_operations.py -r 1 
-python3 ./test.py -f functions/function_percentile.py
+python3 ./test.py -f functions/function_percentile.py -r 1
 python3 ./test.py -f functions/function_spread.py -r 1
 python3 ./test.py -f functions/function_stddev.py -r 1
 python3 ./test.py -f functions/function_sum.py -r 1
@@ -193,11 +207,32 @@ python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
 python3 test.py -f query/queryInterval.py
+python3 test.py -f query/queryFillTest.py
 
 # tools
-python3 test.py -f tools/taosdemo.py
+python3 test.py -f tools/taosdemoTest.py
+python3 test.py -f tools/taosdumpTest.py
+python3 test.py -f tools/lowaTest.py
 
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
 #python3 test.py -f subscribe/stability.py
 python3 test.py -f subscribe/supertable.py
+
+
+# update
+python3 ./test.py -f update/allow_update.py
+python3 ./test.py -f update/allow_update-0.py
+python3 ./test.py -f update/append_commit_data.py
+python3 ./test.py -f update/append_commit_last-0.py
+python3 ./test.py -f update/append_commit_last.py
+python3 ./test.py -f update/merge_commit_data.py
+python3 ./test.py -f update/merge_commit_data-0.py
+python3 ./test.py -f update/merge_commit_data2.py
+python3 ./test.py -f update/merge_commit_data2_update0.py
+python3 ./test.py -f update/merge_commit_last-0.py
+python3 ./test.py -f update/merge_commit_last.py
+python3 ./test.py -f update/bug_td2279.py
+
+# wal
+python3 ./test.py -f wal/addOldWalTest.py

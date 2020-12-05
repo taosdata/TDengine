@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxTablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 500
 sql connect
 
 $dbPrefix = first_db
@@ -46,7 +46,8 @@ while $i < $tbNum
   endw 
  
   $i = $i + 1
-endw 
+endw
+
 $ts = $ts + 60000
 $tb = $tbPrefix . 0
 sql insert into $tb (ts) values ( $ts )
@@ -76,12 +77,51 @@ run general/parser/first_last_query.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
-sleep 3000
+sleep 500
 
 run general/parser/first_last_query.sim
+
+print =================> insert data regression test
+sql create database test keep 36500
+sql use test
+sql create table tm0 (ts timestamp, k int)
+
+print =========================> td-2298
+$ts0 = 1537146000000
+$xs  = 6000
+
+$x = 0
+while $x < 5000
+    $ts = $ts0 + $xs
+    $ts1 = $ts + $xs
+    $x1 = $x + 1
+
+    sql insert into tm0 values ( $ts , $x ) ( $ts1 , $x1 )
+    $x = $x1
+    $ts0 = $ts1
+endw
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 3000
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql connect
+sleep 500
+
+sql use test
+sql select count(*), last(ts) from tm0 interval(1s)
+if $rows != 10000 then
+  print expect 10000, actual: $rows
+  return -1
+endi
+
+sql select last(ts) from tm0 interval(1s)
+if $rows != 10000 then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

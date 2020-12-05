@@ -3,7 +3,7 @@
     <modelVersion>4.0.0</modelVersion>
     <groupId>com.taosdata.jdbc</groupId>
     <artifactId>taos-jdbcdriver</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.14</version>
     <packaging>jar</packaging>
     <name>JDBCDriver</name>
     <url>https://github.com/taosdata/TDengine/tree/master/src/connector/jdbc</url>
@@ -56,6 +56,23 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- for restful -->
+        <dependency>
+            <groupId>org.apache.httpcomponents</groupId>
+            <artifactId>httpclient</artifactId>
+            <version>4.5.8</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-lang3</artifactId>
+            <version>3.9</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>1.2.58</version>
+        </dependency>
+
     </dependencies>
     <build>
         <plugins>
@@ -95,6 +112,13 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.12.4</version>
                 <configuration>
+                    <includes>
+                        <include>**/*Test.java</include>
+                    </includes>
+                    <excludes>
+                        <exclude>**/BatchInsertTest.java</exclude>
+                        <exclude>**/FailOverTest.java</exclude>
+                    </excludes>
                     <testFailureIgnore>true</testFailureIgnore>
                 </configuration>
             </plugin>

@@ -84,6 +84,7 @@ func (alert *Alert) doRefresh(firing bool, rule *Rule) bool {
 
 	case firing && (alert.State == AlertStateWaiting):
 		alert.StartsAt = time.Now()
+		alert.EndsAt = time.Time{}
 		if rule.For.Nanoseconds() > 0 {
 			alert.State = AlertStatePending
 			return false
@@ -95,6 +96,7 @@ func (alert *Alert) doRefresh(firing bool, rule *Rule) bool {
 			return false
 		}
 		alert.StartsAt = alert.StartsAt.Add(rule.For.Duration)
+		alert.EndsAt = time.Time{}
 		alert.State = AlertStateFiring
 
 	case firing && (alert.State == AlertStateFiring):

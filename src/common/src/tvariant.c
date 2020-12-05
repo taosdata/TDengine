@@ -108,7 +108,7 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
       break;
     }
     case TSDB_DATA_TYPE_BINARY: {  // todo refactor, extract a method
-      pVar->pz = calloc(len, sizeof(char));
+      pVar->pz = calloc(len + 1, sizeof(char));
       memcpy(pVar->pz, pz, len);
       pVar->nLen = (int32_t)len;
       break;
@@ -125,7 +125,7 @@ void tVariantDestroy(tVariant *pVar) {
   if (pVar == NULL) return;
   
   if (pVar->nType == TSDB_DATA_TYPE_BINARY || pVar->nType == TSDB_DATA_TYPE_NCHAR) {
-    taosTFree(pVar->pz);
+    tfree(pVar->pz);
     pVar->nLen = 0;
   }
 
@@ -144,21 +144,24 @@ void tVariantDestroy(tVariant *pVar) {
 void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   if (pSrc == NULL || pDst == NULL) return;
   
-  *pDst = *pSrc;
-  
+  pDst->nType = pSrc->nType;
   if (pSrc->nType == TSDB_DATA_TYPE_BINARY || pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
-    int32_t len = pSrc->nLen + 1;
-    if (pSrc->nType == TSDB_DATA_TYPE_NCHAR) {
-      len = len * TSDB_NCHAR_SIZE;
-    }
-    
-    pDst->pz = calloc(1, len);
-    memcpy(pDst->pz, pSrc->pz, len);
+    int32_t len = pSrc->nLen + TSDB_NCHAR_SIZE;
+    char* p = realloc(pDst->pz, len);
+    assert(p);
+
+    memset(p, 0, len);
+    pDst->pz = p;
+
+    memcpy(pDst->pz, pSrc->pz, pSrc->nLen);
+    pDst->nLen = pSrc->nLen;
     return;
+
   }
 
-  // this is only for string array
-  if (pSrc->nType == TSDB_DATA_TYPE_ARRAY) {
+  if (pSrc->nType >= TSDB_DATA_TYPE_BOOL && pSrc->nType <= TSDB_DATA_TYPE_DOUBLE) {
+    pDst->i64Key = pSrc->i64Key;
+  } else if (pSrc->nType == TSDB_DATA_TYPE_ARRAY) {  // this is only for string array
     size_t num = taosArrayGetSize(pSrc->arr);
     pDst->arr = taosArrayInit(num, sizeof(char*));
     for(size_t i = 0; i < num; i++) {
@@ -166,11 +169,11 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
       char* n = strdup(p);
       taosArrayPush(pDst->arr, &n);
     }
-
-    return;
   }
 
-  pDst->nLen = tDataTypeDesc[pDst->nType].nSize;
+  if (pDst->nType != TSDB_DATA_TYPE_ARRAY) {
+    pDst->nLen = tDataTypeDesc[pDst->nType].nSize;
+  }
 }
 
 int32_t tVariantCompare(const tVariant* p1, const tVariant* p2) {

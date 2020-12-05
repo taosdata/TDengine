@@ -35,7 +35,7 @@ TDengine相对于通用数据库，有超高的压缩比，在绝大多数场景
 Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 ```
 
-示例：1000万台智能电表，每台电表每15分钟采集一次数据，每次采集的数据128字节，那么一年的原始数据量是：10000000\*128\*24\*60/15*365 = 44851T。TDengine大概需要消耗44851/5=8970T, 8.9P空间。 
+示例：1000万台智能电表，每台电表每15分钟采集一次数据，每次采集的数据128字节，那么一年的原始数据量是：10000000\*128\*24\*60/15*365 = 44.8512T。TDengine大概需要消耗44.851/5=8.97024T空间。 
 
 用户可以通过参数keep，设置数据在磁盘中的最大保存时长。为进一步减少存储成本，TDengine还提供多级存储，最冷的数据可以存放在最廉价的存储介质上，应用的访问不用做任何调整，只是读取速度降低了。
 
@@ -95,6 +95,7 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 - logKeepDays：日志文件的最长保存时间。大于0时，日志文件会被重命名为taosdlog.xxx，其中xxx为日志文件最后修改的时间戳，单位为秒。默认值：0天。
 - maxSQLLength：单条SQL语句允许最长限制。默认值：65380字节。
 - telemetryReporting: 是否允许 TDengine 采集和上报基本使用信息，0表示不允许，1表示允许。 默认值：1。
+- stream: 是否启用连续查询（流计算功能），0表示不允许，1表示允许。 默认值：1。
 
 **注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6042共13个端口，而且必须TCP和UDP都打开。
 
@@ -253,7 +254,7 @@ ALTER USER <user_name> PASS <'password'>;
 修改用户密码, 为避免被转换为小写，密码需要用单引号引用,单引号为英文半角
 
 ```
-ALTER USER <user_name> PRIVILEDGE <super|write|read>;
+ALTER USER <user_name> PRIVILEGE <super|write|read>;
 ```
 
 修改用户权限为：super/write/read，不需要添加单引号

@@ -58,7 +58,7 @@ $ go build
 
 * **port**：报警监测程序支持使用 `restful API` 对规则进行管理，这个参数用于配置 `http` 服务的侦听端口。
 * **database**：报警监测程序将规则保存到了一个 `sqlite` 数据库中，这个参数用于指定数据库文件的路径（不需要提前创建这个文件，如果它不存在，程序会自动创建它）。
-* **tdengine**：`TDEngine` 的连接信息，一般来说，数据库信息应该在报警规则中指定，所以这里 **不** 应包含这一部分信息。
+* **tdengine**：`TDEngine` 的连接字符串（这个字符串的详细格式说明请见 GO 连接器的文档），一般来说，数据库名应该在报警规则的 `sql` 语句中指定，所以这个字符串中 **不** 应包含数据库名。
 * **log > level**：日志的记录级别，可选 `production` 或 `debug`。
 * **log > path**：日志文件的路径。
 * **receivers > alertManager**：报警监测程序会将报警推送到 `AlertManager`，在这里指定 `AlertManager` 的接收地址。

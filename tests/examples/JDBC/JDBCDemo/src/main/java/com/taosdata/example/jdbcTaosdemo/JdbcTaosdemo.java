@@ -25,6 +25,7 @@ public class JdbcTaosdemo {
     }
 
     public static void main(String[] args) {
+        // parse config from args
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
 
         boolean isHelp = Arrays.asList(args).contains("--help");
@@ -38,27 +39,51 @@ public class JdbcTaosdemo {
         }
 
         JdbcTaosdemo taosdemo = new JdbcTaosdemo(config);
+        // establish connection
         taosdemo.init();
+        // drop database
         taosdemo.dropDatabase();
+        // create database
         taosdemo.createDatabase();
+        // use db
         taosdemo.useDatabase();
+        // create super table
         taosdemo.createSuperTable();
+        // create sub tables
         taosdemo.createTableMultiThreads();
 
         boolean infinite = Arrays.asList(args).contains("--infinite");
         if (infinite) {
-            logger.info("!!! Infinite Insert Mode Started. !!!!");
+            logger.info("!!! Infinite Insert Mode Started. !!!");
             taosdemo.insertInfinite();
         } else {
+            // insert into table
             taosdemo.insertMultiThreads();
-            // single table select
+            // select from sub table
             taosdemo.selectFromTableLimit();
             taosdemo.selectCountFromTable();
             taosdemo.selectAvgMinMaxFromTable();
-            // super table select
+            // select last from
+            taosdemo.selectLastFromTable();
+            // select from super table
             taosdemo.selectFromSuperTableLimit();
             taosdemo.selectCountFromSuperTable();
             taosdemo.selectAvgMinMaxFromSuperTable();
+            //select avg ,max from stb where tag
+            taosdemo.selectAvgMinMaxFromSuperTableWhereTag();
+            //select last from stb where location = ''
+            taosdemo.selectLastFromSuperTableWhere();
+            // select group by
+            taosdemo.selectGroupBy();
+            // select like
+            taosdemo.selectLike();
+            // select where ts >= ts<=
+            taosdemo.selectLastOneHour();
+            taosdemo.selectLastOneDay();
+            taosdemo.selectLastOneWeek();
+            taosdemo.selectLastOneMonth();
+            taosdemo.selectLastOneYear();
+
             // drop super table
             if (config.isDeleteTable())
                 taosdemo.dropSuperTable();
@@ -196,6 +221,11 @@ public class JdbcTaosdemo {
         executeQuery(sql);
     }
 
+    private void selectLastFromTable() {
+        String sql = SqlSpeller.selectLastFromTableSQL(config.getDbName(), config.getTbPrefix(), 1);
+        executeQuery(sql);
+    }
+
     private void selectFromSuperTableLimit() {
         String sql = SqlSpeller.selectFromSuperTableLimitSQL(config.getDbName(), config.getStbName(), 10, 0);
         executeQuery(sql);
@@ -210,6 +240,52 @@ public class JdbcTaosdemo {
         String sql = SqlSpeller.selectAvgMinMaxFromSuperTableSQL("current", config.getDbName(), config.getStbName());
         executeQuery(sql);
     }
+
+    private void selectAvgMinMaxFromSuperTableWhereTag() {
+        String sql = SqlSpeller.selectAvgMinMaxFromSuperTableWhere("current", config.getDbName(), config.getStbName());
+        executeQuery(sql);
+    }
+
+    private void selectLastFromSuperTableWhere() {
+        String sql = SqlSpeller.selectLastFromSuperTableWhere("current", config.getDbName(), config.getStbName());
+        executeQuery(sql);
+    }
+
+    private void selectGroupBy() {
+        String sql = SqlSpeller.selectGroupBy("current", config.getDbName(), config.getStbName());
+        executeQuery(sql);
+    }
+
+    private void selectLike() {
+        String sql = SqlSpeller.selectLike(config.getDbName(), config.getStbName());
+        executeQuery(sql);
+    }
+
+    private void selectLastOneHour() {
+        String sql = SqlSpeller.selectLastOneHour(config.getDbName(), config.getStbName());
+        executeQuery(sql);
+    }
+
+    private void selectLastOneDay() {
+        String sql = SqlSpeller.selectLastOneDay(config.getDbName(), config.getStbName());
+        executeQuery(sql);
+    }
+
+    private void selectLastOneWeek() {
+        String sql = SqlSpeller.selectLastOneWeek(config.getDbName(), config.getStbName());
+        executeQuery(sql);
+    }
+
+    private void selectLastOneMonth() {
+        String sql = SqlSpeller.selectLastOneMonth(config.getDbName(), config.getStbName());
+        executeQuery(sql);
+    }
+
+    private void selectLastOneYear() {
+        String sql = SqlSpeller.selectLastOneYear(config.getDbName(), config.getStbName());
+        executeQuery(sql);
+    }
+
 
     private void close() {
         try {
@@ -241,6 +317,7 @@ public class JdbcTaosdemo {
             long end = System.currentTimeMillis();
             printSql(sql, execute, (end - start));
         } catch (SQLException e) {
+            logger.error("ERROR execute SQL ===> " + sql);
             logger.error(e.getMessage());
             e.printStackTrace();
         }
@@ -258,6 +335,7 @@ public class JdbcTaosdemo {
             printSql(sql, true, (end - start));
             printResult(resultSet);
         } catch (SQLException e) {
+            logger.error("ERROR execute SQL ===> " + sql);
             logger.error(e.getMessage());
             e.printStackTrace();
         }

@@ -78,10 +78,10 @@ static void dnodeAllocModules() {
 
   tsModule[TSDB_MOD_MONITOR].enable    = (tsEnableMonitorModule == 1);
   tsModule[TSDB_MOD_MONITOR].name      = "monitor";
-  tsModule[TSDB_MOD_MONITOR].initFp    = monitorInitSystem;
-  tsModule[TSDB_MOD_MONITOR].cleanUpFp = monitorCleanUpSystem;
-  tsModule[TSDB_MOD_MONITOR].startFp   = monitorStartSystem;
-  tsModule[TSDB_MOD_MONITOR].stopFp    = monitorStopSystem;
+  tsModule[TSDB_MOD_MONITOR].initFp    = monInitSystem;
+  tsModule[TSDB_MOD_MONITOR].cleanUpFp = monCleanupSystem;
+  tsModule[TSDB_MOD_MONITOR].startFp   = monStartSystem;
+  tsModule[TSDB_MOD_MONITOR].stopFp    = monStopSystem;
   if (tsEnableMonitorModule) {
     dnodeSetModuleStatus(TSDB_MOD_MONITOR);
   }
@@ -97,7 +97,7 @@ void dnodeCleanupModules() {
     }
   }
 
-  if (tsModule[TSDB_MOD_MNODE].enable && tsModule[TSDB_MOD_MNODE].cleanUpFp) {
+  if (tsModule[TSDB_MOD_MNODE].cleanUpFp) {
     (*tsModule[TSDB_MOD_MNODE].cleanUpFp)();
   }
 }
@@ -114,6 +114,7 @@ int32_t dnodeInitModules() {
     }
   }
 
+  dInfo("dnode modules is initialized");
   return 0;
 }
 
@@ -146,8 +147,8 @@ void dnodeProcessModuleStatus(uint32_t moduleStatus) {
   }
 }
 
-bool dnodeStartMnode(void *pMnodes) {
-  SDMMnodeInfos *mnodes = pMnodes;
+bool dnodeStartMnode(SMInfos *pMinfos) {
+  SMInfos *pMnodes = pMinfos;
 
   if (tsModuleStatus & (1 << TSDB_MOD_MNODE)) {
     dDebug("mnode module is already started, module status:%d", tsModuleStatus);
@@ -158,7 +159,7 @@ bool dnodeStartMnode(void *pMnodes) {
   dInfo("start mnode module, module status:%d, new status:%d", tsModuleStatus, moduleStatus);
   dnodeProcessModuleStatus(moduleStatus);
 
-  sdbUpdateSync(mnodes);
+  sdbUpdateSync(pMnodes);
 
   return true;
 }

@@ -14,7 +14,6 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
-import java.io.*;
 import java.sql.Array;
 import java.sql.Blob;
 import java.sql.CallableStatement;
@@ -35,10 +34,9 @@ import java.util.*;
 import java.util.concurrent.Executor;
 
 public class TSDBConnection implements Connection {
+    protected Properties props = null;
 
     private TSDBJNIConnector connector = null;
-
-    protected Properties props = null;
 
     private String catalog = null;
 
@@ -47,16 +45,21 @@ public class TSDBConnection implements Connection {
     private Properties clientInfoProps = new Properties();
 
     private int timeoutMilliseconds = 0;
-
-    private String tsCharSet = "";
+    
+    private boolean batchFetch = false;
 
     public TSDBConnection(Properties info, TSDBDatabaseMetaData meta) throws SQLException {
         this.dbMetaData = meta;
-
         connect(info.getProperty(TSDBDriver.PROPERTY_KEY_HOST),
                 Integer.parseInt(info.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "0")),
-                info.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME), info.getProperty(TSDBDriver.PROPERTY_KEY_USER),
+                info.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME), 
+                info.getProperty(TSDBDriver.PROPERTY_KEY_USER),
                 info.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD));
+        
+        String batchLoad = info.getProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD);
+        if (batchLoad != null) {
+        	this.batchFetch = Boolean.parseBoolean(batchLoad);
+        }
     }
 
     private void connect(String host, int port, String dbName, String user, String password) throws SQLException {
@@ -197,12 +200,14 @@ public class TSDBConnection implements Connection {
     }
 
     public SQLWarning getWarnings() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        //todo: implement getWarnings according to the warning messages returned from TDengine
+        return null;
+//        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     public void clearWarnings() throws SQLException {
         // left blank to support HikariCP connection
-        //todo: implement getWarnings according to the warning messages returned from TDengine
+        //todo: implement clearWarnings according to the warning messages returned from TDengine
     }
 
     public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
@@ -221,6 +226,14 @@ public class TSDBConnection implements Connection {
         }
 
         return this.prepareStatement(sql);
+    }
+    
+    public Boolean getBatchFetch() {
+    	return this.batchFetch;
+    }
+    
+    public void setBatchFetch(Boolean batchFetch) {
+    	this.batchFetch = batchFetch;
     }
 
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {

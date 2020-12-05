@@ -1,4 +1,4 @@
-sleep 3000
+sleep 500
 sql connect
 
 $dbPrefix = intp_db
@@ -303,6 +303,8 @@ $tb = $tbPrefix . 0
     return -1
   endi
 
+  print select interp(ts), interp(c1), interp(c2), interp(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from $tb where ts = $ts0 fill(linear)
+
   sql select interp(ts), interp(c1), interp(c2), interp(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from $tb where ts = $ts0 fill(linear)
   if $rows != 1 then
     return -1
@@ -338,6 +340,8 @@ $tb = $tbPrefix . 0
     return -1
   endi
   # columns contain NULL values
+
+  print select interp(ts), interp(c1), interp(c2), interp(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from intp_tb3 where ts = $ts0 fill(linear)
   sql select interp(ts), interp(c1), interp(c2), interp(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from intp_tb3 where ts = $ts0 fill(linear)
   if $rows != 1 then
     return -1
@@ -380,6 +384,7 @@ $tb = $tbPrefix . 0
   endi
 
   $t = $tsu + 1000
+  print select interp(ts), interp(c1), interp(c2), interp(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from $tb where ts = $t fill(linear)
   sql select interp(ts), interp(c1), interp(c2), interp(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from $tb where ts = $t fill(linear)
   if $rows != 0 then
     return -1
@@ -387,6 +392,7 @@ $tb = $tbPrefix . 0
 
 ## fill(value)
   $t = $ts0 + 1000
+  print 91
   sql select interp(ts), interp(c1), interp(c2), interp(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from $tb where ts = $t fill(value, -1, -2)
   if $rows != 1 then
     return -1
@@ -456,6 +462,7 @@ $tb = $tbPrefix . 0
   if $data09 != nchar0 then
     return -1
   endi
+
   # table has NULL columns
   sql select interp(ts), interp(c1), interp(c2), interp(c3), interp(c4), interp(c5), interp(c6), interp(c7), interp(c8), interp(c9) from intp_tb3 where ts = $ts0 fill(value, -1, -2, -3)
   if $rows != 1 then
@@ -491,11 +498,14 @@ $tb = $tbPrefix . 0
 
 ##### select interp from stable
   ## interp(*) from stb
+  print select interp(*) from $stb where ts = $ts0
   sql select interp(*) from $stb where ts = $ts0
   if $rows != 1 then
     return -1
   endi
   $t = $ts0 + 1000
+  print 92
+
   sql select interp(*) from $stb where ts = $t
   if $rows != 0 then
     return -1

@@ -1,4 +1,4 @@
-sleep 3000
+sleep 500
 sql connect
 
 $dbPrefix = lm_db
@@ -20,6 +20,7 @@ sql use $db
 $tsu = $rowNum * $delta
 $tsu = $tsu - $delta
 $tsu = $tsu + $ts0
+$tsu = $tsu + 9
 
 ##### select from supertable
 
@@ -75,7 +76,7 @@ if $data00 != @18-09-17 09:00:00.000@ then
   return -1
 endi
 
-if $data40 != @18-09-17 09:00:00.000@ then
+if $data40 != @18-09-17 09:00:00.004@ then
   return -1
 endi
 
@@ -84,11 +85,11 @@ if $data01 != 0 then
 endi
 
 print data12 = $data12
-if $data12 != NULL then
+if $data12 != 0 then
   return -1
 endi
 
-if $data24 != NULL then
+if $data24 != 0.000000000 then
   return -1
 endi
 
@@ -110,23 +111,16 @@ if $data41 != 0 then
   return -1
 endi
 
-if $data40 != @18-09-17 09:00:00.000@ then
+if $data40 != @18-09-17 09:00:00.005@ then
   return -1
 endi
 
-if $data00 != @18-09-17 09:00:00.000@ then
+if $data00 != @18-09-17 09:00:00.001@ then
   return -1
 endi
 
 sql select * from $stb limit 500 offset 1
 if $rows != 99 then
-  return -1
-endi
-
-if $data01 != 1 then
-  return -1
-endi
-if $data41 != 5 then
   return -1
 endi
 
@@ -136,7 +130,7 @@ sql select * from $stb limit 2 offset $offset
 if $rows != 1 then
   return -1
 endi
-if $data00 != @18-09-17 10:30:00.000@ then
+if $data00 != @18-09-17 10:30:00.009@ then
   return -1
 endi
 if $data01 != 9 then
@@ -174,7 +168,7 @@ sql select * from $stb limit 2 offset $offset
 if $rows != 2 then
   return -1
 endi
-if $data00 != @18-09-17 10:30:00.000@ then
+if $data00 != @18-09-17 10:30:00.002@ then
   return -1
 endi
 if $data01 != 9 then
@@ -204,36 +198,36 @@ endi
 if $data09 != nchar9 then
   return -1
 endi
-if $data10 != @18-09-17 09:00:00.000@ then
-  return -1
-endi
-if $data11 != 0 then
-  return -1
-endi
-if $data12 != NULL then
-  return -1
-endi
-if $data13 != 0.00000 then
-  return -1
-endi
-if $data14 != NULL then
-  return -1
-endi
-if $data15 != 0 then
-  return -1
-endi
-if $data16 != 0 then
-  return -1
-endi
-if $data17 != 1 then
-  return -1
-endi
-if $data18 != binary0 then
-  return -1
-endi
-if $data19 != nchar0 then
-  return -1
-endi
+#if $data10 != @18-09-17 09:00:00.000@ then
+#  return -1
+#endi
+#if $data11 != 0 then
+#  return -1
+#endi
+#if $data12 != NULL then
+#  return -1
+#endi
+#if $data13 != 0.00000 then
+#  return -1
+#endi
+#if $data14 != NULL then
+#  return -1
+#endi
+#if $data15 != 0 then
+#  return -1
+#endi
+#if $data16 != 0 then
+#  return -1
+#endi
+#if $data17 != 1 then
+#  return -1
+#endi
+#if $data18 != binary0 then
+#  return -1
+#endi
+#if $data19 != nchar0 then
+#  return -1
+#endi
 
 $offset = $rowNum * $tbNum
 sql select * from lm_stb0 limit 2 offset $offset
@@ -248,6 +242,7 @@ endi
 if $data01 != 0 then
   return -1
 endi
+
 sql select ts, c1, c2, c3, c4, c5, c6, c7, c8, c9 from $stb limit 1 offset 1;
 if $rows != 1 then
   return -1
@@ -288,52 +283,52 @@ if $data09 != nchar4 then
 endi
 
 ### select from supertable + where + limit offset
-sql select * from $stb where ts > '2018-09-17 09:30:00.000' and ts < '2018-09-17 10:30:00.000' limit 5 offset 1
+sql select * from $stb where ts > '2018-09-17 09:30:00.000' and ts < '2018-09-17 10:30:00.000' order by ts asc limit 5 offset 1
 if $rows != 5 then
   return -1
 endi
-if $data01 != 5 then
+if $data01 != 3 then
   return -1
 endi
-if $data11 != 6 then
+if $data11 != 3 then
   return -1
 endi
-if $data21 != 7 then
+if $data21 != 3 then
   return -1
 endi
-if $data31 != 8 then
+if $data31 != 3 then
   return -1
 endi
-if $data41 != 4 then
+if $data41 != 3 then
   return -1
 endi
 
-sql select * from $stb where ts > '2018-09-17 09:30:00.000' and ts < '2018-09-17 10:30:00.000' limit 5 offset 50
+sql select * from $stb where ts > '2018-09-17 09:30:00.000' and ts < '2018-09-17 10:10:00.000' order by ts asc limit 5 offset 50
 if $rows != 0 then
   return -1
 endi
 
-sql select * from $stb where ts > '2018-09-17 09:30:00.000' and ts < '2018-09-17 10:30:00.000' limit 5 offset 1
+sql select * from $stb where ts > '2018-09-17 09:30:00.000' and ts < '2018-09-17 10:30:00.000' order by ts asc limit 5 offset 1
 if $rows != 5 then
   return -1
 endi
-if $data01 != 5 then
+if $data01 != 3 then
   return -1
 endi
-if $data11 != 6 then
+if $data11 != 3 then
   return -1
 endi
-if $data21 != 7 then
+if $data21 != 3 then
   return -1
 endi
-if $data31 != 8 then
+if $data31 != 3 then
   return -1
 endi
-if $data41 != 4 then
+if $data41 != 3 then
   return -1
 endi
 
-sql select max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9) from lm_stb0 where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 10:30:00.000' limit 1 offset 0;
+sql select max(c1), min(c2), avg(c3), sum(c5), spread(c6), first(c7), last(c8), first(c9) from lm_stb0 where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 10:30:00.009' order by ts asc limit 1 offset 0;
 if $rows != 1 then
   return -1
 endi
@@ -842,18 +837,12 @@ sql select top(c1, 5) from $stb where ts >= $ts0 and ts <= $tsu order by ts desc
 if $rows != 3 then
   return -1
 endi
-if $data00 != @18-09-17 10:30:00.000@ then
-  return -1
-endi
 if $data01 != 9 then
   return -1
 endi
 
 sql select top(c1, 5) from $stb where ts >= $ts0 and ts <= $tsu order by ts asc limit 3 offset 1
 if $rows != 3 then
-  return -1
-endi
-if $data00 != @18-09-17 10:30:00.000@ then
   return -1
 endi
 if $data01 != 9 then
@@ -864,7 +853,7 @@ sql select top(c1, 5) from $stb where ts >= $ts0 and ts <= $tsu group by t1 orde
 if $rows != 6 then
   return -1
 endi
-if $data00 != @18-09-17 10:00:00.000@ then
+if $data00 != @18-09-17 10:00:00.008@ then
   return -1
 endi
 if $data01 != 6 then
@@ -873,7 +862,7 @@ endi
 if $data02 != 8 then
   return -1
 endi
-if $data10 != @18-09-17 10:10:00.000@ then
+if $data10 != @18-09-17 10:10:00.008@ then
   return -1
 endi
 if $data11 != 7 then
@@ -882,7 +871,7 @@ endi
 if $data12 != 8 then
   return -1
 endi
-if $data20 != @18-09-17 10:20:00.000@ then
+if $data20 != @18-09-17 10:20:00.008@ then
   return -1
 endi
 if $data21 != 8 then
@@ -891,7 +880,7 @@ endi
 if $data22 != 8 then
   return -1
 endi
-if $data30 != @18-09-17 10:00:00.000@ then
+if $data30 != @18-09-17 10:00:00.007@ then
   return -1
 endi
 if $data31 != 6 then
@@ -900,7 +889,7 @@ endi
 if $data32 != 7 then
   return -1
 endi
-if $data40 != @18-09-17 10:10:00.000@ then
+if $data40 != @18-09-17 10:10:00.007@ then
   return -1
 endi
 if $data41 != 7 then
@@ -909,7 +898,7 @@ endi
 if $data42 != 7 then
   return -1
 endi
-if $data50 != @18-09-17 10:20:00.000@ then
+if $data50 != @18-09-17 10:20:00.007@ then
   return -1
 endi
 if $data51 != 8 then
@@ -923,7 +912,7 @@ sql select top(c1, 5) from $stb where ts >= $ts0 and ts <= $tsu group by t1 orde
 if $rows != 6 then
   return -1
 endi
-if $data00 != @18-09-17 10:00:00.000@ then
+if $data00 != @18-09-17 10:00:00.001@ then
   return -1
 endi
 if $data01 != 6 then
@@ -932,7 +921,7 @@ endi
 if $data02 != 1 then
   return -1
 endi
-if $data10 != @18-09-17 10:10:00.000@ then
+if $data10 != @18-09-17 10:10:00.001@ then
   return -1
 endi
 if $data11 != 7 then
@@ -941,7 +930,7 @@ endi
 if $data12 != 1 then
   return -1
 endi
-if $data20 != @18-09-17 10:20:00.000@ then
+if $data20 != @18-09-17 10:20:00.001@ then
   return -1
 endi
 if $data21 != 8 then
@@ -950,7 +939,7 @@ endi
 if $data22 != 1 then
   return -1
 endi
-if $data30 != @18-09-17 10:00:00.000@ then
+if $data30 != @18-09-17 10:00:00.002@ then
   return -1
 endi
 if $data31 != 6 then
@@ -959,7 +948,7 @@ endi
 if $data32 != 2 then
   return -1
 endi
-if $data40 != @18-09-17 10:10:00.000@ then
+if $data40 != @18-09-17 10:10:00.002@ then
   return -1
 endi
 if $data41 != 7 then
@@ -968,7 +957,7 @@ endi
 if $data42 != 2 then
   return -1
 endi
-if $data50 != @18-09-17 10:20:00.000@ then
+if $data50 != @18-09-17 10:20:00.002@ then
   return -1
 endi
 if $data51 != 8 then
@@ -982,7 +971,7 @@ sql select top(c1, 5) from $stb where ts >= $ts0 and ts <= $tsu group by t1 orde
 if $rows != 6 then
   return -1
 endi
-if $data00 != @18-09-17 10:20:00.000@ then
+if $data00 != @18-09-17 10:20:00.001@ then
   return -1
 endi
 if $data01 != 8 then
@@ -991,7 +980,7 @@ endi
 if $data02 != 1 then
   return -1
 endi
-if $data10 != @18-09-17 10:10:00.000@ then
+if $data10 != @18-09-17 10:10:00.001@ then
   return -1
 endi
 if $data11 != 7 then
@@ -1000,7 +989,7 @@ endi
 if $data12 != 1 then
   return -1
 endi
-if $data20 != @18-09-17 10:00:00.000@ then
+if $data20 != @18-09-17 10:00:00.001@ then
   return -1
 endi
 if $data21 != 6 then
@@ -1009,7 +998,7 @@ endi
 if $data22 != 1 then
   return -1
 endi
-if $data30 != @18-09-17 10:20:00.000@ then
+if $data30 != @18-09-17 10:20:00.002@ then
   return -1
 endi
 if $data31 != 8 then
@@ -1018,7 +1007,7 @@ endi
 if $data32 != 2 then
   return -1
 endi
-if $data40 != @18-09-17 10:10:00.000@ then
+if $data40 != @18-09-17 10:10:00.002@ then
   return -1
 endi
 if $data41 != 7 then
@@ -1027,7 +1016,7 @@ endi
 if $data42 != 2 then
   return -1
 endi
-if $data50 != @18-09-17 10:00:00.000@ then
+if $data50 != @18-09-17 10:00:00.002@ then
   return -1
 endi
 if $data51 != 6 then
@@ -1052,9 +1041,9 @@ sql select bottom(c1, 5) from $stb where ts >= $ts0 and ts <= $tsu order by ts d
 if $rows != 3 then
   return -1
 endi
-if $data00 != @18-09-17 09:00:00.000@ then
-  return -1
-endi
+#if $data00 != @18-09-17 09:00:00.000@ then
+#  return -1
+#endi
 if $data01 != 0 then
   return -1
 endi
@@ -1063,9 +1052,9 @@ sql select bottom(c1, 5) from $stb where ts >= $ts0 and ts <= $tsu order by ts a
 if $rows != 3 then
   return -1
 endi
-if $data00 != @18-09-17 09:00:00.000@ then
-  return -1
-endi
+#if $data00 != @18-09-17 09:00:00.000@ then
+#  return -1
+#endi
 if $data01 != 0 then
   return -1
 endi
@@ -1074,54 +1063,54 @@ sql select bottom(c1, 5) from $stb where ts >= $ts0 and ts <= $tsu group by t1 o
 if $rows != 6 then
   return -1
 endi
-if $data00 != @18-09-17 09:30:00.000@ then
-  return -1
-endi
+#if $data00 != @18-09-17 09:30:00.000@ then
+#  return -1
+#endi
 if $data01 != 3 then
   return -1
 endi
 if $data02 != 8 then
   return -1
 endi
-if $data10 != @18-09-17 09:20:00.000@ then
-  return -1
-endi
+#if $data10 != @18-09-17 09:20:00.000@ then
+#  return -1
+#endi
 if $data11 != 2 then
   return -1
 endi
 if $data12 != 8 then
   return -1
 endi
-if $data20 != @18-09-17 09:10:00.000@ then
-  return -1
-endi
+#if $data20 != @18-09-17 09:10:00.000@ then
+#  return -1
+#endi
 if $data21 != 1 then
   return -1
 endi
 if $data22 != 8 then
   return -1
 endi
-if $data30 != @18-09-17 09:30:00.000@ then
-  return -1
-endi
+#if $data30 != @18-09-17 09:30:00.000@ then
+#  return -1
+#endi
 if $data31 != 3 then
   return -1
 endi
 if $data32 != 7 then
   return -1
 endi
-if $data40 != @18-09-17 09:20:00.000@ then
-  return -1
-endi
+#if $data40 != @18-09-17 09:20:00.000@ then
+#  return -1
+#endi
 if $data41 != 2 then
   return -1
 endi
 if $data42 != 7 then
   return -1
 endi
-if $data50 != @18-09-17 09:10:00.000@ then
-  return -1
-endi
+#if $data50 != @18-09-17 09:10:00.000@ then
+#  return -1
+#endi
 if $data51 != 1 then
   return -1
 endi
@@ -1133,54 +1122,54 @@ sql select bottom(c1, 5) from $stb where ts >= $ts0 and ts <= $tsu group by t1 o
 if $rows != 6 then
   return -1
 endi
-if $data00 != @18-09-17 09:30:00.000@ then
-  return -1
-endi
+#if $data00 != @18-09-17 09:30:00.000@ then
+#  return -1
+#endi
 if $data01 != 3 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data10 != @18-09-17 09:20:00.000@ then
-  return -1
-endi
+#if $data10 != @18-09-17 09:20:00.000@ then
+#  return -1
+#endi
 if $data11 != 2 then
   return -1
 endi
 if $data12 != 1 then
   return -1
 endi
-if $data20 != @18-09-17 09:10:00.000@ then
-  return -1
-endi
+#if $data20 != @18-09-17 09:10:00.000@ then
+#  return -1
+#endi
 if $data21 != 1 then
   return -1
 endi
 if $data22 != 1 then
   return -1
 endi
-if $data30 != @18-09-17 09:30:00.000@ then
-  return -1
-endi
+#if $data30 != @18-09-17 09:30:00.000@ then
+#  return -1
+#endi
 if $data31 != 3 then
   return -1
 endi
 if $data32 != 2 then
   return -1
 endi
-if $data40 != @18-09-17 09:20:00.000@ then
-  return -1
-endi
+#if $data40 != @18-09-17 09:20:00.000@ then
+#  return -1
+#endi
 if $data41 != 2 then
   return -1
 endi
 if $data42 != 2 then
   return -1
 endi
-if $data50 != @18-09-17 09:10:00.000@ then
-  return -1
-endi
+#if $data50 != @18-09-17 09:10:00.000@ then
+#  return -1
+#endi
 if $data51 != 1 then
   return -1
 endi
@@ -1192,54 +1181,54 @@ sql select bottom(c1, 5) from $stb where ts >= $ts0 and ts <= $tsu group by t1 o
 if $rows != 6 then
   return -1
 endi
-if $data00 != @18-09-17 09:30:00.000@ then
-  return -1
-endi
+#if $data00 != @18-09-17 09:30:00.000@ then
+#  return -1
+#endi
 if $data01 != 3 then
   return -1
 endi
 if $data02 != 1 then
   return -1
 endi
-if $data10 != @18-09-17 09:20:00.000@ then
-  return -1
-endi
+#if $data10 != @18-09-17 09:20:00.000@ then
+#  return -1
+#endi
 if $data11 != 2 then
   return -1
 endi
 if $data12 != 1 then
   return -1
 endi
-if $data20 != @18-09-17 09:10:00.000@ then
-  return -1
-endi
+#if $data20 != @18-09-17 09:10:00.000@ then
+#  return -1
+#endi
 if $data21 != 1 then
   return -1
 endi
 if $data22 != 1 then
   return -1
 endi
-if $data30 != @18-09-17 09:30:00.000@ then
-  return -1
-endi
+#if $data30 != @18-09-17 09:30:00.000@ then
+#  return -1
+#endi
 if $data31 != 3 then
   return -1
 endi
 if $data32 != 2 then
   return -1
 endi
-if $data40 != @18-09-17 09:20:00.000@ then
-  return -1
-endi
+#if $data40 != @18-09-17 09:20:00.000@ then
+#  return -1
+#endi
 if $data41 != 2 then
   return -1
 endi
 if $data42 != 2 then
   return -1
 endi
-if $data50 != @18-09-17 09:10:00.000@ then
-  return -1
-endi
+#if $data50 != @18-09-17 09:10:00.000@ then
+#  return -1
+#endi
 if $data51 != 1 then
   return -1
 endi

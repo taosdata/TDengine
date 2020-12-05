@@ -37,7 +37,7 @@ fqdn                  h1.taosdata.com
 // 配置本数据节点的端口号，缺省是6030
 serverPort            6030
 
-// 服务端节点数为偶数的时候，需要配置，请参考《Arbitrator的使用》的部分
+// 使用场景，请参考《Arbitrator的使用》的部分
 arbitrator            ha.taosdata.com:6042
 ```
 
@@ -213,6 +213,6 @@ SHOW MNODES;
 
 ## Arbitrator的使用
 
-如果副本数为偶数，当一个vnode group里一半或超过一半的vnode不工作时，是无法从中选出master的。同理，一半或超过一半的mnode不工作时，是无法选出mnode的master的，因为存在“split brain”问题。为解决这个问题，TDengine引入了arbitrator的概念。Arbitrator模拟一个vnode或mnode在工作，但只简单的负责网络连接，不处理任何数据插入或访问。只要包含arbitrator在内，超过半数的vnode或mnode工作，那么该vnode group或mnode组就可以正常的提供数据插入或查询服务。比如对于副本数为2的情形，如果一个节点A离线，但另外一个节点B正常，而且能连接到arbitrator, 那么节点B就能正常工作。
+如果副本数为偶数，当一个vnode group里一半vnode不工作时，是无法从中选出master的。同理，一半mnode不工作时，是无法选出mnode的master的，因为存在“split brain”问题。为解决这个问题，TDengine引入了arbitrator的概念。Arbitrator模拟一个vnode或mnode在工作，但只简单的负责网络连接，不处理任何数据插入或访问。只要包含arbitrator在内，超过半数的vnode或mnode工作，那么该vnode group或mnode组就可以正常的提供数据插入或查询服务。比如对于副本数为2的情形，如果一个节点A离线，但另外一个节点B正常，而且能连接到arbitrator, 那么节点B就能正常工作。
 
-TDengine安装包里带有一个执行程序tarbitrator, 找任何一台Linux服务器运行它即可。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6042。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为arbitrator的End Point。如果该参数配置了，当副本数为偶数数，系统将自动连接配置的arbitrator。
+TDengine提供一个执行程序tarbitrator, 找任何一台Linux服务器运行它即可。请点击[安装包下载](https://www.taosdata.com/cn/all-downloads/)，在TDengine Arbitrator Linux一节中，选择适合的版本下载并安装。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6042。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为arbitrator的End Point。如果该参数配置了，当副本数为偶数数，系统将自动连接配置的arbitrator。如果副本数为奇数，即使配置了arbitrator, 系统也不会去建立连接。

@@ -10,6 +10,7 @@ data_dir="/var/lib/taos"
 log_dir="/var/log/taos"
 data_link_dir="/usr/local/taos/data"
 log_link_dir="/usr/local/taos/log"
+install_main_dir="/usr/local/taos"
 
 # static directory
 cfg_dir="/usr/local/taos/cfg"
@@ -80,8 +81,10 @@ function install_lib() {
     ${csudo} ln -s ${lib_dir}/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
     
-    ${csudo} ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.1           || :
-    ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so   || :
+    if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
+      ${csudo} ln -s ${lib_dir}/libtaos.* ${lib64_link_dir}/libtaos.so.1           || :
+      ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so   || :
+    fi
 }
 
 function install_bin() {
@@ -89,6 +92,7 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
+    ${csudo} rm -f ${bin_link_dir}/taosdump || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
     ${csudo} rm -f ${bin_link_dir}/set_core || :
 
@@ -98,6 +102,7 @@ function install_bin() {
     [ -x ${bin_dir}/taos ] && ${csudo} ln -s ${bin_dir}/taos ${bin_link_dir}/taos             || :
     [ -x ${bin_dir}/taosd ] && ${csudo} ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd          || :
     [ -x ${bin_dir}/taosdemo ] && ${csudo} ln -s ${bin_dir}/taosdemo ${bin_link_dir}/taosdemo || :
+    [ -x ${bin_dir}/taosdump ] && ${csudo} ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${bin_dir}/set_core.sh ] && ${csudo} ln -s ${bin_dir}/set_core.sh ${bin_link_dir}/set_core || :
 }
 
@@ -120,8 +125,11 @@ function install_config() {
     echo -e -n "${GREEN}Enter FQDN:port (like h1.taosdata.com:6030) of an existing TDengine cluster node to join${NC}"
     echo
     echo -e -n "${GREEN}OR leave it blank to build one${NC}:"
-    read firstEp
-    while true; do
+    #read firstEp
+    if exec < /dev/tty; then
+    	read firstEp;
+	fi
+	while true; do
         if [ ! -z "$firstEp" ]; then
             # check the format of the firstEp
             #if [[ $firstEp == $FQDN_PATTERN ]]; then
@@ -130,6 +138,29 @@ function install_config() {
                 break
             #else
             #    read -p "Please enter the correct FQDN:port: " firstEp
+            #fi
+        else
+            break
+        fi
+    done		
+
+    # user email 
+    #EMAIL_PATTERN='^[A-Za-z0-9\u4e00-\u9fa5]+@[a-zA-Z0-9_-]+(\.[a-zA-Z0-9_-]+)+$'
+    #EMAIL_PATTERN='^[\w-]+(\.[\w-]+)*@[\w-]+(\.[\w-]+)+$'
+    #EMAIL_PATTERN="^[\w-]+(\.[\w-]+)*@[\w-]+(\.[\w-]+)+$"
+    echo
+    echo -e -n "${GREEN}Enter your email address for priority support or enter empty to skip${NC}: "
+    read emailAddr
+    while true; do
+        if [ ! -z "$emailAddr" ]; then
+            # check the format of the emailAddr
+            #if [[ "$emailAddr" =~ $EMAIL_PATTERN ]]; then
+                # Write the email address to temp file                    
+                email_file="${install_main_dir}/email" 
+                ${csudo} bash -c "echo $emailAddr > ${email_file}"
+                break         
+            #else
+            #    read -p "Please enter the correct email address: " emailAddr   
             #fi
         else
             break

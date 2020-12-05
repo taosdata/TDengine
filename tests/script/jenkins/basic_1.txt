@@ -200,3 +200,6 @@
 
 ./test.sh -f unique/http/admin.sim
 ./test.sh -f unique/http/opentsdb.sim
+
+./test.sh -f unique/import/replica2.sim
+./test.sh -f unique/import/replica3.sim

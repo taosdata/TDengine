@@ -7,7 +7,7 @@ system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 
 system sh/exec.sh -n dnode1 -s start
-sleep 1000
+sleep 500
 sql connect
 
 $dbPrefix = join_db
@@ -24,7 +24,7 @@ $mt = $mtPrefix . $i
 
 $tstart = 100000
 
-sql drop database if exits $db -x step1
+sql drop database if exists $db -x step1
 step1:
 sql create database if not exists $db keep 36500
 sql use $db
@@ -360,9 +360,7 @@ endi
 sql select join_mt1.* from join_mt1
 
 print $rows
-
-$val = 2000
-if $rows != $val then
+if $rows != 2000 then
   return -1
 endi
 
@@ -443,6 +441,9 @@ $val = 100
 if $rows != $val then
   return -1
 endi
+
+#===============================================================
+sql select first(join_tb0.c8),first(join_tb0.c9) from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 and join_tb0.c7 = true
 
 #====================group by=========================================
 

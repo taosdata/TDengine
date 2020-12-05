@@ -23,19 +23,19 @@ extern "C" {
 #define TAOS_SYNC_MAX_REPLICA 5
 #define TAOS_SYNC_MAX_INDEX   0x7FFFFFFF
 
-typedef enum _TAOS_SYNC_ROLE {
-  TAOS_SYNC_ROLE_OFFLINE,
-  TAOS_SYNC_ROLE_UNSYNCED,
-  TAOS_SYNC_ROLE_SYNCING,
-  TAOS_SYNC_ROLE_SLAVE,
-  TAOS_SYNC_ROLE_MASTER,
+typedef enum {
+  TAOS_SYNC_ROLE_OFFLINE  = 0,
+  TAOS_SYNC_ROLE_UNSYNCED = 1,
+  TAOS_SYNC_ROLE_SYNCING  = 2,
+  TAOS_SYNC_ROLE_SLAVE    = 3,
+  TAOS_SYNC_ROLE_MASTER   = 4
 } ESyncRole;
 
-typedef enum _TAOS_SYNC_STATUS {
-  TAOS_SYNC_STATUS_INIT,
-  TAOS_SYNC_STATUS_START,
-  TAOS_SYNC_STATUS_FILE,
-  TAOS_SYNC_STATUS_CACHE,
+typedef enum {
+  TAOS_SYNC_STATUS_INIT  = 0,
+  TAOS_SYNC_STATUS_START = 1,
+  TAOS_SYNC_STATUS_FILE  = 2,
+  TAOS_SYNC_STATUS_CACHE = 3
 } ESyncStatus;
 
 typedef struct {
@@ -51,9 +51,9 @@ typedef struct {
 } SSyncCfg;
 
 typedef struct {
-  int       selfIndex;
-  uint32_t  nodeId[TAOS_SYNC_MAX_REPLICA];
-  int       role[TAOS_SYNC_MAX_REPLICA];  
+  int32_t  selfIndex;
+  uint32_t nodeId[TAOS_SYNC_MAX_REPLICA];
+  int32_t  role[TAOS_SYNC_MAX_REPLICA];
 } SNodesRole;
 
 /* 
@@ -64,67 +64,69 @@ typedef struct {
   if name is provided(name[0] is not zero), get the named file at the specified index. If not there, return
   zero. If it is there, set the size to file size, and return file magic number. Index shall not be updated.
 */
-typedef uint32_t (*FGetFileInfo)(void *ahandle, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion); 
+typedef uint32_t (*FGetFileInfo)(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion); 
 
 // get the wal file from index or after
 // return value, -1: error, 1:more wal files, 0:last WAL. if name[0]==0, no WAL file
-typedef int      (*FGetWalInfo)(void *ahandle, char *name, uint32_t *index); 
+typedef int32_t  (*FGetWalInfo)(int32_t vgId, char *fileName, int64_t *fileId); 
  
-// when a forward pkt is received, call this to handle data 
-typedef int      (*FWriteToCache)(void *ahandle, void *pHead, int type);
+// when a forward pkt is received, call this to handle data
+typedef int32_t  (*FWriteToCache)(int32_t vgId, void *pHead, int32_t qtype, void *pMsg);
 
 // when forward is confirmed by peer, master call this API to notify app
-typedef void     (*FConfirmForward)(void *ahandle, void *mhandle, int32_t code);
+typedef void     (*FConfirmForward)(int32_t vgId, void *mhandle, int32_t code);
 
 // when role is changed, call this to notify app
-typedef void     (*FNotifyRole)(void *ahandle, int8_t role);
+typedef void     (*FNotifyRole)(int32_t vgId, int8_t role);
 
 // if a number of retrieving data failed, call this to start flow control 
-typedef void     (*FNotifyFlowCtrl)(void *ahandle, int32_t mseconds);
+typedef void     (*FNotifyFlowCtrl)(int32_t vgId, int32_t level);
 
 // when data file is synced successfully, notity app
-typedef int      (*FNotifyFileSynced)(void *ahandle, uint64_t fversion);
+typedef int32_t  (*FNotifyFileSynced)(int32_t vgId, uint64_t fversion);
+
+// get file version
+typedef int32_t  (*FGetVersion)(int32_t vgId, uint64_t *fver, uint64_t *vver);
 
 typedef struct {
-  int32_t    vgId;      // vgroup ID
-  uint64_t   version;   // initial version
-  SSyncCfg   syncCfg;   // configuration from mgmt
-  char       path[128]; // path to the file
- 
-  void      *ahandle;   // handle provided by APP 
-  FGetFileInfo    getFileInfo;
-  FGetWalInfo     getWalInfo;
-  FWriteToCache   writeToCache;
-  FConfirmForward confirmForward;
-  FNotifyRole     notifyRole;
-  FNotifyFlowCtrl notifyFlowCtrl;
+  int32_t  vgId;       // vgroup ID
+  uint64_t version;    // initial version
+  SSyncCfg syncCfg;    // configuration from mgmt
+  char     path[TSDB_FILENAME_LEN];  // path to the file
+  FGetFileInfo      getFileInfo;
+  FGetWalInfo       getWalInfo;
+  FWriteToCache     writeToCache;
+  FConfirmForward   confirmForward;
+  FNotifyRole       notifyRole;
+  FNotifyFlowCtrl   notifyFlowCtrl;
   FNotifyFileSynced notifyFileSynced;
+  FGetVersion       getVersion;
 } SSyncInfo;
 
-typedef void* tsync_h;
+typedef void *tsync_h;
 
 int32_t syncInit();
 void    syncCleanUp();
 
-tsync_h syncStart(const SSyncInfo *);
-void    syncStop(tsync_h shandle);
-int32_t syncReconfig(tsync_h shandle, const SSyncCfg *);
-int32_t syncForwardToPeer(tsync_h shandle, void *pHead, void *mhandle, int qtype);
-void    syncConfirmForward(tsync_h shandle, uint64_t version, int32_t code);
-void    syncRecover(tsync_h shandle);      // recover from other nodes:
-int     syncGetNodesRole(tsync_h shandle, SNodesRole *);
+int64_t syncStart(const SSyncInfo *);
+void    syncStop(int64_t rid);
+int32_t syncReconfig(int64_t rid, const SSyncCfg *);
+int32_t syncForwardToPeer(int64_t rid, void *pHead, void *mhandle, int32_t qtype);
+void    syncConfirmForward(int64_t rid, uint64_t version, int32_t code);
+void    syncRecover(int64_t rid);  // recover from other nodes:
+int32_t syncGetNodesRole(int64_t rid, SNodesRole *);
 
-extern  char *syncRole[];
+extern char *syncRole[];
 
 //global configurable parameters
-extern  int   tsMaxSyncNum;
-extern  int   tsSyncTcpThreads;
-extern  int   tsMaxWatchFiles;
-extern  int   tsSyncTimer;
-extern  int   tsMaxFwdInfo; 
-extern  int   sDebugFlag;
-extern  char  tsArbitrator[];
-extern  uint16_t tsSyncPort;
+extern int32_t  tsMaxSyncNum;
+extern int32_t  tsSyncTcpThreads;
+extern int32_t  tsMaxWatchFiles;
+extern int32_t  tsSyncTimer;
+extern int32_t  tsMaxFwdInfo;
+extern int32_t  sDebugFlag;
+extern char     tsArbitrator[];
+extern uint16_t tsSyncPort;
 
 #ifdef __cplusplus
 }

@@ -34,7 +34,6 @@
 #define QUERY_ID_SIZE   20
 #define QUERY_STREAM_SAVE_SIZE 20
 
-extern void *tsMnodeTmr;
 static SCacheObj *tsMnodeConnCache = NULL;
 static int32_t tsConnIndex = 0;
 
@@ -42,6 +41,7 @@ static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static void    mnodeCancelGetNextConn(void *pIter);
 static int32_t mnodeGetStreamMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static void    mnodeFreeConn(void *data);
@@ -52,10 +52,13 @@ static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg);
 int32_t mnodeInitProfile() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_QUERIES, mnodeGetQueryMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_QUERIES, mnodeRetrieveQueries);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_QUERIES, mnodeCancelGetNextConn);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_CONNS, mnodeGetConnsMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_CONNS, mnodeRetrieveConns);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_CONNS, mnodeCancelGetNextConn);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_STREAMS, mnodeGetStreamMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMS, mnodeRetrieveStreams);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_STREAMS, mnodeCancelGetNextConn);
 
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_QUERY, mnodeProcessKillQueryMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_KILL_STREAM, mnodeProcessKillStreamMsg);
@@ -111,7 +114,6 @@ void mnodeReleaseConn(SConnObj *pConn) {
 }
 
 SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t port) {
-  uint64_t expireTime = CONN_KEEP_TIME * 1000 + (uint64_t)taosGetTimestampMs();
   SConnObj *pConn = taosCacheAcquireByKey(tsMnodeConnCache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
     mDebug("connId:%d, is already destroyed, user:%s ip:%s:%u", connId, user, taosIpStr(ip), port);
@@ -126,38 +128,36 @@ SConnObj *mnodeAccquireConn(int32_t connId, char *user, uint32_t ip, uint16_t po
   }
 
   // mDebug("connId:%d, is incoming, user:%s ip:%s:%u", connId, pConn->user, taosIpStr(pConn->ip), pConn->port);
-  pConn->lastAccess = expireTime;
+  pConn->lastAccess = CONN_KEEP_TIME * 1000 + (uint64_t)taosGetTimestampMs();
   return pConn;
 }
 
 static void mnodeFreeConn(void *data) {
   SConnObj *pConn = data;
-  taosTFree(pConn->pQueries);
-  taosTFree(pConn->pStreams);
+  tfree(pConn->pQueries);
+  tfree(pConn->pStreams);
 
   mDebug("connId:%d, is destroyed", pConn->connId);
 }
 
-static void *mnodeGetNextConn(SHashMutableIterator *pIter, SConnObj **pConn) {
+static void *mnodeGetNextConn(void *pIter, SConnObj **pConn) {
   *pConn = NULL;
 
-  if (pIter == NULL) {
-    pIter = taosHashCreateIter(tsMnodeConnCache->pHashTable);
-  }
+  pIter = taosHashIterate(tsMnodeConnCache->pHashTable, pIter);
+  if (pIter == NULL) return NULL;
 
-  if (!taosHashIterNext(pIter)) {
-    taosHashDestroyIter(pIter);
-    return NULL;
-  }
-
-  SCacheDataNode **pNode = taosHashIterGet(pIter);
+  SCacheDataNode **pNode = pIter;
   if (pNode == NULL || *pNode == NULL) {
-    taosHashDestroyIter(pIter);
+    taosHashCancelIterate(tsMnodeConnCache->pHashTable, pIter);
     return NULL;
   }
 
   *pConn = (SConnObj*)((*pNode)->data);
   return pIter;
+}
+
+static void mnodeCancelGetNextConn(void *pIter) {
+  taosHashCancelIterate(tsMnodeConnCache->pHashTable, pIter);
 }
 
 static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
@@ -183,7 +183,7 @@ static int32_t mnodeGetConnsMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   // app name
   pShow->bytes[cols] = TSDB_APPNAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "app_name");
+  strcpy(pSchema[cols].name, "program");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -281,7 +281,7 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
 }
 
 // not thread safe, need optimized
-int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SCMHeartBeatMsg *pHBMsg) {
+int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SHeartBeatMsg *pHBMsg) {
   pConn->numOfQueries = htonl(pHBMsg->numOfQueries);
   if (pConn->numOfQueries > 0) {
     if (pConn->pQueries == NULL) {
@@ -562,7 +562,7 @@ static int32_t mnodeProcessKillQueryMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
-  SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
+  SKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
   mInfo("kill query msg is received, queryId:%s", pKill->queryId);
 
   const char delim = ':';
@@ -593,7 +593,7 @@ static int32_t mnodeProcessKillStreamMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
-  SCMKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
+  SKillQueryMsg *pKill = pMsg->rpcMsg.pCont;
   mInfo("kill stream msg is received, streamId:%s", pKill->queryId);
 
   const char delim = ':';
@@ -624,9 +624,9 @@ static int32_t mnodeProcessKillConnectionMsg(SMnodeMsg *pMsg) {
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, TSDB_DEFAULT_USER) != 0) return TSDB_CODE_MND_NO_RIGHTS;
 
-  SCMKillConnMsg *pKill = pMsg->rpcMsg.pCont;
+  SKillConnMsg *pKill = pMsg->rpcMsg.pCont;
   int32_t connId = atoi(pKill->queryId);
-  SConnObj *      pConn = taosCacheAcquireByKey(tsMnodeConnCache, &connId, sizeof(int32_t));
+  SConnObj *pConn = taosCacheAcquireByKey(tsMnodeConnCache, &connId, sizeof(int32_t));
   if (pConn == NULL) {
     mError("connId:%s, failed to kill, conn not exist", pKill->queryId);
     return TSDB_CODE_MND_INVALID_CONN_ID;

@@ -217,7 +217,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           break;
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_NCHAR:
-          httpJsonStringForTransMean(jsonBuf, row[i], fields[i].bytes);
+          httpJsonStringForTransMean(jsonBuf, (char*)row[i], fields[i].bytes);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
           if (precision == TSDB_TIME_PRECISION_MILLI) { //ms

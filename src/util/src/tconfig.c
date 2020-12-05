@@ -19,9 +19,7 @@
 #include "taoserror.h"
 #include "tconfig.h"
 #include "tglobal.h"
-#include "tkey.h"
 #include "tulog.h"
-#include "tsocket.h"
 #include "tsystem.h"
 #include "tutil.h"
 
@@ -288,7 +286,7 @@ void taosReadGlobalLogCfg() {
     option = value = NULL;
     olen = vlen = 0;
 
-    taosGetline(&line, &len, fp);
+    tgetline(&line, &len, fp);
     line[len - 1] = 0;
 
     paGetToken(line, &option, &olen);
@@ -302,7 +300,7 @@ void taosReadGlobalLogCfg() {
     taosReadLogOption(option, value);
   }
 
-  taosTFree(line);
+  tfree(line);
   fclose(fp);
 }
 
@@ -334,7 +332,7 @@ bool taosReadGlobalCfg() {
     option = value = NULL;
     olen = vlen = 0;
 
-    taosGetline(&line, &len, fp);
+    tgetline(&line, &len, fp);
     line[len - 1] = 0;
     
     paGetToken(line, &option, &olen);
@@ -354,8 +352,12 @@ bool taosReadGlobalCfg() {
 
   fclose(fp);
 
-  taosTFree(line);
-  
+  tfree(line);
+
+  if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP) {
+    taosSetAllDebugFlag();
+  }
+
   return true;
 }
 

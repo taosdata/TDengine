@@ -20,6 +20,23 @@
 extern "C" {
 #endif
 
+/*
+
+This set of API for queue is designed specially for vnode/mnode. The main purpose is to 
+consume all the items instead of one item from a queue by one single read. Also, it can 
+combine multiple queues into a queue set, a consumer thread can consume a queue set via 
+a single API instead of looping every queue by itself.
+
+Notes:
+1: taosOpenQueue/taosCloseQueue, taosOpenQset/taosCloseQset is NOT multi-thread safe 
+2: after taosCloseQueue/taosCloseQset is called, read/write operation APIs are not safe.
+3: read/write operation APIs are multi-thread safe
+
+To remove the limitation and make this set of queue APIs multi-thread safe, REF(tref.c)
+shall be used to set up the protection. 
+
+*/
+
 typedef void* taos_queue;
 typedef void* taos_qset;
 typedef void* taos_qall;

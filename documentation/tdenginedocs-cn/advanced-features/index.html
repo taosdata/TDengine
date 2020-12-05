@@ -51,8 +51,8 @@ INTERVAL(1M)</code></pre>
 <li><p>mseconds：查询数据库更新的时间间隔，单位为毫秒。一般设置为1000毫秒。返回值为指向TDengine_SUB 结构的指针，如果返回为空，表示失败。</p></li>
 </ul><li><p><code>TAOS_ROW taos_consume(TAOS_SUB *tsub)</code>
 </p><p>该函数用来获取订阅的结果，用户应用程序将其置于一个无限循环语句。如果数据库有新记录到达，该API将返回该最新的记录。如果没有新的记录，该API将阻塞。如果返回值为空，说明系统出错。参数说明：</p></li><ul><li><p>tsub：taos_subscribe的结构体指针。</p></li></ul><li><p><code>void taos_unsubscribe(TAOS_SUB *tsub)</code></p><p>取消订阅。应用程序退出时，务必调用该函数以避免资源泄露。</p></li>
-<li><p><code>int taos_num_subfields(TAOS_SUB *tsub)</code></p><p>获取返回的一行记录中数据包含多少列。</p></li>
-<li><p><code>TAOS_FIELD *taos_fetch_subfields(TAOS_SUB *tsub)</code></p><p>获取每列数据的属性（数据类型、名字、长度），与taos_num_subfileds配合使用，可解析返回的每行数据。</p></li></ul>
+<li><p><code>int taos_num_fields(TAOS_SUB *tsub)</code></p><p>获取返回的一行记录中数据包含多少列。</p></li>
+<li><p><code>TAOS_FIELD *taos_fetch_fields(TAOS_SUB *tsub)</code></p><p>获取每列数据的属性（数据类型、名字、长度），与taos_num_subfileds配合使用，可解析返回的每行数据。</p></li></ul>
 <p>示例代码：请看安装包中的的示范程序</p>
 <a class='anchor' id='缓存-(Cache)'></a><h2>缓存 (Cache)</h2>
 <p>TDengine采用时间驱动缓存管理策略（First-In-First-Out，FIFO），又称为写驱动的缓存管理机制。这种策略有别于读驱动的数据缓存模式（Least-Recent-Use，LRU），直接将最近写入的数据保存在系统的缓存中。当缓存达到临界值的时候，将最早的数据批量写入磁盘。一般意义上来说，对于物联网数据的使用，用户最为关心最近产生的数据，即当前状态。TDengine充分利用了这一特性，将最近到达的（当前状态）数据保存在缓存中。</p>

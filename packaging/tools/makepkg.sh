@@ -36,7 +36,7 @@ if [ "$pagMode" == "lite" ]; then
   strip ${build_dir}/bin/taos
   bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${script_dir}/remove.sh"
 else 
-  bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdemo ${build_dir}/bin/tarbitrator ${script_dir}/remove.sh ${script_dir}/set_core.sh"
+  bin_files="${build_dir}/bin/taosd ${build_dir}/bin/taos ${build_dir}/bin/taosdump ${build_dir}/bin/taosdemo ${build_dir}/bin/tarbitrator ${script_dir}/remove.sh ${script_dir}/set_core.sh ${script_dir}/get_client.sh"
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
@@ -124,7 +124,7 @@ cp ${lib_files} ${install_dir}/driver
 connector_dir="${code_dir}/connector"
 mkdir -p ${install_dir}/connector
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-  cp ${build_dir}/lib/*.jar            ${install_dir}/connector
+  cp ${build_dir}/lib/*.jar            ${install_dir}/connector ||:
   cp -r ${connector_dir}/grafanaplugin ${install_dir}/connector/
   cp -r ${connector_dir}/python        ${install_dir}/connector/
   cp -r ${connector_dir}/go            ${install_dir}/connector

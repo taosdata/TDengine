@@ -1,0 +1,18 @@
+PROJECT(TDengine)
+
+IF (TD_LINUX)
+  # AUX_SOURCE_DIRECTORY(. SRC)
+  ADD_EXECUTABLE(tcodbc main.c)
+  TARGET_LINK_LIBRARIES(tcodbc odbc)
+  ADD_EXECUTABLE(tconv tconv.c)
+ENDIF ()
+
+IF (TD_WINDOWS_64)
+  SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /GL")
+  SET(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /GL")
+  # AUX_SOURCE_DIRECTORY(. SRC)
+  ADD_EXECUTABLE(tcodbc main.c)
+  TARGET_LINK_LIBRARIES(tcodbc odbc32 odbccp32 user32 legacy_stdio_definitions os)
+  ADD_EXECUTABLE(tconv tconv.c)
+  TARGET_LINK_LIBRARIES(tconv tutil)
+ENDIF ()

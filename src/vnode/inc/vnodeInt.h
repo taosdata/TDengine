@@ -37,17 +37,21 @@ extern int32_t vDebugFlag;
 typedef struct {
   int32_t      vgId;      // global vnode group ID
   int32_t      refCount;  // reference count
-  int32_t      delay;
+  int32_t      queuedWMsg;
+  int32_t      queuedRMsg;
+  int32_t      flowctrlLevel;
   int8_t       status; 
   int8_t       role;   
   int8_t       accessState;
-  int64_t      version;   // current version 
-  int64_t      fversion;  // version on saved data file
+  int8_t       isFull;
+  int8_t       isCommiting;
+  uint64_t     version;   // current version 
+  uint64_t     fversion;  // version on saved data file
   void        *wqueue;
   void        *rqueue;
   void        *wal;
   void        *tsdb;
-  void        *sync;
+  int64_t      sync;
   void        *events;
   void        *cq;  // continuous query
   int32_t      cfgVersion;
@@ -58,11 +62,9 @@ typedef struct {
   char        *rootDir;
   tsem_t       sem;
   int8_t       dropped;
-  char         db[TSDB_DB_NAME_LEN];
+  char         db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
 } SVnodeObj;
 
-int  vnodeWriteToQueue(void *param, void *pHead, int type);
-int  vnodeWriteCqMsgToQueue(void *param, void *pHead, int type);
 void vnodeInitWriteFp(void);
 void vnodeInitReadFp(void);
 

@@ -90,11 +90,12 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     } else if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {   
-        if (strlen(argv[++i]) >= TSDB_FILENAME_LEN) {
-          fprintf(stderr, "config file path: %s overflow max len %d\n", argv[i], TSDB_FILENAME_LEN - 1);
+        char *tmp = argv[++i];
+        if (strlen(tmp) >= TSDB_FILENAME_LEN) {
+          fprintf(stderr, "config file path: %s overflow max len %d\n", tmp, TSDB_FILENAME_LEN - 1);
           exit(EXIT_FAILURE);
         }
-        strcpy(configDir, argv[++i]);
+        strcpy(configDir, tmp);
       } else {
         fprintf(stderr, "Option -c requires an argument\n");
         exit(EXIT_FAILURE);

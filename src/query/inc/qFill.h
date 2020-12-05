@@ -28,6 +28,7 @@ typedef struct {
   STColumn col;             // column info
   int16_t  functionId;      // sql function id
   int16_t  flag;            // column flag: TAG COLUMN|NORMAL COLUMN
+  int16_t  tagIndex;        // index of current tag in SFillTagColInfo array list
   union {int64_t i; double d;} fillVal;
 } SFillColInfo;
 
@@ -37,27 +38,29 @@ typedef struct {
 } SFillTagColInfo;
   
 typedef struct SFillInfo {
-  TSKEY   start;                // start timestamp
-  TSKEY   endKey;               // endKey for fill
-  int32_t order;                // order [TSDB_ORDER_ASC|TSDB_ORDER_DESC]
-  int32_t fillType;             // fill type
-  int32_t numOfRows;            // number of rows in the input data block
-  int32_t rowIdx;               // rowIdx
-  int32_t numOfTotal;           // number of filled rows in one round
-  int32_t numOfCurrent;         // number of filled rows in current results
+  TSKEY     start;                // start timestamp
+  TSKEY     end;                  // endKey for fill
+  TSKEY     currentKey;           // current active timestamp, the value may be changed during the fill procedure.
+  int32_t   order;                // order [TSDB_ORDER_ASC|TSDB_ORDER_DESC]
+  int32_t   type;                 // fill type
+  int32_t   numOfRows;            // number of rows in the input data block
+  int32_t   index;                // active row index
+  int32_t   numOfTotal;           // number of filled rows in one round
+  int32_t   numOfCurrent;         // number of filled rows in current results
 
-  int32_t numOfTags;            // number of tags
-  int32_t numOfCols;            // number of columns, including the tags columns
-  int32_t rowSize;              // size of each row
-//  char ** pTags;                // tags value for current interpolation
-  SFillTagColInfo* pTags;       // tags value for filling gap
+  int32_t   numOfTags;            // number of tags
+  int32_t   numOfCols;            // number of columns, including the tags columns
+  int32_t   rowSize;              // size of each row
   SInterval interval;
-  char *  prevValues;           // previous row of data, to generate the interpolation results
-  char *  nextValues;           // next row of data
-  char**  pData;                // original result data block involved in filling data
-  int32_t capacityInRows;       // data buffer size in rows
-  int8_t  precision;            // time resoluation
-  SFillColInfo* pFillCol;       // column info for fill operations
+  char *    prevValues;           // previous row of data, to generate the interpolation results
+  char *    nextValues;           // next row of data
+  char**    pData;                // original result data block involved in filling data
+  int32_t   alloc;                // data buffer size in rows
+  int8_t    precision;            // time resoluation
+
+  SFillColInfo* pFillCol;         // column info for fill operations
+  SFillTagColInfo* pTags;         // tags value for filling gap
+  void*     handle;               // for dubug purpose
 } SFillInfo;
 
 typedef struct SPoint {
@@ -67,25 +70,25 @@ typedef struct SPoint {
 
 SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
                             int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
-                            SFillColInfo* pFillCol);
+                            SFillColInfo* pFillCol, void* handle);
 
 void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp);
 
-void* taosDestoryFillInfo(SFillInfo *pFillInfo);
+void* taosDestroyFillInfo(SFillInfo *pFillInfo);
 
 void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
 
-void taosFillCopyInputDataFromFilePage(SFillInfo* pFillInfo, tFilePage** pInput);
+void taosFillCopyInputDataFromFilePage(SFillInfo* pFillInfo, const tFilePage** pInput);
 
-void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, tFilePage* pInput);
+void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage* pInput);
 
-int64_t getFilledNumOfRes(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
+int64_t getNumOfResWithFill(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
 
 int32_t taosNumOfRemainRows(SFillInfo *pFillInfo);
 
-int taosDoLinearInterpolation(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);
+int32_t taosGetLinearInterpolationVal(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);
 
-int64_t taosGenerateDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_t capacity);
+int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_t capacity);
 
 #ifdef __cplusplus
 }

@@ -47,13 +47,13 @@ typedef struct {
   int8_t  accessState;
 } SAcctMonitorObj;
 
-int32_t monitorInitSystem();
-int32_t monitorStartSystem();
-void    monitorStopSystem();
-void    monitorCleanUpSystem();
-void    monitorSaveAcctLog(SAcctMonitorObj *pMonObj);
-void    monitorSaveLog(int32_t level, const char *const format, ...);
-void    monitorExecuteSQL(char *sql);
+int32_t monInitSystem();
+int32_t monStartSystem();
+void    monStopSystem();
+void    monCleanupSystem();
+void    monSaveAcctLog(SAcctMonitorObj *pMonObj);
+void    monSaveLog(int32_t level, const char *const format, ...);
+void    monExecuteSQL(char *sql);
 
 #ifdef __cplusplus
 }

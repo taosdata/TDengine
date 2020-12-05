@@ -13,13 +13,511 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "os.h"
-#include "tulog.h"
 #include "tskiplist.h"
-#include "tutil.h"
+#include "os.h"
 #include "tcompare.h"
+#include "tulog.h"
+#include "tutil.h"
 
-UNUSED_FUNC static FORCE_INLINE void recordNodeEachLevel(SSkipList *pSkipList, int32_t level) {  // record link count in each level
+static int                initForwardBackwardPtr(SSkipList *pSkipList);
+static SSkipListNode *    getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur);
+static void               tSkipListRemoveNodeImpl(SSkipList *pSkipList, SSkipListNode *pNode);
+static void               tSkipListCorrectLevel(SSkipList *pSkipList);
+static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t order);
+static void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **direction, SSkipListNode *pNode, bool isForward);
+static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward, void *pData);
+static SSkipListNode *tSkipListNewNode(uint8_t level);
+#define tSkipListFreeNode(n) tfree((n))
+static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipListNode **direction, bool isForward,
+                                       bool hasDup);
+
+static FORCE_INLINE int     tSkipListWLock(SSkipList *pSkipList);
+static FORCE_INLINE int     tSkipListRLock(SSkipList *pSkipList);
+static FORCE_INLINE int     tSkipListUnlock(SSkipList *pSkipList);
+static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList);
+
+SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, __compar_fn_t comparFn, uint8_t flags,
+                           __sl_key_fn_t fn) {
+  SSkipList *pSkipList = (SSkipList *)calloc(1, sizeof(SSkipList));
+  if (pSkipList == NULL) return NULL;
+
+  if (maxLevel > MAX_SKIP_LIST_LEVEL) {
+    maxLevel = MAX_SKIP_LIST_LEVEL;
+  }
+
+  pSkipList->maxLevel = maxLevel;
+  pSkipList->type = keyType;
+  pSkipList->len = keyLen;
+  pSkipList->flags = flags;
+  pSkipList->keyFn = fn;
+  if (comparFn == NULL) {
+    pSkipList->comparFn = getKeyComparFunc(keyType);
+  } else {
+    pSkipList->comparFn = comparFn;
+  }
+
+  if (initForwardBackwardPtr(pSkipList) < 0) {
+    tSkipListDestroy(pSkipList);
+    return NULL;
+  }
+
+  if (SL_IS_THREAD_SAFE(pSkipList)) {
+    pSkipList->lock = (pthread_rwlock_t *)calloc(1, sizeof(pthread_rwlock_t));
+    if (pSkipList->lock == NULL) {
+      tSkipListDestroy(pSkipList);
+      return NULL;
+    }
+
+    if (pthread_rwlock_init(pSkipList->lock, NULL) != 0) {
+      tSkipListDestroy(pSkipList);
+      return NULL;
+    }
+  }
+
+  srand((uint32_t)time(NULL));
+
+#if SKIP_LIST_RECORD_PERFORMANCE
+  pSkipList->state.nTotalMemSize += sizeof(SSkipList);
+#endif
+
+  return pSkipList;
+}
+
+void tSkipListDestroy(SSkipList *pSkipList) {
+  if (pSkipList == NULL) return;
+
+  tSkipListWLock(pSkipList);
+
+  SSkipListNode *pNode = SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, 0);
+
+  while (pNode != pSkipList->pTail) {
+    SSkipListNode *pTemp = pNode;
+    pNode = SL_NODE_GET_FORWARD_POINTER(pNode, 0);
+    tSkipListFreeNode(pTemp);
+  }
+
+  tSkipListUnlock(pSkipList);
+  if (pSkipList->lock != NULL) {
+    pthread_rwlock_destroy(pSkipList->lock);
+    tfree(pSkipList->lock);
+  }
+
+  tSkipListFreeNode(pSkipList->pHead);
+  tSkipListFreeNode(pSkipList->pTail);
+  tfree(pSkipList);
+}
+
+SSkipListNode *tSkipListPut(SSkipList *pSkipList, void *pData) {
+  if (pSkipList == NULL || pData == NULL) return NULL;
+
+  SSkipListNode *backward[MAX_SKIP_LIST_LEVEL] = {0};
+  SSkipListNode *pNode = NULL;
+
+  tSkipListWLock(pSkipList);
+
+  bool hasDup = tSkipListGetPosToPut(pSkipList, backward, pData);
+  pNode = tSkipListPutImpl(pSkipList, pData, backward, false, hasDup);
+
+  tSkipListUnlock(pSkipList);
+
+  return pNode;
+}
+
+// Put a batch of data into skiplist. The batch of data must be in ascending order
+void tSkipListPutBatch(SSkipList *pSkipList, void **ppData, int ndata) {
+  SSkipListNode *backward[MAX_SKIP_LIST_LEVEL] = {0};
+  SSkipListNode *forward[MAX_SKIP_LIST_LEVEL] = {0};
+  bool           hasDup = false;
+  char *         pKey = NULL;
+  char *         pDataKey = NULL;
+  int            compare = 0;
+
+  tSkipListWLock(pSkipList);
+
+  // backward to put the first data
+  hasDup = tSkipListGetPosToPut(pSkipList, backward, ppData[0]);
+  tSkipListPutImpl(pSkipList, ppData[0], backward, false, hasDup);
+
+  for (int level = 0; level < pSkipList->maxLevel; level++) {
+    forward[level] = SL_NODE_GET_BACKWARD_POINTER(backward[level], level);
+  }
+
+  // forward to put the rest of data
+  for (int idata = 1; idata < ndata; idata++) {
+    pDataKey = pSkipList->keyFn(ppData[idata]);
+    hasDup = false;
+
+    // Compare max key
+    pKey = SL_GET_MAX_KEY(pSkipList);
+    compare = pSkipList->comparFn(pDataKey, pKey);
+    if (compare > 0) {
+      for (int i = 0; i < pSkipList->maxLevel; i++) {
+        forward[i] = SL_NODE_GET_BACKWARD_POINTER(pSkipList->pTail, i);
+      }
+    } else {
+      SSkipListNode *px = pSkipList->pHead;
+      for (int i = pSkipList->maxLevel - 1; i >= 0; --i) {
+        if (i < pSkipList->level) {
+          // set new px
+          if (forward[i] != pSkipList->pHead) {
+            if (px == pSkipList->pHead ||
+                pSkipList->comparFn(SL_GET_NODE_KEY(pSkipList, forward[i]), SL_GET_NODE_KEY(pSkipList, px)) > 0) {
+              px = forward[i];
+            }
+          }
+
+          SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(px, i);
+          while (p != pSkipList->pTail) {
+            pKey = SL_GET_NODE_KEY(pSkipList, p);
+
+            compare = pSkipList->comparFn(pKey, pDataKey);
+            if (compare >= 0) {
+              if (compare == 0 && !hasDup) hasDup = true;
+              break;
+            } else {
+              px = p;
+              p = SL_NODE_GET_FORWARD_POINTER(px, i);
+            }
+          }
+        }
+
+        forward[i] = px;
+      }
+    }
+
+    tSkipListPutImpl(pSkipList, ppData[idata], forward, true, hasDup);
+  }
+
+  tSkipListUnlock(pSkipList);
+}
+
+uint32_t tSkipListRemove(SSkipList *pSkipList, SSkipListKey key) {
+  uint32_t count = 0;
+
+  tSkipListWLock(pSkipList);
+
+  SSkipListNode *pNode = getPriorNode(pSkipList, key, TSDB_ORDER_ASC, NULL);
+  while (1) {
+    SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(pNode, 0);
+    if (p == pSkipList->pTail) {
+      break;
+    }
+    if (pSkipList->comparFn(key, SL_GET_NODE_KEY(pSkipList, p)) != 0) {
+      break;
+    }
+
+    tSkipListRemoveNodeImpl(pSkipList, p);
+
+    ++count;
+  }
+
+  tSkipListCorrectLevel(pSkipList);
+
+  tSkipListUnlock(pSkipList);
+
+  return count;
+}
+
+SArray *tSkipListGet(SSkipList *pSkipList, SSkipListKey key) {
+  SArray *sa = taosArrayInit(1, POINTER_BYTES);
+
+  tSkipListRLock(pSkipList);
+
+  SSkipListNode *pNode = getPriorNode(pSkipList, key, TSDB_ORDER_ASC, NULL);
+  while (1) {
+    SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(pNode, 0);
+    if (p == pSkipList->pTail) {
+      break;
+    }
+    if (pSkipList->comparFn(key, SL_GET_NODE_KEY(pSkipList, p)) != 0) {
+      break;
+    }
+    taosArrayPush(sa, &p);
+    pNode = p;
+  }
+
+  tSkipListUnlock(pSkipList);
+
+  return sa;
+}
+
+void tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNode) {
+  tSkipListWLock(pSkipList);
+  tSkipListRemoveNodeImpl(pSkipList, pNode);
+  tSkipListCorrectLevel(pSkipList);
+  tSkipListUnlock(pSkipList);
+}
+
+SSkipListIterator *tSkipListCreateIter(SSkipList *pSkipList) {
+  if (pSkipList == NULL) return NULL;
+
+  return doCreateSkipListIterator(pSkipList, TSDB_ORDER_ASC);
+}
+
+SSkipListIterator *tSkipListCreateIterFromVal(SSkipList *pSkipList, const char *val, int32_t type, int32_t order) {
+  ASSERT(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
+  ASSERT(pSkipList != NULL);
+
+  SSkipListIterator *iter = doCreateSkipListIterator(pSkipList, order);
+  if (val == NULL) {
+    return iter;
+  }
+
+  tSkipListRLock(pSkipList);
+
+  iter->cur = getPriorNode(pSkipList, val, order, &(iter->next));
+
+  tSkipListUnlock(pSkipList);
+
+  return iter;
+}
+
+bool tSkipListIterNext(SSkipListIterator *iter) {
+  if (iter->pSkipList == NULL) return false;
+
+  SSkipList *pSkipList = iter->pSkipList;
+
+  tSkipListRLock(pSkipList);
+
+  if (iter->order == TSDB_ORDER_ASC) {
+    if (iter->cur == pSkipList->pTail) return false;
+    iter->cur = SL_NODE_GET_FORWARD_POINTER(iter->cur, 0);
+
+    // a new node is inserted into between iter->cur and iter->next, ignore it
+    if (iter->cur != iter->next && (iter->next != NULL)) {
+      iter->cur = iter->next;
+    }
+
+    iter->next = SL_NODE_GET_FORWARD_POINTER(iter->cur, 0);
+    iter->step++;
+  } else {
+    if (iter->cur == pSkipList->pHead) {
+      tSkipListUnlock(pSkipList);
+      return false;
+    }
+    iter->cur = SL_NODE_GET_BACKWARD_POINTER(iter->cur, 0);
+
+    // a new node is inserted into between iter->cur and iter->next, ignore it
+    if (iter->cur != iter->next && (iter->next != NULL)) {
+      iter->cur = iter->next;
+    }
+
+    iter->next = SL_NODE_GET_BACKWARD_POINTER(iter->cur, 0);
+    iter->step++;
+  }
+
+  tSkipListUnlock(pSkipList);
+
+  return (iter->order == TSDB_ORDER_ASC) ? (iter->cur != pSkipList->pTail) : (iter->cur != pSkipList->pHead);
+}
+
+SSkipListNode *tSkipListIterGet(SSkipListIterator *iter) {
+  if (iter == NULL || iter->cur == iter->pSkipList->pTail || iter->cur == iter->pSkipList->pHead) {
+    return NULL;
+  } else {
+    return iter->cur;
+  }
+}
+
+void *tSkipListDestroyIter(SSkipListIterator *iter) {
+  if (iter == NULL) {
+    return NULL;
+  }
+
+  tfree(iter);
+  return NULL;
+}
+
+void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
+  if (pSkipList == NULL || pSkipList->level < nlevel || nlevel <= 0) {
+    return;
+  }
+
+  SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, nlevel - 1);
+
+  int32_t id = 1;
+  char *  prev = NULL;
+
+  while (p != pSkipList->pTail) {
+    char *key = SL_GET_NODE_KEY(pSkipList, p);
+    if (prev != NULL) {
+      ASSERT(pSkipList->comparFn(prev, key) < 0);
+    }
+
+    switch (pSkipList->type) {
+      case TSDB_DATA_TYPE_INT:
+        fprintf(stdout, "%d: %d\n", id++, *(int32_t *)key);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_BIGINT:
+        fprintf(stdout, "%d: %" PRId64 " \n", id++, *(int64_t *)key);
+        break;
+      case TSDB_DATA_TYPE_BINARY:
+        fprintf(stdout, "%d: %s \n", id++, key);
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        fprintf(stdout, "%d: %lf \n", id++, *(double *)key);
+        break;
+      default:
+        fprintf(stdout, "\n");
+    }
+
+    prev = SL_GET_NODE_KEY(pSkipList, p);
+
+    p = SL_NODE_GET_FORWARD_POINTER(p, nlevel - 1);
+  }
+}
+
+static void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **direction, SSkipListNode *pNode, bool isForward) {
+  for (int32_t i = 0; i < pNode->level; ++i) {
+    SSkipListNode *x = direction[i];
+    if (isForward) {
+      SL_NODE_GET_BACKWARD_POINTER(pNode, i) = x;
+
+      SSkipListNode *next = SL_NODE_GET_FORWARD_POINTER(x, i);
+      SL_NODE_GET_BACKWARD_POINTER(next, i) = pNode;
+
+      SL_NODE_GET_FORWARD_POINTER(pNode, i) = next;
+      SL_NODE_GET_FORWARD_POINTER(x, i) = pNode;
+    } else {
+      SL_NODE_GET_FORWARD_POINTER(pNode, i) = x;
+
+      SSkipListNode *prev = SL_NODE_GET_BACKWARD_POINTER(x, i);
+      SL_NODE_GET_FORWARD_POINTER(prev, i) = pNode;
+
+      SL_NODE_GET_BACKWARD_POINTER(pNode, i) = prev;
+      SL_NODE_GET_BACKWARD_POINTER(x, i) = pNode;
+    }
+  }
+
+  if (pSkipList->level < pNode->level) pSkipList->level = pNode->level;
+
+  pSkipList->size += 1;
+}
+
+static SSkipListIterator *doCreateSkipListIterator(SSkipList *pSkipList, int32_t order) {
+  SSkipListIterator *iter = calloc(1, sizeof(SSkipListIterator));
+
+  iter->pSkipList = pSkipList;
+  iter->order = order;
+  if (order == TSDB_ORDER_ASC) {
+    iter->cur = pSkipList->pHead;
+    iter->next = SL_NODE_GET_FORWARD_POINTER(iter->cur, 0);
+  } else {
+    iter->cur = pSkipList->pTail;
+    iter->next = SL_NODE_GET_BACKWARD_POINTER(iter->cur, 0);
+  }
+
+  return iter;
+}
+
+static FORCE_INLINE int tSkipListWLock(SSkipList *pSkipList) {
+  if (pSkipList->lock) {
+    return pthread_rwlock_wrlock(pSkipList->lock);
+  }
+  return 0;
+}
+
+static FORCE_INLINE int tSkipListRLock(SSkipList *pSkipList) {
+  if (pSkipList->lock) {
+    return pthread_rwlock_rdlock(pSkipList->lock);
+  }
+  return 0;
+}
+
+static FORCE_INLINE int tSkipListUnlock(SSkipList *pSkipList) {
+  if (pSkipList->lock) {
+    return pthread_rwlock_unlock(pSkipList->lock);
+  }
+  return 0;
+}
+
+static bool tSkipListGetPosToPut(SSkipList *pSkipList, SSkipListNode **backward, void *pData) {
+  int     compare = 0;
+  bool    hasDupKey = false;
+  char *  pDataKey = pSkipList->keyFn(pData);
+
+  if (pSkipList->size == 0) {
+    for (int i = 0; i < pSkipList->maxLevel; i++) {
+      backward[i] = pSkipList->pTail;
+    }
+  } else {
+    char *pKey = NULL;
+
+    // Compare max key
+    pKey = SL_GET_MAX_KEY(pSkipList);
+    compare = pSkipList->comparFn(pDataKey, pKey);
+    if (compare >= 0) {
+      for (int i = 0; i < pSkipList->maxLevel; i++) {
+        backward[i] = pSkipList->pTail;
+      }
+
+      return (compare == 0);
+    }
+
+    // Compare min key
+    pKey = SL_GET_MIN_KEY(pSkipList);
+    compare = pSkipList->comparFn(pDataKey, pKey);
+    if (compare < 0) {
+      for (int i = 0; i < pSkipList->maxLevel; i++) {
+        backward[i] = SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, i);
+      }
+
+      return (compare == 0);
+    }
+
+    SSkipListNode *px = pSkipList->pTail;
+    for (int i = pSkipList->maxLevel - 1; i >= 0; --i) {
+      if (i < pSkipList->level) {
+        SSkipListNode *p = SL_NODE_GET_BACKWARD_POINTER(px, i);
+        while (p != pSkipList->pHead) {
+          pKey = SL_GET_NODE_KEY(pSkipList, p);
+
+          compare = pSkipList->comparFn(pKey, pDataKey);
+          if (compare <= 0) {
+            if (compare == 0 && !hasDupKey) hasDupKey = true;
+            break;
+          } else {
+            px = p;
+            p = SL_NODE_GET_BACKWARD_POINTER(px, i);
+          }
+        }
+      }
+
+      backward[i] = px;
+    }
+  }
+
+  return hasDupKey;
+}
+
+static void tSkipListRemoveNodeImpl(SSkipList *pSkipList, SSkipListNode *pNode) {
+  int32_t level = pNode->level;
+  uint8_t dupMode = SL_DUP_MODE(pSkipList);
+  ASSERT(dupMode != SL_DISCARD_DUP_KEY && dupMode != SL_UPDATE_DUP_KEY);
+
+  for (int32_t j = level - 1; j >= 0; --j) {
+    SSkipListNode *prev = SL_NODE_GET_BACKWARD_POINTER(pNode, j);
+    SSkipListNode *next = SL_NODE_GET_FORWARD_POINTER(pNode, j);
+
+    SL_NODE_GET_FORWARD_POINTER(prev, j) = next;
+    SL_NODE_GET_BACKWARD_POINTER(next, j) = prev;
+  }
+
+  tSkipListFreeNode(pNode);
+  pSkipList->size--;
+}
+
+// Function must be called after calling tSkipListRemoveNodeImpl() function
+static void tSkipListCorrectLevel(SSkipList *pSkipList) {
+  while (pSkipList->level > 0 && SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, pSkipList->level - 1) == pSkipList->pTail) {
+    pSkipList->level -= 1;
+  }
+}
+
+UNUSED_FUNC static FORCE_INLINE void recordNodeEachLevel(SSkipList *pSkipList,
+                                                         int32_t    level) {  // record link count in each level
 #if SKIP_LIST_RECORD_PERFORMANCE
   for (int32_t i = 0; i < level; ++i) {
     pSkipList->state.nLevelNodeCnt[i]++;
@@ -47,40 +545,28 @@ static FORCE_INLINE int32_t getSkipListNodeRandomHeight(SSkipList *pSkipList) {
 }
 
 static FORCE_INLINE int32_t getSkipListRandLevel(SSkipList *pSkipList) {
-  int32_t level = getSkipListNodeRandomHeight(pSkipList);
+  int32_t level = 0;
   if (pSkipList->size == 0) {
     level = 1;
-    pSkipList->level = 1;
   } else {
+    level = getSkipListNodeRandomHeight(pSkipList);
     if (level > pSkipList->level) {
       if (pSkipList->level < pSkipList->maxLevel) {
-        level = (++pSkipList->level);
+        level = pSkipList->level + 1;
       } else {
         level = pSkipList->level;
       }
     }
   }
-  
-  assert(level <= pSkipList->maxLevel);
+
+  ASSERT(level <= pSkipList->maxLevel);
   return level;
 }
 
-#define DO_MEMSET_PTR_AREA(n) do {\
-int32_t _l = (n)->level;\
-memset(pNode, 0, SL_NODE_HEADER_SIZE(_l));\
-(n)->level = _l;\
-} while(0)
-
-static void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **forward, SSkipListNode *pNode);
-static SSkipListNode* tSkipListPushBack(SSkipList *pSkipList, SSkipListNode *pNode);
-static SSkipListNode* tSkipListPushFront(SSkipList* pSkipList, SSkipListNode *pNode);
-static SSkipListIterator* doCreateSkipListIterator(SSkipList *pSkipList, int32_t order);
-
-
 // when order is TSDB_ORDER_ASC, return the last node with key less than val
 // when order is TSDB_ORDER_DESC, return the first node with key large than val
-static SSkipListNode* getPriorNode(SSkipList* pSkipList, const char* val, int32_t order, SSkipListNode** pCur) {
-  __compar_fn_t comparFn = pSkipList->comparFn;
+static SSkipListNode *getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur) {
+  __compar_fn_t  comparFn = pSkipList->comparFn;
   SSkipListNode *pNode = NULL;
   if (pCur != NULL) {
     *pCur = NULL;
@@ -89,12 +575,12 @@ static SSkipListNode* getPriorNode(SSkipList* pSkipList, const char* val, int32_
   if (order == TSDB_ORDER_ASC) {
     pNode = pSkipList->pHead;
     for (int32_t i = pSkipList->level - 1; i >= 0; --i) {
-      SSkipListNode *p = SL_GET_FORWARD_POINTER(pNode, i);
+      SSkipListNode *p = SL_NODE_GET_FORWARD_POINTER(pNode, i);
       while (p != pSkipList->pTail) {
         char *key = SL_GET_NODE_KEY(pSkipList, p);
         if (comparFn(key, val) < 0) {
           pNode = p;
-          p = SL_GET_FORWARD_POINTER(p, i);
+          p = SL_NODE_GET_FORWARD_POINTER(p, i);
         } else {
           if (pCur != NULL) {
             *pCur = p;
@@ -106,12 +592,12 @@ static SSkipListNode* getPriorNode(SSkipList* pSkipList, const char* val, int32_
   } else {
     pNode = pSkipList->pTail;
     for (int32_t i = pSkipList->level - 1; i >= 0; --i) {
-      SSkipListNode *p = SL_GET_BACKWARD_POINTER(pNode, i);
+      SSkipListNode *p = SL_NODE_GET_BACKWARD_POINTER(pNode, i);
       while (p != pSkipList->pHead) {
         char *key = SL_GET_NODE_KEY(pSkipList, p);
         if (comparFn(key, val) > 0) {
           pNode = p;
-          p = SL_GET_BACKWARD_POINTER(p, i);
+          p = SL_NODE_GET_BACKWARD_POINTER(p, i);
         } else {
           if (pCur != NULL) {
             *pCur = p;
@@ -125,213 +611,62 @@ static SSkipListNode* getPriorNode(SSkipList* pSkipList, const char* val, int32_
   return pNode;
 }
 
-
-static bool initForwardBackwardPtr(SSkipList* pSkipList) {
+static int initForwardBackwardPtr(SSkipList *pSkipList) {
   uint32_t maxLevel = pSkipList->maxLevel;
-  
+
   // head info
-  pSkipList->pHead = (SSkipListNode *)calloc(1, SL_NODE_HEADER_SIZE(maxLevel) * 2);
-  if (pSkipList->pHead == NULL) {
-    return false;
-  }
-  
-  pSkipList->pHead->level = pSkipList->maxLevel;
-  
+  pSkipList->pHead = tSkipListNewNode(maxLevel);
+  if (pSkipList->pHead == NULL) return -1;
+
   // tail info
-  pSkipList->pTail = (SSkipListNode*) ((char*) pSkipList->pHead + SL_NODE_HEADER_SIZE(maxLevel));
-  pSkipList->pTail->level = pSkipList->maxLevel;
-  
+  pSkipList->pTail = tSkipListNewNode(maxLevel);
+  if (pSkipList->pTail == NULL) {
+    tSkipListFreeNode(pSkipList->pHead);
+    return -1;
+  }
+
   for (uint32_t i = 0; i < maxLevel; ++i) {
-    SL_GET_FORWARD_POINTER(pSkipList->pHead, i) = pSkipList->pTail;
-    SL_GET_BACKWARD_POINTER(pSkipList->pTail, i) = pSkipList->pHead;
+    SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, i) = pSkipList->pTail;
+    SL_NODE_GET_BACKWARD_POINTER(pSkipList->pTail, i) = pSkipList->pHead;
   }
-  
-  return true;
+
+  return 0;
 }
 
-SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint8_t keyLen, uint8_t dupKey, uint8_t lock,
-    uint8_t freeNode, __sl_key_fn_t fn) {
-  SSkipList *pSkipList = (SSkipList *)calloc(1, sizeof(SSkipList));
-  if (pSkipList == NULL) {
-    return NULL;
-  }
+static SSkipListNode *tSkipListNewNode(uint8_t level) {
+  int32_t tsize = sizeof(SSkipListNode) + sizeof(SSkipListNode *) * level * 2;
 
-  if (maxLevel > MAX_SKIP_LIST_LEVEL) {
-    maxLevel = MAX_SKIP_LIST_LEVEL;
-  }
+  SSkipListNode *pNode = (SSkipListNode *)calloc(1, tsize);
+  if (pNode == NULL) return NULL;
 
-  pSkipList->keyInfo.type = keyType;
-  pSkipList->keyInfo.len = keyLen;
-  pSkipList->keyInfo.dupKey = dupKey;
-  pSkipList->keyInfo.freeNode = freeNode;
-  
-  pSkipList->keyFn    = fn;
-  pSkipList->comparFn = getKeyComparFunc(keyType);
-  pSkipList->maxLevel = maxLevel;
-  pSkipList->level    = 1;
-  
-  if (!initForwardBackwardPtr(pSkipList)) {
-    taosTFree(pSkipList);
-    return NULL;
-  }
-  
-  if (lock) {
-    pSkipList->lock = calloc(1, sizeof(pthread_rwlock_t));
-
-    if (pthread_rwlock_init(pSkipList->lock, NULL) != 0) {
-      taosTFree(pSkipList->pHead);
-      taosTFree(pSkipList);
-      
-      return NULL;
-    }
-  }
-
-  srand((uint32_t)time(NULL));
-
-#if SKIP_LIST_RECORD_PERFORMANCE
-  pSkipList->state.nTotalMemSize += sizeof(SSkipList);
-#endif
-
-  return pSkipList;
-}
-
-void *tSkipListDestroy(SSkipList *pSkipList) {
-  if (pSkipList == NULL) {
-    return NULL;
-  }
-
-  if (pSkipList->lock) {
-    pthread_rwlock_wrlock(pSkipList->lock);
-  }
-
-  if (pSkipList->keyInfo.freeNode) {
-    SSkipListNode *pNode = SL_GET_FORWARD_POINTER(pSkipList->pHead, 0);
-
-    while (pNode != pSkipList->pTail) {
-      SSkipListNode *pTemp = pNode;
-      pNode = SL_GET_FORWARD_POINTER(pNode, 0);
-      taosTFree(pTemp);
-    }
-  }
-
-  if (pSkipList->lock) {
-    pthread_rwlock_unlock(pSkipList->lock);
-    pthread_rwlock_destroy(pSkipList->lock);
-
-    taosTFree(pSkipList->lock);
-  }
-
-  taosTFree(pSkipList->pHead);
-  taosTFree(pSkipList);
-  return NULL;
-}
-
-void tSkipListNewNodeInfo(SSkipList *pSkipList, int32_t *level, int32_t *headSize) {
-  if (pSkipList == NULL) {
-    *level = 1;
-    *headSize = SL_NODE_HEADER_SIZE(*level);
-    return;
-  }
-
-  *level = getSkipListRandLevel(pSkipList);
-  *headSize = SL_NODE_HEADER_SIZE(*level);
-}
-
-SSkipListNode *tSkipListPut(SSkipList *pSkipList, SSkipListNode *pNode) {
-  if (pSkipList == NULL || pNode == NULL) {
-    return NULL;
-  }
-
-  if (pSkipList->lock) {
-    pthread_rwlock_wrlock(pSkipList->lock);
-  }
-  
-  // if the new key is greater than the maximum key of skip list, push back this node at the end of skip list
-  char *newDatakey = SL_GET_NODE_KEY(pSkipList, pNode);
-  if (pSkipList->size == 0 || pSkipList->comparFn(SL_GET_SL_MAX_KEY(pSkipList), newDatakey) < 0) {
-    return tSkipListPushBack(pSkipList, pNode);
-  }
-  
-  // if the new key is less than the minimum key of skip list, push front this node at the front of skip list
-  assert(pSkipList->size > 0);
-  char* minKey = SL_GET_SL_MIN_KEY(pSkipList);
-  if (pSkipList->comparFn(newDatakey, minKey) < 0) {
-    return tSkipListPushFront(pSkipList, pNode);
-  }
-  
-  // find the appropriated position to insert data
-  SSkipListNode *px = pSkipList->pHead;
-  SSkipListNode *forward[MAX_SKIP_LIST_LEVEL] = {0};
-
-  int32_t ret = -1;
-  for (int32_t i = pSkipList->level - 1; i >= 0; --i) {
-    SSkipListNode *p = SL_GET_FORWARD_POINTER(px, i);
-    while (p != pSkipList->pTail) {
-      char *key = SL_GET_NODE_KEY(pSkipList, p);
-
-      // if the forward element is less than the specified key, forward one step
-      ret = pSkipList->comparFn(key, newDatakey);
-      if (ret < 0) {
-        px = p;
-        p = SL_GET_FORWARD_POINTER(px, i);
-      } else {
-        break;
-      }
-    }
-    
-    forward[i] = px;
-  }
-
-  // if the skip list does not allowed identical key inserted, the new data will be discarded.
-  if (pSkipList->keyInfo.dupKey == 0 && ret == 0) {
-    if (pSkipList->lock) {
-      pthread_rwlock_unlock(pSkipList->lock);
-    }
-
-    return NULL;
-  }
-  
-  tSkipListDoInsert(pSkipList, forward, pNode);
+  pNode->level = level;
   return pNode;
 }
 
+static SSkipListNode *tSkipListPutImpl(SSkipList *pSkipList, void *pData, SSkipListNode **direction, bool isForward,
+                                       bool hasDup) {
+  uint8_t        dupMode = SL_DUP_MODE(pSkipList);
+  SSkipListNode *pNode = NULL;
 
-
-SArray* tSkipListGet(SSkipList *pSkipList, SSkipListKey key) {
-  SArray* sa = taosArrayInit(1, POINTER_BYTES);
-
-  if (pSkipList->lock) {
-    pthread_rwlock_wrlock(pSkipList->lock);
-  }
-
-  SSkipListNode* pNode = getPriorNode(pSkipList, key, TSDB_ORDER_ASC, NULL);
-  while (1) {
-    SSkipListNode *p = SL_GET_FORWARD_POINTER(pNode, 0);
-    if (p == pSkipList->pTail) {
-      break;
+  if (hasDup && (dupMode == SL_DISCARD_DUP_KEY || dupMode == SL_UPDATE_DUP_KEY)) {
+    if (dupMode == SL_UPDATE_DUP_KEY) {
+      if (isForward) {
+        pNode = SL_NODE_GET_FORWARD_POINTER(direction[0], 0);
+      } else {
+        pNode = SL_NODE_GET_BACKWARD_POINTER(direction[0], 0);
+      }
+      atomic_store_ptr(&(pNode->pData), pData);
     }
-    if (pSkipList->comparFn(key, SL_GET_NODE_KEY(pSkipList, p)) != 0) {
-      break;
+  } else {
+    pNode = tSkipListNewNode(getSkipListRandLevel(pSkipList));
+    if (pNode != NULL) {
+      pNode->pData = pData;
+
+      tSkipListDoInsert(pSkipList, direction, pNode, isForward);
     }
-    taosArrayPush(sa, &p);
-    pNode = p;
   }
 
-  if (pSkipList->lock) {
-    pthread_rwlock_unlock(pSkipList->lock);
-  }
-
-  return sa;
-}
-
-
-
-size_t tSkipListGetSize(const SSkipList* pSkipList) {
-  if (pSkipList == NULL) {
-    return 0;
-  }
-  
-  return pSkipList->size;
+  return pNode;
 }
 
 // static int32_t tSkipListEndParQuery(SSkipList *pSkipList, SSkipListNode *pStartNode, SSkipListKey *pEndKey,
@@ -447,178 +782,13 @@ size_t tSkipListGetSize(const SSkipList* pSkipList) {
 //  }
 //
 //  // compress the minimum level of skip list
-//  while (pSkipList->level > 0 && SL_GET_FORWARD_POINTER(pSkipList->pHead, pSkipList->level - 1) == NULL) {
+//  while (pSkipList->level > 0 && SL_NODE_GET_FORWARD_POINTER(pSkipList->pHead, pSkipList->level - 1) == NULL) {
 //    pSkipList->level -= 1;
 //  }
 //
 //  return true;
 //}
-
-uint32_t tSkipListRemove(SSkipList *pSkipList, SSkipListKey key) {
-  uint32_t count = 0;
-
-  if (pSkipList->lock) {
-    pthread_rwlock_wrlock(pSkipList->lock);
-  }
-
-  SSkipListNode* pNode = getPriorNode(pSkipList, key, TSDB_ORDER_ASC, NULL);
-  while (1) {
-    SSkipListNode *p = SL_GET_FORWARD_POINTER(pNode, 0);
-    if (p == pSkipList->pTail) {
-      break;
-    }
-    if (pSkipList->comparFn(key, SL_GET_NODE_KEY(pSkipList, p)) != 0) {
-      break;
-    }
-
-    for (int32_t j = p->level - 1; j >= 0; --j) {
-      SSkipListNode* prev = SL_GET_BACKWARD_POINTER(p, j);
-      SSkipListNode* next = SL_GET_FORWARD_POINTER(p, j);
-      SL_GET_FORWARD_POINTER(prev, j)  = next;
-      SL_GET_BACKWARD_POINTER(next, j) = prev;
-    }
-
-    if (pSkipList->keyInfo.freeNode) {
-      taosTFree(p);
-    }
-
-    ++count;
-  }
-
-  // compress the minimum level of skip list
-  while (pSkipList->level > 0) {
-    if (SL_GET_FORWARD_POINTER(pSkipList->pHead, pSkipList->level - 1) != NULL) {
-      break;
-    }
-    pSkipList->level--;
-  }
-
-  pSkipList->size -= count;
-
-  if (pSkipList->lock) {
-    pthread_rwlock_unlock(pSkipList->lock);
-  }
-
-  return count;
-}
-
-void tSkipListRemoveNode(SSkipList *pSkipList, SSkipListNode *pNode) {
-  int32_t level = pNode->level;
-  
-  if (pSkipList->lock) {
-    pthread_rwlock_wrlock(pSkipList->lock);
-  }
-
-  for (int32_t j = level - 1; j >= 0; --j) {
-    SSkipListNode* prev = SL_GET_BACKWARD_POINTER(pNode, j);
-    SSkipListNode* next = SL_GET_FORWARD_POINTER(pNode, j);
-    
-    SL_GET_FORWARD_POINTER(prev, j)  = next;
-    SL_GET_BACKWARD_POINTER(next, j) = prev;
-  }
-  
-  if (pSkipList->keyInfo.freeNode) {
-    taosTFree(pNode);
-  }
-  
-  atomic_sub_fetch_32(&pSkipList->size, 1);
-  
-  // compress the minimum level of skip list
-  while (pSkipList->level > 0 && SL_GET_FORWARD_POINTER(pSkipList->pHead, pSkipList->level - 1) == NULL) {
-    pSkipList->level -= 1;
-  }
-  
-  if (pSkipList->lock) {
-    pthread_rwlock_unlock(pSkipList->lock);
-  }
-}
-
-SSkipListIterator* tSkipListCreateIter(SSkipList *pSkipList) {
-  if (pSkipList == NULL) {
-    return NULL;
-  }
-  
-  return doCreateSkipListIterator(pSkipList, TSDB_ORDER_ASC);
-}
-
-SSkipListIterator *tSkipListCreateIterFromVal(SSkipList* pSkipList, const char* val, int32_t type, int32_t order) {
-  assert(order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC);
-  assert(pSkipList != NULL);
-
-  SSkipListIterator* iter = doCreateSkipListIterator(pSkipList, order);
-  if (val == NULL) {
-    return iter;
-  }
-
-  if (pSkipList->lock) {
-    pthread_rwlock_rdlock(pSkipList->lock);
-  }
-
-  iter->cur = getPriorNode(pSkipList, val, order, &iter->next);
-
-  if (pSkipList->lock) {
-    pthread_rwlock_unlock(pSkipList->lock);
-  }
-
-  return iter;
-}
-
-bool tSkipListIterNext(SSkipListIterator *iter) {
-  if (iter->pSkipList == NULL) {
-    return false;
-  }
-  
-  SSkipList *pSkipList = iter->pSkipList;
-  
-  if (pSkipList->lock) {
-    pthread_rwlock_rdlock(pSkipList->lock);
-  }
-  
-  if (iter->order == TSDB_ORDER_ASC) {  // ascending order iterate
-    iter->cur = SL_GET_FORWARD_POINTER(iter->cur, 0);
-
-    // a new node is inserted into between iter->cur and iter->next, ignore it
-    if (iter->cur != iter->next && (iter->next != NULL)) {
-      iter->cur = iter->next;
-    }
-
-    iter->next = SL_GET_FORWARD_POINTER(iter->cur, 0);
-  } else { // descending order iterate
-    iter->cur = SL_GET_BACKWARD_POINTER(iter->cur, 0);
-
-    // a new node is inserted into between iter->cur and iter->next, ignore it
-    if (iter->cur != iter->next && (iter->next != NULL)) {
-      iter->cur = iter->next;
-    }
-
-    iter->next = SL_GET_BACKWARD_POINTER(iter->cur, 0);
-  }
-  
-  if (pSkipList->lock) {
-    pthread_rwlock_unlock(pSkipList->lock);
-  }
-  
-  iter->step += 1;
-  return (iter->order == TSDB_ORDER_ASC)? (iter->cur != pSkipList->pTail) : (iter->cur != pSkipList->pHead);
-}
-
-SSkipListNode *tSkipListIterGet(SSkipListIterator *iter) {
-  if (iter == NULL || iter->cur == iter->pSkipList->pTail || iter->cur == iter->pSkipList->pHead) {
-    return NULL;
-  } else {
-    return iter->cur;
-  }
-}
-
-void* tSkipListDestroyIter(SSkipListIterator* iter) {
-  if (iter == NULL) {
-    return NULL;
-  }
-  
-  taosTFree(iter);
-  return NULL;
-}
-
+//
 // bool tSkipListRemove(SSkipList *pSkipList, SSkipListKey *pKey) {
 //  SSkipListNode *forward[MAX_SKIP_LIST_LEVEL] = {0};
 //  __compar_fn_t  filterComparFn = getComparFunc(pSkipList, pKey->nType);
@@ -638,111 +808,3 @@ void* tSkipListDestroyIter(SSkipListIterator* iter) {
 //
 //  return ret;
 //}
-
-void tSkipListPrint(SSkipList *pSkipList, int16_t nlevel) {
-  if (pSkipList == NULL || pSkipList->level < nlevel || nlevel <= 0) {
-    return;
-  }
-
-  SSkipListNode *p = SL_GET_FORWARD_POINTER(pSkipList->pHead, nlevel - 1);
-  
-  int32_t id = 1;
-  char* prev = NULL;
-  
-  while (p != pSkipList->pTail) {
-    char *key = SL_GET_NODE_KEY(pSkipList, p);
-    if (prev != NULL) {
-      assert(pSkipList->comparFn(prev, key) < 0);
-    }
-    
-    switch (pSkipList->keyInfo.type) {
-      case TSDB_DATA_TYPE_INT:
-        fprintf(stdout, "%d: %d\n", id++, *(int32_t *)key);
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_TINYINT:
-      case TSDB_DATA_TYPE_BIGINT:
-        fprintf(stdout, "%d: %" PRId64 " \n", id++, *(int64_t *)key);
-        break;
-      case TSDB_DATA_TYPE_BINARY:
-        fprintf(stdout, "%d: %s \n", id++, key);
-        break;
-      case TSDB_DATA_TYPE_DOUBLE:
-        fprintf(stdout, "%d: %lf \n", id++, *(double *)key);
-        break;
-      default:
-        fprintf(stdout, "\n");
-    }
-
-    prev = SL_GET_NODE_KEY(pSkipList, p);
-    
-    p = SL_GET_FORWARD_POINTER(p, nlevel - 1);
-  }
-}
-
-void tSkipListDoInsert(SSkipList *pSkipList, SSkipListNode **forward, SSkipListNode *pNode) {
-  DO_MEMSET_PTR_AREA(pNode);
-  
-  for (int32_t i = 0; i < pNode->level; ++i) {
-    SSkipListNode *x = forward[i];
-    SL_GET_BACKWARD_POINTER(pNode, i) = x;
-    
-    SSkipListNode *next = SL_GET_FORWARD_POINTER(x, i);
-    SL_GET_BACKWARD_POINTER(next, i) = pNode;
-    
-    SL_GET_FORWARD_POINTER(pNode, i) = next;
-    SL_GET_FORWARD_POINTER(x, i) = pNode;
-  }
-  
-  atomic_add_fetch_32(&pSkipList->size, 1);
-  if (pSkipList->lock) {
-    pthread_rwlock_unlock(pSkipList->lock);
-  }
-}
-
-SSkipListNode* tSkipListPushFront(SSkipList* pSkipList, SSkipListNode *pNode) {
-  SSkipListNode* forward[MAX_SKIP_LIST_LEVEL] = {0};
-  for(int32_t i = 0; i < pSkipList->level; ++i) {
-    forward[i] = pSkipList->pHead;
-  }
-  
-  tSkipListDoInsert(pSkipList, forward, pNode);
-  return pNode;
-}
-
-SSkipListNode* tSkipListPushBack(SSkipList *pSkipList, SSkipListNode *pNode) {
-  // do clear pointer area
-  DO_MEMSET_PTR_AREA(pNode);
-  
-  for(int32_t i = 0; i < pNode->level; ++i) {
-    SSkipListNode* prev = SL_GET_BACKWARD_POINTER(pSkipList->pTail, i);
-    SL_GET_FORWARD_POINTER(prev, i) = pNode;
-    SL_GET_FORWARD_POINTER(pNode, i) = pSkipList->pTail;
-    
-    SL_GET_BACKWARD_POINTER(pNode, i) = prev;
-    SL_GET_BACKWARD_POINTER(pSkipList->pTail, i) = pNode;
-  }
-  
-  atomic_add_fetch_32(&pSkipList->size, 1);
-  if (pSkipList->lock) {
-    pthread_rwlock_unlock(pSkipList->lock);
-  }
-  
-  return pNode;
-}
-
-SSkipListIterator* doCreateSkipListIterator(SSkipList *pSkipList, int32_t order) {
-  SSkipListIterator* iter = calloc(1, sizeof(SSkipListIterator));
-  
-  iter->pSkipList = pSkipList;
-  iter->order = order;
-  if(order == TSDB_ORDER_ASC) {
-    iter->cur = pSkipList->pHead;
-    iter->next = SL_GET_FORWARD_POINTER(iter->cur, 0);
-  } else {
-    iter->cur = pSkipList->pTail;
-    iter->next = SL_GET_BACKWARD_POINTER(iter->cur, 0);
-  }
-
-  return iter;
-}

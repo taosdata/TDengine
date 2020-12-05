@@ -119,8 +119,11 @@ static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
     pg->info.offset = allocatePositionInFile(pResultBuf, size);
     pResultBuf->nextPos += size;
 
-    fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
-    /*int32_t ret =*/ fwrite(t, 1, size, pResultBuf->file);
+    int32_t ret = fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
+    assert(ret == 0);
+
+    ret = (int32_t) fwrite(t, 1, size, pResultBuf->file);
+    assert(ret == size);
 
     if (pResultBuf->fileSize < pg->info.offset + pg->info.length) {
       pResultBuf->fileSize = pg->info.offset + pg->info.length;
@@ -165,7 +168,7 @@ static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
 
 static char* flushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
   int32_t ret = TSDB_CODE_SUCCESS;
-  assert(pResultBuf->numOfPages * pResultBuf->pageSize == pResultBuf->totalBufSize && pResultBuf->numOfPages >= pResultBuf->inMemPages);
+  assert(((int64_t) pResultBuf->numOfPages * pResultBuf->pageSize) == pResultBuf->totalBufSize && pResultBuf->numOfPages >= pResultBuf->inMemPages);
 
   if (pResultBuf->file == NULL) {
     if ((ret = createDiskFile(pResultBuf)) != TSDB_CODE_SUCCESS) {
@@ -267,7 +270,7 @@ static char* evicOneDataPage(SDiskbasedResultBuf* pResultBuf) {
     assert(d->pn == pn);
 
     d->pn = NULL;
-    taosTFree(pn);
+    tfree(pn);
 
     bufPage = flushPageToDisk(pResultBuf, d);
   }
@@ -407,41 +410,39 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   }
 
   if (pResultBuf->file != NULL) {
-    qDebug("QInfo:%p res output buffer closed, total:%" PRId64 " bytes, inmem size:%dbytes, file size:%"PRId64" bytes",
-        pResultBuf->handle, pResultBuf->totalBufSize, listNEles(pResultBuf->lruList) * pResultBuf->pageSize,
-        pResultBuf->fileSize);
+    qDebug("QInfo:%p res output buffer closed, total:%.2f Kb, inmem size:%.2f Kb, file size:%.2f Kb",
+        pResultBuf->handle, pResultBuf->totalBufSize/1024.0, listNEles(pResultBuf->lruList) * pResultBuf->pageSize / 1024.0,
+        pResultBuf->fileSize/1024.0);
 
     fclose(pResultBuf->file);
   } else {
-    qDebug("QInfo:%p res output buffer closed, total:%" PRId64 " bytes, no file created", pResultBuf->handle,
-           pResultBuf->totalBufSize);
+    qDebug("QInfo:%p res output buffer closed, total:%.2f Kb, no file created", pResultBuf->handle,
+           pResultBuf->totalBufSize/1024.0);
   }
 
   unlink(pResultBuf->path);
-  taosTFree(pResultBuf->path);
+  tfree(pResultBuf->path);
 
-  SHashMutableIterator* iter = taosHashCreateIter(pResultBuf->groupSet);
-  while(taosHashIterNext(iter)) {
-    SArray** p = (SArray**) taosHashIterGet(iter);
+  SArray** p = taosHashIterate(pResultBuf->groupSet, NULL);
+  while(p) {
     size_t n = taosArrayGetSize(*p);
     for(int32_t i = 0; i < n; ++i) {
       SPageInfo* pi = taosArrayGetP(*p, i);
-      taosTFree(pi->pData);
-      taosTFree(pi);
+      tfree(pi->pData);
+      tfree(pi);
     }
 
     taosArrayDestroy(*p);
+    p = taosHashIterate(pResultBuf->groupSet, p);
   }
-
-  taosHashDestroyIter(iter);
 
   tdListFree(pResultBuf->lruList);
   taosArrayDestroy(pResultBuf->emptyDummyIdList);
   taosHashCleanup(pResultBuf->groupSet);
   taosHashCleanup(pResultBuf->all);
 
-  taosTFree(pResultBuf->assistBuf);
-  taosTFree(pResultBuf);
+  tfree(pResultBuf->assistBuf);
+  tfree(pResultBuf);
 }
 
 SPageInfo* getLastPageInfo(SIDList pList) {

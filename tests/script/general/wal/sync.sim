@@ -1,0 +1,125 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
+
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
+
+system sh/cfg.sh -n dnode1 -c http -v 1
+system sh/cfg.sh -n dnode2 -c http -v 1
+system sh/cfg.sh -n dnode3 -c http -v 1
+
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 20000
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 20000
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 20000
+
+system sh/cfg.sh -n dnode1 -c replica -v 3
+system sh/cfg.sh -n dnode2 -c replica -v 3
+system sh/cfg.sh -n dnode3 -c replica -v 3
+
+system sh/cfg.sh -n dnode1 -c maxSQLLength -v 940032
+system sh/cfg.sh -n dnode2 -c maxSQLLength -v 940032
+system sh/cfg.sh -n dnode3 -c maxSQLLength -v 940032
+
+print ============== deploy
+
+system sh/exec.sh -n dnode1 -s start 
+sleep 5001
+sql connect
+
+sql create dnode $hostname2
+sql create dnode $hostname3
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start 
+
+print  =============== step1
+$x = 0
+show1: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 5 then
+	  return -1
+	endi
+sql show mnodes -x show1
+$mnode1Role = $data2_1
+print mnode1Role $mnode1Role
+$mnode2Role = $data2_2
+print mnode2Role $mnode2Role
+$mnode3Role = $data2_3
+print mnode3Role $mnode3Role
+
+if $mnode1Role != master then
+  goto show1
+endi
+if $mnode2Role != slave then
+  goto show1
+endi
+if $mnode3Role != slave then
+  goto show1
+endi
+
+print ===============  step2
+sql create database d1 replica 3
+sql use d1
+
+sql create table table_rest (ts timestamp, i int) 
+print sql length is 870KB
+restful d1 table_rest 1591072800 30000
+restful d1 table_rest 1591172800 30000
+restful d1 table_rest 1591272800 30000
+restful d1 table_rest 1591372800 30000
+restful d1 table_rest 1591472800 30000
+restful d1 table_rest 1591572800 30000
+restful d1 table_rest 1591672800 30000
+restful d1 table_rest 1591772800 30000
+restful d1 table_rest 1591872800 30000
+restful d1 table_rest 1591972800 30000
+
+sleep 1000
+sql select * from table_rest;
+print rows: $rows
+if $rows != 300000 then
+  return -1
+endi
+
+print ===============  step3
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 5000
+sql select * from table_rest;
+print rows: $rows
+if $rows != 300000 then
+  return -1
+endi
+system sh/exec.sh -n dnode1 -s start -x SIGINT
+sleep 5000
+
+print ===============  step4
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 5000
+sql select * from table_rest;
+print rows: $rows
+if $rows != 300000 then
+  return -1
+endi
+system sh/exec.sh -n dnode2 -s start -x SIGINT
+sleep 5000
+
+print ===============  step5
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+sleep 5000
+sql select * from table_rest;
+print rows: $rows
+if $rows != 300000 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT

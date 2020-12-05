@@ -118,13 +118,13 @@ typedef struct {
 
 typedef struct {
   char *module;
-  bool (*decodeFp)(struct HttpContext *pContext);
+  bool (*fpDecode)(struct HttpContext *pContext);
 } HttpDecodeMethod;
 
 typedef struct {
-  void (*startJsonFp)(struct HttpContext *pContext, HttpSqlCmd *cmd, void *result);
+  void (*startJsonFp)(struct HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result);
   void (*stopJsonFp)(struct HttpContext *pContext, HttpSqlCmd *cmd);
-  bool (*buildQueryJsonFp)(struct HttpContext *pContext, HttpSqlCmd *cmd, void *result, int numOfRows);
+  bool (*buildQueryJsonFp)(struct HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int numOfRows);
   void (*buildAffectRowJsonFp)(struct HttpContext *pContext, HttpSqlCmd *cmd, int affectRows);
   void (*initJsonFp)(struct HttpContext *pContext);
   void (*cleanJsonFp)(struct HttpContext *pContext);
@@ -148,7 +148,7 @@ typedef struct HttpContext {
   char         ipstr[22];
   char         user[TSDB_USER_LEN];  // parsed from auth token or login message
   char         pass[TSDB_PASSWORD_LEN];
-  void *       taos;
+  TAOS *       taos;
   void *       ppContext;
   HttpSession *session;
   z_stream     gzipStream;

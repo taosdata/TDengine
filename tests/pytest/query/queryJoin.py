@@ -95,16 +95,18 @@ class TDTestCase:
         tdSql.error(
             "select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.id, stb_p.dscrption, stb_p.pressure from stb_p, stb_t where stb_p.ts=stb_t.ts and stb_p.id = stb_t.id group by stb_t.id")
         tdSql.error(
-            "select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.id, stb_p.dscrption, stb_p.pressure from stb_p, stb_t where stb_p.ts=stb_t.ts and stb_p.id = stb_t.name;")
-        tdSql.error(
-            "select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.id, stb_p.dscrption, stb_p.pressure from stb_p, stb_t where stb_p.ts=stb_t.ts and stb_p.location = stb_t.name")
+            "select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.id, stb_p.dscrption, stb_p.pressure from stb_p, stb_t where stb_p.ts=stb_t.ts and stb_p.id = stb_t.name;")        
 
         tdSql.execute("alter table stb_t add tag pid int")
         tdSql.execute("alter table tb_t1 set tag pid=2")
         tdSql.execute("alter table tb_t2 set tag pid=1")
 
+        tdSql.query(
+            "select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.id, stb_p.dscrption, stb_p.pressure from stb_p, stb_t where stb_p.ts=stb_t.ts and stb_p.location = stb_t.name")
+        tdSql.checkRows(0)
+
         tdSql.query("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.id, stb_p.dscrption, stb_p.pressure from stb_p, stb_t where stb_p.ts=stb_t.ts and stb_p.id = stb_t.pid")
-        tdSql.checkRows(3)
+        tdSql.checkRows(6)
 
         tdSql.query("select stb_t.ts, stb_t.dscrption, stb_t.temperature, stb_t.id, stb_p.dscrption, stb_p.pressure from stb_p, stb_t where stb_p.ts=stb_t.ts and stb_p.id = stb_t.id")
         tdSql.checkRows(6)
@@ -138,6 +140,42 @@ class TDTestCase:
 
         tdSql.query("select * from meters1, meters3 where meters1.ts = meters3.ts and meters1.tag1 = meters3.tag1")
         tdSql.checkRows(0)
+
+        tdSql.execute("create table join_mt0(ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) tags(t1 int, t2 binary(12))")
+        tdSql.execute("create table join_mt1(ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) tags(t1 int, t2 binary(12), t3 int)")
+
+        ts = 1538548685000
+        for i in range(3):
+            tdSql.execute("create table join_tb%d using join_mt0 tags(%d, 'abc')" % (i, i)) 
+            sql = "insert into join_tb%d values" % i
+            for j in range(500):
+                val = j % 100
+                sql += "(%d, %d, %f, %d, %d, %d, %f, %d, 'binary%d', 'nchar%d')" % (ts + j, val, val * 1.0, val, val, val, val * 1.0, val % 2,  val, val)
+            tdSql.execute(sql)
+            sql = "insert into join_tb%d values" % i
+            for j in range(500, 1000):
+                val = j % 100
+                sql += "(%d, %d, %f, %d, %d, %d, %f, %d, 'binary%d', 'nchar%d')" % (ts + 500 + j, val, val * 1.0, val, val, val, val * 1.0, val % 2,  val, val)
+            tdSql.execute(sql)
+        
+        for i in range(3):
+            tdSql.execute("create table join_1_tb%d using join_mt1 tags(%d, 'abc%d', %d)" % (i, i, i, i))            
+            sql = "insert into join_1_tb%d values" % i
+            for j in range(500):
+                val = j % 100
+                sql += "(%d, %d, %f, %d, %d, %d, %f, %d, 'binary%d', 'nchar%d')" % (ts + j, val, val * 1.0, val, val, val, val * 1.0, val % 2,  val, val)
+            tdSql.execute(sql)
+            sql = "insert into join_1_tb%d values" % i
+            for j in range(500, 1000):
+                val = j % 100
+                sql += "(%d, %d, %f, %d, %d, %d, %f, %d, 'binary%d', 'nchar%d')" % (ts + 500 + j, val, val * 1.0, val, val, val, val * 1.0, val % 2,  val, val)
+            tdSql.execute(sql)
+
+        tdSql.error("select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c5), last(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1 order by join_mt0.ts desc")
+        tdSql.error("select count(join_mt0.c1), first(join_mt0.c1)-first(join_mt1.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts")
+        tdSql.error("select count(join_mt0.c1), first(join_mt0.c1), first(join_mt1.c9) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1, join_mt0.t2 order by join_mt0.t1 desc slimit 3")
+        tdSql.error("select count(join_mt0.c1), first(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts interval(10a) group by join_mt0.t1, join_mt0.t2, join_mt1.t1 order by join_mt0.ts desc, join_mt1.ts asc limit 10;")
+        tdSql.error("select join_mt1.c1,join_mt0.c1 from join_mt1,join_mt0 where join_mt1.ts = join_mt0.ts and join_mt1.t1 = join_mt0.t1 order by t")
 
 
     def stop(self):

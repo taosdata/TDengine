@@ -1247,7 +1247,10 @@ _bi_consumer_fn_t tGetBiConsumerFn(int32_t leftType, int32_t rightType, int32_t 
     case TSDB_BINARY_OP_REMAINDER:
       return rem_function_arraylist[leftType][rightType];
     default:
+      assert(0);
       return NULL;
   }
+
+  assert(0);
   return NULL;
 }

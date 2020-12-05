@@ -33,21 +33,19 @@ extern "C" {
         x = FD_INITIALIZER;  \
       }                      \
     }
-  typedef int SOCKET;
+  typedef int32_t SOCKET;
 #endif
 
 #ifndef TAOS_OS_DEF_EPOLL
-  #define TAOS_EPOLL_WAIT_TIME -1
+  #define TAOS_EPOLL_WAIT_TIME 500 
 #endif  
-
-#define taosClose(x) taosCloseSocket(x)
 
 #ifdef TAOS_RANDOM_NETWORK_FAIL
   #ifdef TAOS_RANDOM_NETWORK_FAIL_TEST
-    ssize_t taosSendRandomFail(int sockfd, const void *buf, size_t len, int flags);
-    ssize_t taosSendToRandomFail(int sockfd, const void *buf, size_t len, int flags, const struct sockaddr *dest_addr, socklen_t addrlen);
-    ssize_t taosReadSocketRandomFail(int fd, void *buf, size_t count);
-    ssize_t taosWriteSocketRandomFail(int fd, const void *buf, size_t count);
+    int64_t taosSendRandomFail(int32_t sockfd, const void *buf, size_t len, int32_t flags);
+    int64_t taosSendToRandomFail(int32_t sockfd, const void *buf, size_t len, int32_t flags, const struct sockaddr *dest_addr, socklen_t addrlen);
+    int64_t taosReadSocketRandomFail(int32_t fd, void *buf, size_t count);
+    int64_t taosWriteSocketRandomFail(int32_t fd, const void *buf, size_t count);
     #undef taosSend
     #undef taosSendto
     #undef taosReadSocket
@@ -60,14 +58,14 @@ extern "C" {
 #endif
 
 // TAOS_OS_FUNC_SOCKET
-int taosSetNonblocking(SOCKET sock, int on);
-void taosBlockSIGPIPE();
+int32_t taosSetNonblocking(SOCKET sock, int32_t on);
+void    taosBlockSIGPIPE();
 
 // TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
-int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int optlen);
+int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen);
 
 // TAOS_OS_FUNC_SOCKET_INET
-uint32_t taosInetAddr(char *ipAddr);
+uint32_t    taosInetAddr(char *ipAddr);
 const char *taosInetNtoa(struct in_addr ipInt);
 
 #ifdef __cplusplus

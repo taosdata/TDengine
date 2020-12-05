@@ -96,7 +96,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public int getDriverMajorVersion() {
-        return 0;
+        return 2;
     }
 
     public int getDriverMinorVersion() {
@@ -586,7 +586,6 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
 
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
             throws SQLException {
-
 
         /** add by zyyang **********/
         Statement stmt = null;

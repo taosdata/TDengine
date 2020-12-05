@@ -347,10 +347,53 @@ if $rows != 3 then
   return -1
 endi
 
+sql select 0.1 + 0.2 from t1
+if $rows != 3 then
+  return -1
+endi
+
+print =============================> td-2036
+if $data00 != 0.300000000 then
+  print expect: 0.300000000, actual:$data00
+  return -1
+endi
+
 print ======================udc with normal column group by
 
 sql_error select from t1
 sql_error select abc from t1
 sql_error select abc as tu from t1
+
+print ========================> td-1756
+sql_error select * from t1 where ts>now-1y
+sql_error select * from t1 where ts>now-1n
+
+print ========================> td-1752
+sql select * from db.st2 where t2 < 200 and t2 is not null;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @19-12-09 16:27:35.000@ then
+  return -1
+endi
+
+if $data01 != 2 then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+sql select * from db.st2 where t2 > 200 or t2 is null;
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from st2 where t2 < 200 and t2 is null;
+if $rows != 0 then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

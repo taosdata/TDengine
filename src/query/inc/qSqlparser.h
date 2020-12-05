@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
-#include <tstrbuild.h>
 #include "taos.h"
 #include "taosmsg.h"
 #include "tstoken.h"
+#include "tstrbuild.h"
 #include "tvariant.h"
 
 #define ParseTOKENTYPE SStrToken
@@ -37,12 +37,6 @@ extern char tTokenTypeSwitcher[13];
       (x) = tTokenTypeSwitcher[(x)];           \
     }                                          \
   } while (0)
-  
-typedef struct tFieldList {
-  int32_t     nField;
-  int32_t     nAlloc;
-  TAOS_FIELD *p;
-} tFieldList;
 
 typedef struct SLimitVal {
   int64_t limit;
@@ -59,12 +53,6 @@ typedef struct tVariantListItem {
   uint8_t  sortOrder;
 } tVariantListItem;
 
-typedef struct tVariantList {
-  int32_t           nExpr;  /* Number of expressions on the list */
-  int32_t           nAlloc; /* Number of entries allocated below */
-  tVariantListItem *a;      /* One entry for each expression */
-} tVariantList;
-
 typedef struct SIntervalVal {
   SStrToken interval;
   SStrToken offset;
@@ -72,16 +60,16 @@ typedef struct SIntervalVal {
 
 typedef struct SQuerySQL {
   struct tSQLExprList *pSelection;   // select clause
-  tVariantList *       from;         // from clause
+  SArray *             from;         // from clause  SArray<tVariantListItem>
   struct tSQLExpr *    pWhere;       // where clause [optional]
-  tVariantList *       pGroupby;     // groupby clause, only for tags[optional]
-  tVariantList *       pSortOrder;   // orderby [optional]
+  SArray *             pGroupby;     // groupby clause, only for tags[optional], SArray<tVariantListItem>
+  SArray *             pSortOrder;   // orderby [optional], SArray<tVariantListItem>
   SStrToken            interval;     // interval [optional]
   SStrToken            offset;       // offset window [optional]
   SStrToken            sliding;      // sliding window [optional]
   SLimitVal            limit;        // limit offset [optional]
   SLimitVal            slimit;       // group limit offset [optional]
-  tVariantList *       fillType;     // fill type[optional]
+  SArray *             fillType;     // fill type[optional], SArray<tVariantListItem>
   SStrToken            selectToken;  // sql string
 } SQuerySQL;
 
@@ -91,26 +79,25 @@ typedef struct SCreateTableSQL {
   
   int8_t           type; // create normal table/from super table/ stream
   struct {
-    tFieldList *pTagColumns;  // for normal table, pTagColumns = NULL;
-    tFieldList *pColumns;
+    SArray        *pTagColumns; // SArray<TAOS_FIELD>
+    SArray        *pColumns;    // SArray<TAOS_FIELD>
   } colInfo;
   
   struct {
-    SStrToken     stableName;  // super table name, for using clause
-    tVariantList *pTagVals;    // create by using metric, tag value
-    STagData      tagdata;
+    SStrToken      stableName;  // super table name, for using clause
+    SArray        *pTagVals;    // create by using metric, tag value
+    STagData       tagdata;
   } usingInfo;
   
-  SQuerySQL *pSelect;
+  SQuerySQL       *pSelect;
 } SCreateTableSQL;
 
 typedef struct SAlterTableSQL {
   SStrToken     name;
   int16_t       type;
   STagData      tagData;
-  
-  tFieldList *  pAddColumns;
-  tVariantList *varList;  // set t=val or: change src dst
+  SArray       *pAddColumns; // SArray<TAOS_FIELD>
+  SArray       *varList;  // set t=val or: change src dst, SArray<tVariantListItem>
 } SAlterTableSQL;
 
 typedef struct SCreateDBInfo {
@@ -129,8 +116,9 @@ typedef struct SCreateDBInfo {
   int32_t   compressionLevel;
   SStrToken precision;
   bool      ignoreExists;
+  int8_t    update; 
   
-  tVariantList *keep;
+  SArray *keep;
 } SCreateDBInfo;
 
 typedef struct SCreateAcctSQL {
@@ -168,7 +156,7 @@ typedef struct tDCLSQL {
     SCreateDBInfo  dbOpt;
     SCreateAcctSQL acctOpt;
     SShowInfo      showOpt;
-    SStrToken ip;
+    SStrToken      ip;
   };
   
   SUserInfo user;
@@ -181,33 +169,32 @@ typedef struct SSubclauseInfo {  // "UNION" multiple select sub-clause
 } SSubclauseInfo;
 
 typedef struct SSqlInfo {
-  int32_t type;
-  bool    valid;
+  int32_t            type;
+  bool               valid;
   
   union {
     SCreateTableSQL *pCreateTableInfo;
-    SAlterTableSQL * pAlterInfo;
-    tDCLSQL *        pDCLInfo;
+    SAlterTableSQL  *pAlterInfo;
+    tDCLSQL         *pDCLInfo;
   };
   
-  SSubclauseInfo subclauseInfo;
-  char           pzErrMsg[256];
+  SSubclauseInfo     subclauseInfo;
+  char               pzErrMsg[256];
 } SSqlInfo;
 
 typedef struct tSQLExpr {
-  // TK_FUNCTION: sql function, TK_LE: less than(binary expr)
-  uint32_t nSQLOptr;
+  uint32_t         nSQLOptr;    // TK_FUNCTION: sql function, TK_LE: less than(binary expr)
   
   // the full sql string of function(col, param), which is actually the raw
   // field name, since the function name is kept in nSQLOptr already
-  SStrToken operand;
-  SStrToken colInfo;            // field id
-  tVariant  val;                // value only for string, float, int
-  
+  SStrToken        operand;
+  SStrToken        colInfo;     // field id
+  tVariant         val;         // value only for string, float, int
+  SStrToken        token;       // original sql expr string
+
   struct tSQLExpr *pLeft;       // left child
   struct tSQLExpr *pRight;      // right child
   struct tSQLExprList *pParam;  // function parameters
-  SStrToken token;              // original sql expr string
 } tSQLExpr;
 
 // used in select clause. select <tSQLExprList> from xxx
@@ -222,13 +209,6 @@ typedef struct tSQLExprList {
   int32_t       nAlloc; /* Number of entries allocated below */
   tSQLExprItem *a;      /* One entry for each expression */
 } tSQLExprList;
-
-typedef struct tSQLExprListList {
-  int32_t        nList;  /* Number of expressions on the list */
-  int32_t        nAlloc; /* Number of entries allocated below */
-  tSQLExprList **a;      /* one entry for each row */
-} tSQLExprListList;
-
 
 /**
  *
@@ -245,16 +225,9 @@ void Parse(void *yyp, int yymajor, ParseTOKENTYPE yyminor, SSqlInfo *);
  */
 void ParseFree(void *p, void (*freeProc)(void *));
 
-tVariantList *tVariantListAppend(tVariantList *pList, tVariant *pVar, uint8_t sortOrder);
-
-tVariantList *tVariantListInsert(tVariantList *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
-
-tVariantList *tVariantListAppendToken(tVariantList *pList, SStrToken *pAliasToken, uint8_t sortOrder);
-void          tVariantListDestroy(tVariantList *pList);
-
-tFieldList *tFieldListAppend(tFieldList *pList, TAOS_FIELD *pField);
-
-void tFieldListDestroy(tFieldList *pList);
+SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
+SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
+SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 
 tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optType);
 
@@ -264,19 +237,16 @@ tSQLExprList *tSQLExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken
 
 void tSQLExprListDestroy(tSQLExprList *pList);
 
-SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, tVariantList *pFrom, tSQLExpr *pWhere,
-                             tVariantList *pGroupby, tVariantList *pSortOrder, SIntervalVal *pInterval,
-                             SStrToken *pSliding, tVariantList *pFill, SLimitVal *pLimit, SLimitVal *pGLimit);
+SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, SArray *pFrom, tSQLExpr *pWhere,
+                             SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
+                             SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit);
 
-SCreateTableSQL *tSetCreateSQLElems(tFieldList *pCols, tFieldList *pTags, SStrToken *pMetricName,
-                                    tVariantList *pTagVals, SQuerySQL *pSelect, int32_t type);
+SCreateTableSQL *tSetCreateSQLElems(SArray *pCols, SArray *pTags, SStrToken *pMetricName,
+                                    SArray *pTagVals, SQuerySQL *pSelect, int32_t type);
 
-void      tSQLExprNodeDestroy(tSQLExpr *pExpr);
-tSQLExpr *tSQLExprNodeClone(tSQLExpr *pExpr);
+void tSQLExprNodeDestroy(tSQLExpr *pExpr);
 
-SAlterTableSQL *tAlterTableSQLElems(SStrToken *pMeterName, tFieldList *pCols, tVariantList *pVals, int32_t type);
-
-tSQLExprListList *tSQLListListAppend(tSQLExprListList *pList, tSQLExprList *pExprList);
+SAlterTableSQL *tAlterTableSQLElems(SStrToken *pMeterName, SArray *pCols, SArray *pVals, int32_t type);
 
 void destroyAllSelectClause(SSubclauseInfo *pSql);
 void doDestroyQuerySql(SQuerySQL *pSql);
@@ -317,9 +287,6 @@ void tSQLSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType);
 void tSQLSetColumnType(TAOS_FIELD *pField, SStrToken *pToken);
 
 void *ParseAlloc(void *(*mallocProc)(size_t));
-
-// convert the sql filter expression into binary data
-int32_t tSQLExprToBinary(tSQLExpr* pExpr, SStringBuilder* sb);
 
 enum {
   TSQL_NODE_TYPE_EXPR  = 0x1,

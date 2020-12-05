@@ -111,8 +111,8 @@ public class TSDBJNIConnector {
      * @throws SQLException
      */
     public long executeQuery(String sql) throws SQLException {
-    	// close previous result set if the user forgets to invoke the 
-    	// free method to close previous result set.
+        // close previous result set if the user forgets to invoke the
+        // free method to close previous result set.
         if (!this.isResultsetClosed) {
             freeResultSet(taosResultSetPointer);
         }
@@ -122,23 +122,23 @@ public class TSDBJNIConnector {
             pSql = this.executeQueryImp(sql.getBytes(TaosGlobalConfig.getCharset()), this.taos);
         } catch (Exception e) {
             e.printStackTrace();
-            this.freeResultSet(pSql);
+            this.freeResultSetImp(this.taos, pSql);
             throw new SQLException(TSDBConstants.WrapErrMsg("Unsupported encoding"));
         }
-        
+
         int code = this.getErrCode(pSql);
         if (code != 0) {
             affectedRows = -1;
             String msg = this.getErrMsg(pSql);
-            
-            this.freeResultSet(pSql);
+
+            this.freeResultSetImp(this.taos, pSql);
             throw new SQLException(TSDBConstants.WrapErrMsg(msg), "", code);
         }
 
         // Try retrieving result set for the executed SQL using the current connection pointer. 
         taosResultSetPointer = this.getResultSetImp(this.taos, pSql);
         isResultsetClosed = (taosResultSetPointer == TSDBConstants.JNI_NULL_POINTER);
-        
+
         return pSql;
     }
 
@@ -171,11 +171,11 @@ public class TSDBJNIConnector {
     }
 
     private native long getResultSetImp(long connection, long pSql);
-    
+
     public boolean isUpdateQuery(long pSql) {
-    	return isUpdateQueryImp(this.taos, pSql) == 1? true:false;
+        return isUpdateQueryImp(this.taos, pSql) == 1 ? true : false;
     }
-    
+
     private native long isUpdateQueryImp(long connection, long pSql);
 
     /**
@@ -191,7 +191,7 @@ public class TSDBJNIConnector {
             res = this.freeResultSetImp(this.taos, result);
             taosResultSetPointer = TSDBConstants.JNI_NULL_POINTER;
         }
-        
+
         isResultsetClosed = true;
         return res;
     }
@@ -243,6 +243,11 @@ public class TSDBJNIConnector {
 
     private native int fetchRowImp(long connection, long resultSet, TSDBResultSetRowData rowData);
 
+    public int fetchBlock(long resultSet, TSDBResultSetBlockData blockData) {
+		return this.fetchBlockImp(this.taos, resultSet, blockData);
+    }
+    
+    private native int fetchBlockImp(long connection, long resultSet, TSDBResultSetBlockData blockData);
     /**
      * Execute close operation from C to release connection pointer by JNI
      *
@@ -274,7 +279,7 @@ public class TSDBJNIConnector {
      * Consume a subscription
      */
     long consume(long subscription) {
-       return this.consumeImp(subscription);
+        return this.consumeImp(subscription);
     }
 
     private native long consumeImp(long subscription);

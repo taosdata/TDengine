@@ -8,7 +8,7 @@ IF (TD_MVN_INSTALLED)
   ADD_CUSTOM_COMMAND(OUTPUT ${JDBC_CMD_NAME}
     POST_BUILD
     COMMAND mvn -Dmaven.test.skip=true install -f ${CMAKE_CURRENT_SOURCE_DIR}/pom.xml
-    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/target/taos-jdbcdriver-2.0.0-dist.jar ${LIBRARY_OUTPUT_PATH}
+    COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/target/taos-jdbcdriver-2.0.14-dist.jar ${LIBRARY_OUTPUT_PATH}
     COMMAND mvn -Dmaven.test.skip=true clean -f ${CMAKE_CURRENT_SOURCE_DIR}/pom.xml
     COMMENT "build jdbc driver")
   ADD_CUSTOM_TARGET(${JDBC_TARGET_NAME} ALL WORKING_DIRECTORY ${EXECUTABLE_OUTPUT_PATH} DEPENDS ${JDBC_CMD_NAME})

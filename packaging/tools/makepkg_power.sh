@@ -77,8 +77,10 @@ else
   cp ${build_dir}/bin/taosd         ${install_dir}/bin/powerd
   cp ${script_dir}/remove_power.sh  ${install_dir}/bin
   cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/powerdemo   
+  cp ${build_dir}/bin/taosdump      ${install_dir}/bin/powerdump  
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin
   cp ${script_dir}/set_core.sh      ${install_dir}/bin
+  cp ${script_dir}/get_client.sh    ${install_dir}/bin
 fi
 chmod a+x ${install_dir}/bin/* || :
 
@@ -146,7 +148,7 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp -r ${examples_dir}/R      ${install_dir}/examples
   sed -i '/password/ {s/taosdata/powerdb/g}'  ${install_dir}/examples/R/command.txt  
   cp -r ${examples_dir}/go     ${install_dir}/examples  
-  sed -i '/root/ {s/taosdata/powerdb/g}'  ${install_dir}/examples/go/src/taosapp/taosapp.go
+  sed -i '/root/ {s/taosdata/powerdb/g}'  ${install_dir}/examples/go/taosdemo.go
 fi
 # Copy driver
 mkdir -p ${install_dir}/driver 
@@ -156,7 +158,7 @@ cp ${lib_files} ${install_dir}/driver
 connector_dir="${code_dir}/connector"
 mkdir -p ${install_dir}/connector
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-  cp ${build_dir}/lib/*.jar      ${install_dir}/connector
+  cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
   cp -r ${connector_dir}/grafanaplugin ${install_dir}/connector/
   cp -r ${connector_dir}/python  ${install_dir}/connector/
   cp -r ${connector_dir}/go      ${install_dir}/connector

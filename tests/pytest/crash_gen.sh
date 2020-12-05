@@ -54,6 +54,7 @@ export PYTHONPATH=$(pwd)/../../src/connector/python/linux/python3:$(pwd)
 export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LIB_DIR
 
 # Now we are all let, and let's see if we can find a crash. Note we pass all params
+CRASH_GEN_EXEC=crash_gen_bootstrap.py
 if [[ $1 == '--valgrind' ]]; then
   shift
   export PYTHONMALLOC=malloc
@@ -66,14 +67,16 @@ if [[ $1 == '--valgrind' ]]; then
     --leak-check=yes \
     --suppressions=crash_gen/valgrind_taos.supp \
     $PYTHON_EXEC \
-    ./crash_gen/crash_gen.py $@ > $VALGRIND_OUT 2> $VALGRIND_ERR 
+    $CRASH_GEN_EXEC $@ > $VALGRIND_OUT 2> $VALGRIND_ERR 
 elif [[ $1 == '--helgrind' ]]; then
   shift
+  HELGRIND_OUT=helgrind.out 
+  HELGRIND_ERR=helgrind.err
   valgrind  \
     --tool=helgrind \
     $PYTHON_EXEC \
-    ./crash_gen/crash_gen.py $@
+    $CRASH_GEN_EXEC $@ > $HELGRIND_OUT 2> $HELGRIND_ERR
 else
-  $PYTHON_EXEC ./crash_gen/crash_gen.py $@
+  $PYTHON_EXEC $CRASH_GEN_EXEC $@
 fi
 

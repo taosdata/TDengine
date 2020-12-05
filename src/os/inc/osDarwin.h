@@ -70,10 +70,9 @@ extern "C" {
 #include <dispatch/dispatch.h>
 #include <fcntl.h>
 #include <sys/utsname.h>
+#include <math.h>
 
 #define TAOS_OS_FUNC_FILE_SENDIFLE
-  #define taosFSendFile(outfile, infile, offset, count) taosFSendFileImp(outfile, infile, offset, size)
-  #define taosTSendFile(dfd, sfd, offset, size) taosTSendFileImp(dfd, sfd, offset, size)
 
 #define TAOS_OS_FUNC_SEMPHONE
   #define tsem_t dispatch_semaphore_t

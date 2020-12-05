@@ -9,26 +9,40 @@
 
 
 static void prepare_data(TAOS* taos) {
-  taos_query(taos, "drop database if exists test;");
+  TAOS_RES *result;
+  result = taos_query(taos, "drop database if exists test;");
+  taos_free_result(result);
   usleep(100000);
-  taos_query(taos, "create database test;");
+  result = taos_query(taos, "create database test;");
+  taos_free_result(result);
   usleep(100000);
   taos_select_db(taos, "test");
 
-  taos_query(taos, "create table meters(ts timestamp, a int) tags(area int);");
+  result = taos_query(taos, "create table meters(ts timestamp, a int) tags(area int);");
+  taos_free_result(result);
 
-  taos_query(taos, "create table t0 using meters tags(0);");
-  taos_query(taos, "create table t1 using meters tags(1);");
-  taos_query(taos, "create table t2 using meters tags(2);");
-  taos_query(taos, "create table t3 using meters tags(3);");
-  taos_query(taos, "create table t4 using meters tags(4);");
-  taos_query(taos, "create table t5 using meters tags(5);");
-  taos_query(taos, "create table t6 using meters tags(6);");
-  taos_query(taos, "create table t7 using meters tags(7);");
-  taos_query(taos, "create table t8 using meters tags(8);");
-  taos_query(taos, "create table t9 using meters tags(9);");
+  result = taos_query(taos, "create table t0 using meters tags(0);");
+  taos_free_result(result);
+  result = taos_query(taos, "create table t1 using meters tags(1);");
+  taos_free_result(result);
+  result = taos_query(taos, "create table t2 using meters tags(2);");
+  taos_free_result(result);
+  result = taos_query(taos, "create table t3 using meters tags(3);");
+  taos_free_result(result);
+  result = taos_query(taos, "create table t4 using meters tags(4);");
+  taos_free_result(result);
+  result = taos_query(taos, "create table t5 using meters tags(5);");
+  taos_free_result(result);
+  result = taos_query(taos, "create table t6 using meters tags(6);");
+  taos_free_result(result);
+  result = taos_query(taos, "create table t7 using meters tags(7);");
+  taos_free_result(result);
+  result = taos_query(taos, "create table t8 using meters tags(8);");
+  taos_free_result(result);
+  result = taos_query(taos, "create table t9 using meters tags(9);");
+  taos_free_result(result);
 
-  TAOS_RES* res = taos_query(taos, "insert into t0 values('2020-01-01 00:00:00.000', 0)"
+  result = taos_query(taos, "insert into t0 values('2020-01-01 00:00:00.000', 0)"
     " ('2020-01-01 00:01:00.000', 0)"
     " ('2020-01-01 00:02:00.000', 0)"
     " t1 values('2020-01-01 00:00:00.000', 0)"
@@ -46,10 +60,11 @@ static void prepare_data(TAOS* taos) {
     " t7 values('2020-01-01 00:01:02.000', 0)"
     " t8 values('2020-01-01 00:01:02.000', 0)"
     " t9 values('2020-01-01 00:01:02.000', 0)");
-  int affected = taos_affected_rows(res);
+  int affected = taos_affected_rows(result);
   if (affected != 18) {
     printf("\033[31m%d rows affected by last insert statement, but it should be 18\033[0m\n", affected);
   }
+  taos_free_result(result);
   // super tables subscription
   usleep(1000000);
 }
@@ -64,11 +79,11 @@ static int print_result(TAOS_RES* res, int blockFetch) {
   if (blockFetch) {
     int rows = 0;
     while ((rows = taos_fetch_block(res, &row))) {
-      for (int i = 0; i < rows; i++) {
-        char temp[256];
-        taos_print_row(temp, row + i, fields, num_fields);
-        puts(temp);
-      }
+      //for (int i = 0; i < rows; i++) {
+      //  char temp[256];
+      //  taos_print_row(temp, row + i, fields, num_fields);
+      //  puts(temp);
+      //}
       nRows += rows;
     }
   } else {
@@ -135,6 +150,7 @@ static void verify_query(TAOS* taos) {
 
   res = taos_query(taos, "select * from meters");
   taos_stop_query(res);
+  taos_free_result(res);
 }
 
 
@@ -153,23 +169,30 @@ static void verify_subscribe(TAOS* taos) {
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 0);
 
-  taos_query(taos, "insert into t0 values('2020-01-01 00:02:00.001', 0);");
-  taos_query(taos, "insert into t8 values('2020-01-01 00:01:03.000', 0);");
+  TAOS_RES *result;
+  result = taos_query(taos, "insert into t0 values('2020-01-01 00:02:00.001', 0);");
+  taos_free_result(result);
+  result = taos_query(taos, "insert into t8 values('2020-01-01 00:01:03.000', 0);");
+  taos_free_result(result);
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 2);
 
-  taos_query(taos, "insert into t2 values('2020-01-01 00:01:02.001', 0);");
-  taos_query(taos, "insert into t1 values('2020-01-01 00:03:00.001', 0);");
+  result = taos_query(taos, "insert into t2 values('2020-01-01 00:01:02.001', 0);");
+  taos_free_result(result);
+  result = taos_query(taos, "insert into t1 values('2020-01-01 00:03:00.001', 0);");
+  taos_free_result(result);
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 2);
 
-  taos_query(taos, "insert into t1 values('2020-01-01 00:03:00.002', 0);");
+  result = taos_query(taos, "insert into t1 values('2020-01-01 00:03:00.002', 0);");
+  taos_free_result(result);
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 1);
 
   // keep progress information and restart subscription
   taos_unsubscribe(tsub, 1);
-  taos_query(taos, "insert into t0 values('2020-01-01 00:04:00.000', 0);");
+  result = taos_query(taos, "insert into t0 values('2020-01-01 00:04:00.000', 0);");
+  taos_free_result(result);
   tsub = taos_subscribe(taos, 1, "test", "select * from meters;", NULL, NULL, 0);
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 24);
@@ -196,7 +219,8 @@ static void verify_subscribe(TAOS* taos) {
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 0);
 
-  taos_query(taos, "insert into t0 values('2020-01-01 00:04:00.001', 0);");
+  result = taos_query(taos, "insert into t0 values('2020-01-01 00:04:00.001', 0);");
+  taos_free_result(result);
   res = taos_consume(tsub);
   check_row_count(__LINE__, res, 1);
 
@@ -205,7 +229,8 @@ static void verify_subscribe(TAOS* taos) {
   int blockFetch = 0;
   tsub = taos_subscribe(taos, 1, "test", "select * from meters;", subscribe_callback, &blockFetch, 1000);
   usleep(2000000);
-  taos_query(taos, "insert into t0 values('2020-01-01 00:05:00.001', 0);");
+  result = taos_query(taos, "insert into t0 values('2020-01-01 00:05:00.001', 0);");
+  taos_free_result(result);
   usleep(2000000);
   taos_unsubscribe(tsub, 0);
 }
@@ -213,8 +238,9 @@ static void verify_subscribe(TAOS* taos) {
 
 void verify_prepare(TAOS* taos) {
   TAOS_RES* result = taos_query(taos, "drop database if exists test;");
+  taos_free_result(result);
   usleep(100000);
-  taos_query(taos, "create database test;");
+  result = taos_query(taos, "create database test;");
 
   int code = taos_errno(result);
   if (code != 0) {
@@ -429,7 +455,8 @@ void verify_stream(TAOS* taos) {
     NULL);
   printf("waiting for stream data\n"); 
   usleep(100000);
-  taos_query(taos, "insert into t0 values(now, 0)(now+5s,1)(now+10s, 2);");
+  TAOS_RES* result = taos_query(taos, "insert into t0 values(now, 0)(now+5s,1)(now+10s, 2);");
+  taos_free_result(result);
   usleep(200000000);
   taos_close_stream(strm);
 }

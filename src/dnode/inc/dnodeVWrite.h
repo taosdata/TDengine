@@ -20,9 +20,12 @@
 extern "C" {
 #endif
 
-int32_t dnodeInitVnodeWrite();
-void    dnodeCleanupVnodeWrite();
-void    dnodeDispatchToVnodeWriteQueue(SRpcMsg *pMsg);
+int32_t dnodeInitVWrite();
+void    dnodeCleanupVWrite();
+void    dnodeDispatchToVWriteQueue(SRpcMsg *pMsg);
+void *  dnodeAllocVWriteQueue(void *pVnode);
+void    dnodeFreeVWriteQueue(void *pWqueue);
+void    dnodeSendRpcVWriteRsp(void *pVnode, void *pWrite, int32_t code);
 
 #ifdef __cplusplus
 }

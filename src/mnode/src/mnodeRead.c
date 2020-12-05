@@ -17,7 +17,7 @@
 #include "os.h"
 #include "taosdef.h"
 #include "tsched.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tgrant.h"
 #include "ttimer.h"
 #include "tglobal.h"
@@ -43,7 +43,7 @@ void mnodeAddReadMsgHandle(uint8_t msgType, int32_t (*fp)(SMnodeMsg *pMsg)) {
 
 int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
   if (pMsg->rpcMsg.pCont == NULL) {
-    mError("%p, msg:%s in mread queue, content is null", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
+    mError("msg:%p, app:%p type:%s in mread queue, content is null", pMsg, pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_INVALID_MSG_LEN;
   }
 
@@ -51,32 +51,25 @@ int32_t mnodeProcessRead(SMnodeMsg *pMsg) {
     SMnodeRsp *rpcRsp = &pMsg->rpcRsp;
     SRpcEpSet *epSet = rpcMallocCont(sizeof(SRpcEpSet));
     mnodeGetMnodeEpSetForShell(epSet);
-
-    mDebug("%p, msg:%s in mread queue will be redirected, numOfEps:%d inUse:%d", pMsg->rpcMsg.ahandle,
-           taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
-    for (int32_t i = 0; i < epSet->numOfEps; ++i) {
-      if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
-        epSet->inUse = (i + 1) % epSet->numOfEps;
-        mDebug("mnode index:%d ep:%s:%u, set inUse to %d", i, epSet->fqdn[i], htons(epSet->port[i]), epSet->inUse);
-      } else {
-        mDebug("mnode index:%d ep:%s:%u", i, epSet->fqdn[i], htons(epSet->port[i]));
-      }
-    }
-
     rpcRsp->rsp = epSet;
     rpcRsp->len = sizeof(SRpcEpSet);
+
+    mDebug("msg:%p, app:%p type:%s in mread queue is redirected, numOfEps:%d inUse:%d", pMsg, pMsg->rpcMsg.ahandle,
+           taosMsg[pMsg->rpcMsg.msgType], epSet->numOfEps, epSet->inUse);
 
     return TSDB_CODE_RPC_REDIRECT;
   }
 
   if (tsMnodeProcessReadMsgFp[pMsg->rpcMsg.msgType] == NULL) {
-    mError("%p, msg:%s in mread queue, not processed", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType]);
+    mError("msg:%p, app:%p type:%s in mread queue, not processed", pMsg, pMsg->rpcMsg.ahandle,
+           taosMsg[pMsg->rpcMsg.msgType]);
     return TSDB_CODE_MND_MSG_NOT_PROCESSED;
   }
 
   int32_t code = mnodeInitMsg(pMsg);
   if (code != TSDB_CODE_SUCCESS) {
-    mError("%p, msg:%s in mread queue, not processed reason:%s", pMsg->rpcMsg.ahandle, taosMsg[pMsg->rpcMsg.msgType], tstrerror(code));
+    mError("msg:%p, app:%p type:%s in mread queue, not processed reason:%s", pMsg, pMsg->rpcMsg.ahandle,
+           taosMsg[pMsg->rpcMsg.msgType], tstrerror(code));
     return code;
   }
 

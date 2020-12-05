@@ -14,9 +14,9 @@ public final class JdbcTaosdemoConfig {
     //Destination database. Default is 'test'
     private String dbName = "test";
     //keep
-    private int keep = 365 * 20;
+    private int keep = 36500;
     //days
-    private int days = 30;
+    private int days = 120;
 
     //Super table Name. Default is 'meters'
     private String stbName = "meters";
@@ -35,7 +35,7 @@ public final class JdbcTaosdemoConfig {
     private boolean deleteTable = false;
 
     public static void printHelp() {
-        System.out.println("Usage: java -jar JDBCConnectorChecker.jar [OPTION...]");
+        System.out.println("Usage: java -jar JdbcTaosDemo.jar [OPTION...]");
         System.out.println("-h    host                       The host to connect to TDengine. you must input one");
         System.out.println("-p    port                       The TCP/IP port number to use for the connection. Default is 6030");
         System.out.println("-u    user                       The TDengine user name to use when connecting to the server. Default is 'root'");

@@ -7,7 +7,7 @@ system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 
 system sh/exec.sh -n dnode1 -s start
-sleep 1000
+sleep 500
 sql connect
 
 $dbPrefix = union_db
@@ -27,7 +27,7 @@ $j = 1
 
 $mt1 = $mtPrefix . $j
 
-sql drop database if exits $db -x step1
+sql drop database if exists $db -x step1
 step1:
 sql create database if not exists $db
 sql use $db
@@ -36,9 +36,16 @@ sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5
 $i = 0
 $t = 1578203484000
 
-while $i < $tbNum
+$half = $tbNum / 2
+
+while $i < $half
   $tb = $tbPrefix . $i
+
+  $nextSuffix = $i + $half
+  $tb1 = $tbPrefix . $nextSuffix
+
   sql create table $tb using $mt tags( $i )
+  sql create table $tb1 using $mt tags( $nextSuffix )
 
   $x = 0
   while $x < $rowNum
@@ -54,7 +61,7 @@ while $i < $tbNum
     $nchar = $nchar . '
 
     $t1 = $t + $ms
-    sql insert into $tb values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    sql insert into $tb values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )  $tb1 values ($t1 , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
     $x = $x + 1
   endw
 
@@ -96,7 +103,7 @@ while $i < $tbNum
 endw
 
 print sleep 1sec.
-sleep 1000
+sleep 500
 
 $i = 1
 $tb = $tbPrefix . $i
@@ -251,7 +258,7 @@ if $rows != 15 then
 endi
 
 # first subclause are empty
-sql select count(*) as c from union_tb0 where ts>now+10y union all select sum(c1) as c from union_tb1;
+sql select count(*) as c from union_tb0 where ts > now + 3650d union all select sum(c1) as c from union_tb1;
 if $rows != 1 then
   return -1
 endi
@@ -346,7 +353,7 @@ if $data91 != 99 then
   return -1
 endi
 
-#1111111111111111111111111111111111111111111111111
+#=================================================================================================
 # two aggregated functions for normal tables
 sql select sum(c1) as a from union_tb0 limit 1 union all select sum(c3) as a from union_tb1 limit 2;
 if $rows != 2 then

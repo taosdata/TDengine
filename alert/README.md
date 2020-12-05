@@ -61,7 +61,7 @@ The use of each configuration item is:
 
 * **port**: This is the `http` service port which enables other application to manage rules by `restful API`.
 * **database**: rules are stored in a `sqlite` database, this is the path of the database file (if the file does not exist, the alert application creates it automatically).
-* **tdengine**: connection string of `TDEngine` server, note in most cases the database information should be put in a rule, thus it should NOT be included here.
+* **tdengine**: connection string of `TDEngine` server (please refer the documentation of GO connector for the detailed format of this string), note the database name should be put in the `sql` field of a rule in most cases, thus it should NOT be included in the string.
 * **log > level**: log level, could be `production` or `debug`.
 * **log > path**: log output file path.
 * **receivers > alertManager**: the alert application pushes alerts to `AlertManager` at this URL.
