@@ -15,15 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosdef.h"
-#include "taosmsg.h"
-#include "tglobal.h"
 #include "mnode.h"
 #include "http.h"
 #include "tmqtt.h"
 #include "monitor.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeModule.h"
 
 typedef struct {

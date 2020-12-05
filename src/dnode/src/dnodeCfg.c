@@ -16,9 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cJSON.h"
-#include "tglobal.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeCfg.h"
 
 static SDnodeCfg tsCfg = {0};

@@ -13,19 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_DNODE_MREAD_H
-#define TDENGINE_DNODE_MREAD_H
+#ifndef TDENGINE_DNODE_VNODES_H
+#define TDENGINE_DNODE_VNODES_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "dnodeInt.h"
 
-int32_t dnodeInitMRead();
-void    dnodeCleanupMRead();
-int32_t dnodeAllocMReadQueue();
-void    dnodeFreeMReadQueue();
-void    dnodeDispatchToMReadQueue(SRpcMsg *rpcMsg);
+int32_t dnodeInitVnodes();
+void    dnodeCleanupVnodes();
+int32_t dnodeInitTimer();
+void    dnodeCleanupTimer();
+void    dnodeSendStatusMsgToMnode();
 
 #ifdef __cplusplus
 }

@@ -15,9 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
-#include "taosmsg.h"
-#include "dnodeInt.h"
 #include "dnodeStep.h"
 
 static SStartupStep tsStartupStep;
@@ -32,14 +29,7 @@ void dnodeSendStartupStep(SRpcMsg *pMsg) {
   dInfo("nettest msg is received, cont:%s", (char *)pMsg->pCont);
 
   SStartupStep *pStep = rpcMallocCont(sizeof(SStartupStep));
-#if 1
   memcpy(pStep, &tsStartupStep, sizeof(SStartupStep));
-#else
-  static int32_t step = 0;
-  sprintf(pStep->name, "module:%d", step++);
-  sprintf(pStep->desc, "step:%d", step++);
-  if (step > 10) pStep->finished = 1;
-#endif
 
   dDebug("startup msg is sent, step:%s desc:%s finished:%d", pStep->name, pStep->desc, pStep->finished);
 

@@ -21,12 +21,8 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosmsg.h"
-#include "tglobal.h"
 #include "mnode.h"
-#include "dnode.h"
-#include "dnodeInt.h"
-#include "dnodeMgmt.h"
+#include "dnodeVMgmt.h"
 #include "dnodeVWrite.h"
 #include "dnodeMPeer.h"
 #include "dnodeMInfos.h"
@@ -45,12 +41,12 @@ int32_t dnodeInitServer() {
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_TABLE]  = dnodeDispatchToVWriteQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_STABLE]  = dnodeDispatchToVWriteQueue;
 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeDispatchToMgmtQueue; 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeDispatchToMgmtQueue; 
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeDispatchToMgmtQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeDispatchToMgmtQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeDispatchToMgmtQueue;
-  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE] = dnodeDispatchToMgmtQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_VNODE] = dnodeDispatchToVMgmtQueue; 
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_VNODE]  = dnodeDispatchToVMgmtQueue; 
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_DROP_VNODE]   = dnodeDispatchToVMgmtQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_ALTER_STREAM] = dnodeDispatchToVMgmtQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CONFIG_DNODE] = dnodeDispatchToVMgmtQueue;
+  dnodeProcessReqMsgFp[TSDB_MSG_TYPE_MD_CREATE_MNODE] = dnodeDispatchToVMgmtQueue;
 
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_TABLE] = dnodeDispatchToMPeerQueue;
   dnodeProcessReqMsgFp[TSDB_MSG_TYPE_DM_CONFIG_VNODE] = dnodeDispatchToMPeerQueue;

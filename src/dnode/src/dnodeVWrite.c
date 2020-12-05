@@ -15,13 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
-#include "taosmsg.h"
-#include "tglobal.h"
 #include "tqueue.h"
-#include "twal.h"
-#include "vnode.h"
-#include "dnodeInt.h"
+#include "dnodeVWrite.h"
 
 typedef struct {
   taos_qall qall;

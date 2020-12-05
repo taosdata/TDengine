@@ -16,10 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cJSON.h"
-#include "tglobal.h"
 #include "mnode.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeMInfos.h"
 
 static SMnodeInfos tsMInfos;
@@ -285,4 +282,26 @@ static int32_t dnodeWriteMInfos() {
 
   dInfo("successed to write %s", file);
   return 0;
+}
+
+void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
+  SRpcConnInfo connInfo = {0};
+  rpcGetConnInfo(rpcMsg->handle, &connInfo);
+
+  SRpcEpSet epSet = {0};
+  if (forShell) {
+    dnodeGetEpSetForShell(&epSet);
+  } else {
+    dnodeGetEpSetForPeer(&epSet);
+  }
+  
+  dDebug("msg:%s will be redirected, dnodeIp:%s user:%s, numOfEps:%d inUse:%d", taosMsg[rpcMsg->msgType],
+         taosIpStr(connInfo.clientIp), connInfo.user, epSet.numOfEps, epSet.inUse);
+
+  for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+    dDebug("mnode index:%d %s:%d", i, epSet.fqdn[i], epSet.port[i]);
+    epSet.port[i] = htons(epSet.port[i]);
+  }
+
+  rpcSendRedirectRsp(rpcMsg->handle, &epSet);
 }
