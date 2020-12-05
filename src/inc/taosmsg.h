@@ -502,6 +502,7 @@ typedef struct {
 typedef struct {
   SMsgHead header;
   uint64_t qhandle;
+  uint16_t free;
 } SRetrieveTableMsg;
 
 typedef struct {
