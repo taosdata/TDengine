@@ -265,14 +265,12 @@ static int32_t dnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
 
 static void *dnodeOpenVnode(void *param) {
   SOpenVnodeThread *pThread = param;
-  char vnodeDir[TSDB_FILENAME_LEN * 3];
-
+  
   dDebug("thread:%d, start to open %d vnodes", pThread->threadIndex, pThread->vnodeNum);
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     int32_t vgId = pThread->vnodeList[v];
-    snprintf(vnodeDir, TSDB_FILENAME_LEN * 3, "%s/vnode%d", tsVnodeDir, vgId);
-    if (vnodeOpen(vgId, vnodeDir) < 0) {
+    if (vnodeOpen(vgId) < 0) {
       dError("vgId:%d, failed to open vnode by thread:%d", vgId, pThread->threadIndex);
       pThread->failed++;
     } else {

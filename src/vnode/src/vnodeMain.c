@@ -84,7 +84,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
 
   vInfo("vgId:%d, vnode dir is created, walLevel:%d fsyncPeriod:%d", pVnodeCfg->cfg.vgId, pVnodeCfg->cfg.walLevel,
         pVnodeCfg->cfg.fsyncPeriod);
-  code = vnodeOpen(pVnodeCfg->cfg.vgId, rootDir);
+  code = vnodeOpen(pVnodeCfg->cfg.vgId);
 
   return code;
 }
@@ -158,18 +158,20 @@ int32_t vnodeAlter(void *vparam, SCreateVnodeMsg *pVnodeCfg) {
   return code;
 }
 
-int32_t vnodeOpen(int32_t vnode, char *rootDir) {
-  char temp[TSDB_FILENAME_LEN];
+int32_t vnodeOpen(int32_t vgId) {
+  char temp[TSDB_FILENAME_LEN * 3];
+  char rootDir[TSDB_FILENAME_LEN * 2];
+  snprintf(rootDir, TSDB_FILENAME_LEN * 2, "%s/vnode%d", tsVnodeDir, vgId);
 
   SVnodeObj *pVnode = calloc(sizeof(SVnodeObj), 1);
   if (pVnode == NULL) {
-    vError("vgId:%d, failed to open vnode since no enough memory", vnode);
+    vError("vgId:%d, failed to open vnode since no enough memory", vgId);
     return TAOS_SYSTEM_ERROR(errno);
   }
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
 
-  pVnode->vgId     = vnode;
+  pVnode->vgId     = vgId;
   pVnode->fversion = 0;
   pVnode->version  = 0;  
   pVnode->tsdbCfg.tsdbId = pVnode->vgId;
@@ -206,7 +208,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   sprintf(cqCfg.user, "_root");
   strcpy(cqCfg.pass, tsInternalPass);
   strcpy(cqCfg.db, pVnode->db);
-  cqCfg.vgId = vnode;
+  cqCfg.vgId = vgId;
   cqCfg.cqWrite = vnodeWriteToCache;
   pVnode->cq = cqOpen(pVnode, &cqCfg);
   if (pVnode->cq == NULL) {
@@ -220,7 +222,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   appH.cqH = pVnode->cq;
   appH.cqCreateFunc = cqCreate;
   appH.cqDropFunc = cqDrop;
-  sprintf(temp, "vnode/vnode%d/tsdb", vnode);
+  sprintf(temp, "vnode/vnode%d/tsdb", vgId);
 
   terrno = 0;
   pVnode->tsdb = tsdbOpenRepo(temp, &appH);
@@ -280,7 +282,7 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   syncInfo.vgId = pVnode->vgId;
   syncInfo.version = pVnode->version;
   syncInfo.syncCfg = pVnode->syncCfg;
-  sprintf(syncInfo.path, "%s", rootDir);
+  tstrncpy(syncInfo.path, rootDir, TSDB_FILENAME_LEN);
   syncInfo.getWalInfo = vnodeGetWalInfo;
   syncInfo.getFileInfo = vnodeGetFileInfo;
   syncInfo.writeToCache = vnodeWriteToCache;

@@ -13,22 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_VNODE_MAIN_H
-#define TDENGINE_VNODE_MAIN_H
+#ifndef TDENGINE_VNODE_WORKER_H
+#define TDENGINE_VNODE_WORKER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 #include "vnodeInt.h"
 
-int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg);
-int32_t vnodeDrop(int32_t vgId);
-int32_t vnodeOpen(int32_t vgId);
-int32_t vnodeAlter(void *pVnode, SCreateVnodeMsg *pVnodeCfg);
-int32_t vnodeClose(int32_t vgId);
-
-int32_t vnodeReset(SVnodeObj *pVnode);
-void    vnodeDestroy(SVnodeObj *pVnode);
+int32_t vnodeInitMWorker();
+void    vnodeCleanupMWorker();
+int32_t vnodeOpenInMWorker(int32_t vgId, void *rpcHandle);
+int32_t vnodeCleanupInMWorker(int32_t vgId, void *rpcHandle);
 
 #ifdef __cplusplus
 }
