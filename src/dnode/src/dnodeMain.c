@@ -20,6 +20,7 @@
 #include "tfile.h"
 #include "twal.h"
 #include "tfs.h"
+#include "tsync.h"
 #include "dnodePeer.h"
 #include "dnodeModule.h"
 #include "dnodeEps.h"
@@ -53,6 +54,7 @@ static SStep tsDnodeSteps[] = {
   {"dnode-eps",       dnodeInitEps,        dnodeCleanupEps},
   {"dnode-minfos",    dnodeInitMInfos,     dnodeCleanupMInfos},
   {"dnode-wal",       walInit,             walCleanUp},
+  {"dnode-sync",      syncInit,            syncCleanUp},
   {"dnode-check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
   {"dnode-vread",     dnodeInitVRead,      dnodeCleanupVRead},
   {"dnode-vwrite",    dnodeInitVWrite,     dnodeCleanupVWrite},

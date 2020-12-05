@@ -17,6 +17,7 @@
 #include "os.h"
 #include "dnode.h"
 #include "vnodeStatus.h"
+#include "vnodeWorker.h"
 #include "vnodeRead.h"
 #include "vnodeWrite.h"
 #include "vnodeMain.h"
@@ -28,11 +29,11 @@ static void    vnodeCleanupHash(void);
 static void    vnodeIncRef(void *ptNode);
 
 static SStep tsVnodeSteps[] = {
-  {"vsync",  syncInit,            syncCleanUp},
-  {"vwrite", vnodeInitWrite,      vnodeCleanupWrite},
-  {"vread",  vnodeInitRead,       vnodeCleanupRead},
-  {"vhash",  vnodeInitHash,       vnodeCleanupHash},
-  {"vqueue", tsdbInitCommitQueue, tsdbDestroyCommitQueue}
+  {"vnode-worker", vnodeInitMWorker,    vnodeCleanupMWorker},
+  {"vnode-write",  vnodeInitWrite,      vnodeCleanupWrite},
+  {"vnode-read",   vnodeInitRead,       vnodeCleanupRead},
+  {"vnode-hash",   vnodeInitHash,       vnodeCleanupHash},
+  {"tsdb-queue",   tsdbInitCommitQueue, tsdbDestroyCommitQueue}
 };
 
 int32_t vnodeInitMgmt() {

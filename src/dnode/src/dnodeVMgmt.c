@@ -49,13 +49,13 @@ int32_t dnodeInitVMgmt() {
 
   tsMgmtQset = taosOpenQset();
   if (tsMgmtQset == NULL) {
-    dError("failed to create the mgmt queue set");
+    dError("failed to create the vmgmt queue set");
     return -1;
   }
 
   tsMgmtQueue = taosOpenQueue();
   if (tsMgmtQueue == NULL) {
-    dError("failed to create the mgmt queue");
+    dError("failed to create the vmgmt queue");
     return -1;
   }
 
@@ -68,11 +68,11 @@ int32_t dnodeInitVMgmt() {
   code = pthread_create(&tsQthread, &thAttr, dnodeProcessMgmtQueue, NULL);
   pthread_attr_destroy(&thAttr);
   if (code != 0) {
-    dError("failed to create thread to process mgmt queue, reason:%s", strerror(errno));
+    dError("failed to create thread to process vmgmt queue, reason:%s", strerror(errno));
     return -1;
   }
 
-  dInfo("dnode mgmt is initialized");
+  dInfo("dnode vmgmt is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
@@ -133,9 +133,12 @@ static void *dnodeProcessMgmtQueue(void *param) {
       rsp.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
     }
 
-    rsp.handle = pMsg->handle;
-    rsp.pCont = NULL;
-    rpcSendResponse(&rsp);
+    dDebug("msg:%p, is processed, code:0x%x", pMgmt, rsp.code);
+    if (rsp.code != TSDB_CODE_DND_ACTION_IN_PROGRESS) {
+      rsp.handle = pMsg->handle;
+      rsp.pCont = NULL;
+      rpcSendResponse(&rsp);
+    }
 
     taosFreeQitem(pMsg);
   }

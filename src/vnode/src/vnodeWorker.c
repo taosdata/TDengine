@@ -143,7 +143,11 @@ static int32_t vnodeWriteIntoMWorker(int32_t vgId, EVMWorkerAction action,void *
   pMsg->pVnode = pVnode;
   pMsg->rpcHandle = rpcHandle;
   pMsg->action = action;
-  return taosWriteQitem(tsVMWorkerQueue, TAOS_QTYPE_RPC, pMsg);
+
+  int32_t code = taosWriteQitem(tsVMWorkerQueue, TAOS_QTYPE_RPC, pMsg);
+  if (code == 0) code = TSDB_CODE_DND_ACTION_IN_PROGRESS;
+
+  return code;
 }
 
 int32_t vnodeOpenInMWorker(int32_t vgId, void *rpcHandle) {
