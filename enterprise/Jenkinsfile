@@ -208,7 +208,7 @@ pipeline {
                 rm -rf  ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
                 cp -rf  ${WKC}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
                 cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                mvn clean package assembly:single >/dev/null 
+                mvn clean package assembly:single -Dmaven.test.skip=true >/dev/null 
                 java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
                 '''
             }
@@ -263,7 +263,7 @@ pipeline {
                         rm -rf  ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
                         cp -rf  ${WKC}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
                         cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                        mvn clean package assembly:single >/dev/null 
+                        mvn clean package assembly:single -Dmaven.test.skip=true >/dev/null 
                         java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
                         '''
                     }
@@ -308,7 +308,7 @@ pipeline {
                     rm -rf  ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
                     cp -rf  ${WKC}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
                     cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                    mvn clean package assembly:single >/dev/null 
+                    mvn clean package assembly:single -Dmaven.test.skip=true>/dev/null 
                     java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
                     '''
                 }
