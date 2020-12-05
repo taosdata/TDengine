@@ -242,7 +242,14 @@ static void *taosAcceptTcpConnection(void *arg) {
 
     taosKeepTcpAlive(connFd);
     struct timeval to={1, 0};
-    taosSetSockOpt(connFd, SOL_SOCKET, SO_RCVTIMEO, &to, sizeof(to));
+    int32_t ret = taosSetSockOpt(connFd, SOL_SOCKET, SO_RCVTIMEO, &to, sizeof(to));
+    if (ret != 0) {
+      taosCloseSocket(connFd);
+      tError("%s failed to set recv timeout fd(%s)for connection from:%s:%hu", pServerObj->label, strerror(errno),
+             taosInetNtoa(caddr.sin_addr), htons(caddr.sin_port));
+      continue;
+    }
+    
 
     // pick up the thread to handle this connection
     pThreadObj = pServerObj->pThreadObj[threadId];
