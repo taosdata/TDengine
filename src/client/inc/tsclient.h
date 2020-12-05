@@ -339,6 +339,7 @@ typedef struct STscObj {
   int64_t            hbrid;
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
+  SRpcCorEpSet       *tscCorMgmtEpSet;
   void*              pDnodeConn;
   pthread_mutex_t    mutex;
   T_REF_DECLARE()
@@ -518,7 +519,6 @@ extern int       tsInsertHeadSize;
 extern int       tscNumOfThreads;
 extern int       tscRefId;
   
-extern SRpcCorEpSet tscMgmtEpSet;
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 

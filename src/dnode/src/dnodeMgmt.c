@@ -472,8 +472,8 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   }
 
   SStatusRsp *pStatusRsp = pMsg->pCont;
-  SMnodeInfos *minfos = &pStatusRsp->mnodes;
-  dnodeUpdateMInfos(minfos);
+  SMInfos *pMinfos = &pStatusRsp->mnodes;
+  dnodeUpdateMInfos(pMinfos);
 
   SDnodeCfg *pCfg = &pStatusRsp->dnodeCfg;
   pCfg->numOfVnodes = htonl(pCfg->numOfVnodes);
