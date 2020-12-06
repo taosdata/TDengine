@@ -226,7 +226,7 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   }
 
   if (pNode->selfIndex < 0) {
-    sInfo("vgId:%d, this node is not configured", pNode->vgId);
+    sError("vgId:%d, this node is not configured", pNode->vgId);
     terrno = TSDB_CODE_SYN_INVALID_CONFIG;
     syncStop(pNode->rid);
     return -1;
