@@ -58,10 +58,10 @@ typedef struct {
 static const SDnodeComponent tsDnodeComponents[] = {
   {"tfile",     tfInit,              tfCleanup},
   {"rpc",       rpcInit,             rpcCleanup},
+  {"globalcfg" ,taosCheckGlobalCfg,  NULL},
   {"storage",   dnodeInitStorage,    dnodeCleanupStorage},
   {"dnodecfg",  dnodeInitCfg,        dnodeCleanupCfg},
   {"dnodeeps",  dnodeInitEps,        dnodeCleanupEps},
-  {"globalcfg" ,taosCheckGlobalCfg,  NULL},
   {"mnodeinfos",dnodeInitMInfos,     dnodeCleanupMInfos},
   {"wal",       walInit,             walCleanUp},
   {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
