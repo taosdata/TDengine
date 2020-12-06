@@ -1741,7 +1741,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
       mError("msg:%p, app:%p table:%s, corresponding super table:%s not in this db", pMsg, pMsg->rpcMsg.ahandle,
              pCreate->tableId, pTagData->name);
       mnodeDestroyChildTable(pTable);
-      return TSDB_CODE_MND_INVALID_TABLE_NAME;
+      return TSDB_CODE_TDB_INVALID_CREATE_TB_MSG;
     }
 
     if (pMsg->pSTable == NULL) pMsg->pSTable = mnodeGetSuperTable(pTagData->name);
