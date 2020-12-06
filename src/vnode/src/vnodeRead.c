@@ -278,7 +278,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     // In the retrieve blocking model, only 50% CPU will be used in query processing
     if (tsHalfCoresForQuery) {
       qTableQuery(*qhandle);  // do execute query
-      qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, false);
+      qReleaseQInfo(pVnode->qMgmt, qhandle, false);
     } else {
       bool freehandle = false;
       bool buildRes = qTableQuery(*qhandle);  // do execute query
@@ -306,7 +306,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
       // NOTE: if the qhandle is not put into vread queue or query is completed, free the qhandle.
       // If the building of result is not required, simply free it. Otherwise, mandatorily free the qhandle
       if (freehandle || (!buildRes)) {
-        qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, freehandle);
+        qReleaseQInfo(pVnode->qMgmt, qhandle, freehandle);
       }
     }
   }
@@ -380,7 +380,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
       if (!buildRes) {
         assert(pRead->rpcHandle != NULL);
 
-        qReleaseQInfo(pVnode->qMgmt, (void **)&handle, false);
+        qReleaseQInfo(pVnode->qMgmt, handle, false);
         return TSDB_CODE_QRY_NOT_READY;
       }
     }
