@@ -18,6 +18,7 @@
 #include "os.h"
 #include "taosmsg.h"
 #include "tqueue.h"
+#include "tglobal.h"
 #include "query.h"
 #include "vnodeStatus.h"
 
