@@ -1736,7 +1736,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
     STagData *pTagData = (STagData *)pCreate->schema;  // it is a tag key
 
     char prefix[64] = {0};
-    int32_t prefixLen = tableIdPrefix(pMsg->pDb->name, prefix, 64);
+    size_t prefixLen = tableIdPrefix(pMsg->pDb->name, prefix, 64);
     if (0 != strncasecmp(prefix, pTagData->name, prefixLen)) {
       mError("msg:%p, app:%p table:%s, corresponding super table:%s not in this db", pMsg, pMsg->rpcMsg.ahandle,
              pCreate->tableId, pTagData->name);
