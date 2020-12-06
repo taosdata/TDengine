@@ -167,7 +167,12 @@ int32_t dnodeInitVnodes() {
   }
 
   free(threads);
-  dInfo("there are total vnodes:%d, openned:%d failed:%d", numOfVnodes, openVnodes, failedVnodes);
+  dInfo("there are total vnodes:%d, openned:%d", numOfVnodes, openVnodes);
+
+  if (failedVnodes != 0) {
+    dError("there are total vnodes:%d, failed:%d", numOfVnodes, failedVnodes);
+    return -1;
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -199,7 +204,7 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   }
 
   SStatusRsp *pStatusRsp = pMsg->pCont;
-  SMnodeInfos *minfos = &pStatusRsp->mnodes;
+  SMInfos *minfos = &pStatusRsp->mnodes;
   dnodeUpdateMInfos(minfos);
 
   SDnodeCfg *pCfg = &pStatusRsp->dnodeCfg;

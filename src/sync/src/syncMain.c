@@ -226,7 +226,7 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   }
 
   if (pNode->selfIndex < 0) {
-    sInfo("vgId:%d, this node is not configured", pNode->vgId);
+    sError("vgId:%d, this node is not configured", pNode->vgId);
     terrno = TSDB_CODE_SYN_INVALID_CONFIG;
     syncStop(pNode->rid);
     return -1;
@@ -548,7 +548,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   pPeer->pSyncNode = pNode;
   pPeer->refCount = 1;
 
-  sInfo("%s, it is configured", pPeer->id);
+  sInfo("%s, it is configured, ep:%s:%u", pPeer->id, pPeer->fqdn, pPeer->port);
   int32_t ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || (ret > 0) || (ret == 0 && pPeer->port > tsSyncPort)) {
     int32_t checkMs = 100 + (pNode->vgId * 10) % 100;
@@ -1134,7 +1134,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
 
   pPeer = (i < pNode->replica) ? pNode->peerInfo[i] : NULL;
   if (pPeer == NULL) {
-    sError("vgId:%d, peer:%s not configured", pNode->vgId, firstPkt.fqdn);
+    sError("vgId:%d, peer:%s:%u not configured", pNode->vgId, firstPkt.fqdn, firstPkt.port);
     taosCloseSocket(connFd);
     // syncSendVpeerCfgMsg(sync);
   } else {

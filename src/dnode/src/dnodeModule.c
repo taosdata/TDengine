@@ -142,8 +142,8 @@ void dnodeProcessModuleStatus(uint32_t moduleStatus) {
   }
 }
 
-bool dnodeStartMnode(SMnodeInfos *minfos) {
-  SMnodeInfos *mnodes = minfos;
+bool dnodeStartMnode(SMInfos *pMinfos) {
+  SMInfos *pMnodes = pMinfos;
 
   if (tsModuleStatus & (1 << TSDB_MOD_MNODE)) {
     dDebug("mnode module is already started, module status:%d", tsModuleStatus);
@@ -154,7 +154,7 @@ bool dnodeStartMnode(SMnodeInfos *minfos) {
   dInfo("start mnode module, module status:%d, new status:%d", tsModuleStatus, moduleStatus);
   dnodeProcessModuleStatus(moduleStatus);
 
-  sdbUpdateSync(mnodes);
+  sdbUpdateSync(pMnodes);
 
   return true;
 }

@@ -204,16 +204,18 @@ int32_t vnodeOpen(int32_t vgId) {
     return terrno;
   }
 
-  SCqCfg cqCfg = {0};
-  sprintf(cqCfg.user, "_root");
-  strcpy(cqCfg.pass, tsInternalPass);
-  strcpy(cqCfg.db, pVnode->db);
-  cqCfg.vgId = vgId;
-  cqCfg.cqWrite = vnodeWriteToCache;
-  pVnode->cq = cqOpen(pVnode, &cqCfg);
-  if (pVnode->cq == NULL) {
-    vnodeCleanUp(pVnode);
-    return terrno;
+  if (tsEnableStream) {
+    SCqCfg cqCfg = {0};
+    sprintf(cqCfg.user, "_root");
+    strcpy(cqCfg.pass, tsInternalPass);
+    strcpy(cqCfg.db, pVnode->db);
+    cqCfg.vgId = vgId;
+    cqCfg.cqWrite = vnodeWriteToCache;
+    pVnode->cq = cqOpen(pVnode, &cqCfg);
+    if (pVnode->cq == NULL) {
+      vnodeCleanUp(pVnode);
+      return terrno;
+    }
   }
 
   STsdbAppH appH = {0};
@@ -294,9 +296,8 @@ int32_t vnodeOpen(int32_t vgId) {
   pVnode->sync = syncStart(&syncInfo);
 
   if (pVnode->sync <= 0) {
-    vError("vgId:%d, failed to open sync module, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
+    vError("vgId:%d, failed to open sync, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
            tstrerror(terrno));
-    vnodeRelease(pVnode);
     vnodeCleanUp(pVnode);
     return terrno;
   }

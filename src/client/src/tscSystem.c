@@ -115,11 +115,6 @@ void taos_init_imp(void) {
     taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
   }
 
-  if (tscSetMgmtEpSetFromCfg(tsFirst, tsSecond) < 0) {
-    tscError("failed to init mnode EP list");
-    return;
-  } 
-
   tscInitMsgsFp();
   int queueSize = tsMaxConnections*2;
 
@@ -143,7 +138,7 @@ void taos_init_imp(void) {
   int64_t refreshTime = 10;  // 10 seconds by default
   if (tscMetaCache == NULL) {
     tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, tscFreeTableMetaHelper, "tableMeta");
-    tscObjRef = taosOpenRef(4096, tscFreeRegisteredSqlObj);
+    tscObjRef = taosOpenRef(40960, tscFreeRegisteredSqlObj);
   }
 
   tscRefId = taosOpenRef(200, tscCloseTscObj);

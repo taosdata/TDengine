@@ -57,6 +57,7 @@ extern char     tsTempDir[];
 
 //query buffer management
 extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer for each data node during query processing
+extern int32_t  tsHalfCoresForQuery;         // only 50% will be used in query processing
 
 // client
 extern int32_t tsTableMetaKeepTimer;
@@ -125,6 +126,9 @@ extern int32_t tsEnableMonitorModule;
 extern char    tsMonitorDbName[];
 extern char    tsInternalPass[];
 extern int32_t tsMonitorInterval;
+
+// stream
+extern int32_t tsEnableStream;
 
 // internal
 extern int32_t tsPrintAuth;

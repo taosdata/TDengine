@@ -151,6 +151,7 @@ SFileGroup *tsdbCreateFGroup(STsdbRepo *pRepo, int fid, int level) {
   // SET FILE GROUP
   fg.fileId = fid;
 
+<<<<<<< HEAD
   // CREATE FILES
   for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
     SFile *pFile = &(fg.files[type]);
@@ -167,6 +168,19 @@ SFileGroup *tsdbCreateFGroup(STsdbRepo *pRepo, int fid, int level) {
     if (tsdbUpdateFileHeader(pFile) < 0) {
       tsdbCloseFile(pFile);
       return NULL;
+=======
+  SFileGroup *pGroup = tsdbSearchFGroup(pFileH, fid, TD_EQ);
+  if (pGroup == NULL) {  // if not exists, create one
+    pFGroup->fileId = fid;
+    for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
+      if (tsdbCreateFile(&pFGroup->files[type], pRepo, fid, type) < 0) {
+        for (int i = type; i >= 0; i--) {
+          remove(pFGroup->files[i].fname);
+        }
+
+        return NULL;
+      }
+>>>>>>> origin/develop
     }
 
     tsdbCloseFile(pFile);
@@ -175,6 +189,7 @@ SFileGroup *tsdbCreateFGroup(STsdbRepo *pRepo, int fid, int level) {
     id = TFILE_ID(&(pFile->file));
   }
 
+<<<<<<< HEAD
   // PUT GROUP INTO FILE HANDLE
   pthread_rwlock_wrlock(&pFileH->fhlock);
   pFileH->pFGroup[pFileH->nFGroups++] = fg;
@@ -184,6 +199,9 @@ SFileGroup *tsdbCreateFGroup(STsdbRepo *pRepo, int fid, int level) {
   SFileGroup *pfg = tsdbSearchFGroup(pFileH, fid, TD_EQ);
   ASSERT(pfg != NULL);
   return pfg;
+=======
+  return pGroup;
+>>>>>>> origin/develop
 }
 
 void tsdbRemoveFileGroup(STsdbRepo *pRepo, SFileGroup *pFGroup) {

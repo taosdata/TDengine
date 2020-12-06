@@ -159,7 +159,10 @@ python3 ./test.py -f query/bug1471.py
 python3 ./test.py -f query/bug1874.py
 python3 ./test.py -f query/bug1875.py
 python3 ./test.py -f query/bug1876.py
-python3 ./test.py -f query/bug2218.py 
+python3 ./test.py -f query/bug2218.py
+python3 ./test.py -f query/bug2117.py
+python3 ./test.py -f query/bug2143.py
+python3 ./test.py -f query/sliding.py 
 
 #stream
 python3 ./test.py -f stream/metric_1.py

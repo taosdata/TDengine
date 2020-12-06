@@ -180,6 +180,8 @@ void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) {
 void dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
   SRpcEpSet epSet = {0};
   dnodeGetEpSetForPeer(&epSet);
+
+  assert(tsClientRpc != 0);
   rpcSendRecv(tsClientRpc, &epSet, rpcMsg, rpcRsp);
 }
 

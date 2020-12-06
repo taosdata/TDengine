@@ -1734,6 +1734,16 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     STagData *pTagData = (STagData *)pCreate->schema;  // it is a tag key
+
+    char prefix[64] = {0};
+    size_t prefixLen = tableIdPrefix(pMsg->pDb->name, prefix, 64);
+    if (0 != strncasecmp(prefix, pTagData->name, prefixLen)) {
+      mError("msg:%p, app:%p table:%s, corresponding super table:%s not in this db", pMsg, pMsg->rpcMsg.ahandle,
+             pCreate->tableId, pTagData->name);
+      mnodeDestroyChildTable(pTable);
+      return TSDB_CODE_TDB_INVALID_CREATE_TB_MSG;
+    }
+
     if (pMsg->pSTable == NULL) pMsg->pSTable = mnodeGetSuperTable(pTagData->name);
     if (pMsg->pSTable == NULL) {
       mError("msg:%p, app:%p table:%s, corresponding super table:%s does not exist", pMsg, pMsg->rpcMsg.ahandle,
@@ -2629,9 +2639,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 
   char prefix[64] = {0};
-  tstrncpy(prefix, pDb->name, 64);
-  strcat(prefix, TS_PATH_DELIMITER);
-  int32_t prefixLen = strlen(prefix);
+  int32_t prefixLen = tableIdPrefix(pDb->name, prefix, 64);
 
   char* pattern = NULL;
   if (pShow->payloadLen > 0) {

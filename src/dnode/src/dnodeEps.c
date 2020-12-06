@@ -233,7 +233,14 @@ PRASE_EPS_OVER:
   dnodeResetEps(eps);
   if (eps) free(eps);
 
+#if 0
   dnodeUpdateEp(dnodeGetDnodeId(), tsLocalEp, tsLocalFqdn, &tsServerPort);
+#else
+  if (dnodeCheckEpChanged(dnodeGetDnodeId(), tsLocalEp)) {
+    dError("dnode:%d, localEp is changed to %s in dnodeEps.json and need reconfigured", dnodeGetDnodeId(), tsLocalEp);
+    return -1;
+  }
+#endif
 
   terrno = 0;
   return 0;

@@ -39,6 +39,13 @@ char* extractDBName(const char* tableId, char* name) {
   return strncpy(name, &tableId[offset1 + 1], len);
 }
 
+size_t tableIdPrefix(const char* name, char* prefix, int32_t len) {
+  tstrncpy(prefix, name, len);
+  strcat(prefix, TS_PATH_DELIMITER);
+
+  return strlen(prefix);
+}
+
 SSchema tGetTableNameColumnSchema() {
   SSchema s = {0};
   s.bytes = TSDB_TABLE_NAME_LEN - 1 + VARSTR_HEADER_SIZE;

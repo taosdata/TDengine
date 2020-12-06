@@ -238,9 +238,8 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     }
     tstrncpy(node->nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
 
-    if (!nodeChanged) {
-      nodeChanged = dnodeCheckEpChanged(node->nodeId, node->nodeEp);
-    }
+    bool changed = dnodeCheckEpChanged(node->nodeId, node->nodeEp);
+    if (changed) nodeChanged = changed;
   }
 
   ret = TSDB_CODE_SUCCESS;

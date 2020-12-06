@@ -2835,6 +2835,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
 
     if (functionCompatList[functionId] != factor) {
       return false;
+    } else {
+      if (factor == -1) { // two functions with the same -1 flag
+        return false;
+      }
     }
 
     if (functionId == TSDB_FUNC_LAST_ROW && joinQuery) {
@@ -5307,15 +5311,18 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
 
     // keep original limitation value in globalLimit
     pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
-    pQueryInfo->prjOffset = pQueryInfo->limit.offset;
+    pQueryInfo->prjOffset   = pQueryInfo->limit.offset;
+    pQueryInfo->tableLimit  = -1;
 
     if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
       /*
-       * the limitation/offset value should be removed during retrieve data from virtual node,
-       * since the global order are done in client side, so the limitation should also
-       * be done at the client side.
+       * the offset value should be removed during retrieve data from virtual node, since the
+       * global order are done in client side, so the offset is applied at the client side
+       * However, note that the maximum allowed number of result for each table should be less
+       * than or equal to the value of limit.
        */
       if (pQueryInfo->limit.limit > 0) {
+        pQueryInfo->tableLimit = pQueryInfo->limit.limit + pQueryInfo->limit.offset;
         pQueryInfo->limit.limit = -1;
       }
 
