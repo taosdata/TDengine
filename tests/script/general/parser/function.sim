@@ -1,0 +1,228 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 3
+system sh/exec.sh -n dnode1 -s start
+sleep 500
+sql connect
+
+$dbPrefix = m_func_db
+$tbPrefix = m_func_tb
+$mtPrefix = m_func_mt
+
+$tbNum = 10
+$rowNum = 5
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== alter.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database if exists $db
+sql create database $db
+sql use $db
+
+print =====================================> test case for twa in single block
+
+sql create table t1 (ts timestamp, k float);
+sql insert into t1 values('2015-08-18 00:00:00', 2.064);
+sql insert into t1 values('2015-08-18 00:06:00', 2.116);
+sql insert into t1 values('2015-08-18 00:12:00', 2.028);
+sql insert into t1 values('2015-08-18 00:18:00', 2.126);
+sql insert into t1 values('2015-08-18 00:24:00', 2.041);
+sql insert into t1 values('2015-08-18 00:30:00', 2.051);
+
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:05:00'
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 2.063999891 then
+  return -1
+endi
+
+if $data01 != 2.063999891 then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:07:00'
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 2.089999914 then
+  return -1
+endi
+
+if $data01 != 2.089999914 then
+  return -1
+endi
+
+if $data02 != 2 then
+  return -1
+endi
+
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:07:00' interval(1m) order by ts asc
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @15-08-18 00:00:00.000@ then
+  return -1
+endi
+
+if $data01 != 2.068333156 then
+  return -1
+endi
+
+if $data02 != 2.063999891 then
+  return -1
+endi
+
+if $data03 != 1 then
+  return -1
+endi
+
+if $data10 != @15-08-18 00:06:00.000@ then
+  return -1
+endi
+
+if $data11 != 2.115999937 then
+  return -1
+endi
+
+if $data12 != 2.115999937 then
+  return -1
+endi
+
+if $data13 != 1 then
+  return -1
+endi
+
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:07:00' interval(1m) order by ts desc;
+if $rows != 2 then
+ return -1
+endi
+
+if $data00 != @15-08-18 00:06:00.00@ then
+  return -1
+endi
+
+if $data01 != 2.115999937 then
+  return -1
+endi
+
+if $data02 != 2.115999937 then
+  return -1
+endi
+
+if $data03 != 1 then
+  return -1
+endi
+
+if $data11 != 2.068333156 then
+  return -1
+endi
+
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:27:00' interval(10m) order by ts asc
+if $rows != 3 then
+ return -1
+endi
+
+if $data01 != 2.088666666 then
+ return -1
+endi
+
+if $data02 != 2.089999914 then
+ return -1
+endi
+
+if $data03 != 2 then
+  return -1
+endi
+
+if $data11 != 2.077099980 then
+  return -1
+endi
+
+if $data12 != 2.077000022 then
+  return -1
+endi
+
+if $data13 != 2 then
+  return -1
+endi
+
+if $data21 != 2.069333235 then
+  return -1
+endi
+
+if $data22 != 2.040999889 then
+  return -1
+endi
+
+if $data23 != 1 then
+  return -1
+endi
+
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:27:00' interval(10m) order by ts desc
+if $rows != 3 then
+  return -1
+endi
+
+if $data01 != 2.069333235 then
+  return -1
+endi
+
+if $data11 != 2.077099980 then
+  return -1
+endi
+
+if $data21 != 2.088666666 then
+  return -1
+endi
+
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:30:00'  order by ts asc
+if $data00 != 2.073699975 then
+  return -1
+endi
+
+if $data01 != 2.070999980 then
+  return -1
+endi
+
+if $data02 != 6 then
+  return -1
+endi
+
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:30:00'  order by ts desc
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 2.073699975 then
+  return -1
+endi
+
+if $data01 != 2.070999980 then
+  return -1
+endi
+
+if $data02 != 6 then
+  return -1
+endi
+
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:30:00' interval(10m) order by ts asc
+sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:30:00' interval(10m) order by ts desc
+
+
+#todo add test case while column filte exists.
+
+select count(*),TWA(k) from tm0 where ts>='1970-1-1 13:43:00' and ts<='1970-1-1 13:44:10' interval(9s)

@@ -56,7 +56,6 @@ typedef struct SLocalReducer {
   tFilePage *            pTempBuffer;
   struct SQLFunctionCtx *pCtx;
   int32_t                rowSize;      // size of each intermediate result.
-  int32_t                finalRowSize; // final result row size
   int32_t                status;       // denote it is in reduce process, in reduce process, it
   bool                   hasPrevRow;   // cannot be released
   bool                   hasUnprocessedRow;

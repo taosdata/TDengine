@@ -413,7 +413,11 @@ void get_history_path(char *history) { snprintf(history, TSDB_FILENAME_LEN, "%s/
 
 void clearScreen(int ecmd_pos, int cursor_pos) {
   struct winsize w;
-  ioctl(0, TIOCGWINSZ, &w);
+  if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
+    //fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
+    w.ws_col = 120;
+    w.ws_row = 30;
+  }
 
   int cursor_x = cursor_pos / w.ws_col;
   int cursor_y = cursor_pos % w.ws_col;
@@ -431,8 +435,9 @@ void clearScreen(int ecmd_pos, int cursor_pos) {
 void showOnScreen(Command *cmd) {
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    fprintf(stderr, "No stream device\n");
-    exit(EXIT_FAILURE);
+    //fprintf(stderr, "No stream device\n");
+    w.ws_col = 120;
+    w.ws_row = 30;
   }
 
   wchar_t wc;

@@ -63,9 +63,11 @@ typedef struct SSqlGroupbyExpr {
 
 typedef struct SResultRow {
   int32_t       pageId;      // pageId & rowId is the position of current result in disk-based output buffer
-  int32_t       rowId:15;
-  bool          closed:1;    // this result status: closed or opened
-  uint16_t      numOfRows;   // number of rows of current time window
+  int32_t       rowId:29;    // row index in buffer page
+  bool          startInterp; // the time window start timestamp has done the interpolation already.
+  bool          endInterp;   // the time window end timestamp has done the interpolation already.
+  bool          closed;      // this result status: closed or opened
+  uint32_t      numOfRows;   // number of rows of current time window
   SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
   union {STimeWindow win; char* key;};  // start key of current time window
 } SResultRow;
@@ -81,16 +83,15 @@ typedef struct SResultRec {
   int32_t threshold;  // result size threshold in rows.
 } SResultRec;
 
-typedef struct SWindowResInfo {
-  SResultRow**   pResult;    // result list
-  int16_t        type:8;     // data type for hash key
-  int32_t        size:24;    // number of result set
-  int32_t        threshold;  // threshold to halt query and return the generated results.
-  int32_t        capacity;   // max capacity
-  int32_t        curIndex;   // current start active index
-  int64_t        startTime;  // start time of the first time window for sliding query
-  int64_t        prevSKey;   // previous (not completed) sliding window start key
-} SWindowResInfo;
+typedef struct SResultRowInfo {
+  SResultRow** pResult;    // result list
+  int16_t      type:8;     // data type for hash key
+  int32_t      size:24;    // number of result set
+  int32_t      capacity;   // max capacity
+  int32_t      curIndex;   // current start active index
+  int64_t      startTime;  // start time of the first time window for sliding query
+  int64_t      prevSKey;   // previous (not completed) sliding window start key
+} SResultRowInfo;
 
 typedef struct SColumnFilterElem {
   int16_t           bytes;  // column length
@@ -113,7 +114,7 @@ typedef struct STableQueryInfo {
   STimeWindow win;
   STSCursor   cur;
   void*       pTable;         // for retrieve the page id list
-  SWindowResInfo windowResInfo;
+  SResultRowInfo windowResInfo;
 } STableQueryInfo;
 
 typedef struct SQueryCostInfo {
@@ -177,7 +178,7 @@ typedef struct SQueryRuntimeEnv {
   uint16_t*            offset;
   uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;
-  SWindowResInfo       windowResInfo;
+  SResultRowInfo       windowResInfo;
   STSBuf*              pTSBuf;
   STSCursor            cur;
   SQueryCostInfo       summary;
@@ -187,6 +188,8 @@ typedef struct SQueryRuntimeEnv {
   bool                 topBotQuery;      // false
   bool                 groupbyNormalCol; // denote if this is a groupby normal column query
   bool                 hasTagResults;    // if there are tag values in final result or not
+  bool                 timeWindowInterpo;// if the time window start/end required interpolation
+  bool                 queryWindowIdentical; // all query time windows are identical for all tables in one group
   int32_t              interBufSize;     // intermediate buffer sizse
   int32_t              prevGroupId;      // previous executed group id
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
@@ -195,6 +198,8 @@ typedef struct SQueryRuntimeEnv {
   SResultRowPool*      pool;             // window result object pool
 
   int32_t*             rowCellInfoOffset;// offset value for each row result cell info
+  char**               prevRow;
+  char**               nextRow;
 } SQueryRuntimeEnv;
 
 enum {
@@ -212,7 +217,8 @@ typedef struct SQInfo {
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   SQueryRuntimeEnv runtimeEnv;
-  SArray*          arrTableIdInfo;
+//  SArray*          arrTableIdInfo;
+  SHashObj*        arrTableIdInfo;
   int32_t          groupIndex;
 
   /*

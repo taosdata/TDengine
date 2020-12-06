@@ -27,7 +27,7 @@ class TDengineCursor(object):
     """
 
     def __init__(self, connection=None):
-        self._description = None
+        self._description = []
         self._rowcount = -1
         self._connection = None
         self._result = None
@@ -50,7 +50,7 @@ class TDengineCursor(object):
             raise OperationalError("Invalid use of fetch iterator")
 
         if self._block_rows <= self._block_iter:
-            block, self._block_rows = CTaosInterface.fetchBlock(self._result, self._fields)
+            block, self._block_rows = CTaosInterface.fetchRow(self._result, self._fields)
             if self._block_rows == 0:
                 raise StopIteration
             self._block = list(map(tuple, zip(*block)))
@@ -143,7 +143,25 @@ class TDengineCursor(object):
         """
         if self._result is None or self._fields is None:
             raise OperationalError("Invalid use of fetchall")
+
+        buffer = [[] for i in range(len(self._fields))]
+        self._rowcount = 0
+        while True:
+            block, num_of_fields = CTaosInterface.fetchRow(self._result, self._fields)
+            errno = CTaosInterface.libtaos.taos_errno(self._result)
+            if errno != 0:
+                raise ProgrammingError(CTaosInterface.errStr(self._result), errno)
+            if num_of_fields == 0:
+                break
+            self._rowcount += num_of_fields
+            for i in range(len(self._fields)):
+                buffer[i].extend(block[i])
+        return list(map(tuple, zip(*buffer)))
         
+    def fetchall_block(self):
+        if self._result is None or self._fields is None:
+            raise OperationalError("Invalid use of fetchall")
+
         buffer = [[] for i in range(len(self._fields))]
         self._rowcount = 0
         while True:
@@ -175,10 +193,10 @@ class TDengineCursor(object):
     def _reset_result(self):
         """Reset the result to unused version.
         """
-        self._description = None
+        self._description = []
         self._rowcount = -1
         if self._result is not None:
-            CTaosInterface.freeResult(self._result)        
+            CTaosInterface.freeResult(self._result)
         self._result = None
         self._fields = None
         self._block = None

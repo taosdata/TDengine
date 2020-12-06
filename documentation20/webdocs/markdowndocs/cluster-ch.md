@@ -37,7 +37,7 @@ fqdn                  h1.taosdata.com
 // 配置本数据节点的端口号，缺省是6030
 serverPort            6030
 
-// 服务端节点数为偶数的时候，需要配置，请参考《Arbitrator的使用》的部分
+// 使用场景，请参考《Arbitrator的使用》的部分
 arbitrator            ha.taosdata.com:6042
 ```
 

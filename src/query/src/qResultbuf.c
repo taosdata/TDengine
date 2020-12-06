@@ -119,8 +119,11 @@ static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
     pg->info.offset = allocatePositionInFile(pResultBuf, size);
     pResultBuf->nextPos += size;
 
-    fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
-    /*int32_t ret =*/ fwrite(t, 1, size, pResultBuf->file);
+    int32_t ret = fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
+    assert(ret == 0);
+
+    ret = (int32_t) fwrite(t, 1, size, pResultBuf->file);
+    assert(ret == size);
 
     if (pResultBuf->fileSize < pg->info.offset + pg->info.length) {
       pResultBuf->fileSize = pg->info.offset + pg->info.length;
@@ -407,7 +410,7 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   }
 
   if (pResultBuf->file != NULL) {
-    qDebug("QInfo:%p res output buffer closed, total:%.2f Kb, inmem size:%.2f Kb, file size:%.2f",
+    qDebug("QInfo:%p res output buffer closed, total:%.2f Kb, inmem size:%.2f Kb, file size:%.2f Kb",
         pResultBuf->handle, pResultBuf->totalBufSize/1024.0, listNEles(pResultBuf->lruList) * pResultBuf->pageSize / 1024.0,
         pResultBuf->fileSize/1024.0);
 
@@ -420,9 +423,8 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   unlink(pResultBuf->path);
   tfree(pResultBuf->path);
 
-  SHashMutableIterator* iter = taosHashCreateIter(pResultBuf->groupSet);
-  while(taosHashIterNext(iter)) {
-    SArray** p = (SArray**) taosHashIterGet(iter);
+  SArray** p = taosHashIterate(pResultBuf->groupSet, NULL);
+  while(p) {
     size_t n = taosArrayGetSize(*p);
     for(int32_t i = 0; i < n; ++i) {
       SPageInfo* pi = taosArrayGetP(*p, i);
@@ -431,9 +433,8 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
     }
 
     taosArrayDestroy(*p);
+    p = taosHashIterate(pResultBuf->groupSet, p);
   }
-
-  taosHashDestroyIter(iter);
 
   tdListFree(pResultBuf->lruList);
   taosArrayDestroy(pResultBuf->emptyDummyIdList);

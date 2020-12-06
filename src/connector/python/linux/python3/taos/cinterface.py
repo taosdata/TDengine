@@ -18,7 +18,7 @@ def _crow_timestamp_to_python(data, num_of_rows, nbytes=None, micro=False):
         _timestamp_converter = _convert_microsecond_to_datetime
 
     if num_of_rows > 0:
-        return list(map(_timestamp_converter, ctypes.cast(data,  ctypes.POINTER(ctypes.c_long))[:abs(num_of_rows)][::1]))
+        return list(map(_timestamp_converter, ctypes.cast(data,  ctypes.POINTER(ctypes.c_long))[:abs(num_of_rows)]))
     else:
         return list(map(_timestamp_converter, ctypes.cast(data,  ctypes.POINTER(ctypes.c_long))[:abs(num_of_rows)]))
 
@@ -26,7 +26,7 @@ def _crow_bool_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C bool row to python row
     """
     if num_of_rows > 0:
-        return [ None if ele == FieldType.C_BOOL_NULL else bool(ele) for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_byte))[:abs(num_of_rows)][::1] ]
+        return [ None if ele == FieldType.C_BOOL_NULL else bool(ele) for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_byte))[:abs(num_of_rows)] ]
     else:
         return [ None if ele == FieldType.C_BOOL_NULL else bool(ele) for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_bool))[:abs(num_of_rows)] ]
 
@@ -34,7 +34,7 @@ def _crow_tinyint_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C tinyint row to python row
     """
     if num_of_rows > 0:
-        return [ None if ele == FieldType.C_TINYINT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_byte))[:abs(num_of_rows)][::1] ]
+        return [ None if ele == FieldType.C_TINYINT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_byte))[:abs(num_of_rows)] ]
     else:
         return [ None if ele == FieldType.C_TINYINT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_byte))[:abs(num_of_rows)] ]
     
@@ -42,7 +42,7 @@ def _crow_smallint_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C smallint row to python row
     """
     if num_of_rows > 0:
-        return [ None if ele == FieldType.C_SMALLINT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_short))[:abs(num_of_rows)][::1]]
+        return [ None if ele == FieldType.C_SMALLINT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_short))[:abs(num_of_rows)]]
     else:
         return [ None if ele == FieldType.C_SMALLINT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_short))[:abs(num_of_rows)] ]
 
@@ -50,7 +50,7 @@ def _crow_int_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C int row to python row
     """
     if num_of_rows > 0:
-        return [ None if ele == FieldType.C_INT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_int))[:abs(num_of_rows)][::1] ]
+        return [ None if ele == FieldType.C_INT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_int))[:abs(num_of_rows)] ]
     else:
         return [ None if ele == FieldType.C_INT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_int))[:abs(num_of_rows)] ]
 
@@ -58,7 +58,7 @@ def _crow_bigint_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C bigint row to python row
     """
     if num_of_rows > 0:
-        return [ None if ele == FieldType.C_BIGINT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_long))[:abs(num_of_rows)][::1] ]
+        return [ None if ele == FieldType.C_BIGINT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_long))[:abs(num_of_rows)] ]
     else:
         return [ None if ele == FieldType.C_BIGINT_NULL else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_long))[:abs(num_of_rows)] ]
 
@@ -66,7 +66,7 @@ def _crow_float_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C float row to python row
     """
     if num_of_rows > 0:
-        return [ None if math.isnan(ele) else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_float))[:abs(num_of_rows)][::1] ]
+        return [ None if math.isnan(ele) else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_float))[:abs(num_of_rows)] ]
     else:
         return [ None if math.isnan(ele) else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_float))[:abs(num_of_rows)] ]
 
@@ -74,15 +74,16 @@ def _crow_double_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C double row to python row
     """
     if num_of_rows > 0:
-        return [ None if math.isnan(ele) else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_double))[:abs(num_of_rows)][::1] ]
+        return [ None if math.isnan(ele) else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_double))[:abs(num_of_rows)] ]
     else:
         return [ None if math.isnan(ele) else ele for ele in ctypes.cast(data,  ctypes.POINTER(ctypes.c_double))[:abs(num_of_rows)] ]
 
 def _crow_binary_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C binary row to python row
     """
+    assert(nbytes is not None)
     if num_of_rows > 0:
-        return [ None if ele.value[0:1] == FieldType.C_BINARY_NULL else ele.value.decode('utf-8') for ele in (ctypes.cast(data,  ctypes.POINTER(ctypes.c_char * nbytes)))[:abs(num_of_rows)][::1]]
+        return [ None if ele.value[0:1] == FieldType.C_BINARY_NULL else ele.value.decode('utf-8') for ele in (ctypes.cast(data,  ctypes.POINTER(ctypes.c_char * nbytes)))[:abs(num_of_rows)]]
     else:
         return [ None if ele.value[0:1] == FieldType.C_BINARY_NULL else ele.value.decode('utf-8') for ele in (ctypes.cast(data,  ctypes.POINTER(ctypes.c_char * nbytes)))[:abs(num_of_rows)]]
 
@@ -90,9 +91,7 @@ def _crow_nchar_to_python(data, num_of_rows, nbytes=None, micro=False):
     """Function to convert C nchar row to python row
     """
     assert(nbytes is not None)
-
-    res = []
-
+    res=[]
     for i in range(abs(num_of_rows)):
         try:
             if num_of_rows >= 0:
@@ -103,17 +102,50 @@ def _crow_nchar_to_python(data, num_of_rows, nbytes=None, micro=False):
         except ValueError:
             res.append(None)
 
+    return res 
+
+def _crow_binary_to_python_block(data, num_of_rows, nbytes=None, micro=False):
+    """Function to convert C binary row to python row
+    """
+    assert(nbytes is not None)
+    res=[]
+    if num_of_rows > 0:
+        for i in range(abs(num_of_rows)):
+            try:
+                rbyte=ctypes.cast(data+nbytes*i,ctypes.POINTER(ctypes.c_short))[:1].pop()
+                tmpstr = ctypes.c_char_p(data+nbytes*i+2)
+                res.append( tmpstr.value.decode()[0:rbyte] )
+            except ValueError:
+                res.append(None)
+    else:
+        for i in range(abs(num_of_rows)):
+            try:
+                rbyte=ctypes.cast(data+nbytes*i,ctypes.POINTER(ctypes.c_short))[:1].pop()
+                tmpstr = ctypes.c_char_p(data+nbytes*i+2)
+                res.append( tmpstr.value.decode()[0:rbyte] )
+            except ValueError:
+                res.append(None)
     return res
-    # if num_of_rows > 0:
-    #     for i in range(abs(num_of_rows)):
-    #         try:
-    #             res.append( (ctypes.cast(data+nbytes*i,  ctypes.POINTER(ctypes.c_wchar * (nbytes//4))))[0].value )
-    #         except ValueError:
-    #             res.append(None)
-    #     return res
-    #         # return [ele.value for ele in (ctypes.cast(data,  ctypes.POINTER(ctypes.c_wchar * (nbytes//4))))[:abs(num_of_rows)][::1]]
-    # else:
-    #     return [ele.value for ele in (ctypes.cast(data,  ctypes.POINTER(ctypes.c_wchar * (nbytes//4))))[:abs(num_of_rows)]]
+
+def _crow_nchar_to_python_block(data, num_of_rows, nbytes=None, micro=False):
+    """Function to convert C nchar row to python row
+    """
+    assert(nbytes is not None)
+    res=[]
+    if num_of_rows >= 0:
+        for i in range(abs(num_of_rows)):
+            try:
+                tmpstr = ctypes.c_char_p(data+nbytes*i+2)
+                res.append( tmpstr.value.decode() )
+            except ValueError:
+                res.append(None)
+    else:
+        for i in range(abs(num_of_rows)):
+            try:
+                res.append( (ctypes.cast(data+nbytes*i+2,  ctypes.POINTER(ctypes.c_wchar * (nbytes//4))))[0].value )
+            except ValueError:
+                res.append(None)
+    return res
 
 _CONVERT_FUNC = {
     FieldType.C_BOOL: _crow_bool_to_python,
@@ -126,6 +158,19 @@ _CONVERT_FUNC = {
     FieldType.C_BINARY: _crow_binary_to_python,
     FieldType.C_TIMESTAMP : _crow_timestamp_to_python, 
     FieldType.C_NCHAR : _crow_nchar_to_python
+}
+
+_CONVERT_FUNC_BLOCK = {
+    FieldType.C_BOOL: _crow_bool_to_python,
+    FieldType.C_TINYINT : _crow_tinyint_to_python,
+    FieldType.C_SMALLINT : _crow_smallint_to_python,
+    FieldType.C_INT : _crow_int_to_python,
+    FieldType.C_BIGINT : _crow_bigint_to_python,
+    FieldType.C_FLOAT : _crow_float_to_python,
+    FieldType.C_DOUBLE : _crow_double_to_python,
+    FieldType.C_BINARY: _crow_binary_to_python_block,
+    FieldType.C_TIMESTAMP : _crow_timestamp_to_python, 
+    FieldType.C_NCHAR : _crow_nchar_to_python_block
 }
 
 # Corresponding TAOS_FIELD structure in C
@@ -253,7 +298,7 @@ class CTaosInterface(object):
             raise AttributeError("sql is expected as a string")
         # finally:
         #     CTaosInterface.libtaos.close(connection)
-      
+
     @staticmethod
     def affectedRows(result):
         """The affected rows after runing query
@@ -308,29 +353,26 @@ class CTaosInterface(object):
 
         return fields
 
-    # @staticmethod
-    # def fetchBlock(result, fields):
-    #     pblock = ctypes.c_void_p(0)
-    #     num_of_rows = CTaosInterface.libtaos.taos_fetch_block(
-    #         result, ctypes.byref(pblock))
-    #     if num_of_rows == 0:
-    #         return None, 0
-
-    #     isMicro = (CTaosInterface.libtaos.taos_result_precision(result) == FieldType.C_TIMESTAMP_MICRO)
-    #     blocks = [None] * len(fields)
-    #     fieldL = CTaosInterface.libtaos.taos_fetch_lengths(result)
-    #     fieldLen = [ele for ele in ctypes.cast(fieldL,  ctypes.POINTER(ctypes.c_int))[:len(fields)]]
-    #     for i in range(len(fields)):
-    #         data = ctypes.cast(pblock, ctypes.POINTER(ctypes.c_void_p))[i]
-
-    #         if fields[i]['type'] not in _CONVERT_FUNC:
-    #             raise DatabaseError("Invalid data type returned from database")
-    #         print('====================',fieldLen[i])
-    #         blocks[i] = _CONVERT_FUNC[fields[i]['type']](data, num_of_rows, fieldLen[i], isMicro)
-
-    #     return blocks, abs(num_of_rows)
     @staticmethod
     def fetchBlock(result, fields):
+        pblock = ctypes.c_void_p(0)
+        num_of_rows = CTaosInterface.libtaos.taos_fetch_block(
+            result, ctypes.byref(pblock))
+        if num_of_rows == 0:
+            return None, 0
+        isMicro = (CTaosInterface.libtaos.taos_result_precision(result) == FieldType.C_TIMESTAMP_MICRO)
+        blocks = [None] * len(fields)
+        fieldL = CTaosInterface.libtaos.taos_fetch_lengths(result)
+        fieldLen = [ele for ele in ctypes.cast(fieldL,  ctypes.POINTER(ctypes.c_int))[:len(fields)]]
+        for i in range(len(fields)):
+            data = ctypes.cast(pblock, ctypes.POINTER(ctypes.c_void_p))[i]
+            if fields[i]['type'] not in _CONVERT_FUNC_BLOCK:
+                raise DatabaseError("Invalid data type returned from database")
+            blocks[i] = _CONVERT_FUNC_BLOCK[fields[i]['type']](data, num_of_rows, fieldLen[i], isMicro)
+
+        return blocks, abs(num_of_rows)
+    @staticmethod
+    def fetchRow(result, fields):
         pblock = ctypes.c_void_p(0)
         pblock = CTaosInterface.libtaos.taos_fetch_row(result)  
         if pblock : 
@@ -350,6 +392,7 @@ class CTaosInterface(object):
         else:
             return None, 0
         return blocks, abs(num_of_rows)
+
     @staticmethod
     def freeResult(result):
         CTaosInterface.libtaos.taos_free_result(result)

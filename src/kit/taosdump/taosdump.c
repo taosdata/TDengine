@@ -2146,7 +2146,7 @@ int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, c
   char *    line     = NULL;
   size_t    line_len = 0;
 
-  cmd  = (char *)malloc(COMMAND_SIZE);
+  cmd  = (char *)malloc(TSDB_MAX_ALLOWED_SQL_LEN);
   if (cmd == NULL) {
     fprintf(stderr, "failed to allocate memory\n");
     return -1;
@@ -2155,7 +2155,7 @@ int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, c
   int lineNo = 0;
   while ((read_len = getline(&line, &line_len, fp)) != -1) {
     ++lineNo;
-    if (read_len >= COMMAND_SIZE) continue;
+    if (read_len >= TSDB_MAX_ALLOWED_SQL_LEN) continue;
     line[--read_len] = '\0';
 
     //if (read_len == 0 || isCommentLine(line)) {  // line starts with #
@@ -2176,7 +2176,7 @@ int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, c
       fprintf(stderr, "error sql: linenu:%d, file:%s\n", lineNo, fileName);
     }
 
-    memset(cmd, 0, COMMAND_SIZE);
+    memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);
     cmd_len = 0;
   }
 

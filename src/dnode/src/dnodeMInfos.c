@@ -22,12 +22,12 @@
 #include "dnodeInt.h"
 #include "dnodeMInfos.h"
 
-static SMnodeInfos tsMInfos;
-static SRpcEpSet   tsMEpSet;
+static SMInfos   tsMInfos;
+static SRpcEpSet tsMEpSet;
 static pthread_mutex_t tsMInfosMutex;
 
-static void    dnodeResetMInfos(SMnodeInfos *minfos);
-static void    dnodePrintMInfos(SMnodeInfos *minfos);
+static void    dnodeResetMInfos(SMInfos *minfos);
+static void    dnodePrintMInfos(SMInfos *minfos);
 static int32_t dnodeReadMInfos();
 static int32_t dnodeWriteMInfos();
 
@@ -44,14 +44,14 @@ int32_t dnodeInitMInfos() {
 
 void dnodeCleanupMInfos() { pthread_mutex_destroy(&tsMInfosMutex); }
 
-void dnodeUpdateMInfos(SMnodeInfos *minfos) {
-  if (minfos->mnodeNum <= 0 || minfos->mnodeNum > 3) {
-    dError("invalid mnode infos, mnodeNum:%d", minfos->mnodeNum);
+void dnodeUpdateMInfos(SMInfos *pMinfos) {
+  if (pMinfos->mnodeNum <= 0 || pMinfos->mnodeNum > 3) {
+    dError("invalid mnode infos, mnodeNum:%d", pMinfos->mnodeNum);
     return;
   }
 
-  for (int32_t i = 0; i < minfos->mnodeNum; ++i) {
-    SMnodeInfo *minfo = &minfos->mnodeInfos[i];
+  for (int32_t i = 0; i < pMinfos->mnodeNum; ++i) {
+    SMInfo *minfo = &pMinfos->mnodeInfos[i];
     minfo->mnodeId = htonl(minfo->mnodeId);
     if (minfo->mnodeId <= 0 || strlen(minfo->mnodeEp) <= 5) {
       dError("invalid mnode info:%d, mnodeId:%d mnodeEp:%s", i, minfo->mnodeId, minfo->mnodeEp);
@@ -60,14 +60,14 @@ void dnodeUpdateMInfos(SMnodeInfos *minfos) {
   }
 
   pthread_mutex_lock(&tsMInfosMutex);
-  if (minfos->mnodeNum != tsMInfos.mnodeNum) {
-    dnodeResetMInfos(minfos);
+  if (pMinfos->mnodeNum != tsMInfos.mnodeNum) {
+    dnodeResetMInfos(pMinfos);
     dnodeWriteMInfos();
     sdbUpdateAsync();
   } else {
-    int32_t size = sizeof(SMnodeInfos);
-    if (memcmp(minfos, &tsMInfos, size) != 0) {
-      dnodeResetMInfos(minfos);
+    int32_t size = sizeof(SMInfos);
+    if (memcmp(pMinfos, &tsMInfos, size) != 0) {
+      dnodeResetMInfos(pMinfos);
       dnodeWriteMInfos();
       sdbUpdateAsync();
     }
@@ -99,11 +99,11 @@ bool dnodeIsMasterEp(char *ep) {
   return isMaster;
 }
 
-void dnodeGetMInfos(SMnodeInfos *minfos) {
+void dnodeGetMInfos(SMInfos *pMinfos) {
   pthread_mutex_lock(&tsMInfosMutex);
-  memcpy(minfos, &tsMInfos, sizeof(SMnodeInfos));
+  memcpy(pMinfos, &tsMInfos, sizeof(SMInfos));
   for (int32_t i = 0; i < tsMInfos.mnodeNum; ++i) {
-    minfos->mnodeInfos[i].mnodeId = htonl(tsMInfos.mnodeInfos[i].mnodeId);
+    pMinfos->mnodeInfos[i].mnodeId = htonl(tsMInfos.mnodeInfos[i].mnodeId);
   }
   pthread_mutex_unlock(&tsMInfosMutex);
 }
@@ -123,15 +123,15 @@ void dnodeGetEpSetForShell(SRpcEpSet *epSet) {
   pthread_mutex_unlock(&tsMInfosMutex);
 }
 
-static void dnodePrintMInfos(SMnodeInfos *minfos) {
-  dInfo("print mnode infos, mnodeNum:%d inUse:%d", minfos->mnodeNum, minfos->inUse);
-  for (int32_t i = 0; i < minfos->mnodeNum; i++) {
-    dInfo("mnode index:%d, %s", minfos->mnodeInfos[i].mnodeId, minfos->mnodeInfos[i].mnodeEp);
+static void dnodePrintMInfos(SMInfos *pMinfos) {
+  dInfo("print minfos, mnodeNum:%d inUse:%d", pMinfos->mnodeNum, pMinfos->inUse);
+  for (int32_t i = 0; i < pMinfos->mnodeNum; i++) {
+    dInfo("mnode index:%d, %s", pMinfos->mnodeInfos[i].mnodeId, pMinfos->mnodeInfos[i].mnodeEp);
   }
 }
 
-static void dnodeResetMInfos(SMnodeInfos *minfos) {
-  if (minfos == NULL) {
+static void dnodeResetMInfos(SMInfos *pMinfos) {
+  if (pMinfos == NULL) {
     tsMEpSet.numOfEps = 1;
     taosGetFqdnPortFromEp(tsFirst, tsMEpSet.fqdn[0], &tsMEpSet.port[0]);
 
@@ -142,10 +142,10 @@ static void dnodeResetMInfos(SMnodeInfos *minfos) {
     return;
   }
 
-  if (minfos->mnodeNum == 0) return;
+  if (pMinfos->mnodeNum == 0) return;
 
-  int32_t size = sizeof(SMnodeInfos);
-  memcpy(&tsMInfos, minfos, size);
+  int32_t size = sizeof(SMInfos);
+  memcpy(&tsMInfos, pMinfos, size);
 
   tsMEpSet.inUse = tsMInfos.inUse;
   tsMEpSet.numOfEps = tsMInfos.mnodeNum;
@@ -153,7 +153,7 @@ static void dnodeResetMInfos(SMnodeInfos *minfos) {
     taosGetFqdnPortFromEp(tsMInfos.mnodeInfos[i].mnodeEp, tsMEpSet.fqdn[i], &tsMEpSet.port[i]);
   }
 
-  dnodePrintMInfos(minfos);
+  dnodePrintMInfos(pMinfos);
 }
 
 static int32_t dnodeReadMInfos() {
@@ -162,7 +162,7 @@ static int32_t dnodeReadMInfos() {
   char *      content = calloc(1, maxLen + 1);
   cJSON *     root = NULL;
   FILE *      fp = NULL;
-  SMnodeInfos minfos = {0};
+  SMInfos     minfos = {0};
 
   char file[TSDB_FILENAME_LEN + 20] = {0};
   sprintf(file, "%s/mnodeEpSet.json", tsDnodeDir);
@@ -241,7 +241,7 @@ PARSE_MINFOS_OVER:
   terrno = 0;
 
   for (int32_t i = 0; i < minfos.mnodeNum; ++i) {
-    SMnodeInfo *mInfo = &minfos.mnodeInfos[i];
+    SMInfo *mInfo = &minfos.mnodeInfos[i];
     dnodeUpdateEp(mInfo->mnodeId, mInfo->mnodeEp, NULL, NULL);
   }
   dnodeResetMInfos(&minfos);

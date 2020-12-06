@@ -248,8 +248,13 @@ SFileGroup *tsdbCreateFGroupIfNeed(STsdbRepo *pRepo, char *dataDir, int fid) {
   if (pGroup == NULL) {  // if not exists, create one
     pFGroup->fileId = fid;
     for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) {
-      if (tsdbCreateFile(&pFGroup->files[type], pRepo, fid, type) < 0)
-        goto _err;
+      if (tsdbCreateFile(&pFGroup->files[type], pRepo, fid, type) < 0) {
+        for (int i = type; i >= 0; i--) {
+          remove(pFGroup->files[i].fname);
+        }
+
+        return NULL;
+      }
     }
 
     pthread_rwlock_wrlock(&pFileH->fhlock);
@@ -261,10 +266,6 @@ SFileGroup *tsdbCreateFGroupIfNeed(STsdbRepo *pRepo, char *dataDir, int fid) {
   }
 
   return pGroup;
-
-_err:
-  for (int type = 0; type < TSDB_FILE_TYPE_MAX; type++) tsdbDestroyFile(&pGroup->files[type]);
-  return NULL;
 }
 
 void tsdbInitFileGroupIter(STsdbFileH *pFileH, SFileGroupIter *pIter, int direction) {

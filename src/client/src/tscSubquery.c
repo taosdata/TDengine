@@ -2198,6 +2198,9 @@ int32_t tscHandleInsertRetry(SSqlObj* pSql) {
   STableDataBlocks* pTableDataBlock = taosArrayGetP(pCmd->pDataBlocks, pSupporter->index);
   int32_t code = tscCopyDataBlockToPayload(pSql, pTableDataBlock);
 
+  // free the data block created from insert sql string
+  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+
   if ((pRes->code = code)!= TSDB_CODE_SUCCESS) {
     tscQueueAsyncRes(pSql);
     return code;  // here the pSql may have been released already.

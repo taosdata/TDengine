@@ -146,7 +146,7 @@ class ConcurrentInquiry:
             col_list=self.stb_stru_list[tbi-1]
             tag_list=self.stb_tag_list[tbi-1]
             is_stb=1
-        tlist=col_list+tag_list
+        tlist=col_list+tag_list+['abc']            #增加不存在的域'abc'，是否会引起新bug
         con_rand=random.randint(0,len(condition_list))
         func_rand=random.randint(0,len(func_list))
         col_rand=random.randint(0,len(col_list))

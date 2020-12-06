@@ -107,7 +107,7 @@ int32_t taosWriteMsg(SOCKET fd, void *buf, int32_t nbytes) {
   while (nleft > 0) {
     nwritten = (int32_t)taosWriteSocket(fd, (char *)ptr, (size_t)nleft);
     if (nwritten <= 0) {
-      if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK)
+      if (errno == EINTR /* || errno == EAGAIN || errno == EWOULDBLOCK */)
         continue;
       else
         return -1;
@@ -133,7 +133,7 @@ int32_t taosReadMsg(SOCKET fd, void *buf, int32_t nbytes) {
     if (nread == 0) {
       break;
     } else if (nread < 0) {
-      if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+      if (errno == EINTR/* || errno == EAGAIN || errno == EWOULDBLOCK*/) {
         continue;
       } else {
         return -1;

@@ -175,7 +175,7 @@ static void *dnodeProcessReadQueue(void *pWorker) {
       break;
     }
 
-    dDebug("msg:%p, app:%p type:%s will be processed in vread queue, qtype:%d", pRead, pRead->rpcAhandle,
+    dTrace("msg:%p, app:%p type:%s will be processed in vread queue, qtype:%d", pRead, pRead->rpcAhandle,
            taosMsg[pRead->msgType], qtype);
 
     int32_t code = vnodeProcessRead(pVnode, pRead);

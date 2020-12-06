@@ -16,6 +16,7 @@ import taos
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
+from util.dnodes import tdDnodes
 
 
 class TDTestCase:
@@ -71,6 +72,19 @@ class TDTestCase:
         tdSql.checkData(5, 1, 226.5)
         tdSql.checkData(6, 0, "2020-09-16 00:00:00")
         tdSql.checkData(6, 1, 222.0)
+
+        # test case for https://jira.taosdata.com:18080/browse/TD-2298
+        tdSql.execute("create database test keep 36500")
+        tdSql.execute("use test")
+        tdSql.execute("create table t (ts timestamp, voltage int)")
+        for i in range(10000):
+            tdSql.execute("insert into t values(%d, 0)" % (1000000 + i * 6000))
+        
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+        tdSql.query("select last(*) from t interval(1s)")
+        tdSql.checkRows(10000)
+        
 
     def stop(self):
         tdSql.close()

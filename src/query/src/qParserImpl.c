@@ -187,7 +187,8 @@ tSQLExpr *tSQLExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
     pExpr->token.type = pLeft->token.type;
   }
 
-  if (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM) {
+  if ((pLeft != NULL && pRight != NULL) &&
+      (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM)) {
     /*
      * if a token is noted as the TK_TIMESTAMP, the time precision is microsecond
      * Otherwise, the time precision is adaptive, determined by the time precision from databases.
@@ -404,14 +405,29 @@ void tSQLSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
         if (type->type == 0) {
           pField->bytes = 0;
         } else {
-          pField->bytes = (int16_t)(-(int32_t)type->type * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+          int32_t bytes = -(int32_t)(type->type);
+          if (bytes > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+            // we have to postpone reporting the error because it cannot be done here
+            // as pField->bytes is int16_t, use 'TSDB_MAX_NCHAR_LEN + 1' to avoid overflow
+            bytes = TSDB_MAX_NCHAR_LEN + 1;
+          } else {
+            bytes = bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+          }
+          pField->bytes = (int16_t)bytes;
         }
       } else if (i == TSDB_DATA_TYPE_BINARY) {
         /* for binary, the TOKENTYPE is the length of binary */
         if (type->type == 0) {
           pField->bytes = 0;
         } else {
-          pField->bytes = (int16_t) (-(int32_t) type->type + VARSTR_HEADER_SIZE);
+          int32_t bytes = -(int32_t)(type->type);
+          if (bytes > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
+            // refer comment for NCHAR above
+            bytes = TSDB_MAX_BINARY_LEN + 1;
+          } else {
+            bytes += VARSTR_HEADER_SIZE;
+          }
+          pField->bytes = (int16_t)bytes;
         } 
       }
       break;

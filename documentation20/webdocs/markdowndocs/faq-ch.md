@@ -36,16 +36,20 @@
 
 5. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件
 
-6. 检查防火墙设置，确认TCP/UDP 端口6030-6042 是打开的
+6. 检查防火墙设置（Ubuntu 使用 ufw status，CentOS 使用 firewall-cmd --list-port），确认TCP/UDP 端口6030-6042 是打开的
 
 7. 对于Linux上的JDBC（ODBC, Python, Go等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/taos/driver*里, 并且*/usr/local/taos/driver*在系统库函数搜索路径*LD_LIBRARY_PATH*里 
 
 8. 对于windows上的JDBC, ODBC, Python, Go等连接，确保*C:\TDengine\driver\taos.dll*在你的系统库函数搜索目录里 (建议*taos.dll*放在目录 *C:\Windows\System32*)
 
-9. 如果仍不能排除连接故障，请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
-   检查UDP端口连接是否工作：`nc -vuz {hostIP} {port} `
-   检查服务器侧TCP端口连接是否工作：`nc -l {port}`
-   检查客户端侧TCP端口连接是否工作：`nc {hostIP} {port}`
+9. 如果仍不能排除连接故障
+   
+   * Linux 系统请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
+     检查UDP端口连接是否工作：`nc -vuz {hostIP} {port} `
+     检查服务器侧TCP端口连接是否工作：`nc -l {port}`
+     检查客户端侧TCP端口连接是否工作：`nc {hostIP} {port}`
+   
+   * Windows 系统请使用 PowerShell 命令 Net-TestConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
    
 10. 也可以使用taos程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅（包括TCP和UDP）：[TDengine 内嵌网络检测工具使用指南](https://www.taosdata.com/blog/2020/09/08/1816.html)。
 
@@ -101,7 +105,20 @@ Connection = DriverManager.getConnection(url, properties);
   <version>2.0.4</version>
 </dependency>
 ```
-## 14. 怎么报告问题？
+## 14. taos connect failed, reason: invalid timestamp 
+
+常见原因是服务器和客户端时间没有校准，可以通过和时间服务器同步的方式（Linux 下使用 ntpdate 命令，Windows 在系统时间设置中选择自动同步）校准。
+
+
+
+## 15. 表名显示不全
+
+由于 taos shell 在终端中显示宽度有限，有可能比较长的表名显示不全，如果按照显示的不全的表名进行相关操作会发生 Table does not exist 错误。解决方法可以是通过修改 taos.cfg 文件中的设置项 maxBinaryDisplayWidth， 或者直接输入命令 set max_binary_display_width 100。或者在命令结尾使用 \G 参数来调整结果的显示方式。
+
+
+
+## 16. 怎么报告问题？
+
 如果 FAQ 中的信息不能够帮到您，需要 TDengine 技术团队的技术支持与协助，请将以下两个目录中内容打包:
 1. /var/log/taos
 2. /etc/taos 

@@ -33,7 +33,7 @@ static void    dnodePrintEps(SDnodeEps *eps);
 
 int32_t dnodeInitEps() {
   pthread_mutex_init(&tsEpsMutex, NULL);
-  tsEpsHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, true);
+  tsEpsHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   dnodeResetEps(NULL);
   int32_t ret = dnodeReadEps();
   if (ret == 0) {

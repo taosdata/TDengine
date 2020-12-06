@@ -257,7 +257,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN     512
-#define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 8mb
+#define TSDB_MAX_ALLOWED_SQL_LEN  (1*1024*1024U)          // sql length should be less than 1mb
 
 #define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
@@ -428,11 +428,6 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_PORT_SYNC                  10
 #define TSDB_PORT_HTTP                  11
 #define TSDB_PORT_ARBITRATOR            12
-#define TSDB_PORT_DNODESHELL 0
-#define TSDB_PORT_DNODEDNODE 5
-#define TSDB_PORT_SYNC       10
-#define TSDB_PORT_HTTP       11
-#define TSDB_PORT_ARBITRATOR 12
 
 #define TSDB_MAX_WAL_SIZE    (1024*1024)
 

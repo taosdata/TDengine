@@ -31,6 +31,23 @@ class Node:
         self.homeDir = homeDir
         self.conn = Connection("{}@{}".format(username, hostName), connect_kwargs={"password": "{}".format(password)}) 
     
+    def buildTaosd(self):
+        try:
+            self.conn.cd("/root/TDinternal/community")
+            self.conn.run("git checkout develop")
+            self.conn.run("git pull")
+            self.conn.cd("/root/TDinternal")
+            self.conn.run("git checkout develop")
+            self.conn.run("git pull")
+            self.conn.cd("/root/TDinternal/debug")
+            self.conn.run("cmake ..")
+            self.conn.run("make")
+            self.conn.run("make install")
+        except Exception as e:
+            print("Build Taosd error for node %d " % self.index)
+            logging.exception(e)
+            pass
+
     def startTaosd(self):
         try:
             self.conn.run("sudo systemctl start taosd")
@@ -50,7 +67,7 @@ class Node:
             self.conn.run("sudo systemctl restart taosd")
         except Exception as e:
             print("Stop Taosd error for node %d " % self.index)
-            logging.exception(e)
+            logging.exception(e)    
 
     def removeTaosd(self):
         try:
@@ -105,9 +122,11 @@ class Node:
 
 class Nodes:
     def __init__(self):
-        self.node1 = Node(1, 'ubuntu', '192.168.1.52', 'node1', 'tbase125!', '/home/ubuntu')
-        self.node2 = Node(2, 'ubuntu', '192.168.1.53', 'node2', 'tbase125!', '/home/ubuntu')
-        self.node3 = Node(3, 'ubuntu', '192.168.1.54', 'node3', 'tbase125!', '/home/ubuntu')
+        self.node1 = Node(1, 'root', '52.151.60.239', 'node1', 'r', '/root/')
+        self.node2 = Node(2, 'root', '52.183.32.246', 'node1', 'r', '/root/')
+        self.node3 = Node(3, 'root', '51.143.46.79', 'node1', 'r', '/root/')
+        self.node4 = Node(4, 'root', '52.183.2.76', 'node1', 'r', '/root/')
+        self.node5 = Node(5, 'root', '13.66.225.87', 'node1', 'r', '/root/')        
 
     def stopAllTaosd(self):
         self.node1.stopTaosd()

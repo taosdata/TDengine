@@ -151,9 +151,9 @@ void dnodeCleanupClient() {
 }
 
 static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
-  if (dnodeGetRunStatus() != TSDB_RUN_STATUS_RUNING) {
+  if (dnodeGetRunStatus() == TSDB_RUN_STATUS_STOPPED) {
     if (pMsg == NULL || pMsg->pCont == NULL) return;
-    dDebug("msg:%p is ignored since dnode not running", pMsg);
+    dDebug("msg:%p is ignored since dnode is stopping", pMsg);
     rpcFreeCont(pMsg->pCont);
     return;
   }
@@ -182,6 +182,8 @@ void dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg) {
 void dnodeSendMsgToMnodeRecv(SRpcMsg *rpcMsg, SRpcMsg *rpcRsp) {
   SRpcEpSet epSet = {0};
   dnodeGetEpSetForPeer(&epSet);
+
+  assert(tsClientRpc != 0);
   rpcSendRecv(tsClientRpc, &epSet, rpcMsg, rpcRsp);
 }
 

@@ -184,6 +184,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DATABASES,       0, 0x0385, "Too many d
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_DROPPING,           0, 0x0386, "Database not available")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_READY,         0, 0x0387, "Database unsynced")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_DAYS,   0, 0x0390, "Invalid database option: days out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_KEEP,   0, 0x0391, "Invalid database option: keep >= keep2 >= keep1 >= days")
+
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_MSG_NOT_PROCESSED,        0, 0x0400, "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_OUT_OF_MEMORY,            0, 0x0401, "Dnode out of memory")
@@ -205,6 +208,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VRESION_FILE,     0, 0x050A, "Invalid ve
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_FULL,                  0, 0x050B, "Vnode memory is full because commit failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_SYNCED,               0, 0x0511, "Database suspended")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            0, 0x0512, "Write operation denied")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_SYNCING,                  0, 0x0513, "Database is syncing")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         0, 0x0600, "Invalid table ID")
@@ -259,6 +263,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_CPU_LIMITED,            0, 0x080B, "CPU cores 
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_CONFIG,           0, 0x0900, "Invalid Sync Configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_ENABLED,              0, 0x0901, "Sync module not enabled")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_VERSION,          0, 0x0902, "Invalid Sync version")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_CONFIRM_EXPIRED,          0, 0x0903, "Sync confirm expired")
 
 // wal
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                0, 0x1000, "Unexpected generic error in wal")
@@ -365,7 +370,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_TOO_LONG,   0, 0x11A4, "tag value 
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_NULL,           0, 0x11A5, "value not find")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_TYPE,           0, 0x11A6, "value type should be boolean, number or string")
 
-
+// odbc
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OOM,                     0, 0x2100, "out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_CHAR_NOT_NUM,       0, 0x2101, "convertion not a valid literal input")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_UNDEF,              0, 0x2102, "convertion undefined")
@@ -388,7 +393,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_TOO_LARGE,      0, 0x2112, "src too la
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_BAD_SEQ,        0, 0x2113, "src bad sequence")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_INCOMPLETE,     0, 0x2114, "src incomplete")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_GENERAL,        0, 0x2115, "src general")
-
 
 #ifdef TAOS_ERROR_C
 };

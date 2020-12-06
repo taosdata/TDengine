@@ -41,7 +41,7 @@ public class InsertTableTask implements Runnable {
                 long ts = start.toEpochMilli() + (j * timeGap);
                 // insert data into echo table
                 for (int i = startTbIndex; i < startTbIndex + tableNumber; i++) {
-                    String sql = SqlSpeller.insertOneRowSQL(config.getDbName(), config.getTbPrefix(), i + 1, ts);
+                    String sql = SqlSpeller.insertBatchSizeRowsSQL(config.getDbName(), config.getTbPrefix(), i + 1, ts, config.getNumberOfRecordsPerRequest());
                     logger.info(Thread.currentThread().getName() + ">>> " + sql);
                     Statement statement = connection.createStatement();
                     statement.execute(sql);

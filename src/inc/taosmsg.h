@@ -464,6 +464,8 @@ typedef struct STimeWindow {
 
 typedef struct {
   SMsgHead    head;
+  char        version[TSDB_VERSION_LEN];
+
   STimeWindow window;
   int32_t     numOfTables;
   int16_t     order;
@@ -474,19 +476,21 @@ typedef struct {
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
+  int64_t     tableLimit;       // limit the number of rows for each table, used in order by + limit in stable projection query.
+  int16_t     prjOrder;         // global order in super table projection query.
   int64_t     limit;
   int64_t     offset;
   uint32_t    queryType;        // denote another query process
   int16_t     numOfOutput;      // final output columns numbers
   int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
-  int16_t     fillType;      // interpolate type
-  uint64_t    fillVal;       // default value array list
+  int16_t     fillType;         // interpolate type
+  uint64_t    fillVal;          // default value array list
   int32_t     secondStageOutput;
-  int32_t     tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
-  int32_t     tsLen;          // total length of ts comp block
-  int32_t     tsNumOfBlocks;  // ts comp block numbers
-  int32_t     tsOrder;        // ts comp block order
-  int32_t     numOfTags;      // number of tags columns involved
+  int32_t     tsOffset;         // offset value in current msg body, NOTE: ts list is compressed
+  int32_t     tsLen;            // total length of ts comp block
+  int32_t     tsNumOfBlocks;    // ts comp block numbers
+  int32_t     tsOrder;          // ts comp block order
+  int32_t     numOfTags;        // number of tags columns involved
   SColumnInfo colList[];
 } SQueryTableMsg;
 
@@ -587,13 +591,13 @@ typedef struct {
 typedef struct {
   int32_t mnodeId;
   char    mnodeEp[TSDB_EP_LEN];
-} SMnodeInfo;
+} SMInfo;
 
 typedef struct {
-  int8_t     inUse;
-  int8_t     mnodeNum;
-  SMnodeInfo mnodeInfos[TSDB_MAX_REPLICA];
-} SMnodeInfos;
+  int8_t inUse;
+  int8_t mnodeNum;
+  SMInfo mnodeInfos[TSDB_MAX_REPLICA];
+} SMInfos;
 
 typedef struct {
   int32_t  numOfMnodes;               // tsNumOfMnodes
@@ -628,7 +632,7 @@ typedef struct {
 } SStatusMsg;
 
 typedef struct {
-  SMnodeInfos   mnodes;
+  SMInfos       mnodes;
   SDnodeCfg     dnodeCfg;
   SVgroupAccess vgAccess[];
 } SStatusRsp;
@@ -757,7 +761,7 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   char    dnodeEp[TSDB_EP_LEN];  // end point, hostname:port
-  SMnodeInfos mnodes;
+  SMInfos mnodes;
 } SCreateMnodeMsg;
 
 typedef struct {
