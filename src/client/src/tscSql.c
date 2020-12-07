@@ -292,16 +292,18 @@ void taos_close(TAOS *taos) {
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));
 
-  SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
-  if (pHb != NULL) {
-    if (pHb->rpcRid > 0) {  // wait for rsp from dnode
-      rpcCancelRequest(pHb->rpcRid);
-      pHb->rpcRid = -1;
-    }
+  if (pObj->hbrid > 0) {
+    SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
+    if (pHb != NULL) {
+      if (pHb->rpcRid > 0) {  // wait for rsp from dnode
+        rpcCancelRequest(pHb->rpcRid);
+        pHb->rpcRid = -1;
+      }
 
-    tscDebug("%p HB is freed", pHb);
-    taos_free_result(pHb);
-    taosReleaseRef(tscObjRef, pHb->self);
+      tscDebug("%p HB is freed", pHb);
+      taos_free_result(pHb);
+      taosReleaseRef(tscObjRef, pHb->self);
+    }
   }
 
   int32_t ref = T_REF_DEC(pObj);
@@ -342,7 +344,7 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, TAOS_RES
     return NULL;
   }
 
-  taosNotePrintTsc(sqlstr);
+  nPrintTsc(sqlstr);
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
@@ -898,9 +900,9 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   strtolower(pSql->sqlstr, sql);
 
   pCmd->curSql = NULL;
-  if (NULL != pCmd->pTableList) {
-    taosHashCleanup(pCmd->pTableList);
-    pCmd->pTableList = NULL;
+  if (NULL != pCmd->pTableBlockHashList) {
+    taosHashCleanup(pCmd->pTableBlockHashList);
+    pCmd->pTableBlockHashList = NULL;
   }
 
   pSql->fp = asyncCallback;

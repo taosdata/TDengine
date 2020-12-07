@@ -181,9 +181,16 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 void tscProcessActivityTimer(void *handle, void *tmrId) {
   int64_t rid = (int64_t) handle;
   STscObj *pObj = taosAcquireRef(tscRefId, rid);
-  if (pObj == NULL) return; 
+  if (pObj == NULL) {
+    return;
+  }
 
   SSqlObj* pHB = taosAcquireRef(tscObjRef, pObj->hbrid);
+  if (pHB == NULL) {
+    taosReleaseRef(tscRefId, rid);
+    return;
+  }
+
   assert(pHB->self == pObj->hbrid);
 
   pHB->retry = 0;
@@ -273,18 +280,18 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   int32_t cmd = pCmd->command;
-  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_FETCH || cmd == TSDB_SQL_INSERT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
+
+  // set the flag to denote that sql string needs to be re-parsed and build submit block with table schema
+  if (cmd == TSDB_SQL_INSERT && rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+    pSql->cmd.submitSchema = 1;
+  }
+
+  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_FETCH || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
       (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||
        rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
-       rpcMsg->code == TSDB_CODE_APP_NOT_READY ||
-       rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE)) {
+       rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
     tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
-
-    // set the flag to denote that sql string needs to be re-parsed and build submit block with table schema
-    if (rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-      pSql->cmd.submitSchema = 1;
-    }
 
     pSql->res.code = rpcMsg->code;  // keep the previous error code
     if (pSql->retry > pSql->maxRetry) {
@@ -444,10 +451,10 @@ int tscProcessSql(SSqlObj *pSql) {
 
 int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SRetrieveTableMsg *pRetrieveMsg = (SRetrieveTableMsg *) pSql->cmd.payload;
-  pRetrieveMsg->qhandle = htobe64(pSql->res.qhandle);
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
-  pRetrieveMsg->free = htons(pQueryInfo->type);
+  pRetrieveMsg->free    = htons(pQueryInfo->type);
+  pRetrieveMsg->qhandle = htobe64(pSql->res.qhandle);
 
   // todo valid the vgroupId at the client side
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -674,7 +681,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
   pQueryMsg->numOfTags      = htonl(numOfTags);
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
-  pQueryMsg->tableLimit     = htobe64(pQueryInfo->tableLimit);
+  pQueryMsg->vgroupLimit     = htobe64(pQueryInfo->vgroupLimit);
   
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryMsg->numOfOutput = htons((int16_t)numOfOutput);  // this is the stage one output column number
@@ -1386,6 +1393,43 @@ int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
 
   return TSDB_CODE_SUCCESS;
 }
+
+//int tscBuildCancelQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+//  SCancelQueryMsg *pCancelMsg = (SCancelQueryMsg*) pSql->cmd.payload;
+//  pCancelMsg->qhandle = htobe64(pSql->res.qhandle);
+//
+//  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
+//  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+//
+//  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+//    int32_t vgIndex = pTableMetaInfo->vgroupIndex;
+//    if (pTableMetaInfo->pVgroupTables == NULL) {
+//      SVgroupsInfo *pVgroupInfo = pTableMetaInfo->vgroupList;
+//      assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
+//
+//      pCancelMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
+//      tscDebug("%p build cancel query msg from vgId:%d, vgIndex:%d", pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex);
+//    } else {
+//      int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+//      assert(vgIndex >= 0 && vgIndex < numOfVgroups);
+//
+//      SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, vgIndex);
+//
+//      pCancelMsg->header.vgId = htonl(pTableIdList->vgInfo.vgId);
+//      tscDebug("%p build cancel query msg from vgId:%d, vgIndex:%d", pSql, pTableIdList->vgInfo.vgId, vgIndex);
+//    }
+//  } else {
+//    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+//    pCancelMsg->header.vgId = htonl(pTableMeta->vgroupInfo.vgId);
+//    tscDebug("%p build cancel query msg from only one vgroup, vgId:%d", pSql, pTableMeta->vgroupInfo.vgId);
+//  }
+//
+//  pSql->cmd.payloadLen = sizeof(SCancelQueryMsg);
+//  pSql->cmd.msgType = TSDB_MSG_TYPE_CANCEL_QUERY;
+//
+//  pCancelMsg->header.contLen = htonl(sizeof(SCancelQueryMsg));
+//  return TSDB_CODE_SUCCESS;
+//}
 
 int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;

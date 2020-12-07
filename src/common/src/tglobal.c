@@ -203,8 +203,8 @@ int32_t tsVersion = 0;
 
 // log
 int32_t tsNumOfLogLines = 10000000;
-int32_t mDebugFlag = 135;
-int32_t sdbDebugFlag = 135;
+int32_t mDebugFlag = 131;
+int32_t sdbDebugFlag = 131;
 int32_t dDebugFlag = 135;
 int32_t vDebugFlag = 135;
 int32_t cDebugFlag = 131;
@@ -220,7 +220,7 @@ int32_t debugFlag = 0;
 int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
-int32_t cqDebugFlag = 135;
+int32_t cqDebugFlag = 131;
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -416,7 +416,7 @@ static void doInitGlobalConfig(void) {
   cfg.option = "arbitrator";
   cfg.ptr = tsArbitrator;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = TSDB_EP_LEN;
@@ -901,7 +901,7 @@ static void doInitGlobalConfig(void) {
   cfg.option = "timezone";
   cfg.ptr = tsTimezone;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(tsTimezone);
@@ -911,7 +911,7 @@ static void doInitGlobalConfig(void) {
   cfg.option = "locale";
   cfg.ptr = tsLocale;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(tsLocale);
@@ -921,7 +921,7 @@ static void doInitGlobalConfig(void) {
   cfg.option = "charset";
   cfg.ptr = tsCharset;
   cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 0;
   cfg.ptrLength = tListLen(tsCharset);

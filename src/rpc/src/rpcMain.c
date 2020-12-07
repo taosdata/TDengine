@@ -1086,13 +1086,6 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
       } 
     } else { // msg is passed to app only parsing is ok 
-
-      if (pHead->msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
-        rpcSendQuickRsp(pConn, TSDB_CODE_SUCCESS);
-        rpcFreeMsg(pRecv->msg); 
-        return pConn;
-      }
-      
       rpcProcessIncomingMsg(pConn, pHead, pContext);
     }
   }

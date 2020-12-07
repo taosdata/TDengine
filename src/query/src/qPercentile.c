@@ -234,7 +234,13 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
 }
 
 int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
-  double v = GET_DOUBLE_VAL(value);
+  double v = 0;
+  if (pBucket->type == TSDB_DATA_TYPE_FLOAT) {
+    v = GET_FLOAT_VAL(value);
+  } else {
+    v = GET_DOUBLE_VAL(value);
+  }
+
   int32_t index = -1;
 
   if (pBucket->range.dMinVal == DBL_MAX) {

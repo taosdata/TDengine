@@ -103,6 +103,8 @@ sleep 500
 run general/parser/timestamp.sim
 sleep 500
 run general/parser/sliding.sim
+sleep 500
+run general/parser/function.sim
 
 #sleep 500
 #run general/parser/repeatStream.sim

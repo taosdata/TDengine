@@ -226,7 +226,7 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   }
 
   if (pNode->selfIndex < 0) {
-    sInfo("vgId:%d, this node is not configured", pNode->vgId);
+    sError("vgId:%d, this node is not configured", pNode->vgId);
     terrno = TSDB_CODE_SYN_INVALID_CONFIG;
     syncStop(pNode->rid);
     return -1;
@@ -1312,7 +1312,7 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
   }
 
   // always update version
-  sTrace("vgId:%d, forward to peer, replica:%d role:%s qtype:%s hver:%" PRIu64, pNode->vgId, pNode->replica,
+  sTrace("vgId:%d, update version, replica:%d role:%s qtype:%s hver:%" PRIu64, pNode->vgId, pNode->replica,
          syncRole[nodeRole], qtypeStr[qtype], pWalHead->version);
   nodeVersion = pWalHead->version;
 

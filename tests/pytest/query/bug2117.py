@@ -33,14 +33,29 @@ class TDTestCase:
         for i in range(insertRows):
             ret = tdSql.execute(
                 "insert into mt0 values (%d , %d,%d,%d,%d,%d,%d,%d,'%s','%s')" %
-                (t0+i,i%100,i/2,i%41,i%100,i%100,i*1.0,i%2,'taos'+str(i%100),'涛思'+str(i%100)))
+                (t0+i,i%100,i/2.0,i%41,i%51,i%53,i*1.0,i%2,'taos'+str(i%43),'涛思'+str(i%41)))
         print("==========step2")
         print("test last with group by normal_col ")
-        tdSql.query('select last(c1) from mt0 group by c3')
-        tdSql.checkData(0,0,84)
-        tdSql.checkData(0,1,85)
-        
-
+        tdSql.query('select last(*) from mt0 group by c3')
+        tdSql.checkData(0,1,84)
+        tdSql.checkData(0,9,'涛思0')
+        tdSql.checkData(1,1,85)
+        tdSql.checkData(1,9,'涛思1')
+        tdSql.query('select last(*) from mt0 group by c7')
+        tdSql.checkData(0,1,98)
+        tdSql.checkData(0,9,'涛思14')
+        tdSql.checkData(1,1,99)
+        tdSql.checkData(1,9,'涛思15')
+        tdSql.query('select last(*) from mt0 group by c8')
+        tdSql.checkData(0,3,5)
+        tdSql.checkData(0,4,20)
+        tdSql.checkData(3,1,92)
+        tdSql.checkData(3,9,'涛思8')
+        tdSql.query('select last(*) from mt0 group by c9')
+        tdSql.checkData(0,3,0)
+        tdSql.checkData(0,8,'taos38')
+        tdSql.checkData(40,1,83)
+        tdSql.checkData(40,3,40)
         
     def stop(self):
         tdSql.close()

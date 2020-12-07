@@ -1310,7 +1310,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     SColumnIndex index = {.tableIndex = tableIndex};
 
     SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_ARITHM, &index, TSDB_DATA_TYPE_DOUBLE, sizeof(double),
-                                       -1000, sizeof(double), false);
+                                       getNewResColId(pQueryInfo), sizeof(double), false);
 
     char* name = (pItem->aliasName != NULL)? pItem->aliasName:pItem->pNode->token.z;
     size_t len = MIN(sizeof(pExpr->aliasName), pItem->pNode->token.n + 1);
@@ -3282,7 +3282,12 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
       ((pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) ? 1 : 0);
 
   if (pColFilter->filterstr) {
-    if (pExpr->nSQLOptr != TK_EQ && pExpr->nSQLOptr != TK_NE && pExpr->nSQLOptr != TK_LIKE) {
+    if (pExpr->nSQLOptr != TK_EQ
+      && pExpr->nSQLOptr != TK_NE
+      && pExpr->nSQLOptr != TK_ISNULL
+      && pExpr->nSQLOptr != TK_NOTNULL
+      && pExpr->nSQLOptr != TK_LIKE
+      ) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   } else {
@@ -5312,7 +5317,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
     // keep original limitation value in globalLimit
     pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
     pQueryInfo->prjOffset   = pQueryInfo->limit.offset;
-    pQueryInfo->tableLimit  = -1;
+    pQueryInfo->vgroupLimit = -1;
 
     if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
       /*
@@ -5322,7 +5327,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
        * than or equal to the value of limit.
        */
       if (pQueryInfo->limit.limit > 0) {
-        pQueryInfo->tableLimit = pQueryInfo->limit.limit + pQueryInfo->limit.offset;
+        pQueryInfo->vgroupLimit = pQueryInfo->limit.limit + pQueryInfo->limit.offset;
         pQueryInfo->limit.limit = -1;
       }
 

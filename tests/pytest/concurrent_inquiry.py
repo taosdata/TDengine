@@ -43,7 +43,8 @@ class ConcurrentInquiry:
         self.subtb_stru_list=[]
         self.stb_tag_list=[]
         self.subtb_tag_list=[]
-
+        self.probabilities = [0.95,0.05]
+        self.ifjoin = [0,1]
     def SetThreadsNum(self,num):
         self.numOfTherads=num
 
@@ -105,7 +106,7 @@ class ConcurrentInquiry:
         conn.close()  
         
     #query condition
-    def con_where(self,tlist):                               
+    def con_where(self,tlist,col_list,tag_list):                               
         l=[]
         for i in range(random.randint(0,len(tlist))):
             c = random.choice(where_list)
@@ -115,19 +116,26 @@ class ConcurrentInquiry:
                 l.append(random.choice(tlist)+c)
         return 'where '+random.choice([' and ',' or ']).join(l)
 
-    def con_interval(self,tlist):               
-        return random.choice(['interval(10s)','interval(10d)','interval(1n)'])
+    def con_interval(self,tlist,col_list,tag_list): 
+        interval = 'interval' + str(random.randint(0,100)) + random.choice(['a','s','d','w','n','y'])            
+        return interval
 
-    def con_limit(self,tlist):
-        return random.choice(['limit 10','limit 10 offset 10','slimit 10','slimit 10 offset 10','limit 10 slimit 10','limit 10 offset 5 slimit 5 soffset 10'])
+    def con_limit(self,tlist,col_list,tag_list):
+        rand1 = str(random.randint(0,1000))
+        rand2 = str(random.randint(0,1000))
+        return random.choice(['limit ' + rand1,'limit ' + rand1 + 'offset '+rand2,
+        'slimit ' + rand1,'slimit ' + rand1 + 'offset ' + rand2,'limit '+rand1 + 'slimit '+ rand2,
+        'limit '+ rand1 + 'offset' + rand2 + 'slimit '+ rand1 + 'soffset ' + rand2 ])
     
-    def con_fill(self,tlist):
+    def con_fill(self,tlist,col_list,tag_list):
         return random.choice(['fill(null)','fill(prev)','fill(none)','fill(LINEAR)'])
     
-    def con_group(self,tlist):
-        return 'group by '+random.choice(tlist)
+    def con_group(self,tlist,col_list,tag_list):
+        rand_tag = random.randint(0,5)
+        rand_col = random.randint(0,1)
+        return 'group by '+','.join(random.sample(col_list,rand_col))+','.join(random.sample(tag_list,rand_tag))
     
-    def con_order(self,tlist):
+    def con_order(self,tlist,col_list,tag_list):
         return 'order by '+random.choice(tlist)
     
     def gen_query_sql(self):                        #生成查询语句
@@ -158,21 +166,86 @@ class ConcurrentInquiry:
         sel_col_list=[]
         col_rand=random.randint(0,len(col_list))
         for i,j in zip(col_list[0:col_rand],func_list):         #决定每个被查询col的函数
+            alias = 'as '+ str(i)
+            pick_func = ''
             if j == 'leastsquares':
-                sel_col_list.append(j+'('+i+',1,1)')
+                pick_func=j+'('+i+',1,1)'
             elif j == 'top' or j == 'bottom' or j == 'percentile' or j == 'apercentile':
-                sel_col_list.append(j+'('+i+',1)')
+                pick_func=j+'('+i+',1)'
             else:
-                sel_col_list.append(j+'('+i+')')
+                pick_func=j+'('+i+')'
+            if bool(random.getrandbits(1)):
+                pick_func+=alias
+            sel_col_list.append(pick_func)
+            
         sql=sql+','.join(sel_col_list)+' from '+random.choice(self.stb_list+self.subtb_list)+' '                        #select col & func
         con_func=[self.con_where,self.con_interval,self.con_limit,self.con_group,self.con_order,self.con_fill]
         sel_con=random.sample(con_func,random.randint(0,len(con_func)))
         sel_con_list=[]
         for i in sel_con:
-            sel_con_list.append(i(tlist))                                  #获取对应的条件函数
+            sel_con_list.append(i(tlist,col_list,tag_list))                                  #获取对应的条件函数
         sql+=' '.join(sel_con_list)                                       # condition
         print(sql)
         return sql
+
+    def gen_query_join(self):                        #生成join查询语句
+        tbname   = []
+        col_list = []
+        tag_list = []
+        col_intersection = []
+        tag_intersection = []
+        
+
+        if bool(random.getrandbits(1)):
+            tbname = random.sample(self.subtb_list,2)
+            for i in tbname:
+                col_list.append(self.subtb_stru_list[self.subtb_list.index(i)])
+                tag_list.append(self.subtb_stru_list[self.subtb_list.index(i)])
+            col_intersection = list(set(col_list[0]).intersection(set(col_list[1])))
+            tag_intersection = list(set(tag_list[0]).intersection(set(tag_list[1])))
+        else:
+            tbname = random.sample(self.stb_list,2)
+            for i in tbname:
+                col_list.append(self.stb_stru_list[self.stb_list.index(i)])
+                tag_list.append(self.stb_stru_list[self.stb_list.index(i)])
+            col_intersection = list(set(col_list[0]).intersection(set(col_list[1])))
+            tag_intersection = list(set(tag_list[0]).intersection(set(tag_list[1])))
+        
+        
+        con_rand=random.randint(0,len(condition_list))
+        col_rand=random.randint(0,len(col_list))
+        tag_rand=random.randint(0,len(tag_list))
+        
+        sql='select '                                           #select 
+        
+        sel_col_tag=[]
+        col_rand=random.randint(0,len(col_list))
+        if bool(random.getrandbits(1)):
+            sql += '*'
+        else:
+            sel_col_tag.append('t1.' + str(random.choice(col_list[0] + tag_list[0])))
+            sel_col_tag.append('t2.' + str(random.choice(col_list[1] + tag_list[1])))
+            sql += ','.join(sel_col_tag)
+
+        sql = sql + 'from '+ ','.join(tbname) + ' '                        #select col & func
+        con_func=[self.con_where,self.con_interval,self.con_limit,self.con_group,self.con_order,self.con_fill]
+        sel_con=random.sample(con_func,random.randint(0,len(con_func)))
+        sel_con_list=[]
+        
+        # for i in sel_con:
+        #     sel_con_list.append(i(tlist,col_list,tag_list))                                  #获取对应的条件函数
+        sql+=' '.join(sel_con_list)                                       # condition
+        print(sql)
+        return sql
+
+    def random_pick(self): 
+        x = random.uniform(0,1) 
+        cumulative_probability = 0.0 
+        for item, item_probability in zip(self.ifjoin, self.probabilities): 
+            cumulative_probability += item_probability 
+            if x < cumulative_probability:break 
+        return item
+        
 
     def rest_query(self,sql):                                       #rest 接口
         host = "127.0.0.1"
@@ -210,6 +283,7 @@ class ConcurrentInquiry:
         nRows = rj['rows'] if ('rows' in rj) else 0
         return nRows
 
+    
     def query_thread_n(self,threadID):                      #使用原生python接口查询
         host = "127.0.0.1"
         user = "root"
@@ -227,7 +301,10 @@ class ConcurrentInquiry:
         while True:
             
                 try:
-                    sql=self.gen_query_sql()
+                    if self.random_pick():
+                        sql=self.gen_query_sql()
+                    else:
+                        sql=self.gen_query_join()
                     print("sql is ",sql)
                     start = time.time()
                     cl.execute(sql)
@@ -247,7 +324,10 @@ class ConcurrentInquiry:
         print("Thread %d: starting" % threadID)
         while True:
                 try:
-                    sql=self.gen_query_sql()
+                    if self.random_pick():
+                        sql=self.gen_query_sql()
+                    else:
+                        sql=self.gen_query_join()
                     print("sql is ",sql)
                     start = time.time()
                     self.rest_query(sql)
@@ -270,7 +350,6 @@ class ConcurrentInquiry:
             threads.append(thread)
             thread.start()  
         for i in range(self.r_numOfTherads):
-        # for i in range(1):
             thread = threading.Thread(target=self.query_thread_r, args=(i,))
             threads.append(thread)
             thread.start()

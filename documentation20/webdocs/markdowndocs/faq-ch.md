@@ -36,16 +36,20 @@
 
 5. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件
 
-6. 检查防火墙设置，确认TCP/UDP 端口6030-6042 是打开的
+6. 检查防火墙设置（Ubuntu 使用 ufw status，CentOS 使用 firewall-cmd --list-port），确认TCP/UDP 端口6030-6042 是打开的
 
 7. 对于Linux上的JDBC（ODBC, Python, Go等接口类似）连接, 确保*libtaos.so*在目录*/usr/local/taos/driver*里, 并且*/usr/local/taos/driver*在系统库函数搜索路径*LD_LIBRARY_PATH*里 
 
 8. 对于windows上的JDBC, ODBC, Python, Go等连接，确保*C:\TDengine\driver\taos.dll*在你的系统库函数搜索目录里 (建议*taos.dll*放在目录 *C:\Windows\System32*)
 
-9. 如果仍不能排除连接故障，请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
-   检查UDP端口连接是否工作：`nc -vuz {hostIP} {port} `
-   检查服务器侧TCP端口连接是否工作：`nc -l {port}`
-   检查客户端侧TCP端口连接是否工作：`nc {hostIP} {port}`
+9. 如果仍不能排除连接故障
+   
+   * Linux 系统请使用命令行工具nc来分别判断指定端口的TCP和UDP连接是否通畅
+     检查UDP端口连接是否工作：`nc -vuz {hostIP} {port} `
+     检查服务器侧TCP端口连接是否工作：`nc -l {port}`
+     检查客户端侧TCP端口连接是否工作：`nc {hostIP} {port}`
+   
+   * Windows 系统请使用 PowerShell 命令 Net-TestConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
    
 10. 也可以使用taos程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅（包括TCP和UDP）：[TDengine 内嵌网络检测工具使用指南](https://www.taosdata.com/blog/2020/09/08/1816.html)。
 
@@ -113,7 +117,17 @@ Connection = DriverManager.getConnection(url, properties);
 
 
 
-## 16. 怎么报告问题？
+## 16. 如何进行数据迁移？
+
+TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A移动机器B时，注意如下两件事：
+
+- 2.0.0.0 至 2.0.6.x 的版本，重新配置机器B的hostname为机器A的hostname
+- 2.0.7.0 及以后的版本，到/var/lib/taos/dnode下，修复dnodeEps.json的dnodeId对应的FQDN，重启。确保机器内所有机器的此文件是完全相同的。
+- 1.x 和 2.x 版本的存储结构不兼容，需要使用迁移工具或者自己开发应用导出导入数据。
+
+
+
+## 17. 怎么报告问题？
 
 如果 FAQ 中的信息不能够帮到您，需要 TDengine 技术团队的技术支持与协助，请将以下两个目录中内容打包:
 1. /var/log/taos

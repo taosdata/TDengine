@@ -92,7 +92,7 @@ typedef struct SVgroupTableInfo {
 } SVgroupTableInfo;
 
 static FORCE_INLINE SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex) {
-  assert(pCmd != NULL && subClauseIndex >= 0 && subClauseIndex < TSDB_MAX_UNION_CLAUSE);
+  assert(pCmd != NULL && subClauseIndex >= 0);
 
   if (pCmd->pQueryInfo == NULL || subClauseIndex >= pCmd->numOfClause) {
     return NULL;
@@ -110,11 +110,12 @@ SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint
                                    uint32_t offset);
 
 void*   tscDestroyBlockArrayList(SArray* pDataBlockList);
+void*   tscDestroyBlockHashTable(SHashObj* pBlockHashTable);
+
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
-int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pDataList);
-int32_t tscGetDataBlockFromList(void* pHashList, SArray* pDataBlockList, int64_t id, int32_t size,
-                                int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
-                                STableDataBlocks** dataBlocks);
+int32_t tscMergeTableDataBlocks(SSqlObj* pSql);
+int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
+                                STableDataBlocks** dataBlocks, SArray* pBlockList);
 
 /**
  * for the projection query on metric or point interpolation query on metric,
@@ -274,6 +275,8 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 
 bool hasMoreVnodesToTry(SSqlObj *pSql);
 bool hasMoreClauseToTry(SSqlObj* pSql);
+
+void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeFromCache);
 
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);

@@ -317,13 +317,6 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
-#ifndef _SYNC
-  if (pCfg->replications != 1) {
-    mError("invalid db option replications:%d can only be 1 in this version", pCfg->replications);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
-  }
-#endif
-
   if (pCfg->update < TSDB_MIN_DB_UPDATE || pCfg->update > TSDB_MAX_DB_UPDATE) {
     mError("invalid db option update:%d valid range: [%d, %d]", pCfg->update, TSDB_MIN_DB_UPDATE, TSDB_MAX_DB_UPDATE);
     return TSDB_CODE_MND_INVALID_DB_OPTION;

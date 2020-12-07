@@ -105,10 +105,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_AUTH, "auth" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY12, "dummy12" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY13, "dummy13" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY14, "dummy14" )
-
-  
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "network-test" )
-
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
 
 #ifndef TAOS_MESSAGE_C
   TSDB_MSG_TYPE_MAX  // 105
@@ -476,7 +473,7 @@ typedef struct {
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
-  int64_t     tableLimit;       // limit the number of rows for each table, used in order by + limit in stable projection query.
+  int64_t     vgroupLimit;       // limit the number of rows for each table, used in order by + limit in stable projection query.
   int16_t     prjOrder;         // global order in super table projection query.
   int64_t     limit;
   int64_t     offset;
@@ -790,6 +787,7 @@ typedef struct {
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
+  char     dstTable[TSDB_TABLE_NAME_LEN];
   uint32_t streamId;
   int64_t  num;  // number of computing/cycles
   int64_t  useconds;
@@ -839,6 +837,14 @@ typedef struct {
   char secret[TSDB_KEY_LEN];
   char ckey[TSDB_KEY_LEN];
 } SAuthMsg, SAuthRsp;
+
+typedef struct {
+  int8_t  finished;
+  int8_t  reserved1[7];
+  char    name[TSDB_STEP_NAME_LEN];
+  char    desc[TSDB_STEP_DESC_LEN];
+  char    reserved2[64];
+} SStartupStep;
 
 #pragma pack(pop)
 

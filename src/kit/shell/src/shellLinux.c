@@ -39,6 +39,7 @@ static struct argp_option options[] = {
   {"user",       'u', "USER",       0,                   "The user name to use when connecting to the server."},
   {"user",       'A', "Auth",       0,                   "The user auth to use when connecting to the server."},
   {"config-dir", 'c', "CONFIG_DIR", 0,                   "Configuration directory."},
+  {"dump-config", 'C', 0,           0,                   "Dump configuration."},
   {"commands",   's', "COMMANDS",   0,                   "Commands to run without enter the shell."},
   {"raw-time",   'r', 0,            0,                   "Output time as uint64_t."},
   {"file",       'f', "FILE",       0,                   "Script to run without enter the shell."},
@@ -46,8 +47,7 @@ static struct argp_option options[] = {
   {"thread",     'T', "THREADNUM",  0,                   "Number of threads when using multi-thread to import data."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   't', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
-  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is NULL, options: client|clients|server."},
-  {"endport",    'e', "ENDPORT",    0,                   "Net test end port, default is 6042."},
+  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup."},
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {0}};
 
@@ -97,6 +97,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       tstrncpy(configDir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
+    case 'C':
+      arguments->dump_config = true;
+      break;
     case 's':
       arguments->commands = arg;
       break;
@@ -130,20 +133,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case 'd':
       arguments->database = arg;
       break;
-
     case 'n':
       arguments->netTestRole = arg;
       break;
-
-    case 'e':
-      if (arg) {
-        arguments->endPort = atoi(arg);
-      } else {
-        fprintf(stderr, "Invalid end port\n");
-        return -1;
-      }
-      break;
-
     case 'l':
       if (arg) {
         arguments->pktLen = atoi(arg);
@@ -152,7 +144,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         return -1;
       }
       break;
-      
     case OPT_ABORT:
       arguments->abort = 1;
       break;
