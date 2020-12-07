@@ -92,6 +92,7 @@ void dnodeDispatchToVReadQueue(SRpcMsg *pMsg) {
     pHead->vgId = htonl(pHead->vgId);
     pHead->contLen = htonl(pHead->contLen);
 
+    assert(pHead->contLen > 0);
     void *pVnode = vnodeAcquire(pHead->vgId);
     if (pVnode != NULL) {
       int32_t code = vnodeWriteToRQueue(pVnode, pCont, pHead->contLen, TAOS_QTYPE_RPC, pMsg);

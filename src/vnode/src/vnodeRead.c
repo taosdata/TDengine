@@ -415,7 +415,7 @@ int32_t vnodeNotifyCurrentQhandle(void *handle, void *qhandle, int32_t vgId) {
   pCancelMsg->header.contLen = htonl(sizeof(SCancelQueryMsg));
 
   vDebug("QInfo:%p register qhandle to connect:%p", qhandle, handle);
-  return rpcReportProgress(handle, (char *)pCancelMsg, sizeof(SRetrieveTableMsg));
+  return rpcReportProgress(handle, (char *)pCancelMsg, sizeof(SCancelQueryMsg));
 }
 
 int32_t vnodeProcessCancelMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
@@ -451,6 +451,5 @@ int32_t vnodeProcessCancelMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
 
   vnodeBuildNoResultQueryRsp(pRet);
-  code = TSDB_CODE_TSC_QUERY_CANCELLED;
-  return code;
+  return TSDB_CODE_TSC_QUERY_CANCELLED;
 }
