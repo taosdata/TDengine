@@ -382,6 +382,7 @@ typedef struct SSqlObj {
 
 typedef struct SSqlStream {
   SSqlObj *pSql;
+  const char* dstTable;
   uint32_t streamId;
   char     listed;
   bool     isProject;
@@ -407,6 +408,8 @@ typedef struct SSqlStream {
   void (*callback)(void *);  // Callback function when stream is stopped from client level
   struct SSqlStream *prev, *next;
 } SSqlStream;
+
+void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 
 int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn);
 void    tscInitMsgsFp();
