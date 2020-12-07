@@ -362,9 +362,8 @@ int32_t vnodeOpen(int32_t vnode, char *rootDir) {
   pVnode->role = TAOS_SYNC_ROLE_MASTER;
 #else
   if (pVnode->sync <= 0) {
-    vError("vgId:%d, failed to open sync module, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
+    vError("vgId:%d, failed to open sync, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
            tstrerror(terrno));
-    vnodeRelease(pVnode);
     vnodeCleanUp(pVnode);
     return terrno;
   }

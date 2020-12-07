@@ -1633,7 +1633,7 @@ void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen)
 
 int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
   int32_t maxRowSize = MAX(rowSize, finalRowSize);
-  char* pbuf = calloc(1, pOutput->num * maxRowSize);
+  char* pbuf = calloc(1, (size_t)(pOutput->num * maxRowSize));
 
   size_t size = tscNumOfFields(pQueryInfo);
   SArithmeticSupport arithSup = {0};
@@ -1660,13 +1660,13 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
       tExprTreeCalcTraverse(arithSup.pArithExpr->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
     } else {
       SSqlExpr* pExpr = pSup->pSqlExpr;
-      memcpy(pbuf + pOutput->num * offset, pExpr->offset * pOutput->num + pOutput->data, pExpr->resBytes * pOutput->num);
+      memcpy(pbuf + pOutput->num * offset, pExpr->offset * pOutput->num + pOutput->data, (size_t)(pExpr->resBytes * pOutput->num));
     }
 
     offset += pSup->field.bytes;
   }
 
-  memcpy(pOutput->data, pbuf, pOutput->num * offset);
+  memcpy(pOutput->data, pbuf, (size_t)(pOutput->num * offset));
 
   tfree(pbuf);
   tfree(arithSup.data);
