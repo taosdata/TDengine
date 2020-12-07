@@ -366,7 +366,7 @@ int taosReadQitemFromQset(taos_qset param, int *type, void **pitem, void **phand
         queue->numOfItems--;
         atomic_sub_fetch_32(&qset->numOfItems, 1);
         code = 1;
-        uTrace("item:%p is read out from queue:%p, type:%d items:%d", *pitem, queue, *type, queue->numOfItems);
+        uTrace("item:%p is read out from queue:%p, type:%d items:%d", *pitem, queue, pNode->type, queue->numOfItems);
     } 
 
     pthread_mutex_unlock(&queue->mutex);
