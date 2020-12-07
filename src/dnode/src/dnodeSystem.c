@@ -16,9 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tgrant.h"
-#include "tutil.h"
-#include "tglobal.h"
-#include "dnodeInt.h"
 #include "dnodeMain.h"
 
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);

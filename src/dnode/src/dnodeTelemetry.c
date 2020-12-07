@@ -15,9 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
-#include "tglobal.h"
-#include "tutil.h"
 #include "osTime.h"
 #include "tsocket.h"
 #include "tbuffer.h"
@@ -32,8 +29,6 @@
 #include "mnodeTable.h"
 #include "mnodeSdb.h"
 #include "mnodeAcct.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeTelemetry.h"
 
 static tsem_t tsExitSem;

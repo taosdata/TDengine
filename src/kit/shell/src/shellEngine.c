@@ -32,14 +32,14 @@
 /**************** Global variables ****************/
 #ifdef _TD_POWER_
 char      CLIENT_VERSION[] = "Welcome to the PowerDB shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2017 by PowerDB, Inc. All rights reserved.\n\n";
+                             "Copyright (c) 2020 by PowerDB, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "power> ";
 
 char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 7;
 #else
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2017 by TAOS Data, Inc. All rights reserved.\n\n";
+                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
 
 char      CONTINUE_PROMPT[] = "   -> ";

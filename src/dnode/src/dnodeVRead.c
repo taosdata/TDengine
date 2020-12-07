@@ -15,12 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
-#include "taosmsg.h"
-#include "tglobal.h"
 #include "tqueue.h"
-#include "vnode.h"
-#include "dnodeInt.h"
+#include "dnodeVRead.h"
 
 typedef struct {
   pthread_t thread;    // thread
