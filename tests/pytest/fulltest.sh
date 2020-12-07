@@ -162,7 +162,8 @@ python3 ./test.py -f query/bug1876.py
 python3 ./test.py -f query/bug2218.py
 python3 ./test.py -f query/bug2117.py
 python3 ./test.py -f query/bug2143.py
-python3 ./test.py -f query/sliding.py 
+python3 ./test.py -f query/sliding.py
+python3 ./test.py -f query/unionAllTest.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -179,6 +180,7 @@ python3 ./test.py -f alter/alter_table_crash.py
 python3 ./test.py -f client/client.py
 python3 ./test.py -f client/version.py
 python3 ./test.py -f client/alterDatabase.py
+python3 ./test.py -f client/noConnectionErrorTest.py
 
 # Misc
 python3 testCompress.py
@@ -213,6 +215,7 @@ python3 test.py -f query/queryFillTest.py
 python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdumpTest.py
 python3 test.py -f tools/lowaTest.py
+python3 test.py -f tools/taosdemoTest2.py
 
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
