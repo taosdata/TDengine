@@ -114,7 +114,7 @@ void vnodeRelease(void *vparam) {
     }
   } else {
     vDebug("vgId:%d, vnode will be destroyed, refCount:%d pVnode:%p", pVnode->vgId, refCount, pVnode);
-    vnodeDestroy(pVnode);
+    vnodeDestroyInMWorker(pVnode);
     int32_t count = taosHashGetSize(tsVnodesHash);
     vDebug("vgId:%d, vnode is destroyed, vnodes:%d", pVnode->vgId, count);
   }

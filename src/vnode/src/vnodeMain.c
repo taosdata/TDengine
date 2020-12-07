@@ -114,7 +114,7 @@ int32_t vnodeDrop(int32_t vgId) {
   // remove from hash, so new messages wont be consumed
   vnodeRemoveFromHash(pVnode);
   vnodeRelease(pVnode);
-  vnodeCleanUp(pVnode);
+  vnodeCleanupInMWorker(pVnode);
 
   return TSDB_CODE_SUCCESS;
 }
