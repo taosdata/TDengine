@@ -20,41 +20,38 @@
 extern "C" {
 #endif
 
-#include "os.h"
-#include "tutil.h"
-#include "tglobal.h"
-
 #define MAX_NOTE_LINE_SIZE 66000
 #define NOTE_FILE_NAME_LEN 300
-  
-typedef struct _taosNoteInfo {
-  int  taosNoteFileNum ;
-  int  taosNoteMaxLines;
-  int  taosNoteLines;
-  char taosNoteName[NOTE_FILE_NAME_LEN];
-  int  taosNoteFlag;
-  int  taosNoteFd;
-  int  taosNoteOpenInProgress;
-  pthread_mutex_t taosNoteMutex;
-}taosNoteInfo;
-  
-void taosNotePrint(taosNoteInfo * pNote, const char * const format, ...);
 
-extern taosNoteInfo  m_HttpNote;
-extern taosNoteInfo  m_TscNote;
+typedef struct {
+  int32_t fileNum;
+  int32_t maxLines;
+  int32_t lines;
+  int32_t flag;
+  int32_t fd;
+  int32_t openInProgress;
+  char    name[NOTE_FILE_NAME_LEN];
+  pthread_mutex_t mutex;
+} SNoteObj;
 
-extern int   tsHttpEnableRecordSql;
-extern int   tsTscEnableRecordSql;
+extern SNoteObj tsHttpNote;
+extern SNoteObj tsTscNote;
+extern SNoteObj tsErrorNote;
 
-#define taosNotePrintHttp(...)               \
+void taosInitNotes();
+void taosNotePrint(SNoteObj* pNote, const char* const format, ...);
+
+#define nPrintHttp(...)                      \
   if (tsHttpEnableRecordSql) {               \
-    taosNotePrint(&m_HttpNote, __VA_ARGS__); \
+    taosNotePrint(&tsHttpNote, __VA_ARGS__); \
   }
-    
-#define taosNotePrintTsc(...)                 \
-    if (tsTscEnableRecordSql) {               \
-      taosNotePrint(&m_TscNote, __VA_ARGS__); \
-    }
+
+#define nPrintTsc(...)                      \
+  if (tsTscEnableRecordSql) {               \
+    taosNotePrint(&tsTscNote, __VA_ARGS__); \
+  }
+
+#define nError(...) taosNotePrint(&tsErrorNote, __VA_ARGS__);
 
 #ifdef __cplusplus
 }
