@@ -23,8 +23,8 @@ extern "C" {
 
 int32_t vnodeInitMWorker();
 void    vnodeCleanupMWorker();
-int32_t vnodeOpenInMWorker(int32_t vgId, void *rpcHandle);
-int32_t vnodeCleanupInMWorker(int32_t vgId, void *rpcHandle);
+int32_t vnodeCleanupInMWorker(SVnodeObj *pVnode);
+int32_t vnodeDestroyInMWorker(SVnodeObj *pVnode);
 
 #ifdef __cplusplus
 }
