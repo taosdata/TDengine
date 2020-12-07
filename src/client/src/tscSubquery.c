@@ -2263,6 +2263,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
     if (code != TSDB_CODE_SUCCESS) {
       pParentObj->res.code = code;
+      doFreeInsertSupporter(pParentObj);
       tscQueueAsyncRes(pParentObj);
       return;
     }
