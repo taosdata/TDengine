@@ -37,16 +37,10 @@
 #include "mnodeShow.h"
 #include "mnodeProfile.h"
 
-typedef struct {
-  const char *const name;
-  int               (*init)();
-  void              (*cleanup)();
-} SMnodeComponent;
-
 void *tsMnodeTmr = NULL;
 static bool tsMgmtIsRunning = false;
 
-static const SMnodeComponent tsMnodeComponents[] = {
+static SStep tsMnodeSteps[] = {
   {"sdbref",  sdbInitRef,       sdbCleanUpRef},
   {"profile", mnodeInitProfile, mnodeCleanupProfile},
   {"cluster", mnodeInitCluster, mnodeCleanupCluster},
@@ -67,22 +61,14 @@ static void mnodeInitTimer();
 static void mnodeCleanupTimer();
 static bool mnodeNeedStart() ;
 
-static void mnodeCleanupComponents(int32_t stepId) {
-  for (int32_t i = stepId; i >= 0; i--) {
-    tsMnodeComponents[i].cleanup();
-  }
+static void mnodeCleanupComponents() {
+  int32_t stepSize = sizeof(tsMnodeSteps) / sizeof(SStep);
+  dnodeStepCleanup(tsMnodeSteps, stepSize);
 }
 
 static int32_t mnodeInitComponents() {
-  int32_t code = 0;
-  for (int32_t i = 0; i < sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]); i++) {
-    if (tsMnodeComponents[i].init() != 0) {
-      mnodeCleanupComponents(i);
-      code = -1;
-      break;
-    }
-  }
-  return code;
+  int32_t stepSize = sizeof(tsMnodeSteps) / sizeof(SStep);
+  return dnodeStepInit(tsMnodeSteps, stepSize);
 }
 
 int32_t mnodeStartSystem() {
@@ -132,7 +118,7 @@ void mnodeCleanupSystem() {
     dnodeFreeMReadQueue();
     dnodeFreeMPeerQueue();
     mnodeCleanupTimer();
-    mnodeCleanupComponents(sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]) - 1);
+    mnodeCleanupComponents();
 
     mInfo("mnode is cleaned up");
   }

@@ -5877,7 +5877,7 @@ static void doSecondaryArithmeticProcess(SQuery* pQuery) {
   tFilePage **data = calloc(pQuery->numOfExpr2, POINTER_BYTES);
   for (int32_t i = 0; i < pQuery->numOfExpr2; ++i) {
     int32_t bytes = pQuery->pExpr2[i].bytes;
-    data[i] = (tFilePage *)malloc(bytes * pQuery->rec.rows + sizeof(tFilePage));
+    data[i] = (tFilePage *)malloc((size_t)(bytes * pQuery->rec.rows) + sizeof(tFilePage));
   }
 
   arithSup.offset = 0;
@@ -5899,7 +5899,7 @@ static void doSecondaryArithmeticProcess(SQuery* pQuery) {
       for (int32_t j = 0; j < pQuery->numOfOutput; ++j) {
         if (pSqlFunc->functionId == pQuery->pExpr1[j].base.functionId &&
             pSqlFunc->colInfo.colId == pQuery->pExpr1[j].base.colInfo.colId) {
-          memcpy(data[i]->data, pQuery->sdata[j]->data, pQuery->pExpr1[j].bytes * pQuery->rec.rows);
+          memcpy(data[i]->data, pQuery->sdata[j]->data, (size_t)(pQuery->pExpr1[j].bytes * pQuery->rec.rows));
           break;
         }
       }
@@ -5911,7 +5911,7 @@ static void doSecondaryArithmeticProcess(SQuery* pQuery) {
   }
 
   for (int32_t i = 0; i < pQuery->numOfExpr2; ++i) {
-    memcpy(pQuery->sdata[i]->data, data[i]->data, pQuery->pExpr2[i].bytes * pQuery->rec.rows);
+    memcpy(pQuery->sdata[i]->data, data[i]->data, (size_t)(pQuery->pExpr2[i].bytes * pQuery->rec.rows));
   }
 
   for (int32_t i = 0; i < pQuery->numOfExpr2; ++i) {
@@ -7606,30 +7606,30 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-#if _NON_BLOCKING_RETRIEVE
-  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-
-  pthread_mutex_lock(&pQInfo->lock);
-  assert(pQInfo->rspContext == NULL);
-
-  if (pQInfo->dataReady == QUERY_RESULT_READY) {
+  if (tsHalfCoresForQuery) {
+    tsem_wait(&pQInfo->ready);
     *buildRes = true;
-    qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%"PRId64", code:%d", pQInfo, pQuery->rowSize, pQuery->rec.rows,
-           pQInfo->code);
+    code = pQInfo->code;
   } else {
-    *buildRes = false;
-    qDebug("QInfo:%p retrieve req set query return result after paused", pQInfo);
-    pQInfo->rspContext = pRspContext;
-    assert(pQInfo->rspContext != NULL);
-  }
+    SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
-  code = pQInfo->code;
-  pthread_mutex_unlock(&pQInfo->lock);
-#else
-  tsem_wait(&pQInfo->ready);
-  *buildRes = true;
-  code = pQInfo->code;
-#endif
+    pthread_mutex_lock(&pQInfo->lock);
+    assert(pQInfo->rspContext == NULL);
+
+    if (pQInfo->dataReady == QUERY_RESULT_READY) {
+      *buildRes = true;
+      qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%" PRId64 ", code:%d", pQInfo, pQuery->rowSize,
+             pQuery->rec.rows, pQInfo->code);
+    } else {
+      *buildRes = false;
+      qDebug("QInfo:%p retrieve req set query return result after paused", pQInfo);
+      pQInfo->rspContext = pRspContext;
+      assert(pQInfo->rspContext != NULL);
+    }
+
+    code = pQInfo->code;
+    pthread_mutex_unlock(&pQInfo->lock);
+  }
 
   return code;
 }

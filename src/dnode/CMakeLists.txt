@@ -12,7 +12,7 @@ AUX_SOURCE_DIRECTORY(src SRC)
 
 IF (TD_LINUX)
   ADD_EXECUTABLE(taosd ${SRC})
-  TARGET_LINK_LIBRARIES(taosd mnode monitor http tsdb twal vnode cJson lz4)
+  TARGET_LINK_LIBRARIES(taosd mnode monitor http tsdb twal vnode cJson lz4 balance sync)
 
   IF (TD_SOMODE_STATIC)
     TARGET_LINK_LIBRARIES(taosd taos_static)
@@ -30,10 +30,6 @@ IF (TD_LINUX)
 
   IF (TD_MQTT)
     TARGET_LINK_LIBRARIES(taosd mqtt)
-  ENDIF ()
-
-  IF (TD_SYNC)
-    TARGET_LINK_LIBRARIES(taosd balance sync)
   ENDIF ()
 
   SET(PREPARE_ENV_CMD "prepare_env_cmd")

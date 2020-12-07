@@ -15,8 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "tglobal.h"
-#include "dnodeInt.h"
 #include "dnodeCheck.h"
 
 typedef struct {
