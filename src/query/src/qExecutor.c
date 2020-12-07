@@ -5479,6 +5479,12 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
     //      return;
     //    }
 
+    if (pQuery->prjInfo.vgroupLimit != -1) {
+      assert(pQuery->limit.limit == -1 && pQuery->limit.offset == 0);
+    } else if (pQuery->limit.limit != -1) {
+      assert(pQuery->prjInfo.vgroupLimit == -1);
+    }
+
     bool hasMoreBlock = true;
     int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
     SQueryCostInfo *summary = &pRuntimeEnv->summary;
@@ -5491,7 +5497,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
       tsdbRetrieveDataBlockInfo(pQueryHandle, &blockInfo);
       STableQueryInfo **pTableQueryInfo =
-          (STableQueryInfo **)taosHashGet(pQInfo->tableqinfoGroupInfo.map, &blockInfo.tid, sizeof(blockInfo.tid));
+          (STableQueryInfo **) taosHashGet(pQInfo->tableqinfoGroupInfo.map, &blockInfo.tid, sizeof(blockInfo.tid));
       if (pTableQueryInfo == NULL) {
         break;
       }
@@ -5501,6 +5507,25 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
       if (pRuntimeEnv->hasTagResults) {
         setTagVal(pRuntimeEnv, pQuery->current->pTable, pQInfo->tsdb);
+      }
+
+      if (pQuery->prjInfo.vgroupLimit > 0 && pQuery->current->windowResInfo.size > pQuery->prjInfo.vgroupLimit) {
+        pQuery->current->lastKey =
+                QUERY_IS_ASC_QUERY(pQuery) ? blockInfo.window.ekey + step : blockInfo.window.skey + step;
+        continue;
+      }
+
+      // it is a super table ordered projection query, check for the number of output for each vgroup
+      if (pQuery->prjInfo.vgroupLimit > 0 && pQuery->rec.rows >= pQuery->prjInfo.vgroupLimit) {
+        if (QUERY_IS_ASC_QUERY(pQuery) && blockInfo.window.skey >= pQuery->prjInfo.ts) {
+          pQuery->current->lastKey =
+                  QUERY_IS_ASC_QUERY(pQuery) ? blockInfo.window.ekey + step : blockInfo.window.skey + step;
+          continue;
+        } else if (!QUERY_IS_ASC_QUERY(pQuery) && blockInfo.window.ekey <= pQuery->prjInfo.ts) {
+          pQuery->current->lastKey =
+                  QUERY_IS_ASC_QUERY(pQuery) ? blockInfo.window.ekey + step : blockInfo.window.skey + step;
+          continue;
+        }
       }
 
       uint32_t     status = 0;
@@ -5520,6 +5545,8 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       }
 
       ensureOutputBuffer(pRuntimeEnv, &blockInfo);
+      int64_t prev = getNumOfResult(pRuntimeEnv);
+
       pQuery->pos = QUERY_IS_ASC_QUERY(pQuery) ? 0 : blockInfo.rows - 1;
       int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, &blockInfo, pStatis, binarySearchForKey, pDataBlock);
 
@@ -5530,17 +5557,30 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
       pQuery->rec.rows = getNumOfResult(pRuntimeEnv);
 
+      int64_t inc = pQuery->rec.rows - prev;
+      pQuery->current->windowResInfo.size += inc;
+
       // the flag may be set by tableApplyFunctionsOnBlock, clear it here
       CLEAR_QUERY_STATUS(pQuery, QUERY_COMPLETED);
 
       updateTableIdInfo(pQuery, pQInfo->arrTableIdInfo);
-      skipResults(pRuntimeEnv);
 
-      // the limitation of output result is reached, set the query completed
-      if (limitResults(pRuntimeEnv)) {
-        setQueryStatus(pQuery, QUERY_COMPLETED);
-        SET_STABLE_QUERY_OVER(pQInfo);
-        break;
+      if (pQuery->prjInfo.vgroupLimit >= 0) {
+        if (((pQuery->rec.rows + pQuery->rec.total) < pQuery->prjInfo.vgroupLimit) || ((pQuery->rec.rows + pQuery->rec.total) > pQuery->prjInfo.vgroupLimit && prev < pQuery->prjInfo.vgroupLimit)) {
+          if (QUERY_IS_ASC_QUERY(pQuery) && pQuery->prjInfo.ts < blockInfo.window.ekey) {
+            pQuery->prjInfo.ts = blockInfo.window.ekey;
+          } else if (!QUERY_IS_ASC_QUERY(pQuery) && pQuery->prjInfo.ts > blockInfo.window.skey) {
+            pQuery->prjInfo.ts = blockInfo.window.skey;
+          }
+        }
+      } else {
+        // the limitation of output result is reached, set the query completed
+        skipResults(pRuntimeEnv);
+        if (limitResults(pRuntimeEnv)) {
+          setQueryStatus(pQuery, QUERY_COMPLETED);
+          SET_STABLE_QUERY_OVER(pQInfo);
+          break;
+        }
       }
 
       // while the output buffer is full or limit/offset is applied, query may be paused here
@@ -6284,7 +6324,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
   pQueryMsg->interval.offset = htobe64(pQueryMsg->interval.offset);
   pQueryMsg->limit = htobe64(pQueryMsg->limit);
   pQueryMsg->offset = htobe64(pQueryMsg->offset);
-  pQueryMsg->tableLimit = htobe64(pQueryMsg->tableLimit);
+  pQueryMsg->vgroupLimit = htobe64(pQueryMsg->vgroupLimit);
 
   pQueryMsg->order = htons(pQueryMsg->order);
   pQueryMsg->orderColId = htons(pQueryMsg->orderColId);
@@ -6885,6 +6925,8 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
   pQuery->fillType        = pQueryMsg->fillType;
   pQuery->numOfTags       = pQueryMsg->numOfTags;
   pQuery->tagColList      = pTagCols;
+  pQuery->prjInfo.vgroupLimit = pQueryMsg->vgroupLimit;
+  pQuery->prjInfo.ts      = (pQueryMsg->order == TSDB_ORDER_ASC)? INT64_MIN:INT64_MAX;
 
   pQuery->colList = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQuery->colList == NULL) {

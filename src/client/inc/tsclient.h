@@ -136,7 +136,7 @@ typedef struct SSqlExpr {
   int16_t   numOfParams;    // argument value of each function
   tVariant  param[3];       // parameters are not more than 3
   int32_t   offset;         // sub result column value of arithmetic expression.
-  int16_t   resColId;          // result column id
+  int16_t   resColId;       // result column id
 } SSqlExpr;
 
 typedef struct SColumnIndex {
@@ -252,7 +252,7 @@ typedef struct SQueryInfo {
   int64_t          clauseLimit;   // limit for current sub clause
 
   int64_t          prjOffset;     // offset value in the original sql expression, only applied at client side
-  int64_t          tableLimit;    // table limit in case of super table projection query + global order + limit
+  int64_t          vgroupLimit;    // table limit in case of super table projection query + global order + limit
 
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
   int16_t          resColumnId;   // result column id

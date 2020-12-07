@@ -140,6 +140,11 @@ typedef struct SQueryCostInfo {
   uint64_t numOfTimeWindows;
 } SQueryCostInfo;
 
+typedef struct {
+  int64_t vgroupLimit;
+  int64_t ts;
+} SOrderedPrjQueryInfo;
+
 typedef struct SQuery {
   int16_t          numOfCols;
   int16_t          numOfTags;
@@ -167,6 +172,7 @@ typedef struct SQuery {
   tFilePage**      sdata;
   STableQueryInfo* current;
 
+  SOrderedPrjQueryInfo prjInfo;  // limit value for each vgroup, only available in global order projection query.
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;
 
