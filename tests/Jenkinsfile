@@ -140,7 +140,7 @@ pipeline {
             date'''
           }
         }
-       stage('connector'){
+       stage('p2'){
          agent{label "p2"}
          steps{
             sh'''
