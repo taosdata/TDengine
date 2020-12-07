@@ -61,8 +61,7 @@ SShellArguments args = {
   .file = "\0",
   .dir = "\0",
   .threadNum = 5,
-  .commands = NULL,  
-  .endPort = 6042,
+  .commands = NULL,
   .pktLen = 1000,
   .netTestRole = NULL
 };
@@ -81,9 +80,7 @@ int main(int argc, char* argv[]) {
 
   if (args.netTestRole && args.netTestRole[0] != 0) {
     taos_init();
-    CmdArguments cmdArgs;
-    memcpy(&cmdArgs, &args, sizeof(SShellArguments));
-    taosNetTest(&cmdArgs);
+    taosNetTest(args.netTestRole, args.host, args.port, args.pktLen);
     exit(0);
   }
 

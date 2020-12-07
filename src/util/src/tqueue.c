@@ -358,8 +358,8 @@ int taosReadQitemFromQset(taos_qset param, int *type, void **pitem, void **phand
     if (queue->head) {
         pNode = queue->head;
         *pitem = pNode->item;
-        *type = pNode->type;
-        *phandle = queue->ahandle;
+        if (type) *type = pNode->type;
+        if (phandle) *phandle = queue->ahandle;
         queue->head = pNode->next;
         if (queue->head == NULL) 
           queue->tail = NULL;

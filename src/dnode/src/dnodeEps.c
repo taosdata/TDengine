@@ -16,10 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cJSON.h"
-#include "tglobal.h"
 #include "hash.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeEps.h"
 
 static SDnodeEps *tsEps = NULL;
