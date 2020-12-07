@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tref.h"
 #include "tsync.h"
 #include "tglobal.h"
 #include "dnode.h"
@@ -28,7 +29,9 @@
 #include "mnodeUser.h"
 #include "mnodeVgroup.h"
 
-static SBnMgmt tsBnMgmt;;
+extern int64_t tsDnodeRid;
+extern int64_t tsSdbRid;
+static SBnMgmt tsBnMgmt;
 static void  bnMonitorDnodeModule();
 
 static void bnLock() {
@@ -529,6 +532,9 @@ void bnCheckStatus() {
   void *     pIter = NULL;
   SDnodeObj *pDnode = NULL;
 
+  void *dnodeSdb = taosAcquireRef(tsSdbRid, tsDnodeRid);
+  if (dnodeSdb == NULL) return;
+
   while (1) {
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
@@ -543,6 +549,8 @@ void bnCheckStatus() {
     }
     mnodeDecDnodeRef(pDnode);
   }
+
+  taosReleaseRef(tsSdbRid, tsDnodeRid);
 }
 
 void bnCheckModules() {
