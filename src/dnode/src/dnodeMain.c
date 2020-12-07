@@ -21,6 +21,7 @@
 #include "twal.h"
 #include "tfs.h"
 #include "tsync.h"
+#include "dnodeStep.h"
 #include "dnodePeer.h"
 #include "dnodeModule.h"
 #include "dnodeEps.h"
