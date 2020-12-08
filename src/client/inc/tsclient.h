@@ -251,7 +251,7 @@ typedef struct {
   STableMeta **pTableMetaList; // all involved tableMeta list of current insert sql statement.
   int32_t      numOfTables;
 
-  SHashObj    *pTableList;     // data block for each table
+  SHashObj    *pTableBlockHashList;     // data block for each table
   SArray      *pDataBlocks;    // SArray<STableDataBlocks*>. Merged submit block for each vgroup
 } SSqlCmd;
 

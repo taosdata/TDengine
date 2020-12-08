@@ -800,7 +800,7 @@ static int insertStmtExecute(STscStmt* stmt) {
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   assert(pCmd->numOfClause == 1);
 
-  if (taosHashGetSize(pCmd->pTableList) > 0) {
+  if (taosHashGetSize(pCmd->pTableBlockHashList) > 0) {
     // merge according to vgid
     int code = tscMergeTableDataBlocks(stmt->pSql);
     if (code != TSDB_CODE_SUCCESS) {

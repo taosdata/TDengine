@@ -692,7 +692,7 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, SParsedDataColI
   STableComInfo tinfo = tscGetTableInfo(pTableMeta);
   
   STableDataBlocks *dataBuf = NULL;
-  int32_t ret = tscGetDataBlockFromList(pCmd->pTableList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
+  int32_t ret = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
                                         sizeof(SSubmitBlk), tinfo.rowSize, pTableMetaInfo->name, pTableMeta, &dataBuf, NULL);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
@@ -1055,9 +1055,9 @@ int tsParseInsertSql(SSqlObj *pSql) {
     return code;
   }
 
-  if (NULL == pCmd->pTableList) {
-    pCmd->pTableList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
-    if (NULL == pCmd->pTableList) {
+  if (NULL == pCmd->pTableBlockHashList) {
+    pCmd->pTableBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    if (NULL == pCmd->pTableBlockHashList) {
       code = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _clean;
     }
@@ -1065,7 +1065,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     str = pCmd->curSql;
   }
   
-  tscDebug("%p create data block list hashList:%p", pSql, pCmd->pTableList);
+  tscDebug("%p create data block list hashList:%p", pSql, pCmd->pTableBlockHashList);
 
   while (1) {
     int32_t   index = 0;
@@ -1270,7 +1270,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     goto _clean;
   }
 
-  if (taosHashGetSize(pCmd->pTableList) > 0) { // merge according to vgId
+  if (taosHashGetSize(pCmd->pTableBlockHashList) > 0) { // merge according to vgId
     if ((code = tscMergeTableDataBlocks(pSql)) != TSDB_CODE_SUCCESS) {
       goto _clean;
     }

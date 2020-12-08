@@ -409,7 +409,7 @@ void tscResetSqlCmdObj(SSqlCmd* pCmd, bool removeFromCache) {
 
   tfree(pCmd->pTableMetaList);
 
-  pCmd->pTableList = tscDestroyBlockHashTable(pCmd->pTableList);
+  pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList);
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
   tscFreeQueryInfo(pCmd, removeFromCache);
 }
@@ -788,18 +788,18 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
 }
 
 static void extractTableMeta(SSqlCmd* pCmd) {
-  pCmd->numOfTables = taosHashGetSize(pCmd->pTableList);
+  pCmd->numOfTables = taosHashGetSize(pCmd->pTableBlockHashList);
   pCmd->pTableMetaList = calloc(pCmd->numOfTables, POINTER_BYTES);
 
-  STableDataBlocks **p1 = taosHashIterate(pCmd->pTableList, NULL);
+  STableDataBlocks **p1 = taosHashIterate(pCmd->pTableBlockHashList, NULL);
   int32_t i = 0;
   while(p1) {
     STableDataBlocks* pBlocks = *p1;
     pCmd->pTableMetaList[i++] = taosCacheTransfer(tscMetaCache, (void**) &pBlocks->pTableMeta);
-    p1 = taosHashIterate(pCmd->pTableList, p1);
+    p1 = taosHashIterate(pCmd->pTableBlockHashList, p1);
   }
 
-  pCmd->pTableList = tscDestroyBlockHashTable(pCmd->pTableList);
+  pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList);
 }
 
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql) {
@@ -808,7 +808,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql) {
   void* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
   SArray* pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
 
-  STableDataBlocks** p = taosHashIterate(pCmd->pTableList, NULL);
+  STableDataBlocks** p = taosHashIterate(pCmd->pTableBlockHashList, NULL);
 
   STableDataBlocks* pOneTableBlock = *p;
   while(pOneTableBlock) {
@@ -873,7 +873,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql) {
     pBlocks->dataLen = htonl(finalLen);
     dataBuf->numOfTables += 1;
 
-    p = taosHashIterate(pCmd->pTableList, p);
+    p = taosHashIterate(pCmd->pTableBlockHashList, p);
     if (p == NULL) {
       break;
     }
