@@ -2163,23 +2163,76 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     assert(pSql != NULL && pSql->res.code == numOfRows);
     
     pParentObj->res.code = pSql->res.code;
-  }
 
-  tfree(pSupporter);
+    // set the flag in the parent sqlObj
+    if (pSql->cmd.submitSchema) {
+      pParentObj->cmd.submitSchema = 1;
+    }
+  }
 
   if (atomic_sub_fetch_32(&pParentObj->subState.numOfRemain, 1) > 0) {
     return;
   }
-  
-  tscDebug("%p Async insertion completed, total inserted:%d", pParentObj, pParentObj->res.numOfRows);
 
   // restore user defined fp
   pParentObj->fp = pParentObj->fetchFp;
+  int32_t numOfSub = pParentObj->subState.numOfSub;
 
-  // todo remove this parameter in async callback function definition.
-  // all data has been sent to vnode, call user function
-  int32_t v = (pParentObj->res.code != TSDB_CODE_SUCCESS) ? pParentObj->res.code : (int32_t)pParentObj->res.numOfRows;
-  (*pParentObj->fp)(pParentObj->param, pParentObj, v);
+  if (pParentObj->res.code == TSDB_CODE_SUCCESS) {
+    tscDebug("%p Async insertion completed, total inserted:%d", pParentObj, pParentObj->res.numOfRows);
+    for(int32_t i = 0; i < numOfSub; ++i) {
+      SSqlObj* pSql = pParentObj->pSubs[i];
+      tfree(pSql->param);
+    }
+
+    // todo remove this parameter in async callback function definition.
+    // all data has been sent to vnode, call user function
+    int32_t v = (pParentObj->res.code != TSDB_CODE_SUCCESS) ? pParentObj->res.code : (int32_t)pParentObj->res.numOfRows;
+    (*pParentObj->fp)(pParentObj->param, pParentObj, v);
+  } else {
+    int32_t numOfFailed = 0;
+
+    for(int32_t i = 0; i < numOfSub; ++i) {
+      SSqlObj* pSql = pParentObj->pSubs[i];
+      if (pSql->res.code != TSDB_CODE_SUCCESS) {
+        numOfFailed += 1;
+
+        // clean up tableMeta in cache
+        tscFreeQueryInfo(&pSql->cmd, true);
+        SQueryInfo* pQueryInfo = tscGetQueryInfoDetailSafely(&pSql->cmd, 0);
+        STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pParentObj->cmd, pSql->cmd.clauseIndex, 0);
+        tscAddTableMetaInfo(pQueryInfo, pMasterTableMetaInfo->name, NULL, NULL, NULL, NULL);
+
+        tscDebug("%p, failed sub:%d, %p", pParentObj, i, pSql);
+      }
+    }
+
+    tscError("%p Async insertion completed, total inserted:%d rows, numOfFailed:%d, numOfTotal:%d", pParentObj,
+             pParentObj->res.numOfRows, numOfFailed, numOfSub);
+
+    tscDebug("%p cleanup %d tableMeta in cache", pParentObj, pParentObj->cmd.numOfTables);
+    for(int32_t i = 0; i < pParentObj->cmd.numOfTables; ++i) {
+      taosCacheRelease(tscMetaCache, (void**)&(pParentObj->cmd.pTableMetaList[i]), true);
+    }
+
+    pParentObj->cmd.parseFinished = false;
+    pParentObj->subState.numOfRemain = numOfFailed;
+    pParentObj->subState.numOfSub = numOfFailed;
+
+    tscResetSqlCmdObj(&pParentObj->cmd, false);
+
+    tscDebug("%p re-parse sql to generate data", pParentObj);
+    int32_t code = tsParseSql(pParentObj, true);
+    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
+
+    if (code != TSDB_CODE_SUCCESS) {
+      pParentObj->res.code = code;
+      tscQueueAsyncRes(pParentObj);
+      return;
+    }
+
+    tscDoQuery(pParentObj);
+  }
 }
 
 /**
@@ -2187,19 +2240,19 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
  * @param pSql
  * @return
  */
-int32_t tscHandleInsertRetry(SSqlObj* pSql) {
+int32_t tscHandleInsertRetry(SSqlObj* pParent, SSqlObj* pSql) {
   assert(pSql != NULL && pSql->param != NULL);
-  SSqlCmd* pCmd = &pSql->cmd;
+//  SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
   SInsertSupporter* pSupporter = (SInsertSupporter*) pSql->param;
   assert(pSupporter->index < pSupporter->pSql->subState.numOfSub);
 
-  STableDataBlocks* pTableDataBlock = taosArrayGetP(pCmd->pDataBlocks, pSupporter->index);
+  STableDataBlocks* pTableDataBlock = taosArrayGetP(pParent->cmd.pDataBlocks, pSupporter->index);
   int32_t code = tscCopyDataBlockToPayload(pSql, pTableDataBlock);
 
   // free the data block created from insert sql string
-  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+//  pCmd->pDataBlocks = tscDestroyBlockArrayList(pParent->cmd.pDataBlocks);
 
   if ((pRes->code = code)!= TSDB_CODE_SUCCESS) {
     tscQueueAsyncRes(pSql);
@@ -2212,6 +2265,20 @@ int32_t tscHandleInsertRetry(SSqlObj* pSql) {
 int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
+
+  // it is the failure retry insert
+  if (pSql->pSubs != NULL) {
+    for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+      SSqlObj* pSub = pSql->pSubs[i];
+
+      tscDebug("%p sub:%p launch sub insert, orderOfSub:%d", pSql, pSub, i);
+      if (pSub->res.code != TSDB_CODE_SUCCESS) {
+        tscHandleInsertRetry(pSql, pSub);
+      }
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
 
   pSql->subState.numOfSub = (uint16_t)taosArrayGetSize(pCmd->pDataBlocks);
   assert(pSql->subState.numOfSub > 0);

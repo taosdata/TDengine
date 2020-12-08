@@ -36,7 +36,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql);
 
 int32_t tscHandleMultivnodeInsert(SSqlObj *pSql);
 
-int32_t tscHandleInsertRetry(SSqlObj* pSql);
+int32_t tscHandleInsertRetry(SSqlObj* parent, SSqlObj* child);
 
 void tscBuildResFromSubqueries(SSqlObj *pSql);
 TAOS_ROW doSetResultRowData(SSqlObj *pSql);

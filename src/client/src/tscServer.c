@@ -280,18 +280,17 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   int32_t cmd = pCmd->command;
-  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_FETCH || cmd == TSDB_SQL_INSERT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
+  // set the flag to denote that sql string needs to be re-parsed and build submit block with table schema
+  if (cmd == TSDB_SQL_INSERT && rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+    pSql->cmd.submitSchema = 1;
+  }
+
+  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_FETCH || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
       (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||
        rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
-       rpcMsg->code == TSDB_CODE_APP_NOT_READY ||
-       rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE)) {
+       rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
     tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
-
-    // set the flag to denote that sql string needs to be re-parsed and build submit block with table schema
-    if (rpcMsg->code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-      pSql->cmd.submitSchema = 1;
-    }
 
     pSql->res.code = rpcMsg->code;  // keep the previous error code
     if (pSql->retry > pSql->maxRetry) {

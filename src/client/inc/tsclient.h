@@ -37,40 +37,6 @@ extern "C" {
 #include "qTsbuf.h"
 #include "tcmdtype.h"
 
-#if 0
-static UNUSED_FUNC void *u_malloc (size_t __size) {
-  uint32_t v = rand();
-
-  if (v % 5000 <= 0) {
-    return NULL;
-  } else {
-    return malloc(__size);
-  }
-}
-
-static UNUSED_FUNC void* u_calloc(size_t num, size_t __size) {
-  uint32_t v = rand();
-  if (v % 5000 <= 0) {
-    return NULL;
-  } else {
-    return calloc(num, __size);
-  }
-}
-
-static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
-  uint32_t v = rand();
-  if (v % 5000 <= 0) {
-    return NULL;
-  } else {
-    return realloc(p, __size);
-  }
-}
-
-#define calloc  u_calloc
-#define malloc  u_malloc
-#define realloc u_realloc
-#endif
-
 // forward declaration
 struct SSqlInfo;
 struct SLocalReducer;
@@ -78,7 +44,7 @@ struct SLocalReducer;
 // data source from sql string or from file
 enum {
   DATA_FROM_SQL_STRING = 1,
-  DATA_FROM_DATA_FILE = 2,
+  DATA_FROM_DATA_FILE  = 2,
 };
 
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
@@ -118,10 +84,10 @@ typedef struct STableMetaInfo {
    * 1. keep the vgroup index during the multi-vnode super table projection query
    * 2. keep the vgroup index for multi-vnode insertion
    */
-  int32_t vgroupIndex;
-  char    name[TSDB_TABLE_FNAME_LEN];        // (super) table name
-  char    aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
-  SArray* tagColList;                        // SArray<SColumn*>, involved tag columns
+  int32_t       vgroupIndex;
+  char          name[TSDB_TABLE_FNAME_LEN];        // (super) table name
+  char          aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
+  SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
 } STableMetaInfo;
 
 /* the structure for sql function in select clause */
@@ -204,22 +170,17 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct STableDataBlocks {
-  char     tableId[TSDB_TABLE_FNAME_LEN];
-  int8_t   tsSource;     // where does the UNIX timestamp come from, server or client
-  bool     ordered;      // if current rows are ordered or not
-  int64_t  vgId;         // virtual group id
-  int64_t  prevTS;       // previous timestamp, recorded to decide if the records array is ts ascending
-  int32_t  numOfTables;  // number of tables in current submit block
-  int32_t  rowSize;      // row size for current table
-  uint32_t nAllocSize;
-  uint32_t headerSize;   // header for table info (uid, tid, submit metadata)
-  uint32_t size;
-
-  /*
-   * the table meta of table, the table meta will be used during submit, keep a ref
-   * to avoid it to be removed from cache
-   */
-  STableMeta *pTableMeta;
+  char        tableId[TSDB_TABLE_FNAME_LEN];
+  int8_t      tsSource;     // where does the UNIX timestamp come from, server or client
+  bool        ordered;      // if current rows are ordered or not
+  int64_t     vgId;         // virtual group id
+  int64_t     prevTS;       // previous timestamp, recorded to decide if the records array is ts ascending
+  int32_t     numOfTables;  // number of tables in current submit block
+  int32_t     rowSize;      // row size for current table
+  uint32_t    nAllocSize;
+  uint32_t    headerSize;   // header for table info (uid, tid, submit metadata)
+  uint32_t    size;
+  STableMeta *pTableMeta;   // the tableMeta of current table, the table meta will be used during submit, keep a ref to avoid to be removed from cache
   char       *pData;
 
   // for parameter ('?') binding
@@ -284,10 +245,14 @@ typedef struct {
   int32_t      numOfParams;
 
   int8_t       dataSourceType;     // load data from file or not
-  int8_t       submitSchema; // submit block is built with table schema
-  STagData    *pTagData;     // NOTE: pTagData->data is used as a variant length array
-  SHashObj    *pTableList;   // referred table involved in sql
-  SArray      *pDataBlocks;  // SArray<STableDataBlocks*> submit data blocks after parsing sql
+  int8_t       submitSchema;   // submit block is built with table schema
+  STagData    *pTagData;       // NOTE: pTagData->data is used as a variant length array
+
+  STableMeta **pTableMetaList; // all involved tableMeta list of current insert sql statement.
+  int32_t      numOfTables;
+
+  SHashObj    *pTableList;     // data block for each table
+  SArray      *pDataBlocks;    // SArray<STableDataBlocks*>. Merged submit block for each vgroup
 } SSqlCmd;
 
 typedef struct SResRec {
