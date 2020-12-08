@@ -81,7 +81,7 @@ public class TSDBStatement implements Statement {
         }
 
         if (!this.connector.isUpdateQuery(pSql)) {
-        	TSDBResultSet res = new TSDBResultSet(this.connector, resultSetPointer);
+            TSDBResultSet res = new TSDBResultSet(this.connector, resultSetPointer);
             res.setBatchFetch(this.connection.getBatchFetch());
             return res;
         } else {
@@ -125,7 +125,8 @@ public class TSDBStatement implements Statement {
     }
 
     public int getMaxFieldSize() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return 0;
+//        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     public void setMaxFieldSize(int max) throws SQLException {
@@ -218,7 +219,8 @@ public class TSDBStatement implements Statement {
     }
 
     public int getFetchDirection() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return ResultSet.FETCH_FORWARD;
+//        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     /*
