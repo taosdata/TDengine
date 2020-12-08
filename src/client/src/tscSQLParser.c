@@ -3282,7 +3282,12 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
       ((pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) ? 1 : 0);
 
   if (pColFilter->filterstr) {
-    if (pExpr->nSQLOptr != TK_EQ && pExpr->nSQLOptr != TK_NE && pExpr->nSQLOptr != TK_LIKE) {
+    if (pExpr->nSQLOptr != TK_EQ
+      && pExpr->nSQLOptr != TK_NE
+      && pExpr->nSQLOptr != TK_ISNULL
+      && pExpr->nSQLOptr != TK_NOTNULL
+      && pExpr->nSQLOptr != TK_LIKE
+      ) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   } else {
