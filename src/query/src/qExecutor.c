@@ -5558,7 +5558,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       pQuery->rec.rows = getNumOfResult(pRuntimeEnv);
 
       int64_t inc = pQuery->rec.rows - prev;
-      pQuery->current->windowResInfo.size += inc;
+      pQuery->current->windowResInfo.size += (int32_t) inc;
 
       // the flag may be set by tableApplyFunctionsOnBlock, clear it here
       CLEAR_QUERY_STATUS(pQuery, QUERY_COMPLETED);
