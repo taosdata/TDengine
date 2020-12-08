@@ -153,7 +153,7 @@ static void *taosNetBindTcpPort(void *sarg) {
 
     int32_t ret = taosReadMsg(client, buffer, pinfo->pktLen);
     if (ret < 0 || ret != pinfo->pktLen) {
-      uError("TCP: failed to read %d bytes at port:%d since %s", port, strerror(errno));
+      uError("TCP: failed to read %d bytes at port:%d since %s", pinfo->pktLen, port, strerror(errno));
       taosCloseSocket(serverSocket);
       return NULL;
     }
@@ -162,7 +162,7 @@ static void *taosNetBindTcpPort(void *sarg) {
 
     ret = taosWriteMsg(client, buffer, pinfo->pktLen);
     if (ret < 0) {
-      uError("TCP: failed to write %d bytes at %d since %s", pinfo->pktLen, strerror(errno), port);
+      uError("TCP: failed to write %d bytes at %d since %s", pinfo->pktLen, port, strerror(errno));
       taosCloseSocket(serverSocket);
       return NULL;
     }
@@ -208,7 +208,7 @@ static int32_t taosNetCheckTcpPort(STestInfo *info) {
 
   int32_t ret = taosWriteMsg(clientSocket, buffer, info->pktLen);
   if (ret < 0) {
-    uError("TCP: failed to write msg to %s:%d since %s", info->port, taosIpStr(info->hostIp), strerror(errno));
+    uError("TCP: failed to write msg to %s:%d since %s", taosIpStr(info->hostIp), info->port, strerror(errno));
     return -1;
   }
 
