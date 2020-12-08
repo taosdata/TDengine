@@ -87,10 +87,13 @@ static void *taosNetBindUdpPort(void *sarg) {
       continue;
     }
 
+    uInfo("UDP: recv:%d bytes from %s at %d", iDataNum, taosInetNtoa(clientAddr.sin_addr), port);
+
     if (iDataNum > 0) {
-      uInfo("UDP: recv:%d bytes from %s:%d", iDataNum, taosInetNtoa(clientAddr.sin_addr), port);
-      taosSendto(serverSocket, buffer, iDataNum, 0, (struct sockaddr *)&clientAddr, (int32_t)sin_size);
+      iDataNum = taosSendto(serverSocket, buffer, iDataNum, 0, (struct sockaddr *)&clientAddr, (int32_t)sin_size);
     }
+
+    uInfo("UDP: send:%d bytes to %s at %d", iDataNum, taosInetNtoa(clientAddr.sin_addr), port);
   }
 
   taosCloseSocket(serverSocket);
@@ -222,11 +225,9 @@ static int32_t taosNetCheckTcpPort(STestInfo *info) {
   return 0;
 }
 
-
 static int32_t taosNetCheckUdpPort(STestInfo *info) {
   SOCKET  clientSocket;
-  char    sendbuf[BUFFER_SIZE];
-  char    recvbuf[BUFFER_SIZE];
+  char    buffer[BUFFER_SIZE] = {0};
   int32_t iDataNum = 0;
   int32_t bufSize = 1024000;
 
@@ -262,26 +263,25 @@ static int32_t taosNetCheckUdpPort(STestInfo *info) {
   serverAddr.sin_port = htons(info->port);
   serverAddr.sin_addr.s_addr = info->hostIp;
 
-  memset(sendbuf, 0, BUFFER_SIZE);
-  memset(recvbuf, 0, BUFFER_SIZE);
-
   struct in_addr ipStr;
   memcpy(&ipStr, &info->hostIp, 4);
-  sprintf(sendbuf, "client send udp pkg to %s:%d, content: 1122334455", taosInetNtoa(ipStr), info->port);
-  sprintf(sendbuf + info->pktLen - 16, "1122334455667788");
+  sprintf(buffer, "client send udp pkg to %s:%d, content: 1122334455", taosInetNtoa(ipStr), info->port);
+  sprintf(buffer + info->pktLen - 16, "1122334455667788");
 
   socklen_t sin_size = sizeof(*(struct sockaddr *)&serverAddr);
 
-  int32_t code = taosSendto(clientSocket, sendbuf, info->pktLen, 0, (struct sockaddr *)&serverAddr, (int32_t)sin_size);
-  if (code < 0) {
-    uError("failed to perform sendto func since %s", strerror(errno));
+  iDataNum = taosSendto(clientSocket, buffer, info->pktLen, 0, (struct sockaddr *)&serverAddr, (int32_t)sin_size);
+  if (iDataNum < 0 || iDataNum != info->pktLen) {
+    uError("UDP: failed to perform sendto func since %s", strerror(errno));
     return -1;
   }
 
-  iDataNum = recvfrom(clientSocket, recvbuf, BUFFER_SIZE, 0, (struct sockaddr *)&serverAddr, &sin_size);
+  memset(buffer, 0, BUFFER_SIZE);
+  sin_size = sizeof(*(struct sockaddr *)&serverAddr);
+  iDataNum = recvfrom(clientSocket, buffer, BUFFER_SIZE, 0, (struct sockaddr *)&serverAddr, &sin_size);
 
-  if (iDataNum < info->pktLen) {
-    uError("UDP: received ack:%d bytes, less than send:%d bytes from port:%d", iDataNum, info->pktLen, info->port);
+  if (iDataNum < 0 || iDataNum != info->pktLen) {
+    uError("UDP: received ack:%d bytes(expect:%d) from port:%d since %s", iDataNum, info->pktLen, info->port, strerror(errno));
     return -1;
   }
 
@@ -313,7 +313,6 @@ static void taosNetCheckPort(uint32_t hostIp, int32_t startPort, int32_t endPort
       uInfo("successed to test UDP port:%d", port);
     }
   }
-  return;
 }
 
 void *taosNetInitRpc(char *secretEncrypt, char spi) {
