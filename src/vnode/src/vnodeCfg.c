@@ -15,13 +15,9 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosmsg.h"
-#include "taoserror.h"
 #include "cJSON.h"
 #include "tglobal.h"
-#include "tsdb.h"
 #include "dnode.h"
-#include "vnodeInt.h"
 #include "vnodeCfg.h"
 
 static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
@@ -242,9 +238,8 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     }
     tstrncpy(node->nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
 
-    if (!nodeChanged) {
-      nodeChanged = dnodeCheckEpChanged(node->nodeId, node->nodeEp);
-    }
+    bool changed = dnodeCheckEpChanged(node->nodeId, node->nodeEp);
+    if (changed) nodeChanged = changed;
   }
 
   ret = TSDB_CODE_SUCCESS;
