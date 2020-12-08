@@ -29,6 +29,7 @@ python3 ./test.py -f table/db_table.py
 python3 ./test.py -f table/create_sensitive.py
 #python3 ./test.py -f table/tablename-boundary.py
 python3 ./test.py  -f table/max_table_length.py
+python3 ./test.py -f query/bug2281.py
 
 # tag
 python3 ./test.py -f tag_lite/filter.py

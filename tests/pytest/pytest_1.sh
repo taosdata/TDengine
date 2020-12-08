@@ -160,6 +160,7 @@ python3 ./test.py -f query/bug1874.py
 python3 ./test.py -f query/bug1875.py
 python3 ./test.py -f query/bug1876.py
 python3 ./test.py -f query/bug2218.py 
+python3 ./test.py -f query/bug2281.py
 python3 bug2265.py
 #stream
 python3 ./test.py -f stream/metric_1.py
