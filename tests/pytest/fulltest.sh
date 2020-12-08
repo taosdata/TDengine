@@ -29,7 +29,7 @@ python3 ./test.py -f table/db_table.py
 python3 ./test.py -f table/create_sensitive.py
 #python3 ./test.py -f table/tablename-boundary.py
 python3 ./test.py  -f table/max_table_length.py
-python3 ./test.py -f query/bug2281.py
+
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -167,7 +167,8 @@ python3 ./test.py -f query/bug2117.py
 python3 ./test.py -f query/bug2143.py
 python3 ./test.py -f query/sliding.py
 python3 ./test.py -f query/unionAllTest.py
-
+python3 ./test.py -f query/bug2281.py
+python3 ./test.py -f query/bug2119.py
 #stream
 python3 ./test.py -f stream/metric_1.py
 python3 ./test.py -f stream/new.py
