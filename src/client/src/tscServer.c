@@ -152,7 +152,13 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     SRpcEpSet *    epSet = &pRsp->epSet;
     if (epSet->numOfEps > 0) {
       tscEpSetHtons(epSet);
-      tscUpdateMgmtEpSet(pSql, epSet);
+      if (!tscEpSetIsEqual(&pSql->pTscObj->tscCorMgmtEpSet->epSet, epSet)) {
+        tscTrace("%p updating epset: numOfEps: %d, inUse: %d", pSql, epSet->numOfEps, epSet->inUse);
+        for (int8_t i = 0; i < epSet->numOfEps; i++) {
+          tscTrace("endpoint %d: fqdn = %s, port=%d", i, epSet->fqdn[i], epSet->port[i]);
+        }
+        tscUpdateMgmtEpSet(pSql, epSet);
+      }
     }
 
     pSql->pTscObj->connId = htonl(pRsp->connId);

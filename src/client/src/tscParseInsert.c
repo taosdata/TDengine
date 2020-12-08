@@ -1446,18 +1446,21 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
   int32_t count = 0;
   int32_t maxRows = 0;
 
-  tscDestroyBlockArrayList(pSql->cmd.pDataBlocks);
-  pCmd->pDataBlocks = taosArrayInit(1, POINTER_BYTES);
+  tfree(pCmd->pTableMetaList);
+  pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+
+  if (pCmd->pTableBlockHashList == NULL) {
+    pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+  }
 
   STableDataBlocks *pTableDataBlock = NULL;
-  int32_t ret = tscCreateDataBlock(TSDB_PAYLOAD_SIZE, tinfo.rowSize, sizeof(SSubmitBlk), pTableMetaInfo->name, pTableMeta, &pTableDataBlock);
+  int32_t ret = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
+                                        sizeof(SSubmitBlk), tinfo.rowSize, pTableMetaInfo->name, pTableMeta, &pTableDataBlock, NULL);
   if (ret != TSDB_CODE_SUCCESS) {
 //    return ret;
   }
 
-  taosArrayPush(pCmd->pDataBlocks, &pTableDataBlock);
   tscAllocateMemIfNeed(pTableDataBlock, tinfo.rowSize, &maxRows);
-
   char *tokenBuf = calloc(1, 4096);
 
   while ((readLen = tgetline(&line, &n, fp)) != -1) {
@@ -1519,8 +1522,6 @@ void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql) {
 
   SImportFileSupport *pSupporter = calloc(1, sizeof(SImportFileSupport));
   SSqlObj *pNew = createSubqueryObj(pSql, 0, parseFileSendDataBlock, pSupporter, TSDB_SQL_INSERT, NULL);
-
-  pNew->cmd.pDataBlocks = taosArrayInit(4, POINTER_BYTES);
   pCmd->count = 1;
 
   FILE *fp = fopen(pCmd->payload, "r");

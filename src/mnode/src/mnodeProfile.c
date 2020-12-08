@@ -282,10 +282,11 @@ static int32_t mnodeRetrieveConns(SShowObj *pShow, char *data, int32_t rows, voi
 
 // not thread safe, need optimized
 int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SHeartBeatMsg *pHBMsg) {
-  pConn->numOfQueries = 0;
+  pConn->numOfQueries = 0;	
   pConn->numOfStreams = 0;
-
   int32_t numOfQueries = htonl(pHBMsg->numOfQueries);
+  int32_t numOfStreams = htonl(pHBMsg->numOfStreams);
+  
   if (numOfQueries > 0) {
     if (pConn->pQueries == NULL) {
       pConn->pQueries = calloc(sizeof(SQueryDesc), QUERY_STREAM_SAVE_SIZE);
@@ -299,7 +300,6 @@ int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SHeartBeatMsg *pHBMsg) {
     }
   }
 
-  int32_t numOfStreams = htonl(pHBMsg->numOfStreams);
   if (numOfStreams > 0) {
     if (pConn->pStreams == NULL) {
       pConn->pStreams = calloc(sizeof(SStreamDesc), QUERY_STREAM_SAVE_SIZE);
@@ -309,7 +309,7 @@ int32_t mnodeSaveQueryStreamList(SConnObj *pConn, SHeartBeatMsg *pHBMsg) {
 
     int32_t saveSize = pConn->numOfStreams * sizeof(SStreamDesc);
     if (saveSize > 0 && pConn->pStreams != NULL) {
-      memcpy(pConn->pStreams, pHBMsg->pData + pConn->numOfQueries * sizeof(SQueryDesc), saveSize);
+      memcpy(pConn->pStreams, pHBMsg->pData + numOfQueries * sizeof(SQueryDesc), saveSize);
     }
   }
 

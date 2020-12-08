@@ -75,7 +75,46 @@ class TDTestCase:
         tdSql.checkData(18, 1, 9.75000)
         tdSql.checkData(19, 1, 10)
 
+        tdSql.execute("create table t2(ts timestamp, c int)")
+        tdSql.execute("insert into t2 values(%d, 1)" % (self.ts + 3000))
+        tdSql.query("select twa(c) from t2 where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:01:30.000' ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
 
+        tdSql.query("select twa(c) from t2 where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:01:30.000' interval(2s) ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1)
+
+        tdSql.query("select twa(c) from t2 where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:01:30.000' interval(2s) sliding(1s) ")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 1)
+
+        tdSql.query("select twa(c) from t2 where ts >= '2018-09-17 09:00:04.000' and ts <= '2018-09-17 09:01:30.000' ")
+        tdSql.checkRows(0)
+
+        tdSql.query("select twa(c) from t2 where ts >= '2018-09-17 08:00:00.000' and ts <= '2018-09-17 09:00:00.000' ")
+        tdSql.checkRows(0)
+
+        tdSql.execute("create table t3(ts timestamp, c int)")
+        tdSql.execute("insert into t3 values(%d, 1)" % (self.ts))
+        tdSql.execute("insert into t3 values(%d, -2)" % (self.ts + 3000))
+
+        tdSql.query("select twa(c) from t3 where ts >= '2018-09-17 08:59:00.000' and ts <= '2018-09-17 09:01:30.000'")
+        tdSql.checkRows(1)
+        tdSql.checkData(-0.5)
+
+        tdSql.query("select twa(c) from t3 where ts >= '2018-09-17 08:59:00.000' and ts <= '2018-09-17 09:01:30.000' interval(1s)")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 0.5005)
+        tdSql.checkData(1, 1, -2)
+
+        tdSql.query("select twa(c) from t3 where ts >= '2018-09-17 08:59:00.000' and ts <= '2018-09-17 09:01:30.000' interval(2s) sliding(1s)")
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 1, 0.5005)
+        tdSql.checkData(1, 1, 0.0005)
+        tdSql.checkData(2, 1, -1.5)
+        tdSql.checkData(3, 1, -2)
 
     def stop(self):
         tdSql.close()

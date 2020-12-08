@@ -36,6 +36,8 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, int32_t sindex, int32_t eindex
 
   if (sindex < 0 || eindex < sindex) return;
 
+  sDebug("%s, extra files will be removed between sindex:%d and eindex:%d", pPeer->id, sindex, eindex);
+
   while (1) {
     name[0] = 0;
     magic = (*pNode->getFileInfo)(pNode->vgId, name, &index, eindex, &size, &fversion);
@@ -61,11 +63,12 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   bool       fileChanged = false;
 
   *fversion = 0;
-  sinfo.index = 0;
+  sinfo.index = -1;
   while (1) {
     // read file info
-    int32_t ret = taosReadMsg(pPeer->syncFd, &(minfo), sizeof(minfo));
-    if (ret < 0) {
+    minfo.index = -1;
+    int32_t ret = taosReadMsg(pPeer->syncFd, &minfo, sizeof(SFileInfo));
+    if (ret != sizeof(SFileInfo) || minfo.index == -1) {
       sError("%s, failed to read file info while restore file since %s", pPeer->id, strerror(errno));
       break;
     }
@@ -75,7 +78,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
       sDebug("%s, no more files to restore", pPeer->id);
 
       // remove extra files after the current index
-      syncRemoveExtraFile(pPeer, sinfo.index + 1, TAOS_SYNC_MAX_INDEX);
+      if (sinfo.index != -1) syncRemoveExtraFile(pPeer, sinfo.index + 1, TAOS_SYNC_MAX_INDEX);
       code = 0;
       break;
     }
@@ -96,7 +99,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
 
     // send file ack
     ret = taosWriteMsg(pPeer->syncFd, &fileAck, sizeof(fileAck));
-    if (ret < 0) {
+    if (ret != sizeof(fileAck)) {
       sError("%s, failed to write file:%s ack while restore file since %s", pPeer->id, minfo.name, strerror(errno));
       break;
     }
@@ -154,7 +157,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
 
   while (1) {
     ret = taosReadMsg(pPeer->syncFd, pHead, sizeof(SWalHead));
-    if (ret < 0) {
+    if (ret != sizeof(SWalHead)) {
       sError("%s, failed to read walhead while restore wal since %s", pPeer->id, strerror(errno));
       break;
     }
@@ -166,7 +169,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
     }  // wal sync over
 
     ret = taosReadMsg(pPeer->syncFd, pHead->cont, pHead->len);
-    if (ret < 0) {
+    if (ret != pHead->len) {
       sError("%s, failed to read walcont, len:%d while restore wal since %s", pPeer->id, pHead->len, strerror(errno));
       break;
     }
@@ -286,11 +289,12 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
   uint64_t fversion = 0;
 
   sInfo("%s, start to restore, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
-  SFirstPktRsp firstPktRsp = {.sync = 1};
-  if (taosWriteMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) < 0) {
+  SFirstPktRsp firstPktRsp = {.sync = 1, .tranId = syncGenTranId()};
+  if (taosWriteMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) != sizeof(SFirstPktRsp)) {
     sError("%s, failed to send sync firstPkt rsp since %s", pPeer->id, strerror(errno));
     return -1;
   }
+  sDebug("%s, send firstPktRsp to peer, tranId:%u", pPeer->id, firstPktRsp.tranId);
 
   sInfo("%s, start to restore file, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
   int32_t code = syncRestoreFile(pPeer, &fversion);

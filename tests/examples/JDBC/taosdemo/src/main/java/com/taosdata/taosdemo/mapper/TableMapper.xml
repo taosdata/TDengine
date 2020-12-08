@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.taosdata.taosdemo.mapper.TableMapper">
+
+    <!-- 创建普通表 -->
+    <update id="create" parameterType="com.taosdata.taosdemo.domain.TableMeta">
+        create table if not exists ${database}.${name}
+        <foreach collection="fields" item="field" index="index" open="(" close=")" separator=",">
+            ${field.name} ${field.type}
+        </foreach>
+    </update>
+
+    <!-- 插入：向一张普通表中插入多条数据 -->
+    <insert id="insertOneTableMultiValues" parameterType="com.taosdata.taosdemo.domain.TableValue">
+        insert into ${database}.${name} values
+        <foreach collection="values" item="value">
+            <foreach collection="value.fields" item="field" open="(" close=")" separator=",">
+                ${field.value}
+            </foreach>
+        </foreach>
+    </insert>
+
+    <!-- 向一张表中插入指定列的数据 insert into XXX.xx (f1,f2,f3...) values(v1,v2,v3...) -->
+    <insert id="insertOneTableMultiValuesWithColumns" parameterType="com.taosdata.taosdemo.domain.TableValue">
+        insert into ${database}.${name}
+        <foreach collection="columns" item="column" open="(" close=")" separator=",">
+            ${column.name}
+        </foreach>
+        values
+        <foreach collection="values" item="value">
+            <foreach collection="value.fields" item="field" open="(" close=")" separator=",">
+                ${field.value}
+            </foreach>
+        </foreach>
+    </insert>
+
+    <!-- 向多个表中插入多条数据 -->
+    <insert id="insertMultiTableMultiValues">
+        insert into
+        <foreach collection="tables" item="table">
+            ${table.database}.${table.name} values
+            <foreach collection="table.values" item="value">
+                <foreach collection="value.fields" item="field" open="(" close=")" separator=",">
+                    ${field.value}
+                </foreach>
+            </foreach>
+        </foreach>
+    </insert>
+
+    <!-- 向多张表中指定的列插入多条数据 -->
+    <insert id="insertMultiTableMultiValuesWithColumns">
+        insert into
+        <foreach collection="tables" item="table">
+            ${table.database}.${table.name}
+            <foreach collection="table.columns" item="column" open="(" close=")" separator=",">
+                ${column.name}
+            </foreach>
+            values
+            <foreach collection="table.values" item="value">
+                <foreach collection="value.fields" item="field" open="(" close=")" separator=",">
+                    ${field.value}
+                </foreach>
+            </foreach>
+        </foreach>
+    </insert>
+
+</mapper>
