@@ -82,7 +82,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
  * @param pHashObj
  * @return
  */
-size_t taosHashGetSize(const SHashObj *pHashObj);
+int32_t taosHashGetSize(const SHashObj *pHashObj);
 
 /**
  * put element into hash table, if the element with the same key exists, update it
