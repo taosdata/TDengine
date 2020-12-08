@@ -238,17 +238,6 @@ static int32_t taosNetCheckUdpPort(STestInfo *info) {
     return -1;
   }
 
-  // set overtime
-  struct timeval timeout;
-  timeout.tv_sec = 2;   // s
-  timeout.tv_usec = 0;  // us
-  if (taosSetSockOpt(clientSocket, SOL_SOCKET, SO_SNDTIMEO, (char *)&timeout, sizeof(struct timeval)) == -1) {
-    uError("failed to setsockopt send timer since %s", strerror(errno));
-  }
-  if (taosSetSockOpt(clientSocket, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(struct timeval)) == -1) {
-    uError("failed to setsockopt recv timer since %s", strerror(errno));
-  }
-
   if (taosSetSockOpt(clientSocket, SOL_SOCKET, SO_SNDBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
     uError("failed to set the send buffer size for UDP socket\n");
     return -1;
