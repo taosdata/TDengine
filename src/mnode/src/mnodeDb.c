@@ -20,7 +20,7 @@
 #include "tgrant.h"
 #include "tglobal.h"
 #include "tname.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tdataformat.h"
 #include "mnode.h"
 #include "mnodeDef.h"
@@ -38,6 +38,7 @@
 #include "mnodeVgroup.h"
 
 #define VG_LIST_SIZE 8
+int64_t        tsDbRid = -1;
 static void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
@@ -160,7 +161,8 @@ int32_t mnodeInitDbs() {
     .fpRestored   = mnodeDbActionRestored
   };
 
-  tsDbSdb = sdbOpenTable(&desc);
+  tsDbRid = sdbOpenTable(&desc);
+  tsDbSdb = sdbGetTableByRid(tsDbRid);
   if (tsDbSdb == NULL) {
     mError("failed to init db data");
     return -1;
@@ -171,6 +173,7 @@ int32_t mnodeInitDbs() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mnodeProcessDropDbMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mnodeGetDbMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mnodeRetrieveDbs);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DB, mnodeCancelGetNextDb);
   
   mDebug("table:dbs table is created");
   return 0;
@@ -178,6 +181,10 @@ int32_t mnodeInitDbs() {
 
 void *mnodeGetNextDb(void *pIter, SDbObj **pDb) {
   return sdbFetchRow(tsDbSdb, pIter, (void **)pDb);
+}
+
+void mnodeCancelGetNextDb(void *pIter) {
+  sdbFreeIter(tsDbSdb, pIter);
 }
 
 SDbObj *mnodeGetDb(char *db) {
@@ -229,30 +236,28 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) {
     mError("invalid db option daysPerFile:%d valid range: [%d, %d]", pCfg->daysPerFile, TSDB_MIN_DAYS_PER_FILE,
            TSDB_MAX_DAYS_PER_FILE);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION_DAYS;
   }
 
   if (pCfg->daysToKeep < TSDB_MIN_KEEP || pCfg->daysToKeep > TSDB_MAX_KEEP) {
     mError("invalid db option daysToKeep:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
 
   if (pCfg->daysToKeep < pCfg->daysPerFile) {
     mError("invalid db option daysToKeep:%d should larger than daysPerFile:%d", pCfg->daysToKeep, pCfg->daysPerFile);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
 
-#if 0
   if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > pCfg->daysToKeep) {
-    mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep, TSDB_MIN_KEEP, pCfg->daysToKeep);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
+    mError("invalid db option daysToKeep2:%d valid range: [%d, %d]", pCfg->daysToKeep2, TSDB_MIN_KEEP, pCfg->daysToKeep);
+    return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
 
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > pCfg->daysToKeep2) {
     mError("invalid db option daysToKeep1:%d valid range: [%d, %d]", pCfg->daysToKeep1, TSDB_MIN_KEEP, pCfg->daysToKeep2);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
+    return TSDB_CODE_MND_INVALID_DB_OPTION_KEEP;
   }
-#endif
 
   if (pCfg->maxRowsPerFileBlock < TSDB_MIN_MAX_ROW_FBLOCK || pCfg->maxRowsPerFileBlock > TSDB_MAX_MAX_ROW_FBLOCK) {
     mError("invalid db option maxRowsPerFileBlock:%d valid range: [%d, %d]", pCfg->maxRowsPerFileBlock,
@@ -311,13 +316,6 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
            TSDB_MAX_DB_REPLICA_OPTION);
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
-
-#ifndef _SYNC
-  if (pCfg->replications != 1) {
-    mError("invalid db option replications:%d can only be 1 in this version", pCfg->replications);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
-  }
-#endif
 
   if (pCfg->update < TSDB_MIN_DB_UPDATE || pCfg->update > TSDB_MAX_DB_UPDATE) {
     mError("invalid db option update:%d valid range: [%d, %d]", pCfg->update, TSDB_MIN_DB_UPDATE, TSDB_MAX_DB_UPDATE);
@@ -491,7 +489,7 @@ void mnodeRemoveVgroupFromDb(SVgObj *pVgroup) {
 }
 
 void mnodeCleanupDbs() {
-  sdbCloseTable(tsDbSdb);
+  sdbCloseTable(tsDbRid);
   tsDbSdb = NULL;
 }
 
@@ -986,8 +984,8 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
   SDbObj *pDb = pMsg->pDb;
 
   void *pIter = NULL;
-  while (1) {
-    SVgObj *pVgroup = NULL;
+  SVgObj *pVgroup = NULL;
+    while (1) {
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
     if (pVgroup->pDb == pDb) {
@@ -995,12 +993,11 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
     }
     mnodeDecVgroupRef(pVgroup);
   }
-  sdbFreeIter(pIter);
 
   mDebug("db:%s, all vgroups is altered", pDb->name);
   mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
-  balanceAsyncNotify();
+  bnNotify();
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1145,8 +1142,6 @@ void  mnodeDropAllDbs(SAcctObj *pAcct)  {
     }
     mnodeDecDbRef(pDb);
   }
-
-  sdbFreeIter(pIter);
 
   mInfo("acct:%s, all dbs:%d is dropped from sdb", pAcct->user, numOfDbs);
 }

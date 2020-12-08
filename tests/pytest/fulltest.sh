@@ -19,6 +19,7 @@ python3 ./test.py -f insert/randomNullCommit.py
 python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
+python3 ./test.py -f insert/before_1970.py
 
 python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
@@ -158,7 +159,11 @@ python3 ./test.py -f query/bug1471.py
 python3 ./test.py -f query/bug1874.py
 python3 ./test.py -f query/bug1875.py
 python3 ./test.py -f query/bug1876.py
-python3 ./test.py -f query/bug2218.py 
+python3 ./test.py -f query/bug2218.py
+python3 ./test.py -f query/bug2117.py
+python3 ./test.py -f query/bug2143.py
+python3 ./test.py -f query/sliding.py
+python3 ./test.py -f query/unionAllTest.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -175,6 +180,7 @@ python3 ./test.py -f alter/alter_table_crash.py
 python3 ./test.py -f client/client.py
 python3 ./test.py -f client/version.py
 python3 ./test.py -f client/alterDatabase.py
+python3 ./test.py -f client/noConnectionErrorTest.py
 
 # Misc
 python3 testCompress.py
@@ -209,6 +215,7 @@ python3 test.py -f query/queryFillTest.py
 python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdumpTest.py
 python3 test.py -f tools/lowaTest.py
+python3 test.py -f tools/taosdemoTest2.py
 
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
@@ -228,6 +235,7 @@ python3 ./test.py -f update/merge_commit_data2.py
 python3 ./test.py -f update/merge_commit_data2_update0.py
 python3 ./test.py -f update/merge_commit_last-0.py
 python3 ./test.py -f update/merge_commit_last.py
+python3 ./test.py -f update/bug_td2279.py
 
 # wal
 python3 ./test.py -f wal/addOldWalTest.py

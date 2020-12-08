@@ -19,11 +19,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 #include "tlog.h"
 #include "tsync.h"
-#include "twal.h"
 #include "tcq.h"
+#include "tsdb.h"
+#include "vnode.h"
 
 extern int32_t vDebugFlag;
 
@@ -35,37 +35,36 @@ extern int32_t vDebugFlag;
 #define vTrace(...) { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", vDebugFlag, __VA_ARGS__); }}
 
 typedef struct {
-  int32_t      vgId;      // global vnode group ID
-  int32_t      refCount;  // reference count
-  int32_t      queuedWMsg;
-  int32_t      queuedRMsg;
-  int32_t      flowctrlLevel;
-  int8_t       status; 
-  int8_t       role;   
-  int8_t       accessState;
-  int8_t       isFull;
-  uint64_t     version;   // current version 
-  uint64_t     fversion;  // version on saved data file
-  void        *wqueue;
-  void        *rqueue;
-  void        *wal;
-  void        *tsdb;
-  int64_t      sync;
-  void        *events;
-  void        *cq;  // continuous query
-  int32_t      cfgVersion;
-  STsdbCfg     tsdbCfg;
-  SSyncCfg     syncCfg;
-  SWalCfg      walCfg;
-  void        *qMgmt;
-  char        *rootDir;
-  tsem_t       sem;
-  int8_t       dropped;
-  char         db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  int32_t  vgId;      // global vnode group ID
+  int32_t  refCount;  // reference count
+  int32_t  queuedWMsg;
+  int32_t  queuedRMsg;
+  int32_t  flowctrlLevel;
+  int8_t   status;
+  int8_t   role;
+  int8_t   accessState;
+  int8_t   isFull;
+  int8_t   isCommiting;
+  uint64_t version;   // current version
+  uint64_t fversion;  // version on saved data file
+  void *   wqueue;
+  void *   rqueue;
+  void *   wal;
+  void *   tsdb;
+  int64_t  sync;
+  void *   events;
+  void *   cq;  // continuous query
+  int32_t  cfgVersion;
+  STsdbCfg tsdbCfg;
+  SSyncCfg syncCfg;
+  SWalCfg  walCfg;
+  void *   qMgmt;
+  char *   rootDir;
+  tsem_t   sem;
+  int8_t   dropped;
+  char     db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  pthread_mutex_t statusMutex;
 } SVnodeObj;
-
-void vnodeInitWriteFp(void);
-void vnodeInitReadFp(void);
 
 #ifdef __cplusplus
 }

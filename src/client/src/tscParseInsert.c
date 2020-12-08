@@ -630,11 +630,17 @@ int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-static void tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
+static int32_t tsSetBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
   pBlocks->tid = pTableMeta->id.tid;
   pBlocks->uid = pTableMeta->id.uid;
   pBlocks->sversion = pTableMeta->sversion;
-  pBlocks->numOfRows += numOfRows;
+
+  if (pBlocks->numOfRows + numOfRows >= INT16_MAX) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  } else {
+    pBlocks->numOfRows += numOfRows;
+    return TSDB_CODE_SUCCESS;
+  }
 }
 
 // data block is disordered, sort it in ascending order
@@ -722,7 +728,11 @@ static int32_t doParseInsertStatement(SSqlObj *pSql, void *pTableList, char **st
   }
 
   SSubmitBlk *pBlocks = (SSubmitBlk *)(dataBuf->pData);
-  tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
+  code = tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscInvalidSQLErrMsg(pCmd->payload, "too many rows in sql, total number of rows should be less than 32767", *str);
+    return code;
+  }
 
   dataBuf->vgId = pTableMeta->vgroupInfo.vgId;
   dataBuf->numOfTables = 1;
@@ -790,9 +800,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     sql += index;
 
     tscAllocPayload(pCmd, sizeof(STagData));
-    STagData *pTag = &pCmd->tagData;
-
-    memset(pTag, 0, sizeof(STagData));
     
     //the source super table is moved to the secondary position of the pTableMetaInfo list
     if (pQueryInfo->numOfTables < 2) {
@@ -805,7 +812,14 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return code;
     }
 
+    STagData *pTag = realloc(pCmd->pTagData, offsetof(STagData, data));
+    if (pTag == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    memset(pTag, 0, offsetof(STagData, data));
     tstrncpy(pTag->name, pSTableMeterMetaInfo->name, sizeof(pTag->name));
+    pCmd->pTagData = pTag;
+
     code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -934,7 +948,13 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     tdSortKVRowByColIdx(row);
-    pTag->dataLen = kvRowLen(row);
+
+    pTag = (STagData*)realloc(pCmd->pTagData, offsetof(STagData, data) + kvRowLen(row));
+    if (pTag == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    pCmd->pTagData = pTag;
+    pTag->dataLen = htonl(kvRowLen(row));
     kvRowCpy(pTag->data, row);
     free(row);
 
@@ -944,8 +964,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     if (sToken.n == 0 || sToken.type != TK_RP) {
       return tscSQLSyntaxErrMsg(pCmd->payload, ") expected", sToken.z);
     }
-
-    pTag->dataLen = htonl(pTag->dataLen);
 
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
       return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);
@@ -1376,7 +1394,10 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
   STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
 
   SSubmitBlk *pBlocks = (SSubmitBlk *)(pTableDataBlocks->pData);
-  tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
+  code = tsSetBlockInfo(pBlocks, pTableMeta, numOfRows);
+  if (code != TSDB_CODE_SUCCESS) {
+    return tscInvalidSQLErrMsg(pCmd->payload, "too many rows in sql, total number of rows should be less than 32767", NULL);
+  }
 
   if ((code = tscMergeTableDataBlocks(pSql, pCmd->pDataBlocks)) != TSDB_CODE_SUCCESS) {
     return code;

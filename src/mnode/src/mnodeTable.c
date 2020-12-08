@@ -49,7 +49,9 @@
 #define CREATE_CTABLE_RETRY_TIMES 10
 #define CREATE_CTABLE_RETRY_SEC   14
 
+int64_t        tsCTableRid = -1;
 static void *  tsChildTableSdb;
+int64_t        tsSTableRid = -1;
 static void *  tsSuperTableSdb;
 static int32_t tsChildTableUpdateSize;
 static int32_t tsSuperTableUpdateSize;
@@ -342,8 +344,7 @@ static int32_t mnodeChildTableActionRestored() {
     mnodeDecTableRef(pTable);
   }
 
-  sdbFreeIter(pIter);
-
+  mnodeCancelGetNextChildTable(pIter);
   return 0;
 }
 
@@ -351,7 +352,7 @@ static int32_t mnodeInitChildTables() {
   SCTableObj tObj;
   tsChildTableUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj.info.type;
 
-  SSdbTableDesc tableDesc = {
+  SSdbTableDesc desc = {
     .id           = SDB_TABLE_CTABLE,
     .name         = "ctables",
     .hashSessions = TSDB_DEFAULT_CTABLES_HASH_SIZE,
@@ -367,7 +368,8 @@ static int32_t mnodeInitChildTables() {
     .fpRestored   = mnodeChildTableActionRestored
   };
 
-  tsChildTableSdb = sdbOpenTable(&tableDesc);
+  tsCTableRid = sdbOpenTable(&desc);
+  tsChildTableSdb = sdbGetTableByRid(tsCTableRid);
   if (tsChildTableSdb == NULL) {
     mError("failed to init child table data");
     return -1;
@@ -378,7 +380,7 @@ static int32_t mnodeInitChildTables() {
 }
 
 static void mnodeCleanupChildTables() {
-  sdbCloseTable(tsChildTableSdb);
+  sdbCloseTable(tsCTableRid);
   tsChildTableSdb = NULL;
 }
 
@@ -544,7 +546,7 @@ static int32_t mnodeInitSuperTables() {
   SSTableObj tObj;
   tsSuperTableUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj.info.type;
 
-  SSdbTableDesc tableDesc = {
+  SSdbTableDesc desc = {
     .id           = SDB_TABLE_STABLE,
     .name         = "stables",
     .hashSessions = TSDB_DEFAULT_STABLES_HASH_SIZE,
@@ -560,7 +562,8 @@ static int32_t mnodeInitSuperTables() {
     .fpRestored   = mnodeSuperTableActionRestored
   };
 
-  tsSuperTableSdb = sdbOpenTable(&tableDesc);
+  tsSTableRid = sdbOpenTable(&desc);
+  tsSuperTableSdb = sdbGetTableByRid(tsSTableRid);
   if (tsSuperTableSdb == NULL) {
     mError("failed to init stables data");
     return -1;
@@ -571,7 +574,7 @@ static int32_t mnodeInitSuperTables() {
 }
 
 static void mnodeCleanupSuperTables() {
-  sdbCloseTable(tsSuperTableSdb);
+  sdbCloseTable(tsSTableRid);
   tsSuperTableSdb = NULL;
 }
 
@@ -602,10 +605,13 @@ int32_t mnodeInitTables() {
 
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_TABLE, mnodeGetShowTableMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_TABLE, mnodeRetrieveShowTables);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_TABLE, mnodeCancelGetNextChildTable);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_METRIC, mnodeGetShowSuperTableMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_METRIC, mnodeRetrieveShowSuperTables);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_METRIC, mnodeCancelGetNextSuperTable);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_STREAMTABLES, mnodeGetStreamTableMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_STREAMTABLES, mnodeRetrieveStreamTables);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_STREAMTABLES, mnodeCancelGetNextChildTable);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -626,13 +632,11 @@ static void *mnodeGetSuperTableByUid(uint64_t uid) {
     pIter = mnodeGetNextSuperTable(pIter, &pStable);
     if (pStable == NULL) break;
     if (pStable->uid == uid) {
-      sdbFreeIter(pIter);
+      mnodeCancelGetNextSuperTable(pIter);
       return pStable;
     }
     mnodeDecTableRef(pStable);
   }
-
-  sdbFreeIter(pIter);
 
   return NULL;
 }
@@ -655,8 +659,16 @@ void *mnodeGetNextChildTable(void *pIter, SCTableObj **pTable) {
   return sdbFetchRow(tsChildTableSdb, pIter, (void **)pTable);
 }
 
+void mnodeCancelGetNextChildTable(void *pIter) {
+  sdbFreeIter(tsChildTableSdb, pIter);
+}
+
 void *mnodeGetNextSuperTable(void *pIter, SSTableObj **pTable) {
   return sdbFetchRow(tsSuperTableSdb, pIter, (void **)pTable);
+}
+
+void mnodeCancelGetNextSuperTable(void *pIter) {
+  sdbFreeIter(tsSuperTableSdb, pIter);
 }
 
 void mnodeIncTableRef(void *p1) {
@@ -914,10 +926,10 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
 
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
    if (pStable->vgHash != NULL /*pStable->numOfTables != 0*/) {
-    SHashMutableIterator *pIter = taosHashCreateIter(pStable->vgHash);
-    while (taosHashIterNext(pIter)) {
-      int32_t *pVgId = taosHashIterGet(pIter);
+    int32_t *pVgId = taosHashIterate(pStable->vgHash, NULL);
+    while (pVgId) {
       SVgObj *pVgroup = mnodeGetVgroup(*pVgId);
+      pVgId = taosHashIterate(pStable->vgHash, pVgId);
       if (pVgroup == NULL) break;
 
       SDropSTableMsg *pDrop = rpcMallocCont(sizeof(SDropSTableMsg));
@@ -933,7 +945,8 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
       dnodeSendMsgToDnode(&epSet, &rpcMsg);
       mnodeDecVgroupRef(pVgroup);
     }
-    taosHashDestroyIter(pIter);
+
+    taosHashCancelIterate(pStable->vgHash, pVgId);
 
     mnodeDropAllChildTablesInStable(pStable);
   } 
@@ -1430,8 +1443,6 @@ void mnodeDropAllSuperTables(SDbObj *pDropDb) {
     mnodeDecTableRef(pTable);
   }
 
-  sdbFreeIter(pIter);
-
   mInfo("db:%s, all super tables:%d is dropped from sdb", pDropDb->name, numOfTables);
 }
 
@@ -1523,11 +1534,11 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
     } else {
       SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *)msg;
 
-      SHashMutableIterator *pIter = taosHashCreateIter(pTable->vgHash);
-      int32_t               vgSize = 0;
-      while (taosHashIterNext(pIter)) {
-        int32_t *pVgId = taosHashIterGet(pIter);
-        SVgObj * pVgroup = mnodeGetVgroup(*pVgId);
+      int32_t *pVgId = taosHashIterate(pTable->vgHash, NULL);
+      int32_t  vgSize = 0;
+      while (pVgId) {
+        SVgObj *pVgroup = mnodeGetVgroup(*pVgId);
+        pVgId = taosHashIterate(pTable->vgHash, pVgId);
         if (pVgroup == NULL) continue;
 
         pVgroupMsg->vgroups[vgSize].vgId = htonl(pVgroup->vgId);
@@ -1547,7 +1558,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
         mnodeDecVgroupRef(pVgroup);
       }
 
-      taosHashDestroyIter(pIter);
+      taosHashCancelIterate(pTable->vgHash, pVgId);
       mnodeDecTableRef(pTable);
 
       pVgroupMsg->numOfVgroups = htonl(vgSize);
@@ -1723,6 +1734,16 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     STagData *pTagData = (STagData *)pCreate->schema;  // it is a tag key
+
+    char prefix[64] = {0};
+    size_t prefixLen = tableIdPrefix(pMsg->pDb->name, prefix, 64);
+    if (0 != strncasecmp(prefix, pTagData->name, prefixLen)) {
+      mError("msg:%p, app:%p table:%s, corresponding super table:%s not in this db", pMsg, pMsg->rpcMsg.ahandle,
+             pCreate->tableId, pTagData->name);
+      mnodeDestroyChildTable(pTable);
+      return TSDB_CODE_TDB_INVALID_CREATE_TB_MSG;
+    }
+
     if (pMsg->pSTable == NULL) pMsg->pSTable = mnodeGetSuperTable(pTagData->name);
     if (pMsg->pSTable == NULL) {
       mError("msg:%p, app:%p table:%s, corresponding super table:%s does not exist", pMsg, pMsg->rpcMsg.ahandle,
@@ -2230,8 +2251,6 @@ void mnodeDropAllChildTablesInVgroups(SVgObj *pVgroup) {
     mnodeDecTableRef(pTable);
   }
 
-  sdbFreeIter(pIter);
-
   mInfo("vgId:%d, all child tables is dropped from sdb", pVgroup->vgId);
 }
 
@@ -2263,8 +2282,6 @@ void mnodeDropAllChildTables(SDbObj *pDropDb) {
     mnodeDecTableRef(pTable);
   }
 
-  sdbFreeIter(pIter);
-
   mInfo("db:%s, all child tables:%d is dropped from sdb", pDropDb->name, numOfTables);
 }
 
@@ -2292,8 +2309,6 @@ static void mnodeDropAllChildTablesInStable(SSTableObj *pStable) {
 
     mnodeDecTableRef(pTable);
   }
-
-  sdbFreeIter(pIter);
 
   mInfo("stable:%s, all child tables:%d is dropped from sdb", pStable->info.tableId, numOfTables);
 }
@@ -2624,9 +2639,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 
   char prefix[64] = {0};
-  tstrncpy(prefix, pDb->name, 64);
-  strcat(prefix, TS_PATH_DELIMITER);
-  int32_t prefixLen = strlen(prefix);
+  int32_t prefixLen = tableIdPrefix(pDb->name, prefix, 64);
 
   char* pattern = NULL;
   if (pShow->payloadLen > 0) {

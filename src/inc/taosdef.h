@@ -257,7 +257,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN     512
-#define TSDB_MAX_ALLOWED_SQL_LEN  (8*1024*1024U)          // sql length should be less than 8mb
+#define TSDB_MAX_ALLOWED_SQL_LEN  (1*1024*1024U)          // sql length should be less than 1mb
 
 #define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
@@ -285,6 +285,9 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_HTTP_TOKEN_LEN       20
 #define TSDB_SHOW_SQL_LEN         512
 #define TSDB_SLOW_QUERY_SQL_LEN   512
+
+#define TSDB_STEP_NAME_LEN        32
+#define TSDB_STEP_DESC_LEN        128
 
 #define TSDB_MQTT_HOSTNAME_LEN    64
 #define TSDB_MQTT_PORT_LEN        8
@@ -428,11 +431,6 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_PORT_SYNC                  10
 #define TSDB_PORT_HTTP                  11
 #define TSDB_PORT_ARBITRATOR            12
-#define TSDB_PORT_DNODESHELL 0
-#define TSDB_PORT_DNODEDNODE 5
-#define TSDB_PORT_SYNC       10
-#define TSDB_PORT_HTTP       11
-#define TSDB_PORT_ARBITRATOR 12
 
 #define TSDB_MAX_WAL_SIZE    (1024*1024)
 
@@ -443,6 +441,10 @@ typedef enum {
   TAOS_QTYPE_CQ    = 3,
   TAOS_QTYPE_QUERY = 4
 } EQType;
+
+#define TSDB_MAX_TIERS           3
+#define TSDB_MAX_DISKS_PER_TIER 16
+#define TSDB_MAX_DISKS           (TSDB_MAX_TIERS * TSDB_MAX_DISKS_PER_TIER)
 
 typedef enum {
   TSDB_SUPER_TABLE  = 0,   // super table

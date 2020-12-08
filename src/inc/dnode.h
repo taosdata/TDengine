@@ -45,7 +45,7 @@ void    dnodeGetEpSetForShell(SRpcEpSet *epSet);
 int32_t dnodeGetDnodeId();
 void    dnodeUpdateEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 bool    dnodeCheckEpChanged(int32_t dnodeId, char *epstr);
-bool    dnodeStartMnode(SMnodeInfos *minfos);
+bool    dnodeStartMnode(SMInfos *pMinfos);
 
 void  dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 void  dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg);
@@ -70,6 +70,16 @@ void    dnodeReprocessMWriteMsg(void *pMsg);
 void    dnodeDelayReprocessMWriteMsg(void *pMsg);
 
 void    dnodeSendStatusMsgToMnode();
+
+typedef struct {
+  char *name;
+  int32_t (*initFp)();
+  void (*cleanupFp)();
+} SStep;
+
+int32_t dnodeStepInit(SStep *pSteps, int32_t stepSize);
+void    dnodeStepCleanup(SStep *pSteps, int32_t stepSize);
+void    dnodeReportStep(char *name, char *desc, int8_t finished);
 
 #ifdef __cplusplus
 }

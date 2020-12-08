@@ -267,3 +267,5 @@ if $data14 != @test2@ then
   print expect test2 , actual: $data14
   return -1
 endi
+
+sql drop table stest

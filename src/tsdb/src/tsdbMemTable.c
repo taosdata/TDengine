@@ -786,9 +786,9 @@ static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pT
     if (tsdbGetTableSchemaImpl(pTable, false, false, pBlock->sversion) == NULL) {
       tsdbError("vgId:%d invalid submit schema version %d to table %s tid %d from client", REPO_ID(pRepo),
                 pBlock->sversion, TABLE_CHAR_NAME(pTable), TABLE_TID(pTable));
+      terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
+      return -1;
     }
-    terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
-    return -1;
   }
 
   return 0;
@@ -871,10 +871,10 @@ static void tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter) {
                 listNEles(pRepo->mem->bufBlockList), pBufBlock->offset, pBufBlock->remain);
 
       if (pBufBlock->offset == 0) {  // return the block to buffer pool
-        tsdbLockRepo(pRepo);
+        if (tsdbLockRepo(pRepo) < 0) return;
         SListNode *pNode = tdListPopTail(pRepo->mem->bufBlockList);
         tdListPrependNode(pBufPool->bufBlockList, pNode);
-        tsdbUnlockRepo(pRepo);
+        if (tsdbUnlockRepo(pRepo) < 0) return;
       }
     } else {
       ASSERT(listNEles(pRepo->mem->extraBuffList) > 0);

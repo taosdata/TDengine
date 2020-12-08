@@ -24,7 +24,7 @@ sql alter dnode 1 debugFlag 135
 sql alter dnode 1 debugFlag 131
 sql alter dnode 1 monitor 0
 sql alter dnode 1 debugFlag 135
-sql alter dnode 1 monitorDebugFlag 135
+sql alter dnode 1 monDebugFlag 135
 sql alter dnode 1 vDebugFlag 135
 sql alter dnode 1 mDebugFlag 135
 sql alter dnode 1 cDebugFlag 135
@@ -44,15 +44,15 @@ sql_error alter dnode 2 tmrDebugFlag 135
 
 print ======== step3
 sql_error alter $hostname1 debugFlag 135
-sql_error alter $hostname1 monitorDebugFlag 135
+sql_error alter $hostname1 monDebugFlag 135
 sql_error alter $hostname1 vDebugFlag 135
 sql_error alter $hostname1 mDebugFlag 135
 sql_error alter dnode $hostname2 debugFlag 135
-sql_error alter dnode $hostname2 monitorDebugFlag 135
+sql_error alter dnode $hostname2 monDebugFlag 135
 sql_error alter dnode $hostname2 vDebugFlag 135
 sql_error alter dnode $hostname2 mDebugFlag 135
 sql alter dnode $hostname1 debugFlag 135
-sql alter dnode $hostname1 monitorDebugFlag 135
+sql alter dnode $hostname1 monDebugFlag 135
 sql alter dnode $hostname1 vDebugFlag 135
 sql alter dnode $hostname1 tmrDebugFlag 131
 

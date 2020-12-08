@@ -64,7 +64,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_TRAN_ID,          0, 0x000F, "Invalid tr
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_SESSION_ID,       0, 0x0010, "Invalid session id")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_MSG_TYPE,         0, 0x0011, "Invalid message type")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_RESPONSE_TYPE,    0, 0x0012, "Invalid response type")
-TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_TIME_STAMP,       0, 0x0013, "Invalid timestamp")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_TIME_STAMP,       0, 0x0013, "Client and server's time is not synchronized")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_NOT_READY,                0, 0x0014, "Database not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               0, 0x0015, "Unable to resolve FQDN")
 
@@ -184,11 +184,15 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_DATABASES,       0, 0x0385, "Too many d
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_DROPPING,           0, 0x0386, "Database not available")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_READY,         0, 0x0387, "Database unsynced")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_DAYS,   0, 0x0390, "Invalid database option: days out of range")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_KEEP,   0, 0x0391, "Invalid database option: keep >= keep2 >= keep1 >= days")
+
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_MSG_NOT_PROCESSED,        0, 0x0400, "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_OUT_OF_MEMORY,            0, 0x0401, "Dnode out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_NO_WRITE_ACCESS,          0, 0x0402, "No permission for disk files in dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_MSG_LEN,          0, 0x0403, "Invalid message length")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_ACTION_IN_PROGRESS,       0, 0x0404, "Action in progress")
 
 // vnode 
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_IN_PROGRESS,       0, 0x0500, "Action in progress")
@@ -367,6 +371,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_TAG_VALUE_TOO_LONG,   0, 0x11A4, "tag value 
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_NULL,           0, 0x11A5, "value not find")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_OP_VALUE_TYPE,           0, 0x11A6, "value type should be boolean, number or string")
 
+// odbc
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_OOM,                     0, 0x2100, "out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_CHAR_NOT_NUM,       0, 0x2101, "convertion not a valid literal input")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_UNDEF,              0, 0x2102, "convertion undefined")
@@ -389,6 +394,17 @@ TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_TOO_LARGE,      0, 0x2112, "src too la
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_BAD_SEQ,        0, 0x2113, "src bad sequence")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_INCOMPLETE,     0, 0x2114, "src incomplete")
 TAOS_DEFINE_ERROR(TSDB_CODE_ODBC_CONV_SRC_GENERAL,        0, 0x2115, "src general")
+
+// tfs
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_OUT_OF_MEMORY,             0, 0x2200, "tfs out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_INVLD_CFG,                 0, 0x2201, "tfs invalid mount config")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_TOO_MANY_MOUNT,            0, 0x2202, "tfs too many mount")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_DUP_PRIMARY,               0, 0x2203, "tfs duplicate primary mount")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_NO_PRIMARY_DISK,           0, 0x2204, "tfs no primary mount")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_NO_MOUNT_AT_TIER,          0, 0x2205, "tfs no mount at tier")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_FILE_ALREADY_EXISTS,       0, 0x2206, "tfs file already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_INVLD_LEVEL,               0, 0x2207, "tfs invalid level")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_NO_VALID_DISK,             0, 0x2208, "tfs no valid disk")
 
 
 #ifdef TAOS_ERROR_C

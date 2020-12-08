@@ -630,8 +630,16 @@ static void rpcReleaseConn(SRpcConn *pConn) {
   } else {
     // if there is an outgoing message, free it
     if (pConn->outType && pConn->pReqMsg) {
-      if (pConn->pContext) pConn->pContext->pConn = NULL; 
-      taosRemoveRef(tsRpcRefId, pConn->pContext->rid);
+      SRpcReqContext *pContext = pConn->pContext;
+      if (pContext->pRsp) {   
+        // for synchronous API, post semaphore to unblock app
+        pContext->pRsp->code = TSDB_CODE_RPC_APP_ERROR;
+        pContext->pRsp->pCont = NULL;
+        pContext->pRsp->contLen = 0;
+        tsem_post(pContext->pSem);
+      }
+      pContext->pConn = NULL; 
+      taosRemoveRef(tsRpcRefId, pContext->rid);
     }
   }
 
@@ -1078,13 +1086,6 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
       } 
     } else { // msg is passed to app only parsing is ok 
-
-      if (pHead->msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
-        rpcSendQuickRsp(pConn, TSDB_CODE_SUCCESS);
-        rpcFreeMsg(pRecv->msg); 
-        return pConn;
-      }
-      
       rpcProcessIncomingMsg(pConn, pHead, pContext);
     }
   }

@@ -19,8 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "taosmsg.h"
+#include "dnodeInt.h"
 
 int32_t dnodeInitEps();
 void    dnodeCleanupEps();

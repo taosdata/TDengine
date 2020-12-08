@@ -196,6 +196,7 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   pNode->confirmForward = pInfo->confirmForward;
   pNode->notifyFlowCtrl = pInfo->notifyFlowCtrl;
   pNode->notifyFileSynced = pInfo->notifyFileSynced;
+  pNode->getVersion = pInfo->getVersion;
 
   pNode->selfIndex = -1;
   pNode->vgId = pInfo->vgId;
@@ -225,7 +226,7 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   }
 
   if (pNode->selfIndex < 0) {
-    sInfo("vgId:%d, this node is not configured", pNode->vgId);
+    sError("vgId:%d, this node is not configured", pNode->vgId);
     terrno = TSDB_CODE_SYN_INVALID_CONFIG;
     syncStop(pNode->rid);
     return -1;
@@ -497,7 +498,6 @@ int32_t syncDecPeerRef(SSyncPeer *pPeer) {
     taosReleaseRef(tsSyncRefId, pPeer->pSyncNode->rid);
 
     sDebug("%s, resource is freed", pPeer->id);
-    tfree(pPeer->watchFd);
     tfree(pPeer);
     return 0;
   }
@@ -540,7 +540,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   pPeer->ip = ip;
   pPeer->port = pInfo->nodePort;
   pPeer->fqdn[sizeof(pPeer->fqdn) - 1] = 0;
-  snprintf(pPeer->id, sizeof(pPeer->id), "vgId:%d, peer:%s:%u", pNode->vgId, pPeer->fqdn, pPeer->port);
+  snprintf(pPeer->id, sizeof(pPeer->id), "vgId:%d, nodeId:%d", pNode->vgId, pPeer->nodeId);
 
   pPeer->peerFd = -1;
   pPeer->syncFd = -1;
@@ -548,7 +548,7 @@ static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
   pPeer->pSyncNode = pNode;
   pPeer->refCount = 1;
 
-  sInfo("%s, it is configured", pPeer->id);
+  sInfo("%s, it is configured, ep:%s:%u", pPeer->id, pPeer->fqdn, pPeer->port);
   int32_t ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || (ret > 0) || (ret == 0 && pPeer->port > tsSyncPort)) {
     int32_t checkMs = 100 + (pNode->vgId * 10) % 100;
@@ -1134,7 +1134,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
 
   pPeer = (i < pNode->replica) ? pNode->peerInfo[i] : NULL;
   if (pPeer == NULL) {
-    sError("vgId:%d, peer:%s not configured", pNode->vgId, firstPkt.fqdn);
+    sError("vgId:%d, peer:%s:%u not configured", pNode->vgId, firstPkt.fqdn, firstPkt.port);
     taosCloseSocket(connFd);
     // syncSendVpeerCfgMsg(sync);
   } else {
@@ -1143,8 +1143,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
       pPeer->syncFd = connFd;
       syncCreateRestoreDataThread(pPeer);
     } else {
-      sDebug("%s, TCP connection is already up(pfd:%d), close one, new pfd:%d sfd:%d", pPeer->id, pPeer->peerFd, connFd,
-             pPeer->syncFd);
+      sDebug("%s, TCP connection is up, pfd:%d sfd:%d, old pfd:%d", pPeer->id, connFd, pPeer->syncFd, pPeer->peerFd);
       syncClosePeerConn(pPeer);
       pPeer->peerFd = connFd;
       pPeer->pConn = taosAllocateTcpConn(tsTcpPool, pPeer, connFd);

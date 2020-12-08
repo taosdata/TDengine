@@ -33,6 +33,7 @@
 #include "mnodeWrite.h"
 #include "mnodePeer.h"
 
+int64_t        tsUserRid = -1;
 static void *  tsUserSdb = NULL;
 static int32_t tsUserUpdateSize = 0;
 static int32_t mnodeGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
@@ -123,7 +124,6 @@ static void mnodePrintUserAuth() {
   }
 
   fflush(fp);
-  sdbFreeIter(pIter);
   fclose(fp);
 }
 
@@ -166,7 +166,8 @@ int32_t mnodeInitUsers() {
     .fpRestored   = mnodeUserActionRestored
   };
 
-  tsUserSdb = sdbOpenTable(&desc);
+  tsUserRid = sdbOpenTable(&desc);
+  tsUserSdb = sdbGetTableByRid(tsUserRid);
   if (tsUserSdb == NULL) {
     mError("table:%s, failed to create hash", desc.name);
     return -1;
@@ -177,6 +178,8 @@ int32_t mnodeInitUsers() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_USER, mnodeProcessDropUserMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_USER, mnodeGetUserMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_USER, mnodeRetrieveUsers);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_USER, mnodeCancelGetNextUser);
+
   mnodeAddPeerMsgHandle(TSDB_MSG_TYPE_DM_AUTH, mnodeProcessAuthMsg);
    
   mDebug("table:%s, hash is created", desc.name);
@@ -184,7 +187,7 @@ int32_t mnodeInitUsers() {
 }
 
 void mnodeCleanupUsers() {
-  sdbCloseTable(tsUserSdb);
+  sdbCloseTable(tsUserRid);
   tsUserSdb = NULL;
 }
 
@@ -194,6 +197,10 @@ SUserObj *mnodeGetUser(char *name) {
 
 void *mnodeGetNextUser(void *pIter, SUserObj **pUser) { 
   return sdbFetchRow(tsUserSdb, pIter, (void **)pUser); 
+}
+
+void mnodeCancelGetNextUser(void *pIter) {
+ sdbFreeIter(tsUserSdb, pIter);
 }
 
 void mnodeIncUserRef(SUserObj *pUser) { 
@@ -573,8 +580,6 @@ void mnodeDropAllUsers(SAcctObj *pAcct)  {
 
     mnodeDecUserRef(pUser);
   }
-
-  sdbFreeIter(pIter);
 
   mDebug("acct:%s, all users:%d is dropped from sdb", pAcct->user, numOfUsers);
 }

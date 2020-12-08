@@ -105,10 +105,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DM_AUTH, "auth" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY12, "dummy12" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY13, "dummy13" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY14, "dummy14" )
-
-  
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "network-test" )
-
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
 
 #ifndef TAOS_MESSAGE_C
   TSDB_MSG_TYPE_MAX  // 105
@@ -476,19 +473,21 @@ typedef struct {
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
+  int64_t     tableLimit;       // limit the number of rows for each table, used in order by + limit in stable projection query.
+  int16_t     prjOrder;         // global order in super table projection query.
   int64_t     limit;
   int64_t     offset;
   uint32_t    queryType;        // denote another query process
   int16_t     numOfOutput;      // final output columns numbers
   int16_t     tagNameRelType;   // relation of tag criteria and tbname criteria
-  int16_t     fillType;      // interpolate type
-  uint64_t    fillVal;       // default value array list
+  int16_t     fillType;         // interpolate type
+  uint64_t    fillVal;          // default value array list
   int32_t     secondStageOutput;
-  int32_t     tsOffset;       // offset value in current msg body, NOTE: ts list is compressed
-  int32_t     tsLen;          // total length of ts comp block
-  int32_t     tsNumOfBlocks;  // ts comp block numbers
-  int32_t     tsOrder;        // ts comp block order
-  int32_t     numOfTags;      // number of tags columns involved
+  int32_t     tsOffset;         // offset value in current msg body, NOTE: ts list is compressed
+  int32_t     tsLen;            // total length of ts comp block
+  int32_t     tsNumOfBlocks;    // ts comp block numbers
+  int32_t     tsOrder;          // ts comp block order
+  int32_t     numOfTags;        // number of tags columns involved
   SColumnInfo colList[];
 } SQueryTableMsg;
 
@@ -589,13 +588,13 @@ typedef struct {
 typedef struct {
   int32_t mnodeId;
   char    mnodeEp[TSDB_EP_LEN];
-} SMnodeInfo;
+} SMInfo;
 
 typedef struct {
-  int8_t     inUse;
-  int8_t     mnodeNum;
-  SMnodeInfo mnodeInfos[TSDB_MAX_REPLICA];
-} SMnodeInfos;
+  int8_t inUse;
+  int8_t mnodeNum;
+  SMInfo mnodeInfos[TSDB_MAX_REPLICA];
+} SMInfos;
 
 typedef struct {
   int32_t  numOfMnodes;               // tsNumOfMnodes
@@ -630,7 +629,7 @@ typedef struct {
 } SStatusMsg;
 
 typedef struct {
-  SMnodeInfos   mnodes;
+  SMInfos       mnodes;
   SDnodeCfg     dnodeCfg;
   SVgroupAccess vgAccess[];
 } SStatusRsp;
@@ -759,7 +758,7 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   char    dnodeEp[TSDB_EP_LEN];  // end point, hostname:port
-  SMnodeInfos mnodes;
+  SMInfos mnodes;
 } SCreateMnodeMsg;
 
 typedef struct {
@@ -837,6 +836,14 @@ typedef struct {
   char secret[TSDB_KEY_LEN];
   char ckey[TSDB_KEY_LEN];
 } SAuthMsg, SAuthRsp;
+
+typedef struct {
+  int8_t  finished;
+  int8_t  reserved1[7];
+  char    name[TSDB_STEP_NAME_LEN];
+  char    desc[TSDB_STEP_DESC_LEN];
+  char    reserved2[64];
+} SStartupStep;
 
 #pragma pack(pop)
 

@@ -139,15 +139,14 @@ typedef struct SsyncPeer {
   char     id[TSDB_EP_LEN + 32];  // peer vgId + end point
   uint64_t version;
   uint64_t sversion;        // track the peer version in retrieve process
+  uint64_t lastFileVer;     // track the file version while retrieve
+  uint64_t lastWalVer;      // track the wal version while retrieve
   int32_t  syncFd;
   int32_t  peerFd;          // forward FD
   int32_t  numOfRetrieves;  // number of retrieves tried
   int32_t  fileChanged;     // a flag to indicate file is changed during retrieving process
   void *   timer;
   void *   pConn;
-  int32_t  notifyFd;
-  int32_t  watchNum;
-  int32_t *watchFd;
   int32_t  refCount;  // reference count
   struct   SSyncNode *pSyncNode;
 } SSyncPeer;
@@ -172,6 +171,7 @@ typedef struct SSyncNode {
   FNotifyRole       notifyRole;
   FNotifyFlowCtrl   notifyFlowCtrl;
   FNotifyFileSynced notifyFileSynced;
+  FGetVersion       getVersion;
   pthread_mutex_t   mutex;
 } SSyncNode;
 

@@ -79,11 +79,11 @@ static int print_result(TAOS_RES* res, int blockFetch) {
   if (blockFetch) {
     int rows = 0;
     while ((rows = taos_fetch_block(res, &row))) {
-      for (int i = 0; i < rows; i++) {
-        char temp[256];
-        taos_print_row(temp, row + i, fields, num_fields);
-        puts(temp);
-      }
+      //for (int i = 0; i < rows; i++) {
+      //  char temp[256];
+      //  taos_print_row(temp, row + i, fields, num_fields);
+      //  puts(temp);
+      //}
       nRows += rows;
     }
   } else {

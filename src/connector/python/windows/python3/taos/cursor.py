@@ -28,7 +28,7 @@ class TDengineCursor(object):
     """
 
     def __init__(self, connection=None):
-        self._description = None
+        self._description = []
         self._rowcount = -1
         self._connection = None
         self._result = None
@@ -194,7 +194,7 @@ class TDengineCursor(object):
     def _reset_result(self):
         """Reset the result to unused version.
         """
-        self._description = None
+        self._description = []
         self._rowcount = -1
         if self._result is not None:
             CTaosInterface.freeResult(self._result)

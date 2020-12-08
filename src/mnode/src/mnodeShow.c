@@ -52,11 +52,11 @@ static bool  mnodeCheckShowFinished(SShowObj *pShow);
 static void *mnodePutShowObj(SShowObj *pShow);
 static void  mnodeReleaseShowObj(SShowObj *pShow, bool forceRemove);
 
-extern void *tsMnodeTmr;
 static void *tsMnodeShowCache = NULL;
 static int32_t tsShowObjIndex = 0;
 static SShowMetaFp     tsMnodeShowMetaFp[TSDB_MGMT_TABLE_MAX]     = {0};
 static SShowRetrieveFp tsMnodeShowRetrieveFp[TSDB_MGMT_TABLE_MAX] = {0};
+static SShowFreeIterFp tsMnodeShowFreeIterFp[TSDB_MGMT_TABLE_MAX] = {0};
 
 int32_t mnodeInitShow() {
   mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_SHOW, mnodeProcessShowMsg);
@@ -83,6 +83,10 @@ void mnodeAddShowMetaHandle(uint8_t showType, SShowMetaFp fp) {
 
 void mnodeAddShowRetrieveHandle(uint8_t msgType, SShowRetrieveFp fp) {
   tsMnodeShowRetrieveFp[msgType] = fp;
+}
+
+void mnodeAddShowFreeIterHandle(uint8_t msgType, SShowFreeIterFp fp) {
+  tsMnodeShowFreeIterFp[msgType] = fp;
 }
 
 static char *mnodeGetShowType(int32_t showType) {
@@ -412,7 +416,9 @@ static void* mnodePutShowObj(SShowObj *pShow) {
 
 static void mnodeFreeShowObj(void *data) {
   SShowObj *pShow = *(SShowObj **)data;
-  sdbFreeIter(pShow->pIter);
+  if (tsMnodeShowFreeIterFp[pShow->type] != NULL && pShow->pIter != NULL) {
+    (*tsMnodeShowFreeIterFp[pShow->type])(pShow->pIter);
+  }
 
   mDebug("%p, show is destroyed, data:%p index:%d", pShow, data, pShow->index);
   tfree(pShow);
