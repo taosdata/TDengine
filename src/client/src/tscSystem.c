@@ -17,6 +17,7 @@
 #include "taosmsg.h"
 #include "tref.h"
 #include "trpc.h"
+#include "tnote.h"
 #include "tsystem.h"
 #include "ttimer.h"
 #include "tutil.h"
@@ -102,6 +103,7 @@ void taos_init_imp(void) {
 
     taosReadGlobalCfg();
     taosCheckGlobalCfg();
+    taosInitNotes();
 
     rpcInit();
     tscDebug("starting to initialize TAOS client ...");
