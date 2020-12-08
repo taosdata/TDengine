@@ -21,12 +21,12 @@
 
 SNoteObj tsHttpNote;
 SNoteObj tsTscNote;
-SNoteObj tsErrorNote;
+SNoteObj tsInfoNote;
 
-static int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxNoteNum, SNoteObj * pNote);
-static void taosCloseNoteByFd(int32_t oldFd, SNoteObj * pNote);
+static int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxNoteNum, SNoteObj *pNote);
+static void    taosCloseNoteByFd(int32_t oldFd, SNoteObj *pNote);
 
-void taosInitNote(int32_t numOfLines, int32_t maxNotes, SNoteObj *pNote, char *name) {
+static void taosInitNote(int32_t numOfLines, int32_t maxNotes, SNoteObj *pNote, char *name) {
   memset(pNote, 0, sizeof(SNoteObj));
   pNote->fileNum = 1;
   pNote->fd = -1;
@@ -54,12 +54,12 @@ void taosInitNotes() {
   }
 
   if (tscEmbedded == 1) {
-    snprintf(name, TSDB_FILENAME_LEN * 2, "%s/note", tsLogDir);
-    taosInitNote(tsNumOfLogLines, 1, &tsErrorNote, name);
+    snprintf(name, TSDB_FILENAME_LEN * 2, "%s/taosinfo", tsLogDir);
+    taosInitNote(tsNumOfLogLines, 1, &tsInfoNote, name);
   }
 }
 
-bool taosLockNote(int32_t fd, SNoteObj *pNote) {
+static bool taosLockNote(int32_t fd, SNoteObj *pNote) {
   if (fd < 0) return false;
 
   if (pNote->fileNum > 1) {
@@ -72,7 +72,7 @@ bool taosLockNote(int32_t fd, SNoteObj *pNote) {
   return false;
 }
 
-void taosUnLockNote(int32_t fd, SNoteObj *pNote) {
+static void taosUnLockNote(int32_t fd, SNoteObj *pNote) {
   if (fd < 0) return;
 
   if (pNote->fileNum > 1) {
@@ -80,7 +80,7 @@ void taosUnLockNote(int32_t fd, SNoteObj *pNote) {
   }
 }
 
-void *taosThreadToOpenNewNote(void *param) {
+static void *taosThreadToOpenNewNote(void *param) {
   char      name[NOTE_FILE_NAME_LEN * 2];
   SNoteObj *pNote = (SNoteObj *)param;
 
@@ -108,7 +108,7 @@ void *taosThreadToOpenNewNote(void *param) {
   return NULL;
 }
 
-int32_t taosOpenNewNote(SNoteObj *pNote) {
+static int32_t taosOpenNewNote(SNoteObj *pNote) {
   pthread_mutex_lock(&pNote->mutex);
 
   if (pNote->lines > pNote->maxLines && pNote->openInProgress == 0) {
@@ -129,7 +129,7 @@ int32_t taosOpenNewNote(SNoteObj *pNote) {
   return pNote->fd;
 }
 
-bool taosCheckNoteIsOpen(char *noteName, SNoteObj *pNote) {
+static bool taosCheckNoteIsOpen(char *noteName, SNoteObj *pNote) {
   int32_t fd = open(noteName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
     fprintf(stderr, "failed to open note:%s reason:%s\n", noteName, strerror(errno));
@@ -146,7 +146,7 @@ bool taosCheckNoteIsOpen(char *noteName, SNoteObj *pNote) {
   }
 }
 
-void taosGetNoteName(char *fn, SNoteObj *pNote) {
+static void taosGetNoteName(char *fn, SNoteObj *pNote) {
   if (pNote->fileNum > 1) {
     for (int32_t i = 0; i < pNote->fileNum; i++) {
       char fileName[NOTE_FILE_NAME_LEN];
@@ -169,7 +169,7 @@ void taosGetNoteName(char *fn, SNoteObj *pNote) {
   }
 }
 
-int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxNoteNum, SNoteObj *pNote) {
+static int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxNoteNum, SNoteObj *pNote) {
   char    name[NOTE_FILE_NAME_LEN * 2] = {0};
   int32_t size;
   struct stat logstat0, logstat1;
@@ -227,6 +227,16 @@ int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxNoteNum,
   return 0;
 }
 
+void taosNotePrintBuffer(SNoteObj *pNote, char *buffer, int32_t len) {
+  if (pNote->fd < 0) return;
+  taosWrite(pNote->fd, buffer, len);
+
+  if (pNote->maxLines > 0) {
+    pNote->lines++;
+    if ((pNote->lines > pNote->maxLines) && (pNote->openInProgress == 0)) taosOpenNewNote(pNote);
+  }
+}
+
 void taosNotePrint(SNoteObj *pNote, const char *const format, ...) {
   va_list        argpointer;
   char           buffer[MAX_NOTE_LINE_SIZE + 2];
@@ -249,19 +259,12 @@ void taosNotePrint(SNoteObj *pNote, const char *const format, ...) {
   buffer[len++] = '\n';
   buffer[len] = 0;
 
-  if (pNote->fd >= 0) {
-    taosWrite(pNote->fd, buffer, len);
-
-    if (pNote->maxLines > 0) {
-      pNote->lines++;
-      if ((pNote->lines > pNote->maxLines) && (pNote->openInProgress == 0)) taosOpenNewNote(pNote);
-    }
-  }
+  taosNotePrintBuffer(pNote, buffer, len);
 }
 
-void taosCloseNote(SNoteObj *pNote) { taosCloseNoteByFd(pNote->fd, pNote); }
+// static void taosCloseNote(SNoteObj *pNote) { taosCloseNoteByFd(pNote->fd, pNote); }
 
-void taosCloseNoteByFd(int32_t fd, SNoteObj *pNote) {
+static void taosCloseNoteByFd(int32_t fd, SNoteObj *pNote) {
   if (fd >= 0) {
     taosUnLockNote(fd, pNote);
     close(fd);

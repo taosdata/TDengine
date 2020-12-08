@@ -36,10 +36,11 @@ typedef struct {
 
 extern SNoteObj tsHttpNote;
 extern SNoteObj tsTscNote;
-extern SNoteObj tsErrorNote;
+extern SNoteObj tsInfoNote;
 
 void taosInitNotes();
 void taosNotePrint(SNoteObj* pNote, const char* const format, ...);
+void taosNotePrintBuffer(SNoteObj *pNote, char *buffer, int32_t len);
 
 #define nPrintHttp(...)                      \
   if (tsHttpEnableRecordSql) {               \
@@ -51,7 +52,7 @@ void taosNotePrint(SNoteObj* pNote, const char* const format, ...);
     taosNotePrint(&tsTscNote, __VA_ARGS__); \
   }
 
-#define nError(...) taosNotePrint(&tsErrorNote, __VA_ARGS__);
+#define nInfo(buffer, len) taosNotePrintBuffer(&tsInfoNote, buffer, len);
 
 #ifdef __cplusplus
 }
