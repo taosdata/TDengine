@@ -788,7 +788,7 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
 }
 
 static void extractTableMeta(SSqlCmd* pCmd) {
-  pCmd->numOfTables = taosHashGetSize(pCmd->pTableBlockHashList);
+  pCmd->numOfTables = (int32_t) taosHashGetSize(pCmd->pTableBlockHashList);
   pCmd->pTableMetaList = calloc(pCmd->numOfTables, POINTER_BYTES);
 
   STableDataBlocks **p1 = taosHashIterate(pCmd->pTableBlockHashList, NULL);
