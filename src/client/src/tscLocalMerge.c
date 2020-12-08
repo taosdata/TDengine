@@ -730,7 +730,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
       p1 = tGetTableNameColumnSchema();
     } else if (TSDB_COL_IS_UD_COL(pExpr->colInfo.flag)) {
       p1.bytes = pExpr->resBytes;
-      p1.type = pExpr->resType;
+      p1.type  = (uint8_t) pExpr->resType;
       tstrncpy(p1.name, pExpr->aliasName, tListLen(p1.name));
     } else {
       p1 = *tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
