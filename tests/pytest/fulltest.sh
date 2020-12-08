@@ -22,6 +22,7 @@ python3 ./test.py -f insert/insertIntoTwoTables.py
 python3 ./test.py -f insert/before_1970.py
 python3 bug2265.py
 
+#table
 python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
@@ -29,6 +30,12 @@ python3 ./test.py -f table/db_table.py
 python3 ./test.py -f table/create_sensitive.py
 #python3 ./test.py -f table/tablename-boundary.py
 python3 ./test.py  -f table/max_table_length.py
+python3 ./test.py -f table/alter_column.py
+python3 ./test.py -f table/boundary.py
+python3 ./test.py -f table/create-a-lot.py
+python3 ./test.py -f table/create.py
+python3 ./test.py -f table/del_stable.py
+python3 ./test.py -f table/queryWithTaosdKilled.py
 
 
 # tag
@@ -137,9 +144,6 @@ python3 ./test.py -f user/pass_len.py
 
 # stable
 python3 ./test.py -f stable/query_after_reset.py
-
-# table
-python3 ./test.py -f table/del_stable.py
 
 #query
 python3 ./test.py -f query/filter.py
