@@ -16,10 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cJSON.h"
-#include "tglobal.h"
 #include "mnode.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeMInfos.h"
 
 static SMInfos   tsMInfos;
@@ -157,12 +154,13 @@ static void dnodeResetMInfos(SMInfos *pMinfos) {
 }
 
 static int32_t dnodeReadMInfos() {
-  int32_t     len = 0;
-  int32_t     maxLen = 2000;
-  char *      content = calloc(1, maxLen + 1);
-  cJSON *     root = NULL;
-  FILE *      fp = NULL;
-  SMInfos     minfos = {0};
+  int32_t len = 0;
+  int32_t maxLen = 2000;
+  char *  content = calloc(1, maxLen + 1);
+  cJSON * root = NULL;
+  FILE *  fp = NULL;
+  SMInfos minfos = {0};
+  bool    nodeChanged = false;
 
   char file[TSDB_FILENAME_LEN + 20] = {0};
   sprintf(file, "%s/mnodeEpSet.json", tsDnodeDir);
@@ -221,14 +219,19 @@ static int32_t dnodeReadMInfos() {
       dError("failed to read mnodeEpSet.json, nodeId not found");
       goto PARSE_MINFOS_OVER;
     }
-    minfos.mnodeInfos[i].mnodeId = nodeId->valueint;
 
     cJSON *nodeEp = cJSON_GetObjectItem(nodeInfo, "nodeEp");
     if (!nodeEp || nodeEp->type != cJSON_String || nodeEp->valuestring == NULL) {
       dError("failed to read mnodeEpSet.json, nodeName not found");
       goto PARSE_MINFOS_OVER;
     }
-    strncpy(minfos.mnodeInfos[i].mnodeEp, nodeEp->valuestring, TSDB_EP_LEN);
+
+    SMInfo *pMinfo = &minfos.mnodeInfos[i];
+    pMinfo->mnodeId = nodeId->valueint;
+    tstrncpy(pMinfo->mnodeEp, nodeEp->valuestring, TSDB_EP_LEN);
+
+    bool changed = dnodeCheckEpChanged(pMinfo->mnodeId, pMinfo->mnodeEp);
+    if (changed) nodeChanged = changed;
   }
 
   dInfo("read file %s successed", file);
@@ -245,6 +248,11 @@ PARSE_MINFOS_OVER:
     dnodeUpdateEp(mInfo->mnodeId, mInfo->mnodeEp, NULL, NULL);
   }
   dnodeResetMInfos(&minfos);
+
+  if (nodeChanged) {
+    dnodeWriteMInfos();
+  }
+
   return 0;
 }
 
@@ -285,4 +293,26 @@ static int32_t dnodeWriteMInfos() {
 
   dInfo("successed to write %s", file);
   return 0;
+}
+
+void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
+  SRpcConnInfo connInfo = {0};
+  rpcGetConnInfo(rpcMsg->handle, &connInfo);
+
+  SRpcEpSet epSet = {0};
+  if (forShell) {
+    dnodeGetEpSetForShell(&epSet);
+  } else {
+    dnodeGetEpSetForPeer(&epSet);
+  }
+
+  dDebug("msg:%s will be redirected, dnodeIp:%s user:%s, numOfEps:%d inUse:%d", taosMsg[rpcMsg->msgType],
+         taosIpStr(connInfo.clientIp), connInfo.user, epSet.numOfEps, epSet.inUse);
+
+  for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+    dDebug("mnode index:%d %s:%d", i, epSet.fqdn[i], epSet.port[i]);
+    epSet.port[i] = htons(epSet.port[i]);
+  }
+
+  rpcSendRedirectRsp(rpcMsg->handle, &epSet);
 }

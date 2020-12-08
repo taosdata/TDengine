@@ -16,25 +16,25 @@
 #define _DEFAULT_SOURCE
 #define _NON_BLOCKING_RETRIEVE  0
 #include "os.h"
-#include "tglobal.h"
-#include "taoserror.h"
 #include "taosmsg.h"
-#include "query.h"
-#include "trpc.h"
-#include "tsdb.h"
-#include "vnode.h"
-#include "vnodeInt.h"
 #include "tqueue.h"
+#include "tglobal.h"
+#include "query.h"
+#include "vnodeStatus.h"
 
 static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SVReadMsg *pRead);
 static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead);
 static int32_t  vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead);
 static int32_t  vnodeNotifyCurrentQhandle(void* handle, void* qhandle, int32_t vgId);
 
-void vnodeInitReadFp(void) {
+int32_t vnodeInitRead(void) {
   vnodeProcessReadMsgFp[TSDB_MSG_TYPE_QUERY] = vnodeProcessQueryMsg;
   vnodeProcessReadMsgFp[TSDB_MSG_TYPE_FETCH] = vnodeProcessFetchMsg;
+
+  return 0;
 }
+
+void vnodeCleanupRead() {}
 
 //
 // After the fetch request enters the vnode queue, if the vnode cannot provide services, the process function are
@@ -54,7 +54,7 @@ int32_t vnodeProcessRead(void *vparam, SVReadMsg *pRead) {
 }
 
 static int32_t vnodeCheckRead(SVnodeObj *pVnode) {
-  if (pVnode->status != TAOS_VN_STATUS_READY) {
+  if (!vnodeInReadyStatus(pVnode)) {
     vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;

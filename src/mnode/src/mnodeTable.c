@@ -396,14 +396,15 @@ static void mnodeAddTableIntoStable(SSTableObj *pStable, SCTableObj *pCtable) {
   atomic_add_fetch_32(&pStable->numOfTables, 1);
 
   if (pStable->vgHash == NULL) {
-    pStable->vgHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+    pStable->vgHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    mDebug("table:%s, create hash:%p", pStable->info.tableId, pStable->vgHash);
   }
 
   if (pStable->vgHash != NULL) {
     if (taosHashGet(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId)) == NULL) {
       taosHashPut(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId), &pCtable->vgId, sizeof(pCtable->vgId));
-      mDebug("table:%s, vgId:%d is put into stable vgList, sizeOfVgList:%d", pStable->info.tableId, pCtable->vgId,
-             (int32_t)taosHashGetSize(pStable->vgHash));
+      mDebug("table:%s, vgId:%d is put into stable hash:%p, sizeOfVgList:%d", pStable->info.tableId, pCtable->vgId,
+             pStable->vgHash, taosHashGetSize(pStable->vgHash));
     }
   }
 }
@@ -416,13 +417,14 @@ static void mnodeRemoveTableFromStable(SSTableObj *pStable, SCTableObj *pCtable)
   SVgObj *pVgroup = mnodeGetVgroup(pCtable->vgId);
   if (pVgroup == NULL) {
     taosHashRemove(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId));
-    mDebug("table:%s, vgId:%d is remove from stable vgList, sizeOfVgList:%d", pStable->info.tableId, pCtable->vgId,
-           (int32_t)taosHashGetSize(pStable->vgHash));
+    mDebug("table:%s, vgId:%d is remove from stable hash:%p sizeOfVgList:%d", pStable->info.tableId, pCtable->vgId,
+           pStable->vgHash, taosHashGetSize(pStable->vgHash));
   }
   mnodeDecVgroupRef(pVgroup);
 }
 
 static void mnodeDestroySuperTable(SSTableObj *pStable) {
+  mDebug("table:%s, is destroyed, stable hash:%p", pStable->info.tableId, pStable->vgHash);
   if (pStable->vgHash != NULL) {
     taosHashCleanup(pStable->vgHash);
     pStable->vgHash = NULL;
@@ -464,6 +466,9 @@ static int32_t mnodeSuperTableActionUpdate(SSdbRow *pRow) {
   SSTableObj *pNew = pRow->pObj;
   SSTableObj *pTable = mnodeGetSuperTable(pNew->info.tableId);
   if (pTable != NULL && pTable != pNew) {
+    mDebug("table:%s, will be updated, hash:%p sizeOfVgList:%d, new hash:%p sizeOfVgList:%d", pTable->info.tableId,
+           pTable->vgHash, taosHashGetSize(pTable->vgHash), pNew->vgHash, taosHashGetSize(pNew->vgHash));
+
     void *oldTableId = pTable->info.tableId;
     void *oldSchema = pTable->schema;
     void *oldVgHash = pTable->vgHash;
@@ -479,6 +484,9 @@ static int32_t mnodeSuperTableActionUpdate(SSdbRow *pRow) {
     free(pNew);
     free(oldTableId);
     free(oldSchema);
+
+    mDebug("table:%s, update finished, hash:%p sizeOfVgList:%d", pTable->info.tableId, pTable->vgHash,
+           taosHashGetSize(pTable->vgHash));
   }
 
   mnodeDecTableRef(pTable);
@@ -783,8 +791,8 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
 
   if (pMsg->pTable->type == TSDB_SUPER_TABLE) {
     SSTableObj *pSTable = (SSTableObj *)pMsg->pTable;
-    mInfo("msg:%p, app:%p table:%s, start to drop stable, uid:%" PRIu64 ", numOfChildTables:%d, sizeOfVgList:%d",
-          pMsg, pMsg->rpcMsg.ahandle, pDrop->tableId, pSTable->uid, pSTable->numOfTables, (int32_t)taosHashGetSize(pSTable->vgHash));
+    mInfo("msg:%p, app:%p table:%s, start to drop stable, uid:%" PRIu64 ", numOfChildTables:%d, sizeOfVgList:%d", pMsg,
+          pMsg->rpcMsg.ahandle, pDrop->tableId, pSTable->uid, pSTable->numOfTables, taosHashGetSize(pSTable->vgHash));
     return mnodeProcessDropSuperTableMsg(pMsg);
   } else {
     SCTableObj *pCTable = (SCTableObj *)pMsg->pTable;
@@ -925,7 +933,10 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
 
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
-   if (pStable->vgHash != NULL /*pStable->numOfTables != 0*/) {
+  mInfo("msg:%p, app:%p stable:%s will be dropped, hash:%p sizeOfVgList:%d", pMsg, pMsg->rpcMsg.ahandle,
+        pStable->info.tableId, pStable->vgHash, taosHashGetSize(pStable->vgHash));
+
+  if (pStable->vgHash != NULL /*pStable->numOfTables != 0*/) {
     int32_t *pVgId = taosHashIterate(pStable->vgHash, NULL);
     while (pVgId) {
       SVgObj *pVgroup = mnodeGetVgroup(*pVgId);
@@ -938,8 +949,9 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
       pDrop->uid = htobe64(pStable->uid);
       mnodeExtractTableName(pStable->info.tableId, pDrop->tableId);
 
-      mInfo("msg:%p, app:%p stable:%s, send drop stable msg to vgId:%d", pMsg, pMsg->rpcMsg.ahandle,
-            pStable->info.tableId, pVgroup->vgId);
+      mInfo("msg:%p, app:%p stable:%s, send drop stable msg to vgId:%d, hash:%p sizeOfVgList:%d", pMsg,
+            pMsg->rpcMsg.ahandle, pStable->info.tableId, pVgroup->vgId, pStable->vgHash,
+            taosHashGetSize(pStable->vgHash));
       SRpcEpSet epSet = mnodeGetEpSetFromVgroup(pVgroup);
       SRpcMsg   rpcMsg = {.pCont = pDrop, .contLen = sizeof(SDropSTableMsg), .msgType = TSDB_MSG_TYPE_MD_DROP_STABLE};
       dnodeSendMsgToDnode(&epSet, &rpcMsg);
@@ -1482,8 +1494,8 @@ static int32_t mnodeGetSuperTableMeta(SMnodeMsg *pMsg) {
 
   pMsg->rpcRsp.rsp = pMeta;
 
-  mDebug("msg:%p, app:%p stable:%s, uid:%" PRIu64 " table meta is retrieved", pMsg, pMsg->rpcMsg.ahandle,
-         pTable->info.tableId, pTable->uid);
+  mDebug("msg:%p, app:%p stable:%s, uid:%" PRIu64 " table meta is retrieved, sizeOfVgList:%d numOfTables:%d", pMsg,
+         pMsg->rpcMsg.ahandle, pTable->info.tableId, pTable->uid, taosHashGetSize(pTable->vgHash), pTable->numOfTables);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1512,7 +1524,7 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
   char *msg = (char *)pRsp + sizeof(SSTableVgroupRspMsg);
 
   for (int32_t i = 0; i < numOfTable; ++i) {
-    char *          stableName = (char *)pInfo + sizeof(SSTableVgroupMsg) + (TSDB_TABLE_FNAME_LEN)*i;
+    char *stableName = (char *)pInfo + sizeof(SSTableVgroupMsg) + (TSDB_TABLE_FNAME_LEN)*i;
     SSTableObj *pTable = mnodeGetSuperTable(stableName);
     if (pTable == NULL) {
       mError("msg:%p, app:%p stable:%s, not exist while get stable vgroup info", pMsg, pMsg->rpcMsg.ahandle, stableName);
@@ -1533,6 +1545,8 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
       msg += sizeof(SVgroupsMsg);
     } else {
       SVgroupsMsg *pVgroupMsg = (SVgroupsMsg *)msg;
+      mDebug("msg:%p, app:%p stable:%s, hash:%p sizeOfVgList:%d will be returned", pMsg, pMsg->rpcMsg.ahandle,
+             pTable->info.tableId, pTable->vgHash, taosHashGetSize(pTable->vgHash));
 
       int32_t *pVgId = taosHashIterate(pTable->vgHash, NULL);
       int32_t  vgSize = 0;
@@ -1734,6 +1748,16 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
     STagData *pTagData = (STagData *)pCreate->schema;  // it is a tag key
+
+    char prefix[64] = {0};
+    size_t prefixLen = tableIdPrefix(pMsg->pDb->name, prefix, 64);
+    if (0 != strncasecmp(prefix, pTagData->name, prefixLen)) {
+      mError("msg:%p, app:%p table:%s, corresponding super table:%s not in this db", pMsg, pMsg->rpcMsg.ahandle,
+             pCreate->tableId, pTagData->name);
+      mnodeDestroyChildTable(pTable);
+      return TSDB_CODE_TDB_INVALID_CREATE_TB_MSG;
+    }
+
     if (pMsg->pSTable == NULL) pMsg->pSTable = mnodeGetSuperTable(pTagData->name);
     if (pMsg->pSTable == NULL) {
       mError("msg:%p, app:%p table:%s, corresponding super table:%s does not exist", pMsg, pMsg->rpcMsg.ahandle,
@@ -2629,9 +2653,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 
   char prefix[64] = {0};
-  tstrncpy(prefix, pDb->name, 64);
-  strcat(prefix, TS_PATH_DELIMITER);
-  int32_t prefixLen = strlen(prefix);
+  int32_t prefixLen = tableIdPrefix(pDb->name, prefix, 64);
 
   char* pattern = NULL;
   if (pShow->payloadLen > 0) {

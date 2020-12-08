@@ -19,8 +19,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#include "taoserror.h"
+#include "taosmsg.h"
 #include "tlog.h"
+#include "trpc.h"
+#include "tglobal.h"
+#include "dnode.h"
+#include "vnode.h"
 
 extern int32_t dDebugFlag;
 

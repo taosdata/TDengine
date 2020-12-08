@@ -46,8 +46,7 @@ static struct argp_option options[] = {
   {"thread",     'T', "THREADNUM",  0,                   "Number of threads when using multi-thread to import data."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   't', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
-  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is NULL, options: client|clients|server."},
-  {"endport",    'e', "ENDPORT",    0,                   "Net test end port, default is 6042."},
+  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup."},
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {0}};
 
@@ -130,20 +129,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case 'd':
       arguments->database = arg;
       break;
-
     case 'n':
       arguments->netTestRole = arg;
       break;
-
-    case 'e':
-      if (arg) {
-        arguments->endPort = atoi(arg);
-      } else {
-        fprintf(stderr, "Invalid end port\n");
-        return -1;
-      }
-      break;
-
     case 'l':
       if (arg) {
         arguments->pktLen = atoi(arg);
@@ -152,7 +140,6 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         return -1;
       }
       break;
-      
     case OPT_ABORT:
       arguments->abort = 1;
       break;

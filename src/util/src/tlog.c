@@ -17,6 +17,7 @@
 #include "os.h"
 #include "tulog.h"
 #include "tlog.h"
+#include "tnote.h"
 #include "tutil.h"
 
 #define MAX_LOGLINE_SIZE              (1000)
@@ -287,7 +288,6 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   tsLogObj.fileNum = maxFileNum;
   taosGetLogFileName(fn);
 
-
   if (strlen(fn) < LOG_FILE_NAME_LEN + 50 - 2) {
     strcpy(name, fn);
     strcat(name, ".0");
@@ -401,6 +401,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   }
 
   if (dflag & DEBUG_SCREEN) taosWrite(1, buffer, (uint32_t)len);
+  if (dflag == 255) nInfo(buffer, len);
 }
 
 void taosDumpData(unsigned char *msg, int32_t len) {

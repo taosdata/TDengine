@@ -17,6 +17,7 @@
 #include "taosmsg.h"
 #include "tref.h"
 #include "trpc.h"
+#include "tnote.h"
 #include "tsystem.h"
 #include "ttimer.h"
 #include "tutil.h"
@@ -42,8 +43,7 @@ int tscNumOfThreads;
 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 static pthread_once_t tscexit = PTHREAD_ONCE_INIT;
-void taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
-//void tscUpdateEpSet(void *ahandle, SRpcEpSet *pEpSet);
+void   taosInitNote(int numOfNoteLines, int maxNotes, char* lable);
 
 void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
   taosGetDisk();
@@ -79,7 +79,6 @@ int32_t tscInitRpc(const char *user, const char *secretEncrypt, void **pDnodeCon
   return 0;
 }
 
-
 void taos_init_imp(void) {
   char temp[128]  = {0};
   
@@ -105,6 +104,7 @@ void taos_init_imp(void) {
 
     taosReadGlobalCfg();
     taosCheckGlobalCfg();
+    taosInitNotes();
 
     rpcInit();
     tscDebug("starting to initialize TAOS client ...");
@@ -112,11 +112,6 @@ void taos_init_imp(void) {
   }
 
   taosSetCoreDump();
-
-  if (tsTscEnableRecordSql != 0) {
-    taosInitNote(tsNumOfLogLines / 10, 1, (char*)"tsc_note");
-  }
-
   tscInitMsgsFp();
   int queueSize = tsMaxConnections*2;
 
