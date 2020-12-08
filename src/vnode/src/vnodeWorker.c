@@ -21,10 +21,11 @@
 #include "tqueue.h"
 #include "tglobal.h"
 #include "vnodeWorker.h"
+#include "vnodeMain.h"
 
 typedef enum {
-  VNODE_WORKER_ACTION_CREATE,
-  VNODE_WORKER_ACTION_DELETE
+  VNODE_WORKER_ACTION_CLEANUP,
+  VNODE_WORKER_ACTION_DESTROUY
 } EVMWorkerAction;
 
 typedef struct {
@@ -132,14 +133,11 @@ void vnodeCleanupMWorker() {
   vnodeStopMWorker();
 }
 
-static int32_t vnodeWriteIntoMWorker(int32_t vgId, EVMWorkerAction action,void *rpcHandle) {
+static int32_t vnodeWriteIntoMWorker(SVnodeObj *pVnode, EVMWorkerAction action, void *rpcHandle) {
   SVMWorkerMsg *pMsg = taosAllocateQitem(sizeof(SVMWorkerMsg));
   if (pMsg == NULL) return TSDB_CODE_VND_OUT_OF_MEMORY;
 
-  SVnodeObj *pVnode = vnodeAcquire(vgId);
-  if (pVnode == NULL) return TSDB_CODE_VND_INVALID_VGROUP_ID;
-
-  pMsg->vgId = vgId;
+  pMsg->vgId = pVnode->vgId;
   pMsg->pVnode = pVnode;
   pMsg->rpcHandle = rpcHandle;
   pMsg->action = action;
@@ -150,29 +148,27 @@ static int32_t vnodeWriteIntoMWorker(int32_t vgId, EVMWorkerAction action,void *
   return code;
 }
 
-int32_t vnodeOpenInMWorker(int32_t vgId, void *rpcHandle) {
-  vTrace("vgId:%d, will open in vmworker", vgId);
-  return vnodeWriteIntoMWorker(vgId, VNODE_WORKER_ACTION_CREATE, rpcHandle);
+int32_t vnodeCleanupInMWorker(SVnodeObj *pVnode) {
+  vTrace("vgId:%d, will cleanup in vmworker", pVnode->vgId);
+  return vnodeWriteIntoMWorker(pVnode, VNODE_WORKER_ACTION_CLEANUP, NULL);
 }
 
-int32_t vnodeCleanupInMWorker(int32_t vgId, void *rpcHandle) {
-  vTrace("vgId:%d, will cleanup in vmworker", vgId);
-  return vnodeWriteIntoMWorker(vgId, VNODE_WORKER_ACTION_DELETE, rpcHandle);
+int32_t vnodeDestroyInMWorker(SVnodeObj *pVnode) {
+  vTrace("vgId:%d, will destroy in vmworker", pVnode->vgId);
+  return vnodeWriteIntoMWorker(pVnode, VNODE_WORKER_ACTION_DESTROUY, NULL);
 }
 
 static void vnodeFreeMWorkerMsg(SVMWorkerMsg *pMsg) {
   vTrace("vgId:%d, disposed in vmworker", pMsg->vgId);
-  vnodeRelease(pMsg->pVnode);
   taosFreeQitem(pMsg);
 }
 
 static void vnodeSendVMWorkerRpcRsp(SVMWorkerMsg *pMsg) {
-  SRpcMsg rpcRsp = {
-    .handle = pMsg->rpcHandle,
-    .code = pMsg->code,
-  };
+  if (pMsg->rpcHandle != NULL) {
+    SRpcMsg rpcRsp = {.handle = pMsg->rpcHandle, .code = pMsg->code};
+    rpcSendResponse(&rpcRsp);
+  }
 
-  rpcSendResponse(&rpcRsp);
   vnodeFreeMWorkerMsg(pMsg);
 }
 
@@ -180,11 +176,11 @@ static void vnodeProcessMWorkerMsg(SVMWorkerMsg *pMsg) {
   pMsg->code = 0;
 
   switch (pMsg->action) {
-    case VNODE_WORKER_ACTION_CREATE:
-      pMsg->code = vnodeOpen(pMsg->vgId);
+    case VNODE_WORKER_ACTION_CLEANUP:
+      vnodeCleanUp(pMsg->pVnode);
       break;
-    case VNODE_WORKER_ACTION_DELETE:
-      pMsg->code = vnodeDrop(pMsg->vgId);
+    case VNODE_WORKER_ACTION_DESTROUY:
+      vnodeDestroy(pMsg->pVnode);
       break;
     default:
       break;

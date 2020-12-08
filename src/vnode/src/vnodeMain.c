@@ -25,71 +25,12 @@
 #include "vnodeStatus.h"
 #include "vnodeSync.h"
 #include "vnodeVersion.h"
+#include "vnodeMgmt.h"
+#include "vnodeWorker.h"
+#include "vnodeMain.h"
 #include "vnodeCancel.h"
 
-static SHashObj*tsVnodesHash;
-static void     vnodeCleanUp(SVnodeObj *pVnode);
-static int32_t  vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno);
-static uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion);
-static int32_t  vnodeGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId);
-static void     vnodeNotifyRole(int32_t vgId, int8_t role);
-static void     vnodeCtrlFlow(int32_t vgId, int32_t level);
-static int32_t  vnodeNotifyFileSynced(int32_t vgId, uint64_t fversion);
-static void     vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code);
-static int32_t  vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rparam);
-static int32_t  vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver);
-
-#ifndef _SYNC
-int64_t syncStart(const SSyncInfo *info) { return NULL; }
-int32_t syncForwardToPeer(int64_t rid, void *pHead, void *mhandle, int32_t qtype) { return 0; }
-void    syncStop(int64_t rid) {}
-int32_t syncReconfig(int64_t rid, const SSyncCfg *cfg) { return 0; }
-int32_t syncGetNodesRole(int64_t rid, SNodesRole *cfg) { return 0; }
-void    syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {}
-#endif
-
-char* vnodeStatus[] = {
-  "init",
-  "ready",
-  "closing",
-  "updating",
-  "reset"
-};
-
-int32_t vnodeInitResources() {
-  int32_t code = syncInit();
-  if (code != 0) return code;
-
-  vnodeInitWriteFp();
-  vnodeInitReadFp();
-  vnodeInitCWorker();
-
-  tsVnodesHash = taosHashInit(TSDB_MIN_VNODES, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-  if (tsVnodesHash == NULL) {
-    vError("failed to init vnode list");
-    return TSDB_CODE_VND_OUT_OF_MEMORY;
-  }
-
-  if (tsdbInitCommitQueue(tsNumOfCommitThreads) < 0) {
-    vError("failed to init vnode commit queue");
-    return terrno;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-void vnodeCleanupResources() {
-  vnodeCleanupCWorker();
-  tsdbDestroyCommitQueue();
-
-  if (tsVnodesHash != NULL) {
-    vDebug("vnode list is cleanup");
-    taosHashCleanup(tsVnodesHash);
-    tsVnodesHash = NULL;
-  }
-
-  syncCleanUp();
-}
+static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno);
 
 int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
   int32_t code;
@@ -171,8 +112,10 @@ int32_t vnodeDrop(int32_t vgId) {
   vInfo("vgId:%d, vnode will be dropped, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
   pVnode->dropped = 1;
 
+  // remove from hash, so new messages wont be consumed
+  vnodeRemoveFromHash(pVnode);
   vnodeRelease(pVnode);
-  vnodeCleanUp(pVnode);
+  vnodeCleanupInMWorker(pVnode);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -370,6 +313,7 @@ int32_t vnodeOpen(int32_t vgId) {
   if (pVnode->sync <= 0) {
     vError("vgId:%d, failed to open sync, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
            tstrerror(terrno));
+    vnodeRemoveFromHash(pVnode);
     vnodeCleanUp(pVnode);
     return terrno;
   }
@@ -383,6 +327,7 @@ int32_t vnodeClose(int32_t vgId) {
   if (pVnode == NULL) return 0;
 
   vDebug("vgId:%d, vnode will be closed, pVnode:%p", pVnode->vgId, pVnode);
+  vnodeRemoveFromHash(pVnode);
   vnodeRelease(pVnode);
   vnodeCleanUp(pVnode);
 
@@ -459,11 +404,7 @@ void vnodeDestroy(SVnodeObj *pVnode) {
   tsdbDecCommitRef(vgId);
 }
 
-
-static void vnodeCleanUp(SVnodeObj *pVnode) {
-  // remove from hash, so new messages wont be consumed
-  vnodeRemoveFromHash(pVnode);
-
+void vnodeCleanUp(SVnodeObj *pVnode) {
   if (!vnodeInInitStatus(pVnode)) {
     // it may be in updateing or reset state, then it shall wait
     int32_t i = 0;
