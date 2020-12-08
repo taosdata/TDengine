@@ -53,7 +53,7 @@ void taosInitNotes() {
     taosInitNote(tsNumOfLogLines, 1, &tsHttpNote, name);
   }
 
-  if (tscEmbedded == 0) {
+  if (tscEmbedded == 1) {
     snprintf(name, TSDB_FILENAME_LEN * 2, "%s/note", tsLogDir);
     taosInitNote(tsNumOfLogLines, 1, &tsErrorNote, name);
   }
@@ -170,36 +170,37 @@ void taosGetNoteName(char *fn, SNoteObj *pNote) {
 }
 
 int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxNoteNum, SNoteObj *pNote) {
-  char    name[NOTE_FILE_NAME_LEN * 2] = "\0";
+  char    name[NOTE_FILE_NAME_LEN * 2] = {0};
   int32_t size;
-  struct stat notestat0, notestat1;
+  struct stat logstat0, logstat1;
 
   pNote->maxLines = maxLines;
   pNote->fileNum = maxNoteNum;
   taosGetNoteName(fn, pNote);
 
-  if (strlen(fn) > NOTE_FILE_NAME_LEN * 2 - 2) {
-    fprintf(stderr, "the len of file name overflow:%s\n", fn);
-    return -1;
+  if (strlen(fn) < NOTE_FILE_NAME_LEN + 50 - 2) {
+    strcpy(name, fn);
+    strcat(name, ".0");
   }
+  bool log0Exist = stat(name, &logstat0) >= 0;
 
-  strcpy(name, fn);
-  strcat(name, ".0");
-
-  // if none of the note files exist, open 0, if both exists, open the old one
-  if (stat(name, &notestat0) < 0) {
-    pNote->flag = 0;
-  } else {
+  if (strlen(fn) < NOTE_FILE_NAME_LEN + 50 - 2) {
     strcpy(name, fn);
     strcat(name, ".1");
-    if (stat(name, &notestat1) < 0) {
-      pNote->flag = 1;
-    } else {
-      pNote->flag = (notestat0.st_mtime > notestat1.st_mtime) ? 0 : 1;
-    }
+  }
+  bool log1Exist = stat(name, &logstat1) >= 0;
+
+  if (!log0Exist && !log1Exist) {
+    pNote->flag = 0;
+  } else if (!log1Exist) {
+    pNote->flag = 0;
+  } else if (!log0Exist) {
+    pNote->flag = 1;
+  } else {
+    pNote->flag = (logstat0.st_mtime > logstat1.st_mtime) ? 0 : 1;
   }
 
-  char noteName[NOTE_FILE_NAME_LEN * 2] = "\0";
+  char noteName[NOTE_FILE_NAME_LEN * 2] = {0};
   sprintf(noteName, "%s.%d", pNote->name, pNote->flag);
   pthread_mutex_init(&pNote->mutex, NULL);
 

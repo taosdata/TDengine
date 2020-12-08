@@ -287,7 +287,6 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   tsLogObj.fileNum = maxFileNum;
   taosGetLogFileName(fn);
 
-
   if (strlen(fn) < LOG_FILE_NAME_LEN + 50 - 2) {
     strcpy(name, fn);
     strcat(name, ".0");
