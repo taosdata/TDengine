@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taos.h"
+#include "tnote.h"
 #include "tconfig.h"
 #include "tfile.h"
 #include "twal.h"
@@ -98,6 +99,7 @@ int32_t dnodeInitSystem() {
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
   taosSetCoreDump();
+  taosInitNotes();
   signal(SIGPIPE, SIG_IGN);
 
   if (dnodeCreateDir(tsLogDir) < 0) {
