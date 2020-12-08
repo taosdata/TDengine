@@ -19,6 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "dnodeInt.h"
 
 int32_t dnodeInitServer();
 void    dnodeCleanupServer();

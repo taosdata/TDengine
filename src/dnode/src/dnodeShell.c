@@ -15,20 +15,14 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
-#include "taosdef.h"
-#include "taosmsg.h"
-#include "tglobal.h"
-#include "tutil.h"
 #include "http.h"
 #include "mnode.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeVRead.h"
 #include "dnodeVWrite.h"
 #include "dnodeMRead.h"
 #include "dnodeMWrite.h"
 #include "dnodeShell.h"
+#include "dnodeStep.h"
 
 static void  (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void    dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *);
@@ -73,6 +67,8 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLES_META] = dnodeDispatchToMReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_SHOW]        = dnodeDispatchToMReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE]    = dnodeDispatchToMReadQueue;
+
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]   = dnodeSendStartupStep;
 
   int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore;
   numOfThreads = (int32_t) ((1.0 - tsRatioOfQueryThreads) * numOfThreads / 2.0);
@@ -142,7 +138,23 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   }
 }
 
+static int32_t dnodeAuthNettestUser(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  if (strcmp(user, "nettestinternal") == 0) {
+    char pass[32] = {0};
+    taosEncryptPass((uint8_t *)user, strlen(user), pass);
+    *spi = 0;
+    *encrypt = 0;
+    *ckey = 0;
+    memcpy(secret, pass, TSDB_KEY_LEN);
+    dTrace("nettest user is authorized");
+    return 0;
+  }
+
+  return -1;
+}
+
 static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  if (dnodeAuthNettestUser(user, spi, encrypt, secret, ckey) == 0) return 0;  
   int code = mnodeRetriveAuth(user, spi, encrypt, secret, ckey);
   if (code != TSDB_CODE_APP_NOT_READY) return code;
 

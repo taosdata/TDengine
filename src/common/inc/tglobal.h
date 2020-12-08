@@ -35,6 +35,7 @@ extern int32_t  tsNumOfMnodes;
 extern int32_t  tsEnableVnodeBak;
 extern int32_t  tsEnableTelemetryReporting;
 extern char     tsEmail[];
+extern char     tsArbitrator[];
 
 // common
 extern int      tsRpcTimer;
