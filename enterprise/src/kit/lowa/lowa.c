@@ -100,6 +100,12 @@ typedef enum CREATE_SUB_TALBE_MOD_EN {
   AUTO_CREATE_SUBTBL,
   NO_CREATE_SUBTBL
 } CREATE_SUB_TALBE_MOD_EN;
+  
+typedef enum TALBE_EXISTS_EN {
+  TBL_ALREADY_EXISTS,
+  TBL_NO_EXISTS,
+  TBL_EXISTS_BUTT
+} TALBE_EXISTS_EN;
 
 enum MODE {
   SYNC, 
@@ -161,7 +167,9 @@ typedef struct SColumn_S {
 typedef struct SSuperTable_S {
   char         sTblName[MAX_TB_NAME_SIZE];
   int          childTblCount;
-  int8_t       autoCreateTable;                  // 0: create sub table, 1: auto create sub table, 2: not create sub table, already exists
+  bool         superTblExists;    // 0: no, 1: yes
+  bool         childTblExists;    // 0: no, 1: yes  
+  int8_t       autoCreateTable;                  // 0: create sub table, 1: auto create sub table
   char         childTblPrefix[MAX_TB_NAME_SIZE];
   char         dataSource[MAX_TB_NAME_SIZE];  // rand_gen or sample
   char         insertMode[MAX_TB_NAME_SIZE];  // taosc, restful
@@ -620,7 +628,7 @@ static int queryDbExec(TAOS *taos, char *command) {
   if (code != 0) {
     fprintf(stderr, "Failed to run %s, reason: %s\n", command, taos_errstr(pSql));
     taos_free_result(pSql);
-    taos_close(taos);
+    //taos_close(taos);
     return -1;
   }
 
@@ -810,8 +818,16 @@ static void printfInsertMeta() {
         printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "no");
       } else if (AUTO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) {
         printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "yes");
-      } else if (NO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) {
-        printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "null");
+      } else {
+        printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "error");
+      }
+      
+      if (TBL_NO_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists) {
+        printf("      childTblExists:    \033[33m%s\033[0m\n",  "no");
+      } else if (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists) {
+        printf("      childTblExists:    \033[33m%s\033[0m\n",  "yes");
+      } else {
+        printf("      childTblExists:    \033[33m%s\033[0m\n",  "error");
       }
       
       printf("      childTblCount:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblCount);      
@@ -1263,9 +1279,8 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName, SSuperTable*  supe
   int32_t code = taos_errno(res);
   if (code != 0) {
     printf("failed to run command %s\n", command);
-    taos_free_result(res);
-    taos_close(taos);
-    exit(-1);
+    taos_free_result(res);    
+    return -1;
   }
 
   int tagIndex = 0;
@@ -1298,9 +1313,11 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName, SSuperTable*  supe
   taos_free_result(res);
 
   calcRowLen(superTbls);
-  
-  //get all child table name use cmd: select tbname from superTblName;  
-  getAllChildNameOfSuperTable(taos, dbName, superTbls->sTblName, &superTbls->childTblName, &superTbls->childTblCount) ;  
+
+  if (TBL_ALREADY_EXISTS == superTbls->childTblExists) {
+    //get all child table name use cmd: select tbname from superTblName;  
+    getAllChildNameOfSuperTable(taos, dbName, superTbls->sTblName, &superTbls->childTblName, &superTbls->childTblCount);  
+  }
   return 0;
 }
 
@@ -1414,7 +1431,7 @@ static int createSuperTable(TAOS * taos, char* dbName, SSuperTable*  superTbls, 
     
     snprintf(command, BUFFER_SIZE, "create table if not exists %s.%s (ts timestamp%s) tags %s", dbName, superTbls->sTblName, cols, tags);
     if (0 != queryDbExec(taos, command)) {
-      exit(-1);
+      return -1;
     }
     printf("\ncreate supertable %s success!\n\n", superTbls->sTblName);
   }
@@ -1424,7 +1441,7 @@ static int createSuperTable(TAOS * taos, char* dbName, SSuperTable*  superTbls, 
 
 static int createDatabases() {
   TAOS * taos = NULL;
-  
+  int    ret = 0;
   taos_init();
   taos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, NULL, g_Dbs.port);
   if (taos == NULL) {
@@ -1438,7 +1455,8 @@ static int createDatabases() {
     if (g_Dbs.db[i].drop) {
       sprintf(command, "drop database if exists %s;", g_Dbs.db[i].dbName);
       if (0 != queryDbExec(taos, command)) {
-        exit(-1);
+        taos_close(taos);
+        return -1;
       }
     }
     
@@ -1486,127 +1504,26 @@ static int createDatabases() {
     }
     
     if (0 != queryDbExec(taos, command)) {
-      exit(-1);
+      taos_close(taos);
+      return -1;
     }
     printf("\ncreate database %s success!\n\n", g_Dbs.db[i].dbName);
 
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-      #if 0
-      char cols[STRING_LEN] = "\0";
-      int colIndex;
-      int len = 0;
-
-      int  lenOfOneRow = 0;
-      for (colIndex = 0; colIndex < g_Dbs.db[i].superTbls[j].columnCount; colIndex++) {
-        char* dataType = g_Dbs.db[i].superTbls[j].columns[colIndex].dataType;
-        
-        if (strcasecmp(dataType, "BINARY") == 0) {
-          len += snprintf(cols + len, STRING_LEN - len, ", c%d %s(%d)", colIndex, "BINARY", g_Dbs.db[i].superTbls[j].columns[colIndex].dataLen);
-          lenOfOneRow += g_Dbs.db[i].superTbls[j].columns[colIndex].dataLen + 3;
-        } else if (strcasecmp(dataType, "NCHAR") == 0) {
-          len += snprintf(cols + len, STRING_LEN - len, ", c%d %s(%d)", colIndex, "NCHAR", g_Dbs.db[i].superTbls[j].columns[colIndex].dataLen);
-          lenOfOneRow += g_Dbs.db[i].superTbls[j].columns[colIndex].dataLen + 3;
-        } else if (strcasecmp(dataType, "INT") == 0)  {
-          len += snprintf(cols + len, STRING_LEN - len, ", c%d %s", colIndex, "INT");
-          lenOfOneRow += 11;
-        } else if (strcasecmp(dataType, "BIGINT") == 0)  {
-          len += snprintf(cols + len, STRING_LEN - len, ", c%d %s", colIndex, "BIGINT");
-          lenOfOneRow += 21;
-        } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
-          len += snprintf(cols + len, STRING_LEN - len, ", c%d %s", colIndex, "SMALLINT");
-          lenOfOneRow += 6;
-        } else if (strcasecmp(dataType, "TINYINT") == 0)  {
-          len += snprintf(cols + len, STRING_LEN - len, ", c%d %s", colIndex, "TINYINT");
-          lenOfOneRow += 4;
-        } else if (strcasecmp(dataType, "BOOL") == 0)  {
-          len += snprintf(cols + len, STRING_LEN - len, ", c%d %s", colIndex, "BOOL");
-          lenOfOneRow += 6;
-        } else if (strcasecmp(dataType, "FLOAT") == 0) {
-          len += snprintf(cols + len, STRING_LEN - len, ", c%d %s", colIndex, "FLOAT");
-          lenOfOneRow += 22;
-        } else if (strcasecmp(dataType, "DOUBLE") == 0) { 
-          len += snprintf(cols + len, STRING_LEN - len, ", c%d %s", colIndex, "DOUBLE");
-          lenOfOneRow += 42;
-        }  else if (strcasecmp(dataType, "TIMESTAMP") == 0) { 
-          len += snprintf(cols + len, STRING_LEN - len, ", c%d %s", colIndex, "TIMESTAMP");
-          lenOfOneRow += 21;
-        } else {
-          taos_close(taos);
-          printf("config error data type : %s\n", dataType);
-          exit(-1);
-        }
+      // describe super table, if exists
+      sprintf(command, "describe %s.%s;", g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].sTblName);
+      if (0 != queryDbExec(taos, command)) {
+        g_Dbs.db[i].superTbls[j].superTblExists = TBL_NO_EXISTS;
+        ret = createSuperTable(taos, g_Dbs.db[i].dbName, &g_Dbs.db[i].superTbls[j], g_Dbs.use_metric);
+      } else {      
+        g_Dbs.db[i].superTbls[j].superTblExists = TBL_ALREADY_EXISTS;
+        ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName, &g_Dbs.db[i].superTbls[j]);
       }
 
-      g_Dbs.db[i].superTbls[j].lenOfOneRow = lenOfOneRow + 20; // timestamp
-      //printf("%s.%s column count:%d, column length:%d\n\n", g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].sTblName, g_Dbs.db[i].superTbls[j].columnCount, lenOfOneRow);
-
-      // save for creating child table
-      g_Dbs.db[i].superTbls[j].colsOfCreatChildTable = (char*)calloc(len+20, 1);
-      if (NULL == g_Dbs.db[i].superTbls[j].colsOfCreatChildTable) {
-        printf("Failed when calloc, size:%d", len+1);
+      if (0 != ret) {
         taos_close(taos);
-        exit(-1);
+        return -1;
       }
-      snprintf(g_Dbs.db[i].superTbls[j].colsOfCreatChildTable, len+20, "(ts timestamp%s)", cols);
-
-      if (g_Dbs.use_metric) {
-        char tags[STRING_LEN] = "\0";
-        int tagIndex;
-        len = 0;
-  
-        int lenOfTagOfOneRow = 0;
-        len += snprintf(tags + len, STRING_LEN - len, "(");
-        for (tagIndex = 0; tagIndex < g_Dbs.db[i].superTbls[j].tagCount; tagIndex++) {
-          char* dataType = g_Dbs.db[i].superTbls[j].tags[tagIndex].dataType;
-          
-          if (strcasecmp(dataType, "BINARY") == 0) {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ", tagIndex, "BINARY", g_Dbs.db[i].superTbls[j].tags[tagIndex].dataLen);
-            lenOfTagOfOneRow += g_Dbs.db[i].superTbls[j].tags[tagIndex].dataLen + 3;
-          } else if (strcasecmp(dataType, "NCHAR") == 0) {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ", tagIndex, "NCHAR", g_Dbs.db[i].superTbls[j].tags[tagIndex].dataLen);
-            lenOfTagOfOneRow += g_Dbs.db[i].superTbls[j].tags[tagIndex].dataLen + 3;
-          } else if (strcasecmp(dataType, "INT") == 0)  {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex, "INT");
-            lenOfTagOfOneRow += g_Dbs.db[i].superTbls[j].tags[tagIndex].dataLen + 11;
-          } else if (strcasecmp(dataType, "BIGINT") == 0)  {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex, "BIGINT");
-            lenOfTagOfOneRow += g_Dbs.db[i].superTbls[j].tags[tagIndex].dataLen + 21;
-          } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex, "SMALLINT");
-            lenOfTagOfOneRow += g_Dbs.db[i].superTbls[j].tags[tagIndex].dataLen + 6;
-          } else if (strcasecmp(dataType, "TINYINT") == 0)  {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex, "TINYINT");
-            lenOfTagOfOneRow += g_Dbs.db[i].superTbls[j].tags[tagIndex].dataLen + 4;
-          } else if (strcasecmp(dataType, "BOOL") == 0)  {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex, "BOOL");
-            lenOfTagOfOneRow += g_Dbs.db[i].superTbls[j].tags[tagIndex].dataLen + 6;
-          } else if (strcasecmp(dataType, "FLOAT") == 0) {
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex, "FLOAT");
-            lenOfTagOfOneRow += g_Dbs.db[i].superTbls[j].tags[tagIndex].dataLen + 22;
-          } else if (strcasecmp(dataType, "DOUBLE") == 0) { 
-            len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex, "DOUBLE");
-            lenOfTagOfOneRow += g_Dbs.db[i].superTbls[j].tags[tagIndex].dataLen + 42;
-          } else {
-            taos_close(taos);
-            printf("config error tag type : %s\n", dataType);
-            exit(-1);
-          }
-        }
-        len -= 2;
-        len += snprintf(tags + len, STRING_LEN - len, ")");
-  
-        g_Dbs.db[i].superTbls[j].lenOfTagOfOneRow = lenOfTagOfOneRow;
-        
-        snprintf(command, BUFFER_SIZE, "create table if not exists %s.%s (ts timestamp%s) tags %s", g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].sTblName, cols, tags);
-        (void)queryDB(taos, command);
-        printf("\ncreate supertable %s success!\n\n", g_Dbs.db[i].superTbls[j].sTblName);
-      }
-      #endif
-      if (PRE_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) {
-        (void)createSuperTable(taos, g_Dbs.db[i].dbName, &g_Dbs.db[i].superTbls[j], g_Dbs.use_metric);
-      } else if (NO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) {
-        (void)getSuperTableFromServer(taos, g_Dbs.db[i].dbName, &g_Dbs.db[i].superTbls[j]);
-      } 
     }    
   }
 
@@ -1709,7 +1626,7 @@ void startMultiThreadCreateChildTable(char* cols, int threads, int ntables, char
 static void createChildTables() {
   for (int i = 0; i < g_Dbs.dbCount; i++) {    
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-      if ((AUTO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) || (NO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable)) {
+      if ((AUTO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) || (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists)) {
         continue;
       }
       startMultiThreadCreateChildTable(g_Dbs.db[i].superTbls[j].colsOfCreatChildTable, g_Dbs.threadCount, g_Dbs.db[i].superTbls[j].childTblCount, g_Dbs.db[i].dbName, &(g_Dbs.db[i].superTbls[j]));
@@ -1836,9 +1753,13 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
   
   // columns 
   cJSON *columns = cJSON_GetObjectItem(stbInfo, "columns");
-  if (!columns || columns->type != cJSON_Array) {
-    printf("failed to read json, columns not found");
+  if (columns && columns->type != cJSON_Array) {
+    printf("failed to read json, columns not found\n");
     goto PARSE_OVER;
+  } else if (NULL == columns) {
+    superTbls->columnCount = 0;
+    superTbls->tagCount    = 0;
+    return true;
   }
   
   int columnSize = cJSON_GetArraySize(columns);
@@ -2214,8 +2135,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       if (autoCreateTbl && autoCreateTbl->type == cJSON_String && autoCreateTbl->valuestring != NULL) {
         if (0 == strncasecmp(autoCreateTbl->valuestring, "yes", 3)) {
           g_Dbs.db[i].superTbls[j].autoCreateTable = AUTO_CREATE_SUBTBL;
-        } else if (0 == strncasecmp(autoCreateTbl->valuestring, "null", 4)) {
-          g_Dbs.db[i].superTbls[j].autoCreateTable = NO_CREATE_SUBTBL;
+        } else if (0 == strncasecmp(autoCreateTbl->valuestring, "no", 2)) {
+          g_Dbs.db[i].superTbls[j].autoCreateTable = PRE_CREATE_SUBTBL;
         } else {
           g_Dbs.db[i].superTbls[j].autoCreateTable = PRE_CREATE_SUBTBL;
         }
@@ -2223,6 +2144,22 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         g_Dbs.db[i].superTbls[j].autoCreateTable = PRE_CREATE_SUBTBL;
       } else {
         printf("failed to read json, auto_create_table not found");
+        goto PARSE_OVER;
+      }
+
+      cJSON *childTblExists = cJSON_GetObjectItem(stbInfo, "child_table_exists"); // yes, no
+      if (childTblExists && childTblExists->type == cJSON_String && childTblExists->valuestring != NULL) {
+        if (0 == strncasecmp(childTblExists->valuestring, "yes", 3)) {
+          g_Dbs.db[i].superTbls[j].childTblExists = TBL_ALREADY_EXISTS;
+        } else if (0 == strncasecmp(childTblExists->valuestring, "no", 2)) {
+          g_Dbs.db[i].superTbls[j].childTblExists = TBL_NO_EXISTS;
+        } else {
+          g_Dbs.db[i].superTbls[j].childTblExists = TBL_NO_EXISTS;
+        }
+      } else if (!childTblExists) {
+        g_Dbs.db[i].superTbls[j].childTblExists = TBL_NO_EXISTS;
+      } else {
+        printf("failed to read json, child_table_exists not found");
         goto PARSE_OVER;
       }
       
@@ -2421,90 +2358,14 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      if (NO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) {
+      if (NO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable || (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists)) {
         continue;
       }
 
       int retVal = getColumnAndTagTypeFromInsertJsonFile(stbInfo, &g_Dbs.db[i].superTbls[j]);
       if (false == retVal) {
         goto PARSE_OVER;
-      }
-      #if 0  
-      // columns 
-      cJSON *columns = cJSON_GetObjectItem(stbInfo, "columns");
-      if (!columns || columns->type != cJSON_Array) {
-        printf("failed to read json, columns not found");
-        goto PARSE_OVER;
-      }
-      
-      int columnSize = cJSON_GetArraySize(columns);
-      if (columnSize > MAX_COLUMN_COUNT) {
-        printf("failed to read json, column size overflow, max column size is %d\n", MAX_COLUMN_COUNT);
-        goto PARSE_OVER;
-      }
-
-      g_Dbs.db[i].superTbls[j].columnCount = columnSize;  
-      for (int k = 0; k < columnSize; ++k) {
-        cJSON* column = cJSON_GetArrayItem(columns, k);
-        if (column == NULL) continue;
-      
-        // column info 
-        cJSON *dataType = cJSON_GetObjectItem(column, "type");
-        if (!dataType || dataType->type != cJSON_String || dataType->valuestring == NULL) {
-          printf("failed to read json, column type not found");
-          goto PARSE_OVER;
-        }
-        strncpy(g_Dbs.db[i].superTbls[j].columns[k].dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
-                
-        cJSON* dataLen = cJSON_GetObjectItem(column, "len");
-        if (dataLen && dataLen->type == cJSON_Number) {
-          g_Dbs.db[i].superTbls[j].columns[k].dataLen = dataLen->valueint;    
-        } else if (dataLen && dataLen->type != cJSON_Number) {
-          printf("failed to read json, column len not found");
-          goto PARSE_OVER;
-        } else {
-          g_Dbs.db[i].superTbls[j].columns[k].dataLen = 0;
-        }            
-      }
-  
-      // tags 
-      cJSON *tags = cJSON_GetObjectItem(stbInfo, "tags");
-      if (!tags || tags->type != cJSON_Array) {
-        printf("failed to read json, tags not found");
-        goto PARSE_OVER;
-      }
-      
-      int tagSize = cJSON_GetArraySize(tags);
-      if (tagSize > MAX_TAG_COUNT) {
-        printf("failed to read json, tags size overflow, max tag size is %d\n", MAX_TAG_COUNT);
-        goto PARSE_OVER;
-      }
-      
-      g_Dbs.db[i].superTbls[j].tagCount = tagSize;  
-      for (int k = 0; k < tagSize; ++k) {
-        cJSON* tag = cJSON_GetArrayItem(tags, k);
-        if (tag == NULL) continue;
-      
-        // column info 
-        cJSON *dataType = cJSON_GetObjectItem(tag, "type");
-        if (!dataType || dataType->type != cJSON_String || dataType->valuestring == NULL) {
-          printf("failed to read json, tag type not found");
-          goto PARSE_OVER;
-        }
-        strncpy(g_Dbs.db[i].superTbls[j].tags[k].dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
-                
-        cJSON* dataLen = cJSON_GetObjectItem(tag, "len");
-        if (dataLen && dataLen->type == cJSON_Number) {
-          g_Dbs.db[i].superTbls[j].tags[k].dataLen = dataLen->valueint;    
-        } else if (dataLen && dataLen->type != cJSON_Number) {
-          printf("failed to read json, column len not found");
-          goto PARSE_OVER;
-        } else {
-          g_Dbs.db[i].superTbls[j].tags[k].dataLen = 0;
-        }  
-      }     
-      #endif
-      
+      }      
     }    
   }
 
@@ -3088,13 +2949,13 @@ void syncWriteForNumberOfTblInOneSql(threadInfo *winfo, FILE *fp, char* sampleDa
               len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, " %s.%s%d using %s.%s tags %s values ", winfo->db_name, superTblInfo->childTblPrefix, tbl_id, winfo->db_name, superTblInfo->sTblName, tagsValBuf);
             }
             tmfree(tagsValBuf);
-          } else if (NO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
+          } else if (TBL_ALREADY_EXISTS == superTblInfo->childTblExists) {
             if (0 == len) {
               len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, "insert into %s.%s values ", winfo->db_name, superTblInfo->childTblName + tbl_id * TSDB_TABLE_NAME_LEN);
             } else {
               len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, " %s.%s values ", winfo->db_name, superTblInfo->childTblName + tbl_id * TSDB_TABLE_NAME_LEN);
             }
-          } else {
+          } else {  // pre-create child table
             if (0 == len) {
               len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, "insert into %s.%s%d values ", winfo->db_name, superTblInfo->childTblPrefix, tbl_id);
             } else {
@@ -3318,7 +3179,7 @@ void *syncWrite(void *sarg) {
         
           len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, "insert into %s.%s%d using %s.%s tags %s values", winfo->db_name, superTblInfo->childTblPrefix, tID, winfo->db_name, superTblInfo->sTblName, tagsValBuf);
           tmfree(tagsValBuf);
-        } else if (NO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
+        } else if (TBL_ALREADY_EXISTS == superTblInfo->childTblExists) {
           len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, "insert into %s.%s values", winfo->db_name, superTblInfo->childTblName + tID * TSDB_TABLE_NAME_LEN);
         } else {
           len += snprintf(pstr + len, superTblInfo->maxSqlLen - len, "insert into %s.%s%d values", winfo->db_name, superTblInfo->childTblPrefix, tID);
@@ -4042,7 +3903,9 @@ void setParaFromArg(){
   g_Dbs.threadCount = g_args.num_of_threads;
   g_Dbs.queryMode = g_args.mode;
 
-  g_Dbs.db[0].superTbls[0].autoCreateTable = 0;
+  g_Dbs.db[0].superTbls[0].autoCreateTable = PRE_CREATE_SUBTBL;
+  g_Dbs.db[0].superTbls[0].superTblExists = TBL_NO_EXISTS;
+  g_Dbs.db[0].superTbls[0].childTblExists = TBL_NO_EXISTS;
   g_Dbs.db[0].superTbls[0].insertRate    = 0;
   g_Dbs.db[0].superTbls[0].disorderRange = g_args.disorderRange;
   g_Dbs.db[0].superTbls[0].disorderRatio = g_args.disorderRatio;
