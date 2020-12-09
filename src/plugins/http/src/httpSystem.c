@@ -37,7 +37,6 @@ void opInitHandle(HttpServer* pServer) {}
 #endif
 
 HttpServer tsHttpServer;
-void taosInitNote(int32_t numOfNoteLines, int32_t maxNotes, char* lable);
 
 int32_t httpInitSystem() {
   strcpy(tsHttpServer.label, "rest");
@@ -48,9 +47,6 @@ int32_t httpInitSystem() {
 
   pthread_mutex_init(&tsHttpServer.serverMutex, NULL);
 
-  if (tsHttpEnableRecordSql != 0) {
-    taosInitNote(tsNumOfLogLines / 10, 1, (char*)"http_note");
-  }
   restInitHandle(&tsHttpServer);
   adminInitHandle(&tsHttpServer);
   gcInitHandle(&tsHttpServer);

@@ -96,7 +96,7 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
     return;
   }
   
-  taosNotePrintTsc(sqlstr);
+  nPrintTsc(sqlstr);
   
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
