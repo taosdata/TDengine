@@ -346,8 +346,9 @@
 	}
 	
 	function dbSelectDnode(dnode) {
-		dbDnodeIp = "dnode " + dnode;
-		$('#dropdownMenu1').html(dbDnodeIp + '<span class="caret"></span>');
+		dbDnodeIp = dnode;
+		showtext = "dnode " + dnode;
+		$('#dropdownMenu1').html(showtext + '<span class="caret"></span>');
 		dbQueryAll();
 	}
 	
