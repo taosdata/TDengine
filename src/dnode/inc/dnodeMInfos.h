@@ -19,15 +19,18 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "taosmsg.h"
+#include "dnodeInt.h"
 
 int32_t dnodeInitMInfos();
 void    dnodeCleanupMInfos();
-void    dnodeUpdateMInfos(SMnodeInfos *minfos);
-void    dnodeUpdateEpSetForPeer(SRpcEpSet *epSet);
-void    dnodeGetMInfos(SMnodeInfos *minfos);
+void    dnodeUpdateMInfos(SMInfos *pMinfos);
+void    dnodeUpdateEpSetForPeer(SRpcEpSet *pEpSet);
+void    dnodeGetMInfos(SMInfos *pMinfos);
 bool    dnodeIsMasterEp(char *ep);
+
+void    dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell);
+void    dnodeGetEpSetForPeer(SRpcEpSet *epSet);
+void    dnodeGetEpSetForShell(SRpcEpSet *epSet);
 
 #ifdef __cplusplus
 }

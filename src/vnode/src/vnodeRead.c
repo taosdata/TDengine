@@ -16,25 +16,25 @@
 #define _DEFAULT_SOURCE
 #define _NON_BLOCKING_RETRIEVE  0
 #include "os.h"
-#include "tglobal.h"
-#include "taoserror.h"
 #include "taosmsg.h"
-#include "query.h"
-#include "trpc.h"
-#include "tsdb.h"
-#include "vnode.h"
-#include "vnodeInt.h"
 #include "tqueue.h"
+#include "tglobal.h"
+#include "query.h"
+#include "vnodeStatus.h"
 
 static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SVReadMsg *pRead);
 static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead);
 static int32_t  vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead);
 static int32_t  vnodeNotifyCurrentQhandle(void* handle, void* qhandle, int32_t vgId);
 
-void vnodeInitReadFp(void) {
+int32_t vnodeInitRead(void) {
   vnodeProcessReadMsgFp[TSDB_MSG_TYPE_QUERY] = vnodeProcessQueryMsg;
   vnodeProcessReadMsgFp[TSDB_MSG_TYPE_FETCH] = vnodeProcessFetchMsg;
+
+  return 0;
 }
+
+void vnodeCleanupRead() {}
 
 //
 // After the fetch request enters the vnode queue, if the vnode cannot provide services, the process function are
@@ -54,7 +54,7 @@ int32_t vnodeProcessRead(void *vparam, SVReadMsg *pRead) {
 }
 
 static int32_t vnodeCheckRead(SVnodeObj *pVnode) {
-  if (pVnode->status != TAOS_VN_STATUS_READY) {
+  if (!vnodeInReadyStatus(pVnode)) {
     vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
@@ -275,41 +275,40 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 
     vDebug("vgId:%d, QInfo:%p, dnode continues to exec query", pVnode->vgId, *qhandle);
 
-
-#if _NON_BLOCKING_RETRIEVE
-    bool freehandle = false;
-    bool buildRes = qTableQuery(*qhandle);  // do execute query
-
-    // build query rsp, the retrieve request has reached here already
-    if (buildRes) {
-      // update the connection info according to the retrieve connection
-      pRead->rpcHandle = qGetResultRetrieveMsg(*qhandle);
-      assert(pRead->rpcHandle != NULL);
-
-      vDebug("vgId:%d, QInfo:%p, start to build retrieval rsp after query paused, %p", pVnode->vgId, *qhandle,
-             pRead->rpcHandle);
-
-      // set the real rsp error code
-      pRead->code = vnodeDumpQueryResult(&pRead->rspRet, pVnode, qhandle, &freehandle, pRead->rpcHandle);
-
-      // NOTE: set return code to be TSDB_CODE_QRY_HAS_RSP to notify dnode to return msg to client
-      code = TSDB_CODE_QRY_HAS_RSP;
+    // In the retrieve blocking model, only 50% CPU will be used in query processing
+    if (tsHalfCoresForQuery) {
+      qTableQuery(*qhandle);  // do execute query
+      qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, false);
     } else {
-      void* h1 = qGetResultRetrieveMsg(*qhandle);
-      assert(h1 == NULL);
+      bool freehandle = false;
+      bool buildRes = qTableQuery(*qhandle);  // do execute query
 
-      freehandle = qQueryCompleted(*qhandle);
-    }
+      // build query rsp, the retrieve request has reached here already
+      if (buildRes) {
+        // update the connection info according to the retrieve connection
+        pRead->rpcHandle = qGetResultRetrieveMsg(*qhandle);
+        assert(pRead->rpcHandle != NULL);
 
-    // NOTE: if the qhandle is not put into vread queue or query is completed, free the qhandle.
-    // If the building of result is not required, simply free it. Otherwise, mandatorily free the qhandle
-    if (freehandle || (!buildRes)) {
-      qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, freehandle);
+        vDebug("vgId:%d, QInfo:%p, start to build retrieval rsp after query paused, %p", pVnode->vgId, *qhandle,
+               pRead->rpcHandle);
+
+        // set the real rsp error code
+        pRead->code = vnodeDumpQueryResult(&pRead->rspRet, pVnode, qhandle, &freehandle, pRead->rpcHandle);
+
+        // NOTE: set return code to be TSDB_CODE_QRY_HAS_RSP to notify dnode to return msg to client
+        code = TSDB_CODE_QRY_HAS_RSP;
+      } else {
+        void *h1 = qGetResultRetrieveMsg(*qhandle);
+        assert(h1 == NULL);
+        freehandle = qQueryCompleted(*qhandle);
+      }
+
+      // NOTE: if the qhandle is not put into vread queue or query is completed, free the qhandle.
+      // If the building of result is not required, simply free it. Otherwise, mandatorily free the qhandle
+      if (freehandle || (!buildRes)) {
+        qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, freehandle);
+      }
     }
-#else
-    qTableQuery(*qhandle);  // do execute query
-    qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, false);
-#endif
   }
 
   return code;
@@ -375,14 +374,16 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     freeHandle = true;
   } else {  // result is not ready, return immediately
     assert(buildRes == true);
-#if _NON_BLOCKING_RETRIEVE
-    if (!buildRes) {
-      assert(pRead->rpcHandle != NULL);
 
-      qReleaseQInfo(pVnode->qMgmt, (void **)&handle, false);
-      return TSDB_CODE_QRY_NOT_READY;
+    // Only effects in the non-blocking model
+    if (!tsHalfCoresForQuery) {
+      if (!buildRes) {
+        assert(pRead->rpcHandle != NULL);
+
+        qReleaseQInfo(pVnode->qMgmt, (void **)&handle, false);
+        return TSDB_CODE_QRY_NOT_READY;
+      }
     }
-#endif
 
     // ahandle is the sqlObj pointer
     code = vnodeDumpQueryResult(pRet, pVnode, handle, &freeHandle, pRead->rpcHandle);

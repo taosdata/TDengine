@@ -15,15 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosdef.h"
-#include "taosmsg.h"
-#include "tglobal.h"
 #include "mnode.h"
 #include "http.h"
 #include "tmqtt.h"
 #include "monitor.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeModule.h"
 
 typedef struct {
@@ -78,10 +73,10 @@ static void dnodeAllocModules() {
 
   tsModule[TSDB_MOD_MONITOR].enable    = (tsEnableMonitorModule == 1);
   tsModule[TSDB_MOD_MONITOR].name      = "monitor";
-  tsModule[TSDB_MOD_MONITOR].initFp    = monitorInitSystem;
-  tsModule[TSDB_MOD_MONITOR].cleanUpFp = monitorCleanUpSystem;
-  tsModule[TSDB_MOD_MONITOR].startFp   = monitorStartSystem;
-  tsModule[TSDB_MOD_MONITOR].stopFp    = monitorStopSystem;
+  tsModule[TSDB_MOD_MONITOR].initFp    = monInitSystem;
+  tsModule[TSDB_MOD_MONITOR].cleanUpFp = monCleanupSystem;
+  tsModule[TSDB_MOD_MONITOR].startFp   = monStartSystem;
+  tsModule[TSDB_MOD_MONITOR].stopFp    = monStopSystem;
   if (tsEnableMonitorModule) {
     dnodeSetModuleStatus(TSDB_MOD_MONITOR);
   }
@@ -102,6 +97,20 @@ void dnodeCleanupModules() {
   }
 }
 
+static int32_t dnodeStartModules() {
+  for (EModuleType module = 1; module < TSDB_MOD_MAX; ++module) {
+    if (tsModule[module].enable && tsModule[module].startFp) {
+      int32_t code = (*tsModule[module].startFp)();
+      if (code != 0) {
+        dError("failed to start module:%s, code:%d", tsModule[module].name, code);
+        return code;
+      }
+    }
+  }
+
+  return 0;
+}
+
 int32_t dnodeInitModules() {
   dnodeAllocModules();
 
@@ -115,17 +124,7 @@ int32_t dnodeInitModules() {
   }
 
   dInfo("dnode modules is initialized");
-  return 0;
-}
-
-void dnodeStartModules() {
-  for (EModuleType module = 1; module < TSDB_MOD_MAX; ++module) {
-    if (tsModule[module].enable && tsModule[module].startFp) {
-      if ((*tsModule[module].startFp)() != 0) {
-        dError("failed to start module:%s", tsModule[module].name);
-      }
-    }
-  }
+  return dnodeStartModules();
 }
 
 void dnodeProcessModuleStatus(uint32_t moduleStatus) {
@@ -147,8 +146,8 @@ void dnodeProcessModuleStatus(uint32_t moduleStatus) {
   }
 }
 
-bool dnodeStartMnode(SMnodeInfos *minfos) {
-  SMnodeInfos *mnodes = minfos;
+bool dnodeStartMnode(SMInfos *pMinfos) {
+  SMInfos *pMnodes = pMinfos;
 
   if (tsModuleStatus & (1 << TSDB_MOD_MNODE)) {
     dDebug("mnode module is already started, module status:%d", tsModuleStatus);
@@ -159,7 +158,7 @@ bool dnodeStartMnode(SMnodeInfos *minfos) {
   dInfo("start mnode module, module status:%d, new status:%d", tsModuleStatus, moduleStatus);
   dnodeProcessModuleStatus(moduleStatus);
 
-  sdbUpdateSync(mnodes);
+  sdbUpdateSync(pMnodes);
 
   return true;
 }

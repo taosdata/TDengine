@@ -19,9 +19,7 @@
 #include "taoserror.h"
 #include "tconfig.h"
 #include "tglobal.h"
-#include "tkey.h"
 #include "tulog.h"
-#include "tsocket.h"
 #include "tsystem.h"
 #include "tutil.h"
 
@@ -241,9 +239,6 @@ void taosReadGlobalLogCfg() {
   char * line, *option, *value;
   int    olen, vlen;
   char   fileName[PATH_MAX] = {0};
-
-  mDebugFlag = 135;
-  sdbDebugFlag = 135;
 
   wordexp_t full_path;
   if ( 0 != wordexp(configDir, &full_path, 0)) {

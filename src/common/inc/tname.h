@@ -25,6 +25,8 @@ void extractTableName(const char *tableId, char *name);
 
 char* extractDBName(const char *tableId, char *name);
 
+size_t tableIdPrefix(const char* name, char* prefix, int32_t len);
+
 void extractTableNameFromToken(SStrToken *pToken, SStrToken* pTable);
 
 SSchema tGetTableNameColumnSchema();

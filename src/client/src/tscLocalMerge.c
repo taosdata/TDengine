@@ -721,10 +721,16 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
 
   // final result depends on the fields number
   memset(pSchema, 0, sizeof(SSchema) * size);
+
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
-    SSchema *p1 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
+    SSchema p1 = {0};
+    if (pExpr->colInfo.colIndex != TSDB_TBNAME_COLUMN_INDEX) {
+      p1 = *tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
+    } else {
+      p1 = tGetTableNameColumnSchema();
+    }
 
     int32_t inter = 0;
     int16_t type = -1;
@@ -743,7 +749,8 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
         functionId = TSDB_FUNC_LAST;
       }
 
-      getResultDataInfo(p1->type, p1->bytes, functionId, 0, &type, &bytes, &inter, 0, false);
+      int32_t ret = getResultDataInfo(p1.type, p1.bytes, functionId, 0, &type, &bytes, &inter, 0, false);
+      assert(ret == TSDB_CODE_SUCCESS);
     }
 
     pSchema[i].type = (uint8_t)type;
@@ -1626,7 +1633,7 @@ void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen)
 
 int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
   int32_t maxRowSize = MAX(rowSize, finalRowSize);
-  char* pbuf = calloc(1, pOutput->num * maxRowSize);
+  char* pbuf = calloc(1, (size_t)(pOutput->num * maxRowSize));
 
   size_t size = tscNumOfFields(pQueryInfo);
   SArithmeticSupport arithSup = {0};
@@ -1653,13 +1660,13 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
       tExprTreeCalcTraverse(arithSup.pArithExpr->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
     } else {
       SSqlExpr* pExpr = pSup->pSqlExpr;
-      memcpy(pbuf + pOutput->num * offset, pExpr->offset * pOutput->num + pOutput->data, pExpr->resBytes * pOutput->num);
+      memcpy(pbuf + pOutput->num * offset, pExpr->offset * pOutput->num + pOutput->data, (size_t)(pExpr->resBytes * pOutput->num));
     }
 
     offset += pSup->field.bytes;
   }
 
-  memcpy(pOutput->data, pbuf, pOutput->num * offset);
+  memcpy(pOutput->data, pbuf, (size_t)(pOutput->num * offset));
 
   tfree(pbuf);
   tfree(arithSup.data);

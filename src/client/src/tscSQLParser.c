@@ -2835,6 +2835,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
 
     if (functionCompatList[functionId] != factor) {
       return false;
+    } else {
+      if (factor == -1) { // two functions with the same -1 flag
+        return false;
+      }
     }
 
     if (functionId == TSDB_FUNC_LAST_ROW && joinQuery) {
@@ -3278,7 +3282,12 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
       ((pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) ? 1 : 0);
 
   if (pColFilter->filterstr) {
-    if (pExpr->nSQLOptr != TK_EQ && pExpr->nSQLOptr != TK_NE && pExpr->nSQLOptr != TK_LIKE) {
+    if (pExpr->nSQLOptr != TK_EQ
+      && pExpr->nSQLOptr != TK_NE
+      && pExpr->nSQLOptr != TK_ISNULL
+      && pExpr->nSQLOptr != TK_NOTNULL
+      && pExpr->nSQLOptr != TK_LIKE
+      ) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   } else {
@@ -5103,7 +5112,7 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
   const int tokenDebugFlagEnd = 20;
   const SDNodeDynConfOption cfgOptions[] = {
       {"resetLog", 8},    {"resetQueryCache", 15},  {"balance", 7},     {"monitor", 7},
-      {"debugFlag", 9},   {"monitorDebugFlag", 16}, {"vDebugFlag", 10}, {"mDebugFlag", 10},
+      {"debugFlag", 9},   {"monDebugFlag", 12},     {"vDebugFlag", 10}, {"mDebugFlag", 10},
       {"cDebugFlag", 10}, {"httpDebugFlag", 13},    {"qDebugflag", 10}, {"sdbDebugFlag", 12},
       {"uDebugFlag", 10}, {"tsdbDebugFlag", 13},    {"sDebugflag", 10}, {"rpcDebugFlag", 12},
       {"dDebugFlag", 10}, {"mqttDebugFlag", 13},    {"wDebugFlag", 10}, {"tmrDebugFlag", 12},
@@ -5307,15 +5316,18 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
 
     // keep original limitation value in globalLimit
     pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
-    pQueryInfo->prjOffset = pQueryInfo->limit.offset;
+    pQueryInfo->prjOffset   = pQueryInfo->limit.offset;
+    pQueryInfo->tableLimit  = -1;
 
     if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
       /*
-       * the limitation/offset value should be removed during retrieve data from virtual node,
-       * since the global order are done in client side, so the limitation should also
-       * be done at the client side.
+       * the offset value should be removed during retrieve data from virtual node, since the
+       * global order are done in client side, so the offset is applied at the client side
+       * However, note that the maximum allowed number of result for each table should be less
+       * than or equal to the value of limit.
        */
       if (pQueryInfo->limit.limit > 0) {
+        pQueryInfo->tableLimit = pQueryInfo->limit.limit + pQueryInfo->limit.offset;
         pQueryInfo->limit.limit = -1;
       }
 

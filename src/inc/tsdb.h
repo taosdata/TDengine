@@ -48,7 +48,7 @@ typedef struct {
   void *cqH;
   int (*notifyStatus)(void *, int status, int eno);
   int (*eventCallBack)(void *);
-  void *(*cqCreateFunc)(void *handle, uint64_t uid, int sid, char *sqlStr, STSchema *pSchema);
+  void *(*cqCreateFunc)(void *handle, uint64_t uid, int32_t sid, const char* dstTable, char *sqlStr, STSchema *pSchema);
   void (*cqDropFunc)(void *handle);
 } STsdbAppH;
 
@@ -321,7 +321,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle);
  */
 void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage);
 
-int  tsdbInitCommitQueue(int nthreads);
+int  tsdbInitCommitQueue();
 void tsdbDestroyCommitQueue();
 int  tsdbSyncCommit(TSDB_REPO_T *repo);
 void tsdbIncCommitRef(int vgId);

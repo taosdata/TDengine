@@ -20,7 +20,7 @@
 #include "tgrant.h"
 #include "tglobal.h"
 #include "tname.h"
-#include "tbalance.h"
+#include "tbn.h"
 #include "tdataformat.h"
 #include "mnode.h"
 #include "mnodeDef.h"
@@ -316,13 +316,6 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
            TSDB_MAX_DB_REPLICA_OPTION);
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
-
-#ifndef _SYNC
-  if (pCfg->replications != 1) {
-    mError("invalid db option replications:%d can only be 1 in this version", pCfg->replications);
-    return TSDB_CODE_MND_INVALID_DB_OPTION;
-  }
-#endif
 
   if (pCfg->update < TSDB_MIN_DB_UPDATE || pCfg->update > TSDB_MAX_DB_UPDATE) {
     mError("invalid db option update:%d valid range: [%d, %d]", pCfg->update, TSDB_MIN_DB_UPDATE, TSDB_MAX_DB_UPDATE);
@@ -1004,7 +997,7 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
   mDebug("db:%s, all vgroups is altered", pDb->name);
   mLInfo("db:%s, is alterd by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
 
-  balanceAsyncNotify();
+  bnNotify();
 
   return TSDB_CODE_SUCCESS;
 }

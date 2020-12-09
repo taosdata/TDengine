@@ -246,11 +246,14 @@ typedef struct SQueryInfo {
   int16_t          fillType;      // final result fill type
   int16_t          numOfTables;
   STableMetaInfo **pTableMetaInfo;
-  struct STSBuf *  tsBuf;
+  struct STSBuf   *tsBuf;
   int64_t *        fillVal;       // default value for fill
   char *           msg;           // pointer to the pCmd->payload to keep error message temporarily
   int64_t          clauseLimit;   // limit for current sub clause
+
   int64_t          prjOffset;     // offset value in the original sql expression, only applied at client side
+  int64_t          tableLimit;    // table limit in case of super table projection query + global order + limit
+
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
   int16_t          resColumnId;   // result column id
 } SQueryInfo;
@@ -336,6 +339,7 @@ typedef struct STscObj {
   int64_t            hbrid;
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
+  SRpcCorEpSet       *tscCorMgmtEpSet;
   void*              pDnodeConn;
   pthread_mutex_t    mutex;
   T_REF_DECLARE()
@@ -378,6 +382,7 @@ typedef struct SSqlObj {
 
 typedef struct SSqlStream {
   SSqlObj *pSql;
+  const char* dstTable;
   uint32_t streamId;
   char     listed;
   bool     isProject;
@@ -403,6 +408,8 @@ typedef struct SSqlStream {
   void (*callback)(void *);  // Callback function when stream is stopped from client level
   struct SSqlStream *prev, *next;
 } SSqlStream;
+
+void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 
 int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn);
 void    tscInitMsgsFp();
@@ -515,7 +522,6 @@ extern int       tsInsertHeadSize;
 extern int       tscNumOfThreads;
 extern int       tscRefId;
   
-extern SRpcCorEpSet tscMgmtEpSet;
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
