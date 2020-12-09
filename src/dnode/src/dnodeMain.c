@@ -17,6 +17,7 @@
 #include "os.h"
 #include "taos.h"
 #include "tnote.h"
+#include "ttimer.h"
 #include "tconfig.h"
 #include "tfile.h"
 #include "twal.h"
@@ -39,6 +40,7 @@
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 
+void *tsDnodeTmr = NULL;
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
 
 static int32_t dnodeInitStorage();
@@ -68,8 +70,8 @@ static SStep tsDnodeSteps[] = {
   {"dnode-server",    dnodeInitServer,     dnodeCleanupServer},
   {"dnode-vnodes",    dnodeInitVnodes,     dnodeCleanupVnodes},
   {"dnode-modules",   dnodeInitModules,    dnodeCleanupModules},
-  {"dnode-tmr",       dnodeInitTimer,      dnodeCleanupTimer},
   {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
+  {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
 };
 
@@ -91,6 +93,23 @@ static int32_t dnodeInitComponents() {
   return dnodeStepInit(tsDnodeSteps, stepSize);
 }
 
+static int32_t dnodeInitTmr() {
+  tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
+  if (tsDnodeTmr == NULL) {
+    dError("failed to init dnode timer");
+    return -1;
+  }
+
+  return 0;
+}
+
+static void dnodeCleanupTmr() {
+  if (tsDnodeTmr != NULL) {
+    taosTmrCleanUp(tsDnodeTmr);
+    tsDnodeTmr = NULL;
+  }
+}
+
 int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_RUN_STATUS_INITIALIZE);
   tscEmbedded  = 1;
@@ -100,6 +119,7 @@ int32_t dnodeInitSystem() {
   taosReadGlobalLogCfg();
   taosSetCoreDump();
   taosInitNotes();
+  dnodeInitTmr();
   signal(SIGPIPE, SIG_IGN);
 
   if (dnodeCreateDir(tsLogDir) < 0) {
@@ -125,7 +145,6 @@ int32_t dnodeInitSystem() {
     return -1;
   }
 
-  dnodeStartModules();
   dnodeSetRunStatus(TSDB_RUN_STATUS_RUNING);
 
   dInfo("TDengine is initialized successfully");
@@ -136,6 +155,7 @@ int32_t dnodeInitSystem() {
 void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_RUN_STATUS_STOPPED) {
     dnodeSetRunStatus(TSDB_RUN_STATUS_STOPPED);
+    dnodeCleanupTmr();
     dnodeCleanupComponents();
     taos_cleanup();
     taosCloseLog();

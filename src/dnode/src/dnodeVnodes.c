@@ -30,38 +30,27 @@ typedef struct {
   int32_t * vnodeList;
 } SOpenVnodeThread;
 
-void *          tsDnodeTmr = NULL;
+extern void *   tsDnodeTmr;
 static void *   tsStatusTimer = NULL;
 static uint32_t tsRebootTime = 0;
 
 static void dnodeSendStatusMsg(void *handle, void *tmrId);
 static void dnodeProcessStatusRsp(SRpcMsg *pMsg);
 
-int32_t dnodeInitTimer() {
-  tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
-  if (tsDnodeTmr == NULL) {
-    dError("failed to init dnode timer");
-    return -1;
-  }
-
+int32_t dnodeInitStatusTimer() {
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_DM_STATUS_RSP, dnodeProcessStatusRsp);
 
   tsRebootTime = taosGetTimestampSec();
   taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsDnodeTmr, &tsStatusTimer);
 
-  dInfo("dnode timer is initialized");
+  dInfo("dnode status timer is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeCleanupTimer() {
+void dnodeCleanupStatusTimer() {
   if (tsStatusTimer != NULL) {
     taosTmrStopA(&tsStatusTimer);
     tsStatusTimer = NULL;
-  }
-
-  if (tsDnodeTmr != NULL) {
-    taosTmrCleanUp(tsDnodeTmr);
-    tsDnodeTmr = NULL;
   }
 }
 

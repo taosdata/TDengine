@@ -36,6 +36,14 @@ extern int32_t dDebugFlag;
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 
+typedef enum {
+  TSDB_RUN_STATUS_INITIALIZE,
+  TSDB_RUN_STATUS_RUNING,
+  TSDB_RUN_STATUS_STOPPED
+} SRunStatus;
+
+SRunStatus dnodeGetRunStatus();
+
 #ifdef __cplusplus
 }
 #endif

@@ -29,13 +29,6 @@ typedef struct {
   int32_t httpReqNum;
 } SStatisInfo;
 
-typedef enum {
-  TSDB_RUN_STATUS_INITIALIZE,
-  TSDB_RUN_STATUS_RUNING,
-  TSDB_RUN_STATUS_STOPPED
-} SRunStatus;
-
-SRunStatus  dnodeGetRunStatus();
 SStatisInfo dnodeGetStatisInfo();
 
 bool    dnodeIsFirstDeploy();
