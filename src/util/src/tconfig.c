@@ -240,9 +240,6 @@ void taosReadGlobalLogCfg() {
   int    olen, vlen;
   char   fileName[PATH_MAX] = {0};
 
-  mDebugFlag = 135;
-  sdbDebugFlag = 135;
-
   wordexp_t full_path;
   if ( 0 != wordexp(configDir, &full_path, 0)) {
     printf("\nconfig file: %s wordexp fail! reason:%s\n", configDir, strerror(errno));
