@@ -128,11 +128,14 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #define CLEAR_QUERY_STATUS(q, st)   ((q)->status &= (~(st)))
 #define GET_NUM_OF_TABLEGROUP(q)    taosArrayGetSize((q)->tableqinfoGroupInfo.pGroupList)
 #define GET_TABLEGROUP(q, _index)   ((SArray*) taosArrayGetP((q)->tableqinfoGroupInfo.pGroupList, (_index)))
+#define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
 static void setQueryStatus(SQuery *pQuery, int8_t status);
 static void finalizeQueryResult(SQueryRuntimeEnv *pRuntimeEnv);
 
-#define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
+static int32_t getMaximumIdleDurationSec() {
+  return tsShellActivityTimer * 2;
+}
 
 static void getNextTimeWindow(SQuery* pQuery, STimeWindow* tw) {
   int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
@@ -2138,7 +2141,30 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
 }
 
+static bool needBuildResAfterQueryComplete(SQInfo* pQInfo) {
+  return pQInfo->rspContext != NULL;
+}
+
 #define IS_QUERY_KILLED(_q) ((_q)->code == TSDB_CODE_TSC_QUERY_CANCELLED)
+
+static bool isQueryKilled(SQInfo *pQInfo) {
+  if (IS_QUERY_KILLED(pQInfo)) {
+    return true;
+  }
+
+  // query has been executed more than tsShellActivityTimer, and the retrieve has not arrived
+  // abort current query execution.
+  if (pQInfo->owner != 0 && ((taosGetTimestampSec() - pQInfo->startExecTs) > getMaximumIdleDurationSec()) &&
+      (!needBuildResAfterQueryComplete(pQInfo))) {
+
+    assert(pQInfo->startExecTs != 0);
+    qDebug("QInfo:%p retrieve not arrive beyond %d sec, abort current query execution, start:%"PRId64", current:%d", pQInfo, 1,
+           pQInfo->startExecTs, taosGetTimestampSec());
+    return true;
+  }
+
+  return false;
+}
 
 static void setQueryKilled(SQInfo *pQInfo) { pQInfo->code = TSDB_CODE_TSC_QUERY_CANCELLED;}
 
@@ -2864,7 +2890,7 @@ static int64_t doScanAllDataBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   while (tsdbNextDataBlock(pQueryHandle)) {
     summary->totalBlocks += 1;
 
-    if (IS_QUERY_KILLED(GET_QINFO_ADDR(pRuntimeEnv))) {
+    if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
       longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
@@ -3432,7 +3458,7 @@ int32_t mergeIntoGroupResultImpl(SQInfo *pQInfo, SArray *pGroup) {
   int64_t startt = taosGetTimestampMs();
 
   while (1) {
-    if (IS_QUERY_KILLED(pQInfo)) {
+    if (isQueryKilled(pQInfo)) {
       qDebug("QInfo:%p it is already killed, abort", pQInfo);
 
       tfree(pTableList);
@@ -4018,7 +4044,7 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
         cond.twindow.skey, cond.twindow.ekey);
 
     // check if query is killed or not
-    if (IS_QUERY_KILLED(pQInfo)) {
+    if (isQueryKilled(pQInfo)) {
       longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
   }
@@ -4675,7 +4701,7 @@ void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 
   SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
   while (tsdbNextDataBlock(pQueryHandle)) {
-    if (IS_QUERY_KILLED(GET_QINFO_ADDR(pRuntimeEnv))) {
+    if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
       longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
@@ -5112,7 +5138,7 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
   while (tsdbNextDataBlock(pQueryHandle)) {
     summary->totalBlocks += 1;
 
-    if (IS_QUERY_KILLED(pQInfo)) {
+    if (isQueryKilled(pQInfo)) {
       longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
@@ -5491,7 +5517,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
     while ((hasMoreBlock = tsdbNextDataBlock(pQueryHandle)) == true) {
       summary->totalBlocks += 1;
 
-      if (IS_QUERY_KILLED(pQInfo)) {
+      if (isQueryKilled(pQInfo)) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
       }
 
@@ -5622,7 +5648,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
            1 == taosArrayGetSize(pQInfo->tableqinfoGroupInfo.pGroupList));
 
     while (pQInfo->tableIndex < pQInfo->tableqinfoGroupInfo.numOfTables) {
-      if (IS_QUERY_KILLED(pQInfo)) {
+      if (isQueryKilled(pQInfo)) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
       }
 
@@ -5808,7 +5834,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
   qDebug("QInfo:%p master scan completed, elapsed time: %" PRId64 "ms, reverse scan start", pQInfo, el);
 
   // query error occurred or query is killed, abort current execution
-  if (pQInfo->code != TSDB_CODE_SUCCESS || IS_QUERY_KILLED(pQInfo)) {
+  if (pQInfo->code != TSDB_CODE_SUCCESS || isQueryKilled(pQInfo)) {
     qDebug("QInfo:%p query killed or error occurred, code:%s, abort", pQInfo, tstrerror(pQInfo->code));
     longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
   }
@@ -5829,7 +5855,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
 
   setQueryStatus(pQuery, QUERY_COMPLETED);
 
-  if (pQInfo->code != TSDB_CODE_SUCCESS || IS_QUERY_KILLED(pQInfo)) {
+  if (pQInfo->code != TSDB_CODE_SUCCESS || isQueryKilled(pQInfo)) {
     qDebug("QInfo:%p query killed or error occurred, code:%s, abort", pQInfo, tstrerror(pQInfo->code));
     //TODO finalizeQueryResult may cause SEGSEV, since the memory may not allocated yet, add a cleanup function instead
     longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
@@ -5945,7 +5971,7 @@ static void tableFixedOutputProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo)
   pQuery->rec.rows = getNumOfResult(pRuntimeEnv);
   doSecondaryArithmeticProcess(pQuery);
 
-  if (IS_QUERY_KILLED(pQInfo)) {
+  if (isQueryKilled(pQInfo)) {
     longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
   }
 
@@ -7521,7 +7547,7 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
   pthread_mutex_lock(&pQInfo->lock);
 
   pQInfo->dataReady = QUERY_RESULT_READY;
-  buildRes = (pQInfo->rspContext != NULL);
+  buildRes = needBuildResAfterQueryComplete(pQInfo);
 
   // clear qhandle owner, it must be in the secure area. other thread may run ahead before current, after it is
   // put into task to be executed.
@@ -7530,6 +7556,7 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
 
   pthread_mutex_unlock(&pQInfo->lock);
 
+  // used in retrieve blocking model.
   tsem_post(&pQInfo->ready);
   return buildRes;
 }
@@ -7546,7 +7573,9 @@ bool qTableQuery(qinfo_t qinfo) {
     return false;
   }
 
-  if (IS_QUERY_KILLED(pQInfo)) {
+  pQInfo->startExecTs = taosGetTimestampSec();
+
+  if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:%p it is already killed, abort", pQInfo);
     return doBuildResCheck(pQInfo);
   }
@@ -7578,7 +7607,7 @@ bool qTableQuery(qinfo_t qinfo) {
   }
 
   SQuery* pQuery = pRuntimeEnv->pQuery;
-  if (IS_QUERY_KILLED(pQInfo)) {
+  if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:%p query is killed", pQInfo);
   } else if (pQuery->rec.rows == 0) {
     qDebug("QInfo:%p over, %" PRIzu " tables queried, %"PRId64" rows are returned", pQInfo, pQInfo->tableqinfoGroupInfo.numOfTables, pQuery->rec.total);
@@ -7607,6 +7636,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (tsHalfCoresForQuery) {
+    pQInfo->rspContext = pRspContext;
     tsem_wait(&pQInfo->ready);
     *buildRes = true;
     code = pQInfo->code;
@@ -7614,12 +7644,12 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
     SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
     pthread_mutex_lock(&pQInfo->lock);
-    assert(pQInfo->rspContext == NULL);
 
+    assert(pQInfo->rspContext == NULL);
     if (pQInfo->dataReady == QUERY_RESULT_READY) {
       *buildRes = true;
-      qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%" PRId64 ", code:%d", pQInfo, pQuery->rowSize,
-             pQuery->rec.rows, pQInfo->code);
+      qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%" PRId64 ", code:%s", pQInfo, pQuery->rowSize,
+             pQuery->rec.rows, tstrerror(pQInfo->code));
     } else {
       *buildRes = false;
       qDebug("QInfo:%p retrieve req set query return result after paused", pQInfo);
@@ -7697,7 +7727,7 @@ int32_t qQueryCompleted(qinfo_t qinfo) {
   }
 
   SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
-  return IS_QUERY_KILLED(pQInfo) || Q_STATUS_EQUAL(pQuery->status, QUERY_OVER);
+  return isQueryKilled(pQInfo) || Q_STATUS_EQUAL(pQuery->status, QUERY_OVER);
 }
 
 int32_t qKillQuery(qinfo_t qinfo) {
@@ -7994,8 +8024,6 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
     return NULL;
   }
 
-  const int32_t DEFAULT_QHANDLE_LIFE_SPAN = tsShellActivityTimer * 2 * 1000;
-
   SQueryMgmt *pQueryMgmt = pMgmt;
   if (pQueryMgmt->qinfoPool == NULL) {
     qError("QInfo:%p failed to add qhandle into qMgmt, since qMgmt is closed", (void *)qInfo);
@@ -8011,7 +8039,8 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
     return NULL;
   } else {
     TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE) qInfo;
-    void** handle = taosCachePut(pQueryMgmt->qinfoPool, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &qInfo, sizeof(TSDB_CACHE_PTR_TYPE), DEFAULT_QHANDLE_LIFE_SPAN);
+    void** handle = taosCachePut(pQueryMgmt->qinfoPool, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &qInfo, sizeof(TSDB_CACHE_PTR_TYPE),
+        (getMaximumIdleDurationSec()*1000));
 //    pthread_mutex_unlock(&pQueryMgmt->lock);
 
     return handle;

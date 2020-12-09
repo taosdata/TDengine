@@ -24,15 +24,12 @@
 static int32_t (*vnodeProcessReadMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *pVnode, SVReadMsg *pRead);
 static int32_t  vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead);
 static int32_t  vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead);
-static int32_t  vnodeProcessCancelMsg(SVnodeObj *pVnode, SVReadMsg *pRead);
 
 static int32_t  vnodeNotifyCurrentQhandle(void* handle, void* qhandle, int32_t vgId);
 
 int32_t vnodeInitRead(void) {
   vnodeProcessReadMsgFp[TSDB_MSG_TYPE_QUERY] = vnodeProcessQueryMsg;
   vnodeProcessReadMsgFp[TSDB_MSG_TYPE_FETCH] = vnodeProcessFetchMsg;
-  vnodeProcessReadMsgFp[TSDB_MSG_TYPE_CANCEL_QUERY] = vnodeProcessCancelMsg;
-
   return 0;
 }
 
@@ -120,8 +117,7 @@ int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qt
   atomic_add_fetch_32(&pVnode->refCount, 1);
   atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
 
-    if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->msgType == TSDB_MSG_TYPE_CANCEL_QUERY ||
-      pRead->msgType == TSDB_MSG_TYPE_FETCH) {
+    if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->msgType == TSDB_MSG_TYPE_FETCH) {
     vTrace("vgId:%d, write into vfetch queue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedRMsg);
     return taosWriteQitem(pVnode->fqueue, qtype, pRead);
   } else {
@@ -202,20 +198,23 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   memset(pRet, 0, sizeof(SRspRet));
 
   // qHandle needs to be freed correctly
-  assert(pRead->code != TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    vError("error rpc msg in query, %s", tstrerror(pRead->code));
+  }
+//  assert(pRead->code != TSDB_CODE_RPC_NETWORK_UNAVAIL);
 //  if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-//    SCancelQueryMsg *pCancelMsg = (SCancelQueryMsg *)pRead->pCont;
-////    pCancelMsg->free = htons(killQueryMsg->free);
-//    pCancelMsg->qhandle = htobe64(pCancelMsg->qhandle);
+//    SCancelQueryMsg *pMsg = (SCancelQueryMsg *)pRead->pCont;
+////    pMsg->free = htons(killQueryMsg->free);
+//    pMsg->qhandle = htobe64(pMsg->qhandle);
 //
-//    vWarn("QInfo:%p connection %p broken, kill query", (void *)pCancelMsg->qhandle, pRead->rpcHandle);
-////    assert(pRead->contLen > 0 && pCancelMsg->free == 1);
+//    vWarn("QInfo:%p connection %p broken, kill query", (void *)pMsg->qhandle, pRead->rpcHandle);
+////    assert(pRead->contLen > 0 && pMsg->free == 1);
 //
-//    void **qhandle = qAcquireQInfo(pVnode->qMgmt, (uint64_t)pCancelMsg->qhandle);
+//    void **qhandle = qAcquireQInfo(pVnode->qMgmt, (uint64_t)pMsg->qhandle);
 //    if (qhandle == NULL || *qhandle == NULL) {
-//      vWarn("QInfo:%p invalid qhandle, no matched query handle, conn:%p", (void *)pCancelMsg->qhandle, pRead->rpcHandle);
+//      vWarn("QInfo:%p invalid qhandle, no matched query handle, conn:%p", (void *)pMsg->qhandle, pRead->rpcHandle);
 //    } else {
-//      assert(*qhandle == (void *)pCancelMsg->qhandle);
+//      assert(*qhandle == (void *)pMsg->qhandle);
 //
 //      qKillQuery(*qhandle);
 //      qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, true);
@@ -349,16 +348,16 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     return code;
   }
 
-  assert(pRetrieve->free != 1);
-//  if (pRetrieve->free == 1) {
-//    vWarn("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, *handle);
-//    qKillQuery(*handle);
-//    qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
-//
-//    vnodeBuildNoResultQueryRsp(pRet);
-//    code = TSDB_CODE_TSC_QUERY_CANCELLED;
-//    return code;
-//  }
+  // kill current query and free corresponding resources.
+  if (pRetrieve->free == 1) {
+    vWarn("vgId:%d, QInfo:%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, *handle);
+    qKillQuery(*handle);
+    qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
+
+    vnodeBuildNoResultQueryRsp(pRet);
+    code = TSDB_CODE_TSC_QUERY_CANCELLED;
+    return code;
+  }
 
   // register the qhandle to connect to quit query immediate if connection is broken
   if (vnodeNotifyCurrentQhandle(pRead->rpcHandle, *handle, pVnode->vgId) != TSDB_CODE_SUCCESS) {
@@ -406,47 +405,11 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 // notify connection(handle) that current qhandle is created, if current connection from
 // client is broken, the query needs to be killed immediately.
 int32_t vnodeNotifyCurrentQhandle(void *handle, void *qhandle, int32_t vgId) {
-  SCancelQueryMsg *pCancelMsg = rpcMallocCont(sizeof(SCancelQueryMsg));
-  pCancelMsg->qhandle = htobe64((uint64_t)qhandle);
-  pCancelMsg->header.vgId = htonl(vgId);
-  pCancelMsg->header.contLen = htonl(sizeof(SCancelQueryMsg));
+  SRetrieveTableMsg *pMsg = rpcMallocCont(sizeof(SRetrieveTableMsg));
+  pMsg->qhandle = htobe64((uint64_t)qhandle);
+  pMsg->header.vgId = htonl(vgId);
+  pMsg->header.contLen = htonl(sizeof(SRetrieveTableMsg));
 
   vDebug("QInfo:%p register qhandle to connect:%p", qhandle, handle);
-  return rpcReportProgress(handle, (char *)pCancelMsg, sizeof(SCancelQueryMsg));
-}
-
-int32_t vnodeProcessCancelMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
-  void    *pCont = pRead->pCont;
-  SRspRet *pRet  = &pRead->rspRet;
-
-  SCancelQueryMsg *pCancel = pCont;
-  pCancel->qhandle = htobe64(pCancel->qhandle);
-
-  vDebug("vgId:%d, QInfo:%p, cancel query msg is disposed, conn:%p", pVnode->vgId, (void *)pCancel->qhandle,
-         pRead->rpcHandle);
-
-  memset(pRet, 0, sizeof(SRspRet));
-
-  terrno = TSDB_CODE_SUCCESS;
-  int32_t code = TSDB_CODE_SUCCESS;
-  void ** handle = qAcquireQInfo(pVnode->qMgmt, pCancel->qhandle);
-  if (handle == NULL) {
-    code = terrno;
-    terrno = TSDB_CODE_SUCCESS;
-  } else if ((*handle) != (void *)pCancel->qhandle) {
-    code = TSDB_CODE_QRY_INVALID_QHANDLE;
-  }
-
-  if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, invalid handle in cancel query, code:%s, QInfo:%p", pVnode->vgId, tstrerror(code), (void *)pCancel->qhandle);
-    vnodeBuildNoResultQueryRsp(pRet);
-    return code;
-  }
-
-  vWarn("vgId:%d, QInfo:%p, cancel-query msg received to kill query and free qhandle", pVnode->vgId, *handle);
-  qKillQuery(*handle);
-  qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
-
-  vnodeBuildNoResultQueryRsp(pRet);
-  return TSDB_CODE_TSC_QUERY_CANCELLED;
+  return rpcReportProgress(handle, (char *)pMsg, sizeof(SRetrieveTableMsg));
 }

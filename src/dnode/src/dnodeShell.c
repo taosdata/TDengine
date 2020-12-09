@@ -35,7 +35,6 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_SUBMIT]         = dnodeDispatchToVWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]          = dnodeDispatchToVReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_FETCH]          = dnodeDispatchToVReadQueue;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CANCEL_QUERY]   = dnodeDispatchToVReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = dnodeDispatchToVWriteQueue;
   
   // the following message shall be treated as mnode write

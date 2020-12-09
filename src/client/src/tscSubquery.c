@@ -2149,6 +2149,29 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   }
 }
 
+static bool needRetryInsert(SSqlObj* pParentObj, int32_t numOfSub) {
+  if (pParentObj->retry > pParentObj->maxRetry) {
+    tscError("%p max retry reached, abort the retry effort", pParentObj)
+    return false;
+  }
+
+  for (int32_t i = 0; i < numOfSub; ++i) {
+    int32_t code = pParentObj->pSubs[i]->res.code;
+    if (code == TSDB_CODE_SUCCESS) {
+      continue;
+    }
+
+    if (code != TSDB_CODE_TDB_TABLE_RECONFIGURE && code != TSDB_CODE_TDB_INVALID_TABLE_ID &&
+        code != TSDB_CODE_VND_INVALID_VGROUP_ID && code != TSDB_CODE_RPC_NETWORK_UNAVAIL &&
+        code != TSDB_CODE_APP_NOT_READY) {
+      pParentObj->res.code = code;
+      return false;
+    }
+  }
+
+  return true;
+}
+
 static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows) {
   SInsertSupporter *pSupporter = (SInsertSupporter *)param;
   SSqlObj* pParentObj = pSupporter->pSql;
@@ -2190,8 +2213,12 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     int32_t v = (pParentObj->res.code != TSDB_CODE_SUCCESS) ? pParentObj->res.code : (int32_t)pParentObj->res.numOfRows;
     (*pParentObj->fp)(pParentObj->param, pParentObj, v);
   } else {
-    int32_t numOfFailed = 0;
+    if (!needRetryInsert(pParentObj, numOfSub)) {
+      tscQueueAsyncRes(pParentObj);
+      return;
+    }
 
+    int32_t numOfFailed = 0;
     for(int32_t i = 0; i < numOfSub; ++i) {
       SSqlObj* pSql = pParentObj->pSubs[i];
       if (pSql->res.code != TSDB_CODE_SUCCESS) {
@@ -2221,7 +2248,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
     tscResetSqlCmdObj(&pParentObj->cmd, false);
 
-    tscDebug("%p re-parse sql to generate data", pParentObj);
+    tscDebug("%p re-parse sql to generate submit data, retry:%d", pParentObj, pParentObj->retry++);
     int32_t code = tsParseSql(pParentObj, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
 

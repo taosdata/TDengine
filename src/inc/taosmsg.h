@@ -45,7 +45,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_SUBMIT, "submit" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_QUERY, "query" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_FETCH, "fetch" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_UPDATE_TAG_VAL, "update-tag-val" )
-TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CANCEL_QUERY, "cancel-query" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY1, "dummy1" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY2, "dummy2" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY3, "dummy3" )
 
@@ -501,11 +501,6 @@ typedef struct {
   uint64_t qhandle;
   uint16_t free;
 } SRetrieveTableMsg;
-
-typedef struct {
-  SMsgHead header;
-  uint64_t qhandle;
-} SCancelQueryMsg;
 
 typedef struct SRetrieveTableRsp {
   int32_t numOfRows;
