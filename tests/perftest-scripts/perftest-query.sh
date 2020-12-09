@@ -65,7 +65,18 @@ function runQueryPerfTest {
 	echoInfo "Run Performance Test"
 	cd $WORK_DIR/TDengine/tests/pytest
 	
-	python3 query/queryPerformance.py 0 | tee -a $PERFORMANCE_TEST_REPORT
+	python3 query/queryPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
+
+	python3 insert/insertFromCSVPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
+
+	yes | taosdemo -c /etc/taosperf/ -d taosdemo_insert_test -t 1000 -n 1000 > taosdemoperf.txt
+
+	CREATETABLETIME=`grep 'Spent' taosdemoperf.txt | awk 'NR==1{print $2}'`
+	INSERTRECORDSTIME=`grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $2}'`
+	REQUESTSPERSECOND=`grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $13}'`
+	
+	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -t $CREATETABLETIME -i $INSERTRECORDSTIME -r $REQUESTSPERSECOND | tee -a $PERFORMANCE_TEST_REPORT
+	[ -f taosdemoperf.txt ] && rm taosdemoperf.txt
 }
 
 

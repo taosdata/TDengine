@@ -26,8 +26,9 @@
 #include "vnodeSync.h"
 #include "vnodeVersion.h"
 #include "vnodeMgmt.h"
+#include "vnodeWorker.h"
+#include "vnodeMain.h"
 
-static void    vnodeCleanUp(SVnodeObj *pVnode);
 static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno);
 
 int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
@@ -99,8 +100,10 @@ int32_t vnodeDrop(int32_t vgId) {
   vInfo("vgId:%d, vnode will be dropped, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
   pVnode->dropped = 1;
 
+  // remove from hash, so new messages wont be consumed
+  vnodeRemoveFromHash(pVnode);
   vnodeRelease(pVnode);
-  vnodeCleanUp(pVnode);
+  vnodeCleanupInMWorker(pVnode);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -298,6 +301,7 @@ int32_t vnodeOpen(int32_t vgId) {
   if (pVnode->sync <= 0) {
     vError("vgId:%d, failed to open sync, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
            tstrerror(terrno));
+    vnodeRemoveFromHash(pVnode);
     vnodeCleanUp(pVnode);
     return terrno;
   }
@@ -311,6 +315,7 @@ int32_t vnodeClose(int32_t vgId) {
   if (pVnode == NULL) return 0;
 
   vDebug("vgId:%d, vnode will be closed, pVnode:%p", pVnode->vgId, pVnode);
+  vnodeRemoveFromHash(pVnode);
   vnodeRelease(pVnode);
   vnodeCleanUp(pVnode);
 
@@ -387,10 +392,7 @@ void vnodeDestroy(SVnodeObj *pVnode) {
   tsdbDecCommitRef(vgId);
 }
 
-static void vnodeCleanUp(SVnodeObj *pVnode) {
-  // remove from hash, so new messages wont be consumed
-  vnodeRemoveFromHash(pVnode);
-
+void vnodeCleanUp(SVnodeObj *pVnode) {
   if (!vnodeInInitStatus(pVnode)) {
     // it may be in updateing or reset state, then it shall wait
     int32_t i = 0;
@@ -428,7 +430,6 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
 
   if (status == TSDB_STATUS_COMMIT_START) {
     pVnode->isCommiting = 1;
-    pVnode->fversion = pVnode->version;
     vDebug("vgId:%d, start commit, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
     if (!vnodeInInitStatus(pVnode)) {
       return walRenew(pVnode->wal);
@@ -437,9 +438,10 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
   }
 
   if (status == TSDB_STATUS_COMMIT_OVER) {
-    vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
     pVnode->isCommiting = 0;
     pVnode->isFull = 0;
+    pVnode->fversion = pVnode->version;
+    vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
     if (!vnodeInInitStatus(pVnode)) {
       walRemoveOneOldFile(pVnode->wal);
     }
