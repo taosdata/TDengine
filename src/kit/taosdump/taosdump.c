@@ -1218,6 +1218,7 @@ void* taosDumpOutWorkThreadFp(void *arg)
     return NULL;
   }
 
+  int64_t lastRowsPrint = 5000000;
   fprintf(fp, "USE %s;\n\n", pThread->dbName);
   while (1) {
     ssize_t readLen = read(fd, &tableRecord, sizeof(STableRecord));
@@ -1228,6 +1229,11 @@ void* taosDumpOutWorkThreadFp(void *arg)
       // TODO: sum table count and table rows by self
       pThread->tablesOfDumpOut++;
       pThread->rowsOfDumpOut += ret;
+      
+      if (pThread->rowsOfDumpOut >= lastRowsPrint) {
+        printf(" %"PRId64 " rows already be dumpout from database %s\n", pThread->rowsOfDumpOut, pThread->dbName);
+        lastRowsPrint += 5000000;
+      }
     }
   }
 
@@ -1552,8 +1558,8 @@ void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols
 }
 
 int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS* taosCon, char* dbName) {
-  /* char       temp[MAX_COMMAND_SIZE] = "\0"; */
-  int64_t totalRows = 0;
+  int64_t    lastRowsPrint = 5000000;
+  int64_t    totalRows     = 0;
   int count = 0;
   char *pstr = NULL;
   TAOS_ROW row = NULL;
@@ -1680,9 +1686,14 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
 
     curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, ") ");
 
-    totalRows++;
+    totalRows++;    
     count++;
     fprintf(fp, "%s", tmpBuffer);
+    
+    if (totalRows >= lastRowsPrint) {
+      printf(" %"PRId64 " rows already be dumpout from %s.%s\n", totalRows, dbName, tbname);
+      lastRowsPrint += 5000000;
+    }
 
     total_sqlstr_len += curr_sqlstr_len;
 
@@ -2048,6 +2059,7 @@ int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, c
     return -1;
   }
 
+  int lastRowsPrint = 5000000;
   int lineNo = 0;
   while ((read_len = getline(&line, &line_len, fp)) != -1) {
     ++lineNo;
@@ -2074,7 +2086,12 @@ int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, c
     }
 
     memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);
-    cmd_len = 0;
+    cmd_len = 0;    
+    
+    if (lineNo >= lastRowsPrint) {
+      printf(" %d lines already be executed from file %s\n", lineNo, fileName);
+      lastRowsPrint += 5000000;
+    }
   }
 
   tfree(cmd);
