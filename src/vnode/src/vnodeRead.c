@@ -14,11 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #include "os.h"
 #include "taosmsg.h"
 #include "tqueue.h"
-#include "vnodeCancel.h"
 #include "tglobal.h"
 #include "query.h"
 #include "vnodeStatus.h"
@@ -119,15 +117,16 @@ int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qt
   }
 
   pRead->qtype = qtype;
+  atomic_add_fetch_32(&pVnode->refCount, 1);
+  atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
 
-  if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->msgType == TSDB_MSG_TYPE_CANCEL_QUERY) {
-    pRead->msgType = TSDB_MSG_TYPE_CANCEL_QUERY;
-    return vnodeWriteIntoCQueue(pVnode, pRead);
+    if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->msgType == TSDB_MSG_TYPE_CANCEL_QUERY ||
+      pRead->msgType == TSDB_MSG_TYPE_FETCH) {
+    vTrace("vgId:%d, write into vfetch queue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedRMsg);
+    return taosWriteQitem(pVnode->fqueue, qtype, pRead);
   } else {
-    atomic_add_fetch_32(&pVnode->refCount, 1);
-    atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
-    vTrace("vgId:%d, write into vrqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedRMsg);
-    return taosWriteQitem(pVnode->rqueue, qtype, pRead);
+    vTrace("vgId:%d, write into vquery queue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedRMsg);
+    return taosWriteQitem(pVnode->qqueue, qtype, pRead);
   }
 }
 

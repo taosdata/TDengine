@@ -22,20 +22,29 @@
 static void *dnodeProcessReadQueue(void *pWorker);
 
 // module global variable
-static SWorkerPool tsVReadWP;
+static SWorkerPool tsVQueryWP;
+static SWorkerPool tsVFetchWP;
 
 int32_t dnodeInitVRead() {
-  tsVReadWP.name = "vquery";
-  tsVReadWP.workerFp = dnodeProcessReadQueue;
-  tsVReadWP.min = tsNumOfCores;
-  tsVReadWP.max = tsNumOfCores * tsNumOfThreadsPerCore;
-  if (tsVReadWP.max <= tsVReadWP.min * 2) tsVReadWP.max = 2 * tsVReadWP.min;
+  tsVQueryWP.name = "vquery";
+  tsVQueryWP.workerFp = dnodeProcessReadQueue;
+  tsVQueryWP.min = tsNumOfCores;
+  tsVQueryWP.max = tsNumOfCores * tsNumOfThreadsPerCore;
+  if (tsVQueryWP.max <= tsVQueryWP.min * 2) tsVQueryWP.max = 2 * tsVQueryWP.min;
+  if (tWorkerInit(&tsVQueryWP) != 0) return -1;
 
-  return tWorkerInit(&tsVReadWP);
+  tsVFetchWP.name = "vfetch";
+  tsVFetchWP.workerFp = dnodeProcessReadQueue;
+  tsVFetchWP.min = 1;
+  tsVFetchWP.max = 1;
+  if (tWorkerInit(&tsVFetchWP) != 0) return -1;
+
+  return 0;
 }
 
 void dnodeCleanupVRead() {
-  tWorkerCleanup(&tsVReadWP);
+  tWorkerCleanup(&tsVFetchWP);
+  tWorkerCleanup(&tsVQueryWP);
 }
 
 void dnodeDispatchToVReadQueue(SRpcMsg *pMsg) {
@@ -68,12 +77,20 @@ void dnodeDispatchToVReadQueue(SRpcMsg *pMsg) {
   rpcFreeCont(pMsg->pCont);
 }
 
-void *dnodeAllocVReadQueue(void *pVnode) {
-  return tWorkerAllocQueue(&tsVReadWP, pVnode);
+void *dnodeAllocVQueryQueue(void *pVnode) {
+  return tWorkerAllocQueue(&tsVQueryWP, pVnode);
 }
 
-void dnodeFreeVReadQueue(void *pRqueue) {
-  tWorkerFreeQueue(&tsVReadWP, pRqueue);
+void *dnodeAllocVFetchQueue(void *pVnode) {
+  return tWorkerAllocQueue(&tsVFetchWP, pVnode);
+}
+
+void dnodeFreeVQueryQueue(void *pQqueue) {
+  tWorkerFreeQueue(&tsVQueryWP, pQqueue);
+}
+
+void dnodeFreeVFetchQueue(void *pFqueue) {
+  tWorkerFreeQueue(&tsVFetchWP, pFqueue);
 }
 
 void dnodeSendRpcVReadRsp(void *pVnode, SVReadMsg *pRead, int32_t code) {

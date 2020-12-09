@@ -28,7 +28,6 @@
 #include "vnodeMgmt.h"
 #include "vnodeWorker.h"
 #include "vnodeMain.h"
-#include "vnodeCancel.h"
 
 static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno);
 
@@ -213,8 +212,9 @@ int32_t vnodeOpen(int32_t vgId) {
   pVnode->fversion = pVnode->version;
   
   pVnode->wqueue = dnodeAllocVWriteQueue(pVnode);
-  pVnode->rqueue = dnodeAllocVReadQueue(pVnode);
-  if (pVnode->wqueue == NULL || pVnode->rqueue == NULL) {
+  pVnode->qqueue = dnodeAllocVQueryQueue(pVnode);
+  pVnode->fqueue = dnodeAllocVFetchQueue(pVnode);
+  if (pVnode->wqueue == NULL || pVnode->qqueue == NULL || pVnode->fqueue == NULL) {
     vnodeCleanUp(pVnode);
     return terrno;
   }
@@ -374,9 +374,14 @@ void vnodeDestroy(SVnodeObj *pVnode) {
     pVnode->wqueue = NULL;
   }
 
-  if (pVnode->rqueue) {
-    dnodeFreeVReadQueue(pVnode->rqueue);
-    pVnode->rqueue = NULL;
+  if (pVnode->qqueue) {
+    dnodeFreeVQueryQueue(pVnode->qqueue);
+    pVnode->qqueue = NULL;
+  }
+
+  if (pVnode->fqueue) {
+    dnodeFreeVFetchQueue(pVnode->fqueue);
+    pVnode->fqueue = NULL;
   }
 
   tfree(pVnode->rootDir);
