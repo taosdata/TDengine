@@ -96,7 +96,7 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
     rspMsg.code = TSDB_CODE_APP_NOT_READY;
     rpcSendResponse(&rspMsg);
     rpcFreeCont(pMsg->pCont);
-    dDebug("RPC %p, msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
+    dTrace("RPC %p, msg:%s is ignored since dnode not running", pMsg->handle, taosMsg[pMsg->msgType]);
     return;
   }
 
@@ -151,7 +151,7 @@ void dnodeCleanupClient() {
 static void dnodeProcessRspFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   if (dnodeGetRunStatus() == TSDB_RUN_STATUS_STOPPED) {
     if (pMsg == NULL || pMsg->pCont == NULL) return;
-    dDebug("msg:%p is ignored since dnode is stopping", pMsg);
+    dTrace("msg:%p is ignored since dnode is stopping", pMsg);
     rpcFreeCont(pMsg->pCont);
     return;
   }

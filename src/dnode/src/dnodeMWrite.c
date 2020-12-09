@@ -121,7 +121,7 @@ void dnodeDispatchToMWriteQueue(SRpcMsg *pMsg) {
     dnodeSendRedirectMsg(pMsg, true);
   } else {
     SMnodeMsg *pWrite = mnodeCreateMsg(pMsg);
-    dDebug("msg:%p, app:%p type:%s is put into mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
+    dTrace("msg:%p, app:%p type:%s is put into mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
            taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
     taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
   }
@@ -130,7 +130,7 @@ void dnodeDispatchToMWriteQueue(SRpcMsg *pMsg) {
 }
 
 static void dnodeFreeMWriteMsg(SMnodeMsg *pWrite) {
-  dDebug("msg:%p, app:%p type:%s is freed from mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
+  dTrace("msg:%p, app:%p type:%s is freed from mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
          taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
 
   mnodeCleanupMsg(pWrite);

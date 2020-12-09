@@ -126,14 +126,14 @@ static void *dnodeProcessMgmtQueue(void *param) {
     }
 
     pMsg = &pMgmt->rpcMsg;
-    dDebug("msg:%p, ahandle:%p type:%s will be processed", pMgmt, pMsg->ahandle, taosMsg[pMsg->msgType]);
+    dTrace("msg:%p, ahandle:%p type:%s will be processed", pMgmt, pMsg->ahandle, taosMsg[pMsg->msgType]);
     if (dnodeProcessMgmtMsgFp[pMsg->msgType]) {
       rsp.code = (*dnodeProcessMgmtMsgFp[pMsg->msgType])(pMsg);
     } else {
       rsp.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
     }
 
-    dDebug("msg:%p, is processed, code:0x%x", pMgmt, rsp.code);
+    dTrace("msg:%p, is processed, code:0x%x", pMgmt, rsp.code);
     if (rsp.code != TSDB_CODE_DND_ACTION_IN_PROGRESS) {
       rsp.handle = pMsg->handle;
       rsp.pCont = NULL;

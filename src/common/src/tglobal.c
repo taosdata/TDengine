@@ -203,10 +203,10 @@ int32_t tsVersion = 0;
 
 // log
 int32_t tsNumOfLogLines = 10000000;
-int32_t mDebugFlag = 135;
-int32_t sdbDebugFlag = 135;
+int32_t mDebugFlag = 131;
+int32_t sdbDebugFlag = 131;
 int32_t dDebugFlag = 135;
-int32_t vDebugFlag = 135;
+int32_t vDebugFlag = 131;
 int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t odbcDebugFlag = 131;
@@ -220,7 +220,7 @@ int32_t debugFlag = 0;
 int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
-int32_t cqDebugFlag = 135;
+int32_t cqDebugFlag = 131;
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
