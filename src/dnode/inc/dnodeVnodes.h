@@ -23,8 +23,8 @@ extern "C" {
 
 int32_t dnodeInitVnodes();
 void    dnodeCleanupVnodes();
-int32_t dnodeInitTimer();
-void    dnodeCleanupTimer();
+int32_t dnodeInitStatusTimer();
+void    dnodeCleanupStatusTimer();
 void    dnodeSendStatusMsgToMnode();
 
 #ifdef __cplusplus
