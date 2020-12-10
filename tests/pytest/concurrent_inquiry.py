@@ -189,51 +189,50 @@ class ConcurrentInquiry:
         return sql
 
     def gen_query_join(self):                        #生成join查询语句
-        tbi=random.randint(0,len(self.subtb_list)+len(self.stb_list))  #随机决定查询哪张表
-        tbname=''
-        col_list=[]
-        tag_list=[]
-        is_stb=0
-        if tbi>len(self.stb_list) :
-            tbi=tbi-len(self.stb_list)
-            tbname=self.subtb_list[tbi-1]
-            col_list=self.subtb_stru_list[tbi-1]
-            tag_list=self.subtb_tag_list[tbi-1]
+        tbname   = []
+        col_list = []
+        tag_list = []
+        col_intersection = []
+        tag_intersection = []
+        
+
+        if bool(random.getrandbits(1)):
+            tbname = random.sample(self.subtb_list,2)
+            for i in tbname:
+                col_list.append(self.subtb_stru_list[self.subtb_list.index(i)])
+                tag_list.append(self.subtb_stru_list[self.subtb_list.index(i)])
+            col_intersection = list(set(col_list[0]).intersection(set(col_list[1])))
+            tag_intersection = list(set(tag_list[0]).intersection(set(tag_list[1])))
         else:
-            tbname=self.stb_list[tbi-1]
-            col_list=self.stb_stru_list[tbi-1]
-            tag_list=self.stb_tag_list[tbi-1]
-            is_stb=1
-        tlist=col_list+tag_list+['abc']            #增加不存在的域'abc'，是否会引起新bug
+            tbname = random.sample(self.stb_list,2)
+            for i in tbname:
+                col_list.append(self.stb_stru_list[self.stb_list.index(i)])
+                tag_list.append(self.stb_stru_list[self.stb_list.index(i)])
+            col_intersection = list(set(col_list[0]).intersection(set(col_list[1])))
+            tag_intersection = list(set(tag_list[0]).intersection(set(tag_list[1])))
+        
+        
         con_rand=random.randint(0,len(condition_list))
-        func_rand=random.randint(0,len(func_list))
         col_rand=random.randint(0,len(col_list))
         tag_rand=random.randint(0,len(tag_list))
-        t_rand=random.randint(0,len(tlist))
+        
         sql='select '                                           #select 
-        random.shuffle(col_list)
-        random.shuffle(func_list)
-        sel_col_list=[]
+        
+        sel_col_tag=[]
         col_rand=random.randint(0,len(col_list))
-        for i,j in zip(col_list[0:col_rand],func_list):         #决定每个被查询col的函数
-            alias = 'as '+ str(i)
-            pick_func = ''
-            if j == 'leastsquares':
-                pick_func=j+'('+i+',1,1)'
-            elif j == 'top' or j == 'bottom' or j == 'percentile' or j == 'apercentile':
-                pick_func=j+'('+i+',1)'
-            else:
-                pick_func=j+'('+i+')'
-            if bool(random.getrandbits(1)):
-                pick_func+=alias
-            sel_col_list.append(pick_func)
-            
-        sql=sql+','.join(sel_col_list)+' from '+random.choice(self.stb_list+self.subtb_list)+' '                        #select col & func
+        if bool(random.getrandbits(1)):
+            sql += '*'
+        else:
+            sel_col_tag.append('t1.' + str(random.choice(col_list[0] + tag_list[0])))
+            sel_col_tag.append('t2.' + str(random.choice(col_list[1] + tag_list[1])))
+            sql += ','.join(sel_col_tag)
+
+        sql = sql + 'from '+ ','.join(tbname) + ' '                        #select col & func
         con_func=[self.con_where,self.con_interval,self.con_limit,self.con_group,self.con_order,self.con_fill]
         sel_con=random.sample(con_func,random.randint(0,len(con_func)))
         sel_con_list=[]
-        for i in sel_con:
-            sel_con_list.append(i(tlist,col_list,tag_list))                                  #获取对应的条件函数
+        # for i in sel_con:
+        #     sel_con_list.append(i(tlist,col_list,tag_list))                                  #获取对应的条件函数
         sql+=' '.join(sel_con_list)                                       # condition
         print(sql)
         return sql
