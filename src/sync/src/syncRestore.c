@@ -43,7 +43,7 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, int32_t sindex, int32_t eindex
 
     snprintf(fname, sizeof(fname), "%s/%s", pNode->path, name);
     (void)remove(fname);
-    sDebug("%s, %s is removed", pPeer->id, fname);
+    sInfo("%s, %s is removed for its extra", pPeer->id, fname);
 
     index++;
     if (index > eindex) break;

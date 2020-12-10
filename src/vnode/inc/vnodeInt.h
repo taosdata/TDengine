@@ -46,6 +46,7 @@ typedef struct {
   int8_t   isFull;
   int8_t   isCommiting;
   uint64_t version;   // current version
+  uint64_t cversion;  // version while commit start
   uint64_t fversion;  // version on saved data file
   void *   wqueue;    // write queue
   void *   qqueue;    // read query queue

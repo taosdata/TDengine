@@ -133,7 +133,7 @@ static int32_t vnodePutItemIntoReadQueue(SVnodeObj *pVnode, void **qhandle, void
 
   int32_t code = vnodeWriteToRQueue(pVnode, qhandle, 0, TAOS_QTYPE_QUERY, &rpcMsg);
   if (code == TSDB_CODE_SUCCESS) {
-    vDebug("QInfo:%p add to vread queue for exec query", *qhandle);
+    vTrace("QInfo:%p add to vread queue for exec query", *qhandle);
   }
 
   return code;
@@ -164,7 +164,7 @@ static int32_t vnodeDumpQueryResult(SRspRet *pRet, void *pVnode, void **handle, 
       }
     } else {
       *freeHandle = true;
-      vDebug("QInfo:%p exec completed, free handle:%d", *handle, *freeHandle);
+      vTrace("QInfo:%p exec completed, free handle:%d", *handle, *freeHandle);
     }
   } else {
     SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
@@ -266,7 +266,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     }
 
     if (handle != NULL) {
-      vDebug("vgId:%d, QInfo:%p, dnode query msg disposed, create qhandle and returns to app", vgId, *handle);
+      vTrace("vgId:%d, QInfo:%p, dnode query msg disposed, create qhandle and returns to app", vgId, *handle);
       code = vnodePutItemIntoReadQueue(pVnode, handle, pRead->rpcHandle);
       if (code != TSDB_CODE_SUCCESS) {
         pRsp->code = code;
@@ -278,7 +278,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     assert(pCont != NULL);
     void **qhandle = (void **)pRead->qhandle;
 
-    vDebug("vgId:%d, QInfo:%p, dnode continues to exec query", pVnode->vgId, *qhandle);
+    vTrace("vgId:%d, QInfo:%p, dnode continues to exec query", pVnode->vgId, *qhandle);
 
     // In the retrieve blocking model, only 50% CPU will be used in query processing
     if (tsHalfCoresForQuery) {
@@ -294,7 +294,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
         pRead->rpcHandle = qGetResultRetrieveMsg(*qhandle);
         assert(pRead->rpcHandle != NULL);
 
-        vDebug("vgId:%d, QInfo:%p, start to build retrieval rsp after query paused, %p", pVnode->vgId, *qhandle,
+        vTrace("vgId:%d, QInfo:%p, start to build retrieval rsp after query paused, %p", pVnode->vgId, *qhandle,
                pRead->rpcHandle);
 
         // set the real rsp error code
@@ -327,7 +327,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   pRetrieve->free = htons(pRetrieve->free);
   pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
 
-  vDebug("vgId:%d, QInfo:%p, retrieve msg is disposed, free:%d, conn:%p", pVnode->vgId, (void *)pRetrieve->qhandle,
+  vTrace("vgId:%d, QInfo:%p, retrieve msg is disposed, free:%d, conn:%p", pVnode->vgId, (void *)pRetrieve->qhandle,
          pRetrieve->free, pRead->rpcHandle);
 
   memset(pRet, 0, sizeof(SRspRet));
@@ -410,6 +410,6 @@ int32_t vnodeNotifyCurrentQhandle(void *handle, void *qhandle, int32_t vgId) {
   pMsg->header.vgId = htonl(vgId);
   pMsg->header.contLen = htonl(sizeof(SRetrieveTableMsg));
 
-  vDebug("QInfo:%p register qhandle to connect:%p", qhandle, handle);
+  vTrace("QInfo:%p register qhandle to connect:%p", qhandle, handle);
   return rpcReportProgress(handle, (char *)pMsg, sizeof(SRetrieveTableMsg));
 }
