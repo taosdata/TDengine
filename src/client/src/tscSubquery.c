@@ -2172,6 +2172,15 @@ static bool needRetryInsert(SSqlObj* pParentObj, int32_t numOfSub) {
   return true;
 }
 
+static void doFreeInsertSupporter(SSqlObj* pSqlObj) {
+  assert(pSqlObj != NULL && pSqlObj->subState.numOfSub > 0);
+
+  for(int32_t i = 0; i < pSqlObj->subState.numOfSub; ++i) {
+    SSqlObj* pSql = pSqlObj->pSubs[i];
+    tfree(pSql->param);
+  }
+}
+
 static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows) {
   SInsertSupporter *pSupporter = (SInsertSupporter *)param;
   SSqlObj* pParentObj = pSupporter->pSql;
@@ -2203,10 +2212,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
   if (pParentObj->res.code == TSDB_CODE_SUCCESS) {
     tscDebug("%p Async insertion completed, total inserted:%d", pParentObj, pParentObj->res.numOfRows);
-    for(int32_t i = 0; i < numOfSub; ++i) {
-      SSqlObj* pSql = pParentObj->pSubs[i];
-      tfree(pSql->param);
-    }
+    doFreeInsertSupporter(pParentObj);
 
     // todo remove this parameter in async callback function definition.
     // all data has been sent to vnode, call user function
@@ -2214,6 +2220,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     (*pParentObj->fp)(pParentObj->param, pParentObj, v);
   } else {
     if (!needRetryInsert(pParentObj, numOfSub)) {
+      doFreeInsertSupporter(pParentObj);
       tscQueueAsyncRes(pParentObj);
       return;
     }
@@ -2244,16 +2251,19 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
     pParentObj->cmd.parseFinished = false;
     pParentObj->subState.numOfRemain = numOfFailed;
-    pParentObj->subState.numOfSub = numOfFailed;
 
     tscResetSqlCmdObj(&pParentObj->cmd, false);
 
+    // in case of insert, redo parsing the sql string and build new submit data block for two reasons:
+    // 1. the table Id(tid & uid) may have been update, the submit block needs to be updated accordingly.
+    // 2. vnode may need the schema information along with submit block to update its local table schema.
     tscDebug("%p re-parse sql to generate submit data, retry:%d", pParentObj, pParentObj->retry++);
     int32_t code = tsParseSql(pParentObj, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
 
     if (code != TSDB_CODE_SUCCESS) {
       pParentObj->res.code = code;
+      doFreeInsertSupporter(pParentObj);
       tscQueueAsyncRes(pParentObj);
       return;
     }

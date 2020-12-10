@@ -3993,13 +3993,12 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
   STwaInfo *pInfo = (STwaInfo *)GET_ROWCELL_INTERBUF(pResInfo);
-  assert(pInfo->win.ekey == pInfo->lastKey && pInfo->hasResult == pResInfo->hasResult);
-  
   if (pInfo->hasResult != DATA_SET_FLAG) {
     setNull(pCtx->aOutputBuf, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
     return;
   }
-  
+
+  assert(pInfo->win.ekey == pInfo->lastKey && pInfo->hasResult == pResInfo->hasResult);
   if (pInfo->win.ekey == pInfo->win.skey) {
     *(double *)pCtx->aOutputBuf = pInfo->lastValue;
   } else {
