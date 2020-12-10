@@ -78,6 +78,7 @@ extern char *     tsCfgStatusStr[];
 void taosReadGlobalLogCfg();
 bool taosReadGlobalCfg();
 void taosPrintGlobalCfg();
+void taosDumpGlobalCfg();
 
 void taosInitConfigOption(SGlobalCfg cfg);
 SGlobalCfg * taosGetConfigOption(const char *option);
