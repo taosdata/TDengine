@@ -703,10 +703,11 @@ static FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_se
   return forwardStep;
 }
 
-static UNUSED_FUNC void updateResultRowCurrentIndex(SResultRowInfo* pWindowResInfo, int32_t* numOfClosed, TSKEY lastKey, bool ascQuery) {
+static int32_t updateResultRowCurrentIndex(SResultRowInfo* pWindowResInfo, TSKEY lastKey, bool ascQuery) {
   int32_t i = 0;
   int64_t skey = TSKEY_INITIAL_VAL;
 
+  int32_t numOfClosed = 0;
   for (i = 0; i < pWindowResInfo->size; ++i) {
     SResultRow *pResult = pWindowResInfo->pResult[i];
     if (pResult->closed) {
@@ -732,11 +733,11 @@ static UNUSED_FUNC void updateResultRowCurrentIndex(SResultRowInfo* pWindowResIn
   }
 
   pWindowResInfo->prevSKey = pWindowResInfo->pResult[pWindowResInfo->curIndex]->win.skey;
+  return numOfClosed;
 }
 
 /**
  * NOTE: the query status only set for the first scan of master scan.
- * TODO refactor
  */
 static int32_t doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKey, SResultRowInfo *pWindowResInfo) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
@@ -755,34 +756,7 @@ static int32_t doCheckQueryCompleted(SQueryRuntimeEnv *pRuntimeEnv, TSKEY lastKe
     pWindowResInfo->curIndex = pWindowResInfo->size - 1;
     setQueryStatus(pQuery, QUERY_COMPLETED | QUERY_RESBUF_FULL);
   } else {  // set the current index to be the last unclosed window
-    int32_t i = 0;
-    int64_t skey = TSKEY_INITIAL_VAL;
-
-    for (i = 0; i < pWindowResInfo->size; ++i) {
-      SResultRow *pResult = pWindowResInfo->pResult[i];
-      if (pResult->closed) {
-        numOfClosed += 1;
-        continue;
-      }
-
-      TSKEY ekey = pResult->win.ekey;
-      if ((ekey <= lastKey && ascQuery) || (pResult->win.skey >= lastKey && !ascQuery)) {
-        closeTimeWindow(pWindowResInfo, i);
-      } else {
-        skey = pResult->win.skey;
-        break;
-      }
-    }
-
-    // all windows are closed, set the last one to be the skey
-    if (skey == TSKEY_INITIAL_VAL) {
-      assert(i == pWindowResInfo->size);
-      pWindowResInfo->curIndex = pWindowResInfo->size - 1;
-    } else {
-      pWindowResInfo->curIndex = i;
-    }
-
-    pWindowResInfo->prevSKey = pWindowResInfo->pResult[pWindowResInfo->curIndex]->win.skey;
+    numOfClosed = updateResultRowCurrentIndex(pWindowResInfo, lastKey, ascQuery);
 
     // the number of completed slots are larger than the threshold, return current generated results to client.
     if (numOfClosed > pQuery->rec.threshold) {
@@ -4500,6 +4474,18 @@ static void stableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBloc
     rowwiseApplyFunctions(pRuntimeEnv, pStatis, pDataBlockInfo, pWindowResInfo, pDataBlock);
   } else {
     blockwiseApplyFunctions(pRuntimeEnv, pStatis, pDataBlockInfo, pWindowResInfo, searchFn, pDataBlock);
+  }
+
+  if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
+    bool ascQuery = QUERY_IS_ASC_QUERY(pQuery);
+
+    // TODO refactor
+    if ((pTableQueryInfo->lastKey >= pTableQueryInfo->win.ekey && ascQuery) || (pTableQueryInfo->lastKey <= pTableQueryInfo->win.ekey && (!ascQuery))) {
+      closeAllTimeWindow(pWindowResInfo);
+      pWindowResInfo->curIndex = pWindowResInfo->size - 1;
+    } else {
+      updateResultRowCurrentIndex(pWindowResInfo, pTableQueryInfo->lastKey, ascQuery);
+    }
   }
 }
 
