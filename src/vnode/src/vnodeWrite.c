@@ -23,7 +23,7 @@
 #include "dnode.h"
 #include "vnodeStatus.h"
 
-#define MAX_QUEUED_MSG_NUM 1024
+#define MAX_QUEUED_MSG_NUM 10000
 
 extern void *  tsDnodeTmr;
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *pCont, SRspRet *);
@@ -271,6 +271,8 @@ static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
   SVnodeObj * pVnode = pWrite->pVnode;
   int32_t     code = TSDB_CODE_VND_SYNCING;
 
+  if (pVnode->flowctrlLevel <= 0) code = TSDB_CODE_VND_IS_FLOWCTRL;
+
   pWrite->processedCount++;
   if (pWrite->processedCount > 100) {
     vError("vgId:%d, msg:%p, failed to process since %s, retry:%d", pVnode->vgId, pWrite, tstrerror(code),
@@ -290,8 +292,10 @@ static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
 
 static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite) {
   SVnodeObj *pVnode = pWrite->pVnode;
-  if (pVnode->flowctrlLevel <= 0) return 0;
-  if (pWrite->qtype != TAOS_QTYPE_RPC) return 0;
+  if (pVnode->queuedWMsg < MAX_QUEUED_MSG_NUM) {
+    if (pVnode->flowctrlLevel <= 0) return 0;
+    if (pWrite->qtype != TAOS_QTYPE_RPC) return 0;
+  }
 
   if (tsFlowCtrl == 0) {
     int32_t ms = pow(2, pVnode->flowctrlLevel + 2);

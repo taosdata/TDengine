@@ -35,7 +35,7 @@
 #include "mnodeSdb.h"
 
 #define SDB_TABLE_LEN 12
-#define MAX_QUEUED_MSG_NUM 1024
+#define MAX_QUEUED_MSG_NUM 10000
 
 typedef enum {
   SDB_ACTION_INSERT = 0,

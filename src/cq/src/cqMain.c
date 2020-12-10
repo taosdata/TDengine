@@ -161,7 +161,7 @@ void cqStop(void *handle) {
     return;
   }
   SCqContext *pContext = handle;
-  cInfo("vgId:%d, stop all CQs", pContext->vgId);
+  cDebug("vgId:%d, stop all CQs", pContext->vgId);
   if (pContext->dbConn == NULL || pContext->master == 0) return;
 
   pthread_mutex_lock(&pContext->mutex);
