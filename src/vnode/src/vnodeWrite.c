@@ -244,7 +244,7 @@ int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rpar
   int32_t queued = atomic_add_fetch_32(&pVnode->queuedWMsg, 1);
   if (queued > MAX_QUEUED_MSG_NUM) {
     vDebug("vgId:%d, too many msg:%d in vwqueue, flow control", pVnode->vgId, queued);
-    taosMsleep(1);
+    taosMsleep(3);
   }
 
   code = vnodePerformFlowCtrl(pWrite);
@@ -292,10 +292,8 @@ static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
 
 static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite) {
   SVnodeObj *pVnode = pWrite->pVnode;
-  if (pVnode->queuedWMsg < MAX_QUEUED_MSG_NUM) {
-    if (pVnode->flowctrlLevel <= 0) return 0;
-    if (pWrite->qtype != TAOS_QTYPE_RPC) return 0;
-  }
+  if (pWrite->qtype != TAOS_QTYPE_RPC) return 0;
+  if (pVnode->queuedWMsg < MAX_QUEUED_MSG_NUM && pVnode->flowctrlLevel <= 0) return 0;
 
   if (tsFlowCtrl == 0) {
     int32_t ms = pow(2, pVnode->flowctrlLevel + 2);

@@ -203,8 +203,8 @@ int32_t vnodeOpen(int32_t vgId) {
 
   code = vnodeReadVersion(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, failed to read version, generate it from data file", pVnode->vgId);
-    // Allow vnode start even when read version fails, set version as walVersion or zero
+    vError("vgId:%d, failed to read file version, generate it from data file", pVnode->vgId);
+    // Allow vnode start even when read file version fails, set file version as wal version or zero
     // vnodeCleanUp(pVnode);
     // return code;
   }
@@ -442,6 +442,7 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
            pVnode->fversion, pVnode->version);
     pVnode->isCommiting = 0;
     pVnode->isFull = 1;
+    pVnode->cversion = pVnode->version;
     return 0;
   }
 
@@ -457,7 +458,7 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
   if (status == TSDB_STATUS_COMMIT_OVER) {
     pVnode->isCommiting = 0;
     pVnode->isFull = 0;
-    pVnode->fversion = pVnode->version;
+    pVnode->fversion = pVnode->cversion;
     vDebug("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
     if (!vnodeInInitStatus(pVnode)) {
       walRemoveOneOldFile(pVnode->wal);
