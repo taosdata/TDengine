@@ -30,7 +30,6 @@ python3 ./test.py -f table/create_sensitive.py
 python3 ./test.py  -f table/max_table_length.py
 python3 ./test.py -f table/alter_column.py
 python3 ./test.py -f table/boundary.py
-python3 ./test.py -f table/create-a-lot.py
 python3 ./test.py -f table/create.py
 python3 ./test.py -f table/del_stable.py
 python3 ./test.py -f table/queryWithTaosdKilled.py
@@ -206,6 +205,7 @@ python3 ./test.py -f functions/function_stddev.py -r 1
 python3 ./test.py -f functions/function_sum.py -r 1
 python3 ./test.py -f functions/function_top.py -r 1
 #python3 ./test.py -f functions/function_twa.py -r 1
+python3 ./test.py -f functions/function_twa_test2.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
