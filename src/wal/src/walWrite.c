@@ -166,14 +166,14 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
     char walName[WAL_FILE_LEN];
     snprintf(walName, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
 
-    wDebug("vgId:%d, file:%s, will be restored", pWal->vgId, walName);
+    wInfo("vgId:%d, file:%s, will be restored", pWal->vgId, walName);
     int32_t code = walRestoreWalFile(pWal, pVnode, writeFp, walName, fileId);
     if (code != TSDB_CODE_SUCCESS) {
       wError("vgId:%d, file:%s, failed to restore since %s", pWal->vgId, walName, tstrerror(code));
       continue;
     }
 
-    wDebug("vgId:%d, file:%s, restore success", pWal->vgId, walName);
+    wInfo("vgId:%d, file:%s, restore success", pWal->vgId, walName);
 
     count++;
   }
@@ -326,7 +326,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
 
     offset = offset + sizeof(SWalHead) + pHead->len;
 
-    wDebug("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d", pWal->vgId,
+    wTrace("vgId:%d, restore wal, fileId:%" PRId64 " hver:%" PRIu64 " wver:%" PRIu64 " len:%d", pWal->vgId,
            fileId, pHead->version, pWal->version, pHead->len);
 
     pWal->version = pHead->version;
