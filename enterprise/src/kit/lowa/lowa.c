@@ -668,6 +668,7 @@ static void getResult(TAOS_RES *res, char* resultFileName) {
     }
     num_rows++;
     int len = taos_print_row(temp, row, fields, num_fields);
+    len += sprintf(temp + len, "\n");
     //printf("query result:%s\n", temp);
     memcpy(databuf + totalLen, temp, len);
     totalLen += len;
@@ -2551,19 +2552,22 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         printf("failed to read json, query sql size overflow, max is %d\n", MAX_QUERY_SQL_COUNT);
         goto PARSE_OVER;
       }
-    
+      
       g_queryInfo.superQueryInfo.sqlCount = superSqlSize;
       for (int j = 0; j < superSqlSize; ++j) {
-        cJSON *sqlStr = cJSON_GetObjectItem(superSqls, "sql");
+        cJSON* sql = cJSON_GetArrayItem(superSqls, j);
+        if (sql == NULL) continue;
+      
+        cJSON *sqlStr = cJSON_GetObjectItem(sql, "sql");
         if (!sqlStr || sqlStr->type != cJSON_String || sqlStr->valuestring == NULL) {
-          printf("failed to read json, sql not found");
+          printf("failed to read json, sql not found\n");
           goto PARSE_OVER;
         }
         strncpy(g_queryInfo.superQueryInfo.sql[j], sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
 
-        cJSON *result = cJSON_GetObjectItem(superSqls, "result");
-        if (result || result->type != cJSON_String || result->valuestring == NULL) {
-          printf("failed to read json, result not found");
+        cJSON *result = cJSON_GetObjectItem(sql, "result");
+        if (!result || result->type != cJSON_String || result->valuestring == NULL) {
+          printf("failed to read json, result not found\n");
           goto PARSE_OVER;
         } else if (result) {
           strncpy(g_queryInfo.superQueryInfo.result[j], result->valuestring, MAX_FILE_NAME_LEN);
@@ -2663,7 +2667,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     }  
 
     // sqls     
-    cJSON* subsqls = cJSON_GetObjectItem(superQuery, "sqls");
+    cJSON* subsqls = cJSON_GetObjectItem(subQuery, "sqls");
     if (!subsqls) {
       g_queryInfo.subQueryInfo.sqlCount = 0;
     } else if (subsqls->type != cJSON_Array) {
@@ -2677,17 +2681,20 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       }
     
       g_queryInfo.subQueryInfo.sqlCount = superSqlSize;
-      for (int j = 0; j < superSqlSize; ++j) {
-        cJSON *sqlStr = cJSON_GetObjectItem(subsqls, "sql");
+      for (int j = 0; j < superSqlSize; ++j) {      
+        cJSON* sql = cJSON_GetArrayItem(subsqls, j);
+        if (sql == NULL) continue;
+        
+        cJSON *sqlStr = cJSON_GetObjectItem(sql, "sql");
         if (!sqlStr || sqlStr->type != cJSON_String || sqlStr->valuestring == NULL) {
-          printf("failed to read json, sql not found");
+          printf("failed to read json, sql not found\n");
           goto PARSE_OVER;
         }
         strncpy(g_queryInfo.subQueryInfo.sql[j], sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
 
-        cJSON *result = cJSON_GetObjectItem(subsqls, "result");
-        if (result || result->type != cJSON_String || result->valuestring == NULL) {
-          printf("failed to read json, result not found");
+        cJSON *result = cJSON_GetObjectItem(sql, "result");
+        if (!result || result->type != cJSON_String || result->valuestring == NULL) {
+          printf("failed to read json, result not found\n");
           goto PARSE_OVER;
         } else if (result) {
           strncpy(g_queryInfo.subQueryInfo.result[j], result->valuestring, MAX_FILE_NAME_LEN);
@@ -3427,13 +3434,13 @@ void *superQueryProcess(void *sarg) {
         int64_t t1 = taosGetTimestampUs();
         selectAndGetResult(winfo->taos, g_queryInfo.superQueryInfo.sql[i], g_queryInfo.superQueryInfo.result[i]); 
         int64_t t2 = taosGetTimestampUs();          
-        printf("taosc select sql return, Spent %"PRId64" us \n", t2 - t1);          
+        printf("taosc select sql return, Spent %f s\n", (t2 - t1)/1000000.0);          
       } else {
         #ifdef TD_LOWA_CURL
         int64_t t1 = taosGetTimestampUs();
         int retCode = curlProceSql(g_queryInfo.host, g_queryInfo.port, g_queryInfo.superQueryInfo.sql[i], winfo->curl_handle);
         int64_t t2 = taosGetTimestampUs();          
-        printf("http select sql return, Spent %ld us \n", t2 - t1);
+        printf("http select sql return, Spent %f s \n", (t2 - t1)/1000000.0);
         
         if (0 != retCode) {
           printf("========curl return fail, threadID[%d]\n", winfo->threadID);
@@ -3507,8 +3514,9 @@ int queryTestProcess() {
     exit(-1);
   }
 
-  (void)getAllChildNameOfSuperTable(taos, g_queryInfo.dbName, g_queryInfo.subQueryInfo.sTblName, &g_queryInfo.subQueryInfo.childTblName, &g_queryInfo.subQueryInfo.childTblCount);
-  taos_close(taos);
+  if (0 != g_queryInfo.subQueryInfo.sqlCount) {
+    (void)getAllChildNameOfSuperTable(taos, g_queryInfo.dbName, g_queryInfo.subQueryInfo.sTblName, &g_queryInfo.subQueryInfo.childTblName, &g_queryInfo.subQueryInfo.childTblCount);
+  }  
   
   pthread_t  *pids  = NULL;
   threadInfo *infos = NULL;
@@ -3519,6 +3527,7 @@ int queryTestProcess() {
     infos = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(threadInfo));
     if ((NULL == pids) || (NULL == infos)) {
       printf("malloc failed for create threads\n");
+      taos_close(taos);
       exit(-1);
     }
     
@@ -3527,7 +3536,7 @@ int queryTestProcess() {
       t_info->threadID = i;    
   
       if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", 5)) {
-        t_info->taos = taos_connect(g_queryInfo.host, g_queryInfo.user, g_queryInfo.password, g_queryInfo.dbName, g_queryInfo.port);
+        t_info->taos = taos;
         
         char sqlStr[MAX_TB_NAME_SIZE*2];
         sprintf(sqlStr, "use %s", g_queryInfo.dbName);
@@ -3553,6 +3562,7 @@ int queryTestProcess() {
     infosOfSub = malloc(g_queryInfo.subQueryInfo.threadCnt * sizeof(threadInfo));
     if ((NULL == pidsOfSub) || (NULL == infosOfSub)) {
       printf("malloc failed for create threads\n");
+      taos_close(taos);
       exit(-1);
     }
     
@@ -3577,7 +3587,7 @@ int queryTestProcess() {
       
       t_info->start_table_id = last;
       t_info->end_table_id = i < b ? last + a : last + a - 1;
-      t_info->taos = taos_connect(g_queryInfo.host, g_queryInfo.user, g_queryInfo.password, g_queryInfo.dbName, g_queryInfo.port);
+      t_info->taos = taos;
       pthread_create(pidsOfSub + i, NULL, subQueryProcess, t_info);
     }
 
@@ -3590,11 +3600,6 @@ int queryTestProcess() {
     pthread_join(pids[i], NULL);
   }
 
-  for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
-    threadInfo *t_info = infos + i;
-    taos_close(t_info->taos);
-  }
-
   tmfree((char*)pids);
   tmfree((char*)infos);  
   
@@ -3602,14 +3607,10 @@ int queryTestProcess() {
     pthread_join(pidsOfSub[i], NULL);
   }
 
-  for (int i = 0; i < g_queryInfo.subQueryInfo.threadCnt; i++) {
-    threadInfo *t_info = infosOfSub + i;
-    taos_close(t_info->taos);
-  }
-
   tmfree((char*)pidsOfSub);
   tmfree((char*)infosOfSub);  
-
+  
+  taos_close(taos);
   return 0;
 }
 
@@ -3759,8 +3760,10 @@ int subscribeTestProcess() {
     exit(-1);
   }
 
-  (void)getAllChildNameOfSuperTable(taos, g_queryInfo.dbName, g_queryInfo.subQueryInfo.sTblName, &g_queryInfo.subQueryInfo.childTblName, &g_queryInfo.subQueryInfo.childTblCount);
-  taos_close(taos);
+  if (0 != g_queryInfo.subQueryInfo.sqlCount) {
+    (void)getAllChildNameOfSuperTable(taos, g_queryInfo.dbName, g_queryInfo.subQueryInfo.sTblName, &g_queryInfo.subQueryInfo.childTblName, &g_queryInfo.subQueryInfo.childTblCount);
+  }
+
 
   pthread_t  *pids = NULL;
   threadInfo *infos = NULL;
@@ -3769,14 +3772,15 @@ int subscribeTestProcess() {
     pids  = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(pthread_t));
     infos = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(threadInfo));
     if ((NULL == pids) || (NULL == infos)) {
-      printf("malloc failed for create threads\n");
+      printf("malloc failed for create threads\n");      
+      taos_close(taos);
       exit(-1);
     }
     
     for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {  
       threadInfo *t_info = infos + i;
       t_info->threadID = i;
-      t_info->taos = taos_connect(g_queryInfo.host, g_queryInfo.user, g_queryInfo.password, g_queryInfo.dbName, g_queryInfo.port);
+      t_info->taos = taos;
       pthread_create(pids + i, NULL, superSubscribeProcess, t_info);
     }
   }
@@ -3788,7 +3792,8 @@ int subscribeTestProcess() {
     pidsOfSub  = malloc(g_queryInfo.subQueryInfo.threadCnt * sizeof(pthread_t));
     infosOfSub = malloc(g_queryInfo.subQueryInfo.threadCnt * sizeof(threadInfo));
     if ((NULL == pidsOfSub) || (NULL == infosOfSub)) {
-      printf("malloc failed for create threads\n");
+      printf("malloc failed for create threads\n");      
+      taos_close(taos);
       exit(-1);
     }
     
@@ -3813,7 +3818,7 @@ int subscribeTestProcess() {
       
       t_info->start_table_id = last;
       t_info->end_table_id = i < b ? last + a : last + a - 1;
-      t_info->taos = taos_connect(g_queryInfo.host, g_queryInfo.user, g_queryInfo.password, g_queryInfo.dbName, g_queryInfo.port);
+      t_info->taos = taos;
       pthread_create(pidsOfSub + i, NULL, subSubscribeProcess, t_info);
     }
     g_queryInfo.subQueryInfo.threadCnt = threads;
@@ -3823,11 +3828,6 @@ int subscribeTestProcess() {
     pthread_join(pids[i], NULL);
   }  
 
-  for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
-    threadInfo *t_info = infos + i;
-    taos_close(t_info->taos);
-  }
-
   tmfree((char*)pids);
   tmfree((char*)infos);  
 
@@ -3835,14 +3835,9 @@ int subscribeTestProcess() {
     pthread_join(pidsOfSub[i], NULL);
   }
 
-  for (int i = 0; i < g_queryInfo.subQueryInfo.threadCnt; i++) {
-    threadInfo *t_info = infosOfSub + i;
-    taos_close(t_info->taos);
-  }
-
   tmfree((char*)pidsOfSub);
-  tmfree((char*)infosOfSub);  
-  
+  tmfree((char*)infosOfSub);    
+  taos_close(taos);
   return 0;
 }
 
