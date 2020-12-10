@@ -35,6 +35,8 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "The user auth to use when connecting to the server.");
   printf("%s%s\n", indent, "-c");
   printf("%s%s%s\n", indent, indent, "Configuration directory.");
+  printf("%s%s\n", indent, "-C");
+  printf("%s%s%s\n", indent, indent, "Dump configuration.");
   printf("%s%s\n", indent, "-s");
   printf("%s%s%s\n", indent, indent, "Commands to run without enter the shell.");
   printf("%s%s\n", indent, "-r");
@@ -104,6 +106,8 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         fprintf(stderr, "Option -c requires an argument\n");
         exit(EXIT_FAILURE);
       }
+    } else if (strcmp(argv[i], "-C") == 0) {
+      arguments->dump_config = true;
     } else if (strcmp(argv[i], "-s") == 0) {
       if (i < argc - 1) {
         arguments->commands = argv[++i];
