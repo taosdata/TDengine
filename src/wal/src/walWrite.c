@@ -173,7 +173,7 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
       continue;
     }
 
-    wInfo("vgId:%d, file:%s, restore success", pWal->vgId, walName);
+    wInfo("vgId:%d, file:%s, restore success, wver:%" PRIu64, pWal->vgId, walName, pWal->version);
 
     count++;
   }
@@ -266,8 +266,6 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     tfree(buffer);
     return TAOS_SYSTEM_ERROR(errno);
   }
-
-  wDebug("vgId:%d, file:%s, start to restore", pWal->vgId, name);
 
   int32_t   code = TSDB_CODE_SUCCESS;
   int64_t   offset = 0;
