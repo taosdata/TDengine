@@ -228,7 +228,7 @@ static int32_t taosOpenNoteWithMaxLines(char *fn, int32_t maxLines, int32_t maxN
 }
 
 void taosNotePrintBuffer(SNoteObj *pNote, char *buffer, int32_t len) {
-  if (pNote->fd < 0) return;
+  if (pNote->fd <= 0) return;
   taosWrite(pNote->fd, buffer, len);
 
   if (pNote->maxLines > 0) {

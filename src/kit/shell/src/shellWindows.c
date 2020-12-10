@@ -45,6 +45,10 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Database to use when connecting to the server.");
   printf("%s%s\n", indent, "-t");
   printf("%s%s%s\n", indent, indent, "Time zone of the shell, default is local.");
+  printf("%s%s\n", indent, "-n");
+  printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, default is startup, options: client|server|rpc|startup.");
+  printf("%s%s\n", indent, "-l");
+  printf("%s%s%s\n", indent, indent, "Packet length used for net test, default is 1000 bytes.");
 
   exit(EXIT_SUCCESS);
 }
@@ -134,6 +138,24 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         arguments->timezone = argv[++i];
       } else {
         fprintf(stderr, "option -t requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+    // For time zone
+    else if (strcmp(argv[i], "-n") == 0) {
+      if (i < argc - 1) {
+        arguments->netTestRole = argv[++i];
+      } else {
+        fprintf(stderr, "option -n requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+    // For time zone
+    else if (strcmp(argv[i], "-l") == 0) {
+      if (i < argc - 1) {
+        arguments->pktLen = atoi(argv[++i]);
+      } else {
+        fprintf(stderr, "option -l requires an argument\n");
         exit(EXIT_FAILURE);
       }
     }

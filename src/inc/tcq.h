@@ -42,7 +42,7 @@ void  cqStart(void *handle);
 void  cqStop(void *handle);
 
 // cqCreate is called by TSDB to start an instance of CQ 
-void *cqCreate(void *handle, uint64_t uid, int32_t sid, char *sqlStr, STSchema *pSchema);
+void *cqCreate(void *handle, uint64_t uid, int32_t sid, const char* dstTable, char *sqlStr, STSchema *pSchema);
 
 // cqDrop is called by TSDB to stop an instance of CQ, handle is the return value of cqCreate
 void  cqDrop(void *handle);

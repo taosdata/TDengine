@@ -262,6 +262,11 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
   SSqlStream *pStream = pObj->streamList;
   while (pStream) {
     tstrncpy(pSdesc->sql, pStream->pSql->sqlstr, sizeof(pSdesc->sql));
+    if (pStream->dstTable == NULL) {
+      pSdesc->dstTable[0] = 0;
+    } else {
+      tstrncpy(pSdesc->dstTable, pStream->dstTable, sizeof(pSdesc->dstTable));
+    }
     pSdesc->streamId = htonl(pStream->streamId);
     pSdesc->num = htobe64(pStream->num);
 

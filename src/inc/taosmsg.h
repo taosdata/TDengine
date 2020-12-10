@@ -787,6 +787,7 @@ typedef struct {
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
+  char     dstTable[TSDB_TABLE_NAME_LEN];
   uint32_t streamId;
   int64_t  num;  // number of computing/cycles
   int64_t  useconds;

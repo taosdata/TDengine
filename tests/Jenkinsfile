@@ -1,3 +1,4 @@
+
 // execute this before anything else, including requesting any time on an agent
 if (currentBuild.rawBuild.getCauses().toString().contains('BranchIndexingCause')) {
   print "INFO: Build skipped due to trigger being Branch Indexing"
@@ -7,6 +8,7 @@ if (currentBuild.rawBuild.getCauses().toString().contains('BranchIndexingCause')
 properties([pipelineTriggers([githubPush()])])
 node {
     git url: 'https://github.com/taosdata/TDengine.git'
+
 }
 
 def pre_test(){
