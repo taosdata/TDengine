@@ -726,10 +726,14 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
     SSchema p1 = {0};
-    if (pExpr->colInfo.colIndex != TSDB_TBNAME_COLUMN_INDEX) {
-      p1 = *tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
-    } else {
+    if (pExpr->colInfo.colIndex == TSDB_TBNAME_COLUMN_INDEX) {
       p1 = tGetTableNameColumnSchema();
+    } else if (TSDB_COL_IS_UD_COL(pExpr->colInfo.flag)) {
+      p1.bytes = pExpr->resBytes;
+      p1.type  = (uint8_t) pExpr->resType;
+      tstrncpy(p1.name, pExpr->aliasName, tListLen(p1.name));
+    } else {
+      p1 = *tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pExpr->colInfo.colIndex);
     }
 
     int32_t inter = 0;
