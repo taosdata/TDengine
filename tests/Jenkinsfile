@@ -1,7 +1,9 @@
+
 properties([pipelineTriggers([githubPush()])])
 node {
-    git url: 'https://github.com/taosdata/TDengine.git'
+    git url: 'https://github.com/taosdata/TDengine'
 }
+
 
 // execute this before anything else, including requesting any time on an agent
 if (currentBuild.rawBuild.getCauses().toString().contains('BranchIndexingCause')) {
