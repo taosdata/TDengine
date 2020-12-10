@@ -36,14 +36,14 @@ int32_t tWorkerInit(SWorkerPool *pPool) {
 void tWorkerCleanup(SWorkerPool *pPool) {
   for (int i = 0; i < pPool->max; ++i) {
     SWorker *pWorker = pPool->worker + i;
-    if (pWorker->thread != 0) {
+    if(taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(pPool->qset);
     }
   }
 
   for (int i = 0; i < pPool->max; ++i) {
     SWorker *pWorker = pPool->worker + i;
-    if (pWorker->thread != 0) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
     }
   }
