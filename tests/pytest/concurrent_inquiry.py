@@ -231,6 +231,7 @@ class ConcurrentInquiry:
         con_func=[self.con_where,self.con_interval,self.con_limit,self.con_group,self.con_order,self.con_fill]
         sel_con=random.sample(con_func,random.randint(0,len(con_func)))
         sel_con_list=[]
+        
         # for i in sel_con:
         #     sel_con_list.append(i(tlist,col_list,tag_list))                                  #获取对应的条件函数
         sql+=' '.join(sel_con_list)                                       # condition
