@@ -2589,10 +2589,11 @@ static void percentile_next_step(SQLFunctionCtx *pCtx) {
     // all data are null, set it completed
     if (pInfo->numOfElems == 0) {
       pResInfo->complete = true;
+    } else {
+      pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, GET_DOUBLE_VAL(&pInfo->minval), GET_DOUBLE_VAL(&pInfo->maxval));
     }
 
     pInfo->stage += 1;
-    pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, GET_DOUBLE_VAL(&pInfo->minval), GET_DOUBLE_VAL(&pInfo->maxval));
   } else {
     pResInfo->complete = true;
   }

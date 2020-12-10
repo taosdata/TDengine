@@ -34,6 +34,7 @@ typedef struct {
   void *  rpcHandle;
   void *  rpcAhandle;
   void *  qhandle;
+  void *  pVnode;
   int8_t  qtype;
   int8_t  msgType;
   SRspRet rspRet;

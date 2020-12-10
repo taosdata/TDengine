@@ -24,8 +24,10 @@ extern "C" {
 int32_t dnodeInitVRead();
 void    dnodeCleanupVRead();
 void    dnodeDispatchToVReadQueue(SRpcMsg *pMsg);
-void *  dnodeAllocVReadQueue(void *pVnode);
-void    dnodeFreeVReadQueue(void *pRqueue);
+void *  dnodeAllocVQueryQueue(void *pVnode);
+void *  dnodeAllocVFetchQueue(void *pVnode);
+void    dnodeFreeVQueryQueue(void *pQqueue);
+void    dnodeFreeVFetchQueue(void *pFqueue);
 
 #ifdef __cplusplus
 }
