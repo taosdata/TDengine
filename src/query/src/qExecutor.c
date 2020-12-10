@@ -730,9 +730,9 @@ static int32_t updateResultRowCurrentIndex(SResultRowInfo* pWindowResInfo, TSKEY
     pWindowResInfo->curIndex = pWindowResInfo->size - 1;
   } else {
     pWindowResInfo->curIndex = i;
+    pWindowResInfo->prevSKey = pWindowResInfo->pResult[pWindowResInfo->curIndex]->win.skey;
   }
 
-  pWindowResInfo->prevSKey = pWindowResInfo->pResult[pWindowResInfo->curIndex]->win.skey;
   return numOfClosed;
 }
 
