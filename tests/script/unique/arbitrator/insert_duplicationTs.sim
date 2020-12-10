@@ -192,6 +192,7 @@ endi
 
 sleep $sleepTimer
 # check using select
+sleep 5000
 sql select count(*) from $stb
 print data00 $data00
 if $data00 != $totalRows then
