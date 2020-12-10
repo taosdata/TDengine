@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tgrant.h"
+#include "tconfig.h"
 #include "dnodeMain.h"
 
 static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);
@@ -35,6 +36,18 @@ int32_t main(int32_t argc, char *argv[]) {
         printf("'-c' requires a parameter, default:%s\n", configDir);
         exit(EXIT_FAILURE);
       }
+    } else if (strcmp(argv[i], "-C") == 0) {
+      tscEmbedded  = 1;
+      taosInitGlobalCfg();
+      taosReadGlobalLogCfg();
+
+      if (!taosReadGlobalCfg()) {
+        printf("TDengine read global config failed");
+        exit(EXIT_FAILURE);
+      }
+
+      taosDumpGlobalCfg();
+      exit(EXIT_SUCCESS);
     } else if (strcmp(argv[i], "-V") == 0) {
 #ifdef _ACCT
       char *versionStr = "enterprise";
