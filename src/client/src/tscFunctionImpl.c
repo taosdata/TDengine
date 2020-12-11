@@ -3748,7 +3748,7 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t tsIndex, int32_t 
           continue;
         }
 
-        SPoint1 st = {.key = primaryKey[i + tsIndex], .val = val[i]};
+        SPoint1 st = {.key = primaryKey[i + tsIndex], .val = (double) val[i]};
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -3904,7 +3904,7 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
           continue;
         }
 
-        SPoint1 st = {.key = primaryKey[i + index], .val = val[i]};
+        SPoint1 st = {.key = primaryKey[i + index], .val = (double) val[i]};
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
