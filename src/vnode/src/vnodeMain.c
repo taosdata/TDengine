@@ -442,12 +442,12 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
            pVnode->fversion, pVnode->version);
     pVnode->isCommiting = 0;
     pVnode->isFull = 1;
-    pVnode->cversion = pVnode->version;
     return 0;
   }
 
   if (status == TSDB_STATUS_COMMIT_START) {
     pVnode->isCommiting = 1;
+    pVnode->cversion = pVnode->version;
     vDebug("vgId:%d, start commit, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
     if (!vnodeInInitStatus(pVnode)) {
       return walRenew(pVnode->wal);
