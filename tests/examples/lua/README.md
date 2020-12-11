@@ -25,6 +25,8 @@ lua test.lua
 http://openresty.org
 ```
 ## Run with OpenResty Sample
+**This section demonstrates how to get binary file for connector. To be convenient for trial, an connector has been put into OpenResty work directory.
+Because of difference on C API between Lua5.3 and Lua5.1, the files needed by connector for OpenResty are stored in local source directory and configured in script build.sh.** 
 
 Build driver lib:
 ```
@@ -33,7 +35,9 @@ cd lua51
 ```
 Run OpenResty sample:
 ```
-openresty -p .
+cd ..
+cd OpenResty
+sudo openresty -p .
 curl http://127.0.0.1:7000/api/test
 ```
 

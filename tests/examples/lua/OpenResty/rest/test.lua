@@ -1,6 +1,6 @@
 local driver = require "luaconnector51"
 local cjson = require "cjson"
-ngx.say("start:"..os.time())
+ngx.say("start time:"..os.time())
 
 
 local config = {
@@ -24,10 +24,9 @@ end
 
 local res = driver.query(conn,"drop database if exists nginx")
 if res.code ~=0 then
-   ngx.say("create db--- failed: "..res.error)
-
+   ngx.say("drop db--- failed: "..res.error)
 else
-   ngx.say("create db--- pass.")
+   ngx.say("drop db--- pass.")
 end
 res = driver.query(conn,"create database nginx")
 if res.code ~=0 then
@@ -39,8 +38,7 @@ end
 
 res = driver.query(conn,"use nginx")
 if res.code ~=0 then
-  ngx.say("select db--- failed: "..res.error)
-
+   ngx.say("select db--- failed: "..res.error)
 else
    ngx.say("select db--- pass.")
 end
@@ -79,7 +77,7 @@ else
     end
 
 end
-
-ngx.say("end:"..os.time())
+driver.close(conn)
+ngx.say("end time:"..os.time())
 --ngx.log(ngx.ERR,"in test file.")
 
