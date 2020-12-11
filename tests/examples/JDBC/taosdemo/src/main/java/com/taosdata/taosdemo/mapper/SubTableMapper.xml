@@ -7,7 +7,7 @@
     <update id="createUsingSuperTable">
         CREATE table IF NOT EXISTS ${database}.${name} USING ${supertable} TAGS
         <foreach collection="tags" item="tag" index="index" open="(" close=")" separator=",">
-            ${tag.value}
+            #{tag.value}
         </foreach>
     </update>
 
@@ -17,7 +17,7 @@
         VALUES
         <foreach collection="values" item="value">
             <foreach collection="value.fields" item="field" open="(" close=")" separator=",">
-                ${field.value}
+                #{field.value}
             </foreach>
         </foreach>
     </insert>
@@ -26,12 +26,12 @@
     <insert id="insertOneTableMultiValuesUsingSuperTable">
         INSERT INTO ${database}.${name} USING ${supertable} TAGS
         <foreach collection="tags" item="tag" index="index" open="(" close=")" separator=",">
-            ${tag.value}
+            #{tag.value}
         </foreach>
         VALUES
         <foreach collection="values" item="value">
             <foreach collection="value.fields" item="field" open="(" close=")" separator=",">
-                ${field.value}
+                #{field.value}
             </foreach>
         </foreach>
     </insert>
@@ -48,7 +48,7 @@
             VALUES
             <foreach collection="table.values" item="value">
                 <foreach collection="value.fields" item="field" open="(" close=")" separator=",">
-                    ${field.value}
+                    #{field.value}
                 </foreach>
             </foreach>
         </foreach>
@@ -60,12 +60,12 @@
         <foreach collection="tables" item="table">
             ${table.database}.${table.name} USING ${table.supertable} TAGS
             <foreach collection="table.tags" item="tag" index="index" open="(" close=")" separator=",">
-                ${tag.value}
+                #{tag.value}
             </foreach>
             VALUES
             <foreach collection="table.values" item="value">
                 <foreach collection="value.fields" item="field" open="(" close=")" separator=",">
-                    ${field.value}
+                    #{field.value}
                 </foreach>
             </foreach>
         </foreach>

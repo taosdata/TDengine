@@ -81,7 +81,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         }
     }
 
-    private int insertTask(JdbcTaosdemoConfig config) {
+    private void insertTask(JdbcTaosdemoConfig config) {
         int numOfThreadsForInsert = config.numOfThreadsForInsert;
         int sleep = config.sleep;
         if (config.autoCreateTable) {
