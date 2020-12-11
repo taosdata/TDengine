@@ -84,7 +84,6 @@ public final class JdbcTaosdemoConfig {
         // drop task
         System.out.println("-dropTable                  Drop data before quit. Default is false");
         System.out.println("--help                      Give this help list");
-        System.out.println("--infinite                  Infinite insert mode");
     }
 
     /**
