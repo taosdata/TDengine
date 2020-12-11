@@ -198,7 +198,7 @@ static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg) {
   SCreateMnodeMsg *pCfg = pMsg->pCont;
   pCfg->dnodeId = htonl(pCfg->dnodeId);
   if (pCfg->dnodeId != dnodeGetDnodeId()) {
-    dDebug("dnodeId:%d, in create mnode msg is not equal with saved dnodeId:%d", pCfg->dnodeId, dnodeGetDnodeId());
+    dDebug("dnode:%d, in create mnode msg is not equal with saved dnodeId:%d", pCfg->dnodeId, dnodeGetDnodeId());
     return TSDB_CODE_MND_DNODE_ID_NOT_CONFIGURED;
   }
 
@@ -207,7 +207,7 @@ static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg) {
     return TSDB_CODE_MND_DNODE_EP_NOT_CONFIGURED;
   }
 
-  dDebug("dnodeId:%d, create mnode msg is received from mnodes, numOfMnodes:%d", pCfg->dnodeId, pCfg->mnodes.mnodeNum);
+  dDebug("dnode:%d, create mnode msg is received from mnodes, numOfMnodes:%d", pCfg->dnodeId, pCfg->mnodes.mnodeNum);
   for (int i = 0; i < pCfg->mnodes.mnodeNum; ++i) {
     pCfg->mnodes.mnodeInfos[i].mnodeId = htonl(pCfg->mnodes.mnodeInfos[i].mnodeId);
     dDebug("mnode index:%d, mnode:%d:%s", i, pCfg->mnodes.mnodeInfos[i].mnodeId, pCfg->mnodes.mnodeInfos[i].mnodeEp);
