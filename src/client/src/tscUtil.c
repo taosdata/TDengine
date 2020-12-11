@@ -2044,7 +2044,11 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   pnCmd->numOfClause = 0;
   pnCmd->clauseIndex = 0;
   pnCmd->pDataBlocks = NULL;
+
+  pnCmd->numOfTables = 0;
   pnCmd->parseFinished = 1;
+  pnCmd->pTableMetaList = NULL;
+  pnCmd->pTableBlockHashList = NULL;
 
   if (tscAddSubqueryInfo(pnCmd) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
