@@ -46,7 +46,7 @@ extern int32_t  tsShellActivityTimer;
 extern uint32_t tsMaxTmrCtrl;
 extern float    tsNumOfThreadsPerCore;
 extern int32_t  tsNumOfCommitThreads;
-extern float    tsRatioOfQueryThreads;
+extern float    tsRatioOfQueryCores;
 extern int8_t   tsDaylight;
 extern char     tsTimezone[];
 extern char     tsLocale[];

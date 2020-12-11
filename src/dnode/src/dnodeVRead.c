@@ -28,9 +28,12 @@ static SWorkerPool tsVFetchWP;
 int32_t dnodeInitVRead() {
   const int32_t maxFetchThreads = 4;
 
+  // calculate the available query thread
+  float threadsForQuery = MAX(tsNumOfCores * tsRatioOfQueryCores, 1);
+
   tsVQueryWP.name = "vquery";
   tsVQueryWP.workerFp = dnodeProcessReadQueue;
-  tsVQueryWP.min = tsNumOfCores * tsRatioOfQueryThreads;
+  tsVQueryWP.min = (int32_t) threadsForQuery;
   tsVQueryWP.max = tsVQueryWP.min;
   if (tWorkerInit(&tsVQueryWP) != 0) return -1;
 

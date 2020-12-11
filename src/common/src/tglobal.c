@@ -52,7 +52,7 @@ int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0f;
 int32_t tsNumOfCommitThreads = 1;
-float   tsRatioOfQueryThreads = 1.0f;
+float   tsRatioOfQueryCores = 1.0f;
 int8_t  tsDaylight       = 0;
 char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
 char    tsLocale[TSDB_LOCALE_LEN] = {0};
@@ -444,12 +444,12 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "ratioOfQueryThreads";
-  cfg.ptr = &tsRatioOfQueryThreads;
+  cfg.option = "ratioOfQueryCores";
+  cfg.ptr = &tsRatioOfQueryCores;
   cfg.valType = TAOS_CFG_VTYPE_FLOAT;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0.1f;
-  cfg.maxValue = 0.9f;
+  cfg.minValue = 0.0f;
+  cfg.maxValue = 2.0f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
