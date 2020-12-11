@@ -19,6 +19,7 @@ python3 ./test.py -f insert/randomNullCommit.py
 python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
+python3 ./test.py -f query/isNullTest.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
