@@ -250,10 +250,11 @@ enum {
 };
 
 typedef struct STwaInfo {
-  TSKEY       lastKey;
+//  TSKEY       lastKey;
   int8_t      hasResult;  // flag to denote has value
   double      dOutput;
-  double      lastValue;
+//  double      lastValue;
+  SPoint1     p;
   STimeWindow win;
 } STwaInfo;
 
