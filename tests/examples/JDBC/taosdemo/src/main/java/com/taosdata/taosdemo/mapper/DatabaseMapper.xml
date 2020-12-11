@@ -5,15 +5,15 @@
 
     <!-- create database XXX -->
     <update id="createDatabase" parameterType="java.lang.String">
-        create database if not exists ${dbname}
+        create database if not exists ${database}
     </update>
 
     <update id="dropDatabase" parameterType="java.lang.String">
-        DROP database if exists ${dbname}
+        DROP database if exists ${database}
     </update>
 
     <update id="createDatabaseWithParameters" parameterType="map">
-        CREATE database if not exists ${dbname}
+        CREATE database if not exists ${database}
         <if test="keep != null">
             KEEP ${keep}
         </if>
@@ -38,7 +38,7 @@
     </update>
 
     <update id="useDatabase" parameterType="java.lang.String">
-        use ${dbname}
+        use ${database}
     </update>
 
     <!-- TODO: alter database -->

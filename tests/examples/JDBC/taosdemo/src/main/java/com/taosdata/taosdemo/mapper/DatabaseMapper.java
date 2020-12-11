@@ -9,16 +9,16 @@ import java.util.Map;
 public interface DatabaseMapper {
 
     // create database if not exists XXX
-    int createDatabase(@Param("dbname") String dbname);
+    int createDatabase(@Param("database") String dbname);
 
     // drop database if exists XXX
-    int dropDatabase(@Param("dbname") String dbname);
+    int dropDatabase(@Param("database") String dbname);
 
     // create database if not exists XXX keep XX days XX replica XX
     int createDatabaseWithParameters(Map<String, String> map);
 
     // use XXX
-    int useDatabase(@Param("dbname") String dbname);
+    int useDatabase(@Param("database") String dbname);
 
     //TODO: alter database
 
