@@ -3658,7 +3658,7 @@ static double twa_get_area(SPoint1 s, SPoint1 e) {
     return (s.val + e.val) * (e.key - s.key) / 2;
   }
 
-  double x = (s.val - s.key) * e.key / (s.val - e.key);
+  double x = (s.key * e.val - e.key * s.val)/(e.val - s.val);
   double val = (s.val * (x - s.key) + e.val * (e.key - x)) / 2;
   return val;
 }

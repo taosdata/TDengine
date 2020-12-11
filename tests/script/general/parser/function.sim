@@ -22,7 +22,7 @@ $db = $dbPrefix . $i
 $mt = $mtPrefix . $i
 
 sql drop database if exists $db
-sql create database $db
+sql create database $db keep 36500
 sql use $db
 
 print =====================================> test case for twa in single block
@@ -231,3 +231,16 @@ sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<
 #todo add test case while column filter exists.
 
 #sql select count(*),TWA(k) from tm0 where ts>='1970-1-1 13:43:00' and ts<='1970-1-1 13:44:10' interval(9s)
+
+sql create table tm0 (ts timestamp, k float);
+sql insert into tm0 values(100000000, 5);
+sql insert into tm0 values(100003000, -9);
+sql select twa(k) from tm0 where ts<now
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != -2.000000000 then
+  print expect -2.000000000, actual: $data00
+  return -1
+endi
