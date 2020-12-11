@@ -44,8 +44,23 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         }
         // 准备数据
         prepareData(config);
-
         // 创建数据库
+        createDatabaseTask(config);
+        // 建表
+        createTableTask(config);
+        // 插入
+        insertTask(config);
+        // 查询: 1. 生成查询语句, 2. 执行查询
+
+        // 删除表
+        if (config.dropTable) {
+            superTableService.drop(config.database, config.superTable);
+        }
+
+        System.exit(0);
+    }
+
+    private void createDatabaseTask(JdbcTaosdemoConfig config) {
         Map<String, String> databaseParam = new HashMap<>();
         databaseParam.put("database", config.database);
         databaseParam.put("keep", Integer.toString(config.keep));
@@ -55,18 +70,20 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         databaseService.dropDatabase(config.database);
         databaseService.createDatabase(databaseParam);
         databaseService.useDatabase(config.database);
+    }
 
-        // 建表
-        // 建超级表，三种方式：1. 指定SQL，2. 指定field和tags的个数，3. 默认
+    // 建超级表，三种方式：1. 指定SQL，2. 指定field和tags的个数，3. 默认
+    private void createTableTask(JdbcTaosdemoConfig config) {
         if (config.doCreateTable) {
             superTableService.create(superTableMeta);
             // 批量建子表
             subTableService.createSubTable(subTableMetaList, config.numOfThreadsForCreate);
         }
+    }
 
-        // 插入
-        int numOfThreadsForInsert = 1;
-        int sleep = 0;
+    private int insertTask(JdbcTaosdemoConfig config) {
+        int numOfThreadsForInsert = config.numOfThreadsForInsert;
+        int sleep = config.sleep;
         if (config.autoCreateTable) {
             // 批量插入，自动建表
             dataList.stream().forEach(subTableValues -> {
@@ -79,18 +96,6 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
                 sleep(sleep);
             });
         }
-        // 批量插入,不使用自动建表
-
-        // 查询
-        // 1. 生成查询语句
-        // 2. 执行查询
-
-        // 删除表
-        if (config.dropTable) {
-            superTableService.drop(config.database, config.superTable);
-        }
-
-        System.exit(0);
     }
 
     private void prepareData(JdbcTaosdemoConfig config) {
