@@ -51,7 +51,6 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         // 插入
         insertTask(config);
         // 查询: 1. 生成查询语句, 2. 执行查询
-
         // 删除表
         if (config.dropTable) {
             superTableService.drop(config.database, config.superTable);
@@ -61,6 +60,8 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
     }
 
     private void createDatabaseTask(JdbcTaosdemoConfig config) {
+        long start = System.currentTimeMillis();
+
         Map<String, String> databaseParam = new HashMap<>();
         databaseParam.put("database", config.database);
         databaseParam.put("keep", Integer.toString(config.keep));
@@ -70,18 +71,26 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         databaseService.dropDatabase(config.database);
         databaseService.createDatabase(databaseParam);
         databaseService.useDatabase(config.database);
+
+        long end = System.currentTimeMillis();
+        logger.info(">>> insert time cost : " + (end - start) + " ms.");
     }
 
     // 建超级表，三种方式：1. 指定SQL，2. 指定field和tags的个数，3. 默认
     private void createTableTask(JdbcTaosdemoConfig config) {
+        long start = System.currentTimeMillis();
         if (config.doCreateTable) {
             superTableService.create(superTableMeta);
             // 批量建子表
             subTableService.createSubTable(subTableMetaList, config.numOfThreadsForCreate);
         }
+        long end = System.currentTimeMillis();
+        logger.info(">>> create table time cost : " + (end - start) + " ms.");
     }
 
     private void insertTask(JdbcTaosdemoConfig config) {
+        long start = System.currentTimeMillis();
+
         int numOfThreadsForInsert = config.numOfThreadsForInsert;
         int sleep = config.sleep;
         if (config.autoCreateTable) {
@@ -96,9 +105,12 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
                 sleep(sleep);
             });
         }
+        long end = System.currentTimeMillis();
+        logger.info(">>> insert time cost : " + (end - start) + " ms.");
     }
 
     private void prepareData(JdbcTaosdemoConfig config) {
+        long start = System.currentTimeMillis();
         // 超级表的meta
         superTableMeta = createSupertable(config);
         // 子表的meta
@@ -115,6 +127,8 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         int numOfRowsPerTable = config.numOfRowsPerTable;
         int numOfValuesPerSQL = config.numOfValuesPerSQL;
         dataList = SubTableValueGenerator.split(subTableValueList, numOfTables, numOfTablesPerSQL, numOfRowsPerTable, numOfValuesPerSQL);
+        long end = System.currentTimeMillis();
+        logger.info(">>> prepare data time cost : " + (end - start) + " ms.");
     }
 
     private SuperTableMeta createSupertable(JdbcTaosdemoConfig config) {
