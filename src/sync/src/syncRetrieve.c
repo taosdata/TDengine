@@ -58,7 +58,7 @@ static int32_t syncGetFileVersion(SSyncNode *pNode, SSyncPeer *pPeer) {
   uint64_t fver, wver;
   int32_t  code = (*pNode->getVersion)(pNode->vgId, &fver, &wver);
   if (code != 0) {
-    sDebug("%s, vnode is commiting while retrieve, last fver:%" PRIu64, pPeer->id, pPeer->lastFileVer);
+    sDebug("%s, vnode is commiting while get fver for retrieve, last fver:%" PRIu64, pPeer->id, pPeer->lastFileVer);
     return -1;
   }
 
@@ -92,7 +92,10 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
   int32_t    code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
 
-  if (syncGetFileVersion(pNode, pPeer) < 0) return -1;
+  if (syncGetFileVersion(pNode, pPeer) < 0) {
+    pPeer->fileChanged = 1;
+    return -1;
+  }
 
   while (1) {
     // retrieve file info
@@ -100,12 +103,11 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     fileInfo.size = 0;
     fileInfo.magic = (*pNode->getFileInfo)(pNode->vgId, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX,
                                            &fileInfo.size, &fileInfo.fversion);
-    // fileInfo.size = htonl(size);
     sDebug("%s, file:%s info is sent, size:%" PRId64, pPeer->id, fileInfo.name, fileInfo.size);
 
     // send the file info
     int32_t ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(fileInfo));
-    if (ret < 0) {
+    if (ret != sizeof(fileInfo)) {
       code = -1;
       sError("%s, failed to write file:%s info while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
       break;
@@ -119,8 +121,8 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     }
 
     // wait for the ack from peer
-    ret = taosReadMsg(pPeer->syncFd, &fileAck, sizeof(fileAck));
-    if (ret < 0) {
+    ret = taosReadMsg(pPeer->syncFd, &fileAck, sizeof(SFileAck));
+    if (ret != sizeof(SFileAck)) {
       code = -1;
       sError("%s, failed to read file:%s ack while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
       break;
@@ -384,12 +386,15 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
   }
 
   if (code == 0) {
-    pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;
-    sInfo("%s, wal retrieve is finished, set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
-
     SWalHead walHead;
     memset(&walHead, 0, sizeof(walHead));
-    taosWriteMsg(pPeer->syncFd, &walHead, sizeof(walHead));
+    if (taosWriteMsg(pPeer->syncFd, &walHead, sizeof(walHead)) == sizeof(walHead)) {
+      pPeer->sstatus = TAOS_SYNC_STATUS_CACHE;
+      sInfo("%s, wal retrieve is finished, set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
+    } else {
+      sError("%s, failed to send last wal record since %s", pPeer->id, strerror(errno));
+      code = -1;
+    }
   } else {
     sError("%s, failed to send wal since %s, code:0x%x", pPeer->id, strerror(errno), code);
   }
@@ -404,20 +409,23 @@ static int32_t syncRetrieveFirstPkt(SSyncPeer *pPeer) {
   memset(&firstPkt, 0, sizeof(firstPkt));
   firstPkt.syncHead.type = TAOS_SMSG_SYNC_DATA;
   firstPkt.syncHead.vgId = pNode->vgId;
+  firstPkt.tranId = syncGenTranId();
   tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
   firstPkt.port = tsSyncPort;
 
-  if (taosWriteMsg(pPeer->syncFd, &firstPkt, sizeof(firstPkt)) < 0) {
-    sError("%s, failed to send sync firstPkt since %s", pPeer->id, strerror(errno));
+  if (taosWriteMsg(pPeer->syncFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
+    sError("%s, failed to send sync firstPkt since %s, tranId:%u", pPeer->id, strerror(errno), firstPkt.tranId);
     return -1;
   }
+  sDebug("%s, send firstPkt to peer, tranId:%u", pPeer->id, firstPkt.tranId);
 
   SFirstPktRsp firstPktRsp;
-  if (taosReadMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) < 0) {
-    sError("%s, failed to read sync firstPkt rsp since %s", pPeer->id, strerror(errno));
+  if (taosReadMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) != sizeof(SFirstPktRsp)) {
+    sError("%s, failed to read sync firstPkt rsp since %s, tranId:%u", pPeer->id, strerror(errno), firstPkt.tranId);
     return -1;
   }
 
+  sDebug("%s, recv firstPktRsp from peer, tranId:%u", pPeer->id, firstPkt.tranId);
   return 0;
 }
 
