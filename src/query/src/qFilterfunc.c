@@ -21,6 +21,8 @@
 #include "tcompare.h"
 #include "tsqlfunction.h"
 
+#define FLT_EQUAL(_x, _y) (fabs((_x) - (_y)) <= (4 * FLT_EPSILON))
+
 bool less_i8(SColumnFilterElem *pFilter, char *minval, char *maxval) {
   return (*(int8_t *)minval < pFilter->filterInfo.upperBndi);
 }
@@ -38,11 +40,15 @@ bool less_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 }
 
 bool less_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(float *)minval - pFilter->filterInfo.upperBndd < (2 * FLT_EPSILON));
+  if (FLT_EQUAL(*(float*)minval, pFilter->filterInfo.upperBndd)) {
+    return false;
+  }
+
+  return *(float *)minval < pFilter->filterInfo.upperBndd;
 }
 
 bool less_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(double *)minval - pFilter->filterInfo.upperBndd < (2 * DBL_EPSILON));
+  return (*(double *)minval - pFilter->filterInfo.upperBndd > (2 * DBL_EPSILON));
 }
 
 //////////////////////////////////////////////////////////////////
@@ -63,7 +69,11 @@ bool larger_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 }
 
 bool larger_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return ((*(float *)maxval - pFilter->filterInfo.lowerBndd) > (2 * FLT_EPSILON));
+  if (FLT_EQUAL(*(float*)maxval, pFilter->filterInfo.lowerBndd)) {
+    return false;
+  }
+
+  return (*(float *) maxval > pFilter->filterInfo.lowerBndd);
 }
 
 bool larger_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
@@ -88,11 +98,11 @@ bool lessEqual_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 }
 
 bool lessEqual_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (fabs(*(float*)minval - pFilter->filterInfo.upperBndd) <= 2 * FLT_EPSILON) {
+  if (FLT_EQUAL(*(float*)minval, pFilter->filterInfo.upperBndd)) {
     return true;
   }
 
-  return (*(float *)minval <= pFilter->filterInfo.upperBndd);
+  return (*(float *)minval < pFilter->filterInfo.upperBndd);
 }
 
 bool lessEqual_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
@@ -121,11 +131,11 @@ bool largeEqual_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 }
 
 bool largeEqual_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (fabs(*(float*)minval - pFilter->filterInfo.upperBndd) <= (2 * FLT_EPSILON)) {
+  if (FLT_EQUAL(*(float*)maxval, pFilter->filterInfo.lowerBndd)) {
     return true;
   }
 
-  return (*(float *)maxval - pFilter->filterInfo.lowerBndd > (2 * FLT_EPSILON));
+  return (*(float *)maxval > pFilter->filterInfo.lowerBndd);
 }
 
 bool largeEqual_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
@@ -182,7 +192,7 @@ bool equal_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 // increase the tolerance to obtain the correct result.
 bool equal_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
   if (*(float *)minval == *(float *)maxval) {
-    return (fabs(*(float *)minval - pFilter->filterInfo.lowerBndd) <= FLT_EPSILON * 2);
+    return FLT_EQUAL(*(float*)minval, pFilter->filterInfo.lowerBndd);
   } else { // range filter
     assert(*(float *)minval < *(float *)maxval);
     return *(float *)minval <= pFilter->filterInfo.lowerBndd && *(float *)maxval >= pFilter->filterInfo.lowerBndd;
@@ -272,7 +282,7 @@ bool nequal_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 
 bool nequal_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
   if (*(float *)minval == *(float *)maxval) {
-    return ((fabs(*(float *)minval - pFilter->filterInfo.lowerBndd)) > (2 * FLT_EPSILON));
+    return !FLT_EQUAL(*(float *)minval,  pFilter->filterInfo.lowerBndd);
   }
 
   return true;
