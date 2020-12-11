@@ -281,7 +281,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     vTrace("vgId:%d, QInfo:%p, dnode continues to exec query", pVnode->vgId, *qhandle);
 
     // In the retrieve blocking model, only 50% CPU will be used in query processing
-    if (tsHalfCoresForQuery) {
+    if (tsRetrieveBlockingModel) {
       qTableQuery(*qhandle);  // do execute query
       qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, false);
     } else {
@@ -380,7 +380,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     freeHandle = true;
   } else {  // result is not ready, return immediately
     // Only effects in the non-blocking model
-    if (!tsHalfCoresForQuery) {
+    if (!tsRetrieveBlockingModel) {
       if (!buildRes) {
         assert(pRead->rpcHandle != NULL);
 

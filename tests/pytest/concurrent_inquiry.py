@@ -43,7 +43,7 @@ class ConcurrentInquiry:
         self.subtb_stru_list=[]
         self.stb_tag_list=[]
         self.subtb_tag_list=[]
-        self.probabilities = [0.95,0.05]
+        self.probabilities = [0.05,0.95]
         self.ifjoin = [0,1]
     def SetThreadsNum(self,num):
         self.numOfTherads=num
@@ -117,15 +117,15 @@ class ConcurrentInquiry:
         return 'where '+random.choice([' and ',' or ']).join(l)
 
     def con_interval(self,tlist,col_list,tag_list): 
-        interval = 'interval' + str(random.randint(0,100)) + random.choice(['a','s','d','w','n','y'])            
+        interval = 'interval(' + str(random.randint(0,100)) + random.choice(['a','s','d','w','n','y'])  + ')'          
         return interval
 
     def con_limit(self,tlist,col_list,tag_list):
         rand1 = str(random.randint(0,1000))
         rand2 = str(random.randint(0,1000))
-        return random.choice(['limit ' + rand1,'limit ' + rand1 + 'offset '+rand2,
-        'slimit ' + rand1,'slimit ' + rand1 + 'offset ' + rand2,'limit '+rand1 + 'slimit '+ rand2,
-        'limit '+ rand1 + 'offset' + rand2 + 'slimit '+ rand1 + 'soffset ' + rand2 ])
+        return random.choice(['limit ' + rand1,'limit ' + rand1 + ' offset '+rand2,
+        ' slimit ' + rand1,' slimit ' + rand1 + ' offset ' + rand2,'limit '+rand1 + ' slimit '+ rand2,
+        'limit '+ rand1 + ' offset' + rand2 + ' slimit '+ rand1 + ' soffset ' + rand2 ])
     
     def con_fill(self,tlist,col_list,tag_list):
         return random.choice(['fill(null)','fill(prev)','fill(none)','fill(LINEAR)'])
@@ -194,9 +194,10 @@ class ConcurrentInquiry:
         tag_list = []
         col_intersection = []
         tag_intersection = []
-        
+        subtable = None
 
         if bool(random.getrandbits(1)):
+            subtable = True
             tbname = random.sample(self.subtb_list,2)
             for i in tbname:
                 col_list.append(self.subtb_stru_list[self.subtb_list.index(i)])
@@ -227,14 +228,15 @@ class ConcurrentInquiry:
             sel_col_tag.append('t2.' + str(random.choice(col_list[1] + tag_list[1])))
             sql += ','.join(sel_col_tag)
 
-        sql = sql + 'from '+ ','.join(tbname) + ' '                        #select col & func
-        con_func=[self.con_where,self.con_interval,self.con_limit,self.con_group,self.con_order,self.con_fill]
-        sel_con=random.sample(con_func,random.randint(0,len(con_func)))
-        sel_con_list=[]
+        sql = sql + ' from '+ str(tbname[0]) +' t1,' + str(tbname[1]) + ' t2 '                        #select col & func
+        join_section = None
+        if subtable:
+            join_section = ''.join(random.choices(col_intersection))
+            sql += 'where t1._c0 = t2._c0 and ' + 't1.' + join_section + '=t2.' + join_section
+        else:
+            join_section = ''.join(random.choices(col_intersection+tag_intersection))
+            sql += 'where t1._c0 = t2._c0 and ' + 't1.' + join_section + '=t2.' + join_section
         
-        # for i in sel_con:
-        #     sel_con_list.append(i(tlist,col_list,tag_list))                                  #获取对应的条件函数
-        sql+=' '.join(sel_con_list)                                       # condition
         print(sql)
         return sql
 
