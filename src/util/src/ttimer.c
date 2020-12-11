@@ -225,10 +225,11 @@ static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
 }
 
 static bool removeFromWheel(tmr_obj_t* timer) {
-  if (timer->wheel >= tListLen(wheels)) {
+  uint8_t wheelIdx = timer->wheel;
+  if (wheelIdx >= tListLen(wheels)) {
     return false;
   }
-  time_wheel_t* wheel = wheels + timer->wheel;
+  time_wheel_t* wheel = wheels + wheelIdx;
 
   bool removed = false;
   pthread_mutex_lock(&wheel->mutex);
