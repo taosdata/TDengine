@@ -21,7 +21,11 @@
 #include "tcompare.h"
 #include "tsqlfunction.h"
 
-#define FLT_EQUAL(_x, _y) (fabs((_x) - (_y)) <= (4 * FLT_EPSILON))
+#define FLT_EQUAL(_x, _y)        (fabs((_x) - (_y)) <= (4 * FLT_EPSILON))
+#define FLT_GREATER(_x, _y)      (!FLT_EQUAL((_x), (_y)) && ((_x) > (_y)))
+#define FLT_LESS(_x, _y)         (!FLT_EQUAL((_x), (_y)) && ((_x) < (_y)))
+#define FLT_GREATEREQUAL(_x, _y) (FLT_EQUAL((_x), (_y)) || ((_x) > (_y)))
+#define FLT_LESSEQUAL(_x, _y)    (FLT_EQUAL((_x), (_y)) || ((_x) < (_y)))
 
 bool less_i8(SColumnFilterElem *pFilter, char *minval, char *maxval) {
   return (*(int8_t *)minval < pFilter->filterInfo.upperBndi);
@@ -40,15 +44,11 @@ bool less_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 }
 
 bool less_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (FLT_EQUAL(*(float*)minval, pFilter->filterInfo.upperBndd)) {
-    return false;
-  }
-
-  return *(float *)minval < pFilter->filterInfo.upperBndd;
+  return FLT_LESS(*(float*)minval, pFilter->filterInfo.upperBndd);
 }
 
 bool less_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(double *)minval - pFilter->filterInfo.upperBndd > (2 * DBL_EPSILON));
+  return *(double *)minval < pFilter->filterInfo.upperBndd;
 }
 
 //////////////////////////////////////////////////////////////////
@@ -69,15 +69,11 @@ bool larger_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 }
 
 bool larger_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (FLT_EQUAL(*(float*)maxval, pFilter->filterInfo.lowerBndd)) {
-    return false;
-  }
-
-  return (*(float *) maxval > pFilter->filterInfo.lowerBndd);
+  return FLT_GREATER(*(float*)maxval, pFilter->filterInfo.lowerBndd);
 }
 
 bool larger_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(double *)maxval - pFilter->filterInfo.lowerBndd) > (2 * DBL_EPSILON);
+  return (*(double *)maxval > pFilter->filterInfo.lowerBndd);
 }
 /////////////////////////////////////////////////////////////////////
 
@@ -98,11 +94,7 @@ bool lessEqual_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 }
 
 bool lessEqual_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (FLT_EQUAL(*(float*)minval, pFilter->filterInfo.upperBndd)) {
-    return true;
-  }
-
-  return (*(float *)minval < pFilter->filterInfo.upperBndd);
+  return FLT_LESSEQUAL(*(float*)minval, pFilter->filterInfo.upperBndd);
 }
 
 bool lessEqual_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
@@ -131,11 +123,7 @@ bool largeEqual_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 }
 
 bool largeEqual_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (FLT_EQUAL(*(float*)maxval, pFilter->filterInfo.lowerBndd)) {
-    return true;
-  }
-
-  return (*(float *)maxval > pFilter->filterInfo.lowerBndd);
+  return FLT_GREATEREQUAL(*(float*)maxval, pFilter->filterInfo.lowerBndd);
 }
 
 bool largeEqual_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
@@ -391,7 +379,8 @@ bool rangeFilter_i64_ei(SColumnFilterElem *pFilter, char *minval, char *maxval) 
 
 ////////////////////////////////////////////////////////////////////////
 bool rangeFilter_ds_ii(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(float *)minval <= pFilter->filterInfo.upperBndd && *(float *)maxval >= pFilter->filterInfo.lowerBndd);
+  return FLT_LESSEQUAL(*(float *)minval, pFilter->filterInfo.upperBndd) &&
+         FLT_GREATEREQUAL(*(float *)maxval, pFilter->filterInfo.lowerBndd);
 }
 
 bool rangeFilter_ds_ee(SColumnFilterElem *pFilter, char *minval, char *maxval) {
@@ -403,7 +392,8 @@ bool rangeFilter_ds_ie(SColumnFilterElem *pFilter, char *minval, char *maxval) {
 }
 
 bool rangeFilter_ds_ei(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(float *)minval <= pFilter->filterInfo.upperBndd && *(float *)maxval > pFilter->filterInfo.lowerBndd);
+  return FLT_GREATER(*(float *)maxval, pFilter->filterInfo.lowerBndd) &&
+         FLT_LESSEQUAL(*(float *)minval, pFilter->filterInfo.upperBndd);
 }
 
 //////////////////////////////////////////////////////////////////////////
