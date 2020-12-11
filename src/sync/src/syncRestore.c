@@ -36,6 +36,8 @@ static void syncRemoveExtraFile(SSyncPeer *pPeer, int32_t sindex, int32_t eindex
 
   if (sindex < 0 || eindex < sindex) return;
 
+  sDebug("%s, extra files will be removed between sindex:%d and eindex:%d", pPeer->id, sindex, eindex);
+
   while (1) {
     name[0] = 0;
     magic = (*pNode->getFileInfo)(pNode->vgId, name, &index, eindex, &size, &fversion);
@@ -61,11 +63,12 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   bool       fileChanged = false;
 
   *fversion = 0;
-  sinfo.index = 0;
+  sinfo.index = -1;
   while (1) {
     // read file info
-    int32_t ret = taosReadMsg(pPeer->syncFd, &(minfo), sizeof(SFileInfo));
-    if (ret != sizeof(SFileInfo)) {
+    minfo.index = -1;
+    int32_t ret = taosReadMsg(pPeer->syncFd, &minfo, sizeof(SFileInfo));
+    if (ret != sizeof(SFileInfo) || minfo.index == -1) {
       sError("%s, failed to read file info while restore file since %s", pPeer->id, strerror(errno));
       break;
     }
@@ -75,7 +78,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
       sDebug("%s, no more files to restore", pPeer->id);
 
       // remove extra files after the current index
-      syncRemoveExtraFile(pPeer, sinfo.index + 1, TAOS_SYNC_MAX_INDEX);
+      if (sinfo.index != -1) syncRemoveExtraFile(pPeer, sinfo.index + 1, TAOS_SYNC_MAX_INDEX);
       code = 0;
       break;
     }

@@ -243,8 +243,10 @@ int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rpar
 
   int32_t queued = atomic_add_fetch_32(&pVnode->queuedWMsg, 1);
   if (queued > MAX_QUEUED_MSG_NUM) {
-    vDebug("vgId:%d, too many msg:%d in vwqueue, flow control", pVnode->vgId, queued);
-    taosMsleep(3);
+    int32_t ms = (queued / MAX_QUEUED_MSG_NUM) * 10 + 3;
+    if (ms > 100) ms = 100;
+    vDebug("vgId:%d, too many msg:%d in vwqueue, flow control %dms", pVnode->vgId, queued, ms);
+    taosMsleep(ms);
   }
 
   code = vnodePerformFlowCtrl(pWrite);
