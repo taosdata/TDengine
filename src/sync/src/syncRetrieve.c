@@ -417,7 +417,7 @@ static int32_t syncRetrieveFirstPkt(SSyncPeer *pPeer) {
     sError("%s, failed to send sync firstPkt since %s, tranId:%u", pPeer->id, strerror(errno), firstPkt.tranId);
     return -1;
   }
-  sDebug("%s, send firstPkt to peer, tranId:%u", pPeer->id, firstPkt.tranId);
+  sDebug("%s, send sync-data pkt to peer, tranId:%u", pPeer->id, firstPkt.tranId);
 
   SFirstPktRsp firstPktRsp;
   if (taosReadMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) != sizeof(SFirstPktRsp)) {

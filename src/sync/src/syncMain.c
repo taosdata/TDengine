@@ -793,7 +793,7 @@ void syncRestartConnection(SSyncPeer *pPeer) {
 
 static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
-  sDebug("%s, sync-req is received", pPeer->id);
+  sInfo("%s, sync-req is received", pPeer->id);
 
   if (pPeer->ip == 0) return;
 
@@ -879,8 +879,7 @@ static void syncRecoverFromMaster(SSyncPeer *pPeer) {
   if (taosWriteMsg(pPeer->peerFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
     sError("%s, failed to send sync-req to peer", pPeer->id);
   } else {
-    nodeSStatus = TAOS_SYNC_STATUS_START;
-    sInfo("%s, sync-req is sent to peer, tranId:%u, set sstatus:%s", pPeer->id, firstPkt.tranId, syncStatus[nodeSStatus]);
+    sInfo("%s, sync-req is sent to peer, tranId:%u, sstatus:%s", pPeer->id, firstPkt.tranId, syncStatus[nodeSStatus]);
   }
 }
 
@@ -1092,7 +1091,9 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer) {
   pthread_attr_destroy(&thattr);
 
   if (ret < 0) {
-    sError("%s, failed to create sync thread", pPeer->id);
+    SSyncNode *pNode = pPeer->pSyncNode;
+    nodeSStatus = TAOS_SYNC_STATUS_INIT;
+    sError("%s, failed to create sync thread, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
     taosClose(pPeer->syncFd);
     syncDecPeerRef(pPeer);
   } else {
@@ -1142,6 +1143,9 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
     // first packet tells what kind of link
     if (firstPkt.syncHead.type == TAOS_SMSG_SYNC_DATA) {
       pPeer->syncFd = connFd;
+      nodeSStatus = TAOS_SYNC_STATUS_START;
+      sInfo("%s, sync-data pkt from master is received, tranId:%u, set sstatus:%s", pPeer->id, firstPkt.tranId,
+            syncStatus[nodeSStatus]);
       syncCreateRestoreDataThread(pPeer);
     } else {
       sDebug("%s, TCP connection is up, pfd:%d sfd:%d, old pfd:%d", pPeer->id, connFd, pPeer->syncFd, pPeer->peerFd);
