@@ -41,6 +41,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         boolean isHelp = Arrays.asList(args).contains("--help");
         if (isHelp) {
             JdbcTaosdemoConfig.printHelp();
+            System.exit(0);
         }
         // 准备数据
         prepareData(config);
