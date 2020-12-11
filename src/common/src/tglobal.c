@@ -107,8 +107,8 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 // positive value (in MB)
 int32_t tsQueryBufferSize = -1;
 
-// in retrieve blocking model, only in 50% query threads will be used in query processing in dnode
-int32_t tsRetrieveBlockModel = 0;
+// in retrieve blocking model, the retrieve threads will wait for the completion of the query processing.
+int32_t tsRetrieveBlockingModel = 0;
 
 // db parameters
 int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
@@ -887,8 +887,8 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "retrieveBlockModel";
-  cfg.ptr = &tsRetrieveBlockModel;
+  cfg.option = "retrieveBlockingModel";
+  cfg.ptr = &tsRetrieveBlockingModel;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;

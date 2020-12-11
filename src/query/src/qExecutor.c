@@ -7635,7 +7635,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
 
   int32_t code = TSDB_CODE_SUCCESS;
 
-  if (tsRetrieveBlockModel) {
+  if (tsRetrieveBlockingModel) {
     pQInfo->rspContext = pRspContext;
     tsem_wait(&pQInfo->ready);
     *buildRes = true;
