@@ -46,7 +46,7 @@ extern int32_t  tsShellActivityTimer;
 extern uint32_t tsMaxTmrCtrl;
 extern float    tsNumOfThreadsPerCore;
 extern int32_t  tsNumOfCommitThreads;
-extern float    tsRatioOfQueryThreads;  // todo remove it
+extern float    tsRatioOfQueryThreads;
 extern int8_t   tsDaylight;
 extern char     tsTimezone[];
 extern char     tsLocale[];
@@ -57,7 +57,7 @@ extern char     tsTempDir[];
 
 //query buffer management
 extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer for each data node during query processing
-extern int32_t  tsHalfCoresForQuery;         // only 50% will be used in query processing
+extern int32_t  tsRetrieveBlockModel;         // only 50% will be used in query processing
 
 // client
 extern int32_t tsTableMetaKeepTimer;

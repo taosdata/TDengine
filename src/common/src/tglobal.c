@@ -52,7 +52,7 @@ int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0f;
 int32_t tsNumOfCommitThreads = 1;
-float   tsRatioOfQueryThreads = 0.5f;
+float   tsRatioOfQueryThreads = 1.0f;
 int8_t  tsDaylight       = 0;
 char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
 char    tsLocale[TSDB_LOCALE_LEN] = {0};
@@ -107,8 +107,8 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 // positive value (in MB)
 int32_t tsQueryBufferSize = -1;
 
-// only 50% cpu will be used in query processing in dnode
-int32_t tsHalfCoresForQuery = 0;
+// in retrieve blocking model, only in 50% query threads will be used in query processing in dnode
+int32_t tsRetrieveBlockModel = 0;
 
 // db parameters
 int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
@@ -887,8 +887,8 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "halfCoresForQuery";
-  cfg.ptr = &tsHalfCoresForQuery;
+  cfg.option = "retrieveBlockModel";
+  cfg.ptr = &tsRetrieveBlockModel;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
