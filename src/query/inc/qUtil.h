@@ -33,24 +33,24 @@ void clearResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pRow, int16_t typ
 void copyResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* dst, const SResultRow* src, int16_t type);
 SResultRowCellInfo* getResultCell(SQueryRuntimeEnv* pRuntimeEnv, const SResultRow* pRow, int32_t index);
 
-int32_t initWindowResInfo(SResultRowInfo* pWindowResInfo, int32_t size, int16_t type);
+int32_t initWindowResInfo(SResultRowInfo* pResultRowInfo, int32_t size, int16_t type);
 
-void    cleanupTimeWindowInfo(SResultRowInfo* pWindowResInfo);
-void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SResultRowInfo* pWindowResInfo);
+void    cleanupTimeWindowInfo(SResultRowInfo* pResultRowInfo);
+void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SResultRowInfo* pResultRowInfo);
 void    clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num);
 
 void    clearClosedTimeWindow(SQueryRuntimeEnv* pRuntimeEnv);
-int32_t numOfClosedTimeWindow(SResultRowInfo* pWindowResInfo);
-void    closeTimeWindow(SResultRowInfo* pWindowResInfo, int32_t slot);
-void    closeAllTimeWindow(SResultRowInfo* pWindowResInfo);
-void    removeRedundantWindow(SResultRowInfo *pWindowResInfo, TSKEY lastKey, int32_t order);
+int32_t numOfClosedTimeWindow(SResultRowInfo* pResultRowInfo);
+void    closeTimeWindow(SResultRowInfo* pResultRowInfo, int32_t slot);
+void    closeAllTimeWindow(SResultRowInfo* pResultRowInfo);
+void    removeRedundantWindow(SResultRowInfo *pResultRowInfo, TSKEY lastKey, int32_t order);
 
-static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pWindowResInfo, int32_t slot) {
-  assert(pWindowResInfo != NULL && slot >= 0 && slot < pWindowResInfo->size);
-  return pWindowResInfo->pResult[slot];
+static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
+  assert(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
+  return pResultRowInfo->pResult[slot];
 }
 
-bool isWindowResClosed(SResultRowInfo *pWindowResInfo, int32_t slot);
+bool isWindowResClosed(SResultRowInfo *pResultRowInfo, int32_t slot);
 
 int32_t initResultRow(SResultRow *pResultRow);
 
