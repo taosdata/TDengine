@@ -102,7 +102,7 @@ class TDTestCase:
 
         tdSql.query("select twa(c) from t3 where ts >= '2018-09-17 08:59:00.000' and ts <= '2018-09-17 09:01:30.000'")
         tdSql.checkRows(1)
-        tdSql.checkData(-0.5)
+        tdSql.checkData(0, 0, -0.5)
 
         tdSql.query("select twa(c) from t3 where ts >= '2018-09-17 08:59:00.000' and ts <= '2018-09-17 09:01:30.000' interval(1s)")
         tdSql.checkRows(2)
