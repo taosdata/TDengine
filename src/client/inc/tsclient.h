@@ -285,8 +285,8 @@ typedef struct {
   char **        buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex*  pColumnIndex;
 
-  SArithmeticSupport*   pArithSup;   // support the arithmetic expression calculation on agg functions
-  struct SLocalReducer* pLocalReducer;
+  SArithmeticSupport   *pArithSup;   // support the arithmetic expression calculation on agg functions
+  struct SLocalReducer *pLocalReducer;
 } SSqlRes;
 
 typedef struct STscObj {
