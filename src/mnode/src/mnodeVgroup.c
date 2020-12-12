@@ -315,7 +315,8 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
     if (pVgid->pDnode == pDnode) {
-      mTrace("dnode:%d, receive status from dnode, vgId:%d status is %d:%s", pDnode->dnodeId, pVgroup->vgId, pVgid->role, syncRole[pVgid->role]);
+      mTrace("dnode:%d, receive status from dnode, vgId:%d status:%s last:%s", pDnode->dnodeId, pVgroup->vgId,
+             syncRole[pVload->role], syncRole[pVgid->role]);
       pVgid->role = pVload->role;
       if (pVload->role == TAOS_SYNC_ROLE_MASTER) {
         pVgroup->inUse = i;

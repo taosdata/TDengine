@@ -52,7 +52,7 @@ int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0f;
 int32_t tsNumOfCommitThreads = 1;
-float   tsRatioOfQueryThreads = 0.5f;
+float   tsRatioOfQueryCores = 1.0f;
 int8_t  tsDaylight       = 0;
 char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
 char    tsLocale[TSDB_LOCALE_LEN] = {0};
@@ -107,8 +107,8 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 // positive value (in MB)
 int32_t tsQueryBufferSize = -1;
 
-// only 50% cpu will be used in query processing in dnode
-int32_t tsHalfCoresForQuery = 0;
+// in retrieve blocking model, the retrieve threads will wait for the completion of the query processing.
+int32_t tsRetrieveBlockingModel = 0;
 
 // db parameters
 int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
@@ -206,7 +206,7 @@ int32_t tsNumOfLogLines = 10000000;
 int32_t mDebugFlag = 131;
 int32_t sdbDebugFlag = 131;
 int32_t dDebugFlag = 135;
-int32_t vDebugFlag = 131;
+int32_t vDebugFlag = 135;
 int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t odbcDebugFlag = 131;
@@ -444,12 +444,12 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "ratioOfQueryThreads";
-  cfg.ptr = &tsRatioOfQueryThreads;
+  cfg.option = "ratioOfQueryCores";
+  cfg.ptr = &tsRatioOfQueryCores;
   cfg.valType = TAOS_CFG_VTYPE_FLOAT;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0.1f;
-  cfg.maxValue = 0.9f;
+  cfg.minValue = 0.0f;
+  cfg.maxValue = 2.0f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -887,8 +887,8 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosInitConfigOption(cfg);
 
-  cfg.option = "halfCoresForQuery";
-  cfg.ptr = &tsHalfCoresForQuery;
+  cfg.option = "retrieveBlockingModel";
+  cfg.ptr = &tsRetrieveBlockingModel;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;

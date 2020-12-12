@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.taosdata.taosdemo.mapper.SuperTableMapper">
+
+    <update id="createSuperTableUsingSQL">
+        ${createSuperTableSQL}
+    </update>
+
+    <!-- 创建超级表 -->
+    <update id="createSuperTable">
+        create table if not exists ${database}.${name}
+        <foreach collection="fields" item="field" index="index" open="(" close=")" separator=",">
+            ${field.name} ${field.type}
+        </foreach>
+        tags
+        <foreach collection="tags" item="tag" index="index" open="(" close=")" separator=",">
+            ${tag.name} ${tag.type}
+        </foreach>
+    </update>
+
+    <!-- 删除超级表：drop super table -->
+    <delete id="dropSuperTable">
+        drop table if exists ${database}.${name}
+    </delete>
+
+    <!-- TODO:查询所有超级表信息 show stables -->
+
+    <!-- TODO:查询表结构 describe stable -->
+
+    <!-- TODO:增加列 alter table ${tablename} add column fieldName dataType -->
+
+    <!-- TODO:删除列 alter table ${tablename} drop column fieldName -->
+
+    <!-- TODO:添加标签 alter table ${tablename} add tag new_tagName tag_type -->
+
+    <!-- TODO:删除标签 alter table ${tablename} drop tag_name -->
+
+    <!-- TODO:修改标签名 alter table ${tablename} change tag old_tagName new_tagName -->
+
+</mapper>

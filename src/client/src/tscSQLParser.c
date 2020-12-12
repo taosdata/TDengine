@@ -1310,7 +1310,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     SColumnIndex index = {.tableIndex = tableIndex};
 
     SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_ARITHM, &index, TSDB_DATA_TYPE_DOUBLE, sizeof(double),
-                                       -1000, sizeof(double), false);
+                                       getNewResColId(pQueryInfo), sizeof(double), false);
 
     char* name = (pItem->aliasName != NULL)? pItem->aliasName:pItem->pNode->token.z;
     size_t len = MIN(sizeof(pExpr->aliasName), pItem->pNode->token.n + 1);
@@ -5317,7 +5317,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
     // keep original limitation value in globalLimit
     pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
     pQueryInfo->prjOffset   = pQueryInfo->limit.offset;
-    pQueryInfo->tableLimit  = -1;
+    pQueryInfo->vgroupLimit = -1;
 
     if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
       /*
@@ -5327,7 +5327,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
        * than or equal to the value of limit.
        */
       if (pQueryInfo->limit.limit > 0) {
-        pQueryInfo->tableLimit = pQueryInfo->limit.limit + pQueryInfo->limit.offset;
+        pQueryInfo->vgroupLimit = pQueryInfo->limit.limit + pQueryInfo->limit.offset;
         pQueryInfo->limit.limit = -1;
       }
 
@@ -5913,25 +5913,33 @@ int32_t doLocalQueryProcess(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQ
   if (pExprList->nExpr != 1) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
-
+  bool server_status = false;
   tSQLExpr* pExpr = pExprList->a[0].pNode;
   if (pExpr->operand.z == NULL) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
-  }
-
+    //handle 'select 1'
+    if (pExpr->token.n == 1 && 0 == strncasecmp(pExpr->token.z, "1", 1)) {
+      server_status = true; 
+    } else {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    } 
+  } 
   // TODO redefine the function
-  SDNodeDynConfOption functionsInfo[5] = {{"database()", 10},
-                                          {"server_version()", 16},
-                                          {"server_status()", 15},
-                                          {"client_version()", 16},
-                                          {"current_user()", 14}};
+   SDNodeDynConfOption functionsInfo[5] = {{"database()", 10},
+                                            {"server_version()", 16},
+                                            {"server_status()", 15},
+                                            {"client_version()", 16},
+                                            {"current_user()", 14}};
 
   int32_t index = -1;
-  for (int32_t i = 0; i < tListLen(functionsInfo); ++i) {
-    if (strncasecmp(functionsInfo[i].name, pExpr->operand.z, functionsInfo[i].len) == 0 &&
-        functionsInfo[i].len == pExpr->operand.n) {
-      index = i;
-      break;
+  if (server_status == true) {
+    index = 2;
+  } else {
+    for (int32_t i = 0; i < tListLen(functionsInfo); ++i) {
+      if (strncasecmp(functionsInfo[i].name, pExpr->operand.z, functionsInfo[i].len) == 0 &&
+          functionsInfo[i].len == pExpr->operand.n) {
+        index = i;
+        break;
+      }
     }
   }
 

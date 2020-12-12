@@ -397,3 +397,57 @@ void taosPrintGlobalCfg() {
 
   taosPrintOsInfo();
 }
+
+static void taosDumpCfg(SGlobalCfg *cfg) {
+    int optionLen = (int)strlen(cfg->option);
+    int blankLen = TSDB_CFG_PRINT_LEN - optionLen;
+    blankLen = blankLen < 0 ? 0 : blankLen;
+
+    char blank[TSDB_CFG_PRINT_LEN];
+    memset(blank, ' ', TSDB_CFG_PRINT_LEN);
+    blank[blankLen] = 0;
+
+    switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT16:
+        printf(" %s:%s%d%s\n", cfg->option, blank, *((int16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
+      case TAOS_CFG_VTYPE_INT32:
+        printf(" %s:%s%d%s\n", cfg->option, blank, *((int32_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
+      case TAOS_CFG_VTYPE_FLOAT:
+        printf(" %s:%s%f%s\n", cfg->option, blank, *((float *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
+      case TAOS_CFG_VTYPE_STRING:
+      case TAOS_CFG_VTYPE_IPSTR:
+      case TAOS_CFG_VTYPE_DIRECTORY:
+        printf(" %s:%s%s%s\n", cfg->option, blank, (char *)cfg->ptr, tsGlobalUnit[cfg->unitType]);
+        break;
+      default:
+        break;
+    }
+}
+
+void taosDumpGlobalCfg() {
+  printf("taos global config:\n");
+  printf("==================================\n");
+  for (int i = 0; i < tsGlobalConfigNum; ++i) {
+    SGlobalCfg *cfg = tsGlobalConfig + i;
+    if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
+    if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
+    if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW)) continue;
+
+    taosDumpCfg(cfg);
+  }
+
+  printf("\ntaos local config:\n");
+  printf("==================================\n");
+
+  for (int i = 0; i < tsGlobalConfigNum; ++i) {
+    SGlobalCfg *cfg = tsGlobalConfig + i;
+    if (tscEmbedded == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
+    if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
+    if (cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW) continue;
+
+    taosDumpCfg(cfg);
+  }
+}

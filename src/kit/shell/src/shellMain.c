@@ -15,6 +15,7 @@
 
 #include "os.h"
 #include "shell.h"
+#include "tconfig.h"
 #include "tnettest.h"
 
 pthread_t pid;
@@ -58,6 +59,7 @@ SShellArguments args = {
   .timezone = NULL,
   .is_raw_time = false,
   .is_use_passwd = false,
+  .dump_config = false,
   .file = "\0",
   .dir = "\0",
   .threadNum = 5,
@@ -77,6 +79,19 @@ int main(int argc, char* argv[]) {
   }
 
   shellParseArgument(argc, argv, &args);
+
+  if (args.dump_config) {
+    taosInitGlobalCfg();
+    taosReadGlobalLogCfg();
+
+    if (!taosReadGlobalCfg()) {
+      printf("TDengine read global config failed");
+      exit(EXIT_FAILURE);
+    }
+
+    taosDumpGlobalCfg();
+    exit(0);
+  }
 
   if (args.netTestRole && args.netTestRole[0] != 0) {
     taos_init();

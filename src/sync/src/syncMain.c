@@ -396,9 +396,7 @@ void syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {
     pFwdRsp->code = code;
 
     int32_t msgLen = sizeof(SSyncHead) + sizeof(SFwdRsp);
-    int32_t retLen = taosWriteMsg(pPeer->peerFd, msg, msgLen);
-
-    if (retLen == msgLen) {
+    if (taosWriteMsg(pPeer->peerFd, msg, msgLen) == msgLen) {
       sTrace("%s, forward-rsp is sent, code:%x hver:%" PRIu64, pPeer->id, code, version);
     } else {
       sDebug("%s, failed to send forward ack, restart", pPeer->id);
@@ -795,7 +793,7 @@ void syncRestartConnection(SSyncPeer *pPeer) {
 
 static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
-  sDebug("%s, sync-req is received", pPeer->id);
+  sInfo("%s, sync-req is received", pPeer->id);
 
   if (pPeer->ip == 0) return;
 
@@ -873,6 +871,7 @@ static void syncRecoverFromMaster(SSyncPeer *pPeer) {
   firstPkt.syncHead.type = TAOS_SMSG_SYNC_REQ;
   firstPkt.syncHead.vgId = pNode->vgId;
   firstPkt.syncHead.len = sizeof(firstPkt) - sizeof(SSyncHead);
+  firstPkt.tranId = syncGenTranId();
   tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
   firstPkt.port = tsSyncPort;
   taosTmrReset(syncNotStarted, tsSyncTimer * 1000, pPeer, tsSyncTmrCtrl, &pPeer->timer);
@@ -880,8 +879,7 @@ static void syncRecoverFromMaster(SSyncPeer *pPeer) {
   if (taosWriteMsg(pPeer->peerFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
     sError("%s, failed to send sync-req to peer", pPeer->id);
   } else {
-    nodeSStatus = TAOS_SYNC_STATUS_START;
-    sInfo("%s, sync-req is sent to peer, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
+    sInfo("%s, sync-req is sent to peer, tranId:%u, sstatus:%s", pPeer->id, firstPkt.tranId, syncStatus[nodeSStatus]);
   }
 }
 
@@ -1018,8 +1016,7 @@ static void syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type
     pPeersStatus->peersStatus[i].version = pNode->peerInfo[i]->version;
   }
 
-  int32_t retLen = taosWriteMsg(pPeer->peerFd, msg, statusMsgLen);
-  if (retLen == statusMsgLen) {
+  if (taosWriteMsg(pPeer->peerFd, msg, statusMsgLen) == statusMsgLen) {
     sDebug("%s, status is sent, self:%s:%s:%" PRIu64 ", peer:%s:%s:%" PRIu64 ", ack:%d tranId:%u type:%s pfd:%d",
            pPeer->id, syncRole[nodeRole], syncStatus[nodeSStatus], nodeVersion, syncRole[pPeer->role],
            syncStatus[pPeer->sstatus], pPeer->version, pPeersStatus->ack, pPeersStatus->tranId,
@@ -1053,10 +1050,11 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
   firstPkt.syncHead.type = TAOS_SMSG_STATUS;
   tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
   firstPkt.port = tsSyncPort;
+  firstPkt.tranId = syncGenTranId();
   firstPkt.sourceId = pNode->vgId;  // tell arbitrator its vgId
 
   if (taosWriteMsg(connFd, &firstPkt, sizeof(firstPkt)) == sizeof(firstPkt)) {
-    sDebug("%s, connection to peer server is setup, pfd:%d sfd:%d", pPeer->id, connFd, pPeer->syncFd);
+    sDebug("%s, connection to peer server is setup, pfd:%d sfd:%d tranId:%u", pPeer->id, connFd, pPeer->syncFd, firstPkt.tranId);
     pPeer->peerFd = connFd;
     pPeer->role = TAOS_SYNC_ROLE_UNSYNCED;
     pPeer->pConn = taosAllocateTcpConn(tsTcpPool, pPeer, connFd);
@@ -1093,7 +1091,9 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer) {
   pthread_attr_destroy(&thattr);
 
   if (ret < 0) {
-    sError("%s, failed to create sync thread", pPeer->id);
+    SSyncNode *pNode = pPeer->pSyncNode;
+    nodeSStatus = TAOS_SYNC_STATUS_INIT;
+    sError("%s, failed to create sync thread, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
     taosClose(pPeer->syncFd);
     syncDecPeerRef(pPeer);
   } else {
@@ -1123,6 +1123,8 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
     return;
   }
 
+  sDebug("vgId:%d, firstPkt is received, tranId:%u", vgId, firstPkt.tranId);
+
   SSyncNode *pNode = *ppNode;
   pthread_mutex_lock(&pNode->mutex);
 
@@ -1141,6 +1143,9 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
     // first packet tells what kind of link
     if (firstPkt.syncHead.type == TAOS_SMSG_SYNC_DATA) {
       pPeer->syncFd = connFd;
+      nodeSStatus = TAOS_SYNC_STATUS_START;
+      sInfo("%s, sync-data pkt from master is received, tranId:%u, set sstatus:%s", pPeer->id, firstPkt.tranId,
+            syncStatus[nodeSStatus]);
       syncCreateRestoreDataThread(pPeer);
     } else {
       sDebug("%s, TCP connection is up, pfd:%d sfd:%d, old pfd:%d", pPeer->id, connFd, pPeer->syncFd, pPeer->peerFd);
@@ -1312,7 +1317,7 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
   }
 
   // always update version
-  sTrace("vgId:%d, forward to peer, replica:%d role:%s qtype:%s hver:%" PRIu64, pNode->vgId, pNode->replica,
+  sTrace("vgId:%d, update version, replica:%d role:%s qtype:%s hver:%" PRIu64, pNode->vgId, pNode->replica,
          syncRole[nodeRole], qtypeStr[qtype], pWalHead->version);
   nodeVersion = pWalHead->version;
 
