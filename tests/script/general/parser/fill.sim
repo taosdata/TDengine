@@ -848,10 +848,7 @@ if $rows != 12 then
   return -1
 endi
 
-print =====================>td-1442
-sql_error select count(*) from m_fl_tb0 interval(1s) fill(prev);
-
-print =====================> aggregation + arithmetic + fill
+print =====================> aggregation + arithmetic + fill, need to add cases TODO
 #sql select avg(cpu_taosd) - first(cpu_taosd) from dn1 where ts<'2020-11-13 11:00:00' and ts>'2020-11-13 10:50:00' interval(10s) fill(value, 99)
 #sql select count(*), first(k), avg(k), avg(k)-first(k) from tm0 where ts>'2020-1-1 1:1:1' and ts<'2020-1-1 1:02:59' interval(10s) fill(value, 99);
 #sql select count(*), first(k), avg(k), avg(k)-first(k) from tm0 where ts>'2020-1-1 1:1:1' and ts<'2020-1-1 1:02:59' interval(10s) fill(NULL);
@@ -1044,6 +1041,17 @@ if $data12 != 1 then
   return -1
 endi
 
+print =====================>td-1442, td-2190 , no time range for fill option
+sql_error select count(*) from m_fl_tb0 interval(1s) fill(prev);
+
+sql_error select min(c3) from m_fl_mt0 interval(10a) fill(value, 20)
+sql_error select min(c3) from m_fl_mt0 interval(10s) fill(value, 20)
+sql_error select min(c3) from m_fl_mt0 interval(10m) fill(value, 20)
+sql_error select min(c3) from m_fl_mt0 interval(10h) fill(value, 20)
+sql_error select min(c3) from m_fl_mt0 interval(10d) fill(value, 20)
+sql_error select min(c3) from m_fl_mt0 interval(10w) fill(value, 20)
+sql_error select max(c3) from m_fl_mt0 interval(1n) fill(prev)
+sql_error select min(c3) from m_fl_mt0 interval(1y) fill(value, 20)
 
 print =============== clear
 #sql drop database $db
