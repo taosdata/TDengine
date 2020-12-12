@@ -135,9 +135,11 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
       return; // todo change the error code
     }
     pMsg->pCont += sizeof(*pMsgVersion);
+    pMsg->contLen -= sizeof(*pMsgVersion);
 
     (*dnodeProcessShellMsgFp[pMsg->msgType])(pMsg);
 
+    //pMsg->contLen += sizeof(*pMsgVersion);
     rpcFreeCont(pMsg->pCont - sizeof(*pMsgVersion));
   } else {
     dError("RPC %p, shell msg:%s is not processed", pMsg->handle, taosMsg[pMsg->msgType]);

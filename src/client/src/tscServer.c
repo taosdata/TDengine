@@ -231,7 +231,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   SRpcMsg rpcMsg = {
       .msgType = pSql->cmd.msgType,
       .pCont   = pMsg,
-      .contLen = pSql->cmd.payloadLen,
+      .contLen = pSql->cmd.payloadLen + sizeof(SMsgVersion),
       .ahandle = (void*)pSql->self,
       .handle  = NULL,
       .code    = 0
