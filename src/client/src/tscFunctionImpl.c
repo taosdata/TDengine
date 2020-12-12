@@ -2222,7 +2222,7 @@ static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
   tmp += POINTER_BYTES * pCtx->param[0].i64Key;
   
   size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
-  assert(pCtx->param[0].i64Key > 0);
+//  assert(pCtx->param[0].i64Key > 0);
 
   for (int32_t i = 0; i < pCtx->param[0].i64Key; ++i) {
     pTopBotInfo->res[i] = (tValuePair*) tmp;
