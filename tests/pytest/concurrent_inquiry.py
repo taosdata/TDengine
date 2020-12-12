@@ -166,7 +166,7 @@ class ConcurrentInquiry:
         sel_col_list=[]
         col_rand=random.randint(0,len(col_list))
         for i,j in zip(col_list[0:col_rand],func_list):         #决定每个被查询col的函数
-            alias = 'as '+ str(i)
+            alias = ' as '+ str(i)
             pick_func = ''
             if j == 'leastsquares':
                 pick_func=j+'('+i+',1,1)'
