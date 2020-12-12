@@ -127,7 +127,18 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   } else {}
 
   if ( dnodeProcessShellMsgFp[pMsg->msgType] ) {
+    SMsgVersion *pMsgVersion = pMsg->pCont;
+    if (taosCheckVersion(pMsgVersion->clientVersion, version, 3) != TSDB_CODE_SUCCESS) {
+      rpcMsg.code = TSDB_CODE_TSC_INVALID_VERSION;
+      rpcSendResponse(&rpcMsg);
+      rpcFreeCont(pMsg->pCont);
+      return; // todo change the error code
+    }
+    pMsg->pCont += sizeof(*pMsgVersion);
+
     (*dnodeProcessShellMsgFp[pMsg->msgType])(pMsg);
+
+    rpcFreeCont(pMsg->pCont - sizeof(*pMsgVersion));
   } else {
     dError("RPC %p, shell msg:%s is not processed", pMsg->handle, taosMsg[pMsg->msgType]);
     rpcMsg.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;

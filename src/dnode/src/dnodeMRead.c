@@ -124,8 +124,6 @@ void dnodeDispatchToMReadQueue(SRpcMsg *pMsg) {
     SMnodeMsg *pRead = mnodeCreateMsg(pMsg);
     taosWriteQitem(tsMReadQueue, TAOS_QTYPE_RPC, pRead);
   }
-
-  rpcFreeCont(pMsg->pCont);
 }
 
 static void dnodeFreeMReadMsg(SMnodeMsg *pRead) {
