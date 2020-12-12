@@ -24,6 +24,9 @@
 
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 
+#define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
+#define GET_ROW_PARAM_FOR_MULTIOUTPUT(_q, tbq, sq) (((tbq) && (!sq))? (_q)->pExpr1[1].base.arg->argValue.i64:1)
+
 int32_t getOutputInterResultBufSize(SQuery* pQuery);
 
 void clearResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pRow, int16_t type);
@@ -46,9 +49,6 @@ static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pWindowResInfo, int
   assert(pWindowResInfo != NULL && slot >= 0 && slot < pWindowResInfo->size);
   return pWindowResInfo->pResult[slot];
 }
-
-#define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
-#define GET_ROW_PARAM_FOR_MULTIOUTPUT(_q, tbq, sq) (((tbq) && (!sq))? (_q)->pExpr1[1].base.arg->argValue.i64:1)
 
 bool isWindowResClosed(SResultRowInfo *pWindowResInfo, int32_t slot);
 
