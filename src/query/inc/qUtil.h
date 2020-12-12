@@ -29,30 +29,29 @@
 
 int32_t getOutputInterResultBufSize(SQuery* pQuery);
 
-void clearResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pResultRow, int16_t type);
-void copyResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* dst, const SResultRow* src, int16_t type);
+size_t  getResultRowSize(SQueryRuntimeEnv* pRuntimeEnv);
+int32_t initResultRowInfo(SResultRowInfo* pResultRowInfo, int32_t size, int16_t type);
+void    cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
+
+void    resetResultRowInfo(SQueryRuntimeEnv* pRuntimeEnv, SResultRowInfo* pResultRowInfo);
+void    popFrontResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRowInfo, int32_t num);
+void    clearClosedResultRows(SQueryRuntimeEnv* pRuntimeEnv, SResultRowInfo *pResultRowInfo);
+int32_t numOfClosedResultRows(SResultRowInfo* pResultRowInfo);
+void    closeAllResultRows(SResultRowInfo* pResultRowInfo);
+void    removeRedundantResultRows(SResultRowInfo *pResultRowInfo, TSKEY lastKey, int32_t order);
+
+int32_t initResultRow(SResultRow *pResultRow);
+void    closeResultRow(SResultRowInfo* pResultRowInfo, int32_t slot);
+bool    isResultRowClosed(SResultRowInfo *pResultRowInfo, int32_t slot);
+void    clearResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pResultRow, int16_t type);
+void    copyResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* dst, const SResultRow* src, int16_t type);
+
 SResultRowCellInfo* getResultCell(SQueryRuntimeEnv* pRuntimeEnv, const SResultRow* pRow, int32_t index);
-
-int32_t initWindowResInfo(SResultRowInfo* pResultRowInfo, int32_t size, int16_t type);
-
-void    cleanupTimeWindowInfo(SResultRowInfo* pResultRowInfo);
-void    resetTimeWindowInfo(SQueryRuntimeEnv* pRuntimeEnv, SResultRowInfo* pResultRowInfo);
-void    clearFirstNWindowRes(SQueryRuntimeEnv *pRuntimeEnv, int32_t num);
-
-void    clearClosedTimeWindow(SQueryRuntimeEnv* pRuntimeEnv);
-int32_t numOfClosedTimeWindow(SResultRowInfo* pResultRowInfo);
-void    closeTimeWindow(SResultRowInfo* pResultRowInfo, int32_t slot);
-void    closeAllTimeWindow(SResultRowInfo* pResultRowInfo);
-void    removeRedundantWindow(SResultRowInfo *pResultRowInfo, TSKEY lastKey, int32_t order);
 
 static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
   assert(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
   return pResultRowInfo->pResult[slot];
 }
-
-bool isWindowResClosed(SResultRowInfo *pResultRowInfo, int32_t slot);
-
-int32_t initResultRow(SResultRow *pResultRow);
 
 static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SResultRow *pResult,
     tFilePage* page) {
@@ -70,8 +69,6 @@ bool notNull_filter(SColumnFilterElem *pFilter, char* minval, char* maxval);
 
 __filter_func_t *getRangeFilterFuncArray(int32_t type);
 __filter_func_t *getValueFilterFuncArray(int32_t type);
-
-size_t getWindowResultSize(SQueryRuntimeEnv* pRuntimeEnv);
 
 SResultRowPool* initResultRowPool(size_t size);
 SResultRow* getNewResultRow(SResultRowPool* p);
