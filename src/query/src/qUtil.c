@@ -232,19 +232,19 @@ void closeTimeWindow(SResultRowInfo *pResultRowInfo, int32_t slot) {
   getResultRow(pResultRowInfo, slot)->closed = true;
 }
 
-void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pWindowRes, int16_t type) {
-  if (pWindowRes == NULL) {
+void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16_t type) {
+  if (pResultRow == NULL) {
     return;
   }
 
   // the result does not put into the SDiskbasedResultBuf, ignore it.
-  if (pWindowRes->pageId >= 0) {
-    tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pWindowRes->pageId);
+  if (pResultRow->pageId >= 0) {
+    tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResultRow->pageId);
 
     for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutput; ++i) {
-      SResultRowCellInfo *pResultInfo = &pWindowRes->pCellInfo[i];
+      SResultRowCellInfo *pResultInfo = &pResultRow->pCellInfo[i];
 
-      char * s = getPosInResultPage(pRuntimeEnv, i, pWindowRes, page);
+      char * s = getPosInResultPage(pRuntimeEnv, i, pResultRow, page);
       size_t size = pRuntimeEnv->pQuery->pExpr1[i].bytes;
       memset(s, 0, size);
 
@@ -252,15 +252,15 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pWindowRes, int16
     }
   }
 
-  pWindowRes->numOfRows = 0;
-  pWindowRes->pageId = -1;
-  pWindowRes->rowId = -1;
-  pWindowRes->closed = false;
+  pResultRow->numOfRows = 0;
+  pResultRow->pageId = -1;
+  pResultRow->rowId = -1;
+  pResultRow->closed = false;
 
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    tfree(pWindowRes->key);
+    tfree(pResultRow->key);
   } else {
-    pWindowRes->win = TSWINDOW_INITIALIZER;
+    pResultRow->win = TSWINDOW_INITIALIZER;
   }
 }
 
