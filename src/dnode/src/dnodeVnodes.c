@@ -127,7 +127,7 @@ int32_t dnodeInitVnodes() {
     pThread->vnodeList[pThread->vnodeNum++] = vnodeList[v];
   }
 
-  dDebug("start %d threads to open %d vnodes", threadNum, numOfVnodes);
+  dInfo("start %d threads to open %d vnodes", threadNum, numOfVnodes);
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SOpenVnodeThread *pThread = &threads[t];
