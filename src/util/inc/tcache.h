@@ -13,7 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-/* tcache is designed with the following features:
+/* 
+ * tcache is designed with the following features:
  * 1: put an item into cache, so it can be acquired or released later 
  * 2: if no apps hold the cached item, it will be removed from cache once its lifetime is expired
  * 3: if an item with the same key is already cached, the new cached item will overwirte the old one
@@ -22,7 +23,7 @@
 
  * Limitation:
  * 1: maximum number of caches is pre-defined by TAOS_CACHE_MAX_OBJS, not dynamic. 
- * 2: if a cached item is already removed, if app still tries to release/remove it, it may crash
+ * 2: if a cached item is already released/removed, if app still tries to release/remove it, it may crash
 */
 
 #ifndef TDENGINE_TCACHE_H
@@ -82,7 +83,7 @@ void  taosCacheRefresh(int32_t cacheId, __cache_free_fn_t fp);
 // empty all the cached items
 void  taosCacheEmpty(int32_t cacheId);
 
-// returns number of cached items
+// returns number of cached items including the cached ones
 int32_t taosCacheGetCount(int32_t cacheId);
 
 
