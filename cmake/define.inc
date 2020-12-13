@@ -106,7 +106,7 @@ IF (TD_LINUX)
   ENDIF ()
   
   SET(DEBUG_FLAGS "-O0 -g3 -DDEBUG")
-  SET(RELEASE_FLAGS "-Og -Wno-unused-variable -Wunused-but-set-variable")
+  SET(RELEASE_FLAGS "-Og -Wno-unused-result -Wno-unused-variable -Wno-unused-but-set-variable -Wno-format-truncation -Wno-maybe-uninitialized -Wno-format-overflow")
   
   IF (${COVER} MATCHES "true")
     MESSAGE(STATUS "Test coverage mode, add extra flags")
