@@ -130,7 +130,7 @@ static void dnodePrintEps(SDnodeEps *eps) {
   dDebug("print dnodeEp, dnodeNum:%d", eps->dnodeNum);
   for (int32_t i = 0; i < eps->dnodeNum; i++) {
     SDnodeEp *ep = &eps->dnodeEps[i];
-    dDebug("dnodeId:%d, dnodeFqdn:%s dnodePort:%u", ep->dnodeId, ep->dnodeFqdn, ep->dnodePort);
+    dDebug("dnode:%d, dnodeFqdn:%s dnodePort:%u", ep->dnodeId, ep->dnodeFqdn, ep->dnodePort);
   }
 }
 

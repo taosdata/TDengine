@@ -188,7 +188,8 @@ int main(int argc, char *argv[]) {
   tInfo("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs*appThreads);
   tInfo("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0*numOfReqs*appThreads/usedTime, msgSize);
 
-  getchar();
+  int ch = getchar();
+  UNUSED(ch); 
 
   taosCloseLog();
 

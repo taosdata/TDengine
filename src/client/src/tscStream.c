@@ -537,6 +537,10 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
            pStream, pTableMetaInfo->name, pStream->interval.interval, pStream->interval.sliding, starttime, pSql->sqlstr);
 }
 
+void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable) {
+  pStream->dstTable = dstTable;
+}
+
 TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row),
                               int64_t stime, void *param, void (*callback)(void *)) {
   STscObj *pObj = (STscObj *)taos;

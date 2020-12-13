@@ -62,12 +62,15 @@ typedef struct {
 typedef struct {
   SSyncHead syncHead;
   uint16_t  port;
+  uint16_t  tranId;
   char      fqdn[TSDB_FQDN_LEN];
   int32_t   sourceId;  // only for arbitrator
 } SFirstPkt;
 
 typedef struct {
-  int8_t sync;
+  int8_t   sync;
+  int8_t   reserved;
+  uint16_t tranId;
 } SFirstPktRsp;
 
 typedef struct {
@@ -187,6 +190,7 @@ void    syncRestartConnection(SSyncPeer *pPeer);
 void    syncBroadcastStatus(SSyncNode *pNode);
 void    syncAddPeerRef(SSyncPeer *pPeer);
 int32_t syncDecPeerRef(SSyncPeer *pPeer);
+uint16_t syncGenTranId();
 
 #ifdef __cplusplus
 }
