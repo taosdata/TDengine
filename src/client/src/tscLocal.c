@@ -823,6 +823,9 @@ static int32_t tscProcessClientVer(SSqlObj *pSql) {
 // TODO add test cases.
 static int32_t checkForOnlineNode(SSqlObj* pSql) {
   int32_t* data = pSql->res.length;
+  if (data == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   int32_t total  = data[0];
   int32_t online = data[1];
