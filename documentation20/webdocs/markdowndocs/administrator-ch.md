@@ -96,6 +96,7 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 - maxSQLLength：单条SQL语句允许最长限制。默认值：65380字节。
 - telemetryReporting: 是否允许 TDengine 采集和上报基本使用信息，0表示不允许，1表示允许。 默认值：1。
 - stream: 是否启用连续查询（流计算功能），0表示不允许，1表示允许。 默认值：1。
+- queryBufferSize: 为所有并发查询占用保留的内存大小。计算规则可以根据实际应用可能的最大并发数和表的数字相乘，再乘 170 。单位为字节。
 
 **注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6042共13个端口，而且必须TCP和UDP都打开。
 
@@ -156,6 +157,9 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
 客户端配置参数
 
 - firstEp: taos启动时，主动连接的集群中第一个taosd实例的end point, 缺省值为 localhost:6030。
+
+- secondEp: taos 启动时，如果 firstEp 连不上，将尝试连接 secondEp。
+
 - locale
 
     默认值：系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置
@@ -229,7 +233,7 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
 - maxBinaryDisplayWidth
 
     Shell中binary 和 nchar字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 shell 中通过命令 set max_binary_display_width nn 动态修改此选项。
-   
+
 
 ## 用户管理
 
@@ -264,7 +268,7 @@ SHOW USERS;
 ```
 
 显示所有用户  
-  
+
 **注意：**SQL 语法中，< >表示需要用户输入的部分，但请不要输入< >本身
 
 ## 数据导入
@@ -412,4 +416,66 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 
 您可以通过修改系统配置文件taos.cfg来配置不同的数据目录和日志目录。
 
+
+
+## TDengine参数限制与保留关键字
+
+- 数据库名：不能包含“.”以及特殊字符，不能超过32个字符
+- 表名：不能包含“.”以及特殊字符，与所属数据库名一起，不能超过192个字符
+- 表的列名：不能包含特殊字符，不能超过64个字符
+- 表的列数：不能超过1024列
+- 记录的最大长度：包括时间戳8 byte，不能超过16KB
+- 单条SQL语句默认最大字符串长度：65480 byte
+- 数据库副本数：不能超过3
+- 用户名：不能超过20个byte
+- 用户密码：不能超过15个byte
+- 标签(Tags)数量：不能超过128个
+- 标签的总长度：不能超过16Kbyte
+- 记录条数：仅受存储空间限制
+- 表的个数：仅受节点个数限制
+- 库的个数：仅受节点个数限制
+- 单个库上虚拟节点个数：不能超过64个
+
+ 
+
+目前TDengine有将近200个内部保留关键字，这些关键字无论大小写均不可以用作库名、表名、STable名、数据列名及标签列名等。这些关键字列表如下：
+
+| 关键字列表 |             |              |            |           |
+| ---------- | ----------- | ------------ | ---------- | --------- |
+| ABLOCKS    | CONNECTION  | GT           | MINUS      | SHOW      |
+| ABORT      | CONNECTIONS | ID           | MNODES     | SLASH     |
+| ACCOUNT    | COPY        | IF           | MODULES    | SLIDING   |
+| ACCOUNTS   | COUNT       | IGNORE       | NCHAR      | SMALLINT  |
+| ADD        | CREATE      | IMMEDIATE    | NE         | SPREAD    |
+| AFTER      | CTIME       | IMPORT       | NONE       | STAR      |
+| ALL        | DATABASE    | IN           | NOT        | STATEMENT |
+| ALTER      | DATABASES   | INITIALLY    | NOTNULL    | STDDEV    |
+| AND        | DAYS        | INSERT       | NOW        | STREAM    |
+| AS         | DEFERRED    | INSTEAD      | OF         | STREAMS   |
+| ASC        | DELIMITERS  | INTEGER      | OFFSET     | STRING    |
+| ATTACH     | DESC        | INTERVAL     | OR         | SUM       |
+| AVG        | DESCRIBE    | INTO         | ORDER      | TABLE     |
+| BEFORE     | DETACH      | IP           | PASS       | TABLES    |
+| BEGIN      | DIFF        | IS           | PERCENTILE | TAG       |
+| BETWEEN    | DIVIDE      | ISNULL       | PLUS       | TAGS      |
+| BIGINT     | DNODE       | JOIN         | PRAGMA     | TBLOCKS   |
+| BINARY     | DNODES      | KEEP         | PREV       | TBNAME    |
+| BITAND     | DOT         | KEY          | PRIVILEGE  | TIMES     |
+| BITNOT     | DOUBLE      | KILL         | QUERIES    | TIMESTAMP |
+| BITOR      | DROP        | LAST         | QUERY      | TINYINT   |
+| BOOL       | EACH        | LE           | RAISE      | TOP       |
+| BOTTOM     | END         | LEASTSQUARES | REM        | TRIGGER   |
+| BY         | EQ          | LIKE         | REPLACE    | UMINUS    |
+| CACHE      | EXISTS      | LIMIT        | REPLICA    | UPLUS     |
+| CASCADE    | EXPLAIN     | LINEAR       | RESET      | USE       |
+| CHANGE     | FAIL        | LOCAL        | RESTRICT   | USER      |
+| CLOG       | FILL        | LP           | ROW        | USERS     |
+| CLUSTER    | FIRST       | LSHIFT       | ROWS       | USING     |
+| COLON      | FLOAT       | LT           | RP         | VALUES    |
+| COLUMN     | FOR         | MATCH        | RSHIFT     | VARIABLE  |
+| COMMA      | FROM        | MAX          | SCORES     | VGROUPS   |
+| COMP       | GE          | METRIC       | SELECT     | VIEW      |
+| CONCAT     | GLOB        | METRICS      | SEMI       | WAVG      |
+| CONFIGS    | GRANTS      | MIN          | SET        | WHERE     |
+| CONFLICT   | GROUP       |              |            |           |
 

@@ -91,8 +91,11 @@ while $i < $tblNum
   $i = $i + 1
 endw 
 
+sql show db.vgroups;
+print d1: $data04 $data05 , d2: $data06 $data07
+
 sql select count(*) from $stb
-print rows:$rows data00:$data00
+print rtest1==> rows:$rows data00:$data00
 if $rows != 1 then
   return -1
 endi
@@ -102,6 +105,15 @@ if $data00 == 0 then
 endi
 
 $totalRows = $data00
+
+sql select count(*) from $stb
+print test2==> rows:$rows data00:$data00
+sql select count(*) from $stb
+print test3==> rows:$rows data00:$data00
+sql select count(*) from $stb
+print test4==> rows:$rows data00:$data00
+sql select count(*) from $stb
+print test5==> rows:$rows data00:$data00
 
 print ============== step3: insert old data(now-15d) and new data(now+15d), control data rows  in order to save in cache, not falling disc
 sql insert into $tb values ( now - 20d , -20 )
@@ -153,12 +165,21 @@ if $data00 != $totalRows then
 	return -1
 endi
 
+sql select count(*) from $stb
+print data00 $data00
+sql select count(*) from $stb
+print data00 $data00
+sql select count(*) from $stb
+print data00 $data00
+sql select count(*) from $stb
+print data00 $data00
+
 print ============== step5: insert two data rows: now-16d, now+16d, 
 sql insert into $tb values ( now - 21d , -21 )
 sql insert into $tb values ( now - 41d , -41 )
 $totalRows = $totalRows + 2
 
-print ============== step5: restart dnode2, waiting sync end
+print ============== step6: restart dnode2, waiting sync end
 system sh/exec.sh -n dnode2 -s start
 sleep 3000
 $loopCnt = 0
@@ -192,9 +213,81 @@ endi
 
 sleep $sleepTimer
 # check using select
+sleep 5000
 sql select count(*) from $stb
 print data00 $data00
 if $data00 != $totalRows then
 	return -1
 endi
 
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi
+
+sql select count(*) from $stb
+print data00 $data00
+if $data00 != $totalRows then
+	return -1
+endi

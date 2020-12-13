@@ -117,7 +117,17 @@ Connection = DriverManager.getConnection(url, properties);
 
 
 
-## 16. 怎么报告问题？
+## 16. 如何进行数据迁移？
+
+TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A移动机器B时，注意如下两件事：
+
+- 2.0.0.0 至 2.0.6.x 的版本，重新配置机器B的hostname为机器A的hostname
+- 2.0.7.0 及以后的版本，到/var/lib/taos/dnode下，修复dnodeEps.json的dnodeId对应的FQDN，重启。确保机器内所有机器的此文件是完全相同的。
+- 1.x 和 2.x 版本的存储结构不兼容，需要使用迁移工具或者自己开发应用导出导入数据。
+
+
+
+## 17. 怎么报告问题？
 
 如果 FAQ 中的信息不能够帮到您，需要 TDengine 技术团队的技术支持与协助，请将以下两个目录中内容打包:
 1. /var/log/taos
