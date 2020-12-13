@@ -256,7 +256,7 @@ bool httpInitConnect() {
 
   HttpThread *pThread = pServer->pThreads;
   for (int32_t i = 0; i < pServer->numOfThreads; ++i) {
-    snprintf(pThread->label, HTTP_LABEL_SIZE, "%s%d", pServer->label, i);
+    sprintf(pThread->label, "%s%d", pServer->label, i);
     pThread->processData = pServer->processData;
     pThread->threadId = i;
 
