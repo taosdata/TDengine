@@ -149,12 +149,10 @@ pipeline {
             ./test-all.sh p2
             date
             '''
-          
          }
        }   
       }
     }
-
   }
   
 }
