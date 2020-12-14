@@ -70,8 +70,7 @@ int32_t dnodeInitShell() {
 
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]   = dnodeSendStartupStep;
 
-  int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore;
-  numOfThreads = (int32_t) ((1.0 - tsRatioOfQueryThreads) * numOfThreads / 2.0);
+  int32_t numOfThreads = (tsNumOfCores * tsNumOfThreadsPerCore) / 2.0;
   if (numOfThreads < 1) {
     numOfThreads = 1;
   }
@@ -128,7 +127,20 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   } else {}
 
   if ( dnodeProcessShellMsgFp[pMsg->msgType] ) {
+    SMsgVersion *pMsgVersion = pMsg->pCont;
+    if (taosCheckVersion(pMsgVersion->clientVersion, version, 3) != TSDB_CODE_SUCCESS) {
+      rpcMsg.code = TSDB_CODE_TSC_INVALID_VERSION;
+      rpcSendResponse(&rpcMsg);
+      rpcFreeCont(pMsg->pCont);
+      return; // todo change the error code
+    }
+    pMsg->pCont += sizeof(*pMsgVersion);
+    pMsg->contLen -= sizeof(*pMsgVersion);
+
     (*dnodeProcessShellMsgFp[pMsg->msgType])(pMsg);
+
+    //pMsg->contLen += sizeof(*pMsgVersion);
+    rpcFreeCont(pMsg->pCont - sizeof(*pMsgVersion));
   } else {
     dError("RPC %p, shell msg:%s is not processed", pMsg->handle, taosMsg[pMsg->msgType]);
     rpcMsg.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;

@@ -303,7 +303,7 @@ void mnodeUpdateDnode(SDnodeObj *pDnode) {
 
   int32_t code = sdbUpdateRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    mError("dnodeId:%d, failed update", pDnode->dnodeId);
+    mError("dnode:%d, failed update", pDnode->dnodeId);
   }
 }
 

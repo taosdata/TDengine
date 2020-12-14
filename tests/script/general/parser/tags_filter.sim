@@ -149,4 +149,57 @@ if $rows != 2 then
   return -1
 endi
 
+print ==================>td-2424
+sql create table t1(ts timestamp, k float)
+sql insert into t1 values(now, 8.001)
+sql select * from t1 where k=8.001
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from t1 where k<8.001
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from t1 where k<=8.001
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from t1 where k>8.001
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from t1 where k>=8.001
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from t1 where k<>8.001
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from t1 where k>=8.001 and k<=8.001
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from t1 where k>=8.0009999 and k<=8.001
+if $rows != 1 then
+  return -1
+endi
+
+sql select * from t1 where k>8.001 and k<=8.001
+if $rows != 0 then
+  return -1
+endi
+
+sql select * from t1 where k>=8.001 and k<8.001
+if $rows != 0 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

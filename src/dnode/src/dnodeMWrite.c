@@ -125,8 +125,6 @@ void dnodeDispatchToMWriteQueue(SRpcMsg *pMsg) {
            taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
     taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
   }
-
-  rpcFreeCont(pMsg->pCont);
 }
 
 static void dnodeFreeMWriteMsg(SMnodeMsg *pWrite) {
