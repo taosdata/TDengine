@@ -121,7 +121,6 @@ extern char *syncRole[];
 //global configurable parameters
 extern int32_t  tsMaxSyncNum;
 extern int32_t  tsSyncTcpThreads;
-extern int32_t  tsMaxWatchFiles;
 extern int32_t  tsSyncTimer;
 extern int32_t  tsMaxFwdInfo;
 extern int32_t  sDebugFlag;
