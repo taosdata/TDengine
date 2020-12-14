@@ -6,11 +6,11 @@ node {
 
 
 // execute this before anything else, including requesting any time on an agent
-if (currentBuild.rawBuild.getCauses().toString().contains('BranchIndexingCause')) {
-  print "INFO: Build skipped due to trigger being Branch Indexing"
-  currentBuild.result = 'success skip' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
-  return
-}
+// if (currentBuild.rawBuild.getCauses().toString().contains('BranchIndexingCause')) {
+//   print "INFO: Build skipped due to trigger being Branch Indexing"
+//   currentBuild.result = 'success skip' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
+//   return
+// }
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
