@@ -149,7 +149,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
                     long a = System.currentTimeMillis();
                     subTableService.insertAutoCreateTable(data, config.numOfThreadsForInsert, config.frequency);
                     long b = System.currentTimeMillis();
-                    System.out.println(">>> time cost: " + (b - a) + " ms");
+                    logger.info(">>> time cost: " + (b - a) + " ms");
                 } else {
                     subTableService.insert(data, config.numOfThreadsForInsert, config.frequency);
                 }
