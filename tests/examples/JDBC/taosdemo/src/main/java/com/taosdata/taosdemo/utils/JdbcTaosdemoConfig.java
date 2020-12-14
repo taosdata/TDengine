@@ -12,7 +12,7 @@ public final class JdbcTaosdemoConfig {
     public int days = 30;                   //days
     public int replica = 1;                 //replica
     //super table
-    public boolean doCreateTable = false;
+    public boolean doCreateTable = true;
     public String superTable = "weather";   //super table name
     public String prefixOfFields = "col";
     public int numOfFields;

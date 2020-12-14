@@ -1,10 +1,12 @@
 package com.taosdata.taosdemo.components;
 
-import com.taosdata.taosdemo.domain.*;
+import com.taosdata.taosdemo.domain.FieldMeta;
+import com.taosdata.taosdemo.domain.SubTableValue;
+import com.taosdata.taosdemo.domain.SuperTableMeta;
+import com.taosdata.taosdemo.domain.TagMeta;
 import com.taosdata.taosdemo.service.DatabaseService;
 import com.taosdata.taosdemo.service.SubTableService;
 import com.taosdata.taosdemo.service.SuperTableService;
-import com.taosdata.taosdemo.service.data.SubTableMetaGenerator;
 import com.taosdata.taosdemo.service.data.SubTableValueGenerator;
 import com.taosdata.taosdemo.service.data.SuperTableMetaGenerator;
 import com.taosdata.taosdemo.utils.JdbcTaosdemoConfig;
@@ -103,52 +105,57 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         int numOfRowsPerTable = config.numOfRowsPerTable;
         int numOfValuesPerSQL = config.numOfValuesPerSQL;
 
-        if (config.startTime == 0) {
-            Instant end = Instant.now();
-            config.startTime = end.minus(Duration.ofDays(config.keep)).toEpochMilli();
+        Instant now = Instant.now();
+        long earliest = now.minus(Duration.ofDays(config.keep)).toEpochMilli();
+        if (config.startTime == 0 || config.startTime < earliest) {
+            config.startTime = earliest;
         }
 
         if (numOfRowsPerTable < numOfValuesPerSQL)
             numOfValuesPerSQL = numOfRowsPerTable;
         if (numOfTables < numOfTablesPerSQL)
             numOfTablesPerSQL = numOfTables;
-        //table
-        for (int tableCnt = 0; tableCnt < numOfTables; ) {
-            int tableSize = numOfTablesPerSQL;
-            if (tableCnt + tableSize > numOfTables) {
-                tableSize = numOfTables - tableCnt;
+
+        // row
+        for (int rowCnt = 0; rowCnt < numOfRowsPerTable; ) {
+            int rowSize = numOfValuesPerSQL;
+            if (rowCnt + rowSize > numOfRowsPerTable) {
+                rowSize = numOfRowsPerTable - rowCnt;
             }
-            // row
-            for (int rowCnt = 0; rowCnt < numOfRowsPerTable; ) {
-                int rowSize = numOfValuesPerSQL;
-                if (rowCnt + rowSize > numOfRowsPerTable) {
-                    rowSize = numOfRowsPerTable - rowCnt;
+
+            //table
+            for (int tableCnt = 0; tableCnt < numOfTables; ) {
+                int tableSize = numOfTablesPerSQL;
+                if (tableCnt + tableSize > numOfTables) {
+                    tableSize = numOfTables - tableCnt;
                 }
                 /***********************************************/
                 long startTime = config.startTime + rowCnt * config.timeGap;
-//                for (int i = 0; i < tableSize; i++) {
-//                    System.out.print(config.prefixOfTable + (tableCnt + i + 1) + ", tableSize: " + tableSize + ", rowSize: " + rowSize);
-//                    System.out.println(", startTime: " + TimeStampUtil.longToDatetime(startTime) + ",timeGap: " + config.timeGap);
-//                }
+
+                for (int i = 0; i < tableSize; i++) {
+                    System.out.print(config.prefixOfTable + (tableCnt + i + 1) + ", tableSize: " + tableSize + ", rowSize: " + rowSize);
+                    System.out.println(", startTime: " + TimeStampUtil.longToDatetime(startTime) + ",timeGap: " + config.timeGap);
+                }
 
                 // 生成数据
-                List<SubTableValue> data = SubTableValueGenerator.generate(superTableMeta, config.prefixOfFields, tableCnt, tableSize, rowSize, startTime, config.timeGap);
+//                List<SubTableValue> data = SubTableValueGenerator.generate(superTableMeta, config.prefixOfTable, tableCnt, tableSize, rowSize, startTime, config.timeGap);
 //                List<SubTableValue> data = SubTableValueGenerator.generate(subTableMetaList, tableCnt, tableSize, rowSize, startTime, config.timeGap);
                 // 乱序
-                if (config.order != 0) {
-                    SubTableValueGenerator.disrupt(data, config.rate, config.range);
-                }
+//                if (config.order != 0) {
+//                    SubTableValueGenerator.disrupt(data, config.rate, config.range);
+//                }
                 // insert
-                if (config.autoCreateTable) {
-                    subTableService.insertAutoCreateTable(data, config.numOfThreadsForInsert, config.frequency);
-                } else {
-                    subTableService.insert(data, config.numOfThreadsForInsert, config.frequency);
-                }
+//                if (config.autoCreateTable) {
+//                    subTableService.insertAutoCreateTable(data, config.numOfThreadsForInsert, config.frequency);
+//                } else {
+//                    subTableService.insert(data, config.numOfThreadsForInsert, config.frequency);
+//                }
                 /***********************************************/
-                rowCnt += rowSize;
+                tableCnt += tableSize;
             }
-            tableCnt += tableSize;
+            rowCnt += rowSize;
         }
+
 
         /*********************************************************************************/
         // 批量插入，自动建表
@@ -196,7 +203,6 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
     private SuperTableMeta createSupertable(JdbcTaosdemoConfig config) {
         SuperTableMeta tableMeta;
         // create super table
-        logger.info(">>> create super table <<<");
         if (config.superTableSQL != null) {
             // use a sql to create super table
             tableMeta = SuperTableMetaGenerator.generate(config.superTableSQL);
