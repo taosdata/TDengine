@@ -8,12 +8,17 @@ import com.taosdata.taosdemo.service.data.SubTableMetaGenerator;
 import com.taosdata.taosdemo.service.data.SubTableValueGenerator;
 import com.taosdata.taosdemo.service.data.SuperTableMetaGenerator;
 import com.taosdata.taosdemo.utils.JdbcTaosdemoConfig;
+import com.taosdata.taosdemo.utils.TimeStampUtil;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import java.time.Duration;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 
 @Component
@@ -96,6 +101,11 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         int numOfRowsPerTable = config.numOfRowsPerTable;
         int numOfValuesPerSQL = config.numOfValuesPerSQL;
 
+        if (config.startTime == 0) {
+            Instant end = Instant.now();
+            config.startTime = end.minus(Duration.ofDays(config.keep)).toEpochMilli();
+        }
+
         if (numOfRowsPerTable < numOfValuesPerSQL)
             numOfValuesPerSQL = numOfRowsPerTable;
         if (numOfTables < numOfTablesPerSQL)
@@ -113,8 +123,10 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
                     rowSize = numOfRowsPerTable - rowCnt;
                 }
                 /***********************************************/
+                long startTime = config.startTime + rowCnt * rowSize * config.timeGap;
+//                System.out.println(">>> startTime: " + startTime + ",timeGap: " + config.timeGap);
                 // 生成数据
-                List<SubTableValue> data = SubTableValueGenerator.generate(subTableMetaList, tableCnt, tableSize, rowSize, config.startTime, config.timeGap);
+                List<SubTableValue> data = SubTableValueGenerator.generate(subTableMetaList, tableCnt, tableSize, rowSize, startTime, config.timeGap);
                 // 乱序
                 if (config.order != 0) {
                     SubTableValueGenerator.disrupt(data, config.rate, config.range);
