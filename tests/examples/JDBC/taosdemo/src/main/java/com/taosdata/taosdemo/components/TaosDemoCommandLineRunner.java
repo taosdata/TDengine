@@ -132,24 +132,24 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
                 /***********************************************/
                 long startTime = config.startTime + rowCnt * config.timeGap;
 
-                for (int i = 0; i < tableSize; i++) {
-                    System.out.print(config.prefixOfTable + (tableCnt + i + 1) + ", tableSize: " + tableSize + ", rowSize: " + rowSize);
-                    System.out.println(", startTime: " + TimeStampUtil.longToDatetime(startTime) + ",timeGap: " + config.timeGap);
-                }
+//                for (int i = 0; i < tableSize; i++) {
+//                    System.out.print(config.prefixOfTable + (tableCnt + i + 1) + ", tableSize: " + tableSize + ", rowSize: " + rowSize);
+//                    System.out.println(", startTime: " + TimeStampUtil.longToDatetime(startTime) + ",timeGap: " + config.timeGap);
+//                }
 
                 // 生成数据
-//                List<SubTableValue> data = SubTableValueGenerator.generate(superTableMeta, config.prefixOfTable, tableCnt, tableSize, rowSize, startTime, config.timeGap);
+                List<SubTableValue> data = SubTableValueGenerator.generate(superTableMeta, config.prefixOfTable, tableCnt, tableSize, rowSize, startTime, config.timeGap);
 //                List<SubTableValue> data = SubTableValueGenerator.generate(subTableMetaList, tableCnt, tableSize, rowSize, startTime, config.timeGap);
                 // 乱序
-//                if (config.order != 0) {
-//                    SubTableValueGenerator.disrupt(data, config.rate, config.range);
-//                }
+                if (config.order != 0) {
+                    SubTableValueGenerator.disrupt(data, config.rate, config.range);
+                }
                 // insert
-//                if (config.autoCreateTable) {
-//                    subTableService.insertAutoCreateTable(data, config.numOfThreadsForInsert, config.frequency);
-//                } else {
-//                    subTableService.insert(data, config.numOfThreadsForInsert, config.frequency);
-//                }
+                if (config.autoCreateTable) {
+                    subTableService.insertAutoCreateTable(data, config.numOfThreadsForInsert, config.frequency);
+                } else {
+                    subTableService.insert(data, config.numOfThreadsForInsert, config.frequency);
+                }
                 /***********************************************/
                 tableCnt += tableSize;
             }
