@@ -37,6 +37,7 @@ def pre_test(){
                 '''
     }
     sh '''
+    
     cd ${WKC}
     rm -rf *
     cd ${WK}
