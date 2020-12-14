@@ -1,8 +1,6 @@
 package com.taosdata.taosdemo.service.data;
 
-import com.taosdata.taosdemo.domain.RowValue;
-import com.taosdata.taosdemo.domain.SubTableMeta;
-import com.taosdata.taosdemo.domain.SubTableValue;
+import com.taosdata.taosdemo.domain.*;
 import com.taosdata.taosdemo.utils.TimeStampUtil;
 import org.springframework.beans.BeanUtils;
 
@@ -10,6 +8,24 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SubTableValueGenerator {
+
+    public static List<SubTableValue> generate(SuperTableMeta superTableMeta, String prefixOfTables, int tableIndex, int tableSize, int valueSize, long startTime, long timeGap) {
+        List<SubTableValue> subTableValues = new ArrayList<>();
+        for (int i = 1; i <= tableSize; i++) {
+            SubTableValue subTableValue = new SubTableValue();
+            subTableValue.setDatabase(superTableMeta.getDatabase());
+            subTableValue.setName(prefixOfTables + (tableIndex + i));
+            subTableValue.setSupertable(superTableMeta.getName());
+            TimeStampUtil.TimeTuple tuple = TimeStampUtil.range(startTime, timeGap, valueSize);
+            List<TagValue> tags = TagValueGenerator.generate(superTableMeta.getTags());
+            subTableValue.setTags(tags);
+            List<RowValue> values = FieldValueGenerator.generate(tuple.start, tuple.end, tuple.timeGap, superTableMeta.getFields());
+            subTableValue.setValues(values);
+
+            subTableValues.add(subTableValue);
+        }
+        return subTableValues;
+    }
 
     public static List<SubTableValue> generate(List<SubTableMeta> subTableMetaList, int numOfRowsPerTable, long start, long timeGap) {
         return generate(subTableMetaList, 0, subTableMetaList.size(), numOfRowsPerTable, start, timeGap);

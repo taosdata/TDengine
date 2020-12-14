@@ -2,7 +2,9 @@ package com.taosdata.taosdemo.service;
 
 import com.taosdata.taosdemo.domain.SubTableMeta;
 import com.taosdata.taosdemo.domain.SubTableValue;
+import com.taosdata.taosdemo.domain.SuperTableMeta;
 import com.taosdata.taosdemo.mapper.SubTableMapper;
+import com.taosdata.taosdemo.service.data.SubTableMetaGenerator;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -39,6 +41,20 @@ public class SubTableService extends AbstractService {
         return getAffectRows(futureList);
     }
 
+    public void createSubTable(SuperTableMeta superTableMeta, int numOfTables, String prefixOfTable, int numOfThreadsForCreate) {
+        ExecutorService executor = Executors.newFixedThreadPool(numOfThreadsForCreate);
+        for (int i = 0; i < numOfTables; i++) {
+            int tableIndex = i;
+            executor.execute(() -> createSubTable(superTableMeta, prefixOfTable + (tableIndex + 1)));
+        }
+        executor.shutdown();
+    }
+
+    public void createSubTable(SuperTableMeta superTableMeta, String tableName) {
+        // 构造数据
+        SubTableMeta meta = SubTableMetaGenerator.generate(superTableMeta, tableName);
+        mapper.createUsingSuperTable(meta);
+    }
 
     // 创建一张子表，可以指定database，supertable，tablename，tag值
     public int createSubTable(SubTableMeta subTableMeta) {
@@ -97,5 +113,8 @@ public class SubTableService extends AbstractService {
             e.printStackTrace();
         }
     }
+
+    /********************************************************************/
+
 
 }

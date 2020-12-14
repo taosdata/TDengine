@@ -12,7 +12,7 @@ public final class JdbcTaosdemoConfig {
     public int days = 30;                   //days
     public int replica = 1;                 //replica
     //super table
-    public boolean doCreateTable = true;
+    public boolean doCreateTable = false;
     public String superTable = "weather";   //super table name
     public String prefixOfFields = "col";
     public int numOfFields;
@@ -20,17 +20,17 @@ public final class JdbcTaosdemoConfig {
     public int numOfTags;
     public String superTableSQL;
     //sub table
-    public String tablePrefix = "t";
-    public int numOfTables = 1;
-    public int numOfThreadsForCreate = 1;
+    public String prefixOfTable = "t";
     // insert task
-    public boolean autoCreateTable;
-    public int numOfRowsPerTable = 1;
+    public boolean autoCreateTable = true;
+    public int numOfTables = 100;
+    public int numOfRowsPerTable = 100;
+    public int numOfTablesPerSQL = 10;
+    public int numOfValuesPerSQL = 10;
+    public int numOfThreadsForCreate = 1;
     public int numOfThreadsForInsert = 1;
-    public int numOfTablesPerSQL = 1;
-    public int numOfValuesPerSQL = 1;
     public long startTime;
-    public long timeGap;
+    public long timeGap = 1;
     public int frequency;
     public int order;
     public int rate = 10;
@@ -63,7 +63,7 @@ public final class JdbcTaosdemoConfig {
                 "                            Default is 'create table weather(ts timestamp, temperature float, humidity int) tags(location nchar(64), groupId int). \n" +
                 "                            if you use this parameter, the numOfFields and numOfTags will be invalid'");
         // sub table
-        System.out.println("-tablePrefix                The prefix of sub tables. Default is 't'");
+        System.out.println("-prefixOfTable              The prefix of sub tables. Default is 't'");
         System.out.println("-numOfTables                The number of tables. Default is 1");
         System.out.println("-numOfThreadsForCreate      The number of thread during create sub table. Default is 1");
         // insert task
@@ -142,8 +142,8 @@ public final class JdbcTaosdemoConfig {
                 superTableSQL = args[++i];
             }
             // sub table
-            if ("-tablePrefix".equals(args[i]) && i < args.length - 1) {
-                tablePrefix = args[++i];
+            if ("-prefixOfTable".equals(args[i]) && i < args.length - 1) {
+                prefixOfTable = args[++i];
             }
             if ("-numOfTables".equals(args[i]) && i < args.length - 1) {
                 numOfTables = Integer.parseInt(args[++i]);

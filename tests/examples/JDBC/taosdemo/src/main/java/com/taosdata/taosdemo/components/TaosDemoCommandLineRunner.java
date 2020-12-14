@@ -16,9 +16,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.time.Instant;
-import java.time.temporal.ChronoUnit;
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 
 @Component
@@ -33,7 +31,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
     private SubTableService subTableService;
 
     private SuperTableMeta superTableMeta;
-    private List<SubTableMeta> subTableMetaList;
+//    private List<SubTableMeta> subTableMetaList;
 //    private List<SubTableValue> subTableValueList;
 //    private List<List<SubTableValue>> dataList;
 
@@ -48,10 +46,14 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         }
         // 准备数据
         prepareMetaData(config);
+        // 超级表的meta
+        superTableMeta = createSupertable(config);
+        // 子表的meta
+//        subTableMetaList = SubTableMetaGenerator.generate(superTableMeta, config.numOfTables, config.tablePrefix);
         // 创建数据库
-//        createDatabaseTask(config);
+        createDatabaseTask(config);
         // 建表
-//        createTableTask(config);
+        createTableTask(config);
         // 插入
         insertTask(config);
         // 查询: 1. 生成查询语句, 2. 执行查询
@@ -87,7 +89,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
             if (config.autoCreateTable)
                 return;
             // 批量建子表
-            subTableService.createSubTable(subTableMetaList, config.numOfThreadsForCreate);
+            subTableService.createSubTable(superTableMeta, config.numOfTables, config.prefixOfTable, config.numOfThreadsForCreate);
         }
         long end = System.currentTimeMillis();
         logger.info(">>> create table time cost : " + (end - start) + " ms.");
@@ -124,11 +126,14 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
                 }
                 /***********************************************/
                 long startTime = config.startTime + rowCnt * config.timeGap;
-//                System.out.print("tableCnt: " + tableCnt + ", tableSize: " + tableSize + ", rowCnt: " + rowCnt + ", rowSize: " + rowSize);
-//                System.out.println(", startTime: " + TimeStampUtil.longToDatetime(startTime) + ",timeGap: " + config.timeGap);
+//                for (int i = 0; i < tableSize; i++) {
+//                    System.out.print(config.prefixOfTable + (tableCnt + i + 1) + ", tableSize: " + tableSize + ", rowSize: " + rowSize);
+//                    System.out.println(", startTime: " + TimeStampUtil.longToDatetime(startTime) + ",timeGap: " + config.timeGap);
+//                }
 
                 // 生成数据
-                List<SubTableValue> data = SubTableValueGenerator.generate(subTableMetaList, tableCnt, tableSize, rowSize, startTime, config.timeGap);
+                List<SubTableValue> data = SubTableValueGenerator.generate(superTableMeta, config.prefixOfFields, tableCnt, tableSize, rowSize, startTime, config.timeGap);
+//                List<SubTableValue> data = SubTableValueGenerator.generate(subTableMetaList, tableCnt, tableSize, rowSize, startTime, config.timeGap);
                 // 乱序
                 if (config.order != 0) {
                     SubTableValueGenerator.disrupt(data, config.rate, config.range);
@@ -168,7 +173,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         // 超级表的meta
         superTableMeta = createSupertable(config);
         // 子表的meta
-        subTableMetaList = SubTableMetaGenerator.generate(superTableMeta, config.numOfTables, config.tablePrefix);
+//        subTableMetaList = SubTableMetaGenerator.generate(superTableMeta, config.numOfTables, config.prefixOfTable);
 
         /*
         // 子表的data
