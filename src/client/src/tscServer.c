@@ -214,7 +214,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   STscObj* pObj = pSql->pTscObj;
   SSqlCmd* pCmd = &pSql->cmd;
   
-  char *pMsg = rpcMallocCont(pCmd->payloadLen);
+  char *pMsg = rpcMallocCont(sizeof(SMsgVersion) + pCmd->payloadLen);
   if (NULL == pMsg) {
     tscError("%p msg:%s malloc failed", pSql, taosMsg[pSql->cmd.msgType]);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -225,12 +225,13 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     tscDumpMgmtEpSet(pSql);
   }
 
-  memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
+  tstrncpy(pMsg, version, sizeof(SMsgVersion));
+  memcpy(pMsg + sizeof(SMsgVersion), pSql->cmd.payload, pSql->cmd.payloadLen);
 
   SRpcMsg rpcMsg = {
       .msgType = pSql->cmd.msgType,
       .pCont   = pMsg,
-      .contLen = pSql->cmd.payloadLen,
+      .contLen = pSql->cmd.payloadLen + sizeof(SMsgVersion),
       .ahandle = (void*)pSql->self,
       .handle  = NULL,
       .code    = 0
