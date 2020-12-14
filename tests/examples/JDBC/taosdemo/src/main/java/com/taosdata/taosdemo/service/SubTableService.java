@@ -25,7 +25,6 @@ import java.util.concurrent.atomic.AtomicLong;
 public class SubTableService extends AbstractService {
 
     private static Logger logger = Logger.getLogger(SubTableService.class);
-    private static AtomicLong timestamp = new AtomicLong(TimeStampUtil.datetimeToLong("2012-01-01 00:00:00.000"));
 
     @Autowired
     private SubTableMapper mapper;
@@ -125,7 +124,7 @@ public class SubTableService extends AbstractService {
 //                    .getBoundSql(subTableValues)
 //                    .getSql();
             String sql = sql(subTableValues);
-//            logger.info(">>> SQL : " + sql);
+            logger.info(">>> SQL : " + sql);
             statement = connection.createStatement();
             affectRows = statement.executeUpdate(sql);
         } catch (SQLException e) {
@@ -165,8 +164,8 @@ public class SubTableService extends AbstractService {
                 for (int k = 0; k < rowValue.getFields().size(); k++) {
                     FieldValue fieldValue = rowValue.getFields().get(k);
                     if (k == 0)
-                        sb.append("" + timestamp.getAndIncrement());
-//                        sb.append("" + fieldValue.getValue() + "");
+//                        sb.append("" + timestamp.getAndIncrement());
+                        sb.append("" + fieldValue.getValue() + "");
                     else
                         sb.append(", '" + fieldValue.getValue() + "'");
                 }
