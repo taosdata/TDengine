@@ -122,7 +122,7 @@ public class SubTableService extends AbstractService {
 //                    .getBoundSql(subTableValues)
 //                    .getSql();
             String sql = sql(subTableValues);
-            logger.info(">>> SQL : " + sql);
+//            logger.info(">>> SQL : " + sql);
             statement = connection.createStatement();
             affectRows = statement.executeUpdate(sql);
         } catch (SQLException e) {
