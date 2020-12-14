@@ -63,7 +63,7 @@ int32_t dnodeStepInit(SStep *pSteps, int32_t stepSize) {
     }
     dInfo("step:%s is initialized", pStep->name);
 
-    dnodeReportStep(pStep->name, "Initialization complete", step + 1 >= stepSize);
+    dnodeReportStep(pStep->name, "Initialization complete", 0);
   }
 
   return 0;

@@ -313,7 +313,7 @@ void *rpcOpen(const SRpcInit *pInit) {
     return NULL;
   }
 
-  tDebug("%s rpc is openned, threads:%d sessions:%d", pRpc->label, pRpc->numOfThreads, pInit->sessions);
+  tDebug("%s rpc is opened, threads:%d sessions:%d", pRpc->label, pRpc->numOfThreads, pInit->sessions);
 
   return pRpc;
 }
