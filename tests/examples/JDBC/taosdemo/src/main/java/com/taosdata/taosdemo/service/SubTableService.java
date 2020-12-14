@@ -3,6 +3,7 @@ package com.taosdata.taosdemo.service;
 import com.taosdata.taosdemo.domain.*;
 import com.taosdata.taosdemo.mapper.SubTableMapper;
 import com.taosdata.taosdemo.service.data.SubTableMetaGenerator;
+import com.taosdata.taosdemo.utils.TimeStampUtil;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,11 +19,13 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class SubTableService extends AbstractService {
 
     private static Logger logger = Logger.getLogger(SubTableService.class);
+    private static AtomicLong timestamp = new AtomicLong(TimeStampUtil.datetimeToLong("2012-01-01 00:00:00.000"));
 
     @Autowired
     private SubTableMapper mapper;
@@ -162,7 +165,8 @@ public class SubTableService extends AbstractService {
                 for (int k = 0; k < rowValue.getFields().size(); k++) {
                     FieldValue fieldValue = rowValue.getFields().get(k);
                     if (k == 0)
-                        sb.append("" + fieldValue.getValue() + "");
+                        sb.append("" + timestamp.getAndIncrement());
+//                        sb.append("" + fieldValue.getValue() + "");
                     else
                         sb.append(", '" + fieldValue.getValue() + "'");
                 }
