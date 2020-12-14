@@ -77,6 +77,7 @@ public class SubTableValueGenerator {
             TimeStampUtil.TimeTuple tuple = TimeStampUtil.range(startTime, timeGap, rowSize);
             List<RowValue> values = FieldValueGenerator.generate(tuple.start, tuple.end, tuple.timeGap, subTableMeta.getFields());
             subTableValue.setValues(values);
+            subTableValueList.add(subTableValue);
         }
         return subTableValueList;
     }

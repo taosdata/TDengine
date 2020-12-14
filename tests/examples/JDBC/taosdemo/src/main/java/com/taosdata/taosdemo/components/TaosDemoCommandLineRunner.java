@@ -49,9 +49,9 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         // 准备数据
         prepareMetaData(config);
         // 创建数据库
-        createDatabaseTask(config);
+//        createDatabaseTask(config);
         // 建表
-        createTableTask(config);
+//        createTableTask(config);
         // 插入
         insertTask(config);
         // 查询: 1. 生成查询语句, 2. 执行查询
@@ -123,8 +123,10 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
                     rowSize = numOfRowsPerTable - rowCnt;
                 }
                 /***********************************************/
-                long startTime = config.startTime + rowCnt * rowSize * config.timeGap;
-//                System.out.println(">>> startTime: " + startTime + ",timeGap: " + config.timeGap);
+                long startTime = config.startTime + rowCnt * config.timeGap;
+//                System.out.print("tableCnt: " + tableCnt + ", tableSize: " + tableSize + ", rowCnt: " + rowCnt + ", rowSize: " + rowSize);
+//                System.out.println(", startTime: " + TimeStampUtil.longToDatetime(startTime) + ",timeGap: " + config.timeGap);
+
                 // 生成数据
                 List<SubTableValue> data = SubTableValueGenerator.generate(subTableMetaList, tableCnt, tableSize, rowSize, startTime, config.timeGap);
                 // 乱序
@@ -143,6 +145,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
             tableCnt += tableSize;
         }
 
+        /*********************************************************************************/
         // 批量插入，自动建表
 //            dataList.stream().forEach(subTableValues -> {
 //                subTableService.insertAutoCreateTable(subTableValues, config.numOfThreadsForInsert, config.frequency);
