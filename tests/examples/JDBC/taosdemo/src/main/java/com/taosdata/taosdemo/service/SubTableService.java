@@ -151,9 +151,9 @@ public class SubTableService extends AbstractService {
             for (int j = 0; j < subTableValue.getTags().size(); j++) {
                 TagValue tagValue = subTableValue.getTags().get(j);
                 if (j == 0)
-                    sb.append("" + tagValue.getValue());
+                    sb.append("'" + tagValue.getValue() + "'");
                 else
-                    sb.append(", " + tagValue.getValue());
+                    sb.append(", '" + tagValue.getValue() + "'");
             }
             sb.append(") values");
             for (int j = 0; j < subTableValue.getValues().size(); j++) {
@@ -162,9 +162,9 @@ public class SubTableService extends AbstractService {
                 for (int k = 0; k < rowValue.getFields().size(); k++) {
                     FieldValue fieldValue = rowValue.getFields().get(k);
                     if (k == 0)
-                        sb.append("" + fieldValue.getValue());
+                        sb.append("'" + fieldValue.getValue() + "'");
                     else
-                        sb.append(", " + fieldValue.getValue());
+                        sb.append(", '" + fieldValue.getValue() + "'");
                 }
                 sb.append(") ");
             }
