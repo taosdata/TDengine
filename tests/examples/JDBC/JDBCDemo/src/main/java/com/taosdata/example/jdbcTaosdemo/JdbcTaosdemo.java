@@ -286,7 +286,6 @@ public class JdbcTaosdemo {
         executeQuery(sql);
     }
 
-
     private void close() {
         try {
             if (connection != null) {

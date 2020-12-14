@@ -5,9 +5,15 @@ import com.taosdata.taosdemo.domain.SubTableValue;
 import com.taosdata.taosdemo.domain.SuperTableMeta;
 import com.taosdata.taosdemo.mapper.SubTableMapper;
 import com.taosdata.taosdemo.service.data.SubTableMetaGenerator;
+import org.apache.ibatis.session.SqlSessionFactory;
+import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import javax.sql.DataSource;
+import java.sql.Connection;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -17,6 +23,8 @@ import java.util.concurrent.TimeUnit;
 
 @Service
 public class SubTableService extends AbstractService {
+
+    private static Logger logger = Logger.getLogger(SubTableService.class);
 
     @Autowired
     private SubTableMapper mapper;
@@ -99,10 +107,42 @@ public class SubTableService extends AbstractService {
         return mapper.insertOneTableMultiValuesUsingSuperTable(subTableValue);
     }
 
+    @Autowired
+    private SqlSessionFactory sqlSessionFactory;
+    @Autowired
+    private DataSource dataSource;
+
     // 插入：多表，自动建表, insert into xxx using XXX tags(...) values(),()... xxx using XXX tags(...) values(),()...
     public int insertAutoCreateTable(List<SubTableValue> subTableValues) {
-        return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
+        Connection connection = null;
+        Statement statement = null;
+        int affectRows = 0;
+        try {
+            connection = dataSource.getConnection();
+            String sql = sqlSessionFactory.getConfiguration()
+                    .getMappedStatement("com.taosdata.taosdemo.mapper.SubTableMapper.insertMultiTableMultiValuesUsingSuperTable")
+                    .getBoundSql(subTableValues)
+                    .getSql();
+            logger.info(">>> SQL : " + sql);
+//            statement = connection.createStatement();
+//            affectRows = statement.executeUpdate(sql);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        } finally {
+            try {
+                if (statement != null) {
+                    statement.close();
+                }
+                if (connection != null)
+                    connection.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
+        return affectRows;
     }
+
+//        return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
 
     private static void sleep(int sleep) {
         if (sleep <= 0)
