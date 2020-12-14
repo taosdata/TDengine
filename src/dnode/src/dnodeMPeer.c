@@ -15,16 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
-#include "taosmsg.h"
-#include "tutil.h"
 #include "tqueue.h"
 #include "twal.h"
-#include "tglobal.h"
 #include "mnode.h"
-#include "dnode.h"
-#include "dnodeInt.h"
-#include "dnodeMgmt.h"
+#include "dnodeVMgmt.h"
+#include "dnodeMInfos.h"
 #include "dnodeMWrite.h"
 
 typedef struct {

@@ -15,15 +15,10 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosdef.h"
-#include "taosmsg.h"
-#include "tglobal.h"
 #include "mnode.h"
 #include "http.h"
 #include "tmqtt.h"
 #include "monitor.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeModule.h"
 
 typedef struct {
@@ -102,6 +97,20 @@ void dnodeCleanupModules() {
   }
 }
 
+static int32_t dnodeStartModules() {
+  for (EModuleType module = 1; module < TSDB_MOD_MAX; ++module) {
+    if (tsModule[module].enable && tsModule[module].startFp) {
+      int32_t code = (*tsModule[module].startFp)();
+      if (code != 0) {
+        dError("failed to start module:%s, code:%d", tsModule[module].name, code);
+        return code;
+      }
+    }
+  }
+
+  return 0;
+}
+
 int32_t dnodeInitModules() {
   dnodeAllocModules();
 
@@ -115,17 +124,7 @@ int32_t dnodeInitModules() {
   }
 
   dInfo("dnode modules is initialized");
-  return 0;
-}
-
-void dnodeStartModules() {
-  for (EModuleType module = 1; module < TSDB_MOD_MAX; ++module) {
-    if (tsModule[module].enable && tsModule[module].startFp) {
-      if ((*tsModule[module].startFp)() != 0) {
-        dError("failed to start module:%s", tsModule[module].name);
-      }
-    }
-  }
+  return dnodeStartModules();
 }
 
 void dnodeProcessModuleStatus(uint32_t moduleStatus) {

@@ -45,13 +45,13 @@ typedef struct SShellArguments {
   char* timezone;
   bool  is_raw_time;
   bool  is_use_passwd;
+  bool  dump_config;
   char  file[TSDB_FILENAME_LEN];
   char  dir[TSDB_FILENAME_LEN];
   int   threadNum;
   char* commands;
   int   abort;
   int   port;
-  int   endPort;
   int   pktLen;
   char* netTestRole;
 } SShellArguments;

@@ -19,13 +19,21 @@ python3 ./test.py -f insert/randomNullCommit.py
 python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
+python3 ./test.py -f query/isNullTest.py
 
+#table
 python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
 python3 ./test.py -f table/column_num.py
 python3 ./test.py -f table/db_table.py
 python3 ./test.py -f table/create_sensitive.py
 #python3 ./test.py -f table/tablename-boundary.py
+python3 ./test.py  -f table/max_table_length.py
+python3 ./test.py -f table/alter_column.py
+python3 ./test.py -f table/boundary.py
+python3 ./test.py -f table/create.py
+python3 ./test.py -f table/del_stable.py
+python3 ./test.py -f table/queryWithTaosdKilled.py
 
 # tag
 python3 ./test.py -f tag_lite/filter.py
@@ -134,9 +142,6 @@ python3 ./test.py -f user/pass_len.py
 # stable
 python3 ./test.py -f stable/query_after_reset.py
 
-# table
-python3 ./test.py -f table/del_stable.py
-
 #query
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterCombo.py
@@ -159,7 +164,9 @@ python3 ./test.py -f query/bug1874.py
 python3 ./test.py -f query/bug1875.py
 python3 ./test.py -f query/bug1876.py
 python3 ./test.py -f query/bug2218.py 
-
+python3 ./test.py -f query/bug2281.py
+python3 ./test.py -f query/bug2119.py
+python3 bug2265.py
 #stream
 python3 ./test.py -f stream/metric_1.py
 python3 ./test.py -f stream/new.py
@@ -199,6 +206,7 @@ python3 ./test.py -f functions/function_stddev.py -r 1
 python3 ./test.py -f functions/function_sum.py -r 1
 python3 ./test.py -f functions/function_top.py -r 1
 #python3 ./test.py -f functions/function_twa.py -r 1
+python3 ./test.py -f functions/function_twa_test2.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py

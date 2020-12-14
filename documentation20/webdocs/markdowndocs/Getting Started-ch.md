@@ -2,7 +2,35 @@
 
 ## 快捷安装
 
-TDengine软件分为服务器、客户端和报警模块三部分，目前2.0版仅能在Linux系统上安装和运行，后续会支持Windows、MAC OS等系统。如果应用需要在Windows或Mac上运行，目前只能使用TDengine的RESTful接口连接服务器。硬件支持X64，后续会支持ARM、龙芯等CPU系统。用户可根据需求选择通过[源码](https://www.taosdata.com/cn/getting-started/#通过源码安装)或者[安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装)来安装。
+TDengine软件分为服务器、客户端和报警模块三部分，目前2.0版服务器仅能在Linux系统上安装和运行，后续会支持Windows、mac OS等系统。
+
+**应用驱动**
+
+如果应用在Windows和Linux上运行，可使用C/C++/C#/JAVA/Python/Go/Node.js接口连接服务器。如果应用在Mac上运行，目前可以使用RESTful接口连接服务器。
+
+**CPU**
+
+CPU支持X64/ARM64/MIPS64/Alpha64，后续会支持ARM32、RISC-V等CPU架构。用户可根据需求选择通过[源码](https://www.taosdata.com/cn/getting-started/#通过源码安装)或者[安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装)来安装。
+
+**服务器**
+
+目前TDengine服务器可以运行在以下平台上：
+
+|                | **CentOS**  **6/7/8** | **Ubuntu**  **16/18/20** | **Other Linux** | **Win64/32** | **macOS** | **统信****UOS** | **银河****/****中标麒麟** | **凝思**  **V60/V80** |
+| -------------- | --------------------- | ------------------------ | --------------- | ------------ | --------- | --------------- | ------------------------- | --------------------- |
+| X64            | ●                     | ●                        |                 | ○/○          | ○         | ○               | ●                         | ●                     |
+| 树莓派ARM32    |                       | ●                        | ●               |              |           |                 |                           |                       |
+| 龙芯MIPS64     |                       |                          | ●               |              |           |                 |                           |                       |
+| 鲲鹏  ARM64    |                       | ○                        | ○               |              |           |                 | ●                         |                       |
+| 申威  Alpha64  |                       |                          | ○               |              |           | ●               |                           |                       |
+| 飞腾ARM64      |                       |                          | ○优麒麟         |              |           |                 |                           |                       |
+| 海光X64        | ●                     | ●                        | ●               |              |           | ○               | ●                         | ●                     |
+| 瑞芯微ARM64/32 |                       |                          | ○               |              |           |                 |                           |                       |
+| 全志ARM64/32   |                       |                          | ○               |              |           |                 |                           |                       |
+| 炬力ARM64/32   |                       |                          | ○               |              |           |                 |                           |                       |
+| TI ARM32       |                       |                          | ○               |              |           |                 |                           |                       |
+
+ 
 
 ### 通过源码安装
 
@@ -16,27 +44,26 @@ TDengine软件分为服务器、客户端和报警模块三部分，目前2.0版
 
 服务器部分，我们提供三种安装包，您可以根据需要选择。TDengine的安装非常简单，从下载到安装成功仅仅只要几秒钟。
 
-<ul id='packageList'>
-<li><a id='tdengine-rpm' style='color:var(--b2)'>TDengine-server-2.0.0.0-Linux-x64.rpm (5.3M)</a></li>
-<li><a id='tdengine-deb' style='color:var(--b2)'>TDengine-server-2.0.0.0-Linux-x64.deb (2.5M)</a></li>
-<li><a id='tdengine-tar' style='color:var(--b2)'>TDengine-server-2.0.0.0-Linux-x64.tar.gz (5.3M)</a></li>
-</ul>
+- TDengine-server-2.0.9.0-Linux-x64.rpm (4.2M)
+- TDengine-server-2.0.9.0-Linux-x64.deb (2.7M)
+- TDengine-server-2.0.9.0-Linux-x64.tar.gz (4.5M)
+
 
 客户端部分，Linux安装包如下：
 
-- TDengine-client-2.0.0.0-Linux-x64.tar.gz (3.4M)
+- TDengine-client-2.0.9.0-Linux-x64.tar.gz(3.0M)
+- TDengine-client-2.0.9.0-Windows-x64.exe(2.8M)
+- TDengine-client-2.0.9.0-Windows-x86.exe(2.8M)
 
 报警模块的Linux安装包如下（请参考[报警模块的使用方法](https://github.com/taosdata/TDengine/blob/master/alert/README_cn.md)）：
 
-- TDengine-alert-2.0.0-Linux-x64.tar.gz (8.1M)
+- TDengine-alert-2.0.9.0-Linux-x64.tar.gz (8.1M)
 
-目前，TDengine只支持在使用[`systemd`](https://en.wikipedia.org/wiki/Systemd)做进程服务管理的linux系统上安装。其他linux系统的支持正在开发中。用`which systemctl`命令来检测系统中是否存在`systemd`包:
+目前，TDengine 支持在使用[`systemd`](https://en.wikipedia.org/wiki/Systemd)做进程服务管理的linux系统上安装，用`which systemctl`命令来检测系统中是否存在`systemd`包:
 
 ```cmd
 which systemctl
 ```
-
-如果系统中不存在`systemd`包，请考虑[通过源码安装](#通过源码安装)TDengine。
 
 具体的安装过程，请参见<a href="https://www.taosdata.com/blog/2019/08/09/566.html">TDengine多种安装包的安装和卸载</a>。
 
@@ -54,11 +81,13 @@ systemctl status taosd
 ```
 
 如果TDengine服务正常工作，那么您可以通过TDengine的命令行程序`taos`来访问并体验TDengine。  
-  
+
 **注意：**  
-  
+
 - systemctl命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 sudo
 - 为更好的获得产品反馈，改善产品，TDengine会采集基本的使用信息，但您可以修改系统配置文件taos.cfg里的配置参数telemetryReporting, 将其设为0，就可将其关闭。
+
+如果系统中不支持`systemd`，也可以用手动运行 /usr/local/taos/bin/taosd 方式启动 TDengine 服务。
 
 ## TDengine命令行程序
 

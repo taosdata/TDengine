@@ -15,17 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
-#include "taosmsg.h"
-#include "tutil.h"
 #include "ttimer.h"
 #include "tqueue.h"
-#include "twal.h"
-#include "tglobal.h"
 #include "mnode.h"
-#include "dnode.h"
-#include "dnodeInt.h"
-#include "dnodeMgmt.h"
+#include "dnodeVMgmt.h"
+#include "dnodeMInfos.h"
 #include "dnodeMWrite.h"
 
 typedef struct {
@@ -127,7 +121,7 @@ void dnodeDispatchToMWriteQueue(SRpcMsg *pMsg) {
     dnodeSendRedirectMsg(pMsg, true);
   } else {
     SMnodeMsg *pWrite = mnodeCreateMsg(pMsg);
-    dDebug("msg:%p, app:%p type:%s is put into mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
+    dTrace("msg:%p, app:%p type:%s is put into mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
            taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
     taosWriteQitem(tsMWriteQueue, TAOS_QTYPE_RPC, pWrite);
   }
@@ -136,7 +130,7 @@ void dnodeDispatchToMWriteQueue(SRpcMsg *pMsg) {
 }
 
 static void dnodeFreeMWriteMsg(SMnodeMsg *pWrite) {
-  dDebug("msg:%p, app:%p type:%s is freed from mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
+  dTrace("msg:%p, app:%p type:%s is freed from mwrite queue:%p", pWrite, pWrite->rpcMsg.ahandle,
          taosMsg[pWrite->rpcMsg.msgType], tsMWriteQueue);
 
   mnodeCleanupMsg(pWrite);

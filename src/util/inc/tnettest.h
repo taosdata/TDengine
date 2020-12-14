@@ -20,27 +20,7 @@
 extern "C" {
 #endif
 
-typedef struct CmdArguments {
-  char* host;
-  char* password;
-  char* user;
-  char* auth;
-  char* database;
-  char* timezone;
-  bool  is_raw_time;
-  bool  is_use_passwd;
-  char  file[TSDB_FILENAME_LEN];
-  char  dir[TSDB_FILENAME_LEN];
-  int   threadNum;
-  char* commands;
-  int   abort;
-  int   port;
-  int   endPort;
-  int   pktLen;
-  char* netTestRole;
-} CmdArguments;
-
-void taosNetTest(CmdArguments* args);
+void taosNetTest(char *role, char *host, int port, int pkgLen);
 
 #ifdef __cplusplus
 }

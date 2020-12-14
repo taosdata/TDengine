@@ -32,14 +32,14 @@
 /**************** Global variables ****************/
 #ifdef _TD_POWER_
 char      CLIENT_VERSION[] = "Welcome to the PowerDB shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2017 by PowerDB, Inc. All rights reserved.\n\n";
+                             "Copyright (c) 2020 by PowerDB, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "power> ";
 
 char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 7;
 #else
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2017 by TAOS Data, Inc. All rights reserved.\n\n";
+                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
 
 char      CONTINUE_PROMPT[] = "   -> ";
@@ -509,7 +509,9 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
 
 
 static void shellPrintNChar(const char *str, int length, int width) {
-  int pos = 0, cols = 0;
+  wchar_t tail[3];
+  int pos = 0, cols = 0, totalCols = 0, tailLen = 0;
+
   while (pos < length) {
     wchar_t wc;
     int bytes = mbtowc(&wc, str + pos, MB_CUR_MAX);
@@ -526,13 +528,42 @@ static void shellPrintNChar(const char *str, int length, int width) {
 #else
     int w = wcwidth(wc);
 #endif
-    if (w > 0) {
-      if (width > 0 && cols + w > width) {
-        break;
-      }
+    if (w <= 0) {
+      continue;
+    }
+
+    if (width <= 0) {
+      printf("%lc", wc);
+      continue;
+    }
+
+    totalCols += w;
+    if (totalCols > width) {
+      break;
+    }
+    if (totalCols <= (width - 3)) {
       printf("%lc", wc);
       cols += w;
+    } else {
+      tail[tailLen] = wc;
+      tailLen++;
     }
+  }
+
+  if (totalCols > width) {
+    // width could be 1 or 2, so printf("...") cannot be used
+    for (int i = 0; i < 3; i++) {
+      if (cols >= width) {
+        break;
+      }
+      putchar('.');
+      ++cols;
+    }
+  } else {
+    for (int i = 0; i < tailLen; i++) {
+      printf("%lc", tail[i]);
+    }
+    cols = totalCols;
   }
 
   for (; cols < width; cols++) {
@@ -656,12 +687,20 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
       return MAX(25, width);
 
     case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
       if (field->bytes > tsMaxBinaryDisplayWidth) {
         return MAX(tsMaxBinaryDisplayWidth, width);
       } else {
         return MAX(field->bytes, width);
       }
+
+    case TSDB_DATA_TYPE_NCHAR: {
+      int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
+      if (bytes > tsMaxBinaryDisplayWidth) {
+        return MAX(tsMaxBinaryDisplayWidth, width);
+      } else {
+        return MAX(bytes, width);
+      }
+    }
 
     case TSDB_DATA_TYPE_TIMESTAMP:
       if (args.is_raw_time) {

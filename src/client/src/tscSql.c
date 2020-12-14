@@ -344,7 +344,7 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, TAOS_RES
     return NULL;
   }
 
-  taosNotePrintTsc(sqlstr);
+  nPrintTsc(sqlstr);
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
@@ -900,9 +900,9 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   strtolower(pSql->sqlstr, sql);
 
   pCmd->curSql = NULL;
-  if (NULL != pCmd->pTableList) {
-    taosHashCleanup(pCmd->pTableList);
-    pCmd->pTableList = NULL;
+  if (NULL != pCmd->pTableBlockHashList) {
+    taosHashCleanup(pCmd->pTableBlockHashList);
+    pCmd->pTableBlockHashList = NULL;
   }
 
   pSql->fp = asyncCallback;
