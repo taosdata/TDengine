@@ -183,18 +183,23 @@ static int32_t sdbInitWal() {
     return -1;
   }
 
-  sdbInfo("vgId:1, open wal for restore");
+  sdbInfo("vgId:1, open sdb wal for restore");
   int32_t code = walRestore(tsSdbMgmt.wal, NULL, sdbProcessWrite);
   if (code != TSDB_CODE_SUCCESS) {
     sdbError("vgId:1, failed to open wal for restore since %s", tstrerror(code));
     return -1;
   }
+
+  sdbInfo("vgId:1, sdb wal load success");
   return 0;
 }
 
 static void sdbRestoreTables() {
   int32_t totalRows = 0;
   int32_t numOfTables = 0;
+
+  sdbInfo("vgId:1, sdb start to check for integrity");
+
   for (int32_t tableId = 0; tableId < SDB_TABLE_MAX; ++tableId) {
     SSdbTable *pTable = sdbGetTableFromId(tableId);
     if (pTable == NULL) continue;
@@ -204,7 +209,7 @@ static void sdbRestoreTables() {
 
     totalRows += pTable->numOfRows;
     numOfTables++;
-    sdbDebug("vgId:1, sdb:%s is restored, rows:%" PRId64, pTable->name, pTable->numOfRows);
+    sdbInfo("vgId:1, sdb:%s is checked, rows:%" PRId64, pTable->name, pTable->numOfRows);
   }
 
   sdbInfo("vgId:1, sdb is restored, mver:%" PRIu64 " rows:%d tables:%d", tsSdbMgmt.version, totalRows, numOfTables);
