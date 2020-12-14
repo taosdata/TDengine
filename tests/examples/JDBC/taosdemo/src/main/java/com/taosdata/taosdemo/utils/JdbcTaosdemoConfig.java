@@ -21,18 +21,18 @@ public final class JdbcTaosdemoConfig {
     public String superTableSQL;
     //sub table
     public String tablePrefix = "t";
-    public int numOfTables = 100;
+    public int numOfTables = 1;
     public int numOfThreadsForCreate = 1;
     // insert task
     public boolean autoCreateTable;
-    public int numOfRowsPerTable = 100;
+    public int numOfRowsPerTable = 1;
     public int numOfThreadsForInsert = 1;
-    public int numOfTablesPerSQL = 10;
-    public int numOfValuesPerSQL = 10;
+    public int numOfTablesPerSQL = 1;
+    public int numOfValuesPerSQL = 1;
     public long startTime;
     public long timeGap;
-    public int sleep = 0;
-    public int order = 0;
+    public int frequency;
+    public int order;
     public int rate = 10;
     public long range = 1000l;
     // select task
@@ -74,11 +74,10 @@ public final class JdbcTaosdemoConfig {
         System.out.println("-numOfValuesPerSQL          The number of value per SQL. Default is 1");
         System.out.println("-startTime                  start time for insert task, The format is \"yyyy-MM-dd HH:mm:ss.SSS\".");
         System.out.println("-timeGap                    the number of time gap. Default is 1000 ms");
-        System.out.println("-sleep                      The number of milliseconds for sleep after each insert. default is 0");
+        System.out.println("-frequency                  the number of records per second inserted into one table. default is 0, do not control frequency");
         System.out.println("-order                      Insert mode--0: In order, 1: Out of order. Default is in order");
         System.out.println("-rate                       The proportion of data out of order. effective only if order is 1. min 0, max 100, default is 10");
         System.out.println("-range                      The range of data out of order. effective only if order is 1. default is 1000 ms");
-
         // query task
 //        System.out.println("-sqlFile                   The select sql file");
         // drop task
@@ -174,8 +173,8 @@ public final class JdbcTaosdemoConfig {
             if ("-timeGap".equals(args[i]) && i < args.length - 1) {
                 timeGap = Long.parseLong(args[++i]);
             }
-            if ("-sleep".equals(args[i]) && i < args.length - 1) {
-                sleep = Integer.parseInt(args[++i]);
+            if ("-frequency".equals(args[i]) && i < args.length - 1) {
+                frequency = Integer.parseInt(args[++i]);
             }
             if ("-order".equals(args[i]) && i < args.length - 1) {
                 order = Integer.parseInt(args[++i]);

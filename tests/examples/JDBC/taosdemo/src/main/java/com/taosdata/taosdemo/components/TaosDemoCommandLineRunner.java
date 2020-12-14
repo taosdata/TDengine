@@ -14,7 +14,6 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
 import java.util.*;
-import java.util.concurrent.TimeUnit;
 
 
 @Component
@@ -30,9 +29,8 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
 
     private SuperTableMeta superTableMeta;
     private List<SubTableMeta> subTableMetaList;
-    private List<SubTableValue> subTableValueList;
-    private List<List<SubTableValue>> dataList;
-
+//    private List<SubTableValue> subTableValueList;
+//    private List<List<SubTableValue>> dataList;
 
     @Override
     public void run(String... args) throws Exception {
@@ -44,7 +42,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
             System.exit(0);
         }
         // 准备数据
-        prepareData(config);
+        prepareMetaData(config);
         // 创建数据库
         createDatabaseTask(config);
         // 建表
@@ -52,6 +50,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         // 插入
         insertTask(config);
         // 查询: 1. 生成查询语句, 2. 执行查询
+
         // 删除表
         if (config.dropTable) {
             superTableService.drop(config.database, config.superTable);
@@ -62,7 +61,6 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
 
     private void createDatabaseTask(JdbcTaosdemoConfig config) {
         long start = System.currentTimeMillis();
-
         Map<String, String> databaseParam = new HashMap<>();
         databaseParam.put("database", config.database);
         databaseParam.put("keep", Integer.toString(config.keep));
@@ -72,9 +70,8 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         databaseService.dropDatabase(config.database);
         databaseService.createDatabase(databaseParam);
         databaseService.useDatabase(config.database);
-
         long end = System.currentTimeMillis();
-        logger.info(">>> insert time cost : " + (end - start) + " ms.");
+        logger.info(">>> create database time cost : " + (end - start) + " ms.");
     }
 
     // 建超级表，三种方式：1. 指定SQL，2. 指定field和tags的个数，3. 默认
@@ -92,30 +89,71 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
     private void insertTask(JdbcTaosdemoConfig config) {
         long start = System.currentTimeMillis();
 
-        int numOfThreadsForInsert = config.numOfThreadsForInsert;
-        int sleep = config.sleep;
-        if (config.autoCreateTable) {
-            // 批量插入，自动建表
-            dataList.stream().forEach(subTableValues -> {
-                subTableService.insertAutoCreateTable(subTableValues, numOfThreadsForInsert);
-                sleep(sleep);
-            });
-        } else {
-            dataList.stream().forEach(subTableValues -> {
-                subTableService.insert(subTableValues, numOfThreadsForInsert);
-                sleep(sleep);
-            });
+        int numOfTables = config.numOfTables;
+        int numOfTablesPerSQL = config.numOfTablesPerSQL;
+        int numOfRowsPerTable = config.numOfRowsPerTable;
+        int numOfValuesPerSQL = config.numOfValuesPerSQL;
+
+        if (numOfRowsPerTable < numOfValuesPerSQL)
+            numOfValuesPerSQL = numOfRowsPerTable;
+        if (numOfTables < numOfTablesPerSQL)
+            numOfTablesPerSQL = numOfTables;
+        //table
+        for (int tableCnt = 0; tableCnt < numOfTables; ) {
+            int tableSize = numOfTablesPerSQL;
+            if (tableCnt + tableSize > numOfTables) {
+                tableSize = numOfTables - tableCnt;
+            }
+            // row
+            for (int rowCnt = 0; rowCnt < numOfRowsPerTable; ) {
+                int rowSize = numOfValuesPerSQL;
+                if (rowCnt + rowSize > numOfRowsPerTable) {
+                    rowSize = numOfRowsPerTable - rowCnt;
+                }
+                /***********************************************/
+                // 生成数据
+                List<SubTableValue> data = SubTableValueGenerator.generate(subTableMetaList, tableCnt, tableSize, rowSize, config.startTime, config.timeGap);
+                // 乱序
+                if (config.order != 0) {
+                    SubTableValueGenerator.disrupt(data, config.rate, config.range);
+                }
+                // insert
+                if (config.autoCreateTable) {
+                    subTableService.insertAutoCreateTable(data, config.numOfThreadsForInsert, config.frequency);
+                } else {
+                    subTableService.insert(data, config.numOfThreadsForInsert, config.frequency);
+                }
+                /***********************************************/
+                rowCnt += rowSize;
+            }
+            tableCnt += tableSize;
         }
+
+        // 批量插入，自动建表
+//            dataList.stream().forEach(subTableValues -> {
+//                subTableService.insertAutoCreateTable(subTableValues, config.numOfThreadsForInsert, config.frequency);
+//            });
+
+//            subTableService.insertAutoCreateTable(subTableMetaList, config.numOfTables, config.tablePrefix, config.numOfThreadsForInsert, config.frequency);
+//        } else {
+//            dataList.stream().forEach(subTableValues -> {
+//                subTableService.insert(subTableValues, config.numOfThreadsForInsert, config.frequency);
+//            });
+
+//            subTableService.insert(subTableMetaList, config.numOfTables, config.tablePrefix, config.numOfThreadsForInsert, config.frequency);
+//        }
         long end = System.currentTimeMillis();
         logger.info(">>> insert time cost : " + (end - start) + " ms.");
     }
 
-    private void prepareData(JdbcTaosdemoConfig config) {
+    private void prepareMetaData(JdbcTaosdemoConfig config) {
         long start = System.currentTimeMillis();
         // 超级表的meta
         superTableMeta = createSupertable(config);
         // 子表的meta
         subTableMetaList = SubTableMetaGenerator.generate(superTableMeta, config.numOfTables, config.tablePrefix);
+
+        /*
         // 子表的data
         subTableValueList = SubTableValueGenerator.generate(subTableMetaList, config.numOfRowsPerTable, config.startTime, config.timeGap);
         // 如果有乱序，给数据搞乱
@@ -128,8 +166,9 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         int numOfRowsPerTable = config.numOfRowsPerTable;
         int numOfValuesPerSQL = config.numOfValuesPerSQL;
         dataList = SubTableValueGenerator.split(subTableValueList, numOfTables, numOfTablesPerSQL, numOfRowsPerTable, numOfValuesPerSQL);
+        */
         long end = System.currentTimeMillis();
-        logger.info(">>> prepare data time cost : " + (end - start) + " ms.");
+        logger.info(">>> prepare meta data time cost : " + (end - start) + " ms.");
     }
 
     private SuperTableMeta createSupertable(JdbcTaosdemoConfig config) {
@@ -139,6 +178,8 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         if (config.superTableSQL != null) {
             // use a sql to create super table
             tableMeta = SuperTableMetaGenerator.generate(config.superTableSQL);
+            if (config.database != null && !config.database.isEmpty())
+                tableMeta.setDatabase(config.database);
         } else if (config.numOfFields == 0) {
             // default sql = "create table test.weather (ts timestamp, temperature float, humidity int) tags(location nchar(64), groupId int)";
             SuperTableMeta superTableMeta = new SuperTableMeta();
@@ -161,14 +202,5 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         return tableMeta;
     }
 
-    private static void sleep(int sleep) {
-        if (sleep <= 0)
-            return;
-        try {
-            TimeUnit.MILLISECONDS.sleep(sleep);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
 
 }

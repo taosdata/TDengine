@@ -12,21 +12,7 @@ import java.util.List;
 public class SubTableValueGenerator {
 
     public static List<SubTableValue> generate(List<SubTableMeta> subTableMetaList, int numOfRowsPerTable, long start, long timeGap) {
-        List<SubTableValue> subTableValueList = new ArrayList<>();
-
-        subTableMetaList.stream().forEach((subTableMeta) -> {
-            // insert into xxx.xxx using xxxx tags(...) values(),()...
-            SubTableValue subTableValue = new SubTableValue();
-            subTableValue.setDatabase(subTableMeta.getDatabase());
-            subTableValue.setName(subTableMeta.getName());
-            subTableValue.setSupertable(subTableMeta.getSupertable());
-            subTableValue.setTags(subTableMeta.getTags());
-            TimeStampUtil.TimeTuple tuple = TimeStampUtil.range(start, timeGap, numOfRowsPerTable);
-            List<RowValue> values = FieldValueGenerator.generate(tuple.start, tuple.end, tuple.timeGap, subTableMeta.getFields());
-            subTableValue.setValues(values);
-            subTableValueList.add(subTableValue);
-        });
-        return subTableValueList;
+        return generate(subTableMetaList, 0, subTableMetaList.size(), numOfRowsPerTable, start, timeGap);
     }
 
     public static void disrupt(List<SubTableValue> subTableValueList, int rate, long range) {
@@ -38,12 +24,10 @@ public class SubTableValueGenerator {
 
     public static List<List<SubTableValue>> split(List<SubTableValue> subTableValueList, int numOfTables, int numOfTablesPerSQL, int numOfRowsPerTable, int numOfValuesPerSQL) {
         List<List<SubTableValue>> dataList = new ArrayList<>();
-
         if (numOfRowsPerTable < numOfValuesPerSQL)
             numOfValuesPerSQL = numOfRowsPerTable;
         if (numOfTables < numOfTablesPerSQL)
             numOfTablesPerSQL = numOfTables;
-
         //table
         for (int tableCnt = 0; tableCnt < numOfTables; ) {
             int tableSize = numOfTablesPerSQL;
@@ -81,4 +65,19 @@ public class SubTableValueGenerator {
         split(null, 99, 10, 99, 10);
     }
 
+    public static List<SubTableValue> generate(List<SubTableMeta> subTableMetaList, int tableCnt, int tableSize, int rowSize, long startTime, long timeGap) {
+        List<SubTableValue> subTableValueList = new ArrayList<>();
+        for (int i = 0; i < tableSize; i++) {
+            SubTableMeta subTableMeta = subTableMetaList.get(tableCnt + i);
+            SubTableValue subTableValue = new SubTableValue();
+            subTableValue.setDatabase(subTableMeta.getDatabase());
+            subTableValue.setName(subTableMeta.getName());
+            subTableValue.setSupertable(subTableMeta.getSupertable());
+            subTableValue.setTags(subTableMeta.getTags());
+            TimeStampUtil.TimeTuple tuple = TimeStampUtil.range(startTime, timeGap, rowSize);
+            List<RowValue> values = FieldValueGenerator.generate(tuple.start, tuple.end, tuple.timeGap, subTableMeta.getFields());
+            subTableValue.setValues(values);
+        }
+        return subTableValueList;
+    }
 }

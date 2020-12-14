@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 @Service
 public class SubTableService extends AbstractService {
@@ -51,18 +52,22 @@ public class SubTableService extends AbstractService {
 
     /*************************************************************************************************************************/
     // 插入：多线程，多表
-    public int insert(List<SubTableValue> subTableValues, int threadSize) {
+    public int insert(List<SubTableValue> subTableValues, int threadSize, int frequency) {
         ExecutorService executor = Executors.newFixedThreadPool(threadSize);
         Future<Integer> future = executor.submit(() -> insert(subTableValues));
         executor.shutdown();
+
+        //TODO：
+        sleep(1000);
         return getAffectRows(future);
     }
 
     // 插入：多线程，多表, 自动建表
-    public int insertAutoCreateTable(List<SubTableValue> subTableValues, int threadSize) {
+    public int insertAutoCreateTable(List<SubTableValue> subTableValues, int threadSize, int frequency) {
         ExecutorService executor = Executors.newFixedThreadPool(threadSize);
         Future<Integer> future = executor.submit(() -> insertAutoCreateTable(subTableValues));
         executor.shutdown();
+
         return getAffectRows(future);
     }
 
@@ -86,33 +91,14 @@ public class SubTableService extends AbstractService {
         return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
     }
 
-
-//        ExecutorService executors = Executors.newFixedThreadPool(threadSize);
-//        int count = 0;
-//
-//        //
-//        List<SubTableValue> subTableValues = new ArrayList<>();
-//        for (int tableIndex = 1; tableIndex <= numOfTablesPerSQL; tableIndex++) {
-//            // each table
-//            SubTableValue subTableValue = new SubTableValue();
-//            subTableValue.setDatabase();
-//            subTableValue.setName();
-//            subTableValue.setSupertable();
-//
-//            List<RowValue> values = new ArrayList<>();
-//            for (int valueCnt = 0; valueCnt < numOfValuesPerSQL; valueCnt++) {
-//                List<FieldValue> fields = new ArrayList<>();
-//                for (int fieldInd = 0; fieldInd <; fieldInd++) {
-//                    FieldValue<Object> field = new FieldValue<>("", "");
-//                    fields.add(field);
-//                }
-//                RowValue row = new RowValue();
-//                row.setFields(fields);
-//                values.add(row);
-//            }
-//            subTableValue.setValues(values);
-//            subTableValues.add(subTableValue);
-//        }
-
+    private static void sleep(int sleep) {
+        if (sleep <= 0)
+            return;
+        try {
+            TimeUnit.MILLISECONDS.sleep(sleep);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
 
 }
