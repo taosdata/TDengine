@@ -199,7 +199,8 @@ typedef struct {
 } SMsgDesc;
 
 typedef struct SMsgVersion {
-  char clientVersion[TSDB_VERSION_LEN];
+  char     clientVersion[TSDB_VERSION_LEN];
+  uint32_t crc;
 } SMsgVersion;
 
 typedef struct SMsgHead {
