@@ -298,7 +298,7 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
     if (pObj->pStream) {
       tscSetStreamDestTable(pObj->pStream, pObj->dstTable);
       pContext->num++;
-      cDebug("vgId:%d, id:%d CQ:%s is openned", pContext->vgId, pObj->tid, pObj->sqlStr);
+      cDebug("vgId:%d, id:%d CQ:%s is opened", pContext->vgId, pObj->tid, pObj->sqlStr);
     } else {
       cError("vgId:%d, id:%d CQ:%s, failed to open", pContext->vgId, pObj->tid, pObj->sqlStr);
     }

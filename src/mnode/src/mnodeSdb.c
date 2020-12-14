@@ -633,6 +633,12 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   SSdbTable *pTable = sdbGetTableFromId(tableId);
   assert(pTable != NULL);
 
+  if (!mnodeIsRunning() && tsSdbMgmt.version % 100000 == 0) {
+    char stepDesc[TSDB_STEP_DESC_LEN] = {0};
+    snprintf(stepDesc, TSDB_STEP_DESC_LEN, "%" PRIu64 " rows have been restored", tsSdbMgmt.version);
+    dnodeReportStep("mnode-sdb", stepDesc, 0);
+  }
+
   if (qtype == TAOS_QTYPE_QUERY) return sdbPerformDeleteAction(pHead, pTable);
 
   pthread_mutex_lock(&tsSdbMgmt.mutex);
