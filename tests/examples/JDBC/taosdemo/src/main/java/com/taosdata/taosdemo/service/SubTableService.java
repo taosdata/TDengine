@@ -56,9 +56,7 @@ public class SubTableService extends AbstractService {
         ExecutorService executor = Executors.newFixedThreadPool(threadSize);
         Future<Integer> future = executor.submit(() -> insert(subTableValues));
         executor.shutdown();
-
-        //TODO：
-        sleep(1000);
+        //TODO：frequency
         return getAffectRows(future);
     }
 
@@ -67,7 +65,6 @@ public class SubTableService extends AbstractService {
         ExecutorService executor = Executors.newFixedThreadPool(threadSize);
         Future<Integer> future = executor.submit(() -> insertAutoCreateTable(subTableValues));
         executor.shutdown();
-
         return getAffectRows(future);
     }
 
