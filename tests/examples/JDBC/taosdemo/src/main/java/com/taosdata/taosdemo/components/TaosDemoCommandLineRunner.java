@@ -79,6 +79,8 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         long start = System.currentTimeMillis();
         if (config.doCreateTable) {
             superTableService.create(superTableMeta);
+            if (config.autoCreateTable)
+                return;
             // 批量建子表
             subTableService.createSubTable(subTableMetaList, config.numOfThreadsForCreate);
         }
