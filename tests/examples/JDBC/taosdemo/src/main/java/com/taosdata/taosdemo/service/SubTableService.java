@@ -1,8 +1,6 @@
 package com.taosdata.taosdemo.service;
 
-import com.taosdata.taosdemo.domain.SubTableMeta;
-import com.taosdata.taosdemo.domain.SubTableValue;
-import com.taosdata.taosdemo.domain.SuperTableMeta;
+import com.taosdata.taosdemo.domain.*;
 import com.taosdata.taosdemo.mapper.SubTableMapper;
 import com.taosdata.taosdemo.service.data.SubTableMetaGenerator;
 import org.apache.ibatis.session.SqlSessionFactory;
@@ -119,10 +117,12 @@ public class SubTableService extends AbstractService {
         int affectRows = 0;
         try {
             connection = dataSource.getConnection();
-            String sql = sqlSessionFactory.getConfiguration()
-                    .getMappedStatement("com.taosdata.taosdemo.mapper.SubTableMapper.insertMultiTableMultiValuesUsingSuperTable")
-                    .getBoundSql(subTableValues)
-                    .getSql();
+//            String sql = sqlSessionFactory.getConfiguration()
+//                    .getMappedStatement("com.taosdata.taosdemo.mapper.SubTableMapper.insertMultiTableMultiValuesUsingSuperTable")
+//                    .getBoundSql(subTableValues)
+//                    .getSql();
+            String sql = sql(subTableValues);
+
             logger.info(">>> SQL : " + sql);
 //            statement = connection.createStatement();
 //            affectRows = statement.executeUpdate(sql);
@@ -140,9 +140,40 @@ public class SubTableService extends AbstractService {
             }
         }
         return affectRows;
+//        return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
     }
 
-//        return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
+    private String sql(List<SubTableValue> subTableValues) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("insert into ");
+        for (int i = 0; i < subTableValues.size(); i++) {
+            SubTableValue subTableValue = subTableValues.get(i);
+            sb.append(subTableValue.getDatabase() + "." + subTableValue.getName() + "using" + subTableValue.getSupertable() + " tags (");
+            for (int j = 0; j < subTableValue.getTags().size(); j++) {
+                TagValue tagValue = subTableValue.getTags().get(j);
+                if (j == 0)
+                    sb.append("" + tagValue.getValue());
+                else
+                    sb.append(", " + tagValue.getValue());
+            }
+            sb.append(") values");
+            for (int j = 0; j < subTableValue.getValues().size(); j++) {
+                sb.append("(");
+                RowValue rowValue = subTableValue.getValues().get(j);
+                for (int k = 0; k < rowValue.getFields().size(); k++) {
+                    FieldValue fieldValue = rowValue.getFields().get(k);
+                    if (k == 0)
+                        sb.append("" + fieldValue.getValue());
+                    else
+                        sb.append(", " + fieldValue.getValue());
+                }
+                sb.append(") ");
+            }
+        }
+
+        return sb.toString();
+    }
+
 
     private static void sleep(int sleep) {
         if (sleep <= 0)
