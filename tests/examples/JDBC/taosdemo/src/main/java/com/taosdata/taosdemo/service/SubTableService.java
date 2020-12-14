@@ -122,10 +122,9 @@ public class SubTableService extends AbstractService {
 //                    .getBoundSql(subTableValues)
 //                    .getSql();
             String sql = sql(subTableValues);
-
             logger.info(">>> SQL : " + sql);
-//            statement = connection.createStatement();
-//            affectRows = statement.executeUpdate(sql);
+            statement = connection.createStatement();
+            affectRows = statement.executeUpdate(sql);
         } catch (SQLException e) {
             e.printStackTrace();
         } finally {
@@ -148,7 +147,7 @@ public class SubTableService extends AbstractService {
         sb.append("insert into ");
         for (int i = 0; i < subTableValues.size(); i++) {
             SubTableValue subTableValue = subTableValues.get(i);
-            sb.append(subTableValue.getDatabase() + "." + subTableValue.getName() + "using" + subTableValue.getSupertable() + " tags (");
+            sb.append(subTableValue.getDatabase() + "." + subTableValue.getName() + " using " + subTableValue.getSupertable() + " tags (");
             for (int j = 0; j < subTableValue.getTags().size(); j++) {
                 TagValue tagValue = subTableValue.getTags().get(j);
                 if (j == 0)
