@@ -1,18 +1,36 @@
 
 properties([pipelineTriggers([githubPush()])])
 node {
-    git url: 'https://github.com/taosdata/TDengine'
+    git url: 'https://github.com/liuyq-617/TDengine.git'
 }
 
 
 // execute this before anything else, including requesting any time on an agent
-if (currentBuild.rawBuild.getCauses().toString().contains('BranchIndexingCause')) {
-  print "INFO: Build skipped due to trigger being Branch Indexing"
-  currentBuild.result = 'ABORTED' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
-  return
+// if (currentBuild.rawBuild.getCauses().toString().contains('BranchIndexingCause')) {
+//   print "INFO: Build skipped due to trigger being Branch Indexing"
+//   currentBuild.result = 'success skip' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
+//   return
+// }
+def abortPreviousBuilds() {
+  def currentJobName = env.JOB_NAME
+  def currentBuildNumber = env.BUILD_NUMBER.toInteger()
+  def jobs = Jenkins.instance.getItemByFullName(currentJobName)
+  def builds = jobs.getBuilds()
+
+  for (build in builds) {
+    if (!build.isBuilding()) {
+      continue;
+    }
+
+    if (currentBuildNumber == build.getNumber().toInteger()) {
+      continue;
+    }
+
+    build.doStop()
+  }
 }
-
-
+//停止之前相同的分支sdfgsd
+abortPreviousBuilds()
 def pre_test(){
     catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
@@ -20,6 +38,7 @@ def pre_test(){
                 '''
     }
     sh '''
+    
     cd ${WKC}
     rm -rf *
     cd ${WK}
@@ -55,6 +74,7 @@ pipeline {
         stage('python p1') {
           agent{label 'p1'}
           steps {
+            abortPreviousBuilds()
             pre_test()
             sh '''
             cd ${WKC}/tests
@@ -65,6 +85,7 @@ pipeline {
         stage('test_b1') {
           agent{label 'b1'}
           steps {
+            abortPreviousBuilds()
             pre_test()
             sh '''
             cd ${WKC}/tests
@@ -76,6 +97,7 @@ pipeline {
         stage('test_crash_gen') {
           agent{label "b2"}
           steps {
+            abortPreviousBuilds()
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
@@ -102,6 +124,7 @@ pipeline {
           agent{label "b3"}
 
           steps {
+            abortPreviousBuilds()
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
@@ -120,6 +143,7 @@ pipeline {
        stage('python p2'){
          agent{label "p2"}
          steps{
+           abortPreviousBuilds()
             pre_test()         
             sh '''
             date
@@ -127,14 +151,10 @@ pipeline {
             ./test-all.sh p2
             date
             '''
-          
          }
-       }
-       
-          
+       }   
       }
     }
-
   }
   
 }
