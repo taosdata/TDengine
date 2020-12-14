@@ -116,6 +116,8 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         if (numOfTables < numOfTablesPerSQL)
             numOfTablesPerSQL = numOfTables;
 
+        long timeCost = 0;
+
         // row
         for (int rowCnt = 0; rowCnt < numOfRowsPerTable; ) {
             int rowSize = numOfValuesPerSQL;
@@ -150,6 +152,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
                     subTableService.insertAutoCreateTable(data, config.numOfThreadsForInsert, config.frequency);
                     long b = System.currentTimeMillis();
                     logger.info(">>> time cost: " + (b - a) + " ms");
+                    timeCost += (b - a);
                 } else {
                     subTableService.insert(data, config.numOfThreadsForInsert, config.frequency);
                 }
@@ -175,7 +178,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
 //            subTableService.insert(subTableMetaList, config.numOfTables, config.tablePrefix, config.numOfThreadsForInsert, config.frequency);
 //        }
         long end = System.currentTimeMillis();
-        logger.info(">>> insert time cost : " + (end - start) + " ms.");
+        logger.info(">>> total : " + (end - start) + " ms, insert : " + (timeCost) + " ms.");
     }
 
     private void prepareMetaData(JdbcTaosdemoConfig config) {
