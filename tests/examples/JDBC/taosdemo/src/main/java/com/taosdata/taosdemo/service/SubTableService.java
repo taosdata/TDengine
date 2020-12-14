@@ -162,7 +162,7 @@ public class SubTableService extends AbstractService {
                 for (int k = 0; k < rowValue.getFields().size(); k++) {
                     FieldValue fieldValue = rowValue.getFields().get(k);
                     if (k == 0)
-                        sb.append("'" + fieldValue.getValue() + "'");
+                        sb.append("" + fieldValue.getValue() + "");
                     else
                         sb.append(", '" + fieldValue.getValue() + "'");
                 }
