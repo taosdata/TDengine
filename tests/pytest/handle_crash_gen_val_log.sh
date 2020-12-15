@@ -6,7 +6,7 @@ GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 nohup /var/lib/jenkins/workspace/TDinternal/debug/build/bin/taosd -c /var/lib/jenkins/workspace/TDinternal/community/sim/dnode1/cfg >/dev/null &
-./crash_gen.sh --valgrind -p -t 10 -s 100 -b 4
+./crash_gen.sh --valgrind -p -t 10 -s 250 -b 4
 pidof taosd|xargs kill  
 grep 'start to execute\|ERROR SUMMARY' valgrind.err|grep -v 'grep'|uniq|tee crash_gen_mem_err.log
 
