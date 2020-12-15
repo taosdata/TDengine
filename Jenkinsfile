@@ -26,7 +26,7 @@ def abortPreviousBuilds() {
     build.doStop()
   }
 }
-//停止之前相同的分支
+//停止之前相同的分支dfd
 abortPreviousBuilds()
 def pre_test(){
     catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
