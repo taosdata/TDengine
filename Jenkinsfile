@@ -1,6 +1,8 @@
 
 properties([pipelineTriggers([githubPush()])])
-
+node {
+    git url: 'https://github.com/liuyq-617/TDengine.git'
+}
 
 // execute this before anything else, including requesting any time on an agent
 // if (currentBuild.rawBuild.getCauses().toString().contains('BranchIndexingCause')) {
