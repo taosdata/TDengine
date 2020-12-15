@@ -29,7 +29,7 @@ def abortPreviousBuilds() {
     build.doStop()
   }
 }
-//停止之前相同的分支sdfgsd
+//停止之前相同的分支
 abortPreviousBuilds()
 def pre_test(){
     catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
