@@ -6,11 +6,11 @@ node {
 
 
 // execute this before anything else, including requesting any time on an agent
-// if (currentBuild.rawBuild.getCauses().toString().contains('BranchIndexingCause')) {
-//   print "INFO: Build skipped due to trigger being Branch Indexing"
-//   currentBuild.result = 'success skip' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
-//   return
-// }
+if (currentBuild.rawBuild.getCauses().toString().contains('BranchIndexingCause')) {
+  print "INFO: Build skipped due to trigger being Branch Indexing"
+  currentBuild.result = 'success skip' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
+  return
+}
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -76,85 +76,11 @@ pipeline {
           steps {
             abortPreviousBuilds()
             pre_test()
-            sh '''
-            cd ${WKC}/tests
-            ./test-all.sh p1
-            date'''
+            
           }
         }
-        stage('test_b1') {
-          agent{label 'b1'}
-          steps {
-            abortPreviousBuilds()
-            pre_test()
-            sh '''
-            cd ${WKC}/tests
-            ./test-all.sh b1
-            date'''
-          }
-        }
-
-        stage('test_crash_gen') {
-          agent{label "b2"}
-          steps {
-            abortPreviousBuilds()
-            pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                ./crash_gen.sh -a -p -t 4 -s 2000
-                '''
-            }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                ./handle_crash_gen_val_log.sh
-                '''
-            }
-            sh '''
-            date
-            cd ${WKC}/tests
-            ./test-all.sh b2
-            date
-            '''
-          }
-        }
-
-        stage('test_valgrind') {
-          agent{label "b3"}
-
-          steps {
-            abortPreviousBuilds()
-            pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                ./valgrind-test.sh 2>&1 > mem-error-out.log
-                ./handle_val_log.sh
-                '''
-            }           
-            sh '''
-            date
-            cd ${WKC}/tests
-            ./test-all.sh b3
-            date'''
-          }
-        }
-       stage('python p2'){
-         agent{label "p2"}
-         steps{
-           abortPreviousBuilds()
-            pre_test()         
-            sh '''
-            date
-            cd ${WKC}/tests
-            ./test-all.sh p2
-            date
-            '''
-         }
-       }   
-      }
+        
     }
   }
-  
+  } 
 }
