@@ -10,7 +10,7 @@
 #
 ###################################################################
 # install pip
-# pip install src/connector/python/linux/python2/
+# pip install src/connector/python/linux/python2/sdfsdf
 
 # -*- coding: utf-8 -*-
 import sys
