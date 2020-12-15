@@ -156,7 +156,7 @@ static uint32_t grantGetCulsterCreateTime() {
 
 static uint32_t grantGetCulsterCurSpeed() { return 0; }
 
-static uint32_t grantGetCulsterCurTimeSeries() {
+uint32_t grantGetCulsterCurTimeSeries() {
   void *      pIter = NULL;
   SCTableObj *pTable = NULL;
   uint32_t    numOfPoints = 0;
@@ -272,7 +272,9 @@ static void grantResetMaster() {
   grantStatus.expired = false;
 
   grantStatus.curSpeed = grantGetCulsterCurSpeed();
+#if 0
   grantStatus.curTimeSeries = grantGetCulsterCurTimeSeries();
+#endif
   grantStatus.curQueryTime = grantGetCulsterCurQueryTime();
 
   char *ts = grantSecondsToString(grantStatus.expireTimeSec);
