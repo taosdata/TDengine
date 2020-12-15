@@ -1331,7 +1331,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       tscGetDBInfoFromTableFullName(p->fullname, pCreate->db);
       pMsg = serializeTagData(&p->tagdata, pMsg);
 
-      int32_t len = pMsg - (char*) pCreate;
+      int32_t len = (int32_t)(pMsg - (char*) pCreate);
       pCreate->len = htonl(len);
     }
   } else {  // create (super) table
