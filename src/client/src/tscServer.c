@@ -1312,7 +1312,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   if (type == TSQL_CREATE_TABLE_FROM_STABLE) {  // create by using super table, tags value
     SArray* list = pInfo->pCreateTableInfo->childTableInfo;
 
-    int32_t numOfTables = taosArrayGetSize(list);
+    int32_t numOfTables = (int32_t) taosArrayGetSize(list);
     pCreateTableMsg->numOfTables = htonl(numOfTables);
 
     pMsg = (char*) pCreateMsg;
