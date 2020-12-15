@@ -559,7 +559,9 @@ SCreateTableSQL *tSetCreateSQLElems(SArray *pCols, SArray *pTags, SQuerySQL *pSe
 }
 
 SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists) {
-  SCreatedTableInfo info = {0};
+  SCreatedTableInfo info;
+  memset(&info, 0, sizeof(SCreatedTableInfo));
+
   info.name       = *pToken;
   info.pTagVals   = pTagVals;
   info.stableName = *pTableName;
