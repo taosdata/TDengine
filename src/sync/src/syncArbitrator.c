@@ -22,17 +22,17 @@
 #include "tsocket.h"
 #include "tglobal.h"
 #include "taoserror.h"
-#include "taosTcpPool.h"
 #include "twal.h"
 #include "tsync.h"
 #include "syncInt.h"
+#include "syncTcp.h"
 
-static void     arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
-static void     arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
-static void     arbProcessBrokenLink(void *param);
-static int32_t  arbProcessPeerMsg(void *param, void *buffer);
-static tsem_t   tsArbSem;
-static ttpool_h tsArbTcpPool;
+static void    arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
+static void    arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
+static void    arbProcessBrokenLink(void *param);
+static int32_t arbProcessPeerMsg(void *param, void *buffer);
+static tsem_t  tsArbSem;
+static void *  tsArbTcpPool;
 
 typedef struct {
   char    id[TSDB_EP_LEN + 24];
@@ -90,7 +90,7 @@ int32_t main(int32_t argc, char *argv[]) {
   info.processBrokenLink = arbProcessBrokenLink;
   info.processIncomingMsg = arbProcessPeerMsg;
   info.processIncomingConn = arbProcessIncommingConnection;
-  tsArbTcpPool = taosOpenTcpThreadPool(&info);
+  tsArbTcpPool = syncOpenTcpThreadPool(&info);
 
   if (tsArbTcpPool == NULL) {
     sDebug("failed to open TCP thread pool, exit...");
@@ -101,8 +101,8 @@ int32_t main(int32_t argc, char *argv[]) {
 
   tsem_wait(&tsArbSem);
 
-  taosCloseTcpThreadPool(tsArbTcpPool);
-  sInfo("TAOS arbitrator is shut down\n");
+  syncCloseTcpThreadPool(tsArbTcpPool);
+  sInfo("TAOS arbitrator is shut down");
   closelog();
 
   return 0;
@@ -138,7 +138,7 @@ static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
 
   sDebug("%s, arbitrator request is accepted", pNode->id);
   pNode->nodeFd = connFd;
-  pNode->pConn = taosAllocateTcpConn(tsArbTcpPool, pNode, connFd);
+  pNode->pConn = syncAllocateTcpConn(tsArbTcpPool, pNode, connFd);
 
   return;
 }

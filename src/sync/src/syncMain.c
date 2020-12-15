@@ -23,10 +23,10 @@
 #include "tsocket.h"
 #include "tglobal.h"
 #include "taoserror.h"
-#include "taosTcpPool.h"
 #include "tqueue.h"
 #include "twal.h"
 #include "tsync.h"
+#include "syncTcp.h"
 #include "syncInt.h"
 
 // global configurable
@@ -39,10 +39,10 @@ int32_t tsSyncTimer = 1;
 int32_t tsSyncNum;  // number of sync in process in whole system
 char    tsNodeFqdn[TSDB_FQDN_LEN];
 
-static ttpool_h tsTcpPool;
-static void *   tsSyncTmrCtrl = NULL;
-static void *   tsVgIdHash;
-static int32_t  tsSyncRefId = -1;
+static void *  tsTcpPool;
+static void *  tsSyncTmrCtrl = NULL;
+static void *  tsVgIdHash;
+static int32_t tsSyncRefId = -1;
 
 // local functions
 static void    syncProcessSyncRequest(char *pMsg, SSyncPeer *pPeer);
@@ -117,7 +117,7 @@ int32_t syncInit() {
   info.processIncomingMsg = syncProcessPeerMsg;
   info.processIncomingConn = syncProcessIncommingConnection;
 
-  tsTcpPool = taosOpenTcpThreadPool(&info);
+  tsTcpPool = syncOpenTcpThreadPool(&info);
   if (tsTcpPool == NULL) {
     sError("failed to init tcpPool");
     return -1;
@@ -126,7 +126,7 @@ int32_t syncInit() {
   tsSyncTmrCtrl = taosTmrInit(1000, 50, 10000, "SYNC");
   if (tsSyncTmrCtrl == NULL) {
     sError("failed to init tmrCtrl");
-    taosCloseTcpThreadPool(tsTcpPool);
+    syncCloseTcpThreadPool(tsTcpPool);
     tsTcpPool = NULL;
     return -1;
   }
@@ -135,7 +135,7 @@ int32_t syncInit() {
   if (tsVgIdHash == NULL) {
     sError("failed to init tsVgIdHash");
     taosTmrCleanUp(tsSyncTmrCtrl);
-    taosCloseTcpThreadPool(tsTcpPool);
+    syncCloseTcpThreadPool(tsTcpPool);
     tsTcpPool = NULL;
     tsSyncTmrCtrl = NULL;
     return -1;
@@ -155,7 +155,7 @@ int32_t syncInit() {
 
 void syncCleanUp() {
   if (tsTcpPool) {
-    taosCloseTcpThreadPool(tsTcpPool);
+    syncCloseTcpThreadPool(tsTcpPool);
     tsTcpPool = NULL;
   }
 
@@ -509,7 +509,7 @@ static void syncClosePeerConn(SSyncPeer *pPeer) {
   taosClose(pPeer->syncFd);
   if (pPeer->peerFd >= 0) {
     pPeer->peerFd = -1;
-    taosFreeTcpConn(pPeer->pConn);
+    syncFreeTcpConn(pPeer->pConn);
   }
 }
 
@@ -1065,7 +1065,7 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     sDebug("%s, connection to peer server is setup, pfd:%d sfd:%d tranId:%u", pPeer->id, connFd, pPeer->syncFd, firstPkt.tranId);
     pPeer->peerFd = connFd;
     pPeer->role = TAOS_SYNC_ROLE_UNSYNCED;
-    pPeer->pConn = taosAllocateTcpConn(tsTcpPool, pPeer, connFd);
+    pPeer->pConn = syncAllocateTcpConn(tsTcpPool, pPeer, connFd);
     syncAddPeerRef(pPeer);
   } else {
     sDebug("%s, failed to setup peer connection to server since %s, try later", pPeer->id, strerror(errno));
@@ -1159,7 +1159,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
       sDebug("%s, TCP connection is up, pfd:%d sfd:%d, old pfd:%d", pPeer->id, connFd, pPeer->syncFd, pPeer->peerFd);
       syncClosePeerConn(pPeer);
       pPeer->peerFd = connFd;
-      pPeer->pConn = taosAllocateTcpConn(tsTcpPool, pPeer, connFd);
+      pPeer->pConn = syncAllocateTcpConn(tsTcpPool, pPeer, connFd);
       syncAddPeerRef(pPeer);
       sDebug("%s, ready to exchange data", pPeer->id);
       syncSendPeersStatusMsgToPeer(pPeer, 1, SYNC_STATUS_EXCHANGE_DATA, syncGenTranId());
