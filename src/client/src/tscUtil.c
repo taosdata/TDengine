@@ -793,7 +793,7 @@ static void extractTableMeta(SSqlCmd* pCmd) {
   int32_t i = 0;
   while(p1) {
     STableDataBlocks* pBlocks = *p1;
-    pCmd->pTableMetaList[i++] = taosCacheTransfer(tscMetaCache, (void**) &pBlocks->pTableMeta);
+    pCmd->pTableMetaList[i++] = taosCacheTransfer((void **)&pBlocks->pTableMeta);
     p1 = taosHashIterate(pCmd->pTableBlockHashList, p1);
   }
 
