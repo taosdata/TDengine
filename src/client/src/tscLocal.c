@@ -46,7 +46,8 @@ typedef struct SCreateBuilder {
   SSqlObj *pInterSql;
   int32_t (*fp)(void *para, char* result);
   Stage callStage;
-} SCreateBuilder; 
+} SCreateBuilder;
+
 static void tscSetLocalQueryResult(SSqlObj *pSql, const char *val, const char *columnName, int16_t type, size_t valueLength);
 
 static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
@@ -207,10 +208,7 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
   const int32_t TYPE_COLUMN_LENGTH = 16;
   const int32_t NOTE_COLUMN_MIN_LENGTH = 8;
 
-  int32_t noteFieldLen = NOTE_COLUMN_MIN_LENGTH;//tscMaxLengthOfTagsFields(pSql);
-//  if (noteFieldLen == 0) {
-//    noteFieldLen = NOTE_COLUMN_MIN_LENGTH;
-//  }
+  int32_t noteFieldLen = NOTE_COLUMN_MIN_LENGTH;
 
   int32_t rowLen = tscBuildTableSchemaResultFields(pSql, NUM_OF_DESC_TABLE_COLUMNS, TYPE_COLUMN_LENGTH, noteFieldLen);
   tscFieldInfoUpdateOffset(pQueryInfo);
@@ -822,26 +820,39 @@ static int32_t tscProcessClientVer(SSqlObj *pSql) {
 
 }
 
+// TODO add test cases.
+static int32_t checkForOnlineNode(SSqlObj* pSql) {
+  int32_t* data = pSql->res.length;
+  if (data == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t total  = data[0];
+  int32_t online = data[1];
+  return (online < total)? TSDB_CODE_RPC_NETWORK_UNAVAIL:TSDB_CODE_SUCCESS;
+}
+
 static int32_t tscProcessServStatus(SSqlObj *pSql) {
   STscObj* pObj = pSql->pTscObj;
 
   SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
   if (pHb != NULL) {
-    int32_t code = pHb->res.code;
+    pSql->res.code = pHb->res.code;
     taosReleaseRef(tscObjRef, pObj->hbrid);
-    if (code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      pSql->res.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-      return pSql->res.code;
-    }
-  } else {
-    if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
-      return pSql->res.code;
-    }
+  }
+
+  if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    return pSql->res.code;
+  }
+
+  pSql->res.code = checkForOnlineNode(pHb);
+  if (pSql->res.code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    return pSql->res.code;
   }
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-
   SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, 0);
+
   int32_t val = 1;
   tscSetLocalQueryResult(pSql, (char*) &val, pExpr->aliasName, TSDB_DATA_TYPE_INT, sizeof(int32_t));
   return TSDB_CODE_SUCCESS;

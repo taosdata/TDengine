@@ -2279,7 +2279,6 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
  */
 int32_t tscHandleInsertRetry(SSqlObj* pParent, SSqlObj* pSql) {
   assert(pSql != NULL && pSql->param != NULL);
-//  SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
   SInsertSupporter* pSupporter = (SInsertSupporter*) pSql->param;
@@ -2287,9 +2286,6 @@ int32_t tscHandleInsertRetry(SSqlObj* pParent, SSqlObj* pSql) {
 
   STableDataBlocks* pTableDataBlock = taosArrayGetP(pParent->cmd.pDataBlocks, pSupporter->index);
   int32_t code = tscCopyDataBlockToPayload(pSql, pTableDataBlock);
-
-  // free the data block created from insert sql string
-//  pCmd->pDataBlocks = tscDestroyBlockArrayList(pParent->cmd.pDataBlocks);
 
   if ((pRes->code = code)!= TSDB_CODE_SUCCESS) {
     tscQueueAsyncRes(pSql);
