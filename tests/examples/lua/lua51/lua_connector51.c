@@ -2,9 +2,9 @@
 #include <math.h>
 #include <stdarg.h>
 #include <stdlib.h>
-#include <lua.h>
-#include <lauxlib.h>
-#include <lualib.h>
+#include "lua.h"
+#include "lauxlib.h"
+#include "lualib.h"
 #include <taos.h>
 
 struct cb_param{
@@ -30,8 +30,8 @@ static int l_connect(lua_State *L){
   }
   
   lua_getfield(L, 1, "port");
-  if (lua_isinteger(L,-1)){
-    port = lua_tointeger(L, -1);
+  if (lua_isnumber(L,-1)){
+    port = lua_tonumber(L, -1);
     //printf("port = %d\n", port);
   }
   
@@ -56,6 +56,7 @@ static int l_connect(lua_State *L){
   lua_settop(L,0);
 
   taos_init();
+  
   lua_newtable(L);
   int table_index = lua_gettop(L);
 
@@ -313,9 +314,10 @@ static const struct luaL_Reg lib[] = {
     {NULL, NULL}
 };
 
-extern int luaopen_luaconnector(lua_State* L)
+extern int luaopen_luaconnector51(lua_State* L)
 {
-    luaL_newlib(L, lib);
-
-    return 1;
+  //  luaL_register(L, "luaconnector51", lib);
+  lua_newtable (L);
+  luaL_setfuncs(L,lib,0);
+  return 1;
 }

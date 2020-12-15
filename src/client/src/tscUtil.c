@@ -405,8 +405,14 @@ void tscResetSqlCmdObj(SSqlCmd* pCmd, bool removeFromCache) {
   pCmd->msgType   = 0;
   pCmd->parseFinished = 0;
   pCmd->autoCreated = 0;
-  pCmd->numOfTables = 0;
 
+  for(int32_t i = 0; i < pCmd->numOfTables; ++i) {
+    if (pCmd->pTableMetaList && pCmd->pTableMetaList[i]) {
+      taosCacheRelease(tscMetaCache, (void**)&(pCmd->pTableMetaList[i]), false);
+    }
+  }
+
+  pCmd->numOfTables = 0;
   tfree(pCmd->pTableMetaList);
 
   pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList);
