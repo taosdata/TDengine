@@ -2594,7 +2594,7 @@ void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src) {
 }
 
 char* serializeTagData(STagData* pTagData, char* pMsg) {
-  int32_t n = strlen(pTagData->name);
+  int32_t n = (int32_t) strlen(pTagData->name);
   *(int32_t*) pMsg = htonl(n);
   pMsg += sizeof(n);
 
