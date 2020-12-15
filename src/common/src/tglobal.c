@@ -110,6 +110,9 @@ int32_t tsQueryBufferSize = -1;
 // in retrieve blocking model, the retrieve threads will wait for the completion of the query processing.
 int32_t tsRetrieveBlockingModel = 0;
 
+// last_row(*), first(*), last_row(ts, col1, col2) query, the result fields will be the original column name
+int32_t tsKeepOriginalColumnName = 0;
+
 // db parameters
 int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
 int32_t tsBlocksPerVnode = TSDB_DEFAULT_TOTAL_BLOCKS;
@@ -891,6 +894,16 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsRetrieveBlockingModel;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "keepColumnName";
+  cfg.ptr = &tsKeepOriginalColumnName;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 1;

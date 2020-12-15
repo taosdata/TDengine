@@ -73,23 +73,27 @@ typedef struct SQuerySQL {
   SStrToken            selectToken;  // sql string
 } SQuerySQL;
 
+typedef struct SCreatedTableInfo {
+  SStrToken  name;        // table name token
+  SStrToken  stableName;  // super table name token , for using clause
+  SArray    *pTagVals;    // create by using super table, tag value
+  char      *fullname;    // table full name
+  STagData   tagdata;     // true tag data, super table full name is in STagData
+  int8_t     igExist;     // ignore if exists
+} SCreatedTableInfo;
+
 typedef struct SCreateTableSQL {
-  struct SStrToken name;  // meter name, create table [meterName] xxx
-  bool             existCheck;
-  
-  int8_t           type; // create normal table/from super table/ stream
+  SStrToken    name;  // table name, create table [name] xxx
+  int8_t       type;  // create normal table/from super table/ stream
+  bool         existCheck;
+
   struct {
-    SArray        *pTagColumns; // SArray<TAOS_FIELD>
-    SArray        *pColumns;    // SArray<TAOS_FIELD>
+    SArray    *pTagColumns; // SArray<TAOS_FIELD>
+    SArray    *pColumns;    // SArray<TAOS_FIELD>
   } colInfo;
-  
-  struct {
-    SStrToken      stableName;  // super table name, for using clause
-    SArray        *pTagVals;    // create by using metric, tag value
-    STagData       tagdata;
-  } usingInfo;
-  
-  SQuerySQL       *pSelect;
+
+  SArray      *childTableInfo;        // SArray<SCreatedTableInfo>
+  SQuerySQL   *pSelect;
 } SCreateTableSQL;
 
 typedef struct SAlterTableSQL {
@@ -241,22 +245,23 @@ SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, 
                              SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
                              SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit);
 
-SCreateTableSQL *tSetCreateSQLElems(SArray *pCols, SArray *pTags, SStrToken *pMetricName,
-                                    SArray *pTagVals, SQuerySQL *pSelect, int32_t type);
+SCreateTableSQL *tSetCreateSQLElems(SArray *pCols, SArray *pTags, SQuerySQL *pSelect, int32_t type);
 
 void tSQLExprNodeDestroy(tSQLExpr *pExpr);
 
-SAlterTableSQL *tAlterTableSQLElems(SStrToken *pMeterName, SArray *pCols, SArray *pVals, int32_t type);
+SAlterTableSQL *tAlterTableSQLElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type);
+SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists);
 
 void destroyAllSelectClause(SSubclauseInfo *pSql);
 void doDestroyQuerySql(SQuerySQL *pSql);
+void freeCreateTableInfo(void* p);
 
-SSqlInfo *      setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pMeterName, int32_t type);
+SSqlInfo       *setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pTableName, int32_t type);
 SSubclauseInfo *setSubclause(SSubclauseInfo *pClause, void *pSqlExprInfo);
 
 SSubclauseInfo *appendSelectClause(SSubclauseInfo *pInfo, void *pSubclause);
 
-void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pMeterName, SStrToken *pIfNotExists);
+void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken *pIfNotExists);
 
 void SQLInfoDestroy(SSqlInfo *pInfo);
 

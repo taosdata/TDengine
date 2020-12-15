@@ -474,9 +474,16 @@ SQuerySQL *tSetQuerySQLElems(SStrToken *pSelectToken, tSQLExprList *pSelection, 
   return pQuery;
 }
 
-void freeVariant(void *pItem) {
+static void freeVariant(void *pItem) {
   tVariantListItem* p = (tVariantListItem*) pItem;
   tVariantDestroy(&p->pVar);
+}
+
+void freeCreateTableInfo(void* p) {
+  SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;
+  taosArrayDestroyEx(pInfo->pTagVals, freeVariant);
+  tfree(pInfo->fullname);
+  tfree(pInfo->tagdata.data);
 }
 
 void doDestroyQuerySql(SQuerySQL *pQuerySql) {
@@ -519,31 +526,30 @@ void destroyAllSelectClause(SSubclauseInfo *pClause) {
   tfree(pClause->pClause);
 }
 
-SCreateTableSQL *tSetCreateSQLElems(SArray *pCols, SArray *pTags, SStrToken *pStableName,
-                                    SArray *pTagVals, SQuerySQL *pSelect, int32_t type) {
+SCreateTableSQL *tSetCreateSQLElems(SArray *pCols, SArray *pTags, SQuerySQL *pSelect, int32_t type) {
   SCreateTableSQL *pCreate = calloc(1, sizeof(SCreateTableSQL));
 
   switch (type) {
     case TSQL_CREATE_TABLE: {
       pCreate->colInfo.pColumns = pCols;
-      assert(pTagVals == NULL && pTags == NULL);
+      assert(pTags == NULL);
       break;
     }
     case TSQL_CREATE_STABLE: {
       pCreate->colInfo.pColumns = pCols;
       pCreate->colInfo.pTagColumns = pTags;
-      assert(pTagVals == NULL && pTags != NULL && pCols != NULL);
-      break;
-    }
-    case TSQL_CREATE_TABLE_FROM_STABLE: {
-      pCreate->usingInfo.pTagVals = pTagVals;
-      pCreate->usingInfo.stableName = *pStableName;
+      assert(pTags != NULL && pCols != NULL);
       break;
     }
     case TSQL_CREATE_STREAM: {
       pCreate->pSelect = pSelect;
       break;
     }
+
+    case TSQL_CREATE_TABLE_FROM_STABLE: {
+      assert(0);
+    }
+
     default:
       assert(false);
   }
@@ -552,10 +558,20 @@ SCreateTableSQL *tSetCreateSQLElems(SArray *pCols, SArray *pTags, SStrToken *pSt
   return pCreate;
 }
 
-SAlterTableSQL *tAlterTableSQLElems(SStrToken *pMeterName, SArray *pCols, SArray *pVals, int32_t type) {
+SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists) {
+  SCreatedTableInfo info = {0};
+  info.name       = *pToken;
+  info.pTagVals   = pTagVals;
+  info.stableName = *pTableName;
+  info.igExist    = (igExists->n > 0)? 1:0;
+
+  return info;
+}
+
+SAlterTableSQL *tAlterTableSQLElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type) {
   SAlterTableSQL *pAlterTable = calloc(1, sizeof(SAlterTableSQL));
   
-  pAlterTable->name = *pMeterName;
+  pAlterTable->name = *pTableName;
   pAlterTable->type = type;
 
   if (type == TSDB_ALTER_TABLE_ADD_COLUMN || type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN) {
@@ -573,24 +589,29 @@ SAlterTableSQL *tAlterTableSQLElems(SStrToken *pMeterName, SArray *pCols, SArray
   return pAlterTable;
 }
 
+void* destroyCreateTableSQL(SCreateTableSQL* pCreate) {
+  doDestroyQuerySql(pCreate->pSelect);
+
+  taosArrayDestroy(pCreate->colInfo.pColumns);
+  taosArrayDestroy(pCreate->colInfo.pTagColumns);
+
+  taosArrayDestroyEx(pCreate->childTableInfo, freeCreateTableInfo);
+  tfree(pCreate);
+
+  return NULL;
+}
+
 void SQLInfoDestroy(SSqlInfo *pInfo) {
   if (pInfo == NULL) return;
 
   if (pInfo->type == TSDB_SQL_SELECT) {
     destroyAllSelectClause(&pInfo->subclauseInfo);
   } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
-    SCreateTableSQL *pCreateTableInfo = pInfo->pCreateTableInfo;
-    doDestroyQuerySql(pCreateTableInfo->pSelect);
-
-    taosArrayDestroy(pCreateTableInfo->colInfo.pColumns);
-    taosArrayDestroy(pCreateTableInfo->colInfo.pTagColumns);
-
-    taosArrayDestroyEx(pCreateTableInfo->usingInfo.pTagVals, freeVariant);
-    tfree(pInfo->pCreateTableInfo);
+    pInfo->pCreateTableInfo = destroyCreateTableSQL(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
     taosArrayDestroyEx(pInfo->pAlterInfo->varList, freeVariant);
     taosArrayDestroy(pInfo->pAlterInfo->pAddColumns);
-    
+    tfree(pInfo->pAlterInfo->tagData.data);
     tfree(pInfo->pAlterInfo);
   } else {
     if (pInfo->pDCLInfo != NULL && pInfo->pDCLInfo->nAlloc > 0) {
@@ -624,7 +645,7 @@ SSubclauseInfo* setSubclause(SSubclauseInfo* pSubclause, void *pSqlExprInfo) {
   return pSubclause;
 }
 
-SSqlInfo* setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pMeterName, int32_t type) {
+SSqlInfo* setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pTableName, int32_t type) {
   pInfo->type = type;
   
   if (type == TSDB_SQL_SELECT) {
@@ -634,8 +655,8 @@ SSqlInfo* setSQLInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pMeterName,
     pInfo->pCreateTableInfo = pSqlExprInfo;
   }
   
-  if (pMeterName != NULL) {
-    pInfo->pCreateTableInfo->name = *pMeterName;
+  if (pTableName != NULL) {
+    pInfo->pCreateTableInfo->name = *pTableName;
   }
   
   return pInfo;
@@ -653,8 +674,8 @@ SSubclauseInfo* appendSelectClause(SSubclauseInfo *pQueryInfo, void *pSubclause)
   return pQueryInfo;
 }
 
-void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pMeterName, SStrToken *pIfNotExists) {
-  pInfo->pCreateTableInfo->name = *pMeterName;
+void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken *pIfNotExists) {
+  pInfo->pCreateTableInfo->name = *pTableNameToken;
   pInfo->pCreateTableInfo->existCheck = (pIfNotExists->n != 0);
 }
 

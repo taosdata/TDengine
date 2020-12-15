@@ -720,10 +720,17 @@ static void mnodeExtractTableName(char* tableId, char* name) {
 
 static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
   SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
-  
-  if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pCreate->db);
+
+  int32_t numOfTables = htonl(pCreate->numOfTables);
+  int32_t contentLen = htonl(pCreate->contLen);
+  if (numOfTables == 0 || contentLen == 0) {
+    // todo return error
+  }
+
+  SCreateTableMsg *p = (SCreateTableMsg*)((char*) pCreate + sizeof(SCMCreateTableMsg));
+  if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(p->db);
   if (pMsg->pDb == NULL) {
-    mError("msg:%p, app:%p table:%s, failed to create, db not selected", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+    mError("msg:%p, app:%p table:%s, failed to create, db not selected", pMsg, pMsg->rpcMsg.ahandle, p->tableId);
     return TSDB_CODE_MND_DB_NOT_SELECTED;
   }
   
@@ -732,28 +739,28 @@ static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
-  if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pCreate->tableId);
+  if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(p->tableId);
   if (pMsg->pTable != NULL && pMsg->retry == 0) {
-    if (pCreate->getMeta) {
-      mDebug("msg:%p, app:%p table:%s, continue to get meta", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+    if (p->getMeta) {
+      mDebug("msg:%p, app:%p table:%s, continue to get meta", pMsg, pMsg->rpcMsg.ahandle, p->tableId);
       return mnodeGetChildTableMeta(pMsg);
-    } else if (pCreate->igExists) {
-      mDebug("msg:%p, app:%p table:%s, is already exist", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+    } else if (p->igExists) {
+      mDebug("msg:%p, app:%p table:%s, is already exist", pMsg, pMsg->rpcMsg.ahandle, p->tableId);
       return TSDB_CODE_SUCCESS;
     } else {
       mError("msg:%p, app:%p table:%s, failed to create, table already exist", pMsg, pMsg->rpcMsg.ahandle,
-             pCreate->tableId);
+             p->tableId);
       return TSDB_CODE_MND_TABLE_ALREADY_EXIST;
     }
   }
 
-  if (pCreate->numOfTags != 0) {
+  if (p->numOfTags != 0) {
     mDebug("msg:%p, app:%p table:%s, create stable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
-           pCreate->tableId, pMsg->rpcMsg.handle);
+           p->tableId, pMsg->rpcMsg.handle);
     return mnodeProcessCreateSuperTableMsg(pMsg);
   } else {
     mDebug("msg:%p, app:%p table:%s, create ctable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
-           pCreate->tableId, pMsg->rpcMsg.handle);
+           p->tableId, pMsg->rpcMsg.handle);
     return mnodeProcessCreateChildTableMsg(pMsg);
   }
 }
@@ -859,7 +866,13 @@ static int32_t mnodeCreateSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
 static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
 
-  SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
+  SCMCreateTableMsg *pCreate1 = pMsg->rpcMsg.pCont;
+  if (pCreate1->numOfTables == 0) {
+    // todo return to error message
+  }
+
+  SCreateTableMsg* pCreate = (SCreateTableMsg*)((char*)pCreate1 + sizeof(SCMCreateTableMsg));
+
   SSTableObj *   pStable = calloc(1, sizeof(SSTableObj));
   if (pStable == NULL) {
     mError("msg:%p, app:%p table:%s, failed to create, no enough memory", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
@@ -1599,8 +1612,11 @@ static void mnodeProcessDropSuperTableRsp(SRpcMsg *rpcMsg) {
   mInfo("drop stable rsp received, result:%s", tstrerror(rpcMsg->code));
 }
 
-static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SCTableObj *pTable) {
-  STagData *  pTagData = NULL;
+static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pCreateMsg, SCTableObj *pTable) {
+  SCreateTableMsg* pMsg = (SCreateTableMsg*) ((char*)pCreateMsg + sizeof(SCMCreateTableMsg));
+
+  char* tagData = NULL;
+
   int32_t tagDataLen = 0;
   int32_t totalCols = 0;
   int32_t contLen = 0;
@@ -1608,9 +1624,13 @@ static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SCTableObj *
     totalCols = pTable->superTable->numOfColumns + pTable->superTable->numOfTags;
     contLen = sizeof(SMDCreateTableMsg) + totalCols * sizeof(SSchema) + pTable->sqlLen;
     if (pMsg != NULL) {
-      pTagData = (STagData *)pMsg->schema;
-      tagDataLen = htonl(pTagData->dataLen);
+      int32_t nameLen = htonl(*(int32_t*)pMsg->schema);
+      char* p = pMsg->schema + nameLen + sizeof(int32_t);
+
+      tagDataLen = htonl(*(int32_t*) p);
       contLen += tagDataLen;
+
+      tagData = p + sizeof(int32_t);
     }
   } else {
     totalCols = pTable->numOfColumns;
@@ -1662,7 +1682,7 @@ static void *mnodeBuildCreateChildTableMsg(SCMCreateTableMsg *pMsg, SCTableObj *
   }
 
   if (pTable->info.type == TSDB_CHILD_TABLE && pMsg != NULL) {
-    memcpy(pCreate->data + totalCols * sizeof(SSchema), pTagData->data, tagDataLen);
+    memcpy(pCreate->data + totalCols * sizeof(SSchema), tagData, tagDataLen);
   }
 
   if (pTable->info.type == TSDB_STREAM_TABLE) {
@@ -1700,7 +1720,8 @@ static int32_t mnodeDoCreateChildTableFp(SMnodeMsg *pMsg) {
 
 static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
   SCTableObj *pTable = (SCTableObj *)pMsg->pTable;
-  SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
+
+  SCreateTableMsg *pCreate = (SCreateTableMsg*) ((char*)pMsg->rpcMsg.pCont + sizeof(SCMCreateTableMsg));
   assert(pTable);
 
   if (code == TSDB_CODE_SUCCESS) {
@@ -1728,40 +1749,42 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
 
 static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
   SVgObj *pVgroup = pMsg->pVgroup;
-  SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
+
+  SCMCreateTableMsg *p1 = pMsg->rpcMsg.pCont;
+  SCreateTableMsg   *pCreate = (SCreateTableMsg*)((char*)p1 + sizeof(SCMCreateTableMsg));
+
   SCTableObj *pTable = calloc(1, sizeof(SCTableObj));
   if (pTable == NULL) {
     mError("msg:%p, app:%p table:%s, failed to alloc memory", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
-  if (pCreate->numOfColumns == 0) {
-    pTable->info.type = TSDB_CHILD_TABLE;
-  } else {
-    pTable->info.type = TSDB_NORMAL_TABLE;
-  }
-
-  pTable->info.tableId = strdup(pCreate->tableId);  
+  pTable->info.type    = (pCreate->numOfColumns == 0)? TSDB_CHILD_TABLE:TSDB_NORMAL_TABLE;
+  pTable->info.tableId = strdup(pCreate->tableId);
   pTable->createdTime  = taosGetTimestampMs();
   pTable->tid          = tid;
   pTable->vgId         = pVgroup->vgId;
 
   if (pTable->info.type == TSDB_CHILD_TABLE) {
-    STagData *pTagData = (STagData *)pCreate->schema;  // it is a tag key
+    int32_t nameLen = htonl(*(int32_t*) pCreate->schema);
+    char* name = (char*)pCreate->schema + sizeof(int32_t);
+
+    char stableName[TSDB_TABLE_FNAME_LEN] = {0};
+    memcpy(stableName, name, nameLen);
 
     char prefix[64] = {0};
     size_t prefixLen = tableIdPrefix(pMsg->pDb->name, prefix, 64);
-    if (0 != strncasecmp(prefix, pTagData->name, prefixLen)) {
+    if (0 != strncasecmp(prefix, stableName, prefixLen)) {
       mError("msg:%p, app:%p table:%s, corresponding super table:%s not in this db", pMsg, pMsg->rpcMsg.ahandle,
-             pCreate->tableId, pTagData->name);
+             pCreate->tableId, stableName);
       mnodeDestroyChildTable(pTable);
       return TSDB_CODE_TDB_INVALID_CREATE_TB_MSG;
     }
 
-    if (pMsg->pSTable == NULL) pMsg->pSTable = mnodeGetSuperTable(pTagData->name);
+    if (pMsg->pSTable == NULL) pMsg->pSTable = mnodeGetSuperTable(stableName);
     if (pMsg->pSTable == NULL) {
       mError("msg:%p, app:%p table:%s, corresponding super table:%s does not exist", pMsg, pMsg->rpcMsg.ahandle,
-             pCreate->tableId, pTagData->name);
+             pCreate->tableId, stableName);
       mnodeDestroyChildTable(pTable);
       return TSDB_CODE_MND_INVALID_TABLE_NAME;
     }
@@ -1839,7 +1862,9 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
 }
 
 static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
-  SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
+  //SCMCreateTableMsg* p1 = pMsg->rpcMsg.pCont; // there are several tables here.
+  SCreateTableMsg* pCreate = (SCreateTableMsg*)(pMsg->rpcMsg.pCont + sizeof(SCMCreateTableMsg));
+
   int32_t code = grantCheck(TSDB_GRANT_TIMESERIES);
   if (code != TSDB_CODE_SUCCESS) {
     mError("msg:%p, app:%p table:%s, failed to create, grant timeseries failed", pMsg, pMsg->rpcMsg.ahandle,
@@ -2187,15 +2212,23 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
 
 static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   STableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
-  STagData *pTags = (STagData *)pInfo->tags;
-  int32_t tagLen = htonl(pTags->dataLen);
-  if (pTags->name[0] == 0) {
-    mError("msg:%p, app:%p table:%s, failed to create table on demand for stable is empty, tagLen:%d", pMsg,
+
+  char* p = pInfo->tags;
+  int32_t nameLen = htonl(*(int32_t*) p);
+  p += sizeof(int32_t);
+  p += nameLen;
+
+  int32_t tagLen = htonl(*(int32_t*) p);
+  p += sizeof(int32_t);
+
+  int32_t totalLen = nameLen + tagLen + sizeof(int32_t)*2;
+  if (tagLen == 0 || nameLen == 0) {
+    mError("msg:%p, app:%p table:%s, failed to create table on demand for super table is empty, tagLen:%d", pMsg,
            pMsg->rpcMsg.ahandle, pInfo->tableId, tagLen);
     return TSDB_CODE_MND_INVALID_STABLE_NAME;
   }
 
-  int32_t contLen = sizeof(SCMCreateTableMsg) + offsetof(STagData, data) + tagLen;
+  int32_t contLen = sizeof(SCMCreateTableMsg) + sizeof(SCreateTableMsg) + totalLen;
   SCMCreateTableMsg *pCreateMsg = calloc(1, contLen);
   if (pCreateMsg == NULL) {
     mError("msg:%p, app:%p table:%s, failed to create table while get meta info, no enough memory", pMsg,
@@ -2203,16 +2236,24 @@ static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_OUT_OF_MEMORY;
   }
 
-  size_t size = sizeof(pInfo->tableId);
-  tstrncpy(pCreateMsg->tableId, pInfo->tableId, size);
-  tstrncpy(pCreateMsg->db, pMsg->pDb->name, sizeof(pCreateMsg->db));
-  pCreateMsg->igExists = 1;
-  pCreateMsg->getMeta = 1;
+  SCreateTableMsg* pCreate = (SCreateTableMsg*) ((char*) pCreateMsg + sizeof(SCMCreateTableMsg));
+
+  size_t size = tListLen(pInfo->tableId);
+  tstrncpy(pCreate->tableId, pInfo->tableId, size);
+  tstrncpy(pCreate->db, pMsg->pDb->name, sizeof(pCreate->db));
+  pCreate->igExists = 1;
+  pCreate->getMeta = 1;
+
+  pCreateMsg->numOfTables = htonl(1);
   pCreateMsg->contLen = htonl(contLen);
 
-  memcpy(pCreateMsg->schema, pTags, contLen - sizeof(SCMCreateTableMsg));
+  memcpy(pCreate->schema, pInfo->tags, totalLen);
+
+  char name[TSDB_TABLE_FNAME_LEN] = {0};
+  memcpy(name, pInfo->tags + sizeof(int32_t), nameLen);
+
   mDebug("msg:%p, app:%p table:%s, start to create on demand, tagLen:%d stable:%s", pMsg, pMsg->rpcMsg.ahandle,
-         pInfo->tableId, tagLen, pTags->name);
+         pInfo->tableId, tagLen, name);
 
   if (pMsg->rpcMsg.pCont != pMsg->pCont) {
     tfree(pMsg->rpcMsg.pCont);

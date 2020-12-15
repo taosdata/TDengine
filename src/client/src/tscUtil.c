@@ -518,7 +518,8 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscFreeSqlResult(pSql);
   tscResetSqlCmdObj(pCmd, false);
 
-  tfree(pCmd->pTagData);
+  tfree(pCmd->tagData.data);
+  pCmd->tagData.dataLen = 0;
   
   memset(pCmd->payload, 0, (size_t)pCmd->allocSize);
   tfree(pCmd->payload);
@@ -1937,15 +1938,11 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   pCmd->parseFinished = 1;
   pCmd->autoCreated = pSql->cmd.autoCreated;
 
-  if (pSql->cmd.pTagData != NULL) {
-    int size = offsetof(STagData, data) + htonl(pSql->cmd.pTagData->dataLen);
-    pNew->cmd.pTagData = calloc(1, size);
-    if (pNew->cmd.pTagData == NULL) {
-      tscError("%p new subquery failed, unable to malloc tag data, tableIndex:%d", pSql, 0);
-      free(pNew);
-      return NULL;
-    }
-    memcpy(pNew->cmd.pTagData, pSql->cmd.pTagData, size);
+  int32_t code = copyTagData(&pNew->cmd.tagData, &pSql->cmd.tagData);
+  if (code != TSDB_CODE_SUCCESS) {
+    tscError("%p new subquery failed, unable to malloc tag data, tableIndex:%d", pSql, 0);
+    free(pNew);
+    return NULL;
   }
 
   if (tscAddSubqueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
@@ -2594,4 +2591,37 @@ void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src) {
     dst->epAddr[i].port = src->epAddr[i].port;
     dst->epAddr[i].fqdn = strdup(src->epAddr[i].fqdn);
   }
+}
+
+char* serializeTagData(STagData* pTagData, char* pMsg) {
+  int32_t n = strlen(pTagData->name);
+  *(int32_t*) pMsg = htonl(n);
+  pMsg += sizeof(n);
+
+  memcpy(pMsg, pTagData->name, n);
+  pMsg += n;
+
+  *(int32_t*)pMsg = htonl(pTagData->dataLen);
+  pMsg += sizeof(int32_t);
+
+  memcpy(pMsg, pTagData->data, pTagData->dataLen);
+  pMsg += pTagData->dataLen;
+
+  return pMsg;
+}
+
+int32_t copyTagData(STagData* dst, const STagData* src) {
+  dst->dataLen = src->dataLen;
+  tstrncpy(dst->name, src->name, tListLen(dst->name));
+
+  if (dst->dataLen > 0) {
+    dst->data = malloc(dst->dataLen);
+    if (dst->data == NULL) {
+      return -1;
+    }
+
+    memcpy(dst->data, src->data, dst->dataLen);
+  }
+
+  return 0;
 }
