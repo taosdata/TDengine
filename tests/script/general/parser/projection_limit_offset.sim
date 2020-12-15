@@ -393,7 +393,7 @@ endi
 
 #error sql
 sql_error select * from 1;
-sql_error select 1;
+#sql_error select 1;  // equals to select server_status();
 sql_error select k+k;
 sql_error select k+1;
 sql_error select abc();
