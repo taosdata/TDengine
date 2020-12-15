@@ -255,17 +255,24 @@ class TDDnode:
             tdLog.exit(cmd)
         self.running = 1
         tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
-        time.sleep(0.1)
-        key = 'from offline to online'
-        bkey = bytes(key,encoding="utf8")
-        logFile = self.logDir + "/taosdlog.0"
-        popen = subprocess.Popen('tail -f ' + logFile, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
-        while True:
-            line = popen.stdout.readline().strip()
-            if bkey in line:
-                popen.kill()
-                break
-        tdLog.debug("the dnode:%d has been started." % (self.index))
+        if self.valgrind == 0:
+            time.sleep(0.1)
+            key = 'from offline to online'
+            bkey = bytes(key,encoding="utf8")
+            logFile = self.logDir + "/taosdlog.0"
+            popen = subprocess.Popen('tail -f ' + logFile, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
+            pid = popen.pid
+            print('Popen.pid:' + str(pid))
+            while True:
+                line = popen.stdout.readline().strip()
+                if bkey in line:
+                    print(line)
+                    popen.kill()
+                    break
+            tdLog.debug("the dnode:%d has been started." % (self.index))
+        else:
+            tdLog.debug("wait 5 seconds for the dnode:%d to start." % (self.index))
+            time.sleep(5)
         
         # time.sleep(5)
     
