@@ -384,18 +384,16 @@ void syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {
 
   SSyncPeer *pPeer = pNode->pMaster;
   if (pPeer && pNode->quorum > 1) {
-    char msg[sizeof(SSyncHead) + sizeof(SFwdRsp)] = {0};
+    SFwdRsp fwdRsp = {0};
 
-    SSyncHead *pHead = (SSyncHead *)msg;
-    pHead->type = TAOS_SMSG_FORWARD_RSP;
-    pHead->len = sizeof(SFwdRsp);
+    fwdRsp.head.type = TAOS_SMSG_FORWARD_RSP;
+    fwdRsp.head.protocol = SYNC_PROTOCOL_VERSION;
+    fwdRsp.head.vgId = pNode->vgId;
+    fwdRsp.head.len = sizeof(SFwdRsp) - sizeof(SSyncHead);
+    fwdRsp.version = version;
+    fwdRsp.code = code;
 
-    SFwdRsp *pFwdRsp = (SFwdRsp *)(msg + sizeof(SSyncHead));
-    pFwdRsp->version = version;
-    pFwdRsp->code = code;
-
-    int32_t msgLen = sizeof(SSyncHead) + sizeof(SFwdRsp);
-    if (taosWriteMsg(pPeer->peerFd, msg, msgLen) == msgLen) {
+    if (taosWriteMsg(pPeer->peerFd, &fwdRsp, sizeof(SFwdRsp)) == sizeof(SFwdRsp)) {
       sTrace("%s, forward-rsp is sent, code:%x hver:%" PRIu64, pPeer->id, code, version);
     } else {
       sDebug("%s, failed to send forward ack, restart", pPeer->id);
@@ -865,20 +863,22 @@ static void syncRecoverFromMaster(SSyncPeer *pPeer) {
 
   sDebug("%s, try to sync", pPeer->id);
 
-  SFirstPkt firstPkt;
-  memset(&firstPkt, 0, sizeof(firstPkt));
-  firstPkt.syncHead.type = TAOS_SMSG_SYNC_REQ;
-  firstPkt.syncHead.vgId = pNode->vgId;
-  firstPkt.syncHead.len = sizeof(firstPkt) - sizeof(SSyncHead);
-  firstPkt.tranId = syncGenTranId();
-  tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
-  firstPkt.port = tsSyncPort;
+  SSyncMsg msg;
+  memset(&msg, 0, sizeof(SSyncMsg));
+  msg.head.type = TAOS_SMSG_SYNC_REQ;
+  msg.head.protocol = SYNC_PROTOCOL_VERSION;
+  msg.head.vgId = pNode->vgId;
+  msg.head.len = sizeof(SSyncMsg) - sizeof(SSyncHead);
+  msg.port = tsSyncPort;
+  msg.tranId = syncGenTranId();
+  tstrncpy(msg.fqdn, tsNodeFqdn, TSDB_FQDN_LEN);
+
   taosTmrReset(syncNotStarted, tsSyncTimer * 1000, pPeer, tsSyncTmrCtrl, &pPeer->timer);
 
-  if (taosWriteMsg(pPeer->peerFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
+  if (taosWriteMsg(pPeer->peerFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
     sError("%s, failed to send sync-req to peer", pPeer->id);
   } else {
-    sInfo("%s, sync-req is sent to peer, tranId:%u, sstatus:%s", pPeer->id, firstPkt.tranId, syncStatus[nodeSStatus]);
+    sInfo("%s, sync-req is sent to peer, tranId:%u, sstatus:%s", pPeer->id, msg.tranId, syncStatus[nodeSStatus]);
   }
 }
 
@@ -958,7 +958,7 @@ static int32_t syncReadPeerMsg(SSyncPeer *pPeer, SSyncHead *pHead, char *cont) {
 
   // head.len = htonl(head.len);
   if (pHead->len < 0) {
-    sError("%s, invalid pkt length, hlen:%d", pPeer->id, pHead->len);
+    sError("%s, invalid msg length, hlen:%d", pPeer->id, pHead->len);
     return -1;
   }
 
@@ -1052,17 +1052,19 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     return;
   }
 
-  SFirstPkt firstPkt;
-  memset(&firstPkt, 0, sizeof(firstPkt));
-  firstPkt.syncHead.vgId = pPeer->nodeId ? pNode->vgId : 0;
-  firstPkt.syncHead.type = TAOS_SMSG_STATUS;
-  tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
-  firstPkt.port = tsSyncPort;
-  firstPkt.tranId = syncGenTranId();
-  firstPkt.sourceId = pNode->vgId;  // tell arbitrator its vgId
+  SSyncMsg msg;
+  memset(&msg, 0, sizeof(SSyncMsg));
+  msg.head.type = TAOS_SMSG_STATUS;
+  msg.head.protocol = SYNC_PROTOCOL_VERSION;
+  msg.head.vgId = pPeer->nodeId ? pNode->vgId : 0;
+  msg.head.len = sizeof(SSyncMsg) - sizeof(SSyncHead);
+  msg.port = tsSyncPort;
+  msg.tranId = syncGenTranId();
+  msg.sourceId = pNode->vgId;  // tell arbitrator its vgId
+  tstrncpy(msg.fqdn, tsNodeFqdn, TSDB_FQDN_LEN);
 
-  if (taosWriteMsg(connFd, &firstPkt, sizeof(firstPkt)) == sizeof(firstPkt)) {
-    sDebug("%s, connection to peer server is setup, pfd:%d sfd:%d tranId:%u", pPeer->id, connFd, pPeer->syncFd, firstPkt.tranId);
+  if (taosWriteMsg(connFd, &msg, sizeof(SSyncMsg)) == sizeof(SSyncMsg)) {
+    sDebug("%s, connection to peer server is setup, pfd:%d sfd:%d tranId:%u", pPeer->id, connFd, pPeer->syncFd, msg.tranId);
     pPeer->peerFd = connFd;
     pPeer->role = TAOS_SYNC_ROLE_UNSYNCED;
     pPeer->pConn = syncAllocateTcpConn(tsTcpPool, pPeer, connFd);
@@ -1116,14 +1118,14 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
   tinet_ntoa(ipstr, sourceIp);
   sDebug("peer TCP connection from ip:%s", ipstr);
 
-  SFirstPkt firstPkt;
-  if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
-    sError("failed to read peer first pkt from ip:%s since %s", ipstr, strerror(errno));
+  SSyncMsg msg;
+  if (taosReadMsg(connFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
+    sError("failed to read peer sync msg from ip:%s since %s", ipstr, strerror(errno));
     taosCloseSocket(connFd);
     return;
   }
 
-  int32_t     vgId = firstPkt.syncHead.vgId;
+  int32_t     vgId = msg.head.vgId;
   SSyncNode **ppNode = taosHashGet(tsVgIdHash, &vgId, sizeof(int32_t));
   if (ppNode == NULL || *ppNode == NULL) {
     sError("vgId:%d, vgId could not be found", vgId);
@@ -1131,7 +1133,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
     return;
   }
 
-  sDebug("vgId:%d, firstPkt is received, tranId:%u", vgId, firstPkt.tranId);
+  sDebug("vgId:%d, sync msg is received, tranId:%u", vgId, msg.tranId);
 
   SSyncNode *pNode = *ppNode;
   pthread_mutex_lock(&pNode->mutex);
@@ -1139,20 +1141,20 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
   SSyncPeer *pPeer;
   for (i = 0; i < pNode->replica; ++i) {
     pPeer = pNode->peerInfo[i];
-    if (pPeer && (strcmp(pPeer->fqdn, firstPkt.fqdn) == 0) && (pPeer->port == firstPkt.port)) break;
+    if (pPeer && (strcmp(pPeer->fqdn, msg.fqdn) == 0) && (pPeer->port == msg.port)) break;
   }
 
   pPeer = (i < pNode->replica) ? pNode->peerInfo[i] : NULL;
   if (pPeer == NULL) {
-    sError("vgId:%d, peer:%s:%u not configured", pNode->vgId, firstPkt.fqdn, firstPkt.port);
+    sError("vgId:%d, peer:%s:%u not configured", pNode->vgId, msg.fqdn, msg.port);
     taosCloseSocket(connFd);
     // syncSendVpeerCfgMsg(sync);
   } else {
     // first packet tells what kind of link
-    if (firstPkt.syncHead.type == TAOS_SMSG_SYNC_DATA) {
+    if (msg.head.type == TAOS_SMSG_SYNC_DATA) {
       pPeer->syncFd = connFd;
       nodeSStatus = TAOS_SYNC_STATUS_START;
-      sInfo("%s, sync-data pkt from master is received, tranId:%u, set sstatus:%s", pPeer->id, firstPkt.tranId,
+      sInfo("%s, sync-data msg from master is received, tranId:%u, set sstatus:%s", pPeer->id, msg.tranId,
             syncStatus[nodeSStatus]);
       syncCreateRestoreDataThread(pPeer);
     } else {
@@ -1334,13 +1336,14 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
 
   if (pNode->replica == 1 || nodeRole != TAOS_SYNC_ROLE_MASTER) return 0;
 
-  // only pkt from RPC or CQ can be forwarded
+  // only msg from RPC or CQ can be forwarded
   if (qtype != TAOS_QTYPE_RPC && qtype != TAOS_QTYPE_CQ) return 0;
 
     // a hacker way to improve the performance
   pSyncHead = (SSyncHead *)(((char *)pWalHead) - sizeof(SSyncHead));
   pSyncHead->type = TAOS_SMSG_FORWARD;
-  pSyncHead->pversion = 0;
+  pSyncHead->protocol = SYNC_PROTOCOL_VERSION;
+  pSyncHead->vgId = pNode->vgId;
   pSyncHead->len = sizeof(SWalHead) + pWalHead->len;
   fwdLen = pSyncHead->len + sizeof(SSyncHead);  // include the WAL and SYNC head
 

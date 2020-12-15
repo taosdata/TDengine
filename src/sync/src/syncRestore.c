@@ -289,12 +289,12 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
   uint64_t fversion = 0;
 
   sInfo("%s, start to restore, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
-  SFirstPktRsp firstPktRsp = {.sync = 1, .tranId = syncGenTranId()};
-  if (taosWriteMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) != sizeof(SFirstPktRsp)) {
-    sError("%s, failed to send sync firstPkt rsp since %s", pPeer->id, strerror(errno));
+  SSyncRsp rsp = {.sync = 1, .tranId = syncGenTranId()};
+  if (taosWriteMsg(pPeer->syncFd, &rsp, sizeof(SSyncRsp)) != sizeof(SSyncRsp)) {
+    sError("%s, failed to send sync rsp since %s", pPeer->id, strerror(errno));
     return -1;
   }
-  sDebug("%s, send firstPktRsp to peer, tranId:%u", pPeer->id, firstPktRsp.tranId);
+  sDebug("%s, send sync rsp to peer, tranId:%u", pPeer->id, rsp.tranId);
 
   sInfo("%s, start to restore file, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
   int32_t code = syncRestoreFile(pPeer, &fversion);

@@ -405,27 +405,29 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
 static int32_t syncRetrieveFirstPkt(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  SFirstPkt firstPkt;
-  memset(&firstPkt, 0, sizeof(firstPkt));
-  firstPkt.syncHead.type = TAOS_SMSG_SYNC_DATA;
-  firstPkt.syncHead.vgId = pNode->vgId;
-  firstPkt.tranId = syncGenTranId();
-  tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
-  firstPkt.port = tsSyncPort;
+  SSyncMsg msg;
+  memset(&msg, 0, sizeof(SSyncMsg));
+  msg.head.type = TAOS_SMSG_SYNC_DATA;
+  msg.head.protocol = SYNC_PROTOCOL_VERSION;
+  msg.head.vgId = pNode->vgId;
+  msg.head.len = sizeof(SSyncMsg) - sizeof(SSyncHead);
+  msg.port = tsSyncPort;
+  msg.tranId = syncGenTranId();
+  tstrncpy(msg.fqdn, tsNodeFqdn, TSDB_FQDN_LEN);
 
-  if (taosWriteMsg(pPeer->syncFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
-    sError("%s, failed to send sync firstPkt since %s, tranId:%u", pPeer->id, strerror(errno), firstPkt.tranId);
+  if (taosWriteMsg(pPeer->syncFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
+    sError("%s, failed to send sync-data msg since %s, tranId:%u", pPeer->id, strerror(errno), msg.tranId);
     return -1;
   }
-  sDebug("%s, send sync-data pkt to peer, tranId:%u", pPeer->id, firstPkt.tranId);
+  sDebug("%s, send sync-data msg to peer, tranId:%u", pPeer->id, msg.tranId);
 
-  SFirstPktRsp firstPktRsp;
-  if (taosReadMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) != sizeof(SFirstPktRsp)) {
-    sError("%s, failed to read sync firstPkt rsp since %s, tranId:%u", pPeer->id, strerror(errno), firstPkt.tranId);
+  SSyncRsp rsp;
+  if (taosReadMsg(pPeer->syncFd, &rsp, sizeof(SSyncRsp)) != sizeof(SSyncRsp)) {
+    sError("%s, failed to read sync-data rsp since %s, tranId:%u", pPeer->id, strerror(errno), msg.tranId);
     return -1;
   }
 
-  sDebug("%s, recv firstPktRsp from peer, tranId:%u", pPeer->id, firstPkt.tranId);
+  sDebug("%s, recv sync-data rsp from peer, tranId:%u rsp-tranId:%u", pPeer->id, msg.tranId, rsp.tranId);
   return 0;
 }
 

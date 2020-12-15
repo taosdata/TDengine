@@ -43,6 +43,7 @@ typedef enum {
 #define SYNC_FWD_TIMER  300
 #define SYNC_ROLE_TIMER 10000
 #define SYNC_WAIT_AFTER_CHOOSE_MASTER 3
+#define SYNC_PROTOCOL_VERSION 0
 
 #define nodeRole    pNode->peerInfo[pNode->selfIndex]->role
 #define nodeVersion pNode->peerInfo[pNode->selfIndex]->version
@@ -51,27 +52,27 @@ typedef enum {
 #pragma pack(push, 1)
 
 typedef struct {
-  char     type;        // msg type
-  char     pversion;    // protocol version
-  char     reserved[6]; // not used
+  int8_t   type;        // msg type
+  int8_t   protocol;    // protocol version
+  int8_t   reserved[6]; // not used
   int32_t  vgId;        // vg ID
   int32_t  len;         // content length, does not include head
-  // char     cont[];      // message content starts from here
 } SSyncHead;
 
 typedef struct {
-  SSyncHead syncHead;
+  SSyncHead head;
   uint16_t  port;
   uint16_t  tranId;
   char      fqdn[TSDB_FQDN_LEN];
   int32_t   sourceId;  // only for arbitrator
-} SFirstPkt;
+} SSyncMsg;
 
 typedef struct {
-  int8_t   sync;
-  int8_t   reserved;
-  uint16_t tranId;
-} SFirstPktRsp;
+  SSyncHead head;
+  int8_t    sync;
+  int8_t    reserved;
+  uint16_t  tranId;
+} SSyncRsp;
 
 typedef struct {
   int8_t    role;
@@ -101,6 +102,7 @@ typedef struct {
 } SFileAck;
 
 typedef struct {
+  SSyncHead head;
   uint64_t  version;
   int32_t   code;
 } SFwdRsp;
