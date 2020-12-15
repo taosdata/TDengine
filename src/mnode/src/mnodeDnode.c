@@ -104,7 +104,7 @@ static int32_t mnodeDnodeActionInsert(SSdbRow *pRow) {
   dnodeUpdateEp(pDnode->dnodeId, pDnode->dnodeEp, pDnode->dnodeFqdn, &pDnode->dnodePort);
   mnodeUpdateDnodeEps();
 
-  mInfo("dnode:%d, fqdn:%s ep:%s port:%d, do insert action", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp, pDnode->dnodePort);
+  mInfo("dnode:%d, fqdn:%s ep:%s port:%d is created", pDnode->dnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp, pDnode->dnodePort);
   return TSDB_CODE_SUCCESS;
 }
 
