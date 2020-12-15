@@ -302,7 +302,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 ### 安装准备
 * 已安装TDengine, 如果客户端在Windows上，需要安装Windows 版本的TDengine客户端 [（Windows TDengine 客户端安装）][4]
 * 已安装python 2.7 or >= 3.4
-* 已安装pip
+* 已安装pip 或 pip3
 
 ### Python客户端安装
 
@@ -314,7 +314,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 
 或
 
-​		`pip install src/connector/python/linux/python3/`
+​		`pip3 install src/connector/python/linux/python3/`
 
 #### Windows
 在已安装Windows TDengine 客户端的情况下， 将文件"C:\TDengine\driver\taos.dll" 拷贝到 "C:\windows\system32" 目录下, 然后进入Windwos <em>cmd</em> 命令行界面
@@ -474,13 +474,13 @@ HTTP请求的BODY里就是一个完整的SQL语句，SQL语句中的数据表应
 
 使用curl通过自定义身份认证方式来发起一个HTTP Request，语法如下：
 
-```
+```bash
 curl -H 'Authorization: Basic <TOKEN>' -d '<SQL>' <ip>:<PORT>/rest/sql
 ```
 
 或者
 
-```
+```bash
 curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 ```
 
@@ -490,7 +490,7 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 
 返回值为JSON格式，如下:
 
-```
+```json
 {
     "status": "succ",
     "head": ["Time Stamp","current", …],
@@ -513,7 +513,7 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql
 
 HTTP请求中需要带有授权码`<TOKEN>`，用于身份识别。授权码通常由管理员提供，可简单的通过发送`HTTP GET`请求来获取授权码，操作如下：
 
-```
+```bash
 curl http://<ip>:6041/rest/login/<username>/<password>
 ```
 
@@ -527,13 +527,13 @@ curl http://<ip>:6041/rest/login/<username>/<password>
 
 获取授权码示例：
 
-```
+```bash
 curl http://192.168.0.1:6041/rest/login/root/taosdata
 ```
 
 返回值：
 
-```
+```json
 {
   "status": "succ",
   "code": 0,
@@ -545,12 +545,12 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
 - 在demo库里查询表d1001的所有记录： 
 
-```
+```bash
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sql
 ```
 返回值：
 
-```
+```json
 {
     "status": "succ",
     "head": ["Time Stamp","current","voltage","phase"],
@@ -564,12 +564,12 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 
 - 创建库demo：
 
-```
+```bash
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6041/rest/sql
 ```
 
 返回值：
-```
+```json
 {
     "status": "succ",
     "head": ["affected_rows"],
@@ -584,13 +584,13 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 19
 
 HTTP请求URL采用`sqlt`时，返回结果集的时间戳将采用Unix时间戳格式表示，例如
 
-```
+```bash
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sqlt
 ```
 
 返回值：
 
-```
+```json
 {
     "status": "succ",
     "head": ["column1","column2","column3"],
@@ -605,13 +605,13 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 #### 结果集采用UTC时间字符串
 
 HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间字符串表示，例如
-```
+```bash
   curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6041/rest/sqlutc
 ```
 
 返回值：
 
-```
+```json
 {
     "status": "succ",
     "head": ["column1","column2","column3"],
@@ -726,7 +726,7 @@ TDengine 同时也提供了node.js 的连接器。用户可以通过[npm](https:
 
 首先，通过[npm](https://www.npmjs.com/)安装node.js 连接器.
 
-```cmd
+```bash
 npm install td2.0-connector
 ```
 我们建议用户使用npm 安装node.js连接器。如果您没有安装npm, 可以将*src/connector/nodejs/*拷贝到您的nodejs 项目目录下

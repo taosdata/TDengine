@@ -8,14 +8,14 @@ TDengine采用关系型数据模型，需要建库、建表。因此对于一个
 
 不同类型的数据采集点往往具有不同的数据特征，包括数据采集频率的高低，数据保留时间的长短，副本的数目，数据块的大小，是否允许更新数据等等。为让各种场景下TDengine都能最大效率的工作，TDengine建议将不同数据特征的表创建在不同的库里，因为每个库可以配置不同的存储策略。创建一个库时，除SQL标准的选项外，应用还可以指定保留时长、副本数、内存块个数、时间精度、文件块里最大最小记录条数、是否压缩、一个数据文件覆盖的天数等多种参数。比如：
 
-```cmd
+```mysql
 CREATE DATABASE power KEEP 365 DAYS 10 BLOCKS 4 UPDATE 1;
 ```
 上述语句将创建一个名为power的库，这个库的数据将保留365天（超过365天将被自动删除），每10天一个数据文件，内存块数为4，允许更新数据。详细的语法及参数请见<a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL</a>  
 
 创建库之后，需要使用SQL命令USE将当前库切换过来，例如：
 
-```cmd
+```mysql
 USE power;	
 ```
 
@@ -28,7 +28,7 @@ USE power;
 
 ## 创建超级表
 一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用TDengine, 需要对每个类型的数据采集点创建一超级表。以表一中的智能电表为例，可以使用如下的SQL命令创建超级表：
-```cmd
+```mysql
 CREATE TABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupdId int);
 ```
 与创建普通表一样，创建表时，需要提供表名（示例中为meters），表结构Schema，即数据列的定义。第一列必须为时间戳（示例中为ts)，其他列为采集的物理量（示例中为current, voltage, phase)，数据类型可以为整型、浮点型、字符串等。除此之外，还需要提供标签的schema (示例中为location, groupId)，标签的数据类型可以为整型、浮点型、字符串等。采集点的静态属性往往可以作为标签，比如采集点的地理位置、设备型号、设备组ID、管理员ID等等。标签的schema可以事后增加、删除、修改。具体定义以及细节请见 <a href="https://www.taosdata.com/cn/documentation20/taos-sql/">TAOS SQL </a>一节。

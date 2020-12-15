@@ -144,7 +144,7 @@ taos -h 192.168.0.1 -s "use db; show tables;"
 
 TDengine终端可以通过`source`命令来运行SQL命令脚本.
 
-```
+```mysql
 taos> source <filename>;
 ```
 
