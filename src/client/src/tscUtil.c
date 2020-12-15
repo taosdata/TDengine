@@ -2589,6 +2589,8 @@ void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src) {
   for(int32_t i = 0; i < dst->numOfEps; ++i) {
     tfree(dst->epAddr[i].fqdn);
     dst->epAddr[i].port = src->epAddr[i].port;
+    assert(dst->epAddr[i].fqdn == NULL);
+
     dst->epAddr[i].fqdn = strdup(src->epAddr[i].fqdn);
   }
 }
