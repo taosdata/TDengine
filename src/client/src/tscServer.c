@@ -147,15 +147,15 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
   SSqlObj *pSql = tres;
   SSqlRes *pRes = &pSql->res;
 
-  if (code == 0) {
+  if (code == TSDB_CODE_SUCCESS) {
     SHeartBeatRsp *pRsp = (SHeartBeatRsp *)pRes->pRsp;
-    SRpcEpSet *    epSet = &pRsp->epSet;
+    SRpcEpSet     *epSet = &pRsp->epSet;
     if (epSet->numOfEps > 0) {
       tscEpSetHtons(epSet);
       if (!tscEpSetIsEqual(&pSql->pTscObj->tscCorMgmtEpSet->epSet, epSet)) {
         tscTrace("%p updating epset: numOfEps: %d, inUse: %d", pSql, epSet->numOfEps, epSet->inUse);
         for (int8_t i = 0; i < epSet->numOfEps; i++) {
-          tscTrace("endpoint %d: fqdn = %s, port=%d", i, epSet->fqdn[i], epSet->port[i]);
+          tscTrace("endpoint %d: fqdn=%s, port=%d", i, epSet->fqdn[i], epSet->port[i]);
         }
         tscUpdateMgmtEpSet(pSql, epSet);
       }
@@ -167,11 +167,40 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
       tscKillConnection(pObj);
       return;
     } else {
-      if (pRsp->queryId) tscKillQuery(pObj, htonl(pRsp->queryId));
-      if (pRsp->streamId) tscKillStream(pObj, htonl(pRsp->streamId));
+      if (pRsp->queryId) {
+        tscKillQuery(pObj, htonl(pRsp->queryId));
+      }
+
+      if (pRsp->streamId) {
+        tscKillStream(pObj, htonl(pRsp->streamId));
+      }
     }
+
+    int32_t total  = htonl(pRsp->totalDnodes);
+    int32_t online = htonl(pRsp->onlineDnodes);
+    assert(online <= total);
+
+    if (online < total) {
+      tscError("HB:%p, total dnode:%d, online dnode:%d", pSql, total, online);
+      pSql->res.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+    }
+
+    if (pRes->buffer == NULL) {
+      pRes->length = calloc(2,  sizeof(int32_t));
+    }
+
+    pRes->length[0] = total;
+    pRes->length[1] = online;
   } else {
     tscDebug("%" PRId64 " heartbeat failed, code:%s", pObj->hbrid, tstrerror(code));
+    if (pRes->buffer == NULL) {
+      pRes->length = calloc(2, sizeof(int32_t));
+    }
+
+    pRes->length[1] = 0;
+    if (pRes->length[0] == 0) {
+      pRes->length[0] = 1; // make sure that the value of the total node is greater than the online node
+    }
   }
 
   if (pObj->hbrid != 0) {
@@ -214,7 +243,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   STscObj* pObj = pSql->pTscObj;
   SSqlCmd* pCmd = &pSql->cmd;
   
-  char *pMsg = rpcMallocCont(pCmd->payloadLen);
+  char *pMsg = rpcMallocCont(sizeof(SMsgVersion) + pCmd->payloadLen);
   if (NULL == pMsg) {
     tscError("%p msg:%s malloc failed", pSql, taosMsg[pSql->cmd.msgType]);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -225,12 +254,13 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     tscDumpMgmtEpSet(pSql);
   }
 
-  memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
+  tstrncpy(pMsg, version, sizeof(SMsgVersion));
+  memcpy(pMsg + sizeof(SMsgVersion), pSql->cmd.payload, pSql->cmd.payloadLen);
 
   SRpcMsg rpcMsg = {
       .msgType = pSql->cmd.msgType,
       .pCont   = pMsg,
-      .contLen = pSql->cmd.payloadLen,
+      .contLen = pSql->cmd.payloadLen + sizeof(SMsgVersion),
       .ahandle = (void*)pSql->self,
       .handle  = NULL,
       .code    = 0
