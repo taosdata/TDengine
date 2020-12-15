@@ -569,7 +569,7 @@ static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, ch
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  char fullName[TSDB_TABLE_FNAME_LEN] = {0};
+  char fullName[TSDB_TABLE_FNAME_LEN * 2] = {0};
   extractDBName(pTableMetaInfo->name, fullName);
   extractTableName(pMeta->sTableId, param->sTableName);
   snprintf(fullName + strlen(fullName), TSDB_TABLE_FNAME_LEN - strlen(fullName),  ".%s", param->sTableName);

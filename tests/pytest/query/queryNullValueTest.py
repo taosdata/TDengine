@@ -50,7 +50,7 @@ class TDTestCase:
             tdSql.execute("insert into t0 values (%d, NULL)" % (self.ts))
             
             tdDnodes.stop(1)
-            tdLog.sleep(10)
+            # tdLog.sleep(10)
             tdDnodes.start(1)
             tdSql.execute("use db")
             tdSql.query("select * from t0")
@@ -62,7 +62,7 @@ class TDTestCase:
             tdSql.execute("create table t1 (ts timestamp, col %s)" % self.types[i])
             tdSql.execute("insert into t1 values (%d, NULL)" % (self.ts))
             tdDnodes.stop(1)
-            tdLog.sleep(10)
+            # tdLog.sleep(10)
             tdDnodes.start(1)
             tdSql.execute("use db")
 
