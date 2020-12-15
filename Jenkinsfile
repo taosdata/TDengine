@@ -10,6 +10,9 @@ node {
 //   currentBuild.result = 'success skip' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
 //   return
 // }
+def buildNumber = env.BUILD_NUMBER as int
+if (buildNumber > 1) milestone(buildNumber - 1)
+milestone(buildNumber)
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
