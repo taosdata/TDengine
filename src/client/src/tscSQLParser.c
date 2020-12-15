@@ -6157,7 +6157,7 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   STableMetaInfo* pStableMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
 
   // super table name, create table by using dst
-  int32_t numOfTables = taosArrayGetSize(pCreateTable->childTableInfo);
+  int32_t numOfTables = (int32_t) taosArrayGetSize(pCreateTable->childTableInfo);
   for(int32_t j = 0; j < numOfTables; ++j) {
     SCreatedTableInfo* pCreateTableInfo = taosArrayGet(pCreateTable->childTableInfo, j);
 
