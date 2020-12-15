@@ -407,7 +407,7 @@ void tscResetSqlCmdObj(SSqlCmd* pCmd, bool removeFromCache) {
   pCmd->autoCreated = 0;
 
   for(int32_t i = 0; i < pCmd->numOfTables; ++i) {
-    if (pCmd->pTableMetaList[i] != NULL) {
+    if (pCmd->pTableMetaList && pCmd->pTableMetaList[i]) {
       taosCacheRelease(tscMetaCache, (void**)&(pCmd->pTableMetaList[i]), false);
     }
   }

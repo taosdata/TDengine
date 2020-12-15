@@ -32,8 +32,7 @@
 // global configurable
 int32_t tsMaxSyncNum = 2;
 int32_t tsSyncTcpThreads = 2;
-int32_t tsMaxWatchFiles = 500;
-int32_t tsMaxFwdInfo = 200;
+int32_t tsMaxFwdInfo = 512;
 int32_t tsSyncTimer = 1;
 
 // module global, not configurable
@@ -60,7 +59,7 @@ static void    syncRemoveConfirmedFwdInfo(SSyncNode *pNode);
 static void    syncMonitorFwdInfos(void *param, void *tmrId);
 static void    syncMonitorNodeRole(void *param, void *tmrId);
 static void    syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code);
-static void    syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle);
+static int32_t syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle);
 static void    syncRestartPeer(SSyncPeer *pPeer);
 static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle, int32_t qtyp);
 static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo);
@@ -892,15 +891,24 @@ static void syncProcessFwdResponse(char *cont, SSyncPeer *pPeer) {
   sTrace("%s, forward-rsp is received, code:%x hver:%" PRIu64, pPeer->id, pFwdRsp->code, pFwdRsp->version);
   SFwdInfo *pFirst = pSyncFwds->fwdInfo + pSyncFwds->first;
 
+  bool found = false;
   if (pFirst->version <= pFwdRsp->version && pSyncFwds->fwds > 0) {
     // find the forwardInfo from first
     for (int32_t i = 0; i < pSyncFwds->fwds; ++i) {
       pFwdInfo = pSyncFwds->fwdInfo + (i + pSyncFwds->first) % tsMaxFwdInfo;
-      if (pFwdRsp->version == pFwdInfo->version) break;
+      if (pFwdRsp->version == pFwdInfo->version) {
+        found = true;
+        syncProcessFwdAck(pNode, pFwdInfo, pFwdRsp->code);
+        syncRemoveConfirmedFwdInfo(pNode);
+        break;
+      }
     }
+  }
 
+  if (!found) {
+    sTrace("%s, forward-rsp not found first:%d fwds:%d, code:%x hver:%" PRIu64, pPeer->id, pSyncFwds->first,
+           pSyncFwds->fwds, pFwdRsp->code, pFwdRsp->version);
     syncProcessFwdAck(pNode, pFwdInfo, pFwdRsp->code);
-    syncRemoveConfirmedFwdInfo(pNode);
   }
 }
 
@@ -1180,13 +1188,15 @@ static void syncProcessBrokenLink(void *param) {
   taosReleaseRef(tsSyncRefId, pNode->rid);
 }
 
-static void syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) {
+static int32_t syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) {
   SSyncFwds *pSyncFwds = pNode->pSyncFwds;
   int64_t    time = taosGetTimestampMs();
 
   if (pSyncFwds->fwds >= tsMaxFwdInfo) {
-    pSyncFwds->first = (pSyncFwds->first + 1) % tsMaxFwdInfo;
-    pSyncFwds->fwds--;
+    // pSyncFwds->first = (pSyncFwds->first + 1) % tsMaxFwdInfo;
+    // pSyncFwds->fwds--;
+    sError("vgId:%d, failed to save fwd info, hver:%" PRIu64 " fwds:%d", pNode->vgId, version, pSyncFwds->fwds);
+    return TSDB_CODE_SYN_TOO_MANY_FWDINFO;
   }
 
   if (pSyncFwds->fwds > 0) {
@@ -1201,6 +1211,8 @@ static void syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle) {
 
   pSyncFwds->fwds++;
   sTrace("vgId:%d, fwd info is saved, hver:%" PRIu64 " fwds:%d ", pNode->vgId, version, pSyncFwds->fwds);
+
+  return 0;
 }
 
 static void syncRemoveConfirmedFwdInfo(SSyncNode *pNode) {
@@ -1214,8 +1226,7 @@ static void syncRemoveConfirmedFwdInfo(SSyncNode *pNode) {
     pSyncFwds->first = (pSyncFwds->first + 1) % tsMaxFwdInfo;
     pSyncFwds->fwds--;
     if (pSyncFwds->fwds == 0) pSyncFwds->first = pSyncFwds->last;
-    // sDebug("vgId:%d, fwd info is removed, hver:%d, fwds:%d",
-    //        pNode->vgId, pFwdInfo->version, pSyncFwds->fwds);
+    sTrace("vgId:%d, fwd info is removed, hver:%" PRIu64 " fwds:%d", pNode->vgId, pFwdInfo->version, pSyncFwds->fwds);
     memset(pFwdInfo, 0, sizeof(SFwdInfo));
   }
 }
@@ -1341,8 +1352,8 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
     if (pPeer->role != TAOS_SYNC_ROLE_SLAVE && pPeer->sstatus != TAOS_SYNC_STATUS_CACHE) continue;
 
     if (pNode->quorum > 1 && code == 0) {
-      syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
-      code = 1;
+      code = syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
+      if (code >= 0) code = 1;
     }
 
     int32_t retLen = taosWriteMsg(pPeer->peerFd, pSyncHead, fwdLen);

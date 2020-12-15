@@ -49,12 +49,14 @@
 #define CREATE_CTABLE_RETRY_TIMES 10
 #define CREATE_CTABLE_RETRY_SEC   14
 
-int64_t        tsCTableRid = -1;
-static void *  tsChildTableSdb;
-int64_t        tsSTableRid = -1;
-static void *  tsSuperTableSdb;
-static int32_t tsChildTableUpdateSize;
-static int32_t tsSuperTableUpdateSize;
+int64_t          tsCTableRid = -1;
+static void *    tsChildTableSdb;
+int64_t          tsSTableRid = -1;
+static void *    tsSuperTableSdb;
+static SHashObj *tsSTableUidHash;
+static int32_t   tsChildTableUpdateSize;
+static int32_t   tsSuperTableUpdateSize;
+
 static void *  mnodeGetChildTable(char *tableId);
 static void *  mnodeGetSuperTable(char *tableId);
 static void *  mnodeGetSuperTableByUid(uint64_t uid);
@@ -289,6 +291,7 @@ static int32_t mnodeChildTableActionDecode(SSdbRow *pRow) {
 }
 
 static int32_t mnodeChildTableActionRestored() {
+#if 0
   void *pIter = NULL;
   SCTableObj *pTable = NULL;
 
@@ -345,6 +348,7 @@ static int32_t mnodeChildTableActionRestored() {
   }
 
   mnodeCancelGetNextChildTable(pIter);
+#endif
   return 0;
 }
 
@@ -447,6 +451,7 @@ static int32_t mnodeSuperTableActionInsert(SSdbRow *pRow) {
   }
   mnodeDecDbRef(pDb);
 
+  taosHashPut(tsSTableUidHash, &pStable->uid, sizeof(int64_t), &pStable, sizeof(int64_t));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -459,6 +464,7 @@ static int32_t mnodeSuperTableActionDelete(SSdbRow *pRow) {
   }
   mnodeDecDbRef(pDb);
 
+  taosHashRemove(tsSTableUidHash, &pStable->uid, sizeof(int64_t));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -570,6 +576,7 @@ static int32_t mnodeInitSuperTables() {
     .fpRestored   = mnodeSuperTableActionRestored
   };
 
+  tsSTableUidHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
   tsSTableRid = sdbOpenTable(&desc);
   tsSuperTableSdb = sdbGetTableByRid(tsSTableRid);
   if (tsSuperTableSdb == NULL) {
@@ -584,6 +591,9 @@ static int32_t mnodeInitSuperTables() {
 static void mnodeCleanupSuperTables() {
   sdbCloseTable(tsSTableRid);
   tsSuperTableSdb = NULL;
+
+  taosHashCleanup(tsSTableUidHash);
+  tsSTableUidHash = NULL;
 }
 
 int32_t mnodeInitTables() {
@@ -633,20 +643,12 @@ static void *mnodeGetSuperTable(char *tableId) {
 }
 
 static void *mnodeGetSuperTableByUid(uint64_t uid) {
-  SSTableObj *pStable = NULL;
-  void *pIter = NULL;
+  SSTableObj **ppStable = taosHashGet(tsSTableUidHash, &uid, sizeof(int64_t));
+  if (ppStable == NULL || *ppStable == NULL) return NULL;
 
-  while (1) {
-    pIter = mnodeGetNextSuperTable(pIter, &pStable);
-    if (pStable == NULL) break;
-    if (pStable->uid == uid) {
-      mnodeCancelGetNextSuperTable(pIter);
-      return pStable;
-    }
-    mnodeDecTableRef(pStable);
-  }
-
-  return NULL;
+  SSTableObj *pStable = *ppStable;
+  mnodeIncTableRef(pStable);
+  return pStable;
 }
 
 void *mnodeGetTable(char *tableId) {
