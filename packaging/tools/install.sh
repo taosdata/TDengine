@@ -9,6 +9,9 @@ set -e
 verMode=edge
 pagMode=full
 
+iplist=""
+serverFqdn=""
+
 # -----------------------Variables definition---------------------
 script_dir=$(dirname $(readlink -f "$0"))
 # Dynamic directory
@@ -227,6 +230,157 @@ function install_header() {
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
+function add_newHostname_to_hosts() {
+  localIp="127.0.0.1"
+  OLD_IFS="$IFS"
+  IFS=" "
+  iphost=$(cat /etc/hosts | grep $1 | awk '{print $1}')
+  arr=($iphost)
+  IFS="$OLD_IFS"
+  for s in ${arr[@]}
+  do
+    if [[ "$s" == "$localIp" ]]; then
+      return
+    fi
+  done 
+  ${csudo} echo "127.0.0.1  $1" >> /etc/hosts   ||:
+}
+
+function set_hostname() {
+  echo -e -n "${GREEN}Please enter one hostname(must not be 'localhost')${NC}:"
+	read newHostname
+  while true; do
+    if [[ ! -z "$newHostname" && "$newHostname" != "localhost" ]]; then
+      break
+    else
+      read -p "Please enter one hostname(must not be 'localhost'):" newHostname
+    fi
+  done
+
+  ${csudo} hostname $newHostname ||:
+  retval=`echo $?`
+  if [[ $retval != 0 ]]; then
+   echo
+   echo "set hostname fail!"
+   return 
+  fi
+  #echo -e -n "$(hostnamectl status --static)"
+  #echo -e -n "$(hostnamectl status --transient)"
+  #echo -e -n "$(hostnamectl status --pretty)"
+  
+  #ubuntu/centos /etc/hostname
+  if [[ -e /etc/hostname ]]; then
+    ${csudo} echo $newHostname > /etc/hostname   ||:
+  fi
+  
+  #debian: #HOSTNAME=yourname
+  if [[ -e /etc/sysconfig/network ]]; then
+    ${csudo} sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network   ||:
+  fi
+
+  ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${cfg_install_dir}/taos.cfg
+  serverFqdn=$newHostname  
+  
+  if [[ -e /etc/hosts ]]; then
+    add_newHostname_to_hosts $newHostname
+  fi
+}
+
+function is_correct_ipaddr() {
+  newIp=$1
+  OLD_IFS="$IFS"
+  IFS=" "
+  arr=($iplist)
+  IFS="$OLD_IFS"
+  for s in ${arr[@]}
+  do
+   if [[ "$s" == "$newIp" ]]; then
+     return 0
+   fi
+  done
+  
+  return 1
+}
+
+function set_ipAsFqdn() {
+  iplist=$(ip address |grep inet |grep -v inet6 |grep -v 127.0.0.1 |awk '{print $2}' |awk -F "/" '{print $1}') ||:
+  if [ -z "$iplist" ]; then
+    iplist=$(ifconfig |grep inet |grep -v inet6 |grep -v 127.0.0.1 |awk '{print $2}' |awk -F ":" '{print $2}') ||:
+  fi
+
+  if [ -z "$iplist" ]; then
+    echo
+    echo -e -n "${GREEN}Unable to get local ip, use 127.0.0.1${NC}"
+    localFqdn="127.0.0.1"
+    # Write the local FQDN to configuration file                    
+    ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/taos.cfg    
+    serverFqdn=$localFqdn
+    echo
+    return
+  fi  
+  
+  echo -e -n "${GREEN}Please choose an IP from local IP list${NC}:"
+  echo
+  echo -e -n "${GREEN}$iplist${NC}"
+  echo
+  echo
+  echo -e -n "${GREEN}Notes: if IP is used as the node name, data can NOT be migrated to other machine directly${NC}:"
+  read localFqdn
+    while true; do
+      if [ ! -z "$localFqdn" ]; then            
+        # Check if correct ip address
+        is_correct_ipaddr $localFqdn
+        retval=`echo $?`
+        if [[ $retval != 0 ]]; then
+          read -p "Please choose an IP from local IP list:" localFqdn
+        else
+          # Write the local FQDN to configuration file                    
+          ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/taos.cfg    
+          serverFqdn=$localFqdn
+          break
+        fi
+      else
+        read -p "Please choose an IP from local IP list:" localFqdn
+      fi
+    done
+}
+
+function local_fqdn_check() {
+  #serverFqdn=$(hostname -f)
+  echo
+  echo -e -n "System hostname is: ${GREEN}$serverFqdn${NC}"
+  echo
+  if [[ "$serverFqdn" == "" ]] || [[ "$serverFqdn" == "localhost"  ]]; then    
+    echo -e -n "${GREEN}It is strongly recommended to configure a hostname for this machine ${NC}"
+    echo
+    
+    while true
+    do
+	    read -r -p "Set hostname now? [Y/n] " input
+	    if [ ! -n "$input" ]; then
+       set_hostname
+       break
+      else
+	      case $input in
+	        [yY][eE][sS]|[yY])
+          set_hostname
+          break
+			    ;;
+        
+	        [nN][oO]|[nN])
+			    set_ipAsFqdn
+			    break   	
+			    ;;
+        
+	        *)
+			    echo "Invalid input..."
+			    ;;
+	      esac
+	    fi
+    done
+  fi
+}
+
 function install_config() {
     #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
     
@@ -247,7 +401,9 @@ function install_config() {
     
     if [ "$interactiveFqdn" == "no" ]; then
         return 0
-    fi
+    fi   	
+    
+    local_fqdn_check
 
     #FQDN_FORMAT="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
     #FQDN_FORMAT="(:[1-6][0-9][0-9][0-9][0-9]$)"
@@ -446,6 +602,9 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/setDelay.sh'     >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'ExecStartPost=/usr/local/taos/bin/resetDelay.sh'  >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'ExecStopPost=/usr/local/taos/bin/resetDelay.sh'   >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"
@@ -454,6 +613,7 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo 'Restart=always'                     >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'StartLimitBurst=3'                  >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'StartLimitInterval=60s'             >> ${taosd_service_config}"
+    #${csudo} bash -c "echo 'StartLimitIntervalSec=60s'          >> ${taosd_service_config}"
     ${csudo} bash -c "echo                                      >> ${taosd_service_config}"
     ${csudo} bash -c "echo '[Install]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'WantedBy=multi-user.target'         >> ${taosd_service_config}"
@@ -634,9 +794,9 @@ function update_TDengine() {
         fi
 
         if [ ${openresty_work} = 'true' ]; then
-            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
         else
-            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+            echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos -h $serverFqdn${NC} in shell${NC}"
         fi
                 
         echo
@@ -655,8 +815,8 @@ function update_TDengine() {
 function install_TDengine() {
     # Start to install
     if [ ! -e taos.tar.gz ]; then
-        echo "File taos.tar.gz does not exist"
-        exit 1
+      echo "File taos.tar.gz does not exist"
+      exit 1
     fi
     tar -zxf taos.tar.gz
 
@@ -702,41 +862,54 @@ function install_TDengine() {
         echo
         echo -e "${GREEN_DARK}To configure TDengine ${NC}: edit /etc/taos/taos.cfg"
         if ((${service_mod}==0)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
+          echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} systemctl start taosd${NC}"
         elif ((${service_mod}==1)); then
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
+          echo -e "${GREEN_DARK}To start TDengine     ${NC}: ${csudo} service taosd start${NC}"
         else
-            echo -e "${GREEN_DARK}To start TDengine     ${NC}: taosd${NC}"
+          echo -e "${GREEN_DARK}To start TDengine     ${NC}: taosd${NC}"
         fi		
 
-        if [ ${openresty_work} = 'true' ]; then
-             echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
-        else
-             echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
-        fi
+        #if [ ${openresty_work} = 'true' ]; then
+        #     echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+        #else
+        #     echo -e "${GREEN_DARK}To access TDengine    ${NC}: use ${GREEN_UNDERLINE}taos${NC} in shell${NC}"
+        #fi
 		
         if [ ! -z "$firstEp" ]; then
-	    echo		    
-	    echo -e "${GREEN_DARK}Please run${NC}: taos -h $firstEp${GREEN_DARK} to login into cluster, then${NC}"
-	    echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
-            echo
+          tmpFqdn=${firstEp%%:*}
+          substr=":"
+          if [[ $firstEp =~ $substr ]];then
+            tmpPort=${firstEp#*:}
+          else
+            tmpPort=""
+          fi
+          if [[ "$tmpPort" != "" ]];then
+	          echo -e "${GREEN_DARK}To access TDengine    ${NC}: taos -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
+	        else
+	          echo -e "${GREEN_DARK}To access TDengine    ${NC}: taos -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
+	        fi
+	        echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
+          echo
+        elif [ ! -z "$serverFqdn" ]; then
+	        echo -e "${GREEN_DARK}To access TDengine    ${NC}: taos -h $serverFqdn${GREEN_DARK} to login into TDengine server${NC}"
+          echo
         fi
+        
         echo -e "\033[44;32;1mTDengine is installed successfully!${NC}"
         echo       
     else # Only install client
         install_bin
         install_config
-
         echo
         echo -e "\033[44;32;1mTDengine client is installed successfully!${NC}"
     fi
     touch ~/.taos_history
-
     rm -rf $(tar -tf taos.tar.gz)
 }
 
 
 ## ==============================Main program starts from here============================
+serverFqdn=$(hostname -f)
 if [ "$verType" == "server" ]; then
     # Install server and client
     if [ -x ${bin_dir}/taosd ]; then
