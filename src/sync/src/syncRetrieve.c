@@ -406,14 +406,7 @@ static int32_t syncRetrieveFirstPkt(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
 
   SSyncMsg msg;
-  memset(&msg, 0, sizeof(SSyncMsg));
-  msg.head.type = TAOS_SMSG_SYNC_DATA;
-  msg.head.protocol = SYNC_PROTOCOL_VERSION;
-  msg.head.vgId = pNode->vgId;
-  msg.head.len = sizeof(SSyncMsg) - sizeof(SSyncHead);
-  msg.port = tsSyncPort;
-  msg.tranId = syncGenTranId();
-  tstrncpy(msg.fqdn, tsNodeFqdn, TSDB_FQDN_LEN);
+  syncBuildSyncDataMsg(&msg, pNode->vgId);
 
   if (taosWriteMsg(pPeer->syncFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
     sError("%s, failed to send sync-data msg since %s, tranId:%u", pPeer->id, strerror(errno), msg.tranId);

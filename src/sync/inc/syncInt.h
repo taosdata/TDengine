@@ -13,12 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_SYNCINT_H
-#define TDENGINE_SYNCINT_H
+#ifndef TDENGINE_SYNC_INT_H
+#define TDENGINE_SYNC_INT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "syncMsg.h"
+#include "twal.h"
 
 #define sFatal(...) { if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("SYN FATAL ", sDebugFlag, __VA_ARGS__); }}
 #define sError(...) { if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("SYN ERROR ", sDebugFlag, __VA_ARGS__); }}
@@ -27,87 +29,15 @@ extern "C" {
 #define sDebug(...) { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
 #define sTrace(...) { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
 
-typedef enum {
-  TAOS_SMSG_SYNC_DATA     = 1,
-  TAOS_SMSG_FORWARD       = 2,
-  TAOS_SMSG_FORWARD_RSP   = 3,
-  TAOS_SMSG_SYNC_REQ      = 4,
-  TAOS_SMSG_SYNC_RSP      = 5,
-  TAOS_SMSG_SYNC_MUST     = 6,
-  TAOS_SMSG_STATUS        = 7,
-  TAOS_SMSG_SYNC_DATA_RSP = 8,
-} ESyncMsgType;
-
 #define SYNC_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + sizeof(SSyncHead) + 16)
 #define SYNC_RECV_BUFFER_SIZE (5*1024*1024)
 #define SYNC_FWD_TIMER  300
 #define SYNC_ROLE_TIMER 10000
 #define SYNC_WAIT_AFTER_CHOOSE_MASTER 3
-#define SYNC_PROTOCOL_VERSION 0
 
 #define nodeRole    pNode->peerInfo[pNode->selfIndex]->role
 #define nodeVersion pNode->peerInfo[pNode->selfIndex]->version
 #define nodeSStatus pNode->peerInfo[pNode->selfIndex]->sstatus
-
-#pragma pack(push, 1)
-
-typedef struct {
-  int8_t   type;        // msg type
-  int8_t   protocol;    // protocol version
-  int8_t   reserved[6]; // not used
-  int32_t  vgId;        // vg ID
-  int32_t  len;         // content length, does not include head
-} SSyncHead;
-
-typedef struct {
-  SSyncHead head;
-  uint16_t  port;
-  uint16_t  tranId;
-  char      fqdn[TSDB_FQDN_LEN];
-  int32_t   sourceId;  // only for arbitrator
-} SSyncMsg;
-
-typedef struct {
-  SSyncHead head;
-  int8_t    sync;
-  int8_t    reserved;
-  uint16_t  tranId;
-} SSyncRsp;
-
-typedef struct {
-  int8_t    role;
-  uint64_t  version;
-} SPeerStatus;
-
-typedef struct {
-  int8_t      role;
-  int8_t      ack;
-  int8_t      type;
-  int8_t      reserved[3];
-  uint16_t    tranId;
-  uint64_t    version;
-  SPeerStatus peersStatus[];
-} SPeersStatus;
-
-typedef struct {
-  char      name[TSDB_FILENAME_LEN];
-  uint32_t  magic;
-  uint32_t  index;
-  uint64_t  fversion;
-  int64_t   size;
-} SFileInfo;
-
-typedef struct {
-  int8_t    sync;
-} SFileAck;
-
-typedef struct {
-  SSyncHead head;
-  uint64_t  version;
-  int32_t   code;
-} SFwdRsp;
-  
-#pragma pack(pop)
 
 typedef struct {
   char *  buffer;
@@ -192,7 +122,6 @@ void    syncRestartConnection(SSyncPeer *pPeer);
 void    syncBroadcastStatus(SSyncNode *pNode);
 void    syncAddPeerRef(SSyncPeer *pPeer);
 int32_t syncDecPeerRef(SSyncPeer *pPeer);
-uint16_t syncGenTranId();
 
 #ifdef __cplusplus
 }
