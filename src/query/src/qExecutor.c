@@ -624,9 +624,7 @@ static int32_t setWindowOutputBufByKey(SQueryRuntimeEnv *pRuntimeEnv, SResultRow
   SResultRow *pResultRow = doPrepareResultRowFromKey(pRuntimeEnv, pResultRowInfo, (char *)&win->skey, TSDB_KEYSIZE, masterscan, uid);
   if (pResultRow == NULL) {
     *newWind = false;
-
-    // no master scan, no result generated means error occurs
-    return masterscan? -1:0;
+    return masterscan? -1:0;   // no master scan, no result generated means error occurs
   }
 
   *newWind = true;
@@ -2617,9 +2615,10 @@ static bool overlapWithTimeWindow(SQuery* pQuery, SDataBlockInfo* pBlockInfo) {
 }
 
 int32_t loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo * pWindowResInfo, void* pQueryHandle, SDataBlockInfo* pBlockInfo, SDataStatis **pStatis, SArray** pDataBlock, uint32_t* status) {
-  SQuery *pQuery = pRuntimeEnv->pQuery;
-
   *status = BLK_DATA_NO_NEEDED;
+
+  SQuery *pQuery = pRuntimeEnv->pQuery;
+  SQueryCostInfo* pCost = &pRuntimeEnv->summary;
 
   if (pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTsBuf > 0) {
     *status = BLK_DATA_ALL_NEEDED;
@@ -2641,7 +2640,6 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo * pW
         bool masterScan = IS_MASTER_SCAN(pRuntimeEnv);
 
         TSKEY k = QUERY_IS_ASC_QUERY(pQuery)? pBlockInfo->window.skey:pBlockInfo->window.ekey;
-
         STimeWindow win = getActiveTimeWindow(pWindowResInfo, k, pQuery);
         if (setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, pBlockInfo, &win, masterScan, &hasTimeWindow, &pResult) !=
             TSDB_CODE_SUCCESS) {
@@ -2665,35 +2663,34 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo * pW
   if ((*status) == BLK_DATA_NO_NEEDED) {
     qDebug("QInfo:%p data block discard, brange:%"PRId64 "-%"PRId64", rows:%d", GET_QINFO_ADDR(pRuntimeEnv),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
-    pRuntimeEnv->summary.discardBlocks += 1;
+    pCost->discardBlocks += 1;
   } else if ((*status) == BLK_DATA_STATIS_NEEDED) {
 
     // this function never returns error?
     tsdbRetrieveDataBlockStatisInfo(pQueryHandle, pStatis);
-
-    pRuntimeEnv->summary.loadBlockStatis += 1;
+    pCost->loadBlockStatis += 1;
 
     if (*pStatis == NULL) { // data block statistics does not exist, load data block
       *pDataBlock = tsdbRetrieveDataBlock(pQueryHandle, NULL);
-      pRuntimeEnv->summary.totalCheckedRows += pBlockInfo->rows;
+      pCost->totalCheckedRows += pBlockInfo->rows;
     }
   } else {
     assert((*status) == BLK_DATA_ALL_NEEDED);
 
     // load the data block statistics to perform further filter
-    pRuntimeEnv->summary.loadBlockStatis += 1;
+    pCost->loadBlockStatis += 1;
     tsdbRetrieveDataBlockStatisInfo(pQueryHandle, pStatis);
 
     if (!needToLoadDataBlock(pRuntimeEnv, *pStatis, pRuntimeEnv->pCtx, pBlockInfo->rows)) {
       // current block has been discard due to filter applied
-      pRuntimeEnv->summary.discardBlocks += 1;
+      pCost->discardBlocks += 1;
       qDebug("QInfo:%p data block discard, brange:%"PRId64 "-%"PRId64", rows:%d", GET_QINFO_ADDR(pRuntimeEnv),
           pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
       (*status) = BLK_DATA_DISCARD;
     }
 
-    pRuntimeEnv->summary.totalCheckedRows += pBlockInfo->rows;
-    pRuntimeEnv->summary.loadBlocks += 1;
+    pCost->totalCheckedRows += pBlockInfo->rows;
+    pCost->loadBlocks += 1;
     *pDataBlock = tsdbRetrieveDataBlock(pQueryHandle, NULL);
     if (*pDataBlock == NULL) {
       return terrno;
