@@ -48,8 +48,6 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
             System.exit(0);
         }
 
-        DataSource dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user, config.password);
-
         // 准备数据
         prepareMetaData(config);
         // 超级表的meta
