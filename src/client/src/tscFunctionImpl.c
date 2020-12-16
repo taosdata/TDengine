@@ -48,7 +48,7 @@
       break;                             \
     }                                    \
     GET_RES_INFO(ctx)->numOfRes = (res); \
-  } while (0);
+  } while (0)
 
 #define INC_INIT_VAL(ctx, res) (GET_RES_INFO(ctx)->numOfRes += (res));
 
@@ -482,17 +482,16 @@ int32_t no_data_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId
       DO_UPDATE_TAG_COLUMNS(ctx, k);                \
       (num) += 1;                                   \
     }                                               \
-  } while (0);
+  } while (0)
 
 #define DUPATE_DATA_WITHOUT_TS(ctx, left, right, num, sign) \
-do {                                              \
-    if (((left) < (right)) ^ (sign)) {              \
-      (left) = (right);                             \
+  do {                                                      \
+    if (((left) < (right)) ^ (sign)) {                      \
+      (left) = (right);                                     \
       DO_UPDATE_TAG_COLUMNS_WITHOUT_TS(ctx);                \
-      (num) += 1;                                   \
-    }                                               \
-  } while (0);
-
+      (num) += 1;                                           \
+    }                                                       \
+  } while (0)
 
 #define LOOPCHECK_N(val, list, ctx, tsdbType, sign, num)          \
   for (int32_t i = 0; i < ((ctx)->size); ++i) {                   \
@@ -1909,7 +1908,7 @@ static void valuePairAssign(tValuePair *dst, int16_t type, const char *val, int6
     (dst)->timestamp = (src)->timestamp;               \
     (dst)->v = (src)->v;                               \
     memcpy((dst)->pTags, (src)->pTags, (size_t)(__l)); \
-  } while (0);
+  } while (0)
 
 static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData, int64_t ts, uint16_t type,
                                 SExtTagsInfo *pTagInfo, char *pTags, int16_t stage) {
@@ -2885,7 +2884,7 @@ static void leastsquares_function_f(SQLFunctionCtx *pCtx, int32_t index) {
       int32_t *p = pData;
       LEASTSQR_CAL(param, pInfo->startVal, p, 0, pCtx->param[1].dKey);
       break;
-    };
+    }
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *p = pData;
       LEASTSQR_CAL(param, pInfo->startVal, p, 0, pCtx->param[1].dKey);
