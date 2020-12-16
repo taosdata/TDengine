@@ -32,6 +32,7 @@ int32_t numOfThreads = 30;
 int32_t numOfTables = 100000;
 int32_t replica = 1;
 int32_t numOfColumns = 2;
+TAOS *  con = NULL;
 
 typedef struct {
   int32_t   tableBeginIndex;
@@ -84,13 +85,14 @@ int main(int argc, char *argv[]) {
 
   pthread_attr_destroy(&thattr);
   free(pInfo);
+  taos_close(con);
 }
 
 void createDbAndSTable() {
   pPrint("start to create db and stable");
   char qstr[64000];
   
-  TAOS *con = taos_connect(NULL, "root", "taosdata", NULL, 0);
+  con = taos_connect(NULL, "root", "taosdata", NULL, 0);
   if (con == NULL) {
     pError("failed to connect to DB, reason:%s", taos_errstr(con));
     exit(1);
@@ -127,20 +129,12 @@ void createDbAndSTable() {
     exit(0);
   }
   taos_free_result(pSql);
-
-  taos_close(con);
 }
 
 void *threadFunc(void *param) {
   SThreadInfo *pInfo = (SThreadInfo *)param;
   char qstr[65000];
   int  code;
-
-  TAOS *con = taos_connect(NULL, "root", "taosdata", NULL, 0);
-  if (con == NULL) {
-    pError("index:%d, failed to connect to DB, reason:%s", pInfo->threadIndex, taos_errstr(con));
-    exit(1);
-  }
 
   sprintf(qstr, "use %s", pInfo->dbName);
   TAOS_RES *pSql = taos_query(con, qstr);
@@ -170,7 +164,6 @@ void *threadFunc(void *param) {
   pInfo->createTableSpeed = speed;
 
   pPrint("thread:%d, time:%.2f sec, speed:%.1f tables/second, ", pInfo->threadIndex, seconds, speed);
-  taos_close(con);
 
   return 0;
 }

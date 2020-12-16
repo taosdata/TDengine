@@ -147,6 +147,7 @@ int32_t dnodeInitSystem() {
 
   dnodeSetRunStatus(TSDB_RUN_STATUS_RUNING);
 
+  dnodeReportStep("TDengine", "initialized successfully", 1);
   dInfo("TDengine is initialized successfully");
 
   return 0;

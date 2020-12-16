@@ -6562,7 +6562,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
     }
 
-    if (pQueryInfo->interval.interval > 0 && pQueryInfo->interval.intervalUnit != 'n' && pQueryInfo->interval.intervalUnit != 'y') {
+    if (pQueryInfo->interval.interval > 0) {
       bool initialWindows = TSWINDOW_IS_EQUAL(pQueryInfo->window, TSWINDOW_INITIALIZER);
       if (initialWindows) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
