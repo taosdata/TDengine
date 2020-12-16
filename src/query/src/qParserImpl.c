@@ -390,7 +390,7 @@ void tSQLSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) 
 void tSQLSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
   pField->type = -1;
 
-  for (int8_t i = 0; i < tListLen(tDataTypeDesc); ++i) {
+  for (int32_t i = 0; i < tListLen(tDataTypeDesc); ++i) {
     if ((strncasecmp(type->z, tDataTypeDesc[i].aName, tDataTypeDesc[i].nameLen) == 0) &&
         (type->n == tDataTypeDesc[i].nameLen)) {
       pField->type = i;
