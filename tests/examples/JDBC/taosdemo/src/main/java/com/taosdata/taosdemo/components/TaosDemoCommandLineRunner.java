@@ -10,12 +10,12 @@ import com.taosdata.taosdemo.service.SuperTableService;
 import com.taosdata.taosdemo.service.data.SubTableValueGenerator;
 import com.taosdata.taosdemo.service.data.SuperTableMetaGenerator;
 import com.taosdata.taosdemo.utils.JdbcTaosdemoConfig;
-import com.taosdata.taosdemo.utils.TimeStampUtil;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import javax.sql.DataSource;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -37,6 +37,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
 //    private List<SubTableValue> subTableValueList;
 //    private List<List<SubTableValue>> dataList;
 
+
     @Override
     public void run(String... args) throws Exception {
         // 读配置参数
@@ -46,6 +47,9 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
             JdbcTaosdemoConfig.printHelp();
             System.exit(0);
         }
+
+        DataSource dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user, config.password);
+
         // 准备数据
         prepareMetaData(config);
         // 超级表的meta
