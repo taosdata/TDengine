@@ -6369,14 +6369,13 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   assert(pQuerySql != NULL && (pQuerySql->from == NULL || taosArrayGetSize(pQuerySql->from) > 0));
 
   const char* msg0  = "invalid table name";
-  const char* msg2  = "point interpolation query needs timestamp";
-  const char* msg5  = "fill only available for interval query";
-  const char* msg6  = "start(end) time of query range required or time range too large";
-  const char* msg7  = "illegal number of tables in from clause";
-  const char* msg8  = "too many columns in selection clause";
-  const char* msg9  = "TWA query requires both the start and end time";
-  const char* msg10 = "too many tables in from clause";
-  const char* msg11 = "invalid table alias name";
+  const char* msg1 = "point interpolation query needs timestamp";
+  const char* msg2 = "fill only available for interval query";
+  const char* msg3 = "start(end) time of query range required or time range too large";
+  const char* msg4 = "illegal number of tables in from clause";
+  const char* msg5 = "too many columns in selection clause";
+  const char* msg6 = "too many tables in from clause";
+  const char* msg7 = "invalid table alias name";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -6392,7 +6391,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
   // too many result columns not support order by in query
   if (pQuerySql->pSelection->nExpr > TSDB_MAX_COLUMNS) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
   }
 
   /*
@@ -6410,13 +6409,13 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
   size_t fromSize = taosArrayGetSize(pQuerySql->from);
   if (fromSize > TSDB_MAX_JOIN_TABLE_NUM * 2) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
   pQueryInfo->command = TSDB_SQL_SELECT;
 
   if (fromSize > 4) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg10);
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
 
   // set all query tables, which are maybe more than one.
@@ -6449,12 +6448,12 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
     tVariantListItem* p1 = taosArrayGet(pQuerySql->from, i + 1);
     if (p1->pVar.nType != TSDB_DATA_TYPE_BINARY) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg11);
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
     }
 
     SStrToken aliasName = {.z = p1->pVar.pz, .n = p1->pVar.nLen, .type = TK_STRING};
     if (tscValidateName(&aliasName) != TSDB_CODE_SUCCESS) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg11);
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
     }
 
     // has no table alias name
@@ -6532,12 +6531,6 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     }
   }
 
-  // user does not specified the query time window, twa is not allowed in such case.
-  if ((pQueryInfo->window.skey == INT64_MIN || pQueryInfo->window.ekey == INT64_MAX ||
-       (pQueryInfo->window.ekey == INT64_MAX / 1000 && tinfo.precision == TSDB_TIME_PRECISION_MILLI)) && tscIsTWAQuery(pQueryInfo)) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
-  }
-
   // no result due to invalid query time range
   if (pQueryInfo->window.skey > pQueryInfo->window.ekey) {
     pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
@@ -6545,7 +6538,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   }
 
   if (!hasTimestampForPointInterpQuery(pQueryInfo)) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
   // in case of join query, time range is required.
@@ -6553,7 +6546,7 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
 
     if (timeRange == 0 && pQueryInfo->window.skey == 0) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
 
@@ -6573,19 +6566,19 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
    */
   if (pQuerySql->fillType != NULL) {
     if (pQueryInfo->interval.interval == 0 && (!tscIsPointInterpQuery(pQueryInfo))) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
     if (pQueryInfo->interval.interval > 0) {
       bool initialWindows = TSWINDOW_IS_EQUAL(pQueryInfo->window, TSWINDOW_INITIALIZER);
       if (initialWindows) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 
       int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
       // number of result is not greater than 10,000,000
       if ((timeRange == 0) || (timeRange / pQueryInfo->interval.interval) > MAX_INTERVAL_TIME_WINDOW) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
     }
 
