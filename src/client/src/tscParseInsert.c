@@ -1357,7 +1357,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
       ret = tscToSQLCmd(pSql, &SQLInfo);
     }
 
-    SQLInfoDestroy(&SQLInfo);
+    SqlInfoDestroy(&SQLInfo);
   }
 
   /*

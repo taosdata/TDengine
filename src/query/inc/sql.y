@@ -298,7 +298,7 @@ cmd ::= CREATE TABLE create_table_args. {}
 cmd ::= CREATE TABLE create_table_list(Z). { pInfo->type = TSDB_SQL_CREATE_TABLE; pInfo->pCreateTableInfo = Z;}
 
 %type create_table_list{SCreateTableSQL*}
-%destructor create_table_list{destroyCreateTableSQL($$);}
+%destructor create_table_list{destroyCreateTableSql($$);}
 create_table_list(A) ::= create_from_stable(Z). {
   SCreateTableSQL* pCreateTable = calloc(1, sizeof(SCreateTableSQL));
   pCreateTable->childTableInfo = taosArrayInit(4, sizeof(SCreatedTableInfo));

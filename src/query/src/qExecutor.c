@@ -2751,7 +2751,7 @@ int32_t binarySearchForKey(char *pValue, int num, TSKEY key, int order) {
       }
 
       numOfRows = lastPos - firstPos + 1;
-      midPos = (numOfRows >> 1) + firstPos;
+      midPos = (numOfRows >> 1u) + firstPos;
 
       if (key < keyList[midPos]) {
         lastPos = midPos - 1;

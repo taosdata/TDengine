@@ -66,9 +66,9 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
 
 static int32_t setObjFullName(char* fullName, const char* account, SStrToken* pDB, SStrToken* tableName, int32_t* len);
 
-static void getColumnName(tSQLExprItem* pItem, char* resultFieldName, int32_t nameLength);
+static void getColumnName(tSqlExprItem* pItem, char* resultFieldName, int32_t nameLength);
 
-static int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExprItem* pItem, bool finalResult);
+static int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSqlExprItem* pItem, bool finalResult);
 static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnList* pIdList, int16_t bytes,
                                  int8_t type, char* fieldName, SSqlExpr* pSqlExpr);
 
@@ -87,7 +87,7 @@ static int32_t parseIntervalClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuery
 static int32_t parseOffsetClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql);
 static int32_t parseSlidingClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql);
 
-static int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExprItem* pItem);
+static int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem);
 
 static int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSQLExpr** pExpr, SSqlObj* pSql);
 static int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySQL);
@@ -1279,7 +1279,7 @@ static void tscInsertPrimaryTSSourceColumn(SQueryInfo* pQueryInfo, SColumnIndex*
   tscColumnListInsert(pQueryInfo->colList, &tsCol);
 }
 
-static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t exprIndex, tSQLExprItem* pItem) {
+static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t exprIndex, tSqlExprItem* pItem) {
   const char* msg1 = "invalid column name, illegal column type, or columns in arithmetic expression from two tables";
   const char* msg2 = "invalid arithmetic expression in select clause";
   const char* msg3 = "tag columns can not be used in arithmetic expression";
@@ -1420,7 +1420,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumnIndex* pIndex, tSQLExprItem* pItem) {
+static void addProjectQueryCol(SQueryInfo* pQueryInfo, int32_t startPos, SColumnIndex* pIndex, tSqlExprItem* pItem) {
   SSqlExpr* pExpr = doAddProjectCol(pQueryInfo, pIndex->columnIndex, pIndex->tableIndex);
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pIndex->tableIndex);
@@ -1484,7 +1484,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
 
   for (int32_t i = 0; i < pSelection->nExpr; ++i) {
     int32_t outputIndex = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
-    tSQLExprItem* pItem = &pSelection->a[i];
+    tSqlExprItem* pItem = &pSelection->a[i];
 
     // project on all fields
     int32_t optr = pItem->pNode->nSQLOptr;
@@ -1643,7 +1643,7 @@ static int32_t doAddProjectionExprAndResultFields(SQueryInfo* pQueryInfo, SColum
   return numOfTotalColumns;
 }
 
-int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExprItem* pItem) {
+int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExprItem* pItem) {
   const char* msg0 = "invalid column name";
   const char* msg1 = "tag for normal table query is not allowed";
 
@@ -1767,7 +1767,7 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   return TSDB_CODE_SUCCESS;
 }
 
-void setResultColName(char* name, tSQLExprItem* pItem, int32_t functionId, SStrToken* pToken, bool multiCols) {
+void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrToken* pToken, bool multiCols) {
   if (pItem->aliasName != NULL) {
     tstrncpy(name, pItem->aliasName, TSDB_COL_NAME_LEN);
   } else if (multiCols) {
@@ -1790,7 +1790,7 @@ void setResultColName(char* name, tSQLExprItem* pItem, int32_t functionId, SStrT
   }
 }
 
-int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSQLExprItem* pItem, bool finalResult) {
+int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSqlExprItem* pItem, bool finalResult) {
   STableMetaInfo* pTableMetaInfo = NULL;
   int32_t optr = pItem->pNode->nSQLOptr;
 
@@ -1820,7 +1820,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
       if (pItem->pNode->pParam != NULL) {
-        tSQLExprItem* pParamElem = &pItem->pNode->pParam->a[0];
+        tSqlExprItem* pParamElem = &pItem->pNode->pParam->a[0];
         SStrToken* pToken = &pParamElem->pNode->colInfo;
         int16_t sqlOptr = pParamElem->pNode->nSQLOptr;
         if ((pToken->z == NULL || pToken->n == 0) 
@@ -1921,7 +1921,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      tSQLExprItem* pParamElem = &(pItem->pNode->pParam->a[0]);
+      tSqlExprItem* pParamElem = &(pItem->pNode->pParam->a[0]);
       if (pParamElem->pNode->nSQLOptr != TK_ALL && pParamElem->pNode->nSQLOptr != TK_ID) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
@@ -2040,7 +2040,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
         /* in first/last function, multiple columns can be add to resultset */
         for (int32_t i = 0; i < pItem->pNode->pParam->nExpr; ++i) {
-          tSQLExprItem* pParamElem = &(pItem->pNode->pParam->a[i]);
+          tSqlExprItem* pParamElem = &(pItem->pNode->pParam->a[i]);
           if (pParamElem->pNode->nSQLOptr != TK_ALL && pParamElem->pNode->nSQLOptr != TK_ID) {
             return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
           }
@@ -2153,7 +2153,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      tSQLExprItem* pParamElem = &(pItem->pNode->pParam->a[0]);
+      tSqlExprItem* pParamElem = &(pItem->pNode->pParam->a[0]);
       if (pParamElem->pNode->nSQLOptr != TK_ID) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
@@ -2353,7 +2353,7 @@ static SColumnList getColumnList(int32_t num, int16_t tableIndex, int32_t column
   return columnList;
 }
 
-void getColumnName(tSQLExprItem* pItem, char* resultFieldName, int32_t nameLength) {
+void getColumnName(tSqlExprItem* pItem, char* resultFieldName, int32_t nameLength) {
   if (pItem->aliasName != NULL) {
     strncpy(resultFieldName, pItem->aliasName, nameLength);
   } else {
@@ -3520,7 +3520,7 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQuer
 
     int32_t outputIndex = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
   
-    tSQLExprItem item = {.pNode = pExpr, .aliasName = NULL};
+    tSqlExprItem item = {.pNode = pExpr, .aliasName = NULL};
   
     // sql function list in selection clause.
     // Append the sqlExpr into exprList of pQueryInfo structure sequentially
@@ -3737,7 +3737,7 @@ static int32_t setExprToCond(tSQLExpr** parent, tSQLExpr* pExpr, const char* msg
       return invalidSqlErrMsg(msgBuf, msg);
     }
 
-    *parent = tSQLExprCreate((*parent), pExpr, parentOptr);
+    *parent = tSqlExprCreate((*parent), pExpr, parentOptr);
   } else {
     *parent = pExpr;
   }
@@ -3785,7 +3785,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQL
        * to release expression, e.g., m1.ts = m2.ts,
        * since this expression is used to set the join query type
        */
-      tSQLExprDestroy(*pExpr);
+      tSqlExprDestroy(*pExpr);
     } else {
       ret = setExprToCond(&pCondExpr->pTimewindow, *pExpr, msg3, parentOptr, pQueryInfo->msg);
     }
@@ -3931,17 +3931,17 @@ static void doCompactQueryExpr(tSQLExpr** pExpr) {
 
   if ((*pExpr)->pLeft == NULL && (*pExpr)->pRight == NULL &&
       ((*pExpr)->nSQLOptr == TK_OR || (*pExpr)->nSQLOptr == TK_AND)) {
-    tSQLExprNodeDestroy(*pExpr);
+    tSqlExprNodeDestroy(*pExpr);
     *pExpr = NULL;
 
   } else if ((*pExpr)->pLeft == NULL && (*pExpr)->pRight != NULL) {
     tSQLExpr* tmpPtr = (*pExpr)->pRight;
-    tSQLExprNodeDestroy(*pExpr);
+    tSqlExprNodeDestroy(*pExpr);
 
     (*pExpr) = tmpPtr;
   } else if ((*pExpr)->pRight == NULL && (*pExpr)->pLeft != NULL) {
     tSQLExpr* tmpPtr = (*pExpr)->pLeft;
-    tSQLExprNodeDestroy(*pExpr);
+    tSqlExprNodeDestroy(*pExpr);
 
     (*pExpr) = tmpPtr;
   }
@@ -3964,7 +3964,7 @@ static void doExtractExprForSTable(SSqlCmd* pCmd, tSQLExpr** pExpr, SQueryInfo* 
     (*pExpr) = NULL;
 
   } else {
-    *pOut = tSQLExprCreate(NULL, NULL, (*pExpr)->nSQLOptr);
+    *pOut = tSqlExprCreate(NULL, NULL, (*pExpr)->nSQLOptr);
 
     doExtractExprForSTable(pCmd, &(*pExpr)->pLeft, pQueryInfo, &((*pOut)->pLeft), tableIndex);
     doExtractExprForSTable(pCmd, &(*pExpr)->pRight, pQueryInfo, &((*pOut)->pRight), tableIndex);
@@ -4171,23 +4171,23 @@ static int32_t validateJoinExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr
 
 static void cleanQueryExpr(SCondExpr* pCondExpr) {
   if (pCondExpr->pTableCond) {
-    tSQLExprDestroy(pCondExpr->pTableCond);
+    tSqlExprDestroy(pCondExpr->pTableCond);
   }
 
   if (pCondExpr->pTagCond) {
-    tSQLExprDestroy(pCondExpr->pTagCond);
+    tSqlExprDestroy(pCondExpr->pTagCond);
   }
 
   if (pCondExpr->pColumnCond) {
-    tSQLExprDestroy(pCondExpr->pColumnCond);
+    tSqlExprDestroy(pCondExpr->pColumnCond);
   }
 
   if (pCondExpr->pTimewindow) {
-    tSQLExprDestroy(pCondExpr->pTimewindow);
+    tSqlExprDestroy(pCondExpr->pTimewindow);
   }
 
   if (pCondExpr->pJoinExpr) {
-    tSQLExprDestroy(pCondExpr->pJoinExpr);
+    tSqlExprDestroy(pCondExpr->pJoinExpr);
   }
 }
 
@@ -4255,8 +4255,8 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     
     tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &bw);
     doCompactQueryExpr(pExpr);
-    
-    tSQLExprDestroy(p1);
+
+    tSqlExprDestroy(p1);
     tExprTreeDestroy(&p, NULL);
     
     taosArrayDestroy(colList);
