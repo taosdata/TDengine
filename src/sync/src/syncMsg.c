@@ -47,6 +47,7 @@ int32_t syncCheckHead(SSyncHead *pHead) {
   if (pHead->signature != SYNC_SIGNATURE) return TSDB_CODE_SYN_MISMATCHED_SIGNATURE;
   if (pHead->cId != 0) return TSDB_CODE_SYN_MISMATCHED_CLUSTERID;
   if (pHead->len <= 0 || pHead->len > TSDB_MAX_WAL_SIZE) return TSDB_CODE_SYN_INVALID_MSGLEN;
+  if (pHead->type <= TAOS_SMSG_START || pHead->type >= TAOS_SMSG_END) return TSDB_CODE_SYN_INVALID_MSGTYPE;
   if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SSyncHead))) return TSDB_CODE_SYN_INVALID_CHECKSUM;
 
   return TSDB_CODE_SUCCESS;

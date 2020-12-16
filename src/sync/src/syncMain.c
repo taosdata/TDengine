@@ -851,24 +851,16 @@ static void syncProcessFwdResponse(SFwdRsp *pFwdRsp, SSyncPeer *pPeer) {
   sTrace("%s, forward-rsp is received, code:%x hver:%" PRIu64, pPeer->id, pFwdRsp->code, pFwdRsp->version);
   SFwdInfo *pFirst = pSyncFwds->fwdInfo + pSyncFwds->first;
 
-  bool found = false;
   if (pFirst->version <= pFwdRsp->version && pSyncFwds->fwds > 0) {
     // find the forwardInfo from first
     for (int32_t i = 0; i < pSyncFwds->fwds; ++i) {
       pFwdInfo = pSyncFwds->fwdInfo + (i + pSyncFwds->first) % tsMaxFwdInfo;
       if (pFwdRsp->version == pFwdInfo->version) {
-        found = true;
         syncProcessFwdAck(pNode, pFwdInfo, pFwdRsp->code);
         syncRemoveConfirmedFwdInfo(pNode);
-        break;
+        return;
       }
     }
-  }
-
-  if (!found) {
-    sTrace("%s, forward-rsp not found first:%d fwds:%d, code:%x hver:%" PRIu64, pPeer->id, pSyncFwds->first,
-           pSyncFwds->fwds, pFwdRsp->code, pFwdRsp->version);
-    syncProcessFwdAck(pNode, pFwdInfo, pFwdRsp->code);
   }
 }
 
@@ -1192,7 +1184,7 @@ static void syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code
   }
 
   if (confirm && pFwdInfo->confirmed == 0) {
-    sTrace("vgId:%d, forward is confirmed, hver:%" PRIu64 " code:%x", pNode->vgId, pFwdInfo->version, pFwdInfo->code);
+    sTrace("vgId:%d, forward is confirmed, hver:%" PRIu64 " code:0x%x", pNode->vgId, pFwdInfo->version, pFwdInfo->code);
     (*pNode->confirmForward)(pNode->vgId, pFwdInfo->mhandle, pFwdInfo->code);
     pFwdInfo->confirmed = 1;
   }
