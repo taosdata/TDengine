@@ -43,7 +43,7 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         // 读配置参数
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
         boolean isHelp = Arrays.asList(args).contains("--help");
-        if (isHelp) {
+        if (isHelp || config.host == null || config.host.isEmpty()) {
             JdbcTaosdemoConfig.printHelp();
             System.exit(0);
         }
