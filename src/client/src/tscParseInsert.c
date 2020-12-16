@@ -1523,7 +1523,7 @@ void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql) {
     pSql->res.code = TAOS_SYSTEM_ERROR(errno);
     tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));
 
-    tfree(pSupporter)
+    tfree(pSupporter);
     tscQueueAsyncRes(pSql);
 
     return;

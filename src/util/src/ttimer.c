@@ -19,7 +19,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 
-extern int32_t tscEmbedded;
+extern uint32_t tscEmbedded;
 
 #define tmrFatal(...) { if (tmrDebugFlag & DEBUG_FATAL) { taosPrintLog("TMR FATAL ", tscEmbedded ? 255 : tmrDebugFlag, __VA_ARGS__); }}
 #define tmrError(...) { if (tmrDebugFlag & DEBUG_ERROR) { taosPrintLog("TMR ERROR ", tscEmbedded ? 255 : tmrDebugFlag, __VA_ARGS__); }}
