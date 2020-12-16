@@ -23,8 +23,8 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-        print("==========step1")
-        print("create table && insert data")
+        tdLog.info("==========step1")
+        tdLog.info("create table && insert data")
         
         tdSql.execute("create table mt0 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool,c8 binary(20),c9 nchar(20))")
         insertRows = 1000
@@ -34,8 +34,8 @@ class TDTestCase:
             ret = tdSql.execute(
                 "insert into mt0 values (%d , %d,%d,%d,%d,%d,%d,%d,'%s','%s')" %
                 (t0+i,i%100,i/2.0,i%41,i%51,i%53,i*1.0,i%2,'taos'+str(i%43),'涛思'+str(i%41)))
-        print("==========step2")
-        print("test percentile with group by normal_col ")
+        tdLog.info("==========step2")
+        tdLog.info("test percentile with group by normal_col ")
         tdSql.query('select percentile(c1,1),percentile(c2,1),percentile(c6,1) from mt0 group by c3 limit 3 offset 2')
         
         tdSql.checkData(0,0,2.48)
