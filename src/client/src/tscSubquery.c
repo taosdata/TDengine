@@ -2505,8 +2505,11 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     assert (pRes->row >= pRes->numOfRows);
 
     doBuildResFromSubqueries(pSql);
-    tsem_post(&pSql->rspSem);
-    return;
+    if (pRes->code == TSDB_CODE_SUCCESS) {
+      (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
+    } else {
+      tscQueueAsyncRes(pSql);
+    }
   }
 }
 
