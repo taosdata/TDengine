@@ -99,6 +99,7 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
 
   while (1) {
     // retrieve file info
+    syncBuildFileInfo(&fileInfo, pNode->vgId);
     fileInfo.name[0] = 0;
     fileInfo.size = 0;
     fileInfo.magic = (*pNode->getFileInfo)(pNode->vgId, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX,
@@ -106,8 +107,8 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     sDebug("%s, file:%s info is sent, size:%" PRId64, pPeer->id, fileInfo.name, fileInfo.size);
 
     // send the file info
-    int32_t ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(fileInfo));
-    if (ret != sizeof(fileInfo)) {
+    int32_t ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(SFileInfo));
+    if (ret != sizeof(SFileInfo)) {
       code = -1;
       sError("%s, failed to write file:%s info while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
       break;
@@ -125,6 +126,13 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     if (ret != sizeof(SFileAck)) {
       code = -1;
       sError("%s, failed to read file:%s ack while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
+      break;
+    }
+
+    ret = syncCheckHead((SSyncHead*)(&fileAck));
+    if (ret != 0) {
+      code = -1;
+      sError("%s, failed to check file:%s ack while retrieve file since %s", pPeer->id, fileInfo.name, strerror(ret));
       break;
     }
 

@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
+#include "tglobal.h"
 #include "tchecksum.h"
 #include "syncInt.h"
 
@@ -90,5 +91,21 @@ void syncBuildPeersStatus(SPeersStatus *pMsg, int32_t vgId) {
   pMsg->head.type = TAOS_SMSG_STATUS;
   pMsg->head.vgId = vgId;
   pMsg->head.len = sizeof(SPeersStatus) - sizeof(SSyncHead);
+  syncBuildHead(&pMsg->head);
+}
+
+void syncBuildFileAck(SFileAck *pMsg, int32_t vgId) {
+  memset(pMsg, 0, sizeof(SFileAck));
+  pMsg->head.type = TAOS_SMSG_SYNC_FILE_RSP;
+  pMsg->head.vgId = vgId;
+  pMsg->head.len = sizeof(SFileAck) - sizeof(SSyncHead);
+  syncBuildHead(&pMsg->head);
+}
+
+void syncBuildFileInfo(SFileInfo *pMsg, int32_t vgId) {
+  memset(pMsg, 0, sizeof(SFileInfo));
+  pMsg->head.type = TAOS_SMSG_SYNC_FILE;
+  pMsg->head.vgId = vgId;
+  pMsg->head.len = sizeof(SFileInfo) - sizeof(SSyncHead);
   syncBuildHead(&pMsg->head);
 }

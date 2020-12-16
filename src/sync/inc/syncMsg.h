@@ -35,7 +35,9 @@ typedef enum {
   TAOS_SMSG_STATUS_RSP    = 10,
   TAOS_SMSG_SETUP         = 11,
   TAOS_SMSG_SETUP_RSP     = 12,
-  TAOS_SMSG_END           = 13,
+  TAOS_SMSG_SYNC_FILE     = 13,
+  TAOS_SMSG_SYNC_FILE_RSP = 14,
+  TAOS_SMSG_END           = 15,
 } ESyncMsgType;
 
 typedef enum {
@@ -116,7 +118,7 @@ typedef struct {
 
 #pragma pack(pop)
 
-#define SYNC_PROTOCOL_VERSION 0
+#define SYNC_PROTOCOL_VERSION 1
 #define SYNC_SIGNATURE ((uint16_t)(0xCDEF))
 
 extern char *statusType[];
@@ -130,6 +132,9 @@ void syncBuildSyncReqMsg(SSyncMsg *pMsg, int32_t vgId);
 void syncBuildSyncDataMsg(SSyncMsg *pMsg, int32_t vgId);
 void syncBuildSyncSetupMsg(SSyncMsg *pMsg, int32_t vgId);
 void syncBuildPeersStatus(SPeersStatus *pMsg, int32_t vgId);
+
+void syncBuildFileAck(SFileAck *pMsg, int32_t vgId);
+void syncBuildFileInfo(SFileInfo *pMsg, int32_t vgId);
 
 #ifdef __cplusplus
 }

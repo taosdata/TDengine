@@ -69,7 +69,13 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     minfo.index = -1;
     int32_t ret = taosReadMsg(pPeer->syncFd, &minfo, sizeof(SFileInfo));
     if (ret != sizeof(SFileInfo) || minfo.index == -1) {
-      sError("%s, failed to read file info while restore file since %s", pPeer->id, strerror(errno));
+      sError("%s, failed to read fileinfo while restore file since %s", pPeer->id, strerror(errno));
+      break;
+    }
+
+    ret = syncCheckHead((SSyncHead*)(&minfo));
+    if (ret != 0) {
+      sError("%s, failed to check fileinfo while restore file since %s", pPeer->id, strerror(ret));
       break;
     }
 
@@ -94,12 +100,12 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
                                         &sinfo.fversion);
 
     // if file not there or magic is not the same, file shall be synced
-    memset(&fileAck, 0, sizeof(fileAck));
+    syncBuildFileAck(&fileAck, pNode->vgId);
     fileAck.sync = (sinfo.magic != minfo.magic || sinfo.name[0] == 0) ? 1 : 0;
 
     // send file ack
-    ret = taosWriteMsg(pPeer->syncFd, &fileAck, sizeof(fileAck));
-    if (ret != sizeof(fileAck)) {
+    ret = taosWriteMsg(pPeer->syncFd, &fileAck, sizeof(SFileAck));
+    if (ret != sizeof(SFileAck)) {
       sError("%s, failed to write file:%s ack while restore file since %s", pPeer->id, minfo.name, strerror(errno));
       break;
     }
