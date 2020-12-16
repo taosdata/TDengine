@@ -310,6 +310,11 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg *pNewCfg) {
       newPeers[i] = pNode->peerInfo[j];
     }
 
+    if (newPeers[i] == NULL) {
+      sError("vgId:%d, failed to reconfig", pNode->vgId);
+      return TSDB_CODE_SYN_INVALID_CONFIG;
+    }
+
     if ((strcmp(pNewNode->nodeFqdn, tsNodeFqdn) == 0) && (pNewNode->nodePort == tsSyncPort)) {
       pNode->selfIndex = i;
     }
@@ -1059,6 +1064,13 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
     return;
   }
 
+  int32_t code = syncCheckHead((SSyncHead *)(&msg));
+  if (code != 0) {
+    sError("failed to check peer sync msg from ip:%s since %s", ipstr, strerror(code));
+    taosCloseSocket(connFd);
+    return;
+  }
+
   int32_t     vgId = msg.head.vgId;
   SSyncNode **ppNode = taosHashGet(tsVgIdHash, &vgId, sizeof(int32_t));
   if (ppNode == NULL || *ppNode == NULL) {
@@ -1305,4 +1317,3 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
 
   return code;
 }
-
