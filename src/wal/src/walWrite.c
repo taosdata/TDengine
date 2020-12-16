@@ -297,16 +297,14 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
       }
     }
 
-    if (pHead->len > size - sizeof(SWalHead)) {
-      size = sizeof(SWalHead) + pHead->len;
-      buffer = realloc(buffer, size);
-      if (buffer == NULL) {
-        wError("vgId:%d, file:%s, failed to open for restore since %s", pWal->vgId, name, strerror(errno));
-        code = TAOS_SYSTEM_ERROR(errno);
+    if (pHead->len < 0 || pHead->len > size - sizeof(SWalHead)) {
+      wError("vgId:%d, file:%s, wal head len out of range, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
+             pHead->version, pHead->len, offset);
+      code = walSkipCorruptedRecord(pWal, pHead, tfd, &offset);
+      if (code != TSDB_CODE_SUCCESS) {
+        walFtruncate(pWal, tfd, offset);
         break;
       }
-
-      pHead = buffer;
     }
 
     ret = tfRead(tfd, pHead->cont, pHead->len);
