@@ -2501,15 +2501,12 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     tscRestoreSQLFuncForSTableQuery(pQueryInfo);
   }
 
-  while (1) {
-    assert (pRes->row >= pRes->numOfRows);
-
-    doBuildResFromSubqueries(pSql);
-    if (pRes->code == TSDB_CODE_SUCCESS) {
-      (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
-    } else {
-      tscQueueAsyncRes(pSql);
-    }
+  assert (pRes->row >= pRes->numOfRows);
+  doBuildResFromSubqueries(pSql);
+  if (pRes->code == TSDB_CODE_SUCCESS) {
+    (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
+  } else {
+    tscQueueAsyncRes(pSql);
   }
 }
 
