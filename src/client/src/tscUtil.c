@@ -460,15 +460,7 @@ void tscFreeRegisteredSqlObj(void *pSql) {
 
   assert(p->self != 0);
   tscFreeSqlObj(p);
-
-  int32_t ref = T_REF_DEC(pTscObj);
-  assert(ref >= 0);
-
-  tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", p, pTscObj, ref);
-  if (ref == 0) {
-    tscDebug("%p all sqlObj freed, free tscObj:%p", p, pTscObj);
-    taosRemoveRef(tscRefId, pTscObj->rid);
-  }
+  taosReleaseRef(tscRefId, pTscObj->rid);
 }
 
 void tscFreeTableMetaHelper(void *pTableMeta) {
@@ -810,6 +802,7 @@ static void extractTableMeta(SSqlCmd* pCmd) {
 }
 
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql) {
+  const int INSERT_HEAD_SIZE = sizeof(SMsgDesc) + sizeof(SSubmitMsg); 
   SSqlCmd* pCmd = &pSql->cmd;
 
   void* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
@@ -824,7 +817,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql) {
     STableDataBlocks* dataBuf = NULL;
     
     int32_t ret = tscGetDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE,
-                                tsInsertHeadSize, 0, pOneTableBlock->tableId, pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList);
+                                INSERT_HEAD_SIZE, 0, pOneTableBlock->tableId, pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList);
     if (ret != TSDB_CODE_SUCCESS) {
       tscError("%p failed to prepare the data block buffer for merging table data, code:%d", pSql, ret);
       taosHashCleanup(pVnodeDataBlockHashList);
@@ -1917,9 +1910,7 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 }
 
 void registerSqlObj(SSqlObj* pSql) {
-  int32_t ref = T_REF_INC(pSql->pTscObj);
-  tscDebug("%p add to tscObj:%p, ref:%d", pSql, pSql->pTscObj, ref);
-
+  taosAcquireRef(tscRefId, pSql->pTscObj->rid);
   pSql->self = taosAddRef(tscObjRef, pSql);
 }
 
