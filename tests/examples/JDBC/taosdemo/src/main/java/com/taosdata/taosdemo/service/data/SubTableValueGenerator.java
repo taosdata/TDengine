@@ -9,7 +9,7 @@ import java.util.List;
 
 public class SubTableValueGenerator {
 
-    public static List<SubTableValue> generate(SuperTableMeta superTableMeta, String prefixOfTables, int tableIndex, int tableSize, int valueSize, long startTime, long timeGap) {
+    public static List<SubTableValue> generate(SuperTableMeta superTableMeta, String prefixOfTables, long tableIndex, long tableSize, long valueSize, long startTime, long timeGap) {
         List<SubTableValue> subTableValues = new ArrayList<>();
         for (int i = 1; i <= tableSize; i++) {
             SubTableValue subTableValue = new SubTableValue();

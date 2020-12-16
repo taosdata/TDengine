@@ -49,10 +49,10 @@ public class SubTableService extends AbstractService {
         return getAffectRows(futureList);
     }
 
-    public void createSubTable(SuperTableMeta superTableMeta, int numOfTables, String prefixOfTable, int numOfThreadsForCreate) {
+    public void createSubTable(SuperTableMeta superTableMeta, long numOfTables, String prefixOfTable, int numOfThreadsForCreate) {
         ExecutorService executor = Executors.newFixedThreadPool(numOfThreadsForCreate);
-        for (int i = 0; i < numOfTables; i++) {
-            int tableIndex = i;
+        for (long i = 0; i < numOfTables; i++) {
+            long tableIndex = i;
             executor.execute(() -> createSubTable(superTableMeta, prefixOfTable + (tableIndex + 1)));
         }
         executor.shutdown();

@@ -23,8 +23,8 @@ public final class JdbcTaosdemoConfig {
     public String prefixOfTable = "t";
     // insert task
     public boolean autoCreateTable = true;
-    public int numOfTables = 100;
-    public int numOfRowsPerTable = 100;
+    public long numOfTables = 100;
+    public long numOfRowsPerTable = 100;
     public int numOfTablesPerSQL = 10;
     public int numOfValuesPerSQL = 10;
     public int numOfThreadsForCreate = 1;
@@ -146,7 +146,7 @@ public final class JdbcTaosdemoConfig {
                 prefixOfTable = args[++i];
             }
             if ("-numOfTables".equals(args[i]) && i < args.length - 1) {
-                numOfTables = Integer.parseInt(args[++i]);
+                numOfTables = Long.parseLong(args[++i]);
             }
             if ("-autoCreateTable".equals(args[i]) && i < args.length - 1) {
                 autoCreateTable = Boolean.parseBoolean(args[++i]);
@@ -156,7 +156,7 @@ public final class JdbcTaosdemoConfig {
             }
             // insert task
             if ("-numOfRowsPerTable".equals(args[i]) && i < args.length - 1) {
-                numOfRowsPerTable = Integer.parseInt(args[++i]);
+                numOfRowsPerTable = Long.parseLong(args[++i]);
             }
             if ("-numOfThreadsForInsert".equals(args[i]) && i < args.length - 1) {
                 numOfThreadsForInsert = Integer.parseInt(args[++i]);

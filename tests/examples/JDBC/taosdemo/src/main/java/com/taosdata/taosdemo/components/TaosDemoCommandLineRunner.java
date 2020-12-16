@@ -104,9 +104,9 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
     private void insertTask(JdbcTaosdemoConfig config) {
         long start = System.currentTimeMillis();
 
-        int numOfTables = config.numOfTables;
+        long numOfTables = config.numOfTables;
         int numOfTablesPerSQL = config.numOfTablesPerSQL;
-        int numOfRowsPerTable = config.numOfRowsPerTable;
+        long numOfRowsPerTable = config.numOfRowsPerTable;
         int numOfValuesPerSQL = config.numOfValuesPerSQL;
 
         Instant now = Instant.now();
@@ -116,22 +116,22 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         }
 
         if (numOfRowsPerTable < numOfValuesPerSQL)
-            numOfValuesPerSQL = numOfRowsPerTable;
+            numOfValuesPerSQL = (int) numOfRowsPerTable;
         if (numOfTables < numOfTablesPerSQL)
-            numOfTablesPerSQL = numOfTables;
+            numOfTablesPerSQL = (int) numOfTables;
 
         long timeCost = 0;
 
         // row
-        for (int rowCnt = 0; rowCnt < numOfRowsPerTable; ) {
-            int rowSize = numOfValuesPerSQL;
+        for (long rowCnt = 0; rowCnt < numOfRowsPerTable; ) {
+            long rowSize = numOfValuesPerSQL;
             if (rowCnt + rowSize > numOfRowsPerTable) {
                 rowSize = numOfRowsPerTable - rowCnt;
             }
 
             //table
-            for (int tableCnt = 0; tableCnt < numOfTables; ) {
-                int tableSize = numOfTablesPerSQL;
+            for (long tableCnt = 0; tableCnt < numOfTables; ) {
+                long tableSize = numOfTablesPerSQL;
                 if (tableCnt + tableSize > numOfTables) {
                     tableSize = numOfTables - tableCnt;
                 }
