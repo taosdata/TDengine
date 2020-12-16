@@ -22,8 +22,10 @@ pthread_t pid;
 
 void shellQueryInterruptHandler(int signum) {
 #ifdef LINUX
-  void* pResHandle = atomic_val_compare_exchange_64(&result, result, 0);
-  taos_stop_query(pResHandle);
+  int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
+  SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
+  taos_stop_query(pSql);
+  taosReleaseRef(tscObjRef, rid);
 #else
   printf("\nReceive ctrl+c or other signal, quit shell.\n");
   exit(0);

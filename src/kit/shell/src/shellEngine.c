@@ -46,7 +46,7 @@ char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
 #endif
 
-TAOS_RES *result = NULL;
+int64_t result = 0;
 SShellHistory   history;
 
 #define DEFAULT_MAX_BINARY_DISPLAY_WIDTH 30
@@ -294,17 +294,20 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   st = taosGetTimestampUs();
 
-  TAOS_RES* pSql = taos_query_h(con, command, &result);
+  TAOS_RES* tmpSql = NULL;
+  TAOS_RES* pSql = taos_query_h(con, command, &tmpSql);
   if (taos_errno(pSql)) {
     taos_error(pSql, st);
     return;
   }
 
+  result = ((SSqlObj*)tmpSql)->self;
+
   if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 
-    atomic_store_ptr(&result, 0);
+    atomic_store_64(&result, 0);
     taos_free_result(pSql);
     return;
   }
@@ -313,7 +316,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     int error_no = 0;
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
     if (numOfRows < 0) {
-      atomic_store_ptr(&result, 0);
+      atomic_store_64(&result, 0);
       taos_free_result(pSql);
       return;
     }
@@ -336,7 +339,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     wordfree(&full_path);
   }
 
-  atomic_store_ptr(&result, 0);
+  atomic_store_64(&result, 0);
   taos_free_result(pSql);
 }
 
@@ -501,7 +504,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
     row = taos_fetch_row(tres);
   } while( row != NULL);
 
-  result = NULL;
+  result = 0;
   fclose(fp);
 
   return numOfRows;
