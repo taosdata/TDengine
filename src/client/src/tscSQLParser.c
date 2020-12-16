@@ -1775,12 +1775,15 @@ void setResultColName(char* name, tSQLExprItem* pItem, int32_t functionId, SStrT
     int32_t len = MIN(pToken->n + 1, TSDB_COL_NAME_LEN);
     tstrncpy(uname, pToken->z, len);
 
-    int32_t size = TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].aName) + 2 + 1;
-    char tmp[TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].aName) + 2 + 1] = {0};
+    if (tsKeepOriginalColumnName) { // keep the original column name
+      tstrncpy(name, uname, TSDB_COL_NAME_LEN);
+    } else {
+      int32_t size = TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].aName) + 2 + 1;
+      char tmp[TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].aName) + 2 + 1] = {0};
+      snprintf(tmp, size, "%s(%s)", aAggs[functionId].aName, uname);
 
-    snprintf(tmp, size, "%s(%s)", aAggs[functionId].aName, uname);
-
-    tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
+      tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
+    }
   } else  { // use the user-input result column name
     int32_t len = MIN(pItem->pNode->token.n + 1, TSDB_COL_NAME_LEN);
     tstrncpy(name, pItem->pNode->token.z, len);
@@ -4910,6 +4913,8 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     tVariantListItem* pItem = taosArrayGet(pVarList, 1);
     SSchema* pTagsSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex.columnIndex);
+    pAlterSQL->tagData.data = calloc(1, pTagsSchema->bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
+
     if (tVariantDump(&pItem->pVar, pAlterSQL->tagData.data, pTagsSchema->type, true) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg13);
     }
@@ -6149,96 +6154,105 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
   const int32_t TABLE_INDEX = 0;
   const int32_t STABLE_INDEX = 1;
 
-  STableMetaInfo* pStableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
+  STableMetaInfo* pStableMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
 
   // super table name, create table by using dst
-  SStrToken* pToken = &(pCreateTable->usingInfo.stableName);
+  int32_t numOfTables = (int32_t) taosArrayGetSize(pCreateTable->childTableInfo);
+  for(int32_t j = 0; j < numOfTables; ++j) {
+    SCreatedTableInfo* pCreateTableInfo = taosArrayGet(pCreateTable->childTableInfo, j);
 
-  if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-  }
-
-  int32_t code = tscSetTableFullName(pStableMeterMetaInfo, pToken, pSql);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  // get meter meta from mnode
-  tstrncpy(pCreateTable->usingInfo.tagdata.name, pStableMeterMetaInfo->name, sizeof(pCreateTable->usingInfo.tagdata.name));
-  SArray* pList = pInfo->pCreateTableInfo->usingInfo.pTagVals;
-
-  code = tscGetTableMeta(pSql, pStableMeterMetaInfo);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  size_t size = taosArrayGetSize(pList);
-  if (tscGetNumOfTags(pStableMeterMetaInfo->pTableMeta) != size) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
-  }
-
-  // too long tag values will return invalid sql, not be truncated automatically
-  SSchema* pTagSchema = tscGetTableTagSchema(pStableMeterMetaInfo->pTableMeta);
-
-  STagData* pTag = &pCreateTable->usingInfo.tagdata;
-  SKVRowBuilder kvRowBuilder = {0};
-  if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-
-  int32_t ret = TSDB_CODE_SUCCESS;
-  for (int32_t i = 0; i < size; ++i) {
-    SSchema* pSchema = &pTagSchema[i];
-    tVariantListItem* pItem = taosArrayGet(pList, i);
-
-    char tagVal[TSDB_MAX_TAGS_LEN];
-    if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-      if (pItem->pVar.nLen > pSchema->bytes) {
-        tdDestroyKVRowBuilder(&kvRowBuilder);
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-      }
+    SStrToken* pToken = &pCreateTableInfo->stableName;
+    if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
-
-    // check again after the convert since it may be converted from binary to nchar.
-    if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-      int16_t len = varDataTLen(tagVal);
-      if (len > pSchema->bytes) {
-        tdDestroyKVRowBuilder(&kvRowBuilder);
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-      }
+    int32_t code = tscSetTableFullName(pStableMetaInfo, pToken, pSql);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
+    // get table meta from mnode
+    tstrncpy(pCreateTableInfo->tagdata.name, pStableMetaInfo->name, tListLen(pCreateTableInfo->tagdata.name));
+    SArray* pList = pCreateTableInfo->pTagVals;
+
+    code = tscGetTableMeta(pSql, pStableMetaInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    size_t size = taosArrayGetSize(pList);
+    if (tscGetNumOfTags(pStableMetaInfo->pTableMeta) != size) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+    }
+
+    // too long tag values will return invalid sql, not be truncated automatically
+    SSchema  *pTagSchema = tscGetTableTagSchema(pStableMetaInfo->pTableMeta);
+    STagData *pTag = &pCreateTableInfo->tagdata;
+
+    SKVRowBuilder kvRowBuilder = {0};
+    if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
+    int32_t ret = TSDB_CODE_SUCCESS;
+    for (int32_t i = 0; i < size; ++i) {
+      SSchema*          pSchema = &pTagSchema[i];
+      tVariantListItem* pItem = taosArrayGet(pList, i);
+
+      char tagVal[TSDB_MAX_TAGS_LEN];
+      if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
+        if (pItem->pVar.nLen > pSchema->bytes) {
+          tdDestroyKVRowBuilder(&kvRowBuilder);
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+        }
+      }
+
+      ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
+
+      // check again after the convert since it may be converted from binary to nchar.
+      if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
+        int16_t len = varDataTLen(tagVal);
+        if (len > pSchema->bytes) {
+          tdDestroyKVRowBuilder(&kvRowBuilder);
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+        }
+      }
+
+      if (ret != TSDB_CODE_SUCCESS) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+      }
+
+      tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
+    }
+
+    SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
+    tdDestroyKVRowBuilder(&kvRowBuilder);
+    if (row == NULL) {
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    tdSortKVRowByColIdx(row);
+    pTag->dataLen = kvRowLen(row);
+
+    if (pTag->data == NULL) {
+      pTag->data = malloc(pTag->dataLen);
+    }
+
+    kvRowCpy(pTag->data, row);
+    free(row);
+
+    // table name
+    if (tscValidateName(&(pCreateTableInfo->name)) != TSDB_CODE_SUCCESS) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
+
+    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
+    ret = tscSetTableFullName(pTableMetaInfo, &pCreateTableInfo->name, pSql);
     if (ret != TSDB_CODE_SUCCESS) {
-      tdDestroyKVRowBuilder(&kvRowBuilder);
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+      return ret;
     }
 
-
-
-    tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
-  }
-
-  SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
-  tdDestroyKVRowBuilder(&kvRowBuilder);
-  if (row == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-  tdSortKVRowByColIdx(row);
-  pTag->dataLen = kvRowLen(row);
-  kvRowCpy(pTag->data, row);
-  free(row);
-
-  // table name
-  if (tscValidateName(&pInfo->pCreateTableInfo->name) != TSDB_CODE_SUCCESS) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-  }
-
-  STableMetaInfo* pTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, TABLE_INDEX);
-  ret = tscSetTableFullName(pTableMeterMetaInfo, &pInfo->pCreateTableInfo->name, pSql);
-  if (ret != TSDB_CODE_SUCCESS) {
-    return ret;
+    pCreateTableInfo->fullname = strndup(pTableMetaInfo->name, TSDB_TABLE_FNAME_LEN);
   }
 
   return TSDB_CODE_SUCCESS;
