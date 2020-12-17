@@ -3,6 +3,7 @@ os: Visual Studio 2015
 environment:
   matrix:
     - ARCH: amd64
+    - ARCH: x86
 
 clone_folder: c:\dev\TDengine
 clone_depth: 1
@@ -18,7 +19,7 @@ build_script:
   - cd build
   - cmake -G "NMake Makefiles" ..
   - nmake install
-
+  - echo Building platform=%PLATFORM%
 notifications:
 - provider: Email
   to:
