@@ -88,7 +88,6 @@ void syncBuildSyncDataMsg(SSyncMsg *pMsg, int32_t vgId) { syncBuildMsg(pMsg, vgI
 void syncBuildSyncSetupMsg(SSyncMsg *pMsg, int32_t vgId) { syncBuildMsg(pMsg, vgId, TAOS_SMSG_SETUP); }
 
 void syncBuildPeersStatus(SPeersStatus *pMsg, int32_t vgId) {
-  memset(pMsg, 0, sizeof(SPeersStatus));
   pMsg->head.type = TAOS_SMSG_STATUS;
   pMsg->head.vgId = vgId;
   pMsg->head.len = sizeof(SPeersStatus) - sizeof(SSyncHead);
@@ -96,7 +95,6 @@ void syncBuildPeersStatus(SPeersStatus *pMsg, int32_t vgId) {
 }
 
 void syncBuildFileAck(SFileAck *pMsg, int32_t vgId) {
-  memset(pMsg, 0, sizeof(SFileAck));
   pMsg->head.type = TAOS_SMSG_SYNC_FILE_RSP;
   pMsg->head.vgId = vgId;
   pMsg->head.len = sizeof(SFileAck) - sizeof(SSyncHead);
@@ -104,7 +102,6 @@ void syncBuildFileAck(SFileAck *pMsg, int32_t vgId) {
 }
 
 void syncBuildFileInfo(SFileInfo *pMsg, int32_t vgId) {
-  memset(pMsg, 0, sizeof(SFileInfo));
   pMsg->head.type = TAOS_SMSG_SYNC_FILE;
   pMsg->head.vgId = vgId;
   pMsg->head.len = sizeof(SFileInfo) - sizeof(SSyncHead);

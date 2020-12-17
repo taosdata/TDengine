@@ -949,9 +949,10 @@ static int32_t syncProcessPeerMsg(void *param, void *buffer) {
 static void syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type, uint16_t tranId) {
   if (pPeer->peerFd < 0 || pPeer->ip == 0) return;
 
-  SSyncNode *pNode = pPeer->pSyncNode;
-  SPeersStatus msg = {0};
+  SSyncNode *  pNode = pPeer->pSyncNode;
+  SPeersStatus msg;
 
+  memset(&msg, 0, sizeof(SPeersStatus));
   syncBuildPeersStatus(&msg, pNode->vgId);
 
   msg.role = nodeRole;

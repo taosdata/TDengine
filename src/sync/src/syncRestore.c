@@ -100,6 +100,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
                                         &sinfo.fversion);
 
     // if file not there or magic is not the same, file shall be synced
+    memset(&fileAck, 0, sizeof(SFileAck));
     syncBuildFileAck(&fileAck, pNode->vgId);
     fileAck.sync = (sinfo.magic != minfo.magic || sinfo.name[0] == 0) ? 1 : 0;
 
