@@ -22,17 +22,17 @@
 #include "tsocket.h"
 #include "tglobal.h"
 #include "taoserror.h"
-#include "taosTcpPool.h"
 #include "twal.h"
 #include "tsync.h"
 #include "syncInt.h"
+#include "syncTcp.h"
 
-static void     arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
-static void     arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
-static void     arbProcessBrokenLink(void *param);
-static int32_t  arbProcessPeerMsg(void *param, void *buffer);
-static tsem_t   tsArbSem;
-static ttpool_h tsArbTcpPool;
+static void    arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
+static void    arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
+static void    arbProcessBrokenLink(void *param);
+static int32_t arbProcessPeerMsg(void *param, void *buffer);
+static tsem_t  tsArbSem;
+static void *  tsArbTcpPool;
 
 typedef struct {
   char    id[TSDB_EP_LEN + 24];
@@ -90,7 +90,7 @@ int32_t main(int32_t argc, char *argv[]) {
   info.processBrokenLink = arbProcessBrokenLink;
   info.processIncomingMsg = arbProcessPeerMsg;
   info.processIncomingConn = arbProcessIncommingConnection;
-  tsArbTcpPool = taosOpenTcpThreadPool(&info);
+  tsArbTcpPool = syncOpenTcpThreadPool(&info);
 
   if (tsArbTcpPool == NULL) {
     sDebug("failed to open TCP thread pool, exit...");
@@ -101,8 +101,8 @@ int32_t main(int32_t argc, char *argv[]) {
 
   tsem_wait(&tsArbSem);
 
-  taosCloseTcpThreadPool(tsArbTcpPool);
-  sInfo("TAOS arbitrator is shut down\n");
+  syncCloseTcpThreadPool(tsArbTcpPool);
+  sInfo("TAOS arbitrator is shut down");
   closelog();
 
   return 0;
@@ -113,9 +113,9 @@ static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
   tinet_ntoa(ipstr, sourceIp);
   sDebug("peer TCP connection from ip:%s", ipstr);
 
-  SFirstPkt firstPkt;
-  if (taosReadMsg(connFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
-    sError("failed to read peer first pkt from ip:%s since %s", ipstr, strerror(errno));
+  SSyncMsg msg;
+  if (taosReadMsg(connFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
+    sError("failed to read peer sync msg from ip:%s since %s", ipstr, strerror(errno));
     taosCloseSocket(connFd);
     return;
   }
@@ -127,9 +127,9 @@ static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
     return;
   }
 
-  firstPkt.fqdn[sizeof(firstPkt.fqdn) - 1] = 0;
-  snprintf(pNode->id, sizeof(pNode->id), "vgId:%d, peer:%s:%d", firstPkt.sourceId, firstPkt.fqdn, firstPkt.port);
-  if (firstPkt.syncHead.vgId) {
+  msg.fqdn[TSDB_FQDN_LEN - 1] = 0;
+  snprintf(pNode->id, sizeof(pNode->id), "vgId:%d, peer:%s:%d", msg.sourceId, msg.fqdn, msg.port);
+  if (msg.head.vgId) {
     sDebug("%s, vgId in head is not zero, close the connection", pNode->id);
     tfree(pNode);
     taosCloseSocket(connFd);
@@ -138,7 +138,7 @@ static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
 
   sDebug("%s, arbitrator request is accepted", pNode->id);
   pNode->nodeFd = connFd;
-  pNode->pConn = taosAllocateTcpConn(tsArbTcpPool, pNode, connFd);
+  pNode->pConn = syncAllocateTcpConn(tsArbTcpPool, pNode, connFd);
 
   return;
 }
@@ -156,8 +156,8 @@ static int32_t arbProcessPeerMsg(void *param, void *buffer) {
   int32_t    bytes = 0;
   char *     cont = (char *)buffer;
 
-  int32_t hlen = taosReadMsg(pNode->nodeFd, &head, sizeof(head));
-  if (hlen != sizeof(head)) {
+  int32_t hlen = taosReadMsg(pNode->nodeFd, &head, sizeof(SSyncHead));
+  if (hlen != sizeof(SSyncHead)) {
     sDebug("%s, failed to read msg, hlen:%d", pNode->id, hlen);
     return -1;
   }
