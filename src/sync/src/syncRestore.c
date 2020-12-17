@@ -56,7 +56,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   SSyncNode *pNode = pPeer->pSyncNode;
   SFileInfo  minfo; memset(&minfo, 0, sizeof(SFileInfo)); /* = {0}; */
   SFileInfo  sinfo; memset(&sinfo, 0, sizeof(SFileInfo)); /* = {0}; */
-  SFileAck   fileAck = {0};
+  SFileAck   fileAck; memset(&fileAck, 0, sizeof(SFileAck));
   int32_t    code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
   uint32_t   pindex = 0;  // index in last restore
@@ -73,7 +73,8 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
       break;
     }
 
-    ret = syncCheckHead((SSyncHead*)(&minfo));
+    assert(ret == sizeof(SFileInfo));
+    ret = syncCheckHead((SSyncHead *)(&minfo));
     if (ret != 0) {
       sError("%s, failed to check fileinfo while restore file since %s", pPeer->id, strerror(ret));
       break;
