@@ -99,11 +99,11 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
 
   while (1) {
     // retrieve file info
-    syncBuildFileInfo(&fileInfo, pNode->vgId);
     fileInfo.name[0] = 0;
     fileInfo.size = 0;
     fileInfo.magic = (*pNode->getFileInfo)(pNode->vgId, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX,
                                            &fileInfo.size, &fileInfo.fversion);
+    syncBuildFileInfo(&fileInfo, pNode->vgId);
     sDebug("%s, file:%s info is sent, size:%" PRId64, pPeer->id, fileInfo.name, fileInfo.size);
 
     // send the file info
