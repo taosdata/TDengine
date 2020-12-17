@@ -29,11 +29,17 @@ extern "C" {
 #define sDebug(...) { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
 #define sTrace(...) { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); }}
 
+#define SYNC_TCP_THREADS 2
+#define SYNC_MAX_NUM 2
+
 #define SYNC_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + sizeof(SSyncHead) + 16)
 #define SYNC_RECV_BUFFER_SIZE (5*1024*1024)
-#define SYNC_FWD_TIMER  300
-#define SYNC_ROLE_TIMER 10000
-#define SYNC_WAIT_AFTER_CHOOSE_MASTER 3
+
+#define SYNC_MAX_FWDS 512
+#define SYNC_FWD_TIMER 300
+#define SYNC_ROLE_TIMER 15000             // ms
+#define SYNC_CHECK_INTERVAL 1             // ms
+#define SYNC_WAIT_AFTER_CHOOSE_MASTER 10  // ms
 
 #define nodeRole    pNode->peerInfo[pNode->selfIndex]->role
 #define nodeVersion pNode->peerInfo[pNode->selfIndex]->version

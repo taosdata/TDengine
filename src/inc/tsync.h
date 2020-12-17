@@ -119,10 +119,6 @@ int32_t syncGetNodesRole(int64_t rid, SNodesRole *);
 extern char *syncRole[];
 
 //global configurable parameters
-extern int32_t  tsMaxSyncNum;
-extern int32_t  tsSyncTcpThreads;
-extern int32_t  tsSyncTimer;
-extern int32_t  tsMaxFwdInfo;
 extern int32_t  sDebugFlag;
 extern char     tsArbitrator[];
 extern uint16_t tsSyncPort;
