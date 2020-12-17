@@ -260,6 +260,14 @@ int32_t shellRunCommand(TAOS* con, char* command) {
 }
 
 
+void freeResultWithRid(int64_t rid) {
+  SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
+  if(pSql){
+    taos_free_result(pSql);
+    taosReleaseRef(tscObjRef, rid);
+  }
+}
+
 void shellRunCommandOnServer(TAOS *con, char command[]) {
   int64_t   st, et;
   wordexp_t full_path;
@@ -301,14 +309,15 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     return;
   }
 
-  result = ((SSqlObj*)tmpSql)->self;
+  atomic_store_64(&result, ((SSqlObj*)tmpSql)->self);
+  int64_t oresult = atomic_load_64(&result);
 
   if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 
     atomic_store_64(&result, 0);
-    taos_free_result(pSql);
+    freeResultWithRid(oresult);
     return;
   }
 
@@ -317,7 +326,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
     if (numOfRows < 0) {
       atomic_store_64(&result, 0);
-      taos_free_result(pSql);
+      freeResultWithRid(oresult);
       return;
     }
 
@@ -340,7 +349,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   }
 
   atomic_store_64(&result, 0);
-  taos_free_result(pSql);
+  freeResultWithRid(oresult);
 }
 
 /* Function to do regular expression check */
