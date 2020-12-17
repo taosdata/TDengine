@@ -19,7 +19,7 @@ build_script:
   - cd build
   - cmake -G "NMake Makefiles" ..
   - nmake install
-  - echo Building platform=%ARCH%
+  
 notifications:
 - provider: Email
   to:
