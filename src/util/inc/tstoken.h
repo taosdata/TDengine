@@ -31,7 +31,7 @@ extern "C" {
 typedef struct SStrToken {
   uint32_t n;
   uint32_t type;
-  char *   z;
+  char    *z;
 } SStrToken;
 
 /**

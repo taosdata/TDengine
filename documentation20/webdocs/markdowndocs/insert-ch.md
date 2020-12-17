@@ -37,7 +37,7 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 - 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在bailongma所在的linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
 
 Bailongma项目中有一个文件夹blm_prometheus，存放了prometheus的写入API程序。编译过程如下：
-```
+```bash
 cd blm_prometheus
 go build
 ```
@@ -79,7 +79,7 @@ blm_prometheus对prometheus提供服务的端口号。
 ### 启动示例
 
 通过以下命令启动一个blm_prometheus的API服务
-```
+```bash
 ./blm_prometheus -port 8088
 ```
 假设blm_prometheus所在服务器的IP地址为"10.1.2.3"，则在prometheus的配置文件中<remote_write>部分增加url为
@@ -107,7 +107,7 @@ prometheus产生的数据格式如下：
 }
 ```
 其中，apiserver_request_latencies_bucket为prometheus采集的时序数据的名称，后面{}中的为该时序数据的标签。blm_prometheus会以时序数据的名称在TDengine中自动创建一个超级表，并将{}中的标签转换成TDengine的tag值，Timestamp作为时间戳，value作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
-```
+```mysql
 use prometheus;
 select * from apiserver_request_latencies_bucket;
 ```
@@ -124,7 +124,7 @@ select * from apiserver_request_latencies_bucket;
 
 Bailongma项目中有一个文件夹blm_telegraf，存放了Telegraf的写入API程序。编译过程如下：
 
-```
+```bash
 cd blm_telegraf
 go build
 ```
@@ -175,7 +175,7 @@ blm_telegraf对telegraf提供服务的端口号。
 
 ### 启动示例
 通过以下命令启动一个blm_telegraf的API服务
-```
+```bash
 ./blm_telegraf -host 127.0.0.1 -port 8089
 ```
 
@@ -213,7 +213,7 @@ telegraf产生的数据格式如下：
 
 其中，name字段为telegraf采集的时序数据的名称，tags字段为该时序数据的标签。blm_telegraf会以时序数据的名称在TDengine中自动创建一个超级表，并将tags字段中的标签转换成TDengine的tag值，Timestamp作为时间戳，fields字段中的值作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
 
-```
+```mysql
 use telegraf;
 select * from cpu;
 ```

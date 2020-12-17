@@ -1,18 +1,36 @@
-
+import hudson.model.Result
+import jenkins.model.CauseOfInterruption
 properties([pipelineTriggers([githubPush()])])
 node {
-    git url: 'https://github.com/taosdata/TDengine'
+    git url: 'https://github.com/taosdata/TDengine.git'
 }
 
 
-// execute this before anything else, including requesting any time on an agent
-if (currentBuild.rawBuild.getCauses().toString().contains('BranchIndexingCause')) {
-  print "INFO: Build skipped due to trigger being Branch Indexing"
-  currentBuild.result = 'ABORTED' // optional, gives a better hint to the user that it's been skipped, rather than the default which shows it's successful
-  return
+def abortPreviousBuilds() {
+  def currentJobName = env.JOB_NAME
+  def currentBuildNumber = env.BUILD_NUMBER.toInteger()
+  def jobs = Jenkins.instance.getItemByFullName(currentJobName)
+  def builds = jobs.getBuilds()
+
+  for (build in builds) {
+    if (!build.isBuilding()) {
+      continue;
+    }
+
+    if (currentBuildNumber == build.getNumber().toInteger()) {
+      continue;
+    }
+
+    build.doKill()    //doTerm(),doKill(),doTerm()
+  }
 }
-
-
+//abort previous build
+abortPreviousBuilds()
+def abort_previous(){
+  def buildNumber = env.BUILD_NUMBER as int
+  if (buildNumber > 1) milestone(buildNumber - 1)
+  milestone(buildNumber)
+}
 def pre_test(){
     catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
@@ -20,6 +38,7 @@ def pre_test(){
                 '''
     }
     sh '''
+    
     cd ${WKC}
     rm -rf *
     cd ${WK}
@@ -44,27 +63,35 @@ def pre_test(){
 }
 pipeline {
   agent none
+  
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
-
+  
   stages {
+      
+    
       stage('Parallel test stage') {
+        //only build pr
+        when {
+              changeRequest()
+          }
       parallel {
-        stage('python p1') {
-          agent{label 'p1'}
+        stage('python') {
+          agent{label 'pytest'}
           steps {
+            
             pre_test()
             sh '''
             cd ${WKC}/tests
-            ./test-all.sh p1
+            ./test-all.sh pytest
             date'''
           }
         }
         stage('test_b1') {
           agent{label 'b1'}
-          steps {
+          steps {            
             pre_test()
             sh '''
             cd ${WKC}/tests
@@ -117,24 +144,10 @@ pipeline {
             date'''
           }
         }
-       stage('python p2'){
-         agent{label "p2"}
-         steps{
-            pre_test()         
-            sh '''
-            date
-            cd ${WKC}/tests
-            ./test-all.sh p2
-            date
-            '''
-          
-         }
-       }
-       
-          
-      }
+   
+        
     }
-
   }
-  
+  }
+   
 }

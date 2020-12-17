@@ -2209,10 +2209,10 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
   // restore user defined fp
   pParentObj->fp = pParentObj->fetchFp;
   int32_t numOfSub = pParentObj->subState.numOfSub;
+  doFreeInsertSupporter(pParentObj);
 
   if (pParentObj->res.code == TSDB_CODE_SUCCESS) {
     tscDebug("%p Async insertion completed, total inserted:%d", pParentObj, pParentObj->res.numOfRows);
-    doFreeInsertSupporter(pParentObj);
 
     // todo remove this parameter in async callback function definition.
     // all data has been sent to vnode, call user function
@@ -2220,7 +2220,6 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     (*pParentObj->fp)(pParentObj->param, pParentObj, v);
   } else {
     if (!needRetryInsert(pParentObj, numOfSub)) {
-      doFreeInsertSupporter(pParentObj);
       tscQueueAsyncRes(pParentObj);
       return;
     }
@@ -2263,7 +2262,6 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
     if (code != TSDB_CODE_SUCCESS) {
       pParentObj->res.code = code;
-      doFreeInsertSupporter(pParentObj);
       tscQueueAsyncRes(pParentObj);
       return;
     }
@@ -2279,7 +2277,6 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
  */
 int32_t tscHandleInsertRetry(SSqlObj* pParent, SSqlObj* pSql) {
   assert(pSql != NULL && pSql->param != NULL);
-//  SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
   SInsertSupporter* pSupporter = (SInsertSupporter*) pSql->param;
@@ -2287,9 +2284,6 @@ int32_t tscHandleInsertRetry(SSqlObj* pParent, SSqlObj* pSql) {
 
   STableDataBlocks* pTableDataBlock = taosArrayGetP(pParent->cmd.pDataBlocks, pSupporter->index);
   int32_t code = tscCopyDataBlockToPayload(pSql, pTableDataBlock);
-
-  // free the data block created from insert sql string
-//  pCmd->pDataBlocks = tscDestroyBlockArrayList(pParent->cmd.pDataBlocks);
 
   if ((pRes->code = code)!= TSDB_CODE_SUCCESS) {
     tscQueueAsyncRes(pSql);
@@ -2307,7 +2301,11 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   if (pSql->pSubs != NULL) {
     for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
       SSqlObj* pSub = pSql->pSubs[i];
+      SInsertSupporter* pSup = calloc(1, sizeof(SInsertSupporter));
+      pSup->index = i;
+      pSup->pSql = pSql;
 
+      pSub->param = pSup;
       tscDebug("%p sub:%p launch sub insert, orderOfSub:%d", pSql, pSub, i);
       if (pSub->res.code != TSDB_CODE_SUCCESS) {
         tscHandleInsertRetry(pSql, pSub);

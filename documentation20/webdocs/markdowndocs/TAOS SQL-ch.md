@@ -79,7 +79,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 
 - **使用数据库**
-    
+  
     ```mysql
     USE db_name;
     ```
@@ -1039,3 +1039,21 @@ SELECT AVG(current),MAX(current),LEASTSQUARES(current, start_val, step_val), PER
 - 标签最多允许128个，可以0个，标签总长度不超过16k个字符
 - SQL语句最大长度65480个字符，但可通过系统配置参数maxSQLLength修改，最长可配置为1M
 - 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制
+
+
+
+##  TAOS SQL其他约定
+
+**group by的限制**
+
+TAOS  SQL支持对标签、tbname进行group by操作，也支持普通列进行group by，前提是：仅限一列且该列的唯一值小于10万个。
+
+**join操作的限制**
+
+TAOS SQL支持表之间按主键时间戳来join两张表的列，暂不支持两个表之间聚合后的四则运算。
+
+**is not null与不为空的表达式适用范围**
+
+is not null支持所有类型的列。不为空的表达式为 <>""，仅对非数值类型的列适用。
+
+
