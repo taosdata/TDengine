@@ -4,12 +4,14 @@ environment:
   matrix:
     - ARCH: amd64
     - ARCH: x86
-
+platform:
+  - x86
+  - amd64
 clone_folder: c:\dev\TDengine
 clone_depth: 1
 
 init:
-  - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %ARCH%
+  - call "C:\Program Files (x86)\Microsoft Visual Studio 14.0\VC\vcvarsall.bat" %platform%
 
 before_build:
   - cd c:\dev\TDengine
@@ -19,7 +21,7 @@ build_script:
   - cd build
   - cmake -G "NMake Makefiles" ..
   - nmake install
-  - echo Building platform=%PLATFORM%
+  - echo Building platform=%platform%
 notifications:
 - provider: Email
   to:
