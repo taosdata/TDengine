@@ -4,6 +4,7 @@ import com.taosdata.taosdemo.domain.*;
 import com.taosdata.taosdemo.mapper.SubTableMapper;
 import com.taosdata.taosdemo.service.data.SubTableMetaGenerator;
 import com.taosdata.taosdemo.utils.TimeStampUtil;
+import com.zaxxer.hikari.pool.HikariPool;
 import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,12 +86,17 @@ public class SubTableService extends AbstractService {
     }
 
     // 插入：多线程，多表, 自动建表
-    public int insertAutoCreateTable(List<SubTableValue> subTableValues, int threadSize, int frequency) {
-        ExecutorService executor = Executors.newFixedThreadPool(threadSize);
-        Future<Integer> future = executor.submit(() -> insertAutoCreateTable(subTableValues));
-        executor.shutdown();
-        return getAffectRows(future);
-    }
+//    public int insertAutoCreateTable(List<SubTableValue> subTableValues, int threadSize, int frequency) {
+//        long a = System.currentTimeMillis();
+//        ExecutorService executor = Executors.newFixedThreadPool(threadSize);
+//        long b = System.currentTimeMillis();
+//        Future<Integer> future = executor.submit(() -> insertAutoCreateTable(subTableValues));
+//        executor.shutdown();
+//        int affectRows = getAffectRows(future);
+//        long c = System.currentTimeMillis();
+//        logger.info(">>> total : " + (c - a) + " ms, thread: " + (b - a) + " ms, insert : " + (c - b) + " ms.");
+//        return affectRows;
+//    }
 
     // 插入：单表，insert into xxx values(),()...
     public int insert(SubTableValue subTableValue) {
@@ -114,31 +120,18 @@ public class SubTableService extends AbstractService {
 
     // 插入：多表，自动建表, insert into xxx using XXX tags(...) values(),()... xxx using XXX tags(...) values(),()...
     public int insertAutoCreateTable(List<SubTableValue> subTableValues) {
-        Connection connection = null;
-        Statement statement = null;
+
         int affectRows = 0;
         try {
-            connection = dataSource.getConnection();
-//            String sql = sqlSessionFactory.getConfiguration()
-//                    .getMappedStatement("com.taosdata.taosdemo.mapper.SubTableMapper.insertMultiTableMultiValuesUsingSuperTable")
-//                    .getBoundSql(subTableValues)
-//                    .getSql();
+            Connection connection = dataSource.getConnection();
             String sql = sql(subTableValues);
-            logger.info(">>> SQL : " + sql);
-            statement = connection.createStatement();
+//            logger.info(">>> SQL : " + sql);
+            Statement statement = connection.createStatement();
             affectRows = statement.executeUpdate(sql);
+            statement.close();
+            connection.close();
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            try {
-                if (statement != null) {
-                    statement.close();
-                }
-                if (connection != null)
-                    connection.close();
-            } catch (SQLException e) {
-                e.printStackTrace();
-            }
         }
         return affectRows;
 //        return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);

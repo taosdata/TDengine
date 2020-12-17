@@ -15,10 +15,13 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
-import javax.sql.DataSource;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 
 @Component
@@ -33,17 +36,13 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
     private SubTableService subTableService;
 
     private SuperTableMeta superTableMeta;
-//    private List<SubTableMeta> subTableMetaList;
-//    private List<SubTableValue> subTableValueList;
-//    private List<List<SubTableValue>> dataList;
-
 
     @Override
     public void run(String... args) throws Exception {
         // 读配置参数
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
         boolean isHelp = Arrays.asList(args).contains("--help");
-        if (isHelp || config.host == null || config.host.isEmpty()) {
+        if (isHelp) {
             JdbcTaosdemoConfig.printHelp();
             System.exit(0);
         }
@@ -100,8 +99,6 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
     }
 
     private void insertTask(JdbcTaosdemoConfig config) {
-        long start = System.currentTimeMillis();
-
         long numOfTables = config.numOfTables;
         int numOfTablesPerSQL = config.numOfTablesPerSQL;
         long numOfRowsPerTable = config.numOfRowsPerTable;
@@ -118,7 +115,11 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         if (numOfTables < numOfTablesPerSQL)
             numOfTablesPerSQL = (int) numOfTables;
 
-        long timeCost = 0;
+
+        ExecutorService executors = Executors.newFixedThreadPool(config.numOfThreadsForInsert);
+        List<Future<Integer>> futureList = new ArrayList<>();
+        long start = System.currentTimeMillis();
+        long affectRows = 0;
 
         // row
         for (long rowCnt = 0; rowCnt < numOfRowsPerTable; ) {
@@ -135,25 +136,22 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
                 }
                 /***********************************************/
                 long startTime = config.startTime + rowCnt * config.timeGap;
-
-//                for (int i = 0; i < tableSize; i++) {
-//                    System.out.print(config.prefixOfTable + (tableCnt + i + 1) + ", tableSize: " + tableSize + ", rowSize: " + rowSize);
-//                    System.out.println(", startTime: " + TimeStampUtil.longToDatetime(startTime) + ",timeGap: " + config.timeGap);
-//                }
-
                 // 生成数据
                 List<SubTableValue> data = SubTableValueGenerator.generate(superTableMeta, config.prefixOfTable, tableCnt, tableSize, rowSize, startTime, config.timeGap);
-//                List<SubTableValue> data = SubTableValueGenerator.generate(subTableMetaList, tableCnt, tableSize, rowSize, startTime, config.timeGap);
                 // 乱序
                 if (config.order != 0) {
                     SubTableValueGenerator.disrupt(data, config.rate, config.range);
                 }
                 // insert
                 if (config.autoCreateTable) {
-                    long a = System.currentTimeMillis();
-                    subTableService.insertAutoCreateTable(data, config.numOfThreadsForInsert, config.frequency);
-                    long b = System.currentTimeMillis();
-                    timeCost += (b - a);
+                    Future<Integer> future = executors.submit(() -> subTableService.insertAutoCreateTable(data));
+                    try {
+                        affectRows += future.get();
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    } catch (ExecutionException e) {
+                        e.printStackTrace();
+                    }
                 } else {
                     subTableService.insert(data, config.numOfThreadsForInsert, config.frequency);
                 }
@@ -162,8 +160,9 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
             }
             rowCnt += rowSize;
         }
-
-
+        executors.shutdown();
+        long end = System.currentTimeMillis();
+        logger.info(">>> insert " + affectRows + " rows with time cost: " + (end - start) + "ms");
         /*********************************************************************************/
         // 批量插入，自动建表
 //            dataList.stream().forEach(subTableValues -> {
@@ -178,8 +177,6 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
 
 //            subTableService.insert(subTableMetaList, config.numOfTables, config.tablePrefix, config.numOfThreadsForInsert, config.frequency);
 //        }
-        long end = System.currentTimeMillis();
-        logger.info(">>> total : " + (end - start) + " ms, insert : " + (timeCost) + " ms.");
     }
 
     private void prepareMetaData(JdbcTaosdemoConfig config) {
