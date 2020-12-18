@@ -576,7 +576,7 @@ static void rpcFreeMsg(void *msg) {
 static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, int8_t connType) {
   SRpcConn *pConn;
 
-  uint32_t peerIp = taosGetIpFromFqdn(peerFqdn);
+  uint32_t peerIp = taosGetIpv4FromFqdn(peerFqdn);
   if (peerIp == 0xFFFFFFFF) {
     tError("%s, failed to resolve FQDN:%s", pRpc->label, peerFqdn); 
     terrno = TSDB_CODE_RPC_FQDN_ERROR; 
