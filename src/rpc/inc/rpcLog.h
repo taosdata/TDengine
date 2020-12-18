@@ -23,7 +23,7 @@ extern "C" {
 #include "tlog.h"
 
 extern int32_t rpcDebugFlag;
-extern int32_t tscEmbedded;
+extern uint32_t tscEmbedded;
 
 #define tFatal(...) { if (rpcDebugFlag & DEBUG_FATAL) { taosPrintLog("RPC FATAL ", tscEmbedded ? 255 : rpcDebugFlag, __VA_ARGS__); }}
 #define tError(...) { if (rpcDebugFlag & DEBUG_ERROR) { taosPrintLog("RPC ERROR ", tscEmbedded ? 255 : rpcDebugFlag, __VA_ARGS__); }}

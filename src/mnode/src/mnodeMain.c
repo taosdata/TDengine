@@ -91,6 +91,7 @@ int32_t mnodeStartSystem() {
     return -1;
   }
 
+  dnodeReportStep("mnode-grant", "start to set grant infomation", 0);
   grantReset(TSDB_GRANT_ALL, 0);
   tsMgmtIsRunning = true;
 

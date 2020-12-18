@@ -72,7 +72,7 @@ static int32_t mnodeMnodeActionInsert(SSdbRow *pRow) {
   pDnode->isMgmt = true;
   mnodeDecDnodeRef(pDnode);
 
-  mInfo("mnode:%d, fqdn:%s ep:%s port:%u, do insert action", pMnode->mnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp,
+  mInfo("mnode:%d, fqdn:%s ep:%s port:%u is created", pMnode->mnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp,
         pDnode->dnodePort);
   return TSDB_CODE_SUCCESS;
 }
@@ -202,13 +202,13 @@ void mnodeCancelGetNextMnode(void *pIter) {
 void mnodeUpdateMnodeEpSet(SMInfos *pMinfos) {
   bool    set = false;
   SMInfos mInfos = {0};
-  mInfo("vgId:1, update mnodes epSet, numOfMnodes:%d pMinfos:%p", mnodeGetMnodesNum(), pMinfos);
 
   if (pMinfos != NULL) {
+    mInfo("vgId:1, update mnodes epSet, numOfMinfos:%d", pMinfos->mnodeNum);
     set = true;
     mInfos = *pMinfos;
-  }
-  else {
+  } else {
+    mInfo("vgId:1, update mnodes epSet, numOfMnodes:%d", mnodeGetMnodesNum());
     int32_t index = 0;
     void *  pIter = NULL;
     while (1) {
@@ -293,6 +293,11 @@ void mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet, bool redirect) {
   mnodeMnodeRdLock();
   *epSet = tsMEpForShell;
   mnodeMnodeUnLock();
+
+  if (mnodeGetDnodesNum() <= 1) {
+    epSet->numOfEps = 0;
+    return;
+  }
 
   mTrace("vgId:1, mnodes epSet for shell is returned, num:%d inUse:%d", tsMEpForShell.numOfEps, tsMEpForShell.inUse);
   for (int32_t i = 0; i < epSet->numOfEps; ++i) {

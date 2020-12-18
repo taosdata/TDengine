@@ -97,7 +97,7 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
 
   pthread_mutex_init(&pContext->mutex, NULL);
 
-  cInfo("vgId:%d, CQ is opened", pContext->vgId);
+  cDebug("vgId:%d, CQ is opened", pContext->vgId);
 
   return pContext;
 }
@@ -131,7 +131,7 @@ void cqClose(void *handle) {
   taosTmrCleanUp(pContext->tmrCtrl);
   pContext->tmrCtrl = NULL;
 
-  cInfo("vgId:%d, CQ is closed", pContext->vgId);
+  cDebug("vgId:%d, CQ is closed", pContext->vgId);
   free(pContext);
 }
 
@@ -142,7 +142,7 @@ void cqStart(void *handle) {
   SCqContext *pContext = handle;
   if (pContext->dbConn || pContext->master) return;
 
-  cInfo("vgId:%d, start all CQs", pContext->vgId);
+  cDebug("vgId:%d, start all CQs", pContext->vgId);
   pthread_mutex_lock(&pContext->mutex);
 
   pContext->master = 1;
@@ -298,7 +298,7 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
     if (pObj->pStream) {
       tscSetStreamDestTable(pObj->pStream, pObj->dstTable);
       pContext->num++;
-      cInfo("vgId:%d, id:%d CQ:%s is openned", pContext->vgId, pObj->tid, pObj->sqlStr);
+      cDebug("vgId:%d, id:%d CQ:%s is opened", pContext->vgId, pObj->tid, pObj->sqlStr);
     } else {
       cError("vgId:%d, id:%d CQ:%s, failed to open", pContext->vgId, pObj->tid, pObj->sqlStr);
     }

@@ -168,12 +168,12 @@ ids(A) ::= ID(X).        {A = X; }
 ids(A) ::= STRING(X).    {A = X; }
 
 %type ifexists {SStrToken}
-ifexists(X) ::= IF EXISTS.          {X.n = 1;}
-ifexists(X) ::= .                   {X.n = 0;}
+ifexists(X) ::= IF EXISTS.          { X.n = 1;}
+ifexists(X) ::= .                   { X.n = 0;}
 
 %type ifnotexists {SStrToken}
-ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
-ifnotexists(X) ::= .                {X.n = 0;}
+ifnotexists(X) ::= IF NOT EXISTS.   { X.n = 1;}
+ifnotexists(X) ::= .                { X.n = 0;}
 
 /////////////////////////////////THE CREATE STATEMENT///////////////////////////////////////
 //create option for dnode/db/user/account
@@ -183,32 +183,32 @@ cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDBSQL(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
 cmd ::= CREATE USER ids(X) PASS ids(Y).     { setCreateUserSQL(pInfo, &X, &Y);}
 
-pps(Y) ::= .                                {Y.n = 0;   }
-pps(Y) ::= PPS INTEGER(X).                  {Y = X;     }
+pps(Y) ::= .                                { Y.n = 0;   }
+pps(Y) ::= PPS INTEGER(X).                  { Y = X;     }
 
-tseries(Y) ::= .                            {Y.n = 0;   }
-tseries(Y) ::= TSERIES INTEGER(X).          {Y = X;     }
+tseries(Y) ::= .                            { Y.n = 0;   }
+tseries(Y) ::= TSERIES INTEGER(X).          { Y = X;     }
 
-dbs(Y) ::= .                                {Y.n = 0;   }
-dbs(Y) ::= DBS INTEGER(X).                  {Y = X;     }
+dbs(Y) ::= .                                { Y.n = 0;   }
+dbs(Y) ::= DBS INTEGER(X).                  { Y = X;     }
 
-streams(Y) ::= .                            {Y.n = 0;   }
-streams(Y) ::= STREAMS INTEGER(X).          {Y = X;     }
+streams(Y) ::= .                            { Y.n = 0;   }
+streams(Y) ::= STREAMS INTEGER(X).          { Y = X;     }
 
-storage(Y) ::= .                            {Y.n = 0;   }
-storage(Y) ::= STORAGE INTEGER(X).          {Y = X;     }
+storage(Y) ::= .                            { Y.n = 0;   }
+storage(Y) ::= STORAGE INTEGER(X).          { Y = X;     }
 
-qtime(Y) ::= .                              {Y.n = 0;   }
-qtime(Y) ::= QTIME INTEGER(X).              {Y = X;     }
+qtime(Y) ::= .                              { Y.n = 0;   }
+qtime(Y) ::= QTIME INTEGER(X).              { Y = X;     }
 
-users(Y) ::= .                              {Y.n = 0;   }
-users(Y) ::= USERS INTEGER(X).              {Y = X;     }
+users(Y) ::= .                              { Y.n = 0;   }
+users(Y) ::= USERS INTEGER(X).              { Y = X;     }
 
-conns(Y) ::= .                              {Y.n = 0;   }
-conns(Y) ::= CONNS INTEGER(X).              {Y = X;     }
+conns(Y) ::= .                              { Y.n = 0;   }
+conns(Y) ::= CONNS INTEGER(X).              { Y = X;     }
 
-state(Y) ::= .                              {Y.n = 0;   }
-state(Y) ::= STATE ids(X).                  {Y = X;     }
+state(Y) ::= .                              { Y.n = 0;   }
+state(Y) ::= STATE ids(X).                  { Y = X;     }
 
 %type acct_optr {SCreateAcctSQL}
 acct_optr(Y) ::= pps(C) tseries(D) storage(P) streams(F) qtime(Q) dbs(E) users(K) conns(L) state(M). {
@@ -269,7 +269,7 @@ alter_db_optr(Y) ::= alter_db_optr(Z) blocks(X).      { Y = Z; Y.numOfBlocks = s
 alter_db_optr(Y) ::= alter_db_optr(Z) comp(X).        { Y = Z; Y.compressionLevel = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
-alter_db_optr(Y) ::= alter_db_optr(Z) update(X).       { Y = Z; Y.update = strtol(X.z, NULL, 10); }
+alter_db_optr(Y) ::= alter_db_optr(Z) update(X).      { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 
 %type typename {TAOS_FIELD}
 typename(A) ::= ids(X). { 
@@ -279,13 +279,13 @@ typename(A) ::= ids(X). {
 
 //define binary type, e.g., binary(10), nchar(10)
 typename(A) ::= ids(X) LP signed(Y) RP.    {
-    if (Y <= 0) {
-      X.type = 0;
-      tSQLSetColumnType(&A, &X);
-    } else {
-      X.type = -Y;          // negative value of name length
-      tSQLSetColumnType(&A, &X);
-    }
+  if (Y <= 0) {
+    X.type = 0;
+    tSQLSetColumnType(&A, &X);
+  } else {
+    X.type = -Y;  // negative value of name length
+    tSQLSetColumnType(&A, &X);
+  }
 }
 
 %type signed {int64_t}
@@ -294,36 +294,60 @@ signed(A) ::= PLUS INTEGER(X).    { A = strtol(X.z, NULL, 10); }
 signed(A) ::= MINUS INTEGER(X).   { A = -strtol(X.z, NULL, 10);}
 
 ////////////////////////////////// The CREATE TABLE statement ///////////////////////////////
-cmd ::= CREATE TABLE ifnotexists(Y) ids(X) cpxName(Z) create_table_args.  {
-    X.n += Z.n;
-    setCreatedTableName(pInfo, &X, &Y);
+cmd ::= CREATE TABLE create_table_args. {}
+cmd ::= CREATE TABLE create_table_list(Z). { pInfo->type = TSDB_SQL_CREATE_TABLE; pInfo->pCreateTableInfo = Z;}
+
+%type create_table_list{SCreateTableSQL*}
+%destructor create_table_list{destroyCreateTableSql($$);}
+create_table_list(A) ::= create_from_stable(Z). {
+  SCreateTableSQL* pCreateTable = calloc(1, sizeof(SCreateTableSQL));
+  pCreateTable->childTableInfo = taosArrayInit(4, sizeof(SCreatedTableInfo));
+
+  taosArrayPush(pCreateTable->childTableInfo, &Z);
+  pCreateTable->type = TSQL_CREATE_TABLE_FROM_STABLE;
+  A = pCreateTable;
+}
+
+create_table_list(A) ::= create_table_list(X) create_from_stable(Z). {
+  taosArrayPush(X->childTableInfo, &Z);
+  A = X;
 }
 
 %type create_table_args{SCreateTableSQL*}
-create_table_args(A) ::= LP columnlist(X) RP. {
-    A = tSetCreateSQLElems(X, NULL, NULL, NULL, NULL, TSQL_CREATE_TABLE);
-    setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
+create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP. {
+  A = tSetCreateSQLElems(X, NULL, NULL, TSQL_CREATE_TABLE);
+  setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
+
+  V.n += Z.n;
+  setCreatedTableName(pInfo, &V, &U);
 }
 
 // create super table
-create_table_args(A) ::= LP columnlist(X) RP TAGS LP columnlist(Y) RP. {
-    A = tSetCreateSQLElems(X, Y, NULL, NULL, NULL, TSQL_CREATE_STABLE);
-    setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
+create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP TAGS LP columnlist(Y) RP. {
+  A = tSetCreateSQLElems(X, Y, NULL, TSQL_CREATE_STABLE);
+  setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
+
+  V.n += Z.n;
+  setCreatedTableName(pInfo, &V, &U);
 }
 
 // create table by using super table
 // create table table_name using super_table_name tags(tag_values1, tag_values2)
-create_table_args(A) ::= USING ids(X) cpxName(F) TAGS LP tagitemlist(Y) RP.  {
-    X.n += F.n;
-    A = tSetCreateSQLElems(NULL, NULL, &X, Y, NULL, TSQL_CREATE_TABLE_FROM_STABLE);
-    setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
+%type create_from_stable{SCreatedTableInfo}
+create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(F) TAGS LP tagitemlist(Y) RP.  {
+  X.n += F.n;
+  V.n += Z.n;
+  A = createNewChildTableInfo(&X, Y, &V, &U);
 }
 
 // create stream
 // create table table_name as select count(*) from super_table_name interval(time)
-create_table_args(A) ::= AS select(S). {
-    A = tSetCreateSQLElems(NULL, NULL, NULL, NULL, S, TSQL_CREATE_STREAM);
-    setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
+create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) AS select(S). {
+  A = tSetCreateSQLElems(NULL, NULL, S, TSQL_CREATE_STREAM);
+  setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
+
+  V.n += Z.n;
+  setCreatedTableName(pInfo, &V, &U);
 }
 
 %type column{TAOS_FIELD}
@@ -335,7 +359,7 @@ columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(T
 // The information used for a column is the name and type of column:
 // tinyint smallint int bigint float double bool timestamp binary(x) nchar(x)
 column(A) ::= ids(X) typename(Y).          {
-    tSQLSetColumnInfo(&A, &X, &Y);
+  tSQLSetColumnInfo(&A, &X, &Y);
 }
 
 %type tagitemlist {SArray*}
@@ -345,10 +369,10 @@ column(A) ::= ids(X) typename(Y).          {
 tagitemlist(A) ::= tagitemlist(X) COMMA tagitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
 tagitemlist(A) ::= tagitem(X).                      { A = tVariantListAppend(NULL, &X, -1); }
 
-tagitem(A) ::= INTEGER(X).      {toTSDBType(X.type); tVariantCreate(&A, &X); }
-tagitem(A) ::= FLOAT(X).        {toTSDBType(X.type); tVariantCreate(&A, &X); }
-tagitem(A) ::= STRING(X).       {toTSDBType(X.type); tVariantCreate(&A, &X); }
-tagitem(A) ::= BOOL(X).         {toTSDBType(X.type); tVariantCreate(&A, &X); }
+tagitem(A) ::= INTEGER(X).      { toTSDBType(X.type); tVariantCreate(&A, &X); }
+tagitem(A) ::= FLOAT(X).        { toTSDBType(X.type); tVariantCreate(&A, &X); }
+tagitem(A) ::= STRING(X).       { toTSDBType(X.type); tVariantCreate(&A, &X); }
+tagitem(A) ::= BOOL(X).         { toTSDBType(X.type); tVariantCreate(&A, &X); }
 tagitem(A) ::= NULL(X).         { X.type = 0; tVariantCreate(&A, &X); }
 
 tagitem(A) ::= MINUS(X) INTEGER(Y).{
@@ -445,11 +469,11 @@ tablelist(A) ::= ids(X) cpxName(Y).                     {
 }
 
 tablelist(A) ::= ids(X) cpxName(Y) ids(Z).             {
-   toTSDBType(X.type);
-   toTSDBType(Z.type);
-   X.n += Y.n;
-   A = tVariantListAppendToken(NULL, &X, -1);
-   A = tVariantListAppendToken(A, &Z, -1);
+  toTSDBType(X.type);
+  toTSDBType(Z.type);
+  X.n += Y.n;
+  A = tVariantListAppendToken(NULL, &X, -1);
+  A = tVariantListAppendToken(A, &Z, -1);
 }
 
 tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z).  {
@@ -460,11 +484,11 @@ tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z).  {
 }
 
 tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
-   toTSDBType(X.type);
-   toTSDBType(F.type);
-   X.n += Z.n;
-   A = tVariantListAppendToken(Y, &X, -1);
-   A = tVariantListAppendToken(A, &F, -1);
+  toTSDBType(X.type);
+  toTSDBType(F.type);
+  X.n += Z.n;
+  A = tVariantListAppendToken(Y, &X, -1);
+  A = tVariantListAppendToken(A, &F, -1);
 }
 
 // The value of interval should be the form of "number+[a,s,m,h,d,n,y]" or "now"
@@ -526,9 +550,9 @@ item(A) ::= ids(X) cpxName(Y).   {
 }
 
 %type sortorder {int}
-sortorder(A) ::= ASC.           {A = TSDB_ORDER_ASC; }
-sortorder(A) ::= DESC.          {A = TSDB_ORDER_DESC;}
-sortorder(A) ::= .              {A = TSDB_ORDER_ASC;}  //default is descend order
+sortorder(A) ::= ASC.           { A = TSDB_ORDER_ASC; }
+sortorder(A) ::= DESC.          { A = TSDB_ORDER_DESC;}
+sortorder(A) ::= .              { A = TSDB_ORDER_ASC; }  // Ascending order by default
 
 //group by clause
 %type groupby_opt {SArray*}
@@ -536,8 +560,8 @@ sortorder(A) ::= .              {A = TSDB_ORDER_ASC;}  //default is descend orde
 %type grouplist {SArray*}
 %destructor grouplist {taosArrayDestroy($$);}
 
-groupby_opt(A) ::= .                       {A = 0;}
-groupby_opt(A) ::= GROUP BY grouplist(X).  {A = X;}
+groupby_opt(A) ::= .                       { A = 0;}
+groupby_opt(A) ::= GROUP BY grouplist(X).  { A = X;}
 
 grouplist(A) ::= grouplist(X) COMMA item(Y).    {
   A = tVariantListAppend(X, &Y, -1);
@@ -583,20 +607,20 @@ where_opt(A) ::= WHERE expr(X).       {A = X;}
 
 expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->token.z = X.z; A->token.n = (Z.z - X.z + 1);}
 
-expr(A) ::= ID(X).               {A = tSQLExprIdValueCreate(&X, TK_ID);}
-expr(A) ::= ID(X) DOT ID(Y).     {X.n += (1+Y.n); A = tSQLExprIdValueCreate(&X, TK_ID);}
-expr(A) ::= ID(X) DOT STAR(Y).   {X.n += (1+Y.n); A = tSQLExprIdValueCreate(&X, TK_ALL);}
+expr(A) ::= ID(X).               { A = tSQLExprIdValueCreate(&X, TK_ID);}
+expr(A) ::= ID(X) DOT ID(Y).     { X.n += (1+Y.n); A = tSQLExprIdValueCreate(&X, TK_ID);}
+expr(A) ::= ID(X) DOT STAR(Y).   { X.n += (1+Y.n); A = tSQLExprIdValueCreate(&X, TK_ALL);}
 
-expr(A) ::= INTEGER(X).          {A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
-expr(A) ::= MINUS(X) INTEGER(Y). {X.n += Y.n; X.type = TK_INTEGER; A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
-expr(A) ::= PLUS(X)  INTEGER(Y). {X.n += Y.n; X.type = TK_INTEGER; A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
-expr(A) ::= FLOAT(X).            {A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
-expr(A) ::= MINUS(X) FLOAT(Y).   {X.n += Y.n; X.type = TK_FLOAT; A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
-expr(A) ::= PLUS(X) FLOAT(Y).    {X.n += Y.n; X.type = TK_FLOAT; A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
-expr(A) ::= STRING(X).           {A = tSQLExprIdValueCreate(&X, TK_STRING);}
-expr(A) ::= NOW(X).              {A = tSQLExprIdValueCreate(&X, TK_NOW); }
-expr(A) ::= VARIABLE(X).         {A = tSQLExprIdValueCreate(&X, TK_VARIABLE);}
-expr(A) ::= BOOL(X).             {A = tSQLExprIdValueCreate(&X, TK_BOOL);}
+expr(A) ::= INTEGER(X).          { A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
+expr(A) ::= MINUS(X) INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
+expr(A) ::= PLUS(X)  INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSQLExprIdValueCreate(&X, TK_INTEGER);}
+expr(A) ::= FLOAT(X).            { A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
+expr(A) ::= MINUS(X) FLOAT(Y).   { X.n += Y.n; X.type = TK_FLOAT; A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
+expr(A) ::= PLUS(X) FLOAT(Y).    { X.n += Y.n; X.type = TK_FLOAT; A = tSQLExprIdValueCreate(&X, TK_FLOAT);}
+expr(A) ::= STRING(X).           { A = tSQLExprIdValueCreate(&X, TK_STRING);}
+expr(A) ::= NOW(X).              { A = tSQLExprIdValueCreate(&X, TK_NOW); }
+expr(A) ::= VARIABLE(X).         { A = tSQLExprIdValueCreate(&X, TK_VARIABLE);}
+expr(A) ::= BOOL(X).             { A = tSQLExprIdValueCreate(&X, TK_BOOL);}
 
 // ordinary functions: min(x), max(x), top(k, 20)
 expr(A) ::= ID(X) LP exprlist(Y) RP(E). { A = tSQLExprCreateFunction(Y, &X, &E, X.type); }

@@ -76,7 +76,7 @@ int main(int argc, char *argv[]) {
 
   taosInitLog("wal.log", 100000, 10);
 
-  SWalCfg walCfg;
+  SWalCfg walCfg = {0};
   walCfg.walLevel = level;
   walCfg.keep = keep;
 

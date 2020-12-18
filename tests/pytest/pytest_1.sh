@@ -167,6 +167,8 @@ python3 ./test.py -f query/bug2218.py
 python3 ./test.py -f query/bug2281.py
 python3 ./test.py -f query/bug2119.py
 python3 bug2265.py
+python3 ./test.py -f query/floatCompare.py
+
 #stream
 python3 ./test.py -f stream/metric_1.py
 python3 ./test.py -f stream/new.py
