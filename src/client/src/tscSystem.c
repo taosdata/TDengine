@@ -87,7 +87,7 @@ int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEnc
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
   rpcInit.label = "TSC";
-  rpcInit.numOfThreads = tscNumOfThreads;  // every DB connection has only one thread
+  rpcInit.numOfThreads = tscNumOfThreads * 2;    
   rpcInit.cfp = tscProcessMsgFromServer;
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
@@ -108,7 +108,6 @@ int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEnc
   } 
   pRpcObj = taosCachePut(tscRpcCache, rpcObj.key, strlen(rpcObj.key), &rpcObj, sizeof(rpcObj), 1000*10);   
   if (pRpcObj == NULL) {
-    //insert failed 
     rpcClose(rpcObj.pDnodeConn);
     pthread_mutex_unlock(&rpcObjMutex);
     return -1;
@@ -158,7 +157,7 @@ void taos_init_imp(void) {
   int queueSize = tsMaxConnections*2;
 
   double factor = (tscEmbedded == 0)? 2.0:4.0;
-  int32_t tscNumOfThreads = (int)(tsNumOfCores * tsNumOfThreadsPerCore / factor);
+  tscNumOfThreads = (int)(tsNumOfCores * tsNumOfThreadsPerCore / factor);
   if (tscNumOfThreads < 2) {
     tscNumOfThreads = 2;
   }
