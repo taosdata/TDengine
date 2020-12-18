@@ -53,7 +53,7 @@
 #define TIME_WINDOW_COPY(_dst, _src)  do {\
    (_dst).skey = (_src).skey;\
    (_dst).ekey = (_src).ekey;\
-} while (0);
+} while (0)
 
 enum {
   // when query starts to execute, this status will set
