@@ -102,6 +102,7 @@ void dnodeDispatchToVWriteQueue(SRpcMsg *pRpcMsg) {
   }
 
   vnodeRelease(pVnode);
+  rpcFreeCont(pRpcMsg->pCont);
 }
 
 void *dnodeAllocVWriteQueue(void *pVnode) {

@@ -77,6 +77,8 @@ void dnodeDispatchToVReadQueue(SRpcMsg *pMsg) {
     SRpcMsg rpcRsp = {.handle = pMsg->handle, .code = TSDB_CODE_VND_INVALID_VGROUP_ID};
     rpcSendResponse(&rpcRsp);
   }
+
+  rpcFreeCont(pMsg->pCont);
 }
 
 void *dnodeAllocVQueryQueue(void *pVnode) {

@@ -198,10 +198,6 @@ typedef struct {
   int32_t numOfVnodes;
 } SMsgDesc;
 
-typedef struct SMsgVersion {
-  char clientVersion[TSDB_VERSION_LEN];
-} SMsgVersion;
-
 typedef struct SMsgHead {
   int32_t contLen;
   int32_t vgId;
