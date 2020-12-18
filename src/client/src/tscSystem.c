@@ -216,7 +216,6 @@ void taos_cleanup(void) {
   taosCloseRef(tscRefId);
   taosCleanupKeywordsTable();
   taosCloseLog();
-  if (tscEmbedded == 0) rpcCleanup();
 
   m = tscRpcCache; 
   if (m != NULL && atomic_val_compare_exchange_ptr(&tscRpcCache, m, 0) == m) {
@@ -227,6 +226,7 @@ void taos_cleanup(void) {
     pthread_mutex_destroy(&rpcObjMutex);
   }
 
+  if (tscEmbedded == 0) rpcCleanup();
   m = tscTmr;
   if (m != NULL && atomic_val_compare_exchange_ptr(&tscTmr, m, 0) == m) {
     taosTmrCleanUp(m);
