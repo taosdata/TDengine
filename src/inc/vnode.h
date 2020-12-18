@@ -48,7 +48,7 @@ typedef struct {
   void *   pVnode;
   SRpcMsg  rpcMsg;
   SRspRet  rspRet;
-  char     reserveForSync[16];
+  char     reserveForSync[24];
   SWalHead pHead[];
 } SVWriteMsg;
 

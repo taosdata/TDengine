@@ -243,7 +243,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   STscObj* pObj = pSql->pTscObj;
   SSqlCmd* pCmd = &pSql->cmd;
   
-  char *pMsg = rpcMallocCont(sizeof(SMsgVersion) + pCmd->payloadLen);
+  char *pMsg = rpcMallocCont(pCmd->payloadLen);
   if (NULL == pMsg) {
     tscError("%p msg:%s malloc failed", pSql, taosMsg[pSql->cmd.msgType]);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -254,13 +254,12 @@ int tscSendMsgToServer(SSqlObj *pSql) {
     tscDumpMgmtEpSet(pSql);
   }
 
-  tstrncpy(pMsg, version, sizeof(SMsgVersion));
-  memcpy(pMsg + sizeof(SMsgVersion), pSql->cmd.payload, pSql->cmd.payloadLen);
+  memcpy(pMsg, pSql->cmd.payload, pSql->cmd.payloadLen);
 
   SRpcMsg rpcMsg = {
       .msgType = pSql->cmd.msgType,
       .pCont   = pMsg,
-      .contLen = pSql->cmd.payloadLen + sizeof(SMsgVersion),
+      .contLen = pSql->cmd.payloadLen,
       .ahandle = (void*)pSql->self,
       .handle  = NULL,
       .code    = 0
@@ -2146,6 +2145,10 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   if (pConnect->epSet.numOfEps > 0) {
     tscEpSetHtons(&pConnect->epSet);
     tscUpdateMgmtEpSet(pSql, &pConnect->epSet);
+
+    for (int i = 0; i < pConnect->epSet.numOfEps; ++i) {
+      tscDebug("%p epSet.fqdn[%d]: %s, pObj:%p", pSql, i, pConnect->epSet.fqdn[i], pObj);
+    }
   } 
 
   strcpy(pObj->sversion, pConnect->serverVersion);

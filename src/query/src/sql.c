@@ -2428,8 +2428,8 @@ static void yy_reduce(
   yylhsminor.yy538 = tSetCreateSqlElems(NULL, NULL, yymsp[0].minor.yy84, TSQL_CREATE_STREAM);
   setSqlInfo(pInfo, yylhsminor.yy538, NULL, TSDB_SQL_CREATE_TABLE);
 
-  yymsp[-4].minor.yy0.n += yymsp[-2].minor.yy0.n;
-  setCreatedTableName(pInfo, &yymsp[-4].minor.yy0, &yymsp[-3].minor.yy0);
+  yymsp[-3].minor.yy0.n += yymsp[-2].minor.yy0.n;
+  setCreatedTableName(pInfo, &yymsp[-3].minor.yy0, &yymsp[-4].minor.yy0);
 }
   yymsp[-4].minor.yy538 = yylhsminor.yy538;
         break;

@@ -13,15 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TCP_POOL_H
-#define TDENGINE_TCP_POOL_H
+#ifndef TDENGINE_SYNC_TCP_POOL_H
+#define TDENGINE_SYNC_TCP_POOL_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef void *ttpool_h;
-typedef void *tthread_h;
 
 typedef struct {
   int32_t   numOfThreads;
@@ -33,10 +30,10 @@ typedef struct {
   void    (*processIncomingConn)(int32_t fd, uint32_t ip);
 } SPoolInfo;
 
-ttpool_h taosOpenTcpThreadPool(SPoolInfo *pInfo);
-void     taosCloseTcpThreadPool(ttpool_h);
-void *   taosAllocateTcpConn(void *, void *ahandle, int32_t connFd);
-void     taosFreeTcpConn(void *);
+void *syncOpenTcpThreadPool(SPoolInfo *pInfo);
+void  syncCloseTcpThreadPool(void *);
+void *syncAllocateTcpConn(void *, void *ahandle, int32_t connFd);
+void  syncFreeTcpConn(void *);
 
 #ifdef __cplusplus
 }

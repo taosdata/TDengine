@@ -46,7 +46,7 @@ char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
 #endif
 
-TAOS_RES *result = NULL;
+int64_t result = 0;
 SShellHistory   history;
 
 #define DEFAULT_MAX_BINARY_DISPLAY_WIDTH 30
@@ -260,6 +260,14 @@ int32_t shellRunCommand(TAOS* con, char* command) {
 }
 
 
+void freeResultWithRid(int64_t rid) {
+  SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
+  if(pSql){
+    taos_free_result(pSql);
+    taosReleaseRef(tscObjRef, rid);
+  }
+}
+
 void shellRunCommandOnServer(TAOS *con, char command[]) {
   int64_t   st, et;
   wordexp_t full_path;
@@ -294,18 +302,22 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   st = taosGetTimestampUs();
 
-  TAOS_RES* pSql = taos_query_h(con, command, &result);
+  TAOS_RES* tmpSql = NULL;
+  TAOS_RES* pSql = taos_query_h(con, command, &tmpSql);
   if (taos_errno(pSql)) {
     taos_error(pSql, st);
     return;
   }
 
+  atomic_store_64(&result, ((SSqlObj*)tmpSql)->self);
+  int64_t oresult = atomic_load_64(&result);
+
   if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
     fprintf(stdout, "Database changed.\n\n");
     fflush(stdout);
 
-    atomic_store_ptr(&result, 0);
-    taos_free_result(pSql);
+    atomic_store_64(&result, 0);
+    freeResultWithRid(oresult);
     return;
   }
 
@@ -313,8 +325,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     int error_no = 0;
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
     if (numOfRows < 0) {
-      atomic_store_ptr(&result, 0);
-      taos_free_result(pSql);
+      atomic_store_64(&result, 0);
+      freeResultWithRid(oresult);
       return;
     }
 
@@ -336,8 +348,8 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     wordfree(&full_path);
   }
 
-  atomic_store_ptr(&result, 0);
-  taos_free_result(pSql);
+  atomic_store_64(&result, 0);
+  freeResultWithRid(oresult);
 }
 
 /* Function to do regular expression check */
@@ -501,7 +513,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
     row = taos_fetch_row(tres);
   } while( row != NULL);
 
-  result = NULL;
+  result = 0;
   fclose(fp);
 
   return numOfRows;

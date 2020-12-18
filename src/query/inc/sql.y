@@ -346,8 +346,8 @@ create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) AS select(S). {
   A = tSetCreateSQLElems(NULL, NULL, S, TSQL_CREATE_STREAM);
   setSQLInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 
-  U.n += Z.n;
-  setCreatedTableName(pInfo, &U, &V);
+  V.n += Z.n;
+  setCreatedTableName(pInfo, &V, &U);
 }
 
 %type column{TAOS_FIELD}

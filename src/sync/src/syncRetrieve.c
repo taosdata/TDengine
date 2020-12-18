@@ -88,7 +88,7 @@ static bool syncAreFilesModified(SSyncNode *pNode, SSyncPeer *pPeer) {
 static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
   SFileInfo  fileInfo; memset(&fileInfo, 0, sizeof(SFileInfo));
-  SFileAck   fileAck = {0};
+  SFileAck   fileAck; memset(&fileAck, 0, sizeof(SFileAck));
   int32_t    code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
 
@@ -103,11 +103,12 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     fileInfo.size = 0;
     fileInfo.magic = (*pNode->getFileInfo)(pNode->vgId, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX,
                                            &fileInfo.size, &fileInfo.fversion);
+    syncBuildFileInfo(&fileInfo, pNode->vgId);
     sDebug("%s, file:%s info is sent, size:%" PRId64, pPeer->id, fileInfo.name, fileInfo.size);
 
     // send the file info
-    int32_t ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(fileInfo));
-    if (ret != sizeof(fileInfo)) {
+    int32_t ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(SFileInfo));
+    if (ret != sizeof(SFileInfo)) {
       code = -1;
       sError("%s, failed to write file:%s info while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
       break;
@@ -125,6 +126,13 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     if (ret != sizeof(SFileAck)) {
       code = -1;
       sError("%s, failed to read file:%s ack while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
+      break;
+    }
+
+    ret = syncCheckHead((SSyncHead*)(&fileAck));
+    if (ret != 0) {
+      code = -1;
+      sError("%s, failed to check file:%s ack while retrieve file since %s", pPeer->id, fileInfo.name, strerror(ret));
       break;
     }
 
@@ -405,27 +413,22 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
 static int32_t syncRetrieveFirstPkt(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
 
-  SFirstPkt firstPkt;
-  memset(&firstPkt, 0, sizeof(firstPkt));
-  firstPkt.syncHead.type = TAOS_SMSG_SYNC_DATA;
-  firstPkt.syncHead.vgId = pNode->vgId;
-  firstPkt.tranId = syncGenTranId();
-  tstrncpy(firstPkt.fqdn, tsNodeFqdn, sizeof(firstPkt.fqdn));
-  firstPkt.port = tsSyncPort;
+  SSyncMsg msg;
+  syncBuildSyncDataMsg(&msg, pNode->vgId);
 
-  if (taosWriteMsg(pPeer->syncFd, &firstPkt, sizeof(firstPkt)) != sizeof(firstPkt)) {
-    sError("%s, failed to send sync firstPkt since %s, tranId:%u", pPeer->id, strerror(errno), firstPkt.tranId);
+  if (taosWriteMsg(pPeer->syncFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
+    sError("%s, failed to send sync-data msg since %s, tranId:%u", pPeer->id, strerror(errno), msg.tranId);
     return -1;
   }
-  sDebug("%s, send sync-data pkt to peer, tranId:%u", pPeer->id, firstPkt.tranId);
+  sDebug("%s, send sync-data msg to peer, tranId:%u", pPeer->id, msg.tranId);
 
-  SFirstPktRsp firstPktRsp;
-  if (taosReadMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) != sizeof(SFirstPktRsp)) {
-    sError("%s, failed to read sync firstPkt rsp since %s, tranId:%u", pPeer->id, strerror(errno), firstPkt.tranId);
+  SSyncRsp rsp;
+  if (taosReadMsg(pPeer->syncFd, &rsp, sizeof(SSyncRsp)) != sizeof(SSyncRsp)) {
+    sError("%s, failed to read sync-data rsp since %s, tranId:%u", pPeer->id, strerror(errno), msg.tranId);
     return -1;
   }
 
-  sDebug("%s, recv firstPktRsp from peer, tranId:%u", pPeer->id, firstPkt.tranId);
+  sDebug("%s, recv sync-data rsp from peer, tranId:%u rsp-tranId:%u", pPeer->id, msg.tranId, rsp.tranId);
   return 0;
 }
 
