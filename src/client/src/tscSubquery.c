@@ -384,7 +384,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     }
   
     SQueryInfo *pSubQueryInfo = tscGetQueryInfoDetail(&pPrevSub->cmd, 0);
-    STSBuf *pTSBuf = pSubQueryInfo->tsBuf;
+    STSBuf     *pTsBuf = pSubQueryInfo->tsBuf;
     pSubQueryInfo->tsBuf = NULL;
   
     // free result for async object will also free sqlObj
@@ -402,7 +402,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     pSql->pSubs[i] = pNew;
   
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
-    pQueryInfo->tsBuf = pTSBuf;  // transfer the ownership of timestamp comp-z data to the new created object
+    pQueryInfo->tsBuf = pTsBuf;  // transfer the ownership of timestamp comp-z data to the new created object
 
     // set the second stage sub query for join process
     TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE);
@@ -1648,7 +1648,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 
   pRes->qhandle = 0x1;  // hack the qhandle check
   
-  const uint32_t nBufferSize = (1u << 16);  // 64KB
+  const uint32_t nBufferSize = (1u << 16u);  // 64KB
   
   SQueryInfo     *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -2151,7 +2151,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
 
 static bool needRetryInsert(SSqlObj* pParentObj, int32_t numOfSub) {
   if (pParentObj->retry > pParentObj->maxRetry) {
-    tscError("%p max retry reached, abort the retry effort", pParentObj)
+    tscError("%p max retry reached, abort the retry effort", pParentObj);
     return false;
   }
 
@@ -2501,12 +2501,12 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     tscRestoreSQLFuncForSTableQuery(pQueryInfo);
   }
 
-  while (1) {
-    assert (pRes->row >= pRes->numOfRows);
-
-    doBuildResFromSubqueries(pSql);
-    tsem_post(&pSql->rspSem);
-    return;
+  assert (pRes->row >= pRes->numOfRows);
+  doBuildResFromSubqueries(pSql);
+  if (pRes->code == TSDB_CODE_SUCCESS) {
+    (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
+  } else {
+    tscQueueAsyncRes(pSql);
   }
 }
 

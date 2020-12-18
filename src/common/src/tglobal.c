@@ -25,7 +25,6 @@
 #include "tutil.h"
 #include "tlocale.h"
 #include "ttimezone.h"
-#include "tsync.h"
 
 // cluster
 char     tsFirst[TSDB_EP_LEN] = {0};
@@ -172,14 +171,14 @@ int32_t tsEnableStream = 1;
 
 // internal
 int32_t tsPrintAuth = 0;
-int32_t tscEmbedded = 0;
-char    configDir[TSDB_FILENAME_LEN] = {0};
-char    tsVnodeDir[TSDB_FILENAME_LEN] = {0};
-char    tsDnodeDir[TSDB_FILENAME_LEN] = {0};
-char    tsMnodeDir[TSDB_FILENAME_LEN] = {0};
-char    tsDataDir[TSDB_FILENAME_LEN] = {0};
-char    tsScriptDir[TSDB_FILENAME_LEN] = {0};
-char    tsVnodeBakDir[TSDB_FILENAME_LEN] = {0};
+uint32_t tscEmbedded = 0;
+char     configDir[TSDB_FILENAME_LEN] = {0};
+char     tsVnodeDir[TSDB_FILENAME_LEN] = {0};
+char     tsDnodeDir[TSDB_FILENAME_LEN] = {0};
+char     tsMnodeDir[TSDB_FILENAME_LEN] = {0};
+char     tsDataDir[TSDB_FILENAME_LEN] = {0};
+char     tsScriptDir[TSDB_FILENAME_LEN] = {0};
+char     tsVnodeBakDir[TSDB_FILENAME_LEN] = {0};
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -210,13 +209,13 @@ int32_t mDebugFlag = 131;
 int32_t sdbDebugFlag = 131;
 int32_t dDebugFlag = 135;
 int32_t vDebugFlag = 135;
-int32_t cDebugFlag = 131;
+uint32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t odbcDebugFlag = 131;
 int32_t httpDebugFlag = 131;
 int32_t mqttDebugFlag = 131;
 int32_t monDebugFlag = 131;
-int32_t qDebugFlag = 131;
+uint32_t qDebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 0;
