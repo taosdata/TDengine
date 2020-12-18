@@ -52,7 +52,7 @@ void   taosTMemset(void *ptr, int c);
       free((void *)(x)); \
       x = 0;             \
     }                    \
-  } while (0);
+  } while (0)
 
 #ifdef TAOS_MEM_CHECK
   #ifdef TAOS_MEM_CHECK_TEST
