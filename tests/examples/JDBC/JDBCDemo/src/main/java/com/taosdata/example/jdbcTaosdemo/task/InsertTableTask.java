@@ -31,7 +31,7 @@ public class InsertTableTask implements Runnable {
     public void run() {
         try {
             Connection connection = ConnectionFactory.build(config);
-            int keep = config.getKeep();
+            int keep = config.keep;
             Instant end = Instant.now();
             Instant start = end.minus(Duration.ofDays(keep - 1));
             long timeGap = ChronoUnit.MILLIS.between(start, end) / (recordsNumberPerTable - 1);
@@ -41,7 +41,7 @@ public class InsertTableTask implements Runnable {
                 long ts = start.toEpochMilli() + (j * timeGap);
                 // insert data into echo table
                 for (int i = startTbIndex; i < startTbIndex + tableNumber; i++) {
-                    String sql = SqlSpeller.insertBatchSizeRowsSQL(config.getDbName(), config.getTbPrefix(), i + 1, ts, config.getNumberOfRecordsPerRequest());
+                    String sql = SqlSpeller.insertBatchSizeRowsSQL(config.database, config.prefixOfTable, i + 1, ts, config.numOfValuesPerSQL);
                     logger.info(Thread.currentThread().getName() + ">>> " + sql);
                     Statement statement = connection.createStatement();
                     statement.execute(sql);
