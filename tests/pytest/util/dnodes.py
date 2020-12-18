@@ -108,6 +108,36 @@ class TDDnode:
         self.deployed = 0
         self.testCluster = False
         self.valgrind = 0
+        self.cfgDict = {
+            "numOfLogLines":"100000000",
+            "mnodeEqualVnodeNum":"0",
+            "walLevel":"2",
+            "fsync":"1000",
+            "statusInterval":"1",
+            "numOfMnodes":"3",
+            "numOfThreadsPerCore":"2.0",
+            "monitor":"0",
+            "maxVnodeConnections":"30000",
+            "maxMgmtConnections":"30000",
+            "maxMeterConnections":"30000",
+            "maxShellConns":"30000",
+            "locale":"en_US.UTF-8",
+            "charset":"UTF-8",
+            "asyncLog":"0",
+            "anyIp":"0",
+            "tsEnableTelemetryReporting":"0",
+            "dDebugFlag":"135",
+            "mDebugFlag":"135",
+            "sdbDebugFlag":"135",
+            "rpcDebugFlag":"135",
+            "tmrDebugFlag":"131",
+            "cDebugFlag":"135",
+            "httpDebugFlag":"135",
+            "monitorDebugFlag":"135",
+            "udebugFlag":"135",
+            "jnidebugFlag":"135",
+            "qdebugFlag":"135"
+        }
 
     def init(self, path):
         self.path = path
@@ -131,7 +161,10 @@ class TDDnode:
 
         return totalSize
 
-    def deploy(self):
+    def addExtraCfg(self, option, value):
+        self.cfgDict.update({option: value})
+
+    def deploy(self, *updatecfgDict):
         self.logDir = "%s/sim/dnode%d/log" % (self.path, self.index)
         self.dataDir = "%s/sim/dnode%d/data" % (self.path, self.index)
         self.cfgDir = "%s/sim/dnode%d/cfg" % (self.path, self.index)
@@ -175,36 +208,17 @@ class TDDnode:
             self.cfg("publicIp", "192.168.0.%d" % (self.index))
             self.cfg("internalIp", "192.168.0.%d" % (self.index))
             self.cfg("privateIp", "192.168.0.%d" % (self.index))
-        self.cfg("dataDir", self.dataDir)
-        self.cfg("logDir", self.logDir)
-        self.cfg("numOfLogLines", "100000000")
-        self.cfg("mnodeEqualVnodeNum", "0")
-        self.cfg("walLevel", "2")
-        self.cfg("fsync", "1000")
-        self.cfg("statusInterval", "1")
-        self.cfg("numOfMnodes", "3")
-        self.cfg("numOfThreadsPerCore", "2.0")
-        self.cfg("monitor", "0")
-        self.cfg("maxVnodeConnections", "30000")
-        self.cfg("maxMgmtConnections", "30000")
-        self.cfg("maxMeterConnections", "30000")
-        self.cfg("maxShellConns", "30000")
-        self.cfg("locale", "en_US.UTF-8")
-        self.cfg("charset", "UTF-8")
-        self.cfg("asyncLog", "0")
-        self.cfg("anyIp", "0")
-        self.cfg("tsEnableTelemetryReporting", "0")
-        self.cfg("dDebugFlag", "135")
-        self.cfg("mDebugFlag", "135")
-        self.cfg("sdbDebugFlag", "135")
-        self.cfg("rpcDebugFlag", "135")
-        self.cfg("tmrDebugFlag", "131")
-        self.cfg("cDebugFlag", "135")
-        self.cfg("httpDebugFlag", "135")
-        self.cfg("monitorDebugFlag", "135")
-        self.cfg("udebugFlag", "135")
-        self.cfg("jnidebugFlag", "135")
-        self.cfg("qdebugFlag", "135")
+        
+        self.cfg("dataDir",self.dataDir)
+        self.cfg("logDir",self.logDir)
+        print(updatecfgDict)
+        if updatecfgDict[0] and updatecfgDict[0][0]:
+            print(updatecfgDict[0][0])
+            for key,value in updatecfgDict[0][0].items():
+                self.addExtraCfg(key,value)
+        for key, value in self.cfgDict.items():
+            self.cfg(key, value)
+
         self.deployed = 1
         tdLog.debug(
             "dnode:%d is deployed and configured by %s" %
@@ -260,6 +274,12 @@ class TDDnode:
             key = 'from offline to online'
             bkey = bytes(key,encoding="utf8")
             logFile = self.logDir + "/taosdlog.0"
+            i = 0
+            while not os.path.exists(logFile):
+                sleep(0.1)
+                i += 1
+                if i>50:
+                    break
             popen = subprocess.Popen('tail -f ' + logFile, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             pid = popen.pid
             print('Popen.pid:' + str(pid))
@@ -273,6 +293,7 @@ class TDDnode:
         else:
             tdLog.debug("wait 5 seconds for the dnode:%d to start." % (self.index))
             time.sleep(5)
+
         
         # time.sleep(5)
     
@@ -454,7 +475,7 @@ class TDDnodes:
     def setValgrind(self, value):
         self.valgrind = value
 
-    def deploy(self, index):
+    def deploy(self, index, *updatecfgDict):
         self.sim.setTestCluster(self.testCluster)
 
         if (self.simDeployed == False):
@@ -464,7 +485,7 @@ class TDDnodes:
         self.check(index)
         self.dnodes[index - 1].setTestCluster(self.testCluster)
         self.dnodes[index - 1].setValgrind(self.valgrind)
-        self.dnodes[index - 1].deploy()
+        self.dnodes[index - 1].deploy(updatecfgDict)
 
     def cfg(self, index, option, value):
         self.check(index)

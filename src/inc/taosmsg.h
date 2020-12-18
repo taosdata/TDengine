@@ -198,11 +198,6 @@ typedef struct {
   int32_t numOfVnodes;
 } SMsgDesc;
 
-typedef struct SMsgVersion {
-  char     clientVersion[TSDB_VERSION_LEN];
-  uint32_t crc;
-} SMsgVersion;
-
 typedef struct SMsgHead {
   int32_t contLen;
   int32_t vgId;
@@ -271,6 +266,7 @@ typedef struct {
 } SMDCreateTableMsg;
 
 typedef struct {
+  int32_t len;  // one create table message
   char    tableId[TSDB_TABLE_FNAME_LEN];
   char    db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   int8_t  igExists;
@@ -278,9 +274,13 @@ typedef struct {
   int16_t numOfTags;
   int16_t numOfColumns;
   int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
-  int32_t contLen;
   int8_t  reserved[16];
   char    schema[];
+} SCreateTableMsg;
+
+typedef struct {
+  int32_t numOfTables;
+  int32_t contLen;
 } SCMCreateTableMsg;
 
 typedef struct {
@@ -735,8 +735,8 @@ typedef struct SMultiTableMeta {
 
 typedef struct {
   int32_t dataLen;
-  char name[TSDB_TABLE_FNAME_LEN];
-  char data[TSDB_MAX_TAGS_LEN + TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * TSDB_MAX_TAGS];
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char   *data;
 } STagData;
 
 /*

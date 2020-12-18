@@ -3,6 +3,7 @@ os: Visual Studio 2015
 environment:
   matrix:
     - ARCH: amd64
+    - ARCH: x86
 
 clone_folder: c:\dev\TDengine
 clone_depth: 1
@@ -23,6 +24,7 @@ notifications:
 - provider: Email
   to:
   - sangshuduo@gmail.com
+  
   on_build_success: true
   on_build_failure: true
   on_build_status_changed: true

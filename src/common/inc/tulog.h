@@ -23,7 +23,7 @@ extern "C" {
 #include "tlog.h"
 
 extern int32_t uDebugFlag;
-extern int32_t tscEmbedded;
+extern uint32_t tscEmbedded;
 
 #define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 #define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", tscEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}

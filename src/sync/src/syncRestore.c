@@ -56,7 +56,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   SSyncNode *pNode = pPeer->pSyncNode;
   SFileInfo  minfo; memset(&minfo, 0, sizeof(SFileInfo)); /* = {0}; */
   SFileInfo  sinfo; memset(&sinfo, 0, sizeof(SFileInfo)); /* = {0}; */
-  SFileAck   fileAck = {0};
+  SFileAck   fileAck; memset(&fileAck, 0, sizeof(SFileAck));
   int32_t    code = -1;
   char       name[TSDB_FILENAME_LEN * 2] = {0};
   uint32_t   pindex = 0;  // index in last restore
@@ -69,7 +69,14 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     minfo.index = -1;
     int32_t ret = taosReadMsg(pPeer->syncFd, &minfo, sizeof(SFileInfo));
     if (ret != sizeof(SFileInfo) || minfo.index == -1) {
-      sError("%s, failed to read file info while restore file since %s", pPeer->id, strerror(errno));
+      sError("%s, failed to read fileinfo while restore file since %s", pPeer->id, strerror(errno));
+      break;
+    }
+
+    assert(ret == sizeof(SFileInfo));
+    ret = syncCheckHead((SSyncHead *)(&minfo));
+    if (ret != 0) {
+      sError("%s, failed to check fileinfo while restore file since %s", pPeer->id, strerror(ret));
       break;
     }
 
@@ -94,12 +101,13 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
                                         &sinfo.fversion);
 
     // if file not there or magic is not the same, file shall be synced
-    memset(&fileAck, 0, sizeof(fileAck));
+    memset(&fileAck, 0, sizeof(SFileAck));
+    syncBuildFileAck(&fileAck, pNode->vgId);
     fileAck.sync = (sinfo.magic != minfo.magic || sinfo.name[0] == 0) ? 1 : 0;
 
     // send file ack
-    ret = taosWriteMsg(pPeer->syncFd, &fileAck, sizeof(fileAck));
-    if (ret != sizeof(fileAck)) {
+    ret = taosWriteMsg(pPeer->syncFd, &fileAck, sizeof(SFileAck));
+    if (ret != sizeof(SFileAck)) {
       sError("%s, failed to write file:%s ack while restore file since %s", pPeer->id, minfo.name, strerror(errno));
       break;
     }
@@ -289,12 +297,12 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
   uint64_t fversion = 0;
 
   sInfo("%s, start to restore, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
-  SFirstPktRsp firstPktRsp = {.sync = 1, .tranId = syncGenTranId()};
-  if (taosWriteMsg(pPeer->syncFd, &firstPktRsp, sizeof(SFirstPktRsp)) != sizeof(SFirstPktRsp)) {
-    sError("%s, failed to send sync firstPkt rsp since %s", pPeer->id, strerror(errno));
+  SSyncRsp rsp = {.sync = 1, .tranId = syncGenTranId()};
+  if (taosWriteMsg(pPeer->syncFd, &rsp, sizeof(SSyncRsp)) != sizeof(SSyncRsp)) {
+    sError("%s, failed to send sync rsp since %s", pPeer->id, strerror(errno));
     return -1;
   }
-  sDebug("%s, send firstPktRsp to peer, tranId:%u", pPeer->id, firstPktRsp.tranId);
+  sDebug("%s, send sync rsp to peer, tranId:%u", pPeer->id, rsp.tranId);
 
   sInfo("%s, start to restore file, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
   int32_t code = syncRestoreFile(pPeer, &fversion);

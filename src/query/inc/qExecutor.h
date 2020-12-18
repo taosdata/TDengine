@@ -185,7 +185,7 @@ typedef struct SQueryRuntimeEnv {
   uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;
   SResultRowInfo       windowResInfo;
-  STSBuf*              pTSBuf;
+  STSBuf*              pTsBuf;
   STSCursor            cur;
   SQueryCostInfo       summary;
   void*                pQueryHandle;

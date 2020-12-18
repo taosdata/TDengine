@@ -294,6 +294,11 @@ void mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet, bool redirect) {
   *epSet = tsMEpForShell;
   mnodeMnodeUnLock();
 
+  if (mnodeGetDnodesNum() <= 1) {
+    epSet->numOfEps = 0;
+    return;
+  }
+
   mTrace("vgId:1, mnodes epSet for shell is returned, num:%d inUse:%d", tsMEpForShell.numOfEps, tsMEpForShell.inUse);
   for (int32_t i = 0; i < epSet->numOfEps; ++i) {
     if (redirect && strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
