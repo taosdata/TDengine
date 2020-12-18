@@ -381,6 +381,7 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
   taosScheduleTask(tscQhandle, &schedMsg);
 }
 
+
 void tscQueueAsyncRes(SSqlObj *pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     tscDebug("%p SqlObj is freed, not add into queue async res", pSql);
@@ -390,7 +391,10 @@ void tscQueueAsyncRes(SSqlObj *pSql) {
   tscError("%p add into queued async res, code:%s", pSql, tstrerror(pSql->res.code));
 
   SSqlRes *pRes = &pSql->res;
-  assert(pSql->fp != NULL && pSql->fetchFp != NULL);
+
+  if (pSql->fp == NULL || pSql->fetchFp == NULL){
+    return;
+  }
 
   pSql->fp = pSql->fetchFp;
   (*pSql->fp)(pSql->param, pSql, pRes->code);
