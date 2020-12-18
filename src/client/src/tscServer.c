@@ -326,7 +326,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
        rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
        rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
-    tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), ++pSql->retry);
+        
+    pSql->retry++;
+    tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), pSql->retry);
 
     pSql->res.code = rpcMsg->code;  // keep the previous error code
     if (pSql->retry > pSql->maxRetry) {
