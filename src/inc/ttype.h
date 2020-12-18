@@ -28,7 +28,7 @@ extern "C" {
     default:                                         \
       (_v) = (_finalType)GET_INT32_VAL(_data);       \
       break;                                         \
-  };
+  }
 
 #ifdef __cplusplus
 }
