@@ -221,7 +221,7 @@ int32_t uDebugFlag = 131;
 int32_t debugFlag = 0;
 int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
-int32_t tsdbDebugFlag = 131;
+uint32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 
 int32_t (*monStartSystemFp)() = NULL;

@@ -2182,8 +2182,8 @@ static bool isFixedOutputQuery(SQueryRuntimeEnv* pRuntimeEnv) {
 // todo refactor with isLastRowQuery
 bool isPointInterpoQuery(SQuery *pQuery) {
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    int32_t functionID = pQuery->pExpr1[i].base.functionId;
-    if (functionID == TSDB_FUNC_INTERP) {
+    int32_t functionId = pQuery->pExpr1[i].base.functionId;
+    if (functionId == TSDB_FUNC_INTERP) {
       return true;
     }
   }
