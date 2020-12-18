@@ -796,8 +796,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
     sql += index;
 
-    tscAllocPayload(pCmd, sizeof(STagData));
-    
     //the source super table is moved to the secondary position of the pTableMetaInfo list
     if (pQueryInfo->numOfTables < 2) {
       tscAddEmptyMetaInfo(pQueryInfo);
@@ -809,13 +807,8 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return code;
     }
 
-    STagData *pTag = realloc(pCmd->pTagData, offsetof(STagData, data));
-    if (pTag == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-    memset(pTag, 0, offsetof(STagData, data));
-    tstrncpy(pTag->name, pSTableMeterMetaInfo->name, sizeof(pTag->name));
-    pCmd->pTagData = pTag;
+    tstrncpy(pCmd->tagData.name, pSTableMeterMetaInfo->name, sizeof(pCmd->tagData.name));
+    pCmd->tagData.dataLen = 0;
 
     code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
@@ -946,14 +939,15 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     }
     tdSortKVRowByColIdx(row);
 
-    pTag = (STagData*)realloc(pCmd->pTagData, offsetof(STagData, data) + kvRowLen(row));
+    pCmd->tagData.dataLen = kvRowLen(row);
+    char* pTag = realloc(pCmd->tagData.data, pCmd->tagData.dataLen);
     if (pTag == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
-    pCmd->pTagData = pTag;
-    pTag->dataLen = htonl(kvRowLen(row));
-    kvRowCpy(pTag->data, row);
+
+    kvRowCpy(pTag, row);
     free(row);
+    pCmd->tagData.data = pTag;
 
     index = 0;
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
@@ -972,7 +966,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     }
 
     createTable = true;
-    code = tscGetMeterMetaEx(pSql, pTableMetaInfo, true);
+    code = tscGetTableMetaEx(pSql, pTableMetaInfo, true);
     if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
       return code;
     }
@@ -983,7 +977,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     } else {
       sql = sToken.z;
     }
-    code = tscGetMeterMetaEx(pSql, pTableMetaInfo, false);
+    code = tscGetTableMetaEx(pSql, pTableMetaInfo, false);
     
     if (pCmd->curSql == NULL) {
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS);
@@ -1298,7 +1292,6 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
 
   pCmd->count = 0;
   pCmd->command = TSDB_SQL_INSERT;
-  pSql->res.numOfRows = 0;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex);
 
@@ -1363,7 +1356,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
       ret = tscToSQLCmd(pSql, &SQLInfo);
     }
 
-    SQLInfoDestroy(&SQLInfo);
+    SqlInfoDestroy(&SQLInfo);
   }
 
   /*
@@ -1529,7 +1522,7 @@ void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql) {
     pSql->res.code = TAOS_SYSTEM_ERROR(errno);
     tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));
 
-    tfree(pSupporter)
+    tfree(pSupporter);
     tscQueueAsyncRes(pSql);
 
     return;

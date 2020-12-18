@@ -25,7 +25,6 @@
 #include "tutil.h"
 #include "tlocale.h"
 #include "ttimezone.h"
-#include "tsync.h"
 
 // cluster
 char     tsFirst[TSDB_EP_LEN] = {0};
@@ -110,6 +109,9 @@ int32_t tsQueryBufferSize = -1;
 // in retrieve blocking model, the retrieve threads will wait for the completion of the query processing.
 int32_t tsRetrieveBlockingModel = 0;
 
+// last_row(*), first(*), last_row(ts, col1, col2) query, the result fields will be the original column name
+int32_t tsKeepOriginalColumnName = 0;
+
 // db parameters
 int32_t tsCacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
 int32_t tsBlocksPerVnode = TSDB_DEFAULT_TOTAL_BLOCKS;
@@ -169,14 +171,14 @@ int32_t tsEnableStream = 1;
 
 // internal
 int32_t tsPrintAuth = 0;
-int32_t tscEmbedded = 0;
-char    configDir[TSDB_FILENAME_LEN] = {0};
-char    tsVnodeDir[TSDB_FILENAME_LEN] = {0};
-char    tsDnodeDir[TSDB_FILENAME_LEN] = {0};
-char    tsMnodeDir[TSDB_FILENAME_LEN] = {0};
-char    tsDataDir[TSDB_FILENAME_LEN] = {0};
-char    tsScriptDir[TSDB_FILENAME_LEN] = {0};
-char    tsVnodeBakDir[TSDB_FILENAME_LEN] = {0};
+uint32_t tscEmbedded = 0;
+char     configDir[TSDB_FILENAME_LEN] = {0};
+char     tsVnodeDir[TSDB_FILENAME_LEN] = {0};
+char     tsDnodeDir[TSDB_FILENAME_LEN] = {0};
+char     tsMnodeDir[TSDB_FILENAME_LEN] = {0};
+char     tsDataDir[TSDB_FILENAME_LEN] = {0};
+char     tsScriptDir[TSDB_FILENAME_LEN] = {0};
+char     tsVnodeBakDir[TSDB_FILENAME_LEN] = {0};
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -207,13 +209,13 @@ int32_t mDebugFlag = 131;
 int32_t sdbDebugFlag = 131;
 int32_t dDebugFlag = 135;
 int32_t vDebugFlag = 135;
-int32_t cDebugFlag = 131;
+uint32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
 int32_t odbcDebugFlag = 131;
 int32_t httpDebugFlag = 131;
 int32_t mqttDebugFlag = 131;
 int32_t monDebugFlag = 131;
-int32_t qDebugFlag = 131;
+uint32_t qDebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 0;
@@ -891,6 +893,16 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsRetrieveBlockingModel;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "keepColumnName";
+  cfg.ptr = &tsKeepOriginalColumnName;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 1;

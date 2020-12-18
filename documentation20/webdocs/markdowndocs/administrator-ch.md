@@ -80,6 +80,12 @@ TDengine集群的节点数必须大于等于副本数，否则创建表时将报
 
 TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修改配置参数，以满足不同场景的需求。配置文件的缺省位置在/etc/taos目录，可以通过taosd命令行执行参数-c指定配置文件目录。比如taosd -c /home/user来指定配置文件位于/home/user这个目录。
 
+另外可以使用 “-C” 显示当前服务器配置参数：
+
+```
+taosd -C
+```
+
 下面仅仅列出一些重要的配置参数，更多的参数请看配置文件里的说明。各个参数的详细介绍及作用请看前述章节，而且这些参数的缺省配置都是工作的，一般无需设置。**注意：配置修改后，需要重启*taosd*服务才能生效。**
 
 - firstEp: taosd启动时，主动连接的集群中首个dnode的end point, 默认值为localhost:6030。
@@ -97,6 +103,7 @@ TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修�
 - telemetryReporting: 是否允许 TDengine 采集和上报基本使用信息，0表示不允许，1表示允许。 默认值：1。
 - stream: 是否启用连续查询（流计算功能），0表示不允许，1表示允许。 默认值：1。
 - queryBufferSize: 为所有并发查询占用保留的内存大小。计算规则可以根据实际应用可能的最大并发数和表的数字相乘，再乘 170 。单位为字节。
+- ratioOfQueryCores: 设置查询线程的最大数量。最小值0 表示只有1个查询线程；最大值2表示最大建立2倍CPU核数的查询线程。默认为1，表示最大和CPU核数相等的查询线程。该值可以为小数，即0.5表示最大建立CPU核数一半的查询线程。
 
 **注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030都6042共13个端口，而且必须TCP和UDP都打开。
 
@@ -152,7 +159,13 @@ ALTER DNODE <dnode_id> <config>
 
 ## 客户端配置 
 
-TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同一个配置文件taos.cfg。运行taos时，使用参数-c指定配置文件目录，如taos -c /home/cfg，表示使用/home/cfg/目录下的taos.cfg配置文件中的参数，缺省目录是/etc/taos。本节主要说明 taos 客户端应用在配置文件 taos.cfg 文件中使用到的参数。
+TDengine系统的前台交互客户端应用程序为taos，以及应用驱动，它与taosd共享同一个配置文件taos.cfg。运行taos时，使用参数-c指定配置文件目录，如taos -c /home/cfg，表示使用/home/cfg/目录下的taos.cfg配置文件中的参数，缺省目录是/etc/taos。更多taos的使用方法请见[Shell命令行程序](https://www.taosdata.com/cn/documentation/administrator/#_TDengine_Shell命令行程序)。本节主要说明 taos 客户端应用在配置文件 taos.cfg 文件中使用到的参数。
+
+**2.0.10.0 之后版本支持命令行以下参数显示当前客户端参数的配置**
+
+```bash
+taos -C  或  taos --dump-config
+```
 
 客户端配置参数
 
@@ -215,15 +228,15 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
     均是合法的设置东八区时区的格式。
 
     时区的设置对于查询和写入SQL语句中非Unix时间戳的内容（时间戳字符串、关键词now的解析）产生影响。例如：
-    ```
+    ```sql
     SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
     ```
     在东八区，SQL语句等效于
-    ```
+    ```sql
     SELECT count(*) FROM table_name WHERE TS<1554955268000;
     ```
     在UTC时区，SQL语句等效于
-    ```
+    ```sql
     SELECT count(*) FROM table_name WHERE TS<1554984068000;
     ```
     为了避免使用字符串时间格式带来的不确定性，也可以直接使用Unix时间戳。此外，还可以在SQL语句中使用带有时区的时间戳字符串，例如：RFC3339格式的时间戳字符串，2013-04-12T15:52:01.123+08:00或者ISO-8601格式时间戳字符串2013-04-12T15:52:01.123+0800。上述两个字符串转化为Unix时间戳不受系统所在时区的影响。
@@ -239,31 +252,31 @@ TDengine系统的前台交互客户端应用程序为taos，它与taosd共享同
 
 系统管理员可以在CLI界面里添加、删除用户，也可以修改密码。CLI里SQL语法如下：
 
-```
+```sql
 CREATE USER <user_name> PASS <'password'>;
 ```
 
 创建用户，并指定用户名和密码，密码需要用单引号引起来,单引号为英文半角
 
-```
+```sql
 DROP USER <user_name>;
 ```
 
 删除用户，限root用户使用
 
-```
+```sql
 ALTER USER <user_name> PASS <'password'>;
 ```
 
 修改用户密码, 为避免被转换为小写，密码需要用单引号引用,单引号为英文半角
 
-```
+```sql
 ALTER USER <user_name> PRIVILEGE <super|write|read>;
 ```
 
 修改用户权限为：super/write/read，不需要添加单引号
 
-```
+```mysql
 SHOW USERS;
 ```
 
@@ -316,11 +329,10 @@ taos> DESCRIBE d1001
 ```
 那么可以用如下命令导入数据
 
-```
+```mysql
 taos> insert into d1001 file '~/data.csv';
 Query OK, 9 row(s) affected (0.004763s)
 ```
-
 
 **taosdump工具导入**
 
@@ -334,7 +346,7 @@ TDengine提供了方便的数据库导入导出工具taosdump。用户可以将t
 
 如果用户需要导出一个表或一个STable中的数据，可在shell中运行
 
-```
+```mysql
 select * from <tb_name> >> data.csv;
 ```
 
@@ -348,37 +360,37 @@ TDengine提供了方便的数据库导出工具taosdump。用户可以根据需�
 
 系统管理员可以从CLI查询系统的连接、正在进行的查询、流式计算，并且可以关闭连接、停止正在进行的查询和流式计算。CLI里SQL语法如下：
 
-```
+```mysql
 SHOW CONNECTIONS;
 ```
 
 显示数据库的连接，其中一列显示ip:port, 为连接的IP地址和端口号。
 
-```
+```mysql
 KILL CONNECTION <connection-id>;
 ```
 
 强制关闭数据库连接，其中的connection-id是SHOW CONNECTIONS中显示的第一列的数字。
 
-```
+```mysql
 SHOW QUERIES;
 ```
 
 显示数据查询，其中第一列显示的以冒号隔开的两个数字为query-id，为发起该query应用连接的connection-id和查询次数。
 
-```
+```mysql
 KILL QUERY <query-id>;
 ```
 
 强制关闭数据查询，其中query-id是SHOW QUERIES中显示的 connection-id:query-no字串，如“105:2”，拷贝粘贴即可。
 
-```
+```mysql
 SHOW STREAMS;
 ```
 
 显示流式计算，其中第一列显示的以冒号隔开的两个数字为stream-id, 为启动该stream应用连接的connection-id和发起stream的次数。
 
-```
+```mysql
 KILL STREAM <stream-id>;
 ```
 
