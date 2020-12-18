@@ -90,6 +90,12 @@
     <build>
         <resources>
             <resource>
+                <directory>src/main/resources/lib</directory>
+                <includes>
+                    <include>**/*.jar</include>
+                </includes>
+            </resource>
+            <resource>
                 <directory>src/main/resources</directory>
                 <includes>
                     <include>**/*.properties</include>
@@ -97,6 +103,7 @@
                 </includes>
                 <filtering>true</filtering>
             </resource>
+
             <resource>
                 <directory>src/main/java</directory>
                 <includes>

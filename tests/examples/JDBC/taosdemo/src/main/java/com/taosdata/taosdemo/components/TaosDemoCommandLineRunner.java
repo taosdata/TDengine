@@ -1,13 +1,12 @@
 package com.taosdata.taosdemo.components;
 
 import com.taosdata.taosdemo.domain.FieldMeta;
-import com.taosdata.taosdemo.domain.SubTableValue;
 import com.taosdata.taosdemo.domain.SuperTableMeta;
 import com.taosdata.taosdemo.domain.TagMeta;
 import com.taosdata.taosdemo.service.DatabaseService;
+import com.taosdata.taosdemo.service.InsertTask;
 import com.taosdata.taosdemo.service.SubTableService;
 import com.taosdata.taosdemo.service.SuperTableService;
-import com.taosdata.taosdemo.service.data.SubTableValueGenerator;
 import com.taosdata.taosdemo.service.data.SuperTableMetaGenerator;
 import com.taosdata.taosdemo.utils.JdbcTaosdemoConfig;
 import org.apache.log4j.Logger;
@@ -15,25 +14,23 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
 
+import javax.sql.DataSource;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.FutureTask;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 
 @Component
 public class TaosDemoCommandLineRunner implements CommandLineRunner {
 
     private static Logger logger = Logger.getLogger(TaosDemoCommandLineRunner.class);
-    @Autowired
     private DatabaseService databaseService;
-    @Autowired
     private SuperTableService superTableService;
-    @Autowired
-    private SubTableService subTableService;
+    private DataSource dataSource;
 
     private SuperTableMeta superTableMeta;
 
@@ -42,30 +39,27 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
         // 读配置参数
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
         boolean isHelp = Arrays.asList(args).contains("--help");
-        if (isHelp) {
+        if (isHelp || config.host == null || config.host.isEmpty()) {
             JdbcTaosdemoConfig.printHelp();
             System.exit(0);
         }
 
-        // 准备数据
-        prepareMetaData(config);
-        // 超级表的meta
-        superTableMeta = createSupertable(config);
-        // 子表的meta
-//        subTableMetaList = SubTableMetaGenerator.generate(superTableMeta, config.numOfTables, config.tablePrefix);
+        dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user, config.password);
+        databaseService = new DatabaseService(dataSource);
+        superTableService = new SuperTableService(dataSource);
+
         // 创建数据库
-        createDatabaseTask(config);
+//        createDatabaseTask(config);
+        // 超级表的meta
+        superTableMeta = buildSuperTableMeta(config);
         // 建表
-        createTableTask(config);
+//        createTableTask(config);
         // 插入
         insertTask(config);
-        // 查询: 1. 生成查询语句, 2. 执行查询
-
         // 删除表
         if (config.dropTable) {
             superTableService.drop(config.database, config.superTable);
         }
-
         System.exit(0);
     }
 
@@ -92,119 +86,84 @@ public class TaosDemoCommandLineRunner implements CommandLineRunner {
             if (config.autoCreateTable)
                 return;
             // 批量建子表
-            subTableService.createSubTable(superTableMeta, config.numOfTables, config.prefixOfTable, config.numOfThreadsForCreate);
+//            subTableService.createSubTable(superTableMeta, config.numOfTables, config.prefixOfTable, config.numOfThreadsForCreate);
         }
         long end = System.currentTimeMillis();
         logger.info(">>> create table time cost : " + (end - start) + " ms.");
     }
 
-    private void insertTask(JdbcTaosdemoConfig config) {
-        long numOfTables = config.numOfTables;
-        int numOfTablesPerSQL = config.numOfTablesPerSQL;
-        long numOfRowsPerTable = config.numOfRowsPerTable;
-        int numOfValuesPerSQL = config.numOfValuesPerSQL;
-
+    private long getProperStartTime(JdbcTaosdemoConfig config) {
         Instant now = Instant.now();
         long earliest = now.minus(Duration.ofDays(config.keep)).toEpochMilli();
-        if (config.startTime == 0 || config.startTime < earliest) {
-            config.startTime = earliest;
+        long startTime = config.startTime;
+        if (startTime == 0 || startTime < earliest) {
+            startTime = earliest;
         }
-
-        if (numOfRowsPerTable < numOfValuesPerSQL)
-            numOfValuesPerSQL = (int) numOfRowsPerTable;
-        if (numOfTables < numOfTablesPerSQL)
-            numOfTablesPerSQL = (int) numOfTables;
-
-
-        ExecutorService executors = Executors.newFixedThreadPool(config.numOfThreadsForInsert);
-        List<Future<Integer>> futureList = new ArrayList<>();
-        long start = System.currentTimeMillis();
-        long affectRows = 0;
-
-        // row
-        for (long rowCnt = 0; rowCnt < numOfRowsPerTable; ) {
-            long rowSize = numOfValuesPerSQL;
-            if (rowCnt + rowSize > numOfRowsPerTable) {
-                rowSize = numOfRowsPerTable - rowCnt;
-            }
-
-            //table
-            for (long tableCnt = 0; tableCnt < numOfTables; ) {
-                long tableSize = numOfTablesPerSQL;
-                if (tableCnt + tableSize > numOfTables) {
-                    tableSize = numOfTables - tableCnt;
-                }
-                /***********************************************/
-                long startTime = config.startTime + rowCnt * config.timeGap;
-                // 生成数据
-                List<SubTableValue> data = SubTableValueGenerator.generate(superTableMeta, config.prefixOfTable, tableCnt, tableSize, rowSize, startTime, config.timeGap);
-                // 乱序
-                if (config.order != 0) {
-                    SubTableValueGenerator.disrupt(data, config.rate, config.range);
-                }
-                // insert
-                if (config.autoCreateTable) {
-                    Future<Integer> future = executors.submit(() -> subTableService.insertAutoCreateTable(data));
-                    try {
-                        affectRows += future.get();
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    } catch (ExecutionException e) {
-                        e.printStackTrace();
-                    }
-                } else {
-                    subTableService.insert(data, config.numOfThreadsForInsert, config.frequency);
-                }
-                /***********************************************/
-                tableCnt += tableSize;
-            }
-            rowCnt += rowSize;
-        }
-        executors.shutdown();
-        long end = System.currentTimeMillis();
-        logger.info(">>> insert " + affectRows + " rows with time cost: " + (end - start) + "ms");
-        /*********************************************************************************/
-        // 批量插入，自动建表
-//            dataList.stream().forEach(subTableValues -> {
-//                subTableService.insertAutoCreateTable(subTableValues, config.numOfThreadsForInsert, config.frequency);
-//            });
-
-//            subTableService.insertAutoCreateTable(subTableMetaList, config.numOfTables, config.tablePrefix, config.numOfThreadsForInsert, config.frequency);
-//        } else {
-//            dataList.stream().forEach(subTableValues -> {
-//                subTableService.insert(subTableValues, config.numOfThreadsForInsert, config.frequency);
-//            });
-
-//            subTableService.insert(subTableMetaList, config.numOfTables, config.tablePrefix, config.numOfThreadsForInsert, config.frequency);
-//        }
+        return startTime;
     }
 
-    private void prepareMetaData(JdbcTaosdemoConfig config) {
-        long start = System.currentTimeMillis();
-        // 超级表的meta
-        superTableMeta = createSupertable(config);
-        // 子表的meta
-//        subTableMetaList = SubTableMetaGenerator.generate(superTableMeta, config.numOfTables, config.prefixOfTable);
+    private void insertTask(JdbcTaosdemoConfig config) {
+        long tableSize = config.numOfTables;
+        int threadSize = config.numOfThreadsForInsert;
+        long startTime = getProperStartTime(config);
 
-        /*
-        // 子表的data
-        subTableValueList = SubTableValueGenerator.generate(subTableMetaList, config.numOfRowsPerTable, config.startTime, config.timeGap);
-        // 如果有乱序，给数据搞乱
-        if (config.order != 0) {
-            SubTableValueGenerator.disrupt(subTableValueList, config.rate, config.range);
+        if (tableSize < threadSize)
+            threadSize = (int) tableSize;
+        long gap = (long) Math.ceil((0.0d + tableSize) / threadSize);
+
+        long start = System.currentTimeMillis();
+
+        List<FutureTask> taskList = new ArrayList<>();
+        List<Thread> threads = IntStream.range(0, threadSize)
+                .mapToObj(i -> {
+                    long startInd = i * gap;
+                    long endInd = (i + 1) * gap < tableSize ? (i + 1) * gap : tableSize;
+                    FutureTask<Integer> task = new FutureTask<>(
+                            new InsertTask(superTableMeta,
+                                    startInd, endInd,
+                                    startTime, config.timeGap,
+                                    config.numOfRowsPerTable, config.numOfTablesPerSQL, config.numOfValuesPerSQL,
+                                    config.order, config.rate, config.range,
+                                    config.prefixOfTable, config.autoCreateTable, dataSource)
+                    );
+                    taskList.add(task);
+                    return new Thread(task, "InsertThread-" + i);
+                }).collect(Collectors.toList());
+
+        threads.stream().forEach(Thread::start);
+        for (Thread thread : threads) {
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
-        // 分割数据
-        int numOfTables = config.numOfTables;
-        int numOfTablesPerSQL = config.numOfTablesPerSQL;
-        int numOfRowsPerTable = config.numOfRowsPerTable;
-        int numOfValuesPerSQL = config.numOfValuesPerSQL;
-        dataList = SubTableValueGenerator.split(subTableValueList, numOfTables, numOfTablesPerSQL, numOfRowsPerTable, numOfValuesPerSQL);
-        */
+
+        int affectedRows = 0;
+        for (FutureTask<Integer> task : taskList) {
+            try {
+                affectedRows += task.get();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            }
+        }
+
         long end = System.currentTimeMillis();
-        logger.info(">>> prepare meta data time cost : " + (end - start) + " ms.");
+        logger.info("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
+//        long numOfTables = config.numOfTables;
+//        int numOfTablesPerSQL = config.numOfTablesPerSQL;
+//        long numOfRowsPerTable = config.numOfRowsPerTable;
+//        int numOfValuesPerSQL = config.numOfValuesPerSQL;
+
+//        long start = System.currentTimeMillis();
+//        long affectRows = 0;
+//        long end = System.currentTimeMillis();
+//        logger.info(">>> insert " + affectRows + " rows with time cost: " + (end - start) + "ms");
     }
 
-    private SuperTableMeta createSupertable(JdbcTaosdemoConfig config) {
+    private SuperTableMeta buildSuperTableMeta(JdbcTaosdemoConfig config) {
         SuperTableMeta tableMeta;
         // create super table
         if (config.superTableSQL != null) {

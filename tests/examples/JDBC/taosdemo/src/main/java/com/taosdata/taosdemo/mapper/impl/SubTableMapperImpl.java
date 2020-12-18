@@ -3,7 +3,6 @@ package com.taosdata.taosdemo.mapper.impl;
 import com.taosdata.taosdemo.domain.SubTableMeta;
 import com.taosdata.taosdemo.domain.SubTableValue;
 import com.taosdata.taosdemo.mapper.SubTableMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.util.List;

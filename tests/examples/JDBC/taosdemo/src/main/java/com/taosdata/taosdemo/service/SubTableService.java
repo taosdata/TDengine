@@ -30,6 +30,15 @@ public class SubTableService extends AbstractService {
     @Autowired
     private SubTableMapper mapper;
 
+    private Connection connection;
+
+    public SubTableService() {
+    }
+
+    public SubTableService(Connection connection) {
+        this.connection = connection;
+    }
+
     /**
      * 1. 选择database，找到所有supertable
      * 2. 选择supertable，可以拿到表结构，包括field和tag
@@ -114,8 +123,6 @@ public class SubTableService extends AbstractService {
     }
 
     @Autowired
-    private SqlSessionFactory sqlSessionFactory;
-    @Autowired
     private DataSource dataSource;
 
     // 插入：多表，自动建表, insert into xxx using XXX tags(...) values(),()... xxx using XXX tags(...) values(),()...
@@ -123,13 +130,11 @@ public class SubTableService extends AbstractService {
 
         int affectRows = 0;
         try {
-            Connection connection = dataSource.getConnection();
             String sql = sql(subTableValues);
-//            logger.info(">>> SQL : " + sql);
+            logger.info(">>> SQL : " + sql);
             Statement statement = connection.createStatement();
             affectRows = statement.executeUpdate(sql);
             statement.close();
-            connection.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -142,7 +147,7 @@ public class SubTableService extends AbstractService {
         sb.append("insert into ");
         for (int i = 0; i < subTableValues.size(); i++) {
             SubTableValue subTableValue = subTableValues.get(i);
-            sb.append(subTableValue.getDatabase() + "." + subTableValue.getName() + " using " + subTableValue.getSupertable() + " tags (");
+            sb.append(subTableValue.getDatabase() + "." + subTableValue.getName() + " using " + subTableValue.getDatabase() + "." + subTableValue.getSupertable() + " tags (");
             for (int j = 0; j < subTableValue.getTags().size(); j++) {
                 TagValue tagValue = subTableValue.getTags().get(j);
                 if (j == 0)
