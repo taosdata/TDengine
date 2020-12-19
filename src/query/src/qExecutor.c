@@ -7981,9 +7981,9 @@ void qQueryMgmtNotifyClosed(void* pQMgmt) {
   SQueryMgmt* pQueryMgmt = pQMgmt;
   qDebug("vgId:%d, set querymgmt closed, wait for all queries cancelled", pQueryMgmt->vgId);
 
-//  pthread_mutex_lock(&pQueryMgmt->lock);
+  pthread_mutex_lock(&pQueryMgmt->lock);
   pQueryMgmt->closed = true;
-//  pthread_mutex_unlock(&pQueryMgmt->lock);
+  pthread_mutex_unlock(&pQueryMgmt->lock);
 
   taosCacheRefresh(pQueryMgmt->qinfoPool, queryMgmtKillQueryFn);
 }
@@ -8021,9 +8021,9 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
     return NULL;
   }
 
-//  pthread_mutex_lock(&pQueryMgmt->lock);
+  pthread_mutex_lock(&pQueryMgmt->lock);
   if (pQueryMgmt->closed) {
-//    pthread_mutex_unlock(&pQueryMgmt->lock);
+    pthread_mutex_unlock(&pQueryMgmt->lock);
     qError("QInfo:%p failed to add qhandle into cache, since qMgmt is colsing", (void *)qInfo);
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     return NULL;
@@ -8031,7 +8031,7 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
     TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE) qInfo;
     void** handle = taosCachePut(pQueryMgmt->qinfoPool, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &qInfo, sizeof(TSDB_CACHE_PTR_TYPE),
         (getMaximumIdleDurationSec()*1000));
-//    pthread_mutex_unlock(&pQueryMgmt->lock);
+    pthread_mutex_unlock(&pQueryMgmt->lock);
 
     return handle;
   }
