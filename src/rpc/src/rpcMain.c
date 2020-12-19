@@ -420,12 +420,7 @@ void rpcSendResponse(const SRpcMsg *pRsp) {
   SRpcMsg   *pMsg = &rpcMsg;
   SRpcInfo  *pRpc = pConn->pRpc;
 
-  if (pConn == NULL) {
-    rpcFreeCont(pMsg->pCont);
-    return;
-  }
-
-  if (pMsg->pCont == NULL) {
+  if ( pMsg->pCont == NULL ) {
     pMsg->pCont = rpcMallocCont(0);
     pMsg->contLen = 0;
   }
@@ -1026,7 +1021,7 @@ static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   rpcMsg.pCont = pConn->pReqMsg;     // pReqMsg is re-used to store the APP context from server
   rpcMsg.contLen = pConn->reqMsgLen; // reqMsgLen is re-used to store the APP context length
   rpcMsg.ahandle = pConn->ahandle;
-  rpcMsg.handle = NULL;
+  rpcMsg.handle = pConn;
   rpcMsg.msgType = pConn->inType;
   rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL; 
   pConn->pReqMsg = NULL;
