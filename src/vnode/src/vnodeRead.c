@@ -65,13 +65,17 @@ static int32_t vnodeCheckRead(SVnodeObj *pVnode) {
     return TSDB_CODE_APP_NOT_READY;
   }
 
-  if (pVnode->role != TAOS_SYNC_ROLE_SLAVE && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
-    vDebug("vgId:%d, replica:%d role:%s, refCount:%d pVnode:%p", pVnode->vgId, pVnode->syncCfg.replica,
-           syncRole[pVnode->role], pVnode->refCount, pVnode);
-    return TSDB_CODE_APP_NOT_READY;
+  if (pVnode->role == TAOS_SYNC_ROLE_MASTER) {
+    return TSDB_CODE_SUCCESS;
   }
 
-  return TSDB_CODE_SUCCESS;
+  if (tsEnableSlaveQuery && pVnode->role == TAOS_SYNC_ROLE_SLAVE) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  vDebug("vgId:%d, replica:%d role:%s, refCount:%d pVnode:%p, cant provide query service", pVnode->vgId, pVnode->syncCfg.replica,
+         syncRole[pVnode->role], pVnode->refCount, pVnode);
+  return TSDB_CODE_APP_NOT_READY;
 }
 
 void vnodeFreeFromRQueue(void *vparam, SVReadMsg *pRead) {
