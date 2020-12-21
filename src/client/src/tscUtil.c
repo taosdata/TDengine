@@ -2577,6 +2577,9 @@ void* tscVgroupInfoClear(SVgroupsInfo *vgroupList) {
     for(int32_t j = 0; j < pVgroupInfo->numOfEps; ++j) {
       tfree(pVgroupInfo->epAddr[j].fqdn);
     }
+    for(int32_t j = pVgroupInfo->numOfEps; j < TSDB_MAX_REPLICA; j++) {
+      assert( pVgroupInfo->epAddr[j].fqdn == NULL );
+    }
   }
 
   tfree(vgroupList);

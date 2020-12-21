@@ -9,10 +9,11 @@ $totalRows = $totalVnodes * $maxTables
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel            -v 2
 system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb     -v $totalVnodes
+system sh/cfg.sh -n dnode1 -c balanceInterval     -v 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/cfg.sh -n dnode2 -c walLevel            -v 2
 system sh/cfg.sh -n dnode2 -c maxVgroupsPerDb    -v $totalVnodes
-
+system sh/cfg.sh -n dnode2 -c balanceInterval     -v 1
 
 print ==========  prepare data
 system sh/exec.sh -n dnode1 -s start

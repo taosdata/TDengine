@@ -2256,7 +2256,9 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     // in case of insert, redo parsing the sql string and build new submit data block for two reasons:
     // 1. the table Id(tid & uid) may have been update, the submit block needs to be updated accordingly.
     // 2. vnode may need the schema information along with submit block to update its local table schema.
-    tscDebug("%p re-parse sql to generate submit data, retry:%d", pParentObj, pParentObj->retry++);
+    tscDebug("%p re-parse sql to generate submit data, retry:%d", pParentObj, pParentObj->retry);
+    pParentObj->retry++;
+
     int32_t code = tsParseSql(pParentObj, true);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) return;
 
