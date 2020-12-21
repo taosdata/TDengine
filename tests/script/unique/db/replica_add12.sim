@@ -230,6 +230,7 @@ print online vnodes $data03
 if $data03 != 2 then
 	goto step6
 endi
+sleep 1000
 
 sql insert into d1.t1 values(now, 3)
 sql insert into d2.t2 values(now, 3)
@@ -307,6 +308,7 @@ print online vnodes $data03
 if $data03 != 2 then
 	goto step7
 endi
+sleep 1000
 
 sql insert into d1.t1 values(now, 5)
 sql insert into d2.t2 values(now, 5)

@@ -90,15 +90,18 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
       break;
     }
 
+    sDebug("%s, file:%s info is received from master, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%d", pPeer->id,
+           minfo.name, minfo.index, minfo.size, minfo.fversion, minfo.magic);
+
     // remove extra files on slave between the current and last index
     syncRemoveExtraFile(pPeer, pindex + 1, minfo.index - 1);
     pindex = minfo.index;
 
     // check the file info
     sinfo = minfo;
-    sDebug("%s, get file:%s info size:%" PRId64, pPeer->id, minfo.name, minfo.size);
-    sinfo.magic = (*pNode->getFileInfo)(pNode->vgId, sinfo.name, &sinfo.index, TAOS_SYNC_MAX_INDEX, &sinfo.size,
-                                        &sinfo.fversion);
+    sinfo.magic = (*pNode->getFileInfo)(pNode->vgId, sinfo.name, &sinfo.index, TAOS_SYNC_MAX_INDEX, &sinfo.size, &sinfo.fversion);
+    sDebug("%s, local file:%s info, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%d", pPeer->id, sinfo.name,
+           sinfo.index, sinfo.size, sinfo.fversion, sinfo.magic);
 
     // if file not there or magic is not the same, file shall be synced
     memset(&fileAck, 0, sizeof(SFileAck));
@@ -116,6 +119,8 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     if (fileAck.sync == 0) {
       sDebug("%s, %s is the same", pPeer->id, minfo.name);
       continue;
+    } else {
+      sDebug("%s, %s will be received, size:%" PRId64, pPeer->id, minfo.name, minfo.size);
     }
 
     // if sync is required, open file, receive from master, and write to file

@@ -104,7 +104,8 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     fileInfo.magic = (*pNode->getFileInfo)(pNode->vgId, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX,
                                            &fileInfo.size, &fileInfo.fversion);
     syncBuildFileInfo(&fileInfo, pNode->vgId);
-    sDebug("%s, file:%s info is sent, size:%" PRId64, pPeer->id, fileInfo.name, fileInfo.size);
+    sDebug("%s, file:%s info is sent, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%d", pPeer->id, fileInfo.name,
+           fileInfo.index, fileInfo.size, fileInfo.fversion, fileInfo.magic);
 
     // send the file info
     int32_t ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(SFileInfo));
@@ -144,6 +145,8 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
       fileInfo.index++;
       sDebug("%s, %s is the same", pPeer->id, fileInfo.name);
       continue;
+    } else {
+      sDebug("%s, %s will be sent", pPeer->id, fileInfo.name);
     }
 
     // get the full path to file

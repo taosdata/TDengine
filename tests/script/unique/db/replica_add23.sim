@@ -239,6 +239,7 @@ print online vnodes $data03
 if $data03 != 3 then
 	goto step6
 endi
+sleep 1000
 
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
 sleep 5000
@@ -304,6 +305,7 @@ print online vnodes $data03
 if $data03 != 3 then
 	goto step7
 endi
+sleep 1000
 
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
 sleep 5000
@@ -369,6 +371,7 @@ print online vnodes $data03
 if $data03 != 3 then
 	goto step8
 endi
+sleep 1000
 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sleep 5000

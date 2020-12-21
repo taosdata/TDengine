@@ -686,7 +686,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus* peersStatus, int8_t new
   if (pMaster) {
     // master is there
     pNode->pMaster = pMaster;
-    sDebug("%s, it is the master, replica:^%d sver:%" PRIu64, pMaster->id, pNode->replica, pMaster->version);
+    sDebug("%s, it is the master, replica:%d sver:%" PRIu64, pMaster->id, pNode->replica, pMaster->version);
 
     if (syncValidateMaster(pPeer) < 0) return;
 
