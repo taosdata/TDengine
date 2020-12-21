@@ -20,6 +20,11 @@ system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
 
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 1
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 1
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 1
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 1
+
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
 sql connect
@@ -73,6 +78,39 @@ sql alter database d1 replica 3
 sql alter database d2 replica 3
 sql alter database d3 replica 3
 sql alter database d4 replica 3
+
+$x = 0
+a1: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 20 then
+	  return -1
+	endi
+	
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto a1
+endi
+
+sql show d2.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto a1
+endi
+
+sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto a1
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto a1
+endi
+
 sleep 10000
 
 print ======== step3
@@ -169,6 +207,39 @@ endi
 print ========= step6
 system sh/exec.sh -n dnode2 -s start
 sleep 5000
+
+$x = 0
+step6: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then
+	  return -1
+	endi
+	
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step6
+endi
+
+sql show d2.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step6
+endi
+
+sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step6
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step6
+endi
+
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
 sleep 5000
 
@@ -201,6 +272,39 @@ endi
 print ========= step7
 system sh/exec.sh -n dnode3 -s start
 sleep 5000
+
+$x = 0
+step7: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then
+	  return -1
+	endi
+	
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step7
+endi
+
+sql show d2.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step7
+endi
+
+sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step7
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step7
+endi
+
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
 sleep 5000
 
@@ -233,6 +337,39 @@ endi
 print ========= step8
 system sh/exec.sh -n dnode4 -s start
 sleep 5000
+
+$x = 0
+step8: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then
+	  return -1
+	endi
+	
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step8
+endi
+
+sql show d2.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step8
+endi
+
+sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step8
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step8
+endi
+
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 sleep 5000
 

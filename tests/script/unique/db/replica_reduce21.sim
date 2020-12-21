@@ -14,6 +14,11 @@ system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 1
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 1
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 1
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 1
+
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
 sql connect
@@ -63,7 +68,22 @@ sql create database d5 replica 1
 
 print ========= step3 alter d1
 sql alter database d1 replica 1
-sleep 12000
+sleep 5000
+
+$x = 0
+a1: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then
+	  return -1
+	endi
+
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a1
+endi
+
 
 print ========= step4 query d1
 sql insert into d1.t1 values(now, 2)
