@@ -229,7 +229,7 @@ typedef struct {
     int32_t numOfTablesInSubmit;
   };
 
-  int32_t      insertType;
+  uint32_t     insertType;
   int32_t      clauseIndex;  // index of multiple subclause query
 
   char *       curSql;       // current sql, resume position of sql after parsing paused
@@ -246,7 +246,7 @@ typedef struct {
 
   int8_t       dataSourceType;     // load data from file or not
   int8_t       submitSchema;   // submit block is built with table schema
-  STagData    *pTagData;       // NOTE: pTagData->data is used as a variant length array
+  STagData     tagData;        // NOTE: pTagData->data is used as a variant length array
 
   STableMeta **pTableMetaList; // all involved tableMeta list of current insert sql statement.
   int32_t      numOfTables;
@@ -285,8 +285,8 @@ typedef struct {
   char **        buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex*  pColumnIndex;
 
-  SArithmeticSupport*   pArithSup;   // support the arithmetic expression calculation on agg functions
-  struct SLocalReducer* pLocalReducer;
+  SArithmeticSupport   *pArithSup;   // support the arithmetic expression calculation on agg functions
+  struct SLocalReducer *pLocalReducer;
 } SSqlRes;
 
 typedef struct STscObj {

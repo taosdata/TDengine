@@ -39,7 +39,7 @@ extern "C" {
   do {                             \
     strncpy((dst), (src), (size)); \
     (dst)[(size)-1] = 0;           \
-  } while (0);
+  } while (0)
 
 #ifndef TAOS_OS_FUNC_STRING_STR2INT64
   int64_t tsosStr2int64(char *str);

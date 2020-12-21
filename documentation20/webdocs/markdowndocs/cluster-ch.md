@@ -137,6 +137,16 @@ DROP DNODE "fqdn:port";
 
 其中fqdn是被删除的节点的FQDN，port是其对外服务器的端口号
 
+<font color=green>**【注意】**</font>
+
+  - 一个数据节点一旦被drop之后，不能重新加入集群。需要将此节点重新部署（清空数据文件夹）。集群在完成drop dnode操作之前，会将该dnode的数据迁移走。
+
+  - 请注意 drop dnode 和 停止taosd进程是两个不同的概念，不要混淆：因为删除dnode之前要执行迁移数据的操作，因此被删除的dnode必须保持在线状态。待删除操作结束之后，才能停止taosd进程。
+
+  - 一个数据节点被drop之后，其他节点都会感知到这个dnodeID的删除操作，任何集群中的节点都不会再接收此dnodeID的请求。
+
+  - dnodeID的是集群自动分配的，不得人工指定。它在生成时递增的，不会重复。
+
 ### 查看数据节点
 
 执行CLI程序taos,使用root账号登录进TDengine系统，执行：

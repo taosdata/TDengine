@@ -36,6 +36,7 @@ sql insert into d2.t2 values(now, 1)
 sql insert into d1.t1 values(now, 1)
 sql insert into d3.t3 values(now, 1)
 sql insert into d4.t4 values(now, 1)
+sleep 1000
 
 sql select * from d1.t1
 if $rows != 1 then
@@ -67,6 +68,7 @@ sleep 12000
 print ========= step4 query d1
 sql insert into d1.t1 values(now, 2)
 sql select * from d1.t1
+sleep 1000
 if $rows != 2 then
 	return -1
 endi
@@ -75,6 +77,7 @@ print ========= step5 query d5
 sql create table d5.t5 (ts timestamp, i int)
 sql insert into d5.t5 values(now, 1);
 sql select * from d5.t5
+sleep 1000
 if $rows != 1 then
 	return -1
 endi
@@ -89,6 +92,7 @@ sql insert into d5.t5 values(now, 2)
 sql insert into d2.t2 values(now, 2)
 sql insert into d3.t3 values(now, 2)
 sql insert into d4.t4 values(now, 2)
+sleep 1000
 
 sql select * from d5.t5
 if $rows != 2 then
@@ -118,6 +122,7 @@ sql insert into d5.t5 values(now, 3)
 sql insert into d2.t2 values(now, 3)
 sql insert into d3.t3 values(now, 3)
 sql insert into d4.t4 values(now, 3)
+sleep 1000
 
 sql select * from d5.t5
 if $rows != 3 then

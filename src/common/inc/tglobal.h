@@ -57,7 +57,9 @@ extern char     tsTempDir[];
 
 //query buffer management
 extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer for each data node during query processing
-extern int32_t  tsRetrieveBlockingModel;         // only 50% will be used in query processing
+extern int32_t  tsRetrieveBlockingModel;// retrieve threads will be blocked
+
+extern int32_t  tsKeepOriginalColumnName;
 
 // client
 extern int32_t tsTableMetaKeepTimer;
@@ -132,7 +134,7 @@ extern int32_t tsEnableStream;
 
 // internal
 extern int32_t tsPrintAuth;
-extern int32_t tscEmbedded;
+extern uint32_t tscEmbedded;
 extern char    configDir[];
 extern char    tsVnodeDir[];
 extern char    tsDnodeDir[];
@@ -175,7 +177,7 @@ extern int32_t tsLogKeepDays;
 extern int32_t dDebugFlag;
 extern int32_t vDebugFlag;
 extern int32_t mDebugFlag;
-extern int32_t cDebugFlag;
+extern uint32_t cDebugFlag;
 extern int32_t jniDebugFlag;
 extern int32_t tmrDebugFlag;
 extern int32_t sdbDebugFlag;
@@ -185,7 +187,7 @@ extern int32_t monDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t odbcDebugFlag;
-extern int32_t qDebugFlag;
+extern uint32_t qDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
