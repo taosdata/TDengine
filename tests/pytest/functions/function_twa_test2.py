@@ -39,6 +39,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 5.5)
 
+        tdSql.query("select twa(c) from t1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 5.5)
+
         tdSql.query("select twa(c) from t1 where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-09-17 09:01:30.000' interval(10s)")
         tdSql.checkRows(10)
         tdSql.checkData(0, 1, 1.49995)
