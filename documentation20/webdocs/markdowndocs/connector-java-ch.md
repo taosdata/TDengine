@@ -1,6 +1,11 @@
 #  Java Connector
 
-Java连接器支持的系统有： Linux 64/Windows x64/Windows x86。
+**Java连接器支持的系统有：**
+
+| **CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32  |
+| ------------ | ------------ | -------- | -------- | -------- | -------- |
+| **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux    |
+| **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
 
 TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API 规范的 `taos-jdbcdriver` 实现。目前可以通过 [Sonatype Repository][1] 搜索并下载。
 
@@ -20,7 +25,6 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 * 由于不支持删除和修改，所以也不支持事务操作。
 * 目前不支持表间的 union 操作。
 * 目前不支持嵌套查询(nested query)，对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet还没关闭的情况下执行了新的查询，TSDBJDBCDriver 则会自动关闭上一个 ResultSet。
-
 
 ## TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
@@ -69,7 +73,6 @@ maven 项目中使用如下 pom.xml 配置即可：
 ### 源码编译打包
 
 下载 [TDengine][3] 源码之后，进入 taos-jdbcdriver 源码目录 `src/connector/jdbc` 执行 `mvn clean package` 即可生成相应 jar 包。
-
 
 ## 使用说明
 
@@ -212,7 +215,6 @@ while(resultSet.next()){
 ```
 > 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
 
-
 ### 订阅
 
 #### 创建
@@ -254,7 +256,6 @@ sub.close(true);
 ```
 
 `close` 方法关闭一个订阅。如果其参数为 `true` 表示保留订阅进度信息，后续可以创建同名订阅继续消费数据；如为 `false` 则不保留订阅进度。
-
 
 ### 关闭资源
 
