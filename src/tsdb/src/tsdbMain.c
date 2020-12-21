@@ -281,6 +281,10 @@ int32_t tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg) {
     config.totalBlocks = pCfg->totalBlocks;
     configChanged = true;
   }
+  if (pRCfg->cacheLastRow != pCfg->cacheLastRow) {
+    config.cacheLastRow = pCfg->cacheLastRow;
+    configChanged = true;
+  }
 
   if (configChanged) {
     if (tsdbSaveConfig(pRepo->rootDir, &config) < 0) {
