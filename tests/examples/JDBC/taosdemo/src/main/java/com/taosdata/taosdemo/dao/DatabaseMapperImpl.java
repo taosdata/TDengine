@@ -22,7 +22,7 @@ public class DatabaseMapperImpl implements DatabaseMapper {
 
     @Override
     public void dropDatabase(String dbname) {
-        jdbcTemplate.update("drop database if exists" + dbname);
+        jdbcTemplate.update("drop database if exists " + dbname);
     }
 
     @Override
