@@ -77,9 +77,9 @@ int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
 
   tsdbDebug(
       "vgId:%d tsdb env create succeed! cacheBlockSize %d totalBlocks %d daysPerFile %d keep "
-      "%d minRowsPerFileBlock %d maxRowsPerFileBlock %d precision %d compression %d",
+      "%d minRowsPerFileBlock %d maxRowsPerFileBlock %d precision %d compression %d update %d cacheLastRow %d",
       pCfg->tsdbId, pCfg->cacheBlockSize, pCfg->totalBlocks, pCfg->daysPerFile, pCfg->keep, pCfg->minRowsPerFileBlock,
-      pCfg->maxRowsPerFileBlock, pCfg->precision, pCfg->compression);
+      pCfg->maxRowsPerFileBlock, pCfg->precision, pCfg->compression, pCfg->update, pCfg->cacheLastRow);
   return 0;
 }
 
@@ -475,6 +475,9 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   // update check
   if (pCfg->update != 0) pCfg->update = 1;
 
+  // update cacheLastRow
+  if (pCfg->cacheLastRow != 0) pCfg->cacheLastRow = 1;
+
   return 0;
 
 _err:
@@ -692,10 +695,12 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
   }
 }
 
-static int tsdbRestoreInfo(STsdbRepo *pRepo) {
+static int tsdbRestoreInfo(STsdbRepo *pRepo) { // TODO
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pFGroup = NULL;
+  STsdbCfg *  pCfg = &(pRepo->config);
+  SCompBlock *pBlock = NULL;
 
   SFileGroupIter iter;
   SRWHelper      rhelper = {0};
@@ -713,7 +718,33 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) {
       if (tsdbSetHelperTable(&rhelper, pTable, pRepo) < 0) goto _err;
       SCompIdx *pIdx = &(rhelper.curCompIdx);
 
-      if (pIdx->offset > 0 && pTable->lastKey < pIdx->maxKey) pTable->lastKey = pIdx->maxKey;
+      TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable, pCfg->cacheLastRow);
+      if (pIdx->offset > 0 && lastKey < pIdx->maxKey) {
+        if (pCfg->cacheLastRow) { // load the block of data
+          if (tsdbLoadCompInfo(&rhelper, NULL) < 0) goto _err;
+
+          pBlock = rhelper.pCompInfo->blocks + pIdx->numOfBlocks - 1;
+          if (tsdbLoadBlockData(&rhelper, pBlock, NULL) < 0) goto _err;
+
+          // construct the data row
+          ASSERT(pTable->lastRow == NULL);
+          STSchema *pSchema = tsdbGetTableSchema(pTable);
+          pTable->lastRow = taosTMalloc(schemaTLen(pSchema));
+          if (pTable->lastRow == NULL) {
+            goto _err;
+          }
+
+          tdInitDataRow(pTable->lastRow, pSchema);
+          for (int icol = 0; icol < schemaNCols(pSchema); icol++) {
+            STColumn *pCol = schemaColAt(pSchema, icol);
+            SDataCol *pDataCol = rhelper.pDataCols[0]->cols + icol;
+            tdAppendColVal(pTable->lastRow, tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type, pCol->bytes,
+                           pCol->offset);
+          }
+        } else {
+          pTable->lastKey = pIdx->maxKey;
+        }
+      }
     }
   }
 
@@ -800,6 +831,7 @@ static int tsdbEncodeCfg(void **buf, STsdbCfg *pCfg) {
   tlen += taosEncodeFixedI8(buf, pCfg->precision);
   tlen += taosEncodeFixedI8(buf, pCfg->compression);
   tlen += taosEncodeFixedI8(buf, pCfg->update);
+  tlen += taosEncodeFixedI8(buf, pCfg->cacheLastRow);
 
   return tlen;
 }
@@ -817,6 +849,7 @@ static void *tsdbDecodeCfg(void *buf, STsdbCfg *pCfg) {
   buf = taosDecodeFixedI8(buf, &(pCfg->precision));
   buf = taosDecodeFixedI8(buf, &(pCfg->compression));
   buf = taosDecodeFixedI8(buf, &(pCfg->update));
+  buf = taosDecodeFixedI8(buf, &(pCfg->cacheLastRow));
 
   return buf;
 }

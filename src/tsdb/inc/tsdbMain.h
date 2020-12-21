@@ -66,7 +66,10 @@ typedef struct STable {
   SSkipList*     pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
   void*          eventHandler;   // TODO
   void*          streamHandler;  // TODO
-  TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
+  union {
+    TSKEY    lastKey;
+    SDataRow lastRow;
+  };
   char*          sql;
   void*          cqhandle;
   SRWLatch       latch;  // TODO: implementa latch functions
@@ -360,8 +363,11 @@ typedef struct {
 #define TABLE_UID(t) (t)->tableId.uid
 #define TABLE_TID(t) (t)->tableId.tid
 #define TABLE_SUID(t) (t)->suid
-#define TABLE_LASTKEY(t) (t)->lastKey
 #define TSDB_META_FILE_MAGIC(m) KVSTORE_MAGIC((m)->pStore)
+#define TSDB_RLOCK_TABLE(t) taosRLockLatch(&((t)->latch))
+#define TSDB_RUNLOCK_TABLE(t) taosRUnLockLatch(&((t)->latch))
+#define TSDB_WLOCK_TABLE(t) taosWLockLatch(&((t)->latch))
+#define TSDB_WUNLOCK_TABLE(t) taosWUnLockLatch(&((t)->latch))
 
 STsdbMeta* tsdbNewMeta(STsdbCfg* pCfg);
 void       tsdbFreeMeta(STsdbMeta* pMeta);
@@ -391,7 +397,7 @@ static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, 
   STSchema* pSchema = NULL;
   STSchema* pTSchema = NULL;
 
-  if (lock) taosRLockLatch(&(pDTable->latch));
+  if (lock) TSDB_RLOCK_TABLE(pDTable);
   if (version < 0) {  // get the latest version of schema
     pTSchema = pDTable->schema[pDTable->numOfSchemas - 1];
   } else {  // get the schema with version
@@ -413,7 +419,7 @@ static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, 
   }
 
 _exit:
-  if (lock) taosRUnLockLatch(&(pDTable->latch));
+  if (lock) TSDB_RUNLOCK_TABLE(pDTable);
   return pSchema;
 }
 
@@ -430,6 +436,18 @@ static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {
     return pTable->tagSchema;
   } else {
     return NULL;
+  }
+}
+
+static FORCE_INLINE TSKEY tsdbGetTableLastKeyImpl(STable* pTable, bool cacheLastRow) {
+  if (cacheLastRow) {
+    if (pTable->lastRow == NULL) {
+      return TSKEY_INITIAL_VAL;
+    } else {
+      return dataRowKey(pTable->lastRow);
+    }
+  } else {
+    return pTable->lastKey;
   }
 }
 
