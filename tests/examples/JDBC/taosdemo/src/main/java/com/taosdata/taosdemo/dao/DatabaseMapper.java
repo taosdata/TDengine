@@ -1,6 +1,5 @@
-package com.taosdata.taosdemo.mapper;
+package com.taosdata.taosdemo.dao;
 
-import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.Map;
@@ -9,16 +8,16 @@ import java.util.Map;
 public interface DatabaseMapper {
 
     // create database if not exists XXX
-    int createDatabase(@Param("database") String dbname);
+    void createDatabase(String dbname);
 
     // drop database if exists XXX
-    int dropDatabase(@Param("database") String dbname);
+    void dropDatabase(String dbname);
 
     // create database if not exists XXX keep XX days XX replica XX
-    int createDatabaseWithParameters(Map<String, String> map);
+    void createDatabaseWithParameters(Map<String, String> map);
 
     // use XXX
-    int useDatabase(@Param("database") String dbname);
+    void useDatabase(String dbname);
 
     //TODO: alter database
 

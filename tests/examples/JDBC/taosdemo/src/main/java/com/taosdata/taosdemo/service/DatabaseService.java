@@ -1,6 +1,6 @@
 package com.taosdata.taosdemo.service;
 
-import com.taosdata.taosdemo.mapper.DatabaseMapper;
+import com.taosdata.taosdemo.dao.DatabaseMapper;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

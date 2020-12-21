@@ -1,11 +1,8 @@
 package com.taosdata.taosdemo.service;
 
+import com.taosdata.taosdemo.dao.SubTableMapper;
 import com.taosdata.taosdemo.domain.*;
-import com.taosdata.taosdemo.mapper.SubTableMapper;
 import com.taosdata.taosdemo.service.data.SubTableMetaGenerator;
-import com.taosdata.taosdemo.utils.TimeStampUtil;
-import com.zaxxer.hikari.pool.HikariPool;
-import org.apache.ibatis.session.SqlSessionFactory;
 import org.apache.log4j.Logger;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -20,7 +17,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicLong;
 
 @Service
 public class SubTableService extends AbstractService {
@@ -52,8 +48,7 @@ public class SubTableService extends AbstractService {
         ExecutorService executor = Executors.newFixedThreadPool(threadSize);
         List<Future<Integer>> futureList = new ArrayList<>();
         for (SubTableMeta subTableMeta : subTables) {
-            Future<Integer> future = executor.submit(() -> createSubTable(subTableMeta));
-            futureList.add(future);
+            executor.submit(() -> createSubTable(subTableMeta));
         }
         executor.shutdown();
         return getAffectRows(futureList);
@@ -75,8 +70,8 @@ public class SubTableService extends AbstractService {
     }
 
     // 创建一张子表，可以指定database，supertable，tablename，tag值
-    public int createSubTable(SubTableMeta subTableMeta) {
-        return mapper.createUsingSuperTable(subTableMeta);
+    public void createSubTable(SubTableMeta subTableMeta) {
+        mapper.createUsingSuperTable(subTableMeta);
     }
 
     // 单线程创建多张子表，每张子表分别可以指定自己的database，supertable，tablename，tag值
