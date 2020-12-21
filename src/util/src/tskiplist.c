@@ -280,7 +280,10 @@ bool tSkipListIterNext(SSkipListIterator *iter) {
   tSkipListRLock(pSkipList);
 
   if (iter->order == TSDB_ORDER_ASC) {
-    if (iter->cur == pSkipList->pTail) return false;
+    if (iter->cur == pSkipList->pTail) {
+      tSkipListUnlock(pSkipList);
+      return false;
+    }
     iter->cur = SL_NODE_GET_FORWARD_POINTER(iter->cur, 0);
 
     // a new node is inserted into between iter->cur and iter->next, ignore it
