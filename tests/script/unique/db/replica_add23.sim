@@ -46,6 +46,7 @@ sql insert into d1.t1 values(1588262400001, 1)
 sql insert into d2.t2 values(1588262400001, 1)
 sql insert into d3.t3 values(1588262400001, 1)
 sql insert into d4.t4 values(1588262400001, 1)
+sleep 1000
 
 sql select * from d1.t1
 if $rows != 1 then
