@@ -24,7 +24,7 @@ public final class JdbcTaosdemoConfig {
     //sub table
     public String prefixOfTable = "t";
     // insert task
-    public boolean autoCreateTable = true;
+    public boolean autoCreateTable;
     public long numOfTables = 10;
     public long numOfRowsPerTable = 10;
     public int numOfTablesPerSQL = 1;
