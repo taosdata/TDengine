@@ -160,7 +160,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   return code;
 }
 
-static int32_t syncRestoreWal(SSyncPeer *pPeer) {
+static int32_t syncRestoreWal(SSyncPeer *pPeer, uint64_t *wver) {
   SSyncNode *pNode = pPeer->pSyncNode;
   int32_t    ret, code = -1;
   uint64_t   lastVer = 0;
@@ -203,6 +203,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
   }
 
   free(pHead);
+  *wver = lastVer;
   return code;
 }
 
@@ -326,10 +327,17 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 
   nodeVersion = fversion;
 
-  sInfo("%s, start to restore wal", pPeer->id);
-  if (syncRestoreWal(pPeer) < 0) {
-    sError("%s, failed to restore wal", pPeer->id);
+  sInfo("%s, start to restore wal, fver:%" PRIu64, pPeer->id, nodeVersion);
+  uint64_t wver = 0;
+  code = syncRestoreWal(pPeer, &wver);  // lastwar
+  if (code < 0) {
+    sError("%s, failed to restore wal, code:%d", pPeer->id, code);
     return -1;
+  }
+
+  if (wver != 0) {
+    nodeVersion = wver;
+    sDebug("%s, restore wal finished, set sver:%" PRIu64, pPeer->id, nodeVersion);
   }
 
   nodeSStatus = TAOS_SYNC_STATUS_CACHE;
