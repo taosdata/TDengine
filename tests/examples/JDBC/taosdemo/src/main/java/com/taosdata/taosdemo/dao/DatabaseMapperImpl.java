@@ -1,14 +1,19 @@
 package com.taosdata.taosdemo.dao;
 
-import com.taosdata.taosdemo.dao.DatabaseMapper;
 import com.taosdata.taosdemo.utils.SqlSpeller;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import javax.sql.DataSource;
 import java.util.Map;
 
 public class DatabaseMapperImpl implements DatabaseMapper {
 
-    private JdbcTemplate jdbcTemplate = new JdbcTemplate();
+    private final JdbcTemplate jdbcTemplate;
+
+    public DatabaseMapperImpl(DataSource dataSource) {
+        this.jdbcTemplate = new JdbcTemplate(dataSource);
+    }
+
 
     @Override
     public void createDatabase(String dbname) {

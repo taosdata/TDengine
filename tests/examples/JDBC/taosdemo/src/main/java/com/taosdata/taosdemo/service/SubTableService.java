@@ -1,57 +1,25 @@
 package com.taosdata.taosdemo.service;
 
 import com.taosdata.taosdemo.dao.SubTableMapper;
-import com.taosdata.taosdemo.domain.*;
+import com.taosdata.taosdemo.dao.SubTableMapperImpl;
+import com.taosdata.taosdemo.domain.SubTableMeta;
+import com.taosdata.taosdemo.domain.SubTableValue;
+import com.taosdata.taosdemo.domain.SuperTableMeta;
 import com.taosdata.taosdemo.service.data.SubTableMetaGenerator;
 import org.apache.log4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.SQLException;
-import java.sql.Statement;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 
-@Service
 public class SubTableService extends AbstractService {
 
-    private static Logger logger = Logger.getLogger(SubTableService.class);
-
-    @Autowired
     private SubTableMapper mapper;
 
-    private Connection connection;
-
-    public SubTableService() {
-    }
-
-    public SubTableService(Connection connection) {
-        this.connection = connection;
-    }
-
-    /**
-     * 1. 选择database，找到所有supertable
-     * 2. 选择supertable，可以拿到表结构，包括field和tag
-     * 3. 指定子表的前缀和个数
-     * 4. 指定创建子表的线程数
-     */
-    //TODO：指定database、supertable、子表前缀、子表个数、线程数
-
-    // 多线程创建表，指定线程个数
-    public int createSubTable(List<SubTableMeta> subTables, int threadSize) {
-        ExecutorService executor = Executors.newFixedThreadPool(threadSize);
-        List<Future<Integer>> futureList = new ArrayList<>();
-        for (SubTableMeta subTableMeta : subTables) {
-            executor.submit(() -> createSubTable(subTableMeta));
-        }
-        executor.shutdown();
-        return getAffectRows(futureList);
+    public SubTableService(DataSource datasource) {
+        this.mapper = new SubTableMapperImpl(datasource);
     }
 
     public void createSubTable(SuperTableMeta superTableMeta, long numOfTables, String prefixOfTable, int numOfThreadsForCreate) {
@@ -66,17 +34,12 @@ public class SubTableService extends AbstractService {
     public void createSubTable(SuperTableMeta superTableMeta, String tableName) {
         // 构造数据
         SubTableMeta meta = SubTableMetaGenerator.generate(superTableMeta, tableName);
-        mapper.createUsingSuperTable(meta);
+        createSubTable(meta);
     }
 
     // 创建一张子表，可以指定database，supertable，tablename，tag值
     public void createSubTable(SubTableMeta subTableMeta) {
         mapper.createUsingSuperTable(subTableMeta);
-    }
-
-    // 单线程创建多张子表，每张子表分别可以指定自己的database，supertable，tablename，tag值
-    public int createSubTable(List<SubTableMeta> subTables) {
-        return createSubTable(subTables, 1);
     }
 
     /*************************************************************************************************************************/
@@ -88,19 +51,6 @@ public class SubTableService extends AbstractService {
         //TODO：frequency
         return getAffectRows(future);
     }
-
-    // 插入：多线程，多表, 自动建表
-//    public int insertAutoCreateTable(List<SubTableValue> subTableValues, int threadSize, int frequency) {
-//        long a = System.currentTimeMillis();
-//        ExecutorService executor = Executors.newFixedThreadPool(threadSize);
-//        long b = System.currentTimeMillis();
-//        Future<Integer> future = executor.submit(() -> insertAutoCreateTable(subTableValues));
-//        executor.shutdown();
-//        int affectRows = getAffectRows(future);
-//        long c = System.currentTimeMillis();
-//        logger.info(">>> total : " + (c - a) + " ms, thread: " + (b - a) + " ms, insert : " + (c - b) + " ms.");
-//        return affectRows;
-//    }
 
     // 插入：单表，insert into xxx values(),()...
     public int insert(SubTableValue subTableValue) {
@@ -117,70 +67,9 @@ public class SubTableService extends AbstractService {
         return mapper.insertOneTableMultiValuesUsingSuperTable(subTableValue);
     }
 
-    @Autowired
-    private DataSource dataSource;
-
     // 插入：多表，自动建表, insert into xxx using XXX tags(...) values(),()... xxx using XXX tags(...) values(),()...
     public int insertAutoCreateTable(List<SubTableValue> subTableValues) {
-
-        int affectRows = 0;
-        try {
-            String sql = sql(subTableValues);
-            logger.info(">>> SQL : " + sql);
-            Statement statement = connection.createStatement();
-            affectRows = statement.executeUpdate(sql);
-            statement.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-        return affectRows;
-//        return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
+        return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
     }
-
-    private String sql(List<SubTableValue> subTableValues) {
-        StringBuilder sb = new StringBuilder();
-        sb.append("insert into ");
-        for (int i = 0; i < subTableValues.size(); i++) {
-            SubTableValue subTableValue = subTableValues.get(i);
-            sb.append(subTableValue.getDatabase() + "." + subTableValue.getName() + " using " + subTableValue.getDatabase() + "." + subTableValue.getSupertable() + " tags (");
-            for (int j = 0; j < subTableValue.getTags().size(); j++) {
-                TagValue tagValue = subTableValue.getTags().get(j);
-                if (j == 0)
-                    sb.append("'" + tagValue.getValue() + "'");
-                else
-                    sb.append(", '" + tagValue.getValue() + "'");
-            }
-            sb.append(") values");
-            for (int j = 0; j < subTableValue.getValues().size(); j++) {
-                sb.append("(");
-                RowValue rowValue = subTableValue.getValues().get(j);
-                for (int k = 0; k < rowValue.getFields().size(); k++) {
-                    FieldValue fieldValue = rowValue.getFields().get(k);
-                    if (k == 0)
-//                        sb.append("" + timestamp.getAndIncrement());
-                        sb.append("" + fieldValue.getValue() + "");
-                    else
-                        sb.append(", '" + fieldValue.getValue() + "'");
-                }
-                sb.append(") ");
-            }
-        }
-
-        return sb.toString();
-    }
-
-
-    private static void sleep(int sleep) {
-        if (sleep <= 0)
-            return;
-        try {
-            TimeUnit.MILLISECONDS.sleep(sleep);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-    }
-
-    /********************************************************************/
-
 
 }

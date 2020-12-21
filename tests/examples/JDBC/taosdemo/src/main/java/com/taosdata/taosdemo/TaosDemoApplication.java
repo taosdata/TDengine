@@ -6,6 +6,7 @@ import com.taosdata.taosdemo.domain.SuperTableMeta;
 import com.taosdata.taosdemo.domain.TagMeta;
 import com.taosdata.taosdemo.service.DatabaseService;
 import com.taosdata.taosdemo.service.InsertTask;
+import com.taosdata.taosdemo.service.SubTableService;
 import com.taosdata.taosdemo.service.SuperTableService;
 import com.taosdata.taosdemo.service.data.SuperTableMetaGenerator;
 import com.taosdata.taosdemo.components.JdbcTaosdemoConfig;
@@ -37,6 +38,7 @@ public class TaosDemoApplication {
         DataSource dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user, config.password);
         DatabaseService databaseService = new DatabaseService(dataSource);
         SuperTableService superTableService = new SuperTableService(dataSource);
+        SubTableService subTableService = new SubTableService(dataSource);
 
         // 创建数据库
         long start = System.currentTimeMillis();
@@ -78,7 +80,6 @@ public class TaosDemoApplication {
             // create super table with specified field size and tag size
             superTableMeta = SuperTableMetaGenerator.generate(config.database, config.superTable, config.numOfFields, config.prefixOfFields, config.numOfTags, config.prefixOfTags);
         }
-
         /**********************************************************************************/
         // 建表
         start = System.currentTimeMillis();
@@ -87,7 +88,7 @@ public class TaosDemoApplication {
             if (config.autoCreateTable)
                 return;
             // 批量建子表
-//            subTableService.createSubTable(superTableMeta, config.numOfTables, config.prefixOfTable, config.numOfThreadsForCreate);
+            subTableService.createSubTable(superTableMeta, config.numOfTables, config.prefixOfTable, config.numOfThreadsForCreate);
         }
         end = System.currentTimeMillis();
         logger.info(">>> create table time cost : " + (end - start) + " ms.");
@@ -102,7 +103,7 @@ public class TaosDemoApplication {
         long gap = (long) Math.ceil((0.0d + tableSize) / threadSize);
 
         start = System.currentTimeMillis();
-
+        // multi threads to insert
         List<FutureTask> taskList = new ArrayList<>();
         List<Thread> threads = IntStream.range(0, threadSize)
                 .mapToObj(i -> {

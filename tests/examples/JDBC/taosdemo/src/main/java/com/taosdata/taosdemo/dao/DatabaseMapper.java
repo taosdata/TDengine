@@ -1,10 +1,7 @@
 package com.taosdata.taosdemo.dao;
 
-import org.springframework.stereotype.Repository;
-
 import java.util.Map;
 
-@Repository
 public interface DatabaseMapper {
 
     // create database if not exists XXX

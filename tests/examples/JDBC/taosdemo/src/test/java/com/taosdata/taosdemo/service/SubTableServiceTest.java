@@ -9,6 +9,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class SubTableServiceTest {
+
     private SubTableService service;
 
     private List<SubTableMeta> subTables;
@@ -31,13 +32,11 @@ public class SubTableServiceTest {
 
     @Test
     public void testCreateSubTable() {
-        int count = service.createSubTable(subTables);
-        System.out.println("count >>> " + count);
+
     }
 
     @Test
     public void testCreateSubTableList() {
-        int count = service.createSubTable(subTables, 10);
-        System.out.println("count >>> " + count);
+
     }
 }

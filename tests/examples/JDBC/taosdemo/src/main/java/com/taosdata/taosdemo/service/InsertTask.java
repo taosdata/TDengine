@@ -82,7 +82,7 @@ public class InsertTask implements Callable<Integer> {
                     SubTableValueGenerator.disrupt(data, rate, range);
                 }
                 // insert
-                SubTableService subTableService = new SubTableService(connection);
+                SubTableService subTableService = new SubTableService(dataSource);
                 if (autoCreateTable) {
                     subTableService.insertAutoCreateTable(data);
                 } else {

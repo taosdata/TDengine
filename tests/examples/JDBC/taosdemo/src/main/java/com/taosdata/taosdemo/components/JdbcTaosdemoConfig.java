@@ -9,7 +9,7 @@ public final class JdbcTaosdemoConfig {
     public String user = "root";            //user
     public String password = "taosdata";    //password
     // database
-    public String database = "test";        //database
+    public String database = "jdbcdb";        //database
     public int keep = 3650;                 //keep
     public int days = 30;                   //days
     public int replica = 1;                 //replica
@@ -50,7 +50,7 @@ public final class JdbcTaosdemoConfig {
         System.out.println("-user                       The TDengine user name to use when connecting to the server. Default is 'root'");
         System.out.println("-password                   The password to use when connecting to the server.Default is 'taosdata'");
         // database
-        System.out.println("-database                   Destination database. Default is 'test'");
+        System.out.println("-database                   Destination database. Default is 'jdbcdb'");
         System.out.println("-keep                       database keep parameter. Default is 3650");
         System.out.println("-days                       database days parameter. Default is 30");
         System.out.println("-replica                    database replica parameter. Default 1, min: 1, max: 3");
