@@ -57,8 +57,8 @@
 			<form role="form" class="form-signin"  style="max-width: 300px;margin: 0 auto;padding-bottom:45px;padding-top:12px">
 				<form class="form-inline">
 					<div class="form-group">
-						<label for="ip" style="font-weight:normal;font-size:12px">DNode IP</label>
-						<input type="text" id="ip" class="form-control" style="height:30px;font-size:12px" placeholder="dnode ip address">
+						<label for="ip" style="font-weight:normal;font-size:12px">DNode FQDN</label>
+						<input type="text" id="ip" class="form-control" style="height:30px;font-size:12px" placeholder="dnode FQDN">
 					</div>
 					
 					<div style="padding-left:16px;float:right">
@@ -100,10 +100,6 @@
 	function dbCreateDNode()
 	{
 		var ip = $.trim($("#ip").val());
-		if (!DbUtil.CheckIP(ip, "ip"))
-		{
-			return;
-		}
 		
 		if (ip == null || ip == "") {
 			DbUtil.ErrorDialog("DNode IP can't be null");
