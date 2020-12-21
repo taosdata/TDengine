@@ -72,7 +72,7 @@ static int32_t mnodeMnodeActionInsert(SSdbRow *pRow) {
   pDnode->isMgmt = true;
   mnodeDecDnodeRef(pDnode);
 
-  mInfo("mnode:%d, fqdn:%s ep:%s port:%u, do insert action", pMnode->mnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp,
+  mInfo("mnode:%d, fqdn:%s ep:%s port:%u is created", pMnode->mnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp,
         pDnode->dnodePort);
   return TSDB_CODE_SUCCESS;
 }
@@ -202,13 +202,13 @@ void mnodeCancelGetNextMnode(void *pIter) {
 void mnodeUpdateMnodeEpSet(SMInfos *pMinfos) {
   bool    set = false;
   SMInfos mInfos = {0};
-  mInfo("vgId:1, update mnodes epSet, numOfMnodes:%d pMinfos:%p", mnodeGetMnodesNum(), pMinfos);
 
   if (pMinfos != NULL) {
+    mInfo("vgId:1, update mnodes epSet, numOfMinfos:%d", pMinfos->mnodeNum);
     set = true;
     mInfos = *pMinfos;
-  }
-  else {
+  } else {
+    mInfo("vgId:1, update mnodes epSet, numOfMnodes:%d", mnodeGetMnodesNum());
     int32_t index = 0;
     void *  pIter = NULL;
     while (1) {
@@ -273,14 +273,14 @@ void mnodeUpdateMnodeEpSet(SMInfos *pMinfos) {
   mnodeMnodeUnLock();
 }
 
-void mnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet) {
+void mnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet, bool redirect) {
   mnodeMnodeRdLock();
   *epSet = tsMEpForPeer;
   mnodeMnodeUnLock();
 
   mTrace("vgId:1, mnodes epSet for peer is returned, num:%d inUse:%d", tsMEpForPeer.numOfEps, tsMEpForPeer.inUse);
   for (int32_t i = 0; i < epSet->numOfEps; ++i) {
-    if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort + TSDB_PORT_DNODEDNODE) {
+    if (redirect && strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort + TSDB_PORT_DNODEDNODE) {
       epSet->inUse = (i + 1) % epSet->numOfEps;
       mTrace("vgId:1, mnode:%d, for peer ep:%s:%u, set inUse to %d", i, epSet->fqdn[i], htons(epSet->port[i]), epSet->inUse);
     } else {
@@ -289,14 +289,19 @@ void mnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet) {
   }
 }
 
-void mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet) {
+void mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet, bool redirect) {
   mnodeMnodeRdLock();
   *epSet = tsMEpForShell;
   mnodeMnodeUnLock();
 
+  if (mnodeGetDnodesNum() <= 1) {
+    epSet->numOfEps = 0;
+    return;
+  }
+
   mTrace("vgId:1, mnodes epSet for shell is returned, num:%d inUse:%d", tsMEpForShell.numOfEps, tsMEpForShell.inUse);
   for (int32_t i = 0; i < epSet->numOfEps; ++i) {
-    if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
+    if (redirect && strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
       epSet->inUse = (i + 1) % epSet->numOfEps;
       mTrace("vgId:1, mnode:%d, for shell ep:%s:%u, set inUse to %d", i, epSet->fqdn[i], htons(epSet->port[i]), epSet->inUse);
     } else {

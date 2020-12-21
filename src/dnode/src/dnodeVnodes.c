@@ -30,38 +30,29 @@ typedef struct {
   int32_t * vnodeList;
 } SOpenVnodeThread;
 
-void *          tsDnodeTmr = NULL;
+extern void *   tsDnodeTmr;
 static void *   tsStatusTimer = NULL;
 static uint32_t tsRebootTime = 0;
+static int32_t  tsOpenVnodes = 0;
+static int32_t  tsTotalVnodes = 0;
 
 static void dnodeSendStatusMsg(void *handle, void *tmrId);
 static void dnodeProcessStatusRsp(SRpcMsg *pMsg);
 
-int32_t dnodeInitTimer() {
-  tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
-  if (tsDnodeTmr == NULL) {
-    dError("failed to init dnode timer");
-    return -1;
-  }
-
+int32_t dnodeInitStatusTimer() {
   dnodeAddClientRspHandle(TSDB_MSG_TYPE_DM_STATUS_RSP, dnodeProcessStatusRsp);
 
   tsRebootTime = taosGetTimestampSec();
   taosTmrReset(dnodeSendStatusMsg, 500, NULL, tsDnodeTmr, &tsStatusTimer);
 
-  dInfo("dnode timer is initialized");
+  dInfo("dnode status timer is initialized");
   return TSDB_CODE_SUCCESS;
 }
 
-void dnodeCleanupTimer() {
+void dnodeCleanupStatusTimer() {
   if (tsStatusTimer != NULL) {
     taosTmrStopA(&tsStatusTimer);
     tsStatusTimer = NULL;
-  }
-
-  if (tsDnodeTmr != NULL) {
-    taosTmrCleanUp(tsDnodeTmr);
-    tsDnodeTmr = NULL;
   }
 }
 
@@ -95,21 +86,27 @@ static int32_t dnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
 
 static void *dnodeOpenVnode(void *param) {
   SOpenVnodeThread *pThread = param;
-  
+  char stepDesc[TSDB_STEP_DESC_LEN] = {0};
+
   dDebug("thread:%d, start to open %d vnodes", pThread->threadIndex, pThread->vnodeNum);
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     int32_t vgId = pThread->vnodeList[v];
+    snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to restore, %d of %d have been opened", vgId, tsOpenVnodes, tsTotalVnodes);
+    dnodeReportStep("open-vnodes", stepDesc, 0);
+
     if (vnodeOpen(vgId) < 0) {
       dError("vgId:%d, failed to open vnode by thread:%d", vgId, pThread->threadIndex);
       pThread->failed++;
     } else {
-      dDebug("vgId:%d, is openned by thread:%d", vgId, pThread->threadIndex);
+      dDebug("vgId:%d, is opened by thread:%d", vgId, pThread->threadIndex);
       pThread->opened++;
     }
+
+    atomic_add_fetch_32(&tsOpenVnodes, 1);
   }
 
-  dDebug("thread:%d, total vnodes:%d, openned:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
+  dDebug("thread:%d, total vnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
          pThread->failed);
   return NULL;
 }
@@ -118,6 +115,7 @@ int32_t dnodeInitVnodes() {
   int32_t vnodeList[TSDB_MAX_VNODES] = {0};
   int32_t numOfVnodes = 0;
   int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
+  tsTotalVnodes = numOfVnodes;
 
   if (status != TSDB_CODE_SUCCESS) {
     dInfo("get dnode list failed");
@@ -138,7 +136,7 @@ int32_t dnodeInitVnodes() {
     pThread->vnodeList[pThread->vnodeNum++] = vnodeList[v];
   }
 
-  dDebug("start %d threads to open %d vnodes", threadNum, numOfVnodes);
+  dInfo("start %d threads to open %d vnodes", threadNum, numOfVnodes);
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SOpenVnodeThread *pThread = &threads[t];
@@ -167,7 +165,7 @@ int32_t dnodeInitVnodes() {
   }
 
   free(threads);
-  dInfo("there are total vnodes:%d, openned:%d", numOfVnodes, openVnodes);
+  dInfo("there are total vnodes:%d, opened:%d", numOfVnodes, openVnodes);
 
   if (failedVnodes != 0) {
     dError("there are total vnodes:%d, failed:%d", numOfVnodes, failedVnodes);

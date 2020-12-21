@@ -34,6 +34,7 @@ typedef struct {
   void *  rpcHandle;
   void *  rpcAhandle;
   void *  qhandle;
+  void *  pVnode;
   int8_t  qtype;
   int8_t  msgType;
   SRspRet rspRet;
@@ -47,7 +48,7 @@ typedef struct {
   void *   pVnode;
   SRpcMsg  rpcMsg;
   SRspRet  rspRet;
-  char     reserveForSync[16];
+  char     reserveForSync[24];
   SWalHead pHead[];
 } SVWriteMsg;
 

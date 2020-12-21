@@ -206,9 +206,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_SUCH_FILE_OR_DIR,      0, 0x0507, "Missing da
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_OUT_OF_MEMORY,            0, 0x0508, "Out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_APP_ERROR,                0, 0x0509, "Unexpected generic error in vnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VRESION_FILE,     0, 0x050A, "Invalid version file")
-TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_FULL,                  0, 0x050B, "Vnode memory is full because commit failed")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_FULL,                  0, 0x050B, "Database memory is full for commit failed")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_FLOWCTRL,              0, 0x050C, "Database memory is full for waiting commit")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_SYNCED,               0, 0x0511, "Database suspended")
-TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            0, 0x0512, "Write operation denied")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            0, 0x0512, "Database write operation denied")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_SYNCING,                  0, 0x0513, "Database is syncing")
 
 // tsdb
@@ -265,6 +266,13 @@ TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_CONFIG,           0, 0x0900, "Invalid Sy
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_NOT_ENABLED,              0, 0x0901, "Sync module not enabled")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_VERSION,          0, 0x0902, "Invalid Sync version")
 TAOS_DEFINE_ERROR(TSDB_CODE_SYN_CONFIRM_EXPIRED,          0, 0x0903, "Sync confirm expired")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_TOO_MANY_FWDINFO,         0, 0x0904, "Too many sync fwd infos")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_MISMATCHED_PROTOCOL,      0, 0x0905, "Mismatched protocol")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_MISMATCHED_CLUSTERID,     0, 0x0906, "Mismatched clusterId")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_MISMATCHED_SIGNATURE,     0, 0x0907, "Mismatched signature")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_CHECKSUM,         0, 0x0908, "Invalid msg checksum")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_MSGLEN,           0, 0x0909, "Invalid msg length")
+TAOS_DEFINE_ERROR(TSDB_CODE_SYN_INVALID_MSGTYPE,          0, 0x090A, "Invalid msg type")
 
 // wal
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_APP_ERROR,                0, 0x1000, "Unexpected generic error in wal")

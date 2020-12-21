@@ -22,8 +22,8 @@ extern "C" {
 #include "dnodeInt.h"
 
 int32_t dnodeInitModules();
-void    dnodeStartModules();
 void    dnodeCleanupModules();
+bool    dnodeStartMnode(SMInfos *pMinfos);
 void    dnodeProcessModuleStatus(uint32_t moduleStatus);
 
 #ifdef __cplusplus

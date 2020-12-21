@@ -48,7 +48,7 @@
       break;                             \
     }                                    \
     GET_RES_INFO(ctx)->numOfRes = (res); \
-  } while (0);
+  } while (0)
 
 #define INC_INIT_VAL(ctx, res) (GET_RES_INFO(ctx)->numOfRes += (res));
 
@@ -482,17 +482,16 @@ int32_t no_data_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId
       DO_UPDATE_TAG_COLUMNS(ctx, k);                \
       (num) += 1;                                   \
     }                                               \
-  } while (0);
+  } while (0)
 
 #define DUPATE_DATA_WITHOUT_TS(ctx, left, right, num, sign) \
-do {                                              \
-    if (((left) < (right)) ^ (sign)) {              \
-      (left) = (right);                             \
+  do {                                                      \
+    if (((left) < (right)) ^ (sign)) {                      \
+      (left) = (right);                                     \
       DO_UPDATE_TAG_COLUMNS_WITHOUT_TS(ctx);                \
-      (num) += 1;                                   \
-    }                                               \
-  } while (0);
-
+      (num) += 1;                                           \
+    }                                                       \
+  } while (0)
 
 #define LOOPCHECK_N(val, list, ctx, tsdbType, sign, num)          \
   for (int32_t i = 0; i < ((ctx)->size); ++i) {                   \
@@ -709,15 +708,14 @@ static int32_t firstDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY en
     return BLK_DATA_ALL_NEEDED;
   }
 
-  return BLK_DATA_ALL_NEEDED;
-  // TODO pCtx->aOutputBuf is the previous windowRes output buffer, not current unloaded block. so the following filter
-  // is invalid
-//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-//  if (pInfo->hasResult != DATA_SET_FLAG) {
-//    return BLK_DATA_ALL_NEEDED;
-//  } else {  // data in current block is not earlier than current result
-//    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-//  }
+  // the pCtx should be set to current Ctx and output buffer before call this function. Otherwise, pCtx->aOutputBuf is
+  // the previous windowRes output buffer, not current unloaded block. In this case, the following filter is invalid
+  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+  if (pInfo->hasResult != DATA_SET_FLAG) {
+    return BLK_DATA_ALL_NEEDED;
+  } else {  // data in current block is not earlier than current result
+    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+  }
 }
 
 static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
@@ -730,16 +728,14 @@ static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end
     return BLK_DATA_ALL_NEEDED;
   }
 
-  return BLK_DATA_ALL_NEEDED;
-  // TODO pCtx->aOutputBuf is the previous windowRes output buffer, not current unloaded block. so the following filter
-  // is invalid
-
-//  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
-//  if (pInfo->hasResult != DATA_SET_FLAG) {
-//    return BLK_DATA_ALL_NEEDED;
-//  } else {
-//    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
-//  }
+  // the pCtx should be set to current Ctx and output buffer before call this function. Otherwise, pCtx->aOutputBuf is
+  // the previous windowRes output buffer, not current unloaded block. In this case, the following filter is invalid
+  SFirstLastInfo *pInfo = (SFirstLastInfo*) (pCtx->aOutputBuf + pCtx->inputBytes);
+  if (pInfo->hasResult != DATA_SET_FLAG) {
+    return BLK_DATA_ALL_NEEDED;
+  } else {
+    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+  }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
@@ -1909,7 +1905,7 @@ static void valuePairAssign(tValuePair *dst, int16_t type, const char *val, int6
     (dst)->timestamp = (src)->timestamp;               \
     (dst)->v = (src)->v;                               \
     memcpy((dst)->pTags, (src)->pTags, (size_t)(__l)); \
-  } while (0);
+  } while (0)
 
 static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData, int64_t ts, uint16_t type,
                                 SExtTagsInfo *pTagInfo, char *pTags, int16_t stage) {
@@ -2222,7 +2218,8 @@ static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
   tmp += POINTER_BYTES * pCtx->param[0].i64Key;
   
   size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
-  
+//  assert(pCtx->param[0].i64Key > 0);
+
   for (int32_t i = 0; i < pCtx->param[0].i64Key; ++i) {
     pTopBotInfo->res[i] = (tValuePair*) tmp;
     pTopBotInfo->res[i]->pTags = tmp + sizeof(tValuePair);
@@ -2589,10 +2586,11 @@ static void percentile_next_step(SQLFunctionCtx *pCtx) {
     // all data are null, set it completed
     if (pInfo->numOfElems == 0) {
       pResInfo->complete = true;
+    } else {
+      pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, GET_DOUBLE_VAL(&pInfo->minval), GET_DOUBLE_VAL(&pInfo->maxval));
     }
 
     pInfo->stage += 1;
-    pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, GET_DOUBLE_VAL(&pInfo->minval), GET_DOUBLE_VAL(&pInfo->maxval));
   } else {
     pResInfo->complete = true;
   }
@@ -2883,7 +2881,7 @@ static void leastsquares_function_f(SQLFunctionCtx *pCtx, int32_t index) {
       int32_t *p = pData;
       LEASTSQR_CAL(param, pInfo->startVal, p, 0, pCtx->param[1].dKey);
       break;
-    };
+    }
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *p = pData;
       LEASTSQR_CAL(param, pInfo->startVal, p, 0, pCtx->param[1].dKey);
@@ -3647,9 +3645,19 @@ static bool twa_function_setup(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  pInfo->lastKey  = INT64_MIN;
+  pInfo->p.key    = INT64_MIN;
   pInfo->win      = TSWINDOW_INITIALIZER;
   return true;
+}
+
+static double twa_get_area(SPoint1 s, SPoint1 e) {
+  if ((s.val >= 0 && e.val >= 0)|| (s.val <=0 && e.val <= 0)) {
+    return (s.val + e.val) * (e.key - s.key) / 2;
+  }
+
+  double x = (s.key * e.val - e.key * s.val)/(e.val - s.val);
+  double val = (s.val * (x - s.key) + e.val * (e.key - x)) / 2;
+  return val;
 }
 
 static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t tsIndex, int32_t index, int32_t size) {
@@ -3662,28 +3670,29 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t tsIndex, int32_t 
 
   int32_t i = index;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
+  SPoint1* last = &pInfo->p;
 
   if (pCtx->start.key != INT64_MIN) {
     assert((pCtx->start.key < primaryKey[tsIndex + i] && pCtx->order == TSDB_ORDER_ASC) ||
                (pCtx->start.key > primaryKey[tsIndex + i] && pCtx->order == TSDB_ORDER_DESC));
 
-    assert(pInfo->lastKey == INT64_MIN);
+    assert(last->key == INT64_MIN);
 
-    pInfo->lastKey = primaryKey[tsIndex + i];
-    GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
+    last->key = primaryKey[tsIndex + i];
+    GET_TYPED_DATA(last->val, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
 
-    pInfo->dOutput += ((pInfo->lastValue + pCtx->start.val) / 2) * (pInfo->lastKey - pCtx->start.key);
+    pInfo->dOutput += twa_get_area(pCtx->start, *last);
 
     pInfo->hasResult = DATA_SET_FLAG;
     pInfo->win.skey = pCtx->start.key;
     notNullElems++;
     i += step;
-  } else if (pInfo->lastKey == INT64_MIN) {
-    pInfo->lastKey = primaryKey[tsIndex + i];
-    GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
+  } else if (pInfo->p.key == INT64_MIN) {
+    last->key = primaryKey[tsIndex + i];
+    GET_TYPED_DATA(last->val, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
 
     pInfo->hasResult = DATA_SET_FLAG;
-    pInfo->win.skey = pInfo->lastKey;
+    pInfo->win.skey = last->key;
     notNullElems++;
     i += step;
   }
@@ -3697,9 +3706,9 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t tsIndex, int32_t 
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
-        pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i + tsIndex];
+        SPoint1 st = {.key = primaryKey[i + tsIndex], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
       }
       break;
     }
@@ -3710,9 +3719,9 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t tsIndex, int32_t 
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
-        pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i + tsIndex];
+        SPoint1 st = {.key = primaryKey[i + tsIndex], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
       }
       break;
     }
@@ -3723,9 +3732,9 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t tsIndex, int32_t 
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
-        pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i + tsIndex];
+        SPoint1 st = {.key = primaryKey[i + tsIndex], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
       }
       break;
     }
@@ -3736,9 +3745,9 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t tsIndex, int32_t 
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
-        pInfo->lastValue = (double) val[i];
-        pInfo->lastKey = primaryKey[i + tsIndex];
+        SPoint1 st = {.key = primaryKey[i + tsIndex], .val = (double) val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
       }
       break;
     }
@@ -3749,9 +3758,9 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t tsIndex, int32_t 
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
-        pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i + tsIndex];
+        SPoint1 st = {.key = primaryKey[i + tsIndex], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
       }
       break;
     }
@@ -3762,9 +3771,9 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t tsIndex, int32_t 
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + tsIndex] - pInfo->lastKey);
-        pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i + tsIndex];
+        SPoint1 st = {.key = primaryKey[i + tsIndex], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
       }
       break;
     }
@@ -3773,20 +3782,19 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t tsIndex, int32_t 
 
   // the last interpolated time window value
   if (pCtx->end.key != INT64_MIN) {
-    pInfo->dOutput  += ((pInfo->lastValue + pCtx->end.val) / 2) * (pCtx->end.key - pInfo->lastKey);
-    pInfo->lastValue = pCtx->end.val;
-    pInfo->lastKey   = pCtx->end.key;
+    pInfo->dOutput  += twa_get_area(pInfo->p, pCtx->end);
+    pInfo->p = pCtx->end;
   }
 
-  pInfo->win.ekey  = pInfo->lastKey;
+  pInfo->win.ekey  = pInfo->p.key;
   return notNullElems;
 }
 
 static void twa_function(SQLFunctionCtx *pCtx) {
-  void * data = GET_INPUT_CHAR(pCtx);
+  void *data = GET_INPUT_CHAR(pCtx);
 
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  STwaInfo *   pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   // skip null value
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
@@ -3807,6 +3815,7 @@ static void twa_function(SQLFunctionCtx *pCtx) {
   }
 }
 
+//TODO refactor
 static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   void *pData = GET_INPUT_CHAR_INDEX(pCtx, index);
   if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
@@ -3823,23 +3832,23 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   int32_t size = pCtx->size;
 
   if (pCtx->start.key != INT64_MIN) {
-    assert(pInfo->lastKey == INT64_MIN);
+    assert(pInfo->p.key == INT64_MIN);
 
-    pInfo->lastKey = primaryKey[index];
-    GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
+    pInfo->p.key = primaryKey[index];
+    GET_TYPED_DATA(pInfo->p.val, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
 
-    pInfo->dOutput += ((pInfo->lastValue + pCtx->start.val) / 2) * (pInfo->lastKey - pCtx->start.key);
+    pInfo->dOutput += twa_get_area(pCtx->start, pInfo->p);
 
     pInfo->hasResult = DATA_SET_FLAG;
     pInfo->win.skey = pCtx->start.key;
     notNullElems++;
     i += 1;
-  } else if (pInfo->lastKey == INT64_MIN) {
-    pInfo->lastKey = primaryKey[index];
-    GET_TYPED_DATA(pInfo->lastValue, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
+  } else if (pInfo->p.key == INT64_MIN) {
+    pInfo->p.key = primaryKey[index];
+    GET_TYPED_DATA(pInfo->p.val, double, pCtx->inputType, GET_INPUT_CHAR_INDEX(pCtx, index));
 
     pInfo->hasResult = DATA_SET_FLAG;
-    pInfo->win.skey = pInfo->lastKey;
+    pInfo->win.skey = pInfo->p.key;
     notNullElems++;
     i += 1;
   }
@@ -3853,9 +3862,9 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
-        pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i + index];
+        SPoint1 st = {.key = primaryKey[i + index], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
       }
       break;
     }
@@ -3866,9 +3875,9 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
-        pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i + index];
+        SPoint1 st = {.key = primaryKey[i + index], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
       }
       break;
     }
@@ -3879,9 +3888,9 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
-        pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i + index];
+        SPoint1 st = {.key = primaryKey[i + index], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
       }
       break;
     }
@@ -3892,9 +3901,9 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
-        pInfo->lastValue = (double) val[i];
-        pInfo->lastKey = primaryKey[i + index];
+        SPoint1 st = {.key = primaryKey[i + index], .val = (double) val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
       }
       break;
     }
@@ -3905,9 +3914,9 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
-        pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i + index];
+        SPoint1 st = {.key = primaryKey[i + index], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);//((val[i] + pInfo->p.val) / 2) * (primaryKey[i + index] - pInfo->p.key);
+        pInfo->p = st;
       }
       break;
     }
@@ -3918,9 +3927,9 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
           continue;
         }
 
-        pInfo->dOutput += ((val[i] + pInfo->lastValue) / 2) * (primaryKey[i + index] - pInfo->lastKey);
-        pInfo->lastValue = val[i];
-        pInfo->lastKey = primaryKey[i + index];
+        SPoint1 st = {.key = primaryKey[i + index], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);//((val[i] + pInfo->p.val) / 2) * (primaryKey[i + index] - pInfo->p.key);
+        pInfo->p = st;
       }
       break;
     }
@@ -3929,12 +3938,11 @@ static void twa_function_f(SQLFunctionCtx *pCtx, int32_t index) {
 
   // the last interpolated time window value
   if (pCtx->end.key != INT64_MIN) {
-    pInfo->dOutput  += ((pInfo->lastValue + pCtx->end.val) / 2) * (pCtx->end.key - pInfo->lastKey);
-    pInfo->lastValue = pCtx->end.val;
-    pInfo->lastKey   = pCtx->end.key;
+    pInfo->dOutput  += twa_get_area(pInfo->p, pCtx->end);//((pInfo->p.val + pCtx->end.val) / 2) * (pCtx->end.key - pInfo->p.key);
+    pInfo->p = pCtx->end;
   }
 
-  pInfo->win.ekey  = pInfo->lastKey;
+  pInfo->win.ekey  = pInfo->p.key;
 
   SET_VAL(pCtx, notNullElems, 1);
 
@@ -3965,7 +3973,7 @@ static void twa_func_merge(SQLFunctionCtx *pCtx) {
     pBuf->dOutput += pInput->dOutput;
 
     pBuf->win = pInput->win;
-    pBuf->lastKey = pInput->lastKey;
+    pBuf->p   = pInput->p;
   }
   
   SET_VAL(pCtx, numOfNotNull, 1);
@@ -3992,15 +4000,14 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   
   STwaInfo *pInfo = (STwaInfo *)GET_ROWCELL_INTERBUF(pResInfo);
-  assert(pInfo->win.ekey == pInfo->lastKey && pInfo->hasResult == pResInfo->hasResult);
-  
   if (pInfo->hasResult != DATA_SET_FLAG) {
     setNull(pCtx->aOutputBuf, TSDB_DATA_TYPE_DOUBLE, sizeof(double));
     return;
   }
-  
+
+  assert(pInfo->win.ekey == pInfo->p.key && pInfo->hasResult == pResInfo->hasResult);
   if (pInfo->win.ekey == pInfo->win.skey) {
-    *(double *)pCtx->aOutputBuf = pInfo->lastValue;
+    *(double *)pCtx->aOutputBuf = pInfo->p.val;
   } else {
     *(double *)pCtx->aOutputBuf = pInfo->dOutput / (pInfo->win.ekey - pInfo->win.skey);
   }

@@ -1,5 +1,7 @@
 #  Java Connector
 
+Java连接器支持的系统有： Linux 64/Windows x64/Windows x86。
+
 TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API 规范的 `taos-jdbcdriver` 实现。目前可以通过 [Sonatype Repository][1] 搜索并下载。
 
 由于 TDengine 是使用 c 语言开发的，使用 taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库。
@@ -24,7 +26,8 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 
 | taos-jdbcdriver 版本 | TDengine 版本 | JDK 版本 |
 | --- | --- | --- |
-| 2.0.4 | 2.0.0.x 及以上 | 1.8.x |
+| 2.0.12 及以上 | 2.0.8.0 及以上 | 1.8.x |
+| 2.0.4 - 2.0.11 | 2.0.0.0 - 2.0.7.x | 1.8.x |
 | 1.0.3 | 1.6.1.x 及以上 | 1.8.x |
 | 1.0.2 | 1.6.1.x 及以上 | 1.8.x |
 | 1.0.1 | 1.6.1.x 及以上 | 1.8.x |

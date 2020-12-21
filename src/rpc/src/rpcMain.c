@@ -313,7 +313,7 @@ void *rpcOpen(const SRpcInit *pInit) {
     return NULL;
   }
 
-  tDebug("%s rpc is openned, threads:%d sessions:%d", pRpc->label, pRpc->numOfThreads, pInit->sessions);
+  tDebug("%s rpc is opened, threads:%d sessions:%d", pRpc->label, pRpc->numOfThreads, pInit->sessions);
 
   return pRpc;
 }
@@ -631,15 +631,19 @@ static void rpcReleaseConn(SRpcConn *pConn) {
     // if there is an outgoing message, free it
     if (pConn->outType && pConn->pReqMsg) {
       SRpcReqContext *pContext = pConn->pContext;
-      if (pContext->pRsp) {   
+      if (pContext) {
+        if (pContext->pRsp) {   
         // for synchronous API, post semaphore to unblock app
-        pContext->pRsp->code = TSDB_CODE_RPC_APP_ERROR;
-        pContext->pRsp->pCont = NULL;
-        pContext->pRsp->contLen = 0;
-        tsem_post(pContext->pSem);
+          pContext->pRsp->code = TSDB_CODE_RPC_APP_ERROR;
+          pContext->pRsp->pCont = NULL;
+          pContext->pRsp->contLen = 0;
+          tsem_post(pContext->pSem);
+        }
+        pContext->pConn = NULL; 
+        taosRemoveRef(tsRpcRefId, pContext->rid);
+      } else {
+        assert(0); 
       }
-      pContext->pConn = NULL; 
-      taosRemoveRef(tsRpcRefId, pContext->rid);
     }
   }
 
@@ -1083,7 +1087,11 @@ static void *rpcProcessMsgFromPeer(SRecvInfo *pRecv) {
         if (code == TSDB_CODE_RPC_INVALID_TIME_STAMP || code == TSDB_CODE_RPC_AUTH_FAILURE) {
           rpcCloseConn(pConn);
         }
-        tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
+        if (pHead->msgType + 1 > 1 && pHead->msgType+1 < TSDB_MSG_TYPE_MAX) {
+          tDebug("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType+1], code);
+        } else {
+          tError("%s %p %p, %s is sent with error code:0x%x", pRpc->label, pConn, (void *)pHead->ahandle, taosMsg[pHead->msgType], code);
+        }     
       } 
     } else { // msg is passed to app only parsing is ok 
       rpcProcessIncomingMsg(pConn, pHead, pContext);

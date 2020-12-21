@@ -282,7 +282,7 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
 
   pRsp->onlineDnodes = htonl(mnodeGetOnlineDnodesNum());
   pRsp->totalDnodes = htonl(mnodeGetDnodesNum());
-  mnodeGetMnodeEpSetForShell(&pRsp->epSet);
+  mnodeGetMnodeEpSetForShell(&pRsp->epSet, false);
 
   pMsg->rpcRsp.rsp = pRsp;
   pMsg->rpcRsp.len = sizeof(SHeartBeatRsp);
@@ -349,7 +349,7 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
   
-  mnodeGetMnodeEpSetForShell(&pConnectRsp->epSet);
+  mnodeGetMnodeEpSetForShell(&pConnectRsp->epSet, false);
 
 connect_over:
   if (code != TSDB_CODE_SUCCESS) {

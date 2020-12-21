@@ -24,7 +24,7 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 
 - 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过16K，一条SQL语句总长度不能超过64K（可通过参数maxSQLLength配置，最大可配置为1M）。
 - TDengine支持多线程同时写入，要进一步提高写入速度，一个客户端需要打开20个以上的线程同时写。但线程数达到一定数量后，无法再提高，甚至还会下降，因为线程切频繁切换，带来额外开销。
-- 对同一张表，如果新插入记录的时间戳已经存在，新记录将被直接抛弃，也就是说，在一张表里，时间戳必须是唯一的。如果应用自动生成记录，很有可能生成的时间戳是一样的，这样，成功插入的记录条数会小于应用插入的记录条数。
+- 对同一张表，如果新插入记录的时间戳已经存在，默认（没有使用 UPDATE 1 创建数据库）新记录将被直接抛弃，也就是说，在一张表里，时间戳必须是唯一的。如果应用自动生成记录，很有可能生成的时间戳是一样的，这样，成功插入的记录条数会小于应用插入的记录条数。如果在创建数据库时使用 UPDATE 1 选项，插入相同时间戳的新记录将覆盖原有记录。
 - 写入的数据的时间戳必须大于当前时间减去配置参数keep的时间。如果keep配置为3650天，那么无法写入比3650天还老的数据。写入数据的时间戳也不能大于当前时间加配置参数days。如果days配置为2，那么无法写入比当前时间还晚2天的数据。
 
 ## Prometheus直接写入
@@ -37,7 +37,7 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 - 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在bailongma所在的linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
 
 Bailongma项目中有一个文件夹blm_prometheus，存放了prometheus的写入API程序。编译过程如下：
-```
+```bash
 cd blm_prometheus
 go build
 ```
@@ -79,7 +79,7 @@ blm_prometheus对prometheus提供服务的端口号。
 ### 启动示例
 
 通过以下命令启动一个blm_prometheus的API服务
-```
+```bash
 ./blm_prometheus -port 8088
 ```
 假设blm_prometheus所在服务器的IP地址为"10.1.2.3"，则在prometheus的配置文件中<remote_write>部分增加url为
@@ -107,7 +107,7 @@ prometheus产生的数据格式如下：
 }
 ```
 其中，apiserver_request_latencies_bucket为prometheus采集的时序数据的名称，后面{}中的为该时序数据的标签。blm_prometheus会以时序数据的名称在TDengine中自动创建一个超级表，并将{}中的标签转换成TDengine的tag值，Timestamp作为时间戳，value作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
-```
+```mysql
 use prometheus;
 select * from apiserver_request_latencies_bucket;
 ```
@@ -124,7 +124,7 @@ select * from apiserver_request_latencies_bucket;
 
 Bailongma项目中有一个文件夹blm_telegraf，存放了Telegraf的写入API程序。编译过程如下：
 
-```
+```bash
 cd blm_telegraf
 go build
 ```
@@ -175,7 +175,7 @@ blm_telegraf对telegraf提供服务的端口号。
 
 ### 启动示例
 通过以下命令启动一个blm_telegraf的API服务
-```
+```bash
 ./blm_telegraf -host 127.0.0.1 -port 8089
 ```
 
@@ -213,7 +213,7 @@ telegraf产生的数据格式如下：
 
 其中，name字段为telegraf采集的时序数据的名称，tags字段为该时序数据的标签。blm_telegraf会以时序数据的名称在TDengine中自动创建一个超级表，并将tags字段中的标签转换成TDengine的tag值，Timestamp作为时间戳，fields字段中的值作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
 
-```
+```mysql
 use telegraf;
 select * from cpu;
 ```

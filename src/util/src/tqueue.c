@@ -61,7 +61,7 @@ taos_queue taosOpenQueue() {
 
   pthread_mutex_init(&queue->mutex, NULL);
 
-  uTrace("queue:%p is openned", queue);
+  uTrace("queue:%p is opened", queue);
   return queue;
 }
 
@@ -230,7 +230,7 @@ taos_qset taosOpenQset() {
   pthread_mutex_init(&qset->mutex, NULL);
   tsem_init(&qset->sem, 0, 0);
 
-  uTrace("qset:%p is openned", qset);
+  uTrace("qset:%p is opened", qset);
   return qset;
 }
 

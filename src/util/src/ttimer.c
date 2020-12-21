@@ -19,7 +19,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 
-extern int32_t tscEmbedded;
+extern uint32_t tscEmbedded;
 
 #define tmrFatal(...) { if (tmrDebugFlag & DEBUG_FATAL) { taosPrintLog("TMR FATAL ", tscEmbedded ? 255 : tmrDebugFlag, __VA_ARGS__); }}
 #define tmrError(...) { if (tmrDebugFlag & DEBUG_ERROR) { taosPrintLog("TMR ERROR ", tscEmbedded ? 255 : tmrDebugFlag, __VA_ARGS__); }}
@@ -225,10 +225,11 @@ static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
 }
 
 static bool removeFromWheel(tmr_obj_t* timer) {
-  if (timer->wheel >= tListLen(wheels)) {
+  uint8_t wheelIdx = timer->wheel;
+  if (wheelIdx >= tListLen(wheels)) {
     return false;
   }
-  time_wheel_t* wheel = wheels + timer->wheel;
+  time_wheel_t* wheel = wheels + wheelIdx;
 
   bool removed = false;
   pthread_mutex_lock(&wheel->mutex);

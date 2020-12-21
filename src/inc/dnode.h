@@ -29,13 +29,6 @@ typedef struct {
   int32_t httpReqNum;
 } SStatisInfo;
 
-typedef enum {
-  TSDB_RUN_STATUS_INITIALIZE,
-  TSDB_RUN_STATUS_RUNING,
-  TSDB_RUN_STATUS_STOPPED
-} SRunStatus;
-
-SRunStatus  dnodeGetRunStatus();
 SStatisInfo dnodeGetStatisInfo();
 
 bool    dnodeIsFirstDeploy();
@@ -56,8 +49,10 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid);
 void *dnodeAllocVWriteQueue(void *pVnode);
 void  dnodeFreeVWriteQueue(void *pWqueue);
 void  dnodeSendRpcVWriteRsp(void *pVnode, void *pWrite, int32_t code);
-void *dnodeAllocVReadQueue(void *pVnode);
-void  dnodeFreeVReadQueue(void *pRqueue);
+void *dnodeAllocVQueryQueue(void *pVnode);
+void *dnodeAllocVFetchQueue(void *pVnode);
+void  dnodeFreeVQueryQueue(void *pQqueue);
+void  dnodeFreeVFetchQueue(void *pFqueue);
 
 int32_t dnodeAllocateMPeerQueue();
 void    dnodeFreeMPeerQueue();

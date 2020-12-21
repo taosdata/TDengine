@@ -33,12 +33,13 @@ const char *argp_program_bug_address = "<support@taosdata.com>";
 static char doc[] = "";
 static char args_doc[] = "";
 static struct argp_option options[] = {
-  {"host",       'h', "HOST",       0,                   "TDengine server IP address to connect. The default host is localhost."},
+  {"host",       'h', "HOST",       0,                   "TDengine server FQDN to connect. The default host is localhost."},
   {"password",   'p', "PASSWORD",   OPTION_ARG_OPTIONAL, "The password to use when connecting to the server."},
   {"port",       'P', "PORT",       0,                   "The TCP/IP port number to use for the connection."},
   {"user",       'u', "USER",       0,                   "The user name to use when connecting to the server."},
   {"user",       'A', "Auth",       0,                   "The user auth to use when connecting to the server."},
   {"config-dir", 'c', "CONFIG_DIR", 0,                   "Configuration directory."},
+  {"dump-config", 'C', 0,           0,                   "Dump configuration."},
   {"commands",   's', "COMMANDS",   0,                   "Commands to run without enter the shell."},
   {"raw-time",   'r', 0,            0,                   "Output time as uint64_t."},
   {"file",       'f', "FILE",       0,                   "Script to run without enter the shell."},
@@ -95,6 +96,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       }
       tstrncpy(configDir, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
+      break;
+    case 'C':
+      arguments->dump_config = true;
       break;
     case 's':
       arguments->commands = arg;

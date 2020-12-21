@@ -50,7 +50,7 @@ static void queryDB(TAOS *taos, char *command) {
   taos_free_result(pSql);
 }
 
-void Test(char *qstr, const char *input, int i);
+void Test(TAOS *taos, char *qstr, int i);
 
 int main(int argc, char *argv[]) {
   char      qstr[1024];
@@ -63,21 +63,22 @@ int main(int argc, char *argv[]) {
 
   // init TAOS
   taos_init();
-  for (int i = 0; i < 4000000; i++) {
-    Test(qstr, argv[1], i);
-  }
-  taos_cleanup();
-}
-void Test(char *qstr,  const char *input, int index)  {
-  TAOS *taos = taos_connect(input, "root", "taosdata", NULL, 0);
-  printf("==================test at %d\n================================", index);
-  queryDB(taos, "drop database if exists demo");
-  queryDB(taos, "create database demo");
-  TAOS_RES *result;
+  TAOS *taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("failed to connect to server, reason:%s\n", "null taos"/*taos_errstr(taos)*/);
     exit(1);
   }
+  for (int i = 0; i < 4000000; i++) {
+    Test(taos, qstr, i);
+  }
+  taos_close(taos);
+  taos_cleanup();
+}
+void Test(TAOS *taos, char *qstr, int index)  {
+  printf("==================test at %d\n================================", index);
+  queryDB(taos, "drop database if exists demo");
+  queryDB(taos, "create database demo");
+  TAOS_RES *result;
   queryDB(taos, "use demo");
 
   queryDB(taos, "create table m1 (ts timestamp, ti tinyint, si smallint, i int, bi bigint, f float, d double, b binary(10))");
@@ -131,6 +132,5 @@ void Test(char *qstr,  const char *input, int index)  {
 
   taos_free_result(result);
   printf("====demo end====\n\n");
-  taos_close(taos);
 }
 

@@ -70,8 +70,7 @@ int32_t dnodeInitShell() {
 
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]   = dnodeSendStartupStep;
 
-  int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore;
-  numOfThreads = (int32_t) ((1.0 - tsRatioOfQueryThreads) * numOfThreads / 2.0);
+  int32_t numOfThreads = (tsNumOfCores * tsNumOfThreadsPerCore) / 2.0;
   if (numOfThreads < 1) {
     numOfThreads = 1;
   }

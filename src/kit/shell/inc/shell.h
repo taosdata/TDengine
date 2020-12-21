@@ -45,6 +45,7 @@ typedef struct SShellArguments {
   char* timezone;
   bool  is_raw_time;
   bool  is_use_passwd;
+  bool  dump_config;
   char  file[TSDB_FILENAME_LEN];
   char  dir[TSDB_FILENAME_LEN];
   int   threadNum;
@@ -85,6 +86,6 @@ extern void           set_terminal_mode();
 extern int get_old_terminal_mode(struct termios* tio);
 extern void            reset_terminal_mode();
 extern SShellArguments args;
-extern TAOS_RES*       result;
+extern int64_t         result;
 
 #endif

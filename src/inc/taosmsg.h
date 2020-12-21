@@ -266,6 +266,7 @@ typedef struct {
 } SMDCreateTableMsg;
 
 typedef struct {
+  int32_t len;  // one create table message
   char    tableId[TSDB_TABLE_FNAME_LEN];
   char    db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   int8_t  igExists;
@@ -273,9 +274,13 @@ typedef struct {
   int16_t numOfTags;
   int16_t numOfColumns;
   int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
-  int32_t contLen;
   int8_t  reserved[16];
   char    schema[];
+} SCreateTableMsg;
+
+typedef struct {
+  int32_t numOfTables;
+  int32_t contLen;
 } SCMCreateTableMsg;
 
 typedef struct {
@@ -473,7 +478,7 @@ typedef struct {
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
-  int64_t     tableLimit;       // limit the number of rows for each table, used in order by + limit in stable projection query.
+  int64_t     vgroupLimit;       // limit the number of rows for each table, used in order by + limit in stable projection query.
   int16_t     prjOrder;         // global order in super table projection query.
   int64_t     limit;
   int64_t     offset;
@@ -730,8 +735,8 @@ typedef struct SMultiTableMeta {
 
 typedef struct {
   int32_t dataLen;
-  char name[TSDB_TABLE_FNAME_LEN];
-  char data[TSDB_MAX_TAGS_LEN + TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * TSDB_MAX_TAGS];
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char   *data;
 } STagData;
 
 /*
@@ -787,6 +792,7 @@ typedef struct {
 
 typedef struct {
   char     sql[TSDB_SHOW_SQL_LEN];
+  char     dstTable[TSDB_TABLE_NAME_LEN];
   uint32_t streamId;
   int64_t  num;  // number of computing/cycles
   int64_t  useconds;

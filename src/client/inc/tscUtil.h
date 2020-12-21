@@ -110,11 +110,12 @@ SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint
                                    uint32_t offset);
 
 void*   tscDestroyBlockArrayList(SArray* pDataBlockList);
+void*   tscDestroyBlockHashTable(SHashObj* pBlockHashTable);
+
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
-int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pDataList);
-int32_t tscGetDataBlockFromList(void* pHashList, SArray* pDataBlockList, int64_t id, int32_t size,
-                                int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
-                                STableDataBlocks** dataBlocks);
+int32_t tscMergeTableDataBlocks(SSqlObj* pSql);
+int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
+                                STableDataBlocks** dataBlocks, SArray* pBlockList);
 
 /**
  * for the projection query on metric or point interpolation query on metric,
@@ -233,7 +234,7 @@ void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo);
 
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
-int  tscGetMeterMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
+int  tscGetTableMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
 void tscDoQuery(SSqlObj* pSql);
@@ -275,6 +276,8 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 bool hasMoreVnodesToTry(SSqlObj *pSql);
 bool hasMoreClauseToTry(SSqlObj* pSql);
 
+void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeFromCache);
+
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
@@ -283,6 +286,9 @@ int  tscSetMgmtEpSetFromCfg(const char *first, const char *second, SRpcCorEpSet 
 bool tscSetSqlOwner(SSqlObj* pSql);
 void tscClearSqlOwner(SSqlObj* pSql);
 int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
+
+char*   serializeTagData(STagData* pTagData, char* pMsg);
+int32_t copyTagData(STagData* dst, const STagData* src);
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);
