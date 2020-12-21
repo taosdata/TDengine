@@ -1280,7 +1280,9 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
       }
     }
 
-    return TSDB_CODE_SYN_INVALID_VERSION;
+    if (pNode->replica != 1) {
+      return TSDB_CODE_SYN_INVALID_VERSION;
+    }
   }
 
   // always update version
