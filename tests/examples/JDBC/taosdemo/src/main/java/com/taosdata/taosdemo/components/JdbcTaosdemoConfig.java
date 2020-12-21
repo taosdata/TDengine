@@ -27,8 +27,8 @@ public final class JdbcTaosdemoConfig {
     public boolean autoCreateTable = true;
     public long numOfTables = 10;
     public long numOfRowsPerTable = 10;
-    public int numOfTablesPerSQL = 2;
-    public int numOfValuesPerSQL = 2;
+    public int numOfTablesPerSQL = 1;
+    public int numOfValuesPerSQL = 1;
     public int numOfThreadsForCreate = 1;
     public int numOfThreadsForInsert = 1;
     public long startTime;

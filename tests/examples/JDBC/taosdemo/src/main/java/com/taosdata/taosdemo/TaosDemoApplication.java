@@ -85,10 +85,10 @@ public class TaosDemoApplication {
         start = System.currentTimeMillis();
         if (config.doCreateTable) {
             superTableService.create(superTableMeta);
-            if (config.autoCreateTable)
-                return;
-            // 批量建子表
-            subTableService.createSubTable(superTableMeta, config.numOfTables, config.prefixOfTable, config.numOfThreadsForCreate);
+            if (!config.autoCreateTable){
+                // 批量建子表
+                subTableService.createSubTable(superTableMeta, config.numOfTables, config.prefixOfTable, config.numOfThreadsForCreate);
+            }
         }
         end = System.currentTimeMillis();
         logger.info(">>> create table time cost : " + (end - start) + " ms.");
