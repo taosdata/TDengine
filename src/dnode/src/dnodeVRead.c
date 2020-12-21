@@ -65,7 +65,7 @@ void dnodeDispatchToVReadQueue(SRpcMsg *pMsg) {
     assert(pHead->contLen > 0);
     void *pVnode = vnodeAcquire(pHead->vgId);
     if (pVnode != NULL) {
-      int32_t code = vnodeWriteToRQueue(pVnode, pCont, pHead->contLen, TAOS_QTYPE_RPC, pMsg);
+      code = vnodeWriteToRQueue(pVnode, pCont, pHead->contLen, TAOS_QTYPE_RPC, pMsg);
       if (code == TSDB_CODE_SUCCESS) queuedMsgNum++;
       vnodeRelease(pVnode);
     }

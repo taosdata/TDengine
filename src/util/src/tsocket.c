@@ -115,6 +115,10 @@ int32_t taosWriteMsg(SOCKET fd, void *buf, int32_t nbytes) {
       nleft -= nwritten;
       ptr += nwritten;
     }
+
+    if (errno == SIGPIPE || errno == EPIPE) {
+      return -1;
+    }
   }
 
   return (nbytes - nleft);
@@ -141,6 +145,10 @@ int32_t taosReadMsg(SOCKET fd, void *buf, int32_t nbytes) {
     } else {
       nleft -= nread;
       ptr += nread;
+    }
+
+    if (errno == SIGPIPE || errno == EPIPE) {
+      return -1;
     }
   }
 

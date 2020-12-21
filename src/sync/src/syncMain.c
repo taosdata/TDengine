@@ -560,6 +560,9 @@ static void syncChooseMaster(SSyncNode *pNode) {
         index = i;
       }
     }
+    sDebug("vgId:%d, master:%s may be choosed, index:%d", pNode->vgId, pNode->peerInfo[index]->id, index);
+  } else {
+    sDebug("vgId:%d, no master election since onlineNum:%d replica:%d", pNode->vgId, onlineNum, pNode->replica);
   }
 
   // add arbitrator connection
@@ -579,6 +582,11 @@ static void syncChooseMaster(SSyncNode *pNode) {
           index = i;
         }
       }
+    }
+
+    if (index >= 0) {
+      sDebug("vgId:%d, master:%s may be choosed, index:%d onlineNum(arb):%d replica:%d", pNode->vgId,
+             pNode->peerInfo[index]->id, index, onlineNum, replica);
     }
   }
 
@@ -678,7 +686,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus* peersStatus, int8_t new
   if (pMaster) {
     // master is there
     pNode->pMaster = pMaster;
-    sDebug("%s, it is the master, sver:%" PRIu64, pMaster->id, pMaster->version);
+    sDebug("%s, it is the master, replica:^%d sver:%" PRIu64, pMaster->id, pNode->replica, pMaster->version);
 
     if (syncValidateMaster(pPeer) < 0) return;
 
@@ -711,10 +719,10 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus* peersStatus, int8_t new
     }
 
     if (consistent) {
-      sDebug("vgId:%d, choose master", pNode->vgId);
+      sDebug("vgId:%d, choose master, replica:%d", pNode->vgId, pNode->replica);
       syncChooseMaster(pNode);
     } else {
-      sDebug("vgId:%d, cannot choose master since roles inequality", pNode->vgId);
+      sDebug("vgId:%d, cannot choose master since roles inequality, replica:%d", pNode->vgId, pNode->replica);
     }
   }
 
