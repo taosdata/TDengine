@@ -1,4 +1,6 @@
-package com.taosdata.taosdemo.utils;
+package com.taosdata.taosdemo.components;
+
+import com.taosdata.taosdemo.utils.TimeStampUtil;
 
 public final class JdbcTaosdemoConfig {
     // instance

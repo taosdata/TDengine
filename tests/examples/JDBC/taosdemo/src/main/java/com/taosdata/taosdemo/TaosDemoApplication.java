@@ -8,10 +8,11 @@ import com.taosdata.taosdemo.service.DatabaseService;
 import com.taosdata.taosdemo.service.InsertTask;
 import com.taosdata.taosdemo.service.SuperTableService;
 import com.taosdata.taosdemo.service.data.SuperTableMetaGenerator;
-import com.taosdata.taosdemo.utils.JdbcTaosdemoConfig;
+import com.taosdata.taosdemo.components.JdbcTaosdemoConfig;
 import org.apache.log4j.Logger;
 
 import javax.sql.DataSource;
+import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.*;
@@ -23,8 +24,7 @@ import java.util.stream.IntStream;
 public class TaosDemoApplication {
     private static Logger logger = Logger.getLogger(TaosDemoApplication.class);
 
-    public static void main(String[] args) {
-
+    public static void main(String[] args) throws IOException {
 
         // 读配置参数
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);

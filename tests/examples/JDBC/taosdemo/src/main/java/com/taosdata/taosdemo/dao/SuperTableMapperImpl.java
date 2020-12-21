@@ -1,4 +1,4 @@
-package com.taosdata.taosdemo.dao.impl;
+package com.taosdata.taosdemo.dao;
 
 import com.taosdata.taosdemo.dao.SuperTableMapper;
 import com.taosdata.taosdemo.domain.SuperTableMeta;

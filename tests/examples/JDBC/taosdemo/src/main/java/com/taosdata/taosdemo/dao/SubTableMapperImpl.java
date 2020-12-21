@@ -1,4 +1,4 @@
-package com.taosdata.taosdemo.dao.impl;
+package com.taosdata.taosdemo.dao;
 
 import com.taosdata.taosdemo.dao.SubTableMapper;
 import com.taosdata.taosdemo.domain.SubTableMeta;
