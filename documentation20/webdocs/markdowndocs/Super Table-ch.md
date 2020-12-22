@@ -161,7 +161,7 @@ SELECT function<field_name>,…
 
 超级表聚合查询，TDengine目前支持以下聚合\选择函数：sum、count、avg、first、last、min、max、top、bottom，以及针对全部或部分列的投影操作，使用方式与单表查询的计算过程相同。暂不支持其他类型的聚合计算和四则运算。当前所有的函数及计算过程均不支持嵌套的方式进行执行。
 
- 不使用GROUP BY的查询将会对超级表下所有满足筛选条件的表按时间进行聚合，结果输出默认是按照时间戳单调递增输出，用户可以使用ORDER BY _c0 ASC|DESC选择查询结果时间戳的升降排序；使用GROUP BY <tag_name> 的聚合查询会按照tags进行分组，并对每个组内的数据分别进行聚合，输出结果为各个组的聚合结果，组间的排序可以由ORDER BY <tag_name> 语句指定，每个分组内部，时间序列是单调递增的。 
+ 不使用GROUP BY的查询将会对超级表下所有满足筛选条件的表按时间进行聚合，结果输出默认是按照时间戳单调递增输出，用户可以使用ORDER BY _c0 ASC|DESC选择查询结果时间戳的升降排序；使用GROUP BY <tag_name> 的聚合查询会按照tags进行分组，并对每个组内的数据分别进行聚合，输出结果为各个组的聚合结果，组间的排序可以由ORDER BY <tag_name> 语句指定，每个分组内部，时间序列是单调递增的。
 
 使用SLIMIT/SOFFSET语句指定组间分页，即指定结果集中输出的最大组数以及对组起始的位置。使用LIMIT/OFFSET语句指定组内分页，即指定结果集中每个组内最多输出多少条记录以及记录起始的位置。
 
@@ -178,7 +178,7 @@ CREATE TABLE thermometer (ts timestamp, degree double)
 TAGS(location binary(20), type int)
 ```
 
-假设有北京，天津和上海三个地区的采集器共4个，温度采集器有3种类型，我们就可以对每个采集器建表如下： 
+假设有北京，天津和上海三个地区的采集器共4个，温度采集器有3种类型，我们就可以对每个采集器建表如下：
 
 ```mysql
 CREATE TABLE therm1 USING thermometer TAGS (’beijing’, 1);
