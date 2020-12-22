@@ -11,7 +11,7 @@ TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API �
 
 由于 TDengine 是使用 c 语言开发的，使用 taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库。
 
-* libtaos.so 
+* libtaos.so
     在 linux 系统中成功安装 TDengine 后，依赖的本地函数库 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
 
 * taos.dll
@@ -264,7 +264,7 @@ resultSet.close();
 stmt.close();
 conn.close();
 ```
-> `注意务必要将 connection 进行关闭`，否则会出现连接泄露。  
+> `注意务必要将 connection 进行关闭`，否则会出现连接泄露。
 
 ## 与连接池使用
 
@@ -290,7 +290,7 @@ conn.close();
     config.setMinimumIdle(3);           //minimum number of idle connection
     config.setMaximumPoolSize(10);      //maximum number of connection in the pool
     config.setConnectionTimeout(10000); //maximum wait milliseconds for get connection from pool
-    config.setIdleTimeout(60000);       // max idle time for recycle idle connection 
+    config.setIdleTimeout(60000);       // max idle time for recycle idle connection
     config.setConnectionTestQuery("describe log.dn"); //validation query
     config.setValidationTimeout(3000);   //validation query timeout
 
@@ -299,7 +299,7 @@ conn.close();
     Connection  connection = ds.getConnection(); // get connection
     Statement statement = connection.createStatement(); // get statement
 
-    //query or insert 
+    //query or insert
     // ...
 
     connection.close(); // put back to conneciton pool
@@ -349,7 +349,7 @@ public static void main(String[] args) throws Exception {
     Connection  connection = ds.getConnection(); // get connection
     Statement statement = connection.createStatement(); // get statement
 
-    //query or insert 
+    //query or insert
     // ...
 
     connection.close(); // put back to conneciton pool
