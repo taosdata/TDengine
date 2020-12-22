@@ -100,7 +100,7 @@ public class TaosDemoApplication {
 
     private static long getProperStartTime(long startTime, int keep) {
         Instant now = Instant.now();
-        long earliest = now.minus(Duration.ofDays(keep+1)).toEpochMilli();
+        long earliest = now.minus(Duration.ofDays(keep-1)).toEpochMilli();
         if (startTime == 0 || startTime < earliest) {
             startTime = earliest;
         }
