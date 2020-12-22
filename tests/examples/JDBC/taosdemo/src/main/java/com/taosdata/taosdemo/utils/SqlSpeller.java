@@ -67,7 +67,7 @@ public class SqlSpeller {
     private static String fieldValues(List<FieldValue> fields) {
         return IntStream.range(0, fields.size()).mapToObj(i -> {
             if (i == 0) {
-                return "" + fields.get(i).getName() + "";
+                return "" + fields.get(i).getValue() + "";
             } else {
                 return "'" + fields.get(i).getValue() + "'";
             }
