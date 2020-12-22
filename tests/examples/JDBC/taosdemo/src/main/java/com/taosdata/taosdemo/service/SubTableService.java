@@ -190,9 +190,9 @@ public class SubTableService extends AbstractService {
                         SubTableValueGenerator.disrupt(data, rate, range);
                     // insert
                     if (autoCreateTable)
-                        affectRows = insertAutoCreateTable(data);
+                        affectRows += insertAutoCreateTable(data);
                     else
-                        affectRows = insert(data);
+                        affectRows += insert(data);
                     /***********************************************/
                     tableCnt += tableSize;
                 }
