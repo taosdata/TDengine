@@ -1,10 +1,10 @@
 # 连接器
 
-TDengine提供了丰富的应用程序开发接口，其中包括C/C++、C# 、Java、Python、Go、Node.js、RESTful 等，便于用户快速开发应用。
+TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用。
 
 ![image-connecotr](../assets/connector.png)
 
-目前TDengine的连接器可支持的平台广泛，目前包括：X64/X86/ARM64/ARM32/MIPS/Alpha等硬件平台，以及Linux/Win64/Win32等开发环境。对照矩阵如下：
+目前TDengine的连接器可支持的平台广泛，包括：X64/X86/ARM64/ARM32/MIPS/Alpha等硬件平台，以及Linux/Win64/Win32等开发环境。对照矩阵如下：
 
 | **CPU**     | **X64   64bit** | **X64   64bit** | **X64   64bit** | **X86   32bit** | **ARM64** | **ARM32** | **MIPS   龙芯** | **Alpha   申威** | **X64   海光** |
 | ----------- | --------------- | --------------- | --------------- | --------------- | --------- | --------- | --------------- | ---------------- | -------------- |
@@ -21,10 +21,149 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、C# 、J
 
 注意：
 
+* 在没有安装TDengine服务端软件的系统中使用连接器（除RESTful外）访问 TDengine 数据库，需要安装相应版本的客户端安装包来使应用驱动（Linux系统中文件名为libtaos.so，Windows系统中为taos.dll）被安装在系统中，否则会产生无法找到相应库文件的错误。
 * 所有执行 SQL 语句的 API，例如 C/C++ Connector 中的 `tao_query`、`taos_query_a`、`taos_subscribe` 等，以及其它语言中与它们对应的API，每次都只能执行一条 SQL 语句，如果实际参数中包含了多条语句，它们的行为是未定义的。
 * 升级到TDengine到2.0.8.0版本的用户，必须更新JDBC连接TDengine必须升级taos-jdbcdriver到2.0.12及以上。
 
+## 连接器应用驱动安装准备
+
+服务器已安装TDengine服务端安装包，如下：
+
+- TDengine-server-2.x.x.x-Linux-x64.tar.gz      
+- TDengine-server-2.x.x.x-Linux-aarch64.tar.gz
+
+**用户获得的应用驱动的安装包如下：**
+
+- TDengine-client-2.x.x.x-Linux-x64.tar.gz
+- TDengine-client-2.x.x.x-Windows-x64.exe
+- TDengine-client-2.x.x.x-Windows-x86.exe
+- TDengine-client-2.x.x.x-Linux-aarch64.tar.gz
+
+
+
+**Linux**
+
+**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载**
+
+* X64硬件环境：TDengine-client-2.x.x.x-Linux-x64.tar.gz
+
+* AARCH64硬件环境：TDengine-client-2.x.x.x-Linux-aarch64.tar.gz
+
+* AARCH32硬件环境：TDengine-client-2.x.x.x-Linux-aarch32.tar.gz
+
+**2.   解压缩软件包**
+
+将软件包放置在当前用户可读写的任意目录下，然后执行下面的命令：
+
+`tar -xzvf TDengine-client-xxxxxxxxx.tar.gz`
+
+其中xxxxxxx需要替换为实际版本的字符串。
+
+**3.   执行安装脚本**
+
+解压软件包之后，会在解压目录下看到以下文件(目录)：
+
+​    *install_client.sh*：安装脚本，用于应用驱动程序
+​    *taos.tar.gz*：应用驱动安装包
+​    *driver*：TDengine应用驱动driver
+​    *connector*: 各种编程语言连接器（go/grafanaplugin/nodejs/python/JDBC）
+​    *examples*: 各种编程语言的示例程序(c/C#/go/JDBC/matlab/python/R)
+
+运行install_client.sh进行安装
+
+**4.   配置taos.cfg**
+
+编辑taos.cfg文件(默认路径/etc/taos/taos.cfg)，将firstEP修改为TDengine服务器的End Point，例如：h1.taos.com:6030
+
+**提示： 如本机没有部署TDengine服务，仅安装了应用驱动，则taos.cfg中仅需配置firstEP，无需配置FQDN。**
+
+ 
+
+**Windows x64/x86**
+
+**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载 ：**
+
+* X64硬件环境：TDengine-client-2.X.X.X-Windows-x64.exe
+
+* X86硬件环境：TDengine-client-2.X.X.X-Windows-x86.exe
+
+**2. 执行安装程序，按提示选择默认值，完成安装**
+
+**3. 安装路径**
+
+默认安装路径为：C:\TDengine，其中包括以下文件(目录)：
+
+​    *taos.exe*：taos shell命令行程序
+
+​    *cfg* : 配置文件目录
+​    *driver*: 应用驱动动态链接库
+​    *examples*: 示例程序 bash/C/C#/go/JDBC/Python/Node.js
+​    *include*: 头文件
+​    *log* : 日志文件
+​    *unins000.exe*: 卸载程序
+
+**4. 配置taos.cfg**
+
+编辑taos.cfg文件(默认路径C:\TDengine\cfg\taos.cfg)，将firstEP修改为TDengine服务器的End Point，例如：h1.taos.com:6030
+
+**提示：** 
+
+**1. 如利用FQDN连接服务器，必须确认本机网络环境DNS已配置好，或在hosts文件中添加FQDN寻址记录，如编辑C:\Windows\system32\drivers\etc\hosts，添加如下的记录：** **192.168.1.99  h1.taos.com**
+
+**2．卸载：运行unins000.exe可卸载TDengine应用驱动。**
+
+ 
+
+**安装验证**
+
+以上安装和配置完成后，并确认TDengine服务已经正常启动运行，此时可以执行taos客户端进行登录。
+
+**Linux环境：**
+
+在linux shell下直接执行 taos，应该就能正常链接到tdegine服务，进入到taos shell界面，示例如下：
+
+```mysql
+$ taos     
+Welcome to the TDengine shell from Linux, Client  Version:2.0.5.0  
+Copyright (c) 2017 by TAOS Data, Inc. All rights  reserved.     
+taos> show databases;           
+name       |   created_time    |   ntables  |  vgroups   | replica | quorum | days |    keep1,keep2,keep(D)   | cache(MB)|   blocks  |  minrows   |  maxrows  | wallevel |  fsync    | comp | precision |    status  |  
+=========================================================================================================================================================================================================================  
+test       | 2020-10-14  10:35:48.617 |     10 |      1 |    1 |   1 |     2 | 3650,3650,3650        |     16|      6 |     100 |    4096 |    1 |    3000 |  2 | ms      | ready    |   
+log        | 2020-10-12  09:08:21.651 |      4 |      1 |    1 |   1 |   10 | 30,30,30               |      1|      3 |     100 |    4096 |    1 |    3000 |  2 | us    | ready    |  
+Query OK, 2 row(s) in set (0.001198s)     
+taos>  
+```
+
+**Windows（x64/x86）环境：**
+
+在cmd下进入到c:\TDengine目录下直接执行 taos.exe，应该就能正常链接到tdegine服务，进入到taos shell界面，示例如下：
+
+```mysql
+  C:\TDengine>taos     
+  Welcome to the TDengine  shell from Linux, Client Version:2.0.5.0  
+  Copyright (c) 2017 by  TAOS Data, Inc. All rights reserved.     
+  taos> show  databases;         
+  name       |   created_time    |   ntables  |  vgroups   | replica | quorum | days |    keep1,keep2,keep(D)   | cache(MB)   |  blocks  |   minrows  |  maxrows   | wallevel |  fsync  | comp | precision |  status    |  
+  ===================================================================================================================================================================================================================================================================   
+  test       | 2020-10-14  10:35:48.617 |     10 |      1 |    1 |   1 |     2 | 3650,3650,3650        |     16 |      6 |     100 |    4096 |    1 |    3000 |  2 | ms    | ready    |   
+  log        | 2020-10-12  09:08:21.651 |      4 |      1 |    1 |   1 |    10 | 30,30,30              |      1 |      3 |     100 |    4096 |    1 |    3000 |  2 | us    | ready    |  
+  Query OK, 2 row(s) in  set (0.045000s)     
+  taos>  
+```
+
+
+
 ## C/C++ Connector
+
+**C/C++连接器支持的系统有**： 
+
+| **CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32    |
+| ------------ | ------------ | -------- | -------- | -------- | ---------- |
+| **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux      |
+| **支持与否** | **支持**     | **支持** | **支持** | **支持** | **开发中** |
+
+
 
 C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine头文件 _taos.h_（安装后，位于 _/usr/local/taos/include_）：
 
@@ -32,9 +171,10 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 #include <taos.h>
 ```
 
-在编译时需要链接TDengine动态库 _libtaos.so_ （安装后，位于 _/usr/local/taos/driver_，gcc编译时，请加上 -ltaos）。
+注意：
 
-如未特别说明，当API的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
+* 在编译时需要链接TDengine动态库。Linux 为 *libtaos.so* ，安装后，位于 _/usr/local/taos/driver_。Windows为 taos.dll，安装后位于  *C:\TDengine*。
+* 如未特别说明，当API的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
 
 
 ### 基础API
@@ -303,7 +443,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 ## Python Connector
 
 ### 安装准备
-* 已安装TDengine, 如果客户端在Windows上，需要安装Windows 版本的TDengine客户端 [（Windows TDengine 客户端安装）][4]
+* 应用驱动安装请参考[连接器应用驱动安装准备](https://www.taosdata.com/cn/documentation/connector/#应用连接器准备)。
 * 已安装python 2.7 or >= 3.4
 * 已安装pip 或 pip3
 
@@ -323,12 +463,12 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 在已安装Windows TDengine 客户端的情况下， 将文件"C:\TDengine\driver\taos.dll" 拷贝到 "C:\windows\system32" 目录下, 然后进入Windwos <em>cmd</em> 命令行界面
 ```cmd
 cd C:\TDengine\connector\python\windows
-pip install python2\
+python -m pip install python2\
 ```
 或
 ```cmd
 cd C:\TDengine\connector\python\windows
-pip install python3\
+python -m pip install python3\
 ```
 
 *如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。
@@ -638,31 +778,39 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 ## CSharp Connector
 
-在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
+C#连接器支持的系统有：Linux 64/Windows x64/Windows x86
 
-#### 安装TDengine客户端
+### 安装准备
 
-C#连接器需要使用`libtaos.so`和`taos.h`。因此，在使用C#连接器之前，需在程序运行的Windows环境安装TDengine的Windows客户端，以便获得相关驱动文件。
+* 应用驱动安装请参考[连接器应用驱动安装准备](https://www.taosdata.com/cn/documentation/connector/#应用连接器准备)。
+* .NET接口文件﻿TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
+* 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
 
-安装完成后，在文件夹`C:/TDengine/examples/C#`中，将会看到两个文件
+### 安装验证
 
-- TDengineDriver.cs 调用taos.dll文件的Native C方法
-- TDengineTest.cs 参考程序示例
+运行install_directory/examples/C#/C#Checker/C#Checker.exe
 
-在文件夹`C:\Windows\System32`，将会看到`taos.dll`文件
+```cmd
+cd {install_directory}/examples/C#/C#Checker
+csc /optimize *.cs
+C#Checker.exe -h <fqdn>
+```
 
-#### 使用方法
+### C#连接器的使用
 
-- 将C#接口文件TDengineDriver.cs加入到应用程序所在.NET项目中
-- 参考TDengineTest.cs来定义数据库连接参数，及执行数据插入、查询等操作的方法
-- 因为C#接口需要用到`taos.dll`文件，用户可以将`taos.dll`文件加入.NET解决方案中
+在Windows系统上，.NET应用程序可以使用TDengine的.NET接口来执行所有数据库的操作。使用.NET接口的步骤如下所示：
 
-#### 注意事项
+1. 将.NET接口文件﻿TDengineDrivercs.cs加入到应用程序所在.NET项目中。
+2. 用户可以参考﻿TDengineTest.cs来定义数据库连接参数，以及如何执行数据插入、查询等操作；
 
-- `taos.dll`文件使用x64平台编译，所以.NET项目在生成.exe文件时，“解决方案”/“项目”的“平台”请均选择“x64”。
-- 此.NET接口目前已经在Visual Studio 2013/2015/2017中验证过，其它VS版本尚待验证。
+此.NET接口需要用到taos.dll文件，所以在执行应用程序前，拷贝Windows客户端install_directory/driver目录中的taos.dll文件到.NET项目最后生成.exe可执行文件所在文件夹。之后运行exe文件，即可访问TDengine数据库并做插入、查询等操作。
 
-#### 第三方驱动
+**注意：**
+
+1. TDengine V2.0.3.0之后同时支持32位和64位Windows系统，所以.NET项目在生成.exe文件时，“解决方案”/“项目”的“平台”请选择对应的“X86” 或“x64”。
+2. 此.NET接口目前已经在Visual Studio 2015/2017中验证过，其它VS版本尚待验证。
+
+### 第三方驱动
 
 Maikebing.Data.Taos是一个TDengine的ADO.Net提供器，支持linux，windows。该开发包由热心贡献者`麦壳饼@@maikebing`提供，具体请参考
 
@@ -676,6 +824,10 @@ https://www.taosdata.com/blog/2020/11/02/1901.html
 
 ## Go Connector
 
+### 安装准备
+
+* 应用驱动安装请参考[连接器应用驱动安装准备](https://www.taosdata.com/cn/documentation/connector/#应用连接器准备)。
+
 TDengine提供了GO驱动程序`taosSql`. `taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine, 详见`https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go`
 
 ```Go
@@ -684,7 +836,7 @@ import (
     _ "github.com/taosdata/driver-go/taosSql"
 )
 ```
-**建议Go版本是1.13或以上，并开启模块支持：**
+**建议使用Go版本1.13或以上，并开启模块支持：**
 
 ```
 go env -w GO111MODULE=on  
@@ -725,7 +877,15 @@ go env -w GOPROXY=https://goproxy.io,direct
 
 ## Node.js Connector
 
-TDengine 同时也提供了node.js 的连接器。用户可以通过[npm](https://www.npmjs.com/)来进行安装，也可以通过源代码*src/connector/nodejs/* 来进行安装。[具体安装步骤如下](https://github.com/taosdata/tdengine/tree/master/src/connector/nodejs)：
+Node.js连接器支持的系统有：Linux 64/Windows x64
+
+### 安装准备
+
+* 应用驱动安装请参考[连接器应用驱动安装准备](https://www.taosdata.com/cn/documentation/connector/#应用连接器准备)。
+
+### 安装Node.js连接器
+
+用户可以通过[npm](https://www.npmjs.com/)来进行安装，也可以通过源代码*src/connector/nodejs/* 来进行安装。具体安装步骤如下：
 
 首先，通过[npm](https://www.npmjs.com/)安装node.js 连接器.
 
@@ -761,12 +921,39 @@ npm install td2.0-connector
 
 如果在Windows 10 ARM 上使用ARM64 Node.js, 还需添加 "Visual C++ compilers and libraries for ARM64" 和 "Visual  C++ ATL for ARM64".
 
-### 使用方法
+### 示例程序
+
+示例程序源码位于install_directory/examples/nodejs，有：
+
+Node-example.js       		node.js示例源程序
+Node-example-raw.js
+
+
+
+### 安装验证
+
+在安装好TDengine客户端后，使用nodejsChecker.js程序能够验证当前环境是否支持nodejs方式访问Tdengine。
+
+验证方法：
+
+1. 新建安装验证目录，例如：~/tdengine-test，拷贝github上nodejsChecker.js源程序。下载地址：（https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）。
+
+2. 在命令中执行以下命令：
+
+```sh
+npm init -y
+npm install td2.0-connector
+node nodejsChecker.js host=localhost
+```
+
+3. 执行以上步骤后，在命令行会输出nodejs连接Tdengine实例，并执行简答插入和查询的结果。
+
+### Node.js连接器的使用
 
 (http://docs.taosdata.com/node)
 以下是node.js 连接器的一些基本使用方法，详细的使用方法可参考[该文档](http://docs.taosdata.com/node)
 
-#### 连接
+#### 建立连接
 
 使用node.js连接器时，必须先<em>require</em> ```td2.0-connector```，然后使用 ```taos.connect``` 函数。```taos.connect``` 函数必须提供的参数是```host```，其它参数在没有提供的情况下会使用如下的默认值。最后需要初始化```cursor``` 来和TDengine服务端通信 
 
@@ -781,6 +968,26 @@ var cursor = conn.cursor(); // Initializing a new cursor
 ```javascript
 conn.close();
 ```
+
+#### 执行SQL和插入数据
+
+对于DDL语句（例如create database、create table、use等），可以使用cursor的execute方法。代码如下：
+
+```js
+cursor.execute('create database if not exists test;')
+```
+
+以上代码创建了一个名称为test的数据库。对于DDL语句，一般没有返回值，cursor的execute返回值为0。
+
+对于Insert语句，代码如下：
+
+```js
+var affectRows = cursor.execute('insert into test.weather values(now, 22.3, 34);')
+```
+
+execute方法的返回值为该语句影响的行数，上面的sql向test库的weather表中，插入了一条数据，则返回值affectRows为1。
+
+TDengine目前还不支持update和delete语句。
 
 #### 查询
 
@@ -833,7 +1040,4 @@ promise2.then(function(result) {
 [这里](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js)提供了一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例
 
 [这里](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)同样是一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用`cursor`.
-
-
-[4]: https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client
 
