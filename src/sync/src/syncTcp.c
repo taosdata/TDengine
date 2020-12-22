@@ -130,7 +130,7 @@ void *syncAllocateTcpConn(void *param, void *pPeer, int32_t connFd) {
 
   pConn->fd = connFd;
   pConn->pThread = pThread;
-  pConn->ahandle = pPeer;
+  pConn->ahandle = (void *)(((SSyncPeer *)pPeer)->rid);
   pConn->closedByApp = 0;
 
   event.events = EPOLLIN | EPOLLRDHUP;

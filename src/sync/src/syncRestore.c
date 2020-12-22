@@ -351,7 +351,10 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 }
 
 void *syncRestoreData(void *param) {
-  SSyncPeer *pPeer = param;
+  int64_t    rid = (int64_t)param;
+  SSyncPeer *pPeer = syncAcquirePeer(rid);
+  if (pPeer == NULL) return NULL;
+
   SSyncNode *pNode = pPeer->pSyncNode;
 
   taosBlockSIGPIPE();
@@ -382,7 +385,7 @@ void *syncRestoreData(void *param) {
   taosClose(pPeer->syncFd);
   syncCloseRecvBuffer(pNode);
   __sync_fetch_and_sub(&tsSyncNum, 1);
-  syncDecPeerRef(pPeer);
+  syncReleasePeer(pPeer);
 
   return NULL;
 }
