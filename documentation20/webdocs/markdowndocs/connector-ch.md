@@ -9,13 +9,13 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 | **CPU**     | **X64   64bit** | **X64   64bit** | **X64   64bit** | **X86   32bit** | **ARM64** | **ARM32** | **MIPS   龙芯** | **Alpha   申威** | **X64   海光** |
 | ----------- | --------------- | --------------- | --------------- | --------------- | --------- | --------- | --------------- | ---------------- | -------------- |
 | **OS**      | **Linux**       | **Win64**       | **Win32**       | **Win32**       | **Linux** | **Linux** | **Linux**       | **Linux**        | **Linux**      |
-| **C/C++**   | ●               | ●               | ●               | ○               | ●         | ●         | ●               | ●                | ●              |
-| **JDBC**    | ●               | ●               | ●               | ○               | ●         | ●         | ●               | ●                | ●              |
-| **Python**  | ●               | ●               | ●               | ○               | ●         | ●         | ●               | --               | ●              |
+| **C/C++**   | ●               | ●               | ●               | ○               | ●         | ●         | ○               | ○                | ○              |
+| **JDBC**    | ●               | ●               | ●               | ○               | ●         | ●         | ○               | ○                | ○              |
+| **Python**  | ●               | ●               | ●               | ○               | ●         | ●         | ○               | --               | ○              |
 | **Go**      | ●               | ●               | ●               | ○               | ●         | ●         | ○               | --               | --             |
 | **NodeJs**  | ●               | ●               | ○               | ○               | ●         | ●         | ○               | --               | --             |
 | **C#**      | ○               | ●               | ●               | ○               | ○         | ○         | ○               | --               | --             |
-| **RESTful** | ●               | ●               | ●               | ●               | ●         | ●         | ●               | ●                | ●              |
+| **RESTful** | ●               | ●               | ●               | ●               | ●         | ●         | ○               | ○                | ○              |
 
 其中 ● 表示经过官方测试验证， ○ 表示非官方测试验证。
 
@@ -25,21 +25,9 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 * 所有执行 SQL 语句的 API，例如 C/C++ Connector 中的 `tao_query`、`taos_query_a`、`taos_subscribe` 等，以及其它语言中与它们对应的API，每次都只能执行一条 SQL 语句，如果实际参数中包含了多条语句，它们的行为是未定义的。
 * 升级到TDengine到2.0.8.0版本的用户，必须更新JDBC连接TDengine必须升级taos-jdbcdriver到2.0.12及以上。
 
-## 连接器应用驱动安装准备
+## 安装连接器驱动步骤
 
-服务器已安装TDengine服务端安装包，如下：
-
-- TDengine-server-2.x.x.x-Linux-x64.tar.gz      
-- TDengine-server-2.x.x.x-Linux-aarch64.tar.gz
-
-**用户获得的应用驱动的安装包如下：**
-
-- TDengine-client-2.x.x.x-Linux-x64.tar.gz
-- TDengine-client-2.x.x.x-Windows-x64.exe
-- TDengine-client-2.x.x.x-Windows-x86.exe
-- TDengine-client-2.x.x.x-Linux-aarch64.tar.gz
-
-
+服务器应该已经安装TDengine服务端安装包。连接器驱动安装步骤如下：
 
 **Linux**
 
@@ -47,9 +35,9 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 * X64硬件环境：TDengine-client-2.x.x.x-Linux-x64.tar.gz
 
-* AARCH64硬件环境：TDengine-client-2.x.x.x-Linux-aarch64.tar.gz
+* ARM64硬件环境：TDengine-client-2.x.x.x-Linux-aarch64.tar.gz
 
-* AARCH32硬件环境：TDengine-client-2.x.x.x-Linux-aarch32.tar.gz
+* ARM32硬件环境：TDengine-client-2.x.x.x-Linux-aarch32.tar.gz
 
 **2.   解压缩软件包**
 
@@ -77,7 +65,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 **提示： 如本机没有部署TDengine服务，仅安装了应用驱动，则taos.cfg中仅需配置firstEP，无需配置FQDN。**
 
- 
+
 
 **Windows x64/x86**
 
@@ -158,7 +146,7 @@ taos>
 
 **C/C++连接器支持的系统有**： 
 
-| **CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32    |
+| **CPU类型**  | x64（64bit） |          |          | ARM64    | ARM32      |
 | ------------ | ------------ | -------- | -------- | -------- | ---------- |
 | **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux      |
 | **支持与否** | **支持**     | **支持** | **支持** | **支持** | **开发中** |
@@ -175,6 +163,8 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 * 在编译时需要链接TDengine动态库。Linux 为 *libtaos.so* ，安装后，位于 _/usr/local/taos/driver_。Windows为 taos.dll，安装后位于  *C:\TDengine*。
 * 如未特别说明，当API的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
+
+使用C/C++连接器的示例代码请参见 https://github.com/taosdata/TDengine/tree/develop/tests/examples/c。
 
 
 ### 基础API
@@ -443,7 +433,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 ## Python Connector
 
 ### 安装准备
-* 应用驱动安装请参考[连接器应用驱动安装准备](https://www.taosdata.com/cn/documentation/connector/#应用连接器准备)。
+* 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector/#安装连接器驱动步骤)。
 * 已安装python 2.7 or >= 3.4
 * 已安装pip 或 pip3
 
@@ -782,7 +772,7 @@ C#连接器支持的系统有：Linux 64/Windows x64/Windows x86
 
 ### 安装准备
 
-* 应用驱动安装请参考[连接器应用驱动安装准备](https://www.taosdata.com/cn/documentation/connector/#应用连接器准备)。
+* 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector/#安装连接器驱动步骤)。
 * .NET接口文件﻿TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
 * 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
 
@@ -826,9 +816,11 @@ https://www.taosdata.com/blog/2020/11/02/1901.html
 
 ### 安装准备
 
-* 应用驱动安装请参考[连接器应用驱动安装准备](https://www.taosdata.com/cn/documentation/connector/#应用连接器准备)。
+* 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector/#安装连接器驱动步骤)。
 
-TDengine提供了GO驱动程序`taosSql`. `taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine, 详见`https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go`
+TDengine提供了GO驱动程序`taosSql`。 `taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine, 详见`https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go`。
+
+使用 Go 连接器的示例代码请参考 https://github.com/taosdata/TDengine/tree/develop/tests/examples/go。
 
 ```Go
 import (
@@ -838,7 +830,7 @@ import (
 ```
 **建议使用Go版本1.13或以上，并开启模块支持：**
 
-```
+```bash
 go env -w GO111MODULE=on  
 go env -w GOPROXY=https://goproxy.io,direct  
 ```
@@ -877,11 +869,16 @@ go env -w GOPROXY=https://goproxy.io,direct
 
 ## Node.js Connector
 
-Node.js连接器支持的系统有：Linux 64/Windows x64
+Node.js连接器支持的系统有：
+
+| **CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32  |
+| ------------ | ------------ | -------- | -------- | -------- | -------- |
+| **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux    |
+| **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
 
 ### 安装准备
 
-* 应用驱动安装请参考[连接器应用驱动安装准备](https://www.taosdata.com/cn/documentation/connector/#应用连接器准备)。
+* 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector/#安装连接器驱动步骤)。
 
 ### 安装Node.js连接器
 
@@ -940,7 +937,7 @@ Node-example-raw.js
 
 2. 在命令中执行以下命令：
 
-```sh
+```bash
 npm init -y
 npm install td2.0-connector
 node nodejsChecker.js host=localhost
