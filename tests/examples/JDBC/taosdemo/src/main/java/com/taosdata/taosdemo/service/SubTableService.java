@@ -63,7 +63,7 @@ public class SubTableService extends AbstractService {
 
     // 插入: 多表，insert into xxx values(),()... xxx values(),()...
     public int insert(List<SubTableValue> subTableValues) {
-        return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
+        return mapper.insertMultiTableMultiValues(subTableValues);
     }
 
     // 插入：单表，自动建表, insert into xxx using xxx tags(...) values(),()...

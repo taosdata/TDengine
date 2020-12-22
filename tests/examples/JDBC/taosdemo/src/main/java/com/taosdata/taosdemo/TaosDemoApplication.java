@@ -79,7 +79,7 @@ public class TaosDemoApplication {
         // 插入
         long tableSize = config.numOfTables;
         int threadSize = config.numOfThreadsForInsert;
-        long startTime = getProperStartTime(config);
+        long startTime = getProperStartTime(config.startTime, config.keep);
 
         if (tableSize < threadSize)
             threadSize = (int) tableSize;
@@ -98,10 +98,9 @@ public class TaosDemoApplication {
         System.exit(0);
     }
 
-    private static long getProperStartTime(JdbcTaosdemoConfig config) {
+    private static long getProperStartTime(long startTime, int keep) {
         Instant now = Instant.now();
-        long earliest = now.minus(Duration.ofDays(config.keep)).toEpochMilli();
-        long startTime = config.startTime;
+        long earliest = now.minus(Duration.ofDays(keep)).toEpochMilli();
         if (startTime == 0 || startTime < earliest) {
             startTime = earliest;
         }
