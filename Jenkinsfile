@@ -40,14 +40,15 @@ def pre_test(){
     sh '''
     
     cd ${WKC}
-    rm -rf *
+    git checkout develop
+    git pull
+    git fetch
+    git checkout ${CHANGE_BRANCH}
+    git merge develop
     cd ${WK}
     git reset --hard
     git checkout develop
     git pull
-    cd ${WKC}
-    rm -rf *
-    mv ${WORKSPACE}/* .
     cd ${WK}
     export TZ=Asia/Harbin
     date
