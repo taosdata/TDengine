@@ -48,7 +48,7 @@ public class SqlSpeller {
         sb.append("create table if not exists ").append(subTableMeta.getDatabase()).append(".").append(subTableMeta.getName()).append(" ");
         sb.append("using ").append(subTableMeta.getDatabase()).append(".").append(subTableMeta.getSupertable()).append(" ");
         String tagStr = subTableMeta.getTags().stream().filter(Objects::nonNull)
-                .map(tagValue -> tagValue.getName() + " " + tagValue.getValue() + " ")
+                .map(tagValue -> tagValue.getName() + " '" + tagValue.getValue() + "' ")
                 .collect(Collectors.joining(",", "(", ")"));
         sb.append("tags ").append(tagStr);
         return sb.toString();

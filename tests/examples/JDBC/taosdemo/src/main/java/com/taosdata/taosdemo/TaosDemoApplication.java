@@ -35,10 +35,10 @@ public class TaosDemoApplication {
             System.exit(0);
         }
 
-        DataSource dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user, config.password);
-        DatabaseService databaseService = new DatabaseService(dataSource);
-        SuperTableService superTableService = new SuperTableService(dataSource);
-        SubTableService subTableService = new SubTableService(dataSource);
+        final DataSource dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user, config.password);
+        final DatabaseService databaseService = new DatabaseService(dataSource);
+        final SuperTableService superTableService = new SuperTableService(dataSource);
+        final SubTableService subTableService = new SubTableService(dataSource);
 
         // 创建数据库
         long start = System.currentTimeMillis();
@@ -85,7 +85,7 @@ public class TaosDemoApplication {
         start = System.currentTimeMillis();
         if (config.doCreateTable) {
             superTableService.create(superTableMeta);
-            if (!config.autoCreateTable){
+            if (!config.autoCreateTable) {
                 // 批量建子表
                 subTableService.createSubTable(superTableMeta, config.numOfTables, config.prefixOfTable, config.numOfThreadsForCreate);
             }
