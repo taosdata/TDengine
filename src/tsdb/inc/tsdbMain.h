@@ -66,10 +66,8 @@ typedef struct STable {
   SSkipList*     pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
   void*          eventHandler;   // TODO
   void*          streamHandler;  // TODO
-  union {
-    TSKEY    lastKey;
-    SDataRow lastRow;
-  };
+  TSKEY          lastKey;
+  SDataRow       lastRow;
   char*          sql;
   void*          cqhandle;
   SRWLatch       latch;  // TODO: implementa latch functions
@@ -439,16 +437,9 @@ static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {
   }
 }
 
-static FORCE_INLINE TSKEY tsdbGetTableLastKeyImpl(STable* pTable, bool cacheLastRow) {
-  if (cacheLastRow) {
-    if (pTable->lastRow == NULL) {
-      return TSKEY_INITIAL_VAL;
-    } else {
-      return dataRowKey(pTable->lastRow);
-    }
-  } else {
-    return pTable->lastKey;
-  }
+static FORCE_INLINE TSKEY tsdbGetTableLastKeyImpl(STable* pTable) {
+  ASSERT(pTable->lastRow == NULL || pTable->lastKey == dataRowKey(pTable->lastRow));
+  return pTable->lastKey;
 }
 
 // ------------------ tsdbBuffer.c

@@ -664,7 +664,7 @@ static int tsdbCopyRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable, void
       return -1;
     }
 
-    TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable, pCfg->cacheLastRow);
+    TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable);
     if (key > lastKey) {
       tsdbTrace("vgId:%d skip to delete row key %" PRId64 " which is larger than table lastKey %" PRId64,
                 REPO_ID(pRepo), key, lastKey);
@@ -898,8 +898,9 @@ static void tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter) {
 static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow row) {
   STsdbCfg *pCfg = &pRepo->config;
 
-  if (tsdbGetTableLastKeyImpl(pTable, pCfg->cacheLastRow) < dataRowKey(row)) {
-    if (pCfg->cacheLastRow) {
+  if (tsdbGetTableLastKeyImpl(pTable) < dataRowKey(row)) {
+    pTable->lastKey = dataRowKey(row);
+    if (pCfg->cacheLastRow || pTable->lastRow != NULL) {
       SDataRow nrow = pTable->lastRow;
       if (taosTSizeof(nrow) < dataRowLen(row)) {
         SDataRow orow = nrow;
@@ -919,8 +920,6 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow 
         dataRowCpy(nrow, row);
         TSDB_WUNLOCK_TABLE(pTable);
       }
-    } else {
-      pTable->lastKey = dataRowKey(row);
     }
   }
 
