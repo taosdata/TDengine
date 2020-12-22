@@ -134,7 +134,8 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
 
   SVnodeLoad *pLoad = &pStatus->load[pStatus->openVnodes++];
   pLoad->vgId = htonl(pVnode->vgId);
-  pLoad->cfgVersion = htonl(pVnode->cfgVersion);
+  pLoad->dbCfgVersion = htonl(pVnode->dbCfgVersion);
+  pLoad->vgCfgVersion = htonl(pVnode->vgCfgVersion);
   pLoad->totalStorage = htobe64(totalStorage);
   pLoad->compStorage = htobe64(compStorage);
   pLoad->pointsWritten = htobe64(pointsWritten);

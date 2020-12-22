@@ -256,6 +256,8 @@ SVgObj *mnodeGetVgroup(int32_t vgId) {
 }
 
 void mnodeUpdateVgroup(SVgObj *pVgroup) {
+  pVgroup->vgCfgVersion++;
+
   SSdbRow row = {
     .type   = SDB_OPER_GLOBAL,
     .pTable = tsVgroupSdb,
@@ -339,10 +341,11 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
     pVgroup->pointsWritten = htobe64(pVload->pointsWritten);
   }
 
-  if (pVload->cfgVersion != pVgroup->pDb->cfgVersion || pVload->replica != pVgroup->numOfVnodes) {
-    mError("dnode:%d, vgId:%d, vnode cfgVersion:%d repica:%d not match with mnode cfgVersion:%d replica:%d",
-           pDnode->dnodeId, pVload->vgId, pVload->cfgVersion, pVload->replica, pVgroup->pDb->cfgVersion,
-           pVgroup->numOfVnodes);
+  if (pVload->dbCfgVersion != pVgroup->pDb->dbCfgVersion || pVload->replica != pVgroup->numOfVnodes ||
+      pVload->vgCfgVersion != pVgroup->vgCfgVersion) {
+    mError("dnode:%d, vgId:%d, vnode cfgVersion:%d:%d repica:%d not match with mnode cfgVersion:%d:%d replica:%d",
+           pDnode->dnodeId, pVload->vgId, pVload->dbCfgVersion, pVload->vgCfgVersion, pVload->replica,
+           pVgroup->pDb->dbCfgVersion, pVgroup->vgCfgVersion, pVgroup->numOfVnodes);
     mnodeSendAlterVgroupMsg(pVgroup);
   }
 }
@@ -840,7 +843,8 @@ static SCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
 
   SVnodeCfg *pCfg = &pVnode->cfg;
   pCfg->vgId                = htonl(pVgroup->vgId);
-  pCfg->cfgVersion          = htonl(pDb->cfgVersion);
+  pCfg->dbCfgVersion        = htonl(pDb->dbCfgVersion);
+  pCfg->vgCfgVersion        = htonl(pVgroup->vgCfgVersion);
   pCfg->cacheBlockSize      = htonl(pDb->cfg.cacheBlockSize);
   pCfg->totalBlocks         = htonl(pDb->cfg.totalBlocks);
   pCfg->maxTables           = htonl(maxTables + 1);
