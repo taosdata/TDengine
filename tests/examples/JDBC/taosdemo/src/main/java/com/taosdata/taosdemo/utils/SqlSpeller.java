@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class SqlSpeller {
 
@@ -64,10 +65,18 @@ public class SqlSpeller {
 
     //f1, f2, f3
     private static String fieldValues(List<FieldValue> fields) {
-        return fields.stream()
-                .filter(Objects::nonNull)
-                .map(fieldValue -> "'" + fieldValue.getValue() + "'")
-                .collect(Collectors.joining(",", "(", ")"));
+        return IntStream.range(0, fields.size()).mapToObj(i -> {
+            if (i == 0) {
+                return "" + fields.get(i).getName() + "";
+            } else {
+                return "'" + fields.get(i).getValue() + "'";
+            }
+        }).collect(Collectors.joining(",", "(", ")"));
+
+//        return fields.stream()
+//                .filter(Objects::nonNull)
+//                .map(fieldValue -> "'" + fieldValue.getValue() + "'")
+//                .collect(Collectors.joining(",", "(", ")"));
     }
 
     //(f1, f2, f3),(f1, f2, f3)
