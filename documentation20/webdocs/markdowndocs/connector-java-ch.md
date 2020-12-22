@@ -1,8 +1,8 @@
-#  Java Connector
+# Java Connector
 
 **Java连接器支持的系统有：**
 
-| **CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32  |
+| **CPU类型**  | x64（64bit） |          |          | ARM64  | ARM32  |
 | ------------ | ------------ | -------- | -------- | -------- | -------- |
 | **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux    |
 | **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
@@ -229,7 +229,7 @@ TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from met
 * sql：订阅的查询语句，此语句只能是 `select` 语句，只应查询原始数据，只能按时间正序查询数据
 * restart：如果订阅已经存在，是重新开始，还是继续之前的订阅
 
-如上面的例子将使用 SQL 语句 `select * from meters` 创建一个名为 `topic' 的订阅，如果这个订阅已经存在，将继续之前的查询进度，而不是从头开始消费所有的数据。
+如上面的例子将使用 SQL 语句 `select * from meters` 创建一个名为 `topic` 的订阅，如果这个订阅已经存在，将继续之前的查询进度，而不是从头开始消费所有的数据。
 
 #### 消费数据
 
