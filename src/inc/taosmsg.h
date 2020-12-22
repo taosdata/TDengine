@@ -548,7 +548,8 @@ typedef struct {
   int8_t   quorum;
   int8_t   ignoreExist;
   int8_t   update;
-  int8_t   reserve[9];
+  int8_t   cacheLastRow;
+  int8_t   reserve[8];
 } SCreateDbMsg, SAlterDbMsg;
 
 typedef struct {
@@ -660,7 +661,8 @@ typedef struct {
   int8_t   wals;
   int8_t   quorum;
   int8_t   update;
-  int8_t   reserved[15];
+  int8_t   cacheLastRow;
+  int8_t   reserved[14];
 } SVnodeCfg;
 
 typedef struct {

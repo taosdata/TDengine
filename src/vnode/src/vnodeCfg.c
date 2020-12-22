@@ -33,6 +33,7 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   pVnode->tsdbCfg.maxRowsPerFileBlock = vnodeMsg->cfg.maxRowsPerFileBlock;
   pVnode->tsdbCfg.precision = vnodeMsg->cfg.precision;
   pVnode->tsdbCfg.compression = vnodeMsg->cfg.compression;
+  pVnode->tsdbCfg.cacheLastRow = vnodeMsg->cfg.cacheLastRow;
   pVnode->walCfg.walLevel = vnodeMsg->cfg.walLevel;
   pVnode->walCfg.fsyncPeriod = vnodeMsg->cfg.fsyncPeriod;
   pVnode->walCfg.keep = TAOS_WAL_NOT_KEEP;
@@ -207,6 +208,13 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   vnodeMsg.cfg.quorum = (int8_t)quorum->valueint;
 
+  cJSON *cacheLastRow = cJSON_GetObjectItem(root, "cacheLastRow");
+  if (!cacheLastRow || cacheLastRow->type != cJSON_Number) {
+    vError("vgId: %d, failed to read %s, cacheLastRow not found", pVnode->vgId, file);
+    goto PARSE_VCFG_ERROR;
+  }
+  vnodeMsg.cfg.cacheLastRow = (int8_t)cacheLastRow->valueint;
+
   cJSON *nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {
     vError("vgId:%d, failed to read %s, nodeInfos not found", pVnode->vgId, file);
@@ -294,6 +302,7 @@ int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
   len += snprintf(content + len, maxLen - len, "  \"replica\": %d,\n", pMsg->cfg.replications);
   len += snprintf(content + len, maxLen - len, "  \"wals\": %d,\n", pMsg->cfg.wals);
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pMsg->cfg.quorum);
+  len += snprintf(content + len, maxLen - len, "  \"cacheLastRow\": %d,\n", pMsg->cfg.cacheLastRow);
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
   for (int32_t i = 0; i < pMsg->cfg.replications; i++) {
     SVnodeDesc *node = &pMsg->nodes[i];

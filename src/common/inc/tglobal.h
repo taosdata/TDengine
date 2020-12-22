@@ -94,6 +94,7 @@ extern int32_t tsFsyncPeriod;
 extern int32_t tsReplications;
 extern int32_t tsQuorum;
 extern int32_t tsUpdate;
+extern int32_t tsCacheLastRow;
 
 // balance
 extern int32_t tsEnableBalance;

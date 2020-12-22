@@ -322,6 +322,11 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
+  if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) {
+    mError("invalid db option cacheLastRow:%d valid range: [%d, %d]", pCfg->cacheLastRow, TSDB_MIN_DB_CACHE_LAST_ROW, TSDB_MAX_DB_CACHE_LAST_ROW);
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -343,6 +348,7 @@ static void mnodeSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->replications < 0) pCfg->replications = tsReplications;
   if (pCfg->quorum < 0) pCfg->quorum = tsQuorum;
   if (pCfg->update < 0) pCfg->update = tsUpdate;
+  if (pCfg->cacheLastRow < 0) pCfg->cacheLastRow = tsCacheLastRow;
 }
 
 static int32_t mnodeCreateDbCb(SMnodeMsg *pMsg, int32_t code) {
@@ -396,7 +402,8 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
     .walLevel            = pCreate->walLevel,
     .replications        = pCreate->replications,
     .quorum              = pCreate->quorum,
-    .update              = pCreate->update
+    .update              = pCreate->update,
+    .cacheLastRow        = pCreate->cacheLastRow
   };
 
   mnodeSetDefaultDbCfg(&pDb->cfg);
@@ -750,6 +757,10 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
       *(int8_t *)pWrite = pDb->cfg.compression;
       cols++;
+
+      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      *(int8_t *)pWrite = pDb->cfg.cacheLastRow;
+      cols++;
 #ifndef __CLOUD_VERSION__
     }
 #endif
@@ -864,6 +875,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   int8_t  quorum         = pAlter->quorum;
   int8_t  precision      = pAlter->precision;
   int8_t  update         = pAlter->update;
+  int8_t  cacheLastRow   = pAlter->cacheLastRow;
   
   terrno = TSDB_CODE_SUCCESS;
 
@@ -974,6 +986,11 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
     mError("db:%s, can't alter update option", pDb->name);
     terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
 #endif
+  }
+
+  if (cacheLastRow >= 0 && cacheLastRow != pDb->cfg.cacheLastRow) {
+    mDebug("db:%s, cacheLastRow:%d change to %d", pDb->name, pDb->cfg.cacheLastRow, cacheLastRow);
+    newCfg.cacheLastRow = cacheLastRow;
   }
 
   return newCfg;
