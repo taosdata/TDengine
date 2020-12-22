@@ -33,7 +33,7 @@ function runSimCaseOneByOnefq {
       start_time=`date +%s`
       ./test.sh -f $case > /dev/null 2>&1 && \
         echo -e "${GREEN}$case success${NC}" | tee -a out.log || \
-        grep 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN}$case success${NC}" | tee -a out.log || echo -e "${RED}$case failed${NC}" | tee -a out.log
+        ( grep 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN}$case success${NC}" | tee -a out.log ) || echo -e "${RED}$case failed${NC}" | tee -a out.log
         
 
       out_log=`tail -1 out.log  `
