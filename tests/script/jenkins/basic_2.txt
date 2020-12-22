@@ -80,7 +80,7 @@ cd ../../../debug; make
 ./test.sh -f unique/db/replica_reduce21.sim
 ./test.sh -f unique/db/replica_reduce32.sim
 ./test.sh -f unique/db/replica_reduce31.sim
-./test.sh -f unique/db/replica_part.sim
+#./test.sh -f unique/db/replica_part.sim
 
 ./test.sh -f unique/vnode/many.sim
 ./test.sh -f unique/vnode/replica2_basic2.sim
