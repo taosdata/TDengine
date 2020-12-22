@@ -206,7 +206,7 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
           magic = pFile->info.magic;
           char *tfname = strdup(fname);
           sprintf(name, "tsdb/%s/%s", TSDB_DATA_DIR_NAME, basename(tfname));
-          tfree(tfname)
+          tfree(tfname);
         } else {
           return 0;
         }
