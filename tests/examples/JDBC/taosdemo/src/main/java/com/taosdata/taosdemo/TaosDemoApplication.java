@@ -1,32 +1,27 @@
 package com.taosdata.taosdemo;
 
 import com.taosdata.taosdemo.components.DataSourceFactory;
-import com.taosdata.taosdemo.domain.FieldMeta;
+import com.taosdata.taosdemo.components.JdbcTaosdemoConfig;
 import com.taosdata.taosdemo.domain.SuperTableMeta;
-import com.taosdata.taosdemo.domain.TagMeta;
 import com.taosdata.taosdemo.service.DatabaseService;
-import com.taosdata.taosdemo.service.InsertTask;
 import com.taosdata.taosdemo.service.SubTableService;
 import com.taosdata.taosdemo.service.SuperTableService;
 import com.taosdata.taosdemo.service.data.SuperTableMetaGenerator;
-import com.taosdata.taosdemo.components.JdbcTaosdemoConfig;
 import org.apache.log4j.Logger;
 
 import javax.sql.DataSource;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.*;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 public class TaosDemoApplication {
+
     private static Logger logger = Logger.getLogger(TaosDemoApplication.class);
 
     public static void main(String[] args) throws IOException {
-
         // 读配置参数
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
         boolean isHelp = Arrays.asList(args).contains("--help");
@@ -34,12 +29,11 @@ public class TaosDemoApplication {
             JdbcTaosdemoConfig.printHelp();
             System.exit(0);
         }
-
+        // 初始化
         final DataSource dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user, config.password);
         final DatabaseService databaseService = new DatabaseService(dataSource);
         final SuperTableService superTableService = new SuperTableService(dataSource);
         final SubTableService subTableService = new SubTableService(dataSource);
-
         // 创建数据库
         long start = System.currentTimeMillis();
         Map<String, String> databaseParam = new HashMap<>();
@@ -54,7 +48,7 @@ public class TaosDemoApplication {
         long end = System.currentTimeMillis();
         logger.info(">>> create database time cost : " + (end - start) + " ms.");
         /**********************************************************************************/
-        // 超级表的meta
+        // 构造超级表的meta
         SuperTableMeta superTableMeta;
         // create super table
         if (config.superTableSQL != null) {
@@ -63,19 +57,8 @@ public class TaosDemoApplication {
             if (config.database != null && !config.database.isEmpty())
                 superTableMeta.setDatabase(config.database);
         } else if (config.numOfFields == 0) {
-            // default sql = "create table test.weather (ts timestamp, temperature float, humidity int) tags(location nchar(64), groupId int)";
-            superTableMeta = new SuperTableMeta();
-            superTableMeta.setDatabase(config.database);
-            superTableMeta.setName(config.superTable);
-            List<FieldMeta> fields = new ArrayList<>();
-            fields.add(new FieldMeta("ts", "timestamp"));
-            fields.add(new FieldMeta("temperature", "float"));
-            fields.add(new FieldMeta("humidity", "int"));
-            superTableMeta.setFields(fields);
-            List<TagMeta> tags = new ArrayList<>();
-            tags.add(new TagMeta("location", "nchar(64)"));
-            tags.add(new TagMeta("groupId", "int"));
-            superTableMeta.setTags(tags);
+            String sql = "create table " + config.database + "." + config.superTable + " (ts timestamp, temperature float, humidity int) tags(location nchar(64), groupId int)";
+            superTableMeta = SuperTableMetaGenerator.generate(sql);
         } else {
             // create super table with specified field size and tag size
             superTableMeta = SuperTableMetaGenerator.generate(config.database, config.superTable, config.numOfFields, config.prefixOfFields, config.numOfTags, config.prefixOfTags);
@@ -104,43 +87,7 @@ public class TaosDemoApplication {
 
         start = System.currentTimeMillis();
         // multi threads to insert
-        List<FutureTask> taskList = new ArrayList<>();
-        List<Thread> threads = IntStream.range(0, threadSize)
-                .mapToObj(i -> {
-                    long startInd = i * gap;
-                    long endInd = (i + 1) * gap < tableSize ? (i + 1) * gap : tableSize;
-                    FutureTask<Integer> task = new FutureTask<>(
-                            new InsertTask(superTableMeta,
-                                    startInd, endInd,
-                                    startTime, config.timeGap,
-                                    config.numOfRowsPerTable, config.numOfTablesPerSQL, config.numOfValuesPerSQL,
-                                    config.order, config.rate, config.range,
-                                    config.prefixOfTable, config.autoCreateTable, dataSource)
-                    );
-                    taskList.add(task);
-                    return new Thread(task, "InsertThread-" + i);
-                }).collect(Collectors.toList());
-
-        threads.stream().forEach(Thread::start);
-        for (Thread thread : threads) {
-            try {
-                thread.join();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-        }
-
-        int affectedRows = 0;
-        for (FutureTask<Integer> task : taskList) {
-            try {
-                affectedRows += task.get();
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            } catch (ExecutionException e) {
-                e.printStackTrace();
-            }
-        }
-
+        int affectedRows = subTableService.insertAutoCreateTable(superTableMeta, threadSize, tableSize, startTime, gap, config);
         end = System.currentTimeMillis();
         logger.info("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
         /**********************************************************************************/
