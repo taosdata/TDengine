@@ -330,7 +330,7 @@ void bnReset() {
   tsAccessSquence = 0;
 }
 
-static int32_t bnMonitorVgroups() {
+static bool bnMonitorVgroups() {
   void *  pIter = NULL;
   SVgObj *pVgroup = NULL;
   bool    hasUpdatingVgroup = false;

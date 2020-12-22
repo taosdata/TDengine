@@ -31,7 +31,10 @@ static void *bnThreadFunc(void *arg) {
     }
 
     pthread_cond_wait(&tsBnThread.cond, &tsBnThread.mutex);
+    mDebug("balance thread wakes up to work");
     bool updateSoon = bnStart();
+    mDebug("balance thread finished this poll, updateSoon:%d", updateSoon);
+    
     bnStartTimer(updateSoon ? 1000 : -1);
     pthread_mutex_unlock(&(tsBnThread.mutex));
   }
