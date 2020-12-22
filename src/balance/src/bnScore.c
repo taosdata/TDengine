@@ -299,7 +299,7 @@ static int32_t bnRetrieveScores(SShowObj *pShow, char *data, int32_t rows, void 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, mnodeGetDnodeStatusStr(pDnode->status));
+    STR_TO_VARSTR(pWrite, dnodeStatus[pDnode->status]);
     cols++;
 
     numOfRows++;

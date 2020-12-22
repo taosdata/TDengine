@@ -44,7 +44,7 @@ static void bnUnLock() {
 
 static bool bnCheckFree(SDnodeObj *pDnode) {
   if (pDnode->status == TAOS_DN_STATUS_DROPPING || pDnode->status == TAOS_DN_STATUS_OFFLINE) {
-    mError("dnode:%d, status:%s not available", pDnode->dnodeId, mnodeGetDnodeStatusStr(pDnode->status));
+    mError("dnode:%d, status:%s not available", pDnode->dnodeId, dnodeStatus[pDnode->status]);
     return false;
   }
   
@@ -92,13 +92,12 @@ static void bnDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
 }
 
 static void bnSwapVnodeGid(SVnodeGid *pVnodeGid1, SVnodeGid *pVnodeGid2) {
-  // SVnodeGid tmp = *pVnodeGid1;
-  // *pVnodeGid1 = *pVnodeGid2;
-  // *pVnodeGid2 = tmp;
+  SVnodeGid tmp = *pVnodeGid1;
+  *pVnodeGid1 = *pVnodeGid2;
+  *pVnodeGid2 = tmp;
 }
 
 int32_t bnAllocVnodes(SVgObj *pVgroup) {
-  static int32_t randIndex = 0;
   int32_t dnode = 0;
   int32_t vnodes = 0;
 
@@ -120,8 +119,7 @@ int32_t bnAllocVnodes(SVgObj *pVgroup) {
         break;
       } else {
         mDebug("dnode:%d, is not selected, status:%s vnodes:%d disk:%fGB role:%d", pDnode->dnodeId,
-               mnodeGetDnodeStatusStr(pDnode->status), pDnode->openVnodes, pDnode->diskAvailable,
-               pDnode->alternativeRole);
+               dnodeStatus[pDnode->status], pDnode->openVnodes, pDnode->diskAvailable, pDnode->alternativeRole);
       }
     }
   }
@@ -137,7 +135,7 @@ int32_t bnAllocVnodes(SVgObj *pVgroup) {
     while (1) {
       pIter = mnodeGetNextDnode(pIter, &pDnode);
       if (pDnode == NULL) break;
-      mDebug("dnode:%d, status:%s vnodes:%d disk:%fGB role:%d", pDnode->dnodeId, mnodeGetDnodeStatusStr(pDnode->status),
+      mDebug("dnode:%d, status:%s vnodes:%d disk:%fGB role:%d", pDnode->dnodeId, dnodeStatus[pDnode->status],
              pDnode->openVnodes, pDnode->diskAvailable, pDnode->alternativeRole);
       mnodeDecDnodeRef(pDnode);
     }
@@ -147,36 +145,6 @@ int32_t bnAllocVnodes(SVgObj *pVgroup) {
     } else {
       return TSDB_CODE_MND_NO_ENOUGH_DNODES;
     }
-  }
-
-  /*
-   * make the choice more random.
-   * replica 1: no choice
-   * replica 2: there are 2 combinations
-   * replica 3 or larger: there are 6 combinations
-   */
-  if (pVgroup->numOfVnodes == 1) {
-  } else if (pVgroup->numOfVnodes == 2) {
-    if (randIndex++ % 2 == 0) {
-      bnSwapVnodeGid(pVgroup->vnodeGid, pVgroup->vnodeGid + 1);
-    }
-  } else {
-    int32_t randVal = randIndex++ % 6;
-    if (randVal == 1) {  // 1, 0, 2
-      bnSwapVnodeGid(pVgroup->vnodeGid + 0, pVgroup->vnodeGid + 1);
-    } else if (randVal == 2) {  // 1, 2, 0
-      bnSwapVnodeGid(pVgroup->vnodeGid + 0, pVgroup->vnodeGid + 1);
-      bnSwapVnodeGid(pVgroup->vnodeGid + 1, pVgroup->vnodeGid + 2);
-    } else if (randVal == 3) {  // 2, 1, 0
-      bnSwapVnodeGid(pVgroup->vnodeGid + 0, pVgroup->vnodeGid + 2);
-    } else if (randVal == 4) {  // 2, 0, 1
-      bnSwapVnodeGid(pVgroup->vnodeGid + 0, pVgroup->vnodeGid + 2);
-      bnSwapVnodeGid(pVgroup->vnodeGid + 1, pVgroup->vnodeGid + 2);
-    }
-    if (randVal == 5) {  // 0, 2, 1
-      bnSwapVnodeGid(pVgroup->vnodeGid + 1, pVgroup->vnodeGid + 2);
-    } else {
-    }  // 0, 1, 2
   }
 
   bnReleaseDnodes();
@@ -214,44 +182,8 @@ static bool bnCheckVgroupReady(SVgObj *pVgroup, SVnodeGid *pRmVnode) {
 static int32_t bnRemoveVnode(SVgObj *pVgroup) {
   if (pVgroup->numOfVnodes <= 1) return -1;
 
-  SVnodeGid *pRmVnode = NULL;
-  SVnodeGid *pSelVnode = NULL;
-  int32_t    maxScore = 0;
-
-  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
-    SVnodeGid *pVnode = &(pVgroup->vnodeGid[i]);
-    SDnodeObj *pDnode = mnodeGetDnode(pVnode->dnodeId);
-
-    if (pDnode == NULL) {
-      mError("vgId:%d, dnode:%d not exist, remove it", pVgroup->vgId, pVnode->dnodeId);
-      pRmVnode = pVnode;
-      break;
-    }
-
-    if (pDnode->status == TAOS_DN_STATUS_DROPPING) {
-      mDebug("vgId:%d, dnode:%d in dropping state", pVgroup->vgId, pVnode->dnodeId);
-      pRmVnode = pVnode;
-    } else if (pVnode->dnodeId == pVgroup->lbDnodeId) {
-      mDebug("vgId:%d, dnode:%d in updating state", pVgroup->vgId, pVnode->dnodeId);
-      pRmVnode = pVnode;
-    } else {
-      if (pSelVnode == NULL) {
-        pSelVnode = pVnode;
-        maxScore = pDnode->score;
-      } else {
-        if (maxScore < pDnode->score) {
-          pSelVnode = pVnode;
-          maxScore = pDnode->score;
-        }
-      }
-    }
-
-    mnodeDecDnodeRef(pDnode);
-  }
-
-  if (pRmVnode != NULL) {
-    pSelVnode = pRmVnode;
-  }
+  SVnodeGid *pSelVnode = &pVgroup->vnodeGid[pVgroup->numOfVnodes - 1];
+  mDebug("vgId:%d, vnode in dnode:%d will be dropped", pVgroup->vgId, pSelVnode->dnodeId);
 
   if (!bnCheckVgroupReady(pVgroup, pSelVnode)) {
     mDebug("vgId:%d, is not ready", pVgroup->vgId);
@@ -275,36 +207,42 @@ static bool bnCheckDnodeInVgroup(SDnodeObj *pDnode, SVgObj *pVgroup) {
   return false;
 }
 
-/**
- * desc: add vnode to vgroup, find a new one if dest dnode is null
- **/
+static SDnodeObj *bnGetAvailDnode(SVgObj *pVgroup) {
+  for (int32_t i = 0; i < tsBnDnodes.size; ++i) {
+    SDnodeObj *pDnode = tsBnDnodes.list[i];
+    if (bnCheckDnodeInVgroup(pDnode, pVgroup)) continue;
+    if (!bnCheckFree(pDnode)) continue;
+
+    mDebug("vgId:%d, add vnode to dnode:%d", pVgroup->vgId, pDnode->dnodeId);
+    return pDnode;
+  }
+
+  return NULL;
+}
+
 static int32_t bnAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDestDnode) {
-  if (pDestDnode == NULL) {
-    for (int32_t i = 0; i < tsBnDnodes.size; ++i) {
-      SDnodeObj *pDnode = tsBnDnodes.list[i];
-      if (pDnode == pSrcDnode) continue;
-      if (bnCheckDnodeInVgroup(pDnode, pVgroup)) continue;
-      if (!bnCheckFree(pDnode)) continue;
-      
-      pDestDnode = pDnode;
-      mDebug("vgId:%d, add vnode to dnode:%d", pVgroup->vgId, pDnode->dnodeId);
+  if (pDestDnode == NULL || pSrcDnode == pDestDnode) {
+    return TSDB_CODE_MND_DNODE_NOT_EXIST;
+  }
+
+  SVnodeGid vnodeGids[TSDB_MAX_REPLICA];
+  memcpy(&vnodeGids, &pVgroup->vnodeGid, sizeof(SVnodeGid) * TSDB_MAX_REPLICA);
+
+  int32_t numOfVnodes = pVgroup->numOfVnodes;
+  vnodeGids[numOfVnodes].dnodeId = pDestDnode->dnodeId;
+  vnodeGids[numOfVnodes].pDnode = pDestDnode;
+  numOfVnodes++;
+
+  for (int32_t v = 0; v < numOfVnodes; ++v) {
+    if (pSrcDnode != NULL && pSrcDnode->dnodeId == vnodeGids[v].dnodeId) {
+      bnSwapVnodeGid(&vnodeGids[v], &vnodeGids[numOfVnodes - 1]);
+      pVgroup->lbDnodeId = pSrcDnode->dnodeId;
       break;
     }
   }
 
-  if (pDestDnode == NULL) {
-    return TSDB_CODE_MND_DNODE_NOT_EXIST;
-  }
-
-  SVnodeGid *pVnodeGid = pVgroup->vnodeGid + pVgroup->numOfVnodes;
-  pVnodeGid->dnodeId = pDestDnode->dnodeId;
-  pVnodeGid->pDnode = pDestDnode;
-  pVgroup->numOfVnodes++;
-
-  if (pSrcDnode != NULL) {
-    pVgroup->lbDnodeId = pSrcDnode->dnodeId;
-  }
-
+  memcpy(&pVgroup->vnodeGid, &vnodeGids, sizeof(SVnodeGid) * TSDB_MAX_REPLICA);
+  pVgroup->numOfVnodes = numOfVnodes;
   atomic_add_fetch_32(&pDestDnode->openVnodes, 1);
 
   mnodeUpdateVgroup(pVgroup);
@@ -315,16 +253,16 @@ static int32_t bnAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDes
 static bool bnMonitorBalance() {
   if (tsBnDnodes.size < 2) return false;
 
+  mDebug("monitor dnodes for balance, avail:%d", tsBnDnodes.size);
   for (int32_t src = tsBnDnodes.size - 1; src >= 0; --src) {
     SDnodeObj *pDnode = tsBnDnodes.list[src];
-    mDebug("%d-dnode:%d, state:%s, score:%.1f, numOfCores:%d, openVnodes:%d", tsBnDnodes.size - src - 1,
-           pDnode->dnodeId, mnodeGetDnodeStatusStr(pDnode->status), pDnode->score, pDnode->numOfCores,
-           pDnode->openVnodes);
+    mDebug("%d-dnode:%d, state:%s, score:%.1f, cores:%d, vnodes:%d", tsBnDnodes.size - src - 1, pDnode->dnodeId,
+           dnodeStatus[pDnode->status], pDnode->score, pDnode->numOfCores, pDnode->openVnodes);
   }
 
   float scoresDiff = tsBnDnodes.list[tsBnDnodes.size - 1]->score - tsBnDnodes.list[0]->score;
   if (scoresDiff < 0.01) {
-    mDebug("all dnodes:%d is already balanced, scoresDiff:%f", tsBnDnodes.size, scoresDiff);
+    mDebug("all dnodes:%d is already balanced, scoreDiff:%.1f", tsBnDnodes.size, scoresDiff);
     return false;
   }
 
@@ -412,7 +350,13 @@ static int32_t bnMonitorVgroups() {
     } else if (vgReplica < dbReplica) {
       mInfo("vgId:%d, replica:%d numOfVnodes:%d, try add one vnode", pVgroup->vgId, dbReplica, vgReplica);
       hasUpdatingVgroup = true;
-      code = bnAddVnode(pVgroup, NULL, NULL);
+
+      SDnodeObj *pAvailDnode = bnGetAvailDnode(pVgroup);
+      if (pAvailDnode == NULL) {
+        code = TSDB_CODE_MND_DNODE_NOT_EXIST;
+      } else {
+        code = bnAddVnode(pVgroup, NULL, pAvailDnode);
+      }
     }
 
     mnodeDecVgroupRef(pVgroup);
