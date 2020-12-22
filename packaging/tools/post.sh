@@ -422,7 +422,7 @@ function install_service() {
 }
 
 function install_TDengine() {
-    echo -e "${GREEN}Start to install TDEngine...${NC}"
+    echo -e "${GREEN}Start to install TDengine...${NC}"
 
     #install log and data dir , then ln to /usr/local/taos
     ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}
