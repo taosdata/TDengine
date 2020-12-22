@@ -4,7 +4,7 @@ import com.taosdata.taosdemo.utils.TimeStampUtil;
 
 public final class JdbcTaosdemoConfig {
     // instance
-    public String host;                     //host
+    public String host = "master";          //host
     public int port = 6030;                 //port
     public String user = "root";            //user
     public String password = "taosdata";    //password

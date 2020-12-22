@@ -28,7 +28,7 @@ public class DataSourceFactory {
                     else
                         config.setDriverClassName("com.taosdata.jdbc.TSDBDriver");
                     if ("com.taosdata.jdbc.rs.RestfulDriver".equalsIgnoreCase(properties.getProperty("jdbc.driver")))
-                        config.setJdbcUrl("jdbc:TAOS-RS://" + host + ":" + port + "/?charset=UTF-8&locale=en_US.UTF-8&timezone=UTC-8");
+                        config.setJdbcUrl("jdbc:TAOS-RS://" + host + ":6041/?charset=UTF-8&locale=en_US.UTF-8&timezone=UTC-8");
                     else
                         config.setJdbcUrl("jdbc:TAOS://" + host + ":" + port + "/?charset=UTF-8&locale=en_US.UTF-8&timezone=UTC-8");
                     config.setUsername(user);

@@ -57,14 +57,6 @@
             <version>${spring.version}</version>
         </dependency>
 
-        <!-- fastjson -->
-        <dependency>
-            <groupId>com.alibaba</groupId>
-            <artifactId>fastjson</artifactId>
-            <version>1.2.75</version>
-        </dependency>
-
-
         <!-- HikariCP -->
         <dependency>
             <groupId>com.zaxxer</groupId>
@@ -77,6 +69,13 @@
             <artifactId>taos-jdbcdriver</artifactId>
             <version>2.0.15</version>
         </dependency>
+        <!-- fastjson -->
+        <dependency>
+            <groupId>com.alibaba</groupId>
+            <artifactId>fastjson</artifactId>
+            <version>1.2.75</version>
+        </dependency>
+
         <!-- mysql -->
         <dependency>
             <groupId>mysql</groupId>

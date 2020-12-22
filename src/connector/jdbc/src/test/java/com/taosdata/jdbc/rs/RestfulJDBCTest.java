@@ -23,7 +23,6 @@ public class RestfulJDBCTest {
             connection.close();
     }
 
-
     /**
      * 查询所有log.log
      **/

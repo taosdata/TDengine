@@ -25,7 +25,8 @@ public class TaosDemoApplication {
         // 读配置参数
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
         boolean isHelp = Arrays.asList(args).contains("--help");
-        if (isHelp || config.host == null || config.host.isEmpty()) {
+//        if (isHelp || config.host == null || config.host.isEmpty()) {
+        if (isHelp) {
             JdbcTaosdemoConfig.printHelp();
             System.exit(0);
         }
