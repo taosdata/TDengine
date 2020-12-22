@@ -13,10 +13,10 @@ TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API �
 
 * libtaos.so 
     在 linux 系统中成功安装 TDengine 后，依赖的本地函数库 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
-    
+
 * taos.dll
     在 windows 系统中安装完客户端之后，驱动包依赖的 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
-    
+
 > 注意：在 windows 环境开发时需要安装 TDengine 对应的 [windows 客户端][14]，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端][15] 连接远程 TDengine Server。
 
 TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一致，但时序空间数据库与关系对象型数据库服务的对象和技术特征的差异导致 taos-jdbcdriver 并未完全实现 JDBC 标准规范。在使用时需要注意以下几点：
@@ -295,13 +295,13 @@ conn.close();
     config.setValidationTimeout(3000);   //validation query timeout
 
     HikariDataSource ds = new HikariDataSource(config); //create datasource
-    
+
     Connection  connection = ds.getConnection(); // get connection
     Statement statement = connection.createStatement(); // get statement
-    
+
     //query or insert 
     // ...
-    
+
     connection.close(); // put back to conneciton pool
 }
 ```
@@ -343,7 +343,7 @@ public static void main(String[] args) throws Exception {
     properties.put("testWhileIdle","true"); // test connection while idle
     properties.put("testOnBorrow","false"); // don't need while testWhileIdle is true
     properties.put("testOnReturn","false"); // don't need while testWhileIdle is true
-    
+
     //create druid datasource
     DataSource ds = DruidDataSourceFactory.createDataSource(properties);
     Connection  connection = ds.getConnection(); // get connection
@@ -377,15 +377,15 @@ Query OK, 1 row(s) in set (0.000141s)
 ## 常见问题
 
 * java.lang.UnsatisfiedLinkError: no taos in java.library.path
-  
+
   **原因**：程序没有找到依赖的本地函数库 taos。
-  
+
   **解决方法**：windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，linux 下将建立如下软链 ` ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
-  
+
 * java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
-  
+
   **原因**：目前 TDengine 只支持 64 位 JDK。
-  
+
   **解决方法**：重新安装 64 位 JDK。
 
 * 其它问题请参考 [Issues][7]
@@ -400,7 +400,7 @@ Query OK, 1 row(s) in set (0.000141s)
 [8]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
 [9]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
 [10]: https://maven.aliyun.com/mvn/search
-[11]:  https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
+[11]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
 [12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
 [13]: https://www.taosdata.com/cn/documentation20/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
 [14]: https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client
