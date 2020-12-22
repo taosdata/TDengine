@@ -87,7 +87,7 @@ public class TaosDemoApplication {
 
         start = System.currentTimeMillis();
         // multi threads to insert
-        int affectedRows = subTableService.insertAutoCreateTable(superTableMeta, threadSize, tableSize, startTime, gap, config);
+        int affectedRows = subTableService.insertMultiThreads(superTableMeta, threadSize, tableSize, startTime, gap, config);
         end = System.currentTimeMillis();
         logger.info("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
         /**********************************************************************************/
@@ -100,7 +100,7 @@ public class TaosDemoApplication {
 
     private static long getProperStartTime(long startTime, int keep) {
         Instant now = Instant.now();
-        long earliest = now.minus(Duration.ofDays(keep)).toEpochMilli();
+        long earliest = now.minus(Duration.ofDays(keep+1)).toEpochMilli();
         if (startTime == 0 || startTime < earliest) {
             startTime = earliest;
         }

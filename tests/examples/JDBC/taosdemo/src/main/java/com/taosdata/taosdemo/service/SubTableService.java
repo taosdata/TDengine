@@ -76,7 +76,7 @@ public class SubTableService extends AbstractService {
         return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
     }
 
-    public int insertAutoCreateTable(SuperTableMeta superTableMeta, int threadSize, long tableSize, long startTime, long gap, JdbcTaosdemoConfig config) {
+    public int insertMultiThreads(SuperTableMeta superTableMeta, int threadSize, long tableSize, long startTime, long gap, JdbcTaosdemoConfig config) {
         long start = System.currentTimeMillis();
 
         List<FutureTask> taskList = new ArrayList<>();

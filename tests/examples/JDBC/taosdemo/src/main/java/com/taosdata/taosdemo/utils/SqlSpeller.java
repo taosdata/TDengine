@@ -141,10 +141,6 @@ public class SqlSpeller {
 
 
     public static String createTable(TableMeta tableMeta) {
-//        create table if not exists ${database}.${name}
-//        <foreach collection="fields" item="field" index="index" open="(" close=")" separator=",">
-//                ${field.name} ${field.type}
-//        </foreach>
         StringBuilder sb = new StringBuilder();
         sb.append("create table if not exists ").append(tableMeta.getDatabase()).append(".").append(tableMeta.getName()).append(" ");
         String fields = tableMeta.getFields().stream()
