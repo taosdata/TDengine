@@ -722,8 +722,9 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) { // TODO
       if (tsdbSetHelperTable(&rhelper, pTable, pRepo) < 0) goto _err;
       SCompIdx *pIdx = &(rhelper.curCompIdx);
 
-      TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable, pCfg->cacheLastRow);
+      TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable);
       if (pIdx->offset > 0 && lastKey < pIdx->maxKey) {
+        pTable->lastKey = pIdx->maxKey;
         if (pCfg->cacheLastRow) { // load the block of data
           if (tsdbLoadCompInfo(&rhelper, NULL) < 0) goto _err;
 
@@ -745,8 +746,6 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) { // TODO
             tdAppendColVal(pTable->lastRow, tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type, pCol->bytes,
                            pCol->offset);
           }
-        } else {
-          pTable->lastKey = pIdx->maxKey;
         }
       }
     }
