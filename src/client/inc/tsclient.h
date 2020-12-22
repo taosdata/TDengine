@@ -307,7 +307,6 @@ typedef struct STscObj {
   SRpcCorEpSet       *tscCorMgmtEpSet;
   void*              pDnodeConn;
   pthread_mutex_t    mutex;
-  T_REF_DECLARE()
 } STscObj;
 
 typedef struct SSubqueryState {
@@ -483,7 +482,6 @@ extern int           tscObjRef;
 extern void *    tscTmr;
 extern void *    tscQhandle;
 extern int       tscKeepConn[];
-extern int       tsInsertHeadSize;
 extern int       tscNumOfThreads;
 extern int       tscRefId;
   
