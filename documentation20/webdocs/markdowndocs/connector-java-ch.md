@@ -10,12 +10,12 @@ TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API �
 
 由于 TDengine 是使用 c 语言开发的，使用 taos-jdbcdriver 驱动包时需要依赖系统对应的本地函数库。
 
-* libtaos.so 
+* libtaos.so
     在 linux 系统中成功安装 TDengine 后，依赖的本地函数库 libtaos.so 文件会被自动拷贝至 /usr/lib/libtaos.so，该目录包含在 Linux 自动扫描路径上，无需单独指定。
-    
+
 * taos.dll
     在 windows 系统中安装完客户端之后，驱动包依赖的 taos.dll 文件会自动拷贝到系统默认搜索路径 C:/Windows/System32 下，同样无需要单独指定。
-    
+
 > 注意：在 windows 环境开发时需要安装 TDengine 对应的 [windows 客户端][14]，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端][15] 连接远程 TDengine Server。
 
 TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一致，但时序空间数据库与关系对象型数据库服务的对象和技术特征的差异导致 taos-jdbcdriver 并未完全实现 JDBC 标准规范。在使用时需要注意以下几点：
@@ -24,7 +24,6 @@ TDengine 的 JDBC 驱动实现尽可能的与关系型数据库驱动保持一�
 * 由于不支持删除和修改，所以也不支持事务操作。
 * 目前不支持表间的 union 操作。
 * 目前不支持嵌套查询(nested query)，对每个 Connection 的实例，至多只能有一个打开的 ResultSet 实例；如果在 ResultSet还没关闭的情况下执行了新的查询，TSDBJDBCDriver 则会自动关闭上一个 ResultSet。
-
 
 ## TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
@@ -73,7 +72,6 @@ maven 项目中使用如下 pom.xml 配置即可：
 ### 源码编译打包
 
 下载 [TDengine][3] 源码之后，进入 taos-jdbcdriver 源码目录 `src/connector/jdbc` 执行 `mvn clean package` 即可生成相应 jar 包。
-
 
 ## 使用说明
 
@@ -216,7 +214,6 @@ while(resultSet.next()){
 ```
 > 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
 
-
 ### 订阅
 
 #### 创建
@@ -259,7 +256,6 @@ sub.close(true);
 
 `close` 方法关闭一个订阅。如果其参数为 `true` 表示保留订阅进度信息，后续可以创建同名订阅继续消费数据；如为 `false` 则不保留订阅进度。
 
-
 ### 关闭资源
 
 ```java
@@ -267,7 +263,7 @@ resultSet.close();
 stmt.close();
 conn.close();
 ```
-> `注意务必要将 connection 进行关闭`，否则会出现连接泄露。  
+> `注意务必要将 connection 进行关闭`，否则会出现连接泄露。
 
 ## 与连接池使用
 
@@ -293,18 +289,18 @@ conn.close();
     config.setMinimumIdle(3);           //minimum number of idle connection
     config.setMaximumPoolSize(10);      //maximum number of connection in the pool
     config.setConnectionTimeout(10000); //maximum wait milliseconds for get connection from pool
-    config.setIdleTimeout(60000);       // max idle time for recycle idle connection 
+    config.setIdleTimeout(60000);       // max idle time for recycle idle connection
     config.setConnectionTestQuery("describe log.dn"); //validation query
     config.setValidationTimeout(3000);   //validation query timeout
 
     HikariDataSource ds = new HikariDataSource(config); //create datasource
-    
+
     Connection  connection = ds.getConnection(); // get connection
     Statement statement = connection.createStatement(); // get statement
-    
-    //query or insert 
+
+    //query or insert
     // ...
-    
+
     connection.close(); // put back to conneciton pool
 }
 ```
@@ -346,7 +342,7 @@ public static void main(String[] args) throws Exception {
     properties.put("testWhileIdle","true"); // test connection while idle
     properties.put("testOnBorrow","false"); // don't need while testWhileIdle is true
     properties.put("testOnReturn","false"); // don't need while testWhileIdle is true
-    
+
     //create druid datasource
     DataSource ds = DruidDataSourceFactory.createDataSource(properties);
     Connection  connection = ds.getConnection(); // get connection
@@ -380,15 +376,15 @@ Query OK, 1 row(s) in set (0.000141s)
 ## 常见问题
 
 * java.lang.UnsatisfiedLinkError: no taos in java.library.path
-  
+
   **原因**：程序没有找到依赖的本地函数库 taos。
-  
+
   **解决方法**：windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，linux 下将建立如下软链 ` ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
-  
+
 * java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
-  
+
   **原因**：目前 TDengine 只支持 64 位 JDK。
-  
+
   **解决方法**：重新安装 64 位 JDK。
 
 * 其它问题请参考 [Issues][7]
@@ -403,7 +399,7 @@ Query OK, 1 row(s) in set (0.000141s)
 [8]: https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver
 [9]: https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver
 [10]: https://maven.aliyun.com/mvn/search
-[11]:  https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
+[11]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
 [12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
 [13]: https://www.taosdata.com/cn/documentation20/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
 [14]: https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client
