@@ -1,6 +1,11 @@
 #  Java Connector
 
-Java连接器支持的系统有： Linux 64/Windows x64/Windows x86。
+**Java连接器支持的系统有：**
+
+| **CPU类型**  | x64（64bit） |          |          | aarch64  | aarch32  |
+| ------------ | ------------ | -------- | -------- | -------- | -------- |
+| **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux    |
+| **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
 
 TDengine 为了方便 Java 应用使用，提供了遵循 JDBC 标准(3.0)API 规范的 `taos-jdbcdriver` 实现。目前可以通过 [Sonatype Repository][1] 搜索并下载。
 
