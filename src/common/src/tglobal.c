@@ -170,15 +170,15 @@ int32_t tsMonitorInterval = 30;  // seconds
 int32_t tsEnableStream = 1;
 
 // internal
-int32_t tsPrintAuth = 0;
-int32_t tscEmbedded = 0;
-char    configDir[TSDB_FILENAME_LEN] = {0};
-char    tsVnodeDir[TSDB_FILENAME_LEN] = {0};
-char    tsDnodeDir[TSDB_FILENAME_LEN] = {0};
-char    tsMnodeDir[TSDB_FILENAME_LEN] = {0};
-char    tsDataDir[TSDB_FILENAME_LEN] = {0};
-char    tsScriptDir[TSDB_FILENAME_LEN] = {0};
-int32_t tsDiskCfgNum = 0;
+int32_t  tsPrintAuth = 0;
+uint32_t tscEmbedded = 0;
+char     configDir[TSDB_FILENAME_LEN] = {0};
+char     tsVnodeDir[TSDB_FILENAME_LEN] = {0};
+char     tsDnodeDir[TSDB_FILENAME_LEN] = {0};
+char     tsMnodeDir[TSDB_FILENAME_LEN] = {0};
+char     tsDataDir[TSDB_FILENAME_LEN] = {0};
+char     tsScriptDir[TSDB_FILENAME_LEN] = {0};
+int32_t  tsDiskCfgNum = 0;
 
 #ifndef _STORAGE
 SDiskCfg tsDiskCfg[1];
