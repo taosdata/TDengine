@@ -141,6 +141,7 @@ static SCreateVnodeMsg* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.maxRowsPerFileBlock = htonl(pCreate->cfg.maxRowsPerFileBlock);
   pCreate->cfg.fsyncPeriod         = htonl(pCreate->cfg.fsyncPeriod);
   pCreate->cfg.commitTime          = htonl(pCreate->cfg.commitTime);
+  pCreate->cfg.cacheLastRow        = htonl(pCreate->cfg.cacheLastRow);
 
   for (int32_t j = 0; j < pCreate->cfg.replications; ++j) {
     pCreate->nodes[j].nodeId = htonl(pCreate->nodes[j].nodeId);
