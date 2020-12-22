@@ -25,6 +25,24 @@ function runSimCaseOneByOne {
     fi
   done < $1
 }
+function runSimCaseOneByOnefq {
+  while read -r line; do
+    if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
+			case=`echo $line | grep sim$ |awk '{print $NF}'`
+
+      start_time=`date +%s`
+      ./test.sh -f $case > /dev/null 2>&1 && \
+        echo -e "${GREEN}$case success${NC}" | tee -a out.log || \
+        echo -e "${RED}$case failed${NC}" | tee -a out.log
+      out_log=`tail -1 out.log  `
+      if [[ $out_log =~ 'failed' ]];then
+        exit 8
+      fi
+      end_time=`date +%s`
+      echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
+    fi
+  done < $1
+}
 
 function runPyCaseOneByOne {
   while read -r line; do
@@ -52,7 +70,32 @@ function runPyCaseOneByOne {
     fi
   done < $1
 }
-
+function runPyCaseOneByOnefq {
+  while read -r line; do
+    if [[ $line =~ ^python.* ]]; then
+      if [[ $line != *sleep* ]]; then
+        
+        if [[ $line =~ '-r' ]];then
+          case=`echo $line|awk '{print $4}'`
+        else
+          case=`echo $line|awk '{print $NF}'`
+        fi
+        start_time=`date +%s`
+        $line > /dev/null 2>&1 && \
+          echo -e "${GREEN}$case success${NC}" | tee -a pytest-out.log || \
+          echo -e "${RED}$case failed${NC}" | tee -a pytest-out.log
+        end_time=`date +%s`
+        out_log=`tail -1 pytest-out.log  `
+        if [[ $out_log =~ 'failed' ]];then
+          exit 8
+        fi
+        echo execution time of $case was `expr $end_time - $start_time`s. | tee -a pytest-out.log
+      else
+        $line > /dev/null 2>&1
+      fi
+    fi
+  done < $1
+}
 totalFailed=0
 totalPyFailed=0
 
@@ -78,6 +121,15 @@ if [ "$2" != "python" ]; then
   elif [ "$1" == "b3" ]; then
     echo "### run TSIM b3 test ###"
     runSimCaseOneByOne jenkins/basic_3.txt
+  elif [ "$1" == "b1fq" ]; then
+    echo "### run TSIM b1 test ###"
+    runSimCaseOneByOnefq jenkins/basic_1.txt
+  elif [ "$1" == "b2fq" ]; then
+    echo "### run TSIM b2 test ###"
+    runSimCaseOneByOnefq jenkins/basic_2.txt
+  elif [ "$1" == "b3fq" ]; then
+    echo "### run TSIM b3 test ###"
+    runSimCaseOneByOnefq jenkins/basic_3.txt
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
     echo "### run TSIM smoke test ###"
     runSimCaseOneByOne basicSuite.sim
@@ -137,6 +189,9 @@ if [ "$2" != "sim" ]; then
   elif [ "$1" == "pytest" ]; then
     echo "### run Python full test ###"
     runPyCaseOneByOne fulltest.sh
+  elif [ "$1" == "pytestfq" ]; then
+    echo "### run Python full test ###"
+    runPyCaseOneByOnefq fulltest.sh
   elif [ "$1" == "p1" ]; then
     echo "### run Python_1 test ###"
     runPyCaseOneByOne pytest_1.sh

@@ -7,12 +7,12 @@ def pre_test(){
     sh '''
     cd ${WKC}
     git reset --hard
-    git checkout ${BRANCH}
+    git checkout $BRANCH_NAME
     git pull
     git submodule update
     cd ${WK}
     git reset --hard
-    git checkout ${BRANCH}
+    git checkout $BRANCH_NAME
     git pull
     export TZ=Asia/Harbin
     date
@@ -28,7 +28,7 @@ def pre_test(){
 pipeline {
   agent none
   environment{
-      BRANCH = $branch_name
+    
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
