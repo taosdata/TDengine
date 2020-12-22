@@ -86,7 +86,7 @@ pipeline {
             pre_test()
             sh '''
             cd ${WKC}/tests
-            ./test-all.sh pytest
+            ./test-all.sh pytestfq
             date'''
           }
         }
@@ -96,7 +96,7 @@ pipeline {
             pre_test()
             sh '''
             cd ${WKC}/tests
-            ./test-all.sh b1
+            ./test-all.sh b1fq
             date'''
           }
         }
@@ -120,7 +120,7 @@ pipeline {
             sh '''
             date
             cd ${WKC}/tests
-            ./test-all.sh b2
+            ./test-all.sh b2fq
             date
             '''
           }
@@ -141,7 +141,7 @@ pipeline {
             sh '''
             date
             cd ${WKC}/tests
-            ./test-all.sh b3
+            ./test-all.sh b3fq
             date'''
           }
         }
