@@ -77,8 +77,6 @@ public class SubTableService extends AbstractService {
     }
 
     public int insertMultiThreads(SuperTableMeta superTableMeta, int threadSize, long tableSize, long startTime, long gap, JdbcTaosdemoConfig config) {
-        long start = System.currentTimeMillis();
-
         List<FutureTask> taskList = new ArrayList<>();
         List<Thread> threads = IntStream.range(0, threadSize)
                 .mapToObj(i -> {
@@ -116,8 +114,6 @@ public class SubTableService extends AbstractService {
             }
         }
 
-        long end = System.currentTimeMillis();
-        logger.info("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
         return affectedRows;
     }
 
