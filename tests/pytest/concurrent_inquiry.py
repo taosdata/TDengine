@@ -388,7 +388,9 @@ class ConcurrentInquiry:
                     print(
                 "Failure thread%d, sql: %s \nexception: %s" %
                 (threadID, str(sql),str(e)))
-                    #exit(-1)
+                    err_uec='Unable to establish connection'
+                    if err_uec in str(e) and loop >0:
+                        exit(-1)
                 loop -= 1
                 if loop == 0: break
                     
@@ -415,7 +417,9 @@ class ConcurrentInquiry:
                 print(
             "Failure thread%d, sql: %s \nexception: %s" %
             (threadID, str(sql),str(e)))
-                #exit(-1)
+                err_uec='Unable to establish connection'
+                if err_uec in str(e) and loop >0:
+                    exit(-1)
             loop -= 1    
             if loop == 0: break
                 
