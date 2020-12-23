@@ -84,14 +84,14 @@ step2:
 		return -1
 	endi
 
+sql show vgroups;
+print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
+
 sql show dnodes
 print dnode1 $data4_1
 print dnode2 $data4_2
 print dnode3 $data4_3
 print dnode4 $data4_4
-
-sql show vgroups;
-print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09
 
 if $data4_1 != ready then
   goto step2
