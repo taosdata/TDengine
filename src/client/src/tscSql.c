@@ -284,16 +284,18 @@ void taos_close(TAOS *taos) {
     return;
   }
 
-  SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
-  if (pHb != NULL) {
-    if (pHb->rpcRid > 0) {  // wait for rsp from dnode
-      rpcCancelRequest(pHb->rpcRid);
-      pHb->rpcRid = -1;
-    }
+  if (RID_VALID(pObj->hbrid)) {
+    SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
+    if (pHb != NULL) {
+      if (RID_VALID(pHb->rpcRid)) {  // wait for rsp from dnode
+        rpcCancelRequest(pHb->rpcRid);
+        pHb->rpcRid = -1;
+      }
 
-    tscDebug("%p HB is freed", pHb);
-    taosReleaseRef(tscObjRef, pHb->self);
-    taos_free_result(pHb);
+      tscDebug("%p HB is freed", pHb);
+      taosReleaseRef(tscObjRef, pHb->self);
+      taos_free_result(pHb);
+    }
   }
 
   tscDebug("%p all sqlObj are freed, free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
