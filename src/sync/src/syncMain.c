@@ -578,7 +578,7 @@ static void syncStopCheckPeerConn(SSyncPeer *pPeer) {
 }
 
 static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
-  uint32_t ip = taosGetIpFromFqdn(pInfo->nodeFqdn);
+  uint32_t ip = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
   if (ip == 0xFFFFFFFF) {
     sError("failed to add peer, can resolve fqdn:%s since %s", pInfo->nodeFqdn, strerror(errno));
     terrno = TSDB_CODE_RPC_FQDN_ERROR;
