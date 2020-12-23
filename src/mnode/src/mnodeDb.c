@@ -612,6 +612,12 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
     strcpy(pSchema[cols].name, "comp");
     pSchema[cols].bytes = htons(pShow->bytes[cols]);
     cols++;
+
+    pShow->bytes[cols] = 1;
+    pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
+    strcpy(pSchema[cols].name, "cachelast");
+    pSchema[cols].bytes = htons(pShow->bytes[cols]);
+    cols++;
 #ifndef __CLOUD_VERSION__
   }
 #endif
