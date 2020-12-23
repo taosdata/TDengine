@@ -104,8 +104,8 @@ static void bnProcessTimer(void *handle, void *tmrId) {
   tsBnThread.timer = NULL;
   tsAccessSquence++;
 
-  bnCheckStatus();
   bnStartTimer(-1);
+  bnCheckStatus();
 
   if (handle == NULL) {
     if (tsAccessSquence % tsBalanceInterval == 0) {
@@ -124,6 +124,7 @@ void bnStartTimer(int64_t mseconds) {
 
   bool updateSoon = (mseconds != -1);
   if (updateSoon) {
+    mTrace("balance function will be called after %" PRId64 " ms", mseconds);
     taosTmrReset(bnProcessTimer, mseconds, (void *)mseconds, tsMnodeTmr, &tsBnThread.timer);
   } else {
     taosTmrReset(bnProcessTimer, tsStatusInterval * 1000, NULL, tsMnodeTmr, &tsBnThread.timer);

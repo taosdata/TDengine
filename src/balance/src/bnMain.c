@@ -489,6 +489,7 @@ void bnCheckStatus() {
         mInfo("dnode:%d, set to offline state, access seq:%d last seq:%d laststat:%d", pDnode->dnodeId, tsAccessSquence,
               pDnode->lastAccess, pDnode->status);
         bnSetVgroupOffline(pDnode);
+        bnStartTimer(3000);
       }
     }
     mnodeDecDnodeRef(pDnode);

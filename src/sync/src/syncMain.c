@@ -480,7 +480,7 @@ static void syncFreeNode(void *param) {
   SSyncNode *pNode = param;
 
   int32_t refCount = atomic_sub_fetch_32(&pNode->refCount, 1);
-  sDebug("vgId:%d, snode is freed, refCount:%d", pNode->vgId, refCount);
+  sDebug("vgId:%d, syncnode is freed, refCount:%d", pNode->vgId, refCount);
 
   pthread_mutex_destroy(&pNode->mutex);
   tfree(pNode->pRecv);
@@ -491,10 +491,10 @@ static void syncFreeNode(void *param) {
 SSyncNode *syncAcquireNode(int64_t rid) {
   SSyncNode *pNode = taosAcquireRef(tsNodeRefId, rid);
   if (pNode == NULL) {
-    sDebug("failed to acquire snode from refId:%" PRId64, rid);
+    sDebug("failed to acquire syncnode from refId:%" PRId64, rid);
   } else {
     int32_t refCount = atomic_add_fetch_32(&pNode->refCount, 1);
-    sTrace("vgId:%d, acquire snode refId:%" PRId64 ", refCount:%d", pNode->vgId, rid, refCount);
+    sTrace("vgId:%d, acquire syncnode refId:%" PRId64 ", refCount:%d", pNode->vgId, rid, refCount);
   }
 
   return pNode;
@@ -502,7 +502,7 @@ SSyncNode *syncAcquireNode(int64_t rid) {
 
 void syncReleaseNode(SSyncNode *pNode) {
   int32_t refCount = atomic_sub_fetch_32(&pNode->refCount, 1);
-  sTrace("vgId:%d, dec snode refId:%" PRId64 " refCount:%d", pNode->vgId, pNode->rid, refCount);
+  sTrace("vgId:%d, dec syncnode refId:%" PRId64 " refCount:%d", pNode->vgId, pNode->rid, refCount);
 
   taosReleaseRef(tsNodeRefId, pNode->rid);
 }
@@ -716,8 +716,8 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode) {
   if (onlineNum <= replica * 0.5) {
     if (nodeRole != TAOS_SYNC_ROLE_UNSYNCED) {
       nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
-      (*pNode->notifyRole)(pNode->vgId, nodeRole);
       sInfo("vgId:%d, self change to unsynced state, online:%d replica:%d", pNode->vgId, onlineNum, replica);
+      (*pNode->notifyRole)(pNode->vgId, nodeRole);
     }
   } else {
     for (int32_t index = 0; index < pNode->replica; ++index) {
