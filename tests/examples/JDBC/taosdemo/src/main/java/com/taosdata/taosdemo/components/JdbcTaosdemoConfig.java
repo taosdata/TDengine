@@ -13,6 +13,10 @@ public final class JdbcTaosdemoConfig {
     public int keep = 3650;                 //keep
     public int days = 30;                   //days
     public int replica = 1;                 //replica
+    public int blocks = 16;
+    public int cache = 8;
+    public String precision = "ms";
+
     //super table
     public boolean doCreateTable = true;
     public String superTable = "weather";   //super table name
@@ -54,6 +58,10 @@ public final class JdbcTaosdemoConfig {
         System.out.println("-keep                       database keep parameter. Default is 3650");
         System.out.println("-days                       database days parameter. Default is 30");
         System.out.println("-replica                    database replica parameter. Default 1, min: 1, max: 3");
+        System.out.println("-blocks                     database blocks parameter. Default is 16");
+        System.out.println("-cache                      database cache parameter. Default is 8");
+        System.out.println("-precision                  database precision parameter. Default is ms");
+
         // super table
         System.out.println("-doCreateTable              do create super table and sub table, true or false, Default true");
         System.out.println("-superTable                 super table name. Default 'weather'");
@@ -120,6 +128,15 @@ public final class JdbcTaosdemoConfig {
             }
             if ("-replica".equals(args[i]) && i < args.length - 1) {
                 replica = Integer.parseInt(args[++i]);
+            }
+            if ("-blocks".equals(args[i]) && i < args.length - 1) {
+                blocks = Integer.parseInt(args[++i]);
+            }
+            if ("-cache".equals(args[i]) && i < args.length - 1) {
+                cache = Integer.parseInt(args[++i]);
+            }
+            if ("-precision".equals(args[i]) && i < args.length - 1) {
+                precision = args[++i];
             }
             // super table
             if ("-doCreateTable".equals(args[i]) && i < args.length - 1) {
@@ -196,10 +213,6 @@ public final class JdbcTaosdemoConfig {
                 dropTable = Boolean.parseBoolean(args[++i]);
             }
         }
-    }
-
-    public static void main(String[] args) {
-        JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
     }
 
 }

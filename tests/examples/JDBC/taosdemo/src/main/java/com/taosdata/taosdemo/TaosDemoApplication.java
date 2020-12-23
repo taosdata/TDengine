@@ -43,7 +43,6 @@ public class TaosDemoApplication {
         databaseParam.put("days", Integer.toString(config.days));
         databaseParam.put("replica", Integer.toString(config.replica));
         //TODO: other database parameters
-        databaseService.dropDatabase(config.database);
         databaseService.createDatabase(databaseParam);
         databaseService.useDatabase(config.database);
         long end = System.currentTimeMillis();
@@ -68,6 +67,7 @@ public class TaosDemoApplication {
         // 建表
         start = System.currentTimeMillis();
         if (config.doCreateTable) {
+            superTableService.drop(superTableMeta.getDatabase(), superTableMeta.getName());
             superTableService.create(superTableMeta);
             if (!config.autoCreateTable) {
                 // 批量建子表
@@ -101,7 +101,7 @@ public class TaosDemoApplication {
 
     private static long getProperStartTime(long startTime, int keep) {
         Instant now = Instant.now();
-        long earliest = now.minus(Duration.ofDays(keep-1)).toEpochMilli();
+        long earliest = now.minus(Duration.ofDays(keep - 1)).toEpochMilli();
         if (startTime == 0 || startTime < earliest) {
             startTime = earliest;
         }

@@ -6,6 +6,7 @@ import java.sql.*;
 import java.util.Map;
 import java.util.Properties;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class RestfulConnection implements Connection {
 
@@ -15,12 +16,18 @@ public class RestfulConnection implements Connection {
     private final String database;
     private final String url;
 
+    /**********************************************/
+    private volatile AtomicBoolean isClosed = new AtomicBoolean(false);
+    private DatabaseMetaData databaseMetaData;
+
     public RestfulConnection(String host, String port, Properties props, String database, String url) {
         this.host = host;
         this.port = Integer.parseInt(port);
         this.props = props;
         this.database = database;
         this.url = url;
+        //TODO
+        this.databaseMetaData = new RestfulDatabaseMetaData();
     }
 
     @Override
@@ -32,58 +39,58 @@ public class RestfulConnection implements Connection {
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
+        //TODO:
         return null;
     }
 
     @Override
     public CallableStatement prepareCall(String sql) throws SQLException {
-        return null;
+        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public String nativeSQL(String sql) throws SQLException {
-        return null;
+        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public void setAutoCommit(boolean autoCommit) throws SQLException {
-
+        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public boolean getAutoCommit() throws SQLException {
-        return false;
+        return true;
     }
 
     @Override
     public void commit() throws SQLException {
-
     }
 
     @Override
     public void rollback() throws SQLException {
-
+        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public void close() throws SQLException {
-
+        //TODO: check if resource need release
+        this.isClosed.set(true);
     }
 
     @Override
     public boolean isClosed() throws SQLException {
-        return false;
+        return this.isClosed.get();
     }
 
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
-        //TODO: RestfulDatabaseMetaData is not implemented
-        return new RestfulDatabaseMetaData();
+        return this.databaseMetaData;
     }
 
     @Override
     public void setReadOnly(boolean readOnly) throws SQLException {
-
+        throw new SQLFeatureNotSupportedException("transactions are not supported");
     }
 
     @Override
