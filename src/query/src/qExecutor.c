@@ -648,7 +648,7 @@ static int32_t setWindowOutputBufByKey(SQueryRuntimeEnv *pRuntimeEnv, SResultRow
 
   // not assign result buffer yet, add new result buffer
   if (pResultRow->pageId == -1) {
-    int32_t ret = addNewWindowResultBuf(pResultRow, pResultBuf, groupId, pRuntimeEnv->numOfRowsPerPage);
+    int32_t ret = addNewWindowResultBuf(pResultRow, pResultBuf, (int32_t) groupId, pRuntimeEnv->numOfRowsPerPage);
     if (ret != TSDB_CODE_SUCCESS) {
       return -1;
     }
@@ -3315,7 +3315,7 @@ int32_t mergeIntoGroupResultImpl(SGroupResInfo* pGroupResInfo, SArray *pTableLis
 
       if (pWindowRes->win.skey != lastTimestamp) {
         taosArrayPush(pGroupResInfo->pRows, &pWindowRes);
-        pWindowRes->numOfRows = num;
+        pWindowRes->numOfRows = (uint32_t) num;
       }
 
       lastTimestamp = pWindowRes->win.skey;
@@ -5799,7 +5799,7 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
       return;
     }
 
-    pQInfo->groupIndex = pQuery->limit.offset;
+    pQInfo->groupIndex = (int32_t) pQuery->limit.offset;
 
     copyFromWindowResToSData(pQInfo, &pRuntimeEnv->windowResInfo);
     doSecondaryArithmeticProcess(pQuery);
