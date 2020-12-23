@@ -20,6 +20,7 @@
 #include "tutil.h"
 #include "taosdef.h"
 #include "taoserror.h"
+#include "taosmsg.h"
 #include "rpcLog.h"
 #include "rpcUdp.h"
 #include "rpcHead.h"
@@ -206,6 +207,12 @@ static void *taosRecvUdpData(void *param) {
 
     if (dataLen < sizeof(SRpcHead)) {
       tError("%s recvfrom failed(%s)", pConn->label, strerror(errno));
+      continue;
+    }
+
+    SRpcHead *pRpcHead = (SRpcHead *)msg;
+    if (rpcIsReq(pRpcHead->msgType) && htonl(pRpcHead->msgVer) != taosMsgVer) {
+      tError("%s client version:%08x mismatched with server version:%08x", pConn->label, htonl(pRpcHead->msgVer), taosMsgVer);
       continue;
     }
 

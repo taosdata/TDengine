@@ -38,7 +38,6 @@
 #define rpcContFromHead(msg) (msg + sizeof(SRpcHead))
 #define rpcMsgLenFromCont(contLen) (contLen + sizeof(SRpcHead))
 #define rpcContLenFromMsg(msgLen) (msgLen - sizeof(SRpcHead))
-#define rpcIsReq(type) (type & 1U)
 
 typedef struct {
   int      sessions;     // number of sessions allowed
@@ -1282,6 +1281,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
 
   // set the message header  
   pHead->version = 1;
+  pHead->msgVer = htonl(taosMsgVer);
   pHead->msgType = msgType;
   pHead->encrypt = 0;
   pConn->tranId++;

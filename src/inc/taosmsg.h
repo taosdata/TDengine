@@ -31,10 +31,14 @@ extern "C" {
 // message type
 
 #ifdef TAOS_MESSAGE_C
+uint32_t taosMsgVer = 0;
+
 #define TAOS_DEFINE_MESSAGE_TYPE( name, msg ) msg, msg "-rsp",
 char *taosMsg[] = {
   "null",
 #else
+extern uint32_t taosMsgVer;
+
 #define TAOS_DEFINE_MESSAGE_TYPE( name, msg ) name, name##_RSP,
 enum {
   TSDB_MESSAGE_NULL = 0,

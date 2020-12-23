@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#define rpcIsReq(type) (type & 1U)
+
 #define RPC_CONN_UDPS   0
 #define RPC_CONN_UDPC   1
 #define RPC_CONN_TCPS   2
@@ -58,6 +60,7 @@ typedef struct {
   char     empty[1];  // reserved
   uint8_t  msgType;   // message type  
   int32_t  msgLen;    // message length including the header iteslf
+  uint32_t msgVer;
   int32_t  code;      // code in response message
   uint8_t  content[0]; // message body starts from here
 } SRpcHead;

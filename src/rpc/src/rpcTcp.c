@@ -18,6 +18,7 @@
 #include "tutil.h"
 #include "taosdef.h"
 #include "taoserror.h" 
+#include "taosmsg.h"
 #include "rpcLog.h"
 #include "rpcHead.h"
 #include "rpcTcp.h"
@@ -421,6 +422,11 @@ static int taosReadTcpData(SFdObj *pFdObj, SRecvInfo *pInfo) {
   if (headLen != sizeof(SRpcHead)) {
     tDebug("%s %p read error, FD:%p headLen:%d", pThreadObj->label, pFdObj->thandle, pFdObj, headLen);
     return -1; 
+  }
+
+  if (rpcIsReq(rpcHead.msgType) && htonl(rpcHead.msgVer) != taosMsgVer) {
+    tError("%s %p FD:%p, client version:%08x mismatched with server version:%08x", pThreadObj->label, pFdObj->thandle, pFdObj, htonl(rpcHead.msgVer), taosMsgVer);
+    return -1;
   }
 
   msgLen = (int32_t)htonl((uint32_t)rpcHead.msgLen);

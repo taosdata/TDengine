@@ -25,6 +25,7 @@
 #include "tutil.h"
 #include "tlocale.h"
 #include "ttimezone.h"
+#include "taosmsg.h"
 
 // cluster
 char     tsFirst[TSDB_EP_LEN] = {0};
@@ -1460,6 +1461,24 @@ int32_t taosCheckGlobalCfg() {
   }
   
   tsVersion = 10 * tsVersion;
+
+  taosMsgVer = 0;
+  for (int ver = 0, dotCount = 0, i = 0; i < TSDB_VERSION_LEN; i++) {
+    if (version[i] >= '0' && version[i] <= '9') {
+      ver = ver * 10 + (version[i] - '0');
+    } else if (version[i] == '.') {
+      taosMsgVer |= ver & 0xFF;
+      taosMsgVer <<= 8;
+
+      if (++dotCount >= 3) {
+        break;
+      }
+
+      ver = 0;
+    } else if (version[i] == 0) {
+      break;
+    }
+  }
 
   tsDnodeShellPort = tsServerPort + TSDB_PORT_DNODESHELL;  // udp[6035-6039] tcp[6035]
   tsDnodeDnodePort = tsServerPort + TSDB_PORT_DNODEDNODE;   // udp/tcp
