@@ -36,7 +36,8 @@ int main(int argc, char *argv[]) {
 
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
-  signal(SIGPIPE, SIG_IGN);
+  taosIgnSIGPIPE();
+  taosBlockSIGPIPE();
 
   char temp[TSDB_FILENAME_LEN];
   sprintf(temp, "%s/httplog", tsLogDir);
