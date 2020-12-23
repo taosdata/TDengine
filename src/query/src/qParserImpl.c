@@ -841,5 +841,6 @@ void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
   pDBInfo->keep = NULL;
 
   pDBInfo->update = -1;
+  pDBInfo->cachelast = 0;
   memset(&pDBInfo->precision, 0, sizeof(SStrToken));
 }
