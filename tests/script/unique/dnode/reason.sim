@@ -17,14 +17,28 @@ endi
 
 print ========== step2
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
 sql show dnodes
-print dnode1 off: $data7_1
-print dnode2 off: $data7_2
+print dnode1 $data4_1
+print dnode2 $data4_2
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
 
 print ========== step3
 system sh/exec.sh -n dnode2 -s stop
-sql show dnodes
 
 $x = 0
 step3: 
@@ -33,7 +47,7 @@ step3:
 	if $x == 10 then
 		return -1
 	endi
-
+sql show dnodes
 print dnode1 off: $data7_1
 print dnode2 off: $data7_2
 if $data7_2 != @status msg timeout@ then
