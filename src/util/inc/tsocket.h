@@ -33,7 +33,7 @@ SOCKET  taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
 int32_t taosKeepTcpAlive(SOCKET sockFd);
 
 int32_t  taosGetFqdn(char *);
-uint32_t taosGetIpFromFqdn(const char *);
+uint32_t taosGetIpv4FromFqdn(const char *);
 void     tinet_ntoa(char *ipstr, uint32_t ip);
 uint32_t ip2uint(const char *const ip_addr);
 
