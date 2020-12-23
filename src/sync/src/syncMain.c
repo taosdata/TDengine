@@ -715,12 +715,12 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode) {
 
   if (onlineNum <= replica * 0.5) {
     if (nodeRole != TAOS_SYNC_ROLE_UNSYNCED) {
-      if (nodeRole == TAOS_SYNC_ROLE_MASTER && onlineNum == replica * 0.5) {
-        sInfo("vgId:%d, self keep work as master, online:%d replica:%d", pNode->vgId, onlineNum, replica);
-      } else {
+       if (nodeRole == TAOS_SYNC_ROLE_MASTER && onlineNum == replica * 0.5 && onlineNum >= 1) {
+         sInfo("vgId:%d, self keep work as master, online:%d replica:%d", pNode->vgId, onlineNum, replica);
+       } else {
         nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
         sInfo("vgId:%d, self change to unsynced state, online:%d replica:%d", pNode->vgId, onlineNum, replica);
-      }
+       }
       (*pNode->notifyRole)(pNode->vgId, nodeRole);
     }
   } else {
