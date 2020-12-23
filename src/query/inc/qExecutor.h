@@ -33,13 +33,6 @@ struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, char* val1, char* val2);
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
-typedef struct SGroupResInfo {
-  int32_t  groupId;
-  int32_t  numOfDataPages;
-  int32_t  pageId;
-  int32_t  rowId;
-} SGroupResInfo;
-
 typedef struct SResultRowPool {
   int32_t elemSize;
   int32_t blockSize;
@@ -72,6 +65,12 @@ typedef struct SResultRow {
   union {STimeWindow win; char* key;};  // start key of current time window
 } SResultRow;
 
+typedef struct SGroupResInfo {
+  int32_t rowId;
+  int32_t index;
+  SArray* pRows;      // SArray<SResultRow*>
+} SGroupResInfo;
+
 /**
  * If the number of generated results is greater than this value,
  * query query will be halt and return results to client immediate.
@@ -89,7 +88,6 @@ typedef struct SResultRowInfo {
   int32_t      size:24;    // number of result set
   int32_t      capacity;   // max capacity
   int32_t      curIndex;   // current start active index
-  int64_t      startTime;  // start time of the first time window for sliding query
   int64_t      prevSKey;   // previous (not completed) sliding window start key
 } SResultRowInfo;
 
