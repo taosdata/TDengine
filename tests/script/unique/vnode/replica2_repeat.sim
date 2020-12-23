@@ -23,7 +23,38 @@ sql create dnode $hostname2
 sql create dnode $hostname3
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+
+sql show mnodes
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step1
+endi
 
 print ========= step1
 sql create database db replica 2 
@@ -64,7 +95,7 @@ print ======== step7
 $lastRows = $data00
 print ======== loop Times $x
 
-if $x < 5 then
+if $x < 2 then
   $x = $x + 1
   goto loop
 endi

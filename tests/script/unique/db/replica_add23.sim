@@ -34,7 +34,42 @@ sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname4
 system sh/exec.sh -n dnode4 -s start
-sleep 3000
+
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+if $data4_4 != ready then
+  goto step1
+endi
+
+sql show mnodes
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step1
+endi
 
 print ======== step1 
 sql create database d1 replica 2
@@ -51,7 +86,6 @@ sql insert into d1.t1 values(1588262400001, 1)
 sql insert into d2.t2 values(1588262400001, 1)
 sql insert into d3.t3 values(1588262400001, 1)
 sql insert into d4.t4 values(1588262400001, 1)
-sleep 1000
 
 sql select * from d1.t1
 if $rows != 1 then
@@ -82,8 +116,8 @@ sql alter database d4 replica 3
 $x = 0
 a1: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 20 then
+	sleep 1000
+	if $x == 40 then
 	  return -1
 	endi
 	
@@ -111,17 +145,7 @@ if $data03 != 3 then
 	goto a1
 endi
 
-sleep 10000
-
 print ======== step3
-$x = 0
-show3: 
-	$x = $x + 1
-	sleep 2000
-	if $x == 10 then 
-		return -1
-	endi
-	
 sql show dnodes
 print dnode1 ==> openVnodes: $data2_1
 print dnode2 ==> openVnodes: $data2_2
@@ -149,7 +173,6 @@ sql insert into d1.t1 values(1588262400002, 2)
 sql insert into d2.t2 values(1588262400002, 2)
 sql insert into d3.t3 values(1588262400002, 2)
 sql insert into d4.t4 values(1588262400002, 2)
-sleep 1000
 
 sql select * from d1.t1
 if $rows != 2 then
@@ -172,17 +195,14 @@ if $rows != 2 then
 endi
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 print ========= step5 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
-
 sql insert into d1.t1 values(1588262400003, 3)
 sql insert into d2.t2 values(1588262400003, 3)
 sql insert into d3.t3 values(1588262400003, 3)
 sql insert into d4.t4 values(1588262400003, 3)
-sleep 1000
 
 sql select * from d1.t1
 if $rows != 3 then
@@ -206,13 +226,12 @@ endi
 
 print ========= step6
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
 
 $x = 0
 step6: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then
+	sleep 1000
+	if $x == 20 then
 	  return -1
 	endi
 	
@@ -239,16 +258,13 @@ print online vnodes $data03
 if $data03 != 3 then
 	goto step6
 endi
-sleep 1000
 
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
-sleep 5000
 
 sql insert into d1.t1 values(1588262400004, 4)
 sql insert into d2.t2 values(1588262400004, 4)
 sql insert into d3.t3 values(1588262400004, 4)
 sql insert into d4.t4 values(1588262400004, 4)
-sleep 1000
 
 sql select * from d1.t1
 if $rows != 4 then
@@ -272,13 +288,12 @@ endi
 
 print ========= step7
 system sh/exec.sh -n dnode3 -s start
-sleep 5000
 
 $x = 0
 step7: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then
+	sleep 1000
+	if $x == 20 then
 	  return -1
 	endi
 	
@@ -305,16 +320,13 @@ print online vnodes $data03
 if $data03 != 3 then
 	goto step7
 endi
-sleep 1000
 
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
-sleep 5000
 
 sql insert into d1.t1 values(1588262400005, 5)
 sql insert into d2.t2 values(1588262400005, 5)
 sql insert into d3.t3 values(1588262400005, 5)
 sql insert into d4.t4 values(1588262400005, 5)
-sleep 1000
 
 sql select * from d1.t1
 if $rows != 5 then
@@ -338,7 +350,6 @@ endi
 
 print ========= step8
 system sh/exec.sh -n dnode4 -s start
-sleep 5000
 
 $x = 0
 step8: 
@@ -371,16 +382,13 @@ print online vnodes $data03
 if $data03 != 3 then
 	goto step8
 endi
-sleep 1000
 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
 
 sql insert into d1.t1 values(1588262400006, 6)
 sql insert into d2.t2 values(1588262400006, 6)
 sql insert into d3.t3 values(1588262400006, 6)
 sql insert into d4.t4 values(1588262400006, 6)
-sleep 1000
 
 sql select * from d1.t1
 if $rows != 6 then
@@ -406,7 +414,3 @@ system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 system sh/exec.sh -n dnode3 -s stop  -x SIGINT
 system sh/exec.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec.sh -n dnode8 -s stop  -x SIGINT
