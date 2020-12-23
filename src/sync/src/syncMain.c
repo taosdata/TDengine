@@ -486,7 +486,7 @@ static void syncRemovePeer(SSyncPeer *pPeer) {
 }
 
 static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo) {
-  uint32_t ip = taosGetIpFromFqdn(pInfo->nodeFqdn);
+  uint32_t ip = taosGetIpv4FromFqdn(pInfo->nodeFqdn);
   if (ip == 0xFFFFFFFF) {
     sError("failed to add peer, can resolve fqdn:%s since %s", pInfo->nodeFqdn, strerror(errno));
     terrno = TSDB_CODE_RPC_FQDN_ERROR;
@@ -1266,7 +1266,9 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
       }
     }
 
-    return TSDB_CODE_SYN_INVALID_VERSION;
+    if (pNode->replica != 1) {
+      return TSDB_CODE_SYN_INVALID_VERSION;
+    }
   }
 
   // always update version

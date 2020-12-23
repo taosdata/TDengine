@@ -40,9 +40,9 @@ int32_t taosGetFqdn(char *fqdn) {
   return 0;
 }
 
-uint32_t taosGetIpFromFqdn(const char *fqdn) {
+uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
   struct addrinfo hints = {0};
-  hints.ai_family = AF_UNSPEC;
+  hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
 
   struct addrinfo *result = NULL;
