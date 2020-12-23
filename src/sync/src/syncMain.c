@@ -43,8 +43,8 @@ static void    syncProcessSyncRequest(char *pMsg, SSyncPeer *pPeer);
 static void    syncRecoverFromMaster(SSyncPeer *pPeer);
 static void    syncCheckPeerConnection(void *param, void *tmrId);
 static int32_t syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type, uint16_t tranId);
-static void    syncProcessBrokenLink(void *param);
-static int32_t syncProcessPeerMsg(void *param, void *buffer);
+static void    syncProcessBrokenLink(int64_t rid);
+static int32_t syncProcessPeerMsg(int64_t rid, void *buffer);
 static void    syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
 static void    syncRemovePeer(SSyncPeer *pPeer);
 static void    syncAddArbitrator(SSyncNode *pNode);
@@ -543,7 +543,8 @@ static void syncClosePeerConn(SSyncPeer *pPeer) {
   taosClose(pPeer->syncFd);
   if (pPeer->peerFd >= 0) {
     pPeer->peerFd = -1;
-    syncFreeTcpConn(pPeer->pConn);
+    void *pConn = pPeer->pConn;
+    if (pConn != NULL) syncFreeTcpConn(pPeer->pConn);
   }
 }
 
@@ -1025,8 +1026,7 @@ static int32_t syncReadPeerMsg(SSyncPeer *pPeer, SSyncHead *pHead) {
   return 0;
 }
 
-static int32_t syncProcessPeerMsg(void *param, void *buffer) {
-  int64_t    rid = (int64_t)param;
+static int32_t syncProcessPeerMsg(int64_t rid, void *buffer) {
   SSyncPeer *pPeer = syncAcquirePeer(rid);
   if (pPeer == NULL) return -1;
 
@@ -1115,7 +1115,7 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     sDebug("%s, connection to peer server is setup, pfd:%d sfd:%d tranId:%u", pPeer->id, connFd, pPeer->syncFd, msg.tranId);
     pPeer->peerFd = connFd;
     pPeer->role = TAOS_SYNC_ROLE_UNSYNCED;
-    pPeer->pConn = syncAllocateTcpConn(tsTcpPool, pPeer, connFd);
+    pPeer->pConn = syncAllocateTcpConn(tsTcpPool, pPeer->rid, connFd);
   } else {
     sDebug("%s, failed to setup peer connection to server since %s, try later", pPeer->id, strerror(errno));
     taosClose(connFd);
@@ -1222,7 +1222,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
       sDebug("%s, TCP connection is up, pfd:%d sfd:%d, old pfd:%d", pPeer->id, connFd, pPeer->syncFd, pPeer->peerFd);
       syncClosePeerConn(pPeer);
       pPeer->peerFd = connFd;
-      pPeer->pConn = syncAllocateTcpConn(tsTcpPool, pPeer, connFd);
+      pPeer->pConn = syncAllocateTcpConn(tsTcpPool, pPeer->rid, connFd);
       sDebug("%s, ready to exchange data", pPeer->id);
       syncSendPeersStatusMsgToPeer(pPeer, 1, SYNC_STATUS_EXCHANGE_DATA, syncGenTranId());
     }
@@ -1231,8 +1231,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
   pthread_mutex_unlock(&pNode->mutex);
 }
 
-static void syncProcessBrokenLink(void *param) {
-  int64_t    rid = (int64_t)param;
+static void syncProcessBrokenLink(int64_t rid) {
   SSyncPeer *pPeer = syncAcquirePeer(rid);
   if (pPeer == NULL) return;
 

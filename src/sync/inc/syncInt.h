@@ -38,7 +38,7 @@ extern "C" {
 #define SYNC_MAX_FWDS 512
 #define SYNC_FWD_TIMER 300
 #define SYNC_ROLE_TIMER 15000             // ms
-#define SYNC_CHECK_INTERVAL 1             // ms
+#define SYNC_CHECK_INTERVAL 1000          // ms
 #define SYNC_WAIT_AFTER_CHOOSE_MASTER 10  // ms
 
 #define nodeRole    pNode->peerInfo[pNode->selfIndex]->role

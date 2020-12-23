@@ -42,7 +42,7 @@ typedef struct SPoolObj {
 
 typedef struct {
   SThreadObj *pThread;
-  void *      ahandle;
+  int64_t     handleId;
   int32_t     fd;
   int32_t     closedByApp;
 } SConnObj;
@@ -112,7 +112,7 @@ void syncCloseTcpThreadPool(void *param) {
   tfree(pPool);
 }
 
-void *syncAllocateTcpConn(void *param, void *pPeer, int32_t connFd) {
+void *syncAllocateTcpConn(void *param, int64_t rid, int32_t connFd) {
   struct epoll_event event;
   SPoolObj *pPool = param;
 
@@ -130,7 +130,7 @@ void *syncAllocateTcpConn(void *param, void *pPeer, int32_t connFd) {
 
   pConn->fd = connFd;
   pConn->pThread = pThread;
-  pConn->ahandle = (void *)(((SSyncPeer *)pPeer)->rid);
+  pConn->handleId = rid;
   pConn->closedByApp = 0;
 
   event.events = EPOLLIN | EPOLLRDHUP;
@@ -164,7 +164,7 @@ static void taosProcessBrokenLink(SConnObj *pConn) {
   SPoolInfo * pInfo = &pPool->info;
 
   if (pConn->closedByApp == 0) shutdown(pConn->fd, SHUT_WR);
-  (*pInfo->processBrokenLink)(pConn->ahandle);
+  (*pInfo->processBrokenLink)(pConn->handleId);
 
   pThread->numOfFds--;
   epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pConn->fd, NULL);
@@ -221,7 +221,7 @@ static void *syncProcessTcpData(void *param) {
       }
 
       if (pConn->closedByApp == 0) {
-        if ((*pInfo->processIncomingMsg)(pConn->ahandle, buffer) < 0) {
+        if ((*pInfo->processIncomingMsg)(pConn->handleId, buffer) < 0) {
           syncFreeTcpConn(pConn);
           continue;
         }

@@ -18,6 +18,10 @@
 #include "tsocket.h"
 #include "taoserror.h"
 
+#ifndef SIGPIPE
+  #define SIGPIPE EPIPE
+#endif
+
 int32_t taosGetFqdn(char *fqdn) {
   char hostname[1024];
   hostname[1023] = '\0';
