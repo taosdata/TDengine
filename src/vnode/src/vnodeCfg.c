@@ -211,9 +211,11 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   cJSON *cacheLastRow = cJSON_GetObjectItem(root, "cacheLastRow");
   if (!cacheLastRow || cacheLastRow->type != cJSON_Number) {
     vError("vgId: %d, failed to read %s, cacheLastRow not found", pVnode->vgId, file);
-    goto PARSE_VCFG_ERROR;
+    //goto PARSE_VCFG_ERROR;
+    vnodeMsg.cfg.cacheLastRow = 0;
+  } else {
+    vnodeMsg.cfg.cacheLastRow = (int8_t)cacheLastRow->valueint;
   }
-  vnodeMsg.cfg.cacheLastRow = (int8_t)cacheLastRow->valueint;
 
   cJSON *nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {
