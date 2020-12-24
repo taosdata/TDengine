@@ -120,6 +120,7 @@
 //}
 
 static int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val);
+static int32_t histoBinarySearch(SHistBin* pEntry, int32_t len, double val);
 
 SHistogramInfo* tHistogramCreate(int32_t numOfEntries) {
   /* need one redundant slot */
@@ -158,8 +159,8 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
   }
 
 #if defined(USE_ARRAYLIST)
-  int32_t idx = vnodeHistobinarySearch((*pHisto)->elems, (*pHisto)->numOfEntries, val);
-  assert(idx >= 0 && idx <= (*pHisto)->maxEntries);
+  int32_t idx = histoBinarySearch((*pHisto)->elems, (*pHisto)->numOfEntries, val);
+  assert(idx >= 0 && idx <= (*pHisto)->maxEntries && (*pHisto)->elems != NULL);
 
   if ((*pHisto)->elems[idx].val == val && idx >= 0) {
     (*pHisto)->elems[idx].num += 1;
@@ -356,7 +357,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
   return 0;
 }
 
-int32_t vnodeHistobinarySearch(SHistBin* pEntry, int32_t len, double val) {
+int32_t histoBinarySearch(SHistBin* pEntry, int32_t len, double val) {
   int32_t end = len - 1;
   int32_t start = 0;
 
@@ -466,7 +467,7 @@ void tHistogramPrint(SHistogramInfo* pHisto) {
  */
 int64_t tHistogramSum(SHistogramInfo* pHisto, double v) {
 #if defined(USE_ARRAYLIST)
-  int32_t slotIdx = vnodeHistobinarySearch(pHisto->elems, pHisto->numOfEntries, v);
+  int32_t slotIdx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, v);
   if (pHisto->elems[slotIdx].val != v) {
     slotIdx -= 1;
 

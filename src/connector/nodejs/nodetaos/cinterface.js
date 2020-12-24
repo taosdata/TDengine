@@ -349,11 +349,12 @@ CTaosInterface.prototype.useResult = function useResult(result) {
   return fields;
 }
 CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
-  let pblock = ref.ref(ref.ref(ref.NULL)); // equal to our raw data
-  let num_of_rows = this.libtaos.taos_fetch_block(result, pblock)
-  if (num_of_rows == 0) {
+  //let pblock = ref.ref(ref.ref(ref.NULL)); // equal to our raw data
+  let pblock = this.libtaos.taos_fetch_row(result);
+  if (pblock == null) {
     return {block:null, num_of_rows:0};
   }
+
   var fieldL = this.libtaos.taos_fetch_lengths(result);
 
   let isMicro = (this.libtaos.taos_result_precision(result) == FieldTypes.C_TIMESTAMP_MICRO);
@@ -361,7 +362,6 @@ CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   var fieldlens = [];
   
   if (ref.isNull(fieldL) == false) {
-    
     for (let i = 0; i < fields.length; i ++) {
       let plen = ref.reinterpret(fieldL, 4, i*4);
       let len = plen.readInt32LE(0);
