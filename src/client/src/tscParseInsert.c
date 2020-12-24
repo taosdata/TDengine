@@ -731,7 +731,7 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, SParsedDataColI
     return code;
   }
 
-  dataBuf->vgId = pTableMeta->vgroupInfo.vgId;
+  dataBuf->vgId = pTableMeta->vgId;
   dataBuf->numOfTables = 1;
 
   *totalNum += numOfRows;

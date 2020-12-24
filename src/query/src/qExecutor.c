@@ -5182,10 +5182,10 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       scanMultiTableDataBlocks(pQInfo);
       pQInfo->groupIndex += 1;
 
-      SResultRowInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
+      taosArrayDestroy(s);
 
       // no results generated for current group, continue to try the next group
-      taosArrayDestroy(s);
+      SResultRowInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
       if (pWindowResInfo->size <= 0) {
         continue;
       }
@@ -5212,8 +5212,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
       pQInfo->groupIndex = currentGroupIndex;  // restore the group index
       assert(pQuery->rec.rows == pWindowResInfo->size);
-
-      clearClosedResultRows(pRuntimeEnv, &pRuntimeEnv->windowResInfo);
+      resetResultRowInfo(pRuntimeEnv, &pRuntimeEnv->windowResInfo);
       break;
     }
   } else if (pRuntimeEnv->queryWindowIdentical && pRuntimeEnv->pTsBuf == NULL && !isTSCompQuery(pQuery)) {
