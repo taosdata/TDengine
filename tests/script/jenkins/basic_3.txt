@@ -40,7 +40,7 @@
 #./test.sh -f unique/arbitrator/dn3_mn1_nw_disable_timeout_autoDropDnode.sim
 #./test.sh -f unique/arbitrator/dn3_mn1_replica2_wal1_AddDelDnode.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_replica_change_dropDnod.sim
-./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim
 #./test.sh -f unique/arbitrator/dn3_mn1_stopDnode_timeout.sim
 # lower the priority while file corruption
 #./test.sh -f unique/arbitrator/dn3_mn1_vnode_change.sim
