@@ -384,7 +384,12 @@ void tSqlSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) 
   pField->name[pName->n] = 0;
 
   pField->type = pType->type;
-  pField->bytes = pType->bytes;
+  if(pField->type < TSDB_DATA_TYPE_BOOL || pField->type > TSDB_DATA_TYPE_NCHAR){
+    pField->bytes = 0;
+  } else {
+    pField->bytes = pType->bytes;
+  }
+
 }
 
 void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {

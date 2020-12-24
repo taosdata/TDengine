@@ -31,11 +31,17 @@ function runSimCaseOneByOnefq {
 			case=`echo $line | grep sim$ |awk '{print $NF}'`
 
       start_time=`date +%s`
-      ./test.sh -f $case > /dev/null 2>&1 && \
+      IN_TDINTERNAL="community"
+      if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+        ./test.sh -f $case > /dev/null 2>&1 && \
         echo -e "${GREEN}$case success${NC}" | tee -a out.log || \
         ( grep 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN}$case success${NC}" | tee -a out.log ) || echo -e "${RED}$case failed${NC}" | tee -a out.log
-        
-
+      else
+        ./test.sh -f $case > /dev/null 2>&1 && \
+        echo -e "${GREEN}$case success${NC}" | tee -a out.log || \
+        ( grep 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN}$case success${NC}" | tee -a out.log ) || echo -e "${RED}$case failed${NC}" | tee -a out.log
+      fi
+      
       out_log=`tail -1 out.log  `
       if [[ $out_log =~ 'failed' ]];then
         exit 8
