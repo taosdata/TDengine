@@ -136,7 +136,7 @@ void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
   else
     httpCode = 400;
 
-  if (pContext->parser->httpCode != 0) {
+  if (pContext->parser && pContext->parser->httpCode != 0) {
     httpCode = pContext->parser->httpCode;
   }
 

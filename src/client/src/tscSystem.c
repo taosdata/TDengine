@@ -36,7 +36,6 @@ int     tscObjRef = -1;
 void *  tscTmr;
 void *  tscQhandle;
 void *  tscCheckDiskUsageTmr;
-int     tsInsertHeadSize;
 int     tscRefId = -1;
 
 int tscNumOfThreads;

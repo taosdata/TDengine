@@ -1443,6 +1443,12 @@ int32_t taosCheckGlobalCfg() {
     tsNumOfCores = 1;
   }
 
+  if (tsMaxTablePerVnode < tsMinTablePerVnode) {
+    uError("maxTablesPerVnode(%d) < minTablesPerVnode(%d), reset to minTablesPerVnode(%d)",
+	   tsMaxTablePerVnode, tsMinTablePerVnode, tsMinTablePerVnode);
+    tsMaxTablePerVnode = tsMinTablePerVnode;
+  }
+
   // todo refactor
   tsVersion = 0;
   for (int i = 0; i < 10; i++) {

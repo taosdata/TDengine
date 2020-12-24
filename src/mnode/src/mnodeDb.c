@@ -1015,7 +1015,7 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
 
   if (memcmp(&newCfg, &pDb->cfg, sizeof(SDbCfg)) != 0) {
     pDb->cfg = newCfg;
-    pDb->cfgVersion++;
+    pDb->dbCfgVersion++;
     SSdbRow row = {
       .type    = SDB_OPER_GLOBAL,
       .pTable  = tsDbSdb,
