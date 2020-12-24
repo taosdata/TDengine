@@ -58,6 +58,7 @@ typedef struct {
   char     empty[1];  // reserved
   uint8_t  msgType;   // message type  
   int32_t  msgLen;    // message length including the header iteslf
+  uint32_t msgVer;
   int32_t  code;      // code in response message
   uint8_t  content[0]; // message body starts from here
 } SRpcHead;

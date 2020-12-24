@@ -959,6 +959,11 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
     terrno = TSDB_CODE_RPC_INVALID_SESSION_ID; return NULL;
   }
 
+  if (rpcIsReq(pHead->msgType) && htonl(pHead->msgVer) != tsVersion >> 8) {
+    tDebug("%s sid:%d, invalid client version:%d", pRpc->label, sid, htonl(pHead->msgVer));
+    terrno = TSDB_CODE_RPC_INVALID_VERSION; return NULL;
+  }
+
   pConn = rpcGetConnObj(pRpc, sid, pRecv);
   if (pConn == NULL) {
     tDebug("%s %p, failed to get connection obj(%s)", pRpc->label, (void *)pHead->ahandle, tstrerror(terrno)); 
@@ -1282,6 +1287,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
 
   // set the message header  
   pHead->version = 1;
+  pHead->msgVer = htonl(tsVersion >> 8);
   pHead->msgType = msgType;
   pHead->encrypt = 0;
   pConn->tranId++;
