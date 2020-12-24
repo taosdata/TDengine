@@ -5,7 +5,6 @@ system sh/deploy.sh -n dnode2 -i 2
 
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 sql create dnode $hostname2
 
@@ -18,38 +17,75 @@ endi
 
 print ========== step2
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
 sql show dnodes
-print dnode1 off: $data7_1
-print dnode2 off: $data7_2
+print dnode1 $data4_1
+print dnode2 $data4_2
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
 
 print ========== step3
 system sh/exec.sh -n dnode2 -s stop
-sleep 3000
+
+$x = 0
+step3: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
 sql show dnodes
 print dnode1 off: $data7_1
 print dnode2 off: $data7_2
 if $data7_2 != @status msg timeout@ then
-	return -1
+	goto step3
 endi
 
 print ========== step4
 sql drop dnode $hostname2
-sleep 5000
+$x = 0
+step4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
 sql show dnodes
 if $rows != 1 then
-	return -1
+	goto step4
 endi
 
 print ========== step5
 system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
-sleep 3000
+
+$x = 0
+step5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
 sql show dnodes
 print dnode1 off: $data7_1
 print dnode2 off: $data7_3
 if $data7_3 != @dnodeId not match@ then
-	return -1
+	goto step5
 endi
 
 print ========== step6
@@ -58,12 +94,19 @@ system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 3
 system sh/exec.sh -n dnode4 -s start
 sql create dnode $hostname4
 
-sleep 3000
+$x = 0
+step6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
 sql show dnodes
 print dnode1 off: $data7_1
 print dnode4 off: $data7_4
 if $data7_4 != @mnEqualVn not match@ then
-	return -1
+	goto step6
 endi
 
 print ========== step7
@@ -72,12 +115,19 @@ system sh/cfg.sh -n dnode5 -c statusInterval -v 3
 system sh/exec.sh -n dnode5 -s start
 sql create dnode $hostname5
 
-sleep 3000
+$x = 0
+step7: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
 sql show dnodes
 print dnode1 off: $data7_1
 print dnode5 off: $data7_5
 if $data7_5 != @interval not match@ then
-	return -1
+	goto step7
 endi
 
 print ========== step8
@@ -86,12 +136,19 @@ system sh/cfg.sh -n dnode6 -c balance -v 0
 system sh/exec.sh -n dnode6 -s start
 sql create dnode $hostname6
 
-sleep 3000
+$x = 0
+step8: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
 sql show dnodes
 print dnode1 off: $data7_1
 print dnode6 off: $data7_6
 if $data7_6 != @balance not match@ then
-	return -1
+	goto step8
 endi
 
 print ========== step9
@@ -100,12 +157,19 @@ system sh/cfg.sh -n dnode7 -c maxTablesPerVnode -v 3000
 system sh/exec.sh -n dnode7 -s start
 sql create dnode $hostname7
 
-sleep 3000
+$x = 0
+step9: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
 sql show dnodes
 print dnode1 off: $data7_1
 print dnode7 off: $data7_7
 if $data7_7 != @maxTabPerVn not match@ then
-	return -1
+	goto step9
 endi
 
 print ========== step10
@@ -114,12 +178,19 @@ system sh/cfg.sh -n dnode8 -c maxVgroupsPerDb -v 3
 system sh/exec.sh -n dnode8 -s start
 sql create dnode $hostname8
 
-sleep 3000
+$x = 0
+step10: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
 sql show dnodes
 print dnode1 off: $data7_1
 print dnode8 off: $data7_8
 if $data7_8 != @maxVgPerDb not match@ then
-	return -1
+	goto step10
 endi
 
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
