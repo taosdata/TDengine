@@ -43,7 +43,8 @@ class TDTestCase:
 
         print("==============step2")
         tdDnodes.stopAll()
-        filename = '/var/lib/taos/mnode/wal/wal0'
+        path = tdDnodes.getDnodesRootDir()        
+        filename = path + '/dnode1/data/mnode/wal/wal0'
 
         with open(filename, 'rb') as f1:
             temp = f1.read()
@@ -57,12 +58,12 @@ class TDTestCase:
         print("==============step3")
         tdSql.execute("use demo;")
         tdSql.query('show tables;')
-        tdSql.checkRows(10)
+        tdSql.checkRows(9)
         for i in range(11,21):
             tdSql.execute("CREATE table if not exists test{num} using meters tags({num});".format(num=i))
 
         tdSql.query('show tables;')
-        tdSql.checkRows(20)
+        tdSql.checkRows(19)
         print("==============check table numbers and create 10 tables")
 
 
