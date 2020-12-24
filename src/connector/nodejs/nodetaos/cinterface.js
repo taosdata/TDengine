@@ -144,18 +144,9 @@ function convertBinary(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
 function convertNchar(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
-  let currOffset = 0;
-  // every 4 bytes, a character is encoded;
-  while (currOffset < data.length) {
-    let dataEntry = data.slice(currOffset, currOffset + nbytes); //one entry in a row under a column;
-    if (dataEntry.readInt64LE(0) == FieldTypes.C_NCHAR_NULL) {
-      res.push(null);
-    }
-    else {
-      res.push(dataEntry.toString("utf16le").replace(/\u0000/g, ""));
-    }
-    currOffset += nbytes;
-  }
+  let dataEntry = data.slice(0, nbytes); //one entry in a row under a column;
+  //TODO: should use the correct character encoding 
+  res.push(dataEntry.toString("utf-8"));
   return res;
 }
 
@@ -351,7 +342,8 @@ CTaosInterface.prototype.useResult = function useResult(result) {
 CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   //let pblock = ref.ref(ref.ref(ref.NULL)); // equal to our raw data
   let pblock = this.libtaos.taos_fetch_row(result);
-  if (pblock == null) {
+  let num_of_rows = 1;
+  if (ref.isNull(pblock) == true) {
     return {block:null, num_of_rows:0};
   }
 
@@ -363,17 +355,16 @@ CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   
   if (ref.isNull(fieldL) == false) {
     for (let i = 0; i < fields.length; i ++) {
-      let plen = ref.reinterpret(fieldL, 4, i*4);
+	  let plen = ref.reinterpret(fieldL, 4, i*4);
       let len = plen.readInt32LE(0);
-       fieldlens.push(len);
+      fieldlens.push(len);
     }
   }
 
   let blocks = new Array(fields.length);
   blocks.fill(null);
-  num_of_rows = Math.abs(num_of_rows);
+  //num_of_rows = Math.abs(num_of_rows);
   let offset = 0;
-  pblock = pblock.deref();
   for (let i = 0; i < fields.length; i++) {
     pdata = ref.reinterpret(pblock,8,i*8);
     pdata = ref.ref(pdata.readPointer());
