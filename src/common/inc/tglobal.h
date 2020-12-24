@@ -161,7 +161,7 @@ extern float   tsMinimalLogDirGB;
 extern float   tsReservedTmpDirectorySpace;
 extern float   tsMinimalDataDirGB;
 extern int32_t tsTotalMemoryMB;
-extern int32_t tsVersion;
+extern uint32_t tsVersion;
 
 // build info
 extern char version[];

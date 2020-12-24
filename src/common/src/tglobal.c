@@ -201,7 +201,7 @@ float   tsAvailDataDirGB = 0;
 float   tsReservedTmpDirectorySpace = 0.1f;
 float   tsMinimalDataDirGB = 0.5f;
 int32_t tsTotalMemoryMB = 0;
-int32_t tsVersion = 0;
+uint32_t tsVersion = 0;
 
 // log
 int32_t tsNumOfLogLines = 10000000;
@@ -1451,15 +1451,20 @@ int32_t taosCheckGlobalCfg() {
 
   // todo refactor
   tsVersion = 0;
-  for (int i = 0; i < 10; i++) {
+  for (int ver = 0, i = 0; i < TSDB_VERSION_LEN; ++i) {
     if (version[i] >= '0' && version[i] <= '9') {
-      tsVersion = tsVersion * 10 + (version[i] - '0');
+      ver = ver * 10 + (version[i] - '0');
+    } else if (version[i] == '.') {
+      tsVersion |= ver & 0xFF;
+      tsVersion <<= 8;
+
+      ver = 0;
     } else if (version[i] == 0) {
+      tsVersion |= ver & 0xFF;
+
       break;
     }
   }
-  
-  tsVersion = 10 * tsVersion;
 
   tsDnodeShellPort = tsServerPort + TSDB_PORT_DNODESHELL;  // udp[6035-6039] tcp[6035]
   tsDnodeDnodePort = tsServerPort + TSDB_PORT_DNODEDNODE;   // udp/tcp
