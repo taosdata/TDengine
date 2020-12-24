@@ -45,13 +45,30 @@ system sh/exec_tarbitrator.sh -s start
 
 print ============== step1: start dnode1, only deploy mnode
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 
 print ============== step2: start dnode2 and add into cluster , then create database with replica 1, and create table, insert data
 system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
-sleep 3000
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
 
 $sleepTimer = 10000
 
@@ -156,24 +173,38 @@ if $dnode2Status != ready then
 endi
 
 sql select count(*) from $stb
-sleep 1000
 print data00 $data00
 if $data00 != $totalRows then
 	return -1
 endi
 
-
 print ============== step3: start dnode3 and add into cluster , then alter replica from 1 to 2, and waiting sync
 system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname3
-sleep 3000
+
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_3 != ready then
+  goto step2
+endi
 
 sql alter database $db replica 2
 sleep $sleepTimer
 $loopCnt = 0
 wait_dnode3_ready:
 $loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
+if $loopCnt == 20 then 
   return -1
 endi
 
@@ -258,7 +289,6 @@ endi
 
 print ============== step5: restart dnode2
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
 
 $loopCnt = 0
 wait_dnode2_ready:
@@ -300,7 +330,23 @@ endi
 print ============== step6: start dnode4 and add into cluster , then alter replica from 2 to 3, and waiting sync
 system sh/exec.sh -n dnode4 -s start
 sql create dnode $hostname4
-sleep 3000
+$x = 0
+step6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_4 != ready then
+  goto step6
+endi
 
 sql alter database $db replica 3
 sleep $sleepTimer
