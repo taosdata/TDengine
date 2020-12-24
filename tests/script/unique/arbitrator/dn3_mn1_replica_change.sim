@@ -70,8 +70,6 @@ if $data4_2 != ready then
   goto step1
 endi
 
-$sleepTimer = 10000
-
 $db = db
 sql create database $db replica 1
 sql use $db
@@ -101,7 +99,6 @@ while $i < $tblNum
 endw 
 
 sql select count(*) from $stb
-sleep 1000
 print data00 $data00
 if $data00 != $totalRows then
 	return -1
@@ -109,8 +106,6 @@ endi
 
 print ============== step2-1: stop dnode2 for falling disc, then restart dnode2, and check rows
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep $sleepTimer
-
 
 $loopCnt = 0
 wait_dnode2_offline_0:
@@ -141,8 +136,6 @@ if $dnode2Status != offline then
 endi
 
 system sh/exec.sh -n dnode2 -s start
-sleep $sleepTimer
-
 
 $loopCnt = 0
 wait_dnode2_reready:
@@ -200,41 +193,21 @@ if $data4_3 != ready then
 endi
 
 sql alter database $db replica 2
-sleep $sleepTimer
-$loopCnt = 0
-wait_dnode3_ready:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 20 then 
-  return -1
+
+$x = 0
+a1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a1
 endi
 
-sql show dnodes
-if $rows != 3 then
-  sleep 2000
-  goto wait_dnode3_ready
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-#$dnode1Status = $data4_1  
-$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-#$dnode4Status = $data4_4 
-#$dnode5Status = $data4_5
-
-if $dnode2Status != ready then
-  sleep 2000
-  goto wait_dnode3_ready
-endi
-if $dnode3Status != ready then
-  sleep 2000
-  goto wait_dnode3_ready
-endi
-
-sleep $sleepTimer
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -242,10 +215,8 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-
 print ============== step4: stop dnode2 for checking if sync ok
 system sh/exec.sh -n dnode2 -s stop
-sleep $sleepTimer
 $loopCnt = 0
 wait_dnode2_offline:
 $loopCnt = $loopCnt + 1
@@ -279,7 +250,6 @@ if $dnode3Status != ready then
   goto wait_dnode2_offline
 endi
 
-sleep $sleepTimer   # waitting for move master vnode of dnode2 to dnode3
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -289,37 +259,20 @@ endi
 
 print ============== step5: restart dnode2
 system sh/exec.sh -n dnode2 -s start
+$x = 0
+a2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
 
-$loopCnt = 0
-wait_dnode2_ready:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a2
 endi
 
-sql show dnodes
-if $rows != 3 then
-  sleep 2000
-  goto wait_dnode2_ready
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-#$dnode1Status = $data4_1  
-$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-#$dnode4Status = $data4_4 
-#$dnode5Status = $data4_5
-
-if $dnode2Status != ready then
-  sleep 2000
-  goto wait_dnode2_ready
-endi
-
-sleep $sleepTimer
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -349,37 +302,20 @@ if $data4_4 != ready then
 endi
 
 sql alter database $db replica 3
-sleep $sleepTimer
-$loopCnt = 0
-wait_dnode4_ready:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
+$x = 0
+a3: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto a3
 endi
 
-sql show dnodes
-if $rows != 4 then
-  sleep 2000
-  goto wait_dnode4_ready
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-#$dnode1Status = $data4_1  
-#$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-$dnode4Status = $data4_4 
-#$dnode5Status = $data4_5
-
-if $dnode4Status != ready then
-  sleep 2000
-  goto wait_dnode4_ready
-endi
-
-sleep $sleepTimer
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -389,7 +325,6 @@ endi
 
 print ============== step7: alter replica from 3 to 2, and waiting sync
 sql alter database $db replica 2
-sleep $sleepTimer
 $loopCnt = 0
 wait_vgroups_replic_to_2:
 $loopCnt = $loopCnt + 1
@@ -426,7 +361,20 @@ if $thirdDnode_5 != null then
   goto wait_vgroups_replic_to_2
 endi
 
-sleep $sleepTimer  #waiting del one replica data
+$x = 0
+a4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a4
+endi
+
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -436,7 +384,7 @@ endi
 
 print ============== step8: alter replica from 2 to 1, and waiting sync
 sql alter database $db replica 1
-sleep $sleepTimer
+sleep 10000
 $loopCnt = 0
 wait_vgroups_replic_to_1:
 $loopCnt = $loopCnt + 1
@@ -514,7 +462,20 @@ if $dnode4Status != ready then
   goto all_dnodes_ready
 endi
 
-sleep $sleepTimer  #waiting del one replica data
+$x = 0
+a5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a5
+endi
+
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -560,6 +521,20 @@ if $dnode3Status != null then
 endi
 if $dnode4Status != ready then
   return -1
+endi
+
+$x = 0
+a6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a6
 endi
 
 sleep $sleepTimer  #waiting move vnode from dnode3/dnode3 to dnode4
