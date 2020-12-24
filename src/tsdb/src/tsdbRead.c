@@ -110,6 +110,7 @@ typedef struct STsdbQueryHandle {
   SArray*        pTableCheckInfo;  // SArray<STableCheckInfo>
   int32_t        activeIndex;
   bool           checkFiles;       // check file stage
+  bool           cachelastrow;     // check if last row cached
   void*          qinfo;            // query info handle, for debug purpose
   int32_t        type;             // query type: retrieve all data blocks, 2. retrieve only last row, 3. retrieve direct prev|next rows
   SFileGroup*    pFileGroup;
@@ -133,7 +134,8 @@ typedef struct STableGroupSupporter {
   STSchema*  pTagSchema;
 } STableGroupSupporter;
 
-static STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList);
+static STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList);
+static void checkCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList);
 
 static void    changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle);
 static void    doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SCompBlock* pBlock);
@@ -370,7 +372,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
 }
 
 TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo, SMemRef* pMemRef) {
-  pCond->twindow = changeTableGroupByLastrow(groupList);
+  pCond->twindow = updateLastrowForEachGroup(groupList);
 
   // no qualified table
   if (groupList->numOfTables == 0) {
@@ -378,6 +380,7 @@ TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STab
   }
 
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qinfo, pMemRef);
+  checkCachedLastRow(pQueryHandle, groupList);
 
   assert(pCond->order == TSDB_ORDER_ASC && pCond->twindow.skey <= pCond->twindow.ekey);
   return pQueryHandle;
@@ -2104,6 +2107,10 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
     // restore the pMemRef
     pQueryHandle->pMemRef = pMemRef;
     return ret;
+  } else if (pQueryHandle->type == TSDB_QUERY_TYPE_LAST && pQueryHandle->cachelastrow) {
+    // the last row is cached in buffer, return it directly.
+    // here note that the pQueryHandle->window may need to be updated.
+    assert(0);
   }
 
   if (pQueryHandle->checkFiles) {
@@ -2136,7 +2143,24 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   return ret;
 }
 
-STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
+int32_t tsdbGetCachedLastRow(STable* pTable, void** pRes) {
+  return 0;
+}
+
+void checkCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList) {
+  assert(pQueryHandle != NULL && groupList != NULL);
+
+  void* pRes = NULL;
+  SArray* group = taosArrayGet(groupList->pGroupList, 0);
+  assert(group != NULL);
+
+  STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(group, 0);
+
+  int32_t ret = tsdbGetCachedLastRow(pInfo->pTable, &pRes);
+  pQueryHandle->cachelastrow = (ret == TSDB_CODE_SUCCESS);
+}
+
+STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
   STimeWindow window = {INT64_MAX, INT64_MIN};
 
   int32_t totalNumOfTable = 0;
@@ -2151,16 +2175,16 @@ STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
 
     size_t numOfTables = taosArrayGetSize(pGroup);
     for(int32_t i = 0; i < numOfTables; ++i) {
-      STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(pGroup, i);
+      STableKeyInfo* pInfo = (STableKeyInfo*) taosArrayGet(pGroup, i);
 
       // if the lastKey equals to INT64_MIN, there is no data in this table
-      TSKEY lastKey = ((STable*)(pKeyInfo->pTable))->lastKey;
+      TSKEY lastKey = ((STable*)(pInfo->pTable))->lastKey;
       if (key < lastKey) {
         key = lastKey;
 
-        keyInfo.pTable  = pKeyInfo->pTable;
+        keyInfo.pTable  = pInfo->pTable;
         keyInfo.lastKey = key;
-        pKeyInfo->lastKey = key;
+        pInfo->lastKey  = key;
 
         if (key < window.skey) {
           window.skey = key;
@@ -2174,11 +2198,11 @@ STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
 
     // clear current group, unref unused table
     for (int32_t i = 0; i < numOfTables; ++i) {
-      STableKeyInfo* pKeyInfo = (STableKeyInfo*)taosArrayGet(pGroup, i);
+      STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(pGroup, i);
 
       // keyInfo.pTable may be NULL here.
-      if (pKeyInfo->pTable != keyInfo.pTable) {
-        tsdbUnRefTable(pKeyInfo->pTable);
+      if (pInfo->pTable != keyInfo.pTable) {
+        tsdbUnRefTable(pInfo->pTable);
       }
     }
 
