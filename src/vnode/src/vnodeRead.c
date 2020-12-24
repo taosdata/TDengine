@@ -307,8 +307,11 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
         // NOTE: set return code to be TSDB_CODE_QRY_HAS_RSP to notify dnode to return msg to client
         code = TSDB_CODE_QRY_HAS_RSP;
       } else {
-        void *h1 = qGetResultRetrieveMsg(*qhandle);
-        assert(h1 == NULL);
+        //void *h1 = qGetResultRetrieveMsg(*qhandle);
+
+        /* remove this assert, one possible case that will cause h1 not NULL: query thread unlock pQInfo->lock, and then FETCH thread execute twice before query thread reach here */
+        //assert(h1 == NULL);
+
         freehandle = qQueryCompleted(*qhandle);
       }
 

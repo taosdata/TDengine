@@ -119,4 +119,4 @@ if ((${service_mod}==2)); then
     kill_taosd
 fi
 
-echo -e "${GREEN}TDEngine is removed successfully!${NC}"
+echo -e "${GREEN}TDengine is removed successfully!${NC}"
