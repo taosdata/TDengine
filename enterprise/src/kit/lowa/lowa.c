@@ -667,7 +667,7 @@ static void getResult(TAOS_RES *res, char* resultFileName) {
   TAOS_FIELD *fields     = taos_fetch_fields(res);
 
   FILE *fp = NULL;
-  if (resultFileName != NULL) {
+  if (resultFileName[0] != 0) {
     fp = fopen(resultFileName, "at");
     if (fp == NULL) {
       fprintf(stderr, "failed to open result file: %s, result will not save to file\n", resultFileName);
@@ -1956,31 +1956,57 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     printf("failed to read json, column size overflow, max column size is %d\n", MAX_COLUMN_COUNT);
     goto PARSE_OVER;
   }
+
+  int count = 1;
+  int index = 0;
+  StrColumn    columnCase = {0};
   
-  superTbls->columnCount = columnSize;  
+  //superTbls->columnCount = columnSize;  
   for (int k = 0; k < columnSize; ++k) {
     cJSON* column = cJSON_GetArrayItem(columns, k);
     if (column == NULL) continue;
-  
+
+    count = 1;
+    cJSON* countObj = cJSON_GetObjectItem(column, "count");
+    if (countObj && countObj->type == cJSON_Number) {
+      count = countObj->valueint;    
+    } else if (countObj && countObj->type != cJSON_Number) {
+      printf("failed to read json, column count not found");
+      goto PARSE_OVER;
+    } else {
+      count = 1;
+    }
+
     // column info 
+    memset(&columnCase, 0, sizeof(StrColumn));
     cJSON *dataType = cJSON_GetObjectItem(column, "type");
     if (!dataType || dataType->type != cJSON_String || dataType->valuestring == NULL) {
       printf("failed to read json, column type not found");
       goto PARSE_OVER;
     }
-    strncpy(superTbls->columns[k].dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
+    //strncpy(superTbls->columns[k].dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
+    strncpy(columnCase.dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
             
     cJSON* dataLen = cJSON_GetObjectItem(column, "len");
     if (dataLen && dataLen->type == cJSON_Number) {
-      superTbls->columns[k].dataLen = dataLen->valueint;    
+      columnCase.dataLen = dataLen->valueint;    
     } else if (dataLen && dataLen->type != cJSON_Number) {
       printf("failed to read json, column len not found");
       goto PARSE_OVER;
     } else {
-      superTbls->columns[k].dataLen = 0;
-    }            
-  }
+      columnCase.dataLen = 0;
+    }
+    
+    for (int n = 0; n < count; ++n) {
+      strncpy(superTbls->columns[index].dataType, columnCase.dataType, MAX_TB_NAME_SIZE);
+      superTbls->columns[index].dataLen = columnCase.dataLen; 
+      index++;
+    }
+  }  
+  superTbls->columnCount = index;  
   
+  count = 1;
+  index = 0;
   // tags 
   cJSON *tags = cJSON_GetObjectItem(stbInfo, "tags");
   if (!tags || tags->type != cJSON_Array) {
@@ -1994,29 +2020,48 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     goto PARSE_OVER;
   }
   
-  superTbls->tagCount = tagSize;  
+  //superTbls->tagCount = tagSize;  
   for (int k = 0; k < tagSize; ++k) {
     cJSON* tag = cJSON_GetArrayItem(tags, k);
     if (tag == NULL) continue;
-  
+    
+    count = 1;
+    cJSON* countObj = cJSON_GetObjectItem(tag, "count");
+    if (countObj && countObj->type == cJSON_Number) {
+      count = countObj->valueint;    
+    } else if (countObj && countObj->type != cJSON_Number) {
+      printf("failed to read json, column count not found");
+      goto PARSE_OVER;
+    } else {
+      count = 1;
+    }
+
     // column info 
+    memset(&columnCase, 0, sizeof(StrColumn));
     cJSON *dataType = cJSON_GetObjectItem(tag, "type");
     if (!dataType || dataType->type != cJSON_String || dataType->valuestring == NULL) {
       printf("failed to read json, tag type not found");
       goto PARSE_OVER;
     }
-    strncpy(superTbls->tags[k].dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
+    strncpy(columnCase.dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
             
     cJSON* dataLen = cJSON_GetObjectItem(tag, "len");
     if (dataLen && dataLen->type == cJSON_Number) {
-      superTbls->tags[k].dataLen = dataLen->valueint;    
+      columnCase.dataLen = dataLen->valueint;    
     } else if (dataLen && dataLen->type != cJSON_Number) {
       printf("failed to read json, column len not found");
       goto PARSE_OVER;
     } else {
-      superTbls->tags[k].dataLen = 0;
+      columnCase.dataLen = 0;
     }  
+    
+    for (int n = 0; n < count; ++n) {
+      strncpy(superTbls->tags[index].dataType, columnCase.dataType, MAX_TB_NAME_SIZE);
+      superTbls->tags[index].dataLen = columnCase.dataLen; 
+      index++;
+    }
   }      
+  superTbls->tagCount = index;
 
   ret = true;
 
@@ -2756,11 +2801,13 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         strncpy(g_queryInfo.superQueryInfo.sql[j], sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
 
         cJSON *result = cJSON_GetObjectItem(sql, "result");
-        if (!result || result->type != cJSON_String || result->valuestring == NULL) {
-          printf("failed to read json, result not found\n");
-          goto PARSE_OVER;
-        } else if (result) {
+        if (NULL != result && result->type == cJSON_String && result->valuestring != NULL) {
           strncpy(g_queryInfo.superQueryInfo.result[j], result->valuestring, MAX_FILE_NAME_LEN);
+        } else if (NULL == result) {
+          memset(g_queryInfo.superQueryInfo.result[j], 0, MAX_FILE_NAME_LEN);
+        } else {
+          printf("failed to read json, super query result file not found\n");
+          goto PARSE_OVER;
         } 
       }
     }
@@ -2883,11 +2930,13 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         strncpy(g_queryInfo.subQueryInfo.sql[j], sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
 
         cJSON *result = cJSON_GetObjectItem(sql, "result");
-        if (!result || result->type != cJSON_String || result->valuestring == NULL) {
-          printf("failed to read json, result not found\n");
-          goto PARSE_OVER;
-        } else if (result) {
+        if (result != NULL && result->type == cJSON_String && result->valuestring != NULL){
           strncpy(g_queryInfo.subQueryInfo.result[j], result->valuestring, MAX_FILE_NAME_LEN);
+        } else if (NULL == result) {
+          memset(g_queryInfo.subQueryInfo.result[j], 0, MAX_FILE_NAME_LEN);
+        }  else {
+          printf("failed to read json, sub query result file not found\n");
+          goto PARSE_OVER;
         } 
       }
     }
@@ -3118,6 +3167,7 @@ void syncWriteForNumberOfTblInOneSql(threadInfo *winfo, FILE *fp, char* sampleDa
       int inserted = i;
 
       int k = 0;
+      int batchRowsSql = 0;
       while (1)
       {        
         int len = 0;
@@ -3185,10 +3235,11 @@ void syncWriteForNumberOfTblInOneSql(threadInfo *winfo, FILE *fp, char* sampleDa
             //inserted++;
             k++;
             totalRowsInserted++;
+            batchRowsSql++;
     
-            if (inserted >= superTblInfo->insertRows || (superTblInfo->maxSqlLen - len) < (superTblInfo->lenOfOneRow + 128)) {
+            if (inserted >= superTblInfo->insertRows || (superTblInfo->maxSqlLen - len) < (superTblInfo->lenOfOneRow + 128) || batchRowsSql >= INT16_MAX - 1) {
               tID = tbl_id + 1;
-              printf("config rowsPerTbl and numberOfTblInOneSql not match, please reconfig![lenOfOneRow:%d]\n", superTblInfo->lenOfOneRow);
+              printf("config rowsPerTbl and numberOfTblInOneSql not match with max_sql_lenth, please reconfig![lenOfOneRow:%d]\n", superTblInfo->lenOfOneRow);
               goto send_to_server;
             }
           }
@@ -3199,6 +3250,7 @@ void syncWriteForNumberOfTblInOneSql(threadInfo *winfo, FILE *fp, char* sampleDa
         inserted += superTblInfo->rowsPerTbl;
 
         send_to_server:
+        batchRowsSql = 0;
         if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {    
           //printf("multi table===== sql: %s \n\n", buffer);
           //int64_t t1 = taosGetTimestampMs();
@@ -3301,7 +3353,7 @@ void *syncWrite(void *sarg) {
     }
   }
 
-  if (superTblInfo->numberOfTblInOneSql > 1) {
+  if (superTblInfo->numberOfTblInOneSql > 0) {
     syncWriteForNumberOfTblInOneSql(winfo, fp, sampleDataBuf);
     tmfree(sampleDataBuf);
     tmfclose(fp);
@@ -3333,6 +3385,14 @@ void *syncWrite(void *sarg) {
   
   if (nrecords_no_last_req <= 0) {
     nrecords_no_last_req = 1;
+  }
+
+  if (nrecords_no_last_req >= INT16_MAX) {
+    nrecords_no_last_req = INT16_MAX - 1;
+  }
+
+  if (nrecords_last_req >= INT16_MAX) {
+    nrecords_last_req = INT16_MAX - 1;
   }
 
   int nrecords_cur_req = nrecords_no_last_req;
