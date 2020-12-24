@@ -120,7 +120,6 @@
 //}
 
 static int32_t histogramCreateBin(SHistogramInfo* pHisto, int32_t index, double val);
-static int32_t histoBinarySearch(SHistBin* pEntry, int32_t len, double val);
 
 SHistogramInfo* tHistogramCreate(int32_t numOfEntries) {
   /* need one redundant slot */

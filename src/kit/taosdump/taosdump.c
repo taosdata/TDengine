@@ -332,6 +332,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'N':
       arguments->data_batch = atoi(arg);
+      if (arguments->data_batch >= INT16_MAX) {
+        arguments->data_batch = INT16_MAX - 1;
+      } 
       break;
     case 'L': 
     {
