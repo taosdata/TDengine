@@ -700,6 +700,7 @@ static void getResult(TAOS_RES *res, char* resultFileName) {
 
   if (fp) fprintf(fp, "%s", databuf);
   tmfclose(fp);
+  free(databuf);
 }
 
 static void selectAndGetResult(TAOS *taos, char *command, char* resultFileName) {
