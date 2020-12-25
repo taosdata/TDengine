@@ -14,6 +14,10 @@ system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 1
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 1
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 1
+
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
 sql connect
@@ -21,7 +25,38 @@ sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+
+sql show mnodes
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step1
+endi
 
 print ======== step1 
 sql create database d1 replica 3
@@ -38,7 +73,6 @@ sql insert into d2.t2 values(now, 1)
 sql insert into d1.t1 values(now, 1)
 sql insert into d3.t3 values(now, 1)
 sql insert into d4.t4 values(now, 1)
-sleep 1000
 
 sql select * from d1.t1
 if $rows != 1 then
@@ -61,24 +95,85 @@ if $rows != 1 then
 endi
 
 print ========= step2 alter db
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
 sql alter database d1 replica 2
 sql alter database d2 replica 2
 sql alter database d3 replica 2
 sql alter database d4 replica 2
-sleep 5000
+
+$x = 0
+a1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a1
+endi
+
+sql show d2.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a1
+endi
+
+sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a1
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a1
+endi
+
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
 
 print ========= step3
 system sh/exec.sh -n dnode2 -s start
-sleep 10000
+
+$x = 0
+step3: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+	  return -1
+	endi
+
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step3
+endi
+
+sql show d2.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step3
+endi
+
+sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step3
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step3
+endi
 
 print ========= step4
 sql insert into d1.t1 values(now, 2)
 sql insert into d2.t2 values(now, 2)
 sql insert into d3.t3 values(now, 2)
 sql insert into d4.t4 values(now, 2)
-sleep 1000
 
 sql select * from d1.t1
 if $rows != 2 then
@@ -102,44 +197,104 @@ endi
 
 print ========= step5
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql insert into d1.t1 values(now, 3) -x s1
 s1:
-sql insert into d2.t2 values(now, 3) -x s2
-s2:
-sql insert into d3.t3 values(now, 3) -x s3
-s3:
-sql insert into d4.t4 values(now, 3) -x s4
-s4:
+#sql insert into d2.t2 values(now, 3) -x s2
+#s2:
+#sql insert into d3.t3 values(now, 3) -x s3
+#s3:
+#sql insert into d4.t4 values(now, 3) -x s4
+#s4:
 
 print ========= step6
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
-system sh/exec.sh -n dnode3 -s stop -x SIGINT
-sleep 5000
 
-sql insert into d1.t1 values(now, 4) -x s5
-s5:
+$x = 0
+step6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+	  return -1
+	endi
+
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step6
+endi
+
+sql show d2.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step6
+endi
+
+sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step6
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step6
+endi
+
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+
+#sql insert into d1.t1 values(now, 4) -x s5
+#s5:
 sql insert into d2.t2 values(now, 4) -x s6
 s6:
-sql insert into d3.t3 values(now, 4) -x s7
-s7:
-sql insert into d4.t4 values(now, 4) -x s8
-s8:
+#sql insert into d3.t3 values(now, 4) -x s7
+#s7:
+#sql insert into d4.t4 values(now, 4) -x s8
+#s8:
 
 print ========= step7
 system sh/exec.sh -n dnode3 -s start
-sleep 5000
+
+$x = 0
+step7: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+	  return -1
+	endi
+
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step7
+endi
+
+sql show d2.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step7
+endi
+
+sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step7
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step7
+endi
 
 sql insert into d1.t1 values(now, 5)
 sql insert into d2.t2 values(now, 5)
 sql insert into d3.t3 values(now, 5)
 sql insert into d4.t4 values(now, 5)
-sleep 1000
 
 sql select * from d1.t1
 sql select * from d2.t2
@@ -149,8 +304,3 @@ sql select * from d4.t4
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 system sh/exec.sh -n dnode3 -s stop  -x SIGINT
-system sh/exec.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec.sh -n dnode8 -s stop  -x SIGINT

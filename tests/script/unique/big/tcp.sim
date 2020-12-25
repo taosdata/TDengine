@@ -15,7 +15,6 @@ system sh/cfg.sh -n dnode1 -c httpDebugFlag   -v 135
 system sh/cfg.sh -n dnode1 -c debugFlag       -v 131
 
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 print ======================== dnode1 start
 
@@ -52,7 +51,7 @@ while $i < $tbNum
 endw 
 
 $i = 0
-while $i < 10
+while $i < 5
 	print =============== step3 $i
 	sql select count(*) from $mt
 	print ===> $data00 $data01
@@ -83,7 +82,7 @@ while $i < $tbNum
 endw 
 
 $i = 0
-while $i < 10
+while $i < 5
 	print =============== step5 $i
 	sql select count(*) from $mt where tgcol < 20200
 	print ===> $data00 $data01

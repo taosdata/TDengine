@@ -113,6 +113,7 @@ static void dnodeCleanupTmr() {
 int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_RUN_STATUS_INITIALIZE);
   tscEmbedded  = 1;
+  taosIgnSIGPIPE();
   taosBlockSIGPIPE();
   taosResolveCRC();
   taosInitGlobalCfg();
@@ -120,7 +121,6 @@ int32_t dnodeInitSystem() {
   taosSetCoreDump();
   taosInitNotes();
   dnodeInitTmr();
-  signal(SIGPIPE, SIG_IGN);
 
   if (dnodeCreateDir(tsLogDir) < 0) {
    printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
