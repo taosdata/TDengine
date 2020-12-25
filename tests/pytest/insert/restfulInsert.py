@@ -38,7 +38,7 @@ class RestfulInsert:
         for i in range(loop):
             tableID = threadID * tablesPerThread
             if tableID + i >= self.numOfTables : break
-            name = 'beijing' if tableID % 2 == 0 else 'shanghai'
+            name = 'beijing' if (tableID + i) % 2 == 0 else 'shanghai'
             data = "create table if not exists %s.%s%d using %s.meters tags(%d, '%s')" % (self.dbname, self.tableNamePerfix, tableID + i, self.dbname, tableID + i, name)
             response = requests.post(self.url, data, headers = self.header)
             if response.status_code != 200:
