@@ -899,7 +899,6 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow 
   STsdbCfg *pCfg = &pRepo->config;
 
   if (tsdbGetTableLastKeyImpl(pTable) < dataRowKey(row)) {
-    pTable->lastKey = dataRowKey(row);
     if (pCfg->cacheLastRow || pTable->lastRow != NULL) {
       SDataRow nrow = pTable->lastRow;
       if (taosTSizeof(nrow) < dataRowLen(row)) {
@@ -912,14 +911,18 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow 
 
         dataRowCpy(nrow, row);
         TSDB_WLOCK_TABLE(pTable);
+        pTable->lastKey = dataRowKey(row);
         pTable->lastRow = nrow;
         TSDB_WUNLOCK_TABLE(pTable);
         taosTZfree(orow);
       } else {
         TSDB_WLOCK_TABLE(pTable);
+        pTable->lastKey = dataRowKey(row);
         dataRowCpy(nrow, row);
         TSDB_WUNLOCK_TABLE(pTable);
       }
+    } else {
+      pTable->lastKey = dataRowKey(row);
     }
   }
 
