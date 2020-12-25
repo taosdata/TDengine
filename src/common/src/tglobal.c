@@ -139,7 +139,8 @@ int32_t tsAlternativeRole = 0;
 int32_t tsBalanceInterval = 300;  // seconds
 int32_t tsOfflineThreshold = 86400*100;   // seconds 10days
 int32_t tsMnodeEqualVnodeNum = 4;
-int32_t tsFlowCtrl = 1;
+int32_t tsEnableFlowCtrl = 1;
+int32_t tsEnableSlaveQuery = 1;
 
 // restful
 int32_t  tsEnableHttpModule = 1;
@@ -222,7 +223,7 @@ int32_t uDebugFlag = 131;
 int32_t debugFlag = 0;
 int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
-int32_t tsdbDebugFlag = 131;
+uint32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 131;
 
 int32_t (*monStartSystemFp)() = NULL;
@@ -543,7 +544,7 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsOfflineThreshold;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 5;
+  cfg.minValue = 3;
   cfg.maxValue = 7200000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
@@ -1005,7 +1006,17 @@ static void doInitGlobalConfig(void) {
 
     // module configs
   cfg.option = "flowctrl";
-  cfg.ptr = &tsFlowCtrl;
+  cfg.ptr = &tsEnableFlowCtrl;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 0;
+  cfg.maxValue = 1;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "slaveQuery";
+  cfg.ptr = &tsEnableSlaveQuery;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 0;
@@ -1442,6 +1453,12 @@ int32_t taosCheckGlobalCfg() {
 
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
+  }
+
+  if (tsMaxTablePerVnode < tsMinTablePerVnode) {
+    uError("maxTablesPerVnode(%d) < minTablesPerVnode(%d), reset to minTablesPerVnode(%d)",
+	   tsMaxTablePerVnode, tsMinTablePerVnode, tsMinTablePerVnode);
+    tsMaxTablePerVnode = tsMinTablePerVnode;
   }
 
   // todo refactor

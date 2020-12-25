@@ -518,14 +518,15 @@ typedef struct SRetrieveTableRsp {
 
 typedef struct {
   int32_t vgId;
-  int32_t cfgVersion;
+  int32_t dbCfgVersion;
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
   uint8_t status;
   uint8_t role;
   uint8_t replica;
-  uint8_t reserved[5];
+  uint8_t reserved;
+  int32_t vgCfgVersion;
 } SVnodeLoad;
 
 typedef struct {
@@ -642,7 +643,7 @@ typedef struct {
 
 typedef struct {
   uint32_t vgId;
-  int32_t  cfgVersion;
+  int32_t  dbCfgVersion;
   int32_t  maxTables;
   int32_t  cacheBlockSize;
   int32_t  totalBlocks;
@@ -662,7 +663,8 @@ typedef struct {
   int8_t   quorum;
   int8_t   update;
   int8_t   cacheLastRow;
-  int8_t   reserved[14];
+  int32_t  vgCfgVersion;
+  int8_t   reserved[10];
 } SVnodeCfg;
 
 typedef struct {

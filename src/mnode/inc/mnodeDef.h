@@ -144,7 +144,8 @@ typedef struct SVgObj {
   int8_t         status;
   int8_t         reserved0[4];
   SVnodeGid      vnodeGid[TSDB_MAX_REPLICA];
-  int8_t         reserved1[12];
+  int32_t        vgCfgVersion;
+  int8_t         reserved1[8];
   int8_t         updateEnd[4];
   int32_t        refCount;
   int32_t        numOfTables;
@@ -182,7 +183,7 @@ typedef struct SDbObj {
   int8_t  reserved0[4];
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;
-  int32_t cfgVersion;
+  int32_t dbCfgVersion;
   SDbCfg  cfg;
   int8_t  status;
   int8_t  reserved1[11];

@@ -115,9 +115,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
 
   pObj->signature = pObj;
   pObj->pDnodeConn = pDnodeConn;
-  T_REF_INIT_VAL(pObj, 1);
   
-
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   secretEncryptLen = MIN(secretEncryptLen, sizeof(pObj->pass));
   memcpy(pObj->pass, secretEncrypt, secretEncryptLen);
@@ -172,11 +170,9 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   if (taos != NULL) {
     *taos = pObj;
   }
-
-  registerSqlObj(pSql);
-  tsInsertHeadSize = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
-
   pObj->rid = taosAddRef(tscRefId, pObj);
+  registerSqlObj(pSql);
+
   return pSql;
 }
 
@@ -288,34 +284,21 @@ void taos_close(TAOS *taos) {
     return;
   }
 
-  // make sure that the close connection can only be executed once.
-  pObj->signature = NULL;
-  taosTmrStopA(&(pObj->pTimer));
-
-  if (pObj->hbrid > 0) {
+  if (RID_VALID(pObj->hbrid)) {
     SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
     if (pHb != NULL) {
-      if (pHb->rpcRid > 0) {  // wait for rsp from dnode
+      if (RID_VALID(pHb->rpcRid)) {  // wait for rsp from dnode
         rpcCancelRequest(pHb->rpcRid);
         pHb->rpcRid = -1;
       }
 
       tscDebug("%p HB is freed", pHb);
-      taos_free_result(pHb);
       taosReleaseRef(tscObjRef, pHb->self);
+      taos_free_result(pHb);
     }
   }
 
-  int32_t ref = T_REF_DEC(pObj);
-  assert(ref >= 0);
-
-  if (ref > 0) {
-    tscDebug("%p %d remain sqlObjs, not free tscObj and dnodeConn:%p", pObj, ref, pObj->pDnodeConn);
-    return;
-  }
-
   tscDebug("%p all sqlObj are freed, free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
-
   taosRemoveRef(tscRefId, pObj->rid);
 }
 

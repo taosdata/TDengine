@@ -2224,22 +2224,25 @@ class ClientManager:
         if svcMgr: # gConfig.auto_start_service:
             svcMgr.stopTaosServices()
             svcMgr = None
+        
+
+        # Release global variables
+        gConfig = None
+        gSvcMgr = None
+        logger = None
+        
+        thPool = None
+        dbManager.cleanUp() # destructor wouldn't run in time
+        dbManager = None
+
         # Print exec status, etc., AFTER showing messages from the server
         self.conclude()
         # print("TC failed (2) = {}".format(self.tc.isFailed()))
         # Linux return code: ref https://shapeshed.com/unix-exit-codes/
         ret = 1 if self.tc.isFailed() else 0
         self.tc.cleanup()
-
-        # Release global variables
-        gConfig = None
-        gSvcMgr = None
-        logger = None
-
         # Release variables here
         self.tc = None
-        thPool = None
-        dbManager = None
 
         gc.collect() # force garbage collection
         # h = hpy()

@@ -59,6 +59,7 @@ extern "C" {
 
 // TAOS_OS_FUNC_SOCKET
 int32_t taosSetNonblocking(SOCKET sock, int32_t on);
+void    taosIgnSIGPIPE();
 void    taosBlockSIGPIPE();
 
 // TAOS_OS_FUNC_SOCKET_SETSOCKETOPT

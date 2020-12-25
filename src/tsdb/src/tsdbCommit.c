@@ -161,6 +161,11 @@ _err:
 
 static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER, eno);
+  SMemTable *pIMem = pRepo->imem;
+  tsdbLockRepo(pRepo);
+  pRepo->imem = NULL;
+  tsdbUnlockRepo(pRepo);
+  tsdbUnRefMemTable(pRepo, pIMem);
   sem_post(&(pRepo->readyToCommit));
 }
 

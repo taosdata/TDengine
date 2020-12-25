@@ -996,33 +996,6 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
     return false;
   }
 
-  int32_t nLen = 0;
-  for (int32_t i = 0; i < numOfTags; ++i) {
-    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
-    if (p->bytes == 0) {
-      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
-      return false;
-    }
-
-    nLen += p->bytes;
-  }
-
-  // max tag row length must be less than TSDB_MAX_TAGS_LEN
-  if (nLen > TSDB_MAX_TAGS_LEN) {
-    invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
-    return false;
-  }
-
-  // field name must be unique
-  for (int32_t i = 0; i < numOfTags; ++i) {
-    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
-
-    if (has(pFieldList, 0, p->name) == true) {
-      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-      return false;
-    }
-  }
-
   /* timestamp in tag is not allowed */
   for (int32_t i = 0; i < numOfTags; ++i) {
     TAOS_FIELD* p = taosArrayGet(pTagsList, i);
@@ -1049,6 +1022,33 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
     }
 
     if (has(pTagsList, i + 1, p->name) == true) {
+      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      return false;
+    }
+  }
+
+  int32_t nLen = 0;
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
+    if (p->bytes == 0) {
+      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+      return false;
+    }
+
+    nLen += p->bytes;
+  }
+
+  // max tag row length must be less than TSDB_MAX_TAGS_LEN
+  if (nLen > TSDB_MAX_TAGS_LEN) {
+    invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    return false;
+  }
+
+  // field name must be unique
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
+
+    if (has(pFieldList, 0, p->name) == true) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }

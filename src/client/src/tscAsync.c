@@ -388,10 +388,10 @@ void tscQueueAsyncRes(SSqlObj *pSql) {
     return;
   }
 
+  assert(pSql->res.code != TSDB_CODE_SUCCESS);
   tscError("%p add into queued async res, code:%s", pSql, tstrerror(pSql->res.code));
 
   SSqlRes *pRes = &pSql->res;
-
   if (pSql->fp == NULL || pSql->fetchFp == NULL){
     return;
   }
