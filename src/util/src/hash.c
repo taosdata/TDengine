@@ -654,7 +654,7 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
 
   pNewNode->keyLen = (uint32_t)keyLen;
   pNewNode->hashVal = hashVal;
-  pNewNode->dataLen = dsize;
+  pNewNode->dataLen = (uint32_t) dsize;
   pNewNode->count = 1;
 
   memcpy(GET_HASH_NODE_DATA(pNewNode), pData, dsize);
