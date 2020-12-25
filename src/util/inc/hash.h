@@ -43,6 +43,7 @@ typedef struct SHashNode {
 #define GET_HASH_NODE_KEY(_n)  ((char*)(_n) + sizeof(SHashNode) + (_n)->dataLen)
 #define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode))
 #define GET_HASH_PNODE(_n) ((char*)(_n) - sizeof(SHashNode));
+
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK     = 0,
   HASH_ENTRY_LOCK  = 1,

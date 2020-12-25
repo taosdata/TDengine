@@ -132,7 +132,8 @@ void taos_init_imp(void) {
   int64_t refreshTime = 10; // 10 seconds by default
   if (tscMetaCache == NULL) {
     tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, tscFreeTableMetaHelper, "tableMeta");
-    tscObjRef = taosOpenRef(40960, tscFreeRegisteredSqlObj);
+    tscObjRef  = taosOpenRef(40960, tscFreeRegisteredSqlObj);
+    tscHashMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   }
 
   tscRefId = taosOpenRef(200, tscCloseTscObj);

@@ -1913,7 +1913,7 @@ void registerSqlObj(SSqlObj* pSql) {
 
   int32_t num   = atomic_add_fetch_32(&pSql->pTscObj->numOfObj, 1);
   int32_t total = atomic_add_fetch_32(&tscNumOfObj, 1);
-  tscDebug("%p new SqlObj, total in tscObj:%d, total:%d", pSql, num, total);
+  tscDebug("%p new SqlObj from %p, total in tscObj:%d, total:%d", pSql, pSql->pTscObj, num, total);
 }
 
 SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd) {
