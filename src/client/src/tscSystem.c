@@ -54,8 +54,8 @@ static void SRpcIncRef(void *param) {
   assert(param != NULL); 
   SRpcIns **ppRpcIns = (SRpcIns **)(param);
   assert(ppRpcIns);
-  assert(*ppRpcIns);
   SRpcIns *pRpcIns = *ppRpcIns; 
+  assert(pRpcIns);
   atomic_add_fetch_32(&pRpcIns->refCount, 1);
 }
 
@@ -75,6 +75,8 @@ void tscReleaseRpc(void *param)  {
   } else {
     tscDebug("dnodeConn:%p is desctory", rpcIns->pNodeConn);
     rpcClose(rpcIns->pNodeConn);                
+    rpcIns->pNodeConn = NULL; 
+    taosHashRemove(tscRpcHash, rpcIns->key, strlen(rpcIns->key));
     tfree(rpcIns); 
   }
 } 
@@ -101,6 +103,7 @@ int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEnc
   rpcInit.secret = (char *)secretEncrypt;
 
   pRpcIns = (SRpcIns *)calloc(1, sizeof(SRpcIns));  
+  memcpy(pRpcIns->key, insKey, strlen(insKey));
   pRpcIns->refCount  = 1;
   pRpcIns->pNodeConn = rpcOpen(&rpcInit);
   if (pRpcIns->pNodeConn == NULL) {

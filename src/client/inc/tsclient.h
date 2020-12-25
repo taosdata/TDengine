@@ -375,8 +375,9 @@ typedef struct SSqlStream {
 } SSqlStream;
 
 typedef struct {
+  char    key[512]; 
   int32_t refCount;
-  void *pNodeConn; 
+  void    *pNodeConn; 
 } SRpcIns;
 
 void *tscAcquireRpc(const char *insKey);
