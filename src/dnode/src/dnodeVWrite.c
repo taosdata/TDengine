@@ -188,6 +188,7 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
   int32_t        numOfMsgs;
   int32_t        qtype;
 
+  taosBlockSIGPIPE();
   dDebug("dnode vwrite worker:%d is running", pWorker->workerId);
 
   while (1) {

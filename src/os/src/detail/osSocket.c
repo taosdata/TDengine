@@ -39,6 +39,10 @@ int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
   return 0;
 }
 
+void taosIgnSIGPIPE() {
+  signal(SIGPIPE, SIG_IGN);
+}
+
 void taosBlockSIGPIPE() {
   sigset_t signal_mask;
   sigemptyset(&signal_mask);

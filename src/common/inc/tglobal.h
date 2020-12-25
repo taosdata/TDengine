@@ -101,7 +101,8 @@ extern int32_t tsAlternativeRole;
 extern int32_t tsBalanceInterval;
 extern int32_t tsOfflineThreshold;
 extern int32_t tsMnodeEqualVnodeNum;
-extern int32_t tsFlowCtrl;
+extern int32_t tsEnableFlowCtrl;
+extern int32_t tsEnableSlaveQuery;
 
 // restful
 extern int32_t  tsEnableHttpModule;

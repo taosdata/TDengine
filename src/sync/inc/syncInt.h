@@ -38,7 +38,7 @@ extern "C" {
 #define SYNC_MAX_FWDS 512
 #define SYNC_FWD_TIMER 300
 #define SYNC_ROLE_TIMER 15000             // ms
-#define SYNC_CHECK_INTERVAL 1             // ms
+#define SYNC_CHECK_INTERVAL 1000          // ms
 #define SYNC_WAIT_AFTER_CHOOSE_MASTER 10  // ms
 
 #define nodeRole    pNode->peerInfo[pNode->selfIndex]->role
@@ -86,9 +86,10 @@ typedef struct SsyncPeer {
   int32_t  peerFd;          // forward FD
   int32_t  numOfRetrieves;  // number of retrieves tried
   int32_t  fileChanged;     // a flag to indicate file is changed during retrieving process
+  int32_t  refCount;
+  int64_t  rid;
   void *   timer;
   void *   pConn;
-  int32_t  refCount;  // reference count
   struct   SSyncNode *pSyncNode;
 } SSyncPeer;
 
@@ -98,6 +99,7 @@ typedef struct SSyncNode {
   int8_t       quorum;
   int8_t       selfIndex;
   uint32_t     vgId;
+  int32_t      refCount;
   int64_t      rid;
   SSyncPeer *  peerInfo[TAOS_SYNC_MAX_REPLICA + 1];  // extra one for arbitrator
   SSyncPeer *  pMaster;
@@ -121,13 +123,13 @@ extern int32_t tsSyncNum;
 extern char    tsNodeFqdn[TSDB_FQDN_LEN];
 extern char *  syncStatus[];
 
-void *syncRetrieveData(void *param);
-void *syncRestoreData(void *param);
-int32_t syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead);
-void    syncRestartConnection(SSyncPeer *pPeer);
-void    syncBroadcastStatus(SSyncNode *pNode);
-void    syncAddPeerRef(SSyncPeer *pPeer);
-int32_t syncDecPeerRef(SSyncPeer *pPeer);
+void *     syncRetrieveData(void *param);
+void *     syncRestoreData(void *param);
+int32_t    syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead);
+void       syncRestartConnection(SSyncPeer *pPeer);
+void       syncBroadcastStatus(SSyncNode *pNode);
+SSyncPeer *syncAcquirePeer(int64_t rid);
+void       syncReleasePeer(SSyncPeer *pPeer);
 
 #ifdef __cplusplus
 }
