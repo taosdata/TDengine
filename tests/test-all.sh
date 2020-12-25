@@ -202,10 +202,10 @@ if [ "$2" != "sim" ]; then
     runPyCaseOneByOnefq fulltest.sh
   elif [ "$1" == "p1" ]; then
     echo "### run Python_1 test ###"
-    runPyCaseOneByOne pytest_1.sh
+    runPyCaseOneByOnefq pytest_1.sh
   elif [ "$1" == "p2" ]; then
     echo "### run Python_2 test ###"
-    runPyCaseOneByOne pytest_2.sh
+    runPyCaseOneByOnefq pytest_2.sh
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
     exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
