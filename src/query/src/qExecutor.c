@@ -6211,13 +6211,13 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     }
 
     for (int32_t i = 0; i < pQueryMsg->numOfGroupCols; ++i) {
-      (*groupbyCols)[i].colId = *(int16_t *)pMsg;
+      (*groupbyCols)[i].colId = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].colId);
 
-      (*groupbyCols)[i].colIndex = *(int16_t *)pMsg;
+      (*groupbyCols)[i].colIndex = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].colIndex);
 
-      (*groupbyCols)[i].flag = *(int16_t *)pMsg;
+      (*groupbyCols)[i].flag = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].flag);
 
       memcpy((*groupbyCols)[i].name, pMsg, tListLen(groupbyCols[i]->name));
