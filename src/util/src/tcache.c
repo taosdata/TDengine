@@ -278,7 +278,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   }
 
   SCacheDataNode* ptNode = NULL;
-  taosHashGetCB(pCacheObj->pHashTable, key, keyLen, incRefFn, &ptNode, sizeof(void*));
+  taosHashGetClone(pCacheObj->pHashTable, key, keyLen, incRefFn, &ptNode, sizeof(void*));
 
   void* pData = (ptNode != NULL)? ptNode->data:NULL;
 

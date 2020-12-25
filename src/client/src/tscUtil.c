@@ -458,9 +458,14 @@ void tscFreeRegisteredSqlObj(void *pSql) {
   SSqlObj* p = *(SSqlObj**)pSql;
   STscObj* pTscObj = p->pTscObj;
 
-  assert(p->self != 0);
+  assert(RID_VALID(p->self));
+
   tscFreeSqlObj(p);
   taosReleaseRef(tscRefId, pTscObj->rid);
+
+  int32_t num   = atomic_sub_fetch_32(&pTscObj->numOfObj, 1);
+  int32_t total = atomic_sub_fetch_32(&tscNumOfObj, 1);
+  tscDebug("%p free SqlObj, total in tscObj:%d, total:%d", pSql, num, total);
 }
 
 void tscFreeTableMetaHelper(void *pTableMeta) {
@@ -1905,6 +1910,10 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 void registerSqlObj(SSqlObj* pSql) {
   taosAcquireRef(tscRefId, pSql->pTscObj->rid);
   pSql->self = taosAddRef(tscObjRef, pSql);
+
+  int32_t num   = atomic_add_fetch_32(&pSql->pTscObj->numOfObj, 1);
+  int32_t total = atomic_add_fetch_32(&tscNumOfObj, 1);
+  tscDebug("%p new SqlObj, total in tscObj:%d, total:%d", pSql, num, total);
 }
 
 SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd) {
