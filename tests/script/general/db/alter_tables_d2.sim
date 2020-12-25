@@ -11,11 +11,26 @@ system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 5
 
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
-
-sleep 3000
 sql connect
 sql create dnode $hostname2
-sleep 1000
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
 
 print ============================ step1
 
@@ -80,10 +95,23 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 10
 system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 10
-sleep 5000
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show mnodes -x step1
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step2
+endi
 
 sql create table db.t100 using db.st tags(0)
 sql create table db.t101 using db.st tags(1)
@@ -109,7 +137,6 @@ sql show db.tables
 if $rows != 40 then 
   return -1
 endi
-
 
 sql insert into db.t100 values(now, 1)
 sql insert into db.t101 values(now, 1)
@@ -144,10 +171,24 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 15
 system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 15
-sleep 5000
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+
+$x = 0
+step3: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show mnodes -x step3
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step3
+endi
 
 sql create table db.t200 using db.st tags(0)
 sql create table db.t201 using db.st tags(1)
@@ -198,7 +239,7 @@ sql insert into db.t219 values(now, 1)
 print ============================ step6
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql select * from db.t000
 if $rows != 1 then 
@@ -268,10 +309,23 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 20
 system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 20
-sleep 5000
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+$x = 0
+step9: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show mnodes -x step9
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step9
+endi
 
 sql create table db.t300 using db.st tags(0)
 sql create table db.t301 using db.st tags(1)
@@ -321,7 +375,7 @@ if $rows != 80 then
 endi
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql select * from db.t000
 if $rows != 1 then 
@@ -351,13 +405,26 @@ endi
 print ============================ step10
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+$x = 0
+step10: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show mnodes -x step10
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step10
+endi
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql show db.tables
 if $rows != 80 then 
@@ -401,10 +468,23 @@ system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 25
 system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 25
-sleep 5000
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+$x = 0
+step1xx: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show mnodes -x step1xx
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step1xx
+endi
 
 sql create table db.t400 using db.st tags(0)
 sql create table db.t401 using db.st tags(1)
@@ -454,7 +534,7 @@ if $rows != 100 then
 endi
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql select * from db.t000
 if $rows != 1 then 

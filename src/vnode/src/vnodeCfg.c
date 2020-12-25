@@ -106,9 +106,10 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   cJSON *vgCfgVersion = cJSON_GetObjectItem(root, "vgCfgVersion");
   if (!vgCfgVersion || vgCfgVersion->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, vgCfgVersion not found", pVnode->vgId, file);
-    goto PARSE_VCFG_ERROR;
+    vnodeMsg.cfg.vgCfgVersion = 0;
+  } else {
+    vnodeMsg.cfg.vgCfgVersion = vgCfgVersion->valueint;
   }
-  vnodeMsg.cfg.vgCfgVersion = vgCfgVersion->valueint;
 
   cJSON *cacheBlockSize = cJSON_GetObjectItem(root, "cacheBlockSize");
   if (!cacheBlockSize || cacheBlockSize->type != cJSON_Number) {

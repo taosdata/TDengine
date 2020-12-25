@@ -911,6 +911,13 @@ static void genFinalResWithoutFill(SSqlRes* pRes, SLocalReducer *pLocalReducer, 
     }
   }
 
+  if (pRes->numOfRowsGroup >= pQueryInfo->limit.limit && pQueryInfo->limit.limit > 0) {
+    pRes->numOfRows = 0;
+    pBeforeFillData->num = 0;
+    pLocalReducer->discard = true;
+    return;
+  }
+
   pRes->numOfRowsGroup += pRes->numOfRows;
 
   // impose the limitation of output rows on the final result

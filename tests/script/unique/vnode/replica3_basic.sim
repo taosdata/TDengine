@@ -16,13 +16,47 @@ sql create dnode $hostname2
 sql create dnode $hostname3
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+
+sql show mnodes
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step1
+endi
+if $data2_2 != slave then
+  goto step1
+endi
+if $data2_3 != slave then
+  goto step1
+endi
 
 $N = 10
 $table = table_r3
 $db = db1
-
-sleep 3000
 
 print =================== step 1 
 
@@ -66,7 +100,21 @@ endi
 
 print =================== step 4
 system sh/exec.sh -n dnode2 -s start
-sleep 2000
+
+$x = 0
+step4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show db1.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step4
+endi
+
 $y = $x + $N
 $expect = $N * 3
 while $x < $y
@@ -83,7 +131,6 @@ endi
 
 print =================== step 5
 system sh/exec.sh -n dnode3 -s stop
-sleep 2000
 $y = $x + $N
 $expect = $N * 4
 while $x < $y
@@ -100,7 +147,21 @@ endi
 
 print =================== step 6
 system sh/exec.sh -n dnode3 -s start
-sleep 2000
+
+$x = 0
+step6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show db1.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step6
+endi
+
 $y = $x + $N
 $expect = $N * 5
 while $x < $y
@@ -117,7 +178,6 @@ endi
 
 print =================== step 7
 system sh/exec.sh -n dnode1 -s stop
-sleep 2000
 $y = $x + $N
 $expect = $N * 6
 while $x < $y
@@ -134,7 +194,21 @@ endi
 
 print =================== step 8
 system sh/exec.sh -n dnode1 -s start
-sleep 2000
+
+$x = 0
+step8: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show db1.vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto step8
+endi
+
 $y = $x + $N
 $expect = $N * 7
 while $x < $y

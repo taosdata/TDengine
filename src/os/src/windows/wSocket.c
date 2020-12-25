@@ -46,6 +46,7 @@ int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
   return 0;
 }
 
+void taosIgnSIGPIPE() {}
 void taosBlockSIGPIPE() {}
 
 int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen) {
