@@ -2183,8 +2183,25 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   return ret;
 }
 
-int32_t tsdbGetCachedLastRow(STable* pTable, void** pRes) {
-  return 0;
+/*
+ * 1. no data at all (pTable->lastKey = TSKEY_INITIAL_VAL), just return TSKEY_INITIAL_VAL
+ * 2. has data but not loaded, just return lastKey but not set pRes
+ * 3. has data and loaded, return lastKey and set pRes
+ */
+TSKEY tsdbGetCachedLastRow(STable* pTable, void** pRes) {
+  TSKEY lastKey;
+
+  TSDB_RLOCK_TABLE(pTable);
+  lastKey = pTable->lastKey;
+
+  if (lastKey != TSKEY_INITIAL_VAL && pTable->lastRow) {
+    *pRes = tdDataRowDup(pTable->lastRow);
+    if (*pRes == NULL) {
+      // TODO: handle error
+    }
+  }
+  TSDB_RUNLOCK_TABLE(pTable);
+  return lastKey;
 }
 
 void checkCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList) {
