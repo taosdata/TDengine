@@ -31,8 +31,8 @@ public class SqlSyntaxValidator {
         this.tsdbConnection = (TSDBConnection) connection;
     }
 
+    /*
     public boolean validateSqlSyntax(String sql) throws SQLException {
-
         boolean res = false;
         if (tsdbConnection == null || tsdbConnection.isClosed()) {
             throw new SQLException("invalid connection");
@@ -46,6 +46,7 @@ public class SqlSyntaxValidator {
         }
         return res;
     }
+    */
 
     public static boolean isValidForExecuteUpdate(String sql) {
         for (String prefix : updateSQL) {
