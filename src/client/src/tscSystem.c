@@ -49,20 +49,16 @@ void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
   taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
 
-//typedef struct {
-//  int32_t refCount;
-//  void *pNodeConn; 
-//} SRpcIns;
 
 static void SRpcIncRef(void *param) {
   assert(param != NULL); 
-
   SRpcIns **ppRpcIns = (SRpcIns **)(param);
   assert(ppRpcIns);
   assert(*ppRpcIns);
   SRpcIns *pRpcIns = *ppRpcIns; 
   atomic_add_fetch_32(&pRpcIns->refCount, 1);
 }
+
 void *tscAcquireRpc(const char *insKey) {
   void **ppRpcIns = taosHashGetCB(tscRpcHash, insKey, strlen(insKey), SRpcIncRef, NULL, sizeof(void *));
   if (ppRpcIns == NULL || *ppRpcIns == NULL) {
@@ -74,8 +70,10 @@ void tscReleaseRpc(void *param)  {
   SRpcIns *rpcIns = (SRpcIns *)param;
   int32_t ref = atomic_sub_fetch_32(&rpcIns->refCount, 1);
   if (ref > 0) {
+    tscDebug("dnodeConn:%p ref: %d", rpcIns->pNodeConn, ref);
     // do nothing     
   } else {
+    tscDebug("dnodeConn:%p is desctory", rpcIns->pNodeConn);
     rpcClose(rpcIns->pNodeConn);                
     tfree(rpcIns); 
   }
@@ -88,13 +86,11 @@ int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEnc
     return 0;
   } 
 
-  pRpcIns = (SRpcIns *)calloc(1, sizeof(SRpcIns));  
-  
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
   rpcInit.label = "TSC";
-  rpcInit.numOfThreads = 10;  // every DB connection has only one thread
+  rpcInit.numOfThreads = tscNumOfThreads;  // every DB connection has only one thread
   rpcInit.cfp = tscProcessMsgFromServer;
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
@@ -104,6 +100,7 @@ int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEnc
   rpcInit.spi = 1; 
   rpcInit.secret = (char *)secretEncrypt;
 
+  pRpcIns = (SRpcIns *)calloc(1, sizeof(SRpcIns));  
   pRpcIns->refCount  = 1;
   pRpcIns->pNodeConn = rpcOpen(&rpcInit);
   if (pRpcIns->pNodeConn == NULL) {
@@ -114,7 +111,8 @@ int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEnc
     *ppRpcIns = pRpcIns;
     tscDebug("dnodeConn:%p is created, user:%s", *ppRpcIns, user);
   }
-  // handle concurrent problem 
+
+  // handle concurrent problem, multi threads open rpc concurrently
   if (0 != taosHashPut(tscRpcHash, insKey, strlen(insKey), &pRpcIns, sizeof(SRpcIns *))) {
     tscReleaseRpc(pRpcIns);    
     pRpcIns = (SRpcIns *)tscAcquireRpc(insKey);
@@ -190,7 +188,6 @@ void taos_init_imp(void) {
   }
 
   tscRefId = taosOpenRef(200, tscCloseTscObj);
-
   
   tscRpcHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK); 
 
