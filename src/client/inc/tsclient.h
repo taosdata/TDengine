@@ -306,6 +306,7 @@ typedef struct STscObj {
   struct SSqlStream *streamList;
   SRpcCorEpSet       *tscCorMgmtEpSet;
   void*              pDnodeConn;
+  void*              rpcIns;
   pthread_mutex_t    mutex;
 } STscObj;
 
@@ -373,9 +374,18 @@ typedef struct SSqlStream {
   struct SSqlStream *prev, *next;
 } SSqlStream;
 
+typedef struct {
+  int32_t refCount;
+  void *pNodeConn; 
+} SRpcIns;
+
+void *tscAcquireRpc(const char *insKey);
+void tscReleaseRpc(void *param);
+
+int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secret, void** pRpcIns, void **pNodeConn);
+
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 
-int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn);
 void    tscInitMsgsFp();
 
 int tsParseSql(SSqlObj *pSql, bool initial);
