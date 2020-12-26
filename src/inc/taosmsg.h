@@ -324,6 +324,7 @@ typedef struct {
 typedef struct {
   char      acctId[TSDB_ACCT_LEN];
   char      serverVersion[TSDB_VERSION_LEN];
+  char      clusterId[TSDB_CLUSTER_ID_LEN];
   int8_t    writeAuth;
   int8_t    superAuth;
   int8_t    reserved1;
