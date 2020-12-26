@@ -9,7 +9,7 @@ GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
-set -e
+# set -e
 # set -x
 corePath=$1
 
