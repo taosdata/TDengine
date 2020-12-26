@@ -666,6 +666,7 @@ int32_t parseIntervalClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuerySQL* pQ
   const char* msg1 = "invalid query expression";
   const char* msg2 = "interval cannot be less than 10 ms";
   const char* msg3 = "sliding cannot be used without interval";
+  const char* msg4 = "top/bottom query does not support order by value in interval query";
 
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -710,6 +711,11 @@ int32_t parseIntervalClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuerySQL* pQ
 
     if (parseSlidingClause(pSql, pQueryInfo, pQuerySql) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
+    int32_t colId = pQueryInfo->order.orderColId;
+    if (pQueryInfo->interval.interval > 0 && colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     }
 
     return TSDB_CODE_SUCCESS;
@@ -4646,7 +4652,7 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
 
     if (!(orderByTags || orderByTS) && !isTopBottomQuery(pQueryInfo)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-    } else {
+    } else {  // order by top/bottom result value column is not supported in case of interval query.
       assert(!(orderByTags && orderByTS));
     }
 
