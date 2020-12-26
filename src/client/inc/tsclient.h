@@ -342,6 +342,10 @@ typedef struct SSqlObj {
 
   struct SSqlObj  *prev, *next;
   int64_t          self;
+
+  void            *metaSubPtr;
+  int64_t          parentRid;
+  int64_t          metaSubRid;
 } SSqlObj;
 
 typedef struct SSqlStream {
@@ -419,7 +423,7 @@ void tscCloseTscObj(void *pObj);
 // todo move to taos? or create a new file: taos_internal.h
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, TAOS **taos);
-TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, TAOS_RES** res);
+TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, int64_t* res);
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
