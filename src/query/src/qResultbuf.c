@@ -313,7 +313,7 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
 
   // allocate buf
   if (availablePage == NULL) {
-    pi->pData = calloc(1, pResultBuf->pageSize + POINTER_BYTES);
+    pi->pData = calloc(1, pResultBuf->pageSize + POINTER_BYTES + 2);  // add extract bytes in case of zipped buffer increased.
   } else {
     pi->pData = availablePage;
   }
