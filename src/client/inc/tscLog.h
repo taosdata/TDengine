@@ -22,8 +22,8 @@ extern "C" {
 
 #include "tlog.h"
 
-extern uint32_t cDebugFlag;
-extern uint32_t tscEmbedded;
+extern int32_t cDebugFlag;
+extern int8_t  tscEmbedded;
 
 #define tscFatal(...)  do { if (cDebugFlag & DEBUG_FATAL) { taosPrintLog("TSC FATAL ", tscEmbedded ? 255 : cDebugFlag, __VA_ARGS__); }} while(0)
 #define tscError(...)  do { if (cDebugFlag & DEBUG_ERROR) { taosPrintLog("TSC ERROR ", tscEmbedded ? 255 : cDebugFlag, __VA_ARGS__); }} while(0)

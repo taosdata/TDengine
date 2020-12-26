@@ -31,7 +31,7 @@
 extern "C" {
 #endif
 
-extern uint32_t tsdbDebugFlag;
+extern int32_t tsdbDebugFlag;
 
 #define tsdbFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", 255, __VA_ARGS__); }}     while(0)
 #define tsdbError(...) do { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TDB ERROR ", 255, __VA_ARGS__); }}     while(0)
