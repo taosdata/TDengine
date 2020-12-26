@@ -396,6 +396,9 @@ void taosPrintGlobalCfg() {
     blank[blankLen] = 0;
 
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        uInfo(" %s:%s%d%s", cfg->option, blank, *((int8_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
       case TAOS_CFG_VTYPE_INT16:
         uInfo(" %s:%s%d%s", cfg->option, blank, *((int16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
@@ -428,6 +431,9 @@ static void taosDumpCfg(SGlobalCfg *cfg) {
     blank[blankLen] = 0;
 
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        printf(" %s:%s%d%s\n", cfg->option, blank, *((int8_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
       case TAOS_CFG_VTYPE_INT16:
         printf(" %s:%s%d%s\n", cfg->option, blank, *((int16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;

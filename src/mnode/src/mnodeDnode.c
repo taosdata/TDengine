@@ -1044,6 +1044,11 @@ static int32_t mnodeRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, v
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int8_t *)cfg->ptr));
+        varDataSetLen(pWrite, t);
+        numOfRows++;
+        break;
       case TAOS_CFG_VTYPE_INT16:
         t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int16_t *)cfg->ptr));
         varDataSetLen(pWrite, t);

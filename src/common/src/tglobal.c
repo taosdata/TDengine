@@ -277,12 +277,16 @@ bool taosCfgDynamicOptions(char *msg) {
   for (int32_t i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
     //if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_LOG)) continue;
-    if (cfg->valType != TAOS_CFG_VTYPE_INT32) continue;
+    if (cfg->valType != TAOS_CFG_VTYPE_INT32 && cfg->valType != TAOS_CFG_VTYPE_INT8) continue;
     
     int32_t cfgLen = (int32_t)strlen(cfg->option);
     if (cfgLen != olen) continue;
     if (strncasecmp(option, cfg->option, olen) != 0) continue;
-    *((int32_t *)cfg->ptr) = vint;
+    if (cfg->valType != TAOS_CFG_VTYPE_INT32) {
+      *((int32_t *)cfg->ptr) = vint;
+    } else {
+      *((int8_t *)cfg->ptr) = (int8_t)vint;
+    }
 
     if (strncasecmp(cfg->option, "monitor", olen) == 0) {
       if (1 == vint) {
