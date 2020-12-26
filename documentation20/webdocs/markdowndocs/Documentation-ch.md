@@ -128,5 +128,18 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 
 ## [培训和FAQ](https://www.taosdata.com/cn/faq)
 
+<ul>
+        <li><a l href="https://www.taosdata.com/blog/2020/12/25/2126.html">技术公开课：开源、高效的物联网大数据平台，TDengine内核技术剖析</a></li>
+        <li><a l href="https://www.taosdata.com/blog/2020/11/11/1941.html">TDengine视频教程-快速上手</a></li>
+        <li><a l href="https://www.taosdata.com/blog/2020/11/11/1945.html">TDengine视频教程-数据建模</a></li>
+        <li><a l href="https://www.taosdata.com/blog/2020/11/11/1961.html">TDengine视频教程-集群搭建</a></li>
+        <li><a l href="https://www.taosdata.com/blog/2020/11/11/1951.html">TDengine视频教程-Go Connector</a></li>
+        <li><a l href="https://www.taosdata.com/blog/2020/11/11/1955.html">TDengine视频教程-JDBC Connector</a></li>
+        <li><a l href="https://www.taosdata.com/blog/2020/11/11/1957.html">TDengine视频教程-NodeJS Connector</a></li>
+        <li><a l href="https://www.taosdata.com/blog/2020/11/11/1963.html">TDengine视频教程-Python Connector</a></li>
+        <li><a l href="https://www.taosdata.com/blog/2020/11/11/1965.html">TDengine视频教程-RESTful Connector</a></li>
+        <li><a l href="https://www.taosdata.com/blog/2020/11/11/1959.html">TDengine视频教程-“零”代码运维监控</a></li>
+</ul>
+
 - [FAQ](https://www.taosdata.com/cn/documentation20/faq)：常见问题与答案
 - [应用案列](https://www.taosdata.com/cn/blog/?categories=4)：一些使用实例来解释如何使用TDengine
