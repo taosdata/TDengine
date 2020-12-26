@@ -93,7 +93,7 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalReducer *pReducer, tOrderDesc
 
     // for top/bottom function, the output of timestamp is the first column
     int32_t functionId = pExpr->functionId;
-    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
       pCtx->ptsOutputBuf = pReducer->pCtx[0].aOutputBuf;
       pCtx->param[2].i64Key = pQueryInfo->order.order;
       pCtx->param[2].nType  = TSDB_DATA_TYPE_BIGINT;
@@ -1296,6 +1296,10 @@ void resetOutputBuf(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer) {// re
   for (int32_t i = 0; i < t; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     pLocalReducer->pCtx[i].aOutputBuf = pLocalReducer->pResultBuf->data + pExpr->offset * pLocalReducer->resColModel->capacity;
+
+    if (pExpr->functionId == TSDB_FUNC_TOP || pExpr->functionId == TSDB_FUNC_BOTTOM || pExpr->functionId == TSDB_FUNC_DIFF) {
+      pLocalReducer->pCtx[i].ptsOutputBuf = pLocalReducer->pCtx[0].aOutputBuf;
+    }
   }
 
   memset(pLocalReducer->pResultBuf, 0, pLocalReducer->nResultBufSize + sizeof(tFilePage));
