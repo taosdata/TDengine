@@ -342,10 +342,6 @@ typedef struct SSqlObj {
 
   struct SSqlObj  *prev, *next;
   int64_t          self;
-
-  void            *metaSubPtr;
-  int64_t          parentRid;
-  int64_t          metaSubRid;
 } SSqlObj;
 
 typedef struct SSqlStream {
