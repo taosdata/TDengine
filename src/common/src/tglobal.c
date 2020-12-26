@@ -127,6 +127,7 @@ int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
 int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
 int32_t tsQuorum        = TSDB_DEFAULT_DB_QUORUM_OPTION;
 int32_t tsUpdate        = TSDB_DEFAULT_DB_UPDATE_OPTION;
+int32_t tsCacheLastRow  = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
 int32_t tsMaxVgroupsPerDb  = 0;
 int32_t tsMinTablePerVnode = TSDB_TABLES_STEP;
 int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;

@@ -4662,7 +4662,6 @@ static int32_t setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) 
 
     // update the query time window
     pQuery->window = cond.twindow;
-
     if (pQInfo->tableGroupInfo.numOfTables == 0) {
       pQInfo->tableqinfoGroupInfo.numOfTables = 0;
     } else {
