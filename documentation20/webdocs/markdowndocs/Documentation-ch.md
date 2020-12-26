@@ -140,6 +140,6 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
         <li><a l href="https://www.taosdata.com/blog/2020/11/11/1965.html">TDengine视频教程-RESTful Connector</a></li>
         <li><a l href="https://www.taosdata.com/blog/2020/11/11/1959.html">TDengine视频教程-“零”代码运维监控</a></li>
         <li><a l href="https://www.taosdata.com/cn/documentation20/faq">FAQ：常见问题与答案</a></li>
-        <li><a l href="https://www.taosdata.com/cn/blog/?categories=4"> 应用案例：一些使用实例来解释如何使用TDengine</a><a li>
+        <li><a l href="https://www.taosdata.com/cn/blog/?categories=4"> 应用案例：一些使用实例来解释如何使用TDengine</a></li>
 </ul>
 
