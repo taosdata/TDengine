@@ -137,6 +137,12 @@ static int     tsRpcRefId = -1;
 static int32_t tsRpcNum = 0;
 //static pthread_once_t tsRpcInit = PTHREAD_ONCE_INIT;
 
+// server:0 client:1  tcp:2 udp:0
+#define RPC_CONN_UDPS   0
+#define RPC_CONN_UDPC   1
+#define RPC_CONN_TCPS   2
+#define RPC_CONN_TCPC   3
+
 void *(*taosInitConn[])(uint32_t ip, uint16_t port, char *label, int threads, void *fp, void *shandle) = {
     taosInitUdpConnection,
     taosInitUdpConnection,

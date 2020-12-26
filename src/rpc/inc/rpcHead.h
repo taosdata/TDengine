@@ -20,11 +20,6 @@
 extern "C" {
 #endif
 
-// server:0 client:1  tcp:2 udp:0
-#define RPC_CONN_UDPS   0
-#define RPC_CONN_UDPC   1
-#define RPC_CONN_TCPS   2
-#define RPC_CONN_TCPC   3
 #define RPC_CONN_TCP    2
 
 extern int tsRpcOverhead;
