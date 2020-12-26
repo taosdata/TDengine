@@ -1247,7 +1247,7 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pShowMsg->payloadLen = htons(pEpAddr->n);
   }
 
-  pCmd->payloadLen = sizeof(SShowMsg) + pShowMsg->payloadLen;
+  pCmd->payloadLen = sizeof(SShowMsg) + htons(pShowMsg->payloadLen);
   return TSDB_CODE_SUCCESS;
 }
 
