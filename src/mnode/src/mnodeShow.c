@@ -351,6 +351,8 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   
   mnodeGetMnodeEpSetForShell(&pConnectRsp->epSet, false);
 
+  dnodeGetClusterId(pConnectRsp->clusterId);
+
 connect_over:
   if (code != TSDB_CODE_SUCCESS) {
     if (pConnectRsp) rpcFreeCont(pConnectRsp);
