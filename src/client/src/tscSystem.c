@@ -69,7 +69,7 @@ void tscReleaseRpc(void *param)  {
   if (param == NULL) {
     return;
   }
-  taosCacheRelease(tscRpcCache, (void **)&param, true); 
+  taosCacheRelease(tscRpcCache, (void **)&param, false); 
 } 
 
 int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEncrypt, void **ppRpcObj, void **pDnodeConn) {
@@ -108,6 +108,7 @@ int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEnc
   } 
   pRpcObj = taosCachePut(tscRpcCache, rpcObj.key, strlen(rpcObj.key), &rpcObj, sizeof(rpcObj), 1000*10);   
   if (pRpcObj == NULL) {
+    rpcClose(rpcObj.pDnodeConn);
     pthread_mutex_unlock(&rpcObjMutex);
     return -1;
   } 
