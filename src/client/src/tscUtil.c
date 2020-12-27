@@ -897,7 +897,7 @@ void tscCloseTscObj(void *param) {
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));
 
-  tscReleaseRpc(pObj->rpcIns);
+  tscReleaseRpc(pObj->pRpcObj);
   tfree(pObj->tscCorMgmtEpSet);
   pthread_mutex_destroy(&pObj->mutex);
 

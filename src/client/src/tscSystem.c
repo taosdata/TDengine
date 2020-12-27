@@ -36,8 +36,10 @@ int     tscObjRef = -1;
 void *  tscTmr;
 void *  tscQhandle;
 void *  tscCheckDiskUsageTmr;
-void *  tscRpcHash;
+void *  tscRpcCache;
 int     tscRefId = -1;
+
+pthread_mutex_t rpcObjMutex;
 
 int tscNumOfThreads;
 
@@ -49,52 +51,34 @@ void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
   taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
 
-
-
-void tscFreeRpcIns(void *param) {
+void tscFreeRpcObj(void *param) {
   assert(param);
-  SRpcIns *rpcIns = (SRpcIns *)param;
-  rpcClose(rpcIns->pNodeConn);                
-  tfree(rpcIns); 
+  SRpcObj *pRpcObj = (SRpcObj *)(param);
+  rpcClose(pRpcObj->pDnodeConn);
 }
-
-static void SRpcIncRef(void *param) {
-  assert(param != NULL); 
-
-  SRpcIns **ppRpcIns = (SRpcIns **)(param);
-  assert(*ppRpcIns);
-  SRpcIns *pRpcIns = *ppRpcIns; 
-  atomic_add_fetch_32(&pRpcIns->refCount, 1);
-}
-
 void *tscAcquireRpc(const char *insKey) {
-  void **ppRpcIns = taosHashGetCB(tscRpcHash, insKey, strlen(insKey), SRpcIncRef, NULL, sizeof(void *));
-  if (ppRpcIns == NULL || *ppRpcIns == NULL) {
+  SRpcObj *pRpcObj = taosCacheAcquireByKey(tscRpcCache, insKey, strlen(insKey)); 
+  if (pRpcObj == NULL) {
     return NULL;
   }
-  return *ppRpcIns;
+  return pRpcObj; 
 }
 
 void tscReleaseRpc(void *param)  {
   if (param == NULL) {
     return;
   }
-  SRpcIns *rpcIns = (SRpcIns *)param;
-  int32_t ref = atomic_sub_fetch_32(&rpcIns->refCount, 1);
-  if (ref > 0) {
-    tscDebug("dnodeConn:%p ref: %d", rpcIns->pNodeConn, ref); 
-  } else {
-    tscDebug("dnodeConn:%p is destroy", rpcIns->pNodeConn);
-    taosHashRemove(tscRpcHash, rpcIns->key, strlen(rpcIns->key));
-    tscFreeRpcIns(rpcIns);
-  }
+  taosCacheRelease(tscRpcCache, (void **)&param, true); 
 } 
 
-int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEncrypt, void **ppRpcIns, void **pNodeConn) {
-  SRpcIns *pRpcIns = (SRpcIns *)tscAcquireRpc(insKey); 
-  if (pRpcIns != NULL) {
-    *ppRpcIns = pRpcIns;   
-    *pNodeConn = pRpcIns->pNodeConn; 
+int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEncrypt, void **ppRpcObj, void **pDnodeConn) {
+  pthread_mutex_lock(&rpcObjMutex);
+
+  SRpcObj *pRpcObj = (SRpcObj *)tscAcquireRpc(insKey); 
+  if (pRpcObj != NULL) {
+    *ppRpcObj = pRpcObj;   
+    *pDnodeConn = pRpcObj->pDnodeConn; 
+    pthread_mutex_unlock(&rpcObjMutex);
     return 0;
   } 
 
@@ -112,36 +96,23 @@ int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEnc
   rpcInit.spi = 1; 
   rpcInit.secret = (char *)secretEncrypt;
 
-  pRpcIns = (SRpcIns *)calloc(1, sizeof(SRpcIns));  
-  strncpy(pRpcIns->key, insKey, sizeof(pRpcIns->key));
-  pRpcIns->refCount  = 1;
-  pRpcIns->pNodeConn = rpcOpen(&rpcInit);
-  if (pRpcIns->pNodeConn == NULL) {
+  SRpcObj rpcObj;
+  memset(&rpcObj, 0, sizeof(rpcObj));
+  strncpy(rpcObj.key, insKey, sizeof(pRpcObj->key));
+  rpcObj.pDnodeConn = rpcOpen(&rpcInit);
+  if (rpcObj.pDnodeConn == NULL) {
+    pthread_mutex_unlock(&rpcObjMutex);
     tscError("failed to init connection to TDengine");
-    tfree(pRpcIns);
     return -1;
-  } else {
-    *ppRpcIns = pRpcIns;
-    tscDebug("dnodeConn:%p is created, user:%s", *ppRpcIns, user);
-  }
+  } 
+  pRpcObj = taosCachePut(tscRpcCache, rpcObj.key, strlen(rpcObj.key), &rpcObj, sizeof(rpcObj), 1000*10);   
+  if (pRpcObj == NULL) {
+    return -1;
+  } 
 
-  // handle concurrent problem, multi threads open rpc concurrently
-  if (0 != taosHashPut(tscRpcHash, insKey, strlen(insKey), &pRpcIns, sizeof(SRpcIns *))) {
-    tscFreeRpcIns(pRpcIns);    
-
-    pRpcIns = (SRpcIns *)tscAcquireRpc(insKey);
-    if (pRpcIns == NULL) {
-       return -1;
-    }
-    *ppRpcIns = pRpcIns;
-  }
-  if (pRpcIns != NULL) {
-    *pNodeConn = pRpcIns->pNodeConn; 
-    if (*pNodeConn == NULL) {
-        return -1;
-    }
-  }
-  
+  *ppRpcObj  = pRpcObj;
+  *pDnodeConn = pRpcObj->pDnodeConn;
+  pthread_mutex_unlock(&rpcObjMutex);
   return 0;
 }
 
@@ -204,7 +175,9 @@ void taos_init_imp(void) {
     tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, tscFreeTableMetaHelper, "tableMeta");
     tscObjRef = taosOpenRef(40960, tscFreeRegisteredSqlObj);
   }
-  tscRpcHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+
+  tscRpcCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, true, tscFreeRpcObj, "rpcObj");
+  pthread_mutex_init(&rpcObjMutex, NULL);
 
   tscRefId = taosOpenRef(200, tscCloseTscObj);
 
@@ -243,8 +216,10 @@ void taos_cleanup(void) {
 
   m = tscTmr;
 
-  taosHashCleanup(tscRpcHash);
-  tscRpcHash = NULL;
+  taosCacheCleanup(tscRpcCache); 
+  tscRpcCache = NULL;
+  pthread_mutex_destroy(&rpcObjMutex);
+  
   if (m != NULL && atomic_val_compare_exchange_ptr(&tscTmr, m, 0) == m) {
     taosTmrCleanUp(m);
   }

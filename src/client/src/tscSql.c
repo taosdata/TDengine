@@ -94,9 +94,9 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   char rpcInskey[512] = {0};
   sprintf(rpcInskey, "%s:%s:%s:%d", user, pass, ip, port);
 
-  void *rpcIns = NULL;
+  void *pRpcObj = NULL;
   void *pDnodeConn = NULL;
-  if (tscGetRpcIns(rpcInskey, user, secretEncrypt, &rpcIns, &pDnodeConn) != 0) {
+  if (tscGetRpcIns(rpcInskey, user, secretEncrypt, &pRpcObj, &pDnodeConn) != 0) {
     terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     return NULL;
   }
@@ -104,14 +104,14 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   STscObj *pObj = (STscObj *)calloc(1, sizeof(STscObj));
   if (NULL == pObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscReleaseRpc(rpcIns);
+    tscReleaseRpc(pRpcObj);
     return NULL;
   }
   // set up tscObj's mgmtEpSet
   pObj->tscCorMgmtEpSet = (SRpcCorEpSet *)malloc(sizeof(SRpcCorEpSet));
   if (NULL == pObj->tscCorMgmtEpSet) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscReleaseRpc(rpcIns);
+    tscReleaseRpc(pRpcObj);
     free(pObj->tscCorMgmtEpSet);
     free(pObj);
   }
@@ -119,7 +119,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
 
   pObj->signature = pObj;
 
-  pObj->rpcIns = rpcIns;
+  pObj->pRpcObj = pRpcObj;
   pObj->pDnodeConn = pDnodeConn; 
   
   tstrncpy(pObj->user, user, sizeof(pObj->user));
@@ -131,7 +131,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     /* db name is too long */
     if (len >= TSDB_DB_NAME_LEN) {
       terrno = TSDB_CODE_TSC_INVALID_DB_LENGTH;
-      tscReleaseRpc(rpcIns);
+      tscReleaseRpc(pRpcObj);
       free(pObj->tscCorMgmtEpSet);
       free(pObj);
       return NULL;
@@ -149,7 +149,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (NULL == pSql) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscReleaseRpc(rpcIns);
+    tscReleaseRpc(pRpcObj);
     free(pObj->tscCorMgmtEpSet);
     free(pObj);
     return NULL;
@@ -166,7 +166,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE)) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscReleaseRpc(rpcIns);
+    tscReleaseRpc(pRpcObj);
     free(pSql);
     free(pObj->tscCorMgmtEpSet);
     free(pObj);
