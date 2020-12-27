@@ -2625,7 +2625,6 @@ static bool apercentile_function_setup(SQLFunctionCtx *pCtx) {
   
   char *tmp = (char *)pInfo + sizeof(SAPercentileInfo);
   pInfo->pHisto = tHistogramCreateFrom(tmp, MAX_HISTOGRAM_BIN);
-  printf("%p, %p\n", pInfo->pHisto, pInfo->pHisto->elems);
   return true;
 }
 
