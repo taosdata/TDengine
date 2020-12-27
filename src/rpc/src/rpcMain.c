@@ -1216,6 +1216,7 @@ static void rpcSendReqHead(SRpcConn *pConn) {
   pHead = (SRpcHead *)msg;
   pHead->version = 1;
   pHead->msgType = pConn->outType;
+  pHead->msgVer = htonl(tsVersion >> 8);
   pHead->spi = pConn->spi;
   pHead->encrypt = 0;
   pHead->tranId = pConn->outTranId;
