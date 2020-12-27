@@ -953,7 +953,7 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
   }
 
   if (rpcIsReq(pHead->msgType) && htonl(pHead->msgVer) != tsVersion >> 8) {
-    tDebug("%s sid:%d, invalid client version:%d", pRpc->label, sid, htonl(pHead->msgVer));
+    tDebug("%s sid:%d, invalid client version:%x/%x %s", pRpc->label, sid, htonl(pHead->msgVer), tsVersion, taosMsg[pHead->msgType]);
     terrno = TSDB_CODE_RPC_INVALID_VERSION; return NULL;
   }
 
