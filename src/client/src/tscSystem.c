@@ -68,7 +68,7 @@ void tscReleaseRpc(void *param)  {
   if (param == NULL) {
     return;
   }
-  taosCacheRelease(tscRpcCache, (void **)&param, true); 
+  taosCacheRelease(tscRpcCache, (void **)&param, false); 
 } 
 
 int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secretEncrypt, void **ppRpcObj, void **pDnodeConn) {
@@ -214,12 +214,16 @@ void taos_cleanup(void) {
   taosCloseLog();
   if (tscEmbedded == 0) rpcCleanup();
 
-  m = tscTmr;
+  m = tscRpcCache; 
+  if (m != NULL && atomic_val_compare_exchange_ptr(&tscRpcCache, m, 0) == m) {
+    pthread_mutex_lock(&rpcObjMutex);
+    taosCacheCleanup(tscRpcCache); 
+    tscRpcCache = NULL;
+    pthread_mutex_unlock(&rpcObjMutex);
+    pthread_mutex_destroy(&rpcObjMutex);
+  }
 
-  taosCacheCleanup(tscRpcCache); 
-  tscRpcCache = NULL;
-  pthread_mutex_destroy(&rpcObjMutex);
-  
+  m = tscTmr;
   if (m != NULL && atomic_val_compare_exchange_ptr(&tscTmr, m, 0) == m) {
     taosTmrCleanUp(m);
   }
