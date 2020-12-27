@@ -375,10 +375,6 @@ static int32_t mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
     mError("\"numOfMnodes\"[%d - %d] cfg parameters inconsistent", clusterCfg->numOfMnodes, htonl(tsNumOfMnodes));
     return TAOS_DN_OFF_NUM_OF_MNODES_NOT_MATCH;
   }
-  if (clusterCfg->enableBalance != htonl(tsEnableBalance)) {
-    mError("\"balance\"[%d - %d] cfg parameters inconsistent", clusterCfg->enableBalance, htonl(tsEnableBalance));
-    return TAOS_DN_OFF_ENABLE_BALANCE_NOT_MATCH;
-  }
   if (clusterCfg->mnodeEqualVnodeNum != htonl(tsMnodeEqualVnodeNum)) {
     mError("\"mnodeEqualVnodeNum\"[%d - %d] cfg parameters inconsistent", clusterCfg->mnodeEqualVnodeNum,
            htonl(tsMnodeEqualVnodeNum));
@@ -426,6 +422,23 @@ static int32_t mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
   if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset))) {
     mError("\"charset\"[%s - %s] cfg parameters inconsistent.", clusterCfg->charset, tsCharset);
     return TAOS_DN_OFF_CHARSET_NOT_MATCH;
+  }
+
+  if (clusterCfg->enableBalance != tsEnableBalance) {
+    mError("\"balance\"[%d - %d] cfg parameters inconsistent", clusterCfg->enableBalance, tsEnableBalance);
+    return TAOS_DN_OFF_ENABLE_BALANCE_NOT_MATCH;
+  }
+  if (clusterCfg->flowCtrl != tsEnableFlowCtrl) {
+    mError("\"flowCtrl\"[%d - %d] cfg parameters inconsistent", clusterCfg->flowCtrl, tsEnableFlowCtrl);
+    return TAOS_DN_OFF_FLOW_CTRL_NOT_MATCH;
+  }
+  if (clusterCfg->slaveQuery != tsEnableSlaveQuery) {
+    mError("\"slaveQuery\"[%d - %d] cfg parameters inconsistent", clusterCfg->slaveQuery, tsEnableSlaveQuery);
+    return TAOS_DN_OFF_SLAVE_QUERY_NOT_MATCH;
+  }
+  if (clusterCfg->adjustMaster != tsEnableAdjustMaster) {
+    mError("\"adjustMaster\"[%d - %d] cfg parameters inconsistent", clusterCfg->adjustMaster, tsEnableAdjustMaster);
+    return TAOS_DN_OFF_ADJUST_MASTER_NOT_MATCH;
   }
 
   return 0;
@@ -1031,6 +1044,11 @@ static int32_t mnodeRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, v
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int8_t *)cfg->ptr));
+        varDataSetLen(pWrite, t);
+        numOfRows++;
+        break;
       case TAOS_CFG_VTYPE_INT16:
         t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int16_t *)cfg->ptr));
         varDataSetLen(pWrite, t);

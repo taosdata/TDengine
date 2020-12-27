@@ -605,7 +605,6 @@ typedef struct {
 
 typedef struct {
   int32_t  numOfMnodes;               // tsNumOfMnodes
-  int32_t  enableBalance;             // tsEnableBalance
   int32_t  mnodeEqualVnodeNum;        // tsMnodeEqualVnodeNum
   int32_t  offlineThreshold;          // tsOfflineThreshold
   int32_t  statusInterval;            // tsStatusInterval
@@ -616,6 +615,11 @@ typedef struct {
   int64_t  checkTime;                 // 1970-01-01 00:00:00.000
   char     locale[TSDB_LOCALE_LEN];   // tsLocale
   char     charset[TSDB_LOCALE_LEN];  // tsCharset
+  int8_t   enableBalance;             // tsEnableBalance
+  int8_t   flowCtrl;
+  int8_t   slaveQuery;
+  int8_t   adjustMaster;
+  int8_t   reserved[4];
 } SClusterCfg;
 
 typedef struct {
