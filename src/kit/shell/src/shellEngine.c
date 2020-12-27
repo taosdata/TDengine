@@ -302,14 +302,12 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   st = taosGetTimestampUs();
 
-  TAOS_RES* tmpSql = NULL;
-  TAOS_RES* pSql = taos_query_h(con, command, &tmpSql);
+  TAOS_RES* pSql = taos_query_h(con, command, &result);
   if (taos_errno(pSql)) {
     taos_error(pSql, st);
     return;
   }
 
-  atomic_store_64(&result, ((SSqlObj*)tmpSql)->self);
   int64_t oresult = atomic_load_64(&result);
 
   if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {

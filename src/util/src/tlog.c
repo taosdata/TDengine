@@ -64,7 +64,7 @@ typedef struct {
 } SLogObj;
 
 int32_t tsLogKeepDays = 0;
-int32_t tsAsyncLog = 1;
+int8_t  tsAsyncLog = 1;
 float   tsTotalLogDirGB = 0;
 float   tsAvailLogDirGB = 0;
 float   tsMinimalLogDirGB = 1.0f;

@@ -320,7 +320,7 @@ static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
   tsem_post(&pSql->rspSem);
 }
 
-TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, TAOS_RES** res) {
+TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, int64_t* res) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
@@ -346,7 +346,7 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, TAOS_RES
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   if (res != NULL) {
-    *res = pSql;
+    atomic_store_64(res, pSql->self);
   }
 
   tsem_wait(&pSql->rspSem);
@@ -357,7 +357,7 @@ TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
   return taos_query_c(taos, sqlstr, (uint32_t)strlen(sqlstr), NULL);
 }
 
-TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, TAOS_RES** res) {
+TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, int64_t* res) {
   return taos_query_c(taos, sqlstr, (uint32_t) strlen(sqlstr), res);
 }
 
