@@ -194,36 +194,29 @@ print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1  $data5_1  $data6_1  $dat
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2  $data5_2  $data6_2  $data7_2  $data8_2  $data9_2
 print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $data7_3  $data8_3  $data9_3
 print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4  $data5_4  $data6_4  $data7_4  $data8_4  $data9_4
-$d2v2status = $data5_4
-$d2v3status = $data5_2
-$d2v4status = $data5_3
 
-$d1v2status = $data7_4
-$d1v3status = $data7_2
-$d1v4status = $data7_3
-
-if $d2v2status != master then
+if $data5_4 != master then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $d2v3status != master then
+if $data5_3 != slave then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $d2v4status != master then
+if $data5_2 != master then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
 
-if $d1v2status != slave then
+if $data7_4 != slave then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $d1v3status != slave then
+if $data7_3 != master then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
-if $d1v4status != slave then
+if $data7_2 != slave then
   sleep 2000
   goto wait_dnode1_vgroup_slave
 endi
@@ -265,3 +258,12 @@ print data00 $data00
 if $data00 != $totalRows then
 	return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

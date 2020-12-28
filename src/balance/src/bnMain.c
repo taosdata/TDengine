@@ -66,6 +66,77 @@ static bool bnCheckFree(SDnodeObj *pDnode) {
   return true;
 }
 
+static void bnSwapVnodeGid(SVnodeGid *pVnodeGid1, SVnodeGid *pVnodeGid2) {
+  SVnodeGid tmp = *pVnodeGid1;
+  *pVnodeGid1 = *pVnodeGid2;
+  *pVnodeGid2 = tmp;
+}
+
+static void bnAdjustVnodeIndex(SVgObj *pInVg) {
+  int32_t d0Id = pInVg->vnodeGid[0].dnodeId;
+  int32_t d1Id = pInVg->vnodeGid[1].dnodeId;
+  int32_t d2Id = pInVg->vnodeGid[2].dnodeId;
+
+  int32_t vgId = pInVg->vgId;
+  int32_t d0Num = 0;
+  int32_t d1Num = 0;
+  int32_t d2Num = 0;
+
+  void *pIter = NULL;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+    if (pVgroup == NULL) break;
+
+    if (pVgroup->vgId != vgId) {
+      if (pVgroup->vnodeGid[0].dnodeId == d0Id) d0Num++;
+      if (pVgroup->vnodeGid[0].dnodeId == d1Id) d1Num++;
+      if (pVgroup->vnodeGid[0].dnodeId == d2Id) d2Num++;
+    }
+
+    mnodeDecVgroupRef(pVgroup);
+  }
+
+  if (pInVg->numOfVnodes == 1) {
+  }
+
+  if (pInVg->numOfVnodes == 2) {
+    mDebug("vgId:%d, dnode:%d num:%d dnode:%d num:%d", pInVg->vgId, d0Id, d0Num, d1Id, d1Num);
+    if (d0Num > d1Num) {
+      mDebug("vgId:%d, adjust vnode index 0 to 1", pInVg->vgId);
+      bnSwapVnodeGid(&pInVg->vnodeGid[0], &pInVg->vnodeGid[1]);
+    }
+  }
+
+  if (pInVg->numOfVnodes >= 3) {
+    mDebug("vgId:%d, dnode:%d num:%d dnode:%d num:%d dnode:%d num:%d", pInVg->vgId, d0Id, d0Num, d1Id, d1Num, d2Id, d2Num);
+    if (d0Num <= d1Num && d0Num <= d2Num) {
+      if (d1Num > d2Num) {
+        mDebug("vgId:%d, adjust vnode index 1 to 2", pInVg->vgId);
+        bnSwapVnodeGid(&pInVg->vnodeGid[1], &pInVg->vnodeGid[2]);
+      }
+    } else if (d1Num <= d2Num && d1Num <= d0Num) {
+      mDebug("vgId:%d, adjust vnode index 0 to 1", pInVg->vgId);
+      bnSwapVnodeGid(&pInVg->vnodeGid[0], &pInVg->vnodeGid[1]);
+      if (d0Num > d2Num) {
+        mDebug("vgId:%d, adjust vnode index 1 to 2", pInVg->vgId);
+        bnSwapVnodeGid(&pInVg->vnodeGid[1], &pInVg->vnodeGid[2]);
+      }
+    } else {
+      mDebug("vgId:%d, adjust vnode index 0 to 2", pInVg->vgId);
+      bnSwapVnodeGid(&pInVg->vnodeGid[0], &pInVg->vnodeGid[2]);
+      if (d1Num > d0Num) {
+        mDebug("vgId:%d, adjust vnode index 1 to 2", pInVg->vgId);
+        bnSwapVnodeGid(&pInVg->vnodeGid[1], &pInVg->vnodeGid[2]);
+      }
+    }
+  }
+
+  for (int i = 0; i < pInVg->numOfVnodes; ++i) {
+    mDebug("vgId:%d index:%d dnodeId:%d", pInVg->vgId, i, pInVg->vnodeGid[i].dnodeId);
+  }
+}
+
 static void bnDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
   mDebug("vgId:%d, dnode:%d is dropping", pVgroup->vgId, pVnodeGid->dnodeId);
 
@@ -88,13 +159,8 @@ static void bnDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
   memcpy(pVgroup->vnodeGid, vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
   pVgroup->numOfVnodes = numOfVnodes;
 
+  bnAdjustVnodeIndex(pVgroup);
   mnodeUpdateVgroup(pVgroup);
-}
-
-static void bnSwapVnodeGid(SVnodeGid *pVnodeGid1, SVnodeGid *pVnodeGid2) {
-  SVnodeGid tmp = *pVnodeGid1;
-  *pVnodeGid1 = *pVnodeGid2;
-  *pVnodeGid2 = tmp;
 }
 
 int32_t bnAllocVnodes(SVgObj *pVgroup) {
@@ -147,6 +213,7 @@ int32_t bnAllocVnodes(SVgObj *pVgroup) {
     }
   }
 
+  bnAdjustVnodeIndex(pVgroup);
   bnReleaseDnodes();
   bnUnLock();
   return TSDB_CODE_SUCCESS;
@@ -233,12 +300,18 @@ static int32_t bnAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDes
   vnodeGids[numOfVnodes].pDnode = pDestDnode;
   numOfVnodes++;
 
+  // move the src vnode to the end
   for (int32_t v = 0; v < numOfVnodes; ++v) {
     if (pSrcDnode != NULL && pSrcDnode->dnodeId == vnodeGids[v].dnodeId) {
       bnSwapVnodeGid(&vnodeGids[v], &vnodeGids[numOfVnodes - 1]);
       pVgroup->lbDnodeId = pSrcDnode->dnodeId;
       break;
     }
+  }
+
+  // adjust the vgroup postion
+  if (pSrcDnode == NULL) {
+    bnAdjustVnodeIndex(pVgroup);
   }
 
   memcpy(&pVgroup->vnodeGid, &vnodeGids, sizeof(SVnodeGid) * TSDB_MAX_REPLICA);
