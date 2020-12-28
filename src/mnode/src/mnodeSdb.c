@@ -1081,6 +1081,8 @@ static void *sdbWorkerFp(void *pWorker) {
   int32_t  qtype;
   void *   unUsed;
 
+  taosBlockSIGPIPE();
+
   while (1) {
     int32_t numOfMsgs = taosReadAllQitemsFromQset(tsSdbWQset, tsSdbWQall, &unUsed);
     if (numOfMsgs == 0) {

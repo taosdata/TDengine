@@ -90,15 +90,18 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
       break;
     }
 
+    sDebug("%s, file:%s info is received from master, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%d", pPeer->id,
+           minfo.name, minfo.index, minfo.size, minfo.fversion, minfo.magic);
+
     // remove extra files on slave between the current and last index
     syncRemoveExtraFile(pPeer, pindex + 1, minfo.index - 1);
     pindex = minfo.index;
 
     // check the file info
     sinfo = minfo;
-    sDebug("%s, get file:%s info size:%" PRId64, pPeer->id, minfo.name, minfo.size);
-    sinfo.magic = (*pNode->getFileInfo)(pNode->vgId, sinfo.name, &sinfo.index, TAOS_SYNC_MAX_INDEX, &sinfo.size,
-                                        &sinfo.fversion);
+    sinfo.magic = (*pNode->getFileInfo)(pNode->vgId, sinfo.name, &sinfo.index, TAOS_SYNC_MAX_INDEX, &sinfo.size, &sinfo.fversion);
+    sDebug("%s, local file:%s info, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%d", pPeer->id, sinfo.name,
+           sinfo.index, sinfo.size, sinfo.fversion, sinfo.magic);
 
     // if file not there or magic is not the same, file shall be synced
     memset(&fileAck, 0, sizeof(SFileAck));
@@ -116,6 +119,8 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     if (fileAck.sync == 0) {
       sDebug("%s, %s is the same", pPeer->id, minfo.name);
       continue;
+    } else {
+      sDebug("%s, %s will be received, size:%" PRId64, pPeer->id, minfo.name, minfo.size);
     }
 
     // if sync is required, open file, receive from master, and write to file
@@ -155,7 +160,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
   return code;
 }
 
-static int32_t syncRestoreWal(SSyncPeer *pPeer) {
+static int32_t syncRestoreWal(SSyncPeer *pPeer, uint64_t *wver) {
   SSyncNode *pNode = pPeer->pSyncNode;
   int32_t    ret, code = -1;
   uint64_t   lastVer = 0;
@@ -198,6 +203,7 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer) {
   }
 
   free(pHead);
+  *wver = lastVer;
   return code;
 }
 
@@ -321,10 +327,17 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 
   nodeVersion = fversion;
 
-  sInfo("%s, start to restore wal", pPeer->id);
-  if (syncRestoreWal(pPeer) < 0) {
-    sError("%s, failed to restore wal", pPeer->id);
+  sInfo("%s, start to restore wal, fver:%" PRIu64, pPeer->id, nodeVersion);
+  uint64_t wver = 0;
+  code = syncRestoreWal(pPeer, &wver);  // lastwar
+  if (code < 0) {
+    sError("%s, failed to restore wal, code:%d", pPeer->id, code);
     return -1;
+  }
+
+  if (wver != 0) {
+    nodeVersion = wver;
+    sDebug("%s, restore wal finished, set sver:%" PRIu64, pPeer->id, nodeVersion);
   }
 
   nodeSStatus = TAOS_SYNC_STATUS_CACHE;
@@ -338,7 +351,10 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 }
 
 void *syncRestoreData(void *param) {
-  SSyncPeer *pPeer = param;
+  int64_t    rid = (int64_t)param;
+  SSyncPeer *pPeer = syncAcquirePeer(rid);
+  if (pPeer == NULL) return NULL;
+
   SSyncNode *pNode = pPeer->pSyncNode;
 
   taosBlockSIGPIPE();
@@ -369,7 +385,7 @@ void *syncRestoreData(void *param) {
   taosClose(pPeer->syncFd);
   syncCloseRecvBuffer(pNode);
   __sync_fetch_and_sub(&tsSyncNum, 1);
-  syncDecPeerRef(pPeer);
+  syncReleasePeer(pPeer);
 
   return NULL;
 }

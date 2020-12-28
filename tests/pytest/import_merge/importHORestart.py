@@ -57,7 +57,7 @@ class TDTestCase:
         tdLog.info("================= step5")
         tdDnodes.forcestop(1)
         tdDnodes.start(1)
-        tdLog.sleep(10)
+        #tdLog.sleep(10)
 
         tdLog.info("================= step6")
         tdSql.query('select * from tb1')

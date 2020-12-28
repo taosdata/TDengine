@@ -22,7 +22,8 @@
 
 static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   tstrncpy(pVnode->db, vnodeMsg->db, sizeof(pVnode->db));
-  pVnode->cfgVersion = vnodeMsg->cfg.cfgVersion;
+  pVnode->dbCfgVersion = vnodeMsg->cfg.dbCfgVersion;
+  pVnode->vgCfgVersion = vnodeMsg->cfg.vgCfgVersion;
   pVnode->tsdbCfg.cacheBlockSize = vnodeMsg->cfg.cacheBlockSize;
   pVnode->tsdbCfg.totalBlocks = vnodeMsg->cfg.totalBlocks;
   pVnode->tsdbCfg.daysPerFile = vnodeMsg->cfg.daysPerFile;
@@ -95,12 +96,20 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   tstrncpy(vnodeMsg.db, db->valuestring, sizeof(vnodeMsg.db));
 
-  cJSON *cfgVersion = cJSON_GetObjectItem(root, "cfgVersion");
-  if (!cfgVersion || cfgVersion->type != cJSON_Number) {
+  cJSON *dbCfgVersion = cJSON_GetObjectItem(root, "cfgVersion");
+  if (!dbCfgVersion || dbCfgVersion->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, cfgVersion not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.cfgVersion = cfgVersion->valueint;
+  vnodeMsg.cfg.dbCfgVersion = dbCfgVersion->valueint;
+
+  cJSON *vgCfgVersion = cJSON_GetObjectItem(root, "vgCfgVersion");
+  if (!vgCfgVersion || vgCfgVersion->type != cJSON_Number) {
+    vError("vgId:%d, failed to read %s, vgCfgVersion not found", pVnode->vgId, file);
+    vnodeMsg.cfg.vgCfgVersion = 0;
+  } else {
+    vnodeMsg.cfg.vgCfgVersion = vgCfgVersion->valueint;
+  }
 
   cJSON *cacheBlockSize = cJSON_GetObjectItem(root, "cacheBlockSize");
   if (!cacheBlockSize || cacheBlockSize->type != cJSON_Number) {
@@ -278,7 +287,8 @@ int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"db\": \"%s\",\n", pMsg->db);
-  len += snprintf(content + len, maxLen - len, "  \"cfgVersion\": %d,\n", pMsg->cfg.cfgVersion);
+  len += snprintf(content + len, maxLen - len, "  \"cfgVersion\": %d,\n", pMsg->cfg.dbCfgVersion);
+  len += snprintf(content + len, maxLen - len, "  \"vgCfgVersion\": %d,\n", pMsg->cfg.vgCfgVersion);
   len += snprintf(content + len, maxLen - len, "  \"cacheBlockSize\": %d,\n", pMsg->cfg.cacheBlockSize);
   len += snprintf(content + len, maxLen - len, "  \"totalBlocks\": %d,\n", pMsg->cfg.totalBlocks);
   len += snprintf(content + len, maxLen - len, "  \"daysPerFile\": %d,\n", pMsg->cfg.daysPerFile);

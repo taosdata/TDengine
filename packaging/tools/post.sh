@@ -265,8 +265,14 @@ function install_config() {
         [ -f ${cfg_dir}/taos.cfg ] && ${csudo} cp ${cfg_dir}/taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
+    
+    # Save standard input to 6 and open / dev / TTY on standard input
+    exec 6<&0 0</dev/tty 
 
     local_fqdn_check
+    
+    # restore the backup standard input, and turn off 6
+    exec 0<&6 6<&-
 
     ${csudo} mv ${cfg_dir}/taos.cfg ${cfg_dir}/taos.cfg.org
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${cfg_dir}
@@ -422,7 +428,7 @@ function install_service() {
 }
 
 function install_TDengine() {
-    echo -e "${GREEN}Start to install TDEngine...${NC}"
+    echo -e "${GREEN}Start to install TDengine...${NC}"
 
     #install log and data dir , then ln to /usr/local/taos
     ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}

@@ -154,7 +154,7 @@ int32_t vnodeAlter(void *vparam, SCreateVnodeMsg *pVnodeCfg) {
   SVnodeObj *pVnode = vparam;
 
   // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
-  // cfgVersion can be corrected by status msg
+  // dbCfgVersion can be corrected by status msg
   if (!vnodeSetUpdatingStatus(pVnode)) {
     vDebug("vgId:%d, vnode is not ready, do alter operation later", pVnode->vgId);
     return TSDB_CODE_SUCCESS;

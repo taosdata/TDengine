@@ -96,8 +96,6 @@ void resetResultRowInfo(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRo
   
   pResultRowInfo->curIndex = -1;
   pResultRowInfo->size = 0;
-  
-  pResultRowInfo->startTime = TSKEY_INITIAL_VAL;
   pResultRowInfo->prevSKey = TSKEY_INITIAL_VAL;
 }
 
@@ -110,7 +108,7 @@ void popFrontResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRow
   assert(num >= 0 && num <= numOfClosed);
 
   int16_t type = pResultRowInfo->type;
-  int64_t uid = getResultInfoUId(pRuntimeEnv);
+  int64_t uid  = 0;
 
   char    *key  = NULL;
   int16_t  bytes = -1;
@@ -181,11 +179,12 @@ void closeAllResultRows(SResultRowInfo *pResultRowInfo) {
   assert(pResultRowInfo->size >= 0 && pResultRowInfo->capacity >= pResultRowInfo->size);
   
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-    if (pResultRowInfo->pResult[i]->closed) {
+    SResultRow* pRow = pResultRowInfo->pResult[i];
+    if (pRow->closed) {
       continue;
     }
     
-    pResultRowInfo->pResult[i]->closed = true;
+    pRow->closed = true;
   }
 }
 
@@ -383,18 +382,4 @@ void* destroyResultRowPool(SResultRowPool* p) {
 
   tfree(p);
   return NULL;
-}
-
-uint64_t getResultInfoUId(SQueryRuntimeEnv* pRuntimeEnv) {
-  if (!pRuntimeEnv->stableQuery) {
-    return 0;  // for simple table query, the uid is always set to be 0;
-  }
-
-  SQuery* pQuery = pRuntimeEnv->pQuery;
-  if (pQuery->interval.interval == 0 || isPointInterpoQuery(pQuery) || pRuntimeEnv->groupbyNormalCol) {
-    return 0;
-  }
-
-  STableId* id = TSDB_TABLEID(pRuntimeEnv->pQuery->current->pTable);
-  return id->uid;
 }

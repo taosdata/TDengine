@@ -45,15 +45,30 @@ system sh/exec_tarbitrator.sh -s start
 
 print ============== step1: start dnode1, only deploy mnode
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
 sql connect
 
 print ============== step2: start dnode2 and add into cluster , then create database with replica 1, and create table, insert data
 system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
-sleep 3000
 
-$sleepTimer = 10000
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
 
 $db = db
 sql create database $db replica 1
@@ -84,7 +99,6 @@ while $i < $tblNum
 endw 
 
 sql select count(*) from $stb
-sleep 1000
 print data00 $data00
 if $data00 != $totalRows then
 	return -1
@@ -92,118 +106,65 @@ endi
 
 print ============== step2-1: stop dnode2 for falling disc, then restart dnode2, and check rows
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep $sleepTimer
-
-
-$loopCnt = 0
-wait_dnode2_offline_0:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
-endi
-sql show dnodes
-if $rows != 2 then
-  sleep 2000
-  goto wait_dnode2_offline_0
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-#$dnode1Status = $data4_1  
-$dnode2Status = $data4_2
-#$dnode3Status = $data4_3  
-#$dnode4Status = $data4_4 
-#$dnode5Status = $data4_5
-
-if $dnode2Status != offline then
-  sleep 2000
-  goto wait_dnode2_offline_0
-endi
-
 system sh/exec.sh -n dnode2 -s start
-sleep $sleepTimer
 
+$x = 0
+a0: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
 
-$loopCnt = 0
-wait_dnode2_reready:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
-endi
-sql show dnodes
-if $rows != 2 then
-  sleep 2000
-  goto wait_dnode2_reready
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-#$dnode1Status = $data4_1  
-$dnode2Status = $data4_2
-#$dnode3Status = $data4_3  
-#$dnode4Status = $data4_4 
-#$dnode5Status = $data4_5
-
-if $dnode2Status != ready then
-  sleep 2000
-  goto wait_dnode2_reready
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a0
 endi
 
 sql select count(*) from $stb
-sleep 1000
 print data00 $data00
 if $data00 != $totalRows then
 	return -1
 endi
 
-
 print ============== step3: start dnode3 and add into cluster , then alter replica from 1 to 2, and waiting sync
 system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname3
-sleep 3000
 
-sql alter database $db replica 2
-sleep $sleepTimer
-$loopCnt = 0
-wait_dnode3_ready:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
-endi
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+		return -1
+	endi
 
 sql show dnodes
-if $rows != 3 then
-  sleep 2000
-  goto wait_dnode3_ready
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-#$dnode1Status = $data4_1  
-$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-#$dnode4Status = $data4_4 
-#$dnode5Status = $data4_5
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
 
-if $dnode2Status != ready then
-  sleep 2000
-  goto wait_dnode3_ready
-endi
-if $dnode3Status != ready then
-  sleep 2000
-  goto wait_dnode3_ready
+if $data4_3 != ready then
+  goto step2
 endi
 
-sleep $sleepTimer
+sql alter database $db replica 2
+
+$x = 0
+a1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a1
+endi
+
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -211,44 +172,22 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-
 print ============== step4: stop dnode2 for checking if sync ok
 system sh/exec.sh -n dnode2 -s stop
-sleep $sleepTimer
-$loopCnt = 0
-wait_dnode2_offline:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
+$x = 0
+a2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a2
 endi
 
-sql show dnodes
-if $rows != 3 then
-  sleep 2000
-  goto wait_dnode2_offline
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-#$dnode1Status = $data4_1  
-$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-#$dnode4Status = $data4_4 
-#$dnode5Status = $data4_5
-
-if $dnode2Status != offline then
-  sleep 2000
-  goto wait_dnode2_offline
-endi
-if $dnode3Status != ready then
-  sleep 2000
-  goto wait_dnode2_offline
-endi
-
-sleep $sleepTimer   # waitting for move master vnode of dnode2 to dnode3
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -258,38 +197,20 @@ endi
 
 print ============== step5: restart dnode2
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+$x = 0
+a3: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
 
-$loopCnt = 0
-wait_dnode2_ready:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a3
 endi
 
-sql show dnodes
-if $rows != 3 then
-  sleep 2000
-  goto wait_dnode2_ready
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-#print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-#$dnode1Status = $data4_1  
-$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-#$dnode4Status = $data4_4 
-#$dnode5Status = $data4_5
-
-if $dnode2Status != ready then
-  sleep 2000
-  goto wait_dnode2_ready
-endi
-
-sleep $sleepTimer
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -300,40 +221,39 @@ endi
 print ============== step6: start dnode4 and add into cluster , then alter replica from 2 to 3, and waiting sync
 system sh/exec.sh -n dnode4 -s start
 sql create dnode $hostname4
-sleep 3000
-
-sql alter database $db replica 3
-sleep $sleepTimer
-$loopCnt = 0
-wait_dnode4_ready:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
-endi
+$x = 0
+step6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
 
 sql show dnodes
-if $rows != 4 then
-  sleep 2000
-  goto wait_dnode4_ready
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-#$dnode1Status = $data4_1  
-#$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-$dnode4Status = $data4_4 
-#$dnode5Status = $data4_5
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
 
-if $dnode4Status != ready then
-  sleep 2000
-  goto wait_dnode4_ready
+if $data4_4 != ready then
+  goto step6
 endi
 
-sleep $sleepTimer
+sql alter database $db replica 3
+$x = 0
+a4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 3 then
+	goto a4
+endi
+
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -343,44 +263,20 @@ endi
 
 print ============== step7: alter replica from 3 to 2, and waiting sync
 sql alter database $db replica 2
-sleep $sleepTimer
-$loopCnt = 0
-wait_vgroups_replic_to_2:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
+$x = 0
+a5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a5
 endi
 
-sql show vgroups
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1  $data5_1  $data6_1  $data7_1  $data8_1  $data9_1  $data10_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2  $data5_2  $data6_2  $data7_2  $data8_2  $data9_2  $data10_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $data7_3  $data8_3  $data9_3  $data10_3
-print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4  $data5_4  $data6_4  $data7_4  $data8_4  $data9_4  $data10_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-$thirdDnode_2 = $data8_1 
-$thirdDnode_3 = $data8_2 
-$thirdDnode_4 = $data8_3 
-$thirdDnode_5 = $data8_4 
-
-if $thirdDnode_2 != null then
-  sleep 2000
-  goto wait_vgroups_replic_to_2
-endi
-if $thirdDnode_3 != null then
-  sleep 2000
-  goto wait_vgroups_replic_to_2
-endi
-if $thirdDnode_4 != null then
-  sleep 2000
-  goto wait_vgroups_replic_to_2
-endi
-if $thirdDnode_5 != null then
-  sleep 2000
-  goto wait_vgroups_replic_to_2
-endi
-
-sleep $sleepTimer  #waiting del one replica data
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -390,85 +286,20 @@ endi
 
 print ============== step8: alter replica from 2 to 1, and waiting sync
 sql alter database $db replica 1
-sleep $sleepTimer
-$loopCnt = 0
-wait_vgroups_replic_to_1:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
+$x = 0
+a6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a6
 endi
 
-sql show vgroups
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1  $data5_1  $data6_1  $data7_1  $data8_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2  $data5_2  $data6_2  $data7_2  $data8_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $data7_3  $data8_3
-print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4  $data5_4  $data6_4  $data7_4  $data8_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-$sencodDnode_2 = $data6_1 
-$sencodDnode_3 = $data6_2 
-$sencodDnode_4 = $data6_3 
-$sencodDnode_5 = $data6_4 
-
-if $sencodDnode_2 != null then
-  sleep 2000
-  goto wait_vgroups_replic_to_1
-endi
-if $sencodDnode_3 != null then
-  sleep 2000
-  goto wait_vgroups_replic_to_1
-endi
-if $sencodDnode_4 != null then
-  sleep 2000
-  goto wait_vgroups_replic_to_1
-endi
-if $sencodDnode_5 != null then
-  sleep 2000
-  goto wait_vgroups_replic_to_1
-endi
-
-$loopCnt = 0
-all_dnodes_ready:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
-endi
-
-sql show dnodes
-if $rows != 4 then
-  sleep 2000
-  goto all_dnodes_ready
-endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-$dnode1Status = $data4_1  
-$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-$dnode4Status = $data4_4 
-#$dnode5Status = $data4_5
-
-if $dnode1Status != ready then
-  sleep 2000
-  goto all_dnodes_ready
-endi
-if $dnode2Status != ready then
-  sleep 2000
-  goto all_dnodes_ready
-endi
-if $dnode3Status != ready then
-  sleep 2000
-  goto all_dnodes_ready
-endi
-if $dnode4Status != ready then
-  sleep 2000
-  goto all_dnodes_ready
-endi
-
-sleep $sleepTimer  #waiting del one replica data
 # check using select
 sql select count(*) from $stb
 print data00 $data00
@@ -481,39 +312,31 @@ sql drop dnode $hostname2
 sql drop dnode $hostname3
 sleep $sleepTimer
 
-$loopCnt = 0
-wait_dnode23_dropped:
-$loopCnt = $loopCnt + 1
-if $loopCnt == 10 then 
-  return -1
-endi
+$x = 0
+step9: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
 
 sql show dnodes
 if $rows != 2 then
-  sleep 2000
-  goto wait_dnode23_dropped
+  goto step9
 endi
-print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
-print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
-print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3
-print $data0_4  $data1_4  $data2_4  $data3_4  $data4_4
-#print $data0_5  $data1_5  $data2_5  $data3_5  $data4_5
-#print $data0_6  $data1_6  $data2_6  $data3_6  $data4_6
-$dnode1Status = $data4_1  
-$dnode2Status = $data4_2
-$dnode3Status = $data4_3  
-$dnode4Status = $data4_4 
 
-if $dnode2Status != null then
-  sleep 2000
-  goto wait_dnode23_dropped
-endi
-if $dnode3Status != null then
-  sleep 2000
-  goto wait_dnode23_dropped
-endi
-if $dnode4Status != ready then
-  return -1
+$x = 0
+a7: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a7
 endi
 
 sleep $sleepTimer  #waiting move vnode from dnode3/dnode3 to dnode4
@@ -523,3 +346,13 @@ print data00 $data00
 if $data00 != $totalRows then
 	return -1
 endi
+
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

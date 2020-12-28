@@ -55,11 +55,11 @@ typedef enum EDnodeOfflineReason {
   TAOS_DN_OFF_OTHERS
 } EDnodeOfflineReason;
 
+extern char* dnodeStatus[];
+extern char* dnodeRoles[];
+
 int32_t mnodeInitDnodes();
 void    mnodeCleanupDnodes();
-
-char*   mnodeGetDnodeStatusStr(int32_t dnodeStatus);
-void    mgmtMonitorDnodeModule();
 
 int32_t mnodeGetDnodesNum();
 int32_t mnodeGetOnlinDnodesCpuCoreNum();

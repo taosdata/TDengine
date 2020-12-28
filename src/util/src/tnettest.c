@@ -449,7 +449,7 @@ static void taosNetTestClient(char *host, int32_t startPort, int32_t pkgLen) {
   int32_t endPort = startPort + 11;
   uInfo("work as client, host:%s startPort:%d endPort:%d pkgLen:%d\n", host, startPort, endPort, pkgLen);
 
-  uint32_t serverIp = taosGetIpFromFqdn(host);
+  uint32_t serverIp = taosGetIpv4FromFqdn(host);
   if (serverIp == 0xFFFFFFFF) {
     uError("failed to resolve fqdn:%s", host);
     exit(-1);

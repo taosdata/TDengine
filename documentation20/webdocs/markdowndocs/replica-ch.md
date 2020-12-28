@@ -30,7 +30,7 @@ TDengine里存在vnode, mnode, vnode用来存储时序数据，mnode用来存储
 
 - master： 具有最新的数据，容许客户端往里写入数据，一个虚拟节点组，至多一个master.
 - slave：与master是同步的，但不容许客户端往里写入数据，根据配置，可以容许客户端对其进行查询。
-- unsynced: 节点处于非同步状态，比如虚拟节点刚启动、或与其他虚拟节点的连接出现故障等。处于该状态时，该虚拟节点既不能提供写入，也不能提供查询服务
+- unsynced: 节点处于非同步状态，比如虚拟节点刚启动、或与其他虚拟节点的连接出现故障等。处于该状态时，该虚拟节点既不能提供写入，也不能提供查询服务。
 - offline: 由于宕机或网络原因，无法访问到某虚拟节点时，其他虚拟节点将该虚拟节点标为离线。但请注意，该虚拟节点本身的状态可能是unsynced或其他，但不会是离线。
 
 **Quorum:**
@@ -83,10 +83,10 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 如果一个虚拟节点(vnode A)检测到与同一虚拟节点组内另外一虚拟节点（vnode B）的连接中断，vnode A将立即把vnode B的role设置为offline。无论是接收到另外一虚拟节点发来的status消息，还是检测与另外一虚拟节点的连接中断，该虚拟节点都将进入状态处理流程。状态处理流程的规则如下：
 
 1. 如果检测到在线的节点数没有超过一半，则将自己的状态设置为unsynced.
-2. 如果在线的虚拟节点数超过一半，会检查master节点是否存在，如果存在，则会决定是否将自己状态改为slave或启动数据恢复流程
+2. 如果在线的虚拟节点数超过一半，会检查master节点是否存在，如果存在，则会决定是否将自己状态改为slave或启动数据恢复流程。
 3. 如果master不存在，则会检查自己保存的各虚拟节点的状态信息与从另一节点接收到的是否一致，如果一致，说明节点组里状态已经稳定一致，则会触发选举流程。如果不一致，说明状态还没趋于一致，即使master不存在，也不进行选主。由于要求状态信息一致才进行选举，每个虚拟节点根据同样的信息，会选出同一个虚拟节点做master，无需投票表决。
 4. 自己的状态是根据规则自己决定并修改的，并不需要其他节点同意，包括成为master。一个节点无权修改其他节点的状态。
-5. 如果一个虚拟节点检测到自己或其他虚拟节点的role发生改变，该节点会广播它自己保存的各个虚拟节点的状态信息（role和version).
+5. 如果一个虚拟节点检测到自己或其他虚拟节点的role发生改变，该节点会广播它自己保存的各个虚拟节点的状态信息（role和version)。
 
 具体的流程图如下：
 
@@ -124,7 +124,7 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 
 如果一虚拟节点(vnode B) 处于unsynced状态，master存在（vnode A)，而且其版本号比master的低，它将立即启动数据恢复流程。在理解恢复流程时，需要澄清几个关于文件的概念和处理规则。
 
-1. 每个文件（无论是archived data的file还是wal)都有一个index, 这需要应用来维护(vnode里，该index就是fileId*3 + 0/1/2, 对应data, head与last三个文件）。如果index为0，表示系统里最老的数据文件。对于mnode里的文件，数量是固定的，对应于acct, user, db, table等文件。
+1. 每个文件（无论是archived data的file还是wal)都有一个index, 这需要应用来维护(vnode里，该index就是fileId*3 + 0/1/2, 对应data, head与last三个文件）。如果index为0，表示系统里最老的数据文件。对于mode里的文件，数量是固定的，对应于acct, user, db, table等文件。
 2. 任何一个数据文件(file)有名字、大小，还有一个magic number。只有文件名、大小与magic number一致时，两个文件才判断是一样的，无需同步。Magic number可以是checksum, 也可以是简单的文件大小。怎么计算magic，换句话说，如何检测数据文件是否有效，完全由应用决定。
 3. 文件名的处理有点复杂，因为每台服务器的路径可能不一致。比如node A的TDengine的数据文件存放在 /etc/taos目录下，而node B的数据存放在 /home/jhtao目录下。因此同步模块需要应用在启动一个同步实例时提供一个path，这样两台服务器的绝对路径可以不一样，但仍然可以做对比，做同步。
 4. 当sync模块调用回调函数getFileInfo获得数据文件信息时，有如下的规则
@@ -212,10 +212,10 @@ Arbitrator的程序tarbitrator.c在复制模块的同一目录, 编译整个系�
 
 相同之处：
 
-- 三大流程一致：Raft里有Leader election, replication, safety，完全对应TDengine的选举、数据转发、数据恢复三个流程
-- 节点状态定义一致：Raft里每个节点有Leader, Follower, Candidate三个状态，TDengine里是Master, Slave, Unsynced, Offline。多了一个offlince, 但本质上是一样的，因为offline是外界看一个节点的状态，但该节点本身是处于master, slave 或unsynced的
+- 三大流程一致：Raft里有Leader election, replication, safety，完全对应TDengine的选举、数据转发、数据恢复三个流程。
+- 节点状态定义一致：Raft里每个节点有Leader, Follower, Candidate三个状态，TDengine里是Master, Slave, Unsynced, Offline。多了一个offlince, 但本质上是一样的，因为offline是外界看一个节点的状态，但该节点本身是处于master, slave 或unsynced的。
 - 数据转发流程完全一样，Master(leader)需要等待回复确认。
-- 数据恢复流程几乎一样，Raft没有涉及历史数据同步问题，只考虑了WAL数据同步
+- 数据恢复流程几乎一样，Raft没有涉及历史数据同步问题，只考虑了WAL数据同步。
 
 不同之处：
 
@@ -226,7 +226,7 @@ Arbitrator的程序tarbitrator.c在复制模块的同一目录, 编译整个系�
 
 ## Meta Data的数据复制
 
-TDengine里存在时序数据，也存在Meta Data。Meta Data对数据的可靠性要求更高，那么TDengine设计能否满足要求呢？下面做个仔细分析
+TDengine里存在时序数据，也存在Meta Data。Meta Data对数据的可靠性要求更高，那么TDengine设计能否满足要求呢？下面做个仔细分析。
 
 TDengine里Meta Data包括以下：
 
