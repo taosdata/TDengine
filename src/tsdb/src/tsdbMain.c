@@ -708,7 +708,7 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) { // TODO
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pFGroup = NULL;
   STsdbCfg *  pCfg = &(pRepo->config);
-  SCompBlock *pBlock = NULL;
+  SBlock *    pBlock = NULL;
 
   SFileGroupIter iter;
   SRWHelper      rhelper = {0};

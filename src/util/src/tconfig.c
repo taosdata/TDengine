@@ -112,7 +112,7 @@ static void taosReadInt8Config(SGlobalCfg *cfg, char *input_value) {
   }
 }
 
-static void taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
+static bool taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
   int   length = (int)strlen(input_value);
   char *option = (char *)cfg->ptr;
   if (length <= 0 || length > cfg->ptrLength) {
