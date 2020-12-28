@@ -43,7 +43,13 @@ def pre_test(){
     git checkout develop
     git pull
     git fetch
-    git branch -D ${CHANGE_BRANCH}
+    '''
+    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                git branch -D ${CHANGE_BRANCH}
+                '''
+    }
+    
     git checkout ${CHANGE_BRANCH}
     git pull
     git merge develop
