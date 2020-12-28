@@ -43,7 +43,9 @@ def pre_test(){
     git checkout develop
     git pull
     git fetch
+    git branch -d ${CHANGE_BRANCH}
     git checkout ${CHANGE_BRANCH}
+    git pull
     git merge develop
     cd ${WK}
     git reset --hard
