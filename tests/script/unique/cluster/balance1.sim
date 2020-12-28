@@ -340,7 +340,7 @@ print dnode1 $data4_1
 print dnode2 $data4_2
 print dnode3 $data4_3
 print dnode4 $data4_4
-print dnode4 $data4_5
+print dnode5 $data4_5
 
 if $data4_5 != ready then
   goto step13
@@ -380,13 +380,13 @@ $dnode5Vnodes = $data2_5
 print dnode5 $dnode2Vnodes
 
 if $dnode1Vnodes != 2 then
-  return -1
+  goto step13
 endi
 if $dnode4Vnodes != 2 then
-  return -1
+  goto step13
 endi
 if $dnode5Vnodes != 2 then
-  return -1
+  goto step13
 endi
 
 print ============================== step14
