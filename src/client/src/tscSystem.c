@@ -31,17 +31,16 @@
 #include "tlocale.h"
 
 // global, not configurable
-SCacheObj*  tscMetaCache;
+SCacheObj *tscMetaCache;       // table meta cache
+SHashObj  *tscHashMap;         // hash map to keep the global vgroup info
 int     tscObjRef = -1;
-void *  tscTmr;
-void *  tscQhandle;
-void *  tscCheckDiskUsageTmr;
+void   *tscTmr;
+void   *tscQhandle;
+void   *tscCheckDiskUsageTmr;
 int     tscRefId = -1;
-
-int tscNumOfThreads;
+int     tscNumOfObj = 0;       // number of sqlObj in current process.
 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
-//void tscUpdateEpSet(void *ahandle, SRpcEpSet *pEpSet);
 
 void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
   taosGetDisk();
@@ -114,7 +113,7 @@ void taos_init_imp(void) {
   int queueSize = tsMaxConnections*2;
 
   double factor = (tscEmbedded == 0)? 2.0:4.0;
-  tscNumOfThreads = (int)(tsNumOfCores * tsNumOfThreadsPerCore / factor);
+  int32_t tscNumOfThreads = (int)(tsNumOfCores * tsNumOfThreadsPerCore / factor);
   if (tscNumOfThreads < 2) {
     tscNumOfThreads = 2;
   }
@@ -133,7 +132,8 @@ void taos_init_imp(void) {
   int64_t refreshTime = 10; // 10 seconds by default
   if (tscMetaCache == NULL) {
     tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, tscFreeTableMetaHelper, "tableMeta");
-    tscObjRef = taosOpenRef(40960, tscFreeRegisteredSqlObj);
+    tscObjRef  = taosOpenRef(40960, tscFreeRegisteredSqlObj);
+    tscHashMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   }
 
   tscRefId = taosOpenRef(200, tscCloseTscObj);

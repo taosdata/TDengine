@@ -91,7 +91,7 @@ static void vnodeIncRef(void *ptNode) {
 void *vnodeAcquire(int32_t vgId) {
   SVnodeObj **ppVnode = NULL;
   if (tsVnodesHash != NULL) {
-    ppVnode = taosHashGetCB(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, NULL, sizeof(void *));
+    ppVnode = taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, NULL, sizeof(void *));
   }
 
   if (ppVnode == NULL || *ppVnode == NULL) {

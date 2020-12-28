@@ -38,12 +38,6 @@ typedef struct SLocalDataSource {
   tFilePage      filePage;
 } SLocalDataSource;
 
-enum {
-  TSC_LOCALREDUCE_READY = 0x0,
-  TSC_LOCALREDUCE_IN_PROGRESS = 0x1,
-  TSC_LOCALREDUCE_TOBE_FREED = 0x2,
-};
-
 typedef struct SLocalReducer {
   SLocalDataSource **    pLocalDataSrc;
   int32_t                numOfBuffer;
@@ -56,7 +50,6 @@ typedef struct SLocalReducer {
   tFilePage *            pTempBuffer;
   struct SQLFunctionCtx *pCtx;
   int32_t                rowSize;      // size of each intermediate result.
-  int32_t                status;       // denote it is in reduce process, in reduce process, it
   bool                   hasPrevRow;   // cannot be released
   bool                   hasUnprocessedRow;
   tOrderDescriptor *     pDesc;

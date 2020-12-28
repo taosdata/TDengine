@@ -69,9 +69,10 @@ typedef struct STableMeta {
   int16_t        sversion;
   int16_t        tversion;
   char           sTableId[TSDB_TABLE_FNAME_LEN];
-  SVgroupInfo    vgroupInfo;
+  int32_t        vgId;
   SCorVgroupInfo corVgroupInfo;
   STableId       id;
+//  union {int64_t stableUid; SSchema* schema;};
   SSchema        schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
 } STableMeta;
 
@@ -307,6 +308,7 @@ typedef struct STscObj {
   SRpcCorEpSet       *tscCorMgmtEpSet;
   void*              pDnodeConn;
   pthread_mutex_t    mutex;
+  int32_t            numOfObj; // number of sqlObj from this tscObj
 } STscObj;
 
 typedef struct SSubqueryState {
@@ -477,14 +479,14 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   }
 }
 
-extern SCacheObj*    tscMetaCache;
-extern int           tscObjRef;
-extern void *    tscTmr;
-extern void *    tscQhandle;
-extern int       tscKeepConn[];
-extern int       tscNumOfThreads;
-extern int       tscRefId;
-  
+extern SCacheObj *tscMetaCache;
+
+extern int   tscObjRef;
+extern void *tscTmr;
+extern void *tscQhandle;
+extern int   tscKeepConn[];
+extern int   tscRefId;
+extern int   tscNumOfObj;     // number of existed sqlObj in current process.
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 

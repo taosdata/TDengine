@@ -36,7 +36,7 @@
 
 ./test.sh -f unique/arbitrator/sync_replica2_dropDb.sim
 ./test.sh -f unique/arbitrator/sync_replica2_dropTable.sim
-#./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim
+./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim
 ./test.sh -f unique/arbitrator/sync_replica3_alterTable_drop.sim
 ./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim
 ./test.sh -f unique/arbitrator/sync_replica3_dropTable.sim
