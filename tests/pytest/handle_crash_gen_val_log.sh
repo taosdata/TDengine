@@ -6,33 +6,14 @@ GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 #nohup /var/lib/jenkins/workspace/TDinternal/debug/build/bin/taosd -c /var/lib/jenkins/workspace/TDinternal/community/sim/dnode1/cfg >/dev/null &
-
-#nohup /root/TDinternal/debug/build/bin/taosd -c /root/TDinternal/community/sim/dnode1/cfg >/dev/null &
-
-IN_TDINTERNAL="community"
-TDIR=`pwd`
-if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
-  cd ../..
-else
-  cd ../../..
-fi
-
-TOP_DIR=`pwd`
-TAOS_DIR=`find . -name "taosd"|head -n1`
-echo $TAOS_DIR
-if [[ "$TAOSLIB_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  LIB_DIR=`find . -name "libtaos.so"|grep -w lib|head -n1|cut -d '/' --fields=2,3,4,5`
-else
-  LIB_DIR=`find . -name "libtaos.so"|grep -w lib|head -n1|cut -d '/' --fields=2,3,4`
-fi
-nohup $TAOS_DIR >/dev/null &
-cd -
+nohup /root/TDinternal/debug/build/bin/taosd -c /root/TDinternal/community/sim/dnode1/cfg >/dev/null &
 ./crash_gen.sh --valgrind -p -t 10 -s 250 -b 4
 pidof taosd|xargs kill -9
 grep 'start to execute\|ERROR SUMMARY' valgrind.err|grep -v 'grep'|uniq|tee crash_gen_mem_err.log
 
 for memError in `grep 'ERROR SUMMARY' crash_gen_mem_err.log | awk '{print $4}'`
 do
+memError=(${memError//,/})
 if [ -n "$memError" ]; then
     if [ "$memError" -gt 12 ]; then
     echo -e "${RED} ## Memory errors number valgrind reports is $memError.\
@@ -44,7 +25,7 @@ done
 grep 'start to execute\|definitely lost:' valgrind.err|grep -v 'grep'|uniq|tee crash_gen-definitely-lost-out.log
 for defiMemError in `grep 'definitely lost:' crash_gen-definitely-lost-out.log | awk '{print $7}'`
 do
-
+defiMemError=(${defiMemError//,/})
 if [ -n "$defiMemError" ]; then
     if [ "$defiMemError" -gt 3 ]; then
     echo -e "${RED} ## Memory errors number valgrind reports \
