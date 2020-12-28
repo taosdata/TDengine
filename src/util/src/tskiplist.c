@@ -280,7 +280,13 @@ bool tSkipListIterNext(SSkipListIterator *iter) {
   tSkipListRLock(pSkipList);
 
   if (iter->order == TSDB_ORDER_ASC) {
-    if (iter->cur == pSkipList->pTail) return false;
+    // no data in the skip list
+    if (iter->cur == pSkipList->pTail || iter->next == NULL) {
+      iter->cur = pSkipList->pTail;
+      tSkipListUnlock(pSkipList);
+      return false;
+    }
+
     iter->cur = SL_NODE_GET_FORWARD_POINTER(iter->cur, 0);
 
     // a new node is inserted into between iter->cur and iter->next, ignore it
@@ -292,9 +298,11 @@ bool tSkipListIterNext(SSkipListIterator *iter) {
     iter->step++;
   } else {
     if (iter->cur == pSkipList->pHead) {
+      iter->cur = pSkipList->pHead;
       tSkipListUnlock(pSkipList);
       return false;
     }
+
     iter->cur = SL_NODE_GET_BACKWARD_POINTER(iter->cur, 0);
 
     // a new node is inserted into between iter->cur and iter->next, ignore it

@@ -79,14 +79,25 @@ pipeline {
               changeRequest()
           }
       parallel {
-        stage('python') {
-          agent{label 'pytest'}
+        stage('python_1') {
+          agent{label 'p1'}
           steps {
             
             pre_test()
             sh '''
             cd ${WKC}/tests
-            ./test-all.sh pytest
+            ./test-all.sh p1
+            date'''
+          }
+        }
+        stage('python_2') {
+          agent{label 'p2'}
+          steps {
+            
+            pre_test()
+            sh '''
+            cd ${WKC}/tests
+            ./test-all.sh p2
             date'''
           }
         }
@@ -96,7 +107,7 @@ pipeline {
             pre_test()
             sh '''
             cd ${WKC}/tests
-            ./test-all.sh b1
+            ./test-all.sh b1fq
             date'''
           }
         }
@@ -120,7 +131,7 @@ pipeline {
             sh '''
             date
             cd ${WKC}/tests
-            ./test-all.sh b2
+            ./test-all.sh b2fq
             date
             '''
           }
@@ -141,7 +152,7 @@ pipeline {
             sh '''
             date
             cd ${WKC}/tests
-            ./test-all.sh b3
+            ./test-all.sh b3fq
             date'''
           }
         }

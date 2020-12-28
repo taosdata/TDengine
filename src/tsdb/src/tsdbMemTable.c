@@ -17,6 +17,7 @@
 #include "tsdbMain.h"
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
+#define TSDB_MAX_INSERT_BATCH 512
 
 static SMemTable * tsdbNewMemTable(STsdbRepo *pRepo);
 static void        tsdbFreeMemTable(SMemTable *pMemTable);
@@ -35,6 +36,7 @@ static int          tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPB
 static int          tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
 static int          tsdbInsertDataToTableImpl(STsdbRepo *pRepo, STable *pTable, void **rows, int rowCounter);
 static void         tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter);
+static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow row);
 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SDataRow row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now);
@@ -205,7 +207,7 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
 int tsdbAsyncCommit(STsdbRepo *pRepo) {
   if (pRepo->mem == NULL) return 0;
 
-  SMemTable *pIMem = pRepo->imem;
+  ASSERT(pRepo->imem == NULL);
 
   sem_wait(&(pRepo->readyToCommit));
 
@@ -219,8 +221,6 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
   pRepo->mem = NULL;
   tsdbScheduleCommit(pRepo);
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
-
-  if (tsdbUnRefMemTable(pRepo, pIMem) < 0) return -1;
 
   return 0;
 }
@@ -609,18 +609,12 @@ static int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *
   STable *       pTable = NULL;
   SSubmitBlkIter blkIter = {0};
   SDataRow       row = NULL;
-  void **        rows = NULL;
+  void *         rows[TSDB_MAX_INSERT_BATCH] = {0};
   int            rowCounter = 0;
 
   ASSERT(pBlock->tid < pMeta->maxTables);
   pTable = pMeta->tables[pBlock->tid];
   ASSERT(pTable != NULL && TABLE_UID(pTable) == pBlock->uid);
-
-  rows = (void **)calloc(pBlock->numOfRows, sizeof(void *));
-  if (rows == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return -1;
-  }
 
   tsdbInitSubmitBlkIter(pBlock, &blkIter);
   while ((row = tsdbGetSubmitBlkNext(&blkIter)) != NULL) {
@@ -635,9 +629,18 @@ static int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *
     if (rows[rowCounter] != NULL) {
       rowCounter++;
     }
+
+    if (rowCounter == TSDB_MAX_INSERT_BATCH) {
+      if (tsdbInsertDataToTableImpl(pRepo, pTable, rows, rowCounter) < 0) {
+        goto _err;
+      }
+
+      rowCounter = 0;
+      memset(rows, 0, sizeof(rows));
+    }
   }
 
-  if (tsdbInsertDataToTableImpl(pRepo, pTable, rows, rowCounter) < 0) {
+  if (rowCounter > 0 && tsdbInsertDataToTableImpl(pRepo, pTable, rows, rowCounter) < 0) {
     goto _err;
   }
 
@@ -645,11 +648,9 @@ static int tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *
   pRepo->stat.pointsWritten += points * schemaNCols(pSchema);
   pRepo->stat.totalStorage += points * schemaVLen(pSchema);
 
-  free(rows);
   return 0;
 
 _err:
-  free(rows);
   return -1;
 }
 
@@ -666,9 +667,10 @@ static int tsdbCopyRowToMem(STsdbRepo *pRepo, SDataRow row, STable *pTable, void
       return -1;
     }
 
-    if (key > TABLE_LASTKEY(pTable)) {
+    TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable);
+    if (key > lastKey) {
       tsdbTrace("vgId:%d skip to delete row key %" PRId64 " which is larger than table lastKey %" PRId64,
-                REPO_ID(pRepo), key, TABLE_LASTKEY(pTable));
+                REPO_ID(pRepo), key, lastKey);
       return 0;
     }
   }
@@ -849,8 +851,10 @@ static int tsdbInsertDataToTableImpl(STsdbRepo *pRepo, STable *pTable, void **ro
   if (pTableData->keyLast < dataRowKey(rows[rowCounter - 1])) pTableData->keyLast = dataRowKey(rows[rowCounter - 1]);
   pTableData->numOfRows += dsize;
 
-  // TODO: impl delete row thing
-  if (TABLE_LASTKEY(pTable) < dataRowKey(rows[rowCounter-1])) TABLE_LASTKEY(pTable) = dataRowKey(rows[rowCounter-1]);
+  // update table latest info
+  if (tsdbUpdateTableLatestInfo(pRepo, pTable, rows[rowCounter - 1]) < 0) {
+    return -1;
+  }
 
   return 0;
 }
@@ -892,4 +896,38 @@ static void tsdbFreeRows(STsdbRepo *pRepo, void **rows, int rowCounter) {
       }
     }
   }
+}
+
+static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SDataRow row) {
+  STsdbCfg *pCfg = &pRepo->config;
+
+  if (tsdbGetTableLastKeyImpl(pTable) < dataRowKey(row)) {
+    if (pCfg->cacheLastRow || pTable->lastRow != NULL) {
+      SDataRow nrow = pTable->lastRow;
+      if (taosTSizeof(nrow) < dataRowLen(row)) {
+        SDataRow orow = nrow;
+        nrow = taosTMalloc(dataRowLen(row));
+        if (nrow == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          return -1;
+        }
+
+        dataRowCpy(nrow, row);
+        TSDB_WLOCK_TABLE(pTable);
+        pTable->lastKey = dataRowKey(row);
+        pTable->lastRow = nrow;
+        TSDB_WUNLOCK_TABLE(pTable);
+        taosTZfree(orow);
+      } else {
+        TSDB_WLOCK_TABLE(pTable);
+        pTable->lastKey = dataRowKey(row);
+        dataRowCpy(nrow, row);
+        TSDB_WUNLOCK_TABLE(pTable);
+      }
+    } else {
+      pTable->lastKey = dataRowKey(row);
+    }
+  }
+
+  return 0;
 }

@@ -95,7 +95,24 @@ static void taosReadInt16Config(SGlobalCfg *cfg, char *input_value) {
   }
 }
 
-static bool taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
+static void taosReadInt8Config(SGlobalCfg *cfg, char *input_value) {
+  int32_t  value = atoi(input_value);
+  int8_t *option = (int8_t *)cfg->ptr;
+  if (value < cfg->minValue || value > cfg->maxValue) {
+    uError("config option:%s, input value:%s, out of range[%f, %f], use default value:%d",
+           cfg->option, input_value, cfg->minValue, cfg->maxValue, *option);
+  } else {
+    if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {
+      *option = (int8_t)value;
+      cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
+    } else {
+      uWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, input_value,
+            tsCfgStatusStr[cfg->cfgStatus], *option);
+    }
+  }
+}
+
+static void taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
   int   length = (int)strlen(input_value);
   char *option = (char *)cfg->ptr;
   if (length <= 0 || length > cfg->ptrLength) {
@@ -208,6 +225,9 @@ static void taosReadConfigOption(const char *option, char *value, char *value2, 
     if (strcasecmp(cfg->option, option) != 0) continue;
 
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        taosReadInt8Config(cfg, value);
+        break;
       case TAOS_CFG_VTYPE_INT16:
         taosReadInt16Config(cfg, value);
         break;
@@ -388,6 +408,9 @@ void taosPrintGlobalCfg() {
     blank[blankLen] = 0;
 
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        uInfo(" %s:%s%d%s", cfg->option, blank, *((int8_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
       case TAOS_CFG_VTYPE_INT16:
         uInfo(" %s:%s%d%s", cfg->option, blank, *((int16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
@@ -422,6 +445,9 @@ static void taosDumpCfg(SGlobalCfg *cfg) {
     blank[blankLen] = 0;
 
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        printf(" %s:%s%d%s\n", cfg->option, blank, *((int8_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
       case TAOS_CFG_VTYPE_INT16:
         printf(" %s:%s%d%s\n", cfg->option, blank, *((int16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;

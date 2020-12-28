@@ -159,6 +159,11 @@ _err:
 
 static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER, eno);
+  SMemTable *pIMem = pRepo->imem;
+  tsdbLockRepo(pRepo);
+  pRepo->imem = NULL;
+  tsdbUnlockRepo(pRepo);
+  tsdbUnRefMemTable(pRepo, pIMem);
   sem_post(&(pRepo->readyToCommit));
 }
 
@@ -216,7 +221,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch) {
     SCommitIter *pIter = iters + tid;
     if (pIter->pTable == NULL) continue;
 
-    taosRLockLatch(&(pIter->pTable->latch));
+    TSDB_RLOCK_TABLE(pIter->pTable);
 
     if (tsdbSetHelperTable(pHelper, pIter->pTable, pRepo) < 0) goto _err;
 
@@ -227,7 +232,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch) {
       }
 
       if (tsdbCommitTableData(pHelper, pIter, pDataCols, maxKey) < 0) {
-        taosRUnLockLatch(&(pIter->pTable->latch));
+        TSDB_RUNLOCK_TABLE(pIter->pTable);
         tsdbError("vgId:%d failed to write data of table %s tid %d uid %" PRIu64 " since %s", REPO_ID(pRepo),
                   TABLE_CHAR_NAME(pIter->pTable), TABLE_TID(pIter->pTable), TABLE_UID(pIter->pTable),
                   tstrerror(terrno));
@@ -235,7 +240,7 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch) {
       }
     }
 
-    taosRUnLockLatch(&(pIter->pTable->latch));
+    TSDB_RUNLOCK_TABLE(pIter->pTable);
 
     // Move the last block to the new .l file if neccessary
     if (tsdbMoveLastBlockIfNeccessary(pHelper) < 0) {

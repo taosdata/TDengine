@@ -32,19 +32,19 @@
 extern "C" {
 #endif
 
-extern int tsdbDebugFlag;
+extern int32_t tsdbDebugFlag;
 
-#define tsdbFatal(...) { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", 255, __VA_ARGS__); }}
-#define tsdbError(...) { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TDB ERROR ", 255, __VA_ARGS__); }}
-#define tsdbWarn(...)  { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TDB WARN ", 255, __VA_ARGS__); }}
-#define tsdbInfo(...)  { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TDB ", 255, __VA_ARGS__); }}
-#define tsdbDebug(...) { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }}
-#define tsdbTrace(...) { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }}
+#define tsdbFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", 255, __VA_ARGS__); }}     while(0)
+#define tsdbError(...) do { if (tsdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TDB ERROR ", 255, __VA_ARGS__); }}     while(0)
+#define tsdbWarn(...)  do { if (tsdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TDB WARN ", 255, __VA_ARGS__); }}      while(0)
+#define tsdbInfo(...)  do { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TDB ", 255, __VA_ARGS__); }}           while(0)
+#define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }} while(0)
 
 #define TSDB_MAX_TABLE_SCHEMAS 16
-#define TSDB_FILE_HEAD_SIZE 512
-#define TSDB_FILE_DELIMITER 0xF00AFA0F
-#define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
+#define TSDB_FILE_HEAD_SIZE    512
+#define TSDB_FILE_DELIMITER    0xF00AFA0F
+#define TSDB_FILE_INIT_MAGIC   0xFFFFFFFF
 
 #define TAOS_IN_RANGE(key, keyMin, keyLast) (((key) >= (keyMin)) && ((key) <= (keyMax)))
 
@@ -67,7 +67,8 @@ typedef struct STable {
   SSkipList*     pIndex;         // For TSDB_SUPER_TABLE, it is the skiplist index
   void*          eventHandler;   // TODO
   void*          streamHandler;  // TODO
-  TSKEY          lastKey;        // lastkey inserted in this table, initialized as 0, TODO: make a structure
+  TSKEY          lastKey;
+  SDataRow       lastRow;
   char*          sql;
   void*          cqhandle;
   SRWLatch       latch;  // TODO: implementa latch functions
@@ -370,8 +371,11 @@ typedef struct {
 #define TABLE_UID(t) (t)->tableId.uid
 #define TABLE_TID(t) (t)->tableId.tid
 #define TABLE_SUID(t) (t)->suid
-#define TABLE_LASTKEY(t) (t)->lastKey
 #define TSDB_META_FILE_MAGIC(m) KVSTORE_MAGIC((m)->pStore)
+#define TSDB_RLOCK_TABLE(t) taosRLockLatch(&((t)->latch))
+#define TSDB_RUNLOCK_TABLE(t) taosRUnLockLatch(&((t)->latch))
+#define TSDB_WLOCK_TABLE(t) taosWLockLatch(&((t)->latch))
+#define TSDB_WUNLOCK_TABLE(t) taosWUnLockLatch(&((t)->latch))
 
 STsdbMeta* tsdbNewMeta(STsdbCfg* pCfg);
 void       tsdbFreeMeta(STsdbMeta* pMeta);
@@ -401,7 +405,7 @@ static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, 
   STSchema* pSchema = NULL;
   STSchema* pTSchema = NULL;
 
-  if (lock) taosRLockLatch(&(pDTable->latch));
+  if (lock) TSDB_RLOCK_TABLE(pDTable);
   if (version < 0) {  // get the latest version of schema
     pTSchema = pDTable->schema[pDTable->numOfSchemas - 1];
   } else {  // get the schema with version
@@ -423,7 +427,7 @@ static FORCE_INLINE STSchema* tsdbGetTableSchemaImpl(STable* pTable, bool lock, 
   }
 
 _exit:
-  if (lock) taosRUnLockLatch(&(pDTable->latch));
+  if (lock) TSDB_RUNLOCK_TABLE(pDTable);
   return pSchema;
 }
 
@@ -441,6 +445,11 @@ static FORCE_INLINE STSchema *tsdbGetTableTagSchema(STable *pTable) {
   } else {
     return NULL;
   }
+}
+
+static FORCE_INLINE TSKEY tsdbGetTableLastKeyImpl(STable* pTable) {
+  ASSERT(pTable->lastRow == NULL || pTable->lastKey == dataRowKey(pTable->lastRow));
+  return pTable->lastKey;
 }
 
 // ------------------ tsdbBuffer.c

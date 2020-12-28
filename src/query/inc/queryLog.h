@@ -22,8 +22,8 @@ extern "C" {
 
 #include "tlog.h"
 
-extern uint32_t qDebugFlag;
-extern uint32_t tscEmbedded;
+extern int32_t qDebugFlag;
+extern int8_t  tscEmbedded;
 
 #define qFatal(...) do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", 255, __VA_ARGS__); }}  while(0)
 #define qError(...) do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", 255, __VA_ARGS__); }}  while(0)

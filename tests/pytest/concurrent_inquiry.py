@@ -38,7 +38,7 @@ class ConcurrentInquiry:
     #             stableNum = 2,subtableNum = 1000,insertRows = 100):  
     def __init__(self,ts,host,user,password,dbname,
                 stb_prefix,subtb_prefix,n_Therads,r_Therads,probabilities,loop,
-                stableNum ,subtableNum ,insertRows ):  
+                stableNum ,subtableNum ,insertRows ,mix_table):  
         self.n_numOfTherads = n_Therads
         self.r_numOfTherads = r_Therads
         self.ts=ts
@@ -60,6 +60,7 @@ class ConcurrentInquiry:
         self.stableNum = stableNum
         self.subtableNum = subtableNum
         self.insertRows = insertRows
+        self.mix_table = mix_table
     def SetThreadsNum(self,num):
         self.numOfTherads=num
 
@@ -195,7 +196,13 @@ class ConcurrentInquiry:
                 pick_func+=alias
             sel_col_list.append(pick_func)
             
-        sql=sql+','.join(sel_col_list)+' from '+random.choice(self.stb_list+self.subtb_list)+' '                        #select col & func
+        sql=sql+','.join(sel_col_list)         #select col & func
+        if self.mix_table == 0:
+            sql = sql + ' from '+random.choice(self.stb_list+self.subtb_list)+' '         
+        elif self.mix_table == 1:
+            sql = sql + ' from '+random.choice(self.subtb_list)+' '
+        else:
+            sql = sql + ' from '+random.choice(self.stb_list)+' ' 
         con_func=[self.con_where,self.con_interval,self.con_limit,self.con_group,self.con_order,self.con_fill]
         sel_con=random.sample(con_func,random.randint(0,len(con_func)))
         sel_con_list=[]
@@ -212,8 +219,23 @@ class ConcurrentInquiry:
         col_intersection = []
         tag_intersection = []
         subtable = None
-
-        if bool(random.getrandbits(1)):
+        if self.mix_table == 0:
+            if bool(random.getrandbits(1)):
+                subtable = True
+                tbname = random.sample(self.subtb_list,2)
+                for i in tbname:
+                    col_list.append(self.subtb_stru_list[self.subtb_list.index(i)])
+                    tag_list.append(self.subtb_stru_list[self.subtb_list.index(i)])
+                col_intersection = list(set(col_list[0]).intersection(set(col_list[1])))
+                tag_intersection = list(set(tag_list[0]).intersection(set(tag_list[1])))
+            else:
+                tbname = random.sample(self.stb_list,2)
+                for i in tbname:
+                    col_list.append(self.stb_stru_list[self.stb_list.index(i)])
+                    tag_list.append(self.stb_stru_list[self.stb_list.index(i)])
+                col_intersection = list(set(col_list[0]).intersection(set(col_list[1])))
+                tag_intersection = list(set(tag_list[0]).intersection(set(tag_list[1])))
+        elif self.mix_table == 1:
             subtable = True
             tbname = random.sample(self.subtb_list,2)
             for i in tbname:
@@ -228,12 +250,9 @@ class ConcurrentInquiry:
                 tag_list.append(self.stb_stru_list[self.stb_list.index(i)])
             col_intersection = list(set(col_list[0]).intersection(set(col_list[1])))
             tag_intersection = list(set(tag_list[0]).intersection(set(tag_list[1])))
-        
-        
         con_rand=random.randint(0,len(condition_list))
         col_rand=random.randint(0,len(col_list))
         tag_rand=random.randint(0,len(tag_list))
-        
         sql='select '                                           #select 
         
         sel_col_tag=[]
@@ -247,12 +266,16 @@ class ConcurrentInquiry:
 
         sql = sql + ' from '+ str(tbname[0]) +' t1,' + str(tbname[1]) + ' t2 '                        #select col & func
         join_section = None
+        temp = None
         if subtable:
-            join_section = ''.join(random.choices(col_intersection))
-            sql += 'where t1._c0 = t2._c0 and ' + 't1.' + join_section + '=t2.' + join_section
+            temp = random.choices(col_intersection)
+            join_section = temp.pop()
+            sql += 'where t1._c0 = t2._c0 and ' + 't1.' + str(join_section) + '=t2.' + str(join_section)
         else:
-            join_section = ''.join(random.choices(col_intersection+tag_intersection))
-            sql += 'where t1._c0 = t2._c0 and ' + 't1.' + join_section + '=t2.' + join_section
+            temp = random.choices(col_intersection+tag_intersection)
+            join_section = temp.pop()
+            print(random.choices(col_intersection))
+            sql += 'where t1._c0 = t2._c0 and ' + 't1.' + str(join_section) + '=t2.' + str(join_section)
         return sql
 
     def random_pick(self): 
@@ -365,7 +388,9 @@ class ConcurrentInquiry:
                     print(
                 "Failure thread%d, sql: %s \nexception: %s" %
                 (threadID, str(sql),str(e)))
-                    #exit(-1)
+                    err_uec='Unable to establish connection'
+                    if err_uec in str(e) and loop >0:
+                        exit(-1)
                 loop -= 1
                 if loop == 0: break
                     
@@ -392,7 +417,9 @@ class ConcurrentInquiry:
                 print(
             "Failure thread%d, sql: %s \nexception: %s" %
             (threadID, str(sql),str(e)))
-                #exit(-1)
+                err_uec='Unable to establish connection'
+                if err_uec in str(e) and loop >0:
+                    exit(-1)
             loop -= 1    
             if loop == 0: break
                 
@@ -516,12 +543,20 @@ parser.add_argument(
     default=2,
     type=int,
     help='Number of stables  (default: 2)')
+parser.add_argument(
+    '-m',
+    '--mix-stable-subtable',
+    action='store',
+    default=0,
+    type=int,
+    help='0:stable & substable ,1:subtable ,2:stable (default: 0)')
 
 args = parser.parse_args()
 q = ConcurrentInquiry(
     args.ts,args.host_name,args.user,args.password,args.db_name,
                 args.stb_name_prefix,args.subtb_name_prefix,args.number_of_native_threads,args.number_of_rest_threads,
-                args.probabilities,args.loop_per_thread,args.number_of_stables,args.number_of_tables ,args.number_of_records )
+                args.probabilities,args.loop_per_thread,args.number_of_stables,args.number_of_tables ,args.number_of_records,
+                args.mix_stable_subtable )
 
 if args.create_table: 
     q.gen_data()

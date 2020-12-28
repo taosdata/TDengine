@@ -278,7 +278,7 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
   }
 
   SCacheDataNode* ptNode = NULL;
-  taosHashGetCB(pCacheObj->pHashTable, key, keyLen, incRefFn, &ptNode, sizeof(void*));
+  taosHashGetClone(pCacheObj->pHashTable, key, keyLen, incRefFn, &ptNode, sizeof(void*));
 
   void* pData = (ptNode != NULL)? ptNode->data:NULL;
 
@@ -547,13 +547,14 @@ void taosAddToTrashcan(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
     return;
   }
 
+  __cache_wr_lock(pCacheObj);
   STrashElem *pElem = calloc(1, sizeof(STrashElem));
   pElem->pData = pNode;
-  pElem->prev  = NULL;
+  pElem->prev = NULL;
+  pElem->next = NULL;
   pNode->inTrashcan = true;
   pNode->pTNodeHeader = pElem;
 
-  __cache_wr_lock(pCacheObj);
   pElem->next = pCacheObj->pTrash;
   if (pCacheObj->pTrash) {
     pCacheObj->pTrash->prev = pElem;
@@ -563,8 +564,8 @@ void taosAddToTrashcan(SCacheObj *pCacheObj, SCacheDataNode *pNode) {
   pCacheObj->numOfElemsInTrash++;
   __cache_unlock(pCacheObj);
 
-  uDebug("cache:%s key:%p, %p move to trashcan, pTrashElem:%p, numOfElem in trashcan:%d", pCacheObj->name,
-      pNode->key, pNode->data, pElem, pCacheObj->numOfElemsInTrash);
+  uDebug("cache:%s key:%p, %p move to trashcan, pTrashElem:%p, numOfElem in trashcan:%d", pCacheObj->name, pNode->key,
+         pNode->data, pElem, pCacheObj->numOfElemsInTrash);
 }
 
 void taosTrashcanEmpty(SCacheObj *pCacheObj, bool force) {

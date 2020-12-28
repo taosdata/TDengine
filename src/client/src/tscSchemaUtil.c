@@ -130,13 +130,14 @@ SSchema* tscGetColumnSchemaById(STableMeta* pTableMeta, int16_t colId) {
   return NULL;
 }
 
-static void tscInitCorVgroupInfo(SCorVgroupInfo *corVgroupInfo, SVgroupInfo *vgroupInfo) {
+static void tscInitCorVgroupInfo(SCorVgroupInfo *corVgroupInfo, SVgroupMsg *pVgroupMsg) {
   corVgroupInfo->version = 0;
-  corVgroupInfo->inUse = 0;
-  corVgroupInfo->numOfEps = vgroupInfo->numOfEps;
-  for (int32_t i = 0; i < corVgroupInfo->numOfEps; i++) {
-    corVgroupInfo->epAddr[i].fqdn = strdup(vgroupInfo->epAddr[i].fqdn);
-    corVgroupInfo->epAddr[i].port = vgroupInfo->epAddr[i].port;
+  corVgroupInfo->inUse   = 0;
+  corVgroupInfo->numOfEps = pVgroupMsg->numOfEps;
+
+  for (int32_t i = 0; i < pVgroupMsg->numOfEps; i++) {
+    corVgroupInfo->epAddr[i].fqdn = strndup(pVgroupMsg->epAddr[i].fqdn, tListLen(pVgroupMsg->epAddr[0].fqdn));
+    corVgroupInfo->epAddr[i].port = pVgroupMsg->epAddr[i].port;
   }
 }
 
@@ -145,8 +146,10 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   
   int32_t schemaSize = (pTableMetaMsg->numOfColumns + pTableMetaMsg->numOfTags) * sizeof(SSchema);
   STableMeta* pTableMeta = calloc(1, sizeof(STableMeta) + schemaSize);
+
   pTableMeta->tableType = pTableMetaMsg->tableType;
-  
+  pTableMeta->vgId      = pTableMetaMsg->vgroup.vgId;
+
   pTableMeta->tableInfo = (STableComInfo) {
     .numOfTags    = pTableMetaMsg->numOfTags,
     .precision    = pTableMetaMsg->precision,
@@ -156,18 +159,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   pTableMeta->id.tid = pTableMetaMsg->tid;
   pTableMeta->id.uid = pTableMetaMsg->uid;
 
-  SVgroupInfo* pVgroupInfo = &pTableMeta->vgroupInfo;
-  pVgroupInfo->numOfEps = pTableMetaMsg->vgroup.numOfEps;
-  pVgroupInfo->vgId = pTableMetaMsg->vgroup.vgId;
-
-  for(int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
-    SEpAddrMsg* pEpMsg = &pTableMetaMsg->vgroup.epAddr[i];
-
-    pVgroupInfo->epAddr[i].fqdn = strndup(pEpMsg->fqdn, tListLen(pEpMsg->fqdn));
-    pVgroupInfo->epAddr[i].port = pEpMsg->port;
-  }
-
-  tscInitCorVgroupInfo(&pTableMeta->corVgroupInfo, pVgroupInfo);
+  tscInitCorVgroupInfo(&pTableMeta->corVgroupInfo, &pTableMetaMsg->vgroup);
 
   pTableMeta->sversion = pTableMetaMsg->sversion;
   pTableMeta->tversion = pTableMetaMsg->tversion;

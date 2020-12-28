@@ -51,6 +51,12 @@ int32_t dnodeGetDnodeId() {
   return dnodeId;
 }
 
+void dnodeGetClusterId(char *clusterId) {
+  pthread_mutex_lock(&tsCfgMutex);
+  tstrncpy(clusterId, tsCfg.clusterId, TSDB_CLUSTER_ID_LEN);
+  pthread_mutex_unlock(&tsCfgMutex);
+}
+
 void dnodeGetCfg(int32_t *dnodeId, char *clusterId) {
   pthread_mutex_lock(&tsCfgMutex);
   *dnodeId = tsCfg.dnodeId;

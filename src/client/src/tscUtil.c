@@ -458,28 +458,18 @@ void tscFreeRegisteredSqlObj(void *pSql) {
   SSqlObj* p = *(SSqlObj**)pSql;
   STscObj* pTscObj = p->pTscObj;
 
-  assert(p->self != 0);
+  assert(RID_VALID(p->self));
+
   tscFreeSqlObj(p);
+  taosReleaseRef(tscRefId, pTscObj->rid);
 
-  int32_t ref = T_REF_DEC(pTscObj);
-  assert(ref >= 0);
-
-  tscDebug("%p free sqlObj completed, tscObj:%p ref:%d", p, pTscObj, ref);
-  if (ref == 0) {
-    tscDebug("%p all sqlObj freed, free tscObj:%p", p, pTscObj);
-    taosRemoveRef(tscRefId, pTscObj->rid);
-  }
+  int32_t num   = atomic_sub_fetch_32(&pTscObj->numOfObj, 1);
+  int32_t total = atomic_sub_fetch_32(&tscNumOfObj, 1);
+  tscDebug("%p free SqlObj, total in tscObj:%d, total:%d", pSql, num, total);
 }
 
 void tscFreeTableMetaHelper(void *pTableMeta) {
   STableMeta* p = (STableMeta*) pTableMeta;
-
-  int32_t numOfEps = p->vgroupInfo.numOfEps;
-  assert(numOfEps >= 0 && numOfEps <= TSDB_MAX_REPLICA);
-
-  for(int32_t i = 0; i < numOfEps; ++i) {
-    tfree(p->vgroupInfo.epAddr[i].fqdn);
-  }
 
   int32_t numOfEps1 = p->corVgroupInfo.numOfEps;
   assert(numOfEps1 >= 0 && numOfEps1 <= TSDB_MAX_REPLICA);
@@ -810,6 +800,7 @@ static void extractTableMeta(SSqlCmd* pCmd) {
 }
 
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql) {
+  const int INSERT_HEAD_SIZE = sizeof(SMsgDesc) + sizeof(SSubmitMsg); 
   SSqlCmd* pCmd = &pSql->cmd;
 
   void* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
@@ -824,7 +815,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql) {
     STableDataBlocks* dataBuf = NULL;
     
     int32_t ret = tscGetDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE,
-                                tsInsertHeadSize, 0, pOneTableBlock->tableId, pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList);
+                                INSERT_HEAD_SIZE, 0, pOneTableBlock->tableId, pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList);
     if (ret != TSDB_CODE_SUCCESS) {
       tscError("%p failed to prepare the data block buffer for merging table data, code:%d", pSql, ret);
       taosHashCleanup(pVnodeDataBlockHashList);
@@ -1917,10 +1908,12 @@ void tscResetForNextRetrieve(SSqlRes* pRes) {
 }
 
 void registerSqlObj(SSqlObj* pSql) {
-  int32_t ref = T_REF_INC(pSql->pTscObj);
-  tscDebug("%p add to tscObj:%p, ref:%d", pSql, pSql->pTscObj, ref);
-
+  taosAcquireRef(tscRefId, pSql->pTscObj->rid);
   pSql->self = taosAddRef(tscObjRef, pSql);
+
+  int32_t num   = atomic_add_fetch_32(&pSql->pTscObj->numOfObj, 1);
+  int32_t total = atomic_add_fetch_32(&tscNumOfObj, 1);
+  tscDebug("%p new SqlObj from %p, total in tscObj:%d, total:%d", pSql, pSql->pTscObj, num, total);
 }
 
 SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd) {
@@ -1950,17 +1943,11 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
     return NULL;
   }
 
-  pNew->fp = fp;
+  pNew->fp      = fp;
   pNew->fetchFp = fp;
-  pNew->param = param;
+  pNew->param   = param;
+  pNew->sqlstr  = NULL;
   pNew->maxRetry = TSDB_MAX_REPLICA;
-
-  pNew->sqlstr = strdup(pSql->sqlstr);
-  if (pNew->sqlstr == NULL) {
-    tscError("%p new subquery failed", pSql);
-    tscFreeSqlObj(pNew);
-    return NULL;
-  }
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetailSafely(pCmd, 0);
 
@@ -1968,12 +1955,12 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cm
   STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
 
   tscAddTableMetaInfo(pQueryInfo, pMasterTableMetaInfo->name, NULL, NULL, NULL, NULL);
-
   registerSqlObj(pNew);
+
   return pNew;
 }
 
-static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pQueryInfo, SQueryInfo* pNewQueryInfo, int64_t uid) {
+static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pNewQueryInfo, int64_t uid) {
   int32_t numOfOutput = (int32_t)tscSqlExprNumOfExprs(pNewQueryInfo);
   if (numOfOutput == 0) {
     return;
@@ -2026,15 +2013,9 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
   
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, tableIndex);
 
-  pNew->pTscObj = pSql->pTscObj;
+  pNew->pTscObj   = pSql->pTscObj;
   pNew->signature = pNew;
-
-  pNew->sqlstr = strdup(pSql->sqlstr);
-  if (pNew->sqlstr == NULL) {
-    tscError("%p new subquery failed, tableIndex:%d, vgroupIndex:%d", pSql, tableIndex, pTableMetaInfo->vgroupIndex);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    goto _error;
-  }
+  pNew->sqlstr    = NULL;
 
   SSqlCmd* pnCmd = &pNew->cmd;
   memcpy(pnCmd, pCmd, sizeof(SSqlCmd));
@@ -2122,23 +2103,22 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
     goto _error;
   }
 
-  doSetSqlExprAndResultFieldInfo(pQueryInfo, pNewQueryInfo, uid);
+  doSetSqlExprAndResultFieldInfo(pNewQueryInfo, uid);
 
-  pNew->fp = fp;
+  pNew->fp      = fp;
   pNew->fetchFp = fp;
-
-  pNew->param = param;
+  pNew->param   = param;
   pNew->maxRetry = TSDB_MAX_REPLICA;
 
   char* name = pTableMetaInfo->name;
   STableMetaInfo* pFinalInfo = NULL;
 
-  if (pPrevSql == NULL) {
-    STableMeta* pTableMeta = taosCacheAcquireByData(tscMetaCache, pTableMetaInfo->pTableMeta);  // get by name may failed due to the cache cleanup
+  if (pPrevSql == NULL) { // get by name may failed due to the cache cleanup
+    STableMeta* pTableMeta = taosCacheAcquireByData(tscMetaCache, pTableMetaInfo->pTableMeta);
     assert(pTableMeta != NULL);
 
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList,
-        pTableMetaInfo->tagColList, pTableMetaInfo->pVgroupTables);
+                                     pTableMetaInfo->tagColList, pTableMetaInfo->pVgroupTables);
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 

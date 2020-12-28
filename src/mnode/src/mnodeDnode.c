@@ -63,7 +63,6 @@ static int32_t mnodeGetVnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static char*   mnodeGetDnodeAlternativeRoleStr(int32_t alternativeRole);
 static void    mnodeUpdateDnodeEps();
 
 static char* offlineReason[] = {
@@ -376,10 +375,6 @@ static int32_t mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
     mError("\"numOfMnodes\"[%d - %d] cfg parameters inconsistent", clusterCfg->numOfMnodes, htonl(tsNumOfMnodes));
     return TAOS_DN_OFF_NUM_OF_MNODES_NOT_MATCH;
   }
-  if (clusterCfg->enableBalance != htonl(tsEnableBalance)) {
-    mError("\"balance\"[%d - %d] cfg parameters inconsistent", clusterCfg->enableBalance, htonl(tsEnableBalance));
-    return TAOS_DN_OFF_ENABLE_BALANCE_NOT_MATCH;
-  }
   if (clusterCfg->mnodeEqualVnodeNum != htonl(tsMnodeEqualVnodeNum)) {
     mError("\"mnodeEqualVnodeNum\"[%d - %d] cfg parameters inconsistent", clusterCfg->mnodeEqualVnodeNum,
            htonl(tsMnodeEqualVnodeNum));
@@ -427,6 +422,23 @@ static int32_t mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
   if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset))) {
     mError("\"charset\"[%s - %s] cfg parameters inconsistent.", clusterCfg->charset, tsCharset);
     return TAOS_DN_OFF_CHARSET_NOT_MATCH;
+  }
+
+  if (clusterCfg->enableBalance != tsEnableBalance) {
+    mError("\"balance\"[%d - %d] cfg parameters inconsistent", clusterCfg->enableBalance, tsEnableBalance);
+    return TAOS_DN_OFF_ENABLE_BALANCE_NOT_MATCH;
+  }
+  if (clusterCfg->flowCtrl != tsEnableFlowCtrl) {
+    mError("\"flowCtrl\"[%d - %d] cfg parameters inconsistent", clusterCfg->flowCtrl, tsEnableFlowCtrl);
+    return TAOS_DN_OFF_FLOW_CTRL_NOT_MATCH;
+  }
+  if (clusterCfg->slaveQuery != tsEnableSlaveQuery) {
+    mError("\"slaveQuery\"[%d - %d] cfg parameters inconsistent", clusterCfg->slaveQuery, tsEnableSlaveQuery);
+    return TAOS_DN_OFF_SLAVE_QUERY_NOT_MATCH;
+  }
+  if (clusterCfg->adjustMaster != tsEnableAdjustMaster) {
+    mError("\"adjustMaster\"[%d - %d] cfg parameters inconsistent", clusterCfg->adjustMaster, tsEnableAdjustMaster);
+    return TAOS_DN_OFF_ADJUST_MASTER_NOT_MATCH;
   }
 
   return 0;
@@ -557,7 +569,8 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   for (int32_t j = 0; j < openVnodes; ++j) {
     SVnodeLoad *pVload = &pStatus->load[j];
     pVload->vgId = htonl(pVload->vgId);
-    pVload->cfgVersion = htonl(pVload->cfgVersion);
+    pVload->dbCfgVersion = htonl(pVload->dbCfgVersion);
+    pVload->vgCfgVersion = htonl(pVload->vgCfgVersion);
 
     SVgObj *pVgroup = mnodeGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {
@@ -833,12 +846,12 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
     cols++;
     
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  
-    char* status = mnodeGetDnodeStatusStr(pDnode->status);
+    char* status = dnodeStatus[pDnode->status];
     STR_TO_VARSTR(pWrite, status);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  
-    char* role = mnodeGetDnodeAlternativeRoleStr(pDnode->alternativeRole);
+    char* role = dnodeRoles[pDnode->alternativeRole];
     STR_TO_VARSTR(pWrite, role);
     cols++;
 
@@ -1031,6 +1044,11 @@ static int32_t mnodeRetrieveConfigs(SShowObj *pShow, char *data, int32_t rows, v
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     switch (cfg->valType) {
+      case TAOS_CFG_VTYPE_INT8:
+        t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int8_t *)cfg->ptr));
+        varDataSetLen(pWrite, t);
+        numOfRows++;
+        break;
       case TAOS_CFG_VTYPE_INT16:
         t = snprintf(varDataVal(pWrite), TSDB_CFG_VALUE_LEN, "%d", *((int16_t *)cfg->ptr));
         varDataSetLen(pWrite, t);
@@ -1154,21 +1172,17 @@ static int32_t mnodeRetrieveVnodes(SShowObj *pShow, char *data, int32_t rows, vo
   return numOfRows;
 }
 
-char* mnodeGetDnodeStatusStr(int32_t dnodeStatus) {
-  switch (dnodeStatus) {
-    case TAOS_DN_STATUS_OFFLINE:   return "offline";
-    case TAOS_DN_STATUS_DROPPING:  return "dropping";
-    case TAOS_DN_STATUS_BALANCING: return "balancing";
-    case TAOS_DN_STATUS_READY:     return "ready";
-    default:                       return "undefined";
-  }
-}
+char* dnodeStatus[] = {
+  "offline",
+  "dropping",
+  "balancing",
+  "ready",
+  "undefined"
+};
 
-static char* mnodeGetDnodeAlternativeRoleStr(int32_t alternativeRole) {
-  switch (alternativeRole) {
-    case TAOS_DN_ALTERNATIVE_ROLE_ANY: return "any";
-    case TAOS_DN_ALTERNATIVE_ROLE_MNODE: return "mnode";
-    case TAOS_DN_ALTERNATIVE_ROLE_VNODE: return "vnode";
-    default:return "any";
-  }
-}
+char* dnodeRoles[] = {
+  "any",
+  "mnode",
+  "vnode",
+  "any"
+};

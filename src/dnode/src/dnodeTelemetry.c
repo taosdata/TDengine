@@ -195,7 +195,7 @@ static void addRuntimeInfo(SBufferWriter* bw) {
 
 static void sendTelemetryReport() {
   char buf[128];
-  uint32_t ip = taosGetIpFromFqdn(TELEMETRY_SERVER);
+  uint32_t ip = taosGetIpv4FromFqdn(TELEMETRY_SERVER);
   if (ip == 0xffffffff) {
     dTrace("failed to get IP address of " TELEMETRY_SERVER ", reason:%s", strerror(errno));
     return;

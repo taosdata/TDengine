@@ -129,7 +129,8 @@ static void *dnodeProcessMgmtQueue(void *wparam) {
 static SCreateVnodeMsg* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
   SCreateVnodeMsg *pCreate = rpcMsg->pCont;
   pCreate->cfg.vgId                = htonl(pCreate->cfg.vgId);
-  pCreate->cfg.cfgVersion          = htonl(pCreate->cfg.cfgVersion);
+  pCreate->cfg.dbCfgVersion        = htonl(pCreate->cfg.dbCfgVersion);
+  pCreate->cfg.vgCfgVersion        = htonl(pCreate->cfg.vgCfgVersion);
   pCreate->cfg.maxTables           = htonl(pCreate->cfg.maxTables);
   pCreate->cfg.cacheBlockSize      = htonl(pCreate->cfg.cacheBlockSize);
   pCreate->cfg.totalBlocks         = htonl(pCreate->cfg.totalBlocks);
