@@ -69,14 +69,17 @@ TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid, TSKEY dflt) {
 }
 
 void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts) {
-  if( sub == NULL)
+  if( sub == NULL) {
     return;
+  }
+
   SSub* pSub = (SSub*)sub;
 
   SSubscriptionProgress target = {.uid = uid, .key = ts};
   SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress);
   if (p != NULL) {
     p->key = ts;
+    tscDebug("subscribe:%s, uid:%"PRIu64" update sub start ts:%"PRId64, pSub->topic, p->uid, p->key);
   }
 }
 
@@ -502,6 +505,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   if (taosArrayGetSize(pSub->progress) > 0) { // fix crash in single tabel subscription
     pQueryInfo->window.skey = ((SSubscriptionProgress*)taosArrayGet(pSub->progress, 0))->key;
+    tscDebug("subscribe:%s set subscribe skey:%"PRId64, pSub->topic, pQueryInfo->window.skey);
   }
 
   if (pSub->pTimer == NULL) {
