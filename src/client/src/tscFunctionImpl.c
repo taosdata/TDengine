@@ -3810,11 +3810,15 @@ static void twa_function(SQLFunctionCtx *pCtx) {
   // skip null value
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = (pCtx->order == TSDB_ORDER_ASC)? 0:(pCtx->size - 1);
-  while (pCtx->hasNull && i < pCtx->size && isNull((char *)data + pCtx->inputBytes * i, pCtx->inputType)) {
+  while (pCtx->hasNull && i < pCtx->size && i >= 0 && isNull((char *)data + pCtx->inputBytes * i, pCtx->inputType)) {
     i += step;
   }
 
-  int32_t notNullElems = twa_function_impl(pCtx, pCtx->startOffset, i, pCtx->size);
+  int32_t notNullElems = 0;
+  if (i >= 0 && i < pCtx->size) {
+    notNullElems = twa_function_impl(pCtx, pCtx->startOffset, i, pCtx->size);
+  }
+
   SET_VAL(pCtx, notNullElems, 1);
   
   if (notNullElems > 0) {
