@@ -96,7 +96,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
 
   void *pRpcObj = NULL;
   void *pDnodeConn = NULL;
-  if (tscGetRpcIns(rpcInskey, user, secretEncrypt, &pRpcObj, &pDnodeConn) != 0) {
+  if (tscInitRpc(rpcInskey, user, secretEncrypt, &pRpcObj, &pDnodeConn) != 0) {
     terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     return NULL;
   }

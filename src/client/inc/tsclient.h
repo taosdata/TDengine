@@ -384,7 +384,7 @@ typedef struct {
 void *tscAcquireRpc(const char *insKey);
 void tscReleaseRpc(void *param);
 
-int32_t tscGetRpcIns(const char *insKey, const char *user, const char *secret, void** pRpcIns, void **pNodeConn);
+int32_t tscInitRpc(const char *insKey, const char *user, const char *secret, void** pRpcIns, void **pNodeConn);
 
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 
