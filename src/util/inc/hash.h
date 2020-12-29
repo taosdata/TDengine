@@ -32,17 +32,18 @@ typedef void (*_hash_free_fn_t)(void *param);
 
 typedef struct SHashNode {
   struct SHashNode *next;
-  uint32_t          hashVal;  // the hash value of key
-  uint32_t          keyLen;   // length of the key
-  size_t            dataLen;  // length of data
-  int8_t            count;    // reference count
-  int8_t            removed;  // flag to indicate removed
+  uint32_t          hashVal;     // the hash value of key
+  uint32_t          dataLen;     // length of data
+  uint32_t          keyLen;      // length of the key
+  int8_t            removed;     // flag to indicate removed
+  int8_t            count;       // reference count
   char              data[];
 } SHashNode;
 
 #define GET_HASH_NODE_KEY(_n)  ((char*)(_n) + sizeof(SHashNode) + (_n)->dataLen)
 #define GET_HASH_NODE_DATA(_n) ((char*)(_n) + sizeof(SHashNode))
 #define GET_HASH_PNODE(_n) ((char*)(_n) - sizeof(SHashNode));
+
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK     = 0,
   HASH_ENTRY_LOCK  = 1,
@@ -115,7 +116,7 @@ void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen);
  * @param dsize
  * @return
  */
-void* taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize);
+void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize);
 
 /**
  * remove item with the specified key

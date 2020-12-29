@@ -174,7 +174,8 @@ typedef struct {
   int8_t  replications;
   int8_t  quorum;
   int8_t  update;
-  int8_t  reserved[11];
+  int8_t  cacheLastRow;
+  int8_t  reserved[10];
 } SDbCfg;
 
 typedef struct SDbObj {

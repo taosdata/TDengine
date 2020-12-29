@@ -16,9 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "tqueue.h"
-#include "twal.h"
 #include "mnode.h"
-#include "dnodeVMgmt.h"
 #include "dnodeMInfos.h"
 #include "dnodeMRead.h"
 

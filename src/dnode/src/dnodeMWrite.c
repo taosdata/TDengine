@@ -18,7 +18,6 @@
 #include "ttimer.h"
 #include "tqueue.h"
 #include "mnode.h"
-#include "dnodeVMgmt.h"
 #include "dnodeMInfos.h"
 #include "dnodeMWrite.h"
 

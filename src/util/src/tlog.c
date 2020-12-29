@@ -64,10 +64,10 @@ typedef struct {
 } SLogObj;
 
 int32_t tsLogKeepDays = 0;
-int32_t tsAsyncLog = 1;
+int8_t  tsAsyncLog = 1;
 float   tsTotalLogDirGB = 0;
 float   tsAvailLogDirGB = 0;
-float   tsMinimalLogDirGB = 0.1f;
+float   tsMinimalLogDirGB = 1.0f;
 #ifdef _TD_POWER_
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
 #else
