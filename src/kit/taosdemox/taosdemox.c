@@ -1969,7 +1969,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
 
   int count = 1;
   int index = 0;
-  StrColumn    columnCase = {0};
+  StrColumn    columnCase;
   
   //superTbls->columnCount = columnSize;  
   for (int k = 0; k < columnSize; ++k) {
