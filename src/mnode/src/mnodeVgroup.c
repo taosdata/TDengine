@@ -184,6 +184,7 @@ static int32_t mnodeVgroupActionEncode(SSdbRow *pRow) {
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     pTmpVgroup->vnodeGid[i].pDnode = NULL;
     pTmpVgroup->vnodeGid[i].role = 0;
+    memset(pTmpVgroup->vnodeGid[i].vver, 0, sizeof(pTmpVgroup->vnodeGid[i].vver));
   }
 
   pRow->rowSize = tsVgUpdateSize;
@@ -317,9 +318,10 @@ void mnodeUpdateVgroupStatus(SVgObj *pVgroup, SDnodeObj *pDnode, SVnodeLoad *pVl
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
     if (pVgid->pDnode == pDnode) {
-      mTrace("dnode:%d, receive status from dnode, vgId:%d status:%s last:%s", pDnode->dnodeId, pVgroup->vgId,
-             syncRole[pVload->role], syncRole[pVgid->role]);
+      mTrace("vgId:%d, receive vnode status from dnode:%d, status:%s last:%s vver:%" PRIu64, pVgroup->vgId,
+             pDnode->dnodeId, syncRole[pVload->role], syncRole[pVgid->role], pVload->vnodeVersion);
       pVgid->role = pVload->role;
+      mnodeSetVgidVer(pVgid->vver, pVload->vnodeVersion);
       if (pVload->role == TAOS_SYNC_ROLE_MASTER) {
         pVgroup->inUse = i;
       }
@@ -1178,4 +1180,15 @@ void mnodeSendDropAllDbVgroupsMsg(SDbObj *pDropDb) {
   }
 
   mInfo("db:%s, all vgroups:%d drop msg is sent to dnode", pDropDb->name, numOfVgroups);
+}
+
+int32_t mnodeGetVgidVer(int8_t *cver) {
+  int32_t iver = ((int32_t)cver[0]) * 10000 + ((int32_t)cver[1]) * 100 + (int32_t)cver[2];
+  return iver;
+}
+
+void mnodeSetVgidVer(int8_t *cver, uint64_t iver) {
+  cver[0] = (int8_t)((int32_t)(iver % 1000000) / 10000);
+  cver[1] = (int8_t)((int32_t)(iver % 100000) / 100);
+  cver[2] = (int8_t)(iver % 100);
 }
