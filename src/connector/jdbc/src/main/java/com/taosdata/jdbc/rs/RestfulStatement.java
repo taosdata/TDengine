@@ -1,7 +1,6 @@
 package com.taosdata.jdbc.rs;
 
 import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.rs.util.HttpClientPoolUtil;
@@ -11,6 +10,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.stream.Collectors;
 
 public class RestfulStatement implements Statement {
 
@@ -28,14 +28,37 @@ public class RestfulStatement implements Statement {
         this.database = database;
     }
 
-    private String parseTableIdentifier(String sql) {
-        List<String> words = Arrays.asList(sql.trim().toLowerCase().split(" "));
-        if (words.get(0).equalsIgnoreCase("select")) {
-            if (words.contains("from")) {
-                return words.get(words.indexOf("from") + 1);
-            }
+    private String[] parseTableIdentifier(String sql) {
+        sql = sql.trim().toLowerCase();
+        String[] ret = null;
+        if (sql.contains("where"))
+            sql = sql.substring(0, sql.indexOf("where"));
+        if (sql.contains("interval"))
+            sql = sql.substring(0, sql.indexOf("interval"));
+        if (sql.contains("fill"))
+            sql = sql.substring(0, sql.indexOf("fill"));
+        if (sql.contains("sliding"))
+            sql = sql.substring(0, sql.indexOf("sliding"));
+        if (sql.contains("group by"))
+            sql = sql.substring(0, sql.indexOf("group by"));
+        if (sql.contains("order by"))
+            sql = sql.substring(0, sql.indexOf("order by"));
+        if (sql.contains("slimit"))
+            sql = sql.substring(0, sql.indexOf("slimit"));
+        if (sql.contains("limit"))
+            sql = sql.substring(0, sql.indexOf("limit"));
+        // parse
+        if (sql.contains("from")) {
+            sql = sql.substring(sql.indexOf("from") + 4).trim();
+            return Arrays.asList(sql.split(",")).stream()
+                    .map(tableIdentifier -> {
+                        tableIdentifier = tableIdentifier.trim();
+                        if (tableIdentifier.contains(" "))
+                            tableIdentifier = tableIdentifier.substring(0, tableIdentifier.indexOf(" "));
+                        return tableIdentifier;
+                    }).collect(Collectors.joining(",")).split(",");
         }
-        return null;
+        return ret;
     }
 
     @Override
@@ -54,15 +77,19 @@ public class RestfulStatement implements Statement {
         }
 
         // parse table name from sql
-        String tableIdentifier = parseTableIdentifier(sql);
-        if (tableIdentifier != null) {
-            // field meta
-            String fields = HttpClientPoolUtil.execute(url, "DESCRIBE " + tableIdentifier);
-            JSONObject fieldJson = JSON.parseObject(fields);
-            if (fieldJson.getString("status").equals("error")) {
-                throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + fieldJson.getString("desc") + "\n" + "error code: " + fieldJson.getString("code")));
+        String[] tableIdentifiers = parseTableIdentifier(sql);
+        if (tableIdentifiers != null) {
+            List<JSONObject> fieldJsonList = new ArrayList<>();
+            for (String tableIdentifier : tableIdentifiers) {
+                // field meta
+                String fields = HttpClientPoolUtil.execute(url, "DESCRIBE " + tableIdentifier);
+                JSONObject fieldJson = JSON.parseObject(fields);
+                if (fieldJson.getString("status").equals("error")) {
+                    throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + fieldJson.getString("desc") + "\n" + "error code: " + fieldJson.getString("code")));
+                }
+                fieldJsonList.add(fieldJson);
             }
-            this.resultSet = new RestfulResultSet(database, this, resultJson, fieldJson);
+            this.resultSet = new RestfulResultSet(database, this, resultJson, fieldJsonList);
         } else {
             this.resultSet = new RestfulResultSet(database, this, resultJson);
         }

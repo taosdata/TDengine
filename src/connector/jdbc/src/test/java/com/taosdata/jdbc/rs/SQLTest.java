@@ -189,43 +189,43 @@ public class SQLTest {
     }
 
     @Test
-    public void testCase30() {
+    public void testCase030() {
         String sql = "select location, temperature, ts from restful_test.weather where ts  > now";
         executeQuery(sql);
     }
 
     @Test
-    public void testCase31() {
+    public void testCase031() {
         String sql = "select location, temperature, ts from restful_test.weather where ts  < now";
         executeQuery(sql);
     }
 
     @Test
-    public void testCase32() {
+    public void testCase032() {
         String sql = "select count(*) from restful_test.weather";
         executeQuery(sql);
     }
 
     @Test
-    public void testCase33() {
+    public void testCase033() {
         String sql = "select first(*) from restful_test.weather";
         executeQuery(sql);
     }
 
     @Test
-    public void testCase34() {
+    public void testCase034() {
         String sql = "select last(*) from restful_test.weather";
         executeQuery(sql);
     }
 
     @Test
-    public void testCase35() {
+    public void testCase035() {
         String sql = "select last_row(*) from restful_test.weather";
         executeQuery(sql);
     }
 
     @Test
-    public void testCase36() {
+    public void testCase036() {
         String sql = "select ts, ts as primary_key from restful_test.weather";
         executeQuery(sql);
     }
@@ -313,6 +313,12 @@ public class SQLTest {
     @Test
     public void testCase050() {
         String sql = "select * from restful_test.t1, restful_test.t3 where t1.ts = t3.ts and t1.location = t3.location";
+        executeQuery(sql);
+    }
+
+    @Test
+    public void testCase051() {
+        String sql = "select * from restful_test.t1 tt, restful_test.t3 yy where tt.ts = yy.ts";
         executeQuery(sql);
     }
 

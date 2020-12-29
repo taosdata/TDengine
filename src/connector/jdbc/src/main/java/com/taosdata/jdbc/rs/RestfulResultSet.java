@@ -11,6 +11,7 @@ import java.net.URL;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.List;
 import java.util.Map;
 
 public class RestfulResultSet implements ResultSet {
@@ -59,15 +60,17 @@ public class RestfulResultSet implements ResultSet {
     }
 
     /**
-     * 由2个resultSet的JSON构造结果集
+     * 由多个resultSet的JSON构造结果集
+     *
      * @param resultJson: 包含data信息的结果集，有sql返回的结果集
-     * @param fieldJson: 包含meta信息的结果集，有describe xxx
-     * **/
-    public RestfulResultSet(String database, Statement statement, JSONObject resultJson, JSONObject fieldJson) {
+     * @param fieldJson:  包含多个（最多2个）meta信息的结果集，有describe xxx
+     **/
+    public RestfulResultSet(String database, Statement statement, JSONObject resultJson, List<JSONObject> fieldJson) {
         this(database, statement, resultJson);
         ArrayList<Field> newColumns = new ArrayList<>();
+
         for (Field column : columns) {
-            Field field = findField(column.name, fieldJson.getJSONArray("data"));
+            Field field = findField(column.name, fieldJson);
             if (field != null) {
                 newColumns.add(field);
             } else {
@@ -78,13 +81,17 @@ public class RestfulResultSet implements ResultSet {
         this.metaData = new RestfulResultSetMetaData(this.database, this.columns);
     }
 
-    public Field findField(String columnName, JSONArray fieldDataJson) {
-        for (int i = 0; i < fieldDataJson.size(); i++) {
-            JSONArray field = fieldDataJson.getJSONArray(i);
-            if (columnName.equalsIgnoreCase(field.getString(0))) {
-                return new Field(field.getString(0), field.getString(1), field.getInteger(2), field.getString(3));
+    public Field findField(String columnName, List<JSONObject> fieldJsonList) {
+        for (JSONObject fieldJSON : fieldJsonList) {
+            JSONArray fieldDataJson = fieldJSON.getJSONArray("data");
+            for (int i = 0; i < fieldDataJson.size(); i++) {
+                JSONArray field = fieldDataJson.getJSONArray(i);
+                if (columnName.equalsIgnoreCase(field.getString(0))) {
+                    return new Field(field.getString(0), field.getString(1), field.getInteger(2), field.getString(3));
+                }
             }
         }
+
         return null;
     }
 
