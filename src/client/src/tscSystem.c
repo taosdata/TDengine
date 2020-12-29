@@ -31,7 +31,6 @@
 #include "tlocale.h"
 
 // global, not configurable
-SCacheObj *tscMetaCache;       // table meta cache
 SHashObj  *tscHashMap;         // hash map to keep the global vgroup info
 SHashObj  *tscTableMetaInfo;       // table meta info
 int     tscObjRef = -1;
@@ -130,9 +129,7 @@ void taos_init_imp(void) {
     taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
 
-  int64_t refreshTime = 10; // 10 seconds by default
-  if (tscMetaCache == NULL) {
-    tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, NULL, "tableMeta");
+  if (tscTableMetaInfo == NULL) {
     tscObjRef  = taosOpenRef(40960, tscFreeRegisteredSqlObj);
     tscHashMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
     tscTableMetaInfo = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
@@ -154,8 +151,8 @@ void taos_init() { pthread_once(&tscinit, taos_init_imp); }
 void taos_cleanup(void) {
   tscDebug("start to cleanup client environment");
 
-  void* m = tscMetaCache;
-  if (m != NULL && atomic_val_compare_exchange_ptr(&tscMetaCache, m, 0) == m) {
+  void* m = tscTableMetaInfo;
+  if (m != NULL && atomic_val_compare_exchange_ptr(&tscTableMetaInfo, m, 0) == m) {
     taosCacheCleanup(m);
   }
 
