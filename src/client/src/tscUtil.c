@@ -767,7 +767,7 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   return result;
 }
 
-static void extractTableMeta(SSqlCmd* pCmd) {
+static void extractTableNameList(SSqlCmd* pCmd) {
   pCmd->numOfTables = (int32_t) taosHashGetSize(pCmd->pTableBlockHashList);
   pCmd->pTableNameList = calloc(pCmd->numOfTables, POINTER_BYTES);
 
@@ -862,7 +862,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql) {
     pOneTableBlock = *p;
   }
 
-  extractTableMeta(pCmd);
+  extractTableNameList(pCmd);
 
   // free the table data blocks;
   pCmd->pDataBlocks = pVnodeDataBlockList;
