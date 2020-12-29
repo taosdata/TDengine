@@ -142,7 +142,6 @@ static int32_t tsRpcNum = 0;
 #define RPC_CONN_UDPC   1
 #define RPC_CONN_TCPS   2
 #define RPC_CONN_TCPC   3
-#define RPC_CONN_TCP    2
 
 void *(*taosInitConn[])(uint32_t ip, uint16_t port, char *label, int threads, void *fp, void *shandle) = {
     taosInitUdpConnection,
@@ -959,6 +958,11 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
     terrno = TSDB_CODE_RPC_INVALID_SESSION_ID; return NULL;
   }
 
+  if (rpcIsReq(pHead->msgType) && htonl(pHead->msgVer) != tsVersion >> 8) {
+    tDebug("%s sid:%d, invalid client version:%x/%x %s", pRpc->label, sid, htonl(pHead->msgVer), tsVersion, taosMsg[pHead->msgType]);
+    terrno = TSDB_CODE_RPC_INVALID_VERSION; return NULL;
+  }
+
   pConn = rpcGetConnObj(pRpc, sid, pRecv);
   if (pConn == NULL) {
     tDebug("%s %p, failed to get connection obj(%s)", pRpc->label, (void *)pHead->ahandle, tstrerror(terrno)); 
@@ -1212,6 +1216,7 @@ static void rpcSendReqHead(SRpcConn *pConn) {
   pHead = (SRpcHead *)msg;
   pHead->version = 1;
   pHead->msgType = pConn->outType;
+  pHead->msgVer = htonl(tsVersion >> 8);
   pHead->spi = pConn->spi;
   pHead->encrypt = 0;
   pHead->tranId = pConn->outTranId;
@@ -1282,6 +1287,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
 
   // set the message header  
   pHead->version = 1;
+  pHead->msgVer = htonl(tsVersion >> 8);
   pHead->msgType = msgType;
   pHead->encrypt = 0;
   pConn->tranId++;

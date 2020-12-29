@@ -1722,6 +1722,10 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBl
     blockwiseApplyFunctions(pRuntimeEnv, pStatis, pDataBlockInfo, pResultRowInfo, searchFn, pDataBlock);
   }
 
+  // update the lastkey of current table for projection/aggregation query
+  TSKEY lastKey = QUERY_IS_ASC_QUERY(pQuery) ? pDataBlockInfo->window.ekey : pDataBlockInfo->window.skey;
+  pTableQueryInfo->lastKey = lastKey + GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
+
   // interval query with limit applied
   int32_t numOfRes = 0;
   if (QUERY_IS_INTERVAL_QUERY(pQuery) || pRuntimeEnv->groupbyNormalCol) {
@@ -4299,7 +4303,9 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
   *(int32_t*)data = htonl(numOfTables);
   data += sizeof(int32_t);
 
+  int32_t total = 0;
   STableIdInfo* item = taosHashIterate(pQInfo->arrTableIdInfo, NULL);
+
   while(item) {
     STableIdInfo* pDst = (STableIdInfo*)data;
     pDst->uid = htobe64(item->uid);
@@ -4307,8 +4313,13 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
     pDst->key = htobe64(item->key);
 
     data += sizeof(STableIdInfo);
+    total++;
+
+    qDebug("QInfo:%p set subscribe info, tid:%d, uid:%"PRIu64", skey:%"PRId64, pQInfo, item->tid, item->uid, item->key);
     item = taosHashIterate(pQInfo->arrTableIdInfo, item);
   }
+
+  qDebug("QInfo:%p set %d subscribe info", pQInfo, total);
 
   // Check if query is completed or not for stable query or normal table query respectively.
   if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
@@ -6214,13 +6225,13 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     }
 
     for (int32_t i = 0; i < pQueryMsg->numOfGroupCols; ++i) {
-      (*groupbyCols)[i].colId = *(int16_t *)pMsg;
+      (*groupbyCols)[i].colId = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].colId);
 
-      (*groupbyCols)[i].colIndex = *(int16_t *)pMsg;
+      (*groupbyCols)[i].colIndex = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].colIndex);
 
-      (*groupbyCols)[i].flag = *(int16_t *)pMsg;
+      (*groupbyCols)[i].flag = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].flag);
 
       memcpy((*groupbyCols)[i].name, pMsg, tListLen(groupbyCols[i]->name));
