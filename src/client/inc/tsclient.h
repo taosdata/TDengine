@@ -494,7 +494,6 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   }
 }
 
-extern SCacheObj *tscMetaCache;
 extern SHashObj  *tscHashMap;
 extern SHashObj  *tscTableMetaInfo;
 
