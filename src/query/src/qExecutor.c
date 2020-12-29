@@ -86,7 +86,6 @@ typedef struct {
   int32_t     status;       // query status
   TSKEY       lastKey;      // the lastKey value before query executed
   STimeWindow w;            // whole query time window
-  STimeWindow curWindow;    // current query window
   int32_t     windowIndex;  // index of active time window result for interval query
   STSCursor   cur;
 } SQueryStatusInfo;
@@ -3368,14 +3367,6 @@ static void updateTableQueryInfoForReverseScan(SQuery *pQuery, STableQueryInfo *
     return;
   }
 
-  // order has changed already
-  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
-  if (pTableQueryInfo->lastKey == pTableQueryInfo->win.skey) {
-    // do nothing, no results
-  } else {// NOTE: even win.skey != lastKey, the results may not generated.
-    pTableQueryInfo->win.ekey = pTableQueryInfo->lastKey + step;
-  }
-
   SWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey, TSKEY);
   pTableQueryInfo->lastKey = pTableQueryInfo->win.skey;
 
@@ -3658,10 +3649,6 @@ static SQueryStatusInfo getQueryStatusInfo(SQueryRuntimeEnv *pRuntimeEnv, TSKEY 
   };
 
   TIME_WINDOW_COPY(info.w, pQuery->window);
-  TIME_WINDOW_COPY(info.curWindow, pTableQueryInfo->win);
-
-  info.curWindow.skey = start;
-
   return info;
 }
 
@@ -3677,9 +3664,7 @@ static void setEnvBeforeReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusI
   }
 
   // reverse order time range
-  pQuery->window = pStatus->curWindow;
   SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
-
   SWITCH_ORDER(pQuery->order.order);
 
   if (QUERY_IS_ASC_QUERY(pQuery)) {
@@ -3745,9 +3730,7 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
 
   // store the start query position
   SQueryStatusInfo qstatus = getQueryStatusInfo(pRuntimeEnv, start);
-
   SET_MASTER_SCAN_FLAG(pRuntimeEnv);
-  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
 
   while (1) {
     doScanAllDataBlocks(pRuntimeEnv);
@@ -3756,13 +3739,9 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
       qstatus.status = pQuery->status;
 
       // do nothing if no data blocks are found qualified during scan
-      if (qstatus.lastKey != pTableQueryInfo->lastKey) {
-        qstatus.curWindow.ekey = pTableQueryInfo->lastKey - step;
-      } else { // the lastkey does not increase, which means no data checked yet
+      if (qstatus.lastKey == pTableQueryInfo->lastKey) {
         qDebug("QInfo:%p no results generated in this scan", pQInfo);
       }
-
-      qstatus.lastKey = pTableQueryInfo->lastKey;
     }
 
     if (!needScanDataBlocksAgain(pRuntimeEnv)) {
@@ -3778,7 +3757,7 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
       tsdbCleanupQueryHandle(pRuntimeEnv->pSecQueryHandle);
     }
 
-    STsdbQueryCond cond = createTsdbQueryCond(pQuery, &qstatus.curWindow);
+    STsdbQueryCond cond = createTsdbQueryCond(pQuery, &pQuery->window);
     restoreTimeWindow(&pQInfo->tableGroupInfo, &cond);
     pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo, &pQInfo->memRef);
     if (pRuntimeEnv->pSecQueryHandle == NULL) {
