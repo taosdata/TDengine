@@ -909,7 +909,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
 static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t tblListLen) {
   // must before clean the sqlcmd object
-  tscResetSqlCmdObj(&pSql->cmd, false);
+  tscResetSqlCmdObj(&pSql->cmd);
 
   SSqlCmd *pCmd = &pSql->cmd;
 

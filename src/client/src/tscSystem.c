@@ -33,6 +33,7 @@
 // global, not configurable
 SCacheObj *tscMetaCache;       // table meta cache
 SHashObj  *tscHashMap;         // hash map to keep the global vgroup info
+SHashObj  *tscTableMetaInfo;       // table meta info
 int     tscObjRef = -1;
 void   *tscTmr;
 void   *tscQhandle;
@@ -131,9 +132,11 @@ void taos_init_imp(void) {
 
   int64_t refreshTime = 10; // 10 seconds by default
   if (tscMetaCache == NULL) {
-    tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, tscFreeTableMetaHelper, "tableMeta");
+    tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, NULL, "tableMeta");
     tscObjRef  = taosOpenRef(40960, tscFreeRegisteredSqlObj);
     tscHashMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    tscTableMetaInfo = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    tscDebug("TableMeta:%p", tscTableMetaInfo);
   }
 
   tscRefId = taosOpenRef(200, tscCloseTscObj);

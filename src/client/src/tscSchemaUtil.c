@@ -130,19 +130,8 @@ SSchema* tscGetColumnSchemaById(STableMeta* pTableMeta, int16_t colId) {
   return NULL;
 }
 
-static void tscInitCorVgroupInfo(SCorVgroupInfo *corVgroupInfo, SVgroupMsg *pVgroupMsg) {
-  corVgroupInfo->version = 0;
-  corVgroupInfo->inUse   = 0;
-  corVgroupInfo->numOfEps = pVgroupMsg->numOfEps;
-
-  for (int32_t i = 0; i < pVgroupMsg->numOfEps; i++) {
-    corVgroupInfo->epAddr[i].fqdn = strndup(pVgroupMsg->epAddr[i].fqdn, tListLen(pVgroupMsg->epAddr[0].fqdn));
-    corVgroupInfo->epAddr[i].port = pVgroupMsg->epAddr[i].port;
-  }
-}
-
-STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size) {
-  assert(pTableMetaMsg != NULL);
+STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg) {
+  assert(pTableMetaMsg != NULL && pTableMetaMsg->numOfColumns >= 2 && pTableMetaMsg->numOfTags >= 0);
   
   int32_t schemaSize = (pTableMetaMsg->numOfColumns + pTableMetaMsg->numOfTags) * sizeof(SSchema);
   STableMeta* pTableMeta = calloc(1, sizeof(STableMeta) + schemaSize);
@@ -159,11 +148,9 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   pTableMeta->id.tid = pTableMetaMsg->tid;
   pTableMeta->id.uid = pTableMetaMsg->uid;
 
-  tscInitCorVgroupInfo(&pTableMeta->corVgroupInfo, &pTableMetaMsg->vgroup);
-
   pTableMeta->sversion = pTableMetaMsg->sversion;
   pTableMeta->tversion = pTableMetaMsg->tversion;
-  tstrncpy(pTableMeta->sTableId, pTableMetaMsg->sTableId, TSDB_TABLE_FNAME_LEN);
+  tstrncpy(pTableMeta->sTableName, pTableMetaMsg->sTableName, TSDB_TABLE_FNAME_LEN);
   
   memcpy(pTableMeta->schema, pTableMetaMsg->schema, schemaSize);
   
@@ -172,11 +159,42 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
   }
   
-  if (size != NULL) {
-    *size = sizeof(STableMeta) + schemaSize;
-  }
-  
   return pTableMeta;
+}
+
+bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src) {
+  assert(pExisted != NULL && src != NULL);
+  if (pExisted->numOfEps != src->numOfEps) {
+    return false;
+  }
+
+  for(int32_t i = 0; i < pExisted->numOfEps; ++i) {
+    if (pExisted->ep[i].port != src->epAddr[i].port) {
+      return false;
+    }
+
+    if (strncmp(pExisted->ep[i].fqdn, src->epAddr[i].fqdn, tListLen(pExisted->ep[i].fqdn)) != 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg) {
+  assert(pVgroupMsg != NULL);
+
+  SNewVgroupInfo info = {0};
+  info.numOfEps = pVgroupMsg->numOfEps;
+  info.vgId     = pVgroupMsg->vgId;
+  info.inUse    = 0;
+
+  for(int32_t i = 0; i < pVgroupMsg->numOfEps; ++i) {
+    tstrncpy(info.ep[i].fqdn, pVgroupMsg->epAddr[i].fqdn, TSDB_FQDN_LEN);
+    info.ep[i].port = pVgroupMsg->epAddr[i].port;
+  }
+
+  return info;
 }
 
 // todo refactor

@@ -216,7 +216,7 @@ STableMetaInfo* tscGetMetaInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
 SQueryInfo *tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex);
 SQueryInfo *tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex);
 
-void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache);
+void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo);
 
 STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
     SVgroupsInfo* vgroupList, SArray* pTagCols, SArray* pVgroupTables);
@@ -276,7 +276,7 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 bool hasMoreVnodesToTry(SSqlObj *pSql);
 bool hasMoreClauseToTry(SSqlObj* pSql);
 
-void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeFromCache);
+void tscFreeQueryInfo(SSqlCmd* pCmd);
 
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
@@ -289,6 +289,14 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
 
 char*   serializeTagData(STagData* pTagData, char* pMsg);
 int32_t copyTagData(STagData* dst, const STagData* src);
+
+STableMeta* createSuperTableMeta(STableMetaMsg* pChild);
+uint32_t tscGetTableMetaSize(STableMeta* pTableMeta);
+CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
+uint32_t tscGetTableMetaMaxSize();
+int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name);
+STableMeta* tscTableMetaClone(STableMeta* pTableMeta);
+
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);

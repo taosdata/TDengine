@@ -14,7 +14,6 @@
  */
 
 #include "os.h"
-#include "tcache.h"
 #include "tcmdtype.h"
 #include "trpc.h"
 #include "tscLocalMerge.h"
@@ -85,7 +84,8 @@ static void tscEpSetHtons(SRpcEpSet *s) {
 bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2) {
    if (s1->numOfEps != s2->numOfEps || s1->inUse != s2->inUse) {
      return false;
-   } 
+   }
+
    for (int32_t i = 0; i < s1->numOfEps; i++) {
      if (s1->port[i] != s2->port[i] 
         || strncmp(s1->fqdn[i], s2->fqdn[i], TSDB_FQDN_LEN) != 0)
@@ -93,6 +93,7 @@ bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2) {
    }
    return true;
 }
+
 void tscUpdateMgmtEpSet(SSqlObj *pSql, SRpcEpSet *pEpSet) {
   // no need to update if equal
   SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
@@ -101,37 +102,38 @@ void tscUpdateMgmtEpSet(SSqlObj *pSql, SRpcEpSet *pEpSet) {
   taosCorEndWrite(&pCorEpSet->version);
 }
 
-static void tscDumpEpSetFromVgroupInfo(SRpcEpSet *pEpSet, SCorVgroupInfo *pVgroupInfo) {
+static void tscDumpEpSetFromVgroupInfo(SRpcEpSet *pEpSet, SNewVgroupInfo *pVgroupInfo) {
   if (pVgroupInfo == NULL) { return;}
-  taosCorBeginRead(&pVgroupInfo->version);
   int8_t inUse = pVgroupInfo->inUse;
   pEpSet->inUse = (inUse >= 0 && inUse < TSDB_MAX_REPLICA) ? inUse: 0; 
   pEpSet->numOfEps = pVgroupInfo->numOfEps;  
   for (int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
-    tstrncpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn, sizeof(pEpSet->fqdn[i]));
-    pEpSet->port[i] = pVgroupInfo->epAddr[i].port;
+    tstrncpy(pEpSet->fqdn[i], pVgroupInfo->ep[i].fqdn, sizeof(pEpSet->fqdn[i]));
+    pEpSet->port[i] = pVgroupInfo->ep[i].port;
   }
-  taosCorEndRead(&pVgroupInfo->version);
 }
 
 static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   SSqlCmd *pCmd = &pObj->cmd;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   if (pTableMetaInfo == NULL || pTableMetaInfo->pTableMeta == NULL) { return;}
-  SCorVgroupInfo *pVgroupInfo = &pTableMetaInfo->pTableMeta->corVgroupInfo;
 
-  taosCorBeginWrite(&pVgroupInfo->version);
-  tscDebug("before: Endpoint in use: %d", pVgroupInfo->inUse);
-  pVgroupInfo->inUse = pEpSet->inUse;
-  pVgroupInfo->numOfEps = pEpSet->numOfEps;
-  for (int32_t i = 0; i < pVgroupInfo->numOfEps; i++) {
-    tfree(pVgroupInfo->epAddr[i].fqdn);
-    pVgroupInfo->epAddr[i].fqdn = strndup(pEpSet->fqdn[i], tListLen(pEpSet->fqdn[i]));
-    pVgroupInfo->epAddr[i].port = pEpSet->port[i];
+  int32_t vgId = pTableMetaInfo->pTableMeta->vgId;
+
+  SNewVgroupInfo vgroupInfo = {.vgId = -1};
+  taosHashGetClone(tscHashMap, &vgId, sizeof(vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
+  assert(vgroupInfo.numOfEps > 0 && vgroupInfo.vgId > 0);
+
+  tscDebug("before: Endpoint in use:%d, numOfEps:%d", vgroupInfo.inUse, vgroupInfo.numOfEps);
+  vgroupInfo.inUse    = pEpSet->inUse;
+  vgroupInfo.numOfEps = pEpSet->numOfEps;
+  for (int32_t i = 0; i < vgroupInfo.numOfEps; i++) {
+    strncpy(vgroupInfo.ep[i].fqdn, pEpSet->fqdn[i], TSDB_FQDN_LEN);
+    vgroupInfo.ep[i].port = pEpSet->port[i];
   }
 
-  tscDebug("after: EndPoint in use: %d", pVgroupInfo->inUse);
-  taosCorEndWrite(&pVgroupInfo->version);
+  tscDebug("after: EndPoint in use:%d, numOfEps:%d", vgroupInfo.inUse, vgroupInfo.numOfEps);
+  taosHashPut(tscHashMap, &vgId, sizeof(vgId), &vgroupInfo, sizeof(SNewVgroupInfo));
 }
 
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
@@ -303,7 +305,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     return;
   }
 
-  if (pEpSet) {
+  if (pEpSet) { // todo update this
     if (!tscEpSetIsEqual(&pSql->epSet, pEpSet)) {
       if (pCmd->command < TSDB_SQL_MGMT) {
         tscUpdateVgroupInfo(pSql, pEpSet);
@@ -549,7 +551,10 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // pSql->cmd.payloadLen is set during copying data into payload
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
-  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &pTableMeta->corVgroupInfo);
+
+  SNewVgroupInfo vgroupInfo = {0};
+  taosHashGetClone(tscHashMap, &pTableMeta->vgId, sizeof(pTableMeta->vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
+  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
 
   tscDebug("%p build submit msg, vgId:%d numOfTables:%d numberOfEP:%d", pSql, pTableMeta->vgId, pSql->cmd.numOfTablesInSubmit,
       pSql->epSet.numOfEps);
@@ -611,7 +616,10 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
       tscDebug("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, pTableMetaInfo->vgroupList->numOfVgroups);
     } else {
       vgId = pTableMeta->vgId;
-      tscDumpEpSetFromVgroupInfo(&pSql->epSet, &pTableMeta->corVgroupInfo);
+
+      SNewVgroupInfo vgroupInfo = {0};
+      taosHashGetClone(tscHashMap, &pTableMeta->vgId, sizeof(pTableMeta->vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
+      tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
     }
 
     pSql->epSet.inUse = rand()%pSql->epSet.numOfEps;
@@ -1447,10 +1455,14 @@ int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
   SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) pCmd->payload;
   pCmd->payloadLen = htonl(pUpdateMsg->head.contLen);
 
-  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  STableMeta *pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
 
-  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &pTableMetaInfo->pTableMeta->corVgroupInfo);
+  SNewVgroupInfo vgroupInfo = {.vgId = -1};
+  taosHashGetClone(tscHashMap, &pTableMeta->vgId, sizeof(pTableMeta->vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
+  assert(vgroupInfo.vgId > 0);
+
+  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1808,19 +1820,42 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     pSchema++;
   }
 
-  size_t size = 0;
-  STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg, &size);
+  STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
   
-  // todo add one more function: taosAddDataIfNotExists();
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
   assert(pTableMetaInfo->pTableMeta == NULL);
 
-  pTableMetaInfo->pTableMeta = (STableMeta *) taosCachePut(tscMetaCache, pTableMetaInfo->name,
-      strlen(pTableMetaInfo->name), pTableMeta, size, tsTableMetaKeepTimer * 1000);
+  if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
+    // check if super table hashmap or not
+    int32_t len = (int32_t) strnlen(pTableMeta->sTableName, TSDB_TABLE_FNAME_LEN);
 
-  if (pTableMetaInfo->pTableMeta == NULL) {
-    free(pTableMeta);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    // super tableMeta data alreay exists, create it according to tableMeta and add it to hash map
+    STableMeta* pSupTableMeta = createSuperTableMeta(pMetaMsg);
+
+    uint32_t size = tscGetTableMetaSize(pSupTableMeta);
+    int32_t code = taosHashPut(tscTableMetaInfo, pTableMeta->sTableName, len, pSupTableMeta, size);
+    assert(code == TSDB_CODE_SUCCESS);
+
+    tfree(pSupTableMeta);
+
+    CChildTableMeta* cMeta = tscCreateChildMeta(pTableMeta);
+    taosHashPut(tscTableMetaInfo, pTableMetaInfo->name, strlen(pTableMetaInfo->name), cMeta, sizeof(CChildTableMeta));
+    tfree(cMeta);
+  } else {
+    uint32_t s = tscGetTableMetaSize(pTableMeta);
+    taosHashPut(tscTableMetaInfo, pTableMetaInfo->name, strlen(pTableMetaInfo->name), pTableMeta, s);
+  }
+
+  // update the vgroupInfo if needed
+  int32_t vgId = pTableMeta->vgId;
+  SNewVgroupInfo vgroupInfo = {.inUse = -1};
+  taosHashGetClone(tscHashMap, &vgId, sizeof(vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
+
+  if (((vgroupInfo.inUse >= 0) && !vgroupInfoIdentical(&vgroupInfo, &pMetaMsg->vgroup)) ||
+      (vgroupInfo.inUse < 0)) {  // vgroup info exists, compare with it
+    vgroupInfo = createNewVgroupInfo(&pMetaMsg->vgroup);
+    taosHashPut(tscHashMap, &vgId, sizeof(vgId), &vgroupInfo, sizeof(vgroupInfo));
+    tscDebug("add new VgroupInfo, vgId:%d, total:%d", vgId, (int32_t) taosHashGetSize(tscHashMap));
   }
 
   tscDebug("%p recv table meta, uid:%"PRId64 ", tid:%d, name:%s", pSql, pTableMeta->id.uid, pTableMeta->id.tid, pTableMetaInfo->name);
@@ -1831,8 +1866,8 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
 
 /**
  *  multi table meta rsp pkg format:
- *  | STaosRsp | ieType | SMultiTableInfoMsg | SMeterMeta0 | SSchema0 | SMeterMeta1 | SSchema1 | SMeterMeta2 | SSchema2
- *  |...... 1B        1B            4B
+ *  | STaosRsp | SMultiTableInfoMsg | SMeterMeta0 | SSchema0 | SMeterMeta1 | SSchema1 | SMeterMeta2 | SSchema2
+ *  |...... 1B                    4B
  **/
 int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
 #if 0
@@ -1986,14 +2021,10 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
   return pSql->res.code;
 }
 
-/*
- * current process do not use the cache at all
- */
 int tscProcessShowRsp(SSqlObj *pSql) {
   STableMetaMsg *pMetaMsg;
   SShowRsp *     pShow;
   SSchema *      pSchema;
-  char           key[20];
 
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
@@ -2018,20 +2049,10 @@ int tscProcessShowRsp(SSqlObj *pSql) {
     pSchema++;
   }
 
-  key[0] = pCmd->msgType + 'a';
-  strcpy(key + 1, "showlist");
+  tfree(pTableMetaInfo->pTableMeta);
+  pTableMetaInfo->pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
 
-  if (pTableMetaInfo->pTableMeta != NULL) {
-    taosCacheRelease(tscMetaCache, (void *)&(pTableMetaInfo->pTableMeta), false);
-  }
-
-  size_t size = 0;
-  STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg, &size);
-  
-  pTableMetaInfo->pTableMeta = taosCachePut(tscMetaCache, key, strlen(key), (char *)pTableMeta, size,
-      tsTableMetaKeepTimer * 1000);
   SSchema *pTableSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
-
   if (pQueryInfo->colList == NULL) {
     pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
   }
@@ -2054,12 +2075,9 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   
   pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
   tscFieldInfoUpdateOffset(pQueryInfo);
-  
-  tfree(pTableMeta);
   return 0;
 }
 
-// TODO multithread problem
 static void createHBObj(STscObj* pObj) {
   if (pObj->hbrid != 0) {
     return;
@@ -2141,51 +2159,34 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
 
 int tscProcessDropDbRsp(SSqlObj *pSql) {
   pSql->pTscObj->db[0] = 0;
-  taosCacheEmpty(tscMetaCache);
+  taosHashEmpty(tscTableMetaInfo);
   return 0;
 }
 
 int tscProcessDropTableRsp(SSqlObj *pSql) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
-  STableMeta *pTableMeta = taosCacheAcquireByKey(tscMetaCache, pTableMetaInfo->name, strlen(pTableMetaInfo->name));
-  if (pTableMeta == NULL) { /* not in cache, abort */
-    return 0;
-  }
+  //The cached tableMeta is expired in this case, so clean it in hash table
+  taosHashRemove(tscTableMetaInfo, pTableMetaInfo->name, strnlen(pTableMetaInfo->name, TSDB_TABLE_FNAME_LEN));
+  tscDebug("%p remove table meta after drop table:%s, numOfRemain:%d", pSql, pTableMetaInfo->name,
+           (int32_t) taosHashGetSize(tscTableMetaInfo));
 
-  /*
-   * 1. if a user drops one table, which is the only table in a vnode, remove operation will incur vnode to be removed.
-   * 2. Then, a user creates a new metric followed by a table with identical name of removed table but different schema,
-   * here the table will reside in a new vnode.
-   * The cached information is expired, however, we may have lost the ref of original meter. So, clear whole cache
-   * instead.
-   */
-  tscDebug("%p force release table meta after drop table:%s", pSql, pTableMetaInfo->name);
-  taosCacheRelease(tscMetaCache, (void **)&pTableMeta, true);
   assert(pTableMetaInfo->pTableMeta == NULL);
-
   return 0;
 }
 
 int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
-  STableMeta *pTableMeta = taosCacheAcquireByKey(tscMetaCache, pTableMetaInfo->name, strlen(pTableMetaInfo->name));
-  if (pTableMeta == NULL) { /* not in cache, abort */
-    return 0;
-  }
+  char* name = pTableMetaInfo->name;
+  tscDebug("%p remove tableMeta in hashMap after alter-table: %s", pSql, name);
 
-  tscDebug("%p force release metermeta in cache after alter-table: %s", pSql, pTableMetaInfo->name);
-  taosCacheRelease(tscMetaCache, (void **)&pTableMeta, true);
+  bool isSuperTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
+  taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+  tfree(pTableMetaInfo->pTableMeta);
 
-  if (pTableMetaInfo->pTableMeta) {
-    bool isSuperTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-    taosCacheRelease(tscMetaCache, (void **)&(pTableMetaInfo->pTableMeta), true);
-
-    if (isSuperTable) {  // if it is a super table, reset whole query cache
-      tscDebug("%p reset query cache since table:%s is stable", pSql, pTableMetaInfo->name);
-      taosCacheEmpty(tscMetaCache);
-    }
+  if (isSuperTable) {  // if it is a super table, iterate the hashTable and remove all the childTableMeta
+    taosHashEmpty(tscTableMetaInfo);
   }
 
   return 0;
@@ -2195,6 +2196,7 @@ int tscProcessAlterDbMsgRsp(SSqlObj *pSql) {
   UNUSED(pSql);
   return 0;
 }
+
 int tscProcessShowCreateRsp(SSqlObj *pSql) {
   return tscLocalResultCommonBuilder(pSql, 1);
 }
@@ -2315,7 +2317,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
 
   int32_t code = tscProcessSql(pNew);
   if (code == TSDB_CODE_SUCCESS) {
-    code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;  // notify upper application that current process need to be terminated
+    code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;  // notify application that current process needs to be terminated
   }
 
   return code;
@@ -2323,21 +2325,29 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
 
 int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   assert(strlen(pTableMetaInfo->name) != 0);
+  tfree(pTableMetaInfo->pTableMeta);
 
-  // If this STableMetaInfo owns a table meta, release it first
-  if (pTableMetaInfo->pTableMeta != NULL) {
-    taosCacheRelease(tscMetaCache, (void **)&(pTableMetaInfo->pTableMeta), false);
-  }
-  
-  pTableMetaInfo->pTableMeta = (STableMeta *)taosCacheAcquireByKey(tscMetaCache, pTableMetaInfo->name, strlen(pTableMetaInfo->name));
-  if (pTableMetaInfo->pTableMeta != NULL) {
-    STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
-    tscDebug("%p retrieve table Meta from cache, the number of columns:%d, numOfTags:%d, %p", pSql, tinfo.numOfColumns,
-             tinfo.numOfTags, pTableMetaInfo->pTableMeta);
+  uint32_t size = tscGetTableMetaMaxSize();
+  pTableMetaInfo->pTableMeta = calloc(1, size);
+
+  pTableMetaInfo->pTableMeta->tableInfo.numOfColumns  = -1;
+  int32_t len = (int32_t) strlen(pTableMetaInfo->name);
+
+  taosHashGetClone(tscTableMetaInfo, pTableMetaInfo->name, len, NULL, pTableMetaInfo->pTableMeta, -1);
+
+  // TODO resize the tableMeta
+  STableMeta* pMeta = pTableMetaInfo->pTableMeta;
+  if (pMeta->id.uid > 0) {
+    if (pMeta->tableType == TSDB_CHILD_TABLE) {
+      int32_t code = tscCreateTableMetaFromCChildMeta(pTableMetaInfo->pTableMeta, pTableMetaInfo->name);
+      if (code != TSDB_CODE_SUCCESS) {
+        return getTableMetaFromMnode(pSql, pTableMetaInfo);
+      }
+    }
 
     return TSDB_CODE_SUCCESS;
   }
-  
+
   return getTableMetaFromMnode(pSql, pTableMetaInfo);
 }
 
@@ -2364,7 +2374,7 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
              tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->id.uid, pTableMeta);
   }
 
-  taosCacheRelease(tscMetaCache, (void **)&(pTableMetaInfo->pTableMeta), true);
+  taosHashRemove(tscTableMetaInfo, pTableMetaInfo->name, strnlen(pTableMetaInfo->name, TSDB_TABLE_FNAME_LEN));
   return getTableMetaFromMnode(pSql, pTableMetaInfo);
 }
 
@@ -2405,7 +2415,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo *pMInfo = tscGetMetaInfo(pQueryInfo, i);
-    STableMeta *pTableMeta = taosCacheAcquireByData(tscMetaCache, pMInfo->pTableMeta);
+    STableMeta* pTableMeta = tscTableMetaClone(pMInfo->pTableMeta);
     tscAddTableMetaInfo(pNewQueryInfo, pMInfo->name, pTableMeta, NULL, pMInfo->tagColList, pMInfo->pVgroupTables);
   }
 

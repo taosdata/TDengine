@@ -910,7 +910,7 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
    * that are corresponding to the old name for the new table name.
    */
   if (strlen(oldName) > 0 && strncasecmp(oldName, pTableMetaInfo->name, tListLen(pTableMetaInfo->name)) != 0) {
-    tscClearTableMetaInfo(pTableMetaInfo, false);
+    tscClearTableMetaInfo(pTableMetaInfo);
   }
 
   return TSDB_CODE_SUCCESS;

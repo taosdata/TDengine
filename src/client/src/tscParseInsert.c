@@ -1339,7 +1339,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     if (sqlstr == NULL || pSql->parseRetry >= 1 || ret != TSDB_CODE_TSC_INVALID_SQL) {
       free(sqlstr);
     } else {
-      tscResetSqlCmdObj(pCmd, true);
+      tscResetSqlCmdObj(pCmd);
       free(pSql->sqlstr);
       pSql->sqlstr = sqlstr;
       pSql->parseRetry++;
@@ -1351,7 +1351,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
     if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0 && SQLInfo.type == TSDB_SQL_NULL) {
-      tscResetSqlCmdObj(pCmd, true);
+      tscResetSqlCmdObj(pCmd);
       pSql->parseRetry++;
       ret = tscToSQLCmd(pSql, &SQLInfo);
     }
@@ -1439,7 +1439,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
   int32_t count = 0;
   int32_t maxRows = 0;
 
-  tfree(pCmd->pTableMetaList);
+  tfree(pCmd->pTableNameList);
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
   if (pCmd->pTableBlockHashList == NULL) {

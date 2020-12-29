@@ -716,7 +716,6 @@ typedef struct {
 typedef struct STableMetaMsg {
   int32_t       contLen;
   char          tableId[TSDB_TABLE_FNAME_LEN];   // table id
-  char          sTableId[TSDB_TABLE_FNAME_LEN];
   uint8_t       numOfTags;
   uint8_t       precision;
   uint8_t       tableType;
@@ -726,6 +725,9 @@ typedef struct STableMetaMsg {
   int32_t       tid;
   uint64_t      uid;
   SVgroupMsg    vgroup;
+
+  char          sTableName[TSDB_TABLE_FNAME_LEN];
+  uint64_t      suid;
   SSchema       schema[];
 } STableMetaMsg;
 
