@@ -517,8 +517,6 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock) {
   // free the refcount for metermeta
   if (pDataBlock->pTableMeta != NULL) {
     tfree(pDataBlock->pTableMeta);
-
-//    taosCacheRelease(tscMetaCache, (void**)&(pDataBlock->pTableMeta), false);
   }
 
   tfree(pDataBlock);
@@ -593,10 +591,9 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
 
     if (pTableMetaInfo->pTableMeta != NULL) {
       tfree(pTableMetaInfo->pTableMeta);
-//      taosCacheRelease(tscMetaCache, (void**)&(pTableMetaInfo->pTableMeta), false);
     }
 
-    pTableMetaInfo->pTableMeta = tscTableMetaClone(pDataBlock->pTableMeta);//taosCacheTransfer(tscMetaCache, (void**)&pDataBlock->pTableMeta);
+    pTableMetaInfo->pTableMeta = tscTableMetaClone(pDataBlock->pTableMeta);
   } else {
     assert(strncmp(pTableMetaInfo->name, pDataBlock->tableName, tListLen(pDataBlock->tableName)) == 0);
   }
