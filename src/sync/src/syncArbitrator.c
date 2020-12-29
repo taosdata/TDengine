@@ -29,8 +29,8 @@
 
 static void    arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
 static void    arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
-static void    arbProcessBrokenLink(void *param);
-static int32_t arbProcessPeerMsg(void *param, void *buffer);
+static void    arbProcessBrokenLink(int64_t rid);
+static int32_t arbProcessPeerMsg(int64_t rid, void *buffer);
 static tsem_t  tsArbSem;
 static void *  tsArbTcpPool;
 
@@ -138,20 +138,20 @@ static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
 
   sDebug("%s, arbitrator request is accepted", pNode->id);
   pNode->nodeFd = connFd;
-  pNode->pConn = syncAllocateTcpConn(tsArbTcpPool, pNode, connFd);
+  pNode->pConn = syncAllocateTcpConn(tsArbTcpPool, (int64_t)pNode, connFd);
 
   return;
 }
 
-static void arbProcessBrokenLink(void *param) {
-  SNodeConn *pNode = param;
+static void arbProcessBrokenLink(int64_t rid) {
+  SNodeConn *pNode = (SNodeConn *)rid;
 
   sDebug("%s, TCP link is broken since %s, close connection", pNode->id, strerror(errno));
   tfree(pNode);
 }
 
-static int32_t arbProcessPeerMsg(void *param, void *buffer) {
-  SNodeConn *pNode = param;
+static int32_t arbProcessPeerMsg(int64_t rid, void *buffer) {
+  SNodeConn *pNode = (SNodeConn *)rid;
   SSyncHead  head;
   int32_t    bytes = 0;
   char *     cont = (char *)buffer;

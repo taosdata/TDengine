@@ -377,6 +377,24 @@ static int32_t mnodeCreateMnodeCb(SMnodeMsg *pMsg, int32_t code) {
   return code;
 }
 
+static bool mnodeAllOnline() {
+  void *pIter = NULL;
+  bool  allOnline = true;
+
+  while (1) {
+    SMnodeObj *pMnode = NULL;
+    pIter = mnodeGetNextMnode(pIter, &pMnode);
+    if (pMnode == NULL) break;
+    if (pMnode->role != TAOS_SYNC_ROLE_MASTER && pMnode->role != TAOS_SYNC_ROLE_SLAVE) {
+      allOnline = false;
+      mnodeDecMnodeRef(pMnode);
+    }
+  }
+  mnodeCancelGetNextMnode(pIter);
+
+  return allOnline;
+}
+
 void mnodeCreateMnode(int32_t dnodeId, char *dnodeEp, bool needConfirm) {
   SMnodeObj *pMnode = calloc(1, sizeof(SMnodeObj));
   pMnode->mnodeId = dnodeId;
@@ -388,6 +406,11 @@ void mnodeCreateMnode(int32_t dnodeId, char *dnodeEp, bool needConfirm) {
     .pObj    = pMnode,
     .fpRsp   = mnodeCreateMnodeCb
   };
+
+  if (needConfirm && !mnodeAllOnline()) {
+    mDebug("wait all mnode online then create new mnode");
+    return;
+  }
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (needConfirm) {

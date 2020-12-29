@@ -44,6 +44,7 @@ def pre_test(){
     git pull
     git fetch
     git checkout ${CHANGE_BRANCH}
+    git pull
     git merge develop
     cd ${WK}
     git reset --hard
@@ -79,14 +80,25 @@ pipeline {
               changeRequest()
           }
       parallel {
-        stage('python') {
-          agent{label 'pytest'}
+        stage('python_1') {
+          agent{label 'p1'}
           steps {
             
             pre_test()
             sh '''
             cd ${WKC}/tests
-            ./test-all.sh pytestfq
+            ./test-all.sh p1
+            date'''
+          }
+        }
+        stage('python_2') {
+          agent{label 'p2'}
+          steps {
+            
+            pre_test()
+            sh '''
+            cd ${WKC}/tests
+            ./test-all.sh p2
             date'''
           }
         }

@@ -5,7 +5,6 @@ GREEN='\033[1;32m'
 GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
-#nohup /var/lib/jenkins/workspace/TDinternal/debug/build/bin/taosd -c /var/lib/jenkins/workspace/TDinternal/community/sim/dnode1/cfg >/dev/null &
 IN_TDINTERNAL="community"
 TDIR=`pwd`
 if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
@@ -13,7 +12,6 @@ if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
 else
   cd ../../..
 fi
-
 TOP_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep -v community|head -n1`
 nohup $TAOSD_DIR >/dev/null &

@@ -29,8 +29,12 @@ cd ../../../debug; make
 ./test.sh -f unique/dnode/balance2.sim
 ./test.sh -f unique/dnode/balance3.sim
 ./test.sh -f unique/dnode/balancex.sim
+./test.sh -f unique/dnode/m2.sim
+./test.sh -f unique/dnode/m3.sim
 ./test.sh -f unique/dnode/offline1.sim
 ./test.sh -f unique/dnode/offline2.sim
+./test.sh -f unique/dnode/offline3.sim
+./test.sh -f unique/dnode/reason.sim
 ./test.sh -f unique/dnode/remove1.sim
 ./test.sh -f unique/dnode/remove2.sim
 ./test.sh -f unique/dnode/vnode_clean.sim

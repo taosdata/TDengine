@@ -67,7 +67,7 @@ void tHistogramDestroy(SHistogramInfo** pHisto);
 
 void tHistogramPrint(SHistogramInfo* pHisto);
 
-int32_t vnodeHistobinarySearch(SHistBin* pEntry, int32_t len, double val);
+int32_t histoBinarySearch(SHistBin* pEntry, int32_t len, double val);
 
 SHeapEntry* tHeapCreate(int32_t numOfEntries);
 void tHeapSort(SHeapEntry* pEntry, int32_t len);
