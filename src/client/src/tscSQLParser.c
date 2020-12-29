@@ -4561,8 +4561,8 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  int32_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
-  for(int32_t i = 0; i < numOfExprs; ++i) {
+  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  for(size_t i = 0; i < numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     if (pExpr->functionId == TSDB_FUNC_TOP || pExpr->functionId == TSDB_FUNC_BOTTOM) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
