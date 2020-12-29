@@ -883,6 +883,7 @@ void tscCloseTscObj(void *param) {
     rpcClose(pObj->pDnodeConn);
     pObj->pDnodeConn = NULL;
   }
+
   tfree(pObj->tscCorMgmtEpSet);
   pthread_mutex_destroy(&pObj->mutex);
 

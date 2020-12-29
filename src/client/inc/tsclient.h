@@ -494,7 +494,8 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   }
 }
 
-extern SHashObj  *tscHashMap;
+extern int32_t    sentinel;
+extern SHashObj  *tscVgroupMap;
 extern SHashObj  *tscTableMetaInfo;
 
 extern int   tscObjRef;
