@@ -22,12 +22,15 @@ import argparse
 import os.path
 
 class taosdemoPerformace:
-    def __init__(self, commitID, dbName, createTableTime, insertRecordsTime, recordsPerSecond):
+    def __init__(self, commitID, dbName, createTableTime, insertRecordsTime, recordsPerSecond, avgDelay, maxDelay, minDelay):
         self.commitID = commitID
         self.dbName = dbName
         self.createTableTime = createTableTime
         self.insertRecordsTime = insertRecordsTime
-        self.recordsPerSecond = recordsPerSecond        
+        self.recordsPerSecond = recordsPerSecond
+        self.avgDelay = avgDelay
+        self.maxDelay = maxDelay
+        self.minDelay = minDelay
         self.host = "127.0.0.1"
         self.user = "root"
         self.password = "taosdata"
@@ -43,12 +46,15 @@ class taosdemoPerformace:
                     
         cursor.execute("create database if not exists %s" % self.dbName)
         cursor.execute("use %s" % self.dbName)
-        cursor.execute("create table if not exists taosdemo_perf (ts timestamp, create_table_time float, insert_records_time float, records_per_second float, commit_id binary(50))")
+        cursor.execute("create table if not exists taosdemo_perf (ts timestamp, create_table_time float, insert_records_time float, records_per_second float, commit_id binary(50), avg_delay float, max_delay float, min_delay float)")
         print("==================== taosdemo performance ====================")
         print("create tables time: %f" % self.createTableTime)
         print("insert records time: %f" % self.insertRecordsTime)
         print("records per second: %f" % self.recordsPerSecond)
-        cursor.execute("insert into taosdemo_perf values(now, %f, %f, %f, '%s')" % (self.createTableTime, self.insertRecordsTime, self.recordsPerSecond, self.commitID))
+        print("avg delay: %f" % self.avgDelay)
+        print("max delay: %f" % self.maxDelay)
+        print("min delay: %f" % self.minDelay)        
+        cursor.execute("insert into taosdemo_perf values(now, %f, %f, %f, '%s', %f, %f, %f)" % (self.createTableTime, self.insertRecordsTime, self.recordsPerSecond, self.commitID, self.avgDelay, self.maxDelay, self.minDelay))
         cursor.execute("drop database if exists taosdemo_insert_test")
 
         cursor.close()
@@ -86,8 +92,28 @@ if __name__ == '__main__':
         action='store',        
         type=float,
         help='records per request')
+    parser.add_argument(
+        '-avg',
+        '---avg-delay',
+        action='store',        
+        type=float,
+        help='avg delay')
+    parser.add_argument(
+        '-max',
+        '---max-delay',
+        action='store',        
+        type=float,
+        help='max delay')
+    parser.add_argument(
+        '-min',
+        '---min-delay',
+        action='store',        
+        type=float,
+        help='min delay')
+
     
     args = parser.parse_args()
 
-    perftest = taosdemoPerformace(args.commit_id, args.database_name, args.create_table, args.insert_records, args.records_per_second)    
+    perftest = taosdemoPerformace(args.commit_id, args.database_name, args.create_table, args.insert_records, args.records_per_second, 
+                        args.avg_delay, args.max_delay, args.min_delay) 
     perftest.createTablesAndStoreData()
