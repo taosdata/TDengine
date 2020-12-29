@@ -109,6 +109,4 @@ run general/parser/function.sim
 #sleep 500
 #run general/parser/repeatStream.sim
 #sleep 500
-#run general/parser/stream_on_sys.sim
-#sleep 500
 #run general/parser/stream.sim

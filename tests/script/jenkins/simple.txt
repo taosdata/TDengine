@@ -147,7 +147,6 @@ cd ../../../debug; make
 ./test.sh -f general/parser/join_multivnode.sim
 ./test.sh -f general/parser/binary_escapeCharacter.sim
 ./test.sh -f general/parser/bug.sim
-#./test.sh -f general/parser/stream_on_sys.sim
 ./test.sh -f general/parser/repeatAlter.sim
 #./test.sh -f general/parser/repeatStream.sim
 
