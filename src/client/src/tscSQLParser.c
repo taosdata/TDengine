@@ -6601,17 +6601,17 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
   tscFieldInfoUpdateOffset(pQueryInfo);
 
-  /*
-   * fill options are set at the end position, when all columns are set properly
-   * the columns may be increased due to group by operation
-   */
-  if ((code = checkQueryRangeForFill(pCmd, pQueryInfo)) != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
   if (pQuerySql->fillType != NULL) {
     if (pQueryInfo->interval.interval == 0 && (!tscIsPointInterpQuery(pQueryInfo))) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    }
+
+    /*
+     * fill options are set at the end position, when all columns are set properly
+     * the columns may be increased due to group by operation
+     */
+    if ((code = checkQueryRangeForFill(pCmd, pQueryInfo)) != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
     if ((code = parseFillClause(pCmd, pQueryInfo, pQuerySql)) != TSDB_CODE_SUCCESS) {
