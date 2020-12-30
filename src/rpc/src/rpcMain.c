@@ -1604,7 +1604,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
 }
 
 static void rpcLockConn(SRpcConn *pConn) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   int     i = 0;
   while (atomic_val_compare_exchange_64(&(pConn->lockedBy), 0, tid) != 0) {
     if (++i % 1000 == 0) {
@@ -1614,7 +1614,7 @@ static void rpcLockConn(SRpcConn *pConn) {
 }
 
 static void rpcUnlockConn(SRpcConn *pConn) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(&(pConn->lockedBy), tid, 0) != tid) {
     assert(false);
   }

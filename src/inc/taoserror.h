@@ -209,9 +209,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_APP_ERROR,                0, 0x0509, "Unexpected
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VRESION_FILE,     0, 0x050A, "Invalid version file")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_FULL,                  0, 0x050B, "Database memory is full for commit failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_FLOWCTRL,              0, 0x050C, "Database memory is full for waiting commit")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_DROPPING,              0, 0x050D, "Database is dropping")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_BALANCING,             0, 0x050E, "Database is balancing")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_SYNCED,               0, 0x0511, "Database suspended")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            0, 0x0512, "Database write operation denied")
-TAOS_DEFINE_ERROR(TSDB_CODE_VND_SYNCING,                  0, 0x0513, "Database is syncing")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_SYNCING,               0, 0x0513, "Database is syncing")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         0, 0x0600, "Invalid table ID")
