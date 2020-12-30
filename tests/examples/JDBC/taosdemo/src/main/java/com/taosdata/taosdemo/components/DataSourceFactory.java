@@ -23,10 +23,19 @@ public class DataSourceFactory {
                     properties.load(is);
 
                     HikariConfig config = new HikariConfig();
-                    if (properties.containsKey("jdbc.driver"))
+
+                    if (properties.containsKey("jdbc.driver")) {
+//                        String driverName = properties.getProperty("jdbc.driver");
+//                        System.out.println(">>> load driver : " + driverName);
+//                        try {
+//                            Class.forName(driverName);
+//                        } catch (ClassNotFoundException e) {
+//                            e.printStackTrace();
+//                        }
                         config.setDriverClassName(properties.getProperty("jdbc.driver"));
-                    else
+                    } else {
                         config.setDriverClassName("com.taosdata.jdbc.TSDBDriver");
+                    }
                     if ("com.taosdata.jdbc.rs.RestfulDriver".equalsIgnoreCase(properties.getProperty("jdbc.driver")))
                         config.setJdbcUrl("jdbc:TAOS-RS://" + host + ":6041/?charset=UTF-8&locale=en_US.UTF-8&timezone=UTC-8");
                     else
