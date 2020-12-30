@@ -85,6 +85,9 @@ class TDTestCase:
         tdSql.checkData(0, 1, 0.1)
         tdSql.checkData(1, 1, 1.1)
                    
+        #TD-2457 bottom + interval + order by
+        tdSql.error('select top(col2,1) from test interval(1y) order by col2;')
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
