@@ -5786,7 +5786,8 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
   // skip offset result rows
   pQuery->rec.rows = 0;
 
-  if (pQuery->fillType == TSDB_FILL_NONE) {
+  // not fill or no result generated during this query
+  if (pQuery->fillType == TSDB_FILL_NONE || pRuntimeEnv->windowResInfo.size == 0) {
     // all data scanned, the group by normal column can return
     int32_t numOfClosed = numOfClosedResultRows(&pRuntimeEnv->windowResInfo);
     if (pQuery->limit.offset > numOfClosed) {
