@@ -158,8 +158,8 @@ if $data00 != $rowNum then
   return -1
 endi
 
-#system sh/exec.sh -n dnode1 -s stop  -x SIGINT
-#system sh/exec.sh -n dnode2 -s stop  -x SIGINT
-#system sh/exec.sh -n dnode3 -s stop  -x SIGINT
-#system sh/exec.sh -n dnode4 -s stop  -x SIGINT
-#system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
