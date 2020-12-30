@@ -88,6 +88,19 @@ class TDTestCase:
         #TD-2457 bottom + interval + order by
         tdSql.error('select top(col2,1) from test interval(1y) order by col2;')
 
+        #TD-2563 top + super_table + interval 
+        tdSql.execute("create table meters(ts timestamp, c int) tags (d int)") 
+        tdSql.execute("create table t1 using meters tags (1)") 
+        sql = 'insert into t1 values '       
+        for i in range(20000):
+            sql = sql + '(%d, %d)' % (self.ts + i , i % 47)
+            if i % 2000 == 0:
+                tdSql.execute(sql)
+                sql = 'insert into t1 values ' 
+        tdSql.execute(sql)
+        tdSql.query('select bottom(c,1) from meters interval(10a)')
+        tdSql.checkData(0,1,0)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
