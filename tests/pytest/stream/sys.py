@@ -20,6 +20,8 @@ from util.sql import tdSql
 
 
 class TDTestCase:
+    updatecfgDict = {'monitor': 1}
+
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
