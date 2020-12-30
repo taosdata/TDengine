@@ -115,6 +115,9 @@ public class RestfulConnection implements Connection {
 
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+
         return this.metadata;
     }
 
@@ -122,8 +125,7 @@ public class RestfulConnection implements Connection {
     public void setReadOnly(boolean readOnly) throws SQLException {
         if (isClosed())
             throw new SQLException(CONNECTION_IS_CLOSED);
-        if (!readOnly)
-            throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        // nothing to do
     }
 
     @Override
