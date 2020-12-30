@@ -4498,8 +4498,9 @@ static TSKEY doSkipIntervalProcess(SQueryRuntimeEnv* pRuntimeEnv, STimeWindow* w
 
     return key;
   } else {  // do nothing
-    pQuery->window.skey = tw.skey;
+    pQuery->window.skey      = tw.skey;
     pWindowResInfo->prevSKey = tw.skey;
+    pTableQueryInfo->lastKey = tw.skey;
 
     return tw.skey;
   }
@@ -4509,22 +4510,6 @@ static TSKEY doSkipIntervalProcess(SQueryRuntimeEnv* pRuntimeEnv, STimeWindow* w
 
 static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
-
-  // get the first unclosed time window
-  bool assign = false;
-  for(int32_t i = 0; i < pRuntimeEnv->windowResInfo.size; ++i) {
-    if (pRuntimeEnv->windowResInfo.pResult[i]->closed) {
-      continue;
-    }
-
-    assign = true;
-    *start = pRuntimeEnv->windowResInfo.pResult[i]->win.skey;
-  }
-
-  if (!assign) {
-    *start = pQuery->current->lastKey;
-  }
-
   assert(*start <= pQuery->current->lastKey);
 
   // if queried with value filter, do NOT forward query start position
@@ -4540,6 +4525,7 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
   assert(pRuntimeEnv->windowResInfo.prevSKey == TSKEY_INITIAL_VAL);
 
   STimeWindow w = TSWINDOW_INITIALIZER;
+  bool ascQuery = QUERY_IS_ASC_QUERY(pQuery);
 
   SResultRowInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
   STableQueryInfo *pTableQueryInfo = pQuery->current;
@@ -4564,18 +4550,24 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
     while (pQuery->limit.offset > 0) {
       STimeWindow tw = win;
 
-      if ((win.ekey <= blockInfo.window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-          (win.ekey >= blockInfo.window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
+      if ((win.ekey <= blockInfo.window.ekey && ascQuery) || (win.ekey >= blockInfo.window.skey && !ascQuery)) {
         pQuery->limit.offset -= 1;
         pWindowResInfo->prevSKey = win.skey;
+
+        // current time window is aligned with blockInfo.window.ekey
+        // restart it from next data block by set prevSKey to be TSKEY_INITIAL_VAL;
+        if ((win.ekey == blockInfo.window.ekey && ascQuery) || (win.ekey == blockInfo.window.skey && !ascQuery)) {
+          pWindowResInfo->prevSKey = TSKEY_INITIAL_VAL;
+        }
       }
 
-      // current window does not ended in current data block, try next data block
-      getNextTimeWindow(pQuery, &tw);
       if (pQuery->limit.offset == 0) {
         *start = doSkipIntervalProcess(pRuntimeEnv, &win, &blockInfo, pTableQueryInfo);
         return true;
       }
+
+      // current window does not ended in current data block, try next data block
+      getNextTimeWindow(pQuery, &tw);
 
       /*
        * If the next time window still starts from current data block,
@@ -4584,13 +4576,12 @@ static bool skipTimeInterval(SQueryRuntimeEnv *pRuntimeEnv, TSKEY* start) {
        * TODO: Optimize for this cases. All data blocks are not needed to be loaded, only if the first actually required
        * time window resides in current data block.
        */
-      if ((tw.skey <= blockInfo.window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-          (tw.ekey >= blockInfo.window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
-        SArray *         pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pQueryHandle, NULL);
+      if ((tw.skey <= blockInfo.window.ekey && ascQuery) || (tw.ekey >= blockInfo.window.skey && !ascQuery)) {
+
+        SArray *pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pQueryHandle, NULL);
         SColumnInfoData *pColInfoData = taosArrayGet(pDataBlock, 0);
 
-        if ((win.ekey > blockInfo.window.ekey && QUERY_IS_ASC_QUERY(pQuery)) ||
-            (win.ekey < blockInfo.window.skey && !QUERY_IS_ASC_QUERY(pQuery))) {
+        if ((win.ekey > blockInfo.window.ekey && ascQuery) || (win.ekey < blockInfo.window.skey && !ascQuery)) {
           pQuery->limit.offset -= 1;
         }
 
@@ -5767,7 +5758,7 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   pQuery->current = pTableInfo;
 
-  TSKEY newStartKey = TSKEY_INITIAL_VAL;
+  TSKEY newStartKey = QUERY_IS_ASC_QUERY(pQuery)? INT64_MIN:INT64_MAX;
 
   // skip blocks without load the actual data block from file if no filter condition present
   if (!pRuntimeEnv->groupbyNormalCol) {

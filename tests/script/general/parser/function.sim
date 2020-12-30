@@ -244,3 +244,70 @@ if $data00 != -2.000000000 then
   print expect -2.000000000, actual: $data00
   return -1
 endi
+
+sql create table tm1 (ts timestamp,  k int);
+sql insert into tm1 values('2020-10-30 18:11:56.680', -1000);
+sql insert into tm1 values('2020-11-19 18:11:45.773', NULL);
+sql insert into tm1 values('2020-12-09 18:11:17.098', NULL);
+sql insert into tm1 values('2020-12-20 18:11:49.412', 1);
+sql insert into tm1 values('2020-12-23 18:11:50.412', 2);
+sql insert into tm1 values('2020-12-28 18:11:52.412', 3);
+
+print =====================> td-2610
+sql select twa(k)from tm1 where ts>='2020-11-19 18:11:45.773' and ts<='2020-12-9 18:11:17.098'
+if $rows != 0 then
+ return -1
+endi
+
+print =====================> td-2609
+sql select apercentile(k, 50) from tm1 where ts>='2020-10-30 18:11:56.680' and ts<='2020-12-09 18:11:17.098'
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != -1000.000000000 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 1000
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql connect
+sleep 500
+
+sql use m_func_db0
+
+print =====================> td-2583
+sql select min(k) from tm1 where ts>='2020-11-19 18:11:45.773' and ts<='2020-12-20 18:11:49.412'
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  print expect 1, actual: $data00
+  return -1
+endi
+
+print =====================> td-2601
+sql select count(*) from tm1 where ts<='2020-6-1 00:00:00' and ts>='2020-1-1 00:00:00' interval(1n) fill(NULL)
+if $rows != 0 then
+  return -1
+endi
+
+print =====================> td-2615
+sql select last(ts) from tm1 interval(17a) limit 776 offset 3
+if $rows != 3 then
+  return -1
+endi
+
+sql select last(ts) from tm1 interval(17a) limit 1000 offset 4
+if $rows != 2 then
+  return -1
+endi
+
+sql select last(ts) from tm1 interval(17a) order by ts desc limit 1000 offset 0
+if $rows != 6 then
+  return -1
+endi
+

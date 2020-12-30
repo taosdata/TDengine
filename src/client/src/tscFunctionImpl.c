@@ -15,19 +15,15 @@
 
 #include "os.h"
 #include "qAst.h"
-#include "qExtbuffer.h"
 #include "qFill.h"
 #include "qHistogram.h"
 #include "qPercentile.h"
-#include "qSyntaxtreefunction.h"
 #include "qTsbuf.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
-#include "tscompression.h"
 #include "tsqlfunction.h"
-#include "tutil.h"
 #include "ttype.h"
 
 #define GET_INPUT_CHAR(x) (((char *)((x)->aInputElemBuf)) + ((x)->startOffset) * ((x)->inputBytes))
@@ -920,6 +916,10 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
   if (pCtx->preAggVals.isSet) {
     *notNullElems = pCtx->size - pCtx->preAggVals.statis.numOfNull;
     assert(*notNullElems >= 0);
+
+    if (*notNullElems == 0) {
+      return;
+    }
     
     void *  tval = NULL;
     int16_t index = 0;
