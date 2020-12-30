@@ -96,6 +96,7 @@ public class HttpClientPoolUtil {
                 initPools();
             }
             method = (HttpEntityEnclosingRequestBase) getRequest(uri, HttpPost.METHOD_NAME, DEFAULT_CONTENT_TYPE, 0);
+            method.setHeader("Authorization", "Basic cm9vdDp0YW9zZGF0YQ==");
             method.setHeader("Content-Type", "text/plain");
             method.setEntity(new StringEntity(data, Charset.forName("UTF-8")));
             HttpContext context = HttpClientContext.create();

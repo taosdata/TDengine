@@ -1,5 +1,6 @@
 package com.taosdata.jdbc.rs;
 
+
 import org.junit.*;
 import org.junit.runners.MethodSorters;
 
@@ -22,6 +23,7 @@ public class RestfulJDBCTest {
         if (connection != null)
             connection.close();
     }
+
 
     /**
      * 查询所有log.log
