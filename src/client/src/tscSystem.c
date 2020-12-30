@@ -69,7 +69,9 @@ void tscReleaseRpc(void *param)  {
   if (param == NULL) {
     return;
   }
+  pthread_mutex_lock(&rpcObjMutex);
   taosCacheRelease(tscRpcCache, (void *)&param, false); 
+  pthread_mutex_unlock(&rpcObjMutex);
 } 
 
 int32_t tscInitRpc(const char *insKey, const char *user, const char *secretEncrypt, void **ppRpcObj, void **pDnodeConn) {
