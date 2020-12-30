@@ -69,7 +69,7 @@ void tscReleaseRpc(void *param)  {
   if (param == NULL) {
     return;
   }
-  taosCacheRelease(tscRpcCache, (void *)&param, false); 
+  taosCacheRelease(tscRpcCache, (void *)&param, true); 
 } 
 
 int32_t tscInitRpc(const char *insKey, const char *user, const char *secretEncrypt, void **ppRpcObj, void **pDnodeConn) {
