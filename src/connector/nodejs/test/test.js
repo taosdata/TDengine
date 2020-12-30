@@ -84,10 +84,19 @@ q.execute().then(function(r) {
   r.pretty();
 });
 
+
+// test query null value
+c1.execute("create table if not exists td_connector_test.weather(ts timestamp, temperature float, humidity int) tags(location nchar(64))");
+c1.execute("insert into t1 using weather tags('北京') values(now, 11.11, 11)");
+c1.execute("insert into t1(ts, temperature) values(now, 22.22)");
+c1.execute("insert into t1(ts, humidity) values(now, 33)");
+c1.query('select * from test.t1', true).then(function (result) {
+     result.pretty();
+});
+
 var q = c1.query('select * from td_connector_test.weather');
 console.log(q.query);
 q.execute().then(function(r) {
-	//console.log(r);
   	r.pretty();
 });
 
