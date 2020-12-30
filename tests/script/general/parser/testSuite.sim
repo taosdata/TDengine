@@ -105,8 +105,3 @@ sleep 500
 run general/parser/sliding.sim
 sleep 500
 run general/parser/function.sim
-
-#sleep 500
-#run general/parser/repeatStream.sim
-#sleep 500
-#run general/parser/stream.sim

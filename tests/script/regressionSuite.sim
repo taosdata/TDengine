@@ -134,8 +134,6 @@ run general/parser/tags_dynamically_specifiy.sim
 run general/parser/set_tag_vals.sim
 run general/parser/repeatAlter.sim
 ##unsupport run general/parser/slimit_alter_tags.sim
-run general/parser/stream.sim
-#unsupport run general/parser/repeatStream.sim
 run general/stable/disk.sim
 run general/stable/dnode3.sim
 run general/stable/metrics.sim
