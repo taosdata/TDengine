@@ -664,13 +664,14 @@ typedef struct {
   int8_t   precision;
   int8_t   compression;
   int8_t   walLevel;
-  int8_t   replications;
+  int8_t   vgReplica;
   int8_t   wals;
   int8_t   quorum;
   int8_t   update;
   int8_t   cacheLastRow;
   int32_t  vgCfgVersion;
-  int8_t   reserved[10];
+  int8_t   dbReplica;
+  int8_t   reserved[9];
 } SVnodeCfg;
 
 typedef struct {

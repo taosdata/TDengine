@@ -861,11 +861,12 @@ static SCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   pCfg->precision           = pDb->cfg.precision;
   pCfg->compression         = pDb->cfg.compression;
   pCfg->walLevel            = pDb->cfg.walLevel;
-  pCfg->replications        = (int8_t) pVgroup->numOfVnodes;
+  pCfg->vgReplica           = (int8_t) pVgroup->numOfVnodes;
   pCfg->wals                = 3;
   pCfg->quorum              = pDb->cfg.quorum;
   pCfg->update              = pDb->cfg.update;
   pCfg->cacheLastRow        = pDb->cfg.cacheLastRow;
+  pCfg->dbReplica           = pDb->cfg.replications;
   
   SVnodeDesc *pNodes = pVnode->nodes;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {
