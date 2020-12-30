@@ -353,12 +353,16 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 void *syncRestoreData(void *param) {
   int64_t    rid = (int64_t)param;
   SSyncPeer *pPeer = syncAcquirePeer(rid);
-  if (pPeer == NULL) return NULL;
+  if (pPeer == NULL) {
+    sError("failed to restore data, invalid peer rid:%" PRId64, rid);
+    return NULL;
+  }
 
   SSyncNode *pNode = pPeer->pSyncNode;
 
   taosBlockSIGPIPE();
   __sync_fetch_and_add(&tsSyncNum, 1);
+  sInfo("%s, start to restore data, sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
 
   (*pNode->notifyRole)(pNode->vgId, TAOS_SYNC_ROLE_SYNCING);
 
@@ -380,11 +384,14 @@ void *syncRestoreData(void *param) {
   (*pNode->notifyRole)(pNode->vgId, nodeRole);
 
   nodeSStatus = TAOS_SYNC_STATUS_INIT;
-  sInfo("%s, sync over, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
+  sInfo("%s, restore data over, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
 
   taosClose(pPeer->syncFd);
   syncCloseRecvBuffer(pNode);
   __sync_fetch_and_sub(&tsSyncNum, 1);
+
+  // The ref is obtained in both the create thread and the current thread, so it is released twice
+  syncReleasePeer(pPeer);
   syncReleasePeer(pPeer);
 
   return NULL;

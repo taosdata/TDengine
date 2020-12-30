@@ -25,13 +25,15 @@ bool taosCheckPthreadValid(pthread_t thread) { return thread.p != NULL; }
 
 void taosResetPthread(pthread_t *thread) { thread->p = 0; }
 
-int64_t taosGetPthreadId() {
+int64_t taosGetPthreadId(pthread_t thread) {
 #ifdef PTW32_VERSION
-  return pthread_getw32threadid_np(pthread_self());
+  return pthread_getw32threadid_np(thread);
 #else
-  return (int64_t)pthread_self();
+  return (int64_t)thread;
 #endif
 }
+
+int64_t taosGetSelfPthreadId() { return taosGetPthreadId(pthread_self()); }
 
 bool taosComparePthread(pthread_t first, pthread_t second) {
   return first.p == second.p;
