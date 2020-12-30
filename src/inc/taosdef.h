@@ -436,7 +436,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_PORT_HTTP                  11
 #define TSDB_PORT_ARBITRATOR            12
 
-#define TSDB_MAX_WAL_SIZE    (1024*1024)
+#define TSDB_MAX_WAL_SIZE    (1024*1024*2)
 
 typedef enum {
   TAOS_QTYPE_RPC   = 0,
