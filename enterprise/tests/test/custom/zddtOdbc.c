@@ -283,7 +283,7 @@ void gsReadConfigFile()
 
   line = NULL;
   while (!feof(fp)) {
-    taosTFree(line);
+    tfree(line);
     line = option = value = NULL;
     len = olen = vlen = 0;
 
@@ -358,7 +358,7 @@ void gsReadConfigFile()
     }
   }
 
-  taosTFree(line);
+  tfree(line);
   fclose(fp);
 
   gsPrintArgs();
@@ -392,7 +392,7 @@ void gsReadBasicConfig()
 
   line = NULL;
   while (!feof(fp)) {
-    taosTFree(line);
+    tfree(line);
     line = option = value = NULL;
     len = olen = vlen = 0;
 
@@ -416,7 +416,7 @@ void gsReadBasicConfig()
     else {}
   }
 
-  taosTFree(line);
+  tfree(line);
   fclose(fp);
 
   struct stat  dirstat;

@@ -20,6 +20,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "tgrant.h"
+#include "tref.h"
 #include "tglobal.h"
 #include "tdataformat.h"
 #include "monitor.h"
@@ -54,6 +55,9 @@
 #define TSDB_MIN_QUERYTIME_PER_ACCT   3600  // 1 hour
 #define TSDB_MAX_QUERYTIME_PER_ACCT   INT64_MAX
 
+extern int64_t tsVgroupRid;
+extern int64_t tsAcctRid;
+extern int64_t tsSdbRid;
 extern void *  tsAcctSdb;
 extern void *  tsMnodeTmr;
 static void *  tsMgmtStatisTimer = NULL;
@@ -66,7 +70,8 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
 static int32_t acctRetrieveData(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 
 static void acctDoStatistic(void *handle, void *tmrId) {  
-  if (tsAcctSdb != NULL) {
+  void *acctSdb = taosAcquireRef(tsSdbRid, tsAcctRid);
+  if (acctSdb != NULL) {
     SAcctObj *pAcct = NULL;
     void *    pIter = NULL;
     int64_t   totalStorage = 0;
@@ -77,9 +82,9 @@ static void acctDoStatistic(void *handle, void *tmrId) {
       totalStorage += acctGetStatistic(pAcct);
       mnodeDecAcctRef(pAcct);
     }
-    sdbFreeIter(pIter);
 
     grantReset(TSDB_GRANT_STORAGE, (uint64_t)totalStorage);
+    taosReleaseRef(tsSdbRid, tsAcctRid);
   }
 
   taosTmrReset(acctDoStatistic, tsMonitorInterval * 1000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
@@ -91,6 +96,7 @@ int32_t acctInit() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_ACCT, acctProcessAlterAcctMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_ACCT, acctGetAcctMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_ACCT, acctRetrieveData);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_ACCT, mnodeCancelGetNextAcct);
 
   taosTmrReset(acctDoStatistic, tsStatusInterval * 1000, NULL, tsMnodeTmr, &tsMgmtStatisTimer);
   
@@ -228,19 +234,19 @@ static int32_t acctCreateAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg
   int32_t grantCode = grantCheck(TSDB_GRANT_ACCT);
   if (grantCode != TSDB_CODE_SUCCESS) return grantCode;
 
-   SSdbOper oper = {
-    .type    = SDB_OPER_GLOBAL,
-    .table   = tsAcctSdb,
-    .pObj    = pAcct,
-    .rowSize = sizeof(SAcctObj),
-    .pMsg    = pMsg
+   SSdbRow row = {
+    .type     = SDB_OPER_GLOBAL,
+    .pTable   = tsAcctSdb,
+    .pObj     = pAcct,
+    .rowSize  = sizeof(SAcctObj),
+    .pMsg     = pMsg
   };
   
-  int32_t code = sdbInsertRow(&oper);
+  int32_t code = sdbInsertRow(&row);
 
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("acct:%s, failed to create by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
-    taosTFree(pAcct);
+    tfree(pAcct);
   } else {
     mLInfo("acct:%s, is created by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
 
@@ -261,14 +267,14 @@ static int32_t acctDropAcct(char *name, void *pMsg) {
     return TSDB_CODE_MND_INVALID_ACCT;
   }
 
-  SSdbOper oper = {
-    .type  = SDB_OPER_GLOBAL,
-    .table = tsAcctSdb,
-    .pObj  = pAcct,
-    .pMsg  = pMsg
+  SSdbRow row = {
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsAcctSdb,
+    .pObj   = pAcct,
+    .pMsg   = pMsg
   };
 
-  int32_t code = sdbDeleteRow(&oper);
+  int32_t code = sdbDeleteRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("acct:%s, failed to drop by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
   } else {
@@ -569,17 +575,17 @@ static int32_t acctAlterAcct(char *name, char *pass, SAcctCfg *pCfg, void *pMsg)
     pAcct->cfg.accessState = pCfg->accessState;
   }
 
-  SSdbOper oper = {
-    .type  = SDB_OPER_GLOBAL,
-    .table = tsAcctSdb,
-    .pObj  = pAcct,
-    .pMsg  = pMsg
+  SSdbRow row = {
+    .type   = SDB_OPER_GLOBAL,
+    .pTable = tsAcctSdb,
+    .pObj   = pAcct,
+    .pMsg   = pMsg
   };
 
-  int32_t code = sdbUpdateRow(&oper);
+  int32_t code = sdbUpdateRow(&row);
   if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("acct:%s, failed to drop by %s, reason:%s", pAcct->user, mnodeGetUserFromMsg(pMsg), tstrerror(code));
-    taosTFree(pAcct);
+    tfree(pAcct);
   } else {
     mLInfo("acct:%s, is dropped by %s", pAcct->user, mnodeGetUserFromMsg(pMsg));
   }
@@ -597,6 +603,9 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   int64_t pointsWritten = 0;
   TSKEY   sKey = taosGetTimestampMs();
 
+  void *vgroupSdb = taosAcquireRef(tsSdbRid, tsVgroupRid);
+  if (vgroupSdb == NULL) return 0;
+
   while (1) {
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
@@ -608,7 +617,7 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
     mnodeDecVgroupRef(pVgroup);
   }
 
-  sdbFreeIter(pIter);
+  taosReleaseRef(tsSdbRid, tsVgroupRid);
 
   pAcct->acctInfo.totalStorage = totalStorage;
   pAcct->acctInfo.numOfPointsPerSecond =
@@ -662,13 +671,13 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   monObj.maxConns               = pAcct->cfg.maxConnections;
   monObj.accessState            = pAcct->acctInfo.accessState;
 
-  monitorSaveAcctLog(&monObj);
+  monSaveAcctLog(&monObj);
 
   return totalStorage;
 }
 
 static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
-  SCMCreateAcctMsg *pCreate = pMsg->rpcMsg.pCont;
+  SCreateAcctMsg *pCreate = pMsg->rpcMsg.pCont;
   SAcctObj *pAcct = mnodeGetAcct(pCreate->user);
   if (pAcct != NULL) {
     mInfo("acct:%s, already exist, update it", pCreate->user);
@@ -697,7 +706,7 @@ static int32_t acctProcessCreateAcctMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg) {
-  SCMDropAcctMsg *pDrop = pMsg->rpcMsg.pCont;
+  SDropAcctMsg *pDrop = pMsg->rpcMsg.pCont;
 
   SUserObj *pUser = pMsg->pUser;
   if (strcmp(pUser->user, "root") != 0) {
@@ -709,7 +718,7 @@ static int32_t acctProcessDropAcctMsg(SMnodeMsg *pMsg) {
 }
 
 static int32_t acctProcessAlterAcctMsg(SMnodeMsg *pMsg) {
-  SCMAlterAcctMsg *pAlter = pMsg->rpcMsg.pCont;
+  SAlterAcctMsg *pAlter = pMsg->rpcMsg.pCont;
   pAlter->cfg.maxUsers           = htonl(pAlter->cfg.maxUsers);
   pAlter->cfg.maxDbs             = htonl(pAlter->cfg.maxDbs);
   pAlter->cfg.maxTimeSeries      = htonl(pAlter->cfg.maxTimeSeries);
