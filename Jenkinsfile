@@ -87,6 +87,7 @@ pipeline {
             pre_test()
             sh '''
             cd ${WKC}/tests
+            find pytest -name '*'sql|xargs rm -rf
             ./test-all.sh p1
             date'''
           }
@@ -98,6 +99,7 @@ pipeline {
             pre_test()
             sh '''
             cd ${WKC}/tests
+            find pytest -name '*'sql|xargs rm -rf
             ./test-all.sh p2
             date'''
           }
