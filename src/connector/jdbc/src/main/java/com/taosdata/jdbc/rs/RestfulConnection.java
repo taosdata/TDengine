@@ -12,6 +12,8 @@ import java.util.concurrent.Executor;
 
 public class RestfulConnection implements Connection {
 
+    private static final String CONNECTION_IS_CLOSED = "connection is closed.";
+    private static final String AUTO_COMMIT_IS_TRUE = "auto commit is true";
     private final String host;
     private final int port;
     private final Properties props;
@@ -35,44 +37,67 @@ public class RestfulConnection implements Connection {
     @Override
     public Statement createStatement() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg("connection is closed."));
+            throw new SQLException(CONNECTION_IS_CLOSED);
+
         return new RestfulStatement(this, database);
     }
 
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         //TODO: prepareStatement
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public CallableStatement prepareCall(String sql) throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public String nativeSQL(String sql) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+
+        //nothing did
+        return sql;
     }
 
     @Override
     public void setAutoCommit(boolean autoCommit) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        if (!autoCommit)
+            throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public boolean getAutoCommit() throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         return true;
     }
 
     @Override
     public void commit() throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        if (getAutoCommit())
+            throw new SQLException(AUTO_COMMIT_IS_TRUE);
+        //nothing to do
     }
 
     @Override
     public void rollback() throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        if (getAutoCommit())
+            throw new SQLException(AUTO_COMMIT_IS_TRUE);
+        //nothing to do
     }
 
     @Override
@@ -90,56 +115,83 @@ public class RestfulConnection implements Connection {
 
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
-        //TODO: RestfulDatabaseMetaData is not implemented
         return this.metadata;
     }
 
     @Override
     public void setReadOnly(boolean readOnly) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        if (!readOnly)
+            throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public boolean isReadOnly() throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         return true;
     }
 
     @Override
     public void setCatalog(String catalog) throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         //nothing to do
     }
 
     @Override
     public String getCatalog() throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         return this.database;
     }
 
     @Override
     public void setTransactionIsolation(int level) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        switch (level) {
+            case Connection.TRANSACTION_NONE:
+                break;
+            case Connection.TRANSACTION_READ_UNCOMMITTED:
+            case Connection.TRANSACTION_READ_COMMITTED:
+            case Connection.TRANSACTION_REPEATABLE_READ:
+            case Connection.TRANSACTION_SERIALIZABLE:
+                throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+            default:
+                throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+        }
     }
 
-    /**
-     *
-     */
     @Override
     public int getTransactionIsolation() throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         //Connection.TRANSACTION_NONE specifies that transactions are not supported.
         return Connection.TRANSACTION_NONE;
     }
 
     @Override
     public SQLWarning getWarnings() throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+
         return null;
     }
 
     @Override
     public void clearWarnings() throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        //nothing to do
     }
 
     @Override
     public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+
         if (resultSetType != ResultSet.TYPE_FORWARD_ONLY) {
             throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
         }
@@ -150,25 +202,32 @@ public class RestfulConnection implements Connection {
 
     @Override
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-        if (resultSetType != ResultSet.TYPE_FORWARD_ONLY) {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        if (resultSetType != ResultSet.TYPE_FORWARD_ONLY || resultSetConcurrency != ResultSet.CONCUR_READ_ONLY)
             throw new SQLFeatureNotSupportedException(TSDBConstants.INVALID_VARIABLES);
-        }
-        if (resultSetConcurrency != ResultSet.CONCUR_READ_ONLY) {
-            throw new SQLFeatureNotSupportedException(TSDBConstants.INVALID_VARIABLES);
-        }
+
         return this.prepareStatement(sql);
     }
 
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        if (resultSetType != ResultSet.TYPE_FORWARD_ONLY || resultSetConcurrency != ResultSet.CONCUR_READ_ONLY)
+            throw new SQLFeatureNotSupportedException(TSDBConstants.INVALID_VARIABLES);
+
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public Map<String, Class<?>> getTypeMap() throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+
         synchronized (RestfulConnection.class) {
             if (this.typeMap == null) {
-                this.typeMap = new HashMap<String, Class<?>>();
+                this.typeMap = new HashMap<>();
             }
             return this.typeMap;
         }
@@ -176,6 +235,9 @@ public class RestfulConnection implements Connection {
 
     @Override
     public void setTypeMap(Map<String, Class<?>> map) throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+
         synchronized (RestfulConnection.class) {
             this.typeMap = map;
         }
@@ -183,31 +245,53 @@ public class RestfulConnection implements Connection {
 
     @Override
     public void setHoldability(int holdability) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        if (holdability != ResultSet.HOLD_CURSORS_OVER_COMMIT)
+            throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public int getHoldability() throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         return ResultSet.HOLD_CURSORS_OVER_COMMIT;
     }
 
     @Override
     public Savepoint setSavepoint() throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        if (getAutoCommit())
+            throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+        //nothing to do
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public Savepoint setSavepoint(String name) throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        if (getAutoCommit())
+            throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+        //nothing to do
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public void rollback(Savepoint savepoint) throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
+        if (getAutoCommit())
+            throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+        //nothing to do
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public void releaseSavepoint(Savepoint savepoint) throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
@@ -277,11 +361,16 @@ public class RestfulConnection implements Connection {
 
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
+        if (isClosed)
+            throw new SQLClientInfoException();
         clientInfoProps.setProperty(name, value);
     }
 
     @Override
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
+        if (isClosed)
+            throw new SQLClientInfoException();
+
         for (Enumeration<Object> enumer = properties.keys(); enumer.hasMoreElements(); ) {
             String name = (String) enumer.nextElement();
             clientInfoProps.put(name, properties.getProperty(name));
@@ -290,11 +379,17 @@ public class RestfulConnection implements Connection {
 
     @Override
     public String getClientInfo(String name) throws SQLException {
+        if (isClosed)
+            throw new SQLClientInfoException();
+
         return clientInfoProps.getProperty(name);
     }
 
     @Override
     public Properties getClientInfo() throws SQLException {
+        if (isClosed)
+            throw new SQLClientInfoException();
+
         return clientInfoProps;
     }
 
@@ -310,11 +405,15 @@ public class RestfulConnection implements Connection {
 
     @Override
     public void setSchema(String schema) throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         //nothing to do
     }
 
     @Override
     public String getSchema() throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         return this.database;
     }
 
@@ -335,11 +434,15 @@ public class RestfulConnection implements Connection {
 
     @Override
     public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public int getNetworkTimeout() throws SQLException {
+        if (isClosed())
+            throw new SQLException(CONNECTION_IS_CLOSED);
         return 0;
     }
 
