@@ -69,7 +69,7 @@ void tscReleaseRpc(void *param)  {
   if (param == NULL) {
     return;
   }
-  taosCacheRelease(tscRpcCache, (void *)&param, true); 
+  taosCacheRelease(tscRpcCache, (void *)&param, false); 
 } 
 
 int32_t tscInitRpc(const char *insKey, const char *user, const char *secretEncrypt, void **ppRpcObj, void **pDnodeConn) {
@@ -87,7 +87,7 @@ int32_t tscInitRpc(const char *insKey, const char *user, const char *secretEncry
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
   rpcInit.label = "TSC";
-  rpcInit.numOfThreads = tscNumOfThreads * 2;    
+  rpcInit.numOfThreads = tscNumOfThreads;    
   rpcInit.cfp = tscProcessMsgFromServer;
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
