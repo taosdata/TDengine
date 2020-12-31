@@ -57,7 +57,7 @@ extern int32_t tsdbDebugFlag;
 #define TSDB_FILE_VERSION ((uint32_t)0)
 
 // Definitions
-// ------------------ tsdbMeta.c
+// ================= tsdbMeta.c
 typedef struct STable {
   STableId       tableId;
   ETableType     type;
@@ -180,7 +180,7 @@ static FORCE_INLINE TSKEY tsdbGetTableLastKeyImpl(STable* pTable) {
   return pTable->lastKey;
 }
 
-// ------------------ tsdbBuffer.c
+// ================= tsdbBuffer.c
 typedef struct {
   int64_t blockId;
   int     offset;
@@ -295,7 +295,7 @@ static FORCE_INLINE TKEY tsdbNextIterTKey(SSkipListIterator* pIter) {
   return dataRowTKey(row);
 }
 
-// ------------------ tsdbFile.c
+// ================= tsdbFile.c
 extern const char* tsdbFileSuffix[];
 
 // minFid <= midFid <= maxFid
@@ -392,7 +392,7 @@ void        tsdbGetFidGroup(STsdbCfg* pCfg, SFidGroup* pFidGroup);
 void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
 int         tsdbApplyRetention(STsdbRepo* pRepo, SFidGroup *pFidGroup);
 
-// ------------------ tsdbMain.c
+// ================= tsdbMain.c
 typedef struct {
   int32_t  totalLen;
   int32_t  len;
@@ -450,7 +450,7 @@ static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
   return pBufBlock;
 }
 
-// ------------------ tsdbRWHelper.c
+// ================= tsdbRWHelper.c
 typedef struct {
   int32_t  tid;
   uint32_t len;
@@ -544,26 +544,6 @@ typedef struct {
   void*      compBuffer;  // Buffer for temperary compress/decompress purpose
 } SRWHelper;
 
-// ------------------ tsdbScan.c
-typedef struct {
-  SFileGroup  fGroup;
-  int         numOfIdx;
-  SBlockIdx*  pCompIdx;
-  SBlockInfo* pCompInfo;
-  void*       pBuf;
-  FILE*       tLogStream;
-} STsdbScanHandle;
-
-int              tsdbScanFGroup(STsdbScanHandle* pScanHandle, char* rootDir, int fid);
-STsdbScanHandle* tsdbNewScanHandle();
-void             tsdbSetScanLogStream(STsdbScanHandle* pScanHandle, FILE* fLogStream);
-int              tsdbSetAndOpenScanFile(STsdbScanHandle* pScanHandle, char* rootDir, int fid);
-int              tsdbScanSBlockIdx(STsdbScanHandle* pScanHandle);
-int              tsdbScanSBlock(STsdbScanHandle* pScanHandle, int idx);
-int              tsdbCloseScanFile(STsdbScanHandle* pScanHandle);
-void             tsdbFreeScanHandle(STsdbScanHandle* pScanHandle);
-
-// ------------------ tsdbRWHelper.c
 #define TSDB_HELPER_CLEAR_STATE 0x0        // Clear state
 #define TSDB_HELPER_FILE_SET_AND_OPEN 0x1  // File is set
 #define TSDB_HELPER_IDX_LOAD 0x2           // SBlockIdx part is loaded
@@ -618,6 +598,25 @@ static FORCE_INLINE int compTSKEY(const void* key1, const void* key2) {
     return -1;
   }
 }
+
+// ================= tsdbScan.c
+typedef struct {
+  SFileGroup  fGroup;
+  int         numOfIdx;
+  SBlockIdx*  pCompIdx;
+  SBlockInfo* pCompInfo;
+  void*       pBuf;
+  FILE*       tLogStream;
+} STsdbScanHandle;
+
+int              tsdbScanFGroup(STsdbScanHandle* pScanHandle, char* rootDir, int fid);
+STsdbScanHandle* tsdbNewScanHandle();
+void             tsdbSetScanLogStream(STsdbScanHandle* pScanHandle, FILE* fLogStream);
+int              tsdbSetAndOpenScanFile(STsdbScanHandle* pScanHandle, char* rootDir, int fid);
+int              tsdbScanSBlockIdx(STsdbScanHandle* pScanHandle);
+int              tsdbScanSBlock(STsdbScanHandle* pScanHandle, int idx);
+int              tsdbCloseScanFile(STsdbScanHandle* pScanHandle);
+void             tsdbFreeScanHandle(STsdbScanHandle* pScanHandle);
 
 // ------------------ tsdbCommitQueue.c
 int tsdbScheduleCommit(STsdbRepo *pRepo);
