@@ -311,3 +311,53 @@ if $rows != 6 then
   return -1
 endi
 
+print ==================> td-2624
+sql create table tm2(ts timestamp, k int, b binary(12));
+sql insert into tm2 values('2011-01-02 18:42:45.326',      -1,'abc');
+sql insert into tm2 values('2020-07-30 17:44:06.283',       0, null);
+sql insert into tm2 values('2020-07-30 17:44:19.578', 9999999, null);
+sql insert into tm2 values('2020-07-30 17:46:06.417',    NULL, null);
+sql insert into tm2 values('2020-11-09 18:42:25.538',       0, null);
+sql insert into tm2 values('2020-12-29 17:43:11.641',       0, null);
+sql insert into tm2 values('2020-12-29 18:43:17.129',       0, null);
+sql insert into tm2 values('2020-12-29 18:46:19.109',    NULL, null);
+sql insert into tm2 values('2021-01-03 18:40:40.065',       0, null);
+
+sql select twa(k),first(ts) from tm2 where k <50 interval(17s);
+if $rows != 6 then
+  return -1
+endi
+
+if $data00 != @11-01-02 18:42:42.000@ then
+  return -1
+endi
+
+if $data02 != @11-01-02 18:42:45.326@ then
+  return -1
+endi
+
+if $data10 != @20-07-30 17:43:59.000@ then
+  return -1
+endi
+
+if $data21 != 0.000000000 then
+  return -1
+endi
+
+sql select twa(k),first(ts) from tm2 where k <50 interval(17s) order by ts desc;
+if $rows != 6 then
+  return -1
+endi
+
+sql select twa(k),first(ts),count(k),first(k) from tm2 interval(17s) limit 20 offset 0;
+if $rows != 9 then
+  return -1
+endi
+
+if $data00 != @11-01-02 18:42:42.000@ then
+  return -1
+endi
+
+if $data10 != @20-07-30 17:43:59.000@ then
+  return -1
+endi
