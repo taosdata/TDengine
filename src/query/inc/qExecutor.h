@@ -204,6 +204,8 @@ typedef struct SQueryRuntimeEnv {
   int32_t*             rowCellInfoOffset;// offset value for each row result cell info
   char**               prevRow;
   char**               nextRow;
+
+  SArithmeticSupport  *sasArray;
 } SQueryRuntimeEnv;
 
 enum {
