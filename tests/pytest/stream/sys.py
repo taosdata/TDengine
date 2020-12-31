@@ -28,6 +28,7 @@ class TDTestCase:
 
 
     def run(self):
+        time.sleep(5)
         tdSql.execute("use log")
 
         tdSql.execute("create table cpustrm as select count(*), avg(cpu_taosd), max(cpu_taosd), min(cpu_taosd), avg(cpu_system), max(cpu_cores), min(cpu_cores), last(cpu_cores) from log.dn1 interval(4s)")
