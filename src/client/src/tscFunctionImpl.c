@@ -921,6 +921,10 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
     *notNullElems = pCtx->size - pCtx->preAggVals.statis.numOfNull;
     assert(*notNullElems >= 0);
     
+    if (*notNullElems == 0){
+      return;
+    }
+
     void *  tval = NULL;
     int16_t index = 0;
     

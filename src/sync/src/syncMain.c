@@ -478,9 +478,7 @@ static void syncAddArbitrator(SSyncNode *pNode) {
 
 static void syncFreeNode(void *param) {
   SSyncNode *pNode = param;
-
-  int32_t refCount = atomic_sub_fetch_32(&pNode->refCount, 1);
-  sDebug("vgId:%d, syncnode is freed, refCount:%d", pNode->vgId, refCount);
+  sDebug("vgId:%d, node is freed, refCount:%d", pNode->vgId, pNode->refCount);
 
   pthread_mutex_destroy(&pNode->mutex);
   tfree(pNode->pRecv);
@@ -491,10 +489,10 @@ static void syncFreeNode(void *param) {
 SSyncNode *syncAcquireNode(int64_t rid) {
   SSyncNode *pNode = taosAcquireRef(tsNodeRefId, rid);
   if (pNode == NULL) {
-    sDebug("failed to acquire syncnode from refId:%" PRId64, rid);
+    sDebug("failed to acquire node from refId:%" PRId64, rid);
   } else {
     int32_t refCount = atomic_add_fetch_32(&pNode->refCount, 1);
-    sTrace("vgId:%d, acquire syncnode refId:%" PRId64 ", refCount:%d", pNode->vgId, rid, refCount);
+    sTrace("vgId:%d, acquire node refId:%" PRId64 ", refCount:%d", pNode->vgId, rid, refCount);
   }
 
   return pNode;
@@ -502,16 +500,14 @@ SSyncNode *syncAcquireNode(int64_t rid) {
 
 void syncReleaseNode(SSyncNode *pNode) {
   int32_t refCount = atomic_sub_fetch_32(&pNode->refCount, 1);
-  sTrace("vgId:%d, dec syncnode refId:%" PRId64 " refCount:%d", pNode->vgId, pNode->rid, refCount);
+  sTrace("vgId:%d, release node refId:%" PRId64 ", refCount:%d", pNode->vgId, pNode->rid, refCount);
 
   taosReleaseRef(tsNodeRefId, pNode->rid);
 }
 
 static void syncFreePeer(void *param) {
   SSyncPeer *pPeer = param;
-
-  int32_t refCount = atomic_sub_fetch_32(&pPeer->refCount, 1);
-  sDebug("%s, peer is freed, refCount:%d", pPeer->id, refCount);
+  sDebug("%s, peer is freed, refCount:%d", pPeer->id, pPeer->refCount);
 
   syncReleaseNode(pPeer->pSyncNode);
   tfree(pPeer);
@@ -531,7 +527,7 @@ SSyncPeer *syncAcquirePeer(int64_t rid) {
 
 void syncReleasePeer(SSyncPeer *pPeer) {
   int32_t refCount = atomic_sub_fetch_32(&pPeer->refCount, 1);
-  sTrace("%s, dec peer refId:%" PRId64 ", refCount:%d", pPeer->id, pPeer->rid, refCount);
+  sTrace("%s, release peer refId:%" PRId64 ", refCount:%d", pPeer->id, pPeer->rid, refCount);
 
   taosReleaseRef(tsPeerRefId, pPeer->rid);
 }
@@ -879,14 +875,14 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer) {
   int32_t ret = pthread_create(&thread, &thattr, syncRetrieveData, (void *)pPeer->rid);
   pthread_attr_destroy(&thattr);
 
-  if (ret != 0) {
-    sError("%s, failed to create sync thread since %s", pPeer->id, strerror(errno));
+  if (ret < 0) {
+    sError("%s, failed to create sync retrieve thread since %s", pPeer->id, strerror(errno));
+    syncReleasePeer(pPeer);
   } else {
     pPeer->sstatus = TAOS_SYNC_STATUS_START;
-    sDebug("%s, thread is created to retrieve data, set sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
+    sDebug("%s, sync retrieve thread:0x%08" PRIx64 " create successfully, rid:%" PRId64 ", set sstatus:%s", pPeer->id,
+           taosGetPthreadId(thread), pPeer->rid, syncStatus[pPeer->sstatus]);
   }
-
-  syncReleasePeer(pPeer);
 }
 
 static void syncNotStarted(void *param, void *tmrId) {
@@ -1154,19 +1150,19 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer) {
 
   (void)syncAcquirePeer(pPeer->rid);
 
-  int32_t ret = pthread_create(&(thread), &thattr, (void *)syncRestoreData, (void *)pPeer->rid);
+  int32_t ret = pthread_create(&thread, &thattr, (void *)syncRestoreData, (void *)pPeer->rid);
   pthread_attr_destroy(&thattr);
 
   if (ret < 0) {
     SSyncNode *pNode = pPeer->pSyncNode;
     nodeSStatus = TAOS_SYNC_STATUS_INIT;
-    sError("%s, failed to create sync thread, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
+    sError("%s, failed to create sync restore thread, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
     taosClose(pPeer->syncFd);
+    syncReleasePeer(pPeer);
   } else {
-    sInfo("%s, sync connection is up", pPeer->id);
+    sInfo("%s, sync restore thread:0x%08" PRIx64 " create successfully, rid:%" PRId64, pPeer->id,
+          taosGetPthreadId(thread), pPeer->rid);
   }
-
-  syncReleasePeer(pPeer);
 }
 
 static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {

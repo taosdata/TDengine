@@ -367,11 +367,15 @@ CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   let offset = 0;
   for (let i = 0; i < fields.length; i++) {
     pdata = ref.reinterpret(pblock,8,i*8);
-    pdata = ref.ref(pdata.readPointer());
-    if (!convertFunctions[fields[i]['type']] ) {
-      throw new errors.DatabaseError("Invalid data type returned from database");
-    }
-    blocks[i] = convertFunctions[fields[i]['type']](pdata, 1, fieldlens[i], offset, isMicro);
+	if(ref.isNull(pdata.readPointer())){
+		blocks[i] = new Array();
+	}else{
+    	pdata = ref.ref(pdata.readPointer());
+    	if (!convertFunctions[fields[i]['type']] ) {
+      		throw new errors.DatabaseError("Invalid data type returned from database");
+   		}
+    	blocks[i] = convertFunctions[fields[i]['type']](pdata, 1, fieldlens[i], offset, isMicro);
+	}
   }
   return {blocks: blocks, num_of_rows:Math.abs(num_of_rows)}
 }
@@ -437,14 +441,18 @@ CTaosInterface.prototype.fetch_rows_a = function fetch_rows_a(result, callback, 
     }
     if (numOfRows2 > 0){
       for (let i = 0; i < fields.length; i++) {
-        if (!convertFunctions[fields[i]['type']] ) {
-          throw new errors.DatabaseError("Invalid data type returned from database");
-        }
-        let prow = ref.reinterpret(row,8,i*8);
-        prow = prow.readPointer();
-        prow = ref.ref(prow);
-        blocks[i] = convertFunctions[fields[i]['type']](prow, 1, fieldlens[i], offset, isMicro);
-        //offset += fields[i]['bytes'] * numOfRows2;
+		if(ref.isNull(pdata.readPointer())){
+			blocks[i] = new Array();
+		}else{
+			if (!convertFunctions[fields[i]['type']] ) { 
+          		throw new errors.DatabaseError("Invalid data type returned from database");
+        	}   
+        	let prow = ref.reinterpret(row,8,i*8);
+        	prow = prow.readPointer();
+        	prow = ref.ref(prow);
+        	blocks[i] = convertFunctions[fields[i]['type']](prow, 1, fieldlens[i], offset, isMicro);
+        	//offset += fields[i]['bytes'] * numOfRows2;
+		}		
       }
     }
     callback(param2, result2, numOfRows2, blocks);

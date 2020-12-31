@@ -53,6 +53,9 @@ void    mnodeSendAlterVgroupMsg(SVgObj *pVgroup);
 SRpcEpSet mnodeGetEpSetFromVgroup(SVgObj *pVgroup);
 SRpcEpSet mnodeGetEpSetFromIp(char *ep);
 
+int32_t mnodeGetVgidVer(int8_t *vver);
+void    mnodeSetVgidVer(int8_t *cver, uint64_t iver);
+
 #ifdef __cplusplus
 }
 #endif
