@@ -60,8 +60,8 @@
 ./test.sh -f unique/mnode/mgmt22.sim
 ./test.sh -f unique/mnode/mgmt23.sim
 ./test.sh -f unique/mnode/mgmt24.sim
-#./test.sh -f unique/mnode/mgmt25.sim
-#./test.sh -f unique/mnode/mgmt26.sim
+./test.sh -f unique/mnode/mgmt25.sim
+./test.sh -f unique/mnode/mgmt26.sim
 ./test.sh -f unique/mnode/mgmt33.sim
 ./test.sh -f unique/mnode/mgmt34.sim
 ./test.sh -f unique/mnode/mgmtr2.sim
