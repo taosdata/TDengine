@@ -3,6 +3,7 @@ PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(inc)
 AUX_SOURCE_DIRECTORY(src SRC)
+list(REMOVE_ITEM SRC "src/tsdbFS.c")
 ADD_LIBRARY(tsdb ${SRC})
 TARGET_LINK_LIBRARIES(tsdb tfs common tutil)
 

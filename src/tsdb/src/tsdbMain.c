@@ -109,7 +109,7 @@ TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH) {
     goto _err;
   }
 
-  if (tsdbOpenFileH(pRepo) < 0) {
+  if (tsdbOpenFS(pRepo) < 0) {
     tsdbError("vgId:%d failed to open file handle since %s", REPO_ID(pRepo), tstrerror(terrno));
     goto _err;
   }

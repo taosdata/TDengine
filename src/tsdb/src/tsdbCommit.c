@@ -147,8 +147,8 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
     goto _err;
   }
 
-  // TODO
-  // tsdbUpdateMFile(pRepo, NULL)
+  // TODO: update meta file
+  tsdbUpdateMFile(pRepo, NULL);
 
   return 0;
 
@@ -162,13 +162,17 @@ static int tsdbStartCommit(STsdbRepo *pRepo) {
   tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64 " meta rows: %d",
            REPO_ID(pRepo), pMem->keyFirst, pMem->keyLast, pMem->numOfRows, listNEles(pMem->actList));
 
-  // TODO
+  if (tsdbFSNewTxn(pRepo) < 0) return -1;
 
   pRepo->code = TSDB_CODE_SUCCESS;
   return 0;
 }
 
 static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
+  if (tsdbFSEndTxn(pRepo, eno != TSDB_CODE_SUCCESS) < 0) {
+    eno = terrno;
+  }
+
   tsdbInfo("vgId:%d commit over, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
 
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER, eno);

@@ -45,10 +45,6 @@ extern int32_t tsdbDebugFlag;
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }} while(0)
 
 // ================= OTHERS
-#define TSDB_MAX_TABLE_SCHEMAS 16
-#define TSDB_FILE_HEAD_SIZE    512
-#define TSDB_FILE_DELIMITER    0xF00AFA0F
-#define TSDB_FILE_INIT_MAGIC   0xFFFFFFFF
 
 #define TAOS_IN_RANGE(key, keyMin, keyLast) (((key) >= (keyMin)) && ((key) <= (keyMax)))
 
@@ -58,6 +54,8 @@ extern int32_t tsdbDebugFlag;
 
 // Definitions
 // ================= tsdbMeta.c
+#define TSDB_MAX_TABLE_SCHEMAS 16
+
 typedef struct STable {
   STableId       tableId;
   ETableType     type;
@@ -295,102 +293,211 @@ static FORCE_INLINE TKEY tsdbNextIterTKey(SSkipListIterator* pIter) {
   return dataRowTKey(row);
 }
 
-// ================= tsdbFile.c
-extern const char* tsdbFileSuffix[];
+// ================= tsdbFS.c
+#define TSDB_FILE_HEAD_SIZE 512
+#define TSDB_FILE_DELIMITER 0xF00AFA0F
+#define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
 
-// minFid <= midFid <= maxFid
+enum { TSDB_FILE_HEAD = 0, TSDB_FILE_DATA, TSDB_FILE_LAST, TSDB_FILE_MAX };
+
+// For meta file
 typedef struct {
-  int minFid;  // >= minFid && < midFid, at level 2
-  int midFid;  // >= midFid && < maxFid, at level 1
-  int maxFid;  // >= maxFid, at level 0
-} SFidGroup;
+  int64_t  size;
+  int64_t  tombSize;
+  int64_t  nRecords;
+  int64_t  nDels;
+  uint32_t magic;
+} SMFInfo;
 
-typedef enum {
-  TSDB_FILE_TYPE_HEAD = 0,
-  TSDB_FILE_TYPE_DATA,
-  TSDB_FILE_TYPE_LAST,
-  TSDB_FILE_TYPE_STAT,
-  TSDB_FILE_TYPE_NHEAD,
-  TSDB_FILE_TYPE_NDATA,
-  TSDB_FILE_TYPE_NLAST,
-  TSDB_FILE_TYPE_NSTAT
-} TSDB_FILE_TYPE;
+typedef struct {
+  SMFInfo info;
+  TFILE   f;
+  int     fd;
+} SMFile;
 
-#ifndef TDINTERNAL
-#define TSDB_FILE_TYPE_MAX (TSDB_FILE_TYPE_LAST+1)
-#else
-#define TSDB_FILE_TYPE_MAX (TSDB_FILE_TYPE_STAT+1)
-#endif
-
+// For .head/.data/.last file
 typedef struct {
   uint32_t magic;
   uint32_t len;
   uint32_t totalBlocks;
   uint32_t totalSubBlocks;
   uint32_t offset;
-  uint64_t size;      // total size of the file
-  uint64_t tombSize;  // unused file size
-} STsdbFileInfo;
+  uint64_t size;
+  uint64_t tombSize;
+} SDFInfo;
 
 typedef struct {
-  TFILE         file;
-  STsdbFileInfo info;
-  int           fd;
-} SFile;
+  SDFInfo info;
+  TFILE   f;
+  int     fd;
+} SDFile;
 
 typedef struct {
-  int   fileId;
-  int   state; // 0 for health, 1 for problem
-  SFile files[TSDB_FILE_TYPE_MAX];
-} SFileGroup;
+  int    id;
+  int    state;
+  SDFile files[TSDB_FILE_MAX];
+} SDFileSet;
+
+/* Statistic information of the TSDB file system.
+ */
+typedef struct {
+  int64_t fsversion; // file system version, related to program
+  int64_t version;
+  int64_t totalPoints;
+  int64_t totalStorage;
+} STsdbFSMeta;
 
 typedef struct {
-  pthread_rwlock_t fhlock;
-
-  int         maxFGroups;
-  int         nFGroups;
-  SFileGroup* pFGroup;
-} STsdbFileH;
+  int64_t     version;
+  STsdbFSMeta meta;
+  SMFile      mf;  // meta file
+  SArray *    df;  // data file array
+} SFSSnapshot;
 
 typedef struct {
-  int         direction;
-  STsdbFileH* pFileH;
-  int         fileId;
-  int         index;
-} SFileGroupIter;
+  pthread_rwlock_t lock;
 
-#define TSDB_FILE_NAME(pFile) ((pFile)->file.aname)
-#define TSDB_KEY_FILEID(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
-#define TSDB_MAX_FILE(keep, daysPerFile) ((keep) / (daysPerFile) + 3)
-#define TSDB_MIN_FILE_ID(fh) (fh)->pFGroup[0].fileId
-#define TSDB_MAX_FILE_ID(fh) (fh)->pFGroup[(fh)->nFGroups - 1].fileId
-#define TSDB_IS_FILE_OPENED(f) ((f)->fd > 0)
-#define TSDB_FGROUP_ITER_FORWARD TSDB_ORDER_ASC
-#define TSDB_FGROUP_ITER_BACKWARD TSDB_ORDER_DESC
+  SFSSnapshot *curr;
+  SFSSnapshot *new;
+} STsdbFS;
 
-STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg);
-void        tsdbFreeFileH(STsdbFileH* pFileH);
-int         tsdbOpenFileH(STsdbRepo* pRepo);
-void        tsdbCloseFileH(STsdbRepo* pRepo, bool isRestart);
-SFileGroup *tsdbCreateFGroup(STsdbRepo *pRepo, int fid, int level);
-void        tsdbInitFileGroupIter(STsdbFileH* pFileH, SFileGroupIter* pIter, int direction);
-void        tsdbSeekFileGroupIter(SFileGroupIter* pIter, int fid);
-SFileGroup* tsdbGetFileGroupNext(SFileGroupIter* pIter);
-int         tsdbOpenFile(SFile* pFile, int oflag);
-void        tsdbCloseFile(SFile* pFile);
-int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type);
-SFileGroup* tsdbSearchFGroup(STsdbFileH* pFileH, int fid, int flags);
-int         tsdbGetFidLevel(int fid, SFidGroup fidg);
-void        tsdbRemoveFilesBeyondRetention(STsdbRepo* pRepo, SFidGroup* pFidGroup);
-int         tsdbUpdateFileHeader(SFile* pFile);
-int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
-void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
-void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
-int         tsdbLoadFileHeader(SFile* pFile, uint32_t* version);
-void        tsdbGetFileInfoImpl(char* fname, uint32_t* magic, int64_t* size);
-void        tsdbGetFidGroup(STsdbCfg* pCfg, SFidGroup* pFidGroup);
-void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
-int         tsdbApplyRetention(STsdbRepo* pRepo, SFidGroup *pFidGroup);
+#define TSDB_FILE_INFO(tf) (&((tf)->info))
+#define TSDB_FILE_F(tf) (&((tf)->f)))
+#define TSDB_FILE_FD(tf) ((tf)->fd)
+
+int  tsdbOpenFS(STsdbRepo *pRepo);
+void tsdbCloseFS(STsdbRepo *pRepo);
+int  tsdbFSNewTxn(STsdbRepo *pRepo);
+int  tsdbFSEndTxn(STsdbRepo *pRepo, bool hasError);
+int  tsdbUpdateMFile(STsdbRepo *pRepo, SMFile *pMFile);
+int  tsdbUpdateDFileSet(STsdbRepo *pRepo, SDFileSet *pSet);
+void tsdbRemoveExpiredDFileSet(STsdbRepo *pRepo, int mfid);
+int  tsdbRemoveDFileSet(SDFileSet *pSet);
+
+static FORCE_INLINE int tsdbRLockFS(STsdbFS *pFs) {
+  int code = pthread_rwlock_rdlock(&(pFs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+static FORCE_INLINE int tsdbWLockFS(STsdbFS *pFs) {
+  int code = pthread_rwlock_wrlock(&(pFs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
+  int code = pthread_rwlock_unlock(&(pFs->lock));
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+
+// ================= tsdbFile.c
+// extern const char* tsdbFileSuffix[];
+
+// minFid <= midFid <= maxFid
+// typedef struct {
+//   int minFid;  // >= minFid && < midFid, at level 2
+//   int midFid;  // >= midFid && < maxFid, at level 1
+//   int maxFid;  // >= maxFid, at level 0
+// } SFidGroup;
+
+// typedef enum {
+//   TSDB_FILE_TYPE_HEAD = 0,
+//   TSDB_FILE_TYPE_DATA,
+//   TSDB_FILE_TYPE_LAST,
+//   TSDB_FILE_TYPE_STAT,
+//   TSDB_FILE_TYPE_NHEAD,
+//   TSDB_FILE_TYPE_NDATA,
+//   TSDB_FILE_TYPE_NLAST,
+//   TSDB_FILE_TYPE_NSTAT
+// } TSDB_FILE_TYPE;
+
+// #ifndef TDINTERNAL
+// #define TSDB_FILE_TYPE_MAX (TSDB_FILE_TYPE_LAST+1)
+// #else
+// #define TSDB_FILE_TYPE_MAX (TSDB_FILE_TYPE_STAT+1)
+// #endif
+
+// typedef struct {
+//   uint32_t magic;
+//   uint32_t len;
+//   uint32_t totalBlocks;
+//   uint32_t totalSubBlocks;
+//   uint32_t offset;
+//   uint64_t size;      // total size of the file
+//   uint64_t tombSize;  // unused file size
+// } STsdbFileInfo;
+
+// typedef struct {
+//   TFILE         file;
+//   STsdbFileInfo info;
+//   int           fd;
+// } SFile;
+
+// typedef struct {
+//   int   fileId;
+//   int   state; // 0 for health, 1 for problem
+//   SFile files[TSDB_FILE_TYPE_MAX];
+// } SFileGroup;
+
+// typedef struct {
+//   pthread_rwlock_t fhlock;
+
+//   int         maxFGroups;
+//   int         nFGroups;
+//   SFileGroup* pFGroup;
+// } STsdbFileH;
+
+// typedef struct {
+//   int         direction;
+//   STsdbFileH* pFileH;
+//   int         fileId;
+//   int         index;
+// } SFileGroupIter;
+
+// #define TSDB_FILE_NAME(pFile) ((pFile)->file.aname)
+// #define TSDB_KEY_FILEID(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
+// #define TSDB_MAX_FILE(keep, daysPerFile) ((keep) / (daysPerFile) + 3)
+// #define TSDB_MIN_FILE_ID(fh) (fh)->pFGroup[0].fileId
+// #define TSDB_MAX_FILE_ID(fh) (fh)->pFGroup[(fh)->nFGroups - 1].fileId
+// #define TSDB_IS_FILE_OPENED(f) ((f)->fd > 0)
+// #define TSDB_FGROUP_ITER_FORWARD TSDB_ORDER_ASC
+// #define TSDB_FGROUP_ITER_BACKWARD TSDB_ORDER_DESC
+
+// STsdbFileH* tsdbNewFileH(STsdbCfg* pCfg);
+// void        tsdbFreeFileH(STsdbFileH* pFileH);
+// int         tsdbOpenFileH(STsdbRepo* pRepo);
+// void        tsdbCloseFileH(STsdbRepo* pRepo, bool isRestart);
+// SFileGroup *tsdbCreateFGroup(STsdbRepo *pRepo, int fid, int level);
+// void        tsdbInitFileGroupIter(STsdbFileH* pFileH, SFileGroupIter* pIter, int direction);
+// void        tsdbSeekFileGroupIter(SFileGroupIter* pIter, int fid);
+// SFileGroup* tsdbGetFileGroupNext(SFileGroupIter* pIter);
+// int         tsdbOpenFile(SFile* pFile, int oflag);
+// void        tsdbCloseFile(SFile* pFile);
+// int         tsdbCreateFile(SFile* pFile, STsdbRepo* pRepo, int fid, int type);
+// SFileGroup* tsdbSearchFGroup(STsdbFileH* pFileH, int fid, int flags);
+// int         tsdbGetFidLevel(int fid, SFidGroup fidg);
+// void        tsdbRemoveFilesBeyondRetention(STsdbRepo* pRepo, SFidGroup* pFidGroup);
+// int         tsdbUpdateFileHeader(SFile* pFile);
+// int         tsdbEncodeSFileInfo(void** buf, const STsdbFileInfo* pInfo);
+// void*       tsdbDecodeSFileInfo(void* buf, STsdbFileInfo* pInfo);
+// void        tsdbRemoveFileGroup(STsdbRepo* pRepo, SFileGroup* pFGroup);
+// int         tsdbLoadFileHeader(SFile* pFile, uint32_t* version);
+// void        tsdbGetFileInfoImpl(char* fname, uint32_t* magic, int64_t* size);
+// void        tsdbGetFidGroup(STsdbCfg* pCfg, SFidGroup* pFidGroup);
+// void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
+// int         tsdbApplyRetention(STsdbRepo* pRepo, SFidGroup *pFidGroup);
 
 // ================= tsdbMain.c
 typedef struct {
@@ -416,7 +523,7 @@ struct STsdbRepo {
   STsdbBufPool*   pPool;
   SMemTable*      mem;
   SMemTable*      imem;
-  STsdbFileH*     tsdbFileH;
+  STsdbFS*        fs;
   sem_t           readyToCommit;
   pthread_mutex_t mutex;
   bool            repoLocked;

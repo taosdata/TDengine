@@ -175,6 +175,13 @@ void tfsInitFile(TFILE *pf, int level, int id, const char *bname) {
   tfsSetFileAname(pf);
 }
 
+bool tfsIsSameFile(TFILE *pf1, TFILE *pf2) {
+  if (pf1->level != pf2->level) return false;
+  if (pf1->id != pf2->id) return false;
+  if (strncmp(pf1->rname, pf2->rname, TSDB_FILENAME_LEN) != 0) return false;
+  return true;
+}
+
 void tfsSetLevel(TFILE *pf, int level) {
   pf->level = level;
 

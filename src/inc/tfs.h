@@ -57,6 +57,7 @@ typedef struct {
 #define TFILE_NAME(pf) ((pf)->aname)
 
 void tfsInitFile(TFILE *pf, int level, int id, const char *bname);
+bool tfsIsSameFile(TFILE *pf1, TFILE *pf2);
 void tfsSetLevel(TFILE *pf, int level);
 void tfsSetID(TFILE *pf, int id);
 int  tfsopen(TFILE *pf, int flags);
