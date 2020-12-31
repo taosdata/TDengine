@@ -99,9 +99,11 @@ print ========= step2 alter db
 sql_error alter database d1 replica 1
 sql_error alter database d2 replica 1
 sql_error alter database d3 replica 1
+sql_error alter database d4 replica 1
 sql alter database d1 replica 2
 sql alter database d2 replica 2
 sql alter database d3 replica 2
+sql alter database d4 replica 2
 
 $x = 0
 a2: 
@@ -129,9 +131,16 @@ if $data03 != 2 then
 	goto a2
 endi
 
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a2
+endi
+
 sql alter database d1 replica 1
 sql alter database d2 replica 1
 sql alter database d3 replica 1
+sql alter database d4 replica 1
 
 $x = 0
 a1: 
@@ -156,6 +165,27 @@ endi
 sql show d3.vgroups 
 print online vnodes $data03
 if $data03 != 1 then
+	goto a1
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a1
+endi
+
+sql show dnodes
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+
+if $data02 != 0 then
+	goto a1
+endi
+if $data12 != 2 then
+	goto a1
+endi
+if $data22 != 2 then
 	goto a1
 endi
 
@@ -192,6 +222,7 @@ print ========= step4 alter db
 sql alter database d1 replica 2
 sql alter database d2 replica 2
 sql alter database d3 replica 2
+sql alter database d4 replica 2
 
 $x = 0
 step4: 
@@ -214,6 +245,12 @@ if $data03 != 2 then
 endi
 
 sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step4
+endi
+
+sql show d4.vgroups 
 print online vnodes $data03
 if $data03 != 2 then
 	goto step4
@@ -287,3 +324,4 @@ sql select * from d4.t4
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
