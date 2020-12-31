@@ -171,7 +171,7 @@ void mnodeUpdateClusterId() {
   void *pIter = mnodeGetNextCluster(NULL, &pCluster);
   if (pCluster != NULL) {
     tstrncpy(tsClusterId, pCluster->uid, TSDB_CLUSTER_ID_LEN);
-    mInfo("cluster id is set to %s", tsClusterId);
+    mDebug("cluster id is set to %s", tsClusterId);
   }
 
   mnodeDecClusterRef(pCluster);
