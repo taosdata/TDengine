@@ -402,7 +402,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
 int  tscProcessSql(SSqlObj *pSql);
 
 int  tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex);
-void tscQueueAsyncRes(SSqlObj *pSql);
+void tscAsyncResultOnError(SSqlObj *pSql);
 
 void tscQueueAsyncError(void(*fp), void *param, int32_t code);
 

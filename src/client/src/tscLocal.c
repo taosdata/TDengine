@@ -272,7 +272,7 @@ void tscSCreateCallBack(void *param, TAOS_RES *tres, int code) {
   if (pRes->code != TSDB_CODE_SUCCESS) {
     taos_free_result(pSql);  
     free(builder);
-    tscQueueAsyncRes(pParentSql);
+    tscAsyncResultOnError(pParentSql);
     return;
   }
 
@@ -290,7 +290,7 @@ void tscSCreateCallBack(void *param, TAOS_RES *tres, int code) {
     if (pRes->code == TSDB_CODE_SUCCESS) {
       (*pParentSql->fp)(pParentSql->param, pParentSql, code);  
     } else {
-      tscQueueAsyncRes(pParentSql);
+      tscAsyncResultOnError(pParentSql);
     }
   }
 }
@@ -924,7 +924,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
     (*pSql->fp)(pSql->param, pSql, code);
   } else if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS){
   } else {
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
   }
   return code;
 }

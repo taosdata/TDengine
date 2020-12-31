@@ -1429,7 +1429,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
       fclose(fp);
 
       pParentSql->res.code = code;
-      tscQueueAsyncRes(pParentSql);
+      tscAsyncResultOnError(pParentSql);
       return;
     } while (0);
   }
@@ -1500,7 +1500,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
     code = doPackSendDataBlock(pSql, count, pTableDataBlock);
     if (code != TSDB_CODE_SUCCESS) {
       pParentSql->res.code = code;
-      tscQueueAsyncRes(pParentSql);
+      tscAsyncResultOnError(pParentSql);
       return;
     }
 
@@ -1535,7 +1535,7 @@ void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql) {
     tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));
 
     tfree(pSupporter);
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
 
     return;
   }

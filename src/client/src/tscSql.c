@@ -709,7 +709,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
       pSubObj->rpcRid = -1;
     }
 
-    tscQueueAsyncRes(pSubObj);
+    tscAsyncResultOnError(pSubObj);
     taosReleaseRef(tscObjRef, pSubObj->self);
   }
 
@@ -745,7 +745,7 @@ void taos_stop_query(TAOS_RES *res) {
         pSql->rpcRid = -1;
       }
 
-      tscQueueAsyncRes(pSql);
+      tscAsyncResultOnError(pSql);
     }
   }
 

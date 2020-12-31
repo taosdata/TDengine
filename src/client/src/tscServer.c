@@ -439,7 +439,7 @@ int doProcessSql(SSqlObj *pSql) {
   }
   
   if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return pRes->code;
   }
 
@@ -448,7 +448,7 @@ int doProcessSql(SSqlObj *pSql) {
   // NOTE: if code is TSDB_CODE_SUCCESS, pSql may have been released here already by other threads.
   if (code != TSDB_CODE_SUCCESS) {
     pRes->code = code;
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return code;
   }
   
@@ -1528,7 +1528,7 @@ static int tscLocalResultCommonBuilder(SSqlObj *pSql, int32_t numOfRes) {
     if (code == TSDB_CODE_SUCCESS) {
       (*pSql->fp)(pSql->param, pSql, pSql->res.numOfRows);
     } else {
-      tscQueueAsyncRes(pSql);
+      tscAsyncResultOnError(pSql);
     }
   }
 
@@ -1557,7 +1557,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
 
   int32_t code = pRes->code;
   if (pRes->code != TSDB_CODE_SUCCESS) {
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return code;
   }
 
@@ -1576,7 +1576,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   if (pRes->code == TSDB_CODE_SUCCESS) {
     (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
   } else {
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
   }
 
   return code;
@@ -2357,7 +2357,7 @@ int tscGetTableMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
 }
 
 /**
- * retrieve table meta from mnode, and update the local table meta cache.
+ * retrieve table meta from mnode, and update the local table meta hashmap.
  * @param pSql          sql object
  * @param tableIndex    table index
  * @return              status code
@@ -2365,16 +2365,18 @@ int tscGetTableMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
 int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo     *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
+  const char* name = pTableMetaInfo->name;
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-  if (pTableMetaInfo->pTableMeta) {
-    tscDebug("%p update table meta, old meta numOfTags:%d, numOfCols:%d, uid:%" PRId64 ", addr:%p", pSql,
-             tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->id.uid, pTableMeta);
+  if (pTableMeta) {
+    tscDebug("%p update table meta:%s, old meta numOfTags:%d, numOfCols:%d, uid:%" PRId64, pSql, name,
+        tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->id.uid);
   }
 
-  taosHashRemove(tscTableMetaInfo, pTableMetaInfo->name, strnlen(pTableMetaInfo->name, TSDB_TABLE_FNAME_LEN));
+  // remove stored tableMeta info in hash table
+  taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
   return getTableMetaFromMnode(pSql, pTableMetaInfo);
 }
 

@@ -56,7 +56,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return;
   }
 
@@ -70,7 +70,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   
   if (code != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return;
   }
 
@@ -165,7 +165,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
       pRes->code = numOfRows;
     }
 
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return;
   }
 
@@ -216,7 +216,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
     pSql->param = param;
 
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return;
   }
 
@@ -279,7 +279,7 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
     pSql->param = param;
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
 
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return;
   }
 
@@ -381,7 +381,7 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
 }
 
 
-void tscQueueAsyncRes(SSqlObj *pSql) {
+void tscAsyncResultOnError(SSqlObj *pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     tscDebug("%p SqlObj is freed, not add into queue async res", pSql);
     return;
@@ -531,6 +531,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   _error:
   if (code != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
   }
 }
