@@ -231,6 +231,6 @@ python3 test.py -f tools/taosdemoTest2.py
 
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
-#python3 test.py -f subscribe/stability.py
+#python3 test.py -f subscribe/stability.py  
 python3 test.py -f subscribe/supertable.py
 

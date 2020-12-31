@@ -143,7 +143,7 @@ static SCreateVnodeMsg* dnodeParseVnodeMsg(SRpcMsg *rpcMsg) {
   pCreate->cfg.fsyncPeriod         = htonl(pCreate->cfg.fsyncPeriod);
   pCreate->cfg.commitTime          = htonl(pCreate->cfg.commitTime);
 
-  for (int32_t j = 0; j < pCreate->cfg.replications; ++j) {
+  for (int32_t j = 0; j < pCreate->cfg.vgReplica; ++j) {
     pCreate->nodes[j].nodeId = htonl(pCreate->nodes[j].nodeId);
   }
 

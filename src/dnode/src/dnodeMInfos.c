@@ -311,6 +311,14 @@ void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
 
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
     dDebug("mnode index:%d %s:%d", i, epSet.fqdn[i], epSet.port[i]);
+    if (strcmp(epSet.fqdn[i], tsLocalFqdn) == 0) {
+      if ((epSet.port[i] == tsServerPort + TSDB_PORT_DNODEDNODE && !forShell) ||
+          (epSet.port[i] == tsServerPort && forShell)) {
+        epSet.inUse = (i + 1) % epSet.numOfEps;
+        dDebug("mnode index:%d %s:%d set inUse to %d", i, epSet.fqdn[i], epSet.port[i], epSet.inUse);
+      }
+    }
+
     epSet.port[i] = htons(epSet.port[i]);
   }
 

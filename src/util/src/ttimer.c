@@ -119,7 +119,7 @@ static void timerDecRef(tmr_obj_t* timer) {
 }
 
 static void lockTimerList(timer_list_t* list) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   int       i = 0;
   while (atomic_val_compare_exchange_64(&(list->lockedBy), 0, tid) != 0) {
     if (++i % 1000 == 0) {
@@ -129,7 +129,7 @@ static void lockTimerList(timer_list_t* list) {
 }
 
 static void unlockTimerList(timer_list_t* list) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(&(list->lockedBy), tid, 0) != tid) {
     assert(false);
     tmrError("%" PRId64 " trying to unlock a timer list not locked by current thread.", tid);
@@ -257,7 +257,7 @@ static bool removeFromWheel(tmr_obj_t* timer) {
 
 static void processExpiredTimer(void* handle, void* arg) {
   tmr_obj_t* timer = (tmr_obj_t*)handle;
-  timer->executedBy = taosGetPthreadId();
+  timer->executedBy = taosGetSelfPthreadId();
   uint8_t state = atomic_val_compare_exchange_8(&timer->state, TIMER_STATE_WAITING, TIMER_STATE_EXPIRED);
   if (state == TIMER_STATE_WAITING) {
     const char* fmt = "%s timer[id=%" PRIuPTR ", fp=%p, param=%p] execution start.";
@@ -406,7 +406,7 @@ static bool doStopTimer(tmr_obj_t* timer, uint8_t state) {
     return false;
   }
 
-  if (timer->executedBy == taosGetPthreadId()) {
+  if (timer->executedBy == taosGetSelfPthreadId()) {
     // taosTmrReset is called in the timer callback, should do nothing in this
     // case to avoid dead lock. note taosTmrReset must be the last statement
     // of the callback funtion, will be a bug otherwise.

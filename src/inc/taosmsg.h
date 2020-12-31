@@ -518,16 +518,17 @@ typedef struct SRetrieveTableRsp {
 } SRetrieveTableRsp;
 
 typedef struct {
-  int32_t vgId;
-  int32_t dbCfgVersion;
-  int64_t totalStorage;
-  int64_t compStorage;
-  int64_t pointsWritten;
-  uint8_t status;
-  uint8_t role;
-  uint8_t replica;
-  uint8_t reserved;
-  int32_t vgCfgVersion;
+  int32_t  vgId;
+  int32_t  dbCfgVersion;
+  int64_t  totalStorage;
+  int64_t  compStorage;
+  int64_t  pointsWritten;
+  uint64_t vnodeVersion;
+  int32_t  vgCfgVersion;
+  uint8_t  status;
+  uint8_t  role;
+  uint8_t  replica;
+  uint8_t  reserved;
 } SVnodeLoad;
 
 typedef struct {
@@ -663,13 +664,14 @@ typedef struct {
   int8_t   precision;
   int8_t   compression;
   int8_t   walLevel;
-  int8_t   replications;
+  int8_t   vgReplica;
   int8_t   wals;
   int8_t   quorum;
   int8_t   update;
   int8_t   cacheLastRow;
   int32_t  vgCfgVersion;
-  int8_t   reserved[10];
+  int8_t   dbReplica;
+  int8_t   reserved[9];
 } SVnodeCfg;
 
 typedef struct {

@@ -108,6 +108,13 @@ static int32_t vnodeCheckWrite(void *vparam) {
     return TSDB_CODE_VND_NO_WRITE_AUTH;
   }
 
+  if (pVnode->dbReplica != pVnode->syncCfg.replica &&
+      pVnode->syncCfg.nodeInfo[pVnode->syncCfg.replica - 1].nodeId == dnodeGetDnodeId()) {
+    vDebug("vgId:%d, vnode is balancing and will be dropped, dbReplica:%d vgReplica:%d, refCount:%d pVnode:%p",
+           pVnode->vgId, pVnode->dbReplica, pVnode->syncCfg.replica, pVnode->refCount, pVnode);
+    return TSDB_CODE_VND_IS_BALANCING;
+  }
+
   // tsdb may be in reset state
   if (pVnode->tsdb == NULL) {
     vDebug("vgId:%d, tsdb is null, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
@@ -271,7 +278,7 @@ void vnodeFreeFromWQueue(void *vparam, SVWriteMsg *pWrite) {
 static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
   SVWriteMsg *pWrite = param;
   SVnodeObj * pVnode = pWrite->pVnode;
-  int32_t     code = TSDB_CODE_VND_SYNCING;
+  int32_t     code = TSDB_CODE_VND_IS_SYNCING;
 
   if (pVnode->flowctrlLevel <= 0) code = TSDB_CODE_VND_IS_FLOWCTRL;
 
