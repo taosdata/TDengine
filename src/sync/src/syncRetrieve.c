@@ -194,7 +194,7 @@ static int32_t syncReadOneWalRecord(int32_t sfd, SWalHead *pHead) {
   }
 
   if (ret == 0) {
-    sTrace("sfd:%d, read to the end of file, ret:%d", sfd, ret);
+    sDebug("sfd:%d, read to the end of file, ret:%d", sfd, ret);
     return 0;
   }
 
@@ -253,7 +253,7 @@ static int32_t syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversi
       break;
     }
 
-    sTrace("%s, last wal is forwarded, hver:%" PRIu64, pPeer->id, pHead->version);
+    sDebug("%s, last wal is forwarded, hver:%" PRIu64, pPeer->id, pHead->version);
 
     int32_t wsize = code;
     int32_t ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
@@ -466,10 +466,15 @@ static int32_t syncRetrieveDataStepByStep(SSyncPeer *pPeer) {
 void *syncRetrieveData(void *param) {
   int64_t    rid = (int64_t)param;
   SSyncPeer *pPeer = syncAcquirePeer(rid);
-  if (pPeer == NULL) return NULL;
+  if (pPeer == NULL) {
+    sError("failed to retrieve data, invalid peer rid:%" PRId64, rid);
+    return NULL;
+  }
 
   SSyncNode *pNode = pPeer->pSyncNode;
+
   taosBlockSIGPIPE();
+  sInfo("%s, start to retrieve data, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
 
   if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->vgId, pPeer->numOfRetrieves);
 
@@ -496,7 +501,11 @@ void *syncRetrieveData(void *param) {
 
   pPeer->fileChanged = 0;
   taosClose(pPeer->syncFd);
+
+  // The ref is obtained in both the create thread and the current thread, so it is released twice
+  syncReleasePeer(pPeer);
   syncReleasePeer(pPeer);
 
+  sInfo("%s, sync retrieve data over, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
   return NULL;
 }

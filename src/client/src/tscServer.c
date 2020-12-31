@@ -898,13 +898,13 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     for (int32_t j = 0; j < pGroupbyExpr->numOfGroupCols; ++j) {
       SColIndex* pCol = taosArrayGet(pGroupbyExpr->columnInfo, j);
   
-      *((int16_t *)pMsg) = pCol->colId;
+      *((int16_t *)pMsg) = htons(pCol->colId);
       pMsg += sizeof(pCol->colId);
 
-      *((int16_t *)pMsg) += pCol->colIndex;
+      *((int16_t *)pMsg) += htons(pCol->colIndex);
       pMsg += sizeof(pCol->colIndex);
 
-      *((int16_t *)pMsg) += pCol->flag;
+      *((int16_t *)pMsg) += htons(pCol->flag);
       pMsg += sizeof(pCol->flag);
       
       memcpy(pMsg, pCol->name, tListLen(pCol->name));
@@ -1257,7 +1257,7 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pShowMsg->payloadLen = htons(pEpAddr->n);
   }
 
-  pCmd->payloadLen = sizeof(SShowMsg) + pShowMsg->payloadLen;
+  pCmd->payloadLen = sizeof(SShowMsg) + htons(pShowMsg->payloadLen);
   return TSDB_CODE_SUCCESS;
 }
 

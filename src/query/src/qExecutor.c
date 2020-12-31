@@ -4638,7 +4638,6 @@ static int32_t setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) 
 
     // update the query time window
     pQuery->window = cond.twindow;
-
     if (pQInfo->tableGroupInfo.numOfTables == 0) {
       pQInfo->tableqinfoGroupInfo.numOfTables = 0;
     } else {
@@ -6189,13 +6188,13 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     }
 
     for (int32_t i = 0; i < pQueryMsg->numOfGroupCols; ++i) {
-      (*groupbyCols)[i].colId = *(int16_t *)pMsg;
+      (*groupbyCols)[i].colId = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].colId);
 
-      (*groupbyCols)[i].colIndex = *(int16_t *)pMsg;
+      (*groupbyCols)[i].colIndex = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].colIndex);
 
-      (*groupbyCols)[i].flag = *(int16_t *)pMsg;
+      (*groupbyCols)[i].flag = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].flag);
 
       memcpy((*groupbyCols)[i].name, pMsg, tListLen(groupbyCols[i]->name));
@@ -7214,7 +7213,7 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
 
   // clear qhandle owner, it must be in the secure area. other thread may run ahead before current, after it is
   // put into task to be executed.
-  assert(pQInfo->owner == taosGetPthreadId());
+  assert(pQInfo->owner == taosGetSelfPthreadId());
   pQInfo->owner = 0;
 
   pthread_mutex_unlock(&pQInfo->lock);
@@ -7227,7 +7226,7 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
 bool qTableQuery(qinfo_t qinfo) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
   assert(pQInfo && pQInfo->signature == pQInfo);
-  int64_t threadId = taosGetPthreadId();
+  int64_t threadId = taosGetSelfPthreadId();
 
   int64_t curOwner = 0;
   if ((curOwner = atomic_val_compare_exchange_64(&pQInfo->owner, 0, threadId)) != 0) {

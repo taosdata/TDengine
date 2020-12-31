@@ -120,7 +120,8 @@ typedef struct SCreateDBInfo {
   int32_t   compressionLevel;
   SStrToken precision;
   bool      ignoreExists;
-  int8_t    update; 
+  int8_t    update;
+  int8_t    cachelast; 
   
   SArray *keep;
 } SCreateDBInfo;

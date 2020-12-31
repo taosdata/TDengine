@@ -924,6 +924,10 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
       return;
     }
     
+    if (*notNullElems == 0){
+      return;
+    }
+
     void *  tval = NULL;
     int16_t index = 0;
     
