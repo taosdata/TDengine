@@ -5448,7 +5448,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
   }
 }
 
-static void doSaveContext(SQInfo *pQInfo) {
+static int32_t doSaveContext(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
@@ -5474,9 +5474,7 @@ static void doSaveContext(SQInfo *pQInfo) {
 
   pRuntimeEnv->prevGroupId = INT32_MIN;
   pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo, &pQInfo->memRef);
-  if (pRuntimeEnv->pSecQueryHandle == NULL) {
-    longjmp(pRuntimeEnv->env, terrno);
-  }
+  return (pRuntimeEnv->pSecQueryHandle == NULL)? -1:0;
 }
 
 static void doRestoreContext(SQInfo *pQInfo) {
@@ -5549,12 +5547,14 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
   doCloseAllTimeWindowAfterScan(pQInfo);
 
   if (needReverseScan(pQuery)) {
-    doSaveContext(pQInfo);
-
-    el = scanMultiTableDataBlocks(pQInfo);
-    qDebug("QInfo:%p reversed scan completed, elapsed time: %" PRId64 "ms", pQInfo, el);
-
-    doRestoreContext(pQInfo);
+    int32_t code = doSaveContext(pQInfo);
+    if (code == TSDB_CODE_SUCCESS) {
+      el = scanMultiTableDataBlocks(pQInfo);
+      qDebug("QInfo:%p reversed scan completed, elapsed time: %" PRId64 "ms", pQInfo, el);
+      doRestoreContext(pQInfo);
+    } else {
+      pQInfo->code = code;
+    }
   } else {
     qDebug("QInfo:%p no need to do reversed scan, query completed", pQInfo);
   }
