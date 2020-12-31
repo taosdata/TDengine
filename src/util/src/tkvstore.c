@@ -40,8 +40,6 @@ static int       tdInitKVStoreHeader(int fd, char *fname);
 static int       tdEncodeStoreInfo(void **buf, SStoreInfo *pInfo);
 static void *    tdDecodeStoreInfo(void *buf, SStoreInfo *pInfo);
 static SKVStore *tdNewKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH);
-static char *    tdGetKVStoreSnapshotFname(char *fdata);
-static char *    tdGetKVStoreNewFname(char *fdata);
 static void      tdFreeKVStore(SKVStore *pStore);
 static int       tdUpdateKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo);
 static int       tdLoadKVStoreHeader(int fd, char *fname, SStoreInfo *pInfo, uint32_t *version);
@@ -103,41 +101,6 @@ SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH
     goto _err;
   }
 
-  pStore->sfd = open(pStore->fsnap, O_RDONLY);
-  if (pStore->sfd < 0) {
-    if (errno != ENOENT) {
-      uError("failed to open file %s since %s", pStore->fsnap, strerror(errno));
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      goto _err;
-    }
-  } else {
-    uDebug("file %s exists, try to recover the KV store", pStore->fsnap);
-    if (tdLoadKVStoreHeader(pStore->sfd, pStore->fsnap, &info, &version) < 0) {
-      if (terrno != TSDB_CODE_COM_FILE_CORRUPTED) goto _err;
-    } else {
-      if (version != KVSTORE_FILE_VERSION) {
-        uError("file %s version %u is not the same as program version %u, this may cause problem", pStore->fsnap,
-               version, KVSTORE_FILE_VERSION);
-      }
-
-      if (taosFtruncate(pStore->fd, info.size) < 0) {
-        uError("failed to truncate %s to %" PRId64 " size since %s", pStore->fname, info.size, strerror(errno));
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        goto _err;
-      }
-
-      if (tdUpdateKVStoreHeader(pStore->fd, pStore->fname, &info) < 0) goto _err;
-      if (fsync(pStore->fd) < 0) {
-        uError("failed to fsync file %s since %s", pStore->fname, strerror(errno));
-        goto _err;
-      }
-    }
-
-    close(pStore->sfd);
-    pStore->sfd = -1;
-    (void)remove(pStore->fsnap);
-  }
-
   if (tdLoadKVStoreHeader(pStore->fd, pStore->fname, &info, &version) < 0) goto _err;
   if (version != KVSTORE_FILE_VERSION) {
     uError("file %s version %u is not the same as program version %u, this may cause problem", pStore->fname, version,
@@ -159,10 +122,6 @@ _err:
     close(pStore->fd);
     pStore->fd = -1;
   }
-  if (pStore->sfd > 0) {
-    close(pStore->sfd);
-    pStore->sfd = -1;
-  }
   tdFreeKVStore(pStore);
   return NULL;
 }
@@ -179,32 +138,6 @@ int tdKVStoreStartCommit(SKVStore *pStore) {
     goto _err;
   }
 
-  pStore->sfd = open(pStore->fsnap, O_WRONLY | O_CREAT, 0755);
-  if (pStore->sfd < 0) {
-    uError("failed to open file %s since %s", pStore->fsnap, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (taosSendFile(pStore->sfd, pStore->fd, NULL, TD_KVSTORE_HEADER_SIZE) < TD_KVSTORE_HEADER_SIZE) {
-    uError("failed to send file %d bytes since %s", TD_KVSTORE_HEADER_SIZE, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (fsync(pStore->sfd) < 0) {
-    uError("failed to fsync file %s since %s", pStore->fsnap, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (close(pStore->sfd) < 0) {
-    uError("failed to close file %s since %s", pStore->fsnap, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-  pStore->sfd = -1;
-
   if (lseek(pStore->fd, 0, SEEK_END) < 0) {
     uError("failed to lseek file %s since %s", pStore->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -216,11 +149,6 @@ int tdKVStoreStartCommit(SKVStore *pStore) {
   return 0;
 
 _err:
-  if (pStore->sfd > 0) {
-    close(pStore->sfd);
-    pStore->sfd = -1;
-    (void)remove(pStore->fsnap);
-  }
   if (pStore->fd > 0) {
     close(pStore->fd);
     pStore->fd = -1;
@@ -328,7 +256,6 @@ int tdKVStoreEndCommit(SKVStore *pStore) {
   }
   pStore->fd = -1;
 
-  (void)remove(pStore->fsnap);
   return 0;
 }
 
@@ -448,17 +375,7 @@ static SKVStore *tdNewKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void
     goto _err;
   }
 
-  pStore->fsnap = tdGetKVStoreSnapshotFname(fname);
-  if (pStore->fsnap == NULL) {
-    goto _err;
-  }
-
-  pStore->fnew = tdGetKVStoreNewFname(fname);
-  if (pStore->fnew == NULL) goto _err;
-
   pStore->fd = -1;
-  pStore->sfd = -1;
-  pStore->nfd = -1;
   pStore->iFunc = iFunc;
   pStore->aFunc = aFunc;
   pStore->appH = appH;
@@ -478,33 +395,9 @@ _err:
 static void tdFreeKVStore(SKVStore *pStore) {
   if (pStore) {
     tfree(pStore->fname);
-    tfree(pStore->fsnap);
-    tfree(pStore->fnew);
     taosHashCleanup(pStore->map);
     free(pStore);
   }
-}
-
-static char *tdGetKVStoreSnapshotFname(char *fdata) {
-  size_t size = strlen(fdata) + strlen(TD_KVSTORE_SNAP_SUFFIX) + 1;
-  char * fname = malloc(size);
-  if (fname == NULL) {
-    terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
-    return NULL;
-  }
-  sprintf(fname, "%s%s", fdata, TD_KVSTORE_SNAP_SUFFIX);
-  return fname;
-}
-
-static char *tdGetKVStoreNewFname(char *fdata) {
-  size_t size = strlen(fdata) + strlen(TD_KVSTORE_NEW_SUFFIX) + 1;
-  char * fname = malloc(size);
-  if (fname == NULL) {
-    terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
-    return NULL;
-  }
-  sprintf(fname, "%s%s", fdata, TD_KVSTORE_NEW_SUFFIX);
-  return fname;
 }
 
 static int tdEncodeKVRecord(void **buf, SKVRecord *pRecord) {

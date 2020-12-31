@@ -37,10 +37,6 @@ typedef struct {
 typedef struct {
   char *     fname;
   int        fd;
-  char *     fsnap;
-  int        sfd;
-  char *     fnew;
-  int        nfd;
   SHashObj * map;
   iterFunc   iFunc;
   afterFunc  aFunc;
