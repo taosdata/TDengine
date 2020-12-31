@@ -23,6 +23,7 @@ typedef struct {
 
 static int          tsdbCommitTSData(STsdbRepo *pRepo);
 static int          tsdbCommitMeta(STsdbRepo *pRepo);
+static int          tsdbStartCommit(STsdbRepo *pRepo);
 static void         tsdbEndCommit(STsdbRepo *pRepo, int eno);
 static bool         tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey);
 static int          tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch);
@@ -33,12 +34,10 @@ static int          tsdbInitCommitH(STsdbRepo *pRepo, SCommitH *pch);
 static void         tsdbDestroyCommitH(SCommitH *pch, int niter);
 
 void *tsdbCommitData(STsdbRepo *pRepo) {
-  SMemTable *  pMem = pRepo->imem;
-
-  tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64 " meta rows: %d",
-           REPO_ID(pRepo), pMem->keyFirst, pMem->keyLast, pMem->numOfRows, listNEles(pMem->actList));
-
-  pRepo->code = TSDB_CODE_SUCCESS;
+  if (tsdbStartCommit(pRepo) < 0) {
+    tsdbError("vgId:%d failed to commit data while startting to commit since %s", REPO_ID(pRepo), tstrerror(terrno));
+    goto _err;
+  }
 
   // Commit to update meta file
   if (tsdbCommitMeta(pRepo) < 0) {
@@ -52,17 +51,14 @@ void *tsdbCommitData(STsdbRepo *pRepo) {
     goto _err;
   }
 
-  tsdbInfo("vgId:%d commit over, succeed", REPO_ID(pRepo));
   tsdbEndCommit(pRepo, TSDB_CODE_SUCCESS);
-
   return NULL;
 
 _err:
   ASSERT(terrno != TSDB_CODE_SUCCESS);
   pRepo->code = terrno;
-  tsdbInfo("vgId:%d commit over, failed", REPO_ID(pRepo));
-  tsdbEndCommit(pRepo, terrno);
 
+  tsdbEndCommit(pRepo, terrno);
   return NULL;
 }
 
@@ -151,19 +147,38 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
     goto _err;
   }
 
+  // TODO
+  // tsdbUpdateMFile(pRepo, NULL)
+
   return 0;
 
 _err:
   return -1;
 }
 
+static int tsdbStartCommit(STsdbRepo *pRepo) {
+  SMemTable *pMem = pRepo->imem;
+
+  tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64 " meta rows: %d",
+           REPO_ID(pRepo), pMem->keyFirst, pMem->keyLast, pMem->numOfRows, listNEles(pMem->actList));
+
+  // TODO
+
+  pRepo->code = TSDB_CODE_SUCCESS;
+  return 0;
+}
+
 static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
+  tsdbInfo("vgId:%d commit over, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
+
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER, eno);
+
   SMemTable *pIMem = pRepo->imem;
   tsdbLockRepo(pRepo);
   pRepo->imem = NULL;
   tsdbUnlockRepo(pRepo);
   tsdbUnRefMemTable(pRepo, pIMem);
+
   sem_post(&(pRepo->readyToCommit));
 }
 
