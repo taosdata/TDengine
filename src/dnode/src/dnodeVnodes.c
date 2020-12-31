@@ -271,7 +271,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   vnodeBuildStatusMsg(pStatus);
   contLen = sizeof(SStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);
   pStatus->openVnodes = htons(pStatus->openVnodes);
-  
+
   SRpcMsg rpcMsg = {
     .pCont   = pStatus,
     .contLen = contLen,

@@ -305,7 +305,7 @@ void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
   } else {
     dnodeGetEpSetForPeer(&epSet);
   }
-  
+
   dDebug("msg:%s will be redirected, dnodeIp:%s user:%s, numOfEps:%d inUse:%d", taosMsg[rpcMsg->msgType],
          taosIpStr(connInfo.clientIp), connInfo.user, epSet.numOfEps, epSet.inUse);
 

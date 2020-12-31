@@ -124,11 +124,11 @@ void taos_init_imp(void) {
   }
 
   tscTmr = taosTmrInit(tsMaxConnections * 2, 200, 60000, "TSC");
-  if (0 == tscEmbedded) {
-    taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);
+  if(0 == tscEmbedded){
+    taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
 
-  int64_t refreshTime = 10;  // 10 seconds by default
+  int64_t refreshTime = 10; // 10 seconds by default
   if (tscMetaCache == NULL) {
     tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, tscFreeTableMetaHelper, "tableMeta");
     tscObjRef  = taosOpenRef(40960, tscFreeRegisteredSqlObj);
