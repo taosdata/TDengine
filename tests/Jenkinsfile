@@ -42,6 +42,7 @@ pipeline {
             pre_test()
             sh '''
             cd ${WKC}/tests
+            find pytest -name '*'sql|xargs rm -rf
             ./test-all.sh pytest
             date'''
           }

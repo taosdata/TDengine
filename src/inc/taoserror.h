@@ -67,6 +67,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_RESPONSE_TYPE,    0, 0x0012, "Invalid re
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_TIME_STAMP,       0, 0x0013, "Client and server's time is not synchronized")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_NOT_READY,                0, 0x0014, "Database not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               0, 0x0015, "Unable to resolve FQDN")
+TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_VERSION,          0, 0x0016, "Invalid app version")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_COM_OPS_NOT_SUPPORT,          0, 0x0100, "Operation not supported")
@@ -208,9 +209,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_APP_ERROR,                0, 0x0509, "Unexpected
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_VRESION_FILE,     0, 0x050A, "Invalid version file")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_FULL,                  0, 0x050B, "Database memory is full for commit failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_FLOWCTRL,              0, 0x050C, "Database memory is full for waiting commit")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_DROPPING,              0, 0x050D, "Database is dropping")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_BALANCING,             0, 0x050E, "Database is balancing")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_SYNCED,               0, 0x0511, "Database suspended")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            0, 0x0512, "Database write operation denied")
-TAOS_DEFINE_ERROR(TSDB_CODE_VND_SYNCING,                  0, 0x0513, "Database is syncing")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_SYNCING,               0, 0x0513, "Database is syncing")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         0, 0x0600, "Invalid table ID")

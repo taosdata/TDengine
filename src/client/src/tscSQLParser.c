@@ -4478,6 +4478,7 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
   const char* msg = "illegal value or data overflow";
   const char* msg1 = "value is expected";
   const char* msg2 = "invalid fill option";
+  const char* msg3 = "top/bottom not support fill";
 
   if (pItem->pVar.nType != TSDB_DATA_TYPE_BINARY) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -4558,6 +4559,14 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
     }
   } else {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  }
+
+  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  for(int32_t i = 0; i < numOfExprs; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    if (pExpr->functionId == TSDB_FUNC_TOP || pExpr->functionId == TSDB_FUNC_BOTTOM) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
   }
 
   return TSDB_CODE_SUCCESS;

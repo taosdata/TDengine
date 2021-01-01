@@ -41,12 +41,15 @@ def pre_test(){
     
     cd ${WKC}
     git checkout develop
+    git reset --hard HEAD~10
     git pull
     git fetch
     git checkout ${CHANGE_BRANCH}
+    git reset --hard HEAD~10
+    git pull
     git merge develop
     cd ${WK}
-    git reset --hard
+    git reset --hard HEAD~10
     git checkout develop
     git pull
     cd ${WK}
@@ -86,6 +89,7 @@ pipeline {
             pre_test()
             sh '''
             cd ${WKC}/tests
+            find pytest -name '*'sql|xargs rm -rf
             ./test-all.sh p1
             date'''
           }
@@ -97,6 +101,7 @@ pipeline {
             pre_test()
             sh '''
             cd ${WKC}/tests
+            find pytest -name '*'sql|xargs rm -rf
             ./test-all.sh p2
             date'''
           }

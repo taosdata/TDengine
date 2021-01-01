@@ -571,6 +571,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     pVload->vgId = htonl(pVload->vgId);
     pVload->dbCfgVersion = htonl(pVload->dbCfgVersion);
     pVload->vgCfgVersion = htonl(pVload->vgCfgVersion);
+    pVload->vnodeVersion = htobe64(pVload->vnodeVersion);
 
     SVgObj *pVgroup = mnodeGetVgroup(pVload->vgId);
     if (pVgroup == NULL) {
