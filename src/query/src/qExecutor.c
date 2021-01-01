@@ -6034,7 +6034,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
   pQueryMsg->tsNumOfBlocks = htonl(pQueryMsg->tsNumOfBlocks);
   pQueryMsg->tsOrder = htonl(pQueryMsg->tsOrder);
   pQueryMsg->numOfTags = htonl(pQueryMsg->numOfTags);
-  pQueryMsg->tagCondLen = htonl(pQueryMsg->tagCondLen);
+  pQueryMsg->tbnameCondLen = htons(pQueryMsg->tbnameCondLen);
   pQueryMsg->secondStageOutput = htonl(pQueryMsg->secondStageOutput);
   pQueryMsg->sqlstrLen = htonl(pQueryMsg->sqlstrLen);
 
@@ -6247,15 +6247,15 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     pMsg += pQueryMsg->tagCondLen;
   }
 
-  if (pQueryMsg->tagCondLen != 0) {
-    *tbnameCond = calloc(1, pQueryMsg->tagCondLen + 1);
+  if (pQueryMsg->tbnameCondLen > 0) {
+    *tbnameCond = calloc(1, pQueryMsg->tbnameCondLen + 1);
     if (*tbnameCond == NULL) {
       code = TSDB_CODE_QRY_OUT_OF_MEMORY;
       goto _cleanup;
     }
 
-    strncpy(*tbnameCond, pMsg, pQueryMsg->tagCondLen);
-    pMsg += pQueryMsg->tagCondLen;
+    strncpy(*tbnameCond, pMsg, pQueryMsg->tbnameCondLen);
+    pMsg += pQueryMsg->tbnameCondLen;
   }
 
   *sql = strndup(pMsg, pQueryMsg->sqlstrLen);

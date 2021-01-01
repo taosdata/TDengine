@@ -730,7 +730,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->interval.offsetUnit   = pQueryInfo->interval.offsetUnit;
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
   pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
-  pQueryMsg->tagCondLen     = htons((pQueryInfo->tagCond.tbnameCond.cond != NULL)? strlen(pQueryInfo->tagCond.tbnameCond.cond):0);
+  pQueryMsg->tbnameCondLen  = htons((pQueryInfo->tagCond.tbnameCond.cond != NULL)? strlen(pQueryInfo->tagCond.tbnameCond.cond):0);
   pQueryMsg->numOfTags      = htonl(numOfTags);
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
   pQueryMsg->vgroupLimit    = htobe64(pQueryInfo->vgroupLimit);
@@ -970,10 +970,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
   
   if (pQueryInfo->tagCond.tbnameCond.cond == NULL) {
-    assert(pQueryMsg->tagCondLen == 0);
+    assert(pQueryMsg->tbnameCondLen == 0);
   } else {
     strcpy(pMsg, pQueryInfo->tagCond.tbnameCond.cond);
-    pMsg += strlen(pQueryInfo->tagCond.tbnameCond.cond) + 1;
+    pMsg += pQueryMsg->tbnameCondLen + 1;
   }
 
   // compressed ts block
