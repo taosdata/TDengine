@@ -565,10 +565,10 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
  * for table query, simply return the size <= 1k
  */
 static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
-  SSqlCmd* pCmd = &pSql->cmd;
-
   const static int32_t MIN_QUERY_MSG_PKT_SIZE = TSDB_MAX_BYTES_PER_ROW * 5;
-  SQueryInfo *         pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
+
+  SSqlCmd* pCmd = &pSql->cmd;
+  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
 
   int32_t srcColListSize = (int32_t)(taosArrayGetSize(pQueryInfo->colList) * sizeof(SColumnInfo));
 
@@ -576,7 +576,8 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
   int32_t exprSize = (int32_t)(sizeof(SSqlFuncMsg) * numOfExprs * 2);
 
   int32_t tsBufSize = (pQueryInfo->tsBuf != NULL) ? pQueryInfo->tsBuf->fileSize : 0;
-  int32_t sqlLen = strlen(pSql->sqlstr) + 1;
+  int32_t sqlLen = (int32_t) strlen(pSql->sqlstr) + 1;
+
 
   int32_t tableSerialize = 0;
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -730,7 +731,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->interval.offsetUnit   = pQueryInfo->interval.offsetUnit;
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
   pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
-  pQueryMsg->tbnameCondLen  = htons((pQueryInfo->tagCond.tbnameCond.cond != NULL)? strlen(pQueryInfo->tagCond.tbnameCond.cond):0);
+  pQueryMsg->tbnameCondLen  = htonl(pQueryInfo->tagCond.tbnameCond.len);
   pQueryMsg->numOfTags      = htonl(numOfTags);
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
   pQueryMsg->vgroupLimit    = htobe64(pQueryInfo->vgroupLimit);
@@ -968,12 +969,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pMsg += pCond->len;
     }
   }
-  
-  if (pQueryInfo->tagCond.tbnameCond.cond == NULL) {
-    assert(pQueryMsg->tbnameCondLen == 0);
-  } else {
-    strcpy(pMsg, pQueryInfo->tagCond.tbnameCond.cond);
-    pMsg += pQueryMsg->tbnameCondLen + 1;
+
+  SCond* pCond = &pQueryInfo->tagCond.tbnameCond;
+  if (pCond->len > 0) {
+    strncpy(pMsg, pCond->cond, pCond->len);
+    pMsg += pCond->len;
   }
 
   // compressed ts block
