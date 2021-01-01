@@ -1512,6 +1512,7 @@ int32_t tscTagCondCopy(STagCond* dest, const STagCond* src) {
   }
 
   dest->tbnameCond.uid = src->tbnameCond.uid;
+  dest->tbnameCond.len = src->tbnameCond.len;
 
   memcpy(&dest->joinInfo, &src->joinInfo, sizeof(SJoinInfo));
   dest->relType = src->relType;
