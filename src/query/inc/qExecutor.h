@@ -239,6 +239,7 @@ typedef struct SQInfo {
   int32_t          dataReady;   // denote if query result is ready or not
   void*            rspContext;  // response context
   int64_t          startExecTs; // start to exec timestamp
+  char*            sql;         // query sql string
 } SQInfo;
 
 #endif  // TDENGINE_QUERYEXECUTOR_H

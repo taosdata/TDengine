@@ -1995,7 +1995,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void
 
   pNew->pTscObj   = pSql->pTscObj;
   pNew->signature = pNew;
-  pNew->sqlstr    = NULL;
+  pNew->sqlstr    = strdup(pSql->sqlstr);
 
   SSqlCmd* pnCmd = &pNew->cmd;
   memcpy(pnCmd, pCmd, sizeof(SSqlCmd));

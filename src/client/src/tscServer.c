@@ -564,7 +564,9 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 /*
  * for table query, simply return the size <= 1k
  */
-static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
+static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
+  SSqlCmd* pCmd = &pSql->cmd;
+
   const static int32_t MIN_QUERY_MSG_PKT_SIZE = TSDB_MAX_BYTES_PER_ROW * 5;
   SQueryInfo *         pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
 
@@ -574,6 +576,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   int32_t exprSize = (int32_t)(sizeof(SSqlFuncMsg) * numOfExprs * 2);
 
   int32_t tsBufSize = (pQueryInfo->tsBuf != NULL) ? pQueryInfo->tsBuf->fileSize : 0;
+  int32_t sqlLen = strlen(pSql->sqlstr) + 1;
 
   int32_t tableSerialize = 0;
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -590,7 +593,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlCmd *pCmd, int32_t clauseIndex) {
   }
 
   return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + tsBufSize +
-         tableSerialize + 4096;
+         tableSerialize + sqlLen + 4096;
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {
@@ -670,7 +673,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
 int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
-  int32_t size = tscEstimateQueryMsgSize(pCmd, pCmd->clauseIndex);
+  int32_t size = tscEstimateQueryMsgSize(pSql, pCmd->clauseIndex);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for query msg", pSql);
@@ -703,7 +706,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tstrncpy(pQueryMsg->version, version, tListLen(pQueryMsg->version));
 
   int32_t numOfTags = (int32_t)taosArrayGetSize(pTableMetaInfo->tagColList);
-  
+  int32_t sqlLen = (int32_t) strlen(pSql->sqlstr);
+
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {
     pQueryMsg->window.skey = htobe64(pQueryInfo->window.skey);
     pQueryMsg->window.ekey = htobe64(pQueryInfo->window.ekey);
@@ -726,10 +730,12 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->interval.offsetUnit   = pQueryInfo->interval.offsetUnit;
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
   pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
+  pQueryMsg->tagCondLen     = htons((pQueryInfo->tagCond.tbnameCond.cond != NULL)? strlen(pQueryInfo->tagCond.tbnameCond.cond):0);
   pQueryMsg->numOfTags      = htonl(numOfTags);
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
-  pQueryMsg->vgroupLimit     = htobe64(pQueryInfo->vgroupLimit);
-  
+  pQueryMsg->vgroupLimit    = htobe64(pQueryInfo->vgroupLimit);
+  pQueryMsg->sqlstrLen      = htonl(sqlLen);
+
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryMsg->numOfOutput = htons((int16_t)numOfOutput);  // this is the stage one output column number
 
@@ -964,8 +970,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
   
   if (pQueryInfo->tagCond.tbnameCond.cond == NULL) {
-    *pMsg = 0;
-    pMsg++;
+    assert(pQueryMsg->tagCondLen == 0);
   } else {
     strcpy(pMsg, pQueryInfo->tagCond.tbnameCond.cond);
     pMsg += strlen(pQueryInfo->tagCond.tbnameCond.cond) + 1;
@@ -988,6 +993,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->tsLen   = htonl(pQueryMsg->tsLen);
     pQueryMsg->tsNumOfBlocks = htonl(pQueryMsg->tsNumOfBlocks);
   }
+
+  memcpy(pMsg, pSql->sqlstr, sqlLen);
+  pMsg += sqlLen;
 
   int32_t msgLen = (int32_t)(pMsg - pCmd->payload);
 
