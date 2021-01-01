@@ -4019,7 +4019,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
   if (pExpr->nSQLOptr == TK_LIKE) {
     char* str = taosStringBuilderGetResult(sb, NULL);
     pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
-    pQueryInfo->tagCond.tbnameCond.len = strlen(str);
+    pQueryInfo->tagCond.tbnameCond.len = (int32_t) strlen(str);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4069,7 +4069,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
 
   char* str = taosStringBuilderGetResult(&sb1, NULL);
   pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
-  pQueryInfo->tagCond.tbnameCond.len = strlen(str);
+  pQueryInfo->tagCond.tbnameCond.len = (int32_t) strlen(str);
 
   taosStringBuilderDestroy(&sb1);
   tfree(segments);
