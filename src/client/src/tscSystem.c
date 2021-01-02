@@ -52,6 +52,7 @@ void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
 void tscFreeRpcObj(void *param) {
   assert(param);
   SRpcObj *pRpcObj = (SRpcObj *)(param);
+  tscDebug("free rpcObj:%p and free pDnodeConn: %p", pRpcObj, pRpcObj->pDnodeConn);
   rpcClose(pRpcObj->pDnodeConn);
   tfree(pRpcObj->tscCorMgmtEpSet);
 }
