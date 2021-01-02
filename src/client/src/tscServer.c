@@ -116,9 +116,15 @@ static void tscDumpEpSetFromVgroupInfo(SRpcEpSet *pEpSet, SNewVgroupInfo *pVgrou
 static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
   SSqlCmd *pCmd = &pObj->cmd;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  if (pTableMetaInfo == NULL || pTableMetaInfo->pTableMeta == NULL) { return;}
+  if (pTableMetaInfo == NULL || pTableMetaInfo->pTableMeta == NULL) {
+    return;
+  }
 
   int32_t vgId = pTableMetaInfo->pTableMeta->vgId;
+  if (pTableMetaInfo->pTableMeta->tableType == TSDB_SUPER_TABLE) {
+    assert(vgId == 0);
+    return;
+  }
 
   SNewVgroupInfo vgroupInfo = {.vgId = -1};
   taosHashGetClone(tscVgroupMap, &vgId, sizeof(vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
@@ -1855,15 +1861,19 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   }
 
   // update the vgroupInfo if needed
-  int32_t vgId = pTableMeta->vgId;
-  SNewVgroupInfo vgroupInfo = {.inUse = -1};
-  taosHashGetClone(tscVgroupMap, &vgId, sizeof(vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
+  if (pTableMeta->vgId > 0) {
+    int32_t vgId = pTableMeta->vgId;
+    assert(pTableMeta->tableType != TSDB_SUPER_TABLE);
 
-  if (((vgroupInfo.inUse >= 0) && !vgroupInfoIdentical(&vgroupInfo, &pMetaMsg->vgroup)) ||
-      (vgroupInfo.inUse < 0)) {  // vgroup info exists, compare with it
-    vgroupInfo = createNewVgroupInfo(&pMetaMsg->vgroup);
-    taosHashPut(tscVgroupMap, &vgId, sizeof(vgId), &vgroupInfo, sizeof(vgroupInfo));
-    tscDebug("add new VgroupInfo, vgId:%d, total:%d", vgId, (int32_t) taosHashGetSize(tscVgroupMap));
+    SNewVgroupInfo vgroupInfo = {.inUse = -1};
+    taosHashGetClone(tscVgroupMap, &vgId, sizeof(vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
+
+    if (((vgroupInfo.inUse >= 0) && !vgroupInfoIdentical(&vgroupInfo, &pMetaMsg->vgroup)) ||
+        (vgroupInfo.inUse < 0)) {  // vgroup info exists, compare with it
+      vgroupInfo = createNewVgroupInfo(&pMetaMsg->vgroup);
+      taosHashPut(tscVgroupMap, &vgId, sizeof(vgId), &vgroupInfo, sizeof(vgroupInfo));
+      tscDebug("add new VgroupInfo, vgId:%d, total:%d", vgId, (int32_t) taosHashGetSize(tscVgroupMap));
+    }
   }
 
   tscDebug("%p recv table meta, uid:%"PRId64 ", tid:%d, name:%s", pSql, pTableMeta->id.uid, pTableMeta->id.tid, pTableMetaInfo->name);

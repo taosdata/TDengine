@@ -63,17 +63,6 @@ typedef struct SNewVgroupInfo {
   SEpAddrMsg ep[TSDB_MAX_REPLICA];
 } SNewVgroupInfo;
 
-typedef struct CSuperTableMeta {
-  STableComInfo  tableInfo;
-  uint8_t        tableType;
-  int16_t        sversion;
-  int16_t        tversion;
-  char           sTableName[TSDB_TABLE_FNAME_LEN];
-  STableId       id;
-  int32_t        childList;
-  SSchema        schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
-} CSuperTableMeta;
-
 typedef struct CChildTableMeta {
   int32_t        vgId;
   STableId       id;
