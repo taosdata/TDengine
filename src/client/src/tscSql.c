@@ -94,8 +94,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   sprintf(rpcKey, "%s:%s:%s:%d", user, pass, ip, port);
  
   void *pRpcObj = NULL;
-  void *pDnodeConn = NULL;
-  if (tscInitRpc(rpcKey, user, secretEncrypt, &pRpcObj, &pDnodeConn) != 0) {
+  if (tscInitRpc(rpcKey, user, secretEncrypt, &pRpcObj) != 0) {
     terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     return NULL;
   }
@@ -106,20 +105,9 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     tscReleaseRpc(pRpcObj);
     return NULL;
   }
-  // set up tscObj's mgmtEpSet
-  pObj->tscCorMgmtEpSet = (SRpcCorEpSet *)malloc(sizeof(SRpcCorEpSet));
-  if (NULL == pObj->tscCorMgmtEpSet) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscReleaseRpc(pRpcObj);
-    free(pObj->tscCorMgmtEpSet);
-    free(pObj);
-  }
-  memcpy(pObj->tscCorMgmtEpSet, &corMgmtEpSet, sizeof(SRpcCorEpSet));
-
   pObj->signature = pObj;
-  pObj->pRpcObj = pRpcObj;
-  pObj->pDnodeConn = pDnodeConn;
-  
+  pObj->pRpcObj = (SRpcObj *)pRpcObj;
+  memcpy(pObj->pRpcObj->tscCorMgmtEpSet, &corMgmtEpSet, sizeof(SRpcCorEpSet));
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   secretEncryptLen = MIN(secretEncryptLen, sizeof(pObj->pass));
   memcpy(pObj->pass, secretEncrypt, secretEncryptLen);
@@ -130,7 +118,6 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     if (len >= TSDB_DB_NAME_LEN) {
       terrno = TSDB_CODE_TSC_INVALID_DB_LENGTH;
       tscReleaseRpc(pRpcObj);
-      free(pObj->tscCorMgmtEpSet);
       free(pObj);
       return NULL;
     }
@@ -148,7 +135,6 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   if (NULL == pSql) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscReleaseRpc(pRpcObj);
-    free(pObj->tscCorMgmtEpSet);
     free(pObj);
     return NULL;
   }
@@ -166,7 +152,6 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscReleaseRpc(pRpcObj);
     free(pSql);
-    free(pObj->tscCorMgmtEpSet);
     free(pObj);
     return NULL;
   }
@@ -205,7 +190,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
       return NULL;
     }
     
-    tscDebug("%p DB connection is opening, dnodeConn:%p", pObj, pObj->pDnodeConn);
+    tscDebug("%p DB connection is opening, rpcObj: %p, dnodeConn:%p", pObj, pObj->pRpcObj, pObj->pRpcObj->pDnodeConn);
     taos_free_result(pSql);
   
     // version compare only requires the first 3 segments of the version string
@@ -282,7 +267,7 @@ void taos_close(TAOS *taos) {
     return;
   }
 
-  tscDebug("%p try to free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
+  tscDebug("%p try to free tscObj", pObj);
   if (pObj->signature != pObj) {
     tscDebug("%p already closed or invalid tscObj", pObj);
     return;
@@ -302,7 +287,7 @@ void taos_close(TAOS *taos) {
     }
   }
 
-  tscDebug("%p all sqlObj are freed, free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
+  tscDebug("%p all sqlObj are freed, free tscObj", pObj);
   taosRemoveRef(tscRefId, pObj->rid);
 }
 

@@ -53,6 +53,7 @@ void tscFreeRpcObj(void *param) {
   assert(param);
   SRpcObj *pRpcObj = (SRpcObj *)(param);
   rpcClose(pRpcObj->pDnodeConn);
+  tfree(pRpcObj->tscCorMgmtEpSet);
 }
 void *tscAcquireRpc(const char *key) {
   SRpcObj *pRpcObj = taosCacheAcquireByKey(tscRpcCache, key, strlen(key)); 
@@ -71,13 +72,12 @@ void tscReleaseRpc(void *param)  {
   pthread_mutex_unlock(&rpcObjMutex);
 } 
 
-int32_t tscInitRpc(const char *key, const char *user, const char *secretEncrypt, void **ppRpcObj, void **pDnodeConn) {
+int32_t tscInitRpc(const char *key, const char *user, const char *secretEncrypt, void **ppRpcObj) {
   pthread_mutex_lock(&rpcObjMutex);
 
   SRpcObj *pRpcObj = (SRpcObj *)tscAcquireRpc(key); 
   if (pRpcObj != NULL) {
     *ppRpcObj = pRpcObj;   
-    *pDnodeConn = pRpcObj->pDnodeConn; 
     pthread_mutex_unlock(&rpcObjMutex);
     return 0;
   } 
@@ -86,7 +86,7 @@ int32_t tscInitRpc(const char *key, const char *user, const char *secretEncrypt,
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
   rpcInit.label = "TSC";
-  rpcInit.numOfThreads = 1;    
+  rpcInit.numOfThreads = tscNumOfThreads * 2;    
   rpcInit.cfp = tscProcessMsgFromServer;
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
@@ -111,9 +111,13 @@ int32_t tscInitRpc(const char *key, const char *user, const char *secretEncrypt,
     pthread_mutex_unlock(&rpcObjMutex);
     return -1;
   } 
+  pRpcObj->tscCorMgmtEpSet = malloc(sizeof(SRpcCorEpSet));
+  if (pRpcObj->tscCorMgmtEpSet == NULL) {
+    rpcClose(rpcObj.pDnodeConn);
+    pthread_mutex_unlock(&rpcObjMutex);
+  }
 
   *ppRpcObj  = pRpcObj;
-  *pDnodeConn = pRpcObj->pDnodeConn;
   pthread_mutex_unlock(&rpcObjMutex);
   return 0;
 }
