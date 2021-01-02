@@ -34,6 +34,8 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite);
+static int32_t vnodeCheckProcessWrite(void *vparam);
+static int32_t vnodeCheckRpcWrite(void *vparam);
 
 int32_t vnodeInitWrite(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
@@ -62,6 +64,9 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
 
   vTrace("vgId:%d, msg:%s will be processed in vnode, qtype:%s hver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId,
          taosMsg[pHead->msgType], qtypeStr[qtype], pHead->version, pVnode->version);
+
+  code = vnodeCheckProcessWrite(pVnode);
+  if (code != TSDB_CODE_SUCCESS) return code;
 
   if (pHead->version == 0) {  // from client or CQ
     if (!vnodeInReadyStatus(pVnode)) {
@@ -101,7 +106,7 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   return syncCode;
 }
 
-static int32_t vnodeCheckWrite(void *vparam) {
+static int32_t vnodeCheckRpcWrite(void *vparam) {
   SVnodeObj *pVnode = vparam;
   if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
     vDebug("vgId:%d, no write auth, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
@@ -122,6 +127,16 @@ static int32_t vnodeCheckWrite(void *vparam) {
   }
 
   if (vnodeInClosingStatus(pVnode)) {
+    vDebug("vgId:%d, vnode in closing status, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+    return TSDB_CODE_APP_NOT_READY;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t vnodeCheckProcessWrite(void *vparam) {
+  SVnodeObj *pVnode = vparam;
+  if (!vnodeInReadyStatus(pVnode)) {
     vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
@@ -222,7 +237,7 @@ int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rpar
   int32_t    code = 0;
 
   if (qtype == TAOS_QTYPE_RPC) {
-    code = vnodeCheckWrite(pVnode);
+    code = vnodeCheckRpcWrite(pVnode);
     if (code != TSDB_CODE_SUCCESS) return code;
   }
 
