@@ -73,7 +73,7 @@ void tscReleaseRpc(void *param)  {
   pthread_mutex_unlock(&rpcObjMutex);
 } 
 
-int32_t tscInitRpc(const char *key, const char *user, const char *secretEncrypt, void **ppRpcObj) {
+int32_t tscInitRpc(const char *key, const char *user, const char *secretEncrypt, void **ppRpcObj, SRpcCorEpSet *corMgmtEpSet) {
   pthread_mutex_lock(&rpcObjMutex);
 
   SRpcObj *pRpcObj = (SRpcObj *)tscAcquireRpc(key); 
@@ -117,6 +117,7 @@ int32_t tscInitRpc(const char *key, const char *user, const char *secretEncrypt,
     rpcClose(rpcObj.pDnodeConn);
     pthread_mutex_unlock(&rpcObjMutex);
   }
+  memcpy(pRpcObj->tscCorMgmtEpSet, corMgmtEpSet, sizeof(*corMgmtEpSet));
 
   *ppRpcObj  = pRpcObj;
   pthread_mutex_unlock(&rpcObjMutex);

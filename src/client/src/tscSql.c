@@ -94,7 +94,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   sprintf(rpcKey, "%s:%s:%s:%d", user, pass, ip, port);
  
   void *pRpcObj = NULL;
-  if (tscInitRpc(rpcKey, user, secretEncrypt, &pRpcObj) != 0) {
+  if (tscInitRpc(rpcKey, user, secretEncrypt, &pRpcObj, &corMgmtEpSet) != 0) {
     terrno = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     return NULL;
   }
@@ -107,7 +107,6 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   }
   pObj->signature = pObj;
   pObj->pRpcObj = (SRpcObj *)pRpcObj;
-  memcpy(pObj->pRpcObj->tscCorMgmtEpSet, &corMgmtEpSet, sizeof(SRpcCorEpSet));
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   secretEncryptLen = MIN(secretEncryptLen, sizeof(pObj->pass));
   memcpy(pObj->pass, secretEncrypt, secretEncryptLen);

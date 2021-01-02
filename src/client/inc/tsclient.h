@@ -385,7 +385,7 @@ void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 
 void *tscAcquireRpc(const char *key);
 void tscReleaseRpc(void *param);
-int32_t tscInitRpc(const char *key, const char *user, const char *secret, void **pRpcObj);
+int32_t tscInitRpc(const char *key, const char *user, const char *secret, void **pRpcObj, SRpcCorEpSet *corMgmtEpSet);
 void    tscInitMsgsFp();
 
 int tsParseSql(SSqlObj *pSql, bool initial);
