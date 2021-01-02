@@ -895,15 +895,10 @@ void tscCloseTscObj(void *param) {
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));
 
-  void* p = pObj->pDnodeConn;
-  if (pObj->pDnodeConn != NULL) {
-    rpcClose(pObj->pDnodeConn);
-    pObj->pDnodeConn = NULL;
-  }
+  tscReleaseRpc(pObj->pRpcObj);
   tfree(pObj->tscCorMgmtEpSet);
   pthread_mutex_destroy(&pObj->mutex);
 
-  tscDebug("%p DB connection is closed, dnodeConn:%p", pObj, p);
   tfree(pObj);
 }
 
