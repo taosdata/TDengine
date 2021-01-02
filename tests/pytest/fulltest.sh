@@ -178,11 +178,15 @@ python3 ./test.py -f query/floatCompare.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
+python3 ./test.py -f stream/metric_n.py
 python3 ./test.py -f stream/new.py
 python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
 #python3 ./test.py -f stream/parser.py
 python3 ./test.py -f stream/history.py
+python3 ./test.py -f stream/sys.py
+python3 ./test.py -f stream/table_1.py
+python3 ./test.py -f stream/table_n.py
 
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py

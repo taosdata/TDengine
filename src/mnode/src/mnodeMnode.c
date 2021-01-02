@@ -387,6 +387,7 @@ static bool mnodeAllOnline() {
     if (pMnode == NULL) break;
     if (pMnode->role != TAOS_SYNC_ROLE_MASTER && pMnode->role != TAOS_SYNC_ROLE_SLAVE) {
       allOnline = false;
+      mDebug("mnode:%d, role:%s, not online", pMnode->mnodeId, syncRole[pMnode->role]);
       mnodeDecMnodeRef(pMnode);
     }
   }

@@ -319,6 +319,7 @@ cd ../../../debug; make
 ./test.sh -f unique/mnode/mgmt24.sim
 ./test.sh -f unique/mnode/mgmt25.sim
 ./test.sh -f unique/mnode/mgmt26.sim
+./test.sh -f unique/mnode/mgmt30.sim
 ./test.sh -f unique/mnode/mgmt33.sim
 ./test.sh -f unique/mnode/mgmt34.sim
 ./test.sh -f unique/mnode/mgmtr2.sim
@@ -330,16 +331,12 @@ cd ../../../debug; make
 ./test.sh -f unique/vnode/replica3_repeat.sim
 ./test.sh -f unique/vnode/replica3_vgroup.sim
 
-./test.sh -f general/parser/stream_on_sys.sim
 ./test.sh -f general/stream/metrics_del.sim
-./test.sh -f general/stream/metrics_n.sim
 ./test.sh -f general/stream/metrics_replica1_vnoden.sim
 ./test.sh -f general/stream/restart_stream.sim
 ./test.sh -f general/stream/stream_3.sim
 ./test.sh -f general/stream/stream_restart.sim
-./test.sh -f general/stream/table_1.sim
 ./test.sh -f general/stream/table_del.sim
-./test.sh -f general/stream/table_n.sim
 ./test.sh -f general/stream/table_replica1_vnoden.sim
 
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim

@@ -150,6 +150,8 @@
 ./test.sh -f general/parser/repeatAlter.sim
 ./test.sh -f general/parser/union.sim
 ./test.sh -f general/parser/topbot.sim
+./test.sh -f general/db/nosuchfile.sim
+./test.sh -f general/parser/function.sim
 
 ./test.sh -f general/stable/disk.sim
 ./test.sh -f general/stable/dnode3.sim
