@@ -34,8 +34,8 @@ static int32_t vnodeProcessAlterTableMsg(SVnodeObj *pVnode, void *pCont, SRspRet
 static int32_t vnodeProcessDropStableMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
 static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite);
-static int32_t vnodeCheckProcessWrite(void *vparam);
-static int32_t vnodeCheckRpcWrite(void *vparam);
+static int32_t vnodeCheckProcessWrite(SVnodeObj *pVnode);
+static int32_t vnodeCheckRpcWrite(SVnodeObj *pVnode);
 
 int32_t vnodeInitWrite(void) {
   vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_SUBMIT]          = vnodeProcessSubmitMsg;
@@ -106,8 +106,7 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   return syncCode;
 }
 
-static int32_t vnodeCheckRpcWrite(void *vparam) {
-  SVnodeObj *pVnode = vparam;
+static int32_t vnodeCheckRpcWrite(SVnodeObj *pVnode) {
   if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
     vDebug("vgId:%d, no write auth, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
     return TSDB_CODE_VND_NO_WRITE_AUTH;
@@ -134,8 +133,7 @@ static int32_t vnodeCheckRpcWrite(void *vparam) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t vnodeCheckProcessWrite(void *vparam) {
-  SVnodeObj *pVnode = vparam;
+static int32_t vnodeCheckProcessWrite(SVnodeObj *pVnode) {
   if (!vnodeInReadyStatus(pVnode)) {
     vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
