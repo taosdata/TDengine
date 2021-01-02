@@ -383,10 +383,9 @@ typedef struct SSqlStream {
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 
 
-void *tscAcquireRpc(const char *key);
+int  tscAcquireRpc(const char *key, const char *user, const char *secret, SRpcCorEpSet *corMgmtEpSet, void **pRpcObj);
 void tscReleaseRpc(void *param);
-int32_t tscInitRpc(const char *key, const char *user, const char *secret, void **pRpcObj, SRpcCorEpSet *corMgmtEpSet);
-void    tscInitMsgsFp();
+void tscInitMsgsFp();
 
 int tsParseSql(SSqlObj *pSql, bool initial);
 

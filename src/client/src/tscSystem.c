@@ -56,13 +56,6 @@ void tscFreeRpcObj(void *param) {
   rpcClose(pRpcObj->pDnodeConn);
   tfree(pRpcObj->tscCorMgmtEpSet);
 }
-void *tscAcquireRpc(const char *key) {
-  SRpcObj *pRpcObj = taosCacheAcquireByKey(tscRpcCache, key, strlen(key)); 
-  if (pRpcObj == NULL) {
-    return NULL;
-  }
-  return pRpcObj; 
-}
 
 void tscReleaseRpc(void *param)  {
   if (param == NULL) {
@@ -73,10 +66,10 @@ void tscReleaseRpc(void *param)  {
   pthread_mutex_unlock(&rpcObjMutex);
 } 
 
-int32_t tscInitRpc(const char *key, const char *user, const char *secretEncrypt, void **ppRpcObj, SRpcCorEpSet *corMgmtEpSet) {
+int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncrypt, SRpcCorEpSet *corMgmtEpSet, void **ppRpcObj) {
   pthread_mutex_lock(&rpcObjMutex);
 
-  SRpcObj *pRpcObj = (SRpcObj *)tscAcquireRpc(key); 
+  SRpcObj *pRpcObj = (SRpcObj *)taosCacheAcquireByKey(tscRpcCache, key, strlen(key));
   if (pRpcObj != NULL) {
     *ppRpcObj = pRpcObj;   
     pthread_mutex_unlock(&rpcObjMutex);
