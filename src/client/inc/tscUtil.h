@@ -20,9 +20,6 @@
 extern "C" {
 #endif
 
-/*
- * @date   2018/09/30
- */
 #include "exception.h"
 #include "os.h"
 #include "qExtbuffer.h"

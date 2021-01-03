@@ -112,11 +112,10 @@ extern "C" {
 #define TOP_BOTTOM_QUERY_LIMIT   100
 
 enum {
-  MASTER_SCAN           = 0x0u,
-  REVERSE_SCAN          = 0x1u,
-  REPEAT_SCAN           = 0x2u,  //repeat scan belongs to the master scan
-  FIRST_STAGE_MERGE     = 0x10u,
-  SECONDARY_STAGE_MERGE = 0x20u,
+  MASTER_SCAN   = 0x0u,
+  REVERSE_SCAN  = 0x1u,
+  REPEAT_SCAN   = 0x2u,  //repeat scan belongs to the master scan
+  MERGE_STAGE   = 0x20u,
 };
 
 #define QUERY_IS_STABLE_QUERY(type)      (((type)&TSDB_QUERY_TYPE_STABLE_QUERY) != 0)
@@ -215,18 +214,12 @@ typedef struct SQLAggFuncElem {
   void (*xFunction)(SQLFunctionCtx *pCtx);                     // blocks version function
   void (*xFunctionF)(SQLFunctionCtx *pCtx, int32_t position);  // single-row function version
 
-  // some sql function require scan data twice or more, e.g.,stddev
+  // some sql function require scan data twice or more, e.g.,stddev, percentile
   void (*xNextStep)(SQLFunctionCtx *pCtx);
 
-  /*
-   * finalizer must be called after all xFunction has been executed to
-   * generated final result. Otherwise, the value in aOutputBuf is a intern result.
-   */
+  // finalizer must be called after all xFunction has been executed to generated final result.
   void (*xFinalize)(SQLFunctionCtx *pCtx);
-
-  void (*distMergeFunc)(SQLFunctionCtx *pCtx);
-
-  void (*distSecondaryMergeFunc)(SQLFunctionCtx *pCtx);
+  void (*mergeFunc)(SQLFunctionCtx *pCtx);
 
   int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId);
 } SQLAggFuncElem;

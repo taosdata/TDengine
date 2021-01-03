@@ -1507,7 +1507,7 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
   SColumnInfoData* pColumnInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock, 0);
 
   TSKEY  *tsCols = (pColumnInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP)? (TSKEY*) pColumnInfoData->pData:NULL;
-  bool    groupbyColumnValue = pRuntimeEnv->groupbyNormalCol;
+  bool    groupbyColumnValue = pRuntimeEnv->groupbyColumn;
 
   int16_t type = 0;
   int16_t bytes = 0;
@@ -1689,7 +1689,7 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBl
   STableQueryInfo* pTableQueryInfo = pQuery->current;
   SResultRowInfo*  pResultRowInfo = &pRuntimeEnv->windowResInfo;
 
-  if (pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTsBuf != NULL || pRuntimeEnv->groupbyNormalCol) {
+  if (pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTsBuf != NULL || pRuntimeEnv->groupbyColumn) {
     rowwiseApplyFunctions(pRuntimeEnv, pStatis, pDataBlockInfo, pResultRowInfo, pDataBlock);
   } else {
     blockwiseApplyFunctions(pRuntimeEnv, pStatis, pDataBlockInfo, pResultRowInfo, searchFn, pDataBlock);
@@ -1701,7 +1701,7 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBl
 
   // interval query with limit applied
   int32_t numOfRes = 0;
-  if (QUERY_IS_INTERVAL_QUERY(pQuery) || pRuntimeEnv->groupbyNormalCol) {
+  if (QUERY_IS_INTERVAL_QUERY(pQuery) || pRuntimeEnv->groupbyColumn) {
     numOfRes = pResultRowInfo->size;
     updateResultRowIndex(pResultRowInfo, pTableQueryInfo, QUERY_IS_ASC_QUERY(pQuery), pRuntimeEnv->timeWindowInterpo);
   } else { // projection query
@@ -1972,7 +1972,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
 
   // if it is group by normal column, do not set output buffer, the output buffer is pResult
   // fixed output query/multi-output query for normal table
-  if (!pRuntimeEnv->groupbyNormalCol && !pRuntimeEnv->stableQuery && !QUERY_IS_INTERVAL_QUERY(pRuntimeEnv->pQuery)) {
+  if (!pRuntimeEnv->groupbyColumn && !pRuntimeEnv->stableQuery && !QUERY_IS_INTERVAL_QUERY(pRuntimeEnv->pQuery)) {
     resetDefaultResInfoOutputBuf(pRuntimeEnv);
   }
 
@@ -2091,7 +2091,7 @@ static bool isFixedOutputQuery(SQueryRuntimeEnv* pRuntimeEnv) {
   }
 
   // Note:top/bottom query is fixed output query
-  if (pRuntimeEnv->topBotQuery || pRuntimeEnv->groupbyNormalCol) {
+  if (pRuntimeEnv->topBotQuery || pRuntimeEnv->groupbyColumn) {
     return true;
   }
 
@@ -2732,7 +2732,7 @@ static void ensureOutputBufferSimple(SQueryRuntimeEnv* pRuntimeEnv, int32_t capa
 static void ensureOutputBuffer(SQueryRuntimeEnv* pRuntimeEnv, SDataBlockInfo* pBlockInfo) {
   // in case of prj/diff query, ensure the output buffer is sufficient to accommodate the results of current block
   SQuery* pQuery = pRuntimeEnv->pQuery;
-  if (!QUERY_IS_INTERVAL_QUERY(pQuery) && !pRuntimeEnv->groupbyNormalCol && !isFixedOutputQuery(pRuntimeEnv) && !isTSCompQuery(pQuery)) {
+  if (!QUERY_IS_INTERVAL_QUERY(pQuery) && !pRuntimeEnv->groupbyColumn && !isFixedOutputQuery(pRuntimeEnv) && !isTSCompQuery(pQuery)) {
     SResultRec *pRec = &pQuery->rec;
 
     if (pQuery->rec.capacity - pQuery->rec.rows < pBlockInfo->rows) {
@@ -2953,50 +2953,6 @@ void setTagVal(SQueryRuntimeEnv *pRuntimeEnv, void *pTable, void *tsdb) {
                pExprInfo->base.arg->argValue.i64, pRuntimeEnv->pCtx[0].tag.i64Key);
       }
     }
-  }
-}
-
-static UNUSED_FUNC void doMerge(SQueryRuntimeEnv *pRuntimeEnv, int64_t timestamp, SResultRow *pWindowRes, bool mergeFlag) {
-  SQuery *        pQuery = pRuntimeEnv->pQuery;
-  SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
-
-  tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pWindowRes->pageId);
-
-  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    int32_t functionId = pQuery->pExpr1[i].base.functionId;
-    if (!mergeFlag) {
-      pCtx[i].aOutputBuf = pCtx[i].aOutputBuf + pCtx[i].outputBytes;
-      pCtx[i].currentStage = FIRST_STAGE_MERGE;
-
-      RESET_RESULT_INFO(pCtx[i].resultInfo);
-      aAggs[functionId].init(&pCtx[i]);
-    }
-
-    pCtx[i].hasNull = true;
-    pCtx[i].nStartQueryTimestamp = timestamp;
-    pCtx[i].aInputElemBuf = getPosInResultPage(pRuntimeEnv, i, pWindowRes, page);
-
-    // in case of tag column, the tag information should be extracted from input buffer
-    if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TAG) {
-      tVariantDestroy(&pCtx[i].tag);
-
-      int32_t type = pCtx[i].outputType;
-      if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-        tVariantCreateFromBinary(&pCtx[i].tag, varDataVal(pCtx[i].aInputElemBuf), varDataLen(pCtx[i].aInputElemBuf), type);
-      } else {
-        tVariantCreateFromBinary(&pCtx[i].tag, pCtx[i].aInputElemBuf, pCtx[i].inputBytes, pCtx[i].inputType);
-      }
-
-    }
-  }
-
-  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    int32_t functionId = pQuery->pExpr1[i].base.functionId;
-    if (functionId == TSDB_FUNC_TAG_DUMMY) {
-      continue;
-    }
-
-    aAggs[functionId].distMergeFunc(&pCtx[i]);
   }
 }
 
@@ -3396,7 +3352,7 @@ void disableFuncInReverseScan(SQInfo *pQInfo) {
 
   // group by normal columns and interval query on normal table
   SResultRowInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
-  if (pRuntimeEnv->groupbyNormalCol || QUERY_IS_INTERVAL_QUERY(pQuery)) {
+  if (pRuntimeEnv->groupbyColumn || QUERY_IS_INTERVAL_QUERY(pQuery)) {
     disableFuncInReverseScanImpl(pRuntimeEnv, pWindowResInfo, order);
   } else {  // for simple result of table query,
     for (int32_t j = 0; j < pQuery->numOfOutput; ++j) {  // todo refactor
@@ -3584,7 +3540,7 @@ bool needScanDataBlocksAgain(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   bool toContinue = false;
-  if (pRuntimeEnv->groupbyNormalCol || QUERY_IS_INTERVAL_QUERY(pQuery)) {
+  if (pRuntimeEnv->groupbyColumn || QUERY_IS_INTERVAL_QUERY(pQuery)) {
     // for each group result, call the finalize function for each column
     SResultRowInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
 
@@ -3779,10 +3735,10 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
 void finalizeQueryResult(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
-  if (pRuntimeEnv->groupbyNormalCol || QUERY_IS_INTERVAL_QUERY(pQuery)) {
+  if (pRuntimeEnv->groupbyColumn || QUERY_IS_INTERVAL_QUERY(pQuery)) {
     // for each group result, call the finalize function for each column
     SResultRowInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
-    if (pRuntimeEnv->groupbyNormalCol) {
+    if (pRuntimeEnv->groupbyColumn) {
       closeAllResultRows(pWindowResInfo);
     }
 
@@ -3836,7 +3792,7 @@ static STableQueryInfo *createTableQueryInfo(SQueryRuntimeEnv *pRuntimeEnv, void
   pTableQueryInfo->cur.vgroupIndex = -1;
 
   // set more initial size of interval/groupby query
-  if (QUERY_IS_INTERVAL_QUERY(pQuery) || pRuntimeEnv->groupbyNormalCol) {
+  if (QUERY_IS_INTERVAL_QUERY(pQuery) || pRuntimeEnv->groupbyColumn) {
     int32_t initialSize = 128;
     int32_t code = initResultRowInfo(&pTableQueryInfo->windowResInfo, initialSize, TSDB_DATA_TYPE_INT);
     if (code != TSDB_CODE_SUCCESS) {
@@ -4189,7 +4145,7 @@ static void stableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBloc
   SResultRowInfo * pResultRowInfo = &pTableQueryInfo->windowResInfo;
   pQuery->pos = QUERY_IS_ASC_QUERY(pQuery)? 0 : pDataBlockInfo->rows - 1;
 
-  if (pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTsBuf != NULL || pRuntimeEnv->groupbyNormalCol) {
+  if (pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTsBuf != NULL || pRuntimeEnv->groupbyColumn) {
     rowwiseApplyFunctions(pRuntimeEnv, pStatis, pDataBlockInfo, pResultRowInfo, pDataBlock);
   } else {
     blockwiseApplyFunctions(pRuntimeEnv, pStatis, pDataBlockInfo, pResultRowInfo, searchFn, pDataBlock);
@@ -4232,7 +4188,7 @@ bool queryHasRemainResForTableQuery(SQueryRuntimeEnv* pRuntimeEnv) {
   } else {
     // there are results waiting for returned to client.
     if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED) &&
-        (pRuntimeEnv->groupbyNormalCol || QUERY_IS_INTERVAL_QUERY(pQuery)) &&
+        (pRuntimeEnv->groupbyColumn || QUERY_IS_INTERVAL_QUERY(pQuery)) &&
         (pRuntimeEnv->windowResInfo.size > 0)) {
       return true;
     }
@@ -4714,7 +4670,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
   pRuntimeEnv->cur.vgroupIndex = -1;
   pRuntimeEnv->stableQuery = isSTableQuery;
   pRuntimeEnv->prevGroupId = INT32_MIN;
-  pRuntimeEnv->groupbyNormalCol = isGroupbyNormalCol(pQuery->pGroupbyExpr);
+  pRuntimeEnv->groupbyColumn = isGroupbyNormalCol(pQuery->pGroupbyExpr);
 
   if (pTsBuf != NULL) {
     int16_t order = (pQuery->order.order == pRuntimeEnv->pTsBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
@@ -4734,7 +4690,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
 
     if (!QUERY_IS_INTERVAL_QUERY(pQuery)) {
       int16_t type = TSDB_DATA_TYPE_NULL;
-      if (pRuntimeEnv->groupbyNormalCol) {  // group by columns not tags;
+      if (pRuntimeEnv->groupbyColumn) {  // group by columns not tags;
         type = getGroupbyColumnType(pQuery, pQuery->pGroupbyExpr);
       } else {
         type = TSDB_DATA_TYPE_INT;  // group id
@@ -4745,7 +4701,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
         return code;
       }
     }
-  } else if (pRuntimeEnv->groupbyNormalCol || QUERY_IS_INTERVAL_QUERY(pQuery) || (!isSTableQuery)) {
+  } else if (pRuntimeEnv->groupbyColumn || QUERY_IS_INTERVAL_QUERY(pQuery) || (!isSTableQuery)) {
     int32_t numOfResultRows = getInitialPageNum(pQInfo);
     getIntermediateBufInfo(pRuntimeEnv, &ps, &rowsize);
     code = createDiskbasedResultBuffer(&pRuntimeEnv->pResultBuf, rowsize, ps, TENMB, pQInfo);
@@ -4754,7 +4710,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bo
     }
 
     int16_t type = TSDB_DATA_TYPE_NULL;
-    if (pRuntimeEnv->groupbyNormalCol) {
+    if (pRuntimeEnv->groupbyColumn) {
       type = getGroupbyColumnType(pQuery, pQuery->pGroupbyExpr);
     } else {
       type = TSDB_DATA_TYPE_TIMESTAMP;
@@ -4860,7 +4816,7 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
     pQuery->current = *pTableQueryInfo;
     doTableQueryInfoTimeWindowCheck(pQuery, *pTableQueryInfo);
 
-    if (!pRuntimeEnv->groupbyNormalCol) {
+    if (!pRuntimeEnv->groupbyColumn) {
       setEnvForEachBlock(pQInfo, *pTableQueryInfo, &blockInfo);
     }
 
@@ -5118,7 +5074,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
         break;
       }
     }
-  } else if (pRuntimeEnv->groupbyNormalCol) {  // group-by on normal columns query
+  } else if (pRuntimeEnv->groupbyColumn) {  // group-by on normal columns query
     while (pQInfo->groupIndex < numOfGroups) {
       SArray *group = taosArrayGetP(pQInfo->tableGroupInfo.pGroupList, pQInfo->groupIndex);
 
@@ -5639,7 +5595,7 @@ static void doSecondaryArithmeticProcess(SQuery* pQuery) {
       }
     } else {
       arithSup.pArithExpr = pExpr;
-      tExprTreeCalcTraverse(arithSup.pArithExpr->pExpr, (int32_t)pQuery->rec.rows, data[i]->data, &arithSup, TSDB_ORDER_ASC,
+      arithmeticTreeTraverse(arithSup.pArithExpr->pExpr, (int32_t)pQuery->rec.rows, data[i]->data, &arithSup, TSDB_ORDER_ASC,
                             getArithemicInputSrc);
     }
   }
@@ -5662,7 +5618,7 @@ static void doSecondaryArithmeticProcess(SQuery* pQuery) {
  * select count(*)/top(field,k)/avg(field name) from table_name [where ts>now-1a];
  * select count(*) from table_name group by status_column;
  */
-static void tableFixedOutputProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
+static void tableAggregationProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
 
   SQuery *pQuery = pRuntimeEnv->pQuery;
@@ -5687,7 +5643,7 @@ static void tableFixedOutputProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo)
   limitResults(pRuntimeEnv);
 }
 
-static void tableMultiOutputProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
+static void tableProjectionProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
 
   SQuery *pQuery = pRuntimeEnv->pQuery;
@@ -5752,7 +5708,7 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
   TSKEY newStartKey = QUERY_IS_ASC_QUERY(pQuery)? INT64_MIN:INT64_MAX;
 
   // skip blocks without load the actual data block from file if no filter condition present
-  if (!pRuntimeEnv->groupbyNormalCol) {
+  if (!pRuntimeEnv->groupbyColumn) {
     skipTimeInterval(pRuntimeEnv, &newStartKey);
     if (pQuery->limit.offset > 0 && pQuery->numOfFilterCols == 0 && pRuntimeEnv->pFillInfo == NULL) {
       setQueryStatus(pQuery, QUERY_COMPLETED);
@@ -5849,13 +5805,13 @@ static void tableQueryImpl(SQInfo *pQInfo) {
   STableQueryInfo* item = taosArrayGetP(g, 0);
 
   // group by normal column, sliding window query, interval query are handled by interval query processor
-  if (QUERY_IS_INTERVAL_QUERY(pQuery) || pRuntimeEnv->groupbyNormalCol) {  // interval (down sampling operation)
+  if (QUERY_IS_INTERVAL_QUERY(pQuery) || pRuntimeEnv->groupbyColumn) {  // interval (down sampling operation)
     tableIntervalProcess(pQInfo, item);
   } else if (isFixedOutputQuery(pRuntimeEnv)) {
-    tableFixedOutputProcess(pQInfo, item);
+    tableAggregationProcess(pQInfo, item);
   } else {  // diff/add/multiply/subtract/division
     assert(pQuery->checkBuffer == 1);
-    tableMultiOutputProcess(pQInfo, item);
+    tableProjectionProcess(pQInfo, item);
   }
 
   // record the total elapsed time
@@ -5871,11 +5827,11 @@ static void stableQueryImpl(SQInfo *pQInfo) {
   int64_t st = taosGetTimestampUs();
 
   if (QUERY_IS_INTERVAL_QUERY(pQuery) ||
-      (isFixedOutputQuery(pRuntimeEnv) && (!isPointInterpoQuery(pQuery)) && (!pRuntimeEnv->groupbyNormalCol))) {
+      (isFixedOutputQuery(pRuntimeEnv) && (!isPointInterpoQuery(pQuery)) && (!pRuntimeEnv->groupbyColumn))) {
     multiTableQueryProcess(pQInfo);
   } else {
     assert((pQuery->checkBuffer == 1 && pQuery->interval.interval == 0) || isPointInterpoQuery(pQuery) ||
-           pRuntimeEnv->groupbyNormalCol);
+           pRuntimeEnv->groupbyColumn);
 
     sequentialTableProcess(pQInfo);
   }
