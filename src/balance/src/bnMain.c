@@ -237,21 +237,21 @@ static bool bnCheckVgroupReady(SVgObj *pVgroup, SVnodeGid *pRmVnode) {
   bool isReady = false;
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pVnode = pVgroup->vnodeGid + i;
+    SDnodeObj *pDnode = pVnode->pDnode;
     if (pVnode == pRmVnode) continue;
     int32_t vver = mnodeGetVgidVer(pVnode->vver);
 
-    mTrace("vgId:%d, check vgroup status, vindex:%d dnode:%d status:%s role:%s vver:%d, rmvver:%d" , pVgroup->vgId, i,
-           pVnode->dnodeId, dnodeStatus[pVnode->pDnode->status], syncRole[pVnode->role], vver, rmVnodeVer);
-    if (pVnode->pDnode->status == TAOS_DN_STATUS_DROPPING) continue;
-    if (pVnode->pDnode->status == TAOS_DN_STATUS_OFFLINE) continue;
+    mTrace("vgId:%d, check vgroup status, vindex:%d dnode:%d status:%s role:%s vver:%d, rmvver:%d", pVgroup->vgId, i,
+           pVnode->dnodeId, dnodeStatus[pDnode->status], syncRole[pVnode->role], vver, rmVnodeVer);
+    if (pDnode->status == TAOS_DN_STATUS_DROPPING) continue;
+    if (pDnode->status == TAOS_DN_STATUS_OFFLINE) continue;
     if (pVnode->role != TAOS_SYNC_ROLE_SLAVE && pVnode->role != TAOS_SYNC_ROLE_MASTER) continue;
 
     if (rmVnodeVer == 0 || vver >= rmVnodeVer) {
-      mInfo("vgId:%d, is ready for vindex:%d in dnode:%d status:%s role:%s vver:%d larger than rmvver:%d", pVgroup->vgId, i,
-             pVnode->dnodeId, dnodeStatus[pVnode->pDnode->status], syncRole[pVnode->role], vver, rmVnodeVer);
+      mInfo("vgId:%d, is ready for vindex:%d in dnode:%d status:%s role:%s vver:%d larger than rmvver:%d",
+            pVgroup->vgId, i, pVnode->dnodeId, dnodeStatus[pDnode->status], syncRole[pVnode->role], vver, rmVnodeVer);
+      isReady = true;
     }
-
-    isReady = true;
   }
 
   return isReady;
