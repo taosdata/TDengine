@@ -236,10 +236,6 @@ void taos_cleanup(void) {
 
   if (tscEmbedded == 0) rpcCleanup();
 
-  if (tscEmbedded == 0) {
-    rpcCleanup();
-  }
-
   p = tscTmr;
   tscTmr = NULL;
   taosTmrCleanUp(p);
