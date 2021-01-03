@@ -91,7 +91,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     if (tscSetMgmtEpSetFromCfg(tsFirst, tsSecond, &corMgmtEpSet) < 0) return NULL;
   }
   char rpcKey[512] = {0};
-  sprintf(rpcKey, "%s:%s:%s:%d", user, pass, ip, port);
+  snprintf(rpcKey, sizeof(rpcKey), "%s:%s:%s:%d", user, pass, ip, port);
  
   void *pRpcObj = NULL;
   if (tscAcquireRpc(rpcKey, user, secretEncrypt,&corMgmtEpSet, &pRpcObj) != 0) {

@@ -109,6 +109,7 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
   if (pRpcObj->tscCorMgmtEpSet == NULL) {
     rpcClose(rpcObj.pDnodeConn);
     pthread_mutex_unlock(&rpcObjMutex);
+    return -1;
   }
   memcpy(pRpcObj->tscCorMgmtEpSet, corMgmtEpSet, sizeof(*corMgmtEpSet));
 
