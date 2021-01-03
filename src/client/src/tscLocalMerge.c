@@ -89,7 +89,7 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalReducer *pReducer, tOrderDesc
     pCtx->startOffset = 0;
     pCtx->size = 1;
     pCtx->hasNull = true;
-    pCtx->currentStage = SECONDARY_STAGE_MERGE;
+    pCtx->currentStage = MERGE_STAGE;
 
     // for top/bottom function, the output of timestamp is the first column
     int32_t functionId = pExpr->functionId;
@@ -1067,7 +1067,7 @@ static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer,
       pCtx->param[0].i64Key = pExpr->param[0].i64Key;
     }
 
-    pCtx->currentStage = SECONDARY_STAGE_MERGE;
+    pCtx->currentStage = MERGE_STAGE;
 
     if (needInit) {
       aAggs[pCtx->functionId].init(pCtx);
@@ -1080,7 +1080,7 @@ static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer,
       continue;
     }
 
-    aAggs[functionId].distSecondaryMergeFunc(&pLocalReducer->pCtx[j]);
+    aAggs[functionId].mergeFunc(&pLocalReducer->pCtx[j]);
   }
 }
 
@@ -1647,7 +1647,7 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
     // calculate the result from several other columns
     if (pSup->pArithExprInfo != NULL) {
       arithSup.pArithExpr = pSup->pArithExprInfo;
-      tExprTreeCalcTraverse(arithSup.pArithExpr->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
+      arithmeticTreeTraverse(arithSup.pArithExpr->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
     } else {
       SSqlExpr* pExpr = pSup->pSqlExpr;
       memcpy(pbuf + pOutput->num * offset, pExpr->offset * pOutput->num + pOutput->data, (size_t)(pExpr->resBytes * pOutput->num));

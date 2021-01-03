@@ -15,7 +15,7 @@
 
 #include "os.h"
 
-#include "qSyntaxtreefunction.h"
+#include "qArithmeticOperator.h"
 #include "taosdef.h"
 #include "tutil.h"
 
@@ -1234,7 +1234,7 @@ _bi_consumer_fn_t rem_function_arraylist[8][10] = {
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-_bi_consumer_fn_t tGetBiConsumerFn(int32_t leftType, int32_t rightType, int32_t optr) {
+_bi_consumer_fn_t getArithmeticOperatorFn(int32_t leftType, int32_t rightType, int32_t optr) {
   switch (optr) {
     case TSDB_BINARY_OP_ADD:
       return add_function_arraylist[leftType][rightType];

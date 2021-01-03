@@ -910,7 +910,7 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
    * that are corresponding to the old name for the new table name.
    */
   if (strlen(oldName) > 0 && strncasecmp(oldName, pTableMetaInfo->name, tListLen(pTableMetaInfo->name)) != 0) {
-    tscClearTableMetaInfo(pTableMetaInfo, false);
+    tscClearTableMetaInfo(pTableMetaInfo);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4019,6 +4019,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
   if (pExpr->nSQLOptr == TK_LIKE) {
     char* str = taosStringBuilderGetResult(sb, NULL);
     pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
+    pQueryInfo->tagCond.tbnameCond.len = (int32_t) strlen(str);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4068,6 +4069,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
 
   char* str = taosStringBuilderGetResult(&sb1, NULL);
   pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
+  pQueryInfo->tagCond.tbnameCond.len = (int32_t) strlen(str);
 
   taosStringBuilderDestroy(&sb1);
   tfree(segments);
@@ -6381,6 +6383,41 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
+  const char* msg3 = "start(end) time of query range required or time range too large";
+
+  if (pQueryInfo->interval.interval == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+    bool initialWindows = TSWINDOW_IS_EQUAL(pQueryInfo->window, TSWINDOW_INITIALIZER);
+    if (initialWindows) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
+
+    int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
+
+    int64_t intervalRange = 0;
+    if (pQueryInfo->interval.intervalUnit == 'n' || pQueryInfo->interval.intervalUnit == 'y') {
+      int64_t f = 1;
+      if (pQueryInfo->interval.intervalUnit == 'n') {
+        f = 30L * MILLISECOND_PER_DAY;
+      } else if (pQueryInfo->interval.intervalUnit == 'y') {
+        f = 365L * MILLISECOND_PER_DAY;
+      }
+
+      intervalRange = pQueryInfo->interval.interval * f;
+    } else {
+      intervalRange = pQueryInfo->interval.interval;
+    }
+    // number of result is not greater than 10,000,000
+    if ((timeRange == 0) || (timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
+
+    return TSDB_CODE_SUCCESS;
+}
+
 int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   assert(pQuerySql != NULL && (pQuerySql->from == NULL || taosArrayGetSize(pQuerySql->from) > 0));
 
@@ -6576,31 +6613,21 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
   tscFieldInfoUpdateOffset(pQueryInfo);
 
-  /*
-   * fill options are set at the end position, when all columns are set properly
-   * the columns may be increased due to group by operation
-   */
   if (pQuerySql->fillType != NULL) {
     if (pQueryInfo->interval.interval == 0 && (!tscIsPointInterpQuery(pQueryInfo))) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
-    if (pQueryInfo->interval.interval > 0) {
-      bool initialWindows = TSWINDOW_IS_EQUAL(pQueryInfo->window, TSWINDOW_INITIALIZER);
-      if (initialWindows) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-      }
-
-      int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
-      // number of result is not greater than 10,000,000
-      if ((timeRange == 0) || (timeRange / pQueryInfo->interval.interval) > MAX_INTERVAL_TIME_WINDOW) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-      }
+    /*
+     * fill options are set at the end position, when all columns are set properly
+     * the columns may be increased due to group by operation
+     */
+    if ((code = checkQueryRangeForFill(pCmd, pQueryInfo)) != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
-    int32_t ret = parseFillClause(pCmd, pQueryInfo, pQuerySql);
-    if (ret != TSDB_CODE_SUCCESS) {
-      return ret;
+    if ((code = parseFillClause(pCmd, pQueryInfo, pQuerySql)) != TSDB_CODE_SUCCESS) {
+      return code;
     }
   }
 

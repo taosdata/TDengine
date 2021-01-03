@@ -194,6 +194,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_DND_OUT_OF_MEMORY,            0, 0x0401, "Dnode out 
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_NO_WRITE_ACCESS,          0, 0x0402, "No permission for disk files in dnode")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_INVALID_MSG_LEN,          0, 0x0403, "Invalid message length")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_ACTION_IN_PROGRESS,       0, 0x0404, "Action in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_DND_TOO_MANY_VNODES,          0, 0x0405, "Too many vnode directories")
 
 // vnode 
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_ACTION_IN_PROGRESS,       0, 0x0500, "Action in progress")

@@ -23,7 +23,7 @@ extern "C" {
 typedef void (*_bi_consumer_fn_t)(void *left, void *right, int32_t numOfLeft, int32_t numOfRight, void *output,
                                   int32_t order);
 
-_bi_consumer_fn_t tGetBiConsumerFn(int32_t leftType, int32_t rightType, int32_t optr);
+_bi_consumer_fn_t getArithmeticOperatorFn(int32_t leftType, int32_t rightType, int32_t optr);
 
 #ifdef __cplusplus
 }

@@ -56,23 +56,28 @@ typedef struct STableComInfo {
   int32_t rowSize;
 } STableComInfo;
 
-typedef struct SCorVgroupInfo {
-  int32_t  version;
-  int8_t   inUse;
-  int8_t   numOfEps;
-  SEpAddr1 epAddr[TSDB_MAX_REPLICA];
-} SCorVgroupInfo;
+typedef struct SNewVgroupInfo {
+  int32_t    vgId;
+  int8_t     inUse;
+  int8_t     numOfEps;
+  SEpAddrMsg ep[TSDB_MAX_REPLICA];
+} SNewVgroupInfo;
+
+typedef struct CChildTableMeta {
+  int32_t        vgId;
+  STableId       id;
+  uint8_t        tableType;
+  char           sTableName[TSDB_TABLE_FNAME_LEN];
+} CChildTableMeta;
 
 typedef struct STableMeta {
-  STableComInfo  tableInfo;
+  int32_t        vgId;
+  STableId       id;
   uint8_t        tableType;
+  char           sTableName[TSDB_TABLE_FNAME_LEN];
   int16_t        sversion;
   int16_t        tversion;
-  char           sTableId[TSDB_TABLE_FNAME_LEN];
-  int32_t        vgId;
-  SCorVgroupInfo corVgroupInfo;
-  STableId       id;
-//  union {int64_t stableUid; SSchema* schema;};
+  STableComInfo  tableInfo;
   SSchema        schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
 } STableMeta;
 
@@ -171,7 +176,7 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct STableDataBlocks {
-  char        tableId[TSDB_TABLE_FNAME_LEN];
+  char        tableName[TSDB_TABLE_FNAME_LEN];
   int8_t      tsSource;     // where does the UNIX timestamp come from, server or client
   bool        ordered;      // if current rows are ordered or not
   int64_t     vgId;         // virtual group id
@@ -249,7 +254,7 @@ typedef struct {
   int8_t       submitSchema;   // submit block is built with table schema
   STagData     tagData;        // NOTE: pTagData->data is used as a variant length array
 
-  STableMeta **pTableMetaList; // all involved tableMeta list of current insert sql statement.
+  char       **pTableNameList; // all involved tableMeta list of current insert sql statement.
   int32_t      numOfTables;
 
   SHashObj    *pTableBlockHashList;     // data block for each table
@@ -393,7 +398,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
 int  tscProcessSql(SSqlObj *pSql);
 
 int  tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex);
-void tscQueueAsyncRes(SSqlObj *pSql);
+void tscAsyncResultOnError(SSqlObj *pSql);
 
 void tscQueueAsyncError(void(*fp), void *param, int32_t code);
 
@@ -407,7 +412,7 @@ void    tscRestoreSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
 
-void tscResetSqlCmdObj(SSqlCmd *pCmd, bool removeFromCache);
+void tscResetSqlCmdObj(SSqlCmd *pCmd);
 
 /**
  * free query result of the sql object
@@ -421,7 +426,6 @@ void tscFreeSqlResult(SSqlObj *pSql);
  */
 void tscFreeSqlObj(SSqlObj *pSql);
 void tscFreeRegisteredSqlObj(void *pSql);
-void tscFreeTableMetaHelper(void *pTableMeta);
 
 void tscCloseTscObj(void *pObj);
 
@@ -486,7 +490,9 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   }
 }
 
-extern SCacheObj *tscMetaCache;
+extern int32_t    sentinel;
+extern SHashObj  *tscVgroupMap;
+extern SHashObj  *tscTableMetaInfo;
 
 extern int   tscObjRef;
 extern void *tscTmr;
