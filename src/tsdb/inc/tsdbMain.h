@@ -365,14 +365,17 @@ typedef struct {
 #define TSDB_FILE_F(tf) (&((tf)->f)))
 #define TSDB_FILE_FD(tf) ((tf)->fd)
 
-int  tsdbOpenFS(STsdbRepo *pRepo);
-void tsdbCloseFS(STsdbRepo *pRepo);
-int  tsdbFSNewTxn(STsdbRepo *pRepo);
-int  tsdbFSEndTxn(STsdbRepo *pRepo, bool hasError);
-int  tsdbUpdateMFile(STsdbRepo *pRepo, SMFile *pMFile);
-int  tsdbUpdateDFileSet(STsdbRepo *pRepo, SDFileSet *pSet);
-void tsdbRemoveExpiredDFileSet(STsdbRepo *pRepo, int mfid);
-int  tsdbRemoveDFileSet(SDFileSet *pSet);
+int       tsdbOpenFS(STsdbRepo* pRepo);
+void      tsdbCloseFS(STsdbRepo* pRepo);
+int       tsdbFSNewTxn(STsdbRepo* pRepo);
+int       tsdbFSEndTxn(STsdbRepo* pRepo, bool hasError);
+int       tsdbUpdateMFile(STsdbRepo* pRepo, SMFile* pMFile);
+int       tsdbUpdateDFileSet(STsdbRepo* pRepo, SDFileSet* pSet);
+void      tsdbRemoveExpiredDFileSet(STsdbRepo* pRepo, int mfid);
+int       tsdbRemoveDFileSet(SDFileSet* pSet);
+int       tsdbEncodeMFInfo(void** buf, SMFInfo* pInfo);
+void*     tsdbDecodeMFInfo(void* buf, SMFInfo* pInfo);
+SDFileSet tsdbMoveDFileSet(SDFileSet* pOldSet, int to);
 
 static FORCE_INLINE int tsdbRLockFS(STsdbFS *pFs) {
   int code = pthread_rwlock_rdlock(&(pFs->lock));
@@ -401,6 +404,31 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
   return 0;
 }
 
+// ================= tsdbStore.c
+#define KVSTORE_FILE_VERSION ((uint32_t)0)
+
+typedef int (*iterFunc)(void*, void* cont, int contLen);
+typedef void (*afterFunc)(void*);
+
+typedef struct {
+  SMFile    f;
+  SHashObj* map;
+  iterFunc  iFunc;
+  afterFunc aFunc;
+  void*     appH;
+} SKVStore;
+
+#define KVSTORE_MAGIC(s) (s)->f.info.magic
+
+int       tdCreateKVStore(char* fname);
+int       tdDestroyKVStore(char* fname);
+SKVStore* tdOpenKVStore(char* fname, iterFunc iFunc, afterFunc aFunc, void* appH);
+void      tdCloseKVStore(SKVStore* pStore);
+int       tdKVStoreStartCommit(SKVStore* pStore);
+int       tdUpdateKVStoreRecord(SKVStore* pStore, uint64_t uid, void* cont, int contLen);
+int       tdDropKVStoreRecord(SKVStore* pStore, uint64_t uid);
+int       tdKVStoreEndCommit(SKVStore* pStore);
+void      tsdbGetStoreInfo(char* fname, uint32_t* magic, int64_t* size);
 
 // ================= tsdbFile.c
 // extern const char* tsdbFileSuffix[];
@@ -467,7 +495,7 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
 // } SFileGroupIter;
 
 // #define TSDB_FILE_NAME(pFile) ((pFile)->file.aname)
-// #define TSDB_KEY_FILEID(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
+#define TSDB_KEY_FILEID(key, daysPerFile, precision) ((key) / tsMsPerDay[(precision)] / (daysPerFile))
 // #define TSDB_MAX_FILE(keep, daysPerFile) ((keep) / (daysPerFile) + 3)
 // #define TSDB_MIN_FILE_ID(fh) (fh)->pFGroup[0].fileId
 // #define TSDB_MAX_FILE_ID(fh) (fh)->pFGroup[(fh)->nFGroups - 1].fileId
@@ -496,7 +524,7 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
 // int         tsdbLoadFileHeader(SFile* pFile, uint32_t* version);
 // void        tsdbGetFileInfoImpl(char* fname, uint32_t* magic, int64_t* size);
 // void        tsdbGetFidGroup(STsdbCfg* pCfg, SFidGroup* pFidGroup);
-// void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
+void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
 // int         tsdbApplyRetention(STsdbRepo* pRepo, SFidGroup *pFidGroup);
 
 // ================= tsdbMain.c

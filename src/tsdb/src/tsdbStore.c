@@ -15,20 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #define TAOS_RANDOM_FILE_FAIL_TEST
-#include "os.h"
-#include "hash.h"
-#include "taoserror.h"
-#include "tchecksum.h"
-#include "tcoding.h"
-#include "tkvstore.h"
-#include "tulog.h"
 
-#define TD_KVSTORE_HEADER_SIZE 512
-#define TD_KVSTORE_MAJOR_VERSION 1
-#define TD_KVSTORE_MAINOR_VERSION 0
-#define TD_KVSTORE_SNAP_SUFFIX ".snap"
-#define TD_KVSTORE_NEW_SUFFIX ".new"
-#define TD_KVSTORE_INIT_MAGIC 0xFFFFFFFF
+#include "tsdbMain.h"
 
 typedef struct {
   uint64_t uid;

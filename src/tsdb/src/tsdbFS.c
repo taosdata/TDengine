@@ -98,7 +98,7 @@ int tsdbUpdateDFileSet(STsdbRepo *pRepo, SDFileSet *pSet) {
       return -1;
     }
   } else {
-    int index = TARRAY_ELEM_IDX(dfArray, ptr);
+    int index = TARRAY_ELEM_IDX(pSnapshot->df, pOldSet);
 
     if (pOldSet->id == pSet->id) {
       taosArraySet(pSnapshot->df, index, pSet);
@@ -123,6 +123,32 @@ void tsdbRemoveExpiredDFileSet(STsdbRepo *pRepo, int mfid) {
       taosArrayRemove(pSnapshot->df, 0);
     }
   }
+}
+
+int tsdbEncodeMFInfo(void **buf, SMFInfo *pInfo) {
+  int tlen = 0;
+
+  tlen += taosEncodeVariantI64(buf, pInfo->size);
+  tlen += taosEncodeVariantI64(buf, pInfo->tombSize);
+  tlen += taosEncodeVariantI64(buf, pInfo->nRecords);
+  tlen += taosEncodeVariantI64(buf, pInfo->nDels);
+  tlen += taosEncodeFixedU32(buf, pInfo->magic);
+
+  return tlen;
+}
+
+void *tsdbDecodeMFInfo(void *buf, SMFInfo *pInfo) {
+  buf = taosDecodeVariantI64(buf, &(pInfo->size));
+  buf = taosDecodeVariantI64(buf, &(pInfo->tombSize));
+  buf = taosDecodeVariantI64(buf, &(pInfo->nRecords));
+  buf = taosDecodeVariantI64(buf, &(pInfo->nDels));
+  buf = taosDecodeFixedU32(buf, &(pInfo->magic));
+
+  return buf;
+}
+
+SDFileSet tsdbMoveDFileSet(SDFileSet *pOldSet, int to) {
+  // TODO
 }
 
 static int tsdbSaveFSSnapshot(int fd, SFSSnapshot *pSnapshot) {
@@ -150,28 +176,6 @@ static int tsdbOpenFSImpl(STsdbRepo *pRepo) {
   }
 
   return 0;
-}
-
-static int tsdbEncodeMFInfo(void **buf, SMFInfo *pInfo) {
-  int tlen = 0;
-
-  tlen += taosEncodeVariantI64(buf, pInfo->size);
-  tlen += taosEncodeVariantI64(buf, pInfo->tombSize);
-  tlen += taosEncodeVariantI64(buf, pInfo->nRecords);
-  tlen += taosEncodeVariantI64(buf, pInfo->nDels);
-  tlen += taosEncodeFixedU32(buf, pInfo->magic);
-
-  return tlen;
-}
-
-static void *tsdbDecodeMFInfo(void *buf, SMFInfo *pInfo) {
-  buf = taosDecodeVariantI64(buf, &(pInfo->size));
-  buf = taosDecodeVariantI64(buf, &(pInfo->tombSize));
-  buf = taosDecodeVariantI64(buf, &(pInfo->nRecords));
-  buf = taosDecodeVariantI64(buf, &(pInfo->nDels));
-  buf = taosDecodeFixedU32(buf, &(pInfo->magic));
-
-  return buf;
 }
 
 static int tsdbEncodeMFile(void **buf, SMFile *pMFile) {
