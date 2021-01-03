@@ -223,7 +223,6 @@ void taos_cleanup(void) {
 
   taosCleanupKeywordsTable();
   taosCloseLog();
-<<<<<<< HEAD
 
   m = tscRpcCache; 
   if (m != NULL && atomic_val_compare_exchange_ptr(&tscRpcCache, m, 0) == m) {
@@ -235,8 +234,6 @@ void taos_cleanup(void) {
   }
 
   if (tscEmbedded == 0) rpcCleanup();
-=======
->>>>>>> ca3888c190d0415c151964a89652811e37089afd
 
   if (tscEmbedded == 0) {
     rpcCleanup();
