@@ -65,15 +65,15 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   vTrace("vgId:%d, msg:%s will be processed in vnode, qtype:%s hver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId,
          taosMsg[pHead->msgType], qtypeStr[qtype], pHead->version, pVnode->version);
 
-  code = vnodeCheckProcessWrite(pVnode);
-  if (code != TSDB_CODE_SUCCESS) return code;
-
   if (pHead->version == 0) {  // from client or CQ
     if (pVnode->role != TAOS_SYNC_ROLE_MASTER) {
       vDebug("vgId:%d, msg:%s not processed since replica:%d role:%s, qtype:%s hver:%" PRIu64, pVnode->vgId,
              taosMsg[pHead->msgType], pVnode->syncCfg.replica, syncRole[pVnode->role], qtypeStr[qtype], pHead->version);
       return TSDB_CODE_APP_NOT_READY;
     }
+
+    code = vnodeCheckProcessWrite(pVnode);
+    if (code != TSDB_CODE_SUCCESS) return code;
 
     // assign version
     pHead->version = pVnode->version + 1;
