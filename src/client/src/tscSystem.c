@@ -181,6 +181,8 @@ void taos_init_imp(void) {
     tscTableMetaInfo = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
     tscDebug("TableMeta:%p", tscTableMetaInfo);
   }
+   
+  int refreshTime = 5;
   tscRpcCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, true, tscFreeRpcObj, "rpcObj");
   pthread_mutex_init(&rpcObjMutex, NULL);
 
@@ -224,12 +226,11 @@ void taos_cleanup(void) {
   taosCleanupKeywordsTable();
   taosCloseLog();
 
-  m = tscRpcCache; 
-  if (m != NULL && atomic_val_compare_exchange_ptr(&tscRpcCache, m, 0) == m) {
-    pthread_mutex_lock(&rpcObjMutex);
-    taosCacheCleanup(tscRpcCache); 
-    tscRpcCache = NULL;
-    pthread_mutex_unlock(&rpcObjMutex);
+  p = tscRpcCache; 
+  tscRpcCache = NULL;
+  
+  if (p != NULL) {
+    taosCacheCleanup(p); 
     pthread_mutex_destroy(&rpcObjMutex);
   }
 
