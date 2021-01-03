@@ -39,6 +39,7 @@ bool vnodeInInitStatus(SVnodeObj* pVnode);
 bool vnodeInReadyStatus(SVnodeObj* pVnode);
 bool vnodeInClosingStatus(SVnodeObj* pVnode);
 bool vnodeInResetStatus(SVnodeObj* pVnode);
+bool vnodeInReadyOrInitStatus(SVnodeObj *pVnode);
 
 #ifdef __cplusplus
 }

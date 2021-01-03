@@ -128,9 +128,7 @@ static int32_t vnodeCheckRpcWrite(SVnodeObj *pVnode) {
 }
 
 static int32_t vnodeCheckProcessWrite(SVnodeObj *pVnode) {
-  if (vnodeInInitStatus(pVnode)) return TSDB_CODE_SUCCESS;
-
-  if (!vnodeInReadyStatus(pVnode)) {
+  if (!vnodeInReadyOrInitStatus(pVnode)) {
     vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
            pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
