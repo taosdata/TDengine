@@ -75,7 +75,7 @@ public class TaosDemoApplication {
             }
         }
         end = System.currentTimeMillis();
-        logger.info(">>> create table time cost : " + (end - start) + " ms.");
+        logger.error(">>> create table time cost : " + (end - start) + " ms.");
         /**********************************************************************************/
         // 插入
         long tableSize = config.numOfTables;
@@ -90,7 +90,7 @@ public class TaosDemoApplication {
         // multi threads to insert
         int affectedRows = subTableService.insertMultiThreads(superTableMeta, threadSize, tableSize, startTime, gap, config);
         end = System.currentTimeMillis();
-        logger.info("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
+        logger.error("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
         /**********************************************************************************/
         // 删除表
         if (config.dropTable) {
