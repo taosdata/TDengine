@@ -5275,8 +5275,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
 
   const char* msg0 = "soffset/offset can not be less than 0";
   const char* msg1 = "slimit/soffset only available for STable query";
-  const char* msg2 = "functions mixed up in table query";
-  const char* msg3 = "slimit/soffset can not apply to projection query";
+  const char* msg2 = "slimit/soffset can not apply to projection query";
 
   // handle the limit offset value, validate the limit
   pQueryInfo->limit = pQuerySql->limit;
@@ -5301,7 +5300,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
     if (!tscQueryTags(pQueryInfo)) {  // local handle the super table tag query
       if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
         if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
 
         // for projection query on super table, all queries are subqueries
@@ -5358,24 +5357,6 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
   } else {
     if (pQueryInfo->slimit.limit != -1 || pQueryInfo->slimit.offset != 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-    }
-  
-    size_t size = taosArrayGetSize(pQueryInfo->exprList);
-    
-    bool hasTags = false;
-    bool hasOtherFunc = false;
-    // filter the query functions operating on "tbname" column that are not supported by normal columns.
-    for (int32_t i = 0; i < size; ++i) {
-      SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-      if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
-        hasTags = true;
-      } else {
-        hasOtherFunc = true;
-      }
-    }
-    
-    if (hasTags && hasOtherFunc) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   }
 

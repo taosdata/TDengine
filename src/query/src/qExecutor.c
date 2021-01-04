@@ -3674,6 +3674,10 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
   SQueryStatusInfo qstatus = getQueryStatusInfo(pRuntimeEnv, start);
   SET_MASTER_SCAN_FLAG(pRuntimeEnv);
 
+  if (!pRuntimeEnv->groupbyColumn && pRuntimeEnv->hasTagResults) {
+    setTagVal(pRuntimeEnv, pTableQueryInfo->pTable, pQInfo->tsdb);
+  }
+
   while (1) {
     doScanAllDataBlocks(pRuntimeEnv);
 
