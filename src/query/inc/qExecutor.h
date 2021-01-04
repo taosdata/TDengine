@@ -152,7 +152,7 @@ typedef struct SQuery {
   int16_t          precision;
   int16_t          numOfOutput;
   int16_t          fillType;
-  int16_t          checkBuffer;  // check if the buffer is full during scan each block
+  int16_t          checkResultBuf;  // check if the buffer is full during scan each block
   SLimitVal        limit;
   int32_t          rowSize;
   SSqlGroupbyExpr* pGroupbyExpr;
