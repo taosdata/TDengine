@@ -33,6 +33,11 @@ public class SubTableService extends AbstractService {
             executor.execute(() -> createSubTable(superTableMeta, prefixOfTable + (tableIndex + 1)));
         }
         executor.shutdown();
+        try {
+            executor.awaitTermination(Long.MAX_VALUE,TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
     public void createSubTable(SuperTableMeta superTableMeta, String tableName) {
