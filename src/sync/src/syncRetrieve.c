@@ -503,9 +503,10 @@ void *syncRetrieveData(void *param) {
   taosClose(pPeer->syncFd);
 
   // The ref is obtained in both the create thread and the current thread, so it is released twice
+  sInfo("%s, sync retrieve data over, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
+
   syncReleasePeer(pPeer);
   syncReleasePeer(pPeer);
 
-  sInfo("%s, sync retrieve data over, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
   return NULL;
 }

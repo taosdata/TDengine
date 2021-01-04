@@ -18,7 +18,6 @@
 
 #include "tnote.h"
 #include "trpc.h"
-#include "tcache.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
 #include "tscLocalMerge.h"
@@ -57,7 +56,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
     pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return;
   }
 
@@ -71,7 +70,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
   
   if (code != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return;
   }
 
@@ -166,7 +165,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
       pRes->code = numOfRows;
     }
 
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return;
   }
 
@@ -217,7 +216,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
     pSql->param = param;
 
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return;
   }
 
@@ -280,7 +279,7 @@ void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW),
     pSql->param = param;
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
 
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
     return;
   }
 
@@ -382,7 +381,7 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
 }
 
 
-void tscQueueAsyncRes(SSqlObj *pSql) {
+void tscAsyncResultOnError(SSqlObj *pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     tscDebug("%p SqlObj is freed, not add into queue async res", pSql);
     return;
@@ -423,7 +422,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
     // check if it is a sub-query of super table query first, if true, enter another routine
     if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY|TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
-      tscDebug("%p update table meta in local cache, continue to process sql and send the corresponding query", pSql);
+      tscDebug("%p update local table meta, continue to process sql and send the corresponding query", pSql);
 
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
       code = tscGetTableMeta(pSql, pTableMetaInfo);
@@ -440,7 +439,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       return;
     } else {  // continue to process normal async query
       if (pCmd->parseFinished) {
-        tscDebug("%p update table meta in local cache, continue to process sql and send corresponding query", pSql);
+        tscDebug("%p update local table meta, continue to process sql and send corresponding query", pSql);
 
         STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
         code = tscGetTableMeta(pSql, pTableMetaInfo);
@@ -455,7 +454,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
         if (pCmd->command == TSDB_SQL_SELECT) {
           tscDebug("%p redo parse sql string and proceed", pSql);
           pCmd->parseFinished = false;
-          tscResetSqlCmdObj(pCmd, false);
+          tscResetSqlCmdObj(pCmd);
 
           code = tsParseSql(pSql, true);
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -532,6 +531,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   _error:
   if (code != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
   }
 }
