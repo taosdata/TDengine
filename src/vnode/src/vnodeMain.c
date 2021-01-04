@@ -416,15 +416,12 @@ void vnodeDestroy(SVnodeObj *pVnode) {
 }
 
 void vnodeCleanUp(SVnodeObj *pVnode) {
-  if (!vnodeInInitStatus(pVnode)) {
-    // it may be in updateing or reset state, then it shall wait
-    int32_t i = 0;
-    while (!vnodeSetClosingStatus(pVnode)) {
-      if (++i % 1000 == 0) {
-        sched_yield();
-      }
-    }
-  }
+  vDebug("vgId:%d, vnode will cleanup, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+
+  vnodeSetClosingStatus(pVnode);
+
+  // release local resources only after cutting off outside connections
+  qQueryMgmtNotifyClosed(pVnode->qMgmt);
 
   // stop replication module
   if (pVnode->sync > 0) {
@@ -433,10 +430,7 @@ void vnodeCleanUp(SVnodeObj *pVnode) {
     syncStop(sync);
   }
 
-  vDebug("vgId:%d, vnode will cleanup, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
-
-  // release local resources only after cutting off outside connections
-  qQueryMgmtNotifyClosed(pVnode->qMgmt);
+  vDebug("vgId:%d, vnode is cleaned, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
   vnodeRelease(pVnode);
 }
 
