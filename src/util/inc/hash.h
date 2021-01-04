@@ -130,15 +130,13 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
 
 int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param);
 
+void taosHashEmpty(SHashObj *pHashObj);
+
 /**
  * clean up hash table
  * @param handle
  */
 void taosHashCleanup(SHashObj *pHashObj);
-
-/*
-void *SHashMutableIterator* taosHashCreateIter(SHashObj *pHashObj, void *);
-*/
 
 /**
  *

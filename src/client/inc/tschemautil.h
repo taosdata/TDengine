@@ -105,7 +105,10 @@ SSchema tscGetTbnameColumnSchema();
  * @param size size of the table meta
  * @return
  */
-STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size);
+STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg);
+
+bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
+SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 
 #ifdef __cplusplus
 }
