@@ -153,6 +153,11 @@ static int32_t vnodeAlterImp(SVnodeObj *pVnode, SCreateVnodeMsg *pVnodeCfg) {
 
 int32_t vnodeAlter(void *vparam, SCreateVnodeMsg *pVnodeCfg) {
   SVnodeObj *pVnode = vparam;
+  if (pVnode->dbCfgVersion == pVnodeCfg->cfg.dbCfgVersion && pVnode->vgCfgVersion == pVnodeCfg->cfg.vgCfgVersion) {
+    vDebug("vgId:%d, dbCfgVersion:%d and vgCfgVersion:%d not change", pVnode->vgId, pVnode->dbCfgVersion,
+           pVnode->vgCfgVersion);
+    return TSDB_CODE_SUCCESS;
+  }
 
   // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
   // dbCfgVersion can be corrected by status msg
