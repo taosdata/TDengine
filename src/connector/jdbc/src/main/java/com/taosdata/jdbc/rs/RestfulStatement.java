@@ -109,7 +109,7 @@ public class RestfulStatement implements Statement {
             throw new SQLException("Database not specified or available");
 
         final String url = "http://" + conn.getHost().trim() + ":" + conn.getPort() + "/rest/sql";
-        HttpClientPoolUtil.execute(url, "use " + conn.getDatabase());
+//        HttpClientPoolUtil.execute(url, "use " + conn.getDatabase());
         String result = HttpClientPoolUtil.execute(url, sql);
         JSONObject jsonObject = JSON.parseObject(result);
         if (jsonObject.getString("status").equals("error")) {
