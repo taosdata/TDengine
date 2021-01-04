@@ -123,61 +123,6 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     SHOW DATABASES;
     ```
 
-## 表管理
-- **创建数据表**
-
-    ```mysql
-    CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]);
-    ```
-    说明：
-    1) 表的第一个字段必须是TIMESTAMP，并且系统自动将其设为主键；
-    2) 表名最大长度为193；
-    3) 表的每行长度不能超过16k个字符;
-    4) 子表名只能由字母、数字和下划线组成，且不能以数字开头
-    5) 使用数据类型binary或nchar，需指定其最长的字节数，如binary(20)，表示20字节；
-
-- **删除数据表**
-
-    ```mysql
-    DROP TABLE [IF EXISTS] tb_name;
-    ```
-
-- **显示当前数据库下的所有数据表信息**
-
-    ```mysql
-    SHOW TABLES [LIKE tb_name_wildcar];
-    ```
-
-    显示当前数据库下的所有数据表信息。说明：可在like中使用通配符进行名称的匹配。 通配符匹配：1）’%’ (百分号)匹配0到任意个字符；2）’_’下划线匹配一个字符。
-
-- **在线修改显示字符宽度**
-
-    ```mysql
-    SET MAX_BINARY_DISPLAY_WIDTH <nn>;
-    ```
-
-- **获取表的结构信息**
-
-    ```mysql
-    DESCRIBE tb_name;
-    ```
-
-- **表增加列**
-
-    ```mysql
-    ALTER TABLE tb_name ADD COLUMN field_name data_type;
-    ```
-    说明：
-    1) 列的最大个数为1024，最小个数为2；
-    2) 列名最大长度为65；
-
-- **表删除列**
-
-    ```mysql
-    ALTER TABLE tb_name DROP COLUMN field_name; 
-    ```
-    如果表是通过[超级表](../super-table/)创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构
-
 ## 超级表STable管理
 - **创建超级表**
 
@@ -252,6 +197,68 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
     ```
     说明：除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于STable，不能对单个子表操作。对STable添加标签以后，依托于该STable建立的所有表将自动增加了一个标签，所有新增标签的默认值都是NULL。
+
+## 表管理
+- **创建数据表**
+
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]);
+    ```
+    说明：
+    1) 表的第一个字段必须是TIMESTAMP，并且系统自动将其设为主键；
+    2) 表名最大长度为193；
+    3) 表的每行长度不能超过16k个字符;
+    4) 子表名只能由字母、数字和下划线组成，且不能以数字开头
+    5) 使用数据类型binary或nchar，需指定其最长的字节数，如binary(20)，表示20字节；
+
+- **以超级表为模板创建数据表**
+
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1 [, tag_value2 ...]);
+    ```
+    以指定的超级表为模板，指定 tags 的值来创建数据表。
+
+- **删除数据表**
+
+    ```mysql
+    DROP TABLE [IF EXISTS] tb_name;
+    ```
+
+- **显示当前数据库下的所有数据表信息**
+
+    ```mysql
+    SHOW TABLES [LIKE tb_name_wildcar];
+    ```
+
+    显示当前数据库下的所有数据表信息。说明：可在like中使用通配符进行名称的匹配。 通配符匹配：1）’%’ (百分号)匹配0到任意个字符；2）’_’下划线匹配一个字符。
+
+- **在线修改显示字符宽度**
+
+    ```mysql
+    SET MAX_BINARY_DISPLAY_WIDTH <nn>;
+    ```
+
+- **获取表的结构信息**
+
+    ```mysql
+    DESCRIBE tb_name;
+    ```
+
+- **表增加列**
+
+    ```mysql
+    ALTER TABLE tb_name ADD COLUMN field_name data_type;
+    ```
+    说明：
+    1) 列的最大个数为1024，最小个数为2；
+    2) 列名最大长度为65；
+
+- **表删除列**
+
+    ```mysql
+    ALTER TABLE tb_name DROP COLUMN field_name; 
+    ```
+    如果表是通过[超级表](../super-table/)创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构
 
 ## 数据写入
 
@@ -537,8 +544,8 @@ Query OK, 1 row(s) in set (0.001091s)
 | %         | match with any char sequences | **`binary`** **`nchar`**              |
 | _         | match with a single char      | **`binary`** **`nchar`**              |
 
-1. 同时进行多个字段的范围过滤需要使用关键词AND进行连接不同的查询条件，暂不支持OR连接的不同列之间的查询过滤条件。
-2. 针对某一字段的过滤只支持单一时间区间过滤条件。但是针对其他的（普通）列或标签列，可以使用``` OR``` 条件进行组合条件的查询过滤。例如：((value > 20 and value < 30)  OR (value < 12)) 。
+1. 同时进行多个字段的范围过滤，需要使用关键词 AND 来连接不同的查询条件，暂不支持 OR 连接的不同列之间的查询过滤条件。
+2. 针对单一字段的过滤，如果是时间过滤条件，则一条语句中只支持设定一个；但针对其他的（普通）列或标签列，则可以使用``` OR``` 关键字进行组合条件的查询过滤。例如：((value > 20 and value < 30) OR (value < 12)) 。
 
 ### SQL 示例 
 
@@ -634,7 +641,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     功能说明：时间加权平均函数。统计表/超级表中某列在一段时间内的时间加权平均。
     返回结果数据类型：双精度浮点数Double。
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
-    说明：时间加权平均(time weighted average, TWA）查询需要指定查询时间段的 _开始时间_ 和 _结束时间_ 。
+    说明：时间加权平均（time weighted average, TWA）查询需要指定查询时间段的 _开始时间_ 和 _结束时间_ 。
     适用于：表、超级表。
 
 - **SUM**
