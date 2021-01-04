@@ -88,7 +88,7 @@ int tsdbUpdateMFile(STsdbRepo *pRepo, SMFile *pMFile) {
 }
 
 int tsdbUpdateDFileSet(STsdbRepo *pRepo, SDFileSet *pSet) {
-  SFSSnapshot *pSnapshot = REPO_FS(pRepo)->new;
+  SFSVer *pSnapshot = REPO_FS(pRepo)->new;
   SDFileSet *  pOldSet;
 
   pOldSet = tsdbSearchDFileSet(pSnapshot, pSet->id, TD_GE);
@@ -116,7 +116,7 @@ int tsdbUpdateDFileSet(STsdbRepo *pRepo, SDFileSet *pSet) {
 }
 
 void tsdbRemoveExpiredDFileSet(STsdbRepo *pRepo, int mfid) {
-  SFSSnapshot *pSnapshot = REPO_FS(pRepo)->new;
+  SFSVer *pSnapshot = REPO_FS(pRepo)->new;
   while (taosArrayGetSize(pSnapshot->df) > 0) {
     SDFileSet *pSet = (SDFileSet *)taosArrayGet(pSnapshot->df, 0);
     if (pSet->id < mfid) {
@@ -125,38 +125,32 @@ void tsdbRemoveExpiredDFileSet(STsdbRepo *pRepo, int mfid) {
   }
 }
 
-int tsdbEncodeMFInfo(void **buf, SMFInfo *pInfo) {
-  int tlen = 0;
-
-  tlen += taosEncodeVariantI64(buf, pInfo->size);
-  tlen += taosEncodeVariantI64(buf, pInfo->tombSize);
-  tlen += taosEncodeVariantI64(buf, pInfo->nRecords);
-  tlen += taosEncodeVariantI64(buf, pInfo->nDels);
-  tlen += taosEncodeFixedU32(buf, pInfo->magic);
-
-  return tlen;
-}
-
-void *tsdbDecodeMFInfo(void *buf, SMFInfo *pInfo) {
-  buf = taosDecodeVariantI64(buf, &(pInfo->size));
-  buf = taosDecodeVariantI64(buf, &(pInfo->tombSize));
-  buf = taosDecodeVariantI64(buf, &(pInfo->nRecords));
-  buf = taosDecodeVariantI64(buf, &(pInfo->nDels));
-  buf = taosDecodeFixedU32(buf, &(pInfo->magic));
-
-  return buf;
-}
 
 SDFileSet tsdbMoveDFileSet(SDFileSet *pOldSet, int to) {
   // TODO
 }
 
-static int tsdbSaveFSSnapshot(int fd, SFSSnapshot *pSnapshot) {
+int tsdbInitFSIter(STsdbRepo *pRepo, SFSIter *pIter) {
   // TODO
   return 0;
 }
 
-static int tsdbLoadFSSnapshot(SFSSnapshot *pSnapshot) {
+SDFileSet *tsdbFSIterNext(SFSIter *pIter) {
+  // TODO
+  return NULL;
+}
+
+int tsdbCreateDFileSet(int fid, int level, SDFileSet *pSet) {
+  // TODO
+  return 0;
+}
+
+static int tsdbSaveFSSnapshot(int fd, SFSVer *pSnapshot) {
+  // TODO
+  return 0;
+}
+
+static int tsdbLoadFSSnapshot(SFSVer *pSnapshot) {
   // TODO
   return 0;
 }
@@ -178,63 +172,6 @@ static int tsdbOpenFSImpl(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbEncodeMFile(void **buf, SMFile *pMFile) {
-  int tlen = 0;
-
-  tlen += tsdbEncodeMFInfo(buf, &(pMFile->info));
-  tlen += tfsEncodeFile(buf, &(pMFile->f));
-
-  return tlen;
-}
-
-static void *tsdbDecodeMFile(void *buf, SMFile *pMFile) {
-  buf = tsdbDecodeMFInfo(buf, &(pMFile->info));
-  buf = tfsDecodeFile(buf, &(pMFile->f));
-
-  return buf;
-}
-
-static int tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo) {
-  int tlen = 0;
-
-  tlen += taosEncodeFixedU32(buf, pInfo->magic);
-  tlen += taosEncodeFixedU32(buf, pInfo->len);
-  tlen += taosEncodeFixedU32(buf, pInfo->totalBlocks);
-  tlen += taosEncodeFixedU32(buf, pInfo->totalSubBlocks);
-  tlen += taosEncodeFixedU32(buf, pInfo->offset);
-  tlen += taosEncodeFixedU64(buf, pInfo->size);
-  tlen += taosEncodeFixedU64(buf, pInfo->tombSize);
-
-  return tlen;
-}
-
-static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo) {
-  buf = taosDecodeFixedU32(buf, &(pInfo->magic));
-  buf = taosDecodeFixedU32(buf, &(pInfo->len));
-  buf = taosDecodeFixedU32(buf, &(pInfo->totalBlocks));
-  buf = taosDecodeFixedU32(buf, &(pInfo->totalSubBlocks));
-  buf = taosDecodeFixedU32(buf, &(pInfo->offset));
-  buf = taosDecodeFixedU64(buf, &(pInfo->size));
-  buf = taosDecodeFixedU64(buf, &(pInfo->tombSize));
-
-  return buf;
-}
-
-static int tsdbEncodeDFile(void **buf, SDFile *pDFile) {
-  int tlen = 0;
-
-  tlen += tsdbEncodeDFInfo(buf, &(pDFile->info));
-  tlen += tfsEncodeFile(buf, &(pDFile->f));
-
-  return tlen;
-}
-
-static void *tsdbDecodeDFile(void *buf, SDFile *pDFile) {
-  buf = tsdbDecodeDFInfo(buf, &(pDFile->info));
-  buf = tfsDecodeFile(buf, &(pDFile->f));
-
-  return buf;
-}
 
 static int tsdbEncodeFSMeta(void **buf, STsdbFSMeta *pMeta) {
   int tlen = 0;
@@ -256,7 +193,7 @@ static void *tsdbDecodeFSMeta(void *buf, STsdbFSMeta *pMeta) {
   return buf;
 }
 
-static int tsdbEncodeFSSnapshot(void **buf, SFSSnapshot *pSnapshot) {
+static int tsdbEncodeFSSnapshot(void **buf, SFSVer *pSnapshot) {
   int     tlen = 0;
   int64_t size = 0;
 
@@ -276,7 +213,7 @@ static int tsdbEncodeFSSnapshot(void **buf, SFSSnapshot *pSnapshot) {
   return tlen;
 }
 
-static void *tsdbDecodeFSSnapshot(void *buf, SFSSnapshot *pSnapshot) {
+static void *tsdbDecodeFSSnapshot(void *buf, SFSVer *pSnapshot) {
   int64_t size = 0;
   SDFile  df;
 
@@ -293,10 +230,10 @@ static void *tsdbDecodeFSSnapshot(void *buf, SFSSnapshot *pSnapshot) {
   return buf;
 }
 
-static SFSSnapshot *tsdbNewSnapshot(int32_t nfiles) {
-  SFSSnapshot *pSnapshot;
+static SFSVer *tsdbNewSnapshot(int32_t nfiles) {
+  SFSVer *pSnapshot;
 
-  pSnapshot = (SFSSnapshot *)calloc(1, sizeof(pSnapshot));
+  pSnapshot = (SFSVer *)calloc(1, sizeof(pSnapshot));
   if (pSnapshot == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
@@ -312,7 +249,7 @@ static SFSSnapshot *tsdbNewSnapshot(int32_t nfiles) {
   return pSnapshot;
 }
 
-static SFSSnapshot *tsdbFreeSnapshot(SFSSnapshot *pSnapshot) {
+static SFSVer *tsdbFreeSnapshot(SFSVer *pSnapshot) {
   if (pSnapshot) {
     taosArrayDestroy(pSnapshot->df);
     free(pSnapshot);
@@ -359,7 +296,7 @@ static STsdbFS *tsdbFreeFS(STsdbFS *pFs) {
   return NULL;
 }
 
-static int tsdbCopySnapshot(SFSSnapshot *src, SFSSnapshot *dst) {
+static int tsdbCopySnapshot(SFSVer *src, SFSVer *dst) {
   dst->meta = src->meta;
   dst->mf = src->meta;
   taosArrayCopy(dst->df, src->df);
@@ -379,7 +316,7 @@ static int tsdbCompFSetId(const void *key1, const void *key2) {
   }
 }
 
-static SDFileSet *tsdbSearchDFileSet(SFSSnapshot *pSnapshot, int fid, int flags) {
+static SDFileSet *tsdbSearchDFileSet(SFSVer *pSnapshot, int fid, int flags) {
   void *ptr = taosArraySearch(pSnapshot->df, (void *)(&fid), tsdbCompFSetId, flags);
   return (ptr == NULL) ? NULL : ((SDFileSet *)ptr);
 }

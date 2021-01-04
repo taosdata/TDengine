@@ -75,6 +75,8 @@ static int tsdbCommitTSData(STsdbRepo *pRepo) {
   SMemTable *pMem = pRepo->imem;
   STsdbCfg * pCfg = &(pRepo->config);
   SCommitH   ch = {0};
+  SFSIter    fsIter = {0};
+  SDFileSet *pOldSet = NULL;
 
   if (pMem->numOfRows <= 0) return 0;
 
@@ -86,10 +88,16 @@ static int tsdbCommitTSData(STsdbRepo *pRepo) {
   int sfid = MIN(TSDB_KEY_FILEID(pMem->keyFirst, pCfg->daysPerFile, pCfg->precision), 1 /*TODO*/);
   int efid = MAX(TSDB_KEY_FILEID(pMem->keyLast, pCfg->daysPerFile, pCfg->precision), 1 /*TODO*/);
 
+  tsdbInitFSIter(pRepo, &fsIter);
+  pOldSet = tsdbFSIterNext(&fsIter);
   for (int fid = sfid; fid <= efid; fid++) {
-    if (tsdbCommitToFile(pRepo, fid, &ch) < 0) {
+    if (tsdbCommitToFile(pRepo, pOldSet, &ch, fid) < 0) {
       tsdbDestroyCommitH(&ch, pMem->maxTables);
       return -1;
+    }
+    
+    if (pOldSet != NULL && pOldSet->fid == fid) {
+      pOldSet = tsdbFSIterNext(&fsIter);
     }
   }
 
@@ -186,17 +194,69 @@ static bool tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TS
   return false;
 }
 
-static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch) {
+static int tsdbCommitToFile(STsdbRepo *pRepo, SDFileSet *pOldSet, SCommitH *pch, int fid) {
   STsdbCfg * pCfg = &(pRepo->config);
   SMemTable *pMem = pRepo->imem;
   TSKEY      minKey, maxKey;
-  SDFileSet *pOldSet = NULL;
+  bool       hasData;
+  SDFileSet  rSet, wSet;
+
+  tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
+  hasData = tsdbHasDataToCommit(pch->iters, pMem->maxTables, minKey, maxKey);
+
+  if (pOldSet == NULL || pOldSet->fid != fid) {  // need to create SDFileSet and commit
+    if (!hasData) return 0;
+
+    tsdbInitDFileSet(&wSet, REPO_ID(pRepo), fid, 0/*TODO*/, level, TFS_UNDECIDED_ID);
+    tsdbOpenDFileSet(&wSet, O_WRONLY | O_CREAT);
+    tsdbUpdateDFileSetHeader(&wSet);
+  } else {
+    int level = tsdbGetFidLevel(fid, &(pch->rtn));
+
+    // Check if SDFileSet expires
+    if (level < 0) {
+      if (hasData) {
+        tsdbSeekCommitIter(pch->iters, pMem->maxTables, maxKey + 1);
+      }
+      return 0;
+    }
+
+    // TODO: Check if SDFileSet in correct level
+    if (true /*pOldSet level is not the same as level*/) {
+      tsdbInitDFileSet(&rSet, REPO_ID(pRepo), fid, 0/*TODO*/, level, TFS_UNDECIDED_ID);
+      // TODO: check if level is correct
+      tsdbOpenDFileSet(&wSet, O_WRONLY|O_CREAT);
+    }
+  }
+
+  // TODO: close the file set
+  if (!hasData) {
+    tsdbUpdateDFileSet(pRepo, &rSet);
+    return 0;
+  }
+
+  {
+    // TODO: commit the memory data
+  }
+
+  if (tsdbUpdateDFileSet(pRepo, &wSet) < 0) {
+    return -1;
+  }
+
+  return 0;
+
+#if 0
+  STsdbCfg * pCfg = &(pRepo->config);
+  SMemTable *pMem = pRepo->imem;
+  TSKEY      minKey, maxKey;
+  SDFileSet  oldSet = {0};
   SDFileSet  newSet = {0};
+  int        level;
 
   tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, fid, &minKey, &maxKey);
 
-  if (pOldSet) {  // file exists
-    int level = tsdbGetFidLevel(fid, &(pch->rtn));
+  level = tsdbGetFidLevel(fid, &(pch->rtn));
+  if (pOldSet) {  // fset exists, check if the file shold be removed or upgrade tier level
     if (level < 0) {  // if out of data, remove it and ignore expired memory data
       tsdbRemoveExpiredDFileSet(pRepo, fid);
       tsdbSeekCommitIter(pch->iters, pMem->maxTables, maxKey + 1);
@@ -205,6 +265,12 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch) {
 
     // Move the data file set to correct level
     tsdbMoveDFileSet(pOldSet, level);
+  } else { // fset not exist, create the fset
+    pOldSet = &oldSet;
+    if (tsdbCreateDFileSet(fid, level, pOldSet) < 0) {
+      // TODO
+      return -1;
+    }
   }
 
   if (tsdbHasDataToCommit(pch->iters, pMem->maxTables, minKey, maxKey)) {
@@ -221,9 +287,11 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch) {
       TSDB_RLOCK_TABLE(pIter->pTable);
 
       if (pIter->pIter != NULL) {  // has data in memory to commit
+        // TODO
       }
 
       TSDB_RUNLOCK_TABLE(pIter->pTable);
+
       if (tsdbMoveLastBlockIfNeccessary() < 0) return -1;
 
       if (tsdbWriteCompInfo() < 0) return -1;
@@ -232,11 +300,10 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitH *pch) {
     if (tsdbWriteCompIdx() < 0) return -1;
   }
 
-  if (/*file exists OR has data to commit*/) {
-    tsdbUpdateDFileSet(pRepo, &newSet);
-  }
+  tsdbUpdateDFileSet(pRepo, &newSet);
 
   return 0;
+#endif
 }
 
 static SCommitIter *tsdbCreateCommitIters(STsdbRepo *pRepo) {

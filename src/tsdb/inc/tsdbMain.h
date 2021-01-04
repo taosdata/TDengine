@@ -293,12 +293,19 @@ static FORCE_INLINE TKEY tsdbNextIterTKey(SSkipListIterator* pIter) {
   return dataRowTKey(row);
 }
 
-// ================= tsdbFS.c
+// ================= tsdbFile.c
 #define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 #define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
 
-enum { TSDB_FILE_HEAD = 0, TSDB_FILE_DATA, TSDB_FILE_LAST, TSDB_FILE_MAX };
+typedef enum {
+  TSDB_FILE_HEAD = 0,
+  TSDB_FILE_DATA,
+  TSDB_FILE_LAST,
+  TSDB_FILE_MAX,
+  TSDB_FILE_META,
+  TSDB_FILE_MANIFEST
+} TSDB_FILE_T;
 
 // For meta file
 typedef struct {
@@ -314,6 +321,15 @@ typedef struct {
   TFILE   f;
   int     fd;
 } SMFile;
+
+void    tsdbInitMFile(SMFile* pMFile, int vid, int ver, SMFInfo* pInfo);
+int     tsdbOpenMFile(SMFile* pMFile, int flags);
+void    tsdbCloseMFile(SMFile* pMFile);
+int64_t tsdbSeekMFile(SMFile* pMFile, int64_t offset, int whence);
+int64_t tsdbWriteMFile(SMFile* pMFile, void* buf, int64_t nbyte);
+int64_t tsdbTellMFile(SMFile *pMFile);
+int     tsdbEncodeMFile(void** buf, SMFile* pMFile);
+void*   tsdbDecodeMFile(void* buf, SMFile* pMFile);
 
 // For .head/.data/.last file
 typedef struct {
@@ -332,11 +348,28 @@ typedef struct {
   int     fd;
 } SDFile;
 
+void    tsdbInitDFile(SDFile* pDFile, int vid, int fid, int ver, int level, int id, const SDFInfo* pInfo,
+                      TSDB_FILE_T ftype);
+int     tsdbOpenDFile(SDFile* pDFile, int flags);
+void    tsdbCloseDFile(SDFile* pDFile);
+int64_t tsdbSeekDFile(SDFile* pDFile, int64_t offset, int whence);
+int64_t tsdbWriteDFile(SDFile* pDFile, void* buf, int64_t nbyte);
+int64_t tsdbTellDFile(SDFile* pDFile);
+int     tsdbEncodeDFile(void** buf, SDFile* pDFile);
+void*   tsdbDecodeDFile(void* buf, SDFile* pDFile);
+
 typedef struct {
-  int    id;
+  int    fid;
   int    state;
   SDFile files[TSDB_FILE_MAX];
 } SDFileSet;
+
+#define TSDB_DFILE_IN_SET(s, t) ((s)->files + (t))
+
+void tsdbInitDFileSet(SDFileSet* pSet, int vid, int fid, int ver, int level, int id);
+int  tsdbOpenDFileSet(SDFileSet* pSet, int flags);
+void tsdbCloseDFileSet(SDFileSet* pSet);
+int  tsdbUpdateDFileSetHeader(SDFileSet* pSet);
 
 /* Statistic information of the TSDB file system.
  */
@@ -351,31 +384,40 @@ typedef struct {
   int64_t     version;
   STsdbFSMeta meta;
   SMFile      mf;  // meta file
-  SArray *    df;  // data file array
-} SFSSnapshot;
+  SArray*     df;  // data file array
+} SFSVer;
 
 typedef struct {
   pthread_rwlock_t lock;
 
-  SFSSnapshot *curr;
-  SFSSnapshot *new;
+  SFSVer fsv;
 } STsdbFS;
+
+typedef struct {
+  int        version;  // current FS version
+  int        index;
+  int        fid;
+  SDFileSet* pSet;
+} SFSIter;
 
 #define TSDB_FILE_INFO(tf) (&((tf)->info))
 #define TSDB_FILE_F(tf) (&((tf)->f)))
 #define TSDB_FILE_FD(tf) ((tf)->fd)
 
-int       tsdbOpenFS(STsdbRepo* pRepo);
-void      tsdbCloseFS(STsdbRepo* pRepo);
-int       tsdbFSNewTxn(STsdbRepo* pRepo);
-int       tsdbFSEndTxn(STsdbRepo* pRepo, bool hasError);
-int       tsdbUpdateMFile(STsdbRepo* pRepo, SMFile* pMFile);
-int       tsdbUpdateDFileSet(STsdbRepo* pRepo, SDFileSet* pSet);
-void      tsdbRemoveExpiredDFileSet(STsdbRepo* pRepo, int mfid);
-int       tsdbRemoveDFileSet(SDFileSet* pSet);
-int       tsdbEncodeMFInfo(void** buf, SMFInfo* pInfo);
-void*     tsdbDecodeMFInfo(void* buf, SMFInfo* pInfo);
-SDFileSet tsdbMoveDFileSet(SDFileSet* pOldSet, int to);
+int        tsdbOpenFS(STsdbRepo* pRepo);
+void       tsdbCloseFS(STsdbRepo* pRepo);
+int        tsdbFSNewTxn(STsdbRepo* pRepo);
+int        tsdbFSEndTxn(STsdbRepo* pRepo, bool hasError);
+int        tsdbUpdateMFile(STsdbRepo* pRepo, SMFile* pMFile);
+int        tsdbUpdateDFileSet(STsdbRepo* pRepo, SDFileSet* pSet);
+void       tsdbRemoveExpiredDFileSet(STsdbRepo* pRepo, int mfid);
+int        tsdbRemoveDFileSet(SDFileSet* pSet);
+int        tsdbEncodeMFInfo(void** buf, SMFInfo* pInfo);
+void*      tsdbDecodeMFInfo(void* buf, SMFInfo* pInfo);
+SDFileSet  tsdbMoveDFileSet(SDFileSet* pOldSet, int to);
+int        tsdbInitFSIter(STsdbRepo* pRepo, SFSIter* pIter);
+SDFileSet* tsdbFSIterNext(SFSIter* pIter);
+int        tsdbCreateDFileSet(int fid, int level, SDFileSet* pSet);
 
 static FORCE_INLINE int tsdbRLockFS(STsdbFS *pFs) {
   int code = pthread_rwlock_rdlock(&(pFs->lock));
@@ -430,7 +472,7 @@ int       tdDropKVStoreRecord(SKVStore* pStore, uint64_t uid);
 int       tdKVStoreEndCommit(SKVStore* pStore);
 void      tsdbGetStoreInfo(char* fname, uint32_t* magic, int64_t* size);
 
-// ================= tsdbFile.c
+// ================= 
 // extern const char* tsdbFileSuffix[];
 
 // minFid <= midFid <= maxFid
@@ -642,9 +684,8 @@ typedef enum { TSDB_WRITE_HELPER, TSDB_READ_HELPER } tsdb_rw_helper_t;
 typedef struct {
   TSKEY      minKey;
   TSKEY      maxKey;
-  SFileGroup fGroup;
-  SFile      nHeadF;
-  SFile      nLastF;
+  SDFileSet  rSet;
+  SDFileSet  wSet;
 } SHelperFile;
 
 typedef struct {
