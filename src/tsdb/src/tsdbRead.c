@@ -2645,13 +2645,12 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   return pTableGroup;
 }
 
-static bool indexedNodeFilterFp(const void* pNode, void* param) {
+static bool tableFilterFp(const void* pNode, void* param) {
   tQueryInfo* pInfo = (tQueryInfo*) param;
 
   STable* pTable = (STable*)(SL_GET_NODE_DATA((SSkipListNode*)pNode));
 
-  char*  val = NULL;
-
+  char* val = NULL;
   if (pInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
     val = (char*) TABLE_NAME(pTable);
   } else {
@@ -2706,15 +2705,17 @@ static bool indexedNodeFilterFp(const void* pNode, void* param) {
   return true;
 }
 
+static void getTableListfromSkipList(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SExprTraverseSupp *param);
+
 static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr) {
   // query according to the expression tree
   SExprTraverseSupp supp = {
-      .nodeFilterFn = (__result_filter_fn_t) indexedNodeFilterFp,
+      .nodeFilterFn = (__result_filter_fn_t) tableFilterFp,
       .setupInfoFn = filterPrepare,
       .pExtInfo = pSTable->tagSchema,
       };
 
-  tExprTreeTraverse(pExpr, pSTable->pIndex, pRes, &supp);
+  getTableListfromSkipList(pExpr, pSTable->pIndex, pRes, &supp);
   tExprTreeDestroy(&pExpr, destroyHelper);
   return TSDB_CODE_SUCCESS;
 }
@@ -2955,4 +2956,236 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
 
   taosArrayDestroy(pGroupList->pGroupList);
   pGroupList->numOfTables = 0;
+}
+
+static void applyFilterToSkipListNode(SSkipList *pSkipList, tExprNode *pExpr, SArray *pResult, SExprTraverseSupp *param) {
+  SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
+
+  // Scan each node in the skiplist by using iterator
+  while (tSkipListIterNext(iter)) {
+    SSkipListNode *pNode = tSkipListIterGet(iter);
+    if (exprTreeApplayFilter(pExpr, pNode, param)) {
+      taosArrayPush(pResult, &(SL_GET_NODE_DATA(pNode)));
+    }
+  }
+
+  tSkipListDestroyIter(iter);
+}
+
+typedef struct {
+  char*    v;
+  int32_t  optr;
+} SEndPoint;
+
+typedef struct {
+  SEndPoint* start;
+  SEndPoint* end;
+} SQueryCond;
+
+// todo check for malloc failure
+static int32_t setQueryCond(tQueryInfo *queryColInfo, SQueryCond* pCond) {
+  int32_t optr = queryColInfo->optr;
+
+  if (optr == TSDB_RELATION_GREATER || optr == TSDB_RELATION_GREATER_EQUAL ||
+      optr == TSDB_RELATION_EQUAL || optr == TSDB_RELATION_NOT_EQUAL) {
+    pCond->start = calloc(1, sizeof(SEndPoint));
+    pCond->start->optr = queryColInfo->optr;
+    pCond->start->v = queryColInfo->q;
+  } else if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
+    pCond->end = calloc(1, sizeof(SEndPoint));
+    pCond->end->optr = queryColInfo->optr;
+    pCond->end->v = queryColInfo->q;
+  } else if (optr == TSDB_RELATION_IN || optr == TSDB_RELATION_LIKE) {
+    assert(0);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void queryIndexedColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
+  SSkipListIterator* iter = NULL;
+
+  SQueryCond cond = {0};
+  if (setQueryCond(pQueryInfo, &cond) != TSDB_CODE_SUCCESS) {
+    //todo handle error
+  }
+
+  if (cond.start != NULL) {
+    iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->type, TSDB_ORDER_ASC);
+  } else {
+    iter = tSkipListCreateIterFromVal(pSkipList, (char*)(cond.end ? cond.end->v: NULL), pSkipList->type, TSDB_ORDER_DESC);
+  }
+
+  if (cond.start != NULL) {
+    int32_t optr = cond.start->optr;
+
+    if (optr == TSDB_RELATION_EQUAL) {   // equals
+      while(tSkipListIterNext(iter)) {
+        SSkipListNode* pNode = tSkipListIterGet(iter);
+
+        int32_t ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
+        if (ret != 0) {
+          break;
+        }
+
+        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+        taosArrayPush(result, &info);
+      }
+    } else if (optr == TSDB_RELATION_GREATER || optr == TSDB_RELATION_GREATER_EQUAL) { // greater equal
+      bool comp = true;
+      int32_t ret = 0;
+
+      while(tSkipListIterNext(iter)) {
+        SSkipListNode* pNode = tSkipListIterGet(iter);
+
+        if (comp) {
+          ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
+          assert(ret >= 0);
+        }
+
+        if (ret == 0 && optr == TSDB_RELATION_GREATER) {
+          continue;
+        } else {
+          STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+          taosArrayPush(result, &info);
+          comp = false;
+        }
+      }
+    } else if (optr == TSDB_RELATION_NOT_EQUAL) {   // not equal
+      bool comp = true;
+
+      while(tSkipListIterNext(iter)) {
+        SSkipListNode* pNode = tSkipListIterGet(iter);
+        comp = comp && (pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v) == 0);
+        if (comp) {
+          continue;
+        }
+
+        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+        taosArrayPush(result, &info);
+      }
+
+      tSkipListDestroyIter(iter);
+
+      comp = true;
+      iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->type, TSDB_ORDER_DESC);
+      while(tSkipListIterNext(iter)) {
+        SSkipListNode* pNode = tSkipListIterGet(iter);
+        comp = comp && (pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v) == 0);
+        if (comp) {
+          continue;
+        }
+
+        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+        taosArrayPush(result, &info);
+      }
+
+    } else {
+      assert(0);
+    }
+  } else {
+    int32_t optr = cond.end ? cond.end->optr : TSDB_RELATION_INVALID;
+    if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
+      bool    comp = true;
+      int32_t ret = 0;
+
+      while (tSkipListIterNext(iter)) {
+        SSkipListNode *pNode = tSkipListIterGet(iter);
+
+        if (comp) {
+          ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.end->v);
+          assert(ret <= 0);
+        }
+
+        if (ret == 0 && optr == TSDB_RELATION_LESS) {
+          continue;
+        } else {
+          STableKeyInfo info = {.pTable = (void *)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+          taosArrayPush(result, &info);
+          comp = false;  // no need to compare anymore
+        }
+      }
+    } else {
+      assert(pQueryInfo->optr == TSDB_RELATION_ISNULL || pQueryInfo->optr == TSDB_RELATION_NOTNULL);
+
+      while (tSkipListIterNext(iter)) {
+        SSkipListNode *pNode = tSkipListIterGet(iter);
+
+        bool isnull = isNull(SL_GET_NODE_KEY(pSkipList, pNode), pQueryInfo->sch.type);
+        if ((pQueryInfo->optr == TSDB_RELATION_ISNULL && isnull) ||
+            (pQueryInfo->optr == TSDB_RELATION_NOTNULL && (!isnull))) {
+          STableKeyInfo info = {.pTable = (void *)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+          taosArrayPush(result, &info);
+        }
+      }
+    }
+  }
+
+  free(cond.start);
+  free(cond.end);
+  tSkipListDestroyIter(iter);
+}
+
+static void queryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* res, __result_filter_fn_t filterFp) {
+  SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
+
+  while (tSkipListIterNext(iter)) {
+    bool addToResult = false;
+
+    SSkipListNode *pNode = tSkipListIterGet(iter);
+
+    char *pData = SL_GET_NODE_DATA(pNode);
+    tstr *name = (tstr*) tsdbGetTableName((void*) pData);
+
+    // todo speed up by using hash
+    if (pQueryInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
+      if (pQueryInfo->optr == TSDB_RELATION_IN) {
+        addToResult = pQueryInfo->compare(name, pQueryInfo->q);
+      } else if (pQueryInfo->optr == TSDB_RELATION_LIKE) {
+        addToResult = !pQueryInfo->compare(name, pQueryInfo->q);
+      }
+    } else {
+      addToResult = filterFp(pNode, pQueryInfo);
+    }
+
+    if (addToResult) {
+      STableKeyInfo info = {.pTable = (void*)pData, .lastKey = TSKEY_INITIAL_VAL};
+      taosArrayPush(res, &info);
+    }
+  }
+
+  tSkipListDestroyIter(iter);
+}
+
+// Apply the filter expression to each node in the skiplist to acquire the qualified nodes in skip list
+void getTableListfromSkipList(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SExprTraverseSupp *param) {
+  if (pExpr == NULL) {
+    return;
+  }
+
+  tExprNode *pLeft  = pExpr->_node.pLeft;
+  tExprNode *pRight = pExpr->_node.pRight;
+
+  // column project
+  if (pLeft->nodeType != TSQL_NODE_EXPR && pRight->nodeType != TSQL_NODE_EXPR) {
+    assert(pLeft->nodeType == TSQL_NODE_COL && (pRight->nodeType == TSQL_NODE_VALUE || pRight->nodeType == TSQL_NODE_DUMMY));
+
+    param->setupInfoFn(pExpr, param->pExtInfo);
+
+    tQueryInfo *pQueryInfo = pExpr->_node.info;
+    if (pQueryInfo->indexed && pQueryInfo->optr != TSDB_RELATION_LIKE) {
+      queryIndexedColumn(pSkipList, pQueryInfo, result);
+    } else {
+      queryIndexlessColumn(pSkipList, pQueryInfo, result, param->nodeFilterFn);
+    }
+
+    return;
+  }
+
+  // The value of hasPK is always 0.
+  uint8_t weight = pLeft->_node.hasPK + pRight->_node.hasPK;
+  assert(weight == 0 && pSkipList != NULL && taosArrayGetSize(result) == 0);
+
+  //apply the hierarchical filter expression to every node in skiplist to find the qualified nodes
+  applyFilterToSkipListNode(pSkipList, pExpr, result, param);
 }

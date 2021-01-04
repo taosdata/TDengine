@@ -174,7 +174,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
       }
 
       assert((*pHisto)->elems[idx].val > val);
-    } else {
+    } else if ((*pHisto)->numOfElems > 0) {
       assert((*pHisto)->elems[(*pHisto)->numOfEntries].val < val);
     }
 
