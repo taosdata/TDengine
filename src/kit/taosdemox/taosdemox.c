@@ -1441,11 +1441,12 @@ static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName, char* sTblName
     strncpy(pTblName, (char *)row[0], TSDB_TABLE_NAME_LEN);
     //printf("==== sub table name: %s\n", pTblName);
     count++;
-    if (count == childTblCount) {
-      char *tmp = realloc(childTblName, (size_t)count*1.5*TSDB_TABLE_NAME_LEN);
+    if (count >= childTblCount - 1) {
+      char *tmp = realloc(childTblName, (size_t)childTblCount*1.5*TSDB_TABLE_NAME_LEN+1);
       if (tmp != NULL) {
         childTblName = tmp;
-        memset(childTblName + count*TSDB_TABLE_NAME_LEN, 0, (size_t)(count*0.5*TSDB_TABLE_NAME_LEN));
+        childTblCount = (int)(childTblCount*1.5);
+        memset(childTblName + count*TSDB_TABLE_NAME_LEN, 0, (size_t)((childTblCount-count)*TSDB_TABLE_NAME_LEN));
       } else {
         // exit, if allocate more memory failed
         printf("realloc fail for save child table name of %s.%s\n", dbName, sTblName);
@@ -3960,7 +3961,11 @@ void *superQueryProcess(void *sarg) {
     for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
       if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", 5)) {          
         int64_t t1 = taosGetTimestampUs();
-        selectAndGetResult(winfo->taos, g_queryInfo.superQueryInfo.sql[i], g_queryInfo.superQueryInfo.result[i]); 
+        char tmpFile[MAX_FILE_NAME_LEN] = {0};
+        if (g_queryInfo.superQueryInfo.result[i][0] != 0) {
+          sprintf(tmpFile, "%s-%d", g_queryInfo.superQueryInfo.result[i], winfo->threadID);
+        }
+        selectAndGetResult(winfo->taos, g_queryInfo.superQueryInfo.sql[i], tmpFile); 
         int64_t t2 = taosGetTimestampUs();          
         printf("taosc select sql return, Spent %f s\n", (t2 - t1)/1000000.0);          
       } else {
@@ -4019,7 +4024,11 @@ void *subQueryProcess(void *sarg) {
       for (int i = 0; i < g_queryInfo.subQueryInfo.sqlCount; i++) {
         memset(sqlstr,0,sizeof(sqlstr));
         replaceSubTblName(g_queryInfo.subQueryInfo.sql[i], sqlstr, i);
-        selectAndGetResult(winfo->taos, sqlstr, g_queryInfo.subQueryInfo.result[i]); 
+        char tmpFile[MAX_FILE_NAME_LEN] = {0};
+        if (g_queryInfo.subQueryInfo.result[i][0] != 0) {
+          sprintf(tmpFile, "%s-%d", g_queryInfo.subQueryInfo.result[i], winfo->threadID);
+        }
+        selectAndGetResult(winfo->taos, sqlstr, tmpFile); 
       }
     }
     et = taosGetTimestampMs();
@@ -4193,7 +4202,11 @@ void *subSubscribeProcess(void *sarg) {
       sprintf(topic, "taosdemo-subscribe-%d", i);
       memset(subSqlstr,0,sizeof(subSqlstr));
       replaceSubTblName(g_queryInfo.subQueryInfo.sql[i], subSqlstr, i);
-      g_queryInfo.subQueryInfo.tsub[i] = subscribeImpl(winfo->taos, subSqlstr, topic, g_queryInfo.subQueryInfo.result[i]); 
+      char tmpFile[MAX_FILE_NAME_LEN] = {0};
+      if (g_queryInfo.subQueryInfo.result[i][0] != 0) {
+        sprintf(tmpFile, "%s-%d", g_queryInfo.subQueryInfo.result[i], winfo->threadID);
+      }
+      g_queryInfo.subQueryInfo.tsub[i] = subscribeImpl(winfo->taos, subSqlstr, topic, tmpFile); 
       if (NULL == g_queryInfo.subQueryInfo.tsub[i]) {
         return NULL;
       }
@@ -4211,7 +4224,11 @@ void *subSubscribeProcess(void *sarg) {
       
       TAOS_RES* res = taos_consume(g_queryInfo.subQueryInfo.tsub[i]);
       if (res) {
-        getResult(res, g_queryInfo.subQueryInfo.result[i]);
+        char tmpFile[MAX_FILE_NAME_LEN] = {0};
+        if (g_queryInfo.subQueryInfo.result[i][0] != 0) {
+          sprintf(tmpFile, "%s-%d", g_queryInfo.subQueryInfo.result[i], winfo->threadID);
+        }
+        getResult(res, tmpFile);
         taos_free_result(res);
       }
     }
@@ -4244,7 +4261,11 @@ void *superSubscribeProcess(void *sarg) {
     char topic[32] = {0};
     for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
       sprintf(topic, "taosdemo-subscribe-%d", i);
-      g_queryInfo.superQueryInfo.tsub[i] = subscribeImpl(winfo->taos, g_queryInfo.superQueryInfo.sql[i], topic, g_queryInfo.superQueryInfo.result[i]); 
+      char tmpFile[MAX_FILE_NAME_LEN] = {0};
+      if (g_queryInfo.subQueryInfo.result[i][0] != 0) {
+        sprintf(tmpFile, "%s-%d", g_queryInfo.superQueryInfo.result[i], winfo->threadID);
+      }
+      g_queryInfo.superQueryInfo.tsub[i] = subscribeImpl(winfo->taos, g_queryInfo.superQueryInfo.sql[i], topic, tmpFile); 
       if (NULL == g_queryInfo.superQueryInfo.tsub[i]) {
         return NULL;
       }
@@ -4262,7 +4283,11 @@ void *superSubscribeProcess(void *sarg) {
       
       TAOS_RES* res = taos_consume(g_queryInfo.superQueryInfo.tsub[i]);
       if (res) {
-        getResult(res, g_queryInfo.superQueryInfo.result[i]);
+        char tmpFile[MAX_FILE_NAME_LEN] = {0};
+        if (g_queryInfo.superQueryInfo.result[i][0] != 0) {
+          sprintf(tmpFile, "%s-%d", g_queryInfo.superQueryInfo.result[i], winfo->threadID);
+        }
+        getResult(res, tmpFile);
         taos_free_result(res);
       }
     }
