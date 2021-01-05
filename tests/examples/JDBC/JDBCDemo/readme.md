@@ -23,4 +23,4 @@ mvn clean package assembly:single
 The ``pom.xml`` is configured to package all the dependencies into one executable jar file.
 
 To run it, go to ``examples/JDBC/JDBCDemo/target`` and execute
-<pre>java -jar jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host localhost</pre>
+<pre>java -jar JDBCDemo-SNAPSHOT-jar-with-dependencies.jar -host localhost</pre>
