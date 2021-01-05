@@ -16,7 +16,7 @@ TOP_DIR=`pwd`
 TAOSD_DIR=`find . -name "taosd"|grep -v community|head -n1`
 nohup $TAOSD_DIR >/dev/null &
 cd -
-./crash_gen.sh --valgrind -p -t 10 -s 250 -b 4
+./crash_gen.sh --valgrind -p -t 10 -s 350 -b 4
 pidof taosd|xargs kill -9
 grep 'start to execute\|ERROR SUMMARY' valgrind.err|grep -v 'grep'|uniq|tee crash_gen_mem_err.log
 
