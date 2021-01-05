@@ -5,6 +5,7 @@ import java.util.Properties;
 
 public class JDBCDemo {
     private static String host;
+    private static String driverType;
     private static final String dbName = "test";
     private static final String tbName = "weather";
     private Connection connection;
@@ -13,11 +14,15 @@ public class JDBCDemo {
         for (int i = 0; i < args.length; i++) {
             if ("-host".equalsIgnoreCase(args[i]) && i < args.length - 1)
                 host = args[++i];
+            if ("-driverType".equalsIgnoreCase(args[i]) && i < args.length - 1) {
+                driverType = args[++i];
+                if (!"jni".equalsIgnoreCase(driverType) || !"restful".equalsIgnoreCase(driverType))
+                    printHelp();
+            }
         }
 
-        if (host == null) {
-            System.out.println("Usage: java -jar JdbcDemo.jar -host <hostname>");
-            return;
+        if (host == null || driverType == null) {
+            printHelp();
         }
 
         JDBCDemo demo = new JDBCDemo();
@@ -35,7 +40,11 @@ public class JDBCDemo {
     private void init() {
         // get connection
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
+            if (driverType.equals("jni")) {
+                Class.forName("com.taosdata.jdbc.TSDBDriver");
+            } else {
+                Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
+            }
             Properties properties = new Properties();
             properties.setProperty("host", host);
             properties.setProperty("charset", "UTF-8");
@@ -129,6 +138,11 @@ public class JDBCDemo {
     private void dropTable() {
         final String sql = "drop table if exists " + dbName + "." + tbName + "";
         exuete(sql);
+    }
+
+    private static void printHelp() {
+        System.out.println("Usage: java -jar JdbcDemo.jar -host <hostname> -driverType <jni|restful>");
+        System.exit(0);
     }
 
 
