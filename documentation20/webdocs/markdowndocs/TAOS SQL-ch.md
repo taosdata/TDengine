@@ -214,9 +214,17 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 - **以超级表为模板创建数据表**
 
     ```mysql
-    CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1 [, tag_value2 ...]);
+    CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
     ```
     以指定的超级表为模板，指定 tags 的值来创建数据表。
+
+- **批量创建数据表**
+
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
+    ```
+    以更快的速度批量创建大量数据表。（服务器端 2.0.14 及以上版本）
+    说明：批量建表方式要求数据表必须以超级表为模板。
 
 - **删除数据表**
 
@@ -230,7 +238,8 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     SHOW TABLES [LIKE tb_name_wildcar];
     ```
 
-    显示当前数据库下的所有数据表信息。说明：可在like中使用通配符进行名称的匹配。 通配符匹配：1）’%’ (百分号)匹配0到任意个字符；2）’_’下划线匹配一个字符。
+    显示当前数据库下的所有数据表信息。
+    说明：可在like中使用通配符进行名称的匹配。 通配符匹配：1）’%’ (百分号)匹配0到任意个字符；2）’_’下划线匹配一个字符。
 
 - **在线修改显示字符宽度**
 
