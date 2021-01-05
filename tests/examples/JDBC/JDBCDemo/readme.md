@@ -4,7 +4,6 @@ TDengine's JDBC demo project is organized in a Maven way so that users can easil
 sudo apt-get install maven
 ```
 
-
 ## Install TDengine Client
 Make sure you have already installed a tdengine client on your current develop environment.
 Download the tdengine package on our website: ``https://www.taosdata.com/cn/all-downloads/`` and install the client.
