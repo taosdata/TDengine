@@ -40,8 +40,10 @@ public class JDBCDemo {
     private void init() {
         // get connection
         try {
+            String url = "jdbc:TAOS://" + host + ":6030/";
             if (driverType.equals("restful")) {
                 Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
+                url = "jdbc:TAOS-RS://" + host + ":6041/";
             } else {
                 Class.forName("com.taosdata.jdbc.TSDBDriver");
             }
@@ -51,7 +53,7 @@ public class JDBCDemo {
             properties.setProperty("locale", "en_US.UTF-8");
             properties.setProperty("timezone", "UTC-8");
             System.out.println("get connection starting...");
-            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
+            connection = DriverManager.getConnection(url, properties);
             if (connection != null)
                 System.out.println("[ OK ] Connection established.");
         } catch (ClassNotFoundException | SQLException e) {
