@@ -128,6 +128,11 @@ void tsdbInitDFile(SDFile *pDFile, int vid, int fid, int ver, int level, int id,
   tfsInitFile(&(pDFile->f), level, id, NULL /*TODO*/);
 }
 
+void tsdbInitDFileWithOld(SDFile *pDFile, SDFile *pOldDFile) {
+  *pDFile = *pOldDFile;
+  TSDB_FILE_SET_CLOSED(pDFile);
+}
+
 int tsdbOpenDFile(SDFile *pDFile, int flags) {
   ASSERT(!TSDB_FILE_OPENED(pDFile));
 
@@ -170,6 +175,18 @@ int64_t tsdbWriteDFile(SDFile *pDFile, void *buf, int64_t nbyte) {
 
   pDFile->info.size += nbyte;
   return nwrite;
+}
+
+int64_t tsdbReadDFile(SDFile *pDFile, void *buf, int64_t nbyte) {
+  ASSERT(TSDB_FILE_OPENED(pDFile));
+
+  int64_t nread = taosRead(pDFile->fd, buf, nbyte);
+  if (nread < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return nread;
 }
 
 int64_t tsdbTellDFile(SDFile *pDFile) { return tsdbSeekDFile(pDFile, 0, SEEK_CUR); }
@@ -250,7 +267,7 @@ int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
   return 0;
 }
 
-int tsdbMoveDFileSet(SDFileSet *pOldSet, int tolevel, SDFileSet *pNewSet) {
+int tsdbMoveDFileSet(SDFileSet *pOldSet, SDFileSet *pNewSet) {
   // TODO
   return 0;
 }

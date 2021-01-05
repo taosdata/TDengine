@@ -350,6 +350,7 @@ typedef struct {
 
 void    tsdbInitDFile(SDFile* pDFile, int vid, int fid, int ver, int level, int id, const SDFInfo* pInfo,
                       TSDB_FILE_T ftype);
+void    tsdbInitDFileWithOld(SDFile* pDFile, SDFile* pOldDFile);
 int     tsdbOpenDFile(SDFile* pDFile, int flags);
 void    tsdbCloseDFile(SDFile* pDFile);
 int64_t tsdbSeekDFile(SDFile* pDFile, int64_t offset, int whence);
@@ -627,57 +628,9 @@ static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
   return pBufBlock;
 }
 
+#include "tsdbReadImpl.h"
+
 // ================= tsdbRWHelper.c
-typedef struct {
-  int32_t  tid;
-  uint32_t len;
-  uint32_t offset;
-  uint32_t hasLast : 2;
-  uint32_t numOfBlocks : 30;
-  uint64_t uid;
-  TSKEY    maxKey;
-} SBlockIdx;
-
-typedef struct {
-  int64_t last : 1;
-  int64_t offset : 63;
-  int32_t algorithm : 8;
-  int32_t numOfRows : 24;
-  int32_t len;
-  int32_t keyLen;     // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
-  int16_t numOfSubBlocks;
-  int16_t numOfCols; // not including timestamp column
-  TSKEY   keyFirst;
-  TSKEY   keyLast;
-} SBlock;
-
-typedef struct {
-  int32_t    delimiter;  // For recovery usage
-  int32_t    tid;
-  uint64_t   uid;
-  SBlock blocks[];
-} SBlockInfo;
-
-typedef struct {
-  int16_t colId;
-  int32_t len;
-  int32_t type : 8;
-  int32_t offset : 24;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
-  int16_t maxIndex;
-  int16_t minIndex;
-  int16_t numOfNull;
-  char    padding[2];
-} SBlockCol;
-
-typedef struct {
-  int32_t  delimiter;  // For recovery usage
-  int32_t  numOfCols;  // For recovery usage
-  uint64_t uid;        // For recovery usage
-  SBlockCol cols[];
-} SBlockData;
 
 typedef enum { TSDB_WRITE_HELPER, TSDB_READ_HELPER } tsdb_rw_helper_t;
 
