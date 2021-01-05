@@ -187,7 +187,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
     - pass：密码
     - db：数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库
     - port：端口号
-  
+
   返回值为空表示失败。应用程序需要保存返回的参数，以便后续API调用。
 
 - `char *taos_get_server_info(TAOS *taos)`
@@ -336,7 +336,7 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 - `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
 
   获取语句的结果集。结果集的使用方式与非参数化调用时一致，使用完成后，应对此结果集调用 `taos_free_result`以释放资源。
-  
+
 - `int taos_stmt_close(TAOS_STMT *stmt)`
 
   执行完毕，释放所有资源。
@@ -354,7 +354,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * stime：是流式计算开始的时间，如果是0，表示从现在开始，如果不为零，表示从指定的时间开始计算（UTC时间从1970/1/1算起的毫秒数）
     * param：是应用提供的用于回调的一个参数，回调时，提供给应用
     * callback: 第二个回调函数，会在连续查询自动停止时被调用。
-  
+
   返回值为NULL，表示创建成功，返回值不为空，表示成功。
 
 - `void taos_close_stream (TAOS_STREAM *tstr)`
@@ -393,6 +393,8 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
   取消订阅。 如参数 `keepProgress` 不为0，API会保留订阅的进度信息，后续调用 `taos_subscribe` 时可以基于此进度继续；否则将删除进度信息，后续只能重新开始读取数据。
 
 ## Python Connector
+
+Python连接器的使用参见<a href="https://www.taosdata.com/blog/2020/11/11/1963.html">视频教程</a>
 
 ### 安装准备
 * 应用驱动安装请参考<a href="https://www.taosdata.com/cn/documentation/connector/#安装连接器驱动步骤">安装连接器驱动步骤</a>。
@@ -433,7 +435,7 @@ python -m pip install python3\
 * 导入TDengine客户端模块
 
 ```python
-import taos 
+import taos
 ```
 * 获取连接并获取游标对象
 ```python
@@ -445,7 +447,7 @@ c1 = conn.cursor()
 * 写入数据
 ```python
 import datetime
- 
+
 # 创建数据库
 c1.execute('create database db')
 c1.execute('use db')
@@ -473,7 +475,7 @@ numOfRows = c1.rowcount
 numOfCols = len(c1.description)
 for irow in range(numOfRows):
   print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
-  
+
 # 直接使用cursor 循环拉取查询结果
 c1.execute('select * from tb')
 for data in c1:
@@ -534,7 +536,7 @@ conn.close()
 
 ## RESTful Connector
 
-为支持各种不同类型平台的开发，TDengine提供符合REST设计标准的API，即RESTful API。为最大程度降低学习成本，不同于其他数据库RESTful API的设计方法，TDengine直接通过HTTP POST 请求BODY中包含的SQL语句来操作数据库，仅需要一个URL。 
+为支持各种不同类型平台的开发，TDengine提供符合REST设计标准的API，即RESTful API。为最大程度降低学习成本，不同于其他数据库RESTful API的设计方法，TDengine直接通过HTTP POST 请求BODY中包含的SQL语句来操作数据库，仅需要一个URL。RESTful连接器的使用参见<a href=https://www.taosdata.com/blog/2020/11/11/1965.html>视频教程</a>。
 
 ### HTTP请求格式 
 
@@ -779,7 +781,7 @@ https://www.taosdata.com/blog/2020/11/02/1901.html
 
 TDengine提供了GO驱动程序`taosSql`。 `taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine, 详见`https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go`。
 
-使用 Go 连接器的示例代码请参考 https://github.com/taosdata/TDengine/tree/develop/tests/examples/go。
+使用 Go 连接器的示例代码请参考 https://github.com/taosdata/TDengine/tree/develop/tests/examples/go 以及<a href="https://www.taosdata.com/blog/2020/11/11/1951.html">视频教程</a>。
 
 ```Go
 import (
@@ -796,7 +798,7 @@ go env -w GOPROXY=https://goproxy.io,direct
 
 ### 常用API
 
-- sql.Open(DRIVER_NAME string, dataSourceName string) *DB` 
+- `sql.Open(DRIVER_NAME string, dataSourceName string) *DB` 
 
   该API用来打开DB，返回一个类型为*DB的对象，一般情况下，DRIVER_NAME设置为字符串`taosSql`, dataSourceName设置为字符串`user:password@/tcp(host:port)/dbname`，如果客户想要用多个goroutine并发访问TDengine, 那么需要在各个goroutine中分别创建一个sql.Open对象并用之访问TDengine
 
@@ -834,6 +836,8 @@ Node.js连接器支持的系统有：
 | ------------ | ------------ | -------- | -------- | -------- | -------- |
 | **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux    |
 | **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
+
+Node.js连接器的使用参见<a href="https://www.taosdata.com/blog/2020/11/11/1957.html">视频教程</a>
 
 ### 安装准备
 
@@ -909,7 +913,7 @@ node nodejsChecker.js host=localhost
 
 #### 建立连接
 
-使用node.js连接器时，必须先<em>require</em> ```td2.0-connector```，然后使用 ```taos.connect``` 函数。```taos.connect``` 函数必须提供的参数是```host```，其它参数在没有提供的情况下会使用如下的默认值。最后需要初始化```cursor``` 来和TDengine服务端通信 
+使用node.js连接器时，必须先<em>require</em> `td2.0-connector`，然后使用 `taos.connect` 函数。`taos.connect` 函数必须提供的参数是`host`，其它参数在没有提供的情况下会使用如下的默认值。最后需要初始化`cursor` 来和TDengine服务端通信 
 
 ```javascript
 const taos = require('td2.0-connector');
@@ -945,13 +949,13 @@ TDengine目前还不支持update和delete语句。
 
 #### 查询
 
-可通过 ```cursor.query``` 函数来查询数据库。
+可通过 `cursor.query` 函数来查询数据库。
 
 ```javascript
 var query = cursor.query('show databases;')
 ```
 
-查询的结果可以通过 ```query.execute()``` 函数获取并打印出来
+查询的结果可以通过 `query.execute()` 函数获取并打印出来
 
 ```javascript
 var promise = query.execute();
@@ -959,7 +963,7 @@ promise.then(function(result) {
   result.pretty(); 
 });
 ```
-格式化查询语句还可以使用```query```的```bind```方法。如下面的示例：```query```会自动将提供的数值填入查询语句的```?```里。
+格式化查询语句还可以使用`query`的`bind`方法。如下面的示例：`query`会自动将提供的数值填入查询语句的`?`里。
 
 ```javascript
 var query = cursor.query('select * from meterinfo.meters where ts <= ? and areaid = ?;').bind(new Date(), 5);
@@ -967,7 +971,7 @@ query.execute().then(function(result) {
   result.pretty();
 })
 ```
-如果在```query```语句里提供第二个参数并设为```true```也可以立即获取查询结果。如下：
+如果在`query`语句里提供第二个参数并设为`true`也可以立即获取查询结果。如下：
 
 ```javascript
 var promise = cursor.query('select * from meterinfo.meters where v1 = 30;', true)

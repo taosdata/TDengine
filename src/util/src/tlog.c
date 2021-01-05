@@ -64,7 +64,7 @@ typedef struct {
 } SLogObj;
 
 int32_t tsLogKeepDays = 0;
-int32_t tsAsyncLog = 1;
+int8_t  tsAsyncLog = 1;
 float   tsTotalLogDirGB = 0;
 float   tsAvailLogDirGB = 0;
 float   tsMinimalLogDirGB = 1.0f;
@@ -364,7 +364,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   ptm = localtime_r(&curTime, &Tm);
 
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%08" PRIx64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
-                ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetPthreadId());
+                ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId());
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
@@ -450,7 +450,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
   ptm = localtime_r(&curTime, &Tm);
 
   len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d 0x%08" PRIx64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
-                ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetPthreadId());
+                ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId());
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);

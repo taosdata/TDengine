@@ -45,32 +45,30 @@ static int32_t getWaitingTimeInterval(int32_t count) {
     return 0;
   }
 
-  return initial * (2<<(count - 2));
+  return initial * ((2u)<<(count - 2));
 }
 
-static void tscSetDnodeEpSet(SSqlObj* pSql, SVgroupInfo* pVgroupInfo) {
-  assert(pSql != NULL && pVgroupInfo != NULL && pVgroupInfo->numOfEps > 0);
-
-  SRpcEpSet* pEpSet = &pSql->epSet;
+static void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupInfo* pVgroupInfo) {
+  assert(pEpSet != NULL && pVgroupInfo != NULL && pVgroupInfo->numOfEps > 0);
 
   // Issue the query to one of the vnode among a vgroup randomly.
   // change the inUse property would not affect the isUse attribute of STableMeta
   pEpSet->inUse = rand() % pVgroupInfo->numOfEps;
 
   // apply the FQDN string length check here
-  bool hasFqdn = false;
+  bool existed = false;
 
   pEpSet->numOfEps = pVgroupInfo->numOfEps;
   for(int32_t i = 0; i < pVgroupInfo->numOfEps; ++i) {
-    tstrncpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
     pEpSet->port[i] = pVgroupInfo->epAddr[i].port;
 
-    if (!hasFqdn) {
-      hasFqdn = (strlen(pEpSet->fqdn[i]) > 0);
+    int32_t len = (int32_t) strnlen(pVgroupInfo->epAddr[i].fqdn, TSDB_FQDN_LEN);
+    if (len > 0) {
+      tstrncpy(pEpSet->fqdn[i], pVgroupInfo->epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
+      existed = true;
     }
   }
-
-  assert(hasFqdn);
+  assert(existed);
 }
 
 static void tscDumpMgmtEpSet(SSqlObj *pSql) {
@@ -102,7 +100,8 @@ void tscUpdateMgmtEpSet(SSqlObj *pSql, SRpcEpSet *pEpSet) {
   pCorEpSet->epSet = *pEpSet;
   taosCorEndWrite(&pCorEpSet->version);
 }
-static void tscDumpEpSetFromVgroupInfo(SCorVgroupInfo *pVgroupInfo, SRpcEpSet *pEpSet) {
+
+static void tscDumpEpSetFromVgroupInfo(SRpcEpSet *pEpSet, SCorVgroupInfo *pVgroupInfo) {
   if (pVgroupInfo == NULL) { return;}
   taosCorBeginRead(&pVgroupInfo->version);
   int8_t inUse = pVgroupInfo->inUse;
@@ -515,8 +514,8 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   } else {
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-    pRetrieveMsg->header.vgId = htonl(pTableMeta->vgroupInfo.vgId);
-    tscDebug("%p build fetch msg from only one vgroup, vgId:%d", pSql, pTableMeta->vgroupInfo.vgId);
+    pRetrieveMsg->header.vgId = htonl(pTableMeta->vgId);
+    tscDebug("%p build fetch msg from only one vgroup, vgId:%d", pSql, pTableMeta->vgId);
   }
 
   pSql->cmd.payloadLen = sizeof(SRetrieveTableMsg);
@@ -535,7 +534,6 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   // NOTE: shell message size should not include SMsgDesc
   int32_t size = pSql->cmd.payloadLen - sizeof(SMsgDesc);
-  int32_t vgId = pTableMeta->vgroupInfo.vgId;
 
   SMsgDesc* pMsgDesc = (SMsgDesc*) pMsg;
   pMsgDesc->numOfVnodes = htonl(1); // always one vnode
@@ -543,7 +541,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sizeof(SMsgDesc);
   SSubmitMsg *pShellMsg = (SSubmitMsg *)pMsg;
 
-  pShellMsg->header.vgId = htonl(vgId);
+  pShellMsg->header.vgId = htonl(pTableMeta->vgId);
   pShellMsg->header.contLen = htonl(size);      // the length not includes the size of SMsgDesc
   pShellMsg->length = pShellMsg->header.contLen;
   
@@ -551,9 +549,9 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // pSql->cmd.payloadLen is set during copying data into payload
   pSql->cmd.msgType = TSDB_MSG_TYPE_SUBMIT;
-  tscDumpEpSetFromVgroupInfo(&pTableMeta->corVgroupInfo, &pSql->epSet);
+  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &pTableMeta->corVgroupInfo);
 
-  tscDebug("%p build submit msg, vgId:%d numOfTables:%d numberOfEP:%d", pSql, vgId, pSql->cmd.numOfTablesInSubmit,
+  tscDebug("%p build submit msg, vgId:%d numOfTables:%d numberOfEP:%d", pSql, pTableMeta->vgId, pSql->cmd.numOfTablesInSubmit,
       pSql->epSet.numOfEps);
   return TSDB_CODE_SUCCESS;
 }
@@ -597,24 +595,28 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
   if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo) || pTableMetaInfo->pVgroupTables == NULL) {
     
-    SVgroupInfo* pVgroupInfo = NULL;
+    int32_t vgId = -1;
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       int32_t index = pTableMetaInfo->vgroupIndex;
       assert(index >= 0);
-  
+
+      SVgroupInfo* pVgroupInfo = NULL;
       if (pTableMetaInfo->vgroupList->numOfVgroups > 0) {
         assert(index < pTableMetaInfo->vgroupList->numOfVgroups);
         pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
       }
+
+      vgId = pVgroupInfo->vgId;
+      tscSetDnodeEpSet(&pSql->epSet, pVgroupInfo);
       tscDebug("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, pTableMetaInfo->vgroupList->numOfVgroups);
     } else {
-      pVgroupInfo = &pTableMeta->vgroupInfo;
+      vgId = pTableMeta->vgId;
+      tscDumpEpSetFromVgroupInfo(&pSql->epSet, &pTableMeta->corVgroupInfo);
     }
 
-    assert(pVgroupInfo != NULL);
+    pSql->epSet.inUse = rand()%pSql->epSet.numOfEps;
 
-    tscSetDnodeEpSet(pSql, pVgroupInfo);
-    pQueryMsg->head.vgId = htonl(pVgroupInfo->vgId);
+    pQueryMsg->head.vgId = htonl(vgId);
 
     STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
     pTableIdInfo->tid = htonl(pTableMeta->id.tid);
@@ -633,7 +635,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
 
     // set the vgroup info 
-    tscSetDnodeEpSet(pSql, &pTableIdList->vgInfo);
+    tscSetDnodeEpSet(&pSql->epSet, &pTableIdList->vgInfo);
     pQueryMsg->head.vgId = htonl(pTableIdList->vgInfo.vgId);
     
     int32_t numOfTables = (int32_t)taosArrayGetSize(pTableIdList->itemList);
@@ -888,13 +890,13 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     for (int32_t j = 0; j < pGroupbyExpr->numOfGroupCols; ++j) {
       SColIndex* pCol = taosArrayGet(pGroupbyExpr->columnInfo, j);
   
-      *((int16_t *)pMsg) = pCol->colId;
+      *((int16_t *)pMsg) = htons(pCol->colId);
       pMsg += sizeof(pCol->colId);
 
-      *((int16_t *)pMsg) += pCol->colIndex;
+      *((int16_t *)pMsg) += htons(pCol->colIndex);
       pMsg += sizeof(pCol->colIndex);
 
-      *((int16_t *)pMsg) += pCol->flag;
+      *((int16_t *)pMsg) += htons(pCol->flag);
       pMsg += sizeof(pCol->flag);
       
       memcpy(pMsg, pCol->name, tListLen(pCol->name));
@@ -1247,7 +1249,7 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pShowMsg->payloadLen = htons(pEpAddr->n);
   }
 
-  pCmd->payloadLen = sizeof(SShowMsg) + pShowMsg->payloadLen;
+  pCmd->payloadLen = sizeof(SShowMsg) + htons(pShowMsg->payloadLen);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1448,47 +1450,10 @@ int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
   SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  tscDumpEpSetFromVgroupInfo(&pTableMetaInfo->pTableMeta->corVgroupInfo, &pSql->epSet);
+  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &pTableMetaInfo->pTableMeta->corVgroupInfo);
 
   return TSDB_CODE_SUCCESS;
 }
-
-//int tscBuildCancelQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-//  SCancelQueryMsg *pCancelMsg = (SCancelQueryMsg*) pSql->cmd.payload;
-//  pCancelMsg->qhandle = htobe64(pSql->res.qhandle);
-//
-//  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
-//  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-//
-//  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-//    int32_t vgIndex = pTableMetaInfo->vgroupIndex;
-//    if (pTableMetaInfo->pVgroupTables == NULL) {
-//      SVgroupsInfo *pVgroupInfo = pTableMetaInfo->vgroupList;
-//      assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
-//
-//      pCancelMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
-//      tscDebug("%p build cancel query msg from vgId:%d, vgIndex:%d", pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex);
-//    } else {
-//      int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
-//      assert(vgIndex >= 0 && vgIndex < numOfVgroups);
-//
-//      SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, vgIndex);
-//
-//      pCancelMsg->header.vgId = htonl(pTableIdList->vgInfo.vgId);
-//      tscDebug("%p build cancel query msg from vgId:%d, vgIndex:%d", pSql, pTableIdList->vgInfo.vgId, vgIndex);
-//    }
-//  } else {
-//    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-//    pCancelMsg->header.vgId = htonl(pTableMeta->vgroupInfo.vgId);
-//    tscDebug("%p build cancel query msg from only one vgroup, vgId:%d", pSql, pTableMeta->vgroupInfo.vgId);
-//  }
-//
-//  pSql->cmd.payloadLen = sizeof(SCancelQueryMsg);
-//  pSql->cmd.msgType = TSDB_MSG_TYPE_CANCEL_QUERY;
-//
-//  pCancelMsg->header.contLen = htonl(sizeof(SCancelQueryMsg));
-//  return TSDB_CODE_SUCCESS;
-//}
 
 int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;

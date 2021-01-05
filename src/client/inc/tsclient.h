@@ -69,9 +69,10 @@ typedef struct STableMeta {
   int16_t        sversion;
   int16_t        tversion;
   char           sTableId[TSDB_TABLE_FNAME_LEN];
-  SVgroupInfo    vgroupInfo;
+  int32_t        vgId;
   SCorVgroupInfo corVgroupInfo;
   STableId       id;
+//  union {int64_t stableUid; SSchema* schema;};
   SSchema        schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
 } STableMeta;
 
@@ -307,6 +308,7 @@ typedef struct STscObj {
   SRpcCorEpSet       *tscCorMgmtEpSet;
   void*              pDnodeConn;
   pthread_mutex_t    mutex;
+  int32_t            numOfObj; // number of sqlObj from this tscObj
 } STscObj;
 
 typedef struct SSubqueryState {
@@ -419,7 +421,7 @@ void tscCloseTscObj(void *pObj);
 // todo move to taos? or create a new file: taos_internal.h
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, TAOS **taos);
-TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, TAOS_RES** res);
+TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, int64_t* res);
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
@@ -477,14 +479,14 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   }
 }
 
-extern SCacheObj*    tscMetaCache;
-extern int           tscObjRef;
-extern void *    tscTmr;
-extern void *    tscQhandle;
-extern int       tscKeepConn[];
-extern int       tscNumOfThreads;
-extern int       tscRefId;
-  
+extern SCacheObj *tscMetaCache;
+
+extern int   tscObjRef;
+extern void *tscTmr;
+extern void *tscQhandle;
+extern int   tscKeepConn[];
+extern int   tscRefId;
+extern int   tscNumOfObj;     // number of existed sqlObj in current process.
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 

@@ -34,11 +34,13 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   pVnode->tsdbCfg.maxRowsPerFileBlock = vnodeMsg->cfg.maxRowsPerFileBlock;
   pVnode->tsdbCfg.precision = vnodeMsg->cfg.precision;
   pVnode->tsdbCfg.compression = vnodeMsg->cfg.compression;
+  pVnode->tsdbCfg.cacheLastRow = vnodeMsg->cfg.cacheLastRow;
   pVnode->walCfg.walLevel = vnodeMsg->cfg.walLevel;
   pVnode->walCfg.fsyncPeriod = vnodeMsg->cfg.fsyncPeriod;
   pVnode->walCfg.keep = TAOS_WAL_NOT_KEEP;
-  pVnode->syncCfg.replica = vnodeMsg->cfg.replications;
+  pVnode->syncCfg.replica = vnodeMsg->cfg.vgReplica;
   pVnode->syncCfg.quorum = vnodeMsg->cfg.quorum;
+  pVnode->dbReplica = vnodeMsg->cfg.dbReplica;
 
   for (int i = 0; i < pVnode->syncCfg.replica; ++i) {
     SVnodeDesc *node = &vnodeMsg->nodes[i];
@@ -202,12 +204,21 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   vnodeMsg.cfg.wals = (int8_t)wals->valueint;
 
-  cJSON *replica = cJSON_GetObjectItem(root, "replica");
-  if (!replica || replica->type != cJSON_Number) {
+  cJSON *vgReplica = cJSON_GetObjectItem(root, "replica");
+  if (!vgReplica || vgReplica->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, replica not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.replications = (int8_t)replica->valueint;
+  vnodeMsg.cfg.vgReplica = (int8_t)vgReplica->valueint;
+
+  cJSON *dbReplica = cJSON_GetObjectItem(root, "dbReplica");
+  if (!dbReplica || dbReplica->type != cJSON_Number) {
+    vError("vgId:%d, failed to read %s, dbReplica not found", pVnode->vgId, file);
+    vnodeMsg.cfg.dbReplica = vnodeMsg.cfg.vgReplica;
+    vnodeMsg.cfg.vgCfgVersion = 0;
+  } else {
+    vnodeMsg.cfg.dbReplica = (int8_t)dbReplica->valueint;
+  }
 
   cJSON *quorum = cJSON_GetObjectItem(root, "quorum");
   if (!quorum || quorum->type != cJSON_Number) {
@@ -216,6 +227,15 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   vnodeMsg.cfg.quorum = (int8_t)quorum->valueint;
 
+  cJSON *cacheLastRow = cJSON_GetObjectItem(root, "cacheLastRow");
+  if (!cacheLastRow || cacheLastRow->type != cJSON_Number) {
+    vError("vgId: %d, failed to read %s, cacheLastRow not found", pVnode->vgId, file);
+    vnodeMsg.cfg.cacheLastRow = 0;
+    vnodeMsg.cfg.vgCfgVersion = 0;
+  } else {
+    vnodeMsg.cfg.cacheLastRow = (int8_t)cacheLastRow->valueint;
+  }
+
   cJSON *nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {
     vError("vgId:%d, failed to read %s, nodeInfos not found", pVnode->vgId, file);
@@ -223,7 +243,7 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
 
   int size = cJSON_GetArraySize(nodeInfos);
-  if (size != vnodeMsg.cfg.replications) {
+  if (size != vnodeMsg.cfg.vgReplica) {
     vError("vgId:%d, failed to read %s, nodeInfos size not matched", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
@@ -301,16 +321,18 @@ int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
   len += snprintf(content + len, maxLen - len, "  \"compression\": %d,\n", pMsg->cfg.compression);
   len += snprintf(content + len, maxLen - len, "  \"walLevel\": %d,\n", pMsg->cfg.walLevel);
   len += snprintf(content + len, maxLen - len, "  \"fsync\": %d,\n", pMsg->cfg.fsyncPeriod);
-  len += snprintf(content + len, maxLen - len, "  \"replica\": %d,\n", pMsg->cfg.replications);
+  len += snprintf(content + len, maxLen - len, "  \"replica\": %d,\n", pMsg->cfg.vgReplica);
+  len += snprintf(content + len, maxLen - len, "  \"dbReplica\": %d,\n", pMsg->cfg.dbReplica);
   len += snprintf(content + len, maxLen - len, "  \"wals\": %d,\n", pMsg->cfg.wals);
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pMsg->cfg.quorum);
+  len += snprintf(content + len, maxLen - len, "  \"cacheLastRow\": %d,\n", pMsg->cfg.cacheLastRow);
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
-  for (int32_t i = 0; i < pMsg->cfg.replications; i++) {
+  for (int32_t i = 0; i < pMsg->cfg.vgReplica; i++) {
     SVnodeDesc *node = &pMsg->nodes[i];
     dnodeUpdateEp(node->nodeId, node->nodeEp, NULL, NULL);
     len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", node->nodeId);
     len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", node->nodeEp);
-    if (i < pMsg->cfg.replications - 1) {
+    if (i < pMsg->cfg.vgReplica - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");
     } else {
       len += snprintf(content + len, maxLen - len, "  }]\n");

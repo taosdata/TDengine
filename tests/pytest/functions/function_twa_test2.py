@@ -120,6 +120,19 @@ class TDTestCase:
         tdSql.checkData(2, 1, -1.5)
         tdSql.checkData(3, 1, -2)
 
+        #TD-2533 twa+interval with large records 
+        tdSql.execute("create table t4(ts timestamp, c int)") 
+        sql = 'insert into t4 values '       
+        for i in range(20000):
+            sql = sql + '(%d, %d)' % (self.ts + i * 500, i + 1)
+            if i % 2000 == 0:
+                tdSql.execute(sql)
+                sql = 'insert into t4 values ' 
+        tdSql.execute(sql)
+        tdSql.query('select twa(c) from t4 interval(10s)')
+        tdSql.checkData(0,1,10.999)
+
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

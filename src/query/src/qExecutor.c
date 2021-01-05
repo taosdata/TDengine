@@ -753,11 +753,12 @@ static void doUpdateResultRowIndex(SResultRowInfo*pResultRowInfo, TSKEY lastKey,
 }
 
 static void updateResultRowIndex(SResultRowInfo* pResultRowInfo, STableQueryInfo* pTableQueryInfo, bool ascQuery) {
-  if ((pTableQueryInfo->lastKey >= pTableQueryInfo->win.ekey && ascQuery) || (pTableQueryInfo->lastKey <= pTableQueryInfo->win.ekey && (!ascQuery))) {
+  if ((pTableQueryInfo->lastKey > pTableQueryInfo->win.ekey && ascQuery) || (pTableQueryInfo->lastKey < pTableQueryInfo->win.ekey && (!ascQuery))) {
     closeAllResultRows(pResultRowInfo);
     pResultRowInfo->curIndex = pResultRowInfo->size - 1;
   } else {
-    doUpdateResultRowIndex(pResultRowInfo, pTableQueryInfo->lastKey, ascQuery);
+    int32_t step = ascQuery? 1:-1;
+    doUpdateResultRowIndex(pResultRowInfo, pTableQueryInfo->lastKey - step, ascQuery);
   }
 }
 
@@ -1198,8 +1199,12 @@ static void blockwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *
     // prev time window not interpolation yet.
     int32_t curIndex = curTimeWindowIndex(pWindowResInfo);
     if (prevIndex != -1 && prevIndex < curIndex && pRuntimeEnv->timeWindowInterpo) {
-      for(int32_t j = prevIndex; j < curIndex; ++j) {
+      for(int32_t j = prevIndex; j < curIndex; ++j) { // previous time window may be all closed already.
         SResultRow *pRes = pWindowResInfo->pResult[j];
+        if (pRes->closed) {
+          assert(resultRowInterpolated(pRes, RESULT_ROW_START_INTERP) && resultRowInterpolated(pRes, RESULT_ROW_END_INTERP));
+          continue;
+        }
 
         STimeWindow w = pRes->win;
         ret = setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, &w, masterScan, &pResult, groupId);
@@ -1600,6 +1605,10 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
         if (prevWindowIndex != -1 && prevWindowIndex < curIndex) {
           for (int32_t k = prevWindowIndex; k < curIndex; ++k) {
             SResultRow *pRes = pWindowResInfo->pResult[k];
+            if (pRes->closed) {
+              assert(resultRowInterpolated(pResult, RESULT_ROW_START_INTERP) && resultRowInterpolated(pResult, RESULT_ROW_END_INTERP));
+              continue;
+            }
 
             ret = setWindowOutputBufByKey(pRuntimeEnv, pWindowResInfo, &pRes->win, masterScan, &pResult, groupId);
             assert(ret == TSDB_CODE_SUCCESS && !resultRowInterpolated(pResult, RESULT_ROW_END_INTERP));
@@ -1713,7 +1722,7 @@ static int32_t tableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBl
     blockwiseApplyFunctions(pRuntimeEnv, pStatis, pDataBlockInfo, pResultRowInfo, searchFn, pDataBlock);
   }
 
-  // update the lastkey of current table
+  // update the lastkey of current table for projection/aggregation query
   TSKEY lastKey = QUERY_IS_ASC_QUERY(pQuery) ? pDataBlockInfo->window.ekey : pDataBlockInfo->window.skey;
   pTableQueryInfo->lastKey = lastKey + GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
 
@@ -4294,7 +4303,9 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
   *(int32_t*)data = htonl(numOfTables);
   data += sizeof(int32_t);
 
+  int32_t total = 0;
   STableIdInfo* item = taosHashIterate(pQInfo->arrTableIdInfo, NULL);
+
   while(item) {
     STableIdInfo* pDst = (STableIdInfo*)data;
     pDst->uid = htobe64(item->uid);
@@ -4302,8 +4313,13 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
     pDst->key = htobe64(item->key);
 
     data += sizeof(STableIdInfo);
+    total++;
+
+    qDebug("QInfo:%p set subscribe info, tid:%d, uid:%"PRIu64", skey:%"PRId64, pQInfo, item->tid, item->uid, item->key);
     item = taosHashIterate(pQInfo->arrTableIdInfo, item);
   }
+
+  qDebug("QInfo:%p set %d subscribe info", pQInfo, total);
 
   // Check if query is completed or not for stable query or normal table query respectively.
   if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
@@ -4662,7 +4678,6 @@ static int32_t setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) 
 
     // update the query time window
     pQuery->window = cond.twindow;
-
     if (pQInfo->tableGroupInfo.numOfTables == 0) {
       pQInfo->tableqinfoGroupInfo.numOfTables = 0;
     } else {
@@ -5182,10 +5197,10 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       scanMultiTableDataBlocks(pQInfo);
       pQInfo->groupIndex += 1;
 
-      SResultRowInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
+      taosArrayDestroy(s);
 
       // no results generated for current group, continue to try the next group
-      taosArrayDestroy(s);
+      SResultRowInfo *pWindowResInfo = &pRuntimeEnv->windowResInfo;
       if (pWindowResInfo->size <= 0) {
         continue;
       }
@@ -5212,8 +5227,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
 
       pQInfo->groupIndex = currentGroupIndex;  // restore the group index
       assert(pQuery->rec.rows == pWindowResInfo->size);
-
-      clearClosedResultRows(pRuntimeEnv, &pRuntimeEnv->windowResInfo);
+      resetResultRowInfo(pRuntimeEnv, &pRuntimeEnv->windowResInfo);
       break;
     }
   } else if (pRuntimeEnv->queryWindowIdentical && pRuntimeEnv->pTsBuf == NULL && !isTSCompQuery(pQuery)) {
@@ -6211,13 +6225,13 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     }
 
     for (int32_t i = 0; i < pQueryMsg->numOfGroupCols; ++i) {
-      (*groupbyCols)[i].colId = *(int16_t *)pMsg;
+      (*groupbyCols)[i].colId = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].colId);
 
-      (*groupbyCols)[i].colIndex = *(int16_t *)pMsg;
+      (*groupbyCols)[i].colIndex = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].colIndex);
 
-      (*groupbyCols)[i].flag = *(int16_t *)pMsg;
+      (*groupbyCols)[i].flag = htons(*(int16_t *)pMsg);
       pMsg += sizeof((*groupbyCols)[i].flag);
 
       memcpy((*groupbyCols)[i].name, pMsg, tListLen(groupbyCols[i]->name));
@@ -7236,7 +7250,7 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
 
   // clear qhandle owner, it must be in the secure area. other thread may run ahead before current, after it is
   // put into task to be executed.
-  assert(pQInfo->owner == taosGetPthreadId());
+  assert(pQInfo->owner == taosGetSelfPthreadId());
   pQInfo->owner = 0;
 
   pthread_mutex_unlock(&pQInfo->lock);
@@ -7249,7 +7263,7 @@ static bool doBuildResCheck(SQInfo* pQInfo) {
 bool qTableQuery(qinfo_t qinfo) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
   assert(pQInfo && pQInfo->signature == pQInfo);
-  int64_t threadId = taosGetPthreadId();
+  int64_t threadId = taosGetSelfPthreadId();
 
   int64_t curOwner = 0;
   if ((curOwner = atomic_val_compare_exchange_64(&pQInfo->owner, 0, threadId)) != 0) {

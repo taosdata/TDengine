@@ -89,6 +89,20 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 8.1)
         tdSql.checkData(1, 1, 9.1)
+        
+        #TD-2563 top + super_table + interval 
+        tdSql.execute("create table meters(ts timestamp, c int) tags (d int)") 
+        tdSql.execute("create table t1 using meters tags (1)") 
+        sql = 'insert into t1 values '       
+        for i in range(20000):
+            sql = sql + '(%d, %d)' % (self.ts + i , i % 47)
+            if i % 2000 == 0:
+                tdSql.execute(sql)
+                sql = 'insert into t1 values ' 
+        tdSql.execute(sql)
+        tdSql.query('select top(c,1) from meters interval(10a)')
+        tdSql.checkData(0,1,9)
+        
                    
     def stop(self):
         tdSql.close()

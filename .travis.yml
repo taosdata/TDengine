@@ -146,7 +146,7 @@ matrix:
         branch_pattern: coverity_scan
 
   - os: linux
-    dist: trusty
+    dist: xenial
     language: c
     git:
       - depth: 1
@@ -157,7 +157,7 @@ matrix:
           - build-essential
           - cmake
     env: 
-      - DESC="trusty/gcc-4.8 build"
+      - DESC="xenial build"
 
     before_script:
       - export TZ=Asia/Harbin
@@ -227,7 +227,7 @@ matrix:
 
   - os: linux
     arch: arm64
-    dist: trusty
+    dist: xenial
     language: c
     git:
       - depth: 1
@@ -238,7 +238,7 @@ matrix:
           - build-essential
           - cmake
     env:
-      - DESC="trusty/gcc-4.8 build"
+      - DESC="xenial build"
 
     before_script:
       - export TZ=Asia/Harbin

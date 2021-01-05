@@ -91,7 +91,7 @@ static void vnodeIncRef(void *ptNode) {
 void *vnodeAcquire(int32_t vgId) {
   SVnodeObj **ppVnode = NULL;
   if (tsVnodesHash != NULL) {
-    ppVnode = taosHashGetCB(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, NULL, sizeof(void *));
+    ppVnode = taosHashGetClone(tsVnodesHash, &vgId, sizeof(int32_t), vnodeIncRef, NULL, sizeof(void *));
   }
 
   if (ppVnode == NULL || *ppVnode == NULL) {
@@ -142,6 +142,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
   pLoad->totalStorage = htobe64(totalStorage);
   pLoad->compStorage = htobe64(compStorage);
   pLoad->pointsWritten = htobe64(pointsWritten);
+  pLoad->vnodeVersion = htobe64(pVnode->version);
   pLoad->status = pVnode->status;
   pLoad->role = pVnode->role;
   pLoad->replica = pVnode->syncCfg.replica;  

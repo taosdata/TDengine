@@ -86,6 +86,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
   tsdbCfg.precision           = pVnodeCfg->cfg.precision;
   tsdbCfg.compression         = pVnodeCfg->cfg.compression;
   tsdbCfg.update              = pVnodeCfg->cfg.update;
+  tsdbCfg.cacheLastRow        = pVnodeCfg->cfg.cacheLastRow;
 
   char tsdbDir[TSDB_FILENAME_LEN] = {0};
   sprintf(tsdbDir, "%s/vnode%d/tsdb", tsVnodeDir, pVnodeCfg->cfg.vgId);

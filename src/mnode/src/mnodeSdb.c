@@ -225,6 +225,10 @@ void sdbUpdateMnodeRoles() {
   for (int32_t i = 0; i < tsSdbMgmt.cfg.replica; ++i) {
     SMnodeObj *pMnode = mnodeGetMnode(roles.nodeId[i]);
     if (pMnode != NULL) {
+      if (pMnode->role != roles.role[i]) {
+        bnNotify();
+      }
+
       pMnode->role = roles.role[i];
       sdbInfo("vgId:1, mnode:%d, role:%s", pMnode->mnodeId, syncRole[pMnode->role]);
       if (pMnode->mnodeId == dnodeGetDnodeId()) tsSdbMgmt.role = pMnode->role;

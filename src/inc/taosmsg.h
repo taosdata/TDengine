@@ -324,6 +324,7 @@ typedef struct {
 typedef struct {
   char      acctId[TSDB_ACCT_LEN];
   char      serverVersion[TSDB_VERSION_LEN];
+  char      clusterId[TSDB_CLUSTER_ID_LEN];
   int8_t    writeAuth;
   int8_t    superAuth;
   int8_t    reserved1;
@@ -517,16 +518,17 @@ typedef struct SRetrieveTableRsp {
 } SRetrieveTableRsp;
 
 typedef struct {
-  int32_t vgId;
-  int32_t dbCfgVersion;
-  int64_t totalStorage;
-  int64_t compStorage;
-  int64_t pointsWritten;
-  uint8_t status;
-  uint8_t role;
-  uint8_t replica;
-  uint8_t reserved;
-  int32_t vgCfgVersion;
+  int32_t  vgId;
+  int32_t  dbCfgVersion;
+  int64_t  totalStorage;
+  int64_t  compStorage;
+  int64_t  pointsWritten;
+  uint64_t vnodeVersion;
+  int32_t  vgCfgVersion;
+  uint8_t  status;
+  uint8_t  role;
+  uint8_t  replica;
+  uint8_t  reserved;
 } SVnodeLoad;
 
 typedef struct {
@@ -549,7 +551,8 @@ typedef struct {
   int8_t   quorum;
   int8_t   ignoreExist;
   int8_t   update;
-  int8_t   reserve[9];
+  int8_t   cacheLastRow;
+  int8_t   reserve[8];
 } SCreateDbMsg, SAlterDbMsg;
 
 typedef struct {
@@ -604,7 +607,6 @@ typedef struct {
 
 typedef struct {
   int32_t  numOfMnodes;               // tsNumOfMnodes
-  int32_t  enableBalance;             // tsEnableBalance
   int32_t  mnodeEqualVnodeNum;        // tsMnodeEqualVnodeNum
   int32_t  offlineThreshold;          // tsOfflineThreshold
   int32_t  statusInterval;            // tsStatusInterval
@@ -615,6 +617,11 @@ typedef struct {
   int64_t  checkTime;                 // 1970-01-01 00:00:00.000
   char     locale[TSDB_LOCALE_LEN];   // tsLocale
   char     charset[TSDB_LOCALE_LEN];  // tsCharset
+  int8_t   enableBalance;             // tsEnableBalance
+  int8_t   flowCtrl;
+  int8_t   slaveQuery;
+  int8_t   adjustMaster;
+  int8_t   reserved[4];
 } SClusterCfg;
 
 typedef struct {
@@ -657,12 +664,14 @@ typedef struct {
   int8_t   precision;
   int8_t   compression;
   int8_t   walLevel;
-  int8_t   replications;
+  int8_t   vgReplica;
   int8_t   wals;
   int8_t   quorum;
   int8_t   update;
-  int8_t   reserved[11];
+  int8_t   cacheLastRow;
   int32_t  vgCfgVersion;
+  int8_t   dbReplica;
+  int8_t   reserved[9];
 } SVnodeCfg;
 
 typedef struct {

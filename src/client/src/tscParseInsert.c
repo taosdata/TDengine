@@ -731,7 +731,7 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, SParsedDataColI
     return code;
   }
 
-  dataBuf->vgId = pTableMeta->vgroupInfo.vgId;
+  dataBuf->vgId = pTableMeta->vgId;
   dataBuf->numOfTables = 1;
 
   *totalNum += numOfRows;
@@ -1413,13 +1413,25 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {  // handle error
     assert(taos_errno(pSql) == code);
 
-    taos_free_result(pSql);
-    tfree(pSupporter);
-    fclose(fp);
+    do {
+      if (code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+        assert(pSql->res.numOfRows == 0);
+        int32_t errc = fseek(fp, 0, SEEK_SET);
+        if (errc < 0) {
+          tscError("%p failed to seek SEEK_SET since:%s", pSql, tstrerror(errno));
+        } else {
+          break;
+        }
+      }
 
-    pParentSql->res.code = code;
-    tscQueueAsyncRes(pParentSql);
-    return;
+      taos_free_result(pSql);
+      tfree(pSupporter);
+      fclose(fp);
+
+      pParentSql->res.code = code;
+      tscQueueAsyncRes(pParentSql);
+      return;
+    } while (0);
   }
 
   // accumulate the total submit records
