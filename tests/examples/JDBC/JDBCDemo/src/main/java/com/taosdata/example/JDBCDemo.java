@@ -16,7 +16,7 @@ public class JDBCDemo {
                 host = args[++i];
             if ("-driverType".equalsIgnoreCase(args[i]) && i < args.length - 1) {
                 driverType = args[++i];
-                if (!"jni".equalsIgnoreCase(driverType) || !"restful".equalsIgnoreCase(driverType))
+                if (!"jni".equalsIgnoreCase(driverType) && !"restful".equalsIgnoreCase(driverType))
                     printHelp();
             }
         }
@@ -40,10 +40,10 @@ public class JDBCDemo {
     private void init() {
         // get connection
         try {
-            if (driverType.equals("jni")) {
-                Class.forName("com.taosdata.jdbc.TSDBDriver");
-            } else {
+            if (driverType.equals("restful")) {
                 Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
+            } else {
+                Class.forName("com.taosdata.jdbc.TSDBDriver");
             }
             Properties properties = new Properties();
             properties.setProperty("host", host);
