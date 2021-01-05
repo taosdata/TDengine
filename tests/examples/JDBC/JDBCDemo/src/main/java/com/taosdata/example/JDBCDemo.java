@@ -40,10 +40,10 @@ public class JDBCDemo {
     private void init() {
         // get connection
         try {
-            String url = "jdbc:TAOS://" + host + ":6030/";
+            String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
             if (driverType.equals("restful")) {
                 Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-                url = "jdbc:TAOS-RS://" + host + ":6041/";
+                url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
             } else {
                 Class.forName("com.taosdata.jdbc.TSDBDriver");
             }
