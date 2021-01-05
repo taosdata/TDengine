@@ -113,7 +113,7 @@ SScript *simProcessCallOver(SScript *script) {
     if (script->killed) {
       simInfo("script:" FAILED_PREFIX "%s" FAILED_POSTFIX ", " FAILED_PREFIX "failed" FAILED_POSTFIX ", error:%s",
               script->fileName, script->error);
-      exit(-1);
+      return NULL;
     } else {
       simInfo("script:" SUCCESS_PREFIX "%s" SUCCESS_POSTFIX ", " SUCCESS_PREFIX "success" SUCCESS_POSTFIX,
               script->fileName);
@@ -125,7 +125,7 @@ SScript *simProcessCallOver(SScript *script) {
       if (simScriptPos == -1) {
         simInfo("----------------------------------------------------------------------");
         simInfo("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
-        exit(0);
+        return NULL;
       }
 
       return simScriptList[simScriptPos];
