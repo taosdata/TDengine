@@ -5,16 +5,37 @@ import com.taosdata.jdbc.TSDBDriver;
 import java.sql.*;
 import java.util.Properties;
 
-public class JdbcChecker {
+public class JdbcDemo {
     private static String host;
-    private static String dbName = "test";
-    private static String tbName = "weather";
+    private static final String dbName = "test";
+    private static final String tbName = "weather";
     private Connection connection;
 
-    /**
-     * get connection
-     **/
+    public static void main(String[] args) {
+        for (int i = 0; i < args.length; i++) {
+            if ("-host".equalsIgnoreCase(args[i]) && i < args.length - 1)
+                host = args[++i];
+        }
+
+        if (host == null) {
+            System.out.println("Usage: java -jar JdbcDemo.jar -host <hostname>");
+            return;
+        }
+
+        JdbcDemo demo = new JdbcDemo();
+        demo.init();
+        demo.createDatabase();
+        demo.useDatabase();
+        demo.dropTable();
+        demo.createTable();
+        demo.insert();
+        demo.select();
+        demo.dropTable();
+        demo.close();
+    }
+
     private void init() {
+        // get connection
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
@@ -31,26 +52,17 @@ public class JdbcChecker {
         }
     }
 
-    /**
-     * create database
-     */
     private void createDatabase() {
         String sql = "create database if not exists " + dbName;
         exuete(sql);
     }
 
-    /**
-     * use database
-     */
     private void useDatabase() {
         String sql = "use " + dbName;
         exuete(sql);
     }
 
-    /**
-     * select
-     */
-    private void checkSelect() {
+    private void select() {
         final String sql = "select * from test.weather";
         executeQuery(sql);
     }
@@ -79,40 +91,21 @@ public class JdbcChecker {
         }
     }
 
-    private String formatString(String str) {
-        StringBuilder sb = new StringBuilder();
-        int blankCnt = (26 - str.length()) / 2;
-        for (int j = 0; j < blankCnt; j++)
-            sb.append(" ");
-        sb.append(str);
-        for (int j = 0; j < blankCnt; j++)
-            sb.append(" ");
-        sb.append("|");
-        return sb.toString();
-    }
-
-
-    /**
-     * insert
-     */
-    private void checkInsert() {
+    private void insert() {
         final String sql = "insert into test.weather (ts, temperature, humidity) values(now, 20.5, 34)";
         exuete(sql);
     }
 
-    /**
-     * create table
-     */
     private void createTable() {
         final String sql = "create table if not exists " + dbName + "." + tbName + " (ts timestamp, temperature float, humidity int)";
         exuete(sql);
     }
 
-    private final void printSql(String sql, boolean succeed, long cost) {
+    private void printSql(String sql, boolean succeed, long cost) {
         System.out.println("[ " + (succeed ? "OK" : "ERROR!") + " ] time cost: " + cost + " ms, execute statement ====> " + sql);
     }
 
-    private final void exuete(String sql) {
+    private void exuete(String sql) {
         try (Statement statement = connection.createStatement()) {
             long start = System.currentTimeMillis();
             boolean execute = statement.execute(sql);
@@ -120,7 +113,7 @@ public class JdbcChecker {
             printSql(sql, execute, (end - start));
         } catch (SQLException e) {
             e.printStackTrace();
-            
+
         }
     }
 
@@ -135,39 +128,10 @@ public class JdbcChecker {
         }
     }
 
-    private void checkDropTable() {
+    private void dropTable() {
         final String sql = "drop table if exists " + dbName + "." + tbName + "";
         exuete(sql);
     }
 
-    public static void main(String[] args) {
-        for (int i = 0; i < args.length; i++) {
-            if ("-host".equalsIgnoreCase(args[i]) && i < args.length - 1) {
-                host = args[++i];
-            }
-            if ("-db".equalsIgnoreCase(args[i]) && i < args.length - 1) {
-                dbName = args[++i];
-            }
-            if ("-t".equalsIgnoreCase(args[i]) && i < args.length - 1) {
-                tbName = args[++i];
-            }
-        }
-
-        if (host == null) {
-            System.out.println("Usage: java -jar JDBCConnectorChecker.jar -host <hostname>");
-            return;
-        }
-
-        JdbcChecker checker = new JdbcChecker();
-        checker.init();
-        checker.createDatabase();
-        checker.useDatabase();
-        checker.checkDropTable();
-        checker.createTable();
-        checker.checkInsert();
-        checker.checkSelect();
-        checker.checkDropTable();
-        checker.close();
-    }
 
 }
