@@ -36,10 +36,14 @@ for defiMemError in `grep 'definitely lost:' crash_gen-definitely-lost-out.log |
 do
 defiMemError=(${defiMemError//,/})
 if [ -n "$defiMemError" ]; then
-    if [ "$defiMemError" -gt 3 ]; then
+    if [ "$defiMemError" -gt 3 -a "$defiMemError" -lt 1013 ]; then
     echo -e "${RED} ## Memory errors number valgrind reports \
                 Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
-    exit 8
+      exit 8
+    elif [ "$defiMemError" -gt 1013 ];then           #add for azure
+      echo -e "${RED} ## Memory errors number valgrind reports \
+                Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
+      exit 8
     fi
 fi
 done
