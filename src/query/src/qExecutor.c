@@ -758,7 +758,12 @@ static void doUpdateResultRowIndex(SResultRowInfo*pResultRowInfo, TSKEY lastKey,
       }
     }
 
-    pResultRowInfo->curIndex = i + 1;  // current not closed result object
+    if (i == pResultRowInfo->size - 1) {
+      pResultRowInfo->curIndex = i;  
+    } else {
+      pResultRowInfo->curIndex = i + 1;  // current not closed result object
+    }
+
     pResultRowInfo->prevSKey = pResultRowInfo->pResult[pResultRowInfo->curIndex]->win.skey;
   }
 }
