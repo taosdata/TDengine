@@ -24,7 +24,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-        self.ts = 1593548685000
+        self.ts = 1593548685000                  
 
     def run(self):
         tdSql.prepare()
@@ -84,6 +84,22 @@ class TDTestCase:
         tdDnodes.start(1)
         tdSql.query("select last(*) from t interval(1s)")
         tdSql.checkRows(10000)
+
+        # test case for https://jira.taosdata.com:18080/browse/TD-2601
+        newTs = 1601481600000
+
+        tdSql.execute("create database test2")
+        tdSql.execute("use test2")
+        tdSql.execute("create table t (ts timestamp, voltage int)")
+        for i in range(100):
+            tdSql.execute("insert into t values(%d, %d)" % (newTs + i * 10000000, i))
+        
+        tdSql.query("select sum(voltage) from t where ts >='2020-10-01 00:00:00' and ts <='2020-12-01 00:00:00' interval(1n) fill(NULL)")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 1, 4950)
+        tdSql.checkData(1, 1, None)
+        tdSql.checkData(2, 1, None)
+
         
 
     def stop(self):
