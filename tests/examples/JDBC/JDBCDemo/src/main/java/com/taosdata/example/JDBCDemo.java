@@ -1,7 +1,5 @@
 package com.taosdata.example;
 
-import com.taosdata.jdbc.TSDBDriver;
-
 import java.sql.*;
 import java.util.Properties;
 
@@ -39,16 +37,16 @@ public class JDBCDemo {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+            properties.setProperty("host", host);
+            properties.setProperty("charset", "UTF-8");
+            properties.setProperty("locale", "en_US.UTF-8");
+            properties.setProperty("timezone", "UTC-8");
             System.out.println("get connection starting...");
             connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
             if (connection != null)
                 System.out.println("[ OK ] Connection established.");
         } catch (ClassNotFoundException | SQLException e) {
-            throw new RuntimeException("connection failed: " + host);
+            e.printStackTrace();
         }
     }
 
