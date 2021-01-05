@@ -1,4 +1,4 @@
-# How to Run the JDBC Demo Code On A Linux OS
+# How to Run the JDBC Demo Code On Linux OS
 TDengine's JDBC demo project is organized in a Maven way so that users can easily compile, package and run the project. If you don't have Maven on your server, you may install it using
 <pre>sudo apt-get install maven</pre>
 
@@ -6,14 +6,11 @@ TDengine's JDBC demo project is organized in a Maven way so that users can easil
 Make sure you have already installed a tdengine client on your current develop environment.
 Download the tdengine package on our website: ``https://www.taosdata.com/cn/all-downloads/`` and install the client.
 
-## How to run jdbcChecker
-<pre>mvn clean compile exec:java -Dexec.mainClass="com.taosdata.example.JdbcChecker" -Dexec.args="-host localhost"</pre>
-
-## How to run jdbcTaosDemo
+## Run jdbcDemo using mvn plugin
 run command:
-<pre> mvn clean compile exec:java -Dexec.mainClass="com.taosdata.example.jdbcTaosdemo.JdbcTaosdemo"</pre>
+<pre> mvn clean compile exec:java -Dexec.mainClass="com.taosdata.example.JdbcDemo"</pre>
 and run with your customed args
-<pre>mvn clean compile exec:java -Dexec.mainClass="com.taosdata.example.jdbcTaosdemo.JdbcTaosdemo" -Dexec.args="-host localhost"</pre>
+<pre>mvn clean compile exec:java -Dexec.mainClass="com.taosdata.example.JdbcDemo" -Dexec.args="-host [HOSTNAME]"</pre>
 
 ## Compile the Demo Code and Run It
 

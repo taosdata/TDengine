@@ -5,7 +5,7 @@ import com.taosdata.jdbc.TSDBDriver;
 import java.sql.*;
 import java.util.Properties;
 
-public class JdbcDemo {
+public class JDBCDemo {
     private static String host;
     private static final String dbName = "test";
     private static final String tbName = "weather";
@@ -22,7 +22,7 @@ public class JdbcDemo {
             return;
         }
 
-        JdbcDemo demo = new JdbcDemo();
+        JDBCDemo demo = new JDBCDemo();
         demo.init();
         demo.createDatabase();
         demo.useDatabase();
