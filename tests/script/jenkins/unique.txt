@@ -10,6 +10,7 @@ cd ../../../debug; make
 ./test.sh -f unique/cluster/balance2.sim
 ./test.sh -f unique/cluster/balance3.sim
 ./test.sh -f unique/cluster/cache.sim
+./test.sh -f unique/cluster/vgroup100.sim
 
 ./test.sh -f unique/column/replica3.sim
 
@@ -25,12 +26,21 @@ cd ../../../debug; make
 ./test.sh -f unique/db/replica_part.sim
 
 ./test.sh -f unique/dnode/alternativeRole.sim
+./test.sh -f unique/dnode/monitor.sim
+./test.sh -f unique/dnode/monitor_bug.sim
+./test.sh -f unique/dnode/simple.sim
 ./test.sh -f unique/dnode/balance1.sim
 ./test.sh -f unique/dnode/balance2.sim
 ./test.sh -f unique/dnode/balance3.sim
 ./test.sh -f unique/dnode/balancex.sim
+./test.sh -f unique/dnode/data1.sim
+./test.sh -f unique/dnode/m2.sim
+./test.sh -f unique/dnode/m3.sim
+./test.sh -f unique/dnode/lossdata.sim
 ./test.sh -f unique/dnode/offline1.sim
 ./test.sh -f unique/dnode/offline2.sim
+./test.sh -f unique/dnode/offline3.sim
+./test.sh -f unique/dnode/reason.sim
 ./test.sh -f unique/dnode/remove1.sim
 ./test.sh -f unique/dnode/remove2.sim
 ./test.sh -f unique/dnode/vnode_clean.sim
@@ -50,12 +60,14 @@ cd ../../../debug; make
 ./test.sh -f unique/stable/replica3_dnode6.sim
 ./test.sh -f unique/stable/replica3_vnode3.sim
 
+./test.sh -f unique/mnode/mgmt20.sim
 ./test.sh -f unique/mnode/mgmt21.sim
 ./test.sh -f unique/mnode/mgmt22.sim
 ./test.sh -f unique/mnode/mgmt23.sim
 ./test.sh -f unique/mnode/mgmt24.sim
 ./test.sh -f unique/mnode/mgmt25.sim
 ./test.sh -f unique/mnode/mgmt26.sim
+./test.sh -f unique/mnode/mgmt30.sim
 ./test.sh -f unique/mnode/mgmt33.sim
 ./test.sh -f unique/mnode/mgmt34.sim
 ./test.sh -f unique/mnode/mgmtr2.sim

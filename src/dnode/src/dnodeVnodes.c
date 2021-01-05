@@ -33,6 +33,8 @@ typedef struct {
 extern void *   tsDnodeTmr;
 static void *   tsStatusTimer = NULL;
 static uint32_t tsRebootTime = 0;
+static int32_t  tsOpenVnodes = 0;
+static int32_t  tsTotalVnodes = 0;
 
 static void dnodeSendStatusMsg(void *handle, void *tmrId);
 static void dnodeProcessStatusRsp(SRpcMsg *pMsg);
@@ -71,7 +73,8 @@ static int32_t dnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
 
       if (*numOfVnodes >= TSDB_MAX_VNODES) {
         dError("vgId:%d, too many vnode directory in disk, exist:%d max:%d", vnode, *numOfVnodes, TSDB_MAX_VNODES);
-        continue;
+        closedir(dir);
+        return TSDB_CODE_DND_TOO_MANY_VNODES;
       } else {
         vnodeList[*numOfVnodes - 1] = vnode;
       }
@@ -84,21 +87,27 @@ static int32_t dnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
 
 static void *dnodeOpenVnode(void *param) {
   SOpenVnodeThread *pThread = param;
+  char stepDesc[TSDB_STEP_DESC_LEN] = {0};
 
   dDebug("thread:%d, start to open %d vnodes", pThread->threadIndex, pThread->vnodeNum);
 
   for (int32_t v = 0; v < pThread->vnodeNum; ++v) {
     int32_t vgId = pThread->vnodeList[v];
+    snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to restore, %d of %d have been opened", vgId, tsOpenVnodes, tsTotalVnodes);
+    dnodeReportStep("open-vnodes", stepDesc, 0);
+
     if (vnodeOpen(vgId) < 0) {
       dError("vgId:%d, failed to open vnode by thread:%d", vgId, pThread->threadIndex);
       pThread->failed++;
     } else {
-      dDebug("vgId:%d, is openned by thread:%d", vgId, pThread->threadIndex);
+      dDebug("vgId:%d, is opened by thread:%d", vgId, pThread->threadIndex);
       pThread->opened++;
     }
+
+    atomic_add_fetch_32(&tsOpenVnodes, 1);
   }
 
-  dDebug("thread:%d, total vnodes:%d, openned:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
+  dDebug("thread:%d, total vnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
          pThread->failed);
   return NULL;
 }
@@ -107,6 +116,7 @@ int32_t dnodeInitVnodes() {
   int32_t vnodeList[TSDB_MAX_VNODES] = {0};
   int32_t numOfVnodes = 0;
   int32_t status = dnodeGetVnodeList(vnodeList, &numOfVnodes);
+  tsTotalVnodes = numOfVnodes;
 
   if (status != TSDB_CODE_SUCCESS) {
     dInfo("get dnode list failed");
@@ -127,7 +137,7 @@ int32_t dnodeInitVnodes() {
     pThread->vnodeList[pThread->vnodeNum++] = vnodeList[v];
   }
 
-  dDebug("start %d threads to open %d vnodes", threadNum, numOfVnodes);
+  dInfo("start %d threads to open %d vnodes", threadNum, numOfVnodes);
 
   for (int32_t t = 0; t < threadNum; ++t) {
     SOpenVnodeThread *pThread = &threads[t];
@@ -156,7 +166,7 @@ int32_t dnodeInitVnodes() {
   }
 
   free(threads);
-  dInfo("there are total vnodes:%d, openned:%d", numOfVnodes, openVnodes);
+  dInfo("there are total vnodes:%d, opened:%d", numOfVnodes, openVnodes);
 
   if (failedVnodes != 0) {
     dError("there are total vnodes:%d, failed:%d", numOfVnodes, failedVnodes);
@@ -236,12 +246,11 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   pStatus->lastReboot       = htonl(tsRebootTime);
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
   pStatus->diskAvailable    = tsAvailDataDirGB;
-  pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
+  pStatus->alternativeRole  = tsAlternativeRole;
   tstrncpy(pStatus->dnodeEp, tsLocalEp, TSDB_EP_LEN);
 
   // fill cluster cfg parameters
   pStatus->clusterCfg.numOfMnodes        = htonl(tsNumOfMnodes);
-  pStatus->clusterCfg.enableBalance      = htonl(tsEnableBalance);
   pStatus->clusterCfg.mnodeEqualVnodeNum = htonl(tsMnodeEqualVnodeNum);
   pStatus->clusterCfg.offlineThreshold   = htonl(tsOfflineThreshold);
   pStatus->clusterCfg.statusInterval     = htonl(tsStatusInterval);
@@ -253,7 +262,12 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &pStatus->clusterCfg.checkTime, strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   tstrncpy(pStatus->clusterCfg.locale, tsLocale, TSDB_LOCALE_LEN);
-  tstrncpy(pStatus->clusterCfg.charset, tsCharset, TSDB_LOCALE_LEN);  
+  tstrncpy(pStatus->clusterCfg.charset, tsCharset, TSDB_LOCALE_LEN);
+
+  pStatus->clusterCfg.enableBalance = tsEnableBalance;
+  pStatus->clusterCfg.flowCtrl = tsEnableFlowCtrl;
+  pStatus->clusterCfg.slaveQuery = tsEnableSlaveQuery;
+  pStatus->clusterCfg.adjustMaster = tsEnableAdjustMaster;
 
   vnodeBuildStatusMsg(pStatus);
   contLen = sizeof(SStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);

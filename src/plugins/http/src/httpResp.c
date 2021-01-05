@@ -50,9 +50,16 @@ static void httpSendErrorRespImp(HttpContext *pContext, int32_t httpCode, char *
   char head[512] = {0};
   char body[512] = {0};
 
+  int8_t httpVersion = 0;
+  int8_t keepAlive = 0;
+  if (pContext->parser != NULL) {
+    httpVersion = pContext->parser->httpVersion;
+    keepAlive = pContext->parser->keepAlive;
+  }
+
   int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_ERROR], errNo, desc);
-  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_ERROR], httpVersionStr[pContext->parser->httpVersion],
-                            httpCode, httpCodeStr, httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_ERROR], httpVersionStr[httpVersion], httpCode,
+                            httpCodeStr, httpKeepAliveStr[keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);
@@ -136,7 +143,7 @@ void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
   else
     httpCode = 400;
 
-  if (pContext->parser->httpCode != 0) {
+  if (pContext->parser && pContext->parser->httpCode != 0) {
     httpCode = pContext->parser->httpCode;
   }
 
@@ -164,9 +171,16 @@ void httpSendSuccResp(HttpContext *pContext, char *desc) {
   char head[1024] = {0};
   char body[1024] = {0};
 
+  int8_t httpVersion = 0;
+  int8_t keepAlive = 0;
+  if (pContext->parser != NULL) {
+    httpVersion = pContext->parser->httpVersion;
+    keepAlive = pContext->parser->keepAlive;
+  }
+
   int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], TSDB_CODE_SUCCESS, desc);
-  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OK], httpVersionStr[pContext->parser->httpVersion],
-                            httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OK], httpVersionStr[httpVersion],
+                            httpKeepAliveStr[keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);
@@ -177,9 +191,16 @@ void httpSendOptionResp(HttpContext *pContext, char *desc) {
   char head[1024] = {0};
   char body[1024] = {0};
 
+  int8_t httpVersion = 0;
+  int8_t keepAlive = 0;
+  if (pContext->parser != NULL) {
+    httpVersion = pContext->parser->httpVersion;
+    keepAlive = pContext->parser->keepAlive;
+  }
+
   int32_t bodyLen = sprintf(body, httpRespTemplate[HTTP_RESPONSE_JSON_OK], TSDB_CODE_SUCCESS, desc);
-  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OPTIONS], httpVersionStr[pContext->parser->httpVersion],
-                            httpKeepAliveStr[pContext->parser->keepAlive], bodyLen);
+  int32_t headLen = sprintf(head, httpRespTemplate[HTTP_RESPONSE_OPTIONS], httpVersionStr[httpVersion],
+                            httpKeepAliveStr[keepAlive], bodyLen);
 
   httpWriteBuf(pContext, head, headLen);
   httpWriteBuf(pContext, body, bodyLen);

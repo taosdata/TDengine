@@ -52,14 +52,17 @@ typedef enum EDnodeOfflineReason {
   TAOS_DN_OFF_TIME_ZONE_NOT_MATCH,
   TAOS_DN_OFF_LOCALE_NOT_MATCH,
   TAOS_DN_OFF_CHARSET_NOT_MATCH,
+  TAOS_DN_OFF_FLOW_CTRL_NOT_MATCH,
+  TAOS_DN_OFF_SLAVE_QUERY_NOT_MATCH,
+  TAOS_DN_OFF_ADJUST_MASTER_NOT_MATCH,
   TAOS_DN_OFF_OTHERS
 } EDnodeOfflineReason;
 
+extern char* dnodeStatus[];
+extern char* dnodeRoles[];
+
 int32_t mnodeInitDnodes();
 void    mnodeCleanupDnodes();
-
-char*   mnodeGetDnodeStatusStr(int32_t dnodeStatus);
-void    mgmtMonitorDnodeModule();
 
 int32_t mnodeGetDnodesNum();
 int32_t mnodeGetOnlinDnodesCpuCoreNum();

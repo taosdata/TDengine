@@ -9,6 +9,8 @@ set -e
 verMode=edge
 pagMode=full
 
+iplist=""
+serverFqdn=""
 # -----------------------Variables definition---------------------
 script_dir=$(dirname $(readlink -f "$0"))
 # Dynamic directory
@@ -172,7 +174,7 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/power     || :
     ${csudo} rm -f ${bin_link_dir}/powerd    || :
     ${csudo} rm -f ${bin_link_dir}/powerdemo || :
-    ${csudo} rm -f ${bin_link_dir}/powerdump || :
+    ${csudo} rm -f ${bin_link_dir}/powerdemox || :
     ${csudo} rm -f ${bin_link_dir}/rmpower   || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
     ${csudo} rm -f ${bin_link_dir}/set_core   || :
@@ -183,7 +185,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/power ] && ${csudo} ln -s ${install_main_dir}/bin/power ${bin_link_dir}/power                        || :
     [ -x ${install_main_dir}/bin/powerd ] && ${csudo} ln -s ${install_main_dir}/bin/powerd ${bin_link_dir}/powerd                     || :
     [ -x ${install_main_dir}/bin/powerdemo ] && ${csudo} ln -s ${install_main_dir}/bin/powerdemo ${bin_link_dir}/powerdemo            || :
-    [ -x ${install_main_dir}/bin/powerdump ] && ${csudo} ln -s ${install_main_dir}/bin/powerdump ${bin_link_dir}/powerdump            || :
+    [ -x ${install_main_dir}/bin/powerdemox ] && ${csudo} ln -s ${install_main_dir}/bin/powerdemox ${bin_link_dir}/powerdemox         || :
     [ -x ${install_main_dir}/bin/remove_power.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_power.sh ${bin_link_dir}/rmpower  || :
     [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core         || :
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator      || :
@@ -227,6 +229,157 @@ function install_header() {
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
+function add_newHostname_to_hosts() {
+  localIp="127.0.0.1"
+  OLD_IFS="$IFS"
+  IFS=" "
+  iphost=$(cat /etc/hosts | grep $1 | awk '{print $1}')
+  arr=($iphost)
+  IFS="$OLD_IFS"
+  for s in ${arr[@]}
+  do
+    if [[ "$s" == "$localIp" ]]; then
+      return
+    fi
+  done 
+  ${csudo} echo "127.0.0.1  $1" >> /etc/hosts   ||:
+}
+
+function set_hostname() {
+  echo -e -n "${GREEN}Please enter one hostname(must not be 'localhost')${NC}:"
+	read newHostname
+  while true; do
+    if [[ ! -z "$newHostname" && "$newHostname" != "localhost" ]]; then
+      break
+    else
+      read -p "Please enter one hostname(must not be 'localhost'):" newHostname
+    fi
+  done
+
+  ${csudo} hostname $newHostname ||:
+  retval=`echo $?`
+  if [[ $retval != 0 ]]; then
+   echo
+   echo "set hostname fail!"
+   return 
+  fi
+  #echo -e -n "$(hostnamectl status --static)"
+  #echo -e -n "$(hostnamectl status --transient)"
+  #echo -e -n "$(hostnamectl status --pretty)"
+  
+  #ubuntu/centos /etc/hostname
+  if [[ -e /etc/hostname ]]; then
+    ${csudo} echo $newHostname > /etc/hostname   ||:
+  fi
+  
+  #debian: #HOSTNAME=yourname
+  if [[ -e /etc/sysconfig/network ]]; then
+    ${csudo} sed -i -r "s/#*\s*(HOSTNAME=\s*).*/\1$newHostname/" /etc/sysconfig/network   ||:
+  fi
+
+  ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$newHostname/" ${cfg_install_dir}/taos.cfg
+  serverFqdn=$newHostname  
+  
+  if [[ -e /etc/hosts ]]; then
+    add_newHostname_to_hosts $newHostname
+  fi
+}
+
+function is_correct_ipaddr() {
+  newIp=$1
+  OLD_IFS="$IFS"
+  IFS=" "
+  arr=($iplist)
+  IFS="$OLD_IFS"
+  for s in ${arr[@]}
+  do
+   if [[ "$s" == "$newIp" ]]; then
+     return 0
+   fi
+  done
+  
+  return 1
+}
+
+function set_ipAsFqdn() {
+  iplist=$(ip address |grep inet |grep -v inet6 |grep -v 127.0.0.1 |awk '{print $2}' |awk -F "/" '{print $1}') ||:
+  if [ -z "$iplist" ]; then
+    iplist=$(ifconfig |grep inet |grep -v inet6 |grep -v 127.0.0.1 |awk '{print $2}' |awk -F ":" '{print $2}') ||:
+  fi
+
+  if [ -z "$iplist" ]; then
+    echo
+    echo -e -n "${GREEN}Unable to get local ip, use 127.0.0.1${NC}"
+    localFqdn="127.0.0.1"
+    # Write the local FQDN to configuration file                    
+    ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/taos.cfg    
+    serverFqdn=$localFqdn
+    echo
+    return
+  fi  
+  
+  echo -e -n "${GREEN}Please choose an IP from local IP list${NC}:"
+  echo
+  echo -e -n "${GREEN}$iplist${NC}"
+  echo
+  echo
+  echo -e -n "${GREEN}Notes: if IP is used as the node name, data can NOT be migrated to other machine directly${NC}:"
+  read localFqdn
+    while true; do
+      if [ ! -z "$localFqdn" ]; then            
+        # Check if correct ip address
+        is_correct_ipaddr $localFqdn
+        retval=`echo $?`
+        if [[ $retval != 0 ]]; then
+          read -p "Please choose an IP from local IP list:" localFqdn
+        else
+          # Write the local FQDN to configuration file                    
+          ${csudo} sed -i -r "s/#*\s*(fqdn\s*).*/\1$localFqdn/" ${cfg_install_dir}/taos.cfg    
+          serverFqdn=$localFqdn
+          break
+        fi
+      else
+        read -p "Please choose an IP from local IP list:" localFqdn
+      fi
+    done
+}
+
+function local_fqdn_check() {
+  #serverFqdn=$(hostname -f)
+  echo
+  echo -e -n "System hostname is: ${GREEN}$serverFqdn${NC}"
+  echo
+  if [[ "$serverFqdn" == "" ]] || [[ "$serverFqdn" == "localhost"  ]]; then    
+    echo -e -n "${GREEN}It is strongly recommended to configure a hostname for this machine ${NC}"
+    echo
+    
+    while true
+    do
+	    read -r -p "Set hostname now? [Y/n] " input
+	    if [ ! -n "$input" ]; then
+       set_hostname
+       break
+      else
+	      case $input in
+	        [yY][eE][sS]|[yY])
+          set_hostname
+          break
+			    ;;
+        
+	        [nN][oO]|[nN])
+			    set_ipAsFqdn
+			    break   	
+			    ;;
+        
+	        *)
+			    echo "Invalid input..."
+			    ;;
+	      esac
+	    fi
+    done
+  fi
+}
+
 function install_config() {
     #${csudo} rm -f ${install_main_dir}/cfg/taos.cfg     || :
     
@@ -248,6 +401,8 @@ function install_config() {
     if [ "$interactiveFqdn" == "no" ]; then
         return 0
     fi
+    
+    local_fqdn_check
 
     #FQDN_FORMAT="(25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)"
     #FQDN_FORMAT="(:[1-6][0-9][0-9][0-9][0-9]$)"
@@ -611,9 +766,9 @@ function update_PowerDB() {
         fi
 
         if [ ${openresty_work} = 'true' ]; then
-            echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+            echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power -h $serverFqdn${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
         else
-            echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power${NC} in shell${NC}"
+            echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power -h $serverFqdn${NC} in shell${NC}"
         fi
                 
         echo
@@ -686,16 +841,29 @@ function install_PowerDB() {
             echo -e "${GREEN_DARK}To start PowerDB     ${NC}: powerd${NC}"
         fi		
 
-        if [ ${openresty_work} = 'true' ]; then
-             echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
-        else
-             echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power${NC} in shell${NC}"
-        fi
+        #if [ ${openresty_work} = 'true' ]; then
+        #     echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power${NC} in shell OR from ${GREEN_UNDERLINE}http://127.0.0.1:${nginx_port}${NC}"
+        #else
+        #     echo -e "${GREEN_DARK}To access PowerDB    ${NC}: use ${GREEN_UNDERLINE}power${NC} in shell${NC}"
+        #fi
 		
         if [ ! -z "$firstEp" ]; then
-	        echo		    
-	        echo -e "${GREEN_DARK}Please run${NC}: power -h $firstEp${GREEN_DARK} to login into cluster, then${NC}"
+          tmpFqdn=${firstEp%%:*}
+          substr=":"
+          if [[ $firstEp =~ $substr ]];then
+            tmpPort=${firstEp#*:}
+          else
+            tmpPort=""
+          fi
+          if [[ "$tmpPort" != "" ]];then
+	          echo -e "${GREEN_DARK}To access PowerDB    ${NC}: power -h $tmpFqdn -P $tmpPort${GREEN_DARK} to login into cluster, then${NC}"
+	        else
+	          echo -e "${GREEN_DARK}To access PowerDB    ${NC}: power -h $tmpFqdn${GREEN_DARK} to login into cluster, then${NC}"
+	        fi
 	        echo -e "${GREEN_DARK}execute ${NC}: create dnode 'newDnodeFQDN:port'; ${GREEN_DARK}to add this new node${NC}"
+          echo
+        elif [ ! -z "$serverFqdn" ]; then
+	        echo -e "${GREEN_DARK}To access PowerDB    ${NC}: power -h $serverFqdn${GREEN_DARK} to login into PowerDB server${NC}"
           echo
         fi
         echo -e "\033[44;32;1mPowerDB is installed successfully!${NC}"
@@ -713,6 +881,7 @@ function install_PowerDB() {
 
 
 ## ==============================Main program starts from here============================
+serverFqdn=$(hostname -f)
 if [ "$verType" == "server" ]; then
     # Install server and client
     if [ -x ${bin_dir}/powerd ]; then

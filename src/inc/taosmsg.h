@@ -266,6 +266,7 @@ typedef struct {
 } SMDCreateTableMsg;
 
 typedef struct {
+  int32_t len;  // one create table message
   char    tableId[TSDB_TABLE_FNAME_LEN];
   char    db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   int8_t  igExists;
@@ -273,9 +274,13 @@ typedef struct {
   int16_t numOfTags;
   int16_t numOfColumns;
   int16_t sqlLen;  // the length of SQL, it starts after schema , sql is a null-terminated string
-  int32_t contLen;
   int8_t  reserved[16];
   char    schema[];
+} SCreateTableMsg;
+
+typedef struct {
+  int32_t numOfTables;
+  int32_t contLen;
 } SCMCreateTableMsg;
 
 typedef struct {
@@ -319,6 +324,7 @@ typedef struct {
 typedef struct {
   char      acctId[TSDB_ACCT_LEN];
   char      serverVersion[TSDB_VERSION_LEN];
+  char      clusterId[TSDB_CLUSTER_ID_LEN];
   int8_t    writeAuth;
   int8_t    superAuth;
   int8_t    reserved1;
@@ -470,6 +476,7 @@ typedef struct {
   int16_t     numOfCols;        // the number of columns will be load from vnode
   SInterval   interval;
   uint16_t    tagCondLen;       // tag length in current query
+  uint32_t    tbnameCondLen;    // table name filter condition string length
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
@@ -488,6 +495,7 @@ typedef struct {
   int32_t     tsNumOfBlocks;    // ts comp block numbers
   int32_t     tsOrder;          // ts comp block order
   int32_t     numOfTags;        // number of tags columns involved
+  int32_t     sqlstrLen;        // sql query string
   SColumnInfo colList[];
 } SQueryTableMsg;
 
@@ -512,15 +520,17 @@ typedef struct SRetrieveTableRsp {
 } SRetrieveTableRsp;
 
 typedef struct {
-  int32_t vgId;
-  int32_t cfgVersion;
-  int64_t totalStorage;
-  int64_t compStorage;
-  int64_t pointsWritten;
-  uint8_t status;
-  uint8_t role;
-  uint8_t replica;
-  uint8_t reserved[5];
+  int32_t  vgId;
+  int32_t  dbCfgVersion;
+  int64_t  totalStorage;
+  int64_t  compStorage;
+  int64_t  pointsWritten;
+  uint64_t vnodeVersion;
+  int32_t  vgCfgVersion;
+  uint8_t  status;
+  uint8_t  role;
+  uint8_t  replica;
+  uint8_t  reserved;
 } SVnodeLoad;
 
 typedef struct {
@@ -543,7 +553,8 @@ typedef struct {
   int8_t   quorum;
   int8_t   ignoreExist;
   int8_t   update;
-  int8_t   reserve[9];
+  int8_t   cacheLastRow;
+  int8_t   reserve[8];
 } SCreateDbMsg, SAlterDbMsg;
 
 typedef struct {
@@ -598,7 +609,6 @@ typedef struct {
 
 typedef struct {
   int32_t  numOfMnodes;               // tsNumOfMnodes
-  int32_t  enableBalance;             // tsEnableBalance
   int32_t  mnodeEqualVnodeNum;        // tsMnodeEqualVnodeNum
   int32_t  offlineThreshold;          // tsOfflineThreshold
   int32_t  statusInterval;            // tsStatusInterval
@@ -609,6 +619,11 @@ typedef struct {
   int64_t  checkTime;                 // 1970-01-01 00:00:00.000
   char     locale[TSDB_LOCALE_LEN];   // tsLocale
   char     charset[TSDB_LOCALE_LEN];  // tsCharset
+  int8_t   enableBalance;             // tsEnableBalance
+  int8_t   flowCtrl;
+  int8_t   slaveQuery;
+  int8_t   adjustMaster;
+  int8_t   reserved[4];
 } SClusterCfg;
 
 typedef struct {
@@ -636,7 +651,7 @@ typedef struct {
 
 typedef struct {
   uint32_t vgId;
-  int32_t  cfgVersion;
+  int32_t  dbCfgVersion;
   int32_t  maxTables;
   int32_t  cacheBlockSize;
   int32_t  totalBlocks;
@@ -651,11 +666,14 @@ typedef struct {
   int8_t   precision;
   int8_t   compression;
   int8_t   walLevel;
-  int8_t   replications;
+  int8_t   vgReplica;
   int8_t   wals;
   int8_t   quorum;
   int8_t   update;
-  int8_t   reserved[15];
+  int8_t   cacheLastRow;
+  int32_t  vgCfgVersion;
+  int8_t   dbReplica;
+  int8_t   reserved[9];
 } SVnodeCfg;
 
 typedef struct {
@@ -709,7 +727,6 @@ typedef struct {
 typedef struct STableMetaMsg {
   int32_t       contLen;
   char          tableId[TSDB_TABLE_FNAME_LEN];   // table id
-  char          sTableId[TSDB_TABLE_FNAME_LEN];
   uint8_t       numOfTags;
   uint8_t       precision;
   uint8_t       tableType;
@@ -719,6 +736,9 @@ typedef struct STableMetaMsg {
   int32_t       tid;
   uint64_t      uid;
   SVgroupMsg    vgroup;
+
+  char          sTableName[TSDB_TABLE_FNAME_LEN];
+  uint64_t      suid;
   SSchema       schema[];
 } STableMetaMsg;
 
@@ -730,8 +750,8 @@ typedef struct SMultiTableMeta {
 
 typedef struct {
   int32_t dataLen;
-  char name[TSDB_TABLE_FNAME_LEN];
-  char data[TSDB_MAX_TAGS_LEN + TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * TSDB_MAX_TAGS];
+  char    name[TSDB_TABLE_FNAME_LEN];
+  char   *data;
 } STagData;
 
 /*

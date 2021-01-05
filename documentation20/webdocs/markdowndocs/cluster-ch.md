@@ -137,6 +137,16 @@ DROP DNODE "fqdn:port";
 
 其中fqdn是被删除的节点的FQDN，port是其对外服务器的端口号
 
+<font color=green>**【注意】**</font>
+
+  - 一个数据节点一旦被drop之后，不能重新加入集群。需要将此节点重新部署（清空数据文件夹）。集群在完成drop dnode操作之前，会将该dnode的数据迁移走。
+
+  - 请注意 drop dnode 和 停止taosd进程是两个不同的概念，不要混淆：因为删除dnode之前要执行迁移数据的操作，因此被删除的dnode必须保持在线状态。待删除操作结束之后，才能停止taosd进程。
+
+  - 一个数据节点被drop之后，其他节点都会感知到这个dnodeID的删除操作，任何集群中的节点都不会再接收此dnodeID的请求。
+
+  - dnodeID的是集群自动分配的，不得人工指定。它在生成时递增的，不会重复。
+
 ### 查看数据节点
 
 执行CLI程序taos,使用root账号登录进TDengine系统，执行：
@@ -216,3 +226,5 @@ SHOW MNODES;
 如果副本数为偶数，当一个vnode group里一半vnode不工作时，是无法从中选出master的。同理，一半mnode不工作时，是无法选出mnode的master的，因为存在“split brain”问题。为解决这个问题，TDengine引入了arbitrator的概念。Arbitrator模拟一个vnode或mnode在工作，但只简单的负责网络连接，不处理任何数据插入或访问。只要包含arbitrator在内，超过半数的vnode或mnode工作，那么该vnode group或mnode组就可以正常的提供数据插入或查询服务。比如对于副本数为2的情形，如果一个节点A离线，但另外一个节点B正常，而且能连接到arbitrator, 那么节点B就能正常工作。
 
 TDengine提供一个执行程序tarbitrator, 找任何一台Linux服务器运行它即可。请点击[安装包下载](https://www.taosdata.com/cn/all-downloads/)，在TDengine Arbitrator Linux一节中，选择适合的版本下载并安装。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6042。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为arbitrator的End Point。如果该参数配置了，当副本数为偶数数，系统将自动连接配置的arbitrator。如果副本数为奇数，即使配置了arbitrator, 系统也不会去建立连接。
+
+关于集群搭建请参考<a href="https://www.taosdata.com/blog/2020/11/11/1961.html">视频教程</a>。

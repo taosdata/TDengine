@@ -377,11 +377,11 @@ int tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
 
   // Chage in memory
   if (pNewSchema != NULL) { // change super table tag schema
-    taosWLockLatch(&(pTable->pSuper->latch));
+    TSDB_WLOCK_TABLE(pTable->pSuper);
     STSchema *pOldSchema = pTable->pSuper->tagSchema;
     pTable->pSuper->tagSchema = pNewSchema;
     tdFreeSchema(pOldSchema);
-    taosWUnLockLatch(&(pTable->pSuper->latch));
+    TSDB_WUNLOCK_TABLE(pTable->pSuper);
   }
 
   bool      isChangeIndexCol = (pMsg->colId == colColId(schemaColAt(pTable->pSuper->tagSchema, 0)));
@@ -392,9 +392,9 @@ int tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
     tsdbWLockRepoMeta(pRepo);
     tsdbRemoveTableFromIndex(pMeta, pTable);
   }
-  taosWLockLatch(&(pTable->latch));
+  TSDB_WLOCK_TABLE(pTable);
   tdSetKVRowDataOfCol(&(pTable->tagVal), pMsg->colId, pMsg->type, POINTER_SHIFT(pMsg->data, pMsg->schemaLen));
-  taosWUnLockLatch(&(pTable->latch));
+  TSDB_WUNLOCK_TABLE(pTable);
   if (isChangeIndexCol) {
     tsdbAddTableIntoIndex(pMeta, pTable, false);
     tsdbUnlockRepoMeta(pRepo);
@@ -587,7 +587,7 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
   STable *pCTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
   ASSERT(schemaVersion(pSchema) > schemaVersion(pCTable->schema[pCTable->numOfSchemas - 1]));
 
-  taosWLockLatch(&(pCTable->latch));
+  TSDB_WLOCK_TABLE(pCTable);
   if (pCTable->numOfSchemas < TSDB_MAX_TABLE_SCHEMAS) {
     pCTable->schema[pCTable->numOfSchemas++] = pSchema;
   } else {
@@ -599,7 +599,7 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
 
   if (schemaNCols(pSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pSchema);
   if (schemaTLen(pSchema) > pMeta->maxRowBytes) pMeta->maxRowBytes = schemaTLen(pSchema);
-  taosWUnLockLatch(&(pCTable->latch));
+  TSDB_WUNLOCK_TABLE(pCTable);
 
   if (insertAct) {
     int   tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, pCTable);
@@ -775,6 +775,7 @@ static void tsdbFreeTable(STable *pTable) {
     kvRowFree(pTable->tagVal);
 
     tSkipListDestroy(pTable->pIndex);
+    taosTZfree(pTable->lastRow);
     tfree(pTable->sql);
     free(pTable);
   }

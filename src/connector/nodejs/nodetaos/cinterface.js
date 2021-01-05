@@ -144,18 +144,9 @@ function convertBinary(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
 function convertNchar(data, num_of_rows, nbytes = 0, offset = 0, micro=false) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
   let res = [];
-  let currOffset = 0;
-  // every 4 bytes, a character is encoded;
-  while (currOffset < data.length) {
-    let dataEntry = data.slice(currOffset, currOffset + nbytes); //one entry in a row under a column;
-    if (dataEntry.readInt64LE(0) == FieldTypes.C_NCHAR_NULL) {
-      res.push(null);
-    }
-    else {
-      res.push(dataEntry.toString("utf16le").replace(/\u0000/g, ""));
-    }
-    currOffset += nbytes;
-  }
+  let dataEntry = data.slice(0, nbytes); //one entry in a row under a column;
+  //TODO: should use the correct character encoding 
+  res.push(dataEntry.toString("utf-8"));
   return res;
 }
 
@@ -349,11 +340,13 @@ CTaosInterface.prototype.useResult = function useResult(result) {
   return fields;
 }
 CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
-  let pblock = ref.ref(ref.ref(ref.NULL)); // equal to our raw data
-  let num_of_rows = this.libtaos.taos_fetch_block(result, pblock)
-  if (num_of_rows == 0) {
+  //let pblock = ref.ref(ref.ref(ref.NULL)); // equal to our raw data
+  let pblock = this.libtaos.taos_fetch_row(result);
+  let num_of_rows = 1;
+  if (ref.isNull(pblock) == true) {
     return {block:null, num_of_rows:0};
   }
+
   var fieldL = this.libtaos.taos_fetch_lengths(result);
 
   let isMicro = (this.libtaos.taos_result_precision(result) == FieldTypes.C_TIMESTAMP_MICRO);
@@ -361,26 +354,28 @@ CTaosInterface.prototype.fetchBlock = function fetchBlock(result, fields) {
   var fieldlens = [];
   
   if (ref.isNull(fieldL) == false) {
-    
     for (let i = 0; i < fields.length; i ++) {
-      let plen = ref.reinterpret(fieldL, 4, i*4);
+	  let plen = ref.reinterpret(fieldL, 4, i*4);
       let len = plen.readInt32LE(0);
-       fieldlens.push(len);
+      fieldlens.push(len);
     }
   }
 
   let blocks = new Array(fields.length);
   blocks.fill(null);
-  num_of_rows = Math.abs(num_of_rows);
+  //num_of_rows = Math.abs(num_of_rows);
   let offset = 0;
-  pblock = pblock.deref();
   for (let i = 0; i < fields.length; i++) {
     pdata = ref.reinterpret(pblock,8,i*8);
-    pdata = ref.ref(pdata.readPointer());
-    if (!convertFunctions[fields[i]['type']] ) {
-      throw new errors.DatabaseError("Invalid data type returned from database");
-    }
-    blocks[i] = convertFunctions[fields[i]['type']](pdata, 1, fieldlens[i], offset, isMicro);
+	if(ref.isNull(pdata.readPointer())){
+		blocks[i] = new Array();
+	}else{
+    	pdata = ref.ref(pdata.readPointer());
+    	if (!convertFunctions[fields[i]['type']] ) {
+      		throw new errors.DatabaseError("Invalid data type returned from database");
+   		}
+    	blocks[i] = convertFunctions[fields[i]['type']](pdata, 1, fieldlens[i], offset, isMicro);
+	}
   }
   return {blocks: blocks, num_of_rows:Math.abs(num_of_rows)}
 }
@@ -446,14 +441,18 @@ CTaosInterface.prototype.fetch_rows_a = function fetch_rows_a(result, callback, 
     }
     if (numOfRows2 > 0){
       for (let i = 0; i < fields.length; i++) {
-        if (!convertFunctions[fields[i]['type']] ) {
-          throw new errors.DatabaseError("Invalid data type returned from database");
-        }
-        let prow = ref.reinterpret(row,8,i*8);
-        prow = prow.readPointer();
-        prow = ref.ref(prow);
-        blocks[i] = convertFunctions[fields[i]['type']](prow, 1, fieldlens[i], offset, isMicro);
-        //offset += fields[i]['bytes'] * numOfRows2;
+		if(ref.isNull(pdata.readPointer())){
+			blocks[i] = new Array();
+		}else{
+			if (!convertFunctions[fields[i]['type']] ) { 
+          		throw new errors.DatabaseError("Invalid data type returned from database");
+        	}   
+        	let prow = ref.reinterpret(row,8,i*8);
+        	prow = prow.readPointer();
+        	prow = ref.ref(prow);
+        	blocks[i] = convertFunctions[fields[i]['type']](prow, 1, fieldlens[i], offset, isMicro);
+        	//offset += fields[i]['bytes'] * numOfRows2;
+		}		
       }
     }
     callback(param2, result2, numOfRows2, blocks);

@@ -369,6 +369,10 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_MAX_DB_UPDATE              1
 #define TSDB_DEFAULT_DB_UPDATE_OPTION   0
 
+#define TSDB_MIN_DB_CACHE_LAST_ROW      0
+#define TSDB_MAX_DB_CACHE_LAST_ROW      1
+#define TSDB_DEFAULT_CACHE_LAST_ROW     0
+
 #define TSDB_MIN_FSYNC_PERIOD           0
 #define TSDB_MAX_FSYNC_PERIOD           180000   // millisecond
 #define TSDB_DEFAULT_FSYNC_PERIOD       3000     // three second
@@ -432,7 +436,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_PORT_HTTP                  11
 #define TSDB_PORT_ARBITRATOR            12
 
-#define TSDB_MAX_WAL_SIZE    (1024*1024)
+#define TSDB_MAX_WAL_SIZE    (1024*1024*2)
 
 typedef enum {
   TAOS_QTYPE_RPC   = 0,

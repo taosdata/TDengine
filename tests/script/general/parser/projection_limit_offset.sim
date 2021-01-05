@@ -317,7 +317,6 @@ sql_error select count(*) from group_tb0 where ts in ('2016-1-1 12:12:12');
 sql_error select count(*) from group_tb0 where ts < '12:12:12';
 
 #===============================sql for twa==========================================
-sql_error select twa(c1) from group_tb0;
 sql_error select twa(c1) from group_stb0;
 sql_error select twa(c2) from group_stb0 where ts<now and ts>now-1h group by t1;
 sql_error select twa(c2) from group_stb0 where ts<now and ts>now-1h group by tbname,t1;
@@ -393,7 +392,7 @@ endi
 
 #error sql
 sql_error select * from 1;
-sql_error select 1;
+#sql_error select 1;  // equals to select server_status();
 sql_error select k+k;
 sql_error select k+1;
 sql_error select abc();

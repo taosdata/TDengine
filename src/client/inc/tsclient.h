@@ -56,22 +56,28 @@ typedef struct STableComInfo {
   int32_t rowSize;
 } STableComInfo;
 
-typedef struct SCorVgroupInfo {
-  int32_t  version;
-  int8_t   inUse;
-  int8_t   numOfEps;
-  SEpAddr1 epAddr[TSDB_MAX_REPLICA];
-} SCorVgroupInfo;
+typedef struct SNewVgroupInfo {
+  int32_t    vgId;
+  int8_t     inUse;
+  int8_t     numOfEps;
+  SEpAddrMsg ep[TSDB_MAX_REPLICA];
+} SNewVgroupInfo;
+
+typedef struct CChildTableMeta {
+  int32_t        vgId;
+  STableId       id;
+  uint8_t        tableType;
+  char           sTableName[TSDB_TABLE_FNAME_LEN];
+} CChildTableMeta;
 
 typedef struct STableMeta {
-  STableComInfo  tableInfo;
+  int32_t        vgId;
+  STableId       id;
   uint8_t        tableType;
+  char           sTableName[TSDB_TABLE_FNAME_LEN];
   int16_t        sversion;
   int16_t        tversion;
-  char           sTableId[TSDB_TABLE_FNAME_LEN];
-  SVgroupInfo    vgroupInfo;
-  SCorVgroupInfo corVgroupInfo;
-  STableId       id;
+  STableComInfo  tableInfo;
   SSchema        schema[];  // if the table is TSDB_CHILD_TABLE, schema is acquired by super table meta info
 } STableMeta;
 
@@ -170,7 +176,7 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct STableDataBlocks {
-  char        tableId[TSDB_TABLE_FNAME_LEN];
+  char        tableName[TSDB_TABLE_FNAME_LEN];
   int8_t      tsSource;     // where does the UNIX timestamp come from, server or client
   bool        ordered;      // if current rows are ordered or not
   int64_t     vgId;         // virtual group id
@@ -229,7 +235,7 @@ typedef struct {
     int32_t numOfTablesInSubmit;
   };
 
-  int32_t      insertType;
+  uint32_t     insertType;
   int32_t      clauseIndex;  // index of multiple subclause query
 
   char *       curSql;       // current sql, resume position of sql after parsing paused
@@ -246,9 +252,9 @@ typedef struct {
 
   int8_t       dataSourceType;     // load data from file or not
   int8_t       submitSchema;   // submit block is built with table schema
-  STagData    *pTagData;       // NOTE: pTagData->data is used as a variant length array
+  STagData     tagData;        // NOTE: pTagData->data is used as a variant length array
 
-  STableMeta **pTableMetaList; // all involved tableMeta list of current insert sql statement.
+  char       **pTableNameList; // all involved tableMeta list of current insert sql statement.
   int32_t      numOfTables;
 
   SHashObj    *pTableBlockHashList;     // data block for each table
@@ -285,8 +291,8 @@ typedef struct {
   char **        buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex*  pColumnIndex;
 
-  SArithmeticSupport*   pArithSup;   // support the arithmetic expression calculation on agg functions
-  struct SLocalReducer* pLocalReducer;
+  SArithmeticSupport   *pArithSup;   // support the arithmetic expression calculation on agg functions
+  struct SLocalReducer *pLocalReducer;
 } SSqlRes;
 
 typedef struct STscObj {
@@ -307,7 +313,7 @@ typedef struct STscObj {
   SRpcCorEpSet       *tscCorMgmtEpSet;
   void*              pDnodeConn;
   pthread_mutex_t    mutex;
-  T_REF_DECLARE()
+  int32_t            numOfObj; // number of sqlObj from this tscObj
 } STscObj;
 
 typedef struct SSubqueryState {
@@ -385,7 +391,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
 int  tscProcessSql(SSqlObj *pSql);
 
 int  tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex);
-void tscQueueAsyncRes(SSqlObj *pSql);
+void tscAsyncResultOnError(SSqlObj *pSql);
 
 void tscQueueAsyncError(void(*fp), void *param, int32_t code);
 
@@ -399,7 +405,7 @@ void    tscRestoreSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
 
-void tscResetSqlCmdObj(SSqlCmd *pCmd, bool removeFromCache);
+void tscResetSqlCmdObj(SSqlCmd *pCmd);
 
 /**
  * free query result of the sql object
@@ -413,14 +419,13 @@ void tscFreeSqlResult(SSqlObj *pSql);
  */
 void tscFreeSqlObj(SSqlObj *pSql);
 void tscFreeRegisteredSqlObj(void *pSql);
-void tscFreeTableMetaHelper(void *pTableMeta);
 
 void tscCloseTscObj(void *pObj);
 
 // todo move to taos? or create a new file: taos_internal.h
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, TAOS **taos);
-TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, TAOS_RES** res);
+TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, int64_t* res);
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
@@ -478,15 +483,16 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   }
 }
 
-extern SCacheObj*    tscMetaCache;
-extern int           tscObjRef;
-extern void *    tscTmr;
-extern void *    tscQhandle;
-extern int       tscKeepConn[];
-extern int       tsInsertHeadSize;
-extern int       tscNumOfThreads;
-extern int       tscRefId;
-  
+extern int32_t    sentinel;
+extern SHashObj  *tscVgroupMap;
+extern SHashObj  *tscTableMetaInfo;
+
+extern int   tscObjRef;
+extern void *tscTmr;
+extern void *tscQhandle;
+extern int   tscKeepConn[];
+extern int   tscRefId;
+extern int   tscNumOfObj;     // number of existed sqlObj in current process.
 
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 

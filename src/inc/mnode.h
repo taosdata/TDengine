@@ -42,11 +42,12 @@ typedef struct SMnodeMsg {
   struct SVgObj *   pVgroup;
   struct STableObj *pTable;
   struct SSTableObj*pSTable;
+  struct SMnodeMsg *pBatchMasterMsg;
   SMnodeRsp rpcRsp;
-  int8_t    received;
-  int8_t    successed;
-  int8_t    expected;
-  int8_t    retry;
+  int16_t   received;
+  int16_t   successed;
+  int16_t   expected;
+  int16_t   retry;
   int32_t   incomingTs;
   int32_t   code;
   void *    pObj;
@@ -57,6 +58,7 @@ typedef struct SMnodeMsg {
 void *  mnodeCreateMsg(SRpcMsg *pRpcMsg);
 int32_t mnodeInitMsg(SMnodeMsg *pMsg);
 void    mnodeCleanupMsg(SMnodeMsg *pMsg);
+void    mnodeDestroySubMsg(SMnodeMsg *pSubMsg);
 
 int32_t mnodeInitSystem();
 int32_t mnodeStartSystem();

@@ -26,6 +26,9 @@ cd ../../../debug; make
 ./test.sh -f general/tag/set.sim
 ./test.sh -f general/tag/smallint.sim
 ./test.sh -f general/tag/tinyint.sim
+./test.sh -f general/wal/sync.sim
+./test.sh -f general/wal/kill.sim
+./test.sh -f general/wal/maxtables.sim
 
 ./test.sh -f general/user/authority.sim
 ./test.sh -f general/user/monitor.sim
@@ -88,3 +91,14 @@ cd ../../../debug; make
 ./test.sh -f unique/vnode/replica3_basic.sim
 ./test.sh -f unique/vnode/replica3_repeat.sim
 ./test.sh -f unique/vnode/replica3_vgroup.sim
+
+./test.sh -f unique/dnode/monitor.sim
+./test.sh -f unique/dnode/monitor_bug.sim
+./test.sh -f unique/dnode/simple.sim
+./test.sh -f unique/dnode/data1.sim
+./test.sh -f unique/dnode/m2.sim
+./test.sh -f unique/dnode/m3.sim
+./test.sh -f unique/dnode/offline3.sim
+./test.sh -f general/wal/sync.sim
+./test.sh -f general/wal/kill.sim
+./test.sh -f general/wal/maxtables.sim

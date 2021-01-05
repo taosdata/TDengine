@@ -25,6 +25,7 @@ function TaosResult(data, fields) {
  * @function pretty
  * @since 1.0.6
  */
+
 TaosResult.prototype.pretty = function pretty() {
   let fieldsStr = "";
   let sizing = [];
@@ -46,8 +47,7 @@ TaosResult.prototype.pretty = function pretty() {
     row.data.forEach((entry, i) => {
       if (this.fields[i]._field.type == 9) {
         entry = entry.toTaosString();
-      }
-      else {
+      } else {
         entry = entry == null ? 'null' : entry.toString();
       }
       rowStr += entry

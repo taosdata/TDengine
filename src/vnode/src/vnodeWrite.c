@@ -101,11 +101,17 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   return syncCode;
 }
 
-static int32_t vnodeCheckWrite(void *vparam) {
-  SVnodeObj *pVnode = vparam;
+static int32_t vnodeCheckWrite(SVnodeObj *pVnode) {
   if (!(pVnode->accessState & TSDB_VN_WRITE_ACCCESS)) {
     vDebug("vgId:%d, no write auth, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
     return TSDB_CODE_VND_NO_WRITE_AUTH;
+  }
+
+  if (pVnode->dbReplica != pVnode->syncCfg.replica &&
+      pVnode->syncCfg.nodeInfo[pVnode->syncCfg.replica - 1].nodeId == dnodeGetDnodeId()) {
+    vDebug("vgId:%d, vnode is balancing and will be dropped, dbReplica:%d vgReplica:%d, refCount:%d pVnode:%p",
+           pVnode->vgId, pVnode->dbReplica, pVnode->syncCfg.replica, pVnode->refCount, pVnode);
+    return TSDB_CODE_VND_IS_BALANCING;
   }
 
   // tsdb may be in reset state
@@ -209,29 +215,21 @@ static int32_t vnodeProcessUpdateTagValMsg(SVnodeObj *pVnode, void *pCont, SRspR
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rparam) {
-  SVnodeObj *pVnode = vparam;
-  SWalHead * pHead = wparam;
-  int32_t    code = 0;
-
-  if (qtype == TAOS_QTYPE_RPC) {
-    code = vnodeCheckWrite(pVnode);
-    if (code != TSDB_CODE_SUCCESS) return code;
-  }
-
+static SVWriteMsg *vnodeBuildVWriteMsg(SVnodeObj *pVnode, SWalHead *pHead, int32_t qtype, SRpcMsg *pRpcMsg) {
   if (pHead->len > TSDB_MAX_WAL_SIZE) {
     vError("vgId:%d, wal len:%d exceeds limit, hver:%" PRIu64, pVnode->vgId, pHead->len, pHead->version);
-    return TSDB_CODE_WAL_SIZE_LIMIT;
+    terrno = TSDB_CODE_WAL_SIZE_LIMIT;
+    return NULL;
   }
 
   int32_t size = sizeof(SVWriteMsg) + sizeof(SWalHead) + pHead->len;
   SVWriteMsg *pWrite = taosAllocateQitem(size);
   if (pWrite == NULL) {
-    return TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    return NULL;
   }
 
-  if (rparam != NULL) {
-    SRpcMsg *pRpcMsg = rparam;
+  if (pRpcMsg != NULL) {
     pWrite->rpcMsg = *pRpcMsg;
   }
 
@@ -241,19 +239,46 @@ int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rpar
 
   atomic_add_fetch_32(&pVnode->refCount, 1);
 
-  int32_t queued = atomic_add_fetch_32(&pVnode->queuedWMsg, 1);
-  if (queued > MAX_QUEUED_MSG_NUM) {
-    vDebug("vgId:%d, too many msg:%d in vwqueue, flow control", pVnode->vgId, queued);
-    taosMsleep(3);
+  return pWrite;
+}
+
+static int32_t vnodeWriteToWQueueImp(SVWriteMsg *pWrite) {
+  SVnodeObj *pVnode = pWrite->pVnode;
+
+  if (pWrite->qtype == TAOS_QTYPE_RPC) {
+    int32_t code = vnodeCheckWrite(pVnode);
+    if (code != TSDB_CODE_SUCCESS) {
+      taosFreeQitem(pWrite);
+      vnodeRelease(pVnode);
+      return code;
+    }
   }
 
-  code = vnodePerformFlowCtrl(pWrite);
-  if (code != 0) return 0;
+  int32_t queued = atomic_add_fetch_32(&pVnode->queuedWMsg, 1);
+  if (queued > MAX_QUEUED_MSG_NUM) {
+    int32_t ms = (queued / MAX_QUEUED_MSG_NUM) * 10 + 3;
+    if (ms > 100) ms = 100;
+    vDebug("vgId:%d, too many msg:%d in vwqueue, flow control %dms", pVnode->vgId, queued, ms);
+    taosMsleep(ms);
+  }
 
   vTrace("vgId:%d, write into vwqueue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedWMsg);
 
-  taosWriteQitem(pVnode->wqueue, qtype, pWrite);
+  taosWriteQitem(pVnode->wqueue, pWrite->qtype, pWrite);
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t vnodeWriteToWQueue(void *vparam, void *wparam, int32_t qtype, void *rparam) {
+  SVWriteMsg *pWrite = vnodeBuildVWriteMsg(vparam, wparam, qtype, rparam);
+  if (pWrite == NULL) {
+    assert(terrno != 0);
+    return terrno;
+  }
+
+  int32_t code = vnodePerformFlowCtrl(pWrite);
+  if (code != 0) return 0;
+
+  return vnodeWriteToWQueueImp(pWrite);
 }
 
 void vnodeFreeFromWQueue(void *vparam, SVWriteMsg *pWrite) {
@@ -269,7 +294,7 @@ void vnodeFreeFromWQueue(void *vparam, SVWriteMsg *pWrite) {
 static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
   SVWriteMsg *pWrite = param;
   SVnodeObj * pVnode = pWrite->pVnode;
-  int32_t     code = TSDB_CODE_VND_SYNCING;
+  int32_t     code = TSDB_CODE_VND_IS_SYNCING;
 
   if (pVnode->flowctrlLevel <= 0) code = TSDB_CODE_VND_IS_FLOWCTRL;
 
@@ -285,7 +310,10 @@ static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
       vDebug("vgId:%d, msg:%p, write into vwqueue after flowctrl, retry:%d", pVnode->vgId, pWrite,
              pWrite->processedCount);
       pWrite->processedCount = 0;
-      taosWriteQitem(pVnode->wqueue, pWrite->qtype, pWrite);
+      code = vnodeWriteToWQueueImp(pWrite);
+      if (code != 0) {
+        dnodeSendRpcVWriteRsp(pWrite->pVnode, pWrite, code);
+      }
     }
   }
 }
@@ -295,7 +323,7 @@ static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite) {
   if (pWrite->qtype != TAOS_QTYPE_RPC) return 0;
   if (pVnode->queuedWMsg < MAX_QUEUED_MSG_NUM && pVnode->flowctrlLevel <= 0) return 0;
 
-  if (tsFlowCtrl == 0) {
+  if (tsEnableFlowCtrl == 0) {
     int32_t ms = pow(2, pVnode->flowctrlLevel + 2);
     if (ms > 100) ms = 100;
     vTrace("vgId:%d, msg:%p, app:%p, perform flowctrl for %d ms", pVnode->vgId, pWrite, pWrite->rpcMsg.ahandle, ms);

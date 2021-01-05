@@ -65,13 +65,17 @@ static int32_t vnodeCheckRead(SVnodeObj *pVnode) {
     return TSDB_CODE_APP_NOT_READY;
   }
 
-  if (pVnode->role != TAOS_SYNC_ROLE_SLAVE && pVnode->role != TAOS_SYNC_ROLE_MASTER) {
-    vDebug("vgId:%d, replica:%d role:%s, refCount:%d pVnode:%p", pVnode->vgId, pVnode->syncCfg.replica,
-           syncRole[pVnode->role], pVnode->refCount, pVnode);
-    return TSDB_CODE_APP_NOT_READY;
+  if (pVnode->role == TAOS_SYNC_ROLE_MASTER) {
+    return TSDB_CODE_SUCCESS;
   }
 
-  return TSDB_CODE_SUCCESS;
+  if (tsEnableSlaveQuery && pVnode->role == TAOS_SYNC_ROLE_SLAVE) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  vDebug("vgId:%d, replica:%d role:%s, refCount:%d pVnode:%p, cant provide query service", pVnode->vgId, pVnode->syncCfg.replica,
+         syncRole[pVnode->role], pVnode->refCount, pVnode);
+  return TSDB_CODE_APP_NOT_READY;
 }
 
 void vnodeFreeFromRQueue(void *vparam, SVReadMsg *pRead) {
@@ -281,7 +285,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     vTrace("vgId:%d, QInfo:%p, dnode continues to exec query", pVnode->vgId, *qhandle);
 
     // In the retrieve blocking model, only 50% CPU will be used in query processing
-    if (tsHalfCoresForQuery) {
+    if (tsRetrieveBlockingModel) {
       qTableQuery(*qhandle);  // do execute query
       qReleaseQInfo(pVnode->qMgmt, (void **)&qhandle, false);
     } else {
@@ -303,8 +307,11 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
         // NOTE: set return code to be TSDB_CODE_QRY_HAS_RSP to notify dnode to return msg to client
         code = TSDB_CODE_QRY_HAS_RSP;
       } else {
-        void *h1 = qGetResultRetrieveMsg(*qhandle);
-        assert(h1 == NULL);
+        //void *h1 = qGetResultRetrieveMsg(*qhandle);
+
+        /* remove this assert, one possible case that will cause h1 not NULL: query thread unlock pQInfo->lock, and then FETCH thread execute twice before query thread reach here */
+        //assert(h1 == NULL);
+
         freehandle = qQueryCompleted(*qhandle);
       }
 
@@ -380,7 +387,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     freeHandle = true;
   } else {  // result is not ready, return immediately
     // Only effects in the non-blocking model
-    if (!tsHalfCoresForQuery) {
+    if (!tsRetrieveBlockingModel) {
       if (!buildRes) {
         assert(pRead->rpcHandle != NULL);
 

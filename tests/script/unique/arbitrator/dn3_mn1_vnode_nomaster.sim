@@ -158,13 +158,15 @@ if $dnode4Vtatus != offline then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
-if $dnode3Vtatus != unsynced then
+if $dnode3Vtatus != master then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
 
-sql_error select count(*) from $stb
-sql_error insert into $tb values (now, 9988)
+sql select count(*) from $stb -x s31
+s31:
+#sql_error insert into $tb values (now, 9988) -x s32
+#s32:
 
 print ============== step4: restart dnode2, then create database with replica 2, and create table, insert data
 system sh/exec.sh -n dnode2 -s start

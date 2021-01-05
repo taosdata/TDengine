@@ -60,7 +60,7 @@ create table avg_vol as select avg(voltage) from meters interval(1m) sliding(30s
 会自动创建一个名为 `avg_vol` 的新表，然后每隔30秒，TDengine会增量执行 `as` 后面的 SQL 语句，
 并将查询结果写入这个表中，用户程序后续只要从 `avg_vol` 中查询数据即可。 例如：
 
-```shell
+```mysql
 taos> select * from avg_vol;
             ts           |        avg_voltage_    |
 ===================================================
@@ -72,14 +72,13 @@ taos> select * from avg_vol;
 
 需要注意，查询时间窗口的最小值是10毫秒，没有时间窗口范围的上限。
 
-
 此外，TDengine还支持用户指定连续查询的起止时间。
 如果不输入开始时间，连续查询将从第一条原始数据所在的时间窗口开始；
 如果没有输入结束时间，连续查询将永久运行；
 如果用户指定了结束时间，连续查询在系统时间达到指定的时间以后停止运行。
 比如使用下面的SQL创建的连续查询将运行一小时，之后会自动停止。
 
-```sql
+```mysql
 create table avg_vol as select avg(voltage) from meters where ts > now and ts <= now + 1h interval(1m) sliding(30s);
 ```
 

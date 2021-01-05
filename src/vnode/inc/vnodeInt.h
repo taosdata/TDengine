@@ -45,6 +45,9 @@ typedef struct {
   int8_t   accessState;
   int8_t   isFull;
   int8_t   isCommiting;
+  int8_t   dbReplica;
+  int8_t   dropped;
+  int8_t   reserved;
   uint64_t version;   // current version
   uint64_t cversion;  // version while commit start
   uint64_t fversion;  // version on saved data file
@@ -56,14 +59,14 @@ typedef struct {
   int64_t  sync;
   void *   events;
   void *   cq;  // continuous query
-  int32_t  cfgVersion;
+  int32_t  dbCfgVersion;
+  int32_t  vgCfgVersion;
   STsdbCfg tsdbCfg;
   SSyncCfg syncCfg;
   SWalCfg  walCfg;
   void *   qMgmt;
   char *   rootDir;
   tsem_t   sem;
-  int8_t   dropped;
   char     db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
   pthread_mutex_t statusMutex;
 } SVnodeObj;

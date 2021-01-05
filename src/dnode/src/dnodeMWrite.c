@@ -18,7 +18,6 @@
 #include "ttimer.h"
 #include "tqueue.h"
 #include "mnode.h"
-#include "dnodeVMgmt.h"
 #include "dnodeMInfos.h"
 #include "dnodeMWrite.h"
 
@@ -185,7 +184,19 @@ void dnodeReprocessMWriteMsg(void *pMsg) {
     dDebug("msg:%p, app:%p type:%s is redirected for mnode not running, retry times:%d", pWrite, pWrite->rpcMsg.ahandle,
            taosMsg[pWrite->rpcMsg.msgType], pWrite->retry);
 
-    dnodeSendRedirectMsg(pMsg, true);
+    if (pWrite->pBatchMasterMsg) {
+      ++pWrite->pBatchMasterMsg->received;
+      if (pWrite->pBatchMasterMsg->successed + pWrite->pBatchMasterMsg->received
+	  >= pWrite->pBatchMasterMsg->expected) {
+	dnodeSendRedirectMsg(&pWrite->rpcMsg, true);
+	dnodeFreeMWriteMsg(pWrite);
+      }
+
+      mnodeDestroySubMsg(pWrite);
+
+      return;
+    }
+    dnodeSendRedirectMsg(&pWrite->rpcMsg, true);
     dnodeFreeMWriteMsg(pWrite);
   } else {
     dDebug("msg:%p, app:%p type:%s is reput into mwrite queue:%p, retry times:%d", pWrite, pWrite->rpcMsg.ahandle,

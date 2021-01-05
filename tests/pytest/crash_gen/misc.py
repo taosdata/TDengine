@@ -2,6 +2,7 @@ import threading
 import random
 import logging
 import os
+import sys
 
 import taos
 
@@ -53,7 +54,7 @@ class Logging:
         # global misc.logger
         _logger = logging.getLogger('CrashGen')  # real logger
         _logger.addFilter(LoggingFilter())
-        ch = logging.StreamHandler()
+        ch = logging.StreamHandler(sys.stdout) # Ref: https://stackoverflow.com/questions/14058453/making-python-loggers-output-all-messages-to-stdout-in-addition-to-log-file
         _logger.addHandler(ch)
 
         # Logging adapter, to be used as a logger

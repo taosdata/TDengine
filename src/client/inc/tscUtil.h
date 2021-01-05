@@ -20,9 +20,6 @@
 extern "C" {
 #endif
 
-/*
- * @date   2018/09/30
- */
 #include "exception.h"
 #include "os.h"
 #include "qExtbuffer.h"
@@ -216,7 +213,7 @@ STableMetaInfo* tscGetMetaInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
 SQueryInfo *tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex);
 SQueryInfo *tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex);
 
-void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache);
+void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo);
 
 STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
     SVgroupsInfo* vgroupList, SArray* pTagCols, SArray* pVgroupTables);
@@ -234,7 +231,7 @@ void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo);
 
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
-int  tscGetMeterMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
+int  tscGetTableMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
 void tscDoQuery(SSqlObj* pSql);
@@ -276,7 +273,7 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 bool hasMoreVnodesToTry(SSqlObj *pSql);
 bool hasMoreClauseToTry(SSqlObj* pSql);
 
-void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeFromCache);
+void tscFreeQueryInfo(SSqlCmd* pCmd);
 
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
@@ -286,6 +283,17 @@ int  tscSetMgmtEpSetFromCfg(const char *first, const char *second, SRpcCorEpSet 
 bool tscSetSqlOwner(SSqlObj* pSql);
 void tscClearSqlOwner(SSqlObj* pSql);
 int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
+
+char*   serializeTagData(STagData* pTagData, char* pMsg);
+int32_t copyTagData(STagData* dst, const STagData* src);
+
+STableMeta* createSuperTableMeta(STableMetaMsg* pChild);
+uint32_t tscGetTableMetaSize(STableMeta* pTableMeta);
+CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
+uint32_t tscGetTableMetaMaxSize();
+int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name);
+STableMeta* tscTableMetaClone(STableMeta* pTableMeta);
+
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);
