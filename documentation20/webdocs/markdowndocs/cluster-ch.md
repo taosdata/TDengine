@@ -6,6 +6,8 @@
 
 TDengine的集群管理极其简单，除添加和删除节点需要人工干预之外，其他全部是自动完成，最大程度的降低了运维的工作量。本章对集群管理的操作做详细的描述。
 
+关于集群搭建请参考<a href="https://www.taosdata.com/blog/2020/11/11/1961.html">视频教程</a>。
+
 ## 准备工作
 
 **第零步**：规划集群所有物理节点的FQDN，将规划好的FQDN分别添加到每个物理节点的/etc/hostname；修改每个物理节点的/etc/hosts，将所有集群物理节点的IP与FQDN的对应添加好。【如部署了DNS，请联系网络管理员在DNS上做好相关配置】
@@ -227,4 +229,3 @@ SHOW MNODES;
 
 TDengine提供一个执行程序tarbitrator, 找任何一台Linux服务器运行它即可。请点击[安装包下载](https://www.taosdata.com/cn/all-downloads/)，在TDengine Arbitrator Linux一节中，选择适合的版本下载并安装。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6042。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为arbitrator的End Point。如果该参数配置了，当副本数为偶数数，系统将自动连接配置的arbitrator。如果副本数为奇数，即使配置了arbitrator, 系统也不会去建立连接。
 
-关于集群搭建请参考<a href="https://www.taosdata.com/blog/2020/11/11/1961.html">视频教程</a>。

@@ -2,13 +2,15 @@ package com.taosdata.jdbc.rs;
 
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
-import java.util.List;
+import java.util.ArrayList;
 
 public class RestfulResultSetMetaData implements ResultSetMetaData {
 
-    private List<String> fields;
+    private final String database;
+    private ArrayList<RestfulResultSet.Field> fields;
 
-    public RestfulResultSetMetaData(List<String> fields) {
+    public RestfulResultSetMetaData(String database, ArrayList<RestfulResultSet.Field> fields) {
+        this.database = database;
         this.fields = fields;
     }
 
@@ -24,6 +26,7 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public boolean isCaseSensitive(int column) throws SQLException {
+        //TODO
         return false;
     }
 
@@ -39,7 +42,7 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public int isNullable(int column) throws SQLException {
-        return 0;
+        return ResultSetMetaData.columnNullable;
     }
 
     @Override
@@ -54,7 +57,7 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getColumnLabel(int column) throws SQLException {
-        return fields.get(column - 1);
+        return fields.get(column - 1).name;
     }
 
     @Override
@@ -64,7 +67,7 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getSchemaName(int column) throws SQLException {
-        return null;
+        return this.database;
     }
 
     @Override
@@ -84,7 +87,7 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getCatalogName(int column) throws SQLException {
-        return null;
+        return this.database;
     }
 
     @Override

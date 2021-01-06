@@ -29,11 +29,7 @@ public class JdbcTaosdemo {
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
 
         boolean isHelp = Arrays.asList(args).contains("--help");
-        if (isHelp) {
-            JdbcTaosdemoConfig.printHelp();
-            return;
-        }
-        if (config.getHost() == null) {
+        if (isHelp || config.host == null || config.host.isEmpty()) {
             JdbcTaosdemoConfig.printHelp();
             return;
         }
@@ -85,7 +81,7 @@ public class JdbcTaosdemo {
             taosdemo.selectLastOneYear();
 
             // drop super table
-            if (config.isDeleteTable())
+            if (config.dropTable)
                 taosdemo.dropSuperTable();
             taosdemo.close();
         }
@@ -103,7 +99,7 @@ public class JdbcTaosdemo {
                 logger.info("[ OK ] Connection established.");
         } catch (ClassNotFoundException | SQLException e) {
             logger.error(e.getMessage());
-            throw new RuntimeException("connection failed: " + config.getHost());
+            throw new RuntimeException("connection failed: " + config.host);
         }
     }
 
@@ -111,7 +107,7 @@ public class JdbcTaosdemo {
      * create database
      */
     private void createDatabase() {
-        String sql = SqlSpeller.createDatabaseSQL(config.getDbName(), config.getKeep(), config.getDays());
+        String sql = SqlSpeller.createDatabaseSQL(config.database, config.keep, config.days);
         execute(sql);
     }
 
@@ -119,7 +115,7 @@ public class JdbcTaosdemo {
      * drop database
      */
     private void dropDatabase() {
-        String sql = SqlSpeller.dropDatabaseSQL(config.getDbName());
+        String sql = SqlSpeller.dropDatabaseSQL(config.database);
         execute(sql);
     }
 
@@ -127,7 +123,7 @@ public class JdbcTaosdemo {
      * use database
      */
     private void useDatabase() {
-        String sql = SqlSpeller.useDatabaseSQL(config.getDbName());
+        String sql = SqlSpeller.useDatabaseSQL(config.database);
         execute(sql);
     }
 
@@ -135,7 +131,7 @@ public class JdbcTaosdemo {
      * create super table
      */
     private void createSuperTable() {
-        String sql = SqlSpeller.createSuperTableSQL(config.getStbName());
+        String sql = SqlSpeller.createSuperTableSQL(config.superTable);
         execute(sql);
     }
 
@@ -144,9 +140,9 @@ public class JdbcTaosdemo {
      */
     private void createTableMultiThreads() {
         try {
-            final int tableSize = config.getNumberOfTable() / config.getNumberOfThreads();
+            final int tableSize = (int) (config.numOfTables / config.numOfThreadsForCreate);
             List<Thread> threads = new ArrayList<>();
-            for (int i = 0; i < config.getNumberOfThreads(); i++) {
+            for (int i = 0; i < config.numOfThreadsForCreate; i++) {
                 Thread thread = new Thread(new CreateTableTask(config, i * tableSize, tableSize), "Thread-" + i);
                 threads.add(thread);
                 thread.start();
@@ -169,9 +165,9 @@ public class JdbcTaosdemo {
             final long startDatetime = TimeStampUtil.datetimeToLong("2005-01-01 00:00:00.000");
             final long finishDatetime = TimeStampUtil.datetimeToLong("2030-01-01 00:00:00.000");
 
-            final int tableSize = config.getNumberOfTable() / config.getNumberOfThreads();
+            final int tableSize = (int) (config.numOfTables / config.numOfThreadsForInsert);
             List<Thread> threads = new ArrayList<>();
-            for (int i = 0; i < config.getNumberOfThreads(); i++) {
+            for (int i = 0; i < config.numOfThreadsForInsert; i++) {
                 Thread thread = new Thread(new InsertTableDatetimeTask(config, i * tableSize, tableSize, startDatetime, finishDatetime), "Thread-" + i);
                 threads.add(thread);
                 thread.start();
@@ -188,10 +184,10 @@ public class JdbcTaosdemo {
 
     private void insertMultiThreads() {
         try {
-            final int tableSize = config.getNumberOfTable() / config.getNumberOfThreads();
-            final int numberOfRecordsPerTable = config.getNumberOfRecordsPerTable();
+            final int tableSize = (int) (config.numOfTables / config.numOfThreadsForInsert);
+            final int numberOfRecordsPerTable = (int) config.numOfRowsPerTable;
             List<Thread> threads = new ArrayList<>();
-            for (int i = 0; i < config.getNumberOfThreads(); i++) {
+            for (int i = 0; i < config.numOfThreadsForInsert; i++) {
                 Thread thread = new Thread(new InsertTableTask(config, i * tableSize, tableSize, numberOfRecordsPerTable), "Thread-" + i);
                 threads.add(thread);
                 thread.start();
@@ -207,85 +203,84 @@ public class JdbcTaosdemo {
     }
 
     private void selectFromTableLimit() {
-        String sql = SqlSpeller.selectFromTableLimitSQL(config.getDbName(), config.getTbPrefix(), 1, 10, 0);
+        String sql = SqlSpeller.selectFromTableLimitSQL(config.database, config.prefixOfTable, 1, 10, 0);
         executeQuery(sql);
     }
 
     private void selectCountFromTable() {
-        String sql = SqlSpeller.selectCountFromTableSQL(config.getDbName(), config.getTbPrefix(), 1);
+        String sql = SqlSpeller.selectCountFromTableSQL(config.database, config.prefixOfTable, 1);
         executeQuery(sql);
     }
 
     private void selectAvgMinMaxFromTable() {
-        String sql = SqlSpeller.selectAvgMinMaxFromTableSQL("current", config.getDbName(), config.getTbPrefix(), 1);
+        String sql = SqlSpeller.selectAvgMinMaxFromTableSQL("current", config.database, config.prefixOfTable, 1);
         executeQuery(sql);
     }
 
     private void selectLastFromTable() {
-        String sql = SqlSpeller.selectLastFromTableSQL(config.getDbName(), config.getTbPrefix(), 1);
+        String sql = SqlSpeller.selectLastFromTableSQL(config.database, config.prefixOfTable, 1);
         executeQuery(sql);
     }
 
     private void selectFromSuperTableLimit() {
-        String sql = SqlSpeller.selectFromSuperTableLimitSQL(config.getDbName(), config.getStbName(), 10, 0);
+        String sql = SqlSpeller.selectFromSuperTableLimitSQL(config.database, config.superTable, 10, 0);
         executeQuery(sql);
     }
 
     private void selectCountFromSuperTable() {
-        String sql = SqlSpeller.selectCountFromSuperTableSQL(config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.selectCountFromSuperTableSQL(config.database, config.superTable);
         executeQuery(sql);
     }
 
     private void selectAvgMinMaxFromSuperTable() {
-        String sql = SqlSpeller.selectAvgMinMaxFromSuperTableSQL("current", config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.selectAvgMinMaxFromSuperTableSQL("current", config.database, config.superTable);
         executeQuery(sql);
     }
 
     private void selectAvgMinMaxFromSuperTableWhereTag() {
-        String sql = SqlSpeller.selectAvgMinMaxFromSuperTableWhere("current", config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.selectAvgMinMaxFromSuperTableWhere("current", config.database, config.superTable);
         executeQuery(sql);
     }
 
     private void selectLastFromSuperTableWhere() {
-        String sql = SqlSpeller.selectLastFromSuperTableWhere("current", config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.selectLastFromSuperTableWhere("current", config.database, config.superTable);
         executeQuery(sql);
     }
 
     private void selectGroupBy() {
-        String sql = SqlSpeller.selectGroupBy("current", config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.selectGroupBy("current", config.database, config.superTable);
         executeQuery(sql);
     }
 
     private void selectLike() {
-        String sql = SqlSpeller.selectLike(config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.selectLike(config.database, config.superTable);
         executeQuery(sql);
     }
 
     private void selectLastOneHour() {
-        String sql = SqlSpeller.selectLastOneHour(config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.selectLastOneHour(config.database, config.superTable);
         executeQuery(sql);
     }
 
     private void selectLastOneDay() {
-        String sql = SqlSpeller.selectLastOneDay(config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.selectLastOneDay(config.database, config.superTable);
         executeQuery(sql);
     }
 
     private void selectLastOneWeek() {
-        String sql = SqlSpeller.selectLastOneWeek(config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.selectLastOneWeek(config.database, config.superTable);
         executeQuery(sql);
     }
 
     private void selectLastOneMonth() {
-        String sql = SqlSpeller.selectLastOneMonth(config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.selectLastOneMonth(config.database, config.superTable);
         executeQuery(sql);
     }
 
     private void selectLastOneYear() {
-        String sql = SqlSpeller.selectLastOneYear(config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.selectLastOneYear(config.database, config.superTable);
         executeQuery(sql);
     }
-
 
     private void close() {
         try {
@@ -303,7 +298,7 @@ public class JdbcTaosdemo {
      * drop super table
      */
     private void dropSuperTable() {
-        String sql = SqlSpeller.dropSuperTableSQL(config.getDbName(), config.getStbName());
+        String sql = SqlSpeller.dropSuperTableSQL(config.database, config.superTable);
         execute(sql);
     }
 

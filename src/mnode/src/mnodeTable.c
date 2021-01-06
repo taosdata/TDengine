@@ -827,21 +827,21 @@ static int32_t mnodeProcessBatchCreateTableMsg(SMnodeMsg *pMsg) {
       SCreateTableMsg *pCreateTable = (SCreateTableMsg*) ((char*) pCreate + sizeof(SCMCreateTableMsg));
       int32_t code = mnodeValidateCreateTableMsg(pCreateTable, pMsg);
       if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_MND_TABLE_ALREADY_EXIST) {
-	++pMsg->pBatchMasterMsg->successed;
-	mnodeDestroySubMsg(pMsg);
-      }
-
-      if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-	mnodeDestroySubMsg(pMsg);
-	return code;
+        ++pMsg->pBatchMasterMsg->successed;
+        mnodeDestroySubMsg(pMsg);
+      } else if (code == TSDB_CODE_MND_ACTION_NEED_REPROCESSED) {
+        return code;
+      } else if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+        ++pMsg->pBatchMasterMsg->received;
+        mnodeDestroySubMsg(pMsg);
       }
 
       if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	  >= pMsg->pBatchMasterMsg->expected) {
-	return code;
-      } else {
-	return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, TSDB_CODE_SUCCESS);
       }
+
+      return TSDB_CODE_MND_ACTION_IN_PROGRESS;
     } else { // batch master replay, reprocess the whole batch
       assert(0);
     }

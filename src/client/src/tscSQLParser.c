@@ -75,11 +75,11 @@ static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SC
 static int32_t convertFunctionId(int32_t optr, int16_t* functionId);
 static uint8_t convertOptr(SStrToken *pToken);
 
-static int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery);
+static int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery, bool intervalQuery);
 
 static bool validateIpAddress(const char* ip, size_t size);
 static bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
-static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery);
+static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool intervalQuery);
 
 static int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd);
 
@@ -1475,7 +1475,7 @@ static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo) {
   pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
 }
 
-int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery) {
+int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery, bool intervalQuery) {
   assert(pSelection != NULL && pCmd != NULL);
 
   const char* msg2 = "functions can not be mixed up";
@@ -1531,7 +1531,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     addPrimaryTsColIntoResult(pQueryInfo);
   }
 
-  if (!functionCompatibleCheck(pQueryInfo, joinQuery)) {
+  if (!functionCompatibleCheck(pQueryInfo, joinQuery, intervalQuery)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -2810,7 +2810,7 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
   return false;
 }
 
-static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
+static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool intervalQuery) {
   int32_t startIdx = 0;
 
   size_t numOfExpr = tscSqlExprNumOfExprs(pQueryInfo);
@@ -2825,6 +2825,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
   }
 
   int32_t factor = functionCompatList[tscSqlExprGet(pQueryInfo, startIdx)->functionId];
+
+  if (tscSqlExprGet(pQueryInfo, 0)->functionId == TSDB_FUNC_LAST_ROW && (joinQuery || intervalQuery)) {
+	return false;
+  }
 
   // diff function cannot be executed with other function
   // arithmetic function can be executed with other arithmetic functions
@@ -2850,7 +2854,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
       }
     }
 
-    if (functionId == TSDB_FUNC_LAST_ROW && joinQuery) {
+    if (functionId == TSDB_FUNC_LAST_ROW && (joinQuery || intervalQuery)) {
       return false;
     }
   }
@@ -6320,7 +6324,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-  if (parseSelectClause(&pSql->cmd, 0, pQuerySql->pSelection, isSTable, false) != TSDB_CODE_SUCCESS) {
+  if (parseSelectClause(&pSql->cmd, 0, pQuerySql->pSelection, isSTable, false, false) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
@@ -6565,7 +6569,9 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
   int32_t joinQuery = (pQuerySql->from != NULL && taosArrayGetSize(pQuerySql->from) > 2);
 
-  if (parseSelectClause(pCmd, index, pQuerySql->pSelection, isSTable, joinQuery) != TSDB_CODE_SUCCESS) {
+  int32_t intervalQuery = !(pQuerySql->interval.type == 0 || pQuerySql->interval.n == 0);
+
+  if (parseSelectClause(pCmd, index, pQuerySql->pSelection, isSTable, joinQuery, intervalQuery) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
