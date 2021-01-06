@@ -143,10 +143,10 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     // if sync is not required, continue
     if (fileAck.sync == 0) {
       fileInfo.index++;
-      sDebug("%s, %s is the same", pPeer->id, fileInfo.name);
+      sDebug("%s, %s is the same, fver:%" PRIu64, pPeer->id, fileInfo.name, fileInfo.fversion);
       continue;
     } else {
-      sDebug("%s, %s will be sent", pPeer->id, fileInfo.name);
+      sDebug("%s, %s will be sent, fver:%" PRIu64, pPeer->id, fileInfo.name, fileInfo.fversion);
     }
 
     // get the full path to file
@@ -328,7 +328,8 @@ static int32_t syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) 
     // if bytes > 0, file is updated, or fversion is not reached but file still open, read again
     once = 1;
     offset += bytes;
-    sDebug("%s, continue retrieve last wal, bytes:%d offset:%" PRId64, pPeer->id, bytes, offset);
+    sDebug("%s, continue retrieve last wal, bytes:%d offset:%" PRId64 " sver:%" PRIu64 " fver:%" PRIu64, pPeer->id,
+           bytes, offset, pPeer->sversion, fversion);
   }
 
   return -1;
