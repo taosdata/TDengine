@@ -1,0 +1,91 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 1
+
+
+system sh/cfg.sh -n dnode1 -c walLevel -v 2
+system sh/cfg.sh -n dnode2 -c walLevel -v 2
+system sh/cfg.sh -n dnode3 -c walLevel -v 2
+
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 10
+
+system sh/cfg.sh -n dnode1 -c role -v 2
+system sh/cfg.sh -n dnode2 -c role -v 2
+system sh/cfg.sh -n dnode3 -c role -v 2
+
+
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
+
+
+
+
+print ============== step1: start dnode1
+system sh/exec.sh -n dnode1 -s start
+sleep 3000
+sql connect
+
+print ============== step2: start dnode2/dnode3 and add into cluster , then create database with replica 2, and create table, insert data
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+sql create dnode $hostname2
+sql create dnode $hostname3
+sleep 3000
+
+# create table 
+sql drop database -x step1
+step1:
+sql create database db replica 2
+sql use db
+sql create table m1 (ts timestamp, speed int)
+
+# insert data
+$x = 0
+while $x < 10
+  $cc = $x * 60000
+  $ms = 1601481600000 + $cc
+  
+  sql insert into m1 values ($ms , $x ) 
+  $x = $x + 1
+endw 
+
+sql select * from m1
+
+print $rows points data are retrieved
+if $rows != 10 then 
+  return -1
+endi
+
+print ============== step3: stop cluster , then move_dnode1 ,start cluster
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+
+system sh/move_dnode.sh dnode1 dnode4
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+system sh/exec.sh -n dnode4 -s start
+
+print =============== step 4
+sleep 3000
+sql connect
+
+sql select * from db.m1
+
+print $rows points data are retrieved
+if $rows != 10 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
+system sh/exec.sh -n dnode4 -s stop -x SIGINT
