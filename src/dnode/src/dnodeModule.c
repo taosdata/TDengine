@@ -127,14 +127,16 @@ int32_t dnodeInitModules() {
   return dnodeStartModules();
 }
 
-void dnodeProcessModuleStatus(uint32_t moduleStatus) {
+int32_t dnodeProcessModuleStatus(uint32_t moduleStatus) {
+  int32_t code = 0;
+
   for (int32_t module = TSDB_MOD_MNODE; module < TSDB_MOD_HTTP; ++module) {
     bool enableModule = moduleStatus & (1 << module);
     if (!tsModule[module].enable && enableModule) {
       dInfo("module status:%u is set, start %s module", moduleStatus, tsModule[module].name);
       tsModule[module].enable = true;
       dnodeSetModuleStatus(module);
-      (*tsModule[module].startFp)();
+      code = (*tsModule[module].startFp)();
     }
 
     if (tsModule[module].enable && !enableModule) {
@@ -144,21 +146,29 @@ void dnodeProcessModuleStatus(uint32_t moduleStatus) {
       (*tsModule[module].stopFp)();
     }
   }
+
+  return code;
 }
 
-bool dnodeStartMnode(SMInfos *pMinfos) {
-  SMInfos *pMnodes = pMinfos;
-
+int32_t dnodeStartMnode(SMInfos *pMinfos) {
   if (tsModuleStatus & (1 << TSDB_MOD_MNODE)) {
     dDebug("mnode module is already started, module status:%d", tsModuleStatus);
-    return false;
+    return 0;
   }
 
   uint32_t moduleStatus = tsModuleStatus | (1 << TSDB_MOD_MNODE);
   dInfo("start mnode module, module status:%d, new status:%d", tsModuleStatus, moduleStatus);
-  dnodeProcessModuleStatus(moduleStatus);
 
-  sdbUpdateSync(pMnodes);
+  int32_t code = dnodeProcessModuleStatus(moduleStatus);
+  if (code == 0) {
+    code = sdbUpdateSync(pMinfos);
+  }
 
-  return true;
+  if (code != 0) {
+    dError("failed to start mnode module since %s", tstrerror(code));
+    moduleStatus = tsModuleStatus & ~(1 << TSDB_MOD_MNODE);
+    dnodeProcessModuleStatus(moduleStatus);
+  }
+
+  return code;
 }
