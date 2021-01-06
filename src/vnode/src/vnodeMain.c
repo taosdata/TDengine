@@ -142,6 +142,11 @@ static int32_t vnodeAlterImp(SVnodeObj *pVnode, SCreateVnodeMsg *pVnodeCfg) {
 
 int32_t vnodeAlter(void *vparam, SCreateVnodeMsg *pVnodeCfg) {
   SVnodeObj *pVnode = vparam;
+  if (pVnode->dbCfgVersion == pVnodeCfg->cfg.dbCfgVersion && pVnode->vgCfgVersion == pVnodeCfg->cfg.vgCfgVersion) {
+    vDebug("vgId:%d, dbCfgVersion:%d and vgCfgVersion:%d not change", pVnode->vgId, pVnode->dbCfgVersion,
+           pVnode->vgCfgVersion);
+    return TSDB_CODE_SUCCESS;
+  }
 
   // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
   // dbCfgVersion can be corrected by status msg
@@ -400,15 +405,12 @@ void vnodeDestroy(SVnodeObj *pVnode) {
 }
 
 void vnodeCleanUp(SVnodeObj *pVnode) {
-  if (!vnodeInInitStatus(pVnode)) {
-    // it may be in updateing or reset state, then it shall wait
-    int32_t i = 0;
-    while (!vnodeSetClosingStatus(pVnode)) {
-      if (++i % 1000 == 0) {
-        sched_yield();
-      }
-    }
-  }
+  vDebug("vgId:%d, vnode will cleanup, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+
+  vnodeSetClosingStatus(pVnode);
+
+  // release local resources only after cutting off outside connections
+  qQueryMgmtNotifyClosed(pVnode->qMgmt);
 
   // stop replication module
   if (pVnode->sync > 0) {
@@ -417,10 +419,7 @@ void vnodeCleanUp(SVnodeObj *pVnode) {
     syncStop(sync);
   }
 
-  vDebug("vgId:%d, vnode will cleanup, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
-
-  // release local resources only after cutting off outside connections
-  qQueryMgmtNotifyClosed(pVnode->qMgmt);
+  vDebug("vgId:%d, vnode is cleaned, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
   vnodeRelease(pVnode);
 }
 

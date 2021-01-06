@@ -40,14 +40,14 @@ int32_t main(int32_t argc, char *argv[]) {
       printf("usage: %s [options] \n", argv[0]);
       printf("       [-c config]: config directory, default is: %s\n", configDir);
       printf("       [-f script]: script filename\n");
-      exit(0);
+      return 0;
     }
   }
 
   if (!simSystemInit()) {
     simError("failed to initialize the system");
     simSystemCleanUp();
-    exit(1);
+    return -1;
   }
 
   simInfo("simulator is running ...");
@@ -56,7 +56,7 @@ int32_t main(int32_t argc, char *argv[]) {
   SScript *script = simParseScript(scriptFile);
   if (script == NULL) {
     simError("parse script file:%s failed", scriptFile);
-    exit(-1);
+    return -1;
   }
 
   simScriptList[++simScriptPos] = script;

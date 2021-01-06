@@ -89,12 +89,17 @@ int taosInitTimer(void (*callback)(int), int ms) {
   if (code != 0) {
     uError("failed to create timer thread");
     return -1;
+  } else {
+    uDebug("timer thread:0x%08" PRIx64 " is created", taosGetPthreadId(timerThread));
   }
+
   return 0;
 }
 
 void taosUninitTimer() {
   stopTimer = true;
+
+  uDebug("join timer thread:0x%08" PRIx64, taosGetPthreadId(timerThread));
   pthread_join(timerThread, NULL);
 }
 

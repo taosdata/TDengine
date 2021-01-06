@@ -1667,7 +1667,7 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
 
   _end:
   assert(offset >= 0 && tsCols != NULL);
-  if (prevTs != INT64_MIN) {
+  if (prevTs != INT64_MIN && prevTs != *(int64_t*)pRuntimeEnv->prevRow[0]) {
     assert(prevRowIndex >= 0);
     item->lastKey = prevTs + step;
   }
@@ -7633,6 +7633,19 @@ void qQueryMgmtNotifyClosed(void* pQMgmt) {
   pthread_mutex_unlock(&pQueryMgmt->lock);
 
   taosCacheRefresh(pQueryMgmt->qinfoPool, queryMgmtKillQueryFn);
+}
+
+void qQueryMgmtReOpen(void *pQMgmt) {
+  if (pQMgmt == NULL) {
+    return;
+  }
+
+  SQueryMgmt *pQueryMgmt = pQMgmt;
+  qDebug("vgId:%d, set querymgmt reopen", pQueryMgmt->vgId);
+
+  pthread_mutex_lock(&pQueryMgmt->lock);
+  pQueryMgmt->closed = false;
+  pthread_mutex_unlock(&pQueryMgmt->lock);
 }
 
 void qCleanupQueryMgmt(void* pQMgmt) {
