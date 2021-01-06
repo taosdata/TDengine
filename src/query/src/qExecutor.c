@@ -2911,7 +2911,7 @@ void setTagVal(SQueryRuntimeEnv *pRuntimeEnv, void *pTable, void *tsdb) {
   SQInfo* pQInfo = GET_QINFO_ADDR(pRuntimeEnv);
 
   SExprInfo *pExprInfo = &pQuery->pExpr1[0];
-  if (pQuery->numOfOutput == 1 && pExprInfo->base.functionId == TSDB_FUNC_TS_COMP) {
+  if (pQuery->numOfOutput == 1 && pExprInfo->base.functionId == TSDB_FUNC_TS_COMP && pRuntimeEnv->stableQuery) {
     assert(pExprInfo->base.numOfParams == 1);
 
     int16_t tagColId = (int16_t)pExprInfo->base.arg->argValue.i64;
