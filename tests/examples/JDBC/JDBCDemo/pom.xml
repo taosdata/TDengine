@@ -8,6 +8,7 @@
     <artifactId>JDBCDemo</artifactId>
     <version>SNAPSHOT</version>
     <packaging>jar</packaging>
+
     <build>
         <plugins>
             <plugin>
