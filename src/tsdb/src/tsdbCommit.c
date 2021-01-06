@@ -29,6 +29,8 @@ typedef struct {
   SCommitIter *iters;  // memory iterators
   SReadH       readh;
   SDFileSet *  pWSet;
+  TSKEY        minKey;
+  TSKEY        maxKey;
   SArray *     aBlkIdx;
   SArray *     aSupBlk;
   SArray *     aSubBlk;
@@ -439,22 +441,74 @@ static int tsdbCommitToTable(SCommitH *pch, int tid) {
 
   tsdbSetCommitTable(pch, pIter->pTable);
 
+  // No memory data and no disk data, just return
   if (pIter->pIter == NULL && pch->readh.pBlockIdx == NULL) {
     TSDB_RUNLOCK_TABLE(pIter->pTable);
     return 0;
   }
 
-  if (tsdbLoadBlockInfo(pch, NULL) < 0) {
-    TSDB_RUNLOCK_TABLE(pIter->pTable);
-    return -1;
-  }
+  tsdbLoadBlockInfo(&(pch->readh), NULL);
 
-  // Loop to merge disk data and 
-  while (true) {
+  if (pIter->pIter == NULL) {
+    // No memory data but has disk data
     // TODO
+  } else {
+    TSKEY   nextKey = tsdbNextIterKey(pIter->pIter);
+    int     cidx = 0;
+    SBlock *pBlock = NULL;
+
+    void *ptr = taosbsearch((void *)(&nextKey), pch->readh.pBlkInfo->blocks, pch->readh.pBlockIdx->numOfBlocks,
+                            sizeof(SBlock), tsdbComparKeyBlock, TD_GE);
+
+    while (true) {
+      if ((nextKey == TSDB_DATA_TIMESTAMP_NULL || nextKey > pch->maxKey) && (cidx >= pch->readh.pBlockIdx->numOfBlocks))
+        break;
+      
+      if (tsdbComparKeyBlock((void *)(&nextKey), pBlock) < 0) {
+        if (pBlock->last) {
+          // merge with the last block
+        } else {
+          // Commit until pch->maxKey or (pBlock[1].keyFirst-1)
+        }
+      } else if (tsdbComparKeyBlock((void *)(&nextKey), pBlock) == 0) { // merge the block
+
+      } else {
+
+      }
+    }
   }
 
   TSDB_RUNLOCK_TABLE(pIter->pTable);
 
+  tsdbWriteBlockInfo(pch);
+
+  return 0;
+}
+
+static int tsdbSetCommitTable(SCommitH *pch, STable *pTable) {
+  // TODO
+  return 0;
+}
+
+static int tsdbComparKeyBlock(const void *arg1, const void *arg2) {
+  TSKEY   key = *(TSKEY *)arg1;
+  SBlock *pBlock = (SBlock *)arg2;
+
+  if (key < pBlock->keyFirst) {
+    return -1;
+  } else if (key > pBlock->keyLast) {
+    return 1;
+  } else {
+    return 0;
+  }
+}
+
+static int tsdbAppendCommit(SCommitIter *pIter, TSKEY keyEnd) {
+  // TODO
+  return 0;
+}
+
+static int tsdbMergeCommit(SCommitIter *pIter, SBlock *pBlock, TSKEY keyEnd) {
+  // TODO
   return 0;
 }
