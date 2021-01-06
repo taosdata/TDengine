@@ -1667,7 +1667,7 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
 
   _end:
   assert(offset >= 0 && tsCols != NULL);
-  if (prevTs != INT64_MIN) {
+  if (prevTs != INT64_MIN && prevTs != *(int64_t*)pRuntimeEnv->prevRow[0]) {
     assert(prevRowIndex >= 0);
     item->lastKey = prevTs + step;
   }

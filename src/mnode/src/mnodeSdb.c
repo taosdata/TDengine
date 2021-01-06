@@ -1051,7 +1051,10 @@ static int32_t sdbWriteFwdToQueue(int32_t vgId, void *wparam, int32_t qtype, voi
   memcpy(pRow->pHead, pHead, sizeof(SWalHead) + pHead->len);
   pRow->rowData = pRow->pHead->cont;
 
-  return sdbWriteToQueue(pRow, qtype);
+  int32_t code = sdbWriteToQueue(pRow, qtype);
+  if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) code = 0;
+
+  return code;
 }
 
 static int32_t sdbWriteRowToQueue(SSdbRow *pInputRow, int32_t action) {
