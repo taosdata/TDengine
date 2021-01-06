@@ -7635,6 +7635,19 @@ void qQueryMgmtNotifyClosed(void* pQMgmt) {
   taosCacheRefresh(pQueryMgmt->qinfoPool, queryMgmtKillQueryFn);
 }
 
+void qQueryMgmtReOpen(void *pQMgmt) {
+  if (pQMgmt == NULL) {
+    return;
+  }
+
+  SQueryMgmt *pQueryMgmt = pQMgmt;
+  qDebug("vgId:%d, set querymgmt reopen", pQueryMgmt->vgId);
+
+  pthread_mutex_lock(&pQueryMgmt->lock);
+  pQueryMgmt->closed = false;
+  pthread_mutex_unlock(&pQueryMgmt->lock);
+}
+
 void qCleanupQueryMgmt(void* pQMgmt) {
   if (pQMgmt == NULL) {
     return;

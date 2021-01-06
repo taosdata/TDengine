@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taosmsg.h"
+#include "query.h"
 #include "vnodeStatus.h"
 
 char* vnodeStatus[] = {
@@ -44,11 +46,13 @@ bool vnodeSetReadyStatus(SVnodeObj* pVnode) {
     vDebug("vgId:%d, cannot set status:ready, old:%s", pVnode->vgId, vnodeStatus[pVnode->status]);
   }
 
+  qQueryMgmtReOpen(pVnode->qMgmt);
+
   pthread_mutex_unlock(&pVnode->statusMutex);
   return set;
 }
 
-bool vnodeSetClosingStatus(SVnodeObj* pVnode) {
+static bool vnodeSetClosingStatusImp(SVnodeObj* pVnode) {
   bool set = false;
   pthread_mutex_lock(&pVnode->statusMutex);
 
@@ -61,6 +65,20 @@ bool vnodeSetClosingStatus(SVnodeObj* pVnode) {
 
   pthread_mutex_unlock(&pVnode->statusMutex);
   return set;
+}
+
+bool vnodeSetClosingStatus(SVnodeObj* pVnode) {
+  if (!vnodeInInitStatus(pVnode)) {
+    // it may be in updating or reset state, then it shall wait
+    int32_t i = 0;
+    while (!vnodeSetClosingStatusImp(pVnode)) {
+      if (++i % 1000 == 0) {
+        sched_yield();
+      }
+    }
+  }
+
+  return true;
 }
 
 bool vnodeSetUpdatingStatus(SVnodeObj* pVnode) {
