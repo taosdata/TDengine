@@ -1,4 +1,6 @@
-package com.taosdata.taosdemo.utils;
+package com.taosdata.taosdemo.components;
+
+import com.taosdata.taosdemo.utils.TimeStampUtil;
 
 public final class JdbcTaosdemoConfig {
     // instance
@@ -7,10 +9,14 @@ public final class JdbcTaosdemoConfig {
     public String user = "root";            //user
     public String password = "taosdata";    //password
     // database
-    public String database = "test";        //database
+    public String database = "jdbcdb";        //database
     public int keep = 3650;                 //keep
     public int days = 30;                   //days
     public int replica = 1;                 //replica
+    public int blocks = 16;
+    public int cache = 8;
+    public String precision = "ms";
+
     //super table
     public boolean doCreateTable = true;
     public String superTable = "weather";   //super table name
@@ -20,19 +26,19 @@ public final class JdbcTaosdemoConfig {
     public int numOfTags;
     public String superTableSQL;
     //sub table
-    public String tablePrefix = "t";
-    public int numOfTables = 100;
-    public int numOfThreadsForCreate = 1;
+    public String prefixOfTable = "t";
     // insert task
     public boolean autoCreateTable;
-    public int numOfRowsPerTable = 100;
+    public long numOfTables = 10;
+    public long numOfRowsPerTable = 10;
+    public int numOfTablesPerSQL = 1;
+    public int numOfValuesPerSQL = 1;
+    public int numOfThreadsForCreate = 1;
     public int numOfThreadsForInsert = 1;
-    public int numOfTablesPerSQL = 10;
-    public int numOfValuesPerSQL = 10;
     public long startTime;
-    public long timeGap;
-    public int sleep = 0;
-    public int order = 0;
+    public long timeGap = 1;
+    public int frequency;
+    public int order;
     public int rate = 10;
     public long range = 1000l;
     // select task
@@ -48,10 +54,14 @@ public final class JdbcTaosdemoConfig {
         System.out.println("-user                       The TDengine user name to use when connecting to the server. Default is 'root'");
         System.out.println("-password                   The password to use when connecting to the server.Default is 'taosdata'");
         // database
-        System.out.println("-database                   Destination database. Default is 'test'");
+        System.out.println("-database                   Destination database. Default is 'jdbcdb'");
         System.out.println("-keep                       database keep parameter. Default is 3650");
         System.out.println("-days                       database days parameter. Default is 30");
         System.out.println("-replica                    database replica parameter. Default 1, min: 1, max: 3");
+        System.out.println("-blocks                     database blocks parameter. Default is 16");
+        System.out.println("-cache                      database cache parameter. Default is 8");
+        System.out.println("-precision                  database precision parameter. Default is ms");
+
         // super table
         System.out.println("-doCreateTable              do create super table and sub table, true or false, Default true");
         System.out.println("-superTable                 super table name. Default 'weather'");
@@ -63,7 +73,7 @@ public final class JdbcTaosdemoConfig {
                 "                            Default is 'create table weather(ts timestamp, temperature float, humidity int) tags(location nchar(64), groupId int). \n" +
                 "                            if you use this parameter, the numOfFields and numOfTags will be invalid'");
         // sub table
-        System.out.println("-tablePrefix                The prefix of sub tables. Default is 't'");
+        System.out.println("-prefixOfTable              The prefix of sub tables. Default is 't'");
         System.out.println("-numOfTables                The number of tables. Default is 1");
         System.out.println("-numOfThreadsForCreate      The number of thread during create sub table. Default is 1");
         // insert task
@@ -74,11 +84,10 @@ public final class JdbcTaosdemoConfig {
         System.out.println("-numOfValuesPerSQL          The number of value per SQL. Default is 1");
         System.out.println("-startTime                  start time for insert task, The format is \"yyyy-MM-dd HH:mm:ss.SSS\".");
         System.out.println("-timeGap                    the number of time gap. Default is 1000 ms");
-        System.out.println("-sleep                      The number of milliseconds for sleep after each insert. default is 0");
+        System.out.println("-frequency                  the number of records per second inserted into one table. default is 0, do not control frequency");
         System.out.println("-order                      Insert mode--0: In order, 1: Out of order. Default is in order");
         System.out.println("-rate                       The proportion of data out of order. effective only if order is 1. min 0, max 100, default is 10");
         System.out.println("-range                      The range of data out of order. effective only if order is 1. default is 1000 ms");
-
         // query task
 //        System.out.println("-sqlFile                   The select sql file");
         // drop task
@@ -120,6 +129,15 @@ public final class JdbcTaosdemoConfig {
             if ("-replica".equals(args[i]) && i < args.length - 1) {
                 replica = Integer.parseInt(args[++i]);
             }
+            if ("-blocks".equals(args[i]) && i < args.length - 1) {
+                blocks = Integer.parseInt(args[++i]);
+            }
+            if ("-cache".equals(args[i]) && i < args.length - 1) {
+                cache = Integer.parseInt(args[++i]);
+            }
+            if ("-precision".equals(args[i]) && i < args.length - 1) {
+                precision = args[++i];
+            }
             // super table
             if ("-doCreateTable".equals(args[i]) && i < args.length - 1) {
                 doCreateTable = Boolean.parseBoolean(args[++i]);
@@ -143,11 +161,11 @@ public final class JdbcTaosdemoConfig {
                 superTableSQL = args[++i];
             }
             // sub table
-            if ("-tablePrefix".equals(args[i]) && i < args.length - 1) {
-                tablePrefix = args[++i];
+            if ("-prefixOfTable".equals(args[i]) && i < args.length - 1) {
+                prefixOfTable = args[++i];
             }
             if ("-numOfTables".equals(args[i]) && i < args.length - 1) {
-                numOfTables = Integer.parseInt(args[++i]);
+                numOfTables = Long.parseLong(args[++i]);
             }
             if ("-autoCreateTable".equals(args[i]) && i < args.length - 1) {
                 autoCreateTable = Boolean.parseBoolean(args[++i]);
@@ -157,7 +175,7 @@ public final class JdbcTaosdemoConfig {
             }
             // insert task
             if ("-numOfRowsPerTable".equals(args[i]) && i < args.length - 1) {
-                numOfRowsPerTable = Integer.parseInt(args[++i]);
+                numOfRowsPerTable = Long.parseLong(args[++i]);
             }
             if ("-numOfThreadsForInsert".equals(args[i]) && i < args.length - 1) {
                 numOfThreadsForInsert = Integer.parseInt(args[++i]);
@@ -174,8 +192,8 @@ public final class JdbcTaosdemoConfig {
             if ("-timeGap".equals(args[i]) && i < args.length - 1) {
                 timeGap = Long.parseLong(args[++i]);
             }
-            if ("-sleep".equals(args[i]) && i < args.length - 1) {
-                sleep = Integer.parseInt(args[++i]);
+            if ("-frequency".equals(args[i]) && i < args.length - 1) {
+                frequency = Integer.parseInt(args[++i]);
             }
             if ("-order".equals(args[i]) && i < args.length - 1) {
                 order = Integer.parseInt(args[++i]);
@@ -195,10 +213,6 @@ public final class JdbcTaosdemoConfig {
                 dropTable = Boolean.parseBoolean(args[++i]);
             }
         }
-    }
-
-    public static void main(String[] args) {
-        JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
     }
 
 }

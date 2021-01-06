@@ -1,8 +1,7 @@
-package com.taosdata.taosdemo.mapper;
+package com.taosdata.taosdemo.dao;
 
 import com.taosdata.taosdemo.domain.SubTableMeta;
 import com.taosdata.taosdemo.domain.SubTableValue;
-import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -11,7 +10,7 @@ import java.util.List;
 public interface SubTableMapper {
 
     // 创建：子表
-    int createUsingSuperTable(SubTableMeta subTableMeta);
+    void createUsingSuperTable(SubTableMeta subTableMeta);
 
     // 插入：一张子表多个values
     int insertOneTableMultiValues(SubTableValue subTableValue);
@@ -20,10 +19,10 @@ public interface SubTableMapper {
     int insertOneTableMultiValuesUsingSuperTable(SubTableValue subTableValue);
 
     // 插入：多张表多个values
-    int insertMultiTableMultiValues(@Param("tables") List<SubTableValue> tables);
+    int insertMultiTableMultiValues(List<SubTableValue> tables);
 
     // 插入：多张表多个values，自动建表
-    int insertMultiTableMultiValuesUsingSuperTable(@Param("tables") List<SubTableValue> tables);
+    int insertMultiTableMultiValuesUsingSuperTable(List<SubTableValue> tables);
 
     //<!-- TODO:修改子表标签值 alter table ${tablename} set tag tagName=newTagValue-->
 

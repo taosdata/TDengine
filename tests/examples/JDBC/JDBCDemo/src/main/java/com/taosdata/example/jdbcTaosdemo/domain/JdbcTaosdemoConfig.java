@@ -1,54 +1,90 @@
 package com.taosdata.example.jdbcTaosdemo.domain;
 
+import com.taosdata.example.jdbcTaosdemo.utils.TimeStampUtil;
+
 public final class JdbcTaosdemoConfig {
+    // instance
+    public String host;                     //host
+    public int port = 6030;                 //port
+    public String user = "root";            //user
+    public String password = "taosdata";    //password
+    // database
+    public String database = "test";        //database
+    public int keep = 3650;                 //keep
+    public int days = 30;                   //days
+    public int replica = 1;                 //replica
+    //super table
+    public boolean doCreateTable = true;
+    public String superTable = "weather";   //super table name
+    public String prefixOfFields = "col";
+    public int numOfFields;
+    public String prefixOfTags = "tag";
+    public int numOfTags;
+    public String superTableSQL;
+    //sub table
+    public String prefixOfTable = "t";
+    // insert task
+    public boolean autoCreateTable = true;
+    public long numOfTables = 100;
+    public long numOfRowsPerTable = 100;
+    public int numOfTablesPerSQL = 10;
+    public int numOfValuesPerSQL = 10;
+    public int numOfThreadsForCreate = 1;
+    public int numOfThreadsForInsert = 1;
+    public long startTime;
+    public long timeGap = 1;
+    public int frequency;
+    public int order;
+    public int rate = 10;
+    public long range = 1000l;
+    // select task
 
-    //The host to connect to TDengine. Must insert one
-    private String host;
-    //The TCP/IP port number to use for the connection. Default is 6030.
-    private int port = 6030;
-    //The TDengine user name to use when connecting to the server. Default is 'root'
-    private String user = "root";
-    //The password to use when connecting to the server. Default is 'taosdata'
-    private String password = "taosdata";
-
-    //Destination database. Default is 'test'
-    private String dbName = "test";
-    //keep
-    private int keep = 36500;
-    //days
-    private int days = 120;
-
-    //Super table Name. Default is 'meters'
-    private String stbName = "meters";
-    //Table name prefix. Default is 'd'
-    private String tbPrefix = "d";
-    //The number of tables. Default is 10.
-    private int numberOfTable = 10;
-    //The number of records per table. Default is 2
-    private int numberOfRecordsPerTable = 2;
-    //The number of records per request. Default is 100
-    private int numberOfRecordsPerRequest = 100;
-
-    //The number of threads. Default is 1.
-    private int numberOfThreads = 1;
-    //Delete data. Default is false
-    private boolean deleteTable = false;
+    // drop task
+    public boolean dropTable = false;
 
     public static void printHelp() {
-        System.out.println("Usage: java -jar JdbcTaosDemo.jar [OPTION...]");
-        System.out.println("-h    host                       The host to connect to TDengine. you must input one");
-        System.out.println("-p    port                       The TCP/IP port number to use for the connection. Default is 6030");
-        System.out.println("-u    user                       The TDengine user name to use when connecting to the server. Default is 'root'");
-        System.out.println("-P    password                   The password to use when connecting to the server.Default is 'taosdata'");
-        System.out.println("-d    database                   Destination database. Default is 'test'");
-        System.out.println("-m    tablePrefix                Table prefix name. Default is 'd'");
-        System.out.println("-t    num_of_tables              The number of tables. Default is 10");
-        System.out.println("-n    num_of_records_per_table   The number of records per table. Default is 2");
-        System.out.println("-r    num_of_records_per_req     The number of records per request. Default is 100");
-        System.out.println("-T    num_of_threads             The number of threads. Default is 1");
-        System.out.println("-D    delete table               Delete data methods. Default is false");
-        System.out.println("--help                           Give this help list");
-//        System.out.println("--infinite                       infinite insert mode");
+        System.out.println("Usage: java -jar jdbc-taosdemo-2.0.jar [OPTION...]");
+        // instance
+        System.out.println("-host                       The host to connect to TDengine which you must specify");
+        System.out.println("-port                       The TCP/IP port number to use for the connection. Default is 6030");
+        System.out.println("-user                       The TDengine user name to use when connecting to the server. Default is 'root'");
+        System.out.println("-password                   The password to use when connecting to the server.Default is 'taosdata'");
+        // database
+        System.out.println("-database                   Destination database. Default is 'test'");
+        System.out.println("-keep                       database keep parameter. Default is 3650");
+        System.out.println("-days                       database days parameter. Default is 30");
+        System.out.println("-replica                    database replica parameter. Default 1, min: 1, max: 3");
+        // super table
+        System.out.println("-doCreateTable              do create super table and sub table, true or false, Default true");
+        System.out.println("-superTable                 super table name. Default 'weather'");
+        System.out.println("-prefixOfFields             The prefix of field in super table. Default is 'col'");
+        System.out.println("-numOfFields                The number of field in super table. Default is (ts timestamp, temperature float, humidity int).");
+        System.out.println("-prefixOfTags               The prefix of tag in super table. Default is 'tag'");
+        System.out.println("-numOfTags                  The number of tag in super table. Default is (location nchar(64), groupId int).");
+        System.out.println("-superTableSQL              specify a sql statement for the super table.\n" +
+                "                            Default is 'create table weather(ts timestamp, temperature float, humidity int) tags(location nchar(64), groupId int). \n" +
+                "                            if you use this parameter, the numOfFields and numOfTags will be invalid'");
+        // sub table
+        System.out.println("-prefixOfTable              The prefix of sub tables. Default is 't'");
+        System.out.println("-numOfTables                The number of tables. Default is 1");
+        System.out.println("-numOfThreadsForCreate      The number of thread during create sub table. Default is 1");
+        // insert task
+        System.out.println("-autoCreateTable            Use auto Create sub tables SQL. Default is false");
+        System.out.println("-numOfRowsPerTable          The number of records per table. Default is 1");
+        System.out.println("-numOfThreadsForInsert      The number of threads during insert row. Default is 1");
+        System.out.println("-numOfTablesPerSQL          The number of table per SQL. Default is 1");
+        System.out.println("-numOfValuesPerSQL          The number of value per SQL. Default is 1");
+        System.out.println("-startTime                  start time for insert task, The format is \"yyyy-MM-dd HH:mm:ss.SSS\".");
+        System.out.println("-timeGap                    the number of time gap. Default is 1000 ms");
+        System.out.println("-frequency                  the number of records per second inserted into one table. default is 0, do not control frequency");
+        System.out.println("-order                      Insert mode--0: In order, 1: Out of order. Default is in order");
+        System.out.println("-rate                       The proportion of data out of order. effective only if order is 1. min 0, max 100, default is 10");
+        System.out.println("-range                      The range of data out of order. effective only if order is 1. default is 1000 ms");
+        // query task
+//        System.out.println("-sqlFile                   The select sql file");
+        // drop task
+        System.out.println("-dropTable                  Drop data before quit. Default is false");
+        System.out.println("--help                      Give this help list");
     }
 
     /**
@@ -59,95 +95,111 @@ public final class JdbcTaosdemoConfig {
      */
     public JdbcTaosdemoConfig(String[] args) {
         for (int i = 0; i < args.length; i++) {
-            if ("-h".equals(args[i]) && i < args.length - 1) {
+            // instance
+            if ("-host".equals(args[i]) && i < args.length - 1) {
                 host = args[++i];
             }
-            if ("-p".equals(args[i]) && i < args.length - 1) {
+            if ("-port".equals(args[i]) && i < args.length - 1) {
                 port = Integer.parseInt(args[++i]);
             }
-            if ("-u".equals(args[i]) && i < args.length - 1) {
+            if ("-user".equals(args[i]) && i < args.length - 1) {
                 user = args[++i];
             }
-            if ("-P".equals(args[i]) && i < args.length - 1) {
+            if ("-password".equals(args[i]) && i < args.length - 1) {
                 password = args[++i];
             }
-            if ("-d".equals(args[i]) && i < args.length - 1) {
-                dbName = args[++i];
+            // database
+            if ("-database".equals(args[i]) && i < args.length - 1) {
+                database = args[++i];
             }
-            if ("-m".equals(args[i]) && i < args.length - 1) {
-                tbPrefix = args[++i];
+            if ("-keep".equals(args[i]) && i < args.length - 1) {
+                keep = Integer.parseInt(args[++i]);
             }
-            if ("-t".equals(args[i]) && i < args.length - 1) {
-                numberOfTable = Integer.parseInt(args[++i]);
+            if ("-days".equals(args[i]) && i < args.length - 1) {
+                days = Integer.parseInt(args[++i]);
             }
-            if ("-n".equals(args[i]) && i < args.length - 1) {
-                numberOfRecordsPerTable = Integer.parseInt(args[++i]);
+            if ("-replica".equals(args[i]) && i < args.length - 1) {
+                replica = Integer.parseInt(args[++i]);
             }
-            if ("-r".equals(args[i]) && i < args.length - 1) {
-                numberOfRecordsPerRequest = Integer.parseInt(args[++i]);
+            // super table
+            if ("-doCreateTable".equals(args[i]) && i < args.length - 1) {
+                doCreateTable = Boolean.parseBoolean(args[++i]);
             }
-            if ("-T".equals(args[i]) && i < args.length - 1) {
-                numberOfThreads = Integer.parseInt(args[++i]);
+            if ("-superTable".equals(args[i]) && i < args.length - 1) {
+                superTable = args[++i];
             }
-            if ("-D".equals(args[i]) && i < args.length - 1) {
-                deleteTable = Boolean.parseBoolean(args[++i]);
+            if ("-prefixOfFields".equals(args[i]) && i < args.length - 1) {
+                prefixOfFields = args[++i];
+            }
+            if ("-numOfFields".equals(args[i]) && i < args.length - 1) {
+                numOfFields = Integer.parseInt(args[++i]);
+            }
+            if ("-prefixOfTags".equals(args[i]) && i < args.length - 1) {
+                prefixOfTags = args[++i];
+            }
+            if ("-numOfTags".equals(args[i]) && i < args.length - 1) {
+                numOfTags = Integer.parseInt(args[++i]);
+            }
+            if ("-superTableSQL".equals(args[i]) && i < args.length - 1) {
+                superTableSQL = args[++i];
+            }
+            // sub table
+            if ("-prefixOfTable".equals(args[i]) && i < args.length - 1) {
+                prefixOfTable = args[++i];
+            }
+            if ("-numOfTables".equals(args[i]) && i < args.length - 1) {
+                numOfTables = Long.parseLong(args[++i]);
+            }
+            if ("-autoCreateTable".equals(args[i]) && i < args.length - 1) {
+                autoCreateTable = Boolean.parseBoolean(args[++i]);
+            }
+            if ("-numOfThreadsForCreate".equals(args[i]) && i < args.length - 1) {
+                numOfThreadsForCreate = Integer.parseInt(args[++i]);
+            }
+            // insert task
+            if ("-numOfRowsPerTable".equals(args[i]) && i < args.length - 1) {
+                numOfRowsPerTable = Long.parseLong(args[++i]);
+            }
+            if ("-numOfThreadsForInsert".equals(args[i]) && i < args.length - 1) {
+                numOfThreadsForInsert = Integer.parseInt(args[++i]);
+            }
+            if ("-numOfTablesPerSQL".equals(args[i]) && i < args.length - 1) {
+                numOfTablesPerSQL = Integer.parseInt(args[++i]);
+            }
+            if ("-numOfValuesPerSQL".equals(args[i]) && i < args.length - 1) {
+                numOfValuesPerSQL = Integer.parseInt(args[++i]);
+            }
+            if ("-startTime".equals(args[i]) && i < args.length - 1) {
+                startTime = TimeStampUtil.datetimeToLong(args[++i]);
+            }
+            if ("-timeGap".equals(args[i]) && i < args.length - 1) {
+                timeGap = Long.parseLong(args[++i]);
+            }
+            if ("-frequency".equals(args[i]) && i < args.length - 1) {
+                frequency = Integer.parseInt(args[++i]);
+            }
+            if ("-order".equals(args[i]) && i < args.length - 1) {
+                order = Integer.parseInt(args[++i]);
+            }
+            if ("-rate".equals(args[i]) && i < args.length - 1) {
+                rate = Integer.parseInt(args[++i]);
+                if (rate < 0 || rate > 100)
+                    throw new IllegalArgumentException("rate must between 0 and 100");
+            }
+            if ("-range".equals(args[i]) && i < args.length - 1) {
+                range = Integer.parseInt(args[++i]);
+            }
+            // select task
+
+            // drop task
+            if ("-dropTable".equals(args[i]) && i < args.length - 1) {
+                dropTable = Boolean.parseBoolean(args[++i]);
             }
         }
     }
 
-    public String getHost() {
-        return host;
+    public static void main(String[] args) {
+        JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
     }
 
-    public int getPort() {
-        return port;
-    }
-
-    public String getUser() {
-        return user;
-    }
-
-    public String getPassword() {
-        return password;
-    }
-
-    public String getDbName() {
-        return dbName;
-    }
-
-    public int getKeep() {
-        return keep;
-    }
-
-    public int getDays() {
-        return days;
-    }
-
-    public String getStbName() {
-        return stbName;
-    }
-
-    public String getTbPrefix() {
-        return tbPrefix;
-    }
-
-    public int getNumberOfTable() {
-        return numberOfTable;
-    }
-
-    public int getNumberOfRecordsPerTable() {
-        return numberOfRecordsPerTable;
-    }
-
-    public int getNumberOfThreads() {
-        return numberOfThreads;
-    }
-
-    public boolean isDeleteTable() {
-        return deleteTable;
-    }
-
-    public int getNumberOfRecordsPerRequest() {
-        return numberOfRecordsPerRequest;
-    }
 }
