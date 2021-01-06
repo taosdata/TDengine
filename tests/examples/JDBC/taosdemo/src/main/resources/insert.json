@@ -1,0 +1,119 @@
+{
+  "filetype": "insert",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "thread_count": 2,
+  "databases": [
+    {
+      "dbinfo": {
+        "name": "db04",
+        "drop": "no",
+        "replica": 1,
+        "days": 2,
+        "cache": 16,
+        "blocks": 8,
+        "precision": "ms",
+        "keep": 365,
+        "minRows": 100,
+        "maxRows": 4096,
+        "comp": 2,
+        "walLevel": 1,
+        "quorum": 1,
+        "fsync": 3000,
+        "update": 0
+      },
+      "super_tables": [
+        {
+          "name": "stb04",
+          "child_table_exists": "no",
+          "childtable_count": 10,
+          "childtable_prefix": "stb01_",
+          "auto_create_table": "no",
+          "data_source": "rand",
+          "insert_mode": "taosc",
+          "insert_rate": 0,
+          "insert_rows": 100,
+          "multi_thread_write_one_tbl": "no",
+          "number_of_tbl_in_one_sql": 0,
+          "rows_per_tbl": 3,
+          "max_sql_len": 1024,
+          "disorder_ratio": 0,
+          "disorder_range": 1000,
+          "timestamp_step": 10,
+          "start_timestamp": "2020-10-01 00:00:00.000",
+          "sample_format": "csv",
+          "sample_file": "./sample.csv",
+          "tags_file": "",
+          "columns": [
+            {
+              "type": "TINYINT"
+            },
+            {
+              "type": "SMALLINT"
+            },
+            {
+              "type": "INT"
+            },
+            {
+              "type": "BIGINT"
+            },
+            {
+              "type": "BOOL"
+            },
+            {
+              "type": "FLOAT"
+            },
+            {
+              "type": "DOUBLE"
+            },
+            {
+              "type": "TIMESTAMP"
+            },
+            {
+              "type": "BINARY",
+              "len": 16
+            },
+            {
+              "type": "NCHAR",
+              "len": 4
+            }
+          ],
+          "tags": [
+            {
+              "type": "TINYINT"
+            },
+            {
+              "type": "SMALLINT"
+            },
+            {
+              "type": "INT"
+            },
+            {
+              "type": "BIGINT"
+            },
+            {
+              "type": "BOOL"
+            },
+            {
+              "type": "FLOAT"
+            },
+            {
+              "type": "DOUBLE"
+            },
+            {
+              "type": "BINARY",
+              "len": 16
+            },
+            {
+              "type": "NCHAR",
+              "len": 4
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

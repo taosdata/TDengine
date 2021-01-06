@@ -1,20 +1,16 @@
-package com.taosdata.taosdemo.mapper;
+package com.taosdata.taosdemo.dao;
 
 import com.taosdata.taosdemo.domain.SuperTableMeta;
-import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
 @Repository
 public interface SuperTableMapper {
 
-    // 创建超级表，使用自己定义的SQL语句
-    int createSuperTableUsingSQL(@Param("createSuperTableSQL") String sql);
-
     // 创建超级表 create table if not exists xxx.xxx (f1 type1, f2 type2, ... ) tags( t1 type1, t2 type2 ...)
-    int createSuperTable(SuperTableMeta tableMetadata);
+    void createSuperTable(SuperTableMeta tableMetadata);
 
     // 删除超级表 drop table if exists xxx;
-    int dropSuperTable(@Param("database") String database, @Param("name") String name);
+    void dropSuperTable(String database, String name);
 
     //<!-- TODO:查询所有超级表信息 show stables -->
 
