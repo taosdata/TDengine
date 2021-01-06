@@ -19,7 +19,7 @@ public class AppMemoryLeakTest {
         }
     }
 
-    @Test
+    @Test(expected = OutOfMemoryError.class)
     public void testCreateTooManyStatement() throws ClassNotFoundException, SQLException {
         Class.forName("com.taosdata.jdbc.TSDBDriver");
         int stmtCnt = 0;
