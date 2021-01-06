@@ -28,7 +28,7 @@ public class CreateTableTask implements Runnable {
             Connection connection = ConnectionFactory.build(config);
             for (int i = startIndex; i < startIndex + tableNumber; i++) {
                 Statement statement = connection.createStatement();
-                String sql = SqlSpeller.createTableSQL(i + 1, config.getDbName(), config.getStbName());
+                String sql = SqlSpeller.createTableSQL(i + 1, config.database, config.superTable);
                 statement.execute(sql);
                 statement.close();
                 logger.info(">>> " + sql);
