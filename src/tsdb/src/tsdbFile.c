@@ -241,7 +241,12 @@ void tsdbInitDFileSet(SDFileSet *pSet, int vid, int fid, int ver, int level, int
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
     tsdbInitDFile(pDFile, vid, fid, ver, level, id, NULL, ftype);
-    // TODO: reset level and id
+  }
+}
+
+void tsdbInitDFileSetWithOld(SDFileSet *pSet, SDFileSet *pOldSet) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    tsdbInitDFileWithOld(TSDB_DFILE_IN_SET(pSet, ftype), TSDB_DFILE_IN_SET(pOldSet, ftype));
   }
 }
 
@@ -267,7 +272,6 @@ int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
   return 0;
 }
 
-int tsdbMoveDFileSet(SDFileSet *pOldSet, SDFileSet *pNewSet) {
-  // TODO
-  return 0;
+int tsdbCopyDFileSet(SDFileSet *pFromSet, SDFileSet *pToSet) {
+  // return 0;
 }

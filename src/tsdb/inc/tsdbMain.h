@@ -368,9 +368,11 @@ typedef struct {
 #define TSDB_DFILE_IN_SET(s, t) ((s)->files + (t))
 
 void tsdbInitDFileSet(SDFileSet* pSet, int vid, int fid, int ver, int level, int id);
+void tsdbInitDFileSetWithOld(SDFileSet *pSet, SDFileSet *pOldSet);
 int  tsdbOpenDFileSet(SDFileSet* pSet, int flags);
 void tsdbCloseDFileSet(SDFileSet* pSet);
 int  tsdbUpdateDFileSetHeader(SDFileSet* pSet);
+int  tsdbCopyDFileSet(SDFileSet* pFromSet, SDFileSet* pToSet);
 
 /* Statistic information of the TSDB file system.
  */
