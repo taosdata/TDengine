@@ -6259,10 +6259,12 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
 int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg1 = "invalid table name";
+  const char* msg2 = "functions not allowed in CQ";
   const char* msg3 = "fill only available for interval query";
   const char* msg4 = "fill option not supported in stream computing";
   const char* msg5 = "sql too long";  // todo ADD support
   const char* msg6 = "from missing in subclause";
+  const char* msg7 = "time interval is required";
   
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
@@ -6272,10 +6274,10 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   STableMetaInfo*  pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   // if sql specifies db, use it, otherwise use default db
-  SStrToken* pzTableName = &(pCreateTable->name);
+  SStrToken* pName = &(pCreateTable->name);
   SQuerySQL* pQuerySql = pCreateTable->pSelect;
 
-  if (tscValidateName(pzTableName) != TSDB_CODE_SUCCESS) {
+  if (tscValidateName(pName) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
   
@@ -6314,15 +6316,19 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   // set interval value
   if (parseIntervalClause(pSql, pQueryInfo, pQuerySql) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
-  } else {
-    if ((pQueryInfo->interval.interval > 0) &&
-        (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
-      return TSDB_CODE_TSC_INVALID_SQL;
-    }
+  }
+
+  if ((pQueryInfo->interval.interval > 0) &&
+      (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  }
+
+  if (!tscIsProjectionQuery(pQueryInfo) && pQueryInfo->interval.interval == 0) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
   // set the created table[stream] name
-  code = tscSetTableFullName(pTableMetaInfo, pzTableName, pSql);
+  code = tscSetTableFullName(pTableMetaInfo, pName, pSql);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

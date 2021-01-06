@@ -399,11 +399,16 @@ static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
   tscSetRetryTimer(pStream, pSql, timer);
 }
 
-static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
+static int32_t tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   int64_t minIntervalTime =
       (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMinIntervalTime * 1000L : tsMinIntervalTime;
   
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+
+  if (!pStream->isProject && pQueryInfo->interval.interval == 0) {
+    sprintf(pSql->cmd.payload, "the interval value is 0");
+    return -1;
+  }
   
   if (pQueryInfo->interval.intervalUnit != 'n' && pQueryInfo->interval.intervalUnit!= 'y' && pQueryInfo->interval.interval < minIntervalTime) {
     tscWarn("%p stream:%p, original sample interval:%" PRId64 " too small, reset to:%" PRId64, pSql, pStream,
@@ -443,6 +448,8 @@ static void tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
     pQueryInfo->interval.interval = 0; // clear the interval value to avoid the force time window split by query processor
     pQueryInfo->interval.sliding = 0;
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, int64_t stime) {
@@ -492,33 +499,18 @@ static int64_t tscGetLaunchTimestamp(const SSqlStream *pStream) {
   return (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? timer / 1000L : timer;
 }
 
-static void setErrorInfo(SSqlObj* pSql, int32_t code, char* info) {
-  if (pSql == NULL) {
-    return;
-  }
-
-  SSqlCmd* pCmd = &pSql->cmd;
-
-  pSql->res.code = code;
-  
-  if (info != NULL) {
-    strncpy(pCmd->payload, info, pCmd->payloadLen);
-  }
-}
-
 static void tscCreateStream(void *param, TAOS_RES *res, int code) {
   SSqlStream* pStream = (SSqlStream*)param;
   SSqlObj* pSql = pStream->pSql;
   SSqlCmd* pCmd = &pSql->cmd;
 
   if (code != TSDB_CODE_SUCCESS) {
-    setErrorInfo(pSql, code, pCmd->payload);
-    tscError("%p open stream failed, sql:%s, reason:%s, code:0x%08x", pSql, pSql->sqlstr, pCmd->payload, code);
+    pSql->res.code = code;
+    tscError("%p open stream failed, sql:%s, reason:%s, code:%s", pSql, pSql->sqlstr, pCmd->payload, tstrerror(code));
+
     pStream->fp(pStream->param, NULL, NULL);
     return;
   }
-
-  registerSqlObj(pSql);
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -530,13 +522,22 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
   pStream->ctime = taosGetTimestamp(pStream->precision);
   pStream->etime = pQueryInfo->window.ekey;
 
-  tscAddIntoStreamList(pStream);
+  if (tscSetSlidingWindowInfo(pSql, pStream) != TSDB_CODE_SUCCESS) {
+    pSql->res.code = code;
 
-  tscSetSlidingWindowInfo(pSql, pStream);
+    tscError("%p stream %p open failed, since the interval value is incorrect", pSql, pStream);
+    pStream->fp(pStream->param, NULL, NULL);
+    return;
+  }
+
   pStream->stime = tscGetStreamStartTimestamp(pSql, pStream, pStream->stime);
 
   int64_t starttime = tscGetLaunchTimestamp(pStream);
   pCmd->command = TSDB_SQL_SELECT;
+
+  registerSqlObj(pSql);
+  tscAddIntoStreamList(pStream);
+
   taosTmrReset(tscProcessStreamTimer, (int32_t)starttime, pStream, tscTmr, &pStream->pTimer);
 
   tscDebug("%p stream:%p is opened, query on:%s, interval:%" PRId64 ", sliding:%" PRId64 ", first launched in:%" PRId64 ", sql:%s", pSql,
