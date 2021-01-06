@@ -24,9 +24,14 @@ typedef struct {
 } SRtn;
 
 typedef struct {
-  SRtn         rtn;
-  SCommitIter *iters;
-  SRWHelper    whelper;
+  SRtn         rtn;  // retention snapshot
+  int          niters;
+  SCommitIter *iters;  // memory iterators
+  SReadH       readh;
+  SDFileSet *  pWSet;
+  SArray *     aBlkIdx;
+  SArray *     aSupBlk;
+  SArray *     aSubBlk;
   SDataCols *  pDataCols;
 } SCommitH;
 
@@ -210,59 +215,44 @@ static bool tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TS
 static int tsdbCommitToFile(STsdbRepo *pRepo, SDFileSet *pOldSet, SCommitH *pch, int fid) {
   SDFileSet rSet;
   SDFileSet wSet;
-  int       level;
+  int       level, id;
 
-  if (pOldSet && pOldSet->fid < pch->rtn.minFid) { // file is deleted
+  // ASSERT(pOldSet != NULL || fid != TSDB_IVLD_FID);
+
+  // file should be deleted, do nothing and return
+  if (pOldSet && pOldSet->fid < pch->rtn.minFid) {
     ASSERT(fid == TSDB_IVLD_FID);
     return 0;
   }
 
-  // if (pOldSet) {
-  //   ASSERT(fid == TSDB_IVLD_FID || pOldSet->fid == fid);
-  //   if (true /* TODO: pOldSet not in correct level*/) {
-  //     // TODO: Check if pOldSet is on correct level, if not, move it to correct level
-  //   } else {
-  //     tsdbInitDFile(TSDB_DFILE_IN_SET(&nSet, TSDB_FILE_HEAD), REPO_ID(pRepo), fid, 0 /*TODO*/, 0 /*TODO*/, 0
-  //     /*TODO*/,
-  //                   NULL, TSDB_FILE_HEAD);
-  //     // TODO: init data
-  //     tsdbInitDFileWithOld(TSDB_DFILE_IN_SET(&nSet, TSDB_FILE_DATA), TSDB_DFILE_IN_SET(pOldSet, TSDB_FILE_DATA));
+  if (pOldSet == NULL) {
+    ASSERT(fid != TSDB_IVLD_FID);
 
-  //     // TODO: init last file
-  //     SDFile *pDFile = TSDB_DFILE_IN_SET(pOldSet, TSDB_FILE_LAST);
-  //     if (pDFile->info->size < 32K)  {
-
-  //     } else {
-
-  //     }
-
-  //     tsdbInitDFileWithOld(&oSet, pOldSet);
-  //     pReadSet = &oSet;
-  //   }
-  // } else {
-  //   ASSERT(fid != TSDB_IVLD_FID);
-
-  //   // Create a new file group
-  //   tsdbInitDFileSet(&nSet, REPO_ID(pRepo), fid, 0 /*TODO*/, tsdbGetFidLevel(fid, &(pch->rtn)), TFS_UNDECIDED_ID);
-  //   tsdbOpenDFileSet(&nSet, O_WRONLY | O_CREAT);
-  //   tsdbUpdateDFileSetHeader(&nSet);
-  // }
-
-  {
-    // TODO: set rSet and wSet, the read file set and write file set
-  }
-
-  if (fid == TSDB_IVLD_FID) {
-    // TODO: copy rSet as wSet
-  } else {
-    tsdbSetAndOpenCommitFSet(pch, &rSet, &wSet);
-
-    for (int i = 0; i < pMem->maxTable; i++) {
-      tsdbCommitTableData;
-      /* code */
+    tfsAllocDisk(tsdbGetFidLevel(fid, &(pch->rtn)), &level, &id);
+    if (level == TFS_UNDECIDED_LEVEL) {
+      // terrno = TSDB_CODE_TDB_NO_INVALID_DISK;
+      return -1;
     }
 
-    tsdbCloseAndUnSetCommitFSet(pch);
+    // wSet here is the file to write, no read set
+    tsdbInitDFileSet(&wSet, REPO_ID(pRepo), fid, 0 /*TODO*/, level, id);
+  } else {
+    tfsAllocDisk(tsdbGetFidLevel(pOldSet->fid, &(pch->rtn)), &level, &fid);
+    if (level == TFS_UNDECIDED_LEVEL) {
+      // terrno = TSDB_CODE_TDB_NO_INVALID_DISK;
+      return -1;
+    }
+
+    if (level > TSDB_FSET_LEVEL(pOldSet)) {
+      // wSet here is the file to write, pOldSet here is the read set
+      tsdbInitDFileSet(&wSet, REPO_ID(pRepo), fid, 0 /*TODO*/, level, id);
+    } else {
+      // get wSet with pOldSet
+    }
+    // if (level == TSDB_FSET_LEVEL(pOldSet)) {
+    // } else {
+    //   // TODO
+    // }
   }
 
   tsdbUpdateDFileSet(pRepo, &wSet);

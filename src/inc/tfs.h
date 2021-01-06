@@ -40,6 +40,7 @@ int64_t tfsTotalSize();
 int64_t tfsAvailSize();
 void    tfsIncDiskFile(int level, int id, int num);
 void    tfsDecDiskFile(int level, int id, int num);
+void    tfsAllocDisk(int expLevel, int *level, int *id);
 
 const char *TFS_PRIMARY_PATH();
 const char *TFS_DISK_PATH(int level, int id);

@@ -156,6 +156,30 @@ void tfsDecDiskFile(int level, int id, int num) {
   tfsUnLock();
 }
 
+/* Allocate an existing available tier level
+ */
+void tfsAllocDisk(int expLevel, int *level, int *id) {
+  *level = expLevel;
+  *id = TFS_UNDECIDED_ID;
+
+  if (*level > TFS_NLEVEL()) {
+    *level = TFS_NLEVEL();
+  }
+
+  while (*level >= 0) {
+    *id = tfsAssignDisk(*level);
+    if (*id < 0) {
+      *level--;
+      continue;
+    }
+
+    return;
+  }
+
+  *level = TFS_UNDECIDED_LEVEL;
+  *id = TFS_UNDECIDED_ID;
+}
+
 const char *TFS_PRIMARY_PATH() { return DISK_DIR(TFS_PRIMARY_DISK()); }
 const char *TFS_DISK_PATH(int level, int id) { return DISK_DIR(TFS_DISK_AT(level, id)); }
 
