@@ -411,7 +411,6 @@ public class RestfulConnection implements Connection {
     public void setSchema(String schema) throws SQLException {
         if (isClosed())
             throw new SQLException(CONNECTION_IS_CLOSED);
-
         synchronized (RestfulConnection.class) {
             this.database = schema;
         }
