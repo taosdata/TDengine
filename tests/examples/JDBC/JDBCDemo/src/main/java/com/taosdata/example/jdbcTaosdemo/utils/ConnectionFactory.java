@@ -11,7 +11,7 @@ import java.util.Properties;
 public class ConnectionFactory {
 
     public static Connection build(JdbcTaosdemoConfig config) throws SQLException {
-        return build(config.getHost(), config.getPort(), config.getDbName(), config.getUser(), config.getPassword());
+        return build(config.host, config.port, config.database, config.user, config.password);
     }
 
     public static Connection build(String host, int port, String dbName) throws SQLException {
