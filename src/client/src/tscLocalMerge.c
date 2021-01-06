@@ -89,11 +89,11 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalReducer *pReducer, tOrderDesc
     pCtx->startOffset = 0;
     pCtx->size = 1;
     pCtx->hasNull = true;
-    pCtx->currentStage = SECONDARY_STAGE_MERGE;
+    pCtx->currentStage = MERGE_STAGE;
 
     // for top/bottom function, the output of timestamp is the first column
     int32_t functionId = pExpr->functionId;
-    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
       pCtx->ptsOutputBuf = pReducer->pCtx[0].aOutputBuf;
       pCtx->param[2].i64Key = pQueryInfo->order.order;
       pCtx->param[2].nType  = TSDB_DATA_TYPE_BIGINT;
@@ -493,13 +493,6 @@ void tscDestroyLocalReducer(SSqlObj *pSql) {
   // there is no more result, so we release all allocated resource
   SLocalReducer *pLocalReducer = (SLocalReducer *)atomic_exchange_ptr(&pRes->pLocalReducer, NULL);
   if (pLocalReducer != NULL) {
-    int32_t status = 0;
-    while ((status = atomic_val_compare_exchange_32(&pLocalReducer->status, TSC_LOCALREDUCE_READY,
-                                                    TSC_LOCALREDUCE_TOBE_FREED)) == TSC_LOCALREDUCE_IN_PROGRESS) {
-      taosMsleep(100);
-      tscDebug("%p waiting for delete procedure, status: %d", pSql, status);
-    }
-
     pLocalReducer->pFillInfo = taosDestroyFillInfo(pLocalReducer->pFillInfo);
 
     if (pLocalReducer->pCtx != NULL) {
@@ -911,6 +904,13 @@ static void genFinalResWithoutFill(SSqlRes* pRes, SLocalReducer *pLocalReducer, 
     }
   }
 
+  if (pRes->numOfRowsGroup >= pQueryInfo->limit.limit && pQueryInfo->limit.limit > 0) {
+    pRes->numOfRows = 0;
+    pBeforeFillData->num = 0;
+    pLocalReducer->discard = true;
+    return;
+  }
+
   pRes->numOfRowsGroup += pRes->numOfRows;
 
   // impose the limitation of output rows on the final result
@@ -1067,7 +1067,7 @@ static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer,
       pCtx->param[0].i64Key = pExpr->param[0].i64Key;
     }
 
-    pCtx->currentStage = SECONDARY_STAGE_MERGE;
+    pCtx->currentStage = MERGE_STAGE;
 
     if (needInit) {
       aAggs[pCtx->functionId].init(pCtx);
@@ -1080,7 +1080,7 @@ static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer,
       continue;
     }
 
-    aAggs[functionId].distSecondaryMergeFunc(&pLocalReducer->pCtx[j]);
+    aAggs[functionId].mergeFunc(&pLocalReducer->pCtx[j]);
   }
 }
 
@@ -1296,6 +1296,10 @@ void resetOutputBuf(SQueryInfo *pQueryInfo, SLocalReducer *pLocalReducer) {// re
   for (int32_t i = 0; i < t; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     pLocalReducer->pCtx[i].aOutputBuf = pLocalReducer->pResultBuf->data + pExpr->offset * pLocalReducer->resColModel->capacity;
+
+    if (pExpr->functionId == TSDB_FUNC_TOP || pExpr->functionId == TSDB_FUNC_BOTTOM || pExpr->functionId == TSDB_FUNC_DIFF) {
+      pLocalReducer->pCtx[i].ptsOutputBuf = pLocalReducer->pCtx[0].aOutputBuf;
+    }
   }
 
   memset(pLocalReducer->pResultBuf, 0, pLocalReducer->nResultBufSize + sizeof(tFilePage));
@@ -1430,24 +1434,13 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
 
   SLocalReducer *pLocalReducer = pRes->pLocalReducer;
   SQueryInfo    *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-
-  // set the data merge in progress
-  int32_t prevStatus =
-      atomic_val_compare_exchange_32(&pLocalReducer->status, TSC_LOCALREDUCE_READY, TSC_LOCALREDUCE_IN_PROGRESS);
-  if (prevStatus != TSC_LOCALREDUCE_READY) {
-    assert(prevStatus == TSC_LOCALREDUCE_TOBE_FREED);  // it is in tscDestroyLocalReducer function already
-    return TSDB_CODE_SUCCESS;
-  }
-
-  tFilePage *tmpBuffer = pLocalReducer->pTempBuffer;
+  tFilePage     *tmpBuffer = pLocalReducer->pTempBuffer;
 
   if (doHandleLastRemainData(pSql)) {
-    pLocalReducer->status = TSC_LOCALREDUCE_READY;  // set the flag, taos_free_result can release this result.
     return TSDB_CODE_SUCCESS;
   }
 
   if (doBuildFilledResultForGroup(pSql)) {
-    pLocalReducer->status = TSC_LOCALREDUCE_READY;  // set the flag, taos_free_result can release this result.
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1503,7 +1496,6 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
         pLocalReducer->discardData->num = 0;
 
         if (saveGroupResultInfo(pSql)) {
-          pLocalReducer->status = TSC_LOCALREDUCE_READY;
           return TSDB_CODE_SUCCESS;
         }
 
@@ -1549,7 +1541,6 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
 
           // here we do not check the return value
           adjustLoserTreeFromNewData(pLocalReducer, pOneDataSrc, pTree);
-          assert(pLocalReducer->status == TSC_LOCALREDUCE_IN_PROGRESS);
 
           if (pRes->numOfRows == 0) {
             handleUnprocessedRow(pCmd, pLocalReducer, tmpBuffer);
@@ -1560,7 +1551,6 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
                * If previous group is not skipped, keep it in pRes->numOfGroups
                */
               if (notSkipped && saveGroupResultInfo(pSql)) {
-                pLocalReducer->status = TSC_LOCALREDUCE_READY;
                 return TSDB_CODE_SUCCESS;
               }
 
@@ -1580,7 +1570,6 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
           if (pRes->numOfRows == 0) {
             continue;
           } else {
-            pLocalReducer->status = TSC_LOCALREDUCE_READY;  // set the flag, taos_free_result can release this result.
             return TSDB_CODE_SUCCESS;
           }
         } else {  // result buffer is not full
@@ -1604,9 +1593,6 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
   if (pLocalReducer->pResultBuf->num) {
     genFinalResults(pSql, pLocalReducer, true);
   }
-
-  assert(pLocalReducer->status == TSC_LOCALREDUCE_IN_PROGRESS && pRes->row == 0);
-  pLocalReducer->status = TSC_LOCALREDUCE_READY;  // set the flag, taos_free_result can release this result.
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1661,7 +1647,7 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
     // calculate the result from several other columns
     if (pSup->pArithExprInfo != NULL) {
       arithSup.pArithExpr = pSup->pArithExprInfo;
-      tExprTreeCalcTraverse(arithSup.pArithExpr->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
+      arithmeticTreeTraverse(arithSup.pArithExpr->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
     } else {
       SSqlExpr* pExpr = pSup->pSqlExpr;
       memcpy(pbuf + pOutput->num * offset, pExpr->offset * pOutput->num + pOutput->data, (size_t)(pExpr->resBytes * pOutput->num));

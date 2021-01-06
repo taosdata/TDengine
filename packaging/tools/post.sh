@@ -96,6 +96,8 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/taos     || :
     ${csudo} rm -f ${bin_link_dir}/taosd    || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo || :
+    ${csudo} rm -f ${bin_link_dir}/taosdemox || :
+    ${csudo} rm -f ${bin_link_dir}/taosdump || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos   || :
     ${csudo} rm -f ${bin_link_dir}/set_core || :
 
@@ -105,6 +107,8 @@ function install_bin() {
     [ -x ${bin_dir}/taos ] && ${csudo} ln -s ${bin_dir}/taos ${bin_link_dir}/taos             || :
     [ -x ${bin_dir}/taosd ] && ${csudo} ln -s ${bin_dir}/taosd ${bin_link_dir}/taosd          || :
     [ -x ${bin_dir}/taosdemo ] && ${csudo} ln -s ${bin_dir}/taosdemo ${bin_link_dir}/taosdemo || :
+    [ -x ${bin_dir}/taosdemox ] && ${csudo} ln -s ${bin_dir}/taosdemox ${bin_link_dir}/taosdemox || :
+    [ -x ${bin_dir}/taosdump ] && ${csudo} ln -s ${bin_dir}/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${bin_dir}/set_core.sh ] && ${csudo} ln -s ${bin_dir}/set_core.sh ${bin_link_dir}/set_core || :
 }
 
@@ -265,8 +269,14 @@ function install_config() {
         [ -f ${cfg_dir}/taos.cfg ] && ${csudo} cp ${cfg_dir}/taos.cfg ${cfg_install_dir}
         ${csudo} chmod 644 ${cfg_install_dir}/*
     fi
+    
+    # Save standard input to 6 and open / dev / TTY on standard input
+    exec 6<&0 0</dev/tty 
 
     local_fqdn_check
+    
+    # restore the backup standard input, and turn off 6
+    exec 0<&6 6<&-
 
     ${csudo} mv ${cfg_dir}/taos.cfg ${cfg_dir}/taos.cfg.org
     ${csudo} ln -s ${cfg_install_dir}/taos.cfg ${cfg_dir}
@@ -422,7 +432,7 @@ function install_service() {
 }
 
 function install_TDengine() {
-    echo -e "${GREEN}Start to install TDEngine...${NC}"
+    echo -e "${GREEN}Start to install TDengine...${NC}"
 
     #install log and data dir , then ln to /usr/local/taos
     ${csudo} mkdir -p ${log_dir} && ${csudo} chmod 777 ${log_dir}

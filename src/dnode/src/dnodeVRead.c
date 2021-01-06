@@ -54,6 +54,7 @@ void dnodeCleanupVRead() {
 void dnodeDispatchToVReadQueue(SRpcMsg *pMsg) {
   int32_t queuedMsgNum = 0;
   int32_t leftLen = pMsg->contLen;
+  int32_t code = TSDB_CODE_VND_INVALID_VGROUP_ID;
   char *  pCont = pMsg->pCont;
 
   while (leftLen > 0) {
@@ -64,7 +65,7 @@ void dnodeDispatchToVReadQueue(SRpcMsg *pMsg) {
     assert(pHead->contLen > 0);
     void *pVnode = vnodeAcquire(pHead->vgId);
     if (pVnode != NULL) {
-      int32_t code = vnodeWriteToRQueue(pVnode, pCont, pHead->contLen, TAOS_QTYPE_RPC, pMsg);
+      code = vnodeWriteToRQueue(pVnode, pCont, pHead->contLen, TAOS_QTYPE_RPC, pMsg);
       if (code == TSDB_CODE_SUCCESS) queuedMsgNum++;
       vnodeRelease(pVnode);
     }
@@ -74,7 +75,7 @@ void dnodeDispatchToVReadQueue(SRpcMsg *pMsg) {
   }
 
   if (queuedMsgNum == 0) {
-    SRpcMsg rpcRsp = {.handle = pMsg->handle, .code = TSDB_CODE_VND_INVALID_VGROUP_ID};
+    SRpcMsg rpcRsp = {.handle = pMsg->handle, .code = code};
     rpcSendResponse(&rpcRsp);
   }
 

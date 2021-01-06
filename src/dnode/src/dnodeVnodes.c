@@ -73,7 +73,8 @@ static int32_t dnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
 
       if (*numOfVnodes >= TSDB_MAX_VNODES) {
         dError("vgId:%d, too many vnode directory in disk, exist:%d max:%d", vnode, *numOfVnodes, TSDB_MAX_VNODES);
-        continue;
+        closedir(dir);
+        return TSDB_CODE_DND_TOO_MANY_VNODES;
       } else {
         vnodeList[*numOfVnodes - 1] = vnode;
       }
@@ -245,12 +246,11 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   pStatus->lastReboot       = htonl(tsRebootTime);
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
   pStatus->diskAvailable    = tsAvailDataDirGB;
-  pStatus->alternativeRole  = (uint8_t) tsAlternativeRole;
+  pStatus->alternativeRole  = tsAlternativeRole;
   tstrncpy(pStatus->dnodeEp, tsLocalEp, TSDB_EP_LEN);
 
   // fill cluster cfg parameters
   pStatus->clusterCfg.numOfMnodes        = htonl(tsNumOfMnodes);
-  pStatus->clusterCfg.enableBalance      = htonl(tsEnableBalance);
   pStatus->clusterCfg.mnodeEqualVnodeNum = htonl(tsMnodeEqualVnodeNum);
   pStatus->clusterCfg.offlineThreshold   = htonl(tsOfflineThreshold);
   pStatus->clusterCfg.statusInterval     = htonl(tsStatusInterval);
@@ -262,7 +262,12 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &pStatus->clusterCfg.checkTime, strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   tstrncpy(pStatus->clusterCfg.locale, tsLocale, TSDB_LOCALE_LEN);
-  tstrncpy(pStatus->clusterCfg.charset, tsCharset, TSDB_LOCALE_LEN);  
+  tstrncpy(pStatus->clusterCfg.charset, tsCharset, TSDB_LOCALE_LEN);
+
+  pStatus->clusterCfg.enableBalance = tsEnableBalance;
+  pStatus->clusterCfg.flowCtrl = tsEnableFlowCtrl;
+  pStatus->clusterCfg.slaveQuery = tsEnableSlaveQuery;
+  pStatus->clusterCfg.adjustMaster = tsEnableAdjustMaster;
 
   vnodeBuildStatusMsg(pStatus);
   contLen = sizeof(SStatusMsg) + pStatus->openVnodes * sizeof(SVnodeLoad);

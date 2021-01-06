@@ -45,8 +45,8 @@ system sh/exec.sh -n dnode2 -s start
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then
+	sleep 1000
+	if $x == 20 then
 	  return -1
 	endi
 sql show dnodes
@@ -86,8 +86,8 @@ sql drop dnode $hostname2
 $x = 0
 show4: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then
+	sleep 1000
+	if $x == 20 then
 	  return -1
 	endi
 sql show dnodes
@@ -106,15 +106,14 @@ endi
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 
 print ========== step5
-sleep 5000
 sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
 
 $x = 0
 show5: 
 	$x = $x + 1
-	sleep 3000
-	if $x == 20 then 
+	sleep 1000
+	if $x == 40 then 
 	  return -1
 	endi
 sql show dnodes
@@ -153,8 +152,8 @@ system sh/exec.sh -n dnode4 -s start
 $x = 0
 show7: 
 	$x = $x + 1
-	sleep 3000
-	if $x == 20 then 
+	sleep 1000
+	if $x == 40 then 
 		return -1
 	endi
 	
@@ -184,8 +183,8 @@ sql insert into d4.t4 values(now+5s, 41)
 $x = 0
 show8: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then
+	sleep 1000
+	if $x == 20 then
 	  return -1
 	endi
 sql show dnodes
@@ -208,8 +207,8 @@ sql drop dnode $hostname3
 $x = 0
 show9: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then
+	sleep 1000
+	if $x == 20 then
 	  return -1
 	endi
 
@@ -228,7 +227,6 @@ if $data2_4 != 4 then
 endi
 
 system sh/exec.sh -n dnode3 -s stop 
-sleep 5000
 
 print ========== step10
 sql select * from d1.t1  order by t desc

@@ -41,12 +41,15 @@ def pre_test(){
     
     cd ${WKC}
     git checkout develop
+    git reset --hard HEAD~10
     git pull
     git fetch
     git checkout ${CHANGE_BRANCH}
+    git reset --hard HEAD~10
+    git pull
     git merge develop
     cd ${WK}
-    git reset --hard
+    git reset --hard HEAD~10
     git checkout develop
     git pull
     cd ${WK}
@@ -79,14 +82,27 @@ pipeline {
               changeRequest()
           }
       parallel {
-        stage('python') {
-          agent{label 'pytest'}
+        stage('python_1') {
+          agent{label 'p1'}
           steps {
             
             pre_test()
             sh '''
             cd ${WKC}/tests
-            ./test-all.sh pytestfq
+            find pytest -name '*'sql|xargs rm -rf
+            ./test-all.sh p1
+            date'''
+          }
+        }
+        stage('python_2') {
+          agent{label 'p2'}
+          steps {
+            
+            pre_test()
+            sh '''
+            cd ${WKC}/tests
+            find pytest -name '*'sql|xargs rm -rf
+            ./test-all.sh p2
             date'''
           }
         }

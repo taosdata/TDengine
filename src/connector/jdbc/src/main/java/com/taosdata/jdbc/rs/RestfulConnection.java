@@ -17,7 +17,7 @@ public class RestfulConnection implements Connection {
     private final String host;
     private final int port;
     private final Properties props;
-    private final String database;
+    private volatile String database;
     private final String url;
     /******************************************************/
     private boolean isClosed;
@@ -139,7 +139,9 @@ public class RestfulConnection implements Connection {
     public void setCatalog(String catalog) throws SQLException {
         if (isClosed())
             throw new SQLException(CONNECTION_IS_CLOSED);
-        //nothing to do
+        synchronized (RestfulConnection.class) {
+            this.database = catalog;
+        }
     }
 
     @Override
@@ -409,7 +411,9 @@ public class RestfulConnection implements Connection {
     public void setSchema(String schema) throws SQLException {
         if (isClosed())
             throw new SQLException(CONNECTION_IS_CLOSED);
-        //nothing to do
+        synchronized (RestfulConnection.class) {
+            this.database = schema;
+        }
     }
 
     @Override

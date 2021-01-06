@@ -6,7 +6,16 @@ GREEN='\033[1;32m'
 GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
-
+function git_branch {
+   branch="`git branch 2>/dev/null | grep "^\*" | sed -e "s/^\*\ //"`"
+   if [ "${branch}" != "" ];then
+       if [ "${branch}" = "(no branch)" ];then
+           branch="(`git rev-parse --short HEAD`...)"
+       fi  
+       branch=(${branch////_})
+       echo "$branch"
+   fi  
+}
 function runSimCaseOneByOne {
   while read -r line; do
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
@@ -31,13 +40,24 @@ function runSimCaseOneByOnefq {
 			case=`echo $line | grep sim$ |awk '{print $NF}'`
 
       start_time=`date +%s`
-      ./test.sh -f $case > /dev/null 2>&1 && \
+      IN_TDINTERNAL="community"
+      if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+        ./test.sh -f $case > /dev/null 2>&1 && \
         echo -e "${GREEN}$case success${NC}" | tee -a out.log || \
         ( grep 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN}$case success${NC}" | tee -a out.log ) || echo -e "${RED}$case failed${NC}" | tee -a out.log
-        
-
+      else
+        ./test.sh -f $case > /dev/null 2>&1 && \
+        echo -e "${GREEN}$case success${NC}" | tee -a out.log || \
+        ( grep 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN}$case success${NC}" | tee -a out.log ) || echo -e "${RED}$case failed${NC}" | tee -a out.log
+      fi
+      
       out_log=`tail -1 out.log  `
       if [[ $out_log =~ 'failed' ]];then
+        if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+          cp -r ../../../sim ~/sim_$(git_branch)_`date "+%Y_%m_%d_%H:%M:%S"`
+        else 
+          cp -r ../../sim ~/sim_$(git_branch)_`date "+%Y_%m_%d_%H:%M:%S" `
+        fi
         exit 8
       fi
       end_time=`date +%s`
@@ -89,6 +109,7 @@ function runPyCaseOneByOnefq {
         end_time=`date +%s`
         out_log=`tail -1 pytest-out.log  `
         if [[ $out_log =~ 'failed' ]];then
+          cp -r ../../sim ~/sim_$(git_branch)_`date "+%Y_%m_%d_%H:%M:%S" `
           exit 8
         fi
         echo execution time of $case was `expr $end_time - $start_time`s. | tee -a pytest-out.log
@@ -196,10 +217,10 @@ if [ "$2" != "sim" ]; then
     runPyCaseOneByOnefq fulltest.sh
   elif [ "$1" == "p1" ]; then
     echo "### run Python_1 test ###"
-    runPyCaseOneByOne pytest_1.sh
+    runPyCaseOneByOnefq pytest_1.sh
   elif [ "$1" == "p2" ]; then
     echo "### run Python_2 test ###"
-    runPyCaseOneByOne pytest_2.sh
+    runPyCaseOneByOnefq pytest_2.sh
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
     exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then

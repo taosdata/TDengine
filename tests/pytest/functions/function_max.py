@@ -69,6 +69,15 @@ class TDTestCase:
 
         tdSql.query("select max(col6) from test1")
         tdSql.checkData(0, 0, np.max(floatData))
+
+        # test case: https://jira.taosdata.com:18080/browse/TD-2583
+        tdSql.execute("create database test days 2")
+        tdSql.execute("create table car(ts timestamp, speed int)")
+        tdSql.execute("insert into car values(now, -1)")
+        tdSql.execute("insert into car values(now-10d, null)")
+
+        tdSql.query("select max(speed) from car")
+        tdSql.checkData(0, 0, -1)
         
     def stop(self):
         tdSql.close()

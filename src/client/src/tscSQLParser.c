@@ -75,11 +75,11 @@ static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SC
 static int32_t convertFunctionId(int32_t optr, int16_t* functionId);
 static uint8_t convertOptr(SStrToken *pToken);
 
-static int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery);
+static int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery, bool intervalQuery);
 
 static bool validateIpAddress(const char* ip, size_t size);
 static bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
-static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery);
+static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool intervalQuery);
 
 static int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd);
 
@@ -666,6 +666,7 @@ int32_t parseIntervalClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuerySQL* pQ
   const char* msg1 = "invalid query expression";
   const char* msg2 = "interval cannot be less than 10 ms";
   const char* msg3 = "sliding cannot be used without interval";
+  const char* msg4 = "top/bottom query does not support order by value in interval query";
 
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -710,6 +711,11 @@ int32_t parseIntervalClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuerySQL* pQ
 
     if (parseSlidingClause(pSql, pQueryInfo, pQuerySql) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
+    int32_t colId = pQueryInfo->order.orderColId;
+    if (pQueryInfo->interval.interval > 0 && colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     }
 
     return TSDB_CODE_SUCCESS;
@@ -904,7 +910,7 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
    * that are corresponding to the old name for the new table name.
    */
   if (strlen(oldName) > 0 && strncasecmp(oldName, pTableMetaInfo->name, tListLen(pTableMetaInfo->name)) != 0) {
-    tscClearTableMetaInfo(pTableMetaInfo, false);
+    tscClearTableMetaInfo(pTableMetaInfo);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -996,33 +1002,6 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
     return false;
   }
 
-  int32_t nLen = 0;
-  for (int32_t i = 0; i < numOfTags; ++i) {
-    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
-    if (p->bytes == 0) {
-      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
-      return false;
-    }
-
-    nLen += p->bytes;
-  }
-
-  // max tag row length must be less than TSDB_MAX_TAGS_LEN
-  if (nLen > TSDB_MAX_TAGS_LEN) {
-    invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
-    return false;
-  }
-
-  // field name must be unique
-  for (int32_t i = 0; i < numOfTags; ++i) {
-    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
-
-    if (has(pFieldList, 0, p->name) == true) {
-      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-      return false;
-    }
-  }
-
   /* timestamp in tag is not allowed */
   for (int32_t i = 0; i < numOfTags; ++i) {
     TAOS_FIELD* p = taosArrayGet(pTagsList, i);
@@ -1049,6 +1028,33 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
     }
 
     if (has(pTagsList, i + 1, p->name) == true) {
+      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      return false;
+    }
+  }
+
+  int32_t nLen = 0;
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
+    if (p->bytes == 0) {
+      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+      return false;
+    }
+
+    nLen += p->bytes;
+  }
+
+  // max tag row length must be less than TSDB_MAX_TAGS_LEN
+  if (nLen > TSDB_MAX_TAGS_LEN) {
+    invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    return false;
+  }
+
+  // field name must be unique
+  for (int32_t i = 0; i < numOfTags; ++i) {
+    TAOS_FIELD* p = taosArrayGet(pTagsList, i);
+
+    if (has(pFieldList, 0, p->name) == true) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return false;
     }
@@ -1469,7 +1475,7 @@ static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo) {
   pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
 }
 
-int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery) {
+int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery, bool intervalQuery) {
   assert(pSelection != NULL && pCmd != NULL);
 
   const char* msg2 = "functions can not be mixed up";
@@ -1525,7 +1531,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     addPrimaryTsColIntoResult(pQueryInfo);
   }
 
-  if (!functionCompatibleCheck(pQueryInfo, joinQuery)) {
+  if (!functionCompatibleCheck(pQueryInfo, joinQuery, intervalQuery)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -2804,7 +2810,7 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
   return false;
 }
 
-static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
+static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool intervalQuery) {
   int32_t startIdx = 0;
 
   size_t numOfExpr = tscSqlExprNumOfExprs(pQueryInfo);
@@ -2819,6 +2825,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
   }
 
   int32_t factor = functionCompatList[tscSqlExprGet(pQueryInfo, startIdx)->functionId];
+
+  if (tscSqlExprGet(pQueryInfo, 0)->functionId == TSDB_FUNC_LAST_ROW && (joinQuery || intervalQuery)) {
+	return false;
+  }
 
   // diff function cannot be executed with other function
   // arithmetic function can be executed with other arithmetic functions
@@ -2844,7 +2854,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
       }
     }
 
-    if (functionId == TSDB_FUNC_LAST_ROW && joinQuery) {
+    if (functionId == TSDB_FUNC_LAST_ROW && (joinQuery || intervalQuery)) {
       return false;
     }
   }
@@ -4013,6 +4023,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
   if (pExpr->nSQLOptr == TK_LIKE) {
     char* str = taosStringBuilderGetResult(sb, NULL);
     pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
+    pQueryInfo->tagCond.tbnameCond.len = (int32_t) strlen(str);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4062,6 +4073,7 @@ static int32_t setTableCondForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo,
 
   char* str = taosStringBuilderGetResult(&sb1, NULL);
   pQueryInfo->tagCond.tbnameCond.cond = strdup(str);
+  pQueryInfo->tagCond.tbnameCond.len = (int32_t) strlen(str);
 
   taosStringBuilderDestroy(&sb1);
   tfree(segments);
@@ -4472,6 +4484,7 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
   const char* msg = "illegal value or data overflow";
   const char* msg1 = "value is expected";
   const char* msg2 = "invalid fill option";
+  const char* msg3 = "top/bottom not support fill";
 
   if (pItem->pVar.nType != TSDB_DATA_TYPE_BINARY) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -4552,6 +4565,14 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
     }
   } else {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  }
+
+  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  for(int32_t i = 0; i < numOfExprs; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    if (pExpr->functionId == TSDB_FUNC_TOP || pExpr->functionId == TSDB_FUNC_BOTTOM) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -4646,7 +4667,7 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
 
     if (!(orderByTags || orderByTS) && !isTopBottomQuery(pQueryInfo)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-    } else {
+    } else {  // order by top/bottom result value column is not supported in case of interval query.
       assert(!(orderByTags && orderByTS));
     }
 
@@ -4936,7 +4957,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) pCmd->payload;
-    pUpdateMsg->head.vgId = htonl(pTableMeta->vgroupInfo.vgId);
+    pUpdateMsg->head.vgId = htonl(pTableMeta->vgId);
     pUpdateMsg->tid       = htonl(pTableMeta->id.tid);
     pUpdateMsg->uid       = htobe64(pTableMeta->id.uid);
     pUpdateMsg->colId     = htons(pTagsSchema->colId);
@@ -5442,6 +5463,7 @@ static void setCreateDBOption(SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->quorum = pCreateDb->quorum;
   pMsg->ignoreExist = pCreateDb->ignoreExists;
   pMsg->update = pCreateDb->update;
+  pMsg->cacheLastRow = pCreateDb->cachelast;
 }
 
 int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql) {
@@ -6302,7 +6324,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-  if (parseSelectClause(&pSql->cmd, 0, pQuerySql->pSelection, isSTable, false) != TSDB_CODE_SUCCESS) {
+  if (parseSelectClause(&pSql->cmd, 0, pQuerySql->pSelection, isSTable, false, false) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
@@ -6363,6 +6385,41 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   // set the number of stream table columns
   pCmd->numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
+  const char* msg3 = "start(end) time of query range required or time range too large";
+
+  if (pQueryInfo->interval.interval == 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+    bool initialWindows = TSWINDOW_IS_EQUAL(pQueryInfo->window, TSWINDOW_INITIALIZER);
+    if (initialWindows) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
+
+    int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
+
+    int64_t intervalRange = 0;
+    if (pQueryInfo->interval.intervalUnit == 'n' || pQueryInfo->interval.intervalUnit == 'y') {
+      int64_t f = 1;
+      if (pQueryInfo->interval.intervalUnit == 'n') {
+        f = 30L * MILLISECOND_PER_DAY;
+      } else if (pQueryInfo->interval.intervalUnit == 'y') {
+        f = 365L * MILLISECOND_PER_DAY;
+      }
+
+      intervalRange = pQueryInfo->interval.interval * f;
+    } else {
+      intervalRange = pQueryInfo->interval.interval;
+    }
+    // number of result is not greater than 10,000,000
+    if ((timeRange == 0) || (timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
+
+    return TSDB_CODE_SUCCESS;
 }
 
 int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
@@ -6512,7 +6569,9 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
   int32_t joinQuery = (pQuerySql->from != NULL && taosArrayGetSize(pQuerySql->from) > 2);
 
-  if (parseSelectClause(pCmd, index, pQuerySql->pSelection, isSTable, joinQuery) != TSDB_CODE_SUCCESS) {
+  int32_t intervalQuery = !(pQuerySql->interval.type == 0 || pQuerySql->interval.n == 0);
+
+  if (parseSelectClause(pCmd, index, pQuerySql->pSelection, isSTable, joinQuery, intervalQuery) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
@@ -6560,31 +6619,21 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
   tscFieldInfoUpdateOffset(pQueryInfo);
 
-  /*
-   * fill options are set at the end position, when all columns are set properly
-   * the columns may be increased due to group by operation
-   */
   if (pQuerySql->fillType != NULL) {
     if (pQueryInfo->interval.interval == 0 && (!tscIsPointInterpQuery(pQueryInfo))) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
-    if (pQueryInfo->interval.interval > 0) {
-      bool initialWindows = TSWINDOW_IS_EQUAL(pQueryInfo->window, TSWINDOW_INITIALIZER);
-      if (initialWindows) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-      }
-
-      int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
-      // number of result is not greater than 10,000,000
-      if ((timeRange == 0) || (timeRange / pQueryInfo->interval.interval) > MAX_INTERVAL_TIME_WINDOW) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-      }
+    /*
+     * fill options are set at the end position, when all columns are set properly
+     * the columns may be increased due to group by operation
+     */
+    if ((code = checkQueryRangeForFill(pCmd, pQueryInfo)) != TSDB_CODE_SUCCESS) {
+      return code;
     }
 
-    int32_t ret = parseFillClause(pCmd, pQueryInfo, pQuerySql);
-    if (ret != TSDB_CODE_SUCCESS) {
-      return ret;
+    if ((code = parseFillClause(pCmd, pQueryInfo, pQuerySql)) != TSDB_CODE_SUCCESS) {
+      return code;
     }
   }
 

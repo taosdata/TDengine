@@ -271,10 +271,10 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 }
 
 void *taosHashGet(SHashObj *pHashObj, const void *key, size_t keyLen) {
-  return taosHashGetCB(pHashObj, key, keyLen, NULL, NULL, 0);
+  return taosHashGetClone(pHashObj, key, keyLen, NULL, NULL, 0);
 }
 
-void* taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize) {
+void* taosHashGetClone(SHashObj *pHashObj, const void *key, size_t keyLen, void (*fp)(void *), void* d, size_t dsize) {
   if (pHashObj->size <= 0 || keyLen == 0 || key == NULL) {
     return NULL;
   }
@@ -313,10 +313,10 @@ void* taosHashGetCB(SHashObj *pHashObj, const void *key, size_t keyLen, void (*f
     }
 
     if (d != NULL) {
-      memcpy(d, GET_HASH_NODE_DATA(pNode), dsize);
-    } else {
-      data = GET_HASH_NODE_DATA(pNode);
+      memcpy(d, GET_HASH_NODE_DATA(pNode), pNode->dataLen);
     }
+
+    data = GET_HASH_NODE_DATA(pNode);
   }
 
   if (pHashObj->type == HASH_ENTRY_LOCK) {
@@ -472,38 +472,49 @@ int32_t taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), voi
   return 0;
 }
 
-void taosHashCleanup(SHashObj *pHashObj) {
+void taosHashEmpty(SHashObj *pHashObj) {
   if (pHashObj == NULL) {
     return;
   }
+
+  uDebug("hash:%p cleanup hash table", pHashObj);
 
   SHashNode *pNode, *pNext;
 
   __wr_lock(&pHashObj->lock, pHashObj->type);
 
-  if (pHashObj->hashList) {
-    for (int32_t i = 0; i < pHashObj->capacity; ++i) {
-      SHashEntry *pEntry = pHashObj->hashList[i];
-      if (pEntry->num == 0) {
-        assert(pEntry->next == 0);
-        continue;
-      }
-
-      pNode = pEntry->next;
-      assert(pNode != NULL);
-
-      while (pNode) {
-        pNext = pNode->next;
-        FREE_HASH_NODE(pHashObj, pNode);
-
-        pNode = pNext;
-      }
+  for (int32_t i = 0; i < pHashObj->capacity; ++i) {
+    SHashEntry *pEntry = pHashObj->hashList[i];
+    if (pEntry->num == 0) {
+      assert(pEntry->next == 0);
+      continue;
     }
 
-    free(pHashObj->hashList);
+    pNode = pEntry->next;
+    assert(pNode != NULL);
+
+    while (pNode) {
+      pNext = pNode->next;
+      FREE_HASH_NODE(pHashObj, pNode);
+
+      pNode = pNext;
+    }
+
+    pEntry->num = 0;
+    pEntry->next = NULL;
   }
 
+  pHashObj->size = 0;
   __wr_unlock(&pHashObj->lock, pHashObj->type);
+}
+
+void taosHashCleanup(SHashObj *pHashObj) {
+  if (pHashObj == NULL) {
+    return;
+  }
+
+  taosHashEmpty(pHashObj);
+  tfree(pHashObj->hashList);
 
   // destroy mem block
   size_t memBlock = taosArrayGetSize(pHashObj->pMemBlock);
@@ -654,7 +665,7 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
 
   pNewNode->keyLen = (uint32_t)keyLen;
   pNewNode->hashVal = hashVal;
-  pNewNode->dataLen = dsize;
+  pNewNode->dataLen = (uint32_t) dsize;
   pNewNode->count = 1;
 
   memcpy(GET_HASH_NODE_DATA(pNewNode), pData, dsize);

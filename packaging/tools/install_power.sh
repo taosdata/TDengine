@@ -174,6 +174,7 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/power     || :
     ${csudo} rm -f ${bin_link_dir}/powerd    || :
     ${csudo} rm -f ${bin_link_dir}/powerdemo || :
+    ${csudo} rm -f ${bin_link_dir}/powerdemox || :
     ${csudo} rm -f ${bin_link_dir}/rmpower   || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator   || :
     ${csudo} rm -f ${bin_link_dir}/set_core   || :
@@ -184,6 +185,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/power ] && ${csudo} ln -s ${install_main_dir}/bin/power ${bin_link_dir}/power                        || :
     [ -x ${install_main_dir}/bin/powerd ] && ${csudo} ln -s ${install_main_dir}/bin/powerd ${bin_link_dir}/powerd                     || :
     [ -x ${install_main_dir}/bin/powerdemo ] && ${csudo} ln -s ${install_main_dir}/bin/powerdemo ${bin_link_dir}/powerdemo            || :
+    [ -x ${install_main_dir}/bin/powerdemox ] && ${csudo} ln -s ${install_main_dir}/bin/powerdemox ${bin_link_dir}/powerdemox         || :
     [ -x ${install_main_dir}/bin/remove_power.sh ] && ${csudo} ln -s ${install_main_dir}/bin/remove_power.sh ${bin_link_dir}/rmpower  || :
     [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo} ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core         || :
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo} ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator      || :

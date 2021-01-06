@@ -29,12 +29,13 @@ extern "C" {
 #endif
 
 // TAOS_OS_FUNC_SEMPHONE_PTHREAD
-bool taosCheckPthreadValid(pthread_t thread);
-int64_t taosGetPthreadId();
-void taosResetPthread(pthread_t *thread);
-bool taosComparePthread(pthread_t first, pthread_t second);
+bool    taosCheckPthreadValid(pthread_t thread);
+int64_t taosGetSelfPthreadId();
+int64_t taosGetPthreadId(pthread_t thread);
+void    taosResetPthread(pthread_t* thread);
+bool    taosComparePthread(pthread_t first, pthread_t second);
 int32_t taosGetPId();
-int32_t taosGetCurrentAPPName(char *name, int32_t* len);
+int32_t taosGetCurrentAPPName(char* name, int32_t* len);
 
 #ifdef __cplusplus
 }

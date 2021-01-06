@@ -16,7 +16,7 @@ import taos
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
-
+from util.dnodes import tdDnodes
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -43,6 +43,25 @@ class TDTestCase:
 
         tdSql.query("select * from db.st where ts='2020-05-13 10:00:00.000'")
         tdSql.checkRows(1)
+
+        ## test case for https://jira.taosdata.com:18080/browse/TD-2488
+        tdSql.execute("create table m1(ts timestamp, k int) tags(a int)")
+        tdSql.execute("create table t1 using m1 tags(1)")
+        tdSql.execute("create table t2 using m1 tags(2)")
+        tdSql.execute("insert into t1 values('2020-1-1 1:1:1', 1)")
+        tdSql.execute("insert into t1 values('2020-1-1 1:10:1', 2)")
+        tdSql.execute("insert into t2 values('2020-1-1 1:5:1', 99)")
+        
+        tdSql.query("select count(*) from m1 where ts = '2020-1-1 1:5:1' ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
+        tdSql.query("select count(*) from m1 where ts = '2020-1-1 1:5:1' ")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
 
     def stop(self):
         tdSql.close()

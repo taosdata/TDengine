@@ -110,6 +110,7 @@ typedef struct STsdbQueryHandle {
   SArray*        pTableCheckInfo;  // SArray<STableCheckInfo>
   int32_t        activeIndex;
   bool           checkFiles;       // check file stage
+  bool           cachelastrow;     // check if last row cached
   void*          qinfo;            // query info handle, for debug purpose
   int32_t        type;             // query type: retrieve all data blocks, 2. retrieve only last row, 3. retrieve direct prev|next rows
   SFileGroup*    pFileGroup;
@@ -133,7 +134,9 @@ typedef struct STableGroupSupporter {
   STSchema*  pTagSchema;
 } STableGroupSupporter;
 
-static STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList);
+static STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList);
+static int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList);
+static int32_t tsdbGetCachedLastRow(STable* pTable, SDataRow* pRes, TSKEY* lastKey);
 
 static void    changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle);
 static void    doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SCompBlock* pBlock);
@@ -370,7 +373,7 @@ TsdbQueryHandleT* tsdbQueryTables(TSDB_REPO_T* tsdb, STsdbQueryCond* pCond, STab
 }
 
 TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo, SMemRef* pMemRef) {
-  pCond->twindow = changeTableGroupByLastrow(groupList);
+  pCond->twindow = updateLastrowForEachGroup(groupList);
 
   // no qualified table
   if (groupList->numOfTables == 0) {
@@ -378,8 +381,14 @@ TsdbQueryHandleT tsdbQueryLastRow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STab
   }
 
   STsdbQueryHandle *pQueryHandle = (STsdbQueryHandle*) tsdbQueryTables(tsdb, pCond, groupList, qinfo, pMemRef);
+  int32_t code = checkForCachedLastRow(pQueryHandle, groupList);
+  if (code != TSDB_CODE_SUCCESS) { // set the numOfTables to be 0
+    terrno = code;
+    return NULL;
+  }
 
   assert(pCond->order == TSDB_ORDER_ASC && pCond->twindow.skey <= pCond->twindow.ekey);
+  pQueryHandle->type = TSDB_QUERY_TYPE_LAST;
   return pQueryHandle;
 }
 
@@ -956,9 +965,9 @@ static int32_t loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SCompBlock* pBl
         return code;
       }
 
-      SDataCols* pTSCol = pQueryHandle->rhelper.pDataCols[0];
+      SDataCols* pTsCol = pQueryHandle->rhelper.pDataCols[0];
       if (pCheckInfo->lastKey < pBlock->keyLast) {
-        cur->pos = binarySearchForKey(pTSCol->cols[0].pData, pBlock->numOfRows, pCheckInfo->lastKey, pQueryHandle->order);
+        cur->pos = binarySearchForKey(pTsCol->cols[0].pData, pBlock->numOfRows, pCheckInfo->lastKey, pQueryHandle->order);
       } else {
         cur->pos = pBlock->numOfRows - 1;
       }
@@ -1704,7 +1713,32 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* exists) {
+static int32_t getFirstFileDataBlock(STsdbQueryHandle* pQueryHandle, bool* exists);
+
+static int32_t getDataBlockRv(STsdbQueryHandle* pQueryHandle, STableBlockInfo* pNext, bool *exists) {
+  int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order)? 1 : -1;
+  SQueryFilePos* cur = &pQueryHandle->cur;
+
+  while(1) {
+    int32_t code = loadFileDataBlock(pQueryHandle, pNext->compBlock, pNext->pTableCheckInfo, exists);
+    if (code != TSDB_CODE_SUCCESS || *exists) {
+      return code;
+    }
+
+    if ((cur->slot == pQueryHandle->numOfBlocks - 1 && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
+        (cur->slot == 0 && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
+      // all data blocks in current file has been checked already, try next file if exists
+      return getFirstFileDataBlock(pQueryHandle, exists);
+    } else {  // next block of the same file
+      cur->slot += step;
+      cur->mixBlock = false;
+      cur->blockCompleted = false;
+      pNext = &pQueryHandle->pDataBlockInfo[cur->slot];
+    }
+  }
+}
+
+static int32_t getFirstFileDataBlock(STsdbQueryHandle* pQueryHandle, bool* exists) {
   pQueryHandle->numOfBlocks = 0;
   SQueryFilePos* cur = &pQueryHandle->cur;
 
@@ -1789,7 +1823,23 @@ static int32_t getDataBlocksInFilesImpl(STsdbQueryHandle* pQueryHandle, bool* ex
   cur->fid = pQueryHandle->pFileGroup->fileId;
 
   STableBlockInfo* pBlockInfo = &pQueryHandle->pDataBlockInfo[cur->slot];
-  return loadFileDataBlock(pQueryHandle, pBlockInfo->compBlock, pBlockInfo->pTableCheckInfo, exists);
+  return getDataBlockRv(pQueryHandle, pBlockInfo, exists);
+}
+
+static bool isEndFileDataBlock(SQueryFilePos* cur, int32_t numOfBlocks, bool ascTrav) {
+  assert(cur != NULL && numOfBlocks > 0);
+  return (cur->slot == numOfBlocks - 1 && ascTrav) || (cur->slot == 0 && !ascTrav);
+}
+
+static void moveToNextDataBlockInCurrentFile(STsdbQueryHandle* pQueryHandle) {
+  int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order)? 1 : -1;
+
+  SQueryFilePos* cur = &pQueryHandle->cur;
+  assert(cur->slot < pQueryHandle->numOfBlocks && cur->slot >= 0);
+
+  cur->slot += step;
+  cur->mixBlock       = false;
+  cur->blockCompleted = false;
 }
 
 static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists) {
@@ -1800,14 +1850,14 @@ static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists
   if (!pQueryHandle->locateStart) {
     pQueryHandle->locateStart = true;
     STsdbCfg* pCfg = &pQueryHandle->pTsdb->config;
-    int32_t fid = getFileIdFromKey(pQueryHandle->window.skey, pCfg->daysPerFile, pCfg->precision);
+    int32_t   fid = getFileIdFromKey(pQueryHandle->window.skey, pCfg->daysPerFile, pCfg->precision);
 
     pthread_rwlock_rdlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
     tsdbInitFileGroupIter(pFileHandle, &pQueryHandle->fileIter, pQueryHandle->order);
     tsdbSeekFileGroupIter(&pQueryHandle->fileIter, fid);
     pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
 
-    return getDataBlocksInFilesImpl(pQueryHandle, exists);
+    return getFirstFileDataBlock(pQueryHandle, exists);
   } else {
     // check if current file block is all consumed
     STableBlockInfo* pBlockInfo = &pQueryHandle->pDataBlockInfo[cur->slot];
@@ -1815,27 +1865,26 @@ static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists
 
     // current block is done, try next
     if ((!cur->mixBlock) || cur->blockCompleted) {
-      if ((cur->slot == pQueryHandle->numOfBlocks - 1 && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
-          (cur->slot == 0 && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
-        // all data blocks in current file has been checked already, try next file if exists
-        return getDataBlocksInFilesImpl(pQueryHandle, exists);
-      } else {
-        // next block of the same file
-        int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order) ? 1 : -1;
-        cur->slot += step;
-
-        cur->mixBlock = false;
-        cur->blockCompleted = false;
-
-        STableBlockInfo* pNext = &pQueryHandle->pDataBlockInfo[cur->slot];
-        return loadFileDataBlock(pQueryHandle, pNext->compBlock, pNext->pTableCheckInfo, exists);
-      }
+      // all data blocks in current file has been checked already, try next file if exists
     } else {
-      tsdbDebug("%p continue in current data block, index:%d, pos:%d, %p", pQueryHandle, cur->slot, cur->pos, pQueryHandle->qinfo);
+      tsdbDebug("%p continue in current data block, index:%d, pos:%d, %p", pQueryHandle, cur->slot, cur->pos,
+                pQueryHandle->qinfo);
       int32_t code = handleDataMergeIfNeeded(pQueryHandle, pBlockInfo->compBlock, pCheckInfo);
-      *exists = pQueryHandle->realNumOfRows > 0;
+      *exists = (pQueryHandle->realNumOfRows > 0);
 
-      return code;
+      if (code != TSDB_CODE_SUCCESS || *exists) {
+        return code;
+      }
+    }
+
+    // current block is empty, try next block in file
+    // all data blocks in current file has been checked already, try next file if exists
+    if (isEndFileDataBlock(cur, pQueryHandle->numOfBlocks, ASCENDING_TRAVERSE(pQueryHandle->order))) {
+      return getFirstFileDataBlock(pQueryHandle, exists);
+    } else {
+      moveToNextDataBlockInCurrentFile(pQueryHandle);
+      STableBlockInfo* pNext = &pQueryHandle->pDataBlockInfo[cur->slot];
+      return getDataBlockRv(pQueryHandle, pNext, exists);
     }
   }
 }
@@ -2104,6 +2153,39 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
     // restore the pMemRef
     pQueryHandle->pMemRef = pMemRef;
     return ret;
+  } else if (pQueryHandle->type == TSDB_QUERY_TYPE_LAST && pQueryHandle->cachelastrow) {
+    // the last row is cached in buffer, return it directly.
+    // here note that the pQueryHandle->window must be the TS_INITIALIZER
+    int32_t numOfCols  = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle));
+    SQueryFilePos* cur = &pQueryHandle->cur;
+
+    SDataRow pRow = NULL;
+    TSKEY    key  = TSKEY_INITIAL_VAL;
+    int32_t  step = ASCENDING_TRAVERSE(pQueryHandle->order)? 1:-1;
+
+    if (++pQueryHandle->activeIndex < numOfTables) {
+      STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
+      int32_t ret = tsdbGetCachedLastRow(pCheckInfo->pTableObj, &pRow, &key);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return false;
+      }
+
+      copyOneRowFromMem(pQueryHandle, pQueryHandle->outputCapacity, 0, pRow, numOfCols, pCheckInfo->pTableObj);
+      tfree(pRow);
+
+      // update the last key value
+      pCheckInfo->lastKey = key + step;
+
+      cur->rows     = 1;  // only one row
+      cur->lastKey  = key + step;
+      cur->mixBlock = true;
+      cur->win.skey = key;
+      cur->win.ekey = key;
+
+      return true;
+    }
+
+    return false;
   }
 
   if (pQueryHandle->checkFiles) {
@@ -2136,7 +2218,57 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   return ret;
 }
 
-STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
+/*
+ * 1. no data at all (pTable->lastKey = TSKEY_INITIAL_VAL), just return TSKEY_INITIAL_VAL
+ * 2. has data but not loaded, just return lastKey but not set pRes
+ * 3. has data and loaded, return lastKey and set pRes
+ */
+int32_t tsdbGetCachedLastRow(STable* pTable, SDataRow* pRes, TSKEY* lastKey) {
+  TSDB_RLOCK_TABLE(pTable);
+  *lastKey = pTable->lastKey;
+
+  if ((*lastKey) != TSKEY_INITIAL_VAL && pTable->lastRow) {
+    *pRes = tdDataRowDup(pTable->lastRow);
+    if (*pRes == NULL) {
+      TSDB_RUNLOCK_TABLE(pTable);
+      return TSDB_CODE_TDB_OUT_OF_MEMORY;
+    }
+  }
+
+  TSDB_RUNLOCK_TABLE(pTable);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t checkForCachedLastRow(STsdbQueryHandle* pQueryHandle, STableGroupInfo *groupList) {
+  assert(pQueryHandle != NULL && groupList != NULL);
+
+  SDataRow pRow = NULL;
+  TSKEY    key = TSKEY_INITIAL_VAL;
+
+  SArray* group = taosArrayGetP(groupList->pGroupList, 0);
+  assert(group != NULL);
+
+  STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(group, 0);
+
+  int32_t code = tsdbGetCachedLastRow(pInfo->pTable, &pRow, &key);
+  if (code != TSDB_CODE_SUCCESS) {
+    pQueryHandle->cachelastrow = false;
+  } else {
+    pQueryHandle->cachelastrow = (pRow != NULL);
+  }
+
+  // update the tsdb query time range
+  if (pQueryHandle->cachelastrow) {
+    pQueryHandle->window      = TSWINDOW_INITIALIZER;
+    pQueryHandle->checkFiles  = false;
+    pQueryHandle->activeIndex = -1;  // start from -1
+  }
+
+  tfree(pRow);
+  return code;
+}
+
+STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
   STimeWindow window = {INT64_MAX, INT64_MIN};
 
   int32_t totalNumOfTable = 0;
@@ -2151,16 +2283,16 @@ STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
 
     size_t numOfTables = taosArrayGetSize(pGroup);
     for(int32_t i = 0; i < numOfTables; ++i) {
-      STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(pGroup, i);
+      STableKeyInfo* pInfo = (STableKeyInfo*) taosArrayGet(pGroup, i);
 
       // if the lastKey equals to INT64_MIN, there is no data in this table
-      TSKEY lastKey = ((STable*)(pKeyInfo->pTable))->lastKey;
+      TSKEY lastKey = ((STable*)(pInfo->pTable))->lastKey;
       if (key < lastKey) {
         key = lastKey;
 
-        keyInfo.pTable  = pKeyInfo->pTable;
+        keyInfo.pTable  = pInfo->pTable;
         keyInfo.lastKey = key;
-        pKeyInfo->lastKey = key;
+        pInfo->lastKey  = key;
 
         if (key < window.skey) {
           window.skey = key;
@@ -2174,11 +2306,11 @@ STimeWindow changeTableGroupByLastrow(STableGroupInfo *groupList) {
 
     // clear current group, unref unused table
     for (int32_t i = 0; i < numOfTables; ++i) {
-      STableKeyInfo* pKeyInfo = (STableKeyInfo*)taosArrayGet(pGroup, i);
+      STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(pGroup, i);
 
       // keyInfo.pTable may be NULL here.
-      if (pKeyInfo->pTable != keyInfo.pTable) {
-        tsdbUnRefTable(pKeyInfo->pTable);
+      if (pInfo->pTable != keyInfo.pTable) {
+        tsdbUnRefTable(pInfo->pTable);
       }
     }
 
@@ -2513,13 +2645,12 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   return pTableGroup;
 }
 
-static bool indexedNodeFilterFp(const void* pNode, void* param) {
+static bool tableFilterFp(const void* pNode, void* param) {
   tQueryInfo* pInfo = (tQueryInfo*) param;
 
   STable* pTable = (STable*)(SL_GET_NODE_DATA((SSkipListNode*)pNode));
 
-  char*  val = NULL;
-
+  char* val = NULL;
   if (pInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
     val = (char*) TABLE_NAME(pTable);
   } else {
@@ -2574,15 +2705,17 @@ static bool indexedNodeFilterFp(const void* pNode, void* param) {
   return true;
 }
 
+static void getTableListfromSkipList(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SExprTraverseSupp *param);
+
 static int32_t doQueryTableList(STable* pSTable, SArray* pRes, tExprNode* pExpr) {
   // query according to the expression tree
   SExprTraverseSupp supp = {
-      .nodeFilterFn = (__result_filter_fn_t) indexedNodeFilterFp,
+      .nodeFilterFn = (__result_filter_fn_t) tableFilterFp,
       .setupInfoFn = filterPrepare,
       .pExtInfo = pSTable->tagSchema,
       };
 
-  tExprTreeTraverse(pExpr, pSTable->pIndex, pRes, &supp);
+  getTableListfromSkipList(pExpr, pSTable->pIndex, pRes, &supp);
   tExprTreeDestroy(&pExpr, destroyHelper);
   return TSDB_CODE_SUCCESS;
 }
@@ -2823,4 +2956,236 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
 
   taosArrayDestroy(pGroupList->pGroupList);
   pGroupList->numOfTables = 0;
+}
+
+static void applyFilterToSkipListNode(SSkipList *pSkipList, tExprNode *pExpr, SArray *pResult, SExprTraverseSupp *param) {
+  SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
+
+  // Scan each node in the skiplist by using iterator
+  while (tSkipListIterNext(iter)) {
+    SSkipListNode *pNode = tSkipListIterGet(iter);
+    if (exprTreeApplayFilter(pExpr, pNode, param)) {
+      taosArrayPush(pResult, &(SL_GET_NODE_DATA(pNode)));
+    }
+  }
+
+  tSkipListDestroyIter(iter);
+}
+
+typedef struct {
+  char*    v;
+  int32_t  optr;
+} SEndPoint;
+
+typedef struct {
+  SEndPoint* start;
+  SEndPoint* end;
+} SQueryCond;
+
+// todo check for malloc failure
+static int32_t setQueryCond(tQueryInfo *queryColInfo, SQueryCond* pCond) {
+  int32_t optr = queryColInfo->optr;
+
+  if (optr == TSDB_RELATION_GREATER || optr == TSDB_RELATION_GREATER_EQUAL ||
+      optr == TSDB_RELATION_EQUAL || optr == TSDB_RELATION_NOT_EQUAL) {
+    pCond->start = calloc(1, sizeof(SEndPoint));
+    pCond->start->optr = queryColInfo->optr;
+    pCond->start->v = queryColInfo->q;
+  } else if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
+    pCond->end = calloc(1, sizeof(SEndPoint));
+    pCond->end->optr = queryColInfo->optr;
+    pCond->end->v = queryColInfo->q;
+  } else if (optr == TSDB_RELATION_IN || optr == TSDB_RELATION_LIKE) {
+    assert(0);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void queryIndexedColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* result) {
+  SSkipListIterator* iter = NULL;
+
+  SQueryCond cond = {0};
+  if (setQueryCond(pQueryInfo, &cond) != TSDB_CODE_SUCCESS) {
+    //todo handle error
+  }
+
+  if (cond.start != NULL) {
+    iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->type, TSDB_ORDER_ASC);
+  } else {
+    iter = tSkipListCreateIterFromVal(pSkipList, (char*)(cond.end ? cond.end->v: NULL), pSkipList->type, TSDB_ORDER_DESC);
+  }
+
+  if (cond.start != NULL) {
+    int32_t optr = cond.start->optr;
+
+    if (optr == TSDB_RELATION_EQUAL) {   // equals
+      while(tSkipListIterNext(iter)) {
+        SSkipListNode* pNode = tSkipListIterGet(iter);
+
+        int32_t ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
+        if (ret != 0) {
+          break;
+        }
+
+        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+        taosArrayPush(result, &info);
+      }
+    } else if (optr == TSDB_RELATION_GREATER || optr == TSDB_RELATION_GREATER_EQUAL) { // greater equal
+      bool comp = true;
+      int32_t ret = 0;
+
+      while(tSkipListIterNext(iter)) {
+        SSkipListNode* pNode = tSkipListIterGet(iter);
+
+        if (comp) {
+          ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v);
+          assert(ret >= 0);
+        }
+
+        if (ret == 0 && optr == TSDB_RELATION_GREATER) {
+          continue;
+        } else {
+          STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+          taosArrayPush(result, &info);
+          comp = false;
+        }
+      }
+    } else if (optr == TSDB_RELATION_NOT_EQUAL) {   // not equal
+      bool comp = true;
+
+      while(tSkipListIterNext(iter)) {
+        SSkipListNode* pNode = tSkipListIterGet(iter);
+        comp = comp && (pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v) == 0);
+        if (comp) {
+          continue;
+        }
+
+        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+        taosArrayPush(result, &info);
+      }
+
+      tSkipListDestroyIter(iter);
+
+      comp = true;
+      iter = tSkipListCreateIterFromVal(pSkipList, (char*) cond.start->v, pSkipList->type, TSDB_ORDER_DESC);
+      while(tSkipListIterNext(iter)) {
+        SSkipListNode* pNode = tSkipListIterGet(iter);
+        comp = comp && (pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.start->v) == 0);
+        if (comp) {
+          continue;
+        }
+
+        STableKeyInfo info = {.pTable = (void*)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+        taosArrayPush(result, &info);
+      }
+
+    } else {
+      assert(0);
+    }
+  } else {
+    int32_t optr = cond.end ? cond.end->optr : TSDB_RELATION_INVALID;
+    if (optr == TSDB_RELATION_LESS || optr == TSDB_RELATION_LESS_EQUAL) {
+      bool    comp = true;
+      int32_t ret = 0;
+
+      while (tSkipListIterNext(iter)) {
+        SSkipListNode *pNode = tSkipListIterGet(iter);
+
+        if (comp) {
+          ret = pQueryInfo->compare(SL_GET_NODE_KEY(pSkipList, pNode), cond.end->v);
+          assert(ret <= 0);
+        }
+
+        if (ret == 0 && optr == TSDB_RELATION_LESS) {
+          continue;
+        } else {
+          STableKeyInfo info = {.pTable = (void *)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+          taosArrayPush(result, &info);
+          comp = false;  // no need to compare anymore
+        }
+      }
+    } else {
+      assert(pQueryInfo->optr == TSDB_RELATION_ISNULL || pQueryInfo->optr == TSDB_RELATION_NOTNULL);
+
+      while (tSkipListIterNext(iter)) {
+        SSkipListNode *pNode = tSkipListIterGet(iter);
+
+        bool isnull = isNull(SL_GET_NODE_KEY(pSkipList, pNode), pQueryInfo->sch.type);
+        if ((pQueryInfo->optr == TSDB_RELATION_ISNULL && isnull) ||
+            (pQueryInfo->optr == TSDB_RELATION_NOTNULL && (!isnull))) {
+          STableKeyInfo info = {.pTable = (void *)SL_GET_NODE_DATA(pNode), .lastKey = TSKEY_INITIAL_VAL};
+          taosArrayPush(result, &info);
+        }
+      }
+    }
+  }
+
+  free(cond.start);
+  free(cond.end);
+  tSkipListDestroyIter(iter);
+}
+
+static void queryIndexlessColumn(SSkipList* pSkipList, tQueryInfo* pQueryInfo, SArray* res, __result_filter_fn_t filterFp) {
+  SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
+
+  while (tSkipListIterNext(iter)) {
+    bool addToResult = false;
+
+    SSkipListNode *pNode = tSkipListIterGet(iter);
+
+    char *pData = SL_GET_NODE_DATA(pNode);
+    tstr *name = (tstr*) tsdbGetTableName((void*) pData);
+
+    // todo speed up by using hash
+    if (pQueryInfo->sch.colId == TSDB_TBNAME_COLUMN_INDEX) {
+      if (pQueryInfo->optr == TSDB_RELATION_IN) {
+        addToResult = pQueryInfo->compare(name, pQueryInfo->q);
+      } else if (pQueryInfo->optr == TSDB_RELATION_LIKE) {
+        addToResult = !pQueryInfo->compare(name, pQueryInfo->q);
+      }
+    } else {
+      addToResult = filterFp(pNode, pQueryInfo);
+    }
+
+    if (addToResult) {
+      STableKeyInfo info = {.pTable = (void*)pData, .lastKey = TSKEY_INITIAL_VAL};
+      taosArrayPush(res, &info);
+    }
+  }
+
+  tSkipListDestroyIter(iter);
+}
+
+// Apply the filter expression to each node in the skiplist to acquire the qualified nodes in skip list
+void getTableListfromSkipList(tExprNode *pExpr, SSkipList *pSkipList, SArray *result, SExprTraverseSupp *param) {
+  if (pExpr == NULL) {
+    return;
+  }
+
+  tExprNode *pLeft  = pExpr->_node.pLeft;
+  tExprNode *pRight = pExpr->_node.pRight;
+
+  // column project
+  if (pLeft->nodeType != TSQL_NODE_EXPR && pRight->nodeType != TSQL_NODE_EXPR) {
+    assert(pLeft->nodeType == TSQL_NODE_COL && (pRight->nodeType == TSQL_NODE_VALUE || pRight->nodeType == TSQL_NODE_DUMMY));
+
+    param->setupInfoFn(pExpr, param->pExtInfo);
+
+    tQueryInfo *pQueryInfo = pExpr->_node.info;
+    if (pQueryInfo->indexed && pQueryInfo->optr != TSDB_RELATION_LIKE) {
+      queryIndexedColumn(pSkipList, pQueryInfo, result);
+    } else {
+      queryIndexlessColumn(pSkipList, pQueryInfo, result, param->nodeFilterFn);
+    }
+
+    return;
+  }
+
+  // The value of hasPK is always 0.
+  uint8_t weight = pLeft->_node.hasPK + pRight->_node.hasPK;
+  assert(weight == 0 && pSkipList != NULL && taosArrayGetSize(result) == 0);
+
+  //apply the hierarchical filter expression to every node in skiplist to find the qualified nodes
+  applyFilterToSkipListNode(pSkipList, pExpr, result, param);
 }

@@ -109,7 +109,7 @@ public class RestfulStatement implements Statement {
             throw new SQLException("Database not specified or available");
 
         final String url = "http://" + conn.getHost().trim() + ":" + conn.getPort() + "/rest/sql";
-        HttpClientPoolUtil.execute(url, "use " + conn.getDatabase());
+//        HttpClientPoolUtil.execute(url, "use " + conn.getDatabase());
         String result = HttpClientPoolUtil.execute(url, sql);
         JSONObject jsonObject = JSON.parseObject(result);
         if (jsonObject.getString("status").equals("error")) {
@@ -215,6 +215,7 @@ public class RestfulStatement implements Statement {
         //如果执行了use操作应该将当前Statement的catalog设置为新的database
         if (SqlSyntaxValidator.isUseSql(sql)) {
             this.database = sql.trim().replace("use", "").trim();
+            this.conn.setCatalog(this.database);
         }
         if (this.database == null)
             throw new SQLException("Database not specified or available");

@@ -447,7 +447,7 @@ static int taosDecRefCount(int rsetId, int64_t rid, int remove) {
 }
 
 static void taosLockList(int64_t *lockedBy) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   int     i = 0;
   while (atomic_val_compare_exchange_64(lockedBy, 0, tid) != 0) {
     if (++i % 100 == 0) {
@@ -457,7 +457,7 @@ static void taosLockList(int64_t *lockedBy) {
 }
 
 static void taosUnlockList(int64_t *lockedBy) {
-  int64_t tid = taosGetPthreadId();
+  int64_t tid = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(lockedBy, tid, 0) != tid) {
     assert(false);
   }

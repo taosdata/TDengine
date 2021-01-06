@@ -128,8 +128,8 @@ typedef struct {
 typedef struct {
   int32_t    dnodeId;
   int8_t     role;
-  int8_t     reserved[3];
-  SDnodeObj* pDnode;
+  int8_t     vver[3];  // To ensure compatibility, 3 bits are used to represent the remainder of 64 bit version
+  SDnodeObj *pDnode;
 } SVnodeGid;
 
 typedef struct SVgObj {
@@ -174,7 +174,8 @@ typedef struct {
   int8_t  replications;
   int8_t  quorum;
   int8_t  update;
-  int8_t  reserved[11];
+  int8_t  cacheLastRow;
+  int8_t  reserved[10];
 } SDbCfg;
 
 typedef struct SDbObj {

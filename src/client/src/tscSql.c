@@ -115,9 +115,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
 
   pObj->signature = pObj;
   pObj->pDnodeConn = pDnodeConn;
-  T_REF_INIT_VAL(pObj, 1);
   
-
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   secretEncryptLen = MIN(secretEncryptLen, sizeof(pObj->pass));
   memcpy(pObj->pass, secretEncrypt, secretEncryptLen);
@@ -172,11 +170,9 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   if (taos != NULL) {
     *taos = pObj;
   }
-
-  registerSqlObj(pSql);
-  tsInsertHeadSize = sizeof(SMsgDesc) + sizeof(SSubmitMsg);
-
   pObj->rid = taosAddRef(tscRefId, pObj);
+  registerSqlObj(pSql);
+
   return pSql;
 }
 
@@ -288,34 +284,21 @@ void taos_close(TAOS *taos) {
     return;
   }
 
-  // make sure that the close connection can only be executed once.
-  pObj->signature = NULL;
-  taosTmrStopA(&(pObj->pTimer));
-
-  if (pObj->hbrid > 0) {
+  if (RID_VALID(pObj->hbrid)) {
     SSqlObj* pHb = (SSqlObj*)taosAcquireRef(tscObjRef, pObj->hbrid);
     if (pHb != NULL) {
-      if (pHb->rpcRid > 0) {  // wait for rsp from dnode
+      if (RID_VALID(pHb->rpcRid)) {  // wait for rsp from dnode
         rpcCancelRequest(pHb->rpcRid);
         pHb->rpcRid = -1;
       }
 
       tscDebug("%p HB is freed", pHb);
-      taos_free_result(pHb);
       taosReleaseRef(tscObjRef, pHb->self);
+      taos_free_result(pHb);
     }
   }
 
-  int32_t ref = T_REF_DEC(pObj);
-  assert(ref >= 0);
-
-  if (ref > 0) {
-    tscDebug("%p %d remain sqlObjs, not free tscObj and dnodeConn:%p", pObj, ref, pObj->pDnodeConn);
-    return;
-  }
-
   tscDebug("%p all sqlObj are freed, free tscObj and close dnodeConn:%p", pObj, pObj->pDnodeConn);
-
   taosRemoveRef(tscRefId, pObj->rid);
 }
 
@@ -331,7 +314,7 @@ static void waitForRetrieveRsp(void *param, TAOS_RES *tres, int numOfRows) {
   tsem_post(&pSql->rspSem);
 }
 
-TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, TAOS_RES** res) {
+TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, int64_t* res) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
     terrno = TSDB_CODE_TSC_DISCONNECTED;
@@ -357,7 +340,7 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, TAOS_RES
   doAsyncQuery(pObj, pSql, waitForQueryRsp, taos, sqlstr, sqlLen);
 
   if (res != NULL) {
-    *res = pSql;
+    atomic_store_64(res, pSql->self);
   }
 
   tsem_wait(&pSql->rspSem);
@@ -368,7 +351,7 @@ TAOS_RES* taos_query(TAOS *taos, const char *sqlstr) {
   return taos_query_c(taos, sqlstr, (uint32_t)strlen(sqlstr), NULL);
 }
 
-TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, TAOS_RES** res) {
+TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, int64_t* res) {
   return taos_query_c(taos, sqlstr, (uint32_t) strlen(sqlstr), res);
 }
 
@@ -726,7 +709,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
       pSubObj->rpcRid = -1;
     }
 
-    tscQueueAsyncRes(pSubObj);
+    tscAsyncResultOnError(pSubObj);
     taosReleaseRef(tscObjRef, pSubObj->self);
   }
 
@@ -762,7 +745,7 @@ void taos_stop_query(TAOS_RES *res) {
         pSql->rpcRid = -1;
       }
 
-      tscQueueAsyncRes(pSql);
+      tscAsyncResultOnError(pSql);
     }
   }
 
@@ -926,7 +909,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
 static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t tblListLen) {
   // must before clean the sqlcmd object
-  tscResetSqlCmdObj(&pSql->cmd, false);
+  tscResetSqlCmdObj(&pSql->cmd);
 
   SSqlCmd *pCmd = &pSql->cmd;
 

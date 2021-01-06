@@ -56,6 +56,12 @@
             <scope>test</scope>
         </dependency>
 
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <version>5.1.47</version>
+        </dependency>
+
         <!-- for restful -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
@@ -80,6 +86,7 @@
         </dependency>
 
     </dependencies>
+
     <build>
         <plugins>
             <plugin>

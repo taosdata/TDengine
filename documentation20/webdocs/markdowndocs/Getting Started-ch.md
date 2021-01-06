@@ -20,7 +20,7 @@ TDengine的安装非常简单，从下载到安装成功仅仅只要几秒钟。
 - TDengine-server-2.0.10.0-Linux-x64.deb (2.7M)
 - TDengine-server-2.0.10.0-Linux-x64.tar.gz (4.5M)
 
-具体的安装过程，请参见<a href="https://www.taosdata.com/blog/2019/08/09/566.html">TDengine多种安装包的安装和卸载</a>。
+具体的安装过程，请参见<a href="https://www.taosdata.com/blog/2019/08/09/566.html">TDengine多种安装包的安装和卸载</a>以及<a href="https://www.taosdata.com/blog/2020/11/11/1941.html">视频教程</a>。
 
 ## 轻松启动
 

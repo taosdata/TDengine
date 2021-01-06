@@ -14,6 +14,11 @@ system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 
+system sh/cfg.sh -n dnode1 -c balanceInterval -v 1
+system sh/cfg.sh -n dnode2 -c balanceInterval -v 1
+system sh/cfg.sh -n dnode3 -c balanceInterval -v 1
+system sh/cfg.sh -n dnode4 -c balanceInterval -v 1
+
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
 sql connect
@@ -21,7 +26,38 @@ sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+
+sql show mnodes
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step1
+endi
 
 print ======== step1 
 sql create database d1 replica 3
@@ -38,7 +74,6 @@ sql insert into d1.t1 values(now, 1)
 sql insert into d2.t2 values(now, 1)
 sql insert into d3.t3 values(now, 1)
 sql insert into d4.t4 values(now, 1)
-sleep 1000
 
 sql select * from d1.t1
 if $rows != 1 then
@@ -64,27 +99,104 @@ print ========= step2 alter db
 sql_error alter database d1 replica 1
 sql_error alter database d2 replica 1
 sql_error alter database d3 replica 1
+sql_error alter database d4 replica 1
 sql alter database d1 replica 2
 sql alter database d2 replica 2
 sql alter database d3 replica 2
+sql alter database d4 replica 2
 
-sleep 8000
+$x = 0
+a2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a2
+endi
+
+sql show d2.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a2
+endi
+
+sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a2
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto a2
+endi
 
 sql alter database d1 replica 1
 sql alter database d2 replica 1
 sql alter database d3 replica 1
+sql alter database d4 replica 1
 
-sleep 8000
+$x = 0
+a1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+	  return -1
+	endi
+
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a1
+endi
+
+sql show d2.vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a1
+endi
+
+sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a1
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 1 then
+	goto a1
+endi
+
+sql show dnodes
+print $data00 $data01 $data02 $data03
+print $data10 $data11 $data12 $data13
+print $data20 $data21 $data22 $data23
+
+if $data02 != 0 then
+	goto a1
+endi
+if $data12 != 2 then
+	goto a1
+endi
+if $data22 != 2 then
+	goto a1
+endi
 
 print ========= step3
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql insert into d1.t1 values(now, 2)
 sql insert into d2.t2 values(now, 2)
 sql insert into d3.t3 values(now, 2)
 sql insert into d4.t4 values(now, 2)
-sleep 1000
 
 sql select * from d1.t1
 if $rows != 2 then
@@ -110,13 +222,44 @@ print ========= step4 alter db
 sql alter database d1 replica 2
 sql alter database d2 replica 2
 sql alter database d3 replica 2
-sleep 8000
+sql alter database d4 replica 2
+
+$x = 0
+step4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+
+sql show d1.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step4
+endi
+
+sql show d2.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step4
+endi
+
+sql show d3.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step4
+endi
+
+sql show d4.vgroups 
+print online vnodes $data03
+if $data03 != 2 then
+	goto step4
+endi
 
 sql insert into d1.t1 values(now, 3)
 sql insert into d2.t2 values(now, 3)
 sql insert into d3.t3 values(now, 3)
 sql insert into d4.t4 values(now, 3)
-sleep 1000
 
 sql select * from d1.t1
 if $rows != 3 then
@@ -140,10 +283,8 @@ endi
 
 print ========= step4
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
-
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql insert into d1.t1 values(now, 4) -x step1
 step1:
@@ -156,9 +297,7 @@ step4:
 
 print ========= step5
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
-sleep 5000
 
 sql insert into d1.t1 values(now, 5) -x step5
 step5:
@@ -171,13 +310,11 @@ step8:
 
 print ========= step6
 system sh/exec.sh -n dnode3 -s start
-sleep 5000
 
 sql insert into d1.t1 values(now, 6)
 sql insert into d2.t2 values(now, 6)
 sql insert into d3.t3 values(now, 6)
 sql insert into d4.t4 values(now, 6)
-sleep 1000
 
 sql select * from d1.t1
 sql select * from d2.t2
@@ -188,7 +325,3 @@ system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec.sh -n dnode2 -s stop  -x SIGINT
 system sh/exec.sh -n dnode3 -s stop  -x SIGINT
 system sh/exec.sh -n dnode4 -s stop  -x SIGINT
-system sh/exec.sh -n dnode5 -s stop  -x SIGINT
-system sh/exec.sh -n dnode6 -s stop  -x SIGINT
-system sh/exec.sh -n dnode7 -s stop  -x SIGINT
-system sh/exec.sh -n dnode8 -s stop  -x SIGINT

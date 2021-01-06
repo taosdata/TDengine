@@ -42,6 +42,7 @@ pipeline {
             pre_test()
             sh '''
             cd ${WKC}/tests
+            find pytest -name '*'sql|xargs rm -rf
             ./test-all.sh pytest
             date'''
           }
@@ -50,12 +51,7 @@ pipeline {
           agent{label 'master'}
           steps {
             pre_test()
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                python3 concurrent_inquiry.py -c 1
-                '''
-            }
+            
             sh '''
             cd ${WKC}/tests
             ./test-all.sh b1
@@ -82,7 +78,37 @@ pipeline {
                 ./handle_crash_gen_val_log.sh
                 '''
             }
+            sh'''
+            systemctl start taosd 
+            sleep 10
+            '''
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/gotest
+                bash batchtest.sh
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/examples/python/PYTHONConnectorChecker
+                python3 PythonChecker.py
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/examples/JDBC/JDBCDemo/
+                mvn clean package assembly:single -DskipTests >/dev/null 
+                java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${JENKINS_HOME}/workspace/C#NET/src/CheckC#
+                dotnet run
+                '''
+            }
             sh '''
+            systemctl stop taosd 
             cd ${WKC}/tests
             ./test-all.sh b2
             date
@@ -95,6 +121,15 @@ pipeline {
 
           steps {
             pre_test()
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/pytest
+                nohup taosd >/dev/null &
+                sleep 10
+                python3 concurrent_inquiry.py -c 1
+                
+                '''
+            }
             sh '''
             cd ${WKC}/tests/pytest
             ./valgrind-test.sh 2>&1 > mem-error-out.log
@@ -106,41 +141,7 @@ pipeline {
             date'''
           }
         }
-       stage('connector'){
-         agent{label "release"}
-         steps{
-            sh'''
-            cd ${WORKSPACE}
-            git checkout develop
-            '''
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WORKSPACE}/tests/gotest
-                bash batchtest.sh
-                '''
-            }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
-                python3 PythonChecker.py
-                '''
-            }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                mvn clean package assembly:single >/dev/null 
-                java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
-                '''
-            }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${JENKINS_HOME}/workspace/C#NET/src/CheckC#
-                dotnet run
-                '''
-            }
-          
-         }
-       }
+       
        stage('arm64_build'){
                 agent{label 'arm64'}
                 steps{

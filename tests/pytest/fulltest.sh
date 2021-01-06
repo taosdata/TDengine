@@ -178,11 +178,15 @@ python3 ./test.py -f query/floatCompare.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
+python3 ./test.py -f stream/metric_n.py
 python3 ./test.py -f stream/new.py
 python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
 #python3 ./test.py -f stream/parser.py
 python3 ./test.py -f stream/history.py
+python3 ./test.py -f stream/sys.py
+python3 ./test.py -f stream/table_1.py
+python3 ./test.py -f stream/table_n.py
 
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py
@@ -217,11 +221,14 @@ python3 ./test.py -f functions/function_sum.py -r 1
 python3 ./test.py -f functions/function_top.py -r 1
 python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
+python3 ./test.py -f functions/all_null_value.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
-python3 test.py -f query/queryInterval.py
-python3 test.py -f query/queryFillTest.py
+python3 ./test.py -f query/queryInterval.py
+python3 ./test.py -f query/queryFillTest.py
+python3 ./test.py -f query/last_row_cache.py
+python3 ./test.py -f query/last_cache.py
 
 # tools
 python3 test.py -f tools/taosdemoTest.py

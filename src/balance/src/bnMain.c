@@ -66,6 +66,77 @@ static bool bnCheckFree(SDnodeObj *pDnode) {
   return true;
 }
 
+static void bnSwapVnodeGid(SVnodeGid *pVnodeGid1, SVnodeGid *pVnodeGid2) {
+  SVnodeGid tmp = *pVnodeGid1;
+  *pVnodeGid1 = *pVnodeGid2;
+  *pVnodeGid2 = tmp;
+}
+
+static void bnAdjustVnodeIndex(SVgObj *pInVg) {
+  int32_t d0Id = pInVg->vnodeGid[0].dnodeId;
+  int32_t d1Id = pInVg->vnodeGid[1].dnodeId;
+  int32_t d2Id = pInVg->vnodeGid[2].dnodeId;
+
+  int32_t vgId = pInVg->vgId;
+  int32_t d0Num = 0;
+  int32_t d1Num = 0;
+  int32_t d2Num = 0;
+
+  void *pIter = NULL;
+  while (1) {
+    SVgObj *pVgroup = NULL;
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+    if (pVgroup == NULL) break;
+
+    if (pVgroup->vgId != vgId) {
+      if (pVgroup->vnodeGid[0].dnodeId == d0Id) d0Num++;
+      if (pVgroup->vnodeGid[0].dnodeId == d1Id) d1Num++;
+      if (pVgroup->vnodeGid[0].dnodeId == d2Id) d2Num++;
+    }
+
+    mnodeDecVgroupRef(pVgroup);
+  }
+
+  if (pInVg->numOfVnodes == 1) {
+  }
+
+  if (pInVg->numOfVnodes == 2) {
+    mDebug("vgId:%d, dnode:%d num:%d dnode:%d num:%d", pInVg->vgId, d0Id, d0Num, d1Id, d1Num);
+    if (d0Num > d1Num) {
+      mDebug("vgId:%d, adjust vnode index 0 to 1", pInVg->vgId);
+      bnSwapVnodeGid(&pInVg->vnodeGid[0], &pInVg->vnodeGid[1]);
+    }
+  }
+
+  if (pInVg->numOfVnodes >= 3) {
+    mDebug("vgId:%d, dnode:%d num:%d dnode:%d num:%d dnode:%d num:%d", pInVg->vgId, d0Id, d0Num, d1Id, d1Num, d2Id, d2Num);
+    if (d0Num <= d1Num && d0Num <= d2Num) {
+      if (d1Num > d2Num) {
+        mDebug("vgId:%d, adjust vnode index 1 to 2", pInVg->vgId);
+        bnSwapVnodeGid(&pInVg->vnodeGid[1], &pInVg->vnodeGid[2]);
+      }
+    } else if (d1Num <= d2Num && d1Num <= d0Num) {
+      mDebug("vgId:%d, adjust vnode index 0 to 1", pInVg->vgId);
+      bnSwapVnodeGid(&pInVg->vnodeGid[0], &pInVg->vnodeGid[1]);
+      if (d0Num > d2Num) {
+        mDebug("vgId:%d, adjust vnode index 1 to 2", pInVg->vgId);
+        bnSwapVnodeGid(&pInVg->vnodeGid[1], &pInVg->vnodeGid[2]);
+      }
+    } else {
+      mDebug("vgId:%d, adjust vnode index 0 to 2", pInVg->vgId);
+      bnSwapVnodeGid(&pInVg->vnodeGid[0], &pInVg->vnodeGid[2]);
+      if (d1Num > d0Num) {
+        mDebug("vgId:%d, adjust vnode index 1 to 2", pInVg->vgId);
+        bnSwapVnodeGid(&pInVg->vnodeGid[1], &pInVg->vnodeGid[2]);
+      }
+    }
+  }
+
+  for (int i = 0; i < pInVg->numOfVnodes; ++i) {
+    mDebug("vgId:%d index:%d dnodeId:%d", pInVg->vgId, i, pInVg->vnodeGid[i].dnodeId);
+  }
+}
+
 static void bnDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
   mDebug("vgId:%d, dnode:%d is dropping", pVgroup->vgId, pVnodeGid->dnodeId);
 
@@ -88,13 +159,8 @@ static void bnDiscardVnode(SVgObj *pVgroup, SVnodeGid *pVnodeGid) {
   memcpy(pVgroup->vnodeGid, vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
   pVgroup->numOfVnodes = numOfVnodes;
 
+  bnAdjustVnodeIndex(pVgroup);
   mnodeUpdateVgroup(pVgroup);
-}
-
-static void bnSwapVnodeGid(SVnodeGid *pVnodeGid1, SVnodeGid *pVnodeGid2) {
-  SVnodeGid tmp = *pVnodeGid1;
-  *pVnodeGid1 = *pVnodeGid2;
-  *pVnodeGid2 = tmp;
 }
 
 int32_t bnAllocVnodes(SVgObj *pVgroup) {
@@ -147,6 +213,7 @@ int32_t bnAllocVnodes(SVgObj *pVgroup) {
     }
   }
 
+  bnAdjustVnodeIndex(pVgroup);
   bnReleaseDnodes();
   bnUnLock();
   return TSDB_CODE_SUCCESS;
@@ -157,17 +224,32 @@ static bool bnCheckVgroupReady(SVgObj *pVgroup, SVnodeGid *pRmVnode) {
     return false;
   }
 
+  int32_t rmVnodeVer = 0;
+  for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    SVnodeGid *pVnode = pVgroup->vnodeGid + i;
+    if (pVnode == pRmVnode) {
+      rmVnodeVer = mnodeGetVgidVer(pVnode->vver);
+      mTrace("vgId:%d, check vgroup status, vindex:%d dnode:%d status:%s role:%s vver:%d is watching", pVgroup->vgId, i,
+             pVnode->dnodeId, dnodeStatus[pVnode->pDnode->status], syncRole[pVnode->role], rmVnodeVer);
+    }
+  }
+
   bool isReady = false;
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
     SVnodeGid *pVnode = pVgroup->vnodeGid + i;
+    SDnodeObj *pDnode = pVnode->pDnode;
     if (pVnode == pRmVnode) continue;
+    int32_t vver = mnodeGetVgidVer(pVnode->vver);
 
-    mTrace("vgId:%d, check vgroup status, dnode:%d status:%d, vnode role:%s", pVgroup->vgId, pVnode->pDnode->dnodeId,
-           pVnode->pDnode->status, syncRole[pVnode->role]);
-    if (pVnode->pDnode->status == TAOS_DN_STATUS_DROPPING) continue;
-    if (pVnode->pDnode->status == TAOS_DN_STATUS_OFFLINE) continue;
+    mTrace("vgId:%d, check vgroup status, vindex:%d dnode:%d status:%s role:%s vver:%d, rmvver:%d", pVgroup->vgId, i,
+           pVnode->dnodeId, dnodeStatus[pDnode->status], syncRole[pVnode->role], vver, rmVnodeVer);
+    if (pDnode->status == TAOS_DN_STATUS_DROPPING) continue;
+    if (pDnode->status == TAOS_DN_STATUS_OFFLINE) continue;
+    if (pVnode->role != TAOS_SYNC_ROLE_SLAVE && pVnode->role != TAOS_SYNC_ROLE_MASTER) continue;
 
-    if (pVnode->role == TAOS_SYNC_ROLE_SLAVE || pVnode->role == TAOS_SYNC_ROLE_MASTER) {
+    if (rmVnodeVer == 0 || vver >= rmVnodeVer) {
+      mInfo("vgId:%d, is ready for vindex:%d in dnode:%d status:%s role:%s vver:%d larger than rmvver:%d",
+            pVgroup->vgId, i, pVnode->dnodeId, dnodeStatus[pDnode->status], syncRole[pVnode->role], vver, rmVnodeVer);
       isReady = true;
     }
   }
@@ -189,7 +271,7 @@ static int32_t bnRemoveVnode(SVgObj *pVgroup) {
     mDebug("vgId:%d, is not ready", pVgroup->vgId);
     return -1;
   } else {
-    mDebug("vgId:%d, is ready, discard dnode:%d", pVgroup->vgId, pSelVnode->dnodeId);
+    mInfo("vgId:%d, is ready, discard dnode:%d", pVgroup->vgId, pSelVnode->dnodeId);
     bnDiscardVnode(pVgroup, pSelVnode);
     return TSDB_CODE_SUCCESS;
   }
@@ -233,12 +315,18 @@ static int32_t bnAddVnode(SVgObj *pVgroup, SDnodeObj *pSrcDnode, SDnodeObj *pDes
   vnodeGids[numOfVnodes].pDnode = pDestDnode;
   numOfVnodes++;
 
+  // move the src vnode to the end
   for (int32_t v = 0; v < numOfVnodes; ++v) {
     if (pSrcDnode != NULL && pSrcDnode->dnodeId == vnodeGids[v].dnodeId) {
       bnSwapVnodeGid(&vnodeGids[v], &vnodeGids[numOfVnodes - 1]);
       pVgroup->lbDnodeId = pSrcDnode->dnodeId;
       break;
     }
+  }
+
+  // adjust the vgroup postion
+  if (pSrcDnode == NULL) {
+    bnAdjustVnodeIndex(pVgroup);
   }
 
   memcpy(&pVgroup->vnodeGid, &vnodeGids, sizeof(SVnodeGid) * TSDB_MAX_REPLICA);
@@ -330,7 +418,7 @@ void bnReset() {
   tsAccessSquence = 0;
 }
 
-static int32_t bnMonitorVgroups() {
+static bool bnMonitorVgroups() {
   void *  pIter = NULL;
   SVgObj *pVgroup = NULL;
   bool    hasUpdatingVgroup = false;
@@ -489,6 +577,7 @@ void bnCheckStatus() {
         mInfo("dnode:%d, set to offline state, access seq:%d last seq:%d laststat:%d", pDnode->dnodeId, tsAccessSquence,
               pDnode->lastAccess, pDnode->status);
         bnSetVgroupOffline(pDnode);
+        bnStartTimer(3000);
       }
     }
     mnodeDecDnodeRef(pDnode);

@@ -48,6 +48,7 @@ for (let i = 0; i < 10000; i++) {
 // Select
 console.log('select * from td_connector_test.all_types limit 3 offset 100;');
 c1.execute('select * from td_connector_test.all_types limit 2 offset 100;');
+
 var d = c1.fetchall();
 console.log(c1.fields);
 console.log(d);
@@ -77,13 +78,33 @@ c1.query('select stddev(_double), stddev(_bigint), stddev(_float) from all_types
 })
 
 // Binding arguments, and then using promise
-var q = c1.query('select * from td_connector_test.all_types where ts >= ? and _int > ? limit 100 offset 40;').bind(new Date(1231), 100)
+var q = c1.query('select _nchar from td_connector_test.all_types where ts >= ? and _int > ? limit 100 offset 40;').bind(new Date(1231), 100)
 console.log(q.query);
 q.execute().then(function(r) {
   r.pretty();
 });
 
 
+// test query null value
+c1.execute("create table if not exists td_connector_test.weather(ts timestamp, temperature float, humidity int) tags(location nchar(64))");
+c1.execute("insert into t1 using weather tags('北京') values(now, 11.11, 11)");
+c1.execute("insert into t1(ts, temperature) values(now, 22.22)");
+c1.execute("insert into t1(ts, humidity) values(now, 33)");
+c1.query('select * from test.t1', true).then(function (result) {
+     result.pretty();
+});
+
+var q = c1.query('select * from td_connector_test.weather');
+console.log(q.query);
+q.execute().then(function(r) {
+  	r.pretty();
+});
+
+function sleep(sleepTime) {
+    for(var start = +new Date; +new Date - start <= sleepTime; ) { }
+}
+
+sleep(10000);
 
 // Raw Async Testing (Callbacks, not promises)
 function cb2(param, result, rowCount, rd) {
@@ -129,16 +150,21 @@ setTimeout(function(){
   c1.fetchall_a(thisRes, cb4, param);
 },100);
 
+
 // Async through promises
 var aq = c1.query('select count(*) from td_connector_test.all_types;',false);
 aq.execute_a().then(function(data) {
   data.pretty();
 });
-c1.query('describe td_connector_test.stabletest;').execute_a().then(r=> r.pretty());
+
+c1.query('describe td_connector_test.stabletest').execute_a().then(function(r){
+	r.pretty()
+});
+
 setTimeout(function(){
   c1.query('drop database td_connector_test;');
 },200);
+
 setTimeout(function(){
   conn.close();
 },2000);
-

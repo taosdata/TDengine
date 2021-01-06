@@ -11,7 +11,6 @@ system sh/cfg.sh -n dnode2 -c monitor -v 1
 print ============== step1
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
 sql connect
 
 print ============== step2
@@ -20,8 +19,8 @@ sql create dnode $hostname2
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 10 then 
+	sleep 1000
+	if $x == 20 then 
 		return -1
 	endi
 	
@@ -50,6 +49,24 @@ sql select * from log.dn1
 $d1_first  = $rows
 sql select * from log.dn2
 $d2_first  = $rows
+
+$x = 0
+show4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then 
+		return -1
+	endi
+	
+sql show mnodes
+print dnode1 ==> $data2_1
+print dnode2 ==> $data2_2
+if $data2_1 != master then
+	goto show4
+endi
+if $data2_2 != slave then
+	goto show4
+endi
 
 sleep 3000
 sql select * from log.dn1
