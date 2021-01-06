@@ -104,6 +104,9 @@ pipeline {
             find pytest -name '*'sql|xargs rm -rf
             ./test-all.sh p2
             date'''
+            sh '''
+            ./test-all.sh b4fq
+            '''
           }
         }
         stage('test_b1') {
