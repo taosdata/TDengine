@@ -195,7 +195,11 @@ static int32_t syncRestoreWal(SSyncPeer *pPeer, uint64_t *wver) {
     }
     lastVer = pHead->version;
 
-    (*pNode->writeToCache)(pNode->vgId, pHead, TAOS_QTYPE_WAL, NULL);
+    ret = (*pNode->writeToCache)(pNode->vgId, pHead, TAOS_QTYPE_WAL, NULL);
+    if (ret != 0) {
+      sError("%s, failed to restore record since %s, hver:%" PRIu64, pPeer->id, tstrerror(ret), pHead->version);
+      break;
+    }
   }
 
   if (code < 0) {

@@ -245,17 +245,18 @@ static int32_t vnodeWriteToWQueueImp(SVWriteMsg *pWrite) {
   if (pWrite->qtype == TAOS_QTYPE_RPC) {
     int32_t code = vnodeCheckWrite(pVnode);
     if (code != TSDB_CODE_SUCCESS) {
+      vError("vgId:%d, failed to write into vwqueue since %s", pVnode->vgId, tstrerror(code));
       taosFreeQitem(pWrite);
       vnodeRelease(pVnode);
       return code;
     }
   }
 
-  if (!vnodeInReadyStatus(pVnode)) {
-    vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
-           pVnode->refCount, pVnode);
+  if (!vnodeInReadyOrUpdatingStatus(pVnode)) {
+    vError("vgId:%d, failed to write into vwqueue, vstatus is %s, refCount:%d pVnode:%p", pVnode->vgId,
+           vnodeStatus[pVnode->status], pVnode->refCount, pVnode);
     taosFreeQitem(pWrite);
-    vnodeRelease(pVnode);       
+    vnodeRelease(pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }
 
