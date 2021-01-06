@@ -7,7 +7,7 @@ import org.junit.Test;
 import java.sql.*;
 import java.util.Properties;
 
-public class DatabaseMetaDataTest extends BaseTest {
+public class DatabaseMetaDataTest {
     static Connection connection = null;
     static PreparedStatement statement = null;
     static String dbName = "test";
@@ -23,20 +23,21 @@ public class DatabaseMetaDataTest extends BaseTest {
         }
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
         connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
 
         String sql = "drop database if exists " + dbName;
-        statement = (TSDBPreparedStatement) connection.prepareStatement(sql);
+        statement = connection.prepareStatement(sql);
         statement.executeUpdate("create database if not exists " + dbName);
         statement.executeUpdate("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
     }
 
     @Test
     public void testMetaDataTest() throws SQLException {
-
         DatabaseMetaData databaseMetaData = connection.getMetaData();
         ResultSet resultSet = databaseMetaData.getTables(dbName, "t*", "t*", new String[]{"t"});
         while (resultSet.next()) {
