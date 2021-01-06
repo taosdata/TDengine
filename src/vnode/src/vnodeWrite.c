@@ -90,7 +90,10 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
 
   // write into WAL
   code = walWrite(pVnode->wal, pHead);
-  if (code < 0) return code;
+  if (code < 0) {
+    vError("vgId:%d, hver:%" PRIu64 " vver:%" PRIu64 " code:0x%x", pVnode->vgId, pHead->version, pVnode->version, code);
+    return code;
+  }
 
   pVnode->version = pHead->version;
 

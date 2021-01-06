@@ -292,6 +292,9 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   if (pthread_create(&newScript->bgPid, NULL, simExecuteScript, (void *)newScript) != 0) {
     sprintf(script->error, "lineNum:%d. create background thread failed", script->lines[script->linePos].lineNum);
     return false;
+  } else {
+    simDebug("script:%s, background thread:0x%08" PRIx64 " is created", newScript->fileName,
+             taosGetPthreadId(newScript->bgPid));
   }
 
   script->linePos++;
@@ -448,7 +451,6 @@ void simCloseNativeConnect(SScript *script) {
 
   simDebug("script:%s, taos:%p closed", script->fileName, script->taos);
   taos_close(script->taos);
-  taosMsleep(1200);
 
   script->taos = NULL;
 }
