@@ -90,7 +90,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
       break;
     }
 
-    sDebug("%s, file:%s info is received from master, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%d", pPeer->id,
+    sDebug("%s, file:%s info is received from master, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%u", pPeer->id,
            minfo.name, minfo.index, minfo.size, minfo.fversion, minfo.magic);
 
     // remove extra files on slave between the current and last index
@@ -100,13 +100,13 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     // check the file info
     sinfo = minfo;
     sinfo.magic = (*pNode->getFileInfo)(pNode->vgId, sinfo.name, &sinfo.index, TAOS_SYNC_MAX_INDEX, &sinfo.size, &sinfo.fversion);
-    sDebug("%s, local file:%s info, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%d", pPeer->id, sinfo.name,
+    sDebug("%s, local file:%s info, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%u", pPeer->id, sinfo.name,
            sinfo.index, sinfo.size, sinfo.fversion, sinfo.magic);
 
     // if file not there or magic is not the same, file shall be synced
     memset(&fileAck, 0, sizeof(SFileAck));
     syncBuildFileAck(&fileAck, pNode->vgId);
-    fileAck.sync = (sinfo.magic != minfo.magic || sinfo.name[0] == 0) ? 1 : 0;
+    fileAck.sync = (sinfo.magic != minfo.magic || sinfo.size != minfo.size || sinfo.name[0] == 0) ? 1 : 0;
 
     // send file ack
     ret = taosWriteMsg(pPeer->syncFd, &fileAck, sizeof(SFileAck));
