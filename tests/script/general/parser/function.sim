@@ -361,3 +361,15 @@ endi
 if $data10 != @20-07-30 17:43:59.000@ then
   return -1
 endi
+
+print =================>td-2610
+sql select stddev(k) from tm2 where ts='2020-12-29 18:46:19.109'
+if $rows != 0 then
+  print expect 0, actual:$rows
+  return -1
+endi
+
+sql select twa(k) from tm2 where ts='2020-12-29 18:46:19.109'
+if $rows != 0 then
+  return -1
+endi

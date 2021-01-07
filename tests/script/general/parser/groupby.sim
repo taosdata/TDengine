@@ -606,6 +606,10 @@ sql insert into t1 values ('2020-03-27 04:21:16.000', 1)('2020-03-27 04:31:17.00
 sql insert into t2 values ('2020-03-27 04:11:16.000', 1)('2020-03-27 04:11:17.000', 2) ('2020-03-27 04:11:18.000', 3) ('2020-03-27 04:11:19.000', 4) ; 
 sql insert into t2 values ('2020-03-27 04:21:16.000', 1)('2020-03-27 04:31:17.000', 2) ('2020-03-27 04:51:18.000', 3) ('2020-03-27 05:10:19.000', 4) ; 
 
+print =================>TD-2665
+sql_error create table txx as select avg(c) as t from st;
+sql_error create table txx1 as select avg(c) as t from t1;
+
 print =================>TD-2236
 sql select first(ts),last(ts) from t1 group by c;
 if $rows != 4 then
