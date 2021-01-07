@@ -1268,12 +1268,14 @@ static void min_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   }
 
 static void stddev_function(SQLFunctionCtx *pCtx) {
-  // the second stage to calculate standard deviation
   SStddevInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   
-  if (pStd->stage == 0) {  // the first stage is to calculate average value
+  if (pStd->stage == 0) {
+    // the first stage is to calculate average value
     avg_function(pCtx);
-  } else {
+  } else if (pStd->num > 0) {
+    // the second stage to calculate standard deviation
+    // if pStd->num == 0, there are no numbers in the first round check. No need to do the second round
     double *retVal = &pStd->res;
     double  avg = pStd->avg;
     
