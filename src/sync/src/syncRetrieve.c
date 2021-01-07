@@ -104,7 +104,7 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     fileInfo.magic = (*pNode->getFileInfo)(pNode->vgId, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX,
                                            &fileInfo.size, &fileInfo.fversion);
     syncBuildFileInfo(&fileInfo, pNode->vgId);
-    sDebug("%s, file:%s info is sent, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%d", pPeer->id, fileInfo.name,
+    sDebug("%s, file:%s info is sent, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%u", pPeer->id, fileInfo.name,
            fileInfo.index, fileInfo.size, fileInfo.fversion, fileInfo.magic);
 
     // send the file info
@@ -143,10 +143,10 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     // if sync is not required, continue
     if (fileAck.sync == 0) {
       fileInfo.index++;
-      sDebug("%s, %s is the same", pPeer->id, fileInfo.name);
+      sDebug("%s, %s is the same, fver:%" PRIu64, pPeer->id, fileInfo.name, fileInfo.fversion);
       continue;
     } else {
-      sDebug("%s, %s will be sent", pPeer->id, fileInfo.name);
+      sDebug("%s, %s will be sent, fver:%" PRIu64, pPeer->id, fileInfo.name, fileInfo.fversion);
     }
 
     // get the full path to file
@@ -328,7 +328,8 @@ static int32_t syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) 
     // if bytes > 0, file is updated, or fversion is not reached but file still open, read again
     once = 1;
     offset += bytes;
-    sDebug("%s, continue retrieve last wal, bytes:%d offset:%" PRId64, pPeer->id, bytes, offset);
+    sDebug("%s, continue retrieve last wal, bytes:%d offset:%" PRId64 " sver:%" PRIu64 " fver:%" PRIu64, pPeer->id,
+           bytes, offset, pPeer->sversion, fversion);
   }
 
   return -1;
@@ -503,9 +504,10 @@ void *syncRetrieveData(void *param) {
   taosClose(pPeer->syncFd);
 
   // The ref is obtained in both the create thread and the current thread, so it is released twice
+  sInfo("%s, sync retrieve data over, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
+
   syncReleasePeer(pPeer);
   syncReleasePeer(pPeer);
 
-  sInfo("%s, sync retrieve data over, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
   return NULL;
 }

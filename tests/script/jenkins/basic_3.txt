@@ -73,3 +73,7 @@
 ./test.sh -f general/stream/stream_restart.sim
 ./test.sh -f general/stream/table_del.sim
 ./test.sh -f general/stream/table_replica1_vnoden.sim
+
+./test.sh -f general/connection/test_old_data.sim
+./test.sh -f unique/dnode/datatrans_3node.sim 
+./test.sh -f unique/dnode/datatrans_3node_2.sim

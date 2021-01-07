@@ -86,6 +86,7 @@ void qDestroyQueryInfo(qinfo_t qHandle);
 
 void* qOpenQueryMgmt(int32_t vgId);
 void  qQueryMgmtNotifyClosed(void* pExecutor);
+void  qQueryMgmtReOpen(void *pExecutor);
 void  qCleanupQueryMgmt(void* pExecutor);
 void** qRegisterQInfo(void* pMgmt, uint64_t qInfo);
 void** qAcquireQInfo(void* pMgmt, uint64_t key);

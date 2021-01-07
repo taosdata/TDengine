@@ -311,6 +311,11 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
+  if (pCfg->replications > mnodeGetDnodesNum()) {
+    mError("no enough dnode to config replica: %d, #dnodes: %d", pCfg->replications, mnodeGetDnodesNum());
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
+  }
+
   if (pCfg->quorum < TSDB_MIN_DB_REPLICA_OPTION || pCfg->quorum > TSDB_MAX_DB_REPLICA_OPTION) {
     mError("invalid db option quorum:%d valid range: [%d, %d]", pCfg->quorum, TSDB_MIN_DB_REPLICA_OPTION,
            TSDB_MAX_DB_REPLICA_OPTION);
