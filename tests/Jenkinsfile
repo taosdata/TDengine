@@ -98,7 +98,7 @@ pipeline {
                 sh '''
                 cd ${WKC}/tests/examples/JDBC/JDBCDemo/
                 mvn clean package assembly:single -DskipTests >/dev/null 
-                java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+                java -jar target/JDBCDemo-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
                 '''
             }
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
