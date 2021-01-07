@@ -1,5 +1,6 @@
 package com.taosdata.jdbc.cases;
 
+import org.junit.Assert;
 import org.junit.Test;
 
 import java.sql.DriverManager;
@@ -16,7 +17,7 @@ public class ConnectWrongDatabaseTest {
             e.printStackTrace();
         } catch (SQLException e) {
             System.out.println(e.getMessage());
-//            e.printStackTrace();
+            Assert.assertEquals("TDengine Error: Invalid database name", e.getMessage());
         }
     }
 
