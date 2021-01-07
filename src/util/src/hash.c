@@ -477,8 +477,6 @@ void taosHashEmpty(SHashObj *pHashObj) {
     return;
   }
 
-  uDebug("hash:%p cleanup hash table", pHashObj);
-
   SHashNode *pNode, *pNext;
 
   __wr_lock(&pHashObj->lock, pHashObj->type);
