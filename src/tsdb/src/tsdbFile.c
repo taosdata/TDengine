@@ -173,6 +173,19 @@ int64_t tsdbWriteDFile(SDFile *pDFile, void *buf, int64_t nbyte) {
     return -1;
   }
 
+  return nwrite;
+}
+
+int64_t tsdbAppendDFile(SDFile *pDFile, void *buf, int64_t nbyte, int64_t *offset) {
+  ASSERT(TSDB_FILE_OPENED(pDFile));
+  int64_t nwrite;
+
+  *offset = tsdbSeekDFile(pDFile, 0, SEEK_SET);
+  if (*offset < 0) return -1;
+
+  nwrite = tsdbWriteDFile(pDFile, buf, nbyte);
+  if (nwrite < 0) return nwrite;
+
   pDFile->info.size += nbyte;
   return nwrite;
 }
@@ -205,6 +218,10 @@ void *tsdbDecodeDFile(void *buf, SDFile *pDFile) {
   buf = tfsDecodeFile(buf, &(pDFile->f));
 
   return buf;
+}
+
+void tsdbUpdateDFileMagic(SDFile *pDFile, void *pCksm) {
+  pDFile->info.magic = taosCalcChecksum(pDFile->info.magic, (uint8_t *)(pCksm), sizeof(TSCKSUM));
 }
 
 static int tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo) {

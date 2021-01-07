@@ -26,6 +26,7 @@
 #include "tsdb.h"
 #include "tskiplist.h"
 #include "tutil.h"
+#include "tchecksum.h"
 #include "tfs.h"
 
 #ifdef __cplusplus
@@ -355,9 +356,11 @@ int     tsdbOpenDFile(SDFile* pDFile, int flags);
 void    tsdbCloseDFile(SDFile* pDFile);
 int64_t tsdbSeekDFile(SDFile* pDFile, int64_t offset, int whence);
 int64_t tsdbWriteDFile(SDFile* pDFile, void* buf, int64_t nbyte);
+int64_t tsdbAppendDFile(SDFile* pDFile, void* buf, int64_t nbyte, int64_t* offset);
 int64_t tsdbTellDFile(SDFile* pDFile);
 int     tsdbEncodeDFile(void** buf, SDFile* pDFile);
 void*   tsdbDecodeDFile(void* buf, SDFile* pDFile);
+void    tsdbUpdateDFileMagic(SDFile* pDFile, void* pCksm);
 
 typedef struct {
   int    fid;
