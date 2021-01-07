@@ -7,14 +7,12 @@ import java.sql.SQLException;
 
 public class ConnectWrongDatabaseTest {
 
-    @Test
-    public void connect() {
+    @Test(expected = SQLException.class)
+    public void connect() throws SQLException {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             DriverManager.getConnection("jdbc:TAOS://localhost:6030/wrong_db?user=root&password=taosdata");
         } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        } catch (SQLException e) {
             e.printStackTrace();
         }
     }
