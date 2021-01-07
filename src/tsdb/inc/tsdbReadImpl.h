@@ -78,23 +78,64 @@ typedef struct {
 
 struct SReadH {
   STsdbRepo * pRepo;
-  SDFileSet * pSet;
+  SDFileSet   rSet;  // File set
   SArray *    aBlkIdx;
+  STable *    pTable;  // Table info
+  SBlockIdx * pBlkIdx;
   int         cidx;
-  STable *    pTable;
-  SBlockIdx * pBlockIdx;
   SBlockInfo *pBlkInfo;
-  SBlockData *pBlkData;
+  SBlockData *pBlkData;  // Block info
   SDataCols * pDCols[2];
   void *      pBuf;
   void *      pCBuf;
 };
 
-#define TSDB_READ_REPO(rh) (rh)->pRepo
-#define TSDB_READ_FSET(rh) (rh)->pSet
+#define TSDB_READ_REPO(rh) ((rh)->pRepo)
+#define TSDB_READ_REPO_ID(rh) REPO_ID(TSDB_READ_REPO(rh))
+#define TSDB_READ_FSET(rh) &((rh)->rSet)
+#define TSDB_READ_HEAD_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_HEAD)
+#define TSDB_READ_DATA_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_DATA)
+#define TSDB_READ_LAST_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_LAST)
 #define TSDB_READ_BUF(rh) (rh)->pBuf
 #define TSDB_READ_COMP_BUF(rh) (rh)->pCBuf
-#define TSDB_READ_FSET_IS_SET(rh) ((rh)->pSet != NULL)
+
+#define TSDB_BLOCK_STATIS_SIZE(ncols) (sizeof(SBlockData) + sizeof(SBlockCol) * (ncols) + sizeof(TSCKSUM))
+
+int   tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo);
+void  tsdbDestroyReadH(SReadH *pReadh);
+int   tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet);
+void  tsdbCloseAndUnsetFSet(SReadH *pReadh);
+int   tsdbLoadBlockIdx(SReadH *pReadh);
+int   tsdbSetReadTable(SReadH *pReadh, STable *pTable);
+int   tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget);
+int   tsdbLoadBlockData(SReadH *pReadh, const SBlock *pBlock, const SBlockInfo *pBlockInfo);
+int   tsdbLoadBlockDataCols(SReadH *pReadh, const SBlock *pBlock, const SBlockInfo *pBlockInfo, const int16_t *colIds,
+                            const int numOfColsIds);
+int   tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
+int   tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx);
+void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);
+void  tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols);
+
+static FORCE_INLINE int tsdbMakeRoom(void **ppBuf, size_t size) {
+  void * pBuf = *ppBuf;
+  size_t tsize = taosTSizeof(pBuf);
+
+  if (tsize < size) {
+    if (tsize == 0) tsize = 1024;
+
+    while (tsize < size) {
+      tsize *= 2;
+    }
+
+    *ppBuf = taosTRealloc(pBuf, tsize);
+    if (*ppBuf == NULL) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      return -1;
+    }
+  }
+
+  return 0;
+}
 
 #ifdef __cplusplus
 }

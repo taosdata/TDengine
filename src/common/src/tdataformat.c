@@ -337,12 +337,13 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
   return 0;
 }
 
-void tdFreeDataCols(SDataCols *pCols) {
+SDataCols *tdFreeDataCols(SDataCols *pCols) {
   if (pCols) {
     tfree(pCols->buf);
     tfree(pCols->cols);
     free(pCols);
   }
+  return NULL;
 }
 
 SDataCols *tdDupDataCols(SDataCols *pDataCols, bool keepData) {

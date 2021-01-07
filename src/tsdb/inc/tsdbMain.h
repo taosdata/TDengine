@@ -365,6 +365,7 @@ typedef struct {
   SDFile files[TSDB_FILE_MAX];
 } SDFileSet;
 
+#define TSDB_FILE_FULL_NAME(f) TFILE_NAME(&((f)->f))
 #define TSDB_DFILE_IN_SET(s, t) ((s)->files + (t))
 
 void tsdbInitDFileSet(SDFileSet* pSet, int vid, int fid, int ver, int level, int id);
@@ -632,6 +633,7 @@ static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
 
 #include "tsdbReadImpl.h"
 
+#if 0
 // ================= tsdbRWHelper.c
 
 typedef enum { TSDB_WRITE_HELPER, TSDB_READ_HELPER } tsdb_rw_helper_t;
@@ -729,6 +731,8 @@ static FORCE_INLINE int compTSKEY(const void* key1, const void* key2) {
     return -1;
   }
 }
+
+#endif
 
 // ================= tsdbScan.c
 typedef struct {

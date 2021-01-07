@@ -132,7 +132,7 @@ void taosArrayClear(SArray* pArray);
  * destroy array list
  * @param pArray
  */
-void taosArrayDestroy(SArray* pArray);
+void* taosArrayDestroy(SArray* pArray);
 
 /**
  *

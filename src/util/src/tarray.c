@@ -189,13 +189,13 @@ void taosArrayClear(SArray* pArray) {
   pArray->size = 0;
 }
 
-void taosArrayDestroy(SArray* pArray) {
-  if (pArray == NULL) {
-    return;
+void* taosArrayDestroy(SArray* pArray) {
+  if (pArray) {
+    free(pArray->pData);
+    free(pArray);
   }
 
-  free(pArray->pData);
-  free(pArray);
+  return NULL;
 }
 
 void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {

@@ -37,6 +37,12 @@ typedef struct {
   SDataCols *  pDataCols;
 } SCommitH;
 
+#define TSDB_COMMIT_REPO(ch) TSDB_READ_REPO(&(ch->readh))
+#define TSDB_COMMIT_WRITE_FSET(ch) ((ch)->pWSet)
+#define TSDB_COMMIT_HEAD_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_HEAD)
+#define TSDB_COMMIT_DATA_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_DATA)
+#define TSDB_COMMIT_LAST_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_LAST)
+
 void *tsdbCommitData(STsdbRepo *pRepo) {
   if (tsdbStartCommit(pRepo) < 0) {
     tsdbError("vgId:%d failed to commit data while startting to commit since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -510,5 +516,150 @@ static int tsdbAppendCommit(SCommitIter *pIter, TSKEY keyEnd) {
 
 static int tsdbMergeCommit(SCommitIter *pIter, SBlock *pBlock, TSKEY keyEnd) {
   // TODO
+  return 0;
+}
+
+static int tsdbWriteBlock(SCommitH *pCommih, SDFile *pDFile, SDataCols *pDataCols, SBlock *pBlock, bool isLast,
+                          bool isSuper) {
+  STsdbCfg *  pCfg = &(pHelper->pRepo->config);
+  SBlockData *pCompData = (SBlockData *)(pHelper->pBuffer);
+  int64_t     offset = 0;
+  int         rowsToWrite = pDataCols->numOfRows;
+
+  ASSERT(rowsToWrite > 0 && rowsToWrite <= pCfg->maxRowsPerFileBlock);
+  ASSERT(isLast ? rowsToWrite < pCfg->minRowsPerFileBlock : true);
+
+  offset = lseek(pFile->fd, 0, SEEK_END);
+  if (offset < 0) {
+    tsdbError("vgId:%d failed to write block to file %s since %s", REPO_ID(pHelper->pRepo), TSDB_FILE_NAME(pFile),
+              strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  int nColsNotAllNull = 0;
+  for (int ncol = 1; ncol < pDataCols->numOfCols; ncol++) {  // ncol from 1, we skip the timestamp column
+    SDataCol * pDataCol = pDataCols->cols + ncol;
+    SBlockCol *pCompCol = pCompData->cols + nColsNotAllNull;
+
+    if (isNEleNull(pDataCol, rowsToWrite)) {  // all data to commit are NULL, just ignore it
+      continue;
+    }
+
+    memset(pCompCol, 0, sizeof(*pCompCol));
+
+    pCompCol->colId = pDataCol->colId;
+    pCompCol->type = pDataCol->type;
+    if (tDataTypeDesc[pDataCol->type].getStatisFunc) {
+      (*tDataTypeDesc[pDataCol->type].getStatisFunc)(
+          (TSKEY *)(pDataCols->cols[0].pData), pDataCol->pData, rowsToWrite, &(pCompCol->min), &(pCompCol->max),
+          &(pCompCol->sum), &(pCompCol->minIndex), &(pCompCol->maxIndex), &(pCompCol->numOfNull));
+    }
+    nColsNotAllNull++;
+  }
+
+  ASSERT(nColsNotAllNull >= 0 && nColsNotAllNull <= pDataCols->numOfCols);
+
+  // Compress the data if neccessary
+  int     tcol = 0;
+  int32_t toffset = 0;
+  int32_t tsize = TSDB_GET_COMPCOL_LEN(nColsNotAllNull);
+  int32_t lsize = tsize;
+  int32_t keyLen = 0;
+  for (int ncol = 0; ncol < pDataCols->numOfCols; ncol++) {
+    if (ncol != 0 && tcol >= nColsNotAllNull) break;
+
+    SDataCol * pDataCol = pDataCols->cols + ncol;
+    SBlockCol *pCompCol = pCompData->cols + tcol;
+
+    if (ncol != 0 && (pDataCol->colId != pCompCol->colId)) continue;
+    void *tptr = POINTER_SHIFT(pCompData, lsize);
+
+    int32_t flen = 0;  // final length
+    int32_t tlen = dataColGetNEleLen(pDataCol, rowsToWrite);
+
+    if (pCfg->compression) {
+      if (pCfg->compression == TWO_STAGE_COMP) {
+        pHelper->compBuffer = taosTRealloc(pHelper->compBuffer, tlen + COMP_OVERFLOW_BYTES);
+        if (pHelper->compBuffer == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          goto _err;
+        }
+      }
+
+      flen = (*(tDataTypeDesc[pDataCol->type].compFunc))(
+          (char *)pDataCol->pData, tlen, rowsToWrite, tptr, (int32_t)taosTSizeof(pHelper->pBuffer) - lsize,
+          pCfg->compression, pHelper->compBuffer, (int32_t)taosTSizeof(pHelper->compBuffer));
+    } else {
+      flen = tlen;
+      memcpy(tptr, pDataCol->pData, flen);
+    }
+
+    // Add checksum
+    ASSERT(flen > 0);
+    flen += sizeof(TSCKSUM);
+    taosCalcChecksumAppend(0, (uint8_t *)tptr, flen);
+    pFile->info.magic =
+        taosCalcChecksum(pFile->info.magic, (uint8_t *)POINTER_SHIFT(tptr, flen - sizeof(TSCKSUM)), sizeof(TSCKSUM));
+
+    if (ncol != 0) {
+      pCompCol->offset = toffset;
+      pCompCol->len = flen;
+      tcol++;
+    } else {
+      keyLen = flen;
+    }
+
+    toffset += flen;
+    lsize += flen;
+  }
+
+  pCompData->delimiter = TSDB_FILE_DELIMITER;
+  pCompData->uid = pHelper->tableInfo.uid;
+  pCompData->numOfCols = nColsNotAllNull;
+
+  taosCalcChecksumAppend(0, (uint8_t *)pCompData, tsize);
+  pFile->info.magic = taosCalcChecksum(pFile->info.magic, (uint8_t *)POINTER_SHIFT(pCompData, tsize - sizeof(TSCKSUM)),
+                                       sizeof(TSCKSUM));
+
+  // Write the whole block to file
+  if (taosWrite(pFile->fd, (void *)pCompData, lsize) < lsize) {
+    tsdbError("vgId:%d failed to write %d bytes to file %s since %s", REPO_ID(helperRepo(pHelper)), lsize,
+              TSDB_FILE_NAME(pFile), strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    goto _err;
+  }
+
+  // Update pBlock membership vairables
+  pBlock->last = isLast;
+  pBlock->offset = offset;
+  pBlock->algorithm = pCfg->compression;
+  pBlock->numOfRows = rowsToWrite;
+  pBlock->len = lsize;
+  pBlock->keyLen = keyLen;
+  pBlock->numOfSubBlocks = isSuper ? 1 : 0;
+  pBlock->numOfCols = nColsNotAllNull;
+  pBlock->keyFirst = dataColsKeyFirst(pDataCols);
+  pBlock->keyLast = dataColsKeyAt(pDataCols, rowsToWrite - 1);
+
+  tsdbDebug("vgId:%d tid:%d a block of data is written to file %s, offset %" PRId64
+            " numOfRows %d len %d numOfCols %" PRId16 " keyFirst %" PRId64 " keyLast %" PRId64,
+            REPO_ID(helperRepo(pHelper)), pHelper->tableInfo.tid, TSDB_FILE_NAME(pFile), (int64_t)(pBlock->offset),
+            (int)(pBlock->numOfRows), pBlock->len, pBlock->numOfCols, pBlock->keyFirst, pBlock->keyLast);
+
+  pFile->info.size += pBlock->len;
+  // ASSERT(pFile->info.size == lseek(pFile->fd, 0, SEEK_CUR));
+
+  return 0;
+
+_err:
+  return -1;
+}
+
+static int tsdbWriteBlockInfo(SCommitH *pCommih) {
+  SDFile *pHeadf = TSDB_COMMIT_HEAD_FILE(pCommih);
+
+  // TODO
+
   return 0;
 }

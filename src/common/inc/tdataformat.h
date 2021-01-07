@@ -278,7 +278,7 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
 int        tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
-void       tdFreeDataCols(SDataCols *pCols);
+void      *tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols);
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 
