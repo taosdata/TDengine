@@ -181,7 +181,7 @@ public class DatabaseMetaDataTest {
         databaseMetaData.getCatalogs();
 //        databaseMetaData.getTableTypes();
 
-        databaseMetaData.getColumns("", "", "", "");
+        databaseMetaData.getColumns(dbName, "", tName, "");
         databaseMetaData.getColumnPrivileges("", "", "", "");
         databaseMetaData.getTablePrivileges("", "", "");
         databaseMetaData.getBestRowIdentifier("", "", "", 0, false);
