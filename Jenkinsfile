@@ -105,6 +105,7 @@ pipeline {
             ./test-all.sh p2
             date'''
             sh '''
+            cd ${WKC}/tests
             ./test-all.sh b4fq
             '''
           }
