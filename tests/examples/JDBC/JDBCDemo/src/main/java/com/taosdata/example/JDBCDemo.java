@@ -21,7 +21,7 @@ public class JDBCDemo {
             }
         }
 
-        if (host == null || driverType == null) {
+        if (host == null) {
             printHelp();
         }
 
