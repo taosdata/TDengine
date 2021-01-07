@@ -15,7 +15,8 @@ public class ConnectWrongDatabaseTest {
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         } catch (SQLException e) {
-            e.printStackTrace();
+            System.out.println(e.getMessage());
+//            e.printStackTrace();
         }
     }
 
