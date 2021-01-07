@@ -158,7 +158,7 @@ matrix:
           - cmake
           - binutils-2.26
     env: 
-      - DESC="trusty/gcc-4.8 build"
+      - DESC="trusty/gcc-4.8/bintuils-2.26 build"
 
     before_script:
       - export TZ=Asia/Harbin
@@ -201,7 +201,7 @@ matrix:
     dist: bionic
     language: c
     compiler: clang
-    env: DESC="linux/clang build"
+    env: DESC="arm64 linux/clang build"
     git:
       - depth: 1
 
@@ -239,7 +239,7 @@ matrix:
           - build-essential
           - cmake
     env:
-      - DESC="xenial build"
+      - DESC="arm64 xenial build"
 
     before_script:
       - export TZ=Asia/Harbin
