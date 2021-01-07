@@ -4599,7 +4599,7 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
   const char* msg0 = "only support order by primary timestamp";
   const char* msg1 = "invalid column name";
   const char* msg2 = "only support order by primary timestamp or queried column";
-  const char* msg3 = "only support order by primary timestamp or first tag in groupby clause";
+  const char* msg3 = "invalid column in order by clause, only primary timestamp or first tag in groupby clause allowed";
 
   setDefaultOrderInfo(pQueryInfo);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -5279,8 +5279,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
 
   const char* msg0 = "soffset/offset can not be less than 0";
   const char* msg1 = "slimit/soffset only available for STable query";
-  const char* msg2 = "functions mixed up in table query";
-  const char* msg3 = "slimit/soffset can not apply to projection query";
+  const char* msg2 = "slimit/soffset can not apply to projection query";
 
   // handle the limit offset value, validate the limit
   pQueryInfo->limit = pQuerySql->limit;
@@ -5305,7 +5304,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
     if (!tscQueryTags(pQueryInfo)) {  // local handle the super table tag query
       if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
         if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
 
         // for projection query on super table, all queries are subqueries
@@ -5362,24 +5361,6 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
   } else {
     if (pQueryInfo->slimit.limit != -1 || pQueryInfo->slimit.offset != 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-    }
-  
-    size_t size = taosArrayGetSize(pQueryInfo->exprList);
-    
-    bool hasTags = false;
-    bool hasOtherFunc = false;
-    // filter the query functions operating on "tbname" column that are not supported by normal columns.
-    for (int32_t i = 0; i < size; ++i) {
-      SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-      if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
-        hasTags = true;
-      } else {
-        hasOtherFunc = true;
-      }
-    }
-    
-    if (hasTags && hasOtherFunc) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   }
 
@@ -6282,10 +6263,12 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
 int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg1 = "invalid table name";
+  const char* msg2 = "functions not allowed in CQ";
   const char* msg3 = "fill only available for interval query";
   const char* msg4 = "fill option not supported in stream computing";
   const char* msg5 = "sql too long";  // todo ADD support
   const char* msg6 = "from missing in subclause";
+  const char* msg7 = "time interval is required";
   
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
@@ -6295,10 +6278,10 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   STableMetaInfo*  pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   // if sql specifies db, use it, otherwise use default db
-  SStrToken* pzTableName = &(pCreateTable->name);
+  SStrToken* pName = &(pCreateTable->name);
   SQuerySQL* pQuerySql = pCreateTable->pSelect;
 
-  if (tscValidateName(pzTableName) != TSDB_CODE_SUCCESS) {
+  if (tscValidateName(pName) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
   
@@ -6337,15 +6320,19 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   // set interval value
   if (parseIntervalClause(pSql, pQueryInfo, pQuerySql) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
-  } else {
-    if ((pQueryInfo->interval.interval > 0) &&
-        (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
-      return TSDB_CODE_TSC_INVALID_SQL;
-    }
+  }
+
+  if ((pQueryInfo->interval.interval > 0) &&
+      (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  }
+
+  if (!tscIsProjectionQuery(pQueryInfo) && pQueryInfo->interval.interval == 0) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
   // set the created table[stream] name
-  code = tscSetTableFullName(pTableMetaInfo, pzTableName, pSql);
+  code = tscSetTableFullName(pTableMetaInfo, pName, pSql);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
