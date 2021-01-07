@@ -318,11 +318,11 @@ void sdbUpdateAsync() {
   taosTmrReset(sdbUpdateSyncTmrFp, 200, NULL, tsMnodeTmr, &tsSdbTmr);
 }
 
-void sdbUpdateSync(void *pMnodes) {
+int32_t sdbUpdateSync(void *pMnodes) {
   SMInfos *pMinfos = pMnodes;
   if (!mnodeIsRunning()) {
     mDebug("vgId:1, mnode not start yet, update sync config later");
-    return;
+    return TSDB_CODE_MND_MNODE_IS_RUNNING;
   }
 
   mDebug("vgId:1, update sync config, pMnodes:%p", pMnodes);
@@ -377,12 +377,12 @@ void sdbUpdateSync(void *pMnodes) {
 
   if (!hasThisDnode) {
     sdbDebug("vgId:1, update sync config, this dnode not exist");
-    return;
+    return TSDB_CODE_MND_FAILED_TO_CONFIG_SYNC;
   }
 
   if (memcmp(&syncCfg, &tsSdbMgmt.cfg, sizeof(SSyncCfg)) == 0) {
     sdbDebug("vgId:1, update sync config, info not changed");
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   sdbInfo("vgId:1, work as mnode, replica:%d", syncCfg.replica);
@@ -407,12 +407,15 @@ void sdbUpdateSync(void *pMnodes) {
   tsSdbMgmt.cfg = syncCfg;
 
   if (tsSdbMgmt.sync) {
-    syncReconfig(tsSdbMgmt.sync, &syncCfg);
+    int32_t code = syncReconfig(tsSdbMgmt.sync, &syncCfg);
+    if (code != 0) return code;
   } else {
     tsSdbMgmt.sync = syncStart(&syncInfo);
+    if (tsSdbMgmt.sync <= 0) return TSDB_CODE_MND_FAILED_TO_START_SYNC;
   }
 
   sdbUpdateMnodeRoles();
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t sdbInitRef() {

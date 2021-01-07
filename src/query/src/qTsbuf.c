@@ -19,12 +19,18 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   if (pTSBuf == NULL) {
     return NULL;
   }
+
+  pTSBuf->autoDelete = autoDelete;
   
   taosGetTmpfilePath("join", pTSBuf->path);
   pTSBuf->f = fopen(pTSBuf->path, "w+");
   if (pTSBuf->f == NULL) {
     free(pTSBuf);
     return NULL;
+  }
+
+  if (!autoDelete) {
+    unlink(pTSBuf->path);
   }
   
   if (NULL == allocResForTSBuf(pTSBuf)) {
@@ -37,8 +43,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   
   tsBufResetPos(pTSBuf);
   pTSBuf->cur.order = TSDB_ORDER_ASC;
-  
-  pTSBuf->autoDelete = autoDelete;
+
   pTSBuf->tsOrder = order;
   
   return pTSBuf;
@@ -49,6 +54,8 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   if (pTSBuf == NULL) {
     return NULL;
   }
+
+  pTSBuf->autoDelete = autoDelete;
   
   tstrncpy(pTSBuf->path, path, sizeof(pTSBuf->path));
   
@@ -129,7 +136,6 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   
   // ascending by default
   pTSBuf->cur.order = TSDB_ORDER_ASC;
-  pTSBuf->autoDelete = autoDelete;
   
 //  tscDebug("create tsBuf from file:%s, fd:%d, size:%d, numOfGroups:%d, autoDelete:%d", pTSBuf->path, fileno(pTSBuf->f),
 //           pTSBuf->fileSize, pTSBuf->numOfGroups, pTSBuf->autoDelete);
@@ -147,8 +153,10 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
   
   tfree(pTSBuf->pData);
   tfree(pTSBuf->block.payload);
-  
-  fclose(pTSBuf->f);
+
+  if (!pTSBuf->remainOpen) {
+    fclose(pTSBuf->f);
+  }
   
   if (pTSBuf->autoDelete) {
 //    ("tsBuf %p destroyed, delete tmp file:%s", pTSBuf, pTSBuf->path);

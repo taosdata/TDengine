@@ -421,7 +421,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
     // check if it is a sub-query of super table query first, if true, enter another routine
-    if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY|TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
+    if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY|TSDB_QUERY_TYPE_SUBQUERY|TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
       tscDebug("%p update local table meta, continue to process sql and send the corresponding query", pSql);
 
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);

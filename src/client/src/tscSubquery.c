@@ -2094,6 +2094,13 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
 }
 
 void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
+  // the param may be null, since it may be done by other query threads. and the asyncOnError may enter in this
+  // function while kill query by a user.
+  if (param == NULL) {
+    assert(code != TSDB_CODE_SUCCESS);
+    return;
+  }
+
   SRetrieveSupport *trsupport = (SRetrieveSupport *) param;
   
   SSqlObj*  pParentSql = trsupport->pParentSql;

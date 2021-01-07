@@ -118,8 +118,11 @@ if __name__ == "__main__":
     tdDnodes.stopAll()
     is_test_framework = 0
     key_word = 'tdCases.addLinux'
-    if key_word in open(fileName).read():
-        is_test_framework = 1
+    try:
+        if key_word in open(fileName).read():
+            is_test_framework = 1
+    except:
+        pass
     if is_test_framework:
         moduleName = fileName.replace(".py", "").replace("/", ".")
         uModule = importlib.import_module(moduleName)

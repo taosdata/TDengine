@@ -214,7 +214,5 @@ static int32_t dnodeProcessCreateMnodeMsg(SRpcMsg *pMsg) {
     dDebug("mnode index:%d, mnode:%d:%s", i, pCfg->mnodes.mnodeInfos[i].mnodeId, pCfg->mnodes.mnodeInfos[i].mnodeEp);
   }
 
-  dnodeStartMnode(&pCfg->mnodes);
-
-  return TSDB_CODE_SUCCESS;
+  return dnodeStartMnode(&pCfg->mnodes);
 }
