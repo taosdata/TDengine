@@ -3836,8 +3836,10 @@ static void ts_comp_finalize(SQLFunctionCtx *pCtx) {
   STSBuf *     pTSbuf = pInfo->pTSBuf;
   
   tsBufFlush(pTSbuf);
-  strcpy(pCtx->aOutputBuf, pTSbuf->path);
   
+  *(FILE **)pCtx->aOutputBuf = pTSbuf->f;
+
+  pTSbuf->remainOpen = true;
   tsBufDestroy(pTSbuf);
   doFinalizer(pCtx);
 }
