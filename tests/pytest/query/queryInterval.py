@@ -100,7 +100,23 @@ class TDTestCase:
         tdSql.checkData(1, 1, None)
         tdSql.checkData(2, 1, None)
 
-        
+         # test case for https://jira.taosdata.com:18080/browse/TD-2659， https://jira.taosdata.com:18080/browse/TD-2660
+        tdSql.execute("create database test3")
+        tdSql.execute("use test3")
+        tdSql.execute("create table tb(ts timestamp, c int)")
+        tdSql.execute("insert into tb values('2020-10-30 18:11:56.680', -111)")
+        tdSql.execute("insert into tb values('2020-11-19 18:11:45.773', null)")
+        tdSql.execute("insert into tb values('2020-12-09 18:11:17.098', null)")
+        tdSql.execute("insert into tb values('2020-12-29 11:00:49.412', 1)")
+        tdSql.execute("insert into tb values('2020-12-29 11:00:50.412', 2)")
+        tdSql.execute("insert into tb values('2020-12-29 11:00:52.412', 3)")
+
+        tdSql.query("select first(ts),twa(c) from tb interval(14a)")
+        tdSql.checkRows(6)
+
+        tdSql.query("select twa(c) from tb group by c")
+        tdSql.checkRows(4)
+
 
     def stop(self):
         tdSql.close()
