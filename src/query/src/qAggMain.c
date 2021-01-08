@@ -1328,7 +1328,7 @@ static void stddev_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   /* the first stage is to calculate average value */
   if (pStd->stage == 0) {
     avg_function_f(pCtx, index);
-  } else {
+  } else if (pStd->num > 0) {
     double avg = pStd->avg;
     void * pData = GET_INPUT_DATA(pCtx, index);
     
