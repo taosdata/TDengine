@@ -483,16 +483,9 @@ static int tsdbCommitToTable(SCommitH *pch, int tid) {
 
     if ((nextKey == TSDB_DATA_TIMESTAMP_NULL || nextKey > pch->maxKey) ||
         (pBlock && (!pBlock->last) && tsdbComparKeyBlock((void *)(&nextKey), pBlock) > 0)) {
-      // TODO: move the block
-      ASSERT(pBlock->numOfSubBlocks > 0);
-      if (pBlock->numOfSubBlocks == 1) { // move super block
-        if (taosArrayPush(pch->aSupBlk, (void *)pBlock) == NULL) {
-          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-          TSDB_RUNLOCK_TABLE(pIter->pTable);
-          return -1;
-        }
-      } else {
-
+      if (tsdbMoveBlock(pch, cidx) < 0) {
+        TSDB_RUNLOCK_TABLE(pIter->pTable);
+        return -1;
       }
 
       cidx++;
