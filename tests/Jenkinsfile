@@ -103,6 +103,14 @@ pipeline {
             }
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
+                cd ${WKC}/src/connector/jdbc
+                mvn clean package -Dmaven.test.skip=true >/dev/null 
+                cd ${WKC}/tests/examples/JDBC/JDBCDemo/
+                java --class-path=../../../../src/connector/jdbc/target:$JAVA_HOME/jre/lib/ext -jar target/JDBCDemo-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
                 cd ${JENKINS_HOME}/workspace/C#NET/src/CheckC#
                 dotnet run
                 '''
