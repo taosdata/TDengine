@@ -188,8 +188,10 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
   tsBufFlush(output2);
 
   tsBufDestroy(pSupporter1->pTSBuf);
+  pSupporter1->pTSBuf = NULL;
   tsBufDestroy(pSupporter2->pTSBuf);
-
+  pSupporter2->pTSBuf = NULL;
+    
   TSKEY et = taosGetTimestampUs();
   tscDebug("%p input1:%" PRId64 ", input2:%" PRId64 ", final:%" PRId64 " in %d vnodes for secondary query after ts blocks "
            "intersecting, skey:%" PRId64 ", ekey:%" PRId64 ", numOfVnode:%d, elapsed time:%" PRId64 " us",
@@ -219,12 +221,9 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, int32_t index) {
   assert (pSupporter->uid != 0);
 
   taosGetTmpfilePath("join-", pSupporter->path);
-  pSupporter->f = fopen(pSupporter->path, "w");
 
-  // todo handle error
-  if (pSupporter->f == NULL) {
-    tscError("%p failed to create tmp file:%s, reason:%s", pSql, pSupporter->path, strerror(errno));
-  }
+  // do NOT create file here to reduce crash generated file left issue
+  pSupporter->f = NULL;
 
   return pSupporter;
 }
@@ -244,11 +243,18 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
 
   tscFieldInfoClear(&pSupporter->fieldsInfo);
 
+  if (pSupporter->pTSBuf != NULL) {
+    tsBufDestroy(pSupporter->pTSBuf);
+    pSupporter->pTSBuf = NULL;
+  }
+
+  unlink(pSupporter->path);
+  
   if (pSupporter->f != NULL) {
     fclose(pSupporter->f);
-    unlink(pSupporter->path);
     pSupporter->f = NULL;
   }
+
 
   if (pSupporter->pVgroupTables != NULL) {
     taosArrayDestroy(pSupporter->pVgroupTables);
@@ -526,6 +532,8 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
     tscError("%p all subquery return and query failed, global code:%s", pSqlObj, tstrerror(pSqlObj->res.code));
     freeJoinSubqueryObj(pSqlObj);
   }
+
+  tscDestroyJoinSupporter(pSupporter);
 }
 
 // update the query time range according to the join results on timestamp
@@ -921,6 +929,22 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   }
 
   if (numOfRows > 0) {  // write the compressed timestamp to disk file
+    if(pSupporter->f == NULL) {
+      pSupporter->f = fopen(pSupporter->path, "w");
+
+      if (pSupporter->f == NULL) {
+        tscError("%p failed to create tmp file:%s, reason:%s", pSql, pSupporter->path, strerror(errno));
+        
+        pParentSql->res.code = TAOS_SYSTEM_ERROR(errno);
+
+        quitAllSubquery(pParentSql, pSupporter);
+        
+        tscAsyncResultOnError(pParentSql);
+
+        return;
+      }
+    }
+      
     fwrite(pRes->data, (size_t)pRes->numOfRows, 1, pSupporter->f);
     fclose(pSupporter->f);
     pSupporter->f = NULL;
@@ -930,6 +954,9 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
       tscError("%p invalid ts comp file from vnode, abort subquery, file size:%d", pSql, numOfRows);
 
       pParentSql->res.code = TAOS_SYSTEM_ERROR(errno);
+
+      quitAllSubquery(pParentSql, pSupporter);
+      
       tscAsyncResultOnError(pParentSql);
 
       return;

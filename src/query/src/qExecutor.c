@@ -548,7 +548,7 @@ static STimeWindow getActiveTimeWindow(SResultRowInfo *pWindowResInfo, int64_t t
  if (pWindowResInfo->curIndex == -1) {  // the first window, from the previous stored value
     w.skey = pWindowResInfo->prevSKey;
     if (pQuery->interval.intervalUnit == 'n' || pQuery->interval.intervalUnit == 'y') {
-      w.ekey = taosTimeAdd(w.skey, pQuery->interval.interval, pQuery->interval.intervalUnit, pQuery->precision);
+      w.ekey = taosTimeAdd(w.skey, pQuery->interval.interval, pQuery->interval.intervalUnit, pQuery->precision) - 1;
     } else {
       w.ekey = w.skey + pQuery->interval.interval - 1;
     }
@@ -2010,6 +2010,7 @@ static void doFreeQueryHandle(SQInfo* pQInfo) {
   assert(pMemRef->ref == 0 && pMemRef->imem == NULL && pMemRef->mem == NULL);
 }
 
+
 static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   if (pRuntimeEnv->pQuery == NULL) {
     return;
@@ -2020,6 +2021,16 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   qDebug("QInfo:%p teardown runtime env", pQInfo);
   cleanupResultRowInfo(&pRuntimeEnv->windowResInfo);
+
+  if (isTSCompQuery(pQuery)) {
+    FILE *f = *(FILE **)pQuery->sdata[0]->data;
+
+    if (f) {
+      fclose(f);
+      *(FILE **)pQuery->sdata[0]->data = NULL;
+    }
+  }
+
 
   if (pRuntimeEnv->pCtx != NULL) {
     for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
@@ -6949,10 +6960,10 @@ static size_t getResultSize(SQInfo *pQInfo, int64_t *numOfRows) {
    * TODO handle the case that the file is too large to send back one time
    */
   if (isTSCompQuery(pQuery) && (*numOfRows) > 0) {
-    struct stat fstat;
-    if (stat(pQuery->sdata[0]->data, &fstat) == 0) {
-      *numOfRows = fstat.st_size;
-      return fstat.st_size;
+    struct stat fStat;
+    if (fstat(fileno(*(FILE **)pQuery->sdata[0]->data), &fStat) == 0) {
+      *numOfRows = fStat.st_size;
+      return fStat.st_size;
     } else {
       qError("QInfo:%p failed to get file info, path:%s, reason:%s", pQInfo, pQuery->sdata[0]->data, strerror(errno));
       return 0;
@@ -6968,15 +6979,16 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
 
   // load data from file to msg buffer
   if (isTSCompQuery(pQuery)) {
-    int32_t fd = open(pQuery->sdata[0]->data, O_RDONLY, 0666);
+
+    FILE *f = *(FILE **)pQuery->sdata[0]->data;
 
     // make sure file exist
-    if (FD_VALID(fd)) {
-      uint64_t s = lseek(fd, 0, SEEK_END);
+    if (f) {
+      off_t s = lseek(fileno(f), 0, SEEK_END);
 
-      qDebug("QInfo:%p ts comp data return, file:%s, size:%"PRId64, pQInfo, pQuery->sdata[0]->data, s);
-      if (lseek(fd, 0, SEEK_SET) >= 0) {
-        size_t sz = read(fd, data, (uint32_t) s);
+      qDebug("QInfo:%p ts comp data return, file:%p, size:%"PRId64, pQInfo, f, s);
+      if (fseek(f, 0, SEEK_SET) >= 0) {
+        size_t sz = fread(data, 1, s, f);
         if(sz < s) {  // todo handle error
           assert(0);
         }
@@ -6984,15 +6996,8 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
         UNUSED(s);
       }
 
-      close(fd);
-      unlink(pQuery->sdata[0]->data);
-    } else {
-      // todo return the error code to client and handle invalid fd
-      qError("QInfo:%p failed to open tmp file to send ts-comp data to client, path:%s, reason:%s", pQInfo,
-             pQuery->sdata[0]->data, strerror(errno));
-      if (fd != -1) {
-        close(fd);
-      }
+      fclose(f);
+      *(FILE **)pQuery->sdata[0]->data = NULL;
     }
 
     // all data returned, set query over

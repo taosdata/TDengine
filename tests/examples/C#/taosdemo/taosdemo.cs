@@ -26,10 +26,10 @@ namespace TDengineDriver
     class TDengineTest
     {
         //connect parameters
-        private string host;
-        private string configDir;
-        private string user;
-        private string password;
+        private string host = "127.0.0.1";
+        private string configDir = "C:/TDengine/cfg";
+        private string user = "root";
+        private string password = "taosdata";
         private short port = 0;
 
         //sql parameters
@@ -40,11 +40,12 @@ namespace TDengineDriver
         private bool isInsertOnly = false;
         private int queryMode = 1;
 
-        private long recordsPerTable = 10000;
+        private long recordsPerTable = 1;
         private int recordsPerRequest = 1;
         private int colsPerRecord = 3;
         private long batchRows = 1000;
-        private long numOfTables = 10000;
+        private long numOfTables = 1;
+        private short replica = 1;
 
         private IntPtr conn = IntPtr.Zero;
         //        private long rowsInserted = 0;
@@ -66,6 +67,8 @@ namespace TDengineDriver
                     Console.WriteLine("Usage: mono taosdemo.exe [OPTION...]");
                     Console.WriteLine("");
                     string indent = "        ";
+                    Console.WriteLine("{0}{1}", indent, "--help            Show usage.");
+                    Console.WriteLine("");
                     Console.Write("{0}{1}", indent, "-h");
                     Console.Write("{0}{1}{2}\n", indent, indent, "host, The host to connect to TDengine. Default is localhost.");
                     Console.Write("{0}{1}", indent, "-p");
@@ -77,7 +80,7 @@ namespace TDengineDriver
                     Console.Write("{0}{1}", indent, "-d");
                     Console.Write("{0}{1}{2}\n", indent, indent, "database, Destination database. Default is 'test'.");
                     Console.Write("{0}{1}", indent, "-a");
-                    Console.Write("{0}{1}{2}\n", indent, indent, "replica, Set the replica parameters of the database, Default 1, min: 1, max: 3.");
+                    Console.Write("{0}{1}{2}\n", indent, indent, "replica, Set the replica parameters of the database, Default 1, min: 1, max: 5.");
                     Console.Write("{0}{1}", indent, "-m");
                     Console.Write("{0}{1}{2}\n", indent, indent, "table_prefix, Table prefix name. Default is 't'.");
                     Console.Write("{0}{1}", indent, "-s");
@@ -99,9 +102,9 @@ namespace TDengineDriver
                     Console.Write("{0}{1}", indent, "-r");
                     Console.Write("{0}{1}{2}\n", indent, indent, "num_of_records_per_req, The number of records per request. Default is 1000.");
                     Console.Write("{0}{1}", indent, "-t");
-                    Console.Write("{0}{1}{2}\n", indent, indent, "num_of_tables, The number of tables. Default is 10000.");
+                    Console.Write("{0}{1}{2}\n", indent, indent, "num_of_tables, The number of tables. Default is 1.");
                     Console.Write("{0}{1}", indent, "-n");
-                    Console.Write("{0}{1}{2}\n", indent, indent, "num_of_records_per_table, The number of records per table. Default is 10000.");
+                    Console.Write("{0}{1}{2}\n", indent, indent, "num_of_records_per_table, The number of records per table. Default is 1.");
                     Console.Write("{0}{1}", indent, "-c");
                     Console.Write("{0}{1}{2}\n", indent, indent, "config_directory, Configuration directory. Default is '/etc/taos/'.");
                     Console.Write("{0}{1}", indent, "-x");
@@ -133,14 +136,15 @@ namespace TDengineDriver
             tablePrefix = this.GetArgumentAsString(argv, "-m", "t");
             isInsertOnly = this.GetArgumentAsFlag(argv, "-x");
             queryMode = (int)this.GetArgumentAsLong(argv, "-q", 0, 1, 0);
-            numOfTables = this.GetArgumentAsLong(argv, "-t", 1, 1000000000, 10000);
+            numOfTables = this.GetArgumentAsLong(argv, "-t", 1, 1000000000, 1);
             batchRows = this.GetArgumentAsLong(argv, "-r", 1, 10000, 1000);
-            recordsPerTable = this.GetArgumentAsLong(argv, "-n", 1, 100000000000, 10000);
+            recordsPerTable = this.GetArgumentAsLong(argv, "-n", 1, 100000000000, 1);
             recordsPerRequest = (int)this.GetArgumentAsLong(argv, "-r", 1, 10000, 1);
             colsPerRecord = (int)this.GetArgumentAsLong(argv, "-l", 1, 1024, 3);
             configDir = this.GetArgumentAsString(argv, "-c", "C:/TDengine/cfg");
             useStable = this.GetArgumentAsFlag(argv, "-M");
 
+            replica = (short)this.GetArgumentAsLong(argv, "-a", 1, 5, 1);
             methodOfDelete = (short)this.GetArgumentAsLong(argv, "-D", 0, 3, 0);
             numOfThreads = (short)this.GetArgumentAsLong(argv, "-T", 1, 10000, 1);
             order = this.GetArgumentAsFlag(argv, "-O");
@@ -153,13 +157,14 @@ namespace TDengineDriver
             Console.Write("# Server IP:                         {0}\n", host);
             Console.Write("# User:                              {0}\n", user);
             Console.Write("# Password:                          {0}\n", password);
-            Console.Write("# Use super table:                   {0}\n", useStable);
             Console.Write("# Number of Columns per record:      {0}\n", colsPerRecord);
             Console.Write("# Number of Threads:                 {0}\n", numOfThreads);
             Console.Write("# Number of Tables:                  {0}\n", numOfTables);
             Console.Write("# Number of Data per Table:          {0}\n", recordsPerTable);
             Console.Write("# Records/Request:                   {0}\n", recordsPerRequest);
             Console.Write("# Database name:                     {0}\n", dbName);
+            Console.Write("# Replica:                           {0}\n", replica);
+            Console.Write("# Use STable:                        {0}\n", useStable);
             Console.Write("# Table prefix:                      {0}\n", tablePrefix);
             Console.Write("# Data order:                        {0}\n", order);
             Console.Write("# Data out of order rate:            {0}\n", rateOfOutorder);
@@ -280,7 +285,7 @@ namespace TDengineDriver
         public void ConnectTDengine()
         {
             string db = "";
-            DebugPrintFormat("host:{0} user:{1}, pass:{2}; db:{3}, port:{4}",
+            DebugPrintFormat("host:{0} user:{1}, pass:{2}; db:{3}, port:{4}\n",
                     this.host, this.user, this.password, db, this.port);
             this.conn = TDengine.Connect(this.host, this.user, this.password, db, this.port);
             if (this.conn == IntPtr.Zero)
@@ -320,6 +325,7 @@ namespace TDengineDriver
                 createTableThread.verbose = verbose;
                 createTableThread.dbName = this.dbName;
                 createTableThread.tablePrefix = this.tablePrefix;
+                createTableThread.useStable = useStable;
                 if (useStable)
                 {
                     createTableThread.stableName = stableName;
@@ -363,7 +369,7 @@ namespace TDengineDriver
         public void CreateDb()
         {
             StringBuilder sql = new StringBuilder();
-            sql.Append("CREATE DATABASE IF NOT EXISTS ").Append(this.dbName);
+            sql.Append("CREATE DATABASE IF NOT EXISTS ").Append(this.dbName).Append(" replica ").Append(this.replica);
             IntPtr res = TDengine.Query(this.conn, sql.ToString());
             if (res != IntPtr.Zero)
             {
@@ -429,7 +435,7 @@ namespace TDengineDriver
                 insertThread.tablePrefix = this.tablePrefix;
                 if (useStable)
                 {
-                    insertThread.stableName = stableName;
+                    //                    insertThread.stableName = stableName;
                 }
                 insertThread.conn = conn;
 
@@ -584,15 +590,20 @@ namespace TDengineDriver
 
             tester.InitTDengine();
             tester.ConnectTDengine();
-            tester.dropDatabase();
-            tester.CreateDb();
 
-            if (tester.useStable == true)
+            if (tester.isInsertOnly == false)
             {
-                tester.CreateStable();
-            }
+                tester.dropDatabase();
+                tester.CreateDb();
 
-            tester.CreateTablesByThreads();
+
+                if (tester.useStable == true)
+                {
+                    tester.CreateStable();
+                }
+
+                tester.CreateTablesByThreads();
+            }
 
             Stopwatch watch = Stopwatch.StartNew();
             tester.InsertByThreads();
@@ -619,7 +630,7 @@ namespace TDengineDriver
             public string dbName { set; get; }
             public IntPtr conn { set; get; }
             public string tablePrefix { set; get; }
-            public string stableName { set; get; }
+            //            public string stableName { set; get; }
             public long recordsPerTable { set; get; }
             public long batchRows { set; get; }
             public long numOfTables { set; get; }
@@ -643,9 +654,18 @@ namespace TDengineDriver
 
             public void ThreadMain()
             {
-                DebugPrintFormat("InsertDataThread {0} from {1} to {2}", id, start, end);
+                DebugPrintFormat("InsertDataThread {0} from {1} to {2}\n", id, start, end);
                 StringBuilder sql = new StringBuilder();
-                long beginTimestamp = 1551369600000L;
+
+                DateTime now = DateTime.Now;
+                int h = now.Hour;
+                int m = now.Minute;
+                int s = now.Second;
+
+                long baseTimestamp = 1609430400000;    // 2021/01/01 0:0:0
+                DebugPrintFormat("beginTime is {0} + {1}h:{2}m:{3}s\n", baseTimestamp, h, m, s);
+                long beginTimestamp = baseTimestamp + ((h*60 + m) * 60 + s) * 1000;
+
                 long rowsInserted = 0;
 
                 //                System.DateTime startTime = new System.DateTime();
@@ -660,7 +680,11 @@ namespace TDengineDriver
                         sql.Append("INSERT INTO ").
                             Append(this.dbName).Append(".").Append(this.tablePrefix).Append(table).
                             Append(" VALUES");
-                        for (int batch = 0; batch < this.batchRows; ++batch)
+                        if (recordsPerTable < batchRows)
+                        {
+                            batchRows = recordsPerTable;
+                        }
+                        for (int batch = 0; batch < batchRows; ++batch)
                         {
                             sql.Append("(")
                                 .Append(beginTimestamp + i + batch)
@@ -701,6 +725,7 @@ namespace TDengineDriver
             public string tablePrefix { set; get; }
             public string stableName { set; get; }
             public bool verbose { set; get; }
+            public bool useStable { set; get; }
 
             private void DebugPrintFormat(string format, params object[] parameters)
             {
@@ -720,7 +745,7 @@ namespace TDengineDriver
 
             public void ThreadMain()
             {
-                DebugPrintFormat("CreateTable {0} from {1} to {2}", id, start, end);
+                DebugPrintFormat("CreateTable {0} from {1} to {2}\n", id, start, end);
 
                 StringBuilder sql = new StringBuilder();
 
@@ -728,9 +753,16 @@ namespace TDengineDriver
                 {
                     sql.Clear();
                     sql = sql.Append("CREATE TABLE IF NOT EXISTS ").
-                        Append(this.dbName).Append(".").Append(this.tablePrefix).Append(tableId).
-                        Append(" USING ").Append(this.dbName).Append(".").Append(this.stableName).
-                        Append(" TAGS(").Append(tableId).Append(")");
+                        Append(this.dbName).Append(".").Append(this.tablePrefix).Append(tableId);
+                    if (useStable == true)
+                    {
+                        sql = sql.Append(" USING ").Append(this.dbName).Append(".").Append(this.stableName).
+                            Append(" TAGS(").Append(tableId).Append(")");
+                    }
+                    else
+                    {
+                        sql = sql.Append("(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, v6 float, v7 double, v8 binary(10), v9 nchar(10))");
+                    }
                     IntPtr res = TDengine.Query(this.conn, sql.ToString());
                     if (res != IntPtr.Zero)
                     {

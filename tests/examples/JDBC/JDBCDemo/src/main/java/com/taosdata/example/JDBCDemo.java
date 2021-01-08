@@ -5,7 +5,7 @@ import java.util.Properties;
 
 public class JDBCDemo {
     private static String host;
-    private static String driverType;
+    private static String driverType = "jni";
     private static final String dbName = "test";
     private static final String tbName = "weather";
     private Connection connection;
@@ -21,7 +21,7 @@ public class JDBCDemo {
             }
         }
 
-        if (host == null || driverType == null) {
+        if (host == null) {
             printHelp();
         }
 
