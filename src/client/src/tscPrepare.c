@@ -84,35 +84,35 @@ static int normalStmtBindParam(STscStmt* stmt, TAOS_BIND* bind) {
     var->nLen = 0;
     if (tb->is_null != NULL && *(tb->is_null)) {
       var->nType = TSDB_DATA_TYPE_NULL;
-      var->i64Key = 0;
+      var->i64 = 0;
       continue;
     }
 
     var->nType = tb->buffer_type;
     switch (tb->buffer_type) {
       case TSDB_DATA_TYPE_NULL:
-        var->i64Key = 0;
+        var->i64 = 0;
         break;
 
       case TSDB_DATA_TYPE_BOOL:
-        var->i64Key = (*(int8_t*)tb->buffer) ? 1 : 0;
+        var->i64 = (*(int8_t*)tb->buffer) ? 1 : 0;
         break;
 
       case TSDB_DATA_TYPE_TINYINT:
-        var->i64Key = *(int8_t*)tb->buffer;
+        var->i64 = *(int8_t*)tb->buffer;
         break;
 
       case TSDB_DATA_TYPE_SMALLINT:
-        var->i64Key = *(int16_t*)tb->buffer;
+        var->i64 = *(int16_t*)tb->buffer;
         break;
 
       case TSDB_DATA_TYPE_INT:
-        var->i64Key = *(int32_t*)tb->buffer;
+        var->i64 = *(int32_t*)tb->buffer;
         break;
 
       case TSDB_DATA_TYPE_BIGINT:
       case TSDB_DATA_TYPE_TIMESTAMP:
-        var->i64Key = *(int64_t*)tb->buffer;
+        var->i64 = *(int64_t*)tb->buffer;
         break;
 
       case TSDB_DATA_TYPE_FLOAT:
@@ -219,7 +219,7 @@ static char* normalStmtBuildSql(STscStmt* stmt) {
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
-      taosStringBuilderAppendInteger(&sb, var->i64Key);
+      taosStringBuilderAppendInteger(&sb, var->i64);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:

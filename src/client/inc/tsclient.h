@@ -460,7 +460,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
     } else {
       assert(bytes == tDataTypeDesc[type].nSize);
 
-      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)&pInfo->pSqlExpr->param[1].i64Key;
+      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)&pInfo->pSqlExpr->param[1].i64;
       pRes->length[columnIndex] = bytes;
     }
   } else {

@@ -521,7 +521,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     }
 
     (*pSql->fp)(pSql->param, pSql, code);
-
     return;
   }
 

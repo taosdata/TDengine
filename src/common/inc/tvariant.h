@@ -28,7 +28,8 @@ typedef struct tVariant {
   uint32_t nType;
   int32_t  nLen;  // only used for string, for number, it is useless
   union {
-    int64_t  i64Key;
+    int64_t  i64;
+    uint64_t u64;
     double   dKey;
     char *   pz;
     wchar_t *wpz;
