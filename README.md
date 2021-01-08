@@ -33,9 +33,15 @@ To build TDengine, use [CMake](https://cmake.org/) 3.5 or higher versions in the
 
 ## Install tools
 
-### Ubuntu & Debian:
+### Ubuntu 16.04 and above & Debian:
 ```bash
 sudo apt-get install -y gcc cmake build-essential git
+```
+
+### Ubuntu 14.04:
+```bash
+sudo apt-get install -y gcc cmake3 build-essential git binutils-2.26
+export PATH=/usr/lib/binutils-2.26/bin:$PATH
 ```
 
 To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed. 

@@ -143,6 +143,9 @@ SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins) {
 
   SHistogramInfo* pHisto = (SHistogramInfo*)pBuf;
   pHisto->elems = (SHistBin*)((char*)pBuf + sizeof(SHistogramInfo));
+  for(int32_t i = 0; i < numOfBins; ++i) {
+    pHisto->elems[i].val = -DBL_MAX;
+  }
 
   pHisto->maxEntries = numOfBins;
 
