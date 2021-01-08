@@ -365,7 +365,7 @@ static void tscProcessAsyncError(SSchedMsg *pMsg) {
   void (*fp)() = pMsg->ahandle;
   terrno = *(int32_t*) pMsg->msg;
   tfree(pMsg->msg);
-  (*fp)(pMsg->thandle, NULL, *(int32_t*)pMsg->msg);
+  (*fp)(pMsg->thandle, NULL, terrno);
 }
 
 void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
