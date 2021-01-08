@@ -211,23 +211,28 @@ if $data01 != NULL then
   return -1
 endi
 
-sql insert into st_float_6  values (now, 3.40282347e+38)
+sql_error insert into st_float_6  values (now, 3.40282347e+38)
+sql_error insert into st_float_6  values (now, -3.40282347e+38)
+
+sql insert into st_float_6 values(now, 340282346638528859811704183484516925440.00000)
 sql select * from st_float_6
 if $rows != 1 then
   return -1
 endi
-#if $data01 != 340282346638528859811704183484516925440.00000 then   
-#  print ==== data01:$data01, expect:340282346638528859811704183484516925440.00000
-#  return -1
-#endi 
-sql insert into st_float_7  values (now, -3.40282347e+38)
+
+if $data01 != 340282346638528859811704183484516925440.00000 then
+  print ==== data01:$data01, expect:340282346638528859811704183484516925440.00000
+  return -1
+endi
+sql insert into st_float_7  values (now, -340282346638528859811704183484516925440.00000)
 sql select * from st_float_7
 if $rows != 1 then
   return -1
 endi
-#if $data01 != -340282346638528859811704183484516925440.00000 then
-#  return -1
-#endi  
+if $data01 != -340282346638528859811704183484516925440.00000 then
+  return -1
+endi
+
 sql insert into st_float_8  values (now, +100.89) 
 sql select * from st_float_8
 if $rows != 1 then
@@ -343,111 +348,119 @@ sql select * from st_float_21
 if $data01 != NULL then
   return -1
 endi
-sql insert into st_float_22 using mt_float tags (127)  values (now, 3.40282347e+38)
+
+sql_error  insert into st_float_22 using mt_float tags (127)  values (now, 3.40282347e+38)
+
+sql insert into st_float_22 using mt_float tags (127)  values (now, 340282346638528859811704183484516925440.00000)
 sql select tagname from  st_float_22
-#if $data00 != 127 then
-#  return -1
-#endi
-sql select * from st_float_22
-#if $data01 != 127 then
-#  return -1
-#endi 
-sql insert into st_float_23 using mt_float tags (-127)  values (now, -3.40282347e+38)
+if $data00 != 127.00000 then
+  print expect 127.00000, actual: $data00
+  return -1
+endi
+
+sql select tbname, tagname from st_float_22
+if $data01 != 127.00000 then
+  return -1
+endi
+
+sql insert into st_float_23 using mt_float tags (-127)  values (now, -340282346638528859811704183484516925440.00000)
 sql select tagname from  st_float_23
-#if $data00 != -127 then
-#  return -1
-#endi
-sql select * from st_float_23
-#if $data01 != -127 then
-#  return -1
-#endi  
+if $data00 != -127.00000 then
+  return -1
+endi
+
 sql insert into st_float_24 using mt_float tags (10)    values (now, 10)
 sql select tagname from  st_float_24
-#if $data00 != 10 then
-#  return -1
-#endi
+if $data00 != 10.00000 then
+  return -1
+endi
 sql select * from st_float_24
-#if $data01 != 10 then
-#  return -1
-#endi    
+if $data01 != 10.00000 then
+  return -1
+endi
+
 sql insert into st_float_25 using mt_float tags ("-0") values (now, "-0")
 sql select tagname from  st_float_25
-#if $data00 != 0 then
-#  return -1
-#endi
+if $data00 != -0.00000 then
+  print expect -0.00000, actual: $data00
+  return -1
+endi
 sql select * from st_float_25
-#if $data01 != 0 then
-#  return -1
-#endi 
+if $data01 != -0.00000 then
+  return -1
+endi
 sql insert into st_float_26 using mt_float tags ('123') values (now, '12.3')
 sql select tagname from  st_float_26
-#if $data00 != 123 then
-#  return -1
-#endi
+if $data00 != 123.00000 then
+  print expect 123.00000, actual: $data00
+  return -1
+endi
 sql select * from st_float_26
-#if $data01 != 123 then
-#  return -1
-#endi 
+if $data01 != 12.30000 then
+  return -1
+endi
 sql insert into st_float_27 using mt_float tags (+056) values (now, +0005.6)
 sql select tagname from  st_float_27
-#if $data00 != 56 then
-#  return -1
-#endi
+if $data00 != 56.00000 then
+  print expect 56.00000, actual:$data00
+  return -1
+endi
 sql select * from st_float_27
-#if $data01 != 56 then
-#  return -1
-#endi 
+if $data01 != 5.60000 then
+  return -1
+endi
 sql insert into st_float_28 using mt_float tags (-056) values (now, -005.6)
 sql select tagname from  st_float_28
-#if $data00 != -56 then
-#  return -1
-#endi
+if $data00 != -56.00000 then
+  return -1
+endi
 sql select * from st_float_28
-#if $data01 != -56 then
-#  return -1
-#endi 
+if $data01 != -5.60000 then
+  return -1
+endi
 
 ### case 03: alter tag values
-#sql alter table st_float_0 set tag tagname=3.40282347e+38
-#sql select tagname from  st_float_0
-##if $data00 != 127 then
-##  return -1
-##endi
-#sql alter table st_float_0 set tag tagname=-3.40282347e+38
-#sql select tagname from  st_float_0
-##if $data00 != -127 then
-##  return -1
-##endi
-#sql alter table st_float_0 set tag tagname=+10.340
-#sql select tagname from  st_float_0
-##if $data00 != 100 then
-##  return -1
-##endi
-#sql alter table st_float_0 set tag tagname=-33.87
-#sql select tagname from  st_float_0
-##if $data00 != -33 then
-##  return -1
-##endi
-#sql alter table st_float_0 set tag tagname='+9.8'
-#sql select tagname from  st_float_0
-##if $data00 != 98 then
-##  return -1
-##endi
-#sql alter table st_float_0 set tag tagname='-07.6'
-#sql select tagname from  st_float_0
-##if $data00 != -76 then
-##  return -1
-##endi
-#sql alter table st_float_0 set tag tagname=+0012.871
-#sql select tagname from  st_float_0
-##if $data00 != 12 then
-##  return -1
-##endi
-#sql alter table st_float_0 set tag tagname=-00063.582
-#sql select tagname from  st_float_0
-##if $data00 != -63 then
-##  return -1
-##endi
+sql alter table st_float_0 set tag tagname=340282346638528859811704183484516925440.00000
+sql select tagname from st_float_0
+if $data00 != 340282346638528859811704183484516925440.00000 then
+  return -1
+endi
+
+sql alter table st_float_0 set tag tagname=-340282346638528859811704183484516925440.00000
+sql select tagname from  st_float_0
+if $data00 != -340282346638528859811704183484516925440.00000 then
+  return -1
+endi
+sql alter table st_float_0 set tag tagname=+10.340
+sql select tagname from  st_float_0
+if $data00 != 10.34000 then
+  return -1
+endi
+sql alter table st_float_0 set tag tagname=-33.87
+sql select tagname from  st_float_0
+if $data00 != -33.87000 then
+  return -1
+endi
+sql alter table st_float_0 set tag tagname='+9.8'
+sql select tagname from  st_float_0
+if $data00 != 9.80000 then
+  return -1
+endi
+sql alter table st_float_0 set tag tagname='-07.6'
+sql select tagname from  st_float_0
+if $data00 != -7.60000 then
+  return -1
+endi
+sql alter table st_float_0 set tag tagname=+0012.871
+sql select tagname from  st_float_0
+if $data00 != 12.87100 then
+  return -1
+endi
+sql alter table st_float_0 set tag tagname=-00063.582
+sql select tagname from  st_float_0
+if $data00 != -63.58200 then
+  return -1
+endi
 
 ## case 04: illegal input
 sql_error create table st_float_e0 using mt_float tags (3.50282347e+38)
