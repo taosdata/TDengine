@@ -147,11 +147,11 @@ void printRow(char *temp, int32_t num_fields, TAOS_FIELD *fields, TAOS_ROW row) 
 //    tVariant *pVal = &pRes->pVal[i];
 //    switch (fields[i].type) {
 //      case TSDB_DATA_TYPE_INT:
-//        assert(pVal->i64Key == *(int *)row[i]);
+//        assert(pVal->i64 == *(int *)row[i]);
 //        break;
 //      case TSDB_DATA_TYPE_BIGINT:
 //      case TSDB_DATA_TYPE_TIMESTAMP:
-//        assert(pVal->i64Key == *(int64_t *)row[i]);
+//        assert(pVal->i64 == *(int64_t *)row[i]);
 //        break;
 //      case TSDB_DATA_TYPE_FLOAT:
 //        assert(fabs(pVal->dKey - (*(float *)row[i])) < 0.001);
@@ -160,10 +160,10 @@ void printRow(char *temp, int32_t num_fields, TAOS_FIELD *fields, TAOS_ROW row) 
 //        assert(fabs(pVal->dKey - (*(double *)row[i])) < 0.001);
 //        break;
 //      case TSDB_DATA_TYPE_TINYINT:
-//        assert(pVal->i64Key == *(int8_t *)row[i]);
+//        assert(pVal->i64 == *(int8_t *)row[i]);
 //        break;
 //      case TSDB_DATA_TYPE_SMALLINT:
-//        assert(pVal->i64Key == *(int16_t *)row[i]);
+//        assert(pVal->i64 == *(int16_t *)row[i]);
 //        break;
 //      case TSDB_DATA_TYPE_BOOL:
 //      case TSDB_DATA_TYPE_BINARY:

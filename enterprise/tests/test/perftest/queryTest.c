@@ -348,8 +348,8 @@ void generatedData(TAOS* taos) {
 }
 
 int main(int argc, char** argv) {
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/psim/cfg");
   taos_init();
   TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
@@ -380,7 +380,6 @@ int main(int argc, char** argv) {
   }
   return 0;
 #endif
-
 //  multiThreadQuery(5, "select count(*) from test.m2");
 //  return 0;
 
@@ -406,11 +405,10 @@ int main(int argc, char** argv) {
 //      TAOS_RES*  taos_query(conn, t);
 //      taos_free_result(res);
 //    }
-
-//    executeSQL(conn, "select ts from m1 order by ts desc limit 5", NULL);
-    executeSQL(conn, "use t2", NULL);
-//    executeSQL(conn, "select min(k),max(f) from t2m1 interval(1n) fill(prev)", NULL);
-    createEnvironment(conn, 2, 2, 10000000, 30);
+    executeSQL(conn, "use db", NULL);
+    executeSQL(conn, "insert into st_float_6  values (now, 340282346638528859811704183484516925440.00000))", NULL);
+//    executeSQL(conn, "describe tux1", NULL);
+//    createEnvironment(conn, 2, 2, 10000, 30);
     taos_close(conn);
     taos_cleanup();
     return 0;
