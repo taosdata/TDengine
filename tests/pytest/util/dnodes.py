@@ -291,8 +291,8 @@ class TDDnode:
                     break
             tdLog.debug("the dnode:%d has been started." % (self.index))
         else:
-            tdLog.debug("wait 5 seconds for the dnode:%d to start." % (self.index))
-            time.sleep(5)
+            tdLog.debug("wait 10 seconds for the dnode:%d to start." % (self.index))
+            time.sleep(10)
 
         
         # time.sleep(5)

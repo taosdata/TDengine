@@ -51,7 +51,7 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
-        os.system("yes | %slowa -f tools/insert.json" % binPath)
+        os.system("yes | %staosdemox -f tools/insert.json" % binPath)
 
         tdSql.execute("use db01")
         tdSql.query("select count(*) from stb01")

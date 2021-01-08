@@ -1,68 +1,63 @@
 package com.taosdata.taosdemo.service;
 
+import com.taosdata.taosdemo.components.JdbcTaosdemoConfig;
+import com.taosdata.taosdemo.dao.SubTableMapper;
+import com.taosdata.taosdemo.dao.SubTableMapperImpl;
 import com.taosdata.taosdemo.domain.SubTableMeta;
 import com.taosdata.taosdemo.domain.SubTableValue;
-import com.taosdata.taosdemo.mapper.SubTableMapper;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
+import com.taosdata.taosdemo.domain.SuperTableMeta;
+import com.taosdata.taosdemo.service.data.SubTableMetaGenerator;
+import com.taosdata.taosdemo.service.data.SubTableValueGenerator;
+import org.apache.log4j.Logger;
 
+import javax.sql.DataSource;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.*;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
-@Service
 public class SubTableService extends AbstractService {
 
-    @Autowired
     private SubTableMapper mapper;
+    private static final Logger logger = Logger.getLogger(SubTableService.class);
 
-    /**
-     * 1. 选择database，找到所有supertable
-     * 2. 选择supertable，可以拿到表结构，包括field和tag
-     * 3. 指定子表的前缀和个数
-     * 4. 指定创建子表的线程数
-     */
-    //TODO：指定database、supertable、子表前缀、子表个数、线程数
+    public SubTableService(DataSource datasource) {
+        this.mapper = new SubTableMapperImpl(datasource);
+    }
 
-    // 多线程创建表，指定线程个数
-    public int createSubTable(List<SubTableMeta> subTables, int threadSize) {
-        ExecutorService executor = Executors.newFixedThreadPool(threadSize);
-        List<Future<Integer>> futureList = new ArrayList<>();
-        for (SubTableMeta subTableMeta : subTables) {
-            Future<Integer> future = executor.submit(() -> createSubTable(subTableMeta));
-            futureList.add(future);
+    public void createSubTable(SuperTableMeta superTableMeta, long numOfTables, String prefixOfTable, int numOfThreadsForCreate) {
+        ExecutorService executor = Executors.newFixedThreadPool(numOfThreadsForCreate);
+        for (long i = 0; i < numOfTables; i++) {
+            long tableIndex = i;
+            executor.execute(() -> createSubTable(superTableMeta, prefixOfTable + (tableIndex + 1)));
         }
         executor.shutdown();
-        return getAffectRows(futureList);
+        try {
+            executor.awaitTermination(Long.MAX_VALUE,TimeUnit.NANOSECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
     }
 
+    public void createSubTable(SuperTableMeta superTableMeta, String tableName) {
+        // 构造数据
+        SubTableMeta meta = SubTableMetaGenerator.generate(superTableMeta, tableName);
+        createSubTable(meta);
+    }
 
     // 创建一张子表，可以指定database，supertable，tablename，tag值
-    public int createSubTable(SubTableMeta subTableMeta) {
-        return mapper.createUsingSuperTable(subTableMeta);
-    }
-
-    // 单线程创建多张子表，每张子表分别可以指定自己的database，supertable，tablename，tag值
-    public int createSubTable(List<SubTableMeta> subTables) {
-        return createSubTable(subTables, 1);
+    public void createSubTable(SubTableMeta subTableMeta) {
+        mapper.createUsingSuperTable(subTableMeta);
     }
 
     /*************************************************************************************************************************/
     // 插入：多线程，多表
-    public int insert(List<SubTableValue> subTableValues, int threadSize) {
+    public int insert(List<SubTableValue> subTableValues, int threadSize, int frequency) {
         ExecutorService executor = Executors.newFixedThreadPool(threadSize);
         Future<Integer> future = executor.submit(() -> insert(subTableValues));
         executor.shutdown();
-        return getAffectRows(future);
-    }
-
-    // 插入：多线程，多表, 自动建表
-    public int insertAutoCreateTable(List<SubTableValue> subTableValues, int threadSize) {
-        ExecutorService executor = Executors.newFixedThreadPool(threadSize);
-        Future<Integer> future = executor.submit(() -> insertAutoCreateTable(subTableValues));
-        executor.shutdown();
+        //TODO：frequency
         return getAffectRows(future);
     }
 
@@ -73,7 +68,7 @@ public class SubTableService extends AbstractService {
 
     // 插入: 多表，insert into xxx values(),()... xxx values(),()...
     public int insert(List<SubTableValue> subTableValues) {
-        return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
+        return mapper.insertMultiTableMultiValues(subTableValues);
     }
 
     // 插入：单表，自动建表, insert into xxx using xxx tags(...) values(),()...
@@ -86,33 +81,128 @@ public class SubTableService extends AbstractService {
         return mapper.insertMultiTableMultiValuesUsingSuperTable(subTableValues);
     }
 
+    public int insertMultiThreads(SuperTableMeta superTableMeta, int threadSize, long tableSize, long startTime, long gap, JdbcTaosdemoConfig config) {
+        List<FutureTask> taskList = new ArrayList<>();
+        List<Thread> threads = IntStream.range(0, threadSize)
+                .mapToObj(i -> {
+                    long startInd = i * gap;
+                    long endInd = (i + 1) * gap < tableSize ? (i + 1) * gap : tableSize;
+                    FutureTask<Integer> task = new FutureTask<>(
+                            new InsertTask(superTableMeta,
+                                    startInd, endInd,
+                                    startTime, config.timeGap,
+                                    config.numOfRowsPerTable, config.numOfTablesPerSQL, config.numOfValuesPerSQL,
+                                    config.order, config.rate, config.range,
+                                    config.prefixOfTable, config.autoCreateTable)
+                    );
+                    taskList.add(task);
+                    return new Thread(task, "InsertThread-" + i);
+                }).collect(Collectors.toList());
 
-//        ExecutorService executors = Executors.newFixedThreadPool(threadSize);
-//        int count = 0;
-//
-//        //
-//        List<SubTableValue> subTableValues = new ArrayList<>();
-//        for (int tableIndex = 1; tableIndex <= numOfTablesPerSQL; tableIndex++) {
-//            // each table
-//            SubTableValue subTableValue = new SubTableValue();
-//            subTableValue.setDatabase();
-//            subTableValue.setName();
-//            subTableValue.setSupertable();
-//
-//            List<RowValue> values = new ArrayList<>();
-//            for (int valueCnt = 0; valueCnt < numOfValuesPerSQL; valueCnt++) {
-//                List<FieldValue> fields = new ArrayList<>();
-//                for (int fieldInd = 0; fieldInd <; fieldInd++) {
-//                    FieldValue<Object> field = new FieldValue<>("", "");
-//                    fields.add(field);
-//                }
-//                RowValue row = new RowValue();
-//                row.setFields(fields);
-//                values.add(row);
-//            }
-//            subTableValue.setValues(values);
-//            subTableValues.add(subTableValue);
-//        }
+        threads.stream().forEach(Thread::start);
+        for (Thread thread : threads) {
+            try {
+                thread.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+
+        int affectedRows = 0;
+        for (FutureTask<Integer> task : taskList) {
+            try {
+                affectedRows += task.get();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            } catch (ExecutionException e) {
+                e.printStackTrace();
+            }
+        }
+
+        return affectedRows;
+    }
+
+    private class InsertTask implements Callable<Integer> {
+
+        private final long startTableInd; // included
+        private final long endTableInd;   // excluded
+        private final long startTime;
+        private final long timeGap;
+        private final long numOfRowsPerTable;
+        private long numOfTablesPerSQL;
+        private long numOfValuesPerSQL;
+        private final SuperTableMeta superTableMeta;
+        private final int order;
+        private final int rate;
+        private final long range;
+        private final String prefixOfTable;
+        private final boolean autoCreateTable;
+
+        public InsertTask(SuperTableMeta superTableMeta, long startTableInd, long endTableInd,
+                          long startTime, long timeGap,
+                          long numOfRowsPerTable, long numOfTablesPerSQL, long numOfValuesPerSQL,
+                          int order, int rate, long range,
+                          String prefixOfTable, boolean autoCreateTable) {
+            this.superTableMeta = superTableMeta;
+            this.startTableInd = startTableInd;
+            this.endTableInd = endTableInd;
+            this.startTime = startTime;
+            this.timeGap = timeGap;
+            this.numOfRowsPerTable = numOfRowsPerTable;
+            this.numOfTablesPerSQL = numOfTablesPerSQL;
+            this.numOfValuesPerSQL = numOfValuesPerSQL;
+            this.order = order;
+            this.rate = rate;
+            this.range = range;
+            this.prefixOfTable = prefixOfTable;
+            this.autoCreateTable = autoCreateTable;
+        }
+
+
+        @Override
+        public Integer call() {
+
+            long numOfTables = endTableInd - startTableInd;
+            if (numOfRowsPerTable < numOfValuesPerSQL)
+                numOfValuesPerSQL = (int) numOfRowsPerTable;
+            if (numOfTables < numOfTablesPerSQL)
+                numOfTablesPerSQL = (int) numOfTables;
+
+            int affectRows = 0;
+            // row
+            for (long rowCnt = 0; rowCnt < numOfRowsPerTable; ) {
+                long rowSize = numOfValuesPerSQL;
+                if (rowCnt + rowSize > numOfRowsPerTable) {
+                    rowSize = numOfRowsPerTable - rowCnt;
+                }
+                //table
+                for (long tableCnt = startTableInd; tableCnt < endTableInd; ) {
+                    long tableSize = numOfTablesPerSQL;
+                    if (tableCnt + tableSize > endTableInd) {
+                        tableSize = endTableInd - tableCnt;
+                    }
+                    long startTime = this.startTime + rowCnt * timeGap;
+//                    System.out.println(Thread.currentThread().getName() + " >>> " + "rowCnt: " + rowCnt + ", rowSize: " + rowSize + ", " + "tableCnt: " + tableCnt + ",tableSize: " + tableSize + ", " + "startTime: " + startTime + ",timeGap: " + timeGap + "");
+                    /***********************************************/
+                    // 生成数据
+                    List<SubTableValue> data = SubTableValueGenerator.generate(superTableMeta, prefixOfTable, tableCnt, tableSize, rowSize, startTime, timeGap);
+                    // 乱序
+                    if (order != 0)
+                        SubTableValueGenerator.disrupt(data, rate, range);
+                    // insert
+                    if (autoCreateTable)
+                        affectRows += insertAutoCreateTable(data);
+                    else
+                        affectRows += insert(data);
+                    /***********************************************/
+                    tableCnt += tableSize;
+                }
+                rowCnt += rowSize;
+            }
+
+            return affectRows;
+        }
+    }
 
 
 }

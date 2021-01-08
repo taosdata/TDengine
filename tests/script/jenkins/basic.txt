@@ -385,3 +385,8 @@ cd ../../../debug; make
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmVnodeDir.sim
+
+./test.sh -f general/connection/test_old_data.sim
+./test.sh -f unique/dnode/datatrans_3node.sim 
+./test.sh -f unique/dnode/datatrans_3node_2.sim
+

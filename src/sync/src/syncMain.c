@@ -375,6 +375,8 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg *pNewCfg) {
 }
 
 int32_t syncForwardToPeer(int64_t rid, void *data, void *mhandle, int32_t qtype) {
+  if (rid <= 0) return 0;
+
   SSyncNode *pNode = syncAcquireNode(rid);
   if (pNode == NULL) return 0;
 

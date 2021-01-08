@@ -188,8 +188,8 @@ void dnodeReprocessMWriteMsg(void *pMsg) {
       ++pWrite->pBatchMasterMsg->received;
       if (pWrite->pBatchMasterMsg->successed + pWrite->pBatchMasterMsg->received
 	  >= pWrite->pBatchMasterMsg->expected) {
-	dnodeSendRedirectMsg(&pWrite->rpcMsg, true);
-	dnodeFreeMWriteMsg(pWrite);
+        dnodeSendRedirectMsg(&pWrite->pBatchMasterMsg->rpcMsg, true);
+        dnodeFreeMWriteMsg(pWrite->pBatchMasterMsg);
       }
 
       mnodeDestroySubMsg(pWrite);

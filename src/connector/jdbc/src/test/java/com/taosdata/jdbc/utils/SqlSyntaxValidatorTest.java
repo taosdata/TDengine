@@ -6,10 +6,6 @@ import org.junit.Test;
 public class SqlSyntaxValidatorTest {
 
     @Test
-    public void validateSqlSyntax() {
-    }
-
-    @Test
     public void isSelectSQL() {
         Assert.assertTrue(SqlSyntaxValidator.isSelectSql("select * from test.weather"));
         Assert.assertTrue(SqlSyntaxValidator.isSelectSql(" select * from test.weather"));
