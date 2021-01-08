@@ -452,8 +452,11 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
   
   if (*pDest == pVariant->pz) {
     wchar_t *pWStr = calloc(1, (nLen + 1) * TSDB_NCHAR_SIZE);
-    taosMbsToUcs4(pDst, nLen, (char *)pWStr, (nLen + 1) * TSDB_NCHAR_SIZE, NULL);
-    
+    bool ret = taosMbsToUcs4(pDst, nLen, (char *)pWStr, (nLen + 1) * TSDB_NCHAR_SIZE, NULL);
+    if (!ret) {
+      return -1;
+    }
+
     // free the binary buffer in the first place
     if (pVariant->nType == TSDB_DATA_TYPE_BINARY) {
       free(pVariant->wpz);
@@ -469,8 +472,11 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
     pVariant->wpz = (wchar_t *)tmp;
   } else {
     size_t output = -1;
-    taosMbsToUcs4(pDst, nLen, *pDest, (nLen + 1) * TSDB_NCHAR_SIZE, &output);
-    
+    bool ret = taosMbsToUcs4(pDst, nLen, *pDest, (nLen + 1) * TSDB_NCHAR_SIZE, &output);
+    if (!ret) {
+      return -1;
+    }
+
     if (pDestSize != NULL) {
       *pDestSize = (int32_t)output;
     }
@@ -638,8 +644,6 @@ static int32_t convertToBool(tVariant *pVariant, int64_t *pDest) {
 /*
  * transfer data from variant serve as the implicit data conversion: from input sql string pVariant->nType
  * to column type defined in schema
- *
- * todo handle the return value
  */
 int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool includeLengthPrefix) {
   if (pVariant == NULL || (pVariant->nType != 0 && !isValidDataType(pVariant->nType))) {
@@ -805,7 +809,9 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
           *(uint32_t *)payload = TSDB_DATA_NCHAR_NULL;
         } else {
           if (pVariant->nType != TSDB_DATA_TYPE_NCHAR) {
-            toNchar(pVariant, &payload, &newlen);
+            if (toNchar(pVariant, &payload, &newlen) != 0) {
+              return -1;
+            }
           } else {
             wcsncpy((wchar_t *)payload, pVariant->wpz, pVariant->nLen);
           }
@@ -817,7 +823,9 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
           char *p = varDataVal(payload);
 
           if (pVariant->nType != TSDB_DATA_TYPE_NCHAR) {
-            toNchar(pVariant, &p, &newlen);
+            if (toNchar(pVariant, &p, &newlen) != 0) {
+              return -1;
+            }
           } else {
             wcsncpy((wchar_t *)p, pVariant->wpz, pVariant->nLen);
             newlen = pVariant->nLen;
@@ -901,7 +909,11 @@ int32_t tVariantTypeSetType(tVariant *pVariant, char type) {
     }
     case TSDB_DATA_TYPE_NCHAR: {
       if (pVariant->nType != TSDB_DATA_TYPE_NCHAR) {
-        toNchar(pVariant, &pVariant->pz, &pVariant->nLen);
+        int32_t ret = toNchar(pVariant, &pVariant->pz, &pVariant->nLen);
+        if (ret != 0) {
+          return -1;
+        }
+
       }
       pVariant->nType = type;
       break;
