@@ -616,7 +616,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
       case TSDB_DATA_TYPE_NCHAR: {
         switch (bind->buffer_type) {
           case TSDB_DATA_TYPE_NCHAR: {
-            size_t output = 0;
+            int32_t output = 0;
             if (!taosMbsToUcs4(bind->buffer, *bind->length, varDataVal(data + param->offset), param->bytes - VARSTR_HEADER_SIZE, &output)) {
               return TSDB_CODE_TSC_INVALID_VALUE;
             }

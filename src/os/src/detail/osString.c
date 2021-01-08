@@ -46,7 +46,7 @@ int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
   return (int32_t)(ucs4_max_len - outLen);
 }
 
-bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len, size_t *len) {
+bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len, int32_t *len) {
   memset(ucs4, 0, ucs4_max_len);
   iconv_t cd = iconv_open(DEFAULT_UNICODE_ENCODEC, tsCharset);
   size_t  ucs4_input_len = mbsLength;
@@ -92,7 +92,7 @@ int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs) {
   return len;
 }
 
-bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len, size_t *len) {
+bool taosMbsToUcs4(char *mbs, size_t mbsLength, char *ucs4, int32_t ucs4_max_len, int32_t *len) {
   memset(ucs4, 0, ucs4_max_len);
   mbstate_t state = {0};
   int32_t retlen = mbsnrtowcs((wchar_t *)ucs4, (const char **)&mbs, mbsLength, ucs4_max_len / 4, &state);

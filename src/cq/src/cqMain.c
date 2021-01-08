@@ -341,7 +341,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
       val = ((char*)val) - sizeof(VarDataLenT);
     } else if (c->type == TSDB_DATA_TYPE_NCHAR) {
       char buf[TSDB_MAX_NCHAR_LEN];
-      size_t len = taos_fetch_lengths(tres)[i];
+      int32_t len = taos_fetch_lengths(tres)[i];
       taosMbsToUcs4(val, len, buf, sizeof(buf), &len);
       memcpy(val + sizeof(VarDataLenT), buf, len);
       varDataLen(val) = len;

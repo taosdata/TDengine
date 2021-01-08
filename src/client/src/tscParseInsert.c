@@ -332,7 +332,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload,
           return tscInvalidSQLErrMsg(msg, "illegal double data", pToken->z);
         }
 
-        if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv)) {
+        if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv) || isnan(dv)) {
           return tscInvalidSQLErrMsg(msg, "illegal double data", pToken->z);
         }
 
@@ -359,7 +359,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload,
         setVardataNull(payload, TSDB_DATA_TYPE_NCHAR);
       } else {
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
-        size_t output = 0;
+        int32_t output = 0;
         if (!taosMbsToUcs4(pToken->z, pToken->n, varDataVal(payload), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
           char buf[512] = {0};
           snprintf(buf, tListLen(buf), "%s", strerror(errno));
