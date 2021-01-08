@@ -95,7 +95,7 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
     return;
   }
   
-  nPrintTsc(sqlstr);
+  nPrintTsc("%s", sqlstr);
   
   SSqlObj *pSql = (SSqlObj *)calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
@@ -365,7 +365,7 @@ static void tscProcessAsyncError(SSchedMsg *pMsg) {
   void (*fp)() = pMsg->ahandle;
   terrno = *(int32_t*) pMsg->msg;
   tfree(pMsg->msg);
-  (*fp)(pMsg->thandle, NULL, *(int32_t*)pMsg->msg);
+  (*fp)(pMsg->thandle, NULL, terrno);
 }
 
 void tscQueueAsyncError(void(*fp), void *param, int32_t code) {

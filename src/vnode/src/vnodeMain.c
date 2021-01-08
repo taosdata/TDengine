@@ -409,9 +409,6 @@ void vnodeCleanUp(SVnodeObj *pVnode) {
 
   vnodeSetClosingStatus(pVnode);
 
-  // release local resources only after cutting off outside connections
-  qQueryMgmtNotifyClosed(pVnode->qMgmt);
-
   // stop replication module
   if (pVnode->sync > 0) {
     int64_t sync = pVnode->sync;
