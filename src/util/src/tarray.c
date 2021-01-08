@@ -55,24 +55,29 @@ static int32_t taosArrayResize(SArray* pArray) {
   return 0;
 }
 
-void* taosArrayPush(SArray* pArray, const void* pData) {
+void* taosArrayPushBatch(SArray* pArray, const void* pData, int nEles) {
   if (pArray == NULL || pData == NULL) {
     return NULL;
   }
 
-  if (pArray->size >= pArray->capacity) {
-    int32_t ret = taosArrayResize(pArray);
-    
-    // failed to push data into buffer due to the failure of memory allocation
-    if (ret != 0) {
+  if (pArray->size + nEles > pArray->capacity) {
+    size_t tsize = (pArray->capacity << 1u);
+    while (pArray->size + nEles > tsize) {
+      tsize = (tsize << 1u);
+    }
+
+    pArray->pData = realloc(pArray->pData, tsize * pArray->elemSize);
+    if (pArray->pData == NULL) {
       return NULL;
     }
+
+    pArray->capacity = tsize;
   }
 
   void* dst = TARRAY_GET_ELEM(pArray, pArray->size);
-  memcpy(dst, pData, pArray->elemSize);
+  memcpy(dst, pData, pArray->elemSize * nEles);
 
-  pArray->size += 1;
+  pArray->size += nEles;
   return dst;
 }
 

@@ -46,9 +46,20 @@ void* taosArrayInit(size_t size, size_t elemSize);
  *
  * @param pArray
  * @param pData
+ * @param nEles
  * @return
  */
-void* taosArrayPush(SArray* pArray, const void* pData);
+void *taosArrayPushBatch(SArray *pArray, const void *pData, int nEles);
+
+/**
+ *
+ * @param pArray
+ * @param pData
+ * @return
+ */
+static FORCE_INLINE void* taosArrayPush(SArray* pArray, const void* pData) {
+  return taosArrayPushBatch(pArray, pData, 1);
+}
 
 /**
  *
