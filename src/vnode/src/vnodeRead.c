@@ -438,7 +438,7 @@ int32_t vnodeNotifyCurrentQhandle(void *handle, void *qhandle, int32_t vgId) {
 
 void vnodeWaitReadCompleted(SVnodeObj *pVnode) {
   while (pVnode->queuedRMsg > 0) {
-    vTrace("vgId:%d, queued rmsg num:%d", pVnode->vgId, pVnode->queuedWMsg);
+    vTrace("vgId:%d, queued rmsg num:%d", pVnode->vgId, pVnode->queuedRMsg);
     taosMsleep(10);
   }
 }
