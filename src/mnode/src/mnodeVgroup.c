@@ -986,6 +986,19 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       mnodeMsg->pVgroup = NULL;
       mnodeDestroyVgroup(pVgroup);
+
+      if (mnodeMsg->pBatchMasterMsg) {
+        ++mnodeMsg->pBatchMasterMsg->received;
+        if (mnodeMsg->pBatchMasterMsg->successed + mnodeMsg->pBatchMasterMsg->received
+            >= mnodeMsg->pBatchMasterMsg->expected) {
+          dnodeSendRpcMWriteRsp(mnodeMsg->pBatchMasterMsg, code);
+        }
+
+        mnodeDestroySubMsg(mnodeMsg);
+
+        return;
+      }
+
       dnodeSendRpcMWriteRsp(mnodeMsg, code);
     }
   } else {
@@ -995,6 +1008,19 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
       .pObj   = pVgroup
     };
     sdbDeleteRow(&row);
+
+    if (mnodeMsg->pBatchMasterMsg) {
+      ++mnodeMsg->pBatchMasterMsg->received;
+      if (mnodeMsg->pBatchMasterMsg->successed + mnodeMsg->pBatchMasterMsg->received
+          >= mnodeMsg->pBatchMasterMsg->expected) {
+        dnodeSendRpcMWriteRsp(mnodeMsg->pBatchMasterMsg, mnodeMsg->code);
+      }
+
+      mnodeDestroySubMsg(mnodeMsg);
+
+      return;
+    }
+
     dnodeSendRpcMWriteRsp(mnodeMsg, mnodeMsg->code);
   }
 }

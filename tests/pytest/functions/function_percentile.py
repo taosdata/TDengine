@@ -144,6 +144,7 @@ class TDTestCase:
         print("apercentile result: %s" % tdSql.getData(0, 0))
 
         # Test case for: https://jira.taosdata.com:18080/browse/TD-2609
+
         # modified for : https://jira.taosdata.com:18080/browse/TD-2627
         tdSql.execute("create table st(ts timestamp, k int)")
         tdSql.execute("insert into st values(now, -100)(now+1a,-99)")

@@ -90,7 +90,10 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
 
   // write into WAL
   code = walWrite(pVnode->wal, pHead);
-  if (code < 0) return code;
+  if (code < 0) {
+    vError("vgId:%d, hver:%" PRIu64 " vver:%" PRIu64 " code:0x%x", pVnode->vgId, pHead->version, pVnode->version, code);
+    return code;
+  }
 
   pVnode->version = pHead->version;
 
@@ -117,12 +120,6 @@ static int32_t vnodeCheckWrite(SVnodeObj *pVnode) {
   // tsdb may be in reset state
   if (pVnode->tsdb == NULL) {
     vDebug("vgId:%d, tsdb is null, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
-    return TSDB_CODE_APP_NOT_READY;
-  }
-
-  if (vnodeInClosingStatus(pVnode)) {
-    vDebug("vgId:%d, vnode status is %s, refCount:%d pVnode:%p", pVnode->vgId, vnodeStatus[pVnode->status],
-           pVnode->refCount, pVnode);
     return TSDB_CODE_APP_NOT_READY;
   }
 
@@ -248,10 +245,19 @@ static int32_t vnodeWriteToWQueueImp(SVWriteMsg *pWrite) {
   if (pWrite->qtype == TAOS_QTYPE_RPC) {
     int32_t code = vnodeCheckWrite(pVnode);
     if (code != TSDB_CODE_SUCCESS) {
+      vError("vgId:%d, failed to write into vwqueue since %s", pVnode->vgId, tstrerror(code));
       taosFreeQitem(pWrite);
       vnodeRelease(pVnode);
       return code;
     }
+  }
+
+  if (!vnodeInReadyOrUpdatingStatus(pVnode)) {
+    vError("vgId:%d, failed to write into vwqueue, vstatus is %s, refCount:%d pVnode:%p", pVnode->vgId,
+           vnodeStatus[pVnode->status], pVnode->refCount, pVnode);
+    taosFreeQitem(pWrite);
+    vnodeRelease(pVnode);
+    return TSDB_CODE_APP_NOT_READY;
   }
 
   int32_t queued = atomic_add_fetch_32(&pVnode->queuedWMsg, 1);
@@ -338,3 +344,5 @@ static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite) {
     return TSDB_CODE_VND_ACTION_IN_PROGRESS;
   }
 }
+
+void vnodeWaitWriteCompleted(void *pVnode) {}

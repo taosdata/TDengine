@@ -5,17 +5,12 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.taosdata.jdbc</groupId>
-    <artifactId>jdbcChecker</artifactId>
+    <artifactId>JDBCDemo</artifactId>
     <version>SNAPSHOT</version>
     <packaging>jar</packaging>
+
     <build>
         <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-assembly-plugin</artifactId>
-                <version>3.0.0</version>
-            </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
@@ -23,7 +18,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.taosdata.example.JdbcChecker</mainClass>
+                            <mainClass>com.taosdata.example.JDBCDemo</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
@@ -49,6 +44,7 @@
                     <target>8</target>
                 </configuration>
             </plugin>
+
         </plugins>
     </build>
 
@@ -56,18 +52,8 @@
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>2.0.12</version>
-        </dependency>
-        <dependency>
-            <groupId>log4j</groupId>
-            <artifactId>log4j</artifactId>
-            <version>1.2.17</version>
-        </dependency>
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.13.1</version>
-            <scope>test</scope>
+            <version>2.0.15</version>
         </dependency>
     </dependencies>
+
 </project>

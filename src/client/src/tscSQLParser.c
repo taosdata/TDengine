@@ -75,11 +75,11 @@ static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SC
 static int32_t convertFunctionId(int32_t optr, int16_t* functionId);
 static uint8_t convertOptr(SStrToken *pToken);
 
-static int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery);
+static int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery, bool intervalQuery);
 
 static bool validateIpAddress(const char* ip, size_t size);
 static bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
-static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery);
+static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool intervalQuery);
 
 static int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd);
 
@@ -1475,7 +1475,7 @@ static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo) {
   pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
 }
 
-int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery) {
+int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery, bool intervalQuery) {
   assert(pSelection != NULL && pCmd != NULL);
 
   const char* msg2 = "functions can not be mixed up";
@@ -1531,7 +1531,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     addPrimaryTsColIntoResult(pQueryInfo);
   }
 
-  if (!functionCompatibleCheck(pQueryInfo, joinQuery)) {
+  if (!functionCompatibleCheck(pQueryInfo, joinQuery, intervalQuery)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -2810,7 +2810,7 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
   return false;
 }
 
-static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
+static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool intervalQuery) {
   int32_t startIdx = 0;
 
   size_t numOfExpr = tscSqlExprNumOfExprs(pQueryInfo);
@@ -2825,6 +2825,10 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
   }
 
   int32_t factor = functionCompatList[tscSqlExprGet(pQueryInfo, startIdx)->functionId];
+
+  if (tscSqlExprGet(pQueryInfo, 0)->functionId == TSDB_FUNC_LAST_ROW && (joinQuery || intervalQuery)) {
+	return false;
+  }
 
   // diff function cannot be executed with other function
   // arithmetic function can be executed with other arithmetic functions
@@ -2850,7 +2854,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery) {
       }
     }
 
-    if (functionId == TSDB_FUNC_LAST_ROW && joinQuery) {
+    if (functionId == TSDB_FUNC_LAST_ROW && (joinQuery || intervalQuery)) {
       return false;
     }
   }
@@ -4594,8 +4598,8 @@ static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
 int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema* pSchema) {
   const char* msg0 = "only support order by primary timestamp";
   const char* msg1 = "invalid column name";
-  const char* msg2 = "only support order by primary timestamp or queried column";
-  const char* msg3 = "only support order by primary timestamp or first tag in groupby clause";
+  const char* msg2 = "only support order by primary timestamp or first tag in groupby clause allowed";
+  const char* msg3 = "invalid column in order by clause, only primary timestamp or first tag in groupby clause allowed";
 
   setDefaultOrderInfo(pQueryInfo);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -5275,8 +5279,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
 
   const char* msg0 = "soffset/offset can not be less than 0";
   const char* msg1 = "slimit/soffset only available for STable query";
-  const char* msg2 = "functions mixed up in table query";
-  const char* msg3 = "slimit/soffset can not apply to projection query";
+  const char* msg2 = "slimit/soffset can not apply to projection query";
 
   // handle the limit offset value, validate the limit
   pQueryInfo->limit = pQuerySql->limit;
@@ -5301,7 +5304,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
     if (!tscQueryTags(pQueryInfo)) {  // local handle the super table tag query
       if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
         if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
 
         // for projection query on super table, all queries are subqueries
@@ -5358,24 +5361,6 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
   } else {
     if (pQueryInfo->slimit.limit != -1 || pQueryInfo->slimit.offset != 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-    }
-  
-    size_t size = taosArrayGetSize(pQueryInfo->exprList);
-    
-    bool hasTags = false;
-    bool hasOtherFunc = false;
-    // filter the query functions operating on "tbname" column that are not supported by normal columns.
-    for (int32_t i = 0; i < size; ++i) {
-      SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-      if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
-        hasTags = true;
-      } else {
-        hasOtherFunc = true;
-      }
-    }
-    
-    if (hasTags && hasOtherFunc) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   }
 
@@ -5848,14 +5833,43 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t doTagFunctionCheck(SQueryInfo* pQueryInfo) {
+  bool tagProjection = false;
+  bool tableCounting = false;
+
+  int32_t numOfCols = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    int32_t functionId = pExpr->functionId;
+
+    if (functionId == TSDB_FUNC_TAGPRJ) {
+      tagProjection = true;
+      continue;
+    }
+
+    if (functionId == TSDB_FUNC_COUNT) {
+      assert(pExpr->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX);
+      tableCounting = true;
+    }
+  }
+
+  return (tableCounting && tagProjection)? -1:0;
+}
+
 int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   const char* msg1 = "functions/columns not allowed in group by query";
   const char* msg2 = "projection query on columns not allowed";
   const char* msg3 = "group by not allowed on projection query";
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
+  const char* msg5 = "functions can not be mixed up";
 
   // only retrieve tags, group by is not supportted
   if (tscQueryTags(pQueryInfo)) {
+    if (doTagFunctionCheck(pQueryInfo) != TSDB_CODE_SUCCESS) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+    }
+
     if (pQueryInfo->groupbyExpr.numOfGroupCols > 0 || pQueryInfo->interval.interval > 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     } else {
@@ -6278,10 +6292,12 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
 int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   const char* msg1 = "invalid table name";
+  const char* msg2 = "functions not allowed in CQ";
   const char* msg3 = "fill only available for interval query";
   const char* msg4 = "fill option not supported in stream computing";
   const char* msg5 = "sql too long";  // todo ADD support
   const char* msg6 = "from missing in subclause";
+  const char* msg7 = "time interval is required";
   
   SSqlCmd*    pCmd = &pSql->cmd;
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
@@ -6291,10 +6307,10 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   STableMetaInfo*  pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   // if sql specifies db, use it, otherwise use default db
-  SStrToken* pzTableName = &(pCreateTable->name);
+  SStrToken* pName = &(pCreateTable->name);
   SQuerySQL* pQuerySql = pCreateTable->pSelect;
 
-  if (tscValidateName(pzTableName) != TSDB_CODE_SUCCESS) {
+  if (tscValidateName(pName) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
   
@@ -6320,7 +6336,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-  if (parseSelectClause(&pSql->cmd, 0, pQuerySql->pSelection, isSTable, false) != TSDB_CODE_SUCCESS) {
+  if (parseSelectClause(&pSql->cmd, 0, pQuerySql->pSelection, isSTable, false, false) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
@@ -6333,15 +6349,19 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   // set interval value
   if (parseIntervalClause(pSql, pQueryInfo, pQuerySql) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
-  } else {
-    if ((pQueryInfo->interval.interval > 0) &&
-        (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
-      return TSDB_CODE_TSC_INVALID_SQL;
-    }
+  }
+
+  if ((pQueryInfo->interval.interval > 0) &&
+      (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  }
+
+  if (!tscIsProjectionQuery(pQueryInfo) && pQueryInfo->interval.interval == 0) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 
   // set the created table[stream] name
-  code = tscSetTableFullName(pTableMetaInfo, pzTableName, pSql);
+  code = tscSetTableFullName(pTableMetaInfo, pName, pSql);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -6565,7 +6585,9 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
 
   int32_t joinQuery = (pQuerySql->from != NULL && taosArrayGetSize(pQuerySql->from) > 2);
 
-  if (parseSelectClause(pCmd, index, pQuerySql->pSelection, isSTable, joinQuery) != TSDB_CODE_SUCCESS) {
+  int32_t intervalQuery = !(pQuerySql->interval.type == 0 || pQuerySql->interval.n == 0);
+
+  if (parseSelectClause(pCmd, index, pQuerySql->pSelection, isSTable, joinQuery, intervalQuery) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
