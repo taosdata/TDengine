@@ -327,7 +327,7 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, int64_t*
     return NULL;
   }
 
-  nPrintTsc(sqlstr);
+  nPrintTsc("%s", sqlstr);
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
   if (pSql == NULL) {
