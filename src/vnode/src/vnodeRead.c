@@ -436,4 +436,9 @@ int32_t vnodeNotifyCurrentQhandle(void *handle, void *qhandle, int32_t vgId) {
   return rpcReportProgress(handle, (char *)pMsg, sizeof(SRetrieveTableMsg));
 }
 
-void vnodeWaitReadCompleted(void *pVnode) {}
+void vnodeWaitReadCompleted(SVnodeObj *pVnode) {
+  while (pVnode->queuedRMsg > 0) {
+    vTrace("vgId:%d, queued rmsg num:%d", pVnode->vgId, pVnode->queuedWMsg);
+    taosMsleep(10);
+  }
+}
