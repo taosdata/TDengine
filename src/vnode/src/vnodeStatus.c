@@ -56,7 +56,7 @@ static bool vnodeSetClosingStatusImp(SVnodeObj* pVnode) {
   bool set = false;
   pthread_mutex_lock(&pVnode->statusMutex);
 
-  if (pVnode->status == TAOS_VN_STATUS_READY) {
+  if (pVnode->status == TAOS_VN_STATUS_READY || pVnode->status == TAOS_VN_STATUS_INIT) {
     pVnode->status = TAOS_VN_STATUS_CLOSING;
     set = true;
   } else {
@@ -68,13 +68,10 @@ static bool vnodeSetClosingStatusImp(SVnodeObj* pVnode) {
 }
 
 bool vnodeSetClosingStatus(SVnodeObj* pVnode) {
-  if (!vnodeInInitStatus(pVnode)) {
-    // it may be in updating or reset state, then it shall wait
-    int32_t i = 0;
-    while (!vnodeSetClosingStatusImp(pVnode)) {
-      if (++i % 1000 == 0) {
-        sched_yield();
-      }
+  int32_t i = 0;
+  while (!vnodeSetClosingStatusImp(pVnode)) {
+    if (++i % 1000 == 0) {
+      sched_yield();
     }
   }
 
@@ -96,11 +93,11 @@ bool vnodeSetUpdatingStatus(SVnodeObj* pVnode) {
   return set;
 }
 
-bool vnodeSetResetStatus(SVnodeObj* pVnode) {
+static bool vnodeSetResetStatusImp(SVnodeObj* pVnode) {
   bool set = false;
   pthread_mutex_lock(&pVnode->statusMutex);
 
-  if (pVnode->status != TAOS_VN_STATUS_CLOSING && pVnode->status != TAOS_VN_STATUS_INIT) {
+  if (pVnode->status == TAOS_VN_STATUS_READY || pVnode->status == TAOS_VN_STATUS_INIT) {
     pVnode->status = TAOS_VN_STATUS_RESET;
     set = true;
   } else {
@@ -109,6 +106,17 @@ bool vnodeSetResetStatus(SVnodeObj* pVnode) {
 
   pthread_mutex_unlock(&pVnode->statusMutex);
   return set;
+}
+
+bool vnodeSetResetStatus(SVnodeObj* pVnode) {
+  int32_t i = 0;
+  while (!vnodeSetResetStatusImp(pVnode)) {
+    if (++i % 1000 == 0) {
+      sched_yield();
+    }
+  }
+
+  return true;
 }
 
 bool vnodeInInitStatus(SVnodeObj* pVnode) {
