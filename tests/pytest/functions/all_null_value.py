@@ -73,8 +73,8 @@ class TDTestCase:
         tdSql.query("select spread(c1) from st")
         tdSql.checkRows(0)
 
-        # tdSql.query("select stddev(c1) from st")
-        # tdSql.checkRows(0)
+        tdSql.query("select stddev(c1) from st")
+        tdSql.checkRows(0)
 
         tdSql.query("select sum(c1) from st")
         tdSql.checkRows(0)
