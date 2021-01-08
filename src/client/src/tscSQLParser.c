@@ -5833,14 +5833,43 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t doTagFunctionCheck(SQueryInfo* pQueryInfo) {
+  bool tagProjection = false;
+  bool tableCounting = false;
+
+  int32_t numOfCols = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    int32_t functionId = pExpr->functionId;
+
+    if (functionId == TSDB_FUNC_TAGPRJ) {
+      tagProjection = true;
+      continue;
+    }
+
+    if (functionId == TSDB_FUNC_COUNT) {
+      assert(pExpr->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX);
+      tableCounting = true;
+    }
+  }
+
+  return (tableCounting && tagProjection)? -1:0;
+}
+
 int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   const char* msg1 = "functions/columns not allowed in group by query";
   const char* msg2 = "projection query on columns not allowed";
   const char* msg3 = "group by not allowed on projection query";
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
+  const char* msg5 = "functions can not be mixed up";
 
   // only retrieve tags, group by is not supportted
   if (tscQueryTags(pQueryInfo)) {
+    if (doTagFunctionCheck(pQueryInfo) != TSDB_CODE_SUCCESS) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+    }
+
     if (pQueryInfo->groupbyExpr.numOfGroupCols > 0 || pQueryInfo->interval.interval > 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     } else {
