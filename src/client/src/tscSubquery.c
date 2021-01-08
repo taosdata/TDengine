@@ -533,7 +533,7 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
     freeJoinSubqueryObj(pSqlObj);
   }
 
-  tscDestroyJoinSupporter(pSupporter);
+  //tscDestroyJoinSupporter(pSupporter);
 }
 
 // update the query time range according to the join results on timestamp
@@ -1657,6 +1657,25 @@ static void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
     taos_free_result(pSub);
   }
 }
+
+void tscLockByThread(int64_t *lockedBy) {
+  int64_t tid = taosGetSelfPthreadId();
+  int     i = 0;
+  while (atomic_val_compare_exchange_64(lockedBy, 0, tid) != 0) {
+    if (++i % 100 == 0) {
+      sched_yield();
+    }
+  }
+}
+
+void tscUnlockByThread(int64_t *lockedBy) {
+  int64_t tid = taosGetSelfPthreadId();
+  if (atomic_val_compare_exchange_64(lockedBy, tid, 0) != tid) {
+    assert(false);
+  }
+}
+
+
 
 int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;

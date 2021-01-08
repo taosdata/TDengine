@@ -347,6 +347,11 @@ typedef struct SSqlObj {
   SSubqueryState   subState;
   struct SSqlObj **pSubs;
 
+  int64_t          metaRid;
+  int64_t          svgroupRid;
+
+  int64_t          squeryLock;
+
   struct SSqlObj  *prev, *next;
   int64_t          self;
 } SSqlObj;

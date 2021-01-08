@@ -423,7 +423,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
     taosRemoveRef(tscObjRef, pSql->self);
-    tscDebug("%p sqlObj is automatically freed", pSql);
+    tscDebug("%p sqlObj is automatically freed", pSql); 
   }
 
   rpcFreeCont(rpcMsg->pCont);
@@ -1992,16 +1992,20 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
 }
 
 int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
+  // master sqlObj locates in param
+  SSqlObj* parent = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pSql->param);
+  if(parent == NULL) {
+    return pSql->res.code;
+  }
+
+  assert(parent->signature == parent && (int64_t)pSql->param == parent->self);
+  
   SSqlRes* pRes = &pSql->res;
   
   // NOTE: the order of several table must be preserved.
   SSTableVgroupRspMsg *pStableVgroup = (SSTableVgroupRspMsg *)pRes->pRsp;
   pStableVgroup->numOfTables = htonl(pStableVgroup->numOfTables);
   char *pMsg = pRes->pRsp + sizeof(SSTableVgroupRspMsg);
-
-  // master sqlObj locates in param
-  SSqlObj* parent = pSql->param;
-  assert(parent != NULL);
   
   SSqlCmd* pCmd = &parent->cmd;
   for(int32_t i = 0; i < pStableVgroup->numOfTables; ++i) {
@@ -2035,6 +2039,8 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
 
     pMsg += size;
   }
+
+  taosReleaseRef(tscObjRef, parent->self);
   
   return pSql->res.code;
 }
@@ -2328,10 +2334,14 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
 
   tscDebug("%p new pSqlObj:%p to get tableMeta, auto create:%d", pSql, pNew, pNew->cmd.autoCreated);
 
-  pNew->fp = tscTableMetaCallBack;
-  pNew->param = pSql;
-
   registerSqlObj(pNew);
+
+  pNew->fp = tscTableMetaCallBack;
+  pNew->param = (void *)pSql->self;
+
+  tscDebug("%p metaRid from %" PRId64 " to %" PRId64 , pSql, pSql->metaRid, pNew->self);
+  
+  pSql->metaRid = pNew->self;
 
   int32_t code = tscProcessSql(pNew);
   if (code == TSDB_CODE_SUCCESS) {
@@ -2348,6 +2358,7 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   uint32_t size = tscGetTableMetaMaxSize();
   pTableMetaInfo->pTableMeta = calloc(1, size);
 
+  pTableMetaInfo->pTableMeta->tableType = -1;
   pTableMetaInfo->pTableMeta->tableInfo.numOfColumns  = -1;
   int32_t len = (int32_t) strlen(pTableMetaInfo->name);
 
@@ -2447,10 +2458,15 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
   pNewQueryInfo->numOfTables = pQueryInfo->numOfTables;
   registerSqlObj(pNew);
 
+  tscDebug("%p svgroupRid from %" PRId64 " to %" PRId64 , pSql, pSql->svgroupRid, pNew->self);
+  
+  pSql->svgroupRid = pNew->self;
+  
+
   tscDebug("%p new sqlObj:%p to get vgroupInfo, numOfTables:%d", pSql, pNew, pNewQueryInfo->numOfTables);
 
   pNew->fp = tscTableMetaCallBack;
-  pNew->param = pSql;
+  pNew->param = (void *)pSql->self;
   code = tscProcessSql(pNew);
   if (code == TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;
