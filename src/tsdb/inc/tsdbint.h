@@ -18,7 +18,10 @@
 
 // TODO: remove the include
 #include <errno.h>
+#include <fcntl.h>
 #include <inttypes.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 #include "os.h"
 #include "tlog.h"
@@ -27,6 +30,7 @@
 #include "tchecksum.h"
 #include "tskiplist.h"
 #include "tdataformat.h"
+#include "tscompression.h"
 #include "tlockfree.h"
 #include "tlist.h"
 #include "hash.h"

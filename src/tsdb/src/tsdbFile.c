@@ -174,6 +174,7 @@ int tsdbOpenDFileSet(SDFileSet *pSet, int flags) {
 
 void tsdbCloseDFileSet(SDFileSet *pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
     tsdbCloseDFile(pDFile);
   }
 }

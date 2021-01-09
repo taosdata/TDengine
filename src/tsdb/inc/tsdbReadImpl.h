@@ -41,18 +41,18 @@ typedef struct {
   int32_t algorithm : 8;
   int32_t numOfRows : 24;
   int32_t len;
-  int32_t keyLen;     // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
+  int32_t keyLen;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
   int16_t numOfSubBlocks;
-  int16_t numOfCols; // not including timestamp column
+  int16_t numOfCols;  // not including timestamp column
   TSKEY   keyFirst;
   TSKEY   keyLast;
 } SBlock;
 
 typedef struct {
-  int32_t    delimiter;  // For recovery usage
-  int32_t    tid;
-  uint64_t   uid;
-  SBlock blocks[];
+  int32_t  delimiter;  // For recovery usage
+  int32_t  tid;
+  uint64_t uid;
+  SBlock   blocks[];
 } SBlockInfo;
 
 typedef struct {
@@ -70,9 +70,9 @@ typedef struct {
 } SBlockCol;
 
 typedef struct {
-  int32_t  delimiter;  // For recovery usage
-  int32_t  numOfCols;  // For recovery usage
-  uint64_t uid;        // For recovery usage
+  int32_t   delimiter;  // For recovery usage
+  int32_t   numOfCols;  // For recovery usage
+  uint64_t  uid;        // For recovery usage
   SBlockCol cols[];
 } SBlockData;
 
@@ -92,7 +92,7 @@ struct SReadH {
 
 #define TSDB_READ_REPO(rh) ((rh)->pRepo)
 #define TSDB_READ_REPO_ID(rh) REPO_ID(TSDB_READ_REPO(rh))
-#define TSDB_READ_FSET(rh) &((rh)->rSet)
+#define TSDB_READ_FSET(rh) (&((rh)->rSet))
 #define TSDB_READ_TABLE(ch) ((rh)->pTable)
 #define TSDB_READ_HEAD_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_HEAD)
 #define TSDB_READ_DATA_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_DATA)
@@ -111,7 +111,7 @@ int   tsdbSetReadTable(SReadH *pReadh, STable *pTable);
 int   tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget);
 int   tsdbLoadBlockData(SReadH *pReadh, const SBlock *pBlock, const SBlockInfo *pBlockInfo);
 int   tsdbLoadBlockDataCols(SReadH *pReadh, const SBlock *pBlock, const SBlockInfo *pBlockInfo, const int16_t *colIds,
-                            const int numOfColsIds);
+                            int numOfColsIds);
 int   tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
 int   tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx);
 void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);

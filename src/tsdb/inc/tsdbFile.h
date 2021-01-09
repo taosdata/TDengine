@@ -40,15 +40,6 @@ typedef enum {
   TSDB_FILE_MANIFEST
 } TSDB_FILE_T;
 
-#define tsdbOpenFile(T, f, flags) tsdbOpen##T(f, flags)
-#define tsdbCloseFile(T, f) tsdbClose##T(f)
-#define tsdbSeekFile(T, f, offset, whence) tsdbSeek##T(f, offset, whence)
-#define tsdbWriteFile(T, f, buf, nbytes) tsdbWrite##T(f, buf, nbytes)
-#define tsdbUpdateFileMagic(T, f, pCksum) tsdbUpdate##T##Magic(f, pCksum)
-#define tsdbTellFile(T, f) tsdbTell##T(f)
-#define tsdbEncodeFile(T, buf, f) tsdbEncode##T(buf, f)
-#define tsdbDecodeFile(T, buf, f) tsdbDecode##T(buf, f)
-
 // =============== SMFile
 typedef struct {
   int64_t  size;
@@ -68,7 +59,7 @@ void  tsdbInitMFile(SMFile* pMFile, int vid, int ver, SMFInfo* pInfo);
 int   tsdbEncodeSMFile(void** buf, SMFile* pMFile);
 void* tsdbDecodeSMFile(void* buf, SMFile* pMFile);
 
-static FORCE_INLINE int tsdbOpenSMFile(SMFile* pMFile, int flags) {
+static FORCE_INLINE int tsdbOpenMFile(SMFile* pMFile, int flags) {
   ASSERT(!TSDB_FILE_OPENED(pMFile));
 
   pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), flags);
@@ -80,14 +71,14 @@ static FORCE_INLINE int tsdbOpenSMFile(SMFile* pMFile, int flags) {
   return 0;
 }
 
-static FORCE_INLINE void tsdbCloseSMFile(SMFile* pMFile) {
+static FORCE_INLINE void tsdbCloseMFile(SMFile* pMFile) {
   if (TSDB_FILE_OPENED(pMFile)) {
     close(pMFile->fd);
     TSDB_FILE_SET_CLOSED(pMFile);
   }
 }
 
-static FORCE_INLINE int64_t tsdbSeekSMFile(SMFile* pMFile, int64_t offset, int whence) {
+static FORCE_INLINE int64_t tsdbSeekMFile(SMFile* pMFile, int64_t offset, int whence) {
   ASSERT(TSDB_FILE_OPENED(pMFile));
 
   int64_t loffset = taosLSeek(TSDB_FILE_FD(pMFile), offset, whence);
@@ -99,7 +90,7 @@ static FORCE_INLINE int64_t tsdbSeekSMFile(SMFile* pMFile, int64_t offset, int w
   return loffset;
 }
 
-static FORCE_INLINE int64_t tsdbWriteSMFile(SMFile* pMFile, void* buf, int64_t nbyte) {
+static FORCE_INLINE int64_t tsdbWriteMFile(SMFile* pMFile, void* buf, int64_t nbyte) {
   ASSERT(TSDB_FILE_OPENED(pMFile));
 
   int64_t nwrite = taosWrite(pMFile->fd, buf, nbyte);
@@ -111,11 +102,11 @@ static FORCE_INLINE int64_t tsdbWriteSMFile(SMFile* pMFile, void* buf, int64_t n
   return nwrite;
 }
 
-static FORCE_INLINE void tsdbUpdateSMFileMagic(SMFile* pMFile, void* pCksum) {
+static FORCE_INLINE void tsdbUpdateMFileMagic(SMFile* pMFile, void* pCksum) {
   pMFile->info.magic = taosCalcChecksum(pMFile->info.magic, (uint8_t*)(pCksum), sizeof(TSCKSUM));
 }
 
-static FORCE_INLINE int64_t tsdbTellSMFile(SMFile* pMFile) { return tsdbSeekSMFile(pMFile, 0, SEEK_CUR); }
+static FORCE_INLINE int64_t tsdbTellMFile(SMFile* pMFile) { return tsdbSeekMFile(pMFile, 0, SEEK_CUR); }
 
 // =============== SDFile
 typedef struct {
@@ -140,7 +131,7 @@ void  tsdbInitDFileWithOld(SDFile* pDFile, SDFile* pOldDFile);
 int   tsdbEncodeSDFile(void** buf, SDFile* pDFile);
 void* tsdbDecodeSDFile(void* buf, SDFile* pDFile);
 
-static FORCE_INLINE int tsdbOpenSDFile(SDFile *pDFile, int flags) {
+static FORCE_INLINE int tsdbOpenDFile(SDFile *pDFile, int flags) {
   ASSERT(!TSDB_FILE_OPENED(pDFile));
 
   pDFile->fd = open(pDFile->f.aname, flags);
@@ -152,14 +143,14 @@ static FORCE_INLINE int tsdbOpenSDFile(SDFile *pDFile, int flags) {
   return 0;
 }
 
-static FORCE_INLINE void tsdbCloseSDFile(SDFile* pDFile) {
+static FORCE_INLINE void tsdbCloseDFile(SDFile* pDFile) {
   if (TSDB_FILE_OPENED(pDFile)) {
     close(pDFile->fd);
     TSDB_FILE_SET_CLOSED(pDFile);
   }
 }
 
-static FORCE_INLINE int64_t tsdbSeekSDFile(SDFile *pDFile, int64_t offset, int whence) {
+static FORCE_INLINE int64_t tsdbSeekDFile(SDFile *pDFile, int64_t offset, int whence) {
   ASSERT(TSDB_FILE_OPENED(pDFile));
 
   int64_t loffset = taosLSeek(pDFile->fd, offset, whence);
@@ -171,7 +162,7 @@ static FORCE_INLINE int64_t tsdbSeekSDFile(SDFile *pDFile, int64_t offset, int w
   return loffset;
 }
 
-static FORCE_INLINE int64_t tsdbWriteSDFile(SDFile* pDFile, void* buf, int64_t nbyte) {
+static FORCE_INLINE int64_t tsdbWriteDFile(SDFile* pDFile, void* buf, int64_t nbyte) {
   ASSERT(TSDB_FILE_OPENED(pDFile));
 
   int64_t nwrite = taosWrite(pDFile->fd, buf, nbyte);
@@ -183,20 +174,20 @@ static FORCE_INLINE int64_t tsdbWriteSDFile(SDFile* pDFile, void* buf, int64_t n
   return nwrite;
 }
 
-static FORCE_INLINE int64_t tsdbAppendSDFile(SDFile* pDFile, void* buf, int64_t nbyte, int64_t* offset) {
+static FORCE_INLINE int64_t tsdbAppendDFile(SDFile* pDFile, void* buf, int64_t nbyte, int64_t* offset) {
   ASSERT(TSDB_FILE_OPENED(pDFile));
   int64_t nwrite;
 
-  *offset = tsdbSeekSDFile(pDFile, 0, SEEK_SET);
+  *offset = tsdbSeekDFile(pDFile, 0, SEEK_SET);
   if (*offset < 0) return -1;
 
-  nwrite = tsdbWriteSDFile(pDFile, buf, nbyte);
+  nwrite = tsdbWriteDFile(pDFile, buf, nbyte);
   if (nwrite < 0) return nwrite;
 
   return nwrite;
 }
 
-static FORCE_INLINE int64_t tsdbReadSDFile(SDFile* pDFile, void* buf, int64_t nbyte) {
+static FORCE_INLINE int64_t tsdbReadDFile(SDFile* pDFile, void* buf, int64_t nbyte) {
   ASSERT(TSDB_FILE_OPENED(pDFile));
 
   int64_t nread = taosRead(pDFile->fd, buf, nbyte);
@@ -208,9 +199,9 @@ static FORCE_INLINE int64_t tsdbReadSDFile(SDFile* pDFile, void* buf, int64_t nb
   return nread;
 }
 
-static FORCE_INLINE int64_t tsdbTellSDFile(SDFile *pDFile) { return tsdbSeekSDFile(pDFile, 0, SEEK_CUR); }
+static FORCE_INLINE int64_t tsdbTellDFile(SDFile *pDFile) { return tsdbSeekDFile(pDFile, 0, SEEK_CUR); }
 
-static FORCE_INLINE void tsdbUpdateSDFileMagic(SDFile* pDFile, void* pCksm) {
+static FORCE_INLINE void tsdbUpdateDFileMagic(SDFile* pDFile, void* pCksm) {
   pDFile->info.magic = taosCalcChecksum(pDFile->info.magic, (uint8_t*)(pCksm), sizeof(TSCKSUM));
 }
 
