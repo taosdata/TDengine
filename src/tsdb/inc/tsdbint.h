@@ -16,15 +16,22 @@
 #ifndef _TD_TSDB_INT_H_
 #define _TD_TSDB_INT_H_
 
+// TODO: remove the include
+#include <errno.h>
+#include <inttypes.h>
+
 #include "os.h"
 #include "tlog.h"
 #include "taosdef.h"
+#include "taoserror.h"
+#include "tchecksum.h"
 #include "tskiplist.h"
 #include "tdataformat.h"
 #include "tlockfree.h"
 #include "tlist.h"
 #include "hash.h"
 #include "tarray.h"
+#include "tfs.h"
 
 #include "tsdb.h"
 

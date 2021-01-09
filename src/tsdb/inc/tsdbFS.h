@@ -47,10 +47,6 @@ typedef struct {
   SDFileSet* pSet;
 } SFSIter;
 
-#define TSDB_FILE_INFO(tf) (&((tf)->info))
-#define TSDB_FILE_F(tf) (&((tf)->f)))
-#define TSDB_FILE_FD(tf) ((tf)->fd)
-
 int        tsdbOpenFS(STsdbRepo* pRepo);
 void       tsdbCloseFS(STsdbRepo* pRepo);
 int        tsdbFSNewTxn(STsdbRepo* pRepo);
