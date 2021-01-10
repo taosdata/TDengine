@@ -13,10 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <unistd.h>
-
-#include "tsdbMain.h"
+#include "tsdbint.h"
 
 #define REPO_FS(r) ((r)->fs)
 #define TSDB_MAX_DFILES(keep, days) ((keep) / (days) + 3)

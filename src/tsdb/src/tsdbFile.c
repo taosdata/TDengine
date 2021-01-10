@@ -118,6 +118,19 @@ void *tsdbDecodeSDFile(void *buf, SDFile *pDFile) {
   return buf;
 }
 
+static int tsdbCopyDFile(SDFile *pSrc, int tolevel, int toid, SDFile *pDest) {
+  TSDB_FILE_SET_CLOSED(pDest);
+
+  pDest->info = pSrc->info;
+  tfsInitFile(TSDB_FILE_F(pDest), tolevel, toid, TFILE_REL_NAME(TSDB_FILE_F(pSrc)));
+
+  if (taosCopy(TSDB_FILE_FULL_NAME(pSrc), TSDB_FILE_FULL_NAME(pDest)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  return -1;
+}
+
 static int tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo) {
   int tlen = 0;
 
@@ -184,8 +197,21 @@ int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
   return 0;
 }
 
-int tsdbCopyDFileSet(SDFileSet *pFromSet, SDFileSet *pToSet) {
-  // return 0;
+int tsdbCopyDFileSet(SDFileSet src, int tolevel, int toid, SDFileSet *pDest) {
+  ASSERT(tolevel > TSDB_FSET_LEVEL(&src));
+
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    if (tsdbCopyDFile(TSDB_DFILE_IN_SET(&src, ftype), TSDB_DFILE_IN_SET(pDest, ftype)) < 0) {
+      while (ftype >= 0) {
+        remove(TSDB_FILE_FULL_NAME(TSDB_DFILE_IN_SET(pDest, ftype)));
+        ftype--;
+      }
+
+      return -1;
+    }
+  }
+
+  return 0;
 }
 
 static void tsdbGetFilename(int vid, int fid, int64_t ver, TSDB_FILE_T ftype, char *fname) {

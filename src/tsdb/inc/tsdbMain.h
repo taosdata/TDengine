@@ -174,7 +174,6 @@ void      tsdbGetStoreInfo(char* fname, uint32_t* magic, int64_t* size);
 // int         tsdbLoadFileHeader(SFile* pFile, uint32_t* version);
 // void        tsdbGetFileInfoImpl(char* fname, uint32_t* magic, int64_t* size);
 // void        tsdbGetFidGroup(STsdbCfg* pCfg, SFidGroup* pFidGroup);
-void        tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey);
 // int         tsdbApplyRetention(STsdbRepo* pRepo, SFidGroup *pFidGroup);
 
 // ================= tsdbMain.c

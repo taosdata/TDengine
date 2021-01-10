@@ -56,6 +56,7 @@ typedef struct {
 #define TFILE_LEVEL(pf) ((pf)->level)
 #define TFILE_ID(pf) ((pf)->id)
 #define TFILE_NAME(pf) ((pf)->aname)
+#define TFILE_REL_NAME(pf) ((pf)->rname)
 
 void tfsInitFile(TFILE *pf, int level, int id, const char *bname);
 bool tfsIsSameFile(TFILE *pf1, TFILE *pf2);

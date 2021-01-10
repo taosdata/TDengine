@@ -30,6 +30,8 @@ extern "C" {
 #define TSDB_FILE_FULL_NAME(f) TFILE_NAME(TSDB_FILE_F(f))
 #define TSDB_FILE_OPENED(f) (TSDB_FILE_FD(f) >= 0)
 #define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_FD(f) = -1)
+#define TSDB_FILE_LEVEL(tf) TFILE_LEVEL(TSDB_FILE_F(tf))
+#define TSDB_FILE_ID(tf) TFILE_ID(TSDB_FILE_F(tf))
 
 typedef enum {
   TSDB_FILE_HEAD = 0,
@@ -214,13 +216,16 @@ typedef struct {
 
 #define TSDB_FSET_FID(s) ((s)->fid)
 #define TSDB_DFILE_IN_SET(s, t) ((s)->files + (t))
+#define TSDB_FSET_LEVEL(s) TSDB_FILE_LEVEL(TSDB_DFILE_IN_SET(s, 0))
+#define TSDB_FSET_ID(s) TSDB_FILE_ID(TSDB_DFILE_IN_SET(s, 0))
 
 void tsdbInitDFileSet(SDFileSet* pSet, int vid, int fid, int ver, int level, int id);
 void tsdbInitDFileSetWithOld(SDFileSet* pSet, SDFileSet* pOldSet);
 int  tsdbOpenDFileSet(SDFileSet* pSet, int flags);
 void tsdbCloseDFileSet(SDFileSet* pSet);
 int  tsdbUpdateDFileSetHeader(SDFileSet* pSet);
-int  tsdbCopyDFileSet(SDFileSet* pFromSet, SDFileSet* pToSet);
+int  tsdbCopyDFileSet(SDFileSet src, int tolevel, int toid, SDFileSet* pDest);
+int  tsdbCopyDFileSet(SDFileSet src, int tolevel, int toid, SDFileSet* pDest);
 
 #ifdef __cplusplus
 }
