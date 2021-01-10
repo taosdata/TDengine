@@ -27,7 +27,7 @@ void    vnodeCleanupWrite(void);
 int32_t vnodeWriteToWQueue(void *pVnode, void *pHead, int32_t qtype, void *pRpcMsg);
 void    vnodeFreeFromWQueue(void *pVnode, SVWriteMsg *pWrite);
 int32_t vnodeProcessWrite(void *pVnode, void *pHead, int32_t qtype, void *pRspRet);
-void    vnodeWaitWriteCompleted(void *pVnode);
+void    vnodeWaitWriteCompleted(SVnodeObj *pVnode);
 
 #ifdef __cplusplus
 }

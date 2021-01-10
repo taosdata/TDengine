@@ -18,6 +18,8 @@
 #include "taosmsg.h"
 #include "query.h"
 #include "vnodeStatus.h"
+#include "vnodeRead.h"
+#include "vnodeWrite.h"
 
 char* vnodeStatus[] = {
   "init",
@@ -75,6 +77,11 @@ bool vnodeSetClosingStatus(SVnodeObj* pVnode) {
     }
   }
 
+  // release local resources only after cutting off outside connections
+  qQueryMgmtNotifyClosed(pVnode->qMgmt);
+  vnodeWaitReadCompleted(pVnode);
+  vnodeWaitWriteCompleted(pVnode);
+
   return true;
 }
 
@@ -115,6 +122,11 @@ bool vnodeSetResetStatus(SVnodeObj* pVnode) {
       sched_yield();
     }
   }
+
+  // release local resources only after cutting off outside connections
+  qQueryMgmtNotifyClosed(pVnode->qMgmt);
+  vnodeWaitReadCompleted(pVnode);
+  vnodeWaitWriteCompleted(pVnode);
 
   return true;
 }

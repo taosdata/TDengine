@@ -27,7 +27,7 @@ void    vnodeCleanupRead(void);
 int32_t vnodeWriteToRQueue(void *pVnode, void *pCont, int32_t contLen, int8_t qtype, void *rparam);
 void    vnodeFreeFromRQueue(void *pVnode, SVReadMsg *pRead);
 int32_t vnodeProcessRead(void *pVnode, SVReadMsg *pRead);
-void    vnodeWaitReadCompleted(void *pVnode);
+void    vnodeWaitReadCompleted(SVnodeObj *pVnode);
 
 #ifdef __cplusplus
 }
