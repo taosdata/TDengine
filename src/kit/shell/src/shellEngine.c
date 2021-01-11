@@ -603,14 +603,26 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
     case TSDB_DATA_TYPE_TINYINT:
       printf("%*d", width, *((int8_t *)val));
       break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      printf("%*u", width, *((uint8_t *)val));
+      break;
     case TSDB_DATA_TYPE_SMALLINT:
       printf("%*d", width, *((int16_t *)val));
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      printf("%*u", width, *((uint16_t *)val));
       break;
     case TSDB_DATA_TYPE_INT:
       printf("%*d", width, *((int32_t *)val));
       break;
+    case TSDB_DATA_TYPE_UINT:
+      printf("%*u", width, *((uint32_t *)val));
+      break;
     case TSDB_DATA_TYPE_BIGINT:
       printf("%*" PRId64, width, *((int64_t *)val));
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      printf("%*" PRIu64, width, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
       printf("%*.5f", width, GET_FLOAT_VAL(val));
@@ -679,15 +691,19 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
       return MAX(5, width); // 'false'
 
     case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_UTINYINT:
       return MAX(4, width); // '-127'
 
     case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:
       return MAX(6, width); // '-32767'
 
     case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UINT:
       return MAX(11, width); // '-2147483648'
 
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT:
       return MAX(21, width); // '-9223372036854775807'
 
     case TSDB_DATA_TYPE_FLOAT:

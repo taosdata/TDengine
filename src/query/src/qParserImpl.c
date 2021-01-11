@@ -129,11 +129,11 @@ tSQLExpr *tSqlExprIdValueCreate(SStrToken *pToken, int32_t optrType) {
     pSqlExpr->nSQLOptr = optrType;
   } else if (optrType == TK_NOW) {
     // use microsecond by default
-    pSqlExpr->val.i64Key = taosGetTimestamp(TSDB_TIME_PRECISION_MICRO);
+    pSqlExpr->val.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_MICRO);
     pSqlExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->nSQLOptr = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
   } else if (optrType == TK_VARIABLE) {
-    int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->val.i64Key);
+    int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->val.i64);
     if (ret != TSDB_CODE_SUCCESS) {
       terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
@@ -200,25 +200,25 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
 
       switch (optrType) {
         case TK_PLUS: {
-          pExpr->val.i64Key = pLeft->val.i64Key + pRight->val.i64Key;
+          pExpr->val.i64 = pLeft->val.i64 + pRight->val.i64;
           break;
         }
         case TK_MINUS: {
-          pExpr->val.i64Key = pLeft->val.i64Key - pRight->val.i64Key;
+          pExpr->val.i64 = pLeft->val.i64 - pRight->val.i64;
           break;
         }
         case TK_STAR: {
-          pExpr->val.i64Key = pLeft->val.i64Key * pRight->val.i64Key;
+          pExpr->val.i64 = pLeft->val.i64 * pRight->val.i64;
           break;
         }
         case TK_DIVIDE: {
           pExpr->nSQLOptr = TK_FLOAT;
           pExpr->val.nType = TSDB_DATA_TYPE_DOUBLE;
-          pExpr->val.dKey = (double)pLeft->val.i64Key / pRight->val.i64Key;
+          pExpr->val.dKey = (double)pLeft->val.i64 / pRight->val.i64;
           break;
         }
         case TK_REM: {
-          pExpr->val.i64Key = pLeft->val.i64Key % pRight->val.i64Key;
+          pExpr->val.i64 = pLeft->val.i64 % pRight->val.i64;
           break;
         }
       }
@@ -231,8 +231,8 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
       pExpr->val.nType = TSDB_DATA_TYPE_DOUBLE;
       pExpr->nSQLOptr  = TK_FLOAT;
 
-      double left  = (pLeft->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pLeft->val.dKey : pLeft->val.i64Key;
-      double right = (pRight->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pRight->val.dKey : pRight->val.i64Key;
+      double left  = (pLeft->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pLeft->val.dKey : pLeft->val.i64;
+      double right = (pRight->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pRight->val.dKey : pRight->val.i64;
 
       switch (optrType) {
         case TK_PLUS: {
@@ -384,7 +384,7 @@ void tSqlSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) 
   pField->name[pName->n] = 0;
 
   pField->type = pType->type;
-  if(pField->type < TSDB_DATA_TYPE_BOOL || pField->type > TSDB_DATA_TYPE_NCHAR){
+  if(!isValidDataType(pField->type)){
     pField->bytes = 0;
   } else {
     pField->bytes = pType->bytes;
@@ -393,49 +393,59 @@ void tSqlSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) 
 }
 
 void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
+  // set the field type invalid
   pField->type = -1;
+  pField->name[0] = 0;
 
-  for (int32_t i = 0; i < tListLen(tDataTypeDesc); ++i) {
-    if ((strncasecmp(type->z, tDataTypeDesc[i].aName, tDataTypeDesc[i].nameLen) == 0) &&
-        (type->n == tDataTypeDesc[i].nameLen)) {
-      pField->type = i;
-      pField->bytes = tDataTypeDesc[i].nSize;
-
-      if (i == TSDB_DATA_TYPE_NCHAR) {
-        /*
-         * for nchar, the TOKENTYPE is the number of character, so the length is the
-         * number of bytes in UCS-4 format, which is 4 times larger than the
-         * number of characters
-         */
-        if (type->type == 0) {
-          pField->bytes = 0;
-        } else {
-          int32_t bytes = -(int32_t)(type->type);
-          if (bytes > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-            // we have to postpone reporting the error because it cannot be done here
-            // as pField->bytes is int16_t, use 'TSDB_MAX_NCHAR_LEN + 1' to avoid overflow
-            bytes = TSDB_MAX_NCHAR_LEN + 1;
-          } else {
-            bytes = bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
-          }
-          pField->bytes = (int16_t)bytes;
-        }
-      } else if (i == TSDB_DATA_TYPE_BINARY) {
-        /* for binary, the TOKENTYPE is the length of binary */
-        if (type->type == 0) {
-          pField->bytes = 0;
-        } else {
-          int32_t bytes = -(int32_t)(type->type);
-          if (bytes > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
-            // refer comment for NCHAR above
-            bytes = TSDB_MAX_BINARY_LEN + 1;
-          } else {
-            bytes += VARSTR_HEADER_SIZE;
-          }
-          pField->bytes = (int16_t)bytes;
-        } 
-      }
+  int32_t i = 0;
+  while (i < tListLen(tDataTypeDesc)) {
+    if ((type->n == tDataTypeDesc[i].nameLen) &&
+        (strncasecmp(type->z, tDataTypeDesc[i].aName, tDataTypeDesc[i].nameLen) == 0)) {
       break;
+    }
+
+    i += 1;
+  }
+
+  if (i == tListLen(tDataTypeDesc)) {
+    return;
+  }
+
+  pField->type = i;
+  pField->bytes = tDataTypeDesc[i].nSize;
+
+  if (i == TSDB_DATA_TYPE_NCHAR) {
+    /*
+     * for nchar, the TOKENTYPE is the number of character, so the length is the
+     * number of bytes in UCS-4 format, which is 4 times larger than the number of characters
+     */
+    if (type->type == 0) {
+      pField->bytes = 0;
+    } else {
+      int32_t bytes = -(int32_t)(type->type);
+      if (bytes > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+        // we have to postpone reporting the error because it cannot be done here
+        // as pField->bytes is int16_t, use 'TSDB_MAX_NCHAR_LEN + 1' to avoid overflow
+        bytes = TSDB_MAX_NCHAR_LEN + 1;
+      } else {
+        bytes = bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+      }
+      pField->bytes = (int16_t)bytes;
+    }
+  } else if (i == TSDB_DATA_TYPE_BINARY) {
+    /* for binary, the TOKENTYPE is the length of binary */
+    if (type->type == 0) {
+      pField->bytes = 0;
+    } else {
+      int32_t bytes = -(int32_t)(type->type);
+      if (bytes > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
+        // refer comment for NCHAR above
+        bytes = TSDB_MAX_BINARY_LEN + 1;
+      } else {
+        bytes += VARSTR_HEADER_SIZE;
+      }
+
+      pField->bytes = (int16_t)bytes;
     }
   }
 }

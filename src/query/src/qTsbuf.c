@@ -268,7 +268,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
     metaLen += (int32_t)fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
     metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
-    metaLen += (int32_t)fwrite(&pBlock->tag.i64Key, 1, (size_t) pBlock->tag.nLen, pTSBuf->f);
+    metaLen += (int32_t)fwrite(&pBlock->tag.i64, 1, (size_t) pBlock->tag.nLen, pTSBuf->f);
   } else {
     trueLen = 0;
     metaLen += (int32_t)fwrite(&trueLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
@@ -351,7 +351,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
     sz = fread(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
     UNUSED(sz);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) { //TODO check the return value
-    sz = fread(&pBlock->tag.i64Key, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
+    sz = fread(&pBlock->tag.i64, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
     UNUSED(sz);
   }
 
@@ -955,7 +955,7 @@ void tsBufDisplay(STSBuf* pTSBuf) {
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
     if (elem.tag->nType == TSDB_DATA_TYPE_BIGINT) {
-      printf("%d-%" PRId64 "-%" PRId64 "\n", elem.id, elem.tag->i64Key, elem.ts);
+      printf("%d-%" PRId64 "-%" PRId64 "\n", elem.id, elem.tag->i64, elem.ts);
     }
   }
   
