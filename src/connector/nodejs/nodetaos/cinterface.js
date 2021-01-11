@@ -4,6 +4,7 @@
  */
 
 const ref = require('ref');
+const os = require('os');
 const ffi = require('ffi');
 const ArrayType = require('ref-array');
 const Struct = require('ref-struct');
@@ -188,7 +189,13 @@ function CTaosInterface (config = null, pass = false) {
   ref.types.void_ptr2 = ref.refType(ref.types.void_ptr);
   /*Declare a bunch of functions first*/
   /* Note, pointers to TAOS_RES, TAOS, are ref.types.void_ptr. The connection._conn buffer is supplied for pointers to TAOS *  */
-  this.libtaos = ffi.Library('libtaos', {
+
+  if ('win32' == os.platform()) {
+    taoslibname = 'taos';
+  } else {
+    taoslibname = 'libtaos';
+  }
+  this.libtaos = ffi.Library(taoslibname, {
     'taos_options': [ ref.types.int, [ ref.types.int , ref.types.void_ptr ] ],
     'taos_init': [ ref.types.void, [ ] ],
     //TAOS *taos_connect(char *ip, char *user, char *pass, char *db, int port)

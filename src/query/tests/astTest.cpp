@@ -471,7 +471,7 @@ tExprNode *createExpr1() {
   pRight->pVal = (tVariant*) calloc(1, sizeof(tVariant));
   
   pRight->pVal->nType = TSDB_DATA_TYPE_INT;
-  pRight->pVal->i64Key = 12;
+  pRight->pVal->i64 = 12;
   
   auto *pRoot = (tExprNode*) calloc(1, sizeof(tExprNode));
   pRoot->nodeType = TSQL_NODE_EXPR;
@@ -574,7 +574,7 @@ void exprSerializeTest1() {
   tVariant* v2 = p2->_node.pRight->pVal;
   
   ASSERT_EQ(v1->nType, v2->nType);
-  ASSERT_EQ(v1->i64Key, v2->i64Key);
+  ASSERT_EQ(v1->i64, v2->i64);
   ASSERT_EQ(p1->_node.hasPK, p2->_node.hasPK);
   
   tExprTreeDestroy(&p1, nullptr);

@@ -4,42 +4,9 @@
 #include <iostream>
 
 #include "taos.h"
-#include "tsdb.h"
-
-#include "tstoken.h"
-#include "tutil.h"
-
 #include "qHistogram.h"
-
-/* test validate the names for table/database */
-TEST(testCase, histogram_binary_search) {
-  SHistogramInfo* pHisto = tHistogramCreate(MAX_HISTOGRAM_BIN);
-
-  pHisto->numOfEntries = 10;
-  for (int32_t i = 0; i < 10; ++i) {
-    pHisto->elems[i].num = 1;
-    pHisto->elems[i].val = i;
-  }
-
-  int32_t idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 1);
-  assert(idx == 1);
-
-  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 9);
-  assert(idx == 9);
-
-  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 20);
-  assert(idx == 10);
-
-  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, -1);
-  assert(idx == 0);
-
-  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 3.9);
-  assert(idx == 4);
-
-  free(pHisto);
-}
-
-TEST(testCase, histogram_add) {
+namespace {
+void doHistogramAddTest() {
   SHistogramInfo* pHisto = NULL;
 
   /**
@@ -98,6 +65,56 @@ TEST(testCase, histogram_add) {
   tHistogramDestroy(&pHisto1);
   tHistogramDestroy(&pRes);
   free(res);
+}
+void doHistogramRepeatTest() {
+  SHistogramInfo* pHisto = NULL;
+  struct timeval systemTime;
+
+  gettimeofday(&systemTime, NULL);
+  int64_t st =
+      (int64_t)systemTime.tv_sec * 1000L + (uint64_t)systemTime.tv_usec / 1000;
+
+  for (int32_t i = 0; i < 1000; ++i) {
+    tHistogramAdd(&pHisto, -24 + i);
+    //        tHistogramPrint(pHisto);
+  }
+
+  tHistogramDestroy(&pHisto);
+
+}
+}
+
+/* test validate the names for table/database */
+TEST(testCase, histogram_binary_search) {
+  SHistogramInfo* pHisto = tHistogramCreate(MAX_HISTOGRAM_BIN);
+
+  pHisto->numOfEntries = 10;
+  for (int32_t i = 0; i < 10; ++i) {
+    pHisto->elems[i].num = 1;
+    pHisto->elems[i].val = i;
+  }
+
+  int32_t idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 1);
+  assert(idx == 1);
+
+  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 9);
+  assert(idx == 9);
+
+  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 20);
+  assert(idx == 10);
+
+  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, -1);
+  assert(idx == 0);
+
+  idx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, 3.9);
+  assert(idx == 4);
+
+  free(pHisto);
+}
+
+TEST(testCase, histogram_add) {
+  doHistogramAddTest();
+  doHistogramRepeatTest();
 }
 
 TEST(testCase, heapsort) {

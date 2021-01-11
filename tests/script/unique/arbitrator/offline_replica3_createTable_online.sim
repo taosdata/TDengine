@@ -108,7 +108,7 @@ if $cnt == 20 then
   return -1
 endi
 sql show dnodes
-if $rows != 4 then
+if $rows != 5 then
   sleep 2000
   goto wait_dnode4_offline_0
 endi
@@ -191,7 +191,7 @@ if $cnt == 20 then
   return -1
 endi
 sql show dnodes
-if $rows != 4 then
+if $rows != 5 then
   sleep 2000
   goto wait_dnode4_ready
 endi

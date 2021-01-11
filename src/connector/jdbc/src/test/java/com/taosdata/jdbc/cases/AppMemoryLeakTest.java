@@ -19,7 +19,7 @@ public class AppMemoryLeakTest {
         }
     }
 
-    @Test
+    @Test(expected = Exception.class)
     public void testCreateTooManyStatement() throws ClassNotFoundException, SQLException {
         Class.forName("com.taosdata.jdbc.TSDBDriver");
         int stmtCnt = 0;
@@ -29,16 +29,5 @@ public class AppMemoryLeakTest {
             System.out.println(++stmtCnt + " : " + stmt);
         }
     }
-
-    public static void main(String[] args) throws ClassNotFoundException, SQLException {
-        Class.forName("com.taosdata.jdbc.TSDBDriver");
-        int stmtCnt = 0;
-        Connection conn = DriverManager.getConnection("jdbc:TAOS://localhost:6030/?user=root&password=taosdata");
-        while (true) {
-            Statement stmt = conn.createStatement();
-            System.out.println(++stmtCnt + " : " + stmt);
-        }
-    }
-
 
 }

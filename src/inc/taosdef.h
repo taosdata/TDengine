@@ -60,7 +60,7 @@ typedef struct tstr {
 
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[11];
+extern const int32_t TYPE_BYTES[15];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES    sizeof(char)
@@ -91,6 +91,11 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN
 #define TSDB_DATA_NCHAR_NULL            0xFFFFFFFF
 #define TSDB_DATA_BINARY_NULL           0xFF
+
+#define TSDB_DATA_UTINYINT_NULL         0xFF
+#define TSDB_DATA_USMALLINT_NULL        0xFFFF
+#define TSDB_DATA_UINT_NULL             0xFFFFFFFF
+#define TSDB_DATA_UBIGINT_NULL          0xFFFFFFFFFFFFFFFFL
 
 #define TSDB_DATA_NULL_STR              "NULL"
 #define TSDB_DATA_NULL_STR_L            "null"
@@ -131,19 +136,16 @@ do { \
   (src) = (void *)((char *)src + sizeof(type));\
 } while(0)
 
-#define GET_INT8_VAL(x)   (*(int8_t *)(x))
-#define GET_INT16_VAL(x)  (*(int16_t *)(x))
-#define GET_INT32_VAL(x)  (*(int32_t *)(x))
-#define GET_INT64_VAL(x)  (*(int64_t *)(x))
+#define GET_INT8_VAL(x)    (*(int8_t *)(x))
+#define GET_INT16_VAL(x)   (*(int16_t *)(x))
+#define GET_INT32_VAL(x)   (*(int32_t *)(x))
+#define GET_INT64_VAL(x)   (*(int64_t *)(x))
+#define GET_UINT8_VAL(x)   (*(uint8_t*) (x))
+#define GET_UINT16_VAL(x)  (*(uint16_t *)(x))
+#define GET_UINT32_VAL(x)  (*(uint32_t *)(x))
+#define GET_UINT64_VAL(x)  (*(uint64_t *)(x))
+
 #ifdef _TD_ARM_32
-
-  //#define __float_align_declear()  float __underlyFloat = 0.0;
-  //#define __float_align_declear()
-  //#define GET_FLOAT_VAL_ALIGN(x) (*(int32_t*)&(__underlyFloat) = *(int32_t*)(x); __underlyFloat);
-  // notes: src must be float or double type variable !!!
-  //#define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
-  //#define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
-
   float  taos_align_get_float(const char* pBuf);
   double taos_align_get_double(const char* pBuf);
 
@@ -171,14 +173,14 @@ typedef struct tDataTypeDescriptor {
                   char algorithm, char *const buffer, int bufferSize);
   int (*decompFunc)(const char *const input, int compressedSize, const int nelements, char *const output,
                     int outputSize, char algorithm, char *const buffer, int bufferSize);
-  void (*getStatisFunc)(const TSKEY *primaryKey, const void *pData, int32_t numofrow, int64_t *min, int64_t *max,
-                         int64_t *sum, int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
+  void (*getStatisFunc)(const void *pData, int32_t numofrow, int64_t *min, int64_t *max, int64_t *sum,
+                        int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
 } tDataTypeDescriptor;
 
-extern tDataTypeDescriptor tDataTypeDesc[11];
+extern tDataTypeDescriptor tDataTypeDesc[15];
 
 bool isValidDataType(int32_t type);
-//bool isNull(const char *val, int32_t type);
+
 static FORCE_INLINE bool isNull(const char *val, int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -200,6 +202,15 @@ static FORCE_INLINE bool isNull(const char *val, int32_t type) {
       return varDataLen(val) == sizeof(int32_t) && *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
     case TSDB_DATA_TYPE_BINARY:
       return varDataLen(val) == sizeof(int8_t) && *(uint8_t *) varDataVal(val) == TSDB_DATA_BINARY_NULL;
+    case TSDB_DATA_TYPE_UTINYINT:
+      return *(uint8_t*) val == TSDB_DATA_UTINYINT_NULL;
+    case TSDB_DATA_TYPE_USMALLINT:
+      return *(uint16_t*) val == TSDB_DATA_USMALLINT_NULL;
+    case TSDB_DATA_TYPE_UINT:
+      return *(uint32_t*) val == TSDB_DATA_UINT_NULL;
+    case TSDB_DATA_TYPE_UBIGINT:
+      return *(uint64_t*) val == TSDB_DATA_UBIGINT_NULL;
+
     default:
       return false;
   };
@@ -212,6 +223,10 @@ void* getNullValue(int32_t type);
 
 void assignVal(char *val, const char *src, int32_t len, int32_t type);
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf);
+
+int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned);
+
+#define SET_DOUBLE_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_DOUBLE_NULL)
 
 // TODO: check if below is necessary
 #define TSDB_RELATION_INVALID     0
