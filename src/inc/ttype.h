@@ -16,6 +16,7 @@ extern "C" {
         break;                                       \
       case TSDB_DATA_TYPE_UTINYINT:                  \
         (_v) = (_finalType)GET_UINT8_VAL(_data);     \
+        break;                                       \
       case TSDB_DATA_TYPE_SMALLINT:                  \
         (_v) = (_finalType)GET_INT16_VAL(_data);     \
         break;                                       \

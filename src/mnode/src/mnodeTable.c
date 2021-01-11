@@ -1000,7 +1000,7 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
 
   SCMCreateTableMsg *pCreate1 = pMsg->rpcMsg.pCont;
   if (pCreate1->numOfTables == 0) {
-    // todo return to error message
+    return TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG;
   }
 
   SCreateTableMsg* pCreate = (SCreateTableMsg*)((char*)pCreate1 + sizeof(SCMCreateTableMsg));
@@ -1029,16 +1029,39 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
     mError("msg:%p, app:%p table:%s, failed to create, no schema input", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
     return TSDB_CODE_MND_INVALID_TABLE_NAME;
   }
+
   memcpy(pStable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
+  if (pStable->numOfColumns > TSDB_MAX_COLUMNS || pStable->numOfTags > TSDB_MAX_TAGS) {
+    mError("msg:%p, app:%p table:%s, failed to create, too many columns", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+    return TSDB_CODE_MND_INVALID_TABLE_NAME;
+  }
+
   pStable->nextColId = 0;
+
+  // TODO extract method to valid the schema
+  int32_t schemaLen = 0;
+  int32_t tagLen = 0;
   for (int32_t col = 0; col < numOfCols; col++) {
     SSchema *tschema = pStable->schema;
     tschema[col].colId = pStable->nextColId++;
     tschema[col].bytes = htons(tschema[col].bytes);
-    
-    // todo 1. check the length of each column; 2. check the total length of all columns
-    assert(tschema[col].type >= TSDB_DATA_TYPE_BOOL && tschema[col].type <= TSDB_DATA_TYPE_NCHAR);
+
+    if (col < pStable->numOfTables) {
+      schemaLen += tschema[col].bytes;
+    } else {
+      tagLen += tschema[col].bytes;
+    }
+
+    if (!isValidDataType(tschema[col].type)) {
+      mError("msg:%p, app:%p table:%s, failed to create, invalid data type in schema", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+      return TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG;
+    }
+  }
+
+  if (schemaLen > (TSDB_MAX_BYTES_PER_ROW || tagLen > TSDB_MAX_TAGS_LEN)) {
+    mError("msg:%p, app:%p table:%s, failed to create, schema is too long", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+    return TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG;
   }
 
   pMsg->pTable = (STableObj *)pStable;

@@ -451,11 +451,8 @@ sql select tag_bigint, tag_smallint, tag_tinyint from st51
 if $data00 != 9223372036854775807 then
   return -1
 endi
-sql alter table st51 set tag tag_bigint = 9223372036854775808
-sql select tag_bigint, tag_smallint, tag_tinyint from st51
-if $data00 != 9223372036854775807 then
-  return -1
-endi
+sql_error alter table st51 set tag tag_bigint = 9223372036854775808
+
 sql alter table st51 set tag tag_bigint = -9223372036854775807
 sql select tag_bigint, tag_smallint, tag_tinyint from st51
 if $data00 != -9223372036854775807 then

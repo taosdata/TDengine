@@ -1012,7 +1012,7 @@ static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pC
       return false;
     }
 
-    if (p->type < TSDB_DATA_TYPE_BOOL || p->type > TSDB_DATA_TYPE_NCHAR) {
+    if (!isValidDataType(p->type)) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       return false;
     }

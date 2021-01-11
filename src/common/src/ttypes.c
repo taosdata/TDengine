@@ -603,19 +603,21 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 
 int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned) {
   errno = 0;
+  int32_t ret = 0;
 
   char* endPtr = NULL;
   if (type == TK_FLOAT) {
     double v = strtod(z, &endPtr);
     if ((errno == ERANGE && v == HUGE_VALF) || isinf(v) || isnan(v)) {
-      errno = ERANGE;
+      ret = -1;
     } else if ((issigned && (v < INT64_MIN || v > INT64_MAX)) || ((!issigned) && (v < 0 || v > UINT64_MAX))) {
-      errno = ERANGE;
+      ret = -1;
     } else {
       *value = round(v);
     }
 
-    return type;
+    errno = 0;
+    return ret;
   }
 
   int32_t radix = 10;
@@ -626,12 +628,13 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
   }
 
   // the string may be overflow according to errno
-  *value = strtoll(z, &endPtr, radix);
+  *value = issigned? strtoll(z, &endPtr, radix):strtoul(z, &endPtr, radix);
 
   // not a valid integer number, return error
-  if (endPtr - z != n) {
-    return TK_ILLEGAL;
+  if (endPtr - z != n || errno == ERANGE) {
+    ret = -1;
   }
 
-  return type;
+  errno = 0;
+  return ret;
 }
