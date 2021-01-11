@@ -82,7 +82,8 @@ static void *tsdbDecodeMFInfo(void *buf, SMFInfo *pInfo) {
 }
 
 // ============== Operations on SDFile
-void tsdbInitDFile(SDFile *pDFile, int vid, int fid, int ver, int level, int id, const SDFInfo *pInfo, TSDB_FILE_T ftype) {
+void tsdbInitDFile(SDFile *pDFile, int vid, int fid, uint32_t ver, int level, int id, const SDFInfo *pInfo,
+                   TSDB_FILE_T ftype) {
   char fname[TSDB_FILENAME_LEN];
 
   TSDB_FILE_SET_CLOSED(pDFile);
@@ -158,7 +159,7 @@ static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo) {
 }
 
 // ============== Operations on SDFileSet
-void tsdbInitDFileSet(SDFileSet *pSet, int vid, int fid, int ver, int level, int id) {
+void tsdbInitDFileSet(SDFileSet *pSet, int vid, int fid, uint32_t ver, int level, int id) {
   pSet->fid = fid;
   pSet->state = 0;
 
@@ -201,7 +202,7 @@ int tsdbCopyDFileSet(SDFileSet src, int tolevel, int toid, SDFileSet *pDest) {
   ASSERT(tolevel > TSDB_FSET_LEVEL(&src));
 
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbCopyDFile(TSDB_DFILE_IN_SET(&src, ftype), TSDB_DFILE_IN_SET(pDest, ftype)) < 0) {
+    if (tsdbCopyDFile(TSDB_DFILE_IN_SET(&src, ftype), tolevel, toid, TSDB_DFILE_IN_SET(pDest, ftype)) < 0) {
       while (ftype >= 0) {
         remove(TSDB_FILE_FULL_NAME(TSDB_DFILE_IN_SET(pDest, ftype)));
         ftype--;
@@ -214,20 +215,20 @@ int tsdbCopyDFileSet(SDFileSet src, int tolevel, int toid, SDFileSet *pDest) {
   return 0;
 }
 
-static void tsdbGetFilename(int vid, int fid, int64_t ver, TSDB_FILE_T ftype, char *fname) {
+static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname) {
   ASSERT(ftype != TSDB_FILE_MAX);
 
   if (ftype < TSDB_FILE_MAX) {
     if (ver == 0) {
       snprintf(fname, "vnode/vnode%d/tsdb/data/v%df%d.%s", vid, vid, fid, TSDB_FNAME_SUFFIX[ftype]);
     } else {
-      snprintf(fname, "vnode/vnode%d/tsdb/data/v%df%d.%s-%012" PRId64, vid, vid, fid, TSDB_FNAME_SUFFIX[ftype], ver);
+      snprintf(fname, "vnode/vnode%d/tsdb/data/v%df%d.%s-%012" PRIu32, vid, vid, fid, TSDB_FNAME_SUFFIX[ftype], ver);
     }
   } else {
     if (ver == 0) {
       snprintf(fname, "vnode/vnode%d/tsdb/%s", vid, TSDB_FNAME_SUFFIX[ftype]);
     } else {
-      snprintf(fname, "vnode/vnode%d/tsdb/%s-%012" PRId64, vid, TSDB_FNAME_SUFFIX[ftype], ver);
+      snprintf(fname, "vnode/vnode%d/tsdb/%s-%012" PRIu32, vid, TSDB_FNAME_SUFFIX[ftype], ver);
     }
   }
 }

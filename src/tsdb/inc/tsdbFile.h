@@ -207,6 +207,22 @@ static FORCE_INLINE void tsdbUpdateDFileMagic(SDFile* pDFile, void* pCksm) {
   pDFile->info.magic = taosCalcChecksum(pDFile->info.magic, (uint8_t*)(pCksm), sizeof(TSCKSUM));
 }
 
+static FORCE_INLINE int tsdbCreateAndOpenDFile(SDFile* pDFile) {
+  if (tsdbOpenDFile(pDFile, O_WRONLY | O_CREAT | O_EXCL) < 0) {
+    return -1;
+  }
+
+  pDFile->info.size += TSDB_FILE_HEAD_SIZE;
+
+  if (tsdbUpdaeDFileHeader(pDFile) < 0) {
+    tsdbCloseDFile(pDFile);
+    remove(TSDB_FILE_FULL_NAME(pDFile));
+    return -1;
+  }
+
+  return 0;
+}
+
 // =============== SDFileSet
 typedef struct {
   int    fid;
