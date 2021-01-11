@@ -113,7 +113,6 @@ echo "rpcDebugFlag       143"                     >> $TAOS_CFG
 echo "tmrDebugFlag       131"                     >> $TAOS_CFG
 echo "cDebugFlag         143"                     >> $TAOS_CFG
 echo "udebugFlag         143"                     >> $TAOS_CFG
-echo "tablemetakeeptimer 5"                       >> $TAOS_CFG
 echo "wal                0"                       >> $TAOS_CFG
 echo "asyncLog           0"                       >> $TAOS_CFG
 echo "locale             en_US.UTF-8"             >> $TAOS_CFG

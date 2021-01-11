@@ -62,7 +62,6 @@ extern int32_t  tsRetrieveBlockingModel;// retrieve threads will be blocked
 extern int8_t   tsKeepOriginalColumnName;
 
 // client
-extern int32_t tsTableMetaKeepTimer;
 extern int32_t tsMaxSQLStringLen;
 extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;

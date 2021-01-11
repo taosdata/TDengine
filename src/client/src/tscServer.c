@@ -1975,9 +1975,6 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
     //
     //    rsp += tagLen;
     //    int32_t size = (int32_t)(rsp - ((char *)pMeta));  // Consistent with STableMeta in cache
-    //
-    //    pMeta->index = 0;
-    //    (void)taosCachePut(tscMetaCache, pMeta->tableId, (char *)pMeta, size, tsTableMetaKeepTimer);
     //  }
   }
   
