@@ -44,6 +44,20 @@ class TDTestCase:
         tdSql.query("select * from db.st where ts='2020-05-13 10:00:00.000'")
         tdSql.checkRows(1)
 
+        tdSql.query("select tbname, dev from dev_001") 
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 'dev_001')
+        tdSql.checkData(0, 1, 'dev_01')
+
+        tdSql.query("select tbname, dev, tagtype from dev_001") 
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 'dev_001')
+        tdSql.checkData(0, 1, 'dev_01')
+        tdSql.checkData(0, 2, 1)
+        tdSql.checkData(1, 0, 'dev_001')
+        tdSql.checkData(1, 1, 'dev_01')
+        tdSql.checkData(1, 2, 1)
+
         ## test case for https://jira.taosdata.com:18080/browse/TD-2488
         tdSql.execute("create table m1(ts timestamp, k int) tags(a int)")
         tdSql.execute("create table t1 using m1 tags(1)")
@@ -62,6 +76,8 @@ class TDTestCase:
         tdSql.query("select count(*) from m1 where ts = '2020-1-1 1:5:1' ")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
+
+
 
     def stop(self):
         tdSql.close()
