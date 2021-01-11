@@ -191,7 +191,7 @@ extern int32_t monDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t odbcDebugFlag;
-extern int32_t qDebugFlag;
+extern uint32_t qDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;

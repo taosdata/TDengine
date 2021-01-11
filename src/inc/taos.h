@@ -42,6 +42,10 @@ typedef void **TAOS_ROW;
 #define TSDB_DATA_TYPE_BINARY     8     // string
 #define TSDB_DATA_TYPE_TIMESTAMP  9     // 8 bytes
 #define TSDB_DATA_TYPE_NCHAR      10    // unicode string
+#define TSDB_DATA_TYPE_UTINYINT   11    // 1 byte
+#define TSDB_DATA_TYPE_USMALLINT  12    // 2 bytes
+#define TSDB_DATA_TYPE_UINT       13    // 4 bytes
+#define TSDB_DATA_TYPE_UBIGINT    14    // 8 bytes
 
 typedef enum {
   TSDB_OPTION_LOCALE,

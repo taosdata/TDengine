@@ -5,7 +5,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 3
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 print ========== columnValues.sim
@@ -21,6 +21,7 @@ run general/parser/columnValue_int.sim
 run general/parser/columnValue_bigint.sim
 run general/parser/columnValue_float.sim
 run general/parser/columnValue_double.sim
+run general/parser/columnValue_unsign.sim
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
