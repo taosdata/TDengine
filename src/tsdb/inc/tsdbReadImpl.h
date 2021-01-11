@@ -93,7 +93,7 @@ struct SReadH {
 #define TSDB_READ_REPO(rh) ((rh)->pRepo)
 #define TSDB_READ_REPO_ID(rh) REPO_ID(TSDB_READ_REPO(rh))
 #define TSDB_READ_FSET(rh) (&((rh)->rSet))
-#define TSDB_READ_TABLE(ch) ((rh)->pTable)
+#define TSDB_READ_TABLE(rh) ((rh)->pTable)
 #define TSDB_READ_HEAD_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_HEAD)
 #define TSDB_READ_DATA_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_DATA)
 #define TSDB_READ_LAST_FILE(rh) TSDB_DFILE_IN_SET(TSDB_READ_FSET(rh), TSDB_FILE_LAST)
