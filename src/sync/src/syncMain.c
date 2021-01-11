@@ -1208,7 +1208,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
     return;
   }
 
-  sDebug("vgId:%d, sync connection is incomming, tranId:%u", vgId, msg.tranId);
+  sDebug("vgId:%d, sync connection is incoming, tranId:%u", vgId, msg.tranId);
 
   SSyncNode *pNode = *ppNode;
   pthread_mutex_lock(&pNode->mutex);

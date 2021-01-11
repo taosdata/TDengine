@@ -44,8 +44,6 @@ bool vnodeSetReadyStatus(SVnodeObj* pVnode) {
       pVnode->status == TAOS_VN_STATUS_UPDATING || pVnode->status == TAOS_VN_STATUS_RESET) {
     pVnode->status = TAOS_VN_STATUS_READY;
     set = true;
-  } else {
-    vDebug("vgId:%d, cannot set status:ready, old:%s", pVnode->vgId, vnodeStatus[pVnode->status]);
   }
 
   qQueryMgmtReOpen(pVnode->qMgmt);
@@ -61,8 +59,6 @@ static bool vnodeSetClosingStatusImp(SVnodeObj* pVnode) {
   if (pVnode->status == TAOS_VN_STATUS_READY || pVnode->status == TAOS_VN_STATUS_INIT) {
     pVnode->status = TAOS_VN_STATUS_CLOSING;
     set = true;
-  } else {
-    vTrace("vgId:%d, cannot set status:closing, old:%s", pVnode->vgId, vnodeStatus[pVnode->status]);
   }
 
   pthread_mutex_unlock(&pVnode->statusMutex);
@@ -70,11 +66,8 @@ static bool vnodeSetClosingStatusImp(SVnodeObj* pVnode) {
 }
 
 bool vnodeSetClosingStatus(SVnodeObj* pVnode) {
-  int32_t i = 0;
   while (!vnodeSetClosingStatusImp(pVnode)) {
-    if (++i % 1000 == 0) {
-      sched_yield();
-    }
+    taosMsleep(1);
   }
 
   // release local resources only after cutting off outside connections
@@ -92,8 +85,6 @@ bool vnodeSetUpdatingStatus(SVnodeObj* pVnode) {
   if (pVnode->status == TAOS_VN_STATUS_READY) {
     pVnode->status = TAOS_VN_STATUS_UPDATING;
     set = true;
-  } else {
-    vDebug("vgId:%d, cannot set status:updating, old:%s", pVnode->vgId, vnodeStatus[pVnode->status]);
   }
 
   pthread_mutex_unlock(&pVnode->statusMutex);
@@ -107,8 +98,6 @@ static bool vnodeSetResetStatusImp(SVnodeObj* pVnode) {
   if (pVnode->status == TAOS_VN_STATUS_READY || pVnode->status == TAOS_VN_STATUS_INIT) {
     pVnode->status = TAOS_VN_STATUS_RESET;
     set = true;
-  } else {
-    vDebug("vgId:%d, cannot set status:reset, old:%s", pVnode->vgId, vnodeStatus[pVnode->status]);
   }
 
   pthread_mutex_unlock(&pVnode->statusMutex);
@@ -116,11 +105,8 @@ static bool vnodeSetResetStatusImp(SVnodeObj* pVnode) {
 }
 
 bool vnodeSetResetStatus(SVnodeObj* pVnode) {
-  int32_t i = 0;
   while (!vnodeSetResetStatusImp(pVnode)) {
-    if (++i % 1000 == 0) {
-      sched_yield();
-    }
+    taosMsleep(1);
   }
 
   // release local resources only after cutting off outside connections
@@ -160,18 +146,6 @@ bool vnodeInReadyOrUpdatingStatus(SVnodeObj* pVnode) {
   pthread_mutex_lock(&pVnode->statusMutex);
 
   if (pVnode->status == TAOS_VN_STATUS_READY || pVnode->status == TAOS_VN_STATUS_UPDATING) {
-    in = true;
-  }
-
-  pthread_mutex_unlock(&pVnode->statusMutex);
-  return in;
-}
-
-bool vnodeInClosingStatus(SVnodeObj* pVnode) {
-  bool in = false;
-  pthread_mutex_lock(&pVnode->statusMutex);
-
-  if (pVnode->status == TAOS_VN_STATUS_CLOSING) {
     in = true;
   }
 
