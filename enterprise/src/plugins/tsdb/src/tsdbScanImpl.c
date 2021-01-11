@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
 #include <fcntl.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -20,7 +21,7 @@
 #include <sys/types.h>
 #include <unistd.h>
 
-#include "tsdbMain.h"
+#include "tsdbint.h"
 #include "tscompression.h"
 
 #define tscanHeadF(h) &((h)->fGroup.files[TSDB_FILE_TYPE_HEAD])
@@ -322,3 +323,4 @@ static void tsdbScanReport(STsdbScanHandle *pScanHandle, const char *flag, const
 
   fprintf(pScanHandle->tLogStream, "%s\n", buffer);
 }
+#endif
