@@ -613,7 +613,7 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
     } else if ((issigned && (v < INT64_MIN || v > INT64_MAX)) || ((!issigned) && (v < 0 || v > UINT64_MAX))) {
       ret = -1;
     } else {
-      *value = round(v);
+      *value = (int64_t) round(v);
     }
 
     errno = 0;
