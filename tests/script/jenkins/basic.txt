@@ -1,6 +1,7 @@
 cd ../../../debug; cmake ..
 cd ../../../debug; make
 
+./test.sh -f issue/TD-2680.sim
 ./test.sh -f issue/TD-2713.sim
 
 ./test.sh -f general/alter/cached_schema_after_alter.sim

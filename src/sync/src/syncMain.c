@@ -1255,6 +1255,9 @@ static void syncProcessBrokenLink(int64_t rid) {
 
   sDebug("%s, TCP link is broken since %s, pfd:%d sfd:%d", pPeer->id, strerror(errno), pPeer->peerFd, pPeer->syncFd);
   pPeer->peerFd = -1;
+  if (pPeer->isArb) {
+    tsArbOnline = 0;
+  }
 
   syncRestartConnection(pPeer);
   pthread_mutex_unlock(&pNode->mutex);
