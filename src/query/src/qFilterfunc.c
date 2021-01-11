@@ -235,7 +235,7 @@ bool notEqualOperator(SColumnFilterElem *pFilter, const char *minval, const char
     }
     return strncmp((char *)pFilterInfo->pz, varDataVal(minval), varDataLen(minval)) != 0;
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
-    if (pFilterInfo->len != pFilter->bytes) {
+    if (pFilterInfo->len != varDataLen(minval)) {
       return true;
     }
     return wcsncmp((wchar_t *)pFilterInfo->pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE) != 0;
