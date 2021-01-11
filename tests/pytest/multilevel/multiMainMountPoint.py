@@ -30,15 +30,12 @@ class TDTestCase:
         self.startTime = 1520000010000
 
         tdDnodes.stop(1)
-        print('-'*40)
         cfg={
-            '/mnt/data1' : 'dataDir',
-            '/mnt/data2 0 0' : 'dataDir'
+            'dataDir': '/mnt/data1',
+            'dataDir': '/mnt/data2'
         }
-        print('*'*40)
         tdSql.createDir('/mnt/data1')
         tdSql.createDir('/mnt/data2')
-        print('+'*40)
         tdDnodes.deploy(1,cfg)
         tdDnodes.startWithoutSleep(1)
         

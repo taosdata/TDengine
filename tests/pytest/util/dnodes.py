@@ -208,14 +208,24 @@ class TDDnode:
             self.cfg("publicIp", "192.168.0.%d" % (self.index))
             self.cfg("internalIp", "192.168.0.%d" % (self.index))
             self.cfg("privateIp", "192.168.0.%d" % (self.index))
-        
-        self.cfg("dataDir",self.dataDir)
-        self.cfg("logDir",self.logDir)
+        self.cfgDict["dataDir"] = self.dataDir
+        self.cfgDict["logDir"] = self.logDir
+        # self.cfg("dataDir",self.dataDir)
+        # self.cfg("logDir",self.logDir)
         print(updatecfgDict)
+        isFirstDir = 1
         if updatecfgDict[0] and updatecfgDict[0][0]:
             print(updatecfgDict[0][0])
             for key,value in updatecfgDict[0][0].items():
-                self.addExtraCfg(key,value)
+                if value == 'dataDir' :
+                    if isFirstDir:
+                        self.cfgDict.pop('dataDir')
+                        self.cfg(value,key)
+                        isFirstDir = 0
+                    else:
+                        self.cfg(value,key)
+                else:
+                    self.addExtraCfg(key,value)
         for key, value in self.cfgDict.items():
             self.cfg(key, value)
 

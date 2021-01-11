@@ -199,33 +199,33 @@ class TDSql:
                     break
             if loop:break
             time.sleep(5)
-
+        args=(pstate,state)
         if pstate == state:
-            tdLog.info("taosd state is %d == expect:%d",pstate,state)
+            tdLog.info("taosd state is %d == expect:%d" %args)
         else:
-            tdLog.exit("taosd state is %d != expect:%d" ,pstate,state)
+            tdLog.exit("taosd state is %d != expect:%d" %args)
         pass
 
     def haveFile(self, dir, state):
         if os.path.exists(dir) and os.path.isdir(dir):
             if not os.listdir(dir):
                 if state :
-                    tdLog.exit("dir: %s is empty, expect: not empty" ,dir)
+                    tdLog.exit("dir: %s is empty, expect: not empty" %dir)
                 else:
-                    tdLog.info("dir: %s is empty, expect: empty" ,dir)
+                    tdLog.info("dir: %s is empty, expect: empty" %dir)
             else:  
                 if state :
-                    tdLog.info("dir: %s is empty, expect: not empty" ,dir)
+                    tdLog.info("dir: %s is empty, expect: not empty" %dir)
                 else:
-                    tdLog.exit("dir: %s is empty, expect: empty" ,dir)  
+                    tdLog.exit("dir: %s is empty, expect: empty" %dir)  
         else:
-            tdLog.exit("dir: %s doesn't exist" ,dir)
+            tdLog.exit("dir: %s doesn't exist" %dir)
     def createDir(self, dir):
         if os.path.exists(dir):
             shutil.rmtree(dir)
-            tdLog.info("dir: %s is removed" ,dir)
+            tdLog.info("dir: %s is removed" %dir)
         os.makedirs( dir, 755 )
-        tdLog.info("dir: %s is created" ,dir)
+        tdLog.info("dir: %s is created" %dir)
         pass
         
 tdSql = TDSql()
