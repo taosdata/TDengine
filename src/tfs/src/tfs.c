@@ -169,7 +169,7 @@ void tfsAllocDisk(int expLevel, int *level, int *id) {
   while (*level >= 0) {
     *id = tfsAssignDisk(*level);
     if (*id < 0) {
-      *level--;
+      (*level)--;
       continue;
     }
 

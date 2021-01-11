@@ -132,6 +132,7 @@ void  tsdbInitDFile(SDFile* pDFile, int vid, int fid, int ver, int level, int id
 void  tsdbInitDFileWithOld(SDFile* pDFile, SDFile* pOldDFile);
 int   tsdbEncodeSDFile(void** buf, SDFile* pDFile);
 void* tsdbDecodeSDFile(void* buf, SDFile* pDFile);
+int   tsdbUpdateDFileHeader(SDFile *pDFile);
 
 static FORCE_INLINE int tsdbOpenDFile(SDFile *pDFile, int flags) {
   ASSERT(!TSDB_FILE_OPENED(pDFile));
@@ -214,7 +215,7 @@ static FORCE_INLINE int tsdbCreateAndOpenDFile(SDFile* pDFile) {
 
   pDFile->info.size += TSDB_FILE_HEAD_SIZE;
 
-  if (tsdbUpdaeDFileHeader(pDFile) < 0) {
+  if (tsdbUpdateDFileHeader(pDFile) < 0) {
     tsdbCloseDFile(pDFile);
     remove(TSDB_FILE_FULL_NAME(pDFile));
     return -1;

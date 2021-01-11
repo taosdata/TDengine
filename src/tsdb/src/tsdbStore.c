@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #define TAOS_RANDOM_FILE_FAIL_TEST
 
-#include "tsdbMain.h"
+#include "tsdbint.h"
 
 typedef struct {
   uint64_t uid;

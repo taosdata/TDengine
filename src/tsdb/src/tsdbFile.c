@@ -119,6 +119,11 @@ void *tsdbDecodeSDFile(void *buf, SDFile *pDFile) {
   return buf;
 }
 
+int tsdbUpdateDFileHeader(SDFile *pDFile) {
+  // TODO
+  return 0;
+}
+
 static int tsdbCopyDFile(SDFile *pSrc, int tolevel, int toid, SDFile *pDest) {
   TSDB_FILE_SET_CLOSED(pDest);
 
