@@ -71,6 +71,7 @@ void tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBufferWriter* bw) {
 
 bool tscQueryTags(SQueryInfo* pQueryInfo) {
   int32_t numOfCols = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+
   for (int32_t i = 0; i < numOfCols; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     int32_t functId = pExpr->functionId;
@@ -314,7 +315,7 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
         } else {
           for (int32_t k = 0; k < pRes->numOfRows; ++k) {
             char* p = ((char**)pRes->urow)[i] + k * pInfo->field.bytes;
-            memcpy(p, &pInfo->pSqlExpr->param[1].i64Key, pInfo->field.bytes);
+            memcpy(p, &pInfo->pSqlExpr->param[1].i64, pInfo->field.bytes);
           }
         }
       }
