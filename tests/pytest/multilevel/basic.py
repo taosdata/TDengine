@@ -25,24 +25,22 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        self.ntables = 10
-        self.rowsPerTable = 10
-        self.startTime = 1520000010000
-
-        tdDnodes.stop(1)
-        print('-'*40)
         cfg={
             '/mnt/data1' : 'dataDir',
             '/mnt/data2 0 0' : 'dataDir'
         }
-        print('*'*40)
         tdSql.createDir('/mnt/data1')
         tdSql.createDir('/mnt/data2')
-        print('+'*40)
+
+        tdLog.info("================= step1")
+        tdDnodes.stop(1)
         tdDnodes.deploy(1,cfg)
         tdDnodes.startWithoutSleep(1)
         
-        tdSql.taosdStatus(0)
+        tdLog.info("================= step2")
+        tdSql.haveFile('/mnt/data1',1)
+        tdSql.haveFile('/mnt/data2',1)
+        
 
     def stop(self):
         tdSql.close()
