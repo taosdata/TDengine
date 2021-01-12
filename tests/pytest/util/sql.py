@@ -188,17 +188,21 @@ class TDSql:
         tdLog.info("sql:%s, affectedRows:%d == expect:%d" % (self.sql, self.affectedRows, expectAffectedRows))
     
     def taosdStatus(self, state):
+        tdLog.sleep(5)
         pstate = 0
-        loop = 0 
         for i in range(30):
+            pstate = 0
             pl = psutil.pids()
             for pid in pl:
                 if psutil.Process(pid).name == 'taosd':
                     pstate = 1
-                    loop = 1
                     break
-            if loop:break
-            time.sleep(5)
+            if pstate:
+                tdLog.sleep(5)
+                continue
+            pstate = 0
+            break
+            
         args=(pstate,state)
         if pstate == state:
             tdLog.info("taosd state is %d == expect:%d" %args)
