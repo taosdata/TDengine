@@ -3,13 +3,16 @@
 #include <string.h>
 #include <wordexp.h>
 
+#include <assert.h>
 #include <pthread.h>
 #include <sys/time.h>
-#include <assert.h>
+#include <tcache.h>
 #include <unistd.h>
 
 #include "taos.h"
 #include "testCommon.h"
+
+static int64_t getTime();
 
 static int32_t rid = 1;
 void           sqlfullTest(TAOS* conn);
@@ -222,14 +225,19 @@ typedef struct {
 } MultiThreadQueryInfo;
 
 void* doQuery(void* param) {
-  TAOS* conn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   MultiThreadQueryInfo* range = (MultiThreadQueryInfo*)param;
 
   for (int32_t i = 0; i < 100000; ++i) {
+    int64_t start = getTime();
+    printf ("id:%d, time:%ld\n", range->threadid, start);
+    TAOS* conn = taos_connect("ubuntu", "root", "taosdata", NULL, 0);
     executeSQL(conn, range->sql, NULL);
+    taos_close(conn);
+
+    int64_t end = getTime();
+    printf("id:%d, end time:%ld\n", range->threadid, end);
   }
 
-  taos_close(conn);
 
   return 0;
 }
@@ -340,11 +348,11 @@ void generatedData(TAOS* taos) {
 }
 
 int main(int argc, char** argv) {
-
-  taos_options(TSDB_OPTION_CONFIGDIR, "~/sec/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/psim/cfg");
   taos_init();
-  TAOS* conn = taos_connect("localhost", "root", "taosdata", 0, 0);
+  TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
   if (conn == NULL) {
     printf("Failed to connect to DB, reason:%s", taos_errstr(conn));
     exit(-1);
@@ -372,23 +380,40 @@ int main(int argc, char** argv) {
   }
   return 0;
 #endif
-
-//  multiThreadQuery(atoi(argv[1]), argv[2]);
+//  multiThreadQuery(5, "select count(*) from test.m2");
 //  return 0;
-  executeSQL(conn, "drop database test", NULL);
-  executeSQL(conn, "create database test", NULL);
-  executeSQL(conn, "use test", NULL);
-//  executeSQL(conn,"select last_row(*) from tm1,tm2 where tm1.ts=tm2.ts", NULL);
+
+//  for(int32_t i = 0; i < 500000; ++i) {
+//    void* p = taos_query(conn, "select * from db.fs_table");
+//    taos_fetch_row(p);
+//    taos_free_result(p);
+//  }
+
+//  executeSQL(conn,"create database join_db0", NULL);
+//  executeSQL(conn, "select count(*) from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' "
+//                   "interval(1h) fill(NULL) group by t1 order by ts desc;", NULL);
+
+//  executeSQL(conn, "select count(*) from fl1_stb0 interval(1y)", NULL);
 //  executeSQL( conn, "select count(*) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and
 //  join_mt0.t1=join_mt1.t1 and join_mt0.c2=99;;", NULL);
 //  return 0;
 
 //  executeSQL(conn, "select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;;", NULL);
-//    createEnvironment(conn, 1, 1, 1000000, 30);
+//    for(int32_t i = 0; i < 10000; ++i) {
+//      char t[1024] = {0};
+//      sprintf(t, "insert into tm0 values(%d, %d) tm1 values(%d, %d)", 1000000 + i * 6000, i%100, 1000000 + i * 6000 + i * 10, i%110);
+//      TAOS_RES*  taos_query(conn, t);
+//      taos_free_result(res);
+//    }
+    executeSQL(conn, "use db", NULL);
+    executeSQL(conn, "insert into st_float_6  values (now, 340282346638528859811704183484516925440.00000))", NULL);
+//    executeSQL(conn, "describe tux1", NULL);
+//    createEnvironment(conn, 2, 2, 10000, 30);
+    taos_close(conn);
+    taos_cleanup();
     return 0;
 //  executeSQL(conn, "select count(*) from test.m1 interval(1s) group by tbname", NULL);
 //  executeSQL(conn, "select join_tb1.ts , join_tb0.ts from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts;", NULL);
-//  createEnvironment(conn, 100, 100, 100000, 30);
       //executeSQL(conn, "select first(ts), last(ts) from lm_tb0", NULL); executeSQL(conn, "CREATE
   //    database TU1", NULL);
   // selectivity + tags/ts + group by normal columns
@@ -466,7 +491,6 @@ int main(int argc, char** argv) {
 //  taos_query_a(conn, "insert into tm2 values(1433955661000, 1)", insertCallBack, &p2);
 //    taos_query_a(conn, "select count(*) from tm0", queryCallback, &p);
 //    taos_query_a(conn, "select count(*) from tm0", queryCallback, &p);
-      getchar();
   //    executeSQL(conn, "select count(m1.*) from m1", NULL);
   //    executeSQL(conn, "select top(k, 4) from mx interval(10a) order by ts desc", NULL);
   //    executeSQL(conn, "INSERT INTO
