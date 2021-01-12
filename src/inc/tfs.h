@@ -66,10 +66,12 @@ typedef struct {
 #define tfscopy(sf, df) taosCopy(TFILE_NAME(sf), TFILE_NAME(df))
 #define tfsrename(sf, df) rename(TFILE_NAME(sf), TFILE_NAME(df))
 
-void tfsInitFile(TFILE *pf, int level, int id, const char *bname);
-bool tfsIsSameFile(TFILE *pf1, TFILE *pf2);
-void tfsbasename(const TFILE *pf, char *dest);
-void tfsdirname(const TFILE *pf, char *dest);
+void  tfsInitFile(TFILE *pf, int level, int id, const char *bname);
+bool  tfsIsSameFile(TFILE *pf1, TFILE *pf2);
+int   tfsEncodeFile(void **buf, TFILE *pf);
+void *tfsDecodeFile(void *buf, TFILE *pf);
+void  tfsbasename(const TFILE *pf, char *dest);
+void  tfsdirname(const TFILE *pf, char *dest);
 
 // DIR APIs ====================================
 int tfsMkdir(const char *rname);

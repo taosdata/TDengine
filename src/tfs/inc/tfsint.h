@@ -19,6 +19,7 @@
 #include "tlog.h"
 #include "tglobal.h"
 #include "tfs.h"
+#include "tcoding.h"
 
 #ifdef __cplusplus
 extern "C" {

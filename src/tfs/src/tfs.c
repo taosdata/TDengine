@@ -196,6 +196,30 @@ bool tfsIsSameFile(TFILE *pf1, TFILE *pf2) {
   return true;
 }
 
+int tfsEncodeFile(void **buf, TFILE *pf) {
+  int tlen = 0;
+
+  tlen += taosEncodeVariantI32(buf, pf->level);
+  tlen += taosEncodeVariantI32(buf, pf->id);
+  tlen += taosEncodeString(buf, pf->rname);
+
+  return tlen;
+}
+
+void *tfsDecodeFile(void *buf, TFILE *pf) {
+  int32_t level, id;
+  char *  rname;
+
+  buf = taosDecodeVariantI32(buf, &(level));
+  buf = taosDecodeVariantI32(buf, &(id));
+  buf = taosDecodeString(buf, &rname);
+
+  tfsInitFile(pf, level, id, rname);
+
+  tfree(rname);
+  return buf;
+}
+
 void tfsbasename(const TFILE *pf, char *dest) {
   char tname[TSDB_FILENAME_LEN] = "\0";
 

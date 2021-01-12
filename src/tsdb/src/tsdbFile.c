@@ -24,23 +24,22 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "manifest"  // TSDB_FILE_MANIFEST
 };
 
-#define tsdbOpenFile(T, f) tsdbOpenT
-
 // ============== SMFile
-void tsdbInitMFile(SMFile *pMFile, int vid, int ver, SMFInfo *pInfo) {
+void tsdbInitMFile(SMFile *pMFile, SDiskID did, int vid, uint32_t ver) {
   char fname[TSDB_FILENAME_LEN];
 
   TSDB_FILE_SET_CLOSED(pMFile);
 
-  if (pInfo == NULL) {
-    memset(&(pMFile->info), 0, sizeof(pMFile->info));
-    pMFile->info.magic = TSDB_FILE_INIT_MAGIC;
-  } else {
-    pMFile->info = *pInfo;
-  }
+  memset(&(pMFile->info), 0, sizeof(pMFile->info));
+  pMFile->info.magic = TSDB_FILE_INIT_MAGIC;
 
   tsdbGetFilename(vid, 0, ver, TSDB_FILE_META, fname);
-  tfsInitFile(TSDB_FILE_F(pMFile), TFS_PRIMARY_LEVEL, TFS_PRIMARY_ID, fname);
+  tfsInitFile(TSDB_FILE_F(pMFile), did.level, did.id, fname);
+}
+
+void tsdbInitMFileEx(SMFile *pMFile, SMFile *pOMFile) {
+  *pMFile = *pOMFile;
+  TSDB_FILE_SET_CLOSED(pMFile);
 }
 
 int tsdbEncodeSMFile(void **buf, SMFile *pMFile) {
@@ -57,6 +56,46 @@ void *tsdbDecodeSMFile(void *buf, SMFile *pMFile) {
   buf = tfsDecodeFile(buf, &(pMFile->f));
 
   return buf;
+}
+
+int tsdbCreateMFile(SMFile *pMFile) {
+  ASSERT(pMFile->info.size == 0 && pMFile->info.magic == TSDB_FILE_INIT_MAGIC);
+
+  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+
+  if (tsdbOpenMFile(pMFile, O_WRONLY | O_CREAT | O_EXCL) < 0) {
+    return -1;
+  }
+
+  void *ptr = buf;
+  tsdbEncodeMFInfo(&ptr, &(pMFile->info));
+
+  if (tsdbWriteMFile(pMFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
+    tsdbCloseMFile(pMFile);
+    tsdbRemoveMFile(pMFile);
+    return -1;
+  }
+
+  pMFile->info.size += TSDB_FILE_HEAD_SIZE;
+
+  return 0;
+}
+
+int tsdbUpdateMFileHeader(SMFile *pMFile) {
+  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+
+  if (tsdbSeekMFile(pMFile, 0, SEEK_SET) < 0) {
+    return -1;
+  }
+
+  void *ptr = buf;
+  tsdbEncodeMFInfo(&ptr, &(pMFile->info));
+
+  if (tsdbWriteMFile(pMFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
+    return -1;
+  }
+
+  return 0;
 }
 
 static int tsdbEncodeMFInfo(void **buf, SMFInfo *pInfo) {
@@ -82,24 +121,20 @@ static void *tsdbDecodeMFInfo(void *buf, SMFInfo *pInfo) {
 }
 
 // ============== Operations on SDFile
-void tsdbInitDFile(SDFile *pDFile, int vid, int fid, uint32_t ver, int level, int id, const SDFInfo *pInfo,
-                   TSDB_FILE_T ftype) {
+void tsdbInitDFile(SDFile *pDFile, SDiskID did, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype) {
   char fname[TSDB_FILENAME_LEN];
 
   TSDB_FILE_SET_CLOSED(pDFile);
 
-  if (pInfo == NULL) {
-    memset(&(pDFile->info), 0, sizeof(pDFile->info));
-    pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
-  } else {
-    pDFile->info = *pInfo;
-  }
+  memset(&(pDFile->info), 0, sizeof(pDFile->info));
+  pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
 
-  tfsInitFile(&(pDFile->f), level, id, NULL /*TODO*/);
+  tsdbGetFilename(vid, 0, ver, ftype, fname);
+  tfsInitFile(&(pDFile->f), level, id, fname);
 }
 
-void tsdbInitDFileWithOld(SDFile *pDFile, SDFile *pOldDFile) {
-  *pDFile = *pOldDFile;
+void tsdbInitDFileEx(SDFile *pDFile, SDFile *pODFile) {
+  *pDFile = *pODFile;
   TSDB_FILE_SET_CLOSED(pDFile);
 }
 
@@ -119,22 +154,44 @@ void *tsdbDecodeSDFile(void *buf, SDFile *pDFile) {
   return buf;
 }
 
-int tsdbUpdateDFileHeader(SDFile *pDFile) {
-  // TODO
+int tsdbCreateDFile(SDFile *pDFile) {
+  ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
+
+  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+
+  if (tsdbOpenDFile(pDFile, O_WRONLY | O_CREAT | O_EXCL) < 0) {
+    return -1;
+  }
+
+  void *ptr = buf;
+  tsdbEncodeDFInfo(&ptr, &(pDFile->info));
+
+  if (tsdbWriteDFile(pDFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
+    tsdbCloseDFile(pDFile);
+    tsdbRemoveDFile(pDFile);
+    return -1;
+  }
+
+  pDFile->info.size += TSDB_FILE_HEAD_SIZE;
+
   return 0;
 }
 
-static int tsdbCopyDFile(SDFile *pSrc, int tolevel, int toid, SDFile *pDest) {
-  TSDB_FILE_SET_CLOSED(pDest);
+int tsdbUpdateDFileHeader(SDFile *pDFile) {
+  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
-  pDest->info = pSrc->info;
-  tfsInitFile(TSDB_FILE_F(pDest), tolevel, toid, TFILE_REL_NAME(TSDB_FILE_F(pSrc)));
-
-  if (taosCopy(TSDB_FILE_FULL_NAME(pSrc), TSDB_FILE_FULL_NAME(pDest)) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
+  if (tsdbSeekDFile(pDFile, 0, SEEK_SET) < 0) {
     return -1;
   }
-  return -1;
+
+  void *ptr = buf;
+  tsdbEncodeDFInfo(&ptr, &(pDFile->info));
+
+  if (tsdbWriteDFile(pDFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
+    return -1;
+  }
+
+  return 0;
 }
 
 static int tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo) {
@@ -164,60 +221,58 @@ static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo) {
 }
 
 // ============== Operations on SDFileSet
-void tsdbInitDFileSet(SDFileSet *pSet, int vid, int fid, uint32_t ver, int level, int id) {
+void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t ver) {
   pSet->fid = fid;
   pSet->state = 0;
 
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
-    tsdbInitDFile(pDFile, vid, fid, ver, level, id, NULL, ftype);
+    tsdbInitDFile(pDFile, did, vid, fid, ver, ftype);
   }
 }
 
-void tsdbInitDFileSetWithOld(SDFileSet *pSet, SDFileSet *pOldSet) {
+void tsdbInitDFileSetEx(SDFileSet *pSet, SDFileSet *pOSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    tsdbInitDFileWithOld(TSDB_DFILE_IN_SET(pSet, ftype), TSDB_DFILE_IN_SET(pOldSet, ftype));
+    tsdbInitDFileEx(TSDB_DFILE_IN_SET(pSet, ftype), TSDB_DFILE_IN_SET(pOSet, ftype));
   }
 }
 
-int tsdbOpenDFileSet(SDFileSet *pSet, int flags) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
+int tsdbEncodeDFileSet(void **buf, SDFileSet *pSet) {
+  int tlen = 0;
 
-    if (tsdbOpenDFile(pDFile, flags) < 0) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    tlen += tsdbEncodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
+  }
+
+  return tlen
+}
+
+void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    buf = tsdbDecodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
+  }
+  return buf;
+}
+
+int tsdbCreateDFileSet(SDFileSet *pSet) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    if (tsdbCreateDFile(TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
       tsdbCloseDFileSet(pSet);
+      tsdbRemoveDFileSet(pSet);
       return -1;
     }
   }
-}
 
-void tsdbCloseDFileSet(SDFileSet *pSet) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
-    tsdbCloseDFile(pDFile);
-  }
+  return 0;
 }
 
 int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
-  // TODO
-  return 0;
-}
-
-int tsdbCopyDFileSet(SDFileSet src, int tolevel, int toid, SDFileSet *pDest) {
-  ASSERT(tolevel > TSDB_FSET_LEVEL(&src));
-
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbCopyDFile(TSDB_DFILE_IN_SET(&src, ftype), tolevel, toid, TSDB_DFILE_IN_SET(pDest, ftype)) < 0) {
-      while (ftype >= 0) {
-        remove(TSDB_FILE_FULL_NAME(TSDB_DFILE_IN_SET(pDest, ftype)));
-        ftype--;
-      }
-
+    if (tsdbUpdateDFileHeader(TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
       return -1;
     }
   }
-
-  return 0;
+  return 0
 }
 
 static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname) {

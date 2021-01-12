@@ -128,7 +128,7 @@ int64_t taosCopy(char *from, char *to) {
   fidfrom = open(from, O_RDONLY);
   if (fidfrom < 0) goto _err;
 
-  fidto = open(to, O_WRONLY | O_CREAT, 0755);
+  fidto = open(to, O_WRONLY | O_CREAT | O_EXCL, 0755);
   if (fidto < 0) goto _err;
 
   while (true) {
@@ -149,6 +149,7 @@ int64_t taosCopy(char *from, char *to) {
 _err:
   if (fidfrom >= 0) close(fidfrom);
   if (fidto >= 0) close(fidto);
+  remove(to);
   return -1;
 }
 
