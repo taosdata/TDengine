@@ -134,14 +134,14 @@ void httpCleanupResultQueue() {
 
   for (int32_t i = 0; i < tsHttpPool.num; ++i) {
     SHttpWorker *pWorker = tsHttpPool.httpWorker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(tsHttpQset);
     }
   }
 
   for (int32_t i = 0; i < tsHttpPool.num; ++i) {
     SHttpWorker *pWorker = tsHttpPool.httpWorker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
     }
   }

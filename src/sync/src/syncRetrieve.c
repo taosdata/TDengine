@@ -14,7 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <sys/inotify.h>
 #include "os.h"
 #include "taoserror.h"
 #include "tlog.h"
@@ -160,7 +159,7 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
       break;
     }
 
-    ret = taosSendFile(pPeer->syncFd, sfd, NULL, fileInfo.size);
+    ret = (int32_t)taosSendFile(pPeer->syncFd, sfd, NULL, fileInfo.size);
     close(sfd);
     if (ret < 0) {
       code = -1;
@@ -228,7 +227,7 @@ static int32_t syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversi
     return -1;
   }
 
-  int32_t code = taosLSeek(sfd, offset, SEEK_SET);
+  int32_t code = (int32_t)taosLSeek(sfd, offset, SEEK_SET);
   if (code < 0) {
     sError("%s, failed to seek %" PRId64 " in wal:%s for retrieve since:%s", pPeer->id, offset, name, tstrerror(errno));
     close(sfd);
@@ -322,7 +321,7 @@ static int32_t syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) 
     // if all data are read out, and no update
     if (bytes == 0 && !walModified) {
       // wal not closed, it means some data not flushed to disk, wait for a while
-      usleep(10000);
+      taosMsleep(10);
     }
 
     // if bytes > 0, file is updated, or fversion is not reached but file still open, read again
@@ -384,7 +383,7 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
       break;
     }
 
-    code = taosSendFile(pPeer->syncFd, sfd, NULL, size);
+    code = (int32_t)taosSendFile(pPeer->syncFd, sfd, NULL, size);
     close(sfd);
     if (code < 0) {
       sError("%s, failed to send wal:%s for retrieve since %s, code:0x%x", pPeer->id, fname, strerror(errno), code);
@@ -501,7 +500,7 @@ void *syncRetrieveData(void *param) {
   }
 
   pPeer->fileChanged = 0;
-  taosClose(pPeer->syncFd);
+  taosCloseSocket(pPeer->syncFd);
 
   // The ref is obtained in both the create thread and the current thread, so it is released twice
   sInfo("%s, sync retrieve data over, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);

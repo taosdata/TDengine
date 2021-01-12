@@ -128,7 +128,7 @@ static void mnodePrintUserAuth() {
 }
 
 static int32_t mnodeUserActionRestored() {
-  int32_t numOfRows = sdbGetNumOfRows(tsUserSdb);
+  int64_t numOfRows = sdbGetNumOfRows(tsUserSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
     mInfo("dnode first deploy, create root user");
     SAcctObj *pAcct = mnodeGetAcct(TSDB_DEFAULT_USER);
@@ -148,14 +148,14 @@ static int32_t mnodeUserActionRestored() {
 
 int32_t mnodeInitUsers() {
   SUserObj tObj;
-  tsUserUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+  tsUserUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj);
 
   SSdbTableDesc desc = {
     .id           = SDB_TABLE_USER,
     .name         = "users",
     .hashSessions = TSDB_DEFAULT_USERS_HASH_SIZE,
     .maxRowSize   = tsUserUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_STRING,
     .fpInsert     = mnodeUserActionInsert,
     .fpDelete     = mnodeUserActionDelete,
@@ -204,11 +204,11 @@ void mnodeCancelGetNextUser(void *pIter) {
 }
 
 void mnodeIncUserRef(SUserObj *pUser) { 
-  return sdbIncRef(tsUserSdb, pUser); 
+  sdbIncRef(tsUserSdb, pUser); 
 }
 
 void mnodeDecUserRef(SUserObj *pUser) { 
-  return sdbDecRef(tsUserSdb, pUser); 
+  sdbDecRef(tsUserSdb, pUser); 
 }
 
 static int32_t mnodeUpdateUser(SUserObj *pUser, void *pMsg) {
@@ -561,7 +561,7 @@ static int32_t mnodeProcessDropUserMsg(SMnodeMsg *pMsg) {
 void mnodeDropAllUsers(SAcctObj *pAcct)  {
   void *    pIter = NULL;
   int32_t   numOfUsers = 0;
-  int32_t   acctNameLen = strlen(pAcct->user);
+  int32_t   acctNameLen = (int32_t)strlen(pAcct->user);
   SUserObj *pUser = NULL;
 
   while (1) {

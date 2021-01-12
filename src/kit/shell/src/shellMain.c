@@ -21,7 +21,7 @@
 pthread_t pid;
 static tsem_t cancelSem;
 
-void shellQueryInterruptHandler(int signum) {
+void shellQueryInterruptHandler(int32_t signum) {
   tsem_post(&cancelSem);
 }
 

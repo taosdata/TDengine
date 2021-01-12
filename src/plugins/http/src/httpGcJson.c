@@ -158,7 +158,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
             if (row[i]!= NULL){            
               len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:", fields[i].name);
               memcpy(target + len, (char *) row[i], length[i]);
-              len = strlen(target);
+              len = (int32_t)strlen(target);
             }
             break;
           default:

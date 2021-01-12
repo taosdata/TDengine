@@ -365,7 +365,7 @@ void *syncRestoreData(void *param) {
   SSyncNode *pNode = pPeer->pSyncNode;
 
   taosBlockSIGPIPE();
-  __sync_fetch_and_add(&tsSyncNum, 1);
+  atomic_add_fetch_32(&tsSyncNum, 1);
   sInfo("%s, start to restore data, sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
 
   (*pNode->notifyRole)(pNode->vgId, TAOS_SYNC_ROLE_SYNCING);
@@ -390,9 +390,9 @@ void *syncRestoreData(void *param) {
   nodeSStatus = TAOS_SYNC_STATUS_INIT;
   sInfo("%s, restore data over, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
 
-  taosClose(pPeer->syncFd);
+  taosCloseSocket(pPeer->syncFd);
   syncCloseRecvBuffer(pNode);
-  __sync_fetch_and_sub(&tsSyncNum, 1);
+  atomic_sub_fetch_32(&tsSyncNum, 1);
 
   // The ref is obtained in both the create thread and the current thread, so it is released twice
   syncReleasePeer(pPeer);

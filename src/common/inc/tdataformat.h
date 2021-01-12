@@ -29,7 +29,7 @@ extern "C" {
 
 #define STR_TO_VARSTR(x, str)             \
   do {                                    \
-    VarDataLenT __len = strlen(str);      \
+    VarDataLenT __len = (int32_t)strlen(str);      \
     *(VarDataLenT *)(x) = __len;          \
     memcpy(varDataVal(x), (str), __len); \
   } while (0);
@@ -42,7 +42,7 @@ extern "C" {
 
 #define STR_WITH_SIZE_TO_VARSTR(x, str, _size) \
   do {                                         \
-    *(VarDataLenT *)(x) = (_size);             \
+    *(VarDataLenT *)(x) = (int32_t)(_size);             \
     memcpy(varDataVal(x), (str), (_size));    \
   } while (0);
 

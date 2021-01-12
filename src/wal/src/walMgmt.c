@@ -210,7 +210,7 @@ static int32_t walCreateThread() {
 
 static void walStopThread() {
   tsWal.stop = 1;
-  if (tsWal.thread) {
+  if (taosCheckPthreadValid(tsWal.thread)) {
     pthread_join(tsWal.thread, NULL);
   }
 

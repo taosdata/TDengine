@@ -78,7 +78,7 @@ int64_t taosFSendFile(FILE *out_file, FILE *in_file, int64_t *offset, int64_t co
   return writeLen;
 }
 
-int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t* offset, int64_t size) {
+int64_t taosSendFile(SOCKET dfd, int32_t sfd, int64_t* offset, int64_t size) {
   uError("taosSendFile no implemented yet");
   return 0;
 }

@@ -276,7 +276,7 @@ int32_t tgReadSchema(char *fileName) {
 
   rewind(fp);
   char *  content = (char *)calloc(contentSize + 1, 1);
-  int32_t result = fread(content, 1, contentSize, fp);
+  int32_t result = (int32_t)fread(content, 1, contentSize, fp);
   
   if (result != contentSize) {
     httpError("failed to read telegraf schema file:%s", fileName);

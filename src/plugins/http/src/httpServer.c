@@ -25,10 +25,6 @@
 #include "httpResp.h"
 #include "httpUtil.h"
 
-#ifndef EPOLLWAKEUP
- #define EPOLLWAKEUP (1u << 29)
-#endif
-
 static bool httpReadData(HttpContext *pContext);
 
 static void httpStopThread(HttpThread* pThread) {
@@ -49,10 +45,10 @@ static void httpStopThread(HttpThread* pThread) {
 
   pthread_join(pThread->thread, NULL);
   if (fd != -1) {
-    close(fd);
+    taosCloseSocket(fd);
   }
 
-  close(pThread->pollFd);
+  taosCloseSocket(pThread->pollFd);
   pthread_mutex_destroy(&(pThread->threadMutex));
 }
 
@@ -77,10 +73,7 @@ static void httpProcessHttpData(void *param) {
   HttpContext *pContext;
   int32_t      fdNum;
 
-  sigset_t set;
-  sigemptyset(&set);
-  sigaddset(&set, SIGPIPE);
-  pthread_sigmask(SIG_SETMASK, &set, NULL);
+  taosSetMaskSIGPIPE();
 
   while (1) {
     struct epoll_event events[HTTP_MAX_EVENTS];
@@ -162,10 +155,7 @@ static void *httpAcceptHttpConnection(void *arg) {
   HttpContext *      pContext = NULL;
   int32_t            totalFds = 0;
 
-  sigset_t set;
-  sigemptyset(&set);
-  sigaddset(&set, SIGPIPE);
-  pthread_sigmask(SIG_SETMASK, &set, NULL);
+  taosSetMaskSIGPIPE();
 
   pServer->fd = taosOpenTcpServerSocket(pServer->serverIp, pServer->serverPort);
 
@@ -242,7 +232,7 @@ static void *httpAcceptHttpConnection(void *arg) {
     threadId = threadId % pServer->numOfThreads;
   }
 
-  close(pServer->fd);
+  taosCloseSocket(pServer->fd);
   return NULL;
 }
 
@@ -265,7 +255,7 @@ bool httpInitConnect() {
       return false;
     }
 
-    pThread->pollFd = epoll_create(HTTP_MAX_EVENTS);  // size does not matter
+    pThread->pollFd = (SOCKET)epoll_create(HTTP_MAX_EVENTS);  // size does not matter
     if (pThread->pollFd < 0) {
       httpError("http thread:%s, failed to create HTTP epoll", pThread->label);
       pthread_mutex_destroy(&(pThread->threadMutex));

@@ -20,6 +20,14 @@
 extern "C" {
 #endif
 
+#ifdef WINDOWS
+#include "wepoll.h"
+#endif
+
+#ifndef EPOLLWAKEUP
+  #define EPOLLWAKEUP (1u << 29)
+#endif
+
 int32_t taosReadn(SOCKET sock, char *buffer, int32_t len);
 int32_t taosWriteMsg(SOCKET fd, void *ptr, int32_t nbytes);
 int32_t taosReadMsg(SOCKET fd, void *ptr, int32_t nbytes);

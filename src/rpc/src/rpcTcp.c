@@ -132,7 +132,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
       break;
     }
 
-    pThreadObj->pollFd = (int64_t)epoll_create(10);  // size does not matter
+    pThreadObj->pollFd = (SOCKET)epoll_create(10);  // size does not matter
     if (pThreadObj->pollFd < 0) {
       tError("%s failed to create TCP epoll", label);
       code = -1;

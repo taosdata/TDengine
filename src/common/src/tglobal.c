@@ -122,8 +122,8 @@ int32_t tsMinRowsInFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
 int32_t tsMaxRowsInFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
 int16_t tsCommitTime    = TSDB_DEFAULT_COMMIT_TIME;  // seconds
 int32_t tsTimePrecision = TSDB_DEFAULT_PRECISION;
-int16_t tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
-int16_t tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
+int8_t  tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
+int8_t  tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
 int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
 int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
 int32_t tsQuorum        = TSDB_DEFAULT_DB_QUORUM_OPTION;
@@ -769,7 +769,7 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "comp";
   cfg.ptr = &tsCompression;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_COMP_LEVEL;
   cfg.maxValue = TSDB_MAX_COMP_LEVEL;
@@ -779,7 +779,7 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "walLevel";
   cfg.ptr = &tsWAL;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_WAL_LEVEL;
   cfg.maxValue = TSDB_MAX_WAL_LEVEL;

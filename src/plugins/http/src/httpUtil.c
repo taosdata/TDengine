@@ -388,7 +388,7 @@ int32_t httpGzipDeCompress(char *srcData, int32_t nSrcData, char *destData, int3
   if (inflateEnd(&gzipStream) != Z_OK) {
     return -4;
   }
-  *nDestData = gzipStream.total_out;
+  *nDestData = (int32_t)gzipStream.total_out;
 
   return 0;
 }
@@ -417,7 +417,7 @@ int32_t httpGzipCompress(HttpContext *pContext, char *srcData, int32_t nSrcData,
       return -1;
     }
 
-    int32_t cacheLen = pContext->gzipStream.total_out - lastTotalLen;
+    int32_t cacheLen = (int32_t)(pContext->gzipStream.total_out - lastTotalLen);
     if (cacheLen >= *nDestData) {
       return -2;
     }

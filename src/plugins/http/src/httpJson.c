@@ -93,7 +93,7 @@ int32_t httpWriteBufNoTrace(struct HttpContext *pContext, const char *buf, int32
 int32_t httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
   int32_t remain = 0;
   char sLen[24];
-  uint64_t srcLen = (uint64_t) (buf->lst - buf->buf);
+  int32_t srcLen = (int32_t) (buf->lst - buf->buf);
 
   if (buf->pContext->fd <= 0) {
     httpTrace("context:%p, fd:%d, write json body error", buf->pContext, buf->pContext->fd);
@@ -113,11 +113,11 @@ int32_t httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
       httpTrace("context:%p, fd:%d, no data need dump", buf->pContext, buf->pContext->fd);
       return 0;  // there is no data to dump.
     } else {
-      int32_t len = sprintf(sLen, "%" PRIx64 "\r\n", srcLen);
-      httpTrace("context:%p, fd:%d, write body, chunkSize:%" PRIu64 ", response:\n%s", buf->pContext, buf->pContext->fd,
+      int32_t len = sprintf(sLen, "%d\r\n", srcLen);
+      httpTrace("context:%p, fd:%d, write body, chunkSize:%d, response:\n%s", buf->pContext, buf->pContext->fd,
                 srcLen, buf->buf);
       httpWriteBufNoTrace(buf->pContext, sLen, len);
-      remain = httpWriteBufNoTrace(buf->pContext, buf->buf, (int32_t)srcLen);
+      remain = httpWriteBufNoTrace(buf->pContext, buf->buf, srcLen);
     }
   } else {
     char compressBuf[JSON_BUFFER_SIZE] = {0};
@@ -126,7 +126,7 @@ int32_t httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
     if (ret == 0) {
       if (compressBufLen > 0) {
         int32_t len = sprintf(sLen, "%x\r\n", compressBufLen);
-        httpTrace("context:%p, fd:%d, write body, chunkSize:%" PRIu64 ", compressSize:%d, last:%d, response:\n%s",
+        httpTrace("context:%p, fd:%d, write body, chunkSize:%d, compressSize:%d, last:%d, response:\n%s",
                   buf->pContext, buf->pContext->fd, srcLen, compressBufLen, isTheLast, buf->buf);
         httpWriteBufNoTrace(buf->pContext, sLen, len);
         remain = httpWriteBufNoTrace(buf->pContext, (const char*)compressBuf, compressBufLen);
@@ -136,7 +136,7 @@ int32_t httpWriteJsonBufBody(JsonBuf* buf, bool isTheLast) {
         remain = 0;  // there is no data to dump.
       }
     } else {
-      httpError("context:%p, fd:%d, failed to compress data, chunkSize:%" PRIu64 ", last:%d, error:%d, response:\n%s",
+      httpError("context:%p, fd:%d, failed to compress data, chunkSize:%d, last:%d, error:%d, response:\n%s",
                 buf->pContext, buf->pContext->fd, srcLen, isTheLast, ret, buf->buf);
       remain = 0;
     }

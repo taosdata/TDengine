@@ -153,7 +153,7 @@ static int32_t httpOnRequestLine(HttpParser *pParser, char *method, char *target
   for (int32_t i = 0; i < HTTP_MAX_URL; i++) {
     char *pSeek = strchr(pStart, '/');
     if (pSeek == NULL) {
-      (void)httpAppendString(pParser->path + i, pStart, strlen(pStart));
+      (void)httpAppendString(pParser->path + i, pStart, (int32_t)strlen(pStart));
       break;
     } else {
       (void)httpAppendString(pParser->path + i, pStart, (int32_t)(pSeek - pStart));
@@ -285,7 +285,7 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
         free(t);
         free(s);
         httpTrace("context:%p, fd:%d, basic auth:%s", pContext, pContext->fd, parser->authContent);
-        int32_t ok = httpParseBasicAuthToken(pContext, parser->authContent, strlen(parser->authContent));
+        int32_t ok = httpParseBasicAuthToken(pContext, parser->authContent, (int32_t)strlen(parser->authContent));
         if (ok != 0) {
           httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_BASIC_AUTH);
           return -1;
@@ -299,7 +299,7 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
         free(t);
         free(s);
         httpTrace("context:%p, fd:%d, taosd auth:%s", pContext, pContext->fd, parser->authContent);
-        int32_t ok = httpParseTaosdAuthToken(pContext, parser->authContent, strlen(parser->authContent));
+        int32_t ok = httpParseTaosdAuthToken(pContext, parser->authContent, (int32_t)strlen(parser->authContent));
         if (ok != 0) {
           httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_TAOSD_AUTH);
           return -1;
@@ -524,14 +524,14 @@ char *httpDecodeUrl(const char *enc) {
     int32_t hex, cnt;
     int32_t n = sscanf(p+1, "%2x%n", &hex, &cnt);
     if (n!=1 && cnt !=2) { ok = 0; break; }
-    if (httpAppendString(&str, enc, p-enc)) { ok = 0; break; }
+    if (httpAppendString(&str, enc, (int32_t)(p-enc))) { ok = 0; break; }
     char c = (char)hex;
     if (httpAppendString(&str, &c, 1)) { ok = 0; break; }
     enc    = p+3;
   }
   char *dec = NULL;
   if (ok && *enc) {
-    if (httpAppendString(&str, enc, strlen(enc))) { ok = 0; }
+    if (httpAppendString(&str, enc, (int32_t)strlen(enc))) { ok = 0; }
   }
   if (ok) {
     dec = str.str;
@@ -667,7 +667,7 @@ static int32_t httpParserOnVersion(HttpParser *parser, HTTP_PARSER_STATE state, 
   int32_t ok = 0;
   do {
     const char *prefix = "HTTP/1.";
-    int32_t     len = strlen(prefix);
+    int32_t     len = (int32_t)strlen(prefix);
     if (parser->str.pos < len) {
       if (prefix[parser->str.pos] != c) {
         httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
@@ -811,7 +811,7 @@ static int32_t httpParserOnCrlf(HttpParser *parser, HTTP_PARSER_STATE state, con
   int32_t ok = 0;
   do {
     const char *s   = "\r\n";
-    int32_t   len   = strlen(s);
+    int32_t   len   = (int32_t)strlen(s);
     if (s[parser->str.pos] != c) {
       httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
       ok = -1;

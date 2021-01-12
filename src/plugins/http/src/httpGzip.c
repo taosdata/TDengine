@@ -133,7 +133,7 @@ int32_t ehttp_gzip_write(ehttp_gzip_t *gzip, const char *buf, int32_t len) {
       if (ret!=Z_STREAM_END) continue;
     }
 
-    int32_t len = gzip->gzip->next_out - (z_const Bytef*)gzip->chunk;
+    int32_t len = (int32_t)(gzip->gzip->next_out - (z_const Bytef*)gzip->chunk);
 
     gzip->gzip->next_out[0] = '\0';
     gzip->callbacks.on_data(gzip, gzip->arg, gzip->chunk, len);
@@ -155,7 +155,7 @@ int32_t ehttp_gzip_finish(ehttp_gzip_t *gzip) {
 
   if (ret != Z_STREAM_END) return -1;
 
-  int32_t len = gzip->gzip->next_out - (z_const Bytef*)gzip->chunk;
+  int32_t len = (int32_t)(gzip->gzip->next_out - (z_const Bytef*)gzip->chunk);
 
   gzip->gzip->next_out[0] = '\0';
   gzip->callbacks.on_data(gzip, gzip->arg, gzip->chunk, len);
