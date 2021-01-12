@@ -19,13 +19,8 @@ Usage: mono taosdemo.exe [OPTION...]
         -d                database, Destination database. Default is 'test'.
         -a                replica, Set the replica parameters of the database, Default 1, min: 1, max: 5.
         -m                table_prefix, Table prefix name. Default is 't'.
-        -s                sql file, The select sql file.
         -M                stable, Use super table.
-        -o                outputfile, Direct output to the named file. Default is './output.txt'.
-        -q                query_mode, Query mode--0: SYNC, 1: ASYNC. Default is SYNC.
-        -b                type_of_cols, data_type of columns: 'INT', 'TINYINT', 'SMALLINT', 'BIGINT', 'FLOAT', 'DOUBLE', 'BINARY'. Default is 'INT'.
-        -w                length_of_binary, The length of data_type 'BINARY'. Only applicable when type of cols is 'BINARY'. Default is 8
-        -l                num_of_cols_per_record, The number of columns per record. Default is 3.
+        -s                stable_prefix, STable prefix name. Default is 'st'
         -T                num_of_threads, The number of threads. Default is 10.
         -r                num_of_records_per_req, The number of records per request. Default is 1000.
         -t                num_of_tables, The number of tables. Default is 1.

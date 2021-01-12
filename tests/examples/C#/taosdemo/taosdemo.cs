@@ -34,7 +34,7 @@ namespace TDengineDriver
 
         //sql parameters
         private string dbName = "db";
-        private string stableName = "st";
+        private string stablePrefix = "st";
         private string tablePrefix = "t";
 
         private bool isInsertOnly = false;
@@ -52,7 +52,7 @@ namespace TDengineDriver
         private bool useStable = false;
         private short methodOfDelete = 0;
         private long numOfThreads = 1;
-        private long rateOfOutorder = 0;
+        private short rateOfOutorder = 10;
         private bool order = true;
         private bool skipReadKey = false;
         private bool verbose = false;
@@ -83,10 +83,11 @@ namespace TDengineDriver
                     Console.Write("{0}{1}{2}\n", indent, indent, "replica, Set the replica parameters of the database, Default 1, min: 1, max: 5.");
                     Console.Write("{0}{1}", indent, "-m");
                     Console.Write("{0}{1}{2}\n", indent, indent, "table_prefix, Table prefix name. Default is 't'.");
-                    Console.Write("{0}{1}", indent, "-s");
-                    Console.Write("{0}{1}{2}\n", indent, indent, "sql file, The select sql file.");
                     Console.Write("{0}{1}", indent, "-M");
                     Console.Write("{0}{1}{2}\n", indent, indent, "stable, Use super table.");
+                    Console.Write("{0}{1}", indent, "-s");
+                    Console.Write("{0}{1}{2}\n", indent, indent, "stable_prefix, STable prefix name. Default is 'st'");
+/* NOT SUPPORT
                     Console.Write("{0}{1}", indent, "-o");
                     Console.Write("{0}{1}{2}\n", indent, indent, "outputfile, Direct output to the named file. Default is './output.txt'.");
                     Console.Write("{0}{1}", indent, "-q");
@@ -97,6 +98,7 @@ namespace TDengineDriver
                     Console.Write("{0}{1}{2}\n", indent, indent, "length_of_binary, The length of data_type 'BINARY'. Only applicable when type of cols is 'BINARY'. Default is 8");
                     Console.Write("{0}{1}", indent, "-l");
                     Console.Write("{0}{1}{2}\n", indent, indent, "num_of_cols_per_record, The number of columns per record. Default is 3.");
+                    */
                     Console.Write("{0}{1}", indent, "-T");
                     Console.Write("{0}{1}{2}\n", indent, indent, "num_of_threads, The number of threads. Default is 10.");
                     Console.Write("{0}{1}", indent, "-r");
@@ -132,7 +134,7 @@ namespace TDengineDriver
             user = this.GetArgumentAsString(argv, "-u", "root");
             password = this.GetArgumentAsString(argv, "-P", "taosdata");
             dbName = this.GetArgumentAsString(argv, "-d", "db");
-            stableName = this.GetArgumentAsString(argv, "-s", "st");
+            stablePrefix = this.GetArgumentAsString(argv, "-s", "st");
             tablePrefix = this.GetArgumentAsString(argv, "-m", "t");
             isInsertOnly = this.GetArgumentAsFlag(argv, "-x");
             queryMode = (int)this.GetArgumentAsLong(argv, "-q", 0, 1, 0);
@@ -148,7 +150,7 @@ namespace TDengineDriver
             methodOfDelete = (short)this.GetArgumentAsLong(argv, "-D", 0, 3, 0);
             numOfThreads = (short)this.GetArgumentAsLong(argv, "-T", 1, 10000, 1);
             order = this.GetArgumentAsFlag(argv, "-O");
-            rateOfOutorder = this.GetArgumentAsLong(argv, "-R", 0, 100, 0);
+            rateOfOutorder = (short)this.GetArgumentAsLong(argv, "-R", 0, 50, 10);
 
             skipReadKey = this.GetArgumentAsFlag(argv, "-y");
             verbose = this.GetArgumentAsFlag(argv, "-v");
@@ -166,6 +168,10 @@ namespace TDengineDriver
             Console.Write("# Replica:                           {0}\n", replica);
             Console.Write("# Use STable:                        {0}\n", useStable);
             Console.Write("# Table prefix:                      {0}\n", tablePrefix);
+            if (useStable == true)
+            {
+                Console.Write("# STable prefix:                     {0}\n", stablePrefix);
+            }
             Console.Write("# Data order:                        {0}\n", order);
             Console.Write("# Data out of order rate:            {0}\n", rateOfOutorder);
             Console.Write("# Delete method:                     {0}\n", methodOfDelete);
@@ -217,7 +223,7 @@ namespace TDengineDriver
                     long tmpVal = Convert.ToInt64(tmp);
                     if (tmpVal < minVal || tmpVal > maxVal)
                     {
-                        Console.WriteLine("option {0:G} should in range [{1:G}, {2:G}]", argName, minVal, maxVal);
+                        Console.WriteLine("option {0:G} value should in range [{1:G}, {2:G}]", argName, minVal, maxVal);
                         ExitProgram();
                     }
 
@@ -252,9 +258,14 @@ namespace TDengineDriver
             return defaultValue;
         }
 
-        static void ExitProgram()
+        static void CleanAndExitProgram()
         {
             TDengine.Cleanup();
+            System.Environment.Exit(0);
+        }
+
+        static void ExitProgram()
+        {
             System.Environment.Exit(0);
         }
 
@@ -291,7 +302,7 @@ namespace TDengineDriver
             if (this.conn == IntPtr.Zero)
             {
                 Console.WriteLine("Connect to TDengine failed");
-                ExitProgram();
+                CleanAndExitProgram();
             }
             else
             {
@@ -328,7 +339,7 @@ namespace TDengineDriver
                 createTableThread.useStable = useStable;
                 if (useStable)
                 {
-                    createTableThread.stableName = stableName;
+                    createTableThread.stablePrefix = stablePrefix;
                 }
                 createTableThread.conn = conn;
 
@@ -361,7 +372,7 @@ namespace TDengineDriver
             else
             {
                 Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
-                ExitProgram();
+                CleanAndExitProgram();
             }
 
         }
@@ -378,7 +389,7 @@ namespace TDengineDriver
             else
             {
                 Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
-                ExitProgram();
+                CleanAndExitProgram();
             }
             TDengine.FreeResult(res);
         }
@@ -389,7 +400,7 @@ namespace TDengineDriver
 
             sql.Clear();
             sql.Append("CREATE TABLE IF NOT EXISTS ").
-                Append(this.dbName).Append(".").Append(this.stableName).
+                Append(this.dbName).Append(".").Append(this.stablePrefix).
                 Append("(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, v6 float, v7 double, v8 binary(10), v9 nchar(10)) tags(t1 int)");
             IntPtr res = TDengine.Query(this.conn, sql.ToString());
             if (res != IntPtr.Zero)
@@ -399,7 +410,7 @@ namespace TDengineDriver
             else
             {
                 Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
-                ExitProgram();
+                CleanAndExitProgram();
             }
             TDengine.FreeResult(res);
         }
@@ -433,9 +444,11 @@ namespace TDengineDriver
                 insertThread.verbose = verbose;
                 insertThread.dbName = this.dbName;
                 insertThread.tablePrefix = this.tablePrefix;
+                insertThread.order = this.order;
+                insertThread.rateOfOutorder = this.rateOfOutorder;
                 if (useStable)
                 {
-                    //                    insertThread.stableName = stableName;
+                    insertThread.stablePrefix = stablePrefix;
                 }
                 insertThread.conn = conn;
 
@@ -470,7 +483,7 @@ namespace TDengineDriver
                 if (res == IntPtr.Zero)
                 {
                     Console.WriteLine(sql + " failure, reason: " + TDengine.Error(res));
-                    ExitProgram();
+                    CleanAndExitProgram();
                 }
 
                 int fieldCount = TDengine.FieldCount(res);
@@ -630,11 +643,13 @@ namespace TDengineDriver
             public string dbName { set; get; }
             public IntPtr conn { set; get; }
             public string tablePrefix { set; get; }
-            //            public string stableName { set; get; }
+            public string stablePrefix { set; get; }
             public long recordsPerTable { set; get; }
             public long batchRows { set; get; }
             public long numOfTables { set; get; }
             public bool verbose { set; get; }
+            public bool order { set; get; }
+            public short rateOfOutorder { set; get; }
 
             private void DebugPrintFormat(string format, params object[] parameters)
             {
@@ -723,7 +738,7 @@ namespace TDengineDriver
             public string dbName { set; get; }
             public IntPtr conn { set; get; }
             public string tablePrefix { set; get; }
-            public string stableName { set; get; }
+            public string stablePrefix { set; get; }
             public bool verbose { set; get; }
             public bool useStable { set; get; }
 
@@ -756,7 +771,7 @@ namespace TDengineDriver
                         Append(this.dbName).Append(".").Append(this.tablePrefix).Append(tableId);
                     if (useStable == true)
                     {
-                        sql = sql.Append(" USING ").Append(this.dbName).Append(".").Append(this.stableName).
+                        sql = sql.Append(" USING ").Append(this.dbName).Append(".").Append(this.stablePrefix).
                             Append(" TAGS(").Append(tableId).Append(")");
                     }
                     else
@@ -771,7 +786,7 @@ namespace TDengineDriver
                     else
                     {
                         DebugPrint(sql.ToString() + " failure, reason: " + TDengine.Error(res) + "\n");
-                        ExitProgram();
+                        CleanAndExitProgram();
                     }
                     TDengine.FreeResult(res);
                 }
