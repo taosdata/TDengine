@@ -36,6 +36,7 @@ extern int8_t   tsEnableVnodeBak;
 extern int8_t   tsEnableTelemetryReporting;
 extern char     tsEmail[];
 extern char     tsArbitrator[];
+extern int8_t   tsArbOnline;
 
 // common
 extern int      tsRpcTimer;
