@@ -50,24 +50,27 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getURL() throws SQLException {
-        String url = metaData.getURL();
-        System.out.println(url);
+        Assert.assertEquals("jdbc:TAOS://localhost:6030/?user=root&password=taosdata", metaData.getURL());
     }
 
     @Test
-    public void getUserName() {
+    public void getUserName() throws SQLException {
+        Assert.assertEquals("root", metaData.getUserName());
     }
 
     @Test
-    public void isReadOnly() {
+    public void isReadOnly() throws SQLException {
+        Assert.assertFalse(metaData.isReadOnly());
     }
 
     @Test
-    public void nullsAreSortedHigh() {
+    public void nullsAreSortedHigh() throws SQLException {
+        Assert.assertFalse(metaData.nullsAreSortedHigh());
     }
 
     @Test
-    public void nullsAreSortedLow() {
+    public void nullsAreSortedLow() throws SQLException {
+        Assert.assertTrue(metaData.nullsAreSortedLow());
     }
 
     @Test
