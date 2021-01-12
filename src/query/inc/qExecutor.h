@@ -30,7 +30,7 @@
 #include "tsqlfunction.h"
 
 struct SColumnFilterElem;
-typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, char* val1, char* val2);
+typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, const char* val1, const char* val2, int16_t type);
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
 typedef struct SResultRowPool {

@@ -5,13 +5,13 @@
   "port": 6030,
   "user": "root",
   "password": "taosdata",
-  "databases": "db01",
-  "super_table_query":
+  "databases": "db",
+  "specified_table_query":
     {"concurrent":1, "mode":"sync", "interval":5000, "restart":"yes", "keepProgress":"yes",
-      "sqls": [{"sql": "select avg(c1) from stb01 where col1 > 1;", "result": "./subscribe_res0.txt"}]
+     "sqls": [{"sql": "select avg(col1) from stb01 where col1 > 1;", "result": "./subscribe_res0.txt"}]
     },
-  "sub_table_query": 
-    {"stblname": "stb01", "threads":1, "mode":"sync", "interval":10000, "restart":"yes", "keepProgress":"yes",
-		 "sqls": [{"sql": "select col1 from xxxx where col1 > 10;", "result": "./subscribe_res1.txt"}]
-	  }
+  "super_table_query": 
+    {"stblname": "stb", "threads":1, "mode":"sync", "interval":10000, "restart":"yes", "keepProgress":"yes",
+     "sqls": [{"sql": "select col1 from xxxx where col1 > 10;", "result": "./subscribe_res1.txt"}]
+    }
 }

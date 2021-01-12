@@ -174,11 +174,11 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
     if ((*pHisto)->numOfElems >= 1 && idx < (*pHisto)->numOfEntries) {
       if (idx > 0) {
         assert((*pHisto)->elems[idx - 1].val <= val);
+      } else {
+        assert((*pHisto)->elems[idx].val > val);
       }
-
-      assert((*pHisto)->elems[idx].val > val);
     } else if ((*pHisto)->numOfElems > 0) {
-      assert((*pHisto)->elems[(*pHisto)->numOfEntries].val < val);
+      assert((*pHisto)->elems[(*pHisto)->numOfEntries].val <= val);
     }
 
     histogramCreateBin(*pHisto, idx, val);

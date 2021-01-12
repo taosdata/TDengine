@@ -465,7 +465,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
       // set the tag column id for executor to extract correct tag value
-      pExpr->param[0] = (tVariant) {.i64Key = colId, .nType = TSDB_DATA_TYPE_BIGINT, .nLen = sizeof(int64_t)};
+      pExpr->param[0] = (tVariant) {.i64 = colId, .nType = TSDB_DATA_TYPE_BIGINT, .nLen = sizeof(int64_t)};
       pExpr->numOfParams = 1;
     }
 
@@ -650,7 +650,7 @@ static void issueTSCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, 0);
     int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
-    pExpr->param->i64Key = tagColId;
+    pExpr->param->i64 = tagColId;
     pExpr->numOfParams = 1;
   }
 
@@ -1559,7 +1559,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
       if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
         int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
-        pExpr->param->i64Key = tagColId;
+        pExpr->param->i64 = tagColId;
         pExpr->numOfParams = 1;
       }
 
@@ -2151,6 +2151,7 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
   return pNew;
 }
 
+// todo there is are race condition in this function, while cancel is called by user.
 void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   // the param may be null, since it may be done by other query threads. and the asyncOnError may enter in this
   // function while kill query by a user.

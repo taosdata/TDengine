@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 3
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = m_func_db
@@ -274,7 +274,7 @@ sleep 1000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
-sleep 500
+sleep 100
 
 sql use m_func_db0
 
