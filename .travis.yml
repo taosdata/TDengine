@@ -76,7 +76,7 @@ matrix:
           sleep 1
 
           cd ${TRAVIS_BUILD_DIR}/tests/examples/C#/taosdemo
-          mcs -output:taosdemo *.cs || travis_terminate $?
+          mcs -out:taosdemo *.cs || travis_terminate $?
           pkill -TERM -x taosd
           fuser -k -n tcp 6030
           sleep 1
