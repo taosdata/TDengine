@@ -810,6 +810,10 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   }
 
   pShow->numOfRows = mnodeGetDnodesNum();
+  if (tsArbitrator[0] != 0) {
+    pShow->numOfRows++;
+  }
+
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pIter = NULL;
 
@@ -821,7 +825,7 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t    numOfRows = 0;
   int32_t    cols      = 0;
-  SDnodeObj *pDnode   = NULL;
+  SDnodeObj *pDnode    = NULL;
   char      *pWrite;
 
   while (numOfRows < rows) {
@@ -864,8 +868,47 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
     STR_TO_VARSTR(pWrite, offlineReason[pDnode->offlineReason]);
     cols++;
 
-     numOfRows++;
+    numOfRows++;
     mnodeDecDnodeRef(pDnode);
+  }
+
+  if (tsArbitrator[0] != 0) {
+    cols = 0;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = 0;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tsArbitrator, pShow->bytes[cols]);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = 0;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = 0;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    char *status = dnodeStatus[tsArbOnline > 0 ? TAOS_DN_STATUS_READY : TAOS_DN_STATUS_OFFLINE];
+    STR_TO_VARSTR(pWrite, status);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, "arb");
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = 0;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, "-");
+    cols++;
+
+    numOfRows++;
   }
 
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);

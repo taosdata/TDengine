@@ -6,7 +6,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 3
 system sh/exec.sh -n dnode1 -s start
 
-sleep 500
+sleep 100
 sql connect
 
 print ========== NULL_char.sim
@@ -251,7 +251,7 @@ endi
 ################### nchar
 sql alter table st41 set tag tag_nchar = "��˼����"
 sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
-#sleep 500
+#sleep 100
 #if $data01 != ��˼���� then
 #  print ==== expect ��˼����, actually $data01
 #  return -1
@@ -451,11 +451,8 @@ sql select tag_bigint, tag_smallint, tag_tinyint from st51
 if $data00 != 9223372036854775807 then
   return -1
 endi
-sql alter table st51 set tag tag_bigint = 9223372036854775808
-sql select tag_bigint, tag_smallint, tag_tinyint from st51
-if $data00 != 9223372036854775807 then
-  return -1
-endi
+sql_error alter table st51 set tag tag_bigint = 9223372036854775808
+
 sql alter table st51 set tag tag_bigint = -9223372036854775807
 sql select tag_bigint, tag_smallint, tag_tinyint from st51
 if $data00 != -9223372036854775807 then

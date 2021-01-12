@@ -112,7 +112,7 @@ if $loopCnt == 10 then
 endi
 
 sql show dnodes
-if $rows != 2 then
+if $rows != 3 then
   sleep 2000
   goto wait_dnode1_offline
 endi

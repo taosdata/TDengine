@@ -180,6 +180,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_NOT_EXIST,            0, 0x036A, "Tag does n
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_ALREAY_EXIST,       0, 0x036B, "Field already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_NOT_EXIST,          0, 0x036C, "Field does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STABLE_NAME,      0, 0x036D, "Super table does not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG, 0, 0x036E, "Invalid create table message")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_NOT_SELECTED,          0, 0x0380, "Database not specified or available")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_ALREADY_EXIST,         0, 0x0381, "Database already exists")

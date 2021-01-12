@@ -41,6 +41,7 @@ int32_t  tsStatusInterval = 1;  // second
 int32_t  tsNumOfMnodes = 3;
 int8_t   tsEnableVnodeBak = 1;
 int8_t   tsEnableTelemetryReporting = 1;
+int8_t   tsArbOnline = 0;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
 
 // common
@@ -225,7 +226,7 @@ int32_t odbcDebugFlag = 131;
 int32_t httpDebugFlag = 131;
 int32_t mqttDebugFlag = 131;
 int32_t monDebugFlag = 131;
-int32_t qDebugFlag = 131;
+uint32_t qDebugFlag = 131;
 int32_t rpcDebugFlag = 131;
 int32_t uDebugFlag = 131;
 int32_t debugFlag = 0;

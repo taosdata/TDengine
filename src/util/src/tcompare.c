@@ -51,7 +51,22 @@ int32_t compareDoubleIntVal(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareFloatVal(const void *pLeft, const void *pRight) {
-  float ret = GET_FLOAT_VAL(pLeft) - GET_FLOAT_VAL(pRight);
+  float p1 = GET_FLOAT_VAL(pLeft);
+  float p2 = GET_FLOAT_VAL(pRight);
+
+  if (isnan(p1) && isnan(p2)) {
+    return 0;
+  }
+
+  if (isnan(p1)) {
+    return -1;
+  }
+
+  if (isnan(p2)) {
+    return 1;
+  }
+
+  float ret = p1 - p2;
   if (fabs(ret) < FLT_EPSILON) {
     return 0;
   } else {
@@ -60,7 +75,22 @@ int32_t compareFloatVal(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
-  double ret = GET_DOUBLE_VAL(pLeft) - GET_DOUBLE_VAL(pRight);
+  double p1 = GET_DOUBLE_VAL(pLeft);
+  double p2 = GET_DOUBLE_VAL(pRight);
+
+  if (isnan(p1) && isnan(p2)) {
+    return 0;
+  }
+
+  if (isnan(p1)) {
+    return -1;
+  }
+
+  if (isnan(p2)) {
+    return 1;
+  }
+
+  double ret = p1 - p2;
   if (fabs(ret) < FLT_EPSILON) {
     return 0;
   } else {
