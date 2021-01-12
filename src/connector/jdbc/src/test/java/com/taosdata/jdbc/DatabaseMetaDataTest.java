@@ -231,8 +231,8 @@ public class DatabaseMetaDataTest {
         databaseMetaData.getFunctionColumns("", "", "", "");
         databaseMetaData.getPseudoColumns("", "", "", "");
         databaseMetaData.generatedKeyAlwaysReturned();
-
     }
+
 
     @AfterClass
     public static void close() throws Exception {

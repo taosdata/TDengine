@@ -35,7 +35,6 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
         this.conn = conn;
     }
 
-
     @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
         try {
