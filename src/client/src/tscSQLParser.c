@@ -6022,9 +6022,9 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCreateDbMsg* pCreate) {
   }
 
   if (pCreate->quorum != -1 &&
-      (pCreate->quorum < TSDB_MIN_DB_REPLICA_OPTION || pCreate->quorum > TSDB_MAX_DB_REPLICA_OPTION)) {
+      (pCreate->quorum < TSDB_MIN_DB_QUORUM_OPTION || pCreate->quorum > TSDB_MAX_DB_QUORUM_OPTION)) {
     snprintf(msg, tListLen(msg), "invalid db option quorum: %d valid range: [%d, %d]", pCreate->quorum,
-             TSDB_MIN_DB_REPLICA_OPTION, TSDB_MAX_DB_REPLICA_OPTION);
+             TSDB_MIN_DB_QUORUM_OPTION, TSDB_MAX_DB_QUORUM_OPTION);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 

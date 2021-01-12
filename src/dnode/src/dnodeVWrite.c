@@ -163,10 +163,9 @@ void dnodeFreeVWriteQueue(void *pWqueue) {
 
 void dnodeSendRpcVWriteRsp(void *pVnode, void *wparam, int32_t code) {
   if (wparam == NULL) return;
-  if (code > 0) code = 0;
   SVWriteMsg *pWrite = wparam;
 
-  if (code <= 0) pWrite->code = code;
+  if (code < 0) pWrite->code = code;
   int32_t count = atomic_add_fetch_32(&pWrite->processedCount, 1);
 
   if (count <= 1) return;
@@ -207,7 +206,8 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
 
       pWrite->code = vnodeProcessWrite(pVnode, pWrite->pHead, qtype, pWrite);
       if (pWrite->code <= 0) pWrite->processedCount = 1;
-      if (pWrite->code >= 0 && pWrite->pHead->msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
+      if (pWrite->code > 0) pWrite->code = 0;
+      if (pWrite->code == 0 && pWrite->pHead->msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
 
       dTrace("msg:%p is processed in vwrite queue, code:0x%x", pWrite, pWrite->code);
     }

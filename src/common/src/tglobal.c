@@ -811,8 +811,8 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsQuorum;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_DB_REPLICA_OPTION;
-  cfg.maxValue = TSDB_MAX_DB_REPLICA_OPTION;
+  cfg.minValue = TSDB_MIN_DB_QUORUM_OPTION;
+  cfg.maxValue = TSDB_MAX_DB_QUORUM_OPTION;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);

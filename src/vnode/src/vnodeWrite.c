@@ -53,7 +53,9 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   SVnodeObj *pVnode = vparam;
   SWalHead * pHead = wparam;
   SVWriteMsg*pWrite = rparam;
-  SRspRet *  pRspRet = &pWrite->rspRet;
+
+  SRspRet *pRspRet = NULL;
+  if (pWrite != NULL) pRspRet = &pWrite->rspRet;
 
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) {
     vError("vgId:%d, msg:%s not processed since no handle, qtype:%s hver:%" PRIu64, pVnode->vgId,
