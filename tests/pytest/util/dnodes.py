@@ -212,7 +212,7 @@ class TDDnode:
         self.cfgDict["logDir"] = self.logDir
         # self.cfg("dataDir",self.dataDir)
         # self.cfg("logDir",self.logDir)
-        print(updatecfgDict)
+        # print(updatecfgDict)
         isFirstDir = 1
         if updatecfgDict[0] and updatecfgDict[0][0]:
             print(updatecfgDict[0][0])
@@ -292,13 +292,15 @@ class TDDnode:
                     break
             popen = subprocess.Popen('tail -f ' + logFile, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True)
             pid = popen.pid
-            print('Popen.pid:' + str(pid))
+            # print('Popen.pid:' + str(pid))
+            timeout = time.time() + 60*2
             while True:
                 line = popen.stdout.readline().strip()
                 if bkey in line:
-                    print(line)
                     popen.kill()
                     break
+                if time.time() > timeout:
+                    tdLog.exit('wait too long for taosd start')
             tdLog.debug("the dnode:%d has been started." % (self.index))
         else:
             tdLog.debug("wait 10 seconds for the dnode:%d to start." % (self.index))
