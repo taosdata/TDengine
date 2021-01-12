@@ -138,7 +138,7 @@ typedef struct SVgObj {
   int64_t        createdTime;
   int32_t        lbDnodeId;
   int32_t        lbTime;
-  char           dbName[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char           dbName[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int8_t         inUse;
   int8_t         accessState;
   int8_t         status;
@@ -179,7 +179,7 @@ typedef struct {
 } SDbCfg;
 
 typedef struct SDbObj {
-  char    name[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char    name[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int8_t  reserved0[4];
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;

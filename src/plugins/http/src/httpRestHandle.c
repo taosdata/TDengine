@@ -72,11 +72,11 @@ bool restGetUserFromUrl(HttpContext* pContext) {
 
 bool restGetPassFromUrl(HttpContext* pContext) {
   HttpParser* pParser = pContext->parser;
-  if (pParser->path[REST_PASS_URL_POS].pos >= TSDB_PASSWORD_LEN || pParser->path[REST_PASS_URL_POS].pos <= 0) {
+  if (pParser->path[REST_PASS_URL_POS].pos >= TSDB_KEY_LEN || pParser->path[REST_PASS_URL_POS].pos <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->pass, pParser->path[REST_PASS_URL_POS].str, TSDB_PASSWORD_LEN);
+  tstrncpy(pContext->pass, pParser->path[REST_PASS_URL_POS].str, TSDB_KEY_LEN);
   return true;
 }
 

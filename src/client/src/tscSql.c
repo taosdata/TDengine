@@ -47,7 +47,7 @@ static bool validUserName(const char* user) {
 }
 
 static bool validPassword(const char* passwd) {
-  return validImpl(passwd, TSDB_PASSWORD_LEN - 1);
+  return validImpl(passwd, TSDB_KEY_LEN - 1);
 }
 
 static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
@@ -238,11 +238,11 @@ TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t us
                      uint8_t passLen, const char *db, uint8_t dbLen, uint16_t port) {
   char ipBuf[TSDB_EP_LEN] = {0};
   char userBuf[TSDB_USER_LEN] = {0};
-  char passBuf[TSDB_PASSWORD_LEN] = {0};
+  char passBuf[TSDB_KEY_LEN] = {0};
   char dbBuf[TSDB_DB_NAME_LEN] = {0};
   strncpy(ipBuf, ip, MIN(TSDB_EP_LEN - 1, ipLen));
   strncpy(userBuf, user, MIN(TSDB_USER_LEN - 1, userLen));
-  strncpy(passBuf, pass, MIN(TSDB_PASSWORD_LEN - 1, passLen));
+  strncpy(passBuf, pass, MIN(TSDB_KEY_LEN - 1, passLen));
   strncpy(dbBuf, db, MIN(TSDB_DB_NAME_LEN - 1, dbLen));
   return taos_connect(ipBuf, userBuf, passBuf, dbBuf, port);
 }
@@ -978,7 +978,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
       return code;
     }
 
-    if (++pCmd->count > TSDB_MULTI_METERMETA_MAX_NUM) {
+    if (++pCmd->count > TSDB_MULTI_TABLEMETA_MAX_NUM) {
       code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
       sprintf(pCmd->payload, "tables over the max number");
       return code;
