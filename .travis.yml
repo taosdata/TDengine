@@ -66,7 +66,7 @@ matrix:
           fuser -k -n tcp 6030
           sleep 1
           taosd > /dev/null &
-          sleep 1
+          sleep 10
           mono taosdemo -Q DEFAULT -y || travis_terminate $?
 
           cd ${TRAVIS_BUILD_DIR}/tests
