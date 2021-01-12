@@ -65,7 +65,7 @@ matrix:
           pkill -TERM -x taosd
           fuser -k -n tcp 6030
           sleep 1
-          taosd > /dev/null &
+          ${TRAVIS_BUILD_DIR}/debug/build/bin/taosd -c ${TRAVIS_BUILD_DIR}/debug/test/cfg &
           sleep 10
           mono taosdemo -Q DEFAULT -y || travis_terminate $?
 
