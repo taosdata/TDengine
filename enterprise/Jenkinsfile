@@ -12,15 +12,11 @@ pipeline {
           steps{
             sh '''
             cd ${WKC}
-            git checkout develop
-            git pull
-            git submodule update 
             git fetch
-            git checkout $branch_version||git checkout -b $branch_version|git push
+            git checkout $branch_version && git pull && git submodule update ||git checkout -b $branch_version|git push
             cd ${WK}
-            git checkout develop
-            git pull
-            git checkout $branch_version||git checkout -b $branch_version|git push
+            git fetch
+            git checkout $branch_version && git pull ||git checkout -b $branch_version|git push
             '''
           }
       }
@@ -55,17 +51,15 @@ pipeline {
                 steps{
                     sh '''
                     cd ${WK}
-                    git checkout develop
-                    git pull
-                    git checkout $branch_version
-                    cd ${WKC}
-                    git checkout develop
-                    git pull
-                    git submodule update 
                     git fetch
                     git checkout $branch_version
+                    git pull
+                    cd ${WKC}
+                    git fetch
+                    git checkout $branch_version
+                    git pull
+                    git submodule update                    
                     cd ${WKC}/packaging
-
                     ./release.sh -v cluster -c aarch64 -n $version -m 2.0.0.0
                     ./release.sh -c aarch64 -n $version -m 2.0.0.0
                     
@@ -78,17 +72,15 @@ pipeline {
                     catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                         sh '''
                         cd ${WK}
-                        git checkout develop
-                        git pull
+                        git fetch
                         git checkout $branch_version
+                        git pull
                         cd ${WKC}
-                        git checkout develop
-                        git pull
-                        git submodule update 
-                        
+                        git fetch
                         git checkout $branch_version
+                        git pull
+                        git submodule update
                         cd ${WKC}/packaging
-
                         ./release.sh -v cluster -c aarch32 -n $version -m 2.0.0.0
                         ./release.sh -c aarch32 -n $version -m 2.0.0.0
                         
@@ -148,7 +140,7 @@ pipeline {
                         cd ${JENKINS_HOME}
                         echo '\n\n' | rpm -ivh TDengine-server-$version-Linux-x64.rpm
                         systemctl start taosd
-                        cd ${TAOS}/examples/python/PYTHONConnectorChecker
+                        cd ${TAOS}/python/PYTHONConnectorChecker
                         python3 PythonChecker.py -h 127.0.0.1
                         rpm -e tdengine
                         '''
@@ -214,9 +206,9 @@ pipeline {
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 rm -rf  ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                cp -rf  ${WCK}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                cp -rf  ${WKC}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
                 cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                mvn clean package assembly:single >/dev/null 
+                mvn clean package assembly:single -Dmaven.test.skip=true >/dev/null 
                 java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
                 '''
             }
@@ -269,9 +261,9 @@ pipeline {
                     catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                         sh '''
                         rm -rf  ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                        cp -rf  ${WCK}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                        cp -rf  ${WKC}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
                         cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                        mvn clean package assembly:single >/dev/null 
+                        mvn clean package assembly:single -Dmaven.test.skip=true >/dev/null 
                         java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
                         '''
                     }
@@ -314,9 +306,9 @@ pipeline {
                 catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                     sh '''
                     rm -rf  ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                    cp -rf  ${WCK}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
+                    cp -rf  ${WKC}/tests/examples/JDBC/JDBCDemo/ ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
                     cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                    mvn clean package assembly:single >/dev/null 
+                    mvn clean package assembly:single -Dmaven.test.skip=true>/dev/null 
                     java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
                     '''
                 }

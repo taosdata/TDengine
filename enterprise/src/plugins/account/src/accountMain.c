@@ -55,6 +55,7 @@
 #define TSDB_MIN_QUERYTIME_PER_ACCT   3600  // 1 hour
 #define TSDB_MAX_QUERYTIME_PER_ACCT   INT64_MAX
 
+extern int64_t tsVgroupRid;
 extern int64_t tsAcctRid;
 extern int64_t tsSdbRid;
 extern void *  tsAcctSdb;
@@ -603,6 +604,9 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
   int64_t pointsWritten = 0;
   TSKEY   sKey = taosGetTimestampMs();
 
+  void *vgroupSdb = taosAcquireRef(tsSdbRid, tsVgroupRid);
+  if (vgroupSdb == NULL) return 0;
+
   while (1) {
     pIter = mnodeGetNextVgroup(pIter, &pVgroup);
     if (pVgroup == NULL) break;
@@ -613,7 +617,9 @@ static int64_t acctGetStatistic(SAcctObj *pAcct) {
     }
     mnodeDecVgroupRef(pVgroup);
   }
-  
+
+  taosReleaseRef(tsSdbRid, tsVgroupRid);
+
   pAcct->acctInfo.totalStorage = totalStorage;
   pAcct->acctInfo.numOfPointsPerSecond =
       (int32_t)((pointsWritten - pAcct->acctInfo.totalPoints) * 1000 / (sKey - pAcct->acctInfo.sKey));
