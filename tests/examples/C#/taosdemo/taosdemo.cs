@@ -204,7 +204,7 @@ namespace TDengineDriver
                     String tmp = argv[i + 1];
                     if (tmp[0] == '-')
                     {
-                        Console.WriteLine("option {0:G} requires an argument", tmp);
+                        Console.WriteLine("option {0:G} requires an argument", argName);
                         ExitProgram();
                     }
 
@@ -236,7 +236,7 @@ namespace TDengineDriver
                     String tmp = argv[i + 1];
                     if (tmp[0] == '-')
                     {
-                        Console.WriteLine("option {0:G} requires an argument", tmp);
+                        Console.WriteLine("option {0:G} requires an argument", argName);
                         ExitProgram();
                     }
                     return tmp;

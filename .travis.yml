@@ -34,6 +34,7 @@ matrix:
           - psmisc
           - unixodbc
           - unixodbc-dev
+          - mono-complete
 
     before_script:
       - export TZ=Asia/Harbin
@@ -73,6 +74,15 @@ matrix:
           cd ${TRAVIS_BUILD_DIR}/tests/pytest
           ./valgrind-test.sh 2>&1 > mem-error-out.log
           sleep 1
+
+          cd ${TRAVIS_BUILD_DIR}/tests/examples/C#/taosdemo
+          mcs -output:taosdemo *.cs || travis_terminate $?
+          pkill -TERM -x taosd
+          fuser -k -n tcp 6030
+          sleep 1
+          taosd > /dev/null &
+          sleep 1
+          mono taosdemo -Q -y || travis_terminate $?
 
           # Color setting
           RED='\033[0;31m'
