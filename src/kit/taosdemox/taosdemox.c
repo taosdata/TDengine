@@ -4269,23 +4269,24 @@ void *subSubscribeProcess(void *sarg) {
   } while (0);
 
   // start loop to consume result
+  TAOS_RES* res = NULL;
   while (1) {
     for (int i = 0; i < g_queryInfo.subQueryInfo.sqlCount; i++) {
       if (1 == g_queryInfo.subQueryInfo.subscribeMode) {
         continue;
       }
       
-      TAOS_RES* res = taos_consume(g_queryInfo.subQueryInfo.tsub[i]);
+      res = taos_consume(g_queryInfo.subQueryInfo.tsub[i]);
       if (res) {
         char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
         if (g_queryInfo.subQueryInfo.result[i][0] != 0) {
           sprintf(tmpFile, "%s-%d", g_queryInfo.subQueryInfo.result[i], winfo->threadID);
         }
         getResult(res, tmpFile);
-        taos_free_result(res);
       }
     }
   }
+  taos_free_result(res);
   
   for (int i = 0; i < g_queryInfo.subQueryInfo.sqlCount; i++) {
     taos_unsubscribe(g_queryInfo.subQueryInfo.tsub[i], g_queryInfo.subQueryInfo.subscribeKeepProgress);
@@ -4328,23 +4329,24 @@ void *superSubscribeProcess(void *sarg) {
   } while (0);
 
   // start loop to consume result
+  TAOS_RES* res = NULL;
   while (1) {
     for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
       if (1 == g_queryInfo.superQueryInfo.subscribeMode) {
         continue;
       }
       
-      TAOS_RES* res = taos_consume(g_queryInfo.superQueryInfo.tsub[i]);
+      res = taos_consume(g_queryInfo.superQueryInfo.tsub[i]);
       if (res) {
         char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
         if (g_queryInfo.superQueryInfo.result[i][0] != 0) {
           sprintf(tmpFile, "%s-%d", g_queryInfo.superQueryInfo.result[i], winfo->threadID);
         }
         getResult(res, tmpFile);
-        taos_free_result(res);
       }
     }
   }
+  taos_free_result(res);
   
   for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
     taos_unsubscribe(g_queryInfo.superQueryInfo.tsub[i], g_queryInfo.superQueryInfo.subscribeKeepProgress);
