@@ -49,7 +49,9 @@ public class TSDBDatabaseMetaDataTest {
     }
 
     @Test
-    public void getURL() {
+    public void getURL() throws SQLException {
+        String url = metaData.getURL();
+        System.out.println(url);
     }
 
     @Test
