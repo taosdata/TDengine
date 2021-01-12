@@ -259,7 +259,7 @@ typedef struct {
   int16_t  bytes[TSDB_MAX_COLUMNS];
   int32_t  numOfReads;
   int8_t   maxReplica;
-  int8_t   reserved0[0];
+  int8_t   reserved0[1];
   uint16_t payloadLen;
   char     payload[];
 } SShowObj;
