@@ -35,12 +35,18 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
         this.conn = conn;
     }
 
+
+    @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        return null;
+        try {
+            return iface.cast(this);
+        } catch (ClassCastException cce) {
+            throw new SQLException("Unable to unwrap to " + iface.toString());
+        }
     }
 
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return false;
+        return iface.isInstance(this);
     }
 
     public boolean allProceduresAreCallable() throws SQLException {
@@ -80,11 +86,11 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public String getDatabaseProductName() throws SQLException {
-        return this.dbProductName;
+        return "TDengine";
     }
 
     public String getDatabaseProductVersion() throws SQLException {
-        return "1.5.1";
+        return "2.0.x.x";
     }
 
     public String getDriverName() throws SQLException {
@@ -92,7 +98,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public String getDriverVersion() throws SQLException {
-        return "1.0.0";
+        return "2.0.x";
     }
 
     public int getDriverMajorVersion() {
