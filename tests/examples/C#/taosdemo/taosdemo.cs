@@ -142,33 +142,33 @@ namespace TDengineDriver
             verbose = this.GetArgumentAsFlag(argv, "-v", true);
             debug = this.GetArgumentAsFlag(argv, "-g", true);
 
-            Console.Write("###################################################################\n");
-            Console.Write("# Server IP:                         {0}\n", host);
-            Console.Write("# User:                              {0}\n", user);
-            Console.Write("# Password:                          {0}\n", password);
-            Console.Write("# Number of Columns per record:      {0}\n", colsPerRecord);
-            Console.Write("# Number of Threads:                 {0}\n", numOfThreads);
-            Console.Write("# Number of Tables:                  {0}\n", numOfTables);
-            Console.Write("# Number of records per Table:       {0}\n", recordsPerTable);
-            Console.Write("# Records/Request:                   {0}\n", recordsPerRequest);
-            Console.Write("# Database name:                     {0}\n", dbName);
-            Console.Write("# Replica:                           {0}\n", replica);
-            Console.Write("# Use STable:                        {0}\n", useStable);
-            Console.Write("# Table prefix:                      {0}\n", tablePrefix);
+            VerbosePrint        ("###################################################################\n");
+            VerbosePrintFormat  ("# Server IP:                         {0}\n", host);
+            VerbosePrintFormat  ("# User:                              {0}\n", user);
+            VerbosePrintFormat  ("# Password:                          {0}\n", password);
+            VerbosePrintFormat  ("# Number of Columns per record:      {0}\n", colsPerRecord);
+            VerbosePrintFormat  ("# Number of Threads:                 {0}\n", numOfThreads);
+            VerbosePrintFormat  ("# Number of Tables:                  {0}\n", numOfTables);
+            VerbosePrintFormat  ("# Number of records per Table:       {0}\n", recordsPerTable);
+            VerbosePrintFormat  ("# Records/Request:                   {0}\n", recordsPerRequest);
+            VerbosePrintFormat  ("# Database name:                     {0}\n", dbName);
+            VerbosePrintFormat  ("# Replica:                           {0}\n", replica);
+            VerbosePrintFormat  ("# Use STable:                        {0}\n", useStable);
+            VerbosePrintFormat  ("# Table prefix:                      {0}\n", tablePrefix);
             if (useStable == true)
             {
-                Console.Write("# STable prefix:                     {0}\n", stablePrefix);
+                VerbosePrintFormat("# STable prefix:                     {0}\n", stablePrefix);
             }
-            Console.Write("# Data order:                        {0}\n", order);
-            Console.Write("# Data out of order rate:            {0}\n", rateOfOutorder);
-            Console.Write("# Delete method:                     {0}\n", methodOfDelete);
-            Console.Write("# Query command:                     {0}\n", query);
-            Console.Write("# Query Mode:                        {0}\n", queryMode);
-            Console.Write("# Insert Only:                       {0}\n", isInsertOnly);
-            Console.Write("# Verbose output                     {0}\n", verbose);
-            Console.Write("# Test time:                         {0}\n", DateTime.Now.ToString("h:mm:ss tt"));
+            VerbosePrintFormat  ("# Data order:                        {0}\n", order);
+            VerbosePrintFormat  ("# Data out of order rate:            {0}\n", rateOfOutorder);
+            VerbosePrintFormat  ("# Delete method:                     {0}\n", methodOfDelete);
+            VerbosePrintFormat  ("# Query command:                     {0}\n", query);
+            VerbosePrintFormat  ("# Query Mode:                        {0}\n", queryMode);
+            VerbosePrintFormat  ("# Insert Only:                       {0}\n", isInsertOnly);
+            VerbosePrintFormat  ("# Verbose output                     {0}\n", verbose);
+            VerbosePrintFormat  ("# Test time:                         {0}\n", DateTime.Now.ToString("h:mm:ss tt"));
 
-            Console.Write("###################################################################\n");
+            VerbosePrint        ("###################################################################\n");
 
             if (skipReadKey == false)
             {
@@ -629,7 +629,7 @@ namespace TDengineDriver
             watch.Stop();
             double elapsedMs = watch.Elapsed.TotalMilliseconds;
 
-            Console.WriteLine("Spent {0} seconds to insert {1} records with {2} record(s) per request: {3} records/second",
+            Console.WriteLine("C# taosdemo: Spent {0} seconds to insert {1} records with {2} record(s) per request: {3} records/second",
                     elapsedMs / 1000,
                 tester.recordsPerTable * tester.numOfTables,
                 tester.batchRows,
@@ -642,7 +642,7 @@ namespace TDengineDriver
                 tester.ExecuteQuery();
                 watch.Stop();
                 elapsedMs = watch.Elapsed.TotalMilliseconds;
-                Console.WriteLine("Spent {0} seconds to query {1} records.\n", 
+                Console.WriteLine("C# taosdemo: Spent {0} seconds to query {1} records.\n", 
                         elapsedMs/1000,
                         tester.recordsPerTable * tester.numOfTables
                         );
