@@ -82,7 +82,7 @@ matrix:
           sleep 1
           taosd > /dev/null &
           sleep 1
-          mono taosdemo -Q -y || travis_terminate $?
+          mono taosdemo -Q DEFAULT -y || travis_terminate $?
 
           # Color setting
           RED='\033[0;31m'
