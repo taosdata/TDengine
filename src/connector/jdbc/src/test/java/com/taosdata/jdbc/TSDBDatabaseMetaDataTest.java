@@ -44,7 +44,8 @@ public class TSDBDatabaseMetaDataTest {
     }
 
     @Test
-    public void allTablesAreSelectable() {
+    public void allTablesAreSelectable() throws SQLException {
+        Assert.assertFalse(metaData.allTablesAreSelectable());
     }
 
     @Test
