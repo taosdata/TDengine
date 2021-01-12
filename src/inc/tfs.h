@@ -33,14 +33,16 @@ typedef struct {
 #define TFS_PRIMARY_ID 0
 
 // FS APIs ====================================
-int     tfsInit(SDiskCfg *pDiskCfg, int ndisk);
-void    tfsDestroy();
-void    tfsUpdateInfo();
-int64_t tfsTotalSize();
-int64_t tfsAvailSize();
-void    tfsIncDiskFile(int level, int id, int num);
-void    tfsDecDiskFile(int level, int id, int num);
-void    tfsAllocDisk(int expLevel, int *level, int *id);
+typedef struct {
+  int64_t tsize;
+  int64_t avail;
+} SFSMeta;
+
+int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
+void tfsDestroy();
+void tfsUpdateInfo();
+void tfsGetMeta(SFSMeta *pMeta);
+void tfsAllocDisk(int expLevel, int *level, int *id);
 
 const char *TFS_PRIMARY_PATH();
 const char *TFS_DISK_PATH(int level, int id);
@@ -58,14 +60,14 @@ typedef struct {
 #define TFILE_NAME(pf) ((pf)->aname)
 #define TFILE_REL_NAME(pf) ((pf)->rname)
 
+#define tfsopen(pf, flags) open(TFILE_NAME(pf), flags)
+#define tfsclose(fd) close(fd)
+#define tfsremove(pf) remove(TFILE_NAME(pf))
+#define tfscopy(sf, df) taosCopy(TFILE_NAME(sf), TFILE_NAME(df))
+#define tfsrename(sf, df) rename(TFILE_NAME(sf), TFILE_NAME(df))
+
 void tfsInitFile(TFILE *pf, int level, int id, const char *bname);
 bool tfsIsSameFile(TFILE *pf1, TFILE *pf2);
-void tfsSetLevel(TFILE *pf, int level);
-void tfsSetID(TFILE *pf, int id);
-int  tfsopen(TFILE *pf, int flags);
-int  tfsclose(int fd);
-int  tfsremove(TFILE *pf);
-int  tfscopy(TFILE *sf, TFILE *df);
 void tfsbasename(const TFILE *pf, char *dest);
 void tfsdirname(const TFILE *pf, char *dest);
 

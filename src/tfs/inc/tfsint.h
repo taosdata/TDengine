@@ -18,6 +18,7 @@
 
 #include "tlog.h"
 #include "tglobal.h"
+#include "tfs.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -33,9 +34,11 @@ extern int fsDebugFlag;
 #define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("TFS ", cqDebugFlag, __VA_ARGS__); }}
 #define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("TFS ", cqDebugFlag, __VA_ARGS__); }}
 
+// Global Definitions
+#define TFS_MIN_DISK_FREE_SIZE 50 * 1024 * 1024
+
 // tdisk.c ======================================================
 typedef struct {
-  int32_t nfiles;
   int64_t size;
   int64_t free;
 } SDiskMeta;
@@ -53,34 +56,40 @@ typedef struct SDisk {
 #define DISK_META(pd) ((pd)->dmeta)
 #define DISK_SIZE(pd) ((pd)->dmeta.size)
 #define DISK_FREE_SIZE(pd) ((pd)->dmeta.free)
-#define DISK_NFILES(pd) ((pd)->dmeta.nfiles)
 
 SDisk *tfsNewDisk(int level, int id, const char *dir);
 SDisk *tfsFreeDisk(SDisk *pDisk);
-void   tfsUpdateDiskInfo(SDisk *pDisk);
+int    tfsUpdateDiskInfo(SDisk *pDisk);
 
 // ttier.c ======================================================
 typedef struct {
   int64_t size;
   int64_t free;
+  int16_t nAvailDisks;  // # of Available disks
 } STierMeta;
 typedef struct STier {
-  int       level;
-  int32_t   ndisk;
-  STierMeta tmeta;
-  SDisk *   disks[TSDB_MAX_DISKS_PER_TIER];
+  pthread_spinlock_t lock;
+  int                level;
+  int16_t            ndisk;   // # of disks mounted to this tier
+  int16_t            nextid;  // next disk id to allocate
+  STierMeta          tmeta;
+  SDisk *            disks[TSDB_MAX_DISKS_PER_TIER];
 } STier;
 
 #define TIER_LEVEL(pt) ((pt)->level)
 #define TIER_NDISKS(pt) ((pt)->ndisk)
 #define TIER_SIZE(pt) ((pt)->tmeta.size)
 #define TIER_FREE_SIZE(pt) ((pt)->tmeta.free)
+#define TIER_AVAIL_DISKS(pt) ((pt)->tmeta.nAvailDisks)
 #define DISK_AT_TIER(pt, id) ((pt)->disks[id])
 
-void   tfsInitTier(STier *pTier, int level);
+int    tfsInitTier(STier *pTier, int level);
 void   tfsDestroyTier(STier *pTier);
 SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg);
-void   tfsUpdateTierInfo(STier *pTier);
+void   tfsUpdateTierInfo(STier *pTier, STierMeta *pTierMeta);
+int    tfsAllocDiskOnTier(STier *pTier);
+void   tfsGetTierMeta(STier *pTier, STierMeta *pTierMeta);
+void   tfsPosNextId(STier *pTier);
 
 #ifdef __cplusplus
 }

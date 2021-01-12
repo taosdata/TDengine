@@ -39,7 +39,7 @@ SDisk *tfsFreeDisk(SDisk *pDisk) {
   return NULL;
 }
 
-void tfsUpdateDiskInfo(SDisk *pDisk) {
+int tfsUpdateDiskInfo(SDisk *pDisk) {
   ASSERT(pDisk != NULL);
   SysDiskSize dstat;
   if (taosGetDiskSize(pDisk->dir, &dstat) < 0) {
@@ -48,8 +48,10 @@ void tfsUpdateDiskInfo(SDisk *pDisk) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     pDisk->dmeta.size = 0;
     pDisk->dmeta.free = 0;
+    return -1;
   } else {
     pDisk->dmeta.size = dstat.tsize;
     pDisk->dmeta.free = dstat.avail;
+    return 0;
   }
 }

@@ -18,19 +18,39 @@
 #include "taoserror.h"
 #include "tfsint.h"
 
+#define tfsLockTier(pTier) pthread_spin_lock(&((pTier)->lock))
+#define tfsUnLockTier(pTier) pthread_spin_unlock(&((pTier)->lock))
+
 // PROTECTED ==========================================
-void tfsInitTier(STier *pTier, int level) { pTier->level = level; }
+int tfsInitTier(STier *pTier, int level) {
+  memset((void *)pTier, 0, sizeof(*pTier));
+
+  int code = pthread_spin_init(&(pTier->lock), 0);
+  if (code) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+
+  pTier->level = level;
+
+  return 0;
+}
 
 void tfsDestroyTier(STier *pTier) {
   for (int id = 0; id < TSDB_MAX_DISKS_PER_TIER; id++) {
     DISK_AT_TIER(pTier, id) = tfsFreeDisk(DISK_AT_TIER(pTier, id));
   }
+
   pTier->ndisk = 0;
+
+  pthread_spin_destroy(&(pTier->lock));
 }
 
 SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg) {
   ASSERT(pTier->level == pCfg->level);
-  int id = 0;
+
+  int    id = 0;
+  SDisk *pDisk;
 
   if (TIER_NDISKS(pTier) >= TSDB_MAX_DISKS_PER_TIER) {
     terrno = TSDB_CODE_FS_TOO_MANY_MOUNT;
@@ -55,8 +75,9 @@ SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg) {
     id = pTier->ndisk;
   }
 
-  DISK_AT_TIER(pTier, id) = tfsNewDisk(pCfg->level, id, pCfg->dir);
-  if (DISK_AT_TIER(pTier, id) == NULL) return NULL;
+  pDisk = tfsNewDisk(pCfg->level, id, pCfg->dir);
+  if (pDisk == NULL) return NULL;
+  DISK_AT_TIER(pTier, id) = pDisk;
   pTier->ndisk++;
 
   fDebug("disk %s is mounted to tier level %d id %d", pCfg->dir, pCfg->level, id);
@@ -64,14 +85,85 @@ SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg) {
   return DISK_AT_TIER(pTier, id);
 }
 
-void tfsUpdateTierInfo(STier *pTier) {
-  STierMeta tmeta = {0};
+void tfsUpdateTierInfo(STier *pTier, STierMeta *pTierMeta) {
+  STierMeta tmeta;
+
+  if (pTierMeta == NULL) {
+    pTierMeta = &tmeta;
+  }
+  memset(pTierMeta, 0, sizeof(*pTierMeta));
+
+  tfsLockTier(pTier);
 
   for (int id = 0; id < pTier->ndisk; id++) {
-    tfsUpdateDiskInfo(DISK_AT_TIER(pTier, id));
-    tmeta.size += DISK_SIZE(DISK_AT_TIER(pTier, id));
-    tmeta.free += DISK_FREE_SIZE(DISK_AT_TIER(pTier, id));
+    if (tfsUpdateDiskInfo(DISK_AT_TIER(pTier, id)) < 0) {
+      continue;
+    }
+    pTierMeta->size += DISK_SIZE(DISK_AT_TIER(pTier, id));
+    pTierMeta->free += DISK_FREE_SIZE(DISK_AT_TIER(pTier, id));
+    pTierMeta->nAvailDisks++;
   }
 
-  pTier->tmeta = tmeta;
+  pTier->tmeta = *pTierMeta;
+
+  tfsUnLockTier(pTier);
+}
+
+// Round-Robin to allocate disk on a tier
+int tfsAllocDiskOnTier(STier *pTier) {
+  ASSERT(pTier->ndisk > 0);
+  int    id = TFS_UNDECIDED_ID;
+  SDisk *pDisk;
+
+  tfsLockTier(pTier);
+
+  if (TIER_AVAIL_DISKS(pTier) <= 0) {
+    tfsUnLockTier(pTier);
+    return id;
+  }
+
+  id = pTier->nextid;
+  while (true) {
+    pDisk = DISK_AT_TIER(pTier, id);
+    ASSERT(pDisk != NULL);
+
+    if (DISK_FREE_SIZE(pDisk) < TFS_MIN_DISK_FREE_SIZE) {
+      id = (id + 1) % pTier->ndisk;
+      if (id == pTier->nextid) {
+        tfsUnLockTier(pTier);
+        return TFS_UNDECIDED_ID;
+      } else {
+        continue;
+      }
+    } else {
+      pTier->nextid = (id + 1) % pTier->ndisk;
+      break;
+    }
+  }
+
+  tfsUnLockTier(pTier);
+  return id;
+}
+
+void tfsGetTierMeta(STier *pTier, STierMeta *pTierMeta) {
+  ASSERT(pTierMeta != NULL);
+
+  tfsLockTier(pTier);
+  *pTierMeta = pTier->tmeta;
+  tfsUnLockTier(pTier);
+}
+
+void tfsPosNextId(STier *pTier) {
+  ASSERT(pTier->ndisk > 0);
+  int nextid = 0;
+
+  for (int id = 1; id < pTier->ndisk; id++) {
+    SDisk *pLDisk = DISK_AT_TIER(pTier, nextid);
+    SDisk *pDisk = DISK_AT_TIER(pTier, id);
+    if (DISK_FREE_SIZE(pDisk) > TFS_MIN_DISK_FREE_SIZE && DISK_FREE_SIZE(pDisk) > DISK_FREE_SIZE(pLDisk)) {
+      nextid = id;
+    }
+  }
+
+  pTier->nextid = nextid;
 }
