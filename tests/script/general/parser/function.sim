@@ -227,7 +227,7 @@ sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<
 sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:30:00' interval(10m) order by ts desc
 
 
-#todo add test case while column filter exists.
+#todo add test case while column filter exists for twa query
 
 #sql select count(*),TWA(k) from tm0 where ts>='1970-1-1 13:43:00' and ts<='1970-1-1 13:44:10' interval(9s)
 
