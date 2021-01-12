@@ -205,14 +205,14 @@ namespace TDengineDriver
                     if (tmp[0] == '-')
                     {
                         Console.WriteLine("option {0:G} requires an argument", argName);
-                        ExitProgram();
+                        ExitProgram(1);
                     }
 
                     long tmpVal = Convert.ToInt64(tmp);
                     if (tmpVal < minVal || tmpVal > maxVal)
                     {
                         Console.WriteLine("option {0:G} value should in range [{1:G}, {2:G}]", argName, minVal, maxVal);
-                        ExitProgram();
+                        ExitProgram(1);
                     }
 
                     return tmpVal;
@@ -237,7 +237,7 @@ namespace TDengineDriver
                     if (tmp[0] == '-')
                     {
                         Console.WriteLine("option {0:G} requires an argument", argName);
-                        ExitProgram();
+                        ExitProgram(1);
                     }
                     return tmp;
                 }
@@ -246,15 +246,15 @@ namespace TDengineDriver
             return defaultValue;
         }
 
-        static void CleanAndExitProgram()
+        static void CleanAndExitProgram(int ret)
         {
             TDengine.Cleanup();
-            System.Environment.Exit(0);
+            System.Environment.Exit(ret);
         }
 
-        static void ExitProgram()
+        static void ExitProgram(int ret)
         {
-            System.Environment.Exit(0);
+            System.Environment.Exit(ret);
         }
 
         private void VerbosePrintFormat(string format, params object[] parameters)
@@ -306,7 +306,7 @@ namespace TDengineDriver
             if (this.conn == IntPtr.Zero)
             {
                 Console.WriteLine("Connect to TDengine failed");
-                CleanAndExitProgram();
+                CleanAndExitProgram(1);
             }
             else
             {
@@ -377,7 +377,7 @@ namespace TDengineDriver
             else
             {
                 Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
-                CleanAndExitProgram();
+                CleanAndExitProgram(1);
             }
 
         }
@@ -394,7 +394,7 @@ namespace TDengineDriver
             else
             {
                 Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
-                CleanAndExitProgram();
+                CleanAndExitProgram(1);
             }
             TDengine.FreeResult(res);
         }
@@ -415,7 +415,7 @@ namespace TDengineDriver
             else
             {
                 Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
-                CleanAndExitProgram();
+                CleanAndExitProgram(1);
             }
             TDengine.FreeResult(res);
         }
@@ -498,7 +498,7 @@ namespace TDengineDriver
                 if (res == IntPtr.Zero)
                 {
                     Console.WriteLine(sql + " failure, reason: " + TDengine.Error(res));
-                    CleanAndExitProgram();
+                    CleanAndExitProgram(1);
                 }
 
                 int fieldCount = TDengine.FieldCount(res);
@@ -846,7 +846,7 @@ namespace TDengineDriver
                     else
                     {
                         VerbosePrint(sql.ToString() + " failure, reason: " + TDengine.Error(res) + "\n");
-                        CleanAndExitProgram();
+                        CleanAndExitProgram(1);
                     }
                     TDengine.FreeResult(res);
                 }
