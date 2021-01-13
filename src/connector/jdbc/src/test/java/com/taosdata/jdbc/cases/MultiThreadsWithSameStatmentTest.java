@@ -30,7 +30,7 @@ public class MultiThreadsWithSameStatmentTest {
     public void test() {
         Thread t1 = new Thread(() -> {
             try {
-                ResultSet resultSet = stmt.executeQuery("select * from log.");
+                ResultSet resultSet = stmt.executeQuery("select * from jdbctest.weather");
                 sleep(5000);
                 while (resultSet.next()) {
                     ResultSetMetaData metaData = resultSet.getMetaData();
