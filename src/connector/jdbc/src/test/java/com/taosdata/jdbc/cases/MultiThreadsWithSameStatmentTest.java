@@ -38,6 +38,9 @@ public class MultiThreadsWithSameStatmentTest {
                     }
                     System.out.println();
                 }
+
+                resultSet.close();
+
             } catch (SQLException e) {
                 e.printStackTrace();
             }
