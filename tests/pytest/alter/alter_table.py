@@ -131,7 +131,7 @@ class TDTestCase:
         tdSql.execute("alter table t0 set tag t1=2.1")
 
         tdSql.query("show tables")
-        tdSql.checkRows(1)
+        tdSql.checkRows(2)
         
     def stop(self):
         tdSql.close()
