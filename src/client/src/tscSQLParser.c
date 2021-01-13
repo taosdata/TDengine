@@ -6084,7 +6084,7 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex) {
     int32_t tmpLen = 0;
     tmpLen =
         sprintf(tmpBuf, "%s(uid:%" PRId64 ", %d)", aAggs[pExpr->functionId].aName, pExpr->uid, pExpr->colInfo.colId);
-    if (tmpLen + offset > totalBufSize) break;
+    if (tmpLen + offset + 1 >= totalBufSize) break;
 
     offset += sprintf(str + offset, "%s", tmpBuf);
 
