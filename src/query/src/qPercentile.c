@@ -12,13 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "os.h"
 
 #include "qPercentile.h"
 #include "qResultbuf.h"
-#include "os.h"
 #include "queryLog.h"
 #include "taosdef.h"
-#include "tulog.h"
 #include "tcompare.h"
 #include "ttype.h"
 
@@ -218,7 +217,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
   pBucket->maxCapacity = 200000;
 
   if (setBoundingBox(&pBucket->range, pBucket->type, minval, maxval) != 0) {
-    uError("MemBucket:%p, invalid value range: %f-%f", pBucket, minval, maxval);
+    qError("MemBucket:%p, invalid value range: %f-%f", pBucket, minval, maxval);
     free(pBucket);
     return NULL;
   }
@@ -228,7 +227,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
 
   pBucket->hashFunc = getHashFunc(pBucket->type);
   if (pBucket->hashFunc == NULL) {
-    uError("MemBucket:%p, not support data type %d, failed", pBucket, pBucket->type);
+    qError("MemBucket:%p, not support data type %d, failed", pBucket, pBucket->type);
     free(pBucket);
     return NULL;
   }
@@ -247,7 +246,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
     return NULL;
   }
   
-  uDebug("MemBucket:%p, elem size:%d", pBucket, pBucket->bytes);
+  qDebug("MemBucket:%p, elem size:%d", pBucket, pBucket->bytes);
   return pBucket;
 }
 
@@ -371,11 +370,11 @@ static double getIdenticalDataVal(tMemBucket* pMemBucket, int32_t slotIndex) {
 
   double finalResult = 0.0;
   if (IS_SIGNED_NUMERIC_TYPE(pMemBucket->type)) {
-    finalResult = pSlot->range.i64MinVal;
+    finalResult = (double) pSlot->range.i64MinVal;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pMemBucket->type)) {
-    finalResult = pSlot->range.u64MinVal;
+    finalResult = (double) pSlot->range.u64MinVal;
   } else {
-    finalResult = pSlot->range.dMinVal;
+    finalResult = (double) pSlot->range.dMinVal;
   }
 
   return finalResult;
@@ -402,14 +401,14 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
         double maxOfThisSlot = 0;
         double minOfNextSlot = 0;
         if (IS_SIGNED_NUMERIC_TYPE(pMemBucket->type)) {
-          maxOfThisSlot = pSlot->range.i64MaxVal;
-          minOfNextSlot = next.i64MinVal;
+          maxOfThisSlot = (double) pSlot->range.i64MaxVal;
+          minOfNextSlot = (double) next.i64MinVal;
         } else if (IS_UNSIGNED_NUMERIC_TYPE(pMemBucket->type)) {
-          maxOfThisSlot = pSlot->range.u64MaxVal;
-          minOfNextSlot = next.u64MinVal;
+          maxOfThisSlot = (double) pSlot->range.u64MaxVal;
+          minOfNextSlot = (double) next.u64MinVal;
         } else {
-          maxOfThisSlot = pSlot->range.dMaxVal;
-          minOfNextSlot = next.dMinVal;
+          maxOfThisSlot = (double) pSlot->range.dMaxVal;
+          minOfNextSlot = (double) next.dMinVal;
         }
 
         assert(minOfNextSlot > maxOfThisSlot);
@@ -441,7 +440,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
        // try next round
        pMemBucket->times += 1;
-       uDebug("MemBucket:%p, start next round data bucketing, time:%d", pMemBucket, pMemBucket->times);
+       qDebug("MemBucket:%p, start next round data bucketing, time:%d", pMemBucket, pMemBucket->times);
 
        pMemBucket->range = pSlot->range;
        pMemBucket->total = 0;
