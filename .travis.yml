@@ -68,6 +68,9 @@ matrix:
           ${TRAVIS_BUILD_DIR}/debug/build/bin/taosd -c ${TRAVIS_BUILD_DIR}/debug/test/cfg > /dev/null &
           sleep 5
           mono taosdemo -Q DEFAULT -y || travis_terminate $?
+          pkill -KILL -x taosd
+          fuser -k -n tcp 6030
+          sleep 1
 
           cd ${TRAVIS_BUILD_DIR}/tests
           ./test-all.sh smoke || travis_terminate $?
