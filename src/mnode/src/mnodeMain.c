@@ -74,13 +74,13 @@ static int32_t mnodeInitComponents() {
 int32_t mnodeStartSystem() {
   if (tsMgmtIsRunning) {
     mInfo("mnode module already started...");
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   mInfo("starting to initialize mnode ...");
   if (mkdir(tsMnodeDir, 0755) != 0 && errno != EEXIST) {
     mError("failed to init mnode dir:%s, reason:%s", tsMnodeDir, strerror(errno));
-    return -1;
+    return TSDB_CODE_MND_FAILED_TO_CREATE_DIR;
   }
 
   dnodeAllocMWritequeue();
@@ -88,7 +88,7 @@ int32_t mnodeStartSystem() {
   dnodeAllocateMPeerQueue();
 
   if (mnodeInitComponents() != 0) {
-    return -1;
+    return TSDB_CODE_MND_FAILED_TO_INIT_STEP;
   }
 
   dnodeReportStep("mnode-grant", "start to set grant infomation", 0);
@@ -99,7 +99,7 @@ int32_t mnodeStartSystem() {
 
   sdbUpdateSync(NULL);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mnodeInitSystem() {

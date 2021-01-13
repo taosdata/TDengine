@@ -123,6 +123,78 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     SHOW DATABASES;
     ```
 
+## 表管理
+- **创建数据表**
+
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]);
+    ```
+    说明：
+    1) 表的第一个字段必须是TIMESTAMP，并且系统自动将其设为主键；
+    2) 表名最大长度为192；
+    3) 表的每行长度不能超过16k个字符;
+    4) 子表名只能由字母、数字和下划线组成，且不能以数字开头
+    5) 使用数据类型binary或nchar，需指定其最长的字节数，如binary(20)，表示20字节；
+
+- **以超级表为模板创建数据表**
+
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
+    ```
+    以指定的超级表为模板，指定 tags 的值来创建数据表。
+
+- **批量创建数据表**
+
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
+    ```
+    以更快的速度批量创建大量数据表。（服务器端 2.0.14 及以上版本）
+    说明：批量建表方式要求数据表必须以超级表为模板。
+
+- **删除数据表**
+
+    ```mysql
+    DROP TABLE [IF EXISTS] tb_name;
+    ```
+
+- **显示当前数据库下的所有数据表信息**
+
+    ```mysql
+    SHOW TABLES [LIKE tb_name_wildcar];
+    ```
+
+    显示当前数据库下的所有数据表信息。
+    说明：可在like中使用通配符进行名称的匹配，这一通配符字符串最长不能超过24字节。
+    通配符匹配：1）’%’ (百分号)匹配0到任意个字符；2）’\_’下划线匹配一个字符。
+
+- **在线修改显示字符宽度**
+
+    ```mysql
+    SET MAX_BINARY_DISPLAY_WIDTH <nn>;
+    ```
+
+- **获取表的结构信息**
+
+    ```mysql
+    DESCRIBE tb_name;
+    ```
+
+- **表增加列**
+
+    ```mysql
+    ALTER TABLE tb_name ADD COLUMN field_name data_type;
+    ```
+    说明：
+    1) 列的最大个数为1024，最小个数为2；
+    2) 列名最大长度为64；
+
+- **表删除列**
+
+    ```mysql
+    ALTER TABLE tb_name DROP COLUMN field_name; 
+    ```
+    如果表是通过[超级表](../super-table/)创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构
+
 ## 超级表STable管理
 - **创建超级表**
 
@@ -135,7 +207,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     1) TAGS 列的数据类型不能是timestamp类型；
     2) TAGS 列名不能与其他列名相同；
     3) TAGS 列名不能为预留关键字；
-    4) TAGS 最多允许128个，可以0个，总长度不超过16k个字符
+    4) TAGS 最多允许128个，至少1个，总长度不超过16k个字符。
 
 - **删除超级表**
 
@@ -198,78 +270,6 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
     说明：除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于STable，不能对单个子表操作。对STable添加标签以后，依托于该STable建立的所有表将自动增加了一个标签，所有新增标签的默认值都是NULL。
 
-## 表管理
-- **创建数据表**
-
-    ```mysql
-    CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]);
-    ```
-    说明：
-    1) 表的第一个字段必须是TIMESTAMP，并且系统自动将其设为主键；
-    2) 表名最大长度为192；
-    3) 表的每行长度不能超过16k个字符;
-    4) 子表名只能由字母、数字和下划线组成，且不能以数字开头
-    5) 使用数据类型binary或nchar，需指定其最长的字节数，如binary(20)，表示20字节；
-
-- **以超级表为模板创建数据表**
-
-    ```mysql
-    CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
-    ```
-    以指定的超级表为模板，指定 tags 的值来创建数据表。
-
-- **批量创建数据表**
-
-    ```mysql
-    CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
-    ```
-    以更快的速度批量创建大量数据表。（服务器端 2.0.14 及以上版本）
-    说明：批量建表方式要求数据表必须以超级表为模板。
-
-- **删除数据表**
-
-    ```mysql
-    DROP TABLE [IF EXISTS] tb_name;
-    ```
-
-- **显示当前数据库下的所有数据表信息**
-
-    ```mysql
-    SHOW TABLES [LIKE tb_name_wildcar];
-    ```
-
-    显示当前数据库下的所有数据表信息。
-    说明：可在like中使用通配符进行名称的匹配，这一通配符字符串最长不能超过24字节。
-    通配符匹配：1）’%’ (百分号)匹配0到任意个字符；2）’_’下划线匹配一个字符。
-
-- **在线修改显示字符宽度**
-
-    ```mysql
-    SET MAX_BINARY_DISPLAY_WIDTH <nn>;
-    ```
-
-- **获取表的结构信息**
-
-    ```mysql
-    DESCRIBE tb_name;
-    ```
-
-- **表增加列**
-
-    ```mysql
-    ALTER TABLE tb_name ADD COLUMN field_name data_type;
-    ```
-    说明：
-    1) 列的最大个数为1024，最小个数为2；
-    2) 列名最大长度为64；
-
-- **表删除列**
-
-    ```mysql
-    ALTER TABLE tb_name DROP COLUMN field_name; 
-    ```
-    如果表是通过[超级表](../super-table/)创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构
-
 ## 数据写入
 
 - **插入一条记录**
@@ -280,33 +280,33 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 - **插入一条记录，数据对应到指定的列**
     ```mysql
-    INSERT INTO tb_name (field1_name, ...) VALUES(field1_value, ...)
+    INSERT INTO tb_name (field1_name, ...) VALUES (field1_value, ...)
     ```
     向表tb_name中插入一条记录，数据对应到指定的列。SQL语句中没有出现的列，数据库将自动填充为NULL。主键（时间戳）不能为NULL。
 
 - **插入多条记录**
     ```mysql
-    INSERT INTO tb_name VALUES (field1_value1, ...) (field1_value2, ...)...;
+    INSERT INTO tb_name VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
     向表tb_name中插入多条记录
 
 - **按指定的列插入多条记录**
     ```mysql
-    INSERT INTO tb_name (field1_name, ...) VALUES(field1_value1, ...) (field1_value2, ...)
+    INSERT INTO tb_name (field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
     向表tb_name中按指定的列插入多条记录
 
 - **向多个表插入多条记录**
     ```mysql
-    INSERT INTO tb1_name VALUES (field1_value1, ...)(field1_value2, ...)...
-                tb2_name VALUES (field1_value1, ...)(field1_value2, ...)...;
+    INSERT INTO tb1_name VALUES (field1_value1, ...) (field1_value2, ...) ...
+                tb2_name VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
     同时向表tb1_name和tb2_name中分别插入多条记录
 
 - **同时向多个表按列插入多条记录**
     ```mysql
-    INSERT INTO tb1_name (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...)
-                tb2_name (tb2_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...);
+    INSERT INTO tb1_name (tb1_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...
+                tb2_name (tb2_field1_name, ...) VALUES (field1_value1, ...) (field1_value2, ...) ...;
     ```
     同时向表tb1_name和tb2_name中按列分别插入多条记录 
 
@@ -335,23 +335,23 @@ SELECT select_expr [, select_expr ...]
 ```
 说明：针对 insert 类型的 SQL 语句，我们采用的流式解析策略，在发现后面的错误之前，前面正确的部分SQL仍会执行。下面的sql中，insert语句是无效的，但是d1001仍会被创建。
 ```mysql
-taos> create table meters(ts timestamp, current float, voltage int, phase float) tags(location binary(30), groupId int);
+taos> CREATE TABLE meters(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS(location BINARY(30), groupId INT);
 Query OK, 0 row(s) affected (0.008245s)
 
-taos> show stables;
+taos> SHOW STABLES;
               name              |      created_time       | columns |  tags  |   tables    |
 ============================================================================================
  meters                         | 2020-08-06 17:50:27.831 |       4 |      2 |           0 |
 Query OK, 1 row(s) in set (0.001029s)
 
-taos> show tables;
+taos> SHOW TABLES;
 Query OK, 0 row(s) in set (0.000946s)
 
-taos> insert into d1001 using meters tags('Beijing.Chaoyang', 2);
+taos> INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2);
 
 DB error: invalid SQL: keyword VALUES or FILE required
 
-taos> show tables;
+taos> SHOW TABLES;
            table_name           |      created_time       | columns |          stable_name           |
 ======================================================================================================
  d1001                          | 2020-08-06 17:52:02.097 |       4 | meters                         |
@@ -414,27 +414,41 @@ Query OK, 1 row(s) in set (0.020443s)
 在使用SQL函数来进行查询过程中，部分SQL函数支持通配符操作。其中的区别在于：
 ```count(\*)```函数只返回一列。```first```、```last```、```last_row```函数则是返回全部列。
 
-```
-taos> select count(*) from d1001;
+```mysql
+taos> SELECT COUNT(*) FROM d1001;
        count(*)        |
 ========================
                      3 |
 Query OK, 1 row(s) in set (0.001035s)
 ```
 
-```
-taos> select first(*) from d1001;
+```mysql
+taos> SELECT FIRST(*) FROM d1001;
         first(ts)        |    first(current)    | first(voltage) |     first(phase)     |
 =========================================================================================
  2018-10-03 14:38:05.000 |             10.30000 |            219 |              0.31000 |
 Query OK, 1 row(s) in set (0.000849s)
 ```
 
+##### 标签列
+
+从 2.0.14 版本开始，支持在普通表的查询中指定 _标签列_，且标签列的值会与普通列的数据一起返回。
+```mysql
+taos> SELECT location, groupid, current FROM d1001 LIMIT 2;
+            location            |   groupid   |       current        |
+======================================================================
+ Beijing.Chaoyang               |           2 |             10.30000 |
+ Beijing.Chaoyang               |           2 |             12.60000 |
+Query OK, 2 row(s) in set (0.003112s)
+```
+
+注意：普通表的通配符 * 中并不包含 _标签列_。
+
 #### 结果集列名
 
 ```SELECT```子句中，如果不指定返回结果集合的列名，结果集列名称默认使用```SELECT```子句中的表达式名称作为列名称。此外，用户可使用```AS```来重命名返回结果集合中列的名称。例如：
-```
-taos> select ts, ts as primary_key_ts from d1001;
+```mysql
+taos> SELECT ts, ts AS primary_key_ts FROM d1001;
            ts            |     primary_key_ts      |
 ====================================================
  2018-10-03 14:38:05.000 | 2018-10-03 14:38:05.000 |
@@ -451,53 +465,53 @@ Query OK, 3 row(s) in set (0.001191s)
 
 FROM关键字后面可以是若干个表（超级表）列表，也可以是子查询的结果。
 如果没有指定用户的当前数据库，可以在表名称之前使用数据库的名称来指定表所属的数据库。例如：```power.d1001``` 方式来跨库使用表。
-```
+```mysql
 SELECT * FROM power.d1001;
 ------------------------------
-use power;
+USE power;
 SELECT * FROM d1001;
 ```
 
 #### 特殊功能
 部分特殊的查询功能可以不使用FROM子句执行。获取当前所在的数据库 database() 
-```
-taos> SELECT database();
+```mysql
+taos> SELECT DATABASE();
            database()           |
 =================================
  power                          |
 Query OK, 1 row(s) in set (0.000079s)
 ```
 如果登录的时候没有指定默认数据库，且没有使用```use```命令切换数据，则返回NULL。
-```
-taos> SELECT database();
+```mysql
+taos> SELECT DATABASE();
            database()           |
 =================================
  NULL                           |
 Query OK, 1 row(s) in set (0.000184s)
 ```
 获取服务器和客户端版本号:
-```
-taos> SELECT client_version();
+```mysql
+taos> SELECT CLIENT_VERSION();
  client_version() |
 ===================
  2.0.0.0          |
 Query OK, 1 row(s) in set (0.000070s)
 
-taos> SELECT server_version();
+taos> SELECT SERVER_VERSION();
  server_version() |
 ===================
  2.0.0.0          |
 Query OK, 1 row(s) in set (0.000077s)
 ```
 服务器状态检测语句。如果服务器正常，返回一个数字（例如 1）。如果服务器异常，返回error code。该SQL语法能兼容连接池对于TDengine状态的检查及第三方工具对于数据库服务器状态的检查。并可以避免出现使用了错误的心跳检测SQL语句导致的连接池连接丢失的问题。
-```
-taos> SELECT server_status();
+```mysql
+taos> SELECT SERVER_STATUS();
  server_status() |
 ==================
                1 |
 Query OK, 1 row(s) in set (0.000074s)
 
-taos> SELECT server_status() as status;
+taos> SELECT SERVER_STATUS() AS status;
    status    |
 ==============
            1 |
@@ -510,15 +524,15 @@ Query OK, 1 row(s) in set (0.000081s)
 
 #### 小技巧
 获取一个超级表所有的子表名及相关的标签信息：
-```
+```mysql
 SELECT TBNAME, location FROM meters;
 ```
 统计超级表下辖子表数量：
-```
+```mysql
 SELECT COUNT(TBNAME) FROM meters;
 ```
 以上两个查询均只支持在Where条件子句中添加针对标签（TAGS）的过滤条件。例如：
-```
+```mysql
 taos> SELECT TBNAME, location FROM meters;
              tbname             |            location            |
 ==================================================================
@@ -528,7 +542,7 @@ taos> SELECT TBNAME, location FROM meters;
  d1001                          | Beijing.Chaoyang               |
 Query OK, 4 row(s) in set (0.000881s)
 
-taos> SELECT count(tbname) FROM meters WHERE groupId > 2;
+taos> SELECT COUNT(tbname) FROM meters WHERE groupId > 2;
      count(tbname)     |
 ========================
                      2 |
@@ -562,7 +576,7 @@ Query OK, 1 row(s) in set (0.001091s)
 - 对于下面的例子，表tb1用以下语句创建
 
     ```mysql
-    CREATE TABLE tb1 (ts timestamp, col1 int, col2 float, col3 binary(50));
+    CREATE TABLE tb1 (ts TIMESTAMP, col1 INT, col2 FLOAT, col3 BINARY(50));
     ```
 
 - 查询tb1刚过去的一个小时的所有记录
@@ -580,7 +594,7 @@ Query OK, 1 row(s) in set (0.001091s)
 - 查询col1与col2的和，并取名complex, 时间大于2018-06-01 08:00:00.000, col2大于1.2，结果输出仅仅10条记录，从第5条开始
 
     ```mysql
-    SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' and col2 > 1.2 LIMIT 10 OFFSET 5;
+    SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
     ```
 
 - 查询过去10分钟的记录，col2的值大于3.14，并且将结果输出到文件 `/home/testoutpu.csv`.
@@ -607,13 +621,13 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     示例：
     ```mysql
-    taos> SELECT COUNT(*), COUNT(VOLTAGE) FROM meters;
+    taos> SELECT COUNT(*), COUNT(voltage) FROM meters;
         count(*)        |    count(voltage)     |
     ================================================
                         9 |                     9 |
     Query OK, 1 row(s) in set (0.004475s)
 
-    taos> SELECT COUNT(*), COUNT(VOLTAGE) FROM d1001;
+    taos> SELECT COUNT(*), COUNT(voltage) FROM d1001;
         count(*)        |    count(voltage)     |
     ================================================
                         3 |                     3 |
@@ -637,7 +651,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
                 11.466666751 |             220.444444444 |               0.293333333 |
     Query OK, 1 row(s) in set (0.004135s)
 
-    taos> SELECT AVG(current), AVG(voltage), AVG(phase) from d1001;
+    taos> SELECT AVG(current), AVG(voltage), AVG(phase) FROM d1001;
         avg(current)        |       avg(voltage)        |        avg(phase)         |
     ====================================================================================
                 11.733333588 |             219.333333333 |               0.316666673 |
@@ -664,13 +678,13 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     示例：
     ```mysql
-    taos> SELECT SUM(current), SUM(voltage), SUM(phase) from meters;
+    taos> SELECT SUM(current), SUM(voltage), SUM(phase) FROM meters;
         sum(current)        |     sum(voltage)      |        sum(phase)         |
     ================================================================================
                 103.200000763 |                  1984 |               2.640000001 |
     Query OK, 1 row(s) in set (0.001702s)
 
-    taos> SELECT SUM(current), SUM(voltage), SUM(phase) from d1001;
+    taos> SELECT SUM(current), SUM(voltage), SUM(phase) FROM d1001;
         sum(current)        |     sum(voltage)      |        sum(phase)         |
     ================================================================================
                 35.200000763 |                   658 |               0.950000018 |
@@ -769,7 +783,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     功能说明：统计表/超级表中某列的值最先写入的非NULL值。
     返回结果数据类型：同应用的字段。
     应用字段：所有字段。
-    说明：1）如果要返回各个列的首个（时间戳最小）非NULL值，可以使用FIRST(*)；2) 如果结果集中的某列全部为NULL值，则该列的返回结果也是NULL；3) 如果结果集中所有列全部为NULL值，则不返回结果。
+    说明：1）如果要返回各个列的首个（时间戳最小）非NULL值，可以使用FIRST(\*)；2) 如果结果集中的某列全部为NULL值，则该列的返回结果也是NULL；3) 如果结果集中所有列全部为NULL值，则不返回结果。
 
     示例：
     ```mysql
@@ -793,7 +807,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     功能说明：统计表/超级表中某列的值最后写入的非NULL值。
     返回结果数据类型：同应用的字段。
     应用字段：所有字段。
-    说明：1）如果要返回各个列的最后（时间戳最大）一个非NULL值，可以使用LAST(*)；2）如果结果集中的某列全部为NULL值，则该列的返回结果也是NULL；如果结果集中所有列全部为NULL值，则不返回结果。
+    说明：1）如果要返回各个列的最后（时间戳最大）一个非NULL值，可以使用LAST(\*)；2）如果结果集中的某列全部为NULL值，则该列的返回结果也是NULL；如果结果集中所有列全部为NULL值，则不返回结果。
 
     示例：
     ```mysql
@@ -1020,15 +1034,15 @@ SELECT function_list FROM stb_name
 **示例:** 智能电表的建表语句如下：
 
 ```mysql
-CREATE TABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int);
+CREATE TABLE meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT);
 ```
 
 针对智能电表采集的数据，以10分钟为一个阶段，计算过去24小时的电流数据的平均值、最大值、电流的中位数、以及随着时间变化的电流走势拟合直线。如果没有计算值，用前一个非NULL值填充。
 使用的查询语句如下：
 
 ```mysql
-SELECT AVG(current),MAX(current),LEASTSQUARES(current, start_val, step_val), PERCENTILE(current, 50) FROM meters
-  WHERE TS>=NOW-1d
+SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), PERCENTILE(current, 50) FROM meters
+  WHERE ts>=NOW-1d
   INTERVAL(10m)
   FILL(PREV);
 ```

@@ -1,6 +1,6 @@
 {
   "name": "td2.0-connector",
-  "version": "2.0.4",
+  "version": "2.0.5",
   "description": "A Node.js connector for TDengine.",
   "main": "tdengine.js",
   "scripts": {

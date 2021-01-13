@@ -204,7 +204,7 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
   assert(tscGetMetaInfo(pQueryInfo, 0)->pTableMeta != NULL);
 
   const int32_t NUM_OF_DESC_TABLE_COLUMNS = 4;
-  const int32_t TYPE_COLUMN_LENGTH = 16;
+  const int32_t TYPE_COLUMN_LENGTH = 20;
   const int32_t NOTE_COLUMN_MIN_LENGTH = 8;
 
   int32_t noteFieldLen = NOTE_COLUMN_MIN_LENGTH;

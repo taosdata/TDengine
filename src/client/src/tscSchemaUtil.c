@@ -66,28 +66,22 @@ STableComInfo tscGetTableInfo(const STableMeta* pTableMeta) {
   return pTableMeta->tableInfo;
 }
 
-bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
-  if (!VALIDNUMOFCOLS(numOfCols)) {
-    return false;
-  }
-
-  /* first column must be the timestamp, which is a primary key */
-  if (pSchema[0].type != TSDB_DATA_TYPE_TIMESTAMP) {
-    return false;
-  }
-
-  /* type is valid, length is valid */
+static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen) {
   int32_t rowLen = 0;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     // 1. valid types
-    if (pSchema[i].type > TSDB_DATA_TYPE_TIMESTAMP || pSchema[i].type < TSDB_DATA_TYPE_BOOL) {
+    if (!isValidDataType(pSchema[i].type)) {
       return false;
     }
 
     // 2. valid length for each type
-    if (pSchema[i].type == TSDB_DATA_TYPE_TIMESTAMP) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY) {
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
+        return false;
+      }
+    } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+      if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
         return false;
       }
     } else {
@@ -106,8 +100,32 @@ bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
     rowLen += pSchema[i].bytes;
   }
 
-  // valid total length
-  return (rowLen <= TSDB_MAX_BYTES_PER_ROW);
+  return rowLen <= maxLen;
+}
+
+bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags) {
+  if (!VALIDNUMOFCOLS(numOfCols)) {
+    return false;
+  }
+
+  if (!VALIDNUMOFTAGS(numOfTags)) {
+    return false;
+  }
+
+  /* first column must be the timestamp, which is a primary key */
+  if (pSchema[0].type != TSDB_DATA_TYPE_TIMESTAMP) {
+    return false;
+  }
+
+  if (!doValidateSchema(pSchema, numOfCols, TSDB_MAX_BYTES_PER_ROW)) {
+    return false;
+  }
+
+  if (!doValidateSchema(&pSchema[numOfCols], numOfTags, TSDB_MAX_TAGS_LEN)) {
+    return false;
+  }
+
+  return true;
 }
 
 SSchema* tscGetTableColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {

@@ -60,11 +60,10 @@ static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int3
       pQuery->pExpr1[columnIndex].bytes * realRowId;
 }
 
-bool isNull_filter(SColumnFilterElem *pFilter, char* minval, char* maxval);
-bool notNull_filter(SColumnFilterElem *pFilter, char* minval, char* maxval);
+bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
+bool notNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
 
-__filter_func_t *getRangeFilterFuncArray(int32_t type);
-__filter_func_t *getValueFilterFuncArray(int32_t type);
+__filter_func_t getFilterOperator(int32_t lowerOptr, int32_t upperOptr);
 
 SResultRowPool* initResultRowPool(size_t size);
 SResultRow* getNewResultRow(SResultRowPool* p);

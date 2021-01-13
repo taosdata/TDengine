@@ -6,12 +6,12 @@
   "user": "root",
   "password": "taosdata",
   "databases": "db01",
-  "super_table_query":
-    {"rate":1, "concurrent":1,
+  "specified_table_query":
+    {"query_interval":1, "concurrent":1,
      "sqls": [{"sql": "select count(*) from stb01", "result": "./query_res0.txt"}]
     },
-  "sub_table_query": 
-    {"stblname": "stb01", "rate":1, "threads":1,
-		 "sqls": [{"sql": "select count(*) from xxxx", "result": "./query_res1.txt"}]
+  "super_table_query": 
+    {"stblname": "stb01", "query_interval":1, "threads":1,
+     "sqls": [{"sql": "select count(*) from xxxx", "result": "./query_res1.txt"}]
     }
 }

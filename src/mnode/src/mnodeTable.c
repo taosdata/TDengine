@@ -35,12 +35,9 @@
 #include "mnodeAcct.h"
 #include "mnodeDb.h"
 #include "mnodeDnode.h"
-#include "mnodeMnode.h"
-#include "mnodeProfile.h"
 #include "mnodeSdb.h"
 #include "mnodeShow.h"
 #include "mnodeTable.h"
-#include "mnodeUser.h"
 #include "mnodeVgroup.h"
 #include "mnodeWrite.h"
 #include "mnodeRead.h"
@@ -827,21 +824,21 @@ static int32_t mnodeProcessBatchCreateTableMsg(SMnodeMsg *pMsg) {
       SCreateTableMsg *pCreateTable = (SCreateTableMsg*) ((char*) pCreate + sizeof(SCMCreateTableMsg));
       int32_t code = mnodeValidateCreateTableMsg(pCreateTable, pMsg);
       if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_MND_TABLE_ALREADY_EXIST) {
-	++pMsg->pBatchMasterMsg->successed;
-	mnodeDestroySubMsg(pMsg);
-      }
-
-      if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-	mnodeDestroySubMsg(pMsg);
-	return code;
+        ++pMsg->pBatchMasterMsg->successed;
+        mnodeDestroySubMsg(pMsg);
+      } else if (code == TSDB_CODE_MND_ACTION_NEED_REPROCESSED) {
+        return code;
+      } else if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+        ++pMsg->pBatchMasterMsg->received;
+        mnodeDestroySubMsg(pMsg);
       }
 
       if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	  >= pMsg->pBatchMasterMsg->expected) {
-	return code;
-      } else {
-	return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, TSDB_CODE_SUCCESS);
       }
+
+      return TSDB_CODE_MND_ACTION_IN_PROGRESS;
     } else { // batch master replay, reprocess the whole batch
       assert(0);
     }
@@ -1003,7 +1000,7 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
 
   SCMCreateTableMsg *pCreate1 = pMsg->rpcMsg.pCont;
   if (pCreate1->numOfTables == 0) {
-    // todo return to error message
+    return TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG;
   }
 
   SCreateTableMsg* pCreate = (SCreateTableMsg*)((char*)pCreate1 + sizeof(SCMCreateTableMsg));
@@ -1032,16 +1029,39 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
     mError("msg:%p, app:%p table:%s, failed to create, no schema input", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
     return TSDB_CODE_MND_INVALID_TABLE_NAME;
   }
+
   memcpy(pStable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
+  if (pStable->numOfColumns > TSDB_MAX_COLUMNS || pStable->numOfTags > TSDB_MAX_TAGS) {
+    mError("msg:%p, app:%p table:%s, failed to create, too many columns", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+    return TSDB_CODE_MND_INVALID_TABLE_NAME;
+  }
+
   pStable->nextColId = 0;
+
+  // TODO extract method to valid the schema
+  int32_t schemaLen = 0;
+  int32_t tagLen = 0;
   for (int32_t col = 0; col < numOfCols; col++) {
     SSchema *tschema = pStable->schema;
     tschema[col].colId = pStable->nextColId++;
     tschema[col].bytes = htons(tschema[col].bytes);
-    
-    // todo 1. check the length of each column; 2. check the total length of all columns
-    assert(tschema[col].type >= TSDB_DATA_TYPE_BOOL && tschema[col].type <= TSDB_DATA_TYPE_NCHAR);
+
+    if (col < pStable->numOfTables) {
+      schemaLen += tschema[col].bytes;
+    } else {
+      tagLen += tschema[col].bytes;
+    }
+
+    if (!isValidDataType(tschema[col].type)) {
+      mError("msg:%p, app:%p table:%s, failed to create, invalid data type in schema", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+      return TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG;
+    }
+  }
+
+  if (schemaLen > (TSDB_MAX_BYTES_PER_ROW || tagLen > TSDB_MAX_TAGS_LEN)) {
+    mError("msg:%p, app:%p table:%s, failed to create, schema is too long", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+    return TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG;
   }
 
   pMsg->pTable = (STableObj *)pStable;
@@ -2360,6 +2380,12 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
 
 static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   STableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
+
+  if (pMsg->rpcMsg.contLen <= sizeof(*pInfo)) {
+    mError("msg:%p, app:%p table:%s, failed to auto create child table, tags not exist", pMsg, pMsg->rpcMsg.ahandle,
+           pInfo->tableId);
+    return TSDB_CODE_MND_TAG_NOT_EXIST;
+  }
 
   char* p = pInfo->tags;
   int32_t nameLen = htonl(*(int32_t*) p);

@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 3
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = m_func_db
@@ -274,7 +274,7 @@ sleep 1000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
-sleep 500
+sleep 100
 
 sql use m_func_db0
 
@@ -359,5 +359,17 @@ if $data00 != @11-01-02 18:42:42.000@ then
 endi
 
 if $data10 != @20-07-30 17:43:59.000@ then
+  return -1
+endi
+
+print =================>td-2610
+sql select stddev(k) from tm2 where ts='2020-12-29 18:46:19.109'
+if $rows != 0 then
+  print expect 0, actual:$rows
+  return -1
+endi
+
+sql select twa(k) from tm2 where ts='2020-12-29 18:46:19.109'
+if $rows != 0 then
   return -1
 endi
