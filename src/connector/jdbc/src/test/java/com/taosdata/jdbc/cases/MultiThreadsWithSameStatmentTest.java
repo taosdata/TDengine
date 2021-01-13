@@ -27,6 +27,15 @@ public class MultiThreadsWithSameStatmentTest {
                 e.printStackTrace();
             }
         }
+
+        public void release(){
+            try {
+                stmt.close();
+                conn.close();
+            } catch (SQLException e) {
+                e.printStackTrace();
+            }
+        }
     }
 
     @Before
@@ -46,8 +55,8 @@ public class MultiThreadsWithSameStatmentTest {
                     }
                     System.out.println();
                 }
-
                 resultSet.close();
+                service.release();
             } catch (SQLException e) {
                 e.printStackTrace();
             }
@@ -57,6 +66,7 @@ public class MultiThreadsWithSameStatmentTest {
             try {
                 Service service = new Service();
                 service.stmt.executeUpdate("insert into jdbctest.weather values(now,1)");
+                service.release();
             } catch (SQLException e) {
                 e.printStackTrace();
             }
@@ -76,13 +86,5 @@ public class MultiThreadsWithSameStatmentTest {
 
     @After
     public void after() {
-        try {
-            if (stmt != null)
-                stmt.close();
-            if (conn != null)
-                conn.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
     }
 }
