@@ -23,6 +23,8 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
+        self.ts = 1538548685000
+
     def run(self):
         tdSql.prepare()
 
@@ -77,7 +79,37 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
+        ## test case for https://jira.taosdata.com:18080/browse/TD-1930
+        tdSql.execute("create table tb(ts timestamp, c1 int, c2 binary(10), c3 nchar(10), c4 float, c5 bool)")
+        for i in range(10):
+            tdSql.execute("insert into tb values(%d, %d, 'binary%d', 'nchar%d', %f, %d)" % (self.ts + i, i, i, i, i + 0.1, i % 2))
+        
+        tdSql.error("select * from tb where c2 = binary2")
+        tdSql.error("select * from tb where c3 = nchar2")
 
+        tdSql.query("select * from tb where c2 = 'binary2' ")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from tb where c3 = 'nchar2' ")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from tb where c1 = '2' ")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from tb where c1 = 2 ")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from tb where c4 = '0.1' ")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from tb where c4 = 0.1 ")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from tb where c5 = true ")
+        tdSql.checkRows(5)
+
+        tdSql.query("select * from tb where c5 = 'true' ")
+        tdSql.checkRows(5)
 
     def stop(self):
         tdSql.close()
