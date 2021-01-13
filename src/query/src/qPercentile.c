@@ -119,7 +119,7 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
   // divide the value range into 1024 buckets
   uint64_t span = pBucket->range.i64MaxVal - pBucket->range.i64MinVal;
   if (span < pBucket->numOfSlots) {
-    int32_t delta = v - pBucket->range.i64MinVal;
+    int64_t delta = v - pBucket->range.i64MinVal;
     index = (delta % pBucket->numOfSlots);
   } else {
     double slotSpan = (double)span / pBucket->numOfSlots;
@@ -141,8 +141,8 @@ int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
   // divide the value range into 1024 buckets
   uint64_t span = pBucket->range.u64MaxVal - pBucket->range.u64MinVal;
   if (span < pBucket->numOfSlots) {
-    int32_t delta = v - pBucket->range.u64MinVal;
-    index = (delta % pBucket->numOfSlots);
+    int64_t delta = v - pBucket->range.u64MinVal;
+    index = (int32_t) (delta % pBucket->numOfSlots);
   } else {
     double slotSpan = (double)span / pBucket->numOfSlots;
     index = (int32_t)((v - pBucket->range.u64MinVal) / slotSpan);
