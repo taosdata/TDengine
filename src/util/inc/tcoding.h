@@ -364,6 +364,15 @@ static FORCE_INLINE void *taosDecodeString(void *buf, char **value) {
   return POINTER_SHIFT(buf, size);
 }
 
+// ------ blank
+static FORCE_INLINE int taosEncodeBlank(void **buf, int nblank) {
+  // TODO
+}
+
+static FORCE_INLINE void *taosDecodeBlank(void *buf) {
+  // TODO
+}
+
 #ifdef __cplusplus
 }
 #endif
