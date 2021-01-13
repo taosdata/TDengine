@@ -513,7 +513,7 @@ conn.close()
 - _TDengineConnection_ 类
 
   参考python中help(taos.TDengineConnection)。
-  这个类对应客户端和TDengine建立的一个连接。在客户端多线程的场景下，这个连接实例可以是每个线程申请一个（推荐方式），也可以多线程共享一个连接。
+  这个类对应客户端和TDengine建立的一个连接。在客户端多线程的场景下，推荐每个线程申请一个独立的连接实例，而不建议多线程共享一个连接。
 
 - _TDengineCursor_ 类
 
