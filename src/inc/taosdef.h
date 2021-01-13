@@ -395,6 +395,9 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 #define TSDB_MIN_DB_REPLICA_OPTION      1
 #define TSDB_MAX_DB_REPLICA_OPTION      3
 #define TSDB_DEFAULT_DB_REPLICA_OPTION  1
+
+#define TSDB_MIN_DB_QUORUM_OPTION       1
+#define TSDB_MAX_DB_QUORUM_OPTION       2
 #define TSDB_DEFAULT_DB_QUORUM_OPTION   1
 
 #define TSDB_MAX_JOIN_TABLE_NUM         5
