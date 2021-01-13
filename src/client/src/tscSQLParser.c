@@ -6094,6 +6094,7 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex) {
   }
 
   str[offset] = ']';
+  assert(offset < totalBufSize);
   tscDebug("%p select clause:%s", pSql, str);
 }
 
