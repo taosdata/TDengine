@@ -17,6 +17,7 @@ package com.taosdata.jdbc;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class TSDBStatement implements Statement {
     private TSDBJNIConnector connector = null;
@@ -66,6 +67,12 @@ public class TSDBStatement implements Statement {
 
         // TODO make sure it is not a update query
         pSql = this.connector.executeQuery(sql);
+
+        try {
+            TimeUnit.SECONDS.sleep(10);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
         long resultSetPointer = this.connector.getResultSet();
 
