@@ -20,8 +20,7 @@ public class MultiThreadsWithSameStatmentTest {
             conn = DriverManager.getConnection("jdbc:TAOS://localhost:6030/?user=root&password=taosdata");
             stmt = conn.createStatement();
             stmt.execute("create database if not exists jdbctest");
-            stmt.executeUpdate("create table jdbctest.weather (ts timestamp, f1 int)");
-
+            stmt.executeUpdate("create table if not exists jdbctest.weather (ts timestamp, f1 int)");
         } catch (ClassNotFoundException | SQLException e) {
             e.printStackTrace();
         }
