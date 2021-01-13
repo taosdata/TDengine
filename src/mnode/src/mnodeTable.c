@@ -2215,6 +2215,12 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
 static int32_t mnodeAutoCreateChildTable(SMnodeMsg *pMsg) {
   STableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
 
+  if (pMsg->rpcMsg.contLen <= sizeof(*pInfo)) {
+    mError("msg:%p, app:%p table:%s, failed to auto create child table, tags not exist", pMsg, pMsg->rpcMsg.ahandle,
+           pInfo->tableId);
+    return TSDB_CODE_MND_TAG_NOT_EXIST;
+  }
+
   char* p = pInfo->tags;
   int32_t nameLen = htonl(*(int32_t*) p);
   p += sizeof(int32_t);
