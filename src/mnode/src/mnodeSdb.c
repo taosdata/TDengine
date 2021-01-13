@@ -274,7 +274,7 @@ static int32_t sdbGetSyncVersion(int32_t vgId, uint64_t *fver, uint64_t *vver) {
 
 // failed to forward, need revert insert
 static void sdbHandleFailedConfirm(SSdbRow *pRow) {
-  SWalHead *pHead = pRow->pHead;
+  SWalHead *pHead = &pRow->pHead;
   int32_t   action = pHead->msgType % 10;
 
   sdbError("vgId:1, row:%p:%s hver:%" PRIu64 " action:%s, failed to foward since %s", pRow->pObj,
@@ -1012,7 +1012,7 @@ static void sdbFreeQueue() {
 }
 
 static int32_t sdbWriteToQueue(SSdbRow *pRow, int32_t qtype) {
-  SWalHead *pHead = pRow->pHead;
+  SWalHead *pHead = &pRow->pHead;
 
   if (pHead->len > TSDB_MAX_WAL_SIZE) {
     sdbError("vgId:1, wal len:%d exceeds limit, hver:%" PRIu64, pHead->len, pHead->version);
@@ -1051,8 +1051,8 @@ static int32_t sdbWriteFwdToQueue(int32_t vgId, void *wparam, int32_t qtype, voi
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
-  memcpy(pRow->pHead, pHead, sizeof(SWalHead) + pHead->len);
-  pRow->rowData = pRow->pHead->cont;
+  memcpy(&pRow->pHead, pHead, sizeof(SWalHead) + pHead->len);
+  pRow->rowData = pRow->pHead.cont;
 
   int32_t code = sdbWriteToQueue(pRow, qtype);
   if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) code = 0;
@@ -1073,7 +1073,7 @@ static int32_t sdbWriteRowToQueue(SSdbRow *pInputRow, int32_t action) {
   memcpy(pRow, pInputRow, sizeof(SSdbRow));
   pRow->processedCount = 1;
 
-  SWalHead *pHead = pRow->pHead;
+  SWalHead *pHead = &pRow->pHead;
   pRow->rowData = pHead->cont;
   (*pTable->fpEncode)(pRow);
 
@@ -1103,9 +1103,9 @@ static void *sdbWorkerFp(void *pWorker) {
     for (int32_t i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(tsSdbWQall, &qtype, (void **)&pRow);
       sdbTrace("vgId:1, msg:%p, row:%p hver:%" PRIu64 ", will be processed in sdb queue", pRow->pMsg, pRow->pObj,
-               pRow->pHead->version);
+               pRow->pHead.version);
 
-      pRow->code = sdbProcessWrite((qtype == TAOS_QTYPE_RPC) ? pRow : NULL, pRow->pHead, qtype, NULL);
+      pRow->code = sdbProcessWrite((qtype == TAOS_QTYPE_RPC) ? pRow : NULL, &pRow->pHead, qtype, NULL);
       if (pRow->code > 0) pRow->code = 0;
 
       sdbTrace("vgId:1, msg:%p is processed in sdb queue, code:%x", pRow->pMsg, pRow->code);
@@ -1122,7 +1122,7 @@ static void *sdbWorkerFp(void *pWorker) {
         sdbConfirmForward(1, pRow, pRow->code);
       } else {
         if (qtype == TAOS_QTYPE_FWD) {
-          syncConfirmForward(tsSdbMgmt.sync, pRow->pHead->version, pRow->code);
+          syncConfirmForward(tsSdbMgmt.sync, pRow->pHead.version, pRow->code);
         }
         sdbFreeFromQueue(pRow);
       }
