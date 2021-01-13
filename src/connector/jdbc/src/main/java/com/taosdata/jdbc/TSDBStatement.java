@@ -75,7 +75,6 @@ public class TSDBStatement implements Statement {
         }
 
         long resultSetPointer = this.connector.getResultSet();
-
         if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
             this.connector.freeResultSet(pSql);
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
