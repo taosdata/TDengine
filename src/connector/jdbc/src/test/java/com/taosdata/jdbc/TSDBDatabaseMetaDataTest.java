@@ -2,15 +2,13 @@ package com.taosdata.jdbc;
 
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.sql.DatabaseMetaData;
+import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Properties;
-
-import static org.junit.Assert.*;
 
 public class TSDBDatabaseMetaDataTest {
     private TSDBDatabaseMetaData metaData;
@@ -74,607 +72,763 @@ public class TSDBDatabaseMetaDataTest {
     }
 
     @Test
-    public void nullsAreSortedAtStart() {
+    public void nullsAreSortedAtStart() throws SQLException {
+        Assert.assertTrue(metaData.nullsAreSortedAtStart());
     }
 
     @Test
-    public void nullsAreSortedAtEnd() {
+    public void nullsAreSortedAtEnd() throws SQLException {
+        Assert.assertFalse(metaData.nullsAreSortedAtEnd());
     }
 
     @Test
-    public void getDatabaseProductName() {
+    public void getDatabaseProductName() throws SQLException {
+        Assert.assertEquals("TDengine", metaData.getDatabaseProductName());
     }
 
     @Test
-    public void getDatabaseProductVersion() {
+    public void getDatabaseProductVersion() throws SQLException {
+        Assert.assertEquals("2.0.x.x", metaData.getDatabaseProductVersion());
     }
 
     @Test
-    public void getDriverName() {
+    public void getDriverName() throws SQLException {
+        Assert.assertEquals("com.taosdata.jdbc.TSDBDriver", metaData.getDriverName());
     }
 
     @Test
-    public void getDriverVersion() {
+    public void getDriverVersion() throws SQLException {
+        Assert.assertEquals("2.0.x", metaData.getDriverVersion());
     }
 
     @Test
     public void getDriverMajorVersion() {
+        Assert.assertEquals(2, metaData.getDriverMajorVersion());
     }
 
     @Test
     public void getDriverMinorVersion() {
+        Assert.assertEquals(0, metaData.getDriverMinorVersion());
     }
 
     @Test
-    public void usesLocalFiles() {
+    public void usesLocalFiles() throws SQLException {
+        Assert.assertFalse(metaData.usesLocalFiles());
     }
 
     @Test
-    public void usesLocalFilePerTable() {
+    public void usesLocalFilePerTable() throws SQLException {
+        Assert.assertFalse(metaData.usesLocalFilePerTable());
     }
 
     @Test
-    public void supportsMixedCaseIdentifiers() {
+    public void supportsMixedCaseIdentifiers() throws SQLException {
+        Assert.assertFalse(metaData.supportsMixedCaseIdentifiers());
     }
 
     @Test
-    public void storesUpperCaseIdentifiers() {
+    public void storesUpperCaseIdentifiers() throws SQLException {
+        Assert.assertFalse(metaData.storesUpperCaseIdentifiers());
     }
 
     @Test
-    public void storesLowerCaseIdentifiers() {
+    public void storesLowerCaseIdentifiers() throws SQLException {
+        Assert.assertTrue(metaData.storesLowerCaseIdentifiers());
     }
 
     @Test
-    public void storesMixedCaseIdentifiers() {
+    public void storesMixedCaseIdentifiers() throws SQLException {
+        Assert.assertFalse(metaData.storesMixedCaseIdentifiers());
     }
 
     @Test
-    public void supportsMixedCaseQuotedIdentifiers() {
+    public void supportsMixedCaseQuotedIdentifiers() throws SQLException {
+        Assert.assertFalse(metaData.supportsMixedCaseQuotedIdentifiers());
     }
 
     @Test
-    public void storesUpperCaseQuotedIdentifiers() {
+    public void storesUpperCaseQuotedIdentifiers() throws SQLException {
+        Assert.assertFalse(metaData.storesUpperCaseQuotedIdentifiers());
     }
 
     @Test
-    public void storesLowerCaseQuotedIdentifiers() {
+    public void storesLowerCaseQuotedIdentifiers() throws SQLException {
+        Assert.assertFalse(metaData.storesLowerCaseQuotedIdentifiers());
     }
 
     @Test
-    public void storesMixedCaseQuotedIdentifiers() {
+    public void storesMixedCaseQuotedIdentifiers() throws SQLException {
+        Assert.assertFalse(metaData.storesMixedCaseQuotedIdentifiers());
     }
 
     @Test
-    public void getIdentifierQuoteString() {
+    public void getIdentifierQuoteString() throws SQLException {
+        Assert.assertEquals(" ", metaData.getIdentifierQuoteString());
     }
 
     @Test
-    public void getSQLKeywords() {
+    public void getSQLKeywords() throws SQLException {
+        Assert.assertEquals(null, metaData.getSQLKeywords());
     }
 
     @Test
-    public void getNumericFunctions() {
+    public void getNumericFunctions() throws SQLException {
+        Assert.assertEquals(null, metaData.getNumericFunctions());
     }
 
     @Test
-    public void getStringFunctions() {
+    public void getStringFunctions() throws SQLException {
+        Assert.assertEquals(null, metaData.getStringFunctions());
     }
 
     @Test
-    public void getSystemFunctions() {
+    public void getSystemFunctions() throws SQLException {
+        Assert.assertEquals(null, metaData.getSystemFunctions());
     }
 
     @Test
-    public void getTimeDateFunctions() {
+    public void getTimeDateFunctions() throws SQLException {
+        Assert.assertEquals(null, metaData.getTimeDateFunctions());
     }
 
     @Test
-    public void getSearchStringEscape() {
+    public void getSearchStringEscape() throws SQLException {
+        Assert.assertEquals(null, metaData.getSearchStringEscape());
     }
 
     @Test
-    public void getExtraNameCharacters() {
+    public void getExtraNameCharacters() throws SQLException {
+        Assert.assertEquals(null, metaData.getExtraNameCharacters());
     }
 
     @Test
-    public void supportsAlterTableWithAddColumn() {
+    public void supportsAlterTableWithAddColumn() throws SQLException {
+        Assert.assertTrue(metaData.supportsAlterTableWithAddColumn());
     }
 
     @Test
-    public void supportsAlterTableWithDropColumn() {
+    public void supportsAlterTableWithDropColumn() throws SQLException {
+        Assert.assertTrue(metaData.supportsAlterTableWithDropColumn());
     }
 
     @Test
-    public void supportsColumnAliasing() {
+    public void supportsColumnAliasing() throws SQLException {
+        Assert.assertTrue(metaData.supportsColumnAliasing());
     }
 
     @Test
-    public void nullPlusNonNullIsNull() {
+    public void nullPlusNonNullIsNull() throws SQLException {
+        Assert.assertFalse(metaData.nullPlusNonNullIsNull());
     }
 
     @Test
-    public void supportsConvert() {
+    public void supportsConvert() throws SQLException {
+        Assert.assertFalse(metaData.supportsConvert());
     }
 
     @Test
-    public void testSupportsConvert() {
+    public void testSupportsConvert() throws SQLException {
+        Assert.assertFalse(metaData.supportsConvert(1, 1));
     }
 
     @Test
-    public void supportsTableCorrelationNames() {
+    public void supportsTableCorrelationNames() throws SQLException {
+        Assert.assertFalse(metaData.supportsTableCorrelationNames());
     }
 
     @Test
-    public void supportsDifferentTableCorrelationNames() {
+    public void supportsDifferentTableCorrelationNames() throws SQLException {
+        Assert.assertFalse(metaData.supportsDifferentTableCorrelationNames());
     }
 
     @Test
-    public void supportsExpressionsInOrderBy() {
+    public void supportsExpressionsInOrderBy() throws SQLException {
+        Assert.assertFalse(metaData.supportsExpressionsInOrderBy());
     }
 
     @Test
-    public void supportsOrderByUnrelated() {
+    public void supportsOrderByUnrelated() throws SQLException {
+        Assert.assertFalse(metaData.supportsOrderByUnrelated());
     }
 
     @Test
-    public void supportsGroupBy() {
+    public void supportsGroupBy() throws SQLException {
+        Assert.assertTrue(metaData.supportsGroupBy());
     }
 
     @Test
-    public void supportsGroupByUnrelated() {
+    public void supportsGroupByUnrelated() throws SQLException {
+        Assert.assertFalse(metaData.supportsGroupByUnrelated());
     }
 
     @Test
-    public void supportsGroupByBeyondSelect() {
+    public void supportsGroupByBeyondSelect() throws SQLException {
+        Assert.assertFalse(metaData.supportsGroupByBeyondSelect());
     }
 
     @Test
-    public void supportsLikeEscapeClause() {
+    public void supportsLikeEscapeClause() throws SQLException {
+        Assert.assertFalse(metaData.supportsLikeEscapeClause());
     }
 
     @Test
-    public void supportsMultipleResultSets() {
+    public void supportsMultipleResultSets() throws SQLException {
+        Assert.assertFalse(metaData.supportsMultipleResultSets());
     }
 
     @Test
-    public void supportsMultipleTransactions() {
+    public void supportsMultipleTransactions() throws SQLException {
+        Assert.assertFalse(metaData.supportsMultipleTransactions());
     }
 
     @Test
-    public void supportsNonNullableColumns() {
+    public void supportsNonNullableColumns() throws SQLException {
+        Assert.assertFalse(metaData.supportsNonNullableColumns());
     }
 
     @Test
-    public void supportsMinimumSQLGrammar() {
+    public void supportsMinimumSQLGrammar() throws SQLException {
+        Assert.assertFalse(metaData.supportsMinimumSQLGrammar());
     }
 
     @Test
-    public void supportsCoreSQLGrammar() {
+    public void supportsCoreSQLGrammar() throws SQLException {
+        Assert.assertFalse(metaData.supportsCoreSQLGrammar());
     }
 
     @Test
-    public void supportsExtendedSQLGrammar() {
+    public void supportsExtendedSQLGrammar() throws SQLException {
+        Assert.assertFalse(metaData.supportsExtendedSQLGrammar());
     }
 
     @Test
-    public void supportsANSI92EntryLevelSQL() {
+    public void supportsANSI92EntryLevelSQL() throws SQLException {
+        Assert.assertFalse(metaData.supportsANSI92EntryLevelSQL());
     }
 
     @Test
-    public void supportsANSI92IntermediateSQL() {
+    public void supportsANSI92IntermediateSQL() throws SQLException {
+        Assert.assertFalse(metaData.supportsANSI92IntermediateSQL());
     }
 
     @Test
-    public void supportsANSI92FullSQL() {
+    public void supportsANSI92FullSQL() throws SQLException {
+        Assert.assertFalse(metaData.supportsANSI92FullSQL());
     }
 
     @Test
-    public void supportsIntegrityEnhancementFacility() {
+    public void supportsIntegrityEnhancementFacility() throws SQLException {
+        Assert.assertFalse(metaData.supportsIntegrityEnhancementFacility());
     }
 
     @Test
-    public void supportsOuterJoins() {
+    public void supportsOuterJoins() throws SQLException {
+        Assert.assertFalse(metaData.supportsOuterJoins());
     }
 
     @Test
-    public void supportsFullOuterJoins() {
+    public void supportsFullOuterJoins() throws SQLException {
+        Assert.assertFalse(metaData.supportsFullOuterJoins());
     }
 
     @Test
-    public void supportsLimitedOuterJoins() {
+    public void supportsLimitedOuterJoins() throws SQLException {
+        Assert.assertFalse(metaData.supportsLimitedOuterJoins());
     }
 
     @Test
-    public void getSchemaTerm() {
+    public void getSchemaTerm() throws SQLException {
+        Assert.assertNull(metaData.getSchemaTerm());
     }
 
     @Test
-    public void getProcedureTerm() {
+    public void getProcedureTerm() throws SQLException {
+        Assert.assertNull(metaData.getProcedureTerm());
     }
 
     @Test
-    public void getCatalogTerm() {
+    public void getCatalogTerm() throws SQLException {
+        Assert.assertEquals("database", metaData.getCatalogTerm());
     }
 
     @Test
-    public void isCatalogAtStart() {
+    public void isCatalogAtStart() throws SQLException {
+        Assert.assertTrue(metaData.isCatalogAtStart());
     }
 
     @Test
-    public void getCatalogSeparator() {
+    public void getCatalogSeparator() throws SQLException {
+        Assert.assertEquals(".", metaData.getCatalogSeparator());
     }
 
     @Test
-    public void supportsSchemasInDataManipulation() {
+    public void supportsSchemasInDataManipulation() throws SQLException {
+        Assert.assertFalse(metaData.supportsSchemasInDataManipulation());
     }
 
     @Test
-    public void supportsSchemasInProcedureCalls() {
+    public void supportsSchemasInProcedureCalls() throws SQLException {
+        Assert.assertFalse(metaData.supportsSchemasInProcedureCalls());
     }
 
     @Test
-    public void supportsSchemasInTableDefinitions() {
+    public void supportsSchemasInTableDefinitions() throws SQLException {
+        Assert.assertFalse(metaData.supportsSchemasInTableDefinitions());
     }
 
     @Test
-    public void supportsSchemasInIndexDefinitions() {
+    public void supportsSchemasInIndexDefinitions() throws SQLException {
+        Assert.assertFalse(metaData.supportsSchemasInIndexDefinitions());
     }
 
     @Test
-    public void supportsSchemasInPrivilegeDefinitions() {
+    public void supportsSchemasInPrivilegeDefinitions() throws SQLException {
+        Assert.assertFalse(metaData.supportsSchemasInPrivilegeDefinitions());
     }
 
     @Test
-    public void supportsCatalogsInDataManipulation() {
+    public void supportsCatalogsInDataManipulation() throws SQLException {
+        Assert.assertTrue(metaData.supportsCatalogsInDataManipulation());
     }
 
     @Test
-    public void supportsCatalogsInProcedureCalls() {
+    public void supportsCatalogsInProcedureCalls() throws SQLException {
+        Assert.assertFalse(metaData.supportsCatalogsInProcedureCalls());
     }
 
     @Test
-    public void supportsCatalogsInTableDefinitions() {
+    public void supportsCatalogsInTableDefinitions() throws SQLException {
+        Assert.assertFalse(metaData.supportsCatalogsInTableDefinitions());
     }
 
     @Test
-    public void supportsCatalogsInIndexDefinitions() {
+    public void supportsCatalogsInIndexDefinitions() throws SQLException {
+        Assert.assertFalse(metaData.supportsCatalogsInIndexDefinitions());
     }
 
     @Test
-    public void supportsCatalogsInPrivilegeDefinitions() {
+    public void supportsCatalogsInPrivilegeDefinitions() throws SQLException {
+        Assert.assertFalse(metaData.supportsCatalogsInPrivilegeDefinitions());
     }
 
     @Test
-    public void supportsPositionedDelete() {
+    public void supportsPositionedDelete() throws SQLException {
+        Assert.assertFalse(metaData.supportsPositionedDelete());
     }
 
     @Test
-    public void supportsPositionedUpdate() {
+    public void supportsPositionedUpdate() throws SQLException {
+        Assert.assertFalse(metaData.supportsPositionedUpdate());
     }
 
     @Test
-    public void supportsSelectForUpdate() {
+    public void supportsSelectForUpdate() throws SQLException {
+        Assert.assertFalse(metaData.supportsSelectForUpdate());
     }
 
     @Test
-    public void supportsStoredProcedures() {
+    public void supportsStoredProcedures() throws SQLException {
+        Assert.assertFalse(metaData.supportsStoredProcedures());
     }
 
     @Test
-    public void supportsSubqueriesInComparisons() {
+    public void supportsSubqueriesInComparisons() throws SQLException {
+        Assert.assertFalse(metaData.supportsSubqueriesInComparisons());
     }
 
     @Test
-    public void supportsSubqueriesInExists() {
+    public void supportsSubqueriesInExists() throws SQLException {
+        Assert.assertFalse(metaData.supportsSubqueriesInExists());
     }
 
     @Test
-    public void supportsSubqueriesInIns() {
+    public void supportsSubqueriesInIns() throws SQLException {
+        Assert.assertFalse(metaData.supportsSubqueriesInIns());
     }
 
     @Test
-    public void supportsSubqueriesInQuantifieds() {
+    public void supportsSubqueriesInQuantifieds() throws SQLException {
+        Assert.assertFalse(metaData.supportsSubqueriesInQuantifieds());
     }
 
     @Test
-    public void supportsCorrelatedSubqueries() {
+    public void supportsCorrelatedSubqueries() throws SQLException {
+        Assert.assertFalse(metaData.supportsCorrelatedSubqueries());
     }
 
     @Test
-    public void supportsUnion() {
+    public void supportsUnion() throws SQLException {
+        Assert.assertFalse(metaData.supportsUnion());
     }
 
     @Test
-    public void supportsUnionAll() {
+    public void supportsUnionAll() throws SQLException {
+        Assert.assertFalse(metaData.supportsUnionAll());
     }
 
     @Test
-    public void supportsOpenCursorsAcrossCommit() {
+    public void supportsOpenCursorsAcrossCommit() throws SQLException {
+        Assert.assertFalse(metaData.supportsOpenCursorsAcrossCommit());
     }
 
     @Test
-    public void supportsOpenCursorsAcrossRollback() {
+    public void supportsOpenCursorsAcrossRollback() throws SQLException {
+        Assert.assertFalse(metaData.supportsOpenCursorsAcrossRollback());
     }
 
     @Test
-    public void supportsOpenStatementsAcrossCommit() {
+    public void supportsOpenStatementsAcrossCommit() throws SQLException {
+        Assert.assertFalse(metaData.supportsOpenStatementsAcrossCommit());
     }
 
     @Test
-    public void supportsOpenStatementsAcrossRollback() {
+    public void supportsOpenStatementsAcrossRollback() throws SQLException {
+        Assert.assertFalse(metaData.supportsOpenStatementsAcrossRollback());
     }
 
     @Test
-    public void getMaxBinaryLiteralLength() {
+    public void getMaxBinaryLiteralLength() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxBinaryLiteralLength());
     }
 
     @Test
-    public void getMaxCharLiteralLength() {
+    public void getMaxCharLiteralLength() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxCharLiteralLength());
     }
 
     @Test
-    public void getMaxColumnNameLength() {
+    public void getMaxColumnNameLength() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxColumnNameLength());
     }
 
     @Test
-    public void getMaxColumnsInGroupBy() {
+    public void getMaxColumnsInGroupBy() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxColumnsInGroupBy());
     }
 
     @Test
-    public void getMaxColumnsInIndex() {
+    public void getMaxColumnsInIndex() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxColumnsInIndex());
     }
 
     @Test
-    public void getMaxColumnsInOrderBy() {
+    public void getMaxColumnsInOrderBy() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxColumnsInOrderBy());
     }
 
     @Test
-    public void getMaxColumnsInSelect() {
+    public void getMaxColumnsInSelect() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxColumnsInSelect());
     }
 
     @Test
-    public void getMaxColumnsInTable() {
+    public void getMaxColumnsInTable() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxColumnsInTable());
     }
 
     @Test
-    public void getMaxConnections() {
+    public void getMaxConnections() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxConnections());
     }
 
     @Test
-    public void getMaxCursorNameLength() {
+    public void getMaxCursorNameLength() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxCursorNameLength());
     }
 
     @Test
-    public void getMaxIndexLength() {
+    public void getMaxIndexLength() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxIndexLength());
     }
 
     @Test
-    public void getMaxSchemaNameLength() {
+    public void getMaxSchemaNameLength() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxSchemaNameLength());
     }
 
     @Test
-    public void getMaxProcedureNameLength() {
+    public void getMaxProcedureNameLength() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxProcedureNameLength());
     }
 
     @Test
-    public void getMaxCatalogNameLength() {
+    public void getMaxCatalogNameLength() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxCatalogNameLength());
     }
 
     @Test
-    public void getMaxRowSize() {
+    public void getMaxRowSize() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxRowSize());
     }
 
     @Test
-    public void doesMaxRowSizeIncludeBlobs() {
+    public void doesMaxRowSizeIncludeBlobs() throws SQLException {
+        Assert.assertFalse(metaData.doesMaxRowSizeIncludeBlobs());
     }
 
     @Test
-    public void getMaxStatementLength() {
+    public void getMaxStatementLength() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxStatementLength());
     }
 
     @Test
-    public void getMaxStatements() {
+    public void getMaxStatements() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxStatements());
     }
 
     @Test
-    public void getMaxTableNameLength() {
+    public void getMaxTableNameLength() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxTableNameLength());
     }
 
     @Test
-    public void getMaxTablesInSelect() {
+    public void getMaxTablesInSelect() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxTablesInSelect());
     }
 
     @Test
-    public void getMaxUserNameLength() {
+    public void getMaxUserNameLength() throws SQLException {
+        Assert.assertEquals(0, metaData.getMaxUserNameLength());
     }
 
     @Test
-    public void getDefaultTransactionIsolation() {
+    public void getDefaultTransactionIsolation() throws SQLException {
+        Assert.assertEquals(Connection.TRANSACTION_NONE, metaData.getDefaultTransactionIsolation());
     }
 
     @Test
-    public void supportsTransactions() {
+    public void supportsTransactions() throws SQLException {
+        Assert.assertFalse(metaData.supportsTransactions());
     }
 
     @Test
-    public void supportsTransactionIsolationLevel() {
+    public void supportsTransactionIsolationLevel() throws SQLException {
+        Assert.assertTrue(metaData.supportsTransactionIsolationLevel(Connection.TRANSACTION_NONE));
+        Assert.assertFalse(metaData.supportsTransactionIsolationLevel(Connection.TRANSACTION_READ_COMMITTED));
+        Assert.assertFalse(metaData.supportsTransactionIsolationLevel(Connection.TRANSACTION_READ_UNCOMMITTED));
+        Assert.assertFalse(metaData.supportsTransactionIsolationLevel(Connection.TRANSACTION_REPEATABLE_READ));
+        Assert.assertFalse(metaData.supportsTransactionIsolationLevel(Connection.TRANSACTION_SERIALIZABLE));
     }
 
     @Test
-    public void supportsDataDefinitionAndDataManipulationTransactions() {
+    public void supportsDataDefinitionAndDataManipulationTransactions() throws SQLException {
+        Assert.assertFalse(metaData.supportsDataDefinitionAndDataManipulationTransactions());
     }
 
     @Test
-    public void supportsDataManipulationTransactionsOnly() {
+    public void supportsDataManipulationTransactionsOnly() throws SQLException {
+        Assert.assertFalse(metaData.supportsDataManipulationTransactionsOnly());
     }
 
     @Test
-    public void dataDefinitionCausesTransactionCommit() {
+    public void dataDefinitionCausesTransactionCommit() throws SQLException {
+        Assert.assertFalse(metaData.dataDefinitionCausesTransactionCommit());
     }
 
     @Test
-    public void dataDefinitionIgnoredInTransactions() {
+    public void dataDefinitionIgnoredInTransactions() throws SQLException {
+        Assert.assertFalse(metaData.dataDefinitionIgnoredInTransactions());
     }
 
     @Test
-    public void getProcedures() {
+    public void getProcedures() throws SQLException {
+        Assert.assertNull(metaData.getProcedures("*", "*", "*"));
     }
 
     @Test
-    public void getProcedureColumns() {
+    public void getProcedureColumns() throws SQLException {
+        Assert.assertNull(metaData.getProcedureColumns("*", "*", "*", "*"));
     }
 
     @Test
-    public void getTables() {
+    public void getTables() throws SQLException {
+        Assert.assertNull(metaData.getTables("", "", "*", null));
     }
 
     @Test
-    public void getSchemas() {
+    public void getSchemas() throws SQLException {
+        Assert.assertNotNull(metaData.getSchemas());
     }
 
     @Test
-    public void getCatalogs() {
+    public void getCatalogs() throws SQLException {
+        Assert.assertNotNull(metaData.getCatalogs());
     }
 
     @Test
-    public void getTableTypes() {
+    public void getTableTypes() throws SQLException {
+        Assert.assertNotNull(metaData.getTableTypes());
     }
 
     @Test
-    public void getColumns() {
+    public void getColumns() throws SQLException {
+        Assert.assertNotNull(metaData.getColumns("", "", "", ""));
     }
 
     @Test
-    public void getColumnPrivileges() {
+    public void getColumnPrivileges() throws SQLException {
+        Assert.assertNotNull(metaData.getColumnPrivileges("", "", "", ""));
     }
 
     @Test
-    public void getTablePrivileges() {
+    public void getTablePrivileges() throws SQLException {
+        Assert.assertNotNull(metaData.getTablePrivileges("", "", ""));
     }
 
     @Test
-    public void getBestRowIdentifier() {
+    public void getBestRowIdentifier() throws SQLException {
+        Assert.assertNotNull(metaData.getBestRowIdentifier("", "", "", 0, false));
     }
 
     @Test
-    public void getVersionColumns() {
+    public void getVersionColumns() throws SQLException {
+        Assert.assertNotNull(metaData.getVersionColumns("", "", ""));
     }
 
     @Test
-    public void getPrimaryKeys() {
+    public void getPrimaryKeys() throws SQLException {
+        Assert.assertNotNull(metaData.getPrimaryKeys("", "", ""));
     }
 
     @Test
-    public void getImportedKeys() {
+    public void getImportedKeys() throws SQLException {
+        Assert.assertNotNull(metaData.getImportedKeys("", "", ""));
     }
 
     @Test
-    public void getExportedKeys() {
+    public void getExportedKeys() throws SQLException {
+        Assert.assertNotNull(metaData.getExportedKeys("", "", ""));
     }
 
     @Test
-    public void getCrossReference() {
+    public void getCrossReference() throws SQLException {
+        Assert.assertNotNull(metaData.getCrossReference("", "", "", "", "", ""));
     }
 
     @Test
-    public void getTypeInfo() {
+    public void getTypeInfo() throws SQLException {
+        Assert.assertNotNull(metaData.getTypeInfo());
     }
 
     @Test
-    public void getIndexInfo() {
+    public void getIndexInfo() throws SQLException {
+        Assert.assertNotNull(metaData.getIndexInfo("", "", "", false, false));
     }
 
     @Test
-    public void supportsResultSetType() {
+    public void supportsResultSetType() throws SQLException {
+        Assert.assertFalse(metaData.supportsResultSetType(0));
     }
 
     @Test
-    public void supportsResultSetConcurrency() {
+    public void supportsResultSetConcurrency() throws SQLException {
+        Assert.assertFalse(metaData.supportsResultSetConcurrency(0, 0));
     }
 
     @Test
-    public void ownUpdatesAreVisible() {
+    public void ownUpdatesAreVisible() throws SQLException {
+        Assert.assertFalse(metaData.ownUpdatesAreVisible(0));
     }
 
     @Test
-    public void ownDeletesAreVisible() {
+    public void ownDeletesAreVisible() throws SQLException {
+        Assert.assertFalse(metaData.ownDeletesAreVisible(0));
     }
 
     @Test
-    public void ownInsertsAreVisible() {
+    public void ownInsertsAreVisible() throws SQLException {
+        Assert.assertFalse(metaData.ownInsertsAreVisible(0));
     }
 
     @Test
-    public void othersUpdatesAreVisible() {
+    public void othersUpdatesAreVisible() throws SQLException {
+        Assert.assertFalse(metaData.othersUpdatesAreVisible(0));
     }
 
     @Test
-    public void othersDeletesAreVisible() {
+    public void othersDeletesAreVisible() throws SQLException {
+        Assert.assertFalse(metaData.othersDeletesAreVisible(0));
     }
 
     @Test
-    public void othersInsertsAreVisible() {
+    public void othersInsertsAreVisible() throws SQLException {
+        Assert.assertFalse(metaData.othersInsertsAreVisible(0));
     }
 
     @Test
-    public void updatesAreDetected() {
+    public void updatesAreDetected() throws SQLException {
+        Assert.assertFalse(metaData.updatesAreDetected(0));
     }
 
     @Test
-    public void deletesAreDetected() {
+    public void deletesAreDetected() throws SQLException {
+        Assert.assertFalse(metaData.deletesAreDetected(0));
     }
 
     @Test
-    public void insertsAreDetected() {
+    public void insertsAreDetected() throws SQLException {
+        Assert.assertFalse(metaData.insertsAreDetected(0));
     }
 
     @Test
-    public void supportsBatchUpdates() {
+    public void supportsBatchUpdates() throws SQLException {
+        Assert.assertFalse(metaData.supportsBatchUpdates());
     }
 
     @Test
-    public void getUDTs() {
+    public void getUDTs() throws SQLException {
+        Assert.assertNotNull(metaData.getUDTs("", "", "", null));
     }
 
     @Test
-    public void getConnection() {
+    public void getConnection() throws SQLException {
+        Assert.assertNotNull(metaData.getConnection());
     }
 
     @Test
-    public void supportsSavepoints() {
+    public void supportsSavepoints() throws SQLException {
+        Assert.assertFalse(metaData.supportsSavepoints());
     }
 
     @Test
-    public void supportsNamedParameters() {
+    public void supportsNamedParameters() throws SQLException {
+        Assert.assertFalse(metaData.supportsNamedParameters());
     }
 
     @Test
-    public void supportsMultipleOpenResults() {
+    public void supportsMultipleOpenResults() throws SQLException {
+        Assert.assertFalse(metaData.supportsMultipleOpenResults());
     }
 
     @Test
-    public void supportsGetGeneratedKeys() {
+    public void supportsGetGeneratedKeys() throws SQLException {
+        Assert.assertFalse(metaData.supportsGetGeneratedKeys());
     }
 
     @Test
-    public void getSuperTypes() {
+    public void getSuperTypes() throws SQLException {
+        Assert.assertNotNull(metaData.getSuperTypes("", "", ""));
     }
 
     @Test
-    public void getSuperTables() {
+    public void getSuperTables() throws SQLException {
+        Assert.assertNotNull(metaData.getSuperTables("", "", ""));
     }
 
     @Test
-    public void getAttributes() {
+    public void getAttributes() throws SQLException {
+        Assert.assertNotNull(metaData.getAttributes("", "", "", ""));
     }
 
     @Test
-    public void supportsResultSetHoldability() {
+    public void supportsResultSetHoldability() throws SQLException {
+        Assert.assertTrue(metaData.supportsResultSetHoldability(ResultSet.HOLD_CURSORS_OVER_COMMIT));
+        Assert.assertFalse(metaData.supportsResultSetHoldability(ResultSet.CLOSE_CURSORS_AT_COMMIT));
     }
 
     @Test
     public void getResultSetHoldability() {
+
     }
 
     @Test

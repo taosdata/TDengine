@@ -20,13 +20,11 @@ import java.util.List;
 
 public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
 
-    private String dbProductName = null;
-    private String url = null;
-    private String userName = null;
-    private Connection conn = null;
+    private String url;
+    private String userName;
+    private Connection conn;
 
-    public TSDBDatabaseMetaData(String dbProductName, String url, String userName) {
-        this.dbProductName = dbProductName;
+    public TSDBDatabaseMetaData(String url, String userName) {
         this.url = url;
         this.userName = userName;
     }
@@ -116,7 +114,9 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
         return false;
     }
 
+
     public boolean supportsMixedCaseIdentifiers() throws SQLException {
+        //像database、table这些对象的标识符，在存储时是否采用大小写混合的模式
         return false;
     }
 
@@ -125,7 +125,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public boolean storesLowerCaseIdentifiers() throws SQLException {
-        return false;
+        return true;
     }
 
     public boolean storesMixedCaseIdentifiers() throws SQLException {
@@ -133,6 +133,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public boolean supportsMixedCaseQuotedIdentifiers() throws SQLException {
+        //像database、table这些对象的标识符，在存储时是否采用大小写混合、并带引号的模式
         return false;
     }
 
@@ -193,10 +194,12 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public boolean nullPlusNonNullIsNull() throws SQLException {
+        // null + non-null != null
         return false;
     }
 
     public boolean supportsConvert() throws SQLException {
+        // 是否支持转换函数convert
         return false;
     }
 
@@ -221,7 +224,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public boolean supportsGroupBy() throws SQLException {
-        return false;
+        return true;
     }
 
     public boolean supportsGroupByUnrelated() throws SQLException {
@@ -493,7 +496,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public int getDefaultTransactionIsolation() throws SQLException {
-        return 0;
+        return Connection.TRANSACTION_NONE;
     }
 
     public boolean supportsTransactions() throws SQLException {
@@ -501,6 +504,8 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public boolean supportsTransactionIsolationLevel(int level) throws SQLException {
+        if (level == Connection.TRANSACTION_NONE)
+            return true;
         return false;
     }
 
@@ -522,28 +527,27 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
 
     public ResultSet getProcedures(String catalog, String schemaPattern, String procedureNamePattern)
             throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return null;
     }
 
     public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern,
                                          String columnNamePattern) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return null;
     }
 
-    public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types)
-            throws SQLException {
-        Statement stmt = null;
-        if (null != conn && !conn.isClosed()) {
-            stmt = conn.createStatement();
-            if (catalog == null || catalog.length() < 1) {
-                catalog = conn.getCatalog();
-            }
+    public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
+        if (conn == null || conn.isClosed()) {
+            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+        }
+
+        try (Statement stmt = conn.createStatement()) {
+            if (catalog == null || catalog.isEmpty())
+                return null;
+
             stmt.executeUpdate("use " + catalog);
             ResultSet resultSet0 = stmt.executeQuery("show tables");
             GetTablesResultSet getTablesResultSet = new GetTablesResultSet(resultSet0, catalog, schemaPattern, tableNamePattern, types);
             return getTablesResultSet;
-        } else {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         }
     }
 
@@ -552,14 +556,12 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public ResultSet getCatalogs() throws SQLException {
+        if (conn == null || conn.isClosed())
+            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
 
-        if (conn != null && !conn.isClosed()) {
-            Statement stmt = conn.createStatement();
-            ResultSet resultSet0 = stmt.executeQuery("show databases");
-            CatalogResultSet resultSet = new CatalogResultSet(resultSet0);
-            return resultSet;
-        } else {
-            return getEmptyResultSet();
+        try (Statement stmt = conn.createStatement()) {
+            ResultSet rs = stmt.executeQuery("show databases");
+            return new CatalogResultSet(rs);
         }
     }
 
@@ -567,7 +569,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
         DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
 
         // set up ColumnMetaDataList
-        List<ColumnMetaData> columnMetaDataList = new ArrayList<ColumnMetaData>(1);
+        List<ColumnMetaData> columnMetaDataList = new ArrayList<>(1);
         ColumnMetaData colMetaData = new ColumnMetaData();
         colMetaData.setColIndex(0);
         colMetaData.setColName("TABLE_TYPE");
@@ -576,7 +578,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
         columnMetaDataList.add(colMetaData);
 
         // set up rowDataList
-        List<TSDBResultSetRowData> rowDataList = new ArrayList<TSDBResultSetRowData>(2);
+        List<TSDBResultSetRowData> rowDataList = new ArrayList<>(2);
         TSDBResultSetRowData rowData = new TSDBResultSetRowData();
         rowData.setString(0, "TABLE");
         rowDataList.add(rowData);
@@ -596,11 +598,10 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
         Statement stmt = null;
         if (null != conn && !conn.isClosed()) {
             stmt = conn.createStatement();
-            if (catalog == null || catalog.length() < 1) {
-                catalog = conn.getCatalog();
-            }
-            stmt.executeUpdate("use " + catalog);
+            if (catalog == null || catalog.isEmpty())
+                return null;
 
+            stmt.executeUpdate("use " + catalog);
             DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
             // set up ColumnMetaDataList
             List<ColumnMetaData> columnMetaDataList = new ArrayList<>(24);
@@ -856,7 +857,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public Connection getConnection() throws SQLException {
-        return null;
+        return this.conn;
     }
 
     public boolean supportsSavepoints() throws SQLException {
@@ -889,11 +890,13 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public boolean supportsResultSetHoldability(int holdability) throws SQLException {
+        if (holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT)
+            return true;
         return false;
     }
 
     public int getResultSetHoldability() throws SQLException {
-        return 0;
+        return ResultSet.HOLD_CURSORS_OVER_COMMIT;
     }
 
     public int getDatabaseMajorVersion() throws SQLException {

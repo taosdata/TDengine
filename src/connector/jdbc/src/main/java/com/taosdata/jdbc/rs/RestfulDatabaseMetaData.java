@@ -8,7 +8,6 @@ import java.util.List;
 
 public class RestfulDatabaseMetaData extends AbstractDatabaseMetaData {
 
-
     private final String url;
     private final String userName;
     private final Connection connection;

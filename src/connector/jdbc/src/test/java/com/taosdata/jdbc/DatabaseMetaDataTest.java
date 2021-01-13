@@ -168,6 +168,7 @@ public class DatabaseMetaDataTest {
         try {
             databaseMetaData.getProcedures("", "", "");
         } catch (Exception e) {
+
         }
         try {
             databaseMetaData.getProcedureColumns("", "", "", "");
@@ -176,6 +177,7 @@ public class DatabaseMetaDataTest {
         try {
             databaseMetaData.getTables("", "", "", new String[]{""});
         } catch (Exception e) {
+
         }
         databaseMetaData.getSchemas();
         databaseMetaData.getCatalogs();
