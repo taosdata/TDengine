@@ -451,7 +451,7 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 #define TSDB_PORT_HTTP                  11
 #define TSDB_PORT_ARBITRATOR            12
 
-#define TSDB_MAX_WAL_SIZE    (1024*1024*2)
+#define TSDB_MAX_WAL_SIZE    (1024*1024*3)
 
 typedef enum {
   TAOS_QTYPE_RPC   = 0,
