@@ -415,7 +415,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
   
   // scan all subquery, if one sub query has only ts, ignore it
   tscDebug("%p start to launch secondary subqueries, %d out of %d needs to query", pSql, numOfSub, pSql->subState.numOfSub);
-  memset(pSql->subState.states, 0, sizeof(*pSql->subState.states) * pSql->subState.numOfSub);
+  memset(pSql->subState.states, 0, sizeof(*pSql->subState.states) * numOfSub);
 
   bool success = true;
   
