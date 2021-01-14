@@ -1264,8 +1264,6 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
         SSqlObj* pSub = pSql->pSubs[i];
         if (pSub != NULL && pSub->res.row >= pSub->res.numOfRows && pSub->res.completed) {
           pSql->subState.states[i] = 0;
-        } else {
-          pSql->subState.states[i] = 1;
         }
       }
     }
@@ -1702,13 +1700,23 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
     pSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
     (*pSql->fp)(pSql->param, pSql, 0);
   } else {
+    int fail = 0;
     for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
       SSqlObj* pSub = pSql->pSubs[i];
+      if (fail) {
+        (*pSub->fp)(pSub->param, pSub, 0);
+        continue;
+      }
+      
       if ((code = tscProcessSql(pSub)) != TSDB_CODE_SUCCESS) {
         pRes->code = code;
         (*pSub->fp)(pSub->param, pSub, 0);
-        return;
+        fail = 1;
       }
+    }
+
+    if(fail) {
+      return;
     }
 
     pSql->cmd.command = TSDB_SQL_TABLE_JOIN_RETRIEVE;
