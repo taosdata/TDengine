@@ -324,7 +324,7 @@ bool tgGetUserFromUrl(HttpContext *pContext) {
 
 bool tgGetPassFromUrl(HttpContext *pContext) {
   HttpParser *pParser = pContext->parser;
-  if (pParser->path[TG_PASS_URL_POS].pos >= TSDB_PASSWORD_LEN || pParser->path[TG_PASS_URL_POS].pos <= 0) {
+  if (pParser->path[TG_PASS_URL_POS].pos >= TSDB_KEY_LEN || pParser->path[TG_PASS_URL_POS].pos <= 0) {
     return false;
   }
 

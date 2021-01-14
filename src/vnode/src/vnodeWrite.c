@@ -233,7 +233,7 @@ static SVWriteMsg *vnodeBuildVWriteMsg(SVnodeObj *pVnode, SWalHead *pHead, int32
     pWrite->rpcMsg = *pRpcMsg;
   }
 
-  memcpy(pWrite->pHead, pHead, sizeof(SWalHead) + pHead->len);
+  memcpy(&pWrite->pHead, pHead, sizeof(SWalHead) + pHead->len);
   pWrite->pVnode = pVnode;
   pWrite->qtype = qtype;
 

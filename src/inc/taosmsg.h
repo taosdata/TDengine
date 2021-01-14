@@ -268,7 +268,7 @@ typedef struct {
 typedef struct {
   int32_t len;  // one create table message
   char    tableId[TSDB_TABLE_FNAME_LEN];
-  char    db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char    db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int8_t  igExists;
   int8_t  getMeta;
   int16_t numOfTags;
@@ -290,7 +290,7 @@ typedef struct {
 
 typedef struct {
   char    tableId[TSDB_TABLE_FNAME_LEN];
-  char    db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char    db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int16_t type; /* operation type   */
   int16_t numOfCols; /* number of schema */
   int32_t tagValLen;
@@ -322,7 +322,7 @@ typedef struct {
 } SConnectMsg;
 
 typedef struct {
-  char      acctId[TSDB_ACCT_LEN];
+  char      acctId[TSDB_ACCT_ID_LEN];
   char      serverVersion[TSDB_VERSION_LEN];
   char      clusterId[TSDB_CLUSTER_ID_LEN];
   int8_t    writeAuth;
@@ -534,7 +534,7 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  char     db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int32_t  cacheBlockSize; //MB
   int32_t  totalBlocks;
   int32_t  maxTables;
@@ -682,7 +682,7 @@ typedef struct {
 } SVnodeDesc;
 
 typedef struct {
-  char       db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char       db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   SVnodeCfg  cfg;
   SVnodeDesc nodes[TSDB_MAX_REPLICA];
 } SCreateVnodeMsg, SAlterVnodeMsg;
@@ -761,7 +761,7 @@ typedef struct {
  */
 typedef struct {
   int8_t   type;
-  char     db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   uint16_t payloadLen;
   char     payload[];
 } SShowMsg;

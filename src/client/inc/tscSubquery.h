@@ -43,9 +43,9 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql);
 
 char *getArithmeticInputSrc(void *param, const char *name, int32_t colId);
 
-void tscSpinLock(int32_t *lock);
+void tscLockByThread(int64_t *lockedBy);
 
-void tscSpinUnlock(int32_t *lock);
+void tscUnlockByThread(int64_t *lockedBy);
 
 #ifdef __cplusplus
 }

@@ -551,7 +551,6 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
   int64_t starttime = tscGetLaunchTimestamp(pStream);
   pCmd->command = TSDB_SQL_SELECT;
 
-  registerSqlObj(pSql);
   tscAddIntoStreamList(pStream);
 
   taosTmrReset(tscProcessStreamTimer, (int32_t)starttime, pStream, tscTmr, &pStream->pTimer);
@@ -610,12 +609,15 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 
   pSql->fp = tscCreateStream;
   pSql->fetchFp = tscCreateStream;
+
+  registerSqlObj(pSql);
+  
   int32_t code = tsParseSql(pSql, true);
   if (code == TSDB_CODE_SUCCESS) {
     tscCreateStream(pStream, pSql, code);
   } else if (code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     tscError("%p open stream failed, sql:%s, code:%s", pSql, sqlstr, tstrerror(pRes->code));
-    tscFreeSqlObj(pSql);
+    taosReleaseRef(tscObjRef, pSql->self);
     free(pStream);
     return NULL;
   }

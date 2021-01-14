@@ -402,8 +402,10 @@ void tscAsyncResultOnError(SSqlObj *pSql) {
 int tscSendMsgToServer(SSqlObj *pSql);
 
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
-  SSqlObj *pSql = (SSqlObj *)param;
-  if (pSql == NULL || pSql->signature != pSql) return;
+  SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)param);
+  if (pSql == NULL) return;
+
+  assert(pSql->signature == pSql && (int64_t)param == pSql->self);
 
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
@@ -428,7 +430,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       code = tscGetTableMeta(pSql, pTableMetaInfo);
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code == TSDB_CODE_SUCCESS);
 
-      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {        
+        taosReleaseRef(tscObjRef, pSql->self);
         return;
       }
 
@@ -436,6 +439,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
       // tscProcessSql can add error into async res
       tscProcessSql(pSql);
+      taosReleaseRef(tscObjRef, pSql->self);
       return;
     } else {  // continue to process normal async query
       if (pCmd->parseFinished) {
@@ -446,6 +450,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
         assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code == TSDB_CODE_SUCCESS);
         if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+          taosReleaseRef(tscObjRef, pSql->self);
           return;
         }
 
@@ -458,6 +463,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
           code = tsParseSql(pSql, true);
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+            taosReleaseRef(tscObjRef, pSql->self);
             return;
           } else if (code != TSDB_CODE_SUCCESS) {
             goto _error;
@@ -468,12 +474,14 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           tscProcessSql(pSql);
         }
 
+        taosReleaseRef(tscObjRef, pSql->self);
         return;
       } else {
         tscDebug("%p continue parse sql after get table meta", pSql);
 
         code = tsParseSql(pSql, false);
         if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+          taosReleaseRef(tscObjRef, pSql->self);
           return;
         } else if (code != TSDB_CODE_SUCCESS) {
           goto _error;
@@ -483,12 +491,14 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
           code = tscGetTableMeta(pSql, pTableMetaInfo);
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+            taosReleaseRef(tscObjRef, pSql->self);
             return;
           } else {
             assert(code == TSDB_CODE_SUCCESS);      
           }
 
           (*pSql->fp)(pSql->param, pSql, code);
+          taosReleaseRef(tscObjRef, pSql->self);
           return;
         }
 
@@ -501,6 +511,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
     code = tscGetTableMeta(pSql, pTableMetaInfo);
     if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+      taosReleaseRef(tscObjRef, pSql->self);
       return;
     } else if (code != TSDB_CODE_SUCCESS) {
       goto _error;
@@ -509,6 +520,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       code = tscGetSTableVgroupInfo(pSql, pCmd->clauseIndex);
       if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+        taosReleaseRef(tscObjRef, pSql->self);
         return;
       } else if (code != TSDB_CODE_SUCCESS) {
         goto _error;
@@ -521,10 +533,16 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     }
 
     (*pSql->fp)(pSql->param, pSql, code);
+    
+    taosReleaseRef(tscObjRef, pSql->self);
+
     return;
   }
 
   tscDoQuery(pSql);
+
+  taosReleaseRef(tscObjRef, pSql->self);
+  
   return;
 
   _error:
@@ -532,4 +550,6 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     pSql->res.code = code;
     tscAsyncResultOnError(pSql);
   }
+
+  taosReleaseRef(tscObjRef, pSql->self);
 }
