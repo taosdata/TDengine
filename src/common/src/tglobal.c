@@ -72,7 +72,6 @@ char    tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
 int32_t tsCompressMsgSize = -1;
 
 // client
-int32_t tsTableMetaKeepTimer = 7200;  // second
 int32_t tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
 int8_t  tsTscEnableRecordSql = 0;
 
@@ -637,16 +636,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
   taosInitConfigOption(cfg);
 
-  cfg.option = "tableMetaKeepTimer";
-  cfg.ptr = &tsTableMetaKeepTimer;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 1;
-  cfg.maxValue = 8640000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
-  taosInitConfigOption(cfg);
-
   cfg.option = "minSlidingTime";
   cfg.ptr = &tsMinSlidingTime;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -852,8 +841,8 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsQuorum;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MIN_DB_REPLICA_OPTION;
-  cfg.maxValue = TSDB_MAX_DB_REPLICA_OPTION;
+  cfg.minValue = TSDB_MIN_DB_QUORUM_OPTION;
+  cfg.maxValue = TSDB_MAX_DB_QUORUM_OPTION;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
