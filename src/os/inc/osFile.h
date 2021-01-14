@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include "osSocket.h"
+
 int64_t taosReadImp(int32_t fd, void *buf, int64_t count);
 int64_t taosWriteImp(int32_t fd, void *buf, int64_t count);
 int64_t taosLSeekImp(int32_t fd, int64_t offset, int32_t whence);

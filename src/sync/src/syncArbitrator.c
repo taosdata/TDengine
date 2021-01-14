@@ -183,11 +183,8 @@ static void arbSignalHandler(int32_t signum) {
   sigaction(SIGHUP, &act, NULL);
   sigaction(SIGINT, &act, NULL);
 
-#ifndef WINDOWS
-  sInfo("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
-#else
   sInfo("shut down signal is %d", signum);
-#endif
+
   // inform main thread to exit
   tsem_post(&tsArbSem);
 }
