@@ -300,8 +300,8 @@ typedef struct STscObj {
   void *             pTimer;
   char               user[TSDB_USER_LEN];
   char               pass[TSDB_KEY_LEN];
-  char               acctId[TSDB_ACCT_LEN];
-  char               db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char               acctId[TSDB_ACCT_ID_LEN];
+  char               db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   char               sversion[TSDB_VERSION_LEN];
   char               writeAuth : 1;
   char               superAuth : 1;
