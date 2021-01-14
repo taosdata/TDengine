@@ -317,7 +317,7 @@ typedef struct STscObj {
 } STscObj;
 
 typedef struct SSubqueryState {
-  int32_t  subLock;
+  pthread_mutex_t mutex;
   int8_t  *states;
   int32_t  numOfSub;            // the number of total sub-queries
   uint64_t numOfRetrievedRows;  // total number of points in this query

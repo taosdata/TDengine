@@ -441,8 +441,12 @@ static void tscFreeSubobj(SSqlObj* pSql) {
     pSql->pSubs[i] = NULL;
   }
 
+  if (pSql->subState.states) {
+    pthread_mutex_destroy(&pSql->subState.mutex);
+  }
+
   tfree(pSql->subState.states);
-  
+
   pSql->subState.numOfSub = 0;
 }
 
