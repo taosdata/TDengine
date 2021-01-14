@@ -1372,13 +1372,6 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   // retrieve actual query results from vnode during the second stage join subquery
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, code, pParentSql->res.code);
-
-    if (!(pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0))) {
-      if (atomic_sub_fetch_32(&pParentSql->subState.numOfRemain, 1) > 0) {
-        return;
-      }
-    }
-    
     quitAllSubquery(pParentSql, pSupporter);
     tscAsyncResultOnError(pParentSql);
 
@@ -1391,13 +1384,6 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
 
     tscError("%p abort query, code:%s, global code:%s", pSql, tstrerror(code), tstrerror(pParentSql->res.code));
     pParentSql->res.code = code;
-
-    if (!(pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0))) {
-      if (atomic_sub_fetch_32(&pParentSql->subState.numOfRemain, 1) > 0) {
-        return;
-      }
-    }
-
     quitAllSubquery(pParentSql, pSupporter);
     tscAsyncResultOnError(pParentSql);
 
