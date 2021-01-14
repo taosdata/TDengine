@@ -19,7 +19,7 @@ SET(TD_ACCOUNT TRUE)
 SET(TD_ADMIN TRUE)
 SET(TD_GRANT TRUE)
 SET(TD_TSDB_PLUGINS TRUE)
-SET(TD_MQTT TRUE)
+SET(TD_MQTT FALSE)
 
 SET(TD_COVER FALSE)
 SET(TD_MEM_CHECK FALSE)
@@ -31,6 +31,11 @@ SET(TD_GODLL FALSE)
 
 INCLUDE(community/cmake/input.inc)
 INCLUDE(community/cmake/platform.inc)
+
+IF (TD_WINDOWS) 
+  SET(TD_SOMODE_STATIC TRUE)
+ENDIF ()
+
 INCLUDE(community/cmake/define.inc)
 INCLUDE(community/cmake/env.inc)
 INCLUDE(community/cmake/version.inc)
