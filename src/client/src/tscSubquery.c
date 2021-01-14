@@ -415,7 +415,6 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
   
   // scan all subquery, if one sub query has only ts, ignore it
   tscDebug("%p start to launch secondary subqueries, %d out of %d needs to query", pSql, numOfSub, pSql->subState.numOfSub);
-  memset(pSql->subState.states, 0, sizeof(*pSql->subState.states) * numOfSub);
 
   bool success = true;
   
@@ -527,6 +526,8 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       }
     }
 
+    subquerySetState(pPrevSub, &pSql->subState, i, 0);
+    
     size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
     tscDebug("%p subquery:%p tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%" PRIzu ", colList:%" PRIzu ", fieldsInfo:%d, name:%s",
              pSql, pNew, 0, pTableMetaInfo->vgroupIndex, pQueryInfo->type, taosArrayGetSize(pQueryInfo->exprList),
