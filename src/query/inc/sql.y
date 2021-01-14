@@ -448,13 +448,13 @@ select(A) ::= SELECT(T) selcollist(W). {
 %destructor sclp {tSqlExprListDestroy($$);}
 sclp(A) ::= selcollist(X) COMMA.             {A = X;}
 sclp(A) ::= .                                {A = 0;}
-selcollist(A) ::= sclp(P) expr(X) as(Y).     {
-   A = tSqlExprListAppend(P, X, Y.n?&Y:0);
+selcollist(A) ::= sclp(P) distinct(Z) expr(X) as(Y).     {
+   A = tSqlExprListAppend(P, X,  Z.n? &Z:0, Y.n?&Y:0);
 }
 
 selcollist(A) ::= sclp(P) STAR. {
    tSQLExpr *pNode = tSqlExprIdValueCreate(NULL, TK_ALL);
-   A = tSqlExprListAppend(P, pNode, 0);
+   A = tSqlExprListAppend(P, pNode, 0, 0);
 }
 
 // An option "AS <id>" phrase that can follow one of the expressions that
@@ -464,6 +464,10 @@ selcollist(A) ::= sclp(P) STAR. {
 as(X) ::= AS ids(Y).    { X = Y;    }
 as(X) ::= ids(Y).       { X = Y;    }
 as(X) ::= .             { X.n = 0;  }
+
+%type distinct {SStrToken}
+distinct(X) ::= DISTINCT(Y). { X = Y;  }
+distinct(X) ::= .            { X.n = 0;}
 
 // A complete FROM clause.
 %type from {SArray*}
@@ -672,8 +676,8 @@ expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSqlExprCreate(X, (tSQLExpr*)Y,
 %type expritem {tSQLExpr*}
 %destructor expritem {tSqlExprDestroy($$);}
 
-exprlist(A) ::= exprlist(X) COMMA expritem(Y). {A = tSqlExprListAppend(X,Y,0);}
-exprlist(A) ::= expritem(X).                   {A = tSqlExprListAppend(0,X,0);}
+exprlist(A) ::= exprlist(X) COMMA expritem(Y). {A = tSqlExprListAppend(X,Y,0, 0);}
+exprlist(A) ::= expritem(X).                   {A = tSqlExprListAppend(0,X,0, 0);}
 expritem(A) ::= expr(X).                       {A = X;}
 expritem(A) ::= .                              {A = 0;}
 
