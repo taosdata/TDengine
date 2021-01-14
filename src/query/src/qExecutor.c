@@ -3207,6 +3207,10 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
   // all results in current group have been returned to client, try next group
   if (pGroupResInfo->index >= taosArrayGetSize(pGroupResInfo->pRows)) {
     // current results of group has been sent to client, try next group
+    pGroupResInfo->index = 0;
+    pGroupResInfo->rowId = 0;
+    taosArrayClear(pGroupResInfo->pRows);
+
     if (mergeGroupResult(pQInfo) != TSDB_CODE_SUCCESS) {
       return;  // failed to save data in the disk
     }
