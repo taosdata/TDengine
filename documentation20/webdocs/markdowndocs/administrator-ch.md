@@ -255,7 +255,7 @@ taos -C  或  taos --dump-config
 CREATE USER <user_name> PASS <'password'>;
 ```
 
-创建用户，并指定用户名和密码，密码需要用单引号引起来,单引号为英文半角
+创建用户，并指定用户名和密码，密码需要用单引号引起来，单引号为英文半角
 
 ```sql
 DROP USER <user_name>;
@@ -267,13 +267,15 @@ DROP USER <user_name>;
 ALTER USER <user_name> PASS <'password'>;
 ```
 
-修改用户密码, 为避免被转换为小写，密码需要用单引号引用,单引号为英文半角
+修改用户密码，为避免被转换为小写，密码需要用单引号引用，单引号为英文半角
 
 ```sql
-ALTER USER <user_name> PRIVILEGE <super|write|read>;
+ALTER USER <user_name> PRIVILEGE <write|read>;
 ```
 
-修改用户权限为：super/write/read，不需要添加单引号
+修改用户权限为：write 或 read，不需要添加单引号
+
+说明：系统内共有 super/write/read 三种权限级别，但目前不允许通过 alter 指令把 super 权限赋予用户。
 
 ```mysql
 SHOW USERS;
