@@ -178,11 +178,11 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
   获取客户端版本信息。
 
-- `TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, int port)`
+- `TAOS *taos_connect(const char *host, const char *user, const char *pass, const char *db, int port)`
 
   创建数据库连接，初始化连接上下文。其中需要用户提供的参数包含：
 
-    - ip：TDengine管理主节点的IP地址
+    - host：TDengine管理主节点的FQDN
     - user：用户名
     - pass：密码
     - db：数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库

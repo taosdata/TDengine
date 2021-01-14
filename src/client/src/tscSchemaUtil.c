@@ -66,28 +66,22 @@ STableComInfo tscGetTableInfo(const STableMeta* pTableMeta) {
   return pTableMeta->tableInfo;
 }
 
-bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
-  if (!VALIDNUMOFCOLS(numOfCols)) {
-    return false;
-  }
-
-  /* first column must be the timestamp, which is a primary key */
-  if (pSchema[0].type != TSDB_DATA_TYPE_TIMESTAMP) {
-    return false;
-  }
-
-  /* type is valid, length is valid */
+static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen) {
   int32_t rowLen = 0;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     // 1. valid types
-    if (pSchema[i].type > TSDB_DATA_TYPE_TIMESTAMP || pSchema[i].type < TSDB_DATA_TYPE_BOOL) {
+    if (!isValidDataType(pSchema[i].type)) {
       return false;
     }
 
     // 2. valid length for each type
-    if (pSchema[i].type == TSDB_DATA_TYPE_TIMESTAMP) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_BINARY) {
       if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
+        return false;
+      }
+    } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+      if (pSchema[i].bytes > TSDB_MAX_NCHAR_LEN) {
         return false;
       }
     } else {
@@ -106,8 +100,32 @@ bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
     rowLen += pSchema[i].bytes;
   }
 
-  // valid total length
-  return (rowLen <= TSDB_MAX_BYTES_PER_ROW);
+  return rowLen <= maxLen;
+}
+
+bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags) {
+  if (!VALIDNUMOFCOLS(numOfCols)) {
+    return false;
+  }
+
+  if (!VALIDNUMOFTAGS(numOfTags)) {
+    return false;
+  }
+
+  /* first column must be the timestamp, which is a primary key */
+  if (pSchema[0].type != TSDB_DATA_TYPE_TIMESTAMP) {
+    return false;
+  }
+
+  if (!doValidateSchema(pSchema, numOfCols, TSDB_MAX_BYTES_PER_ROW)) {
+    return false;
+  }
+
+  if (!doValidateSchema(&pSchema[numOfCols], numOfTags, TSDB_MAX_TAGS_LEN)) {
+    return false;
+  }
+
+  return true;
 }
 
 SSchema* tscGetTableColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
@@ -130,19 +148,8 @@ SSchema* tscGetColumnSchemaById(STableMeta* pTableMeta, int16_t colId) {
   return NULL;
 }
 
-static void tscInitCorVgroupInfo(SCorVgroupInfo *corVgroupInfo, SVgroupMsg *pVgroupMsg) {
-  corVgroupInfo->version = 0;
-  corVgroupInfo->inUse   = 0;
-  corVgroupInfo->numOfEps = pVgroupMsg->numOfEps;
-
-  for (int32_t i = 0; i < pVgroupMsg->numOfEps; i++) {
-    corVgroupInfo->epAddr[i].fqdn = strndup(pVgroupMsg->epAddr[i].fqdn, tListLen(pVgroupMsg->epAddr[0].fqdn));
-    corVgroupInfo->epAddr[i].port = pVgroupMsg->epAddr[i].port;
-  }
-}
-
-STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size) {
-  assert(pTableMetaMsg != NULL);
+STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg) {
+  assert(pTableMetaMsg != NULL && pTableMetaMsg->numOfColumns >= 2 && pTableMetaMsg->numOfTags >= 0);
   
   int32_t schemaSize = (pTableMetaMsg->numOfColumns + pTableMetaMsg->numOfTags) * sizeof(SSchema);
   STableMeta* pTableMeta = calloc(1, sizeof(STableMeta) + schemaSize);
@@ -159,11 +166,9 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
   pTableMeta->id.tid = pTableMetaMsg->tid;
   pTableMeta->id.uid = pTableMetaMsg->uid;
 
-  tscInitCorVgroupInfo(&pTableMeta->corVgroupInfo, &pTableMetaMsg->vgroup);
-
   pTableMeta->sversion = pTableMetaMsg->sversion;
   pTableMeta->tversion = pTableMetaMsg->tversion;
-  tstrncpy(pTableMeta->sTableId, pTableMetaMsg->sTableId, TSDB_TABLE_FNAME_LEN);
+  tstrncpy(pTableMeta->sTableName, pTableMetaMsg->sTableName, TSDB_TABLE_FNAME_LEN);
   
   memcpy(pTableMeta->schema, pTableMetaMsg->schema, schemaSize);
   
@@ -172,11 +177,42 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size
     pTableMeta->tableInfo.rowSize += pTableMeta->schema[i].bytes;
   }
   
-  if (size != NULL) {
-    *size = sizeof(STableMeta) + schemaSize;
-  }
-  
   return pTableMeta;
+}
+
+bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src) {
+  assert(pExisted != NULL && src != NULL);
+  if (pExisted->numOfEps != src->numOfEps) {
+    return false;
+  }
+
+  for(int32_t i = 0; i < pExisted->numOfEps; ++i) {
+    if (pExisted->ep[i].port != src->epAddr[i].port) {
+      return false;
+    }
+
+    if (strncmp(pExisted->ep[i].fqdn, src->epAddr[i].fqdn, tListLen(pExisted->ep[i].fqdn)) != 0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg) {
+  assert(pVgroupMsg != NULL);
+
+  SNewVgroupInfo info = {0};
+  info.numOfEps = pVgroupMsg->numOfEps;
+  info.vgId     = pVgroupMsg->vgId;
+  info.inUse    = 0;
+
+  for(int32_t i = 0; i < pVgroupMsg->numOfEps; ++i) {
+    tstrncpy(info.ep[i].fqdn, pVgroupMsg->epAddr[i].fqdn, TSDB_FQDN_LEN);
+    info.ep[i].port = pVgroupMsg->epAddr[i].port;
+  }
+
+  return info;
 }
 
 // todo refactor

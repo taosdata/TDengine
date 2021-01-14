@@ -30,7 +30,7 @@
 #include "tsqlfunction.h"
 
 struct SColumnFilterElem;
-typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, char* val1, char* val2);
+typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, const char* val1, const char* val2, int16_t type);
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
 typedef struct SResultRowPool {
@@ -152,7 +152,7 @@ typedef struct SQuery {
   int16_t          precision;
   int16_t          numOfOutput;
   int16_t          fillType;
-  int16_t          checkBuffer;  // check if the buffer is full during scan each block
+  int16_t          checkResultBuf;  // check if the buffer is full during scan each block
   SLimitVal        limit;
   int32_t          rowSize;
   SSqlGroupbyExpr* pGroupbyExpr;
@@ -190,7 +190,7 @@ typedef struct SQueryRuntimeEnv {
   void*                pSecQueryHandle;  // another thread for
   bool                 stableQuery;      // super table query or not
   bool                 topBotQuery;      // TODO used bitwise flag
-  bool                 groupbyNormalCol; // denote if this is a groupby normal column query
+  bool                 groupbyColumn; // denote if this is a groupby normal column query
   bool                 hasTagResults;    // if there are tag values in final result or not
   bool                 timeWindowInterpo;// if the time window start/end required interpolation
   bool                 queryWindowIdentical; // all query time windows are identical for all tables in one group
@@ -204,6 +204,8 @@ typedef struct SQueryRuntimeEnv {
   int32_t*             rowCellInfoOffset;// offset value for each row result cell info
   char**               prevRow;
   char**               nextRow;
+
+  SArithmeticSupport  *sasArray;
 } SQueryRuntimeEnv;
 
 enum {
@@ -237,6 +239,7 @@ typedef struct SQInfo {
   int32_t          dataReady;   // denote if query result is ready or not
   void*            rspContext;  // response context
   int64_t          startExecTs; // start to exec timestamp
+  char*            sql;         // query sql string
 } SQInfo;
 
 #endif  // TDENGINE_QUERYEXECUTOR_H

@@ -5,7 +5,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 200
 
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = tb_db
@@ -132,7 +132,7 @@ sleep 3000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
-sleep 500
+sleep 100
 
 sql select count(*) from t1.test where ts>10000 and ts<90000 interval(5000a)
 if $rows != 3 then
@@ -169,7 +169,7 @@ endw
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 500
+sleep 100
 sql use db;
 
 $ts = 1000
@@ -221,7 +221,7 @@ sql insert into t2 values('2020-2-2 1:1:1', 1);
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 500
+sleep 100
 
 sql use db
 sql select count(*), first(ts), last(ts) from t2 interval(1d);

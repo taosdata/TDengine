@@ -1,0 +1,17 @@
+{
+  "filetype":"query",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "databases": "db01",
+  "super_table_query":
+    {"rate":1, "concurrent":1,
+     "sqls": [{"sql": "select count(*) from stb01", "result": "./query_res0.txt"}]
+    },
+  "sub_table_query": 
+    {"stblname": "stb01", "rate":1, "threads":1,
+		 "sqls": [{"sql": "select count(*) from xxxx", "result": "./query_res1.txt"}]
+    }
+}

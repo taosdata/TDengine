@@ -268,7 +268,7 @@ typedef struct {
 typedef struct {
   int32_t len;  // one create table message
   char    tableId[TSDB_TABLE_FNAME_LEN];
-  char    db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char    db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int8_t  igExists;
   int8_t  getMeta;
   int16_t numOfTags;
@@ -290,7 +290,7 @@ typedef struct {
 
 typedef struct {
   char    tableId[TSDB_TABLE_FNAME_LEN];
-  char    db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char    db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int16_t type; /* operation type   */
   int16_t numOfCols; /* number of schema */
   int32_t tagValLen;
@@ -322,7 +322,7 @@ typedef struct {
 } SConnectMsg;
 
 typedef struct {
-  char      acctId[TSDB_ACCT_LEN];
+  char      acctId[TSDB_ACCT_ID_LEN];
   char      serverVersion[TSDB_VERSION_LEN];
   char      clusterId[TSDB_CLUSTER_ID_LEN];
   int8_t    writeAuth;
@@ -476,6 +476,7 @@ typedef struct {
   int16_t     numOfCols;        // the number of columns will be load from vnode
   SInterval   interval;
   uint16_t    tagCondLen;       // tag length in current query
+  uint32_t    tbnameCondLen;    // table name filter condition string length
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
@@ -494,6 +495,7 @@ typedef struct {
   int32_t     tsNumOfBlocks;    // ts comp block numbers
   int32_t     tsOrder;          // ts comp block order
   int32_t     numOfTags;        // number of tags columns involved
+  int32_t     sqlstrLen;        // sql query string
   SColumnInfo colList[];
 } SQueryTableMsg;
 
@@ -532,7 +534,7 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  char     db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int32_t  cacheBlockSize; //MB
   int32_t  totalBlocks;
   int32_t  maxTables;
@@ -680,7 +682,7 @@ typedef struct {
 } SVnodeDesc;
 
 typedef struct {
-  char       db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char       db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   SVnodeCfg  cfg;
   SVnodeDesc nodes[TSDB_MAX_REPLICA];
 } SCreateVnodeMsg, SAlterVnodeMsg;
@@ -725,7 +727,6 @@ typedef struct {
 typedef struct STableMetaMsg {
   int32_t       contLen;
   char          tableId[TSDB_TABLE_FNAME_LEN];   // table id
-  char          sTableId[TSDB_TABLE_FNAME_LEN];
   uint8_t       numOfTags;
   uint8_t       precision;
   uint8_t       tableType;
@@ -735,6 +736,9 @@ typedef struct STableMetaMsg {
   int32_t       tid;
   uint64_t      uid;
   SVgroupMsg    vgroup;
+
+  char          sTableName[TSDB_TABLE_FNAME_LEN];
+  uint64_t      suid;
   SSchema       schema[];
 } STableMetaMsg;
 
@@ -757,7 +761,7 @@ typedef struct {
  */
 typedef struct {
   int8_t   type;
-  char     db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   uint16_t payloadLen;
   char     payload[];
 } SShowMsg;

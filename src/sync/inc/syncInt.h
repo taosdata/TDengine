@@ -87,6 +87,7 @@ typedef struct SsyncPeer {
   int32_t  numOfRetrieves;  // number of retrieves tried
   int32_t  fileChanged;     // a flag to indicate file is changed during retrieving process
   int32_t  refCount;
+  int8_t   isArb;
   int64_t  rid;
   void *   timer;
   void *   pConn;

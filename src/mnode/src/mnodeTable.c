@@ -26,6 +26,7 @@
 #include "tcompare.h"
 #include "tdataformat.h"
 #include "tgrant.h"
+#include "tqueue.h"
 #include "hash.h"
 #include "mnode.h"
 #include "dnode.h"
@@ -34,12 +35,9 @@
 #include "mnodeAcct.h"
 #include "mnodeDb.h"
 #include "mnodeDnode.h"
-#include "mnodeMnode.h"
-#include "mnodeProfile.h"
 #include "mnodeSdb.h"
 #include "mnodeShow.h"
 #include "mnodeTable.h"
-#include "mnodeUser.h"
 #include "mnodeVgroup.h"
 #include "mnodeWrite.h"
 #include "mnodeRead.h"
@@ -720,6 +718,133 @@ static void mnodeExtractTableName(char* tableId, char* name) {
   }
 }
 
+static SMnodeMsg *mnodeCreateSubMsg(SMnodeMsg *pBatchMasterMsg, int32_t contSize) {
+  SMnodeMsg *pSubMsg = taosAllocateQitem(sizeof(*pBatchMasterMsg) + contSize);
+  *pSubMsg = *pBatchMasterMsg;
+
+  //pSubMsg->pCont = (char *) pSubMsg + sizeof(SMnodeMsg);
+  pSubMsg->rpcMsg.pCont = pSubMsg->pCont;
+  pSubMsg->successed = 0;
+  pSubMsg->expected = 0;
+  SCMCreateTableMsg *pCM = pSubMsg->rpcMsg.pCont;
+  pCM->numOfTables = htonl(1);
+  pCM->contLen = htonl(contSize);
+
+  return pSubMsg;
+}
+
+void mnodeDestroySubMsg(SMnodeMsg *pSubMsg) {
+  if (pSubMsg) {
+    // pUser is retained in batch master msg
+    if (pSubMsg->pDb) mnodeDecDbRef(pSubMsg->pDb);
+    if (pSubMsg->pVgroup) mnodeDecVgroupRef(pSubMsg->pVgroup);
+    if (pSubMsg->pTable) mnodeDecTableRef(pSubMsg->pTable);
+    if (pSubMsg->pSTable) mnodeDecTableRef(pSubMsg->pSTable);
+    if (pSubMsg->pAcct) mnodeDecAcctRef(pSubMsg->pAcct);
+    if (pSubMsg->pDnode) mnodeDecDnodeRef(pSubMsg->pDnode);
+
+    taosFreeQitem(pSubMsg);
+  }
+}
+
+static int32_t mnodeValidateCreateTableMsg(SCreateTableMsg *pCreateTable, SMnodeMsg *pMsg) {
+  if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pCreateTable->db);
+  if (pMsg->pDb == NULL) {
+    mError("msg:%p, app:%p table:%s, failed to create, db not selected", pMsg, pMsg->rpcMsg.ahandle, pCreateTable->tableId);
+    return TSDB_CODE_MND_DB_NOT_SELECTED;
+  }
+
+  if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pMsg->pDb->name, pMsg->pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  }
+
+  if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pCreateTable->tableId);
+  if (pMsg->pTable != NULL && pMsg->retry == 0) {
+    if (pCreateTable->getMeta) {
+      mDebug("msg:%p, app:%p table:%s, continue to get meta", pMsg, pMsg->rpcMsg.ahandle, pCreateTable->tableId);
+      return mnodeGetChildTableMeta(pMsg);
+    } else if (pCreateTable->igExists) {
+      mDebug("msg:%p, app:%p table:%s, is already exist", pMsg, pMsg->rpcMsg.ahandle, pCreateTable->tableId);
+      return TSDB_CODE_SUCCESS;
+    } else {
+      mError("msg:%p, app:%p table:%s, failed to create, table already exist", pMsg, pMsg->rpcMsg.ahandle,
+             pCreateTable->tableId);
+      return TSDB_CODE_MND_TABLE_ALREADY_EXIST;
+    }
+  }
+
+  if (pCreateTable->numOfTags != 0) {
+    mDebug("msg:%p, app:%p table:%s, create stable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
+           pCreateTable->tableId, pMsg->rpcMsg.handle);
+    return mnodeProcessCreateSuperTableMsg(pMsg);
+  } else {
+    mDebug("msg:%p, app:%p table:%s, create ctable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
+           pCreateTable->tableId, pMsg->rpcMsg.handle);
+    return mnodeProcessCreateChildTableMsg(pMsg);
+  }
+}
+
+static int32_t mnodeProcessBatchCreateTableMsg(SMnodeMsg *pMsg) {
+  if (pMsg->pBatchMasterMsg == NULL) { // batch master first round
+    pMsg->pBatchMasterMsg = pMsg;
+
+    SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
+    int32_t numOfTables = htonl(pCreate->numOfTables);
+    int32_t contentLen = htonl(pCreate->contLen);
+    pMsg->expected = numOfTables;
+
+    int32_t code = TSDB_CODE_SUCCESS;
+    SCreateTableMsg *pCreateTable = (SCreateTableMsg*) ((char*) pCreate + sizeof(SCMCreateTableMsg));
+    for (SCreateTableMsg *p = pCreateTable; p < (SCreateTableMsg *) ((char *) pCreate + contentLen); p = (SCreateTableMsg *) ((char *) p + htonl(p->len))) {
+      SMnodeMsg *pSubMsg = mnodeCreateSubMsg(pMsg, sizeof(SCMCreateTableMsg) + htonl(p->len));
+      memcpy(pSubMsg->pCont + sizeof(SCMCreateTableMsg), p, htonl(p->len));
+      code = mnodeValidateCreateTableMsg(p, pSubMsg);
+
+      if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_MND_TABLE_ALREADY_EXIST) {
+	++pSubMsg->pBatchMasterMsg->successed;
+	mnodeDestroySubMsg(pSubMsg);
+	continue;
+      }
+
+      if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+	mnodeDestroySubMsg(pSubMsg);
+	return code;
+      }
+    }
+
+    if (pMsg->successed >= pMsg->expected) {
+      return code;
+    } else {
+      return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    }
+  } else {
+    if (pMsg->pBatchMasterMsg != pMsg) { // batch sub replay
+      SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
+      SCreateTableMsg *pCreateTable = (SCreateTableMsg*) ((char*) pCreate + sizeof(SCMCreateTableMsg));
+      int32_t code = mnodeValidateCreateTableMsg(pCreateTable, pMsg);
+      if (code == TSDB_CODE_SUCCESS || code == TSDB_CODE_MND_TABLE_ALREADY_EXIST) {
+        ++pMsg->pBatchMasterMsg->successed;
+        mnodeDestroySubMsg(pMsg);
+      } else if (code == TSDB_CODE_MND_ACTION_NEED_REPROCESSED) {
+        return code;
+      } else if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+        ++pMsg->pBatchMasterMsg->received;
+        mnodeDestroySubMsg(pMsg);
+      }
+
+      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
+	  >= pMsg->pBatchMasterMsg->expected) {
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, TSDB_CODE_SUCCESS);
+      }
+
+      return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    } else { // batch master replay, reprocess the whole batch
+      assert(0);
+    }
+  }
+}
+
 static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
   SCMCreateTableMsg *pCreate = pMsg->rpcMsg.pCont;
 
@@ -727,6 +852,11 @@ static int32_t mnodeProcessCreateTableMsg(SMnodeMsg *pMsg) {
   int32_t contentLen = htonl(pCreate->contLen);
   if (numOfTables == 0 || contentLen == 0) {
     // todo return error
+  }
+
+  // batch master msg first round or reprocessing and batch sub msg reprocessing
+  if (numOfTables > 1 || pMsg->pBatchMasterMsg != NULL) {
+    return mnodeProcessBatchCreateTableMsg(pMsg);
   }
 
   SCreateTableMsg *p = (SCreateTableMsg*)((char*) pCreate + sizeof(SCMCreateTableMsg));
@@ -870,7 +1000,7 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
 
   SCMCreateTableMsg *pCreate1 = pMsg->rpcMsg.pCont;
   if (pCreate1->numOfTables == 0) {
-    // todo return to error message
+    return TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG;
   }
 
   SCreateTableMsg* pCreate = (SCreateTableMsg*)((char*)pCreate1 + sizeof(SCMCreateTableMsg));
@@ -899,16 +1029,39 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
     mError("msg:%p, app:%p table:%s, failed to create, no schema input", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
     return TSDB_CODE_MND_INVALID_TABLE_NAME;
   }
+
   memcpy(pStable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
 
+  if (pStable->numOfColumns > TSDB_MAX_COLUMNS || pStable->numOfTags > TSDB_MAX_TAGS) {
+    mError("msg:%p, app:%p table:%s, failed to create, too many columns", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+    return TSDB_CODE_MND_INVALID_TABLE_NAME;
+  }
+
   pStable->nextColId = 0;
+
+  // TODO extract method to valid the schema
+  int32_t schemaLen = 0;
+  int32_t tagLen = 0;
   for (int32_t col = 0; col < numOfCols; col++) {
     SSchema *tschema = pStable->schema;
     tschema[col].colId = pStable->nextColId++;
     tschema[col].bytes = htons(tschema[col].bytes);
-    
-    // todo 1. check the length of each column; 2. check the total length of all columns
-    assert(tschema[col].type >= TSDB_DATA_TYPE_BOOL && tschema[col].type <= TSDB_DATA_TYPE_NCHAR);
+
+    if (col < pStable->numOfTables) {
+      schemaLen += tschema[col].bytes;
+    } else {
+      tagLen += tschema[col].bytes;
+    }
+
+    if (!isValidDataType(tschema[col].type)) {
+      mError("msg:%p, app:%p table:%s, failed to create, invalid data type in schema", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+      return TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG;
+    }
+  }
+
+  if (schemaLen > (TSDB_MAX_BYTES_PER_ROW || tagLen > TSDB_MAX_TAGS_LEN)) {
+    mError("msg:%p, app:%p table:%s, failed to create, schema is too long", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableId);
+    return TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG;
   }
 
   pMsg->pTable = (STableObj *)pStable;
@@ -1737,6 +1890,18 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
       mDebug("msg:%p, app:%p table:%s, created in dnode, thandle:%p", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId,
              pMsg->rpcMsg.handle);
 
+      if (pMsg->pBatchMasterMsg) {
+	++pMsg->pBatchMasterMsg->successed;
+	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
+	    >= pMsg->pBatchMasterMsg->expected) {
+	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
+	}
+
+	mnodeDestroySubMsg(pMsg);
+
+	return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+      }
+
       dnodeSendRpcMWriteRsp(pMsg, TSDB_CODE_SUCCESS);
     }
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -2171,11 +2336,12 @@ static int32_t mnodeDoGetChildTableMeta(SMnodeMsg *pMsg, STableMetaMsg *pMeta) {
   pMeta->precision = pDb->cfg.precision;
   pMeta->tableType = pTable->info.type;
   tstrncpy(pMeta->tableId, pTable->info.tableId, TSDB_TABLE_FNAME_LEN);
-  if (pTable->superTable != NULL) {
-    tstrncpy(pMeta->sTableId, pTable->superTable->info.tableId, TSDB_TABLE_FNAME_LEN);
-  }
 
-  if (pTable->info.type == TSDB_CHILD_TABLE && pTable->superTable != NULL) {
+  if (pTable->info.type == TSDB_CHILD_TABLE) {
+    assert(pTable->superTable != NULL);
+    tstrncpy(pMeta->sTableName, pTable->superTable->info.tableId, TSDB_TABLE_FNAME_LEN);
+
+    pMeta->suid         = pTable->superTable->uid;
     pMeta->sversion     = htons(pTable->superTable->sversion);
     pMeta->tversion     = htons(pTable->superTable->tversion);
     pMeta->numOfTags    = (int8_t)pTable->superTable->numOfTags;
@@ -2483,6 +2649,19 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
     mnodeSendDropChildTableMsg(pMsg, false);
     rpcMsg->code = TSDB_CODE_SUCCESS;
+
+    if (pMsg->pBatchMasterMsg) {
+      ++pMsg->pBatchMasterMsg->successed;
+      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
+	  >= pMsg->pBatchMasterMsg->expected) {
+	dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, rpcMsg->code);
+      }
+
+      mnodeDestroySubMsg(pMsg);
+
+      return;
+    }
+
     dnodeSendRpcMWriteRsp(pMsg, rpcMsg->code);
     return;
   }
@@ -2500,6 +2679,19 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
     if (code != TSDB_CODE_SUCCESS && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       pMsg->pTable = NULL;
       mnodeDestroyChildTable(pTable);
+
+      if (pMsg->pBatchMasterMsg) {
+	++pMsg->pBatchMasterMsg->received;
+	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
+	    >= pMsg->pBatchMasterMsg->expected) {
+	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
+	}
+
+	mnodeDestroySubMsg(pMsg);
+
+	return;
+      }
+
       dnodeSendRpcMWriteRsp(pMsg, code);
     }
   } else {
@@ -2525,6 +2717,19 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
         //Avoid retry again in client
         rpcMsg->code = TSDB_CODE_MND_VGROUP_NOT_READY;
       }
+
+      if (pMsg->pBatchMasterMsg) {
+	++pMsg->pBatchMasterMsg->received;
+	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
+	    >= pMsg->pBatchMasterMsg->expected) {
+	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, rpcMsg->code);
+	}
+
+	mnodeDestroySubMsg(pMsg);
+
+	return;
+      }
+
       dnodeSendRpcMWriteRsp(pMsg, rpcMsg->code);
     }
   }

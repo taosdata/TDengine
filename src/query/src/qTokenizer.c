@@ -129,6 +129,7 @@ static SKeyword keywordTable[] = {
     {"PRECISION",    TK_PRECISION},
     {"LP",           TK_LP},
     {"RP",           TK_RP},
+    {"UNSIGNED",     TK_UNSIGNED},
     {"TAGS",         TK_TAGS},
     {"USING",        TK_USING},
     {"AS",           TK_AS},

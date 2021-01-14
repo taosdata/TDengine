@@ -486,7 +486,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     start = (delta / pInterval->sliding + factor) * pInterval->sliding;
 
     if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
-      /*
+     /*
       * here we revised the start time of day according to the local time zone,
       * but in case of DST, the start time of one day need to be dynamically decided.
       */
@@ -501,9 +501,24 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
       start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
     }
 
-    int64_t end = start + pInterval->interval - 1;
-    if (end < t) {
-      start += pInterval->sliding;
+    int64_t end = 0;
+
+    // not enough time range
+    if (INT64_MAX - start > pInterval->interval - 1) {
+      end = start + pInterval->interval - 1;
+
+      while(end < t && ((start + pInterval->sliding) <= INT64_MAX)) { // move forward to the correct time window
+        start += pInterval->sliding;
+
+        if (INT64_MAX - start > pInterval->interval - 1) {
+          end = start + pInterval->interval - 1;
+        } else {
+          end = INT64_MAX;
+          break;
+        }
+      }
+    } else {
+      end = INT64_MAX;
     }
   }
 

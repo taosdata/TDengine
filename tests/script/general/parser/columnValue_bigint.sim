@@ -1,4 +1,4 @@
-sleep 500
+sleep 100
 sql connect
 sql create database if not exists db
 sql use db
@@ -374,9 +374,9 @@ endi
 
 ## case 04: illegal input
 ################## when overflow, auto set max
-sql       create table st_bigint_e0   using mt_bigint tags (9223372036854775808)
+sql_error create table st_bigint_e0   using mt_bigint tags (9223372036854775808)
 sql_error create table st_bigint_e0_1 using mt_bigint tags (-9223372036854775808)
-sql       create table st_bigint_e0_2 using mt_bigint tags (92233720368547758080)
+sql_error create table st_bigint_e0_2 using mt_bigint tags (92233720368547758080)
 sql_error create table st_bigint_e0_3 using mt_bigint tags (-9223372036854775809)
 #sql_error create table st_bigint_e0 using mt_bigint tags (12.80)   truncate integer part
 #sql_error create table st_bigint_e0 using mt_bigint tags (-11.80)

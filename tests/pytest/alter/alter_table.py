@@ -105,11 +105,11 @@ class TDTestCase:
         # Create db
         tdSql.execute("drop database if exists %s" % (db))
         tdSql.execute("reset query cache")
-        tdSql.execute("create database %s maxrows 200 maxtables 4" % (db))
+        tdSql.execute("create database %s maxrows 200" % (db))
         tdSql.execute("use %s" % (db))
 
         # Create a table with one colunm of int type and insert 300 rows
-        tdLog.info("Create table tb")
+        tdLog.info("create table tb")
         tdSql.execute("create table tb (ts timestamp, c1 int)")
         tdLog.info("Insert %d rows into tb" % (self.rowNum))
         for k in range(1, self.rowNum + 1):
@@ -119,20 +119,22 @@ class TDTestCase:
         # Alter tb and add a column of smallint type, then query tb to see if
         # all added column are NULL
         self.addColumnAndCount()
-        tdDnodes.stop(1)
-        time.sleep(5)
-        tdDnodes.start(1)
-        time.sleep(5)
+        tdDnodes.stop(1)        
+        tdDnodes.start(1)        
         tdSql.query(self.sqlHead + self.sqlTail)
-        for i in range(2, len(self.types) + 2):
-            tdSql.checkData(0, i, self.rowNum * (len(self.types) + 2 - i))
+        size = len(self.types) + 2
+        for i in range(2, size):             
+            tdSql.checkData(0, i, self.rowNum * (size - i))
 
-        self.dropColumnAndCount()
+        tdSql.execute("create table st(ts timestamp, c1 int) tags(t1 float)")
+        tdSql.execute("create table t0 using st tags(null)")
+        tdSql.execute("alter table t0 set tag t1=2.1")
 
+        tdSql.query("show tables")
+        tdSql.checkRows(2)
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
 
-
-#tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

@@ -1,0 +1,32 @@
+system sh/stop_dnodes.sh
+system sh/mv_old_data.sh
+
+print ============== deploy
+
+system sh/exec.sh -n dnode1 -s start 
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start 
+
+print  =============== step1
+
+sql use test
+sql select * from m1
+
+print $rows points data are retrieved
+if $rows != 7 then 
+  return -1
+endi
+
+print =============== step 2
+
+sql select * from t1
+
+print $rows points data are retrieved
+if $rows != 7 then 
+  return -1
+endi
+
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT

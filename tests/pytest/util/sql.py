@@ -16,7 +16,10 @@ import os
 import time
 import datetime
 import inspect
+import psutil
+import shutil
 from util.log import *
+
 
 
 class TDSql:
@@ -183,6 +186,50 @@ class TDSql:
             tdLog.exit("%s(%d) failed: sql:%s, affectedRows:%d != expect:%d" % args)
 
         tdLog.info("sql:%s, affectedRows:%d == expect:%d" % (self.sql, self.affectedRows, expectAffectedRows))
+    
+    def taosdStatus(self, state):
+        tdLog.sleep(5)
+        pstate = 0
+        for i in range(30):
+            pstate = 0
+            pl = psutil.pids()
+            for pid in pl:
+                if psutil.Process(pid).name == 'taosd':
+                    pstate = 1
+                    break
+            if pstate:
+                tdLog.sleep(5)
+                continue
+            pstate = 0
+            break
+            
+        args=(pstate,state)
+        if pstate == state:
+            tdLog.info("taosd state is %d == expect:%d" %args)
+        else:
+            tdLog.exit("taosd state is %d != expect:%d" %args)
+        pass
 
-
+    def haveFile(self, dir, state):
+        if os.path.exists(dir) and os.path.isdir(dir):
+            if not os.listdir(dir):
+                if state :
+                    tdLog.exit("dir: %s is empty, expect: not empty" %dir)
+                else:
+                    tdLog.info("dir: %s is empty, expect: empty" %dir)
+            else:  
+                if state :
+                    tdLog.info("dir: %s is empty, expect: not empty" %dir)
+                else:
+                    tdLog.exit("dir: %s is empty, expect: empty" %dir)  
+        else:
+            tdLog.exit("dir: %s doesn't exist" %dir)
+    def createDir(self, dir):
+        if os.path.exists(dir):
+            shutil.rmtree(dir)
+            tdLog.info("dir: %s is removed" %dir)
+        os.makedirs( dir, 755 )
+        tdLog.info("dir: %s is created" %dir)
+        pass
+        
 tdSql = TDSql()

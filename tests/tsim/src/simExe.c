@@ -292,6 +292,9 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   if (pthread_create(&newScript->bgPid, NULL, simExecuteScript, (void *)newScript) != 0) {
     sprintf(script->error, "lineNum:%d. create background thread failed", script->lines[script->linePos].lineNum);
     return false;
+  } else {
+    simDebug("script:%s, background thread:0x%08" PRIx64 " is created", newScript->fileName,
+             taosGetPthreadId(newScript->bgPid));
   }
 
   script->linePos++;
@@ -448,7 +451,6 @@ void simCloseNativeConnect(SScript *script) {
 
   simDebug("script:%s, taos:%p closed", script->fileName, script->taos);
   taos_close(script->taos);
-  taosMsleep(1200);
 
   script->taos = NULL;
 }
@@ -744,14 +746,26 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
             case TSDB_DATA_TYPE_TINYINT:
               sprintf(value, "%d", *((int8_t *)row[i]));
               break;
+            case TSDB_DATA_TYPE_UTINYINT:
+              sprintf(value, "%u", *((uint8_t*)row[i]));
+              break;
             case TSDB_DATA_TYPE_SMALLINT:
               sprintf(value, "%d", *((int16_t *)row[i]));
+              break;
+            case TSDB_DATA_TYPE_USMALLINT:
+              sprintf(value, "%u", *((uint16_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_INT:
               sprintf(value, "%d", *((int32_t *)row[i]));
               break;
+            case TSDB_DATA_TYPE_UINT:
+              sprintf(value, "%u", *((uint32_t *)row[i]));
+              break;
             case TSDB_DATA_TYPE_BIGINT:
               sprintf(value, "%" PRId64, *((int64_t *)row[i]));
+              break;
+            case TSDB_DATA_TYPE_UBIGINT:
+              sprintf(value, "%" PRIu64, *((uint64_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_FLOAT:
               sprintf(value, "%.5f", GET_FLOAT_VAL(row[i]));
