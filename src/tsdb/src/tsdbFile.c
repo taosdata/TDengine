@@ -24,6 +24,14 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "manifest"  // TSDB_FILE_MANIFEST
 };
 
+static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
+static int   tsdbEncodeMFInfo(void **buf, SMFInfo *pInfo);
+static void *tsdbDecodeMFInfo(void *buf, SMFInfo *pInfo);
+static int   tsdbRollBackMFile(SMFile *pMFile);
+static int   tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo);
+static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo);
+static int   tsdbRollBackDFile(SDFile *pDFile);
+
 // ============== SMFile
 void tsdbInitMFile(SMFile *pMFile, SDiskID did, int vid, uint32_t ver) {
   char fname[TSDB_FILENAME_LEN];
@@ -67,7 +75,7 @@ int tsdbApplyMFileChange(SMFile *from, SMFile *to) {
     } else {
       if (tfsIsSameFile(TSDB_FILE_F(from), TSDB_FILE_F(to))) {
         if (from->info.size > to->info.size) {
-          tsdbRollbackMFile(to);
+          tsdbRollBackMFile(to);
         }
       } else {
         tsdbRemoveMFile(from);
@@ -78,7 +86,7 @@ int tsdbApplyMFileChange(SMFile *from, SMFile *to) {
   return 0;
 }
 
-static int tsdbRollBackMFile(const SMFile *pMFile) {
+static int tsdbRollBackMFile(SMFile *pMFile) {
   SMFile mf = *pMFile;
 
   if (tsdbOpenMFile(&mf, O_WRONLY) < 0) {
@@ -172,7 +180,7 @@ void tsdbInitDFile(SDFile *pDFile, SDiskID did, int vid, int fid, uint32_t ver, 
   pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
 
   tsdbGetFilename(vid, 0, ver, ftype, fname);
-  tfsInitFile(&(pDFile->f), level, id, fname);
+  tfsInitFile(&(pDFile->f), did.level, did.id, fname);
 }
 
 void tsdbInitDFileEx(SDFile *pDFile, SDFile *pODFile) {
@@ -271,7 +279,7 @@ static int tsdbApplyDFileChange(SDFile *from, SDFile *to) {
     } else {
       if (tfsIsSameFile(TSDB_FILE_F(from), TSDB_FILE_F(to))) {
         if (from->info.size > to->info.size) {
-          tsdbRollbackDFile(to);
+          tsdbRollBackDFile(to);
         }
       } else {
         tsdbRemoveDFile(from);
@@ -282,7 +290,7 @@ static int tsdbApplyDFileChange(SDFile *from, SDFile *to) {
   return 0;
 }
 
-static int tsdbRollBackDFile(const SDFile *pDFile) {
+static int tsdbRollBackDFile(SDFile *pDFile) {
   SDFile df = *pDFile;
 
   if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
@@ -328,7 +336,7 @@ int tsdbEncodeDFileSet(void **buf, SDFileSet *pSet) {
     tlen += tsdbEncodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
 
-  return tlen
+  return tlen;
 }
 
 void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet) {
@@ -338,7 +346,7 @@ void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet) {
   return buf;
 }
 
-int tsdbApplyDFileSetChange(const SDFileSet *from, const SDFileSet *to) {
+int tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     if (tsdbApplyDFileChange(TSDB_DFILE_IN_SET(from, ftype), TSDB_DFILE_IN_SET(to, ftype)) < 0) {
       return -1;
@@ -366,7 +374,7 @@ int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
       return -1;
     }
   }
-  return 0
+  return 0;
 }
 
 static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname) {
@@ -374,15 +382,15 @@ static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, c
 
   if (ftype < TSDB_FILE_MAX) {
     if (ver == 0) {
-      snprintf(fname, "vnode/vnode%d/tsdb/data/v%df%d.%s", vid, vid, fid, TSDB_FNAME_SUFFIX[ftype]);
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d.%s", vid, vid, fid, TSDB_FNAME_SUFFIX[ftype]);
     } else {
-      snprintf(fname, "vnode/vnode%d/tsdb/data/v%df%d.%s-%012" PRIu32, vid, vid, fid, TSDB_FNAME_SUFFIX[ftype], ver);
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d.%s-%012" PRIu32, vid, vid, fid, TSDB_FNAME_SUFFIX[ftype], ver);
     }
   } else {
     if (ver == 0) {
-      snprintf(fname, "vnode/vnode%d/tsdb/%s", vid, TSDB_FNAME_SUFFIX[ftype]);
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s", vid, TSDB_FNAME_SUFFIX[ftype]);
     } else {
-      snprintf(fname, "vnode/vnode%d/tsdb/%s-%012" PRIu32, vid, TSDB_FNAME_SUFFIX[ftype], ver);
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s-%012" PRIu32, vid, TSDB_FNAME_SUFFIX[ftype], ver);
     }
   }
 }

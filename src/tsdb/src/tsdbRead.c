@@ -22,7 +22,7 @@
 #include "../../query/inc/qAst.h"  // todo move to common module
 #include "tlosertree.h"
 #include "tsdb.h"
-#include "tsdbMain.h"
+#include "tsdbint.h"
 
 #define EXTRA_BYTES 2
 #define ASCENDING_TRAVERSE(o)   (o == TSDB_ORDER_ASC)
@@ -54,7 +54,7 @@ typedef struct SQueryFilePos {
 } SQueryFilePos;
 
 typedef struct SDataBlockLoadInfo {
-  SFileGroup* fileGroup;
+  SDFileSet*  fileGroup;
   int32_t     slot;
   int32_t     tid;
   SArray*     pLoadedCols;
@@ -113,9 +113,9 @@ typedef struct STsdbQueryHandle {
   bool           cachelastrow;     // check if last row cached
   void*          qinfo;            // query info handle, for debug purpose
   int32_t        type;             // query type: retrieve all data blocks, 2. retrieve only last row, 3. retrieve direct prev|next rows
-  SFileGroup*    pFileGroup;
-  SFileGroupIter fileIter;
-  SRWHelper      rhelper;
+  SDFileSet*     pFileGroup;
+  SFSIter        fileIter;
+  SReadH         rhelper;
   STableBlockInfo* pDataBlockInfo;
 
   SDataCols     *pDataCols;        // in order to hold current file data block
@@ -295,7 +295,7 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(TSDB_REPO_T* tsdb, STsdbQueryCond* 
   pQueryHandle->locateStart = false;
   pQueryHandle->pMemRef     = pMemRef;
 
-  if (tsdbInitReadHelper(&pQueryHandle->rhelper, (STsdbRepo*) tsdb) != 0) {
+  if (tsdbInitReadH(&pQueryHandle->rhelper, (STsdbRepo*) tsdb) != 0) {
     goto out_of_memory;
   }
 
@@ -716,12 +716,12 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
     pCheckInfo->numOfBlocks = 0;
 
-    if (tsdbSetHelperTable(&pQueryHandle->rhelper, pCheckInfo->pTableObj, pQueryHandle->pTsdb) != TSDB_CODE_SUCCESS) {
+    if (tsdbSetReadTable(&pQueryHandle->rhelper, pCheckInfo->pTableObj) != TSDB_CODE_SUCCESS) {
       code = terrno;
       break;
     }
 
-    SBlockIdx* compIndex = &pQueryHandle->rhelper.curCompIdx;
+    SBlockIdx* compIndex = pQueryHandle->rhelper.pBlkIdx;
 
     // no data block in this file, try next file
     if (compIndex->len == 0 || compIndex->numOfBlocks == 0 || compIndex->uid != pCheckInfo->tableId.uid) {
@@ -742,7 +742,7 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
       pCheckInfo->compSize = compIndex->len;
     }
 
-    tsdbLoadCompInfo(&(pQueryHandle->rhelper), (void *)(pCheckInfo->pCompInfo));
+    tsdbLoadBlockInfo(&(pQueryHandle->rhelper), (void *)(pCheckInfo->pCompInfo));
     SBlockInfo* pCompInfo = pCheckInfo->pCompInfo;
 
     TSKEY s = TSKEY_INITIAL_VAL, e = TSKEY_INITIAL_VAL;
@@ -792,14 +792,14 @@ static int32_t doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBloc
     goto _error;
   }
 
-  code = tdInitDataCols(pQueryHandle->rhelper.pDataCols[0], pSchema);
+  code = tdInitDataCols(pQueryHandle->rhelper.pDCols[0], pSchema);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p failed to malloc buf for rhelper.pDataCols[0], %p", pQueryHandle, pQueryHandle->qinfo);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     goto _error;
   }
 
-  code = tdInitDataCols(pQueryHandle->rhelper.pDataCols[1], pSchema);
+  code = tdInitDataCols(pQueryHandle->rhelper.pDCols[1], pSchema);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p failed to malloc buf for rhelper.pDataCols[1], %p", pQueryHandle, pQueryHandle->qinfo);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -821,7 +821,7 @@ static int32_t doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBloc
   pBlockLoadInfo->slot = pQueryHandle->cur.slot;
   pBlockLoadInfo->tid = pCheckInfo->pTableObj->tableId.tid;
 
-  SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
+  SDataCols* pCols = pQueryHandle->rhelper.pDCols[0];
   assert(pCols->numOfRows != 0 && pCols->numOfRows <= pBlock->numOfRows);
 
   pBlock->numOfRows = pCols->numOfRows;
@@ -942,7 +942,7 @@ static int32_t loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBlock,
         return code;
       }
 
-      SDataCols* pTSCol = pQueryHandle->rhelper.pDataCols[0];
+      SDataCols* pTSCol = pQueryHandle->rhelper.pDCols[0];
       assert(pTSCol->cols->type == TSDB_DATA_TYPE_TIMESTAMP && pTSCol->numOfRows == pBlock->numOfRows);
 
       if (pCheckInfo->lastKey > pBlock->keyFirst) {
@@ -965,7 +965,7 @@ static int32_t loadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBlock,
         return code;
       }
 
-      SDataCols* pTsCol = pQueryHandle->rhelper.pDataCols[0];
+      SDataCols* pTsCol = pQueryHandle->rhelper.pDCols[0];
       if (pCheckInfo->lastKey < pBlock->keyLast) {
         cur->pos = binarySearchForKey(pTsCol->cols[0].pData, pBlock->numOfRows, pCheckInfo->lastKey, pQueryHandle->order);
       } else {
@@ -1050,7 +1050,7 @@ int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity
   char* pData = NULL;
   int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order)? 1 : -1;
 
-  SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
+  SDataCols* pCols = pQueryHandle->rhelper.pDCols[0];
   TSKEY* tsArray = pCols->cols[0].pData;
 
   int32_t num = end - start + 1;
@@ -1274,7 +1274,7 @@ static void doCheckGeneratedBlockRange(STsdbQueryHandle* pQueryHandle) {
 static void copyAllRemainRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, STableCheckInfo* pCheckInfo, SDataBlockInfo* pBlockInfo, int32_t endPos) {
   SQueryFilePos* cur = &pQueryHandle->cur;
 
-  SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
+  SDataCols* pCols = pQueryHandle->rhelper.pDCols[0];
   TSKEY* tsArray = pCols->cols[0].pData;
 
   int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order)? 1:-1;
@@ -1317,7 +1317,7 @@ int32_t getEndPosInDataBlock(STsdbQueryHandle* pQueryHandle, SDataBlockInfo* pBl
   int32_t order = ASCENDING_TRAVERSE(pQueryHandle->order)? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
 
   SQueryFilePos* cur = &pQueryHandle->cur;
-  SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
+  SDataCols* pCols = pQueryHandle->rhelper.pDCols[0];
 
   if (ASCENDING_TRAVERSE(pQueryHandle->order) && pQueryHandle->window.ekey >= pBlockInfo->window.ekey) {
     endPos = pBlockInfo->rows - 1;
@@ -1343,7 +1343,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
 
   initTableMemIterator(pQueryHandle, pCheckInfo);
 
-  SDataCols* pCols = pQueryHandle->rhelper.pDataCols[0];
+  SDataCols* pCols = pQueryHandle->rhelper.pDCols[0];
   assert(pCols->cols[0].type == TSDB_DATA_TYPE_TIMESTAMP && pCols->cols[0].colId == PRIMARYKEY_TIMESTAMP_COL_INDEX &&
       cur->pos >= 0 && cur->pos < pBlock->numOfRows);
 
@@ -1751,19 +1751,19 @@ static int32_t getFirstFileDataBlock(STsdbQueryHandle* pQueryHandle, bool* exist
   STimeWindow win = TSWINDOW_INITIALIZER;
 
   while (true) {
-    pthread_rwlock_rdlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+    tsdbRLockFS(REPO_FS(pQueryHandle->pTsdb));
 
-    if ((pQueryHandle->pFileGroup = tsdbGetFileGroupNext(&pQueryHandle->fileIter)) == NULL) {
-      pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+    if ((pQueryHandle->pFileGroup = tsdbFSIterNext(&pQueryHandle->fileIter)) == NULL) {
+      tsdbUnLockFS(REPO_FS(pQueryHandle->pTsdb));
       break;
     }
 
-    tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, pQueryHandle->pFileGroup->fileId, &win.skey, &win.ekey);
+    tsdbGetFidKeyRange(pCfg->daysPerFile, pCfg->precision, pQueryHandle->pFileGroup->fid, &win.skey, &win.ekey);
 
     // current file are not overlapped with query time window, ignore remain files
     if ((ASCENDING_TRAVERSE(pQueryHandle->order) && win.skey > pQueryHandle->window.ekey) ||
         (!ASCENDING_TRAVERSE(pQueryHandle->order) && win.ekey < pQueryHandle->window.ekey)) {
-      pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+      tsdbUnLockFS(REPO_FS(pQueryHandle->pTsdb));
       tsdbDebug("%p remain files are not qualified for qrange:%" PRId64 "-%" PRId64 ", ignore, %p", pQueryHandle,
                 pQueryHandle->window.skey, pQueryHandle->window.ekey, pQueryHandle->qinfo);
       pQueryHandle->pFileGroup = NULL;
@@ -1771,15 +1771,15 @@ static int32_t getFirstFileDataBlock(STsdbQueryHandle* pQueryHandle, bool* exist
       break;
     }
 
-    if (tsdbSetAndOpenHelperFile(&pQueryHandle->rhelper, pQueryHandle->pFileGroup) < 0) {
-      pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+    if (tsdbSetAndOpenReadFSet(&pQueryHandle->rhelper, pQueryHandle->pFileGroup) < 0) {
+      tsdbUnLockFS(REPO_FS(pQueryHandle->pTsdb));
       code = terrno;
       break;
     }
 
-    pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+    tsdbUnLockFS(REPO_FS(pQueryHandle->pTsdb));
 
-    if (tsdbLoadCompIdx(&pQueryHandle->rhelper, NULL) < 0) {
+    if (tsdbLoadBlockIdx(&pQueryHandle->rhelper) < 0) {
       code = terrno;
       break;
     }
@@ -1789,7 +1789,7 @@ static int32_t getFirstFileDataBlock(STsdbQueryHandle* pQueryHandle, bool* exist
     }
 
     tsdbDebug("%p %d blocks found in file for %d table(s), fid:%d, %p", pQueryHandle, numOfBlocks, numOfTables,
-              pQueryHandle->pFileGroup->fileId, pQueryHandle->qinfo);
+              pQueryHandle->pFileGroup->fid, pQueryHandle->qinfo);
 
     assert(numOfBlocks >= 0);
     if (numOfBlocks == 0) {
@@ -1820,7 +1820,7 @@ static int32_t getFirstFileDataBlock(STsdbQueryHandle* pQueryHandle, bool* exist
 
   assert(pQueryHandle->pFileGroup != NULL && pQueryHandle->numOfBlocks > 0);
   cur->slot = ASCENDING_TRAVERSE(pQueryHandle->order)? 0:pQueryHandle->numOfBlocks-1;
-  cur->fid = pQueryHandle->pFileGroup->fileId;
+  cur->fid = pQueryHandle->pFileGroup->fid;
 
   STableBlockInfo* pBlockInfo = &pQueryHandle->pDataBlockInfo[cur->slot];
   return getDataBlockRv(pQueryHandle, pBlockInfo, exists);
@@ -1843,7 +1843,7 @@ static void moveToNextDataBlockInCurrentFile(STsdbQueryHandle* pQueryHandle) {
 }
 
 static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists) {
-  STsdbFileH*    pFileHandle = tsdbGetFile(pQueryHandle->pTsdb);
+  STsdbFS*       pFileHandle = REPO_FS(pQueryHandle->pTsdb);
   SQueryFilePos* cur = &pQueryHandle->cur;
 
   // find the start data block in file
@@ -1852,10 +1852,10 @@ static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists
     STsdbCfg* pCfg = &pQueryHandle->pTsdb->config;
     int32_t   fid = getFileIdFromKey(pQueryHandle->window.skey, pCfg->daysPerFile, pCfg->precision);
 
-    pthread_rwlock_rdlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
-    tsdbInitFileGroupIter(pFileHandle, &pQueryHandle->fileIter, pQueryHandle->order);
-    tsdbSeekFileGroupIter(&pQueryHandle->fileIter, fid);
-    pthread_rwlock_unlock(&pQueryHandle->pTsdb->tsdbFileH->fhlock);
+    tsdbRLockFS(pFileHandle);
+    tsdbFSIterInit(&pQueryHandle->fileIter, pFileHandle, pQueryHandle->order);
+    tsdbFSIterSeek(&pQueryHandle->fileIter, fid);
+    tsdbUnLockFS(pFileHandle);
 
     return getFirstFileDataBlock(pQueryHandle, exists);
   } else {
@@ -2382,7 +2382,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
   }
 
   int64_t stime = taosGetTimestampUs();
-  tsdbLoadCompData(&pHandle->rhelper, pBlockInfo->compBlock, NULL);
+  tsdbLoadBlockStatis(&pHandle->rhelper, pBlockInfo->compBlock);
 
   int16_t* colIds = pHandle->defaultLoadColumn->pData;
 
@@ -2392,7 +2392,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
     pHandle->statis[i].colId = colIds[i];
   }
 
-  tsdbGetDataStatis(&pHandle->rhelper, pHandle->statis, (int)numOfCols);
+  tsdbGetBlockStatis(&pHandle->rhelper, pHandle->statis, (int)numOfCols);
 
   // always load the first primary timestamp column data
   SDataStatis* pPrimaryColStatis = &pHandle->statis[0];
@@ -2444,7 +2444,7 @@ SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
       // data block has been loaded, todo extract method
       SDataBlockLoadInfo* pBlockLoadInfo = &pHandle->dataBlockLoadInfo;
 
-      if (pBlockLoadInfo->slot == pHandle->cur.slot && pBlockLoadInfo->fileGroup->fileId == pHandle->cur.fid &&
+      if (pBlockLoadInfo->slot == pHandle->cur.slot && pBlockLoadInfo->fileGroup->fid == pHandle->cur.fid &&
           pBlockLoadInfo->tid == pCheckInfo->pTableObj->tableId.tid) {
         return pHandle->pColumns;
       } else {  // only load the file block
@@ -2923,7 +2923,7 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   // todo check error
   tsdbMayUnTakeMemSnapshot(pQueryHandle);
 
-  tsdbDestroyHelper(&pQueryHandle->rhelper);
+  tsdbDestroyReadH(&pQueryHandle->rhelper);
 
   tdFreeDataCols(pQueryHandle->pDataCols);
   pQueryHandle->pDataCols = NULL;

@@ -14,14 +14,7 @@
  */
 
 // no test file errors here
-#include "tsdbMain.h"
-#include "os.h"
-#include "talgo.h"
-#include "taosdef.h"
-#include "tchecksum.h"
-#include "tscompression.h"
-#include "tsdb.h"
-#include "tulog.h"
+#include "tsdbint.h"
 
 #define TSDB_CFG_FILE_NAME "config"
 #define TSDB_DATA_DIR_NAME "data"
@@ -388,7 +381,7 @@ int tsdbCheckCommit(STsdbRepo *pRepo) {
 }
 
 STsdbMeta *    tsdbGetMeta(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbMeta; }
-STsdbFileH *   tsdbGetFile(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbFileH; }
+// STsdbFileH *   tsdbGetFile(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbFileH; }
 STsdbRepoInfo *tsdbGetStatus(TSDB_REPO_T *pRepo) { return NULL; }
 
 // ----------------- LOCAL FUNCTIONS -----------------

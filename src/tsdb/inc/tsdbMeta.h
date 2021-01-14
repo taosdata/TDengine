@@ -51,7 +51,6 @@ typedef struct {
   STable**  tables;
   SList*    superList;
   SHashObj* uidMap;
-  SKVStore* pStore;
   int       maxRowBytes;
   int       maxCols;
 } STsdbMeta;
@@ -63,7 +62,7 @@ typedef struct {
 #define TABLE_UID(t) (t)->tableId.uid
 #define TABLE_TID(t) (t)->tableId.tid
 #define TABLE_SUID(t) (t)->suid
-#define TSDB_META_FILE_MAGIC(m) KVSTORE_MAGIC((m)->pStore)
+// #define TSDB_META_FILE_MAGIC(m) KVSTORE_MAGIC((m)->pStore)
 #define TSDB_RLOCK_TABLE(t) taosRLockLatch(&((t)->latch))
 #define TSDB_RUNLOCK_TABLE(t) taosRUnLockLatch(&((t)->latch))
 #define TSDB_WLOCK_TABLE(t) taosWLockLatch(&((t)->latch))

@@ -109,9 +109,8 @@ void  tsdbCloseAndUnsetFSet(SReadH *pReadh);
 int   tsdbLoadBlockIdx(SReadH *pReadh);
 int   tsdbSetReadTable(SReadH *pReadh, STable *pTable);
 int   tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget);
-int   tsdbLoadBlockData(SReadH *pReadh, const SBlock *pBlock, const SBlockInfo *pBlockInfo);
-int   tsdbLoadBlockDataCols(SReadH *pReadh, const SBlock *pBlock, const SBlockInfo *pBlockInfo, const int16_t *colIds,
-                            int numOfColsIds);
+int   tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlockInfo);
+int   tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, int16_t *colIds, int numOfColsIds);
 int   tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
 int   tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx);
 void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);

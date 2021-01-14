@@ -12,13 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <stdlib.h>
-#include "hash.h"
-#include "taosdef.h"
-#include "tchecksum.h"
-#include "tsdb.h"
-#include "tsdbMain.h"
-#include "tskiplist.h"
+#include "tsdbint.h"
 
 #define TSDB_SUPER_TABLE_SL_LEVEL 5
 #define DEFAULT_TAG_INDEX_COLUMN 0
@@ -479,11 +473,11 @@ int tsdbOpenMeta(STsdbRepo *pRepo) {
     goto _err;
   }
 
-  pMeta->pStore = tdOpenKVStore(fname, tsdbRestoreTable, tsdbOrgMeta, (void *)pRepo);
-  if (pMeta->pStore == NULL) {
-    tsdbError("vgId:%d failed to open TSDB meta while open the kv store since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
-  }
+  // pMeta->pStore = tdOpenKVStore(fname, tsdbRestoreTable, tsdbOrgMeta, (void *)pRepo);
+  // if (pMeta->pStore == NULL) {
+  //   tsdbError("vgId:%d failed to open TSDB meta while open the kv store since %s", REPO_ID(pRepo), tstrerror(terrno));
+  //   goto _err;
+  // }
 
   tsdbDebug("vgId:%d open TSDB meta succeed", REPO_ID(pRepo));
   tfree(fname);
@@ -500,7 +494,7 @@ int tsdbCloseMeta(STsdbRepo *pRepo) {
   STable *   pTable = NULL;
 
   if (pMeta == NULL) return 0;
-  tdCloseKVStore(pMeta->pStore);
+  // tdCloseKVStore(pMeta->pStore);
   for (int i = 1; i < pMeta->maxTables; i++) {
     tsdbFreeTable(pMeta->tables[i]);
   }
@@ -610,7 +604,7 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
 }
 
 // ------------------ LOCAL FUNCTIONS ------------------
-static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
+static UNUSED_FUNC int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   STsdbRepo *pRepo = (STsdbRepo *)pHandle;
   STable *   pTable = NULL;
 
@@ -631,7 +625,7 @@ static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   return 0;
 }
 
-static void tsdbOrgMeta(void *pHandle) {
+static UNUSED_FUNC void tsdbOrgMeta(void *pHandle) {
   STsdbRepo *pRepo = (STsdbRepo *)pHandle;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 

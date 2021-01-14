@@ -78,6 +78,10 @@ int      tsdbEndTxnWithError(STsdbFS *pfs);
 void     tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile);
 int      tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet);
 
+void       tsdbFSIterInit(SFSIter *pIter, STsdbFS *pfs, int direction);
+void       tsdbFSIterSeek(SFSIter *pIter, int fid);
+SDFileSet *tsdbFSIterNext(SFSIter *pIter);
+
 static FORCE_INLINE int tsdbRLockFS(STsdbFS* pFs) {
   int code = pthread_rwlock_rdlock(&(pFs->lock));
   if (code != 0) {

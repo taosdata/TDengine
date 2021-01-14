@@ -13,8 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbMain.h"
+#include "tsdbint.h"
 
+#if 0
 #ifndef _TSDB_PLUGINS
 
 int tsdbScanFGroup(STsdbScanHandle* pScanHandle, char* rootDir, int fid) { return 0; }
@@ -33,4 +34,5 @@ int tsdbCloseScanFile(STsdbScanHandle* pScanHandle) { return 0; }
 
 void tsdbFreeScanHandle(STsdbScanHandle* pScanHandle) {}
 
+#endif
 #endif

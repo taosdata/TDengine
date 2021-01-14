@@ -59,11 +59,12 @@ typedef struct {
   int     fd;
 } SMFile;
 
-void  tsdbInitMFile(SMFile* pMFile, SDiskID did, int vid, int ver);
+void  tsdbInitMFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver);
 void  tsdbInitMFileEx(SMFile* pMFile, SMFile* pOMFile);
 int   tsdbEncodeSMFile(void** buf, SMFile* pMFile);
 void* tsdbDecodeSMFile(void* buf, SMFile* pMFile);
-int   tsdbApplyMFileChange(const SMFile* from, const SMFile* to);
+int   tsdbApplyMFileChange(SMFile* from, SMFile* to);
+int   tsdbApplyMFileChange(SMFile* from, SMFile* to);
 
 static FORCE_INLINE int tsdbOpenMFile(SMFile* pMFile, int flags) {
   ASSERT(!TSDB_FILE_OPENED(pMFile));
@@ -287,11 +288,11 @@ typedef struct {
 #define TSDB_FSET_LEVEL(s) TSDB_FILE_LEVEL(TSDB_DFILE_IN_SET(s, 0))
 #define TSDB_FSET_ID(s) TSDB_FILE_ID(TSDB_DFILE_IN_SET(s, 0))
 
-void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, int ver);
+void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t ver);
 void  tsdbInitDFileSetEx(SDFileSet* pSet, SDFileSet* pOSet);
 int   tsdbEncodeDFileSet(void** buf, SDFileSet* pSet);
 void* tsdbDecodeDFileSet(void* buf, SDFileSet* pSet);
-int   tsdbApplyDFileSetChange(const SDFileSet* from, const SDFileSet* to);
+int   tsdbApplyDFileSetChange(SDFileSet* from, SDFileSet* to);
 
 static FORCE_INLINE void tsdbCloseDFileSet(SDFileSet* pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
