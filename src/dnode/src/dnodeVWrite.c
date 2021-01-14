@@ -52,14 +52,14 @@ int32_t dnodeInitVWrite() {
 void dnodeCleanupVWrite() {
   for (int32_t i = 0; i < tsVWriteWP.max; ++i) {
     SVWriteWorker *pWorker = tsVWriteWP.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(pWorker->qset);
     }
   }
 
   for (int32_t i = 0; i < tsVWriteWP.max; ++i) {
     SVWriteWorker *pWorker = tsVWriteWP.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
       taosFreeQall(pWorker->qall);
       taosCloseQset(pWorker->qset);

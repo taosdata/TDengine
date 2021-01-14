@@ -208,6 +208,12 @@ typedef struct {
 int  wordexp(const char *words, wordexp_t *pwordexp, int flags);
 void wordfree(wordexp_t *pwordexp);
 
+#define openlog(a, b, c)
+#define closelog()
+#define LOG_ERR 0
+#define LOG_INFO 1
+void syslog(int unused, const char *format, ...);
+
 #define TAOS_OS_FUNC_ATOMIC
   #define atomic_load_8(ptr) (*(char volatile*)(ptr))
   #define atomic_load_16(ptr) (*(short volatile*)(ptr))

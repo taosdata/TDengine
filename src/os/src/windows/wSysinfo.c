@@ -236,3 +236,8 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 }
 
 void taosSetCoreDump() { SetUnhandledExceptionFilter(&FlCrashDump); }
+
+bool taosGetSystemUid(char *uid) {
+  sprintf(uid, "uid_not_implemented_yet");
+  return true;
+}

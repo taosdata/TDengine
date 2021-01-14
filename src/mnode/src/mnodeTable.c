@@ -841,6 +841,7 @@ static int32_t mnodeProcessBatchCreateTableMsg(SMnodeMsg *pMsg) {
       return TSDB_CODE_MND_ACTION_IN_PROGRESS;
     } else { // batch master replay, reprocess the whole batch
       assert(0);
+      return TSDB_CODE_MND_MSG_NOT_PROCESSED;
     }
   }
 }

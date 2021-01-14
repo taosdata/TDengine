@@ -39,7 +39,7 @@
 #include "mnodeCluster.h"
 
 int32_t tsAccessSquence = 0;
-int64_t        tsDnodeRid = -1;
+int64_t         tsDnodeRid = -1;
 static void *  tsDnodeSdb = NULL;
 static int32_t tsDnodeUpdateSize = 0;
 extern void *  tsMnodeSdb;

@@ -119,7 +119,7 @@ static void bnProcessTimer(void *handle, void *tmrId) {
   }
 }
 
-void bnStartTimer(int64_t mseconds) {
+void bnStartTimer(int32_t mseconds) {
   if (tsBnThread.stop) return;
 
   bool updateSoon = (mseconds != -1);

@@ -13,21 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_BALANCE_THREAD_H
-#define TDENGINE_BALANCE_THREAD_H
+#define _DEFAULT_SOURCE
+#include "os.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-#include "bnInt.h"
-
-int32_t bnInitThread();
-void    bnCleanupThread();
-void    bnNotify();
-void    bnStartTimer(int32_t mseconds);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+void syslog(int unused, const char *format, ...) {}

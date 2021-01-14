@@ -27,10 +27,6 @@
 #include "syncInt.h"
 #include "syncTcp.h"
 
-#ifndef SIGHUP
-  #define SIGHUP SIGTERM
-#endif
-
 static void    arbSignalHandler(int32_t signum);
 static void    arbProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
 static void    arbProcessBrokenLink(int64_t rid);
@@ -78,8 +74,10 @@ int32_t main(int32_t argc, char *argv[]) {
 
   act.sa_handler = arbSignalHandler;
   sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGHUP, &act, NULL);
   sigaction(SIGINT, &act, NULL);
+#ifndef WINDOWS
+  sigaction(SIGHUP, &act, NULL);
+#endif
 
   tsAsyncLog = 0;
   strcat(arbLogPath, "/arbitrator.log");
@@ -180,8 +178,10 @@ static void arbSignalHandler(int32_t signum) {
   struct sigaction act = {{0}};
   act.sa_handler = SIG_IGN;
   sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGHUP, &act, NULL);
   sigaction(SIGINT, &act, NULL);
+#ifndef WINDOWS
+  sigaction(SIGHUP, &act, NULL);
+#endif
 
   sInfo("shut down signal is %d", signum);
 
