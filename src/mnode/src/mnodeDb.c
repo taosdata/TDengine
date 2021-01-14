@@ -316,9 +316,14 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
-  if (pCfg->quorum < TSDB_MIN_DB_REPLICA_OPTION || pCfg->quorum > TSDB_MAX_DB_REPLICA_OPTION) {
-    mError("invalid db option quorum:%d valid range: [%d, %d]", pCfg->quorum, TSDB_MIN_DB_REPLICA_OPTION,
-           TSDB_MAX_DB_REPLICA_OPTION);
+  if (pCfg->quorum > pCfg->replications) {
+    mError("invalid db option quorum:%d larger than replica:%d", pCfg->quorum, pCfg->replications);
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
+  }
+
+  if (pCfg->quorum < TSDB_MIN_DB_QUORUM_OPTION || pCfg->quorum > TSDB_MAX_DB_QUORUM_OPTION) {
+    mError("invalid db option quorum:%d valid range: [%d, %d]", pCfg->quorum, TSDB_MIN_DB_QUORUM_OPTION,
+           TSDB_MAX_DB_QUORUM_OPTION);
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 

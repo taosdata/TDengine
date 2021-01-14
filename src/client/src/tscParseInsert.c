@@ -762,6 +762,8 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
   char *sql = *sqlstr;
 
+  pSql->cmd.autoCreated = false;
+  
   // get the token of specified table
   index = 0;
   tableToken = tStrGetToken(sql, &index, false, 0, NULL);
@@ -945,11 +947,15 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
     tdDestroyKVRowBuilder(&kvRowBuilder);
     if (row == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return tscInvalidSQLErrMsg(pCmd->payload, "tag value expected", NULL);
     }
     tdSortKVRowByColIdx(row);
 
     pCmd->tagData.dataLen = kvRowLen(row);
+    if (pCmd->tagData.dataLen <= 0){
+      return tscInvalidSQLErrMsg(pCmd->payload, "tag value expected", NULL);
+    }
+    
     char* pTag = realloc(pCmd->tagData.data, pCmd->tagData.dataLen);
     if (pTag == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
