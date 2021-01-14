@@ -43,6 +43,10 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql);
 
 char *getArithmeticInputSrc(void *param, const char *name, int32_t colId);
 
+void tscSpinLock(int32_t *lock);
+
+void tscSpinUnlock(int32_t *lock);
+
 #ifdef __cplusplus
 }
 #endif

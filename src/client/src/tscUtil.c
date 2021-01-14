@@ -441,6 +441,8 @@ static void tscFreeSubobj(SSqlObj* pSql) {
     pSql->pSubs[i] = NULL;
   }
 
+  tfree(pSql->subState.states);
+  
   pSql->subState.numOfSub = 0;
 }
 
