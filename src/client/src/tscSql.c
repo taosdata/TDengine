@@ -694,6 +694,8 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
   // set the master sqlObj flag to cancel query
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
+  tscLockByThread(&pSql->squeryLock);
+  
   for (int i = 0; i < pSql->subState.numOfSub; ++i) {
     // NOTE: pSub may have been released already here
     SSqlObj *pSub = pSql->pSubs[i];
@@ -712,6 +714,12 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     tscAsyncResultOnError(pSubObj);
     taosReleaseRef(tscObjRef, pSubObj->self);
   }
+
+  if (pSql->subState.numOfSub <= 0) {
+    tscAsyncResultOnError(pSql);
+  }
+
+  tscUnlockByThread(&pSql->squeryLock);
 
   tscDebug("%p super table query cancelled", pSql);
 }
