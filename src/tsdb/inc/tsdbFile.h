@@ -23,12 +23,14 @@ extern "C" {
 #define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 #define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
+#define TSDB_IVLD_FID INT_MIN
 
 #define TSDB_FILE_INFO(tf) (&((tf)->info))
 #define TSDB_FILE_F(tf) (&((tf)->f))
 #define TSDB_FILE_FD(tf) ((tf)->fd)
 #define TSDB_FILE_FULL_NAME(tf) TFILE_NAME(TSDB_FILE_F(tf))
 #define TSDB_FILE_OPENED(tf) (TSDB_FILE_FD(tf) >= 0)
+#define TSDB_FILE_CLOSED(tf) (!TSDB_FILE_OPENED(tf))
 #define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_FD(f) = -1)
 #define TSDB_FILE_LEVEL(tf) TFILE_LEVEL(TSDB_FILE_F(tf))
 #define TSDB_FILE_ID(tf) TFILE_ID(TSDB_FILE_F(tf))
@@ -61,6 +63,7 @@ void  tsdbInitMFile(SMFile* pMFile, SDiskID did, int vid, int ver);
 void  tsdbInitMFileEx(SMFile* pMFile, SMFile* pOMFile);
 int   tsdbEncodeSMFile(void** buf, SMFile* pMFile);
 void* tsdbDecodeSMFile(void* buf, SMFile* pMFile);
+int   tsdbApplyMFileChange(const SMFile* from, const SMFile* to);
 
 static FORCE_INLINE int tsdbOpenMFile(SMFile* pMFile, int flags) {
   ASSERT(!TSDB_FILE_OPENED(pMFile));
@@ -288,6 +291,7 @@ void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, int ver);
 void  tsdbInitDFileSetEx(SDFileSet* pSet, SDFileSet* pOSet);
 int   tsdbEncodeDFileSet(void** buf, SDFileSet* pSet);
 void* tsdbDecodeDFileSet(void* buf, SDFileSet* pSet);
+int   tsdbApplyDFileSetChange(const SDFileSet* from, const SDFileSet* to);
 
 static FORCE_INLINE void tsdbCloseDFileSet(SDFileSet* pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {

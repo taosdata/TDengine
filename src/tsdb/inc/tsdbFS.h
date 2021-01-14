@@ -25,7 +25,7 @@ extern "C" {
 // ================== CURRENT file header info
 typedef struct {
   uint32_t version;  // Current file version
-  uint32_t len;
+  uint32_t len;      // Encode content length (including checksum)
 } SFSHeader;
 
 // ================== TSDB File System Meta
@@ -38,6 +38,7 @@ typedef struct {
 // ==================
 typedef struct {
   STsdbFSMeta meta;  // FS meta
+  SMFile*     pmf;   // meta file pointer
   SMFile      mf;    // meta file
   SArray*     df;    // data file array
 } SFSStatus;
@@ -45,12 +46,10 @@ typedef struct {
 typedef struct {
   pthread_rwlock_t lock;
 
-  SFSStatus* cstatus;    // current stage
-  SHashObj*  metaCache;  // meta
-
+  SFSStatus* cstatus;    // current status
+  SHashObj*  metaCache;  // meta cache
   bool       intxn;
-  SFSStatus* nstatus;
-  SList*     metaDelta;
+  SFSStatus* nstatus;  // new status
 } STsdbFS;
 
 #define FS_CURRENT_STATUS(pfs) ((pfs)->cstatus)
@@ -58,11 +57,16 @@ typedef struct {
 #define FS_IN_TXN(pfs) (pfs)->intxn
 
 typedef struct {
+  int        direction;
   uint64_t   version;  // current FS version
-  int        index;
-  int        fid;
+  STsdbFS*   pfs;
+  int        index;  // used to position next fset when version the same
+  int        fid;    // used to seek when version is changed
   SDFileSet* pSet;
 } SFSIter;
+
+#define TSDB_FS_ITER_FORWARD TSDB_ORDER_ASC
+#define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
 
 #if 0
 int        tsdbOpenFS(STsdbRepo* pRepo);

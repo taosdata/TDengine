@@ -14,7 +14,6 @@
  */
 #include "tsdbint.h"
 
-#define TSDB_IVLD_FID INT_MIN
 #define TSDB_MAX_SUBBLOCKS 8
 #define TSDB_KEY_FID(key, days, precision) ((key) / tsMsPerDay[(precision)] / (days))
 
