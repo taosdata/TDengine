@@ -131,7 +131,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
     说明：
     1) 表的第一个字段必须是TIMESTAMP，并且系统自动将其设为主键；
-    2) 表名最大长度为193；
+    2) 表名最大长度为192；
     3) 表的每行长度不能超过16k个字符;
     4) 子表名只能由字母、数字和下划线组成，且不能以数字开头
     5) 使用数据类型binary或nchar，需指定其最长的字节数，如binary(20)，表示20字节；
@@ -139,9 +139,17 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 - **以超级表为模板创建数据表**
 
     ```mysql
-    CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1 [, tag_value2 ...]);
+    CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
     ```
     以指定的超级表为模板，指定 tags 的值来创建数据表。
+
+- **批量创建数据表**
+
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
+    ```
+    以更快的速度批量创建大量数据表。（服务器端 2.0.14 及以上版本）
+    说明：批量建表方式要求数据表必须以超级表为模板。
 
 - **删除数据表**
 
@@ -155,7 +163,9 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     SHOW TABLES [LIKE tb_name_wildcar];
     ```
 
-    显示当前数据库下的所有数据表信息。说明：可在 like 中使用通配符进行名称的匹配。 通配符匹配：1）“%”（百分号）匹配 0 到任意个字符；2）“\_”（下划线）匹配一个字符。
+    显示当前数据库下的所有数据表信息。
+    说明：可在like中使用通配符进行名称的匹配，这一通配符字符串最长不能超过24字节。
+    通配符匹配：1）’%’ (百分号)匹配0到任意个字符；2）’\_’下划线匹配一个字符。
 
 - **在线修改显示字符宽度**
 
@@ -176,7 +186,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
     说明：
     1) 列的最大个数为1024，最小个数为2；
-    2) 列名最大长度为65；
+    2) 列名最大长度为64；
 
 - **表删除列**
 
@@ -655,7 +665,6 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     功能说明：时间加权平均函数。统计表/超级表中某列在一段时间内的时间加权平均。
     返回结果数据类型：双精度浮点数Double。
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
-    说明：时间加权平均（time weighted average, TWA）查询需要指定查询时间段的 _开始时间_ 和 _结束时间_ 。
     适用于：表、超级表。
 
 - **SUM**
