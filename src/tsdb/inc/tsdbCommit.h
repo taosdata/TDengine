@@ -19,7 +19,14 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+typedef struct {
+  uint64_t uid;
+  int64_t  offset;
+  int64_t  size;
+} SKVRecord;
 
+int   tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord);
+void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord);
 void *tsdbCommitData(STsdbRepo *pRepo);
 
 #ifdef __cplusplus

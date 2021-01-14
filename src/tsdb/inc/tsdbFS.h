@@ -68,16 +68,15 @@ typedef struct {
 #define TSDB_FS_ITER_FORWARD TSDB_ORDER_ASC
 #define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
 
-#if 0
-int        tsdbOpenFS(STsdbRepo* pRepo);
-void       tsdbCloseFS(STsdbRepo* pRepo);
-int        tsdbFSNewTxn(STsdbRepo* pRepo);
-int        tsdbFSEndTxn(STsdbRepo* pRepo, bool hasError);
-int        tsdbUpdateMFile(STsdbRepo* pRepo, SMFile* pMFile);
-int        tsdbUpdateDFileSet(STsdbRepo* pRepo, SDFileSet* pSet);
-int        tsdbInitFSIter(STsdbRepo* pRepo, SFSIter* pIter);
-SDFileSet* tsdbFSIterNext(SFSIter* pIter);
-#endif
+STsdbFS *tsdbNewFS(int keep, int days);
+void *   tsdbFreeFS(STsdbFS *pfs);
+int      tdbOpenFS(STsdbFS *pFs, int keep, int days);
+void     tsdbCloseFS(STsdbFS *pFs);
+int      tsdbStartTxn(STsdbFS *pfs);
+int      tsdbEndTxn(STsdbFS *pfs);
+int      tsdbEndTxnWithError(STsdbFS *pfs);
+void     tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile);
+int      tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet);
 
 static FORCE_INLINE int tsdbRLockFS(STsdbFS* pFs) {
   int code = pthread_rwlock_rdlock(&(pFs->lock));

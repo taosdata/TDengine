@@ -18,12 +18,6 @@
 
 #include "tsdbint.h"
 
-typedef struct {
-  uint64_t uid;
-  int64_t  offset;
-  int64_t  size;
-} SKVRecord;
-
 static int       tdInitKVStoreHeader(int fd, char *fname);
 static int       tdEncodeStoreInfo(void **buf, SStoreInfo *pInfo);
 static void *    tdDecodeStoreInfo(void *buf, SStoreInfo *pInfo);

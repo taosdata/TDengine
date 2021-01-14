@@ -85,55 +85,150 @@ _err:
 
 // =================== Commit Meta Data
 static int tsdbCommitMeta(STsdbRepo *pRepo) {
+  STsdbFS *  pfs = REPO_FS(pRepo);
   SMemTable *pMem = pRepo->imem;
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  SMFile *   pOMFile = pfs->cstatus->pmf;
+  SMFile     mf;
   SActObj *  pAct = NULL;
   SActCont * pCont = NULL;
-
-  if (listNEles(pMem->actList) <= 0) return 0;
-
-  if (tdKVStoreStartCommit(pMeta->pStore) < 0) {
-    tsdbError("vgId:%d failed to commit data while start commit meta since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
-  }
-
   SListNode *pNode = NULL;
 
+  ASSERT(pOMFile != NULL || listNEles(pMem->actList) > 0);
+
+  if (listNEles(pMem->actList) <= 0) {
+    // no 
+    tsdbUpdateMFile(pfs, pOMFile);
+    return 0;
+  } else {
+    // Create/Open a meta file or open the existing file
+    if (pOMFile == NULL) {
+      // Create a new meta file
+      tsdbInitMFile(&mf, {.level = TFS_PRIMARY_LEVEL, .id = TFS_PRIMARY_ID}, REPO_ID(pRepo), pfs->nstatus->meta.version);
+
+      if (tsdbCreateMFile(&mf) < 0) {
+        return -1;
+      }
+    } else {
+      tsdbInitMFile(&mf, pOMFile);
+      if (tsdbOpenMFile(&mf, O_WRONLY) < 0) {
+        return -1;
+      }
+    }
+  }
+
+  // Loop to write
   while ((pNode = tdListPopHead(pMem->actList)) != NULL) {
     pAct = (SActObj *)pNode->data;
     if (pAct->act == TSDB_UPDATE_META) {
       pCont = (SActCont *)POINTER_SHIFT(pAct, sizeof(SActObj));
-      if (tdUpdateKVStoreRecord(pMeta->pStore, pAct->uid, (void *)(pCont->cont), pCont->len) < 0) {
-        tsdbError("vgId:%d failed to update meta with uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
-                  tstrerror(terrno));
-        tdKVStoreEndCommit(pMeta->pStore);
-        goto _err;
+      if (tsdbUpdateMetaRecord(pfs, &mf, pAct->uid, (void *)(pCont->cont), pCont->len) < 0) {
+        tsdbCloseMFile(&mf);
+        return -1;
       }
     } else if (pAct->act == TSDB_DROP_META) {
-      if (tdDropKVStoreRecord(pMeta->pStore, pAct->uid) < 0) {
-        tsdbError("vgId:%d failed to drop meta with uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
-                  tstrerror(terrno));
-        tdKVStoreEndCommit(pMeta->pStore);
-        goto _err;
+      if (tsdbDropMetaRecord(pfs, &mf, pAct->uid) < 0) {
+        tsdbCloseMFile(&mf);
+        return -1;
       }
     } else {
       ASSERT(false);
     }
   }
 
-  if (tdKVStoreEndCommit(pMeta->pStore) < 0) {
-    tsdbError("vgId:%d failed to commit data while end commit meta since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
+  if (tsdbUpdateMFileHeader(&mf) < 0) {
+    return -1;
   }
 
-  // TODO: update meta file
-  tsdbUpdateMFile(pRepo, &(pMeta->pStore.f));
+  tsdbCloseMFile(&mf);
+  tsdbUpdateMFile(pfs, &mf);
 
   return 0;
-
-_err:
-  return -1;
 }
+
+int tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord) {
+  int tlen = 0;
+  tlen += taosEncodeFixedU64(buf, pRecord->uid);
+  tlen += taosEncodeFixedI64(buf, pRecord->offset);
+  tlen += taosEncodeFixedI64(buf, pRecord->size);
+
+  return tlen;
+}
+
+void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord) {
+  buf = taosDecodeFixedU64(buf, &(pRecord->uid));
+  buf = taosDecodeFixedI64(buf, &(pRecord->offset));
+  buf = taosDecodeFixedI64(buf, &(pRecord->size));
+
+  return buf;
+}
+
+static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen) {
+  char      buf[64] = "\0";
+  void *    pBuf = buf;
+  SKVRecord rInfo;
+  int64_t   offset;
+
+  // Seek to end of meta file
+  offset = tsdbSeekMFile(pMFile, 0, SEEK_END);
+  if (offset < 0) {
+    return -1;
+  }
+
+  rInfo.offset = offset;
+  rInfo.uid = uid;
+  rInfo.size = contLen;
+
+  tlen = tsdbEncodeKVRecord((void **)(&pBuf), pRInfo);
+  if (tsdbAppendMFile(pMFile, buf, tlen) < tlen) {
+    return -1;
+  }
+
+  if (tsdbAppendMFile(pMFile, cont, contLen) < contLen) {
+    return -1;
+  }
+
+  tsdbUpdateMFileMagic(pMFile, POINTER_SHIFT(cont, contLen - sizeof(TSCKSUM)));
+  SKVRecord *pRecord = taosHashGet(pfs->metaCache, (void *)&uid, sizeof(uid));
+  if (pRecord != NULL) {
+    pMFile->info.tombSize += pRecord->size;
+  } else {
+    pMFile->info.nRecords++;
+  }
+  taosHashPut(pfs->metaCache, (void *)(&uid), sizeof(uid), (void *)(&rInfo), sizeof(rInfo));
+
+  return 0;
+}
+
+static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
+  SKVRecord rInfo = {0};
+  char      buf[128] = "\0";
+
+  SKVRecord *pRecord = taosHashGet(pfs->metaCache, (void *)(&uid), sizeof(uid));
+  if (pRecord == NULL) {
+    tsdbError("failed to drop KV store record with key %" PRIu64 " since not find", uid);
+    return -1;
+  }
+
+  rInfo.offset = -pRecord->offset;
+  rInfo.uid = pRecord->uid;
+  rInfo.size = pRecord->size;
+
+  void *pBuf = buf;
+  tdEncodeKVRecord(&pBuf, &rInfo);
+
+  if (tsdbAppendMFile(pMFile, buf, POINTER_DISTANCE(pBuf, buf), NULL) < 0) {
+    return -1;
+  }
+
+  pMFile->meta.magic = taosCalcChecksum(pStore->info.magic, (uint8_t *)buf, (uint32_t)POINTER_DISTANCE(pBuf, buf));
+  pMFile->meta.nDels++;
+  pMFile->meta.nRecords--;
+  pMFile->meta.tombSize += (rInfo.size + sizeof(SKVRecord) * 2);
+
+  taosHashRemove(pfs->metaCache, (void *)(&uid), sizeof(uid));
+  return 0;
+}
+
 
 // =================== Commit Time-Series Data
 static int tsdbCommitTSData(STsdbRepo *pRepo) {
