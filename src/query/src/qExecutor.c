@@ -6314,7 +6314,7 @@ static int32_t createQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t num
       }
 
       type  = TSDB_DATA_TYPE_DOUBLE;
-      bytes = tDataTypeDesc[type].nSize;
+      bytes = tDataTypes[type].bytes;
     } else if (pExprs[i].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX && pExprs[i].base.functionId == TSDB_FUNC_TAGPRJ) {  // parse the normal column
       SSchema s = tGetTableNameColumnSchema();
       type = s.type;

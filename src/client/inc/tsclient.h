@@ -463,7 +463,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
       pRes->length[columnIndex] = pInfo->pSqlExpr->param[1].nLen;
       pRes->tsrow[columnIndex] = (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : (unsigned char*)pData;
     } else {
-      assert(bytes == tDataTypeDesc[type].nSize);
+      assert(bytes == tDataTypes[type].bytes);
 
       pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)&pInfo->pSqlExpr->param[1].i64;
       pRes->length[columnIndex] = bytes;
@@ -480,7 +480,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
 
       pRes->length[columnIndex] = realLen;
     } else {
-      assert(bytes == tDataTypeDesc[type].nSize);
+      assert(bytes == tDataTypes[type].bytes);
 
       pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)pData;
       pRes->length[columnIndex] = bytes;

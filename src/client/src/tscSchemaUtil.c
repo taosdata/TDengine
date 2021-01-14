@@ -85,7 +85,7 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
         return false;
       }
     } else {
-      if (pSchema[i].bytes != tDataTypeDesc[pSchema[i].type].nSize) {
+      if (pSchema[i].bytes != tDataTypes[pSchema[i].type].bytes) {
         return false;
       }
     }

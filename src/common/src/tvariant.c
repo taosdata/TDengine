@@ -205,7 +205,7 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   }
 
   if (pDst->nType != TSDB_DATA_TYPE_ARRAY) {
-    pDst->nLen = tDataTypeDesc[pDst->nType].nSize;
+    pDst->nLen = tDataTypes[pDst->nType].bytes;
   }
 }
 
@@ -424,7 +424,7 @@ static FORCE_INLINE int32_t convertToDouble(char *pStr, int32_t len, double *val
 
 static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result, int32_t type, bool issigned, bool releaseVariantPtr) {
   if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
-    setNull((char *)result, type, tDataTypeDesc[type].nSize);
+    setNull((char *)result, type, tDataTypes[type].bytes);
     return 0;
   }
 
@@ -445,7 +445,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
         pVariant->nLen = 0;
       }
 
-      setNull((char *)result, type, tDataTypeDesc[type].nSize);
+      setNull((char *)result, type, tDataTypes[type].bytes);
       return 0;
     }
 
@@ -495,7 +495,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
         free(pVariant->pz);
         pVariant->nLen = 0;
       }
-      setNull((char *)result, type, tDataTypeDesc[type].nSize);
+      setNull((char *)result, type, tDataTypes[type].bytes);
       return 0;
     } else {
       int64_t val = wcstoll(pVariant->wpz, &endPtr, 10);

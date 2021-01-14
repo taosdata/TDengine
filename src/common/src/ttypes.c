@@ -14,7 +14,7 @@
  */
 #include "os.h"
 
-#include "taosdef.h"
+#include "ttype.h"
 #include "ttokendef.h"
 #include "tscompression.h"
 
@@ -367,7 +367,7 @@ static void getStatics_nchr(const void *pData, int32_t numOfRow, int64_t *min, i
   *maxIndex = 0;
 }
 
-tDataTypeDescriptor tDataTypeDesc[15] = {
+tDataTypeDescriptor tDataTypes[15] = {
   {TSDB_DATA_TYPE_NULL,      6,1,        "NOTYPE",   NULL,     NULL,      NULL},
   {TSDB_DATA_TYPE_BOOL,      4,  CHAR_BYTES,   "BOOL",               tsCompressBool,      tsDecompressBool,      getStatics_bool},
   {TSDB_DATA_TYPE_TINYINT,   7,  CHAR_BYTES,   "TINYINT",            tsCompressTinyint,   tsDecompressTinyint,   getStatics_i8},
@@ -423,58 +423,58 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint8_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_BOOL_NULL;
+        *(uint8_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_BOOL_NULL;
       }
       break;
     case TSDB_DATA_TYPE_TINYINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint8_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_TINYINT_NULL;
+        *(uint8_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_TINYINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_SMALLINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint16_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_SMALLINT_NULL;
+        *(uint16_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_SMALLINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_INT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_INT_NULL;
+        *(uint32_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_INT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint64_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_BIGINT_NULL;
+        *(uint64_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_BIGINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_UTINYINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint8_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_UTINYINT_NULL;
+        *(uint8_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_UTINYINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint16_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_USMALLINT_NULL;
+        *(uint16_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_USMALLINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_UINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_UINT_NULL;
+        *(uint32_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_UINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint64_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_UBIGINT_NULL;
+        *(uint64_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_UBIGINT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_FLOAT:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_FLOAT_NULL;
+        *(uint32_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_FLOAT_NULL;
       }
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint64_t *)(val + i * tDataTypeDesc[type].nSize) = TSDB_DATA_DOUBLE_NULL;
+        *(uint64_t *)(val + i * tDataTypes[type].bytes) = TSDB_DATA_DOUBLE_NULL;
       }
       break;
     case TSDB_DATA_TYPE_NCHAR:
@@ -485,7 +485,7 @@ void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems) {
       break;
     default: {
       for (int32_t i = 0; i < numOfElems; ++i) {
-        *(uint32_t *)(val + i * tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize) = TSDB_DATA_INT_NULL;
+        *(uint32_t *)(val + i * tDataTypes[TSDB_DATA_TYPE_INT].bytes) = TSDB_DATA_INT_NULL;
       }
       break;
     }

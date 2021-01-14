@@ -398,21 +398,21 @@ void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
   pField->name[0] = 0;
 
   int32_t i = 0;
-  while (i < tListLen(tDataTypeDesc)) {
-    if ((type->n == tDataTypeDesc[i].nameLen) &&
-        (strncasecmp(type->z, tDataTypeDesc[i].aName, tDataTypeDesc[i].nameLen) == 0)) {
+  while (i < tListLen(tDataTypes)) {
+    if ((type->n == tDataTypes[i].nameLen) &&
+        (strncasecmp(type->z, tDataTypes[i].name, tDataTypes[i].nameLen) == 0)) {
       break;
     }
 
     i += 1;
   }
 
-  if (i == tListLen(tDataTypeDesc)) {
+  if (i == tListLen(tDataTypes)) {
     return;
   }
 
   pField->type = i;
-  pField->bytes = tDataTypeDesc[i].nSize;
+  pField->bytes = tDataTypes[i].bytes;
 
   if (i == TSDB_DATA_TYPE_NCHAR) {
     /*
