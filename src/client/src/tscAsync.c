@@ -27,8 +27,6 @@
 
 static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 
-static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRows, void (*fp)());
-
 /*
  * Proxy function to perform sequentially query&retrieve operation.
  * If sql queries upon a super table and two-stage merge procedure is not involved (when employ the projection
