@@ -260,14 +260,14 @@ typedef struct {
   uint64_t uid;
   uint64_t superTableUid;
   uint64_t createdTime;
-  char     tableId[TSDB_TABLE_FNAME_LEN];
-  char     superTableId[TSDB_TABLE_FNAME_LEN];
+  char     tableFname[TSDB_TABLE_FNAME_LEN];
+  char     stableFname[TSDB_TABLE_FNAME_LEN];
   char     data[];
 } SMDCreateTableMsg;
 
 typedef struct {
   int32_t len;  // one create table message
-  char    tableId[TSDB_TABLE_FNAME_LEN];
+  char    tableFname[TSDB_TABLE_FNAME_LEN];
   char    db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int8_t  igExists;
   int8_t  getMeta;
@@ -284,12 +284,12 @@ typedef struct {
 } SCMCreateTableMsg;
 
 typedef struct {
-  char   tableId[TSDB_TABLE_FNAME_LEN];
+  char   tableFname[TSDB_TABLE_FNAME_LEN];
   int8_t igNotExists;
 } SCMDropTableMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_FNAME_LEN];
+  char    tableFname[TSDB_TABLE_FNAME_LEN];
   char    db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   int16_t type; /* operation type   */
   int16_t numOfCols; /* number of schema */
@@ -369,14 +369,14 @@ typedef struct {
   int32_t  vgId;
   int32_t  tid;
   uint64_t uid;
-  char     tableId[TSDB_TABLE_FNAME_LEN];
+  char     tableFname[TSDB_TABLE_FNAME_LEN];
 } SMDDropTableMsg;
 
 typedef struct {
   int32_t  contLen;
   int32_t  vgId;
   uint64_t uid;
-  char    tableId[TSDB_TABLE_FNAME_LEN];
+  char    tableFname[TSDB_TABLE_FNAME_LEN];
 } SDropSTableMsg;
 
 typedef struct {
@@ -688,7 +688,7 @@ typedef struct {
 } SCreateVnodeMsg, SAlterVnodeMsg;
 
 typedef struct {
-  char    tableId[TSDB_TABLE_FNAME_LEN];
+  char    tableFname[TSDB_TABLE_FNAME_LEN];
   int16_t createFlag;
   char    tags[];
 } STableInfoMsg;
@@ -726,7 +726,7 @@ typedef struct {
 
 typedef struct STableMetaMsg {
   int32_t       contLen;
-  char          tableId[TSDB_TABLE_FNAME_LEN];   // table id
+  char          tableFname[TSDB_TABLE_FNAME_LEN];   // table id
   uint8_t       numOfTags;
   uint8_t       precision;
   uint8_t       tableType;
@@ -847,7 +847,7 @@ typedef struct {
   uint64_t uid;
   uint64_t stime;  // stream starting time
   int32_t  status;
-  char     tableId[TSDB_TABLE_FNAME_LEN];
+  char     tableFname[TSDB_TABLE_FNAME_LEN];
 } SAlterStreamMsg;
 
 typedef struct {

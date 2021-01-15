@@ -25,8 +25,6 @@
 #include "ttimer.h"
 #include "tlockfree.h"
 
-///SRpcCorEpSet  tscMgmtEpSet;
-
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
 int (*tscProcessMsgRsp[TSDB_SQL_MAX])(SSqlObj *pSql);
@@ -1157,7 +1155,7 @@ int32_t tscBuildDropTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCMDropTableMsg *pDropTableMsg = (SCMDropTableMsg*)pCmd->payload;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  strcpy(pDropTableMsg->tableId, pTableMetaInfo->name);
+  strcpy(pDropTableMsg->tableFname, pTableMetaInfo->name);
   pDropTableMsg->igNotExists = pInfo->pDCLInfo->existsCheck ? 1 : 0;
 
   pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_TABLE;
@@ -1347,7 +1345,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pMsg += sizeof(SCreateTableMsg);
 
       SCreatedTableInfo* p = taosArrayGet(list, i);
-      strcpy(pCreate->tableId, p->fullname);
+      strcpy(pCreate->tableFname, p->fullname);
       pCreate->igExists = (p->igExist)? 1 : 0;
 
       // use dbinfo from table id without modifying current db info
@@ -1360,7 +1358,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   } else {  // create (super) table
     pCreateTableMsg->numOfTables = htonl(1); // only one table will be created
 
-    strcpy(pCreateMsg->tableId, pTableMetaInfo->name);
+    strcpy(pCreateMsg->tableFname, pTableMetaInfo->name);
 
     // use dbinfo from table id without modifying current db info
     tscGetDBInfoFromTableFullName(pTableMetaInfo->name, pCreateMsg->db);
@@ -1431,7 +1429,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SAlterTableMsg *pAlterTableMsg = (SAlterTableMsg *)pCmd->payload;
   tscGetDBInfoFromTableFullName(pTableMetaInfo->name, pAlterTableMsg->db);
 
-  strcpy(pAlterTableMsg->tableId, pTableMetaInfo->name);
+  strcpy(pAlterTableMsg->tableFname, pTableMetaInfo->name);
   pAlterTableMsg->type = htons(pAlterInfo->type);
 
   pAlterTableMsg->numOfCols = htons(tscNumOfFields(pQueryInfo));
@@ -1630,7 +1628,7 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   STableInfoMsg *pInfoMsg = (STableInfoMsg *)pCmd->payload;
-  strcpy(pInfoMsg->tableId, pTableMetaInfo->name);
+  strcpy(pInfoMsg->tableFname, pTableMetaInfo->name);
   pInfoMsg->createFlag = htons(pSql->cmd.autoCreated ? 1 : 0);
 
   char *pMsg = (char *)pInfoMsg + sizeof(STableInfoMsg);
@@ -1799,7 +1797,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   if ((pMetaMsg->tableType != TSDB_SUPER_TABLE) &&
       (pMetaMsg->tid <= 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
     tscError("invalid value in table numOfEps:%d, vgId:%d tid:%d, name:%s", pMetaMsg->vgroup.numOfEps, pMetaMsg->vgroup.vgId,
-             pMetaMsg->tid, pMetaMsg->tableId);
+             pMetaMsg->tid, pMetaMsg->tableFname);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -1831,11 +1829,15 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     assert(isValidDataType(pSchema->type));
     pSchema++;
   }
-
-  STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
   
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
   assert(pTableMetaInfo->pTableMeta == NULL);
+
+  STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
+  if (!isValidSchema(pTableMeta->schema, pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.numOfTags)) {
+    tscError("%p invalid table meta from mnode, name:%s", pSql, pTableMetaInfo->name);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
 
   if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
     // check if super table hashmap or not
