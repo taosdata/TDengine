@@ -124,8 +124,8 @@ void bnStartTimer(int32_t mseconds) {
 
   bool updateSoon = (mseconds != -1);
   if (updateSoon) {
-    mTrace("balance function will be called after %" PRId64 " ms", mseconds);
-    taosTmrReset(bnProcessTimer, mseconds, (void *)mseconds, tsMnodeTmr, &tsBnThread.timer);
+    mTrace("balance function will be called after %d ms", mseconds);
+    taosTmrReset(bnProcessTimer, mseconds, (void *)(int64_t)mseconds, tsMnodeTmr, &tsBnThread.timer);
   } else {
     taosTmrReset(bnProcessTimer, tsStatusInterval * 1000, NULL, tsMnodeTmr, &tsBnThread.timer);
   }
