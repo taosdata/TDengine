@@ -308,7 +308,7 @@ static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
   if (pVnode->flowctrlLevel <= 0) code = TSDB_CODE_VND_IS_FLOWCTRL;
 
   pWrite->processedCount++;
-  if (pWrite->processedCount > 100) {
+  if (pWrite->processedCount >= 100) {
     vError("vgId:%d, msg:%p, failed to process since %s, retry:%d", pVnode->vgId, pWrite, tstrerror(code),
            pWrite->processedCount);
     pWrite->processedCount = 1;
