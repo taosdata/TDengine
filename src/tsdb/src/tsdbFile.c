@@ -16,12 +16,11 @@
 #include "tsdbint.h"
 
 static const char *TSDB_FNAME_SUFFIX[] = {
-    ".head",    // TSDB_FILE_HEAD
-    ".data",    // TSDB_FILE_DATA
-    ".last",    // TSDB_FILE_LAST
-    "",         // TSDB_FILE_MAX
-    "meta",     // TSDB_FILE_META
-    "manifest"  // TSDB_FILE_MANIFEST
+    ".head",  // TSDB_FILE_HEAD
+    ".data",  // TSDB_FILE_DATA
+    ".last",  // TSDB_FILE_LAST
+    "",       // TSDB_FILE_MAX
+    "meta"    // TSDB_FILE_META
 };
 
 static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
@@ -62,6 +61,7 @@ int tsdbEncodeSMFile(void **buf, SMFile *pMFile) {
 void *tsdbDecodeSMFile(void *buf, SMFile *pMFile) {
   buf = tsdbDecodeMFInfo(buf, &(pMFile->info));
   buf = tfsDecodeFile(buf, &(pMFile->f));
+  TSDB_FILE_SET_CLOSED(pMFile);
 
   return buf;
 }
@@ -71,40 +71,18 @@ int tsdbApplyMFileChange(SMFile *from, SMFile *to) {
 
   if (from != NULL) {
     if (to == NULL) {
-      tsdbRemoveMFile(from);
+      return tsdbRemoveMFile(from);
     } else {
       if (tfsIsSameFile(TSDB_FILE_F(from), TSDB_FILE_F(to))) {
         if (from->info.size > to->info.size) {
           tsdbRollBackMFile(to);
         }
       } else {
-        tsdbRemoveMFile(from);
+        return tsdbRemoveMFile(from);
       }
     }
   }
 
-  return 0;
-}
-
-static int tsdbRollBackMFile(SMFile *pMFile) {
-  SMFile mf = *pMFile;
-
-  if (tsdbOpenMFile(&mf, O_WRONLY) < 0) {
-    return -1;
-  }
-
-  if (taosFtruncate(TSDB_FILE_FD(&mf), pMFile->info.size) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    tsdbCloseMFile(&mf);
-    return -1;
-  }
-
-  if (tsdbUpdateMFileHeader(&mf) < 0) {
-    tsdbCloseMFile(&mf);
-    return -1;
-  }
-
-  tsdbCloseMFile(&mf);
   return 0;
 }
 
@@ -139,7 +117,7 @@ int tsdbUpdateMFileHeader(SMFile *pMFile) {
   }
 
   void *ptr = buf;
-  tsdbEncodeMFInfo(&ptr, &(pMFile->info));
+  tsdbEncodeMFInfo(&ptr, TSDB_FILE_INFO(pMFile));
 
   if (tsdbWriteMFile(pMFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
     return -1;
@@ -170,6 +148,30 @@ static void *tsdbDecodeMFInfo(void *buf, SMFInfo *pInfo) {
   return buf;
 }
 
+static int tsdbRollBackMFile(SMFile *pMFile) {
+  SMFile mf = *pMFile;
+
+  if (tsdbOpenMFile(&mf, O_WRONLY) < 0) {
+    return -1;
+  }
+
+  if (taosFtruncate(TSDB_FILE_FD(&mf), pMFile->info.size) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tsdbCloseMFile(&mf);
+    return -1;
+  }
+
+  if (tsdbUpdateMFileHeader(&mf) < 0) {
+    tsdbCloseMFile(&mf);
+    return -1;
+  }
+
+  TSDB_FILE_FSYNC(&mf);
+
+  tsdbCloseMFile(&mf);
+  return 0;
+}
+
 // ============== Operations on SDFile
 void tsdbInitDFile(SDFile *pDFile, SDiskID did, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype) {
   char fname[TSDB_FILENAME_LEN];
@@ -179,7 +181,7 @@ void tsdbInitDFile(SDFile *pDFile, SDiskID did, int vid, int fid, uint32_t ver, 
   memset(&(pDFile->info), 0, sizeof(pDFile->info));
   pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
 
-  tsdbGetFilename(vid, 0, ver, ftype, fname);
+  tsdbGetFilename(vid, fid, ver, ftype, fname);
   tfsInitFile(&(pDFile->f), did.level, did.id, fname);
 }
 
@@ -200,6 +202,7 @@ int tsdbEncodeSDFile(void **buf, SDFile *pDFile) {
 void *tsdbDecodeSDFile(void *buf, SDFile *pDFile) {
   buf = tsdbDecodeDFInfo(buf, &(pDFile->info));
   buf = tfsDecodeFile(buf, &(pDFile->f));
+  TSDB_FILE_SET_CLOSED(pDFile);
 
   return buf;
 }
@@ -308,6 +311,8 @@ static int tsdbRollBackDFile(SDFile *pDFile) {
     return -1;
   }
 
+  TSDB_FILE_FSYNC(&df);
+
   tsdbCloseDFile(&df);
   return 0;
 }
@@ -384,13 +389,14 @@ static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, c
     if (ver == 0) {
       snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d.%s", vid, vid, fid, TSDB_FNAME_SUFFIX[ftype]);
     } else {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d.%s-%012" PRIu32, vid, vid, fid, TSDB_FNAME_SUFFIX[ftype], ver);
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d.%s-ver%" PRIu32, vid, vid, fid,
+               TSDB_FNAME_SUFFIX[ftype], ver);
     }
   } else {
     if (ver == 0) {
       snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s", vid, TSDB_FNAME_SUFFIX[ftype]);
     } else {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s-%012" PRIu32, vid, TSDB_FNAME_SUFFIX[ftype], ver);
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s-ver%" PRIu32, vid, TSDB_FNAME_SUFFIX[ftype], ver);
     }
   }
 }

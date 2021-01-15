@@ -34,15 +34,9 @@ extern "C" {
 #define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_FD(f) = -1)
 #define TSDB_FILE_LEVEL(tf) TFILE_LEVEL(TSDB_FILE_F(tf))
 #define TSDB_FILE_ID(tf) TFILE_ID(TSDB_FILE_F(tf))
+#define TSDB_FILE_FSYNC(tf) fsync(TSDB_FILE_FD(tf))
 
-typedef enum {
-  TSDB_FILE_HEAD = 0,
-  TSDB_FILE_DATA,
-  TSDB_FILE_LAST,
-  TSDB_FILE_MAX,
-  TSDB_FILE_META,
-  TSDB_FILE_MANIFEST
-} TSDB_FILE_T;
+typedef enum { TSDB_FILE_HEAD = 0, TSDB_FILE_DATA, TSDB_FILE_LAST, TSDB_FILE_MAX, TSDB_FILE_META } TSDB_FILE_T;
 
 // =============== SMFile
 typedef struct {
@@ -63,11 +57,13 @@ void  tsdbInitMFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver);
 void  tsdbInitMFileEx(SMFile* pMFile, SMFile* pOMFile);
 int   tsdbEncodeSMFile(void** buf, SMFile* pMFile);
 void* tsdbDecodeSMFile(void* buf, SMFile* pMFile);
-int   tsdbApplyMFileChange(SMFile* from, SMFile* to);
-int   tsdbApplyMFileChange(SMFile* from, SMFile* to);
+int   tsdbCreateMFile(SMFile* pMFile);
+int   tsdbUpdateMFileHeader(SMFile* pMFile);
+
+static FORCE_INLINE void tsdbSetMFileInfo(SMFile* pMFile, SMInfo* pInfo) { pMFile->info = *pInfo; }
 
 static FORCE_INLINE int tsdbOpenMFile(SMFile* pMFile, int flags) {
-  ASSERT(!TSDB_FILE_OPENED(pMFile));
+  ASSERT(TSDB_FILE_CLOSED(pMFile));
 
   pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), flags);
   if (pMFile->fd < 0) {
@@ -137,11 +133,7 @@ static FORCE_INLINE int tsdbAppendMFile(SMFile* pMFile, void* buf, int64_t nbyte
   return 0;
 }
 
-int tsdbCreateMFile(SMFile *pMFile);
-
 static FORCE_INLINE int tsdbRemoveMFile(SMFile* pMFile) { return tfsremove(TSDB_FILE_F(pMFile)); }
-
-int tsdbUpdateMFileHeader(SMFile* pMFile);
 
 static FORCE_INLINE int64_t tsdbReadMFile(SMFile* pMFile, void* buf, int64_t nbyte) {
   ASSERT(TSDB_FILE_OPENED(pMFile));
@@ -176,6 +168,10 @@ void  tsdbInitDFile(SDFile* pDFile, SDiskID did, int vid, int fid, uint32_t ver,
 void  tsdbInitDFileEx(SDFile* pDFile, SDFile* pODFile);
 int   tsdbEncodeSDFile(void** buf, SDFile* pDFile);
 void* tsdbDecodeSDFile(void* buf, SDFile* pDFile);
+int   tsdbCreateDFile(SDFile* pDFile);
+int   tsdbUpdateDFileHeader(SDFile* pDFile);
+
+static FORCE_INLINE void tsdbSetDFileInfo(SDFile* pDFile, SDFInfo* pInfo) { pDFile->info = *pInfo; }
 
 static FORCE_INLINE int tsdbOpenDFile(SDFile* pDFile, int flags) {
   ASSERT(!TSDB_FILE_OPENED(pDFile));
@@ -196,7 +192,7 @@ static FORCE_INLINE void tsdbCloseDFile(SDFile* pDFile) {
   }
 }
 
-static FORCE_INLINE int64_t tsdbSeekDFile(SDFile *pDFile, int64_t offset, int whence) {
+static FORCE_INLINE int64_t tsdbSeekDFile(SDFile* pDFile, int64_t offset, int whence) {
   ASSERT(TSDB_FILE_OPENED(pDFile));
 
   int64_t loffset = taosLSeek(TSDB_FILE_FD(pDFile), offset, whence);
@@ -248,11 +244,7 @@ static FORCE_INLINE int tsdbAppendDFile(SDFile* pDFile, void* buf, int64_t nbyte
   return 0;
 }
 
-int tsdbCreateDFile(SDFile* pDFile);
-
 static FORCE_INLINE int tsdbRemoveDFile(SDFile* pDFile) { return tfsremove(TSDB_FILE_F(pDFile)); }
-
-int tsdbUpdateDFileHeader(SDFile* pDFile);
 
 static FORCE_INLINE int64_t tsdbReadDFile(SDFile* pDFile, void* buf, int64_t nbyte) {
   ASSERT(TSDB_FILE_OPENED(pDFile));
@@ -272,7 +264,7 @@ static FORCE_INLINE int tsdbCopyDFile(SDFile* pSrc, SDFile* pDest) {
     return -1;
   }
 
-  pDest->info = pSrc->info;
+  tsdbSetDFileInfo(pDest, TSDB_FILE_INFO(pSrc));
   return 0;
 }
 
@@ -294,11 +286,13 @@ typedef struct {
     }                                                                          \
   } while (0);
 
-void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t ver);
+void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, uint32_t ver);
 void  tsdbInitDFileSetEx(SDFileSet* pSet, SDFileSet* pOSet);
 int   tsdbEncodeDFileSet(void** buf, SDFileSet* pSet);
 void* tsdbDecodeDFileSet(void* buf, SDFileSet* pSet);
 int   tsdbApplyDFileSetChange(SDFileSet* from, SDFileSet* to);
+int   tsdbCreateDFileSet(SDFileSet* pSet);
+int   tsdbUpdateDFileSetHeader(SDFileSet* pSet);
 
 static FORCE_INLINE void tsdbCloseDFileSet(SDFileSet* pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
@@ -316,15 +310,11 @@ static FORCE_INLINE int tsdbOpenDFileSet(SDFileSet* pSet, int flags) {
   return 0;
 }
 
-int tsdbCreateDFileSet(SDFileSet *pSet);
-
 static FORCE_INLINE void tsdbRemoveDFileSet(SDFileSet* pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     tsdbRemoveDFile(TSDB_DFILE_IN_SET(pSet, ftype));
   }
 }
-
-int tsdbUpdateDFileSetHeader(SDFileSet* pSet);
 
 static FORCE_INLINE int tsdbCopyDFileSet(SDFileSet* pSrc, SDFileSet* pDest) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {

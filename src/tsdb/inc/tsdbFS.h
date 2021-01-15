@@ -30,7 +30,7 @@ typedef struct {
 
 // ================== TSDB File System Meta
 typedef struct {
-  uint64_t version;       // Commit version from 0 to increase
+  uint32_t version;       // Commit version from 0 to increase
   int64_t  totalPoints;   // total points
   int64_t  totalStorage;  // Uncompressed total storage
 } STsdbFSMeta;
