@@ -4176,7 +4176,7 @@ static void stableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBloc
   }
 }
 
-bool queryHasRemainResForTableQuery(SQueryRuntimeEnv* pRuntimeEnv) {
+bool hasNotReturnedResults(SQueryRuntimeEnv* pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   SFillInfo *pFillInfo = pRuntimeEnv->pFillInfo;
 
@@ -4186,8 +4186,7 @@ bool queryHasRemainResForTableQuery(SQueryRuntimeEnv* pRuntimeEnv) {
 
   if (pQuery->fillType != TSDB_FILL_NONE && !isPointInterpoQuery(pQuery)) {
     // There are results not returned to client yet, so filling applied to the remain result is required firstly.
-    int32_t remain = taosNumOfRemainRows(pFillInfo);
-    if (remain > 0) {
+    if (taosFillHasMoreResults(pFillInfo)) {
       return true;
     }
 
@@ -4201,7 +4200,7 @@ bool queryHasRemainResForTableQuery(SQueryRuntimeEnv* pRuntimeEnv) {
      * first result row in the actual result set will fill nothing.
      */
     if (Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
-      int32_t numOfTotal = (int32_t)getNumOfResWithFill(pFillInfo, pQuery->window.ekey, (int32_t)pQuery->rec.capacity);
+      int32_t numOfTotal = (int32_t)getNumOfResultsAfterFillGap(pFillInfo, pQuery->window.ekey, (int32_t)pQuery->rec.capacity);
       return numOfTotal > 0;
     }
 
@@ -4269,7 +4268,7 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
         setQueryStatus(pQuery, QUERY_OVER);
       }
     } else {
-      if (!queryHasRemainResForTableQuery(&pQInfo->runtimeEnv)) {
+      if (!hasNotReturnedResults(&pQInfo->runtimeEnv)) {
         setQueryStatus(pQuery, QUERY_OVER);
       }
     }
@@ -4296,7 +4295,6 @@ int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst, int
              pQInfo, pFillInfo->numOfRows, ret, pQuery->limit.offset, ret - pQuery->limit.offset, 0);
 
       ret -= (int32_t)pQuery->limit.offset;
-      // todo !!!!there exactly number of interpo is not valid.
       for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
         memmove(pDst[i]->data, pDst[i]->data + pQuery->pExpr1[i].bytes * pQuery->limit.offset,
                 ret * pQuery->pExpr1[i].bytes);
@@ -4314,7 +4312,7 @@ int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst, int
       ret = 0;
     }
 
-    if (!queryHasRemainResForTableQuery(pRuntimeEnv)) {
+    if (!hasNotReturnedResults(pRuntimeEnv)) {
       return ret;
     }
   }
@@ -5774,7 +5772,7 @@ static void tableQueryImpl(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
-  if (queryHasRemainResForTableQuery(pRuntimeEnv)) {
+  if (hasNotReturnedResults(pRuntimeEnv)) {
     if (pQuery->fillType != TSDB_FILL_NONE) {
       /*
        * There are remain results that are not returned due to result interpolation

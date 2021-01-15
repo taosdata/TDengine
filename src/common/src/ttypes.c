@@ -524,15 +524,18 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_UTINYINT:
       *((int8_t *)val) = GET_INT8_VAL(src);
       break;
     case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:
       *((int16_t *)val) = GET_INT16_VAL(src);
       break;
-    case TSDB_DATA_TYPE_INT: {
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UINT:
       *((int32_t *)val) = GET_INT32_VAL(src);
       break;
-    }
+
     case TSDB_DATA_TYPE_FLOAT:
       SET_FLOAT_VAL(val, GET_FLOAT_VAL(src));
       break;
@@ -540,6 +543,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
       SET_DOUBLE_VAL(val, GET_DOUBLE_VAL(src));
       break;
     case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
       *((int64_t *)val) = GET_INT64_VAL(src);
       break;

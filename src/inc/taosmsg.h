@@ -153,30 +153,31 @@ enum _mgmt_table {
 #define TSDB_ALTER_TABLE_DROP_COLUMN       6
 #define TSDB_ALTER_TABLE_CHANGE_COLUMN     7
 
-#define TSDB_FILL_NONE      0
-#define TSDB_FILL_NULL      1
-#define TSDB_FILL_SET_VALUE 2
-#define TSDB_FILL_LINEAR    3
-#define TSDB_FILL_PREV      4
+#define TSDB_FILL_NONE             0
+#define TSDB_FILL_NULL             1
+#define TSDB_FILL_SET_VALUE        2
+#define TSDB_FILL_LINEAR           3
+#define TSDB_FILL_PREV             4
+#define TSDB_FILL_NEXT             5
 
-#define TSDB_ALTER_USER_PASSWD 0x1
+#define TSDB_ALTER_USER_PASSWD     0x1
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
-#define TSDB_KILL_MSG_LEN 30
+#define TSDB_KILL_MSG_LEN          30
 
-#define TSDB_VN_READ_ACCCESS ((char)0x1)
-#define TSDB_VN_WRITE_ACCCESS ((char)0x2)
+#define TSDB_VN_READ_ACCCESS       ((char)0x1)
+#define TSDB_VN_WRITE_ACCCESS      ((char)0x2)
 #define TSDB_VN_ALL_ACCCESS (TSDB_VN_READ_ACCCESS | TSDB_VN_WRITE_ACCCESS)
 
-#define TSDB_COL_NORMAL          0x0u    // the normal column of the table
-#define TSDB_COL_TAG             0x1u    // the tag column type
-#define TSDB_COL_UDC             0x2u    // the user specified normal string column, it is a dummy column
-#define TSDB_COL_NULL            0x4u    // the column filter NULL or not
+#define TSDB_COL_NORMAL             0x0u    // the normal column of the table
+#define TSDB_COL_TAG                0x1u    // the tag column type
+#define TSDB_COL_UDC                0x2u    // the user specified normal string column, it is a dummy column
+#define TSDB_COL_NULL               0x4u    // the column filter NULL or not
 
-#define TSDB_COL_IS_TAG(f)    (((f&(~(TSDB_COL_NULL)))&TSDB_COL_TAG) != 0)
-#define TSDB_COL_IS_NORMAL_COL(f)    ((f&(~(TSDB_COL_NULL))) == TSDB_COL_NORMAL)
-#define TSDB_COL_IS_UD_COL(f)   ((f&(~(TSDB_COL_NULL))) == TSDB_COL_UDC)
-#define TSDB_COL_REQ_NULL(f) (((f)&TSDB_COL_NULL) != 0)
+#define TSDB_COL_IS_TAG(f)          (((f&(~(TSDB_COL_NULL)))&TSDB_COL_TAG) != 0)
+#define TSDB_COL_IS_NORMAL_COL(f)   ((f&(~(TSDB_COL_NULL))) == TSDB_COL_NORMAL)
+#define TSDB_COL_IS_UD_COL(f)       ((f&(~(TSDB_COL_NULL))) == TSDB_COL_UDC)
+#define TSDB_COL_REQ_NULL(f)        (((f)&TSDB_COL_NULL) != 0)
 
 
 extern char *taosMsg[];

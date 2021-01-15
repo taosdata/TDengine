@@ -979,14 +979,13 @@ static void doFillResult(SSqlObj *pSql, SLocalReducer *pLocalReducer, bool doneO
       pQueryInfo->limit.offset -= newRows;
       pRes->numOfRows = 0;
 
-      int32_t rpoints = taosNumOfRemainRows(pFillInfo);
-      if (rpoints <= 0) {
+      if (!taosFillHasMoreResults(pFillInfo)) {
         if (!doneOutput) { // reduce procedure has not completed yet, but current results for fill are exhausted
           break;
         }
 
         // all output in current group are completed
-        int32_t totalRemainRows = (int32_t)getNumOfResWithFill(pFillInfo, actualETime, pLocalReducer->resColModel->capacity);
+        int32_t totalRemainRows = (int32_t)getNumOfResultsAfterFillGap(pFillInfo, actualETime, pLocalReducer->resColModel->capacity);
         if (totalRemainRows <= 0) {
           break;
         }
@@ -1337,14 +1336,14 @@ static bool doBuildFilledResultForGroup(SSqlObj *pSql) {
   SLocalReducer *pLocalReducer = pRes->pLocalReducer;
   SFillInfo *pFillInfo = pLocalReducer->pFillInfo;
 
-  if (pFillInfo != NULL && taosNumOfRemainRows(pFillInfo) > 0) {
+  if (pFillInfo != NULL && taosFillHasMoreResults(pFillInfo)) {
     assert(pQueryInfo->fillType != TSDB_FILL_NONE);
 
     tFilePage *pFinalDataBuf = pLocalReducer->pResultBuf;
     int64_t etime = *(int64_t *)(pFinalDataBuf->data + TSDB_KEYSIZE * (pFillInfo->numOfRows - 1));
 
     // the first column must be the timestamp column
-    int32_t rows = (int32_t) getNumOfResWithFill(pFillInfo, etime, pLocalReducer->resColModel->capacity);
+    int32_t rows = (int32_t) getNumOfResultsAfterFillGap(pFillInfo, etime, pLocalReducer->resColModel->capacity);
     if (rows > 0) {  // do fill gap
       doFillResult(pSql, pLocalReducer, false);
     }
@@ -1373,7 +1372,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
       ((pRes->numOfRowsGroup < pQueryInfo->limit.limit && pQueryInfo->limit.limit > 0) || (pQueryInfo->limit.limit < 0))) {
       int64_t etime = (pQueryInfo->order.order == TSDB_ORDER_ASC)? pQueryInfo->window.ekey : pQueryInfo->window.skey;
 
-      int32_t rows = (int32_t)getNumOfResWithFill(pFillInfo, etime, pLocalReducer->resColModel->capacity);
+      int32_t rows = (int32_t)getNumOfResultsAfterFillGap(pFillInfo, etime, pLocalReducer->resColModel->capacity);
       if (rows > 0) {
         doFillResult(pSql, pLocalReducer, true);
       }
