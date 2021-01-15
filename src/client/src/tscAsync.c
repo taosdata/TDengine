@@ -145,7 +145,7 @@ static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
 }
 
 // actual continue retrieve function with user-specified callback function
-static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRows, void (*fp)()) {
+static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRows, __async_cb_func_t fp) {
   SSqlObj *pSql = (SSqlObj *)tres;
   if (pSql == NULL) {  // error
     tscError("sql object is NULL");
