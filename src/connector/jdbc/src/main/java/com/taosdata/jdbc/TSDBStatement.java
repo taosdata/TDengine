@@ -68,12 +68,6 @@ public class TSDBStatement implements Statement {
         // TODO make sure it is not a update query
         pSql = this.connector.executeQuery(sql);
 
-        try {
-            TimeUnit.SECONDS.sleep(10);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
-
         long resultSetPointer = this.connector.getResultSet();
         if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
             this.connector.freeResultSet(pSql);

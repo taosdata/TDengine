@@ -1,13 +1,11 @@
 package com.taosdata.jdbc.cases;
 
 import org.junit.After;
-import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.sql.*;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.IntStream;
 
 public class MultiThreadsWithSameStatmentTest {
 
@@ -28,7 +26,7 @@ public class MultiThreadsWithSameStatmentTest {
             }
         }
 
-        public void release(){
+        public void release() {
             try {
                 stmt.close();
                 conn.close();
@@ -63,13 +61,16 @@ public class MultiThreadsWithSameStatmentTest {
         });
 
         Thread t2 = new Thread(() -> {
-            try {
-                Service service = new Service();
-                service.stmt.executeUpdate("insert into jdbctest.weather values(now,1)");
-                service.release();
-            } catch (SQLException e) {
-                e.printStackTrace();
+            while (true) {
+                try {
+                    Service service = new Service();
+                    service.stmt.executeUpdate("insert into jdbctest.weather values(now,1)");
+                    service.release();
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                }
             }
+
         });
         t1.start();
         sleep(1000);
