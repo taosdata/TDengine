@@ -16,9 +16,6 @@
 #ifndef _TD_TSDB_READ_IMPL_H_
 #define _TD_TSDB_READ_IMPL_H_
 
-#include "taosdef.h"
-#include "tdataformat.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -78,16 +75,16 @@ typedef struct {
 
 struct SReadH {
   STsdbRepo * pRepo;
-  SDFileSet   rSet;  // File set
-  SArray *    aBlkIdx;
-  STable *    pTable;  // Table info
-  SBlockIdx * pBlkIdx;
+  SDFileSet   rSet;     // FSET to read
+  SArray *    aBlkIdx;  // SBlockIdx array
+  STable *    pTable;   // table to read
+  SBlockIdx * pBlkIdx;  // current reading table SBlockIdx
   int         cidx;
   SBlockInfo *pBlkInfo;
   SBlockData *pBlkData;  // Block info
   SDataCols * pDCols[2];
-  void *      pBuf;
-  void *      pCBuf;
+  void *      pBuf;   // buffer
+  void *      pCBuf;  // compression buffer
 };
 
 #define TSDB_READ_REPO(rh) ((rh)->pRepo)

@@ -724,8 +724,8 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
     SBlockIdx* compIndex = pQueryHandle->rhelper.pBlkIdx;
 
     // no data block in this file, try next file
-    if (compIndex->len == 0 || compIndex->numOfBlocks == 0 || compIndex->uid != pCheckInfo->tableId.uid) {
-      continue; // no data blocks in the file belongs to pCheckInfo->pTable
+    if (compIndex == NULL || compIndex->uid != pCheckInfo->tableId.uid) {
+      continue;  // no data blocks in the file belongs to pCheckInfo->pTable
     }
 
     if (pCheckInfo->compSize < (int32_t)compIndex->len) {

@@ -70,7 +70,7 @@ typedef struct {
 
 STsdbFS *tsdbNewFS(int keep, int days);
 void *   tsdbFreeFS(STsdbFS *pfs);
-int      tdbOpenFS(STsdbFS *pFs, int keep, int days);
+int      tsdbOpenFS(STsdbFS *pFs, int keep, int days);
 void     tsdbCloseFS(STsdbFS *pFs);
 int      tsdbStartTxn(STsdbFS *pfs);
 int      tsdbEndTxn(STsdbFS *pfs);
