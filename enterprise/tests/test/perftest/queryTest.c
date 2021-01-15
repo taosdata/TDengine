@@ -49,26 +49,6 @@ void fetchCallBack(void* param, TAOS_RES* tres, int numOfRows) {
   taos_query_a(p->conn, "show tables", queryCallback, p);
 }
 
-void fetchCallBack_Single(void* param, TAOS_RES* tres, TAOS_ROW row) {
-  char buf[512] = {0};
-  if (row) {
-    int32_t     num_fields = taos_num_fields(tres);
-    TAOS_FIELD* pField = taos_fetch_fields(tres);
-
-    // printf("row:%d %"PRId64" %"PRId64"", pTable->rowsRetrieved, *((int64_t *)row[0]), *((int64_t *)row[1]));
-    taos_print_row(buf, row, pField, num_fields);
-    int32_t k = __sync_fetch_and_add(&rid, 1);
-    printf("%d:%s", k, buf);
-    buf[0] = 0;
-
-    taos_fetch_row_a(tres, fetchCallBack_Single, param);
-  } else {
-    taos_free_result(tres);
-    printf("all data has been fixed");
-    // printf("index:%d, %d rows data retrieved", pTable->id, pTable->rowsRetrieved);
-  }
-}
-
 void queryCallback(void* param, TAOS_RES* tres, int code) {
   printf("query completed, code: %s, start to fetch data\n", taos_errstr(tres));
 
@@ -348,8 +328,8 @@ void generatedData(TAOS* taos) {
 }
 
 int main(int argc, char** argv) {
-//  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
-  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
+  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
+//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
 //  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/psim/cfg");
   taos_init();
   TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
@@ -405,8 +385,8 @@ int main(int argc, char** argv) {
 //      TAOS_RES*  taos_query(conn, t);
 //      taos_free_result(res);
 //    }
-    executeSQL(conn, "use db", NULL);
-    executeSQL(conn, "insert into st_float_6  values (now, 340282346638528859811704183484516925440.00000))", NULL);
+    executeSQL(conn, "use test", NULL);
+    executeSQL(conn, "select count(*) from t2m1 where ts<'2015-6-11 1:1:1.3' and ts>='2015-6-11 1:1:1' interval(20a) fill(next)", NULL);
 //    executeSQL(conn, "describe tux1", NULL);
 //    createEnvironment(conn, 2, 2, 10000, 30);
     taos_close(conn);

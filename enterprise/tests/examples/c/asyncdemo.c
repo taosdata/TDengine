@@ -203,31 +203,6 @@ void taos_retrieve_call_back(void *param, TAOS_RES *tres, int numOfRows)
   }
 }
 
-void taos_fetch_row_call_back(void *param, TAOS_RES *tres, TAOS_ROW row)
-{
-  struct timeval systemTime;
-  STable *pTable = (STable *)param;
-
-  if (row) {
-    // process the row
-    pTable->rowsRetrieved++;
-
-    // retrieve next row
-    taos_fetch_row_a(tres, taos_fetch_row_call_back, pTable);
-  }
-  else {
-    tablesProcessed++;
-    taos_free_result(tres);
-    printf("id:%d, %d rows data retrieved\n", pTable->rowsRetrieved, pTable->id);
-
-    if (tablesProcessed >= numOfTables) {
-      gettimeofday(&systemTime, NULL);
-      et = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-      printf("%lld mseconds to query %d data points\n", (et - st) / 1000, points * numOfTables);
-    }
-  }
-}
-
 void taos_select_call_back(void *param, TAOS_RES *tres, int code)
 {
   STable *pTable = (STable *)param;
@@ -235,9 +210,6 @@ void taos_select_call_back(void *param, TAOS_RES *tres, int code)
   if (code == 0 && tres) {
     // asynchronous API to fetch a batch of records
     taos_fetch_rows_a(tres, taos_retrieve_call_back, pTable);
-
-    // taos_fetch_row_a is a less efficient way to retrieve records since it call back app for every row
-    // taos_fetch_row_a(tres, taos_fetch_row_call_back, pTable);
   }
   else {
     printf("id:%d, select failed, code:%d\n", pTable->id, code);
