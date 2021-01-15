@@ -19,42 +19,8 @@
 #include "tconfig.h"
 #include "dnodeMain.h"
 
+static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);
 static tsem_t exitSem;
-
-#ifdef WINDOWS
-static void signal_handler(int32_t signum) {
-  dInfo("shut down signal is %d", signum);
-#else
-static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
-  if (signum == SIGUSR1) {
-    taosCfgDynamicOptions("debugFlag 143");
-    return;
-  }
-  if (signum == SIGUSR2) {
-    taosCfgDynamicOptions("resetlog");
-    return;
-  }
-  dInfo("shut down signal is %d, sender PID:%d cmdline:%s", signum, sigInfo->si_pid, taosGetCmdlineByPID(sigInfo->si_pid));
-#endif
-
-  syslog(LOG_INFO, "Shut down signal is %d", signum);
-  syslog(LOG_INFO, "Shutting down TDengine service...");
-
-  // protect the application from receive another signal
-  struct sigaction act = {{0}};
-  act.sa_handler = SIG_IGN;
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
-
-#ifndef WINDOWS
-  sigaction(SIGHUP, &act, NULL);
-  sigaction(SIGUSR1, &act, NULL);
-  sigaction(SIGUSR2, &act, NULL);
-#endif
-
-  // inform main thread to exit
-  tsem_post(&exitSem);
-}
 
 int32_t main(int32_t argc, char *argv[]) {
   int dump_config = 0;
@@ -147,8 +113,6 @@ int32_t main(int32_t argc, char *argv[]) {
 
   /* Set termination handler. */
   struct sigaction act = {{0}};
-
-#ifndef WINDOWS
   act.sa_flags = SA_SIGINFO;
   act.sa_sigaction = signal_handler;
   sigaction(SIGTERM, &act, NULL);
@@ -156,11 +120,6 @@ int32_t main(int32_t argc, char *argv[]) {
   sigaction(SIGINT, &act, NULL);
   sigaction(SIGUSR1, &act, NULL);
   sigaction(SIGUSR2, &act, NULL);
-#else
-  act.sa_handler = signal_handler;
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
-#endif
 
   // Open /var/log/syslog file to record information.
   openlog("TDengine:", LOG_PID | LOG_CONS | LOG_NDELAY, LOG_LOCAL1);
@@ -186,4 +145,34 @@ int32_t main(int32_t argc, char *argv[]) {
   dInfo("TDengine is shut down!");
   closelog();
   return EXIT_SUCCESS;
+}
+
+static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {	
+  if (signum == SIGUSR1) {	
+    taosCfgDynamicOptions("debugFlag 143");	
+    return;	
+  }	
+  if (signum == SIGUSR2) {	
+    taosCfgDynamicOptions("resetlog");	
+    return;	
+  }	
+
+  syslog(LOG_INFO, "Shut down signal is %d", signum);	
+  syslog(LOG_INFO, "Shutting down TDengine service...");	
+  // clean the system.	
+  dInfo("shut down signal is %d, sender PID:%d cmdline:%s", signum, sigInfo->si_pid, taosGetCmdlineByPID(sigInfo->si_pid));	
+
+  // protect the application from receive another signal	
+  struct sigaction act = {{0}};	
+#ifndef WINDOWS
+  act.sa_handler = SIG_IGN;	
+#endif  
+  sigaction(SIGTERM, &act, NULL);	
+  sigaction(SIGHUP, &act, NULL);	
+  sigaction(SIGINT, &act, NULL);	
+  sigaction(SIGUSR1, &act, NULL);	
+  sigaction(SIGUSR2, &act, NULL);	
+
+  // inform main thread to exit	
+  tsem_post(&exitSem);	
 }

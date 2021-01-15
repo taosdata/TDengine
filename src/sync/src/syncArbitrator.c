@@ -27,7 +27,7 @@
 #include "syncInt.h"
 #include "syncTcp.h"
 
-static void    arbSignalHandler(int32_t signum);
+static void    arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
 static void    arbProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
 static void    arbProcessBrokenLink(int64_t rid);
 static int32_t arbProcessPeerMsg(int64_t rid, void *buffer);
@@ -35,9 +35,9 @@ static tsem_t  tsArbSem;
 static void *  tsArbTcpPool;
 
 typedef struct {
-  char    id[TSDB_EP_LEN + 24];
-  SOCKET  nodeFd;
-  void *  pConn;
+  char   id[TSDB_EP_LEN + 24];
+  SOCKET nodeFd;
+  void * pConn;
 } SNodeConn;
 
 int32_t main(int32_t argc, char *argv[]) {
@@ -70,14 +70,13 @@ int32_t main(int32_t argc, char *argv[]) {
 
   /* Set termination handler. */
   struct sigaction act = {{0}};
-  memset(&act, 0, sizeof(struct sigaction));
+  act.sa_flags = SA_SIGINFO;
+  act.sa_sigaction = arbSignalHandler;
 
   act.sa_handler = arbSignalHandler;
   sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
-#ifndef WINDOWS
   sigaction(SIGHUP, &act, NULL);
-#endif
+  sigaction(SIGINT, &act, NULL);
 
   tsAsyncLog = 0;
   strcat(arbLogPath, "/arbitrator.log");
@@ -107,6 +106,7 @@ int32_t main(int32_t argc, char *argv[]) {
   syncCloseTcpThreadPool(tsArbTcpPool);
   sInfo("TAOS arbitrator is shut down");
 
+  closelog();
   return 0;
 }
 
@@ -174,16 +174,16 @@ static int32_t arbProcessPeerMsg(int64_t rid, void *buffer) {
   return 0;
 }
 
-static void arbSignalHandler(int32_t signum) {
+static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context) {
   struct sigaction act = {{0}};
-  act.sa_handler = SIG_IGN;
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
 #ifndef WINDOWS
-  sigaction(SIGHUP, &act, NULL);
+  act.sa_handler = SIG_IGN;
 #endif
+  sigaction(SIGTERM, &act, NULL);
+  sigaction(SIGHUP, &act, NULL);
+  sigaction(SIGINT, &act, NULL);
 
-  sInfo("shut down signal is %d", signum);
+  sInfo("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
 
   // inform main thread to exit
   tsem_post(&tsArbSem);

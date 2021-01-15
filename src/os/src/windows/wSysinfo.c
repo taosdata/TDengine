@@ -32,9 +32,50 @@
 #endif
 
 #pragma warning(push)
-#pragma warning(disable:4091)
+#pragma warning(disable : 4091)
 #include <DbgHelp.h>
 #pragma warning(pop)
+
+static int32_t taosGetTotalMemory() {
+  MEMORYSTATUSEX memsStat;
+  memsStat.dwLength = sizeof(memsStat);
+  if (!GlobalMemoryStatusEx(&memsStat)) {
+    return 0;
+  }
+
+  float nMemTotal = memsStat.ullTotalPhys / (1024.0f * 1024.0f);
+  return (int32_t)nMemTotal;
+}
+
+bool taosGetSysMemory(float *memoryUsedMB) {
+  MEMORYSTATUSEX memsStat;
+  memsStat.dwLength = sizeof(memsStat);
+  if (!GlobalMemoryStatusEx(&memsStat)) {
+    return false;
+  }
+
+  float nMemFree = memsStat.ullAvailPhys / (1024.0f * 1024.0f);
+  float nMemTotal = memsStat.ullTotalPhys / (1024.0f * 1024.0f);
+
+  *memoryUsedMB = nMemTotal - nMemFree;
+  return true;
+}
+
+bool taosGetProcMemory(float *memoryUsedMB) {
+  unsigned bytes_used = 0;
+
+#if defined(_WIN32) && defined(_MSC_VER)
+  PROCESS_MEMORY_COUNTERS pmc;
+  HANDLE                  cur_proc = GetCurrentProcess();
+
+  if (GetProcessMemoryInfo(cur_proc, &pmc, sizeof(pmc))) {
+    bytes_used = (unsigned)(pmc.WorkingSetSize + pmc.PagefileUsage);
+  }
+#endif
+
+  *memoryUsedMB = (float)bytes_used / 1024 / 1024;
+  return true;
+}
 
 static void taosGetSystemTimezone() {
   // get and set default timezone
@@ -71,16 +112,16 @@ static void taosGetSystemLocale() {
   }
 }
 
-void taosPrintOsInfo() {}
-
-void taosKillSystem() {
-  uError("function taosKillSystem, exit!");
-  exit(0);
+static int32_t taosGetCpuCores() {
+  SYSTEM_INFO info;
+  GetSystemInfo(&info);
+  return (int32_t)info.dwNumberOfProcessors;
 }
 
-void taosGetSystemInfo() {
-  taosGetSystemTimezone();
-  taosGetSystemLocale();
+bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
+  *sysCpuUsage = 0;
+  *procCpuUsage = 0;
+  return true;
 }
 
 bool taosGetDisk() {
@@ -89,20 +130,35 @@ bool taosGetDisk() {
   unsigned _int64 i64FreeBytesToCaller;
   unsigned _int64 i64TotalBytes;
   unsigned _int64 i64FreeBytes;
-  char            dir[4] = {'C', ':', '\\', '\0'};
-  int             drive_type;
 
   if (tscEmbedded) {
-    drive_type = GetDriveTypeA(dir);
-    if (drive_type == DRIVE_FIXED) {
-      fResult = GetDiskFreeSpaceExA(dir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
-                                    (PULARGE_INTEGER)&i64FreeBytes);
-      if (fResult) {
-        tsTotalDataDirGB = tsTotalLogDirGB = tsTotalTmpDirGB = (float)(i64TotalBytes / unit);
-        tsAvailDataDirGB = tsAvailLogDirGB = tsAvailTmpDirectorySpace = (float)(i64FreeBytes / unit);
-      }
+    fResult = GetDiskFreeSpaceExA(tsDataDir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
+                                  (PULARGE_INTEGER)&i64FreeBytes);
+    if (fResult) {
+      tsTotalDataDirGB = (float)(i64TotalBytes / unit);
+      tsAvailDataDirGB = (float)(i64FreeBytes / unit);
     }
   }
+
+  fResult = GetDiskFreeSpaceExA(tsLogDir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
+                                (PULARGE_INTEGER)&i64FreeBytes);
+  if (fResult) {
+    tsTotalLogDirGB = (float)(i64TotalBytes / unit);
+    tsAvailLogDirGB = (float)(i64FreeBytes / unit);
+  }
+
+  fResult = GetDiskFreeSpaceExA(tsTempDir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
+                                (PULARGE_INTEGER)&i64FreeBytes);
+  if (fResult) {
+    tsTotalTmpDirGB = (float)(i64TotalBytes / unit);
+    tsAvailTmpDirectorySpace = (float)(i64FreeBytes / unit);
+  }
+
+  return true;
+}
+
+bool taosGetBandSpeed(float *bandSpeedKb) {
+  *bandSpeedKb = 0;
   return true;
 }
 
@@ -144,48 +200,30 @@ bool taosGetProcIO(float *readKB, float *writeKB) {
   return true;
 }
 
-bool taosGetBandSpeed(float *bandSpeedKb) {
-  *bandSpeedKb = 0;
-  return true;
+void taosGetSystemInfo() {
+  tsNumOfCores = taosGetCpuCores();
+  tsTotalMemoryMB = taosGetTotalMemory();
+
+  float tmp1, tmp2;
+  taosGetDisk();
+  taosGetBandSpeed(&tmp1);
+  taosGetCpuUsage(&tmp1, &tmp2);
+  taosGetProcIO(&tmp1, &tmp2);
+
+  taosGetSystemTimezone();
+  taosGetSystemLocale();
 }
 
-bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
-  *sysCpuUsage = 0;
-  *procCpuUsage = 0;
-  return true;
+void taosPrintOsInfo() {
+  uInfo(" os numOfCores:          %d", tsNumOfCores);
+  uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
+  uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
+  uInfo("==================================");
 }
 
-bool taosGetProcMemory(float *memoryUsedMB) {
-  unsigned bytes_used = 0;
-#if 0
-#if defined(_WIN32) && defined(_MSC_VER)
-   PROCESS_MEMORY_COUNTERS pmc;
-   HANDLE                  cur_proc = GetCurrentProcess();
-
-   if (GetProcessMemoryInfo(cur_proc, &pmc, sizeof(pmc))) {
-     bytes_used = (unsigned)(pmc.WorkingSetSize + pmc.PagefileUsage);
-   }
-#endif
-#endif
-
-  *memoryUsedMB = (float)bytes_used / 1024 / 1024;
-
-  return true;
-}
-
-bool taosGetSysMemory(float *memoryUsedMB) {
-  MEMORYSTATUSEX memsStat;
-  float          nMemFree;
-  float          nMemTotal;
-
-  memsStat.dwLength = sizeof(memsStat);
-  if (!GlobalMemoryStatusEx(&memsStat)) {
-    return false;
-  }
-  nMemFree = memsStat.ullAvailPhys / (1024.0f * 1024.0f);
-  nMemTotal = memsStat.ullTotalPhys / (1024.0f * 1024.0f);
-  *memoryUsedMB = nMemTotal - nMemFree;
-  return true;
+void taosKillSystem() {
+  uError("function taosKillSystem, exit!");
+  exit(0);
 }
 
 int taosSystem(const char *cmd) {
@@ -241,3 +279,5 @@ bool taosGetSystemUid(char *uid) {
   sprintf(uid, "uid_not_implemented_yet");
   return true;
 }
+
+char *taosGetCmdlineByPID(int pid) { return ""; }
