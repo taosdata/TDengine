@@ -399,6 +399,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
     pVariant->wpz = (wchar_t *)tmp;
   } else {
     int32_t output = 0;
+
     bool ret = taosMbsToUcs4(pDst, nLen, *pDest, (nLen + 1) * TSDB_NCHAR_SIZE, &output);
     if (!ret) {
       return -1;
