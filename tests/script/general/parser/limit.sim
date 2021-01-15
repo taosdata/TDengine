@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = lm_db
@@ -70,7 +70,7 @@ sleep 3000
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
-sleep 500
+sleep 100
 
 run general/parser/limit_tb.sim
 run general/parser/limit_stb.sim

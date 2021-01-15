@@ -753,8 +753,8 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
     pCompCol->type = pDataCol->type;
     if (tDataTypeDesc[pDataCol->type].getStatisFunc) {
       (*tDataTypeDesc[pDataCol->type].getStatisFunc)(
-          (TSKEY *)(pDataCols->cols[0].pData), pDataCol->pData, rowsToWrite, &(pCompCol->min), &(pCompCol->max),
-          &(pCompCol->sum), &(pCompCol->minIndex), &(pCompCol->maxIndex), &(pCompCol->numOfNull));
+          pDataCol->pData, rowsToWrite, &(pCompCol->min), &(pCompCol->max), &(pCompCol->sum), &(pCompCol->minIndex),
+          &(pCompCol->maxIndex), &(pCompCol->numOfNull));
     }
     nColsNotAllNull++;
   }

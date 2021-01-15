@@ -26,7 +26,7 @@ typedef int32_t (*FCqWrite)(int32_t vgId, void *pHead, int32_t qtype, void *pMsg
 typedef struct {
   int32_t  vgId;
   char     user[TSDB_USER_LEN];
-  char     pass[TSDB_PASSWORD_LEN];
+  char     pass[TSDB_KEY_LEN];
   char     db[TSDB_DB_NAME_LEN];
   FCqWrite cqWrite;
 } SCqCfg;

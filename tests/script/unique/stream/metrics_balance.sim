@@ -14,8 +14,6 @@ system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
 system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
-system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 5
-system sh/cfg.sh -n dnode2 -c tableMetaKeepTimer -v 5
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 2
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
 

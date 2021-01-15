@@ -95,11 +95,11 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalReducer *pReducer, tOrderDesc
     int32_t functionId = pExpr->functionId;
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
       pCtx->ptsOutputBuf = pReducer->pCtx[0].aOutputBuf;
-      pCtx->param[2].i64Key = pQueryInfo->order.order;
+      pCtx->param[2].i64 = pQueryInfo->order.order;
       pCtx->param[2].nType  = TSDB_DATA_TYPE_BIGINT;
-      pCtx->param[1].i64Key = pQueryInfo->order.orderColId;
+      pCtx->param[1].i64 = pQueryInfo->order.orderColId;
     } else if (functionId == TSDB_FUNC_APERCT) {
-      pCtx->param[0].i64Key = pExpr->param[0].i64Key;
+      pCtx->param[0].i64 = pExpr->param[0].i64;
       pCtx->param[0].nType  = pExpr->param[0].nType;
     }
 
@@ -1064,7 +1064,7 @@ static void doExecuteSecondaryMerge(SSqlCmd *pCmd, SLocalReducer *pLocalReducer,
       }
     } else if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
       SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, j);
-      pCtx->param[0].i64Key = pExpr->param[0].i64Key;
+      pCtx->param[0].i64 = pExpr->param[0].i64;
     }
 
     pCtx->currentStage = MERGE_STAGE;

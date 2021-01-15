@@ -56,6 +56,12 @@ class TDTestCase:
         tdSql.query("show stables like 'st%' ")
         tdSql.checkRows(3)
         
+        # case for defect: https://jira.taosdata.com:18080/browse/TD-2693
+        tdSql.execute("create database db2")
+        tdSql.execute("use db2")
+        tdSql.execute("create table stb(ts timestamp, c int) tags(t int)")
+        tdSql.error("insert into db2.tb6 using db2.stb tags(1) values(now 1) tb2 using db2. tags( )values(now 2)")
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

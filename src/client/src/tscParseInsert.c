@@ -20,6 +20,7 @@
 
 #include "os.h"
 
+#include "ttype.h"
 #include "hash.h"
 #include "tscUtil.h"
 #include "tschemautil.h"
@@ -40,46 +41,9 @@ enum {
 
 static int32_t tscAllocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 
-static int32_t tscToInteger(SStrToken *pToken, int64_t *value, char **endPtr) {
-  if (pToken->n == 0) {
-    return TK_ILLEGAL;
-  }
-  
-
-  int32_t radix = 10;
-  if (pToken->type == TK_HEX) {
-    radix = 16;
-  } else if (pToken->type == TK_BIN) {
-    radix = 2;
-  }
-  
-  errno = 0;
-  *value = strtoll(pToken->z, endPtr, radix);
-  if (**endPtr == 'e' || **endPtr == 'E' || **endPtr == '.') {
-    errno = 0;
-    double v = round(strtod(pToken->z, endPtr));
-    if (v > INT64_MAX || v <= INT64_MIN) {
-      errno = ERANGE;
-    } else {
-      *value = (int64_t)v;
-    }
-  }
-  
-  // not a valid integer number, return error
-  if (*endPtr - pToken->z != pToken->n) {
-    return TK_ILLEGAL;
-  }
-
-  return pToken->type;
-}
-
 static int32_t tscToDouble(SStrToken *pToken, double *value, char **endPtr) {
-  if (pToken->n == 0) {
-    return TK_ILLEGAL;
-  }
-  
   errno = 0;
-  *value = strtod(pToken->z, endPtr);
+  *value = strtold(pToken->z, endPtr);
   
   // not a valid integer number, return error
   if ((*endPtr - pToken->z) != pToken->n) {
@@ -163,86 +127,119 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
   return TSDB_CODE_SUCCESS;
 }
 
+// todo extract the null value check
+static bool isNullStr(SStrToken* pToken) {
+  return (pToken->type == TK_NULL) || ((pToken->type == TK_STRING) && (pToken->n != 0) &&
+                                       (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0));
+}
 int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload, char *msg, char **str, bool primaryKey,
                              int16_t timePrec) {
   int64_t iv;
-  int32_t numType;
-  char *  endptr = NULL;
-  errno = 0;  // clear the previous existed error information
+  int32_t ret;
+  char   *endptr = NULL;
+
+  if (IS_NUMERIC_TYPE(pSchema->type) && pToken->n == 0) {
+    return tscInvalidSQLErrMsg(msg, "invalid numeric data", pToken->z);
+  }
 
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {  // bool
-      if ((pToken->type == TK_BOOL || pToken->type == TK_STRING) && (pToken->n != 0)) {
-        if (strncmp(pToken->z, "true", pToken->n) == 0) {
-          *(uint8_t *)payload = TSDB_TRUE;
-        } else if (strncmp(pToken->z, "false", pToken->n) == 0) {
-          *(uint8_t *)payload = TSDB_FALSE;
-        } else if (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0) {
-          *(uint8_t *)payload = TSDB_DATA_BOOL_NULL;
-        } else {
-          return tscSQLSyntaxErrMsg(msg, "invalid bool data", pToken->z);
-        }
-      } else if (pToken->type == TK_INTEGER) {
-        iv = strtoll(pToken->z, NULL, 10);
-        *(uint8_t *)payload = (int8_t)((iv == 0) ? TSDB_FALSE : TSDB_TRUE);
-      } else if (pToken->type == TK_FLOAT) {
-        double dv = strtod(pToken->z, NULL);
-        *(uint8_t *)payload = (int8_t)((dv == 0) ? TSDB_FALSE : TSDB_TRUE);
-      } else if (pToken->type == TK_NULL) {
-        *(uint8_t *)payload = TSDB_DATA_BOOL_NULL;
+      if (isNullStr(pToken)) {
+        *((uint8_t *)payload) = TSDB_DATA_BOOL_NULL;
       } else {
-        return tscInvalidSQLErrMsg(msg, "invalid bool data", pToken->z);
+        if ((pToken->type == TK_BOOL || pToken->type == TK_STRING) && (pToken->n != 0)) {
+          if (strncmp(pToken->z, "true", pToken->n) == 0) {
+            *(uint8_t *)payload = TSDB_TRUE;
+          } else if (strncmp(pToken->z, "false", pToken->n) == 0) {
+            *(uint8_t *)payload = TSDB_FALSE;
+          } else {
+            return tscSQLSyntaxErrMsg(msg, "invalid bool data", pToken->z);
+          }
+        } else if (pToken->type == TK_INTEGER) {
+          iv = strtoll(pToken->z, NULL, 10);
+          *(uint8_t *)payload = (int8_t)((iv == 0) ? TSDB_FALSE : TSDB_TRUE);
+        } else if (pToken->type == TK_FLOAT) {
+          double dv = strtod(pToken->z, NULL);
+          *(uint8_t *)payload = (int8_t)((dv == 0) ? TSDB_FALSE : TSDB_TRUE);
+        } else {
+          return tscInvalidSQLErrMsg(msg, "invalid bool data", pToken->z);
+        }
       }
       break;
     }
+
     case TSDB_DATA_TYPE_TINYINT:
-      if (pToken->type == TK_NULL) {
-        *((int8_t *)payload) = TSDB_DATA_TINYINT_NULL;
-      } else if ((pToken->type == TK_STRING) && (pToken->n != 0) &&
-                 (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0)) {
-        *((int8_t *)payload) = TSDB_DATA_TINYINT_NULL;
+      if (isNullStr(pToken)) {
+        *((uint8_t *)payload) = TSDB_DATA_TINYINT_NULL;
       } else {
-        numType = tscToInteger(pToken, &iv, &endptr);
-        if (TK_ILLEGAL == numType) {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
+        if (ret != TSDB_CODE_SUCCESS) {
           return tscInvalidSQLErrMsg(msg, "invalid tinyint data", pToken->z);
-        } else if (errno == ERANGE || iv > INT8_MAX || iv <= INT8_MIN) {
-          return tscInvalidSQLErrMsg(msg, "tinyint data overflow", pToken->z);
+        } else if (!IS_VALID_TINYINT(iv)) {
+          return tscInvalidSQLErrMsg(msg, "data overflow", pToken->z);
         }
 
-        *((int8_t *)payload) = (int8_t)iv;
+        *((uint8_t *)payload) = (uint8_t)iv;
+      }
+
+      break;
+
+    case TSDB_DATA_TYPE_UTINYINT:
+      if (isNullStr(pToken)) {
+        *((uint8_t *)payload) = TSDB_DATA_UTINYINT_NULL;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidSQLErrMsg(msg, "invalid unsigned tinyint data", pToken->z);
+        } else if (!IS_VALID_UTINYINT(iv)) {
+          return tscInvalidSQLErrMsg(msg, "unsigned tinyint data overflow", pToken->z);
+        }
+
+        *((uint8_t *)payload) = (uint8_t)iv;
       }
 
       break;
 
     case TSDB_DATA_TYPE_SMALLINT:
-      if (pToken->type == TK_NULL) {
-        *((int16_t *)payload) = TSDB_DATA_SMALLINT_NULL;
-      } else if ((pToken->type == TK_STRING) && (pToken->n != 0) &&
-                 (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0)) {
+      if (isNullStr(pToken)) {
         *((int16_t *)payload) = TSDB_DATA_SMALLINT_NULL;
       } else {
-        numType = tscToInteger(pToken, &iv, &endptr);
-        if (TK_ILLEGAL == numType) {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
+        if (ret != TSDB_CODE_SUCCESS) {
           return tscInvalidSQLErrMsg(msg, "invalid smallint data", pToken->z);
-        } else if (errno == ERANGE || iv > INT16_MAX || iv <= INT16_MIN) {
+        } else if (!IS_VALID_SMALLINT(iv)) {
           return tscInvalidSQLErrMsg(msg, "smallint data overflow", pToken->z);
         }
 
         *((int16_t *)payload) = (int16_t)iv;
       }
+
+      break;
+
+    case TSDB_DATA_TYPE_USMALLINT:
+      if (isNullStr(pToken)) {
+        *((uint16_t *)payload) = TSDB_DATA_USMALLINT_NULL;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidSQLErrMsg(msg, "invalid unsigned smallint data", pToken->z);
+        } else if (!IS_VALID_USMALLINT(iv)) {
+          return tscInvalidSQLErrMsg(msg, "unsigned smallint data overflow", pToken->z);
+        }
+
+        *((uint16_t *)payload) = (uint16_t)iv;
+      }
+
       break;
 
     case TSDB_DATA_TYPE_INT:
-      if (pToken->type == TK_NULL) {
-        *((int32_t *)payload) = TSDB_DATA_INT_NULL;
-      } else if ((pToken->type == TK_STRING) && (pToken->n != 0) &&
-                 (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0)) {
+      if (isNullStr(pToken)) {
         *((int32_t *)payload) = TSDB_DATA_INT_NULL;
       } else {
-        numType = tscToInteger(pToken, &iv, &endptr);
-        if (TK_ILLEGAL == numType) {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
+        if (ret != TSDB_CODE_SUCCESS) {
           return tscInvalidSQLErrMsg(msg, "invalid int data", pToken->z);
-        } else if (errno == ERANGE || iv > INT32_MAX || iv <= INT32_MIN) {
+        } else if (!IS_VALID_INT(iv)) {
           return tscInvalidSQLErrMsg(msg, "int data overflow", pToken->z);
         }
 
@@ -251,17 +248,30 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload,
 
       break;
 
+    case TSDB_DATA_TYPE_UINT:
+      if (isNullStr(pToken)) {
+        *((uint32_t *)payload) = TSDB_DATA_UINT_NULL;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidSQLErrMsg(msg, "invalid unsigned int data", pToken->z);
+        } else if (!IS_VALID_UINT(iv)) {
+          return tscInvalidSQLErrMsg(msg, "unsigned int data overflow", pToken->z);
+        }
+
+        *((uint32_t *)payload) = (uint32_t)iv;
+      }
+
+      break;
+
     case TSDB_DATA_TYPE_BIGINT:
-      if (pToken->type == TK_NULL) {
-        *((int64_t *)payload) = TSDB_DATA_BIGINT_NULL;
-      } else if ((pToken->type == TK_STRING) && (pToken->n != 0) &&
-                 (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0)) {
+      if (isNullStr(pToken)) {
         *((int64_t *)payload) = TSDB_DATA_BIGINT_NULL;
       } else {
-        numType = tscToInteger(pToken, &iv, &endptr);
-        if (TK_ILLEGAL == numType) {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, true);
+        if (ret != TSDB_CODE_SUCCESS) {
           return tscInvalidSQLErrMsg(msg, "invalid bigint data", pToken->z);
-        } else if (errno == ERANGE || iv == INT64_MIN) {
+        } else if (!IS_VALID_BIGINT(iv)) {
           return tscInvalidSQLErrMsg(msg, "bigint data overflow", pToken->z);
         }
 
@@ -269,11 +279,23 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload,
       }
       break;
 
+    case TSDB_DATA_TYPE_UBIGINT:
+      if (isNullStr(pToken)) {
+        *((uint64_t *)payload) = TSDB_DATA_UBIGINT_NULL;
+      } else {
+        ret = tStrToInteger(pToken->z, pToken->type, pToken->n, &iv, false);
+        if (ret != TSDB_CODE_SUCCESS) {
+          return tscInvalidSQLErrMsg(msg, "invalid unsigned bigint data", pToken->z);
+        } else if (!IS_VALID_UBIGINT((uint64_t)iv)) {
+          return tscInvalidSQLErrMsg(msg, "unsigned bigint data overflow", pToken->z);
+        }
+
+        *((uint64_t *)payload) = iv;
+      }
+      break;
+
     case TSDB_DATA_TYPE_FLOAT:
-      if (pToken->type == TK_NULL) {
-        *((int32_t *)payload) = TSDB_DATA_FLOAT_NULL;
-      } else if ((pToken->type == TK_STRING) && (pToken->n != 0) &&
-                 (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0)) {
+      if (isNullStr(pToken)) {
         *((int32_t *)payload) = TSDB_DATA_FLOAT_NULL;
       } else {
         double dv;
@@ -281,24 +303,16 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload,
           return tscInvalidSQLErrMsg(msg, "illegal float data", pToken->z);
         }
 
-        float fv = (float)dv;
-        if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || (fv > FLT_MAX || fv < -FLT_MAX)) {
+        if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || dv > FLT_MAX || dv < -FLT_MAX || isinf(dv) || isnan(dv)) {
           return tscInvalidSQLErrMsg(msg, "illegal float data", pToken->z);
         }
 
-        if (isinf(fv) || isnan(fv)) {
-          *((int32_t *)payload) = TSDB_DATA_FLOAT_NULL;
-        }
-
-        *((float *)payload) = fv;
+        *((float *)payload) = (float)dv;
       }
       break;
 
     case TSDB_DATA_TYPE_DOUBLE:
-      if (pToken->type == TK_NULL) {
-        *((int64_t *)payload) = TSDB_DATA_DOUBLE_NULL;
-      } else if ((pToken->type == TK_STRING) && (pToken->n != 0) &&
-                 (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0)) {
+      if (isNullStr(pToken)) {
         *((int64_t *)payload) = TSDB_DATA_DOUBLE_NULL;
       } else {
         double dv;
@@ -306,15 +320,11 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload,
           return tscInvalidSQLErrMsg(msg, "illegal double data", pToken->z);
         }
 
-        if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || (dv > DBL_MAX || dv < -DBL_MAX)) {
+        if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv) || isnan(dv)) {
           return tscInvalidSQLErrMsg(msg, "illegal double data", pToken->z);
         }
 
-        if (isinf(dv) || isnan(dv)) {
-          *((int64_t *)payload) = TSDB_DATA_DOUBLE_NULL;
-        } else {
-          *((double *)payload) = dv;
-        }
+        *((double *)payload) = dv;
       }
       break;
 
@@ -337,7 +347,7 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload,
         setVardataNull(payload, TSDB_DATA_TYPE_NCHAR);
       } else {
         // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
-        size_t output = 0;
+        int32_t output = 0;
         if (!taosMbsToUcs4(pToken->z, pToken->n, varDataVal(payload), pSchema->bytes - VARSTR_HEADER_SIZE, &output)) {
           char buf[512] = {0};
           snprintf(buf, tListLen(buf), "%s", strerror(errno));
@@ -752,6 +762,8 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
   char *sql = *sqlstr;
 
+  pSql->cmd.autoCreated = false;
+  
   // get the token of specified table
   index = 0;
   tableToken = tStrGetToken(sql, &index, false, 0, NULL);
@@ -935,11 +947,15 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
     tdDestroyKVRowBuilder(&kvRowBuilder);
     if (row == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return tscInvalidSQLErrMsg(pCmd->payload, "tag value expected", NULL);
     }
     tdSortKVRowByColIdx(row);
 
     pCmd->tagData.dataLen = kvRowLen(row);
+    if (pCmd->tagData.dataLen <= 0){
+      return tscInvalidSQLErrMsg(pCmd->payload, "tag value expected", NULL);
+    }
+    
     char* pTag = realloc(pCmd->tagData.data, pCmd->tagData.dataLen);
     if (pTag == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;

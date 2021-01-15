@@ -475,7 +475,13 @@ static void syncAddArbitrator(SSyncNode *pNode) {
     }
   }
 
-  pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = syncAddPeer(pNode, &nodeInfo);
+  pPeer = syncAddPeer(pNode, &nodeInfo);
+  if (pPeer != NULL) {
+    pPeer->isArb = 1;
+    sInfo("%s, is added as arbitrator", pPeer->id);
+  }
+
+  pNode->peerInfo[TAOS_SYNC_MAX_REPLICA] = pPeer;
 }
 
 static void syncFreeNode(void *param) {
@@ -651,9 +657,14 @@ static void syncChooseMaster(SSyncNode *pNode) {
 
   // add arbitrator connection
   SSyncPeer *pArb = pNode->peerInfo[TAOS_SYNC_MAX_REPLICA];
-  if (pArb && pArb->role != TAOS_SYNC_ROLE_OFFLINE) {
-    onlineNum++;
-    replica = pNode->replica + 1;
+  if (pArb) {
+    if (pArb->role != TAOS_SYNC_ROLE_OFFLINE) {
+      onlineNum++;
+      replica = pNode->replica + 1;
+      sDebug("vgId:%d, arb:%s is used while choose master", pNode->vgId, pArb->id);
+    } else {
+      sError("vgId:%d, arb:%s is not used while choose master for its offline", pNode->vgId, pArb->id);
+    }
   }
 
   if (index < 0 && onlineNum > replica / 2.0) {
@@ -1118,6 +1129,7 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     pPeer->peerFd = connFd;
     pPeer->role = TAOS_SYNC_ROLE_UNSYNCED;
     pPeer->pConn = syncAllocateTcpConn(tsTcpPool, pPeer->rid, connFd);
+    if (pPeer->isArb) tsArbOnline = 1;
   } else {
     sDebug("%s, failed to setup peer connection to server since %s, try later", pPeer->id, strerror(errno));
     taosClose(connFd);
@@ -1196,7 +1208,7 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
     return;
   }
 
-  sDebug("vgId:%d, sync connection is incomming, tranId:%u", vgId, msg.tranId);
+  sDebug("vgId:%d, sync connection is incoming, tranId:%u", vgId, msg.tranId);
 
   SSyncNode *pNode = *ppNode;
   pthread_mutex_lock(&pNode->mutex);
@@ -1243,6 +1255,9 @@ static void syncProcessBrokenLink(int64_t rid) {
 
   sDebug("%s, TCP link is broken since %s, pfd:%d sfd:%d", pPeer->id, strerror(errno), pPeer->peerFd, pPeer->syncFd);
   pPeer->peerFd = -1;
+  if (pPeer->isArb) {
+    tsArbOnline = 0;
+  }
 
   syncRestartConnection(pPeer);
   pthread_mutex_unlock(&pNode->mutex);

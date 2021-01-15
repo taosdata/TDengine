@@ -465,7 +465,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
 
       // set the tag column id for executor to extract correct tag value
-      pExpr->param[0] = (tVariant) {.i64Key = colId, .nType = TSDB_DATA_TYPE_BIGINT, .nLen = sizeof(int64_t)};
+      pExpr->param[0] = (tVariant) {.i64 = colId, .nType = TSDB_DATA_TYPE_BIGINT, .nLen = sizeof(int64_t)};
       pExpr->numOfParams = 1;
     }
 
@@ -533,7 +533,7 @@ static void quitAllSubquery(SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
     freeJoinSubqueryObj(pSqlObj);
   }
 
-  tscDestroyJoinSupporter(pSupporter);
+  //tscDestroyJoinSupporter(pSupporter);
 }
 
 // update the query time range according to the join results on timestamp
@@ -650,7 +650,7 @@ static void issueTSCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, 0);
     int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
-    pExpr->param->i64Key = tagColId;
+    pExpr->param->i64 = tagColId;
     pExpr->numOfParams = 1;
   }
 
@@ -1362,9 +1362,11 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
 
   SJoinSupporter* pSupporter = (SJoinSupporter*)param;
   SSqlObj* pParentSql = pSupporter->pObj;
-
+  
   // There is only one subquery and table for each subquery.
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
   assert(pQueryInfo->numOfTables == 1 && pSql->cmd.numOfClause == 1);
 
   // retrieve actual query results from vnode during the second stage join subquery
@@ -1382,7 +1384,6 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
 
     tscError("%p abort query, code:%s, global code:%s", pSql, tstrerror(code), tstrerror(pParentSql->res.code));
     pParentSql->res.code = code;
-
     quitAllSubquery(pParentSql, pSupporter);
     tscAsyncResultOnError(pParentSql);
 
@@ -1404,9 +1405,6 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
     tscProcessSql(pSql);
     return;
   }
-
-
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   // In case of consequence query from other vnode, do not wait for other query response here.
   if (!(pTableMetaInfo->vgroupIndex > 0 && tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0))) {
@@ -1547,7 +1545,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
       if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
         int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
-        pExpr->param->i64Key = tagColId;
+        pExpr->param->i64 = tagColId;
         pExpr->numOfParams = 1;
       }
 
@@ -1657,6 +1655,25 @@ static void doCleanupSubqueries(SSqlObj *pSql, int32_t numOfSubs) {
     taos_free_result(pSub);
   }
 }
+
+void tscLockByThread(int64_t *lockedBy) {
+  int64_t tid = taosGetSelfPthreadId();
+  int     i = 0;
+  while (atomic_val_compare_exchange_64(lockedBy, 0, tid) != 0) {
+    if (++i % 100 == 0) {
+      sched_yield();
+    }
+  }
+}
+
+void tscUnlockByThread(int64_t *lockedBy) {
+  int64_t tid = taosGetSelfPthreadId();
+  if (atomic_val_compare_exchange_64(lockedBy, tid, 0) != tid) {
+    assert(false);
+  }
+}
+
+
 
 int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
@@ -2120,6 +2137,7 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
   return pNew;
 }
 
+// todo there is are race condition in this function, while cancel is called by user.
 void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   // the param may be null, since it may be done by other query threads. and the asyncOnError may enter in this
   // function while kill query by a user.

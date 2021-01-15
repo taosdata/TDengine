@@ -212,22 +212,22 @@ bool doFilterData(SQuery *pQuery, int32_t elemPos) {
 
       bool isnull = isNull(pElem, pFilterInfo->info.type);
       if (isnull) {
-        if (pFilterElem->fp == isNull_filter) {
+        if (pFilterElem->fp == isNullOperator) {
           qualified = true;
           break;
         } else {
           continue;
         }
       } else {
-        if (pFilterElem->fp == notNull_filter) {
+        if (pFilterElem->fp == notNullOperator) {
           qualified = true;
           break;
-        } else if (pFilterElem->fp == isNull_filter) {
+        } else if (pFilterElem->fp == isNullOperator) {
           continue;
         }
       }
 
-      if (pFilterElem->fp(pFilterElem, pElem, pElem)) {
+      if (pFilterElem->fp(pFilterElem, pElem, pElem, pFilterInfo->info.type)) {
         qualified = true;
         break;
       }
@@ -759,7 +759,7 @@ static void doUpdateResultRowIndex(SResultRowInfo*pResultRowInfo, TSKEY lastKey,
     }
 
     if (i == pResultRowInfo->size - 1) {
-      pResultRowInfo->curIndex = i;  
+      pResultRowInfo->curIndex = i;
     } else {
       pResultRowInfo->curIndex = i + 1;  // current not closed result object
     }
@@ -1372,7 +1372,7 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
 
 #if defined(_DEBUG_VIEW)
   printf("elem in comp ts file:%" PRId64 ", key:%" PRId64 ", tag:%"PRIu64", query order:%d, ts order:%d, traverse:%d, index:%d\n",
-         elem.ts, key, elem.tag.i64Key, pQuery->order.order, pRuntimeEnv->pTsBuf->tsOrder,
+         elem.ts, key, elem.tag.i64, pQuery->order.order, pRuntimeEnv->pTsBuf->tsOrder,
          pRuntimeEnv->pTsBuf->cur.order, pRuntimeEnv->pTsBuf->cur.tsIndex);
 #endif
 
@@ -1412,7 +1412,7 @@ static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
 
   // denote the order type
   if ((functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_LAST)) {
-    return pCtx->param[0].i64Key == pQuery->order.order;
+    return pCtx->param[0].i64 == pQuery->order.order;
   }
 
   // in the supplementary scan, only the following functions need to be executed
@@ -1781,9 +1781,9 @@ void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* inputData, TSKEY 
      * top/bottom values emerge, so does diff function
      */
     if (functionId == TSDB_FUNC_TWA) {
-       pCtx->param[1].i64Key = pQuery->window.skey;
+       pCtx->param[1].i64 = pQuery->window.skey;
        pCtx->param[1].nType = TSDB_DATA_TYPE_BIGINT;
-       pCtx->param[2].i64Key = pQuery->window.ekey;
+       pCtx->param[2].i64 = pQuery->window.ekey;
        pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
     }
 
@@ -1813,7 +1813,7 @@ void setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* inputData, TSKEY 
       }
     }
   } else if (functionId == TSDB_FUNC_TS_COMP) {
-    pCtx->param[0].i64Key = vgId;
+    pCtx->param[0].i64 = vgId;
     pCtx->param[0].nType = TSDB_DATA_TYPE_BIGINT;
   }
 
@@ -1952,12 +1952,12 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
       int32_t f = pQuery->pExpr1[0].base.functionId;
       assert(f == TSDB_FUNC_TS || f == TSDB_FUNC_TS_DUMMY);
 
-      pCtx->param[2].i64Key = order;
+      pCtx->param[2].i64 = order;
       pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
-      pCtx->param[3].i64Key = functionId;
+      pCtx->param[3].i64 = functionId;
       pCtx->param[3].nType = TSDB_DATA_TYPE_BIGINT;
 
-      pCtx->param[1].i64Key = pQuery->order.orderColId;
+      pCtx->param[1].i64 = pQuery->order.orderColId;
     }
 
     if (functionId == TSDB_FUNC_ARITHM) {
@@ -2478,7 +2478,7 @@ static bool needToLoadDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis *pDat
       // if isNULL query exists, load the null data column
       for (int32_t j = 0; j < pFilterInfo->numOfFilters; ++j) {
         SColumnFilterElem *pFilterElem = &pFilterInfo->pFilters[j];
-        if (pFilterElem->fp == isNull_filter) {
+        if (pFilterElem->fp == isNullOperator) {
           return true;
         }
       }
@@ -2493,13 +2493,13 @@ static bool needToLoadDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SDataStatis *pDat
       float maxval = (float)(*(double *)(&pDataBlockst->max));
 
       for (int32_t i = 0; i < pFilterInfo->numOfFilters; ++i) {
-        if (pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&minval, (char *)&maxval)) {
+        if (pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&minval, (char *)&maxval, TSDB_DATA_TYPE_FLOAT)) {
           return true;
         }
       }
     } else {
       for (int32_t i = 0; i < pFilterInfo->numOfFilters; ++i) {
-        if (pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&pDataBlockst->min, (char *)&pDataBlockst->max)) {
+        if (pFilterInfo->pFilters[i].fp(&pFilterInfo->pFilters[i], (char *)&pDataBlockst->min, (char *)&pDataBlockst->max, pFilterInfo->info.type)) {
           return true;
         }
       }
@@ -2966,7 +2966,7 @@ void setTagVal(SQueryRuntimeEnv *pRuntimeEnv, void *pTable, void *tsdb) {
                pExprInfo->base.arg->argValue.i64, pRuntimeEnv->pCtx[0].tag.pz);
       } else {
         qDebug("QInfo:%p set tag value for join comparison, colId:%" PRId64 ", val:%" PRId64, pQInfo,
-               pExprInfo->base.arg->argValue.i64, pRuntimeEnv->pCtx[0].tag.i64Key);
+               pExprInfo->base.arg->argValue.i64, pRuntimeEnv->pCtx[0].tag.i64);
       }
     }
   }
@@ -3168,6 +3168,10 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
   // all results in current group have been returned to client, try next group
   if (pGroupResInfo->index >= taosArrayGetSize(pGroupResInfo->pRows)) {
     // current results of group has been sent to client, try next group
+    pGroupResInfo->index = 0;
+    pGroupResInfo->rowId = 0;
+    taosArrayClear(pGroupResInfo->pRows);
+
     if (mergeGroupResult(pQInfo) != TSDB_CODE_SUCCESS) {
       return;  // failed to save data in the disk
     }
@@ -3946,7 +3950,7 @@ int32_t setAdditionalInfo(SQInfo *pQInfo, void* pTable, STableQueryInfo *pTableQ
         if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
           qError("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pTag->pz);
         } else {
-          qError("QInfo:%p failed to find tag:%" PRId64 " in ts_comp", pQInfo, pTag->i64Key);
+          qError("QInfo:%p failed to find tag:%" PRId64 " in ts_comp", pQInfo, pTag->i64);
         }
 
         return false;
@@ -3957,7 +3961,7 @@ int32_t setAdditionalInfo(SQInfo *pQInfo, void* pTable, STableQueryInfo *pTableQ
       if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
         qDebug("QInfo:%p find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->pz, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
       } else {
-        qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
+        qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
       }
 
     } else {
@@ -3966,7 +3970,7 @@ int32_t setAdditionalInfo(SQInfo *pQInfo, void* pTable, STableQueryInfo *pTableQ
       if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
         qDebug("QInfo:%p find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->pz, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
       } else {
-        qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
+        qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
       }
     }
   }
@@ -4930,7 +4934,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
         if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
           qError("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pTag->pz);
         } else {
-          qError("QInfo:%p failed to find tag:%"PRId64" in ts_comp", pQInfo, pTag->i64Key);
+          qError("QInfo:%p failed to find tag:%"PRId64" in ts_comp", pQInfo, pTag->i64);
         }
 
         return false;
@@ -4941,7 +4945,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
           qDebug("QInfo:%p find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->pz,
                  cur.blockIndex, cur.tsIndex);
         } else {
-          qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key,
+          qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64,
                  cur.blockIndex, cur.tsIndex);
         }
       }
@@ -4955,7 +4959,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
           if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
             qError("QInfo:%p failed to find tag:%s in ts_comp", pQInfo, pTag->pz);
           } else {
-            qError("QInfo:%p failed to find tag:%"PRId64" in ts_comp", pQInfo, pTag->i64Key);
+            qError("QInfo:%p failed to find tag:%"PRId64" in ts_comp", pQInfo, pTag->i64);
           }
 
           return false;
@@ -4964,7 +4968,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
           if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
             qDebug("QInfo:%p find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->pz, cur.blockIndex, cur.tsIndex);
           } else {
-            qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key, cur.blockIndex, cur.tsIndex);
+            qDebug("QInfo:%p find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64, cur.blockIndex, cur.tsIndex);
           }
         }
 
@@ -4974,7 +4978,7 @@ static bool multiTableMultioutputHelper(SQInfo *pQInfo, int32_t index) {
         if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
           qDebug("QInfo:%p continue scan ts_comp file, tag:%s blockIndex:%d, tsIndex:%d", pQInfo, pTag->pz, cur.blockIndex, cur.tsIndex);
         } else {
-          qDebug("QInfo:%p continue scan ts_comp file, tag:%"PRId64" blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64Key, cur.blockIndex, cur.tsIndex);
+          qDebug("QInfo:%p continue scan ts_comp file, tag:%"PRId64" blockIndex:%d, tsIndex:%d", pQInfo, pTag->i64, cur.blockIndex, cur.tsIndex);
         }
       }
     }
@@ -6025,7 +6029,11 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     pColInfo->bytes = htons(pColInfo->bytes);
     pColInfo->numOfFilters = htons(pColInfo->numOfFilters);
 
-    assert(pColInfo->type >= TSDB_DATA_TYPE_BOOL && pColInfo->type <= TSDB_DATA_TYPE_NCHAR);
+    if (!isValidDataType(pColInfo->type)) {
+      qDebug("qmsg:%p, invalid data type in source column, index:%d, type:%d", pQueryMsg, col, pColInfo->type);
+      code = TSDB_CODE_QRY_INVALID_MSG;
+      goto _cleanup;
+    }
 
     int32_t numOfFilters = pColInfo->numOfFilters;
     if (numOfFilters > 0) {
@@ -6111,7 +6119,7 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
   if (pQueryMsg->secondStageOutput) {
     pExprMsg = (SSqlFuncMsg *)pMsg;
     *pSecStageExpr = calloc(pQueryMsg->secondStageOutput, POINTER_BYTES);
-    
+
     for (int32_t i = 0; i < pQueryMsg->secondStageOutput; ++i) {
       (*pSecStageExpr)[i] = pExprMsg;
 
@@ -6445,55 +6453,18 @@ static int32_t createFilterInfo(void *pQInfo, SQuery *pQuery) {
 
         int32_t lower = pSingleColFilter->filterInfo.lowerRelOptr;
         int32_t upper = pSingleColFilter->filterInfo.upperRelOptr;
-
         if (lower == TSDB_RELATION_INVALID && upper == TSDB_RELATION_INVALID) {
           qError("QInfo:%p invalid filter info", pQInfo);
           return TSDB_CODE_QRY_INVALID_MSG;
         }
 
-        int16_t type  = pQuery->colList[i].type;
-        int16_t bytes = pQuery->colList[i].bytes;
-
-        // todo refactor
-        __filter_func_t *rangeFilterArray = getRangeFilterFuncArray(type);
-        __filter_func_t *filterArray = getValueFilterFuncArray(type);
-
-        if (rangeFilterArray == NULL && filterArray == NULL) {
-          qError("QInfo:%p failed to get filter function, invalid data type:%d", pQInfo, type);
+        pSingleColFilter->fp = getFilterOperator(lower, upper);
+        if (pSingleColFilter->fp == NULL) {
+          qError("QInfo:%p invalid filter info", pQInfo);
           return TSDB_CODE_QRY_INVALID_MSG;
         }
 
-        if ((lower == TSDB_RELATION_GREATER_EQUAL || lower == TSDB_RELATION_GREATER) &&
-            (upper == TSDB_RELATION_LESS_EQUAL || upper == TSDB_RELATION_LESS)) {
-          assert(rangeFilterArray != NULL);
-          if (lower == TSDB_RELATION_GREATER_EQUAL) {
-            if (upper == TSDB_RELATION_LESS_EQUAL) {
-              pSingleColFilter->fp = rangeFilterArray[4];
-            } else {
-              pSingleColFilter->fp = rangeFilterArray[2];
-            }
-          } else {
-            if (upper == TSDB_RELATION_LESS_EQUAL) {
-              pSingleColFilter->fp = rangeFilterArray[3];
-            } else {
-              pSingleColFilter->fp = rangeFilterArray[1];
-            }
-          }
-        } else {  // set callback filter function
-          assert(filterArray != NULL);
-          if (lower != TSDB_RELATION_INVALID) {
-            pSingleColFilter->fp = filterArray[lower];
-
-            if (upper != TSDB_RELATION_INVALID) {
-              qError("pQInfo:%p failed to get filter function, invalid filter condition: %d", pQInfo, type);
-              return TSDB_CODE_QRY_INVALID_MSG;
-            }
-          } else {
-            pSingleColFilter->fp = filterArray[upper];
-          }
-        }
-        assert(pSingleColFilter->fp != NULL);
-        pSingleColFilter->bytes = bytes;
+        pSingleColFilter->bytes = pQuery->colList[i].bytes;
       }
 
       j++;
@@ -6796,7 +6767,7 @@ static int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQ
 
     UNUSED(ret);
   }
-  
+
   pQuery->precision = tsdbGetCfg(tsdb)->precision;
 
   if ((QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.skey > pQuery->window.ekey)) ||
@@ -6961,11 +6932,12 @@ static size_t getResultSize(SQInfo *pQInfo, int64_t *numOfRows) {
    */
   if (isTSCompQuery(pQuery) && (*numOfRows) > 0) {
     struct stat fStat;
-    if (fstat(fileno(*(FILE **)pQuery->sdata[0]->data), &fStat) == 0) {
+    FILE *f = *(FILE **)pQuery->sdata[0]->data;
+    if ((f != NULL) && (fstat(fileno(f), &fStat) == 0)) {
       *numOfRows = fStat.st_size;
       return fStat.st_size;
     } else {
-      qError("QInfo:%p failed to get file info, path:%s, reason:%s", pQInfo, pQuery->sdata[0]->data, strerror(errno));
+      qError("QInfo:%p failed to get file info, file:%p, reason:%s", pQInfo, f, strerror(errno));
       return 0;
     }
   } else {
@@ -6980,7 +6952,7 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
   // load data from file to msg buffer
   if (isTSCompQuery(pQuery)) {
 
-    FILE *f = *(FILE **)pQuery->sdata[0]->data;
+    FILE *f = *(FILE **)pQuery->sdata[0]->data;  // TODO refactor
 
     // make sure file exist
     if (f) {
