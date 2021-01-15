@@ -57,10 +57,11 @@ void  tsdbInitMFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver);
 void  tsdbInitMFileEx(SMFile* pMFile, SMFile* pOMFile);
 int   tsdbEncodeSMFile(void** buf, SMFile* pMFile);
 void* tsdbDecodeSMFile(void* buf, SMFile* pMFile);
+int   tsdbApplyMFileChange(SMFile* from, SMFile* to);
 int   tsdbCreateMFile(SMFile* pMFile);
 int   tsdbUpdateMFileHeader(SMFile* pMFile);
 
-static FORCE_INLINE void tsdbSetMFileInfo(SMFile* pMFile, SMInfo* pInfo) { pMFile->info = *pInfo; }
+static FORCE_INLINE void tsdbSetMFileInfo(SMFile* pMFile, SMFInfo* pInfo) { pMFile->info = *pInfo; }
 
 static FORCE_INLINE int tsdbOpenMFile(SMFile* pMFile, int flags) {
   ASSERT(TSDB_FILE_CLOSED(pMFile));

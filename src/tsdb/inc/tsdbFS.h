@@ -24,7 +24,7 @@ extern "C" {
 
 // ================== CURRENT file header info
 typedef struct {
-  uint32_t version;  // Current file version
+  uint32_t version;  // Current file system version (relating to code)
   uint32_t len;      // Encode content length (including checksum)
 } SFSHeader;
 
@@ -72,9 +72,10 @@ STsdbFS *tsdbNewFS(int keep, int days);
 void *   tsdbFreeFS(STsdbFS *pfs);
 int      tsdbOpenFS(STsdbFS *pFs, int keep, int days);
 void     tsdbCloseFS(STsdbFS *pFs);
-int      tsdbStartTxn(STsdbFS *pfs);
-int      tsdbEndTxn(STsdbFS *pfs);
-int      tsdbEndTxnWithError(STsdbFS *pfs);
+uint32_t tsdbStartFSTxn(STsdbFS *pfs);
+int      tsdbEndFSTxn(STsdbFS *pfs);
+int      tsdbEndFSTxnWithError(STsdbFS *pfs);
+void     tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta);
 void     tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile);
 int      tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet);
 

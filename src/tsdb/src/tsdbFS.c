@@ -40,7 +40,7 @@ static void *tsdbDecodeFSHeader(void *buf, SFSHeader *pHeader) {
 static int tsdbEncodeFSMeta(void **buf, STsdbFSMeta *pMeta) {
   int tlen = 0;
 
-  tlen += taosEncodeFixedU64(buf, pMeta->version);
+  tlen += taosEncodeFixedU32(buf, pMeta->version);
   tlen += taosEncodeFixedI64(buf, pMeta->totalPoints);
   tlen += taosEncodeFixedI64(buf, pMeta->totalStorage);
 
@@ -48,7 +48,7 @@ static int tsdbEncodeFSMeta(void **buf, STsdbFSMeta *pMeta) {
 }
 
 static void *tsdbDecodeFSMeta(void *buf, STsdbFSMeta *pMeta) {
-  buf = taosDecodeFixedU64(buf, &(pMeta->version));
+  buf = taosDecodeFixedU32(buf, &(pMeta->version));
   buf = taosDecodeFixedI64(buf, &(pMeta->totalPoints));
   buf = taosDecodeFixedI64(buf, &(pMeta->totalStorage));
 
@@ -70,7 +70,7 @@ static int tsdbEncodeDFileSetArray(void **buf, SArray *pArray) {
   return tlen;
 }
 
-static int tsdbDecodeDFileSetArray(void *buf, SArray *pArray) {
+static void *tsdbDecodeDFileSetArray(void *buf, SArray *pArray) {
   uint64_t  nset;
   SDFileSet dset;
 
@@ -89,7 +89,7 @@ static int tsdbEncodeFSStatus(void **buf, SFSStatus *pStatus) {
 
   int tlen = 0;
 
-  tlen += tsdbEncodeSMFile(buf, &(pStatus->pmf));
+  tlen += tsdbEncodeSMFile(buf, pStatus->pmf);
   tlen += tsdbEncodeDFileSetArray(buf, pStatus->df);
 
   return tlen;
@@ -112,6 +112,8 @@ static SFSStatus *tsdbNewFSStatus(int maxFSet) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
   }
+
+  TSDB_FSET_SET_CLOSED(&(pStatus->mf));
 
   pStatus->df = taosArrayInit(maxFSet, sizeof(SDFileSet));
   if (pStatus->df == NULL) {
@@ -136,6 +138,8 @@ static void tsdbResetFSStatus(SFSStatus *pStatus) {
   if (pStatus == NULL) {
     return;
   }
+
+  TSDB_FSET_SET_CLOSED(&(pStatus->mf));
 
   pStatus->pmf = NULL;
   taosArrayClear(pStatus->df);
@@ -162,6 +166,7 @@ static int tsdbAddDFileSetToStatus(SFSStatus *pStatus, const SDFileSet *pSet) {
 }
 
 // ================== STsdbFS
+// TODO
 STsdbFS *tsdbNewFS(int keep, int days) {
   int      maxFSet = TSDB_MAX_FSETS(keep, days);
   STsdbFS *pfs;
@@ -201,6 +206,7 @@ STsdbFS *tsdbNewFS(int keep, int days) {
   return pfs;
 }
 
+// TODO
 void *tsdbFreeFS(STsdbFS *pfs) {
   if (pfs) {
     pfs->nstatus = tsdbFreeFSStatus(pfs->nstatus);
@@ -213,33 +219,37 @@ void *tsdbFreeFS(STsdbFS *pfs) {
   return NULL;
 }
 
+// TODO
 int tsdbOpenFS(STsdbFS *pFs, int keep, int days) {
   // TODO
 
   return 0;
 }
 
+// TODO
 void tsdbCloseFS(STsdbFS *pFs) {
   // TODO
 }
 
 // Start a new transaction to modify the file system
-int tsdbStartTxn(STsdbFS *pfs) {
+uint32_t tsdbStartFSTxn(STsdbFS *pfs) {
   ASSERT(pfs->intxn == false);
 
   pfs->intxn = true;
   tsdbResetFSStatus(pfs->nstatus);
 
-  return 0;
+  return pfs->cstatus->meta.version + 1;
 }
 
-int tsdbEndTxn(STsdbFS *pfs) {
+void tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta) { pfs->nstatus->meta = *pMeta; }
+
+int tsdbEndFSTxn(STsdbFS *pfs) {
   ASSERT(FS_IN_TXN(pfs));
   SFSStatus *pStatus;
 
   // Write current file system snapshot
-  if (tsdbUpdateFS(pfs) < 0) {
-    tsdbEndTxnWithError(pfs);
+  if (tsdbApplyFSTxn(pfs) < 0) {
+    tsdbEndFSTxnWithError(pfs);
     return -1;
   }
 
@@ -251,13 +261,13 @@ int tsdbEndTxn(STsdbFS *pfs) {
   tsdbUnLockFS(pfs);
 
   // Apply actual change to each file and SDFileSet
-  tsdbApplyFSChangeOnDisk(pfs);
+  tsdbApplyFSTxnOnDisk(pfs->nstatus, pfs->cstatus);
 
   pfs->intxn = false;
   return 0;
 }
 
-int tsdbEndTxnWithError(STsdbFS *pfs) {
+int tsdbEndFSTxnWithError(STsdbFS *pfs) {
   // TODO
   pfs->intxn = false;
   return 0;
@@ -267,7 +277,7 @@ void tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile) { tsdbSetStatusMFile(pf
 
 int tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet) { return tsdbAddDFileSetToStatus(pfs->nstatus, pSet); }
 
-static int tsdbUpdateFS(STsdbFS *pfs) {
+static int tsdbApplyFSTxn(STsdbFS *pfs) {
   ASSERT(FS_IN_TXN(pfs));
   SFSHeader fsheader;
   void *    pBuf = NULL;
@@ -339,7 +349,7 @@ static int tsdbUpdateFS(STsdbFS *pfs) {
   return 0;
 }
 
-static void tsdbApplyFSChangeOnDisk(SFSStatus *pFrom, SFSStatus *pTo) {
+static void tsdbApplyFSTxnOnDisk(SFSStatus *pFrom, SFSStatus *pTo) {
   int        ifrom = 0;
   int        ito = 0;
   size_t     sizeFrom, sizeTo;

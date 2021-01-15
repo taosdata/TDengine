@@ -361,7 +361,7 @@ static int tsdbStartCommit(STsdbRepo *pRepo) {
   tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64 " meta rows: %d",
            REPO_ID(pRepo), pMem->keyFirst, pMem->keyLast, pMem->numOfRows, listNEles(pMem->actList));
 
-  if (tsdbStartTxn(REPO_FS(pRepo)) < 0) return -1;
+  if (tsdbStartFSTxn(REPO_FS(pRepo)) < 0) return -1;
 
   pRepo->code = TSDB_CODE_SUCCESS;
   return 0;
@@ -369,9 +369,9 @@ static int tsdbStartCommit(STsdbRepo *pRepo) {
 
 static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   if (eno != TSDB_CODE_SUCCESS) {
-    tsdbEndTxnWithError(REPO_FS(pRepo));
+    tsdbEndFSTxnWithError(REPO_FS(pRepo));
   } else {
-    tsdbEndTxn(REPO_FS(pRepo));
+    tsdbEndFSTxn(REPO_FS(pRepo));
   }
 
   tsdbInfo("vgId:%d commit over, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
