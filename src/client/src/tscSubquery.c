@@ -833,6 +833,15 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   assert(TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY));
 
+  if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
+    tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, numOfRows, pParentSql->res.code);
+    quitAllSubquery(pSql, pParentSql, pSupporter);
+
+    tscAsyncResultOnError(pParentSql);
+
+    return;
+  }
+
   // check for the error code firstly
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
     // todo retry if other subqueries are not failed
@@ -974,6 +983,15 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   assert(!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE));
 
+  if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
+    tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, numOfRows, pParentSql->res.code);
+    quitAllSubquery(pSql, pParentSql, pSupporter);
+
+    tscAsyncResultOnError(pParentSql);
+
+    return;
+  }
+
   // check for the error code firstly
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
     // todo retry if other subqueries are not failed yet 
@@ -1108,6 +1126,17 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   SSqlRes* pRes = &pSql->res;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+
+  if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
+    tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, numOfRows, pParentSql->res.code);
+    quitAllSubquery(pSql, pParentSql, pSupporter);
+
+    tscAsyncResultOnError(pParentSql);
+
+    return;
+  }
+
+  
   if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {
     assert(numOfRows == taos_errno(pSql));
 
@@ -1672,6 +1701,9 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
     
     pthread_mutex_init(&pSql->subState.mutex, NULL);
   }
+
+  memset(pSql->subState.states, 0, sizeof(*pSql->subState.states) * pSql->subState.numOfSub);
+  tscDebug("%p reset all sub states to 0", pSql);
   
   bool hasEmptySub = false;
 
