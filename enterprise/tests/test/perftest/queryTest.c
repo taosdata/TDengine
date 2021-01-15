@@ -385,8 +385,8 @@ int main(int argc, char** argv) {
 //      TAOS_RES*  taos_query(conn, t);
 //      taos_free_result(res);
 //    }
-    executeSQL(conn, "use db", NULL);
-    executeSQL(conn, "alter local debugflag 143", NULL);
+    executeSQL(conn, "use test", NULL);
+    executeSQL(conn, "select count(*) from t2m1 where ts<'2015-6-11 1:1:1.3' and ts>='2015-6-11 1:1:1' interval(20a) fill(next)", NULL);
 //    executeSQL(conn, "describe tux1", NULL);
 //    createEnvironment(conn, 2, 2, 10000, 30);
     taos_close(conn);
