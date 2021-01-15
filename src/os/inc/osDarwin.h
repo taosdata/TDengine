@@ -91,7 +91,7 @@ extern "C" {
 typedef int(*__compar_fn_t)(const void *, const void *);
 
 // for send function in tsocket.c
-#define MSG_NOSIGNAL             0
+// #define MSG_NOSIGNAL             0
 #define SO_NO_CHECK              0x1234
 #define SOL_TCP                  0x1234
 #define TCP_KEEPIDLE             0x1234
@@ -99,6 +99,15 @@ typedef int(*__compar_fn_t)(const void *, const void *);
 #ifndef PTHREAD_MUTEX_RECURSIVE_NP
   #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
 #endif
+
+int64_t tsosStr2int64(char *str);
+
+#include "eok.h"
+
+
+
+
+
 
 #ifdef __cplusplus
 }

@@ -21,6 +21,8 @@
 #include "shellCommand.h"
 #include "tkey.h"
 
+#include "tscLog.h"
+
 #define OPT_ABORT 1 /* �Cabort */
 
 int indicator = 1;

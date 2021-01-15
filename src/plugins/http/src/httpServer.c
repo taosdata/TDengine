@@ -52,7 +52,11 @@ static void httpStopThread(HttpThread* pThread) {
     close(fd);
   }
 
+#ifdef __APPLE__
+  epoll_close(pThread->pollFd);
+#else
   close(pThread->pollFd);
+#endif
   pthread_mutex_destroy(&(pThread->threadMutex));
 }
 

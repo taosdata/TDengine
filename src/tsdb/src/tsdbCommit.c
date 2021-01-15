@@ -166,7 +166,11 @@ static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   pRepo->imem = NULL;
   tsdbUnlockRepo(pRepo);
   tsdbUnRefMemTable(pRepo, pIMem);
+#ifdef __APPLE__
+  sem_post(pRepo->readyToCommit);
+#else
   sem_post(&(pRepo->readyToCommit));
+#endif
 }
 
 static int tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey) {

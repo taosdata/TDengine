@@ -35,7 +35,7 @@ int32_t taosGetFqdn(char *fqdn) {
   hints.ai_flags = AI_CANONNAME;
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
-    uError("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
+    uError("failed to get fqdn for hostname <%s>, code:%d, reason:%s", hostname, ret, gai_strerror(ret));
     return -1;
   }
 
@@ -341,6 +341,7 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
     return -1;
   }
 
+#ifndef __APPLE__
   int32_t probes = 3;
   if (taosSetSockOpt(sockFd, SOL_TCP, TCP_KEEPCNT, (void *)&probes, sizeof(probes)) < 0) {
     uError("fd:%d setsockopt SO_KEEPCNT failed: %d (%s)", sockFd, errno, strerror(errno));
@@ -361,6 +362,7 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
     taosCloseSocket(sockFd);
     return -1;
   }
+#endif
 
   int32_t nodelay = 1;
   if (taosSetSockOpt(sockFd, IPPROTO_TCP, TCP_NODELAY, (void *)&nodelay, sizeof(nodelay)) < 0) {

@@ -17,6 +17,8 @@
 #include "os.h"
 #include "tglobal.h"
 
+#include <sys/event.h>
+
 void osInit() {
   if (configDir[0] == 0) {
     strcpy(configDir, "~/TDengine/cfg");
@@ -30,3 +32,4 @@ void osInit() {
   strcpy(tsScriptDir, "~/TDengine/cfg");
   strcpy(tsOsName, "Darwin");
 }
+

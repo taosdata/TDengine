@@ -13,10 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef __APPLE__
 #define _BSD_SOURCE
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
 #define _GNU_SOURCE
+#endif // __APPLE__
 
 #include "os.h"
 #include "ttype.h"

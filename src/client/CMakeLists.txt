@@ -49,12 +49,12 @@ ELSEIF (TD_DARWIN)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/linux)
 
   ADD_LIBRARY(taos_static STATIC ${SRC})
-  TARGET_LINK_LIBRARIES(taos_static trpc tutil pthread m)
+  TARGET_LINK_LIBRARIES(taos_static query trpc tutil pthread m)
   SET_TARGET_PROPERTIES(taos_static PROPERTIES OUTPUT_NAME "taos_static")
 
   # generate dynamic library (*.dylib)
   ADD_LIBRARY(taos SHARED ${SRC})
-  TARGET_LINK_LIBRARIES(taos trpc tutil pthread m)
+  TARGET_LINK_LIBRARIES(taos query trpc tutil pthread m)
 
   SET_TARGET_PROPERTIES(taos PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 
