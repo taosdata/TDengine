@@ -900,7 +900,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public int getDatabaseMajorVersion() throws SQLException {
-        return 0;
+        return 2;
     }
 
     public int getDatabaseMinorVersion() throws SQLException {
@@ -908,7 +908,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public int getJDBCMajorVersion() throws SQLException {
-        return 0;
+        return 2;
     }
 
     public int getJDBCMinorVersion() throws SQLException {

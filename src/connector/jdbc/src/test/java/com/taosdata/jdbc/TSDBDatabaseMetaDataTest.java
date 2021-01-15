@@ -827,71 +827,87 @@ public class TSDBDatabaseMetaDataTest {
     }
 
     @Test
-    public void getResultSetHoldability() {
-
+    public void getResultSetHoldability() throws SQLException {
+        Assert.assertEquals(1, metaData.getResultSetHoldability());
     }
 
     @Test
-    public void getDatabaseMajorVersion() {
+    public void getDatabaseMajorVersion() throws SQLException {
+        Assert.assertEquals(2, metaData.getDatabaseMajorVersion());
     }
 
     @Test
-    public void getDatabaseMinorVersion() {
+    public void getDatabaseMinorVersion() throws SQLException {
+        Assert.assertEquals(0, metaData.getDatabaseMinorVersion());
     }
 
     @Test
-    public void getJDBCMajorVersion() {
+    public void getJDBCMajorVersion() throws SQLException {
+        Assert.assertEquals(2, metaData.getJDBCMajorVersion());
     }
 
     @Test
-    public void getJDBCMinorVersion() {
+    public void getJDBCMinorVersion() throws SQLException {
+        Assert.assertEquals(0, metaData.getJDBCMinorVersion());
     }
 
     @Test
-    public void getSQLStateType() {
+    public void getSQLStateType() throws SQLException {
+        Assert.assertEquals(0, metaData.getSQLStateType());
     }
 
     @Test
-    public void locatorsUpdateCopy() {
+    public void locatorsUpdateCopy() throws SQLException {
+        Assert.assertFalse(metaData.locatorsUpdateCopy());
     }
 
     @Test
-    public void supportsStatementPooling() {
+    public void supportsStatementPooling() throws SQLException {
+        Assert.assertFalse(metaData.supportsStatementPooling());
     }
 
     @Test
-    public void getRowIdLifetime() {
+    public void getRowIdLifetime() throws SQLException {
+        Assert.assertNull(metaData.getRowIdLifetime());
     }
 
     @Test
-    public void testGetSchemas() {
+    public void testGetSchemas() throws SQLException {
+        Assert.assertNull(metaData.getSchemas());
     }
 
     @Test
-    public void supportsStoredFunctionsUsingCallSyntax() {
+    public void supportsStoredFunctionsUsingCallSyntax() throws SQLException {
+        Assert.assertFalse(metaData.supportsStoredFunctionsUsingCallSyntax());
     }
 
     @Test
-    public void autoCommitFailureClosesAllResultSets() {
+    public void autoCommitFailureClosesAllResultSets() throws SQLException {
+        Assert.assertFalse(metaData.autoCommitFailureClosesAllResultSets());
     }
 
     @Test
-    public void getClientInfoProperties() {
+    public void getClientInfoProperties() throws SQLException {
+        Assert.assertNotNull(metaData.getClientInfoProperties());
     }
 
     @Test
-    public void getFunctions() {
+    public void getFunctions() throws SQLException {
+        Assert.assertNotNull(metaData.getFunctions("", "", ""));
     }
 
     @Test
-    public void getFunctionColumns() {
+    public void getFunctionColumns() throws SQLException {
+        Assert.assertNotNull(metaData.getFunctionColumns("", "", "", ""));
     }
 
     @Test
-    public void getPseudoColumns() {
+    public void getPseudoColumns() throws SQLException {
+        Assert.assertNotNull(metaData.getPseudoColumns("", "", "", ""));
     }
 
     @Test
-    public void generatedKeyAlwaysReturned() {
+    public void generatedKeyAlwaysReturned() throws SQLException {
+        Assert.assertFalse(metaData.generatedKeyAlwaysReturned());
     }
 }
