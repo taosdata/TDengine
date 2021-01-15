@@ -327,8 +327,8 @@ typedef struct SSqlObj {
   pthread_t        owner;        // owner of sql object, by which it is executed
   STscObj         *pTscObj;
   int64_t          rpcRid;
-  void            (*fp)();
-  void            (*fetchFp)();
+  __async_cb_func_t  fp;
+  __async_cb_func_t  fetchFp;
   void            *param;
   int64_t          stime;
   uint32_t         queryId;

@@ -339,7 +339,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     if (pSql->retry > pSql->maxRetry) {
       tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
     } else {
-      // wait for a little bit moment and then retry, todo do not sleep in rpc callback thread
+      // wait for a little bit moment and then retry
+      // todo do not sleep in rpc callback thread, add this process into queueu to process
       if (rpcMsg->code == TSDB_CODE_APP_NOT_READY || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
         int32_t duration = getWaitingTimeInterval(pSql->retry);
         taosMsleep(duration);
@@ -1178,7 +1179,7 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscBuildDropUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+int32_t tscBuildDropUserMsg(SSqlObj *pSql, SSqlInfo * UNUSED_PARAM(pInfo)) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SDropUserMsg);
   pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_USER;
@@ -2099,7 +2100,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   return 0;
 }
 
-static void createHBObj(STscObj* pObj) {
+static void createHbObj(STscObj* pObj) {
   if (pObj->hbrid != 0) {
     return;
   }
@@ -2162,7 +2163,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   pObj->superAuth = pConnect->superAuth;
   pObj->connId = htonl(pConnect->connId);
 
-  createHBObj(pObj);
+  createHbObj(pObj);
 
   //launch a timer to send heartbeat to maintain the connection and send status to mnode
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, (void *)pObj->rid, tscTmr, &pObj->pTimer);

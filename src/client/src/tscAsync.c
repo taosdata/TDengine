@@ -20,13 +20,11 @@
 #include "trpc.h"
 #include "tscLog.h"
 #include "tscSubquery.h"
-#include "tscLocalMerge.h"
 #include "tscUtil.h"
 #include "tsched.h"
 #include "tschemautil.h"
 #include "tsclient.h"
 
-static void tscProcessFetchRow(SSchedMsg *pMsg);
 static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 
 static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRows, void (*fp)());
@@ -37,7 +35,6 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
  * query), it will sequentially query&retrieve data for all vnodes
  */
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows);
-static void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows);
 
 void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* param, const char* sqlstr, size_t sqlLen) {
   SSqlCmd* pCmd = &pSql->cmd;
@@ -191,11 +188,6 @@ static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOf
   tscProcessAsyncRetrieveImpl(param, tres, numOfRows, tscAsyncFetchRowsProxy);
 }
 
-void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows) {
-  // query completed, continue to retrieve
-  tscProcessAsyncRetrieveImpl(param, tres, numOfRows, tscAsyncFetchSingleRowProxy);
-}
-
 void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
   SSqlObj *pSql = (SSqlObj *)taosa;
   if (pSql == NULL || pSql->signature != pSql) {
@@ -263,103 +255,6 @@ void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
   }
 }
 
-void taos_fetch_row_a(TAOS_RES *taosa, void (*fp)(void *, TAOS_RES *, TAOS_ROW), void *param) {
-  SSqlObj *pSql = (SSqlObj *)taosa;
-  if (pSql == NULL || pSql->signature != pSql) {
-    tscError("sql object is NULL");
-    tscQueueAsyncError(fp, param, TSDB_CODE_TSC_DISCONNECTED);
-    return;
-  }
-
-  SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
-
-  if (pRes->qhandle == 0) {
-    tscError("qhandle is NULL");
-    pSql->param = param;
-    pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
-
-    tscAsyncResultOnError(pSql);
-    return;
-  }
-
-  pSql->fetchFp = fp;
-  pSql->param = param;
-  
-  if (pRes->row >= pRes->numOfRows) {
-    tscResetForNextRetrieve(pRes);
-    pSql->fp = tscAsyncFetchSingleRowProxy;
-    
-    if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
-      pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-    }
-    
-    tscProcessSql(pSql);
-  } else {
-    SSchedMsg schedMsg = { 0 };
-    schedMsg.fp = tscProcessFetchRow;
-    schedMsg.ahandle = pSql;
-    schedMsg.thandle = pRes->tsrow;
-    schedMsg.msg = NULL;
-    taosScheduleTask(tscQhandle, &schedMsg);
-  }
-}
-
-void tscAsyncFetchSingleRowProxy(void *param, TAOS_RES *tres, int numOfRows) {
-  SSqlObj *pSql = (SSqlObj *)tres;
-  SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
-
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-  
-  if (numOfRows == 0) {
-    if (hasMoreVnodesToTry(pSql)) {     // sequentially retrieve data from remain vnodes.
-      tscTryQueryNextVnode(pSql, tscAsyncQuerySingleRowForNextVnode);
-    } else {
-      /*
-       * 1. has reach the limitation
-       * 2. no remain virtual nodes to be retrieved anymore
-       */
-      (*pSql->fetchFp)(pSql->param, pSql, NULL);
-    }
-    return;
-  }
-  
-  for (int i = 0; i < pCmd->numOfCols; ++i){
-    SInternalField* pSup = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
-    if (pSup->pSqlExpr != NULL) {
-//      pRes->tsrow[i] = TSC_GET_RESPTR_BASE(pRes, pQueryInfo, i) + pSup->pSqlExpr->resBytes * pRes->row;
-    } else {
-      //todo add
-    }
-  }
-  
-  pRes->row++;
-
-  (*pSql->fetchFp)(pSql->param, pSql, pSql->res.tsrow);
-}
-
-void tscProcessFetchRow(SSchedMsg *pMsg) {
-  SSqlObj *pSql = (SSqlObj *)pMsg->ahandle;
-  SSqlRes *pRes = &pSql->res;
-  SSqlCmd *pCmd = &pSql->cmd;
-  
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
-
-  for (int i = 0; i < pCmd->numOfCols; ++i) {
-    SInternalField* pSup = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
-
-    if (pSup->pSqlExpr != NULL) {
-      tscGetResultColumnChr(pRes, &pQueryInfo->fieldsInfo, i, 0);
-    } else {
-//      todo add
-    }
-  }
-  
-  pRes->row++;
-  (*pSql->fetchFp)(pSql->param, pSql, pRes->tsrow);
-}
-
 // this function will be executed by queue task threads, so the terrno is not valid
 static void tscProcessAsyncError(SSchedMsg *pMsg) {
   void (*fp)() = pMsg->ahandle;
@@ -372,14 +267,13 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
   int32_t* c = malloc(sizeof(int32_t));
   *c = code;
   
-  SSchedMsg schedMsg = { 0 };
+  SSchedMsg schedMsg = {0};
   schedMsg.fp = tscProcessAsyncError;
   schedMsg.ahandle = fp;
   schedMsg.thandle = param;
   schedMsg.msg = c;
   taosScheduleTask(tscQhandle, &schedMsg);
 }
-
 
 void tscAsyncResultOnError(SSqlObj *pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
