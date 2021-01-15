@@ -99,7 +99,6 @@ int         tsdbUnlockRepo(STsdbRepo* pRepo);
 char*       tsdbGetDataDirName(char* rootDir);
 int         tsdbGetNextMaxTables(int tid);
 STsdbMeta*  tsdbGetMeta(TSDB_REPO_T* pRepo);
-// STsdbFileH* tsdbGetFile(TSDB_REPO_T* pRepo);
 int         tsdbCheckCommit(STsdbRepo* pRepo);
 
 static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {

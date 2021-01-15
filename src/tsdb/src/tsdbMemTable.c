@@ -466,11 +466,6 @@ static void tsdbFreeTableData(STableData *pTableData) {
 
 static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple((SDataRow)data); }
 
-void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey) {
-  *minKey = fileId * daysPerFile * tsMsPerDay[precision];
-  *maxKey = *minKey + daysPerFile * tsMsPerDay[precision] - 1;
-}
-
 static int tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables) {
   ASSERT(pMemTable->maxTables < maxTables);
 

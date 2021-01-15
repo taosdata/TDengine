@@ -87,7 +87,6 @@ int   tsdbAsyncCommit(STsdbRepo* pRepo);
 int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, SDataCols* pCols,
                             TKEY* filterKeys, int nFilterKeys, bool keepDup, SMergeInfo* pMergeInfo);
 void* tsdbCommitData(STsdbRepo* pRepo);
-void  tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY* minKey, TSKEY* maxKey);
 
 static FORCE_INLINE SDataRow tsdbNextIterRow(SSkipListIterator* pIter) {
   if (pIter == NULL) return NULL;
