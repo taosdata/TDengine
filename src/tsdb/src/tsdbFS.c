@@ -232,13 +232,15 @@ void tsdbCloseFS(STsdbFS *pFs) {
 }
 
 // Start a new transaction to modify the file system
-uint32_t tsdbStartFSTxn(STsdbFS *pfs) {
+void tsdbStartFSTxn(STsdbFS *pfs, int64_t pointsAdd, int64_t storageAdd) {
   ASSERT(pfs->intxn == false);
 
   pfs->intxn = true;
   tsdbResetFSStatus(pfs->nstatus);
-
-  return pfs->cstatus->meta.version + 1;
+  pfs->nstatus->meta = pfs->cstatus->meta;
+  pfs->nstatus->meta.version = pfs->cstatus->meta.version + 1;
+  pfs->nstatus->meta.totalPoints = pfs->cstatus->meta.totalPoints + pointsAdd;
+  pfs->nstatus->meta.version = pfs->cstatus->meta.totalStorage += storageAdd;
 }
 
 void tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta) { pfs->nstatus->meta = *pMeta; }
@@ -268,7 +270,8 @@ int tsdbEndFSTxn(STsdbFS *pfs) {
 }
 
 int tsdbEndFSTxnWithError(STsdbFS *pfs) {
-  // TODO
+  tsdbApplyFSTxnOnDisk(pfs->nstatus, pfs->cstatus);
+  // TODO: if mf change, reload pfs->metaCache
   pfs->intxn = false;
   return 0;
 }

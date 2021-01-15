@@ -286,6 +286,12 @@ typedef struct {
       TSDB_FILE_SET_CLOSED(TSDB_DFILE_IN_SET(s, ftype));                       \
     }                                                                          \
   } while (0);
+#define TSDB_FSET_FSYNC(s)                                                     \
+  do {                                                                         \
+    for (TSDB_FILE_T ftype = TSDB_FILE_HEAD; ftype < TSDB_FILE_MAX; ftype++) { \
+      TSDB_FILE_FSYNC(TSDB_DFILE_IN_SET(s, ftype));                            \
+    }                                                                          \
+  } while (0);
 
 void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, uint32_t ver);
 void  tsdbInitDFileSetEx(SDFileSet* pSet, SDFileSet* pOSet);

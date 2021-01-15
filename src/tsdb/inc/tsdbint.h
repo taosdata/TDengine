@@ -89,7 +89,6 @@ struct STsdbRepo {
 #define REPO_ID(r) (r)->config.tsdbId
 #define REPO_CFG(r) (&((r)->config))
 #define REPO_FS(r) ((r)->fs)
-#define REPO_FS_VERSION(r)  // TODO
 #define IS_REPO_LOCKED(r) (r)->repoLocked
 #define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
 

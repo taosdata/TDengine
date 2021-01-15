@@ -55,6 +55,7 @@ typedef struct {
 #define FS_CURRENT_STATUS(pfs) ((pfs)->cstatus)
 #define FS_NEW_STATUS(pfs) ((pfs)->nstatus)
 #define FS_IN_TXN(pfs) (pfs)->intxn
+#define FS_TXN_VERSION(pfs) ((pfs)->nstatus->meta.version)
 
 typedef struct {
   int        direction;
@@ -72,7 +73,7 @@ STsdbFS *tsdbNewFS(int keep, int days);
 void *   tsdbFreeFS(STsdbFS *pfs);
 int      tsdbOpenFS(STsdbFS *pFs, int keep, int days);
 void     tsdbCloseFS(STsdbFS *pFs);
-uint32_t tsdbStartFSTxn(STsdbFS *pfs);
+void     tsdbStartFSTxn(STsdbFS *pfs, int64_t pointsAdd, int64_t storageAdd);
 int      tsdbEndFSTxn(STsdbFS *pfs);
 int      tsdbEndFSTxnWithError(STsdbFS *pfs);
 void     tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta);

@@ -54,6 +54,8 @@ typedef struct {
   SList*       actList;
   SList*       extraBuffList;
   SList*       bufBlockList;
+  int64_t      pointsAdd;   // TODO
+  int64_t      storageAdd;  // TODO
 } SMemTable;
 
 enum { TSDB_UPDATE_META, TSDB_DROP_META };
