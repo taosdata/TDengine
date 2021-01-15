@@ -229,7 +229,7 @@ static int32_t handlePassword(SSqlCmd* pCmd, SStrToken* pPwd) {
 }
 
 int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
-  if (pInfo == NULL || pSql == NULL || pSql->signature != pSql) {
+  if (pInfo == NULL || pSql == NULL) {
     return TSDB_CODE_TSC_APP_ERROR;
   }
 
@@ -642,7 +642,11 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   }
 
   pSql->cmd.parseFinished = 1;
-  return tscBuildMsg[pCmd->command](pSql, pInfo);
+  if (tscBuildMsg[pCmd->command] != NULL) {
+    return tscBuildMsg[pCmd->command](pSql, pInfo);
+  } else {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "not support sql expression");
+  }
 }
 
 /*
