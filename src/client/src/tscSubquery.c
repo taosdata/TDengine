@@ -76,11 +76,11 @@ static bool allSubqueryDone(SSqlObj *pParentSql) {
   
   for (int i = 0; i < subState->numOfSub; i++) {
     if (0 == subState->states[i]) {
-      tscDebug("subquery:%p,%d is NOT finished, total:%d", pParentSql->pSubs[i], i, subState->numOfSub);
+      tscDebug("%p subquery:%p,%d is NOT finished, total:%d", pParentSql, pParentSql->pSubs[i], i, subState->numOfSub);
       done = false;
       break;
     } else {
-      tscDebug("subquery:%p,%d is finished, total:%d", pParentSql->pSubs[i], i, subState->numOfSub);
+      tscDebug("%p subquery:%p,%d is finished, total:%d", pParentSql, pParentSql->pSubs[i], i, subState->numOfSub);
     }
   }
 
@@ -94,7 +94,7 @@ static bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
 
   pthread_mutex_lock(&subState->mutex);
 
-  tscDebug("subquery:%p,%d state set to 1", pSql, idx);
+  tscDebug("%p subquery:%p,%d state set to 1", pParentSql, pSql, idx);
   
   subState->states[idx] = 1;
 
