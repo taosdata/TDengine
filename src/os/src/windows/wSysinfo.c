@@ -31,6 +31,8 @@
 #pragma comment(lib, "Mswsock.lib ")
 #endif
 
+#include <objbase.h>
+
 #pragma warning(push)
 #pragma warning(disable : 4091)
 #include <DbgHelp.h>
@@ -233,8 +235,6 @@ int taosSystem(const char *cmd) {
 
 int flock(int fd, int option) { return 0; }
 
-int fsync(int filedes) { return 0; }
-
 int sigaction(int sig, struct sigaction *d, void *p) { return 0; }
 
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
@@ -276,7 +276,18 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 void taosSetCoreDump() { SetUnhandledExceptionFilter(&FlCrashDump); }
 
 bool taosGetSystemUid(char *uid) {
-  sprintf(uid, "uid_not_implemented_yet");
+  GUID guid;
+  CoCreateGuid(&guid);
+
+  sprintf(
+    uid,
+    "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X",
+    guid.Data1, guid.Data2, guid.Data3,
+    guid.Data4[0], guid.Data4[1],
+    guid.Data4[2], guid.Data4[3],
+    guid.Data4[4], guid.Data4[5],
+    guid.Data4[6], guid.Data4[7]);
+
   return true;
 }
 
