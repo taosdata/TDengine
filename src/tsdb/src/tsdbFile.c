@@ -91,7 +91,9 @@ int tsdbCreateMFile(SMFile *pMFile) {
 
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
-  if (tsdbOpenMFile(pMFile, O_WRONLY | O_CREAT | O_EXCL) < 0) {
+  pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), O_WRONLY | O_CREAT | O_EXCL, 0755);
+  if (pMFile->fd < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
@@ -212,7 +214,9 @@ int tsdbCreateDFile(SDFile *pDFile) {
 
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
-  if (tsdbOpenDFile(pDFile, O_WRONLY | O_CREAT | O_EXCL) < 0) {
+  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_EXCL, 0755);
+  if (pDFile->fd < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
@@ -353,7 +357,9 @@ void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet) {
 
 int tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbApplyDFileChange(TSDB_DFILE_IN_SET(from, ftype), TSDB_DFILE_IN_SET(to, ftype)) < 0) {
+    SDFile *pDFileFrom = (from) ? TSDB_DFILE_IN_SET(from, ftype) : NULL;
+    SDFile *pDFileTo = (to) ? TSDB_DFILE_IN_SET(to, ftype) : NULL;
+    if (tsdbApplyDFileChange(pDFileFrom, pDFileTo) < 0) {
       return -1;
     }
   }
@@ -387,9 +393,9 @@ static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, c
 
   if (ftype < TSDB_FILE_MAX) {
     if (ver == 0) {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d.%s", vid, vid, fid, TSDB_FNAME_SUFFIX[ftype]);
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d%s", vid, vid, fid, TSDB_FNAME_SUFFIX[ftype]);
     } else {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d.%s-ver%" PRIu32, vid, vid, fid,
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d%s-ver%" PRIu32, vid, vid, fid,
                TSDB_FNAME_SUFFIX[ftype], ver);
     }
   } else {

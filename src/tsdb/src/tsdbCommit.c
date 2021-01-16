@@ -37,6 +37,7 @@ typedef struct {
   TSKEY        minKey;
   TSKEY        maxKey;
   SArray *     aBlkIdx;  // SBlockIdx array
+  STable *     pTable;
   SArray *     aSupBlk;  // Table super-block array
   SArray *     aSubBlk;  // table sub-block array
   SDataCols *  pDataCols;
@@ -45,7 +46,7 @@ typedef struct {
 #define TSDB_COMMIT_REPO(ch) TSDB_READ_REPO(&(ch->readh))
 #define TSDB_COMMIT_REPO_ID(ch) REPO_ID(TSDB_READ_REPO(&(ch->readh)))
 #define TSDB_COMMIT_WRITE_FSET(ch) (&((ch)->wSet))
-#define TSDB_COMMIT_TABLE(ch) TSDB_READ_TABLE(&(ch->readh))
+#define TSDB_COMMIT_TABLE(ch) ((ch)->pTable)
 #define TSDB_COMMIT_HEAD_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_HEAD)
 #define TSDB_COMMIT_DATA_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_DATA)
 #define TSDB_COMMIT_LAST_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_LAST)
@@ -325,12 +326,13 @@ static int tsdbCommitTSData(STsdbRepo *pRepo) {
         cfid = pSet->fid;
         pSet = tsdbFSIterNext(&(commith.fsIter));
       }
-      fid = tsdbNextCommitFid(&commith);
 
       if (tsdbCommitToFile(&commith, pCSet, cfid) < 0) {
         tsdbDestroyCommitH(&commith);
         return -1;
       }
+
+      fid = tsdbNextCommitFid(&commith);
     }
   }
 
@@ -346,7 +348,7 @@ static int tsdbStartCommit(STsdbRepo *pRepo) {
   tsdbInfo("vgId:%d start to commit! keyFirst %" PRId64 " keyLast %" PRId64 " numOfRows %" PRId64 " meta rows: %d",
            REPO_ID(pRepo), pMem->keyFirst, pMem->keyLast, pMem->numOfRows, listNEles(pMem->actList));
 
-  tsdbStartFSTxn(REPO_FS(pRepo), pMem->pointsAdd, pMem->storageAdd);
+  tsdbStartFSTxn(pRepo, pMem->pointsAdd, pMem->storageAdd);
 
   pRepo->code = TSDB_CODE_SUCCESS;
   return 0;
@@ -356,7 +358,7 @@ static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   if (eno != TSDB_CODE_SUCCESS) {
     tsdbEndFSTxnWithError(REPO_FS(pRepo));
   } else {
-    tsdbEndFSTxn(REPO_FS(pRepo));
+    tsdbEndFSTxn(pRepo);
   }
 
   tsdbInfo("vgId:%d commit over, %s", REPO_ID(pRepo), (eno == TSDB_CODE_SUCCESS) ? "succeed" : "failed");
@@ -698,6 +700,8 @@ static int tsdbCommitToTable(SCommitH *pCommith, int tid) {
 
 static int tsdbSetCommitTable(SCommitH *pCommith, STable *pTable) {
   STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
+
+  pCommith->pTable = pTable;
 
   if (tdInitDataCols(pCommith->pDataCols, pSchema) < 0) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -1246,6 +1250,7 @@ static void tsdbResetCommitTable(SCommitH *pCommith) {
   tdResetDataCols(pCommith->pDataCols);
   taosArrayClear(pCommith->aSubBlk);
   taosArrayClear(pCommith->aSupBlk);
+  pCommith->pTable = NULL;
 }
 
 static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {

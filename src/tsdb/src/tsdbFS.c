@@ -21,7 +21,7 @@
 
 static int  tsdbComparFidFSet(const void *arg1, const void *arg2);
 static void tsdbResetFSStatus(SFSStatus *pStatus);
-static int  tsdbApplyFSTxn(STsdbFS *pfs);
+static int  tsdbApplyFSTxn(STsdbFS *pfs, int vid);
 static void tsdbApplyFSTxnOnDisk(SFSStatus *pFrom, SFSStatus *pTo);
 
 // ================== CURRENT file header info
@@ -238,7 +238,8 @@ void tsdbCloseFS(STsdbRepo *pRepo) {
 }
 
 // Start a new transaction to modify the file system
-void tsdbStartFSTxn(STsdbFS *pfs, int64_t pointsAdd, int64_t storageAdd) {
+void tsdbStartFSTxn(STsdbRepo *pRepo, int64_t pointsAdd, int64_t storageAdd) {
+  STsdbFS *pfs = REPO_FS(pRepo);
   ASSERT(pfs->intxn == false);
 
   pfs->intxn = true;
@@ -251,12 +252,13 @@ void tsdbStartFSTxn(STsdbFS *pfs, int64_t pointsAdd, int64_t storageAdd) {
 
 void tsdbUpdateFSTxnMeta(STsdbFS *pfs, STsdbFSMeta *pMeta) { pfs->nstatus->meta = *pMeta; }
 
-int tsdbEndFSTxn(STsdbFS *pfs) {
+int tsdbEndFSTxn(STsdbRepo *pRepo) {
+  STsdbFS *pfs = REPO_FS(pRepo);
   ASSERT(FS_IN_TXN(pfs));
   SFSStatus *pStatus;
 
   // Write current file system snapshot
-  if (tsdbApplyFSTxn(pfs) < 0) {
+  if (tsdbApplyFSTxn(pfs, REPO_ID(pRepo)) < 0) {
     tsdbEndFSTxnWithError(pfs);
     return -1;
   }
@@ -286,14 +288,19 @@ void tsdbUpdateMFile(STsdbFS *pfs, const SMFile *pMFile) { tsdbSetStatusMFile(pf
 
 int tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet) { return tsdbAddDFileSetToStatus(pfs->nstatus, pSet); }
 
-static int tsdbApplyFSTxn(STsdbFS *pfs) {
+static int tsdbApplyFSTxn(STsdbFS *pfs, int vid) {
   ASSERT(FS_IN_TXN(pfs));
   SFSHeader fsheader;
   void *    pBuf = NULL;
   void *    ptr;
   char      hbuf[TSDB_FILE_HEAD_SIZE] = "\0";
+  char      tfname[TSDB_FILENAME_LEN] = "\0";
+  char      cfname[TSDB_FILENAME_LEN] = "\0";
 
-  int fd = open(TSDB_FS_TEMP_FNAME, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+  snprintf(tfname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", TFS_PRIMARY_PATH(), vid, TSDB_FS_TEMP_FNAME);
+  snprintf(cfname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", TFS_PRIMARY_PATH(), vid, TSDB_FS_CURRENT_FNAME);
+
+  int fd = open(tfname, O_WRONLY | O_CREAT | O_TRUNC, 0755);
   if (fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -317,7 +324,7 @@ static int tsdbApplyFSTxn(STsdbFS *pfs) {
   if (taosWrite(fd, hbuf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     close(fd);
-    remove(TSDB_FS_TEMP_FNAME);
+    remove(tfname);
     return -1;
   }
 
@@ -325,7 +332,7 @@ static int tsdbApplyFSTxn(STsdbFS *pfs) {
   if (fsheader.len > 0) {
     if (tsdbMakeRoom(&(pBuf), fsheader.len) < 0) {
       close(fd);
-      remove(TSDB_FS_TEMP_FNAME);
+      remove(tfname);
       return -1;
     }
 
@@ -336,7 +343,7 @@ static int tsdbApplyFSTxn(STsdbFS *pfs) {
     if (taosWrite(fd, pBuf, fsheader.len) < fsheader.len) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       close(fd);
-      remove(TSDB_FS_TEMP_FNAME);
+      remove(tfname);
       taosTZfree(pBuf);
       return -1;
     }
@@ -346,13 +353,13 @@ static int tsdbApplyFSTxn(STsdbFS *pfs) {
   if (fsync(fd) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     close(fd);
-    remove(TSDB_FS_TEMP_FNAME);
+    remove(tfname);
     taosTZfree(pBuf);
     return -1;
   }
 
   (void)close(fd);
-  (void)rename(TSDB_FS_TEMP_FNAME, TSDB_FS_CURRENT_FNAME);
+  (void)rename(tfname, cfname);
   taosTZfree(pBuf);
 
   return 0;
@@ -398,13 +405,11 @@ static void tsdbApplyFSTxnOnDisk(SFSStatus *pFrom, SFSStatus *pTo) {
       }
     } else if (pSetFrom == NULL || pSetFrom->fid > pSetTo->fid) {
       // Do nothing
-      if (pSetFrom) {
-        ito++;
-        if (ito >= sizeTo) {
-          pSetTo = NULL;
-        } else {
-          pSetTo = taosArrayGet(pTo->df, ito);
-        }
+      ito++;
+      if (ito >= sizeTo) {
+        pSetTo = NULL;
+      } else {
+        pSetTo = taosArrayGet(pTo->df, ito);
       }
     } else {
       tsdbApplyDFileSetChange(pSetFrom, pSetTo);

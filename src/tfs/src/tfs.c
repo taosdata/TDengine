@@ -102,7 +102,7 @@ int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
     return -1;
   }
 
-  tfsUpdateInfo();
+  tfsUpdateInfo(NULL);
   for (int level = 0; level < TFS_NLEVEL(); level++) {
     tfsPosNextId(TFS_TIER_AT(level));
   }

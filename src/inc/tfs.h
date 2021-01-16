@@ -40,7 +40,7 @@ typedef struct {
 
 int  tfsInit(SDiskCfg *pDiskCfg, int ndisk);
 void tfsDestroy();
-void tfsUpdateInfo();
+void tfsUpdateInfo(SFSMeta *pFSMeta);
 void tfsGetMeta(SFSMeta *pMeta);
 void tfsAllocDisk(int expLevel, int *level, int *id);
 
