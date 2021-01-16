@@ -839,7 +839,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR: {
-        int32_t charLen = varDataLen(row[i] - VARSTR_HEADER_SIZE);
+        int32_t charLen = varDataLen((char*)row[i] - VARSTR_HEADER_SIZE);
         if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
           assert(charLen <= fields[i].bytes);
         } else {
