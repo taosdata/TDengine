@@ -649,13 +649,15 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
 
 #ifdef __APPLE__
   pRepo->readyToCommit = sem_open(NULL, O_CREAT, 0644, 1);
-  if (!pRepo->readyToCommit) {
+  if (pRepo->readyToCommit==SEM_FAILED) {
+    code = errno;
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
   }
 #else
   code = sem_init(&(pRepo->readyToCommit), 0, 1);
   if (code != 0) {
+    code = errno;
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
   }

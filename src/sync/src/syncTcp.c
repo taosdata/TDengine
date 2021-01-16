@@ -136,15 +136,12 @@ void *syncAllocateTcpConn(void *param, int64_t rid, int32_t connFd) {
   event.events = EPOLLIN | EPOLLRDHUP;
   event.data.ptr = pConn;
 
-  fprintf(stderr, ">>>>>>>>>>>>>>>>>\n");
   if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
-  fprintf(stderr, "<<<<<<<<<<<<<<<<<\n");
     sError("failed to add fd:%d since %s", connFd, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     tfree(pConn);
     pConn = NULL;
   } else {
-  fprintf(stderr, "<<<<<<<<<<<<<<<<<\n");
     pThread->numOfFds++;
     sDebug("%p fd:%d is added to epoll thread, num:%d", pThread, connFd, pThread->numOfFds);
   }
@@ -170,9 +167,7 @@ static void taosProcessBrokenLink(SConnObj *pConn) {
   (*pInfo->processBrokenLink)(pConn->handleId);
 
   pThread->numOfFds--;
-  fprintf(stderr, "<<<<<<<<<<<<<<<<<\n");
   epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pConn->fd, NULL);
-  fprintf(stderr, "<<<<<<<<<<<<<<<<<\n");
   sDebug("%p fd:%d is removed from epoll thread, num:%d", pThread, pConn->fd, pThread->numOfFds);
   taosClose(pConn->fd);
   tfree(pConn);
@@ -287,7 +282,6 @@ static SThreadObj *syncGetTcpThread(SPoolObj *pPool) {
 
   pThread->pPool = pPool;
   pThread->pollFd = epoll_create(10);  // size does not matter
-  fprintf(stderr, "...............\n");
   if (pThread->pollFd < 0) {
     tfree(pThread);
     return NULL;

@@ -58,7 +58,6 @@ void taosBlockSIGPIPE() {
 #ifndef TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 
 int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen) {
-  fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
   return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
 }
 

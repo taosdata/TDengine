@@ -133,7 +133,6 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
     }
 
     pThreadObj->pollFd = (int64_t)epoll_create(10);  // size does not matter
-    fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
     if (pThreadObj->pollFd < 0) {
       tError("%s failed to create TCP epoll", label);
       code = -1;
@@ -294,7 +293,6 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
   }
 
   pThreadObj->pollFd = (SOCKET)epoll_create(10);  // size does not matter
-  fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
   if (pThreadObj->pollFd < 0) {
     tError("%s failed to create TCP client epoll", label);
     free(pThreadObj);
@@ -343,10 +341,6 @@ void taosCleanUpTcpClient(void *chandle) {
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port) {
   SThreadObj *    pThreadObj = shandle;
 
-  fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
-  fprintf(stderr, "pThreadObj->ip:%d\n", pThreadObj->ip);
-  fprintf(stderr, "PF_INET/AF_INET:%d/%d\n", PF_INET, AF_INET);
-  fprintf(stderr, "ip/port:%x/%d\n", ip, port);
   SOCKET fd = taosOpenTcpClientSocket(ip, port, pThreadObj->ip);
   if (fd < 0) return NULL;
 
@@ -358,7 +352,6 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
     localPort = (uint16_t)ntohs(sin.sin_port);
   }
 
-  fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
   SFdObj *pFdObj = taosMallocFdObj(pThreadObj, fd);
   
   if (pFdObj) {
@@ -369,7 +362,6 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
             pThreadObj->label, thandle, ip, port, localPort, pFdObj, pThreadObj->numOfFds);
   } else {
     tError("%s failed to malloc client FdObj(%s)", pThreadObj->label, strerror(errno));
-    fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
     taosCloseSocket(fd);
   }
 
@@ -492,32 +484,27 @@ static void *taosProcessTcpData(void *param) {
     if (fdNum < 0) continue;
 
     for (int i = 0; i < fdNum; ++i) {
-      fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
       pFdObj = events[i].data.ptr;
 
       if (events[i].events & EPOLLERR) {
         tDebug("%s %p FD:%p epoll errors", pThreadObj->label, pFdObj->thandle, pFdObj);
-        fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
         taosReportBrokenLink(pFdObj);
         continue;
       }
 
       if (events[i].events & EPOLLRDHUP) {
         tDebug("%s %p FD:%p RD hang up", pThreadObj->label, pFdObj->thandle, pFdObj);
-        fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
         taosReportBrokenLink(pFdObj);
         continue;
       }
 
       if (events[i].events & EPOLLHUP) {
         tDebug("%s %p FD:%p hang up", pThreadObj->label, pFdObj->thandle, pFdObj);
-        fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
         taosReportBrokenLink(pFdObj);
         continue;
       }
 
       if (taosReadTcpData(pFdObj, &recvInfo) < 0) {
-        fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
         shutdown(pFdObj->fd, SHUT_WR); 
         continue;
       }
@@ -563,7 +550,6 @@ static SFdObj *taosMallocFdObj(SThreadObj *pThreadObj, SOCKET fd) {
 
   event.events = EPOLLIN | EPOLLRDHUP;
   event.data.ptr = pFdObj;
-  fprintf(stderr, "==%s[%d]%s()==\n", basename(__FILE__), __LINE__, __func__);
   if (epoll_ctl(pThreadObj->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
     tfree(pFdObj);
     terrno = TAOS_SYSTEM_ERROR(errno); 

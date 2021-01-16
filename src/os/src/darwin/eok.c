@@ -34,20 +34,31 @@ typedef struct eok_event_s                eok_event_t;
 
 struct ep_over_kq_s {
   int                    kq;
+
+  // !!!
+  // idx in the eoks list
+  // used as pseudo-file-desciptor
+  // must be 'closed' with epoll_close
   int                    idx;
+
   ep_over_kq_t          *next;
 
   int                    sv[2]; // 0 for read, 1 for write
 
+  // all registered 'epoll events, key by fd'
   int                   evs_count;
   eok_event_t           *evs_head;
   eok_event_t           *evs_tail;
   eok_event_t           *evs_free;
 
+  // all kev changes list pending to be processed by kevent64
+  // key by tuple (ident,filter), ident === fd in this case
   struct kevent64_s     *kchanges;
   int                    nchanges;
   int                    ichanges;
 
+  // kev eventslist for kevent64 to store active events
+  // they remain alive among kevent64 calls
   struct kevent64_s     *kevslist;
   int                    nevslist;
 
@@ -76,6 +87,7 @@ struct eoks_s {
   int                  neoks;
   ep_over_kq_t        *eoks_free;
 };
+
 static eoks_t          eoks = {
   .lock           = PTHREAD_MUTEX_INITIALIZER,
   .eoks           = NULL,
@@ -93,8 +105,9 @@ static const char* op_str(int op) {
 }
 
 static __thread char buf_slots[10][1024] = {0};
-static __thread int buf_slots_linelen = sizeof(buf_slots[0])/sizeof(buf_slots[0][0]);
-static __thread int buf_slots_count = sizeof(buf_slots)/(sizeof(buf_slots[0])/sizeof(buf_slots[0][0]));
+static __thread int  buf_slots_linelen   = sizeof(buf_slots[0])/sizeof(buf_slots[0][0]);
+static __thread int  buf_slots_count     = sizeof(buf_slots)/(sizeof(buf_slots[0])/sizeof(buf_slots[0][0]));
+
 static const char* events_str(uint32_t events, int slots) {
   A(slots>=0 && slots<buf_slots_count, "internal logic error");
   char     *buf = buf_slots[slots];
@@ -102,6 +115,7 @@ static const char* events_str(uint32_t events, int slots) {
   size_t    len = buf_slots_linelen;
   int       n   = 0;
   buf[0] = '\0';
+  // copied from <sys/epoll.h> on linux
   //     EPOLLIN = 0x001,
   // #define EPOLLIN EPOLLIN
   //     EPOLLPRI = 0x002,
@@ -164,6 +178,7 @@ static const char* kev_flags_str(uint16_t flags, int slots) {
   size_t    len = buf_slots_linelen;
   int       n   = 0;
   buf[0] = '\0';
+  // copied to <sys/event.h>
   // #define EV_ADD              0x0001      /* add event to kq (implies enable) */
   // #define EV_DELETE           0x0002      /* delete event from kq */
   // #define EV_ENABLE           0x0004      /* enable event */
@@ -233,10 +248,7 @@ int epoll_create(int size) {
   (void)size;
   int e = 0;
   ep_over_kq_t *eok = eoks_alloc();
-  if (!eok) {
-    errno = ENOMEM;
-    return -1;
-  }
+  if (!eok) return -1;
 
   A(eok->kq==-1, "internal logic error");
   A(eok->lock_valid, "internal logic error");
@@ -263,13 +275,14 @@ int epoll_create(int size) {
   struct epoll_event ev = {0};
   ev.events = EPOLLIN;
   ev.data.ptr = &eok_dummy;
+  D("epoll_create epfd:[%d]", eok->idx);
   if (epoll_ctl(eok->idx, EPOLL_CTL_ADD, eok->sv[0], &ev)) {
-    A(0, "internal logic error");
+    e = errno;
     epoll_close(eok->idx);
+    errno = e;
     return -1;
   }
 
-  D("epoll_create epfd:[%d]", eok->idx);
   return eok->idx;
 }
 
@@ -309,36 +322,34 @@ int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event) {
       e = ENOENT;
       break;
     }
+    if (op!=EPOLL_CTL_DEL && !event) {
+      e = EINVAL;
+      break;
+    }
 
+    // prepare krev/kwev
     struct kevent64_s krev = {0};
     struct kevent64_s kwev = {0};
     krev.ident = -1;
     kwev.ident = -1;
     uint16_t flags = 0;
+    // prepare internal eok event
     eok_event_t ev = {0};
     ev.fd = fd;
     if (event) ev.epev = *event;
     struct epoll_event *pev = event;
     switch (op) {
       case EPOLL_CTL_ADD: {
-        if (!event) {
-          e = EINVAL;
-          break;
-        }
         flags = EV_ADD;
         ev.changed = 1;
       } break;
       case EPOLL_CTL_MOD: {
-        if (!event) {
-          e = EINVAL;
-          break;
-        }
         flags = EV_ADD;
         ev.changed = 2;
       } break;
       case EPOLL_CTL_DEL: {
-        D("epoll_ctl adding...");
         // event is ignored
+        // pev points to registered epoll_event
         pev = &oev->epev;
         flags = EV_DELETE;
         ev.changed = 3;
@@ -350,6 +361,7 @@ int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event) {
 
     if (e) break;
 
+    // udata will be delayed to be set
     if (pev->events & (EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
       flags |= EV_EOF;
       EV_SET64(&krev, ev.fd, EVFILT_READ, flags, 0, 0, -1, 0, 0);
@@ -358,6 +370,7 @@ int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event) {
       EV_SET64(&kwev, ev.fd, EVFILT_WRITE, flags, 0, 0, -1, 0, 0);
     }
 
+    // refresh registered evlist and changelist in a transaction way
     if (eok_chgs_refresh(eok, oev, &ev, &krev, &kwev)) {
       e = errno;
       A(e, "internal logic error");
@@ -380,11 +393,6 @@ static struct timespec do_timespec_diff(struct timespec *from, struct timespec *
 
 int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout) {
   int e = 0;
-  if (epfd<0 || epfd>=eoks.neoks) {
-    errno = EBADF;
-    E("epoll_waiting epfd:[%d], maxevents:[%d], timeout:[%d] failed", epfd, maxevents, timeout);
-    return -1;
-  }
   if (!events) {
     errno = EINVAL;
     E("epoll_waiting epfd:[%d], maxevents:[%d], timeout:[%d] failed", epfd, maxevents, timeout);
@@ -396,15 +404,6 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
     return -1;
   }
 
-  int r = 0;
-
-  ep_over_kq_t *eok = eoks_find(epfd);
-  if (!eok) {
-    errno = EBADF;
-    E("epoll_waiting epfd:[%d], maxevents:[%d], timeout:[%d] failed", epfd, maxevents, timeout);
-    return -1;
-  }
-
   struct timespec abstime = {0};
   A(TIME_UTC==timespec_get(&abstime, TIME_UTC), "internal logic error");
 
@@ -412,7 +411,17 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
     if (timeout<0) timeout = 0;
     int64_t t = abstime.tv_nsec + timeout * 1000000;
     abstime.tv_sec += t / 1000000000;
-    abstime.tv_nsec %= 1000000000;
+    abstime.tv_nsec = t % 1000000000;
+  }
+
+  int r = 0;
+
+  ep_over_kq_t *eok = eoks_find(epfd);
+  if (!eok) {
+    errno = EBADF;
+    E("epoll_waiting epfd:[%d], maxevents:[%d], timeout:[%d] failed", epfd, maxevents, timeout);
+    errno = EBADF;
+    return -1;
   }
 
   int cnts = 0;
@@ -431,43 +440,52 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
     struct timespec now = {0};
     A(TIME_UTC==timespec_get(&now, TIME_UTC), "internal logic error");
     struct timespec to = do_timespec_diff(&now, &abstime);
-    struct timespec *pto = NULL;
-    if (timeout!=-1) {
-      pto = &to;
+    struct timespec *pto = &to;
+    if (timeout==-1) {
+      pto = NULL;
     }
 
-    eok->changed = 0;
-    eok->wakenup = 0;
-    eok->waiting = 1;
-    
+    // taking the changelist
     struct kevent64_s *kchanges = eok->kchanges;
     int                nchanges = eok->nchanges;
     int                ichanges = eok->ichanges;
+    // let outside world to add changes
     eok->kchanges = NULL;
     eok->nchanges = 0;
     eok->ichanges = 0;
 
+    eok->changed = 0;
+    eok->wakenup = 0;
+    eok->waiting = 1;
+
     A(0==pthread_mutex_unlock(&eok->lock), "");
     if (ichanges>0) {
-      D("kevent64 changing [%d] changes and waiting...", ichanges);
+      D("kevent64 epfd[%d] changing [%d] changes and waiting...", eok->idx, ichanges);
     }
     errno = 0;
     r = kevent64(eok->kq, kchanges, ichanges, eventslist, maxevents, 0, pto);
     e = errno;
     if (e) {
-      E("kevent64 waiting done, with r[%d]", r);
+      E("kevent64 epfd[%d] waiting done, with r[%d]", eok->idx, r);
     }
     A(0==pthread_mutex_lock(&eok->lock), "");
 
     eok->waiting = 0;
+
     if (kchanges) {
-      free(kchanges);
-      kchanges = NULL;
+      if (eok->kchanges==NULL) {
+        // reuse
+        A(eok->nchanges==0 && eok->ichanges==0, "internal logic error");
+        eok->kchanges = kchanges;
+        eok->nchanges = nchanges;
+      } else {
+        free(kchanges);
+        kchanges = NULL;
+      }
       nchanges = 0;
       ichanges = 0;
     }
 
-    eok->waiting = 0;
     if (r==0) {
       A(timeout!=-1, "internal logic error");
     }
@@ -484,28 +502,37 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
         case EVFILT_READ: {
           A((ev->epev.events & EPOLLIN), "internal logic errro");
           if (ev->epev.data.ptr==&eok_dummy) {
+            // it's coming from wakeup socket pair
             char c = '\0';
             A(1==recv(kev->ident, &c, 1, 0), "internal logic error");
             A(0==memcmp(&c, "1", 1), "internal logic error");
             D("wokenup");
+            continue;
           } else {
             if (ev->changed==3) {
               D("already requested to delete for fd[%d]", ev->fd);
+              // TODO: write a unit test for this case
               // EV_DELETE?
               continue;
             }
+            // converting to epoll_event
+            // we shall collect all kevents for the uniq fd into one epoll_evnt
+            // but currently, taos never use EPOLLOUT
+            // just let it this way for the moment
             struct epoll_event pev = {0};
             pev.data.ptr = ev->epev.data.ptr;
             pev.events = EPOLLIN;
             if (kev->flags & EV_EOF) {
+              // take all these as EOF for the moment
               pev.events |= (EPOLLHUP | EPOLLERR | EPOLLRDHUP);
-              D("..........");
             }
+            // rounded to what user care
             pev.events = pev.events & ev->epev.events;
             D("events found for fd[%d]: [%04x:%s], which was registered: [%04x:%s], kev_flags: [%04x:%s]",
                ev->fd, pev.events, events_str(pev.events, 0),
                ev->epev.events, events_str(ev->epev.events, 1),
                kev->flags, kev_flags_str(kev->flags, 2));
+            // now we get ev and store it
             events[cnts++] = pev;
           }
         } break;
@@ -518,6 +545,8 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
       }
     }
     if (r>=0) {
+      // we can safely rule out delete-requested-events from the regitered evlists
+      // if only changelist are correctly registered
       eok_event_t *p = eok->evs_head;
       while (p) {
         eok_event_t *next = p->next;
@@ -527,6 +556,14 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
         }
         p = next;
       }
+    }
+    if (cnts==0) {
+      // if no user-cared-events is up
+      // we check to see if time is up
+      A(TIME_UTC==timespec_get(&now, TIME_UTC), "internal logic error");
+      to = do_timespec_diff(&now, &abstime);
+      if (to.tv_sec==0 && to.tv_nsec==0) break;
+      // time is not up yet, continue loop
     }
   } while (cnts==0);
   if (cnts>0) {
@@ -540,6 +577,7 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
     return -1;
   }
 
+  // tell user how many events are valid
   return cnts;
 }
 
@@ -547,19 +585,20 @@ static struct timespec do_timespec_diff(struct timespec *from, struct timespec *
   struct timespec delta;
   delta.tv_sec  = to->tv_sec - from->tv_sec;
   delta.tv_nsec = to->tv_nsec - from->tv_nsec;
+  // norm and round up
   while (delta.tv_nsec<0) {
     delta.tv_sec -= 1;
     delta.tv_nsec += 1000000000;
+  }
+  if (delta.tv_sec < 0) {
+    delta.tv_sec = 0;
+    delta.tv_nsec = 0;
   }
   return delta;
 }
 
 int epoll_close(int epfd) {
   D("epoll_closing epfd: [%d]", epfd);
-  if (epfd<0 || epfd>=eoks.neoks) {
-    errno = EBADF;
-    return -1;
-  }
   ep_over_kq_t *eok = eoks_find(epfd);
   if (!eok) {
     errno = EBADF;
@@ -568,9 +607,11 @@ int epoll_close(int epfd) {
 
   A(0==pthread_mutex_lock(&eok->lock), "");
   do {
+    // panic if it would be double-closed
     A(eok->stopping==0, "internal logic error");
     eok->stopping = 1;
-    A(eok->waiting, "internal logic error");
+    // panic if epoll_wait is pending
+    A(eok->waiting==0, "internal logic error");
 
     if (eok->kq!=-1) {
       close(eok->kq);
@@ -608,9 +649,12 @@ static eok_event_t* eok_calloc_ev(ep_over_kq_t *eok) {
     p = eok->evs_free;
     eok->evs_free = p->next;
     p->next = NULL;
+    A(p->prev==NULL, "internal logic error");
   } else {
     p = (eok_event_t*)calloc(1, sizeof(*p));
     if (!p) return NULL;
+    A(p->next==NULL, "internal logic error");
+    A(p->prev==NULL, "internal logic error");
   }
   // dirty link
   p->prev = eok->evs_tail;
@@ -626,9 +670,9 @@ static eok_event_t* eok_calloc_ev(ep_over_kq_t *eok) {
 static void eok_free_ev(ep_over_kq_t *eok, eok_event_t *ev) {
   if (ev->prev) ev->prev->next = ev->next;
   else          eok->evs_head  = ev->next;
-  ev->prev = NULL;
   if (ev->next) ev->next->prev = ev->prev;
   else          eok->evs_tail  = ev->prev;
+  ev->prev = NULL;
   ev->next = eok->evs_free;
   eok->evs_free = ev->next;
 
@@ -639,7 +683,7 @@ static void eok_wakeup(ep_over_kq_t *eok) {
   if (!eok->waiting) return;
   if (eok->wakenup) return;
   eok->wakenup = 1;
-  send(eok->sv[1], "1", 1, 0);
+  A(1==send(eok->sv[1], "1", 1, 0), "");
 }
 
 static int eok_chgs_refresh(ep_over_kq_t *eok, eok_event_t *oev, eok_event_t *ev, struct kevent64_s *krev, struct kevent64_s *kwev) {
@@ -653,6 +697,8 @@ static int eok_chgs_refresh(ep_over_kq_t *eok, eok_event_t *oev, eok_event_t *ev
     struct kevent64_s *p = (struct kevent64_s*)realloc(eok->kchanges, sizeof(*p) * (eok->nchanges + 10));
     if (!p) {
       if (ev->changed==1) {
+        // roll back
+        A(oev, "internal logic error");
         eok_free_ev(eok, oev);
       }
       errno = ENOMEM;
@@ -662,12 +708,15 @@ static int eok_chgs_refresh(ep_over_kq_t *eok, eok_event_t *oev, eok_event_t *ev
     eok->nchanges += 10;
   }
 
+  // copy to registered event slot
   oev->fd      = ev->fd;
   if (ev->changed!=3) {
+    // if add/mod, copy epoll_event
     oev->epev    = ev->epev;
   }
   oev->changed = ev->changed;
 
+  // copy to changes list
   n = 0;
   if (krev->ident==ev->fd) {
     krev->udata = (uint64_t)oev;
@@ -679,7 +728,7 @@ static int eok_chgs_refresh(ep_over_kq_t *eok, eok_event_t *oev, eok_event_t *ev
     eok->kchanges[eok->ichanges++] = *kwev;
     ++n;
   }
-  D("add changes[%d] for fd[%d], and changes/registers [%d/%d]", n, ev->fd, eok->ichanges, eok->evs_count);
+  D("add #changes[%d] for fd[%d], and now #changes/registers [%d/%d]", n, ev->fd, eok->ichanges, eok->evs_count);
   return 0;
 }
 
@@ -707,7 +756,10 @@ static ep_over_kq_t* eoks_alloc(void) {
   } while (0);
   A(0==pthread_mutex_unlock(&eoks.lock), "");
 
-  if (!eok) return NULL;
+  if (!eok) {
+    errno = ENOMEM;
+    return NULL;
+  }
   if (eok->lock_valid) {
     return eok;
   }
@@ -718,6 +770,7 @@ static ep_over_kq_t* eoks_alloc(void) {
   }
 
   eoks_free(eok);
+  errno = ENOMEM;
   return NULL;
 }
 
@@ -725,16 +778,23 @@ static void eoks_free(ep_over_kq_t *eok) {
   A(0==pthread_mutex_lock(&eoks.lock), "");
   do {
     A(eok->next==NULL, "internal logic error");
-    A(eok->evs_head==NULL, "internal logic error");
+
+    // leave eok->kchanges as is
+    A(eok->ichanges==0, "internal logic error");
+
     A(eok->waiting==0, "internal logic error");
-    if (eok->sv[0]!=-1) {
+    if (eok->evs_count==1) {
+      A(eok->evs_head && eok->evs_tail && eok->evs_head==eok->evs_tail, "internal logic error");
+      A(eok->evs_head->fd==eok->sv[0] && eok->sv[0]!=-1 && eok->sv[1]!=-1, "internal logic error");
+      // fd is critical system resource
       close(eok->sv[0]);
       eok->sv[0] = -1;
-    }
-    if (eok->sv[1]!=-1) {
       close(eok->sv[1]);
       eok->sv[1] = -1;
+      eok_free_ev(eok, eok->evs_head);
     }
+    A(eok->evs_head==NULL && eok->evs_tail==NULL && eok->evs_count==0, "internal logic error");
+    A(eok->sv[0]==-1 && eok->sv[1]==-1, "internal logic error");
     if (eok->kq!=-1) {
       close(eok->kq);
       eok->kq = -1;
