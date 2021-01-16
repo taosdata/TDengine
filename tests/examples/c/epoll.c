@@ -177,7 +177,8 @@ static void* routine(void* arg) {
   ep_t *ep = (ep_t*)arg;
 
   while (!ep->stopping) {
-    struct epoll_event evs[10] = {0};
+    struct epoll_event evs[10];
+    memset(evs, 0, sizeof(evs));
 
     A(0==pthread_mutex_lock(&ep->lock), "");
     A(ep->waiting==0, "internal logic error");
