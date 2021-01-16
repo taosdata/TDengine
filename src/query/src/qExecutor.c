@@ -3168,6 +3168,10 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
   // all results in current group have been returned to client, try next group
   if (pGroupResInfo->index >= taosArrayGetSize(pGroupResInfo->pRows)) {
     // current results of group has been sent to client, try next group
+    pGroupResInfo->index = 0;
+    pGroupResInfo->rowId = 0;
+    taosArrayClear(pGroupResInfo->pRows);
+
     if (mergeGroupResult(pQInfo) != TSDB_CODE_SUCCESS) {
       return;  // failed to save data in the disk
     }
@@ -6928,11 +6932,12 @@ static size_t getResultSize(SQInfo *pQInfo, int64_t *numOfRows) {
    */
   if (isTSCompQuery(pQuery) && (*numOfRows) > 0) {
     struct stat fStat;
-    if (fstat(fileno(*(FILE **)pQuery->sdata[0]->data), &fStat) == 0) {
+    FILE *f = *(FILE **)pQuery->sdata[0]->data;
+    if ((f != NULL) && (fstat(fileno(f), &fStat) == 0)) {
       *numOfRows = fStat.st_size;
       return fStat.st_size;
     } else {
-      qError("QInfo:%p failed to get file info, path:%s, reason:%s", pQInfo, pQuery->sdata[0]->data, strerror(errno));
+      qError("QInfo:%p failed to get file info, file:%p, reason:%s", pQInfo, f, strerror(errno));
       return 0;
     }
   } else {
@@ -6947,7 +6952,7 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
   // load data from file to msg buffer
   if (isTSCompQuery(pQuery)) {
 
-    FILE *f = *(FILE **)pQuery->sdata[0]->data;
+    FILE *f = *(FILE **)pQuery->sdata[0]->data;  // TODO refactor
 
     // make sure file exist
     if (f) {

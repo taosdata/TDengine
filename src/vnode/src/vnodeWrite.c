@@ -52,7 +52,10 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   int32_t    code = 0;
   SVnodeObj *pVnode = vparam;
   SWalHead * pHead = wparam;
-  SRspRet *  pRspRet = rparam;
+  SVWriteMsg*pWrite = rparam;
+
+  SRspRet *pRspRet = NULL;
+  if (pWrite != NULL) pRspRet = &pWrite->rspRet;
 
   if (vnodeProcessWriteMsgFp[pHead->msgType] == NULL) {
     vError("vgId:%d, msg:%s not processed since no handle, qtype:%s hver:%" PRIu64, pVnode->vgId,
@@ -85,7 +88,7 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
 
   // forward to peers, even it is WAL/FWD, it shall be called to update version in sync
   int32_t syncCode = 0;
-  syncCode = syncForwardToPeer(pVnode->sync, pHead, pRspRet, qtype);
+  syncCode = syncForwardToPeer(pVnode->sync, pHead, pWrite, qtype);
   if (syncCode < 0) return syncCode;
 
   // write into WAL
@@ -230,7 +233,7 @@ static SVWriteMsg *vnodeBuildVWriteMsg(SVnodeObj *pVnode, SWalHead *pHead, int32
     pWrite->rpcMsg = *pRpcMsg;
   }
 
-  memcpy(pWrite->pHead, pHead, sizeof(SWalHead) + pHead->len);
+  memcpy(&pWrite->pHead, pHead, sizeof(SWalHead) + pHead->len);
   pWrite->pVnode = pVnode;
   pWrite->qtype = qtype;
 
@@ -305,7 +308,7 @@ static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
   if (pVnode->flowctrlLevel <= 0) code = TSDB_CODE_VND_IS_FLOWCTRL;
 
   pWrite->processedCount++;
-  if (pWrite->processedCount > 100) {
+  if (pWrite->processedCount >= 100) {
     vError("vgId:%d, msg:%p, failed to process since %s, retry:%d", pVnode->vgId, pWrite, tstrerror(code),
            pWrite->processedCount);
     pWrite->processedCount = 1;

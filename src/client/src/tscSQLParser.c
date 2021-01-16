@@ -223,7 +223,7 @@ static int32_t handlePassword(SSqlCmd* pCmd, SStrToken* pPwd) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if (pPwd->n >= TSDB_PASSWORD_LEN) {
+  if (pPwd->n >= TSDB_KEY_LEN) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -1244,7 +1244,7 @@ int32_t setObjFullName(char* fullName, const char* account, SStrToken* pDB, SStr
 
   /* db name is not specified, the tableName dose not include db name */
   if (pDB != NULL) {
-    if (pDB->n >= TSDB_ACCT_LEN + TSDB_DB_NAME_LEN || pDB->n == 0) {
+    if (pDB->n >= TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN || pDB->n == 0) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
@@ -6024,9 +6024,9 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCreateDbMsg* pCreate) {
   }
 
   if (pCreate->quorum != -1 &&
-      (pCreate->quorum < TSDB_MIN_DB_REPLICA_OPTION || pCreate->quorum > TSDB_MAX_DB_REPLICA_OPTION)) {
+      (pCreate->quorum < TSDB_MIN_DB_QUORUM_OPTION || pCreate->quorum > TSDB_MAX_DB_QUORUM_OPTION)) {
     snprintf(msg, tListLen(msg), "invalid db option quorum: %d valid range: [%d, %d]", pCreate->quorum,
-             TSDB_MIN_DB_REPLICA_OPTION, TSDB_MAX_DB_REPLICA_OPTION);
+             TSDB_MIN_DB_QUORUM_OPTION, TSDB_MAX_DB_QUORUM_OPTION);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
@@ -6103,7 +6103,9 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex) {
     int32_t tmpLen = 0;
     tmpLen =
         sprintf(tmpBuf, "%s(uid:%" PRId64 ", %d)", aAggs[pExpr->functionId].aName, pExpr->uid, pExpr->colInfo.colId);
-    if (tmpLen + offset > totalBufSize) break;
+
+    if (tmpLen + offset >= totalBufSize - 1) break;
+
 
     offset += sprintf(str + offset, "%s", tmpBuf);
 
@@ -6112,7 +6114,9 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex) {
     }
   }
 
+  assert(offset < totalBufSize);
   str[offset] = ']';
+  assert(offset < totalBufSize);
   tscDebug("%p select clause:%s", pSql, str);
 }
 

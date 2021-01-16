@@ -468,6 +468,18 @@ void tscFreeRegisteredSqlObj(void *pSql) {
 
 }
 
+void tscFreeMetaSqlObj(int64_t *rid){
+  if (RID_VALID(*rid)) {
+    SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, *rid);
+    if (pSql) {
+      taosRemoveRef(tscObjRef, *rid);
+      taosReleaseRef(tscObjRef, *rid);
+    }
+
+    *rid = 0;
+  }
+}
+
 void tscFreeSqlObj(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     return;
@@ -476,6 +488,9 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscDebug("%p start to free sqlObj", pSql);
 
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+
+  tscFreeMetaSqlObj(&pSql->metaRid);
+  tscFreeMetaSqlObj(&pSql->svgroupRid);
 
   tscFreeSubobj(pSql);
 
@@ -505,6 +520,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   pCmd->allocSize = 0;
   
   tsem_destroy(&pSql->rspSem);
+  memset(pSql, 0, sizeof(*pSql));
   free(pSql);
 }
 
@@ -2193,7 +2209,9 @@ void tscDoQuery(SSqlObj* pSql) {
           tscProcessSql(pSql);
         } else { // secondary stage join query.
           if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
+            tscLockByThread(&pSql->squeryLock);
             tscHandleMasterSTableQuery(pSql);
+            tscUnlockByThread(&pSql->squeryLock);
           } else {
             tscProcessSql(pSql);
           }
@@ -2202,7 +2220,9 @@ void tscDoQuery(SSqlObj* pSql) {
 
       return;
     } else if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
+      tscLockByThread(&pSql->squeryLock);
       tscHandleMasterSTableQuery(pSql);
+      tscUnlockByThread(&pSql->squeryLock);
       return;
     }
     

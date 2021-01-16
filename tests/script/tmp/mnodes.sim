@@ -35,7 +35,6 @@ system sh/cfg.sh -n dnode3 -c replica -v 3
 print ============== deploy
 
 system sh/exec.sh -n dnode1 -s start 
-sleep 5001
 sql connect
 
 sql create dnode $hostname2
@@ -45,13 +44,29 @@ system sh/exec.sh -n dnode3 -s start
 
 print  =============== step1
 $x = 0
-show1: 
+step1: 
 	$x = $x + 1
-	sleep 2000
-	if $x == 5 then
-	  return -1
+	sleep 1000
+	if $x == 10 then
+		return -1
 	endi
-sql show mnodes -x show1
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+
+sql show mnodes
 $mnode1Role = $data2_1
 print mnode1Role $mnode1Role
 $mnode2Role = $data2_2
@@ -60,13 +75,13 @@ $mnode3Role = $data2_3
 print mnode3Role $mnode3Role
 
 if $mnode1Role != master then
-  goto show1
+  goto step1
 endi
 if $mnode2Role != slave then
-  goto show1
+  goto step1
 endi
 if $mnode3Role != slave then
-  goto show1
+  goto step1
 endi
 
 $x = 1
@@ -75,9 +90,21 @@ show2:
 print  =============== step $x
 sql show mnodes
 print $data0_1 $data2_1
-print $data0_2 $data2_2
-print $data0_3 $data2_3
 
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
 
 $x = $x + 1
 sleep 5000

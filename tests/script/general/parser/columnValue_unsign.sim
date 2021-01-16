@@ -107,3 +107,69 @@ if $data01 != 1 then
 endi
 
 sql select a+b+c from mt_unsigned_1 where a is null;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 6.000000000 then
+  return -1
+endi
+
+sql select count(*), a from mt_unsigned_1 group by a;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+sql select count(*), b from mt_unsigned_1 group by b;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 2 then
+  return -1
+endi
+
+sql select count(*), c from mt_unsigned_1 group by c;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 3 then
+  return -1
+endi
+
+sql select count(*), d from mt_unsigned_1 group by d;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+if $data01 != 4 then
+  return -1
+endi
+
+// todo insert more rows and chec it
+sql select first(a),count(b),last(c),sum(b),spread(d),avg(c),min(b),max(a),stddev(a) from mt_unsigned_1;
+if $rows != 1 then
+  return -1
+endi
+

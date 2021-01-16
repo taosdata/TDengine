@@ -2,7 +2,6 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 3
 system sh/exec.sh -n dnode1 -s start
 sleep 100
 sql connect
@@ -228,7 +227,7 @@ sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<
 sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:30:00' interval(10m) order by ts desc
 
 
-#todo add test case while column filter exists.
+#todo add test case while column filter exists for twa query
 
 #sql select count(*),TWA(k) from tm0 where ts>='1970-1-1 13:43:00' and ts<='1970-1-1 13:44:10' interval(9s)
 
@@ -373,3 +372,14 @@ sql select twa(k) from tm2 where ts='2020-12-29 18:46:19.109'
 if $rows != 0 then
   return -1
 endi
+
+print ========================> TD-1787
+sql create table cars(ts timestamp, c int) tags(id int);
+sql create table car1 using cars tags(1);
+sql create table car2 using cars tags(2);
+sql insert into car1 (ts, c) values (now,1) car2(ts, c) values(now, 2);
+sql drop table cars;
+sql create table cars(ts timestamp, c int) tags(id int);
+sql create table car1 using cars tags(1);
+sql create table car2 using cars tags(2);
+sql insert into car1 (ts, c) values (now,1) car2(ts, c) values(now, 2);

@@ -256,10 +256,8 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 #define TSDB_USER_LEN             TSDB_UNI_LEN
 
 // ACCOUNT is a 32 bit positive integer
-// this is the length of its string representation
-// including the terminator zero
-#define TSDB_ACCT_LEN             11
-#define TSDB_PASSWORD_LEN         TSDB_UNI_LEN
+// this is the length of its string representation, including the terminator zero
+#define TSDB_ACCT_ID_LEN          11
 
 #define TSDB_MAX_COLUMNS          1024
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
@@ -267,7 +265,7 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
 #define TSDB_DB_NAME_LEN          33
-#define TSDB_TABLE_FNAME_LEN      (TSDB_ACCT_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
+#define TSDB_TABLE_FNAME_LEN      (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
@@ -293,11 +291,6 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN+6)
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
-#define TSDB_METER_VNODE_BITS     20
-#define TSDB_METER_SID_MASK       0xFFFFF
-#define TSDB_SHELL_VNODE_BITS     24
-#define TSDB_SHELL_SID_MASK       0xFF
-#define TSDB_HTTP_TOKEN_LEN       20
 #define TSDB_SHOW_SQL_LEN         512
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 
@@ -310,9 +303,6 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 #define TSDB_MQTT_PASS_LEN        24
 #define TSDB_MQTT_TOPIC_LEN       64
 #define TSDB_MQTT_CLIENT_ID_LEN   32
-
-#define TSDB_METER_STATE_OFFLINE  0
-#define TSDB_METER_STATE_ONLLINE  1
 
 #define TSDB_DEFAULT_PKT_SIZE     65480  //same as RPC_MAX_UDP_SIZE
 
@@ -333,7 +323,7 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 
 #define TSDB_TBNAME_COLUMN_INDEX        (-1)
 #define TSDB_UD_COLUMN_INDEX            (-100)
-#define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta
+#define TSDB_MULTI_TABLEMETA_MAX_NUM    100000  // maximum batch size allowed to load table meta
 
 #define TSDB_MIN_CACHE_BLOCK_SIZE       1
 #define TSDB_MAX_CACHE_BLOCK_SIZE       128     // 128MB for each vnode
@@ -395,6 +385,9 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 #define TSDB_MIN_DB_REPLICA_OPTION      1
 #define TSDB_MAX_DB_REPLICA_OPTION      3
 #define TSDB_DEFAULT_DB_REPLICA_OPTION  1
+
+#define TSDB_MIN_DB_QUORUM_OPTION       1
+#define TSDB_MAX_DB_QUORUM_OPTION       2
 #define TSDB_DEFAULT_DB_QUORUM_OPTION   1
 
 #define TSDB_MAX_JOIN_TABLE_NUM         5
@@ -451,7 +444,7 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 #define TSDB_PORT_HTTP                  11
 #define TSDB_PORT_ARBITRATOR            12
 
-#define TSDB_MAX_WAL_SIZE    (1024*1024*2)
+#define TSDB_MAX_WAL_SIZE    (1024*1024*3)
 
 typedef enum {
   TAOS_QTYPE_RPC   = 0,

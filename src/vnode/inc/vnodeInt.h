@@ -67,7 +67,7 @@ typedef struct {
   void *   qMgmt;
   char *   rootDir;
   tsem_t   sem;
-  char     db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char     db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   pthread_mutex_t statusMutex;
 } SVnodeObj;
 
