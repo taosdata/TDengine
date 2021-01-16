@@ -930,7 +930,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
   if (numOfRows > 0) {  // write the compressed timestamp to disk file
     if(pSupporter->f == NULL) {
-      pSupporter->f = fopen(pSupporter->path, "w");
+      pSupporter->f = fopen(pSupporter->path, "wb");
 
       if (pSupporter->f == NULL) {
         tscError("%p failed to create tmp file:%s, reason:%s", pSql, pSupporter->path, strerror(errno));
@@ -974,7 +974,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     // continue to retrieve ts-comp data from vnode
     if (!pRes->completed) {
       taosGetTmpfilePath("ts-join", pSupporter->path);
-      pSupporter->f = fopen(pSupporter->path, "w");
+      pSupporter->f = fopen(pSupporter->path, "wb");
       pRes->row = pRes->numOfRows;
 
       taos_fetch_rows_a(tres, tsCompRetrieveCallback, param);
@@ -1000,7 +1000,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     taosGetTmpfilePath("ts-join", pSupporter->path);
     
     // TODO check for failure
-    pSupporter->f = fopen(pSupporter->path, "w");
+    pSupporter->f = fopen(pSupporter->path, "wb");
     pRes->row = pRes->numOfRows;
 
     // set the callback function

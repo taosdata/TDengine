@@ -128,7 +128,7 @@ static int32_t syncRestoreFile(SSyncPeer *pPeer, uint64_t *fversion) {
     minfo.name[sizeof(minfo.name) - 1] = 0;
     snprintf(name, sizeof(name), "%s/%s", pNode->path, minfo.name);
 
-    int32_t dfd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+    int32_t dfd = open(name, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
     if (dfd < 0) {
       sError("%s, failed to open file:%s while restore file since %s", pPeer->id, minfo.name, strerror(errno));
       break;

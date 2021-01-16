@@ -152,7 +152,7 @@ static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
     snprintf(name, sizeof(name), "%s/%s", pNode->path, fileInfo.name);
 
     // send the file to peer
-    int32_t sfd = open(name, O_RDONLY);
+    int32_t sfd = open(name, O_RDONLY | O_BINARY);
     if (sfd < 0) {
       code = -1;
       sError("%s, failed to open file:%s while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
@@ -221,7 +221,7 @@ static int32_t syncReadOneWalRecord(int32_t sfd, SWalHead *pHead) {
 }
 
 static int32_t syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversion, int64_t offset) {
-  int32_t sfd = open(name, O_RDONLY);
+  int32_t sfd = open(name, O_RDONLY | O_BINARY);
   if (sfd < 0) {
     sError("%s, failed to open wal:%s for retrieve since:%s", pPeer->id, name, tstrerror(errno));
     return -1;
@@ -376,7 +376,7 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
     size = fstat.st_size;
     sDebug("%s, retrieve wal:%s size:%d", pPeer->id, fname, size);
 
-    int32_t sfd = open(fname, O_RDONLY);
+    int32_t sfd = open(fname, O_RDONLY | O_BINARY);
     if (sfd < 0) {
       code = -1;
       sError("%s, failed to open wal:%s for retrieve since %s, code:0x%x", pPeer->id, fname, strerror(errno), code);

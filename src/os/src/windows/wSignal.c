@@ -23,9 +23,11 @@ void taosSetSignal(int32_t signum, FSignalHandler sigfp) {
 }
 
 void taosIgnSignal(int32_t signum) {
+  if (signum == SIGUSR1) return;
   signal(signum, SIG_IGN);
 }
 
 void taosDflSignal(int32_t signum) {
+  if (signum == SIGUSR1) return;
   signal(signum, SIG_DFL);
 }

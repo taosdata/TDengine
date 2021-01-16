@@ -240,9 +240,9 @@ local gzFile gz_open(path, fd, mode)
     /* open the file with the appropriate flags (or just use fd) */
     state->fd = fd > -1 ? fd : (
 #ifdef WIDECHAR
-        fd == -2 ? _wopen(path, oflag, 0666) :
+        fd == -2 ? _wopen(path, oflag | O_BINARY, 0666) :
 #endif
-        open((const char *)path, oflag, 0666));
+        open((const char *)path, oflag | O_BINARY, 0666));
     if (state->fd == -1) {
         free(state->path);
         free(state);

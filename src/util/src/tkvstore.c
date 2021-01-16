@@ -50,7 +50,7 @@ static void *    tdDecodeKVRecord(void *buf, SKVRecord *pRecord);
 static int       tdRestoreKVStore(SKVStore *pStore);
 
 int tdCreateKVStore(char *fname) {
-  int fd = open(fname, O_RDWR | O_CREAT, 0755);
+  int fd = open(fname, O_RDWR | O_CREAT | O_BINARY, 0755);
   if (fd < 0) {
     uError("failed to open file %s since %s", fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -96,14 +96,14 @@ SKVStore *tdOpenKVStore(char *fname, iterFunc iFunc, afterFunc aFunc, void *appH
   SKVStore *pStore = tdNewKVStore(fname, iFunc, aFunc, appH);
   if (pStore == NULL) return NULL;
 
-  pStore->fd = open(pStore->fname, O_RDWR);
+  pStore->fd = open(pStore->fname, O_RDWR | O_BINARY);
   if (pStore->fd < 0) {
     uError("failed to open file %s since %s", pStore->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  pStore->sfd = open(pStore->fsnap, O_RDONLY);
+  pStore->sfd = open(pStore->fsnap, O_RDONLY | O_BINARY);
   if (pStore->sfd < 0) {
     if (errno != ENOENT) {
       uError("failed to open file %s since %s", pStore->fsnap, strerror(errno));
@@ -172,14 +172,14 @@ void tdCloseKVStore(SKVStore *pStore) { tdFreeKVStore(pStore); }
 int tdKVStoreStartCommit(SKVStore *pStore) {
   ASSERT(pStore->fd < 0);
 
-  pStore->fd = open(pStore->fname, O_RDWR);
+  pStore->fd = open(pStore->fname, O_RDWR | O_BINARY);
   if (pStore->fd < 0) {
     uError("failed to open file %s since %s", pStore->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     goto _err;
   }
 
-  pStore->sfd = open(pStore->fsnap, O_WRONLY | O_CREAT, 0755);
+  pStore->sfd = open(pStore->fsnap, O_WRONLY | O_CREAT | O_BINARY, 0755);
   if (pStore->sfd < 0) {
     uError("failed to open file %s since %s", pStore->fsnap, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -336,7 +336,7 @@ void tsdbGetStoreInfo(char *fname, uint32_t *magic, int64_t *size) {
   char       buf[TD_KVSTORE_HEADER_SIZE] = "\0";
   SStoreInfo info = {0};
 
-  int fd = open(fname, O_RDONLY);
+  int fd = open(fname, O_RDONLY | O_BINARY);
   if (fd < 0) goto _err;
 
   if (taosRead(fd, buf, TD_KVSTORE_HEADER_SIZE) < TD_KVSTORE_HEADER_SIZE) goto _err;
