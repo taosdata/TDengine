@@ -235,7 +235,7 @@ typedef struct {
     int32_t numOfTablesInSubmit;
   };
 
-  uint32_t     insertType;
+  uint32_t     insertType;   // TODO remove it
   int32_t      clauseIndex;  // index of multiple subclause query
 
   char *       curSql;       // current sql, resume position of sql after parsing paused

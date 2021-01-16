@@ -483,9 +483,9 @@ int tscProcessSql(SSqlObj *pSql) {
       pSql->res.code = TSDB_CODE_TSC_APP_ERROR;
       return pSql->res.code;
     }
-  } else if (pCmd->command < TSDB_SQL_LOCAL) {
+  } else if (pCmd->command >= TSDB_SQL_LOCAL) {
     //pSql->epSet = tscMgmtEpSet;
-  } else {  // local handler
+//  } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
   

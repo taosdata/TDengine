@@ -110,7 +110,7 @@ void*   tscDestroyBlockArrayList(SArray* pDataBlockList);
 void*   tscDestroyBlockHashTable(SHashObj* pBlockHashTable);
 
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
-int32_t tscMergeTableDataBlocks(SSqlObj* pSql);
+int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap);
 int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
                                 STableDataBlocks** dataBlocks, SArray* pBlockList);
 
