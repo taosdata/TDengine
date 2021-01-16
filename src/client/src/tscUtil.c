@@ -1921,7 +1921,7 @@ void registerSqlObj(SSqlObj* pSql) {
   tscDebug("%p new SqlObj from %p, total in tscObj:%d, total:%d", pSql, pSql->pTscObj, num, total);
 }
 
-SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd) {
+SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, int32_t cmd) {
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
   if (pNew == NULL) {
     tscError("%p new subquery failed, tableIndex:%d", pSql, 0);
@@ -2006,7 +2006,7 @@ static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pNewQueryInfo, int64_t ui
   tscFieldInfoUpdateOffset(pNewQueryInfo);
 }
 
-SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, int32_t cmd, SSqlObj* pPrevSql) {
+SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t fp, void* param, int32_t cmd, SSqlObj* pPrevSql) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
