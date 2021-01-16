@@ -10,7 +10,19 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#ifdef ENABLE_LOG
 #define D(fmt, ...) fprintf(stderr, "%s[%d]%s(): " fmt "\n", basename(__FILE__), __LINE__, __func__, ##__VA_ARGS__)
+#define E(fmt, ...) do {                                                \
+  fprintf(stderr, "%s[%d]%s(): %d[%s]: " fmt "\n",                      \
+          basename(__FILE__), __LINE__, __func__,                       \
+          errno, strerror(errno),                                       \
+          ##__VA_ARGS__);                                               \
+} while (0)
+#else // !ENABLE_LOG
+#define D(fmt, ...) (void)fmt
+#define E(fmt, ...) (void)fmt
+#endif // ENABLE_LOG
+
 #define A(statement, fmt, ...) do {                                     \
   if (statement) break;                                                 \
   fprintf(stderr, "%s[%d]%s(): assert [%s] failed: %d[%s]: " fmt "\n",  \
@@ -18,13 +30,6 @@
           #statement, errno, strerror(errno),                           \
           ##__VA_ARGS__);                                               \
   abort();                                                              \
-} while (0)
-
-#define E(fmt, ...) do {                                                \
-  fprintf(stderr, "%s[%d]%s(): %d[%s]: " fmt "\n",                      \
-          basename(__FILE__), __LINE__, __func__,                       \
-          errno, strerror(errno),                                       \
-          ##__VA_ARGS__);                                               \
 } while (0)
 
 static int eok_dummy = 0;
@@ -95,6 +100,7 @@ static eoks_t          eoks = {
   .eoks_free      = NULL,
 };
 
+#ifdef ENABLE_LOG
 static const char* op_str(int op) {
   switch (op) {
     case EPOLL_CTL_ADD: return "EPOLL_CTL_ADD";
@@ -230,6 +236,7 @@ static const char* kev_flags_str(uint16_t flags, int slots) {
 #undef CHK_EV
   return buf;
 }
+#endif // ENABLE_LOG
 
 static ep_over_kq_t* eoks_alloc(void);
 static void          eoks_free(ep_over_kq_t *eok);
