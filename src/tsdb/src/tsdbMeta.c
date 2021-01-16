@@ -463,6 +463,8 @@ void tsdbFreeMeta(STsdbMeta *pMeta) {
 }
 
 int tsdbOpenMeta(STsdbRepo *pRepo) {
+  return 0;
+#if 0
   char *     fname = NULL;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   ASSERT(pMeta != NULL);
@@ -486,6 +488,7 @@ int tsdbOpenMeta(STsdbRepo *pRepo) {
 _err:
   tfree(fname);
   return -1;
+#endif
 }
 
 int tsdbCloseMeta(STsdbRepo *pRepo) {

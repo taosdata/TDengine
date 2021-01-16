@@ -69,10 +69,10 @@ typedef struct {
 #define TSDB_FS_ITER_FORWARD TSDB_ORDER_ASC
 #define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
 
-STsdbFS *tsdbNewFS(int keep, int days);
+STsdbFS *tsdbNewFS(STsdbCfg *pCfg);
 void *   tsdbFreeFS(STsdbFS *pfs);
-int      tsdbOpenFS(STsdbFS *pFs, int keep, int days);
-void     tsdbCloseFS(STsdbFS *pFs);
+int      tsdbOpenFS(STsdbRepo *pRepo);
+void     tsdbCloseFS(STsdbRepo *pRepo);
 void     tsdbStartFSTxn(STsdbFS *pfs, int64_t pointsAdd, int64_t storageAdd);
 int      tsdbEndFSTxn(STsdbFS *pfs);
 int      tsdbEndFSTxnWithError(STsdbFS *pfs);

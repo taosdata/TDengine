@@ -81,9 +81,9 @@ typedef void TSDB_REPO_T;  // use void to hide implementation details from outsi
 STsdbCfg *tsdbGetCfg(const TSDB_REPO_T *repo);
 
 // --------- TSDB REPOSITORY DEFINITION
-int          tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg);
-int32_t      tsdbDropRepo(char *rootDir);
-TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH);
+int32_t      tsdbCreateRepo(int repoid);
+int32_t      tsdbDropRepo(int repoid);
+TSDB_REPO_T *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
 int          tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit);
 int32_t      tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg);
 int          tsdbGetState(TSDB_REPO_T *repo);
@@ -120,7 +120,6 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg);
 int   tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg);
 int   tsdbDropTable(TSDB_REPO_T *pRepo, STableId tableId);
 int   tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg);
-// TSKEY tsdbGetTableLastKey(TSDB_REPO_T *repo, uint64_t uid);
 
 uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size);
 

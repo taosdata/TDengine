@@ -19,6 +19,11 @@
 #define TSDB_FS_TEMP_FNAME "current.t"
 #define TSDB_MAX_FSETS(keep, days) ((keep) / (days) + 3)
 
+static int  tsdbComparFidFSet(const void *arg1, const void *arg2);
+static void tsdbResetFSStatus(SFSStatus *pStatus);
+static int  tsdbApplyFSTxn(STsdbFS *pfs);
+static void tsdbApplyFSTxnOnDisk(SFSStatus *pFrom, SFSStatus *pTo);
+
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
   int tlen = 0;
@@ -29,7 +34,7 @@ static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
   return tlen;
 }
 
-static void *tsdbDecodeFSHeader(void *buf, SFSHeader *pHeader) {
+static UNUSED_FUNC void *tsdbDecodeFSHeader(void *buf, SFSHeader *pHeader) {
   buf = taosDecodeFixedU32(buf, &(pHeader->version));
   buf = taosDecodeFixedU32(buf, &(pHeader->len));
 
@@ -47,7 +52,7 @@ static int tsdbEncodeFSMeta(void **buf, STsdbFSMeta *pMeta) {
   return tlen;
 }
 
-static void *tsdbDecodeFSMeta(void *buf, STsdbFSMeta *pMeta) {
+static UNUSED_FUNC void *tsdbDecodeFSMeta(void *buf, STsdbFSMeta *pMeta) {
   buf = taosDecodeFixedU32(buf, &(pMeta->version));
   buf = taosDecodeFixedI64(buf, &(pMeta->totalPoints));
   buf = taosDecodeFixedI64(buf, &(pMeta->totalStorage));
@@ -95,7 +100,7 @@ static int tsdbEncodeFSStatus(void **buf, SFSStatus *pStatus) {
   return tlen;
 }
 
-static void *tsdbDecodeFSStatus(void *buf, SFSStatus *pStatus) {
+static UNUSED_FUNC void *tsdbDecodeFSStatus(void *buf, SFSStatus *pStatus) {
   tsdbResetFSStatus(pStatus);
 
   pStatus->pmf = &(pStatus->mf);
@@ -113,7 +118,7 @@ static SFSStatus *tsdbNewFSStatus(int maxFSet) {
     return NULL;
   }
 
-  TSDB_FSET_SET_CLOSED(&(pStatus->mf));
+  TSDB_FILE_SET_CLOSED(&(pStatus->mf));
 
   pStatus->df = taosArrayInit(maxFSet, sizeof(SDFileSet));
   if (pStatus->df == NULL) {
@@ -139,7 +144,7 @@ static void tsdbResetFSStatus(SFSStatus *pStatus) {
     return;
   }
 
-  TSDB_FSET_SET_CLOSED(&(pStatus->mf));
+  TSDB_FILE_SET_CLOSED(&(pStatus->mf));
 
   pStatus->pmf = NULL;
   taosArrayClear(pStatus->df);
@@ -167,7 +172,9 @@ static int tsdbAddDFileSetToStatus(SFSStatus *pStatus, const SDFileSet *pSet) {
 
 // ================== STsdbFS
 // TODO
-STsdbFS *tsdbNewFS(int keep, int days) {
+STsdbFS *tsdbNewFS(STsdbCfg *pCfg) {
+  int      keep = pCfg->keep;
+  int      days = pCfg->daysPerFile;
   int      maxFSet = TSDB_MAX_FSETS(keep, days);
   STsdbFS *pfs;
 
@@ -220,14 +227,13 @@ void *tsdbFreeFS(STsdbFS *pfs) {
 }
 
 // TODO
-int tsdbOpenFS(STsdbFS *pFs, int keep, int days) {
+int tsdbOpenFS(STsdbRepo *pRepo) {
   // TODO
-
   return 0;
 }
 
 // TODO
-void tsdbCloseFS(STsdbFS *pFs) {
+void tsdbCloseFS(STsdbRepo *pRepo) {
   // TODO
 }
 
@@ -298,7 +304,7 @@ static int tsdbApplyFSTxn(STsdbFS *pfs) {
     ASSERT(taosArrayGetSize(pfs->nstatus->df) == 0);
     fsheader.len = 0;
   } else {
-    fsheader.len = tsdbEncodeFSHeader(NULL, pfs->nstatus) + sizeof(TSCKSUM);
+    fsheader.len = tsdbEncodeFSHeader(NULL, &fsheader) + sizeof(TSCKSUM);
   }
 
   // Encode header part and write
@@ -325,7 +331,7 @@ static int tsdbApplyFSTxn(STsdbFS *pfs) {
 
     ptr = pBuf;
     tsdbEncodeFSStatus(&ptr, pfs->nstatus);
-    taosCalcChecksumAppend(0, (uint8_t *)pBuf, fsheader.len) 
+    taosCalcChecksumAppend(0, (uint8_t *)pBuf, fsheader.len);
 
     if (taosWrite(fd, pBuf, fsheader.len) < fsheader.len) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -455,7 +461,7 @@ void tsdbFSIterSeek(SFSIter *pIter, int fid) {
     flags = TD_LE;
   }
 
-  void *ptr = taosbsearch(&fid, pfs->cstatus->df->pData, size, sizeof(SDFileSet), , flags);
+  void *ptr = taosbsearch(&fid, pfs->cstatus->df->pData, size, sizeof(SDFileSet), tsdbComparFidFSet, flags);
   if (ptr == NULL) {
     pIter->index = -1;
     pIter->fid = TSDB_IVLD_FID;
@@ -503,4 +509,17 @@ SDFileSet *tsdbFSIterNext(SFSIter *pIter) {
   }
 
   return pSet;
+}
+
+static int tsdbComparFidFSet(const void *arg1, const void *arg2) {
+  int        fid = *(int *)arg1;
+  SDFileSet *pSet = (SDFileSet *)arg2;
+
+  if (fid < pSet->fid) {
+    return -1;
+  } else if (fid == pSet->fid) {
+    return 0;
+  } else {
+    return 1;
+  }
 }

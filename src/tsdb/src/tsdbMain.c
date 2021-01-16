@@ -16,111 +16,100 @@
 // no test file errors here
 #include "tsdbint.h"
 
-#define TSDB_CFG_FILE_NAME "config"
-#define TSDB_DATA_DIR_NAME "data"
-#define TSDB_META_FILE_NAME "meta"
-#define TSDB_META_FILE_INDEX 10000000
 #define IS_VALID_PRECISION(precision) \
   (((precision) >= TSDB_TIME_PRECISION_MILLI) && ((precision) <= TSDB_TIME_PRECISION_NANO))
 #define TSDB_DEFAULT_COMPRESSION TWO_STAGE_COMP
 #define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 
-static int32_t     tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
-static int32_t     tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg);
-static int32_t     tsdbUnsetRepoEnv(char *rootDir);
-static int32_t     tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg);
-static int         tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg);
-static char *      tsdbGetCfgFname(char *rootDir);
-static STsdbRepo * tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg);
-static void        tsdbFreeRepo(STsdbRepo *pRepo);
-static int         tsdbRestoreInfo(STsdbRepo *pRepo);
-static void        tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression);
-static int         tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep);
-static int         tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks);
-static int         keyFGroupCompFunc(const void *key, const void *fgroup);
-static int         tsdbEncodeCfg(void **buf, STsdbCfg *pCfg);
-static void *      tsdbDecodeCfg(void *buf, STsdbCfg *pCfg);
-static void        tsdbStartStream(STsdbRepo *pRepo);
-static void        tsdbStopStream(STsdbRepo *pRepo);
+static void       tsdbGetDataDir(int repoid, char dirName[]);
+static void       tsdbGetRootDir(int repoid, char dirName[]);
+static int32_t    tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
+static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
+static void       tsdbFreeRepo(STsdbRepo *pRepo);
+static void       tsdbStartStream(STsdbRepo *pRepo);
+static void       tsdbStopStream(STsdbRepo *pRepo);
+static int        tsdbRestoreInfo(STsdbRepo *pRepo);
 
 // Function declaration
-int32_t tsdbCreateRepo(char *rootDir, STsdbCfg *pCfg) {
+int32_t tsdbCreateRepo(int repoid) {
   char tsdbDir[TSDB_FILENAME_LEN] = "\0";
+  char dataDir[TSDB_FILENAME_LEN] = "\0";
 
-  snprintf(tsdbDir, TSDB_FILENAME_LEN, "%s/%s", TFS_PRIMARY_PATH(), rootDir);
-  DIR *dir = opendir(tsdbDir);
-  if (dir) {
-    tsdbDebug("repository %s already exists", rootDir);
-    closedir(dir);
-    return 0;
-  } else {
-    if (ENOENT != errno) {
-      tsdbError("failed to open directory %s since %s", rootDir, strerror(errno));
-      terrno = TAOS_SYSTEM_ERROR(errno);
-      return -1;
-    }
+  tsdbGetRootDir(repoid, tsdbDir);
+  if (tfsMkdir(tsdbDir) < 0) {
+    goto _err;
   }
 
-  if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) return -1;
+  tsdbGetDataDir(repoid, dataDir);
+  if (tfsMkdir(dataDir) < 0) {
+    goto _err;
+  }
 
-  if (tsdbSetRepoEnv(rootDir, pCfg) < 0) return -1;
-
-  tsdbDebug(
-      "vgId:%d tsdb env create succeed! cacheBlockSize %d totalBlocks %d daysPerFile %d keep "
-      "%d minRowsPerFileBlock %d maxRowsPerFileBlock %d precision %d compression %d update %d cacheLastRow %d",
-      pCfg->tsdbId, pCfg->cacheBlockSize, pCfg->totalBlocks, pCfg->daysPerFile, pCfg->keep, pCfg->minRowsPerFileBlock,
-      pCfg->maxRowsPerFileBlock, pCfg->precision, pCfg->compression, pCfg->update, pCfg->cacheLastRow);
   return 0;
+
+_err:
+  tsdbError("vgId:%d failed to create TSDB repository since %s", repoid, tstrerror(terrno));
+  return -1;
 }
 
-int32_t tsdbDropRepo(char *rootDir) { return tsdbUnsetRepoEnv(rootDir); }
+int32_t tsdbDropRepo(int repoid) {
+  char tsdbDir[TSDB_FILENAME_LEN] = "\0";
 
-TSDB_REPO_T *tsdbOpenRepo(char *rootDir, STsdbAppH *pAppH) {
-  STsdbCfg   config = {0};
-  STsdbRepo *pRepo = NULL;
+  tsdbGetRootDir(repoid, tsdbDir);
+  return tfsRmdir(tsdbDir);
+}
+
+TSDB_REPO_T *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
+  STsdbRepo *pRepo;
+  STsdbCfg   config = *pCfg;
 
   terrno = TSDB_CODE_SUCCESS;
 
-  if (tsdbLoadConfig(rootDir, &config) < 0) {
-    tsdbError("failed to open repo in rootDir %s since %s", rootDir, tstrerror(terrno));
+  // Check and set default configurations
+  if (tsdbCheckAndSetDefaultCfg(&config) < 0) {
+    tsdbError("vgId:%d failed to open TSDB repository since %s", config.tsdbId, tstrerror(terrno));
     return NULL;
   }
 
-  pRepo = tsdbNewRepo(rootDir, pAppH, &config);
-  if (pRepo == NULL) {
-    tsdbError("failed to open repo in rootDir %s since %s", rootDir, tstrerror(terrno));
+  // Create new TSDB object
+  if ((pRepo = tsdbNewRepo(&config, pAppH)) == NULL) {
+    tsdbError("vgId:%d failed to open TSDB repository while creating TSDB object since %s", config.tsdbId,
+              tstrerror(terrno));
     return NULL;
   }
 
+  // Open meta
   if (tsdbOpenMeta(pRepo) < 0) {
-    tsdbError("vgId:%d failed to open meta since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
+    tsdbError("vgId:%d failed to open TSDB repository while opening Meta since %s", config.tsdbId, tstrerror(terrno));
+    tsdbCloseRepo(pRepo, false);
+    return NULL;
   }
 
   if (tsdbOpenBufPool(pRepo) < 0) {
-    tsdbError("vgId:%d failed to open buffer pool since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
+    tsdbError("vgId:%d failed to open TSDB repository while opening buffer pool since %s", config.tsdbId,
+              tstrerror(terrno));
+    tsdbCloseRepo(pRepo, false);
+    return NULL;
   }
 
   if (tsdbOpenFS(pRepo) < 0) {
-    tsdbError("vgId:%d failed to open file handle since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
+    tsdbError("vgId:%d failed to open TSDB repository while opening FS since %s", config.tsdbId, tstrerror(terrno));
+    tsdbCloseRepo(pRepo, false);
+    return NULL;
   }
 
+  // TODO: Restore information from data
   if (tsdbRestoreInfo(pRepo) < 0) {
-    tsdbError("vgId:%d failed to restore info from file since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
+    tsdbError("vgId:%d failed to open TSDB repository while restore info since %s", config.tsdbId, tstrerror(terrno));
+    tsdbCloseRepo(pRepo, false);
+    return NULL;
   }
 
   tsdbStartStream(pRepo);
 
-  tsdbDebug("vgId:%d open tsdb repository succeed!", REPO_ID(pRepo));
+  tsdbDebug("vgId:%d, TSDB repository opened", REPO_ID(pRepo));
 
   return (TSDB_REPO_T *)pRepo;
-
-_err:
-  tsdbCloseRepo(pRepo, false);
-  return NULL;
 }
 
 // Note: all working thread and query thread must stopped when calling this function
@@ -135,16 +124,14 @@ int tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   tsdbStopStream(pRepo);
 
   if (toCommit) {
-    tsdbAsyncCommit(pRepo);
-    sem_wait(&(pRepo->readyToCommit));
-    terrno = pRepo->code;
+    tsdbSyncCommit(repo);
   }
   tsdbUnRefMemTable(pRepo, pRepo->mem);
   tsdbUnRefMemTable(pRepo, pRepo->imem);
   pRepo->mem = NULL;
   pRepo->imem = NULL;
 
-  tsdbCloseFileH(pRepo, !toCommit);
+  tsdbCloseFS(pRepo);
   tsdbCloseBufPool(pRepo);
   tsdbCloseMeta(pRepo);
   tsdbFreeRepo(pRepo);
@@ -157,7 +144,119 @@ int tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   }
 }
 
+STsdbCfg *tsdbGetCfg(const TSDB_REPO_T *repo) {
+  ASSERT(repo != NULL);
+  return &((STsdbRepo *)repo)->config;
+}
+
+int tsdbLockRepo(STsdbRepo *pRepo) {
+  int code = pthread_mutex_lock(&pRepo->mutex);
+  if (code != 0) {
+    tsdbError("vgId:%d failed to lock tsdb since %s", REPO_ID(pRepo), strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  pRepo->repoLocked = true;
+  return 0;
+}
+
+int tsdbUnlockRepo(STsdbRepo *pRepo) {
+  ASSERT(IS_REPO_LOCKED(pRepo));
+  pRepo->repoLocked = false;
+  int code = pthread_mutex_unlock(&pRepo->mutex);
+  if (code != 0) {
+    tsdbError("vgId:%d failed to unlock tsdb since %s", REPO_ID(pRepo), strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+  return 0;
+}
+
+int tsdbCheckCommit(STsdbRepo *pRepo) {
+  ASSERT(pRepo->mem != NULL);
+  STsdbCfg *pCfg = &(pRepo->config);
+
+  STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
+  ASSERT(pBufBlock != NULL);
+  if ((pRepo->mem->extraBuffList != NULL) ||
+      ((listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) && (pBufBlock->remain < TSDB_BUFFER_RESERVE))) {
+    // trigger commit
+    if (tsdbAsyncCommit(pRepo) < 0) return -1;
+  }
+
+  return 0;
+}
+
+STsdbMeta *tsdbGetMeta(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbMeta; }
+
+STsdbRepoInfo *tsdbGetStatus(TSDB_REPO_T *pRepo) { return NULL; }
+
+int tsdbGetState(TSDB_REPO_T *repo) { return ((STsdbRepo *)repo)->state; }
+
+void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage) {
+  ASSERT(repo != NULL);
+  STsdbRepo *pRepo = repo;
+  *totalPoints = pRepo->stat.pointsWritten;
+  *totalStorage = pRepo->stat.totalStorage;
+  *compStorage = pRepo->stat.compStorage;
+}
+
+int32_t tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg) {
+  // TODO: think about multithread cases
+  return 0;
+#if 0
+  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbCfg   config = pRepo->config;
+  STsdbCfg * pRCfg = &pRepo->config;
+
+  if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) return -1;
+
+  ASSERT(pRCfg->tsdbId == pCfg->tsdbId);
+  ASSERT(pRCfg->cacheBlockSize == pCfg->cacheBlockSize);
+  ASSERT(pRCfg->daysPerFile == pCfg->daysPerFile);
+  ASSERT(pRCfg->minRowsPerFileBlock == pCfg->minRowsPerFileBlock);
+  ASSERT(pRCfg->maxRowsPerFileBlock == pCfg->maxRowsPerFileBlock);
+  ASSERT(pRCfg->precision == pCfg->precision);
+
+  bool configChanged = false;
+  if (pRCfg->compression != pCfg->compression) {
+    tsdbAlterCompression(pRepo, pCfg->compression);
+    config.compression = pCfg->compression;
+    configChanged = true;
+  }
+  if (pRCfg->keep != pCfg->keep) {
+    if (tsdbAlterKeep(pRepo, pCfg->keep) < 0) {
+      tsdbError("vgId:%d failed to configure repo when alter keep since %s", REPO_ID(pRepo), tstrerror(terrno));
+      config.keep = pCfg->keep;
+      return -1;
+    }
+    configChanged = true;
+  }
+  if (pRCfg->totalBlocks != pCfg->totalBlocks) {
+    tsdbAlterCacheTotalBlocks(pRepo, pCfg->totalBlocks);
+    config.totalBlocks = pCfg->totalBlocks;
+    configChanged = true;
+  }
+  if (pRCfg->cacheLastRow != pCfg->cacheLastRow) {
+    config.cacheLastRow = pCfg->cacheLastRow;
+    configChanged = true;
+  }
+
+  if (configChanged) {
+    if (tsdbSaveConfig(pRepo->rootDir, &config) < 0) {
+      tsdbError("vgId:%d failed to configure repository while save config since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+  }
+
+  return 0;
+#endif
+}
+
 uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size) {
+  // TODO
+  return 0;
+#if 0
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   // STsdbMeta *pMeta = pRepo->tsdbMeta;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
@@ -233,166 +332,33 @@ uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_
 
   tfree(fname);
   return magic;
+#endif
 }
 
-STsdbCfg *tsdbGetCfg(const TSDB_REPO_T *repo) {
-  ASSERT(repo != NULL);
-  return &((STsdbRepo *)repo)->config;
+static void tsdbGetRootDir(int repoid, char dirName[]) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb", repoid);
 }
 
-int32_t tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg) {
-  // TODO: think about multithread cases
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
-  STsdbCfg   config = pRepo->config;
-  STsdbCfg * pRCfg = &pRepo->config;
-
-  if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) return -1;
-
-  ASSERT(pRCfg->tsdbId == pCfg->tsdbId);
-  ASSERT(pRCfg->cacheBlockSize == pCfg->cacheBlockSize);
-  ASSERT(pRCfg->daysPerFile == pCfg->daysPerFile);
-  ASSERT(pRCfg->minRowsPerFileBlock == pCfg->minRowsPerFileBlock);
-  ASSERT(pRCfg->maxRowsPerFileBlock == pCfg->maxRowsPerFileBlock);
-  ASSERT(pRCfg->precision == pCfg->precision);
-
-  bool configChanged = false;
-  if (pRCfg->compression != pCfg->compression) {
-    tsdbAlterCompression(pRepo, pCfg->compression);
-    config.compression = pCfg->compression;
-    configChanged = true;
-  }
-  if (pRCfg->keep != pCfg->keep) {
-    if (tsdbAlterKeep(pRepo, pCfg->keep) < 0) {
-      tsdbError("vgId:%d failed to configure repo when alter keep since %s", REPO_ID(pRepo), tstrerror(terrno));
-      config.keep = pCfg->keep;
-      return -1;
-    }
-    configChanged = true;
-  }
-  if (pRCfg->totalBlocks != pCfg->totalBlocks) {
-    tsdbAlterCacheTotalBlocks(pRepo, pCfg->totalBlocks);
-    config.totalBlocks = pCfg->totalBlocks;
-    configChanged = true;
-  }
-  if (pRCfg->cacheLastRow != pCfg->cacheLastRow) {
-    config.cacheLastRow = pCfg->cacheLastRow;
-    configChanged = true;
-  }
-
-  if (configChanged) {
-    if (tsdbSaveConfig(pRepo->rootDir, &config) < 0) {
-      tsdbError("vgId:%d failed to configure repository while save config since %s", REPO_ID(pRepo), tstrerror(terrno));
-      return -1;
-    }
-  }
-
-  return 0;
+static void tsdbGetDataDir(int repoid, char dirName[]) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data", repoid);
 }
 
-void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage) {
-  ASSERT(repo != NULL);
-  STsdbRepo *pRepo = repo;
-  *totalPoints = pRepo->stat.pointsWritten;
-  *totalStorage = pRepo->stat.totalStorage;
-  *compStorage = pRepo->stat.compStorage;
-}
-
-int tsdbGetState(TSDB_REPO_T *repo) {
-  return ((STsdbRepo *)repo)->state;
-}
-
-// ----------------- INTERNAL FUNCTIONS -----------------
-char *tsdbGetMetaFileName(char *rootDir) {
-  int   tlen = (int)(strlen(TFS_PRIMARY_PATH()) + strlen(rootDir) + strlen(TSDB_META_FILE_NAME) + 3);
-  char *fname = calloc(1, tlen);
-  if (fname == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  snprintf(fname, tlen, "%s/%s/%s", TFS_PRIMARY_PATH(), rootDir, TSDB_META_FILE_NAME);
-  return fname;
-}
-
-void tsdbGetDataFileName(char *rootDir, int vid, int fid, int type, char *fname) {
-  snprintf(fname, TSDB_FILENAME_LEN, "%s/%s/v%df%d%s", rootDir, TSDB_DATA_DIR_NAME, vid, fid, tsdbFileSuffix[type]);
-}
-
-int tsdbLockRepo(STsdbRepo *pRepo) {
-  int code = pthread_mutex_lock(&pRepo->mutex);
-  if (code != 0) {
-    tsdbError("vgId:%d failed to lock tsdb since %s", REPO_ID(pRepo), strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
-  }
-  pRepo->repoLocked = true;
-  return 0;
-}
-
-int tsdbUnlockRepo(STsdbRepo *pRepo) {
-  ASSERT(IS_REPO_LOCKED(pRepo));
-  pRepo->repoLocked = false;
-  int code = pthread_mutex_unlock(&pRepo->mutex);
-  if (code != 0) {
-    tsdbError("vgId:%d failed to unlock tsdb since %s", REPO_ID(pRepo), strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(code);
-    return -1;
-  }
-  return 0;
-}
-
-char *tsdbGetDataDirName(char *rootDir) {
-  int   tlen = (int)(strlen(rootDir) + strlen(TSDB_DATA_DIR_NAME) + 2);
-  char *fname = calloc(1, tlen);
-  if (fname == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  snprintf(fname, tlen, "%s/%s", rootDir, TSDB_DATA_DIR_NAME);
-  return fname;
-}
-
-int tsdbGetNextMaxTables(int tid) {
-  ASSERT(tid >= 1 && tid <= TSDB_MAX_TABLES);
-  int maxTables = TSDB_INIT_NTABLES;
-  while (true) {
-    maxTables = MIN(maxTables, TSDB_MAX_TABLES);
-    if (tid <= maxTables) break;
-    maxTables *= 2;
-  }
-
-  return maxTables + 1;
-}
-
-int tsdbCheckCommit(STsdbRepo *pRepo) {
-  ASSERT(pRepo->mem != NULL);
-  STsdbCfg *pCfg = &(pRepo->config);
-
-  STsdbBufBlock *pBufBlock = tsdbGetCurrBufBlock(pRepo);
-  ASSERT(pBufBlock != NULL);
-  if ((pRepo->mem->extraBuffList != NULL) ||
-      ((listNEles(pRepo->mem->bufBlockList) >= pCfg->totalBlocks / 3) && (pBufBlock->remain < TSDB_BUFFER_RESERVE))) {
-    // trigger commit
-    if (tsdbAsyncCommit(pRepo) < 0) return -1;
-  }
-
-  return 0;
-}
-
-STsdbMeta *    tsdbGetMeta(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbMeta; }
-// STsdbFileH *   tsdbGetFile(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbFileH; }
-STsdbRepoInfo *tsdbGetStatus(TSDB_REPO_T *pRepo) { return NULL; }
-
-// ----------------- LOCAL FUNCTIONS -----------------
 static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
+  // Check tsdbId
+  if (pCfg->tsdbId < 0) {
+    tsdbError("vgId:%d invalid vgroup ID", pCfg->tsdbId);
+    terrno = TSDB_CODE_TDB_INVALID_CONFIG;
+    return -1;
+  }
+
   // Check precision
   if (pCfg->precision == -1) {
     pCfg->precision = TSDB_DEFAULT_PRECISION;
   } else {
     if (!IS_VALID_PRECISION(pCfg->precision)) {
       tsdbError("vgId:%d invalid precision configuration %d", pCfg->tsdbId, pCfg->precision);
-      goto _err;
+      terrno = TSDB_CODE_TDB_INVALID_CONFIG;
+      return -1;
     }
   }
 
@@ -402,14 +368,9 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   } else {
     if (!IS_VALID_COMPRESSION(pCfg->compression)) {
       tsdbError("vgId:%d invalid compression configuration %d", pCfg->tsdbId, pCfg->precision);
-      goto _err;
+      terrno = TSDB_CODE_TDB_INVALID_CONFIG;
+      return -1;
     }
-  }
-
-  // Check tsdbId
-  if (pCfg->tsdbId < 0) {
-    tsdbError("vgId:%d invalid vgroup ID", pCfg->tsdbId);
-    goto _err;
   }
 
   // Check daysPerFile
@@ -421,7 +382,8 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
           "vgId:%d invalid daysPerFile configuration! daysPerFile %d TSDB_MIN_DAYS_PER_FILE %d TSDB_MAX_DAYS_PER_FILE "
           "%d",
           pCfg->tsdbId, pCfg->daysPerFile, TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
-      goto _err;
+      terrno = TSDB_CODE_TDB_INVALID_CONFIG;
+      return -1;
     }
   }
 
@@ -434,7 +396,8 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
           "vgId:%d invalid minRowsPerFileBlock configuration! minRowsPerFileBlock %d TSDB_MIN_MIN_ROW_FBLOCK %d "
           "TSDB_MAX_MIN_ROW_FBLOCK %d",
           pCfg->tsdbId, pCfg->minRowsPerFileBlock, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
-      goto _err;
+      terrno = TSDB_CODE_TDB_INVALID_CONFIG;
+      return -1;
     }
   }
 
@@ -446,14 +409,16 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
           "vgId:%d invalid maxRowsPerFileBlock configuration! maxRowsPerFileBlock %d TSDB_MIN_MAX_ROW_FBLOCK %d "
           "TSDB_MAX_MAX_ROW_FBLOCK %d",
           pCfg->tsdbId, pCfg->maxRowsPerFileBlock, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
-      goto _err;
+      terrno = TSDB_CODE_TDB_INVALID_CONFIG;
+      return -1;
     }
   }
 
   if (pCfg->minRowsPerFileBlock > pCfg->maxRowsPerFileBlock) {
     tsdbError("vgId:%d invalid configuration! minRowsPerFileBlock %d maxRowsPerFileBlock %d", pCfg->tsdbId,
               pCfg->minRowsPerFileBlock, pCfg->maxRowsPerFileBlock);
-    goto _err;
+    terrno = TSDB_CODE_TDB_INVALID_CONFIG;
+    return -1;
   }
 
   // Check keep
@@ -465,8 +430,17 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
           "vgId:%d invalid keep configuration! keep %d TSDB_MIN_KEEP %d "
           "TSDB_MAX_KEEP %d",
           pCfg->tsdbId, pCfg->keep, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
-      goto _err;
+      terrno = TSDB_CODE_TDB_INVALID_CONFIG;
+      return -1;
     }
+  }
+
+  if (pCfg->keep1 == 0) {
+    pCfg->keep1 = pCfg->keep;
+  }
+
+  if (pCfg->keep2 == 0) {
+    pCfg->keep2 = pCfg->keep;
   }
 
   // update check
@@ -476,227 +450,99 @@ static int32_t tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg) {
   if (pCfg->cacheLastRow != 0) pCfg->cacheLastRow = 1;
 
   return 0;
-
-_err:
-  terrno = TSDB_CODE_TDB_INVALID_CONFIG;
-  return -1;
 }
 
-static int32_t tsdbSetRepoEnv(char *rootDir, STsdbCfg *pCfg) {
-  if (tfsMkdir(rootDir) < 0) {
-    tsdbError("vgId:%d failed to create rootDir %s since %s", pCfg->tsdbId, rootDir, tstrerror(terrno));
-    return -1;
-  }
-
-  if (tsdbSaveConfig(rootDir, pCfg) < 0) {
-    tsdbError("vgId:%d failed to set TSDB environment since %s", pCfg->tsdbId, tstrerror(terrno));
-    return -1;
-  }
-
-  char *dirName = tsdbGetDataDirName(rootDir);
-  if (dirName == NULL) return -1;
-
-  if (tfsMkdir(dirName) < 0) {
-    tsdbError("vgId:%d failed to create directory %s since %s", pCfg->tsdbId, dirName, strerror(errno));
-    free(dirName);
-    return -1;
-  }
-
-  free(dirName);
-
-  char *fname = tsdbGetMetaFileName(rootDir);
-  if (fname == NULL) return -1;
-  if (tdCreateKVStore(fname) < 0) {
-    tsdbError("vgId:%d failed to open KV store since %s", pCfg->tsdbId, tstrerror(terrno));
-    free(fname);
-    return -1;
-  }
-
-  free(fname);
-  return 0;
-}
-
-static int32_t tsdbUnsetRepoEnv(char *rootDir) {
-  tfsRmdir(rootDir);
-  tsdbDebug("repository %s is removed", rootDir);
-  return 0;
-}
-
-static int32_t tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg) {
-  int   fd = -1;
-  char *fname = NULL;
-  char  buf[TSDB_FILE_HEAD_SIZE] = "\0";
-  char *pBuf = buf;
-
-  fname = tsdbGetCfgFname(rootDir);
-  if (fname == NULL) {
-    tsdbError("vgId:%d failed to save configuration since %s", pCfg->tsdbId, tstrerror(terrno));
-    goto _err;
-  }
-
-  fd = open(fname, O_WRONLY | O_CREAT, 0755);
-  if (fd < 0) {
-    tsdbError("vgId:%d failed to open file %s since %s", pCfg->tsdbId, fname, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  int tlen = tsdbEncodeCfg((void *)(&pBuf), pCfg);
-  ASSERT((tlen + sizeof(TSCKSUM) <= TSDB_FILE_HEAD_SIZE) && (POINTER_DISTANCE(pBuf, buf) == tlen));
-
-  taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
-
-  if (taosWrite(fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
-    tsdbError("vgId:%d failed to write %d bytes to file %s since %s", pCfg->tsdbId, TSDB_FILE_HEAD_SIZE, fname,
-              strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (fsync(fd) < 0) {
-    tsdbError("vgId:%d failed to fsync file %s since %s", pCfg->tsdbId, fname, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  free(fname);
-  close(fd);
-  return 0;
-
-_err:
-  tfree(fname);
-  if (fd >= 0) close(fd);
-  return -1;
-}
-
-static int tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg) {
-  char *fname = NULL;
-  int   fd = -1;
-  char  buf[TSDB_FILE_HEAD_SIZE] = "\0";
-
-  fname = tsdbGetCfgFname(rootDir);
-  if (fname == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  fd = open(fname, O_RDONLY);
-  if (fd < 0) {
-    tsdbError("failed to open file %s since %s", fname, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (taosRead(fd, (void *)buf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
-    tsdbError("failed to read %d bytes from file %s since %s", TSDB_FILE_HEAD_SIZE, fname, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    goto _err;
-  }
-
-  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) {
-    tsdbError("file %s is corrupted", fname);
-    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    goto _err;
-  }
-
-  tsdbDecodeCfg(buf, pCfg);
-
-  tfree(fname);
-  close(fd);
-
-  return 0;
-
-_err:
-  tfree(fname);
-  if (fd >= 0) close(fd);
-  return -1;
-}
-
-static char *tsdbGetCfgFname(char *rootDir) {
-  int   tlen = (int)(strlen(TFS_PRIMARY_PATH()) + strlen(rootDir) + strlen(TSDB_CFG_FILE_NAME) + 3);
-  char *fname = calloc(1, tlen);
-  if (fname == NULL) {
+static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
+  STsdbRepo *pRepo = (STsdbRepo *)calloc(1, sizeof(*pRepo));
+  if (pRepo == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
   }
 
-  snprintf(fname, tlen, "%s/%s/%s", TFS_PRIMARY_PATH(), rootDir, TSDB_CFG_FILE_NAME);
-  return fname;
-}
-
-static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
-  STsdbRepo *pRepo = (STsdbRepo *)calloc(1, sizeof(STsdbRepo));
-  if (pRepo == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
-  }
-
   pRepo->state = TSDB_STATE_OK;
   pRepo->code = TSDB_CODE_SUCCESS;
+  pRepo->config = *pCfg;
+  if (pAppH) {
+    pRepo->appH = *pAppH;
+  }
+  pRepo->repoLocked = false;
 
-  int code = pthread_mutex_init(&pRepo->mutex, NULL);
+  int code = pthread_mutex_init(&(pRepo->mutex), NULL);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
-    goto _err;
+    tsdbFreeRepo(pRepo);
+    return NULL;
   }
 
   code = sem_init(&(pRepo->readyToCommit), 0, 1);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
-    goto _err;
+    tsdbFreeRepo(pRepo);
+    return NULL;
   }
-
-  pRepo->repoLocked = false;
-
-  pRepo->rootDir = strdup(rootDir);
-  if (pRepo->rootDir == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
-  }
-
-  pRepo->config = *pCfg;
-  if (pAppH) pRepo->appH = *pAppH;
 
   pRepo->tsdbMeta = tsdbNewMeta(pCfg);
   if (pRepo->tsdbMeta == NULL) {
     tsdbError("vgId:%d failed to create meta since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
+    tsdbFreeRepo(pRepo);
+    return NULL;
   }
 
   pRepo->pPool = tsdbNewBufPool(pCfg);
   if (pRepo->pPool == NULL) {
     tsdbError("vgId:%d failed to create buffer pool since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
+    tsdbFreeRepo(pRepo);
+    return NULL;
   }
 
-  pRepo->tsdbFileH = tsdbNewFileH(pCfg);
-  if (pRepo->tsdbFileH == NULL) {
-    tsdbError("vgId:%d failed to create file handle since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
+  pRepo->fs = tsdbNewFS(pCfg);
+  if (pRepo->fs == NULL) {
+    tsdbError("vgId:%d failed to TSDB file system since %s", REPO_ID(pRepo), tstrerror(terrno));
+    tsdbFreeRepo(pRepo);
+    return NULL;
   }
 
   return pRepo;
-
-_err:
-  tsdbFreeRepo(pRepo);
-  return NULL;
 }
 
 static void tsdbFreeRepo(STsdbRepo *pRepo) {
   if (pRepo) {
-    tsdbFreeFileH(pRepo->tsdbFileH);
+    tsdbFreeFS(pRepo->fs);
     tsdbFreeBufPool(pRepo->pPool);
     tsdbFreeMeta(pRepo->tsdbMeta);
-    // tsdbFreeMemTable(pRepo->mem);
-    // tsdbFreeMemTable(pRepo->imem);
-    tfree(pRepo->rootDir);
     sem_destroy(&(pRepo->readyToCommit));
     pthread_mutex_destroy(&pRepo->mutex);
     free(pRepo);
   }
 }
 
-static int tsdbRestoreInfo(STsdbRepo *pRepo) { // TODO
+static void tsdbStartStream(STsdbRepo *pRepo) {
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+
+  for (int i = 0; i < pMeta->maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable && pTable->type == TSDB_STREAM_TABLE) {
+      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), TABLE_NAME(pTable)->data, pTable->sql,
+                                                     tsdbGetTableSchemaImpl(pTable, false, false, -1));
+    }
+  }
+}
+
+static void tsdbStopStream(STsdbRepo *pRepo) {
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+
+  for (int i = 0; i < pMeta->maxTables; i++) {
+    STable *pTable = pMeta->tables[i];
+    if (pTable && pTable->type == TSDB_STREAM_TABLE) {
+      (*pRepo->appH.cqDropFunc)(pTable->cqhandle);
+    }
+  }
+}
+
+static int tsdbRestoreInfo(STsdbRepo *pRepo) {
+  // TODO: add restore meta
+  return 0;
+#if 0
   STsdbMeta * pMeta = pRepo->tsdbMeta;
   STsdbFileH *pFileH = pRepo->tsdbFileH;
   SFileGroup *pFGroup = NULL;
@@ -754,171 +600,5 @@ static int tsdbRestoreInfo(STsdbRepo *pRepo) { // TODO
 _err:
   tsdbDestroyHelper(&rhelper);
   return -1;
-}
-
-static void tsdbAlterCompression(STsdbRepo *pRepo, int8_t compression) {
-  int8_t ocompression = pRepo->config.compression;
-  pRepo->config.compression = compression;
-  tsdbDebug("vgId:%d tsdb compression is changed from %d to %d", REPO_ID(pRepo), ocompression, compression);
-}
-
-static int tsdbAlterKeep(STsdbRepo *pRepo, int32_t keep) {
-  STsdbCfg *  pCfg = &pRepo->config;
-  STsdbFileH *pFileH = pRepo->tsdbFileH;
-  int         okeep = pCfg->keep;
-  SFileGroup *pFGroup = NULL;
-
-  ASSERT(pCfg->keep != keep);
-  int maxFiles = TSDB_MAX_FILE(keep, pCfg->daysPerFile);
-  
-  if (maxFiles != pFileH->maxFGroups) {
-    pthread_rwlock_wrlock(&(pFileH->fhlock));
-
-    pCfg->keep = keep;
-    pFGroup = (SFileGroup *)calloc(maxFiles, sizeof(SFileGroup));
-    if (pFGroup == NULL) {
-      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      pthread_rwlock_unlock(&(pFileH->fhlock));
-      return -1;
-    }
-
-    int mfid = (int)(TSDB_KEY_FILEID(taosGetTimestamp(pCfg->precision), pCfg->daysPerFile, pCfg->precision) -
-               TSDB_MAX_FILE(keep, pCfg->daysPerFile));
-
-    int i = 0;
-    for (; i < pFileH->nFGroups; i++) {
-      if (pFileH->pFGroup[i].fileId >= mfid) break;
-      tsdbRemoveFileGroup(pRepo, &(pFileH->pFGroup[i]));
-    }
-
-    for (int j = 0; i < pFileH->nFGroups; i++, j++) {
-      pFGroup[j] = pFileH->pFGroup[i];
-    }
-
-    free(pFileH->pFGroup);
-    pFileH->pFGroup = pFGroup;
-
-    pthread_rwlock_unlock(&(pFileH->fhlock));
-  }
-
-  tsdbDebug("vgId:%d keep is changed from %d to %d", REPO_ID(pRepo), okeep, keep);
-
-  return 0;
-}
-
-static int keyFGroupCompFunc(const void *key, const void *fgroup) {
-  int         fid = *(int *)key;
-  SFileGroup *pFGroup = (SFileGroup *)fgroup;
-  if (fid == pFGroup->fileId) {
-    return 0;
-  } else {
-    return fid > pFGroup->fileId ? 1 : -1;
-  }
-}
-
-static int tsdbEncodeCfg(void **buf, STsdbCfg *pCfg) {
-  int tlen = 0;
-
-  tlen += taosEncodeVariantI32(buf, pCfg->tsdbId);
-  tlen += taosEncodeFixedI32(buf, pCfg->cacheBlockSize);
-  tlen += taosEncodeVariantI32(buf, pCfg->totalBlocks);
-  tlen += taosEncodeVariantI32(buf, pCfg->daysPerFile);
-  tlen += taosEncodeVariantI32(buf, pCfg->keep);
-  tlen += taosEncodeVariantI32(buf, pCfg->keep1);
-  tlen += taosEncodeVariantI32(buf, pCfg->keep2);
-  tlen += taosEncodeVariantI32(buf, pCfg->minRowsPerFileBlock);
-  tlen += taosEncodeVariantI32(buf, pCfg->maxRowsPerFileBlock);
-  tlen += taosEncodeFixedI8(buf, pCfg->precision);
-  tlen += taosEncodeFixedI8(buf, pCfg->compression);
-  tlen += taosEncodeFixedI8(buf, pCfg->update);
-  tlen += taosEncodeFixedI8(buf, pCfg->cacheLastRow);
-
-  return tlen;
-}
-
-static void *tsdbDecodeCfg(void *buf, STsdbCfg *pCfg) {
-  buf = taosDecodeVariantI32(buf, &(pCfg->tsdbId));
-  buf = taosDecodeFixedI32(buf, &(pCfg->cacheBlockSize));
-  buf = taosDecodeVariantI32(buf, &(pCfg->totalBlocks));
-  buf = taosDecodeVariantI32(buf, &(pCfg->daysPerFile));
-  buf = taosDecodeVariantI32(buf, &(pCfg->keep));
-  buf = taosDecodeVariantI32(buf, &(pCfg->keep1));
-  buf = taosDecodeVariantI32(buf, &(pCfg->keep2));
-  buf = taosDecodeVariantI32(buf, &(pCfg->minRowsPerFileBlock));
-  buf = taosDecodeVariantI32(buf, &(pCfg->maxRowsPerFileBlock));
-  buf = taosDecodeFixedI8(buf, &(pCfg->precision));
-  buf = taosDecodeFixedI8(buf, &(pCfg->compression));
-  buf = taosDecodeFixedI8(buf, &(pCfg->update));
-  buf = taosDecodeFixedI8(buf, &(pCfg->cacheLastRow));
-
-  return buf;
-}
-
-static int tsdbAlterCacheTotalBlocks(STsdbRepo *pRepo, int totalBlocks) {
-  // TODO
-  // STsdbCache *pCache = pRepo->tsdbCache;
-  // int         oldNumOfBlocks = pCache->totalCacheBlocks;
-
-  // tsdbLockRepo((TsdbRepoT *)pRepo);
-
-  // ASSERT(pCache->totalCacheBlocks != totalBlocks);
-
-  // if (pCache->totalCacheBlocks < totalBlocks) {
-  //   ASSERT(pCache->totalCacheBlocks == pCache->pool.numOfCacheBlocks);
-  //   int blocksToAdd = pCache->totalCacheBlocks - totalBlocks;
-  //   pCache->totalCacheBlocks = totalBlocks;
-  //   for (int i = 0; i < blocksToAdd; i++) {
-  //     if (tsdbAddCacheBlockToPool(pCache) < 0) {
-  //       tsdbUnLockRepo((TsdbRepoT *)pRepo);
-  //       tsdbError("tsdbId:%d, failed to add cache block to cache pool", pRepo->config.tsdbId);
-  //       return -1;
-  //     }
-  //   }
-  // } else {
-  //   pCache->totalCacheBlocks = totalBlocks;
-  //   tsdbAdjustCacheBlocks(pCache);
-  // }
-  // pRepo->config.totalBlocks = totalBlocks;
-
-  // tsdbUnLockRepo((TsdbRepoT *)pRepo);
-  // tsdbDebug("vgId:%d, tsdb total cache blocks changed from %d to %d", pRepo->config.tsdbId, oldNumOfBlocks,
-  // totalBlocks);
-  return 0;
-}
-
-#if 0
-
-TSKEY tsdbGetTableLastKey(TSDB_REPO_T *repo, uint64_t uid) {
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
-
-  STable *pTable = tsdbGetTableByUid(pRepo->tsdbMeta, uid);
-  if (pTable == NULL) return -1;
-
-  return TSDB_GET_TABLE_LAST_KEY(pTable);
-}
-
 #endif
-
-static void tsdbStartStream(STsdbRepo *pRepo) {
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
-
-  for (int i = 0; i < pMeta->maxTables; i++) {
-    STable *pTable = pMeta->tables[i];
-    if (pTable && pTable->type == TSDB_STREAM_TABLE) {
-      pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), TABLE_NAME(pTable)->data, pTable->sql,
-                                                     tsdbGetTableSchemaImpl(pTable, false, false, -1));
-    }
-  }
-}
-
-
-static void tsdbStopStream(STsdbRepo *pRepo) {
-  STsdbMeta *pMeta = pRepo->tsdbMeta;
-
-  for (int i = 0; i < pMeta->maxTables; i++) {
-    STable *pTable = pMeta->tables[i];
-    if (pTable && pTable->type == TSDB_STREAM_TABLE) {
-      (*pRepo->appH.cqDropFunc)(pTable->cqhandle);
-    }
-  }
 }

@@ -71,7 +71,6 @@ typedef struct STsdbRepo STsdbRepo;
 struct STsdbRepo {
   int8_t state;
 
-  char*           rootDir;
   STsdbCfg        config;
   STsdbAppH       appH;
   STsdbStat       stat;
@@ -92,12 +91,8 @@ struct STsdbRepo {
 #define IS_REPO_LOCKED(r) (r)->repoLocked
 #define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
 
-char*       tsdbGetMetaFileName(char* rootDir);
-void        tsdbGetDataFileName(char* rootDir, int vid, int fid, int type, char* fname);
 int         tsdbLockRepo(STsdbRepo* pRepo);
 int         tsdbUnlockRepo(STsdbRepo* pRepo);
-char*       tsdbGetDataDirName(char* rootDir);
-int         tsdbGetNextMaxTables(int tid);
 STsdbMeta*  tsdbGetMeta(TSDB_REPO_T* pRepo);
 int         tsdbCheckCommit(STsdbRepo* pRepo);
 
@@ -112,6 +107,18 @@ static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
   tdListNodeGetData(pRepo->mem->bufBlockList, pNode, (void*)(&pBufBlock));
 
   return pBufBlock;
+}
+
+static FORCE_INLINE int tsdbGetNextMaxTables(int tid) {
+  ASSERT(tid >= 1 && tid <= TSDB_MAX_TABLES);
+  int maxTables = TSDB_INIT_NTABLES;
+  while (true) {
+    maxTables = MIN(maxTables, TSDB_MAX_TABLES);
+    if (tid <= maxTables) break;
+    maxTables *= 2;
+  }
+
+  return maxTables + 1;
 }
 
 #ifdef __cplusplus

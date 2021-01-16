@@ -62,24 +62,24 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
     return code;
   }
 
-  STsdbCfg tsdbCfg = {0};
-  tsdbCfg.tsdbId              = pVnodeCfg->cfg.vgId;
-  tsdbCfg.cacheBlockSize      = pVnodeCfg->cfg.cacheBlockSize;
-  tsdbCfg.totalBlocks         = pVnodeCfg->cfg.totalBlocks;
-  tsdbCfg.daysPerFile         = pVnodeCfg->cfg.daysPerFile;
-  tsdbCfg.keep                = pVnodeCfg->cfg.daysToKeep;
-  tsdbCfg.keep1               = pVnodeCfg->cfg.daysToKeep1;
-  tsdbCfg.keep2               = pVnodeCfg->cfg.daysToKeep2;
-  tsdbCfg.minRowsPerFileBlock = pVnodeCfg->cfg.minRowsPerFileBlock;
-  tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
-  tsdbCfg.precision           = pVnodeCfg->cfg.precision;
-  tsdbCfg.compression         = pVnodeCfg->cfg.compression;
-  tsdbCfg.update              = pVnodeCfg->cfg.update;
-  tsdbCfg.cacheLastRow        = pVnodeCfg->cfg.cacheLastRow;
+  // STsdbCfg tsdbCfg = {0};
+  // tsdbCfg.tsdbId              = pVnodeCfg->cfg.vgId;
+  // tsdbCfg.cacheBlockSize      = pVnodeCfg->cfg.cacheBlockSize;
+  // tsdbCfg.totalBlocks         = pVnodeCfg->cfg.totalBlocks;
+  // tsdbCfg.daysPerFile         = pVnodeCfg->cfg.daysPerFile;
+  // tsdbCfg.keep                = pVnodeCfg->cfg.daysToKeep;
+  // tsdbCfg.keep1               = pVnodeCfg->cfg.daysToKeep1;
+  // tsdbCfg.keep2               = pVnodeCfg->cfg.daysToKeep2;
+  // tsdbCfg.minRowsPerFileBlock = pVnodeCfg->cfg.minRowsPerFileBlock;
+  // tsdbCfg.maxRowsPerFileBlock = pVnodeCfg->cfg.maxRowsPerFileBlock;
+  // tsdbCfg.precision           = pVnodeCfg->cfg.precision;
+  // tsdbCfg.compression         = pVnodeCfg->cfg.compression;
+  // tsdbCfg.update              = pVnodeCfg->cfg.update;
+  // tsdbCfg.cacheLastRow        = pVnodeCfg->cfg.cacheLastRow;
 
-  char tsdbDir[TSDB_FILENAME_LEN] = {0};
-  sprintf(tsdbDir, "vnode/vnode%d/tsdb", pVnodeCfg->cfg.vgId);
-  if (tsdbCreateRepo(tsdbDir, &tsdbCfg) < 0) {
+  // char tsdbDir[TSDB_FILENAME_LEN] = {0};
+  // sprintf(tsdbDir, "vnode/vnode%d/tsdb", pVnodeCfg->cfg.vgId);
+  if (tsdbCreateRepo(pVnodeCfg->cfg.vgId) < 0) {
     vError("vgId:%d, failed to create tsdb in vnode, reason:%s", pVnodeCfg->cfg.vgId, tstrerror(terrno));
     return TSDB_CODE_VND_INIT_FAILED;
   }
@@ -234,10 +234,9 @@ int32_t vnodeOpen(int32_t vgId) {
   appH.cqH = pVnode->cq;
   appH.cqCreateFunc = cqCreate;
   appH.cqDropFunc = cqDrop;
-  sprintf(temp, "vnode/vnode%d/tsdb", vgId);
 
   terrno = 0;
-  pVnode->tsdb = tsdbOpenRepo(temp, &appH);
+  pVnode->tsdb = tsdbOpenRepo(&(pVnode->tsdbCfg), &appH);
   if (pVnode->tsdb == NULL) {
     vnodeCleanUp(pVnode);
     return terrno;
@@ -456,9 +455,6 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
 }
 
 int32_t vnodeReset(SVnodeObj *pVnode) {
-  char rootDir[128] = "\0";
-  sprintf(rootDir, "vnode/vnode%d/tsdb", pVnode->vgId);
-
   if (!vnodeSetResetStatus(pVnode)) {
     return -1;
   }
@@ -481,7 +477,7 @@ int32_t vnodeReset(SVnodeObj *pVnode) {
   appH.cqH = pVnode->cq;
   appH.cqCreateFunc = cqCreate;
   appH.cqDropFunc = cqDrop;
-  pVnode->tsdb = tsdbOpenRepo(rootDir, &appH);
+  pVnode->tsdb = tsdbOpenRepo(&(pVnode->tsdbCfg), &appH);
 
   vnodeSetReadyStatus(pVnode);
   vnodeRelease(pVnode);
