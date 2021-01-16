@@ -2,9 +2,8 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 3
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = m_func_db
@@ -228,7 +227,7 @@ sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<
 sql select twa(k),avg(k),count(1) from t1 where ts>='2015-8-18 00:00:00' and ts<='2015-8-18 00:30:00' interval(10m) order by ts desc
 
 
-#todo add test case while column filter exists.
+#todo add test case while column filter exists for twa query
 
 #sql select count(*),TWA(k) from tm0 where ts>='1970-1-1 13:43:00' and ts<='1970-1-1 13:44:10' interval(9s)
 
@@ -244,3 +243,143 @@ if $data00 != -2.000000000 then
   print expect -2.000000000, actual: $data00
   return -1
 endi
+
+sql create table tm1 (ts timestamp,  k int);
+sql insert into tm1 values('2020-10-30 18:11:56.680', -1000);
+sql insert into tm1 values('2020-11-19 18:11:45.773', NULL);
+sql insert into tm1 values('2020-12-09 18:11:17.098', NULL);
+sql insert into tm1 values('2020-12-20 18:11:49.412', 1);
+sql insert into tm1 values('2020-12-23 18:11:50.412', 2);
+sql insert into tm1 values('2020-12-28 18:11:52.412', 3);
+
+print =====================> td-2610
+sql select twa(k)from tm1 where ts>='2020-11-19 18:11:45.773' and ts<='2020-12-9 18:11:17.098'
+if $rows != 0 then
+ return -1
+endi
+
+print =====================> td-2609
+sql select apercentile(k, 50) from tm1 where ts>='2020-10-30 18:11:56.680' and ts<='2020-12-09 18:11:17.098'
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != -1000.000000000 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 1000
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql connect
+sleep 100
+
+sql use m_func_db0
+
+print =====================> td-2583
+sql select min(k) from tm1 where ts>='2020-11-19 18:11:45.773' and ts<='2020-12-20 18:11:49.412'
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  print expect 1, actual: $data00
+  return -1
+endi
+
+print =====================> td-2601
+sql select count(*) from tm1 where ts<='2020-6-1 00:00:00' and ts>='2020-1-1 00:00:00' interval(1n) fill(NULL)
+if $rows != 0 then
+  return -1
+endi
+
+print =====================> td-2615
+sql select last(ts) from tm1 interval(17a) limit 776 offset 3
+if $rows != 3 then
+  return -1
+endi
+
+sql select last(ts) from tm1 interval(17a) limit 1000 offset 4
+if $rows != 2 then
+  return -1
+endi
+
+sql select last(ts) from tm1 interval(17a) order by ts desc limit 1000 offset 0
+if $rows != 6 then
+  return -1
+endi
+
+print ==================> td-2624
+sql create table tm2(ts timestamp, k int, b binary(12));
+sql insert into tm2 values('2011-01-02 18:42:45.326',      -1,'abc');
+sql insert into tm2 values('2020-07-30 17:44:06.283',       0, null);
+sql insert into tm2 values('2020-07-30 17:44:19.578', 9999999, null);
+sql insert into tm2 values('2020-07-30 17:46:06.417',    NULL, null);
+sql insert into tm2 values('2020-11-09 18:42:25.538',       0, null);
+sql insert into tm2 values('2020-12-29 17:43:11.641',       0, null);
+sql insert into tm2 values('2020-12-29 18:43:17.129',       0, null);
+sql insert into tm2 values('2020-12-29 18:46:19.109',    NULL, null);
+sql insert into tm2 values('2021-01-03 18:40:40.065',       0, null);
+
+sql select twa(k),first(ts) from tm2 where k <50 interval(17s);
+if $rows != 6 then
+  return -1
+endi
+
+if $data00 != @11-01-02 18:42:42.000@ then
+  return -1
+endi
+
+if $data02 != @11-01-02 18:42:45.326@ then
+  return -1
+endi
+
+if $data10 != @20-07-30 17:43:59.000@ then
+  return -1
+endi
+
+if $data21 != 0.000000000 then
+  return -1
+endi
+
+sql select twa(k),first(ts) from tm2 where k <50 interval(17s) order by ts desc;
+if $rows != 6 then
+  return -1
+endi
+
+sql select twa(k),first(ts),count(k),first(k) from tm2 interval(17s) limit 20 offset 0;
+if $rows != 9 then
+  return -1
+endi
+
+if $data00 != @11-01-02 18:42:42.000@ then
+  return -1
+endi
+
+if $data10 != @20-07-30 17:43:59.000@ then
+  return -1
+endi
+
+print =================>td-2610
+sql select stddev(k) from tm2 where ts='2020-12-29 18:46:19.109'
+if $rows != 0 then
+  print expect 0, actual:$rows
+  return -1
+endi
+
+sql select twa(k) from tm2 where ts='2020-12-29 18:46:19.109'
+if $rows != 0 then
+  return -1
+endi
+
+print ========================> TD-1787
+sql create table cars(ts timestamp, c int) tags(id int);
+sql create table car1 using cars tags(1);
+sql create table car2 using cars tags(2);
+sql insert into car1 (ts, c) values (now,1) car2(ts, c) values(now, 2);
+sql drop table cars;
+sql create table cars(ts timestamp, c int) tags(id int);
+sql create table car1 using cars tags(1);
+sql create table car2 using cars tags(2);
+sql insert into car1 (ts, c) values (now,1) car2(ts, c) values(now, 2);

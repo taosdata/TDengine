@@ -93,27 +93,34 @@ void simFreeScript(SScript *script) {
 
     for (int32_t i = 0; i < script->bgScriptLen; ++i) {
       SScript *bgScript = script->bgScripts[i];
-      simInfo("script:%s, set stop flag", script->fileName);
+      simDebug("script:%s, is background script, set stop flag", bgScript->fileName);
       bgScript->killed = true;
       if (taosCheckPthreadValid(bgScript->bgPid)) {
         pthread_join(bgScript->bgPid, NULL);
       }
-    }
-  }
 
-  simDebug("script:%s, is freed", script->fileName);
-  taos_close(script->taos);
-  tfree(script->lines);
-  tfree(script->optionBuffer);
-  tfree(script);
+      simDebug("script:%s, background thread joined", bgScript->fileName);
+      taos_close(bgScript->taos);
+      tfree(bgScript->lines);
+      tfree(bgScript->optionBuffer);
+      tfree(bgScript);
+    }
+
+    simDebug("script:%s, is cleaned", script->fileName);
+    taos_close(script->taos);
+    tfree(script->lines);
+    tfree(script->optionBuffer);
+    tfree(script);
+  }
 }
 
 SScript *simProcessCallOver(SScript *script) {
   if (script->type == SIM_SCRIPT_TYPE_MAIN) {
+    simDebug("script:%s, is main script, set stop flag", script->fileName);
     if (script->killed) {
       simInfo("script:" FAILED_PREFIX "%s" FAILED_POSTFIX ", " FAILED_PREFIX "failed" FAILED_POSTFIX ", error:%s",
               script->fileName, script->error);
-      exit(-1);
+      return NULL;
     } else {
       simInfo("script:" SUCCESS_PREFIX "%s" SUCCESS_POSTFIX ", " SUCCESS_PREFIX "success" SUCCESS_POSTFIX,
               script->fileName);
@@ -125,13 +132,13 @@ SScript *simProcessCallOver(SScript *script) {
       if (simScriptPos == -1) {
         simInfo("----------------------------------------------------------------------");
         simInfo("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
-        exit(0);
+        return NULL;
       }
 
       return simScriptList[simScriptPos];
     }
   } else {
-    simInfo("script:%s, is stopped by main script", script->fileName);
+    simDebug("script:%s,  is stopped", script->fileName);
     simFreeScript(script);
     return NULL;
   }
@@ -161,5 +168,6 @@ void *simExecuteScript(void *inputScript) {
     }
   }
 
+  simInfo("thread is stopped");
   return NULL;
 }

@@ -37,6 +37,7 @@ bool vnodeSetResetStatus(SVnodeObj* pVnode);
 
 bool vnodeInInitStatus(SVnodeObj* pVnode);
 bool vnodeInReadyStatus(SVnodeObj* pVnode);
+bool vnodeInReadyOrUpdatingStatus(SVnodeObj* pVnode);
 bool vnodeInClosingStatus(SVnodeObj* pVnode);
 bool vnodeInResetStatus(SVnodeObj* pVnode);
 

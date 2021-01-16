@@ -17,7 +17,6 @@
 #include "taosmsg.h"
 
 #include "taosdef.h"
-#include "tcache.h"
 #include "tname.h"
 #include "tscLog.h"
 #include "tscUtil.h"
@@ -205,7 +204,7 @@ static int32_t tscProcessDescribeTable(SSqlObj *pSql) {
   assert(tscGetMetaInfo(pQueryInfo, 0)->pTableMeta != NULL);
 
   const int32_t NUM_OF_DESC_TABLE_COLUMNS = 4;
-  const int32_t TYPE_COLUMN_LENGTH = 16;
+  const int32_t TYPE_COLUMN_LENGTH = 20;
   const int32_t NOTE_COLUMN_MIN_LENGTH = 8;
 
   int32_t noteFieldLen = NOTE_COLUMN_MIN_LENGTH;
@@ -273,7 +272,7 @@ void tscSCreateCallBack(void *param, TAOS_RES *tres, int code) {
   if (pRes->code != TSDB_CODE_SUCCESS) {
     taos_free_result(pSql);  
     free(builder);
-    tscQueueAsyncRes(pParentSql);
+    tscAsyncResultOnError(pParentSql);
     return;
   }
 
@@ -291,7 +290,7 @@ void tscSCreateCallBack(void *param, TAOS_RES *tres, int code) {
     if (pRes->code == TSDB_CODE_SUCCESS) {
       (*pParentSql->fp)(pParentSql->param, pParentSql, code);  
     } else {
-      tscQueueAsyncRes(pParentSql);
+      tscAsyncResultOnError(pParentSql);
     }
   }
 }
@@ -571,7 +570,7 @@ static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, ch
 
   char fullName[TSDB_TABLE_FNAME_LEN * 2] = {0};
   extractDBName(pTableMetaInfo->name, fullName);
-  extractTableName(pMeta->sTableId, param->sTableName);
+  extractTableName(pMeta->sTableName, param->sTableName);
   snprintf(fullName + strlen(fullName), TSDB_TABLE_FNAME_LEN - strlen(fullName),  ".%s", param->sTableName);
   extractTableName(pTableMetaInfo->name, param->buf);
 
@@ -901,7 +900,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
   } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_DATABASE) {
     pRes->code = tscProcessShowCreateDatabase(pSql); 
   } else if (pCmd->command == TSDB_SQL_RESET_CACHE) {
-    taosCacheEmpty(tscMetaCache);
+    taosHashEmpty(tscTableMetaInfo);
     pRes->code = TSDB_CODE_SUCCESS;
   } else if (pCmd->command == TSDB_SQL_SERV_VERSION) {
     pRes->code = tscProcessServerVer(pSql);
@@ -925,7 +924,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
     (*pSql->fp)(pSql->param, pSql, code);
   } else if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS){
   } else {
-    tscQueueAsyncRes(pSql);
+    tscAsyncResultOnError(pSql);
   }
   return code;
 }

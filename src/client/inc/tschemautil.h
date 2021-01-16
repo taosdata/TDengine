@@ -26,7 +26,7 @@ extern "C" {
 
 #define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 
-//struct SSchema;
+#define VALIDNUMOFTAGS(x)  ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
 
 /**
  * get the number of tags of this table
@@ -91,7 +91,7 @@ SSchema* tscGetColumnSchemaById(STableMeta* pTableMeta, int16_t colId);
  * @param numOfCols
  * @return
  */
-bool isValidSchema(struct SSchema *pSchema, int32_t numOfCols);
+bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
 
 /**
  * get the schema for the "tbname" column. it is a built column
@@ -105,7 +105,10 @@ SSchema tscGetTbnameColumnSchema();
  * @param size size of the table meta
  * @return
  */
-STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size);
+STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg);
+
+bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
+SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 
 #ifdef __cplusplus
 }

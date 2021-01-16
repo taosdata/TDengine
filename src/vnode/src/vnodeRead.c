@@ -88,22 +88,15 @@ void vnodeFreeFromRQueue(void *vparam, SVReadMsg *pRead) {
   vnodeRelease(pVnode);
 }
 
-int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qtype, void *rparam) {
-  SVnodeObj *pVnode = vparam;
-
-  if (qtype == TAOS_QTYPE_RPC || qtype == TAOS_QTYPE_QUERY) {
-    int32_t code = vnodeCheckRead(pVnode);
-    if (code != TSDB_CODE_SUCCESS) return code;
-  }
-
+static SVReadMsg *vnodeBuildVReadMsg(SVnodeObj *pVnode, void *pCont, int32_t contLen, int8_t qtype, SRpcMsg *pRpcMsg) {
   int32_t size = sizeof(SVReadMsg) + contLen;
   SVReadMsg *pRead = taosAllocateQitem(size);
   if (pRead == NULL) {
-    return TSDB_CODE_VND_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_VND_OUT_OF_MEMORY;
+    return NULL;
   }
 
-  if (rparam != NULL) {
-    SRpcMsg *pRpcMsg = rparam;
+  if (pRpcMsg != NULL) {
     pRead->rpcHandle = pRpcMsg->handle;
     pRead->rpcAhandle = pRpcMsg->ahandle;
     pRead->msgType = pRpcMsg->msgType;
@@ -119,13 +112,35 @@ int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qt
 
   pRead->qtype = qtype;
   atomic_add_fetch_32(&pVnode->refCount, 1);
+
+  return pRead;
+}
+
+int32_t vnodeWriteToRQueue(void *vparam, void *pCont, int32_t contLen, int8_t qtype, void *rparam) {
+  SVReadMsg *pRead = vnodeBuildVReadMsg(vparam, pCont, contLen, qtype, rparam);
+  if (pRead == NULL) {
+    assert(terrno != 0);
+    return terrno;
+  }
+
+  SVnodeObj *pVnode = vparam;
+
+  int32_t code = vnodeCheckRead(pVnode);
+  if (code != TSDB_CODE_SUCCESS) {
+    taosFreeQitem(pRead);
+    vnodeRelease(pVnode);
+    return code;
+  }
+
   atomic_add_fetch_32(&pVnode->queuedRMsg, 1);
 
-    if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->msgType == TSDB_MSG_TYPE_FETCH) {
-    vTrace("vgId:%d, write into vfetch queue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedRMsg);
+  if (pRead->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pRead->msgType == TSDB_MSG_TYPE_FETCH) {
+    vTrace("vgId:%d, write into vfetch queue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount,
+           pVnode->queuedRMsg);
     return taosWriteQitem(pVnode->fqueue, qtype, pRead);
   } else {
-    vTrace("vgId:%d, write into vquery queue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount, pVnode->queuedRMsg);
+    vTrace("vgId:%d, write into vquery queue, refCount:%d queued:%d", pVnode->vgId, pVnode->refCount,
+           pVnode->queuedRMsg);
     return taosWriteQitem(pVnode->qqueue, qtype, pRead);
   }
 }
@@ -419,4 +434,11 @@ int32_t vnodeNotifyCurrentQhandle(void *handle, void *qhandle, int32_t vgId) {
 
   vTrace("QInfo:%p register qhandle to connect:%p", qhandle, handle);
   return rpcReportProgress(handle, (char *)pMsg, sizeof(SRetrieveTableMsg));
+}
+
+void vnodeWaitReadCompleted(SVnodeObj *pVnode) {
+  while (pVnode->queuedRMsg > 0) {
+    vTrace("vgId:%d, queued rmsg num:%d", pVnode->vgId, pVnode->queuedRMsg);
+    taosMsleep(10);
+  }
 }

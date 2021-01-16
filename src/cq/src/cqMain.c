@@ -43,7 +43,7 @@ typedef struct {
   int32_t  master;
   int32_t  num;      // number of continuous streams
   char     user[TSDB_USER_LEN];
-  char     pass[TSDB_PASSWORD_LEN];
+  char     pass[TSDB_KEY_LEN];
   char     db[TSDB_DB_NAME_LEN];
   FCqWrite cqWrite;
   struct SCqObj *pHead;
@@ -295,6 +295,8 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
 
   if (pObj->pStream == NULL) {
     pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, 0, pObj, NULL);
+
+    // TODO the pObj->pStream may be released if error happens
     if (pObj->pStream) {
       tscSetStreamDestTable(pObj->pStream, pObj->dstTable);
       pContext->num++;
@@ -306,11 +308,14 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
 }
 
 static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
-  SCqObj     *pObj = (SCqObj *)param;
+  SCqObj *pObj = (SCqObj *)param;
   if (tres == NULL && row == NULL) {
+    taos_close_stream(pObj->pStream);
+
     pObj->pStream = NULL;
     return;
   }
+
   SCqContext *pContext = pObj->pContext;
   STSchema   *pSchema = pObj->pSchema;
   if (pObj->pStream == NULL) return;
@@ -336,7 +341,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
       val = ((char*)val) - sizeof(VarDataLenT);
     } else if (c->type == TSDB_DATA_TYPE_NCHAR) {
       char buf[TSDB_MAX_NCHAR_LEN];
-      size_t len = taos_fetch_lengths(tres)[i];
+      int32_t len = taos_fetch_lengths(tres)[i];
       taosMbsToUcs4(val, len, buf, sizeof(buf), &len);
       memcpy(val + sizeof(VarDataLenT), buf, len);
       varDataLen(val) = len;

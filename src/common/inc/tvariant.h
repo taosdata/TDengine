@@ -28,7 +28,8 @@ typedef struct tVariant {
   uint32_t nType;
   int32_t  nLen;  // only used for string, for number, it is useless
   union {
-    int64_t  i64Key;
+    int64_t  i64;
+    uint64_t u64;
     double   dKey;
     char *   pz;
     wchar_t *wpz;
@@ -36,9 +37,9 @@ typedef struct tVariant {
   };
 } tVariant;
 
-void tVariantCreate(tVariant *pVar, SStrToken *token);
+bool tVariantIsValid(tVariant *pVar);
 
-void tVariantCreateFromString(tVariant *pVar, char *pz, uint32_t len, uint32_t type);
+void tVariantCreate(tVariant *pVar, SStrToken *token);
 
 void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32_t type);
 

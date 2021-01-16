@@ -31,15 +31,20 @@
 #include "tlocale.h"
 
 // global, not configurable
-SCacheObj *tscMetaCache;       // table meta cache
-SHashObj  *tscHashMap;         // hash map to keep the global vgroup info
-int     tscObjRef = -1;
-void   *tscTmr;
-void   *tscQhandle;
-void   *tscCheckDiskUsageTmr;
-int     tscRefId = -1;
-int     tscNumOfObj = 0;       // number of sqlObj in current process.
+#define TSC_VAR_NOT_RELEASE 1
+#define TSC_VAR_RELEASED    0
 
+int32_t    sentinel = TSC_VAR_NOT_RELEASE;
+
+SHashObj  *tscVgroupMap;         // hash map to keep the global vgroup info
+SHashObj  *tscTableMetaInfo;     // table meta info
+int32_t    tscObjRef = -1;
+void      *tscTmr;
+void      *tscQhandle;
+int32_t    tscRefId = -1;
+int32_t    tscNumOfObj = 0;         // number of sqlObj in current process.
+
+static void  *tscCheckDiskUsageTmr;
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 
 void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
@@ -129,11 +134,11 @@ void taos_init_imp(void) {
     taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
 
-  int64_t refreshTime = 10; // 10 seconds by default
-  if (tscMetaCache == NULL) {
-    tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, refreshTime, false, tscFreeTableMetaHelper, "tableMeta");
+  if (tscTableMetaInfo == NULL) {
     tscObjRef  = taosOpenRef(40960, tscFreeRegisteredSqlObj);
-    tscHashMap = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    tscVgroupMap = taosHashInit(256, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+    tscTableMetaInfo = taosHashInit(1024, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
+    tscDebug("TableMeta:%p", tscTableMetaInfo);
   }
 
   tscRefId = taosOpenRef(200, tscCloseTscObj);
@@ -151,30 +156,38 @@ void taos_init() { pthread_once(&tscinit, taos_init_imp); }
 void taos_cleanup(void) {
   tscDebug("start to cleanup client environment");
 
-  void* m = tscMetaCache;
-  if (m != NULL && atomic_val_compare_exchange_ptr(&tscMetaCache, m, 0) == m) {
-    taosCacheCleanup(m);
+  if (atomic_val_compare_exchange_32(&sentinel, TSC_VAR_NOT_RELEASE, TSC_VAR_RELEASED) != TSC_VAR_NOT_RELEASE) {
+    return;
   }
 
-  int refId = atomic_exchange_32(&tscObjRef, -1);
-  if (refId != -1) {
-    taosCloseRef(refId);
-  }
+  taosHashCleanup(tscTableMetaInfo);
+  tscTableMetaInfo = NULL;
 
-  m = tscQhandle;
-  if (m != NULL && atomic_val_compare_exchange_ptr(&tscQhandle, m, 0) == m) {
-    taosCleanUpScheduler(m);
-  }
+  taosHashCleanup(tscVgroupMap);
+  tscVgroupMap = NULL;
 
-  taosCloseRef(tscRefId);
+  int32_t id = tscObjRef;
+  tscObjRef = -1;
+  taosCloseRef(id);
+
+  void* p = tscQhandle;
+  tscQhandle = NULL;
+  taosCleanUpScheduler(p);
+
+  id = tscRefId;
+  tscRefId = -1;
+  taosCloseRef(id);
+
   taosCleanupKeywordsTable();
   taosCloseLog();
-  if (tscEmbedded == 0) rpcCleanup();
 
-  m = tscTmr;
-  if (m != NULL && atomic_val_compare_exchange_ptr(&tscTmr, m, 0) == m) {
-    taosTmrCleanUp(m);
+  if (tscEmbedded == 0) {
+    rpcCleanup();
   }
+
+  p = tscTmr;
+  tscTmr = NULL;
+  taosTmrCleanUp(p);
 }
 
 static int taos_options_imp(TSDB_OPTION option, const char *pStr) {

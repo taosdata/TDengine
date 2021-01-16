@@ -73,7 +73,8 @@ static int32_t dnodeGetVnodeList(int32_t vnodeList[], int32_t *numOfVnodes) {
 
       if (*numOfVnodes >= TSDB_MAX_VNODES) {
         dError("vgId:%d, too many vnode directory in disk, exist:%d max:%d", vnode, *numOfVnodes, TSDB_MAX_VNODES);
-        continue;
+        closedir(dir);
+        return TSDB_CODE_DND_TOO_MANY_VNODES;
       } else {
         vnodeList[*numOfVnodes - 1] = vnode;
       }

@@ -291,6 +291,13 @@ typename(A) ::= ids(X) LP signed(Y) RP.    {
   }
 }
 
+// define the unsigned number type
+typename(A) ::= ids(X) UNSIGNED(Z). {
+  X.type = 0;
+  X.n = ((Z.z + Z.n) - X.z);
+  tSqlSetColumnType (&A, &X);
+}
+
 %type signed {int64_t}
 signed(A) ::= INTEGER(X).         { A = strtol(X.z, NULL, 10); }
 signed(A) ::= PLUS INTEGER(X).    { A = strtol(X.z, NULL, 10); }

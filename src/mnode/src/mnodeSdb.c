@@ -274,7 +274,7 @@ static int32_t sdbGetSyncVersion(int32_t vgId, uint64_t *fver, uint64_t *vver) {
 
 // failed to forward, need revert insert
 static void sdbHandleFailedConfirm(SSdbRow *pRow) {
-  SWalHead *pHead = pRow->pHead;
+  SWalHead *pHead = &pRow->pHead;
   int32_t   action = pHead->msgType % 10;
 
   sdbError("vgId:1, row:%p:%s hver:%" PRIu64 " action:%s, failed to foward since %s", pRow->pObj,
@@ -318,11 +318,11 @@ void sdbUpdateAsync() {
   taosTmrReset(sdbUpdateSyncTmrFp, 200, NULL, tsMnodeTmr, &tsSdbTmr);
 }
 
-void sdbUpdateSync(void *pMnodes) {
+int32_t sdbUpdateSync(void *pMnodes) {
   SMInfos *pMinfos = pMnodes;
   if (!mnodeIsRunning()) {
     mDebug("vgId:1, mnode not start yet, update sync config later");
-    return;
+    return TSDB_CODE_MND_MNODE_IS_RUNNING;
   }
 
   mDebug("vgId:1, update sync config, pMnodes:%p", pMnodes);
@@ -377,12 +377,12 @@ void sdbUpdateSync(void *pMnodes) {
 
   if (!hasThisDnode) {
     sdbDebug("vgId:1, update sync config, this dnode not exist");
-    return;
+    return TSDB_CODE_MND_FAILED_TO_CONFIG_SYNC;
   }
 
   if (memcmp(&syncCfg, &tsSdbMgmt.cfg, sizeof(SSyncCfg)) == 0) {
     sdbDebug("vgId:1, update sync config, info not changed");
-    return;
+    return TSDB_CODE_SUCCESS;
   }
 
   sdbInfo("vgId:1, work as mnode, replica:%d", syncCfg.replica);
@@ -407,12 +407,15 @@ void sdbUpdateSync(void *pMnodes) {
   tsSdbMgmt.cfg = syncCfg;
 
   if (tsSdbMgmt.sync) {
-    syncReconfig(tsSdbMgmt.sync, &syncCfg);
+    int32_t code = syncReconfig(tsSdbMgmt.sync, &syncCfg);
+    if (code != 0) return code;
   } else {
     tsSdbMgmt.sync = syncStart(&syncInfo);
+    if (tsSdbMgmt.sync <= 0) return TSDB_CODE_MND_FAILED_TO_START_SYNC;
   }
 
   sdbUpdateMnodeRoles();
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t sdbInitRef() {
@@ -1009,7 +1012,7 @@ static void sdbFreeQueue() {
 }
 
 static int32_t sdbWriteToQueue(SSdbRow *pRow, int32_t qtype) {
-  SWalHead *pHead = pRow->pHead;
+  SWalHead *pHead = &pRow->pHead;
 
   if (pHead->len > TSDB_MAX_WAL_SIZE) {
     sdbError("vgId:1, wal len:%d exceeds limit, hver:%" PRIu64, pHead->len, pHead->version);
@@ -1048,10 +1051,13 @@ static int32_t sdbWriteFwdToQueue(int32_t vgId, void *wparam, int32_t qtype, voi
     return TSDB_CODE_VND_OUT_OF_MEMORY;
   }
 
-  memcpy(pRow->pHead, pHead, sizeof(SWalHead) + pHead->len);
-  pRow->rowData = pRow->pHead->cont;
+  memcpy(&pRow->pHead, pHead, sizeof(SWalHead) + pHead->len);
+  pRow->rowData = pRow->pHead.cont;
 
-  return sdbWriteToQueue(pRow, qtype);
+  int32_t code = sdbWriteToQueue(pRow, qtype);
+  if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) code = 0;
+
+  return code;
 }
 
 static int32_t sdbWriteRowToQueue(SSdbRow *pInputRow, int32_t action) {
@@ -1067,7 +1073,7 @@ static int32_t sdbWriteRowToQueue(SSdbRow *pInputRow, int32_t action) {
   memcpy(pRow, pInputRow, sizeof(SSdbRow));
   pRow->processedCount = 1;
 
-  SWalHead *pHead = pRow->pHead;
+  SWalHead *pHead = &pRow->pHead;
   pRow->rowData = pHead->cont;
   (*pTable->fpEncode)(pRow);
 
@@ -1097,9 +1103,9 @@ static void *sdbWorkerFp(void *pWorker) {
     for (int32_t i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(tsSdbWQall, &qtype, (void **)&pRow);
       sdbTrace("vgId:1, msg:%p, row:%p hver:%" PRIu64 ", will be processed in sdb queue", pRow->pMsg, pRow->pObj,
-               pRow->pHead->version);
+               pRow->pHead.version);
 
-      pRow->code = sdbProcessWrite((qtype == TAOS_QTYPE_RPC) ? pRow : NULL, pRow->pHead, qtype, NULL);
+      pRow->code = sdbProcessWrite((qtype == TAOS_QTYPE_RPC) ? pRow : NULL, &pRow->pHead, qtype, NULL);
       if (pRow->code > 0) pRow->code = 0;
 
       sdbTrace("vgId:1, msg:%p is processed in sdb queue, code:%x", pRow->pMsg, pRow->code);
@@ -1116,7 +1122,7 @@ static void *sdbWorkerFp(void *pWorker) {
         sdbConfirmForward(1, pRow, pRow->code);
       } else {
         if (qtype == TAOS_QTYPE_FWD) {
-          syncConfirmForward(tsSdbMgmt.sync, pRow->pHead->version, pRow->code);
+          syncConfirmForward(tsSdbMgmt.sync, pRow->pHead.version, pRow->code);
         }
         sdbFreeFromQueue(pRow);
       }

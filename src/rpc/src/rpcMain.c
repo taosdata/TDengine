@@ -1390,7 +1390,7 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
         pConn->pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         pConn->pContext->pConn = NULL;
         pConn->pReqMsg = NULL;
-        taosTmrStart(rpcProcessConnError, 0, pConn->pContext, pRpc->tmrCtrl);
+        taosTmrStart(rpcProcessConnError, 1, pConn->pContext, pRpc->tmrCtrl);
         rpcReleaseConn(pConn);
       }
     }
@@ -1567,6 +1567,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
     // for response, if code is auth failure, it shall bypass the auth process
     code = htonl(pHead->code);
     if (code == TSDB_CODE_RPC_INVALID_TIME_STAMP || code == TSDB_CODE_RPC_AUTH_FAILURE ||
+        code == TSDB_CODE_RPC_INVALID_VERSION ||
         code == TSDB_CODE_RPC_AUTH_REQUIRED || code == TSDB_CODE_MND_INVALID_USER || code == TSDB_CODE_RPC_NOT_READY) {
       pHead->msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
       // tTrace("%s, dont check authentication since code is:0x%x", pConn->info, code);

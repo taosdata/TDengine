@@ -60,7 +60,7 @@ typedef struct tstr {
 
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[11];
+extern const int32_t TYPE_BYTES[15];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES    sizeof(char)
@@ -91,6 +91,11 @@ extern const int32_t TYPE_BYTES[11];
 #define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN
 #define TSDB_DATA_NCHAR_NULL            0xFFFFFFFF
 #define TSDB_DATA_BINARY_NULL           0xFF
+
+#define TSDB_DATA_UTINYINT_NULL         0xFF
+#define TSDB_DATA_USMALLINT_NULL        0xFFFF
+#define TSDB_DATA_UINT_NULL             0xFFFFFFFF
+#define TSDB_DATA_UBIGINT_NULL          0xFFFFFFFFFFFFFFFFL
 
 #define TSDB_DATA_NULL_STR              "NULL"
 #define TSDB_DATA_NULL_STR_L            "null"
@@ -131,19 +136,16 @@ do { \
   (src) = (void *)((char *)src + sizeof(type));\
 } while(0)
 
-#define GET_INT8_VAL(x)   (*(int8_t *)(x))
-#define GET_INT16_VAL(x)  (*(int16_t *)(x))
-#define GET_INT32_VAL(x)  (*(int32_t *)(x))
-#define GET_INT64_VAL(x)  (*(int64_t *)(x))
+#define GET_INT8_VAL(x)    (*(int8_t *)(x))
+#define GET_INT16_VAL(x)   (*(int16_t *)(x))
+#define GET_INT32_VAL(x)   (*(int32_t *)(x))
+#define GET_INT64_VAL(x)   (*(int64_t *)(x))
+#define GET_UINT8_VAL(x)   (*(uint8_t*) (x))
+#define GET_UINT16_VAL(x)  (*(uint16_t *)(x))
+#define GET_UINT32_VAL(x)  (*(uint32_t *)(x))
+#define GET_UINT64_VAL(x)  (*(uint64_t *)(x))
+
 #ifdef _TD_ARM_32
-
-  //#define __float_align_declear()  float __underlyFloat = 0.0;
-  //#define __float_align_declear()
-  //#define GET_FLOAT_VAL_ALIGN(x) (*(int32_t*)&(__underlyFloat) = *(int32_t*)(x); __underlyFloat);
-  // notes: src must be float or double type variable !!!
-  //#define SET_FLOAT_VAL_ALIGN(dst, src) (*(int32_t*) dst = *(int32_t*)src);
-  //#define SET_DOUBLE_VAL_ALIGN(dst, src) (*(int64_t*) dst = *(int64_t*)src);
-
   float  taos_align_get_float(const char* pBuf);
   double taos_align_get_double(const char* pBuf);
 
@@ -171,14 +173,14 @@ typedef struct tDataTypeDescriptor {
                   char algorithm, char *const buffer, int bufferSize);
   int (*decompFunc)(const char *const input, int compressedSize, const int nelements, char *const output,
                     int outputSize, char algorithm, char *const buffer, int bufferSize);
-  void (*getStatisFunc)(const TSKEY *primaryKey, const void *pData, int32_t numofrow, int64_t *min, int64_t *max,
-                         int64_t *sum, int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
+  void (*getStatisFunc)(const void *pData, int32_t numofrow, int64_t *min, int64_t *max, int64_t *sum,
+                        int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
 } tDataTypeDescriptor;
 
-extern tDataTypeDescriptor tDataTypeDesc[11];
+extern tDataTypeDescriptor tDataTypeDesc[15];
 
 bool isValidDataType(int32_t type);
-//bool isNull(const char *val, int32_t type);
+
 static FORCE_INLINE bool isNull(const char *val, int32_t type) {
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -200,6 +202,15 @@ static FORCE_INLINE bool isNull(const char *val, int32_t type) {
       return varDataLen(val) == sizeof(int32_t) && *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
     case TSDB_DATA_TYPE_BINARY:
       return varDataLen(val) == sizeof(int8_t) && *(uint8_t *) varDataVal(val) == TSDB_DATA_BINARY_NULL;
+    case TSDB_DATA_TYPE_UTINYINT:
+      return *(uint8_t*) val == TSDB_DATA_UTINYINT_NULL;
+    case TSDB_DATA_TYPE_USMALLINT:
+      return *(uint16_t*) val == TSDB_DATA_USMALLINT_NULL;
+    case TSDB_DATA_TYPE_UINT:
+      return *(uint32_t*) val == TSDB_DATA_UINT_NULL;
+    case TSDB_DATA_TYPE_UBIGINT:
+      return *(uint64_t*) val == TSDB_DATA_UBIGINT_NULL;
+
     default:
       return false;
   };
@@ -212,6 +223,10 @@ void* getNullValue(int32_t type);
 
 void assignVal(char *val, const char *src, int32_t len, int32_t type);
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf);
+
+int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned);
+
+#define SET_DOUBLE_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_DOUBLE_NULL)
 
 // TODO: check if below is necessary
 #define TSDB_RELATION_INVALID     0
@@ -241,10 +256,8 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_USER_LEN             TSDB_UNI_LEN
 
 // ACCOUNT is a 32 bit positive integer
-// this is the length of its string representation
-// including the terminator zero
-#define TSDB_ACCT_LEN             11
-#define TSDB_PASSWORD_LEN         TSDB_UNI_LEN
+// this is the length of its string representation, including the terminator zero
+#define TSDB_ACCT_ID_LEN          11
 
 #define TSDB_MAX_COLUMNS          1024
 #define TSDB_MIN_COLUMNS          2       //PRIMARY COLUMN(timestamp) + other columns
@@ -252,7 +265,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_NODE_NAME_LEN        64
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
 #define TSDB_DB_NAME_LEN          33
-#define TSDB_TABLE_FNAME_LEN      (TSDB_ACCT_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
+#define TSDB_TABLE_FNAME_LEN      (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
@@ -278,11 +291,6 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_EP_LEN               (TSDB_FQDN_LEN+6)
 #define TSDB_IPv4ADDR_LEN      	  16
 #define TSDB_FILENAME_LEN         128
-#define TSDB_METER_VNODE_BITS     20
-#define TSDB_METER_SID_MASK       0xFFFFF
-#define TSDB_SHELL_VNODE_BITS     24
-#define TSDB_SHELL_SID_MASK       0xFF
-#define TSDB_HTTP_TOKEN_LEN       20
 #define TSDB_SHOW_SQL_LEN         512
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 
@@ -295,9 +303,6 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_MQTT_PASS_LEN        24
 #define TSDB_MQTT_TOPIC_LEN       64
 #define TSDB_MQTT_CLIENT_ID_LEN   32
-
-#define TSDB_METER_STATE_OFFLINE  0
-#define TSDB_METER_STATE_ONLLINE  1
 
 #define TSDB_DEFAULT_PKT_SIZE     65480  //same as RPC_MAX_UDP_SIZE
 
@@ -318,7 +323,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 
 #define TSDB_TBNAME_COLUMN_INDEX        (-1)
 #define TSDB_UD_COLUMN_INDEX            (-100)
-#define TSDB_MULTI_METERMETA_MAX_NUM    100000  // maximum batch size allowed to load metermeta
+#define TSDB_MULTI_TABLEMETA_MAX_NUM    100000  // maximum batch size allowed to load table meta
 
 #define TSDB_MIN_CACHE_BLOCK_SIZE       1
 #define TSDB_MAX_CACHE_BLOCK_SIZE       128     // 128MB for each vnode
@@ -380,6 +385,9 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_MIN_DB_REPLICA_OPTION      1
 #define TSDB_MAX_DB_REPLICA_OPTION      3
 #define TSDB_DEFAULT_DB_REPLICA_OPTION  1
+
+#define TSDB_MIN_DB_QUORUM_OPTION       1
+#define TSDB_MAX_DB_QUORUM_OPTION       2
 #define TSDB_DEFAULT_DB_QUORUM_OPTION   1
 
 #define TSDB_MAX_JOIN_TABLE_NUM         5
@@ -436,7 +444,7 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf
 #define TSDB_PORT_HTTP                  11
 #define TSDB_PORT_ARBITRATOR            12
 
-#define TSDB_MAX_WAL_SIZE    (1024*1024*2)
+#define TSDB_MAX_WAL_SIZE    (1024*1024*3)
 
 typedef enum {
   TAOS_QTYPE_RPC   = 0,
