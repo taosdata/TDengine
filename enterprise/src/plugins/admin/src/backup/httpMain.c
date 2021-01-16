@@ -15,7 +15,7 @@
 #include "tglobal.h"
 #include "tlog.h"
 
-void signal_handler(int signum) {
+void sigintHandler(int signum) {
   httpStopSystem();
   httpCleanUpSystem();
   exit(EXIT_SUCCESS);
@@ -23,16 +23,10 @@ void signal_handler(int signum) {
 
 int main(int argc, char *argv[]) {
   // Set global configuration file
-
-#if !(defined(WIN32) || defined(WIN64))
-  /* Set termination handler. */
-  struct sigaction act;
-  act.sa_handler = signal_handler;
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGHUP, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
-  sigaction(SIGABRT, &act, NULL);
-#endif
+  taosSetSignal(SIGTERM, sigintHandler);
+  taosSetSignal(SIGHUP, sigintHandler);
+  taosSetSignal(SIGINT, sigintHandler);
+  taosSetSignal(SIGABRT, sigintHandler);
 
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
