@@ -19,8 +19,10 @@
 #include "tconfig.h"
 #include "dnodeMain.h"
 
-static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context);
 static tsem_t exitSem;
+static void   siguser1Handler(int32_t signum);
+static void   siguser2Handler(int32_t signum);
+static void   sigintHandler(int32_t signum);
 
 int32_t main(int32_t argc, char *argv[]) {
   int dump_config = 0;
@@ -28,7 +30,7 @@ int32_t main(int32_t argc, char *argv[]) {
   // Set global configuration file
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
-      if (i < argc - 1) {        
+      if (i < argc - 1) {
         if (strlen(argv[++i]) >= TSDB_FILENAME_LEN) {
           printf("config file path overflow");
           exit(EXIT_FAILURE);
@@ -80,8 +82,8 @@ int32_t main(int32_t argc, char *argv[]) {
         taosSetRandomFileFailOutput(NULL);
       }
     } else if (strcmp(argv[i], "--random-file-fail-factor") == 0) {
-      if ( (i+1) < argc ) {
-        int factor = atoi(argv[i+1]);
+      if ((i + 1) < argc) {
+        int factor = atoi(argv[i + 1]);
         printf("The factor of random failure is %d\n", factor);
         taosSetRandomFileFailFactor(factor);
       } else {
@@ -93,7 +95,7 @@ int32_t main(int32_t argc, char *argv[]) {
   }
 
   if (0 != dump_config) {
-    tscEmbedded  = 1;
+    tscEmbedded = 1;
     taosInitGlobalCfg();
     taosReadGlobalLogCfg();
 
@@ -112,14 +114,12 @@ int32_t main(int32_t argc, char *argv[]) {
   }
 
   /* Set termination handler. */
-  struct sigaction act = {{0}};
-  act.sa_flags = SA_SIGINFO;
-  act.sa_sigaction = signal_handler;
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGHUP, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
-  sigaction(SIGUSR1, &act, NULL);
-  sigaction(SIGUSR2, &act, NULL);
+  taosSetSignal(SIGUSR1, siguser1Handler);
+  taosSetSignal(SIGUSR2, siguser2Handler);
+  taosSetSignal(SIGTERM, sigintHandler);
+  taosSetSignal(SIGHUP, sigintHandler);
+  taosSetSignal(SIGINT, sigintHandler);
+  taosSetSignal(SIGABRT, sigintHandler);
 
   // Open /var/log/syslog file to record information.
   openlog("TDengine:", LOG_PID | LOG_CONS | LOG_NDELAY, LOG_LOCAL1);
@@ -147,32 +147,25 @@ int32_t main(int32_t argc, char *argv[]) {
   return EXIT_SUCCESS;
 }
 
-static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {	
-  if (signum == SIGUSR1) {	
-    taosCfgDynamicOptions("debugFlag 143");	
-    return;	
-  }	
-  if (signum == SIGUSR2) {	
-    taosCfgDynamicOptions("resetlog");	
-    return;	
-  }	
+static void siguser1Handler(int32_t signum) { taosCfgDynamicOptions("debugFlag 143"); }
 
-  syslog(LOG_INFO, "Shut down signal is %d", signum);	
-  syslog(LOG_INFO, "Shutting down TDengine service...");	
-  // clean the system.	
-  dInfo("shut down signal is %d, sender PID:%d cmdline:%s", signum, sigInfo->si_pid, taosGetCmdlineByPID(sigInfo->si_pid));	
+static void siguser2Handler(int32_t signum) { taosCfgDynamicOptions("resetlog"); }
 
-  // protect the application from receive another signal	
-  struct sigaction act = {{0}};	
-#ifndef WINDOWS
-  act.sa_handler = SIG_IGN;	
-#endif  
-  sigaction(SIGTERM, &act, NULL);	
-  sigaction(SIGHUP, &act, NULL);	
-  sigaction(SIGINT, &act, NULL);	
-  sigaction(SIGUSR1, &act, NULL);	
-  sigaction(SIGUSR2, &act, NULL);	
+static void sigintHandler(int32_t signum) {
+  // clean the system.
+  dInfo("shut down signal is %d", signum);
 
-  // inform main thread to exit	
-  tsem_post(&exitSem);	
+  syslog(LOG_INFO, "Shut down signal is %d", signum);
+  syslog(LOG_INFO, "Shutting down TDengine service...");
+
+  // protect the application from receive another signal
+  taosIgnSignal(SIGUSR1);
+  taosIgnSignal(SIGUSR2);
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGHUP);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGABRT);
+
+  // inform main thread to exit
+  tsem_post(&exitSem);
 }

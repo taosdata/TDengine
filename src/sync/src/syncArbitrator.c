@@ -27,7 +27,7 @@
 #include "syncInt.h"
 #include "syncTcp.h"
 
-static void    arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
+static void    arbSignalHandler(int32_t signum);
 static void    arbProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
 static void    arbProcessBrokenLink(int64_t rid);
 static int32_t arbProcessPeerMsg(int64_t rid, void *buffer);
@@ -69,14 +69,10 @@ int32_t main(int32_t argc, char *argv[]) {
   }
 
   /* Set termination handler. */
-  struct sigaction act = {{0}};
-  act.sa_flags = SA_SIGINFO;
-  act.sa_sigaction = arbSignalHandler;
-
-  act.sa_handler = arbSignalHandler;
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGHUP, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
+  taosSetSignal(SIGTERM, arbSignalHandler);
+  taosSetSignal(SIGINT, arbSignalHandler);
+  taosSetSignal(SIGHUP, arbSignalHandler);
+  taosSetSignal(SIGABRT, arbSignalHandler);
 
   tsAsyncLog = 0;
   strcat(arbLogPath, "/arbitrator.log");
@@ -174,16 +170,13 @@ static int32_t arbProcessPeerMsg(int64_t rid, void *buffer) {
   return 0;
 }
 
-static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context) {
-  struct sigaction act = {{0}};
-#ifndef WINDOWS
-  act.sa_handler = SIG_IGN;
-#endif
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGHUP, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
+static void arbSignalHandler(int32_t signum) {
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGHUP);
 
-  sInfo("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
+  sInfo("shut down signal is %d", signum);
 
   // inform main thread to exit
   tsem_post(&tsArbSem);

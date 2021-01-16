@@ -191,24 +191,6 @@ int        gettimeofday(struct timeval *ptv, void *pTimeZone);
   #define PATH_MAX 256
 #endif
 
-//for signal, not dispose
-#define SIGALRM 1234
-#define SIGHUP  1234
-#define SIGUSR1 1234
-#define SIGUSR2 1234
-#define SA_SIGINFO 1234
-
-typedef int sigset_t;
-typedef struct siginfo_t {
-  int si_pid;
-} siginfo_t;
-struct sigaction {
-  int sa_flags;
-  void (*sa_handler)(int32_t signum, siginfo_t *sigInfo, void *context);
-  void (*sa_sigaction)(int32_t signum, siginfo_t *sigInfo, void *context);
-};
-int sigaction(int, struct sigaction *, void *);
-
 typedef struct {
   int    we_wordc;
   char **we_wordv;

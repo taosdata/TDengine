@@ -314,9 +314,7 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
     simError("script:%s, failed to execute %s , code %d, errno:%d %s, repeatTimes:%d", script->fileName, buf, code,
              errno, strerror(errno), repeatTimes);
     taosMsleep(1000);
-#ifdef LINUX
-    signal(SIGCHLD, SIG_DFL);
-#endif
+    taosDflSignal(SIGCHLD);
     if (repeatTimes++ >= 10) {
       exit(0);
     }

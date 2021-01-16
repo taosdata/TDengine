@@ -51,7 +51,7 @@ int32_t main(int32_t argc, char *argv[]) {
   }
 
   simInfo("simulator is running ...");
-  signal(SIGINT, simHandleSignal);
+  taosSetSignal(SIGINT, simHandleSignal);
 
   SScript *script = simParseScript(scriptFile);
   if (script == NULL) {

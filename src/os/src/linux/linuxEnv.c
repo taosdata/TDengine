@@ -43,6 +43,7 @@ void osInit() {
 char cmdline[1024];
 
 char* taosGetCmdlineByPID(int pid) {
+#if 0
   sprintf(cmdline, "/proc/%d/cmdline", pid);
   FILE* f = fopen(cmdline, "r");
   if (f) {
@@ -54,4 +55,7 @@ char* taosGetCmdlineByPID(int pid) {
     fclose(f);
   }
   return cmdline;
+#else
+  return "";
+#endif  
 }

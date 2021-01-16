@@ -235,8 +235,6 @@ int taosSystem(const char *cmd) {
 
 int flock(int fd, int option) { return 0; }
 
-int sigaction(int sig, struct sigaction *d, void *p) { return 0; }
-
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
   typedef BOOL(WINAPI * FxMiniDumpWriteDump)(IN HANDLE hProcess, IN DWORD ProcessId, IN HANDLE hFile,
                                              IN MINIDUMP_TYPE                           DumpType,
