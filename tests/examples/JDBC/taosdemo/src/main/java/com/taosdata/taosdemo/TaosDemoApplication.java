@@ -19,14 +19,13 @@ import java.util.Map;
 
 public class TaosDemoApplication {
 
-    private static Logger logger = Logger.getLogger(TaosDemoApplication.class);
+    private static final Logger logger = Logger.getLogger(TaosDemoApplication.class);
 
     public static void main(String[] args) throws IOException {
         // 读配置参数
         JdbcTaosdemoConfig config = new JdbcTaosdemoConfig(args);
         boolean isHelp = Arrays.asList(args).contains("--help");
         if (isHelp || config.host == null || config.host.isEmpty()) {
-//        if (isHelp) {
             JdbcTaosdemoConfig.printHelp();
             System.exit(0);
         }
@@ -75,7 +74,7 @@ public class TaosDemoApplication {
             }
         }
         end = System.currentTimeMillis();
-        logger.error(">>> create table time cost : " + (end - start) + " ms.");
+        logger.info(">>> create table time cost : " + (end - start) + " ms.");
         /**********************************************************************************/
         // 插入
         long tableSize = config.numOfTables;
@@ -90,7 +89,7 @@ public class TaosDemoApplication {
         // multi threads to insert
         int affectedRows = subTableService.insertMultiThreads(superTableMeta, threadSize, tableSize, startTime, gap, config);
         end = System.currentTimeMillis();
-        logger.error("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
+        logger.info("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
         /**********************************************************************************/
         // 删除表
         if (config.dropTable) {
@@ -107,6 +106,5 @@ public class TaosDemoApplication {
         }
         return startTime;
     }
-
 
 }

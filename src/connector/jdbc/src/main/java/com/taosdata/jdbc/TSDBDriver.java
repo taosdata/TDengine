@@ -214,7 +214,7 @@ public class TSDBDriver extends AbstractTaosDriver {
             urlProps.setProperty(TSDBDriver.PROPERTY_KEY_HOST, url);
         }
         
-        this.dbMetaData = new TSDBDatabaseMetaData(dbProductName, urlForMeta, urlProps.getProperty(TSDBDriver.PROPERTY_KEY_USER));
+        this.dbMetaData = new TSDBDatabaseMetaData(urlForMeta, urlProps.getProperty(TSDBDriver.PROPERTY_KEY_USER));
         return urlProps;
     }
 

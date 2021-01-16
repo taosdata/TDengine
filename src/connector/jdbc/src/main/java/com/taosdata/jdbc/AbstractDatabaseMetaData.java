@@ -497,12 +497,12 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
 
     public ResultSet getProcedures(String catalog, String schemaPattern, String procedureNamePattern)
             throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return null;
     }
 
     public ResultSet getProcedureColumns(String catalog, String schemaPattern, String procedureNamePattern,
                                          String columnNamePattern) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return null;
     }
 
     public abstract ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types)
