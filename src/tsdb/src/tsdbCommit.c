@@ -789,14 +789,14 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
     void *  tptr;
 
     // Make room
-    if (tsdbMakeRoom((void **)TSDB_COMMIT_BUF(pCommith), lsize + tlen + COMP_OVERFLOW_BYTES + sizeof(TSCKSUM)) < 0) {
+    if (tsdbMakeRoom((void **)(&TSDB_COMMIT_BUF(pCommith)), lsize + tlen + COMP_OVERFLOW_BYTES + sizeof(TSCKSUM)) < 0) {
       return -1;
     }
     pBlockData = (SBlockData *)TSDB_COMMIT_BUF(pCommith);
     tptr = POINTER_SHIFT(pBlockData, lsize);
 
     if (pCfg->compression == TWO_STAGE_COMP &&
-        tsdbMakeRoom((void **)TSDB_COMMIT_COMP_BUF(pCommith), tlen + COMP_OVERFLOW_BYTES) < 0) {
+        tsdbMakeRoom((void **)(&TSDB_COMMIT_COMP_BUF(pCommith)), tlen + COMP_OVERFLOW_BYTES) < 0) {
       return -1;
     }
 

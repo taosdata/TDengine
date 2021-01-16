@@ -105,7 +105,7 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
     return -1;
   }
 
-  if (tsdbMakeRoom(&(TSDB_READ_BUF(pReadh)), pHeadf->info.len) < 0) return -1;
+  if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pHeadf->info.len) < 0) return -1;
 
   int64_t nread = tsdbReadDFile(pHeadf, TSDB_READ_BUF(pReadh), pHeadf->info.len);
   if (nread < 0) {
@@ -620,8 +620,8 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   STsdbCfg * pCfg = REPO_CFG(pRepo);
   int        tsize = pDataCol->bytes * pBlock->numOfRows + COMP_OVERFLOW_BYTES;
 
-  if (tsdbMakeRoom((void **)(&(TSDB_READ_BUF(pReadh))), pBlockCol->len) < 0) return -1;
-  if (tsdbMakeRoom((void **)(&(TSDB_READ_COMP_BUF(pReadh))), tsize) < 0) return -1;
+  if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pBlockCol->len) < 0) return -1;
+  if (tsdbMakeRoom((void **)(&TSDB_READ_COMP_BUF(pReadh)), tsize) < 0) return -1;
 
   int64_t offset = pBlock->offset + TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols) + pBlockCol->offset;
   if (tsdbSeekDFile(pDFile, offset, SEEK_SET) < 0) {
