@@ -77,7 +77,8 @@ int64_t taosFSendFile(FILE *out_file, FILE *in_file, int64_t *offset, int64_t co
 }
 
 int64_t taosSendFile(SOCKET dfd, int32_t sfd, int64_t *offset, int64_t count) {
-  lseek(sfd, (int32_t)(*offset), 0);
+  if (offset != NULL) lseek(sfd, (int32_t)(*offset), 0);
+
   int64_t writeLen = 0;
   uint8_t buffer[_SEND_FILE_STEP_] = {0};
 
@@ -168,7 +169,6 @@ int fsync(int filedes) {
   }
 
   HANDLE h = (HANDLE)_get_osfhandle(filedes);
-  FlushFileBuffers(h);
-
-  return 0;
- }
+  
+  return FlushFileBuffers(h);
+}

@@ -191,6 +191,8 @@ int        gettimeofday(struct timeval *ptv, void *pTimeZone);
   #define PATH_MAX 256
 #endif
 
+#define TAOS_OS_FUNC_SIGNAL
+
 typedef struct {
   int    we_wordc;
   char **we_wordv;
