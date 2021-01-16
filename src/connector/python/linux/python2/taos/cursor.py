@@ -184,7 +184,7 @@ class TDengineCursor(object):
 
         return False
 
-    def fetchall(self):
+    def fetchall_row(self):
         """Fetch all (remaining) rows of a query result, returning them as a sequence of sequences (e.g. a list of tuples). Note that the cursor's arraysize attribute can affect the performance of this operation.
         """
         if self._result is None or self._fields is None:
@@ -203,7 +203,7 @@ class TDengineCursor(object):
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
         return list(map(tuple, zip(*buffer)))
-    def fetchall_block(self):
+    def fetchall(self):
         if self._result is None or self._fields is None:
             raise OperationalError("Invalid use of fetchall")
 
