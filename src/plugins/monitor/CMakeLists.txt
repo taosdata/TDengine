@@ -8,10 +8,20 @@ AUX_SOURCE_DIRECTORY(./src SRC)
 
 IF (TD_LINUX)
   ADD_LIBRARY(monitor ${SRC})
-  
+
   IF (TD_SOMODE_STATIC)
     TARGET_LINK_LIBRARIES(monitor taos_static)
   ELSE ()
     TARGET_LINK_LIBRARIES(monitor taos)
   ENDIF ()
-ENDIF ()  
+ENDIF ()
+
+IF (TD_DARWIN)
+  ADD_LIBRARY(monitor ${SRC})
+
+  IF (TD_SOMODE_STATIC)
+    TARGET_LINK_LIBRARIES(monitor taos_static)
+  ELSE ()
+    TARGET_LINK_LIBRARIES(monitor taos)
+  ENDIF ()
+ENDIF ()

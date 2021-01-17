@@ -103,9 +103,9 @@ struct eok_event_s {
 typedef struct eoks_s                      eoks_t;
 struct eoks_s {
   pthread_mutex_t      lock;
-  ep_over_kq_t        *eoks;
-  int                  neoks;
-  ep_over_kq_t        *eoks_free;
+  ep_over_kq_t       **eoks;       // note: this memory leaks when process terminates
+  int                  neoks;      //       we can add an extra api to let user clean
+  ep_over_kq_t        *eoks_free;  //       currently, we just keep it simple stupid
 };
 
 static eoks_t          eoks = {
@@ -297,7 +297,7 @@ int epoll_create(int size) {
   struct epoll_event ev = {0};
   ev.events = EPOLLIN;
   ev.data.ptr = &eok_dummy;
-  D("epoll_create epfd:[%d]", eok->idx);
+  D("epoll_create epfd:[%d] and sv0[%d]", eok->idx, eok->sv[0]);
   if (epoll_ctl(eok->idx, EPOLL_CTL_ADD, eok->sv[0], &ev)) {
     e = errno;
     epoll_close(eok->idx);
@@ -517,8 +517,8 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
       eok_event_t *ev = (eok_event_t*)kev->udata;
       A(kev->ident == ev->fd, "internal logic error");
       if (kev->flags & EV_ERROR) {
-        D("error when processing change list for fd[%d], error[%s], kev_flags:[%04x:%s]",
-           ev->fd, strerror(kev->data), kev->flags, kev_flags_str(kev->flags, 0));
+        D("epfd[%d] error when processing change list for fd[%d], error[%s], kev_flags:[%04x:%s]",
+           epfd, ev->fd, strerror(kev->data), kev->flags, kev_flags_str(kev->flags, 0));
       }
       switch (kev->filter) {
         case EVFILT_READ: {
@@ -528,11 +528,11 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
             char c = '\0';
             A(1==recv(kev->ident, &c, 1, 0), "internal logic error");
             A(0==memcmp(&c, "1", 1), "internal logic error");
-            D("wokenup");
+            D("epfd[%d] wokenup", epfd);
             continue;
           } else {
             if (ev->changed==3) {
-              D("already requested to delete for fd[%d]", ev->fd);
+              D("epfd[%d] already requested to delete for fd[%d]", epfd, ev->fd);
               // TODO: write a unit test for this case
               // EV_DELETE?
               continue;
@@ -550,7 +550,8 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
             }
             // rounded to what user care
             pev.events = pev.events & ev->epev.events;
-            D("events found for fd[%d]: [%04x:%s], which was registered: [%04x:%s], kev_flags: [%04x:%s]",
+            D("epfd[%d] events found for fd[%d]: [%04x:%s], which was registered: [%04x:%s], kev_flags: [%04x:%s]",
+               epfd,
                ev->fd, pev.events, events_str(pev.events, 0),
                ev->epev.events, events_str(ev->epev.events, 1),
                kev->flags, kev_flags_str(kev->flags, 2));
@@ -573,7 +574,7 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
       while (p) {
         eok_event_t *next = p->next;
         if (p->changed==3) {
-          D("removing registered event for fd[%d]: [%04x:%s]", p->fd, p->epev.events, events_str(p->epev.events, 0));
+          D("epfd[%d] removing registered event for fd[%d]: [%04x:%s]", epfd, p->fd, p->epev.events, events_str(p->epev.events, 0));
           eok_free_ev(eok, p);
         }
         p = next;
@@ -591,13 +592,13 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
     }
   } while (cnts==0);
   if (cnts>0) {
-    D("kevent64 waiting done with [%d] events", cnts);
+    D("kevent64 epfd[%d] waiting done with [%d] events", epfd, cnts);
   }
   A(0==pthread_mutex_unlock(&eok->lock), "");
 
   if (e) {
     errno = e;
-    E("epoll_wait failed");
+    E("epfd[%d] epoll_wait failed", epfd);
     return -1;
   }
 
@@ -752,7 +753,7 @@ static int eok_chgs_refresh(ep_over_kq_t *eok, eok_event_t *oev, eok_event_t *ev
     eok->kchanges[eok->ichanges++] = *kwev;
     ++n;
   }
-  D("add #changes[%d] for fd[%d], and now #changes/registers [%d/%d]", n, ev->fd, eok->ichanges, eok->evs_count);
+  D("epfd[%d]: add #changes[%d] for fd[%d], and now #changes/registers [%d/%d]", eok->idx, n, ev->fd, eok->ichanges, eok->evs_count);
   return 0;
 }
 
@@ -764,14 +765,21 @@ static ep_over_kq_t* eoks_alloc(void) {
     if (eoks.eoks_free) {
       eok = eoks.eoks_free;
       eoks.eoks_free = eok->next;
+      A(eoks.eoks, "internal logic error");
+      A(eok->idx>=0 && eok->idx<eoks.neoks, "internal logic error");
+      A(*(eoks.eoks + eok->idx)==NULL, "internal logic error");
+      *(eoks.eoks + eok->idx) = eok;
       eok->next = NULL;
+      eok->stopping = 0;
       break;
     }
-    ep_over_kq_t *p = (ep_over_kq_t*)realloc(eoks.eoks, sizeof(*p) * (eoks.neoks+1));
-    if (!p) break;
-    eoks.eoks = p;
-    eok = eoks.eoks + eoks.neoks;
-    memset(eok, 0, sizeof(*eok));
+    eok = (ep_over_kq_t*)calloc(1, sizeof(*eok));
+    if (!eok) break;
+    eok->idx = -1;
+    ep_over_kq_t **ar = (ep_over_kq_t**)realloc(eoks.eoks, sizeof(**ar) * (eoks.neoks+1));
+    if (!ar) break;
+    eoks.eoks = ar;
+    *(eoks.eoks + eoks.neoks) = eok;
     eok->idx = eoks.neoks;
     eok->kq  = -1;
     eok->sv[0] = -1;
@@ -781,6 +789,11 @@ static ep_over_kq_t* eoks_alloc(void) {
   A(0==pthread_mutex_unlock(&eoks.lock), "");
 
   if (!eok) {
+    errno = ENOMEM;
+    return NULL;
+  }
+  if (eok->idx==-1) {
+    free(eok);
     errno = ENOMEM;
     return NULL;
   }
@@ -801,23 +814,50 @@ static ep_over_kq_t* eoks_alloc(void) {
 static void eoks_free(ep_over_kq_t *eok) {
   A(0==pthread_mutex_lock(&eoks.lock), "");
   do {
+    A(eok->idx>=0 && eok->idx<eoks.neoks, "internal logic error");
     A(eok->next==NULL, "internal logic error");
 
     // leave eok->kchanges as is
     A(eok->ichanges==0, "internal logic error");
 
     A(eok->waiting==0, "internal logic error");
-    if (eok->evs_count==1) {
-      A(eok->evs_head && eok->evs_tail && eok->evs_head==eok->evs_tail, "internal logic error");
-      A(eok->evs_head->fd==eok->sv[0] && eok->sv[0]!=-1 && eok->sv[1]!=-1, "internal logic error");
-      // fd is critical system resource
-      close(eok->sv[0]);
-      eok->sv[0] = -1;
-      close(eok->sv[1]);
-      eok->sv[1] = -1;
-      eok_free_ev(eok, eok->evs_head);
+    eok_event_t *ev = eok->evs_head;
+    while (ev) {
+      eok_event_t *next = ev->next;
+      if (ev->fd==eok->sv[0]) {
+        // fd is critical system resource
+        close(eok->sv[0]);
+        eok->sv[0] = -1;
+        close(eok->sv[1]);
+        eok->sv[1] = -1;
+        eok_free_ev(eok, ev);
+      } else {
+        // user forget calling epoll_ctl(EPOLL_CTL_DEL) before calling epoll_close/close?
+        // calling close(ev->fd) here smells really bad
+#ifdef LET_IT_BE
+        // we just let it be and reclaim ev
+        eok_free_ev(eok, ev);
+#else
+        // panic otherwise, if LET_IT_BE not defined
+        A(eok->evs_head==NULL && eok->evs_tail==NULL && eok->evs_count==0,
+          "epfd[%d] fd[%d]: internal logic error: have you epoll_ctl(EPOLL_CTL_DEL) everything before calling epoll_close?",
+          eok->idx, ev->fd);
+#endif
+      }
+      ev = next;
     }
-    A(eok->evs_head==NULL && eok->evs_tail==NULL && eok->evs_count==0, "internal logic error");
+    // if (eok->evs_count==1) {
+    //   A(eok->evs_head && eok->evs_tail && eok->evs_head==eok->evs_tail, "internal logic error");
+    //   A(eok->evs_head->fd==eok->sv[0] && eok->sv[0]!=-1 && eok->sv[1]!=-1, "internal logic error");
+    //   // fd is critical system resource
+    //   close(eok->sv[0]);
+    //   eok->sv[0] = -1;
+    //   close(eok->sv[1]);
+    //   eok->sv[1] = -1;
+    //   eok_free_ev(eok, eok->evs_head);
+    // }
+    A(eok->evs_head==NULL && eok->evs_tail==NULL && eok->evs_count==0,
+      "internal logic error: have you epoll_ctl(EPOLL_CTL_DEL) everything before calling epoll_close?");
     A(eok->sv[0]==-1 && eok->sv[1]==-1, "internal logic error");
     if (eok->kq!=-1) {
       close(eok->kq);
@@ -825,6 +865,7 @@ static void eoks_free(ep_over_kq_t *eok) {
     }
     eok->next = eoks.eoks_free;
     eoks.eoks_free = eok;
+    *(eoks.eoks + eok->idx) = NULL;
   } while (0);
   A(0==pthread_mutex_unlock(&eoks.lock), "");
 }
@@ -837,7 +878,7 @@ static ep_over_kq_t* eoks_find(int epfd) {
       break;
     }
     A(eoks.eoks, "internal logic error");
-    eok = eoks.eoks + epfd;
+    eok = *(eoks.eoks + epfd);
     A(eok->next==NULL, "internal logic error");
     A(eok->lock_valid, "internal logic error");
   } while (0);

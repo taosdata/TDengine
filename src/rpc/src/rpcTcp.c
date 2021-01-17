@@ -308,7 +308,10 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
   pthread_attr_destroy(&thattr);
   if (code != 0) {
 #ifdef __APPLE__
-    epoll_close(pThreadObj->pollFd);
+    if (pThreadObj->pollFd!=-1) {
+      epoll_close(pThreadObj->pollFd);
+      pThreadObj->pollFd = -1;
+    }
 #else
     taosCloseSocket(pThreadObj->pollFd);
 #endif
@@ -517,7 +520,10 @@ static void *taosProcessTcpData(void *param) {
   }
 
 #ifdef __APPLE__
-  if (pThreadObj->pollFd >=0) epoll_close(pThreadObj->pollFd);
+  if (pThreadObj->pollFd >=0) {
+    epoll_close(pThreadObj->pollFd);
+    pThreadObj->pollFd = -1;
+  }
 #else
   if (pThreadObj->pollFd >=0) taosCloseSocket(pThreadObj->pollFd);
 #endif

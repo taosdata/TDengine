@@ -13,3 +13,9 @@ IF (TD_LINUX)
   ADD_LIBRARY(vnode ${SRC})
   TARGET_LINK_LIBRARIES(vnode tsdb tcq)
 ENDIF ()
+
+IF (TD_DARWIN)
+  ADD_LIBRARY(vnode ${SRC})
+  TARGET_LINK_LIBRARIES(vnode tsdb tcq)
+ENDIF ()
+

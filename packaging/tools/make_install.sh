@@ -24,7 +24,7 @@ data_dir="/var/lib/taos"
 if [ "$osType" != "Darwin" ]; then
     log_dir="/var/log/taos"
 else
-    log_dir="~/TDengineLog"
+    log_dir=~/TDengineLog
 fi
 
 data_link_dir="/usr/local/taos/data"
@@ -178,7 +178,9 @@ function install_bin() {
 function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*     || :
-    ${csudo} rm -f ${lib64_link_dir}/libtaos.*   || :
+    if [ "$osType" != "Darwin" ]; then
+      ${csudo} rm -f ${lib64_link_dir}/libtaos.*   || :
+    fi
     
     if [ "$osType" != "Darwin" ]; then
         ${csudo} cp ${binary_dir}/build/lib/libtaos.so.${verNumber} ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
@@ -190,12 +192,14 @@ function install_lib() {
           ${csudo} ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so
         fi
     else
-        ${csudo} cp ${binary_dir}/build/lib/libtaos.* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
-        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
+        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.1.dylib ${lib_link_dir}/libtaos.1.dylib
         ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
     
-    ${csudo} ldconfig
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} ldconfig
+    fi
 }
 
 function install_header() {
