@@ -535,6 +535,12 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
         return null;
     }
 
+    /**
+     * @Param catalog : database名称，"" 表示不属于任何database的table，null表示不使用database来缩小范围
+     * @Param schemaPattern : schema名称，""表示
+     * @Param tableNamePattern : 表名满足tableNamePattern的表, null表示返回所有表
+     * @Param types : 表类型，null表示返回所有类型
+     */
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
         if (conn == null || conn.isClosed()) {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
@@ -544,10 +550,18 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
             if (catalog == null || catalog.isEmpty())
                 return null;
 
-            stmt.executeUpdate("use " + catalog);
+            ResultSet databases = stmt.executeQuery("show databases");
+            while (databases.next()) {
+                String dbname = databases.getString("name");
+            }
+            databases.close();
+
+            stmt.execute("use " + catalog);
             ResultSet resultSet0 = stmt.executeQuery("show tables");
-            GetTablesResultSet getTablesResultSet = new GetTablesResultSet(resultSet0, catalog, schemaPattern, tableNamePattern, types);
-            return getTablesResultSet;
+
+            DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
+
+            return resultSet;
         }
     }
 
@@ -591,11 +605,8 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
         return resultSet;
     }
 
-    public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern)
-            throws SQLException {
-
-        /** add by zyyang **********/
-        Statement stmt = null;
+    public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
+        Statement stmt;
         if (null != conn && !conn.isClosed()) {
             stmt = conn.createStatement();
             if (catalog == null || catalog.isEmpty())
@@ -691,17 +702,10 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
             }
             resultSet.setRowDataList(rowDataList);
 
-//            GetColumnsResultSet getColumnsResultSet = new GetColumnsResultSet(resultSet0, catalog, schemaPattern, tableNamePattern, columnNamePattern);
-//            return getColumnsResultSet;
-//            DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
             return resultSet;
         } else {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         }
-
-        /*************************/
-
-//        return getEmptyResultSet();
     }
 
     private int getNullable(int index, String typeName) {

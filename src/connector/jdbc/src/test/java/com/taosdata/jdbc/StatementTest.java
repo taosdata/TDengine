@@ -10,7 +10,7 @@ import java.util.Properties;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class StatementTest extends BaseTest {
+public class StatementTest {
     static Connection connection = null;
     static Statement statement = null;
     static String dbName = "test";
@@ -26,15 +26,13 @@ public class StatementTest extends BaseTest {
             return;
         }
         Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
         properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
+        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/?user=root&password=taosdata", properties);
 
         statement = connection.createStatement();
         statement.executeUpdate("drop database if exists " + dbName);
-
     }
 
     @Test
@@ -54,9 +52,6 @@ public class StatementTest extends BaseTest {
 
     @Test
     public void testUnsupport() {
-//        if(null == resSet) {
-//            return;
-//        }
         TSDBStatement tsdbStatement = (TSDBStatement) statement;
         try {
             tsdbStatement.unwrap(null);
