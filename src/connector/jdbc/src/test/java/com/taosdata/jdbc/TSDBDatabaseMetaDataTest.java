@@ -4,10 +4,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.Properties;
 
 public class TSDBDatabaseMetaDataTest {
@@ -642,7 +639,16 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getTables() throws SQLException {
-        Assert.assertNull(metaData.getTables("", "", "*", null));
+        ResultSet tables = metaData.getTables("", "", null, null);
+        ResultSetMetaData metaData = tables.getMetaData();
+        while (tables.next()) {
+            System.out.print(metaData.getColumnLabel(3) + ":" + tables.getString(3) + "\t");
+            System.out.print(metaData.getColumnLabel(4) + ":" + tables.getString(4) + "\t");
+            System.out.print(metaData.getColumnLabel(5) + ":" + tables.getString(5) + "\t");
+        }
+        System.out.println();
+        Assert.assertNull(tables);
+
     }
 
     @Test
