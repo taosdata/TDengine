@@ -640,11 +640,14 @@ public class TSDBDatabaseMetaDataTest {
     @Test
     public void getTables() throws SQLException {
         ResultSet tables = metaData.getTables("", "", null, null);
-        ResultSetMetaData metaData = tables.getMetaData();
+//        ResultSetMetaData metaData = tables.getMetaData();
         while (tables.next()) {
-            System.out.print(metaData.getColumnLabel(3) + ":" + tables.getString(3) + "\t");
-            System.out.print(metaData.getColumnLabel(4) + ":" + tables.getString(4) + "\t");
-            System.out.print(metaData.getColumnLabel(5) + ":" + tables.getString(5) + "\t");
+//            System.out.print(metaData.getColumnLabel(3) + ":" + tables.getString(3) + "\t");
+//            System.out.print(metaData.getColumnLabel(4) + ":" + tables.getString(4) + "\t");
+//            System.out.print(metaData.getColumnLabel(5) + ":" + tables.getString(5) + "\t");
+            System.out.println("name:" + tables.getString(3));
+            System.out.println("type:" + tables.getString(4));
+            System.out.println("remark:" + tables.getString(5));
         }
         System.out.println();
         Assert.assertNull(tables);
