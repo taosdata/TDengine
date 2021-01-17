@@ -59,6 +59,8 @@ typedef struct {
   SOCKET      fd;
   uint32_t    ip;
   uint16_t    port;
+  int8_t      stop;
+  int8_t      reserve;
   char        label[TSDB_LABEL_LEN];
   int         numOfThreads;
   void *      shandle;
@@ -188,8 +190,15 @@ void taosStopTcpServer(void *handle) {
   SServerObj *pServerObj = handle;
 
   if (pServerObj == NULL) return;
-  if(pServerObj->fd >=0) shutdown(pServerObj->fd, SHUT_RD);
+  pServerObj->stop = 1;
 
+  if (pServerObj->fd >= 0) {
+#ifdef WINDOWS
+    closesocket(pServerObj->fd);
+#else
+    shutdown(pServerObj->fd, SHUT_RD);
+#endif
+  }
   if (taosCheckPthreadValid(pServerObj->thread)) {
     if (taosComparePthread(pServerObj->thread, pthread_self())) {
       pthread_detach(pthread_self());
@@ -230,6 +239,11 @@ static void *taosAcceptTcpConnection(void *arg) {
   while (1) {
     socklen_t addrlen = sizeof(caddr);
     connFd = accept(pServerObj->fd, (struct sockaddr *)&caddr, &addrlen);
+    if (pServerObj->stop) {
+      tDebug("%s TCP server stop accepting new connections", pServerObj->label);
+      break;
+    }
+
     if (connFd == -1) {
       if (errno == EINVAL) {
         tDebug("%s TCP server stop accepting new connections, exiting", pServerObj->label);

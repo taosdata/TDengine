@@ -177,6 +177,8 @@ typedef struct HttpServer {
   char              label[HTTP_LABEL_SIZE];
   uint32_t          serverIp;
   uint16_t          serverPort;
+  int8_t            stop;
+  int8_t            reserve;
   SOCKET            fd;
   int32_t           numOfThreads;
   int32_t           methodScannerLen;

@@ -89,7 +89,12 @@ int32_t httpStartSystem() {
 
 void httpStopSystem() {
   tsHttpServer.status = HTTP_SERVER_CLOSING;
+  tsHttpServer.stop = 1;
+#ifdef WINDOWS
+  closesocket(tsHttpServer.fd);
+#else
   shutdown(tsHttpServer.fd, SHUT_RD);
+#endif
   tgCleanupHandle();
 }
 

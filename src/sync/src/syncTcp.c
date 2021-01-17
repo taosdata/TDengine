@@ -46,6 +46,7 @@ typedef struct SPoolObj {
   pthread_t    thread;
   int32_t      nextId;
   SOCKET       acceptFd;  // FD for accept new connection
+  int8_t       stop;
 } SPoolObj;
 
 typedef struct {
@@ -106,7 +107,14 @@ void syncCloseTcpThreadPool(void *param) {
   SPoolObj *  pPool = param;
   SThreadObj *pThread;
 
+  pPool->stop = 1;
+
+#ifdef WINDOWS
+  closesocket(pPool->acceptFd);
+#else
   shutdown(pPool->acceptFd, SHUT_RD);
+#endif
+
   pthread_join(pPool->thread, NULL);
 
   for (int32_t i = 0; i < pPool->info.numOfThreads; ++i) {
@@ -257,6 +265,11 @@ static void *syncAcceptPeerTcpConnection(void *argv) {
     struct sockaddr_in clientAddr;
     socklen_t addrlen = sizeof(clientAddr);
     SOCKET connFd = accept(pPool->acceptFd, (struct sockaddr *)&clientAddr, &addrlen);
+    if (pPool->stop) {
+      sDebug("%p TCP server accept is stopped", pPool);
+      break;
+    }
+
     if (connFd < 0) {
       if (errno == EINVAL) {
         sDebug("%p TCP server accept is exiting...", pPool);

@@ -171,6 +171,11 @@ static void *httpAcceptHttpConnection(void *arg) {
   while (1) {
     socklen_t addrlen = sizeof(clientAddr);
     connFd = (int32_t)accept(pServer->fd, (struct sockaddr *)&clientAddr, &addrlen);
+    if (pServer->stop) {
+      httpDebug("http server:%s socket stop, exiting...", pServer->label);
+      break;
+    }
+
     if (connFd == -1) {
       if (errno == EINVAL) {
         httpDebug("http server:%s socket was shutdown, exiting...", pServer->label);
