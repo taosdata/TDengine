@@ -25,8 +25,6 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#define ENABLE_LOG
-
 #ifdef ENABLE_LOG
 #define D(fmt, ...) fprintf(stderr, "%s[%d]%s(): " fmt "\n", basename(__FILE__), __LINE__, __func__, ##__VA_ARGS__)
 #define E(fmt, ...) do {                                                \
