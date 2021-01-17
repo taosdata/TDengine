@@ -1298,6 +1298,9 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     did.level = TSDB_FSET_LEVEL(pSet);
     did.id = TSDB_FSET_ID(pSet);
 
+    pCommith->wSet.fid = fid;
+    pCommith->wSet.state = 0;
+
     // TSDB_FILE_HEAD
     SDFile *pWHeadf = TSDB_COMMIT_HEAD_FILE(pCommith);
     tsdbInitDFile(pWHeadf, did, REPO_ID(pRepo), fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_HEAD);
@@ -1311,7 +1314,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     // TSDB_FILE_DATA
     SDFile *pRDataf = TSDB_READ_DATA_FILE(&(pCommith->readh));
     SDFile *pWDataf = TSDB_COMMIT_DATA_FILE(pCommith);
-    tsdbInitDFileEx(pWHeadf, pRDataf);
+    tsdbInitDFileEx(pWDataf, pRDataf);
     if (tsdbOpenDFile(pWDataf, O_WRONLY) < 0) {
       tsdbCloseDFile(pWHeadf);
       tsdbRemoveDFile(pWHeadf);
