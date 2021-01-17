@@ -25,6 +25,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+#define ENABLE_LOG
+
 #ifdef ENABLE_LOG
 #define D(fmt, ...) fprintf(stderr, "%s[%d]%s(): " fmt "\n", basename(__FILE__), __LINE__, __func__, ##__VA_ARGS__)
 #define E(fmt, ...) do {                                                \
@@ -582,9 +584,11 @@ int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout)
     if (cnts==0) {
       // if no user-cared-events is up
       // we check to see if time is up
-      A(TIME_UTC==timespec_get(&now, TIME_UTC), "internal logic error");
-      to = do_timespec_diff(&now, &abstime);
-      if (to.tv_sec==0 && to.tv_nsec==0) break;
+      if (timeout!=-1) {
+        A(TIME_UTC==timespec_get(&now, TIME_UTC), "internal logic error");
+        to = do_timespec_diff(&now, &abstime);
+        if (to.tv_sec==0 && to.tv_nsec==0) break;
+      }
       // time is not up yet, continue loop
     }
   } while (cnts==0);
