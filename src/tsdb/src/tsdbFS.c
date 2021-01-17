@@ -334,7 +334,7 @@ static int tsdbApplyFSTxn(STsdbFS *pfs, int vid) {
     ASSERT(taosArrayGetSize(pfs->nstatus->df) == 0);
     fsheader.len = 0;
   } else {
-    fsheader.len = tsdbEncodeFSHeader(NULL, &fsheader) + sizeof(TSCKSUM);
+    fsheader.len = tsdbEncodeFSStatus(NULL, pfs->nstatus) + sizeof(TSCKSUM);
   }
 
   // Encode header part and write
@@ -598,14 +598,14 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
     goto _err;
   }
 
+  SFSStatus *pStatus = pfs->cstatus;
   ptr = buffer;
   ptr = tsdbDecodeFSHeader(ptr, &fsheader);
+  ptr = tsdbDecodeFSMeta(ptr, &(pStatus->meta));
 
   if (fsheader.version != TSDB_FS_VERSION) {
     // TODO: handle file version change
   }
-
-  SFSStatus *pStatus = pfs->cstatus;
 
   if (fsheader.len > 0) {
     if (tsdbMakeRoom(&buffer, fsheader.len) < 0) {
@@ -632,7 +632,6 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
     }
 
     ptr = buffer;
-    ptr = tsdbDecodeFSMeta(ptr, &(pStatus->meta));
     ptr = tsdbDecodeFSStatus(ptr, pStatus);
   } else {
     tsdbResetFSStatus(pStatus);
