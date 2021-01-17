@@ -1,4 +1,4 @@
-#include "taosdef.h"
+#include "ttype.h"
 #include "tcompare.h"
 #include "tarray.h"
 

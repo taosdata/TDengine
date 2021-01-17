@@ -253,7 +253,7 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
     }
   }
   if (tsdbTableSetSchema(pCfg, tdGetSchemaFromBuilder(&schemaBuilder), false) < 0) goto _err;
-  if (tsdbTableSetName(pCfg, pMsg->tableId, true) < 0) goto _err;
+  if (tsdbTableSetName(pCfg, pMsg->tableFname, true) < 0) goto _err;
 
   if (numOfTags > 0) {
     // Decode tag schema
@@ -265,7 +265,7 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
       }
     }
     if (tsdbTableSetTagSchema(pCfg, tdGetSchemaFromBuilder(&schemaBuilder), false) < 0) goto _err;
-    if (tsdbTableSetSName(pCfg, pMsg->superTableId, true) < 0) goto _err;
+    if (tsdbTableSetSName(pCfg, pMsg->stableFname, true) < 0) goto _err;
     if (tsdbTableSetSuperUid(pCfg, htobe64(pMsg->superTableUid)) < 0) goto _err;
 
     int32_t tagDataLen = htonl(pMsg->tagDataLen);

@@ -121,6 +121,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     **Tips**: 以上所有参数修改后都可以用show databases来确认是否修改成功。
 
 - **显示系统所有数据库**
+
     ```mysql
     SHOW DATABASES;
     ```
