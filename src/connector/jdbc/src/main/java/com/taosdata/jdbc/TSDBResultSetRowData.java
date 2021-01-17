@@ -28,7 +28,7 @@ public class TSDBResultSetRowData {
 	}
 	
 	public TSDBResultSetRowData() {
-		this.data = new ArrayList<Object>();
+		this.data = new ArrayList<>();
 		this.setColSize(0);
 	}
 
@@ -39,7 +39,7 @@ public class TSDBResultSetRowData {
 		if (this.colSize == 0) {
 			return;
 		}
-		this.data = new ArrayList<Object>(colSize);
+		this.data = new ArrayList<>(colSize);
 		this.data.addAll(Collections.nCopies(this.colSize, null));
 	}
 
