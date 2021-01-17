@@ -2197,7 +2197,7 @@ void tscDoQuery(SSqlObj* pSql) {
   }
 
   if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
-    tscProcessMultiVnodesImportFromFile(pSql);
+    tscImportDataFromFile(pSql);
   } else {
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
     uint16_t type = pQueryInfo->type;
