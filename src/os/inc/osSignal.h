@@ -44,6 +44,10 @@ extern "C" {
   #define SIGUSR2 1234
 #endif
 
+#ifndef SIGBREAK
+  #define SIGBREAK 1234
+#endif
+
 typedef void (*FSignalHandler)(int32_t signum);
 void taosSetSignal(int32_t signum, FSignalHandler sigfp);
 void taosIgnSignal(int32_t signum);

@@ -120,6 +120,7 @@ int32_t main(int32_t argc, char *argv[]) {
   taosSetSignal(SIGHUP, sigintHandler);
   taosSetSignal(SIGINT, sigintHandler);
   taosSetSignal(SIGABRT, sigintHandler);
+  taosSetSignal(SIGBREAK, sigintHandler);
 
   // Open /var/log/syslog file to record information.
   openlog("TDengine:", LOG_PID | LOG_CONS | LOG_NDELAY, LOG_LOCAL1);
@@ -152,12 +153,6 @@ static void siguser1Handler(int32_t signum) { taosCfgDynamicOptions("debugFlag 1
 static void siguser2Handler(int32_t signum) { taosCfgDynamicOptions("resetlog"); }
 
 static void sigintHandler(int32_t signum) {
-  // clean the system.
-  dInfo("shut down signal is %d", signum);
-
-  syslog(LOG_INFO, "Shut down signal is %d", signum);
-  syslog(LOG_INFO, "Shutting down TDengine service...");
-
   // protect the application from receive another signal
   taosIgnSignal(SIGUSR1);
   taosIgnSignal(SIGUSR2);
@@ -165,6 +160,13 @@ static void sigintHandler(int32_t signum) {
   taosIgnSignal(SIGHUP);
   taosIgnSignal(SIGINT);
   taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGBREAK);
+
+  // clean the system.
+  dInfo("shut down signal is %d", signum);
+
+  syslog(LOG_INFO, "Shut down signal is %d", signum);
+  syslog(LOG_INFO, "Shutting down TDengine service...");
 
   // inform main thread to exit
   tsem_post(&exitSem);
