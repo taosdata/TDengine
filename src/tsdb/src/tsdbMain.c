@@ -540,65 +540,80 @@ static void tsdbStopStream(STsdbRepo *pRepo) {
 }
 
 static int tsdbRestoreInfo(STsdbRepo *pRepo) {
-  // TODO: add restore meta
-  return 0;
-#if 0
-  STsdbMeta * pMeta = pRepo->tsdbMeta;
-  STsdbFileH *pFileH = pRepo->tsdbFileH;
-  SFileGroup *pFGroup = NULL;
-  STsdbCfg *  pCfg = &(pRepo->config);
-  SBlock *    pBlock = NULL;
+  SFSIter    fsiter;
+  SReadH     readh;
+  SDFileSet *pSet;
+  STsdbMeta *pMeta = pRepo->tsdbMeta;
+  STsdbCfg * pCfg = REPO_CFG(pRepo);
+  SBlock *   pBlock;
 
-  SFileGroupIter iter;
-  SRWHelper      rhelper = {0};
+  if (tsdbInitReadH(&readh, pRepo) < 0) {
+    return -1;
+  }
 
-  if (tsdbInitReadHelper(&rhelper, pRepo) < 0) goto _err;
+  tsdbFSIterInit(&fsiter, REPO_FS(pRepo), TSDB_FS_ITER_BACKWARD);
 
-  tsdbInitFileGroupIter(pFileH, &iter, TSDB_ORDER_DESC);
-  while ((pFGroup = tsdbGetFileGroupNext(&iter)) != NULL) {
-    if (pFGroup->state) continue;
-    if (tsdbSetAndOpenHelperFile(&rhelper, pFGroup) < 0) goto _err;
-    if (tsdbLoadCompIdx(&rhelper, NULL) < 0) goto _err;
+  while ((pSet = tsdbFSIterNext(&fsiter)) != NULL) {
+    if (tsdbSetAndOpenReadFSet(&readh, pSet) < 0) {
+      tsdbDestroyReadH(&readh);
+      return -1;
+    }
+
+    if (tsdbLoadBlockIdx(&readh) < 0) {
+      tsdbDestroyReadH(&readh);
+      return -1;
+    }
+
     for (int i = 1; i < pMeta->maxTables; i++) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
-      if (tsdbSetHelperTable(&rhelper, pTable, pRepo) < 0) goto _err;
-      SBlockIdx *pIdx = &(rhelper.curCompIdx);
 
-      TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable);
-      if (pIdx->offset > 0 && lastKey < pIdx->maxKey) {
+      if (tsdbSetReadTable(&readh, pTable) < 0) {
+        tsdbDestroyReadH(&readh);
+        return -1;
+      }
+
+      TSKEY      lastKey = tsdbGetTableLastKeyImpl(pTable);
+      SBlockIdx *pIdx = readh.pBlkIdx;
+      if (pIdx && lastKey < pIdx->maxKey) {
         pTable->lastKey = pIdx->maxKey;
-        if (pCfg->cacheLastRow) { // load the block of data
-          if (tsdbLoadCompInfo(&rhelper, NULL) < 0) goto _err;
 
-          pBlock = rhelper.pCompInfo->blocks + pIdx->numOfBlocks - 1;
-          if (tsdbLoadBlockData(&rhelper, pBlock, NULL) < 0) goto _err;
+        if (pCfg->cacheLastRow) {
+          if (tsdbLoadBlockInfo(&readh, NULL) < 0) {
+            tsdbDestroyReadH(&readh);
+            return -1;
+          }
 
-          // construct the data row
+          pBlock = readh.pBlkInfo->blocks + pIdx->numOfBlocks - 1;
+
+          if (tsdbLoadBlockData(&readh, pBlock, NULL) < 0) {
+            tsdbDestroyReadH(&readh);
+            return -1;
+          }
+
+          // Get the data in row
           ASSERT(pTable->lastRow == NULL);
           STSchema *pSchema = tsdbGetTableSchema(pTable);
           pTable->lastRow = taosTMalloc(schemaTLen(pSchema));
           if (pTable->lastRow == NULL) {
-            goto _err;
+            terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+            tsdbDestroyReadH(&readh);
+            return -1;
           }
 
           tdInitDataRow(pTable->lastRow, pSchema);
           for (int icol = 0; icol < schemaNCols(pSchema); icol++) {
             STColumn *pCol = schemaColAt(pSchema, icol);
-            SDataCol *pDataCol = rhelper.pDataCols[0]->cols + icol;
+            SDataCol *pDataCol = readh.pDCols[0]->cols + icol;
             tdAppendColVal(pTable->lastRow, tdGetColDataOfRow(pDataCol, pBlock->numOfRows - 1), pCol->type, pCol->bytes,
                            pCol->offset);
           }
         }
       }
+      
     }
   }
 
-  tsdbDestroyHelper(&rhelper);
+  tsdbDestroyReadH(&readh);
   return 0;
-
-_err:
-  tsdbDestroyHelper(&rhelper);
-  return -1;
-#endif
 }
