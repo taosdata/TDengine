@@ -642,9 +642,13 @@ public class TSDBDatabaseMetaDataTest {
         ResultSet tables = metaData.getTables("log", "", null, null);
         ResultSetMetaData metaData = tables.getMetaData();
         while (tables.next()) {
-            System.out.print(metaData.getColumnLabel(3) + ":" + tables.getString(3) + "\t");
-            System.out.print(metaData.getColumnLabel(4) + ":" + tables.getString(4) + "\t");
-            System.out.print(metaData.getColumnLabel(5) + ":" + tables.getString(5) + "\n");
+//            System.out.print(metaData.getColumnLabel(3) + ":" + tables.getString(3) + "\t");
+//            System.out.print(metaData.getColumnLabel(4) + ":" + tables.getString(4) + "\t");
+//            System.out.print(metaData.getColumnLabel(5) + ":" + tables.getString(5) + "\n");
+            for (int i = 1; i <= metaData.getColumnCount(); i++) {
+                System.out.print(metaData.getColumnLabel(i) + ": " + tables.getString(i) + "\t");
+            }
+            System.out.println();
         }
         System.out.println();
         Assert.assertNotNull(tables);

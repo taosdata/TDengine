@@ -26,7 +26,7 @@ public class TSDBResultSetRowData {
 	public TSDBResultSetRowData(int colSize) {
 		this.setColSize(colSize);
 	}
-	
+
 	public TSDBResultSetRowData() {
 		this.data = new ArrayList<>();
 		this.setColSize(0);
@@ -53,7 +53,7 @@ public class TSDBResultSetRowData {
 
 	public boolean getBoolean(int col, int srcType) throws SQLException {
 		Object obj = data.get(col);
-		
+
 		switch(srcType) {
 		case TSDBConstants.TSDB_DATA_TYPE_BOOL:    return (Boolean) obj;
 		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:   return ((Float) obj) == 1.0? Boolean.TRUE:Boolean.FALSE;
@@ -64,10 +64,10 @@ public class TSDBResultSetRowData {
 		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
 		case TSDBConstants.TSDB_DATA_TYPE_BIGINT:  return ((Long) obj) == 1L?   Boolean.TRUE:Boolean.FALSE;
 		}
-		
+
 		return Boolean.TRUE;
 	}
-	
+
 	public void setByte(int col, byte value) {
 		data.set(col, value);
 	}
@@ -82,20 +82,20 @@ public class TSDBResultSetRowData {
 
 	public int getInt(int col, int srcType) throws SQLException {
 		Object obj = data.get(col);
-		
+
 		switch(srcType) {
-		case TSDBConstants.TSDB_DATA_TYPE_BOOL:    return Boolean.TRUE.equals(obj)? 1:0;
-		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:   return ((Float) obj).intValue();
-		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:  return ((Double)obj).intValue();
-		case TSDBConstants.TSDB_DATA_TYPE_TINYINT: return (Byte) obj;
-		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:return (Short) obj;
-		case TSDBConstants.TSDB_DATA_TYPE_INT:     return (Integer) obj;
-		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
-		case TSDBConstants.TSDB_DATA_TYPE_BIGINT:  return ((Long) obj).intValue();
-		case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-		case TSDBConstants.TSDB_DATA_TYPE_BINARY:  return Integer.parseInt((String) obj); 
+		    case TSDBConstants.TSDB_DATA_TYPE_BOOL:    return Boolean.TRUE.equals(obj)? 1:0;
+		    case TSDBConstants.TSDB_DATA_TYPE_FLOAT:   return ((Float) obj).intValue();
+		    case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:  return ((Double)obj).intValue();
+		    case TSDBConstants.TSDB_DATA_TYPE_TINYINT: return (Byte) obj;
+		    case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:return (Short) obj;
+		    case TSDBConstants.TSDB_DATA_TYPE_INT:     return (Integer) obj;
+		    case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+		    case TSDBConstants.TSDB_DATA_TYPE_BIGINT:  return ((Long) obj).intValue();
+		    case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+		    case TSDBConstants.TSDB_DATA_TYPE_BINARY:  return Integer.parseInt((String) obj);
 		}
-		
+
 		return 0;
 	}
 
@@ -105,7 +105,7 @@ public class TSDBResultSetRowData {
 
 	public long getLong(int col, int srcType) throws SQLException {
 		Object obj = data.get(col);
-		
+
 		switch(srcType) {
 		case TSDBConstants.TSDB_DATA_TYPE_BOOL:    return Boolean.TRUE.equals(obj)? 1:0;
 		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:   return ((Float) obj).longValue();
@@ -116,9 +116,9 @@ public class TSDBResultSetRowData {
 		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
 		case TSDBConstants.TSDB_DATA_TYPE_BIGINT:  return (Long) obj;
 		case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-		case TSDBConstants.TSDB_DATA_TYPE_BINARY:  return Long.parseLong((String) obj); 
+		case TSDBConstants.TSDB_DATA_TYPE_BINARY:  return Long.parseLong((String) obj);
 		}
-		
+
 		return 0;
 	}
 
@@ -128,7 +128,7 @@ public class TSDBResultSetRowData {
 
 	public float getFloat(int col, int srcType) throws SQLException {
 		Object obj = data.get(col);
-		
+
 		switch(srcType) {
 		case TSDBConstants.TSDB_DATA_TYPE_BOOL:     return Boolean.TRUE.equals(obj)? 1:0;
 		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:    return (Float) obj;
@@ -139,7 +139,7 @@ public class TSDBResultSetRowData {
 		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
 		case TSDBConstants.TSDB_DATA_TYPE_BIGINT:   return (Long) obj;
 		}
-		
+
 		return 0;
 	}
 
@@ -149,7 +149,7 @@ public class TSDBResultSetRowData {
 
 	public double getDouble(int col, int srcType) throws SQLException {
 		Object obj = data.get(col);
-		
+
 		switch(srcType) {
 		case TSDBConstants.TSDB_DATA_TYPE_BOOL:    return Boolean.TRUE.equals(obj)? 1:0;
 		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:   return (Float) obj;
@@ -160,7 +160,7 @@ public class TSDBResultSetRowData {
 		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
 		case TSDBConstants.TSDB_DATA_TYPE_BIGINT:  return (Long) obj;
 		}
-		
+
 		return 0;
 	}
 
@@ -180,7 +180,7 @@ public class TSDBResultSetRowData {
 	 * The original type may not be a string type, but will be converted to by calling this method
 	 * @param col column index
 	 * @return
-	 * @throws SQLException 
+	 * @throws SQLException
 	 */
 	public String getString(int col, int srcType) throws SQLException {
 		if (srcType == TSDBConstants.TSDB_DATA_TYPE_BINARY || srcType == TSDBConstants.TSDB_DATA_TYPE_NCHAR) {
