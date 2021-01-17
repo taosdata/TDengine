@@ -621,18 +621,18 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
             ResultSet tables = stmt.executeQuery("show tables");
             while (tables.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
-                rowData.setString(3, tables.getString("table_name"));
-                rowData.setString(4, "TABLE");
-                rowData.setString(5, "");
+                rowData.setString(2, tables.getString("table_name"));
+                rowData.setString(3, "TABLE");
+                rowData.setString(4, "");
                 rowDataList.add(rowData);
             }
 
             ResultSet stables = stmt.executeQuery("show stables");
             while (stables.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
-                rowData.setString(3, stables.getString("name"));
-                rowData.setString(4, "TABLE");
-                rowData.setString(5, "STABLE");
+                rowData.setString(2, stables.getString("name"));
+                rowData.setString(3, "TABLE");
+                rowData.setString(4, "STABLE");
                 rowDataList.add(rowData);
             }
             resultSet.setRowDataList(rowDataList);
