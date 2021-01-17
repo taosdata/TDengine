@@ -260,7 +260,7 @@ bool httpInitConnect() {
       return false;
     }
 
-    pThread->pollFd = (SOCKET)epoll_create(HTTP_MAX_EVENTS);  // size does not matter
+    pThread->pollFd = (int32_t)epoll_create(HTTP_MAX_EVENTS);  // size does not matter
     if (pThread->pollFd < 0) {
       httpError("http thread:%s, failed to create HTTP epoll", pThread->label);
       pthread_mutex_destroy(&(pThread->threadMutex));

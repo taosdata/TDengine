@@ -35,7 +35,7 @@
 typedef struct SThreadObj {
   pthread_t thread;
   bool      stop;
-  SOCKET    pollFd;
+  int32_t   pollFd;
   int32_t   numOfFds;
   struct SPoolObj *pPool;
 } SThreadObj;
@@ -45,14 +45,14 @@ typedef struct SPoolObj {
   SThreadObj **pThread;
   pthread_t    thread;
   int32_t      nextId;
-  SOCKET       acceptFd;  // FD for accept new connection
+  int32_t      acceptFd;  // FD for accept new connection
   int8_t       stop;
 } SPoolObj;
 
 typedef struct {
   SThreadObj *pThread;
   int64_t     handleId;
-  SOCKET      fd;
+  int32_t     fd;
   int32_t     closedByApp;
 } SConnObj;
 
@@ -128,7 +128,7 @@ void syncCloseTcpThreadPool(void *param) {
   tfree(pPool);
 }
 
-void *syncAllocateTcpConn(void *param, int64_t rid, SOCKET connFd) {
+void *syncAllocateTcpConn(void *param, int64_t rid, int32_t connFd) {
   struct epoll_event event;
   SPoolObj *pPool = param;
 
@@ -264,13 +264,13 @@ static void *syncAcceptPeerTcpConnection(void *argv) {
   while (1) {
     struct sockaddr_in clientAddr;
     socklen_t addrlen = sizeof(clientAddr);
-    SOCKET connFd = accept(pPool->acceptFd, (struct sockaddr *)&clientAddr, &addrlen);
+    int32_t connFd = (int32_t)accept(pPool->acceptFd, (struct sockaddr *)&clientAddr, &addrlen);
     if (pPool->stop) {
       sDebug("%p TCP server accept is stopped", pPool);
       break;
     }
 
-    if (connFd < 0) {
+    if ((int32_t)connFd < 0) {
       if (errno == EINVAL) {
         sDebug("%p TCP server accept is exiting...", pPool);
         break;
@@ -298,7 +298,7 @@ static SThreadObj *syncGetTcpThread(SPoolObj *pPool) {
   if (pThread == NULL) return NULL;
 
   pThread->pPool = pPool;
-  pThread->pollFd = (SOCKET)epoll_create(10);  // size does not matter
+  pThread->pollFd = (int32_t)epoll_create(10);  // size does not matter
   if (pThread->pollFd < 0) {
     tfree(pThread);
     return NULL;

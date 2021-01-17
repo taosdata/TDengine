@@ -31,7 +31,7 @@
 
 typedef struct {
   int             index;
-  SOCKET          fd;
+  int32_t         fd;
   uint16_t        port;       // peer port
   uint16_t        localPort;  // local port
   char            label[TSDB_LABEL_LEN];  // copy from udpConnSet;

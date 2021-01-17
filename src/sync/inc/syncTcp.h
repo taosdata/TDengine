@@ -27,12 +27,12 @@ typedef struct {
   int32_t   bufferSize;
   void    (*processBrokenLink)(int64_t handleId);
   int32_t (*processIncomingMsg)(int64_t handleId, void *buffer);
-  void    (*processIncomingConn)(SOCKET fd, uint32_t ip);
+  void    (*processIncomingConn)(int32_t fd, uint32_t ip);
 } SPoolInfo;
 
 void *syncOpenTcpThreadPool(SPoolInfo *pInfo);
 void  syncCloseTcpThreadPool(void *);
-void *syncAllocateTcpConn(void *, int64_t rid, SOCKET connFd);
+void *syncAllocateTcpConn(void *, int64_t rid, int32_t connFd);
 void  syncFreeTcpConn(void *);
 
 #ifdef __cplusplus

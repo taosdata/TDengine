@@ -45,7 +45,7 @@ static void    syncCheckPeerConnection(void *param, void *tmrId);
 static int32_t syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type, uint16_t tranId);
 static void    syncProcessBrokenLink(int64_t rid);
 static int32_t syncProcessPeerMsg(int64_t rid, void *buffer);
-static void    syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
+static void    syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
 static void    syncRemovePeer(SSyncPeer *pPeer);
 static void    syncAddArbitrator(SSyncNode *pNode);
 static void    syncFreeNode(void *);
@@ -1114,8 +1114,8 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     return;
   }
 
-  SOCKET connFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
-  if (connFd < 0) {
+  int32_t connFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
+  if ((int32_t)connFd < 0) {
     sDebug("%s, failed to open tcp socket since %s", pPeer->id, strerror(errno));
     taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
     return;
@@ -1179,7 +1179,7 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer) {
   }
 }
 
-static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
+static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
   char    ipstr[24];
   int32_t i;
 

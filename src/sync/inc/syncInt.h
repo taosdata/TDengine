@@ -82,8 +82,8 @@ typedef struct SsyncPeer {
   uint64_t sversion;        // track the peer version in retrieve process
   uint64_t lastFileVer;     // track the file version while retrieve
   uint64_t lastWalVer;      // track the wal version while retrieve
-  SOCKET   syncFd;
-  SOCKET   peerFd;          // forward FD
+  int32_t  syncFd;
+  int32_t  peerFd;          // forward FD
   int32_t  numOfRetrieves;  // number of retrieves tried
   int32_t  fileChanged;     // a flag to indicate file is changed during retrieving process
   int32_t  refCount;

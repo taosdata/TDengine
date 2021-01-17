@@ -19,7 +19,7 @@
 
 #ifndef TAOS_OS_FUNC_SOCKET
 
-int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
+int32_t taosSetNonblocking(int32_t sock, int32_t on) {
   int32_t flags = 0;
   if ((flags = fcntl(sock, F_GETFL, 0)) < 0) {
     uError("fcntl(F_GETFL) error: %d (%s)\n", errno, strerror(errno));
@@ -67,7 +67,7 @@ void taosSetMaskSIGPIPE() {
 
 #ifndef TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 
-int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen) {
+int32_t taosSetSockOpt(int32_t socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen) {
   return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
 }
 

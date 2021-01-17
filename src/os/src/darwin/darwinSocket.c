@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int optlen) {
+int taosSetSockOpt(int32_t socketfd, int level, int optname, void *optval, int optlen) {
   if (level == SOL_SOCKET && optname == SO_SNDBUF) {
     return 0;
   }

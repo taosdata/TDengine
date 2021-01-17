@@ -166,7 +166,7 @@ typedef struct HttpThread {
   HttpContext *   pHead;
   pthread_mutex_t threadMutex;
   bool            stop;
-  SOCKET          pollFd;
+  int32_t         pollFd;
   int32_t         numOfContexts;
   int32_t         threadId;
   char            label[HTTP_LABEL_SIZE];
@@ -179,7 +179,7 @@ typedef struct HttpServer {
   uint16_t          serverPort;
   int8_t            stop;
   int8_t            reserve;
-  SOCKET            fd;
+  int32_t           fd;
   int32_t           numOfThreads;
   int32_t           methodScannerLen;
   int32_t           requestNum;

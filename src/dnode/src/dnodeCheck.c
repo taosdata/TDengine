@@ -30,10 +30,10 @@ static  SCheckItem  tsCheckItem[TSDB_CHECK_ITEM_MAX] = {{0}};
 int64_t tsMinFreeMemSizeForStart = 0;
 
 static int32_t bindTcpPort(int32_t port) {
-  SOCKET serverSocket;
+  int32_t serverSocket;
   struct sockaddr_in server_addr;
 
-  if ((serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+  if ((serverSocket = ( int32_t)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
     dError("socket() fail: %s", strerror(errno));
     return -1;
   }
@@ -60,10 +60,10 @@ static int32_t bindTcpPort(int32_t port) {
 }
 
 static int32_t bindUdpPort(int32_t port) {
-  SOCKET serverSocket;
+  int32_t serverSocket;
   struct sockaddr_in server_addr;
     
-  if ((serverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+  if ((serverSocket = (int32_t)socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
     dError("socket() fail: %s", strerror(errno));
     return -1;
   }
