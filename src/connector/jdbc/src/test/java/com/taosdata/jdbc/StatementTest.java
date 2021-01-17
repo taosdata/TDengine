@@ -175,11 +175,10 @@ public class StatementTest {
     @AfterClass
     public static void close() throws Exception {
         if (!statement.isClosed()) {
-            statement.executeUpdate("drop database " + dbName);
+            statement.executeUpdate("drop database if exists " + dbName);
             statement.close();
             connection.close();
             Thread.sleep(10);
-
         }
     }
 }
