@@ -409,6 +409,7 @@ void tsdbInitDFileSetEx(SDFileSet *pSet, SDFileSet *pOSet) {
 int tsdbEncodeDFileSet(void **buf, SDFileSet *pSet) {
   int tlen = 0;
 
+  tlen += taosEncodeFixedI32(buf, pSet->fid);
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     tlen += tsdbEncodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
@@ -417,6 +418,10 @@ int tsdbEncodeDFileSet(void **buf, SDFileSet *pSet) {
 }
 
 void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet) {
+  int32_t fid;
+
+  buf = taosDecodeFixedI32(buf, &(fid));
+  pSet->fid = fid;
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     buf = tsdbDecodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }

@@ -165,7 +165,7 @@ static int tsdbAddDFileSetToStatus(SFSStatus *pStatus, const SDFileSet *pSet) {
   ASSERT(TSDB_FILE_CLOSED(&(pSet->files[1])));
   ASSERT(TSDB_FILE_CLOSED(&(pSet->files[2])));
 
-  if (taosArrayPush(pStatus->df, (void *)pStatus) == NULL) {
+  if (taosArrayPush(pStatus->df, (void *)pSet) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
