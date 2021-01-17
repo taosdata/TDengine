@@ -18,8 +18,6 @@
 #define DEFAULT_TAG_INDEX_COLUMN 0
 
 static int     tsdbCompareSchemaVersion(const void *key1, const void *key2);
-static int     tsdbRestoreTable(void *pHandle, void *cont, int contLen);
-static void    tsdbOrgMeta(void *pHandle);
 static char *  getTagIndexKey(const void *pData);
 static STable *tsdbNewTable();
 static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper);
@@ -606,10 +604,8 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
   }
 }
 
-// ------------------ LOCAL FUNCTIONS ------------------
-static UNUSED_FUNC int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
-  STsdbRepo *pRepo = (STsdbRepo *)pHandle;
-  STable *   pTable = NULL;
+int tsdbRestoreTable(STsdbRepo *pRepo, void *cont, int contLen) {
+  STable *pTable = NULL;
 
   if (!taosCheckChecksumWhole((uint8_t *)cont, contLen)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
@@ -628,8 +624,7 @@ static UNUSED_FUNC int tsdbRestoreTable(void *pHandle, void *cont, int contLen) 
   return 0;
 }
 
-static UNUSED_FUNC void tsdbOrgMeta(void *pHandle) {
-  STsdbRepo *pRepo = (STsdbRepo *)pHandle;
+void tsdbOrgMeta(STsdbRepo *pRepo) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
   for (int i = 1; i < pMeta->maxTables; i++) {
@@ -640,6 +635,7 @@ static UNUSED_FUNC void tsdbOrgMeta(void *pHandle) {
   }
 }
 
+// ------------------ LOCAL FUNCTIONS ------------------
 static char *getTagIndexKey(const void *pData) {
   STable *pTable = (STable *)pData;
 

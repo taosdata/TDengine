@@ -60,6 +60,7 @@ void* tsdbDecodeSMFile(void* buf, SMFile* pMFile);
 int   tsdbApplyMFileChange(SMFile* from, SMFile* to);
 int   tsdbCreateMFile(SMFile* pMFile);
 int   tsdbUpdateMFileHeader(SMFile* pMFile);
+int   tsdbLoadMFileHeader(SMFile* pMFile, SMFInfo* pInfo);
 int   tsdbScanAndTryFixMFile(SMFile* pMFile);
 
 static FORCE_INLINE void tsdbSetMFileInfo(SMFile* pMFile, SMFInfo* pInfo) { pMFile->info = *pInfo; }

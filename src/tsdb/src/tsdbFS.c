@@ -26,6 +26,7 @@ static void tsdbApplyFSTxnOnDisk(SFSStatus *pFrom, SFSStatus *pTo);
 static void tsdbGetTxnFname(int repoid, TSDB_TXN_FILE_T ftype, char fname[]);
 static int  tsdbOpenFSFromCurrent(STsdbRepo *pRepo);
 static int  tsdbScanAndTryFixFS(STsdbRepo *pRepo);
+static int  tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta);
 
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
@@ -245,7 +246,12 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
     }
  } else {
     // TODO: current file not exists, try to recover it
+  }
 
+  // Load meta cache if has meta file
+  if (tsdbLoadMetaCache(pRepo, true) < 0) {
+    tsdbError("vgId:%d failed to open FS while loading meta cache since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
   }
 
   return 0;
@@ -680,5 +686,133 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
   // TODO: remove those unused files
   {}
 
+  return 0;
+}
+
+static int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
+  char      tbuf[128];
+  STsdbFS * pfs = REPO_FS(pRepo);
+  SMFile    mf;
+  SMFile *  pMFile = &mf;
+  void *    pBuf = NULL;
+  SKVRecord rInfo;
+  int64_t   maxBufSize = 0;
+  SMFInfo   minfo;
+
+  // No meta file, just return
+  if (pfs->cstatus->pmf == NULL) return 0;
+
+  mf = pfs->cstatus->mf;
+  // Load cache first
+  if (tsdbOpenMFile(pMFile, O_RDONLY) < 0) {
+    return -1;
+  }
+
+  if (tsdbLoadMFileHeader(pMFile, &minfo) < 0) {
+    tsdbCloseMFile(pMFile);
+    return -1;
+  }
+
+  while (true) {
+    int64_t tsize = tsdbReadMFile(pMFile, tbuf, sizeof(SKVRecord));
+    if (tsize == 0) break;
+    if (tsize < sizeof(SKVRecord)) {
+      tsdbError("vgId:%d failed to read %" PRIzu " bytes from file %s", REPO_ID(pRepo), sizeof(SKVRecord),
+                TSDB_FILE_FULL_NAME(pMFile));
+      terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+      tsdbCloseMFile(pMFile);
+      return -1;
+    }
+
+    void *ptr = tsdbDecodeKVRecord(tbuf, &rInfo);
+    ASSERT(POINTER_DISTANCE(ptr, tbuf) == sizeof(SKVRecord));
+    // ASSERT((rInfo.offset > 0) ? (pStore->info.size == rInfo.offset) : true);
+
+    if (rInfo.offset < 0) {
+      taosHashRemove(pfs->metaCache, (void *)(&rInfo.uid), sizeof(rInfo.uid));
+#if 0
+      pStore->info.size += sizeof(SKVRecord);
+      pStore->info.nRecords--;
+      pStore->info.nDels++;
+      pStore->info.tombSize += (rInfo.size + sizeof(SKVRecord) * 2);
+#endif
+    } else {
+      ASSERT(rInfo.offset > 0 && rInfo.size > 0);
+      if (taosHashPut(pfs->metaCache, (void *)(&rInfo.uid), sizeof(rInfo.uid), &rInfo, sizeof(rInfo)) < 0) {
+        tsdbError("vgId:%d failed to load meta cache from file %s since OOM", REPO_ID(pRepo),
+                  TSDB_FILE_FULL_NAME(pMFile));
+        terrno = TSDB_CODE_COM_OUT_OF_MEMORY;
+        tsdbCloseMFile(pMFile);
+        return -1;
+      }
+
+      maxBufSize = MAX(maxBufSize, rInfo.size);
+
+      if (tsdbSeekMFile(pMFile, rInfo.size, SEEK_CUR) < 0) {
+        tsdbError("vgId:%d failed to lseek file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
+                  tstrerror(terrno));
+        tsdbCloseMFile(pMFile);
+        return -1;
+      }
+
+#if 0
+      pStore->info.size += (sizeof(SKVRecord) + rInfo.size);
+      pStore->info.nRecords++;
+#endif
+    }
+  }
+
+  if (recoverMeta) {
+    pBuf = malloc(maxBufSize);
+    if (pBuf == NULL) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      tsdbCloseMFile(pMFile);
+      return -1;
+    }
+
+    SKVRecord *pRecord = taosHashIterate(pfs->metaCache, NULL);
+    while (pRecord) {
+      if (tsdbSeekMFile(pMFile, pRecord->offset + sizeof(SKVRecord), SEEK_SET) < 0) {
+        tsdbError("vgId:%d failed to seek file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
+                  tstrerror(terrno));
+        tfree(pBuf);
+        tsdbCloseMFile(pMFile);
+        return -1;
+      }
+
+      int nread = tsdbReadMFile(pMFile, pBuf, pRecord->size);
+      if (nread < 0) {
+        tsdbError("vgId:%d failed to read file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
+                  tstrerror(terrno));
+        tfree(pBuf);
+        tsdbCloseMFile(pMFile);
+        return -1;
+      }
+
+      if (nread < pRecord->size) {
+        tsdbError("vgId:%d failed to read file %s since file corrupted, expected read:%" PRId64 " actual read:%d",
+                  REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile), pRecord->size, nread);
+        terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+        tfree(pBuf);
+        tsdbCloseMFile(pMFile);
+        return -1;
+      }
+
+      if (tsdbRestoreTable(pRepo, pBuf, pRecord->size) < 0) {
+        tsdbError("vgId:%d failed to restore table, uid %" PRId64 ", since %s" PRIu64, REPO_ID(pRepo), pRecord->uid,
+                  tstrerror(terrno));
+        tfree(pBuf);
+        tsdbCloseMFile(pMFile);
+        return -1;
+      }
+
+      pRecord = taosHashIterate(pfs->metaCache, pRecord);
+    }
+
+    tsdbOrgMeta(pRepo);
+  }
+
+  tsdbCloseMFile(pMFile);
+  tfree(pBuf);
   return 0;
 }

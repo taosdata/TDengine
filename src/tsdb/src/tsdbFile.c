@@ -128,6 +128,23 @@ int tsdbUpdateMFileHeader(SMFile *pMFile) {
   return 0;
 }
 
+int tsdbLoadMFileHeader(SMFile *pMFile, SMFInfo *pInfo) {
+  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+
+  ASSERT(TSDB_FILE_OPENED(pMFile));
+
+  if (tsdbSeekMFile(pMFile, 0, SEEK_SET) < 0) {
+    return -1;
+  }
+
+  if (tsdbReadMFile(pMFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
+    return -1;
+  }
+
+  tsdbDecodeMFInfo(buf, pInfo);
+  return 0;
+}
+
 int tsdbScanAndTryFixMFile(SMFile *pMFile) {
   struct stat mfstat;
   SMFile      mf = *pMFile;

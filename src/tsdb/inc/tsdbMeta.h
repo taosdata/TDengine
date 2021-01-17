@@ -80,6 +80,8 @@ int        tsdbUnlockRepoMeta(STsdbRepo* pRepo);
 void       tsdbRefTable(STable* pTable);
 void       tsdbUnRefTable(STable* pTable);
 void       tsdbUpdateTableSchema(STsdbRepo* pRepo, STable* pTable, STSchema* pSchema, bool insertAct);
+int        tsdbRestoreTable(STsdbRepo* pRepo, void* cont, int contLen);
+void       tsdbOrgMeta(STsdbRepo* pRepo);
 
 static FORCE_INLINE int tsdbCompareSchemaVersion(const void *key1, const void *key2) {
   if (*(int16_t *)key1 < schemaVersion(*(STSchema **)key2)) {
