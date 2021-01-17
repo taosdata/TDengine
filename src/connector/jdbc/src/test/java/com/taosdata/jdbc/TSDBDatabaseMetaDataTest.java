@@ -644,14 +644,10 @@ public class TSDBDatabaseMetaDataTest {
         while (tables.next()) {
             System.out.print(metaData.getColumnLabel(3) + ":" + tables.getString(3) + "\t");
             System.out.print(metaData.getColumnLabel(4) + ":" + tables.getString(4) + "\t");
-            System.out.print(metaData.getColumnLabel(5) + ":" + tables.getString(5) + "\t");
-//            System.out.println("name:" + tables.getString(3));
-//            System.out.println("type:" + tables.getString(4));
-//            System.out.println("remark:" + tables.getString(5));
+            System.out.print(metaData.getColumnLabel(5) + ":" + tables.getString(5) + "\n");
         }
         System.out.println();
-        Assert.assertNull(tables);
-
+        Assert.assertNotNull(tables);
     }
 
     @Test
