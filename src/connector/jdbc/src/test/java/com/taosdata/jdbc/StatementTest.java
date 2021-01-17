@@ -36,6 +36,23 @@ public class StatementTest {
     }
 
     @Test
+    public void testCase() {
+        try {
+            ResultSet rs = statement.executeQuery("show databases");
+            ResultSetMetaData metaData = rs.getMetaData();
+            while (rs.next()) {
+                for (int i = 1; i <= metaData.getColumnCount(); i++) {
+                    System.out.print(metaData.getColumnLabel(i) + ":" + rs.getString(i) + "\t");
+                }
+                System.out.println();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
+    }
+
+    @Test
     public void createTableAndQuery() throws SQLException {
         long ts = System.currentTimeMillis();
 
