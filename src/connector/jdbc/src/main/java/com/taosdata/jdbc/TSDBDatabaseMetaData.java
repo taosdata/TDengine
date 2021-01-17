@@ -630,7 +630,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
             ResultSet stables = stmt.executeQuery("show stables");
             while (stables.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
-                rowData.setString(3, tables.getString("name"));
+                rowData.setString(3, stables.getString("name"));
                 rowData.setString(4, "TABLE");
                 rowData.setString(5, "STABLE");
                 rowDataList.add(rowData);
