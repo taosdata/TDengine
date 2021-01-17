@@ -37,7 +37,7 @@ static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
   return tlen;
 }
 
-static UNUSED_FUNC void *tsdbDecodeFSHeader(void *buf, SFSHeader *pHeader) {
+static void *tsdbDecodeFSHeader(void *buf, SFSHeader *pHeader) {
   buf = taosDecodeFixedU32(buf, &(pHeader->version));
   buf = taosDecodeFixedU32(buf, &(pHeader->len));
 
@@ -55,7 +55,7 @@ static int tsdbEncodeFSMeta(void **buf, STsdbFSMeta *pMeta) {
   return tlen;
 }
 
-static UNUSED_FUNC void *tsdbDecodeFSMeta(void *buf, STsdbFSMeta *pMeta) {
+static void *tsdbDecodeFSMeta(void *buf, STsdbFSMeta *pMeta) {
   buf = taosDecodeFixedU32(buf, &(pMeta->version));
   buf = taosDecodeFixedI64(buf, &(pMeta->totalPoints));
   buf = taosDecodeFixedI64(buf, &(pMeta->totalStorage));
