@@ -5043,7 +5043,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       STsdbQueryCond cond = createTsdbQueryCond(pQuery, &pQuery->window);
 
       SArray *g1 = taosArrayInit(1, POINTER_BYTES);
-      SArray *tx = taosArrayClone(group);
+      SArray *tx = taosArrayDup(group);
       taosArrayPush(g1, &tx);
 
       STableGroupInfo gp = {.numOfTables = taosArrayGetSize(tx), .pGroupList = g1};
@@ -5103,7 +5103,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       STsdbQueryCond cond = createTsdbQueryCond(pQuery, &pQuery->window);
 
       SArray *g1 = taosArrayInit(1, POINTER_BYTES);
-      SArray *tx = taosArrayClone(group);
+      SArray *tx = taosArrayDup(group);
       taosArrayPush(g1, &tx);
 
       STableGroupInfo gp = {.numOfTables = taosArrayGetSize(tx), .pGroupList = g1};

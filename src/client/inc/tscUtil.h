@@ -225,7 +225,7 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo);
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 void tscFreeVgroupTableInfo(SArray* pVgroupTables);
-SArray* tscVgroupTableInfoClone(SArray* pVgroupTables);
+SArray* tscVgroupTableInfoDup(SArray* pVgroupTables);
 void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index);
 void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo);
 
@@ -292,7 +292,7 @@ uint32_t tscGetTableMetaSize(STableMeta* pTableMeta);
 CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
 uint32_t tscGetTableMetaMaxSize();
 int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name);
-STableMeta* tscTableMetaClone(STableMeta* pTableMeta);
+STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
 
 
 void* malloc_throw(size_t size);

@@ -420,7 +420,7 @@ void tscResetSqlCmdObj(SSqlCmd* pCmd) {
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
-  tscDestroyLocalReducer(pSql);
+  tscDestroyLocalMerger(pSql);
   
   SSqlRes* pRes = &pSql->res;
   tscDestroyResPointerInfo(pRes);
@@ -612,7 +612,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
       tfree(pTableMetaInfo->pTableMeta);
     }
 
-    pTableMetaInfo->pTableMeta = tscTableMetaClone(pDataBlock->pTableMeta);
+    pTableMetaInfo->pTableMeta = tscTableMetaDup(pDataBlock->pTableMeta);
   } else {
     assert(strncmp(pTableMetaInfo->name, pDataBlock->tableName, tListLen(pDataBlock->tableName)) == 0);
   }
@@ -680,7 +680,7 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
   tstrncpy(dataBuf->tableName, name, sizeof(dataBuf->tableName));
 
   //Here we keep the tableMeta to avoid it to be remove by other threads.
-  dataBuf->pTableMeta = tscTableMetaClone(pTableMeta);
+  dataBuf->pTableMeta = tscTableMetaDup(pTableMeta);
   assert(initialSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
 
   *dataBlocks = dataBuf;
@@ -1810,10 +1810,10 @@ void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo) {
     info->vgInfo.epAddr[j].fqdn = strdup(pInfo->vgInfo.epAddr[j].fqdn);
   }
 
-  info->itemList = taosArrayClone(pInfo->itemList);
+  info->itemList = taosArrayDup(pInfo->itemList);
 }
 
-SArray* tscVgroupTableInfoClone(SArray* pVgroupTables) {
+SArray* tscVgroupTableInfoDup(SArray* pVgroupTables) {
   if (pVgroupTables == NULL) {
     return NULL;
   }
@@ -1881,7 +1881,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, ST
     tscColumnListCopy(pTableMetaInfo->tagColList, pTagCols, -1);
   }
 
-  pTableMetaInfo->pVgroupTables = tscVgroupTableInfoClone(pVgroupTables);
+  pTableMetaInfo->pVgroupTables = tscVgroupTableInfoDup(pVgroupTables);
   
   pQueryInfo->numOfTables += 1;
   return pTableMetaInfo;
@@ -2064,7 +2064,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   
   pNewQueryInfo->groupbyExpr = pQueryInfo->groupbyExpr;
   if (pQueryInfo->groupbyExpr.columnInfo != NULL) {
-    pNewQueryInfo->groupbyExpr.columnInfo = taosArrayClone(pQueryInfo->groupbyExpr.columnInfo);
+    pNewQueryInfo->groupbyExpr.columnInfo = taosArrayDup(pQueryInfo->groupbyExpr.columnInfo);
     if (pNewQueryInfo->groupbyExpr.columnInfo == NULL) {
       terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto _error;
@@ -2119,7 +2119,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   STableMetaInfo* pFinalInfo = NULL;
 
   if (pPrevSql == NULL) {
-    STableMeta* pTableMeta = tscTableMetaClone(pTableMetaInfo->pTableMeta);
+    STableMeta* pTableMeta = tscTableMetaDup(pTableMetaInfo->pTableMeta);
     assert(pTableMeta != NULL);
 
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pTableMeta, pTableMetaInfo->vgroupList,
@@ -2127,7 +2127,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   } else {  // transfer the ownership of pTableMeta to the newly create sql object.
     STableMetaInfo* pPrevInfo = tscGetTableMetaInfoFromCmd(&pPrevSql->cmd, pPrevSql->cmd.clauseIndex, 0);
 
-    STableMeta*  pPrevTableMeta = tscTableMetaClone(pPrevInfo->pTableMeta);
+    STableMeta*  pPrevTableMeta = tscTableMetaDup(pPrevInfo->pTableMeta);
     SVgroupsInfo* pVgroupsInfo = pPrevInfo->vgroupList;
     pFinalInfo = tscAddTableMetaInfo(pNewQueryInfo, name, pPrevTableMeta, pVgroupsInfo, pTableMetaInfo->tagColList,
         pTableMetaInfo->pVgroupTables);
@@ -2297,7 +2297,6 @@ int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* s
   }
 
   return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-  
 }
 
 int32_t tscInvalidSQLErrMsg(char* msg, const char* additionalInfo, const char* sql) {
@@ -2695,7 +2694,7 @@ uint32_t tscGetTableMetaMaxSize() {
   return sizeof(STableMeta) + TSDB_MAX_COLUMNS * sizeof(SSchema);
 }
 
-STableMeta* tscTableMetaClone(STableMeta* pTableMeta) {
+STableMeta* tscTableMetaDup(STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
   uint32_t size = tscGetTableMetaSize(pTableMeta);
   STableMeta* p = calloc(1, size);

@@ -39,7 +39,7 @@ extern "C" {
 
 // forward declaration
 struct SSqlInfo;
-struct SLocalReducer;
+struct SLocalMerger;
 
 // data source from sql string or from file
 enum {
@@ -292,7 +292,7 @@ typedef struct {
   SColumnIndex*  pColumnIndex;
 
   SArithmeticSupport   *pArithSup;   // support the arithmetic expression calculation on agg functions
-  struct SLocalReducer *pLocalReducer;
+  struct SLocalMerger  *pLocalMerger;
 } SSqlRes;
 
 typedef struct STscObj {
