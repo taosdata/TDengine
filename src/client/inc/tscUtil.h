@@ -110,7 +110,7 @@ void*   tscDestroyBlockArrayList(SArray* pDataBlockList);
 void*   tscDestroyBlockHashTable(SHashObj* pBlockHashTable);
 
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
-int32_t tscMergeTableDataBlocks(SSqlObj* pSql);
+int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap);
 int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
                                 STableDataBlocks** dataBlocks, SArray* pBlockList);
 
@@ -256,11 +256,11 @@ void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src);
  * @param pPrevSql
  * @return
  */
-SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd);
+SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, int32_t cmd);
 
 void registerSqlObj(SSqlObj* pSql);
 
-SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, int32_t cmd, SSqlObj* pPrevSql);
+SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t fp, void* param, int32_t cmd, SSqlObj* pPrevSql);
 void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClauseIndex, int32_t tableIndex);
 
 void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex);
