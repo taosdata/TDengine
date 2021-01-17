@@ -128,6 +128,40 @@ int tsdbUpdateMFileHeader(SMFile *pMFile) {
   return 0;
 }
 
+int tsdbScanAndTryFixMFile(SMFile *pMFile) {
+  struct stat mfstat;
+  SMFile      mf = *pMFile;
+
+  if (stat(TSDB_FILE_FULL_NAME(&mf), &mfstat) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (pMFile->info.size > mfstat.st_size) {
+    if (tsdbOpenMFile(&mf, O_WRONLY) < 0) {
+      return -1;
+    }
+
+    if (taosFtruncate(mf.fd, mf.info.size) < 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      tsdbCloseMFile(&mf);
+      return -1;
+    }
+
+    if (tsdbUpdateMFileHeader(&mf) < 0) {
+      tsdbCloseMFile(&mf);
+      return -1;
+    }
+
+    tsdbCloseMFile(&mf);
+  } else if (pMFile->info.size < mfstat.st_size) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    return -1;
+  }
+
+  return 0;
+}
+
 static int tsdbEncodeMFInfo(void **buf, SMFInfo *pInfo) {
   int tlen = 0;
 
@@ -245,6 +279,40 @@ int tsdbUpdateDFileHeader(SDFile *pDFile) {
   tsdbEncodeDFInfo(&ptr, &(pDFile->info));
 
   if (tsdbWriteDFile(pDFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int tsdbScanAndTryFixDFile(SDFile *pDFile) {
+  struct stat dfstat;
+  SDFile      df = *pDFile;
+
+  if (stat(TSDB_FILE_FULL_NAME(&df), &dfstat) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (pDFile->info.size > dfstat.st_size) {
+    if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
+      return -1;
+    }
+
+    if (taosFtruncate(df.fd, df.info.size) < 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      tsdbCloseDFile(&df);
+      return -1;
+    }
+
+    if (tsdbUpdateDFileHeader(&df) < 0) {
+      tsdbCloseDFile(&df);
+      return -1;
+    }
+
+    tsdbCloseDFile(&df);
+  } else if (pDFile->info.size < dfstat.st_size) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return -1;
   }
 
@@ -382,6 +450,15 @@ int tsdbCreateDFileSet(SDFileSet *pSet) {
 int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     if (tsdbUpdateDFileHeader(TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
+      return -1;
+    }
+  }
+  return 0;
+}
+
+int tsdbScanAndTryFixDFileSet(SDFileSet *pSet) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    if (tsdbScanAndTryFixDFile(TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
       return -1;
     }
   }
