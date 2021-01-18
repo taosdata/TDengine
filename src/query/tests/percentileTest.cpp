@@ -43,7 +43,7 @@ tMemBucket *createDoubleDataBucket(int32_t start, int32_t end) {
 }
 
 tMemBucket *createUnsignedDataBucket(int32_t start, int32_t end, int32_t type) {
-  tMemBucket *pBucket = tMemBucketCreate(tDataTypes[type].nSize, type, start, end);
+  tMemBucket *pBucket = tMemBucketCreate(tDataTypes[type].bytes, type, start, end);
   for (int32_t i = start; i <= end; ++i) {
     uint64_t k = i;
     int32_t ret = tMemBucketPut(pBucket, &k, 1);
