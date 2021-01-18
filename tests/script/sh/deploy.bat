@@ -1,155 +1,106 @@
-#!/bin/bash
+@echo off
 
-echo "Executing deploy.sh"
+rem echo Executing deploy.sh
 
-if [ $# != 4 ]; then 
-  echo "argument list need input : "
-  echo "  -n nodeName"
-  echo "  -i nodePort"
-  exit 1
-fi
+if %1 == -n set NODE_NAME=%2
+if %1 == -i set NODE=%2
+if %3 == -n set NODE_NAME=%4
+if %3 == -i set NODE=%4
 
-NODE_NAME=
-NODE=
-while getopts "n:i:" arg 
-do
-  case $arg in
-    n)
-      NODE_NAME=$OPTARG
-      ;;
-    i)
-      NODE=$OPTARG
-      ;;
-    ?)
-      echo "unkonw argument"
-      ;;
-  esac
-done
+rem echo NODE_NAME:  %NODE_NAME%
+rem echo NODE:       %NODE%
 
-SCRIPT_DIR=`dirname $0`
-cd $SCRIPT_DIR/../
-SCRIPT_DIR=`pwd`
-echo "SCRIPT_DIR: $SCRIPT_DIR" 
+set SCRIPT_DIR=%~dp0..\
+rem echo SCRIPT_DIR: %SCRIPT_DIR%
 
-IN_TDINTERNAL="community"
-if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  cd ../../..
-else
-  cd ../../
-fi
+set BUILD_DIR=%SCRIPT_DIR%..\..\..\debug\build\bin\
+set TSIM=%BUILD_DIR%tsim
+rem echo BUILD_DIR:  %BUILD_DIR%
+rem echo TSIM:       %TSIM%
 
-TAOS_DIR=`pwd`
-TAOSD_DIR=`find . -name "taosd"|grep bin|head -n1`
+set SIM_DIR=%SCRIPT_DIR%..\..\..\sim\
+rem echo SIM_DIR:    %SIM_DIR%
 
-if [[ "$TAOSD_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2,3`
-else
-  BIN_DIR=`find . -name "taosd"|grep bin|head -n1|cut -d '/' --fields=2`
-fi
+set NODE_DIR=%SIM_DIR%%NODE_NAME%\
+rem echo NODE_DIR:   %NODE_DIR%
 
-BUILD_DIR=$TAOS_DIR/$BIN_DIR/build
+set CFG_DIR=%NODE_DIR%cfg\
+rem echo CFG_DIR:    %CFG_DIR%
 
-SIM_DIR=$TAOS_DIR/sim
+set LOG_DIR=%NODE_DIR%log\
+rem echo LOG_DIR:    %LOG_DIR%
 
-NODE_DIR=$SIM_DIR/$NODE_NAME
-EXE_DIR=$BUILD_DIR/bin
-CFG_DIR=$NODE_DIR/cfg
-LOG_DIR=$NODE_DIR/log
-DATA_DIR=$NODE_DIR/data
+set DATA_DIR=%NODE_DIR%data\
+rem echo DATA_DIR:   %DATA_DIR%
 
-rm -rf $NODE_DIR
+set TAOS_CFG=%CFG_DIR%taos.cfg
+rem echo TAOS_CFG:   %TAOS_CFG%
 
-mkdir -p $SIM_DIR
-mkdir -p $NODE_DIR
-mkdir -p $LOG_DIR
-mkdir -p $DATA_DIR
+if not exist %SIM_DIR%  mkdir %SIM_DIR%
+if not exist %NODE_DIR% mkdir %NODE_DIR%
+if exist %CFG_DIR%  rmdir /s/q %CFG_DIR%
+if exist %LOG_DIR%  rmdir /s/q %LOG_DIR%
+if exist %DATA_DIR% rmdir /s/q %DATA_DIR%
+if not exist %CFG_DIR%  mkdir %CFG_DIR%
+if not exist %LOG_DIR%  mkdir %LOG_DIR%
+if not exist %DATA_DIR% mkdir %DATA_DIR%
 
-#cp -rf $TAOS_DIR/cfg  $NODE_DIR/
-mkdir -p $CFG_DIR
+if %NODE% == 1 set NODE=7100
+if %NODE% == 2 set NODE=7200
+if %NODE% == 3 set NODE=7300
+if %NODE% == 4 set NODE=7400
+if %NODE% == 5 set NODE=7500
+if %NODE% == 6 set NODE=7600
+if %NODE% == 7 set NODE=7700
+if %NODE% == 8 set NODE=7800
 
-#allow normal user to read/write log
-chmod -R 777 $NODE_DIR
+set "fqdn="
+for /f "skip=1" %%A in (
+  'wmic computersystem get caption'
+) do if not defined fqdn set "fqdn=%%A"
 
-TAOS_CFG=$NODE_DIR/cfg/taos.cfg
-touch -f $TAOS_CFG
-
-TAOS_FLAG=$SIM_DIR/tsim/flag
-if [ -f "$TAOS_FLAG" ] ; then 
-  TAOS_CFG=/etc/taos/taos.cfg
-  DATA_DIR=/var/lib/taos
-  LOG_DIR=/var/log/taos
-  sudo rm -f /etc/taos/*.cfg
-  sudo cp -rf $TAOS_DIR/cfg/*.cfg /etc/taos
-  sudo rm -rf $DATA_DIR
-  sudo rm -rf $LOG_DIR
-fi
-
-HOSTNAME=`hostname -f`
-
-if [ $NODE -eq 1 ]; then
-  NODE=7100
-elif [ $NODE -eq 2 ]; then
-  NODE=7200
-elif [ $NODE -eq 3 ]; then
-  NODE=7300
-elif [ $NODE -eq 4 ]; then
-  NODE=7400
-elif [ $NODE -eq 5 ]; then
-  NODE=7500
-elif [ $NODE -eq 6 ]; then
-  NODE=7600  
-elif [ $NODE -eq 7 ]; then
-  NODE=7700  
-elif [ $NODE -eq 8 ]; then
-  NODE=7800    
-fi
-
-echo " "                                         >> $TAOS_CFG   
-echo "firstEp                ${HOSTNAME}:7100"   >> $TAOS_CFG
-echo "secondEp               ${HOSTNAME}:7200"   >> $TAOS_CFG
-echo "serverPort             ${NODE}"            >> $TAOS_CFG
-echo "dataDir                $DATA_DIR"          >> $TAOS_CFG
-echo "logDir                 $LOG_DIR"           >> $TAOS_CFG
-echo "debugFlag              0"                  >> $TAOS_CFG
-echo "mDebugFlag             143"                >> $TAOS_CFG
-echo "sdbDebugFlag           143"                >> $TAOS_CFG
-echo "dDebugFlag             143"                >> $TAOS_CFG
-echo "vDebugFlag             143"                >> $TAOS_CFG
-echo "tsdbDebugFlag          143"                >> $TAOS_CFG
-echo "cDebugFlag             143"                >> $TAOS_CFG
-echo "jnidebugFlag           143"                >> $TAOS_CFG
-echo "odbcdebugFlag          143"                >> $TAOS_CFG
-echo "httpDebugFlag          143"                >> $TAOS_CFG
-echo "monDebugFlag           143"                >> $TAOS_CFG
-echo "mqttDebugFlag          143"                >> $TAOS_CFG
-echo "qdebugFlag             143"                >> $TAOS_CFG
-echo "rpcDebugFlag           143"                >> $TAOS_CFG
-echo "tmrDebugFlag           131"                >> $TAOS_CFG
-echo "udebugFlag             143"                >> $TAOS_CFG
-echo "sdebugFlag             143"                >> $TAOS_CFG
-echo "wdebugFlag             143"                >> $TAOS_CFG
-echo "cqdebugFlag            143"                >> $TAOS_CFG
-echo "monitor                0"                  >> $TAOS_CFG
-echo "monitorInterval        1"                  >> $TAOS_CFG
-echo "http                   0"                  >> $TAOS_CFG
-echo "slaveQuery             0"                  >> $TAOS_CFG
-echo "numOfThreadsPerCore    2.0"                >> $TAOS_CFG
-echo "defaultPass            taosdata"           >> $TAOS_CFG
-echo "numOfLogLines          20000000"           >> $TAOS_CFG
-echo "mnodeEqualVnodeNum     0"                  >> $TAOS_CFG
-echo "balanceInterval        1"                  >> $TAOS_CFG
-echo "clog                   2"                  >> $TAOS_CFG
-#echo "cache                 1"                  >> $TAOS_CFG
-echo "days                   10"                  >> $TAOS_CFG
-echo "statusInterval         1"                  >> $TAOS_CFG
-echo "maxVgroupsPerDb        4"                  >> $TAOS_CFG
-echo "minTablesPerVnode      4"                  >> $TAOS_CFG
-echo "maxTablesPerVnode      1000"               >> $TAOS_CFG
-echo "tableIncStepPerVnode   10000"              >> $TAOS_CFG
-echo "asyncLog               0"                  >> $TAOS_CFG
-echo "numOfMnodes            1"                  >> $TAOS_CFG
-echo "locale                 en_US.UTF-8"        >> $TAOS_CFG
-echo "fsync                  0"                  >> $TAOS_CFG
-echo "telemetryReporting     0"                  >> $TAOS_CFG
-echo " "                                         >> $TAOS_CFG  
-
+echo firstEp                %fqdn%             > %TAOS_CFG%
+echo fqdn                   %fqdn%             >> %TAOS_CFG%
+echo serverPort             %NODE%             >> %TAOS_CFG%
+echo dataDir                %DATA_DIR%         >> %TAOS_CFG%
+echo logDir                 %LOG_DIR%          >> %TAOS_CFG%
+echo debugFlag              0                  >> %TAOS_CFG%
+echo mDebugFlag             143                >> %TAOS_CFG%
+echo sdbDebugFlag           143                >> %TAOS_CFG%
+echo dDebugFlag             143                >> %TAOS_CFG%
+echo vDebugFlag             143                >> %TAOS_CFG%
+echo tsdbDebugFlag          143                >> %TAOS_CFG%
+echo cDebugFlag             143                >> %TAOS_CFG%
+echo jnidebugFlag           143                >> %TAOS_CFG%
+echo odbcdebugFlag          143                >> %TAOS_CFG%
+echo httpDebugFlag          143                >> %TAOS_CFG%
+echo monDebugFlag           143                >> %TAOS_CFG%
+echo mqttDebugFlag          143                >> %TAOS_CFG%
+echo qdebugFlag             143                >> %TAOS_CFG%
+echo rpcDebugFlag           143                >> %TAOS_CFG%
+echo tmrDebugFlag           131                >> %TAOS_CFG%
+echo udebugFlag             143                >> %TAOS_CFG%
+echo sdebugFlag             143                >> %TAOS_CFG%
+echo wdebugFlag             143                >> %TAOS_CFG%
+echo cqdebugFlag            143                >> %TAOS_CFG%
+echo monitor                0                  >> %TAOS_CFG%
+echo monitorInterval        1                  >> %TAOS_CFG%
+echo http                   0                  >> %TAOS_CFG%
+echo slaveQuery             0                  >> %TAOS_CFG%
+echo numOfThreadsPerCore    2.0                >> %TAOS_CFG%
+echo defaultPass            taosdata           >> %TAOS_CFG%
+echo numOfLogLines          20000000           >> %TAOS_CFG%
+echo mnodeEqualVnodeNum     0                  >> %TAOS_CFG%
+echo balanceInterval        1                  >> %TAOS_CFG%
+echo clog                   2                  >> %TAOS_CFG%
+echo days                   10                 >> %TAOS_CFG%
+echo statusInterval         1                  >> %TAOS_CFG%
+echo maxVgroupsPerDb        4                  >> %TAOS_CFG%
+echo minTablesPerVnode      4                  >> %TAOS_CFG%
+echo maxTablesPerVnode      1000               >> %TAOS_CFG%
+echo tableIncStepPerVnode   10000              >> %TAOS_CFG%
+echo asyncLog               0                  >> %TAOS_CFG%
+echo numOfMnodes            1                  >> %TAOS_CFG%
+echo locale                 en_US.UTF-8        >> %TAOS_CFG%
+echo fsync                  0                  >> %TAOS_CFG%
+echo telemetryReporting     0                  >> %TAOS_CFG%

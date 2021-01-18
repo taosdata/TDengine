@@ -1,24 +1,5 @@
-#!/bin/sh
+@echo off
 
-PID=`ps -ef|grep /usr/bin/taosd | grep -v grep | awk '{print $2}'`
-if [ -n "$PID" ]; then 
-	echo systemctl stop taosd 
-	systemctl stop taosd
-fi
-  
-PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
-while [ -n "$PID" ]; do
-	echo kill -9 $PID 
-	pkill -9 taosd
-  fuser -k -n tcp 6030
-  PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
-done
+rem echo taskkill /F /IM taosd.exe
 
-PID=`ps -ef|grep -w tarbitrator | grep -v grep | awk '{print $2}'`
-while [ -n "$PID" ]; do
-	echo kill -9 $PID 
-	pkill -9 tarbitrator
-  fuser -k -n tcp 6040
-  PID=`ps -ef|grep -w tarbitrator | grep -v grep | awk '{print $2}'`
-done
-
+taskkill /F /IM taosd.exe > NUL 2>&1
