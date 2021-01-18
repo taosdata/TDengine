@@ -16,6 +16,8 @@
 #ifndef TDENGINE_COMMON_GLOBAL_H
 #define TDENGINE_COMMON_GLOBAL_H
 
+#include "taosdef.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

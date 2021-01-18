@@ -763,10 +763,10 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
 
     pBlockCol->colId = pDataCol->colId;
     pBlockCol->type = pDataCol->type;
-    if (tDataTypes[pDataCol->type].getStatisFunc) {
-      (*tDataTypes[pDataCol->type].getStatisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
-                                                  &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
-                                                  &(pBlockCol->numOfNull));
+    if (tDataTypes[pDataCol->type].statisFunc) {
+      (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
+                                               &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
+                                               &(pBlockCol->numOfNull));
     }
     nColsNotAllNull++;
   }
