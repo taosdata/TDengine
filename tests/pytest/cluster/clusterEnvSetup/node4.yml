@@ -1,0 +1,41 @@
+version: '3.7'
+
+services: 
+  td2.0-node4:
+     build:
+       context: .
+       args:
+         - PACKAGE=${PACKAGE}
+         - EXTRACTDIR=${DIR}
+     image: 'tdengine:2.0.13.1'
+     container_name: 'td2.0-node4'     
+     cap_add:
+       - ALL
+     stdin_open: true
+     tty: true
+     environment:
+       TZ: "Asia/Shanghai"
+     command: >
+       sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && 
+       echo $TZ > /etc/timezone &&
+       exec my-main-application"
+     volumes: 
+       # bind data directory
+       - type: bind
+         source: /data/node4/data
+         target: /var/lib/taos
+       # bind log directory
+       - type: bind
+         source: /data/node4/log
+         target: /var/log/taos
+       # bind configuration
+       - type: bind
+         source: /data/node4/cfg
+         target: /etc/taos
+       - type: bind
+         source: /data
+         target: /root     
+     networks:
+         taos_update_net:
+             ipv4_address: 172.27.0.10
+     command: taosd
