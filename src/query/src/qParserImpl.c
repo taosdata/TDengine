@@ -585,11 +585,12 @@ SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVal
   return info;
 }
 
-SAlterTableSQL *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type) {
+SAlterTableSQL *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableType) {
   SAlterTableSQL *pAlterTable = calloc(1, sizeof(SAlterTableSQL));
   
   pAlterTable->name = *pTableName;
   pAlterTable->type = type;
+  pAlterTable->tableType = tableType;
 
   if (type == TSDB_ALTER_TABLE_ADD_COLUMN || type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN) {
     pAlterTable->pAddColumns = pCols;
@@ -733,9 +734,10 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   va_end(va);
 }
 
-void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck) {
+void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck, int16_t tableType) {
   pInfo->type = type;
   pInfo->pDCLInfo = tTokenListAppend(pInfo->pDCLInfo, pToken);
+  pInfo->pDCLInfo->tableType = tableType;
   pInfo->pDCLInfo->existsCheck = (existsCheck->n == 1);
 }
 

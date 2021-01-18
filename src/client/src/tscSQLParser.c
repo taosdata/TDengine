@@ -264,6 +264,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     case TSDB_SQL_DROP_DB: {
       const char* msg2 = "invalid name";
       const char* msg3 = "param name too long";
+      const char* msg4 = "table is not super table";
 
       SStrToken* pzName = &pInfo->pDCLInfo->a[0];
       if ((pInfo->type != TSDB_SQL_DROP_DNODE) && (tscValidateName(pzName) != TSDB_CODE_SUCCESS)) {
@@ -285,6 +286,18 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         if(code != TSDB_CODE_SUCCESS) {
           return code; 
         }
+
+        if (pInfo->pDCLInfo->tableType == TSDB_SUPER_TABLE) {
+          code = tscGetTableMeta(pSql, pTableMetaInfo);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
+
+          if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+          }
+        }
+        
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
         pzName->n = strdequote(pzName->z);
         strncpy(pTableMetaInfo->name, pzName->z, pzName->n);
@@ -4794,6 +4807,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg17 = "invalid column name";
   const char* msg18 = "primary timestamp column cannot be dropped";
   const char* msg19 = "invalid new tag name";
+  const char* msg20 = "table is not super table";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -4818,6 +4832,10 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   }
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+
+  if (pAlterSQL->tableType == TSDB_SUPER_TABLE && !(UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo))) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg20);
+  }
 
   if (pAlterSQL->type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_DROP_TAG_COLUMN ||
       pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
