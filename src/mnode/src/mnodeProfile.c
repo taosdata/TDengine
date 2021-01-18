@@ -385,11 +385,22 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
   SConnObj *pConnObj = NULL;
   int32_t   cols = 0;
   char *    pWrite;
+  void *    pIter;
   char      str[TSDB_IPv4ADDR_LEN + 6] = {0};
 
   while (numOfRows < rows) {
-    pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
-    if (pConnObj == NULL) break;
+    pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
+    if (pConnObj == NULL) {
+      pShow->pIter = pIter;
+      break;
+    }
+
+    if (numOfRows + pConnObj->numOfQueries >= rows) {
+      mnodeCancelGetNextConn(pIter);
+      break;
+    }
+
+    pShow->pIter = pIter;
 
     for (int32_t i = 0; i < pConnObj->numOfQueries; ++i) {
       SQueryDesc *pDesc = pConnObj->pQueries + i;
@@ -518,11 +529,22 @@ static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, v
   SConnObj *pConnObj = NULL;
   int32_t   cols = 0;
   char *    pWrite;
+  void *    pIter;
   char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
   while (numOfRows < rows) {
-    pShow->pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
-    if (pConnObj == NULL) break;
+    pIter = mnodeGetNextConn(pShow->pIter, &pConnObj);
+    if (pConnObj == NULL) {
+      pShow->pIter = pIter;
+      break;
+    }
+
+    if (numOfRows + pConnObj->numOfStreams >= rows) {
+      mnodeCancelGetNextConn(pIter);
+      break;
+    }
+
+    pShow->pIter = pIter;
 
     for (int32_t i = 0; i < pConnObj->numOfStreams; ++i) {
       SStreamDesc *pDesc = pConnObj->pStreams + i;
