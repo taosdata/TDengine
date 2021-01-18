@@ -283,6 +283,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
   SOCKET  sockFd = 0;
   int32_t ret;
   struct sockaddr_in serverAddr, clientAddr;
+  int32_t bufSize = 1024 * 1024;
 
   sockFd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
 
@@ -296,6 +297,18 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
   int32_t reuse = 1;
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
     uError("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
+    taosCloseSocket(sockFd);
+    return -1;
+  }
+
+  if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_SNDBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
+    uError("failed to set the send buffer size for TCP socket\n");
+    taosCloseSocket(sockFd);
+    return -1;
+  }
+
+  if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_RCVBUF, (void *)&bufSize, sizeof(bufSize)) != 0) {
+    uError("failed to set the receive buffer size for TCP socket\n");
     taosCloseSocket(sockFd);
     return -1;
   }

@@ -762,6 +762,8 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
   char *sql = *sqlstr;
 
+  pSql->cmd.autoCreated = false;
+  
   // get the token of specified table
   index = 0;
   tableToken = tStrGetToken(sql, &index, false, 0, NULL);
@@ -945,11 +947,15 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
     tdDestroyKVRowBuilder(&kvRowBuilder);
     if (row == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      return tscInvalidSQLErrMsg(pCmd->payload, "tag value expected", NULL);
     }
     tdSortKVRowByColIdx(row);
 
     pCmd->tagData.dataLen = kvRowLen(row);
+    if (pCmd->tagData.dataLen <= 0){
+      return tscInvalidSQLErrMsg(pCmd->payload, "tag value expected", NULL);
+    }
+    
     char* pTag = realloc(pCmd->tagData.data, pCmd->tagData.dataLen);
     if (pTag == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -1275,7 +1281,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   }
 
   if (taosHashGetSize(pCmd->pTableBlockHashList) > 0) { // merge according to vgId
-    if ((code = tscMergeTableDataBlocks(pSql)) != TSDB_CODE_SUCCESS) {
+    if ((code = tscMergeTableDataBlocks(pSql, true)) != TSDB_CODE_SUCCESS) {
       goto _clean;
     }
   }
@@ -1330,15 +1336,6 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   }
 
   if (tscIsInsertData(pSql->sqlstr)) {
-    /*
-     * Set the fp before parse the sql string, in case of getTableMeta failed, in which
-     * the error handle callback function can rightfully restore the user-defined callback function (fp).
-     */
-    if (initial && (pSql->cmd.insertType != TSDB_QUERY_TYPE_STMT_INSERT)) {
-      pSql->fetchFp = pSql->fp;
-      pSql->fp = (void(*)())tscHandleMultivnodeInsert;
-    }
-
     if (initial && ((ret = tsInsertInitialCheck(pSql)) != TSDB_CODE_SUCCESS)) {
       return ret;
     }
@@ -1392,7 +1389,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
     return tscInvalidSQLErrMsg(pCmd->payload, "too many rows in sql, total number of rows should be less than 32767", NULL);
   }
 
-  if ((code = tscMergeTableDataBlocks(pSql)) != TSDB_CODE_SUCCESS) {
+  if ((code = tscMergeTableDataBlocks(pSql, true)) != TSDB_CODE_SUCCESS) {
     return code;
   }
 

@@ -190,6 +190,7 @@ python3 ./test.py -f stream/table_n.py
 
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py
+python3 ./test.py -f alter/alter_table.py
 
 # client
 python3 ./test.py -f client/client.py

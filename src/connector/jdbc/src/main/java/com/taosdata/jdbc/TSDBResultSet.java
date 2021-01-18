@@ -39,7 +39,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-@SuppressWarnings("unused")
 public class TSDBResultSet implements ResultSet {
 	private TSDBJNIConnector jniConnector = null;
 
@@ -104,6 +103,7 @@ public class TSDBResultSet implements ResultSet {
 	}
 
 	public TSDBResultSet() {
+		
 	}
 
 	public TSDBResultSet(TSDBJNIConnector connector, long resultSetPointer) throws SQLException {

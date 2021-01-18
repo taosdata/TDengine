@@ -1901,7 +1901,7 @@ static void valuePairAssign(tValuePair *dst, int16_t type, const char *val, int6
 static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData, int64_t ts, uint16_t type,
                                 SExtTagsInfo *pTagInfo, char *pTags, int16_t stage) {
   tVariant val = {0};
-  tVariantCreateFromBinary(&val, pData, tDataTypeDesc[type].nSize, type);
+  tVariantCreateFromBinary(&val, pData, tDataTypes[type].bytes, type);
   
   tValuePair **pList = pInfo->res;
   assert(pList != NULL);
@@ -1958,7 +1958,7 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
 static void do_bottom_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData, int64_t ts, uint16_t type,
                                    SExtTagsInfo *pTagInfo, char *pTags, int16_t stage) {
   tVariant val = {0};
-  tVariantCreateFromBinary(&val, pData, tDataTypeDesc[type].nSize, type);
+  tVariantCreateFromBinary(&val, pData, tDataTypes[type].bytes, type);
 
   tValuePair **pList = pInfo->res;
   assert(pList != NULL);
@@ -2545,7 +2545,7 @@ static void percentile_next_step(SQLFunctionCtx *pCtx) {
     if (pInfo->numOfElems == 0) {
       pResInfo->complete = true;
     } else {
-      pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, GET_DOUBLE_VAL(&pInfo->minval), GET_DOUBLE_VAL(&pInfo->maxval));
+      pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, pInfo->minval, pInfo->maxval);
     }
 
     pInfo->stage += 1;

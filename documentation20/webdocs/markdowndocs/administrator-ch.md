@@ -255,7 +255,7 @@ taos -C  或  taos --dump-config
 CREATE USER <user_name> PASS <'password'>;
 ```
 
-创建用户，并指定用户名和密码，密码需要用单引号引起来,单引号为英文半角
+创建用户，并指定用户名和密码，密码需要用单引号引起来，单引号为英文半角
 
 ```sql
 DROP USER <user_name>;
@@ -267,13 +267,15 @@ DROP USER <user_name>;
 ALTER USER <user_name> PASS <'password'>;
 ```
 
-修改用户密码, 为避免被转换为小写，密码需要用单引号引用,单引号为英文半角
+修改用户密码，为避免被转换为小写，密码需要用单引号引用，单引号为英文半角
 
 ```sql
-ALTER USER <user_name> PRIVILEGE <super|write|read>;
+ALTER USER <user_name> PRIVILEGE <write|read>;
 ```
 
-修改用户权限为：super/write/read，不需要添加单引号
+修改用户权限为：write 或 read，不需要添加单引号
+
+说明：系统内共有 super/write/read 三种权限级别，但目前不允许通过 alter 指令把 super 权限赋予用户。
 
 ```mysql
 SHOW USERS;
@@ -432,11 +434,12 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 - 数据库名：不能包含“.”以及特殊字符，不能超过32个字符
 - 表名：不能包含“.”以及特殊字符，与所属数据库名一起，不能超过192个字符
 - 表的列名：不能包含特殊字符，不能超过64个字符
+- 数据库名、表名、列名，都不能以数字开头
 - 表的列数：不能超过1024列
 - 记录的最大长度：包括时间戳8 byte，不能超过16KB
 - 单条SQL语句默认最大字符串长度：65480 byte
 - 数据库副本数：不能超过3
-- 用户名：不能超过20个byte
+- 用户名：不能超过23个byte
 - 用户密码：不能超过15个byte
 - 标签(Tags)数量：不能超过128个
 - 标签的总长度：不能超过16Kbyte

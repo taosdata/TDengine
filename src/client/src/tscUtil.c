@@ -468,6 +468,18 @@ void tscFreeRegisteredSqlObj(void *pSql) {
 
 }
 
+void tscFreeMetaSqlObj(int64_t *rid){
+  if (RID_VALID(*rid)) {
+    SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, *rid);
+    if (pSql) {
+      taosRemoveRef(tscObjRef, *rid);
+      taosReleaseRef(tscObjRef, *rid);
+    }
+
+    *rid = 0;
+  }
+}
+
 void tscFreeSqlObj(SSqlObj* pSql) {
   if (pSql == NULL || pSql->signature != pSql) {
     return;
@@ -476,6 +488,9 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   tscDebug("%p start to free sqlObj", pSql);
 
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
+
+  tscFreeMetaSqlObj(&pSql->metaRid);
+  tscFreeMetaSqlObj(&pSql->svgroupRid);
 
   tscFreeSubobj(pSql);
 
@@ -505,6 +520,7 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   pCmd->allocSize = 0;
   
   tsem_destroy(&pSql->rspSem);
+  memset(pSql, 0, sizeof(*pSql));
   free(pSql);
 }
 
@@ -587,6 +603,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
   assert(pCmd->numOfClause == 1);
   STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
 
+  // todo refactor
   // set the correct table meta object, the table meta has been locked in pDataBlocks, so it must be in the cache
   if (pTableMetaInfo->pTableMeta != pDataBlock->pTableMeta) {
     tstrncpy(pTableMetaInfo->name, pDataBlock->tableName, sizeof(pTableMetaInfo->name));
@@ -673,7 +690,6 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
 int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
                                 STableDataBlocks** dataBlocks, SArray* pBlockList) {
   *dataBlocks = NULL;
-
   STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pHashList, (const char*)&id, sizeof(id));
   if (t1 != NULL) {
     *dataBlocks = *t1;
@@ -769,9 +785,13 @@ static int32_t getRowExpandSize(STableMeta* pTableMeta) {
   return result;
 }
 
-static void extractTableNameList(SSqlCmd* pCmd) {
+static void extractTableNameList(SSqlCmd* pCmd, bool freeBlockMap) {
   pCmd->numOfTables = (int32_t) taosHashGetSize(pCmd->pTableBlockHashList);
-  pCmd->pTableNameList = calloc(pCmd->numOfTables, POINTER_BYTES);
+  if (pCmd->pTableNameList == NULL) {
+    pCmd->pTableNameList = calloc(pCmd->numOfTables, POINTER_BYTES);
+  } else {
+    memset(pCmd->pTableNameList, 0, pCmd->numOfTables * POINTER_BYTES);
+  }
 
   STableDataBlocks **p1 = taosHashIterate(pCmd->pTableBlockHashList, NULL);
   int32_t i = 0;
@@ -781,10 +801,12 @@ static void extractTableNameList(SSqlCmd* pCmd) {
     p1 = taosHashIterate(pCmd->pTableBlockHashList, p1);
   }
 
-  pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList);
+  if (freeBlockMap) {
+    pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList);
+  }
 }
 
-int32_t tscMergeTableDataBlocks(SSqlObj* pSql) {
+int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap) {
   const int INSERT_HEAD_SIZE = sizeof(SMsgDesc) + sizeof(SSubmitMsg); 
   SSqlCmd* pCmd = &pSql->cmd;
 
@@ -864,7 +886,7 @@ int32_t tscMergeTableDataBlocks(SSqlObj* pSql) {
     pOneTableBlock = *p;
   }
 
-  extractTableNameList(pCmd);
+  extractTableNameList(pCmd, freeBlockMap);
 
   // free the table data blocks;
   pCmd->pDataBlocks = pVnodeDataBlockList;
@@ -1899,7 +1921,7 @@ void registerSqlObj(SSqlObj* pSql) {
   tscDebug("%p new SqlObj from %p, total in tscObj:%d, total:%d", pSql, pSql->pTscObj, num, total);
 }
 
-SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd) {
+SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, int32_t cmd) {
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
   if (pNew == NULL) {
     tscError("%p new subquery failed, tableIndex:%d", pSql, 0);
@@ -1984,7 +2006,7 @@ static void doSetSqlExprAndResultFieldInfo(SQueryInfo* pNewQueryInfo, int64_t ui
   tscFieldInfoUpdateOffset(pNewQueryInfo);
 }
 
-SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, int32_t cmd, SSqlObj* pPrevSql) {
+SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t fp, void* param, int32_t cmd, SSqlObj* pPrevSql) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   SSqlObj* pNew = (SSqlObj*)calloc(1, sizeof(SSqlObj));
@@ -2180,7 +2202,7 @@ void tscDoQuery(SSqlObj* pSql) {
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
     uint16_t type = pQueryInfo->type;
   
-    if (pSql->fp == (void(*)())tscHandleMultivnodeInsert) {  // multi-vnodes insertion
+    if (TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_INSERT)) {  // multi-vnodes insertion
       tscHandleMultivnodeInsert(pSql);
       return;
     }
@@ -2193,7 +2215,9 @@ void tscDoQuery(SSqlObj* pSql) {
           tscProcessSql(pSql);
         } else { // secondary stage join query.
           if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
+            tscLockByThread(&pSql->squeryLock);
             tscHandleMasterSTableQuery(pSql);
+            tscUnlockByThread(&pSql->squeryLock);
           } else {
             tscProcessSql(pSql);
           }
@@ -2202,7 +2226,9 @@ void tscDoQuery(SSqlObj* pSql) {
 
       return;
     } else if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
+      tscLockByThread(&pSql->squeryLock);
       tscHandleMasterSTableQuery(pSql);
+      tscUnlockByThread(&pSql->squeryLock);
       return;
     }
     

@@ -235,7 +235,7 @@ typedef struct {
     int32_t numOfTablesInSubmit;
   };
 
-  uint32_t     insertType;
+  uint32_t     insertType;   // TODO remove it
   int32_t      clauseIndex;  // index of multiple subclause query
 
   char *       curSql;       // current sql, resume position of sql after parsing paused
@@ -300,8 +300,8 @@ typedef struct STscObj {
   void *             pTimer;
   char               user[TSDB_USER_LEN];
   char               pass[TSDB_KEY_LEN];
-  char               acctId[TSDB_ACCT_LEN];
-  char               db[TSDB_ACCT_LEN + TSDB_DB_NAME_LEN];
+  char               acctId[TSDB_ACCT_ID_LEN];
+  char               db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
   char               sversion[TSDB_VERSION_LEN];
   char               writeAuth : 1;
   char               superAuth : 1;
@@ -327,8 +327,8 @@ typedef struct SSqlObj {
   pthread_t        owner;        // owner of sql object, by which it is executed
   STscObj         *pTscObj;
   int64_t          rpcRid;
-  void            (*fp)();
-  void            (*fetchFp)();
+  __async_cb_func_t  fp;
+  __async_cb_func_t  fetchFp;
   void            *param;
   int64_t          stime;
   uint32_t         queryId;
@@ -346,6 +346,11 @@ typedef struct SSqlObj {
 
   SSubqueryState   subState;
   struct SSqlObj **pSubs;
+
+  int64_t          metaRid;
+  int64_t          svgroupRid;
+
+  int64_t          squeryLock;
 
   struct SSqlObj  *prev, *next;
   int64_t          self;
@@ -458,7 +463,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
       pRes->length[columnIndex] = pInfo->pSqlExpr->param[1].nLen;
       pRes->tsrow[columnIndex] = (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : (unsigned char*)pData;
     } else {
-      assert(bytes == tDataTypeDesc[type].nSize);
+      assert(bytes == tDataTypes[type].bytes);
 
       pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)&pInfo->pSqlExpr->param[1].i64;
       pRes->length[columnIndex] = bytes;
@@ -475,7 +480,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
 
       pRes->length[columnIndex] = realLen;
     } else {
-      assert(bytes == tDataTypeDesc[type].nSize);
+      assert(bytes == tDataTypes[type].bytes);
 
       pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)pData;
       pRes->length[columnIndex] = bytes;
