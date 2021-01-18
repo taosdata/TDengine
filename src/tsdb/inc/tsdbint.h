@@ -40,6 +40,7 @@
 #include "hash.h"
 #include "tarray.h"
 #include "tfs.h"
+#include "tsocket.h"
 
 #include "tsdb.h"
 

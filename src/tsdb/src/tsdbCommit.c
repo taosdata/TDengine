@@ -145,7 +145,7 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
       did.id = TFS_PRIMARY_ID;
       tsdbInitMFile(&mf, did, REPO_ID(pRepo), FS_TXN_VERSION(REPO_FS(pRepo)));
 
-      if (tsdbCreateMFile(&mf) < 0) {
+      if (tsdbCreateMFile(&mf, true) < 0) {
         return -1;
       }
     } else {
@@ -1285,7 +1285,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     // Create a new FSET to write data
     tsdbInitDFileSet(pWSet, did, REPO_ID(pRepo), fid, FS_TXN_VERSION(REPO_FS(pRepo)));
 
-    if (tsdbCreateDFileSet(pWSet) < 0) {
+    if (tsdbCreateDFileSet(pWSet, true) < 0) {
       if (pCommith->isRFileSet) {
         tsdbCloseAndUnsetFSet(&(pCommith->readh));
       }
@@ -1304,7 +1304,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     // TSDB_FILE_HEAD
     SDFile *pWHeadf = TSDB_COMMIT_HEAD_FILE(pCommith);
     tsdbInitDFile(pWHeadf, did, REPO_ID(pRepo), fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_HEAD);
-    if (tsdbCreateDFile(pWHeadf) < 0) {
+    if (tsdbCreateDFile(pWHeadf, true) < 0) {
       if (pCommith->isRFileSet) {
         tsdbCloseAndUnsetFSet(&(pCommith->readh));
         return -1;
@@ -1344,7 +1344,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
       tsdbInitDFile(pWLastf, did, REPO_ID(pRepo), fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_LAST);
       pCommith->isLFileSame = false;
 
-      if (tsdbCreateDFile(pWLastf) < 0) {
+      if (tsdbCreateDFile(pWLastf, true) < 0) {
         tsdbCloseDFileSet(pWSet);
         tsdbRemoveDFile(pWHeadf);
         if (pCommith->isRFileSet) {

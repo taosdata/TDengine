@@ -24,8 +24,6 @@ static const char *TSDB_FNAME_SUFFIX[] = {
 };
 
 static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
-static int   tsdbEncodeMFInfo(void **buf, SMFInfo *pInfo);
-static void *tsdbDecodeMFInfo(void *buf, SMFInfo *pInfo);
 static int   tsdbRollBackMFile(SMFile *pMFile);
 static int   tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo);
 static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo);
@@ -86,15 +84,19 @@ int tsdbApplyMFileChange(SMFile *from, SMFile *to) {
   return 0;
 }
 
-int tsdbCreateMFile(SMFile *pMFile) {
+int tsdbCreateMFile(SMFile *pMFile, bool updateHeader) {
   ASSERT(pMFile->info.size == 0 && pMFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
-  pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), O_WRONLY | O_CREAT | O_EXCL, 0755);
+  pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), O_WRONLY | O_CREAT | O_TRUNC, 0755);
   if (pMFile->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
+  }
+
+  if (!updateHeader) {
+    return 0;
   }
 
   void *ptr = buf;
@@ -179,7 +181,7 @@ int tsdbScanAndTryFixMFile(SMFile *pMFile) {
   return 0;
 }
 
-static int tsdbEncodeMFInfo(void **buf, SMFInfo *pInfo) {
+int tsdbEncodeMFInfo(void **buf, SMFInfo *pInfo) {
   int tlen = 0;
 
   tlen += taosEncodeVariantI64(buf, pInfo->size);
@@ -191,7 +193,7 @@ static int tsdbEncodeMFInfo(void **buf, SMFInfo *pInfo) {
   return tlen;
 }
 
-static void *tsdbDecodeMFInfo(void *buf, SMFInfo *pInfo) {
+void *tsdbDecodeMFInfo(void *buf, SMFInfo *pInfo) {
   buf = taosDecodeVariantI64(buf, &(pInfo->size));
   buf = taosDecodeVariantI64(buf, &(pInfo->tombSize));
   buf = taosDecodeVariantI64(buf, &(pInfo->nRecords));
@@ -260,15 +262,19 @@ void *tsdbDecodeSDFile(void *buf, SDFile *pDFile) {
   return buf;
 }
 
-int tsdbCreateDFile(SDFile *pDFile) {
+int tsdbCreateDFile(SDFile *pDFile, bool updateHeader) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
-  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_EXCL, 0755);
+  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC, 0755);
   if (pDFile->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
+  }
+
+  if (!updateHeader) {
+    return 0;
   }
 
   void *ptr = buf;
@@ -457,9 +463,9 @@ int tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to) {
   return 0;
 }
 
-int tsdbCreateDFileSet(SDFileSet *pSet) {
+int tsdbCreateDFileSet(SDFileSet *pSet, bool updateHeader) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbCreateDFile(TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
+    if (tsdbCreateDFile(TSDB_DFILE_IN_SET(pSet, ftype), updateHeader) < 0) {
       tsdbCloseDFileSet(pSet);
       tsdbRemoveDFileSet(pSet);
       return -1;
