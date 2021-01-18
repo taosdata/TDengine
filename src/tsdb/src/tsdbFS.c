@@ -517,6 +517,7 @@ SDFileSet *tsdbFSIterNext(SFSIter *pIter) {
   ASSERT(pIter->fid != TSDB_IVLD_FID);
 
   if (pIter->version != pfs->cstatus->meta.version) {
+    pIter->version = pfs->cstatus->meta.version;
     tsdbFSIterSeek(pIter, pIter->fid);
   }
 
