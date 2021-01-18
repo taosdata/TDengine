@@ -1,5 +1,5 @@
-//const taos = require('td2.0-connector');
-const taos = require('../../../src/connector/nodejs/');
+const taos = require('td2.0-connector');
+//const taos = require('../../../src/connector/nodejs/');
 
 
 var host = null;
