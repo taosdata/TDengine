@@ -462,13 +462,8 @@ void tscFreeRegisteredSqlObj(void *pSql) {
   tscDebug("%p free SqlObj, total in tscObj:%d, total:%d", pSql, num, total);
   assert(RID_VALID(p->self));
 
-  int32_t num   = atomic_sub_fetch_32(&pTscObj->numOfObj, 1);
-  int32_t total = atomic_sub_fetch_32(&tscNumOfObj, 1);
-
-  tscDebug("%p free SqlObj, total in tscObj:%d, total:%d", pSql, num, total);
   tscFreeSqlObj(p);
   taosReleaseRef(tscRefId, pTscObj->rid);
-
 }
 
 void tscFreeMetaSqlObj(int64_t *rid){

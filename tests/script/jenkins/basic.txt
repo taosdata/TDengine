@@ -159,6 +159,7 @@ cd ../../../debug; make
 ./test.sh -f general/parser/union.sim
 ./test.sh -f general/parser/topbot.sim
 ./test.sh -f general/parser/function.sim
+./test.sh -f general/parser/select_distinct_tag.sim
 
 ./test.sh -f general/stable/disk.sim
 ./test.sh -f general/stable/dnode3.sim
