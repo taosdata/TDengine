@@ -763,10 +763,10 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
 
     pBlockCol->colId = pDataCol->colId;
     pBlockCol->type = pDataCol->type;
-    if (tDataTypeDesc[pDataCol->type].getStatisFunc) {
-      (*tDataTypeDesc[pDataCol->type].getStatisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
-                                                     &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
-                                                     &(pBlockCol->numOfNull));
+    if (tDataTypes[pDataCol->type].getStatisFunc) {
+      (*tDataTypes[pDataCol->type].getStatisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
+                                                  &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
+                                                  &(pBlockCol->numOfNull));
     }
     nColsNotAllNull++;
   }
@@ -806,9 +806,9 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
 
     // Compress or just copy
     if (pCfg->compression) {
-      flen = (*(tDataTypeDesc[pDataCol->type].compFunc))((char *)pDataCol->pData, tlen, rowsToWrite, tptr,
-                                                         tlen + COMP_OVERFLOW_BYTES, pCfg->compression,
-                                                         TSDB_COMMIT_COMP_BUF(pCommith), tlen + COMP_OVERFLOW_BYTES);
+      flen = (*(tDataTypes[pDataCol->type].compFunc))((char *)pDataCol->pData, tlen, rowsToWrite, tptr,
+                                                      tlen + COMP_OVERFLOW_BYTES, pCfg->compression,
+                                                      TSDB_COMMIT_COMP_BUF(pCommith), tlen + COMP_OVERFLOW_BYTES);
     } else {
       flen = tlen;
       memcpy(tptr, pDataCol->pData, flen);

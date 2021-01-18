@@ -93,15 +93,15 @@ void Test(TAOS *taos, char *qstr, int index)  {
     // if (taos_query(taos, qstr)) {
     //   printf("insert row: %i, reason:%s\n", i, taos_errstr(taos));
     // }
-    TAOS_RES *result = taos_query(taos, qstr);
-    if (result) {
+    TAOS_RES *result1 = taos_query(taos, qstr);
+    if (result1) {
       printf("insert row: %i\n", i);
     } else {
       printf("failed to insert row: %i, reason:%s\n", i, "null result"/*taos_errstr(result)*/);
-      taos_free_result(result);
+      taos_free_result(result1);
       exit(1);
     }
-    taos_free_result(result);
+    taos_free_result(result1);
 
   }
   printf("success to insert rows, total %d rows\n", i);
