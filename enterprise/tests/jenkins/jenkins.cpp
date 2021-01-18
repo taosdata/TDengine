@@ -57,17 +57,21 @@ void parseParameter(int argc, char *argv[]) {
 }
 
 string getCurrTime() {
+#ifndef WINDOWS  
   time_t timep;
   time(&timep);
   char tmp[64];
   strftime(tmp, sizeof(tmp), "%Y-%m-%d %H:%M:%S", localtime(&timep));
   return tmp;
+#else
+  return "";
+#endif  
 }
 
 void outputFailedTestDetails() {
   if (notPrintScreen) {
     if (failedList.size() != 0) {
-      int length = failedList.size() > 2 ? 2 : failedList.size();
+      int length = (int)(failedList.size() > 2 ? 2 : failedList.size());
       if (length > 2) {
         cout << "<p><font color=\"#CC0000\">Show only the first 2 failed tests</font><br>\r\n\r\n";
       }
@@ -96,11 +100,30 @@ void outputTestResults() {
   if (notPrintScreen) {
     cout << "<font color=\"#0B610B\">| total " << successList.size()
          << " tests passed, show only the first 30 tests</font><br>\r\n";
-    int length = successList.size() > 30 ? 30 : successList.size();
+    int length = (int)(successList.size() > 30 ? 30 : successList.size());
     for (int i = 0; i < length; ++i) {
       cout << "<font color=\"#0B610B\">|   [" << i << "] " << successList[i] << "</font><br>\r\n";
     }
     cout << "<font color=\"#0B610B\">====================================</font><p><p>\r\n\r\n";
+  }
+}
+
+void replaceShToBat(char *dst) {
+  char* sh = strstr(dst, ".sh");
+  if (sh != NULL) {
+    int dstLen = (int)strlen(dst);
+    char *end = dst + dstLen;
+    *(end + 1) = 0;
+
+    for (char *p = end; p >= sh; p--) {
+      *(p + 1) = *p;
+    }
+
+    sh[0] = '.';
+    sh[1] = 'b';
+    sh[2] = 'a';
+    sh[3] = 't';
+    sh[4] = ' ';
   }
 }
 
@@ -111,8 +134,11 @@ void runOneTest(string test) {
   }
 
   string cmd = test + string(" > ") + outputFileName + " 2>&1";
-  int exitCode = system(cmd.c_str());
+  char buf[4096] = {0};
+  strcpy(buf, cmd.c_str());
+  replaceShToBat(buf);
 
+  int exitCode = system(buf);
   if (exitCode != 0) {
     failedList.push_back(test);
 
