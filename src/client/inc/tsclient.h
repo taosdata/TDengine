@@ -297,6 +297,12 @@ typedef struct {
   struct SLocalReducer *pLocalReducer;
 } SSqlRes;
 
+typedef struct {
+  char         key[512]; 
+  SRpcCorEpSet *tscCorMgmtEpSet;
+  void         *pDnodeConn; 
+} SRpcObj;
+
 typedef struct STscObj {
   void *             signature;
   void *             pTimer;
@@ -312,8 +318,7 @@ typedef struct STscObj {
   int64_t            hbrid;
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
-  SRpcCorEpSet       *tscCorMgmtEpSet;
-  void*              pDnodeConn;
+  SRpcObj           *pRpcObj;
   pthread_mutex_t    mutex;
   int32_t            numOfObj; // number of sqlObj from this tscObj
 } STscObj;
@@ -389,8 +394,10 @@ typedef struct SSqlStream {
 
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 
-int32_t tscInitRpc(const char *user, const char *secret, void** pDnodeConn);
-void    tscInitMsgsFp();
+
+int  tscAcquireRpc(const char *key, const char *user, const char *secret, SRpcCorEpSet *corMgmtEpSet, void **pRpcObj);
+void tscReleaseRpc(void *param);
+void tscInitMsgsFp();
 
 int tsParseSql(SSqlObj *pSql, bool initial);
 
