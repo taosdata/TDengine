@@ -5,6 +5,10 @@
 #include <stdint.h>
 #include "gzguts.h"
 
+#ifndef O_BINARY
+  #define O_BINARY 0
+#endif
+
 #if defined(_WIN32) && !defined(__BORLANDC__) && !defined(__MINGW32__)
 #  define LSEEK _lseeki64
 #else

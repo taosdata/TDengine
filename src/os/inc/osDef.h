@@ -20,6 +20,10 @@
 extern "C" {
 #endif
 
+#ifndef O_BINARY
+  #define O_BINARY 0
+#endif
+
 #ifndef STDERR_FILENO
 #define STDERR_FILENO (2)
 #endif
