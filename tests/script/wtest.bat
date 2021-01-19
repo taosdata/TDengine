@@ -33,7 +33,7 @@ if exist %LOG_DIR% rmdir /s/q %LOG_DIR%
 if not exist %CFG_DIR% mkdir %CFG_DIR%
 if not exist %LOG_DIR% mkdir %LOG_DIR%
 
-set "fqdn="
+rem set "fqdn="
 for /f "skip=1" %%A in (
   'wmic computersystem get caption'
 ) do if not defined fqdn set "fqdn=%%A"

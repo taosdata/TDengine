@@ -16,18 +16,25 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include <signal.h>
+#include <windows.h>
 
 void taosSetSignal(int32_t signum, FSignalHandler sigfp) {
   if (signum == SIGUSR1) return;
-  signal(signum, sigfp);	
+
+  // SIGHUP doesn't exist in windows, we handle it in the way of ctrlhandler
+  if (signum == SIGHUP) {
+    SetConsoleCtrlHandler((PHANDLER_ROUTINE)sigfp, TRUE);
+  } else {
+    signal(signum, sigfp);	
+  }
 }
 
 void taosIgnSignal(int32_t signum) {
-  if (signum == SIGUSR1) return;
+  if (signum == SIGUSR1 || signum == SIGHUP) return;
   signal(signum, SIG_IGN);
 }
 
 void taosDflSignal(int32_t signum) {
-  if (signum == SIGUSR1) return;
+  if (signum == SIGUSR1 || signum == SIGHUP) return;
   signal(signum, SIG_DFL);
 }

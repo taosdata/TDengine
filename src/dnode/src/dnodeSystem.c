@@ -145,6 +145,8 @@ int32_t main(int32_t argc, char *argv[]) {
   syslog(LOG_INFO, "Shut down TDengine service successfully");
   dInfo("TDengine is shut down!");
   closelog();
+
+  tsem_post(&exitSem);
   return EXIT_SUCCESS;
 }
 
@@ -170,4 +172,5 @@ static void sigintHandler(int32_t signum) {
 
   // inform main thread to exit
   tsem_post(&exitSem);
+  tsem_wait(&exitSem);
 }

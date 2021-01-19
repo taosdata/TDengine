@@ -54,7 +54,7 @@ if %NODE% == 6 set NODE=7600
 if %NODE% == 7 set NODE=7700
 if %NODE% == 8 set NODE=7800
 
-set "fqdn="
+rem set "fqdn="
 for /f "skip=1" %%A in (
   'wmic computersystem get caption'
 ) do if not defined fqdn set "fqdn=%%A"

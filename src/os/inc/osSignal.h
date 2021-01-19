@@ -29,7 +29,7 @@ extern "C" {
 #endif
 
 #ifndef SIGHUP
-  #define SIGHUP 1234
+  #define SIGHUP 1230
 #endif
 
 #ifndef SIGCHLD
