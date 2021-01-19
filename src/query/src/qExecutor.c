@@ -4436,7 +4436,7 @@ static void generateBlockDistResult(STableBlockDist *pTableBlockDist) {
   taosArraySort(blockInfos, compareBlockInfo);
 
   sprintf(pTableBlockDist->result, 
-          "summery: \n\t 5th=[%d], 25th=[%d], 50th=[%d],75th=[%d], 95th=[%d], 99th=[%d] \n\t min=[%ld], max=[%ld], avg = [%ld] \n\t totalRows=[%ld], totalBlocks=[%ld] \n\t seekHeaderTimeCost=[%ld(us)] \n\t rowsInMem=[%ld]",  
+          "summery: \n\t 5th=[%d], 25th=[%d], 50th=[%d],75th=[%d], 95th=[%d], 99th=[%d] \n\t min=[%"PRId64"], max=[%"PRId64"], avg = [%"PRId64"] \n\t totalRows=[%"PRId64"], totalBlocks=[%"PRId64"] \n\t seekHeaderTimeCost=[%"PRId64"(us)] \n\t rowsInMem=[%"PRId64"]",  
           getPercentileFromSortedArray(blockInfos, 0.05), getPercentileFromSortedArray(blockInfos, 0.25), getPercentileFromSortedArray(blockInfos, 0.50), 
           getPercentileFromSortedArray(blockInfos, 0.75), getPercentileFromSortedArray(blockInfos, 0.95), getPercentileFromSortedArray(blockInfos, 0.99),
           min, max, avg,
