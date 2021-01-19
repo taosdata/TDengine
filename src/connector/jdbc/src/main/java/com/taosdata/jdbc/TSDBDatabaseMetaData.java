@@ -1137,7 +1137,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
             columnMetaDataList.add(col4);
             resultSet.setColumnMetaDataList(columnMetaDataList);
 
-            ResultSet rs = stmt.executeQuery("show talbes like '" + tableNamePattern + "'");
+            ResultSet rs = stmt.executeQuery("show tables like '" + tableNamePattern + "'");
             List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
             while (rs.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(4);
