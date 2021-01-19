@@ -25,8 +25,6 @@
 #include "ttimer.h"
 #include "tlockfree.h"
 
-///SRpcCorEpSet  tscMgmtEpSet;
-
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
 int (*tscProcessMsgRsp[TSDB_SQL_MAX])(SSqlObj *pSql);
@@ -341,7 +339,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     if (pSql->retry > pSql->maxRetry) {
       tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
     } else {
-      // wait for a little bit moment and then retry, todo do not sleep in rpc callback thread
+      // wait for a little bit moment and then retry
+      // todo do not sleep in rpc callback thread, add this process into queueu to process
       if (rpcMsg->code == TSDB_CODE_APP_NOT_READY || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID) {
         int32_t duration = getWaitingTimeInterval(pSql->retry);
         taosMsleep(duration);
@@ -484,9 +483,9 @@ int tscProcessSql(SSqlObj *pSql) {
       pSql->res.code = TSDB_CODE_TSC_APP_ERROR;
       return pSql->res.code;
     }
-  } else if (pCmd->command < TSDB_SQL_LOCAL) {
+  } else if (pCmd->command >= TSDB_SQL_LOCAL) {
     //pSql->epSet = tscMgmtEpSet;
-  } else {  // local handler
+//  } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
   
@@ -1157,7 +1156,7 @@ int32_t tscBuildDropTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCMDropTableMsg *pDropTableMsg = (SCMDropTableMsg*)pCmd->payload;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  strcpy(pDropTableMsg->tableId, pTableMetaInfo->name);
+  strcpy(pDropTableMsg->tableFname, pTableMetaInfo->name);
   pDropTableMsg->igNotExists = pInfo->pDCLInfo->existsCheck ? 1 : 0;
 
   pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_TABLE;
@@ -1180,7 +1179,7 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscBuildDropUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+int32_t tscBuildDropUserMsg(SSqlObj *pSql, SSqlInfo * UNUSED_PARAM(pInfo)) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SDropUserMsg);
   pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_USER;
@@ -1347,7 +1346,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pMsg += sizeof(SCreateTableMsg);
 
       SCreatedTableInfo* p = taosArrayGet(list, i);
-      strcpy(pCreate->tableId, p->fullname);
+      strcpy(pCreate->tableFname, p->fullname);
       pCreate->igExists = (p->igExist)? 1 : 0;
 
       // use dbinfo from table id without modifying current db info
@@ -1360,7 +1359,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   } else {  // create (super) table
     pCreateTableMsg->numOfTables = htonl(1); // only one table will be created
 
-    strcpy(pCreateMsg->tableId, pTableMetaInfo->name);
+    strcpy(pCreateMsg->tableFname, pTableMetaInfo->name);
 
     // use dbinfo from table id without modifying current db info
     tscGetDBInfoFromTableFullName(pTableMetaInfo->name, pCreateMsg->db);
@@ -1431,7 +1430,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SAlterTableMsg *pAlterTableMsg = (SAlterTableMsg *)pCmd->payload;
   tscGetDBInfoFromTableFullName(pTableMetaInfo->name, pAlterTableMsg->db);
 
-  strcpy(pAlterTableMsg->tableId, pTableMetaInfo->name);
+  strcpy(pAlterTableMsg->tableFname, pTableMetaInfo->name);
   pAlterTableMsg->type = htons(pAlterInfo->type);
 
   pAlterTableMsg->numOfCols = htons(tscNumOfFields(pQueryInfo));
@@ -1630,7 +1629,7 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   STableInfoMsg *pInfoMsg = (STableInfoMsg *)pCmd->payload;
-  strcpy(pInfoMsg->tableId, pTableMetaInfo->name);
+  strcpy(pInfoMsg->tableFname, pTableMetaInfo->name);
   pInfoMsg->createFlag = htons(pSql->cmd.autoCreated ? 1 : 0);
 
   char *pMsg = (char *)pInfoMsg + sizeof(STableInfoMsg);
@@ -1799,7 +1798,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   if ((pMetaMsg->tableType != TSDB_SUPER_TABLE) &&
       (pMetaMsg->tid <= 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
     tscError("invalid value in table numOfEps:%d, vgId:%d tid:%d, name:%s", pMetaMsg->vgroup.numOfEps, pMetaMsg->vgroup.vgId,
-             pMetaMsg->tid, pMetaMsg->tableId);
+             pMetaMsg->tid, pMetaMsg->tableFname);
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -1831,11 +1830,15 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
     assert(isValidDataType(pSchema->type));
     pSchema++;
   }
-
-  STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
   
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
   assert(pTableMetaInfo->pTableMeta == NULL);
+
+  STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
+  if (!isValidSchema(pTableMeta->schema, pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.numOfTags)) {
+    tscError("%p invalid table meta from mnode, name:%s", pSql, pTableMetaInfo->name);
+    return TSDB_CODE_TSC_INVALID_VALUE;
+  }
 
   if (pTableMeta->tableType == TSDB_CHILD_TABLE) {
     // check if super table hashmap or not
@@ -2097,7 +2100,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   return 0;
 }
 
-static void createHBObj(STscObj* pObj) {
+static void createHbObj(STscObj* pObj) {
   if (pObj->hbrid != 0) {
     return;
   }
@@ -2160,7 +2163,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
   pObj->superAuth = pConnect->superAuth;
   pObj->connId = htonl(pConnect->connId);
 
-  createHBObj(pObj);
+  createHbObj(pObj);
 
   //launch a timer to send heartbeat to maintain the connection and send status to mnode
   taosTmrReset(tscProcessActivityTimer, tsShellActivityTimer * 500, (void *)pObj->rid, tscTmr, &pObj->pTimer);

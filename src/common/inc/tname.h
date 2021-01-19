@@ -39,4 +39,18 @@ SColumnFilterInfo* tscFilterInfoClone(const SColumnFilterInfo* src, int32_t numO
 
 SSchema tscGetTbnameColumnSchema();
 
+/**
+ * check if the schema is valid or not, including following aspects:
+ * 1. number of columns
+ * 2. column types
+ * 3. column length
+ * 4. column names
+ * 5. total length
+ *
+ * @param pSchema
+ * @param numOfCols
+ * @return
+ */
+bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
+
 #endif  // TDENGINE_NAME_H

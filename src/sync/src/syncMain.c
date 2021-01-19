@@ -568,7 +568,7 @@ static void syncStartCheckPeerConn(SSyncPeer *pPeer) {
   int32_t ret = strcmp(pPeer->fqdn, tsNodeFqdn);
   if (pPeer->nodeId == 0 || (ret > 0) || (ret == 0 && pPeer->port > tsSyncPort)) {
     int32_t checkMs = 100 + (pNode->vgId * 10) % 100;
-    if (pNode->vgId > 1) checkMs = tsStatusInterval * 1000 + checkMs;
+
     sDebug("%s, check peer connection after %d ms", pPeer->id, checkMs);
     taosTmrReset(syncCheckPeerConnection, checkMs, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
   }

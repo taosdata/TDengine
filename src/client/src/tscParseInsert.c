@@ -1281,7 +1281,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   }
 
   if (taosHashGetSize(pCmd->pTableBlockHashList) > 0) { // merge according to vgId
-    if ((code = tscMergeTableDataBlocks(pSql)) != TSDB_CODE_SUCCESS) {
+    if ((code = tscMergeTableDataBlocks(pSql, true)) != TSDB_CODE_SUCCESS) {
       goto _clean;
     }
   }
@@ -1336,15 +1336,6 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   }
 
   if (tscIsInsertData(pSql->sqlstr)) {
-    /*
-     * Set the fp before parse the sql string, in case of getTableMeta failed, in which
-     * the error handle callback function can rightfully restore the user-defined callback function (fp).
-     */
-    if (initial && (pSql->cmd.insertType != TSDB_QUERY_TYPE_STMT_INSERT)) {
-      pSql->fetchFp = pSql->fp;
-      pSql->fp = (void(*)())tscHandleMultivnodeInsert;
-    }
-
     if (initial && ((ret = tsInsertInitialCheck(pSql)) != TSDB_CODE_SUCCESS)) {
       return ret;
     }
@@ -1398,7 +1389,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
     return tscInvalidSQLErrMsg(pCmd->payload, "too many rows in sql, total number of rows should be less than 32767", NULL);
   }
 
-  if ((code = tscMergeTableDataBlocks(pSql)) != TSDB_CODE_SUCCESS) {
+  if ((code = tscMergeTableDataBlocks(pSql, true)) != TSDB_CODE_SUCCESS) {
     return code;
   }
 

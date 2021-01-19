@@ -111,7 +111,8 @@ if $rows != 1 then
   return -1
 endi
 
-if $data00 != 6.000000000 then
+if $data00 != NULL then
+  print expect NULL, actual:$data00
   return -1
 endi
 
@@ -167,7 +168,7 @@ if $data01 != 4 then
   return -1
 endi
 
-// todo insert more rows and chec it
+## todo insert more rows and chec it
 sql select first(a),count(b),last(c),sum(b),spread(d),avg(c),min(b),max(a),stddev(a) from mt_unsigned_1;
 if $rows != 1 then
   return -1

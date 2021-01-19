@@ -195,7 +195,7 @@ static int32_t mnodeGetClusterMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *
   cols++;
 
   pMeta->numOfColumns = htons(cols);
-  strcpy(pMeta->tableId, "show cluster");
+  strcpy(pMeta->tableFname, "show cluster");
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
