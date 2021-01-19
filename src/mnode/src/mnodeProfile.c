@@ -401,7 +401,6 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
     }
 
     pShow->pIter = pIter;
-
     for (int32_t i = 0; i < pConnObj->numOfQueries; ++i) {
       SQueryDesc *pDesc = pConnObj->pQueries + i;
       cols = 0;
@@ -545,7 +544,6 @@ static int32_t mnodeRetrieveStreams(SShowObj *pShow, char *data, int32_t rows, v
     }
 
     pShow->pIter = pIter;
-
     for (int32_t i = 0; i < pConnObj->numOfStreams; ++i) {
       SStreamDesc *pDesc = pConnObj->pStreams + i;
       cols = 0;
