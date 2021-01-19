@@ -691,9 +691,9 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
         TSDBResultSetRowData rowData = new TSDBResultSetRowData(1);
         rowData.setString(0, "TABLE");
         rowDataList.add(rowData);
-//        rowData = new TSDBResultSetRowData(1);
-//        rowData.setString(0, "STABLE");
-//        rowDataList.add(rowData);
+        rowData = new TSDBResultSetRowData(1);
+        rowData.setString(0, "STABLE");
+        rowDataList.add(rowData);
         resultSet.setRowDataList(rowDataList);
 
         return resultSet;
