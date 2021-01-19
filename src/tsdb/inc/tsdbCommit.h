@@ -19,15 +19,36 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+typedef struct {
+  int   minFid;
+  int   midFid;
+  int   maxFid;
+  TSKEY minKey;
+} SRtn;
+
 typedef struct {
   uint64_t uid;
   int64_t  offset;
   int64_t  size;
 } SKVRecord;
 
+void  tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn);
 int   tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord);
 void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord);
 void *tsdbCommitData(STsdbRepo *pRepo);
+
+static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
+  if (fid >= pRtn->maxFid) {
+    return 0;
+  } else if (fid >= pRtn->midFid) {
+    return 1;
+  } else if (fid >= pRtn->minFid) {
+    return 2;
+  } else {
+    return -1;
+  }
+}
 
 #ifdef __cplusplus
 }

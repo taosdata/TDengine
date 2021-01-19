@@ -18,13 +18,6 @@
 #define TSDB_KEY_FID(key, days, precision) ((key) / tsMsPerDay[(precision)] / (days))
 
 typedef struct {
-  int   minFid;
-  int   midFid;
-  int   maxFid;
-  TSKEY minKey;
-} SRtn;
-
-typedef struct {
   SRtn         rtn;     // retention snapshot
   SFSIter      fsIter;  // tsdb file iterator
   int          niters;  // memory iterators
@@ -67,7 +60,6 @@ static void tsdbDestroyCommitIters(SCommitH *pCommith);
 static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key);
 static int  tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo);
 static void tsdbDestroyCommitH(SCommitH *pCommith);
-static void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn);
 static int  tsdbGetFidLevel(int fid, SRtn *pRtn);
 static int  tsdbNextCommitFid(SCommitH *pCommith);
 static int  tsdbCommitToTable(SCommitH *pCommith, int tid);
@@ -201,6 +193,21 @@ void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord) {
   buf = taosDecodeFixedI64(buf, &(pRecord->size));
 
   return buf;
+}
+
+void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
+  STsdbCfg *pCfg = REPO_CFG(pRepo);
+  TSKEY     minKey, midKey, maxKey, now;
+
+  now = taosGetTimestamp(pCfg->precision);
+  minKey = now - pCfg->keep * tsMsPerDay[pCfg->precision];
+  midKey = now - pCfg->keep2 * tsMsPerDay[pCfg->precision];
+  maxKey = now - pCfg->keep1 * tsMsPerDay[pCfg->precision];
+
+  pRtn->minKey = minKey;
+  pRtn->minFid = TSDB_KEY_FID(minKey, pCfg->daysPerFile, pCfg->precision);
+  pRtn->midFid = TSDB_KEY_FID(midKey, pCfg->daysPerFile, pCfg->precision);
+  pRtn->maxFid = TSDB_KEY_FID(maxKey, pCfg->daysPerFile, pCfg->precision);
 }
 
 static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen) {
@@ -550,33 +557,6 @@ static void tsdbDestroyCommitH(SCommitH *pCommith) {
   tsdbDestroyCommitIters(pCommith);
   tsdbDestroyReadH(&(pCommith->readh));
   tsdbCloseDFileSet(TSDB_COMMIT_WRITE_FSET(pCommith));
-}
-
-static void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
-  STsdbCfg *pCfg = REPO_CFG(pRepo);
-  TSKEY     minKey, midKey, maxKey, now;
-
-  now = taosGetTimestamp(pCfg->precision);
-  minKey = now - pCfg->keep * tsMsPerDay[pCfg->precision];
-  midKey = now - pCfg->keep2 * tsMsPerDay[pCfg->precision];
-  maxKey = now - pCfg->keep1 * tsMsPerDay[pCfg->precision];
-
-  pRtn->minKey = minKey;
-  pRtn->minFid = TSDB_KEY_FID(minKey, pCfg->daysPerFile, pCfg->precision);
-  pRtn->midFid = TSDB_KEY_FID(midKey, pCfg->daysPerFile, pCfg->precision);
-  pRtn->maxFid = TSDB_KEY_FID(maxKey, pCfg->daysPerFile, pCfg->precision);
-}
-
-static int tsdbGetFidLevel(int fid, SRtn *pRtn) {
-  if (fid >= pRtn->maxFid) {
-    return 0;
-  } else if (fid >= pRtn->midFid) {
-    return 1;
-  } else if (fid >= pRtn->minFid) {
-    return 2;
-  } else {
-    return -1;
-  }
 }
 
 static int tsdbNextCommitFid(SCommitH *pCommith) {

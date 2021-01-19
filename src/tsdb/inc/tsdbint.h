@@ -48,8 +48,6 @@
 extern "C" {
 #endif
 
-typedef struct STsdbRepo STsdbRepo;
-
 // Log
 #include "tsdbLog.h"
 // Meta
@@ -92,10 +90,10 @@ struct STsdbRepo {
 #define IS_REPO_LOCKED(r) (r)->repoLocked
 #define TSDB_SUBMIT_MSG_HEAD_SIZE sizeof(SSubmitMsg)
 
-int         tsdbLockRepo(STsdbRepo* pRepo);
-int         tsdbUnlockRepo(STsdbRepo* pRepo);
-STsdbMeta*  tsdbGetMeta(TSDB_REPO_T* pRepo);
-int         tsdbCheckCommit(STsdbRepo* pRepo);
+int        tsdbLockRepo(STsdbRepo* pRepo);
+int        tsdbUnlockRepo(STsdbRepo* pRepo);
+STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
+int        tsdbCheckCommit(STsdbRepo* pRepo);
 
 static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
   ASSERT(pRepo != NULL);

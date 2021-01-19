@@ -52,8 +52,8 @@ static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SDataRow row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now);
 
-int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
-  STsdbRepo *    pRepo = (STsdbRepo *)repo;
+int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
+  STsdbRepo *    pRepo = repo;
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk *   pBlock = NULL;
   int32_t        affectedrows = 0;
@@ -236,8 +236,8 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
   return 0;
 }
 
-int tsdbSyncCommit(TSDB_REPO_T *repo) {
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
+int tsdbSyncCommit(STsdbRepo *repo) {
+  STsdbRepo *pRepo = repo;
 
   tsdbAsyncCommit(pRepo);
   sem_wait(&(pRepo->readyToCommit));

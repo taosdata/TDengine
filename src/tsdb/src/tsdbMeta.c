@@ -45,7 +45,7 @@ static int     tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid);
 
 // ------------------ OUTER FUNCTIONS ------------------
-int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
+int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   STable *   super = NULL;
@@ -140,7 +140,7 @@ _err:
   return -1;
 }
 
-int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
+int tsdbDropTable(STsdbRepo *repo, STableId tableId) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   uint64_t   uid = tableId.uid;
@@ -293,7 +293,7 @@ static UNUSED_FUNC int32_t colIdCompar(const void* left, const void* right) {
   return (colId < p2->colId)? -1:1;
 }
 
-int tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
+int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   STSchema * pNewSchema = NULL;

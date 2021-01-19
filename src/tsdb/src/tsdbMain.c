@@ -59,7 +59,7 @@ int32_t tsdbDropRepo(int repoid) {
   return tfsRmdir(tsdbDir);
 }
 
-TSDB_REPO_T *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
+STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   STsdbRepo *pRepo;
   STsdbCfg   config = *pCfg;
 
@@ -109,14 +109,14 @@ TSDB_REPO_T *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
 
   tsdbDebug("vgId:%d, TSDB repository opened", REPO_ID(pRepo));
 
-  return (TSDB_REPO_T *)pRepo;
+  return pRepo;
 }
 
 // Note: all working thread and query thread must stopped when calling this function
-int tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
+int tsdbCloseRepo(STsdbRepo *repo, int toCommit) {
   if (repo == NULL) return 0;
 
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
+  STsdbRepo *pRepo = repo;
   int        vgId = REPO_ID(pRepo);
 
   terrno = TSDB_CODE_SUCCESS;
@@ -144,7 +144,7 @@ int tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
   }
 }
 
-STsdbCfg *tsdbGetCfg(const TSDB_REPO_T *repo) {
+STsdbCfg *tsdbGetCfg(const STsdbRepo *repo) {
   ASSERT(repo != NULL);
   return &((STsdbRepo *)repo)->config;
 }
@@ -187,11 +187,11 @@ int tsdbCheckCommit(STsdbRepo *pRepo) {
   return 0;
 }
 
-STsdbMeta *tsdbGetMeta(TSDB_REPO_T *pRepo) { return ((STsdbRepo *)pRepo)->tsdbMeta; }
+STsdbMeta *tsdbGetMeta(STsdbRepo *pRepo) { return pRepo->tsdbMeta; }
 
-STsdbRepoInfo *tsdbGetStatus(TSDB_REPO_T *pRepo) { return NULL; }
+STsdbRepoInfo *tsdbGetStatus(STsdbRepo *pRepo) { return NULL; }
 
-int tsdbGetState(TSDB_REPO_T *repo) { return ((STsdbRepo *)repo)->state; }
+int tsdbGetState(STsdbRepo *repo) { return repo->state; }
 
 void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int64_t *compStorage) {
   ASSERT(repo != NULL);
@@ -201,7 +201,7 @@ void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int
   *compStorage = pRepo->stat.compStorage;
 }
 
-int32_t tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg) {
+int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
   // TODO: think about multithread cases
   return 0;
 #if 0
@@ -253,7 +253,7 @@ int32_t tsdbConfigRepo(TSDB_REPO_T *repo, STsdbCfg *pCfg) {
 #endif
 }
 
-uint32_t tsdbGetFileInfo(TSDB_REPO_T *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size) {
+uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t eindex, int64_t *size) {
   // TODO
   return 0;
 #if 0
