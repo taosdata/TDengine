@@ -79,7 +79,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
     char* dst = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 0) * totalNumOfRows + pField->bytes * i;
     STR_WITH_MAXSIZE_TO_VARSTR(dst, pSchema[i].name, pField->bytes);
 
-    char *type = tDataTypeDesc[pSchema[i].type].aName;
+    char *type = tDataTypes[pSchema[i].type].name;
 
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 1);
     dst = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 1) * totalNumOfRows + pField->bytes * i;
@@ -119,7 +119,7 @@ static int32_t tscSetValueToResObj(SSqlObj *pSql, int32_t rowLen) {
 
     // type name
     pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, 1);
-    char *type = tDataTypeDesc[pSchema[i].type].aName;
+    char *type = tDataTypes[pSchema[i].type].name;
     
     output = pRes->data + tscFieldInfoGetOffset(pQueryInfo, 1) * totalNumOfRows + pField->bytes * i;
     STR_WITH_MAXSIZE_TO_VARSTR(output, type, pField->bytes);
@@ -619,9 +619,9 @@ static int32_t tscRebuildDDLForNormalTable(SSqlObj *pSql, const char *tableName,
       if (type == TSDB_DATA_TYPE_NCHAR) {
         bytes =  bytes/TSDB_NCHAR_SIZE;
       }
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s(%d),", pSchema[i].name, tDataTypeDesc[pSchema[i].type].aName, bytes);
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s(%d),", pSchema[i].name, tDataTypes[pSchema[i].type].name, bytes);
     } else {
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s,", pSchema[i].name, tDataTypeDesc[pSchema[i].type].aName); 
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s,", pSchema[i].name, tDataTypes[pSchema[i].type].name);
     }
   }
   sprintf(result + strlen(result) - 1, "%s", ")");
@@ -646,9 +646,9 @@ static int32_t tscRebuildDDLForSuperTable(SSqlObj *pSql, const char *tableName, 
       if (type == TSDB_DATA_TYPE_NCHAR) {
         bytes =  bytes/TSDB_NCHAR_SIZE;
       }
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result),"%s %s(%d),", pSchema[i].name,tDataTypeDesc[pSchema[i].type].aName, bytes);
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result),"%s %s(%d),", pSchema[i].name,tDataTypes[pSchema[i].type].name, bytes);
     } else {
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s,", pSchema[i].name, tDataTypeDesc[type].aName); 
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s,", pSchema[i].name, tDataTypes[type].name);
     }
   }
   snprintf(result + strlen(result) - 1, TSDB_MAX_BINARY_LEN - strlen(result), "%s %s", ")", "TAGS (");
@@ -660,9 +660,9 @@ static int32_t tscRebuildDDLForSuperTable(SSqlObj *pSql, const char *tableName, 
       if (type == TSDB_DATA_TYPE_NCHAR) {
         bytes =  bytes/TSDB_NCHAR_SIZE;
       }
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s(%d),", pSchema[i].name,tDataTypeDesc[pSchema[i].type].aName, bytes);
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s(%d),", pSchema[i].name,tDataTypes[pSchema[i].type].name, bytes);
     } else {
-      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s,", pSchema[i].name, tDataTypeDesc[type].aName); 
+      snprintf(result + strlen(result), TSDB_MAX_BINARY_LEN - strlen(result), "%s %s,", pSchema[i].name, tDataTypes[type].name);
     }
   }
   sprintf(result + strlen(result) - 1, "%s", ")");

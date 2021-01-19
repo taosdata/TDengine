@@ -235,7 +235,7 @@ typedef struct {
     int32_t numOfTablesInSubmit;
   };
 
-  uint32_t     insertType;
+  uint32_t     insertType;   // TODO remove it
   int32_t      clauseIndex;  // index of multiple subclause query
 
   char *       curSql;       // current sql, resume position of sql after parsing paused
@@ -327,8 +327,8 @@ typedef struct SSqlObj {
   pthread_t        owner;        // owner of sql object, by which it is executed
   STscObj         *pTscObj;
   int64_t          rpcRid;
-  void            (*fp)();
-  void            (*fetchFp)();
+  __async_cb_func_t  fp;
+  __async_cb_func_t  fetchFp;
   void            *param;
   int64_t          stime;
   uint32_t         queryId;
@@ -463,7 +463,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
       pRes->length[columnIndex] = pInfo->pSqlExpr->param[1].nLen;
       pRes->tsrow[columnIndex] = (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : (unsigned char*)pData;
     } else {
-      assert(bytes == tDataTypeDesc[type].nSize);
+      assert(bytes == tDataTypes[type].bytes);
 
       pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)&pInfo->pSqlExpr->param[1].i64;
       pRes->length[columnIndex] = bytes;
@@ -480,7 +480,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
 
       pRes->length[columnIndex] = realLen;
     } else {
-      assert(bytes == tDataTypeDesc[type].nSize);
+      assert(bytes == tDataTypes[type].bytes);
 
       pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)pData;
       pRes->length[columnIndex] = bytes;

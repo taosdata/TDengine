@@ -141,6 +141,6 @@ SHOW MNODES;
 
 如果副本数为偶数，当一个vnode group里一半vnode不工作时，是无法从中选出master的。同理，一半mnode不工作时，是无法选出mnode的master的，因为存在“split brain”问题。为解决这个问题，TDengine引入了arbitrator的概念。Arbitrator模拟一个vnode或mnode在工作，但只简单的负责网络连接，不处理任何数据插入或访问。只要包含arbitrator在内，超过半数的vnode或mnode工作，那么该vnode group或mnode组就可以正常的提供数据插入或查询服务。比如对于副本数为2的情形，如果一个节点A离线，但另外一个节点B正常，而且能连接到arbitrator, 那么节点B就能正常工作。
 
-TDengine安装包里带有一个执行程序tarbitrator, 找任何一台Linux服务器运行它即可。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6030。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为Arbitrator的End Point。如果该参数配置了，当副本数为偶数数，系统将自动连接配置的Arbitrator。
+TDengine安装包里带有一个执行程序tarbitrator, 找任何一台Linux服务器运行它即可。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6030。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为Arbitrator的End Point。如果该参数配置了，当副本数为偶数时，系统将自动连接配置的Arbitrator。
 
 在配置了Arbitrator的情况下，它也会显示在“show dnodes;”指令给出的节点列表中。
