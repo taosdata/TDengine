@@ -64,6 +64,27 @@ void *tsdbDecodeSMFile(void *buf, SMFile *pMFile) {
   return buf;
 }
 
+int tsdbEncodeSMFileEx(void **buf, SMFile *pMFile) {
+  int tlen = 0;
+
+  tlen += tsdbEncodeMFInfo(buf, &(pMFile->info));
+  tlen += taosEncodeString(buf, TSDB_FILE_FULL_NAME(pMFile));
+
+  return tlen;
+}
+
+void *tsdbDecodeSMFileEx(void *buf, SMFile *pMFile) {
+  char *aname;
+  buf = tsdbDecodeMFInfo(buf, &(pMFile->info));
+  buf = taosDecodeString(buf, &aname);
+  strncpy(TSDB_FILE_FULL_NAME(pMFile), aname, TSDB_FILENAME_LEN);
+  TSDB_FILE_SET_CLOSED(pMFile);
+
+  tfree(aname);
+
+  return buf;
+}
+
 int tsdbApplyMFileChange(SMFile *from, SMFile *to) {
   ASSERT(from != NULL || to != NULL);
 
@@ -262,6 +283,27 @@ void *tsdbDecodeSDFile(void *buf, SDFile *pDFile) {
   return buf;
 }
 
+static int tsdbEncodeSDFileEx(void **buf, SDFile *pDFile) {
+  int tlen = 0;
+
+  tlen += tsdbEncodeDFInfo(buf, &(pDFile->info));
+  tlen += taosEncodeString(buf, TSDB_FILE_FULL_NAME(pDFile));
+
+  return tlen;
+}
+
+static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
+  char *aname;
+
+  buf = tsdbDecodeDFInfo(buf, &(pDFile->info));
+  buf = taosDecodeString(buf, &aname);
+  strncpy(TSDB_FILE_FULL_NAME(pDFile), aname, TSDB_FILENAME_LEN);
+  TSDB_FILE_SET_CLOSED(pDFile);
+  tfree(aname);
+
+  return buf;
+}
+
 int tsdbCreateDFile(SDFile *pDFile, bool updateHeader) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
@@ -447,6 +489,28 @@ void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet) {
   pSet->fid = fid;
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     buf = tsdbDecodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
+  }
+  return buf;
+}
+
+int tsdbEncodeDFileSetEx(void **buf, SDFileSet *pSet) {
+  int tlen = 0;
+
+  tlen += taosEncodeFixedI32(buf, pSet->fid);
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    tlen += tsdbEncodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));
+  }
+
+  return tlen;
+}
+
+void *tsdbDecodeDFileSetEx(void *buf, SDFileSet *pSet) {
+  int32_t fid;
+
+  buf = taosDecodeFixedI32(buf, &(fid));
+  pSet->fid = fid;
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    buf = tsdbDecodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
   return buf;
 }

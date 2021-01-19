@@ -57,6 +57,8 @@ void  tsdbInitMFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver);
 void  tsdbInitMFileEx(SMFile* pMFile, SMFile* pOMFile);
 int   tsdbEncodeSMFile(void** buf, SMFile* pMFile);
 void* tsdbDecodeSMFile(void* buf, SMFile* pMFile);
+int   tsdbEncodeSMFileEx(void** buf, SMFile* pMFile);
+void* tsdbDecodeSMFileEx(void* buf, SMFile* pMFile);
 int   tsdbApplyMFileChange(SMFile* from, SMFile* to);
 int   tsdbCreateMFile(SMFile* pMFile, bool updateHeader);
 int   tsdbUpdateMFileHeader(SMFile* pMFile);
@@ -301,6 +303,8 @@ void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, uint32_t 
 void  tsdbInitDFileSetEx(SDFileSet* pSet, SDFileSet* pOSet);
 int   tsdbEncodeDFileSet(void** buf, SDFileSet* pSet);
 void* tsdbDecodeDFileSet(void* buf, SDFileSet* pSet);
+int   tsdbEncodeDFileSetEx(void** buf, SDFileSet* pSet);
+void* tsdbDecodeDFileSetEx(void* buf, SDFileSet* pSet);
 int   tsdbApplyDFileSetChange(SDFileSet* from, SDFileSet* to);
 int   tsdbCreateDFileSet(SDFileSet* pSet, bool updateHeader);
 int   tsdbUpdateDFileSetHeader(SDFileSet* pSet);

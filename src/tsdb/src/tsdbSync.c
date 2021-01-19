@@ -205,7 +205,7 @@ static int tsdbSendMetaInfo(SSyncH *pSynch) {
   SMFile *   pMFile = pRepo->fs->cstatus->pmf;
 
   if (pMFile) {
-    tlen = tlen + tsdbEncodeSMFile(NULL, pMFile) + sizeof(TSCKSUM);
+    tlen = tlen + tsdbEncodeSMFileEx(NULL, pMFile) + sizeof(TSCKSUM);
   }
 
   if (tsdbMakeRoom((void **)(&SYNC_BUFFER(pSynch)), tlen) < 0) {
@@ -216,7 +216,7 @@ static int tsdbSendMetaInfo(SSyncH *pSynch) {
   taosEncodeFixedU32(&ptr, tlen);
   void *tptr = ptr;
   if (pMFile) {
-    tsdbEncodeSMFile(&ptr, pMFile);
+    tsdbEncodeSMFileEx(&ptr, pMFile);
     taosCalcChecksumAppend(0, (uint8_t *)tptr, tlen);
   }
 
@@ -263,7 +263,7 @@ static int tsdbRecvMetaInfo(SSyncH *pSynch) {
   }
 
   pSynch->pmf = &(pSynch->mf);
-  tsdbDecodeSMFile(SYNC_BUFFER(pSynch), pSynch->pmf);
+  tsdbDecodeSMFileEx(SYNC_BUFFER(pSynch), pSynch->pmf);
 
   return 0;
 }
@@ -496,7 +496,7 @@ static int tsdbSendDFileSetInfo(SSyncH *pSynch, SDFileSet *pSet) {
   uint32_t tlen = 0;
 
   if (pSet) {
-    tlen = tsdbEncodeDFileSet(NULL, pSet) + sizeof(TSCKSUM);
+    tlen = tsdbEncodeDFileSetEx(NULL, pSet) + sizeof(TSCKSUM);
   }
 
   if (tsdbMakeRoom((void **)(&SYNC_BUFFER(pSynch)), tlen + sizeof(tlen)) < 0) {
@@ -507,7 +507,7 @@ static int tsdbSendDFileSetInfo(SSyncH *pSynch, SDFileSet *pSet) {
   taosEncodeFixedU32(&ptr, tlen);
   void *tptr = ptr;
   if (pSet) {
-    tsdbEncodeDFileSet(&ptr, pSet);
+    tsdbEncodeDFileSetEx(&ptr, pSet);
     taosCalcChecksumAppend(0, (uint8_t *)tptr, tlen);
   }
 
@@ -551,7 +551,7 @@ static int tsdbRecvDFileSetInfo(SSyncH *pSynch) {
   }
 
   pSynch->pdf = &(pSynch->df);
-  tsdbDecodeDFileSet(SYNC_BUFFER(pSynch), pSynch->pdf);
+  tsdbDecodeDFileSetEx(SYNC_BUFFER(pSynch), pSynch->pdf);
 
   return 0;
 }
