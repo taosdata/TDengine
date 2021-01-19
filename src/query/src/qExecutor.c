@@ -28,6 +28,7 @@
 #include "queryLog.h"
 #include "tlosertree.h"
 #include "ttype.h"
+#include "tcompare.h"
 
 #define MAX_ROWS_PER_RESBUF_PAGE  ((1u<<12) - 1)
 
@@ -89,6 +90,13 @@ typedef struct {
   int32_t     windowIndex;  // index of active time window result for interval query
   STSCursor   cur;
 } SQueryStatusInfo;
+
+typedef struct {
+  SArray  *dataBlockInfos; 
+  int64_t firstSeekTimeUs; 
+  int64_t numOfRowsInMemTable;
+  char    *result;
+} STableBlockDist;
 
 #if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
@@ -1907,6 +1915,10 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order
       if (pIndex->colId == TSDB_TBNAME_COLUMN_INDEX) {  // todo refactor
         SSchema s = tGetTableNameColumnSchema();
 
+        pCtx->inputBytes = s.bytes;
+        pCtx->inputType = s.type;
+      } else if (pIndex->colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
+        SSchema s = tGetBlockDistColumnSchema();
         pCtx->inputBytes = s.bytes;
         pCtx->inputType = s.type;
       } else {
@@ -4381,7 +4393,57 @@ static void updateOffsetVal(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBloc
   qDebug("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%"PRId64, GET_QINFO_ADDR(pRuntimeEnv),
          pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows, numOfRes, pQuery->current->lastKey);
 }
+static void freeTableBlockDist(STableBlockDist *pTableBlockDist) {
+  if (pTableBlockDist != NULL) {
+    taosArrayDestroy(pTableBlockDist->dataBlockInfos); 
+    free(pTableBlockDist->result);
+    free(pTableBlockDist);
+  }
+}
+static int32_t getPercentileFromSortedArray(const SArray* pArray, float rate) {
+  size_t len = taosArrayGetSize(pArray);
+  if (len == 0) {
+    return 0;
+  }
+  assert(rate >= 0 && rate <= 1.0);
+  int idx = (int32_t)((len - 1) * rate);
+  return ((SDataBlockInfo *)(taosArrayGet(pArray, idx)))->rows;
+}
+static int32_t compareBlockInfo(const void *pLeft, const void *pRight) {
+  int32_t left = ((SDataBlockInfo *)pLeft)->rows;
+  int32_t right = ((SDataBlockInfo *)pRight)->rows; 
+  if (left > right) return 1; 
+  if (left < right) return -1; 
+  return 0;
+} 
 
+static void generateBlockDistResult(STableBlockDist *pTableBlockDist) {
+  if (pTableBlockDist == NULL) {
+     return;
+  }
+  int64_t min = INT64_MAX, max = INT64_MIN, avg = 0;    
+  SArray* blockInfos= pTableBlockDist->dataBlockInfos;  
+  int64_t totalRows = 0, totalBlocks = taosArrayGetSize(blockInfos); 
+  for (size_t i = 0; i < taosArrayGetSize(blockInfos); i++) {
+    SDataBlockInfo *blockInfo = taosArrayGet(blockInfos, i); 
+    int64_t rows = blockInfo->rows;
+    min = MIN(min, rows);       
+    max = MAX(max, rows);
+    totalRows += rows;  
+  }
+  avg = totalBlocks > 0 ? (int32_t)(((totalRows * 1.0)/totalBlocks)) : 0;
+
+  taosArraySort(blockInfos, compareBlockInfo);
+
+  sprintf(pTableBlockDist->result, 
+          "summery: \n\t 5th=[%d], 25th=[%d], 50th=[%d],75th=[%d], 95th=[%d], 99th=[%d] \n\t min=[%ld], max=[%ld], avg = [%ld] \n\t totalRows=[%ld], totalBlocks=[%ld] \n\t seekHeaderTimeCost=[%ld(us)] \n\t rowsInMem=[%ld]",  
+          getPercentileFromSortedArray(blockInfos, 0.05), getPercentileFromSortedArray(blockInfos, 0.25), getPercentileFromSortedArray(blockInfos, 0.50), 
+          getPercentileFromSortedArray(blockInfos, 0.75), getPercentileFromSortedArray(blockInfos, 0.95), getPercentileFromSortedArray(blockInfos, 0.99),
+          min, max, avg,
+          totalRows, totalBlocks,
+          pTableBlockDist->firstSeekTimeUs,
+          pTableBlockDist->numOfRowsInMemTable);
+} 
 void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
@@ -5836,6 +5898,58 @@ static void tableQueryImpl(SQInfo *pQInfo) {
   pRuntimeEnv->summary.elapsedTime += (taosGetTimestampUs() - st);
   assert(pQInfo->tableqinfoGroupInfo.numOfTables == 1);
 }
+static void buildTableBlockDistResult(SQInfo *pQInfo) {
+  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
+  SQuery *pQuery = pRuntimeEnv->pQuery;
+  pQuery->pos = 0;
+
+  STableBlockDist *pTableBlockDist  = calloc(1, sizeof(STableBlockDist)); 
+  pTableBlockDist->dataBlockInfos   = taosArrayInit(512, sizeof(SDataBlockInfo));
+  pTableBlockDist->result           = malloc(512);
+
+  TsdbQueryHandleT pQueryHandle = pRuntimeEnv->pQueryHandle;
+  SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
+  SSchema blockDistSchema = tGetBlockDistColumnSchema();
+
+  int64_t startTime = taosGetTimestampUs();
+  while (tsdbNextDataBlockWithoutMerge(pQueryHandle)) {
+    if (isQueryKilled(GET_QINFO_ADDR(pRuntimeEnv))) {
+      freeTableBlockDist(pTableBlockDist);
+      longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
+    }
+    if (pTableBlockDist->firstSeekTimeUs == 0) {
+       pTableBlockDist->firstSeekTimeUs = taosGetTimestampUs() - startTime;
+    }   
+   
+    tsdbRetrieveDataBlockInfo(pQueryHandle, &blockInfo);
+    taosArrayPush(pTableBlockDist->dataBlockInfos, &blockInfo); 
+  }
+  if (terrno != TSDB_CODE_SUCCESS) {
+    freeTableBlockDist(pTableBlockDist);
+    longjmp(pRuntimeEnv->env, terrno);
+  }
+
+  pTableBlockDist->numOfRowsInMemTable = tsdbGetNumOfRowsInMemTable(pQueryHandle); 
+  
+  generateBlockDistResult(pTableBlockDist); 
+
+  int type = -1;
+  assert(pQuery->numOfOutput == 1);
+  SExprInfo* pExprInfo = pQuery->pExpr1;
+  for (int32_t j = 0; j < pQuery->numOfOutput; j++) {
+    if (pExprInfo[j].base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
+      type = blockDistSchema.type;
+    }
+    assert(type == TSDB_DATA_TYPE_BINARY);
+    STR_TO_VARSTR(pQuery->sdata[j]->data, pTableBlockDist->result); 
+  }
+
+  freeTableBlockDist(pTableBlockDist);
+
+  pQuery->rec.rows = 1;
+  setQueryStatus(pQuery, QUERY_COMPLETED);
+  return;
+}
 
 static void stableQueryImpl(SQInfo *pQInfo) {
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
@@ -5864,7 +5978,10 @@ static int32_t getColumnIndexInSource(SQueryTableMsg *pQueryMsg, SSqlFuncMsg *pE
   if (TSDB_COL_IS_TAG(pExprMsg->colInfo.flag)) {
     if (pExprMsg->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
       return TSDB_TBNAME_COLUMN_INDEX;
+    } else if (pExprMsg->colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
+      return TSDB_BLOCK_DIST_COLUMN_INDEX;     
     }
+    
 
     while(j < pQueryMsg->numOfTags) {
       if (pExprMsg->colInfo.colId == pTagCols[j].colId) {
@@ -6321,6 +6438,10 @@ static int32_t createQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t num
       SSchema s = tGetTableNameColumnSchema();
       type = s.type;
       bytes = s.bytes;
+    } else if (pExprs[i].base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
+      SSchema s = tGetBlockDistColumnSchema(); 
+      type = s.type;
+      bytes = s.bytes;
     } else if (pExprs[i].base.colInfo.colId <= TSDB_UD_COLUMN_INDEX) {
       // it is a user-defined constant value column
       assert(pExprs[i].base.functionId == TSDB_FUNC_PRJ);
@@ -6334,7 +6455,7 @@ static int32_t createQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t num
     } else {
       int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].base, pTagCols);
       if (TSDB_COL_IS_TAG(pExprs[i].base.colInfo.flag)) {
-        if (j < TSDB_TBNAME_COLUMN_INDEX || j >= pQueryMsg->numOfTags) {
+        if (j < TSDB_BLOCK_DIST_COLUMN_INDEX || j >= pQueryMsg->numOfTags) {
           return TSDB_CODE_QRY_INVALID_MSG;
         }
       } else {
@@ -6504,7 +6625,7 @@ static void doUpdateExprColumnIndex(SQuery *pQuery) {
         }
       }
 
-      assert(f < pQuery->numOfTags || pColIndex->colId == TSDB_TBNAME_COLUMN_INDEX);
+      assert(f < pQuery->numOfTags || pColIndex->colId == TSDB_TBNAME_COLUMN_INDEX || pColIndex->colId == TSDB_BLOCK_DIST_COLUMN_INDEX);
     }
   }
 }
@@ -6707,9 +6828,10 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
       index += 1;
     }
   }
-
   colIdCheck(pQuery);
 
+  pQInfo->runtimeEnv.queryBlockDist = (numOfOutput == 1 && pExprs[0].base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX);
+   
   qDebug("qmsg:%p QInfo:%p created", pQueryMsg, pQInfo);
   return pQInfo;
 
@@ -7219,6 +7341,8 @@ bool qTableQuery(qinfo_t qinfo) {
     buildTagQueryResult(pQInfo);
   } else if (pQInfo->runtimeEnv.stableQuery) {
     stableQueryImpl(pQInfo);
+  } else if (pQInfo->runtimeEnv.queryBlockDist){
+    buildTableBlockDistResult(pQInfo);  
   } else {
     tableQueryImpl(pQInfo);
   }

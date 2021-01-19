@@ -31,6 +31,8 @@ void extractTableNameFromToken(SStrToken *pToken, SStrToken* pTable);
 
 SSchema tGetTableNameColumnSchema();
 
+SSchema tGetBlockDistColumnSchema();
+
 SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name);
 
 bool tscValidateTableNameLength(size_t len);
