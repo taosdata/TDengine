@@ -648,8 +648,26 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
 
         try (Statement stmt = conn.createStatement()) {
+            DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
+            // set up ColumnMetaDataList
+            List<ColumnMetaData> columnMetaDataList = new ArrayList<>(24);
+            // TABLE_CAT
+            ColumnMetaData col1 = new ColumnMetaData();
+            col1.setColIndex(1);
+            col1.setColName("TABLE_CAT");
+            col1.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+            columnMetaDataList.add(col1);
+            resultSet.setColumnMetaDataList(columnMetaDataList);
+
+            List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
             ResultSet rs = stmt.executeQuery("show databases");
-            return new CatalogResultSet(rs);
+            while (rs.next()) {
+                TSDBResultSetRowData rowData = new TSDBResultSetRowData(1);
+                rowData.setString(0, rs.getString("name"));
+                rowDataList.add(rowData);
+            }
+            resultSet.setRowDataList(rowDataList);
+            return resultSet;
         }
     }
 
@@ -659,25 +677,25 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
 
         DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
         // set up ColumnMetaDataList
-        List<ColumnMetaData> columnMetaDataList = new ArrayList<>(1);
+        List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
         ColumnMetaData colMetaData = new ColumnMetaData();
-        colMetaData.setColIndex(0);
+        colMetaData.setColIndex(1);
         colMetaData.setColName("TABLE_TYPE");
         colMetaData.setColSize(10);
-        colMetaData.setColType(TSDBConstants.TSDB_DATA_TYPE_BINARY);
+        colMetaData.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
         columnMetaDataList.add(colMetaData);
+        resultSet.setColumnMetaDataList(columnMetaDataList);
 
         // set up rowDataList
-        List<TSDBResultSetRowData> rowDataList = new ArrayList<>(2);
-        TSDBResultSetRowData rowData = new TSDBResultSetRowData();
+        List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
+        TSDBResultSetRowData rowData = new TSDBResultSetRowData(1);
         rowData.setString(0, "TABLE");
         rowDataList.add(rowData);
         rowData = new TSDBResultSetRowData();
         rowData.setString(0, "STABLE");
         rowDataList.add(rowData);
-
-        resultSet.setColumnMetaDataList(columnMetaDataList);
         resultSet.setRowDataList(rowDataList);
+
         return resultSet;
     }
 
@@ -891,7 +909,82 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
     }
 
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
-        return getEmptyResultSet();
+        if (conn == null || conn.isClosed())
+            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+
+        try (Statement stmt = conn.createStatement()) {
+            if (catalog == null || catalog.isEmpty())
+                return null;
+
+            ResultSet databases = stmt.executeQuery("show databases");
+            String dbname = null;
+            while (databases.next()) {
+                dbname = databases.getString("name");
+                if (dbname.equalsIgnoreCase(catalog))
+                    break;
+            }
+            databases.close();
+            if (dbname == null)
+                return null;
+
+            stmt.execute("use " + dbname);
+            DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
+            // set up ColumnMetaDataList
+            List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
+            // TABLE_CAT
+            ColumnMetaData col1 = new ColumnMetaData();
+            col1.setColIndex(1);
+            col1.setColName("TABLE_CAT");
+            col1.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+            columnMetaDataList.add(col1);
+            // TABLE_SCHEM
+            ColumnMetaData col2 = new ColumnMetaData();
+            col2.setColIndex(2);
+            col2.setColName("TABLE_SCHEM");
+            col2.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+            columnMetaDataList.add(col2);
+            // TABLE_NAME
+            ColumnMetaData col3 = new ColumnMetaData();
+            col3.setColIndex(3);
+            col3.setColName("TABLE_NAME");
+            col3.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+            columnMetaDataList.add(col3);
+            // COLUMN_NAME
+            ColumnMetaData col4 = new ColumnMetaData();
+            col4.setColIndex(4);
+            col4.setColName("COLUMN_NAME");
+            col4.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+            columnMetaDataList.add(col4);
+            // KEY_SEQ
+            ColumnMetaData col5 = new ColumnMetaData();
+            col5.setColIndex(5);
+            col5.setColName("KEY_SEQ");
+            col5.setColType(TSDBConstants.TSDB_DATA_TYPE_INT);
+            columnMetaDataList.add(col5);
+            // PK_NAME
+            ColumnMetaData col6 = new ColumnMetaData();
+            col6.setColIndex(6);
+            col6.setColName("PK_NAME");
+            col6.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+            columnMetaDataList.add(col6);
+            resultSet.setColumnMetaDataList(columnMetaDataList);
+
+            // set rowData
+            List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
+            ResultSet rs = stmt.executeQuery("describe " + dbname + "." + table);
+            rs.next();
+            TSDBResultSetRowData rowData = new TSDBResultSetRowData(6);
+            rowData.setString(0, null);
+            rowData.setString(1, null);
+            rowData.setString(2, table);
+            String pkName = rs.getString(1);
+            rowData.setString(3, pkName);
+            rowData.setInt(4, 1);
+            rowData.setString(5, pkName);
+            rowDataList.add(rowData);
+            resultSet.setRowDataList(rowDataList);
+            return resultSet;
+        }
     }
 
     public ResultSet getImportedKeys(String catalog, String schema, String table) throws SQLException {
@@ -989,12 +1082,72 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
         return false;
     }
 
-    public ResultSet getSuperTypes(String catalog, String schemaPattern, String typeNamePattern) throws SQLException {
+    public ResultSet getSuperTypes(String catalog, String schemaPattern, String typeNamePattern) throws
+            SQLException {
         return getEmptyResultSet();
     }
 
-    public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
-        return getEmptyResultSet();
+    public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws
+            SQLException {
+        if (conn == null || conn.isClosed())
+            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+
+        try (Statement stmt = conn.createStatement()) {
+            if (catalog == null || catalog.isEmpty())
+                return null;
+
+            ResultSet databases = stmt.executeQuery("show databases");
+            String dbname = null;
+            while (databases.next()) {
+                dbname = databases.getString("name");
+                if (dbname.equalsIgnoreCase(catalog))
+                    break;
+            }
+            databases.close();
+            if (dbname == null)
+                return null;
+
+            stmt.execute("use " + dbname);
+            DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
+            // set up ColumnMetaDataList
+            List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
+            // TABLE_CAT
+            ColumnMetaData col1 = new ColumnMetaData();
+            col1.setColIndex(1);
+            col1.setColName("TABLE_CAT");
+            col1.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+            columnMetaDataList.add(col1);
+            // TABLE_SCHEM
+            ColumnMetaData col2 = new ColumnMetaData();
+            col2.setColIndex(2);
+            col2.setColName("TABLE_SCHEM");
+            col2.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+            columnMetaDataList.add(col2);
+            // TABLE_NAME
+            ColumnMetaData col3 = new ColumnMetaData();
+            col3.setColIndex(3);
+            col3.setColName("TABLE_NAME");
+            col3.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+            columnMetaDataList.add(col3);
+            // SUPERTABLE_NAME
+            ColumnMetaData col4 = new ColumnMetaData();
+            col4.setColIndex(4);
+            col4.setColName("SUPERTABLE_NAME");
+            col4.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+            columnMetaDataList.add(col4);
+            resultSet.setColumnMetaDataList(columnMetaDataList);
+
+            ResultSet rs = stmt.executeQuery("show talbes like '" + tableNamePattern + "'");
+            List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
+            while (rs.next()) {
+                TSDBResultSetRowData rowData = new TSDBResultSetRowData(4);
+                rowData.setString(2, rs.getString(1));
+                rowData.setString(3, rs.getString(4));
+                rowDataList.add(rowData);
+            }
+            resultSet.setRowDataList(rowDataList);
+            return resultSet;
+        }
     }
 
     public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern,

@@ -669,6 +669,10 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getTableTypes() throws SQLException {
+        ResultSet tableTypes = metaData.getTableTypes();
+        while (tableTypes.next()) {
+            System.out.println(tableTypes.getString("TABLE_TYPE"));
+        }
         Assert.assertNotNull(metaData.getTableTypes());
     }
 
@@ -712,7 +716,15 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getPrimaryKeys() throws SQLException {
-        Assert.assertNotNull(metaData.getPrimaryKeys("", "", ""));
+        ResultSet rs = metaData.getPrimaryKeys("log", "", "dn1");
+        while (rs.next()) {
+            System.out.println("TABLE_NAME: " + rs.getString("TABLE_NAME"));
+            System.out.println("COLUMN_NAME: " + rs.getString("COLUMN_NAME"));
+            System.out.println("KEY_SEQ: " + rs.getString("KEY_SEQ"));
+            System.out.println("PK_NAME: " + rs.getString("PK_NAME"));
+        }
+
+        Assert.assertNotNull(rs);
     }
 
     @Test
@@ -837,7 +849,12 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getSuperTables() throws SQLException {
-        Assert.assertNotNull(metaData.getSuperTables("", "", ""));
+        ResultSet rs = metaData.getSuperTables("log", "", "dn1");
+        while (rs.next()) {
+            System.out.println("TABLE_NAME: " + rs.getString("TABLE_NAME"));
+            System.out.println("SUPERTABLE_NAME: " + rs.getString("SUPERTABLE_NAME"));
+        }
+        Assert.assertNotNull(rs);
     }
 
     @Test
