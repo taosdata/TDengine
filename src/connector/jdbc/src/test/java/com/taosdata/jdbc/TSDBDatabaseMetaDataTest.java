@@ -677,10 +677,15 @@ public class TSDBDatabaseMetaDataTest {
         ResultSet columns = metaData.getColumns("log", "", "dn", "");
         ResultSetMetaData meta = columns.getMetaData();
         while (columns.next()) {
-            for (int i = 1; i <= meta.getColumnCount(); i++) {
-                System.out.print(meta.getColumnLabel(i) + ": " + columns.getString(i));
-            }
-            System.out.println();
+            System.out.print(meta.getColumnLabel(0) + ": " + columns.getString(0) + "\t");
+            System.out.print(meta.getColumnLabel(2) + ": " + columns.getString(0) + "\t");
+            System.out.print(meta.getColumnLabel(3) + ": " + columns.getString(0) + "\t");
+            System.out.print(meta.getColumnLabel(4) + ": " + columns.getString(0) + "\t");
+            System.out.print(meta.getColumnLabel(5) + ": " + columns.getString(0) + "\t");
+            System.out.print(meta.getColumnLabel(6) + ": " + columns.getString(0) + "\t");
+            System.out.print(meta.getColumnLabel(8) + ": " + columns.getString(0) + "\t");
+            System.out.print(meta.getColumnLabel(9) + ": " + columns.getString(0) + "\t");
+            System.out.print(meta.getColumnLabel(10) + ": " + columns.getString(0) + "\n");
         }
     }
 
