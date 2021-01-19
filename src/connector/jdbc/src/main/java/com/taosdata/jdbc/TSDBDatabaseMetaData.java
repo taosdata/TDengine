@@ -768,7 +768,14 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
             col11.setColName("NULLABLE");
             col11.setColType(TSDBConstants.TSDB_DATA_TYPE_INT);
             columnMetaDataList.add(col11);
+            // REMARKS
+            ColumnMetaData col12 = new ColumnMetaData();
+            col12.setColIndex(12);
+            col12.setColName("REMARKS");
+            col12.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
+            columnMetaDataList.add(col12);
             resultSet.setColumnMetaDataList(columnMetaDataList);
+
 
             // set up rowDataList
             ResultSet rs = stmt.executeQuery("describe " + dbname + "." + tableNamePattern);

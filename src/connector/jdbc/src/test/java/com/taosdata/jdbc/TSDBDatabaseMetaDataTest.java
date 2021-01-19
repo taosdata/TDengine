@@ -686,6 +686,7 @@ public class TSDBDatabaseMetaDataTest {
             System.out.print(meta.getColumnLabel(9) + ": " + columns.getString(9) + "\t");
             System.out.print(meta.getColumnLabel(10) + ": " + columns.getString(10) + "\t");
             System.out.print(meta.getColumnLabel(11) + ": " + columns.getString(11) + "\n");
+            System.out.print(meta.getColumnLabel(12) + ": " + columns.getString(12) + "\n");
         }
     }
 
