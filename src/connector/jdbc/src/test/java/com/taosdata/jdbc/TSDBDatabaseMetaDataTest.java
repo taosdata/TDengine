@@ -677,15 +677,15 @@ public class TSDBDatabaseMetaDataTest {
         ResultSet columns = metaData.getColumns("log", "", "dn", "");
         ResultSetMetaData meta = columns.getMetaData();
         while (columns.next()) {
-            System.out.print(meta.getColumnLabel(1) + ": " + columns.getString(0) + "\t");
-            System.out.print(meta.getColumnLabel(3) + ": " + columns.getString(0) + "\t");
-            System.out.print(meta.getColumnLabel(4) + ": " + columns.getString(0) + "\t");
-            System.out.print(meta.getColumnLabel(5) + ": " + columns.getString(0) + "\t");
-            System.out.print(meta.getColumnLabel(6) + ": " + columns.getString(0) + "\t");
-            System.out.print(meta.getColumnLabel(7) + ": " + columns.getString(0) + "\t");
-            System.out.print(meta.getColumnLabel(9) + ": " + columns.getString(0) + "\t");
-            System.out.print(meta.getColumnLabel(10) + ": " + columns.getString(0) + "\t");
-            System.out.print(meta.getColumnLabel(11) + ": " + columns.getString(0) + "\n");
+            System.out.print(meta.getColumnLabel(1) + ": " + columns.getString(1) + "\t");
+            System.out.print(meta.getColumnLabel(3) + ": " + columns.getString(3) + "\t");
+            System.out.print(meta.getColumnLabel(4) + ": " + columns.getString(4) + "\t");
+            System.out.print(meta.getColumnLabel(5) + ": " + columns.getString(5) + "\t");
+            System.out.print(meta.getColumnLabel(6) + ": " + columns.getString(6) + "\t");
+            System.out.print(meta.getColumnLabel(7) + ": " + columns.getString(7) + "\t");
+            System.out.print(meta.getColumnLabel(9) + ": " + columns.getString(9) + "\t");
+            System.out.print(meta.getColumnLabel(10) + ": " + columns.getString(10) + "\t");
+            System.out.print(meta.getColumnLabel(11) + ": " + columns.getString(11) + "\n");
         }
     }
 
