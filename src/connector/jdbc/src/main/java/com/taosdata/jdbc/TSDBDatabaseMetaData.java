@@ -679,7 +679,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
         // set up ColumnMetaDataList
         List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
         ColumnMetaData colMetaData = new ColumnMetaData();
-        colMetaData.setColIndex(1);
+        colMetaData.setColIndex(0);
         colMetaData.setColName("TABLE_TYPE");
         colMetaData.setColSize(10);
         colMetaData.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
