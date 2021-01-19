@@ -41,13 +41,10 @@ def pre_test(){
     
     cd ${WKC}
     git checkout develop
-    git reset --hard HEAD~10
+    git reset --hard HEAD~10 >/dev/null 
     git pull
-    git fetch
-    git checkout ${CHANGE_BRANCH}
-    git reset --hard HEAD~10
-    git pull
-    git merge develop
+    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    
     cd ${WK}
     git reset --hard HEAD~10
     git checkout develop
