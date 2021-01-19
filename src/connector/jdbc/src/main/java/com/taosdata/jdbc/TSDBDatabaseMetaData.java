@@ -933,37 +933,37 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
             List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
             // TABLE_CAT
             ColumnMetaData col1 = new ColumnMetaData();
-            col1.setColIndex(1);
+            col1.setColIndex(0);
             col1.setColName("TABLE_CAT");
             col1.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
             columnMetaDataList.add(col1);
             // TABLE_SCHEM
             ColumnMetaData col2 = new ColumnMetaData();
-            col2.setColIndex(2);
+            col2.setColIndex(1);
             col2.setColName("TABLE_SCHEM");
             col2.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
             columnMetaDataList.add(col2);
             // TABLE_NAME
             ColumnMetaData col3 = new ColumnMetaData();
-            col3.setColIndex(3);
+            col3.setColIndex(2);
             col3.setColName("TABLE_NAME");
             col3.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
             columnMetaDataList.add(col3);
             // COLUMN_NAME
             ColumnMetaData col4 = new ColumnMetaData();
-            col4.setColIndex(4);
+            col4.setColIndex(3);
             col4.setColName("COLUMN_NAME");
             col4.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
             columnMetaDataList.add(col4);
             // KEY_SEQ
             ColumnMetaData col5 = new ColumnMetaData();
-            col5.setColIndex(5);
+            col5.setColIndex(4);
             col5.setColName("KEY_SEQ");
             col5.setColType(TSDBConstants.TSDB_DATA_TYPE_INT);
             columnMetaDataList.add(col5);
             // PK_NAME
             ColumnMetaData col6 = new ColumnMetaData();
-            col6.setColIndex(6);
+            col6.setColIndex(5);
             col6.setColName("PK_NAME");
             col6.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
             columnMetaDataList.add(col6);
