@@ -49,7 +49,7 @@ int tsdbSyncSend(STsdbRepo *pRepo, int socketFd) {
 
   tsdbInitSyncH(&synch, pRepo, socketFd);
   // Disable TSDB commit
-  sem_post(&(pRepo->readyToCommit));
+  sem_wait(&(pRepo->readyToCommit));
 
   if (tsdbSyncSendMeta(&synch) < 0) {
     tsdbError("vgId:%d failed to send meta file since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -62,12 +62,12 @@ int tsdbSyncSend(STsdbRepo *pRepo, int socketFd) {
   }
 
   // Enable TSDB commit
-  sem_wait(&(pRepo->readyToCommit));
+  sem_post(&(pRepo->readyToCommit));
   tsdbDestroySyncH(&synch);
   return 0;
 
 _err:
-  sem_wait(&(pRepo->readyToCommit));
+  sem_post(&(pRepo->readyToCommit));
   tsdbDestroySyncH(&synch);
   return -1;
 }
