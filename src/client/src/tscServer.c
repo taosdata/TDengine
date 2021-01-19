@@ -1626,8 +1626,7 @@ int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
-
-  STableInfoMsg *pInfoMsg = (STableInfoMsg *)pCmd->payload;
+  STableInfoMsg  *pInfoMsg = (STableInfoMsg *)pCmd->payload;
 
   int32_t code = tNameExtractFullName(&pTableMetaInfo->name, pInfoMsg->tableFname);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2390,7 +2389,7 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   int32_t code = tNameExtractFullName(&pTableMetaInfo->name, name);
   if (code != TSDB_CODE_SUCCESS) {
-    tscError("%p failed to generate the table full name", pSql, name);
+    tscError("%p failed to generate the table full name", pSql);
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
