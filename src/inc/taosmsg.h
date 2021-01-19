@@ -268,8 +268,7 @@ typedef struct {
 
 typedef struct {
   int32_t len;  // one create table message
-  char    tableFname[TSDB_TABLE_FNAME_LEN];
-  char    db[TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN];
+  char    tableName[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
   int8_t  getMeta;
   int16_t numOfTags;
@@ -285,7 +284,7 @@ typedef struct {
 } SCMCreateTableMsg;
 
 typedef struct {
-  char   tableFname[TSDB_TABLE_FNAME_LEN];
+  char   name[TSDB_TABLE_FNAME_LEN];
   int8_t igNotExists;
 } SCMDropTableMsg;
 

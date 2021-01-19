@@ -199,18 +199,13 @@ void mnodeDecDbRef(SDbObj *pDb) {
   return sdbDecRef(tsDbSdb, pDb); 
 }
 
-SDbObj *mnodeGetDbByTableId(char *tableId) {
-  char db[TSDB_TABLE_FNAME_LEN], *pos;
- 
-  // tableId format should be :  acct.db.table
-  pos = strstr(tableId, TS_PATH_DELIMITER);
-  assert(NULL != pos);
+SDbObj *mnodeGetDbByTableName(char *tableName) {
+  SName name = {0};
+  tNameFromString(&name, tableName, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
 
-  pos = strstr(pos + 1, TS_PATH_DELIMITER);
-  assert(NULL != pos);
-
-  memset(db, 0, sizeof(db));
-  strncpy(db, tableId, pos - tableId);
+  // validate the tableName?
+  char db[TSDB_TABLE_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, db);
 
   return mnodeGetDb(db);
 }

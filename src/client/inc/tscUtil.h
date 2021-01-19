@@ -98,8 +98,7 @@ static FORCE_INLINE SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t sub
   return pCmd->pQueryInfo[subClauseIndex];
 }
 
-int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
-                           STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
+int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock);
 void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);
 
@@ -111,7 +110,7 @@ void*   tscDestroyBlockHashTable(SHashObj* pBlockHashTable);
 
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap);
-int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
+int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize, SName* pName, STableMeta* pTableMeta,
                                 STableDataBlocks** dataBlocks, SArray* pBlockList);
 
 /**
@@ -141,10 +140,6 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableNa
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
 bool tscIsInsertData(char* sqlstr);
-
-/* use for keep current db info temporarily, for handle table with db prefix */
-// todo remove it
-void tscGetDBInfoFromTableFullName(char* tableId, char* db);
 
 int tscAllocPayload(SSqlCmd* pCmd, int size);
 
@@ -215,8 +210,8 @@ SQueryInfo *tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex);
 
 void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo);
 
-STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
-    SVgroupsInfo* vgroupList, SArray* pTagCols, SArray* pVgroupTables);
+STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableMeta* pTableMeta,
+                                    SVgroupsInfo* vgroupList, SArray* pTagCols, SArray* pVgroupTables);
 
 STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo *pQueryInfo);
 int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);

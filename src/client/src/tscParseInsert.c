@@ -703,7 +703,7 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, SParsedDataColI
   
   STableDataBlocks *dataBuf = NULL;
   int32_t ret = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
-                                        sizeof(SSubmitBlk), tinfo.rowSize, pTableMetaInfo->name, pTableMeta, &dataBuf, NULL);
+                                        sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta, &dataBuf, NULL);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
@@ -813,26 +813,26 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       tscAddEmptyMetaInfo(pQueryInfo);
     }
 
-    STableMetaInfo *pSTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-    code = tscSetTableFullName(pSTableMeterMetaInfo, &sToken, pSql);
+    STableMetaInfo *pSTableMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
+    code = tscSetTableFullName(pSTableMetaInfo, &sToken, pSql);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    tstrncpy(pCmd->tagData.name, pSTableMeterMetaInfo->name, sizeof(pCmd->tagData.name));
+    tNameExtractFullName(&pSTableMetaInfo->name, pCmd->tagData.name);
     pCmd->tagData.dataLen = 0;
 
-    code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
+    code = tscGetTableMeta(pSql, pSTableMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    if (!UTIL_TABLE_IS_SUPER_TABLE(pSTableMeterMetaInfo)) {
+    if (!UTIL_TABLE_IS_SUPER_TABLE(pSTableMetaInfo)) {
       return tscInvalidSQLErrMsg(pCmd->payload, "create table only from super table is allowed", sToken.z);
     }
 
-    SSchema *pTagSchema = tscGetTableTagSchema(pSTableMeterMetaInfo->pTableMeta);
-    STableComInfo tinfo = tscGetTableInfo(pSTableMeterMetaInfo->pTableMeta);
+    SSchema *pTagSchema = tscGetTableTagSchema(pSTableMetaInfo->pTableMeta);
+    STableComInfo tinfo = tscGetTableInfo(pSTableMetaInfo->pTableMeta);
     
     index = 0;
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
@@ -840,7 +840,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
     SParsedDataColInfo spd = {0};
     
-    uint8_t numOfTags = tscGetNumOfTags(pSTableMeterMetaInfo->pTableMeta);
+    uint8_t numOfTags = tscGetNumOfTags(pSTableMetaInfo->pTableMeta);
     spd.numOfCols = numOfTags;
 
     // if specify some tags column
@@ -1465,7 +1465,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   STableDataBlocks *pTableDataBlock = NULL;
   int32_t           ret =
       tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
-                              tinfo.rowSize, pTableMetaInfo->name, pTableMeta, &pTableDataBlock, NULL);
+                              tinfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pTableDataBlock, NULL);
   if (ret != TSDB_CODE_SUCCESS) {
     pParentSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
