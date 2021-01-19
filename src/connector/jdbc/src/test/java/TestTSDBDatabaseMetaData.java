@@ -7,8 +7,8 @@ public class TestTSDBDatabaseMetaData {
 
     public static void main(String[] args) throws SQLException {
         Connection connection = null;
-        DatabaseMetaData dbMetaData = null;
-        ResultSet resSet = null;
+        DatabaseMetaData dbMetaData;
+        ResultSet resSet;
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();

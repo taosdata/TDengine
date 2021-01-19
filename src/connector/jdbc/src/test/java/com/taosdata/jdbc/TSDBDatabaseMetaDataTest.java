@@ -667,7 +667,14 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getColumns() throws SQLException {
-        Assert.assertNotNull(metaData.getColumns("", "", "", ""));
+        ResultSet columns = metaData.getColumns("log", "", "dn", "");
+        ResultSetMetaData meta = columns.getMetaData();
+        while (columns.next()) {
+            for (int i = 1; i <= meta.getColumnCount(); i++) {
+                System.out.print(meta.getColumnLabel(i) + ": " + columns.getString(i));
+            }
+            System.out.println();
+        }
     }
 
     @Test
