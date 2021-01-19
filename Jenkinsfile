@@ -44,7 +44,7 @@ def pre_test(){
     git reset --hard HEAD~10 >/dev/null 
     git pull
     git fetch origin +refs/pull/${CHANGE_ID}/merge
-    
+    git checkout -qf FETCH_HEAD
     cd ${WK}
     git reset --hard HEAD~10
     git checkout develop
