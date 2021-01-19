@@ -15,6 +15,7 @@ print ===============  step1 - login
 system_content curl 127.0.0.1:7111/rest/
 print 1-> $system_content
 if $system_content != @{"status":"error","code":4357,"desc":"no auth info input"}@ then
+  print $system_content
   return -1
 endi
 
