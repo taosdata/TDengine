@@ -4443,7 +4443,7 @@ static void generateBlockDistResult(STableBlockDist *pTableBlockDist) {
           totalRows, totalBlocks,
           pTableBlockDist->firstSeekTimeUs,
           pTableBlockDist->numOfRowsInMemTable);
-  UNUSE(sz);
+  UNUSED(sz);
   return;
 } 
 void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
