@@ -5907,7 +5907,7 @@ static void buildTableBlockDistResult(SQInfo *pQInfo) {
 
   STableBlockDist *pTableBlockDist  = calloc(1, sizeof(STableBlockDist)); 
   pTableBlockDist->dataBlockInfos   = taosArrayInit(512, sizeof(SDataBlockInfo));
-  pTableBlockDist->result           = malloc(512);
+  pTableBlockDist->result           = (char *)malloc(512);
 
   TsdbQueryHandleT pQueryHandle = pRuntimeEnv->pQueryHandle;
   SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
@@ -5943,7 +5943,7 @@ static void buildTableBlockDistResult(SQInfo *pQInfo) {
       type = blockDistSchema.type;
     }
     assert(type == TSDB_DATA_TYPE_BINARY);
-    STR_TO_VARSTR(pQuery->sdata[j]->data, pTableBlockDist->result); 
+    STR_TO_VARSTR(pQuery->sdata[j]->data, (char *)(pTableBlockDist->result)); 
   }
 
   freeTableBlockDist(pTableBlockDist);
