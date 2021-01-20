@@ -1875,6 +1875,7 @@ static int32_t setCtxTagColumnInfo(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx
   return TSDB_CODE_SUCCESS;
 }
 
+// todo refactor
 static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int16_t order) {
   qDebug("QInfo:%p setup runtime env", GET_QINFO_ADDR(pRuntimeEnv));
   SQuery *pQuery = pRuntimeEnv->pQuery;
@@ -3168,6 +3169,10 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
   // all results in current group have been returned to client, try next group
   if (pGroupResInfo->index >= taosArrayGetSize(pGroupResInfo->pRows)) {
     // current results of group has been sent to client, try next group
+    pGroupResInfo->index = 0;
+    pGroupResInfo->rowId = 0;
+    taosArrayClear(pGroupResInfo->pRows);
+
     if (mergeGroupResult(pQInfo) != TSDB_CODE_SUCCESS) {
       return;  // failed to save data in the disk
     }
@@ -3845,11 +3850,6 @@ void setExecutionContext(SQInfo *pQInfo, int32_t groupIndex, TSKEY nextKey) {
 
   // lastKey needs to be updated
   pTableQueryInfo->lastKey = nextKey;
-
-  if (pRuntimeEnv->hasTagResults || pRuntimeEnv->pTsBuf != NULL) {
-    setAdditionalInfo(pQInfo, pTableQueryInfo->pTable, pTableQueryInfo);
-  }
-
   if (pRuntimeEnv->prevGroupId != INT32_MIN && pRuntimeEnv->prevGroupId == groupIndex) {
     return;
   }
@@ -4775,19 +4775,17 @@ static void enableExecutionForNextTable(SQueryRuntimeEnv *pRuntimeEnv) {
   }
 }
 
-// TODO refactor: setAdditionalInfo
 static FORCE_INLINE void setEnvForEachBlock(SQInfo* pQInfo, STableQueryInfo* pTableQueryInfo, SDataBlockInfo* pBlockInfo) {
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
   int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
 
-  if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
-    TSKEY nextKey = pBlockInfo->window.skey;
-    setIntervalQueryRange(pQInfo, nextKey);
+  if (pRuntimeEnv->hasTagResults || pRuntimeEnv->pTsBuf != NULL) {
+    setAdditionalInfo(pQInfo, pTableQueryInfo->pTable, pTableQueryInfo);
+  }
 
-    if (pRuntimeEnv->hasTagResults || pRuntimeEnv->pTsBuf != NULL) {
-      setAdditionalInfo(pQInfo, pTableQueryInfo->pTable, pTableQueryInfo);
-    }
+  if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
+    setIntervalQueryRange(pQInfo, pBlockInfo->window.skey);
   } else {  // non-interval query
     setExecutionContext(pQInfo, pTableQueryInfo->groupIndex, pBlockInfo->window.ekey + step);
   }
@@ -4810,7 +4808,7 @@ static void doTableQueryInfoTimeWindowCheck(SQuery* pQuery, STableQueryInfo* pTa
 static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery*           pQuery = pRuntimeEnv->pQuery;
-  SQueryCostInfo*   summary  = &pRuntimeEnv->summary;
+  SQueryCostInfo*   summary = &pRuntimeEnv->summary;
 
   int64_t st = taosGetTimestampMs();
 
@@ -5467,7 +5465,7 @@ static void doRestoreContext(SQInfo *pQInfo) {
   SET_MASTER_SCAN_FLAG(pRuntimeEnv);
 }
 
-static void doCloseAllTimeWindowAfterScan(SQInfo *pQInfo) {
+static void doCloseAllTimeWindow(SQInfo *pQInfo) {
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
   if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
@@ -5519,7 +5517,7 @@ static void multiTableQueryProcess(SQInfo *pQInfo) {
   }
 
   // close all time window results
-  doCloseAllTimeWindowAfterScan(pQInfo);
+  doCloseAllTimeWindow(pQInfo);
 
   if (needReverseScan(pQuery)) {
     int32_t code = doSaveContext(pQInfo);
@@ -5844,8 +5842,7 @@ static void stableQueryImpl(SQInfo *pQInfo) {
       (isFixedOutputQuery(pRuntimeEnv) && (!isPointInterpoQuery(pQuery)) && (!pRuntimeEnv->groupbyColumn))) {
     multiTableQueryProcess(pQInfo);
   } else {
-    assert((pQuery->checkResultBuf == 1 && pQuery->interval.interval == 0) || isPointInterpoQuery(pQuery) ||
-           pRuntimeEnv->groupbyColumn);
+    assert(pQuery->checkResultBuf == 1 || isPointInterpoQuery(pQuery) || pRuntimeEnv->groupbyColumn);
 
     sequentialTableProcess(pQInfo);
   }
@@ -6373,7 +6370,7 @@ static int32_t createQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t num
     if (functId == TSDB_FUNC_TOP || functId == TSDB_FUNC_BOTTOM) {
       int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].base, pTagCols);
       if (j < 0 || j >= pQueryMsg->numOfCols) {
-        assert(0);
+        return TSDB_CODE_QRY_INVALID_MSG;
       } else {
         SColumnInfo *pCol = &pQueryMsg->colList[j];
         int32_t ret =
@@ -6638,7 +6635,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
   pQInfo->runtimeEnv.summary.tableInfoSize += (pTableGroupInfo->numOfTables * sizeof(STableQueryInfo));
 
   pQInfo->runtimeEnv.pResultRowHashTable = taosHashInit(pTableGroupInfo->numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  pQInfo->runtimeEnv.keyBuf = malloc(TSDB_MAX_BYTES_PER_ROW);
+  pQInfo->runtimeEnv.keyBuf = malloc(TSDB_MAX_BYTES_PER_ROW);  // todo opt size
   pQInfo->runtimeEnv.pool = initResultRowPool(getResultRowSize(&pQInfo->runtimeEnv));
   pQInfo->runtimeEnv.prevRow = malloc(POINTER_BYTES * pQuery->numOfCols + srcSize);
 

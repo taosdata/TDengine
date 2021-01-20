@@ -585,11 +585,12 @@ SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVal
   return info;
 }
 
-SAlterTableInfo *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type) {
+SAlterTableInfo *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableType) {
   SAlterTableInfo *pAlterTable = calloc(1, sizeof(SAlterTableInfo));
   
   pAlterTable->name = *pTableName;
   pAlterTable->type = type;
+  pAlterTable->tableType = tableType;
 
   if (type == TSDB_ALTER_TABLE_ADD_COLUMN || type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN) {
     pAlterTable->pAddColumns = pCols;
@@ -696,18 +697,6 @@ void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken 
   pInfo->pCreateTableInfo->existCheck = (pIfNotExists->n != 0);
 }
 
-SMiscInfo *tTokenListAppend(SMiscInfo *pMiscInfo, SStrToken *pToken) {
-  assert(pToken != NULL);
-
-  if (pMiscInfo == NULL) {
-    pMiscInfo = calloc(1, sizeof(SMiscInfo));
-    pMiscInfo->a = taosArrayInit(8, sizeof(SStrToken));
-  }
-
-  taosArrayPush(pMiscInfo->a, pToken);
-  return pMiscInfo;
-}
-
 void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   pInfo->type = type;
   if (nParam == 0) {
@@ -724,15 +713,23 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
 
   while ((nParam--) > 0) {
     SStrToken *pToken = va_arg(va, SStrToken *);
-    pInfo->pMiscInfo = tTokenListAppend(pInfo->pMiscInfo, pToken);
+    taosArrayPush(pInfo->pMiscInfo->a, pToken);
   }
   va_end(va);
 }
 
-void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck) {
+void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck, int16_t tableType) {
   pInfo->type = type;
-  pInfo->pMiscInfo = tTokenListAppend(pInfo->pMiscInfo, pToken);
+
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = (SMiscInfo *)calloc(1, sizeof(SMiscInfo));
+    pInfo->pMiscInfo->a = taosArrayInit(4, sizeof(SStrToken));
+  }
+
+  taosArrayPush(pInfo->pMiscInfo->a, pToken);
+
   pInfo->pMiscInfo->existsCheck = (existsCheck->n == 1);
+  pInfo->pMiscInfo->tableType = tableType;
 }
 
 void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken* pPatterns) {
@@ -758,7 +755,7 @@ void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken*
   }
 }
 
-void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDbInfo *pDB, SStrToken *pIgExists) {
+void setCreateDbInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDbInfo *pDB, SStrToken *pIgExists) {
   pInfo->type = type;
   if (pInfo->pMiscInfo == NULL) {
     pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));

@@ -98,6 +98,7 @@ typedef struct SCreateTableSQL {
 
 typedef struct SAlterTableInfo {
   SStrToken     name;
+  int16_t       tableType;
   int16_t       type;
   STagData      tagData;
   SArray       *pAddColumns; // SArray<TAOS_FIELD>
@@ -151,11 +152,9 @@ typedef struct SUserInfo {
 } SUserInfo;
 
 typedef struct SMiscInfo {
-//  int32_t    nTokens; /* Number of expressions on the list */
-//  int32_t    nAlloc;  /* Number of entries allocated below */
-//  SStrToken *a;       /* one entry for element */
   SArray    *a;         // SArray<SStrToken>
   bool       existsCheck;
+  int16_t    tableType;
   SUserInfo  user;
   union {
     SCreateDbInfo   dbOpt;
@@ -245,7 +244,7 @@ SCreateTableSQL *tSetCreateSqlElems(SArray *pCols, SArray *pTags, SQuerySQL *pSe
 
 void tSqlExprNodeDestroy(tSQLExpr *pExpr);
 
-SAlterTableInfo *  tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type);
+SAlterTableInfo *  tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableTable);
 SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists);
 
 void destroyAllSelectClause(SSubclauseInfo *pSql);
@@ -262,12 +261,10 @@ void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken 
 void SqlInfoDestroy(SSqlInfo *pInfo);
 
 void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParams, ...);
-void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck);
+void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck,int16_t tableType);
 void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken* pPatterns);
 
-SMiscInfo *tTokenListAppend(SMiscInfo *pTokenList, SStrToken *pToken);
-
-void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDbInfo *pDB, SStrToken *pIgExists);
+void setCreateDbInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDbInfo *pDB, SStrToken *pIgExists);
 
 void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPwd, SCreateAcctInfo *pAcctInfo);
 void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd);

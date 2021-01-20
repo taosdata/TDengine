@@ -2180,7 +2180,7 @@ int tscProcessDropTableRsp(SSqlObj *pSql) {
   taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
   tscDebug("%p remove table meta after drop table:%s, numOfRemain:%d", pSql, name, (int32_t) taosHashGetSize(tscTableMetaInfo));
 
-  assert(pTableMetaInfo->pTableMeta == NULL);
+  pTableMetaInfo->pTableMeta = NULL;
   return 0;
 }
 

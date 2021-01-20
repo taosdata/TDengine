@@ -357,7 +357,7 @@ do { \
 #define TSDB_PORT_HTTP                         11
 #define TSDB_PORT_ARBITRATOR                   12
 
-#define TSDB_MAX_WAL_SIZE    (1024*1024*2)
+#define TSDB_MAX_WAL_SIZE    (1024*1024*3)
 
 typedef enum {
   TAOS_QTYPE_RPC   = 0,
