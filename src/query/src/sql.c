@@ -104,7 +104,7 @@ typedef union {
   int yyinit;
   ParseTOKENTYPE yy0;
   SCreateTableSQL* yy38;
-  SCreateAcctSQL yy71;
+  SCreateAcctInfo yy71;
   tSQLExpr* yy78;
   int yy96;
   SQuerySQL* yy148;
@@ -113,7 +113,7 @@ typedef union {
   tSQLExprList* yy166;
   SLimitVal yy167;
   TAOS_FIELD yy183;
-  SCreateDBInfo yy234;
+  SCreateDbInfo yy234;
   int64_t yy325;
   SIntervalVal yy400;
   SArray* yy421;
@@ -2865,7 +2865,7 @@ static void yy_reduce(
       case 231: /* cmd ::= ALTER TABLE ids cpxName ADD COLUMN columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_ADD_COLUMN);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_ADD_COLUMN);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -2876,14 +2876,14 @@ static void yy_reduce(
     toTSDBType(yymsp[0].minor.yy0.type);
     SArray* K = tVariantListAppendToken(NULL, &yymsp[0].minor.yy0, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&yymsp[-4].minor.yy0, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&yymsp[-4].minor.yy0, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
       case 233: /* cmd ::= ALTER TABLE ids cpxName ADD TAG columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&yymsp[-4].minor.yy0, yymsp[0].minor.yy421, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -2894,7 +2894,7 @@ static void yy_reduce(
     toTSDBType(yymsp[0].minor.yy0.type);
     SArray* A = tVariantListAppendToken(NULL, &yymsp[0].minor.yy0, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&yymsp[-4].minor.yy0, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&yymsp[-4].minor.yy0, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -2908,7 +2908,7 @@ static void yy_reduce(
     toTSDBType(yymsp[0].minor.yy0.type);
     A = tVariantListAppendToken(A, &yymsp[0].minor.yy0, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&yymsp[-5].minor.yy0, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&yymsp[-5].minor.yy0, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -2920,7 +2920,7 @@ static void yy_reduce(
     SArray* A = tVariantListAppendToken(NULL, &yymsp[-2].minor.yy0, -1);
     A = tVariantListAppend(A, &yymsp[0].minor.yy430, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&yymsp[-6].minor.yy0, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&yymsp[-6].minor.yy0, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -2991,7 +2991,7 @@ static void yy_syntax_error(
 /************ Begin %syntax_error code ****************************************/
 
   pInfo->valid = false;
-  int32_t outputBufLen = tListLen(pInfo->pzErrMsg);
+  int32_t outputBufLen = tListLen(pInfo->msg);
   int32_t len = 0;
 
   if(TOKEN.z) {
@@ -3001,13 +3001,13 @@ static void yy_syntax_error(
     if (sqlLen + sizeof(msg)/sizeof(msg[0]) + 1 > outputBufLen) {
         char tmpstr[128] = {0};
         memcpy(tmpstr, &TOKEN.z[0], sizeof(tmpstr)/sizeof(tmpstr[0]) - 1);
-        len = sprintf(pInfo->pzErrMsg, msg, tmpstr);
+        len = sprintf(pInfo->msg, msg, tmpstr);
     } else {
-        len = sprintf(pInfo->pzErrMsg, msg, &TOKEN.z[0]);
+        len = sprintf(pInfo->msg, msg, &TOKEN.z[0]);
     }
 
   } else {
-    len = sprintf(pInfo->pzErrMsg, "Incomplete SQL statement");
+    len = sprintf(pInfo->msg, "Incomplete SQL statement");
   }
 
   assert(len <= outputBufLen);

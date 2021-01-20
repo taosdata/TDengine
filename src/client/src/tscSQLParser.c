@@ -100,8 +100,8 @@ static int32_t validateSqlFunctionInStreamSql(SSqlCmd* pCmd, SQueryInfo* pQueryI
 static int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 static int32_t validateArithmeticSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList, int32_t* type);
 static int32_t validateEp(char* ep);
-static int32_t validateDNodeConfig(tDCLSQL* pOptions);
-static int32_t validateLocalConfig(tDCLSQL* pOptions);
+static int32_t validateDNodeConfig(SMiscInfo* pOptions);
+static int32_t validateLocalConfig(SMiscInfo* pOptions);
 static int32_t validateColumnName(char* name);
 static int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType);
 
@@ -110,7 +110,7 @@ static bool hasTimestampForPointInterpQuery(SQueryInfo* pQueryInfo);
 static bool hasNormalColumnFilter(SQueryInfo* pQueryInfo);
 
 static int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t index, SQuerySQL* pQuerySql, SSqlObj* pSql);
-static int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql);
+static int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDbInfo* pCreateDbSql);
 static int32_t getColumnIndexByName(SSqlCmd* pCmd, const SStrToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t getTableIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t optrToString(tSQLExpr* pExpr, char** exprString);
@@ -239,7 +239,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (!pInfo->valid || terrno == TSDB_CODE_TSC_SQL_SYNTAX_ERROR) {
     terrno = TSDB_CODE_SUCCESS;  // clear the error number
-    return tscSQLSyntaxErrMsg(tscGetErrorMsgPayload(pCmd), NULL, pInfo->pzErrMsg);
+    return tscSQLSyntaxErrMsg(tscGetErrorMsgPayload(pCmd), NULL, pInfo->msg);
   }
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex);
@@ -265,20 +265,20 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg2 = "invalid name";
       const char* msg3 = "param name too long";
 
-      SStrToken* pzName = &pInfo->pDCLInfo->a[0];
+      SStrToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if ((pInfo->type != TSDB_SQL_DROP_DNODE) && (tscValidateName(pzName) != TSDB_CODE_SUCCESS)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
       if (pInfo->type == TSDB_SQL_DROP_DB) {
-        assert(pInfo->pDCLInfo->nTokens == 1);
+        assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
         code = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pzName);
         if (code != TSDB_CODE_SUCCESS) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
 
       } else if (pInfo->type == TSDB_SQL_DROP_TABLE) {
-        assert(pInfo->pDCLInfo->nTokens == 1);
+        assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
 
         code = tscSetTableFullName(pTableMetaInfo, pzName, pSql);
         if(code != TSDB_CODE_SUCCESS) {
@@ -300,7 +300,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_USE_DB: {
       const char* msg = "invalid db name";
-      SStrToken*  pToken = &pInfo->pDCLInfo->a[0];
+      SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
@@ -331,7 +331,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg1 = "invalid db name";
       const char* msg2 = "name too long";
 
-      SCreateDBInfo* pCreateDB = &(pInfo->pDCLInfo->dbOpt);
+      SCreateDbInfo* pCreateDB = &(pInfo->pMiscInfo->dbOpt);
       if (tscValidateName(&pCreateDB->dbname) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
@@ -348,15 +348,15 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       break;
     }
 
-    case TSDB_SQL_CREATE_DNODE: {  // todo hostname
+    case TSDB_SQL_CREATE_DNODE: {
       const char* msg = "invalid host name (ip address)";
 
-      if (pInfo->pDCLInfo->nTokens > 1) {
+      if (taosArrayGetSize(pInfo->pMiscInfo->a) > 1) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
       }
 
-      SStrToken* pIpAddr = &pInfo->pDCLInfo->a[0];
-      pIpAddr->n = strdequote(pIpAddr->z);
+      SStrToken* id = taosArrayGet(pInfo->pMiscInfo->a, 0);
+      id->n = strdequote(id->z);
       break;
     }
 
@@ -366,8 +366,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg2 = "invalid user/account name";
       const char* msg3 = "name too long";
 
-      SStrToken* pName = &pInfo->pDCLInfo->user.user;
-      SStrToken* pPwd = &pInfo->pDCLInfo->user.passwd;
+      SStrToken* pName = &pInfo->pMiscInfo->user.user;
+      SStrToken* pPwd = &pInfo->pMiscInfo->user.passwd;
 
       if (handlePassword(pCmd, pPwd) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_SQL;
@@ -381,7 +381,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      SCreateAcctSQL* pAcctOpt = &pInfo->pDCLInfo->acctOpt;
+      SCreateAcctInfo* pAcctOpt = &pInfo->pMiscInfo->acctOpt;
       if (pAcctOpt->stat.n > 0) {
         if (pAcctOpt->stat.z[0] == 'r' && pAcctOpt->stat.n == 1) {
         } else if (pAcctOpt->stat.z[0] == 'w' && pAcctOpt->stat.n == 1) {
@@ -396,10 +396,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     case TSDB_SQL_DESCRIBE_TABLE: {
-      SStrToken*  pToken = &pInfo->pDCLInfo->a[0];
       const char* msg1 = "invalid table name";
       const char* msg2 = "table name too long";
 
+      SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
@@ -417,10 +417,10 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return tscGetTableMeta(pSql, pTableMetaInfo);
     }
     case TSDB_SQL_SHOW_CREATE_TABLE: {
-      SStrToken*  pToken = &pInfo->pDCLInfo->a[0];
       const char* msg1 = "invalid table name";
       const char* msg2 = "table name is too long";
 
+      SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
@@ -438,11 +438,12 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
     case TSDB_SQL_SHOW_CREATE_DATABASE: {
       const char* msg1 = "invalid database name";
-      SStrToken*  pToken = &pInfo->pDCLInfo->a[0];
 
+      SStrToken* pToken = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (tscValidateName(pToken) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
+
       if (pToken->n > TSDB_DB_NAME_LEN) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
@@ -454,29 +455,33 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       const char* msg3 = "invalid dnode ep";
 
       /* validate the ip address */
-      tDCLSQL* pDCL = pInfo->pDCLInfo;
+      SMiscInfo* pMiscInfo = pInfo->pMiscInfo;
 
       /* validate the parameter names and options */
-      if (validateDNodeConfig(pDCL) != TSDB_CODE_SUCCESS) {
+      if (validateDNodeConfig(pMiscInfo) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
       char* pMsg = pCmd->payload;
 
       SCfgDnodeMsg* pCfg = (SCfgDnodeMsg*)pMsg;
-      pDCL->a[0].n = strdequote(pDCL->a[0].z);
-      
-      strncpy(pCfg->ep, pDCL->a[0].z, pDCL->a[0].n);
+
+      SStrToken* t0 = taosArrayGet(pMiscInfo->a, 0);
+      SStrToken* t1 = taosArrayGet(pMiscInfo->a, 1);
+      SStrToken* t2 = taosArrayGet(pMiscInfo->a, 2);
+
+      t0->n = strdequote(t0->z);
+      strncpy(pCfg->ep, t0->z, t0->n);
 
       if (validateEp(pCfg->ep) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
 
-      strncpy(pCfg->config, pDCL->a[1].z, pDCL->a[1].n);
+      strncpy(pCfg->config, t1->z, t1->n);
 
-      if (pDCL->nTokens == 3) {
-        pCfg->config[pDCL->a[1].n] = ' ';  // add sep
-        strncpy(&pCfg->config[pDCL->a[1].n + 1], pDCL->a[2].z, pDCL->a[2].n);
+      if (taosArrayGetSize(pMiscInfo->a) == 3) {
+        pCfg->config[t1->n] = ' ';  // add sep
+        strncpy(&pCfg->config[t1->n + 1], t2->z, t2->n);
       }
 
       break;
@@ -491,7 +496,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       pCmd->command = pInfo->type;
 
-      SUserInfo* pUser = &pInfo->pDCLInfo->user;
+      SUserInfo* pUser = &pInfo->pMiscInfo->user;
       SStrToken* pName = &pUser->user;
       SStrToken* pPwd = &pUser->passwd;
 
@@ -535,18 +540,22 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     case TSDB_SQL_CFG_LOCAL: {
-      tDCLSQL*    pDCL = pInfo->pDCLInfo;
-      const char* msg = "invalid configure options or values";
+      SMiscInfo  *pMiscInfo = pInfo->pMiscInfo;
+      const char *msg = "invalid configure options or values";
 
       // validate the parameter names and options
-      if (validateLocalConfig(pDCL) != TSDB_CODE_SUCCESS) {
+      if (validateLocalConfig(pMiscInfo) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
       }
 
-      strncpy(pCmd->payload, pDCL->a[0].z, pDCL->a[0].n);
-      if (pDCL->nTokens == 2) {
-        pCmd->payload[pDCL->a[0].n] = ' ';  // add sep
-        strncpy(&pCmd->payload[pDCL->a[0].n + 1], pDCL->a[1].z, pDCL->a[1].n);
+      int32_t numOfToken = taosArrayGetSize(pMiscInfo->a);
+      SStrToken* t = taosArrayGet(pMiscInfo->a, 0);
+      SStrToken* t1 = taosArrayGet(pMiscInfo->a, 1);
+
+      strncpy(pCmd->payload, t->z, t->n);
+      if (numOfToken == 2) {
+        pCmd->payload[t->n] = ' ';  // add sep
+        strncpy(&pCmd->payload[t->n + 1], t1->z, t1->n);
       }
 
       break;
@@ -2587,10 +2596,10 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg6 = "pattern string is empty";
 
   /*
-   * database prefix in pInfo->pDCLInfo->a[0]
-   * wildcard in like clause in pInfo->pDCLInfo->a[1]
+   * database prefix in pInfo->pMiscInfo->a[0]
+   * wildcard in like clause in pInfo->pMiscInfo->a[1]
    */
-  SShowInfo* pShowInfo = &pInfo->pDCLInfo->showOpt;
+  SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
   int16_t    showType = pShowInfo->showType;
   if (showType == TSDB_MGMT_TABLE_TABLE || showType == TSDB_MGMT_TABLE_METRIC || showType == TSDB_MGMT_TABLE_VGROUP) {
     // db prefix in tagCond, show table conds in payload
@@ -2655,7 +2664,7 @@ int32_t setKillInfo(SSqlObj* pSql, struct SSqlInfo* pInfo, int32_t killType) {
   SSqlCmd* pCmd = &pSql->cmd;
   pCmd->command = pInfo->type;
   
-  SStrToken* idStr = &(pInfo->pDCLInfo->ip);
+  SStrToken* idStr = &(pInfo->pMiscInfo->id);
   if (idStr->n > TSDB_KILL_MSG_LEN) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -4798,7 +4807,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   SSqlCmd*        pCmd = &pSql->cmd;
-  SAlterTableSQL* pAlterSQL = pInfo->pAlterInfo;
+  SAlterTableInfo* pAlterSQL = pInfo->pAlterInfo;
   SQueryInfo*     pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, DEFAULT_TABLE_INDEX);
@@ -5133,8 +5142,10 @@ int32_t validateEp(char* ep) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t validateDNodeConfig(tDCLSQL* pOptions) {
-  if (pOptions->nTokens < 2 || pOptions->nTokens > 3) {
+int32_t validateDNodeConfig(SMiscInfo* pOptions) {
+  int32_t numOfToken = taosArrayGetSize(pOptions->a);
+
+  if (numOfToken < 2 || numOfToken > 3) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
@@ -5152,9 +5163,9 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
       {"cqDebugFlag", 11},
   };
 
-  SStrToken* pOptionToken = &pOptions->a[1];
+  SStrToken* pOptionToken = taosArrayGet(pOptions->a, 1);
 
-  if (pOptions->nTokens == 2) {
+  if (numOfToken == 2) {
     // reset log and reset query cache does not need value
     for (int32_t i = 0; i < tokenLogEnd; ++i) {
       const SDNodeDynConfOption* pOption = &cfgOptions[i];
@@ -5164,7 +5175,7 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
     }
   } else if ((strncasecmp(cfgOptions[tokenBalance].name, pOptionToken->z, pOptionToken->n) == 0) &&
              (cfgOptions[tokenBalance].len == pOptionToken->n)) {
-    SStrToken* pValToken = &pOptions->a[2];
+    SStrToken* pValToken = taosArrayGet(pOptions->a, 2);
     int32_t vnodeId = 0;
     int32_t dnodeId = 0;
     strdequote(pValToken->z);
@@ -5175,14 +5186,14 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
     return TSDB_CODE_SUCCESS;
   } else if ((strncasecmp(cfgOptions[tokenMonitor].name, pOptionToken->z, pOptionToken->n) == 0) &&
              (cfgOptions[tokenMonitor].len == pOptionToken->n)) {
-    SStrToken* pValToken = &pOptions->a[2];
+    SStrToken* pValToken = taosArrayGet(pOptions->a, 2);
     int32_t    val = strtol(pValToken->z, NULL, 10);
     if (val != 0 && val != 1) {
       return TSDB_CODE_TSC_INVALID_SQL;  // options value is invalid
     }
     return TSDB_CODE_SUCCESS;
   } else {
-    SStrToken* pValToken = &pOptions->a[2];
+    SStrToken* pValToken = taosArrayGet(pOptions->a, 2);
 
     int32_t val = strtol(pValToken->z, NULL, 10);
     if (val < 0 || val > 256) {
@@ -5193,8 +5204,8 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
     for (int32_t i = tokenDebugFlag; i < tokenDebugFlagEnd; ++i) {
       const SDNodeDynConfOption* pOption = &cfgOptions[i];
 
+      // options is valid
       if ((strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0) && (pOption->len == pOptionToken->n)) {
-        /* options is valid */
         return TSDB_CODE_SUCCESS;
       }
     }
@@ -5203,17 +5214,18 @@ int32_t validateDNodeConfig(tDCLSQL* pOptions) {
   return TSDB_CODE_TSC_INVALID_SQL;
 }
 
-int32_t validateLocalConfig(tDCLSQL* pOptions) {
-  if (pOptions->nTokens < 1 || pOptions->nTokens > 2) {
+int32_t validateLocalConfig(SMiscInfo* pOptions) {
+  int32_t numOfToken = taosArrayGetSize(pOptions->a);
+  if (numOfToken < 1 || numOfToken > 2) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
   SDNodeDynConfOption LOCAL_DYNAMIC_CFG_OPTIONS[6] = {{"resetLog", 8},    {"rpcDebugFlag", 12}, {"tmrDebugFlag", 12},
                                                       {"cDebugFlag", 10}, {"uDebugFlag", 10},   {"debugFlag", 9}};
 
-  SStrToken* pOptionToken = &pOptions->a[0];
+  SStrToken* pOptionToken = taosArrayGet(pOptions->a, 0);
 
-  if (pOptions->nTokens == 1) {
+  if (numOfToken == 1) {
     // reset log does not need value
     for (int32_t i = 0; i < 1; ++i) {
       SDNodeDynConfOption* pOption = &LOCAL_DYNAMIC_CFG_OPTIONS[i];
@@ -5222,7 +5234,7 @@ int32_t validateLocalConfig(tDCLSQL* pOptions) {
       }
     }
   } else {
-    SStrToken* pValToken = &pOptions->a[1];
+    SStrToken* pValToken = taosArrayGet(pOptions->a, 1);
 
     int32_t val = strtol(pValToken->z, NULL, 10);
     if (val < 131 || val > 199) {
@@ -5374,7 +5386,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
+static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* pCreateDb) {
   const char* msg = "invalid number of options";
 
   pMsg->daysToKeep = htonl(-1);
@@ -5412,7 +5424,7 @@ static int32_t setKeepOption(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDBInfo* p
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t setTimePrecision(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDbInfo) {
+static int32_t setTimePrecision(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo* pCreateDbInfo) {
   const char* msg = "invalid time precision";
 
   pMsg->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond by default
@@ -5436,7 +5448,7 @@ static int32_t setTimePrecision(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDBInfo
   return TSDB_CODE_SUCCESS;
 }
 
-static void setCreateDBOption(SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
+static void setCreateDBOption(SCreateDbMsg* pMsg, SCreateDbInfo* pCreateDb) {
   pMsg->maxTables = htonl(-1);  // max tables can not be set anymore
   pMsg->cacheBlockSize = htonl(pCreateDb->cacheBlockSize);
   pMsg->totalBlocks = htonl(pCreateDb->numOfBlocks);
@@ -5454,7 +5466,7 @@ static void setCreateDBOption(SCreateDbMsg* pMsg, SCreateDBInfo* pCreateDb) {
   pMsg->cacheLastRow = pCreateDb->cachelast;
 }
 
-int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDBInfo* pCreateDbSql) {
+int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDbInfo* pCreateDbSql) {
   SCreateDbMsg* pMsg = (SCreateDbMsg *)(pCmd->payload);
   setCreateDBOption(pMsg, pCreateDbSql);
 

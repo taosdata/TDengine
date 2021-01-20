@@ -54,7 +54,7 @@ SSqlInfo qSQLParse(const char *pStr) {
       
       case TK_QUESTION:
       case TK_ILLEGAL: {
-        snprintf(sqlInfo.pzErrMsg, tListLen(sqlInfo.pzErrMsg), "unrecognized token: \"%s\"", t0.z);
+        snprintf(sqlInfo.msg, tListLen(sqlInfo.msg), "unrecognized token: \"%s\"", t0.z);
         sqlInfo.valid = false;
         goto abort_parse;
       }
@@ -585,8 +585,8 @@ SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVal
   return info;
 }
 
-SAlterTableSQL *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type) {
-  SAlterTableSQL *pAlterTable = calloc(1, sizeof(SAlterTableSQL));
+SAlterTableInfo *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type) {
+  SAlterTableInfo *pAlterTable = calloc(1, sizeof(SAlterTableInfo));
   
   pAlterTable->name = *pTableName;
   pAlterTable->type = type;
@@ -631,15 +631,15 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
     tfree(pInfo->pAlterInfo->tagData.data);
     tfree(pInfo->pAlterInfo);
   } else {
-    if (pInfo->pDCLInfo != NULL && pInfo->pDCLInfo->nAlloc > 0) {
-      free(pInfo->pDCLInfo->a);
+    if (pInfo->pMiscInfo != NULL) {
+      taosArrayDestroy(pInfo->pMiscInfo->a);
     }
 
-    if (pInfo->pDCLInfo != NULL && pInfo->type == TSDB_SQL_CREATE_DB) {
-      taosArrayDestroyEx(pInfo->pDCLInfo->dbOpt.keep, freeVariant);
+    if (pInfo->pMiscInfo != NULL && pInfo->type == TSDB_SQL_CREATE_DB) {
+      taosArrayDestroyEx(pInfo->pMiscInfo->dbOpt.keep, freeVariant);
     }
 
-    tfree(pInfo->pDCLInfo);
+    tfree(pInfo->pMiscInfo);
   }
 }
 
@@ -696,57 +696,53 @@ void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken 
   pInfo->pCreateTableInfo->existCheck = (pIfNotExists->n != 0);
 }
 
-void tTokenListBuyMoreSpace(tDCLSQL *pTokenList) {
-  if (pTokenList->nAlloc <= pTokenList->nTokens) {  //
-    pTokenList->nAlloc = (pTokenList->nAlloc << 1u) + 4;
-    pTokenList->a = realloc(pTokenList->a, pTokenList->nAlloc * sizeof(pTokenList->a[0]));
-    if (pTokenList->a == 0) {
-      pTokenList->nTokens = pTokenList->nAlloc = 0;
-    }
+SMiscInfo *tTokenListAppend(SMiscInfo *pMiscInfo, SStrToken *pToken) {
+  assert(pToken != NULL);
+
+  if (pMiscInfo == NULL) {
+    pMiscInfo = calloc(1, sizeof(SMiscInfo));
+    pMiscInfo->a = taosArrayInit(8, sizeof(SStrToken));
   }
-}
 
-tDCLSQL *tTokenListAppend(tDCLSQL *pTokenList, SStrToken *pToken) {
-  if (pToken == NULL) return NULL;
-
-  if (pTokenList == NULL) pTokenList = calloc(1, sizeof(tDCLSQL));
-
-  tTokenListBuyMoreSpace(pTokenList);
-  pTokenList->a[pTokenList->nTokens++] = *pToken;
-
-  return pTokenList;
+  taosArrayPush(pMiscInfo->a, pToken);
+  return pMiscInfo;
 }
 
 void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   pInfo->type = type;
+  if (nParam == 0) {
+    return;
+  }
 
-  if (nParam == 0) return;
-  if (pInfo->pDCLInfo == NULL) pInfo->pDCLInfo = (tDCLSQL *)calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = (SMiscInfo *)calloc(1, sizeof(SMiscInfo));
+    pInfo->pMiscInfo->a = taosArrayInit(4, sizeof(SStrToken));
+  }
 
   va_list va;
   va_start(va, nParam);
 
-  while (nParam-- > 0) {
+  while ((nParam--) > 0) {
     SStrToken *pToken = va_arg(va, SStrToken *);
-    pInfo->pDCLInfo = tTokenListAppend(pInfo->pDCLInfo, pToken);
+    pInfo->pMiscInfo = tTokenListAppend(pInfo->pMiscInfo, pToken);
   }
   va_end(va);
 }
 
 void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck) {
   pInfo->type = type;
-  pInfo->pDCLInfo = tTokenListAppend(pInfo->pDCLInfo, pToken);
-  pInfo->pDCLInfo->existsCheck = (existsCheck->n == 1);
+  pInfo->pMiscInfo = tTokenListAppend(pInfo->pMiscInfo, pToken);
+  pInfo->pMiscInfo->existsCheck = (existsCheck->n == 1);
 }
 
 void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken* pPatterns) {
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
   
   pInfo->type = TSDB_SQL_SHOW;
   
-  SShowInfo* pShowInfo = &pInfo->pDCLInfo->showOpt;
+  SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
   pShowInfo->showType = type;
   
   if (prefix != NULL && prefix->type != 0) {
@@ -762,54 +758,54 @@ void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken*
   }
 }
 
-void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDBInfo *pDB, SStrToken *pIgExists) {
+void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDbInfo *pDB, SStrToken *pIgExists) {
   pInfo->type = type;
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
 
-  pInfo->pDCLInfo->dbOpt = *pDB;
-  pInfo->pDCLInfo->dbOpt.dbname = *pToken;
-  pInfo->pDCLInfo->dbOpt.ignoreExists = pIgExists->n; // sql.y has: ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
+  pInfo->pMiscInfo->dbOpt = *pDB;
+  pInfo->pMiscInfo->dbOpt.dbname = *pToken;
+  pInfo->pMiscInfo->dbOpt.ignoreExists = pIgExists->n; // sql.y has: ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
 }
 
-void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPwd, SCreateAcctSQL *pAcctInfo) {
+void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPwd, SCreateAcctInfo *pAcctInfo) {
   pInfo->type = type;
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
 
-  pInfo->pDCLInfo->acctOpt = *pAcctInfo;
+  pInfo->pMiscInfo->acctOpt = *pAcctInfo;
   
   assert(pName != NULL);
-  pInfo->pDCLInfo->user.user = *pName;
+  pInfo->pMiscInfo->user.user = *pName;
   
   if (pPwd != NULL) {
-    pInfo->pDCLInfo->user.passwd = *pPwd;
+    pInfo->pMiscInfo->user.passwd = *pPwd;
   }
 }
 
 void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd) {
   pInfo->type = TSDB_SQL_CREATE_USER;
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
   
   assert(pName != NULL && pPasswd != NULL);
   
-  pInfo->pDCLInfo->user.user = *pName;
-  pInfo->pDCLInfo->user.passwd = *pPasswd;
+  pInfo->pMiscInfo->user.user = *pName;
+  pInfo->pMiscInfo->user.passwd = *pPasswd;
 }
 
 void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege) {
   pInfo->type = TSDB_SQL_ALTER_USER;
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
   
   assert(pName != NULL);
   
-  SUserInfo* pUser = &pInfo->pDCLInfo->user;
+  SUserInfo* pUser = &pInfo->pMiscInfo->user;
   pUser->type = type;
   pUser->user = *pName;
   
@@ -826,18 +822,17 @@ void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken*
   }
 }
 
-void setKillSql(SSqlInfo *pInfo, int32_t type, SStrToken *ip) {
+void setKillSql(SSqlInfo *pInfo, int32_t type, SStrToken *id) {
   pInfo->type = type;
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
   
-  assert(ip != NULL);
-  
-  pInfo->pDCLInfo->ip = *ip;
+  assert(id != NULL);
+  pInfo->pMiscInfo->id = *id;
 }
 
-void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
+void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {
   pDBInfo->compressionLevel = -1;
 
   pDBInfo->walLevel = -1;

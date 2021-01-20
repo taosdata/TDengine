@@ -309,7 +309,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     return;
   }
 
-  if (pEpSet) { // todo update this
+  if (pEpSet) {
     if (!tscEpSetIsEqual(&pSql->epSet, pEpSet)) {
       if (pCmd->command < TSDB_SQL_MGMT) {
         tscUpdateVgroupInfo(pSql, pEpSet);
@@ -1046,7 +1046,9 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   SCreateDnodeMsg *pCreate = (SCreateDnodeMsg *)pCmd->payload;
-  strncpy(pCreate->ep, pInfo->pDCLInfo->a[0].z, pInfo->pDCLInfo->a[0].n);
+
+  SStrToken* t0 = taosArrayGet(pInfo->pMiscInfo->a, 0);
+  strncpy(pCreate->ep, t0->z, t0->n);
   
   pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_DNODE;
 
@@ -1063,13 +1065,13 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCreateAcctMsg *pAlterMsg = (SCreateAcctMsg *)pCmd->payload;
 
-  SStrToken *pName = &pInfo->pDCLInfo->user.user;
-  SStrToken *pPwd = &pInfo->pDCLInfo->user.passwd;
+  SStrToken *pName = &pInfo->pMiscInfo->user.user;
+  SStrToken *pPwd = &pInfo->pMiscInfo->user.passwd;
 
   strncpy(pAlterMsg->user, pName->z, pName->n);
   strncpy(pAlterMsg->pass, pPwd->z, pPwd->n);
 
-  SCreateAcctSQL *pAcctOpt = &pInfo->pDCLInfo->acctOpt;
+  SCreateAcctInfo *pAcctOpt = &pInfo->pMiscInfo->acctOpt;
 
   pAlterMsg->cfg.maxUsers = htonl(pAcctOpt->maxUsers);
   pAlterMsg->cfg.maxDbs = htonl(pAcctOpt->maxDbs);
@@ -1109,7 +1111,7 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SCreateUserMsg *pAlterMsg = (SCreateUserMsg *)pCmd->payload;
 
-  SUserInfo *pUser = &pInfo->pDCLInfo->user;
+  SUserInfo *pUser = &pInfo->pMiscInfo->user;
   strncpy(pAlterMsg->user, pUser->user.z, pUser->user.n);
   pAlterMsg->flag = (int8_t)pUser->type;
 
@@ -1153,7 +1155,7 @@ int32_t tscBuildDropDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   int32_t code = tNameExtractFullName(&pTableMetaInfo->name, pDropDbMsg->db);
   assert(code == TSDB_CODE_SUCCESS && pTableMetaInfo->name.type == TSDB_DB_NAME_T);
 
-  pDropDbMsg->ignoreNotExists = pInfo->pDCLInfo->existsCheck ? 1 : 0;
+  pDropDbMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
 
   pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_DB;
   return TSDB_CODE_SUCCESS;
@@ -1172,7 +1174,7 @@ int32_t tscBuildDropTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   tNameExtractFullName(&pTableMetaInfo->name, pDropTableMsg->name);
 
-  pDropTableMsg->igNotExists = pInfo->pDCLInfo->existsCheck ? 1 : 0;
+  pDropTableMsg->igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
   pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_TABLE;
   return TSDB_CODE_SUCCESS;
 }
@@ -1254,7 +1256,7 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     tNameGetFullDbName(&pTableMetaInfo->name, pShowMsg->db);
   }
 
-  SShowInfo *pShowInfo = &pInfo->pDCLInfo->showOpt;
+  SShowInfo *pShowInfo = &pInfo->pMiscInfo->showOpt;
   pShowMsg->type = pShowInfo->showType;
 
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
@@ -1420,7 +1422,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
-  SAlterTableSQL *pAlterInfo = pInfo->pAlterInfo;
+  SAlterTableInfo *pAlterInfo = pInfo->pAlterInfo;
   int size = tscEstimateAlterTableMsgLength(pCmd);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     tscError("%p failed to malloc for alter table msg", pSql);
