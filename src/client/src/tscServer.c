@@ -2395,8 +2395,6 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
-  int32_t len = strlen(name);
-
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   if (pTableMeta) {
     tscDebug("%p update table meta:%s, old meta numOfTags:%d, numOfCols:%d, uid:%" PRId64, pSql, name,
@@ -2404,7 +2402,9 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   }
 
   // remove stored tableMeta info in hash table
+  size_t len = strlen(name);
   taosHashRemove(tscTableMetaInfo, name, len);
+
   return getTableMetaFromMnode(pSql, pTableMetaInfo);
 }
 
