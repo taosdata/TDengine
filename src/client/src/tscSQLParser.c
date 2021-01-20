@@ -917,19 +917,21 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
     }
   } else {  // get current DB name first, and then set it into path
     char* t = getCurrentDBName(pSql);
-    assert(strlen(t) > 0);
+    if (strlen(t) == 0) {
+      return TSDB_CODE_TSC_DB_NOT_SELECTED;
+    }
 
-    code = tNameFromString(&pTableMetaInfo->name, t, T_NAME_ACCT|T_NAME_DB);
+    code = tNameFromString(&pTableMetaInfo->name, t, T_NAME_ACCT | T_NAME_DB);
     if (code != 0) {
-      code = TSDB_CODE_TSC_DB_NOT_SELECTED;
-    } else {
-      char name[TSDB_TABLE_FNAME_LEN] = {0};
-      strncpy(name, pTableName->z, pTableName->n);
+      return TSDB_CODE_TSC_DB_NOT_SELECTED;
+    }
 
-      code = tNameFromString(&pTableMetaInfo->name, name, T_NAME_TABLE);
-      if (code != 0) {
-        code = invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-      }
+    char name[TSDB_TABLE_FNAME_LEN] = {0};
+    strncpy(name, pTableName->z, pTableName->n);
+
+    code = tNameFromString(&pTableMetaInfo->name, name, T_NAME_TABLE);
+    if (code != 0) {
+      code = invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
   }
 
