@@ -20,7 +20,7 @@
 #include <string.h>
 
 #include "talgo.h"
-#include "taosdef.h"
+#include "ttype.h"
 #include "tutil.h"
 
 #ifdef __cplusplus
