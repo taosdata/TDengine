@@ -5943,7 +5943,7 @@ static void buildTableBlockDistResult(SQInfo *pQInfo) {
       type = blockDistSchema.type;
     }
     assert(type == TSDB_DATA_TYPE_BINARY);
-    STR_TO_VARSTR(pQuery->sdata[j]->data, (char *)(pTableBlockDist->result)); 
+    STR_WITH_SIZE_TO_VARSTR(pQuery->sdata[j]->data, pTableBlockDist->result, (VarDataLenT)strlen(pTableBlockDist->result)); 
   }
 
   freeTableBlockDist(pTableBlockDist);
