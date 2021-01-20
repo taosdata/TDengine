@@ -380,7 +380,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
       return -1;
     }
 
-    int32_t len = p - str;
+    int32_t len = (int32_t)(p - str);
 
     // too long account id or too long db name
     if (len >= tListLen(dst->acctId) || len == 0) {
@@ -400,7 +400,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     if (p == NULL) {
       len = (int32_t) strlen(start);
     } else {
-      len = p - start;
+      len = (int32_t) (p - start);
     }
 
     // too long account id or too long db name
