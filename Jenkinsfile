@@ -87,11 +87,14 @@ pipeline {
           steps {
             
             pre_test()
-            sh '''
-            cd ${WKC}/tests
-            find pytest -name '*'sql|xargs rm -rf
-            ./test-all.sh p1
-            date'''
+            timeout(time: 90, unit: 'MINUTES'){
+              sh '''
+              cd ${WKC}/tests
+              find pytest -name '*'sql|xargs rm -rf
+              ./test-all.sh p1
+              date'''
+            }
+            
           }
         }
         stage('python_2') {
@@ -112,12 +115,14 @@ pipeline {
         }
         stage('test_b1') {
           agent{label 'b1'}
-          steps {            
-            pre_test()
-            sh '''
-            cd ${WKC}/tests
-            ./test-all.sh b1fq
-            date'''
+          steps {     
+            timeout(time: 90, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              cd ${WKC}/tests
+              ./test-all.sh b1fq
+              date'''
+            }
           }
         }
 
@@ -137,12 +142,14 @@ pipeline {
                 ./handle_crash_gen_val_log.sh
                 '''
             }
-            sh '''
-            date
-            cd ${WKC}/tests
-            ./test-all.sh b2fq
-            date
-            '''
+            timeout(time: 90, unit: 'MINUTES'){
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b2fq
+              date
+              '''
+            }
           }
         }
 
@@ -157,12 +164,14 @@ pipeline {
                 ./valgrind-test.sh 2>&1 > mem-error-out.log
                 ./handle_val_log.sh
                 '''
-            }           
-            sh '''
-            date
-            cd ${WKC}/tests
-            ./test-all.sh b3fq
-            date'''
+            }     
+            timeout(time: 90, unit: 'MINUTES'){      
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b3fq
+              date'''
+            }
           }
         }
    
