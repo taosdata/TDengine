@@ -561,7 +561,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
       }
 
-      int32_t numOfToken = taosArrayGetSize(pMiscInfo->a);
+      int32_t numOfToken = (int32_t) taosArrayGetSize(pMiscInfo->a);
       SStrToken* t = taosArrayGet(pMiscInfo->a, 0);
       SStrToken* t1 = taosArrayGet(pMiscInfo->a, 1);
 
