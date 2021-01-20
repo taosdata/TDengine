@@ -4401,8 +4401,8 @@ static void freeTableBlockDist(STableBlockDist *pTableBlockDist) {
   }
 }
 static int32_t getPercentileFromSortedArray(const SArray* pArray, float rate) {
-  size_t len = taosArrayGetSize(pArray);
-  if (len == 0) {
+  int32_t len = taosArrayGetSize(pArray);
+  if (len <= 0) {
     return 0;
   }
   assert(rate >= 0 && rate <= 1.0);
@@ -4431,7 +4431,7 @@ static void generateBlockDistResult(STableBlockDist *pTableBlockDist) {
     max = MAX(max, rows);
     totalRows += rows;  
   }
-  avg = totalBlocks > 0 ? (int32_t)(((totalRows * 1.0)/totalBlocks)) : 0;
+  avg = totalBlocks > 0 ? (int64_t)(totalRows/totalBlocks) : 0;
 
   taosArraySort(blockInfos, compareBlockInfo);
 
