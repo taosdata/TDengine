@@ -47,7 +47,6 @@ void tscLockByThread(int64_t *lockedBy);
 
 void tscUnlockByThread(int64_t *lockedBy);
 
-
 #ifdef __cplusplus
 }
 #endif
