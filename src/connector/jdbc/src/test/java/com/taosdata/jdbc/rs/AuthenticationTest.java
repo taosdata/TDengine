@@ -1,12 +1,9 @@
 package com.taosdata.jdbc.rs;
 
-import com.taosdata.jdbc.TSDBDriver;
-import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.sql.*;
-import java.util.Properties;
 
 public class AuthenticationTest {
 
