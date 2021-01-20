@@ -926,6 +926,10 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
       return TSDB_CODE_TSC_DB_NOT_SELECTED;
     }
 
+    if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
+
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);
 
