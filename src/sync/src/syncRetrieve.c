@@ -28,7 +28,7 @@
 
 static int32_t syncGetWalVersion(SSyncNode *pNode, SSyncPeer *pPeer) {
   uint64_t fver, wver;
-  int32_t  code = (*pNode->getVersion)(pNode->vgId, &fver, &wver);
+  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver);
   if (code != 0) {
     sDebug("%s, vnode is commiting while retrieve, last wver:%" PRIu64, pPeer->id, pPeer->lastWalVer);
     return -1;
@@ -40,7 +40,7 @@ static int32_t syncGetWalVersion(SSyncNode *pNode, SSyncPeer *pPeer) {
 
 static bool syncIsWalModified(SSyncNode *pNode, SSyncPeer *pPeer) {
   uint64_t fver, wver;
-  int32_t  code = (*pNode->getVersion)(pNode->vgId, &fver, &wver);
+  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver);
   if (code != 0) {
     sDebug("%s, vnode is commiting while retrieve, last wver:%" PRIu64, pPeer->id, pPeer->lastWalVer);
     return true;
@@ -56,7 +56,7 @@ static bool syncIsWalModified(SSyncNode *pNode, SSyncPeer *pPeer) {
 
 static int32_t syncGetFileVersion(SSyncNode *pNode, SSyncPeer *pPeer) {
   uint64_t fver, wver;
-  int32_t  code = (*pNode->getVersion)(pNode->vgId, &fver, &wver);
+  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver);
   if (code != 0) {
     sDebug("%s, vnode is commiting while get fver for retrieve, last fver:%" PRIu64, pPeer->id, pPeer->lastFileVer);
     return -1;
@@ -68,7 +68,7 @@ static int32_t syncGetFileVersion(SSyncNode *pNode, SSyncPeer *pPeer) {
 
 static bool syncAreFilesModified(SSyncNode *pNode, SSyncPeer *pPeer) {
   uint64_t fver, wver;
-  int32_t  code = (*pNode->getVersion)(pNode->vgId, &fver, &wver);
+  int32_t  code = (*pNode->getVersionFp)(pNode->vgId, &fver, &wver);
   if (code != 0) {
     sDebug("%s, vnode is commiting while retrieve, last fver:%" PRIu64, pPeer->id, pPeer->lastFileVer);
     pPeer->fileChanged = 1;
@@ -85,104 +85,54 @@ static bool syncAreFilesModified(SSyncNode *pNode, SSyncPeer *pPeer) {
   return false;
 }
 
+static int32_t syncSendFileVersion(SSyncPeer *pPeer) {
+  SSyncNode *pNode = pPeer->pSyncNode;
+
+  SFileVersion fileVersion;
+  memset(&fileVersion, 0, sizeof(SFileVersion));
+  syncBuildFileVersion(&fileVersion, pNode->vgId);
+
+  uint64_t fver = pPeer->lastFileVer;
+  fileVersion.fversion = htobe64(fver);
+  int32_t ret = taosWriteMsg(pPeer->syncFd, &fileVersion, sizeof(SFileVersion));
+  if (ret != sizeof(SFileVersion)) {
+    sError("%s, failed to write fver:%" PRIu64 " since %s", pPeer->id, fver, strerror(errno));
+    return -1;
+  }
+
+  SFileAck fileAck;
+  memset(&fileAck, 0, sizeof(SFileAck));
+  ret = taosReadMsg(pPeer->syncFd, &fileAck, sizeof(SFileAck));
+  if (ret != sizeof(SFileAck)) {
+    sError("%s, failed to read fver ack since %s", pPeer->id, strerror(errno));
+    return -1;
+  }
+
+  // set the peer sync version
+  pPeer->sversion = fver;
+
+  return 0;
+}
+
 static int32_t syncRetrieveFile(SSyncPeer *pPeer) {
   SSyncNode *pNode = pPeer->pSyncNode;
-  SFileInfo  fileInfo; memset(&fileInfo, 0, sizeof(SFileInfo));
-  SFileAck   fileAck; memset(&fileAck, 0, sizeof(SFileAck));
-  int32_t    code = -1;
-  char       name[TSDB_FILENAME_LEN * 2] = {0};
 
   if (syncGetFileVersion(pNode, pPeer) < 0) {
     pPeer->fileChanged = 1;
     return -1;
   }
 
-  while (1) {
-    // retrieve file info
-    fileInfo.name[0] = 0;
-    fileInfo.size = 0;
-    fileInfo.magic = (*pNode->getFileInfo)(pNode->vgId, fileInfo.name, &fileInfo.index, TAOS_SYNC_MAX_INDEX,
-                                           &fileInfo.size, &fileInfo.fversion);
-    syncBuildFileInfo(&fileInfo, pNode->vgId);
-    sDebug("%s, file:%s info is sent, index:%d size:%" PRId64 " fver:%" PRIu64 " magic:%u", pPeer->id, fileInfo.name,
-           fileInfo.index, fileInfo.size, fileInfo.fversion, fileInfo.magic);
-
-    // send the file info
-    int32_t ret = taosWriteMsg(pPeer->syncFd, &(fileInfo), sizeof(SFileInfo));
-    if (ret != sizeof(SFileInfo)) {
-      code = -1;
-      sError("%s, failed to write file:%s info while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
-      break;
-    }
-
-    // if no file anymore, break
-    if (fileInfo.magic == 0 || fileInfo.name[0] == 0) {
-      code = 0;
-      sDebug("%s, no more files to sync", pPeer->id);
-      break;
-    }
-
-    // wait for the ack from peer
-    ret = taosReadMsg(pPeer->syncFd, &fileAck, sizeof(SFileAck));
-    if (ret != sizeof(SFileAck)) {
-      code = -1;
-      sError("%s, failed to read file:%s ack while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
-      break;
-    }
-
-    ret = syncCheckHead((SSyncHead*)(&fileAck));
-    if (ret != 0) {
-      code = -1;
-      sError("%s, failed to check file:%s ack while retrieve file since %s", pPeer->id, fileInfo.name, strerror(ret));
-      break;
-    }
-
-    // set the peer sync version
-    pPeer->sversion = fileInfo.fversion;
-
-    // if sync is not required, continue
-    if (fileAck.sync == 0) {
-      fileInfo.index++;
-      sDebug("%s, %s is the same, fver:%" PRIu64, pPeer->id, fileInfo.name, fileInfo.fversion);
-      continue;
-    } else {
-      sDebug("%s, %s will be sent, fver:%" PRIu64, pPeer->id, fileInfo.name, fileInfo.fversion);
-    }
-
-    // get the full path to file
-    snprintf(name, sizeof(name), "%s/%s", pNode->path, fileInfo.name);
-
-    // send the file to peer
-    int32_t sfd = open(name, O_RDONLY);
-    if (sfd < 0) {
-      code = -1;
-      sError("%s, failed to open file:%s while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
-      break;
-    }
-
-    ret = taosSendFile(pPeer->syncFd, sfd, NULL, fileInfo.size);
-    close(sfd);
-    if (ret < 0) {
-      code = -1;
-      sError("%s, failed to send file:%s while retrieve file since %s", pPeer->id, fileInfo.name, strerror(errno));
-      break;
-    }
-
-    sDebug("%s, file:%s is sent, size:%" PRId64, pPeer->id, fileInfo.name, fileInfo.size);
-    fileInfo.index++;
-
-    // check if processed files are modified
-    if (syncAreFilesModified(pNode, pPeer)) {
-      code = -1;
-      break;
-    }
+  if (pNode->sendFileFp && (*pNode->sendFileFp)(pNode->pTsdb, pPeer->syncFd) != 0) {
+    sError("%s, failed to retrieve file", pPeer->id);
+    return -1;
   }
 
-  if (code != TSDB_CODE_SUCCESS) {
-    sError("%s, failed to retrieve file, code:0x%x", pPeer->id, code);
+  if (syncSendFileVersion(pPeer) < 0) {
+    return -1;
   }
 
-  return code;
+  sInfo("%s, all files are retrieved", pPeer->id);
+  return 0;
 }
 
 // if only a partial record is read out, upper layer will reload the file to get a complete record
@@ -346,7 +296,7 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
   while (1) {
     // retrieve wal info
     wname[0] = 0;
-    code = (*pNode->getWalInfo)(pNode->vgId, wname, &index);
+    code = (*pNode->getWalInfoFp)(pNode->vgId, wname, &index);
     if (code < 0) {
       sError("%s, failed to get wal info since:%s, code:0x%x", pPeer->id, strerror(errno), code);
       break;
@@ -478,7 +428,7 @@ void *syncRetrieveData(void *param) {
   sInfo("%s, start to retrieve data, sstatus:%s, numOfRetrieves:%d", pPeer->id, syncStatus[pPeer->sstatus],
         pPeer->numOfRetrieves);
 
-  if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->vgId, pPeer->numOfRetrieves);
+  if (pNode->notifyFlowCtrlFp) (*pNode->notifyFlowCtrlFp)(pNode->vgId, pPeer->numOfRetrieves);
 
   pPeer->syncFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
   if (pPeer->syncFd < 0) {
@@ -498,10 +448,10 @@ void *syncRetrieveData(void *param) {
     pPeer->numOfRetrieves++;
   } else {
     pPeer->numOfRetrieves = 0;
-    // if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->vgId, 0);
+    // if (pNode->notifyFlowCtrlFp) (*pNode->notifyFlowCtrlFp)(pNode->vgId, 0);
   }
 
-  if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->vgId, 0);
+  if (pNode->notifyFlowCtrlFp) (*pNode->notifyFlowCtrlFp)(pNode->vgId, 0);
 
   pPeer->fileChanged = 0;
   taosClose(pPeer->syncFd);

@@ -56,16 +56,6 @@ typedef struct {
   int32_t  role[TAOS_SYNC_MAX_REPLICA];
 } SNodesRole;
 
-/* 
-  if name is empty(name[0] is zero), get the file from index or after, but not larger than eindex. If a file
-  is found between index and eindex, index shall be updated, name shall be set, size shall be set to 
-  file size, and file magic number shall be returned. 
-
-  if name is provided(name[0] is not zero), get the named file at the specified index. If not there, return
-  zero. If it is there, set the size to file size, and return file magic number. Index shall not be updated.
-*/
-typedef uint32_t (*FGetFileInfo)(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion); 
-
 // get the wal file from index or after
 // return value, -1: error, 1:more wal files, 0:last WAL. if name[0]==0, no WAL file
 typedef int32_t  (*FGetWalInfo)(int32_t vgId, char *fileName, int64_t *fileId); 
@@ -83,24 +73,31 @@ typedef void     (*FNotifyRole)(int32_t vgId, int8_t role);
 typedef void     (*FNotifyFlowCtrl)(int32_t vgId, int32_t level);
 
 // when data file is synced successfully, notity app
-typedef int32_t  (*FNotifyFileSynced)(int32_t vgId, uint64_t fversion);
+typedef void     (*FStartSyncFile)(int32_t vgId);
+typedef void     (*FStopSyncFile)(int32_t vgId, uint64_t fversion);
 
 // get file version
 typedef int32_t  (*FGetVersion)(int32_t vgId, uint64_t *fver, uint64_t *vver);
+
+typedef int32_t  (*FSendFile)(void *tsdb, int32_t socketFd);
+typedef int32_t  (*FRecvFile)(void *tsdb, int32_t socketFd);
 
 typedef struct {
   int32_t  vgId;       // vgroup ID
   uint64_t version;    // initial version
   SSyncCfg syncCfg;    // configuration from mgmt
   char     path[TSDB_FILENAME_LEN];  // path to the file
-  FGetFileInfo      getFileInfo;
-  FGetWalInfo       getWalInfo;
-  FWriteToCache     writeToCache;
+  void *   pTsdb;
+  FGetWalInfo       getWalInfoFp;
+  FWriteToCache     writeToCacheFp;
   FConfirmForward   confirmForward;
-  FNotifyRole       notifyRole;
-  FNotifyFlowCtrl   notifyFlowCtrl;
-  FNotifyFileSynced notifyFileSynced;
-  FGetVersion       getVersion;
+  FNotifyRole       notifyRoleFp;
+  FNotifyFlowCtrl   notifyFlowCtrlFp;
+  FStartSyncFile    startSyncFileFp;
+  FStopSyncFile     stopSyncFileFp;
+  FGetVersion       getVersionFp;
+  FSendFile         sendFileFp;
+  FRecvFile         recvFileFp;
 } SSyncInfo;
 
 typedef void *tsync_h;

@@ -101,9 +101,9 @@ void syncBuildFileAck(SFileAck *pMsg, int32_t vgId) {
   syncBuildHead(&pMsg->head);
 }
 
-void syncBuildFileInfo(SFileInfo *pMsg, int32_t vgId) {
+void syncBuildFileVersion(SFileVersion *pMsg, int32_t vgId) {
   pMsg->head.type = TAOS_SMSG_SYNC_FILE;
   pMsg->head.vgId = vgId;
-  pMsg->head.len = sizeof(SFileInfo) - sizeof(SSyncHead);
+  pMsg->head.len = sizeof(SFileVersion) - sizeof(SSyncHead);
   syncBuildHead(&pMsg->head);
 }

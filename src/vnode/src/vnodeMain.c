@@ -294,14 +294,15 @@ int32_t vnodeOpen(int32_t vgId) {
   syncInfo.version = pVnode->version;
   syncInfo.syncCfg = pVnode->syncCfg;
   tstrncpy(syncInfo.path, rootDir, TSDB_FILENAME_LEN);
-  syncInfo.getWalInfo = vnodeGetWalInfo;
-  syncInfo.getFileInfo = vnodeGetFileInfo;
-  syncInfo.writeToCache = vnodeWriteToCache;
+  syncInfo.getWalInfoFp = vnodeGetWalInfo;
+  syncInfo.writeToCacheFp = vnodeWriteToCache;
   syncInfo.confirmForward = vnodeConfirmForard; 
-  syncInfo.notifyRole = vnodeNotifyRole;
-  syncInfo.notifyFlowCtrl = vnodeCtrlFlow;
-  syncInfo.notifyFileSynced = vnodeNotifyFileSynced;
-  syncInfo.getVersion = vnodeGetVersion;
+  syncInfo.notifyRoleFp = vnodeNotifyRole;
+  syncInfo.notifyFlowCtrlFp = vnodeCtrlFlow;
+  syncInfo.startSyncFileFp = vnodeStartSyncFile;
+  syncInfo.stopSyncFileFp = vnodeStopSyncFile;
+  syncInfo.getVersionFp = vnodeGetVersion;
+  syncInfo.pTsdb = pVnode->tsdb;
   pVnode->sync = syncStart(&syncInfo);
 
   if (pVnode->sync <= 0) {
@@ -450,37 +451,6 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
     }
     return vnodeSaveVersion(pVnode);
   }
-
-  return 0;
-}
-
-int32_t vnodeReset(SVnodeObj *pVnode) {
-  if (!vnodeSetResetStatus(pVnode)) {
-    return -1;
-  }
-
-  void *tsdb = pVnode->tsdb;
-  pVnode->tsdb = NULL;
-  
-  // acquire vnode
-  int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
-
-  if (refCount > 3) {
-    tsem_wait(&pVnode->sem);
-  }
-
-  // close tsdb, then open tsdb
-  tsdbCloseRepo(tsdb, 0);
-  STsdbAppH appH = {0};
-  appH.appH = (void *)pVnode;
-  appH.notifyStatus = vnodeProcessTsdbStatus;
-  appH.cqH = pVnode->cq;
-  appH.cqCreateFunc = cqCreate;
-  appH.cqDropFunc = cqDrop;
-  pVnode->tsdb = tsdbOpenRepo(&(pVnode->tsdbCfg), &appH);
-
-  vnodeSetReadyStatus(pVnode);
-  vnodeRelease(pVnode);
 
   return 0;
 }
