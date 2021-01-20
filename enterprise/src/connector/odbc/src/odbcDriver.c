@@ -3679,7 +3679,7 @@ odbcTaosConnect(DBC *d, char *dsn, char *serverInput, char *dbnameInput, char * 
   d->naterr = 0;
 
   char user[TSDB_USER_LEN] = { 0 };
-  char pass[TSDB_PASSWORD_LEN] = { 0 };
+  char pass[TSDB_KEY_LEN] = { 0 };
   char server[TSDB_IPv4ADDR_LEN] = { 0 };
   char dbname[TSDB_DB_NAME_LEN] = { 0 };
 

@@ -116,6 +116,30 @@ public class LoadOneDayData {
 			return data;
 		}
 	}
+	
+	public void doQuery() {
+		Statement stmt = null;
+
+		try {
+			stmt = (Statement) conn.createStatement();
+
+			ResultSet rset = stmt.executeQuery("select * from test.tu");
+			StringBuilder sb = new StringBuilder();
+			
+			while(rset.next()) {
+				sb.append(rset.getObject(2));
+				System.out.println(sb.toString());
+//				System.out.print(rset.getString(1) + ", " + rset.getString(2)
+//				+ ", " + rset.getObject(3) + ", " + rset.getString(1));
+			}
+
+			rset.close();
+			stmt.close();
+		} catch (SQLException e1) {
+			e1.printStackTrace();
+		}
+
+	}
 
 	public void insertData(String dir) {
 		ArrayList<String> s = this.loadTableNameList(dir + "/devid");
@@ -195,30 +219,32 @@ public class LoadOneDayData {
 	}
 
 	public static void main(String[] args) {
-		if (args.length < 4) {
-			System.out.println("parameters are not sufficient");
-			System.out.println("exe cfg_dir db_name file_dir op_type(load|insert)");
-			System.exit(-1);
-		}
+//		if (args.length < 4) {
+//			System.out.println("parameters are not sufficient");
+//			System.out.println("exe cfg_dir db_name file_dir op_type(load|insert)");
+//			System.exit(-1);
+//		}
 
-		System.out.println("cfg:" + args[0]);
-		System.out.println("db:" + args[1]);
-		System.out.println("file dir:" + args[2]);
+//		System.out.println("cfg:" + args[0]);
+//		System.out.println("db:" + args[1]);
+//		System.out.println("file dir:" + args[2]);
 
 		LoadOneDayData loader = new LoadOneDayData();
-		loader.setDB(args[1]);
+//		loader.setDB(args[1]);
 		loader.MakeJdbcUrl();
 		loader.connectdb();
+		
+		loader.doQuery();
 
-		if (args[3].equals("load")) {
-			System.out.println("start to launch last_row query");
-			loader.loadLastrow();
-		} else if (args[3].equals("insert")) {
-			System.out.println("start to insert data");
-			loader.insertData(args[2]);
-		} else {
-			System.err.println("wrong parameters!");
-			System.out.println("exe cfg_dir db_name file_dir op_type(load|insert)");
-		}
+//		if (args[3].equals("load")) {
+//			System.out.println("start to launch last_row query");
+//			loader.loadLastrow();
+//		} else if (args[3].equals("insert")) {
+//			System.out.println("start to insert data");
+//			loader.insertData(args[2]);
+//		} else {
+//			System.err.println("wrong parameters!");
+//			System.out.println("exe cfg_dir db_name file_dir op_type(load|insert)");
+//		}
 	}
 }

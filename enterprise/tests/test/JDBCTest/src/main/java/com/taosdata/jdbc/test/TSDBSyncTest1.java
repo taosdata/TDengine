@@ -9,9 +9,8 @@ import java.sql.Statement;
 import java.util.Properties;
 
 public class TSDBSyncTest1 {
-	private String host = "192.168.100.128";
-	private String configDir = "C:\\Users\\slguan\\Desktop\\work\\test\\cfg";
-	//private String configDir = "/etc/taos";
+	private String host = "ubuntu";
+	private String configDir = "/etc/taos";
 	private int tableCount = 1;
 	private int rowsCount = 1000;
 	private String user = "root";
@@ -85,7 +84,7 @@ public class TSDBSyncTest1 {
 		try {
 			stmt = (Statement) conn.createStatement();
 
-			String sql = "drop database " + dbName;
+			String sql = "drop database if exists " + dbName;
 			code = stmt.executeUpdate(sql);
 			if (code != 0) {
 				System.out.println(sql + " failed");
@@ -155,7 +154,7 @@ public class TSDBSyncTest1 {
 					//.append(", ").append(row)
 					//.append(", ").append(row)
 					//.append(", '").append(row).append("'")
-					//.append(", '").append("AB����C").append("'")
+					//.append(", '").append("ABC").append("'")
 					.append(")");
 					
 					affectRows = stmt.executeUpdate(buffer.toString());

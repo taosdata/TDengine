@@ -33,7 +33,7 @@ void sqlParseTestImpl(TAOS *conn, char *sql, bool boolFlag);
         case TSDB_DATA_TYPE_BIGINT:                     \
         case TSDB_DATA_TYPE_INT:                        \
         case TSDB_DATA_TYPE_TIMESTAMP:                  \
-        case TSDB_DATA_TYPE_BOOL:   r->i64Key = v;break;\
+        case TSDB_DATA_TYPE_BOOL:   r->i64 = v;break;\
         case TSDB_DATA_TYPE_DOUBLE:                     \
         case TSDB_DATA_TYPE_FLOAT: r->dKey = v;break;   \
         case TSDB_DATA_TYPE_BINARY: break;              \

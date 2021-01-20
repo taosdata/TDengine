@@ -13,8 +13,8 @@ include_directories(${PRJ_HEADER_PATH} ${TD_COMMUNITY_DIR}/src/inc  ${TD_COMMUNI
 #add_executable(perftest ./perftest/taosperf.c ./perftest/perftestcommon.c)
 #target_link_libraries(perftest taos pthread tutil)
 
-#add_executable(percentiletest ./perftest/percentileTest.c)
-#target_link_libraries(percentiletest taos_static tutil)
+add_executable(percentiletest ./perftest/percentileTest.c)
+target_link_libraries(percentiletest query common taos_static tutil)
 
 #add_executable(sqltest ./perftest/sqlTest.c ./perftest/testCommon.c)
 #target_link_libraries(sqltest taos tutil)
@@ -26,7 +26,7 @@ include_directories(${PRJ_HEADER_PATH} ${TD_COMMUNITY_DIR}/src/inc  ${TD_COMMUNI
 #target_link_libraries(localmerge taos tutil)
 
 add_executable(querytest ./perftest/queryTest.c ./perftest/testCommon.c)
-target_link_libraries(querytest taos_static tutil)
+target_link_libraries(querytest taos_static query common tutil)
 
 #add_executable(functiontest ./perftest/sqlfunctionTest.c)
 #target_link_libraries(functiontest taos tutil)

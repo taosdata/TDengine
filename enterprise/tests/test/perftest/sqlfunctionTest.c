@@ -23,24 +23,24 @@ void clientCacheTest() {
 
     const int32_t REFRESH_TIME_IN_SEC = 2;
     void* tscTmr = taosTmrInit (tsMaxMgmtConnections*2, 200, 60000, "TSC");
-    void* tscCacheHandle = taosInitDataCache(tsMaxMeterConnections, tscTmr, REFRESH_TIME_IN_SEC);
+    void* tscMetaCache = taosInitDataCache(tsMaxMeterConnections, tscTmr, REFRESH_TIME_IN_SEC);
 
     char* key1 = "test1";
     char* data1 = "test11";
 
-    char* cachedObj = taosAddDataIntoCache(tscCacheHandle, key1, data1, strlen(data1), 1);
+    char* cachedObj = taosAddDataIntoCache(tscMetaCache, key1, data1, strlen(data1), 1);
     sleep(REFRESH_TIME_IN_SEC+1);
     printf("obj is still valid: %s\n", cachedObj);
 
     char* data2 = "test22";
-    taosRemoveDataFromCache(tscCacheHandle, cachedObj, false);
+    taosRemoveDataFromCache(tscMetaCache, cachedObj, false);
 
     /* the object is cleared by cache clean operation */
-    cachedObj = taosUpdateDataFromCache(tscCacheHandle, key1, data2, strlen(data2), 20);
+    cachedObj = taosUpdateDataFromCache(tscMetaCache, key1, data2, strlen(data2), 20);
     printf("after updated: %s\n", cachedObj);
 
     printf("start to remove data from cache\n");
-    taosRemoveDataFromCache(tscCacheHandle, cachedObj, false);
+    taosRemoveDataFromCache(tscMetaCache, cachedObj, false);
     printf("end of removing data from cache\n");
 
     getchar();
@@ -48,41 +48,41 @@ void clientCacheTest() {
     char* key3 = "test2";
     char* data3 = "kkkkkkk";
 
-    char* cachedObj2 = taosAddDataIntoCache(tscCacheHandle, key3, data3, strlen(data3), 1);
+    char* cachedObj2 = taosAddDataIntoCache(tscMetaCache, key3, data3, strlen(data3), 1);
     printf("%s\n", cachedObj2);
 
-    taosRemoveDataFromCache(tscCacheHandle, cachedObj2, false);
+    taosRemoveDataFromCache(tscMetaCache, cachedObj2, false);
 
     sleep(3);
-    char* d = taosGetDataFromCache(tscCacheHandle, key3);
+    char* d = taosGetDataFromCache(tscMetaCache, key3);
 //    assert(d == NULL);
 
     char* key5 = "test5";
     char* data5 = "data5kkkkk";
-    cachedObj2 = taosAddDataIntoCache(tscCacheHandle, key5, data5, strlen(data5), 20);
+    cachedObj2 = taosAddDataIntoCache(tscMetaCache, key5, data5, strlen(data5), 20);
 
     char* data6= "new Data after updated";
-    taosRemoveDataFromCache(tscCacheHandle, cachedObj2, false);
+    taosRemoveDataFromCache(tscMetaCache, cachedObj2, false);
 
-    cachedObj2 = taosUpdateDataFromCache(tscCacheHandle, key5, data6, strlen(data6), 20);
+    cachedObj2 = taosUpdateDataFromCache(tscMetaCache, key5, data6, strlen(data6), 20);
     printf("%s\n", cachedObj2);
 
-    taosRemoveDataFromCache(tscCacheHandle, cachedObj2, true);
+    taosRemoveDataFromCache(tscMetaCache, cachedObj2, true);
 
     char* data7 = "add call update procedure";
-    cachedObj2 = taosAddDataIntoCache(tscCacheHandle, key5, data7, strlen(data7), 20);
+    cachedObj2 = taosAddDataIntoCache(tscMetaCache, key5, data7, strlen(data7), 20);
     printf("%s\n=======================================\n\n", cachedObj2);
 
-    char* cc = taosGetDataFromCache(tscCacheHandle, key5);
+    char* cc = taosGetDataFromCache(tscMetaCache, key5);
 
-    taosRemoveDataFromCache(tscCacheHandle, cachedObj2, true);
-    taosRemoveDataFromCache(tscCacheHandle, cc, false);
+    taosRemoveDataFromCache(tscMetaCache, cachedObj2, true);
+    taosRemoveDataFromCache(tscMetaCache, cc, false);
 
     char* data8 = "ttft";
     char* key6 = "key6";
 
-    char* ft = taosAddDataIntoCache(tscCacheHandle, key6, data8, strlen(data8), 20);
-    taosRemoveDataFromCache(tscCacheHandle, ft, false);
+    char* ft = taosAddDataIntoCache(tscMetaCache, key6, data8, strlen(data8), 20);
+    taosRemoveDataFromCache(tscMetaCache, ft, false);
 //    getchar();
 
     /**
@@ -91,14 +91,14 @@ void clientCacheTest() {
     uint64_t startTime = taosGetTimestampMs();
     printf("Cache Performance Test\nstart time:%lld\n", startTime);
     for(int32_t i=0; i<1000; ++i) {
-        char* dd = taosGetDataFromCache(tscCacheHandle, key6);
-        taosRemoveDataFromCache(tscCacheHandle, dd, false);
+        char* dd = taosGetDataFromCache(tscMetaCache, key6);
+        taosRemoveDataFromCache(tscMetaCache, dd, false);
     }
 
     uint64_t endTime = taosGetTimestampMs();
     printf("End of Test, %lld\nTotal Elapsed Time:%lld ms.", endTime, endTime - startTime);
 
-    taosCleanUpDataCache(tscCacheHandle);
+    taosCleanUpDataCache(tscMetaCache);
 }
 
 void testMMapRead(char* filePath) {

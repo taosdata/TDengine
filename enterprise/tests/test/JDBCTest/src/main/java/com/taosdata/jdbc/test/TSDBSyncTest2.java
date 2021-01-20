@@ -8,8 +8,8 @@ import java.util.Properties;
 //java -jar synctest2.jar 192.168.3.5 10 1000000 ~/work/sim/ubuntu/cfg
 
 public class TSDBSyncTest2 {
-	private String host = "192.168.0.1";
-	private String configDir = "/etc/tbase";
+	private String host = "ubuntu";
+	private String configDir = "/etc/taos";
 	private int tableCount = 10;
 	private int rowsCount = 1000000;
 	private String user = "root";
@@ -83,7 +83,7 @@ public class TSDBSyncTest2 {
 		try {
 			stmt = (Statement) conn.createStatement();
 
-			String sql = "drop database " + dbName;
+			String sql = "drop database if exists " + dbName;
 			updateCount = stmt.executeUpdate(sql);
 			if (updateCount == 1) {
 				System.out.println(sql + " success");
@@ -93,10 +93,11 @@ public class TSDBSyncTest2 {
 
 			sql = "create database " + dbName;
 			updateCount = stmt.executeUpdate(sql);
-			if (updateCount != 1) {
-				System.out.println(sql + " falied");
+			if (updateCount != 0) {
+				System.out.println(sql + " failed");
 				System.exit(4);
 			}
+			
 			System.out.println(sql + " success");
 
 			sql = "use " + dbName;
@@ -105,7 +106,7 @@ public class TSDBSyncTest2 {
 
 			sql = "create table m1(timeid TIMESTAMP, field1 BINARY(50), field2 BINARY(20), field3 BINARY(16), field4 INT, field5 INT, field6 INT) tags(type int)";
 			updateCount = stmt.executeUpdate(sql);
-			if (updateCount != 1) {
+			if (updateCount != 0) {
 				System.out.println(sql + " failed");
 				System.exit(4);
 			}
@@ -114,7 +115,7 @@ public class TSDBSyncTest2 {
 			for (int i = 0; i < this.tableCount; i++) {
 				sql = "create table " + this.tablePrefix + i + " using m1 tags(" + i + ")";
 				updateCount = stmt.executeUpdate(sql);
-				if (updateCount != 1) {
+				if (updateCount != 0) {
 					System.out.println(sql + " failed");
 					System.exit(4);
 				}
@@ -169,10 +170,12 @@ public class TSDBSyncTest2 {
 					}
 				}
 
-				if (row % 10000 == 0) {
+				if (++row % 10000 == 0) {
 					System.out.println(row + " rows inserted");
 				}
 			}
+			
+			System.out.println("all data inserted, total rows:" +  this.tableCount * this.rowsCount);
 
 		} catch (SQLException e) {
 			e.printStackTrace();

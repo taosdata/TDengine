@@ -1,6 +1,5 @@
 package com.taosdata.jdbc.test;
 
-import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
@@ -12,7 +11,7 @@ public class TSDBConfigTest {
 	private static final String JDBC_PROTOCAL = "jdbc:TSDB://";
 	private static final String TSDB_DRIVER = "com.taosdata.jdbc.TSDBDriver";
 
-	private String host = "192.168.0.1";
+	private String host = "ubuntu";
 	private String user = "root";
 	private String password = "taosdata";
 	private int port = 0;
@@ -56,7 +55,7 @@ public class TSDBConfigTest {
 	}
 
 	private void doReadArgument(String[] args) {
-		System.out.println("arguments format : columns rowsize tblocks ablocks cache tables tablesCount");
+		System.out.println("arguments format : columns rowsize tablesCount");
 
 		if (args.length >= 1) {
 			this.columns = Integer.parseInt(args[0]);
@@ -88,12 +87,12 @@ public class TSDBConfigTest {
 			this.tablesCount = this.tables;
 		}
 
-		System.out.printf("arguments columns:%d rowsize:%d tblocks:%d ablocks:%d cache:%d tables:%d tablesCount:%d \n",
-				this.columns, this.rowsize, this.tblocks, this.ablocks, this.cache, this.tables, this.tablesCount);
+		System.out.printf("arguments columns:%d rowsize:%d tablesCount:%d \n",
+				this.columns, this.rowsize, this.tablesCount);
 	}
 
 	private void MakeJdbcUrl() {
-		// jdbc:TSDB://192.168.0.1:0/dbname?user=root&password=taosdata
+		// jdbc:TSDB://ubuntu:0/dbname?user=root&password=taosdata
 		this.jdbcUrl = String.format("%s%s:%d/%s?user=%s&password=%s", JDBC_PROTOCAL, this.host, this.port, "",
 				this.user, this.password);
 		System.out.println(this.jdbcUrl);
@@ -130,9 +129,7 @@ public class TSDBConfigTest {
 		try {
 			stmt = (Statement) this.conn.createStatement();
 
-			String sql = String.format(
-					"create database if not exists %s replica 1 days 10 keep 30 cache %d ablocks %d tblocks %d tables %d",
-					this.databaseName, this.cache, this.ablocks, this.tblocks, this.tables+1);
+			String sql = String.format("create database if not exists %s replica 1 days 10 keep 3650", this.databaseName);
 			stmt.executeUpdate(sql);
 			System.out.println(sql + " success");
 
@@ -185,6 +182,7 @@ public class TSDBConfigTest {
 					sql.append(",'1'");
 				}
 				sql.append(")");
+				
 				if (sql.length() > 30000) {
 					stmt.executeUpdate(sql.toString());
 					stmt.executeUpdate(sql.toString());

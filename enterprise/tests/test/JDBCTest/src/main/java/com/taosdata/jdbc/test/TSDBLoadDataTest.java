@@ -1,9 +1,9 @@
 package com.taosdata.jdbc.test;
 
-import com.taosdata.jdbc.TSDBDriver;
-
 import java.sql.*;
 import java.util.Properties;
+
+import com.taosdata.jdbc.TSDBDriver;
 
 public class TSDBLoadDataTest {
 	private String host = "localhost";
@@ -24,7 +24,7 @@ public class TSDBLoadDataTest {
 	public void MakeJdbcUrl() {
 		String JDBC_PROTOCAL = "jdbc:TSDB://";
 		int port = 0;
-		this.jdbcUrl = JDBC_PROTOCAL + host + ":" + port + "/" + dbName + "?user=" + user + "&password=" + password;
+		this.jdbcUrl = JDBC_PROTOCAL + host + ":" + port + "/" + dbName + "? user = " + user + " & password=" + password + " & batchfetch = true";
 		System.out.println(this.jdbcUrl);
 	}
 
@@ -175,17 +175,25 @@ public class TSDBLoadDataTest {
 		this.ConnectTbase();
 		
 		Statement stmt = null;
-		ResultSet reSet = null;
+		ResultSet rset = null;
 		try {
+			long start = System.currentTimeMillis();
 			stmt = (Statement) conn.createStatement();
-			reSet = stmt.executeQuery("use test");
+			rset = stmt.executeQuery("select * from test.meters");
 			
-			reSet = stmt.executeQuery("select * from tm1");
+			ResultSetMetaData meta = rset.getMetaData();
+			int numOfCols = meta.getColumnCount();
 			
-			while(reSet.next()) {
-				System.out.println(reSet.getString(1));
+			int row = 0;
+			while(rset.next()) {
+				for(int i = 0; i < numOfCols; ++i) {
+					rset.getString(i + 1);
+				}
+				row += 1;
 			}
 
+			long end = System.currentTimeMillis();
+			System.out.println("total rows:" + row + ", elapsed time:" + (end - start) + " ms");
 		} catch (SQLException e) {
 			e.printStackTrace();
 			System.out.println("insert failed");
@@ -196,15 +204,15 @@ public class TSDBLoadDataTest {
 			System.exit(4);
 		} finally {
 			try {
-				if (reSet != null)
-					reSet.close();
+				if (rset != null)
+					rset.close();
 				if (stmt != null)
 					stmt.close();
 			} catch (SQLException e) {
 				e.printStackTrace();
 			}
 		}
-		System.out.println("insert table finished");
+		System.out.println("finished");
 		try {
 			this.conn.close();
 		} catch (SQLException e) {

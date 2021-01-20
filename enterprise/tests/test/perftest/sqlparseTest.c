@@ -43,7 +43,7 @@ void doParse(char *s, bool val) {
         printf("error msg: %s\n", pSQLInfo.pzErrMsg);
     }
 
-    SQLInfoDestroy(&pSQLInfo);
+    SqlInfoDestroy(&pSQLInfo);
 }
 
 void failedByParser() {
