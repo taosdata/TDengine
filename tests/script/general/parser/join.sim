@@ -415,6 +415,7 @@ sql select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c5), last(join_m
 
 $val = 100
 if $rows != $val then
+   print $rows
    return -1
 endi
 

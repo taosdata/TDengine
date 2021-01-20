@@ -36,29 +36,6 @@ extern "C" {
 #define TSWINDOW_INITIALIZER ((STimeWindow) {INT64_MIN, INT64_MAX})
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
-// ----------------- For variable data types such as TSDB_DATA_TYPE_BINARY and TSDB_DATA_TYPE_NCHAR
-typedef int32_t VarDataOffsetT;
-typedef int16_t VarDataLenT;
-
-typedef struct tstr {
-  VarDataLenT len;
-  char        data[];
-} tstr;
-
-#define VARSTR_HEADER_SIZE  sizeof(VarDataLenT)
-
-#define varDataLen(v)       ((VarDataLenT *)(v))[0]
-#define varDataTLen(v)      (sizeof(VarDataLenT) + varDataLen(v))
-#define varDataVal(v)       ((void *)((char *)v + VARSTR_HEADER_SIZE))
-#define varDataCopy(dst, v) memcpy((dst), (void*) (v), varDataTLen(v))
-#define varDataLenByData(v) (*(VarDataLenT *)(((char*)(v)) - VARSTR_HEADER_SIZE))
-#define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT) (_len))
-#define IS_VAR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_BINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
-
-// this data type is internally used only in 'in' query to hold the values
-#define TSDB_DATA_TYPE_ARRAY      (TSDB_DATA_TYPE_NCHAR + 1)
-
-
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[15];
 
@@ -164,70 +141,6 @@ do { \
   #define SET_DOUBLE_PTR(x, y) { (*(double *)(x)) = (*(double *)(y)); }
 #endif
 
-typedef struct tDataTypeDescriptor {
-  int16_t nType;
-  int16_t nameLen;
-  int32_t nSize;
-  char *  aName;
-  int (*compFunc)(const char *const input, int inputSize, const int nelements, char *const output, int outputSize,
-                  char algorithm, char *const buffer, int bufferSize);
-  int (*decompFunc)(const char *const input, int compressedSize, const int nelements, char *const output,
-                    int outputSize, char algorithm, char *const buffer, int bufferSize);
-  void (*getStatisFunc)(const void *pData, int32_t numofrow, int64_t *min, int64_t *max, int64_t *sum,
-                        int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
-} tDataTypeDescriptor;
-
-extern tDataTypeDescriptor tDataTypeDesc[15];
-
-bool isValidDataType(int32_t type);
-
-static FORCE_INLINE bool isNull(const char *val, int32_t type) {
-  switch (type) {
-    case TSDB_DATA_TYPE_BOOL:
-      return *(uint8_t *)val == TSDB_DATA_BOOL_NULL;
-    case TSDB_DATA_TYPE_TINYINT:
-      return *(uint8_t *)val == TSDB_DATA_TINYINT_NULL;
-    case TSDB_DATA_TYPE_SMALLINT:
-      return *(uint16_t *)val == TSDB_DATA_SMALLINT_NULL;
-    case TSDB_DATA_TYPE_INT:
-      return *(uint32_t *)val == TSDB_DATA_INT_NULL;
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      return *(uint64_t *)val == TSDB_DATA_BIGINT_NULL;
-    case TSDB_DATA_TYPE_FLOAT:
-      return *(uint32_t *)val == TSDB_DATA_FLOAT_NULL;
-    case TSDB_DATA_TYPE_DOUBLE:
-      return *(uint64_t *)val == TSDB_DATA_DOUBLE_NULL;
-    case TSDB_DATA_TYPE_NCHAR:
-      return varDataLen(val) == sizeof(int32_t) && *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
-    case TSDB_DATA_TYPE_BINARY:
-      return varDataLen(val) == sizeof(int8_t) && *(uint8_t *) varDataVal(val) == TSDB_DATA_BINARY_NULL;
-    case TSDB_DATA_TYPE_UTINYINT:
-      return *(uint8_t*) val == TSDB_DATA_UTINYINT_NULL;
-    case TSDB_DATA_TYPE_USMALLINT:
-      return *(uint16_t*) val == TSDB_DATA_USMALLINT_NULL;
-    case TSDB_DATA_TYPE_UINT:
-      return *(uint32_t*) val == TSDB_DATA_UINT_NULL;
-    case TSDB_DATA_TYPE_UBIGINT:
-      return *(uint64_t*) val == TSDB_DATA_UBIGINT_NULL;
-
-    default:
-      return false;
-  };
-}
-
-void setVardataNull(char* val, int32_t type);
-void setNull(char *val, int32_t type, int32_t bytes);
-void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
-void* getNullValue(int32_t type);
-
-void assignVal(char *val, const char *src, int32_t len, int32_t type);
-void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf);
-
-int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned);
-
-#define SET_DOUBLE_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_DOUBLE_NULL)
-
 // TODO: check if below is necessary
 #define TSDB_RELATION_INVALID     0
 #define TSDB_RELATION_LESS        1
@@ -270,7 +183,7 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
 #define TSDB_MAX_SQL_SHOW_LEN     512
-#define TSDB_MAX_ALLOWED_SQL_LEN  (1*1024*1024U)          // sql length should be less than 1mb
+#define TSDB_MAX_ALLOWED_SQL_LEN  (1*1024*1024u)          // sql length should be less than 1mb
 
 #define TSDB_APPNAME_LEN          TSDB_UNI_LEN
 
@@ -399,8 +312,8 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 
 #define TSDB_MAX_RPC_THREADS            5
 
-#define TSDB_QUERY_TYPE_NON_TYPE                       0x00u     // none type
-#define TSDB_QUERY_TYPE_FREE_RESOURCE                  0x01u     // free qhandle at vnode
+#define TSDB_QUERY_TYPE_NON_TYPE               0x00u     // none type
+#define TSDB_QUERY_TYPE_FREE_RESOURCE          0x01u     // free qhandle at vnode
 
 /*
  * 1. ordinary sub query for select * from super_table
@@ -420,31 +333,31 @@ int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bo
 #define TSDB_QUERY_TYPE_MULTITABLE_QUERY       0x200u
 #define TSDB_QUERY_TYPE_STMT_INSERT            0x800u    // stmt insert type
 
-#define TSDB_QUERY_HAS_TYPE(x, _type)         (((x) & (_type)) != 0)
-#define TSDB_QUERY_SET_TYPE(x, _type)         ((x) |= (_type))
-#define TSDB_QUERY_CLEAR_TYPE(x, _type)       ((x) &= (~_type))
-#define TSDB_QUERY_RESET_TYPE(x)              ((x) = TSDB_QUERY_TYPE_NON_TYPE)
+#define TSDB_QUERY_HAS_TYPE(x, _type)          (((x) & (_type)) != 0)
+#define TSDB_QUERY_SET_TYPE(x, _type)          ((x) |= (_type))
+#define TSDB_QUERY_CLEAR_TYPE(x, _type)        ((x) &= (~_type))
+#define TSDB_QUERY_RESET_TYPE(x)               ((x) = TSDB_QUERY_TYPE_NON_TYPE)
 
-#define TSDB_ORDER_ASC                  1
-#define TSDB_ORDER_DESC                 2
+#define TSDB_ORDER_ASC                         1
+#define TSDB_ORDER_DESC                        2
+                                               
+#define TSDB_DEFAULT_CLUSTER_HASH_SIZE         1
+#define TSDB_DEFAULT_MNODES_HASH_SIZE          5
+#define TSDB_DEFAULT_DNODES_HASH_SIZE          10
+#define TSDB_DEFAULT_ACCOUNTS_HASH_SIZE        10
+#define TSDB_DEFAULT_USERS_HASH_SIZE           20
+#define TSDB_DEFAULT_DBS_HASH_SIZE             100
+#define TSDB_DEFAULT_VGROUPS_HASH_SIZE         100
+#define TSDB_DEFAULT_STABLES_HASH_SIZE         100
+#define TSDB_DEFAULT_CTABLES_HASH_SIZE         20000
 
-#define TSDB_DEFAULT_CLUSTER_HASH_SIZE  1
-#define TSDB_DEFAULT_MNODES_HASH_SIZE   5
-#define TSDB_DEFAULT_DNODES_HASH_SIZE   10
-#define TSDB_DEFAULT_ACCOUNTS_HASH_SIZE 10
-#define TSDB_DEFAULT_USERS_HASH_SIZE    20
-#define TSDB_DEFAULT_DBS_HASH_SIZE      100
-#define TSDB_DEFAULT_VGROUPS_HASH_SIZE  100
-#define TSDB_DEFAULT_STABLES_HASH_SIZE  100
-#define TSDB_DEFAULT_CTABLES_HASH_SIZE  20000
+#define TSDB_PORT_DNODESHELL                   0
+#define TSDB_PORT_DNODEDNODE                   5
+#define TSDB_PORT_SYNC                         10
+#define TSDB_PORT_HTTP                         11
+#define TSDB_PORT_ARBITRATOR                   12
 
-#define TSDB_PORT_DNODESHELL            0
-#define TSDB_PORT_DNODEDNODE            5
-#define TSDB_PORT_SYNC                  10
-#define TSDB_PORT_HTTP                  11
-#define TSDB_PORT_ARBITRATOR            12
-
-#define TSDB_MAX_WAL_SIZE    (1024*1024*2)
+#define TSDB_MAX_WAL_SIZE    (1024*1024*3)
 
 typedef enum {
   TAOS_QTYPE_RPC   = 0,
