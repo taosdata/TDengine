@@ -2,7 +2,7 @@
 
 TDengine 提供了遵循 JDBC 标准（3.0）API 规范的 `taos-jdbcdriver` 实现，可在 maven 的中央仓库 [Sonatype Repository][1] 搜索下载。
 
-`taos-jdbcdriver的` 实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.16 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
+`taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.17 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
 
 ![tdengine-connector](../assets/tdengine-jdbc-connector.png)
 
@@ -67,7 +67,7 @@ maven 项目中使用如下 pom.xml 配置即可：
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>2.0.16</version>
+  <version>2.0.17</version>
 </dependency>
 ```
 
