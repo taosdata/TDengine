@@ -4409,7 +4409,7 @@ static int32_t getPercentileFromSortedArray(const SArray* pArray, float rate) {
   int idx = (int32_t)((len - 1) * rate);
   return ((SDataBlockInfo *)(taosArrayGet(pArray, idx)))->rows;
 }
-static int32_t compareBlockInfo(const void *pLeft, const void *pRight) {
+static int compareBlockInfo(const void *pLeft, const void *pRight) {
   int32_t left = ((SDataBlockInfo *)pLeft)->rows;
   int32_t right = ((SDataBlockInfo *)pRight)->rows; 
   if (left > right) return 1; 
