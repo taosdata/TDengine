@@ -15,15 +15,11 @@
 
 #include "eok.h"
 
-#include <errno.h>
-#include <libgen.h>
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include "os.h"
+
 #include <sys/event.h>
-#include <sys/socket.h>
-#include <unistd.h>
+
+#define LET_IT_BE
 
 #ifdef ENABLE_LOG
 #define D(fmt, ...) fprintf(stderr, "%s[%d]%s(): " fmt "\n", basename(__FILE__), __LINE__, __func__, ##__VA_ARGS__)
@@ -414,6 +410,8 @@ int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event) {
 static struct timespec do_timespec_diff(struct timespec *from, struct timespec *to);
 
 int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout) {
+  taos_block_sigalrm();
+
   int e = 0;
   if (!events) {
     errno = EINVAL;
@@ -699,7 +697,7 @@ static void eok_free_ev(ep_over_kq_t *eok, eok_event_t *ev) {
   else          eok->evs_tail  = ev->prev;
   ev->prev = NULL;
   ev->next = eok->evs_free;
-  eok->evs_free = ev->next;
+  eok->evs_free = ev;
 
   eok->evs_count -= 1;
 }

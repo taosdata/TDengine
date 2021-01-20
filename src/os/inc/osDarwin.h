@@ -104,6 +104,8 @@ int64_t tsosStr2int64(char *str);
 
 #include "eok.h"
 
+void taos_block_sigalrm(void);
+
 
 
 

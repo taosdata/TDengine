@@ -34,3 +34,16 @@ void taosUninitTimer() {
   setitimer(ITIMER_REAL, &tv, NULL);
 }
 
+void taos_block_sigalrm(void) {
+  // since SIGALRM has been used
+  // consideration: any better solution?
+  static __thread int already_set = 0;
+  if (!already_set) {
+    sigset_t set;
+    sigemptyset(&set);
+    sigaddset(&set, SIGALRM);
+    pthread_sigmask(SIG_BLOCK, &set, NULL);
+    already_set = 1;
+  }
+}
+

@@ -22,6 +22,8 @@
 extern "C" {
 #endif
 
+#ifdef __APPLE__
+
 enum EPOLL_EVENTS
   {
     EPOLLIN = 0x001,
@@ -80,6 +82,8 @@ int epoll_create(int size);
 int epoll_ctl(int epfd, int op, int fd, struct epoll_event *event);
 int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout);
 int epoll_close(int epfd);
+
+#endif // __APPLE__
 
 #ifdef __cplusplus
 }
