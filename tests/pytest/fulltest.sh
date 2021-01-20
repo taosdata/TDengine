@@ -260,3 +260,6 @@ python3 ./test.py -f update/bug_td2279.py
 
 # wal
 python3 ./test.py -f wal/addOldWalTest.py
+
+# account
+python3 ./test.py -f account/account_create.py
