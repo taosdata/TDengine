@@ -39,7 +39,7 @@ while $x < $rowNum
 endw 
 print ====== tables created
 
-sleep 3000
+sleep 2000
 
 $ts = $ts + 1
 sql insert into $tb values ( $ts , -1, -1, -1, -1, -1)
@@ -47,7 +47,7 @@ $ts = $ts0 + $delta
 $ts = $ts + 1
 sql import into $tb values ( $ts , -2, -2, -2, -2, -2)
 
-sleep 3000
+sleep 2000
 
 sql show databases
 
