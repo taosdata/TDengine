@@ -5161,7 +5161,7 @@ int32_t validateEp(char* ep) {
 }
 
 int32_t validateDNodeConfig(SMiscInfo* pOptions) {
-  int32_t numOfToken = taosArrayGetSize(pOptions->a);
+  int32_t numOfToken = (int32_t) taosArrayGetSize(pOptions->a);
 
   if (numOfToken < 2 || numOfToken > 3) {
     return TSDB_CODE_TSC_INVALID_SQL;
@@ -5233,7 +5233,7 @@ int32_t validateDNodeConfig(SMiscInfo* pOptions) {
 }
 
 int32_t validateLocalConfig(SMiscInfo* pOptions) {
-  int32_t numOfToken = taosArrayGetSize(pOptions->a);
+  int32_t numOfToken = (int32_t) taosArrayGetSize(pOptions->a);
   if (numOfToken < 1 || numOfToken > 2) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
