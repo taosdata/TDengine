@@ -10,6 +10,7 @@ import java.util.Properties;
 
 public class AuthenticationTest {
 
+    //    private static final String host = "127.0.0.1";
     private static final String host = "master";
     private static final String user = "root";
     private static final String password = "123456";
@@ -17,7 +18,20 @@ public class AuthenticationTest {
 
     @Test
     public void test() {
-        try (Statement stmt = conn.createStatement()) {
+        // change password
+        try {
+            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=taosdata");
+            Statement stmt = conn.createStatement();
+            stmt.execute("alter user " + user + " pass '" + password + "'");
+            stmt.close();
+            conn.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        // use new to login and execute query
+        try {
+            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=" + password);
+            Statement stmt = conn.createStatement();
             stmt.execute("show databases");
             ResultSet rs = stmt.getResultSet();
             ResultSetMetaData meta = rs.getMetaData();
@@ -30,28 +44,24 @@ public class AuthenticationTest {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+        // change password back
+        try {
+            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=" + user + "&password=" + password);
+            Statement stmt = conn.createStatement();
+            stmt.execute("alter user " + user + " pass 'taosdata'");
+            stmt.close();
+            conn.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
     }
 
     @Before
     public void before() {
         try {
             Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-            Properties props = new Properties();
-            props.setProperty(TSDBDriver.PROPERTY_KEY_USER, user);
-            props.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, password);
-            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test", props);
-        } catch (SQLException | ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @After
-    public void after() {
-        try {
-            if (conn != null) {
-                conn.close();
-            }
-        } catch (SQLException e) {
+        } catch (ClassNotFoundException e) {
             e.printStackTrace();
         }
     }
