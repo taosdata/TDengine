@@ -4400,7 +4400,7 @@ static void freeTableBlockDist(STableBlockDist *pTableBlockDist) {
     free(pTableBlockDist);
   }
 }
-static int32_t getPercentileFromSortedArray(const SArray* pArray, float rate) {
+static int32_t getPercentileFromSortedArray(const SArray* pArray, double rate) {
   int32_t len = (int32_t)taosArrayGetSize(pArray);
   if (len <= 0) {
     return 0;
