@@ -398,7 +398,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     int32_t len = 0;
     p = strstr(start, TS_PATH_DELIMITER);
     if (p == NULL) {
-      len = strlen(start);
+      len = (int32_t) strlen(start);
     } else {
       len = p - start;
     }
@@ -416,7 +416,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     dst->type = TSDB_TABLE_NAME_T;
     char* start = (char*) ((p == NULL)? str: (p+1));
 
-    int32_t len = strlen(start);
+    int32_t len = (int32_t) strlen(start);
 
     // too long account id or too long db name
     if (len >= tListLen(dst->tname) || len == 0) {
