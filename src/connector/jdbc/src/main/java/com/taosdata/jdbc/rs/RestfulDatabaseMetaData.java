@@ -33,6 +33,7 @@ public class RestfulDatabaseMetaData extends AbstractDatabaseMetaData {
         return RestfulDriver.class.getName();
     }
 
+
     @Override
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
         if (connection == null || connection.isClosed()) {
@@ -46,6 +47,14 @@ public class RestfulDatabaseMetaData extends AbstractDatabaseMetaData {
         if (connection == null || connection.isClosed())
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         return super.getCatalogs(connection);
+    }
+
+    @Override
+    public ResultSet getTableTypes() throws SQLException {
+        if (connection == null || connection.isClosed()) {
+            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+        }
+        return super.getTableTypes();
     }
 
     @Override
