@@ -10,14 +10,14 @@ import static org.junit.Assert.assertEquals;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class ImportTest {
-    static Connection connection;
-    String dbName = "test";
-    String tName = "t0";
-    String host = "127.0.0.1";
+    private static Connection connection;
+    static String dbName = "test";
+    static String tName = "t0";
+    static String host = "127.0.0.1";
     private static long ts;
 
     @BeforeClass
-    public void before() {
+    public static void before() {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
@@ -100,7 +100,7 @@ public class ImportTest {
     }
 
     @AfterClass
-    public void close() {
+    public static void close() {
         try {
             if (connection != null) {
                 Statement statement = connection.createStatement();
