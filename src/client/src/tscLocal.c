@@ -569,10 +569,12 @@ static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, ch
   }
 
   char fullName[TSDB_TABLE_FNAME_LEN * 2] = {0};
-  extractDBName(pTableMetaInfo->name, fullName);
+  tNameGetDbName(&pTableMetaInfo->name, fullName);
+
   extractTableName(pMeta->sTableName, param->sTableName);
   snprintf(fullName + strlen(fullName), TSDB_TABLE_FNAME_LEN - strlen(fullName),  ".%s", param->sTableName);
-  extractTableName(pTableMetaInfo->name, param->buf);
+
+  strncpy(param->buf, tNameGetTableName(&pTableMetaInfo->name), TSDB_TABLE_NAME_LEN);
 
   param->pParentSql = pSql;
   param->pInterSql  = pInterSql;
@@ -602,6 +604,7 @@ static int32_t tscRebuildDDLForSubTable(SSqlObj *pSql, const char *tableName, ch
 
   return TSDB_CODE_TSC_ACTION_IN_PROGRESS; 
 }
+
 static int32_t tscRebuildDDLForNormalTable(SSqlObj *pSql, const char *tableName, char *ddl) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -675,8 +678,7 @@ static int32_t tscProcessShowCreateTable(SSqlObj *pSql) {
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   assert(pTableMetaInfo->pTableMeta != NULL);
 
-  char tableName[TSDB_TABLE_NAME_LEN] = {0};
-  extractTableName(pTableMetaInfo->name, tableName);
+  const char* tableName = tNameGetTableName(&pTableMetaInfo->name);
 
   char *result = (char *)calloc(1, TSDB_MAX_BINARY_LEN);
   int32_t code = TSDB_CODE_SUCCESS;
@@ -712,7 +714,9 @@ static int32_t tscProcessShowCreateDatabase(SSqlObj *pSql) {
     free(pInterSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  extractTableName(pTableMetaInfo->name, param->buf);
+
+  strncpy(param->buf, tNameGetTableName(&pTableMetaInfo->name), TSDB_TABLE_NAME_LEN);
+
   param->pParentSql = pSql;
   param->pInterSql  = pInterSql;
   param->fp         = tscRebuildCreateDBStatement;

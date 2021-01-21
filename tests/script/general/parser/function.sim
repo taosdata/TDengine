@@ -383,3 +383,28 @@ sql create table cars(ts timestamp, c int) tags(id int);
 sql create table car1 using cars tags(1);
 sql create table car2 using cars tags(2);
 sql insert into car1 (ts, c) values (now,1) car2(ts, c) values(now, 2);
+
+print ========================> TD-2700
+sql create table tx(ts timestamp, k int);
+sql insert into tx values(1500000001000, 0);
+sql select sum(k) from tx interval(1d) sliding(1h);
+if $rows != 24 then
+  print expect 24, actual:$rows
+  return -1
+endi
+
+print ========================> TD-2740
+sql drop table if exists m1;
+sql create table m1(ts timestamp, k int) tags(a int);
+sql create table tm10 using m1 tags(0);
+sql create table tm11 using m1 tags(1);
+sql create table tm12 using m1 tags(2);
+sql create table tm13 using m1 tags(3);
+sql insert into tm10 values('2020-1-1 1:1:1', 0);
+sql insert into tm11 values('2020-1-5 1:1:1', 0);
+sql insert into tm12 values('2020-1-7 1:1:1', 0);
+sql insert into tm13 values('2020-1-1 1:1:1', 0);
+sql select count(*) from m1 where ts='2020-1-1 1:1:1' interval(1h) group by tbname;
+if $rows != 2 then
+  return -1
+endi

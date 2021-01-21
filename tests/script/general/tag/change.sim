@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 2
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 
 print ======================== dnode1 start
@@ -175,7 +175,7 @@ sql alter table $mt change tag tgcol3 tgcol9
 sql alter table $mt change tag tgcol5 tgcol10
 sql alter table $mt change tag tgcol6 tgcol11
 
-sleep 5000
+sleep 3000
 sql reset query cache
 
 print =============== step2

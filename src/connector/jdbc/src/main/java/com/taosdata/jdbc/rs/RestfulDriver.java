@@ -44,6 +44,8 @@ public class RestfulDriver extends AbstractTaosDriver {
         String result = HttpClientPoolUtil.execute(loginUrl);
         JSONObject jsonResult = JSON.parseObject(result);
         String status = jsonResult.getString("status");
+        String token = jsonResult.getString("desc");
+        HttpClientPoolUtil.token = token;
         if (!status.equals("succ")) {
             throw new SQLException(jsonResult.getString("desc"));
         }

@@ -39,7 +39,7 @@ extern "C" {
 
 // forward declaration
 struct SSqlInfo;
-struct SLocalReducer;
+struct SLocalMerger;
 
 // data source from sql string or from file
 enum {
@@ -67,7 +67,7 @@ typedef struct CChildTableMeta {
   int32_t        vgId;
   STableId       id;
   uint8_t        tableType;
-  char           sTableName[TSDB_TABLE_FNAME_LEN];
+  char           sTableName[TSDB_TABLE_FNAME_LEN];  //super table name, not full name
 } CChildTableMeta;
 
 typedef struct STableMeta {
@@ -91,7 +91,7 @@ typedef struct STableMetaInfo {
    * 2. keep the vgroup index for multi-vnode insertion
    */
   int32_t       vgroupIndex;
-  char          name[TSDB_TABLE_FNAME_LEN];        // (super) table name
+  SName         name;
   char          aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
 } STableMetaInfo;
@@ -142,7 +142,7 @@ typedef struct SCond {
 } SCond;
 
 typedef struct SJoinNode {
-  char     tableId[TSDB_TABLE_FNAME_LEN];
+  char     tableName[TSDB_TABLE_FNAME_LEN];
   uint64_t uid;
   int16_t  tagColId;
 } SJoinNode;
@@ -176,7 +176,7 @@ typedef struct SParamInfo {
 } SParamInfo;
 
 typedef struct STableDataBlocks {
-  char        tableName[TSDB_TABLE_FNAME_LEN];
+  SName       tableName;
   int8_t      tsSource;     // where does the UNIX timestamp come from, server or client
   bool        ordered;      // if current rows are ordered or not
   int64_t     vgId;         // virtual group id
@@ -254,7 +254,7 @@ typedef struct {
   int8_t       submitSchema;   // submit block is built with table schema
   STagData     tagData;        // NOTE: pTagData->data is used as a variant length array
 
-  char       **pTableNameList; // all involved tableMeta list of current insert sql statement.
+  SName      **pTableNameList; // all involved tableMeta list of current insert sql statement.
   int32_t      numOfTables;
 
   SHashObj    *pTableBlockHashList;     // data block for each table
@@ -292,7 +292,7 @@ typedef struct {
   SColumnIndex*  pColumnIndex;
 
   SArithmeticSupport   *pArithSup;   // support the arithmetic expression calculation on agg functions
-  struct SLocalReducer *pLocalReducer;
+  struct SLocalMerger  *pLocalMerger;
 } SSqlRes;
 
 typedef struct STscObj {
@@ -436,7 +436,7 @@ void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
 
-void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql);
+void tscImportDataFromFile(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(SSqlObj* pSql);
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
