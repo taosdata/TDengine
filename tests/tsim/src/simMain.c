@@ -20,6 +20,7 @@
 #undef TAOS_MEM_CHECK
 
 bool simAsyncQuery = false;
+bool simExecSuccess = false;
 
 void simHandleSignal(int32_t signo) {
   simSystemCleanUp();
@@ -62,5 +63,8 @@ int32_t main(int32_t argc, char *argv[]) {
   simScriptList[++simScriptPos] = script;
   simExecuteScript(script);
 
-  return 0;
+  int32_t ret = simExecSuccess ? 0 : -1;
+  simError("execute result %d", ret);
+
+  return ret;
 }

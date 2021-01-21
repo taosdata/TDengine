@@ -290,7 +290,7 @@ int32_t dnodeInitTelemetry() {
   int32_t code = pthread_create(&tsTelemetryThread, &attr, telemetryThread, NULL);
   pthread_attr_destroy(&attr);
   if (code != 0) {
-    dTrace("failed to create telemetry thread, reason:%s", strerror(errno));
+    dTrace("failed to create telemetry thread, reason:%s", strerror(code));
   }
 
   dInfo("dnode telemetry is initialized");

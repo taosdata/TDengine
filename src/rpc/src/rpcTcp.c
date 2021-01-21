@@ -156,7 +156,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
   if (code == 0) { 
     code = pthread_create(&pServerObj->thread, &thattr, taosAcceptTcpConnection, (void *)pServerObj);
     if (code != 0) {
-      tError("%s failed to create TCP accept thread(%s)", label, strerror(errno));
+      tError("%s failed to create TCP accept thread(%s)", label, strerror(code));
     }
   }
 
