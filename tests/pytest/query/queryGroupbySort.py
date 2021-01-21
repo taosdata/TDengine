@@ -28,19 +28,24 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        tdSql.execute(
-            "create table stb(ts timestamp,i int) tags (p_id nchar(20));")
-        tdSql.execute(
-            "insert into tb using stb tags('11231') values (%d, %d) (%d, %d) (%d, %d) (%d, %d)" 
-            % (self.ts, 12, self.ts + 1, 15, self.ts + 2, 15, self.ts + 3, 12))
+        tdSql.execute("CREATE TABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupId int)")
+        tdSql.execute("CREATE TABLE D1001 USING meters TAGS ('Beijing.Chaoyang', 2)")
+        tdSql.execute("CREATE TABLE D1002 USING meters TAGS ('Beijing.Chaoyang', 3)")
+        tdSql.execute("INSERT INTO D1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) (1538548696800, 12.3, 221, 0.31)")
+        tdSql.execute("INSERT INTO D1002 VALUES (1538548685001, 10.5, 220, 0.28)  (1538548696800, 12.3, 221, 0.31)")
 
-        tdSql.query(''' select last(ts) p_time,i from stb where p_id='11231' and ts>=%d and ts <=%d 
-            group by i order by time desc limit 100 ''' % (self.ts, self.ts + 4))
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 0, "2018-09-17 09:00:00.003000")
-        tdSql.checkData(1, 0, "2018-09-17 09:00:00.002000")
+        tdSql.query("SELECT SUM(current), AVG(voltage) FROM meters WHERE groupId > 1 INTERVAL(1s) GROUP BY location order by ts DESC")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2018-10-03 14:38:16")
+        tdSql.checkData(1, 0, "2018-10-03 14:38:15")
+        tdSql.checkData(2, 0, "2018-10-03 14:38:05")
 
-
+        tdSql.query("SELECT SUM(current), AVG(voltage) FROM meters WHERE groupId > 1 INTERVAL(1s) GROUP BY location order by ts ASC")
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "2018-10-03 14:38:05")
+        tdSql.checkData(1, 0, "2018-10-03 14:38:15")
+        tdSql.checkData(2, 0, "2018-10-03 14:38:16")
+        
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
