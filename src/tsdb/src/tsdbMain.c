@@ -28,7 +28,6 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
 static void       tsdbFreeRepo(STsdbRepo *pRepo);
 static void       tsdbStartStream(STsdbRepo *pRepo);
 static void       tsdbStopStream(STsdbRepo *pRepo);
-static int        tsdbRestoreInfo(STsdbRepo *pRepo);
 
 // Function declaration
 int32_t tsdbCreateRepo(int repoid) {
@@ -539,7 +538,7 @@ static void tsdbStopStream(STsdbRepo *pRepo) {
   }
 }
 
-static int tsdbRestoreInfo(STsdbRepo *pRepo) {
+int tsdbRestoreInfo(STsdbRepo *pRepo) {
   SFSIter    fsiter;
   SReadH     readh;
   SDFileSet *pSet;

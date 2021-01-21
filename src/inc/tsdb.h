@@ -330,8 +330,8 @@ void tsdbIncCommitRef(int vgId);
 void tsdbDecCommitRef(int vgId);
 
 // For TSDB file sync
-int tsdbSyncSend(STsdbRepo *pRepo, int socketFd);
-int tsdbSyncRecv(STsdbRepo *pRepo, int socketFd);
+int tsdbSyncSend(void *pRepo, int socketFd);
+int tsdbSyncRecv(void *pRepo, int socketFd);
 
 #ifdef __cplusplus
 }

@@ -94,6 +94,7 @@ int        tsdbLockRepo(STsdbRepo* pRepo);
 int        tsdbUnlockRepo(STsdbRepo* pRepo);
 STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
 int        tsdbCheckCommit(STsdbRepo* pRepo);
+int        tsdbRestoreInfo(STsdbRepo* pRepo);
 
 static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
   ASSERT(pRepo != NULL);

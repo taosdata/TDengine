@@ -83,6 +83,7 @@ int      tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet);
 void       tsdbFSIterInit(SFSIter *pIter, STsdbFS *pfs, int direction);
 void       tsdbFSIterSeek(SFSIter *pIter, int fid);
 SDFileSet *tsdbFSIterNext(SFSIter *pIter);
+int        tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta);
 
 static FORCE_INLINE int tsdbRLockFS(STsdbFS* pFs) {
   int code = pthread_rwlock_rdlock(&(pFs->lock));

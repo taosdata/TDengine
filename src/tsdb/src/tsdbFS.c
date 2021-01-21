@@ -26,7 +26,6 @@ static void tsdbApplyFSTxnOnDisk(SFSStatus *pFrom, SFSStatus *pTo);
 static void tsdbGetTxnFname(int repoid, TSDB_TXN_FILE_T ftype, char fname[]);
 static int  tsdbOpenFSFromCurrent(STsdbRepo *pRepo);
 static int  tsdbScanAndTryFixFS(STsdbRepo *pRepo);
-static int  tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta);
 
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
@@ -690,7 +689,7 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
+int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   char      tbuf[128];
   STsdbFS * pfs = REPO_FS(pRepo);
   SMFile    mf;
@@ -699,6 +698,8 @@ static int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   SKVRecord rInfo;
   int64_t   maxBufSize = 0;
   SMFInfo   minfo;
+
+  // TODO: clear meta at first
 
   // No meta file, just return
   if (pfs->cstatus->pmf == NULL) return 0;

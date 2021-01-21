@@ -24,6 +24,7 @@ typedef struct {
   SRtn       rtn;
   int32_t    socketFd;
   void *     pBuf;
+  bool       mfChanged;
   SMFile *   pmf;
   SMFile     mf;
   SDFileSet  df;
@@ -46,9 +47,11 @@ static bool    tsdbIsTowFSetSame(SDFileSet *pSet1, SDFileSet *pSet2);
 static int32_t tsdbSyncSendDFileSet(SSyncH *pSynch, SDFileSet *pSet);
 static int32_t tsdbSendDFileSetInfo(SSyncH *pSynch, SDFileSet *pSet);
 static int32_t tsdbRecvDFileSetInfo(SSyncH *pSynch);
+static int     tsdbReload(STsdbRepo *pRepo, bool isMfChanged);
 
-int32_t tsdbSyncSend(STsdbRepo *pRepo, int32_t socketFd) {
-  SSyncH synch = {0};
+int32_t tsdbSyncSend(void *tsdb, int32_t socketFd) {
+  STsdbRepo *pRepo = (STsdbRepo *)tsdb;
+  SSyncH     synch = {0};
 
   tsdbInitSyncH(&synch, pRepo, socketFd);
   // Disable TSDB commit
@@ -75,7 +78,8 @@ _err:
   return -1;
 }
 
-int32_t tsdbSyncRecv(STsdbRepo *pRepo, int32_t socketFd) {
+int32_t tsdbSyncRecv(void *tsdb, int32_t socketFd) {
+  STsdbRepo *pRepo = (STsdbRepo *)tsdb;
   SSyncH synch;
 
   tsdbInitSyncH(&synch, pRepo, socketFd);
@@ -91,10 +95,12 @@ int32_t tsdbSyncRecv(STsdbRepo *pRepo, int32_t socketFd) {
     goto _err;
   }
 
-  // TODO: need to restart TSDB or reload TSDB here
-
   tsdbEndFSTxn(pRepo);
   tsdbDestroySyncH(&synch);
+
+  // Reload file change
+  tsdbReload(pRepo, synch.mfChanged);
+
   return 0;
 
 _err:
@@ -179,6 +185,8 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
 
   if (pLMFile == NULL || memcmp(&(pSynch->pmf->info), &(pLMFile->info), sizeof(SMFInfo)) != 0) {
     // Local has no meta file or has a different meta file, need to copy from remote
+    pSynch->mfChanged = true;
+
     if (tsdbSendDecision(pSynch, true) < 0) {
       tsdbError("vgId:%d, failed to send decision while recv metafile since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
@@ -642,6 +650,28 @@ static int32_t tsdbRecvDFileSetInfo(SSyncH *pSynch) {
 
   pSynch->pdf = &(pSynch->df);
   tsdbDecodeDFileSetEx(SYNC_BUFFER(pSynch), pSynch->pdf);
+
+  return 0;
+}
+
+static int tsdbReload(STsdbRepo *pRepo, bool isMfChanged) {
+  if (isMfChanged) {
+    tsdbCloseMeta(pRepo);
+    tsdbFreeMeta(pRepo->tsdbMeta);
+    pRepo->tsdbMeta = tsdbNewMeta(REPO_CFG(pRepo));
+    tsdbOpenMeta(pRepo);
+    tsdbLoadMetaCache(pRepo, true);
+  }
+
+  tsdbUnRefMemTable(pRepo, pRepo->mem);
+  tsdbUnRefMemTable(pRepo, pRepo->imem);
+  pRepo->mem = NULL;
+  pRepo->imem = NULL;
+
+  if (tsdbRestoreInfo(pRepo) < 0) {
+    tsdbError("vgId:%d failed to restore info from file since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
 
   return 0;
 }
