@@ -10,7 +10,7 @@ import static org.junit.Assert.assertEquals;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class ImportTest {
-    Connection connection;
+    static Connection connection;
     String dbName = "test";
     String tName = "t0";
     String host = "127.0.0.1";
