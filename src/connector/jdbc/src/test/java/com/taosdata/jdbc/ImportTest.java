@@ -16,8 +16,8 @@ public class ImportTest {
     String host = "127.0.0.1";
     private static long ts;
 
-    @Before
-    public void createDatabase() {
+    @BeforeClass
+    public void before() {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
@@ -27,13 +27,13 @@ public class ImportTest {
             connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
 
             Statement stmt = connection.createStatement();
-            stmt.executeUpdate("drop database if exists " + dbName);
-            stmt.executeUpdate("create database if not exists " + dbName);
-            stmt.executeUpdate("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
-            ts = System.currentTimeMillis();
+            stmt.execute("create database if not exists " + dbName);
+            stmt.execute("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
             stmt.close();
+
+            ts = System.currentTimeMillis();
         } catch (ClassNotFoundException e) {
-            return;
+            e.printStackTrace();
         } catch (SQLException e) {
             e.printStackTrace();
         }
@@ -99,7 +99,7 @@ public class ImportTest {
         Assert.assertEquals(100, select());
     }
 
-    @After
+    @AfterClass
     public void close() {
         try {
             if (connection != null) {
