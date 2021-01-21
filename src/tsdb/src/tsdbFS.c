@@ -541,7 +541,7 @@ SDFileSet *tsdbFSIterNext(SFSIter *pIter) {
     pIter->index--;
   }
 
-  if (pIter->index > 0) {
+  if (pIter->index >= 0) {
     pIter->fid = ((SDFileSet *)taosArrayGet(pfs->cstatus->df, pIter->index))->fid;
   } else {
     pIter->fid = TSDB_IVLD_FID;
