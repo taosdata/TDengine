@@ -99,6 +99,5 @@ cd ../../../debug; make
 ./test.sh -f unique/dnode/m2.sim
 ./test.sh -f unique/dnode/m3.sim
 ./test.sh -f unique/dnode/offline3.sim
-./test.sh -f general/wal/sync.sim
 ./test.sh -f general/wal/kill.sim
 ./test.sh -f general/wal/maxtables.sim
