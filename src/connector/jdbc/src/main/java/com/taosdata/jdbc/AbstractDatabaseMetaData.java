@@ -84,7 +84,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrap
     }
 
     public boolean storesLowerCaseIdentifiers() throws SQLException {
-        return false;
+        return true;
     }
 
     public boolean storesMixedCaseIdentifiers() throws SQLException {
@@ -182,7 +182,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrap
     }
 
     public boolean supportsGroupBy() throws SQLException {
-        return false;
+        return true;
     }
 
     public boolean supportsGroupByUnrelated() throws SQLException {
@@ -497,7 +497,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrap
             throws SQLException;
 
     public ResultSet getSchemas() throws SQLException {
-        return getEmptyResultSet();
+        return null;
     }
 
     public abstract ResultSet getCatalogs() throws SQLException;
