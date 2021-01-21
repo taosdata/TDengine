@@ -11,15 +11,21 @@ public class TSDBDatabaseMetaDataTest {
     private Connection connection;
 
     @Before
-    public void before() throws ClassNotFoundException, SQLException {
-        Class.forName("com.taosdata.jdbc.TSDBDriver");
-        Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", properties);
-        metaData = connection.getMetaData().unwrap(TSDBDatabaseMetaData.class);
+    public void before() {
+        try {
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
+            Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", properties);
+            metaData = connection.getMetaData().unwrap(TSDBDatabaseMetaData.class);
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     @After
