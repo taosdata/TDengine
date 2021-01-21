@@ -18,6 +18,8 @@ import time
 import random
 import requests
 import argparse
+import datetime
+import string
 from requests.auth import HTTPBasicAuth
 func_list=['avg','count','twa','sum','stddev','leastsquares','min',
 'max','first','last','top','bottom','percentile','apercentile',
@@ -31,7 +33,7 @@ condition_list=[
     'fill(null)'
     
 ]
-where_list = ['_c0>now-10d',' <50'," like \'%a%\'"]
+where_list = ['_c0>now-10d',' <50','like',' is null']
 class ConcurrentInquiry:
     # def __init__(self,ts=1500000001000,host='127.0.0.1',user='root',password='taosdata',dbname='test',
     #             stb_prefix='st',subtb_prefix='t',n_Therads=10,r_Therads=10,probabilities=0.05,loop=5,
@@ -54,13 +56,15 @@ class ConcurrentInquiry:
         self.subtb_stru_list=[]
         self.stb_tag_list=[]
         self.subtb_tag_list=[]
-        self.probabilities = [probabilities,1-probabilities]
-        self.ifjoin = [0,1]
+        self.probabilities = [1-probabilities,probabilities]
+        self.ifjoin = [1,0]
         self.loop = loop
         self.stableNum = stableNum
         self.subtableNum = subtableNum
         self.insertRows = insertRows
         self.mix_table = mix_table
+        self.max_ts = datetime.datetime.now()
+        self.min_ts = datetime.datetime.now() - datetime.timedelta(days=5)
     def SetThreadsNum(self,num):
         self.numOfTherads=num
 
@@ -103,6 +107,14 @@ class ConcurrentInquiry:
             self.subtb_stru_list.append(tb)
             self.subtb_tag_list.append(tag)
 
+    def get_timespan(self,cl):                  #获取时间跨度(仅第一个超级表)
+        sql = 'select first(_c0),last(_c0) from ' + self.dbname + '.' + self.stb_list[0] + ';'
+        print(sql)
+        cl.execute(sql)
+        for data in cl:
+            self.max_ts = data[1]
+            self.min_ts = data[0]
+
     def get_full(self):                         #获取所有的表、表结构
         host = self.host
         user = self.user
@@ -118,6 +130,7 @@ class ConcurrentInquiry:
             self.r_subtb_list(cl,i)
         self.r_stb_stru(cl)
         self.r_subtb_stru(cl)
+        self.get_timespan(cl)
         cl.close()
         conn.close()  
         
@@ -127,9 +140,21 @@ class ConcurrentInquiry:
         for i in range(random.randint(0,len(tlist))):
             c = random.choice(where_list)
             if c == '_c0>now-10d':
-                l.append(c)
+                rdate = self.min_ts + (self.max_ts - self.min_ts)/10 * random.randint(-11,11)
+                conlist = ' _c0 ' + random.choice(['<','>','>=','<=','<>']) + "'" + str(rdate) + "'"
+                if self.random_pick():
+                    l.append(conlist)
+                else: l.append(c)
+            elif '<50' in c:
+                conlist = ' ' + random.choice(tlist) + random.choice(['<','>','>=','<=','<>']) + str(random.randrange(-100,100))
+                l.append(conlist) 
+            elif 'is null' in c:
+                conlist = ' ' + random.choice(tlist) + random.choice([' is null',' is not null'])
+                l.append(conlist) 
             else:
-                l.append(random.choice(tlist)+c)
+                s_all = string.ascii_letters
+                conlist = ' ' + random.choice(tlist) + " like \'%" + random.choice(s_all) + "%\' " 
+                l.append(conlist)
         return 'where '+random.choice([' and ',' or ']).join(l)
 
     def con_interval(self,tlist,col_list,tag_list): 
@@ -195,8 +220,10 @@ class ConcurrentInquiry:
             if bool(random.getrandbits(1)):
                 pick_func+=alias
             sel_col_list.append(pick_func)
-            
-        sql=sql+','.join(sel_col_list)         #select col & func
+        if col_rand == 0:
+            sql = sql + '*'   
+        else: 
+            sql=sql+','.join(sel_col_list)         #select col & func
         if self.mix_table == 0:
             sql = sql + ' from '+random.choice(self.stb_list+self.subtb_list)+' '         
         elif self.mix_table == 1:
@@ -262,7 +289,26 @@ class ConcurrentInquiry:
         else:
             sel_col_tag.append('t1.' + str(random.choice(col_list[0] + tag_list[0])))
             sel_col_tag.append('t2.' + str(random.choice(col_list[1] + tag_list[1])))
-            sql += ','.join(sel_col_tag)
+            sel_col_list = []
+            random.shuffle(func_list)
+            if self.random_pick():
+                loop = 0
+                for i,j in zip(sel_col_tag,func_list):         #决定每个被查询col的函数
+                    alias = ' as '+ 'taos%d ' % loop
+                    loop += 1
+                    pick_func = ''
+                    if j == 'leastsquares':
+                        pick_func=j+'('+i+',1,1)'
+                    elif j == 'top' or j == 'bottom' or j == 'percentile' or j == 'apercentile':
+                        pick_func=j+'('+i+',1)'
+                    else:
+                        pick_func=j+'('+i+')'
+                    if bool(random.getrandbits(1)):
+                        pick_func+=alias
+                    sel_col_list.append(pick_func)
+                sql += ','.join(sel_col_list)
+            else:
+                sql += ','.join(sel_col_tag)
 
         sql = sql + ' from '+ str(tbname[0]) +' t1,' + str(tbname[1]) + ' t2 '                        #select col & func
         join_section = None
@@ -274,7 +320,6 @@ class ConcurrentInquiry:
         else:
             temp = random.choices(col_intersection+tag_intersection)
             join_section = temp.pop()
-            print(random.choices(col_intersection))
             sql += 'where t1._c0 = t2._c0 and ' + 't1.' + str(join_section) + '=t2.' + str(join_section)
         return sql
 
