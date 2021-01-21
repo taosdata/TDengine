@@ -80,12 +80,12 @@ public class ImportTest {
             StringBuilder sqlBuilder = new StringBuilder("import into ").append(dbName).append(".").append(tName).append(" values ");
             for (int i = 0; i < 50; i++) {
                 int a = i / 5;
-                long t = (ts++) + a;
+                long t = (++ts) + a;
                 sqlBuilder.append("(").append(t).append(",").append((100 + i)).append(",").append(i).append(") ");
             }
             System.out.println(sqlBuilder.toString());
             int rows = stmt.executeUpdate(sqlBuilder.toString());
-            assertEquals(10, rows);
+            assertEquals(50, rows);
         } catch (SQLException e) {
             e.printStackTrace();
         }
