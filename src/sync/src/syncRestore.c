@@ -39,7 +39,7 @@ static int32_t syncRecvFileVersion(SSyncPeer *pPeer, uint64_t *fversion) {
   SFileAck fileVersionAck;
   memset(&fileVersionAck, 0, sizeof(SFileAck));
   syncBuildFileAck(&fileVersionAck, pNode->vgId);
-  ret = taosReadMsg(pPeer->syncFd, &fileVersionAck, sizeof(SFileAck));
+  ret = taosWriteMsg(pPeer->syncFd, &fileVersionAck, sizeof(SFileAck));
   if (ret != sizeof(SFileAck)) {
     sError("%s, failed to write fver ack since %s", pPeer->id, strerror(errno));
     return -1;
