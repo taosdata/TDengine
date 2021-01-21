@@ -60,7 +60,10 @@ void httpCleanUpConnect() {
   HttpServer *pServer = &tsHttpServer;
   if (pServer->pThreads == NULL) return;
 
-  pthread_join(pServer->thread, NULL);
+  if (taosCheckPthreadValid(pServer->thread) {
+    pthread_join(pServer->thread, NULL);
+  }
+
   for (int32_t i = 0; i < pServer->numOfThreads; ++i) {
     HttpThread* pThread = pServer->pThreads + i;
     if (pThread != NULL) {

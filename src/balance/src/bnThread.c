@@ -56,7 +56,7 @@ int32_t bnInitThread() {
   pthread_attr_destroy(&thattr);
 
   if (ret != 0) {
-    mError("failed to create balance thread since %s", strerror(errno));
+    mError("failed to create balance thread since %s", strerror(ret));
     return -1;
   }
 
