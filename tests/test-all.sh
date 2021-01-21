@@ -20,11 +20,22 @@ function runSimCaseOneByOne {
   while read -r line; do
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
 			case=`echo $line | grep sim$ |awk '{print $NF}'`
-
+      IN_TDINTERNAL="community"
       start_time=`date +%s`
-      ./test.sh -f $case > /dev/null 2>&1 && \
-        echo -e "${GREEN}$case success${NC}" | tee -a out.log || \
-        echo -e "${RED}$case failed${NC}" | tee -a out.log
+       IN_TDINTERNAL="community"
+      if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+        echo -n $case
+        ./test.sh -f $case > /dev/null 2>&1 && \
+        ( grep -q 'script.*'$case'failed.*0m, error' ../../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
+        ( grep -q 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
+        echo -e "${RED} failed${NC}" | tee -a out.log
+      else
+        echo -n $case
+        ./test.sh -f $case > /dev/null 2>&1 && \
+        ( grep -q 'script.*'$case'.*failed.*0m, error' ../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
+        ( grep -q 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
+        echo -e "${RED} failed${NC}" | tee -a out.log
+      fi
       out_log=`tail -1 out.log  `
       # if [[ $out_log =~ 'failed' ]];then
       #   exit 8
@@ -42,13 +53,17 @@ function runSimCaseOneByOnefq {
       start_time=`date +%s`
       IN_TDINTERNAL="community"
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+        echo -n $case
         ./test.sh -f $case > /dev/null 2>&1 && \
-        echo -e "${GREEN}$case success${NC}" | tee -a out.log || \
-        ( grep 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN}$case success${NC}" | tee -a out.log ) || echo -e "${RED}$case failed${NC}" | tee -a out.log
+        ( grep -q 'script.*'$case'failed.*0m, error' ../../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
+        ( grep -q 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
+        echo -e "${RED} failed${NC}" | tee -a out.log
       else
+        echo -n $case
         ./test.sh -f $case > /dev/null 2>&1 && \
-        echo -e "${GREEN}$case success${NC}" | tee -a out.log || \
-        ( grep 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN}$case success${NC}" | tee -a out.log ) || echo -e "${RED}$case failed${NC}" | tee -a out.log
+        ( grep -q 'script.*'$case'.*failed.*0m, error' ../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
+        ( grep -q 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
+        echo -e "${RED} failed${NC}" | tee -a out.log
       fi
       
       out_log=`tail -1 out.log  `
@@ -77,9 +92,10 @@ function runPyCaseOneByOne {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
+        echo -n $case
         $line > /dev/null 2>&1 && \
-          echo -e "${GREEN}$case success${NC}" | tee -a pytest-out.log || \
-          echo -e "${RED}$case failed${NC}" | tee -a pytest-out.log
+          echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
+          echo -e "${RED} failed${NC}" | tee -a pytest-out.log
         end_time=`date +%s`
         out_log=`tail -1 pytest-out.log  `
         # if [[ $out_log =~ 'failed' ]];then
@@ -103,9 +119,10 @@ function runPyCaseOneByOnefq {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
+        echo -n $case
         $line > /dev/null 2>&1 && \
-          echo -e "${GREEN}$case success${NC}" | tee -a pytest-out.log || \
-          echo -e "${RED}$case failed${NC}" | tee -a pytest-out.log
+          echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
+          echo -e "${RED} failed${NC}" | tee -a pytest-out.log
         end_time=`date +%s`
         out_log=`tail -1 pytest-out.log  `
         if [[ $out_log =~ 'failed' ]];then
@@ -138,7 +155,7 @@ if [ "$2" != "python" ]; then
   elif [ "$1" == "b1" ]; then
     echo "### run TSIM b1 test ###"
     runSimCaseOneByOne jenkins/basic_1.txt
-    runSimCaseOneByOne jenkins/basic_4.txt
+    # runSimCaseOneByOne jenkins/basic_4.txt
   elif [ "$1" == "b2" ]; then
     echo "### run TSIM b2 test ###"
     runSimCaseOneByOne jenkins/basic_2.txt
