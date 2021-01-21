@@ -96,16 +96,16 @@ typedef struct SCreateTableSQL {
   SQuerySQL   *pSelect;
 } SCreateTableSQL;
 
-typedef struct SAlterTableSQL {
+typedef struct SAlterTableInfo {
   SStrToken     name;
   int16_t       tableType;
   int16_t       type;
   STagData      tagData;
   SArray       *pAddColumns; // SArray<TAOS_FIELD>
   SArray       *varList;  // set t=val or: change src dst, SArray<tVariantListItem>
-} SAlterTableSQL;
+} SAlterTableInfo;
 
-typedef struct SCreateDBInfo {
+typedef struct SCreateDbInfo {
   SStrToken dbname;
   int32_t   replica;
   int32_t   cacheBlockSize;
@@ -123,11 +123,10 @@ typedef struct SCreateDBInfo {
   bool      ignoreExists;
   int8_t    update;
   int8_t    cachelast; 
-  
-  SArray *keep;
-} SCreateDBInfo;
+  SArray    *keep;
+} SCreateDbInfo;
 
-typedef struct SCreateAcctSQL {
+typedef struct SCreateAcctInfo {
   int32_t   maxUsers;
   int32_t   maxDbs;
   int32_t   maxTimeSeries;
@@ -137,7 +136,7 @@ typedef struct SCreateAcctSQL {
   int64_t   maxQueryTime;
   int32_t   maxConnections;
   SStrToken stat;
-} SCreateAcctSQL;
+} SCreateAcctInfo;
 
 typedef struct SShowInfo {
   uint8_t showType;
@@ -152,23 +151,18 @@ typedef struct SUserInfo {
   int16_t   type;
 } SUserInfo;
 
-typedef struct tDCLSQL {
-  int32_t    nTokens; /* Number of expressions on the list */
-  int32_t    nAlloc;  /* Number of entries allocated below */
-  SStrToken *a;       /* one entry for element */
-  bool  existsCheck;
+typedef struct SMiscInfo {
+  SArray    *a;         // SArray<SStrToken>
+  bool       existsCheck;
   int16_t    tableType;
-  
+  SUserInfo  user;
   union {
-    SCreateDBInfo  dbOpt;
-    SCreateAcctSQL acctOpt;
-    SShowInfo      showOpt;
-    SStrToken      ip;
+    SCreateDbInfo   dbOpt;
+    SCreateAcctInfo acctOpt;
+    SShowInfo       showOpt;
+    SStrToken       id;
   };
-  
-  SUserInfo user;
-  
-} tDCLSQL;
+} SMiscInfo;
 
 typedef struct SSubclauseInfo {  // "UNION" multiple select sub-clause
   SQuerySQL **pClause;
@@ -178,15 +172,13 @@ typedef struct SSubclauseInfo {  // "UNION" multiple select sub-clause
 typedef struct SSqlInfo {
   int32_t            type;
   bool               valid;
-  
-  union {
-    SCreateTableSQL *pCreateTableInfo;
-    SAlterTableSQL  *pAlterInfo;
-    tDCLSQL         *pDCLInfo;
-  };
-  
   SSubclauseInfo     subclauseInfo;
-  char               pzErrMsg[256];
+  char               msg[256];
+  union {
+    SCreateTableSQL  *pCreateTableInfo;
+    SAlterTableInfo  *pAlterInfo;
+    SMiscInfo        *pMiscInfo;
+  };
 } SSqlInfo;
 
 typedef struct tSQLExpr {
@@ -252,7 +244,7 @@ SCreateTableSQL *tSetCreateSqlElems(SArray *pCols, SArray *pTags, SQuerySQL *pSe
 
 void tSqlExprNodeDestroy(tSQLExpr *pExpr);
 
-SAlterTableSQL *  tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableTable);
+SAlterTableInfo *  tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableTable);
 SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists);
 
 void destroyAllSelectClause(SSubclauseInfo *pSql);
@@ -272,16 +264,14 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParams, ...);
 void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck,int16_t tableType);
 void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken* pPatterns);
 
-tDCLSQL *tTokenListAppend(tDCLSQL *pTokenList, SStrToken *pToken);
+void setCreateDbInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDbInfo *pDB, SStrToken *pIgExists);
 
-void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDBInfo *pDB, SStrToken *pIgExists);
-
-void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPwd, SCreateAcctSQL *pAcctInfo);
+void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPwd, SCreateAcctInfo *pAcctInfo);
 void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd);
 void setKillSql(SSqlInfo *pInfo, int32_t type, SStrToken *ip);
 void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege);
 
-void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo);
+void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo);
 
 // prefix show db.tables;
 void setDbName(SStrToken *pCpxName, SStrToken *pDb);

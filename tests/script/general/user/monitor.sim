@@ -7,7 +7,7 @@ system sh/cfg.sh -n dnode1 -c monitor -v 1
 system sh/cfg.sh -n dnode1 -c monitorInterval -v 1
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 
 print ========== step2
@@ -23,7 +23,7 @@ step23:
 
 print ========== step3
 
-sleep 3000
+sleep 2000
 sql select * from log.dn
 if $rows == 0 then
   return -1

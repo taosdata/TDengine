@@ -510,7 +510,9 @@ void taosCacheCleanup(SCacheObj *pCacheObj) {
   }
 
   pCacheObj->deleting = 1;
-  pthread_join(pCacheObj->refreshWorker, NULL);
+  if (taosCheckPthreadValid(pCacheObj->refreshWorker)) {
+    pthread_join(pCacheObj->refreshWorker, NULL);
+  }
 
   uInfo("cache:%s will be cleaned up", pCacheObj->name);
   doCleanupDataCache(pCacheObj);

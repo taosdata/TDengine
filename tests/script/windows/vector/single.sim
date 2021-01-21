@@ -1,5 +1,5 @@
 sql connect
-sleep 3000
+sleep 2000
 
 sql show databases
 sql drop database $data00 -x e1

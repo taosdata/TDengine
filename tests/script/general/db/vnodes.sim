@@ -15,7 +15,7 @@ system sh/cfg.sh -n dnode1 -c maxMgmtConnections  -v 100000
 
 print ==========  prepare data
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect 
 sql create database db blocks 3 cache 1
 sql use db

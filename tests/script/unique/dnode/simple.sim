@@ -13,7 +13,7 @@ sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+sleep 2000
 
 sql create database d1 replica 2  
 sql create table d1.t1 (t timestamp, i int)
@@ -44,7 +44,7 @@ endi
 print ========== step2
 sql create dnode $hostname4
 system sh/exec.sh -n dnode4 -s start
-sleep 3000
+sleep 2000
 
 sql show dnodes
 print dnode1 openVnodes $data2_1
