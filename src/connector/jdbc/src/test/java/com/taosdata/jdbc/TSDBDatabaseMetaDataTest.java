@@ -639,6 +639,7 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getTables() throws SQLException {
+        System.out.println("****************************************************");
         ResultSet tables = metaData.getTables("log", "", null, null);
         ResultSetMetaData metaData = tables.getMetaData();
         while (tables.next()) {
@@ -658,6 +659,8 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getCatalogs() throws SQLException {
+        System.out.println("****************************************************");
+
         ResultSet catalogs = metaData.getCatalogs();
         ResultSetMetaData meta = catalogs.getMetaData();
         while (catalogs.next()) {
@@ -670,6 +673,8 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getTableTypes() throws SQLException {
+        System.out.println("****************************************************");
+
         ResultSet tableTypes = metaData.getTableTypes();
         while (tableTypes.next()) {
             System.out.println(tableTypes.getString("TABLE_TYPE"));
@@ -679,6 +684,8 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getColumns() throws SQLException {
+        System.out.println("****************************************************");
+
         ResultSet columns = metaData.getColumns("log", "", "dn", "");
         ResultSetMetaData meta = columns.getMetaData();
         while (columns.next()) {
@@ -717,6 +724,8 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getPrimaryKeys() throws SQLException {
+        System.out.println("****************************************************");
+
         ResultSet rs = metaData.getPrimaryKeys("log", "", "dn1");
         while (rs.next()) {
             System.out.println("TABLE_NAME: " + rs.getString("TABLE_NAME"));
@@ -850,6 +859,8 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getSuperTables() throws SQLException {
+        System.out.println("****************************************************");
+
         ResultSet rs = metaData.getSuperTables("log", "", "dn1");
         while (rs.next()) {
             System.out.println("TABLE_NAME: " + rs.getString("TABLE_NAME"));
