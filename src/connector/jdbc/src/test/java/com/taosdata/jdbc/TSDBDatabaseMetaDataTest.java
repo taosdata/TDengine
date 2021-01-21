@@ -10,7 +10,7 @@ public class TSDBDatabaseMetaDataTest {
     private static final String host = "127.0.0.1";
     private Connection connection;
 
-    @Before
+    @BeforeClass
     public void before() {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -28,7 +28,7 @@ public class TSDBDatabaseMetaDataTest {
         }
     }
 
-    @After
+    @AfterClass
     public void after() {
         try {
             if (connection != null)
