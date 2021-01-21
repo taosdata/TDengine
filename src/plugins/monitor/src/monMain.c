@@ -246,7 +246,10 @@ void monStopSystem() {
 void monCleanupSystem() {
   tsMonitor.quiting = 1;
   monStopSystem();
-  pthread_join(tsMonitor.thread, NULL);
+  if (taosCheckPthreadValid(tsMonitor.thread)) {
+    pthread_join(tsMonitor.thread, NULL);
+  }
+
   if (tsMonitor.conn != NULL) {
     taos_close(tsMonitor.conn);
     tsMonitor.conn = NULL;

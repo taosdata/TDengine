@@ -175,6 +175,7 @@ python3 ./test.py -f query/bug2119.py
 python3 ./test.py -f query/isNullTest.py
 python3 ./test.py -f query/queryWithTaosdKilled.py
 python3 ./test.py -f query/floatCompare.py
+python3 ./test.py -f query/queryGroupbySort.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -259,3 +260,6 @@ python3 ./test.py -f update/bug_td2279.py
 
 # wal
 python3 ./test.py -f wal/addOldWalTest.py
+
+# account
+python3 ./test.py -f account/account_create.py

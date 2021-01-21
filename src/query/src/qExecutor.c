@@ -5041,7 +5041,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       STsdbQueryCond cond = createTsdbQueryCond(pQuery, &pQuery->window);
 
       SArray *g1 = taosArrayInit(1, POINTER_BYTES);
-      SArray *tx = taosArrayClone(group);
+      SArray *tx = taosArrayDup(group);
       taosArrayPush(g1, &tx);
 
       STableGroupInfo gp = {.numOfTables = taosArrayGetSize(tx), .pGroupList = g1};
@@ -5101,7 +5101,7 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       STsdbQueryCond cond = createTsdbQueryCond(pQuery, &pQuery->window);
 
       SArray *g1 = taosArrayInit(1, POINTER_BYTES);
-      SArray *tx = taosArrayClone(group);
+      SArray *tx = taosArrayDup(group);
       taosArrayPush(g1, &tx);
 
       STableGroupInfo gp = {.numOfTables = taosArrayGetSize(tx), .pGroupList = g1};
@@ -6569,7 +6569,7 @@ static SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGrou
   int32_t srcSize = 0;
   for (int16_t i = 0; i < numOfCols; ++i) {
     pQuery->colList[i] = pQueryMsg->colList[i];
-    pQuery->colList[i].filters = tscFilterInfoClone(pQueryMsg->colList[i].filters, pQuery->colList[i].numOfFilters);
+    pQuery->colList[i].filters = tFilterInfoDup(pQueryMsg->colList[i].filters, pQuery->colList[i].numOfFilters);
     srcSize += pQuery->colList[i].bytes;
   }
 

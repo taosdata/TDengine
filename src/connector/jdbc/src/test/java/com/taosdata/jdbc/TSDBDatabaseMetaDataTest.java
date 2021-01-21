@@ -4,10 +4,7 @@ import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.Properties;
 
 public class TSDBDatabaseMetaDataTest {
@@ -642,7 +639,16 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getTables() throws SQLException {
-        Assert.assertNull(metaData.getTables("", "", "*", null));
+        ResultSet tables = metaData.getTables("log", "", null, null);
+        ResultSetMetaData metaData = tables.getMetaData();
+        while (tables.next()) {
+            System.out.print(metaData.getColumnLabel(1) + ":" + tables.getString(1) + "\t");
+            System.out.print(metaData.getColumnLabel(3) + ":" + tables.getString(3) + "\t");
+            System.out.print(metaData.getColumnLabel(4) + ":" + tables.getString(4) + "\t");
+            System.out.print(metaData.getColumnLabel(5) + ":" + tables.getString(5) + "\n");
+        }
+        System.out.println();
+        Assert.assertNotNull(tables);
     }
 
     @Test
@@ -652,17 +658,41 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getCatalogs() throws SQLException {
-        Assert.assertNotNull(metaData.getCatalogs());
+        ResultSet catalogs = metaData.getCatalogs();
+        ResultSetMetaData meta = catalogs.getMetaData();
+        while (catalogs.next()) {
+            for (int i = 1; i <= meta.getColumnCount(); i++) {
+                System.out.print(meta.getColumnLabel(i) + ": " + catalogs.getString(i));
+            }
+            System.out.println();
+        }
     }
 
     @Test
     public void getTableTypes() throws SQLException {
+        ResultSet tableTypes = metaData.getTableTypes();
+        while (tableTypes.next()) {
+            System.out.println(tableTypes.getString("TABLE_TYPE"));
+        }
         Assert.assertNotNull(metaData.getTableTypes());
     }
 
     @Test
     public void getColumns() throws SQLException {
-        Assert.assertNotNull(metaData.getColumns("", "", "", ""));
+        ResultSet columns = metaData.getColumns("log", "", "dn", "");
+        ResultSetMetaData meta = columns.getMetaData();
+        while (columns.next()) {
+            System.out.print(meta.getColumnLabel(1) + ": " + columns.getString(1) + "\t");
+            System.out.print(meta.getColumnLabel(3) + ": " + columns.getString(3) + "\t");
+            System.out.print(meta.getColumnLabel(4) + ": " + columns.getString(4) + "\t");
+            System.out.print(meta.getColumnLabel(5) + ": " + columns.getString(5) + "\t");
+            System.out.print(meta.getColumnLabel(6) + ": " + columns.getString(6) + "\t");
+            System.out.print(meta.getColumnLabel(7) + ": " + columns.getString(7) + "\t");
+            System.out.print(meta.getColumnLabel(9) + ": " + columns.getString(9) + "\t");
+            System.out.print(meta.getColumnLabel(10) + ": " + columns.getString(10) + "\t");
+            System.out.print(meta.getColumnLabel(11) + ": " + columns.getString(11) + "\n");
+            System.out.print(meta.getColumnLabel(12) + ": " + columns.getString(12) + "\n");
+        }
     }
 
     @Test
@@ -687,7 +717,15 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getPrimaryKeys() throws SQLException {
-        Assert.assertNotNull(metaData.getPrimaryKeys("", "", ""));
+        ResultSet rs = metaData.getPrimaryKeys("log", "", "dn1");
+        while (rs.next()) {
+            System.out.println("TABLE_NAME: " + rs.getString("TABLE_NAME"));
+            System.out.println("COLUMN_NAME: " + rs.getString("COLUMN_NAME"));
+            System.out.println("KEY_SEQ: " + rs.getString("KEY_SEQ"));
+            System.out.println("PK_NAME: " + rs.getString("PK_NAME"));
+        }
+
+        Assert.assertNotNull(rs);
     }
 
     @Test
@@ -812,7 +850,12 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getSuperTables() throws SQLException {
-        Assert.assertNotNull(metaData.getSuperTables("", "", ""));
+        ResultSet rs = metaData.getSuperTables("log", "", "dn1");
+        while (rs.next()) {
+            System.out.println("TABLE_NAME: " + rs.getString("TABLE_NAME"));
+            System.out.println("SUPERTABLE_NAME: " + rs.getString("SUPERTABLE_NAME"));
+        }
+        Assert.assertNotNull(rs);
     }
 
     @Test

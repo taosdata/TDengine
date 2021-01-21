@@ -58,26 +58,26 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 - **创建数据库**  
 
-  ```mysql
-  CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [UPDATE 1];
-  ```
-  说明：
-
-  1) KEEP是该数据库的数据保留多长天数，缺省是3650天(10年)，数据库会自动删除超过时限的数据；
-
-  2) UPDATE 标志数据库支持更新相同时间戳数据；
-
-  3) 数据库名最大长度为33；
-
-  4) 一条SQL 语句的最大长度为65480个字符；
-
-  5) 数据库还有更多与存储相关的配置参数，请参见系统管理。
+    ```mysql
+    CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [UPDATE 1];
+    ```
+    说明：
+ 
+    1) KEEP是该数据库的数据保留多长天数，缺省是3650天(10年)，数据库会自动删除超过时限的数据；
+ 
+    2) UPDATE 标志数据库支持更新相同时间戳数据；
+ 
+    3) 数据库名最大长度为33；
+ 
+    4) 一条SQL 语句的最大长度为65480个字符；
+ 
+    5) 数据库还有更多与存储相关的配置参数，请参见系统管理。
 
 - **显示系统当前参数**
 
-  ```mysql
-  SHOW VARIABLES;
-  ```
+    ```mysql
+    SHOW VARIABLES;
+    ```
 
 - **使用数据库**
 
@@ -1125,11 +1125,8 @@ SELECT function_list FROM stb_name
 - WHERE语句可以指定查询的起止时间和其他过滤条件
 - FILL语句指定某一时间区间数据缺失的情况下的填充模式。填充模式包括以下几种：
   1. 不进行填充：NONE(默认填充模式)。
-
   2. VALUE填充：固定值填充，此时需要指定填充的数值。例如：fill(value, 1.23)。
-
   3. NULL填充：使用NULL填充数据。例如：fill(null)。
-
   4. PREV填充：使用前一个非NULL值填充数据。例如：fill(prev)。
 
 说明：

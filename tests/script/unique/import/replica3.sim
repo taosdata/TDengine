@@ -241,9 +241,9 @@ endi
 
 print ================= step13
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+sleep 3000
 
 print ================= step14
 #1520000000000
