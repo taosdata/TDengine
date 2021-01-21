@@ -39,7 +39,8 @@
 #define HTTP_GC_TARGET_SIZE         512
 #define HTTP_WRITE_RETRY_TIMES      500
 #define HTTP_WRITE_WAIT_TIME_MS     5
-#define HTTP_SESSION_ID_LEN         (TSDB_USER_LEN + TSDB_KEY_LEN)
+#define HTTP_PASSWORD_LEN           TSDB_UNI_LEN
+#define HTTP_SESSION_ID_LEN         (TSDB_USER_LEN + HTTP_PASSWORD_LEN)
 
 typedef enum HttpReqType {
   HTTP_REQTYPE_OTHERS = 0,
@@ -147,7 +148,7 @@ typedef struct HttpContext {
   uint8_t      parsed;
   char         ipstr[22];
   char         user[TSDB_USER_LEN];  // parsed from auth token or login message
-  char         pass[TSDB_KEY_LEN];
+  char         pass[HTTP_PASSWORD_LEN];
   TAOS *       taos;
   void *       ppContext;
   HttpSession *session;
