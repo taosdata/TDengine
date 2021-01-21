@@ -1,5 +1,5 @@
 sql connect
-sleep 3000
+sleep 2000
 print ======================== dnode1 start
 
 sql show databases
@@ -175,7 +175,7 @@ sql alter table $mt change tag tgcol3 tgcol9
 sql alter table $mt change tag tgcol5 tgcol10
 sql alter table $mt change tag tgcol6 tgcol11
 
-sleep 5000
+sleep 3000
 sql reset query cache
 
 print =============== step2

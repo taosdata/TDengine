@@ -15,7 +15,7 @@ system sh/cfg.sh -n dnode2 -c monitor -v 0
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 5000
+sleep 3000
 
 sql show dnodes
 print dnode1 openVnodes $data2_1
@@ -64,7 +64,7 @@ sql select * from log.dn1
 print $rows
 $rows1 = $rows
 
-sleep 3000
+sleep 2000
 sql select * from log.dn1
 print $rows
 $rows2 = $rows

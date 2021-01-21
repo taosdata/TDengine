@@ -5,7 +5,7 @@ system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 1000
 
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 
 print ============= create database

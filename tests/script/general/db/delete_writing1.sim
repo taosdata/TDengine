@@ -43,7 +43,7 @@ while $x < 20
 	sql create database db 
 	sql create table db.tb (ts timestamp, i int)
 
-	sleep 3000
+	sleep 2000
 	
 	$x = $x + 1
 endw

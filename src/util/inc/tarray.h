@@ -110,7 +110,7 @@ void taosArrayCopy(SArray* pDst, const SArray* pSrc);
  * clone a new array
  * @param pSrc
  */
-SArray* taosArrayClone(const SArray* pSrc);
+SArray* taosArrayDup(const SArray* pSrc);
 
 /**
  * clear the array (remove all element)
