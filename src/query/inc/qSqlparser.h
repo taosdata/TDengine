@@ -98,6 +98,7 @@ typedef struct SCreateTableSQL {
 
 typedef struct SAlterTableSQL {
   SStrToken     name;
+  int16_t       tableType;
   int16_t       type;
   STagData      tagData;
   SArray       *pAddColumns; // SArray<TAOS_FIELD>
@@ -156,6 +157,7 @@ typedef struct tDCLSQL {
   int32_t    nAlloc;  /* Number of entries allocated below */
   SStrToken *a;       /* one entry for element */
   bool  existsCheck;
+  int16_t    tableType;
   
   union {
     SCreateDBInfo  dbOpt;
@@ -251,7 +253,7 @@ SCreateTableSQL *tSetCreateSqlElems(SArray *pCols, SArray *pTags, SQuerySQL *pSe
 
 void tSqlExprNodeDestroy(tSQLExpr *pExpr);
 
-SAlterTableSQL *  tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type);
+SAlterTableSQL *  tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableTable);
 SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists);
 
 void destroyAllSelectClause(SSubclauseInfo *pSql);
@@ -268,7 +270,7 @@ void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken 
 void SqlInfoDestroy(SSqlInfo *pInfo);
 
 void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParams, ...);
-void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck);
+void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck,int16_t tableType);
 void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken* pPatterns);
 
 tDCLSQL *tTokenListAppend(tDCLSQL *pTokenList, SStrToken *pToken);

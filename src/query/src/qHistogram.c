@@ -184,7 +184,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
     histogramCreateBin(*pHisto, idx, val);
   }
 #else
-  tSkipListKey key = tSkipListCreateKey(TSDB_DATA_TYPE_DOUBLE, &val, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+  tSkipListKey key = tSkipListCreateKey(TSDB_DATA_TYPE_DOUBLE, &val, tDataTypes[TSDB_DATA_TYPE_DOUBLE].nSize);
   SHistBin*    entry = calloc(1, sizeof(SHistBin));
   entry->val = val;
 
@@ -217,7 +217,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
         }
 
         tSkipListKey kx =
-            tSkipListCreateKey(TSDB_DATA_TYPE_DOUBLE, &(*pHisto)->max, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+            tSkipListCreateKey(TSDB_DATA_TYPE_DOUBLE, &(*pHisto)->max, tDataTypes[TSDB_DATA_TYPE_DOUBLE].nSize);
         pLast = tSkipListGetOne((*pHisto)->pList, &kx);
       }
     } else {

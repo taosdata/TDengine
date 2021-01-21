@@ -229,7 +229,7 @@ static int32_t handlePassword(SSqlCmd* pCmd, SStrToken* pPwd) {
 }
 
 int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
-  if (pInfo == NULL || pSql == NULL || pSql->signature != pSql) {
+  if (pInfo == NULL || pSql == NULL) {
     return TSDB_CODE_TSC_APP_ERROR;
   }
 
@@ -264,6 +264,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     case TSDB_SQL_DROP_DB: {
       const char* msg2 = "invalid name";
       const char* msg3 = "param name too long";
+      const char* msg4 = "table is not super table";
 
       SStrToken* pzName = &pInfo->pDCLInfo->a[0];
       if ((pInfo->type != TSDB_SQL_DROP_DNODE) && (tscValidateName(pzName) != TSDB_CODE_SUCCESS)) {
@@ -285,6 +286,18 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         if(code != TSDB_CODE_SUCCESS) {
           return code; 
         }
+
+        if (pInfo->pDCLInfo->tableType == TSDB_SUPER_TABLE) {
+          code = tscGetTableMeta(pSql, pTableMetaInfo);
+          if (code != TSDB_CODE_SUCCESS) {
+            return code;
+          }
+
+          if (!UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+          }
+        }
+        
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
         pzName->n = strdequote(pzName->z);
         strncpy(pTableMetaInfo->name, pzName->z, pzName->n);
@@ -642,7 +655,11 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   }
 
   pSql->cmd.parseFinished = 1;
-  return tscBuildMsg[pCmd->command](pSql, pInfo);
+  if (tscBuildMsg[pCmd->command] != NULL) {
+    return tscBuildMsg[pCmd->command](pSql, pInfo);
+  } else {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "not support sql expression");
+  }
 }
 
 /*
@@ -1761,7 +1778,7 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
       return -1;
     } else {
       type = TSDB_DATA_TYPE_DOUBLE;
-      bytes = tDataTypeDesc[type].nSize;
+      bytes = tDataTypes[type].bytes;
     }
   } else {
     type = pSchema->type;
@@ -1867,7 +1884,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           }
 
           index = (SColumnIndex){0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
-          int32_t size = tDataTypeDesc[TSDB_DATA_TYPE_BIGINT].nSize;
+          int32_t size = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
           pExpr = tscSqlExprAppend(pQueryInfo, functionID, &index, TSDB_DATA_TYPE_BIGINT, size, getNewResColId(pQueryInfo), size, false);
         } else if (sqlOptr == TK_INTEGER) { // select count(1) from table1
           char buf[8] = {0};  
@@ -1879,7 +1896,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           }
           if (val == 1) {
             index = (SColumnIndex){0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
-            int32_t size = tDataTypeDesc[TSDB_DATA_TYPE_BIGINT].nSize;
+            int32_t size = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
             pExpr = tscSqlExprAppend(pQueryInfo, functionID, &index, TSDB_DATA_TYPE_BIGINT, size, getNewResColId(pQueryInfo), size, false);
           } else {
             return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
@@ -1899,12 +1916,12 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             isTag = true;
           }
 
-          int32_t size = tDataTypeDesc[TSDB_DATA_TYPE_BIGINT].nSize;
+          int32_t size = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
           pExpr = tscSqlExprAppend(pQueryInfo, functionID, &index, TSDB_DATA_TYPE_BIGINT, size, getNewResColId(pQueryInfo), size, isTag);
         }
       } else {  // count(*) is equalled to count(primary_timestamp_key)
         index = (SColumnIndex){0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
-        int32_t size = tDataTypeDesc[TSDB_DATA_TYPE_BIGINT].nSize;
+        int32_t size = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
         pExpr = tscSqlExprAppend(pQueryInfo, functionID, &index, TSDB_DATA_TYPE_BIGINT, size, getNewResColId(pQueryInfo), size, false);
       }
 
@@ -4533,6 +4550,8 @@ int32_t parseFillClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuery
     }
   } else if (strncasecmp(pItem->pVar.pz, "prev", 4) == 0 && pItem->pVar.nLen == 4) {
     pQueryInfo->fillType = TSDB_FILL_PREV;
+  } else if (strncasecmp(pItem->pVar.pz, "next", 4) == 0 && pItem->pVar.nLen == 4) {
+    pQueryInfo->fillType = TSDB_FILL_NEXT;
   } else if (strncasecmp(pItem->pVar.pz, "linear", 6) == 0 && pItem->pVar.nLen == 6) {
     pQueryInfo->fillType = TSDB_FILL_LINEAR;
   } else if (strncasecmp(pItem->pVar.pz, "value", 5) == 0 && pItem->pVar.nLen == 5) {
@@ -4817,6 +4836,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg17 = "invalid column name";
   const char* msg18 = "primary timestamp column cannot be dropped";
   const char* msg19 = "invalid new tag name";
+  const char* msg20 = "table is not super table";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -4841,6 +4861,10 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   }
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+
+  if (pAlterSQL->tableType == TSDB_SUPER_TABLE && !(UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo))) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg20);
+  }
 
   if (pAlterSQL->type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN || pAlterSQL->type == TSDB_ALTER_TABLE_DROP_TAG_COLUMN ||
       pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
@@ -4898,7 +4922,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     char name1[128] = {0};
     strncpy(name1, pItem->pVar.pz, pItem->pVar.nLen);
   
-    TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
+    TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
     SArray* pVarList = pAlterSQL->varList;
@@ -4934,14 +4958,14 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name[TSDB_COL_NAME_LEN] = {0};
     strncpy(name, pItem->pVar.pz, pItem->pVar.nLen);
-    TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
+    TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
 
     pItem = taosArrayGet(pVarList, 1);
     memset(name, 0, tListLen(name));
 
     strncpy(name, pItem->pVar.pz, pItem->pVar.nLen);
-    f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
+    f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
     // Note: update can only be applied to table not super table.
@@ -5016,7 +5040,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     
     int32_t len = 0;
     if (pTagsSchema->type != TSDB_DATA_TYPE_BINARY && pTagsSchema->type != TSDB_DATA_TYPE_NCHAR) {
-      len = tDataTypeDesc[pTagsSchema->type].nSize;
+      len = tDataTypes[pTagsSchema->type].bytes;
     } else {
       len = varDataTLen(pUpdateMsg->data + schemaLen);
     }
@@ -5063,7 +5087,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name1[TSDB_COL_NAME_LEN] = {0};
     tstrncpy(name1, pItem->pVar.pz, sizeof(name1));
-    TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize);
+    TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   }
 
@@ -6026,7 +6050,7 @@ int32_t doLocalQueryProcess(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQ
   
   SColumnIndex ind = {0};
   SSqlExpr* pExpr1 = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TAG_DUMMY, &ind, TSDB_DATA_TYPE_INT,
-                                      tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize, getNewResColId(pQueryInfo), tDataTypeDesc[TSDB_DATA_TYPE_INT].nSize, false);
+                                      tDataTypes[TSDB_DATA_TYPE_INT].bytes, getNewResColId(pQueryInfo), tDataTypes[TSDB_DATA_TYPE_INT].bytes, false);
   
   const char* name = (pExprList->a[0].aliasName != NULL)? pExprList->a[0].aliasName:functionsInfo[index].name;
   tstrncpy(pExpr1->aliasName, name, tListLen(pExpr1->aliasName));

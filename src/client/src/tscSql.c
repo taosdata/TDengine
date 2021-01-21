@@ -781,6 +781,7 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
 
 int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) {
   int len = 0;
+
   for (int i = 0; i < num_fields; ++i) {
     if (i > 0) {
       str[len++] = ' ';
@@ -838,13 +839,15 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
 
       case TSDB_DATA_TYPE_BINARY:
       case TSDB_DATA_TYPE_NCHAR: {
-        size_t xlen = 0;
-        for (xlen = 0; xlen < fields[i].bytes - VARSTR_HEADER_SIZE; xlen++) {
-          char c = ((char *)row[i])[xlen];
-          if (c == 0) break;
-          str[len++] = c;
+        int32_t charLen = varDataLen((char*)row[i] - VARSTR_HEADER_SIZE);
+        if (fields[i].type == TSDB_DATA_TYPE_BINARY) {
+          assert(charLen <= fields[i].bytes);
+        } else {
+          assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE);
         }
-        str[len] = 0;
+
+        memcpy(str + len, row[i], charLen);
+        len += charLen;
       } break;
 
       case TSDB_DATA_TYPE_TIMESTAMP:

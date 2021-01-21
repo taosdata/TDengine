@@ -399,21 +399,21 @@ void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
   pField->name[0] = 0;
 
   int32_t i = 0;
-  while (i < tListLen(tDataTypeDesc)) {
-    if ((type->n == tDataTypeDesc[i].nameLen) &&
-        (strncasecmp(type->z, tDataTypeDesc[i].aName, tDataTypeDesc[i].nameLen) == 0)) {
+  while (i < tListLen(tDataTypes)) {
+    if ((type->n == tDataTypes[i].nameLen) &&
+        (strncasecmp(type->z, tDataTypes[i].name, tDataTypes[i].nameLen) == 0)) {
       break;
     }
 
     i += 1;
   }
 
-  if (i == tListLen(tDataTypeDesc)) {
+  if (i == tListLen(tDataTypes)) {
     return;
   }
 
   pField->type = i;
-  pField->bytes = tDataTypeDesc[i].nSize;
+  pField->bytes = tDataTypes[i].bytes;
 
   if (i == TSDB_DATA_TYPE_NCHAR) {
     /*
@@ -586,11 +586,12 @@ SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVal
   return info;
 }
 
-SAlterTableSQL *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type) {
+SAlterTableSQL *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableType) {
   SAlterTableSQL *pAlterTable = calloc(1, sizeof(SAlterTableSQL));
   
   pAlterTable->name = *pTableName;
   pAlterTable->type = type;
+  pAlterTable->tableType = tableType;
 
   if (type == TSDB_ALTER_TABLE_ADD_COLUMN || type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN) {
     pAlterTable->pAddColumns = pCols;
@@ -734,9 +735,10 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   va_end(va);
 }
 
-void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck) {
+void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck, int16_t tableType) {
   pInfo->type = type;
   pInfo->pDCLInfo = tTokenListAppend(pInfo->pDCLInfo, pToken);
+  pInfo->pDCLInfo->tableType = tableType;
   pInfo->pDCLInfo->existsCheck = (existsCheck->n == 1);
 }
 

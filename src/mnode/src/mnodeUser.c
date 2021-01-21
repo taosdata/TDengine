@@ -337,7 +337,7 @@ static int32_t mnodeGetUserMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   cols++;
 
   pMeta->numOfColumns = htons(cols);
-  strcpy(pMeta->tableId, "show users");
+  strcpy(pMeta->tableFname, "show users");
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

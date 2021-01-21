@@ -475,7 +475,8 @@ void *syncRetrieveData(void *param) {
   SSyncNode *pNode = pPeer->pSyncNode;
 
   taosBlockSIGPIPE();
-  sInfo("%s, start to retrieve data, sstatus:%s", pPeer->id, syncStatus[pPeer->sstatus]);
+  sInfo("%s, start to retrieve data, sstatus:%s, numOfRetrieves:%d", pPeer->id, syncStatus[pPeer->sstatus],
+        pPeer->numOfRetrieves);
 
   if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->vgId, pPeer->numOfRetrieves);
 
@@ -497,8 +498,10 @@ void *syncRetrieveData(void *param) {
     pPeer->numOfRetrieves++;
   } else {
     pPeer->numOfRetrieves = 0;
-    if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->vgId, 0);
+    // if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->vgId, 0);
   }
+
+  if (pNode->notifyFlowCtrl) (*pNode->notifyFlowCtrl)(pNode->vgId, 0);
 
   pPeer->fileChanged = 0;
   taosClose(pPeer->syncFd);
