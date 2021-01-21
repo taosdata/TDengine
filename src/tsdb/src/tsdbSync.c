@@ -390,7 +390,8 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
 
     if (pLSet && (pSynch->pdf == NULL || pLSet->fid < pSynch->pdf->fid)) {
       // remote not has pLSet->fid set, just remove local (do nothing to remote the fset)
-      tsdbInfo("vgId:%d, fileset:%d smaller than remote:%d, remove it", REPO_ID(pRepo), pLSet->fid, pSynch->pdf->fid);
+      tsdbInfo("vgId:%d, fileset:%d smaller than remote:%d, remove it", REPO_ID(pRepo), pLSet->fid,
+               pSynch->pdf != NULL ? pSynch->pdf->fid : -1);
       pLSet = tsdbFSIterNext(&fsiter);
     } else {
       if (pLSet && pSynch->pdf && pLSet->fid == pSynch->pdf->fid && tsdbIsTowFSetSame(pLSet, pSynch->pdf)) {
