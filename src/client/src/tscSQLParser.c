@@ -481,7 +481,6 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       SStrToken* t0 = taosArrayGet(pMiscInfo->a, 0);
       SStrToken* t1 = taosArrayGet(pMiscInfo->a, 1);
-      SStrToken* t2 = taosArrayGet(pMiscInfo->a, 2);
 
       t0->n = strdequote(t0->z);
       strncpy(pCfg->ep, t0->z, t0->n);
@@ -493,6 +492,8 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       strncpy(pCfg->config, t1->z, t1->n);
 
       if (taosArrayGetSize(pMiscInfo->a) == 3) {
+        SStrToken* t2 = taosArrayGet(pMiscInfo->a, 2);
+
         pCfg->config[t1->n] = ' ';  // add sep
         strncpy(&pCfg->config[t1->n + 1], t2->z, t2->n);
       }
