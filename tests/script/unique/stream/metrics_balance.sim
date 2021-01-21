@@ -175,7 +175,7 @@ print rows0=>$r0 rows3=>$r3 rows6=>$r6  rows9=>$r9
 $x = 0
 show1: 
 	$x = $x + 1
-	sleep 3000
+	sleep 2000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -200,7 +200,7 @@ sleep 8000
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 3000
+	sleep 2000
 	if $x == 20 then 
 	  return -1
 	endi

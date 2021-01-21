@@ -1,5 +1,5 @@
 system sh/stop_dnodes.sh
-sleep 3000
+sleep 2000
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c http -v 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
@@ -8,7 +8,7 @@ system sh/cfg.sh -n dnode1 -c httpDebugFlag -v 135
 system sh/exec.sh -n dnode1 -s start
 
 sql connect
-sleep 3000
+sleep 2000
 
 print ============================ dnode1 start
 

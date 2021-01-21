@@ -113,11 +113,11 @@ connectTbase2:
 	  return -1
 	endi
 sql connect -x connectTbase2
-sleep 3000
+sleep 2000
 
 sql create dnode $hostname1
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 print ======================== dnode start
 
 $dbPrefix = db
