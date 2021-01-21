@@ -4507,6 +4507,7 @@ void setParaFromArg(){
   strncpy(g_Dbs.db[0].superTbls[0].sTblName, "meters", MAX_TB_NAME_SIZE);
   g_Dbs.db[0].superTbls[0].childTblCount = g_args.num_of_tables;
   g_Dbs.threadCount = g_args.num_of_threads;
+  g_Dbs.threadCountByCreateTbl = 1;
   g_Dbs.queryMode = g_args.mode;
 
   g_Dbs.db[0].superTbls[0].autoCreateTable = PRE_CREATE_SUBTBL;
