@@ -59,7 +59,7 @@ for /f "skip=1" %%A in (
   'wmic computersystem get caption'
 ) do if not defined fqdn set "fqdn=%%A"
 
-echo firstEp                %fqdn%             > %TAOS_CFG%
+echo firstEp                %fqdn%:7100        >  %TAOS_CFG%
 echo fqdn                   %fqdn%             >> %TAOS_CFG%
 echo serverPort             %NODE%             >> %TAOS_CFG%
 echo dataDir                %DATA_DIR%         >> %TAOS_CFG%

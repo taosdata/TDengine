@@ -40,9 +40,9 @@ if %EXEC_OPTON% == stop (
   rem wmic process where "name='taosd.exe' and CommandLine like '%%%NODE_NAME%%%'" call terminate > NUL 2>&1
   
   for /f "tokens=1 skip=1" %%A in (
-    'wmic process where "name='taosd.exe'" get processId '
+    'wmic process where "name='taosd.exe' and CommandLine like '%%%NODE_NAME%%%'" get processId '
   ) do (
     rem echo taskkill /IM %%A 
     taskkill /IM %%A > NUL 2>&1
-  )
+  ) 
 )
