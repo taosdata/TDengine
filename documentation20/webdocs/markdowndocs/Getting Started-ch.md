@@ -179,7 +179,7 @@ taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 
   
 
-## **支持平台列表**
+## 支持平台列表
 
 ### TDengine服务器支持的平台列表
 
