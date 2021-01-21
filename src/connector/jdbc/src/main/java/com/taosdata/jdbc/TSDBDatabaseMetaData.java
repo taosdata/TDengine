@@ -620,6 +620,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
             ResultSet tables = stmt.executeQuery("show tables");
             while (tables.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
+                rowData.setString(0, dbname);
                 rowData.setString(2, tables.getString("table_name"));
                 rowData.setString(3, "TABLE");
                 rowData.setString(4, "");
@@ -629,6 +630,7 @@ public class TSDBDatabaseMetaData implements java.sql.DatabaseMetaData {
             ResultSet stables = stmt.executeQuery("show stables");
             while (stables.next()) {
                 TSDBResultSetRowData rowData = new TSDBResultSetRowData(10);
+                rowData.setString(0, dbname);
                 rowData.setString(2, stables.getString("name"));
                 rowData.setString(3, "TABLE");
                 rowData.setString(4, "STABLE");

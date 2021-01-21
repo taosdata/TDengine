@@ -642,6 +642,7 @@ public class TSDBDatabaseMetaDataTest {
         ResultSet tables = metaData.getTables("log", "", null, null);
         ResultSetMetaData metaData = tables.getMetaData();
         while (tables.next()) {
+            System.out.print(metaData.getColumnLabel(1) + ":" + tables.getString(1) + "\t");
             System.out.print(metaData.getColumnLabel(3) + ":" + tables.getString(3) + "\t");
             System.out.print(metaData.getColumnLabel(4) + ":" + tables.getString(4) + "\t");
             System.out.print(metaData.getColumnLabel(5) + ":" + tables.getString(5) + "\n");
