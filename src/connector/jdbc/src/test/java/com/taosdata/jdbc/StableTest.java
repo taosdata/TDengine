@@ -12,69 +12,66 @@ import java.util.Properties;
 import static org.junit.Assert.assertEquals;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
-public class StableTest extends BaseTest {
-    static Connection connection = null;
-    static Statement statement = null;
+public class StableTest {
+
+    static Connection connection;
     static String dbName = "test";
     static String stbName = "st";
-    static String host = "localhost";
+    static String host = "127.0.0.1";
 
     @BeforeClass
-    public static void createDatabase() throws SQLException {
+    public static void createDatabase() {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
+            Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
+            Statement statement = connection.createStatement();
+            statement.execute("create database if not exists " + dbName);
+            statement.execute("use " + dbName);
+            statement.close();
         } catch (ClassNotFoundException e) {
             return;
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-        Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
-
-        statement = connection.createStatement();
-        statement.executeUpdate("create database if not exists " + dbName);
-        statement.executeQuery("use " + dbName);
     }
 
-//    @Test
-    public void createStable() {
-        String sql = "create table " + stbName + " (ts timestamp, v1 int, v2 int) tags (tg nchar(20)) ";
-
-        try {
-            statement.executeUpdate(sql);
+    @Test
+    public void case001_createSuperTable() {
+        try (Statement stmt = connection.createStatement()) {
+            final String sql = "create table " + stbName + " (ts timestamp, v1 int, v2 int) tags (tg nchar(20)) ";
+            stmt.execute(sql);
         } catch (SQLException e) {
             assert false : "error create stable" + e.getMessage();
         }
     }
 
-//    @Test
-    public void createTable() {
-        String sql = "create table t1 using " + stbName + " tags (\"beijing\")";
-
-        try {
-            statement.executeUpdate(sql);
+    @Test
+    public void case002_createTable() {
+        try (Statement stmt = connection.createStatement()) {
+            final String sql = "create table t1 using " + stbName + " tags (\"beijing\")";
+            stmt.execute(sql);
         } catch (SQLException e) {
             assert false : "error create table" + e.getMessage();
         }
     }
 
     @Test
-    public void describeSTable() {
-        createStable();
-        String sql = "describe " + stbName;
+    public void case003_describeSTable() {
         int num = 0;
-        System.out.println("describe stable");
-        try {
-            ResultSet res = statement.executeQuery(sql);
-            while (res.next()) {
-                for (int i = 1; i <= res.getMetaData().getColumnCount(); i++) {
-                    System.out.printf("%d: %s\n", i, res.getString(i));
+        try (Statement stmt = connection.createStatement()) {
+            String sql = "describe " + stbName;
+            ResultSet rs = stmt.executeQuery(sql);
+            while (rs.next()) {
+                for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++) {
+                    System.out.println(i + ":" + rs.getString(i));
                 }
                 num++;
             }
-            res.close();
+            rs.close();
             assertEquals(4, num);
         } catch (SQLException e) {
             assert false : "error describe stable" + e.getMessage();
@@ -82,41 +79,31 @@ public class StableTest extends BaseTest {
     }
 
     @Test
-    public void describeTable() {
-        createTable();
-        String sql = "describe t1";
+    public void case004_describeTable() {
         int num = 0;
-        System.out.println("describe table");
-        try {
-            ResultSet res = statement.executeQuery(sql);
-            while (res.next()) {
-                for (int i = 1; i <= res.getMetaData().getColumnCount(); i++) {
-                    System.out.printf("%d: %s\n", i, res.getString(i));
+        try (Statement stmt = connection.createStatement()) {
+            ResultSet rs = stmt.executeQuery("describe t1");
+            while (rs.next()) {
+                for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++) {
+                    System.out.printf("%d: %s\n", i, rs.getString(i));
                 }
                 num++;
             }
-            res.close();
+            rs.close();
             assertEquals(4, num);
         } catch (SQLException e) {
             assert false : "error describe stable" + e.getMessage();
         }
     }
 
-    //    @Test
-    public void validCreateSql() {
-        String sql = "create table t2 using " + stbName + " tags (\"beijing\")";
-        boolean valid = ((TSDBConnection) connection).getConnection().validateCreateTableSql(sql);
-        assertEquals(true, valid);
-    }
-
     @AfterClass
-    public static void close() throws Exception {
-        if (!statement.isClosed()) {
-            statement.executeUpdate("drop database " + dbName);
-            statement.close();
-            connection.close();
-            Thread.sleep(10);
-
+    public static void close() {
+        try {
+            if (connection != null)
+                connection.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
+
     }
 }
