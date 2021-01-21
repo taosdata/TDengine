@@ -493,11 +493,10 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrap
         return null;
     }
 
-    public abstract ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types)
-            throws SQLException;
+    public abstract ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException;
 
     public ResultSet getSchemas() throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     public abstract ResultSet getCatalogs() throws SQLException;
@@ -753,7 +752,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrap
     }
 
     public ResultSet getSchemas(String catalog, String schemaPattern) throws SQLException {
-        return null;
+        return getEmptyResultSet();
     }
 
     public boolean supportsStoredFunctionsUsingCallSyntax() throws SQLException {

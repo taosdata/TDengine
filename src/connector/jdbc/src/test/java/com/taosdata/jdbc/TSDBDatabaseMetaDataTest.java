@@ -915,11 +915,6 @@ public class TSDBDatabaseMetaDataTest {
     }
 
     @Test
-    public void testGetSchemas() throws SQLException {
-        Assert.assertNull(metaData.getSchemas());
-    }
-
-    @Test
     public void supportsStoredFunctionsUsingCallSyntax() throws SQLException {
         Assert.assertFalse(metaData.supportsStoredFunctionsUsingCallSyntax());
     }
