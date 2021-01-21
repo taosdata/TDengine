@@ -22,13 +22,13 @@ system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
 
 print ========= start dnodes
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 sql create dnode $hostname2
 sql create dnode $hostname3
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+sleep 2000
 
 sql reset query cache
 
@@ -126,7 +126,7 @@ endi
 
 print ========= step3 
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 
 #sql insert into d1.t1 values(now, 3)
 #sql insert into d2.t2 values(now, 3)
@@ -155,9 +155,9 @@ sleep 5000
 
 print ========= step4
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 
 #sql insert into d1.t1 values(now, 4)
 #sql insert into d2.t2 values(now, 4)
@@ -186,7 +186,7 @@ sleep 5000
 
 print ========= step5
 system sh/exec.sh -n dnode3 -s start
-sleep 5000
+sleep 3000
 
 sql insert into d1.t1 values(now, 5)
 sql insert into d2.t2 values(now, 5)

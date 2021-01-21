@@ -45,7 +45,7 @@ system sh/exec_tarbitrator.sh -s start
 
 print ============== step1: start dnode1, only deploy mnode
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 print ============== step2: start dnode2/dnode3/dnode4 and add into cluster , then create database with replica 3, and create table, insert data
@@ -55,7 +55,7 @@ system sh/exec.sh -n dnode4 -s start
 sql create dnode $hostname2
 sql create dnode $hostname3
 sql create dnode $hostname4
-sleep 3000
+sleep 2000
 
 $sleepTimer = 3000
 
@@ -359,13 +359,13 @@ endi
 print ============== step7: stop dnode3/dnode2, and cluster unable to provide services
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
 system sh/exec.sh -n dnode3 -s stop -x SIGINT
-sleep 3000
+sleep 2000
 sql select count(*) from $stb -x s71
 s71:
 
 print ============== step8: restart dnode2, and cluster Still unable to provide services
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+sleep 2000
 sql select count(*) from $stb -x s81
 s81:
 

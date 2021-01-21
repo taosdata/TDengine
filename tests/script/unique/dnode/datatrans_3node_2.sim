@@ -31,7 +31,7 @@ system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 4
 
 print ============== step1: start dnode1
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 print ============== step2: start dnode2/dnode3 and add into cluster , then create database with replica 2, and create table, insert data
@@ -39,7 +39,7 @@ system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname2
 sql create dnode $hostname3
-sleep 3000
+sleep 2000
 
 # create table 
 sql drop database -x step1
@@ -76,7 +76,7 @@ system sh/exec.sh -n dnode3 -s start
 system sh/exec.sh -n dnode4 -s start
 
 print =============== step 4
-sleep 3000
+sleep 2000
 sql connect
 
 sql select * from db.m1

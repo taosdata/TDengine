@@ -8,7 +8,7 @@ system sh/cfg.sh -n dnode1 -c httpDebugFlag -v 135
 system sh/exec.sh -n dnode1 -s start
 
 sql connect
-sleep 3000
+sleep 2000
 
 print ============================ dnode1 start
 
@@ -79,7 +79,7 @@ if $system_content != @{"status":"error","code":4389,"desc":"invalid taosd Autho
   return -1
 endi
 
-sleep 3000
+sleep 2000
 system_content curl 127.0.0.1:7111/admin/login/root/taosdata
 print 9 -----> $system_content
 

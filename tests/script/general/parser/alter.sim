@@ -133,7 +133,7 @@ sleep 100
 #  return -1
 #endi
 #sql alter table tb1 drop column c3
-#sleep 3000
+#sleep 2000
 #sql insert into tb1 values (now, 2, 'taos')
 #sleep 30000
 #sql select * from strm
@@ -144,7 +144,7 @@ sleep 100
 #  return -1
 #endi
 #sql alter table tb1 add column c3 int
-#sleep 3000
+#sleep 2000
 #sql insert into tb1 values (now, 3, 'taos', 3);
 #sleep 100
 #sql select * from strm

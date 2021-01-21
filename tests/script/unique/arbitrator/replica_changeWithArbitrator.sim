@@ -60,7 +60,7 @@ system sh/exec_tarbitrator.sh -s start
 
 print ============== step1: replica is 1, and start 1 dnode, then create tables and insert data
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 $totalTableNum = 12
@@ -105,7 +105,7 @@ endi
 print ============== step2: add 1 new dnode, expect balanced
 system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
-sleep 3000
+sleep 2000
 
 # expect after balanced, 2 vondes in dnode1, 1 vonde in dnode2
 $cnt = 0
@@ -137,7 +137,7 @@ endi
 print ============== step3: stop dnode1/dnode2, modify cfg numOfMnodes to 2, and restart dnode1/dnode2
 system sh/exec.sh -n dnode1 -s stop
 system sh/exec.sh -n dnode2 -s stop
-sleep 3000
+sleep 2000
 
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 2
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 2
@@ -150,7 +150,7 @@ system sh/cfg.sh -n dnode2 -c role -v 0
 
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+sleep 3000
 
 
 print ============= step4: wait dnode ready
@@ -193,9 +193,9 @@ if $data00 != $totalRows then
 endi
 
 print ============== step5: stop dnode1
-sleep 5000
-system sh/exec.sh -n dnode1 -s stop
 sleep 3000
+system sh/exec.sh -n dnode1 -s stop
+sleep 2000
 
 $cnt = 0
 wait_dnode2_master:

@@ -17,7 +17,7 @@ system sh/cfg.sh -n dnode2 -c balanceInterval     -v 1
 
 print ==========  prepare data
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect 
 sql create database db blocks 3 cache 1 
 sql use db
@@ -51,7 +51,7 @@ system sh/exec.sh -n dnode2 -s start
 $x = 0
 show3: 
 	$x = $x + 1
-	sleep 3000
+	sleep 2000
 	if $x == 1000 then 
 		return -1
 	endi

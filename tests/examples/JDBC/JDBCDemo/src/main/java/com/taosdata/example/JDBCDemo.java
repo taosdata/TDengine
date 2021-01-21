@@ -48,7 +48,6 @@ public class JDBCDemo {
                 Class.forName("com.taosdata.jdbc.TSDBDriver");
             }
             Properties properties = new Properties();
-            properties.setProperty("host", host);
             properties.setProperty("charset", "UTF-8");
             properties.setProperty("locale", "en_US.UTF-8");
             properties.setProperty("timezone", "UTC-8");
