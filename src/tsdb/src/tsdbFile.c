@@ -86,7 +86,7 @@ void *tsdbDecodeSMFileEx(void *buf, SMFile *pMFile) {
 }
 
 int tsdbApplyMFileChange(SMFile *from, SMFile *to) {
-  ASSERT(from != NULL || to != NULL);
+  if (from == NULL && to == NULL) return 0;
 
   if (from != NULL) {
     if (to == NULL) {
