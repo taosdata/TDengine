@@ -67,7 +67,7 @@ typedef struct {
 #define tfsrename(sf, df) rename(TFILE_NAME(sf), TFILE_NAME(df))
 
 void  tfsInitFile(TFILE *pf, int level, int id, const char *bname);
-bool  tfsIsSameFile(TFILE *pf1, TFILE *pf2);
+bool  tfsIsSameFile(const TFILE *pf1, const TFILE *pf2);
 int   tfsEncodeFile(void **buf, TFILE *pf);
 void *tfsDecodeFile(void *buf, TFILE *pf);
 void  tfsbasename(const TFILE *pf, char *dest);

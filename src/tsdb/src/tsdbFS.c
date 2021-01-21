@@ -26,6 +26,9 @@ static void tsdbApplyFSTxnOnDisk(SFSStatus *pFrom, SFSStatus *pTo);
 static void tsdbGetTxnFname(int repoid, TSDB_TXN_FILE_T ftype, char fname[]);
 static int  tsdbOpenFSFromCurrent(STsdbRepo *pRepo);
 static int  tsdbScanAndTryFixFS(STsdbRepo *pRepo);
+static int  tsdbScanRootDir(STsdbRepo *pRepo);
+static int  tsdbScanDataDir(STsdbRepo *pRepo);
+static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf);
 
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
@@ -683,9 +686,9 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
     }
   }
 
-  // TODO: remove those unused files
-  {}
-
+  // : remove those unused files
+  tsdbScanRootDir(pRepo);
+  tsdbScanDataDir(pRepo);
   return 0;
 }
 
@@ -698,8 +701,6 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   SKVRecord rInfo;
   int64_t   maxBufSize = 0;
   SMFInfo   minfo;
-
-  // TODO: clear meta at first
 
   // No meta file, just return
   if (pfs->cstatus->pmf == NULL) return 0;
@@ -817,4 +818,82 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   tsdbCloseMFile(pMFile);
   tfree(pBuf);
   return 0;
+}
+
+static int tsdbScanRootDir(STsdbRepo *pRepo) {
+  char         rootDir[TSDB_FILENAME_LEN];
+  char         bname[TSDB_FILENAME_LEN];
+  STsdbFS *    pfs = REPO_FS(pRepo);
+  const TFILE *pf;
+
+  tsdbGetRootDir(REPO_ID(pRepo), rootDir);
+  TDIR *tdir = tfsOpendir(rootDir);
+  if (tdir == NULL) {
+    tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), rootDir, tstrerror(terrno));
+    return -1;
+  }
+
+  while ((pf = tfsReaddir(tdir))) {
+    tfsbasename(pf, bname);
+
+    if (strcmp(bname, tsdbTxnFname[TSDB_TXN_CURR_FILE]) == 0 || strcmp(bname, "data") == 0) {
+      // Skip current file and data directory
+      continue;
+    }
+
+    if (tfsIsSameFile(pf, &(pfs->cstatus->pmf->f))) {
+      continue;
+    }
+
+    tfsremove(pf);
+    tsdbDebug("vgId:%d invalid file %s is removed", REPO_ID(pRepo), TFILE_NAME(pf));
+  }
+
+  tfsClosedir(tdir);
+
+  return 0;
+}
+
+static int tsdbScanDataDir(STsdbRepo *pRepo) {
+  char         dataDir[TSDB_FILENAME_LEN];
+  char         bname[TSDB_FILENAME_LEN];
+  STsdbFS *    pfs = REPO_FS(pRepo);
+  const TFILE *pf;
+
+  tsdbGetDataDir(REPO_ID(pRepo), dataDir);
+  TDIR *tdir = tfsOpendir(dataDir);
+  if (tdir == NULL) {
+    tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), dataDir, tstrerror(terrno));
+    return -1;
+  }
+
+  while ((pf = tfsReaddir(tdir))) {
+    tfsbasename(pf, bname);
+
+    if (!tsdbIsTFileInFS(pfs, pf)) {
+      tfsremove(pf);
+      tsdbDebug("vgId:%d invalid file %s is removed", REPO_ID(pRepo), TFILE_NAME(pf));
+    }
+  }
+
+  tfsClosedir(tdir);
+
+  return 0;
+}
+
+static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf) {
+  SFSIter fsiter;
+  tsdbFSIterInit(&fsiter, pfs, TSDB_FS_ITER_FORWARD);
+  SDFileSet *pSet;
+
+  while ((pSet = tsdbFSIterNext(&fsiter))) {
+    for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+      SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
+      if (tfsIsSameFile(pf, TSDB_FILE_F(pDFile))) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }

@@ -189,7 +189,9 @@ void tfsInitFile(TFILE *pf, int level, int id, const char *bname) {
   snprintf(pf->aname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), bname);
 }
 
-bool tfsIsSameFile(TFILE *pf1, TFILE *pf2) {
+bool tfsIsSameFile(const TFILE *pf1, const TFILE *pf2) {
+  ASSERT(pf1 != NULL || pf2 != NULL);
+  if (pf1 == NULL || pf2 == NULL) return false;
   if (pf1->level != pf2->level) return false;
   if (pf1->id != pf2->id) return false;
   if (strncmp(pf1->rname, pf2->rname, TSDB_FILENAME_LEN) != 0) return false;
@@ -326,6 +328,9 @@ const TFILE *tfsReaddir(TDIR *tdir) {
     struct dirent *dp = NULL;
     dp = readdir(tdir->dir);
     if (dp != NULL) {
+      // Skip . and ..
+      if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) continue;
+
       snprintf(bname, TSDB_FILENAME_LEN, "%s/%s", tdir->dirname, dp->d_name);
       tfsInitFile(&(tdir->tfile), tdir->level, tdir->id, bname);
       return &(tdir->tfile);

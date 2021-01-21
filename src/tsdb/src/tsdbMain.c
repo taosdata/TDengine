@@ -21,8 +21,6 @@
 #define TSDB_DEFAULT_COMPRESSION TWO_STAGE_COMP
 #define IS_VALID_COMPRESSION(compression) (((compression) >= NO_COMPRESSION) && ((compression) <= TWO_STAGE_COMP))
 
-static void       tsdbGetDataDir(int repoid, char dirName[]);
-static void       tsdbGetRootDir(int repoid, char dirName[]);
 static int32_t    tsdbCheckAndSetDefaultCfg(STsdbCfg *pCfg);
 static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH);
 static void       tsdbFreeRepo(STsdbRepo *pRepo);
@@ -334,11 +332,11 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
 #endif
 }
 
-static void tsdbGetRootDir(int repoid, char dirName[]) {
+void tsdbGetRootDir(int repoid, char dirName[]) {
   snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb", repoid);
 }
 
-static void tsdbGetDataDir(int repoid, char dirName[]) {
+void tsdbGetDataDir(int repoid, char dirName[]) {
   snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data", repoid);
 }
 

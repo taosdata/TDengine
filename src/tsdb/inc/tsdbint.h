@@ -95,6 +95,8 @@ int        tsdbUnlockRepo(STsdbRepo* pRepo);
 STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
 int        tsdbCheckCommit(STsdbRepo* pRepo);
 int        tsdbRestoreInfo(STsdbRepo* pRepo);
+void       tsdbGetRootDir(int repoid, char dirName[]);
+void       tsdbGetDataDir(int repoid, char dirName[]);
 
 static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
   ASSERT(pRepo != NULL);
