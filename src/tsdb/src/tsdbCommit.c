@@ -777,6 +777,7 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
       return -1;
     }
     pBlockData = (SBlockData *)TSDB_COMMIT_BUF(pCommith);
+    pBlockCol = pBlockData->cols + tcol;
     tptr = POINTER_SHIFT(pBlockData, lsize);
 
     if (pCfg->compression == TWO_STAGE_COMP &&
