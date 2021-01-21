@@ -1,15 +1,14 @@
 package com.taosdata.jdbc;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 
 import java.sql.*;
 import java.util.Properties;
 
 public class TSDBDatabaseMetaDataTest {
     private TSDBDatabaseMetaData metaData;
-    private static final String host = "localhost";
+    private static final String host = "127.0.0.1";
+    private Connection connection;
 
     @Before
     public void before() throws ClassNotFoundException, SQLException {
@@ -19,7 +18,18 @@ public class TSDBDatabaseMetaDataTest {
         properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        metaData = (TSDBDatabaseMetaData) DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", properties).getMetaData();
+        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", properties);
+        metaData = connection.getMetaData().unwrap(TSDBDatabaseMetaData.class);
+    }
+
+    @After
+    public void after() {
+        try {
+            if (connection != null)
+                connection.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     @Test
