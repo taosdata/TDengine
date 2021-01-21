@@ -1,15 +1,14 @@
 package com.taosdata.jdbc;
 
-import org.junit.After;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
+import org.junit.runners.MethodSorters;
 
 import java.sql.*;
 import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
 
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class ImportTest {
     Connection connection;
     String dbName = "test";
