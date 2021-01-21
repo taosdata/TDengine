@@ -24,8 +24,13 @@
 #include <string>
 #include <vector>
 #include <map>
-
 using namespace std;
+
+#ifdef WINDOWS
+  #include <Windows.h>
+  #include <Mmsystem.h>
+  #include <time.h>  
+#endif
 
 // config variables
 static string scriptFileName = "testList.txt";
@@ -57,15 +62,20 @@ void parseParameter(int argc, char *argv[]) {
 }
 
 string getCurrTime() {
+  char tmp[64];
 #ifndef WINDOWS  
   time_t timep;
   time(&timep);
-  char tmp[64];
   strftime(tmp, sizeof(tmp), "%Y-%m-%d %H:%M:%S", localtime(&timep));
-  return tmp;
 #else
-  return "";
-#endif  
+  time_t nowtime;
+	nowtime = time(NULL);
+	struct tm local;
+	localtime_s(&local, &nowtime); 
+  struct tm * ptm = &local;
+  sprintf(tmp, "%4d-%02d-%02d %02d:%02d:%02d", (ptm->tm_year + 1900), (ptm->tm_mon + 1), ptm->tm_mday, ptm->tm_hour, ptm->tm_min, ptm->tm_sec);
+#endif
+  return tmp;
 }
 
 void outputFailedTestDetails() {
@@ -180,6 +190,10 @@ void runOneTest(string test) {
       fflush(stdout);
     }
   }
+  
+#ifdef WINDOWS
+  Sleep(10000);
+#endif
 }
 
 void runAllTests() {
