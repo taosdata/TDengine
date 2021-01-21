@@ -14,10 +14,10 @@ import static org.junit.Assert.assertEquals;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class StableTest {
 
-    static Connection connection;
-    static String dbName = "test";
-    static String stbName = "st";
-    static String host = "127.0.0.1";
+    private static Connection connection;
+    private static String dbName = "test";
+    private static String stbName = "st";
+    private static String host = "127.0.0.1";
 
     @BeforeClass
     public static void createDatabase() {
