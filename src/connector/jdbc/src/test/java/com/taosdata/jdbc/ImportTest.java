@@ -64,9 +64,6 @@ public class ImportTest {
             String sql = "select * from " + dbName + "." + tName;
             ResultSet rs = stmt.executeQuery(sql);
             while (rs.next()) {
-                for (int i = 1; i <= rs.getMetaData().getColumnCount(); i++) {
-                    System.out.printf(i + ": " + rs.getString(i) + "\t");
-                }
                 count++;
             }
             rs.close();
@@ -83,7 +80,7 @@ public class ImportTest {
             StringBuilder sqlBuilder = new StringBuilder("import into ").append(dbName).append(".").append(tName).append(" values ");
             for (int i = 0; i < 50; i++) {
                 int a = i / 5;
-                long t = ts + a;
+                long t = (ts++) + a;
                 sqlBuilder.append("(").append(t).append(",").append((100 + i)).append(",").append(i).append(") ");
             }
             System.out.println(sqlBuilder.toString());
