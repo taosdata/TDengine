@@ -190,6 +190,8 @@ int32_t vnodeOpen(int32_t vgId) {
   pthread_mutex_init(&pVnode->statusMutex, NULL);
   vnodeSetInitStatus(pVnode);
 
+  tsdbIncCommitRef(pVnode->vgId);
+
   int32_t code = vnodeReadCfg(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
     vnodeCleanUp(pVnode);
@@ -285,7 +287,6 @@ int32_t vnodeOpen(int32_t vgId) {
   pVnode->events = NULL;
 
   vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
-  tsdbIncCommitRef(pVnode->vgId);
 
   vnodeAddIntoHash(pVnode);
   

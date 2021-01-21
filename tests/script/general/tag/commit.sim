@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 2
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 
 print ======================== dnode1 start
@@ -821,9 +821,9 @@ if $data07 != 12 then
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 5000
+sleep 3000
 
 print =============== step1
 $i = 0

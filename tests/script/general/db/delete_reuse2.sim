@@ -21,9 +21,9 @@ system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
 
 print ========= start dnodes
-sleep 2000
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
+
 sql connect
 sql reset query cache
 
@@ -65,7 +65,7 @@ endi
 
 print ======== step2
 sql drop database d1
-sleep 1000
+sleep 500
 sql insert into d1.t1 values(now, 2) -x step2
   return -1
 step2:
@@ -73,7 +73,7 @@ step2:
 print ========= step3
 sql create database db1 replica 1
 sql reset query cache
-sleep 1000  
+sleep 500  
 sql create table db1.tb1 (ts timestamp, i int)
 sql insert into db1.tb1 values(now, 2)
 sql select * from db1.tb1
@@ -90,7 +90,7 @@ while $x < 20
   sql use $db
   sql drop database $db
   
-  sleep 1000
+  sleep 500
   sql insert into $tb values(now, -1) -x step4
     return -1
   step4:
@@ -100,7 +100,7 @@ while $x < 20
   $tb = tb . $x
   
   sql reset query cache
-  sleep 1000
+  sleep 500
   
   sql create database $db replica 1
   sql use $db

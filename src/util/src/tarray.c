@@ -175,7 +175,7 @@ void taosArrayCopy(SArray* pDst, const SArray* pSrc) {
   pDst->size = pSrc->size;
 }
 
-SArray* taosArrayClone(const SArray* pSrc) {
+SArray* taosArrayDup(const SArray* pSrc) {
   assert(pSrc != NULL);
   
   if (pSrc->size == 0) { // empty array list

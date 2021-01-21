@@ -106,6 +106,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg) {
 
   pTableMeta->sversion = pTableMetaMsg->sversion;
   pTableMeta->tversion = pTableMetaMsg->tversion;
+
   tstrncpy(pTableMeta->sTableName, pTableMetaMsg->sTableName, TSDB_TABLE_FNAME_LEN);
   
   memcpy(pTableMeta->schema, pTableMetaMsg->schema, schemaSize);
