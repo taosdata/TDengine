@@ -1,28 +1,13 @@
-/***************************************************************************
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************/
 package com.taosdata.jdbc;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
+public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrapper {
 
     private final static String PRODUCT_NAME = "TDengine";
     private final static String PRODUCT_VESION = "2.0.x.x";
-    private final static String DRIVER_NAME = "taos-jdbcdriver";
     private final static String DRIVER_VERSION = "2.0.x";
     private final static int DRIVER_MAJAR_VERSION = 2;
     private final static int DRIVER_MINOR_VERSION = 0;
@@ -67,9 +52,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
         return PRODUCT_VESION;
     }
 
-    public String getDriverName() throws SQLException {
-        return DRIVER_NAME;
-    }
+    public abstract String getDriverName() throws SQLException;
 
     public String getDriverVersion() throws SQLException {
         return DRIVER_VERSION;
@@ -92,6 +75,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
     }
 
     public boolean supportsMixedCaseIdentifiers() throws SQLException {
+        //像database、table这些对象的标识符，在存储时是否采用大小写混合的模式
         return false;
     }
 
@@ -168,10 +152,12 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
     }
 
     public boolean nullPlusNonNullIsNull() throws SQLException {
+        // null + non-null != null
         return false;
     }
 
     public boolean supportsConvert() throws SQLException {
+        // 是否支持转换函数convert
         return false;
     }
 
@@ -468,7 +454,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
     }
 
     public int getDefaultTransactionIsolation() throws SQLException {
-        return 0;
+        return Connection.TRANSACTION_NONE;
     }
 
     public boolean supportsTransactions() throws SQLException {
@@ -476,6 +462,8 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
     }
 
     public boolean supportsTransactionIsolationLevel(int level) throws SQLException {
+        if (level == Connection.TRANSACTION_NONE)
+            return true;
         return false;
     }
 
@@ -516,27 +504,26 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
 
     public ResultSet getTableTypes() throws SQLException {
         DatabaseMetaDataResultSet resultSet = new DatabaseMetaDataResultSet();
-
         // set up ColumnMetaDataList
-        List<ColumnMetaData> columnMetaDataList = new ArrayList<ColumnMetaData>(1);
+        List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
         ColumnMetaData colMetaData = new ColumnMetaData();
         colMetaData.setColIndex(0);
         colMetaData.setColName("TABLE_TYPE");
         colMetaData.setColSize(10);
-        colMetaData.setColType(TSDBConstants.TSDB_DATA_TYPE_BINARY);
+        colMetaData.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
         columnMetaDataList.add(colMetaData);
+        resultSet.setColumnMetaDataList(columnMetaDataList);
 
         // set up rowDataList
-        List<TSDBResultSetRowData> rowDataList = new ArrayList<TSDBResultSetRowData>(2);
-        TSDBResultSetRowData rowData = new TSDBResultSetRowData();
+        List<TSDBResultSetRowData> rowDataList = new ArrayList<>();
+        TSDBResultSetRowData rowData = new TSDBResultSetRowData(1);
         rowData.setString(0, "TABLE");
         rowDataList.add(rowData);
-        rowData = new TSDBResultSetRowData();
+        rowData = new TSDBResultSetRowData(1);
         rowData.setString(0, "STABLE");
         rowDataList.add(rowData);
-
-        resultSet.setColumnMetaDataList(columnMetaDataList);
         resultSet.setRowDataList(rowDataList);
+
         return resultSet;
     }
 
@@ -615,9 +602,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
         return getEmptyResultSet();
     }
 
-    public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
-        return getEmptyResultSet();
-    }
+    public abstract ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException;
 
     public ResultSet getImportedKeys(String catalog, String schema, String table) throws SQLException {
         return getEmptyResultSet();
@@ -718,9 +703,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
         return getEmptyResultSet();
     }
 
-    public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
-        return getEmptyResultSet();
-    }
+    public abstract ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException;
 
     public ResultSet getAttributes(String catalog, String schemaPattern, String typeNamePattern,
                                    String attributeNamePattern) throws SQLException {
@@ -728,15 +711,17 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
     }
 
     public boolean supportsResultSetHoldability(int holdability) throws SQLException {
+        if (holdability == ResultSet.HOLD_CURSORS_OVER_COMMIT)
+            return true;
         return false;
     }
 
     public int getResultSetHoldability() throws SQLException {
-        return 0;
+        return ResultSet.HOLD_CURSORS_OVER_COMMIT;
     }
 
     public int getDatabaseMajorVersion() throws SQLException {
-        return 0;
+        return 2;
     }
 
     public int getDatabaseMinorVersion() throws SQLException {
@@ -744,7 +729,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
     }
 
     public int getJDBCMajorVersion() throws SQLException {
-        return 0;
+        return 2;
     }
 
     public int getJDBCMinorVersion() throws SQLException {
@@ -804,5 +789,19 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData {
 
     private ResultSet getEmptyResultSet() {
         return new EmptyResultSet();
+    }
+
+    @Override
+    public <T> T unwrap(Class<T> iface) throws SQLException {
+        try {
+            return iface.cast(this);
+        } catch (ClassCastException cce) {
+            throw new SQLException("Unable to unwrap to " + iface.toString());
+        }
+    }
+
+    @Override
+    public boolean isWrapperFor(Class<?> iface) throws SQLException {
+        return iface.isInstance(this);
     }
 }
