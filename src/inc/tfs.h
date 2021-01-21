@@ -74,6 +74,7 @@ void  tfsbasename(const TFILE *pf, char *dest);
 void  tfsdirname(const TFILE *pf, char *dest);
 
 // DIR APIs ====================================
+int tfsMkdirAt(const char *rname, int level, int id);
 int tfsMkdir(const char *rname);
 int tfsRmdir(const char *rname);
 int tfsRename(char *orname, char *nrname);

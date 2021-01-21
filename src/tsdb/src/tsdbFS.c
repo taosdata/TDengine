@@ -29,6 +29,7 @@ static int  tsdbScanAndTryFixFS(STsdbRepo *pRepo);
 static int  tsdbScanRootDir(STsdbRepo *pRepo);
 static int  tsdbScanDataDir(STsdbRepo *pRepo);
 static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf);
+static int  tsdbRestoreCurrent(STsdbRepo *pRepo);
 
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
@@ -232,7 +233,6 @@ void *tsdbFreeFS(STsdbFS *pfs) {
   return NULL;
 }
 
-// TODO
 int tsdbOpenFS(STsdbRepo *pRepo) {
   STsdbFS * pfs = REPO_FS(pRepo);
   char      current[TSDB_FILENAME_LEN] = "\0";
@@ -247,7 +247,10 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
       return -1;
     }
  } else {
-    // TODO: current file not exists, try to recover it
+   if (tsdbRestoreCurrent(pRepo) < 0) {
+     tsdbError("vgId:%d failed to restore current file since %s", REPO_ID(pRepo), tstrerror(terrno));
+     return -1;
+   }
   }
 
   // Load meta cache if has meta file
@@ -259,7 +262,6 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
   return 0;
 }
 
-// TODO
 void tsdbCloseFS(STsdbRepo *pRepo) {
   // TODO
 }
@@ -896,4 +898,44 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf) {
   }
 
   return false;
+}
+
+static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
+  char         rootDir[TSDB_FILENAME_LEN];
+  char         dataDir[TSDB_FILENAME_LEN];
+  TDIR *       tdir = NULL;
+  const TFILE *pf = NULL;
+  char         bname[TSDB_FILENAME_LEN];
+
+  // Loop to recover mfile
+  tsdbGetRootDir(REPO_ID(pRepo), rootDir);
+  tdir = tfsOpendir(rootDir);
+  if (tdir == NULL) {
+    tsdbError("vgId:%d failed to open dir %s since %s", REPO_ID(pRepo), rootDir, tstrerror(terrno));
+    return -1;
+  }
+
+  while ((pf = tfsReaddir(tdir))) {
+    tfsbasename(pf, bname);
+    if (strncmp(bname, "meta", sizeof("meta")) == 0) {
+      // TODO
+      break;
+    }
+  }
+
+  tfsClosedir(tdir);
+
+  // Loop to recover dfile set
+  tsdbGetDataDir(REPO_ID(pRepo), dataDir);
+  tdir = tfsOpendir(dataDir);
+  if (tdir == NULL) {
+    tsdbError("vgId:%d failed to open dir %s since %s", REPO_ID(pRepo), rootDir, tstrerror(terrno));
+    return -1;
+  }
+
+  // TODO
+
+  tfsClosedir(tdir);
+
+  return 0;
 }

@@ -308,6 +308,7 @@ int tsdbCreateDFile(SDFile *pDFile, bool updateHeader) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+  // TODO: need to check if directory exists, if not, create the directory
 
   pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC, 0755);
   if (pDFile->fd < 0) {

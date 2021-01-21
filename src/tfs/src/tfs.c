@@ -237,18 +237,24 @@ void tfsdirname(const TFILE *pf, char *dest) {
 }
 
 // DIR APIs ====================================
-int tfsMkdir(const char *rname) {
-  char aname[TSDB_FILENAME_LEN] = "\0";
+int tfsMkdirAt(const char *rname, int level, int id) {
+  SDisk *pDisk = TFS_DISK_AT(level, id);
+  char   aname[TSDB_FILENAME_LEN];
 
+  snprintf(aname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), rname);
+  if (taosMkDir(aname, 0755) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return 0;
+}
+
+int tfsMkdir(const char *rname) {
   for (int level = 0; level < TFS_NLEVEL(); level++) {
     STier *pTier = TFS_TIER_AT(level);
     for (int id = 0; id < TIER_NDISKS(pTier); id++) {
-      SDisk *pDisk = DISK_AT_TIER(pTier, id);
-      snprintf(aname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), rname);
-
-      if (mkdir(aname, 0755) != 0 && errno != EEXIST) {
-        fError("failed to create directory %s since %s", aname, strerror(errno));
-        terrno = TAOS_SYSTEM_ERROR(errno);
+      if (tfsMkdirAt(rname, level, id) < 0) {
         return -1;
       }
     }
