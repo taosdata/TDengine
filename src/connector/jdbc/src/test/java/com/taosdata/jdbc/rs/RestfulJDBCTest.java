@@ -1,6 +1,5 @@
 package com.taosdata.jdbc.rs;
 
-
 import org.junit.*;
 import org.junit.runners.MethodSorters;
 
@@ -10,12 +9,13 @@ import java.util.Random;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class RestfulJDBCTest {
 
+    private static final String host = "master";
     private Connection connection;
 
     @Before
     public void before() throws ClassNotFoundException, SQLException {
         Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-        connection = DriverManager.getConnection("jdbc:TAOS-RS://master:6041/restful_test?user=root&password=taosdata");
+        connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata");
     }
 
     @After

@@ -24,7 +24,6 @@ import java.sql.SQLException;
  */
 public class CatalogResultSet extends TSDBResultSetWrapper {
 
-
     public CatalogResultSet(ResultSet resultSet) {
         super.setOriginalResultSet(resultSet);
     }
