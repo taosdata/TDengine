@@ -32,9 +32,9 @@ NODE_DIR=$SIM_DIR/$NODE_NAME
 rm -rf $SIM_DIR/dnode1
 rm -rf $SIM_DIR/dnode2
 rm -rf $SIM_DIR/dnode3
-rm -rf $SIM_DIR/tsim
 
 tar zxf $SCRIPT_DIR/general/connection/sim.tar.gz -C $SIM_DIR/../
 cd $SIM_DIR/../sim
 fqdn=`hostname`
-grep '${fqdn}' -l -r ./* | xargs sed -i 's/${fqdn}/${fqdn}/g'
+grep 'test4' -l -r ./* | xargs sed -i "s/test4/${fqdn}/g"
+grep 'dataDir' -l -r ./* | xargs sed -i "s#/root/TDengine#${TAOS_DIR}#g"

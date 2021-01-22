@@ -202,7 +202,7 @@ static void *taosRecvUdpData(void *param) {
       tDebug("%s UDP socket was closed, exiting(%s), dataLen:%d fd:%d", pConn->label, strerror(errno), (int32_t)dataLen,
              pConn->fd);
 
-      //for windows usage, remote shutdown also returns - 1 in windows client
+      // for windows usage, remote shutdown also returns - 1 in windows client
       if (pConn->fd == -1) {
         break;
       } else {
