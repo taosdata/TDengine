@@ -179,6 +179,11 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
 
   // No meta file, do nothing (rm local meta file)
   if (pSynch->pmf == NULL) {
+    if (pLMFile == NULL) {
+      pSynch->mfChanged = false;
+    } else {
+      pSynch->mfChanged = true;
+    }
     tsdbInfo("vgId:%d, metafile not exist in remote, no need to recv", REPO_ID(pRepo));
     return 0;
   }
@@ -219,6 +224,7 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
     tsdbCloseMFile(&mf);
     tsdbUpdateMFile(REPO_FS(pRepo), &mf);
   } else {
+    pSynch->mfChanged = false;
     tsdbInfo("vgId:%d, metafile is same, no need to recv", REPO_ID(pRepo));
     if (tsdbSendDecision(pSynch, false) < 0) {
       tsdbError("vgId:%d, failed to send decision while recv metafile since %s", REPO_ID(pRepo), tstrerror(terrno));
