@@ -42,6 +42,8 @@ int32_t tsdbCreateRepo(int repoid) {
     goto _err;
   }
 
+  // TODO: need to create current file with nothing in
+
   return 0;
 
 _err:
