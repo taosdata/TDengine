@@ -448,12 +448,11 @@ void tscFreeRegisteredSqlObj(void *pSql) {
   SSqlObj* p = *(SSqlObj**)pSql;
   STscObj* pTscObj = p->pTscObj;
 
-  assert(RID_VALID(p->self));
-
   int32_t num   = atomic_sub_fetch_32(&pTscObj->numOfObj, 1);
   int32_t total = atomic_sub_fetch_32(&tscNumOfObj, 1);
-
   tscDebug("%p free SqlObj, total in tscObj:%d, total:%d", pSql, num, total);
+
+  assert(RID_VALID(p->self));
   tscFreeSqlObj(p);
   taosReleaseRef(tscRefId, pTscObj->rid);
 
@@ -898,16 +897,9 @@ void tscCloseTscObj(void *param) {
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));
 
-  void* p = pObj->pDnodeConn;
-  if (pObj->pDnodeConn != NULL) {
-    rpcClose(pObj->pDnodeConn);
-    pObj->pDnodeConn = NULL;
-  }
-
-  tfree(pObj->tscCorMgmtEpSet);
+  tscReleaseRpc(pObj->pRpcObj);
   pthread_mutex_destroy(&pObj->mutex);
 
-  tscDebug("%p DB connection is closed, dnodeConn:%p", pObj, p);
   tfree(pObj);
 }
 

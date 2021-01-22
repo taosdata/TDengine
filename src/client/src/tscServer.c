@@ -69,7 +69,7 @@ static void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupInfo* pVgroupInfo) {
 }
 
 static void tscDumpMgmtEpSet(SSqlObj *pSql) {
-  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
+  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->pRpcObj->tscCorMgmtEpSet;
   taosCorBeginRead(&pCorEpSet->version);
   pSql->epSet = pCorEpSet->epSet;
   taosCorEndRead(&pCorEpSet->version);
@@ -94,7 +94,7 @@ bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2) {
 
 void tscUpdateMgmtEpSet(SSqlObj *pSql, SRpcEpSet *pEpSet) {
   // no need to update if equal
-  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
+  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->pRpcObj->tscCorMgmtEpSet;
   taosCorBeginWrite(&pCorEpSet->version);
   pCorEpSet->epSet = *pEpSet;
   taosCorEndWrite(&pCorEpSet->version);
@@ -157,13 +157,16 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     SRpcEpSet     *epSet = &pRsp->epSet;
     if (epSet->numOfEps > 0) {
       tscEpSetHtons(epSet);
-      if (!tscEpSetIsEqual(&pSql->pTscObj->tscCorMgmtEpSet->epSet, epSet)) {
-        tscTrace("%p updating epset: numOfEps: %d, inUse: %d", pSql, epSet->numOfEps, epSet->inUse);
-        for (int8_t i = 0; i < epSet->numOfEps; i++) {
-          tscTrace("endpoint %d: fqdn=%s, port=%d", i, epSet->fqdn[i], epSet->port[i]);
-        }
-        tscUpdateMgmtEpSet(pSql, epSet);
-      }
+
+      //SRpcCorEpSet *pCorEpSet = pSql->pTscObj->pRpcObj->tscCorMgmtEpSet;
+      //if (!tscEpSetIsEqual(&pCorEpSet->epSet, epSet)) {
+      //  tscTrace("%p updating epset: numOfEps: %d, inUse: %d", pSql, epSet->numOfEps, epSet->inUse);
+      //  for (int8_t i = 0; i < epSet->numOfEps; i++) {
+      //    tscTrace("endpoint %d: fqdn=%s, port=%d", i, epSet->fqdn[i], epSet->port[i]);
+      //  }
+      //}
+      //concurrency problem, update mgmt epset anyway 
+      tscUpdateMgmtEpSet(pSql, epSet);
     }
 
     pSql->pTscObj->connId = htonl(pRsp->connId);
@@ -270,7 +273,8 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .code    = 0
   };
 
-  rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid);
+  
+  rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid);
   return TSDB_CODE_SUCCESS;
 }
 
