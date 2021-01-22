@@ -64,7 +64,7 @@ int32_t main(int32_t argc, char *argv[]) {
   simExecuteScript(script);
 
   int32_t ret = simExecSuccess ? 0 : -1;
-  simError("execute result %d", ret);
+  simInfo("execute result %d", ret);
 
   return ret;
 }

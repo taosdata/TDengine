@@ -44,7 +44,7 @@ int32_t walInit() {
     return code;
   }
 
-  wInfo("wal module is initialized, refId:%d", tsWal.refId);
+  wInfo("wal module is initialized, rsetId:%d", tsWal.refId);
   return code;
 }
 
@@ -203,7 +203,7 @@ static int32_t walCreateThread() {
   }
 
   pthread_attr_destroy(&thAttr);
-  wDebug("wal thread is launched");
+  wDebug("wal thread is launched, thread:0x%08" PRIx64, taosGetPthreadId(tsWal.thread));
 
   return TSDB_CODE_SUCCESS;
 }

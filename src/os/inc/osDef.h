@@ -100,7 +100,7 @@ extern "C" {
 #elif defined(__GNUC__) && !defined(threadlocal)
   #define threadlocal __thread
 #else
-  #define threadlocal
+  #define threadlocal __declspec( thread )
 #endif
 
 #ifdef __cplusplus
