@@ -123,6 +123,7 @@ static int32_t tsdbSyncSendMeta(SSyncH *pSynch) {
   SMFile     mf;
 
   // Send meta info to remote
+  tsdbInfo("vgId:%d, metainfo will be sent", REPO_ID(pRepo));
   if (tsdbSendMetaInfo(pSynch) < 0) {
     tsdbError("vgId:%d, failed to send metainfo since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
@@ -140,8 +141,6 @@ static int32_t tsdbSyncSendMeta(SSyncH *pSynch) {
   }
 
   if (toSendMeta) {
-    tsdbInfo("vgId:%d, metafile will be sent", REPO_ID(pRepo));
-
     tsdbInitMFileEx(&mf, pRepo->fs->cstatus->pmf);
     if (tsdbOpenMFile(&mf, O_RDONLY) < 0) {
       tsdbError("vgId:%d, failed to open file while send metafile since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -149,6 +148,8 @@ static int32_t tsdbSyncSendMeta(SSyncH *pSynch) {
     }
 
     int32_t writeLen = mf.info.size;
+    tsdbInfo("vgId:%d, metafile:%s will be sent, size:%d", REPO_ID(pRepo), mf.f.aname, writeLen);
+
     int32_t ret = taosSendFile(pSynch->socketFd, TSDB_FILE_FD(&mf), 0, writeLen);
     if (ret != writeLen) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -159,7 +160,7 @@ static int32_t tsdbSyncSendMeta(SSyncH *pSynch) {
     }
 
     tsdbCloseMFile(&mf);
-    tsdbInfo("vgId:%d, metafile is sent, size:%d", REPO_ID(pRepo), writeLen);
+    tsdbInfo("vgId:%d, metafile is sent", REPO_ID(pRepo));
   } else {
     tsdbInfo("vgId:%d, metafile is same, no need to send", REPO_ID(pRepo));
   }
@@ -207,6 +208,8 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
       tsdbError("vgId:%d, failed to create file while recv metafile since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
+
+    tsdbInfo("vgId:%d, metafile:%s is created", REPO_ID(pRepo), mf.f.aname);
 
     int32_t readLen = pSynch->pmf->info.size;
     int32_t ret = taosCopyFds(pSynch->socketFd, TSDB_FILE_FD(&mf), readLen);
@@ -266,6 +269,7 @@ static int32_t tsdbSendMetaInfo(SSyncH *pSynch) {
     return -1;
   }
 
+  tsdbInfo("vgId:%d, metainfo is sent, tlen:%d, writeLen:%d", REPO_ID(pRepo), tlen, writeLen);
   return 0;
 }
 
@@ -278,13 +282,13 @@ static int32_t tsdbRecvMetaInfo(SSyncH *pSynch) {
   int32_t ret = taosReadMsg(pSynch->socketFd, buf, readLen);
   if (ret != readLen) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    tsdbError("vgId:%d, failed to recv metainfo len, ret:%d readLen:%d", REPO_ID(pRepo), ret, readLen);
+    tsdbError("vgId:%d, failed to recv metalen, ret:%d readLen:%d", REPO_ID(pRepo), ret, readLen);
     return -1;
   }
 
   taosDecodeFixedU32(buf, &tlen);
 
-  tsdbInfo("vgId:%d, metainfo len:%d is received", REPO_ID(pRepo), tlen);
+  tsdbInfo("vgId:%d, metalen is received, readLen:%d, tlen:%d", REPO_ID(pRepo), readLen, tlen);
   if (tlen == 0) {
     pSynch->pmf = NULL;
     return 0;
@@ -298,11 +302,11 @@ static int32_t tsdbRecvMetaInfo(SSyncH *pSynch) {
   ret = taosReadMsg(pSynch->socketFd, SYNC_BUFFER(pSynch), tlen);
   if (ret != tlen) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    tsdbError("vgId:%d, failed to recv metainfo, ret:%d readLen:%d", REPO_ID(pRepo), ret, tlen);
+    tsdbError("vgId:%d, failed to recv metainfo, ret:%d tlen:%d", REPO_ID(pRepo), ret, tlen);
     return -1;
   }
 
-  tsdbInfo("vgId:%d, metainfo is received", REPO_ID(pRepo));
+  tsdbInfo("vgId:%d, metainfo is received, tlen:%d", REPO_ID(pRepo), tlen);
   if (!taosCheckChecksumWhole((uint8_t *)SYNC_BUFFER(pSynch), tlen)) {
     terrno = TSDB_CODE_TDB_MESSED_MSG;
     tsdbError("vgId:%d, failed to checksum while recv metainfo since %s", REPO_ID(pRepo), tstrerror(terrno));
