@@ -48,7 +48,7 @@ extern "C" {
   #define SIGBREAK 1234
 #endif
 
-typedef void (*FSignalHandler)(int32_t signum);
+typedef void (*FSignalHandler)(int32_t signum, void *sigInfo, void *context);
 void taosSetSignal(int32_t signum, FSignalHandler sigfp);
 void taosIgnSignal(int32_t signum);
 void taosDflSignal(int32_t signum);

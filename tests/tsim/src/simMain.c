@@ -22,7 +22,7 @@
 bool simAsyncQuery = false;
 bool simExecSuccess = false;
 
-void simHandleSignal(int32_t signo) {
+void simHandleSignal(int32_t signo, void *sigInfo, void *context) {
   simSystemCleanUp();
   exit(1);
 }

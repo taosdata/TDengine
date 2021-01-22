@@ -20,9 +20,9 @@
 #include "dnodeMain.h"
 
 static tsem_t exitSem;
-static void   siguser1Handler(int32_t signum);
-static void   siguser2Handler(int32_t signum);
-static void   sigintHandler(int32_t signum);
+static void   siguser1Handler(int32_t signum, void *sigInfo, void *context);
+static void   siguser2Handler(int32_t signum, void *sigInfo, void *context);
+static void   sigintHandler(int32_t signum, void *sigInfo, void *context);
 
 int32_t main(int32_t argc, char *argv[]) {
   int dump_config = 0;
@@ -152,11 +152,11 @@ int32_t main(int32_t argc, char *argv[]) {
   return EXIT_SUCCESS;
 }
 
-static void siguser1Handler(int32_t signum) { taosCfgDynamicOptions("debugFlag 143"); }
+static void siguser1Handler(int32_t signum, void *sigInfo, void *context) { taosCfgDynamicOptions("debugFlag 143"); }
 
-static void siguser2Handler(int32_t signum) { taosCfgDynamicOptions("resetlog"); }
+static void siguser2Handler(int32_t signum, void *sigInfo, void *context) { taosCfgDynamicOptions("resetlog"); }
 
-static void sigintHandler(int32_t signum) {
+static void sigintHandler(int32_t signum, void *sigInfo, void *context) {
   // protect the application from receive another signal
   taosIgnSignal(SIGUSR1);
   taosIgnSignal(SIGUSR2);
@@ -168,6 +168,10 @@ static void sigintHandler(int32_t signum) {
 
   // clean the system.
   dInfo("shut down signal is %d", signum);
+
+#ifndef WINDOWS
+  dInfo("sender PID:%d cmdline:%s",((siginfo_t *)sigInfo)->si_pid, taosGetCmdlineByPID(sigInfo->si_pid));
+#endif
 
   syslog(LOG_INFO, "Shut down signal is %d", signum);
   syslog(LOG_INFO, "Shutting down TDengine service...");

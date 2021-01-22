@@ -27,7 +27,7 @@
 #include "syncInt.h"
 #include "syncTcp.h"
 
-static void    arbSignalHandler(int32_t signum);
+static void    arbSignalHandler(int32_t signum, void *sigInfo, void *context);
 static void    arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
 static void    arbProcessBrokenLink(int64_t rid);
 static int32_t arbProcessPeerMsg(int64_t rid, void *buffer);
@@ -170,7 +170,7 @@ static int32_t arbProcessPeerMsg(int64_t rid, void *buffer) {
   return 0;
 }
 
-static void arbSignalHandler(int32_t signum) {
+static void arbSignalHandler(int32_t signum, void *sigInfo, void *context) {
   taosIgnSignal(SIGTERM);
   taosIgnSignal(SIGINT);
   taosIgnSignal(SIGABRT);

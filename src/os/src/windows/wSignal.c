@@ -18,6 +18,8 @@
 #include <signal.h>
 #include <windows.h>
 
+typedef void (*FWinSignalHandler)(int32_t signum);
+
 void taosSetSignal(int32_t signum, FSignalHandler sigfp) {
   if (signum == SIGUSR1) return;
 
@@ -25,7 +27,7 @@ void taosSetSignal(int32_t signum, FSignalHandler sigfp) {
   if (signum == SIGHUP) {
     SetConsoleCtrlHandler((PHANDLER_ROUTINE)sigfp, TRUE);
   } else {
-    signal(signum, sigfp);	
+    signal(signum, (FWinSignalHandler)sigfp);	
   }
 }
 
