@@ -166,7 +166,7 @@ static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   pRepo->imem = NULL;
   tsdbUnlockRepo(pRepo);
   tsdbUnRefMemTable(pRepo, pIMem);
-  sem_post(&(pRepo->readyToCommit));
+  tsem_post(&(pRepo->readyToCommit));
 }
 
 static int tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey) {
@@ -269,11 +269,11 @@ static int tsdbCommitToFile(STsdbRepo *pRepo, int fid, SCommitIter *iters, SRWHe
 
   pthread_rwlock_wrlock(&(pFileH->fhlock));
 
-  (void)rename(helperNewHeadF(pHelper)->fname, helperHeadF(pHelper)->fname);
+  (void)taosRename(helperNewHeadF(pHelper)->fname, helperHeadF(pHelper)->fname);
   pGroup->files[TSDB_FILE_TYPE_HEAD].info = helperNewHeadF(pHelper)->info;
 
   if (newLast) {
-    (void)rename(helperNewLastF(pHelper)->fname, helperLastF(pHelper)->fname);
+    (void)taosRename(helperNewLastF(pHelper)->fname, helperLastF(pHelper)->fname);
     pGroup->files[TSDB_FILE_TYPE_LAST].info = helperNewLastF(pHelper)->info;
   } else {
     pGroup->files[TSDB_FILE_TYPE_LAST].info = helperLastF(pHelper)->info;

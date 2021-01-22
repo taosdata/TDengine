@@ -9,11 +9,11 @@
 # expect: in dnode2, the files 1837 and 1839 will be removed
 
 sql connect
-sleep 3000
+sleep 2000
 
 print ============== step7: restart dnode2, waiting sync end
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+sleep 2000
 
 wait_dnode2_ready:
 sql show dnodes

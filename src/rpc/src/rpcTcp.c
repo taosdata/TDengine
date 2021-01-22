@@ -21,21 +21,14 @@
 #include "rpcLog.h"
 #include "rpcHead.h"
 #include "rpcTcp.h"
-#ifdef WINDOWS
-#include "wepoll.h"
-#endif
-
-#ifndef EPOLLWAKEUP
-  #define EPOLLWAKEUP (1u << 29)
-#endif
 
 typedef struct SFdObj {
   void              *signature;
   SOCKET             fd;          // TCP socket FD
-  int                closedByApp; // 1: already closed by App
   void              *thandle;     // handle from upper layer, like TAOS
   uint32_t           ip;
   uint16_t           port;
+  int16_t            closedByApp; // 1: already closed by App
   struct SThreadObj *pThreadObj;
   struct SFdObj     *prev;
   struct SFdObj     *next;
@@ -47,7 +40,7 @@ typedef struct SThreadObj {
   pthread_mutex_t mutex;
   uint32_t        ip;
   bool            stop;
-  SOCKET          pollFd;
+  EpollFd         pollFd;
   int             numOfFds;
   int             threadId;
   char            label[TSDB_LABEL_LEN];
@@ -66,6 +59,8 @@ typedef struct {
   SOCKET      fd;
   uint32_t    ip;
   uint16_t    port;
+  int8_t      stop;
+  int8_t      reserve;
   char        label[TSDB_LABEL_LEN];
   int         numOfThreads;
   void *      shandle;
@@ -140,7 +135,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
       break;
     }
 
-    pThreadObj->pollFd = (int64_t)epoll_create(10);  // size does not matter
+    pThreadObj->pollFd = (EpollFd)epoll_create(10);  // size does not matter
     if (pThreadObj->pollFd < 0) {
       tError("%s failed to create TCP epoll", label);
       code = -1;
@@ -162,7 +157,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
   if (code == 0) { 
     code = pthread_create(&pServerObj->thread, &thattr, taosAcceptTcpConnection, (void *)pServerObj);
     if (code != 0) {
-      tError("%s failed to create TCP accept thread(%s)", label, strerror(errno));
+      tError("%s failed to create TCP accept thread(%s)", label, strerror(code));
     }
   }
 
@@ -197,8 +192,15 @@ void taosStopTcpServer(void *handle) {
   SServerObj *pServerObj = handle;
 
   if (pServerObj == NULL) return;
-  if(pServerObj->fd >=0) shutdown(pServerObj->fd, SHUT_RD);
+  pServerObj->stop = 1;
 
+  if (pServerObj->fd >= 0) {
+#ifdef WINDOWS
+    closesocket(pServerObj->fd);
+#else
+    shutdown(pServerObj->fd, SHUT_RD);
+#endif
+  }
   if (taosCheckPthreadValid(pServerObj->thread)) {
     if (taosComparePthread(pServerObj->thread, pthread_self())) {
       pthread_detach(pthread_self());
@@ -239,6 +241,11 @@ static void *taosAcceptTcpConnection(void *arg) {
   while (1) {
     socklen_t addrlen = sizeof(caddr);
     connFd = accept(pServerObj->fd, (struct sockaddr *)&caddr, &addrlen);
+    if (pServerObj->stop) {
+      tDebug("%s TCP server stop accepting new connections", pServerObj->label);
+      break;
+    }
+
     if (connFd == -1) {
       if (errno == EINVAL) {
         tDebug("%s TCP server stop accepting new connections, exiting", pServerObj->label);
@@ -292,7 +299,6 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int numOfThread
     return NULL;
   } 
 
-  
   tstrncpy(pClientObj->label, label, sizeof(pClientObj->label));
   pClientObj->numOfThreads = numOfThreads;
   pClientObj->pThreadObj = (SThreadObj **)calloc(numOfThreads, sizeof(SThreadObj*));  
@@ -384,7 +390,7 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
   SThreadObj *pThreadObj = pClientObj->pThreadObj[index];
 
   SOCKET fd = taosOpenTcpClientSocket(ip, port, pThreadObj->ip);
-  if (fd < 0) return NULL;
+  if (fd <= 0) return NULL;
 
   struct sockaddr_in sin;
   uint16_t localPort = 0;
@@ -516,7 +522,10 @@ static void *taosProcessTcpData(void *param) {
   SFdObj            *pFdObj;
   struct epoll_event events[maxEvents];
   SRecvInfo          recvInfo;
- 
+
+#ifdef __APPLE__
+  taos_block_sigalrm();
+#endif // __APPLE__
   while (1) {
     int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, TAOS_EPOLL_WAIT_TIME);
     if (pThreadObj->stop) {
@@ -558,7 +567,10 @@ static void *taosProcessTcpData(void *param) {
     if (pThreadObj->stop) break; 
   }
 
-  if (pThreadObj->pollFd >=0) taosCloseSocket(pThreadObj->pollFd);
+  if (pThreadObj->pollFd >=0) {
+    EpollClose(pThreadObj->pollFd);
+    pThreadObj->pollFd = -1;
+  }
 
   while (pThreadObj->pHead) {
     SFdObj *pFdObj = pThreadObj->pHead;

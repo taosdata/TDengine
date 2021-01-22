@@ -206,14 +206,14 @@ static int32_t mnodeVgroupActionRestored() {
 
 int32_t mnodeInitVgroups() {
   SVgObj tObj;
-  tsVgUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+  tsVgUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj);
 
   SSdbTableDesc desc = {
     .id           = SDB_TABLE_VGROUP,
     .name         = "vgroups",
     .hashSessions = TSDB_DEFAULT_VGROUPS_HASH_SIZE,
     .maxRowSize   = tsVgUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_AUTO,
     .fpInsert     = mnodeVgroupActionInsert,
     .fpDelete     = mnodeVgroupActionDelete,
@@ -245,11 +245,11 @@ int32_t mnodeInitVgroups() {
 }
 
 void mnodeIncVgroupRef(SVgObj *pVgroup) {
-  return sdbIncRef(tsVgroupSdb, pVgroup); 
+  sdbIncRef(tsVgroupSdb, pVgroup); 
 }
 
 void mnodeDecVgroupRef(SVgObj *pVgroup) { 
-  return sdbDecRef(tsVgroupSdb, pVgroup); 
+  sdbDecRef(tsVgroupSdb, pVgroup); 
 }
 
 SVgObj *mnodeGetVgroup(int32_t vgId) {
@@ -565,7 +565,7 @@ int32_t mnodeCreateVgroup(SMnodeMsg *pMsg) {
   SDbObj *pDb = pMsg->pDb;
 
   SVgObj *pVgroup = (SVgObj *)calloc(1, sizeof(SVgObj));
-  tstrncpy(pVgroup->dbName, pDb->name, TSDB_ACCT_LEN + TSDB_DB_NAME_LEN);
+  tstrncpy(pVgroup->dbName, pDb->name, TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN);
   pVgroup->numOfVnodes = pDb->cfg.replications;
   pVgroup->createdTime = taosGetTimestampMs();
   pVgroup->accessState = TSDB_VN_ALL_ACCCESS;

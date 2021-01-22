@@ -26,7 +26,7 @@ system sh/cfg.sh -n dnode4 -c walLevel -v 0
 
 print ========= start dnode1
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 sql create database ibadb

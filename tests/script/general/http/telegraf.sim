@@ -1,5 +1,5 @@
 system sh/stop_dnodes.sh
-sleep 3000
+sleep 2000
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c http -v 1
@@ -7,7 +7,7 @@ system sh/cfg.sh -n dnode1 -c httpEnableRecordSql -v 1
 system sh/cfg.sh -n dnode1 -c telegrafUseFieldNum -v 0
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 
 print ============================ dnode1 start
@@ -245,7 +245,7 @@ if $system_content != @{"metrics":[{"metric":"win_cpu","stable":"win_cpu","table
   return -1
 endi
 
-sleep 3000
+sleep 2000
 
 print ===============  step2 - insert single data
 system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1564641722000}' 127.0.0.1:7111/telegraf/db/

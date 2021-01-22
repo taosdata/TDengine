@@ -321,7 +321,7 @@ step9:
 	endi
 
 sql show dnodes
-if $rows != 2 then
+if $rows != 3 then
   goto step9
 endi
 

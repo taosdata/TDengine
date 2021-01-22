@@ -1,5 +1,5 @@
 sql connect
-sleep 3000
+sleep 2000
 print ======================== dnode1 start
 
 sql show databases

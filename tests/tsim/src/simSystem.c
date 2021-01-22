@@ -21,6 +21,7 @@
 #include "ttimer.h"
 #include "tutil.h"
 #include "tsocket.h"
+#include "taoserror.h"
 #undef TAOS_MEM_CHECK
 
 SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
@@ -30,6 +31,8 @@ int32_t  simScriptSucced = 0;
 int32_t  simDebugFlag = 135;
 void     simCloseTaosdConnect(SScript *script);
 char     simHostName[128];
+
+extern bool simExecSuccess;
 
 char *simParseArbitratorName(char *varName) {
   static char hostName[140];
@@ -78,8 +81,8 @@ char *simParseHostName(char *varName) {
 }
 
 bool simSystemInit() {
-  taosGetFqdn(simHostName);
   taos_init();
+  taosGetFqdn(simHostName);
   simInitsimCmdList();
   memset(simScriptList, 0, sizeof(SScript *) * MAX_MAIN_SCRIPT_NUM);
   return true;
@@ -118,10 +121,12 @@ SScript *simProcessCallOver(SScript *script) {
   if (script->type == SIM_SCRIPT_TYPE_MAIN) {
     simDebug("script:%s, is main script, set stop flag", script->fileName);
     if (script->killed) {
+      simExecSuccess = false;
       simInfo("script:" FAILED_PREFIX "%s" FAILED_POSTFIX ", " FAILED_PREFIX "failed" FAILED_POSTFIX ", error:%s",
               script->fileName, script->error);
       return NULL;
     } else {
+      simExecSuccess = true;
       simInfo("script:" SUCCESS_PREFIX "%s" SUCCESS_POSTFIX ", " SUCCESS_PREFIX "success" SUCCESS_POSTFIX,
               script->fileName);
       simCloseTaosdConnect(script);

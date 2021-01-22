@@ -16,12 +16,12 @@ system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
 print ========= start dnode1 as master
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 3000
+sleep 2000
 
 print ========= start other dnodes
 sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+sleep 2000
 
 print ======== step1 create db
 sql create database commitdb replica 1 days 7 keep 30
@@ -48,9 +48,9 @@ endi
 
 print ======== step2 stop dnode
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+sleep 3000
 
 sql select * from tb order by ts desc
 print ===> rows $rows
@@ -99,9 +99,9 @@ endi
 
 print ======== step5 stop dnode
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+sleep 3000
 
 sql select * from tb
 print ===> rows $rows
