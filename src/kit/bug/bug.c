@@ -23,6 +23,7 @@ int main(int argc, char *argv[]) {
   if (taos) {
     taos_close(taos);
   }
+  taos_cleanup();
   return 0;
 }
 
