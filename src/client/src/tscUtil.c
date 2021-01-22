@@ -1420,9 +1420,11 @@ int32_t tscValidateName(SStrToken* pToken) {
   char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
   if (sep == NULL) {  // single part
     if (pToken->type == TK_STRING) {
+       
       strdequote(pToken->z);
+      strntolower(pToken->z, pToken->z, pToken->n);
       pToken->n = (uint32_t)strtrim(pToken->z);
-
+       
       int len = tSQLGetToken(pToken->z, &pToken->type);
 
       // single token, validate it

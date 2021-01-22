@@ -5427,6 +5427,7 @@ int32_t validateColumnName(char* name) {
 
   if (token.type == TK_STRING) {
     strdequote(token.z);
+    strntolower(token.z, token.z, token.n);
     token.n = (uint32_t)strtrim(token.z);
 
     int32_t k = tSQLGetToken(token.z, &token.type);
