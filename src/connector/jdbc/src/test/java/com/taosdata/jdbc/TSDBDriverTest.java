@@ -3,9 +3,6 @@ package com.taosdata.jdbc;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
 import java.sql.*;
 import java.util.Properties;
 
@@ -27,54 +24,15 @@ public class TSDBDriverTest {
             "jdbc:TAOS://:/test",
             "jdbc:TAOS://localhost:0/?user=root&password=taosdata"
     };
-    private static boolean islibLoaded = false;
-    private static boolean isTaosdActived;
 
     private Connection conn;
-
-    @BeforeClass
-    public static void before() {
-        String osName = System.getProperty("os.name").toLowerCase();
-        if (!osName.equals("linux"))
-            return;
-        // try to load taos lib
-        try {
-            System.loadLibrary("taos");
-            islibLoaded = true;
-        } catch (UnsatisfiedLinkError error) {
-            System.out.println("load tdengine lib failed.");
-            error.printStackTrace();
-        }
-        // check taosd is activated
-        try {
-            String[] cmd = {"/bin/bash", "-c", "ps -ef | grep taosd | grep -v \"grep\""};
-            Process exec = Runtime.getRuntime().exec(cmd);
-            BufferedReader reader = new BufferedReader(new InputStreamReader(exec.getInputStream()));
-            int lineCnt = 0;
-            while (reader.readLine() != null) {
-                lineCnt++;
-            }
-            if (lineCnt > 0)
-                isTaosdActived = true;
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-
-        try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        }
-    }
 
     @Test
     public void testConnectWithJdbcURL() {
         final String url = "jdbc:TAOS://localhost:6030/log?user=root&password=taosdata";
         try {
-            if (islibLoaded && isTaosdActived) {
-                conn = DriverManager.getConnection(url);
-                assertNotNull("failure - connection should not be null", conn);
-            }
+            conn = DriverManager.getConnection(url);
+            assertNotNull("failure - connection should not be null", conn);
         } catch (SQLException e) {
             e.printStackTrace();
             fail("failure - should not throw Exception");
@@ -89,10 +47,8 @@ public class TSDBDriverTest {
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
         try {
-            if (islibLoaded && isTaosdActived) {
-                conn = DriverManager.getConnection(jdbcUrl, connProps);
-                assertNotNull("failure - connection should not be null", conn);
-            }
+            conn = DriverManager.getConnection(jdbcUrl, connProps);
+            assertNotNull("failure - connection should not be null", conn);
         } catch (SQLException e) {
             e.printStackTrace();
             fail("failure - should not throw Exception");
@@ -107,10 +63,8 @@ public class TSDBDriverTest {
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
         try {
-            if (islibLoaded && isTaosdActived) {
-                conn = DriverManager.getConnection(jdbcUrl, connProps);
-                assertNotNull("failure - connection should not be null", conn);
-            }
+            conn = DriverManager.getConnection(jdbcUrl, connProps);
+            assertNotNull("failure - connection should not be null", conn);
         } catch (SQLException e) {
             e.printStackTrace();
             fail("failure - should not throw Exception");
@@ -206,5 +160,15 @@ public class TSDBDriverTest {
     public void testGetParentLogger() throws SQLFeatureNotSupportedException {
         assertNull("failure - getParentLogger should be be null", new TSDBDriver().getParentLogger());
     }
+
+    @BeforeClass
+    public static void before() {
+        try {
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        }
+    }
+
 
 }

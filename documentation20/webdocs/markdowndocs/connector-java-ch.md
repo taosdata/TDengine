@@ -2,7 +2,7 @@
 
 TDengine 提供了遵循 JDBC 标准（3.0）API 规范的 `taos-jdbcdriver` 实现，可在 maven 的中央仓库 [Sonatype Repository][1] 搜索下载。
 
-`taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.17 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
+`taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
 
 ![tdengine-connector](../assets/tdengine-jdbc-connector.png)
 
@@ -67,7 +67,7 @@ maven 项目中使用如下 pom.xml 配置即可：
 <dependency>
   <groupId>com.taosdata.jdbc</groupId>
   <artifactId>taos-jdbcdriver</artifactId>
-  <version>2.0.17</version>
+  <version>2.0.18</version>
 </dependency>
 ```
 
@@ -334,16 +334,17 @@ conn.close();
 ```java
  public static void main(String[] args) throws SQLException {
     HikariConfig config = new HikariConfig();
+    // jdbc properties
     config.setJdbcUrl("jdbc:TAOS://127.0.0.1:6030/log");
     config.setUsername("root");
     config.setPassword("taosdata");
-
-    config.setMinimumIdle(3);           //minimum number of idle connection
+    // connection pool configurations
+    config.setMinimumIdle(10);           //minimum number of idle connection
     config.setMaximumPoolSize(10);      //maximum number of connection in the pool
-    config.setConnectionTimeout(10000); //maximum wait milliseconds for get connection from pool
-    config.setIdleTimeout(60000);       // max idle time for recycle idle connection
-    config.setConnectionTestQuery("describe log.dn"); //validation query
-    config.setValidationTimeout(3000);   //validation query timeout
+    config.setConnectionTimeout(30000); //maximum wait milliseconds for get connection from pool
+    config.setMaxLifetime(0);       // maximum life time for each connection
+    config.setIdleTimeout(0);       // max idle time for recycle idle connection
+    config.setConnectionTestQuery("select server_status()"); //validation query
 
     HikariDataSource ds = new HikariDataSource(config); //create datasource
 
@@ -375,32 +376,22 @@ conn.close();
 * 使用示例如下：
 ```java
 public static void main(String[] args) throws Exception {
-    Properties properties = new Properties();
-    properties.put("driverClassName","com.taosdata.jdbc.TSDBDriver");
-    properties.put("url","jdbc:TAOS://127.0.0.1:6030/log");
-    properties.put("username","root");
-    properties.put("password","taosdata");
 
-    properties.put("maxActive","10"); //maximum number of connection in the pool
-    properties.put("initialSize","3");//initial number of connection
-    properties.put("maxWait","10000");//maximum wait milliseconds for get connection from pool
-    properties.put("minIdle","3");//minimum number of connection in the pool
-
-    properties.put("timeBetweenEvictionRunsMillis","3000");// the interval milliseconds to test connection
-
-    properties.put("minEvictableIdleTimeMillis","60000");//the minimum milliseconds to keep idle
-    properties.put("maxEvictableIdleTimeMillis","90000");//the maximum milliseconds to keep idle
-
-    properties.put("validationQuery","describe log.dn"); //validation query
-    properties.put("testWhileIdle","true"); // test connection while idle
-    properties.put("testOnBorrow","false"); // don't need while testWhileIdle is true
-    properties.put("testOnReturn","false"); // don't need while testWhileIdle is true
-
-    //create druid datasource
-    DataSource ds = DruidDataSourceFactory.createDataSource(properties);
-    Connection  connection = ds.getConnection(); // get connection
+    DruidDataSource dataSource = new DruidDataSource();
+    // jdbc properties
+    dataSource.setDriverClassName("com.taosdata.jdbc.TSDBDriver");
+    dataSource.setUrl(url);
+    dataSource.setUsername("root");
+    dataSource.setPassword("taosdata");
+    // pool configurations
+    dataSource.setInitialSize(10);
+    dataSource.setMinIdle(10);
+    dataSource.setMaxActive(10);
+    dataSource.setMaxWait(30000);
+    dataSource.setValidationQuery("select server_status()");
+	
+    Connection  connection = dataSource.getConnection(); // get connection
     Statement statement = connection.createStatement(); // get statement
-
     //query or insert 
     // ...
 

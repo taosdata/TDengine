@@ -134,7 +134,7 @@ int tsem_init(tsem_t *sem, int pshared, unsigned int value) {
     errno = ENOMEM;
     return -1;
   }
-  kern_return_t ret = semaphore_create(sem_port, &p->sem, SYNC_POLICY_FIFO, 0);
+  kern_return_t ret = semaphore_create(sem_port, &p->sem, SYNC_POLICY_FIFO, value);
   if (ret != KERN_SUCCESS) {
     fprintf(stderr, "==%s[%d]%s():[%p]==semophore_create failed\n", basename(__FILE__), __LINE__, __func__, sem);
     // we fail-fast here, because we have less-doc about semaphore_create for the moment

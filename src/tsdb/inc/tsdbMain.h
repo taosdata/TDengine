@@ -233,11 +233,7 @@ typedef struct {
   SMemTable*      mem;
   SMemTable*      imem;
   STsdbFileH*     tsdbFileH;
-#ifdef __APPLE__
-  sem_t          *readyToCommit;
-#else // __APPLE__
-  sem_t           readyToCommit;
-#endif // __APPLE__
+  tsem_t          readyToCommit;
   pthread_mutex_t mutex;
   bool            repoLocked;
   int32_t         code; // Commit code

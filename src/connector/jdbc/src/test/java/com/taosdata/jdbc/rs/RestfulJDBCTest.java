@@ -10,23 +10,12 @@ import java.util.Random;
 public class RestfulJDBCTest {
 
     private static final String host = "127.0.0.1";
-    private Connection connection;
-
-    @Before
-    public void before() throws ClassNotFoundException, SQLException {
-        Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-        connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata");
-    }
-
-    @After
-    public void after() throws SQLException {
-        if (connection != null)
-            connection.close();
-    }
-
+    //    private static final String host = "master";
+    private static Connection connection;
+    private Random random = new Random(System.currentTimeMillis());
 
     /**
-     * 查询所有log.log
+     * select * from log.log
      **/
     @Test
     public void testCase001() {
@@ -85,7 +74,6 @@ public class RestfulJDBCTest {
         }
     }
 
-    private Random random = new Random(System.currentTimeMillis());
 
     @Test
     public void testCase005() {
@@ -105,5 +93,50 @@ public class RestfulJDBCTest {
         }
     }
 
+    @Test
+    public void testCase006() {
+        try (Statement stmt = connection.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from weather");
+            while (rs.next()) {
+                System.out.print("ts: " + rs.getTimestamp("ts"));
+                System.out.print(", temperature: " + rs.getString("temperature"));
+                System.out.print(", humidity: " + rs.getString("humidity"));
+                System.out.println(", location: " + rs.getString("location"));
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @Test
+    public void testCase007() {
+        try (Statement stmt = connection.createStatement()) {
+            ResultSet rs = stmt.executeQuery("select * from weather");
+            ResultSetMetaData meta = rs.getMetaData();
+            while (rs.next()) {
+                int columnCount = meta.getColumnCount();
+                for (int i = 1; i <= columnCount; i++) {
+                    String columnLabel = meta.getColumnLabel(i);
+                    String value = rs.getString(i);
+                    System.out.print(columnLabel + ": " + value + "\t");
+                }
+                System.out.println();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @BeforeClass
+    public static void before() throws ClassNotFoundException, SQLException {
+        Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
+        connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata");
+    }
+
+    @AfterClass
+    public static void after() throws SQLException {
+        if (connection != null)
+            connection.close();
+    }
 
 }
