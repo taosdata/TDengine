@@ -60,7 +60,7 @@ typedef struct SSdbRow {
   int32_t  (*fpReq)(SMnodeMsg *pMsg);
   int32_t  (*fpRsp)(SMnodeMsg *pMsg, int32_t code);
   char       reserveForSync[24];
-  SWalHead   pHead[];
+  SWalHead   pHead;
 } SSdbRow;
 
 typedef struct {

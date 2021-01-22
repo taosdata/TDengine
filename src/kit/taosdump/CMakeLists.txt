@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
 PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/client/inc)
@@ -12,5 +12,15 @@ IF (TD_LINUX)
     TARGET_LINK_LIBRARIES(taosdump taos_static)
   ELSE ()
     TARGET_LINK_LIBRARIES(taosdump taos)
-  ENDIF ()  
+  ENDIF ()
+ENDIF ()
+
+IF (TD_DARWIN)
+  # missing <argp.h> for macosx
+  # ADD_EXECUTABLE(taosdump ${SRC})
+  # IF (TD_SOMODE_STATIC)
+  #   TARGET_LINK_LIBRARIES(taosdump taos_static)
+  # ELSE ()
+  #   TARGET_LINK_LIBRARIES(taosdump taos)
+  # ENDIF ()
 ENDIF ()

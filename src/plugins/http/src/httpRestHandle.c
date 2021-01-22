@@ -72,11 +72,11 @@ bool restGetUserFromUrl(HttpContext* pContext) {
 
 bool restGetPassFromUrl(HttpContext* pContext) {
   HttpParser* pParser = pContext->parser;
-  if (pParser->path[REST_PASS_URL_POS].pos >= TSDB_PASSWORD_LEN || pParser->path[REST_PASS_URL_POS].pos <= 0) {
+  if (pParser->path[REST_PASS_URL_POS].pos >= HTTP_PASSWORD_LEN || pParser->path[REST_PASS_URL_POS].pos <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->pass, pParser->path[REST_PASS_URL_POS].str, TSDB_PASSWORD_LEN);
+  tstrncpy(pContext->pass, pParser->path[REST_PASS_URL_POS].str, HTTP_PASSWORD_LEN);
   return true;
 }
 
@@ -94,7 +94,6 @@ bool restProcessSqlRequest(HttpContext* pContext, int32_t timestampFmt) {
     httpSendErrorResp(pContext, TSDB_CODE_HTTP_NO_SQL_INPUT);
     return false;
   }
-
 
   /*
    * for async test

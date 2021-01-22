@@ -68,7 +68,7 @@ static int32_t mnodeClusterActionDecode(SSdbRow *pRow) {
 }
 
 static int32_t mnodeClusterActionRestored() {
-  int32_t numOfRows = sdbGetNumOfRows(tsClusterSdb);
+  int64_t numOfRows = sdbGetNumOfRows(tsClusterSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
     mInfo("dnode first deploy, create cluster");
     int32_t code = mnodeCreateCluster();
@@ -84,14 +84,14 @@ static int32_t mnodeClusterActionRestored() {
 
 int32_t mnodeInitCluster() {
   SClusterObj tObj;
-  tsClusterUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+  tsClusterUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj);
 
   SSdbTableDesc desc = {
     .id           = SDB_TABLE_CLUSTER,
     .name         = "cluster",
     .hashSessions = TSDB_DEFAULT_CLUSTER_HASH_SIZE,
     .maxRowSize   = tsClusterUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_STRING,
     .fpInsert     = mnodeClusterActionInsert,
     .fpDelete     = mnodeClusterActionDelete,
@@ -139,7 +139,7 @@ void mnodeDecClusterRef(SClusterObj *pCluster) {
 }
 
 static int32_t mnodeCreateCluster() {
-  int32_t numOfClusters = sdbGetNumOfRows(tsClusterSdb);
+  int64_t numOfClusters = sdbGetNumOfRows(tsClusterSdb);
   if (numOfClusters != 0) return TSDB_CODE_SUCCESS;
 
   SClusterObj *pCluster = malloc(sizeof(SClusterObj));
@@ -195,7 +195,7 @@ static int32_t mnodeGetClusterMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *
   cols++;
 
   pMeta->numOfColumns = htons(cols);
-  strcpy(pMeta->tableId, "show cluster");
+  strcpy(pMeta->tableFname, "show cluster");
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
@@ -226,7 +226,7 @@ static int32_t mnodeRetrieveClusters(SShowObj *pShow, char *data, int32_t rows, 
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *) pWrite = pCluster->createdTime;
+    *(int64_t *) pWrite = pCluster->createdTime;
     cols++;
 
     mnodeDecClusterRef(pCluster);

@@ -70,7 +70,7 @@ int32_t dnodeInitShell() {
 
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]   = dnodeSendStartupStep;
 
-  int32_t numOfThreads = (tsNumOfCores * tsNumOfThreadsPerCore) / 2.0;
+  int32_t numOfThreads = (int32_t)((tsNumOfCores * tsNumOfThreadsPerCore) / 2.0);
   if (numOfThreads < 1) {
     numOfThreads = 1;
   }
@@ -216,7 +216,7 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid) {
     int16_t   numOfTags = htons(pTable->numOfTags);
     int32_t   tableId = htonl(pTable->tid);
     uint64_t  uid = htobe64(pTable->uid);
-    dInfo("table:%s, numOfColumns:%d numOfTags:%d tid:%d uid:%" PRIu64, pTable->tableId, numOfColumns, numOfTags, tableId, uid);
+    dInfo("table:%s, numOfColumns:%d numOfTags:%d tid:%d uid:%" PRIu64, pTable->tableFname, numOfColumns, numOfTags, tableId, uid);
 
     return rpcRsp.pCont;
   }

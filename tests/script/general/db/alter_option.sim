@@ -5,7 +5,7 @@ system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 1000
 
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 
 print ============= create database
@@ -78,23 +78,10 @@ if $data5_db != 1 then
   return -1
 endi
 
-sql alter database db quorum 2
-sql show databases
-print quorum $data5_db
-if $data5_db != 2 then 
-  return -1
-endi
+sql_error alter database db quorum 2
 
-sql alter database db quorum 3
-sql show databases
-print quorum $data5_db
-if $data5_db != 3 then 
-  return -1
-endi
+sql_error alter database db quorum 3
 
-sql alter database db quorum 3
-sql alter database db quorum 2
-sql alter database db quorum 1
 sql_error alter database db quorum 0
 sql_error alter database db quorum 4
 sql_error alter database db quorum 5

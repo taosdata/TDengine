@@ -1,5 +1,19 @@
 # 常见问题
 
+## 0. 怎么报告问题？
+
+如果 FAQ 中的信息不能够帮到您，需要 TDengine 技术团队的技术支持与协助，请将以下两个目录中内容打包：
+1. /var/log/taos （如果没有修改过默认路径）
+2. /etc/taos
+
+附上必要的问题描述，包括使用的 TDengine 版本信息、平台环境信息、发生该问题的执行操作、出现问题的表征及大概的时间，在<a href='https://github.com/taosdata/TDengine'> GitHub</a>提交Issue。
+
+为了保证有足够的debug信息，如果问题能够重复，请修改/etc/taos/taos.cfg文件，最后面添加一行“debugFlag 135"(不带引号本身），然后重启taosd, 重复问题，然后再递交。也可以通过如下SQL语句，临时设置taosd的日志级别。
+```
+    alter dnode <dnode_id> debugFlag 135;
+```
+但系统正常运行时，请一定将debugFlag设置为131，否则会产生大量的日志信息，降低系统效率。
+
 ## 1. TDengine2.0之前的版本升级到2.0及以上的版本应该注意什么？☆☆☆
 
 2.0版本在之前版本的基础上，进行了完全的重构，配置文件和数据文件是不兼容的。在升级之前务必进行如下操作：
@@ -71,7 +85,9 @@ TDengine还没有一组专用的validation queries。然而建议你使用系统
 
 ## 9. 我可以删除或更新一条记录吗？
 
-不能。因为TDengine是为联网设备采集的数据设计的，不容许修改。但TDengine提供数据保留策略，只要数据记录超过保留时长，就会被自动删除。
+TDengine 目前尚不支持删除功能，未来根据用户需求可能会支持。
+
+从 2.0.8.0 开始，TDengine 支持更新已经写入数据的功能。使用更新功能需要在创建数据库时使用 UPDATE 1 参数，之后可以使用 INSERT INTO 命令更新已经写入的相同时间戳数据。UPDATE 参数不支持 ALTER DATABASE 命令修改。没有使用 UPDATE 1 参数创建的数据库，写入相同时间戳的数据不会修改之前的数据，也不会报错。
 
 ## 10. 我怎么创建超过1024列的表？
 
@@ -118,16 +134,3 @@ TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A
 - 2.0.7.0 及以后的版本，到/var/lib/taos/dnode下，修复dnodeEps.json的dnodeId对应的FQDN，重启。确保机器内所有机器的此文件是完全相同的。
 - 1.x 和 2.x 版本的存储结构不兼容，需要使用迁移工具或者自己开发应用导出导入数据。
 
-## 17. 怎么报告问题？
-
-如果 FAQ 中的信息不能够帮到您，需要 TDengine 技术团队的技术支持与协助，请将以下两个目录中内容打包：
-1. /var/log/taos
-2. /etc/taos
-
-附上必要的问题描述，以及发生该问题的执行操作，出现问题的表征及大概的时间，在<a href='https://github.com/taosdata/TDengine'> GitHub</a>提交Issue。
-
-为了保证有足够的debug信息，如果问题能够重复，请修改/etc/taos/taos.cfg文件，最后面添加一行“debugFlag 135"(不带引号本身），然后重启taosd, 重复问题，然后再递交。也可以通过如下SQL语句，临时设置taosd的日志级别。
-```
-    alter dnode <dnode_id> debugFlag 135;
-```
-但系统正常运行时，请一定将debugFlag设置为131，否则会产生大量的日志信息，降低系统效率。

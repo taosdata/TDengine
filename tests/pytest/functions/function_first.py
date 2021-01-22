@@ -110,6 +110,10 @@ class TDTestCase:
         tdSql.query("select first(col9) from test1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, '涛思数据1')
+        
+        # TD-2607 first,last + where none exist condition + interval
+        tdSql.query("select first(*),last(*) from test1 where ts < 23 interval(1s)")
+        tdSql.checkRows(0)
                 
     def stop(self):
         tdSql.close()

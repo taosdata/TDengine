@@ -27,22 +27,22 @@ int32_t testValidateName(char* name) {
 }
 
 static void _init_tvariant_bool(tVariant* t) {
-  t->i64Key = TSDB_FALSE;
+  t->i64 = TSDB_FALSE;
   t->nType = TSDB_DATA_TYPE_BOOL;
 }
 
 static void _init_tvariant_tinyint(tVariant* t) {
-  t->i64Key = -27;
+  t->i64 = -27;
   t->nType = TSDB_DATA_TYPE_TINYINT;
 }
 
 static void _init_tvariant_int(tVariant* t) {
-  t->i64Key = -23997659;
+  t->i64 = -23997659;
   t->nType = TSDB_DATA_TYPE_INT;
 }
 
 static void _init_tvariant_bigint(tVariant* t) {
-  t->i64Key = -3333333333333;
+  t->i64 = -3333333333333;
   t->nType = TSDB_DATA_TYPE_BIGINT;
 }
 
@@ -446,19 +446,19 @@ TEST(testCase, tvariant_convert) {
   _init_tvariant_bool(&t);
 
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 0);
+  EXPECT_EQ(t.i64, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
-  EXPECT_EQ(t.i64Key, 0);
+  EXPECT_EQ(t.i64, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_SMALLINT), 0);
-  EXPECT_EQ(t.i64Key, 0);
+  EXPECT_EQ(t.i64, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, 0);
+  EXPECT_EQ(t.i64, 0);
 
   _init_tvariant_bool(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -481,23 +481,23 @@ TEST(testCase, tvariant_convert) {
   // 2. tinyint to other data types
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 1);
+  EXPECT_EQ(t.i64, 1);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
-  EXPECT_EQ(t.i64Key, -27);
+  EXPECT_EQ(t.i64, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_SMALLINT), 0);
-  EXPECT_EQ(t.i64Key, -27);
+  EXPECT_EQ(t.i64, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_INT), 0);
-  EXPECT_EQ(t.i64Key, -27);
+  EXPECT_EQ(t.i64, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, -27);
+  EXPECT_EQ(t.i64, -27);
 
   _init_tvariant_tinyint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -521,7 +521,7 @@ TEST(testCase, tvariant_convert) {
   // types//////////////////////////////////////////////////////////////////
   _init_tvariant_int(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 1);
+  EXPECT_EQ(t.i64, 1);
 
   _init_tvariant_int(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
@@ -531,11 +531,11 @@ TEST(testCase, tvariant_convert) {
 
   _init_tvariant_int(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_INT), 0);
-  EXPECT_EQ(t.i64Key, -23997659);
+  EXPECT_EQ(t.i64, -23997659);
 
   _init_tvariant_int(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, -23997659);
+  EXPECT_EQ(t.i64, -23997659);
 
   _init_tvariant_int(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -559,7 +559,7 @@ TEST(testCase, tvariant_convert) {
   // type//////////////////////////////////////////////////////////////////////////////
   _init_tvariant_bigint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 1);
+  EXPECT_EQ(t.i64, 1);
 
   _init_tvariant_bigint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_TINYINT), 0);
@@ -572,7 +572,7 @@ TEST(testCase, tvariant_convert) {
 
   _init_tvariant_bigint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, -3333333333333);
+  EXPECT_EQ(t.i64, -3333333333333);
 
   _init_tvariant_bigint(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -596,11 +596,11 @@ TEST(testCase, tvariant_convert) {
   // types////////////////////////////////////////////////////////////////////////
   _init_tvariant_float(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 1);
+  EXPECT_EQ(t.i64, 1);
 
   _init_tvariant_float(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, -8991212199);
+  EXPECT_EQ(t.i64, -8991212199);
 
   _init_tvariant_float(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -626,14 +626,14 @@ TEST(testCase, tvariant_convert) {
   t.nLen = strlen(t.pz);
   t.nType = TSDB_DATA_TYPE_BINARY;
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 1);
+  EXPECT_EQ(t.i64, 1);
 
   _init_tvariant_binary(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), -1);
 
   _init_tvariant_binary(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, 200000);
+  EXPECT_EQ(t.i64, 200000);
 
   _init_tvariant_binary(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -659,14 +659,14 @@ TEST(testCase, tvariant_convert) {
   t.nLen = wcslen(t.wpz);
   t.nType = TSDB_DATA_TYPE_NCHAR;
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
-  EXPECT_EQ(t.i64Key, 0);
+  EXPECT_EQ(t.i64, 0);
 
   _init_tvariant_nchar(&t);
   EXPECT_LE(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BOOL), 0);
 
   _init_tvariant_nchar(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_BIGINT), 0);
-  EXPECT_EQ(t.i64Key, -2000000);
+  EXPECT_EQ(t.i64, -2000000);
 
   _init_tvariant_nchar(&t);
   EXPECT_EQ(tVariantTypeSetType(&t, TSDB_DATA_TYPE_FLOAT), 0);
@@ -732,34 +732,34 @@ static SStrToken createStrToken(char* s) {
 TEST(testCase, isValidNumber_test) {
   SStrToken t1 = createStrToken("123abc");
 
-  EXPECT_EQ(isValidNumber(&t1), TK_ILLEGAL);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_ILLEGAL);
 
   t1 = createStrToken("0xabc");
-  EXPECT_EQ(isValidNumber(&t1), TK_HEX);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_HEX);
 
   t1 = createStrToken("0b11101");
-  EXPECT_EQ(isValidNumber(&t1), TK_BIN);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_BIN);
 
   t1 = createStrToken(".134abc");
-  EXPECT_EQ(isValidNumber(&t1), TK_ILLEGAL);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_ILLEGAL);
 
   t1 = createStrToken("1e1 ");
-  EXPECT_EQ(isValidNumber(&t1), TK_ILLEGAL);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_ILLEGAL);
 
   t1 = createStrToken("1+2");
-  EXPECT_EQ(isValidNumber(&t1), TK_ILLEGAL);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_ILLEGAL);
 
   t1 = createStrToken("-0x123");
-  EXPECT_EQ(isValidNumber(&t1), TK_HEX);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_HEX);
 
   t1 = createStrToken("-1");
-  EXPECT_EQ(isValidNumber(&t1), TK_INTEGER);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_INTEGER);
 
   t1 = createStrToken("-0b1110");
-  EXPECT_EQ(isValidNumber(&t1), TK_BIN);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_BIN);
 
   t1 = createStrToken("-.234");
-  EXPECT_EQ(isValidNumber(&t1), TK_FLOAT);
+  EXPECT_EQ(tGetNumericStringType(&t1), TK_FLOAT);
 }
 
 TEST(testCase, getTempFilePath_test) {

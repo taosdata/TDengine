@@ -4,18 +4,12 @@ import com.taosdata.taosdemo.domain.SubTableMeta;
 import com.taosdata.taosdemo.domain.TagValue;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.test.context.junit4.SpringRunner;
 
 import java.util.ArrayList;
 import java.util.List;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest
 public class SubTableServiceTest {
-    @Autowired
+
     private SubTableService service;
 
     private List<SubTableMeta> subTables;
@@ -38,13 +32,11 @@ public class SubTableServiceTest {
 
     @Test
     public void testCreateSubTable() {
-        int count = service.createSubTable(subTables);
-        System.out.println("count >>> " + count);
+
     }
 
     @Test
     public void testCreateSubTableList() {
-        int count = service.createSubTable(subTables, 10);
-        System.out.println("count >>> " + count);
+
     }
 }

@@ -60,7 +60,7 @@ int32_t dnodeInitServer() {
   rpcInit.label        = "DND-S";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessReqMsgFromDnode;
-  rpcInit.sessions     = TSDB_MAX_VNODES;
+  rpcInit.sessions     = TSDB_MAX_VNODES << 4;
   rpcInit.connType     = TAOS_CONN_SERVER;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
 
@@ -90,7 +90,10 @@ static void dnodeProcessReqMsgFromDnode(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   };
 
   if (pMsg->pCont == NULL) return;
-  if (pMsg->msgType == TSDB_MSG_TYPE_NETWORK_TEST) return dnodeSendStartupStep(pMsg);
+  if (pMsg->msgType == TSDB_MSG_TYPE_NETWORK_TEST) {
+    dnodeSendStartupStep(pMsg);
+    return;
+  }
 
   if (dnodeGetRunStatus() != TSDB_RUN_STATUS_RUNING) {
     rspMsg.code = TSDB_CODE_APP_NOT_READY;
@@ -123,7 +126,7 @@ int32_t dnodeInitClient() {
   rpcInit.label        = "DND-C";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp          = dnodeProcessRspFromDnode;
-  rpcInit.sessions     = TSDB_MAX_VNODES;
+  rpcInit.sessions     = TSDB_MAX_VNODES << 4;
   rpcInit.connType     = TAOS_CONN_CLIENT;
   rpcInit.idleTime     = tsShellActivityTimer * 1000;
   rpcInit.user         = "t";

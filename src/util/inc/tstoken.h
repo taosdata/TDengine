@@ -27,6 +27,9 @@ extern "C" {
 #define TSQL_TBNAME   "TBNAME"
 #define TSQL_TBNAME_L "tbname"
 
+#define TSQL_BLOCK_DIST   "_BLOCK_DIST"
+#define TSQL_BLOCK_DIST_L "_block_dist"
+
 // used to denote the minimum unite in sql parsing
 typedef struct SStrToken {
   uint32_t n;
@@ -76,7 +79,7 @@ bool isKeyWord(const char *z, int32_t len);
  * @param pToken
  * @return        token type, if it is not a number, TK_ILLEGAL will return
  */
-static FORCE_INLINE int32_t isValidNumber(const SStrToken* pToken) {
+static FORCE_INLINE int32_t tGetNumericStringType(const SStrToken* pToken) {
   const char* z = pToken->z;
   int32_t type = TK_ILLEGAL;
 
@@ -111,7 +114,6 @@ static FORCE_INLINE int32_t isValidNumber(const SStrToken* pToken) {
 
         type = TK_FLOAT;
         goto _end;
-        break;
       }
 
       case '0': {

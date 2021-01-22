@@ -39,7 +39,7 @@
 #include "mnodeCluster.h"
 
 int32_t tsAccessSquence = 0;
-int64_t        tsDnodeRid = -1;
+int64_t         tsDnodeRid = -1;
 static void *  tsDnodeSdb = NULL;
 static int32_t tsDnodeUpdateSize = 0;
 extern void *  tsMnodeSdb;
@@ -148,7 +148,7 @@ static int32_t mnodeDnodeActionDecode(SSdbRow *pRow) {
 }
 
 static int32_t mnodeDnodeActionRestored() {
-  int32_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
+  int64_t numOfRows = sdbGetNumOfRows(tsDnodeSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
     mInfo("dnode first deploy, create dnode:%s", tsLocalEp);
     mnodeCreateDnode(tsLocalEp, NULL);
@@ -165,7 +165,7 @@ static int32_t mnodeDnodeActionRestored() {
 
 int32_t mnodeInitDnodes() {
   SDnodeObj tObj;
-  tsDnodeUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+  tsDnodeUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj);
   pthread_mutex_init(&tsDnodeEpsMutex, NULL);
 
   SSdbTableDesc desc = {
@@ -173,7 +173,7 @@ int32_t mnodeInitDnodes() {
     .name         = "dnodes",
     .hashSessions = TSDB_DEFAULT_DNODES_HASH_SIZE,
     .maxRowSize   = tsDnodeUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_AUTO,
     .fpInsert     = mnodeDnodeActionInsert,
     .fpDelete     = mnodeDnodeActionDelete,
@@ -227,7 +227,7 @@ void mnodeCancelGetNextDnode(void *pIter) {
 }
 
 int32_t mnodeGetDnodesNum() {
-  return sdbGetNumOfRows(tsDnodeSdb);
+  return (int32_t)sdbGetNumOfRows(tsDnodeSdb);
 }
 
 int32_t mnodeGetOnlinDnodesCpuCoreNum() {
@@ -407,7 +407,7 @@ static int32_t mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
 
   int64_t checkTime = 0;
   char    timestr[32] = "1970-01-01 00:00:00.00";
-  (void)taosParseTime(timestr, &checkTime, strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  (void)taosParseTime(timestr, &checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   if ((0 != strncasecmp(clusterCfg->timezone, tsTimezone, strlen(tsTimezone))) &&
       (checkTime != clusterCfg->checkTime)) {
     mError("\"timezone\"[%s - %s] [%" PRId64 " - %" PRId64 "] cfg parameters inconsistent", clusterCfg->timezone,
@@ -638,9 +638,9 @@ static int32_t mnodeCreateDnode(char *ep, SMnodeMsg *pMsg) {
 
   char *temp = strchr(dnodeEp, ':');
   if (!temp) {
-    int len = strlen(dnodeEp);
+    int32_t len = (int32_t)strlen(dnodeEp);
     if (dnodeEp[len - 1] == ';') dnodeEp[len - 1] = 0;
-    len = strlen(dnodeEp);
+    len = (int32_t)strlen(dnodeEp);
     snprintf(dnodeEp + len, TSDB_EP_LEN - len, ":%d", tsServerPort);
   }
   ep = dnodeEp;
@@ -810,6 +810,10 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
   }
 
   pShow->numOfRows = mnodeGetDnodesNum();
+  if (tsArbitrator[0] != 0) {
+    pShow->numOfRows++;
+  }
+
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   pShow->pIter = NULL;
 
@@ -821,7 +825,7 @@ static int32_t mnodeGetDnodeMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t    numOfRows = 0;
   int32_t    cols      = 0;
-  SDnodeObj *pDnode   = NULL;
+  SDnodeObj *pDnode    = NULL;
   char      *pWrite;
 
   while (numOfRows < rows) {
@@ -864,8 +868,47 @@ static int32_t mnodeRetrieveDnodes(SShowObj *pShow, char *data, int32_t rows, vo
     STR_TO_VARSTR(pWrite, offlineReason[pDnode->offlineReason]);
     cols++;
 
-     numOfRows++;
+    numOfRows++;
     mnodeDecDnodeRef(pDnode);
+  }
+
+  if (tsArbitrator[0] != 0) {
+    cols = 0;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = 0;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, tsArbitrator, pShow->bytes[cols]);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = 0;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int16_t *)pWrite = 0;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    char *status = dnodeStatus[tsArbOnline > 0 ? TAOS_DN_STATUS_READY : TAOS_DN_STATUS_OFFLINE];
+    STR_TO_VARSTR(pWrite, status);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, "arb");
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int64_t *)pWrite = 0;
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_TO_VARSTR(pWrite, "-");
+    cols++;
+
+    numOfRows++;
   }
 
   mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);

@@ -18,7 +18,6 @@
 #include "tglobal.h"
 
 void osInit() {
-
 #ifdef _TD_POWER_
   if (configDir[0] == 0) {
     strcpy(configDir, "/etc/power");
@@ -39,4 +38,20 @@ void osInit() {
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");
   strcpy(tsOsName, "Linux");
+}
+
+char cmdline[1024];
+
+char* taosGetCmdlineByPID(int pid) {
+  sprintf(cmdline, "/proc/%d/cmdline", pid);
+  FILE* f = fopen(cmdline, "r");
+  if (f) {
+    size_t size;
+    size = fread(cmdline, sizeof(char), 1024, f);
+    if (size > 0) {
+      if ('\n' == cmdline[size - 1]) cmdline[size - 1] = '\0';
+    }
+    fclose(f);
+  }
+  return cmdline;
 }

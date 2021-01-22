@@ -10,7 +10,7 @@ cd ../../../debug; make
 ./test.sh -f general/tag/binary_binary.sim
 ./test.sh -f general/tag/binary.sim
 ./test.sh -f general/tag/bool_binary.sim
-./test.sh -f general/tag/bool_int.sim
+#./test.sh -f general/tag/bool_int.sim
 ./test.sh -f general/tag/bool.sim
 ./test.sh -f general/tag/change.sim
 ./test.sh -f general/tag/column.sim
@@ -99,6 +99,5 @@ cd ../../../debug; make
 ./test.sh -f unique/dnode/m2.sim
 ./test.sh -f unique/dnode/m3.sim
 ./test.sh -f unique/dnode/offline3.sim
-./test.sh -f general/wal/sync.sim
 ./test.sh -f general/wal/kill.sim
 ./test.sh -f general/wal/maxtables.sim

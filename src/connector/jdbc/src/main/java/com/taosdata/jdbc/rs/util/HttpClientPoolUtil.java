@@ -17,10 +17,13 @@ import org.apache.http.protocol.HTTP;
 import org.apache.http.protocol.HttpContext;
 import org.apache.http.util.EntityUtils;
 
+import java.nio.charset.Charset;
+
 
 public class HttpClientPoolUtil {
     public static PoolingHttpClientConnectionManager cm = null;
     public static CloseableHttpClient httpClient = null;
+    public static String token = "cm9vdDp0YW9zZGF0YQ==";
     /**
      * 默认content 类型
      */
@@ -59,9 +62,7 @@ public class HttpClientPoolUtil {
                 try {
                     return Long.parseLong(value) * 1000;
                 } catch (Exception e) {
-                    new Exception(
-                            "format KeepAlive timeout exception, exception:" + e.toString())
-                            .printStackTrace();
+                    new Exception("format KeepAlive timeout exception, exception:" + e.toString()).printStackTrace();
                 }
             }
         }
@@ -94,7 +95,9 @@ public class HttpClientPoolUtil {
                 initPools();
             }
             method = (HttpEntityEnclosingRequestBase) getRequest(uri, HttpPost.METHOD_NAME, DEFAULT_CONTENT_TYPE, 0);
-            method.setEntity(new StringEntity(data));
+            method.setHeader("Authorization", "Taosd " + token);
+            method.setHeader("Content-Type", "text/plain");
+            method.setEntity(new StringEntity(data, Charset.forName("UTF-8")));
             HttpContext context = HttpClientContext.create();
             CloseableHttpResponse httpResponse = httpClient.execute(method, context);
             httpEntity = httpResponse.getEntity();
@@ -105,26 +108,13 @@ public class HttpClientPoolUtil {
             if (method != null) {
                 method.abort();
             }
-//            e.printStackTrace();
-//            logger.error("execute post request exception, url:" + uri + ", exception:" + e.toString()
-//                    + ", cost time(ms):" + (System.currentTimeMillis() - startTime));
-            new Exception("execute post request exception, url:"
-                    + uri + ", exception:" + e.toString() +
-                    ", cost time(ms):" + (System.currentTimeMillis() - startTime))
-                    .printStackTrace();
+            new Exception("execute post request exception, url:" + uri + ", exception:" + e.toString() + ", cost time(ms):" + (System.currentTimeMillis() - startTime)).printStackTrace();
         } finally {
             if (httpEntity != null) {
                 try {
                     EntityUtils.consumeQuietly(httpEntity);
                 } catch (Exception e) {
-//                    e.printStackTrace();
-//                    logger.error("close response exception, url:" + uri + ", exception:" + e.toString()
-//                            + ", cost time(ms):" + (System.currentTimeMillis() - startTime));
-                    new Exception(
-                            "close response exception, url:" + uri +
-                                    ", exception:" + e.toString()
-                                    + ", cost time(ms):" + (System.currentTimeMillis() - startTime))
-                            .printStackTrace();
+                    new Exception("close response exception, url:" + uri + ", exception:" + e.toString() + ", cost time(ms):" + (System.currentTimeMillis() - startTime)).printStackTrace();
                 }
             }
         }

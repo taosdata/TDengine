@@ -82,11 +82,11 @@ void taosFillCopyInputDataFromFilePage(SFillInfo* pFillInfo, const tFilePage** p
 
 void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage* pInput);
 
-int64_t getNumOfResWithFill(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
+bool taosFillHasMoreResults(SFillInfo* pFillInfo);
 
-int32_t taosNumOfRemainRows(SFillInfo *pFillInfo);
+int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
 
-int32_t taosGetLinearInterpolationVal(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);
+int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType);
 
 int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_t capacity);
 

@@ -112,7 +112,7 @@ if $loopCnt == 10 then
 endi
 
 sql show dnodes
-if $rows != 2 then
+if $rows != 3 then
   sleep 2000
   goto wait_dnode1_offline
 endi
@@ -159,7 +159,7 @@ if $loopCnt == 20 then
 endi
 
 sql show dnodes -x wait_dnode1_ready
-if $rows != 2 then
+if $rows != 3 then
   sleep 2000
   goto wait_dnode1_ready
 endi
@@ -232,7 +232,7 @@ if $loopCnt == 10 then
 endi
 
 sql show dnodes
-if $rows != 2 then
+if $rows != 3 then
   sleep 2000
   goto wait_dnode2_offline
 endi

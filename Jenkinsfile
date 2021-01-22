@@ -41,13 +41,10 @@ def pre_test(){
     
     cd ${WKC}
     git checkout develop
-    git reset --hard HEAD~10
+    git reset --hard HEAD~10 >/dev/null 
     git pull
-    git fetch
-    git checkout ${CHANGE_BRANCH}
-    git reset --hard HEAD~10
-    git pull
-    git merge develop
+    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git checkout -qf FETCH_HEAD
     cd ${WK}
     git reset --hard HEAD~10
     git checkout develop
@@ -87,11 +84,14 @@ pipeline {
           steps {
             
             pre_test()
-            sh '''
-            cd ${WKC}/tests
-            find pytest -name '*'sql|xargs rm -rf
-            ./test-all.sh p1
-            date'''
+            timeout(time: 90, unit: 'MINUTES'){
+              sh '''
+              cd ${WKC}/tests
+              find pytest -name '*'sql|xargs rm -rf
+              ./test-all.sh p1
+              date'''
+            }
+            
           }
         }
         stage('python_2') {
@@ -104,16 +104,22 @@ pipeline {
             find pytest -name '*'sql|xargs rm -rf
             ./test-all.sh p2
             date'''
+            sh '''
+            cd ${WKC}/tests
+            ./test-all.sh b4fq
+            '''
           }
         }
         stage('test_b1') {
           agent{label 'b1'}
-          steps {            
-            pre_test()
-            sh '''
-            cd ${WKC}/tests
-            ./test-all.sh b1fq
-            date'''
+          steps {     
+            timeout(time: 90, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              cd ${WKC}/tests
+              ./test-all.sh b1fq
+              date'''
+            }
           }
         }
 
@@ -133,12 +139,14 @@ pipeline {
                 ./handle_crash_gen_val_log.sh
                 '''
             }
-            sh '''
-            date
-            cd ${WKC}/tests
-            ./test-all.sh b2fq
-            date
-            '''
+            timeout(time: 90, unit: 'MINUTES'){
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b2fq
+              date
+              '''
+            }
           }
         }
 
@@ -153,12 +161,14 @@ pipeline {
                 ./valgrind-test.sh 2>&1 > mem-error-out.log
                 ./handle_val_log.sh
                 '''
-            }           
-            sh '''
-            date
-            cd ${WKC}/tests
-            ./test-all.sh b3fq
-            date'''
+            }     
+            timeout(time: 90, unit: 'MINUTES'){      
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b3fq
+              date'''
+            }
           }
         }
    
@@ -166,5 +176,84 @@ pipeline {
     }
   }
   }
+  post {      
+      
+        success {
+            emailext (
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                body: '''<!DOCTYPE html>
+                <html>
+                <head>
+                <meta charset="UTF-8">
+                </head>
+                <body leftmargin="8" marginwidth="0" topmargin="8" marginheight="4" offset="0">
+                    <table width="95%" cellpadding="0" cellspacing="0" style="font-size: 16pt; font-family: Tahoma, Arial, Helvetica, sans-serif">
+                        <tr>
+                            <td><br />
+                                <b><font color="#0B610B"><font size="6">构建信息</font></font></b>
+                                <hr size="2" width="100%" align="center" /></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <ul>
+                                <div style="font-size:18px">
+                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
+                                    <li>构建结果：<span style="color:green"> Successful </span></li>
+                                    <li>构建编号：${BUILD_NUMBER}</li>
+                                    <li>触发用户：${CAUSE}</li>
+                                    <li>提交信息：${CHANGE_TITLE}</li>
+                                    <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
+                                    <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
+                                    <li>变更集：${JELLY_SCRIPT}</li>
+                                </div>
+                                </ul>
+                            </td>
+                        </tr>
+                    </table></font>
+                </body>
+                </html>''',
+                to: "${env.CHANGE_AUTHOR_EMAIL}",
+                from: "support@taosdata.com"
+            )
+        }
+        failure {
+            emailext (
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
+                body: '''<!DOCTYPE html>
+                <html>
+                <head>
+                <meta charset="UTF-8">
+                </head>
+                <body leftmargin="8" marginwidth="0" topmargin="8" marginheight="4" offset="0">
+                    <table width="95%" cellpadding="0" cellspacing="0" style="font-size: 16pt; font-family: Tahoma, Arial, Helvetica, sans-serif">
+                        <tr>
+                            <td><br />
+                                <b><font color="#0B610B"><font size="6">构建信息</font></font></b>
+                                <hr size="2" width="100%" align="center" /></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <ul>
+                                <div style="font-size:18px">
+                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
+                                    <li>构建结果：<span style="color:green"> Successful </span></li>
+                                    <li>构建编号：${BUILD_NUMBER}</li>
+                                    <li>触发用户：${CAUSE}</li>
+                                    <li>提交信息：${CHANGE_TITLE}</li>
+                                    <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
+                                    <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
+                                    <li>变更集：${JELLY_SCRIPT}</li>
+                                </div>
+                                </ul>
+                            </td>
+                        </tr>
+                    </table></font>
+                </body>
+                </html>''',
+                to: "${env.CHANGE_AUTHOR_EMAIL}",
+                from: "support@taosdata.com"
+            )
+        }
+    }
    
 }

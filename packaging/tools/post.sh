@@ -228,7 +228,7 @@ function set_ipAsFqdn() {
 }
 
 function local_fqdn_check() {
-  #serverFqdn=$(hostname -f)
+  #serverFqdn=$(hostname)
   echo
   echo -e -n "System hostname is: ${GREEN}$serverFqdn${NC}"
   echo
@@ -492,5 +492,5 @@ function install_TDengine() {
 
 
 ## ==============================Main program starts from here============================
-serverFqdn=$(hostname -f)
+serverFqdn=$(hostname)
 install_TDengine

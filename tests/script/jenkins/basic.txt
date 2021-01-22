@@ -1,6 +1,10 @@
 cd ../../../debug; cmake ..
 cd ../../../debug; make
 
+./test.sh -f issue/TD-2677.sim
+./test.sh -f issue/TD-2680.sim
+./test.sh -f issue/TD-2713.sim
+
 ./test.sh -f general/alter/cached_schema_after_alter.sim
 ./test.sh -f general/alter/count.sim
 ./test.sh -f general/alter/dnode.sim
@@ -155,6 +159,7 @@ cd ../../../debug; make
 ./test.sh -f general/parser/union.sim
 ./test.sh -f general/parser/topbot.sim
 ./test.sh -f general/parser/function.sim
+./test.sh -f general/parser/select_distinct_tag.sim
 
 ./test.sh -f general/stable/disk.sim
 ./test.sh -f general/stable/dnode3.sim
@@ -385,3 +390,8 @@ cd ../../../debug; make
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmVnodeDir.sim
+
+./test.sh -f general/connection/test_old_data.sim
+./test.sh -f unique/dnode/datatrans_3node.sim 
+./test.sh -f unique/dnode/datatrans_3node_2.sim
+

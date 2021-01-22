@@ -66,50 +66,6 @@ STableComInfo tscGetTableInfo(const STableMeta* pTableMeta) {
   return pTableMeta->tableInfo;
 }
 
-bool isValidSchema(struct SSchema* pSchema, int32_t numOfCols) {
-  if (!VALIDNUMOFCOLS(numOfCols)) {
-    return false;
-  }
-
-  /* first column must be the timestamp, which is a primary key */
-  if (pSchema[0].type != TSDB_DATA_TYPE_TIMESTAMP) {
-    return false;
-  }
-
-  /* type is valid, length is valid */
-  int32_t rowLen = 0;
-
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    // 1. valid types
-    if (pSchema[i].type > TSDB_DATA_TYPE_TIMESTAMP || pSchema[i].type < TSDB_DATA_TYPE_BOOL) {
-      return false;
-    }
-
-    // 2. valid length for each type
-    if (pSchema[i].type == TSDB_DATA_TYPE_TIMESTAMP) {
-      if (pSchema[i].bytes > TSDB_MAX_BINARY_LEN) {
-        return false;
-      }
-    } else {
-      if (pSchema[i].bytes != tDataTypeDesc[pSchema[i].type].nSize) {
-        return false;
-      }
-    }
-
-    // 3. valid column names
-    for (int32_t j = i + 1; j < numOfCols; ++j) {
-      if (strncasecmp(pSchema[i].name, pSchema[j].name, sizeof(pSchema[i].name) - 1) == 0) {
-        return false;
-      }
-    }
-
-    rowLen += pSchema[i].bytes;
-  }
-
-  // valid total length
-  return (rowLen <= TSDB_MAX_BYTES_PER_ROW);
-}
-
 SSchema* tscGetTableColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
   assert(pTableMeta != NULL);
   
@@ -150,6 +106,7 @@ STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg) {
 
   pTableMeta->sversion = pTableMetaMsg->sversion;
   pTableMeta->tversion = pTableMetaMsg->tversion;
+
   tstrncpy(pTableMeta->sTableName, pTableMetaMsg->sTableName, TSDB_TABLE_FNAME_LEN);
   
   memcpy(pTableMeta->schema, pTableMetaMsg->schema, schemaSize);

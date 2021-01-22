@@ -33,9 +33,15 @@ To build TDengine, use [CMake](https://cmake.org/) 3.5 or higher versions in the
 
 ## Install tools
 
-### Ubuntu & Debian:
+### Ubuntu 16.04 and above & Debian:
 ```bash
 sudo apt-get install -y gcc cmake build-essential git
+```
+
+### Ubuntu 14.04:
+```bash
+sudo apt-get install -y gcc cmake3 build-essential git binutils-2.26
+export PATH=/usr/lib/binutils-2.26/bin:$PATH
 ```
 
 To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed. 
@@ -120,44 +126,57 @@ cmake .. -DCPUTYPE=aarch32 && cmake --build .
 
 If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
 Please specify "x86_amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
-```
+```cmd
 mkdir debug && cd debug
 "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < x86_amd64 | x86 >
 cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-If you use the Visual Studio 2019, please open a command window by executing "cmd.exe".
+If you use the Visual Studio 2019 or 2017:
+
+please open a command window by executing "cmd.exe".
 Please specify "x64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
-```
+
+```cmd
 mkdir debug && cd debug
 "c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
 cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-Or, you can open a command window by clicking Visual Studio 2019 menu "Tools -> Command Line -> Developer Command Prompt" or "Tools -> Command Line -> Developer PowerShell" then execute commands as follows:
-```
+Or, you can simply open a command window by clicking Windows Start -> "Visual Studio < 2019 | 2017 >" folder -> "x64 Native Tools Command Prompt for VS < 2019 | 2017 >" or "x86 Native Tools Command Prompt for VS < 2019 | 2017 >" depends what architecture your Windows is, then execute commands as follows:
+```cmd
 mkdir debug && cd debug
 cmake .. -G "NMake Makefiles"
 nmake
 ```
 
+### On Mac OS X platform
+
+Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
+
+```shell
+mkdir debug && cd debug
+cmake .. && cmake --build .
+```
+
 # Quick Run
+
 # Quick Run
 To quickly start a TDengine server after building, run the command below in terminal:
-```cmd
+```bash
 ./build/bin/taosd -c test/cfg
 ```
 In another terminal, use the TDengine shell to connect the server:
-```
+```bash
 ./build/bin/taos -c test/cfg
 ```
 option "-c test/cfg" specifies the system configuration file directory. 
 
 # Installing
 After building successfully, TDengine can be installed by:
-```cmd
+```bash
 make install
 ```
 Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. It should be noted that installing from source code does not configure service management for TDengine.

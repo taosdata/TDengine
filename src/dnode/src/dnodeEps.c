@@ -152,7 +152,7 @@ static int32_t dnodeReadEps() {
     goto PRASE_EPS_OVER;
   }
 
-  len = fread(content, 1, maxLen, fp);
+  len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
     dError("failed to read %s, content is null", file);
     goto PRASE_EPS_OVER;
@@ -199,7 +199,7 @@ static int32_t dnodeReadEps() {
       dError("failed to read %s, dnodeId not found", file);
       goto PRASE_EPS_OVER;
     }
-    ep->dnodeId = dnodeId->valueint;
+    ep->dnodeId = (int32_t)dnodeId->valueint;
 
     cJSON *dnodeFqdn = cJSON_GetObjectItem(dnodeInfo, "dnodeFqdn");
     if (!dnodeFqdn || dnodeFqdn->type != cJSON_String || dnodeFqdn->valuestring == NULL) {

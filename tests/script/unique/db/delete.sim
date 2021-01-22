@@ -23,7 +23,7 @@ sql create dnode $hostname2
 sql create dnode $hostname3
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+sleep 2000
 
 print ======== step1 
 sql create database db replica 3 blocks 3
@@ -49,7 +49,7 @@ if $rows != 0 then
   return -1
 endi 
 
-sleep 3000
+sleep 2000
 sql show dnodes
 print dnode1 openVnodes $data2_1
 print dnode2 openVnodes $data2_2

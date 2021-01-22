@@ -1,0 +1,127 @@
+version: '3.7'
+
+services: 
+  td2.0-node1:
+     build:
+       context: .
+       args:
+         - PACKAGE=${PACKAGE}
+         - EXTRACTDIR=${DIR}
+     image: 'tdengine:2.0.13.1'
+     container_name: 'td2.0-node1'     
+     cap_add:
+       - ALL
+     stdin_open: true
+     tty: true
+     environment:
+       TZ: "Asia/Shanghai"
+     command: >
+       sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && 
+       echo $TZ > /etc/timezone &&
+       exec my-main-application"
+     volumes: 
+       # bind data directory
+       - type: bind
+         source: /data/node1/data
+         target: /var/lib/taos
+       # bind log directory
+       - type: bind
+         source: /data/node1/log
+         target: /var/log/taos
+       # bind configuration
+       - type: bind
+         source: /data/node1/cfg
+         target: /etc/taos
+       - type: bind
+         source: /data
+         target: /root     
+     networks:
+         taos_update_net:
+             ipv4_address: 172.27.0.7
+     command: taosd
+
+  td2.0-node2:
+     build:
+       context: .
+       args:
+         - PACKAGE=${PACKAGE}
+         - EXTRACTDIR=${DIR}
+     image: 'tdengine:2.0.13.1'
+     container_name: 'td2.0-node2'     
+     cap_add:
+       - ALL
+     stdin_open: true
+     tty: true
+     environment:
+       TZ: "Asia/Shanghai"
+     command: >
+       sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && 
+       echo $TZ > /etc/timezone &&
+       exec my-main-application"
+     volumes: 
+       # bind data directory
+       - type: bind
+         source: /data/node2/data
+         target: /var/lib/taos
+       # bind log directory
+       - type: bind
+         source: /data/node2/log
+         target: /var/log/taos
+       # bind configuration
+       - type: bind
+         source: /data/node2/cfg
+         target: /etc/taos
+       - type: bind
+         source: /data
+         target: /root
+     networks:
+         taos_update_net:
+             ipv4_address: 172.27.0.8
+     command: taosd
+
+  td2.0-node3:
+     build:
+       context: .
+       args:
+         - PACKAGE=${PACKAGE}
+         - EXTRACTDIR=${DIR}
+     image: 'tdengine:2.0.13.1'
+     container_name: 'td2.0-node3'     
+     cap_add:
+       - ALL
+     stdin_open: true
+     tty: true
+     environment:
+       TZ: "Asia/Shanghai"
+     command: >
+       sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && 
+       echo $TZ > /etc/timezone &&
+       exec my-main-application"
+     volumes: 
+       # bind data directory
+       - type: bind
+         source: /data/node3/data
+         target: /var/lib/taos
+       # bind log directory
+       - type: bind
+         source: /data/node3/log
+         target: /var/log/taos
+       # bind configuration
+       - type: bind
+         source: /data/node3/cfg
+         target: /etc/taos
+       - type: bind
+         source: /data
+         target: /root     
+     networks:
+         taos_update_net:
+             ipv4_address: 172.27.0.9
+     command: taosd
+
+networks:
+  taos_update_net:
+#    external: true
+     ipam:
+       driver: default
+       config:
+         - subnet: "172.27.0.0/24"

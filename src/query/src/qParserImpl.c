@@ -54,7 +54,7 @@ SSqlInfo qSQLParse(const char *pStr) {
       
       case TK_QUESTION:
       case TK_ILLEGAL: {
-        snprintf(sqlInfo.pzErrMsg, tListLen(sqlInfo.pzErrMsg), "unrecognized token: \"%s\"", t0.z);
+        snprintf(sqlInfo.msg, tListLen(sqlInfo.msg), "unrecognized token: \"%s\"", t0.z);
         sqlInfo.valid = false;
         goto abort_parse;
       }
@@ -71,7 +71,7 @@ abort_parse:
   return sqlInfo;
 }
 
-tSQLExprList *tSqlExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken *pToken) {
+tSQLExprList *tSqlExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken *pDistinct, SStrToken *pToken) {
   if (pList == NULL) {
     pList = calloc(1, sizeof(tSQLExprList));
   }
@@ -97,6 +97,7 @@ tSQLExprList *tSqlExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken
 
       strdequote(pItem->aliasName);
     }
+    pItem->distinct = (pDistinct != NULL);
   }
   return pList;
 }
@@ -129,11 +130,11 @@ tSQLExpr *tSqlExprIdValueCreate(SStrToken *pToken, int32_t optrType) {
     pSqlExpr->nSQLOptr = optrType;
   } else if (optrType == TK_NOW) {
     // use microsecond by default
-    pSqlExpr->val.i64Key = taosGetTimestamp(TSDB_TIME_PRECISION_MICRO);
+    pSqlExpr->val.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_MICRO);
     pSqlExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->nSQLOptr = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
   } else if (optrType == TK_VARIABLE) {
-    int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->val.i64Key);
+    int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->val.i64);
     if (ret != TSDB_CODE_SUCCESS) {
       terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
@@ -200,25 +201,25 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
 
       switch (optrType) {
         case TK_PLUS: {
-          pExpr->val.i64Key = pLeft->val.i64Key + pRight->val.i64Key;
+          pExpr->val.i64 = pLeft->val.i64 + pRight->val.i64;
           break;
         }
         case TK_MINUS: {
-          pExpr->val.i64Key = pLeft->val.i64Key - pRight->val.i64Key;
+          pExpr->val.i64 = pLeft->val.i64 - pRight->val.i64;
           break;
         }
         case TK_STAR: {
-          pExpr->val.i64Key = pLeft->val.i64Key * pRight->val.i64Key;
+          pExpr->val.i64 = pLeft->val.i64 * pRight->val.i64;
           break;
         }
         case TK_DIVIDE: {
           pExpr->nSQLOptr = TK_FLOAT;
           pExpr->val.nType = TSDB_DATA_TYPE_DOUBLE;
-          pExpr->val.dKey = (double)pLeft->val.i64Key / pRight->val.i64Key;
+          pExpr->val.dKey = (double)pLeft->val.i64 / pRight->val.i64;
           break;
         }
         case TK_REM: {
-          pExpr->val.i64Key = pLeft->val.i64Key % pRight->val.i64Key;
+          pExpr->val.i64 = pLeft->val.i64 % pRight->val.i64;
           break;
         }
       }
@@ -231,8 +232,8 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
       pExpr->val.nType = TSDB_DATA_TYPE_DOUBLE;
       pExpr->nSQLOptr  = TK_FLOAT;
 
-      double left  = (pLeft->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pLeft->val.dKey : pLeft->val.i64Key;
-      double right = (pRight->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pRight->val.dKey : pRight->val.i64Key;
+      double left  = (pLeft->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pLeft->val.dKey : pLeft->val.i64;
+      double right = (pRight->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pRight->val.dKey : pRight->val.i64;
 
       switch (optrType) {
         case TK_PLUS: {
@@ -384,7 +385,7 @@ void tSqlSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) 
   pField->name[pName->n] = 0;
 
   pField->type = pType->type;
-  if(pField->type < TSDB_DATA_TYPE_BOOL || pField->type > TSDB_DATA_TYPE_NCHAR){
+  if(!isValidDataType(pField->type)){
     pField->bytes = 0;
   } else {
     pField->bytes = pType->bytes;
@@ -393,49 +394,59 @@ void tSqlSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) 
 }
 
 void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
+  // set the field type invalid
   pField->type = -1;
+  pField->name[0] = 0;
 
-  for (int32_t i = 0; i < tListLen(tDataTypeDesc); ++i) {
-    if ((strncasecmp(type->z, tDataTypeDesc[i].aName, tDataTypeDesc[i].nameLen) == 0) &&
-        (type->n == tDataTypeDesc[i].nameLen)) {
-      pField->type = i;
-      pField->bytes = tDataTypeDesc[i].nSize;
-
-      if (i == TSDB_DATA_TYPE_NCHAR) {
-        /*
-         * for nchar, the TOKENTYPE is the number of character, so the length is the
-         * number of bytes in UCS-4 format, which is 4 times larger than the
-         * number of characters
-         */
-        if (type->type == 0) {
-          pField->bytes = 0;
-        } else {
-          int32_t bytes = -(int32_t)(type->type);
-          if (bytes > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
-            // we have to postpone reporting the error because it cannot be done here
-            // as pField->bytes is int16_t, use 'TSDB_MAX_NCHAR_LEN + 1' to avoid overflow
-            bytes = TSDB_MAX_NCHAR_LEN + 1;
-          } else {
-            bytes = bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
-          }
-          pField->bytes = (int16_t)bytes;
-        }
-      } else if (i == TSDB_DATA_TYPE_BINARY) {
-        /* for binary, the TOKENTYPE is the length of binary */
-        if (type->type == 0) {
-          pField->bytes = 0;
-        } else {
-          int32_t bytes = -(int32_t)(type->type);
-          if (bytes > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
-            // refer comment for NCHAR above
-            bytes = TSDB_MAX_BINARY_LEN + 1;
-          } else {
-            bytes += VARSTR_HEADER_SIZE;
-          }
-          pField->bytes = (int16_t)bytes;
-        } 
-      }
+  int32_t i = 0;
+  while (i < tListLen(tDataTypes)) {
+    if ((type->n == tDataTypes[i].nameLen) &&
+        (strncasecmp(type->z, tDataTypes[i].name, tDataTypes[i].nameLen) == 0)) {
       break;
+    }
+
+    i += 1;
+  }
+
+  if (i == tListLen(tDataTypes)) {
+    return;
+  }
+
+  pField->type = i;
+  pField->bytes = tDataTypes[i].bytes;
+
+  if (i == TSDB_DATA_TYPE_NCHAR) {
+    /*
+     * for nchar, the TOKENTYPE is the number of character, so the length is the
+     * number of bytes in UCS-4 format, which is 4 times larger than the number of characters
+     */
+    if (type->type == 0) {
+      pField->bytes = 0;
+    } else {
+      int32_t bytes = -(int32_t)(type->type);
+      if (bytes > (TSDB_MAX_NCHAR_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+        // we have to postpone reporting the error because it cannot be done here
+        // as pField->bytes is int16_t, use 'TSDB_MAX_NCHAR_LEN + 1' to avoid overflow
+        bytes = TSDB_MAX_NCHAR_LEN + 1;
+      } else {
+        bytes = bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+      }
+      pField->bytes = (int16_t)bytes;
+    }
+  } else if (i == TSDB_DATA_TYPE_BINARY) {
+    /* for binary, the TOKENTYPE is the length of binary */
+    if (type->type == 0) {
+      pField->bytes = 0;
+    } else {
+      int32_t bytes = -(int32_t)(type->type);
+      if (bytes > TSDB_MAX_BINARY_LEN - VARSTR_HEADER_SIZE) {
+        // refer comment for NCHAR above
+        bytes = TSDB_MAX_BINARY_LEN + 1;
+      } else {
+        bytes += VARSTR_HEADER_SIZE;
+      }
+
+      pField->bytes = (int16_t)bytes;
     }
   }
 }
@@ -575,11 +586,12 @@ SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVal
   return info;
 }
 
-SAlterTableSQL *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type) {
-  SAlterTableSQL *pAlterTable = calloc(1, sizeof(SAlterTableSQL));
+SAlterTableInfo *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableType) {
+  SAlterTableInfo *pAlterTable = calloc(1, sizeof(SAlterTableInfo));
   
   pAlterTable->name = *pTableName;
   pAlterTable->type = type;
+  pAlterTable->tableType = tableType;
 
   if (type == TSDB_ALTER_TABLE_ADD_COLUMN || type == TSDB_ALTER_TABLE_ADD_TAG_COLUMN) {
     pAlterTable->pAddColumns = pCols;
@@ -621,15 +633,15 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
     tfree(pInfo->pAlterInfo->tagData.data);
     tfree(pInfo->pAlterInfo);
   } else {
-    if (pInfo->pDCLInfo != NULL && pInfo->pDCLInfo->nAlloc > 0) {
-      free(pInfo->pDCLInfo->a);
+    if (pInfo->pMiscInfo != NULL) {
+      taosArrayDestroy(pInfo->pMiscInfo->a);
     }
 
-    if (pInfo->pDCLInfo != NULL && pInfo->type == TSDB_SQL_CREATE_DB) {
-      taosArrayDestroyEx(pInfo->pDCLInfo->dbOpt.keep, freeVariant);
+    if (pInfo->pMiscInfo != NULL && pInfo->type == TSDB_SQL_CREATE_DB) {
+      taosArrayDestroyEx(pInfo->pMiscInfo->dbOpt.keep, freeVariant);
     }
 
-    tfree(pInfo->pDCLInfo);
+    tfree(pInfo->pMiscInfo);
   }
 }
 
@@ -686,57 +698,49 @@ void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken 
   pInfo->pCreateTableInfo->existCheck = (pIfNotExists->n != 0);
 }
 
-void tTokenListBuyMoreSpace(tDCLSQL *pTokenList) {
-  if (pTokenList->nAlloc <= pTokenList->nTokens) {  //
-    pTokenList->nAlloc = (pTokenList->nAlloc << 1u) + 4;
-    pTokenList->a = realloc(pTokenList->a, pTokenList->nAlloc * sizeof(pTokenList->a[0]));
-    if (pTokenList->a == 0) {
-      pTokenList->nTokens = pTokenList->nAlloc = 0;
-    }
-  }
-}
-
-tDCLSQL *tTokenListAppend(tDCLSQL *pTokenList, SStrToken *pToken) {
-  if (pToken == NULL) return NULL;
-
-  if (pTokenList == NULL) pTokenList = calloc(1, sizeof(tDCLSQL));
-
-  tTokenListBuyMoreSpace(pTokenList);
-  pTokenList->a[pTokenList->nTokens++] = *pToken;
-
-  return pTokenList;
-}
-
 void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   pInfo->type = type;
+  if (nParam == 0) {
+    return;
+  }
 
-  if (nParam == 0) return;
-  if (pInfo->pDCLInfo == NULL) pInfo->pDCLInfo = (tDCLSQL *)calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = (SMiscInfo *)calloc(1, sizeof(SMiscInfo));
+    pInfo->pMiscInfo->a = taosArrayInit(4, sizeof(SStrToken));
+  }
 
   va_list va;
   va_start(va, nParam);
 
-  while (nParam-- > 0) {
+  while ((nParam--) > 0) {
     SStrToken *pToken = va_arg(va, SStrToken *);
-    pInfo->pDCLInfo = tTokenListAppend(pInfo->pDCLInfo, pToken);
+    taosArrayPush(pInfo->pMiscInfo->a, pToken);
   }
   va_end(va);
 }
 
-void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck) {
+void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck, int16_t tableType) {
   pInfo->type = type;
-  pInfo->pDCLInfo = tTokenListAppend(pInfo->pDCLInfo, pToken);
-  pInfo->pDCLInfo->existsCheck = (existsCheck->n == 1);
+
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = (SMiscInfo *)calloc(1, sizeof(SMiscInfo));
+    pInfo->pMiscInfo->a = taosArrayInit(4, sizeof(SStrToken));
+  }
+
+  taosArrayPush(pInfo->pMiscInfo->a, pToken);
+
+  pInfo->pMiscInfo->existsCheck = (existsCheck->n == 1);
+  pInfo->pMiscInfo->tableType = tableType;
 }
 
 void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken* pPatterns) {
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
   
   pInfo->type = TSDB_SQL_SHOW;
   
-  SShowInfo* pShowInfo = &pInfo->pDCLInfo->showOpt;
+  SShowInfo* pShowInfo = &pInfo->pMiscInfo->showOpt;
   pShowInfo->showType = type;
   
   if (prefix != NULL && prefix->type != 0) {
@@ -752,54 +756,54 @@ void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken*
   }
 }
 
-void setCreateDBSQL(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDBInfo *pDB, SStrToken *pIgExists) {
+void setCreateDbInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDbInfo *pDB, SStrToken *pIgExists) {
   pInfo->type = type;
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
 
-  pInfo->pDCLInfo->dbOpt = *pDB;
-  pInfo->pDCLInfo->dbOpt.dbname = *pToken;
-  pInfo->pDCLInfo->dbOpt.ignoreExists = pIgExists->n; // sql.y has: ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
+  pInfo->pMiscInfo->dbOpt = *pDB;
+  pInfo->pMiscInfo->dbOpt.dbname = *pToken;
+  pInfo->pMiscInfo->dbOpt.ignoreExists = pIgExists->n; // sql.y has: ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
 }
 
-void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPwd, SCreateAcctSQL *pAcctInfo) {
+void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPwd, SCreateAcctInfo *pAcctInfo) {
   pInfo->type = type;
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
 
-  pInfo->pDCLInfo->acctOpt = *pAcctInfo;
+  pInfo->pMiscInfo->acctOpt = *pAcctInfo;
   
   assert(pName != NULL);
-  pInfo->pDCLInfo->user.user = *pName;
+  pInfo->pMiscInfo->user.user = *pName;
   
   if (pPwd != NULL) {
-    pInfo->pDCLInfo->user.passwd = *pPwd;
+    pInfo->pMiscInfo->user.passwd = *pPwd;
   }
 }
 
 void setCreateUserSql(SSqlInfo *pInfo, SStrToken *pName, SStrToken *pPasswd) {
   pInfo->type = TSDB_SQL_CREATE_USER;
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
   
   assert(pName != NULL && pPasswd != NULL);
   
-  pInfo->pDCLInfo->user.user = *pName;
-  pInfo->pDCLInfo->user.passwd = *pPasswd;
+  pInfo->pMiscInfo->user.user = *pName;
+  pInfo->pMiscInfo->user.passwd = *pPasswd;
 }
 
 void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege) {
   pInfo->type = TSDB_SQL_ALTER_USER;
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
   
   assert(pName != NULL);
   
-  SUserInfo* pUser = &pInfo->pDCLInfo->user;
+  SUserInfo* pUser = &pInfo->pMiscInfo->user;
   pUser->type = type;
   pUser->user = *pName;
   
@@ -816,18 +820,17 @@ void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken*
   }
 }
 
-void setKillSql(SSqlInfo *pInfo, int32_t type, SStrToken *ip) {
+void setKillSql(SSqlInfo *pInfo, int32_t type, SStrToken *id) {
   pInfo->type = type;
-  if (pInfo->pDCLInfo == NULL) {
-    pInfo->pDCLInfo = calloc(1, sizeof(tDCLSQL));
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
   }
   
-  assert(ip != NULL);
-  
-  pInfo->pDCLInfo->ip = *ip;
+  assert(id != NULL);
+  pInfo->pMiscInfo->id = *id;
 }
 
-void setDefaultCreateDbOption(SCreateDBInfo *pDBInfo) {
+void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {
   pDBInfo->compressionLevel = -1;
 
   pDBInfo->walLevel = -1;

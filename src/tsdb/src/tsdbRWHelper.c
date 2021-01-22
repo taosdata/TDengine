@@ -751,10 +751,10 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
 
     pCompCol->colId = pDataCol->colId;
     pCompCol->type = pDataCol->type;
-    if (tDataTypeDesc[pDataCol->type].getStatisFunc) {
-      (*tDataTypeDesc[pDataCol->type].getStatisFunc)(
-          (TSKEY *)(pDataCols->cols[0].pData), pDataCol->pData, rowsToWrite, &(pCompCol->min), &(pCompCol->max),
-          &(pCompCol->sum), &(pCompCol->minIndex), &(pCompCol->maxIndex), &(pCompCol->numOfNull));
+    if (tDataTypes[pDataCol->type].statisFunc) {
+      (*tDataTypes[pDataCol->type].statisFunc)(
+          pDataCol->pData, rowsToWrite, &(pCompCol->min), &(pCompCol->max), &(pCompCol->sum), &(pCompCol->minIndex),
+          &(pCompCol->maxIndex), &(pCompCol->numOfNull));
     }
     nColsNotAllNull++;
   }
@@ -788,7 +788,7 @@ static int tsdbWriteBlockToFile(SRWHelper *pHelper, SFile *pFile, SDataCols *pDa
         }
       }
 
-      flen = (*(tDataTypeDesc[pDataCol->type].compFunc))((char *)pDataCol->pData, tlen, rowsToWrite, tptr,
+      flen = (*(tDataTypes[pDataCol->type].compFunc))((char *)pDataCol->pData, tlen, rowsToWrite, tptr,
                                                          (int32_t)taosTSizeof(pHelper->pBuffer) - lsize, pCfg->compression,
                                                          pHelper->compBuffer, (int32_t)taosTSizeof(pHelper->compBuffer));
     } else {
@@ -1208,7 +1208,7 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, char *content, int32
   // Decode the data
   if (comp) {
     // // Need to decompress
-    int tlen = (*(tDataTypeDesc[pDataCol->type].decompFunc))(content, len - sizeof(TSCKSUM), numOfRows, pDataCol->pData,
+    int tlen = (*(tDataTypes[pDataCol->type].decompFunc))(content, len - sizeof(TSCKSUM), numOfRows, pDataCol->pData,
                                                              pDataCol->spaceSize, comp, buffer, bufferSize);
     if (tlen <= 0) {
       tsdbError("Failed to decompress column, file corrupted, len:%d comp:%d numOfRows:%d maxPoints:%d bufferSize:%d",

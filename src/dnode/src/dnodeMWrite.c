@@ -60,7 +60,7 @@ int32_t dnodeInitMWrite() {
 void dnodeCleanupMWrite() {
   for (int32_t i = 0; i < tsMWriteWP.maxNum; ++i) {
     SMWriteWorker *pWorker = tsMWriteWP.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(tsMWriteQset);
     }
     dDebug("dnode mwrite worker:%d is closed", i);
@@ -69,7 +69,7 @@ void dnodeCleanupMWrite() {
   for (int32_t i = 0; i < tsMWriteWP.maxNum; ++i) {
     SMWriteWorker *pWorker = tsMWriteWP.worker + i;
     dDebug("dnode mwrite worker:%d start to join", i);
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
     }
     dDebug("dnode mwrite worker:%d join success", i);
@@ -188,8 +188,8 @@ void dnodeReprocessMWriteMsg(void *pMsg) {
       ++pWrite->pBatchMasterMsg->received;
       if (pWrite->pBatchMasterMsg->successed + pWrite->pBatchMasterMsg->received
 	  >= pWrite->pBatchMasterMsg->expected) {
-	dnodeSendRedirectMsg(&pWrite->rpcMsg, true);
-	dnodeFreeMWriteMsg(pWrite);
+        dnodeSendRedirectMsg(&pWrite->pBatchMasterMsg->rpcMsg, true);
+        dnodeFreeMWriteMsg(pWrite->pBatchMasterMsg);
       }
 
       mnodeDestroySubMsg(pWrite);

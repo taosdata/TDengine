@@ -1,12 +1,10 @@
 system sh/stop_dnodes.sh
-sleep 3000
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/cfg.sh -n dnode1 -c http -v 1
 system sh/cfg.sh -n dnode1 -c httpEnableRecordSql -v 1
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
 sql connect
 
 print ============================ dnode1 start

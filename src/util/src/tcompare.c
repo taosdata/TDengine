@@ -1,4 +1,4 @@
-#include "taosdef.h"
+#include "ttype.h"
 #include "tcompare.h"
 #include "tarray.h"
 
@@ -30,28 +30,51 @@ int32_t compareInt8Val(const void *pLeft, const void *pRight) {
   return 0;
 }
 
-int32_t compareIntDoubleVal(const void *pLeft, const void *pRight) {
-  int64_t lhs = GET_INT64_VAL(pLeft);
-  double  rhs = GET_DOUBLE_VAL(pRight);
-  if (fabs(lhs - rhs) < FLT_EPSILON) {
-    return 0;
-  } else {
-    return (lhs > rhs) ? 1 : -1;
-  }
+int32_t compareUint32Val(const void *pLeft, const void *pRight) {
+  int32_t left = GET_UINT32_VAL(pLeft), right = GET_UINT32_VAL(pRight);
+  if (left > right) return 1;
+  if (left < right) return -1;
+  return 0;
 }
 
-int32_t compareDoubleIntVal(const void *pLeft, const void *pRight) {
-  double  lhs = GET_DOUBLE_VAL(pLeft);
-  int64_t rhs = GET_INT64_VAL(pRight);
-  if (fabs(lhs - rhs) < FLT_EPSILON) {
-    return 0;
-  } else {
-    return (lhs > rhs) ? 1 : -1;
-  }
+int32_t compareUint64Val(const void *pLeft, const void *pRight) {
+  int64_t left = GET_UINT64_VAL(pLeft), right = GET_UINT64_VAL(pRight);
+  if (left > right) return 1;
+  if (left < right) return -1;
+  return 0;
+}
+
+int32_t compareUint16Val(const void *pLeft, const void *pRight) {
+  int16_t left = GET_UINT16_VAL(pLeft), right = GET_UINT16_VAL(pRight);
+  if (left > right) return 1;
+  if (left < right) return -1;
+  return 0;
+}
+
+int32_t compareUint8Val(const void* pLeft, const void* pRight) {
+  uint8_t left = GET_UINT8_VAL(pLeft), right = GET_UINT8_VAL(pRight);
+  if (left > right) return 1;
+  if (left < right) return -1;
+  return 0;
 }
 
 int32_t compareFloatVal(const void *pLeft, const void *pRight) {
-  float ret = GET_FLOAT_VAL(pLeft) - GET_FLOAT_VAL(pRight);
+  float p1 = GET_FLOAT_VAL(pLeft);
+  float p2 = GET_FLOAT_VAL(pRight);
+
+  if (isnan(p1) && isnan(p2)) {
+    return 0;
+  }
+
+  if (isnan(p1)) {
+    return -1;
+  }
+
+  if (isnan(p2)) {
+    return 1;
+  }
+
+  float ret = p1 - p2;
   if (fabs(ret) < FLT_EPSILON) {
     return 0;
   } else {
@@ -60,7 +83,22 @@ int32_t compareFloatVal(const void *pLeft, const void *pRight) {
 }
 
 int32_t compareDoubleVal(const void *pLeft, const void *pRight) {
-  double ret = GET_DOUBLE_VAL(pLeft) - GET_DOUBLE_VAL(pRight);
+  double p1 = GET_DOUBLE_VAL(pLeft);
+  double p2 = GET_DOUBLE_VAL(pRight);
+
+  if (isnan(p1) && isnan(p2)) {
+    return 0;
+  }
+
+  if (isnan(p1)) {
+    return -1;
+  }
+
+  if (isnan(p2)) {
+    return 1;
+  }
+
+  double ret = p1 - p2;
   if (fabs(ret) < FLT_EPSILON) {
     return 0;
   } else {
@@ -339,15 +377,24 @@ __compar_fn_t getKeyComparFunc(int32_t keyType) {
     case TSDB_DATA_TYPE_DOUBLE:
       comparFn = compareDoubleVal;
       break;
-    
+    case TSDB_DATA_TYPE_UTINYINT:
+      comparFn = compareUint8Val;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      comparFn = compareUint16Val;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      comparFn = compareUint32Val;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      comparFn = compareUint64Val;
+      break;
     case TSDB_DATA_TYPE_BINARY:
       comparFn = compareLenPrefixedStr;
       break;
-    
     case TSDB_DATA_TYPE_NCHAR:
       comparFn = compareLenPrefixedWStr;
       break;
-    
     default:
       comparFn = compareInt32Val;
       break;

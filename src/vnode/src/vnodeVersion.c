@@ -41,7 +41,7 @@ int32_t vnodeReadVersion(SVnodeObj *pVnode) {
     goto PARSE_VER_ERROR;
   }
 
-  len = fread(content, 1, maxLen, fp);
+  len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
     vError("vgId:%d, failed to read %s, content is null", pVnode->vgId, file);
     goto PARSE_VER_ERROR;

@@ -30,3 +30,4 @@ void osInit() {
   strcpy(tsScriptDir, "~/TDengine/cfg");
   strcpy(tsOsName, "Darwin");
 }
+
