@@ -80,7 +80,7 @@ _err:
 
 int32_t tsdbSyncRecv(void *tsdb, int32_t socketFd) {
   STsdbRepo *pRepo = (STsdbRepo *)tsdb;
-  SSyncH synch;
+  SSyncH synch = {0};
 
   tsdbInitSyncH(&synch, pRepo, socketFd);
   tsdbStartFSTxn(pRepo, 0, 0);
