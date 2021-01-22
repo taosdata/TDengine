@@ -582,13 +582,14 @@ void freeJoinSubqueryObj(SSqlObj* pSql) {
   pSql->subState.numOfSub = 0;
 }
 
-static void quitAllSubquery(SSqlObj* pSqlSub, SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
+static int32_t quitAllSubquery(SSqlObj* pSqlSub, SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
   if (subAndCheckDone(pSqlSub, pSqlObj, pSupporter->subqueryIndex)) {
     tscError("%p all subquery return and query failed, global code:%s", pSqlObj, tstrerror(pSqlObj->res.code));  
     freeJoinSubqueryObj(pSqlObj);
-    return;
+    return 0;
   }
 
+  return 1;
   //tscDestroyJoinSupporter(pSupporter);
 }
 
@@ -835,7 +836,9 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, numOfRows, pParentSql->res.code);
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
 
     tscAsyncResultOnError(pParentSql);
 
@@ -850,7 +853,9 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     tscError("%p sub query failed, code:%s, index:%d", pSql, tstrerror(numOfRows), pSupporter->subqueryIndex);
 
     pParentSql->res.code = numOfRows;
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
 
     tscAsyncResultOnError(pParentSql);
     return;
@@ -867,7 +872,9 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
       tscError("%p failed to malloc memory", pSql);
 
       pParentSql->res.code = TAOS_SYSTEM_ERROR(errno);
-      quitAllSubquery(pSql, pParentSql, pSupporter);
+      if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+        return;
+      }
 
       tscAsyncResultOnError(pParentSql);
       return;
@@ -985,7 +992,9 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, numOfRows, pParentSql->res.code);
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)){
+      return;
+    }
 
     tscAsyncResultOnError(pParentSql);
 
@@ -999,7 +1008,9 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     tscError("%p sub query failed, code:%s, index:%d", pSql, tstrerror(numOfRows), pSupporter->subqueryIndex);
 
     pParentSql->res.code = numOfRows;
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)){
+      return;
+    }
 
     tscAsyncResultOnError(pParentSql);
     return;
@@ -1014,7 +1025,9 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
         
         pParentSql->res.code = TAOS_SYSTEM_ERROR(errno);
 
-        quitAllSubquery(pSql, pParentSql, pSupporter);
+        if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+          return;
+        }
         
         tscAsyncResultOnError(pParentSql);
 
@@ -1032,7 +1045,9 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
       pParentSql->res.code = TAOS_SYSTEM_ERROR(errno);
 
-      quitAllSubquery(pSql, pParentSql, pSupporter);
+      if (quitAllSubquery(pSql, pParentSql, pSupporter)){
+        return;
+      }
       
       tscAsyncResultOnError(pParentSql);
 
@@ -1129,8 +1144,10 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, numOfRows, pParentSql->res.code);
-    quitAllSubquery(pSql, pParentSql, pSupporter);
-
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
+    
     tscAsyncResultOnError(pParentSql);
 
     return;
@@ -1472,7 +1489,9 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   // retrieve actual query results from vnode during the second stage join subquery
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, code, pParentSql->res.code);
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
 
     tscAsyncResultOnError(pParentSql);
 
@@ -1486,7 +1505,10 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
     tscError("%p abort query, code:%s, global code:%s", pSql, tstrerror(code), tstrerror(pParentSql->res.code));
     pParentSql->res.code = code;
 
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
+    
     tscAsyncResultOnError(pParentSql);
 
     return;
