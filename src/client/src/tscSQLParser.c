@@ -4300,6 +4300,78 @@ static void doAddJoinTagsColumnsIntoTagList(SSqlCmd* pCmd, SQueryInfo* pQueryInf
   }
 }
 
+static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
+  const char *msg1 = "tag type mismatch";
+  const char *msg2 = "invalid tag operator";
+  const char* msg3 = "not supported filter condition";
+  
+  do {
+    if (p->nodeType != TSQL_NODE_EXPR) {
+      break;
+    }
+    
+    if (!p->_node.pLeft || !p->_node.pRight) {
+      break;
+    }
+    
+    if (IS_ARITHMETIC_OPTR(p->_node.optr)) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2); 
+    }
+    
+    if (!IS_RELATION_OPTR(p->_node.optr)) {
+      break;
+    }
+    
+    tVariant * vVariant = NULL;
+    int32_t schemaType = -1;
+  
+    if (p->_node.pLeft->nodeType == TSQL_NODE_VALUE && p->_node.pRight->nodeType == TSQL_NODE_COL) {
+      if (!p->_node.pRight->pSchema) {
+        break;
+      }
+      
+      vVariant = p->_node.pLeft->pVal->nType;
+      schemaType = p->_node.pRight->pSchema->type;
+    } else if (p->_node.pLeft->nodeType == TSQL_NODE_COL && p->_node.pRight->nodeType == TSQL_NODE_VALUE) {
+      if (!p->_node.pLeft->pSchema) {
+        break;
+      }
+
+      vVariant = p->_node.pRight->pVal->nType;
+      schemaType = p->_node.pLeft->pSchema->type;
+    } else {
+      break;
+    }
+
+    if (schemaType >= TSDB_DATA_TYPE_TINYINT && schemaType <= TSDB_DATA_TYPE_BIGINT) {
+      schemaType = TSDB_DATA_TYPE_BIGINT;
+    } else if (schemaType == TSDB_DATA_TYPE_FLOAT || schemaType == TSDB_DATA_TYPE_DOUBLE) {
+      schemaType = TSDB_DATA_TYPE_DOUBLE;
+    }
+    
+    int32_t retVal = TSDB_CODE_SUCCESS;
+    if (schemaType == TSDB_DATA_TYPE_BINARY) {
+      char *tmp = (int64_t)calloc(1, (vVariant->nLen + 1) + TSDB_NCHAR_SIZE);
+      retVal = tVariantDump(vVariant, tmp, schemaType, false);
+      free(tmp);
+    } else if (schemaType == TSDB_DATA_TYPE_NCHAR) {
+      // pRight->val.nLen + 1 is larger than the actual nchar string length
+      char *tmp = (int64_t)calloc(1, (vVariant->nLen + 1) * TSDB_NCHAR_SIZE);
+      retVal = tVariantDump(vVariant, tmp, schemaType, false);
+      free(tmp);
+    } else {
+      double tmp;
+      retVal = tVariantDump(vVariant, (char*)&tmp, schemaType, false);
+    }
+    
+    if (retVal != TSDB_CODE_SUCCESS) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
+  }while (0);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr* pCondExpr, tSQLExpr** pExpr) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
@@ -4342,12 +4414,20 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &bw);
     doCompactQueryExpr(pExpr);
 
+    if (ret == TSDB_CODE_SUCCESS) {
+      ret = validateTagCondExpr(pCmd, p);
+    }
+
     tSqlExprDestroy(p1);
     tExprTreeDestroy(p, NULL);
     
     taosArrayDestroy(colList);
     if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0 && !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "filter on tag not supported for normal table");
+    }
+
+    if (ret) {
+      break;
     }
   }
 
