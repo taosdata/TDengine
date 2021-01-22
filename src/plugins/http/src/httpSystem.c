@@ -110,10 +110,8 @@ void httpCleanUpSystem() {
   pthread_mutex_destroy(&tsHttpServer.serverMutex);
   tfree(tsHttpServer.pThreads);
   tsHttpServer.pThreads = NULL;
-  
+
   tsHttpServer.status = HTTP_SERVER_CLOSED;
 }
 
-int32_t httpGetReqCount() {
-  return atomic_exchange_32(&tsHttpServer.requestNum, 0);
-}
+int32_t httpGetReqCount() { return atomic_exchange_32(&tsHttpServer.requestNum, 0); }
