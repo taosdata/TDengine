@@ -110,6 +110,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     rpcClose(pDnodeConn);
     free(pObj->tscCorMgmtEpSet);
     free(pObj);
+    return NULL;
   }
   memcpy(pObj->tscCorMgmtEpSet, &corMgmtEpSet, sizeof(SRpcCorEpSet));
 
