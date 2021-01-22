@@ -15,7 +15,7 @@
 #include "tglobal.h"
 #include "tlog.h"
 
-void sigintHandler(int signum) {
+void sigintHandler(int signum, void *sigInfo, void *context) {
   httpStopSystem();
   httpCleanUpSystem();
   exit(EXIT_SUCCESS);
