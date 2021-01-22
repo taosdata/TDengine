@@ -170,7 +170,7 @@ static void sigintHandler(int32_t signum, void *sigInfo, void *context) {
   dInfo("shut down signal is %d", signum);
 
 #ifndef WINDOWS
-  dInfo("sender PID:%d cmdline:%s",((siginfo_t *)sigInfo)->si_pid, taosGetCmdlineByPID(sigInfo->si_pid));
+  dInfo("sender PID:%d cmdline:%s", ((siginfo_t *)sigInfo)->si_pid, taosGetCmdlineByPID(((siginfo_t *)sigInfo)->si_pid));
 #endif
 
   syslog(LOG_INFO, "Shut down signal is %d", signum);
