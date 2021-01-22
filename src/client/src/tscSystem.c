@@ -58,7 +58,6 @@ void tscFreeRpcObj(void *param) {
   SRpcObj *pRpcObj = (SRpcObj *)(param);
   tscDebug("free rpcObj:%p and free pDnodeConn: %p", pRpcObj, pRpcObj->pDnodeConn);
   rpcClose(pRpcObj->pDnodeConn);
-  tfree(pRpcObj->tscCorMgmtEpSet);
 }
 
 void tscReleaseRpc(void *param)  {
@@ -70,7 +69,7 @@ void tscReleaseRpc(void *param)  {
   pthread_mutex_unlock(&rpcObjMutex);
 } 
 
-int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncrypt, SRpcCorEpSet *corMgmtEpSet, void **ppRpcObj) {
+int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncrypt, void **ppRpcObj) {
   pthread_mutex_lock(&rpcObjMutex);
 
   SRpcObj *pRpcObj = (SRpcObj *)taosCacheAcquireByKey(tscRpcCache, key, strlen(key));
@@ -109,13 +108,6 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
     pthread_mutex_unlock(&rpcObjMutex);
     return -1;
   } 
-  pRpcObj->tscCorMgmtEpSet = malloc(sizeof(SRpcCorEpSet));
-  if (pRpcObj->tscCorMgmtEpSet == NULL) {
-    rpcClose(rpcObj.pDnodeConn);
-    pthread_mutex_unlock(&rpcObjMutex);
-    return -1;
-  }
-  memcpy(pRpcObj->tscCorMgmtEpSet, corMgmtEpSet, sizeof(*corMgmtEpSet));
 
   *ppRpcObj  = pRpcObj;
   pthread_mutex_unlock(&rpcObjMutex);

@@ -299,7 +299,6 @@ typedef struct {
 
 typedef struct {
   char         key[512]; 
-  SRpcCorEpSet *tscCorMgmtEpSet;
   void         *pDnodeConn; 
 } SRpcObj;
 
@@ -319,6 +318,7 @@ typedef struct STscObj {
   struct SSqlObj *   sqlList;
   struct SSqlStream *streamList;
   SRpcObj           *pRpcObj;
+  SRpcCorEpSet      *tscCorMgmtEpSet;
   pthread_mutex_t    mutex;
   int32_t            numOfObj; // number of sqlObj from this tscObj
 } STscObj;
@@ -396,7 +396,7 @@ typedef struct SSqlStream {
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 
 
-int  tscAcquireRpc(const char *key, const char *user, const char *secret, SRpcCorEpSet *corMgmtEpSet, void **pRpcObj);
+int  tscAcquireRpc(const char *key, const char *user, const char *secret,void **pRpcObj);
 void tscReleaseRpc(void *param);
 void tscInitMsgsFp();
 

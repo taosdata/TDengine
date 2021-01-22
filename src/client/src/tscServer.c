@@ -69,7 +69,7 @@ static void tscSetDnodeEpSet(SRpcEpSet* pEpSet, SVgroupInfo* pVgroupInfo) {
 }
 
 static void tscDumpMgmtEpSet(SSqlObj *pSql) {
-  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->pRpcObj->tscCorMgmtEpSet;
+  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
   taosCorBeginRead(&pCorEpSet->version);
   pSql->epSet = pCorEpSet->epSet;
   taosCorEndRead(&pCorEpSet->version);
@@ -94,7 +94,7 @@ bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2) {
 
 void tscUpdateMgmtEpSet(SSqlObj *pSql, SRpcEpSet *pEpSet) {
   // no need to update if equal
-  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->pRpcObj->tscCorMgmtEpSet;
+  SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
   taosCorBeginWrite(&pCorEpSet->version);
   pCorEpSet->epSet = *pEpSet;
   taosCorEndWrite(&pCorEpSet->version);
@@ -158,7 +158,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     if (epSet->numOfEps > 0) {
       tscEpSetHtons(epSet);
 
-      //SRpcCorEpSet *pCorEpSet = pSql->pTscObj->pRpcObj->tscCorMgmtEpSet;
+      //SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
       //if (!tscEpSetIsEqual(&pCorEpSet->epSet, epSet)) {
       //  tscTrace("%p updating epset: numOfEps: %d, inUse: %d", pSql, epSet->numOfEps, epSet->inUse);
       //  for (int8_t i = 0; i < epSet->numOfEps; i++) {
