@@ -2228,6 +2228,8 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
+  assert(pRes->rspLen >= sizeof(SRetrieveTableRsp));
+
   SRetrieveTableRsp *pRetrieve = (SRetrieveTableRsp *)pRes->pRsp;
   if (pRetrieve == NULL) {
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
