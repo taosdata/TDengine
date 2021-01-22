@@ -105,19 +105,10 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     tscReleaseRpc(pRpcObj);
     return NULL;
   }
-  // set up tscObj's mgmtEpSet
-  pObj->tscCorMgmtEpSet = (SRpcCorEpSet *)malloc(sizeof(SRpcCorEpSet));
-  if (NULL == pObj->tscCorMgmtEpSet) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    rpcClose(pDnodeConn);
-    free(pObj->tscCorMgmtEpSet);
-    free(pObj);
-    return NULL;
-  }
-  memcpy(pObj->tscCorMgmtEpSet, &corMgmtEpSet, sizeof(SRpcCorEpSet));
 
   pObj->signature = pObj;
   pObj->pRpcObj = (SRpcObj *)pRpcObj;
+
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   secretEncryptLen = MIN(secretEncryptLen, sizeof(pObj->pass));
   memcpy(pObj->pass, secretEncrypt, secretEncryptLen);
