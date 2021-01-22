@@ -1476,6 +1476,8 @@ int32_t tscValidateName(SStrToken* pToken) {
     if (pToken->type == TK_STRING && validateQuoteToken(pToken) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
+    
+    strntolower(pToken->z, pToken->z, pToken->n);
 
     // re-build the whole name string
     if (pStr[firstPartLen] == TS_PATH_DELIMITER[0]) {
@@ -1488,6 +1490,8 @@ int32_t tscValidateName(SStrToken* pToken) {
     }
     pToken->n += (firstPartLen + sizeof(TS_PATH_DELIMITER[0]));
     pToken->z = pStr;
+
+    strntolower(pToken->z, pToken->z, pToken->n);
   }
 
   return TSDB_CODE_SUCCESS;
