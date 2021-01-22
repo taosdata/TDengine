@@ -35,6 +35,6 @@ rm -rf $SIM_DIR/dnode3
 
 tar zxf $SCRIPT_DIR/general/connection/sim.tar.gz -C $SIM_DIR/../
 cd $SIM_DIR/../sim
-fqdn=`hostname`
+fqdn=`hostname -f || hostname`
 grep 'test4' -l -r ./* | xargs sed -i "s/test4/${fqdn}/g"
 grep 'dataDir' -l -r ./* | xargs sed -i "s#/root/TDengine#${TAOS_DIR}#g"
