@@ -21,11 +21,20 @@ extern "C" {
 #endif
 
 #ifndef TAOS_OS_FUNC_SEMPHONE
+#define BUG_DEMO
+#ifdef BUG_DEMO
+  #define tsem_t sem_t
+  int tsem_init(tsem_t *sem, int pshared, unsigned int value);
+  int tsem_wait(tsem_t *sem);
+  int tsem_post(tsem_t *sem);
+  int tsem_destroy(tsem_t *sem);
+#else // BUG_DEMO
   #define tsem_t sem_t
   #define tsem_init sem_init
   int tsem_wait(tsem_t* sem);
   #define tsem_post sem_post
   #define tsem_destroy sem_destroy
+#endif // BUG_DEMO
 #endif
 
 // TAOS_OS_FUNC_SEMPHONE_PTHREAD

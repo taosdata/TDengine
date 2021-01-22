@@ -18,6 +18,47 @@
 
 #ifndef TAOS_OS_FUNC_SEMPHONE
 
+#ifdef BUG_DEMO
+static __thread char zeros[sizeof(sem_t)] = {0};
+int tsem_init(tsem_t *sem, int pshared, unsigned int value) {
+  fprintf(stderr, "==%s[%d]%s()sem:[%p]==\n", basename(__FILE__), __LINE__, __func__, sem);
+  if (memcmp(sem, zeros, sizeof(zeros))) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==buffer not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  int e = 0;
+  int r = sem_init(sem, pshared, value);
+  e = errno;
+  if (r) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==failed\n", basename(__FILE__), __LINE__, __func__, sem);
+  }
+  errno = e;
+  return r ? -1 : 0;
+}
+
+int tsem_post(tsem_t *sem) {
+  return sem_post(sem);
+}
+
+int tsem_destroy(tsem_t *sem) {
+  fprintf(stderr, "==%s[%d]%s()sem:[%p]==\n", basename(__FILE__), __LINE__, __func__, sem);
+  if (0==memcmp(sem, zeros, sizeof(zeros))) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==already destroyed\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  int e = 0;
+  int r = sem_destroy(sem);
+  e = errno;
+  if (r) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==failed\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  memset(sem, 0, sizeof(*sem));
+  errno = e;
+  return r ? -1 : 0;
+}
+#endif // BUG_DEMO
+
 int tsem_wait(tsem_t* sem) {
   int ret = 0;
   do {
