@@ -242,7 +242,7 @@ static void* telemetryThread(void* param) {
   end.tv_sec += 300; // wait 5 minutes before send first report
 
   while (1) {
-    if (sem_timedwait(&tsExitSem, &end) == 0) {
+    if (tsem_timedwait(&tsExitSem, &end) == 0) {
       break;
     } else if (errno != ETIMEDOUT) {
       continue;

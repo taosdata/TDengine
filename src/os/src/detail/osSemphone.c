@@ -19,46 +19,114 @@
 #ifndef TAOS_OS_FUNC_SEMPHONE
 
 #ifdef BUG_DEMO
-static __thread char zeros[sizeof(sem_t)] = {0};
+struct tsem_s {
+  sem_t                  sem;
+  volatile unsigned int  valid:1;
+};
+
 int tsem_init(tsem_t *sem, int pshared, unsigned int value) {
   fprintf(stderr, "==%s[%d]%s()sem:[%p]==\n", basename(__FILE__), __LINE__, __func__, sem);
-  if (memcmp(sem, zeros, sizeof(zeros))) {
+  if (*sem) {
     fprintf(stderr, "==%s[%d]%s()sem:[%p]==buffer not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
     abort();
   }
   int e = 0;
-  int r = sem_init(sem, pshared, value);
+  int r = 0;
+  struct tsem_s *p = (struct tsem_s *)calloc(1, sizeof(*p));
+  if (!p) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==out of memory\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  r = sem_init(&p->sem, pshared, value);
   e = errno;
   if (r) {
     fprintf(stderr, "==%s[%d]%s()sem:[%p]==failed\n", basename(__FILE__), __LINE__, __func__, sem);
+    free(p);
+    p = NULL;
+  } else {
+    p->valid = 1;
+    *sem = p;
   }
   errno = e;
   return r ? -1 : 0;
 }
 
 int tsem_post(tsem_t *sem) {
-  return sem_post(sem);
+  fprintf(stderr, "==%s[%d]%s()sem:[%p]==\n", basename(__FILE__), __LINE__, __func__, sem);
+  struct tsem_s *p = *sem;
+  if (!p) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  if (!p->valid) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==already destroyed\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  return sem_post(&p->sem);
+}
+
+int tsem_wait(tsem_t* sem) {
+  fprintf(stderr, "==%s[%d]%s()sem:[%p]==\n", basename(__FILE__), __LINE__, __func__, sem);
+  struct tsem_s *p = *sem;
+  if (!p) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  if (!p->valid) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==already destroyed\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  int ret = 0;
+  do {
+    ret = sem_wait(&p->sem);
+  } while (ret != 0 && errno == EINTR);
+  return ret;
+}
+
+int tsem_timedwait(tsem_t *sem, const struct timespec *abs_timeout) {
+  fprintf(stderr, "==%s[%d]%s()sem:[%p]==\n", basename(__FILE__), __LINE__, __func__, sem);
+  struct tsem_s *p = *sem;
+  if (!p) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  if (!p->valid) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==already destroyed\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  int ret = 0;
+  do {
+    ret = sem_timedwait(&p->sem, abs_timeout);
+    // EINTR: we don't adjust abs_timeout, because we are demon bug for the moment!!!
+  } while (ret != 0 && errno == EINTR);
+  return ret;
 }
 
 int tsem_destroy(tsem_t *sem) {
   fprintf(stderr, "==%s[%d]%s()sem:[%p]==\n", basename(__FILE__), __LINE__, __func__, sem);
-  if (0==memcmp(sem, zeros, sizeof(zeros))) {
+  struct tsem_s *p = *sem;
+  if (!p) {
+    fprintf(stderr, "==%s[%d]%s()sem:[%p]==not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  if (!p->valid) {
     fprintf(stderr, "==%s[%d]%s()sem:[%p]==already destroyed\n", basename(__FILE__), __LINE__, __func__, sem);
     abort();
   }
   int e = 0;
-  int r = sem_destroy(sem);
+  int r = sem_destroy(&p->sem);
   e = errno;
   if (r) {
     fprintf(stderr, "==%s[%d]%s()sem:[%p]==failed\n", basename(__FILE__), __LINE__, __func__, sem);
     abort();
   }
-  memset(sem, 0, sizeof(*sem));
+  p->valid = 0;
+  free(p);
+  *sem = NULL;
   errno = e;
   return r ? -1 : 0;
 }
-#endif // BUG_DEMO
-
+#else // BUG_DEMO
 int tsem_wait(tsem_t* sem) {
   int ret = 0;
   do {
@@ -66,6 +134,7 @@ int tsem_wait(tsem_t* sem) {
   } while (ret != 0 && errno == EINTR);
   return ret;
 }
+#endif // BUG_DEMO
 
 #endif
 
