@@ -6,7 +6,7 @@ import org.junit.Test;
 import java.sql.*;
 
 public class RestfulDriverTest {
-    private static final String host = "master";
+    private static final String host = "127.0.0.1";
 
     @Test
     public void connect() {

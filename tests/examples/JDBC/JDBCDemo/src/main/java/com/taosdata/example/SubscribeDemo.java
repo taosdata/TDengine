@@ -1,3 +1,5 @@
+package com.taosdata.example;
+
 import com.taosdata.jdbc.TSDBConnection;
 import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.TSDBResultSet;
@@ -6,9 +8,9 @@ import com.taosdata.jdbc.TSDBSubscribe;
 import java.sql.DriverManager;
 import java.util.Properties;
 
-public class TestTSDBSubscribe {
+public class SubscribeDemo {
 
-    public static TSDBConnection connectTDengine(String host, String database) throws Exception {
+    public static TSDBConnection getConnection(String host, String database) throws Exception {
         Class.forName("com.taosdata.jdbc.TSDBDriver");
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
@@ -17,7 +19,7 @@ public class TestTSDBSubscribe {
         properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
 
         String cs = String.format("jdbc:TAOS://%s:0/%s", host, database);
-        return (TSDBConnection)DriverManager.getConnection(cs, properties);
+        return (TSDBConnection) DriverManager.getConnection(cs, properties);
     }
 
     public static void main(String[] args) throws Exception {
@@ -43,21 +45,21 @@ public class TestTSDBSubscribe {
             }
         }
         if (database.isEmpty() || topic.isEmpty() || sql.isEmpty()) {
-             System.err.println(usage);
-             return;
+            System.err.println(usage);
+            return;
         }
 
         TSDBConnection connection = null;
         TSDBSubscribe sub = null;
         try {
-            connection = connectTDengine(host, database);
+            connection = getConnection(host, database);
             sub = ((TSDBConnection) connection).subscribe(topic, sql, false);
 
             int total = 0;
-            while(true) {
+            while (true) {
                 TSDBResultSet rs = sub.consume();
                 int count = 0;
-                while(rs.next()) {
+                while (rs.next()) {
                     count++;
                 }
                 total += count;
