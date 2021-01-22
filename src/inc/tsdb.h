@@ -114,6 +114,8 @@ void* tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_
 char* tsdbGetTableName(void *pTable);
 
 #define TSDB_TABLEID(_table) ((STableId*) (_table))
+#define TSDB_PREV_ROW  0x1
+#define TSDB_NEXT_ROW  0x2
 
 STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg);
 
@@ -141,7 +143,6 @@ typedef struct {
   int64_t   tableTotalDataSize;  // In bytes
   int64_t   tableTotalDiskSize;  // In bytes
 } STableInfo;
-STableInfo *tsdbGetTableInfo(TSDB_REPO_T *pRepo, STableId tid);
 
 // -- FOR INSERT DATA
 /**
@@ -160,9 +161,10 @@ typedef void *TsdbQueryHandleT;  // Use void to hide implementation details
 // query condition to build vnode iterator
 typedef struct STsdbQueryCond {
   STimeWindow  twindow;
-  int32_t      order;  // desc|asc order to iterate the data block
+  int32_t      order;             // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo *colList;
+  bool         loadExternalRows;  // load external rows or not
 } STsdbQueryCond;
 
 typedef struct SMemRef {
@@ -239,6 +241,8 @@ TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TSDB_REPO_T *tsdb, STsdbQueryCond
  * @return
  */
 bool tsdbNextDataBlock(TsdbQueryHandleT *pQueryHandle);
+
+SArray* tsdbGetExternalRow(TsdbQueryHandleT *pHandle, SMemRef* pMemRef, int16_t type);
 
 /**
  * Get current data block information

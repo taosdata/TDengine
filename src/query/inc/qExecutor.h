@@ -164,13 +164,14 @@ typedef struct SQuery {
   SColumnInfo*     tagColList;
   int32_t          numOfFilterCols;
   int64_t*         fillVal;
-  uint32_t         status;  // query status
+  uint32_t         status;             // query status
   SResultRec       rec;
   int32_t          pos;
   tFilePage**      sdata;
   STableQueryInfo* current;
+  int32_t          numOfCheckedBlocks; // number of check data blocks
 
-  SOrderedPrjQueryInfo prjInfo;  // limit value for each vgroup, only available in global order projection query.
+  SOrderedPrjQueryInfo prjInfo;        // limit value for each vgroup, only available in global order projection query.
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;
 

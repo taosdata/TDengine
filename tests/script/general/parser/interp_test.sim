@@ -638,209 +638,293 @@ if $data24 != NULL then
   return -1
 endi
 
-  ## interp(*) from stb + group by + fill(prev)
-  $t = $ts0 + 1000
-  sql select interp(*) from $stb where ts = $t fill(prev) group by tbname
-  print ====== 0:$data00, 1:$data01, 2:$data02, 3:$data03, 4:$data04, 5:$data05, 6:$data06, 7:$data07, 8:$data08, 9:$data09
-  print ====== 0:$data20, 1:$data21, 2:$data22, 3:$data23, 4:$data24, 5:$data25, 6:$data26, 7:$data27, 8:$data28, 9:$data29
-  if $rows != $tbNum then
-    return -1
-  endi
-  if $data00 != @18-09-17 09:00:01.000@ then
-    return -1
-  endi
-  if $data01 != 0 then
-    return -1
-  endi
-  if $data02 != 0 then
-    return -1
-  endi
-  if $data03 != 0.00000 then
-    return -1
-  endi
-  if $data04 != 0.000000000 then
-    return -1
-  endi
-  if $data05 != 0 then
-    return -1
-  endi
-  if $data06 != 0 then
-     return -1
-  endi
-  if $data07 != 1 then
-    return -1
-  endi
-  if $data08 != binary0 then
-    return -1
-  endi
-  if $data09 != nchar0 then
-    return -1
-  endi
-  if $data20 != @18-09-17 09:00:01.000@ then
-    return -1
-  endi
-  if $data21 != 0 then
-    return -1
-  endi
-  if $data22 != NULL then
-    return -1
-  endi
-  if $data23 != 0.00000 then
-    return -1
-  endi
-  if $data24 != NULL then
-    return -1
-  endi
-  if $data25 != 0 then
-    return -1
-  endi
-  if $data26 != 0 then
-     return -1
-  endi
-  if $data27 != 1 then
-    return -1
-  endi
-  if $data28 != binary0 then
-    return -1
-  endi
-  if $data29 != nchar0 then
-    return -1
-  endi
+## interp(*) from stb + group by + fill(prev)
+$t = $ts0 + 1000
+sql select interp(*) from $stb where ts = $t fill(prev) group by tbname
+print ====== 0:$data00, 1:$data01, 2:$data02, 3:$data03, 4:$data04, 5:$data05, 6:$data06, 7:$data07, 8:$data08, 9:$data09
+print ====== 0:$data20, 1:$data21, 2:$data22, 3:$data23, 4:$data24, 5:$data25, 6:$data26, 7:$data27, 8:$data28, 9:$data29
+if $rows != $tbNum then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:01.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data02 != 0 then
+  return -1
+endi
+if $data03 != 0.00000 then
+  return -1
+endi
+if $data04 != 0.000000000 then
+  return -1
+endi
+if $data05 != 0 then
+  return -1
+endi
+if $data06 != 0 then
+   return -1
+endi
+if $data07 != 1 then
+  return -1
+endi
+if $data08 != binary0 then
+  return -1
+endi
+if $data09 != nchar0 then
+  return -1
+endi
+if $data20 != @18-09-17 09:00:01.000@ then
+  return -1
+endi
+if $data21 != 0 then
+  return -1
+endi
+if $data22 != NULL then
+  return -1
+endi
+if $data23 != 0.00000 then
+  return -1
+endi
+if $data24 != NULL then
+  return -1
+endi
+if $data25 != 0 then
+  return -1
+endi
+if $data26 != 0 then
+   return -1
+endi
+if $data27 != 1 then
+  return -1
+endi
+if $data28 != binary0 then
+  return -1
+endi
+if $data29 != nchar0 then
+  return -1
+endi
 
-  ## interp(*) from stb + group by + fill(linear)
-  $t = $ts0 + 1000
-  sql select interp(*) from $stb where ts = $t fill(linear) group by tbname
-  print ====== 0:$data00, 1:$data01, 2:$data02, 3:$data03, 4:$data04, 5:$data05, 6:$data06, 7:$data07, 8:$data08, 9:$data09
-  print ====== 0:$data20, 1:$data21, 2:$data22, 3:$data23, 4:$data24, 5:$data25, 6:$data26, 7:$data27, 8:$data28, 9:$data29
-  if $rows != $tbNum then
-    return -1
-  endi
-  if $data00 != @18-09-17 09:00:01.000@ then
-    return -1
-  endi
-  if $data01 != 0 then
-    return -1
-  endi
-  if $data02 != 0 then
-    return -1
-  endi
-  if $data03 != 0.00167 then
-    return -1
-  endi
-  if $data04 != 0.001666667 then
-    return -1
-  endi
-  if $data05 != 0 then
-    return -1
-  endi
-  if $data06 != 0 then
-     return -1
-  endi
-  if $data07 != NULL then
-    return -1
-  endi
-  if $data08 != NULL then
-    return -1
-  endi
-  if $data09 != NULL then
-    return -1
-  endi
-  if $data20 != @18-09-17 09:00:01.000@ then
-    return -1
-  endi
-  if $data21 != 0 then
-    return -1
-  endi
-  if $data22 != NULL then
-    return -1
-  endi
-  if $data23 != 0.00167 then
-    return -1
-  endi
-  if $data24 != NULL then
-    return -1
-  endi
-  if $data25 != 0 then
-    return -1
-  endi
-  if $data26 != 0 then
-     return -1
-  endi
-  if $data27 != NULL then
-    return -1
-  endi
-  if $data28 != NULL then
-    return -1
-  endi
-  if $data29 != NULL then
-    return -1
-  endi
+## interp(*) from stb + group by + fill(linear)
+$t = $ts0 + 1000
+sql select interp(*) from $stb where ts = $t fill(linear) group by tbname
+print ====== 0:$data00, 1:$data01, 2:$data02, 3:$data03, 4:$data04, 5:$data05, 6:$data06, 7:$data07, 8:$data08, 9:$data09
+print ====== 0:$data20, 1:$data21, 2:$data22, 3:$data23, 4:$data24, 5:$data25, 6:$data26, 7:$data27, 8:$data28, 9:$data29
+if $rows != $tbNum then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:01.000@ then
+  return -1
+endi
+if $data01 != 0 then
+  return -1
+endi
+if $data02 != 0 then
+  return -1
+endi
+if $data03 != 0.00167 then
+  return -1
+endi
+if $data04 != 0.001666667 then
+  return -1
+endi
+if $data05 != 0 then
+  return -1
+endi
+if $data06 != 0 then
+   return -1
+endi
+if $data07 != NULL then
+  return -1
+endi
+if $data08 != NULL then
+  return -1
+endi
+if $data09 != NULL then
+  return -1
+endi
+if $data20 != @18-09-17 09:00:01.000@ then
+  return -1
+endi
+if $data21 != 0 then
+  return -1
+endi
+if $data22 != NULL then
+  return -1
+endi
+if $data23 != 0.00167 then
+  return -1
+endi
+if $data24 != NULL then
+  return -1
+endi
+if $data25 != 0 then
+  return -1
+endi
+if $data26 != 0 then
+   return -1
+endi
+if $data27 != NULL then
+  return -1
+endi
+if $data28 != NULL then
+  return -1
+endi
+if $data29 != NULL then
+  return -1
+endi
 
-    ## interp(*) from stb + group by + fill(value)
-  $t = $ts0 + 1000
-  sql select interp(*) from $stb where ts = $t fill(value, -1, -2) group by tbname
-  print ====== 0:$data00, 1:$data01, 2:$data02, 3:$data03, 4:$data04, 5:$data05, 6:$data06, 7:$data07, 8:$data08, 9:$data09
-  print ====== 0:$data20, 1:$data21, 2:$data22, 3:$data23, 4:$data24, 5:$data25, 6:$data26, 7:$data27, 8:$data28, 9:$data29
-  if $rows != $tbNum then
-    return -1
-  endi
-  if $data00 != @18-09-17 09:00:01.000@ then
-    return -1
-  endi
-  if $data01 != -2 then
-    return -1
-  endi
-  if $data02 != -2 then
-    return -1
-  endi
-  if $data03 != -2.00000 then
-    return -1
-  endi
-  if $data04 != -2.000000000 then
-    return -1
-  endi
-  if $data05 != -2 then
-    return -1
-  endi
-  if $data06 != -2 then
-     return -1
-  endi
-  if $data07 != 1 then
-    return -1
-  endi
-  if $data08 != NULL then
-    return -1
-  endi
-  if $data09 != NULL then
-    return -1
-  endi
-  if $data20 != @18-09-17 09:00:01.000@ then
-    return -1
-  endi
-  if $data21 != -2 then
-    return -1
-  endi
-  if $data22 != -2 then
-    return -1
-  endi
-  if $data23 != -2.00000 then
-    return -1
-  endi
-  if $data24 != -2.000000000 then
-    return -1
-  endi
-  if $data25 != -2 then
-    return -1
-  endi
-  if $data26 != -2 then
-     return -1
-  endi
-  if $data27 != 1 then
-    return -1
-  endi
-  if $data28 != NULL then
-    return -1
-  endi
-  if $data29 != NULL then
-    return -1
-  endi
+  ## interp(*) from stb + group by + fill(value)
+$t = $ts0 + 1000
+sql select interp(*) from $stb where ts = $t fill(value, -1, -2) group by tbname
+print ====== 0:$data00, 1:$data01, 2:$data02, 3:$data03, 4:$data04, 5:$data05, 6:$data06, 7:$data07, 8:$data08, 9:$data09
+print ====== 0:$data20, 1:$data21, 2:$data22, 3:$data23, 4:$data24, 5:$data25, 6:$data26, 7:$data27, 8:$data28, 9:$data29
+if $rows != $tbNum then
+  return -1
+endi
+if $data00 != @18-09-17 09:00:01.000@ then
+  return -1
+endi
+if $data01 != -2 then
+  return -1
+endi
+if $data02 != -2 then
+  return -1
+endi
+if $data03 != -2.00000 then
+  return -1
+endi
+if $data04 != -2.000000000 then
+  return -1
+endi
+if $data05 != -2 then
+  return -1
+endi
+if $data06 != -2 then
+   return -1
+endi
+if $data07 != 1 then
+  return -1
+endi
+if $data08 != NULL then
+  return -1
+endi
+if $data09 != NULL then
+  return -1
+endi
+if $data20 != @18-09-17 09:00:01.000@ then
+  return -1
+endi
+if $data21 != -2 then
+  return -1
+endi
+if $data22 != -2 then
+  return -1
+endi
+if $data23 != -2.00000 then
+  return -1
+endi
+if $data24 != -2.000000000 then
+  return -1
+endi
+if $data25 != -2 then
+  return -1
+endi
+if $data26 != -2 then
+   return -1
+endi
+if $data27 != 1 then
+  return -1
+endi
+if $data28 != NULL then
+  return -1
+endi
+if $data29 != NULL then
+  return -1
+endi
+
+sql_error select interp(ts,c1) from intp_tb0 where ts>'2018-11-25 19:19:00' and ts<'2018-11-25 19:19:12';
+sql select interp(ts,c1) from intp_tb0 where ts>'2018-11-25 19:19:00' and ts<'2018-11-25 19:19:12' interval(1s) fill(linear);
+if $rows != 0 then
+  return -1
+endi
+
+sql select interp(c1) from intp_tb0 where ts>'2018-11-25 18:09:00' and ts<'2018-11-25 19:20:12' interval(18m);
+if $rows != 0 then
+  return -1
+endi
+
+if $data00 != @2018-11-25 18:30:00.000@ then
+  return -1
+endi
+
+if $data01 != 3 then
+  return -1
+endi
+
+sql select interp(c1,c3,c4,ts) from intp_tb0 where ts>'2018-11-25 18:09:00' and ts<'2018-11-25 19:20:12' interval(18m) fill(linear)
+if $rows != 5 then
+  return -1
+endi
+
+if $data00 != @2018-11-25 17:54:00.000@  then
+  return -1
+endi
+
+if $data01 != 0 then
+  return -1
+endi
+
+if $data02 != 0.00000 then
+  return -1
+endi
+
+if $data03 != 0.000000000 then
+  return -1
+endi
+
+if $data04 != @2018-11-25 17:54:00.000@ then
+  return -1
+endi
+
+if $data10 != @2018-11-25 18:12:00.000@ then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+if $data12 != 1.20000 then
+  return -1
+endi
+
+if $data13 != 1.200000000 then
+  return -1
+endi
+
+if $data14 != @2018-11-25 18:12:00.000@ then
+  return -1
+endi
+
+if $data40 != @2018-11-25 19:06:00.000@ then
+  return -1
+endi
+
+if $data41 != 6 then
+  return -1
+endi
+
+if $data42 != 6.60000 then
+  return -1
+endi
+
+if $data43 != 6.600000000 then
+  return -1
+endi
+
+if $data44 != @2018-11-25 19:06:00.000@ then
+  return -1
+endi

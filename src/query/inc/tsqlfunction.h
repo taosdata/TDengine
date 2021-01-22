@@ -153,7 +153,7 @@ typedef struct SResultRowCellInfo {
 
 typedef struct SPoint1 {
   int64_t key;
-  double  val;
+  union{double  val; char* ptr;};
 } SPoint1;
 
 #define GET_ROWCELL_INTERBUF(_c) ((void*) ((char*)(_c) + sizeof(SResultRowCellInfo)))
