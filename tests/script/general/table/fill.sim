@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 
 print =================== step1
@@ -42,9 +42,9 @@ sql select count(*), last(ts), min(k), max(k), avg(k) from db.mt where a=0 and t
 
 print =================== step2
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
-system sh/exec.sh -n dnode1 -s start
 sleep 3000
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
 
 print =================== step3
 sql select * from db.mt

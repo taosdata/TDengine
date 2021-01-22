@@ -32,7 +32,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+sleep 2000
 
 sql create database d1 replica 2 
 sql create table d1.t1(ts timestamp, i int)
@@ -60,7 +60,7 @@ print dnode1 $data4_2
 if $data4_1 != ready then
   return -1
 endi
-if $data4_2 != offline then
+if $data4_2 == ready then
   return -1
 endi
 
@@ -84,11 +84,11 @@ system sh/exec.sh -n dnode3 -s start
 system sh/exec.sh -n dnode2 -s start
 sql drop dnode $hostname2
 
-sleep 5000
+sleep 3000
 $x = 0
 show4: 
 	$x = $x + 1
-	sleep 5000
+	sleep 3000
 	if $x == 10 then 
 	  return -1
 	endi

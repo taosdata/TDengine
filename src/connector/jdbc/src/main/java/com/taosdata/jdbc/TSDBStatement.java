@@ -17,6 +17,7 @@ package com.taosdata.jdbc;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 public class TSDBStatement implements Statement {
     private TSDBJNIConnector connector = null;
@@ -51,12 +52,18 @@ public class TSDBStatement implements Statement {
         this.isClosed = false;
     }
 
+    @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        try {
+            return iface.cast(this);
+        } catch (ClassCastException cce) {
+            throw new SQLException("Unable to unwrap to " + iface.toString());
+        }
     }
 
+    @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return iface.isInstance(this);
     }
 
     public ResultSet executeQuery(String sql) throws SQLException {
@@ -68,7 +75,6 @@ public class TSDBStatement implements Statement {
         pSql = this.connector.executeQuery(sql);
 
         long resultSetPointer = this.connector.getResultSet();
-
         if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
             this.connector.freeResultSet(pSql);
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
@@ -130,10 +136,15 @@ public class TSDBStatement implements Statement {
     }
 
     public void setMaxFieldSize(int max) throws SQLException {
+        if (isClosed())
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
+
         throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     public int getMaxRows() throws SQLException {
+        if (isClosed())
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         // always set maxRows to zero, meaning unlimitted rows in a resultSet
         return 0;
     }

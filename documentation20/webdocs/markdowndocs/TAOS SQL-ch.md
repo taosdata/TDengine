@@ -58,24 +58,26 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 - **创建数据库**  
 
-  ```mysql
-  CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [UPDATE 1];
-  ```
-  说明：
-
-  1) KEEP是该数据库的数据保留多长天数，缺省是3650天(10年)，数据库会自动删除超过时限的数据；
-
-  2) UPDATE 标志数据库支持更新相同时间戳数据；
-
-  3) 数据库名最大长度为33；
-  4) 一条SQL 语句的最大长度为65480个字符；
-  5) 数据库还有更多与存储相关的配置参数，请参见系统管理。
+    ```mysql
+    CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [UPDATE 1];
+    ```
+    说明：
+ 
+    1) KEEP是该数据库的数据保留多长天数，缺省是3650天(10年)，数据库会自动删除超过时限的数据；
+ 
+    2) UPDATE 标志数据库支持更新相同时间戳数据；
+ 
+    3) 数据库名最大长度为33；
+ 
+    4) 一条SQL 语句的最大长度为65480个字符；
+ 
+    5) 数据库还有更多与存储相关的配置参数，请参见系统管理。
 
 - **显示系统当前参数**
 
-  ```mysql
-  SHOW VARIABLES;
-  ```
+    ```mysql
+    SHOW VARIABLES;
+    ```
 
 - **使用数据库**
 
@@ -119,6 +121,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     **Tips**: 以上所有参数修改后都可以用show databases来确认是否修改成功。
 
 - **显示系统所有数据库**
+
     ```mysql
     SHOW DATABASES;
     ```
@@ -130,11 +133,36 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]);
     ```
     说明：
+
     1) 表的第一个字段必须是TIMESTAMP，并且系统自动将其设为主键；
-    2) 表名最大长度为193；
+
+    2) 表名最大长度为192；
+
     3) 表的每行长度不能超过16k个字符;
+
     4) 子表名只能由字母、数字和下划线组成，且不能以数字开头
+
     5) 使用数据类型binary或nchar，需指定其最长的字节数，如binary(20)，表示20字节；
+
+- **以超级表为模板创建数据表**
+
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
+    ```
+    以指定的超级表为模板，指定 tags 的值来创建数据表。
+
+- **批量创建数据表**
+
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
+    ```
+    以更快的速度批量创建大量数据表。（服务器端 2.0.14 及以上版本）
+    
+    说明：
+
+    1）批量建表方式要求数据表必须以超级表为模板。
+
+    2）在不超出 SQL 语句长度限制的前提下，单条语句中的建表数量建议控制在 1000～3000 之间，将会获得比较理想的建表速度。
 
 - **删除数据表**
 
@@ -148,7 +176,11 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     SHOW TABLES [LIKE tb_name_wildcar];
     ```
 
-    显示当前数据库下的所有数据表信息。说明：可在 like 中使用通配符进行名称的匹配。 通配符匹配：1）“%”（百分号）匹配 0 到任意个字符；2）“\_”（下划线）匹配一个字符。
+    显示当前数据库下的所有数据表信息。
+
+    说明：可在like中使用通配符进行名称的匹配，这一通配符字符串最长不能超过24字节。
+
+    通配符匹配：1）’%’ (百分号)匹配0到任意个字符；2）’\_’下划线匹配一个字符。
 
 - **在线修改显示字符宽度**
 
@@ -168,8 +200,10 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ALTER TABLE tb_name ADD COLUMN field_name data_type;
     ```
     说明：
+
     1) 列的最大个数为1024，最小个数为2；
-    2) 列名最大长度为65；
+
+    2) 列名最大长度为64；
 
 - **表删除列**
 
@@ -187,10 +221,14 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     创建STable, 与创建表的SQL语法相似，但需指定TAGS字段的名称和类型
 
     说明：
+
     1) TAGS 列的数据类型不能是timestamp类型；
+
     2) TAGS 列名不能与其他列名相同；
+
     3) TAGS 列名不能为预留关键字；
-    4) TAGS 最多允许128个，可以0个，总长度不超过16k个字符
+
+    4) TAGS 最多允许128个，至少1个，总长度不超过16k个字符。
 
 - **删除超级表**
 
@@ -316,7 +354,9 @@ SELECT select_expr [, select_expr ...]
     [LIMIT limit_val [, OFFSET offset_val]]
     [>> export_file]
 ```
+
 说明：针对 insert 类型的 SQL 语句，我们采用的流式解析策略，在发现后面的错误之前，前面正确的部分SQL仍会执行。下面的sql中，insert语句是无效的，但是d1001仍会被创建。
+
 ```mysql
 taos> CREATE TABLE meters(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS(location BINARY(30), groupId INT);
 Query OK, 0 row(s) affected (0.008245s)
@@ -551,8 +591,8 @@ Query OK, 1 row(s) in set (0.001091s)
 | %         | match with any char sequences | **`binary`** **`nchar`**              |
 | _         | match with a single char      | **`binary`** **`nchar`**              |
 
-1. 同时进行多个字段的范围过滤需要使用关键词AND进行连接不同的查询条件，暂不支持OR连接的不同列之间的查询过滤条件。
-2. 针对某一字段的过滤只支持单一时间区间过滤条件。但是针对其他的（普通）列或标签列，可以使用``` OR``` 条件进行组合条件的查询过滤。例如：((value > 20 and value < 30)  OR (value < 12)) 。
+1. 同时进行多个字段的范围过滤，需要使用关键词 AND 来连接不同的查询条件，暂不支持 OR 连接的不同列之间的查询过滤条件。
+2. 针对单一字段的过滤，如果是时间过滤条件，则一条语句中只支持设定一个；但针对其他的（普通）列或标签列，则可以使用``` OR``` 关键字进行组合条件的查询过滤。例如：((value > 20 and value < 30) OR (value < 12)) 。
 
 ### SQL 示例 
 
@@ -597,10 +637,20 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表/超级表中记录行数或某列的非空值个数。
+
     返回结果数据类型：长整型INT64。
+
     应用字段：应用全部字段。
+
     适用于：表、超级表。
-    说明：1）可以使用星号*来替代具体的字段，使用星号(*)返回全部记录数量。2）针对同一表的（不包含NULL值）字段查询结果均相同。3）如果统计对象是具体的列，则返回该列中非NULL值的记录数量。
+
+    说明：
+
+    1）可以使用星号*来替代具体的字段，使用星号(*)返回全部记录数量。
+
+    2）针对同一表的（不包含NULL值）字段查询结果均相同。
+
+    3）如果统计对象是具体的列，则返回该列中非NULL值的记录数量。
 
     示例：
     ```mysql
@@ -622,8 +672,11 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT AVG(field_name) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的平均值。
+
     返回结果数据类型：双精度浮点数Double。
+
     应用字段：不能应用在timestamp、binary、nchar、bool字段。
+
     适用于：表、超级表。
 
     示例：
@@ -645,19 +698,24 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```mysql
     SELECT TWA(field_name) FROM tb_name WHERE clause;
     ```
-    功能说明：时间加权平均函数。统计表/超级表中某列在一段时间内的时间加权平均。
+    功能说明：时间加权平均函数。统计表中某列在一段时间内的时间加权平均。
+
     返回结果数据类型：双精度浮点数Double。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
-    说明：时间加权平均(time weighted average, TWA）查询需要指定查询时间段的 _开始时间_ 和 _结束时间_ 。
-    适用于：表、超级表。
+
+    适用于：表。
 
 - **SUM**
     ```mysql
     SELECT SUM(field_name) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的和。
+
     返回结果数据类型：双精度浮点数Double和长整型INT64。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
+
     适用于：表、超级表。
 
     示例：
@@ -680,9 +738,12 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表中某列的均方差。
+
     返回结果数据类型：双精度浮点数Double。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
-    适用于：表。
+
+    适用于：表。（从 2.0.15 版本开始，本函数也支持超级表）
 
     示例：
     ```mysql
@@ -698,9 +759,13 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT LEASTSQUARES(field_name, start_val, step_val) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表中某列的值是主键（时间戳）的拟合直线方程。start_val是自变量初始值，step_val是自变量的步长值。
+
     返回结果数据类型：字符串表达式（斜率, 截距）。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
+
     说明：自变量是时间戳，因变量是该列的值。
+
     适用于：表。
 
     示例：
@@ -719,7 +784,9 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的值最小值。
+
     返回结果数据类型：同应用的字段。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
 
     示例：
@@ -742,7 +809,9 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的值最大值。
+
     返回结果数据类型：同应用的字段。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
 
     示例：
@@ -765,9 +834,18 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的值最先写入的非NULL值。
+
     返回结果数据类型：同应用的字段。
+
     应用字段：所有字段。
-    说明：1）如果要返回各个列的首个（时间戳最小）非NULL值，可以使用FIRST(\*)；2) 如果结果集中的某列全部为NULL值，则该列的返回结果也是NULL；3) 如果结果集中所有列全部为NULL值，则不返回结果。
+
+    说明：
+
+    1）如果要返回各个列的首个（时间戳最小）非NULL值，可以使用FIRST(\*)；
+
+    2) 如果结果集中的某列全部为NULL值，则该列的返回结果也是NULL；
+
+    3) 如果结果集中所有列全部为NULL值，则不返回结果。
 
     示例：
     ```mysql
@@ -789,9 +867,16 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的值最后写入的非NULL值。
+
     返回结果数据类型：同应用的字段。
+
     应用字段：所有字段。
-    说明：1）如果要返回各个列的最后（时间戳最大）一个非NULL值，可以使用LAST(\*)；2）如果结果集中的某列全部为NULL值，则该列的返回结果也是NULL；如果结果集中所有列全部为NULL值，则不返回结果。
+
+    说明：
+
+    1）如果要返回各个列的最后（时间戳最大）一个非NULL值，可以使用LAST(\*)；
+
+    2）如果结果集中的某列全部为NULL值，则该列的返回结果也是NULL；如果结果集中所有列全部为NULL值，则不返回结果。
 
     示例：
     ```mysql
@@ -813,9 +898,16 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明： 统计表/超级表中某列的值最大*k*个非NULL值。若多于k个列值并列最大，则返回时间戳小的。
+
     返回结果数据类型：同应用的字段。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
-    说明：1）*k*值取值范围1≤*k*≤100；2）系统同时返回该记录关联的时间戳列。
+
+    说明：
+
+    1）*k*值取值范围1≤*k*≤100；
+
+    2）系统同时返回该记录关联的时间戳列。
 
     示例：
     ```mysql
@@ -840,9 +932,16 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的值最小*k*个非NULL值。若多于k个列值并列最小，则返回时间戳小的。
+
     返回结果数据类型：同应用的字段。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
-    说明：1）*k*值取值范围1≤*k*≤100；2）系统同时返回该记录关联的时间戳列。
+
+    说明：
+
+    1）*k*值取值范围1≤*k*≤100；
+
+    2）系统同时返回该记录关联的时间戳列。
 
     示例：
     ```mysql
@@ -866,8 +965,11 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT PERCENTILE(field_name, P) FROM { tb_name } [WHERE clause];
     ```
     功能说明：统计表中某列的值百分比分位数。
+
     返回结果数据类型： 双精度浮点数Double。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
+
     说明：*P*值取值范围0≤*P*≤100，为0的时候等同于MIN，为100的时候等同于MAX。
 
     示例：
@@ -884,9 +986,13 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT APERCENTILE(field_name, P) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表中某列的值百分比分位数，与PERCENTILE函数相似，但是返回近似结果。
+
     返回结果数据类型： 双精度浮点数Double。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
+
     说明：*P*值取值范围0≤*P*≤100，为0的时候等同于MIN，为100的时候等同于MAX。推荐使用```APERCENTILE```函数，该函数性能远胜于```PERCENTILE```函数
+
     ```mysql
     taos> SELECT APERCENTILE(current, 20) FROM d1001;
     apercentile(current, 20)  |
@@ -900,8 +1006,11 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
     ```
     功能说明：返回表（超级表）的最后一条记录。
+
     返回结果数据类型：同应用的字段。
+
     应用字段：所有字段。
+
     说明：与last函数不同，last_row不支持时间范围限制，强制返回最后一条记录。
 
     示例：
@@ -925,8 +1034,11 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT DIFF(field_name) FROM tb_name [WHERE clause];
     ```
     功能说明：统计表中某列的值与前一行对应值的差。
+
     返回结果数据类型： 同应用字段。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
+
     说明：输出结果行数是范围内总行数减一，第一行没有结果输出。
 
     示例：
@@ -944,8 +1056,11 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT SPREAD(field_name) FROM { tb_name | stb_name } [WHERE clause];
     ```
     功能说明：统计表/超级表中某列的最大值和最小值之差。
+
     返回结果数据类型： 双精度浮点数。
+
     应用字段：不能应用在binary、nchar、bool类型字段。
+
     说明：可用于TIMESTAMP字段，此时表示记录的时间覆盖范围。
 
     示例：
@@ -969,9 +1084,16 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     SELECT field_name [+|-|*|/|%][Value|field_name] FROM { tb_name | stb_name }  [WHERE clause];
     ```
     功能说明：统计表/超级表中某列或多列间的值加、减、乘、除、取余计算结果。
+
     返回结果数据类型：双精度浮点数。
+
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
-    说明：1）支持两列或多列之间进行计算，可使用括号控制计算优先级;2）NULL字段不参与计算，如果参与计算的某行中包含NULL，该行的计算结果为NULL。
+
+    说明：
+
+    1）支持两列或多列之间进行计算，可使用括号控制计算优先级；
+
+    2）NULL字段不参与计算，如果参与计算的某行中包含NULL，该行的计算结果为NULL。
 
     ```mysql
     taos> SELECT current + voltage * phase FROM d1001;
@@ -1003,11 +1125,8 @@ SELECT function_list FROM stb_name
 - WHERE语句可以指定查询的起止时间和其他过滤条件
 - FILL语句指定某一时间区间数据缺失的情况下的填充模式。填充模式包括以下几种：
   1. 不进行填充：NONE(默认填充模式)。
-
   2. VALUE填充：固定值填充，此时需要指定填充的数值。例如：fill(value, 1.23)。
-
   3. NULL填充：使用NULL填充数据。例如：fill(null)。
-
   4. PREV填充：使用前一个非NULL值填充数据。例如：fill(prev)。
 
 说明：
@@ -1035,7 +1154,7 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 - 数据库名最大长度为32
 - 表名最大长度为192，每行数据最大长度16k个字符
 - 列名最大长度为64，最多允许1024列，最少需要2列，第一列必须是时间戳
-- 标签最多允许128个，可以0个，标签总长度不超过16k个字符
+- 标签最多允许128个，可以1个，标签总长度不超过16k个字符
 - SQL语句最大长度65480个字符，但可通过系统配置参数maxSQLLength修改，最长可配置为1M
 - 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制
 

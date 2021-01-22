@@ -233,7 +233,7 @@ typedef struct {
   SMemTable*      mem;
   SMemTable*      imem;
   STsdbFileH*     tsdbFileH;
-  sem_t           readyToCommit;
+  tsem_t          readyToCommit;
   pthread_mutex_t mutex;
   bool            repoLocked;
   int32_t         code; // Commit code

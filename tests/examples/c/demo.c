@@ -86,22 +86,22 @@ void Test(TAOS *taos, char *qstr, int index)  {
 
   int i = 0;
   for (i = 0; i < 10; ++i) {
-    sprintf(qstr, "insert into m1 values (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')", 1546300800000 + i * 1000, i, i, i, i*10000000, i*1.0, i*2.0, "hello");
+    sprintf(qstr, "insert into m1 values (%" PRId64 ", %d, %d, %d, %d, %f, %lf, '%s')", (uint64_t)(1546300800000 + i * 1000), i, i, i, i*10000000, i*1.0, i*2.0, "hello");
     printf("qstr: %s\n", qstr);
     
     // note: how do you wanna do if taos_query returns non-NULL
     // if (taos_query(taos, qstr)) {
     //   printf("insert row: %i, reason:%s\n", i, taos_errstr(taos));
     // }
-    TAOS_RES *result = taos_query(taos, qstr);
-    if (result) {
+    TAOS_RES *result1 = taos_query(taos, qstr);
+    if (result1) {
       printf("insert row: %i\n", i);
     } else {
       printf("failed to insert row: %i, reason:%s\n", i, "null result"/*taos_errstr(result)*/);
-      taos_free_result(result);
+      taos_free_result(result1);
       exit(1);
     }
-    taos_free_result(result);
+    taos_free_result(result1);
 
   }
   printf("success to insert rows, total %d rows\n", i);

@@ -9,7 +9,7 @@ system sh/cfg.sh -n dnode1 -c monitor         -v 1
 system sh/cfg.sh -n dnode1 -c monitorInterval -v 1
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 
 print =============== step1
@@ -121,7 +121,7 @@ endi
 
 print =============== step4
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
 print sleep 22 seconds
 sleep 22000 

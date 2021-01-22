@@ -52,14 +52,14 @@ int32_t dnodeInitVWrite() {
 void dnodeCleanupVWrite() {
   for (int32_t i = 0; i < tsVWriteWP.max; ++i) {
     SVWriteWorker *pWorker = tsVWriteWP.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(pWorker->qset);
     }
   }
 
   for (int32_t i = 0; i < tsVWriteWP.max; ++i) {
     SVWriteWorker *pWorker = tsVWriteWP.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
       taosFreeQall(pWorker->qall);
       taosCloseQset(pWorker->qset);
@@ -202,13 +202,14 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
     for (int32_t i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(pWorker->qall, &qtype, (void **)&pWrite);
       dTrace("msg:%p, app:%p type:%s will be processed in vwrite queue, qtype:%s hver:%" PRIu64, pWrite,
-             pWrite->rpcMsg.ahandle, taosMsg[pWrite->pHead->msgType], qtypeStr[qtype], pWrite->pHead->version);
+             pWrite->rpcMsg.ahandle, taosMsg[pWrite->pHead.msgType], qtypeStr[qtype], pWrite->pHead.version);
 
-      pWrite->code = vnodeProcessWrite(pVnode, pWrite->pHead, qtype, &pWrite->rspRet);
+      pWrite->code = vnodeProcessWrite(pVnode, &pWrite->pHead, qtype, pWrite);
       if (pWrite->code <= 0) pWrite->processedCount = 1;
-      if (pWrite->code == 0 && pWrite->pHead->msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
+      if (pWrite->code > 0) pWrite->code = 0;
+      if (pWrite->code == 0 && pWrite->pHead.msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
 
-      dTrace("msg:%p is processed in vwrite queue, result:%s", pWrite, tstrerror(pWrite->code));
+      dTrace("msg:%p is processed in vwrite queue, code:0x%x", pWrite, pWrite->code);
     }
 
     walFsync(vnodeGetWal(pVnode), forceFsync);
@@ -221,7 +222,7 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
         dnodeSendRpcVWriteRsp(pVnode, pWrite, pWrite->code);
       } else {
         if (qtype == TAOS_QTYPE_FWD) {
-          vnodeConfirmForward(pVnode, pWrite->pHead->version, 0);
+          vnodeConfirmForward(pVnode, pWrite->pHead.version, 0);
         }
         if (pWrite->rspRet.rsp) {
           rpcFreeCont(pWrite->rspRet.rsp);

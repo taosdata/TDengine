@@ -19,9 +19,12 @@ import java.util.Map;
 
 public abstract class TSDBConstants {
 
+    public static final String STATEMENT_CLOSED = "Statement already closed.";
     public static final String DEFAULT_PORT = "6200";
     public static final String UNSUPPORT_METHOD_EXCEPTIONZ_MSG = "this operation is NOT supported currently!";
     public static final String INVALID_VARIABLES = "invalid variables";
+    public static final String RESULT_SET_IS_CLOSED = "resultSet is closed.";
+
     public static Map<Integer, String> DATATYPE_MAP = null;
 
     public static final long JNI_NULL_POINTER = 0L;
@@ -74,7 +77,7 @@ public abstract class TSDBConstants {
     }
 
     static {
-        DATATYPE_MAP = new HashMap<Integer, String>();
+        DATATYPE_MAP = new HashMap<>();
         DATATYPE_MAP.put(1, "BOOL");
         DATATYPE_MAP.put(2, "TINYINT");
         DATATYPE_MAP.put(3, "SMALLINT");

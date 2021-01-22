@@ -241,7 +241,7 @@ int32_t taosReadn(SOCKET fd, char *ptr, int32_t nbytes) {
 
 SOCKET taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   struct sockaddr_in localAddr;
-  SOCKET  sockFd;
+  SOCKET sockFd;
   int32_t bufSize = 1024000;
 
   uDebug("open udp socket:0x%x:%hu", ip, port);
@@ -251,7 +251,7 @@ SOCKET taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   localAddr.sin_addr.s_addr = ip;
   localAddr.sin_port = (uint16_t)htons(port);
 
-  if ((sockFd = (int32_t)socket(AF_INET, SOCK_DGRAM, 0)) <= 2) {
+  if ((sockFd = socket(AF_INET, SOCK_DGRAM, 0)) <= 2) {
     uError("failed to open udp socket: %d (%s)", errno, strerror(errno));
     taosCloseSocketNoCheck(sockFd);
     return -1;
@@ -280,13 +280,13 @@ SOCKET taosOpenUdpSocket(uint32_t ip, uint16_t port) {
 }
 
 SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clientIp) {
-  SOCKET  sockFd = 0;
+  SOCKET sockFd = 0;
   int32_t ret;
   struct sockaddr_in serverAddr, clientAddr;
   int32_t bufSize = 1024 * 1024;
 
   sockFd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-
+  
   if (sockFd <= 2) {
     uError("failed to open the socket: %d (%s)", errno, strerror(errno));
     taosCloseSocketNoCheck(sockFd);
@@ -354,6 +354,8 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
     return -1;
   }
 
+#ifndef __APPLE__
+  // all fails on macosx
   int32_t probes = 3;
   if (taosSetSockOpt(sockFd, SOL_TCP, TCP_KEEPCNT, (void *)&probes, sizeof(probes)) < 0) {
     uError("fd:%d setsockopt SO_KEEPCNT failed: %d (%s)", sockFd, errno, strerror(errno));
@@ -374,6 +376,7 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
     taosCloseSocket(sockFd);
     return -1;
   }
+#endif // __APPLE__
 
   int32_t nodelay = 1;
   if (taosSetSockOpt(sockFd, IPPROTO_TCP, TCP_NODELAY, (void *)&nodelay, sizeof(nodelay)) < 0) {
@@ -406,7 +409,7 @@ SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   serverAdd.sin_addr.s_addr = ip;
   serverAdd.sin_port = (uint16_t)htons(port);
 
-  if ((sockFd = (int32_t)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
+  if ((sockFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
     uError("failed to open TCP socket: %d (%s)", errno, strerror(errno));
     taosCloseSocketNoCheck(sockFd);
     return -1;
@@ -449,7 +452,7 @@ void tinet_ntoa(char *ipstr, uint32_t ip) {
 #define COPY_SIZE 32768
 // sendfile shall be used
 
-int32_t taosCopyFds(SOCKET sfd, SOCKET dfd, int64_t len) {
+int32_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len) {
   int64_t leftLen;
   int32_t readLen, writeLen;
   char    temp[COPY_SIZE];

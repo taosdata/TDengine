@@ -178,11 +178,11 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
   获取客户端版本信息。
 
-- `TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, int port)`
+- `TAOS *taos_connect(const char *host, const char *user, const char *pass, const char *db, int port)`
 
   创建数据库连接，初始化连接上下文。其中需要用户提供的参数包含：
 
-    - ip：TDengine管理主节点的IP地址
+    - host：TDengine管理主节点的FQDN
     - user：用户名
     - pass：密码
     - db：数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库
@@ -252,7 +252,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 - `void taos_free_result(TAOS_RES *res)`
 
-  释放查询结果集以及相关的资源。查询完成后，务必调用该API释放资源，否则可能导致应用内存泄露。
+  释放查询结果集以及相关的资源。查询完成后，务必调用该API释放资源，否则可能导致应用内存泄露。但也需注意，释放资源后，如果再调用`taos_consume`等获取查询结果的函数，将导致应用Crash。
 
 - `char *taos_errstr(TAOS_RES *res)`
 
@@ -262,11 +262,11 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
   获取最近一次API调用失败的原因，返回值为错误代码。
 
-**注意**：对于每个数据库应用，2.0及以上版本 TDengine 推荐只建立一个连接。同时在应用中将该连接 (TAOS*) 结构体传递到不同的线程共享使用。基于 TAOS 结构体发出的查询、写入等操作具有多线程安全性。C 语言的连接器可以按照需求动态建立面向数据库的新连接（该过程对用户不可见），同时建议只有在程序最后退出的时候才调用 taos_close 关闭连接。
+**注意**：2.0及以上版本 TDengine 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池。而不推荐在应用中将该连接 (TAOS\*) 结构体传递到不同的线程共享使用。基于 TAOS 结构体发出的查询、写入等操作具有多线程安全性，但 “USE statement” 等状态量有可能在线程之间相互干扰。此外，C 语言的连接器可以按照需求动态建立面向数据库的新连接（该过程对用户不可见），同时建议只有在程序最后退出的时候才调用 taos_close 关闭连接。
 
 ### 异步查询API
 
-同步API之外，TDengine还提供性能更高的异步调用API处理数据插入、查询操作。在软硬件环境相同的情况下，异步API处理数据插入的速度比同步API快2~4倍。异步API采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步API在网络延迟严重的情况下，优点尤为突出。
+同步API之外，TDengine还提供性能更高的异步调用API处理数据插入、查询操作。在软硬件环境相同的情况下，异步API处理数据插入的速度比同步API快2\~4倍。异步API采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步API在网络延迟严重的情况下，优点尤为突出。
 
 异步API都需要应用提供相应的回调函数，回调函数参数设置如下：前两个参数都是一致的，第三个参数依不同的API而定。第一个参数param是应用调用异步API时提供给系统的，用于回调时，应用能够找回具体操作的上下文，依具体实现而定。第二个参数是SQL操作的结果集，如果为空，比如insert操作，表示没有记录返回，如果不为空，比如select操作，表示有记录返回。
 
@@ -287,13 +287,6 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
   
     * res：`taos_query_a`回调时返回的结果集
     * fp：回调函数。其参数`param`是用户可定义的传递给回调函数的参数结构体；`numOfRows`是获取到的数据的行数（不是整个查询结果集的函数）。 在回调函数中，应用可以通过调用`taos_fetch_row`前向迭代获取批量记录中每一行记录。读完一块内的所有记录后，应用需要在回调函数中继续调用`taos_fetch_rows_a`获取下一批记录进行处理，直到返回的记录数（numOfRows）为零（结果返回完成）或记录数为负值（查询出错）。
-
-- `void taos_fetch_row_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, TAOS_ROW row), void *param);`
-
-  异步获取一条记录。其中：
-
-    * res：`taos_query_a`回调时返回的结果集
-    * fp：回调函数。其参数`param`是应用提供的一个用于回调的参数。回调时，第三个参数`row`指向一行记录。不同于`taos_fetch_rows_a`，应用无需调用`taos_fetch_row`来获取一行数据，更加简单，但数据提取性能不及批量获取的API。
 
 TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，**客户端应用必须确保对同一张表的操作完全串行化**，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。
 
@@ -425,7 +418,7 @@ cd C:\TDengine\connector\python\windows
 python -m pip install python3\
 ```
 
-*如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。
+* 如果机器上没有pip命令，用户可将src/connector/python/python3或src/connector/python/python2下的taos文件夹拷贝到应用程序的目录使用。
 对于windows 客户端，安装TDengine windows 客户端后，将C:\TDengine\driver\taos.dll拷贝到C:\windows\system32目录下即可。
 
 ### 使用
@@ -442,7 +435,7 @@ import taos
 conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
 c1 = conn.cursor()
 ```
-*<em>host</em> 是TDengine 服务端所有IP, <em>config</em> 为客户端配置文件所在目录
+* <em>host</em> 是TDengine 服务端所有IP, <em>config</em> 为客户端配置文件所在目录
 
 * 写入数据
 ```python
@@ -510,17 +503,17 @@ conn.close()
 
 用户可通过python的帮助信息直接查看模块的使用信息，或者参考tests/examples/python中的示例程序。以下为部分常用类和方法：
 
-- _TDengineConnection_类
+- _TDengineConnection_ 类
 
   参考python中help(taos.TDengineConnection)。
-  这个类对应客户端和TDengine建立的一个连接。在客户端多线程的场景下，这个连接实例可以是每个线程申请一个，也可以多线程共享一个连接。
+  这个类对应客户端和TDengine建立的一个连接。在客户端多线程的场景下，推荐每个线程申请一个独立的连接实例，而不建议多线程共享一个连接。
 
-- _TDengineCursor_类
+- _TDengineCursor_ 类
 
   参考python中help(taos.TDengineCursor)。
   这个类对应客户端进行的写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能夸线程共享使用，否则会导致返回结果出现错误。
 
-- _connect_方法
+- _connect_ 方法
 
   用于生成taos.TDengineConnection的实例。
 
@@ -800,7 +793,7 @@ go env -w GOPROXY=https://goproxy.io,direct
 
 - `sql.Open(DRIVER_NAME string, dataSourceName string) *DB` 
 
-  该API用来打开DB，返回一个类型为*DB的对象，一般情况下，DRIVER_NAME设置为字符串`taosSql`, dataSourceName设置为字符串`user:password@/tcp(host:port)/dbname`，如果客户想要用多个goroutine并发访问TDengine, 那么需要在各个goroutine中分别创建一个sql.Open对象并用之访问TDengine
+  该API用来打开DB，返回一个类型为\*DB的对象，一般情况下，DRIVER_NAME设置为字符串`taosSql`, dataSourceName设置为字符串`user:password@/tcp(host:port)/dbname`，如果客户想要用多个goroutine并发访问TDengine, 那么需要在各个goroutine中分别创建一个sql.Open对象并用之访问TDengine
 
   **注意**： 该API成功创建的时候，并没有做权限等检查，只有在真正执行Query或者Exec的时候才能真正的去创建连接，并同时检查user/password/host/port是不是合法。 另外，由于整个驱动程序大部分实现都下沉到taosSql所依赖的libtaos中。所以，sql.Open本身特别轻量。 
 
@@ -822,7 +815,7 @@ go env -w GOPROXY=https://goproxy.io,direct
 
 - `func (s *Stmt) Query(args ...interface{}) (*Rows, error)`
 
-  sql.Open内置的方法，Query executes a prepared query statement with the given arguments and returns the query results as a *Rows.
+  sql.Open内置的方法，Query executes a prepared query statement with the given arguments and returns the query results as a \*Rows.
 
 - `func (s *Stmt) Close() error`
 
@@ -894,7 +887,7 @@ Node-example-raw.js
 
 验证方法：
 
-1. 新建安装验证目录，例如：~/tdengine-test，拷贝github上nodejsChecker.js源程序。下载地址：（https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）。
+1. 新建安装验证目录，例如：\~/tdengine-test，拷贝github上nodejsChecker.js源程序。下载地址：（https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）。
 
 2. 在命令中执行以下命令：
 

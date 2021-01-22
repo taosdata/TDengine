@@ -43,7 +43,7 @@
  */
 int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
 		const unsigned int day, const unsigned int hour,
-		const unsigned int min, const unsigned int sec)
+		const unsigned int min, const unsigned int sec, int64_t timezone)
 {
   unsigned int mon = mon0, year = year0;
 
@@ -60,12 +60,6 @@ int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
   res += year/4 - year/100 + year/400 + day + ((int64_t)year)*365 - 719499;
   res  = res*24;
   res  = ((res + hour) * 60 + min) * 60 + sec;
-
-#ifdef _MSC_VER
-#if _MSC_VER >= 1900
-  int64_t timezone = _timezone;
-#endif
-#endif
 
   return (res + timezone);
 }
@@ -219,7 +213,7 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
 
 /* mktime will be affected by TZ, set by using taos_options */
 #ifdef WINDOWS
-  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 0);
   //int64_t seconds = gmtime(&tm); 
 #else
   int64_t seconds = timegm(&tm);
@@ -276,7 +270,13 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
     return -1;
   }
 
-  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+  int64_t timezone = _timezone;
+#endif
+#endif
+
+  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, timezone);
   
   int64_t fraction = 0;
 
@@ -486,7 +486,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     start = (delta / pInterval->sliding + factor) * pInterval->sliding;
 
     if (pInterval->intervalUnit == 'd' || pInterval->intervalUnit == 'w') {
-      /*
+     /*
       * here we revised the start time of day according to the local time zone,
       * but in case of DST, the start time of one day need to be dynamically decided.
       */
@@ -501,9 +501,24 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
       start += (int64_t)(timezone * TSDB_TICK_PER_SECOND(precision));
     }
 
-    int64_t end = start + pInterval->interval - 1;
-    if (end < t) {
-      start += pInterval->sliding;
+    int64_t end = 0;
+
+    // not enough time range
+    if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
+      end = start + pInterval->interval - 1;
+
+      while(end < t && ((start + pInterval->sliding) <= INT64_MAX)) { // move forward to the correct time window
+        start += pInterval->sliding;
+
+        if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
+          end = start + pInterval->interval - 1;
+        } else {
+          end = INT64_MAX;
+          break;
+        }
+      }
+    } else {
+      end = INT64_MAX;
     }
   }
 

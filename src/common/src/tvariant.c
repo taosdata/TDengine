@@ -205,7 +205,7 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   }
 
   if (pDst->nType != TSDB_DATA_TYPE_ARRAY) {
-    pDst->nLen = tDataTypeDesc[pDst->nType].nSize;
+    pDst->nLen = tDataTypes[pDst->nType].bytes;
   }
 }
 
@@ -399,6 +399,7 @@ static int32_t toNchar(tVariant *pVariant, char **pDest, int32_t *pDestSize) {
     pVariant->wpz = (wchar_t *)tmp;
   } else {
     int32_t output = 0;
+
     bool ret = taosMbsToUcs4(pDst, nLen, *pDest, (nLen + 1) * TSDB_NCHAR_SIZE, &output);
     if (!ret) {
       return -1;
@@ -424,12 +425,12 @@ static FORCE_INLINE int32_t convertToDouble(char *pStr, int32_t len, double *val
 
 static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result, int32_t type, bool issigned, bool releaseVariantPtr) {
   if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
-    setNull((char *)result, type, tDataTypeDesc[type].nSize);
+    setNull((char *)result, type, tDataTypes[type].bytes);
     return 0;
   }
 
   errno = 0;
-  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType)) {
+  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
     *result = pVariant->i64;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pVariant->nType)) {
     *result = pVariant->u64;
@@ -445,7 +446,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
         pVariant->nLen = 0;
       }
 
-      setNull((char *)result, type, tDataTypeDesc[type].nSize);
+      setNull((char *)result, type, tDataTypes[type].bytes);
       return 0;
     }
 
@@ -495,7 +496,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
         free(pVariant->pz);
         pVariant->nLen = 0;
       }
-      setNull((char *)result, type, tDataTypeDesc[type].nSize);
+      setNull((char *)result, type, tDataTypes[type].bytes);
       return 0;
     } else {
       int64_t val = wcstoll(pVariant->wpz, &endPtr, 10);
@@ -774,7 +775,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
               return -1;
             }
           } else {
-            wcsncpy((wchar_t *)p, pVariant->wpz, pVariant->nLen);
+            memcpy(p, pVariant->wpz, pVariant->nLen);
             newlen = pVariant->nLen;
           }
 

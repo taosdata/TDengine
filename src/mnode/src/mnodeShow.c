@@ -218,7 +218,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
   }
 
   pRsp->numOfRows = htonl(rowsRead);
-  pRsp->precision = htonl(TSDB_TIME_PRECISION_MILLI);  // millisecond time precision
+  pRsp->precision = (int16_t)htonl(TSDB_TIME_PRECISION_MILLI);  // millisecond time precision
 
   pMsg->rpcRsp.rsp = pRsp;
   pMsg->rpcRsp.len = size;

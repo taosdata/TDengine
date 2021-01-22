@@ -9,7 +9,7 @@
 TDengine 采用 SQL 作为查询语言。应用程序可以通过 C/C++, Java, Go, Python 连接器发送 SQL 语句，用户可以通过 TDengine 提供的命令行（Command Line Interface, CLI）工具 TAOS Shell 手动执行 SQL 即席查询（Ad-Hoc Query）。TDengine 支持如下查询功能：
 
 - 单列、多列数据查询
-- 标签和数值的多种过滤条件：\>, \<,  =, \<>, like 等
+- 标签和数值的多种过滤条件：>, <,  =, <>, like 等
 - 聚合结果的分组（Group by）、排序（Order by）、约束输出（Limit/Offset）
 - 数值列及聚合结果的四则运算
 - 时间戳对齐的连接查询（Join Query: 隐式连接）操作
