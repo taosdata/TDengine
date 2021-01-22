@@ -775,7 +775,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
               return -1;
             }
           } else {
-            wcsncpy((wchar_t *)p, pVariant->wpz, pVariant->nLen);
+            memcpy(p, pVariant->wpz, pVariant->nLen);
             newlen = pVariant->nLen;
           }
 
