@@ -20,7 +20,7 @@
 
 #include "exception.h"
 #include "hash.h"
-#include "qAst.h"
+#include "texpr.h"
 #include "qExecutor.h"
 #include "qResultbuf.h"
 #include "qUtil.h"
@@ -6798,7 +6798,8 @@ _cleanup_query:
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExprInfo = &pExprs[i];
     if (pExprInfo->pExpr != NULL) {
-      tExprTreeDestroy(&pExprInfo->pExpr, NULL);
+      tExprTreeDestroy(pExprInfo->pExpr, NULL);
+      pExprInfo->pExpr = NULL;
     }
   }
 
@@ -6914,7 +6915,7 @@ static void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr) {
 
   for (int32_t i = 0; i < numOfExpr; ++i) {
     if (pExprInfo[i].pExpr != NULL) {
-      tExprNodeDestroy(pExprInfo[i].pExpr, NULL);
+      tExprTreeDestroy(pExprInfo[i].pExpr, NULL);
     }
   }
 

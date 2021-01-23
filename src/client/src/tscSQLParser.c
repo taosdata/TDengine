@@ -20,7 +20,7 @@
 
 #include "os.h"
 #include "ttype.h"
-#include "qAst.h"
+#include "texpr.h"
 #include "taos.h"
 #include "taosmsg.h"
 #include "tcompare.h"
@@ -1354,7 +1354,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     int32_t ret = exprTreeFromSqlExpr(pCmd, &pNode, pItem->pNode, pQueryInfo, colList, NULL);
     if (ret != TSDB_CODE_SUCCESS) {
       taosArrayDestroy(colList);
-      tExprTreeDestroy(&pNode, NULL);
+      tExprTreeDestroy(pNode, NULL);
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
@@ -1363,9 +1363,9 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     for(int32_t k = 0; k < numOfNode; ++k) {
       SColIndex* pIndex = taosArrayGet(colList, k);
       if (TSDB_COL_IS_TAG(pIndex->flag)) {
-        tExprTreeDestroy(&pNode, NULL);
+        tExprTreeDestroy(pNode, NULL);
         taosArrayDestroy(colList);
-        tExprTreeDestroy(&pNode, NULL);
+
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
     }
@@ -1392,7 +1392,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
 
     tbufCloseWriter(&bw);
     taosArrayDestroy(colList);
-    tExprTreeDestroy(&pNode, NULL);
+    tExprTreeDestroy(pNode, NULL);
   } else {
     columnList.num = 0;
     columnList.ids[0] = (SColumnIndex) {0, 0};
@@ -1424,7 +1424,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
 
       int32_t ret = exprTreeFromSqlExpr(pCmd, &pArithExprInfo->pExpr, pItem->pNode, pQueryInfo, NULL, &pArithExprInfo->uid);
       if (ret != TSDB_CODE_SUCCESS) {
-        tExprTreeDestroy(&pArithExprInfo->pExpr, NULL);
+        tExprTreeDestroy(pArithExprInfo->pExpr, NULL);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "invalid expression in select clause");
       }
 
@@ -4304,7 +4304,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     doCompactQueryExpr(pExpr);
 
     tSqlExprDestroy(p1);
-    tExprTreeDestroy(&p, NULL);
+    tExprTreeDestroy(p, NULL);
     
     taosArrayDestroy(colList);
     if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0 && !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {

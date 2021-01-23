@@ -16,7 +16,7 @@
 #include "tscUtil.h"
 #include "hash.h"
 #include "os.h"
-#include "qAst.h"
+#include "texpr.h"
 #include "taosmsg.h"
 #include "tkey.h"
 #include "tmd5.h"
@@ -1054,7 +1054,7 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
     SInternalField* pInfo = taosArrayGet(pFieldInfo->internalField, i);
     
     if (pInfo->pArithExprInfo != NULL) {
-      tExprTreeDestroy(&pInfo->pArithExprInfo->pExpr, NULL);
+      tExprTreeDestroy(pInfo->pArithExprInfo->pExpr, NULL);
 
       SSqlFuncMsg* pFuncMsg = &pInfo->pArithExprInfo->base;
       for(int32_t j = 0; j < pFuncMsg->numOfParams; ++j) {

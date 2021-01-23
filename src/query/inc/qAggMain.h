@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSQLFUNCTION_H
-#define TDENGINE_TSQLFUNCTION_H
+#ifndef TDENGINE_QAGGMAIN_H
+#define TDENGINE_QAGGMAIN_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -97,11 +97,7 @@ extern "C" {
 #define DATA_SET_FLAG ','  // to denote the output area has data, not null value
 #define DATA_SET_FLAG_SIZE sizeof(DATA_SET_FLAG)
 
-#define QUERY_COND_REL_PREFIX_IN "IN|"
-#define QUERY_COND_REL_PREFIX_LIKE "LIKE|"
 
-#define QUERY_COND_REL_PREFIX_IN_LEN   3
-#define QUERY_COND_REL_PREFIX_LIKE_LEN 5
 
 #define QUERY_ASC_FORWARD_STEP   1
 #define QUERY_DESC_FORWARD_STEP -1
@@ -279,4 +275,4 @@ static FORCE_INLINE void initResultInfo(SResultRowCellInfo *pResInfo, uint32_t b
 }
 #endif
 
-#endif  // TDENGINE_TSQLFUNCTION_H
+#endif  // TDENGINE_QAGGMAIN_H

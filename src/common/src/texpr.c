@@ -16,18 +16,15 @@
 #include "os.h"
 
 #include "exception.h"
-#include "qArithmeticOperator.h"
-#include "qAst.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tarray.h"
 #include "tbuffer.h"
 #include "tcompare.h"
-#include "tname.h"
-#include "tschemautil.h"
 #include "tsdb.h"
 #include "tskiplist.h"
-#include "tsqlfunction.h"
+#include "texpr.h"
+
 
 static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight) {
   if (pLeft->nodeType == TSQL_NODE_COL) {
@@ -102,13 +99,15 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
   }
 }
 
-void tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *)) {
+static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *));
+
+void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
   if (pNode == NULL) {
     return;
   }
 
   if (pNode->nodeType == TSQL_NODE_EXPR) {
-    tExprTreeDestroy(&pNode, fp);
+    doExprTreeDestroy(&pNode, fp);
   } else if (pNode->nodeType == TSQL_NODE_VALUE) {
     tVariantDestroy(pNode->pVal);
   } else if (pNode->nodeType == TSQL_NODE_COL) {
@@ -118,14 +117,14 @@ void tExprNodeDestroy(tExprNode *pNode, void (*fp)(void *)) {
   free(pNode);
 }
 
-void tExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
+static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
   if (*pExpr == NULL) {
     return;
   }
   
   if ((*pExpr)->nodeType == TSQL_NODE_EXPR) {
-    tExprTreeDestroy(&(*pExpr)->_node.pLeft, fp);
-    tExprTreeDestroy(&(*pExpr)->_node.pRight, fp);
+    doExprTreeDestroy(&(*pExpr)->_node.pLeft, fp);
+    doExprTreeDestroy(&(*pExpr)->_node.pRight, fp);
   
     if (fp != NULL) {
       fp((*pExpr)->_node.info);
@@ -342,7 +341,7 @@ static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
   }
 
   tExprNode* pExpr = exception_calloc(1, sizeof(tExprNode));
-  CLEANUP_PUSH_VOID_PTR_PTR(true, tExprNodeDestroy, pExpr, NULL);
+  CLEANUP_PUSH_VOID_PTR_PTR(true, tExprTreeDestroy, pExpr, NULL);
   pExpr->nodeType = tbufReadUint8(br);
   
   if (pExpr->nodeType == TSQL_NODE_VALUE) {
@@ -396,7 +395,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   int32_t anchor = CLEANUP_GET_ANCHOR();
 
   tExprNode* expr = exception_calloc(1, sizeof(tExprNode));
-  CLEANUP_PUSH_VOID_PTR_PTR(true, tExprNodeDestroy, expr, NULL);
+  CLEANUP_PUSH_VOID_PTR_PTR(true, tExprTreeDestroy, expr, NULL);
 
   expr->nodeType = TSQL_NODE_EXPR;
 

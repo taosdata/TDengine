@@ -18,6 +18,7 @@
 #include "os.h"
 
 #include "hash.h"
+#include "qAggMain.h"
 #include "qFill.h"
 #include "qResultbuf.h"
 #include "qSqlparser.h"
@@ -27,7 +28,6 @@
 #include "tarray.h"
 #include "tlockfree.h"
 #include "tsdb.h"
-#include "tsqlfunction.h"
 
 struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, const char* val1, const char* val2, int16_t type);

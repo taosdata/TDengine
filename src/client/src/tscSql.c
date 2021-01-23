@@ -15,7 +15,7 @@
 
 #include "hash.h"
 #include "os.h"
-#include "qAst.h"
+#include "texpr.h"
 #include "tkey.h"
 #include "tcache.h"
 #include "tnote.h"

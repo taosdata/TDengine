@@ -16,7 +16,7 @@
  
 #include "os.h"
 
-#include "qAst.h"
+#include "texpr.h"
 #include "qTsbuf.h"
 #include "tcompare.h"
 #include "tscLog.h"

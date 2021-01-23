@@ -14,17 +14,17 @@
  */
 
 #include "os.h"
-#include "qAst.h"
+#include "taosdef.h"
+#include "taosmsg.h"
+#include "texpr.h"
+#include "ttype.h"
+
+#include "qAggMain.h"
 #include "qFill.h"
 #include "qHistogram.h"
 #include "qPercentile.h"
 #include "qTsbuf.h"
-#include "taosdef.h"
-#include "taosmsg.h"
 #include "queryLog.h"
-#include "tscSubquery.h"
-#include "tsqlfunction.h"
-#include "ttype.h"
 
 #define GET_INPUT_DATA_LIST(x) (((char *)((x)->aInputElemBuf)) + ((x)->startOffset) * ((x)->inputBytes))
 #define GET_INPUT_DATA(x, y) (GET_INPUT_DATA_LIST(x) + (y) * (x)->inputBytes)
