@@ -21,4 +21,5 @@ public class SqlSyntaxValidatorTest {
         Assert.assertTrue(SqlSyntaxValidator.isUseSql("drop database test"));
         Assert.assertTrue(SqlSyntaxValidator.isUseSql("drop database if exist test"));
     }
+
 }

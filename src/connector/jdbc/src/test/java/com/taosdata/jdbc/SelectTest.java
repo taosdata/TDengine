@@ -9,61 +9,73 @@ import java.util.Properties;
 
 import static org.junit.Assert.assertEquals;
 
-public class SelectTest extends BaseTest {
-    Connection connection = null;
-    Statement statement = null;
+public class SelectTest {
+    Connection connection;
     String dbName = "test";
     String tName = "t0";
-    String host = "localhost";
+    String host = "127.0.0.1";
 
     @Before
-    public void createDatabaseAndTable() throws SQLException {
+    public void createDatabaseAndTable() {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
+            Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
+
+            Statement stmt = connection.createStatement();
+            stmt.execute("drop database if exists " + dbName);
+            stmt.execute("create database if not exists " + dbName);
+            stmt.execute("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
+            stmt.close();
         } catch (ClassNotFoundException e) {
             return;
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-        Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
 
-        statement = connection.createStatement();
-        statement.executeUpdate("drop database if exists " + dbName);
-        statement.executeUpdate("create database if not exists " + dbName);
-        statement.executeUpdate("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
     }
 
     @Test
-    public void selectData() throws SQLException {
+    public void selectData() {
         long ts = 1496732686000l;
 
-        for (int i = 0; i < 50; i++) {
-            ts++;
-            int row = statement.executeUpdate("insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")");
-            System.out.println("insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")\t" + row);
-            assertEquals(1, row);
+        try (Statement stmt = connection.createStatement()) {
+            for (int i = 0; i < 50; i++) {
+                ts++;
+                int row = stmt.executeUpdate("insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")");
+                System.out.println("insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")\t" + row);
+                assertEquals(1, row);
+            }
+
+            String sql = "select * from " + dbName + "." + tName;
+            ResultSet resSet = stmt.executeQuery(sql);
+
+            int num = 0;
+            while (resSet.next()) {
+                num++;
+            }
+            resSet.close();
+            assertEquals(num, 50);
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
 
-        String sql = "select * from " + dbName + "." + tName;
-        ResultSet resSet = statement.executeQuery(sql);
-
-        int num = 0;
-        while (resSet.next()) {
-            num++;
-        }
-        resSet.close();
-
-        assertEquals(num, 50);
     }
 
     @After
-    public void close() throws Exception {
-        statement.executeUpdate("drop database " + dbName);
-        statement.close();
-        connection.close();
-        Thread.sleep(10);
+    public void close() {
+        try {
+            if (connection != null) {
+                Statement stmt = connection.createStatement();
+                stmt.executeUpdate("drop database " + dbName);
+                stmt.close();
+                connection.close();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 }

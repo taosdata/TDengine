@@ -7,7 +7,7 @@ system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 
 print ========= start dnode1 as master
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 print ======== step1 
