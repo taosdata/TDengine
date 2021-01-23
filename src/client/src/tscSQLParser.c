@@ -1505,23 +1505,39 @@ static void addPrimaryTsColIntoResult(SQueryInfo* pQueryInfo) {
   pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
 }
 
+bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
+  if (pQueryInfo == NULL) {
+    return false;
+  }
+  if ((pQueryInfo->type & TSDB_QUERY_TYPE_STABLE_QUERY)  != TSDB_QUERY_TYPE_STABLE_QUERY) {
+    return false;
+  }
+  if (tscQueryTags(pQueryInfo) && tscSqlExprNumOfExprs(pQueryInfo) == 1){
+    return true;
+  }
+  return false;
+}
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery, bool intervalQuery) {
   assert(pSelection != NULL && pCmd != NULL);
 
   const char* msg2 = "functions can not be mixed up";
   const char* msg3 = "not support query expression";
   const char* msg5 = "invalid function name";
+  const char* msg6 = "only support distinct one tag";
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
 
   if (pQueryInfo->colList == NULL) {
     pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
   }
-
+  bool hasDistinct = false;
   for (int32_t i = 0; i < pSelection->nExpr; ++i) {
     int32_t outputIndex = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
     tSqlExprItem* pItem = &pSelection->a[i];
-
+     
+    if (hasDistinct == false) {
+       hasDistinct = (pItem->distinct == true); 
+    }
     // project on all fields
     int32_t optr = pItem->pNode->nSQLOptr;
 
@@ -1555,6 +1571,13 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     }
   }
 
+  if (hasDistinct == true) {
+    if (!isValidDistinctSql(pQueryInfo)) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
+    }
+    pQueryInfo->distinctTag = true;
+  }
+  
   // there is only one user-defined column in the final result field, add the timestamp column.
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
   if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo)) {
@@ -4657,6 +4680,12 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQu
   setDefaultOrderInfo(pQueryInfo);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
+
+  if (pQueryInfo->distinctTag == true) {
+    pQueryInfo->order.order = TSDB_ORDER_ASC;
+    pQueryInfo->order.orderColId = 0; 
+    return TSDB_CODE_SUCCESS;
+  }
   if (pQuerySql->pSortOrder == NULL) {
     return TSDB_CODE_SUCCESS;
   }

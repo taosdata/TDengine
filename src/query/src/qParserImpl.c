@@ -71,7 +71,7 @@ abort_parse:
   return sqlInfo;
 }
 
-tSQLExprList *tSqlExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken *pToken) {
+tSQLExprList *tSqlExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken *pDistinct, SStrToken *pToken) {
   if (pList == NULL) {
     pList = calloc(1, sizeof(tSQLExprList));
   }
@@ -97,6 +97,7 @@ tSQLExprList *tSqlExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken
 
       strdequote(pItem->aliasName);
     }
+    pItem->distinct = (pDistinct != NULL);
   }
   return pList;
 }
