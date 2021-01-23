@@ -269,8 +269,9 @@ void arithmeticTreeTraverse(tExprNode *pExprs, int32_t numOfRows, char *pOutput,
     }
   }
 
-  free(pLeftOutput);
-  free(pRightOutput);
+  tfree(pdata);
+  tfree(pLeftOutput);
+  tfree(pRightOutput);
 }
 
 static void exprTreeToBinaryImpl(SBufferWriter* bw, tExprNode* expr) {
