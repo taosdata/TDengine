@@ -50,7 +50,7 @@ system sh/exec_tarbitrator.sh -s start
 
 print ============== step1: start dnode1, only deploy mnode
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 print ============== step2: start dnode2/dnode3 and add into cluster, then create database, create table , and insert data
@@ -60,7 +60,7 @@ system sh/exec.sh -n dnode4 -s start
 sql create dnode $hostname2
 sql create dnode $hostname3
 sql create dnode $hostname4
-sleep 3000
+sleep 2000
 
 $rowNum = 10
 $tblNum = 16
@@ -152,7 +152,7 @@ endi
 
 print ============== step4: restart dnode4, but there are not dnode4 in cluster 
 system sh/exec.sh -n dnode4 -s start
-sleep 3000
+sleep 2000
 sql show dnodes
 if $rows != 3 then
   return -1

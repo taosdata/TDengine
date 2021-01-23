@@ -407,7 +407,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   SSchema* pSchema = exception_calloc(1, sizeof(SSchema));
   left->pSchema = pSchema;
 
-  *pSchema = tscGetTbnameColumnSchema();
+  *pSchema = tGetTbnameColumnSchema();
 
   tExprNode* right = exception_calloc(1, sizeof(tExprNode));
   expr->_node.pRight = right;

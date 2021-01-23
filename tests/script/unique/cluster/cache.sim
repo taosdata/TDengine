@@ -17,7 +17,7 @@ system sh/cfg.sh -n dnode1 -c monitorInterval     -v 1
 system sh/cfg.sh -n dnode2 -c monitorInterval     -v 1
 
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 sql create database testdb
@@ -33,7 +33,7 @@ while $x < 30
 	$x = $x + 1
 endw 
 
-sleep 3000
+sleep 2000
 system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname2
 

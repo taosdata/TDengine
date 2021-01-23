@@ -80,7 +80,7 @@ $lastRows4 = $rows
 
 print ======== step2
 run_back unique/vnode/back_insert_many.sim
-sleep 5000
+sleep 3000
 
 print ======== step3
 
@@ -89,15 +89,15 @@ loop:
 
 print ======== step4
 system sh/exec.sh -n dnode3 -s stop
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode3 -s start
-sleep 5000
+sleep 3000
 
 print ======== step5
 system sh/exec.sh -n dnode2 -s stop
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode2 -s start
-sleep 5000
+sleep 3000
 
 print ======== step6
 sql select count(*) from db1.tb1

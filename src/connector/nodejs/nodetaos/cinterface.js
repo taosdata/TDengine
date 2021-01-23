@@ -3,15 +3,15 @@
  * @module CTaosInterface
  */
 
-const ref = require('ref');
+const ref = require('ref-napi');
 const os = require('os');
-const ffi = require('ffi');
-const ArrayType = require('ref-array');
-const Struct = require('ref-struct');
+const ffi = require('ffi-napi');
+const ArrayType = require('ref-array-napi');
+const Struct = require('ref-struct-napi');
 const FieldTypes = require('./constants');
 const errors = require ('./error');
 const TaosObjects = require('./taosobjects');
-const { NULL_POINTER } = require('ref');
+const { NULL_POINTER } = require('ref-napi');
 
 module.exports = CTaosInterface;
 

@@ -232,9 +232,9 @@ endi
 
 print ============================ step7
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 5000
+sleep 3000
 
 sql reset query cache
 sleep 1000
