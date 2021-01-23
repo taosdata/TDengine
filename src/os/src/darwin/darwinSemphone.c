@@ -16,25 +16,81 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-int tsem_init(dispatch_semaphore_t *sem, int pshared, unsigned int value) {
-  *sem = dispatch_semaphore_create(value);
-  if (*sem == NULL) {
-    return -1;
-  } else {
+struct tsem_s {
+  dispatch_semaphore_t         sem;
+  volatile unsigned int        valid:1;
+};
+
+int tsem_wait(tsem_t *sem);
+int tsem_post(tsem_t *sem);
+int tsem_destroy(tsem_t *sem);
+int tsem_init(tsem_t *sem, int pshared, unsigned int value) {
+  fprintf(stderr, "==%s[%d]%s():[%p]==creating\n", basename(__FILE__), __LINE__, __func__, sem);
+  if (*sem) {
+    fprintf(stderr, "==%s[%d]%s():[%p]==already initialized\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  struct tsem_s *p = (struct tsem_s*)calloc(1, sizeof(*p));
+  if (!p) {
+    fprintf(stderr, "==%s[%d]%s():[%p]==out of memory\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+
+  p->sem = dispatch_semaphore_create(value);
+  if (p->sem == NULL) {
+    fprintf(stderr, "==%s[%d]%s():[%p]==not created\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  p->valid = 1;
+
+  *sem = p;
+
+  return 0;
+}
+
+int tsem_wait(tsem_t *sem) {
+  if (!*sem) {
+    fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  struct tsem_s *p = *sem;
+  if (!p->valid) {
+    fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  return dispatch_semaphore_wait(p->sem, DISPATCH_TIME_FOREVER);
+}
+
+int tsem_post(tsem_t *sem) {
+  if (!*sem) {
+    fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  struct tsem_s *p = *sem;
+  if (!p->valid) {
+    fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
+  return dispatch_semaphore_signal(p->sem);
+}
+
+int tsem_destroy(tsem_t *sem) {
+  fprintf(stderr, "==%s[%d]%s():[%p]==destroying\n", basename(__FILE__), __LINE__, __func__, sem);
+  if (!*sem) {
+    fprintf(stderr, "==%s[%d]%s():[%p]==not initialized\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
     return 0;
   }
-}
+  struct tsem_s *p = *sem;
+  if (!p->valid) {
+    fprintf(stderr, "==%s[%d]%s():[%p]==already destroyed\n", basename(__FILE__), __LINE__, __func__, sem);
+    abort();
+  }
 
-int tsem_wait(dispatch_semaphore_t *sem) {
-  dispatch_semaphore_wait(*sem, DISPATCH_TIME_FOREVER);
+  p->valid = 0;
+  free(p);
+
+  *sem = NULL;
   return 0;
 }
 
-int tsem_post(dispatch_semaphore_t *sem) {
-  dispatch_semaphore_signal(*sem);
-  return 0;
-}
-
-int tsem_destroy(dispatch_semaphore_t *sem) {
-  return 0;
-}
