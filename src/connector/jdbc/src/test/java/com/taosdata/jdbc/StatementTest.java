@@ -10,7 +10,7 @@ import java.util.Properties;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class StatementTest extends BaseTest {
+public class StatementTest {
     static Connection connection = null;
     static Statement statement = null;
     static String dbName = "test";
@@ -26,14 +26,29 @@ public class StatementTest extends BaseTest {
             return;
         }
         Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
         properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
+        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/?user=root&password=taosdata", properties);
 
         statement = connection.createStatement();
         statement.executeUpdate("drop database if exists " + dbName);
+    }
+
+    @Test
+    public void testCase() {
+        try {
+            ResultSet rs = statement.executeQuery("show databases");
+            ResultSetMetaData metaData = rs.getMetaData();
+            while (rs.next()) {
+                for (int i = 1; i <= metaData.getColumnCount(); i++) {
+                    System.out.print(metaData.getColumnLabel(i) + ":" + rs.getString(i) + "\t");
+                }
+                System.out.println();
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
 
     }
 
@@ -54,9 +69,6 @@ public class StatementTest extends BaseTest {
 
     @Test
     public void testUnsupport() {
-//        if(null == resSet) {
-//            return;
-//        }
         TSDBStatement tsdbStatement = (TSDBStatement) statement;
         try {
             tsdbStatement.unwrap(null);
@@ -163,11 +175,10 @@ public class StatementTest extends BaseTest {
     @AfterClass
     public static void close() throws Exception {
         if (!statement.isClosed()) {
-            statement.executeUpdate("drop database " + dbName);
+            statement.executeUpdate("drop database if exists " + dbName);
             statement.close();
             connection.close();
             Thread.sleep(10);
-
         }
     }
 }

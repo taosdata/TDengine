@@ -504,13 +504,13 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
     int64_t end = 0;
 
     // not enough time range
-    if (INT64_MAX - start > pInterval->interval - 1) {
+    if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
       end = start + pInterval->interval - 1;
 
       while(end < t && ((start + pInterval->sliding) <= INT64_MAX)) { // move forward to the correct time window
         start += pInterval->sliding;
 
-        if (INT64_MAX - start > pInterval->interval - 1) {
+        if (start < 0 || INT64_MAX - start > pInterval->interval - 1) {
           end = start + pInterval->interval - 1;
         } else {
           end = INT64_MAX;
