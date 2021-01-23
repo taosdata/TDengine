@@ -2520,9 +2520,9 @@ bool tscSetSqlOwner(SSqlObj* pSql) {
   // set the sql object owner
 #ifdef __APPLE__
   pthread_t threadId = (pthread_t)taosGetSelfPthreadId();
-#else
+#else // __APPLE__
   uint64_t threadId = taosGetSelfPthreadId();
-#endif
+#endif // __APPLE__
   if (atomic_val_compare_exchange_64(&pSql->owner, 0, threadId) != 0) {
     pRes->code = TSDB_CODE_QRY_IN_EXEC;
     return false;

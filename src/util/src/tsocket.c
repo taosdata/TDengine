@@ -376,7 +376,7 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
     taosCloseSocket(sockFd);
     return -1;
   }
-#endif
+#endif // __APPLE__
 
   int32_t nodelay = 1;
   if (taosSetSockOpt(sockFd, IPPROTO_TCP, TCP_NODELAY, (void *)&nodelay, sizeof(nodelay)) < 0) {

@@ -75,11 +75,11 @@ extern "C" {
 #define TAOS_OS_FUNC_FILE_SENDIFLE
 
 #define TAOS_OS_FUNC_SEMPHONE
-  #define tsem_t dispatch_semaphore_t
-  int tsem_init(dispatch_semaphore_t *sem, int pshared, unsigned int value);
-  int tsem_wait(dispatch_semaphore_t *sem);
-  int tsem_post(dispatch_semaphore_t *sem);
-  int tsem_destroy(dispatch_semaphore_t *sem);
+  typedef struct tsem_s *tsem_t;
+  int tsem_init(tsem_t *sem, int pshared, unsigned int value);
+  int tsem_wait(tsem_t *sem);
+  int tsem_post(tsem_t *sem);
+  int tsem_destroy(tsem_t *sem);
 
 #define TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 #define TAOS_OS_FUNC_STRING_STR2INT64

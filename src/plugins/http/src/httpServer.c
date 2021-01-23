@@ -33,7 +33,7 @@ static bool httpReadData(HttpContext *pContext);
 
 #ifdef __APPLE__
 static int sv_dummy = 0;
-#endif
+#endif // __APPLE__
 
 static void httpStopThread(HttpThread* pThread) {
   pThread->stop = true;

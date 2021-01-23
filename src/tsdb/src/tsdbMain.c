@@ -148,9 +148,9 @@ int tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
     tsdbAsyncCommit(pRepo);
 #ifdef __APPLE__
     sem_wait(pRepo->readyToCommit);
-#else
+#else // __APPLE__
     sem_wait(&(pRepo->readyToCommit));
-#endif
+#endif // __APPLE__
     terrno = pRepo->code;
   }
   tsdbUnRefMemTable(pRepo, pRepo->mem);
@@ -654,14 +654,14 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
   }
-#else
+#else // __APPLE__
   code = sem_init(&(pRepo->readyToCommit), 0, 1);
   if (code != 0) {
     code = errno;
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
   }
-#endif
+#endif // __APPLE__
 
   pRepo->repoLocked = false;
 
@@ -709,9 +709,9 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     tfree(pRepo->rootDir);
 #ifdef __APPLE__
     sem_close(pRepo->readyToCommit);
-#else
+#else // __APPLE__
     sem_destroy(&(pRepo->readyToCommit));
-#endif
+#endif // __APPLE__
     pthread_mutex_destroy(&pRepo->mutex);
     free(pRepo);
   }
