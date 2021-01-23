@@ -1929,8 +1929,8 @@ static void changeQueryHandleForInterpQuery(TsdbQueryHandleT pHandle) {
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
 
     // the first qualified table for interpolation query
-    if (pQueryHandle->window.skey <= pCheckInfo->pTableObj->lastKey &&
-        pCheckInfo->pTableObj->lastKey != TSKEY_INITIAL_VAL) {
+    if ((pQueryHandle->window.skey <= pCheckInfo->pTableObj->lastKey) &&
+        (pCheckInfo->pTableObj->lastKey != TSKEY_INITIAL_VAL)) {
       break;
     }
 
