@@ -240,6 +240,7 @@ static SKeyword keywordTable[] = {
     {"AVG_RATE",     TK_AVG_RATE},
     {"AVG_IRATE",    TK_AVG_IRATE},
     {"CACHELAST",    TK_CACHELAST},
+    {"DISTINCT",     TK_DISTINCT},
 };
 
 static const char isIdChar[] = {

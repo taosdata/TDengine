@@ -1101,7 +1101,7 @@ static int64_t getNumOfResultLocal(SQueryInfo *pQueryInfo, SQLFunctionCtx *pCtx)
      * the number of output result is decided by main output
      */
     int32_t functionId = pCtx[j].functionId;
-    if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAGPRJ) {
+    if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TAG) {
       continue;
     }
 
@@ -1183,7 +1183,7 @@ bool needToMerge(SQueryInfo *pQueryInfo, SLocalMerger *pLocalMerge, tFilePage *t
   int16_t functionId = pLocalMerge->pCtx[0].functionId;
 
   // todo opt performance
-  if ((/*functionId == TSDB_FUNC_PRJ || */functionId == TSDB_FUNC_ARITHM) || (tscIsProjectionQueryOnSTable(pQueryInfo, 0))) {  // column projection query
+  if ((/*functionId == TSDB_FUNC_PRJ || */functionId == TSDB_FUNC_ARITHM) || (tscIsProjectionQueryOnSTable(pQueryInfo, 0) && pQueryInfo->distinctTag == false)) {  // column projection query
     ret = 1;                                                            // disable merge procedure
   } else {
     tOrderDescriptor *pDesc = pLocalMerge->pDesc;
