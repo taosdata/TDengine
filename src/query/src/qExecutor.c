@@ -5805,18 +5805,7 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
     }
   }
 
-  // TODO opt performance
-//  if (isPointInterpoQuery(pQuery)) {
-//    SArray *prev = tsdbGetExternalRow(pRuntimeEnv->pQueryHandle, &pQInfo->memRef, TSDB_PREV_ROW);
-//
-//    for(int32_t i = 0; i < pQuery->numOfCols; ++i) {
-//      SColumnInfoData *p = taosArrayGet(prev, i);
-//      memcpy(pRuntimeEnv->prevRow[i], p->pData, p->info.bytes);
-//    }
-//  }
-
   scanOneTableDataBlocks(pRuntimeEnv, newStartKey);
-
   finalizeQueryResult(pRuntimeEnv);
 
   // skip offset result rows

@@ -67,41 +67,41 @@ typedef struct tstr {
     }                                                \
   } while (0)
 
-#define SET_TYPED_DATA(_v, _type, _data) \
-  do {                                   \
-    switch (_type) {                     \
-      case TSDB_DATA_TYPE_BOOL:          \
-      case TSDB_DATA_TYPE_TINYINT:       \
-        *(int8_t *)(_v) = (_data);       \
-        break;                           \
-      case TSDB_DATA_TYPE_UTINYINT:      \
-        *(uint8_t *)(_v) = (_data);      \
-        break;                           \
-      case TSDB_DATA_TYPE_SMALLINT:      \
-        *(int16_t *)(_v) = (_data);      \
-        break;                           \
-      case TSDB_DATA_TYPE_USMALLINT:     \
-        *(uint16_t *)(_v) = (_data);     \
-        break;                           \
-      case TSDB_DATA_TYPE_BIGINT:        \
-        *(int64_t *)(_v) = (_data);      \
-        break;                           \
-      case TSDB_DATA_TYPE_UBIGINT:       \
-        *(uint64_t *)(_v) = (_data);     \
-        break;                           \
-      case TSDB_DATA_TYPE_FLOAT:         \
-        *(float *)(_v) = (_data);        \
-        break;                           \
-      case TSDB_DATA_TYPE_DOUBLE:        \
-        *(double *)(_v) = (_data);       \
-        break;                           \
-      case TSDB_DATA_TYPE_UINT:          \
-        *(uint32_t *)(_v) = (_data);     \
-        break;                           \
-      default:                           \
-        *(int32_t *)(_v) = (_data);      \
-        break;                           \
-    }                                    \
+#define SET_TYPED_DATA(_v, _type, _data)       \
+  do {                                         \
+    switch (_type) {                           \
+      case TSDB_DATA_TYPE_BOOL:                \
+      case TSDB_DATA_TYPE_TINYINT:             \
+        *(int8_t *)(_v) = (int8_t)(_data);     \
+        break;                                 \
+      case TSDB_DATA_TYPE_UTINYINT:            \
+        *(uint8_t *)(_v) = (uint8_t)(_data);   \
+        break;                                 \
+      case TSDB_DATA_TYPE_SMALLINT:            \
+        *(int16_t *)(_v) = (int16_t)(_data);   \
+        break;                                 \
+      case TSDB_DATA_TYPE_USMALLINT:           \
+        *(uint16_t *)(_v) = (uint16_t)(_data); \
+        break;                                 \
+      case TSDB_DATA_TYPE_BIGINT:              \
+        *(int64_t *)(_v) = (int64_t)(_data);   \
+        break;                                 \
+      case TSDB_DATA_TYPE_UBIGINT:             \
+        *(uint64_t *)(_v) = (uint64_t)(_data); \
+        break;                                 \
+      case TSDB_DATA_TYPE_FLOAT:               \
+        *(float *)(_v) = (float)(_data);       \
+        break;                                 \
+      case TSDB_DATA_TYPE_DOUBLE:              \
+        *(double *)(_v) = (double)(_data);     \
+        break;                                 \
+      case TSDB_DATA_TYPE_UINT:                \
+        *(uint32_t *)(_v) = (uint32_t)(_data); \
+        break;                                 \
+      default:                                 \
+        *(int32_t *)(_v) = (_data);            \
+        break;                                 \
+    }                                          \
   } while (0)
 
 #define IS_SIGNED_NUMERIC_TYPE(_t)   ((_t) >= TSDB_DATA_TYPE_TINYINT && (_t) <= TSDB_DATA_TYPE_BIGINT)
