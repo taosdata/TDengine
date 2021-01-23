@@ -234,13 +234,30 @@ SArray* tsdbGetQueriedTableList(TsdbQueryHandleT *pHandle);
 TsdbQueryHandleT tsdbQueryRowsInExternalWindow(TSDB_REPO_T *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList,
                                                void *qinfo, SMemRef* pRef);
 
+
 /**
- * move to next block if exists
+ * get num of rows in mem table 
+ *
+ * @param pHandle
+ * @return row size
+ */
+
+int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle);
+
+/**
+ * move to next block if exists 
  *
  * @param pQueryHandle
  * @return
  */
 bool tsdbNextDataBlock(TsdbQueryHandleT *pQueryHandle);
+/**
+ * move to next block if exists but not merge data in memtable 
+ *
+ * @param pQueryHandle
+ * @return
+ */
+bool tsdbNextDataBlockWithoutMerge(TsdbQueryHandleT *pQueryHandle);
 
 SArray* tsdbGetExternalRow(TsdbQueryHandleT *pHandle, SMemRef* pMemRef, int16_t type);
 

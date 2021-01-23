@@ -41,7 +41,7 @@
 #define COLUMN_INDEX_INITIAL_VAL (-3)
 #define COLUMN_INDEX_INITIALIZER \
   { COLUMN_INDEX_INITIAL_VAL, COLUMN_INDEX_INITIAL_VAL }
-#define COLUMN_INDEX_VALIDE(index) (((index).tableIndex >= 0) && ((index).columnIndex >= TSDB_TBNAME_COLUMN_INDEX))
+#define COLUMN_INDEX_VALIDE(index) (((index).tableIndex >= 0) && ((index).columnIndex >= TSDB_BLOCK_DIST_COLUMN_INDEX))
 #define TBNAME_LIST_SEP ","
 
 typedef struct SColumnList {  // todo refactor
@@ -1731,6 +1731,9 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
       SSchema colSchema = tGetTableNameColumnSchema();
       tscAddSpecialColumnForSelect(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema, TSDB_COL_TAG);
+    } else if (index.columnIndex == TSDB_BLOCK_DIST_COLUMN_INDEX) {
+      SSchema colSchema = tGetBlockDistColumnSchema();
+      tscAddSpecialColumnForSelect(pQueryInfo, startPos, TSDB_FUNC_PRJ, &index, &colSchema, TSDB_COL_TAG);
     } else {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
@@ -2407,6 +2410,14 @@ static bool isTablenameToken(SStrToken* token) {
 
   return (strncasecmp(TSQL_TBNAME_L, tmpToken.z, tmpToken.n) == 0 && tmpToken.n == strlen(TSQL_TBNAME_L));
 }
+static bool isTableBlockDistToken(SStrToken* token) {
+  SStrToken tmpToken = *token;
+  SStrToken tableToken = {0};
+
+  extractTableNameFromToken(&tmpToken, &tableToken);
+
+  return (strncasecmp(TSQL_BLOCK_DIST, tmpToken.z, tmpToken.n) == 0 && tmpToken.n == strlen(TSQL_BLOCK_DIST_L));
+}
 
 static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken* pToken) {
   STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, index)->pTableMeta;
@@ -2436,6 +2447,8 @@ int32_t doGetColumnIndexByName(SSqlCmd* pCmd, SStrToken* pToken, SQueryInfo* pQu
 
   if (isTablenameToken(pToken)) {
     pIndex->columnIndex = TSDB_TBNAME_COLUMN_INDEX;
+  } else if (isTableBlockDistToken(pToken))  {
+    pIndex->columnIndex = TSDB_BLOCK_DIST_COLUMN_INDEX; 
   } else if (strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX;
   } else {
@@ -2676,8 +2689,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (!validateIpAddress(pDnodeIp->z, pDnodeIp->n)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     }
-  }
-
+  } 
   return TSDB_CODE_SUCCESS;
 }
 

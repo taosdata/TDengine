@@ -213,6 +213,36 @@ static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
   pQueryHandle->pMemRef = NULL;
 }
 
+int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle) {
+  STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
+
+  size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  assert(pQueryHandle->activeIndex < size && pQueryHandle->activeIndex >= 0 && size >= 1);
+  STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
+  
+
+  int64_t rows = 0;
+  SMemRef* pMemRef = pQueryHandle->pMemRef;
+  if (pMemRef == NULL) { return rows; }
+
+  STableData* pMem  = NULL;
+  STableData* pIMem = NULL; 
+
+  SMemTable *pMemT  = (SMemTable *)(pMemRef->mem);  
+  SMemTable *pIMemT = (SMemTable *)(pMemRef->imem);
+
+  if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
+    pMem = pMemT->tData[pCheckInfo->tableId.tid];
+    rows += (pMem && pMem->uid == pCheckInfo->tableId.uid) ? pMem->numOfRows: 0; 
+  }
+  if (pIMemT && pCheckInfo->tableId.tid < pIMemT->maxTables) {
+    pIMem = pIMemT->tData[pCheckInfo->tableId.tid];
+    rows += (pIMem && pIMem->uid == pCheckInfo->tableId.uid) ? pIMem->numOfRows: 0; 
+  }
+  
+  return rows;
+}
+
 static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STableGroupInfo* pGroupList, STsdbMeta* pMeta) {
   size_t sizeOfGroup = taosArrayGetSize(pGroupList->pGroupList);
   assert(sizeOfGroup >= 1 && pMeta != NULL);
@@ -2107,6 +2137,85 @@ bool tsdbNextDataBlock(TsdbQueryHandleT* pHandle) {
   elapsedTime = taosGetTimestampUs() - stime;
   pQueryHandle->cost.checkForNextTime += elapsedTime;
   return ret;
+}
+
+bool tsdbNextDataBlockWithoutMerge(TsdbQueryHandleT* pHandle) {
+  STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
+
+  int64_t stime = taosGetTimestampUs();
+  int64_t elapsedTime = stime;
+
+  size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  assert(numOfTables > 0);
+
+  if (pQueryHandle->type == TSDB_QUERY_TYPE_EXTERNAL) {
+    SMemRef* pMemRef = pQueryHandle->pMemRef;
+    tsdbMayTakeMemSnapshot(pQueryHandle);
+    bool ret = getNeighborRows(pQueryHandle);
+    tsdbMayUnTakeMemSnapshot(pQueryHandle);
+
+    // restore the pMemRef
+    pQueryHandle->pMemRef = pMemRef;
+    return ret;
+  } else if (pQueryHandle->type == TSDB_QUERY_TYPE_LAST && pQueryHandle->cachelastrow) {
+    // the last row is cached in buffer, return it directly.
+    // here note that the pQueryHandle->window must be the TS_INITIALIZER
+    int32_t numOfCols  = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle));
+    SQueryFilePos* cur = &pQueryHandle->cur;
+
+    SDataRow pRow = NULL;
+    TSKEY    key  = TSKEY_INITIAL_VAL;
+    int32_t  step = ASCENDING_TRAVERSE(pQueryHandle->order)? 1:-1;
+
+    if (++pQueryHandle->activeIndex < numOfTables) {
+      STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, pQueryHandle->activeIndex);
+      int32_t ret = tsdbGetCachedLastRow(pCheckInfo->pTableObj, &pRow, &key);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return false;
+      }
+
+      copyOneRowFromMem(pQueryHandle, pQueryHandle->outputCapacity, 0, pRow, numOfCols, pCheckInfo->pTableObj);
+      tfree(pRow);
+
+      // update the last key value
+      pCheckInfo->lastKey = key + step;
+
+      cur->rows     = 1;  // only one row
+      cur->lastKey  = key + step;
+      cur->mixBlock = true;
+      cur->win.skey = key;
+      cur->win.ekey = key;
+
+      return true;
+    }
+
+    return false;
+  }
+
+  if (pQueryHandle->checkFiles) {
+    // check if the query range overlaps with the file data block
+    bool exists = true;
+
+    int32_t code = getDataBlocksInFiles(pQueryHandle, &exists);
+    if (code != TSDB_CODE_SUCCESS) {
+      pQueryHandle->activeIndex = 0;
+      pQueryHandle->checkFiles = false;
+
+      return false;
+    }
+
+    if (exists) {
+      pQueryHandle->cost.checkForNextTime += (taosGetTimestampUs() - stime);
+      return exists;
+    }
+
+    pQueryHandle->activeIndex = 0;
+    pQueryHandle->checkFiles = false;
+  }
+
+  elapsedTime = taosGetTimestampUs() - stime;
+  pQueryHandle->cost.checkForNextTime += elapsedTime;
+  return false;
 }
 
 static int32_t doGetExternalRow(STsdbQueryHandle* pQueryHandle, int16_t type, SMemRef* pMemRef) {
