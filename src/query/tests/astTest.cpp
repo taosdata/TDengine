@@ -3,7 +3,7 @@
 #include <cassert>
 #include <iostream>
 
-#include "qAst.h"
+#include "texpr.h"
 #include "taosmsg.h"
 #include "tsdb.h"
 #include "tskiplist.h"

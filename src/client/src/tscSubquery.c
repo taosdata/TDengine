@@ -16,7 +16,7 @@
  
 #include "os.h"
 
-#include "qAst.h"
+#include "texpr.h"
 #include "qTsbuf.h"
 #include "tcompare.h"
 #include "tscLog.h"
@@ -2441,7 +2441,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
     pParentObj->cmd.parseFinished = false;
 
-    tscResetSqlCmdObj(&pParentObj->cmd);
+    tscResetSqlCmd(&pParentObj->cmd, false);
 
     // in case of insert, redo parsing the sql string and build new submit data block for two reasons:
     // 1. the table Id(tid & uid) may have been update, the submit block needs to be updated accordingly.

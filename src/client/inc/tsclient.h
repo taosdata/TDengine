@@ -22,15 +22,15 @@ extern "C" {
 
 #include "os.h"
 
+#include "qAggMain.h"
 #include "taos.h"
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tarray.h"
-#include "tglobal.h"
-#include "tsqlfunction.h"
-#include "tutil.h"
 #include "tcache.h"
+#include "tglobal.h"
 #include "tref.h"
+#include "tutil.h"
 
 #include "qExecutor.h"
 #include "qSqlparser.h"
@@ -411,7 +411,7 @@ void    tscRestoreSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
 
-void tscResetSqlCmdObj(SSqlCmd *pCmd);
+void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
 
 /**
  * free query result of the sql object

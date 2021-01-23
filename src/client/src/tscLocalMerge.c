@@ -16,7 +16,7 @@
 #include "tscLocalMerge.h"
 #include "tscSubquery.h"
 #include "os.h"
-#include "qAst.h"
+#include "texpr.h"
 #include "tlosertree.h"
 #include "tscLog.h"
 #include "tscUtil.h"
