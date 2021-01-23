@@ -24,7 +24,7 @@
 #include "tsdb.h"
 #include "tskiplist.h"
 #include "texpr.h"
-
+#include "tarithoperator.h"
 
 static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight) {
   if (pLeft->nodeType == TSQL_NODE_COL) {

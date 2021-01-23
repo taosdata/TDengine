@@ -15,9 +15,9 @@
 
 #include "os.h"
 
-#include "qArithmeticOperator.h"
 #include "ttype.h"
 #include "tutil.h"
+#include "tarithoperator.h"
 
 #define ARRAY_LIST_OP(left, right, _left_type, _right_type, len1, len2, out, op, _res_type, _ord)     \
   {                                                                                                   \
