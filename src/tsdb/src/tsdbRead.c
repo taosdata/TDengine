@@ -2121,7 +2121,7 @@ static int32_t doGetExternalRow(STsdbQueryHandle* pQueryHandle, int16_t type, SM
   }
 
   // prepare the structure
-  int32_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
+  int32_t numOfCols = (int32_t) QH_GET_NUM_OF_COLS(pQueryHandle);
 
   if (type == TSDB_PREV_ROW) {
     pQueryHandle->prev = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
