@@ -3778,7 +3778,7 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
  */
 
 static void interp_function_impl(SQLFunctionCtx *pCtx) {
-  int32_t type = pCtx->param[2].i64;
+  int32_t type = (int32_t) pCtx->param[2].i64;
   if (type == TSDB_FILL_NONE) {
     return;
   }

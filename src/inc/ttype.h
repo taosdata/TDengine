@@ -99,7 +99,7 @@ typedef struct tstr {
         *(uint32_t *)(_v) = (uint32_t)(_data); \
         break;                                 \
       default:                                 \
-        *(int32_t *)(_v) = (_data);            \
+        *(int32_t *)(_v) = (int32_t)(_data);   \
         break;                                 \
     }                                          \
   } while (0)
