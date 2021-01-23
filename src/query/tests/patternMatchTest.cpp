@@ -3,7 +3,7 @@
 #include <cassert>
 #include <iostream>
 
-#include "tsqlfunction.h"
+#include "qAggMain.h"
 #include "tcompare.h"
 
 TEST(testCase, patternMatchTest) {

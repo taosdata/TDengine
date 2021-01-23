@@ -36,7 +36,7 @@
 
 %syntax_error {
   pInfo->valid = false;
-  int32_t outputBufLen = tListLen(pInfo->pzErrMsg);
+  int32_t outputBufLen = tListLen(pInfo->msg);
   int32_t len = 0;
 
   if(TOKEN.z) {
@@ -46,13 +46,13 @@
     if (sqlLen + sizeof(msg)/sizeof(msg[0]) + 1 > outputBufLen) {
         char tmpstr[128] = {0};
         memcpy(tmpstr, &TOKEN.z[0], sizeof(tmpstr)/sizeof(tmpstr[0]) - 1);
-        len = sprintf(pInfo->pzErrMsg, msg, tmpstr);
+        len = sprintf(pInfo->msg, msg, tmpstr);
     } else {
-        len = sprintf(pInfo->pzErrMsg, msg, &TOKEN.z[0]);
+        len = sprintf(pInfo->msg, msg, &TOKEN.z[0]);
     }
 
   } else {
-    len = sprintf(pInfo->pzErrMsg, "Incomplete SQL statement");
+    len = sprintf(pInfo->msg, "Incomplete SQL statement");
   }
 
   assert(len <= outputBufLen);
@@ -131,10 +131,16 @@ cmd ::= SHOW dbPrefix(X) VGROUPS ids(Y).    {
 //drop configure for tables
 cmd ::= DROP TABLE ifexists(Y) ids(X) cpxName(Z).   {
     X.n += Z.n;
-    setDropDbTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &X, &Y);
+    setDropDbTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &X, &Y, -1);
 }
 
-cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y); }
+//drop stable
+cmd ::= DROP STABLE ifexists(Y) ids(X) cpxName(Z).   {
+    X.n += Z.n;
+    setDropDbTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &X, &Y, TSDB_SUPER_TABLE);
+}
+
+cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y, -1); }
 cmd ::= DROP DNODE ids(X).       { setDCLSQLElems(pInfo, TSDB_SQL_DROP_DNODE, 1, &X);    }
 cmd ::= DROP USER ids(X).        { setDCLSQLElems(pInfo, TSDB_SQL_DROP_USER, 1, &X);     }
 cmd ::= DROP ACCOUNT ids(X).     { setDCLSQLElems(pInfo, TSDB_SQL_DROP_ACCT, 1, &X);  }
@@ -210,7 +216,7 @@ conns(Y) ::= CONNS INTEGER(X).              { Y = X;     }
 state(Y) ::= .                              { Y.n = 0;   }
 state(Y) ::= STATE ids(X).                  { Y = X;     }
 
-%type acct_optr {SCreateAcctSQL}
+%type acct_optr {SCreateAcctInfo}
 acct_optr(Y) ::= pps(C) tseries(D) storage(P) streams(F) qtime(Q) dbs(E) users(K) conns(L) state(M). {
     Y.maxUsers   = (K.n>0)?atoi(K.z):-1;
     Y.maxDbs     = (E.n>0)?atoi(E.z):-1;
@@ -242,7 +248,7 @@ prec(Y)    ::= PRECISION STRING(X).           { Y = X; }
 update(Y)  ::= UPDATE INTEGER(X).             { Y = X; }     
 cachelast(Y) ::= CACHELAST INTEGER(X).        { Y = X; }
 
-%type db_optr {SCreateDBInfo}
+%type db_optr {SCreateDbInfo}
 db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
 
 db_optr(Y) ::= db_optr(Z) cache(X).          { Y = Z; Y.cacheBlockSize = strtol(X.z, NULL, 10); }
@@ -261,7 +267,7 @@ db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
 db_optr(Y) ::= db_optr(Z) update(X).         { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) cachelast(X).      { Y = Z; Y.cachelast = strtol(X.z, NULL, 10); }
 
-%type alter_db_optr {SCreateDBInfo}
+%type alter_db_optr {SCreateDbInfo}
 alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y);}
 
 alter_db_optr(Y) ::= alter_db_optr(Z) replica(X).     { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
@@ -305,6 +311,8 @@ signed(A) ::= MINUS INTEGER(X).   { A = -strtol(X.z, NULL, 10);}
 
 ////////////////////////////////// The CREATE TABLE statement ///////////////////////////////
 cmd ::= CREATE TABLE create_table_args. {}
+cmd ::= CREATE TABLE create_stable_args. {}
+cmd ::= CREATE STABLE create_stable_args. {}
 cmd ::= CREATE TABLE create_table_list(Z). { pInfo->type = TSDB_SQL_CREATE_TABLE; pInfo->pCreateTableInfo = Z;}
 
 %type create_table_list{SCreateTableSQL*}
@@ -333,7 +341,8 @@ create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP. {
 }
 
 // create super table
-create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP TAGS LP columnlist(Y) RP. {
+%type create_stable_args{SCreateTableSQL*}
+create_stable_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP TAGS LP columnlist(Y) RP. {
   A = tSetCreateSqlElems(X, Y, NULL, TSQL_CREATE_STABLE);
   setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 
@@ -683,7 +692,7 @@ cmd ::= RESET QUERY CACHE.  { setDCLSQLElems(pInfo, TSDB_SQL_RESET_CACHE, 0);}
 ///////////////////////////////////ALTER TABLE statement//////////////////////////////////
 cmd ::= ALTER TABLE ids(X) cpxName(F) ADD COLUMN columnlist(A).     {
     X.n += F.n;
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_COLUMN);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -693,14 +702,14 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     toTSDBType(A.type);
     SArray* K = tVariantListAppendToken(NULL, &A, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
 //////////////////////////////////ALTER TAGS statement/////////////////////////////////////
 cmd ::= ALTER TABLE ids(X) cpxName(Y) ADD TAG columnlist(A).        {
     X.n += Y.n;
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
@@ -709,7 +718,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
     toTSDBType(Y.type);
     SArray* A = tVariantListAppendToken(NULL, &Y, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -722,7 +731,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     toTSDBType(Z.type);
     A = tVariantListAppendToken(A, &Z, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -733,7 +742,54 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
     SArray* A = tVariantListAppendToken(NULL, &Y, -1);
     A = tVariantListAppend(A, &Z, -1);
 
-    SAlterTableSQL* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL);
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL, -1);
+    setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
+}
+
+
+///////////////////////////////////ALTER STABLE statement//////////////////////////////////
+cmd ::= ALTER STABLE ids(X) cpxName(F) ADD COLUMN columnlist(A).     {
+    X.n += F.n;
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_COLUMN, TSDB_SUPER_TABLE);
+    setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
+}
+
+cmd ::= ALTER STABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
+    X.n += F.n;
+
+    toTSDBType(A.type);
+    SArray* K = tVariantListAppendToken(NULL, &A, -1);
+
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, TSDB_SUPER_TABLE);
+    setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
+}
+
+//////////////////////////////////ALTER TAGS statement/////////////////////////////////////
+cmd ::= ALTER STABLE ids(X) cpxName(Y) ADD TAG columnlist(A).        {
+    X.n += Y.n;
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, TSDB_SUPER_TABLE);
+    setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
+}
+cmd ::= ALTER STABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
+    X.n += Z.n;
+
+    toTSDBType(Y.type);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
+
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, TSDB_SUPER_TABLE);
+    setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
+}
+
+cmd ::= ALTER STABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
+    X.n += F.n;
+
+    toTSDBType(Y.type);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1);
+
+    toTSDBType(Z.type);
+    A = tVariantListAppendToken(A, &Z, -1);
+
+    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 

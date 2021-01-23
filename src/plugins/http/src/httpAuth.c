@@ -51,7 +51,7 @@ int32_t httpParseBasicAuthToken(HttpContext *pContext, char *token, int32_t len)
 
   char *password = user + 1;
   int32_t pass_len = (int32_t)((base64 + outlen) - password);
-  if (pass_len < 1 || pass_len >= TSDB_KEY_LEN) {
+  if (pass_len < 1 || pass_len >= HTTP_PASSWORD_LEN) {
     httpError("context:%p, fd:%d, basic token:%s parse password error", pContext, pContext->fd, token);
     free(base64);
     return -1;
@@ -73,7 +73,7 @@ int32_t httpParseTaosdAuthToken(HttpContext *pContext, char *token, int32_t len)
     if (base64) free(base64);
     return 01;
   }
-  if (outlen != (TSDB_USER_LEN + TSDB_KEY_LEN)) {
+  if (outlen != (TSDB_USER_LEN + HTTP_PASSWORD_LEN)) {
     httpError("context:%p, fd:%d, taosd token:%s length error", pContext, pContext->fd, token);
     free(base64);
     return -1;
@@ -103,8 +103,8 @@ int32_t httpGenTaosdAuthToken(HttpContext *pContext, char *token, int32_t maxLen
   size = sizeof(pContext->pass);
   tstrncpy(buffer + sizeof(pContext->user), pContext->pass, size);
 
-  char *encrypt = taosDesEncode(KEY_DES_4, buffer, TSDB_USER_LEN + TSDB_KEY_LEN);
-  char *base64 = base64_encode((const unsigned char *)encrypt, TSDB_USER_LEN + TSDB_KEY_LEN);
+  char *encrypt = taosDesEncode(KEY_DES_4, buffer, TSDB_USER_LEN + HTTP_PASSWORD_LEN);
+  char *base64 = base64_encode((const unsigned char *)encrypt, TSDB_USER_LEN + HTTP_PASSWORD_LEN);
 
   size_t len = strlen(base64);
   tstrncpy(token, base64, len + 1);

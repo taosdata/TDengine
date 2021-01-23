@@ -18,6 +18,7 @@
 #include "os.h"
 
 #include "hash.h"
+#include "qAggMain.h"
 #include "qFill.h"
 #include "qResultbuf.h"
 #include "qSqlparser.h"
@@ -27,7 +28,6 @@
 #include "tarray.h"
 #include "tlockfree.h"
 #include "tsdb.h"
-#include "tsqlfunction.h"
 
 struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, const char* val1, const char* val2, int16_t type);
@@ -164,13 +164,14 @@ typedef struct SQuery {
   SColumnInfo*     tagColList;
   int32_t          numOfFilterCols;
   int64_t*         fillVal;
-  uint32_t         status;  // query status
+  uint32_t         status;             // query status
   SResultRec       rec;
   int32_t          pos;
   tFilePage**      sdata;
   STableQueryInfo* current;
+  int32_t          numOfCheckedBlocks; // number of check data blocks
 
-  SOrderedPrjQueryInfo prjInfo;  // limit value for each vgroup, only available in global order projection query.
+  SOrderedPrjQueryInfo prjInfo;        // limit value for each vgroup, only available in global order projection query.
   SSingleColumnFilterInfo* pFilterInfo;
 } SQuery;
 

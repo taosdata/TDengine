@@ -4,7 +4,6 @@ import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
 import org.junit.Test;
-import org.junit.runners.MethodSorters;
 
 import java.sql.*;
 import java.util.Properties;
@@ -12,7 +11,7 @@ import java.util.Properties;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-@FixMethodOrder(MethodSorters.DEFAULT)
+@FixMethodOrder()
 public class PreparedStatementTest extends BaseTest {
     static Connection connection = null;
     static PreparedStatement statement = null;

@@ -274,7 +274,7 @@ void *taosIterateRef(int rsetId, int64_t rid) {
     return NULL;
   }
 
-  if (rid <= 0) {
+  if (rid < 0) {
     uTrace("rsetId:%d rid:%" PRId64 " failed to iterate, rid not valid", rsetId, rid);
     terrno = TSDB_CODE_REF_NOT_EXIST;
     return NULL;

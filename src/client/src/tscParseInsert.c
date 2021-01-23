@@ -703,7 +703,7 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, SParsedDataColI
   
   STableDataBlocks *dataBuf = NULL;
   int32_t ret = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
-                                        sizeof(SSubmitBlk), tinfo.rowSize, pTableMetaInfo->name, pTableMeta, &dataBuf, NULL);
+                                        sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta, &dataBuf, NULL);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
@@ -813,26 +813,26 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       tscAddEmptyMetaInfo(pQueryInfo);
     }
 
-    STableMetaInfo *pSTableMeterMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
-    code = tscSetTableFullName(pSTableMeterMetaInfo, &sToken, pSql);
+    STableMetaInfo *pSTableMetaInfo = tscGetMetaInfo(pQueryInfo, STABLE_INDEX);
+    code = tscSetTableFullName(pSTableMetaInfo, &sToken, pSql);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    tstrncpy(pCmd->tagData.name, pSTableMeterMetaInfo->name, sizeof(pCmd->tagData.name));
+    tNameExtractFullName(&pSTableMetaInfo->name, pCmd->tagData.name);
     pCmd->tagData.dataLen = 0;
 
-    code = tscGetTableMeta(pSql, pSTableMeterMetaInfo);
+    code = tscGetTableMeta(pSql, pSTableMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    if (!UTIL_TABLE_IS_SUPER_TABLE(pSTableMeterMetaInfo)) {
+    if (!UTIL_TABLE_IS_SUPER_TABLE(pSTableMetaInfo)) {
       return tscInvalidSQLErrMsg(pCmd->payload, "create table only from super table is allowed", sToken.z);
     }
 
-    SSchema *pTagSchema = tscGetTableTagSchema(pSTableMeterMetaInfo->pTableMeta);
-    STableComInfo tinfo = tscGetTableInfo(pSTableMeterMetaInfo->pTableMeta);
+    SSchema *pTagSchema = tscGetTableTagSchema(pSTableMetaInfo->pTableMeta);
+    STableComInfo tinfo = tscGetTableInfo(pSTableMetaInfo->pTableMeta);
     
     index = 0;
     sToken = tStrGetToken(sql, &index, false, 0, NULL);
@@ -840,7 +840,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
 
     SParsedDataColInfo spd = {0};
     
-    uint8_t numOfTags = tscGetNumOfTags(pSTableMeterMetaInfo->pTableMeta);
+    uint8_t numOfTags = tscGetNumOfTags(pSTableMetaInfo->pTableMeta);
     spd.numOfCols = numOfTags;
 
     // if specify some tags column
@@ -1036,11 +1036,7 @@ static int32_t validateDataSource(SSqlCmd *pCmd, int8_t type, const char *sql) {
 }
 
 /**
- * usage: insert into table1 values() () table2 values()()
- *
- * @param str
- * @param acct
- * @param db
+ * parse insert sql
  * @param pSql
  * @return
  */
@@ -1343,10 +1339,11 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     // make a backup as tsParseInsertSql may modify the string
     char* sqlstr = strdup(pSql->sqlstr);
     ret = tsParseInsertSql(pSql);
-    if (sqlstr == NULL || pSql->parseRetry >= 1 || ret != TSDB_CODE_TSC_INVALID_SQL) {
+    if ((sqlstr == NULL) || (pSql->parseRetry >= 1) ||
+        (ret != TSDB_CODE_TSC_SQL_SYNTAX_ERROR && ret != TSDB_CODE_TSC_INVALID_SQL)) {
       free(sqlstr);
     } else {
-      tscResetSqlCmdObj(pCmd);
+      tscResetSqlCmd(pCmd, true);
       free(pSql->sqlstr);
       pSql->sqlstr = sqlstr;
       pSql->parseRetry++;
@@ -1358,7 +1355,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
     if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0 && SQLInfo.type == TSDB_SQL_NULL) {
-      tscResetSqlCmdObj(pCmd);
+      tscResetSqlCmd(pCmd, true);
       pSql->parseRetry++;
       ret = tscToSQLCmd(pSql, &SQLInfo);
     }
@@ -1406,39 +1403,38 @@ typedef struct SImportFileSupport {
   FILE    *fp;
 } SImportFileSupport;
 
-static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
+static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRows) {
   assert(param != NULL && tres != NULL);
+
+  char *  tokenBuf = NULL;
+  size_t  n = 0;
+  ssize_t readLen = 0;
+  char *  line = NULL;
+  int32_t count = 0;
+  int32_t maxRows = 0;
+  FILE *  fp   = NULL;
 
   SSqlObj *pSql = tres;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SImportFileSupport *pSupporter = (SImportFileSupport *) param;
+  SImportFileSupport *pSupporter = (SImportFileSupport *)param;
 
   SSqlObj *pParentSql = pSupporter->pSql;
-  FILE    *fp = pSupporter->fp;
+  fp = pSupporter->fp;
 
-  if (taos_errno(pSql) != TSDB_CODE_SUCCESS) {  // handle error
-    assert(taos_errno(pSql) == code);
+  int32_t code = pSql->res.code;
 
-    do {
-      if (code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
-        assert(pSql->res.numOfRows == 0);
-        int32_t errc = fseek(fp, 0, SEEK_SET);
-        if (errc < 0) {
-          tscError("%p failed to seek SEEK_SET since:%s", pSql, tstrerror(errno));
-        } else {
-          break;
-        }
-      }
-
-      taos_free_result(pSql);
-      tfree(pSupporter);
-      fclose(fp);
-
-      pParentSql->res.code = code;
-      tscAsyncResultOnError(pParentSql);
-      return;
-    } while (0);
+  // retry parse data from file and import data from the begining again
+  if (code == TSDB_CODE_TDB_TABLE_RECONFIGURE) {
+    assert(pSql->res.numOfRows == 0);
+    int32_t ret = fseek(fp, 0, SEEK_SET);
+    if (ret < 0) {
+      tscError("%p failed to seek SEEK_SET since:%s", pSql, tstrerror(errno));
+      code = TAOS_SYSTEM_ERROR(errno);
+      goto _error;
+    }
+  } else if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
   }
 
   // accumulate the total submit records
@@ -1452,28 +1448,32 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
   SParsedDataColInfo spd = {.numOfCols = tinfo.numOfColumns};
   tscSetAssignedColumnInfo(&spd, pSchema, tinfo.numOfColumns);
 
-  size_t  n = 0;
-  ssize_t readLen = 0;
-  char *  line = NULL;
-  int32_t count = 0;
-  int32_t maxRows = 0;
-
   tfree(pCmd->pTableNameList);
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
   if (pCmd->pTableBlockHashList == NULL) {
     pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    if (pCmd->pTableBlockHashList == NULL) {
+      code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+      goto _error;
+    }
   }
 
   STableDataBlocks *pTableDataBlock = NULL;
-  int32_t ret = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE,
-                                        sizeof(SSubmitBlk), tinfo.rowSize, pTableMetaInfo->name, pTableMeta, &pTableDataBlock, NULL);
+  int32_t           ret =
+      tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+                              tinfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pTableDataBlock, NULL);
   if (ret != TSDB_CODE_SUCCESS) {
-//    return ret;
+    pParentSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _error;
   }
 
   tscAllocateMemIfNeed(pTableDataBlock, tinfo.rowSize, &maxRows);
-  char *tokenBuf = calloc(1, 4096);
+  tokenBuf = calloc(1, TSDB_MAX_BYTES_PER_ROW);
+  if (tokenBuf == NULL) {
+    code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _error;
+  }
 
   while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
@@ -1501,30 +1501,42 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int code) {
   }
 
   tfree(tokenBuf);
-  free(line);
+  tfree(line);
 
-  if (count > 0) {
-    code = doPackSendDataBlock(pSql, count, pTableDataBlock);
-    if (code != TSDB_CODE_SUCCESS) {
-      pParentSql->res.code = code;
-      tscAsyncResultOnError(pParentSql);
+  pParentSql->res.code = code;
+  if (code == TSDB_CODE_SUCCESS) {
+    if (count > 0) {
+      code = doPackSendDataBlock(pSql, count, pTableDataBlock);
+      if (code == TSDB_CODE_SUCCESS) {
+        return;
+      } else {
+        goto _error;
+      }
+    } else {
+      taos_free_result(pSql);
+      tfree(pSupporter);
+      fclose(fp);
+
+      pParentSql->fp = pParentSql->fetchFp;
+
+      // all data has been sent to vnode, call user function
+      int32_t v = (code != TSDB_CODE_SUCCESS) ? code : (int32_t)pParentSql->res.numOfRows;
+      (*pParentSql->fp)(pParentSql->param, pParentSql, v);
       return;
     }
-
-  } else {
-    taos_free_result(pSql);
-    tfree(pSupporter);
-    fclose(fp);
-
-    pParentSql->fp = pParentSql->fetchFp;
-
-    // all data has been sent to vnode, call user function
-    int32_t v = (pParentSql->res.code != TSDB_CODE_SUCCESS) ? pParentSql->res.code : (int32_t)pParentSql->res.numOfRows;
-    (*pParentSql->fp)(pParentSql->param, pParentSql, v);
   }
+
+_error:
+  tfree(tokenBuf);
+  tfree(line);
+  taos_free_result(pSql);
+  tfree(pSupporter);
+  fclose(fp);
+
+  tscAsyncResultOnError(pParentSql);
 }
 
-void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql) {
+void tscImportDataFromFile(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   if (pCmd->command != TSDB_SQL_INSERT) {
     return;
@@ -1543,12 +1555,11 @@ void tscProcessMultiVnodesImportFromFile(SSqlObj *pSql) {
 
     tfree(pSupporter);
     tscAsyncResultOnError(pSql);
-
     return;
   }
 
   pSupporter->pSql = pSql;
-  pSupporter->fp = fp;
+  pSupporter->fp   = fp;
 
-  parseFileSendDataBlock(pSupporter, pNew, 0);
+  parseFileSendDataBlock(pSupporter, pNew, TSDB_CODE_SUCCESS);
 }

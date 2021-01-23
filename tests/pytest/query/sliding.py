@@ -52,7 +52,15 @@ class TDTestCase:
         tdSql.query("select count(*) from meters group by loc")
         tdSql.checkRows(2)
 
-        tdSql.error("select * from meters group by loc sliding(5s)")    
+        tdSql.error("select * from meters group by loc sliding(5s)")   
+
+        # Fix defect: https://jira.taosdata.com:18080/browse/TD-2700
+        tdSql.execute("create database test")
+        tdSql.execute("use test")
+        tdSql.execute("create table t1(ts timestamp, k int)")
+        tdSql.execute("insert into t1 values(1500000001000, 0)")
+        tdSql.query("select sum(k) from t1 interval(1d) sliding(1h)")
+        tdSql.checkRows(24)
 
     def stop(self):
         tdSql.close()
