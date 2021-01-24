@@ -200,6 +200,7 @@ typedef struct tSQLExpr {
 typedef struct tSqlExprItem {
   tSQLExpr *pNode;      // The list of expressions
   char *    aliasName;  // alias name, null-terminated string
+  bool      distinct;
 } tSqlExprItem;
 
 // todo refactor by using SArray
@@ -232,7 +233,7 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType);
 
 void tSqlExprDestroy(tSQLExpr *pExpr);
 
-tSQLExprList *tSqlExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken *pToken);
+tSQLExprList *tSqlExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken *pDistinct, SStrToken *pToken);
 
 void tSqlExprListDestroy(tSQLExprList *pList);
 
