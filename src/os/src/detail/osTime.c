@@ -43,7 +43,7 @@
  */
 int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
 		const unsigned int day, const unsigned int hour,
-		const unsigned int min, const unsigned int sec)
+		const unsigned int min, const unsigned int sec, int64_t timezone)
 {
   unsigned int mon = mon0, year = year0;
 
@@ -60,12 +60,6 @@ int64_t user_mktime64(const unsigned int year0, const unsigned int mon0,
   res += year/4 - year/100 + year/400 + day + ((int64_t)year)*365 - 719499;
   res  = res*24;
   res  = ((res + hour) * 60 + min) * 60 + sec;
-
-#ifdef _MSC_VER
-#if _MSC_VER >= 1900
-  int64_t timezone = _timezone;
-#endif
-#endif
 
   return (res + timezone);
 }
@@ -219,7 +213,7 @@ int32_t parseTimeWithTz(char* timestr, int64_t* time, int32_t timePrec) {
 
 /* mktime will be affected by TZ, set by using taos_options */
 #ifdef WINDOWS
-  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, 0);
   //int64_t seconds = gmtime(&tm); 
 #else
   int64_t seconds = timegm(&tm);
@@ -276,7 +270,13 @@ int32_t parseLocaltime(char* timestr, int64_t* time, int32_t timePrec) {
     return -1;
   }
 
-  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+#ifdef _MSC_VER
+#if _MSC_VER >= 1900
+  int64_t timezone = _timezone;
+#endif
+#endif
+
+  int64_t seconds = user_mktime64(tm.tm_year+1900, tm.tm_mon+1, tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, timezone);
   
   int64_t fraction = 0;
 
