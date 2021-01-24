@@ -271,18 +271,15 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
   }
 
   else if (0 == strcasecmp(key, "Authorization")) {
-    char *  t = NULL;
-    char *  s = NULL;
+    char   t[6] = {0};
+    char   s[129] = {0};
     int32_t bytes = 0;
-    int32_t n = sscanf(val, "%ms %ms%n", &t, &s, &bytes);
-    if (n == 2 && t && s && bytes == strlen(val)) {
+    int32_t n = sscanf(val, "%5s %128s%n", t, s, &bytes);
+    if (n == 2 && t[0] && s[0] && bytes == strlen(val)) {
       if (strcmp(t, "Basic") == 0) {
         free(parser->authContent);
-        parser->authContent = s;
+        parser->authContent = strdup(s);
         parser->authType = HTTP_BASIC_AUTH;
-        s = NULL;
-        free(t);
-        free(s);
         httpTrace("context:%p, fd:%d, basic auth:%s", pContext, pContext->fd, parser->authContent);
         int32_t ok = httpParseBasicAuthToken(pContext, parser->authContent, (int32_t)strlen(parser->authContent));
         if (ok != 0) {
@@ -292,11 +289,8 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
         return 0;
       } else if (strcmp(t, "Taosd") == 0) {
         free(parser->authContent);
-        parser->authContent = s;
+        parser->authContent = strdup(s);
         parser->authType = HTTP_TAOSD_AUTH;
-        s = NULL;
-        free(t);
-        free(s);
         httpTrace("context:%p, fd:%d, taosd auth:%s", pContext, pContext->fd, parser->authContent);
         int32_t ok = httpParseTaosdAuthToken(pContext, parser->authContent, (int32_t)strlen(parser->authContent));
         if (ok != 0) {
@@ -308,16 +302,12 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
         parser->authType = HTTP_INVALID_AUTH;
         httpError("context:%p, fd:%d, invalid auth, t:%s s:%s", pContext, pContext->fd, t, s);
         httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_AUTH_TYPE);
-        free(t);
-        free(s);
         return -1;
       }
     } else {
       parser->authType = HTTP_INVALID_AUTH;
       httpError("context:%p, fd:%d, parse auth failed, t:%s s:%s", pContext, pContext->fd, t, s);
       httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_AUTH_FORMAT);
-      free(t);
-      free(s);
       return -1;
     }
   }
