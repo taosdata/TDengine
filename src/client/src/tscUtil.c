@@ -1933,6 +1933,10 @@ SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, in
   }
 
   if (tscAddSubqueryInfo(pCmd) != TSDB_CODE_SUCCESS) {
+#ifdef __APPLE__
+    // to satisfy later tsem_destroy in taos_free_result
+    tsem_init(&pNew->rspSem, 0, 0);
+#endif // __APPLE__
     tscFreeSqlObj(pNew);
     return NULL;
   }

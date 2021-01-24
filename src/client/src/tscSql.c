@@ -295,6 +295,10 @@ void taos_close(TAOS *taos) {
 
       tscDebug("%p HB is freed", pHb);
       taosReleaseRef(tscObjRef, pHb->self);
+#ifdef __APPLE__
+      // to satisfy later tsem_destroy in taos_free_result
+      tsem_init(&pHb->rspSem, 0, 0);
+#endif // __APPLE__
       taos_free_result(pHb);
     }
   }
