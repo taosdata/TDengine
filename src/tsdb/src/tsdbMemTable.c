@@ -209,9 +209,9 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
 
 #ifdef __APPLE__
   sem_wait(pRepo->readyToCommit);
-#else
+#else // __APPLE__
   sem_wait(&(pRepo->readyToCommit));
-#endif
+#endif // __APPLE__
 
   ASSERT(pRepo->imem == NULL);
 
@@ -236,10 +236,10 @@ int tsdbSyncCommit(TSDB_REPO_T *repo) {
 #ifdef __APPLE__
   sem_wait(pRepo->readyToCommit);
   sem_post(pRepo->readyToCommit);
-#else
+#else // __APPLE__
   sem_wait(&(pRepo->readyToCommit));
   sem_post(&(pRepo->readyToCommit));
-#endif
+#endif // __APPLE__
 
   if (pRepo->code != TSDB_CODE_SUCCESS) {
     terrno = pRepo->code;

@@ -13,13 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// fail-fast or let-it-crash philosophy
+// https://en.wikipedia.org/wiki/Fail-fast
+// https://stackoverflow.com/questions/4393197/erlangs-let-it-crash-philosophy-applicable-elsewhere
+// experimentally, we follow log-and-crash here
+
 #include "eok.h"
 
 #include "os.h"
 
 #include <sys/event.h>
 
-#define LET_IT_BE
+// #define BALANCE_CHECK_WHEN_CLOSE
 
 #ifdef ENABLE_LOG
 #define D(fmt, ...) fprintf(stderr, "%s[%d]%s(): " fmt "\n", basename(__FILE__), __LINE__, __func__, ##__VA_ARGS__)
@@ -99,16 +104,16 @@ struct eok_event_s {
 typedef struct eoks_s                      eoks_t;
 struct eoks_s {
   pthread_mutex_t      lock;
-  ep_over_kq_t       **eoks;       // note: this memory leaks when process terminates
-  int                  neoks;      //       we can add an extra api to let user clean
-  ep_over_kq_t        *eoks_free;  //       currently, we just keep it simple stupid
+  ep_over_kq_t       **eoks;            // note: this memory leaks when process terminates
+  int                  neoks;           //       we can add an extra api to let user clean
+  ep_over_kq_t        *eoks_free_list;  //       currently, we just keep it simple stupid
 };
 
 static eoks_t          eoks = {
-  .lock           = PTHREAD_MUTEX_INITIALIZER,
-  .eoks           = NULL,
-  .neoks          = 0,
-  .eoks_free      = NULL,
+  .lock                = PTHREAD_MUTEX_INITIALIZER,
+  .eoks                = NULL,
+  .neoks               = 0,
+  .eoks_free_list      = NULL,
 };
 
 #ifdef ENABLE_LOG
@@ -760,9 +765,9 @@ static ep_over_kq_t* eoks_alloc(void) {
 
   A(0==pthread_mutex_lock(&eoks.lock), "");
   do {
-    if (eoks.eoks_free) {
-      eok = eoks.eoks_free;
-      eoks.eoks_free = eok->next;
+    if (eoks.eoks_free_list) {
+      eok = eoks.eoks_free_list;
+      eoks.eoks_free_list = eok->next;
       A(eoks.eoks, "internal logic error");
       A(eok->idx>=0 && eok->idx<eoks.neoks, "internal logic error");
       A(*(eoks.eoks + eok->idx)==NULL, "internal logic error");
@@ -820,10 +825,12 @@ static void eoks_free(ep_over_kq_t *eok) {
 
     A(eok->waiting==0, "internal logic error");
     eok_event_t *ev = eok->evs_head;
+    int sv_closed = 0;
     while (ev) {
       eok_event_t *next = ev->next;
       if (ev->fd==eok->sv[0]) {
         // fd is critical system resource
+        A(sv_closed==0, "internal logic error");
         close(eok->sv[0]);
         eok->sv[0] = -1;
         close(eok->sv[1]);
@@ -832,11 +839,11 @@ static void eoks_free(ep_over_kq_t *eok) {
       } else {
         // user forget calling epoll_ctl(EPOLL_CTL_DEL) before calling epoll_close/close?
         // calling close(ev->fd) here smells really bad
-#ifdef LET_IT_BE
+#ifndef BALANCE_CHECK_WHEN_CLOSE
         // we just let it be and reclaim ev
         eok_free_ev(eok, ev);
 #else
-        // panic otherwise, if LET_IT_BE not defined
+        // panic otherwise, if BALANCE_CHECK_WHEN_CLOSE is defined
         A(eok->evs_head==NULL && eok->evs_tail==NULL && eok->evs_count==0,
           "epfd[%d] fd[%d]: internal logic error: have you epoll_ctl(EPOLL_CTL_DEL) everything before calling epoll_close?",
           eok->idx, ev->fd);
@@ -861,8 +868,8 @@ static void eoks_free(ep_over_kq_t *eok) {
       close(eok->kq);
       eok->kq = -1;
     }
-    eok->next = eoks.eoks_free;
-    eoks.eoks_free = eok;
+    eok->next = eoks.eoks_free_list;
+    eoks.eoks_free_list = eok;
     *(eoks.eoks + eok->idx) = NULL;
   } while (0);
   A(0==pthread_mutex_unlock(&eoks.lock), "");

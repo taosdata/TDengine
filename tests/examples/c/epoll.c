@@ -15,9 +15,9 @@
 
 #ifdef __APPLE__
 #include "eok.h"
-#else
+#else // __APPLE__
 #include <sys/epoll.h>
-#endif
+#endif // __APPLE__
 #include <sys/types.h>
 #include <sys/time.h>
 #include <sys/socket.h>

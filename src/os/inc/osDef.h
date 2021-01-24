@@ -90,11 +90,12 @@ extern "C" {
 #ifdef _ISOC11_SOURCE
   #define threadlocal _Thread_local
 #elif defined(__APPLE__)
-  #define threadlocal
+  #define threadlocal __thread
 #elif defined(__GNUC__) && !defined(threadlocal)
   #define threadlocal __thread
 #else
-  #define threadlocal
+  // #define threadlocal
+  #error please follow with the target platform's thread-local implementation
 #endif
 
 #ifdef __cplusplus

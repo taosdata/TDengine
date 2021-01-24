@@ -145,6 +145,7 @@ bool taosGetSystemUid(char *uid) {
   return false;
 }
 #endif // __APPLE__
+
 static int32_t mnodeCreateCluster() {
   int32_t numOfClusters = sdbGetNumOfRows(tsClusterSdb);
   if (numOfClusters != 0) return TSDB_CODE_SUCCESS;

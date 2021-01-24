@@ -235,9 +235,9 @@ typedef struct {
   STsdbFileH*     tsdbFileH;
 #ifdef __APPLE__
   sem_t          *readyToCommit;
-#else
+#else // __APPLE__
   sem_t           readyToCommit;
-#endif
+#endif // __APPLE__
   pthread_mutex_t mutex;
   bool            repoLocked;
   int32_t         code; // Commit code
