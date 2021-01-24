@@ -2148,16 +2148,7 @@ bool tsdbNextDataBlockWithoutMerge(TsdbQueryHandleT* pHandle) {
   size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   assert(numOfTables > 0);
 
-  if (pQueryHandle->type == TSDB_QUERY_TYPE_EXTERNAL) {
-    SMemRef* pMemRef = pQueryHandle->pMemRef;
-    tsdbMayTakeMemSnapshot(pQueryHandle);
-    bool ret = getNeighborRows(pQueryHandle);
-    tsdbMayUnTakeMemSnapshot(pQueryHandle);
-
-    // restore the pMemRef
-    pQueryHandle->pMemRef = pMemRef;
-    return ret;
-  } else if (pQueryHandle->type == TSDB_QUERY_TYPE_LAST && pQueryHandle->cachelastrow) {
+  if (pQueryHandle->type == TSDB_QUERY_TYPE_LAST && pQueryHandle->cachelastrow) {
     // the last row is cached in buffer, return it directly.
     // here note that the pQueryHandle->window must be the TS_INITIALIZER
     int32_t numOfCols  = (int32_t)(QH_GET_NUM_OF_COLS(pQueryHandle));
