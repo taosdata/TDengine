@@ -113,7 +113,9 @@ void tsdbClearTableCfg(STableCfg *config);
 void *tsdbGetTableTagVal(const void *pTable, int32_t colId, int16_t type, int16_t bytes);
 char *tsdbGetTableName(void *pTable);
 
-#define TSDB_TABLEID(_table) ((STableId *)(_table))
+#define TSDB_TABLEID(_table) ((STableId*) (_table))
+#define TSDB_PREV_ROW  0x1
+#define TSDB_NEXT_ROW  0x2
 
 STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg);
 
@@ -140,7 +142,6 @@ typedef struct {
   int64_t   tableTotalDataSize;  // In bytes
   int64_t   tableTotalDiskSize;  // In bytes
 } STableInfo;
-STableInfo *tsdbGetTableInfo(STsdbRepo *pRepo, STableId tid);
 
 // -- FOR INSERT DATA
 /**
@@ -159,9 +160,10 @@ typedef void *TsdbQueryHandleT;  // Use void to hide implementation details
 // query condition to build vnode iterator
 typedef struct STsdbQueryCond {
   STimeWindow  twindow;
-  int32_t      order;  // desc|asc order to iterate the data block
+  int32_t      order;             // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo *colList;
+  bool         loadExternalRows;  // load external rows or not
 } STsdbQueryCond;
 
 typedef struct SMemRef {
@@ -233,13 +235,32 @@ SArray *tsdbGetQueriedTableList(TsdbQueryHandleT *pHandle);
 TsdbQueryHandleT tsdbQueryRowsInExternalWindow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList,
                                                void *qinfo, SMemRef *pRef);
 
+
 /**
- * move to next block if exists
+ * get num of rows in mem table 
+ *
+ * @param pHandle
+ * @return row size
+ */
+
+int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle);
+
+/**
+ * move to next block if exists 
  *
  * @param pQueryHandle
  * @return
  */
 bool tsdbNextDataBlock(TsdbQueryHandleT *pQueryHandle);
+/**
+ * move to next block if exists but not merge data in memtable 
+ *
+ * @param pQueryHandle
+ * @return
+ */
+bool tsdbNextDataBlockWithoutMerge(TsdbQueryHandleT *pQueryHandle);
+
+SArray* tsdbGetExternalRow(TsdbQueryHandleT *pHandle, SMemRef* pMemRef, int16_t type);
 
 /**
  * Get current data block information

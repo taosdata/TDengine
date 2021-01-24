@@ -27,6 +27,9 @@ extern "C" {
 #define TSQL_TBNAME   "TBNAME"
 #define TSQL_TBNAME_L "tbname"
 
+#define TSQL_BLOCK_DIST   "_BLOCK_DIST"
+#define TSQL_BLOCK_DIST_L "_block_dist"
+
 // used to denote the minimum unite in sql parsing
 typedef struct SStrToken {
   uint32_t n;

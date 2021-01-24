@@ -39,6 +39,14 @@ SSchema tGetTableNameColumnSchema() {
   tstrncpy(s.name, TSQL_TBNAME_L, TSDB_COL_NAME_LEN);
   return s;
 }
+SSchema tGetBlockDistColumnSchema() {
+  SSchema s = {0};
+  s.bytes = TSDB_MAX_BINARY_LEN;;
+  s.type  = TSDB_DATA_TYPE_BINARY;
+  s.colId = TSDB_BLOCK_DIST_COLUMN_INDEX;
+  tstrncpy(s.name, TSQL_BLOCK_DIST_L, TSDB_COL_NAME_LEN);
+  return s;
+}
 
 SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name) {
   SSchema s = {0};
@@ -367,6 +375,9 @@ int32_t tNameSetAcctId(SName* dst, const char* acct) {
   }
 
   tstrncpy(dst->acctId, acct, tListLen(dst->acctId));
+
+  assert(strlen(dst->acctId) > 0);
+  
   return 0;
 }
 
@@ -383,12 +394,14 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     int32_t len = (int32_t)(p - str);
 
     // too long account id or too long db name
-    if (len >= tListLen(dst->acctId) || len == 0) {
+    if ((len >= tListLen(dst->acctId)) || (len <= 0)) {
       return -1;
     }
 
     memcpy (dst->acctId, str, len);
     dst->acctId[len] = 0;
+
+    assert(strlen(dst->acctId) > 0);
   }
 
   if ((type & T_NAME_DB) == T_NAME_DB) {
@@ -404,7 +417,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     }
 
     // too long account id or too long db name
-    if (len >= tListLen(dst->dbname) || len == 0) {
+    if ((len >= tListLen(dst->dbname)) || (len <= 0)) {
       return -1;
     }
 
@@ -419,7 +432,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
     int32_t len = (int32_t) strlen(start);
 
     // too long account id or too long db name
-    if (len >= tListLen(dst->tname) || len == 0) {
+    if ((len >= tListLen(dst->tname)) || (len <= 0)) {
       return -1;
     }
 

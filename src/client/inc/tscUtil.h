@@ -99,14 +99,14 @@ static FORCE_INLINE SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t sub
 }
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
-void tscDestroyDataBlock(STableDataBlocks* pDataBlock);
+void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta);
 void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);
 
 SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, int16_t bytes,
                                    uint32_t offset);
 
 void*   tscDestroyBlockArrayList(SArray* pDataBlockList);
-void*   tscDestroyBlockHashTable(SHashObj* pBlockHashTable);
+void*   tscDestroyBlockHashTable(SHashObj* pBlockHashTable, bool removeMeta);
 
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
 int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap);

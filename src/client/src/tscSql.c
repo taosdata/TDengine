@@ -15,7 +15,7 @@
 
 #include "hash.h"
 #include "os.h"
-#include "qAst.h"
+#include "texpr.h"
 #include "tkey.h"
 #include "tcache.h"
 #include "tnote.h"
@@ -110,6 +110,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
     rpcClose(pDnodeConn);
     free(pObj->tscCorMgmtEpSet);
     free(pObj);
+    return NULL;
   }
   memcpy(pObj->tscCorMgmtEpSet, &corMgmtEpSet, sizeof(SRpcCorEpSet));
 
@@ -936,7 +937,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
 
 static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t tblListLen) {
   // must before clean the sqlcmd object
-  tscResetSqlCmdObj(&pSql->cmd);
+  tscResetSqlCmd(&pSql->cmd, false);
 
   SSqlCmd *pCmd = &pSql->cmd;
 
