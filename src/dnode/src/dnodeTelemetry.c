@@ -200,7 +200,7 @@ static void sendTelemetryReport() {
     dTrace("failed to get IP address of " TELEMETRY_SERVER ", reason:%s", strerror(errno));
     return;
   }
-  int32_t fd = taosOpenTcpClientSocket(ip, TELEMETRY_PORT, 0);
+  SOCKET fd = taosOpenTcpClientSocket(ip, TELEMETRY_PORT, 0);
   if (fd < 0) {
     dTrace("failed to create socket for telemetry, reason:%s", strerror(errno));
     return;

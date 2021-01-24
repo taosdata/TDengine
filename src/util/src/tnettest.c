@@ -39,7 +39,7 @@ typedef struct {
 static void *taosNetBindUdpPort(void *sarg) {
   STestInfo *pinfo = (STestInfo *)sarg;
   int32_t    port = pinfo->port;
-  int32_t    serverSocket;
+  SOCKET     serverSocket;
   char       buffer[BUFFER_SIZE];
   int32_t    iDataNum;
   socklen_t  sin_size;
@@ -48,7 +48,7 @@ static void *taosNetBindUdpPort(void *sarg) {
   struct sockaddr_in server_addr;
   struct sockaddr_in clientAddr;
 
-   if ((serverSocket = (int32_t)socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+   if ((serverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
     uError("failed to create UDP socket since %s", strerror(errno));
     return NULL;
   }
@@ -106,12 +106,12 @@ static void *taosNetBindTcpPort(void *sarg) {
 
  STestInfo *pinfo = sarg;
   int32_t    port = pinfo->port;
-  int32_t    serverSocket;
+  SOCKET     serverSocket;
   int32_t    addr_len = sizeof(clientAddr);
-  int32_t    client;
+  SOCKET     client;
   char       buffer[BUFFER_SIZE];
 
-  if ((serverSocket = (int32_t)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+  if ((serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
     uError("failed to create TCP socket since %s", strerror(errno));
     return NULL;
   }
@@ -133,7 +133,6 @@ static void *taosNetBindTcpPort(void *sarg) {
     return NULL;
   }
 
-  
   if (taosKeepTcpAlive(serverSocket) < 0) {
     uError("failed to set tcp server keep-alive option since %s", strerror(errno));
     taosCloseSocket(serverSocket);
@@ -148,7 +147,7 @@ static void *taosNetBindTcpPort(void *sarg) {
   uInfo("TCP server at port:%d is listening", port);
 
   while (1) {
-    client = (int32_t)accept(serverSocket, (struct sockaddr *)&clientAddr, (socklen_t *)&addr_len);
+    client = accept(serverSocket, (struct sockaddr *)&clientAddr, (socklen_t *)&addr_len);
     if (client < 0) {
       uDebug("TCP: failed to accept at port:%d since %s", port, strerror(errno));
       continue;
@@ -178,10 +177,10 @@ static void *taosNetBindTcpPort(void *sarg) {
 }
 
 static int32_t taosNetCheckTcpPort(STestInfo *info) {
-  int32_t clientSocket;
+  SOCKET  clientSocket;
   char    buffer[BUFFER_SIZE] = {0};
 
-  if ((clientSocket = (int32_t)socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+  if ((clientSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
     uError("failed to create TCP client socket since %s", strerror(errno));
     return -1;
   }
@@ -226,14 +225,14 @@ static int32_t taosNetCheckTcpPort(STestInfo *info) {
 }
 
 static int32_t taosNetCheckUdpPort(STestInfo *info) {
-  int32_t clientSocket;
+  SOCKET  clientSocket;
   char    buffer[BUFFER_SIZE] = {0};
   int32_t iDataNum = 0;
   int32_t bufSize = 1024000;
 
   struct sockaddr_in serverAddr;
 
-  if ((clientSocket = (int32_t)socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+  if ((clientSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
     uError("failed to create udp client socket since %s", strerror(errno));
     return -1;
   }

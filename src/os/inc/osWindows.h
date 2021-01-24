@@ -93,6 +93,12 @@ typedef SOCKET eventfd_t;
 
 #define TAOS_OS_DEF_EPOLL
   #define TAOS_EPOLL_WAIT_TIME 100
+  typedef SOCKET EpollFd; 
+  #define EpollClose(pollFd) epoll_close(pollFd) 
+  
+#ifndef EPOLLWAKEUP
+  #define EPOLLWAKEUP (1u << 29)
+#endif
 
 #define TAOS_OS_DEF_ZU
   #define PRIzu "ld"  

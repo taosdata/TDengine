@@ -102,7 +102,7 @@ uint32_t ip2uint(const char *const ip_addr) {
   return *((uint32_t *)ip);
 }
 
-int32_t taosWriteMsg(int32_t fd, void *buf, int32_t nbytes) {
+int32_t taosWriteMsg(SOCKET fd, void *buf, int32_t nbytes) {
   int32_t nleft, nwritten;
   char *  ptr = (char *)buf;
 
@@ -128,7 +128,7 @@ int32_t taosWriteMsg(int32_t fd, void *buf, int32_t nbytes) {
   return (nbytes - nleft);
 }
 
-int32_t taosReadMsg(int32_t fd, void *buf, int32_t nbytes) {
+int32_t taosReadMsg(SOCKET fd, void *buf, int32_t nbytes) {
   int32_t nleft, nread;
   char *  ptr = (char *)buf;
 
@@ -159,7 +159,7 @@ int32_t taosReadMsg(int32_t fd, void *buf, int32_t nbytes) {
   return (nbytes - nleft);
 }
 
-int32_t taosNonblockwrite(int32_t fd, char *ptr, int32_t nbytes) {
+int32_t taosNonblockwrite(SOCKET fd, char *ptr, int32_t nbytes) {
   taosSetNonblocking(fd, 1);
 
   int32_t nleft, nwritten, nready;
@@ -201,7 +201,7 @@ int32_t taosNonblockwrite(int32_t fd, char *ptr, int32_t nbytes) {
   return (nbytes - nleft);
 }
 
-int32_t taosReadn(int32_t fd, char *ptr, int32_t nbytes) {
+int32_t taosReadn(SOCKET fd, char *ptr, int32_t nbytes) {
   int32_t nread, nready, nleft = nbytes;
 
   fd_set fset;
@@ -239,9 +239,9 @@ int32_t taosReadn(int32_t fd, char *ptr, int32_t nbytes) {
   return (nbytes - nleft);
 }
 
-int32_t taosOpenUdpSocket(uint32_t ip, uint16_t port) {
+SOCKET taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   struct sockaddr_in localAddr;
-  int32_t sockFd;
+  SOCKET sockFd;
   int32_t bufSize = 1024000;
 
   uDebug("open udp socket:0x%x:%hu", ip, port);
@@ -251,7 +251,7 @@ int32_t taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   localAddr.sin_addr.s_addr = ip;
   localAddr.sin_port = (uint16_t)htons(port);
 
-  if ((sockFd = (int32_t)socket(AF_INET, SOCK_DGRAM, 0)) <= 2) {
+  if ((sockFd = socket(AF_INET, SOCK_DGRAM, 0)) <= 2) {
     uError("failed to open udp socket: %d (%s)", errno, strerror(errno));
     taosCloseSocketNoCheck(sockFd);
     return -1;
@@ -279,13 +279,13 @@ int32_t taosOpenUdpSocket(uint32_t ip, uint16_t port) {
   return sockFd;
 }
 
-int32_t taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clientIp) {
-  int32_t sockFd = 0;
+SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clientIp) {
+  SOCKET sockFd = 0;
   int32_t ret;
   struct sockaddr_in serverAddr, clientAddr;
   int32_t bufSize = 1024 * 1024;
 
-  sockFd = (int32_t)socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
+  sockFd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
   
   if (sockFd <= 2) {
     uError("failed to open the socket: %d (%s)", errno, strerror(errno));
@@ -346,7 +346,7 @@ int32_t taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t cli
   return sockFd;
 }
 
-int32_t taosKeepTcpAlive(int32_t sockFd) {
+int32_t taosKeepTcpAlive(SOCKET sockFd) {
   int32_t alive = 1;
   if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_KEEPALIVE, (void *)&alive, sizeof(alive)) < 0) {
     uError("fd:%d setsockopt SO_KEEPALIVE failed: %d (%s)", sockFd, errno, strerror(errno));
@@ -394,9 +394,9 @@ int32_t taosKeepTcpAlive(int32_t sockFd) {
   return 0;
 }
 
-int32_t taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
+SOCKET taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   struct sockaddr_in serverAdd;
-  int32_t             sockFd;
+  SOCKET             sockFd;
   int32_t            reuse;
 
   uDebug("open tcp server socket:0x%x:%hu", ip, port);
@@ -406,7 +406,7 @@ int32_t taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   serverAdd.sin_addr.s_addr = ip;
   serverAdd.sin_port = (uint16_t)htons(port);
 
-  if ((sockFd = (int32_t)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
+  if ((sockFd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
     uError("failed to open TCP socket: %d (%s)", errno, strerror(errno));
     taosCloseSocketNoCheck(sockFd);
     return -1;
@@ -449,7 +449,7 @@ void tinet_ntoa(char *ipstr, uint32_t ip) {
 #define COPY_SIZE 32768
 // sendfile shall be used
 
-int32_t taosCopyFds(int32_t sfd, int32_t dfd, int64_t len) {
+int32_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len) {
   int64_t leftLen;
   int32_t readLen, writeLen;
   char    temp[COPY_SIZE];

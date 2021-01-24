@@ -24,21 +24,17 @@ extern "C" {
 #include "wepoll.h"
 #endif
 
-#ifndef EPOLLWAKEUP
-  #define EPOLLWAKEUP (1u << 29)
-#endif
+int32_t taosReadn(SOCKET sock, char *buffer, int32_t len);
+int32_t taosWriteMsg(SOCKET fd, void *ptr, int32_t nbytes);
+int32_t taosReadMsg(SOCKET fd, void *ptr, int32_t nbytes);
+int32_t taosNonblockwrite(SOCKET fd, char *ptr, int32_t nbytes);
+int32_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len);
+int32_t taosSetNonblocking(SOCKET sock, int32_t on);
 
-int32_t taosReadn(int32_t sock, char *buffer, int32_t len);
-int32_t taosWriteMsg(int32_t fd, void *ptr, int32_t nbytes);
-int32_t taosReadMsg(int32_t fd, void *ptr, int32_t nbytes);
-int32_t taosNonblockwrite(int32_t fd, char *ptr, int32_t nbytes);
-int32_t taosCopyFds(int32_t sfd, int32_t dfd, int64_t len);
-int32_t taosSetNonblocking(int32_t sock, int32_t on);
-
-int32_t taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
-int32_t taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
-int32_t taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
-int32_t taosKeepTcpAlive(int32_t sockFd);
+SOCKET  taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
+SOCKET  taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
+SOCKET  taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
+int32_t taosKeepTcpAlive(SOCKET sockFd);
 
 int32_t  taosGetFqdn(char *);
 uint32_t taosGetIpv4FromFqdn(const char *);

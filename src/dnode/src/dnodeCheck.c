@@ -29,11 +29,11 @@ typedef struct {
 static  SCheckItem  tsCheckItem[TSDB_CHECK_ITEM_MAX] = {{0}};
 int64_t tsMinFreeMemSizeForStart = 0;
 
-static int32_t bindTcpPort(int32_t port) {
-  int32_t serverSocket;
+static int32_t bindTcpPort(int16_t port) {
+  SOCKET serverSocket;
   struct sockaddr_in server_addr;
 
-  if ((serverSocket = ( int32_t)socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
+  if ((serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
     dError("socket() fail: %s", strerror(errno));
     return -1;
   }
@@ -59,11 +59,11 @@ static int32_t bindTcpPort(int32_t port) {
   return 0;
 }
 
-static int32_t bindUdpPort(int32_t port) {
-  int32_t serverSocket;
+static int32_t bindUdpPort(int16_t port) {
+  SOCKET serverSocket;
   struct sockaddr_in server_addr;
     
-  if ((serverSocket = (int32_t)socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+  if ((serverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
     dError("socket() fail: %s", strerror(errno));
     return -1;
   }
@@ -85,9 +85,9 @@ static int32_t bindUdpPort(int32_t port) {
 
 static int32_t dnodeCheckNetwork() {
   int32_t ret;
-  int32_t startPort = tsServerPort;
+  int16_t startPort = tsServerPort;
 
-  for (int32_t port = startPort; port < startPort + 12; port++) {
+  for (int16_t port = startPort; port < startPort + 12; port++) {
     ret = bindTcpPort(port);
     if (0 != ret) {
       dError("failed to tcp bind port %d, quit", port);

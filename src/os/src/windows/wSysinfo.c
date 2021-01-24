@@ -66,7 +66,7 @@ bool taosGetSysMemory(float *memoryUsedMB) {
 bool taosGetProcMemory(float *memoryUsedMB) {
   unsigned bytes_used = 0;
 
-#if defined(_WIN32) && defined(_MSC_VER)
+#if defined(_WIN64) && defined(_MSC_VER)
   PROCESS_MEMORY_COUNTERS pmc;
   HANDLE                  cur_proc = GetCurrentProcess();
 

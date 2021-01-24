@@ -39,7 +39,7 @@ int32_t taosRenameFile(char *fullPath, char *suffix, char delimiter, char **dstP
   }
 
 // TAOS_OS_FUNC_FILE_SENDIFLE
-int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t *offset, int64_t size);
+int64_t taosSendFile(SOCKET dfd, int32_t sfd, int64_t *offset, int64_t size);
 int64_t taosFSendFile(FILE *outfile, FILE *infile, int64_t *offset, int64_t size);
 
 #ifdef TAOS_RANDOM_FILE_FAIL

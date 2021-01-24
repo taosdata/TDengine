@@ -28,7 +28,7 @@
 #include "syncTcp.h"
 
 static void    arbSignalHandler(int32_t signum, void *sigInfo, void *context);
-static void    arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
+static void    arbProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
 static void    arbProcessBrokenLink(int64_t rid);
 static int32_t arbProcessPeerMsg(int64_t rid, void *buffer);
 static tsem_t  tsArbSem;
@@ -36,7 +36,7 @@ static void *  tsArbTcpPool;
 
 typedef struct {
   char    id[TSDB_EP_LEN + 24];
-  int32_t nodeFd;
+  SOCKET  nodeFd;
   void *  pConn;
 } SNodeConn;
 
@@ -106,7 +106,7 @@ int32_t main(int32_t argc, char *argv[]) {
   return 0;
 }
 
-static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
+static void arbProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   char ipstr[24];
   tinet_ntoa(ipstr, sourceIp);
   sDebug("peer TCP connection from ip:%s", ipstr);
