@@ -95,7 +95,7 @@ extern "C" {
   #define threadlocal __thread
 #else
   // #define threadlocal
-  #error please follow with the target platform's thread-local implementation
+  #error please follow with the thread-local implementation on the target platform 
 #endif
 
 #ifdef __cplusplus
