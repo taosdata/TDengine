@@ -480,5 +480,5 @@ int32_t taosCopyFds(SOCKET sfd, SOCKET dfd, int64_t len) {
     leftLen -= readLen;
   }
 
-  return 0;
+  return len;
 }
