@@ -224,6 +224,7 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
 
     tsdbInfo("vgId:%d, metafile is received, size:%d", REPO_ID(pRepo), readLen);
 
+    mf.info = pSynch->pmf->info;
     tsdbCloseMFile(&mf);
     tsdbUpdateMFile(REPO_FS(pRepo), &mf);
   } else {
@@ -233,6 +234,7 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
       tsdbError("vgId:%d, failed to send decision while recv metafile since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
+    tsdbUpdateMFile(REPO_FS(pRepo), pLMFile);
   }
 
   return 0;
