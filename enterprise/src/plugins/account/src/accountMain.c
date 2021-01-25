@@ -57,7 +57,7 @@
 
 extern int64_t tsVgroupRid;
 extern int64_t tsAcctRid;
-extern int64_t tsSdbRid;
+extern int32_t tsSdbRid;
 extern void *  tsAcctSdb;
 extern void *  tsMnodeTmr;
 static void *  tsMgmtStatisTimer = NULL;
@@ -364,7 +364,7 @@ static int32_t acctGetAcctMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCon
   pShow->offset[0] = 0;
   for (int32_t i = 1; i < cols; ++i) pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
 
-  pShow->numOfRows = sdbGetNumOfRows(tsAcctSdb);
+  pShow->numOfRows = (int32_t)sdbGetNumOfRows(tsAcctSdb);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
 
   mnodeDecUserRef(pUser);
