@@ -80,7 +80,7 @@ void dnodeUpdateEpSetForPeer(SRpcEpSet *ep) {
 
   pthread_mutex_lock(&tsMInfosMutex);
   dInfo("minfos is changed, numOfEps:%d inUse:%d", ep->numOfEps, ep->inUse);
-  for (int i = 0; i < ep->numOfEps; ++i) {
+  for (int32_t i = 0; i < ep->numOfEps; ++i) {
     ep->port[i] -= TSDB_PORT_DNODEDNODE;
     dInfo("minfo:%d %s:%u", i, ep->fqdn[i], ep->port[i]);
   }
@@ -108,7 +108,7 @@ void dnodeGetMInfos(SMInfos *pMinfos) {
 void dnodeGetEpSetForPeer(SRpcEpSet *epSet) {
   pthread_mutex_lock(&tsMInfosMutex);
   *epSet = tsMEpSet;
-  for (int i = 0; i < epSet->numOfEps; ++i) {
+  for (int32_t i = 0; i < epSet->numOfEps; ++i) {
     epSet->port[i] += TSDB_PORT_DNODEDNODE;
   }
   pthread_mutex_unlock(&tsMInfosMutex);
@@ -171,7 +171,7 @@ static int32_t dnodeReadMInfos() {
     goto PARSE_MINFOS_OVER;
   }
 
-  len = fread(content, 1, maxLen, fp);
+  len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
     dError("failed to read %s, content is null", file);
     goto PARSE_MINFOS_OVER;
@@ -189,14 +189,14 @@ static int32_t dnodeReadMInfos() {
     dError("failed to read mnodeEpSet.json, inUse not found");
     goto PARSE_MINFOS_OVER;
   }
-  tsMInfos.inUse = inUse->valueint;
+  tsMInfos.inUse = (int8_t)inUse->valueint;
 
   cJSON *nodeNum = cJSON_GetObjectItem(root, "nodeNum");
   if (!nodeNum || nodeNum->type != cJSON_Number) {
     dError("failed to read mnodeEpSet.json, nodeNum not found");
     goto PARSE_MINFOS_OVER;
   }
-  minfos.mnodeNum = nodeNum->valueint;
+  minfos.mnodeNum = (int8_t)nodeNum->valueint;
 
   cJSON *nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {
@@ -204,13 +204,13 @@ static int32_t dnodeReadMInfos() {
     goto PARSE_MINFOS_OVER;
   }
 
-  int size = cJSON_GetArraySize(nodeInfos);
+  int32_t size = cJSON_GetArraySize(nodeInfos);
   if (size != minfos.mnodeNum) {
     dError("failed to read mnodeEpSet.json, nodeInfos size not matched");
     goto PARSE_MINFOS_OVER;
   }
 
-  for (int i = 0; i < size; ++i) {
+  for (int32_t i = 0; i < size; ++i) {
     cJSON *nodeInfo = cJSON_GetArrayItem(nodeInfos, i);
     if (nodeInfo == NULL) continue;
 
@@ -227,7 +227,7 @@ static int32_t dnodeReadMInfos() {
     }
 
     SMInfo *pMinfo = &minfos.mnodeInfos[i];
-    pMinfo->mnodeId = nodeId->valueint;
+    pMinfo->mnodeId = (int32_t)nodeId->valueint;
     tstrncpy(pMinfo->mnodeEp, nodeEp->valuestring, TSDB_EP_LEN);
 
     bool changed = dnodeCheckEpChanged(pMinfo->mnodeId, pMinfo->mnodeEp);

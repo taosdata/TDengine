@@ -24,7 +24,7 @@ extern "C" {
 int32_t bnInitThread();
 void    bnCleanupThread();
 void    bnNotify();
-void    bnStartTimer(int64_t mseconds);
+void    bnStartTimer(int32_t mseconds);
 
 #ifdef __cplusplus
 }

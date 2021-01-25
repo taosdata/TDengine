@@ -29,8 +29,8 @@ typedef struct {
 static  SCheckItem  tsCheckItem[TSDB_CHECK_ITEM_MAX] = {{0}};
 int64_t tsMinFreeMemSizeForStart = 0;
 
-static int bindTcpPort(int port) {
-  int    serverSocket;
+static int32_t bindTcpPort(int16_t port) {
+  SOCKET serverSocket;
   struct sockaddr_in server_addr;
 
   if ((serverSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) < 0) {
@@ -45,22 +45,22 @@ static int bindTcpPort(int port) {
 
   if (bind(serverSocket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
     dError("port:%d tcp bind() fail: %s", port, strerror(errno));
-    close(serverSocket);
+    taosCloseSocket(serverSocket);
     return -1;
   }
 
   if (listen(serverSocket, 5) < 0) {
     dError("port:%d listen() fail: %s", port, strerror(errno));
-    close(serverSocket);
+    taosCloseSocket(serverSocket);
     return -1;
   }
 
-  close(serverSocket);
+  taosCloseSocket(serverSocket);
   return 0;
 }
 
-static int bindUdpPort(int port) {
-  int    serverSocket;
+static int32_t bindUdpPort(int16_t port) {
+  SOCKET serverSocket;
   struct sockaddr_in server_addr;
     
   if ((serverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
@@ -75,19 +75,19 @@ static int bindUdpPort(int port) {
 
   if (bind(serverSocket, (struct sockaddr *)&server_addr, sizeof(server_addr)) < 0) {
     dError("port:%d udp bind() fail: %s", port, strerror(errno));
-    close(serverSocket);
+    taosCloseSocket(serverSocket);
     return -1;
   }
 
-  close(serverSocket);
+  taosCloseSocket(serverSocket);
   return 0;
 }
 
-static int dnodeCheckNetwork() {
-  int ret;
-  int startPort = tsServerPort;
+static int32_t dnodeCheckNetwork() {
+  int32_t ret;
+  int16_t startPort = tsServerPort;
 
-  for (int port = startPort; port < startPort + 12; port++) {
+  for (int16_t port = startPort; port < startPort + 12; port++) {
     ret = bindTcpPort(port);
     if (0 != ret) {
       dError("failed to tcp bind port %d, quit", port);
@@ -103,7 +103,7 @@ static int dnodeCheckNetwork() {
   return 0;
 }
 
-static int dnodeCheckMem() {
+static int32_t dnodeCheckMem() {
   float  memoryUsedMB;
   float  memoryAvailMB;
   if (true != taosGetSysMemory(&memoryUsedMB)) {
@@ -121,12 +121,12 @@ static int dnodeCheckMem() {
   return 0;  
 }
 
-static int dnodeCheckCpu() {
+static int32_t dnodeCheckCpu() {
   // TODO:  
   return 0;
 }
 
-static int dnodeCheckDisk() {
+static int32_t dnodeCheckDisk() {
   taosGetDisk();
 
   if (tsAvailDataDirGB < tsMinimalDataDirGB) {
@@ -147,24 +147,24 @@ static int dnodeCheckDisk() {
   return 0;
 }
 
-static int dnodeCheckOs() {
+static int32_t dnodeCheckOs() {
   // TODO:
 
   return 0;
 }
-static int dnodeCheckAccess() {
-  // TODO:
-
-  return 0;
-}
-
-static int dnodeCheckVersion() {
+static int32_t dnodeCheckAccess() {
   // TODO:
 
   return 0;
 }
 
-static int dnodeCheckDatafile() {
+static int32_t dnodeCheckVersion() {
+  // TODO:
+
+  return 0;
+}
+
+static int32_t dnodeCheckDatafile() {
   // TODO:
 
   return 0;

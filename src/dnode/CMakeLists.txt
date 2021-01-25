@@ -10,7 +10,7 @@ INCLUDE_DIRECTORIES(${TD_ENTERPRISE_DIR}/src/inc)
 INCLUDE_DIRECTORIES(inc)
 AUX_SOURCE_DIRECTORY(src SRC)
 
-IF (TD_LINUX)
+IF (TD_LINUX OR TD_WINDOWS)
   ADD_EXECUTABLE(taosd ${SRC})
   TARGET_LINK_LIBRARIES(taosd mnode monitor http tsdb twal vnode cJson lz4 balance sync)
 
@@ -28,7 +28,7 @@ IF (TD_LINUX)
     TARGET_LINK_LIBRARIES(taosd grant)
   ENDIF ()
 
-  IF (TD_MQTT)
+  IF (TD_LINUX AND TD_MQTT)
     TARGET_LINK_LIBRARIES(taosd mqtt)
   ENDIF ()
 

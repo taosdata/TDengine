@@ -121,15 +121,11 @@ int64_t taosLSeekImp(int32_t fd, int64_t offset, int32_t whence) {
 
 #ifndef TAOS_OS_FUNC_FILE_SENDIFLE
 
-int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t *offset, int64_t size) {
+int64_t taosSendFile(SOCKET dfd, int32_t sfd, int64_t *offset, int64_t size) {
   int64_t leftbytes = size;
   int64_t sentbytes;
 
   while (leftbytes > 0) {
-    /*
-     * TODO : Think to check if file is larger than 1GB
-     */
-    // if (leftbytes > 1000000000) leftbytes = 1000000000;
     sentbytes = sendfile(dfd, sfd, offset, leftbytes);
     if (sentbytes == -1) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {

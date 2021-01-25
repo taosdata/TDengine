@@ -97,7 +97,7 @@ static int32_t dnodeReadCfg() {
     goto PARSE_CFG_OVER;
   }
 
-  len = fread(content, 1, maxLen, fp);
+  len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
     dError("failed to read %s, content is null", file);
     goto PARSE_CFG_OVER;
@@ -115,7 +115,7 @@ static int32_t dnodeReadCfg() {
     dError("failed to read %s, dnodeId not found", file);
     goto PARSE_CFG_OVER;
   }
-  cfg.dnodeId = dnodeId->valueint;
+  cfg.dnodeId = (int32_t)dnodeId->valueint;
 
   cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
   if (!clusterId || clusterId->type != cJSON_String) {
