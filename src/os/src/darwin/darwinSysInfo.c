@@ -104,3 +104,9 @@ int taosSystem(const char *cmd) {
 void taosSetCoreDump() {}
 
 char *taosGetCmdlineByPID(int pid) { return ""; }
+
+bool taosGetSystemUid(char *uid) {
+  fprintf(stderr, "%s[%d]%s(): not implemented yet!\n", basename(__FILE__), __LINE__, __func__);
+  abort();
+  return false;
+}

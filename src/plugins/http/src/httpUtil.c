@@ -29,7 +29,7 @@ bool httpCheckUsedbSql(char *sql) {
   return false;
 }
 
-void httpTimeToString(time_t t, char *buf, int32_t buflen) {
+void httpTimeToString(int32_t t, char *buf, int32_t buflen) {
   memset(buf, 0, (size_t)buflen);
   char ts[32] = {0};
 
@@ -37,7 +37,7 @@ void httpTimeToString(time_t t, char *buf, int32_t buflen) {
   time_t     tt = t / 1000;
   ptm = localtime(&tt);
   strftime(ts, 31, "%Y-%m-%d %H:%M:%S", ptm);
-  sprintf(buf, "%s.%03" PRId64, ts, t % 1000);
+  sprintf(buf, "%s.%03d", ts, t % 1000);
 }
 
 int32_t httpAddToSqlCmdBuffer(HttpContext *pContext, const char *const format, ...) {
