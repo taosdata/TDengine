@@ -32,7 +32,7 @@ SET(TD_GODLL FALSE)
 INCLUDE(community/cmake/input.inc)
 INCLUDE(community/cmake/platform.inc)
 
-IF (TD_WINDOWS) 
+IF (TD_WINDOWS OR TD_DARWIN) 
   SET(TD_SOMODE_STATIC TRUE)
 ENDIF ()
 
