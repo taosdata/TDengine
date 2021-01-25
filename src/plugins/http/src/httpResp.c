@@ -160,8 +160,9 @@ void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char *errMsg) {
     if (temp[i] == '\"') {
       temp[i] = '\'';
     } else if (temp[i] == '\n') {
-        temp[i] = ' ';
-    } else {}
+      temp[i] = ' ';
+    } else {
+    }
   }
 
   httpSendErrorRespImp(pContext, httpCode, "Bad Request", TSDB_CODE_TSC_INVALID_SQL & 0XFFFF, temp);

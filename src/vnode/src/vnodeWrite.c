@@ -333,7 +333,7 @@ static int32_t vnodePerformFlowCtrl(SVWriteMsg *pWrite) {
   if (pVnode->queuedWMsg < MAX_QUEUED_MSG_NUM && pVnode->flowctrlLevel <= 0) return 0;
 
   if (tsEnableFlowCtrl == 0) {
-    int32_t ms = pow(2, pVnode->flowctrlLevel + 2);
+    int32_t ms = (int32_t)pow(2, pVnode->flowctrlLevel + 2);
     if (ms > 100) ms = 100;
     vTrace("vgId:%d, msg:%p, app:%p, perform flowctrl for %d ms", pVnode->vgId, pWrite, pWrite->rpcMsg.ahandle, ms);
     taosMsleep(ms);

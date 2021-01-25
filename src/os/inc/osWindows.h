@@ -93,6 +93,12 @@ typedef SOCKET eventfd_t;
 
 #define TAOS_OS_DEF_EPOLL
   #define TAOS_EPOLL_WAIT_TIME 100
+  typedef SOCKET EpollFd; 
+  #define EpollClose(pollFd) epoll_close(pollFd) 
+  
+#ifndef EPOLLWAKEUP
+  #define EPOLLWAKEUP (1u << 29)
+#endif
 
 #define TAOS_OS_DEF_ZU
   #define PRIzu "ld"  
@@ -191,13 +197,7 @@ int        gettimeofday(struct timeval *ptv, void *pTimeZone);
   #define PATH_MAX 256
 #endif
 
-//for signal, not dispose
-#define SIGALRM 1234
-typedef int sigset_t;
-struct sigaction {
-  void (*sa_handler)(int);
-};
-int sigaction(int, struct sigaction *, void *);
+#define TAOS_OS_FUNC_SIGNAL
 
 typedef struct {
   int    we_wordc;
@@ -207,6 +207,12 @@ typedef struct {
 } wordexp_t;
 int  wordexp(const char *words, wordexp_t *pwordexp, int flags);
 void wordfree(wordexp_t *pwordexp);
+
+#define openlog(a, b, c)
+#define closelog()
+#define LOG_ERR 0
+#define LOG_INFO 1
+void syslog(int unused, const char *format, ...);
 
 #define TAOS_OS_FUNC_ATOMIC
   #define atomic_load_8(ptr) (*(char volatile*)(ptr))

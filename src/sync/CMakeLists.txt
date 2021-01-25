@@ -4,7 +4,7 @@ PROJECT(TDengine)
 INCLUDE_DIRECTORIES(inc)
 AUX_SOURCE_DIRECTORY(src SRC)
   
-IF (TD_LINUX)
+IF (TD_LINUX OR TD_WINDOWS)
   LIST(REMOVE_ITEM SRC src/syncArbitrator.c)
   ADD_LIBRARY(sync ${SRC})
   TARGET_LINK_LIBRARIES(sync tutil pthread common)

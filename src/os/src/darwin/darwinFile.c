@@ -51,7 +51,37 @@ int64_t taosFSendFile(FILE *out_file, FILE *in_file, int64_t *offset, int64_t co
   return writeLen;
 }
 
-int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t* offset, int64_t size) {
-  uError("taosSendFile not implemented yet");
-  return -1;
+int64_t taosSendFile(SOCKET dfd, int32_t sfd, int64_t* offset, int64_t count) {
+  lseek(sfd, (int32_t)(*offset), 0);
+  int64_t writeLen = 0;
+  uint8_t buffer[_SEND_FILE_STEP_] = { 0 };
+  
+  for (int64_t len = 0; len < (count - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
+    int32_t rlen = (int32_t)read(sfd, buffer, _SEND_FILE_STEP_);
+    if (rlen <= 0) {
+      return writeLen;
+    }
+    else if (rlen < _SEND_FILE_STEP_) {
+      taosWriteSocket(dfd, buffer, rlen);
+      return (int64_t)(writeLen + rlen);
+    }
+    else {
+      taosWriteSocket(dfd, buffer, _SEND_FILE_STEP_);
+      writeLen += _SEND_FILE_STEP_;
+    }
+  }
+
+  int64_t remain = count - writeLen;
+  if (remain > 0) {
+    int32_t rlen = read(sfd, buffer, (int32_t)remain);
+    if (rlen <= 0) {
+      return writeLen;
+    }
+    else {
+      taosWriteSocket(sfd, buffer, (int32_t)remain);
+      writeLen += remain;
+    }
+  }
+
+  return writeLen;
 }

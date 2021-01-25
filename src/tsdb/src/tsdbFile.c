@@ -175,7 +175,7 @@ int tsdbOpenFileH(STsdbRepo *pRepo) {
         }
         sprintf(fname2, "%s/%s_back_%" PRId64, tDataDir, dp->d_name, taosGetTimestamp(TSDB_TIME_PRECISION_MILLI));
 
-        (void)rename(fname1, fname2);
+        (void)taosRename(fname1, fname2);
 
         tsdbDebug("vgId:%d file %s exists, backup it as %s", REPO_ID(pRepo), fname1, fname2);
 
@@ -339,7 +339,7 @@ SFileGroup *tsdbGetFileGroupNext(SFileGroupIter *pIter) {
 int tsdbOpenFile(SFile *pFile, int oflag) {
   ASSERT(!TSDB_IS_FILE_OPENED(pFile));
 
-  pFile->fd = open(pFile->fname, oflag, 0755);
+  pFile->fd = open(pFile->fname, oflag | O_BINARY, 0755);
   if (pFile->fd < 0) {
     tsdbError("failed to open file %s since %s", pFile->fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);

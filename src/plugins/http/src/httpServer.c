@@ -25,34 +25,32 @@
 #include "httpResp.h"
 #include "httpUtil.h"
 
-#ifndef EPOLLWAKEUP
- #define EPOLLWAKEUP (1u << 29)
-#endif
-
 static bool httpReadData(HttpContext *pContext);
 
-static void httpStopThread(HttpThread* pThread) {
+static void httpStopThread(HttpThread *pThread) {
   pThread->stop = true;
 
   // signal the thread to stop, try graceful method first,
   // and use pthread_cancel when failed
-  struct epoll_event event = { .events = EPOLLIN };
-  eventfd_t fd = eventfd(1, 0);
+  struct epoll_event event = {.events = EPOLLIN};
+  eventfd_t          fd = eventfd(1, 0);
   if (fd == -1) {
-    httpError("%s, failed to create eventfd, will call pthread_cancel instead, which may result in data corruption: %s", pThread->label, strerror(errno));
+    httpError("%s, failed to create eventfd, will call pthread_cancel instead, which may result in data corruption: %s",
+              pThread->label, strerror(errno));
     pThread->stop = true;
     pthread_cancel(pThread->thread);
   } else if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, fd, &event) < 0) {
-    httpError("%s, failed to call epoll_ctl, will call pthread_cancel instead, which may result in data corruption: %s", pThread->label, strerror(errno));
+    httpError("%s, failed to call epoll_ctl, will call pthread_cancel instead, which may result in data corruption: %s",
+              pThread->label, strerror(errno));
     pthread_cancel(pThread->thread);
   }
 
   pthread_join(pThread->thread, NULL);
   if (fd != -1) {
-    close(fd);
+    taosCloseSocket(fd);
   }
 
-  close(pThread->pollFd);
+  EpollClose(pThread->pollFd);
   pthread_mutex_destroy(&(pThread->threadMutex));
 }
 
@@ -65,7 +63,7 @@ void httpCleanUpConnect() {
   }
 
   for (int32_t i = 0; i < pServer->numOfThreads; ++i) {
-    HttpThread* pThread = pServer->pThreads + i;
+    HttpThread *pThread = pServer->pThreads + i;
     if (pThread != NULL) {
       httpStopThread(pThread);
     }
@@ -75,15 +73,12 @@ void httpCleanUpConnect() {
 }
 
 static void httpProcessHttpData(void *param) {
-  HttpServer  *pServer = &tsHttpServer;
-  HttpThread  *pThread = (HttpThread *)param;
+  HttpServer * pServer = &tsHttpServer;
+  HttpThread * pThread = (HttpThread *)param;
   HttpContext *pContext;
   int32_t      fdNum;
 
-  sigset_t set;
-  sigemptyset(&set);
-  sigaddset(&set, SIGPIPE);
-  pthread_sigmask(SIG_SETMASK, &set, NULL);
+  taosSetMaskSIGPIPE();
 
   while (1) {
     struct epoll_event events[HTTP_MAX_EVENTS];
@@ -99,8 +94,8 @@ static void httpProcessHttpData(void *param) {
       pContext = httpGetContext(events[i].data.ptr);
       if (pContext == NULL) {
         httpError("context:%p, is already released, close connect", events[i].data.ptr);
-        //epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
-        //taosClose(events[i].data.fd);
+        // epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, events[i].data.fd, NULL);
+        // taosClose(events[i].data.fd);
         continue;
       }
 
@@ -157,7 +152,7 @@ static void httpProcessHttpData(void *param) {
 }
 
 static void *httpAcceptHttpConnection(void *arg) {
-  int32_t            connFd = -1;
+  SOCKET             connFd = -1;
   struct sockaddr_in clientAddr;
   int32_t            threadId = 0;
   HttpServer *       pServer = &tsHttpServer;
@@ -165,10 +160,7 @@ static void *httpAcceptHttpConnection(void *arg) {
   HttpContext *      pContext = NULL;
   int32_t            totalFds = 0;
 
-  sigset_t set;
-  sigemptyset(&set);
-  sigaddset(&set, SIGPIPE);
-  pthread_sigmask(SIG_SETMASK, &set, NULL);
+  taosSetMaskSIGPIPE();
 
   pServer->fd = taosOpenTcpServerSocket(pServer->serverIp, pServer->serverPort);
 
@@ -183,7 +175,12 @@ static void *httpAcceptHttpConnection(void *arg) {
 
   while (1) {
     socklen_t addrlen = sizeof(clientAddr);
-    connFd = (int32_t)accept(pServer->fd, (struct sockaddr *)&clientAddr, &addrlen);
+    connFd = accept(pServer->fd, (struct sockaddr *)&clientAddr, &addrlen);
+    if (pServer->stop) {
+      httpDebug("http server:%s socket stop, exiting...", pServer->label);
+      break;
+    }
+
     if (connFd == -1) {
       if (errno == EINVAL) {
         httpDebug("http server:%s socket was shutdown, exiting...", pServer->label);
@@ -205,7 +202,7 @@ static void *httpAcceptHttpConnection(void *arg) {
       taosCloseSocket(connFd);
       continue;
     }
-#endif    
+#endif
 
     taosKeepTcpAlive(connFd);
     taosSetNonblocking(connFd, 1);
@@ -215,22 +212,22 @@ static void *httpAcceptHttpConnection(void *arg) {
 
     pContext = httpCreateContext(connFd);
     if (pContext == NULL) {
-      httpError("fd:%d, ip:%s:%u, no enough resource to allocate http context", connFd, taosInetNtoa(clientAddr.sin_addr),
-                htons(clientAddr.sin_port));
+      httpError("fd:%d, ip:%s:%u, no enough resource to allocate http context", connFd,
+                taosInetNtoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
       taosCloseSocket(connFd);
       continue;
     }
 
     pContext->pThread = pThread;
     sprintf(pContext->ipstr, "%s:%u", taosInetNtoa(clientAddr.sin_addr), htons(clientAddr.sin_port));
-    
+
     struct epoll_event event;
     event.events = EPOLLIN | EPOLLPRI | EPOLLWAKEUP | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
     event.data.ptr = pContext;
     if (epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, connFd, &event) < 0) {
       httpError("context:%p, fd:%d, ip:%s, thread:%s, failed to add http fd for epoll, error:%s", pContext, connFd,
                 pContext->ipstr, pThread->label, strerror(errno));
-      taosClose(pContext->fd);
+      taosCloseSocket(pContext->fd);
       httpReleaseContext(pContext, true);
       continue;
     }
@@ -245,7 +242,7 @@ static void *httpAcceptHttpConnection(void *arg) {
     threadId = threadId % pServer->numOfThreads;
   }
 
-  close(pServer->fd);
+  taosCloseSocket(pServer->fd);
   return NULL;
 }
 
@@ -268,8 +265,8 @@ bool httpInitConnect() {
       return false;
     }
 
-    pThread->pollFd = epoll_create(HTTP_MAX_EVENTS);  // size does not matter
-    if (pThread->pollFd < 0) {
+    pThread->pollFd = (EpollFd)epoll_create(HTTP_MAX_EVENTS);  // size does not matter
+    if (pThread->pollFd <= 0) {
       httpError("http thread:%s, failed to create HTTP epoll", pThread->label);
       pthread_mutex_destroy(&(pThread->threadMutex));
       return false;
@@ -281,7 +278,7 @@ bool httpInitConnect() {
     if (pthread_create(&(pThread->thread), &thattr, (void *)httpProcessHttpData, (void *)(pThread)) != 0) {
       httpError("http thread:%s, failed to create HTTP process data thread, reason:%s", pThread->label,
                 strerror(errno));
-      pthread_mutex_destroy(&(pThread->threadMutex));        
+      pthread_mutex_destroy(&(pThread->threadMutex));
       return false;
     }
     pthread_attr_destroy(&thattr);
@@ -312,7 +309,7 @@ static bool httpReadData(HttpContext *pContext) {
   }
 
   if (pParser->parsed) {
-    httpDebug("context:%p, fd:%d, not in ready state, parsed:%d", pContext, pContext->fd, pParser->parsed);    
+    httpDebug("context:%p, fd:%d, not in ready state, parsed:%d", pContext, pContext->fd, pParser->parsed);
     return false;
   }
 

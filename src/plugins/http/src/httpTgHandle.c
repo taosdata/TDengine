@@ -137,8 +137,8 @@ void tgInitSchemas(int32_t size) {
 }
 
 void tgParseSchemaMetric(cJSON *metric) {
-  STgSchema  schema = {0};
-  bool       parsedOk = true;
+  STgSchema schema = {0};
+  bool      parsedOk = true;
 
   // name
   cJSON *name = cJSON_GetObjectItem(metric, "name");
@@ -186,7 +186,7 @@ void tgParseSchemaMetric(cJSON *metric) {
   schema.tbName = calloc(tbnameLen + 1, 1);
   strcpy(schema.tbName, tbname->valuestring);
 
-    // fields
+  // fields
   cJSON *fields = cJSON_GetObjectItem(metric, "fields");
   if (fields == NULL) {
     goto ParseEnd;
@@ -227,14 +227,14 @@ ParseEnd:
   }
 }
 
-int32_t tgParseSchema(const char *content, char*fileName) {
+int32_t tgParseSchema(const char *content, char *fileName) {
   cJSON *root = cJSON_Parse(content);
   if (root == NULL) {
     httpError("failed to parse telegraf schema file:%s, invalid json format, content:%s", fileName, content);
     return -1;
   }
   int32_t size = 0;
-  cJSON *metrics = cJSON_GetObjectItem(root, "metrics");
+  cJSON * metrics = cJSON_GetObjectItem(root, "metrics");
   if (metrics != NULL) {
     size = cJSON_GetArraySize(metrics);
     if (size <= 0) {
@@ -276,8 +276,8 @@ int32_t tgReadSchema(char *fileName) {
 
   rewind(fp);
   char *  content = (char *)calloc(contentSize + 1, 1);
-  int32_t result = fread(content, 1, contentSize, fp);
-  
+  int32_t result = (int32_t)fread(content, 1, contentSize, fp);
+
   if (result != contentSize) {
     httpError("failed to read telegraf schema file:%s", fileName);
     fclose(fp);
@@ -296,7 +296,7 @@ int32_t tgReadSchema(char *fileName) {
 }
 
 void tgInitHandle(HttpServer *pServer) {
-  char fileName[TSDB_FILENAME_LEN*2] = {0};
+  char fileName[TSDB_FILENAME_LEN * 2] = {0};
   sprintf(fileName, "%s/taos.telegraf.cfg", configDir);
   if (tgReadSchema(fileName) <= 0) {
     tgFreeSchemas();
@@ -308,9 +308,7 @@ void tgInitHandle(HttpServer *pServer) {
   httpAddMethod(pServer, &tgDecodeMethod);
 }
 
-void tgCleanupHandle() {
-  tgFreeSchemas();
-}
+void tgCleanupHandle() { tgFreeSchemas(); }
 
 bool tgGetUserFromUrl(HttpContext *pContext) {
   HttpParser *pParser = pContext->parser;
@@ -357,7 +355,7 @@ char *tgGetStableName(char *stname, cJSON *fields, int32_t fieldsSize) {
     bool schemaMatched = true;
     for (int32_t f = 0; f < schema->fieldNum; ++f) {
       char *fieldName = schema->fields[f];
-      bool fieldMatched = false;
+      bool  fieldMatched = false;
 
       for (int32_t i = 0; i < fieldsSize; i++) {
         cJSON *field = cJSON_GetArrayItem(fields, i);
@@ -469,9 +467,9 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
     }
 
     /*
-    * tag size may be larget than TSDB_COL_NAME_LEN
-    * we keep the first TSDB_COL_NAME_LEN bytes
-    */
+     * tag size may be larget than TSDB_COL_NAME_LEN
+     * we keep the first TSDB_COL_NAME_LEN bytes
+     */
     if (0) {
       if (strlen(tag->string) >= TSDB_COL_NAME_LEN) {
         httpSendErrorResp(pContext, TSDB_CODE_HTTP_TG_TAG_NAME_SIZE);
@@ -540,9 +538,9 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
       return false;
     }
     /*
-    * tag size may be larget than TSDB_COL_NAME_LEN
-    * we keep the first TSDB_COL_NAME_LEN bytes
-    */
+     * tag size may be larget than TSDB_COL_NAME_LEN
+     * we keep the first TSDB_COL_NAME_LEN bytes
+     */
     if (0) {
       if (strlen(field->string) >= TSDB_COL_NAME_LEN) {
         httpSendErrorResp(pContext, TSDB_CODE_HTTP_TG_FIELD_NAME_SIZE);
@@ -578,8 +576,8 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
   table_cmd->cmdType = HTTP_CMD_TYPE_INSERT;
 
   // order by tag name
-  cJSON *orderedTags[TG_MAX_SORT_TAG_SIZE] = {0};
-  int32_t    orderTagsLen = 0;
+  cJSON * orderedTags[TG_MAX_SORT_TAG_SIZE] = {0};
+  int32_t orderTagsLen = 0;
   for (int32_t i = 0; i < tagsSize; ++i) {
     cJSON *tag = cJSON_GetArrayItem(tags, i);
     orderedTags[orderTagsLen++] = tag;
@@ -603,7 +601,8 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
   if (tsTelegrafUseFieldNum == 0) {
     table_cmd->stable = stable_cmd->stable = httpAddToSqlCmdBuffer(pContext, "%s", stname);
   } else {
-    table_cmd->stable = stable_cmd->stable = httpAddToSqlCmdBuffer(pContext, "%s_%d_%d", stname, fieldsSize, orderTagsLen);
+    table_cmd->stable = stable_cmd->stable =
+        httpAddToSqlCmdBuffer(pContext, "%s_%d_%d", stname, fieldsSize, orderTagsLen);
   }
   table_cmd->stable = stable_cmd->stable =
       httpShrinkTableName(pContext, table_cmd->stable, httpGetCmdsString(pContext, table_cmd->stable));
@@ -627,9 +626,11 @@ bool tgProcessSingleMetric(HttpContext *pContext, cJSON *metric, char *db) {
 
   // table name
   if (tsTelegrafUseFieldNum == 0) {
-    table_cmd->table = stable_cmd->table = httpAddToSqlCmdBufferNoTerminal(pContext, "%s_%s", stname, host->valuestring);
+    table_cmd->table = stable_cmd->table =
+        httpAddToSqlCmdBufferNoTerminal(pContext, "%s_%s", stname, host->valuestring);
   } else {
-    table_cmd->table = stable_cmd->table = httpAddToSqlCmdBufferNoTerminal(pContext, "%s_%d_%d_%s", stname, fieldsSize, orderTagsLen, host->valuestring);
+    table_cmd->table = stable_cmd->table =
+        httpAddToSqlCmdBufferNoTerminal(pContext, "%s_%d_%d_%s", stname, fieldsSize, orderTagsLen, host->valuestring);
   }
   for (int32_t i = 0; i < orderTagsLen; ++i) {
     cJSON *tag = orderedTags[i];

@@ -85,18 +85,18 @@ function clusterUp {
   cd $DOCKER_DIR
 
   if [ $NUM_OF_NODES -eq 3 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION docker-compose up -d
+    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION VERSION=$VERSION docker-compose up -d
   fi
 
   if [ $NUM_OF_NODES -eq 4 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION docker-compose -f docker-compose.yml -f node4.yml up -d
+    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION VERSION=$VERSION docker-compose -f docker-compose.yml -f node4.yml up -d
   fi
 
   if [ $NUM_OF_NODES -eq 5 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION docker-compose -f docker-compose.yml -f node4.yml -f node5.yml up -d
+    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION VERSION=$VERSION docker-compose -f docker-compose.yml -f node4.yml -f node5.yml up -d
   fi
 }
 
 cleanEnv 
-# prepareBuild
-# clusterUp
+prepareBuild
+clusterUp

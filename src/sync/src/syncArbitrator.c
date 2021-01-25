@@ -27,8 +27,8 @@
 #include "syncInt.h"
 #include "syncTcp.h"
 
-static void    arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context);
-static void    arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
+static void    arbSignalHandler(int32_t signum, void *sigInfo, void *context);
+static void    arbProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
 static void    arbProcessBrokenLink(int64_t rid);
 static int32_t arbProcessPeerMsg(int64_t rid, void *buffer);
 static tsem_t  tsArbSem;
@@ -36,7 +36,7 @@ static void *  tsArbTcpPool;
 
 typedef struct {
   char    id[TSDB_EP_LEN + 24];
-  int32_t nodeFd;
+  SOCKET  nodeFd;
   void *  pConn;
 } SNodeConn;
 
@@ -69,12 +69,10 @@ int32_t main(int32_t argc, char *argv[]) {
   }
 
   /* Set termination handler. */
-  struct sigaction act = {{0}};
-  act.sa_flags = SA_SIGINFO;
-  act.sa_sigaction = arbSignalHandler;
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGHUP, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
+  taosSetSignal(SIGTERM, arbSignalHandler);
+  taosSetSignal(SIGINT, arbSignalHandler);
+  taosSetSignal(SIGHUP, arbSignalHandler);
+  taosSetSignal(SIGABRT, arbSignalHandler);
 
   tsAsyncLog = 0;
   strcat(arbLogPath, "/arbitrator.log");
@@ -103,12 +101,12 @@ int32_t main(int32_t argc, char *argv[]) {
 
   syncCloseTcpThreadPool(tsArbTcpPool);
   sInfo("TAOS arbitrator is shut down");
-  closelog();
 
+  closelog();
   return 0;
 }
 
-static void arbProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
+static void arbProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   char ipstr[24];
   tinet_ntoa(ipstr, sourceIp);
   sDebug("peer TCP connection from ip:%s", ipstr);
@@ -172,14 +170,13 @@ static int32_t arbProcessPeerMsg(int64_t rid, void *buffer) {
   return 0;
 }
 
-static void arbSignalHandler(int32_t signum, siginfo_t *sigInfo, void *context) {
-  struct sigaction act = {{0}};
-  act.sa_handler = SIG_IGN;
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGHUP, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
+static void arbSignalHandler(int32_t signum, void *sigInfo, void *context) {
+  taosIgnSignal(SIGTERM);
+  taosIgnSignal(SIGINT);
+  taosIgnSignal(SIGABRT);
+  taosIgnSignal(SIGHUP);
 
-  sInfo("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
+  sInfo("shut down signal is %d", signum);
 
   // inform main thread to exit
   tsem_post(&tsArbSem);
