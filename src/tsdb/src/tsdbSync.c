@@ -365,7 +365,8 @@ static int32_t tsdbSyncSendDFileSetArray(SSyncH *pSynch) {
   do {
     pSet = tsdbFSIterNext(&fsiter);
     if (tsdbSyncSendDFileSet(pSynch, pSet) < 0) {
-      tsdbError("vgId:%d, failed to send fileset:%d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+      tsdbError("vgId:%d, failed to send fileset:%d since %s", REPO_ID(pRepo), pSet ? pSet->fid : -1,
+                tstrerror(terrno));
       return -1;
     }
 
