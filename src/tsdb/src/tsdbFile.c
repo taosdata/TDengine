@@ -581,7 +581,7 @@ int tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype
     }
   }
 
-  free(p);
+  tfree(p);
   return 0;
 }
 

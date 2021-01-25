@@ -1093,8 +1093,10 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       int         tvid, tfid;
       TSDB_FILE_T ttype;
       uint32_t    tversion;
+      char        bname[TSDB_FILENAME_LEN];
 
-      tsdbParseDFilename(TFILE_NAME(pf), &tvid, &tfid, &ttype, &tversion);
+      tfsbasename(pf, bname);
+      tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion);
 
       ASSERT(tvid == REPO_ID(pRepo));
 
@@ -1169,9 +1171,13 @@ static int tsdbComparTFILE(const void *arg1, const void *arg2) {
   int         vid1, fid1, vid2, fid2;
   TSDB_FILE_T ftype1, ftype2;
   uint32_t    version1, version2;
+  char        bname1[TSDB_FILENAME_LEN];
+  char        bname2[TSDB_FILENAME_LEN];
 
-  tsdbParseDFilename(TFILE_NAME(pf1), &vid1, &fid1, &ftype1, &version1);
-  tsdbParseDFilename(TFILE_NAME(pf2), &vid2, &fid2, &ftype2, &version2);
+  tfsbasename(pf1, bname1);
+  tfsbasename(pf2, bname2);
+  tsdbParseDFilename(bname1, &vid1, &fid1, &ftype1, &version1);
+  tsdbParseDFilename(bname2, &vid2, &fid2, &ftype2, &version2);
 
   if (fid1 < fid2) {
     return -1;
