@@ -351,6 +351,23 @@ int tsdbUpdateDFileHeader(SDFile *pDFile) {
   return 0;
 }
 
+int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
+  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+
+  ASSERT(TSDB_FILE_OPENED(pDFile));
+
+  if (tsdbSeekDFile(pDFile, 0, SEEK_SET) < 0) {
+    return -1;
+  }
+
+  if (tsdbReadDFile(pDFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
+    return -1;
+  }
+
+  tsdbDecodeDFInfo(buf, pInfo);
+  return 0;
+}
+
 static int tsdbScanAndTryFixDFile(SDFile *pDFile) {
   struct stat dfstat;
   SDFile      df = *pDFile;
@@ -555,6 +572,23 @@ int tsdbScanAndTryFixDFileSet(SDFileSet *pSet) {
       return -1;
     }
   }
+  return 0;
+}
+
+int tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype, uint32_t *version) {
+  char *p = NULL;
+  *version = 0;
+  *ftype = TSDB_FILE_MAX;
+
+  sscanf(fname, "v%df%d.%m[a-z]-ver%" PRIu32, vid, fid, &p, version);
+  for (TSDB_FILE_T i = 0; i < TSDB_FILE_MAX; i++) {
+    if (strcmp(p, TSDB_FNAME_SUFFIX[i]) == 0) {
+      *ftype = i;
+      break;
+    }
+  }
+
+  free(p);
   return 0;
 }
 
