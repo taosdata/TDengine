@@ -108,8 +108,6 @@ int tsdbApplyMFileChange(SMFile *from, SMFile *to) {
 int tsdbCreateMFile(SMFile *pMFile, bool updateHeader) {
   ASSERT(pMFile->info.size == 0 && pMFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
-  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
-
   pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), O_WRONLY | O_CREAT | O_TRUNC, 0755);
   if (pMFile->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -120,10 +118,7 @@ int tsdbCreateMFile(SMFile *pMFile, bool updateHeader) {
     return 0;
   }
 
-  void *ptr = buf;
-  tsdbEncodeMFInfo(&ptr, &(pMFile->info));
-
-  if (tsdbWriteMFile(pMFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
+  if (tsdbUpdateMFileHeader(pMFile) < 0) {
     tsdbCloseMFile(pMFile);
     tsdbRemoveMFile(pMFile);
     return -1;
@@ -307,9 +302,6 @@ static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
 int tsdbCreateDFile(SDFile *pDFile, bool updateHeader) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
-  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
-  // TODO: need to check if directory exists, if not, create the directory
-
   pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC, 0755);
   if (pDFile->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -320,10 +312,7 @@ int tsdbCreateDFile(SDFile *pDFile, bool updateHeader) {
     return 0;
   }
 
-  void *ptr = buf;
-  tsdbEncodeDFInfo(&ptr, &(pDFile->info));
-
-  if (tsdbWriteDFile(pDFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
+  if (tsdbUpdateDFileHeader(pDFile) < 0) {
     tsdbCloseDFile(pDFile);
     tsdbRemoveDFile(pDFile);
     return -1;
@@ -342,6 +331,7 @@ int tsdbUpdateDFileHeader(SDFile *pDFile) {
   }
 
   void *ptr = buf;
+  taosEncodeFixedU32(&ptr, TSDB_FS_VERSION);
   tsdbEncodeDFInfo(&ptr, &(pDFile->info));
 
   if (tsdbWriteDFile(pDFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
@@ -352,7 +342,8 @@ int tsdbUpdateDFileHeader(SDFile *pDFile) {
 }
 
 int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
-  char buf[TSDB_FILE_HEAD_SIZE] = "\0";
+  char     buf[TSDB_FILE_HEAD_SIZE] = "\0";
+  uint32_t version;
 
   ASSERT(TSDB_FILE_OPENED(pDFile));
 
@@ -364,7 +355,9 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
     return -1;
   }
 
-  tsdbDecodeDFInfo(buf, pInfo);
+  void *pBuf = buf;
+  pBuf = taosDecodeFixedU32(pBuf, &version);
+  pBuf = tsdbDecodeDFInfo(buf, pInfo);
   return 0;
 }
 
