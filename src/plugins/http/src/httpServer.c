@@ -48,7 +48,7 @@ static void httpStopThread(HttpThread *pThread) {
     pThread->stop = true;
     r = epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, sv[0], &ev);
     if (r) break;
-    if (1!=send(sv[1], "1", 1, 0)) {
+    if (1 != send(sv[1], "1", 1, 0)) {
       r = -1;
       break;
     }
@@ -56,7 +56,7 @@ static void httpStopThread(HttpThread *pThread) {
   if (r) {
     pthread_cancel(pThread->thread);
   }
-#else 
+#else
   struct epoll_event event = {.events = EPOLLIN};
   eventfd_t          fd = eventfd(1, 0);
   if (fd == -1) {
@@ -69,29 +69,26 @@ static void httpStopThread(HttpThread *pThread) {
               pThread->label, strerror(errno));
     pthread_cancel(pThread->thread);
   }
-#endif // __APPLE__
+#endif  // __APPLE__
 
   pthread_join(pThread->thread, NULL);
+
 #ifdef __APPLE__
-  if (sv[0]!=-1) {
+  if (sv[0] != -1) {
     close(sv[0]);
     sv[0] = -1;
   }
-  if (sv[1]!=-1) {
+  if (sv[1] != -1) {
     close(sv[1]);
     sv[1] = -1;
   }
-#else // __APPLE__
+#else   // __APPLE__
   if (fd != -1) {
     taosCloseSocket(fd);
   }
-#endif // __APPLE__
+#endif  // __APPLE__
 
-#ifdef __APPLE__
-  epoll_close(pThread->pollFd);
-#else
   EpollClose(pThread->pollFd);
-#endif
   pthread_mutex_destroy(&(pThread->threadMutex));
 }
 
