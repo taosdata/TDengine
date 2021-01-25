@@ -378,7 +378,11 @@ static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   tsdbUnlockRepo(pRepo);
   tsdbUnRefMemTable(pRepo, pIMem);
 
+#ifdef __APPLE__
+  sem_post(pRepo->readyToCommit);
+#else // __APPLE__
   sem_post(&(pRepo->readyToCommit));
+#endif // __APPLE__
 }
 
 #if 0

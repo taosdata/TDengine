@@ -116,6 +116,9 @@ void taosUninitTimer() {
   pthread_sigmask(SIG_BLOCK, &set, NULL);
 */
 void taosMsleep(int mseconds) {
+#ifdef __APPLE__
+  taos_block_sigalrm();
+#endif // __APPLE__
 #if 1
   usleep(mseconds * 1000);
 #else
@@ -136,6 +139,7 @@ void taosMsleep(int mseconds) {
 
 /* pthread_sigmask(SIG_UNBLOCK, &set, NULL); */
 #endif
+
 }
 
 #endif

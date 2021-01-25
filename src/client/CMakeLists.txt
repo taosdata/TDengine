@@ -28,6 +28,28 @@ IF (TD_LINUX)
 
   ADD_SUBDIRECTORY(tests)
 
+ELSEIF (TD_DARWIN)
+  INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/linux)
+
+  # set the static lib name
+  ADD_LIBRARY(taos_static STATIC ${SRC})
+  TARGET_LINK_LIBRARIES(taos_static common query trpc tutil pthread m)
+  SET_TARGET_PROPERTIES(taos_static PROPERTIES OUTPUT_NAME "taos_static")
+  SET_TARGET_PROPERTIES(taos_static PROPERTIES CLEAN_DIRECT_OUTPUT 1)
+
+  # generate dynamic library (*.dylib)
+  ADD_LIBRARY(taos SHARED ${SRC})
+  TARGET_LINK_LIBRARIES(taos common query trpc tutil pthread m)
+  SET_TARGET_PROPERTIES(taos PROPERTIES CLEAN_DIRECT_OUTPUT 1)
+
+  #set version of .dylib
+  #VERSION    dylib version
+  #SOVERSION  dylib version
+  #MESSAGE(STATUS "build version ${TD_VER_NUMBER}")
+  SET_TARGET_PROPERTIES(taos PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
+
+  ADD_SUBDIRECTORY(tests)
+
 ELSEIF (TD_WINDOWS)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/windows)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/windows/win32)
@@ -49,12 +71,12 @@ ELSEIF (TD_DARWIN)
   INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/jni/linux)
 
   ADD_LIBRARY(taos_static STATIC ${SRC})
-  TARGET_LINK_LIBRARIES(taos_static trpc tutil pthread m)
+  TARGET_LINK_LIBRARIES(taos_static query trpc tutil pthread m)
   SET_TARGET_PROPERTIES(taos_static PROPERTIES OUTPUT_NAME "taos_static")
 
   # generate dynamic library (*.dylib)
   ADD_LIBRARY(taos SHARED ${SRC})
-  TARGET_LINK_LIBRARIES(taos trpc tutil pthread m)
+  TARGET_LINK_LIBRARIES(taos query trpc tutil pthread m)
 
   SET_TARGET_PROPERTIES(taos PROPERTIES CLEAN_DIRECT_OUTPUT 1)
 

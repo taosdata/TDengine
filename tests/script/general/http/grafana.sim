@@ -84,7 +84,7 @@ endi
 
 system_content curl -H 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3d3cudGFvc2RhdGEuY29tIiwicGFzcyI6InRhb3NkYXRhIiwic3ViIjoicm9vdCJ9.xPv3b5odlR7YF8G_QWASjIRbMtA5v4ItToJ35fFgi'  -d 'show databases' 127.0.0.1:7111/grafana/root/1/login
 print 6-> $system_content
-if $system_content != @{"status":"error","code":4386,"desc":"invalid type of Authorization"}@ then
+if $system_content != @{"status":"error","code":4387,"desc":"invalid format of Authorization"}@ then
   return -1
 endi
 

@@ -125,10 +125,10 @@ int64_t taosCopy(char *from, char *to) {
   int64_t size = 0;
   int64_t bytes;
 
-  fidfrom = open(from, O_RDONLY);
+  fidfrom = open(from, O_RDONLY | O_BINARY);
   if (fidfrom < 0) goto _err;
 
-  fidto = open(to, O_WRONLY | O_CREAT | O_EXCL, 0755);
+  fidto = open(to, O_WRONLY | O_CREAT | O_EXCL | O_BINARY, 0755);
   if (fidto < 0) goto _err;
 
   while (true) {
@@ -155,15 +155,11 @@ _err:
 
 #ifndef TAOS_OS_FUNC_FILE_SENDIFLE
 
-int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t *offset, int64_t size) {
+int64_t taosSendFile(SOCKET dfd, int32_t sfd, int64_t *offset, int64_t size) {
   int64_t leftbytes = size;
   int64_t sentbytes;
 
   while (leftbytes > 0) {
-    /*
-     * TODO : Think to check if file is larger than 1GB
-     */
-    // if (leftbytes > 1000000000) leftbytes = 1000000000;
     sentbytes = sendfile(dfd, sfd, offset, leftbytes);
     if (sentbytes == -1) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {

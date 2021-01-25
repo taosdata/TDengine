@@ -333,7 +333,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
   tsdbGetTxnFname(vid, TSDB_TXN_TEMP_FILE, tfname);
   tsdbGetTxnFname(vid, TSDB_TXN_CURR_FILE, cfname);
 
-  int fd = open(tfname, O_WRONLY | O_CREAT | O_TRUNC, 0755);
+  int fd = open(tfname, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
   if (fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -578,7 +578,7 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
   tsdbGetTxnFname(REPO_ID(pRepo), TSDB_TXN_CURR_FILE, current);
 
   // current file exists, try to recover
-  fd = open(current, O_RDONLY);
+  fd = open(current, O_RDONLY | O_BINARY);
   if (fd < 0) {
     tsdbError("vgId:%d failed to open file %s since %s", REPO_ID(pRepo), current, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);

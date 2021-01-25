@@ -108,7 +108,7 @@ int tsdbApplyMFileChange(SMFile *from, SMFile *to) {
 int tsdbCreateMFile(SMFile *pMFile, bool updateHeader) {
   ASSERT(pMFile->info.size == 0 && pMFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
-  pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), O_WRONLY | O_CREAT | O_TRUNC, 0755);
+  pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
   if (pMFile->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -321,7 +321,7 @@ static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
 int tsdbCreateDFile(SDFile *pDFile, bool updateHeader) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
-  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC, 0755);
+  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
   if (pDFile->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
