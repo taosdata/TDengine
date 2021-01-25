@@ -21,7 +21,7 @@ else
     cd ${script_dir}
     script_dir="$(pwd)"
     data_dir="/var/lib/taos"
-    log_dir=~/TDengineLog
+    log_dir=~/TDengine/log
 fi
 
 log_link_dir="/usr/local/taos/log"
