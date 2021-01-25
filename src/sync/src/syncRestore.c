@@ -224,6 +224,7 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 
   int32_t code = syncRestoreFile(pPeer, &fversion);
   if (code < 0) {
+    (*pNode->stopSyncFileFp)(pNode->vgId, fversion);
     sError("%s, failed to restore files", pPeer->id);
     return -1;
   }

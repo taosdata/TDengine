@@ -82,6 +82,8 @@ int32_t tsdbSyncRecv(void *tsdb, int32_t socketFd) {
   STsdbRepo *pRepo = (STsdbRepo *)tsdb;
   SSyncH synch = {0};
 
+  pRepo->state = TSDB_STATE_OK;
+
   tsdbInitSyncH(&synch, pRepo, socketFd);
   tsdbStartFSTxn(pRepo, 0, 0);
 

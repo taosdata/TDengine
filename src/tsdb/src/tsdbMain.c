@@ -98,7 +98,7 @@ STsdbRepo *tsdbOpenRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
   }
 
   // TODO: Restore information from data
-  if (tsdbRestoreInfo(pRepo) < 0) {
+  if ((!(pRepo->state & TSDB_STATE_BAD_DATA)) && tsdbRestoreInfo(pRepo) < 0) {
     tsdbError("vgId:%d failed to open TSDB repository while restore info since %s", config.tsdbId, tstrerror(terrno));
     tsdbCloseRepo(pRepo, false);
     return NULL;

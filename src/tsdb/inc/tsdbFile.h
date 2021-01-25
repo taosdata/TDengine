@@ -63,7 +63,7 @@ int   tsdbApplyMFileChange(SMFile* from, SMFile* to);
 int   tsdbCreateMFile(SMFile* pMFile, bool updateHeader);
 int   tsdbUpdateMFileHeader(SMFile* pMFile);
 int   tsdbLoadMFileHeader(SMFile* pMFile, SMFInfo* pInfo);
-int   tsdbScanAndTryFixMFile(SMFile* pMFile);
+int   tsdbScanAndTryFixMFile(STsdbRepo* pRepo);
 int   tsdbEncodeMFInfo(void** buf, SMFInfo* pInfo);
 void* tsdbDecodeMFInfo(void* buf, SMFInfo* pInfo);
 
@@ -310,7 +310,7 @@ void* tsdbDecodeDFileSetEx(void* buf, SDFileSet* pSet);
 int   tsdbApplyDFileSetChange(SDFileSet* from, SDFileSet* to);
 int   tsdbCreateDFileSet(SDFileSet* pSet, bool updateHeader);
 int   tsdbUpdateDFileSetHeader(SDFileSet* pSet);
-int   tsdbScanAndTryFixDFileSet(SDFileSet* pSet);
+int   tsdbScanAndTryFixDFileSet(STsdbRepo *pRepo, SDFileSet* pSet);
 
 static FORCE_INLINE void tsdbCloseDFileSet(SDFileSet* pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {

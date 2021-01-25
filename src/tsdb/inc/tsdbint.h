@@ -68,7 +68,7 @@ extern "C" {
 #include "tsdbCommitQueue.h"
 // Main definitions
 struct STsdbRepo {
-  int8_t state;
+  uint8_t state;
 
   STsdbCfg        config;
   STsdbAppH       appH;

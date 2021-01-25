@@ -255,7 +255,7 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
   }
 
   // Load meta cache if has meta file
-  if (tsdbLoadMetaCache(pRepo, true) < 0) {
+  if ((!(pRepo->state & TSDB_STATE_BAD_META)) && tsdbLoadMetaCache(pRepo, true) < 0) {
     tsdbError("vgId:%d failed to open FS while loading meta cache since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }
@@ -670,11 +670,9 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
   STsdbFS *  pfs = REPO_FS(pRepo);
   SFSStatus *pStatus = pfs->cstatus;
 
-  if (pStatus->pmf) {
-    if (tsdbScanAndTryFixMFile(pStatus->pmf) < 0) {
-      tsdbError("vgId:%d failed to fix MFile since %s", REPO_ID(pRepo), tstrerror(terrno));
-      return -1;
-    }
+  if (tsdbScanAndTryFixMFile(pRepo) < 0) {
+    tsdbError("vgId:%d failed to fix MFile since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
   }
 
   size_t size = taosArrayGetSize(pStatus->df);
@@ -682,13 +680,13 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
   for (size_t i = 0; i < size; i++) {
     SDFileSet *pSet = (SDFileSet *)taosArrayGet(pStatus->df, i);
 
-    if (tsdbScanAndTryFixDFileSet(pSet) < 0) {
+    if (tsdbScanAndTryFixDFileSet(pRepo, pSet) < 0) {
       tsdbError("vgId:%d failed to fix MFile since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
   }
 
-  // : remove those unused files
+  // remove those unused files
   tsdbScanRootDir(pRepo);
   tsdbScanDataDir(pRepo);
   return 0;

@@ -242,7 +242,7 @@ int32_t vnodeOpen(int32_t vgId) {
   if (pVnode->tsdb == NULL) {
     vnodeCleanUp(pVnode);
     return terrno;
-  } else if (terrno != TSDB_CODE_SUCCESS) {
+  } else if (tsdbGetState(pVnode->tsdb) != TSDB_STATE_OK) {
     vError("vgId:%d, failed to open tsdb, replica:%d reason:%s", pVnode->vgId, pVnode->syncCfg.replica,
            tstrerror(terrno));
     if (pVnode->syncCfg.replica <= 1) {

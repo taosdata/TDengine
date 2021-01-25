@@ -163,9 +163,23 @@ int tsdbLoadMFileHeader(SMFile *pMFile, SMFInfo *pInfo) {
   return 0;
 }
 
-int tsdbScanAndTryFixMFile(SMFile *pMFile) {
+int tsdbScanAndTryFixMFile(STsdbRepo *pRepo) {
+  SMFile *    pMFile = pRepo->fs->cstatus->pmf;
   struct stat mfstat;
-  SMFile      mf = *pMFile;
+  SMFile      mf;
+
+  if (pMFile == NULL) {
+    return 0;
+  }
+
+  mf = *pMFile;
+
+  if (access(TSDB_FILE_FULL_NAME(pMFile), F_OK) != 0) {
+    tsdbError("vgId:%d meta file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
+              TSDB_FILE_FULL_NAME(pMFile));
+    pRepo->state |= TSDB_STATE_BAD_META;
+    return 0;
+  }
 
   if (stat(TSDB_FILE_FULL_NAME(&mf), &mfstat) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -189,9 +203,14 @@ int tsdbScanAndTryFixMFile(SMFile *pMFile) {
     }
 
     tsdbCloseMFile(&mf);
+    tsdbInfo("vgId:%d file %s is truncated from %" PRId64 " to %" PRId64, REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
+             mfstat.st_size, pMFile->info.size);
   } else if (pMFile->info.size < mfstat.st_size) {
+    tsdbError("vgId:%d meta file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
+              REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile), mfstat.st_size, pMFile->info.size);
+    pRepo->state |= TSDB_STATE_BAD_META;
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    return -1;
+    return 0;
   }
 
   return 0;
@@ -361,9 +380,16 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
   return 0;
 }
 
-static int tsdbScanAndTryFixDFile(SDFile *pDFile) {
+static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
   struct stat dfstat;
   SDFile      df = *pDFile;
+
+  if (access(TSDB_FILE_FULL_NAME(pDFile), F_OK) != 0) {
+    tsdbError("vgId:%d data file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
+              TSDB_FILE_FULL_NAME(pDFile));
+    pRepo->state |= TSDB_STATE_BAD_DATA;
+    return 0;
+  }
 
   if (stat(TSDB_FILE_FULL_NAME(&df), &dfstat) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -387,9 +413,14 @@ static int tsdbScanAndTryFixDFile(SDFile *pDFile) {
     }
 
     tsdbCloseDFile(&df);
+    tsdbInfo("vgId:%d file %s is truncated from %" PRId64 " to %" PRId64, REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
+             dfstat.st_size, pDFile->info.size);
   } else if (pDFile->info.size < dfstat.st_size) {
+    tsdbError("vgId:%d data file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
+              REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), dfstat.st_size, pDFile->info.size);
+    pRepo->state |= TSDB_STATE_BAD_DATA;
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    return -1;
+    return 0;
   }
 
   return 0;
@@ -559,9 +590,9 @@ int tsdbUpdateDFileSetHeader(SDFileSet *pSet) {
   return 0;
 }
 
-int tsdbScanAndTryFixDFileSet(SDFileSet *pSet) {
+int tsdbScanAndTryFixDFileSet(STsdbRepo *pRepo, SDFileSet *pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbScanAndTryFixDFile(TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
+    if (tsdbScanAndTryFixDFile(pRepo, TSDB_DFILE_IN_SET(pSet, ftype)) < 0) {
       return -1;
     }
   }
