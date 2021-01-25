@@ -250,6 +250,29 @@ int tfsMkdirAt(const char *rname, int level, int id) {
   return 0;
 }
 
+int tfsMkdirRecurAt(const char *rname, int level, int id) {
+  if (tfsMkdirAt(rname, level, id) < 0) {
+    if (errno == ENOENT) {
+      // Try to create upper
+      char *s = strdup(rname);
+
+      if (tfsMkdirRecurAt(dirname(s), level, id) < 0) {
+        tfree(s);
+        return -1;
+      }
+      tfree(s);
+
+      if (tfsMkdirAt(rname, level, id) < 0) {
+        return -1;
+      }
+    } else {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
 int tfsMkdir(const char *rname) {
   for (int level = 0; level < TFS_NLEVEL(); level++) {
     STier *pTier = TFS_TIER_AT(level);
