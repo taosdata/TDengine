@@ -31,6 +31,11 @@ SET(TD_GODLL FALSE)
 
 INCLUDE(community/cmake/input.inc)
 INCLUDE(community/cmake/platform.inc)
+
+IF (TD_WINDOWS OR TD_DARWIN) 
+  SET(TD_SOMODE_STATIC TRUE)
+ENDIF ()
+
 INCLUDE(community/cmake/define.inc)
 INCLUDE(community/cmake/env.inc)
 INCLUDE(community/cmake/version.inc)
