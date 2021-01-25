@@ -177,6 +177,8 @@ int   tsdbEncodeSDFile(void** buf, SDFile* pDFile);
 void* tsdbDecodeSDFile(void* buf, SDFile* pDFile);
 int   tsdbCreateDFile(SDFile* pDFile, bool updateHeader);
 int   tsdbUpdateDFileHeader(SDFile* pDFile);
+int   tsdbLoadDFileHeader(SDFile* pDFile, SDFInfo* pInfo);
+int   tsdbParseDFilename(const char* fname, int* vid, int* fid, TSDB_FILE_T* ftype, uint32_t* version);
 
 static FORCE_INLINE void tsdbSetDFileInfo(SDFile* pDFile, SDFInfo* pInfo) { pDFile->info = *pInfo; }
 
