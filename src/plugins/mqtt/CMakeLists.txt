@@ -18,3 +18,15 @@ IF (TD_LINUX)
     TARGET_LINK_LIBRARIES(mqtt taos)
   ENDIF ()
 ENDIF ()
+
+IF (TD_DARWIN)
+  ADD_LIBRARY(mqtt ${SRC})
+  TARGET_LINK_LIBRARIES(mqtt cJson mqttc)
+
+  IF (TD_SOMODE_STATIC)
+    TARGET_LINK_LIBRARIES(mqtt taos_static)
+  ELSE ()
+    TARGET_LINK_LIBRARIES(mqtt taos)
+  ENDIF ()
+ENDIF ()
+

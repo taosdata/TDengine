@@ -138,6 +138,14 @@ void mnodeDecClusterRef(SClusterObj *pCluster) {
   sdbDecRef(tsClusterSdb, pCluster);
 }
 
+#ifdef __APPLE__
+bool taosGetSystemUid(char *uid) {
+  fprintf(stderr, "%s[%d]%s(): not implemented yet!\n", basename(__FILE__), __LINE__, __func__);
+  abort();
+  return false;
+}
+#endif // __APPLE__
+
 static int32_t mnodeCreateCluster() {
   int64_t numOfClusters = sdbGetNumOfRows(tsClusterSdb);
   if (numOfClusters != 0) return TSDB_CODE_SUCCESS;

@@ -21,6 +21,8 @@
 #include "shellCommand.h"
 #include "tkey.h"
 
+#include "tscLog.h"
+
 #define OPT_ABORT 1 /* �Cabort */
 
 int indicator = 1;
@@ -347,6 +349,9 @@ void *shellLoopQuery(void *arg) {
       shellReadCommand(con, command);
       reset_terminal_mode();
     } while (shellRunCommand(con, command) == 0);
+
+  tfree(command);
+  exitShell();
 
   pthread_cleanup_pop(1);
 

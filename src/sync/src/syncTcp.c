@@ -303,7 +303,7 @@ static SThreadObj *syncGetTcpThread(SPoolObj *pPool) {
   pthread_attr_destroy(&thattr);
 
   if (ret != 0) {
-    taosCloseSocket(pThread->pollFd);
+    EpollClose(pThread->pollFd);
     tfree(pThread);
     return NULL;
   }

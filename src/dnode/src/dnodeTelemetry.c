@@ -236,6 +236,13 @@ static void sendTelemetryReport() {
   taosCloseSocket(fd);
 }
 
+#ifdef __APPLE__
+static int sem_timedwait(tsem_t *sem, struct timespec *to) {
+  fprintf(stderr, "%s[%d]%s(): not implemented yet!\n", basename(__FILE__), __LINE__, __func__);
+  abort();
+}
+#endif // __APPLE__
+
 static void* telemetryThread(void* param) {
   struct timespec end = {0};
   clock_gettime(CLOCK_REALTIME, &end);
