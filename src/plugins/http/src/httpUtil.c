@@ -37,7 +37,7 @@ void httpTimeToString(time_t t, char *buf, int32_t buflen) {
   time_t     tt = t / 1000;
   ptm = localtime(&tt);
   strftime(ts, 31, "%Y-%m-%d %H:%M:%S", ptm);
-  sprintf(buf, "%s.%03ld", ts, t % 1000);
+  sprintf(buf, "%s.%03" PRId64, ts, t % 1000);
 }
 
 int32_t httpAddToSqlCmdBuffer(HttpContext *pContext, const char *const format, ...) {
@@ -160,8 +160,7 @@ bool httpMallocMultiCmds(HttpContext *pContext, int32_t cmdSize, int32_t bufferS
     free(multiCmds->cmds);
     multiCmds->cmds = (HttpSqlCmd *)malloc((size_t)cmdSize * sizeof(HttpSqlCmd));
     if (multiCmds->cmds == NULL) {
-      httpError("context:%p, fd:%d, user:%s, malloc cmds:%d error", pContext, pContext->fd,
-                pContext->user, cmdSize);
+      httpError("context:%p, fd:%d, user:%s, malloc cmds:%d error", pContext, pContext->fd, pContext->user, cmdSize);
       return false;
     }
     multiCmds->maxSize = (int16_t)cmdSize;
@@ -350,74 +349,78 @@ char *httpGetCmdsString(HttpContext *pContext, int32_t pos) {
 }
 
 int32_t httpGzipDeCompress(char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData) {
-  int32_t err = 0;
+  int32_t  err = 0;
   z_stream gzipStream = {0};
 
   static char dummyHead[2] = {
-          0x8 + 0x7 * 0x10,
-          (((0x8 + 0x7 * 0x10) * 0x100 + 30) / 31 * 31) & 0xFF,
+      0x8 + 0x7 * 0x10,
+      (((0x8 + 0x7 * 0x10) * 0x100 + 30) / 31 * 31) & 0xFF,
   };
 
-  gzipStream.zalloc = (alloc_func) 0;
-  gzipStream.zfree = (free_func) 0;
-  gzipStream.opaque = (voidpf) 0;
-  gzipStream.next_in = (Bytef *) srcData;
+  gzipStream.zalloc = (alloc_func)0;
+  gzipStream.zfree = (free_func)0;
+  gzipStream.opaque = (voidpf)0;
+  gzipStream.next_in = (Bytef *)srcData;
   gzipStream.avail_in = 0;
-  gzipStream.next_out = (Bytef *) destData;
+  gzipStream.next_out = (Bytef *)destData;
   if (inflateInit2(&gzipStream, 47) != Z_OK) {
     return -1;
   }
 
   while (gzipStream.total_out < *nDestData && gzipStream.total_in < nSrcData) {
-    gzipStream.avail_in = gzipStream.avail_out = nSrcData;  //1
+    gzipStream.avail_in = gzipStream.avail_out = nSrcData;  // 1
     if ((err = inflate(&gzipStream, Z_NO_FLUSH)) == Z_STREAM_END) {
       break;
     }
 
     if (err != Z_OK) {
       if (err == Z_DATA_ERROR) {
-        gzipStream.next_in = (Bytef *) dummyHead;
+        gzipStream.next_in = (Bytef *)dummyHead;
         gzipStream.avail_in = sizeof(dummyHead);
         if ((err = inflate(&gzipStream, Z_NO_FLUSH)) != Z_OK) {
           return -2;
         }
-      } else return -3;
+      } else {
+        return -3;
+      }
     }
   }
 
   if (inflateEnd(&gzipStream) != Z_OK) {
     return -4;
   }
-  *nDestData = gzipStream.total_out;
+  *nDestData = (int32_t)gzipStream.total_out;
 
   return 0;
 }
 
 int32_t httpGzipCompressInit(HttpContext *pContext) {
-  pContext->gzipStream.zalloc = (alloc_func) 0;
-  pContext->gzipStream.zfree = (free_func) 0;
-  pContext->gzipStream.opaque = (voidpf) 0;
-  if (deflateInit2(&pContext->gzipStream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, MAX_WBITS + 16, 8, Z_DEFAULT_STRATEGY) != Z_OK) {
+  pContext->gzipStream.zalloc = (alloc_func)0;
+  pContext->gzipStream.zfree = (free_func)0;
+  pContext->gzipStream.opaque = (voidpf)0;
+  if (deflateInit2(&pContext->gzipStream, Z_DEFAULT_COMPRESSION, Z_DEFLATED, MAX_WBITS + 16, 8, Z_DEFAULT_STRATEGY) !=
+      Z_OK) {
     return -1;
   }
 
   return 0;
 }
 
-int32_t httpGzipCompress(HttpContext *pContext, char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData, bool isTheLast) {
+int32_t httpGzipCompress(HttpContext *pContext, char *srcData, int32_t nSrcData, char *destData, int32_t *nDestData,
+                         bool isTheLast) {
   int32_t err = 0;
-  int32_t lastTotalLen = (int32_t) (pContext->gzipStream.total_out);
-  pContext->gzipStream.next_in = (Bytef *) srcData;
-  pContext->gzipStream.avail_in = (uLong) nSrcData;
-  pContext->gzipStream.next_out = (Bytef *) destData;
-  pContext->gzipStream.avail_out = (uLong) (*nDestData);
+  int32_t lastTotalLen = (int32_t)(pContext->gzipStream.total_out);
+  pContext->gzipStream.next_in = (Bytef *)srcData;
+  pContext->gzipStream.avail_in = (uLong)nSrcData;
+  pContext->gzipStream.next_out = (Bytef *)destData;
+  pContext->gzipStream.avail_out = (uLong)(*nDestData);
 
   while (pContext->gzipStream.avail_in != 0) {
     if (deflate(&pContext->gzipStream, Z_FULL_FLUSH) != Z_OK) {
       return -1;
     }
 
-    int32_t cacheLen = pContext->gzipStream.total_out - lastTotalLen;
+    int32_t cacheLen = (int32_t)(pContext->gzipStream.total_out - lastTotalLen);
     if (cacheLen >= *nDestData) {
       return -2;
     }
@@ -442,12 +445,12 @@ int32_t httpGzipCompress(HttpContext *pContext, char *srcData, int32_t nSrcData,
     }
   }
 
-  *nDestData = (int32_t) (pContext->gzipStream.total_out) - lastTotalLen;
+  *nDestData = (int32_t)(pContext->gzipStream.total_out) - lastTotalLen;
   return 0;
 }
 
-bool httpUrlMatch(HttpContext* pContext, int32_t pos, char* cmp) {
-  HttpParser* pParser = pContext->parser;
+bool httpUrlMatch(HttpContext *pContext, int32_t pos, char *cmp) {
+  HttpParser *pParser = pContext->parser;
 
   if (pos < 0 || pos >= HTTP_MAX_URL) {
     return false;

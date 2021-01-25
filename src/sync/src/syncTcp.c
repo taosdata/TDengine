@@ -27,7 +27,7 @@
 typedef struct SThreadObj {
   pthread_t thread;
   bool      stop;
-  int32_t   pollFd;
+  SOCKET    pollFd;
   int32_t   numOfFds;
   struct SPoolObj *pPool;
 } SThreadObj;
@@ -37,13 +37,14 @@ typedef struct SPoolObj {
   SThreadObj **pThread;
   pthread_t    thread;
   int32_t      nextId;
-  int32_t      acceptFd;  // FD for accept new connection
+  SOCKET       acceptFd;  // FD for accept new connection
+  int8_t       stop;
 } SPoolObj;
 
 typedef struct {
   SThreadObj *pThread;
   int64_t     handleId;
-  int32_t     fd;
+  SOCKET      fd;
   int32_t     closedByApp;
 } SConnObj;
 
@@ -82,7 +83,7 @@ void *syncOpenTcpThreadPool(SPoolInfo *pInfo) {
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
   if (pthread_create(&(pPool->thread), &thattr, (void *)syncAcceptPeerTcpConnection, pPool) != 0) {
     sError("failed to create accept thread for TCP server since %s", strerror(errno));
-    close(pPool->acceptFd);
+    taosCloseSocket(pPool->acceptFd);
     tfree(pPool->pThread);
     tfree(pPool);
     return NULL;
@@ -98,7 +99,14 @@ void syncCloseTcpThreadPool(void *param) {
   SPoolObj *  pPool = param;
   SThreadObj *pThread;
 
+  pPool->stop = 1;
+
+#ifdef WINDOWS
+  closesocket(pPool->acceptFd);
+#else
   shutdown(pPool->acceptFd, SHUT_RD);
+#endif
+
   pthread_join(pPool->thread, NULL);
 
   for (int32_t i = 0; i < pPool->info.numOfThreads; ++i) {
@@ -112,7 +120,7 @@ void syncCloseTcpThreadPool(void *param) {
   tfree(pPool);
 }
 
-void *syncAllocateTcpConn(void *param, int64_t rid, int32_t connFd) {
+void *syncAllocateTcpConn(void *param, int64_t rid, SOCKET connFd) {
   struct epoll_event event;
   SPoolObj *pPool = param;
 
@@ -169,7 +177,7 @@ static void taosProcessBrokenLink(SConnObj *pConn) {
   pThread->numOfFds--;
   epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pConn->fd, NULL);
   sDebug("%p fd:%d is removed from epoll thread, num:%d", pThread, pConn->fd, pThread->numOfFds);
-  taosClose(pConn->fd);
+  taosCloseSocket(pConn->fd);
   tfree(pConn);
 }
 
@@ -236,7 +244,7 @@ static void *syncProcessTcpData(void *param) {
 #ifdef __APPLE__
   epoll_close(pThread->pollFd);
 #else // __APPLE__
-  close(pThread->pollFd);
+  EpollClose(pThread->pollFd);
 #endif // __APPLE__
   tfree(pThread);
   tfree(buffer);
@@ -252,7 +260,12 @@ static void *syncAcceptPeerTcpConnection(void *argv) {
   while (1) {
     struct sockaddr_in clientAddr;
     socklen_t addrlen = sizeof(clientAddr);
-    int32_t connFd = accept(pPool->acceptFd, (struct sockaddr *)&clientAddr, &addrlen);
+    SOCKET connFd = accept(pPool->acceptFd, (struct sockaddr *)&clientAddr, &addrlen);
+    if (pPool->stop) {
+      sDebug("%p TCP server accept is stopped", pPool);
+      break;
+    }
+
     if (connFd < 0) {
       if (errno == EINVAL) {
         sDebug("%p TCP server accept is exiting...", pPool);
@@ -268,7 +281,7 @@ static void *syncAcceptPeerTcpConnection(void *argv) {
     (*pInfo->processIncomingConn)(connFd, clientAddr.sin_addr.s_addr);
   }
 
-  taosClose(pPool->acceptFd);
+  taosCloseSocket(pPool->acceptFd);
   return NULL;
 }
 
@@ -281,7 +294,7 @@ static SThreadObj *syncGetTcpThread(SPoolObj *pPool) {
   if (pThread == NULL) return NULL;
 
   pThread->pPool = pPool;
-  pThread->pollFd = epoll_create(10);  // size does not matter
+  pThread->pollFd = (EpollFd)epoll_create(10);  // size does not matter
   if (pThread->pollFd < 0) {
     tfree(pThread);
     return NULL;
@@ -297,8 +310,8 @@ static SThreadObj *syncGetTcpThread(SPoolObj *pPool) {
 #ifdef __APPLE__
     epoll_close(pThread->pollFd);
 #else // __APPLE__
-    close(pThread->pollFd);
-#endif // __APPLE__
+    EpollClose(pThread->pollFd);
+#endif
     tfree(pThread);
     return NULL;
   }

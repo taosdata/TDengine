@@ -26,7 +26,7 @@
 int32_t httpParseBasicAuthToken(HttpContext *pContext, char *token, int32_t len) {
   token[len] = '\0';
   int32_t outlen = 0;
-  char *base64 = (char *)base64_decode(token, len, &outlen);
+  char *  base64 = (char *)base64_decode(token, len, &outlen);
   if (base64 == NULL || outlen == 0) {
     httpError("context:%p, fd:%d, basic token:%s parsed error", pContext, pContext->fd, token);
     free(base64);
@@ -49,7 +49,7 @@ int32_t httpParseBasicAuthToken(HttpContext *pContext, char *token, int32_t len)
   strncpy(pContext->user, base64, (size_t)user_len);
   pContext->user[user_len] = 0;
 
-  char *password = user + 1;
+  char *  password = user + 1;
   int32_t pass_len = (int32_t)((base64 + outlen) - password);
   if (pass_len < 1 || pass_len >= HTTP_PASSWORD_LEN) {
     httpError("context:%p, fd:%d, basic token:%s parse password error", pContext, pContext->fd, token);
@@ -66,7 +66,7 @@ int32_t httpParseBasicAuthToken(HttpContext *pContext, char *token, int32_t len)
 
 int32_t httpParseTaosdAuthToken(HttpContext *pContext, char *token, int32_t len) {
   token[len] = '\0';
-  int32_t outlen = 0;
+  int32_t        outlen = 0;
   unsigned char *base64 = base64_decode(token, len, &outlen);
   if (base64 == NULL || outlen == 0) {
     httpError("context:%p, fd:%d, taosd token:%s parsed error", pContext, pContext->fd, token);
@@ -97,7 +97,7 @@ int32_t httpParseTaosdAuthToken(HttpContext *pContext, char *token, int32_t len)
 }
 
 int32_t httpGenTaosdAuthToken(HttpContext *pContext, char *token, int32_t maxLen) {
-  char buffer[sizeof(pContext->user) + sizeof(pContext->pass)] = {0};
+  char   buffer[sizeof(pContext->user) + sizeof(pContext->pass)] = {0};
   size_t size = sizeof(pContext->user);
   tstrncpy(buffer, pContext->user, size);
   size = sizeof(pContext->pass);

@@ -272,7 +272,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   SWalHead *pHead = buffer;
 
   while (1) {
-    int32_t ret = tfRead(tfd, pHead, sizeof(SWalHead));
+    int32_t ret = (int32_t)tfRead(tfd, pHead, sizeof(SWalHead));
     if (ret == 0) break;
 
     if (ret < 0) {
@@ -307,7 +307,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
       }
     }
 
-    ret = tfRead(tfd, pHead->cont, pHead->len);
+    ret = (int32_t)tfRead(tfd, pHead->cont, pHead->len);
     if (ret < 0) {
       wError("vgId:%d, file:%s, failed to read wal body since %s", pWal->vgId, name, strerror(errno));
       code = TAOS_SYSTEM_ERROR(errno);
