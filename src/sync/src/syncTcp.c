@@ -233,7 +233,11 @@ static void *syncProcessTcpData(void *param) {
 
   sDebug("%p TCP epoll thread exits", pThread);
 
+#ifdef __APPLE__
+  epoll_close(pThread->pollFd);
+#else // __APPLE__
   close(pThread->pollFd);
+#endif // __APPLE__
   tfree(pThread);
   tfree(buffer);
   return NULL;
@@ -290,7 +294,11 @@ static SThreadObj *syncGetTcpThread(SPoolObj *pPool) {
   pthread_attr_destroy(&thattr);
 
   if (ret != 0) {
+#ifdef __APPLE__
+    epoll_close(pThread->pollFd);
+#else // __APPLE__
     close(pThread->pollFd);
+#endif // __APPLE__
     tfree(pThread);
     return NULL;
   }

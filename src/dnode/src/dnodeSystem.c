@@ -160,7 +160,11 @@ static void signal_handler(int32_t signum, siginfo_t *sigInfo, void *context) {
   syslog(LOG_INFO, "Shut down signal is %d", signum);
   syslog(LOG_INFO, "Shutting down TDengine service...");
   // clean the system.
+#ifdef __APPLE__
+  dInfo("shut down signal is %d, sender PID:%d", signum, sigInfo->si_pid);
+#else // __APPLE__
   dInfo("shut down signal is %d, sender PID:%d cmdline:%s", signum, sigInfo->si_pid, taosGetCmdlineByPID(sigInfo->si_pid));
+#endif // __APPLE__
 
   // protect the application from receive another signal
   struct sigaction act = {{0}};

@@ -354,6 +354,8 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
     return -1;
   }
 
+#ifndef __APPLE__
+  // all fails on macosx
   int32_t probes = 3;
   if (taosSetSockOpt(sockFd, SOL_TCP, TCP_KEEPCNT, (void *)&probes, sizeof(probes)) < 0) {
     uError("fd:%d setsockopt SO_KEEPCNT failed: %d (%s)", sockFd, errno, strerror(errno));
@@ -374,6 +376,7 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
     taosCloseSocket(sockFd);
     return -1;
   }
+#endif // __APPLE__
 
   int32_t nodelay = 1;
   if (taosSetSockOpt(sockFd, IPPROTO_TCP, TCP_NODELAY, (void *)&nodelay, sizeof(nodelay)) < 0) {

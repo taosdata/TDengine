@@ -31,11 +31,36 @@
 
 static bool httpReadData(HttpContext *pContext);
 
+#ifdef __APPLE__
+static int sv_dummy = 0;
+#endif // __APPLE__
+
 static void httpStopThread(HttpThread* pThread) {
   pThread->stop = true;
 
   // signal the thread to stop, try graceful method first,
   // and use pthread_cancel when failed
+#ifdef __APPLE__
+  int sv[2];
+  sv[0] = sv[1] = -1;
+  int r = socketpair(PF_LOCAL, SOCK_STREAM, 0, sv);
+  do {
+    if (r) break;
+    struct epoll_event ev = {0};
+    ev.events = EPOLLIN;
+    ev.data.ptr = &sv_dummy;
+    pThread->stop = true;
+    r = epoll_ctl(pThread->pollFd, EPOLL_CTL_ADD, sv[0], &ev);
+    if (r) break;
+    if (1!=send(sv[1], "1", 1, 0)) {
+      r = -1;
+      break;
+    }
+  } while (0);
+  if (r) {
+    pthread_cancel(pThread->thread);
+  }
+#else // __APPLE__
   struct epoll_event event = { .events = EPOLLIN };
   eventfd_t fd = eventfd(1, 0);
   if (fd == -1) {
@@ -46,13 +71,29 @@ static void httpStopThread(HttpThread* pThread) {
     httpError("%s, failed to call epoll_ctl, will call pthread_cancel instead, which may result in data corruption: %s", pThread->label, strerror(errno));
     pthread_cancel(pThread->thread);
   }
+#endif // __APPLE__
 
   pthread_join(pThread->thread, NULL);
+#ifdef __APPLE__
+  if (sv[0]!=-1) {
+    close(sv[0]);
+    sv[0] = -1;
+  }
+  if (sv[1]!=-1) {
+    close(sv[1]);
+    sv[1] = -1;
+  }
+#else // __APPLE__
   if (fd != -1) {
     close(fd);
   }
+#endif // __APPLE__
 
+#ifdef __APPLE__
+  epoll_close(pThread->pollFd);
+#else
   close(pThread->pollFd);
+#endif
   pthread_mutex_destroy(&(pThread->threadMutex));
 }
 
@@ -96,6 +137,15 @@ static void httpProcessHttpData(void *param) {
     if (fdNum <= 0) continue;
 
     for (int32_t i = 0; i < fdNum; ++i) {
+#ifdef __APPLE__
+      if (events[i].data.ptr == &sv_dummy) {
+        // no need to drain the recv buffer of sv[0]
+        // since there's only one time to send at most 1 byte to sv[0]
+        // btw, pThread->stop shall be already set, thus never reached here
+        httpDebug("if you see this line, there's internal logic error");
+        continue;
+      }
+#endif // __APPLE__
       pContext = httpGetContext(events[i].data.ptr);
       if (pContext == NULL) {
         httpError("context:%p, is already released, close connect", events[i].data.ptr);

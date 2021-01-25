@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include <sys/inotify.h>
+// #include <sys/inotify.h>
 #include "os.h"
 #include "taoserror.h"
 #include "tlog.h"

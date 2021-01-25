@@ -307,7 +307,14 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *
   int code = pthread_create(&(pThreadObj->thread), &thattr, taosProcessTcpData, (void *)(pThreadObj));
   pthread_attr_destroy(&thattr);
   if (code != 0) {
+#ifdef __APPLE__
+    if (pThreadObj->pollFd!=-1) {
+      epoll_close(pThreadObj->pollFd);
+      pThreadObj->pollFd = -1;
+    }
+#else // __APPLE__
     taosCloseSocket(pThreadObj->pollFd);
+#endif // __APPLE__
     free(pThreadObj);
     terrno = TAOS_SYSTEM_ERROR(errno); 
     tError("%s failed to create TCP read data thread(%s)", label, strerror(errno));
@@ -470,7 +477,10 @@ static void *taosProcessTcpData(void *param) {
   SFdObj            *pFdObj;
   struct epoll_event events[maxEvents];
   SRecvInfo          recvInfo;
- 
+
+#ifdef __APPLE__
+  taos_block_sigalrm();
+#endif // __APPLE__
   while (1) {
     int fdNum = epoll_wait(pThreadObj->pollFd, events, maxEvents, TAOS_EPOLL_WAIT_TIME);
     if (pThreadObj->stop) {
@@ -512,7 +522,14 @@ static void *taosProcessTcpData(void *param) {
     if (pThreadObj->stop) break; 
   }
 
+#ifdef __APPLE__
+  if (pThreadObj->pollFd >=0) {
+    epoll_close(pThreadObj->pollFd);
+    pThreadObj->pollFd = -1;
+  }
+#else // __APPLE__
   if (pThreadObj->pollFd >=0) taosCloseSocket(pThreadObj->pollFd);
+#endif // __APPLE__
 
   while (pThreadObj->pHead) {
     SFdObj *pFdObj = pThreadObj->pHead;

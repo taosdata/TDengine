@@ -75,11 +75,11 @@ extern "C" {
 #define TAOS_OS_FUNC_FILE_SENDIFLE
 
 #define TAOS_OS_FUNC_SEMPHONE
-  #define tsem_t dispatch_semaphore_t
-  int tsem_init(dispatch_semaphore_t *sem, int pshared, unsigned int value);
-  int tsem_wait(dispatch_semaphore_t *sem);
-  int tsem_post(dispatch_semaphore_t *sem);
-  int tsem_destroy(dispatch_semaphore_t *sem);
+  typedef struct tsem_s *tsem_t;
+  int tsem_init(tsem_t *sem, int pshared, unsigned int value);
+  int tsem_wait(tsem_t *sem);
+  int tsem_post(tsem_t *sem);
+  int tsem_destroy(tsem_t *sem);
 
 #define TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 #define TAOS_OS_FUNC_STRING_STR2INT64
@@ -91,7 +91,7 @@ extern "C" {
 typedef int(*__compar_fn_t)(const void *, const void *);
 
 // for send function in tsocket.c
-#define MSG_NOSIGNAL             0
+// #define MSG_NOSIGNAL             0
 #define SO_NO_CHECK              0x1234
 #define SOL_TCP                  0x1234
 #define TCP_KEEPIDLE             0x1234
@@ -99,6 +99,17 @@ typedef int(*__compar_fn_t)(const void *, const void *);
 #ifndef PTHREAD_MUTEX_RECURSIVE_NP
   #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
 #endif
+
+int64_t tsosStr2int64(char *str);
+
+#include "eok.h"
+
+void taos_block_sigalrm(void);
+
+
+
+
+
 
 #ifdef __cplusplus
 }
