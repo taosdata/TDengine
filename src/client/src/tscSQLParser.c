@@ -60,7 +60,7 @@ static int32_t setShowInfo(SSqlObj* pSql, SSqlInfo* pInfo);
 static char*   getAccountId(SSqlObj* pSql);
 
 static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
-static char* getCurrentDBName(SSqlObj* pSql);
+static char* cloneCurrentDBName(SSqlObj* pSql);
 static bool hasSpecifyDB(SStrToken* pTableName);
 static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd);
 static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pCmd);
@@ -1248,7 +1248,11 @@ static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
 static char* getAccountId(SSqlObj* pSql) { return pSql->pTscObj->acctId; }
 
 static char* cloneCurrentDBName(SSqlObj* pSql) {
-  return strdup(pSql->pTscObj->db);
+  pthread_mutex_lock(&pSql->pTscObj->mutex);
+  char *p = strdup(pSql->pTscObj->db);  
+  pthread_mutex_unlock(&pSql->pTscObj->mutex);
+
+  return p;
 }
 
 /* length limitation, strstr cannot be applied */
