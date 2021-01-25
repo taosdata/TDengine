@@ -211,7 +211,7 @@ pipeline {
                     </table></font>
                 </body>
                 </html>''',
-                to: "${CHANGE_AUTHOR_EMAIL}",
+                to: "${env.CHANGE_AUTHOR_EMAIL}",
                 from: "support@taosdata.com"
             )
         }
@@ -249,7 +249,7 @@ pipeline {
                     </table></font>
                 </body>
                 </html>''',
-                to: "${CHANGE_AUTHOR_EMAIL}",
+                to: "${env.CHANGE_AUTHOR_EMAIL}",
                 from: "support@taosdata.com"
             )
         }
