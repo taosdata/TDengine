@@ -102,3 +102,5 @@ int taosSystem(const char *cmd) {
 }
 
 void taosSetCoreDump() {}
+
+char *taosGetCmdlineByPID(int pid) { return ""; }

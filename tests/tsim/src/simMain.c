@@ -22,7 +22,7 @@
 bool simAsyncQuery = false;
 bool simExecSuccess = false;
 
-void simHandleSignal(int32_t signo) {
+void simHandleSignal(int32_t signo, void *sigInfo, void *context) {
   simSystemCleanUp();
   exit(1);
 }
@@ -52,7 +52,7 @@ int32_t main(int32_t argc, char *argv[]) {
   }
 
   simInfo("simulator is running ...");
-  signal(SIGINT, simHandleSignal);
+  taosSetSignal(SIGINT, simHandleSignal);
 
   SScript *script = simParseScript(scriptFile);
   if (script == NULL) {
@@ -64,7 +64,7 @@ int32_t main(int32_t argc, char *argv[]) {
   simExecuteScript(script);
 
   int32_t ret = simExecSuccess ? 0 : -1;
-  simError("execute result %d", ret);
+  simInfo("execute result %d", ret);
 
   return ret;
 }

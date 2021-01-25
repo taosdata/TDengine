@@ -207,7 +207,7 @@ static void sdbRestoreTables() {
       (*pTable->fpRestored)();
     }
 
-    totalRows += pTable->numOfRows;
+    totalRows += (int32_t)pTable->numOfRows;
     numOfTables++;
     sdbInfo("vgId:1, sdb:%s is checked, rows:%" PRId64, pTable->name, pTable->numOfRows);
   }
@@ -472,7 +472,7 @@ void sdbIncRef(void *tparam, void *pRow) {
   if (pRow == NULL || tparam == NULL) return;
 
   SSdbTable *pTable = tparam;
-  int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
+  int32_t *  pRefCount = (int32_t *)((char *)pRow + pTable->refCountPos);
   int32_t    refCount = atomic_add_fetch_32(pRefCount, 1);
   sdbTrace("vgId:1, sdb:%s, inc ref to row:%p:%s:%d", pTable->name, pRow, sdbGetRowStr(pTable, pRow), refCount);
 }
@@ -481,11 +481,11 @@ void sdbDecRef(void *tparam, void *pRow) {
   if (pRow == NULL || tparam == NULL) return;
 
   SSdbTable *pTable = tparam;
-  int32_t *  pRefCount = (int32_t *)(pRow + pTable->refCountPos);
+  int32_t *  pRefCount = (int32_t *)((char *)pRow + pTable->refCountPos);
   int32_t    refCount = atomic_sub_fetch_32(pRefCount, 1);
   sdbTrace("vgId:1, sdb:%s, dec ref to row:%p:%s:%d", pTable->name, pRow, sdbGetRowStr(pTable, pRow), refCount);
 
-  int32_t *updateEnd = pRow + pTable->refCountPos - 4;
+  int32_t *updateEnd = (int32_t *)((char *)pRow + pTable->refCountPos - 4);
   if (refCount <= 0 && *updateEnd) {
     sdbTrace("vgId:1, sdb:%s, row:%p:%s:%d destroyed", pTable->name, pRow, sdbGetRowStr(pTable, pRow), refCount);
     SSdbRow row = {.pObj = pRow};
@@ -498,7 +498,7 @@ static void *sdbGetRowMeta(SSdbTable *pTable, void *key) {
 
   int32_t keySize = sizeof(int32_t);
   if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
-    keySize = strlen((char *)key);
+    keySize = (int32_t)strlen((char *)key);
   }
 
   void **ppRow = (void **)taosHashGet(pTable->iHandle, key, keySize);
@@ -531,7 +531,7 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbRow *pRow) {
   int32_t keySize = sizeof(int32_t);
 
   if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
-    keySize = strlen((char *)key);
+    keySize =  (int32_t)strlen((char *)key);
   }
 
   pthread_mutex_lock(&pTable->mutex);
@@ -561,7 +561,7 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbRow *pRow) {
 }
 
 static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbRow *pRow) {
-  int32_t *updateEnd = pRow->pObj + pTable->refCountPos - 4;
+  int32_t *updateEnd = (int32_t *)((char*)pRow->pObj + pTable->refCountPos - 4);
   bool set = atomic_val_compare_exchange_32(updateEnd, 0, 1) == 0;
   if (!set) {
     sdbError("vgId:1, sdb:%s, failed to delete key:%s from hash, for it already removed", pTable->name,
@@ -574,7 +574,7 @@ static int32_t sdbDeleteHash(SSdbTable *pTable, SSdbRow *pRow) {
   void *  key = sdbGetObjKey(pTable, pRow->pObj);
   int32_t keySize = sizeof(int32_t);
   if (pTable->keyType == SDB_KEY_STRING || pTable->keyType == SDB_KEY_VAR_STRING) {
-    keySize = strlen((char *)key);
+    keySize = (int32_t)strlen((char *)key);
   }
 
   pthread_mutex_lock(&pTable->mutex);
@@ -761,7 +761,7 @@ bool sdbCheckRowDeleted(void *tparam, void *pRow) {
   SSdbTable *pTable = tparam;
   if (pTable == NULL) return false;
 
-  int32_t *updateEnd = pRow + pTable->refCountPos - 4;
+  int32_t *updateEnd =  (int32_t *)((char*)pRow + pTable->refCountPos - 4);
   return atomic_val_compare_exchange_32(updateEnd, 1, 1) == 1;
 }
 
@@ -939,14 +939,14 @@ static int32_t sdbInitWorker() {
 static void sdbCleanupWorker() {
   for (int32_t i = 0; i < tsSdbPool.num; ++i) {
     SSdbWorker *pWorker = tsSdbPool.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(tsSdbWQset);
     }
   }
 
   for (int32_t i = 0; i < tsSdbPool.num; ++i) {
     SSdbWorker *pWorker = tsSdbPool.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
     }
   }

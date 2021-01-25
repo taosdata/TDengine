@@ -90,8 +90,8 @@ extern int32_t tsMinRowsInFileBlock;
 extern int32_t tsMaxRowsInFileBlock;
 extern int16_t tsCommitTime;  // seconds
 extern int32_t tsTimePrecision;
-extern int16_t tsCompression;
-extern int16_t tsWAL;
+extern int8_t  tsCompression;
+extern int8_t  tsWAL;
 extern int32_t tsFsyncPeriod;
 extern int32_t tsReplications;
 extern int32_t tsQuorum;

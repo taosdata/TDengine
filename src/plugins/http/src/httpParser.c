@@ -130,7 +130,7 @@ static int32_t httpAppendString(HttpString *str, const char *s, int32_t len) {
 static void httpClearString(HttpString *str) {
   if (str->str) {
     str->str[0] = '\0';
-    str->pos    = 0;
+    str->pos = 0;
   }
 }
 
@@ -153,7 +153,7 @@ static int32_t httpOnRequestLine(HttpParser *pParser, char *method, char *target
   for (int32_t i = 0; i < HTTP_MAX_URL; i++) {
     char *pSeek = strchr(pStart, '/');
     if (pSeek == NULL) {
-      (void)httpAppendString(pParser->path + i, pStart, strlen(pStart));
+      (void)httpAppendString(pParser->path + i, pStart, (int32_t)strlen(pStart));
       break;
     } else {
       (void)httpAppendString(pParser->path + i, pStart, (int32_t)(pSeek - pStart));
@@ -237,7 +237,6 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
     }
     httpTrace("context:%p, fd:%d, keepAlive:%d", pContext, pContext->fd, pContext->parser->keepAlive);
   }
-
 #if 0
   else if (0 == strcasecmp(key, "Content-Encoding")) {
     if (0 == strcmp(val, "gzip")) {
@@ -246,7 +245,7 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
     }
     return 0;
   }
-  #endif
+#endif
 
   else if (0 == strcasecmp(key, "Transfer-Encoding") || 0 == strcasecmp(key, "Content-Encoding")) {
     if (strstr(val, "gzip")) {
@@ -272,20 +271,17 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
   }
 
   else if (0 == strcasecmp(key, "Authorization")) {
-    char *  t = NULL;
-    char *  s = NULL;
+    char   t[6] = {0};
+    char   s[129] = {0};
     int32_t bytes = 0;
-    int32_t n = sscanf(val, "%ms %ms%n", &t, &s, &bytes);
-    if (n == 2 && t && s && bytes == strlen(val)) {
+    int32_t n = sscanf(val, "%5s %128s%n", t, s, &bytes);
+    if (n == 2 && t[0] && s[0] && bytes == strlen(val)) {
       if (strcmp(t, "Basic") == 0) {
         free(parser->authContent);
-        parser->authContent = s;
+        parser->authContent = strdup(s);
         parser->authType = HTTP_BASIC_AUTH;
-        s = NULL;
-        free(t);
-        free(s);
         httpTrace("context:%p, fd:%d, basic auth:%s", pContext, pContext->fd, parser->authContent);
-        int32_t ok = httpParseBasicAuthToken(pContext, parser->authContent, strlen(parser->authContent));
+        int32_t ok = httpParseBasicAuthToken(pContext, parser->authContent, (int32_t)strlen(parser->authContent));
         if (ok != 0) {
           httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_BASIC_AUTH);
           return -1;
@@ -293,13 +289,10 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
         return 0;
       } else if (strcmp(t, "Taosd") == 0) {
         free(parser->authContent);
-        parser->authContent = s;
+        parser->authContent = strdup(s);
         parser->authType = HTTP_TAOSD_AUTH;
-        s = NULL;
-        free(t);
-        free(s);
         httpTrace("context:%p, fd:%d, taosd auth:%s", pContext, pContext->fd, parser->authContent);
-        int32_t ok = httpParseTaosdAuthToken(pContext, parser->authContent, strlen(parser->authContent));
+        int32_t ok = httpParseTaosdAuthToken(pContext, parser->authContent, (int32_t)strlen(parser->authContent));
         if (ok != 0) {
           httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_TAOSD_AUTH);
           return -1;
@@ -309,16 +302,12 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
         parser->authType = HTTP_INVALID_AUTH;
         httpError("context:%p, fd:%d, invalid auth, t:%s s:%s", pContext, pContext->fd, t, s);
         httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_AUTH_TYPE);
-        free(t);
-        free(s);
         return -1;
       }
     } else {
       parser->authType = HTTP_INVALID_AUTH;
       httpError("context:%p, fd:%d, parse auth failed, t:%s s:%s", pContext, pContext->fd, t, s);
       httpOnError(parser, 0, TSDB_CODE_HTTP_INVALID_AUTH_FORMAT);
-      free(t);
-      free(s);
       return -1;
     }
   }
@@ -349,7 +338,7 @@ static int32_t httpOnBody(HttpParser *parser, const char *chunk, int32_t len) {
     newSize = MIN(newSize, HTTP_BUFFER_SIZE);
     buf->str = realloc(buf->str, newSize);
     buf->size = newSize;
-    
+
     if (buf->str == NULL) {
       httpError("context:%p, fd:%d, failed parse body, realloc %d failed", pContext, pContext->fd, buf->size);
       httpOnError(parser, 0, TSDB_CODE_HTTP_NO_ENOUGH_MEMORY);
@@ -410,9 +399,7 @@ static int32_t httpPopStack(HttpParser *parser) {
   return 0;
 }
 
-static void httpClearStack(HttpStack *stack) {
-  stack->pos = 0;
-}
+static void httpClearStack(HttpStack *stack) { stack->pos = 0; }
 
 static int32_t httpCleanupStack(HttpStack *stack) {
   free(stack->stacks);
@@ -451,7 +438,7 @@ void httpInitParser(HttpParser *parser) {
   free(parser->key);            parser->key             = NULL;
   free(parser->val);            parser->val             = NULL;
   free(parser->authContent);    parser->authContent     = NULL;
-  
+
   httpClearStack(&parser->stacks);
   httpClearString(&parser->str);
   httpClearString(&parser->body);
@@ -497,7 +484,7 @@ void httpDestroyParser(HttpParser *parser) {
   free(parser->key);            parser->key             = NULL;
   free(parser->val);            parser->val             = NULL;
   free(parser->authContent);    parser->authContent     = NULL;
-  
+
   httpCleanupStack(&parser->stacks);
   httpCleanupString(&parser->str);
   httpCleanupString(&parser->body);
@@ -513,25 +500,36 @@ void httpDestroyParser(HttpParser *parser) {
   free(parser);
 }
 
-#define is_token(c)      (strchr("!#$%&'*+-.^_`|~", c) || isdigit(c) || isalpha(c))
+#define is_token(c) (strchr("!#$%&'*+-.^_`|~", c) || isdigit(c) || isalpha(c))
 
 char *httpDecodeUrl(const char *enc) {
-  int32_t ok = 1;
+  int32_t    ok = 1;
   HttpString str = {0};
   while (*enc) {
     char *p = strchr(enc, '%');
     if (!p) break;
     int32_t hex, cnt;
-    int32_t n = sscanf(p+1, "%2x%n", &hex, &cnt);
-    if (n!=1 && cnt !=2) { ok = 0; break; }
-    if (httpAppendString(&str, enc, p-enc)) { ok = 0; break; }
+    int32_t n = sscanf(p + 1, "%2x%n", &hex, &cnt);
+    if (n != 1 && cnt != 2) {
+      ok = 0;
+      break;
+    }
+    if (httpAppendString(&str, enc, (int32_t)(p - enc))) {
+      ok = 0;
+      break;
+    }
     char c = (char)hex;
-    if (httpAppendString(&str, &c, 1)) { ok = 0; break; }
-    enc    = p+3;
+    if (httpAppendString(&str, &c, 1)) {
+      ok = 0;
+      break;
+    }
+    enc = p + 3;
   }
   char *dec = NULL;
   if (ok && *enc) {
-    if (httpAppendString(&str, enc, strlen(enc))) { ok = 0; }
+    if (httpAppendString(&str, enc, (int32_t)strlen(enc))) {
+      ok = 0;
+    }
   }
   if (ok) {
     dec = str.str;
@@ -542,13 +540,13 @@ char *httpDecodeUrl(const char *enc) {
 }
 
 static void httpOnData(ehttp_gzip_t *gzip, void *arg, const char *buf, int32_t len) {
-  HttpParser *parser = (HttpParser*)arg;
+  HttpParser *parser = (HttpParser *)arg;
   httpOnBody(parser, buf, len);
 }
 
 static int32_t httpParserOnBegin(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     if (c == 'G' || c == 'P' || c == 'H' || c == 'D' || c == 'C' || c == 'O' || c == 'T') {
       if (httpAppendString(&parser->str, &c, 1)) {
@@ -570,7 +568,7 @@ static int32_t httpParserOnBegin(HttpParser *parser, HTTP_PARSER_STATE state, co
 
 static int32_t httpParserOnRquestOrResponse(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     if (parser->str.pos == 1) {
       if (c == 'T' && parser->str.str[0] == 'H') {
@@ -608,7 +606,7 @@ static int32_t httpParserOnRquestOrResponse(HttpParser *parser, HTTP_PARSER_STAT
 
 static int32_t httpParserOnMethod(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     if (isalnum(c) || strchr("!#$%&'*+-.^_`|~", c)) {
       if (httpAppendString(&parser->str, &c, 1)) {
@@ -637,7 +635,7 @@ static int32_t httpParserOnMethod(HttpParser *parser, HTTP_PARSER_STATE state, c
 
 static int32_t httpParserOnTarget(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     if (!isspace(c) && c != '\r' && c != '\n') {
       if (httpAppendString(&parser->str, &c, 1)) {
@@ -664,10 +662,10 @@ static int32_t httpParserOnTarget(HttpParser *parser, HTTP_PARSER_STATE state, c
 
 static int32_t httpParserOnVersion(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     const char *prefix = "HTTP/1.";
-    int32_t     len = strlen(prefix);
+    int32_t     len = (int32_t)strlen(prefix);
     if (parser->str.pos < len) {
       if (prefix[parser->str.pos] != c) {
         httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
@@ -727,7 +725,7 @@ static int32_t httpParserOnVersion(HttpParser *parser, HTTP_PARSER_STATE state, 
 
 static int32_t httpParserOnSp(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     if (c == ' ') {
       httpPopStack(parser);
@@ -742,7 +740,7 @@ static int32_t httpParserOnSp(HttpParser *parser, HTTP_PARSER_STATE state, const
 
 static int32_t httpParserOnStatusCode(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     if (isdigit(c)) {
       if (httpAppendString(&parser->str, &c, 1)) {
@@ -767,7 +765,7 @@ static int32_t httpParserOnStatusCode(HttpParser *parser, HTTP_PARSER_STATE stat
 
 static int32_t httpParserOnReasonPhrase(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     if (c == '\r') {
       parser->reasonPhrase = strdup(parser->str.str);
@@ -808,10 +806,10 @@ static int32_t httpParserPostProcess(HttpParser *parser) {
 
 static int32_t httpParserOnCrlf(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
-    const char *s   = "\r\n";
-    int32_t   len   = strlen(s);
+    const char *s = "\r\n";
+    int32_t     len = (int32_t)strlen(s);
     if (s[parser->str.pos] != c) {
       httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
       ok = -1;
@@ -838,7 +836,7 @@ static int32_t httpParserOnCrlf(HttpParser *parser, HTTP_PARSER_STATE state, con
 
 static int32_t httpParserOnHeader(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     if (c == '\r') {
       httpPopStack(parser);
@@ -876,7 +874,7 @@ static int32_t httpParserOnHeader(HttpParser *parser, HTTP_PARSER_STATE state, c
 
 static int32_t httpParserOnHeaderKey(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     if (isalnum(c) || strchr("!#$%&'*+-.^_`|~", c)) {
       if (httpAppendString(&parser->str, &c, 1)) {
@@ -888,7 +886,7 @@ static int32_t httpParserOnHeaderKey(HttpParser *parser, HTTP_PARSER_STATE state
       break;
     }
     if (c == ':') {
-      parser->key        = strdup(parser->str.str);
+      parser->key = strdup(parser->str.str);
       if (!parser->key) {
         httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
         ok = -1;
@@ -908,7 +906,7 @@ static int32_t httpParserOnHeaderKey(HttpParser *parser, HTTP_PARSER_STATE state
 
 static int32_t httpParserOnHeaderVal(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     if (c != '\r' && c != '\n' && (!isspace(c) || parser->str.pos > 0)) {
       if (httpAppendString(&parser->str, &c, 1)) {
@@ -935,10 +933,10 @@ static int32_t httpParserOnHeaderVal(HttpParser *parser, HTTP_PARSER_STATE state
 
 static int32_t httpParserOnChunkSize(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
-  int32_t bytes;
-  int32_t len;
-  int32_t n;
+  int32_t      ok = 0;
+  int32_t      bytes;
+  int32_t      len;
+  int32_t      n;
   do {
     if (isxdigit(c)) {
       if (httpAppendString(&parser->str, &c, 1)) {
@@ -985,7 +983,7 @@ static int32_t httpParserOnChunkSize(HttpParser *parser, HTTP_PARSER_STATE state
 
 static int32_t httpParserOnChunk(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     if (httpAppendString(&parser->str, &c, 1)) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
@@ -1019,7 +1017,7 @@ static int32_t httpParserOnChunk(HttpParser *parser, HTTP_PARSER_STATE state, co
 
 static int32_t httpParserOnEnd(HttpParser *parser, HTTP_PARSER_STATE state, const char c, int32_t *again) {
   HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  int32_t      ok = 0;
   do {
     ok = -1;
     httpError("context:%p, fd:%d, parser state:%d, unexpected char:[%c]%02x", pContext, pContext->fd, state, c, c);
@@ -1029,8 +1027,8 @@ static int32_t httpParserOnEnd(HttpParser *parser, HTTP_PARSER_STATE state, cons
 }
 
 static int32_t httpParseChar(HttpParser *parser, const char c, int32_t *again) {
-  HttpContext *pContext = parser->pContext;
-  int32_t ok = 0;
+  HttpContext *     pContext = parser->pContext;
+  int32_t           ok = 0;
   HTTP_PARSER_STATE state = httpTopStack(parser);
   do {
     if (state == HTTP_PARSER_BEGIN) {
@@ -1119,9 +1117,9 @@ static int32_t httpParseChar(HttpParser *parser, const char c, int32_t *again) {
 
 int32_t httpParseBuf(HttpParser *parser, const char *buf, int32_t len) {
   HttpContext *pContext = parser->pContext;
-  const char *p = buf;
-  int32_t     ret = 0;
-  int32_t     i = 0;
+  const char * p = buf;
+  int32_t      ret = 0;
+  int32_t      i = 0;
 
   while (i < len) {
     int32_t again = 0;

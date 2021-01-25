@@ -110,7 +110,7 @@ int tsdbCreateMFile(SMFile *pMFile, bool updateHeader) {
 
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
 
-  pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), O_WRONLY | O_CREAT | O_TRUNC, 0755);
+  pMFile->fd = open(TSDB_FILE_FULL_NAME(pMFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
   if (pMFile->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -310,7 +310,7 @@ int tsdbCreateDFile(SDFile *pDFile, bool updateHeader) {
   char buf[TSDB_FILE_HEAD_SIZE] = "\0";
   // TODO: need to check if directory exists, if not, create the directory
 
-  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC, 0755);
+  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
   if (pDFile->fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;

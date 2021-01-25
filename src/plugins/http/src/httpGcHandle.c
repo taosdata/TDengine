@@ -192,7 +192,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
       break;
     }
 
-    cJSON* alias = cJSON_GetObjectItem(query, "alias");
+    cJSON*  alias = cJSON_GetObjectItem(query, "alias");
     int32_t aliasBuffer = -1;
     if (!(alias == NULL || alias->valuestring == NULL || strlen(alias->valuestring) == 0)) {
       aliasBuffer = httpAddToSqlCmdBuffer(pContext, alias->valuestring);

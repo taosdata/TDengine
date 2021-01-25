@@ -23,7 +23,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   pTSBuf->autoDelete = autoDelete;
   
   taosGetTmpfilePath("join", pTSBuf->path);
-  pTSBuf->f = fopen(pTSBuf->path, "w+");
+  pTSBuf->f = fopen(pTSBuf->path, "wb+");
   if (pTSBuf->f == NULL) {
     free(pTSBuf);
     return NULL;
@@ -59,7 +59,7 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   
   tstrncpy(pTSBuf->path, path, sizeof(pTSBuf->path));
   
-  pTSBuf->f = fopen(pTSBuf->path, "r+");
+  pTSBuf->f = fopen(pTSBuf->path, "rb+");
   if (pTSBuf->f == NULL) {
     free(pTSBuf);
     return NULL;

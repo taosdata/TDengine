@@ -30,7 +30,7 @@
 #include "mnodeVgroup.h"
 
 extern int64_t tsDnodeRid;
-extern int64_t tsSdbRid;
+extern int32_t tsSdbRid;
 static SBnMgmt tsBnMgmt;
 static void  bnMonitorDnodeModule();
 
