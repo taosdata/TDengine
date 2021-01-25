@@ -106,10 +106,11 @@ int64_t tsosStr2int64(char *str);
 
 void taos_block_sigalrm(void);
 
-
-
-
-
+#define TAOS_OS_DEF_EPOLL
+  #define TAOS_EPOLL_WAIT_TIME 500 
+  typedef int32_t SOCKET;
+  typedef SOCKET EpollFd;
+  #define EpollClose(pollFd) epoll_close(pollFd)
 
 #ifdef __cplusplus
 }

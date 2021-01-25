@@ -1036,11 +1036,7 @@ static int32_t validateDataSource(SSqlCmd *pCmd, int8_t type, const char *sql) {
 }
 
 /**
- * usage: insert into table1 values() () table2 values()()
- *
- * @param str
- * @param acct
- * @param db
+ * parse insert sql
  * @param pSql
  * @return
  */
@@ -1343,10 +1339,11 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     // make a backup as tsParseInsertSql may modify the string
     char* sqlstr = strdup(pSql->sqlstr);
     ret = tsParseInsertSql(pSql);
-    if (sqlstr == NULL || pSql->parseRetry >= 1 || ret != TSDB_CODE_TSC_INVALID_SQL) {
+    if ((sqlstr == NULL) || (pSql->parseRetry >= 1) ||
+        (ret != TSDB_CODE_TSC_SQL_SYNTAX_ERROR && ret != TSDB_CODE_TSC_INVALID_SQL)) {
       free(sqlstr);
     } else {
-      tscResetSqlCmdObj(pCmd);
+      tscResetSqlCmd(pCmd, true);
       free(pSql->sqlstr);
       pSql->sqlstr = sqlstr;
       pSql->parseRetry++;
@@ -1358,7 +1355,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
     if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0 && SQLInfo.type == TSDB_SQL_NULL) {
-      tscResetSqlCmdObj(pCmd);
+      tscResetSqlCmd(pCmd, true);
       pSql->parseRetry++;
       ret = tscToSQLCmd(pSql, &SQLInfo);
     }
@@ -1551,7 +1548,7 @@ void tscImportDataFromFile(SSqlObj *pSql) {
   SSqlObj *pNew = createSubqueryObj(pSql, 0, parseFileSendDataBlock, pSupporter, TSDB_SQL_INSERT, NULL);
   pCmd->count = 1;
 
-  FILE *fp = fopen(pCmd->payload, "r");
+  FILE *fp = fopen(pCmd->payload, "rb");
   if (fp == NULL) {
     pSql->res.code = TAOS_SYSTEM_ERROR(errno);
     tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));

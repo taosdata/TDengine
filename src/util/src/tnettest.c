@@ -48,7 +48,7 @@ static void *taosNetBindUdpPort(void *sarg) {
   struct sockaddr_in server_addr;
   struct sockaddr_in clientAddr;
 
-  if ((serverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
+   if ((serverSocket = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
     uError("failed to create UDP socket since %s", strerror(errno));
     return NULL;
   }
@@ -104,7 +104,7 @@ static void *taosNetBindTcpPort(void *sarg) {
   struct sockaddr_in server_addr;
   struct sockaddr_in clientAddr;
 
-  STestInfo *pinfo = sarg;
+ STestInfo *pinfo = sarg;
   int32_t    port = pinfo->port;
   SOCKET     serverSocket;
   int32_t    addr_len = sizeof(clientAddr);
@@ -133,7 +133,6 @@ static void *taosNetBindTcpPort(void *sarg) {
     return NULL;
   }
 
-  
   if (taosKeepTcpAlive(serverSocket) < 0) {
     uError("failed to set tcp server keep-alive option since %s", strerror(errno));
     taosCloseSocket(serverSocket);
@@ -178,8 +177,8 @@ static void *taosNetBindTcpPort(void *sarg) {
 }
 
 static int32_t taosNetCheckTcpPort(STestInfo *info) {
-  SOCKET clientSocket;
-  char   buffer[BUFFER_SIZE] = {0};
+  SOCKET  clientSocket;
+  char    buffer[BUFFER_SIZE] = {0};
 
   if ((clientSocket = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
     uError("failed to create TCP client socket since %s", strerror(errno));

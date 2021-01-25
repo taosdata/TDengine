@@ -93,14 +93,14 @@ static void addStringField(SBufferWriter* bw, const char* k, const char* v) {
 static void addCpuInfo(SBufferWriter* bw) {
   char * line = NULL;
   size_t size = 0;
-  int done = 0;
+  int32_t done = 0;
 
   FILE* fp = fopen("/proc/cpuinfo", "r");
   if (fp == NULL) {
     return;
   }
 
-  while (done != 3 && (size = getline(&line, &size, fp)) != -1) {
+  while (done != 3 && (size = tgetline(&line, &size, fp)) != -1) {
     line[size - 1] = '\0';
     if (((done&1) == 0) && strncmp(line, "model name", 10) == 0) {
       const char* v = strchr(line, ':') + 2;
@@ -129,7 +129,7 @@ static void addOsInfo(SBufferWriter* bw) {
     return;
   }
 
-  while ((size = getline(&line, &size, fp)) != -1) {
+  while ((size = tgetline(&line, &size, fp)) != -1) {
     line[size - 1] = '\0';
     if (strncmp(line, "PRETTY_NAME", 11) == 0) {
       const char* p = strchr(line, '=') + 1;
@@ -155,7 +155,7 @@ static void addMemoryInfo(SBufferWriter* bw) {
     return;
   }
 
-  while ((size = getline(&line, &size, fp)) != -1) {
+  while ((size = tgetline(&line, &size, fp)) != -1) {
     line[size - 1] = '\0';
     if (strncmp(line, "MemTotal", 8) == 0) {
       const char* p = strchr(line, ':') + 1;
@@ -200,7 +200,7 @@ static void sendTelemetryReport() {
     dTrace("failed to get IP address of " TELEMETRY_SERVER ", reason:%s", strerror(errno));
     return;
   }
-  int fd = taosOpenTcpClientSocket(ip, TELEMETRY_PORT, 0);
+  SOCKET fd = taosOpenTcpClientSocket(ip, TELEMETRY_PORT, 0);
   if (fd < 0) {
     dTrace("failed to create socket for telemetry, reason:%s", strerror(errno));
     return;
@@ -222,10 +222,10 @@ static void sendTelemetryReport() {
     "Content-Type: application/json\n"
     "Content-Length: ";
 
-  taosWriteSocket(fd, header, strlen(header));
-  int contLen = tbufTell(&bw) - 1;
+  taosWriteSocket(fd, header, (int32_t)strlen(header));
+  int32_t contLen = (int32_t)(tbufTell(&bw) - 1);
   sprintf(buf, "%d\n\n", contLen);
-  taosWriteSocket(fd, buf, strlen(buf));
+  taosWriteSocket(fd, buf, (int32_t)strlen(buf));
   taosWriteSocket(fd, tbufGetData(&bw, false), contLen);
   tbufCloseWriter(&bw);
 
@@ -265,7 +265,7 @@ static void* telemetryThread(void* param) {
 }
 
 static void dnodeGetEmail(char* filepath) {
-  int fd = open(filepath, O_RDONLY);
+  int32_t fd = open(filepath, O_RDONLY);
   if (fd < 0) {
     return;
   }
@@ -274,9 +274,8 @@ static void dnodeGetEmail(char* filepath) {
     dError("failed to read %d bytes from file %s since %s", TSDB_FQDN_LEN, filepath, strerror(errno));
   } 
 
-  close(fd);   
+  taosClose(fd);   
 }
-
 
 int32_t dnodeInitTelemetry() {
   if (!tsEnableTelemetryReporting) {
@@ -310,7 +309,7 @@ void dnodeCleanupTelemetry() {
     return;
   }
 
-  if (tsTelemetryThread) {
+  if (taosCheckPthreadValid(tsTelemetryThread)) {
     tsem_post(&tsExitSem);
     pthread_join(tsTelemetryThread, NULL);
     tsem_destroy(&tsExitSem);

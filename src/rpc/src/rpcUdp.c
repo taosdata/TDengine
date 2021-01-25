@@ -198,10 +198,12 @@ static void *taosRecvUdpData(void *param) {
 
   while (1) {
     dataLen = recvfrom(pConn->fd, pConn->buffer, RPC_MAX_UDP_SIZE, 0, (struct sockaddr *)&sourceAdd, &addLen);
-    if(dataLen <= 0) {
-      tDebug("%s UDP socket(fd:%d) receive dataLen(%d) error(%s)", pConn->label, pConn->fd, (int32_t)dataLen, strerror(errno));
+    if (dataLen <= 0) {
+      tDebug("%s UDP socket was closed, exiting(%s), dataLen:%d fd:%d", pConn->label, strerror(errno), (int32_t)dataLen,
+             pConn->fd);
+
       // for windows usage, remote shutdown also returns - 1 in windows client
-      if (-1 == pConn->fd) {
+      if (pConn->fd == -1) {
         break;
       } else {
         continue;

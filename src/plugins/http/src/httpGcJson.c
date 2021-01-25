@@ -86,7 +86,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return false;
 
-  int32_t  num_fields = taos_num_fields(result);
+  int32_t     num_fields = taos_num_fields(result);
   TAOS_FIELD *fields = taos_fetch_fields(result);
   if (num_fields == 0) {
     return false;
@@ -101,7 +101,7 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
   // such as select count(*) count(*) from sys.cpu group by ipaddr interval(1d)
   int32_t dataFields = -1;
   int32_t groupFields = -1;
-  bool hasTimestamp = fields[0].type == TSDB_DATA_TYPE_TIMESTAMP;
+  bool    hasTimestamp = fields[0].type == TSDB_DATA_TYPE_TIMESTAMP;
   if (hasTimestamp) {
     dataFields = 1;
     if (num_fields > 2) groupFields = num_fields - 1;
@@ -125,15 +125,15 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
       cmd->numOfRows--;
       continue;
     }
-    int32_t* length = taos_fetch_lengths(result);
+    int32_t *length = taos_fetch_lengths(result);
 
     // for group by
     if (groupFields != -1) {
-      char target[HTTP_GC_TARGET_SIZE] = {0};
+      char    target[HTTP_GC_TARGET_SIZE] = {0};
       int32_t len;
-      len = snprintf(target,HTTP_GC_TARGET_SIZE,"%s{",aliasBuffer);
-      for (int32_t i = dataFields + 1; i<num_fields; i++){
-          switch (fields[i].type) {
+      len = snprintf(target, HTTP_GC_TARGET_SIZE, "%s{", aliasBuffer);
+      for (int32_t i = dataFields + 1; i < num_fields; i++) {
+        switch (fields[i].type) {
           case TSDB_DATA_TYPE_BOOL:
           case TSDB_DATA_TYPE_TINYINT:
             len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%d", fields[i].name, *((int8_t *)row[i]));
@@ -155,20 +155,19 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
             break;
           case TSDB_DATA_TYPE_BINARY:
           case TSDB_DATA_TYPE_NCHAR:
-            if (row[i]!= NULL){            
+            if (row[i] != NULL) {
               len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:", fields[i].name);
-              memcpy(target + len, (char *) row[i], length[i]);
-              len = strlen(target);
+              memcpy(target + len, (char *)row[i], length[i]);
+              len = (int32_t)strlen(target);
             }
             break;
           default:
             len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "%s:%s", fields[i].name, "-");
             break;
         }
-        if(i < num_fields - 1 ){
-            len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, ", ");
+        if (i < num_fields - 1) {
+          len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, ", ");
         }
-
       }
       len += snprintf(target + len, HTTP_GC_TARGET_SIZE - len, "}");
 
@@ -217,10 +216,10 @@ bool gcBuildQueryJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           break;
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_NCHAR:
-          httpJsonStringForTransMean(jsonBuf, (char*)row[i], fields[i].bytes);
+          httpJsonStringForTransMean(jsonBuf, (char *)row[i], fields[i].bytes);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          if (precision == TSDB_TIME_PRECISION_MILLI) { //ms
+          if (precision == TSDB_TIME_PRECISION_MILLI) {  // ms
             httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
           } else {
             httpJsonInt64(jsonBuf, *((int64_t *)row[i]) / 1000);

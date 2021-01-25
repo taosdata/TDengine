@@ -24,7 +24,7 @@ data_dir="/var/lib/taos"
 if [ "$osType" != "Darwin" ]; then
     log_dir="/var/log/taos"
 else
-    log_dir=~/TDengineLog
+    log_dir=~/TDengine/log
 fi
 
 data_link_dir="/usr/local/taos/data"

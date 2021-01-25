@@ -20,6 +20,12 @@
 extern "C" {
 #endif
 
+#ifndef WINDOWS
+  #ifndef O_BINARY
+    #define O_BINARY 0
+  #endif
+#endif
+
 #ifndef STDERR_FILENO
 #define STDERR_FILENO (2)
 #endif
@@ -94,8 +100,7 @@ extern "C" {
 #elif defined(__GNUC__) && !defined(threadlocal)
   #define threadlocal __thread
 #else
-  // #define threadlocal
-  #error please follow with the thread-local implementation on the target platform 
+  #define threadlocal __declspec( thread )
 #endif
 
 #ifdef __cplusplus

@@ -95,7 +95,6 @@ bool restProcessSqlRequest(HttpContext* pContext, int32_t timestampFmt) {
     return false;
   }
 
-
   /*
    * for async test
    *

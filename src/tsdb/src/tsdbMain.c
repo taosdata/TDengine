@@ -541,7 +541,7 @@ static int32_t tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg) {
     goto _err;
   }
 
-  fd = open(fname, O_WRONLY | O_CREAT, 0755);
+  fd = open(fname, O_WRONLY | O_CREAT | O_BINARY, 0755);
   if (fd < 0) {
     tsdbError("vgId:%d failed to open file %s since %s", pCfg->tsdbId, fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -587,7 +587,7 @@ static int tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg) {
     goto _err;
   }
 
-  fd = open(fname, O_RDONLY);
+  fd = open(fname, O_RDONLY | O_BINARY);
   if (fd < 0) {
     tsdbError("failed to open file %s since %s", fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);

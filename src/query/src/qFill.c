@@ -15,9 +15,9 @@
 
 #include "os.h"
 
+#include "qAggMain.h"
 #include "taosdef.h"
 #include "taosmsg.h"
-#include "tsqlfunction.h"
 #include "ttype.h"
 
 #include "qFill.h"
@@ -120,7 +120,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, tFilePage** data, char** sr
         point1 = (SPoint){.key = *(TSKEY*)(prev), .val = prev + pCol->col.offset};
         point2 = (SPoint){.key = ts, .val = srcData[i] + pFillInfo->index * bytes};
         point  = (SPoint){.key = pFillInfo->currentKey, .val = val1};
-        taosGetLinearInterpolationVal(type, &point1, &point2, &point);
+        taosGetLinearInterpolationVal(&point, type, &point1, &point2, type);
       }
     } else {
       setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index);
@@ -479,25 +479,13 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t ma
   return (numOfRes > maxNumOfRows) ? maxNumOfRows : numOfRes;
 }
 
-int32_t taosGetLinearInterpolationVal(int32_t type, SPoint* point1, SPoint* point2, SPoint* point) {
-  double v1 = -1;
-  double v2 = -1;
-
-  GET_TYPED_DATA(v1, double, type, point1->val);
-  GET_TYPED_DATA(v2, double, type, point2->val);
+int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType) {
+  double v1 = -1, v2 = -1;
+  GET_TYPED_DATA(v1, double, inputType, point1->val);
+  GET_TYPED_DATA(v2, double, inputType, point2->val);
 
   double r = DO_INTERPOLATION(v1, v2, point1->key, point2->key, point->key);
-
-  switch(type) {
-    case TSDB_DATA_TYPE_TINYINT:  *(int8_t*) point->val  = (int8_t) r;break;
-    case TSDB_DATA_TYPE_SMALLINT: *(int16_t*) point->val = (int16_t) r;break;
-    case TSDB_DATA_TYPE_INT:      *(int32_t*) point->val = (int32_t) r;break;
-    case TSDB_DATA_TYPE_BIGINT:   *(int64_t*) point->val = (int64_t) r;break;
-    case TSDB_DATA_TYPE_DOUBLE:   *(double*) point->val  = (double) r;break;
-    case TSDB_DATA_TYPE_FLOAT:    *(float*) point->val   = (float) r;break;
-    default:
-      assert(0);
-  }
+  SET_TYPED_DATA(point->val, outputType, r);
 
   return TSDB_CODE_SUCCESS;
 }

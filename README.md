@@ -133,7 +133,9 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-If you use the Visual Studio 2019, please open a command window by executing "cmd.exe".
+If you use the Visual Studio 2019 or 2017:
+
+please open a command window by executing "cmd.exe".
 Please specify "x64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
 ```
 mkdir debug && cd debug
@@ -142,7 +144,7 @@ cmake .. -G "NMake Makefiles"
 nmake
 ```
 
-Or, you can open a command window by clicking Visual Studio 2019 menu "Tools -> Command Line -> Developer Command Prompt" or "Tools -> Command Line -> Developer PowerShell" then execute commands as follows:
+Or, you can simply open a command window by clicking Windows Start -> "Visual Studio < 2019 | 2017 >" folder -> "x64 Native Tools Command Prompt for VS < 2019 | 2017 >" or "x86 Native Tools Command Prompt for VS < 2019 | 2017 >" depends what architecture your Windows is, then execute commands as follows:
 ```
 mkdir debug && cd debug
 cmake .. -G "NMake Makefiles"

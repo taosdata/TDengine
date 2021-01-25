@@ -27,23 +27,23 @@
 extern "C" {
 #endif
 
-#define STR_TO_VARSTR(x, str)             \
-  do {                                    \
-    VarDataLenT __len = strlen(str);      \
-    *(VarDataLenT *)(x) = __len;          \
-    memcpy(varDataVal(x), (str), __len); \
+#define STR_TO_VARSTR(x, str)                     \
+  do {                                            \
+    VarDataLenT __len = (VarDataLenT)strlen(str); \
+    *(VarDataLenT *)(x) = __len;                  \
+    memcpy(varDataVal(x), (str), __len);          \
   } while (0);
 
-#define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)      \
-  do {                                                 \
+#define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)                         \
+  do {                                                                    \
     char *_e = stpncpy(varDataVal(x), (str), (_maxs)-VARSTR_HEADER_SIZE); \
-    varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));   \
+    varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));                      \
   } while (0)
 
-#define STR_WITH_SIZE_TO_VARSTR(x, str, _size) \
-  do {                                         \
-    *(VarDataLenT *)(x) = (_size);             \
-    memcpy(varDataVal(x), (str), (_size));    \
+#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)  \
+  do {                                          \
+    *(VarDataLenT *)(x) = (VarDataLenT)(_size); \
+    memcpy(varDataVal(x), (str), (_size));      \
   } while (0);
 
 // ----------------- TSDB COLUMN DEFINITION
@@ -156,7 +156,7 @@ static FORCE_INLINE int tkeyComparFn(const void *tkey1, const void *tkey2) {
  * +----------+----------+---------------------------------+---------------------------------+
  * |   len    | sversion |           First part            |             Second part         |
  * +----------+----------+---------------------------------+---------------------------------+
- * 
+ *
  * NOTE: timestamp in this row structure is TKEY instead of TSKEY
  */
 typedef void *SDataRow;

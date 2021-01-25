@@ -14,17 +14,17 @@
  */
 
 #include "os.h"
-#include "qAst.h"
+#include "taosdef.h"
+#include "taosmsg.h"
+#include "texpr.h"
+#include "ttype.h"
+
+#include "qAggMain.h"
 #include "qFill.h"
 #include "qHistogram.h"
 #include "qPercentile.h"
 #include "qTsbuf.h"
-#include "taosdef.h"
-#include "taosmsg.h"
 #include "queryLog.h"
-#include "tscSubquery.h"
-#include "tsqlfunction.h"
-#include "ttype.h"
 
 #define GET_INPUT_DATA_LIST(x) (((char *)((x)->aInputElemBuf)) + ((x)->startOffset) * ((x)->inputBytes))
 #define GET_INPUT_DATA(x, y) (GET_INPUT_DATA_LIST(x) + (y) * (x)->inputBytes)
@@ -3776,89 +3776,67 @@ void twa_function_finalizer(SQLFunctionCtx *pCtx) {
  *
  * @param pCtx
  */
-static void interp_function(SQLFunctionCtx *pCtx) {
-  // at this point, the value is existed, return directly
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  SInterpInfoDetail* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  assert(pCtx->startOffset == 0);
+static void interp_function_impl(SQLFunctionCtx *pCtx) {
+  int32_t type = (int32_t) pCtx->param[2].i64;
+  if (type == TSDB_FILL_NONE) {
+    return;
+  }
 
-  if (pCtx->size == 1) {
-    char *pData = GET_INPUT_DATA_LIST(pCtx);
-    assignVal(pCtx->aOutputBuf, pData, pCtx->inputBytes, pCtx->inputType);
+  if (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
+    *(TSKEY *) pCtx->aOutputBuf = pCtx->nStartQueryTimestamp;
   } else {
-    /*
-     * use interpolation to generate the result.
-     * Note: the result of primary timestamp column uses the timestamp specified by user in the query sql
-     */
-    assert(pCtx->size == 2);
-    if (pInfo->type == TSDB_FILL_NONE) {  // set no output result
+    if (pCtx->start.key == INT64_MIN) {
+      assert(pCtx->end.key == INT64_MIN);
       return;
     }
-    
-    if (pInfo->primaryCol == 1) {
-      *(TSKEY *) pCtx->aOutputBuf = pInfo->ts;
-    } else {
-      if (pInfo->type == TSDB_FILL_NULL) {
-        if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
-          setVardataNull(pCtx->aOutputBuf, pCtx->outputType);
+
+    if (type == TSDB_FILL_NULL) {
+      setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+    } else if (type == TSDB_FILL_SET_VALUE) {
+      tVariantDump(&pCtx->param[1], pCtx->aOutputBuf, pCtx->inputType, true);
+    } else if (type == TSDB_FILL_PREV) {
+      if (IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL) {
+        SET_TYPED_DATA(pCtx->aOutputBuf, pCtx->inputType, pCtx->start.val);
+      } else {
+        assignVal(pCtx->aOutputBuf, pCtx->start.ptr, pCtx->outputBytes, pCtx->inputType);
+      }
+    } else if (type == TSDB_FILL_LINEAR) {
+      SPoint point1 = {.key = pCtx->start.key, .val = &pCtx->start.val};
+      SPoint point2 = {.key = pCtx->end.key, .val = &pCtx->end.val};
+      SPoint point  = {.key = pCtx->nStartQueryTimestamp, .val = pCtx->aOutputBuf};
+
+      int32_t srcType = pCtx->inputType;
+      if (IS_NUMERIC_TYPE(srcType)) {  // TODO should find the not null data?
+        if (isNull((char *)&pCtx->start.val, srcType) || isNull((char *)&pCtx->end.val, srcType)) {
+          setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
         } else {
-          setNull(pCtx->aOutputBuf, pCtx->outputType, pCtx->outputBytes);
+          taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
         }
-  
-        SET_VAL(pCtx, pCtx->size, 1);
-      } else if (pInfo->type == TSDB_FILL_SET_VALUE) {
-        tVariantDump(&pCtx->param[1], pCtx->aOutputBuf, pCtx->inputType, true);
-      } else if (pInfo->type == TSDB_FILL_PREV) {
-        char *data = GET_INPUT_DATA(pCtx, 0);
-        assignVal(pCtx->aOutputBuf, data, pCtx->outputBytes, pCtx->outputType);
-  
-        SET_VAL(pCtx, pCtx->size, 1);
-      } else if (pInfo->type == TSDB_FILL_LINEAR) {
-        char *data1 = GET_INPUT_DATA(pCtx, 0);
-        char *data2 = GET_INPUT_DATA(pCtx, 1);
-      
-        TSKEY key1 = pCtx->ptsList[0];
-        TSKEY key2 = pCtx->ptsList[1];
-      
-        SPoint point1 = {.key = key1, .val = data1};
-        SPoint point2 = {.key = key2, .val = data2};
-      
-        SPoint point = {.key = pInfo->ts, .val = pCtx->aOutputBuf};
-      
-        int32_t srcType = pCtx->inputType;
-        if ((srcType >= TSDB_DATA_TYPE_TINYINT && srcType <= TSDB_DATA_TYPE_BIGINT) ||
-            srcType == TSDB_DATA_TYPE_TIMESTAMP || srcType == TSDB_DATA_TYPE_DOUBLE) {
-          point1.val = data1;
-          point2.val = data2;
-        
-          if (isNull(data1, srcType) || isNull(data2, srcType)) {
-            setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
-          } else {
-            taosGetLinearInterpolationVal(pCtx->outputType, &point1, &point2, &point);
-          }
-        } else if (srcType == TSDB_DATA_TYPE_FLOAT) {
-          point1.val = data1;
-          point2.val = data2;
-        
-          if (isNull(data1, srcType) || isNull(data2, srcType)) {
-            setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
-          } else {
-            taosGetLinearInterpolationVal(pCtx->outputType, &point1, &point2, &point);
-          }
-        
-        } else {
-          if (srcType == TSDB_DATA_TYPE_BINARY || srcType == TSDB_DATA_TYPE_NCHAR) {
-            setVardataNull(pCtx->aOutputBuf, pCtx->inputType);
-          } else {
-            setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
-          }
-        }
+      } else {
+        setNull(pCtx->aOutputBuf, srcType, pCtx->inputBytes);
       }
     }
   }
-  
-  SET_VAL(pCtx, pCtx->size, 1);
+
+  SET_VAL(pCtx, 1, 1);
+
+}
+static void interp_function(SQLFunctionCtx *pCtx) {
+  // at this point, the value is existed, return directly
+  if (pCtx->size > 0) {
+    // impose the timestamp check
+    TSKEY key = GET_TS_DATA(pCtx, 0);
+    if (key == pCtx->nStartQueryTimestamp) {
+      char *pData = GET_INPUT_DATA(pCtx, 0);
+      assignVal(pCtx->aOutputBuf, pData, pCtx->inputBytes, pCtx->inputType);
+      SET_VAL(pCtx, 1, 1);
+    } else {
+      interp_function_impl(pCtx);
+    }
+  } else {  //no qualified data rows and interpolation is required
+    interp_function_impl(pCtx);
+  }
 }
 
 static bool ts_comp_function_setup(SQLFunctionCtx *pCtx) {

@@ -39,6 +39,14 @@ SSchema tGetTableNameColumnSchema() {
   tstrncpy(s.name, TSQL_TBNAME_L, TSDB_COL_NAME_LEN);
   return s;
 }
+SSchema tGetBlockDistColumnSchema() {
+  SSchema s = {0};
+  s.bytes = TSDB_MAX_BINARY_LEN;;
+  s.type  = TSDB_DATA_TYPE_BINARY;
+  s.colId = TSDB_BLOCK_DIST_COLUMN_INDEX;
+  tstrncpy(s.name, TSQL_BLOCK_DIST_L, TSDB_COL_NAME_LEN);
+  return s;
+}
 
 SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const char* name) {
   SSchema s = {0};
