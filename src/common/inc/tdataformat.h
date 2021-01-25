@@ -27,11 +27,11 @@
 extern "C" {
 #endif
 
-#define STR_TO_VARSTR(x, str)                 \
-  do {                                        \
-    VarDataLenT __len = (int32_t)strlen(str); \
-    *(VarDataLenT *)(x) = __len;              \
-    memcpy(varDataVal(x), (str), __len);      \
+#define STR_TO_VARSTR(x, str)                     \
+  do {                                            \
+    VarDataLenT __len = (VarDataLenT)strlen(str); \
+    *(VarDataLenT *)(x) = __len;                  \
+    memcpy(varDataVal(x), (str), __len);          \
   } while (0);
 
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)                         \
@@ -40,10 +40,10 @@ extern "C" {
     varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));                      \
   } while (0)
 
-#define STR_WITH_SIZE_TO_VARSTR(x, str, _size) \
-  do {                                         \
-    *(VarDataLenT *)(x) = (int32_t)(_size);    \
-    memcpy(varDataVal(x), (str), (_size));     \
+#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)  \
+  do {                                          \
+    *(VarDataLenT *)(x) = (VarDataLenT)(_size); \
+    memcpy(varDataVal(x), (str), (_size));      \
   } while (0);
 
 // ----------------- TSDB COLUMN DEFINITION
