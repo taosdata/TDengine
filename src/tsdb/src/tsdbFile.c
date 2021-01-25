@@ -16,11 +16,11 @@
 #include "tsdbint.h"
 
 static const char *TSDB_FNAME_SUFFIX[] = {
-    ".head",  // TSDB_FILE_HEAD
-    ".data",  // TSDB_FILE_DATA
-    ".last",  // TSDB_FILE_LAST
-    "",       // TSDB_FILE_MAX
-    "meta"    // TSDB_FILE_META
+    "head",  // TSDB_FILE_HEAD
+    "data",  // TSDB_FILE_DATA
+    "last",  // TSDB_FILE_LAST
+    "",      // TSDB_FILE_MAX
+    "meta"   // TSDB_FILE_META
 };
 
 static void  tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
@@ -590,9 +590,9 @@ static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, c
 
   if (ftype < TSDB_FILE_MAX) {
     if (ver == 0) {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d%s", vid, vid, fid, TSDB_FNAME_SUFFIX[ftype]);
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d.%s", vid, vid, fid, TSDB_FNAME_SUFFIX[ftype]);
     } else {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d%s-ver%" PRIu32, vid, vid, fid,
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d.%s-ver%" PRIu32, vid, vid, fid,
                TSDB_FNAME_SUFFIX[ftype], ver);
     }
   } else {

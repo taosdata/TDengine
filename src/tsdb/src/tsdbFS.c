@@ -1132,6 +1132,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       }
 
       tsdbCloseDFile(pDFile);
+      index++;
     }
 
     taosArrayPush(pfs->cstatus->df, &fset);
