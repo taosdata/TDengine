@@ -176,7 +176,8 @@ pipeline {
     }
   }
   }
-  post {             
+  post {      
+      
         success {
             emailext (
                 subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
