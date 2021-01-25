@@ -2165,7 +2165,9 @@ int tscProcessUseDbRsp(SSqlObj *pSql) {
 }
 
 int tscProcessDropDbRsp(SSqlObj *pSql) {
-  pSql->pTscObj->db[0] = 0;
+  //TODO LOCK DB WHEN MODIFY IT
+  //pSql->pTscObj->db[0] = 0;
+  
   taosHashEmpty(tscTableMetaInfo);
   return 0;
 }

@@ -921,15 +921,18 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
   } else {  // get current DB name first, and then set it into path
-    char* t = getCurrentDBName(pSql);
+    char* t = cloneCurrentDBName(pSql);
     if (strlen(t) == 0) {
       return TSDB_CODE_TSC_DB_NOT_SELECTED;
     }
 
     code = tNameFromString(&pTableMetaInfo->name, t, T_NAME_ACCT | T_NAME_DB);
     if (code != 0) {
+      free(t);
       return TSDB_CODE_TSC_DB_NOT_SELECTED;
     }
+
+    free(t);
 
     if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -1244,8 +1247,8 @@ static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
 
 static char* getAccountId(SSqlObj* pSql) { return pSql->pTscObj->acctId; }
 
-static char* getCurrentDBName(SSqlObj* pSql) {
-  return pSql->pTscObj->db;
+static char* cloneCurrentDBName(SSqlObj* pSql) {
+  return strdup(pSql->pTscObj->db);
 }
 
 /* length limitation, strstr cannot be applied */
