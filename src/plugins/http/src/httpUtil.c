@@ -37,7 +37,7 @@ void httpTimeToString(time_t t, char *buf, int32_t buflen) {
   time_t     tt = t / 1000;
   ptm = localtime(&tt);
   strftime(ts, 31, "%Y-%m-%d %H:%M:%S", ptm);
-  sprintf(buf, "%s.%03" PRId64, ts, (long long)(t % 1000));
+  sprintf(buf, "%s.%03" PRId64, ts, (int64_t)(t % 1000));
 }
 
 int32_t httpAddToSqlCmdBuffer(HttpContext *pContext, const char *const format, ...) {
