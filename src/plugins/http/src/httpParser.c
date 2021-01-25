@@ -537,7 +537,7 @@ char *httpDecodeUrl(const char *enc) {
     dec = str.str;
     str.str = NULL;
   }
-  httpCleanupString(&str);
+  //httpCleanupString(&str);
   return dec;
 }
 
@@ -648,7 +648,7 @@ static int32_t httpParserOnTarget(HttpParser *parser, HTTP_PARSER_STATE state, c
       }
       break;
     }
-    parser->target = strdup(parser->str.str);
+    parser->target = httpDecodeUrl(parser->str.str);
     if (!parser->target) {
       httpError("context:%p, fd:%d, parser state:%d, char:[%c]%02x, oom", pContext, pContext->fd, state, c, c);
       ok = -1;
@@ -717,6 +717,10 @@ static int32_t httpParserOnVersion(HttpParser *parser, HTTP_PARSER_STATE state, 
 
     if (parser->method) {
       ok = httpOnRequestLine(parser, parser->method, parser->target, parser->version);
+      if (parser->target) {
+        free(parser->target);
+        parser->target = NULL;
+      }
     }
 
     httpClearString(&parser->str);
