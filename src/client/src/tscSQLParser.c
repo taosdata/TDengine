@@ -4350,7 +4350,7 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
     
     int32_t retVal = TSDB_CODE_SUCCESS;
     if (schemaType == TSDB_DATA_TYPE_BINARY) {
-      char *tmp = calloc(1, (vVariant->nLen + 1) + TSDB_NCHAR_SIZE);
+      char *tmp = calloc(1, vVariant->nLen + TSDB_NCHAR_SIZE);
       retVal = tVariantDump(vVariant, tmp, schemaType, false);
       free(tmp);
     } else if (schemaType == TSDB_DATA_TYPE_NCHAR) {
