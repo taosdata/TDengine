@@ -4301,9 +4301,8 @@ static void doAddJoinTagsColumnsIntoTagList(SSqlCmd* pCmd, SQueryInfo* pQueryInf
 }
 
 static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
-  const char *msg1 = "tag type mismatch";
-  const char *msg2 = "invalid tag operator";
-  const char* msg3 = "not supported filter condition";
+  const char *msg1 = "invalid tag operator";
+  const char* msg2 = "not supported filter condition";
   
   do {
     if (p->nodeType != TSQL_NODE_EXPR) {
@@ -4315,7 +4314,7 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
     }
     
     if (IS_ARITHMETIC_OPTR(p->_node.optr)) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2); 
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1); 
     }
     
     if (!IS_RELATION_OPTR(p->_node.optr)) {
@@ -4330,14 +4329,14 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
         break;
       }
       
-      vVariant = p->_node.pLeft->pVal->nType;
+      vVariant = p->_node.pLeft->pVal;
       schemaType = p->_node.pRight->pSchema->type;
     } else if (p->_node.pLeft->nodeType == TSQL_NODE_COL && p->_node.pRight->nodeType == TSQL_NODE_VALUE) {
       if (!p->_node.pLeft->pSchema) {
         break;
       }
 
-      vVariant = p->_node.pRight->pVal->nType;
+      vVariant = p->_node.pRight->pVal;
       schemaType = p->_node.pLeft->pSchema->type;
     } else {
       break;
@@ -4351,12 +4350,12 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
     
     int32_t retVal = TSDB_CODE_SUCCESS;
     if (schemaType == TSDB_DATA_TYPE_BINARY) {
-      char *tmp = (int64_t)calloc(1, (vVariant->nLen + 1) + TSDB_NCHAR_SIZE);
+      char *tmp = calloc(1, (vVariant->nLen + 1) + TSDB_NCHAR_SIZE);
       retVal = tVariantDump(vVariant, tmp, schemaType, false);
       free(tmp);
     } else if (schemaType == TSDB_DATA_TYPE_NCHAR) {
       // pRight->val.nLen + 1 is larger than the actual nchar string length
-      char *tmp = (int64_t)calloc(1, (vVariant->nLen + 1) * TSDB_NCHAR_SIZE);
+      char *tmp = calloc(1, (vVariant->nLen + 1) * TSDB_NCHAR_SIZE);
       retVal = tVariantDump(vVariant, tmp, schemaType, false);
       free(tmp);
     } else {
@@ -4365,7 +4364,7 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
     }
     
     if (retVal != TSDB_CODE_SUCCESS) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   }while (0);
 
