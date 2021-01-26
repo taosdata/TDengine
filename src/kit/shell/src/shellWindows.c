@@ -174,7 +174,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // For temperory command TODO
     else if (strcmp(argv[i], "--help") == 0) {
       printHelp();
-      exit(EXIT_FAILURE);
+      exit(EXIT_SUCCESS);
     } else {
       fprintf(stderr, "wrong options\n");
       printHelp();
