@@ -91,7 +91,12 @@ extern "C" {
 typedef int(*__compar_fn_t)(const void *, const void *);
 
 // for send function in tsocket.c
-// #define MSG_NOSIGNAL             0
+#if defined(MSG_NOSIGNAL)
+#undef MSG_NOSIGNAL
+#endif
+
+#define MSG_NOSIGNAL             0
+
 #define SO_NO_CHECK              0x1234
 #define SOL_TCP                  0x1234
 #define TCP_KEEPIDLE             0x1234
