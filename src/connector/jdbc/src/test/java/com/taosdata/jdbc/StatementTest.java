@@ -66,7 +66,7 @@ public class StatementTest {
         assertEquals(false, isClosed);
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void testUnsupport() {
         try {
             Assert.assertNotNull(statement.unwrap(TSDBStatement.class));
