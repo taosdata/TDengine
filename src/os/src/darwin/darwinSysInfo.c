@@ -114,4 +114,3 @@ bool taosGetSystemUid(char *uid) {
   uuid_unparse(uuid, uid);
   return true;
 }
-
