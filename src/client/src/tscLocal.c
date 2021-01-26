@@ -749,7 +749,10 @@ static int32_t tscProcessCurrentUser(SSqlObj *pSql) {
 
 static int32_t tscProcessCurrentDB(SSqlObj *pSql) {
   char db[TSDB_DB_NAME_LEN] = {0};
+
+  pthread_mutex_lock(&pSql->pTscObj->mutex);
   extractDBName(pSql->pTscObj->db, db);
+  pthread_mutex_unlock(&pSql->pTscObj->mutex);
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
 
