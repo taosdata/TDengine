@@ -10,9 +10,9 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
-public class SubscribeTest extends BaseTest {
-    Connection connection = null;
-    Statement statement = null;
+public class SubscribeTest {
+    Connection connection;
+    Statement statement;
     String dbName = "test";
     String tName = "t0";
     String host = "localhost";

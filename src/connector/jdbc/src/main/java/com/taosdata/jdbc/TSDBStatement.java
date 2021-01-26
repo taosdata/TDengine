@@ -52,12 +52,18 @@ public class TSDBStatement implements Statement {
         this.isClosed = false;
     }
 
+    @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        try {
+            return iface.cast(this);
+        } catch (ClassCastException cce) {
+            throw new SQLException("Unable to unwrap to " + iface.toString());
+        }
     }
 
+    @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return iface.isInstance(this);
     }
 
     public ResultSet executeQuery(String sql) throws SQLException {
