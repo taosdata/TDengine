@@ -167,7 +167,7 @@ public class TSDBPreparedStatementTest {
     public static void beforeClass() {
         try {
             Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-            conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/jdbc_test?user=root&password=taosdata");
+            conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
         } catch (ClassNotFoundException | SQLException e) {
             e.printStackTrace();
         }
