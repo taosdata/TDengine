@@ -33,7 +33,7 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getURL() throws SQLException {
-        Assert.assertEquals("jdbc:TAOS://localhost:6030/?user=root&password=taosdata", metaData.getURL());
+        Assert.assertEquals("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", metaData.getURL());
     }
 
     @Test
