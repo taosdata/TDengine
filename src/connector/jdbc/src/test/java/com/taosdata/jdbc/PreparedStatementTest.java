@@ -73,104 +73,101 @@ public class PreparedStatementTest {
 
     @Test
     public void case004_testUnsupport() throws SQLException {
-        TSDBPreparedStatement tsdbStatement = statement;
 
-        Assert.assertNotNull(tsdbStatement.unwrap(TSDBPreparedStatement.class));
+        Assert.assertNotNull(statement.unwrap(TSDBPreparedStatement.class));
+        Assert.assertTrue(statement.isWrapperFor(TSDBPreparedStatement.class));
+
         try {
-            tsdbStatement.isWrapperFor(null);
+            statement.getMaxFieldSize();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.getMaxFieldSize();
+            statement.setMaxFieldSize(0);
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.setMaxFieldSize(0);
+            statement.setEscapeProcessing(true);
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.setEscapeProcessing(true);
+            statement.cancel();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.cancel();
+            statement.getWarnings();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.getWarnings();
+            statement.clearWarnings();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.clearWarnings();
+            statement.setCursorName(null);
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.setCursorName(null);
+            statement.getMoreResults();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.getMoreResults();
+            statement.setFetchDirection(0);
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.setFetchDirection(0);
+            statement.getFetchDirection();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.getFetchDirection();
+            statement.getResultSetConcurrency();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.getResultSetConcurrency();
+            statement.getResultSetType();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.getResultSetType();
+            statement.getConnection();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.getConnection();
+            statement.getMoreResults();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.getMoreResults();
+            statement.getGeneratedKeys();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.getGeneratedKeys();
+            statement.executeUpdate(null, 0);
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.executeUpdate(null, 0);
+            statement.executeUpdate(null, new int[]{0});
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.executeUpdate(null, new int[]{0});
+            statement.executeUpdate(null, new String[]{"str1", "str2"});
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.executeUpdate(null, new String[]{"str1", "str2"});
+            statement.getResultSetHoldability();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.getResultSetHoldability();
+            statement.setPoolable(true);
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.setPoolable(true);
+            statement.isPoolable();
         } catch (SQLException e) {
         }
         try {
-            tsdbStatement.isPoolable();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.closeOnCompletion();
+            statement.closeOnCompletion();
         } catch (SQLException e) {
 
         }
         try {
-            tsdbStatement.isCloseOnCompletion();
+            statement.isCloseOnCompletion();
         } catch (SQLException e) {
         }
     }
