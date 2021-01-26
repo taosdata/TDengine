@@ -1133,6 +1133,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       index++;
     }
 
+    tsdbInfo("vgId:%d FSET %d is restored", REPO_ID(pRepo), fset.fid);
     taosArrayPush(pfs->cstatus->df, &fset);
   }
 

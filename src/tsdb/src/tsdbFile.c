@@ -408,7 +408,7 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
 
   void *pBuf = buf;
   pBuf = taosDecodeFixedU32(pBuf, &version);
-  pBuf = tsdbDecodeDFInfo(buf, pInfo);
+  pBuf = tsdbDecodeDFInfo(pBuf, pInfo);
   return 0;
 }
 
