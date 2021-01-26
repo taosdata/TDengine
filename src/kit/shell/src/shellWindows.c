@@ -75,6 +75,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for password
     else if (strcmp(argv[i], "-p") == 0) {
       arguments->is_use_passwd = true;
+      if (i < argc - 1 && argv[i + 1][0] != '-') {
+        arguments->password = argv[++i];
+      }
     }
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
