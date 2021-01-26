@@ -19,6 +19,7 @@ import java.util.Map;
 
 public abstract class TSDBConstants {
 
+    public static final String STATEMENT_CLOSED = "Statement already closed.";
     public static final String DEFAULT_PORT = "6200";
     public static final String UNSUPPORT_METHOD_EXCEPTIONZ_MSG = "this operation is NOT supported currently!";
     public static final String INVALID_VARIABLES = "invalid variables";

@@ -136,10 +136,15 @@ public class TSDBStatement implements Statement {
     }
 
     public void setMaxFieldSize(int max) throws SQLException {
+        if (isClosed())
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
+
         throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     public int getMaxRows() throws SQLException {
+        if (isClosed())
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         // always set maxRows to zero, meaning unlimitted rows in a resultSet
         return 0;
     }
