@@ -152,7 +152,6 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
                 return java.sql.Types.NCHAR;
         }
         throw new SQLException(TSDBConstants.INVALID_VARIABLES);
-
     }
 
     @Override
