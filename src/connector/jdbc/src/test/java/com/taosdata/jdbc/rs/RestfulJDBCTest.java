@@ -9,33 +9,33 @@ import java.util.Random;
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class RestfulJDBCTest {
 
-    //    private static final String host = "127.0.0.1";
-    private static final String host = "master";
+    private static final String host = "127.0.0.1";
+    //    private static final String host = "master";
     private static Connection connection;
     private Random random = new Random(System.currentTimeMillis());
 
     /**
      * select * from log.log
      **/
-//    @Test
-//    public void testCase001() {
-//        try {
-//            Statement statement = connection.createStatement();
-//            ResultSet resultSet = statement.executeQuery("select * from log.log");
-//            ResultSetMetaData metaData = resultSet.getMetaData();
-//            while (resultSet.next()) {
-//                for (int i = 1; i <= metaData.getColumnCount(); i++) {
-//                    String column = metaData.getColumnLabel(i);
-//                    String value = resultSet.getString(i);
-//                    System.out.print(column + ":" + value + "\t");
-//                }
-//                System.out.println();
-//            }
-//            statement.close();
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//        }
-//    }
+    @Test
+    public void testCase001() {
+        try {
+            Statement statement = connection.createStatement();
+            ResultSet resultSet = statement.executeQuery("select * from log.log");
+            ResultSetMetaData metaData = resultSet.getMetaData();
+            while (resultSet.next()) {
+                for (int i = 1; i <= metaData.getColumnCount(); i++) {
+                    String column = metaData.getColumnLabel(i);
+                    String value = resultSet.getString(i);
+                    System.out.print(column + ":" + value + "\t");
+                }
+                System.out.println();
+            }
+            statement.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
 
     /**
      * create database
@@ -118,7 +118,7 @@ public class RestfulJDBCTest {
                 for (int i = 1; i <= columnCount; i++) {
                     String columnLabel = meta.getColumnLabel(i);
                     String value = rs.getString(i);
-                    System.out.print(columnLabel + ": " + value+"\t");
+                    System.out.print(columnLabel + ": " + value + "\t");
                 }
                 System.out.println();
             }
