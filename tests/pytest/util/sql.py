@@ -194,9 +194,13 @@ class TDSql:
             pstate = 0
             pl = psutil.pids()
             for pid in pl:
-                if psutil.Process(pid).name() == 'taosd':
-                    pstate = 1
-                    break
+                try:
+                    if psutil.Process(pid).name() == 'taosd':
+                        print('have already started')
+                        pstate = 1
+                        break
+                except psutil.NoSuchProcess:
+                    pass
             if pstate == state :break
             if state or pstate:
                 tdLog.sleep(1)
