@@ -19,6 +19,10 @@
 
 extern char configDir[];
 
+void printVersion() {
+  printf("version: %s\n", version);
+}
+
 void printHelp() {
   char indent[10] = "        ";
   printf("taos shell is used to test the TDengine database\n");
@@ -51,6 +55,8 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, default is startup, options: client|server|rpc|startup.");
   printf("%s%s\n", indent, "-l");
   printf("%s%s%s\n", indent, indent, "Packet length used for net test, default is 1000 bytes.");
+  printf("%s%s\n", indent, "-V");
+  printf("%s%s%s\n", indent, indent, "Print program version.");
 
   exit(EXIT_SUCCESS);
 }
@@ -145,7 +151,6 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-    // For time zone
     else if (strcmp(argv[i], "-n") == 0) {
       if (i < argc - 1) {
         arguments->netTestRole = argv[++i];
@@ -154,7 +159,6 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-    // For time zone
     else if (strcmp(argv[i], "-l") == 0) {
       if (i < argc - 1) {
         arguments->pktLen = atoi(argv[++i]);
@@ -162,6 +166,10 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         fprintf(stderr, "option -l requires an argument\n");
         exit(EXIT_FAILURE);
       }
+    }
+    else if (strcmp(argv[i], "-V") == 0) {
+      printVersion();
+      exit(EXIT_SUCCESS);
     }
     // For temperory command TODO
     else if (strcmp(argv[i], "--help") == 0) {
