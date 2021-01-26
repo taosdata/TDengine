@@ -13,6 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// how to use to do a pressure-test upon eok
+// tester:               cat /dev/urandom | nc -c <ip> <port>
+// testee:               ./debug/build/bin/epoll -l <port> > /dev/null
+// compare against:      nc -l <port> > /dev/null
+// monitor and compare : glances
+
 #ifdef __APPLE__
 #include "eok.h"
 #else // __APPLE__
@@ -68,55 +74,62 @@ static int ep_dummy = 0;
 static ep_t* ep_create(void);
 static void  ep_destroy(ep_t *ep);
 static void* routine(void* arg);
-static int open_connect(unsigned short port);
 static int open_listen(unsigned short port);
 
-typedef struct client_s          client_t;
-struct client_s {
+typedef struct fde_s          fde_t;
+struct fde_s {
   int                          skt;
-  void (*on_event)(ep_t *ep, struct epoll_event *events, client_t *client);
-  volatile unsigned int        state; // 1: listenning; 2: connected
+  void (*on_event)(ep_t *ep, struct epoll_event *events, fde_t *client);
 };
 
-static void echo_event(ep_t *ep, struct epoll_event *ev, client_t *client);
+static void listen_event(ep_t *ep, struct epoll_event *ev, fde_t *client);
+static void null_event(ep_t *ep, struct epoll_event *ev, fde_t *client);
+
+#define usage(arg0, fmt, ...)       do {                                               \
+  if (fmt[0]) {                                                                        \
+    fprintf(stderr, "" fmt "\n", ##__VA_ARGS__);                                       \
+  }                                                                                    \
+  fprintf(stderr, "usage:\n");                                                         \
+  fprintf(stderr, "  %s -l <port>             : specify listenning port\n", arg0);     \
+} while (0)
 
 int main(int argc, char *argv[]) {
+  char *prg = basename(argv[0]);
+  if (argc==1) {
+    usage(prg, "");
+    return 0;
+  }
   ep_t* ep = ep_create();
   A(ep, "failed");
-  int skt = open_connect(6789);
-  if (skt!=-1) {
-    client_t *client = (client_t*)calloc(1, sizeof(*client));
-    if (client) {
+  for (int i=1; i<argc; ++i) {
+    const char *arg = argv[i];
+    if (0==strcmp(arg, "-l")) {
+      ++i;
+      if (i>=argc) {
+        usage(prg, "expecting <port> after -l, but got nothing");
+        return 1; // confirmed potential leakage
+      }
+      arg = argv[i];
+      int port = atoi(arg);
+      int skt = open_listen(port);
+      if (skt==-1) continue;
+      fde_t *client = (fde_t*)calloc(1, sizeof(*client));
+      if (!client) {
+        E("out of memory");
+        close(skt);
+        continue;
+      }
       client->skt = skt;
-      client->on_event = echo_event;
-      client->state = 2;
+      client->on_event = listen_event;
       struct epoll_event ev = {0};
       ev.events   = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
       ev.data.ptr = client;
       A(0==epoll_ctl(ep->ep, EPOLL_CTL_ADD, skt, &ev), "");
+      continue;
     }
+    usage(prg, "unknown argument: [%s]", arg);
+    return 1;
   }
-  skt = open_listen(0);
-  if (skt!=-1) {
-    client_t *client = (client_t*)calloc(1, sizeof(*client));
-    if (client) {
-      client->skt = skt;
-      client->on_event = echo_event;
-      client->state = 1;
-      struct epoll_event ev = {0};
-      ev.events   = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-      ev.data.ptr = client;
-      A(0==epoll_ctl(ep->ep, EPOLL_CTL_ADD, skt, &ev), "");
-    }
-  }
-  // char c = '\0';
-  // while ((c=getchar())!=EOF) {
-  //   switch (c) {
-  //     case 'q': break;
-  //     default: continue;
-  //   }
-  // }
-  // getchar();
   char *line = NULL;
   size_t linecap = 0;
   ssize_t linelen;
@@ -205,7 +218,7 @@ static void* routine(void* arg) {
         continue;
       }
       A(ev->data.ptr, "internal logic error");
-      client_t *client = (client_t*)ev->data.ptr;
+      fde_t *client = (fde_t*)ev->data.ptr;
       client->on_event(ep, ev, client);
       continue;
     }
@@ -223,7 +236,7 @@ static int open_listen(unsigned short port) {
   do {
     struct sockaddr_in si = {0};
     si.sin_family = AF_INET;
-    si.sin_addr.s_addr = inet_addr("127.0.0.1");
+    si.sin_addr.s_addr = inet_addr("0.0.0.0");
     si.sin_port = htons(port);
     r = bind(skt, (struct sockaddr*)&si, sizeof(si));
     if (r) {
@@ -249,63 +262,31 @@ static int open_listen(unsigned short port) {
   return -1;
 }
 
-static int open_connect(unsigned short port) {
-  int r = 0;
-  int skt = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-  if (skt==-1) {
-    E("socket() failed");
-    return -1;
+static void listen_event(ep_t *ep, struct epoll_event *ev, fde_t *client) {
+  A(ev->events & EPOLLIN, "internal logic error");
+  struct sockaddr_in si = {0};
+  socklen_t silen = sizeof(si);
+  int skt = accept(client->skt, (struct sockaddr*)&si, &silen);
+  A(skt!=-1, "internal logic error");
+  fde_t *server = (fde_t*)calloc(1, sizeof(*server));
+  if (!server) {
+    close(skt);
+    return;
   }
-  do {
-    struct sockaddr_in si = {0};
-    si.sin_family = AF_INET;
-    si.sin_addr.s_addr = inet_addr("127.0.0.1");
-    si.sin_port = htons(port);
-    r = connect(skt, (struct sockaddr*)&si, sizeof(si));
-    if (r) {
-      E("connect(%u) failed", port);
-      break;
-    }
-    memset(&si, 0, sizeof(si));
-    socklen_t len = sizeof(si);
-    r = getsockname(skt, (struct sockaddr *)&si, &len);
-    if (r) {
-      E("getsockname() failed");
-    }
-    A(len==sizeof(si), "internal logic error");
-    D("connected: %d", ntohs(si.sin_port));
-    return skt;
-  } while (0);
-  close(skt);
-  return -1;
+  server->skt = skt;
+  server->on_event = null_event;
+  struct epoll_event ee = {0};
+  ee.events   = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
+  ee.data.ptr = server;
+  A(0==epoll_ctl(ep->ep, EPOLL_CTL_ADD, skt, &ee), "");
 }
 
-static void echo_event(ep_t *ep, struct epoll_event *ev, client_t *client) {
+static void null_event(ep_t *ep, struct epoll_event *ev, fde_t *client) {
   if (ev->events & EPOLLIN) {
-    if (client->state==1) {
-      struct sockaddr_in si = {0};
-      socklen_t silen = sizeof(si);
-      int skt = accept(client->skt, (struct sockaddr*)&si, &silen);
-      if (skt!=-1) {
-        client_t *server = (client_t*)calloc(1, sizeof(*server));
-        if (server) {
-          server->skt = skt;
-          server->on_event = echo_event;
-          server->state = 2;
-          struct epoll_event ev = {0};
-          ev.events   = EPOLLIN | EPOLLERR | EPOLLHUP | EPOLLRDHUP;
-          ev.data.ptr = server;
-          A(0==epoll_ctl(ep->ep, EPOLL_CTL_ADD, skt, &ev), "");
-        }
-      }
-    }
-    if (client->state==2) {
-      char buf[4];
-      int n = recv(client->skt, buf, sizeof(buf)-1, 0);
-      A(n>=0 && n<sizeof(buf), "internal logic error:[%d]", n);
-      buf[n] = '\0';
-      fprintf(stderr, "events[%x]:%s\n", ev->events, buf);
-    }
+    char buf[8192];
+    int n = recv(client->skt, buf, sizeof(buf), 0);
+    A(n>=0 && n<=sizeof(buf), "internal logic error:[%d]", n);
+    A(n==fwrite(buf, 1, n, stdout), "internal logic error");
   }
   if (ev->events & (EPOLLERR | EPOLLHUP | EPOLLRDHUP)) {
     A(0==pthread_mutex_lock(&ep->lock), "");

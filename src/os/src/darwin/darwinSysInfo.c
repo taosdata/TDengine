@@ -103,10 +103,14 @@ int taosSystem(const char *cmd) {
 
 void taosSetCoreDump() {}
 
-char *taosGetCmdlineByPID(int pid) { return ""; }
+char *taosGetCmdlineByPID(int pid) {
+  return "[not supported yet]";
+}
 
 bool taosGetSystemUid(char *uid) {
-  fprintf(stderr, "%s[%d]%s(): not implemented yet!\n", basename(__FILE__), __LINE__, __func__);
-  abort();
-  return false;
+  uuid_t uuid = {0};
+  uuid_generate(uuid);
+  // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
+  uuid_unparse(uuid, uid);
+  return true;
 }
