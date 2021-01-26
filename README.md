@@ -126,7 +126,7 @@ cmake .. -DCPUTYPE=aarch32 && cmake --build .
 
 If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
 Please specify "x86_amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
-```
+```cmd
 mkdir debug && cd debug
 "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < x86_amd64 | x86 >
 cmake .. -G "NMake Makefiles"
@@ -137,7 +137,8 @@ If you use the Visual Studio 2019 or 2017:
 
 please open a command window by executing "cmd.exe".
 Please specify "x64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
-```
+
+```cmd
 mkdir debug && cd debug
 "c:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvarsall.bat" < x64 | x86 >
 cmake .. -G "NMake Makefiles"
@@ -145,27 +146,37 @@ nmake
 ```
 
 Or, you can simply open a command window by clicking Windows Start -> "Visual Studio < 2019 | 2017 >" folder -> "x64 Native Tools Command Prompt for VS < 2019 | 2017 >" or "x86 Native Tools Command Prompt for VS < 2019 | 2017 >" depends what architecture your Windows is, then execute commands as follows:
-```
+```cmd
 mkdir debug && cd debug
 cmake .. -G "NMake Makefiles"
 nmake
 ```
 
+### On Mac OS X platform
+
+Please install XCode command line tools and cmake. Verified with XCode 11.4+ on Catalina and Big Sur.
+
+```shell
+mkdir debug && cd debug
+cmake .. && cmake --build .
+```
+
 # Quick Run
+
 # Quick Run
 To quickly start a TDengine server after building, run the command below in terminal:
-```cmd
+```bash
 ./build/bin/taosd -c test/cfg
 ```
 In another terminal, use the TDengine shell to connect the server:
-```
+```bash
 ./build/bin/taos -c test/cfg
 ```
 option "-c test/cfg" specifies the system configuration file directory. 
 
 # Installing
 After building successfully, TDengine can be installed by:
-```cmd
+```bash
 make install
 ```
 Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. It should be noted that installing from source code does not configure service management for TDengine.
