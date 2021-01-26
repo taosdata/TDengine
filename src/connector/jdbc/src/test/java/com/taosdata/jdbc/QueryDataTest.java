@@ -50,9 +50,9 @@ public class QueryDataTest {
         ResultSet rs = statement.executeQuery(querySql);
 
         while (rs.next()) {
-            String name = rs.getString(2) + "001";
+            String name = rs.getString(2);
             System.out.println("name = " + name);
-            assertEquals(name, "taosda001");
+            assertEquals("taosdata", name);
         }
         rs.close();
     }
