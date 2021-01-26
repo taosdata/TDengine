@@ -65,37 +65,18 @@ public class RestfulStatement implements Statement {
     public ResultSet executeQuery(String sql) throws SQLException {
         if (isClosed())
             throw new SQLException("statement already closed");
-        if (!SqlSyntaxValidator.isSelectSql(sql))
-            throw new SQLException("not a select sql for executeQuery: " + sql);
+        if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
+            throw new SQLException("not a valid sql for executeQuery: " + sql);
 
         final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
-        // row data
-        String result = HttpClientPoolUtil.execute(url, sql);
-        JSONObject resultJson = JSON.parseObject(result);
-        if (resultJson.getString("status").equals("error")) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + resultJson.getString("desc") + "\n" + "error code: " + resultJson.getString("code")));
+        if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
+            return executeOneQuery(url, sql);
         }
 
-        // parse table name from sql
-        String[] tableIdentifiers = parseTableIdentifier(sql);
-        if (tableIdentifiers != null) {
-            List<JSONObject> fieldJsonList = new ArrayList<>();
-            for (String tableIdentifier : tableIdentifiers) {
-                // field meta
-                String fields = HttpClientPoolUtil.execute(url, "DESCRIBE " + tableIdentifier);
-                JSONObject fieldJson = JSON.parseObject(fields);
-                if (fieldJson.getString("status").equals("error")) {
-                    throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + fieldJson.getString("desc") + "\n" + "error code: " + fieldJson.getString("code")));
-                }
-                fieldJsonList.add(fieldJson);
-            }
-            this.resultSet = new RestfulResultSet(database, this, resultJson, fieldJsonList);
-        } else {
-            this.resultSet = new RestfulResultSet(database, this, resultJson);
-        }
-
-        this.affectedRows = 0;
-        return resultSet;
+        if (this.database == null || this.database.isEmpty())
+            throw new SQLException("Database not specified or available");
+        HttpClientPoolUtil.execute(url, "use " + this.database);
+        return executeOneQuery(url, sql);
     }
 
     @Override
@@ -105,19 +86,15 @@ public class RestfulStatement implements Statement {
         if (!SqlSyntaxValidator.isValidForExecuteUpdate(sql))
             throw new SQLException("not a valid sql for executeUpdate: " + sql);
 
-        if (this.database == null)
-            throw new SQLException("Database not specified or available");
-
-        final String url = "http://" + conn.getHost().trim() + ":" + conn.getPort() + "/rest/sql";
-//        HttpClientPoolUtil.execute(url, "use " + conn.getDatabase());
-        String result = HttpClientPoolUtil.execute(url, sql);
-        JSONObject jsonObject = JSON.parseObject(result);
-        if (jsonObject.getString("status").equals("error")) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + jsonObject.getString("desc") + "\n" + "error code: " + jsonObject.getString("code")));
+        final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
+        if (SqlSyntaxValidator.isDatabaseUnspecifiedUpdate(sql)) {
+            return executeOneUpdate(url, sql);
         }
-        this.resultSet = null;
-        this.affectedRows = Integer.parseInt(jsonObject.getString("rows"));
-        return this.affectedRows;
+
+        if (this.database == null || this.database.isEmpty())
+            throw new SQLException("Database not specified or available");
+        HttpClientPoolUtil.execute(url, "use " + this.database);
+        return executeOneUpdate(url, sql);
     }
 
     @Override
@@ -209,35 +186,75 @@ public class RestfulStatement implements Statement {
 
     @Override
     public boolean execute(String sql) throws SQLException {
-        if (isClosed()) {
+        if (isClosed())
             throw new SQLException("Invalid method call on a closed statement.");
-        }
+        if (!SqlSyntaxValidator.isValidForExecute(sql))
+            throw new SQLException("not a valid sql for execute: " + sql);
+
         //如果执行了use操作应该将当前Statement的catalog设置为新的database
+        final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
         if (SqlSyntaxValidator.isUseSql(sql)) {
+            HttpClientPoolUtil.execute(url, sql);
             this.database = sql.trim().replace("use", "").trim();
             this.conn.setCatalog(this.database);
-        }
-        if (this.database == null)
-            throw new SQLException("Database not specified or available");
-
-        if (SqlSyntaxValidator.isSelectSql(sql)) {
-            executeQuery(sql);
-        } else if (SqlSyntaxValidator.isShowSql(sql) || SqlSyntaxValidator.isDescribeSql(sql)) {
-            final String url = "http://" + conn.getHost().trim() + ":" + conn.getPort() + "/rest/sql";
-            if (!SqlSyntaxValidator.isShowDatabaseSql(sql)) {
-                HttpClientPoolUtil.execute(url, "use " + conn.getDatabase());
-            }
-            String result = HttpClientPoolUtil.execute(url, sql);
-            JSONObject resultJson = JSON.parseObject(result);
-            if (resultJson.getString("status").equals("error")) {
-                throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + resultJson.getString("desc") + "\n" + "error code: " + resultJson.getString("code")));
-            }
-            this.resultSet = new RestfulResultSet(database, this, resultJson);
+        } else if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
+            executeOneQuery(url, sql);
+        } else if (SqlSyntaxValidator.isDatabaseUnspecifiedUpdate(sql)) {
+            executeOneUpdate(url, sql);
         } else {
-            executeUpdate(sql);
+            if (SqlSyntaxValidator.isValidForExecuteQuery(sql)) {
+                executeQuery(sql);
+            } else {
+                executeUpdate(sql);
+            }
         }
 
         return true;
+    }
+
+    private ResultSet executeOneQuery(String url, String sql) throws SQLException {
+        if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
+            throw new SQLException("not a select sql for executeQuery: " + sql);
+
+        // row data
+        String result = HttpClientPoolUtil.execute(url, sql);
+        JSONObject resultJson = JSON.parseObject(result);
+        if (resultJson.getString("status").equals("error")) {
+            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + resultJson.getString("desc") + "\n" + "error code: " + resultJson.getString("code")));
+        }
+        // parse table name from sql
+        String[] tableIdentifiers = parseTableIdentifier(sql);
+        if (tableIdentifiers != null) {
+            List<JSONObject> fieldJsonList = new ArrayList<>();
+            for (String tableIdentifier : tableIdentifiers) {
+                // field meta
+                String fields = HttpClientPoolUtil.execute(url, "DESCRIBE " + tableIdentifier);
+                JSONObject fieldJson = JSON.parseObject(fields);
+                if (fieldJson.getString("status").equals("error")) {
+                    throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + fieldJson.getString("desc") + "\n" + "error code: " + fieldJson.getString("code")));
+                }
+                fieldJsonList.add(fieldJson);
+            }
+            this.resultSet = new RestfulResultSet(database, this, resultJson, fieldJsonList);
+        } else {
+            this.resultSet = new RestfulResultSet(database, this, resultJson);
+        }
+        this.affectedRows = 0;
+        return resultSet;
+    }
+
+    private int executeOneUpdate(String url, String sql) throws SQLException {
+        if (!SqlSyntaxValidator.isValidForExecuteUpdate(sql))
+            throw new SQLException("not a valid sql for executeUpdate: " + sql);
+
+        String result = HttpClientPoolUtil.execute(url, sql);
+        JSONObject jsonObject = JSON.parseObject(result);
+        if (jsonObject.getString("status").equals("error")) {
+            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + jsonObject.getString("desc") + "\n" + "error code: " + jsonObject.getString("code")));
+        }
+        this.resultSet = null;
+        this.affectedRows = Integer.parseInt(jsonObject.getString("rows"));
+        return this.affectedRows;
     }
 
     @Override

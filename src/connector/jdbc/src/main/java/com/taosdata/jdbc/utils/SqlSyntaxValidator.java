@@ -20,8 +20,11 @@ import java.sql.Connection;
 
 public class SqlSyntaxValidator {
 
-    private static final String[] updateSQL = {"insert", "update", "delete", "create", "alter", "drop", "show", "describe", "use", "import"};
-    private static final String[] querySQL = {"select"};
+    private static final String[] SQL = {"select", "insert", "import", "create", "use", "alter", "drop", "set", "show", "describe"};
+    private static final String[] updateSQL = {"insert", "import", "create", "use", "alter", "drop", "set"};
+    private static final String[] querySQL = {"select", "show", "describe"};
+
+    private static final String[] databaseUnspecifiedShow = {"databases", "dnodes", "mnodes", "variables"};
 
     private TSDBConnection tsdbConnection;
 
@@ -37,8 +40,38 @@ public class SqlSyntaxValidator {
         return false;
     }
 
+    public static boolean isValidForExecuteQuery(String sql) {
+        for (String prefix : querySQL) {
+            if (sql.trim().toLowerCase().startsWith(prefix))
+                return true;
+        }
+        return false;
+    }
+
+    public static boolean isValidForExecute(String sql) {
+        for (String prefix : SQL) {
+            if (sql.trim().toLowerCase().startsWith(prefix))
+                return true;
+        }
+        return false;
+    }
+
+    public static boolean isDatabaseUnspecifiedQuery(String sql) {
+        for (String databaseObj : databaseUnspecifiedShow) {
+            if (sql.trim().toLowerCase().matches("show\\s+" + databaseObj + ".*"))
+                return true;
+        }
+        return false;
+    }
+
+    public static boolean isDatabaseUnspecifiedUpdate(String sql) {
+        sql = sql.trim().toLowerCase();
+        return sql.matches("create\\s+database.*") || sql.startsWith("set") || sql.matches("drop\\s+database.*");
+    }
+
     public static boolean isUseSql(String sql) {
-        return sql.trim().toLowerCase().startsWith("use") || sql.trim().toLowerCase().matches("create\\s*database.*") || sql.toLowerCase().toLowerCase().matches("drop\\s*database.*");
+        return sql.trim().toLowerCase().startsWith("use");
+//                || sql.trim().toLowerCase().matches("create\\s*database.*") || sql.toLowerCase().toLowerCase().matches("drop\\s*database.*");
     }
 
     public static boolean isShowSql(String sql) {
@@ -58,8 +91,9 @@ public class SqlSyntaxValidator {
         return sql.trim().toLowerCase().startsWith("select");
     }
 
-
     public static boolean isShowDatabaseSql(String sql) {
         return sql.trim().toLowerCase().matches("show\\s*databases");
     }
+
+
 }
