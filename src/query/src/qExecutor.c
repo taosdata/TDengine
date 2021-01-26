@@ -6424,6 +6424,11 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
     pMsg += pQueryMsg->tbnameCondLen;
   }
 
+  //skip ts buf
+  if ((pQueryMsg->tsOffset + pQueryMsg->tsLen) > 0) {
+    pMsg = (char *)pQueryMsg + pQueryMsg->tsOffset + pQueryMsg->tsLen;
+  }
+
   *sql = strndup(pMsg, pQueryMsg->sqlstrLen);
 
   if (!validateQuerySourceCols(pQueryMsg, *pExpr, *tagCols)) {

@@ -14,13 +14,14 @@ public class JdbcRestfulDemo {
             String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
 
             Properties properties = new Properties();
-            properties.setProperty("charset", "UTF-8");
-            properties.setProperty("locale", "en_US.UTF-8");
-            properties.setProperty("timezone", "UTC-8");
+//            properties.setProperty("charset", "UTF-8");
+//            properties.setProperty("locale", "en_US.UTF-8");
+//            properties.setProperty("timezone", "UTC-8");
 
             Connection conn = DriverManager.getConnection(url, properties);
             Statement stmt = conn.createStatement();
 
+            stmt.execute("drop database if exists restful_test");
             stmt.execute("create database if not exists restful_test");
             stmt.execute("use restful_test");
             stmt.execute("create table restful_test.weather(ts timestamp, temperature float) tags(location nchar(64))");
@@ -34,6 +35,7 @@ public class JdbcRestfulDemo {
                 System.out.println();
             }
 
+            rs.close();
             stmt.close();
             conn.close();
         } catch (ClassNotFoundException e) {
