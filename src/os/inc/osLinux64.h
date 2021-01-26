@@ -81,6 +81,8 @@ extern "C" {
 #include <linux/sysctl.h>
 #include <math.h>
 
+#define MSG_NO_SIGNAL            0      // redefine for cross platform 
+
 #ifdef __cplusplus
 }
 #endif

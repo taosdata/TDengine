@@ -91,7 +91,7 @@ extern "C" {
 typedef int(*__compar_fn_t)(const void *, const void *);
 
 // for send function in tsocket.c
-// #define MSG_NOSIGNAL             0
+#define MSG_NO_SIGNAL            0      // redefine for cross platform to avoid duplicate with XCode 12 SDK
 #define SO_NO_CHECK              0x1234
 #define SOL_TCP                  0x1234
 #define TCP_KEEPIDLE             0x1234

@@ -184,7 +184,7 @@ int32_t taosNonblockwrite(SOCKET fd, char *ptr, int32_t nbytes) {
       return -1;
     }
 
-    nwritten = (int32_t)taosSend(fd, ptr, (size_t)nleft, MSG_NOSIGNAL);
+    nwritten = (int32_t)taosSend(fd, ptr, (size_t)nleft, MSG_NO_SIGNAL);
     if (nwritten <= 0) {
       if (errno == EAGAIN || errno == EINTR) continue;
 

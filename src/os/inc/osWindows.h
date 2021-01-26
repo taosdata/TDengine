@@ -163,7 +163,7 @@ int        gettimeofday(struct timeval *ptv, void *pTimeZone);
 #define X_OK 06  //Read and write
 
 // for send function in tsocket.c
-#define MSG_NOSIGNAL             0
+#define MSG_NO_SIGNAL            0    // redefine for cross platform
 #define SO_NO_CHECK              0x1234
 #define SOL_TCP                  0x1234
 

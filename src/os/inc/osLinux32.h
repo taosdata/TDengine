@@ -84,6 +84,8 @@ extern "C" {
 #define BUILDIN_CLZ(val) __builtin_clz(val)
 #define BUILDIN_CTZ(val) __builtin_ctz(val)
 
+#define MSG_NO_SIGNAL            0      // redefine for cross platform 
+
 #ifdef __cplusplus
 }
 #endif
