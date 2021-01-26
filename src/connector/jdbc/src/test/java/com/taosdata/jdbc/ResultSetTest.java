@@ -1,6 +1,7 @@
 package com.taosdata.jdbc;
 
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -114,16 +115,8 @@ public class ResultSetTest {
     public void testUnsupport() throws SQLException {
         statement.executeQuery("show databases");
         resSet = statement.getResultSet();
-        try {
-            resSet.unwrap(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.isWrapperFor(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
+        Assert.assertNotNull(resSet.unwrap(TSDBResultSet.class));
+        Assert.assertTrue(resSet.isWrapperFor(TSDBResultSet.class));
         try {
             resSet.getAsciiStream(0);
         } catch (SQLException e) {
