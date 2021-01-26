@@ -271,6 +271,7 @@ matrix:
       - make > /dev/null
 
   - os: osx
+    osx_image: xcode10
     language: c
     compiler: clang
     env: DESC="mac/clang build"
