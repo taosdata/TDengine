@@ -16,23 +16,22 @@ public class StatementTest {
     static String dbName = "test";
     static String tName = "t0";
     static String host = "localhost";
-    static ResultSet resSet = null;
 
     @BeforeClass
     public static void createConnection() throws SQLException {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
+            Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/?user=root&password=taosdata", properties);
+            statement = connection.createStatement();
+            statement.executeUpdate("drop database if exists " + dbName);
+
         } catch (ClassNotFoundException e) {
             return;
         }
-        Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/?user=root&password=taosdata", properties);
-
-        statement = connection.createStatement();
-        statement.executeUpdate("drop database if exists " + dbName);
     }
 
     @Test
@@ -49,7 +48,6 @@ public class StatementTest {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-
     }
 
     @Test
@@ -173,12 +171,15 @@ public class StatementTest {
     }
 
     @AfterClass
-    public static void close() throws Exception {
-        if (!statement.isClosed()) {
-            statement.executeUpdate("drop database if exists " + dbName);
-            statement.close();
-            connection.close();
-            Thread.sleep(10);
+    public static void close() {
+        try {
+            statement.execute("drop database if exists " + dbName);
+            if (statement != null)
+                statement.close();
+            if (connection != null)
+                connection.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 }
