@@ -270,19 +270,19 @@ matrix:
         fi
       - make > /dev/null
 
-#  - os: osx
-#    language: c
-#    compiler: clang
-#    env: DESC="mac/clang build"
-#    git:
-#      - depth: 1
-#    addons:
-#      homebrew:
-#        - cmake
-#
-#    script:
-#      - cd ${TRAVIS_BUILD_DIR}
-#      - mkdir debug
-#      - cd debug
-#      - cmake .. > /dev/null
-#      - make > /dev/null
+  - os: osx
+    language: c
+    compiler: clang
+    env: DESC="mac/clang build"
+    git:
+      - depth: 1
+    addons:
+      homebrew:
+        - cmake
+
+    script:
+      - cd ${TRAVIS_BUILD_DIR}
+      - mkdir debug
+      - cd debug
+      - cmake .. > /dev/null
+      - make > /dev/null
