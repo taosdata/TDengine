@@ -60,30 +60,27 @@ public class BatchInsertTest {
         ExecutorService executorService = Executors.newFixedThreadPool(numOfTables);
         for (int i = 0; i < numOfTables; i++) {
             final int index = i;
-            executorService.execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        long startTime = System.currentTimeMillis();
-                        Statement statement = connection.createStatement(); // get statement
-                        StringBuilder sb = new StringBuilder();
-                        sb.append("INSERT INTO " + tablePrefix + index + " VALUES");
-                        Random rand = new Random();
-                        for (int j = 1; j <= numOfRecordsPerTable; j++) {
-                            sb.append("(" + (ts + j) + ", ");
-                            sb.append(rand.nextInt(100) + ", ");
-                            sb.append(rand.nextInt(100) + ", ");
-                            sb.append(rand.nextInt(100) + ")");
-                        }
-                        statement.addBatch(sb.toString());
-                        statement.executeBatch();
-                        long endTime = System.currentTimeMillis();
-                        System.out.println("Thread " + index + " takes " + (endTime - startTime) + " microseconds");
-                        connection.commit();
-                        statement.close();
-                    } catch (Exception e) {
-                        e.printStackTrace();
+            executorService.execute(() -> {
+                try {
+                    long startTime = System.currentTimeMillis();
+                    Statement statement = connection.createStatement(); // get statement
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("INSERT INTO " + tablePrefix + index + " VALUES");
+                    Random rand = new Random();
+                    for (int j = 1; j <= numOfRecordsPerTable; j++) {
+                        sb.append("(" + (ts + j) + ", ");
+                        sb.append(rand.nextInt(100) + ", ");
+                        sb.append(rand.nextInt(100) + ", ");
+                        sb.append(rand.nextInt(100) + ")");
                     }
+                    statement.addBatch(sb.toString());
+                    statement.executeBatch();
+                    long endTime = System.currentTimeMillis();
+                    System.out.println("Thread " + index + " takes " + (endTime - startTime) + " microseconds");
+                    connection.commit();
+                    statement.close();
+                } catch (Exception e) {
+                    e.printStackTrace();
                 }
             });
         }
