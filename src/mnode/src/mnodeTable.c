@@ -222,23 +222,23 @@ static int32_t mnodeChildTableActionEncode(SSdbRow *pRow) {
   SCTableObj *pTable = pRow->pObj;
   assert(pTable != NULL && pRow->rowData != NULL);
 
-  int32_t len = strlen(pTable->info.tableId);
+  int32_t len = (int32_t)strlen(pTable->info.tableId);
   if (len >= TSDB_TABLE_FNAME_LEN) return TSDB_CODE_MND_INVALID_TABLE_ID;
 
   memcpy(pRow->rowData, pTable->info.tableId, len);
-  memset(pRow->rowData + len, 0, 1);
+  memset((char *)pRow->rowData + len, 0, 1);
   len++;
 
-  memcpy(pRow->rowData + len, (char*)pTable + sizeof(char *), tsChildTableUpdateSize);
+  memcpy((char *)pRow->rowData + len, (char *)pTable + sizeof(char *), tsChildTableUpdateSize);
   len += tsChildTableUpdateSize;
 
   if (pTable->info.type != TSDB_CHILD_TABLE) {
     int32_t schemaSize = pTable->numOfColumns * sizeof(SSchema);
-    memcpy(pRow->rowData + len, pTable->schema, schemaSize);
+    memcpy((char *)pRow->rowData + len, pTable->schema, schemaSize);
     len += schemaSize;
 
     if (pTable->sqlLen != 0) {
-      memcpy(pRow->rowData + len, pTable->sql, pTable->sqlLen);
+      memcpy((char *)pRow->rowData + len, pTable->sql, pTable->sqlLen);
       len += pTable->sqlLen;
     }
   }
@@ -253,7 +253,7 @@ static int32_t mnodeChildTableActionDecode(SSdbRow *pRow) {
   SCTableObj *pTable = calloc(1, sizeof(SCTableObj));
   if (pTable == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  int32_t len = strlen(pRow->rowData);
+  int32_t len = (int32_t)strlen(pRow->rowData);
   if (len >= TSDB_TABLE_FNAME_LEN) {
     free(pTable);
     return TSDB_CODE_MND_INVALID_TABLE_ID;
@@ -261,7 +261,7 @@ static int32_t mnodeChildTableActionDecode(SSdbRow *pRow) {
   pTable->info.tableId = strdup(pRow->rowData);
   len++;
 
-  memcpy((char*)pTable + sizeof(char *), pRow->rowData + len, tsChildTableUpdateSize);
+  memcpy((char *)pTable + sizeof(char *), (char *)pRow->rowData + len, tsChildTableUpdateSize);
   len += tsChildTableUpdateSize;
 
   if (pTable->info.type != TSDB_CHILD_TABLE) {
@@ -271,7 +271,7 @@ static int32_t mnodeChildTableActionDecode(SSdbRow *pRow) {
       mnodeDestroyChildTable(pTable);
       return TSDB_CODE_MND_INVALID_TABLE_TYPE;
     }
-    memcpy(pTable->schema, pRow->rowData + len, schemaSize);
+    memcpy(pTable->schema, (char *)pRow->rowData + len, schemaSize);
     len += schemaSize;
 
     if (pTable->sqlLen != 0) {
@@ -280,7 +280,7 @@ static int32_t mnodeChildTableActionDecode(SSdbRow *pRow) {
         mnodeDestroyChildTable(pTable);
         return TSDB_CODE_MND_OUT_OF_MEMORY;
       }
-      memcpy(pTable->sql, pRow->rowData + len, pTable->sqlLen);
+      memcpy(pTable->sql, (char *)pRow->rowData + len, pTable->sqlLen);
     }
   }
 
@@ -352,14 +352,14 @@ static int32_t mnodeChildTableActionRestored() {
 
 static int32_t mnodeInitChildTables() {
   SCTableObj tObj;
-  tsChildTableUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj.info.type;
+  tsChildTableUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj.info.type);
 
   SSdbTableDesc desc = {
     .id           = SDB_TABLE_CTABLE,
     .name         = "ctables",
     .hashSessions = TSDB_DEFAULT_CTABLES_HASH_SIZE,
     .maxRowSize   = sizeof(SCTableObj) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16) + TSDB_TABLE_FNAME_LEN + TSDB_CQ_SQL_SIZE,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_VAR_STRING,
     .fpInsert     = mnodeChildTableActionInsert,
     .fpDelete     = mnodeChildTableActionDelete,
@@ -501,18 +501,18 @@ static int32_t mnodeSuperTableActionEncode(SSdbRow *pRow) {
   SSTableObj *pStable = pRow->pObj;
   assert(pRow->pObj != NULL && pRow->rowData != NULL);
 
-  int32_t len = strlen(pStable->info.tableId);
+  int32_t len = (int32_t)strlen(pStable->info.tableId);
   if (len >= TSDB_TABLE_FNAME_LEN) len = TSDB_CODE_MND_INVALID_TABLE_ID;
 
   memcpy(pRow->rowData, pStable->info.tableId, len);
-  memset(pRow->rowData + len, 0, 1);
+  memset((char *)pRow->rowData + len, 0, 1);
   len++;
 
-  memcpy(pRow->rowData + len, (char*)pStable + sizeof(char *), tsSuperTableUpdateSize);
+  memcpy((char *)pRow->rowData + len, (char *)pStable + sizeof(char *), tsSuperTableUpdateSize);
   len += tsSuperTableUpdateSize;
 
   int32_t schemaSize = sizeof(SSchema) * (pStable->numOfColumns + pStable->numOfTags);
-  memcpy(pRow->rowData + len, pStable->schema, schemaSize);
+  memcpy((char *)pRow->rowData + len, pStable->schema, schemaSize);
   len += schemaSize;
 
   pRow->rowSize = len;
@@ -525,7 +525,7 @@ static int32_t mnodeSuperTableActionDecode(SSdbRow *pRow) {
   SSTableObj *pStable = (SSTableObj *) calloc(1, sizeof(SSTableObj));
   if (pStable == NULL) return TSDB_CODE_MND_OUT_OF_MEMORY;
 
-  int32_t len = strlen(pRow->rowData);
+  int32_t len = (int32_t)strlen(pRow->rowData);
   if (len >= TSDB_TABLE_FNAME_LEN){
     free(pStable);
     return TSDB_CODE_MND_INVALID_TABLE_ID;
@@ -533,7 +533,7 @@ static int32_t mnodeSuperTableActionDecode(SSdbRow *pRow) {
   pStable->info.tableId = strdup(pRow->rowData);
   len++;
 
-  memcpy((char*)pStable + sizeof(char *), pRow->rowData + len, tsSuperTableUpdateSize);
+  memcpy((char *)pStable + sizeof(char *), (char *)pRow->rowData + len, tsSuperTableUpdateSize);
   len += tsSuperTableUpdateSize;
 
   int32_t schemaSize = sizeof(SSchema) * (pStable->numOfColumns + pStable->numOfTags);
@@ -543,8 +543,7 @@ static int32_t mnodeSuperTableActionDecode(SSdbRow *pRow) {
     return TSDB_CODE_MND_NOT_SUPER_TABLE;
   }
 
-  memcpy(pStable->schema, pRow->rowData + len, schemaSize);
-
+  memcpy(pStable->schema, (char *)pRow->rowData + len, schemaSize);
   pRow->pObj = pStable;
 
   return TSDB_CODE_SUCCESS;
@@ -556,14 +555,14 @@ static int32_t mnodeSuperTableActionRestored() {
 
 static int32_t mnodeInitSuperTables() {
   SSTableObj tObj;
-  tsSuperTableUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj.info.type;
+  tsSuperTableUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj.info.type);
 
   SSdbTableDesc desc = {
     .id           = SDB_TABLE_STABLE,
     .name         = "stables",
     .hashSessions = TSDB_DEFAULT_STABLES_HASH_SIZE,
     .maxRowSize   = sizeof(SSTableObj) + sizeof(SSchema) * (TSDB_MAX_TAGS + TSDB_MAX_COLUMNS + 16) + TSDB_TABLE_FNAME_LEN,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_VAR_STRING,
     .fpInsert     = mnodeSuperTableActionInsert,
     .fpDelete     = mnodeSuperTableActionDelete,
@@ -844,6 +843,7 @@ static int32_t mnodeProcessBatchCreateTableMsg(SMnodeMsg *pMsg) {
       return TSDB_CODE_MND_ACTION_IN_PROGRESS;
     } else { // batch master replay, reprocess the whole batch
       assert(0);
+      return TSDB_CODE_MND_MSG_NOT_PROCESSED;
     }
   }
 }
@@ -1257,7 +1257,7 @@ static int32_t mnodeModifySuperTableTagName(SMnodeMsg *pMsg, char *oldTagName, c
   }
 
   // int32_t  rowSize = 0;
-  uint32_t len = strlen(newTagName);
+  uint32_t len = (int32_t)strlen(newTagName);
   if (len >= TSDB_COL_NAME_LEN) {
     return TSDB_CODE_MND_COL_NAME_TOO_LONG;
   }
@@ -1420,7 +1420,7 @@ static int32_t mnodeChangeSuperTableColumn(SMnodeMsg *pMsg, char *oldName, char 
   }
 
   // int32_t  rowSize = 0;
-  uint32_t len = strlen(newName);
+  uint32_t len = (uint32_t)strlen(newName);
   if (len >= TSDB_COL_NAME_LEN) {
     return TSDB_CODE_MND_COL_NAME_TOO_LONG;
   }
@@ -1525,7 +1525,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
 
   tstrncpy(prefix, pDb->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
-  prefixLen = strlen(prefix);
+  prefixLen = (int32_t)strlen(prefix);
 
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
   char stableName[TSDB_TABLE_NAME_LEN] = {0};
@@ -1550,7 +1550,7 @@ int32_t mnodeRetrieveShowSuperTables(SShowObj *pShow, char *data, int32_t rows, 
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
 
-    int16_t len = strnlen(stableName, TSDB_TABLE_NAME_LEN - 1);
+    int16_t len = (int16_t)strnlen(stableName, TSDB_TABLE_NAME_LEN - 1);
     *(int16_t*) pWrite = len;
     pWrite += sizeof(int16_t); // todo refactor
 
@@ -1593,7 +1593,7 @@ void mnodeDropAllSuperTables(SDbObj *pDropDb) {
   char prefix[64] = {0};
   tstrncpy(prefix, pDropDb->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
-  int32_t prefixLen = strlen(prefix);
+  int32_t prefixLen = (int32_t)strlen(prefix);
 
   mInfo("db:%s, all super tables will be dropped from sdb", pDropDb->name);
 
@@ -1746,9 +1746,9 @@ static int32_t mnodeProcessSuperTableVgroupMsg(SMnodeMsg *pMsg) {
     rpcFreeCont(pRsp);
     return TSDB_CODE_MND_INVALID_TABLE_NAME;
   } else {
-    pRsp->numOfTables = htonl(pRsp->numOfTables);
+    pRsp->numOfTables = (int32_t)htonl(pRsp->numOfTables);
     pMsg->rpcRsp.rsp = pRsp;
-    pMsg->rpcRsp.len = msg - (char *)pRsp;
+    pMsg->rpcRsp.len = (int32_t)((char *)msg - (char *)pRsp);
 
     return TSDB_CODE_SUCCESS;
   }
@@ -2021,7 +2021,7 @@ static int32_t mnodeDoCreateChildTable(SMnodeMsg *pMsg, int32_t tid) {
 
 static int32_t mnodeProcessCreateChildTableMsg(SMnodeMsg *pMsg) {
   //SCMCreateTableMsg* p1 = pMsg->rpcMsg.pCont; // there are several tables here.
-  SCreateTableMsg* pCreate = (SCreateTableMsg*)(pMsg->rpcMsg.pCont + sizeof(SCMCreateTableMsg));
+  SCreateTableMsg* pCreate = (SCreateTableMsg*)((char *)pMsg->rpcMsg.pCont + sizeof(SCMCreateTableMsg));
 
   int32_t code = grantCheck(TSDB_GRANT_TIMESERIES);
   if (code != TSDB_CODE_SUCCESS) {
@@ -2278,7 +2278,7 @@ static int32_t mnodeChangeNormalTableColumn(SMnodeMsg *pMsg, char *oldName, char
   }
 
   // int32_t  rowSize = 0;
-  uint32_t len = strlen(newName);
+  uint32_t len = (uint32_t)strlen(newName);
   if (len >= TSDB_COL_NAME_LEN) {
     return TSDB_CODE_MND_COL_NAME_TOO_LONG;
   }
@@ -2481,7 +2481,7 @@ void mnodeDropAllChildTables(SDbObj *pDropDb) {
   char prefix[64] = {0};
   tstrncpy(prefix, pDropDb->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
-  int32_t prefixLen = strlen(prefix);
+  int32_t prefixLen = (int32_t)strlen(prefix);
 
   mInfo("db:%s, all child tables will be dropped from sdb", pDropDb->name);
 
@@ -2897,7 +2897,7 @@ static int32_t mnodeRetrieveShowTables(SShowObj *pShow, char *data, int32_t rows
   SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
 
   char prefix[64] = {0};
-  int32_t prefixLen = tableIdPrefix(pDb->name, prefix, 64);
+  int32_t prefixLen = (int32_t)tableIdPrefix(pDb->name, prefix, 64);
 
   char* pattern = NULL;
   if (pShow->payloadLen > 0) {
@@ -3133,7 +3133,7 @@ static int32_t mnodeRetrieveStreamTables(SShowObj *pShow, char *data, int32_t ro
   char prefix[64] = {0};
   tstrncpy(prefix, pDb->name, 64);
   strcat(prefix, TS_PATH_DELIMITER);
-  int32_t prefixLen = strlen(prefix);
+  int32_t prefixLen = (int32_t)strlen(prefix);
 
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextChildTable(pShow->pIter, &pTable);

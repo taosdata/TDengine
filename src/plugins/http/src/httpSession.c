@@ -35,7 +35,8 @@ void httpCreateSession(HttpContext *pContext, void *taos) {
   session.refCount = 1;
   int32_t len = snprintf(session.id, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
 
-  pContext->session = taosCachePut(server->sessionCache, session.id, len, &session, sizeof(HttpSession), tsHttpSessionExpire * 1000);
+  pContext->session =
+      taosCachePut(server->sessionCache, session.id, len, &session, sizeof(HttpSession), tsHttpSessionExpire * 1000);
   // void *temp = pContext->session;
   // taosCacheRelease(server->sessionCache, (void **)&temp, false);
 
@@ -56,7 +57,7 @@ static void httpFetchSessionImp(HttpContext *pContext) {
   HttpServer *server = &tsHttpServer;
   pthread_mutex_lock(&server->serverMutex);
 
-  char sessionId[HTTP_SESSION_ID_LEN];
+  char    sessionId[HTTP_SESSION_ID_LEN];
   int32_t len = snprintf(sessionId, HTTP_SESSION_ID_LEN, "%s.%s", pContext->user, pContext->pass);
 
   pContext->session = taosCacheAcquireByKey(server->sessionCache, sessionId, len);

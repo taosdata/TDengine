@@ -1548,7 +1548,7 @@ void tscImportDataFromFile(SSqlObj *pSql) {
   SSqlObj *pNew = createSubqueryObj(pSql, 0, parseFileSendDataBlock, pSupporter, TSDB_SQL_INSERT, NULL);
   pCmd->count = 1;
 
-  FILE *fp = fopen(pCmd->payload, "r");
+  FILE *fp = fopen(pCmd->payload, "rb");
   if (fp == NULL) {
     pSql->res.code = TAOS_SYSTEM_ERROR(errno);
     tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));

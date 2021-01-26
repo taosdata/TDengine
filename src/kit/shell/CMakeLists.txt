@@ -9,14 +9,14 @@ IF (TD_LINUX)
   AUX_SOURCE_DIRECTORY(./src SRC)
   LIST(REMOVE_ITEM SRC ./src/shellWindows.c)
   LIST(REMOVE_ITEM SRC ./src/shellDarwin.c)
-  ADD_EXECUTABLE(shell ${SRC})  
-  
+  ADD_EXECUTABLE(shell ${SRC})
+
   IF (TD_SOMODE_STATIC)
     TARGET_LINK_LIBRARIES(shell taos_static)
   ELSE ()
     TARGET_LINK_LIBRARIES(shell taos)
   ENDIF ()
-  
+
   SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
 ELSEIF (TD_WINDOWS)
   LIST(APPEND SRC ./src/shellEngine.c)
@@ -27,7 +27,7 @@ ELSEIF (TD_WINDOWS)
 
   IF (TD_POWER)
     SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME power)
-  ELSE ()   
+  ELSE ()
     SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
   ENDIF ()
 ELSEIF (TD_DARWIN)
@@ -37,7 +37,10 @@ ELSEIF (TD_DARWIN)
   LIST(APPEND SRC ./src/shellCommand.c)
   LIST(APPEND SRC ./src/shellImport.c)
   ADD_EXECUTABLE(shell ${SRC})
-  TARGET_LINK_LIBRARIES(shell taos_static)
+  # linking with dylib
+  TARGET_LINK_LIBRARIES(shell taos)
+  # linking taos statically
+  # TARGET_LINK_LIBRARIES(shell taos_static)
   SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
 ENDIF ()
 

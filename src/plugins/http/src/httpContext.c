@@ -35,20 +35,24 @@ static void httpRemoveContextFromEpoll(HttpContext *pContext) {
   HttpThread *pThread = pContext->pThread;
   if (pContext->fd >= 0) {
     epoll_ctl(pThread->pollFd, EPOLL_CTL_DEL, pContext->fd, NULL);
-    int32_t fd = atomic_val_compare_exchange_32(&pContext->fd, pContext->fd, -1);
+#ifdef WINDOWS
+    SOCKET fd = atomic_val_compare_exchange_32(&pContext->fd, pContext->fd, -1);
+#else
+    SOCKET fd = atomic_val_compare_exchange_64(&pContext->fd, pContext->fd, -1);
+#endif
     taosCloseSocket(fd);
   }
 }
 
 static void httpDestroyContext(void *data) {
   HttpContext *pContext = *(HttpContext **)data;
-  if (pContext->fd > 0) taosClose(pContext->fd);
+  if (pContext->fd > 0) taosCloseSocket(pContext->fd);
 
   HttpThread *pThread = pContext->pThread;
   httpRemoveContextFromEpoll(pContext);
   httpReleaseSession(pContext);
   atomic_sub_fetch_32(&pThread->numOfContexts, 1);
-  
+
   httpDebug("context:%p, is destroyed, refCount:%d data:%p thread:%s numOfContexts:%d", pContext, pContext->refCount,
             data, pContext->pThread->label, pContext->pThread->numOfContexts);
   pContext->pThread = 0;
@@ -100,15 +104,13 @@ const char *httpContextStateStr(HttpContextState state) {
   }
 }
 
-void httpNotifyContextClose(HttpContext *pContext) { 
-  shutdown(pContext->fd, SHUT_WR); 
-}
+void httpNotifyContextClose(HttpContext *pContext) { shutdown(pContext->fd, SHUT_WR); }
 
 bool httpAlterContextState(HttpContext *pContext, HttpContextState srcState, HttpContextState destState) {
   return (atomic_val_compare_exchange_32(&pContext->state, srcState, destState) == srcState);
 }
 
-HttpContext *httpCreateContext(int32_t fd) {
+HttpContext *httpCreateContext(SOCKET fd) {
   HttpContext *pContext = calloc(1, sizeof(HttpContext));
   if (pContext == NULL) return NULL;
 
@@ -123,8 +125,8 @@ HttpContext *httpCreateContext(int32_t fd) {
   pContext->ppContext = ppContext;
   httpDebug("context:%p, fd:%d, is created, data:%p", pContext, fd, ppContext);
 
-  // set the ref to 0 
-  taosCacheRelease(tsHttpServer.contextCache, (void**)&ppContext, false);
+  // set the ref to 0
+  taosCacheRelease(tsHttpServer.contextCache, (void **)&ppContext, false);
 
   return pContext;
 }
@@ -173,7 +175,6 @@ bool httpInitContext(HttpContext *pContext) {
   pContext->reqType = HTTP_REQTYPE_OTHERS;
   pContext->encodeMethod = NULL;
   memset(&pContext->singleCmd, 0, sizeof(HttpSqlCmd));
-
 
   httpTrace("context:%p, fd:%d, parsed:%d", pContext, pContext->fd, pContext->parsed);
   return true;

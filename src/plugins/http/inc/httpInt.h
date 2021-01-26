@@ -16,6 +16,7 @@
 #ifndef TDENGINE_HTTP_INT_H
 #define TDENGINE_HTTP_INT_H
 
+#include "os.h"
 #include <stdbool.h>
 #include "pthread.h"
 #include "semaphore.h"
@@ -140,7 +141,7 @@ typedef enum {
 
 typedef struct HttpContext {
   int32_t      refCount;
-  int32_t      fd;
+  SOCKET       fd;
   uint32_t     accessTimes;
   uint32_t     lastAccessTime;
   int32_t      state;
@@ -167,7 +168,7 @@ typedef struct HttpThread {
   HttpContext *   pHead;
   pthread_mutex_t threadMutex;
   bool            stop;
-  int32_t         pollFd;
+  EpollFd         pollFd;
   int32_t         numOfContexts;
   int32_t         threadId;
   char            label[HTTP_LABEL_SIZE];
@@ -178,7 +179,9 @@ typedef struct HttpServer {
   char              label[HTTP_LABEL_SIZE];
   uint32_t          serverIp;
   uint16_t          serverPort;
-  int32_t           fd;
+  int8_t            stop;
+  int8_t            reserve;
+  SOCKET            fd;
   int32_t           numOfThreads;
   int32_t           methodScannerLen;
   int32_t           requestNum;

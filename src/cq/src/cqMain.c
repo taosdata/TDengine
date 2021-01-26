@@ -343,7 +343,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
       char buf[TSDB_MAX_NCHAR_LEN];
       int32_t len = taos_fetch_lengths(tres)[i];
       taosMbsToUcs4(val, len, buf, sizeof(buf), &len);
-      memcpy(val + sizeof(VarDataLenT), buf, len);
+      memcpy((char *)val + sizeof(VarDataLenT), buf, len);
       varDataLen(val) = len;
     }
     tdAppendColVal(trow, val, c->type, c->bytes, c->offset);

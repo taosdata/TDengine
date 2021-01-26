@@ -146,7 +146,11 @@ int tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
 
   if (toCommit) {
     tsdbAsyncCommit(pRepo);
+#ifdef __APPLE__
+    sem_wait(pRepo->readyToCommit);
+#else // __APPLE__
     sem_wait(&(pRepo->readyToCommit));
+#endif // __APPLE__
     terrno = pRepo->code;
   }
   tsdbUnRefMemTable(pRepo, pRepo->mem);
@@ -537,7 +541,7 @@ static int32_t tsdbSaveConfig(char *rootDir, STsdbCfg *pCfg) {
     goto _err;
   }
 
-  fd = open(fname, O_WRONLY | O_CREAT, 0755);
+  fd = open(fname, O_WRONLY | O_CREAT | O_BINARY, 0755);
   if (fd < 0) {
     tsdbError("vgId:%d failed to open file %s since %s", pCfg->tsdbId, fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -583,7 +587,7 @@ static int tsdbLoadConfig(char *rootDir, STsdbCfg *pCfg) {
     goto _err;
   }
 
-  fd = open(fname, O_RDONLY);
+  fd = open(fname, O_RDONLY | O_BINARY);
   if (fd < 0) {
     tsdbError("failed to open file %s since %s", fname, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -643,11 +647,21 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
     goto _err;
   }
 
-  code = sem_init(&(pRepo->readyToCommit), 0, 1);
-  if (code != 0) {
+#ifdef __APPLE__
+  pRepo->readyToCommit = sem_open(NULL, O_CREAT, 0644, 1);
+  if (pRepo->readyToCommit==SEM_FAILED) {
+    code = errno;
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
   }
+#else // __APPLE__
+  code = sem_init(&(pRepo->readyToCommit), 0, 1);
+  if (code != 0) {
+    code = errno;
+    terrno = TAOS_SYSTEM_ERROR(code);
+    goto _err;
+  }
+#endif // __APPLE__
 
   pRepo->repoLocked = false;
 
@@ -693,7 +707,11 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     // tsdbFreeMemTable(pRepo->mem);
     // tsdbFreeMemTable(pRepo->imem);
     tfree(pRepo->rootDir);
+#ifdef __APPLE__
+    sem_close(pRepo->readyToCommit);
+#else // __APPLE__
     sem_destroy(&(pRepo->readyToCommit));
+#endif // __APPLE__
     pthread_mutex_destroy(&pRepo->mutex);
     free(pRepo);
   }
