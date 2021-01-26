@@ -1398,13 +1398,13 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
     if (key < elem.ts) {
       return TS_JOIN_TS_NOT_EQUALS;
     } else if (key > elem.ts) {
-      assert(false);
+      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_INCONSISTAN);
     }
   } else {
     if (key > elem.ts) {
       return TS_JOIN_TS_NOT_EQUALS;
     } else if (key < elem.ts) {
-      assert(false);
+      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_INCONSISTAN);
     }
   }
 
