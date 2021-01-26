@@ -29,6 +29,7 @@ public class StableTest {
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
             connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
             Statement statement = connection.createStatement();
+            statement.execute("drop database if exists " + dbName);
             statement.execute("create database if not exists " + dbName);
             statement.execute("use " + dbName);
             statement.close();

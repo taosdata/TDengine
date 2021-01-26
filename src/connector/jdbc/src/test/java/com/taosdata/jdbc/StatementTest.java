@@ -1,6 +1,7 @@
 package com.taosdata.jdbc;
 
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -67,106 +68,35 @@ public class StatementTest {
 
     @Test
     public void testUnsupport() {
-        TSDBStatement tsdbStatement = (TSDBStatement) statement;
         try {
-            tsdbStatement.unwrap(null);
+            Assert.assertNotNull(statement.unwrap(TSDBStatement.class));
+            Assert.assertTrue(statement.isWrapperFor(TSDBStatement.class));
+
+            statement.getMaxFieldSize();
+            statement.setMaxFieldSize(0);
+            statement.setEscapeProcessing(true);
+            statement.cancel();
+            statement.getWarnings();
+            statement.clearWarnings();
+            statement.setCursorName(null);
+            statement.getMoreResults();
+            statement.setFetchDirection(0);
+            statement.getFetchDirection();
+            statement.getResultSetConcurrency();
+            statement.getResultSetType();
+            statement.getConnection();
+            statement.getMoreResults();
+            statement.getGeneratedKeys();
+            statement.executeUpdate(null, 0);
+            statement.executeUpdate(null, new int[]{0});
+            statement.executeUpdate(null, new String[]{"str1", "str2"});
+            statement.getResultSetHoldability();
+            statement.setPoolable(true);
+            statement.isPoolable();
+            statement.closeOnCompletion();
+            statement.isCloseOnCompletion();
         } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.isWrapperFor(null);
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.getMaxFieldSize();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.setMaxFieldSize(0);
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.setEscapeProcessing(true);
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.cancel();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.getWarnings();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.clearWarnings();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.setCursorName(null);
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.getMoreResults();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.setFetchDirection(0);
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.getFetchDirection();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.getResultSetConcurrency();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.getResultSetType();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.getConnection();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.getMoreResults();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.getGeneratedKeys();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.executeUpdate(null, 0);
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.executeUpdate(null, new int[]{0});
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.executeUpdate(null, new String[]{"str1", "str2"});
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.getResultSetHoldability();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.setPoolable(true);
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.isPoolable();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.closeOnCompletion();
-        } catch (SQLException e) {
-        }
-        try {
-            tsdbStatement.isCloseOnCompletion();
-        } catch (SQLException e) {
+            e.printStackTrace();
         }
     }
 
