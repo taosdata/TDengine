@@ -67,37 +67,33 @@ public class StatementTest {
     }
 
     @Test(expected = SQLException.class)
-    public void testUnsupport() {
-        try {
-            Assert.assertNotNull(statement.unwrap(TSDBStatement.class));
-            Assert.assertTrue(statement.isWrapperFor(TSDBStatement.class));
+    public void testUnsupport() throws SQLException {
+        Assert.assertNotNull(statement.unwrap(TSDBStatement.class));
+        Assert.assertTrue(statement.isWrapperFor(TSDBStatement.class));
 
-            statement.getMaxFieldSize();
-            statement.setMaxFieldSize(0);
-            statement.setEscapeProcessing(true);
-            statement.cancel();
-            statement.getWarnings();
-            statement.clearWarnings();
-            statement.setCursorName(null);
-            statement.getMoreResults();
-            statement.setFetchDirection(0);
-            statement.getFetchDirection();
-            statement.getResultSetConcurrency();
-            statement.getResultSetType();
-            statement.getConnection();
-            statement.getMoreResults();
-            statement.getGeneratedKeys();
-            statement.executeUpdate(null, 0);
-            statement.executeUpdate(null, new int[]{0});
-            statement.executeUpdate(null, new String[]{"str1", "str2"});
-            statement.getResultSetHoldability();
-            statement.setPoolable(true);
-            statement.isPoolable();
-            statement.closeOnCompletion();
-            statement.isCloseOnCompletion();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
+        statement.getMaxFieldSize();
+        statement.setMaxFieldSize(0);
+        statement.setEscapeProcessing(true);
+        statement.cancel();
+        statement.getWarnings();
+        statement.clearWarnings();
+        statement.setCursorName(null);
+        statement.getMoreResults();
+        statement.setFetchDirection(0);
+        statement.getFetchDirection();
+        statement.getResultSetConcurrency();
+        statement.getResultSetType();
+        statement.getConnection();
+        statement.getMoreResults();
+        statement.getGeneratedKeys();
+        statement.executeUpdate(null, 0);
+        statement.executeUpdate(null, new int[]{0});
+        statement.executeUpdate(null, new String[]{"str1", "str2"});
+        statement.getResultSetHoldability();
+        statement.setPoolable(true);
+        statement.isPoolable();
+        statement.closeOnCompletion();
+        statement.isCloseOnCompletion();
     }
 
     @AfterClass
