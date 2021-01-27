@@ -27,8 +27,7 @@ public class ConnectionPoolDemo {
 
     private static int poolSize = 50;
     private static int threadCount = 50;
-    private static int sleep = 1000;
-
+    private static int sleep = 0;
 
     public static void main(String[] args) {
         String host = null;
@@ -98,7 +97,8 @@ public class ConnectionPoolDemo {
             executor.execute(new InsertTask(dataSource, dbName, tableSize, batchSize));
             // sleep few seconds
             try {
-                TimeUnit.MILLISECONDS.sleep(sleep);
+                if (sleep > 0)
+                    TimeUnit.MILLISECONDS.sleep(sleep);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
