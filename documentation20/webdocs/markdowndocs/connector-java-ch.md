@@ -418,7 +418,7 @@ Query OK, 1 row(s) in set (0.000141s)
 ## 与框架使用
 
 * Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate][11]
-* Springboot + Mybatis 中使用，可参考 [springbootdemo
+* Springboot + Mybatis 中使用，可参考 [springbootdemo][12]
 
 
 
