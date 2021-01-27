@@ -26,52 +26,21 @@ public class InsertTask implements Runnable {
 
     @Override
     public void run() {
-        Connection conn = null;
-        Statement stmt = null;
         int affectedRows = 0;
-
         long start = System.currentTimeMillis();
-        try {
-            conn = ds.getConnection();
-            stmt = conn.createStatement();
-
+        try (Connection conn = ds.getConnection(); Statement stmt = conn.createStatement()) {
             for (int tb_index = 1; tb_index <= tableSize; tb_index++) {
                 StringBuilder sb = new StringBuilder();
-                sb.append("insert into ");
-                sb.append(dbName);
-                sb.append(".t_");
-                sb.append(tb_index);
-                sb.append("(ts, temperature, humidity) values ");
+                sb.append("insert into ").append(dbName).append(".t_").append(tb_index).append("(ts, temperature, humidity) values ");
                 for (int i = 0; i < batchSize; i++) {
-                    sb.append("(");
-                    sb.append(start + i);
-                    sb.append(", ");
-                    sb.append(random.nextFloat() * 30);
-                    sb.append(", ");
-                    sb.append(random.nextInt(70));
-                    sb.append(") ");
+                    sb.append("(").append(start + i).append(", ").append(random.nextFloat() * 30).append(", ").append(random.nextInt(70)).append(") ");
                 }
                 logger.info("SQL >>> " + sb.toString());
                 affectedRows += stmt.executeUpdate(sb.toString());
             }
         } catch (SQLException e) {
             e.printStackTrace();
-        } finally {
-            if (stmt != null) {
-                try {
-                    stmt.close();
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
-            }
-            if (conn != null) {
-                try {
-                    conn.close();
-                } catch (SQLException e) {
-                    e.printStackTrace();
-                }
-            }
-            logger.info(">>> affectedRows:" + affectedRows + "  TimeCost:" + (System.currentTimeMillis() - start) + " ms");
         }
+        logger.info(">>> affectedRows:" + affectedRows + "  TimeCost:" + (System.currentTimeMillis() - start) + " ms");
     }
 }
