@@ -305,9 +305,9 @@ void cqDrop(void *handle) {
     pObj->tmrId = 0;
   }
 
-  taosReleaseRef(cqObjRef, pObj->rid);
-
   pthread_mutex_unlock(&pContext->mutex);
+
+  taosReleaseRef(cqObjRef, pObj->rid);
 }
 
 static void doCreateStream(void *param, TAOS_RES *result, int32_t code) {
