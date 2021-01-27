@@ -1,6 +1,6 @@
-package com.taosdata.jdbc.springbootdemo.dao;
+package com.taosdata.example.springbootdemo.dao;
 
-import com.taosdata.jdbc.springbootdemo.domain.Weather;
+import com.taosdata.example.springbootdemo.domain.Weather;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;

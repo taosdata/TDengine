@@ -1,4 +1,4 @@
-package com.taosdata.jdbc.springbootdemo.domain;
+package com.taosdata.example.springbootdemo.domain;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
 

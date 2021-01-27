@@ -1,7 +1,7 @@
-package com.taosdata.jdbc.springbootdemo.controller;
+package com.taosdata.example.springbootdemo.controller;
 
-import com.taosdata.jdbc.springbootdemo.domain.Weather;
-import com.taosdata.jdbc.springbootdemo.service.WeatherService;
+import com.taosdata.example.springbootdemo.domain.Weather;
+import com.taosdata.example.springbootdemo.service.WeatherService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
