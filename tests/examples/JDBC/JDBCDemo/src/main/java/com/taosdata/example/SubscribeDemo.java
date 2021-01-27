@@ -7,52 +7,45 @@ import com.taosdata.jdbc.TSDBSubscribe;
 
 import java.sql.DriverManager;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 public class SubscribeDemo {
+    private static final String usage = "java -jar SubscribeDemo.jar -host <hostname> -database <database name> -topic <topic> -sql <sql>";
 
-    public static TSDBConnection getConnection(String host, String database) throws Exception {
-        Class.forName("com.taosdata.jdbc.TSDBDriver");
-        Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-
-        String cs = String.format("jdbc:TAOS://%s:0/%s", host, database);
-        return (TSDBConnection) DriverManager.getConnection(cs, properties);
-    }
-
-    public static void main(String[] args) throws Exception {
-        String usage = "java -Djava.ext.dirs=../ TestTSDBSubscribe [-host host] <-db database> <-topic topic> <-sql sql>";
-        if (args.length < 2) {
-            System.err.println(usage);
-            return;
-        }
-
-        String host = "localhost", database = "", topic = "", sql = "";
+    public static void main(String[] args) {
+        // parse args from command line
+        String host = "", database = "", topic = "", sql = "";
         for (int i = 0; i < args.length; i++) {
-            if ("-db".equalsIgnoreCase(args[i]) && i < args.length - 1) {
+            if ("-host".equalsIgnoreCase(args[i]) && i < args.length - 1) {
+                host = args[++i];
+            }
+            if ("-database".equalsIgnoreCase(args[i]) && i < args.length - 1) {
                 database = args[++i];
             }
             if ("-topic".equalsIgnoreCase(args[i]) && i < args.length - 1) {
                 topic = args[++i];
             }
-            if ("-host".equalsIgnoreCase(args[i]) && i < args.length - 1) {
-                host = args[++i];
-            }
             if ("-sql".equalsIgnoreCase(args[i]) && i < args.length - 1) {
                 sql = args[++i];
             }
         }
-        if (database.isEmpty() || topic.isEmpty() || sql.isEmpty()) {
-            System.err.println(usage);
+        if (host.isEmpty() || database.isEmpty() || topic.isEmpty() || sql.isEmpty()) {
+            System.out.println(usage);
             return;
         }
+        /*********************************************************************************************/
 
-        TSDBConnection connection = null;
-        TSDBSubscribe sub = null;
         try {
-            connection = getConnection(host, database);
-            sub = ((TSDBConnection) connection).subscribe(topic, sql, false);
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
+            Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+            final String url = "jdbc:TAOS://" + host + ":6030/" + database + "?user=root&password=taosdata";
+            // get TSDBConnection
+            TSDBConnection connection = DriverManager.getConnection(url, properties).unwrap(TSDBConnection.class);
+            // create TSDBSubscribe
+            TSDBSubscribe sub = connection.subscribe(topic, sql, false);
 
             int total = 0;
             while (true) {
@@ -63,17 +56,14 @@ public class SubscribeDemo {
                 }
                 total += count;
                 System.out.printf("%d rows consumed, total %d\n", count, total);
-                Thread.sleep(900);
+                if (total >= 10)
+                    break;
+                TimeUnit.SECONDS.sleep(1);
             }
+            sub.close(false);
+            connection.close();
         } catch (Exception e) {
             e.printStackTrace();
-        } finally {
-            if (null != sub) {
-                sub.close(true);
-            }
-            if (null != connection) {
-                connection.close();
-            }
         }
     }
 }
