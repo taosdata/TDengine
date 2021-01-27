@@ -79,7 +79,7 @@ public class ConnectionPoolDemo {
 //        }
 
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        for (long i = 0; i < totalSize / batchSize; i++) {
+        for (long i = 0; i < totalSize / batchSize / tableSize; i++) {
             executor.execute(new InsertTask(dataSource, dbName, tableSize, batchSize));
             // sleep few seconds
             try {
