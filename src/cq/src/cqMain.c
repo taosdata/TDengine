@@ -215,7 +215,7 @@ void cqClose(void *handle) {
     
     pthread_mutex_unlock(&pContext->mutex);
     
-    taosReleaseRef(cqObjRef, rid);
+    taosRemoveRef(cqObjRef, rid);
   }
 }
 
