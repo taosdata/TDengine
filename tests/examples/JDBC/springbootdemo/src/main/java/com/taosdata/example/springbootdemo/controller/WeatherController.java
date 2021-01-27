@@ -45,7 +45,6 @@ public class WeatherController {
      */
     @PostMapping("/{temperature}/{humidity}")
     public int saveWeather(@PathVariable int temperature, @PathVariable float humidity) {
-
         return weatherService.save(temperature, humidity);
     }
 
@@ -57,7 +56,6 @@ public class WeatherController {
      */
     @PostMapping("/batch")
     public int batchSaveWeather(@RequestBody List<Weather> weatherList) {
-
         return weatherService.save(weatherList);
     }
 
