@@ -905,6 +905,13 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
       return tscInvalidSQLErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z);
     }
 
+    index = 0;
+    sToken = tStrGetToken(sql, &index, false, 0, NULL);
+    sql += index;
+    if (sToken.type != TK_LP) {
+      return tscInvalidSQLErrMsg(pCmd->payload, NULL, sToken.z);
+    }
+    
     SKVRowBuilder kvRowBuilder = {0};
     if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -1554,6 +1561,7 @@ void tscImportDataFromFile(SSqlObj *pSql) {
     tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));
 
     tfree(pSupporter);
+    taos_free_result(pNew);
     tscAsyncResultOnError(pSql);
     return;
   }
