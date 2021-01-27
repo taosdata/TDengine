@@ -318,28 +318,8 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
 
 int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   struct statvfs info;
-  const double   unit = 1024 * 1024 * 1024;
-
-  if (tscEmbedded) {
-    if (statvfs(tsDataDir, &info)) {
-      uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
-      return false;
-    } else {
-      tsTotalDataDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
-      tsAvailDataDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
-    }
-  }
-
-  if (statvfs(tsLogDir, &info)) {
-    uError("failed to get disk size, logDir:%s errno:%s", tsLogDir, strerror(errno));
-    return false;
-  } else {
-    tsTotalLogDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
-    tsAvailLogDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
-  }
-
-  if (statvfs("/tmp", &info)) {
-    uError("failed to get disk size, tmpDir:/tmp errno:%s", strerror(errno));
+  if (statvfs(tsDataDir, &info)) {
+    uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
     return false;
   } else {
     diskSize->tsize = info.f_blocks * info.f_frsize;
