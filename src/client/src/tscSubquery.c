@@ -1991,7 +1991,22 @@ static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES 
  * current query failed, and the retry count is less than the available
  * count, retry query clear previous retrieved data, then launch a new sub query
  */
-static int32_t tscReissueSubquery(SRetrieveSupport *trsupport, SSqlObj *pSql, int32_t code) {
+static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32_t code) {
+  SRetrieveSupport *trsupport = malloc(sizeof(SRetrieveSupport));
+  if (trsupport == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  memcpy(trsupport, oriTrs, sizeof(*trsupport));
+
+  const uint32_t nBufferSize = (1u << 16u);  // 64KB
+  trsupport->localBuffer = (tFilePage *)calloc(1, nBufferSize + sizeof(tFilePage));
+  if (trsupport->localBuffer == NULL) {
+    tscError("%p failed to malloc buffer for local buffer, reason:%s", pSql, strerror(errno));
+    tfree(trsupport);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  
   SSqlObj *pParentSql = trsupport->pParentSql;
   int32_t  subqueryIndex = trsupport->subqueryIndex;
 
