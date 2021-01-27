@@ -6,6 +6,7 @@ import com.taosdata.jdbc.TSDBResultSet;
 import com.taosdata.jdbc.TSDBSubscribe;
 
 import java.sql.DriverManager;
+import java.sql.ResultSetMetaData;
 import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 
@@ -50,11 +51,16 @@ public class SubscribeDemo {
             while (true) {
                 TSDBResultSet rs = sub.consume();
                 int count = 0;
+                ResultSetMetaData meta = rs.getMetaData();
                 while (rs.next()) {
+                    for (int i = 1; i <= meta.getColumnCount(); i++) {
+                        System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
+                    }
+                    System.out.println();
                     count++;
                 }
                 total += count;
-                System.out.printf("%d rows consumed, total %d\n", count, total);
+//                System.out.printf("%d rows consumed, total %d\n", count, total);
                 if (total >= 10)
                     break;
                 TimeUnit.SECONDS.sleep(1);
