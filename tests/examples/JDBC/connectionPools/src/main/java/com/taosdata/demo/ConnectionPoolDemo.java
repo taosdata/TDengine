@@ -64,31 +64,31 @@ public class ConnectionPoolDemo {
         logger.info(">>>>>>>>>>>>>> connection pool Type: " + poolType);
         init(dataSource);
 
-//        try {
-//            Connection connection = dataSource.getConnection();
-//            Statement statement = connection.createStatement();
-//            String sql = "insert into " + dbName + ".t_1 values('2020-01-01 00:00:00.000',12.12,111)";
-//            int affectRows = statement.executeUpdate(sql);
-//            System.out.println("affectRows >>> " + affectRows);
-//            affectRows = statement.executeUpdate(sql);
-//            System.out.println("affectRows >>> " + affectRows);
-//            statement.close();
-//            connection.close();
-//        } catch (SQLException e) {
-//            e.printStackTrace();
-//        }
-
-        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        for (long i = 0; i < totalSize / batchSize / tableSize; i++) {
-            executor.execute(new InsertTask(dataSource, dbName, tableSize, batchSize));
-            // sleep few seconds
-            try {
-                TimeUnit.MILLISECONDS.sleep(sleep);
-            } catch (InterruptedException e) {
-                e.printStackTrace();
-            }
+        try {
+            Connection connection = dataSource.getConnection();
+            Statement statement = connection.createStatement();
+            String sql = "insert into " + dbName + ".t_1 values('2020-01-01 00:00:00.000',12.12,111)";
+            int affectRows = statement.executeUpdate(sql);
+            System.out.println("affectRows >>> " + affectRows);
+            affectRows = statement.executeUpdate(sql);
+            System.out.println("affectRows >>> " + affectRows);
+            statement.close();
+            connection.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
-        executor.shutdown();
+
+//        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+//        for (long i = 0; i < totalSize / batchSize / tableSize; i++) {
+//            executor.execute(new InsertTask(dataSource, dbName, tableSize, batchSize));
+//            // sleep few seconds
+//            try {
+//                TimeUnit.MILLISECONDS.sleep(sleep);
+//            } catch (InterruptedException e) {
+//                e.printStackTrace();
+//            }
+//        }
+//        executor.shutdown();
 
     }
 
