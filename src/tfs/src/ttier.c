@@ -80,7 +80,7 @@ SDisk *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg) {
   DISK_AT_TIER(pTier, id) = pDisk;
   pTier->ndisk++;
 
-  fDebug("disk %s is mounted to tier level %d id %d", pCfg->dir, pCfg->level, id);
+  fInfo("disk %s is mounted to tier level %d id %d", pCfg->dir, pCfg->level, id);
 
   return DISK_AT_TIER(pTier, id);
 }
