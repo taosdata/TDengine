@@ -196,6 +196,7 @@ cd ../../../debug; make
 ./test.sh -f general/table/table.sim
 ./test.sh -f general/table/tinyint.sim
 ./test.sh -f general/table/vgroup.sim
+./test.sh -f general/table/createmulti.sim
 
 ./test.sh -f general/tag/3.sim
 ./test.sh -f general/tag/4.sim

@@ -157,4 +157,4 @@
 ./test.sh -f general/table/table.sim
 ./test.sh -f general/table/tinyint.sim
 ./test.sh -f general/table/vgroup.sim
-
+./test.sh -f general/table/createmulti.sim
