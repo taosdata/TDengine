@@ -5,7 +5,6 @@ import java.util.Properties;
 
 public class JDBCDemo {
     private static String host;
-    private static String driverType = "jni";
     private static final String dbName = "test";
     private static final String tbName = "weather";
     private Connection connection;
@@ -14,17 +13,10 @@ public class JDBCDemo {
         for (int i = 0; i < args.length; i++) {
             if ("-host".equalsIgnoreCase(args[i]) && i < args.length - 1)
                 host = args[++i];
-            if ("-driverType".equalsIgnoreCase(args[i]) && i < args.length - 1) {
-                driverType = args[++i];
-                if (!"jni".equalsIgnoreCase(driverType) && !"restful".equalsIgnoreCase(driverType))
-                    printHelp();
-            }
         }
-
         if (host == null) {
             printHelp();
         }
-
         JDBCDemo demo = new JDBCDemo();
         demo.init();
         demo.createDatabase();
@@ -38,15 +30,10 @@ public class JDBCDemo {
     }
 
     private void init() {
+        final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
         // get connection
         try {
-            String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
-            if (driverType.equals("restful")) {
-                Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-                url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
-            } else {
-                Class.forName("com.taosdata.jdbc.TSDBDriver");
-            }
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
             properties.setProperty("charset", "UTF-8");
             properties.setProperty("locale", "en_US.UTF-8");
@@ -70,10 +57,38 @@ public class JDBCDemo {
         exuete(sql);
     }
 
+    private void dropTable() {
+        final String sql = "drop table if exists " + dbName + "." + tbName + "";
+        exuete(sql);
+    }
+
+    private void createTable() {
+        final String sql = "create table if not exists " + dbName + "." + tbName + " (ts timestamp, temperature float, humidity int)";
+        exuete(sql);
+    }
+
+    private void insert() {
+        final String sql = "insert into test.weather (ts, temperature, humidity) values(now, 20.5, 34)";
+        exuete(sql);
+    }
+
     private void select() {
         final String sql = "select * from test.weather";
         executeQuery(sql);
     }
+
+    private void close() {
+        try {
+            if (connection != null) {
+                this.connection.close();
+                System.out.println("connection closed.");
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    /************************************************************************/
 
     private void executeQuery(String sql) {
         try (Statement statement = connection.createStatement()) {
@@ -99,15 +114,6 @@ public class JDBCDemo {
         }
     }
 
-    private void insert() {
-        final String sql = "insert into test.weather (ts, temperature, humidity) values(now, 20.5, 34)";
-        exuete(sql);
-    }
-
-    private void createTable() {
-        final String sql = "create table if not exists " + dbName + "." + tbName + " (ts timestamp, temperature float, humidity int)";
-        exuete(sql);
-    }
 
     private void printSql(String sql, boolean succeed, long cost) {
         System.out.println("[ " + (succeed ? "OK" : "ERROR!") + " ] time cost: " + cost + " ms, execute statement ====> " + sql);
@@ -123,22 +129,6 @@ public class JDBCDemo {
             e.printStackTrace();
 
         }
-    }
-
-    private void close() {
-        try {
-            if (connection != null) {
-                this.connection.close();
-                System.out.println("connection closed.");
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    private void dropTable() {
-        final String sql = "drop table if exists " + dbName + "." + tbName + "";
-        exuete(sql);
     }
 
     private static void printHelp() {

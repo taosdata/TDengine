@@ -13,7 +13,6 @@ public class SubscribeDemo {
     public static TSDBConnection getConnection(String host, String database) throws Exception {
         Class.forName("com.taosdata.jdbc.TSDBDriver");
         Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
         properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
