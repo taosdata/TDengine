@@ -34,7 +34,6 @@ public class SubscribeDemo {
             return;
         }
         /*********************************************************************************************/
-
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
@@ -43,7 +42,7 @@ public class SubscribeDemo {
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
             final String url = "jdbc:TAOS://" + host + ":6030/" + database + "?user=root&password=taosdata";
             // get TSDBConnection
-            TSDBConnection connection = DriverManager.getConnection(url, properties).unwrap(TSDBConnection.class);
+            TSDBConnection connection = (TSDBConnection) DriverManager.getConnection(url, properties);
             // create TSDBSubscribe
             TSDBSubscribe sub = connection.subscribe(topic, sql, false);
 
