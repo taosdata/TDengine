@@ -1,5 +1,6 @@
 package com.taosdata.example;
 
+import com.taosdata.example.common.InsertTask;
 import com.taosdata.example.pool.C3p0Builder;
 import com.taosdata.example.pool.DbcpBuilder;
 import com.taosdata.example.pool.DruidPoolBuilder;
@@ -10,6 +11,9 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class ConnectionPoolDemo {
 
@@ -31,12 +35,16 @@ public class ConnectionPoolDemo {
             if ("-host".equalsIgnoreCase(args[i]) && i < args.length - 1) {
                 host = args[++i];
             }
+            if ("-recordNumber".equalsIgnoreCase(args[i]) && i < args.length - 1) {
+                totalSize = Long.parseLong(args[++i]);
+            }
             if ("-poolType".equalsIgnoreCase(args[i]) && i < args.length - 1) {
                 poolType = args[++i];
             }
+
         }
         if (host == null) {
-            System.out.println("Usage: java -jar XXX.jar -host <hostname> -poolType <c3p0| dbcp| druid| hikari>");
+            System.out.println("Usage: java -jar XXX.jar -host <hostname> -recordNumber <totalNumber> -poolType <c3p0| dbcp| druid| hikari>");
             return;
         }
 
@@ -60,31 +68,31 @@ public class ConnectionPoolDemo {
         logger.info(">>>>>>>>>>>>>> connection pool Type: " + poolType);
         init(dataSource);
 
-        try {
-            Connection connection = dataSource.getConnection();
-            Statement statement = connection.createStatement();
-            String sql = "insert into " + dbName + ".t_1 values('2020-01-01 00:00:00.000',12.12,111)";
-            int affectRows = statement.executeUpdate(sql);
-            System.out.println("affectRows >>> " + affectRows);
-            affectRows = statement.executeUpdate(sql);
-            System.out.println("affectRows >>> " + affectRows);
-            statement.close();
-            connection.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
-//        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-//        for (long i = 0; i < totalSize / batchSize / tableSize; i++) {
-//            executor.execute(new InsertTask(dataSource, dbName, tableSize, batchSize));
-//            // sleep few seconds
-//            try {
-//                TimeUnit.MILLISECONDS.sleep(sleep);
-//            } catch (InterruptedException e) {
-//                e.printStackTrace();
-//            }
+//        try {
+//            Connection connection = dataSource.getConnection();
+//            Statement statement = connection.createStatement();
+//            String sql = "insert into " + dbName + ".t_1 values('2020-01-01 00:00:00.000',12.12,111)";
+//            int affectRows = statement.executeUpdate(sql);
+//            System.out.println("affectRows >>> " + affectRows);
+//            affectRows = statement.executeUpdate(sql);
+//            System.out.println("affectRows >>> " + affectRows);
+//            statement.close();
+//            connection.close();
+//        } catch (SQLException e) {
+//            e.printStackTrace();
 //        }
-//        executor.shutdown();
+
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        for (long i = 0; i < totalSize / batchSize / tableSize; i++) {
+            executor.execute(new InsertTask(dataSource, dbName, tableSize, batchSize));
+            // sleep few seconds
+            try {
+                TimeUnit.MILLISECONDS.sleep(sleep);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        executor.shutdown();
 
     }
 
