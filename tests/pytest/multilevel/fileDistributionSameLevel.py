@@ -25,19 +25,19 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        self.ntables = 10
-        self.rowsPerTable = 10        
+        self.ntables = 1000             
         self.ts = 1520000010000
 
         tdDnodes.stop(1)
         # Test1 1 dataDir
         cfg={
             '10' : 'maxVgroupsPerDb',
+            '100' : 'maxTablesPerVnode',
             '/mnt/data00 0 1' : 'dataDir',
             '/mnt/data01 0 0' : 'dataDir',
             '/mnt/data02 0 0' : 'dataDir',
-            '/mnt/data03 1 0' : 'dataDir',
-            '/mnt/data04 1 0' : 'dataDir'            
+            '/mnt/data03 0 0' : 'dataDir',
+            '/mnt/data04 0 0' : 'dataDir'
         }
         tdSql.createDir('/mnt/data00')
         tdSql.createDir('/mnt/data01')
@@ -51,16 +51,17 @@ class TDTestCase:
         tdSql.execute("create database test days 1")
         tdSql.execute("use test")
 
-        tdSql.execute("create table tb(ts timestamp, c int)")
+        tdSql.execute("create table stb(ts timestamp, c int) tags(t int)")
 
-        for i in range(self.rowsPerTable):
-            tdSql.execute("insert into tb values(%d, 1)" % (self.ts + i * 86400000))
+        for i in range(self.ntables):
+            tdSql.execute("create table tb%d using stb tags(%d)" %(i, i))            
+            tdSql.execute("insert into tb%d values(%d, 1)" % (self.ts + int (i / 100) * 86400000))
         
         tdDnodes.stop(1)
         tdDnodes.start(1)
 
-        tdSql.query("select * from test.tb")
-        tdSql.checkRows(10)
+        tdSql.query("select * from test.stb")
+        tdSql.checkRows(1000)
 
 
     def stop(self):

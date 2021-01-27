@@ -15,28 +15,28 @@ import java.util.List;
 import java.util.Map;
 
 public class RestfulResultSet implements ResultSet {
-    private static final String RESULT_SET_IS_CLOSED = "resultSet is closed.";
     private volatile boolean isClosed;
     private int pos = -1;
 
     private final String database;
     private final Statement statement;
     // data
-    private ArrayList<ArrayList<Object>> resultSet;
+    private ArrayList<ArrayList<Object>> resultSet = new ArrayList<>();
     // meta
-    private ArrayList<String> columnNames;
-    private ArrayList<Field> columns;
+    private ArrayList<String> columnNames = new ArrayList<>();
+    private ArrayList<Field> columns = new ArrayList<>();
     private RestfulResultSetMetaData metaData;
 
     /**
-     * 由一个result的Json构造结果集，对应执行show databases,show tables等这些语句，返回结果集，但无法获取结果集对应的meta，统一当成String处理
+     * 由一个result的Json构造结果集，对应执行show databases, show tables等这些语句，返回结果集，但无法获取结果集对应的meta，统一当成String处理
+     *
+     * @param resultJson: 包含data信息的结果集，有sql返回的结果集
      ***/
     public RestfulResultSet(String database, Statement statement, JSONObject resultJson) {
         this.database = database;
         this.statement = statement;
         // row data
         JSONArray data = resultJson.getJSONArray("data");
-        resultSet = new ArrayList<>();
         int columnIndex = 0;
         for (; columnIndex < data.size(); columnIndex++) {
             ArrayList oneRow = new ArrayList<>();
@@ -48,15 +48,13 @@ public class RestfulResultSet implements ResultSet {
         }
 
         // column only names
-        columnNames = new ArrayList<>();
-        columns = new ArrayList<>();
         JSONArray head = resultJson.getJSONArray("head");
         for (int i = 0; i < head.size(); i++) {
             String name = head.getString(i);
             columnNames.add(name);
             columns.add(new Field(name, "", 0, ""));
         }
-        this.metaData = new RestfulResultSetMetaData(this.database, columns);
+        this.metaData = new RestfulResultSetMetaData(this.database, columns, this);
     }
 
     /**
@@ -78,7 +76,7 @@ public class RestfulResultSet implements ResultSet {
             }
         }
         this.columns = newColumns;
-        this.metaData = new RestfulResultSetMetaData(this.database, this.columns);
+        this.metaData = new RestfulResultSetMetaData(this.database, this.columns, this);
     }
 
     public Field findField(String columnName, List<JSONObject> fieldJsonList) {
@@ -91,7 +89,6 @@ public class RestfulResultSet implements ResultSet {
                 }
             }
         }
-
         return null;
     }
 
@@ -112,10 +109,9 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public boolean next() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        if (pos < resultSet.size() - 1) {
-            pos++;
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+        pos++;
+        if (pos <= resultSet.size() - 1) {
             return true;
         }
         return false;
@@ -131,37 +127,38 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public boolean wasNull() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
         return resultSet.isEmpty();
     }
 
     @Override
     public String getString(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         if (columnIndex > resultSet.get(pos).size()) {
             throw new SQLException(TSDBConstants.WrapErrMsg("Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size()));
         }
-        return resultSet.get(pos).get(columnIndex - 1).toString();
+
+        columnIndex = getTrueColumnIndex(columnIndex);
+        return resultSet.get(pos).get(columnIndex).toString();
     }
+
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
-        String result = getString(columnIndex);
-        if (!(result.equals("true") || result.equals("false"))) {
-            throw new SQLException("not boolean value");
-        }
-        return result.equals("true");
+        columnIndex = getTrueColumnIndex(columnIndex);
+        int result = getInt(columnIndex);
+        return result == 0 ? false : true;
     }
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -169,40 +166,55 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public short getShort(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        return Short.parseShort(getString(columnIndex));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+        columnIndex = getTrueColumnIndex(columnIndex);
+        return Short.parseShort(resultSet.get(pos).get(columnIndex).toString());
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-        return Integer.parseInt(getString(columnIndex));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+        columnIndex = getTrueColumnIndex(columnIndex);
+        return Integer.parseInt(resultSet.get(pos).get(columnIndex).toString());
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        return Long.parseLong(getString(columnIndex));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+        columnIndex = getTrueColumnIndex(columnIndex);
+        return Long.parseLong(resultSet.get(pos).get(columnIndex).toString());
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        return Float.parseFloat(getString(columnIndex));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+        columnIndex = getTrueColumnIndex(columnIndex);
+        return Float.parseFloat(resultSet.get(pos).get(columnIndex).toString());
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
-        return Double.parseDouble(getString(columnIndex));
+        columnIndex = getTrueColumnIndex(columnIndex);
+        return Double.parseDouble(resultSet.get(pos).get(columnIndex).toString());
+    }
+
+    private int getTrueColumnIndex(int columnIndex) throws SQLException {
+        if (columnIndex < 1) {
+            throw new SQLException("Column Index out of range, " + columnIndex + " < 1");
+        }
+
+        int numOfCols = resultSet.get(pos).size();
+        if (columnIndex > numOfCols) {
+            throw new SQLException("Column Index out of range, " + columnIndex + " > " + numOfCols);
+        }
+
+        return columnIndex - 1;
     }
 
     /*******************************************************************************************************************/
@@ -210,7 +222,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -218,7 +230,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -226,7 +238,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public Date getDate(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -234,7 +246,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public Time getTime(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -242,17 +254,18 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
-        String strDate = getString(columnIndex);
-        strDate = strDate.substring(1, strDate.length() - 1);
+        columnIndex = getTrueColumnIndex(columnIndex);
+        String strDate = resultSet.get(pos).get(columnIndex).toString();
+//        strDate = strDate.substring(1, strDate.length() - 1);
         return Timestamp.valueOf(strDate);
     }
 
     @Override
     public InputStream getAsciiStream(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -260,7 +273,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public InputStream getUnicodeStream(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -268,17 +281,16 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public InputStream getBinaryStream(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
+    /*************************************************************************************************************/
+
     @Override
     public String getString(String columnLabel) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        return getString(findColumn(columnLabel) + 1);
+        return getString(findColumn(columnLabel));
     }
 
     @Override
@@ -338,53 +350,44 @@ public class RestfulResultSet implements ResultSet {
 
     @Override
     public Timestamp getTimestamp(String columnLabel) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-        return Timestamp.valueOf(getString(findColumn(columnLabel)));
+        return getTimestamp(findColumn(columnLabel));
     }
 
     @Override
     public InputStream getAsciiStream(String columnLabel) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return getAsciiStream(findColumn(columnLabel));
     }
 
     @Override
     public InputStream getUnicodeStream(String columnLabel) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return getUnicodeStream(findColumn(columnLabel));
     }
 
     @Override
     public InputStream getBinaryStream(String columnLabel) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return getBinaryStream(findColumn(columnLabel));
     }
+
+    /*************************************************************************************************************/
 
     @Override
     public SQLWarning getWarnings() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
         return null;
     }
 
     @Override
     public void clearWarnings() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
         return;
     }
 
     @Override
     public String getCursorName() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -392,7 +395,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         return this.metaData;
     }
@@ -400,7 +403,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public Object getObject(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -413,15 +416,18 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public int findColumn(String columnLabel) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
-        return columnNames.indexOf(columnLabel);
+        int columnIndex = columnNames.indexOf(columnLabel);
+        if (columnIndex == -1)
+            throw new SQLException("cannot find Column in resultSet");
+        return columnIndex + 1;
     }
 
     @Override
     public Reader getCharacterStream(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -429,7 +435,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public Reader getCharacterStream(String columnLabel) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -437,7 +443,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -445,7 +451,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -453,78 +459,132 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public boolean isBeforeFirst() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+        return this.pos == -1 && this.resultSet.size() != 0;
     }
 
     @Override
     public boolean isAfterLast() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+
+        return this.pos >= resultSet.size() && this.resultSet.size() != 0;
     }
 
     @Override
     public boolean isFirst() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return this.pos == 0;
     }
 
     @Override
     public boolean isLast() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+        if (this.resultSet.size() == 0)
+            return false;
+        return this.pos == (this.resultSet.size() - 1);
     }
 
     @Override
     public void beforeFirst() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        synchronized (this) {
+            if (this.resultSet.size() > 0) {
+                this.pos = -1;
+            }
+        }
     }
 
     @Override
     public void afterLast() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+        synchronized (this) {
+            if (this.resultSet.size() > 0) {
+                this.pos = this.resultSet.size();
+            }
+        }
 
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public boolean first() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (this.resultSet.size() == 0)
+            return false;
+
+        synchronized (this) {
+            this.pos = 0;
+        }
+        return true;
     }
 
     @Override
     public boolean last() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+        if (this.resultSet.size() == 0)
+            return false;
+        synchronized (this) {
+            this.pos = this.resultSet.size() - 1;
+        }
+        return true;
     }
 
     @Override
     public int getRow() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+        int row;
+        synchronized (this) {
+            if (this.pos < 0 || this.pos >= this.resultSet.size())
+                return 0;
+            row = this.pos + 1;
+        }
+        return row;
     }
 
     @Override
     public boolean absolute(int row) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+
+//        if (this.resultSet.size() == 0)
+//            return false;
+//
+//        if (row == 0) {
+//            beforeFirst();
+//            return false;
+//        } else if (row == 1) {
+//            return first();
+//        } else if (row == -1) {
+//            return last();
+//        } else if (row > this.resultSet.size()) {
+//            afterLast();
+//            return false;
+//        } else {
+//            if (row < 0) {
+//                // adjust to reflect after end of result set
+//                int newRowPosition = this.resultSet.size() + row + 1;
+//                if (newRowPosition <= 0) {
+//                    beforeFirst();
+//                    return false;
+//                } else {
+//                    return absolute(newRowPosition);
+//                }
+//            } else {
+//                row--; // adjust for index difference
+//                this.pos = row;
+//                return true;
+//            }
+//        }
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -532,7 +592,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public boolean relative(int rows) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -540,7 +600,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public boolean previous() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
@@ -548,17 +608,18 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public void setFetchDirection(int direction) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
-        if (direction != ResultSet.FETCH_REVERSE || direction != ResultSet.FETCH_REVERSE || direction != ResultSet.FETCH_UNKNOWN)
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+        if ((direction != ResultSet.FETCH_FORWARD) && (direction != ResultSet.FETCH_REVERSE) && (direction != ResultSet.FETCH_UNKNOWN))
             throw new SQLException(TSDBConstants.INVALID_VARIABLES);
 
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (!(getType() == ResultSet.TYPE_FORWARD_ONLY && direction == ResultSet.FETCH_FORWARD))
+            throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public int getFetchDirection() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         return ResultSet.FETCH_FORWARD;
     }
@@ -566,17 +627,17 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public void setFetchSize(int rows) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
         if (rows < 0)
             throw new SQLException(TSDBConstants.INVALID_VARIABLES);
 
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
     public int getFetchSize() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         return this.resultSet.size();
     }
@@ -834,7 +895,7 @@ public class RestfulResultSet implements ResultSet {
     @Override
     public Statement getStatement() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(RESULT_SET_IS_CLOSED));
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
 
         return this.statement;
     }
@@ -992,14 +1053,15 @@ public class RestfulResultSet implements ResultSet {
 
     @Override
     public int getHoldability() throws SQLException {
+        if (isClosed())
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+
         return ResultSet.HOLD_CURSORS_OVER_COMMIT;
     }
 
     @Override
     public boolean isClosed() throws SQLException {
-        return false;
-        //TODO: SQLFeature Not Supported
-//        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return isClosed;
     }
 
     @Override
@@ -1224,11 +1286,21 @@ public class RestfulResultSet implements ResultSet {
 
     @Override
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed())
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+
+        try {
+            return iface.cast(this);
+        } catch (ClassCastException cce) {
+            throw new SQLException("Unable to unwrap to " + iface.toString());
+        }
     }
 
     @Override
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed())
+            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+
+        return iface.isInstance(this);
     }
 }

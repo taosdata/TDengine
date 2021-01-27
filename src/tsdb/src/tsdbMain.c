@@ -146,7 +146,7 @@ int tsdbCloseRepo(TSDB_REPO_T *repo, int toCommit) {
 
   if (toCommit) {
     tsdbAsyncCommit(pRepo);
-    sem_wait(&(pRepo->readyToCommit));
+    tsem_wait(&(pRepo->readyToCommit));
     terrno = pRepo->code;
   }
   tsdbUnRefMemTable(pRepo, pRepo->mem);
@@ -643,8 +643,9 @@ static STsdbRepo *tsdbNewRepo(char *rootDir, STsdbAppH *pAppH, STsdbCfg *pCfg) {
     goto _err;
   }
 
-  code = sem_init(&(pRepo->readyToCommit), 0, 1);
+  code = tsem_init(&(pRepo->readyToCommit), 0, 1);
   if (code != 0) {
+    code = errno;
     terrno = TAOS_SYSTEM_ERROR(code);
     goto _err;
   }
@@ -693,7 +694,7 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     // tsdbFreeMemTable(pRepo->mem);
     // tsdbFreeMemTable(pRepo->imem);
     tfree(pRepo->rootDir);
-    sem_destroy(&(pRepo->readyToCommit));
+    tsem_destroy(&(pRepo->readyToCommit));
     pthread_mutex_destroy(&pRepo->mutex);
     free(pRepo);
   }

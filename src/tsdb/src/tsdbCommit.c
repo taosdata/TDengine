@@ -166,7 +166,7 @@ static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   pRepo->imem = NULL;
   tsdbUnlockRepo(pRepo);
   tsdbUnRefMemTable(pRepo, pIMem);
-  sem_post(&(pRepo->readyToCommit));
+  tsem_post(&(pRepo->readyToCommit));
 }
 
 static int tsdbHasDataToCommit(SCommitIter *iters, int nIters, TSKEY minKey, TSKEY maxKey) {

@@ -194,11 +194,16 @@ class TDSql:
             pstate = 0
             pl = psutil.pids()
             for pid in pl:
-                if psutil.Process(pid).name == 'taosd':
-                    pstate = 1
-                    break
-            if pstate:
-                tdLog.sleep(5)
+                try:
+                    if psutil.Process(pid).name() == 'taosd':
+                        print('have already started')
+                        pstate = 1
+                        break
+                except psutil.NoSuchProcess:
+                    pass
+            if pstate == state :break
+            if state or pstate:
+                tdLog.sleep(1)
                 continue
             pstate = 0
             break
@@ -219,9 +224,9 @@ class TDSql:
                     tdLog.info("dir: %s is empty, expect: empty" %dir)
             else:  
                 if state :
-                    tdLog.info("dir: %s is empty, expect: not empty" %dir)
+                    tdLog.info("dir: %s is not empty, expect: not empty" %dir)
                 else:
-                    tdLog.exit("dir: %s is empty, expect: empty" %dir)  
+                    tdLog.exit("dir: %s is not empty, expect: empty" %dir)  
         else:
             tdLog.exit("dir: %s doesn't exist" %dir)
     def createDir(self, dir):

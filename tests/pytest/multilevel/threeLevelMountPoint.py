@@ -56,6 +56,15 @@ class TDTestCase:
         tdDnodes.startWithoutSleep(1)
         
         tdSql.taosdStatus(1)
+        tdSql.haveFile('/mnt/data00',1)
+        tdSql.haveFile('/mnt/data01',1)
+        tdSql.haveFile('/mnt/data02',1)
+        tdSql.haveFile('/mnt/data10',1)
+        tdSql.haveFile('/mnt/data11',1)
+        tdSql.haveFile('/mnt/data12',1)
+        tdSql.haveFile('/mnt/data20',1)
+        tdSql.haveFile('/mnt/data21',1)
+        tdSql.haveFile('/mnt/data22',1)
 
     def stop(self):
         tdSql.close()
