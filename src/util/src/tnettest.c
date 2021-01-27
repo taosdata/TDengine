@@ -483,7 +483,8 @@ static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
     }
   }
 
-  taosNetCheckSync(host, endPort);
+  taosNetCheckSync(host, startPort + TSDB_PORT_SYNC);
+  taosNetCheckSync(host, startPort + TSDB_PORT_ARBITRATOR);
 }
 
 static void taosNetTestClient(char *host, int32_t startPort, int32_t pkgLen) {
@@ -550,6 +551,8 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen) {
     taosNetTestServer(host, port, pkgLen);
   } else if (0 == strcmp("rpc", role)) {
     taosNetTestRpc(host, port, pkgLen);
+  } else if (0 == strcmp("sync", role)) {
+    taosNetCheckSync(host, port);
   } else if (0 == strcmp("startup", role)) {
     taosNetTestStartup(host, port);
   } else {

@@ -1179,7 +1179,7 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer) {
   }
 }
 
-static void syncProcessTestMsg(SSyncMsg *pMsg, SOCKET connFd) {
+void syncProcessTestMsg(SSyncMsg *pMsg, SOCKET connFd) {
   sInfo("recv sync test msg");
 
   SSyncMsg rsp;
