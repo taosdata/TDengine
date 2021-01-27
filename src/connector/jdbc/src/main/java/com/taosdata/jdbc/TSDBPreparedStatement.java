@@ -100,7 +100,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
      * order to process those supported SQLs.
      */
     private void preprocessSql() {
-
         /***** For processing some of Spark SQLs*****/
         // should replace it first
         this.rawSql = this.rawSql.replaceAll("or (.*) is null", "");
@@ -149,7 +148,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             rawSql = rawSql.replace(matcher.group(1), tableFullName);
         }
         /***** for inner queries *****/
-
     }
 
     /**
@@ -196,7 +194,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
-        setObject(parameterIndex, new String("NULL"));
+        setObject(parameterIndex, "NULL");
     }
 
     @Override

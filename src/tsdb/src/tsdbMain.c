@@ -474,13 +474,7 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     return NULL;
   }
 
-#ifdef __APPLE__
-  pRepo->readyToCommit = sem_open(NULL, O_CREAT, 0644, 1);
-  if (pRepo->readyToCommit == SEM_FAILED) code = -1;
-#else  // __APPLE__
-  code = sem_init(&(pRepo->readyToCommit), 0, 1);
-#endif
-
+  code = tsem_init(&(pRepo->readyToCommit), 0, 1);
   if (code != 0) {
     code = errno;
     terrno = TAOS_SYSTEM_ERROR(code);
@@ -517,11 +511,9 @@ static void tsdbFreeRepo(STsdbRepo *pRepo) {
     tsdbFreeFS(pRepo->fs);
     tsdbFreeBufPool(pRepo->pPool);
     tsdbFreeMeta(pRepo->tsdbMeta);
-#ifdef __APPLE__
-    sem_close(pRepo->readyToCommit);
-#else // __APPLE__
-    sem_destroy(&(pRepo->readyToCommit));
-#endif // __APPLE__
+    // tsdbFreeMemTable(pRepo->mem);
+    // tsdbFreeMemTable(pRepo->imem);
+    tsem_destroy(&(pRepo->readyToCommit));
     pthread_mutex_destroy(&pRepo->mutex);
     free(pRepo);
   }

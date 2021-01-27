@@ -6,37 +6,9 @@ import java.sql.*;
 import java.util.Properties;
 
 public class TSDBDatabaseMetaDataTest {
-    private TSDBDatabaseMetaData metaData;
     private static final String host = "127.0.0.1";
-    private Connection connection;
-
-    @BeforeClass
-    public void before() {
-        try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
-            Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", properties);
-            metaData = connection.getMetaData().unwrap(TSDBDatabaseMetaData.class);
-        } catch (ClassNotFoundException e) {
-            e.printStackTrace();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
-
-    @AfterClass
-    public void after() {
-        try {
-            if (connection != null)
-                connection.close();
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
+    private static Connection connection;
+    private static TSDBDatabaseMetaData metaData;
 
     @Test
     public void unwrap() throws SQLException {
@@ -61,7 +33,7 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getURL() throws SQLException {
-        Assert.assertEquals("jdbc:TAOS://localhost:6030/?user=root&password=taosdata", metaData.getURL());
+        Assert.assertEquals("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", metaData.getURL());
     }
 
     @Test
@@ -975,4 +947,32 @@ public class TSDBDatabaseMetaDataTest {
     public void generatedKeyAlwaysReturned() throws SQLException {
         Assert.assertFalse(metaData.generatedKeyAlwaysReturned());
     }
+
+    @BeforeClass
+    public static void beforeClass() {
+        try {
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
+            Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", properties);
+            metaData = connection.getMetaData().unwrap(TSDBDatabaseMetaData.class);
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        try {
+            if (connection != null)
+                connection.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
 }

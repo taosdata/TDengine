@@ -1,6 +1,7 @@
 package com.taosdata.jdbc;
 
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -13,42 +14,37 @@ import java.util.Properties;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
 
-public class ResultSetTest extends BaseTest {
-    static Connection connection = null;
-    static Statement statement = null;
+public class ResultSetTest {
+    static Connection connection;
+    static Statement statement;
     static String dbName = "test";
     static String tName = "t0";
     static String host = "localhost";
-    static ResultSet resSet = null;
+    static ResultSet resSet;
 
     @BeforeClass
-    public static void createDatabaseAndTable() throws SQLException {
+    public static void createDatabaseAndTable() {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
-        } catch (ClassNotFoundException e) {
+            Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
+            statement = connection.createStatement();
+            statement.executeUpdate("drop database if exists " + dbName);
+            statement.executeUpdate("create database if not exists " + dbName);
+            statement.execute("use " + dbName);
+            statement.executeUpdate("create table if not exists " + dbName + "." + tName + " (ts timestamp, k1 int, k2 bigint, k3 float, k4 double, k5 binary(30), k6 smallint, k7 bool, k8 nchar(20))");
+        } catch (ClassNotFoundException | SQLException e) {
             return;
         }
-        Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
 
-        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
-
-        statement = connection.createStatement();
-        statement.executeUpdate("drop database if exists " + dbName);
-        statement.executeUpdate("create database if not exists " + dbName);
-        statement.executeUpdate("create table if not exists " + dbName + "." + tName +
-                " (ts timestamp, k1 int, k2 bigint, k3 float, k4 double, k5 binary(30), k6 smallint, k7 bool, k8 nchar(20))");
-
-        statement.executeQuery("use " + dbName);
     }
 
     @Test
     public void testResultSet() {
-        String sql = null;
+        String sql;
         long ts = 1496732686000l;
         int v1 = 2147483600;
         long v2 = ts + 1000;
@@ -119,16 +115,8 @@ public class ResultSetTest extends BaseTest {
     public void testUnsupport() throws SQLException {
         statement.executeQuery("show databases");
         resSet = statement.getResultSet();
-        try {
-            resSet.unwrap(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.isWrapperFor(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
+        Assert.assertNotNull(resSet.unwrap(TSDBResultSet.class));
+        Assert.assertTrue(resSet.isWrapperFor(TSDBResultSet.class));
         try {
             resSet.getAsciiStream(0);
         } catch (SQLException e) {
@@ -815,13 +803,18 @@ public class ResultSetTest extends BaseTest {
         assertEquals(res.length, 2);
         statement.clearBatch();
     }
-    @AfterClass
-    public static void close() throws Exception {
-        statement.executeUpdate("drop database " + dbName);
-        statement.close();
-        connection.close();
-        Thread.sleep(10);
 
+    @AfterClass
+    public static void close() {
+        try {
+            statement.executeUpdate("drop database " + dbName);
+            if (statement != null)
+                statement.close();
+            if (connection != null)
+                connection.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
 }
