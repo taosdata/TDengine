@@ -39,7 +39,7 @@ services:
      networks:
          taos_update_net:
              ipv4_address: 172.27.0.7
-     command: bash -c "taosd && tail -f /dev/null"
+     command: taosd
 
   td2.0-node2:
      build:
@@ -78,7 +78,7 @@ services:
      networks:
          taos_update_net:
              ipv4_address: 172.27.0.8
-     command: bash -c "taosd && tail -f /dev/null"
+     command: taosd
 
   td2.0-node3:
      build:
@@ -117,7 +117,7 @@ services:
      networks:
          taos_update_net:
              ipv4_address: 172.27.0.9
-     command: bash -c "taosd && tail -f /dev/null"
+     command: taosd
 
 networks:
   taos_update_net:
