@@ -14,7 +14,6 @@ import java.util.stream.Collectors;
 
 public class RestfulStatement implements Statement {
 
-    private static final String STATEMENT_CLOSED = "Statement already closed.";
     private boolean closed;
     private String database;
     private final RestfulConnection conn;
@@ -108,14 +107,14 @@ public class RestfulStatement implements Statement {
     @Override
     public int getMaxFieldSize() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return TSDBConstants.maxFieldSize;
     }
 
     @Override
     public void setMaxFieldSize(int max) throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         if (max < 0)
             throw new SQLException(TSDBConstants.INVALID_VARIABLES);
         // nothing to do
@@ -124,14 +123,14 @@ public class RestfulStatement implements Statement {
     @Override
     public int getMaxRows() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return 0;
     }
 
     @Override
     public void setMaxRows(int max) throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         if (max < 0)
             throw new SQLException(TSDBConstants.INVALID_VARIABLES);
         // nothing to do
@@ -140,20 +139,20 @@ public class RestfulStatement implements Statement {
     @Override
     public void setEscapeProcessing(boolean enable) throws SQLException {
         if (isClosed())
-            throw new SQLException(RestfulStatement.STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
     }
 
     @Override
     public int getQueryTimeout() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return 0;
     }
 
     @Override
     public void setQueryTimeout(int seconds) throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         if (seconds < 0)
             throw new SQLException(TSDBConstants.INVALID_VARIABLES);
     }
@@ -166,7 +165,7 @@ public class RestfulStatement implements Statement {
     @Override
     public SQLWarning getWarnings() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return null;
     }
 
@@ -174,13 +173,13 @@ public class RestfulStatement implements Statement {
     public void clearWarnings() throws SQLException {
         // nothing to do
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
     }
 
     @Override
     public void setCursorName(String name) throws SQLException {
         if (isClosed())
-            throw new SQLException(RestfulStatement.STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
@@ -260,7 +259,7 @@ public class RestfulStatement implements Statement {
     @Override
     public ResultSet getResultSet() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return resultSet;
     }
 
@@ -292,7 +291,7 @@ public class RestfulStatement implements Statement {
     @Override
     public void setFetchSize(int rows) throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         if (rows < 0)
             throw new SQLException(TSDBConstants.INVALID_VARIABLES);
         //nothing to do
@@ -301,28 +300,28 @@ public class RestfulStatement implements Statement {
     @Override
     public int getFetchSize() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return 0;
     }
 
     @Override
     public int getResultSetConcurrency() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return this.resultSet.getConcurrency();
     }
 
     @Override
     public int getResultSetType() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return this.resultSet.getType();
     }
 
     @Override
     public void addBatch(String sql) throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         //TODO:
     }
 
@@ -340,14 +339,14 @@ public class RestfulStatement implements Statement {
     @Override
     public Connection getConnection() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return this.conn;
     }
 
     @Override
     public boolean getMoreResults(int current) throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         if (resultSet == null)
             return false;
 
@@ -405,7 +404,7 @@ public class RestfulStatement implements Statement {
     @Override
     public int getResultSetHoldability() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return this.resultSet.getHoldability();
     }
 
@@ -417,28 +416,28 @@ public class RestfulStatement implements Statement {
     @Override
     public void setPoolable(boolean poolable) throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         //nothing to do
     }
 
     @Override
     public boolean isPoolable() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return false;
     }
 
     @Override
     public void closeOnCompletion() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         this.closeOnCompletion = true;
     }
 
     @Override
     public boolean isCloseOnCompletion() throws SQLException {
         if (isClosed())
-            throw new SQLException(STATEMENT_CLOSED);
+            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return this.closeOnCompletion;
     }
 

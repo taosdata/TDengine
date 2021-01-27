@@ -126,7 +126,7 @@
                         <include>**/*Test.java</include>
                     </includes>
                     <excludes>
-                        <exclude>**/BatchInsertTest.java</exclude>
+                        <exclude>**/AppMemoryLeakTest.java</exclude>
                         <exclude>**/FailOverTest.java</exclude>
                     </excludes>
                     <testFailureIgnore>true</testFailureIgnore>
