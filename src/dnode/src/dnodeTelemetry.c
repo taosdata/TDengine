@@ -31,12 +31,16 @@
 #include "mnodeAcct.h"
 #include "dnodeTelemetry.h"
 
-static tsem_t tsExitSem;
+// sem_timedwait is NOT implemented on MacOSX
+// thus, we use pthread_mutex_t/pthread_cond_t to simulate
+static pthread_mutex_t          tsExitLock    = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t           tsExitCond    = PTHREAD_COND_INITIALIZER;
+static volatile int             tsExit        = 0;
 static pthread_t tsTelemetryThread;
 
 #define TELEMETRY_SERVER "telemetry.taosdata.com"
 #define TELEMETRY_PORT 80
-#define REPORT_INTERVAL 86400 
+#define REPORT_INTERVAL 86400
 
 static void beginObject(SBufferWriter* bw) {
   tbufWriteChar(bw, '{');
@@ -172,8 +176,8 @@ static void addMemoryInfo(SBufferWriter* bw) {
 static void addVersionInfo(SBufferWriter* bw) {
   addStringField(bw, "version", version);
   addStringField(bw, "buildInfo", buildinfo);
-  addStringField(bw, "gitInfo", gitinfo);  
-  addStringField(bw, "email", tsEmail);  
+  addStringField(bw, "gitInfo", gitinfo);
+  addStringField(bw, "email", tsEmail);
 }
 
 static void addRuntimeInfo(SBufferWriter* bw) {
@@ -236,24 +240,19 @@ static void sendTelemetryReport() {
   taosCloseSocket(fd);
 }
 
-#ifdef __APPLE__
-static int sem_timedwait(tsem_t *sem, struct timespec *to) {
-  fprintf(stderr, "%s[%d]%s(): not implemented yet!\n", basename(__FILE__), __LINE__, __func__);
-  abort();
-}
-#endif // __APPLE__
-
 static void* telemetryThread(void* param) {
   struct timespec end = {0};
   clock_gettime(CLOCK_REALTIME, &end);
   end.tv_sec += 300; // wait 5 minutes before send first report
 
-  while (1) {
-    if (sem_timedwait(&tsExitSem, &end) == 0) {
-      break;
-    } else if (errno != ETIMEDOUT) {
-      continue;
-    }
+  while (!tsExit) {
+    int r = 0;
+    struct timespec ts = end;
+    pthread_mutex_lock(&tsExitLock);
+    r = pthread_cond_timedwait(&tsExitCond, &tsExitLock, &ts);
+    pthread_mutex_unlock(&tsExitLock);
+    if (r==0) break;
+    if (r!=ETIMEDOUT) continue;
 
     if (sdbIsMaster()) {
       sendTelemetryReport();
@@ -269,12 +268,12 @@ static void dnodeGetEmail(char* filepath) {
   if (fd < 0) {
     return;
   }
-  
+
   if (taosRead(fd, (void *)tsEmail, TSDB_FQDN_LEN) < 0) {
     dError("failed to read %d bytes from file %s since %s", TSDB_FQDN_LEN, filepath, strerror(errno));
-  } 
+  }
 
-  taosClose(fd);   
+  taosClose(fd);
 }
 
 int32_t dnodeInitTelemetry() {
@@ -282,13 +281,7 @@ int32_t dnodeInitTelemetry() {
     return 0;
   }
 
-  dnodeGetEmail("/usr/local/taos/email");  
-
-  if (tsem_init(&tsExitSem, 0, 0) == -1) {
-    // just log the error, it is ok for telemetry to fail
-    dTrace("failed to create semaphore for telemetry, reason:%s", strerror(errno));
-    return 0;
-  }
+  dnodeGetEmail("/usr/local/taos/email");
 
   pthread_attr_t attr;
   pthread_attr_init(&attr);
@@ -310,8 +303,11 @@ void dnodeCleanupTelemetry() {
   }
 
   if (taosCheckPthreadValid(tsTelemetryThread)) {
-    tsem_post(&tsExitSem);
+    pthread_mutex_lock(&tsExitLock);
+    tsExit = 1;
+    pthread_cond_signal(&tsExitCond);
+    pthread_mutex_unlock(&tsExitLock);
+
     pthread_join(tsTelemetryThread, NULL);
-    tsem_destroy(&tsExitSem);
   }
 }
