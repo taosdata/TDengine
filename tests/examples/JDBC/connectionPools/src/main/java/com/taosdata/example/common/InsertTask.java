@@ -13,11 +13,11 @@ public class InsertTask implements Runnable {
     private static final Logger logger = Logger.getLogger(InsertTask.class);
 
     private final DataSource ds;
-    private final int batchSize;
     private final String dbName;
-    private final int tableSize;
+    private final long tableSize;
+    private final long batchSize;
 
-    public InsertTask(DataSource ds, String dbName, int tableSize, int batchSize) {
+    public InsertTask(DataSource ds, String dbName, long tableSize, long batchSize) {
         this.ds = ds;
         this.dbName = dbName;
         this.tableSize = tableSize;
