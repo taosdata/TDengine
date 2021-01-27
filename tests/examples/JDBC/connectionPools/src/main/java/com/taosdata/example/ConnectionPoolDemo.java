@@ -20,13 +20,14 @@ public class ConnectionPoolDemo {
     private static Logger logger = Logger.getLogger(DruidPoolBuilder.class);
     private static final String dbName = "pool_test";
 
-    private static long totalSize = 1_000_000l;
-    private static int batchSize = 10;
-    private static int sleep = 1000;
-    private static int poolSize = 50;
-    private static int tableSize = 1000;
-    private static int threadCount = 50;
     private static String poolType = "hikari";
+    private static long totalSize = 1_000_000l;
+    private static long tableSize = 1;
+    private static long batchSize = 1;
+
+    private static int poolSize = 50;
+    private static int threadCount = 50;
+    private static int sleep = 1000;
 
 
     public static void main(String[] args) {
@@ -35,16 +36,26 @@ public class ConnectionPoolDemo {
             if ("-host".equalsIgnoreCase(args[i]) && i < args.length - 1) {
                 host = args[++i];
             }
+            if ("-poolType".equalsIgnoreCase(args[i]) && i < args.length - 1) {
+                poolType = args[++i];
+            }
             if ("-recordNumber".equalsIgnoreCase(args[i]) && i < args.length - 1) {
                 totalSize = Long.parseLong(args[++i]);
             }
-            if ("-poolType".equalsIgnoreCase(args[i]) && i < args.length - 1) {
-                poolType = args[++i];
+            if ("-tableNumber".equalsIgnoreCase(args[i]) && i < args.length - 1) {
+                tableSize = Long.parseLong(args[++i]);
+            }
+            if ("-batchNumber".equalsIgnoreCase(args[i]) && i < args.length - 1) {
+                batchSize = Long.parseLong(args[++i]);
             }
 
         }
         if (host == null) {
-            System.out.println("Usage: java -jar XXX.jar -host <hostname> -recordNumber <totalNumber> -poolType <c3p0| dbcp| druid| hikari>");
+            System.out.println("Usage: java -jar XXX.jar -host <hostname> " +
+                    "-recordNumber <number> " +
+                    "-tableNumber <number> " +
+                    "-batchNumber <number> " +
+                    "-poolType <c3p0| dbcp| druid| hikari>");
             return;
         }
 
@@ -83,7 +94,7 @@ public class ConnectionPoolDemo {
 //        }
 
         ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-        for (long i = 0; i < totalSize / batchSize / tableSize; i++) {
+        for (long i = 0; i < totalSize / tableSize / batchSize; i++) {
             executor.execute(new InsertTask(dataSource, dbName, tableSize, batchSize));
             // sleep few seconds
             try {
