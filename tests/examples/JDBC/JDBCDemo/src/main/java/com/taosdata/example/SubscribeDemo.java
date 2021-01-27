@@ -62,6 +62,7 @@ public class SubscribeDemo {
             sub.close(false);
             connection.close();
         } catch (Exception e) {
+            System.out.println("host: " + host + ", database: " + database + ", topic: " + topic + ", sql: " + sql);
             e.printStackTrace();
         }
     }
