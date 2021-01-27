@@ -15,8 +15,8 @@ public class HikariCpBuilder {
         config.setUsername("root");
         config.setPassword("taosdata");
         // pool configurations
-        config.setMinimumIdle(3);           //minimum number of idle connection
-        config.setMaximumPoolSize(10);      //maximum number of connection in the pool
+        config.setMinimumIdle(poolSize);           //minimum number of idle connection
+        config.setMaximumPoolSize(poolSize);      //maximum number of connection in the pool
         config.setConnectionTimeout(30000); //maximum wait milliseconds for get connection from pool
         config.setMaxLifetime(0);       // maximum life time for each connection
         config.setIdleTimeout(0);       // max idle time for recycle idle connection
