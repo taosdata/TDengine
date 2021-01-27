@@ -1,26 +1,14 @@
 package com.taosdata.jdbc;
 
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.*;
 
 import java.sql.*;
 import java.util.Properties;
 
 public class TSDBDatabaseMetaDataTest {
-    private TSDBDatabaseMetaData metaData;
-    private static final String host = "localhost";
-
-    @Before
-    public void before() throws ClassNotFoundException, SQLException {
-        Class.forName("com.taosdata.jdbc.TSDBDriver");
-        Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        metaData = (TSDBDatabaseMetaData) DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", properties).getMetaData();
-    }
+    private static final String host = "127.0.0.1";
+    private static Connection connection;
+    private static TSDBDatabaseMetaData metaData;
 
     @Test
     public void unwrap() throws SQLException {
@@ -45,7 +33,7 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getURL() throws SQLException {
-        Assert.assertEquals("jdbc:TAOS://localhost:6030/?user=root&password=taosdata", metaData.getURL());
+        Assert.assertEquals("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", metaData.getURL());
     }
 
     @Test
@@ -639,6 +627,7 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getTables() throws SQLException {
+        System.out.println("****************************************************");
         ResultSet tables = metaData.getTables("log", "", null, null);
         ResultSetMetaData metaData = tables.getMetaData();
         while (tables.next()) {
@@ -658,6 +647,8 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getCatalogs() throws SQLException {
+        System.out.println("****************************************************");
+
         ResultSet catalogs = metaData.getCatalogs();
         ResultSetMetaData meta = catalogs.getMetaData();
         while (catalogs.next()) {
@@ -670,6 +661,8 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getTableTypes() throws SQLException {
+        System.out.println("****************************************************");
+
         ResultSet tableTypes = metaData.getTableTypes();
         while (tableTypes.next()) {
             System.out.println(tableTypes.getString("TABLE_TYPE"));
@@ -679,6 +672,8 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getColumns() throws SQLException {
+        System.out.println("****************************************************");
+
         ResultSet columns = metaData.getColumns("log", "", "dn", "");
         ResultSetMetaData meta = columns.getMetaData();
         while (columns.next()) {
@@ -717,6 +712,8 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getPrimaryKeys() throws SQLException {
+        System.out.println("****************************************************");
+
         ResultSet rs = metaData.getPrimaryKeys("log", "", "dn1");
         while (rs.next()) {
             System.out.println("TABLE_NAME: " + rs.getString("TABLE_NAME"));
@@ -850,6 +847,8 @@ public class TSDBDatabaseMetaDataTest {
 
     @Test
     public void getSuperTables() throws SQLException {
+        System.out.println("****************************************************");
+
         ResultSet rs = metaData.getSuperTables("log", "", "dn1");
         while (rs.next()) {
             System.out.println("TABLE_NAME: " + rs.getString("TABLE_NAME"));
@@ -915,11 +914,6 @@ public class TSDBDatabaseMetaDataTest {
     }
 
     @Test
-    public void testGetSchemas() throws SQLException {
-        Assert.assertNull(metaData.getSchemas());
-    }
-
-    @Test
     public void supportsStoredFunctionsUsingCallSyntax() throws SQLException {
         Assert.assertFalse(metaData.supportsStoredFunctionsUsingCallSyntax());
     }
@@ -953,4 +947,32 @@ public class TSDBDatabaseMetaDataTest {
     public void generatedKeyAlwaysReturned() throws SQLException {
         Assert.assertFalse(metaData.generatedKeyAlwaysReturned());
     }
+
+    @BeforeClass
+    public static void beforeClass() {
+        try {
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
+            Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", properties);
+            metaData = connection.getMetaData().unwrap(TSDBDatabaseMetaData.class);
+        } catch (ClassNotFoundException e) {
+            e.printStackTrace();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
+    @AfterClass
+    public static void afterClass() {
+        try {
+            if (connection != null)
+                connection.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+    }
+
 }

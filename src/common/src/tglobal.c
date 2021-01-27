@@ -121,8 +121,8 @@ int32_t tsMinRowsInFileBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
 int32_t tsMaxRowsInFileBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
 int16_t tsCommitTime    = TSDB_DEFAULT_COMMIT_TIME;  // seconds
 int32_t tsTimePrecision = TSDB_DEFAULT_PRECISION;
-int16_t tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
-int16_t tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
+int8_t  tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
+int8_t  tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
 int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
 int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
 int32_t tsQuorum        = TSDB_DEFAULT_DB_QUORUM_OPTION;
@@ -137,7 +137,7 @@ int32_t tsTableIncStepPerVnode = TSDB_TABLES_STEP;
 int8_t  tsEnableBalance = 1;
 int8_t  tsAlternativeRole = 0;
 int32_t tsBalanceInterval = 300;           // seconds
-int32_t tsOfflineThreshold = 86400 * 100;  // seconds 10days
+int32_t tsOfflineThreshold = 86400 * 100;  // seconds 100 days
 int32_t tsMnodeEqualVnodeNum = 4;
 int8_t  tsEnableFlowCtrl = 1;
 int8_t  tsEnableSlaveQuery = 1;
@@ -550,7 +550,7 @@ static void doInitGlobalConfig(void) {
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 3;
-  cfg.maxValue = 7200000;
+  cfg.maxValue = 86400 * 365;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_SECOND;
   taosInitConfigOption(cfg);
@@ -758,7 +758,7 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "comp";
   cfg.ptr = &tsCompression;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_COMP_LEVEL;
   cfg.maxValue = TSDB_MAX_COMP_LEVEL;
@@ -768,7 +768,7 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "walLevel";
   cfg.ptr = &tsWAL;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.valType = TAOS_CFG_VTYPE_INT8;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_WAL_LEVEL;
   cfg.maxValue = TSDB_MAX_WAL_LEVEL;

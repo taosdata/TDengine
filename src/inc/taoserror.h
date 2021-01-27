@@ -256,6 +256,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_HAS_RSP,                  0, 0x0708, "Query shou
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_IN_EXEC,                  0, 0x0709, "Multiple retrieval of this query")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_TOO_MANY_TIMEWINDOW,      0, 0x070A, "Too many time window in query")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER,        0, 0x070B, "Query buffer limit has reached")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INCONSISTAN,              0, 0x070C, "File inconsistance in replica")
+
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                0, 0x0800, "License expired")

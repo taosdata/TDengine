@@ -698,13 +698,13 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```mysql
     SELECT TWA(field_name) FROM tb_name WHERE clause;
     ```
-    功能说明：时间加权平均函数。统计表/超级表中某列在一段时间内的时间加权平均。
+    功能说明：时间加权平均函数。统计表中某列在一段时间内的时间加权平均。
 
     返回结果数据类型：双精度浮点数Double。
 
     应用字段：不能应用在timestamp、binary、nchar、bool类型字段。
 
-    适用于：表、超级表。
+    适用于：表。
 
 - **SUM**
     ```mysql

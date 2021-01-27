@@ -1250,8 +1250,10 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
 
-  if (tNameIsEmpty(&pTableMetaInfo->name)) {
-    tstrncpy(pShowMsg->db, pObj->db, sizeof(pShowMsg->db));
+  if (tNameIsEmpty(&pTableMetaInfo->name)) {    
+    pthread_mutex_lock(&pObj->mutex);
+    tstrncpy(pShowMsg->db, pObj->db, sizeof(pShowMsg->db));  
+    pthread_mutex_unlock(&pObj->mutex);
   } else {
     tNameGetFullDbName(&pTableMetaInfo->name, pShowMsg->db);
   }
@@ -1611,9 +1613,14 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // TODO refactor full_name
   char *db;  // ugly code to move the space
+  
+  pthread_mutex_lock(&pObj->mutex);
   db = strstr(pObj->db, TS_PATH_DELIMITER);
+
   db = (db == NULL) ? pObj->db : db + 1;
   tstrncpy(pConnect->db, db, sizeof(pConnect->db));
+  pthread_mutex_unlock(&pObj->mutex);
+
   tstrncpy(pConnect->clientVersion, version, sizeof(pConnect->clientVersion));
   tstrncpy(pConnect->msgVersion, "", sizeof(pConnect->msgVersion));
 
@@ -2131,10 +2138,13 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
 
   SConnectRsp *pConnect = (SConnectRsp *)pRes->pRsp;
   tstrncpy(pObj->acctId, pConnect->acctId, sizeof(pObj->acctId));  // copy acctId from response
+  
+  pthread_mutex_lock(&pObj->mutex);
   int32_t len = sprintf(temp, "%s%s%s", pObj->acctId, TS_PATH_DELIMITER, pObj->db);
 
   assert(len <= sizeof(pObj->db));
   tstrncpy(pObj->db, temp, sizeof(pObj->db));
+  pthread_mutex_unlock(&pObj->mutex);
   
   if (pConnect->epSet.numOfEps > 0) {
     tscEpSetHtons(&pConnect->epSet);
@@ -2161,11 +2171,18 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
 int tscProcessUseDbRsp(SSqlObj *pSql) {
   STscObj *       pObj = pSql->pTscObj;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
-  return tNameExtractFullName(&pTableMetaInfo->name, pObj->db);
+  
+  pthread_mutex_lock(&pObj->mutex);
+  int ret = tNameExtractFullName(&pTableMetaInfo->name, pObj->db);
+  pthread_mutex_unlock(&pObj->mutex);
+  
+  return ret;
 }
 
 int tscProcessDropDbRsp(SSqlObj *pSql) {
-  pSql->pTscObj->db[0] = 0;
+  //TODO LOCK DB WHEN MODIFY IT
+  //pSql->pTscObj->db[0] = 0;
+  
   taosHashEmpty(tscTableMetaInfo);
   return 0;
 }
@@ -2227,6 +2244,8 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
 int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
+
+  assert(pRes->rspLen >= sizeof(SRetrieveTableRsp));
 
   SRetrieveTableRsp *pRetrieve = (SRetrieveTableRsp *)pRes->pRsp;
   if (pRetrieve == NULL) {

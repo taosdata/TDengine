@@ -115,6 +115,11 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
   GET_TYPED_DATA(v, int64_t, pBucket->type, value);
 
   int32_t index = -1;
+
+  if (v > pBucket->range.i64MaxVal || v < pBucket->range.i64MinVal) {
+    return index;
+  }
+  
   // divide the value range into 1024 buckets
   uint64_t span = pBucket->range.i64MaxVal - pBucket->range.i64MinVal;
   if (span < pBucket->numOfSlots) {
@@ -128,7 +133,7 @@ int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
     }
   }
 
-  assert(v >= pBucket->range.i64MinVal && v <= pBucket->range.i64MaxVal && index >= 0 && index < pBucket->numOfSlots);
+  assert(index >= 0 && index < pBucket->numOfSlots);
   return index;
 }
 
@@ -137,6 +142,11 @@ int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
   GET_TYPED_DATA(v, uint64_t, pBucket->type, value);
 
   int32_t index = -1;
+
+  if (v > pBucket->range.u64MaxVal || v < pBucket->range.u64MinVal) {
+    return index;
+  }
+  
   // divide the value range into 1024 buckets
   uint64_t span = pBucket->range.u64MaxVal - pBucket->range.u64MinVal;
   if (span < pBucket->numOfSlots) {
@@ -150,7 +160,7 @@ int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
     }
   }
 
-  assert(v >= pBucket->range.u64MinVal && v <= pBucket->range.i64MaxVal && index >= 0 && index < pBucket->numOfSlots);
+  assert(index >= 0 && index < pBucket->numOfSlots);
   return index;
 }
 
@@ -163,6 +173,10 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
   }
 
   int32_t index = -1;
+
+  if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal) {
+    return index;
+  }
 
   // divide a range of [dMinVal, dMaxVal] into 1024 buckets
   double span = pBucket->range.dMaxVal - pBucket->range.dMinVal;
@@ -177,7 +191,7 @@ int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
     }
   }
 
-  assert(v >= pBucket->range.dMinVal && v <= pBucket->range.dMaxVal && index >= 0 && index < pBucket->numOfSlots);
+  assert(index >= 0 && index < pBucket->numOfSlots);
   return index;
 }
 
@@ -309,9 +323,13 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
   int32_t bytes = pBucket->bytes;
   for (int32_t i = 0; i < size; ++i) {
     char *d = (char *) data + i * bytes;
-    count += 1;
 
     int32_t index = (pBucket->hashFunc)(pBucket, d);
+    if (index < 0) {
+      continue;
+    }
+
+    count += 1;
 
     tMemBucketSlot *pSlot = &pBucket->pSlots[index];
     tMemBucketUpdateBoundingBox(&pSlot->range, d, pBucket->type);

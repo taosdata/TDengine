@@ -10,36 +10,37 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
 
-public class SubscribeTest extends BaseTest {
-    Connection connection = null;
-    Statement statement = null;
+public class SubscribeTest {
+    Connection connection;
+    Statement statement;
     String dbName = "test";
     String tName = "t0";
     String host = "localhost";
     String topic = "test";
 
     @Before
-    public void createDatabase() throws SQLException {
+    public void createDatabase() {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
-        } catch (ClassNotFoundException e) {
-            return;
-        }
-        Properties properties = new Properties();
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-        connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
+            Properties properties = new Properties();
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+            properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+            connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
 
-        statement = connection.createStatement();
-        statement.executeUpdate("create database if not exists " + dbName);
-        statement.executeUpdate("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
-        long ts = System.currentTimeMillis();
-        for (int i = 0; i < 2; i++) {
-            ts += i;
-            String sql = "insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")";
-            statement.executeUpdate(sql);
+            statement = connection.createStatement();
+            statement.executeUpdate("create database if not exists " + dbName);
+            statement.executeUpdate("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
+            long ts = System.currentTimeMillis();
+            for (int i = 0; i < 2; i++) {
+                ts += i;
+                String sql = "insert into " + dbName + "." + tName + " values (" + ts + ", " + (100 + i) + ", " + i + ")";
+                statement.executeUpdate(sql);
+            }
+
+        } catch (ClassNotFoundException | SQLException e) {
+            return;
         }
     }
 
@@ -79,10 +80,16 @@ public class SubscribeTest extends BaseTest {
     }
 
     @After
-    public void close() throws Exception {
-        statement.executeQuery("drop database " + dbName);
-        statement.close();
-        connection.close();
-        Thread.sleep(10);
+    public void close() {
+        try {
+            statement.executeQuery("drop database " + dbName);
+            if (statement != null)
+                statement.close();
+            if (connection != null)
+                connection.close();
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+
     }
 }

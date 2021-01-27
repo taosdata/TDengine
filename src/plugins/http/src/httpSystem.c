@@ -89,7 +89,12 @@ int32_t httpStartSystem() {
 
 void httpStopSystem() {
   tsHttpServer.status = HTTP_SERVER_CLOSING;
+  tsHttpServer.stop = 1;
+#ifdef WINDOWS
+  closesocket(tsHttpServer.fd);
+#else
   shutdown(tsHttpServer.fd, SHUT_RD);
+#endif
   tgCleanupHandle();
 }
 
@@ -105,10 +110,8 @@ void httpCleanUpSystem() {
   pthread_mutex_destroy(&tsHttpServer.serverMutex);
   tfree(tsHttpServer.pThreads);
   tsHttpServer.pThreads = NULL;
-  
+
   tsHttpServer.status = HTTP_SERVER_CLOSED;
 }
 
-int32_t httpGetReqCount() {
-  return atomic_exchange_32(&tsHttpServer.requestNum, 0);
-}
+int32_t httpGetReqCount() { return atomic_exchange_32(&tsHttpServer.requestNum, 0); }

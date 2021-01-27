@@ -16,7 +16,7 @@
  
 #include "os.h"
 
-#include "qAst.h"
+#include "texpr.h"
 #include "qTsbuf.h"
 #include "tcompare.h"
 #include "tscLog.h"
@@ -582,13 +582,14 @@ void freeJoinSubqueryObj(SSqlObj* pSql) {
   pSql->subState.numOfSub = 0;
 }
 
-static void quitAllSubquery(SSqlObj* pSqlSub, SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
+static int32_t quitAllSubquery(SSqlObj* pSqlSub, SSqlObj* pSqlObj, SJoinSupporter* pSupporter) {
   if (subAndCheckDone(pSqlSub, pSqlObj, pSupporter->subqueryIndex)) {
     tscError("%p all subquery return and query failed, global code:%s", pSqlObj, tstrerror(pSqlObj->res.code));  
     freeJoinSubqueryObj(pSqlObj);
-    return;
+    return 0;
   }
 
+  return 1;
   //tscDestroyJoinSupporter(pSupporter);
 }
 
@@ -835,7 +836,9 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, numOfRows, pParentSql->res.code);
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
 
     tscAsyncResultOnError(pParentSql);
 
@@ -850,7 +853,9 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     tscError("%p sub query failed, code:%s, index:%d", pSql, tstrerror(numOfRows), pSupporter->subqueryIndex);
 
     pParentSql->res.code = numOfRows;
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
 
     tscAsyncResultOnError(pParentSql);
     return;
@@ -867,7 +872,9 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
       tscError("%p failed to malloc memory", pSql);
 
       pParentSql->res.code = TAOS_SYSTEM_ERROR(errno);
-      quitAllSubquery(pSql, pParentSql, pSupporter);
+      if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+        return;
+      }
 
       tscAsyncResultOnError(pParentSql);
       return;
@@ -985,7 +992,9 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, numOfRows, pParentSql->res.code);
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)){
+      return;
+    }
 
     tscAsyncResultOnError(pParentSql);
 
@@ -999,7 +1008,9 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     tscError("%p sub query failed, code:%s, index:%d", pSql, tstrerror(numOfRows), pSupporter->subqueryIndex);
 
     pParentSql->res.code = numOfRows;
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)){
+      return;
+    }
 
     tscAsyncResultOnError(pParentSql);
     return;
@@ -1007,14 +1018,16 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
   if (numOfRows > 0) {  // write the compressed timestamp to disk file
     if(pSupporter->f == NULL) {
-      pSupporter->f = fopen(pSupporter->path, "w");
+      pSupporter->f = fopen(pSupporter->path, "wb");
 
       if (pSupporter->f == NULL) {
         tscError("%p failed to create tmp file:%s, reason:%s", pSql, pSupporter->path, strerror(errno));
         
         pParentSql->res.code = TAOS_SYSTEM_ERROR(errno);
 
-        quitAllSubquery(pSql, pParentSql, pSupporter);
+        if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+          return;
+        }
         
         tscAsyncResultOnError(pParentSql);
 
@@ -1032,7 +1045,9 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
       pParentSql->res.code = TAOS_SYSTEM_ERROR(errno);
 
-      quitAllSubquery(pSql, pParentSql, pSupporter);
+      if (quitAllSubquery(pSql, pParentSql, pSupporter)){
+        return;
+      }
       
       tscAsyncResultOnError(pParentSql);
 
@@ -1051,7 +1066,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     // continue to retrieve ts-comp data from vnode
     if (!pRes->completed) {
       taosGetTmpfilePath("ts-join", pSupporter->path);
-      pSupporter->f = fopen(pSupporter->path, "w");
+      pSupporter->f = fopen(pSupporter->path, "wb");
       pRes->row = pRes->numOfRows;
 
       taos_fetch_rows_a(tres, tsCompRetrieveCallback, param);
@@ -1077,7 +1092,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     taosGetTmpfilePath("ts-join", pSupporter->path);
     
     // TODO check for failure
-    pSupporter->f = fopen(pSupporter->path, "w");
+    pSupporter->f = fopen(pSupporter->path, "wb");
     pRes->row = pRes->numOfRows;
 
     // set the callback function
@@ -1129,8 +1144,10 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, numOfRows, pParentSql->res.code);
-    quitAllSubquery(pSql, pParentSql, pSupporter);
-
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
+    
     tscAsyncResultOnError(pParentSql);
 
     return;
@@ -1472,7 +1489,9 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   // retrieve actual query results from vnode during the second stage join subquery
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, code, pParentSql->res.code);
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
 
     tscAsyncResultOnError(pParentSql);
 
@@ -1486,7 +1505,10 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
     tscError("%p abort query, code:%s, global code:%s", pSql, tstrerror(code), tstrerror(pParentSql->res.code));
     pParentSql->res.code = code;
 
-    quitAllSubquery(pSql, pParentSql, pSupporter);
+    if (quitAllSubquery(pSql, pParentSql, pSupporter)) {
+      return;
+    }
+    
     tscAsyncResultOnError(pParentSql);
 
     return;
@@ -2441,7 +2463,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
     pParentObj->cmd.parseFinished = false;
 
-    tscResetSqlCmdObj(&pParentObj->cmd);
+    tscResetSqlCmd(&pParentObj->cmd, false);
 
     // in case of insert, redo parsing the sql string and build new submit data block for two reasons:
     // 1. the table Id(tid & uid) may have been update, the submit block needs to be updated accordingly.

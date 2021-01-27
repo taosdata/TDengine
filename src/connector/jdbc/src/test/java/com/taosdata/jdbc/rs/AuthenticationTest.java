@@ -7,8 +7,8 @@ import java.sql.*;
 
 public class AuthenticationTest {
 
-    //    private static final String host = "127.0.0.1";
-    private static final String host = "master";
+    private static final String host = "127.0.0.1";
+    //    private static final String host = "master";
     private static final String user = "root";
     private static final String password = "123456";
     private Connection conn;
