@@ -1,19 +1,15 @@
-package com.taosdata.demo;
+package com.taosdata.example;
 
-import com.taosdata.demo.common.InsertTask;
-import com.taosdata.demo.pool.C3p0Builder;
-import com.taosdata.demo.pool.DbcpBuilder;
-import com.taosdata.demo.pool.DruidPoolBuilder;
-import com.taosdata.demo.pool.HikariCpBuilder;
+import com.taosdata.example.pool.C3p0Builder;
+import com.taosdata.example.pool.DbcpBuilder;
+import com.taosdata.example.pool.DruidPoolBuilder;
+import com.taosdata.example.pool.HikariCpBuilder;
 import org.apache.log4j.Logger;
 
 import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 public class ConnectionPoolDemo {
 

@@ -1,4 +1,4 @@
-package com.taosdata.demo.pool;
+package com.taosdata.example.pool;
 
 import com.alibaba.druid.pool.DruidDataSource;
 

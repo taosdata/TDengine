@@ -1,4 +1,4 @@
-package com.taosdata.demo.pool;
+package com.taosdata.example.pool;
 
 import org.apache.commons.dbcp.BasicDataSource;
 

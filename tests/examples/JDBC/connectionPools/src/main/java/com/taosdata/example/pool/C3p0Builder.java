@@ -1,7 +1,6 @@
-package com.taosdata.demo.pool;
+package com.taosdata.example.pool;
 
 import com.mchange.v2.c3p0.ComboPooledDataSource;
-import org.apache.commons.dbcp.BasicDataSource;
 
 import javax.sql.DataSource;
 import java.beans.PropertyVetoException;

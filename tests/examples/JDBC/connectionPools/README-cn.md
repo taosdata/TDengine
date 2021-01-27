@@ -12,12 +12,12 @@ ConnectionPoolDemo的程序逻辑：
 
 ### 如何运行这个例子：
 ```shell script
-# mvn exec:java -Dexec.mainClass="com.taosdata.demo.ConnectionPoolDemo" -Dexec.args="-host localhost"
+# mvn exec:java -Dexec.mainClass="com.taosdata.example.ConnectionPoolDemo" -Dexec.args="-host localhost"
 ```
 使用mvn运行ConnectionPoolDemo的main方法，可以指定参数
 ```shell script
 Usage: 
-mvn exec:java -Dexec.mainClass="com.taosdata.demo.ConnectionPoolDemo" -Dexec.args="<args>"
+mvn exec:java -Dexec.mainClass="com.taosdata.example.ConnectionPoolDemo" -Dexec.args="<args>"
 -host : hostname
 -poolType <c3p0| dbcp| druid| hikari>
 -poolSize <poolSize>

@@ -1,4 +1,4 @@
-package com.taosdata.demo.common;
+package com.taosdata.example.common;
 
 import org.apache.log4j.Logger;
 
