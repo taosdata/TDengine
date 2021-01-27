@@ -41,8 +41,9 @@ SDisk *tfsFreeDisk(SDisk *pDisk) {
 
 int tfsUpdateDiskInfo(SDisk *pDisk) {
   ASSERT(pDisk != NULL);
-  SysDiskSize dstat;
-  if (taosGetDiskSize(pDisk->dir, &dstat) < 0) {
+
+  struct statvfs dstat;
+  if (statvfs(pDisk->dir, &dstat) < 0) {
     fError("failed to update disk information at level %d id %d dir %s since %s", pDisk->level, pDisk->id, pDisk->dir,
            strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -50,8 +51,8 @@ int tfsUpdateDiskInfo(SDisk *pDisk) {
     pDisk->dmeta.free = 0;
     return -1;
   } else {
-    pDisk->dmeta.size = dstat.tsize;
-    pDisk->dmeta.free = dstat.avail;
+    pDisk->dmeta.size = dstat.f_blocks * dstat.f_frsize;
+    pDisk->dmeta.free = dstat.f_bavail * dstat.f_frsize;
     return 0;
   }
 }
