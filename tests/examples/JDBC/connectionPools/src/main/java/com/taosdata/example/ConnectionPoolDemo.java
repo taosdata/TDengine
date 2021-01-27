@@ -51,10 +51,12 @@ public class ConnectionPoolDemo {
         }
         if (host == null) {
             System.out.println("Usage: java -jar XXX.jar -host <hostname> " +
+                    "-poolType <c3p0| dbcp| druid| hikari>" +
                     "-recordNumber <number> " +
                     "-tableNumber <number> " +
                     "-batchNumber <number> " +
-                    "-poolType <c3p0| dbcp| druid| hikari>");
+                    "-sleep <number> "
+            );
             return;
         }
 
