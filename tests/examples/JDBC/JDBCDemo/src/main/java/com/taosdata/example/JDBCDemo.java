@@ -132,7 +132,7 @@ public class JDBCDemo {
     }
 
     private static void printHelp() {
-        System.out.println("Usage: java -jar JdbcDemo.jar -host <hostname> -driverType <jni|restful>");
+        System.out.println("Usage: java -jar JDBCDemo.jar -host <hostname>");
         System.exit(0);
     }
 

@@ -11,12 +11,12 @@ Download the tdengine package on our website: ``https://www.taosdata.com/cn/all-
 ## Run jdbcDemo using mvn plugin
 run command:
 ```
-mvn clean compile exec:java -Dexec.mainClass="com.taosdata.example.JdbcDemo"
+mvn clean compile exec:java -Dexec.mainClass="com.taosdata.example.JDBCDemo"
 ```
 
 and run with your customed args
 ```
-mvn clean compile exec:java -Dexec.mainClass="com.taosdata.example.JdbcDemo" -Dexec.args="-host [HOSTNAME]"
+mvn clean compile exec:java -Dexec.mainClass="com.taosdata.example.JDBCDemo" -Dexec.args="-host [HOSTNAME]"
 ```
 
 ## Compile the Demo Code and Run It
