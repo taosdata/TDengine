@@ -68,9 +68,9 @@ typedef struct {
 typedef struct {
   int      version;    // version
   int      numOfCols;  // Number of columns appended
-  int      tlen;       // maximum length of a SDataRow without the header part
+  int      tlen;       // maximum length of a SDataRow without the header part (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) + (bytes))
   uint16_t flen;       // First part length in a SDataRow after the header part
-  uint16_t vlen;       // pure value part length, excluded the overhead
+  uint16_t vlen;       // pure value part length, excluded the overhead (bytes only)
   STColumn columns[];
 } STSchema;
 

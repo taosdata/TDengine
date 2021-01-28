@@ -31,7 +31,7 @@ typedef struct {
 
 static void *tsdbLoopCommit(void *arg);
 
-SCommitQueue tsCommitQueue = {0};
+static SCommitQueue tsCommitQueue = {0};
 
 int tsdbInitCommitQueue() {
   int nthreads = tsNumOfCommitThreads;
