@@ -1,0 +1,95 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+print ======================== dnode1 start
+
+$dbPrefix = fi_in_db
+$tbPrefix = fi_in_tb
+$stbPrefix = fi_in_stb
+$mtPrefix = fi_in_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print create_tb test
+print =============== set up
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$tb = $tbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql create database $db
+sql use $db
+
+# case1: create stable test
+print =========== stableOp.sim case1: create/alter/drop stable test
+sql CREATE STABLE $stb (TS TIMESTAMP, COL1 INT) TAGS (ID INT);
+sql show stables
+
+if $rows != 1 then
+  return -1
+endi
+print data00 = $data00
+if $data00 != $stb then 
+  return -1
+endi
+
+sql_error CREATE STABLE $tb using $stb tags (1);
+
+sql create table $tb using $stb tags (2);
+sql show tables
+
+if $rows != 1 then
+  return -1
+endi
+
+sql alter stable $stb add column COL2 DOUBLE;
+
+sql insert into $tb values (now, 1, 2.0);
+
+sql select * from $tb ;
+
+if $rows != 1 then
+  return -1
+endi
+
+sql alter stable $stb drop column COL2;
+
+sql_error insert into $tb values (now, 1, 2.0);
+
+sql alter stable $stb add tag tag2 int;
+
+sql alter stable $stb change tag tag2 tag3;
+
+sql_error drop stable $tb
+
+sql drop table $tb ;
+
+sql show tables
+
+if $rows != 0 then
+  return -1
+endi
+
+sql DROP STABLE $stb
+sql show stables
+
+if $rows != 0 then
+  return -1
+endi
+
+print create/alter/drop stable test passed
+
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

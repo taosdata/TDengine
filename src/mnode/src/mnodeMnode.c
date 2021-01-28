@@ -136,14 +136,14 @@ int32_t mnodeInitMnodes() {
   mnodeMnodeInitLock();
 
   SMnodeObj tObj;
-  tsMnodeUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+  tsMnodeUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj);
 
   SSdbTableDesc desc = {
     .id           = SDB_TABLE_MNODE,
     .name         = "mnodes",
     .hashSessions = TSDB_DEFAULT_MNODES_HASH_SIZE,
     .maxRowSize   = tsMnodeUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_INT,
     .fpInsert     = mnodeMnodeActionInsert,
     .fpDelete     = mnodeMnodeActionDelete,
@@ -176,7 +176,7 @@ void mnodeCleanupMnodes() {
 }
 
 int32_t mnodeGetMnodesNum() { 
-  return sdbGetNumOfRows(tsMnodeSdb); 
+  return (int32_t)sdbGetNumOfRows(tsMnodeSdb); 
 }
 
 void *mnodeGetMnode(int32_t mnodeId) {

@@ -47,11 +47,38 @@ class TDTestCase:
 
         tdSql.query("select first(col1) - avg(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' interval(1h)")
         tdSql.checkRows(139)        
+        tdSql.checkData(0, 1, -1.5)
+        tdSql.checkData(138, 1, -1.0)
+
+        tdSql.query("select first(col1) - avg(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' interval(1h) fill(none)")
+        tdSql.checkRows(139)
+        tdSql.checkData(0, 1, -1.5)
+        tdSql.checkData(138, 1, -1.0)
+
+        tdSql.query("select first(col1) - avg(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' interval(1h) fill(value, 2.0)")
+        tdSql.checkRows(141)
+        tdSql.checkData(0, 1, 2.0)
+        tdSql.checkData(140, 1, 2.0)
+
+        tdSql.query("select first(col1) - avg(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' interval(1h) fill(prev)")
+        tdSql.checkRows(141)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(140, 1, -1.0)  
 
         tdSql.query("select first(col1) - avg(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' interval(1h) fill(null)")
         tdSql.checkRows(141)
         tdSql.checkData(0, 1, None)
-        tdSql.checkData(140, 1, None)       
+        tdSql.checkData(140, 1, None)        
+
+        tdSql.query("select first(col1) - avg(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' interval(1h) fill(linear)")        
+        tdSql.checkRows(141)
+        tdSql.checkData(0, 1, None)
+        tdSql.checkData(140, 1, None) 
+
+        tdSql.query("select first(col1) - avg(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' interval(1h) fill(next)")
+        tdSql.checkRows(141)
+        tdSql.checkData(0, 1, -1.5)
+        tdSql.checkData(140, 1, None)
 
         tdSql.query("select max(col1) - min(col1) from stb where ts > '2018-09-17 08:00:00.000' and ts < '2018-09-23 04:36:40.000' and id = 1 group by loc, id")
         rows = tdSql.queryRows

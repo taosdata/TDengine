@@ -53,6 +53,16 @@ void taosBlockSIGPIPE() {
   }
 }
 
+void taosSetMaskSIGPIPE() {
+  sigset_t signal_mask;
+  sigemptyset(&signal_mask);
+  sigaddset(&signal_mask, SIGPIPE);
+  int32_t rc = pthread_sigmask(SIG_SETMASK, &signal_mask, NULL);
+  if (rc != 0) {
+    uError("failed to setmask SIGPIPE");
+  }
+}
+
 #endif
 
 #ifndef TAOS_OS_FUNC_SOCKET_SETSOCKETOPT

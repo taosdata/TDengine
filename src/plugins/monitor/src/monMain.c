@@ -79,8 +79,8 @@ int32_t monInitSystem() {
     strcpy(tsMonitor.ep, tsLocalEp);
   }
 
-  int len = strlen(tsMonitor.ep);
-  for (int i = 0; i < len; ++i) {
+  int32_t len = (int32_t)strlen(tsMonitor.ep);
+  for (int32_t i = 0; i < len; ++i) {
     if (tsMonitor.ep[i] == ':' || tsMonitor.ep[i] == '-' || tsMonitor.ep[i] == '.') {
       tsMonitor.ep[i] = '_';
     }
@@ -148,7 +148,7 @@ static void *monThreadFunc(void *param) {
     }
 
     if (tsMonitor.state == MON_STATE_NOT_INIT) {
-      int code = 0;
+      int32_t code = 0;
 
       for (; tsMonitor.cmdIndex < MON_CMD_MAX; ++tsMonitor.cmdIndex) {
         monBuildMonitorSql(tsMonitor.sql, tsMonitor.cmdIndex);
@@ -246,7 +246,10 @@ void monStopSystem() {
 void monCleanupSystem() {
   tsMonitor.quiting = 1;
   monStopSystem();
-  pthread_join(tsMonitor.thread, NULL);
+  if (taosCheckPthreadValid(tsMonitor.thread)) {
+    pthread_join(tsMonitor.thread, NULL);
+  }
+
   if (tsMonitor.conn != NULL) {
     taos_close(tsMonitor.conn);
     tsMonitor.conn = NULL;
@@ -330,7 +333,7 @@ static void monSaveSystemInfo() {
   pos += monBuildReqSql(sql + pos);
 
   void *res = taos_query(tsMonitor.conn, tsMonitor.sql);
-  int   code = taos_errno(res);
+  int32_t code = taos_errno(res);
   taos_free_result(res);
 
   if (code != 0) {

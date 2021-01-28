@@ -1,11 +1,11 @@
 system sh/stop_dnodes.sh
-sleep 3000
+sleep 2000
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c wallevel -v 0
 system sh/cfg.sh -n dnode1 -c http -v 1
 system sh/exec.sh -n dnode1 -s start
 
-#sleep 3000
+#sleep 2000
 sql connect
 
 print ============================ dnode1 start
@@ -15,6 +15,7 @@ print ===============  step1 - login
 system_content curl 127.0.0.1:7111/rest/
 print 1-> $system_content
 if $system_content != @{"status":"error","code":4357,"desc":"no auth info input"}@ then
+  print $system_content
   return -1
 endi
 
@@ -56,9 +57,15 @@ if $system_content != @{"status":"error","code":3,"desc":"Authentication failure
 endi
 
 #8
-system_content curl -H 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3d3cudGFvc2RhdGEuY29tIiwicGFzcyI6InRhb3NkYXRhIiwic3ViIjoicm9vdCJ9.xPv3b5odlR7YF8G_QWASjIRbMtA5v4ItToJ35fFgi'  -d 'show databases' 127.0.0.1:7111/rest/login/root/1
+system_content curl -H 'Authorization: Beare eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9'  -d 'show databases' 127.0.0.1:7111/rest/login/root/1
 print 8-> $system_content
 if $system_content != @{"status":"error","code":4386,"desc":"invalid type of Authorization"}@ then
+  return -1
+endi
+
+system_content curl -H 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3d3cudGFvc2RhdGEuY29tIiwicGFzcyI6InRhb3NkYXRhIiwic3ViIjoicm9vdCJ9.xPv3b5odlR7YF8G_QWASjIRbMtA5v4ItToJ35fFgi'  -d 'show databases' 127.0.0.1:7111/rest/login/root/1
+print 8-> $system_content
+if $system_content != @{"status":"error","code":4387,"desc":"invalid format of Authorization"}@ then
   return -1
 endi
 
@@ -68,7 +75,7 @@ if $system_content != @{"status":"error","code":4387,"desc":"invalid format of A
   return -1
 endi
 
-sleep 3000
+sleep 2000
 
 system_content curl 127.0.0.1:7111/rest/login/root/taosdata/
 print 10-> $system_content

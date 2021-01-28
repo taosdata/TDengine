@@ -163,6 +163,11 @@ do { \
 #define TSDB_BINARY_OP_MULTIPLY   32
 #define TSDB_BINARY_OP_DIVIDE     33
 #define TSDB_BINARY_OP_REMAINDER  34
+
+
+#define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) <= TSDB_RELATION_IN))
+#define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_REMAINDER))
+
 #define TS_PATH_DELIMITER_LEN     1
 
 #define TSDB_UNI_LEN              24
@@ -235,7 +240,9 @@ do { \
 #define TSDB_MAX_REPLICA          5
 
 #define TSDB_TBNAME_COLUMN_INDEX        (-1)
+#define TSDB_BLOCK_DIST_COLUMN_INDEX     (-2)
 #define TSDB_UD_COLUMN_INDEX            (-100)
+
 #define TSDB_MULTI_TABLEMETA_MAX_NUM    100000  // maximum batch size allowed to load table meta
 
 #define TSDB_MIN_CACHE_BLOCK_SIZE       1

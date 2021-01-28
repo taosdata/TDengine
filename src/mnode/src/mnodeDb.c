@@ -143,14 +143,14 @@ static int32_t mnodeDbActionRestored() {
 
 int32_t mnodeInitDbs() {
   SDbObj tObj;
-  tsDbUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+  tsDbUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj);
 
   SSdbTableDesc desc = {
     .id           = SDB_TABLE_DB,
     .name         = "dbs",
     .hashSessions = TSDB_DEFAULT_DBS_HASH_SIZE,
     .maxRowSize   = tsDbUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_STRING,
     .fpInsert     = mnodeDbActionInsert,
     .fpDelete     = mnodeDbActionDelete,
@@ -192,25 +192,20 @@ SDbObj *mnodeGetDb(char *db) {
 }
 
 void mnodeIncDbRef(SDbObj *pDb) {
-  return sdbIncRef(tsDbSdb, pDb); 
+  sdbIncRef(tsDbSdb, pDb); 
 }
 
 void mnodeDecDbRef(SDbObj *pDb) { 
-  return sdbDecRef(tsDbSdb, pDb); 
+  sdbDecRef(tsDbSdb, pDb); 
 }
 
-SDbObj *mnodeGetDbByTableId(char *tableId) {
-  char db[TSDB_TABLE_FNAME_LEN], *pos;
- 
-  // tableId format should be :  acct.db.table
-  pos = strstr(tableId, TS_PATH_DELIMITER);
-  assert(NULL != pos);
+SDbObj *mnodeGetDbByTableName(char *tableName) {
+  SName name = {0};
+  tNameFromString(&name, tableName, T_NAME_ACCT|T_NAME_DB|T_NAME_TABLE);
 
-  pos = strstr(pos + 1, TS_PATH_DELIMITER);
-  assert(NULL != pos);
-
-  memset(db, 0, sizeof(db));
-  strncpy(db, tableId, pos - tableId);
+  // validate the tableName?
+  char db[TSDB_TABLE_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, db);
 
   return mnodeGetDb(db);
 }

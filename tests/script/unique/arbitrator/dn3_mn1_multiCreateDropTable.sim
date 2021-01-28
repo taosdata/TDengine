@@ -45,7 +45,7 @@ system sh/exec_tarbitrator.sh -s start
 
 print ============== step1: start dnode1, only deploy mnode
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 print ============== step2: start dnode2/dnode3/dnode4 and add into cluster , then create database with replica 3, and create table, insert data
@@ -55,7 +55,7 @@ system sh/exec.sh -n dnode4 -s start
 sql create dnode $hostname2
 sql create dnode $hostname3
 sql create dnode $hostname4
-sleep 3000
+sleep 2000
 
 $sleepTimer = 3000
 
@@ -143,7 +143,7 @@ endi
 
 print ============== step5: create the middle table 5 and insert data
 sql create table tb5 using $stb tags( 5 )
-sleep 3000
+sleep 2000
 
 $tsStart = 1420041620000
 $i = 5
@@ -212,7 +212,7 @@ endi
 
 print ============== step8: create the first table 0 and insert data
 sql create table tb0 using $stb tags( 0 )
-sleep 3000
+sleep 2000
 
 $tsStart = 1420041640000
 $i = 0
@@ -277,7 +277,7 @@ endi
 
 print ============== step11: create the last table 9 and insert data
 sql create table tb9 using $stb tags( 9 )
-sleep 3000
+sleep 2000
 
 $tsStart = 1420041660000
 $i = 0

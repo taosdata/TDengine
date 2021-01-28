@@ -54,6 +54,9 @@ int taosMkDir(const char *path, mode_t mode) {
 void taosRename(char* oldName, char *newName) {
   // if newName in not empty, rename return fail. 
   // the newName must be empty or does not exist
+#ifdef WINDOWS
+  remove(newName);
+#endif
   if (rename(oldName, newName)) {
     uError("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
   } else {
@@ -117,7 +120,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
     goto cmp_end;
   }
 
-  int32_t fd = open(destFileName, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  int32_t fd = open(destFileName, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
     ret = -2;
     goto cmp_end;

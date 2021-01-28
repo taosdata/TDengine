@@ -63,7 +63,7 @@ print ========= start dnode1
 system sh/exec.sh -n dnode1 -s start
 
 sql connect
-sleep 3000
+sleep 2000
 
 $i = 0
 $db = $dbPrefix . $i
@@ -170,7 +170,7 @@ sleep 8000
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 3000
+	sleep 2000
 	if $x == 20 then 
 	  return -1
 	endi
@@ -199,7 +199,7 @@ sleep 9000
 $x = 0
 show6: 
 	$x = $x + 1
-	sleep 3000
+	sleep 2000
 	if $x == 20 then 
 	  return -1
 	endi
