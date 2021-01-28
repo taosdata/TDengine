@@ -149,10 +149,13 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
 
     ${csudo} cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin
+    ${csudo} cp -r ${script_dir}/taosd-dump-cfg.gdb   ${install_main_dir}/bin
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} cp -r ${script_dir}/remove.sh   ${install_main_dir}/bin
+        ${csudo} cp -r ${script_dir}/remove.sh     ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/set_core.sh   ${install_main_dir}/bin
+        ${csudo} cp -r ${script_dir}/core.sh       ${install_main_dir}/bin
+        ${csudo} cp -r ${script_dir}/startPre.sh   ${install_main_dir}/bin
     else
         ${csudo} cp -r ${script_dir}/remove_client.sh   ${install_main_dir}/bin
     fi
@@ -330,6 +333,7 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/startPre.sh'           >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"

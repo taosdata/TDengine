@@ -51,10 +51,14 @@ mkdir -p %{buildroot}%{homepath}/include
 mkdir -p %{buildroot}%{homepath}/init.d
 mkdir -p %{buildroot}%{homepath}/script
 
+echo "" > %{buildroot}%{homepath}/email
 cp %{_compiledir}/../packaging/cfg/taos.cfg         %{buildroot}%{homepath}/cfg
 cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
 cp %{_compiledir}/../packaging/tools/post.sh        %{buildroot}%{homepath}/script
 cp %{_compiledir}/../packaging/tools/preun.sh       %{buildroot}%{homepath}/script
+cp %{_compiledir}/../packaging/tools/startPre.sh    %{buildroot}%{homepath}/bin
+cp %{_compiledir}/../packaging/tools/set_core.sh    %{buildroot}%{homepath}/bin
+cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdemo                %{buildroot}%{homepath}/bin
