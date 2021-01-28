@@ -3,9 +3,10 @@ PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/rpc/inc)
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/sync/inc)
+INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/deps/rmonotonic/inc)
 AUX_SOURCE_DIRECTORY(src SRC)
 ADD_LIBRARY(tutil ${SRC})
-TARGET_LINK_LIBRARIES(tutil pthread osdetail lz4 z)
+TARGET_LINK_LIBRARIES(tutil pthread osdetail lz4 z rmonotonic)
 
 IF (TD_LINUX)
   TARGET_LINK_LIBRARIES(tutil m rt)
