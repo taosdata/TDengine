@@ -153,10 +153,12 @@ void tfsGetMeta(SFSMeta *pMeta) {
 /* Allocate an existing available tier level
  */
 void tfsAllocDisk(int expLevel, int *level, int *id) {
+  ASSERT(expLevel >= 0);
+
   *level = expLevel;
   *id = TFS_UNDECIDED_ID;
 
-  if (*level > TFS_NLEVEL()) {
+  if (*level >= TFS_NLEVEL()) {
     *level = TFS_NLEVEL() - 1;
   }
 
@@ -396,7 +398,7 @@ static int tfsMount(SDiskCfg *pCfg) {
   did.level = pCfg->level;
   pDisk = tfsMountDiskToTier(TFS_TIER_AT(did.level), pCfg);
   if (pDisk == NULL) {
-    fError("failed to mount disk %s to level %d since %s", pCfg->dir, pCfg->level, strerror(terrno));
+    fError("failed to mount disk %s to level %d since %s", pCfg->dir, pCfg->level, tstrerror(terrno));
     return -1;
   }
   did.id = DISK_ID(pDisk);
