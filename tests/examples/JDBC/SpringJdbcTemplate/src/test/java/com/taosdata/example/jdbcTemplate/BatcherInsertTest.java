@@ -41,7 +41,7 @@ public class BatcherInsertTest {
         //use database
         executor.doExecute("use jdbctemplate_test");
         // create table
-        executor.doExecute("create table if not exists jdbctemplate_test.weather (ts timestamp, temperature int, humidity float)");
+        executor.doExecute("create table if not exists weather (ts timestamp, temperature int, humidity float)");
     }
 
     @Test
