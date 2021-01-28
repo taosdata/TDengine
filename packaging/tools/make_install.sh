@@ -154,7 +154,6 @@ function install_bin() {
     if [ "$osType" != "Darwin" ]; then
         ${csudo} cp -r ${script_dir}/remove.sh     ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/set_core.sh   ${install_main_dir}/bin
-        ${csudo} cp -r ${script_dir}/core.sh       ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/startPre.sh   ${install_main_dir}/bin
     else
         ${csudo} cp -r ${script_dir}/remove_client.sh   ${install_main_dir}/bin
