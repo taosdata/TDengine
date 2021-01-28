@@ -13,10 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef __APPLE__
 #define _BSD_SOURCE
 #define _XOPEN_SOURCE 500
 #define _DEFAULT_SOURCE
 #define _GNU_SOURCE
+#endif // __APPLE__
 
 #include "os.h"
 #include "ttype.h"
@@ -60,7 +62,7 @@ static int32_t setShowInfo(SSqlObj* pSql, SSqlInfo* pInfo);
 static char*   getAccountId(SSqlObj* pSql);
 
 static bool has(SArray* pFieldList, int32_t startIdx, const char* name);
-static char* getCurrentDBName(SSqlObj* pSql);
+static char* cloneCurrentDBName(SSqlObj* pSql);
 static bool hasSpecifyDB(SStrToken* pTableName);
 static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd);
 static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pCmd);
@@ -921,15 +923,18 @@ int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableNam
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
   } else {  // get current DB name first, and then set it into path
-    char* t = getCurrentDBName(pSql);
+    char* t = cloneCurrentDBName(pSql);
     if (strlen(t) == 0) {
       return TSDB_CODE_TSC_DB_NOT_SELECTED;
     }
 
     code = tNameFromString(&pTableMetaInfo->name, t, T_NAME_ACCT | T_NAME_DB);
     if (code != 0) {
+      free(t);
       return TSDB_CODE_TSC_DB_NOT_SELECTED;
     }
+
+    free(t);
 
     if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -1244,8 +1249,12 @@ static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
 
 static char* getAccountId(SSqlObj* pSql) { return pSql->pTscObj->acctId; }
 
-static char* getCurrentDBName(SSqlObj* pSql) {
-  return pSql->pTscObj->db;
+static char* cloneCurrentDBName(SSqlObj* pSql) {
+  pthread_mutex_lock(&pSql->pTscObj->mutex);
+  char *p = strdup(pSql->pTscObj->db);  
+  pthread_mutex_unlock(&pSql->pTscObj->mutex);
+
+  return p;
 }
 
 /* length limitation, strstr cannot be applied */
@@ -4300,6 +4309,77 @@ static void doAddJoinTagsColumnsIntoTagList(SSqlCmd* pCmd, SQueryInfo* pQueryInf
   }
 }
 
+static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
+  const char *msg1 = "invalid tag operator";
+  const char* msg2 = "not supported filter condition";
+  
+  do {
+    if (p->nodeType != TSQL_NODE_EXPR) {
+      break;
+    }
+    
+    if (!p->_node.pLeft || !p->_node.pRight) {
+      break;
+    }
+    
+    if (IS_ARITHMETIC_OPTR(p->_node.optr)) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1); 
+    }
+    
+    if (!IS_RELATION_OPTR(p->_node.optr)) {
+      break;
+    }
+    
+    tVariant * vVariant = NULL;
+    int32_t schemaType = -1;
+  
+    if (p->_node.pLeft->nodeType == TSQL_NODE_VALUE && p->_node.pRight->nodeType == TSQL_NODE_COL) {
+      if (!p->_node.pRight->pSchema) {
+        break;
+      }
+      
+      vVariant = p->_node.pLeft->pVal;
+      schemaType = p->_node.pRight->pSchema->type;
+    } else if (p->_node.pLeft->nodeType == TSQL_NODE_COL && p->_node.pRight->nodeType == TSQL_NODE_VALUE) {
+      if (!p->_node.pLeft->pSchema) {
+        break;
+      }
+
+      vVariant = p->_node.pRight->pVal;
+      schemaType = p->_node.pLeft->pSchema->type;
+    } else {
+      break;
+    }
+
+    if (schemaType >= TSDB_DATA_TYPE_TINYINT && schemaType <= TSDB_DATA_TYPE_BIGINT) {
+      schemaType = TSDB_DATA_TYPE_BIGINT;
+    } else if (schemaType == TSDB_DATA_TYPE_FLOAT || schemaType == TSDB_DATA_TYPE_DOUBLE) {
+      schemaType = TSDB_DATA_TYPE_DOUBLE;
+    }
+    
+    int32_t retVal = TSDB_CODE_SUCCESS;
+    if (schemaType == TSDB_DATA_TYPE_BINARY) {
+      char *tmp = calloc(1, vVariant->nLen + TSDB_NCHAR_SIZE);
+      retVal = tVariantDump(vVariant, tmp, schemaType, false);
+      free(tmp);
+    } else if (schemaType == TSDB_DATA_TYPE_NCHAR) {
+      // pRight->val.nLen + 1 is larger than the actual nchar string length
+      char *tmp = calloc(1, (vVariant->nLen + 1) * TSDB_NCHAR_SIZE);
+      retVal = tVariantDump(vVariant, tmp, schemaType, false);
+      free(tmp);
+    } else {
+      double tmp;
+      retVal = tVariantDump(vVariant, (char*)&tmp, schemaType, false);
+    }
+    
+    if (retVal != TSDB_CODE_SUCCESS) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    }
+  }while (0);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr* pCondExpr, tSQLExpr** pExpr) {
   int32_t ret = TSDB_CODE_SUCCESS;
 
@@ -4342,12 +4422,20 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &bw);
     doCompactQueryExpr(pExpr);
 
+    if (ret == TSDB_CODE_SUCCESS) {
+      ret = validateTagCondExpr(pCmd, p);
+    }
+
     tSqlExprDestroy(p1);
     tExprTreeDestroy(p, NULL);
     
     taosArrayDestroy(colList);
     if (pQueryInfo->tagCond.pCond != NULL && taosArrayGetSize(pQueryInfo->tagCond.pCond) > 0 && !UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "filter on tag not supported for normal table");
+    }
+
+    if (ret) {
+      break;
     }
   }
 

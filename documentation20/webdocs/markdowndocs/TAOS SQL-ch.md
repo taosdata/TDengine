@@ -213,16 +213,19 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     如果表是通过[超级表](../super-table/)创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构
 
 ## 超级表STable管理
+
+注意：在 2.0.15 以前的版本中，并不支持 STABLE 保留字，而是写作 TABLE。也即，在本节后文的指令说明中，CREATE、DROP、ALTER 三个指令在老版本中保留字需写作 TABLE 而不是 STABLE。
+
 - **创建超级表**
 
     ```mysql
-    CREATE TABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
+    CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
     ```
-    创建STable, 与创建表的SQL语法相似，但需指定TAGS字段的名称和类型
+    创建 STable，与创建表的 SQL 语法相似，但需指定 TAGS 字段的名称和类型
 
     说明：
 
-    1) TAGS 列的数据类型不能是timestamp类型；
+    1) TAGS 列的数据类型不能是 timestamp 类型；
 
     2) TAGS 列名不能与其他列名相同；
 
@@ -233,16 +236,16 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 - **删除超级表**
 
     ```mysql
-    DROP TABLE [IF EXISTS] stb_name;
+    DROP STABLE [IF EXISTS] stb_name;
     ```
-    删除STable会自动删除通过STable创建的子表。
+    删除 STable 会自动删除通过 STable 创建的子表。
 
 - **显示当前数据库下的所有超级表信息**
 
     ```mysql
     SHOW STABLES [LIKE tb_name_wildcar];
     ```
-    查看数据库内全部STable，及其相关信息，包括STable的名称、创建时间、列数量、标签（TAG）数量、通过该STable建表的数量。
+    查看数据库内全部 STable，及其相关信息，包括 STable 的名称、创建时间、列数量、标签（TAG）数量、通过该 STable 建表的数量。
 
 - **获取超级表的结构信息**
 
@@ -253,43 +256,43 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 - **超级表增加列**
 
     ```mysql
-    ALTER TABLE stb_name ADD COLUMN field_name data_type;
+    ALTER STABLE stb_name ADD COLUMN field_name data_type;
     ```
 
 - **超级表删除列**
 
     ```mysql
-    ALTER TABLE stb_name DROP COLUMN field_name; 
+    ALTER STABLE stb_name DROP COLUMN field_name; 
     ```
 
 ## 超级表 STable 中 TAG 管理
 - **添加标签**
 
     ```mysql
-    ALTER TABLE stb_name ADD TAG new_tag_name tag_type;
+    ALTER STABLE stb_name ADD TAG new_tag_name tag_type;
     ```
-    为STable增加一个新的标签，并指定新标签的类型。标签总数不能超过128个，总长度不超过16k个字符。
+    为 STable 增加一个新的标签，并指定新标签的类型。标签总数不能超过 128 个，总长度不超过 16k 个字符。
 
 - **删除标签**
 
     ```mysql
-    ALTER TABLE stb_name DROP TAG tag_name;
+    ALTER STABLE stb_name DROP TAG tag_name;
     ```
     删除超级表的一个标签，从超级表删除某个标签后，该超级表下的所有子表也会自动删除该标签。
 
 - **修改标签名**
 
     ```mysql
-    ALTER TABLE stb_name CHANGE TAG old_tag_name new_tag_name;
+    ALTER STABLE stb_name CHANGE TAG old_tag_name new_tag_name;
     ```
     修改超级表的标签名，从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。
 
 - **修改子表标签值**
 
     ```mysql
-    ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
+    ALTER STABLE tb_name SET TAG tag_name=new_tag_value;
     ```
-    说明：除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于STable，不能对单个子表操作。对STable添加标签以后，依托于该STable建立的所有表将自动增加了一个标签，所有新增标签的默认值都是NULL。
+    说明：除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于 STable，不能对单个子表操作。对 STable 添加标签以后，依托于该 STable 建立的所有表将自动增加了一个标签，所有新增标签的默认值都是 NULL。
 
 ## 数据写入
 
@@ -466,6 +469,17 @@ Query OK, 2 row(s) in set (0.003112s)
 ```
 
 注意：普通表的通配符 * 中并不包含 _标签列_。
+
+##### 获取标签列的去重取值
+
+从 2.0.15 版本开始，支持在超级表查询标签列时，指定 distinct 关键字，这样将返回指定标签列的所有不重复取值。
+```mysql
+SELECT DISTINCT tag_name FROM stb_name;
+```
+
+注意：目前 distinct 关键字只支持对超级表的标签列进行去重，而不能用于普通列。
+
+
 
 #### 结果集列名
 

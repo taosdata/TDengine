@@ -313,7 +313,7 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
   char buf[TSDB_MAX_SQL_LEN];
   sprintf(buf, "%s/subscribe/%s", tsDataDir, pSub->topic);
 
-  FILE* fp = fopen(buf, "r");
+  FILE* fp = fopen(buf, "rb");
   if (fp == NULL) {
     tscDebug("subscription progress file does not exist: %s", pSub->topic);
     return 1;
@@ -368,7 +368,7 @@ void tscSaveSubscriptionProgress(void* sub) {
   }
 
   sprintf(path, "%s/subscribe/%s", tsDataDir, pSub->topic);
-  FILE* fp = fopen(path, "w+");
+  FILE* fp = fopen(path, "wb+");
   if (fp == NULL) {
     tscError("failed to create progress file for subscription: %s", pSub->topic);
     return;

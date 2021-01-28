@@ -430,7 +430,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
   }
 
   errno = 0;
-  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType)) {
+  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
     *result = pVariant->i64;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pVariant->nType)) {
     *result = pVariant->u64;
@@ -775,7 +775,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
               return -1;
             }
           } else {
-            wcsncpy((wchar_t *)p, pVariant->wpz, pVariant->nLen);
+            memcpy(p, pVariant->wpz, pVariant->nLen);
             newlen = pVariant->nLen;
           }
 

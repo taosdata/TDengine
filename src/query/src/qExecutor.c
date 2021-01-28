@@ -1398,13 +1398,13 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, int32_t offset) {
     if (key < elem.ts) {
       return TS_JOIN_TS_NOT_EQUALS;
     } else if (key > elem.ts) {
-      assert(false);
+      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_INCONSISTAN);
     }
   } else {
     if (key > elem.ts) {
       return TS_JOIN_TS_NOT_EQUALS;
     } else if (key < elem.ts) {
-      assert(false);
+      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_INCONSISTAN);
     }
   }
 
@@ -3827,6 +3827,11 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
     pRuntimeEnv->windowResInfo.curIndex = qstatus.windowIndex;
     setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
     pRuntimeEnv->scanFlag = REPEAT_SCAN;
+
+    if (pRuntimeEnv->pTsBuf) {
+      bool ret = tsBufNextPos(pRuntimeEnv->pTsBuf);
+      assert(ret);
+    }
 
     qDebug("QInfo:%p start to repeat scan data blocks due to query func required, qrange:%"PRId64"-%"PRId64, pQInfo,
         cond.twindow.skey, cond.twindow.ekey);
@@ -6423,6 +6428,11 @@ static int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SArray **pTableIdList,
 
     strncpy(*tbnameCond, pMsg, pQueryMsg->tbnameCondLen);
     pMsg += pQueryMsg->tbnameCondLen;
+  }
+
+  //skip ts buf
+  if ((pQueryMsg->tsOffset + pQueryMsg->tsLen) > 0) {
+    pMsg = (char *)pQueryMsg + pQueryMsg->tsOffset + pQueryMsg->tsLen;
   }
 
   *sql = strndup(pMsg, pQueryMsg->sqlstrLen);

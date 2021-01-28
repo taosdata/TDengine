@@ -301,11 +301,37 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   return true;
 }
 
+void simReplaceShToBat(char *dst) {
+  char* sh = strstr(dst, ".sh");
+  if (sh != NULL) {
+    int32_t dstLen = (int32_t)strlen(dst);
+    char *end = dst + dstLen;
+    *(end + 1) = 0;
+
+    for (char *p = end; p >= sh; p--) {
+      *(p + 1) = *p;
+    }
+
+    sh[0] = '.';
+    sh[1] = 'b';
+    sh[2] = 'a';
+    sh[3] = 't';
+    sh[4] = ' ';
+  }
+
+  simDebug("system cmd is %s", dst);
+}
+
 bool simExecuteSystemCmd(SScript *script, char *option) {
   char buf[4096] = {0};
 
+#ifndef WINDOWS
   sprintf(buf, "cd %s; ", tsScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
+#else
+  sprintf(buf, "%s%s", tsScriptDir, option);
+  simReplaceShToBat(buf);
+#endif
 
   simLogSql(buf, true);
   int32_t code = system(buf);
@@ -314,9 +340,7 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
     simError("script:%s, failed to execute %s , code %d, errno:%d %s, repeatTimes:%d", script->fileName, buf, code,
              errno, strerror(errno), repeatTimes);
     taosMsleep(1000);
-#ifdef LINUX
-    signal(SIGCHLD, SIG_DFL);
-#endif
+    taosDflSignal(SIGCHLD);
     if (repeatTimes++ >= 10) {
       exit(0);
     }

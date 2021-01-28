@@ -48,7 +48,7 @@ bool httpProcessData(HttpContext* pContext) {
       /*
        * httpCloseContextByApp has been called when parsing the error
        */
-      //httpCloseContextByApp(pContext);
+      // httpCloseContextByApp(pContext);
     } else {
       httpProcessRequest(pContext);
     }

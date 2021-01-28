@@ -45,7 +45,7 @@ static void    syncCheckPeerConnection(void *param, void *tmrId);
 static int32_t syncSendPeersStatusMsgToPeer(SSyncPeer *pPeer, char ack, int8_t type, uint16_t tranId);
 static void    syncProcessBrokenLink(int64_t rid);
 static int32_t syncProcessPeerMsg(int64_t rid, void *buffer);
-static void    syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp);
+static void    syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
 static void    syncRemovePeer(SSyncPeer *pPeer);
 static void    syncAddArbitrator(SSyncNode *pNode);
 static void    syncFreeNode(void *);
@@ -544,7 +544,7 @@ static void syncClosePeerConn(SSyncPeer *pPeer) {
   sDebug("%s, pfd:%d sfd:%d will be closed", pPeer->id, pPeer->peerFd, pPeer->syncFd);
 
   taosTmrStopA(&pPeer->timer);
-  taosClose(pPeer->syncFd);
+  taosCloseSocket(pPeer->syncFd);
   if (pPeer->peerFd >= 0) {
     pPeer->peerFd = -1;
     void *pConn = pPeer->pConn;
@@ -869,7 +869,7 @@ static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer) {
 
   if (nodeRole != TAOS_SYNC_ROLE_MASTER) {
     sError("%s, I am not master anymore", pPeer->id);
-    taosClose(pPeer->syncFd);
+    taosCloseSocket(pPeer->syncFd);
     return;
   }
 
@@ -1114,8 +1114,8 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     return;
   }
 
-  int32_t connFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
-  if (connFd < 0) {
+  SOCKET connFd = taosOpenTcpClientSocket(pPeer->ip, pPeer->port, 0);
+  if (connFd <= 0) {
     sDebug("%s, failed to open tcp socket since %s", pPeer->id, strerror(errno));
     taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
     return;
@@ -1132,7 +1132,7 @@ static void syncSetupPeerConnection(SSyncPeer *pPeer) {
     if (pPeer->isArb) tsArbOnline = 1;
   } else {
     sDebug("%s, failed to setup peer connection to server since %s, try later", pPeer->id, strerror(errno));
-    taosClose(connFd);
+    taosCloseSocket(connFd);
     taosTmrReset(syncCheckPeerConnection, SYNC_CHECK_INTERVAL, (void *)pPeer->rid, tsSyncTmrCtrl, &pPeer->timer);
   }
 }
@@ -1171,7 +1171,7 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer) {
     SSyncNode *pNode = pPeer->pSyncNode;
     nodeSStatus = TAOS_SYNC_STATUS_INIT;
     sError("%s, failed to create sync restore thread, set sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
-    taosClose(pPeer->syncFd);
+    taosCloseSocket(pPeer->syncFd);
     syncReleasePeer(pPeer);
   } else {
     sInfo("%s, sync restore thread:0x%08" PRIx64 " create successfully, rid:%" PRId64, pPeer->id,
@@ -1179,7 +1179,21 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer) {
   }
 }
 
-static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
+void syncProcessTestMsg(SSyncMsg *pMsg, SOCKET connFd) {
+  sInfo("recv sync test msg");
+
+  SSyncMsg rsp;
+  syncBuildSyncTestMsg(&rsp, -1);
+  if (taosWriteMsg(connFd, &rsp, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
+    sInfo("failed to send sync test rsp since %s", strerror(errno));
+  }
+
+  sInfo("send sync test rsp");
+  taosMsleep(1000);
+  taosCloseSocket(connFd);
+}
+
+static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   char    ipstr[24];
   int32_t i;
 
@@ -1197,6 +1211,11 @@ static void syncProcessIncommingConnection(int32_t connFd, uint32_t sourceIp) {
   if (code != 0) {
     sError("failed to check peer sync msg from ip:%s since %s", ipstr, strerror(code));
     taosCloseSocket(connFd);
+    return;
+  }
+
+  if (msg.head.type == TAOS_SMSG_TEST) {
+    syncProcessTestMsg(&msg, connFd);
     return;
   }
 

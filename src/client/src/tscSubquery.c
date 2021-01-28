@@ -1018,7 +1018,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
   if (numOfRows > 0) {  // write the compressed timestamp to disk file
     if(pSupporter->f == NULL) {
-      pSupporter->f = fopen(pSupporter->path, "w");
+      pSupporter->f = fopen(pSupporter->path, "wb");
 
       if (pSupporter->f == NULL) {
         tscError("%p failed to create tmp file:%s, reason:%s", pSql, pSupporter->path, strerror(errno));
@@ -1066,7 +1066,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     // continue to retrieve ts-comp data from vnode
     if (!pRes->completed) {
       taosGetTmpfilePath("ts-join", pSupporter->path);
-      pSupporter->f = fopen(pSupporter->path, "w");
+      pSupporter->f = fopen(pSupporter->path, "wb");
       pRes->row = pRes->numOfRows;
 
       taos_fetch_rows_a(tres, tsCompRetrieveCallback, param);
@@ -1092,7 +1092,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     taosGetTmpfilePath("ts-join", pSupporter->path);
     
     // TODO check for failure
-    pSupporter->f = fopen(pSupporter->path, "w");
+    pSupporter->f = fopen(pSupporter->path, "wb");
     pRes->row = pRes->numOfRows;
 
     // set the callback function
@@ -1991,7 +1991,22 @@ static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES 
  * current query failed, and the retry count is less than the available
  * count, retry query clear previous retrieved data, then launch a new sub query
  */
-static int32_t tscReissueSubquery(SRetrieveSupport *trsupport, SSqlObj *pSql, int32_t code) {
+static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32_t code) {
+  SRetrieveSupport *trsupport = malloc(sizeof(SRetrieveSupport));
+  if (trsupport == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  memcpy(trsupport, oriTrs, sizeof(*trsupport));
+
+  const uint32_t nBufferSize = (1u << 16u);  // 64KB
+  trsupport->localBuffer = (tFilePage *)calloc(1, nBufferSize + sizeof(tFilePage));
+  if (trsupport->localBuffer == NULL) {
+    tscError("%p failed to malloc buffer for local buffer, reason:%s", pSql, strerror(errno));
+    tfree(trsupport);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  
   SSqlObj *pParentSql = trsupport->pParentSql;
   int32_t  subqueryIndex = trsupport->subqueryIndex;
 

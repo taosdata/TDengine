@@ -1,18 +1,14 @@
 spring:
   datasource:
     driver-class-name: com.taosdata.jdbc.TSDBDriver
-    url: jdbc:TAOS://localhost:6030/mp_test
+    url: jdbc:TAOS://localhost:6030/mp_test?charset=UTF-8&locale=en_US.UTF-8&timezone=UTC-8
     user: root
     password: taosdata
-    charset: UTF-8
-    locale: en_US.UTF-8
-    timezone: UTC-8
 
     druid:
       initial-size: 5
       min-idle: 5
       max-active: 5
-
 
 mybatis-plus:
   configuration:
