@@ -28,6 +28,7 @@ public class BatcherInsertTest {
     @Autowired
     private ExecuteAsStatement executor;
 
+    private static final String dbname = "jdbc_template_test";
     private static final int numOfRecordsPerTable = 1000;
     private static long ts = 1496732686000l;
     private static Random random = new Random(System.currentTimeMillis());
@@ -35,11 +36,11 @@ public class BatcherInsertTest {
     @Before
     public void before() {
         // drop database
-        executor.doExecute("drop database if exists test");
+        executor.doExecute("drop database if exists " + dbname);
         // create database
-        executor.doExecute("create database if not exists test");
+        executor.doExecute("create database if not exists " + dbname);
         //use database
-        executor.doExecute("use jdbctemplate_test");
+        executor.doExecute("use " + dbname);
         // create table
         executor.doExecute("create table if not exists weather (ts timestamp, temperature int, humidity float)");
     }
