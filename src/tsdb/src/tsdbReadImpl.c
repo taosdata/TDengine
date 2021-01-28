@@ -82,7 +82,11 @@ int tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet) {
 
   pReadh->rSet = *pSet;
   TSDB_FSET_SET_CLOSED(TSDB_READ_FSET(pReadh));
-  if (tsdbOpenDFileSet(TSDB_READ_FSET(pReadh), O_RDONLY) < 0) return -1;
+  if (tsdbOpenDFileSet(TSDB_READ_FSET(pReadh), O_RDONLY) < 0) {
+    tsdbError("vgId:%d failed to open file set %d since %s", TSDB_READ_REPO_ID(pReadh), TSDB_FSET_FID(pSet),
+              tstrerror(terrno));
+    return -1;
+  }
 
   return 0;
 }
@@ -99,7 +103,7 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
   if (pHeadf->info.offset <= 0) return 0;
 
   if (tsdbSeekDFile(pHeadf, pHeadf->info.offset, SEEK_SET) < 0) {
-    tsdbError("vgId:%d failed to load SBlockIdx part while seek file %s sinces %s, offset:%u len :%u",
+    tsdbError("vgId:%d failed to load SBlockIdx part while seek file %s since %s, offset:%u len :%u",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), pHeadf->info.offset,
               pHeadf->info.len);
     return -1;
@@ -109,7 +113,7 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
 
   int64_t nread = tsdbReadDFile(pHeadf, TSDB_READ_BUF(pReadh), pHeadf->info.len);
   if (nread < 0) {
-    tsdbError("vgId:%d failed to load SBlockIdx part while read file %s sinces %s, offset:%u len :%u",
+    tsdbError("vgId:%d failed to load SBlockIdx part while read file %s since %s, offset:%u len :%u",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), pHeadf->info.offset,
               pHeadf->info.len);
     return -1;
@@ -210,7 +214,7 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
 
   int64_t nread = tsdbReadDFile(pHeadf, (void *)(pReadh->pBlkInfo), pBlkIdx->len);
   if (nread < 0) {
-    tsdbError("vgId:%d failed to load SBlockInfo part while read file %s sinces %s, offset:%u len :%u",
+    tsdbError("vgId:%d failed to load SBlockInfo part while read file %s since %s, offset:%u len :%u",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), pBlkIdx->offset, pBlkIdx->len);
     return -1;
   }
@@ -306,7 +310,7 @@ int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
 
   int64_t nread = tsdbReadDFile(pDFile, (void *)(pReadh->pBlkData), size);
   if (nread < 0) {
-    tsdbError("vgId:%d failed to load block statis part while read file %s sinces %s, offset:%" PRId64 " len :%" PRIzu,
+    tsdbError("vgId:%d failed to load block statis part while read file %s since %s, offset:%" PRId64 " len :%" PRIzu,
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno), (int64_t)pBlock->offset, size);
     return -1;
   }
@@ -406,7 +410,7 @@ static void tsdbResetReadFile(SReadH *pReadh) {
 }
 
 static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols) {
-  ASSERT(pBlock->numOfSubBlocks >= 0 && pBlock->numOfSubBlocks <= 1);
+  ASSERT(pBlock->numOfSubBlocks == 0 || pBlock->numOfSubBlocks == 1);
 
   SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
 
@@ -423,7 +427,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
 
   int64_t nread = tsdbReadDFile(pDFile, TSDB_READ_BUF(pReadh), pBlock->len);
   if (nread < 0) {
-    tsdbError("vgId:%d failed to load block data part while read file %s sinces %s, offset:%" PRId64 " len :%d",
+    tsdbError("vgId:%d failed to load block data part while read file %s since %s, offset:%" PRId64 " len :%d",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno), (int64_t)pBlock->offset,
               pBlock->len);
     return -1;
@@ -538,7 +542,7 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32
 
 static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols, int16_t *colIds,
                                      int numOfColIds) {
-  ASSERT(pBlock->numOfSubBlocks <= 1);
+  ASSERT(pBlock->numOfSubBlocks == 0 || pBlock->numOfSubBlocks == 1);
   ASSERT(colIds[0] == 0);
 
   SDFile *  pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
@@ -632,7 +636,7 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
 
   int64_t nread = tsdbReadDFile(pDFile, TSDB_READ_BUF(pReadh), pBlockCol->len);
   if (nread < 0) {
-    tsdbError("vgId:%d failed to load block column data while read file %s sinces %s, offset:%" PRId64 " len :%d",
+    tsdbError("vgId:%d failed to load block column data while read file %s since %s, offset:%" PRId64 " len :%d",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno), offset, pBlockCol->len);
     return -1;
   }
