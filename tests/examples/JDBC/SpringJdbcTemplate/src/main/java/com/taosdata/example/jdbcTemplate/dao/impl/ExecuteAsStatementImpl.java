@@ -1,6 +1,6 @@
-package com.taosdata.jdbc.example.jdbcTemplate.dao.impl;
+package com.taosdata.example.jdbcTemplate.dao.impl;
 
-import com.taosdata.jdbc.example.jdbcTemplate.dao.ExecuteAsStatement;
+import com.taosdata.example.jdbcTemplate.dao.ExecuteAsStatement;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;

@@ -69,7 +69,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.taosdata.jdbc.example.jdbcTemplate.App</mainClass>
+                            <mainClass>com.taosdata.example.jdbcTemplate.App</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>

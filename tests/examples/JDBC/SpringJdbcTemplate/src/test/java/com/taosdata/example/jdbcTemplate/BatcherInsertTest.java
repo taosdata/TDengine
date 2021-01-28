@@ -1,9 +1,9 @@
-package com.taosdata.jdbc.example.jdbcTemplate;
+package com.taosdata.example.jdbcTemplate;
 
 
-import com.taosdata.jdbc.example.jdbcTemplate.dao.ExecuteAsStatement;
-import com.taosdata.jdbc.example.jdbcTemplate.dao.WeatherDao;
-import com.taosdata.jdbc.example.jdbcTemplate.domain.Weather;
+import com.taosdata.example.jdbcTemplate.dao.ExecuteAsStatement;
+import com.taosdata.example.jdbcTemplate.dao.WeatherDao;
+import com.taosdata.example.jdbcTemplate.domain.Weather;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;

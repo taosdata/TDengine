@@ -1,20 +1,16 @@
-package com.taosdata.jdbc.example.jdbcTemplate.dao.impl;
+package com.taosdata.example.jdbcTemplate.dao.impl;
 
-import com.taosdata.jdbc.example.jdbcTemplate.dao.WeatherDao;
-import com.taosdata.jdbc.example.jdbcTemplate.domain.Weather;
+import com.taosdata.example.jdbcTemplate.domain.Weather;
+import com.taosdata.example.jdbcTemplate.dao.WeatherDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.namedparam.SqlParameterSourceUtils;
-import org.springframework.jdbc.core.simple.SimpleJdbcInsert;
 import org.springframework.stereotype.Repository;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.sql.Timestamp;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 @Repository
 public class WeatherDaoImpl implements WeatherDao {
