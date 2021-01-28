@@ -248,7 +248,7 @@ static void taosGetSystemLocale() {  // get and set default locale
   if (cfg_locale && cfg_locale->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     locale = setlocale(LC_CTYPE, "");
     if (locale == NULL) {
-      uError("can't get locale from system, set it to en_US.UTF-8");
+      uError("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
       strcpy(tsLocale, "en_US.UTF-8");
     } else {
       tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
