@@ -7915,4 +7915,3 @@ void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle) {
   taosCacheRelease(pQueryMgmt->qinfoPool, pQInfo, freeHandle);
   return 0;
 }
-   
