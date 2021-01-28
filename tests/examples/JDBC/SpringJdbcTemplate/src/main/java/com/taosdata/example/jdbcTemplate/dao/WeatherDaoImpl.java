@@ -1,7 +1,6 @@
-package com.taosdata.example.jdbcTemplate.dao.impl;
+package com.taosdata.example.jdbcTemplate.dao;
 
 import com.taosdata.example.jdbcTemplate.domain.Weather;
-import com.taosdata.example.jdbcTemplate.dao.WeatherDao;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.BatchPreparedStatementSetter;
 import org.springframework.jdbc.core.JdbcTemplate;

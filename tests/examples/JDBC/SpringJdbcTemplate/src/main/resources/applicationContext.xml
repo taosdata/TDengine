@@ -20,6 +20,6 @@
         <property name="dataSource" ref="dataSource"></property>
     </bean>
 
-    <context:component-scan base-package="com.taosdata.jdbc.example.jdbcTemplate"/>
+    <context:component-scan base-package="com.taosdata.example.jdbcTemplate"/>
 
 </beans>
