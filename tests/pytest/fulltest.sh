@@ -20,6 +20,7 @@ python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
 #python3 ./test.py -f insert/before_1970.py
+python3 ./test.py -f insert/metadataUpdate.py
 python3 bug2265.py
 
 #table
