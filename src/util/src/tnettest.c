@@ -23,6 +23,8 @@
 #include "tsocket.h"
 #include "trpc.h"
 #include "rpcHead.h"
+#include "tchecksum.h"
+#include "syncMsg.h"
 
 #define MAX_PKG_LEN (64 * 1000)
 #define BUFFER_SIZE (MAX_PKG_LEN + 1024)
@@ -408,13 +410,51 @@ static void taosNetTestStartup(char *host, int32_t port) {
   free(pStep);
 }
 
+static void taosNetCheckSync(char *host, int32_t port) {
+  uint32_t ip = taosGetIpv4FromFqdn(host);
+  if (ip == 0xffffffff) {
+    uError("failed to get IP address from %s since %s", host, strerror(errno));
+    return;
+  }
+
+  SOCKET connFd = taosOpenTcpClientSocket(ip, (uint16_t)port, 0);
+  if (connFd < 0) {
+    uError("failed to create socket while test port:%d since %s", port, strerror(errno));
+    return;
+  }
+
+  SSyncMsg msg;
+  memset(&msg, 0, sizeof(SSyncMsg));
+  SSyncHead *pHead = &msg.head;
+  pHead->type = TAOS_SMSG_TEST;
+  pHead->protocol = SYNC_PROTOCOL_VERSION;
+  pHead->signature = SYNC_SIGNATURE;
+  pHead->code = 0;
+  pHead->cId = 0;
+  pHead->vgId = -1;
+  pHead->len = sizeof(SSyncMsg) - sizeof(SSyncHead);
+  taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SSyncHead));
+
+  if (taosWriteMsg(connFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
+    uError("failed to test port:%d while send msg since %s", port, strerror(errno));
+    return;
+  }
+
+  if (taosReadMsg(connFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
+    uError("failed to test port:%d while recv msg since %s", port, strerror(errno));
+  }
+
+  uInfo("successed to test TCP port:%d", port);
+  taosCloseSocket(connFd);
+}
+
 static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
-  int32_t endPort = startPort + 9;
+  int32_t endPort = startPort + TSDB_PORT_SYNC;
   char    spi = 0;
 
   uInfo("check rpc, host:%s startPort:%d endPort:%d pkgLen:%d\n", host, startPort, endPort, pkgLen);
-    
-  for (uint16_t port = startPort; port <= endPort; port++) {
+
+  for (uint16_t port = startPort; port < endPort; port++) {
     int32_t sendpkgLen;
     if (pkgLen <= tsRpcMaxUdpSize) {
       sendpkgLen = tsRpcMaxUdpSize + 1000;
@@ -442,6 +482,9 @@ static void taosNetTestRpc(char *host, int32_t startPort, int32_t pkgLen) {
       uInfo("successed to test UDP port:%d", port);
     }
   }
+
+  taosNetCheckSync(host, startPort + TSDB_PORT_SYNC);
+  taosNetCheckSync(host, startPort + TSDB_PORT_ARBITRATOR);
 }
 
 static void taosNetTestClient(char *host, int32_t startPort, int32_t pkgLen) {
@@ -508,6 +551,8 @@ void taosNetTest(char *role, char *host, int32_t port, int32_t pkgLen) {
     taosNetTestServer(host, port, pkgLen);
   } else if (0 == strcmp("rpc", role)) {
     taosNetTestRpc(host, port, pkgLen);
+  } else if (0 == strcmp("sync", role)) {
+    taosNetCheckSync(host, port);
   } else if (0 == strcmp("startup", role)) {
     taosNetTestStartup(host, port);
   } else {

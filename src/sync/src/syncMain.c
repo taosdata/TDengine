@@ -1179,6 +1179,20 @@ static void syncCreateRestoreDataThread(SSyncPeer *pPeer) {
   }
 }
 
+void syncProcessTestMsg(SSyncMsg *pMsg, SOCKET connFd) {
+  sInfo("recv sync test msg");
+
+  SSyncMsg rsp;
+  syncBuildSyncTestMsg(&rsp, -1);
+  if (taosWriteMsg(connFd, &rsp, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
+    sInfo("failed to send sync test rsp since %s", strerror(errno));
+  }
+
+  sInfo("send sync test rsp");
+  taosMsleep(1000);
+  taosCloseSocket(connFd);
+}
+
 static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   char    ipstr[24];
   int32_t i;
@@ -1197,6 +1211,11 @@ static void syncProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   if (code != 0) {
     sError("failed to check peer sync msg from ip:%s since %s", ipstr, strerror(code));
     taosCloseSocket(connFd);
+    return;
+  }
+
+  if (msg.head.type == TAOS_SMSG_TEST) {
+    syncProcessTestMsg(&msg, connFd);
     return;
   }
 
