@@ -105,6 +105,7 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 // 0  no query allowed, queries are disabled
 // positive value (in MB)
 int32_t tsQueryBufferSize = -1;
+int64_t tsQueryBufferSizeBytes = -1;
 
 // in retrieve blocking model, the retrieve threads will wait for the completion of the query processing.
 int32_t tsRetrieveBlockingModel = 0;
@@ -283,7 +284,7 @@ bool taosCfgDynamicOptions(char *msg) {
     int32_t cfgLen = (int32_t)strlen(cfg->option);
     if (cfgLen != olen) continue;
     if (strncasecmp(option, cfg->option, olen) != 0) continue;
-    if (cfg->valType != TAOS_CFG_VTYPE_INT32) {
+    if (cfg->valType == TAOS_CFG_VTYPE_INT32) {
       *((int32_t *)cfg->ptr) = vint;
     } else {
       *((int8_t *)cfg->ptr) = (int8_t)vint;
@@ -1487,6 +1488,10 @@ int32_t taosCheckGlobalCfg() {
   tsDnodeDnodePort = tsServerPort + TSDB_PORT_DNODEDNODE;   // udp/tcp
   tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
   tsHttpPort = tsServerPort + TSDB_PORT_HTTP;
+
+  if (tsQueryBufferSize >= 0) {
+    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
+  }
 
   taosPrintGlobalCfg();
 
