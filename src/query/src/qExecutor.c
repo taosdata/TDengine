@@ -7730,15 +7730,15 @@ static int64_t getQuerySupportBufSize(size_t numOfTables) {
 
 int32_t checkForQueryBuf(size_t numOfTables) {
   int64_t t = getQuerySupportBufSize(numOfTables);
-  if (tsQueryBufferSize < 0) {
+  if (tsQueryBufferSizeBytes < 0) {
     return TSDB_CODE_SUCCESS;
-  } else if (tsQueryBufferSize > 0) {
+  } else if (tsQueryBufferSizeBytes > 0) {
 
     while(1) {
-      int64_t s = tsQueryBufferSize;
+      int64_t s = tsQueryBufferSizeBytes;
       int64_t remain = s - t;
       if (remain >= 0) {
-        if (atomic_val_compare_exchange_64(&tsQueryBufferSize, s, remain) == s) {
+        if (atomic_val_compare_exchange_64(&tsQueryBufferSizeBytes, s, remain) == s) {
           return TSDB_CODE_SUCCESS;
         }
       } else {
@@ -7752,14 +7752,14 @@ int32_t checkForQueryBuf(size_t numOfTables) {
 }
 
 void releaseQueryBuf(size_t numOfTables) {
-  if (tsQueryBufferSize <= 0) {
+  if (tsQueryBufferSizeBytes < 0) {
     return;
   }
 
   int64_t t = getQuerySupportBufSize(numOfTables);
 
   // restore value is not enough buffer available
-  atomic_add_fetch_64(&tsQueryBufferSize, t);
+  atomic_add_fetch_64(&tsQueryBufferSizeBytes, t);
 }
 
 void* qGetResultRetrieveMsg(qinfo_t qinfo) {
@@ -7915,3 +7915,4 @@ void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle) {
   taosCacheRelease(pQueryMgmt->qinfoPool, pQInfo, freeHandle);
   return 0;
 }
+   
