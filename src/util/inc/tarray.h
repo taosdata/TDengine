@@ -136,7 +136,7 @@ void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*));
  * @param pArray
  * @param compar
  */
-void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*));
+void taosArraySort(SArray* pArray, __compar_fn_t comparFn);
 
 /**
  * sort string array

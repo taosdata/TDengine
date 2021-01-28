@@ -2624,7 +2624,7 @@ static int32_t tableGroupComparFn(const void *p1, const void *p2, const void *pa
       f1 = (char*) TABLE_NAME(pTable1);
       f2 = (char*) TABLE_NAME(pTable2);
       type = TSDB_DATA_TYPE_BINARY;
-      bytes = tGetTableNameColumnSchema().bytes;
+      bytes = tGetTbnameColumnSchema()->bytes;
     } else {
       STColumn* pCol = schemaColAt(pTableGroupSupp->pTagSchema, colIndex);
       bytes = pCol->bytes;

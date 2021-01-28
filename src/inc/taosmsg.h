@@ -496,6 +496,7 @@ typedef struct {
   int32_t     tsOrder;          // ts comp block order
   int32_t     numOfTags;        // number of tags columns involved
   int32_t     sqlstrLen;        // sql query string
+  int32_t     prevResultLen;    // previous result length
   SColumnInfo colList[];
 } SQueryTableMsg;
 
