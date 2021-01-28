@@ -16,14 +16,6 @@
 #ifndef _TD_TSDB_COMMIT_QUEUE_H_
 #define _TD_TSDB_COMMIT_QUEUE_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 int tsdbScheduleCommit(STsdbRepo *pRepo);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* _TD_TSDB_COMMIT_QUEUE_H_ */

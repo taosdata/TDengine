@@ -16,10 +16,6 @@
 #ifndef _TD_TSDB_LOG_H_
 #define _TD_TSDB_LOG_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 extern int32_t tsdbDebugFlag;
 
 #define tsdbFatal(...) do { if (tsdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", 255, __VA_ARGS__); }}     while(0)
@@ -28,9 +24,5 @@ extern int32_t tsdbDebugFlag;
 #define tsdbInfo(...)  do { if (tsdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TDB ", 255, __VA_ARGS__); }}           while(0)
 #define tsdbDebug(...) do { if (tsdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }} while(0)
 #define tsdbTrace(...) do { if (tsdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }} while(0)
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* _TD_TSDB_LOG_H_ */

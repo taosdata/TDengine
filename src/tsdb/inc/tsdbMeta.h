@@ -16,10 +16,6 @@
 #ifndef _TD_TSDB_META_H_
 #define _TD_TSDB_META_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define TSDB_MAX_TABLE_SCHEMAS 16
 
 typedef struct STable {
@@ -144,9 +140,5 @@ static FORCE_INLINE TSKEY tsdbGetTableLastKeyImpl(STable* pTable) {
   ASSERT(pTable->lastRow == NULL || pTable->lastKey == dataRowKey(pTable->lastRow));
   return pTable->lastKey;
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* _TD_TSDB_META_H_ */

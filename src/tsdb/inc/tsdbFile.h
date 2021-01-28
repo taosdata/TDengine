@@ -16,10 +16,6 @@
 #ifndef _TS_TSDB_FILE_H_
 #define _TS_TSDB_FILE_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define TSDB_FILE_HEAD_SIZE 512
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 #define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
@@ -349,9 +345,5 @@ static FORCE_INLINE void tsdbGetFidKeyRange(int days, int8_t precision, int fid,
   *minKey = fid * days * tsMsPerDay[precision];
   *maxKey = *minKey + days * tsMsPerDay[precision] - 1;
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* _TS_TSDB_FILE_H_ */

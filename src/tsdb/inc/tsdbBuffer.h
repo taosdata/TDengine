@@ -16,10 +16,6 @@
 #ifndef _TD_TSDB_BUFFER_H_
 #define _TD_TSDB_BUFFER_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   int64_t blockId;
   int     offset;
@@ -43,9 +39,5 @@ void          tsdbFreeBufPool(STsdbBufPool* pBufPool);
 int           tsdbOpenBufPool(STsdbRepo* pRepo);
 void          tsdbCloseBufPool(STsdbRepo* pRepo);
 SListNode*    tsdbAllocBufBlockFromPool(STsdbRepo* pRepo);
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* _TD_TSDB_BUFFER_H_ */

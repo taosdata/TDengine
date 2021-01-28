@@ -16,15 +16,15 @@
 #ifndef _TD_TSDB_INT_H_
 #define _TD_TSDB_INT_H_
 
-// TODO: remove the include
-#include <errno.h>
-#include <fcntl.h>
-#include <limits.h>
-#include <inttypes.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <semaphore.h>
-#include <dirent.h>
+// // TODO: remove the include
+// #include <errno.h>
+// #include <fcntl.h>
+// #include <limits.h>
+// #include <inttypes.h>
+// #include <sys/stat.h>
+// #include <sys/types.h>
+// #include <semaphore.h>
+// #include <dirent.h>
 
 #include "os.h"
 #include "tlog.h"

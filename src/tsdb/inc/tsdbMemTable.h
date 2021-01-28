@@ -16,10 +16,6 @@
 #ifndef _TD_TSDB_MEMTABLE_H_
 #define _TD_TSDB_MEMTABLE_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 typedef struct {
   int   rowsInserted;
   int   rowsUpdated;
@@ -110,10 +106,5 @@ static FORCE_INLINE TKEY tsdbNextIterTKey(SSkipListIterator* pIter) {
 
   return dataRowTKey(row);
 }
-
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* _TD_TSDB_MEMTABLE_H_ */

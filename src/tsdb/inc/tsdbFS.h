@@ -16,10 +16,6 @@
 #ifndef _TD_TSDB_FS_H_
 #define _TD_TSDB_FS_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #define TSDB_FS_VERSION 0
 
 // ================== CURRENT file header info
@@ -111,9 +107,5 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS* pFs) {
   }
   return 0;
 }
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* _TD_TSDB_FS_H_ */
