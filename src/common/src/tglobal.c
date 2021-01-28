@@ -1490,7 +1490,7 @@ int32_t taosCheckGlobalCfg() {
   tsHttpPort = tsServerPort + TSDB_PORT_HTTP;
 
   if (tsQueryBufferSize >= 0) {
-    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576;
+    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
 
   taosPrintGlobalCfg();
