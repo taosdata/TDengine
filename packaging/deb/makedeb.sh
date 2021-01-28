@@ -43,7 +43,6 @@ mkdir -p ${pkg_dir}${install_home_path}/include
 mkdir -p ${pkg_dir}${install_home_path}/init.d
 mkdir -p ${pkg_dir}${install_home_path}/script
  
-echo "" >                                           ${pkg_dir}${install_home_path}/email
 cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
 cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
