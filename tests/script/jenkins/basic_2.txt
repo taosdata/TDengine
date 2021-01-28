@@ -10,7 +10,7 @@ cd ../../../debug; make
 ./test.sh -f general/tag/binary_binary.sim
 ./test.sh -f general/tag/binary.sim
 ./test.sh -f general/tag/bool_binary.sim
-#./test.sh -f general/tag/bool_int.sim
+./test.sh -f general/tag/bool_int.sim
 ./test.sh -f general/tag/bool.sim
 ./test.sh -f general/tag/change.sim
 ./test.sh -f general/tag/column.sim
