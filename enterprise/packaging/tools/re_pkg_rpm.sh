@@ -1,4 +1,4 @@
-# /bin/bash
+# bash
 #
 #    |---- newpkg
 #    |---- pkgroom
@@ -11,17 +11,30 @@
 #    |---- TDengine-server-2.0.15.0-Linux-x64.rpm
 #    |---- re_pkg_rpm.sh
 
+set -Eeuo pipefail
+trap cleanup SIGINT SIGTERM ERR EXIT
+
+cleanup() {
+  trap - SIGINT SIGTERM ERR EXIT
+  # script cleanup here
+  echo "### something wrong!"
+  exit 1
+}
+
 emailInfo=$1
 rpmPkg=$2
 
 curDir=`pwd`
-echo "==== current dir: ${curDir} ===="
+
+# need create pkg_stage and set right permission
+stageDir=${curDir}/pkg_stage
+
+#echo "==== current dir: ${curDir} ===="
 #echo "==== input parameters: ===="
 #echo "emailInfo: ${emailInfo}"
 #echo "rpmPkg: ${rpmPkg}"
 #echo
 
-cp -f ${rpmPkg} ${curDir}/ ||:
 pkgName=`basename $rpmPkg`
 verNumber=${pkgName%-Linux*}
 verNumber=${verNumber##*-}
@@ -29,6 +42,10 @@ verNumber=${verNumber##*-}
 #echo "rpmPkt:${rpmPkg}"
 #echo "pkgName:${pkgName}"
 #echo "verNumber:${verNumber}"
+
+cp -f ${rpmPkg} ${stageDir} && echo "cp ${rpmPkg} ${stageDir} done." || echo "cp ${rpmPkg} ${stageDir} failed"
+
+cd ${stageDir}
 
 rm -rf pkgroom  ||:
 mkdir -p pkgroom/BUILDROOT/tdengine-${verNumber}-3.x86_64
@@ -38,19 +55,28 @@ rpm2cpio ${pkgName} | cpio -idv
 
 # add email info
 echo ${emailInfo} > usr/local/taos/email
+
 mv usr pkgroom/BUILDROOT/tdengine-${verNumber}-3.x86_64/
-./rpmbuild/rpmrebuild.sh -s tdengine.spec -p ${pkgName}
+
+${stageDir}/rpmbuild/rpmrebuild.sh -s tdengine.spec -p ${pkgName}
 
 # add new email file into spec
 #%attr(0755, root, root) "/usr/local/taos/email"
 
+sed -i "s/taosdump\"/taosdump\"\n%attr(0755, root, root) \"\/usr\/local\/taos\/email\"/g" tdengine.spec
+echo "### LN69 ###"
 mv tdengine.spec pkgroom/SPECS
 
-rpmbuild --define="_topdir ${curDir}/pkgroom" -ba ${curDir}/pkgroom/SPECS/tdengine.spec
+rpmbuild --define="_topdir ${stageDir}/pkgroom" -ba ${stageDir}/pkgroom/SPECS/tdengine.spec
 
-rm -f ${pkgName}
-rm -rf newpkg ||:
-mkdir newpkg
-mv pkgroom/RPMS/x86_64/*.rpm newpkg/${pkgName}
+newpkgDir=newpkg-${emailInfo}
 
+if [ -d ${newpkgDir} ];
+then
+  rm -rf ${newpkgDir} ||:
+  mkdir ${newpkgDir}
+fi
 
+mv pkgroom/RPMS/x86_64/*.rpm ${newpkgDir}/${pkgName}
+
+echo " ==== Done ===="
