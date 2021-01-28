@@ -578,6 +578,7 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Service]'                           >> ${powerd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                         >> ${powerd_service_config}"
     ${csudo} bash -c "echo 'ExecStart=/usr/bin/powerd'           >> ${powerd_service_config}"
+    ${csudo} bash -c "echo 'ExecStartPre=/usr/local/power/bin/startPre.sh'           >> ${powerd_service_config}"
     ${csudo} bash -c "echo 'LimitNOFILE=infinity'                >> ${powerd_service_config}"
     ${csudo} bash -c "echo 'LimitNPROC=infinity'                 >> ${powerd_service_config}"
     ${csudo} bash -c "echo 'LimitCORE=infinity'                  >> ${powerd_service_config}"
