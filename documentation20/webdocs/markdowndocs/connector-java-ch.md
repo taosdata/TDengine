@@ -339,9 +339,10 @@ conn.close();
     config.setUsername("root");
     config.setPassword("taosdata");
     // connection pool configurations
-    config.setMinimumIdle(3);           //minimum number of idle connection
+    config.setMinimumIdle(10);           //minimum number of idle connection
     config.setMaximumPoolSize(10);      //maximum number of connection in the pool
     config.setConnectionTimeout(30000); //maximum wait milliseconds for get connection from pool
+    config.setMaxLifetime(0);       // maximum life time for each connection
     config.setIdleTimeout(0);       // max idle time for recycle idle connection
     config.setConnectionTestQuery("select server_status()"); //validation query
 
@@ -375,24 +376,22 @@ conn.close();
 * 使用示例如下：
 ```java
 public static void main(String[] args) throws Exception {
-    Properties properties = new Properties();
+
+    DruidDataSource dataSource = new DruidDataSource();
     // jdbc properties
-    properties.put("driverClassName","com.taosdata.jdbc.TSDBDriver");
-    properties.put("url","jdbc:TAOS://127.0.0.1:6030/log");
-    properties.put("username","root");
-    properties.put("password","taosdata");
+    dataSource.setDriverClassName("com.taosdata.jdbc.TSDBDriver");
+    dataSource.setUrl(url);
+    dataSource.setUsername("root");
+    dataSource.setPassword("taosdata");
     // pool configurations
-    properties.put("maxActive","10"); 	//maximum number of connection in the pool
-    properties.put("initialSize","3");	//initial number of connection
-    properties.put("minIdle","3");	//minimum number of connection in the pool
-    properties.put("maxWait","30000");	//maximum wait milliseconds for get connection from pool
-    properties.put("validationQuery","select server_status()"); //validation query
-
-    //create druid datasource
-    DataSource ds = DruidDataSourceFactory.createDataSource(properties);
-    Connection  connection = ds.getConnection(); // get connection
+    dataSource.setInitialSize(10);
+    dataSource.setMinIdle(10);
+    dataSource.setMaxActive(10);
+    dataSource.setMaxWait(30000);
+    dataSource.setValidationQuery("select server_status()");
+	
+    Connection  connection = dataSource.getConnection(); // get connection
     Statement statement = connection.createStatement(); // get statement
-
     //query or insert 
     // ...
 
@@ -419,7 +418,7 @@ Query OK, 1 row(s) in set (0.000141s)
 ## 与框架使用
 
 * Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate][11]
-* Springboot + Mybatis 中使用，可参考 [springbootdemo
+* Springboot + Mybatis 中使用，可参考 [springbootdemo][12]
 
 
 

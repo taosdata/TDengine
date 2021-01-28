@@ -27,6 +27,7 @@
 #include "syncInt.h"
 #include "syncTcp.h"
 
+extern void    syncProcessTestMsg(SSyncMsg *pMsg, SOCKET connFd);
 static void    arbSignalHandler(int32_t signum, void *sigInfo, void *context);
 static void    arbProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp);
 static void    arbProcessBrokenLink(int64_t rid);
@@ -115,6 +116,11 @@ static void arbProcessIncommingConnection(SOCKET connFd, uint32_t sourceIp) {
   if (taosReadMsg(connFd, &msg, sizeof(SSyncMsg)) != sizeof(SSyncMsg)) {
     sError("failed to read peer sync msg from ip:%s since %s", ipstr, strerror(errno));
     taosCloseSocket(connFd);
+    return;
+  }
+
+  if (msg.head.type == TAOS_SMSG_TEST) {
+    syncProcessTestMsg(&msg, connFd);
     return;
   }
 

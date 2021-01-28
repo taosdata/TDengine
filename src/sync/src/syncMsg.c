@@ -86,6 +86,7 @@ static void syncBuildMsg(SSyncMsg *pMsg, int32_t vgId, ESyncMsgType type) {
 void syncBuildSyncReqMsg(SSyncMsg *pMsg, int32_t vgId) { syncBuildMsg(pMsg, vgId, TAOS_SMSG_SYNC_REQ); }
 void syncBuildSyncDataMsg(SSyncMsg *pMsg, int32_t vgId) { syncBuildMsg(pMsg, vgId, TAOS_SMSG_SYNC_DATA); }
 void syncBuildSyncSetupMsg(SSyncMsg *pMsg, int32_t vgId) { syncBuildMsg(pMsg, vgId, TAOS_SMSG_SETUP); }
+void syncBuildSyncTestMsg(SSyncMsg *pMsg, int32_t vgId) { syncBuildMsg(pMsg, vgId, TAOS_SMSG_TEST); }
 
 void syncBuildPeersStatus(SPeersStatus *pMsg, int32_t vgId) {
   pMsg->head.type = TAOS_SMSG_STATUS;

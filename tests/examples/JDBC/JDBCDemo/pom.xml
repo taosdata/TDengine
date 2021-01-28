@@ -9,6 +9,14 @@
     <version>SNAPSHOT</version>
     <packaging>jar</packaging>
 
+    <dependencies>
+        <dependency>
+            <groupId>com.taosdata.jdbc</groupId>
+            <artifactId>taos-jdbcdriver</artifactId>
+            <version>2.0.18</version>
+        </dependency>
+    </dependencies>
+
     <build>
         <plugins>
             <plugin>
@@ -47,13 +55,5 @@
 
         </plugins>
     </build>
-
-    <dependencies>
-        <dependency>
-            <groupId>com.taosdata.jdbc</groupId>
-            <artifactId>taos-jdbcdriver</artifactId>
-            <version>2.0.15</version>
-        </dependency>
-    </dependencies>
 
 </project>
