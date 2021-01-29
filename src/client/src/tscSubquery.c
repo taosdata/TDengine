@@ -1855,7 +1855,7 @@ void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, S
     }
 
     int32_t id = pExpr->colInfo.colId;
-    int32_t numOfQueriedCols = taosArrayGetSize(pInterResult->pResult);
+    int32_t numOfQueriedCols = (int32_t) taosArrayGetSize(pInterResult->pResult);
 
     SArray* p = NULL;
     for(int32_t j = 0; j < numOfQueriedCols; ++j) {
