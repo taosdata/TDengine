@@ -216,7 +216,6 @@ void taos_cleanup(void) {
   taosCloseRef(id);
 
   taosCleanupKeywordsTable();
-  taosCloseLog();
 
   p = tscRpcCache; 
   tscRpcCache = NULL;
@@ -226,7 +225,10 @@ void taos_cleanup(void) {
     pthread_mutex_destroy(&rpcObjMutex);
   }
 
-  if (tscEmbedded == 0) rpcCleanup();
+  if (tscEmbedded == 0) {
+    taosCloseLog();
+    rpcCleanup();
+  } 
 
   p = tscTmr;
   tscTmr = NULL;
