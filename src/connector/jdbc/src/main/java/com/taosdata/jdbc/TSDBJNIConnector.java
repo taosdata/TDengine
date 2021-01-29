@@ -16,20 +16,22 @@ package com.taosdata.jdbc;
 
 import com.taosdata.jdbc.utils.TaosInfo;
 
+import javax.management.MBeanServer;
+import javax.management.ObjectName;
+import java.lang.management.ManagementFactory;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class TSDBJNIConnector {
     private static volatile Boolean isInitialized = false;
 
-    private static AtomicInteger open_count = new AtomicInteger();
-    private static AtomicInteger close_count = new AtomicInteger();
+    private TaosInfo taosInfo = TaosInfo.getInstance();
 
     static {
         System.loadLibrary("taos");
         System.out.println("java.library.path:" + System.getProperty("java.library.path"));
+
     }
 
     /**
@@ -107,9 +109,9 @@ public class TSDBJNIConnector {
             throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg(0L)), "", this.getErrCode(0l));
         }
         // invoke connectImp only here
-        int open = open_count.incrementAndGet();
-        int close = close_count.get();
-        System.out.println("open_count: " + open + ", close_count: " + close + ", connection_count: " + (open - close));
+        int open = taosInfo.getOpen_count().incrementAndGet();
+        int close = taosInfo.getClose_count().get();
+        System.out.println("open_count: " + open + ", close_count: " + close + ", connection_count: " + (taosInfo.getConnectionCount()));
         return true;
     }
 
@@ -274,9 +276,9 @@ public class TSDBJNIConnector {
             throw new SQLException("Undefined error code returned by TDengine when closing a connection");
         }
         // invoke closeConnectionImpl only here
-        int open = open_count.get();
-        int close = close_count.incrementAndGet();
-        System.out.println("open_count: " + open + ", close_count: " + close + ", connection_count: " + (open - close));
+        int open = taosInfo.getOpen_count().get();
+        int close = taosInfo.getClose_count().incrementAndGet();
+        System.out.println("open_count: " + open + ", close_count: " + close + ", connection_count: " + (taosInfo.getConnectionCount()));
     }
 
     private native int closeConnectionImp(long connection);
