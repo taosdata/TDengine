@@ -1,4 +1,4 @@
-package com.taosdata.jdbc.example.jdbcTemplate.dao;
+package com.taosdata.example.jdbcTemplate.dao;
 
 public interface ExecuteAsStatement{
 

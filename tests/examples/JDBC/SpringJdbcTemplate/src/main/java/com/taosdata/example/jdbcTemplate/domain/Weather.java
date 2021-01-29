@@ -1,4 +1,4 @@
-package com.taosdata.jdbc.example.jdbcTemplate.domain;
+package com.taosdata.example.jdbcTemplate.domain;
 
 import java.sql.Timestamp;
 

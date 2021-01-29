@@ -1,6 +1,6 @@
-package com.taosdata.jdbc.example.jdbcTemplate.dao;
+package com.taosdata.example.jdbcTemplate.dao;
 
-import com.taosdata.jdbc.example.jdbcTemplate.domain.Weather;
+import com.taosdata.example.jdbcTemplate.domain.Weather;
 
 import java.util.List;
 
