@@ -3252,7 +3252,7 @@ void copyResToQueryResultBuf(SQInfo *pQInfo, SQuery *pQuery) {
   }
 
   int32_t size = (int32_t) taosArrayGetSize(pGroupResInfo->pRows);
-  pQuery->rec.rows = doCopyToSData(pQInfo, pGroupResInfo->pRows->pData, (int32_t) size, &pGroupResInfo->index, TSDB_ORDER_ASC);
+  pQuery->rec.rows = doCopyToSData(pQInfo, pGroupResInfo->pRows->pData, size, &pGroupResInfo->index, TSDB_ORDER_ASC);
 }
 
 int64_t getNumOfResultWindowRes(SQueryRuntimeEnv* pRuntimeEnv, SResultRow *pResultRow) {
@@ -4120,7 +4120,7 @@ int32_t setParamValue(SQueryRuntimeEnv* pRuntimeEnv) {
       SInterResult *p = taosArrayGet(pRuntimeEnv->prevResult, j);
       if (pQuery->tagLen == 0 || memcmp(p->tags, pRuntimeEnv->tagVal, pQuery->tagLen) == 0) {
 
-        int32_t numOfCols = taosArrayGetSize(p->pResult);
+        int32_t numOfCols = (int32_t) taosArrayGetSize(p->pResult);
         for(int32_t k = 0; k < numOfCols; ++k) {
           SStddevInterResult* pres = taosArrayGet(p->pResult, k);
           if (pres->colId == pFuncMsg->colInfo.colId) {
