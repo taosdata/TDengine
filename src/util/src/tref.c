@@ -313,6 +313,11 @@ void *taosIterateRef(int rsetId, int64_t rid) {
 
       // rid is there
       pNode = pNode->next;
+      // check first place
+      while (pNode) {
+        if (!pNode->removed) break;
+        pNode = pNode->next;
+      }
       if (pNode == NULL) {
         taosUnlockList(pSet->lockedBy+hash);
         hash++;
@@ -323,7 +328,14 @@ void *taosIterateRef(int rsetId, int64_t rid) {
       for (; hash < pSet->max; ++hash) {
         taosLockList(pSet->lockedBy+hash);
         pNode = pSet->nodeList[hash];
-        if (pNode) break;
+        if (pNode) {
+          // check first place
+          while (pNode) {
+            if (!pNode->removed) break;
+            pNode = pNode->next;
+          }
+          if (pNode) break;
+        }
         taosUnlockList(pSet->lockedBy+hash);
       }
     }
