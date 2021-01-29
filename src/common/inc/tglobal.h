@@ -59,7 +59,8 @@ extern int32_t  tsCompressMsgSize;
 extern char     tsTempDir[];
 
 //query buffer management
-extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer for each data node during query processing
+extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer size in MB for each data node during query processing
+extern int64_t  tsQueryBufferSizeBytes; // maximum allowed usage buffer size in byte for each data node during query processing
 extern int32_t  tsRetrieveBlockingModel;// retrieve threads will be blocked
 
 extern int8_t   tsKeepOriginalColumnName;

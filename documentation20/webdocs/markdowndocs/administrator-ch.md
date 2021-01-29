@@ -12,7 +12,7 @@
 Memory Size = maxVgroupsPerDb * (blocks * cache + 10Mb) + numOfTables * (tagSizePerTable + 0.5Kb)
 ```
 
-示例：假设是4核机器，cache是缺省大小16M, blocks是缺省值6，假设有10万张表，标签总长度是256字节，则总的内存需求为：4\*(16\*6+10) + 100000*(0.25+0.5)/1000 = 499M。
+示例：假设是4核机器，cache是缺省大小16M, blocks是缺省值6，假设有10万张表，标签总长度是256字节，则总的内存需求为：4\*(16\*6+10) + 100000\*(0.25+0.5)/1000 = 499M。
 
 实际运行的系统往往会根据数据特点的不同，将数据存放在不同的DB里。因此做规划时，也需要考虑。
 
@@ -35,7 +35,7 @@ TDengine相对于通用数据库，有超高的压缩比，在绝大多数场景
 Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 ```
 
-示例：1000万台智能电表，每台电表每15分钟采集一次数据，每次采集的数据128字节，那么一年的原始数据量是：10000000\*128\*24\*60/15*365 = 44.8512T。TDengine大概需要消耗44.851/5=8.97024T空间。
+示例：1000万台智能电表，每台电表每15分钟采集一次数据，每次采集的数据128字节，那么一年的原始数据量是：10000000\*128\*24\*60/15\*365 = 44.8512T。TDengine大概需要消耗44.851/5=8.97024T空间。
 
 用户可以通过参数keep，设置数据在磁盘中的最大保存时长。为进一步减少存储成本，TDengine还提供多级存储，最冷的数据可以存放在最廉价的存储介质上，应用的访问不用做任何调整，只是读取速度降低了。
 
@@ -181,7 +181,7 @@ taos -C  或  taos --dump-config
 
     客户端的输入的字符均采用操作系统当前默认的编码格式，在Linux系统上多为UTF-8，部分中文系统编码则可能是GB18030或GBK等。在docker环境中默认的编码是POSIX。在中文版Windows系统中，编码则是CP936。客户端需要确保正确设置自己所使用的字符集，即客户端运行的操作系统当前编码字符集，才能保证nchar中的数据正确转换为UCS4-LE编码格式。
 
-    在 Linux 中 locale 的命名规则为: <语言>_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh代表中文，CN代表大陆地区，UTF-8表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux系统与 Mac OSX 系统可以通过设置locale来确定系统的字符编码，由于Windows使用的locale中不是POSIX标准的locale格式，因此在Windows下需要采用另一个配置参数charset来指定字符编码。在Linux 系统中也可以使用charset来指定字符编码。
+    在 Linux 中 locale 的命名规则为: <语言>\_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh代表中文，CN代表大陆地区，UTF-8表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux系统与 Mac OSX 系统可以通过设置locale来确定系统的字符编码，由于Windows使用的locale中不是POSIX标准的locale格式，因此在Windows下需要采用另一个配置参数charset来指定字符编码。在Linux 系统中也可以使用charset来指定字符编码。
 
 - charset
 
@@ -452,39 +452,39 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 
 | 关键字列表 |             |              |            |           |
 | ---------- | ----------- | ------------ | ---------- | --------- |
-| ABLOCKS    | CONNECTION  | GT           | MINUS      | SHOW      |
-| ABORT      | CONNECTIONS | ID           | MNODES     | SLASH     |
-| ACCOUNT    | COPY        | IF           | MODULES    | SLIDING   |
-| ACCOUNTS   | COUNT       | IGNORE       | NCHAR      | SMALLINT  |
-| ADD        | CREATE      | IMMEDIATE    | NE         | SPREAD    |
-| AFTER      | CTIME       | IMPORT       | NONE       | STAR      |
-| ALL        | DATABASE    | IN           | NOT        | STATEMENT |
-| ALTER      | DATABASES   | INITIALLY    | NOTNULL    | STDDEV    |
-| AND        | DAYS        | INSERT       | NOW        | STREAM    |
-| AS         | DEFERRED    | INSTEAD      | OF         | STREAMS   |
-| ASC        | DELIMITERS  | INTEGER      | OFFSET     | STRING    |
-| ATTACH     | DESC        | INTERVAL     | OR         | SUM       |
-| AVG        | DESCRIBE    | INTO         | ORDER      | TABLE     |
-| BEFORE     | DETACH      | IP           | PASS       | TABLES    |
-| BEGIN      | DIFF        | IS           | PERCENTILE | TAG       |
-| BETWEEN    | DIVIDE      | ISNULL       | PLUS       | TAGS      |
-| BIGINT     | DNODE       | JOIN         | PRAGMA     | TBLOCKS   |
-| BINARY     | DNODES      | KEEP         | PREV       | TBNAME    |
-| BITAND     | DOT         | KEY          | PRIVILEGE  | TIMES     |
-| BITNOT     | DOUBLE      | KILL         | QUERIES    | TIMESTAMP |
-| BITOR      | DROP        | LAST         | QUERY      | TINYINT   |
-| BOOL       | EACH        | LE           | RAISE      | TOP       |
-| BOTTOM     | END         | LEASTSQUARES | REM        | TRIGGER   |
-| BY         | EQ          | LIKE         | REPLACE    | UMINUS    |
-| CACHE      | EXISTS      | LIMIT        | REPLICA    | UPLUS     |
-| CASCADE    | EXPLAIN     | LINEAR       | RESET      | USE       |
-| CHANGE     | FAIL        | LOCAL        | RESTRICT   | USER      |
-| CLOG       | FILL        | LP           | ROW        | USERS     |
-| CLUSTER    | FIRST       | LSHIFT       | ROWS       | USING     |
-| COLON      | FLOAT       | LT           | RP         | VALUES    |
-| COLUMN     | FOR         | MATCH        | RSHIFT     | VARIABLE  |
-| COMMA      | FROM        | MAX          | SCORES     | VGROUPS   |
-| COMP       | GE          | METRIC       | SELECT     | VIEW      |
-| CONCAT     | GLOB        | METRICS      | SEMI       | WAVG      |
-| CONFIGS    | GRANTS      | MIN          | SET        | WHERE     |
-| CONFLICT   | GROUP       |              |            |           |
+| ABLOCKS    | CONNECTION  | GROUP        | MINUS      | SLASH     |
+| ABORT      | CONNECTIONS | GT           | MNODES     | SLIDING   |
+| ACCOUNT    | COPY        | ID           | MODULES    | SMALLINT  |
+| ACCOUNTS   | COUNT       | IF           | NCHAR      | SPREAD    |
+| ADD        | CREATE      | IGNORE       | NE         | STABLE    |
+| AFTER      | CTIME       | IMMEDIATE    | NONE       | STABLES   |
+| ALL        | DATABASE    | IMPORT       | NOT        | STAR      |
+| ALTER      | DATABASES   | IN           | NOTNULL    | STATEMENT |
+| AND        | DAYS        | INITIALLY    | NOW        | STDDEV    |
+| AS         | DEFERRED    | INSERT       | OF         | STREAM    |
+| ASC        | DELIMITERS  | INSTEAD      | OFFSET     | STREAMS   |
+| ATTACH     | DESC        | INTEGER      | OR         | STRING    |
+| AVG        | DESCRIBE    | INTERVAL     | ORDER      | SUM       |
+| BEFORE     | DETACH      | INTO         | PASS       | TABLE     |
+| BEGIN      | DIFF        | IP           | PERCENTILE | TABLES    |
+| BETWEEN    | DISTINCT    | IS           | PLUS       | TAG       |
+| BIGINT     | DIVIDE      | ISNULL       | PRAGMA     | TAGS      |
+| BINARY     | DNODE       | JOIN         | PREV       | TBLOCKS   |
+| BITAND     | DNODES      | KEEP         | PRIVILEGE  | TBNAME    |
+| BITNOT     | DOT         | KEY          | QUERIES    | TIMES     |
+| BITOR      | DOUBLE      | KILL         | QUERY      | TIMESTAMP |
+| BOOL       | DROP        | LAST         | RAISE      | TINYINT   |
+| BOTTOM     | EACH        | LE           | REM        | TOP       |
+| BY         | END         | LEASTSQUARES | REPLACE    | TRIGGER   |
+| CACHE      | EQ          | LIKE         | REPLICA    | UMINUS    |
+| CASCADE    | EXISTS      | LIMIT        | RESET      | UPLUS     |
+| CHANGE     | EXPLAIN     | LINEAR       | RESTRICT   | USE       |
+| CLOG       | FAIL        | LOCAL        | ROW        | USER      |
+| CLUSTER    | FILL        | LP           | ROWS       | USERS     |
+| COLON      | FIRST       | LSHIFT       | RP         | USING     |
+| COLUMN     | FLOAT       | LT           | RSHIFT     | VALUES    |
+| COMMA      | FOR         | MATCH        | SCORES     | VARIABLE  |
+| COMP       | FROM        | MAX          | SELECT     | VGROUPS   |
+| CONCAT     | GE          | METRIC       | SEMI       | VIEW      |
+| CONFIGS    | GLOB        | METRICS      | SET        | WAVG      |
+| CONFLICT   | GRANTS      | MIN          | SHOW       | WHERE     |
