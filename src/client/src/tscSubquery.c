@@ -2024,7 +2024,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
   pCmd->command = TSDB_SQL_SELECT;
   pNew->fp = tscFirstRoundCallback;
 
-  int32_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  int32_t numOfExprs = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
 
   int32_t index = 0;
   int32_t numOfTags = 0;
