@@ -28,8 +28,7 @@
 #define MAX_LOGLINE_DUMP_CONTENT_SIZE (MAX_LOGLINE_DUMP_SIZE - 100)
 
 #define LOG_FILE_NAME_LEN          300
-#define TSDB_DEFAULT_LOG_BUF_SIZE (4 * 1024 * 1024)  // 4MB
-#define TSDB_DEFAULT_LOG_BUF_UNIT  1024         // 1K
+#define TSDB_DEFAULT_LOG_BUF_SIZE (10 * 1024 * 1024)  // 10MB
 
 #define LOG_BUF_BUFFER(x) ((x)->buffer)
 #define LOG_BUF_START(x)  ((x)->buffStart)
@@ -546,14 +545,17 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
   static int64_t lostLine = 0;
   char tmpBuf[40] = {0};
   int32_t tmpBufLen = 0;
+  static int32_t waitLock = 0;
 
   if (tLogBuff == NULL || tLogBuff->stop) return -1;
+
+  atomic_add_fetch_32(&waitLock, 1);
 
   pthread_mutex_lock(&LOG_BUF_MUTEX(tLogBuff));
   start = LOG_BUF_START(tLogBuff);
   end = LOG_BUF_END(tLogBuff);
 
-  remainSize = (start > end) ? (end - start - 1) : (start + LOG_BUF_SIZE(tLogBuff) - end - 1);
+  remainSize = (start > end) ? (start - end - 1) : (start + LOG_BUF_SIZE(tLogBuff) - end - 1);
 
   if (lostLine > 0) {
     sprintf(tmpBuf, "...Lost %"PRId64" lines here...\n", lostLine);
@@ -564,6 +566,7 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
     lostLine++;
     asyncLogLostLines++;
     pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
+    atomic_sub_fetch_32(&waitLock, 1);
     return -1;
   }
 
@@ -574,11 +577,14 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
 
   taosCopyLogBuffer(tLogBuff, LOG_BUF_START(tLogBuff), LOG_BUF_END(tLogBuff), msg, msgLen);
 
-  // TODO : put string in the buffer
+  int32_t w = atomic_sub_fetch_32(&waitLock, 1);
 
-  tsem_post(&(tLogBuff->buffNotEmpty));
+  if (w <= 0 || ((remainSize - msgLen - tmpBufLen) < (LOG_BUF_SIZE(tLogBuff) * 4 /5))) {
+    tsem_post(&(tLogBuff->buffNotEmpty));
+  }
 
   pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
+
 
   return 0;
 }
