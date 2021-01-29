@@ -3440,6 +3440,7 @@ static int32_t getTagCondString(tSQLExpr* pExpr, char** str) {
 
 static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pTableCond, SStringBuilder* sb) {
   const char* msg0 = "invalid table name list";
+  const char* msg1 = "not string following like";
 
   if (pTableCond == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -3457,6 +3458,10 @@ static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr*
   if (pTableCond->nSQLOptr == TK_IN) {
     ret = tablenameListToString(pRight, sb);
   } else if (pTableCond->nSQLOptr == TK_LIKE) {
+    if (pRight->nSQLOptr != TK_STRING) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
+    
     ret = tablenameCondToString(pRight, sb);
   }
 
