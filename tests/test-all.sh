@@ -155,7 +155,7 @@ if [ "$2" != "python" ]; then
   elif [ "$1" == "b1" ]; then
     echo "### run TSIM b1 test ###"
     runSimCaseOneByOne jenkins/basic_1.txt
-    # runSimCaseOneByOne jenkins/basic_4.txt
+    runSimCaseOneByOne jenkins/basic_4.txt
   elif [ "$1" == "b2" ]; then
     echo "### run TSIM b2 test ###"
     runSimCaseOneByOne jenkins/basic_2.txt

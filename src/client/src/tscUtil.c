@@ -32,6 +32,14 @@
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo);
 
+static void tscStrToLower(char *str, int32_t n) {
+  if (str == NULL || n <= 0) { return;}
+  for (int32_t i = 0; i < n; i++) {
+    if (str[i] >= 'A' && str[i] <= 'Z') {
+        str[i] -= ('A' - 'a');
+    }
+  }
+}
 SCond* tsGetSTableQueryCond(STagCond* pTagCond, uint64_t uid) {
   if (pTagCond->pCond == NULL) {
     return NULL;
@@ -442,7 +450,6 @@ void tscFreeRegisteredSqlObj(void *pSql) {
 
   SSqlObj* p = *(SSqlObj**)pSql;
   STscObj* pTscObj = p->pTscObj;
-
   assert(RID_VALID(p->self));
 
   int32_t num   = atomic_sub_fetch_32(&pTscObj->numOfObj, 1);
@@ -893,16 +900,10 @@ void tscCloseTscObj(void *param) {
   pObj->signature = NULL;
   taosTmrStopA(&(pObj->pTimer));
 
-  void* p = pObj->pDnodeConn;
-  if (pObj->pDnodeConn != NULL) {
-    rpcClose(pObj->pDnodeConn);
-    pObj->pDnodeConn = NULL;
-  }
-
   tfree(pObj->tscCorMgmtEpSet);
+  tscReleaseRpc(pObj->pRpcObj);
   pthread_mutex_destroy(&pObj->mutex);
 
-  tscDebug("%p DB connection is closed, dnodeConn:%p", pObj, p);
   tfree(pObj);
 }
 
@@ -1431,9 +1432,11 @@ int32_t tscValidateName(SStrToken* pToken) {
   char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
   if (sep == NULL) {  // single part
     if (pToken->type == TK_STRING) {
+       
       strdequote(pToken->z);
+      tscStrToLower(pToken->z, pToken->n);
       pToken->n = (uint32_t)strtrim(pToken->z);
-
+       
       int len = tSQLGetToken(pToken->z, &pToken->type);
 
       // single token, validate it
@@ -1485,7 +1488,7 @@ int32_t tscValidateName(SStrToken* pToken) {
     if (pToken->type == TK_STRING && validateQuoteToken(pToken) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
-
+    
     // re-build the whole name string
     if (pStr[firstPartLen] == TS_PATH_DELIMITER[0]) {
       // first part do not have quote do nothing
@@ -1497,6 +1500,8 @@ int32_t tscValidateName(SStrToken* pToken) {
     }
     pToken->n += (firstPartLen + sizeof(TS_PATH_DELIMITER[0]));
     pToken->z = pStr;
+
+    tscStrToLower(pToken->z,pToken->n);
   }
 
   return TSDB_CODE_SUCCESS;
