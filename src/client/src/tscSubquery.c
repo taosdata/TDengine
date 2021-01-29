@@ -1956,7 +1956,7 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
     SBufferWriter bw = tbufInitWriter(NULL, false);
     interResToBinary(&bw, pSup->pResult, pSup->tagLen);
 
-    pQueryInfo1->bufLen = tbufTell(&bw);
+    pQueryInfo1->bufLen = (int32_t) tbufTell(&bw);
     pQueryInfo1->buf = tbufGetData(&bw, true);
 
     // set the serialized binary string as the parameter of arithmetic expression
