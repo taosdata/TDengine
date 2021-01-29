@@ -4961,7 +4961,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   }
 
   // create runtime environment
-  code = setupQueryRuntimeEnv(pRuntimeEnv, pQInfo->tableGroupInfo.numOfTables, pQuery->order.order);
+  code = setupQueryRuntimeEnv(pRuntimeEnv, (int32_t) pQInfo->tableGroupInfo.numOfTables, pQuery->order.order);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
