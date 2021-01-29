@@ -4115,7 +4115,7 @@ int32_t setParamValue(SQueryRuntimeEnv* pRuntimeEnv) {
     pRuntimeEnv->pCtx[i].param[0].arr = NULL;
     pRuntimeEnv->pCtx[i].param[0].nType = TSDB_DATA_TYPE_INT; // avoid freeing the memory by setting the type to be int
 
-    int32_t numOfGroup = taosArrayGetSize(pRuntimeEnv->prevResult);
+    int32_t numOfGroup = (int32_t) taosArrayGetSize(pRuntimeEnv->prevResult);
     for(int32_t j = 0; j < numOfGroup; ++j) {
       SInterResult *p = taosArrayGet(pRuntimeEnv->prevResult, j);
       if (pQuery->tagLen == 0 || memcmp(p->tags, pRuntimeEnv->tagVal, pQuery->tagLen) == 0) {
