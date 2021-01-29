@@ -1158,7 +1158,7 @@ bool tscMultiRoundQuery(SQueryInfo* pQueryInfo, int32_t index) {
     return false;
   }
 
-  int32_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  int32_t numOfExprs = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
   for(int32_t i = 0; i < numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     if (pExpr->functionId == TSDB_FUNC_STDDEV_DST) {
