@@ -560,7 +560,7 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
   remainSize = (start > end) ? (end - start - 1) : (start + LOG_BUF_SIZE(tLogBuff) - end - 1);
 
   if (lostLine > 0) {
-    sprintf(tmpBuf, "\n...Lost %"PRId64" lines here...\n", lostLine);
+    sprintf(tmpBuf, "...Lost %"PRId64" lines here...\n", lostLine);
     tmpBufLen = strlen(tmpBuf);
   }
 
@@ -617,7 +617,7 @@ static void *taosAsyncOutputLog(void *param) {
   SLogBuff *tLogBuff = (SLogBuff *)param;
   int32_t   log_size = 0;
 
-  char tempBuffer[TSDB_DEFAULT_LOG_BUF_UNIT];
+  char tempBuffer[TSDB_DEFAULT_LOG_BUF_SIZE];
 
   while (1) {
     tsem_wait(&(tLogBuff->buffNotEmpty));
