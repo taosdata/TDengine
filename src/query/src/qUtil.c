@@ -232,7 +232,7 @@ void* destroyResultRowPool(SResultRowPool* p) {
 }
 
 void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen) {
-  uint32_t numOfGroup = taosArrayGetSize(pRes);
+  uint32_t numOfGroup = (uint32_t) taosArrayGetSize(pRes);
   tbufWriteUint32(bw, numOfGroup);
   tbufWriteUint16(bw, tagLen);
 
