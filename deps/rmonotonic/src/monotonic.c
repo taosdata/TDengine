@@ -7,6 +7,8 @@
 #undef NDEBUG
 #include <assert.h>
 
+#include "msvcTime.h"
+#include "msvcStdio.h"
 
 /* The function pointer for clock retrieval.  */
 monotime (*getMonotonicUs)(void) = NULL;
@@ -129,8 +131,7 @@ static void monotonicInit_aarch64() {
 }
 #endif
 
-
-static monotime getMonotonicUs_posix() {
+static monotime getMonotonicUs_posix(void) {
     /* clock_gettime() is specified in POSIX.1b (1993).  Even so, some systems
      * did not support this until much later.  CLOCK_MONOTONIC is technically
      * optional and may not be supported - but it appears to be universal.

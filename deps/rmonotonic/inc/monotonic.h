@@ -15,6 +15,10 @@
 #include <stdint.h>
 //#include <unistd.h>
 
+#if defined(_WIN32) || defined(_WIN64)
+  #define inline
+#endif
+
 /* A counter in micro-seconds.  The 'monotime' type is provided for variables
  * holding a monotonic time.  This will help distinguish & document that the
  * variable is associated with the monotonic clock and should not be confused
