@@ -159,27 +159,24 @@ static void tsdbResetFSStatus(SFSStatus *pStatus) {
 }
 
 static void tsdbSetStatusMFile(SFSStatus *pStatus, const SMFile *pMFile) {
-  ASSERT(pStatus->pmf == NULL && TSDB_FILE_CLOSED(pMFile));
+  ASSERT(pStatus->pmf == NULL);
 
   pStatus->pmf = &(pStatus->mf);
-  *(pStatus->pmf) = *pMFile;
+  tsdbInitMFileEx(pStatus->pmf, pMFile);
 }
 
 static int tsdbAddDFileSetToStatus(SFSStatus *pStatus, const SDFileSet *pSet) {
-  ASSERT(TSDB_FILE_CLOSED(&(pSet->files[0])));
-  ASSERT(TSDB_FILE_CLOSED(&(pSet->files[1])));
-  ASSERT(TSDB_FILE_CLOSED(&(pSet->files[2])));
-
   if (taosArrayPush(pStatus->df, (void *)pSet) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
 
+  TSDB_FSET_SET_CLOSED(((SDFileSet *)taosArrayGetLast(pStatus->df)));
+
   return 0;
 }
 
 // ================== STsdbFS
-// TODO
 STsdbFS *tsdbNewFS(STsdbCfg *pCfg) {
   int      keep = pCfg->keep;
   int      days = pCfg->daysPerFile;
@@ -221,7 +218,6 @@ STsdbFS *tsdbNewFS(STsdbCfg *pCfg) {
   return pfs;
 }
 
-// TODO
 void *tsdbFreeFS(STsdbFS *pfs) {
   if (pfs) {
     pfs->nstatus = tsdbFreeFSStatus(pfs->nstatus);
@@ -235,8 +231,8 @@ void *tsdbFreeFS(STsdbFS *pfs) {
 }
 
 int tsdbOpenFS(STsdbRepo *pRepo) {
-  STsdbFS * pfs = REPO_FS(pRepo);
-  char      current[TSDB_FILENAME_LEN] = "\0";
+  STsdbFS *pfs = REPO_FS(pRepo);
+  char     current[TSDB_FILENAME_LEN] = "\0";
 
   ASSERT(pfs != NULL);
 
@@ -247,11 +243,16 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
       tsdbError("vgId:%d failed to open FS since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
- } else {
-   if (tsdbRestoreCurrent(pRepo) < 0) {
-     tsdbError("vgId:%d failed to restore current file since %s", REPO_ID(pRepo), tstrerror(terrno));
-     return -1;
-   }
+  } else {
+    if (tsdbRestoreCurrent(pRepo) < 0) {
+      tsdbError("vgId:%d failed to restore current file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+  }
+
+  if (tsdbScanAndTryFixFS(pRepo) < 0) {
+    tsdbError("vgId:%d failed to scan and fix FS since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
   }
 
   // Load meta cache if has meta file
@@ -264,7 +265,7 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
 }
 
 void tsdbCloseFS(STsdbRepo *pRepo) {
-  // TODO
+  // Do nothing
 }
 
 // Start a new transaction to modify the file system
@@ -651,10 +652,6 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
   taosTZfree(buffer);
   close(fd);
 
-  if (tsdbScanAndTryFixFS(pRepo) < 0) {
-    return -1;
-  }
-
   return 0;
 
 _err:
@@ -965,6 +962,7 @@ static int tsdbRestoreMeta(STsdbRepo *pRepo) {
 
         if (tsdbLoadMFileHeader(pfs->cstatus->pmf, &(pfs->cstatus->pmf->info)) < 0) {
           tsdbError("vgId:%d failed to restore meta since %s", REPO_ID(pRepo), tstrerror(terrno));
+          tsdbCloseMFile(pfs->cstatus->pmf);
           tfsClosedir(tdir);
           regfree(&regex);
           return -1;

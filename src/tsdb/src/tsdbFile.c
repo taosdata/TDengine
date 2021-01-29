@@ -581,6 +581,7 @@ void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet) {
   int32_t fid;
 
   buf = taosDecodeFixedI32(buf, &(fid));
+  pSet->state = 0;
   pSet->fid = fid;
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     buf = tsdbDecodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));

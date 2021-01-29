@@ -51,6 +51,7 @@ typedef struct {
 #define FS_CURRENT_STATUS(pfs) ((pfs)->cstatus)
 #define FS_NEW_STATUS(pfs) ((pfs)->nstatus)
 #define FS_IN_TXN(pfs) (pfs)->intxn
+#define FS_VERSION(pfs) ((pfs)->cstatus->meta.version)
 #define FS_TXN_VERSION(pfs) ((pfs)->nstatus->meta.version)
 
 typedef struct {
