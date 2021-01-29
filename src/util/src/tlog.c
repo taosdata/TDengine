@@ -68,6 +68,8 @@ int8_t  tsAsyncLog = 1;
 float   tsTotalLogDirGB = 0;
 float   tsAvailLogDirGB = 0;
 float   tsMinimalLogDirGB = 1.0f;
+int64_t asyncLogLostLines = 0;
+
 #ifdef _TD_POWER_
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
 #else
@@ -527,24 +529,7 @@ static void taosLogBuffDestroy(SLogBuff *tLogBuff) {
 }
 #endif
 
-static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) {
-  int32_t start = 0;
-  int32_t end = 0;
-  int32_t remainSize = 0;
-
-  if (tLogBuff == NULL || tLogBuff->stop) return -1;
-
-  pthread_mutex_lock(&LOG_BUF_MUTEX(tLogBuff));
-  start = LOG_BUF_START(tLogBuff);
-  end = LOG_BUF_END(tLogBuff);
-
-  remainSize = (start > end) ? (end - start - 1) : (start + LOG_BUF_SIZE(tLogBuff) - end - 1);
-
-  if (remainSize <= msgLen) {
-    pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
-    return -1;
-  }
-
+static void taosCopyLogBuffer(SLogBuff *tLogBuff, int32_t start, int32_t end, char *msg, int32_t msgLen) {
   if (start > end) {
     memcpy(LOG_BUF_BUFFER(tLogBuff) + end, msg, msgLen);
   } else {
@@ -556,6 +541,42 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
     }
   }
   LOG_BUF_END(tLogBuff) = (LOG_BUF_END(tLogBuff) + msgLen) % LOG_BUF_SIZE(tLogBuff);
+}
+
+static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) {
+  int32_t start = 0;
+  int32_t end = 0;
+  int32_t remainSize = 0;
+  static int64_t lostLine = 0;
+  char tmpBuf[40] = {0};
+  int32_t tmpBufLen = 0;
+
+  if (tLogBuff == NULL || tLogBuff->stop) return -1;
+
+  pthread_mutex_lock(&LOG_BUF_MUTEX(tLogBuff));
+  start = LOG_BUF_START(tLogBuff);
+  end = LOG_BUF_END(tLogBuff);
+
+  remainSize = (start > end) ? (end - start - 1) : (start + LOG_BUF_SIZE(tLogBuff) - end - 1);
+
+  if (lostLine > 0) {
+    sprintf(tmpBuf, "\n...Lost %"PRId64" lines here...\n", lostLine);
+    tmpBufLen = strlen(tmpBuf);
+  }
+
+  if (remainSize <= msgLen || ((lostLine > 0) && (remainSize <= (msgLen + tmpBufLen)))) {
+    lostLine++;
+    asyncLogLostLines++;
+    pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
+    return -1;
+  }
+
+  if (lostLine > 0) {
+    taosCopyLogBuffer(tLogBuff, start, end, tmpBuf, tmpBufLen);
+    lostLine = 0;
+  }
+
+  taosCopyLogBuffer(tLogBuff, LOG_BUF_START(tLogBuff), LOG_BUF_END(tLogBuff), msg, msgLen);
 
   // TODO : put string in the buffer
 
@@ -603,7 +624,7 @@ static void *taosAsyncOutputLog(void *param) {
 
     // Polling the buffer
     while (1) {
-      log_size = taosPollLogBuffer(tLogBuff, tempBuffer, TSDB_DEFAULT_LOG_BUF_UNIT);
+      log_size = taosPollLogBuffer(tLogBuff, tempBuffer, sizeof(tempBuffer));
       if (log_size) {
         taosWrite(tLogBuff->fd, tempBuffer, log_size);
         LOG_BUF_START(tLogBuff) = (LOG_BUF_START(tLogBuff) + log_size) % LOG_BUF_SIZE(tLogBuff);
