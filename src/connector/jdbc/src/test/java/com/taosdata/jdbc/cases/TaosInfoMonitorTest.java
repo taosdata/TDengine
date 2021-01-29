@@ -20,8 +20,9 @@ public class TaosInfoMonitorTest {
 
         List<Connection> connectionList = IntStream.range(0, 100).mapToObj(i -> {
             try {
+                TimeUnit.SECONDS.sleep(1);
                 return DriverManager.getConnection(url);
-            } catch (SQLException e) {
+            } catch (SQLException | InterruptedException e) {
                 e.printStackTrace();
             }
             return null;
@@ -29,7 +30,8 @@ public class TaosInfoMonitorTest {
         connectionList.stream().forEach(conn -> {
             try {
                 conn.close();
-            } catch (SQLException e) {
+                TimeUnit.SECONDS.sleep(1);
+            } catch (SQLException | InterruptedException e) {
                 e.printStackTrace();
             }
         });
