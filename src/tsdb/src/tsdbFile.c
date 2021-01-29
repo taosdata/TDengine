@@ -155,6 +155,7 @@ int tsdbUpdateMFileHeader(SMFile *pMFile) {
   void *ptr = buf;
   tsdbEncodeMFInfo(&ptr, TSDB_FILE_INFO(pMFile));
 
+  taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
   if (tsdbWriteMFile(pMFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
     return -1;
   }
@@ -175,6 +176,11 @@ int tsdbLoadMFileHeader(SMFile *pMFile, SMFInfo *pInfo) {
     return -1;
   }
 
+  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    return -1;
+  }
+
   tsdbDecodeMFInfo(buf, pInfo);
   return 0;
 }
@@ -185,10 +191,11 @@ int tsdbScanAndTryFixMFile(STsdbRepo *pRepo) {
   SMFile      mf;
 
   if (pMFile == NULL) {
+    // No meta file, no need to scan
     return 0;
   }
 
-  mf = *pMFile;
+  tsdbInitMFileEx(&mf, pMFile);
 
   if (access(TSDB_FILE_FULL_NAME(pMFile), F_OK) != 0) {
     tsdbError("vgId:%d meta file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
@@ -227,6 +234,8 @@ int tsdbScanAndTryFixMFile(STsdbRepo *pRepo) {
     pRepo->state |= TSDB_STATE_BAD_META;
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return 0;
+  } else {
+    tsdbDebug("vgId:%d meta file %s passes the scan", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile));
   }
 
   return 0;
@@ -255,7 +264,9 @@ void *tsdbDecodeMFInfo(void *buf, SMFInfo *pInfo) {
 }
 
 static int tsdbRollBackMFile(SMFile *pMFile) {
-  SMFile mf = *pMFile;
+  SMFile mf;
+
+  tsdbInitMFileEx(&mf, pMFile);
 
   if (tsdbOpenMFile(&mf, O_WRONLY) < 0) {
     return -1;
@@ -385,6 +396,7 @@ int tsdbUpdateDFileHeader(SDFile *pDFile) {
   taosEncodeFixedU32(&ptr, TSDB_FS_VERSION);
   tsdbEncodeDFInfo(&ptr, &(pDFile->info));
 
+  taosCalcChecksumAppend(0, (uint8_t *)buf, TSDB_FILE_HEAD_SIZE);
   if (tsdbWriteDFile(pDFile, buf, TSDB_FILE_HEAD_SIZE) < 0) {
     return -1;
   }
@@ -406,6 +418,11 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
     return -1;
   }
 
+  if (!taosCheckChecksumWhole((uint8_t *)buf, TSDB_FILE_HEAD_SIZE)) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    return -1;
+  }
+
   void *pBuf = buf;
   pBuf = taosDecodeFixedU32(pBuf, &version);
   pBuf = tsdbDecodeDFInfo(pBuf, pInfo);
@@ -414,7 +431,9 @@ int tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo) {
 
 static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
   struct stat dfstat;
-  SDFile      df = *pDFile;
+  SDFile      df;
+
+  tsdbInitDFileEx(&df, pDFile);
 
   if (access(TSDB_FILE_FULL_NAME(pDFile), F_OK) != 0) {
     tsdbError("vgId:%d data file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
@@ -453,6 +472,8 @@ static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
     pRepo->state |= TSDB_STATE_BAD_DATA;
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return 0;
+  } else {
+    tsdbDebug("vgId:%d file %s passes the scan", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
   }
 
   return 0;
