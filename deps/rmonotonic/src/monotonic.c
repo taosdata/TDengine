@@ -7,8 +7,10 @@
 #undef NDEBUG
 #include <assert.h>
 
+#if defined(_WIN32) || defined(_WIN64)
 #include "msvcTime.h"
 #include "msvcStdio.h"
+#endif
 
 /* The function pointer for clock retrieval.  */
 monotime (*getMonotonicUs)(void) = NULL;

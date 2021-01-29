@@ -506,7 +506,6 @@ static void taosTmrModuleInit(void) {
 
   pthread_mutex_init(&tmrCtrlMutex, NULL);
 
-  tmrInfo("ttimer monotonic clock source:%s", monotonicInit());
   int64_t now = getMonotonicMs();
   for (int i = 0; i < tListLen(wheels); i++) {
     time_wheel_t* wheel = wheels + i;
@@ -538,6 +537,8 @@ static void taosTmrModuleInit(void) {
 }
 
 void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* label) {
+  tmrInfo("ttimer monotonic clock source:%s", monotonicInit());
+
   pthread_once(&tmrModuleInit, taosTmrModuleInit);
 
   pthread_mutex_lock(&tmrCtrlMutex);
