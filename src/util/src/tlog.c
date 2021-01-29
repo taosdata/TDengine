@@ -28,9 +28,7 @@
 #define MAX_LOGLINE_DUMP_CONTENT_SIZE (MAX_LOGLINE_DUMP_SIZE - 100)
 
 #define LOG_FILE_NAME_LEN          300
-#define TSDB_DEFAULT_LOG_BUF_SIZE (512 * 1024)  // 512K
-#define TSDB_MIN_LOG_BUF_SIZE      1024         // 1K
-#define TSDB_MAX_LOG_BUF_SIZE     (1024 * 1024) // 1M
+#define TSDB_DEFAULT_LOG_BUF_SIZE (4 * 1024 * 1024)  // 4MB
 #define TSDB_DEFAULT_LOG_BUF_UNIT  1024         // 1K
 
 #define LOG_BUF_BUFFER(x) ((x)->buffer)
@@ -497,8 +495,6 @@ static void taosCloseLogByFd(int32_t fd) {
 static SLogBuff *taosLogBuffNew(int32_t bufSize) {
   SLogBuff *tLogBuff = NULL;
 
-  if (bufSize < TSDB_MIN_LOG_BUF_SIZE || bufSize > TSDB_MAX_LOG_BUF_SIZE) return NULL;
-
   tLogBuff = calloc(1, sizeof(SLogBuff));
   if (tLogBuff == NULL) return NULL;
 
@@ -617,14 +613,16 @@ static void *taosAsyncOutputLog(void *param) {
   SLogBuff *tLogBuff = (SLogBuff *)param;
   int32_t   log_size = 0;
 
-  char tempBuffer[TSDB_DEFAULT_LOG_BUF_SIZE];
+  char *tempBuffer = malloc(TSDB_DEFAULT_LOG_BUF_SIZE);
 
+  assert(tempBuffer);
+  
   while (1) {
     tsem_wait(&(tLogBuff->buffNotEmpty));
 
     // Polling the buffer
     while (1) {
-      log_size = taosPollLogBuffer(tLogBuff, tempBuffer, sizeof(tempBuffer));
+      log_size = taosPollLogBuffer(tLogBuff, tempBuffer, TSDB_DEFAULT_LOG_BUF_SIZE);
       if (log_size) {
         taosWrite(tLogBuff->fd, tempBuffer, log_size);
         LOG_BUF_START(tLogBuff) = (LOG_BUF_START(tLogBuff) + log_size) % LOG_BUF_SIZE(tLogBuff);
