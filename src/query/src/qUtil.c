@@ -246,7 +246,7 @@ void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen) {
     tbufWriteUint32(bw, numOfCols);
     for(int32_t j = 0; j < numOfCols; ++j) {
       SStddevInterResult* p = taosArrayGet(pOne->pResult, j);
-      uint32_t numOfRows = taosArrayGetSize(p->pResult);
+      uint32_t numOfRows = (uint32_t) taosArrayGetSize(p->pResult);
 
       tbufWriteUint16(bw, p->colId);
       tbufWriteUint32(bw, numOfRows);
