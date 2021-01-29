@@ -127,6 +127,7 @@
                     </includes>
                     <excludes>
                         <exclude>**/AppMemoryLeakTest.java</exclude>
+                        <exclude>**/TaosInfoMonitorTest.java</exclude>
                         <exclude>**/FailOverTest.java</exclude>
                     </excludes>
                     <testFailureIgnore>true</testFailureIgnore>
