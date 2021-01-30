@@ -294,7 +294,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_WAL_SIZE_LIMIT,               0, 0x1002, "WAL size e
 // http
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_SERVER_OFFLINE,          0, 0x1100, "http server is not onlin")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_UNSUPPORT_URL,           0, 0x1101, "url is not support")
-TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_INVLALID_URL,            0, 0x1102, "invalid url format")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_INVALID_URL,            0, 0x1102, "invalid url format")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_NO_ENOUGH_MEMORY,        0, 0x1103, "no enough memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_REQUSET_TOO_BIG,         0, 0x1104, "request size is too big")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_NO_AUTH_INFO,            0, 0x1105, "no auth info input")
