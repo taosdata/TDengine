@@ -18,6 +18,9 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
+#include <errno.h>
+#include <libproc.h>
+
 
 static void taosGetSystemTimezone() {
   // get and set default timezone
@@ -103,8 +106,18 @@ int taosSystem(const char *cmd) {
 
 void taosSetCoreDump() {}
 
+char cmdline[1024];
+
 char *taosGetCmdlineByPID(int pid) {
-  return "[not supported yet]";
+
+  errno = 0;
+
+  if (proc_pidpath(pid, cmdline, sizeof(cmdline)) <= 0) {
+    fprintf(stderr, "PID is %d, %s", pid, strerror(errno));
+    return strerror(errno);
+  }
+
+  return cmdline;
 }
 
 bool taosGetSystemUid(char *uid) {
