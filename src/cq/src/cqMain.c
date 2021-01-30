@@ -217,6 +217,8 @@ void cqClose(void *handle) {
     
     taosRemoveRef(cqObjRef, rid);
   }
+  
+  tfree(pContext);
 }
 
 void cqStart(void *handle) {
