@@ -908,6 +908,7 @@ int main(int argc, char *argv[]) {
     }
     pthread_join(read_id, NULL);
     taos_close(rInfo->taos);
+    free(rInfo);
   }
 
   taos_cleanup();
