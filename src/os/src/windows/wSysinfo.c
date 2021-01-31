@@ -155,8 +155,6 @@ void taosGetDisk() {
     tsTotalTmpDirGB = (float)(i64TotalBytes / unit);
     tsAvailTmpDirectorySpace = (float)(i64FreeBytes / unit);
   }
-
-  return true;
 }
 
 bool taosGetBandSpeed(float *bandSpeedKb) {
