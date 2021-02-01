@@ -21,7 +21,7 @@
 void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
   int level = 0;
   if (v2 != NULL) {
-    int length = strlen(v2);
+    int length = (int)strlen(v2);
     if (length > 0) level = atoi(v2);
     if (level < 0 || level >= TSDB_MAX_TIERS) {
       uError("config option:dataDir, input level:%s, not in range [0, %d), set default 0", v2, TSDB_MAX_TIERS);
@@ -31,7 +31,7 @@ void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
 
   int primary = 1;
   if (v3 != NULL) {
-    int length = strlen(v3);
+    int length = (int)strlen(v3);
     if (length > 0) primary = atoi(v3);
     if (primary < 0 || primary > 1) {
       uError("config option:dataDir, input primary:%s, not in range [0, 1], set default 1", v3);
