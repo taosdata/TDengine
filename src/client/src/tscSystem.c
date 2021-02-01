@@ -65,7 +65,7 @@ void tscReleaseRpc(void *param)  {
     return;
   }
   pthread_mutex_lock(&rpcObjMutex);
-  taosCacheRelease(tscRpcCache, (void *)&param, false); 
+  taosCacheRelease(tscRpcCache, (void *)&param, true); 
   pthread_mutex_unlock(&rpcObjMutex);
 } 
 
@@ -216,7 +216,6 @@ void taos_cleanup(void) {
   taosCloseRef(id);
 
   taosCleanupKeywordsTable();
-  taosCloseLog();
 
   p = tscRpcCache; 
   tscRpcCache = NULL;
@@ -226,7 +225,10 @@ void taos_cleanup(void) {
     pthread_mutex_destroy(&rpcObjMutex);
   }
 
-  if (tscEmbedded == 0) rpcCleanup();
+  if (tscEmbedded == 0) {
+    rpcCleanup();
+    taosCloseLog();
+  };
 
   p = tscTmr;
   tscTmr = NULL;
