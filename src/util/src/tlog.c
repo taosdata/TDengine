@@ -74,9 +74,6 @@ float   tsMinimalLogDirGB = 1.0f;
 int64_t asyncLogLostLines = 0;
 int32_t writeInterval = DEFAULT_LOG_INTERVAL;
 
-
-int64_t dbgPostN = 0;
-int64_t dbgNoPostN = 0;
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
 int64_t dbgSmallWN = 0;
@@ -562,11 +559,8 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
   static int64_t lostLine = 0;
   char tmpBuf[40] = {0};
   int32_t tmpBufLen = 0;
-  static int32_t waitLock = 0;
 
   if (tLogBuff == NULL || tLogBuff->stop) return -1;
-
-  //atomic_add_fetch_32(&waitLock, 1);
 
   pthread_mutex_lock(&LOG_BUF_MUTEX(tLogBuff));
   start = LOG_BUF_START(tLogBuff);
@@ -583,7 +577,6 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
     lostLine++;
     asyncLogLostLines++;
     pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
-    atomic_sub_fetch_32(&waitLock, 1);
     return -1;
   }
 
@@ -642,18 +635,17 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
     }
 
     dbgWN++;
+    dbgWSize+=pollSize;
     
-    if (pollSize < 1048576) {
+    if (pollSize < LOG_BUF_SIZE(tLogBuff)/10) {
       dbgSmallWN++;
       if (writeInterval < MAX_LOG_INTERVAL) {
         writeInterval += LOG_INTERVAL_STEP;
       }
-    } else if (pollSize >  4 * 1048576) {
+    } else if (pollSize >  LOG_BUF_SIZE(tLogBuff)/3) {
       dbgBigWN++;
       writeInterval = MIN_LOG_INTERVAL;
     }
-    
-    dbgWSize+=pollSize;
 
     LOG_BUF_START(tLogBuff) = (LOG_BUF_START(tLogBuff) + pollSize) % LOG_BUF_SIZE(tLogBuff);
 
