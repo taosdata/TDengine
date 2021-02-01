@@ -21,6 +21,11 @@
 #include "tfs.h"
 #include "tfsint.h"
 
+#ifdef __GNUC__
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+
 typedef struct {
   pthread_spinlock_t lock;
   SFSMeta            meta;
@@ -593,3 +598,7 @@ void taosGetDisk() {
     tsAvailTmpDirectorySpace = (float)(diskSize.avail / unit);
   }
 }
+
+#ifdef __GNUC__
+#pragma GCC diagnostic pop
+#endif
