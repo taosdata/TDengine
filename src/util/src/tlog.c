@@ -28,7 +28,7 @@
 #define MAX_LOGLINE_DUMP_CONTENT_SIZE (MAX_LOGLINE_DUMP_SIZE - 100)
 
 #define LOG_FILE_NAME_LEN          300
-#define TSDB_DEFAULT_LOG_BUF_SIZE (10 * 1024 * 1024)  // 10MB
+#define TSDB_DEFAULT_LOG_BUF_SIZE (20 * 1024 * 1024)  // 20MB
 
 #define DEFAULT_LOG_INTERVAL 50000
 #define LOG_INTERVAL_STEP 5000
@@ -645,6 +645,8 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
     } else if (pollSize >  LOG_BUF_SIZE(tLogBuff)/3) {
       dbgBigWN++;
       writeInterval = MIN_LOG_INTERVAL;
+    } else if (pollSize > LOG_BUF_SIZE(tLogBuff)/4) {
+      writeInterval -= LOG_INTERVAL_STEP;
     }
 
     LOG_BUF_START(tLogBuff) = (LOG_BUF_START(tLogBuff) + pollSize) % LOG_BUF_SIZE(tLogBuff);
