@@ -21,9 +21,6 @@
 #include "tfs.h"
 #include "tfsint.h"
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-truncation"
-
 typedef struct {
   pthread_spinlock_t lock;
   SFSMeta            meta;
@@ -582,19 +579,17 @@ void taosGetDisk() {
 
   if (tscEmbedded) {
     tfsUpdateInfo(&fsMeta);
-    tsTotalDataDirGB = (float)fsMeta.tsize / unit;
-    tsAvailDataDirGB = (float)fsMeta.avail / unit;
+    tsTotalDataDirGB = (float)(fsMeta.tsize / unit);
+    tsAvailDataDirGB = (float)(fsMeta.avail / unit);
   }
 
-  if (taosGetDiskSize(tsLogDir, &diskSize)) {
-    tsTotalLogDirGB = (float)diskSize.tsize / unit;
-    tsAvailLogDirGB = (float)diskSize.avail / unit;
+  if (taosGetDiskSize(tsLogDir, &diskSize) == 0) {
+    tsTotalLogDirGB = (float)(diskSize.tsize / unit);
+    tsAvailLogDirGB = (float)(diskSize.avail / unit);
   }
 
-  if (taosGetDiskSize("/tmp", &diskSize)) {
-    tsTotalTmpDirGB = (float)diskSize.tsize / unit;
-    tsAvailTmpDirectorySpace = (float)diskSize.avail / unit;
+  if (taosGetDiskSize("/tmp", &diskSize) == 0) {
+    tsTotalTmpDirGB = (float)(diskSize.tsize / unit);
+    tsAvailTmpDirectorySpace = (float)(diskSize.avail / unit);
   }
 }
-
-#pragma GCC diagnostic pop

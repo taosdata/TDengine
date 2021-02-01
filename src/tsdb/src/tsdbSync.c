@@ -149,10 +149,10 @@ static int32_t tsdbSyncSendMeta(SSyncH *pSynch) {
       return -1;
     }
 
-    int32_t writeLen = mf.info.size;
+    int32_t writeLen = (int32_t)mf.info.size;
     tsdbInfo("vgId:%d, metafile:%s will be sent, size:%d", REPO_ID(pRepo), mf.f.aname, writeLen);
 
-    int32_t ret = taosSendFile(pSynch->socketFd, TSDB_FILE_FD(&mf), 0, writeLen);
+    int32_t ret = (int32_t)taosSendFile(pSynch->socketFd, TSDB_FILE_FD(&mf), 0, writeLen);
     if (ret != writeLen) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       tsdbError("vgId:%d, failed to send metafile since %s, ret:%d writeLen:%d", REPO_ID(pRepo), tstrerror(terrno), ret,
@@ -213,7 +213,7 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
 
     tsdbInfo("vgId:%d, metafile:%s is created", REPO_ID(pRepo), mf.f.aname);
 
-    int32_t readLen = pSynch->pmf->info.size;
+    int32_t readLen = (int32_t)pSynch->pmf->info.size;
     int32_t ret = taosCopyFds(pSynch->socketFd, TSDB_FILE_FD(&mf), readLen);
     if (ret != readLen) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -458,7 +458,7 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
           tsdbInfo("vgId:%d, file:%s will be received, osize:%" PRIu64 " rsize:%" PRIu64, REPO_ID(pRepo),
                    pDFile->f.aname, pDFile->info.size, pRDFile->info.size);
 
-          int32_t writeLen = pRDFile->info.size;
+          int32_t writeLen = (int32_t)pRDFile->info.size;
           int32_t ret = taosCopyFds(pSynch->socketFd, pDFile->fd, writeLen);
           if (ret != writeLen) {
             terrno = TAOS_SYSTEM_ERROR(errno);
@@ -570,10 +570,10 @@ static int32_t tsdbSyncSendDFileSet(SSyncH *pSynch, SDFileSet *pSet) {
         return -1;
       }
 
-      int32_t writeLen = df.info.size;
+      int32_t writeLen = (int32_t)df.info.size;
       tsdbInfo("vgId:%d, file:%s will be sent, size:%d", REPO_ID(pRepo), df.f.aname, writeLen);
 
-      int32_t ret = taosSendFile(pSynch->socketFd, TSDB_FILE_FD(&df), 0, writeLen);
+      int32_t ret = (int32_t)taosSendFile(pSynch->socketFd, TSDB_FILE_FD(&df), 0, writeLen);
       if (ret != writeLen) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         tsdbError("vgId:%d, failed to send file:%s since %s, ret:%d writeLen:%d", REPO_ID(pRepo), df.f.aname,

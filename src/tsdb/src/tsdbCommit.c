@@ -205,9 +205,9 @@ void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
   maxKey = now - pCfg->keep1 * tsMsPerDay[pCfg->precision];
 
   pRtn->minKey = minKey;
-  pRtn->minFid = TSDB_KEY_FID(minKey, pCfg->daysPerFile, pCfg->precision);
-  pRtn->midFid = TSDB_KEY_FID(midKey, pCfg->daysPerFile, pCfg->precision);
-  pRtn->maxFid = TSDB_KEY_FID(maxKey, pCfg->daysPerFile, pCfg->precision);
+  pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->daysPerFile, pCfg->precision));
+  pRtn->midFid = (int)(TSDB_KEY_FID(midKey, pCfg->daysPerFile, pCfg->precision));
+  pRtn->maxFid = (int)(TSDB_KEY_FID(maxKey, pCfg->daysPerFile, pCfg->precision));
 }
 
 static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen) {
@@ -571,7 +571,7 @@ static int tsdbNextCommitFid(SCommitH *pCommith) {
     if (nextKey == TSDB_DATA_TIMESTAMP_NULL) {
       continue;
     } else {
-      int tfid = TSDB_KEY_FID(nextKey, pCfg->daysPerFile, pCfg->precision);
+      int tfid = (int)(TSDB_KEY_FID(nextKey, pCfg->daysPerFile, pCfg->precision));
       if (fid == TSDB_IVLD_FID || fid > tfid) {
         fid = tfid;
       }
@@ -950,7 +950,7 @@ static int tsdbWriteBlockIdx(SCommitH *pCommih) {
   }
 
   tsdbUpdateDFileMagic(pHeadf, POINTER_SHIFT(TSDB_COMMIT_BUF(pCommih), tlen - sizeof(TSCKSUM)));
-  pHeadf->info.offset = offset;
+  pHeadf->info.offset = (uint32_t)offset;
   pHeadf->info.len = tlen;
 
   return 0;

@@ -21,6 +21,7 @@
 #include "ttimer.h"
 #include "tulog.h"
 #include "tutil.h"
+#include "taoserror.h"
 #if (_WIN64)
 #include <iphlpapi.h>
 #include <mswsock.h>
@@ -126,34 +127,21 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   return true;
 }
 
-void taosGetDisk() {
-  const double    unit = 1024 * 1024 * 1024;
-  BOOL            fResult;
+int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   unsigned _int64 i64FreeBytesToCaller;
   unsigned _int64 i64TotalBytes;
   unsigned _int64 i64FreeBytes;
 
-  if (tscEmbedded) {
-    fResult = GetDiskFreeSpaceExA(tsDataDir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
-                                  (PULARGE_INTEGER)&i64FreeBytes);
-    if (fResult) {
-      tsTotalDataDirGB = (float)(i64TotalBytes / unit);
-      tsAvailDataDirGB = (float)(i64FreeBytes / unit);
-    }
-  }
-
-  fResult = GetDiskFreeSpaceExA(tsLogDir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
-                                (PULARGE_INTEGER)&i64FreeBytes);
+  BOOL fResult = GetDiskFreeSpaceExA(dataDir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
+                                     (PULARGE_INTEGER)&i64FreeBytes);
   if (fResult) {
-    tsTotalLogDirGB = (float)(i64TotalBytes / unit);
-    tsAvailLogDirGB = (float)(i64FreeBytes / unit);
-  }
-
-  fResult = GetDiskFreeSpaceExA(tsTempDir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
-                                (PULARGE_INTEGER)&i64FreeBytes);
-  if (fResult) {
-    tsTotalTmpDirGB = (float)(i64TotalBytes / unit);
-    tsAvailTmpDirectorySpace = (float)(i64FreeBytes / unit);
+    diskSize->tsize = (int64_t)(i64TotalBytes);
+    diskSize->avail = (int64_t)(i64FreeBytes);
+    return 0;
+  } else {
+    uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
   }
 }
 
@@ -205,7 +193,7 @@ void taosGetSystemInfo() {
   tsTotalMemoryMB = taosGetTotalMemory();
 
   float tmp1, tmp2;
-  taosGetDisk();
+  // taosGetDisk();
   taosGetBandSpeed(&tmp1);
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
