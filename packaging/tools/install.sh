@@ -168,6 +168,7 @@ function install_main_path() {
     if [ "$verMode" == "cluster" ]; then
         ${csudo} mkdir -p ${nginx_dir}
     fi
+    ${csudo} cp ${script_dir}/email ${install_main_dir}/ ||: 
 }
 
 function install_bin() {
