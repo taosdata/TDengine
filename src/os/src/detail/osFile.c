@@ -142,6 +142,8 @@ int64_t taosCopy(char *from, char *to) {
     if (bytes < sizeof(buffer)) break;
   }
 
+  fsync(fidto);
+
   close(fidfrom);
   close(fidto);
   return size;
