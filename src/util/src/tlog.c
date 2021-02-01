@@ -67,6 +67,14 @@ float   tsAvailLogDirGB = 0;
 float   tsMinimalLogDirGB = 1.0f;
 int64_t asyncLogLostLines = 0;
 
+
+int64_t dbgPostN = 0;
+int64_t dbgNoPostN = 0;
+int64_t dbgEmptyW = 0;
+int64_t dbgW = 0;
+int64_t dbgSmallW = 0;
+int64_t dbgWSize = 0;
+
 #ifdef _TD_POWER_
 char    tsLogDir[TSDB_FILENAME_LEN] = "/var/log/power";
 #else
@@ -581,6 +589,9 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
 
   if (w <= 0 || ((remainSize - msgLen - tmpBufLen) < (LOG_BUF_SIZE(tLogBuff) * 4 /5))) {
     tsem_post(&(tLogBuff->buffNotEmpty));
+    dbgPostN++;
+  } else {
+    dbgNoPostN++;
   }
 
   pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
@@ -630,9 +641,15 @@ static void *taosAsyncOutputLog(void *param) {
     while (1) {
       log_size = taosPollLogBuffer(tLogBuff, tempBuffer, TSDB_DEFAULT_LOG_BUF_SIZE);
       if (log_size) {
+        dbgW++;
+        if (log_size < 1048576) {
+          dbgSmallW++;
+        }
+        dbgWSize+=log_size;
         taosWrite(tLogBuff->fd, tempBuffer, log_size);
         LOG_BUF_START(tLogBuff) = (LOG_BUF_START(tLogBuff) + log_size) % LOG_BUF_SIZE(tLogBuff);
       } else {
+        dbgEmptyW++;
         break;
       }
     }
