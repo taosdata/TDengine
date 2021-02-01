@@ -99,16 +99,12 @@ typedef struct {
 
 typedef struct {
   SSyncHead head;
-  char      name[TSDB_FILENAME_LEN];
-  uint32_t  magic;
-  uint32_t  index;
   uint64_t  fversion;
-  int64_t   size;
-} SFileInfo;
+} SFileVersion;
 
 typedef struct {
   SSyncHead head;
-  int8_t    sync;
+  int8_t    ack;
 } SFileAck;
 
 typedef struct {
@@ -136,7 +132,7 @@ void syncBuildPeersStatus(SPeersStatus *pMsg, int32_t vgId);
 void syncBuildSyncTestMsg(SSyncMsg *pMsg, int32_t vgId);
 
 void syncBuildFileAck(SFileAck *pMsg, int32_t vgId);
-void syncBuildFileInfo(SFileInfo *pMsg, int32_t vgId);
+void syncBuildFileVersion(SFileVersion *pMsg, int32_t vgId);
 
 #ifdef __cplusplus
 }

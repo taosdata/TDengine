@@ -18,7 +18,6 @@
 #include "tref.h"
 #include "trpc.h"
 #include "tnote.h"
-#include "tsystem.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tsched.h"
@@ -49,7 +48,7 @@ int32_t   tscNumOfThreads = 1;     // num of rpc threads
 static    pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 
-void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
+void tscCheckDiskUsage(void *UNUSED_PARAM(para), void *UNUSED_PARAM(param)) {
   taosGetDisk();
   taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }

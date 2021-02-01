@@ -277,7 +277,7 @@ int32_t taosArrayCompareString(const void* a, const void* b) {
 
 static int32_t compareFindStrInArray(const void* pLeft, const void* pRight) {
   const SArray* arr = (const SArray*) pRight;
-  return taosArraySearchString(arr, pLeft, taosArrayCompareString) == NULL ? 0 : 1;
+  return taosArraySearchString(arr, pLeft, taosArrayCompareString, TD_EQ) == NULL ? 0 : 1;
 }
 
 static int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
