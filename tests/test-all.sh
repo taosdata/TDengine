@@ -155,7 +155,10 @@ if [ "$2" != "python" ]; then
   elif [ "$1" == "b1" ]; then
     echo "### run TSIM b1 test ###"
     runSimCaseOneByOne jenkins/basic_1.txt
-    # runSimCaseOneByOne jenkins/basic_4.txt
+    runSimCaseOneByOne jenkins/basic_4.txt
+    runSimCaseOneByOne jenkins/basic_5.txt
+    runSimCaseOneByOne jenkins/basic_6.txt
+    runSimCaseOneByOne jenkins/basic_7.txt
   elif [ "$1" == "b2" ]; then
     echo "### run TSIM b2 test ###"
     runSimCaseOneByOne jenkins/basic_2.txt
@@ -174,6 +177,15 @@ if [ "$2" != "python" ]; then
   elif [ "$1" == "b4fq" ]; then
     echo "### run TSIM b4 test ###"
     runSimCaseOneByOnefq jenkins/basic_4.txt
+  elif [ "$1" == "b5fq" ]; then
+    echo "### run TSIM b5 test ###"
+    runSimCaseOneByOnefq jenkins/basic_5.txt
+  elif [ "$1" == "b6fq" ]; then
+    echo "### run TSIM b6 test ###"
+    runSimCaseOneByOnefq jenkins/basic_6.txt
+  elif [ "$1" == "b7fq" ]; then
+    echo "### run TSIM b7 test ###"
+    runSimCaseOneByOnefq jenkins/basic_7.txt
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
     echo "### run TSIM smoke test ###"
     runSimCaseOneByOne basicSuite.sim
@@ -242,6 +254,9 @@ if [ "$2" != "sim" ]; then
   elif [ "$1" == "p2" ]; then
     echo "### run Python_2 test ###"
     runPyCaseOneByOnefq pytest_2.sh
+  elif [ "$1" == "p3" ]; then
+    echo "### run Python_3 test ###"
+    runPyCaseOneByOnefq pytest_3.sh
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
     exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
