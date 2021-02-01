@@ -35,7 +35,7 @@ void restBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t 
   // data row array end
   httpJsonToken(jsonBuf, JsonArrEnd);
 
-  cmd->numOfRows = 1; 
+  cmd->numOfRows = 1;
 }
 
 void restStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) {
