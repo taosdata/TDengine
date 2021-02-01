@@ -280,9 +280,11 @@ static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
 // =================== Commit Time-Series Data
 static int tsdbCommitTSData(STsdbRepo *pRepo) {
   SMemTable *pMem = pRepo->imem;
-  SCommitH   commith = {0};
+  SCommitH   commith;
   SDFileSet *pSet = NULL;
   int        fid;
+
+  memset(&commith, 0, sizeof(SMemTable *));
 
   if (pMem->numOfRows <= 0) {
     // No memory data, just apply retention on each file on disk

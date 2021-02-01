@@ -27,7 +27,7 @@ int wordexp(char *words, wordexp_t *pwordexp, int flags) {
   pwordexp->we_wordv[0] = pwordexp->wordPos;
 
   memset(pwordexp->wordPos, 0, 1025);
-  if (_fullpath(words, pwordexp->wordPos, 1024) == NULL) {
+  if (_fullpath(pwordexp->wordPos, words, 1024) == NULL) {
     pwordexp->we_wordv[0] = words;
     uError("failed to parse relative path:%s to abs path", words);
     return -1;
