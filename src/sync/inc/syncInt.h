@@ -108,14 +108,17 @@ typedef struct SSyncNode {
   SSyncFwds *  pSyncFwds;  // saved forward info if quorum >1
   void *       pFwdTimer;
   void *       pRoleTimer;
-  FGetFileInfo      getFileInfo;
-  FGetWalInfo       getWalInfo;
-  FWriteToCache     writeToCache;
+  void *       pTsdb;
+  FGetWalInfo       getWalInfoFp;
+  FWriteToCache     writeToCacheFp;
   FConfirmForward   confirmForward;
-  FNotifyRole       notifyRole;
-  FNotifyFlowCtrl   notifyFlowCtrl;
-  FNotifyFileSynced notifyFileSynced;
-  FGetVersion       getVersion;
+  FNotifyRole       notifyRoleFp;
+  FNotifyFlowCtrl   notifyFlowCtrlFp;
+  FStartSyncFile    startSyncFileFp;
+  FStopSyncFile     stopSyncFileFp;
+  FGetVersion       getVersionFp;
+  FSendFile         sendFileFp;
+  FRecvFile         recvFileFp;
   pthread_mutex_t   mutex;
 } SSyncNode;
 

@@ -201,12 +201,14 @@ int        gettimeofday(struct timeval *ptv, void *pTimeZone);
 
 typedef struct {
   int    we_wordc;
-  char **we_wordv;
+  char  *we_wordv[1];
   int    we_offs;
-  char   wordPos[20];
+  char   wordPos[1025];
 } wordexp_t;
-int  wordexp(const char *words, wordexp_t *pwordexp, int flags);
+int  wordexp(char *words, wordexp_t *pwordexp, int flags);
 void wordfree(wordexp_t *pwordexp);
+
+char *realpath(char *path, char *resolved_path);
 
 #define openlog(a, b, c)
 #define closelog()
