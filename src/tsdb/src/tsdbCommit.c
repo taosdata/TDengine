@@ -863,7 +863,7 @@ static int tsdbWriteBlockInfo(SCommitH *pCommih) {
     return 0;
   }
 
-  tlen = sizeof(SBlockInfo) + sizeof(SBlock) * (nSupBlocks + nSubBlocks) + sizeof(TSCKSUM);
+  tlen = (uint32_t)(sizeof(SBlockInfo) + sizeof(SBlock) * (nSupBlocks + nSubBlocks) + sizeof(TSCKSUM));
 
   // Write SBlockInfo part
   if (tsdbMakeRoom((void **)(&(TSDB_COMMIT_BUF(pCommih))), tlen) < 0) return -1;
@@ -901,7 +901,7 @@ static int tsdbWriteBlockInfo(SCommitH *pCommih) {
   blkIdx.uid = TABLE_UID(pTable);
   blkIdx.hasLast = pBlock->last ? 1 : 0;
   blkIdx.maxKey = pBlock->keyLast;
-  blkIdx.numOfBlocks = nSupBlocks;
+  blkIdx.numOfBlocks = (uint32_t)nSupBlocks;
   blkIdx.len = tlen;
   blkIdx.offset = (uint32_t)offset;
 

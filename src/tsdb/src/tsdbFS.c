@@ -484,7 +484,7 @@ void tsdbFSIterInit(SFSIter *pIter, STsdbFS *pfs, int direction) {
     if (direction == TSDB_FS_ITER_FORWARD) {
       pIter->index = 0;
     } else {
-      pIter->index = size - 1;
+      pIter->index = (int)(size - 1);
     }
 
     pIter->fid = ((SDFileSet *)taosArrayGet(pfs->cstatus->df, pIter->index))->fid;
@@ -507,7 +507,7 @@ void tsdbFSIterSeek(SFSIter *pIter, int fid) {
     pIter->index = -1;
     pIter->fid = TSDB_IVLD_FID;
   } else {
-    pIter->index = TARRAY_ELEM_IDX(pfs->cstatus->df, ptr);
+    pIter->index = (int)(TARRAY_ELEM_IDX(pfs->cstatus->df, ptr));
     pIter->fid = ((SDFileSet *)ptr)->fid;
   }
 }
@@ -800,7 +800,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
         return -1;
       }
 
-      if (tsdbRestoreTable(pRepo, pBuf, (size_t)pRecord->size) < 0) {
+      if (tsdbRestoreTable(pRepo, pBuf, (int)pRecord->size) < 0) {
         tsdbError("vgId:%d failed to restore table, uid %" PRId64 ", since %s" PRIu64, REPO_ID(pRepo), pRecord->uid,
                   tstrerror(terrno));
         tfree(pBuf);

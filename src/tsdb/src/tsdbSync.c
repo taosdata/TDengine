@@ -22,7 +22,7 @@
 typedef struct {
   STsdbRepo *pRepo;
   SRtn       rtn;
-  int32_t    socketFd;
+  SOCKET     socketFd;
   void *     pBuf;
   bool       mfChanged;
   SMFile *   pmf;
@@ -33,7 +33,7 @@ typedef struct {
 
 #define SYNC_BUFFER(sh) ((sh)->pBuf)
 
-static void    tsdbInitSyncH(SSyncH *pSyncH, STsdbRepo *pRepo, int32_t socketFd);
+static void    tsdbInitSyncH(SSyncH *pSyncH, STsdbRepo *pRepo, SOCKET socketFd);
 static void    tsdbDestroySyncH(SSyncH *pSyncH);
 static int32_t tsdbSyncSendMeta(SSyncH *pSynch);
 static int32_t tsdbSyncRecvMeta(SSyncH *pSynch);
@@ -49,7 +49,7 @@ static int32_t tsdbSendDFileSetInfo(SSyncH *pSynch, SDFileSet *pSet);
 static int32_t tsdbRecvDFileSetInfo(SSyncH *pSynch);
 static int     tsdbReload(STsdbRepo *pRepo, bool isMfChanged);
 
-int32_t tsdbSyncSend(void *tsdb, int32_t socketFd) {
+int32_t tsdbSyncSend(void *tsdb, SOCKET socketFd) {
   STsdbRepo *pRepo = (STsdbRepo *)tsdb;
   SSyncH     synch = {0};
 
@@ -78,7 +78,7 @@ _err:
   return -1;
 }
 
-int32_t tsdbSyncRecv(void *tsdb, int32_t socketFd) {
+int32_t tsdbSyncRecv(void *tsdb, SOCKET socketFd) {
   STsdbRepo *pRepo = (STsdbRepo *)tsdb;
   SSyncH synch = {0};
 
@@ -111,7 +111,7 @@ _err:
   return -1;
 }
 
-static void tsdbInitSyncH(SSyncH *pSyncH, STsdbRepo *pRepo, int32_t socketFd) {
+static void tsdbInitSyncH(SSyncH *pSyncH, STsdbRepo *pRepo, SOCKET socketFd) {
   pSyncH->pRepo = pRepo;
   pSyncH->socketFd = socketFd;
   tsdbGetRtnSnap(pRepo, &(pSyncH->rtn));
