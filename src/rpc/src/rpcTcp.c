@@ -49,6 +49,13 @@ typedef struct SThreadObj {
 } SThreadObj;
 
 typedef struct {
+  char    label[TSDB_LABEL_LEN];
+  int32_t index;
+  int numOfThreads;
+  SThreadObj **pThreadObj;
+} SClientObj;
+
+typedef struct {
   SOCKET      fd;
   uint32_t    ip;
   uint16_t    port;
@@ -116,6 +123,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
     pThreadObj->processData = fp;
     tstrncpy(pThreadObj->label, label, sizeof(pThreadObj->label));
     pThreadObj->shandle = shandle;
+    pThreadObj->stop = false;
   }
 
   // initialize mutex, thread, fd which may fail
@@ -166,6 +174,7 @@ void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThread
 }
 
 static void taosStopTcpThread(SThreadObj* pThreadObj) {
+  if (pThreadObj == NULL)  { return;}
   // save thread into local variable and signal thread to stop 
   pthread_t thread = pThreadObj->thread; 
   if (!taosCheckPthreadValid(thread)) {
@@ -282,68 +291,104 @@ static void *taosAcceptTcpConnection(void *arg) {
   return NULL;
 }
 
-void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int num, void *fp, void *shandle) {
-  SThreadObj    *pThreadObj;
+void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle) {
+  SClientObj *pClientObj = (SClientObj *)calloc(1, sizeof(SClientObj));
+  if (pClientObj == NULL) {
+    tError("TCP:%s no enough memory", label);
+    terrno = TAOS_SYSTEM_ERROR(errno); 
+    return NULL;
+  } 
+
+  tstrncpy(pClientObj->label, label, sizeof(pClientObj->label));
+  pClientObj->numOfThreads = numOfThreads;
+  pClientObj->pThreadObj = (SThreadObj **)calloc(numOfThreads, sizeof(SThreadObj*));  
+  if (pClientObj->pThreadObj == NULL) {
+    tError("TCP:%s no enough memory", label);
+    tfree(pClientObj);
+    terrno = TAOS_SYSTEM_ERROR(errno); 
+  }
+
+  int code = 0;
   pthread_attr_t thattr;
-
-  pThreadObj = (SThreadObj *)malloc(sizeof(SThreadObj));
-  memset(pThreadObj, 0, sizeof(SThreadObj));
-  tstrncpy(pThreadObj->label, label, sizeof(pThreadObj->label));
-  pThreadObj->ip = ip;
-  pThreadObj->shandle = shandle;
-
-  if (pthread_mutex_init(&(pThreadObj->mutex), NULL) < 0) {
-    tError("%s failed to init TCP client mutex(%s)", label, strerror(errno));
-    free(pThreadObj);
-    terrno = TAOS_SYSTEM_ERROR(errno); 
-    return NULL;
-  }
-
-  pThreadObj->pollFd = (EpollFd)epoll_create(10);  // size does not matter
-  if (pThreadObj->pollFd < 0) {
-    tError("%s failed to create TCP client epoll", label);
-    free(pThreadObj);
-    terrno = TAOS_SYSTEM_ERROR(errno); 
-    return NULL;
-  }
-
-  pThreadObj->processData = fp;
-
   pthread_attr_init(&thattr);
   pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
-  int code = pthread_create(&(pThreadObj->thread), &thattr, taosProcessTcpData, (void *)(pThreadObj));
-  pthread_attr_destroy(&thattr);
-  if (code != 0) {
-    EpollClose(pThreadObj->pollFd);
-    pThreadObj->pollFd = -1;
-    free(pThreadObj);
-    terrno = TAOS_SYSTEM_ERROR(errno); 
-    tError("%s failed to create TCP read data thread(%s)", label, strerror(errno));
-    return NULL;
+
+  for (int i = 0; i < numOfThreads; ++i) {
+    SThreadObj *pThreadObj = (SThreadObj *)calloc(1, sizeof(SThreadObj));
+    if (pThreadObj == NULL) {
+      tError("TCP:%s no enough memory", label);
+      terrno = TAOS_SYSTEM_ERROR(errno); 
+      for (int j=0; j<i; ++j) free(pClientObj->pThreadObj[j]);
+      free(pClientObj);
+      pthread_attr_destroy(&thattr);
+      return NULL;
+    }
+    pClientObj->pThreadObj[i] = pThreadObj;
+    taosResetPthread(&pThreadObj->thread);
+    pThreadObj->ip      = ip;
+    pThreadObj->stop    = false;
+    tstrncpy(pThreadObj->label, label, sizeof(pThreadObj->label));
+    pThreadObj->shandle = shandle;
+    pThreadObj->processData = fp;
   }
 
-  tDebug("%s TCP client is initialized, ip:%u:%hu", label, ip, port);
+  // initialize mutex, thread, fd which may fail
+  for (int i = 0; i < numOfThreads; ++i) {
+    SThreadObj *pThreadObj = pClientObj->pThreadObj[i];
+    code = pthread_mutex_init(&(pThreadObj->mutex), NULL);
+    if (code < 0) {
+      tError("%s failed to init TCP process data mutex(%s)", label, strerror(errno));
+      break;
+    }
 
-  return pThreadObj;
+    pThreadObj->pollFd = (int64_t)epoll_create(10);  // size does not matter
+    if (pThreadObj->pollFd < 0) {
+      tError("%s failed to create TCP epoll", label);
+      code = -1;
+      break;
+    }
+
+    code = pthread_create(&(pThreadObj->thread), &thattr, taosProcessTcpData, (void *)(pThreadObj));
+    if (code != 0) {
+      tError("%s failed to create TCP process data thread(%s)", label, strerror(errno));
+      break;
+    }
+    pThreadObj->threadId = i;
+  }
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno); 
+    taosCleanUpTcpClient(pClientObj);
+    pClientObj = NULL;
+  } 
+  return pClientObj; 
 }
 
 void taosStopTcpClient(void *chandle) {
-  SThreadObj *pThreadObj = chandle;
-  if (pThreadObj == NULL) return;
+  SClientObj *pClientObj = chandle;
 
-  tDebug ("%s TCP client is stopped", pThreadObj->label);
+  if (pClientObj == NULL) return;
+
+  tDebug ("%s TCP client is stopped", pClientObj->label);
 }
 
 void taosCleanUpTcpClient(void *chandle) {
-  SThreadObj *pThreadObj = chandle;
-  if (pThreadObj == NULL) return;
-
-  tDebug ("%s TCP client will be cleaned up", pThreadObj->label);
-  taosStopTcpThread(pThreadObj);
+  SClientObj *pClientObj = chandle;
+  if (pClientObj == NULL) return;
+  for (int i = 0; i < pClientObj->numOfThreads; ++i) { 
+    SThreadObj *pThreadObj= pClientObj->pThreadObj[i];
+    taosStopTcpThread(pThreadObj); 
+  }
+  
+  tDebug("%s TCP client is cleaned up", pClientObj->label);
+  tfree(pClientObj->pThreadObj);
+  tfree(pClientObj);   
 }
 
 void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uint16_t port) {
-  SThreadObj *    pThreadObj = shandle;
+  SClientObj *    pClientObj = shandle;
+  int32_t index = atomic_load_32(&pClientObj->index) % pClientObj->numOfThreads;
+    atomic_store_32(&pClientObj->index, index + 1); 
+  SThreadObj *pThreadObj = pClientObj->pThreadObj[index];
 
   SOCKET fd = taosOpenTcpClientSocket(ip, port, pThreadObj->ip);
   if (fd <= 0) return NULL;

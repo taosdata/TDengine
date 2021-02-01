@@ -47,7 +47,7 @@
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>2.0.4</version>
+            <version>2.0.18</version>
         </dependency>
 
     </dependencies>
@@ -69,7 +69,7 @@
                 <configuration>
                     <archive>
                         <manifest>
-                            <mainClass>com.taosdata.jdbc.example.jdbcTemplate.App</mainClass>
+                            <mainClass>com.taosdata.example.jdbcTemplate.App</mainClass>
                         </manifest>
                     </archive>
                     <descriptorRefs>
