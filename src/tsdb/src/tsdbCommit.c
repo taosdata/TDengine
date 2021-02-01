@@ -693,7 +693,7 @@ static int tsdbCommitToTable(SCommitH *pCommith, int tid) {
   TSDB_RUNLOCK_TABLE(pIter->pTable);
 
   if (tsdbWriteBlockInfo(pCommith) < 0) {
-    tsdbError("vgId:%d failed to write SBlockInfo part into file %s since %s", REPO_ID(pRepo),
+    tsdbError("vgId:%d failed to write SBlockInfo part into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
               TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommith)), tstrerror(terrno));
     return -1;
   }
