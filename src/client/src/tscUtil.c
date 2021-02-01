@@ -1422,9 +1422,9 @@ int32_t tscValidateName(SStrToken* pToken) {
   if (sep == NULL) {  // single part
     if (pToken->type == TK_STRING) {
        
-      strdequote(pToken->z);
+      tscDequoteAndTrimToken(pToken);
       tscStrToLower(pToken->z, pToken->n);
-      pToken->n = (uint32_t)strtrim(pToken->z);
+      //pToken->n = (uint32_t)strtrim(pToken->z);
        
       int len = tSQLGetToken(pToken->z, &pToken->type);
 
