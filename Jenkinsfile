@@ -45,6 +45,7 @@ def pre_test(){
     git pull
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
+    git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile' || exit 0
     cd ${WK}
     git reset --hard HEAD~10
     git checkout develop
