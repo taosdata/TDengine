@@ -16,9 +16,6 @@ package com.taosdata.jdbc;
 
 import com.taosdata.jdbc.utils.TaosInfo;
 
-import javax.management.MBeanServer;
-import javax.management.ObjectName;
-import java.lang.management.ManagementFactory;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
@@ -31,7 +28,6 @@ public class TSDBJNIConnector {
     static {
         System.loadLibrary("taos");
         System.out.println("java.library.path:" + System.getProperty("java.library.path"));
-
     }
 
     /**
@@ -109,9 +105,7 @@ public class TSDBJNIConnector {
             throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg(0L)), "", this.getErrCode(0l));
         }
         // invoke connectImp only here
-        int open = taosInfo.getOpen_count().incrementAndGet();
-        int close = taosInfo.getClose_count().get();
-        System.out.println("open_count: " + open + ", close_count: " + close + ", connection_count: " + (taosInfo.getConnectionCount()));
+        taosInfo.conn_open_increment();
         return true;
     }
 
@@ -132,6 +126,7 @@ public class TSDBJNIConnector {
         Long pSql = 0l;
         try {
             pSql = this.executeQueryImp(sql.getBytes(TaosGlobalConfig.getCharset()), this.taos);
+            taosInfo.stmt_count_increment();
         } catch (Exception e) {
             e.printStackTrace();
             this.freeResultSetImp(this.taos, pSql);
@@ -276,9 +271,7 @@ public class TSDBJNIConnector {
             throw new SQLException("Undefined error code returned by TDengine when closing a connection");
         }
         // invoke closeConnectionImpl only here
-        int open = taosInfo.getOpen_count().get();
-        int close = taosInfo.getClose_count().incrementAndGet();
-        System.out.println("open_count: " + open + ", close_count: " + close + ", connection_count: " + (taosInfo.getConnectionCount()));
+        taosInfo.connect_close_increment();
     }
 
     private native int closeConnectionImp(long connection);

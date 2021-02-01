@@ -123,7 +123,7 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <version>2.12.4</version>
                 <configuration>
-                    <forkMode>pretest</forkMode>
+                    <forkMode>pertest</forkMode>
                     <argLine>${maven.test.jvmargs}</argLine>
                     <includes>
                         <include>**/*Test.java</include>

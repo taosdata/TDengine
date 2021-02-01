@@ -3,12 +3,14 @@ package com.taosdata.jdbc.utils;
 import javax.management.*;
 import java.lang.management.ManagementFactory;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 public class TaosInfo implements TaosInfoMBean {
 
     private static volatile TaosInfo instance;
-    private AtomicInteger open_count = new AtomicInteger();
-    private AtomicInteger close_count = new AtomicInteger();
+    private AtomicLong connect_open = new AtomicLong();
+    private AtomicLong connect_close = new AtomicLong();
+    private AtomicLong statement_count = new AtomicLong();
 
     static {
         try {
@@ -21,23 +23,40 @@ public class TaosInfo implements TaosInfoMBean {
     }
 
     @Override
-    public int getConnectionCount() {
-        return open_count.get() - close_count.get();
+    public long getConnect_open() {
+        return connect_open.get();
     }
 
     @Override
-    public int getStatementCount() {
-        return 0;
+    public long getConnect_close() {
+        return connect_close.get();
     }
 
-    public AtomicInteger getOpen_count() {
-        return open_count;
+    @Override
+    public long getConnect_active() {
+        return connect_open.get() - connect_close.get();
     }
 
-    public AtomicInteger getClose_count() {
-        return close_count;
+    @Override
+    public long getStatement_count() {
+        return statement_count.get();
     }
 
+    /*******************************************************/
+
+    public void conn_open_increment() {
+        connect_open.incrementAndGet();
+    }
+
+    public void connect_close_increment() {
+        connect_close.incrementAndGet();
+    }
+
+    public void stmt_count_increment() {
+        statement_count.incrementAndGet();
+    }
+
+    /********************************************************************************/
     private TaosInfo() {
     }
 

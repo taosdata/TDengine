@@ -14,13 +14,15 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.utils.TaosInfo;
+
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 public class TSDBStatement implements Statement {
-    private TSDBJNIConnector connector = null;
+    private TSDBJNIConnector connector;
+    private TaosInfo taosInfo = TaosInfo.getInstance();
 
     /**
      * To store batched commands
