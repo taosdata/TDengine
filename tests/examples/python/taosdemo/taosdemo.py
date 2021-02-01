@@ -350,7 +350,7 @@ if __name__ == "__main__":
             'supertable', 'stbname', 'query', 'numOfThreads', 'numOfProcesses',
             'numOfRecPerReq', 'numbOfTb', 'numOfRec', 'config',
             'insertOnly', 'outOfOrder', 'rateOOOO','deleteMethod',
-            'verbose', 'debug', 'skipprompt', '--help'
+            'verbose', 'debug', 'skipprompt', 'help'
         ])
     except getopt.GetoptError as err:
         print('ERROR:', err)
@@ -371,6 +371,7 @@ if __name__ == "__main__":
             print('')
 
             print('\t-H, --help                         Show usage.')
+            print('')
 
             print('\t-N, --native                       flag, Use native interface if set. Default is using RESTful interface.')
             print('\t-h, --host <hostname>              host, The host to connect to TDengine. Default is localhost.')
