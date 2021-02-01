@@ -364,10 +364,11 @@ void *taosInitTcpClient(uint32_t ip, uint16_t port, char *label, int numOfThread
 }
 
 void taosStopTcpClient(void *chandle) {
-  SThreadObj *pThreadObj = chandle;
-  if (pThreadObj == NULL) return;
+  SClientObj *pClientObj = chandle;
 
-  tDebug ("%s TCP client is stopped", pThreadObj->label);
+  if (pClientObj == NULL) return;
+
+  tDebug ("%s TCP client is stopped", pClientObj->label);
 }
 
 void taosCleanUpTcpClient(void *chandle) {
