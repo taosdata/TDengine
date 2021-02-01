@@ -1437,7 +1437,7 @@ static int tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn) {
     }
 
     tsdbInfo("vgId:%d FSET %d is copied from level %d disk id %d to level %d disk id %d", REPO_ID(pRepo), pSet->fid,
-             TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet) did.level, did.id);
+             TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet), did.level, did.id);
   } else {
     // On a correct level
     if (tsdbUpdateDFileSet(pfs, pSet) < 0) {
