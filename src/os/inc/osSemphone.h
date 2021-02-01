@@ -30,10 +30,17 @@ extern "C" {
 
 #ifdef TAOS_OS_FUNC_PTHREAD_RWLOCK
   #define pthread_rwlock_t pthread_mutex_t
-  #define pthread_rwlock_init(lock) pthread_mutex_init(lock)
-  #define pthread_mutex_destroy(lock) pthread_mutex_destroy(lock)
+  #define pthread_rwlock_init(lock, NULL) pthread_mutex_init(lock, NULL)
+  #define pthread_rwlock_destroy(lock) pthread_mutex_destroy(lock)
   #define pthread_rwlock_wrlock(lock) pthread_mutex_lock(lock)
+  #define pthread_rwlock_rdlock(lock) pthread_mutex_lock(lock)
   #define pthread_rwlock_unlock(lock) pthread_mutex_unlock(lock)
+
+  #define pthread_spinlock_t pthread_mutex_t
+  #define pthread_spin_init(lock, NULL) pthread_mutex_init(lock, NULL)
+  #define pthread_spin_destroy(lock) pthread_mutex_destroy(lock)
+  #define pthread_spin_lock(lock) pthread_mutex_lock(lock)
+  #define pthread_spin_unlock(lock) pthread_mutex_unlock(lock)
 #endif
 
 // TAOS_OS_FUNC_SEMPHONE_PTHREAD
