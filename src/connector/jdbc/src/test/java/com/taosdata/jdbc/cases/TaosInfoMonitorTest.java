@@ -2,9 +2,7 @@ package com.taosdata.jdbc.cases;
 
 import org.junit.Test;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -26,6 +24,18 @@ public class TaosInfoMonitorTest {
             }
             return null;
         }).collect(Collectors.toList());
+
+        connectionList.stream().forEach(conn -> {
+            try (Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("show databases");
+                while (rs.next()) {
+
+                }
+                TimeUnit.MILLISECONDS.sleep(50);
+            } catch (SQLException | InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
 
         connectionList.stream().forEach(conn -> {
             try {
