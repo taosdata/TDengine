@@ -68,9 +68,9 @@ typedef struct {
 typedef struct {
   int      version;    // version
   int      numOfCols;  // Number of columns appended
-  int      tlen;       // maximum length of a SDataRow without the header part
+  int      tlen;       // maximum length of a SDataRow without the header part (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) + (bytes))
   uint16_t flen;       // First part length in a SDataRow after the header part
-  uint16_t vlen;       // pure value part length, excluded the overhead
+  uint16_t vlen;       // pure value part length, excluded the overhead (bytes only)
   STColumn columns[];
 } STSchema;
 
@@ -278,7 +278,7 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
 int        tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
-void       tdFreeDataCols(SDataCols *pCols);
+SDataCols *tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols);
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 

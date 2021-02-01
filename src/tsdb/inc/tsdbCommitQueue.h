@@ -13,26 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSYSTEM_H
-#define TDENGINE_TSYSTEM_H
+#ifndef _TD_TSDB_COMMIT_QUEUE_H_
+#define _TD_TSDB_COMMIT_QUEUE_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+int tsdbScheduleCommit(STsdbRepo *pRepo);
 
-bool taosGetSysMemory(float *memoryUsedMB);
-bool taosGetProcMemory(float *memoryUsedMB);
-bool taosGetDisk();
-bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage);
-bool taosGetBandSpeed(float *bandSpeedKb);
-bool taosGetProcIO(float *readKB, float *writeKB);
-void taosGetSystemInfo();
-void taosPrintOsInfo();
-void taosKillSystem();
-void taosSetCoreDump();
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif
+#endif /* _TD_TSDB_COMMIT_QUEUE_H_ */

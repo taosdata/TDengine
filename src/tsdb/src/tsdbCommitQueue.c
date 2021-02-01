@@ -13,11 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "tglobal.h"
-#include "tlist.h"
-#include "tref.h"
-#include "tsdbMain.h"
+#include "tsdbint.h"
 
 typedef struct {
   bool            stop;
@@ -35,7 +31,7 @@ typedef struct {
 
 static void *tsdbLoopCommit(void *arg);
 
-SCommitQueue tsCommitQueue = {0};
+static SCommitQueue tsCommitQueue = {0};
 
 int tsdbInitCommitQueue() {
   int nthreads = tsNumOfCommitThreads;
