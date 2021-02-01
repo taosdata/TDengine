@@ -129,6 +129,7 @@ static int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index);
 static int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pSqlExpr, SQueryInfo* pQueryInfo, SArray* pCols, int64_t *uid);
+static bool    validateDebugFlag(int32_t flag);
 
 int16_t getNewResColId(SQueryInfo* pQueryInfo) {
   return pQueryInfo->resColumnId--;
@@ -173,6 +174,18 @@ static uint8_t convertOptr(SStrToken *pToken) {
   }
 }
 
+static bool validateDebugFlag(int32_t v) {
+  const int validFlag[] = {131, 135, 143};
+  bool ret = false; 
+  
+  for (int i = 0; i < tListLen(validFlag); i++) {
+    if (v == validFlag[i]) {
+      ret = true;
+      break;
+    } 
+  }
+  return ret;
+}
 /*
  * Used during parsing query sql. Since the query sql usually small in length, error position
  * is not needed in the final error message.
@@ -565,16 +578,16 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       int32_t numOfToken = (int32_t) taosArrayGetSize(pMiscInfo->a);
-      SStrToken* t = taosArrayGet(pMiscInfo->a, 0);
-      SStrToken* t1 = taosArrayGet(pMiscInfo->a, 1);
+      assert(numOfToken >= 1 && numOfToken <= 2);
 
+      SStrToken* t = taosArrayGet(pMiscInfo->a, 0);
       strncpy(pCmd->payload, t->z, t->n);
       if (numOfToken == 2) {
+        SStrToken* t1 = taosArrayGet(pMiscInfo->a, 1);
         pCmd->payload[t->n] = ' ';  // add sep
         strncpy(&pCmd->payload[t->n + 1], t1->z, t1->n);
-      }
-
-      break;
+      } 
+      return TSDB_CODE_SUCCESS; 
     }
 
     case TSDB_SQL_CREATE_TABLE: {
@@ -5382,6 +5395,7 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
   SDNodeDynConfOption LOCAL_DYNAMIC_CFG_OPTIONS[6] = {{"resetLog", 8},    {"rpcDebugFlag", 12}, {"tmrDebugFlag", 12},
                                                       {"cDebugFlag", 10}, {"uDebugFlag", 10},   {"debugFlag", 9}};
 
+
   SStrToken* pOptionToken = taosArrayGet(pOptions->a, 0);
 
   if (numOfToken == 1) {
@@ -5396,8 +5410,7 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
     SStrToken* pValToken = taosArrayGet(pOptions->a, 1);
 
     int32_t val = strtol(pValToken->z, NULL, 10);
-    if (val < 131 || val > 199) {
-      // options value is out of valid range
+    if (!validateDebugFlag(val)) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 

@@ -258,6 +258,33 @@ void taosSetAllDebugFlag() {
     uInfo("all debug flag are set to %d", debugFlag);
   }
 }
+typedef struct {
+  char   *name;
+  int32_t len;
+  void *flag;  
+} SDynCfgLog; 
+
+bool taosDynCfgDebugFlag(const char *str, int32_t slen, int32_t flag) {
+  const SDynCfgLog  cfgLog[]  = {
+      {"debugFlag",  9,  NULL},        {"monDebugFlag", 12, &mDebugFlag},  {"vDebugFlag", 10, &vDebugFlag}, {"mDebugFlag", 10, &mDebugFlag},
+      {"cDebugFlag", 10, &cDebugFlag}, {"httpDebugFlag", 13, &httpDebugFlag}, {"qDebugflag", 10, &qDebugFlag}, {"sdbDebugFlag", 12, &sdbDebugFlag},
+      {"uDebugFlag", 10, &uDebugFlag}, {"tsdbDebugFlag", 13, &tsdbDebugFlag}, {"sDebugflag", 10, &sDebugFlag}, {"rpcDebugFlag", 12, &rpcDebugFlag},
+      {"dDebugFlag", 10, &dDebugFlag}, {"mqttDebugFlag", 13, &mqttDebugFlag}, {"wDebugFlag", 10, &wDebugFlag}, {"tmrDebugFlag", 12, &tmrDebugFlag},
+      {"cqDebugFlag", 11, &cqDebugFlag},
+  };
+  for (int i = 0; i < tListLen(cfgLog); i++) {
+    if (slen == cfgLog[i].len && strncasecmp(cfgLog[i].name, str, slen) == 0) {
+      if (cfgLog[i].flag == NULL) {
+        debugFlag = flag; 
+        taosSetAllDebugFlag(); 
+      } else {
+        *((int32_t *)(cfgLog[i].flag)) = flag;
+      }
+      return true;
+    }
+  }
+  return false;
+}
 
 bool taosCfgDynamicOptions(char *msg) {
   char *option, *value;
@@ -265,7 +292,7 @@ bool taosCfgDynamicOptions(char *msg) {
   int32_t   vint = 0;
 
   paGetToken(msg, &option, &olen);
-  if (olen == 0) return TSDB_CODE_COM_INVALID_CFG_MSG;
+  if (olen == 0) return false;;
 
   paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)
@@ -309,11 +336,7 @@ bool taosCfgDynamicOptions(char *msg) {
       return true;
     }
 
-    if (strncasecmp(cfg->option, "debugFlag", olen) == 0) {
-      taosSetAllDebugFlag();
-    }
-    
-    return true;
+    return taosDynCfgDebugFlag(cfg->option, olen, vint);
   }
 
   if (strncasecmp(option, "resetlog", 8) == 0) {

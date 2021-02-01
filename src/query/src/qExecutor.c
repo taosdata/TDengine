@@ -4498,7 +4498,7 @@ static void generateBlockDistResult(STableBlockDist *pTableBlockDist) {
   if (pTableBlockDist == NULL) {
      return;
   }
-  int64_t min = INT64_MAX, max = INT64_MIN, avg = 0;    
+  int64_t min = 0, max = 0, avg = 0;    
   SArray* blockInfos= pTableBlockDist->dataBlockInfos;  
   int64_t totalRows = 0, totalBlocks = taosArrayGetSize(blockInfos); 
   for (size_t i = 0; i < taosArrayGetSize(blockInfos); i++) {
