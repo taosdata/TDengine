@@ -21,10 +21,7 @@
 #include "tfs.h"
 #include "tfsint.h"
 
-#ifdef __GNUC__
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wformat-truncation"
-#endif
+#define TMPNAME_LEN (TSDB_FILENAME_LEN * 2 + 32)
 
 typedef struct {
   pthread_spinlock_t lock;
@@ -190,7 +187,10 @@ void tfsInitFile(TFILE *pf, int level, int id, const char *bname) {
   pf->level = level;
   pf->id = id;
   strncpy(pf->rname, bname, TSDB_FILENAME_LEN);
-  snprintf(pf->aname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), bname);
+
+  char tmpName[TMPNAME_LEN] = {0};
+  snprintf(tmpName, TMPNAME_LEN, "%s/%s", DISK_DIR(pDisk), bname);
+  tstrncpy(pf->aname, tmpName, TSDB_FILENAME_LEN);
 }
 
 bool tfsIsSameFile(const TFILE *pf1, const TFILE *pf2) {
@@ -243,9 +243,9 @@ void tfsdirname(const TFILE *pf, char *dest) {
 // DIR APIs ====================================
 int tfsMkdirAt(const char *rname, int level, int id) {
   SDisk *pDisk = TFS_DISK_AT(level, id);
-  char   aname[TSDB_FILENAME_LEN];
+  char   aname[TMPNAME_LEN];
 
-  snprintf(aname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), rname);
+  snprintf(aname, TMPNAME_LEN, "%s/%s", DISK_DIR(pDisk), rname);
   if (taosMkDir(aname, 0755) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -291,14 +291,14 @@ int tfsMkdir(const char *rname) {
 }
 
 int tfsRmdir(const char *rname) {
-  char aname[TSDB_FILENAME_LEN] = "\0";
+  char aname[TMPNAME_LEN] = "\0";
 
   for (int level = 0; level < TFS_NLEVEL(); level++) {
     STier *pTier = TFS_TIER_AT(level);
     for (int id = 0; id < TIER_NDISKS(pTier); id++) {
       SDisk *pDisk = DISK_AT_TIER(pTier, id);
 
-      snprintf(aname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), rname);
+      snprintf(aname, TMPNAME_LEN, "%s/%s", DISK_DIR(pDisk), rname);
 
       taosRemoveDir(aname);
     }
@@ -308,16 +308,16 @@ int tfsRmdir(const char *rname) {
 }
 
 int tfsRename(char *orname, char *nrname) {
-  char oaname[TSDB_FILENAME_LEN] = "\0";
-  char naname[TSDB_FILENAME_LEN] = "\0";
+  char oaname[TMPNAME_LEN] = "\0";
+  char naname[TMPNAME_LEN] = "\0";
 
   for (int level = 0; level < pfs->nlevel; level++) {
     STier *pTier = TFS_TIER_AT(level);
     for (int id = 0; id < TIER_NDISKS(pTier); id++) {
       SDisk *pDisk = DISK_AT_TIER(pTier, id);
 
-      snprintf(oaname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), orname);
-      snprintf(naname, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), nrname);
+      snprintf(oaname, TMPNAME_LEN, "%s/%s", DISK_DIR(pDisk), orname);
+      snprintf(naname, TMPNAME_LEN, "%s/%s", DISK_DIR(pDisk), nrname);
 
       taosRename(oaname, naname);
     }
@@ -355,7 +355,7 @@ TDIR *tfsOpendir(const char *rname) {
 
 const TFILE *tfsReaddir(TDIR *tdir) {
   if (tdir == NULL || tdir->dir == NULL) return NULL;
-  char bname[TSDB_FILENAME_LEN] = "\0";
+  char bname[TMPNAME_LEN * 2] = "\0";
 
   while (true) {
     struct dirent *dp = NULL;
@@ -364,7 +364,7 @@ const TFILE *tfsReaddir(TDIR *tdir) {
       // Skip . and ..
       if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) continue;
 
-      snprintf(bname, TSDB_FILENAME_LEN, "%s/%s", tdir->dirname, dp->d_name);
+      snprintf(bname, TMPNAME_LEN * 2, "%s/%s", tdir->dirname, dp->d_name);
       tfsInitFile(&(tdir->tfile), tdir->level, tdir->id, bname);
       return &(tdir->tfile);
     }
@@ -526,7 +526,7 @@ static SDisk *tfsGetDiskByName(const char *dir) {
 
 static int tfsOpendirImpl(TDIR *tdir) {
   SDisk *pDisk = NULL;
-  char   adir[TSDB_FILENAME_LEN] = "\0";
+  char   adir[TMPNAME_LEN * 2] = "\0";
 
   if (tdir->dir != NULL) {
     closedir(tdir->dir);
@@ -540,7 +540,7 @@ static int tfsOpendirImpl(TDIR *tdir) {
     tdir->level = DISK_LEVEL(pDisk);
     tdir->id = DISK_ID(pDisk);
 
-    snprintf(adir, TSDB_FILENAME_LEN, "%s/%s", DISK_DIR(pDisk), tdir->dirname);
+    snprintf(adir, TMPNAME_LEN * 2, "%s/%s", DISK_DIR(pDisk), tdir->dirname);
     tdir->dir = opendir(adir);
     if (tdir->dir != NULL) break;
   }
@@ -598,7 +598,3 @@ void taosGetDisk() {
     tsAvailTmpDirectorySpace = (float)(diskSize.avail / unit);
   }
 }
-
-#ifdef __GNUC__
-#pragma GCC diagnostic pop
-#endif
