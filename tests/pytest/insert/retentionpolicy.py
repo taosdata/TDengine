@@ -100,14 +100,14 @@ class TDTestRetetion:
         tdLog.info(cmd)
         tdSql.execute(cmd)
         self.queryRows=tdSql.query('select * from test')
-        self.checkRows(7,cmd)
+        self.checkRows(5,cmd)
 
         tdLog.info("=============== step5")
         tdDnodes.stop(1)
         tdDnodes.start(1)
         cmd='select * from test where ts > now-1d'
         self.queryRows=tdSql.query('select * from test where ts > now-1d')
-        self.checkRows(1,cmd)
+        self.checkRows(2,cmd)
 
     def stop(self):
         os.system("sudo timedatectl set-ntp true")
