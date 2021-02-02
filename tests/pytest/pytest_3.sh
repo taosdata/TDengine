@@ -99,7 +99,7 @@ python3 test.py -f query/queryFillTest.py
 python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdumpTest.py
 python3 test.py -f tools/lowaTest.py
-python3 test.py -f tools/taosdemoTest2.py
+#python3 test.py -f tools/taosdemoTest2.py
 
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
