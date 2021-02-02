@@ -32,6 +32,12 @@ def v_print(msg: str, arg: str):
         print(msg % arg)
 
 
+@dispatch(str, str, str, str, str)
+def v_print(msg: str, arg1: str, arg2: str, arg3: str, arg4: str):
+    if verbose:
+        print(msg % (arg1, arg2, arg3, arg4))
+
+
 @dispatch(str, int)
 def v_print(msg: str, arg: int):
     if verbose:
@@ -100,12 +106,18 @@ def query_func(process: int, thread: int, cmd: str):
     if oneMoreHost != "NotSupported" and random.randint(
             0, 1) == 1:
         v_print("%s", "Send to second host")
-        restful_execute(
-            oneMoreHost, port, user, password, cmd)
+        if native:
+            cursor2.execute(cmd)
+        else:
+            restful_execute(
+                oneMoreHost, port, user, password, cmd)
     else:
         v_print("%s", "Send to first host")
-        restful_execute(
-            host, port, user, password, cmd)
+        if native:
+            cursor.execute(cmd)
+        else:
+            restful_execute(
+                host, port, user, password, cmd)
 
 
 def query_data_process(i: int, cmd: str):
@@ -171,25 +183,56 @@ def insert_data(processes: int):
 
 def create_stb():
     for i in range(0, numOfStb):
-        restful_execute(
-            host,
-            port,
-            user,
-            password,
-            "CREATE TABLE IF NOT EXISTS st%d (ts timestamp, value float) TAGS (uuid binary(50))" %
-            i)
+        if native:
+            cursor.execute(
+                "CREATE TABLE IF NOT EXISTS %s%d (ts timestamp, value float) TAGS (uuid binary(50))" %
+                (stbName, i))
+        else:
+            restful_execute(
+                host,
+                port,
+                user,
+                password,
+                "CREATE TABLE IF NOT EXISTS %s%d (ts timestamp, value float) TAGS (uuid binary(50))" %
+                (stbName, i)
+            )
+
+
+def use_database():
+    current_db = "%s%d" % (dbName, (numOfDb - 1))
+
+    if native:
+        cursor.execute("USE %s" % current_db)
+    else:
+        restful_execute(host, port, user, password, "USE %s" % current_db)
 
 
 def create_databases():
     for i in range(0, numOfDb):
         v_print("will create database db%d", int(i))
-        restful_execute(
-            host,
-            port,
-            user,
-            password,
-            "CREATE DATABASE IF NOT EXISTS db%d" %
-            i)
+
+        if native:
+            cursor.execute(
+                "CREATE DATABASE IF NOT EXISTS %s%d" % (dbName, i))
+        else:
+            restful_execute(
+                host,
+                port,
+                user,
+                password,
+                "CREATE DATABASE IF NOT EXISTS %s%d" % (dbName, i))
+
+
+def drop_tables():
+    # TODO
+    v_print("TODO: drop tables total %d", numOfTb)
+    pass
+
+
+def drop_stable():
+    # TODO
+    v_print("TODO: drop stables total %d", numOfStb)
+    pass
 
 
 def drop_databases():
@@ -198,13 +241,19 @@ def drop_databases():
     # drop exist databases first
     for i in range(0, numOfDb):
         v_print("will drop database db%d", int(i))
-        restful_execute(
-            host,
-            port,
-            user,
-            password,
-            "DROP DATABASE IF EXISTS db%d" %
-            i)
+
+        if native:
+            cursor.execute(
+                "DROP DATABASE IF EXISTS %s%d" %
+                (dbName, i))
+        else:
+            restful_execute(
+                host,
+                port,
+                user,
+                password,
+                "DROP DATABASE IF EXISTS %s%d" %
+                (dbName, i))
 
 
 def insert_func(process: int, thread: int):
@@ -252,8 +301,11 @@ def insert_func(process: int, thread: int):
             if measure:
                 exec_start_time = datetime.datetime.now()
 
-            restful_execute(
-                host, port, user, password, cmd)
+            if native:
+                cursor.execute(cmd)
+            else:
+                restful_execute(
+                    host, port, user, password, cmd)
 
             if measure:
                 exec_end_time = datetime.datetime.now()
@@ -274,15 +326,26 @@ def create_tb_using_stb():
 def create_tb():
     v_print("create_tb() numOfTb: %d", numOfTb)
     for i in range(0, numOfDb):
-        restful_execute(host, port, user, password, "USE db%d" % i)
-        for j in range(0, numOfTb):
+        if native:
+            cursor.execute("USE %s%d" % (dbName, i))
+        else:
             restful_execute(
-                host,
-                port,
-                user,
-                password,
-                "CREATE TABLE tb%d (ts timestamp, value float)" %
-                j)
+                host, port, user, password, "USE %s%d" %
+                (dbName, i))
+
+        for j in range(0, numOfTb):
+            if native:
+                cursor.execute(
+                    "CREATE TABLE %s%d (ts timestamp, value float)" %
+                    (tbName, j))
+            else:
+                restful_execute(
+                    host,
+                    port,
+                    user,
+                    password,
+                    "CREATE TABLE %s%d (ts timestamp, value float)" %
+                    (tbName, j))
 
 
 def insert_data_process(i: int, begin: int, end: int):
@@ -312,38 +375,42 @@ def insert_data_process(i: int, begin: int, end: int):
                     end)]
             wait(workers, return_when=ALL_COMPLETED)
 
+
 def printConfig():
 
-    print("###################################################################");
-    print("# Use native interface:              %s" % native);
-    print("# Server IP:                         %s" % host);
+    print("###################################################################")
+    print("# Use native interface:              %s" % native)
+    print("# Server IP:                         %s" % host)
     if native:
-        print("# Server port:                       %s" % port);
+        print("# Server port:                       %s" % port)
     else:
-        print("# Server port:                       %s" % restPort);
+        print("# Server port:                       %s" % restPort)
 
-    print("# User:                              %s" % user);
-    print("# Password:                          %s" % password);
-    print("# Number of Columns per record:      %s" % colsPerRecord);
-    print("# Number of Threads:                 %s" % threads);
-    print("# Number of Processes:               %s" % processes);
-    print("# Number of Tables:                  %s" % numOfTb);
-    print("# Number of records per Table:       %s" % numOfRec);
-    print("# Records/Request:                   %s" % batch);
-    print("# Database name:                     %s" % dbName);
-    print("# Replica:                           %s" % replica);
-    print("# Use STable:                        %s" % useStable);
-    print("# Table prefix:                      %s" % tbNamePrefix);
+    print("# Configuration Dir:                 %s" % configDir)
+    print("# User:                              %s" % user)
+    print("# Password:                          %s" % password)
+    print("# Number of Columns per record:      %s" % colsPerRecord)
+    print("# Number of Threads:                 %s" % threads)
+    print("# Number of Processes:               %s" % processes)
+    print("# Number of Tables:                  %s" % numOfTb)
+    print("# Number of records per Table:       %s" % numOfRec)
+    print("# Records/Request:                   %s" % batch)
+    print("# Database name:                     %s" % dbName)
+    print("# Replica:                           %s" % replica)
+    print("# Use STable:                        %s" % useStable)
+    print("# Table prefix:                      %s" % tbNamePrefix)
     if useStable:
-        print("# STable prefix:                     %s" % stbNamePrefix);
-    print("# Data order:                        %s" % outOfOrder);
-    print("# Data out of order rate:            %s" % rateOOOO);
-    print("# Delete method:                     %s" % deleteMethod);
-    print("# Query command:                     %s" % queryCmd);
-    print("# Insert Only:                       %s" % insertOnly);
-    print("# Verbose output                     %s" % verbose);
-    print("# Test time:                         %s" % datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
-    print("###################################################################");
+        print("# STable prefix:                     %s" % stbNamePrefix)
+
+    print("# Data order:                        %s" % outOfOrder)
+    print("# Data out of order rate:            %s" % rateOOOO)
+    print("# Delete method:                     %s" % deleteMethod)
+    print("# Query command:                     %s" % queryCmd)
+    print("# Insert Only:                       %s" % insertOnly)
+    print("# Verbose output                     %s" % verbose)
+    print("# Test time:                         %s" %
+          datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"))
+    print("###################################################################")
 
 
 if __name__ == "__main__":
@@ -388,7 +455,7 @@ if __name__ == "__main__":
             'native', 'host', 'port', 'user', 'password', 'dbname', 'replica', 'tbname',
             'stable', 'stbname', 'query', 'numOfThreads', 'numOfProcesses',
             'recPerReq', 'colsPerRecord', 'numOfTb', 'numOfRec', 'config',
-            'insertOnly', 'outOfOrder', 'rateOOOO','deleteMethod',
+            'insertOnly', 'outOfOrder', 'rateOOOO', 'deleteMethod',
             'verbose', 'debug', 'skipPrompt', 'help'
         ])
     except getopt.GetoptError as err:
@@ -418,16 +485,23 @@ if __name__ == "__main__":
             print('\t-u, --user <username>              user, The user name to use when connecting to the server. Default is \'root\'.')
             print('\t-P, --password <password>          password, The password to use when connecting to the server. Default is \'taosdata\'.')
             print('\t-l, --colsPerRec <number>          num_of_columns_per_record, The number of columns per record. Default is 3.')
-            print('\t-d, --dbname <dbname>              database, Destination database. Default is \'test\'.')
+            print(
+                '\t-d, --dbname <dbname>              database, Destination database. Default is \'test\'.')
             print('\t-a, --replica <replications>       replica, Set the replica parameters of the database, Default 1, min: 1, max: 5.')
-            print('\t-m, --tbname <table prefix>        table_prefix, Table prefix name. Default is \'t\'.')
-            print('\t-M, --stable                       flag, Use super table. Default is no')
-            print('\t-s, --stbname <stable prefix>      stable_prefix, STable prefix name. Default is \'st\'')
+            print(
+                '\t-m, --tbname <table prefix>        table_prefix, Table prefix name. Default is \'t\'.')
+            print(
+                '\t-M, --stable                       flag, Use super table. Default is no')
+            print(
+                '\t-s, --stbname <stable prefix>      stable_prefix, STable prefix name. Default is \'st\'')
             print('\t-Q, --query <DEFAULT | command>    query, Execute query command. set \'DEFAULT\' means select * from each table')
-            print('\t-T, --numOfThreads <number>        num_of_threads, The number of threads. Default is 1.')
-            print('\t-P, --numOfProcesses <number>      num_of_processes, The number of threads. Default is 1.')
+            print(
+                '\t-T, --numOfThreads <number>        num_of_threads, The number of threads. Default is 1.')
+            print(
+                '\t-P, --numOfProcesses <number>      num_of_processes, The number of threads. Default is 1.')
             print('\t-r, --batch <number>               num_of_records_per_req, The number of records per request. Default is 1000.')
-            print('\t-t, --numOfTb <number>             num_of_tables, The number of tables. Default is 1.')
+            print(
+                '\t-t, --numOfTb <number>             num_of_tables, The number of tables. Default is 1.')
             print('\t-n, --numOfRec <number>            num_of_records_per_table, The number of records per table. Default is 1.')
             print('\t-c, --config <path>                config_directory, Configuration directory. Default is \'/etc/taos/\'.')
             print('\t-x, --inserOnly                    flag, Insert only flag.')
@@ -436,7 +510,8 @@ if __name__ == "__main__":
             print('\t-D, --deleteMethod <number>        Delete data methods 0: don\'t delete, 1: delete by table, 2: delete by stable, 3: delete by database.')
             print('\t-v, --verbose                      Print verbose output')
             print('\t-g, --debug                        Print debug output')
-            print('\t-y, --skipPrompt                   Skip read key for continous test, default is not skip')
+            print(
+                '\t-y, --skipPrompt                   Skip read key for continous test, default is not skip')
             print('')
             sys.exit(0)
 
@@ -510,7 +585,11 @@ if __name__ == "__main__":
             numOfRec = int(value)
             v_print("numOfRec is %d", numOfRec)
 
-        if key in ['-x', '--insertonLy']:
+        if key in ['-c', '--config']:
+            configDir = value
+            v_print("config dir: %s", configDir)
+
+        if key in ['-x', '--insertOnly']:
             insertOnly = True
             v_print("insert only: %d", insertOnly)
 
@@ -523,7 +602,12 @@ if __name__ == "__main__":
             v_print("the rate of out of order is %d", rateOOOO)
 
         if key in ['-D', '--deleteMethod']:
-            deleteMethod  = int(value)
+            deleteMethod = int(value)
+            if (deleteMethod < 0) or (deleteMethod > 3):
+                print(
+                    "inputed delete method is %d, valid value is 0~3, set to default 0" %
+                    deleteMethod)
+                deleteMethod = 0
             v_print("the delete method is %d", deleteMethod)
 
         if key in ['-v', '--verbose']:
@@ -538,25 +622,54 @@ if __name__ == "__main__":
     if verbose:
         printConfig()
 
-    if skipPrompt == False:
+    if not skipPrompt:
         input("Press any key to continue..")
 
-    if dropDbOnly:
-        drop_databases()
-        print("Drop Database done.")
+    if native:
+        v_print("host:%s, user:%s passwd:%s configDir:%s ", host, user, password, configDir)
+        try:
+            conn = taos.connect(
+                host=host,
+                user=user,
+                password=password,
+                config=configDir)
+            print("conn: %p" % conn)
+        except Exception as e:
+            print("Error: %s" % e.args[0])
+            sys.exit(1)
+
+    if native:
+        try:
+            cursor = conn.cursor()
+        except Exception as e:
+            print("Error: %s" % e.args[0])
+            sys.exit(1)
+
+
+
+    if deleteMethod > 0:
+        if deleteMethod == 1:
+            drop_tables()
+            print("Drop tables done.")
+        elif deleteMethod == 2:
+            drop_stables()
+            print("Drop super tables done.")
+        elif deleteMethod == 3:
+            drop_databases()
+            print("Drop Database done.")
         sys.exit(0)
 
     # create databases
     if (insertOnly == False):
         drop_databases()
+
     create_databases()
 
     if measure:
         start_time = time.time()
 
     # use last database
-    current_db = "db%d" % (numOfDb - 1)
-    restful_execute(host, port, user, password, "USE %s" % current_db)
+    use_database()
 
     if numOfStb > 0:
         create_stb()
@@ -568,8 +681,14 @@ if __name__ == "__main__":
         if verbose:
             for i in range(0, numOfDb):
                 for j in range(0, numOfStb):
-                    restful_execute(host, port, user, password,
-                                    "SELECT COUNT(*) FROM db%d.st%d" % (i, j,))
+                    if native:
+                        cursor.execute(
+                            "SELECT COUNT(*) FROM %s%d.%s%d" %
+                            (dbName, i, stbName, j,))
+                    else:
+                        restful_execute(
+                            host, port, user, password, "SELECT COUNT(*) FROM %s%d.%s%d" %
+                            (dbName, i, stbName, j,))
 
         print("done")
 
@@ -587,10 +706,21 @@ if __name__ == "__main__":
 
         if verbose:
             for i in range(0, numOfDb):
-                restful_execute(host, port, user, password, "USE db%d" % i)
+                if native:
+                    cursor.execute("USE %s%d" % (dbName, i))
+                else:
+                    restful_execute(
+                        host, port, user, password, "USE %s%d" %
+                        (dbName, i))
+
                 for j in range(0, numOfTb):
-                    restful_execute(host, port, user, password,
-                                    "SELECT COUNT(*) FROM tb%d" % (j,))
+                    if native:
+                        cursor.execute(
+                            "SELECT COUNT(*) FROM %s%d" % (tbName, j))
+                    else:
+                        restful_execute(
+                            host, port, user, password, "SELECT COUNT(*) FROM %s%d" %
+                            (tbName, j))
 
     if queryCmd != "":
         print("queryCmd: %s" % queryCmd)
