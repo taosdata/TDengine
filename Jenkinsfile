@@ -80,13 +80,14 @@ pipeline {
               changeRequest()
           }
       parallel {
-        stage('python_1') {
+        stage('python_1_s1') {
           agent{label 'p1'}
           steps {
             
             pre_test()
-            timeout(time: 90, unit: 'MINUTES'){
+            timeout(time: 45, unit: 'MINUTES'){
               sh '''
+              date
               cd ${WKC}/tests
               find pytest -name '*'sql|xargs rm -rf
               ./test-all.sh p1
@@ -95,23 +96,35 @@ pipeline {
             
           }
         }
-        stage('python_2') {
+        stage('python_2_s5') {
           agent{label 'p2'}
           steps {
             
             pre_test()
+            timeout(time: 45, unit: 'MINUTES'){
             sh '''
+            date
             cd ${WKC}/tests
             find pytest -name '*'sql|xargs rm -rf
             ./test-all.sh p2
             date'''
-            sh '''
-            cd ${WKC}/tests
-            ./test-all.sh b4fq
-            '''
+            }
           }
         }
-        stage('test_b1') {
+        stage('python_3_s6') {
+          agent{label 'p3'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh p3
+              date'''
+            }
+          }
+        }
+        stage('test_b1_s2') {
           agent{label 'b1'}
           steps {     
             timeout(time: 90, unit: 'MINUTES'){       
@@ -124,7 +137,7 @@ pipeline {
           }
         }
 
-        stage('test_crash_gen') {
+        stage('test_crash_gen_s3') {
           agent{label "b2"}
           steps {
             pre_test()
@@ -140,7 +153,7 @@ pipeline {
                 ./handle_crash_gen_val_log.sh
                 '''
             }
-            timeout(time: 90, unit: 'MINUTES'){
+            timeout(time: 45, unit: 'MINUTES'){
               sh '''
               date
               cd ${WKC}/tests
@@ -151,7 +164,7 @@ pipeline {
           }
         }
 
-        stage('test_valgrind') {
+        stage('test_valgrind_s4') {
           agent{label "b3"}
 
           steps {
@@ -163,7 +176,7 @@ pipeline {
                 ./handle_val_log.sh
                 '''
             }     
-            timeout(time: 90, unit: 'MINUTES'){      
+            timeout(time: 45, unit: 'MINUTES'){      
               sh '''
               date
               cd ${WKC}/tests
@@ -172,8 +185,58 @@ pipeline {
             }
           }
         }
-   
-        
+        stage('test_b4_s7') {
+          agent{label 'b4'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b4fq
+              date'''
+            }
+          }
+        }
+        stage('test_b5_s8') {
+          agent{label 'b5'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b5fq
+              date'''
+            }
+          }
+        }
+        stage('test_b6_s9') {
+          agent{label 'b6'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b6fq
+              date'''
+            }
+          }
+        }
+        stage('test_b7_s10') {
+          agent{label 'b7'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b7fq
+              date'''
+            }
+          }
+        }        
     }
   }
   }
