@@ -79,8 +79,8 @@ typedef void     (*FStopSyncFile)(int32_t vgId, uint64_t fversion);
 // get file version
 typedef int32_t  (*FGetVersion)(int32_t vgId, uint64_t *fver, uint64_t *vver);
 
-typedef int32_t  (*FSendFile)(void *tsdb, int32_t socketFd);
-typedef int32_t  (*FRecvFile)(void *tsdb, int32_t socketFd);
+typedef int32_t  (*FSendFile)(void *tsdb, SOCKET socketFd);
+typedef int32_t  (*FRecvFile)(void *tsdb, SOCKET socketFd);
 
 typedef struct {
   int32_t  vgId;       // vgroup ID

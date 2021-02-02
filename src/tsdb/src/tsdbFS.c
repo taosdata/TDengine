@@ -13,7 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "tsdbint.h"
+#include <regex.h>
 
 typedef enum { TSDB_TXN_TEMP_FILE = 0, TSDB_TXN_CURR_FILE } TSDB_TXN_FILE_T;
 static const char *tsdbTxnFname[] = {"current.t", "current"};
@@ -162,7 +164,7 @@ static void tsdbSetStatusMFile(SFSStatus *pStatus, const SMFile *pMFile) {
   ASSERT(pStatus->pmf == NULL);
 
   pStatus->pmf = &(pStatus->mf);
-  tsdbInitMFileEx(pStatus->pmf, pMFile);
+  tsdbInitMFileEx(pStatus->pmf, (SMFile *)pMFile);
 }
 
 static int tsdbAddDFileSetToStatus(SFSStatus *pStatus, const SDFileSet *pSet) {
@@ -482,7 +484,7 @@ void tsdbFSIterInit(SFSIter *pIter, STsdbFS *pfs, int direction) {
     if (direction == TSDB_FS_ITER_FORWARD) {
       pIter->index = 0;
     } else {
-      pIter->index = size - 1;
+      pIter->index = (int)(size - 1);
     }
 
     pIter->fid = ((SDFileSet *)taosArrayGet(pfs->cstatus->df, pIter->index))->fid;
@@ -505,7 +507,7 @@ void tsdbFSIterSeek(SFSIter *pIter, int fid) {
     pIter->index = -1;
     pIter->fid = TSDB_IVLD_FID;
   } else {
-    pIter->index = TARRAY_ELEM_IDX(pfs->cstatus->df, ptr);
+    pIter->index = (int)(TARRAY_ELEM_IDX(pfs->cstatus->df, ptr));
     pIter->fid = ((SDFileSet *)ptr)->fid;
   }
 }
@@ -590,7 +592,7 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
     goto _err;
   }
 
-  int nread = taosRead(fd, buffer, TSDB_FILE_HEAD_SIZE);
+  int nread = (int)taosRead(fd, buffer, TSDB_FILE_HEAD_SIZE);
   if (nread < 0) {
     tsdbError("vgId:%d failed to read %d bytes from file %s since %s", REPO_ID(pRepo), TSDB_FILENAME_LEN, current,
               strerror(errno));
@@ -624,7 +626,7 @@ static int tsdbOpenFSFromCurrent(STsdbRepo *pRepo) {
       goto _err;
     }
 
-    nread = taosRead(fd, buffer, fsheader.len);
+    nread = (int)taosRead(fd, buffer, fsheader.len);
     if (nread < 0) {
       tsdbError("vgId:%d failed to read file %s since %s", REPO_ID(pRepo), current, strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -771,7 +773,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   }
 
   if (recoverMeta) {
-    pBuf = malloc(maxBufSize);
+    pBuf = malloc((size_t)maxBufSize);
     if (pBuf == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       tsdbCloseMFile(pMFile);
@@ -788,7 +790,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
         return -1;
       }
 
-      int nread = tsdbReadMFile(pMFile, pBuf, pRecord->size);
+      int nread = (int)tsdbReadMFile(pMFile, pBuf, pRecord->size);
       if (nread < 0) {
         tsdbError("vgId:%d failed to read file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),
                   tstrerror(terrno));
@@ -806,7 +808,7 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
         return -1;
       }
 
-      if (tsdbRestoreTable(pRepo, pBuf, pRecord->size) < 0) {
+      if (tsdbRestoreTable(pRepo, pBuf, (int)pRecord->size) < 0) {
         tsdbError("vgId:%d failed to restore table, uid %" PRId64 ", since %s" PRIu64, REPO_ID(pRepo), pRecord->uid,
                   tstrerror(terrno));
         tfree(pBuf);

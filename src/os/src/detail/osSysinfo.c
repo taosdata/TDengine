@@ -18,6 +18,7 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
+#include "taoserror.h"
 
 #ifndef TAOS_OS_FUNC_SYSINFO
 
@@ -320,11 +321,12 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   struct statvfs info;
   if (statvfs(tsDataDir, &info)) {
     uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
-    return false;
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
   } else {
     diskSize->tsize = info.f_blocks * info.f_frsize;
     diskSize->avail = info.f_bavail * info.f_frsize;
-    return true;
+    return 0;
   }
 }
 

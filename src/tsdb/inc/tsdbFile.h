@@ -133,7 +133,7 @@ static FORCE_INLINE int tsdbAppendMFile(SMFile* pMFile, void* buf, int64_t nbyte
 
   pMFile->info.size += nbyte;
 
-  return nbyte;
+  return (int)nbyte;
 }
 
 static FORCE_INLINE int tsdbRemoveMFile(SMFile* pMFile) { return tfsremove(TSDB_FILE_F(pMFile)); }
@@ -246,7 +246,7 @@ static FORCE_INLINE int tsdbAppendDFile(SDFile* pDFile, void* buf, int64_t nbyte
 
   pDFile->info.size += nbyte;
 
-  return nbyte;
+  return (int)nbyte;
 }
 
 static FORCE_INLINE int tsdbRemoveDFile(SDFile* pDFile) { return tfsremove(TSDB_FILE_F(pDFile)); }

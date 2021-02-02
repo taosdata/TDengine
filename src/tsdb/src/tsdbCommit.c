@@ -217,9 +217,9 @@ void tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn) {
   maxKey = now - pCfg->keep1 * tsMsPerDay[pCfg->precision];
 
   pRtn->minKey = minKey;
-  pRtn->minFid = TSDB_KEY_FID(minKey, pCfg->daysPerFile, pCfg->precision);
-  pRtn->midFid = TSDB_KEY_FID(midKey, pCfg->daysPerFile, pCfg->precision);
-  pRtn->maxFid = TSDB_KEY_FID(maxKey, pCfg->daysPerFile, pCfg->precision);
+  pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->daysPerFile, pCfg->precision));
+  pRtn->midFid = (int)(TSDB_KEY_FID(midKey, pCfg->daysPerFile, pCfg->precision));
+  pRtn->maxFid = (int)(TSDB_KEY_FID(maxKey, pCfg->daysPerFile, pCfg->precision));
 }
 
 static int tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen) {
@@ -292,9 +292,11 @@ static int tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid) {
 // =================== Commit Time-Series Data
 static int tsdbCommitTSData(STsdbRepo *pRepo) {
   SMemTable *pMem = pRepo->imem;
-  SCommitH   commith = {0};
+  SCommitH   commith;
   SDFileSet *pSet = NULL;
   int        fid;
+
+  memset(&commith, 0, sizeof(SMemTable *));
 
   if (pMem->numOfRows <= 0) {
     // No memory data, just apply retention on each file on disk
@@ -591,7 +593,7 @@ static int tsdbNextCommitFid(SCommitH *pCommith) {
     if (nextKey == TSDB_DATA_TIMESTAMP_NULL) {
       continue;
     } else {
-      int tfid = TSDB_KEY_FID(nextKey, pCfg->daysPerFile, pCfg->precision);
+      int tfid = (int)(TSDB_KEY_FID(nextKey, pCfg->daysPerFile, pCfg->precision));
       if (fid == TSDB_IVLD_FID || fid > tfid) {
         fid = tfid;
       }
@@ -887,7 +889,7 @@ static int tsdbWriteBlockInfo(SCommitH *pCommih) {
     return 0;
   }
 
-  tlen = sizeof(SBlockInfo) + sizeof(SBlock) * (nSupBlocks + nSubBlocks) + sizeof(TSCKSUM);
+  tlen = (uint32_t)(sizeof(SBlockInfo) + sizeof(SBlock) * (nSupBlocks + nSubBlocks) + sizeof(TSCKSUM));
 
   // Write SBlockInfo part
   if (tsdbMakeRoom((void **)(&(TSDB_COMMIT_BUF(pCommih))), tlen) < 0) return -1;
@@ -925,7 +927,7 @@ static int tsdbWriteBlockInfo(SCommitH *pCommih) {
   blkIdx.uid = TABLE_UID(pTable);
   blkIdx.hasLast = pBlock->last ? 1 : 0;
   blkIdx.maxKey = pBlock->keyLast;
-  blkIdx.numOfBlocks = nSupBlocks;
+  blkIdx.numOfBlocks = (uint32_t)nSupBlocks;
   blkIdx.len = tlen;
   blkIdx.offset = (uint32_t)offset;
 
@@ -976,7 +978,7 @@ static int tsdbWriteBlockIdx(SCommitH *pCommih) {
   }
 
   tsdbUpdateDFileMagic(pHeadf, POINTER_SHIFT(TSDB_COMMIT_BUF(pCommih), tlen - sizeof(TSCKSUM)));
-  pHeadf->info.offset = offset;
+  pHeadf->info.offset = (uint32_t)offset;
   pHeadf->info.len = tlen;
 
   return 0;
