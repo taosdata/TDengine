@@ -701,6 +701,8 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   int64_t   maxBufSize = 0;
   SMFInfo   minfo;
 
+  taosHashEmpty(pfs->metaCache);
+
   // No meta file, just return
   if (pfs->cstatus->pmf == NULL) return 0;
 
@@ -718,6 +720,12 @@ int tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta) {
   while (true) {
     int64_t tsize = tsdbReadMFile(pMFile, tbuf, sizeof(SKVRecord));
     if (tsize == 0) break;
+
+    if (tsize < 0) {
+      tsdbError("vgId:%d failed to read META file since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+
     if (tsize < sizeof(SKVRecord)) {
       tsdbError("vgId:%d failed to read %" PRIzu " bytes from file %s", REPO_ID(pRepo), sizeof(SKVRecord),
                 TSDB_FILE_FULL_NAME(pMFile));

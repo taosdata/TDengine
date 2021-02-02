@@ -50,7 +50,7 @@ typedef struct {
 } SMFile;
 
 void  tsdbInitMFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver);
-void  tsdbInitMFileEx(SMFile* pMFile, SMFile* pOMFile);
+void  tsdbInitMFileEx(SMFile* pMFile, const SMFile* pOMFile);
 int   tsdbEncodeSMFile(void** buf, SMFile* pMFile);
 void* tsdbDecodeSMFile(void* buf, SMFile* pMFile);
 int   tsdbEncodeSMFileEx(void** buf, SMFile* pMFile);

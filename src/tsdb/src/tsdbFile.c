@@ -42,7 +42,7 @@ void tsdbInitMFile(SMFile *pMFile, SDiskID did, int vid, uint32_t ver) {
   tfsInitFile(TSDB_FILE_F(pMFile), did.level, did.id, fname);
 }
 
-void tsdbInitMFileEx(SMFile *pMFile, SMFile *pOMFile) {
+void tsdbInitMFileEx(SMFile *pMFile, const SMFile *pOMFile) {
   *pMFile = *pOMFile;
   TSDB_FILE_SET_CLOSED(pMFile);
 }
