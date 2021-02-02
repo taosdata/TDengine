@@ -66,3 +66,16 @@
 ./test.sh -f general/table/tinyint.sim
 ./test.sh -f general/table/vgroup.sim
 ./test.sh -f general/table/createmulti.sim
+
+./test.sh -f unique/mnode/mgmt20.sim
+./test.sh -f unique/mnode/mgmt21.sim
+./test.sh -f unique/mnode/mgmt22.sim
+./test.sh -f unique/mnode/mgmt23.sim
+./test.sh -f unique/mnode/mgmt24.sim
+./test.sh -f unique/mnode/mgmt25.sim
+./test.sh -f unique/mnode/mgmt26.sim
+./test.sh -f unique/mnode/mgmt33.sim
+./test.sh -f unique/mnode/mgmt34.sim
+./test.sh -f unique/mnode/mgmtr2.sim
+
+./test.sh -f unique/arbitrator/insert_duplicationTs.sim

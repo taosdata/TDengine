@@ -19,7 +19,7 @@
 ./test.sh -f unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim
 ./test.sh -f unique/arbitrator/dn3_mn2_killDnode.sim
-./test.sh -f unique/arbitrator/insert_duplicationTs.sim
+
 ./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim
 ./test.sh -f unique/arbitrator/offline_replica2_alterTag_online.sim
 ./test.sh -f unique/arbitrator/offline_replica2_createTable_online.sim
@@ -55,13 +55,4 @@
 ./test.sh -f unique/stable/replica3_dnode6.sim
 ./test.sh -f unique/stable/replica3_vnode3.sim
 
-./test.sh -f unique/mnode/mgmt20.sim
-./test.sh -f unique/mnode/mgmt21.sim
-./test.sh -f unique/mnode/mgmt22.sim
-./test.sh -f unique/mnode/mgmt23.sim
-./test.sh -f unique/mnode/mgmt24.sim
-./test.sh -f unique/mnode/mgmt25.sim
-./test.sh -f unique/mnode/mgmt26.sim
-./test.sh -f unique/mnode/mgmt33.sim
-./test.sh -f unique/mnode/mgmt34.sim
-./test.sh -f unique/mnode/mgmtr2.sim
+
