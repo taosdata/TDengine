@@ -75,18 +75,6 @@ char *getpass(const char *prefix) {
   return passwd;
 }
 
-char *strndup(const char *s, size_t n) {
-  size_t len = strlen(s);
-  if (len >= n) {
-    len = n;
-  }
-
-  char *r = calloc(len + 1, 1);
-  memcpy(r, s, len);
-  r[len] = 0;
-  return r;
-}
-
 int twcslen(const wchar_t *wcs) {
   int *wstr = (int *)wcs;
   if (NULL == wstr) {
