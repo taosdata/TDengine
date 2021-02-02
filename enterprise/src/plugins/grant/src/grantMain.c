@@ -36,14 +36,16 @@
 #include "mnodeUser.h"
 #include "mnodePeer.h"
 
-#define min(x, y) (x)<(y)?(x):(y)
+#ifndef min
+  #define min(x, y) (x)<(y)?(x):(y)
+#endif
 
 extern void *tsMnodeTmr;
 extern SGrantObj grantObj;
 
 static char   *grantSecondsToString(uint32_t seconds);
-static void    grantCheckGrantInfo();
-static void    grantSendMsgToMgmt();
+static void    grantCheckGrantInfo(void *, void *);
+static void    grantSendMsgToMgmt(void *, void *);
 static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg);
 static void    grantProcessRspInDnode(SRpcMsg *rpcMsg);
 static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
@@ -298,14 +300,14 @@ void grantReset(EGrantType grant, uint64_t value) {
 }
 
 static void grantAddTimeSeries(uint32_t timeSeriesNum) {
-  __sync_add_and_fetch(&grantStatus.curTimeSeries, timeSeriesNum);
+  atomic_add_fetch_32(&grantStatus.curTimeSeries, timeSeriesNum);
 }
 
 static void grantRestoreTimeSeries(uint32_t timeSeriesNum) {
   if (grantStatus.curTimeSeries < timeSeriesNum) {
     grantStatus.curTimeSeries = 0;
   } else {
-    __sync_add_and_fetch(&grantStatus.curTimeSeries, -timeSeriesNum);
+    atomic_sub_fetch_32(&grantStatus.curTimeSeries, timeSeriesNum);
   }
 }
 
@@ -478,7 +480,7 @@ static void grantProcessRspInDnode(SRpcMsg *rpcMsg) {
   }
 }
 
-static void grantSendMsgToMgmt() {
+static void grantSendMsgToMgmt(void *p1, void *p2) {
   taosTmrReset(grantSendMsgToMgmt, GRANT_HEART_BEAT_MSG * 1000, NULL, tsMnodeTmr, &grantSendTimer);
 
   if (!grantObj.granted) return;
@@ -574,7 +576,7 @@ static int32_t grantProcessMsgInMgmt(SMnodeMsg *pMsg)
   return TSDB_CODE_SUCCESS;
 }
 
-static void grantCheckGrantInfo() {
+static void grantCheckGrantInfo(void *p1, void *p2) {
   taosTmrReset(grantCheckGrantInfo, GRANT_CHECK_INTERVAL * 1000, NULL, tsMnodeTmr, &grantCheckTimer);
   grantStatus.expired = false;
 
@@ -627,8 +629,8 @@ static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   sprintf(cfgFile, "%s/taos.cfg", configDir);
   grantActiveSystem(cfgFile);
 
-  grantSendMsgToMgmt();
-  usleep(10000);
+  grantSendMsgToMgmt(NULL, NULL);
+  taosMsleep(10);
 
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
