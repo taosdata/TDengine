@@ -174,7 +174,7 @@ static int32_t dnodeProcessAlterVnodeMsg(SRpcMsg *rpcMsg) {
     vnodeRelease(pVnode);
     return code;
   } else {
-    dError("vgId:%d, vnode not exist, can't alter it", pAlter->cfg.vgId);
+    dInfo("vgId:%d, vnode not exist, can't alter it", pAlter->cfg.vgId);
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
 }

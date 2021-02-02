@@ -12,7 +12,7 @@ static double getCurTime() {
 }
 
 typedef struct {
-  TSDB_REPO_T *pRepo;
+  STsdbRepo *pRepo;
   bool       isAscend;
   int        tid;
   uint64_t   uid;
@@ -143,7 +143,7 @@ TEST(TsdbTest, testInsertSpeed) {
   // Create and open repository
   tsdbSetCfg(&tsdbCfg, 1, 16, 4, -1, -1, -1, -1, -1, -1, -1);
   tsdbCreateRepo(rootDir, &tsdbCfg);
-  TSDB_REPO_T *repo = tsdbOpenRepo(rootDir, NULL);
+  STsdbRepo *repo = tsdbOpenRepo(rootDir, NULL);
   ASSERT_NE(repo, nullptr);
 
   // Create table

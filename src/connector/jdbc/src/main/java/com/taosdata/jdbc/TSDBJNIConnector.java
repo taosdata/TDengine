@@ -14,12 +14,16 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.utils.TaosInfo;
+
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
 
 public class TSDBJNIConnector {
     private static volatile Boolean isInitialized = false;
+
+    private TaosInfo taosInfo = TaosInfo.getInstance();
 
     static {
         System.loadLibrary("taos");
@@ -91,7 +95,8 @@ public class TSDBJNIConnector {
      */
     public boolean connect(String host, int port, String dbName, String user, String password) throws SQLException {
         if (this.taos != TSDBConstants.JNI_NULL_POINTER) {
-            this.closeConnectionImp(this.taos);
+//            this.closeConnectionImp(this.taos);
+            closeConnection();
             this.taos = TSDBConstants.JNI_NULL_POINTER;
         }
 
@@ -99,7 +104,8 @@ public class TSDBJNIConnector {
         if (this.taos == TSDBConstants.JNI_NULL_POINTER) {
             throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg(0L)), "", this.getErrCode(0l));
         }
-
+        // invoke connectImp only here
+        taosInfo.conn_open_increment();
         return true;
     }
 
@@ -120,6 +126,7 @@ public class TSDBJNIConnector {
         Long pSql = 0l;
         try {
             pSql = this.executeQueryImp(sql.getBytes(TaosGlobalConfig.getCharset()), this.taos);
+            taosInfo.stmt_count_increment();
         } catch (Exception e) {
             e.printStackTrace();
             this.freeResultSetImp(this.taos, pSql);
@@ -244,10 +251,11 @@ public class TSDBJNIConnector {
     private native int fetchRowImp(long connection, long resultSet, TSDBResultSetRowData rowData);
 
     public int fetchBlock(long resultSet, TSDBResultSetBlockData blockData) {
-		return this.fetchBlockImp(this.taos, resultSet, blockData);
+        return this.fetchBlockImp(this.taos, resultSet, blockData);
     }
-    
+
     private native int fetchBlockImp(long connection, long resultSet, TSDBResultSetBlockData blockData);
+
     /**
      * Execute close operation from C to release connection pointer by JNI
      *
@@ -262,6 +270,8 @@ public class TSDBJNIConnector {
         } else {
             throw new SQLException("Undefined error code returned by TDengine when closing a connection");
         }
+        // invoke closeConnectionImpl only here
+        taosInfo.connect_close_increment();
     }
 
     private native int closeConnectionImp(long connection);
