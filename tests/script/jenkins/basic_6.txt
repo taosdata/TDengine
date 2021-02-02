@@ -25,3 +25,8 @@
 ./test.sh -f unique/dnode/offline3.sim
 ./test.sh -f general/wal/kill.sim
 ./test.sh -f general/wal/maxtables.sim
+
+./test.sh -f general/import/basic.sim
+./test.sh -f general/import/commit.sim
+./test.sh -f general/import/large.sim
+./test.sh -f general/import/replica1.sim
