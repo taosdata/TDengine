@@ -14,6 +14,8 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.utils.TaosInfo;
+
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
