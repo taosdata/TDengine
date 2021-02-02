@@ -42,14 +42,15 @@ class TDTestCase:
         tdSql.prepare()
 
         tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20)) tags(id int,gbid binary(20),loc nchar(20))''')
+                    col7 bool, col8 binary(20), col9 nchar(20)) tags(cid int,gbid binary(20),loc nchar(20))''')
         tdSql.execute("create table test1 using test tags(1,'beijing','北京')")
-        tdSql.execute("create table test2 using test tags(2,'shanghai','上海')")
-        tdSql.execute("create table test3 using test tags(3,'shenzhen','深圳')")
-        for j in range(3):
+        tdSql.execute("create table test2 using test tags(2,'shanghai','深圳')")
+        tdSql.execute("create table test3 using test tags(2,'shenzhen','深圳')")
+        tdSql.execute("create table test4 using test tags(1,'shanghai','上海')")
+        for j in range(4):
             for i in range(self.rowNum):
                 tdSql.execute("insert into test%d values(now-%dh, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d')" 
-                            % (j,i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))                      
+                            % (j+1,i, i + 1, i + 1, i + 1, i + 1, i + i * 0.1, i * 1.5, i % 2, i + 1, i + 1))                      
 
         # stddev verifacation 
         tdSql.error("select stddev(ts) from test")
@@ -57,12 +58,10 @@ class TDTestCase:
         tdSql.error("select stddev(col8) from test")
         tdSql.error("select stddev(col9) from test")
 
-        con_list = [' id = 1 and ts >=now - 1d and ts <now',
-                    ' gbid = ''beijing'' and ts >=now - 1d and ts <now',
-                    ' id = 2 and ts >=now - 1d and ts <now group by tbname',
-                    ' gbid = ''beijing'' and ts >=now - 1d and ts <now group by id ' ,
-                    ' gbid = ''beijing'' and ts >=now - 1d and ts <now group by id ' ,
-                    ' '
+        con_list = [
+            ' where cid = 1 and ts >=now - 1d and ts <now',
+            " where gbid = 'beijing' and ts >=now - 1d and ts <now",                       
+            ' '
         ]
         for condition in con_list:
             tdSql.query("select * from test %s"%(condition))
@@ -71,7 +70,19 @@ class TDTestCase:
                 exec('tdSql.query("select stddev(col{}) from test {}")'.format(i+1,condition))
                 exec('tdSql.checkData(0, 0, np.std(self.clist{}))'.format(i+1))
                 exec('self.clist{}.clear()'.format(i+1))
-            
+        print('step 2')
+        con_group_list = {
+            ' cid = 2 and ts >=now - 1d and ts <now group by tbname':2,
+             " loc = '深圳' and ts >=now - 1d and ts <now group by tbname " :2 ,
+             " gbid = 'shanghai' and ts >=now - 1d and ts <now group by cid " :2
+        }
+        result = [6.922186552,6.922186552,6.922186552,6.922186552,7.614405212,10.383279829]
+        for key,value in con_group_list.items():
+            for i in range(6):
+                    exec('tdSql.query("select stddev(col{}) from test where {}")'.format(i+1,key))
+                    for j in range(value):
+                        tdSql.checkData(j, 0, result[i])
+                      
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
