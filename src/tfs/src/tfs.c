@@ -593,7 +593,7 @@ void taosGetDisk() {
     tsAvailLogDirGB = (float)(diskSize.avail / unit);
   }
 
-  if (taosGetDiskSize("/tmp", &diskSize) == 0) {
+  if (taosGetDiskSize(tsTempDir, &diskSize) == 0) {
     tsTotalTmpDirGB = (float)(diskSize.tsize / unit);
     tsAvailTmpDirectorySpace = (float)(diskSize.avail / unit);
   }

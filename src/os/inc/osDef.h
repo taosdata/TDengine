@@ -26,10 +26,6 @@ extern "C" {
   #endif
 #endif
 
-#ifndef STDERR_FILENO
-#define STDERR_FILENO (2)
-#endif
-
 #define FD_VALID(x) ((x) > STDERR_FILENO)
 #define FD_INITIALIZER  ((int32_t)-1)
 
