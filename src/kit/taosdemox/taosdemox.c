@@ -951,7 +951,7 @@ static void printfInsertMetaToFile(FILE* fp) {
   fprintf(fp, "password:                   %s\n", g_Dbs.password);
   fprintf(fp, "resultFile:                 %s\n", g_Dbs.resultFile);
   fprintf(fp, "thread num of insert data:  %d\n", g_Dbs.threadCount);
-  fprintf(fp, "thread num of create table: %d\n", g_Dbs.threadCountByCreateTbl)
+  fprintf(fp, "thread num of create table: %d\n", g_Dbs.threadCountByCreateTbl);
 
   fprintf(fp, "database count:          %d\n", g_Dbs.dbCount);
   for (int i = 0; i < g_Dbs.dbCount; i++) {
