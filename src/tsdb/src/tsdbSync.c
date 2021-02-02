@@ -191,7 +191,8 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
     return 0;
   }
 
-  if (pLMFile == NULL || memcmp(&(pSynch->pmf->info), &(pLMFile->info), sizeof(SMFInfo)) != 0) {
+  if (pLMFile == NULL || memcmp(&(pSynch->pmf->info), &(pLMFile->info), sizeof(SMFInfo)) != 0 ||
+      TSDB_FILE_IS_BAD(pLMFile)) {
     // Local has no meta file or has a different meta file, need to copy from remote
     pSynch->mfChanged = true;
 
@@ -409,7 +410,8 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
                pSynch->pdf != NULL ? pSynch->pdf->fid : -1);
       pLSet = tsdbFSIterNext(&fsiter);
     } else {
-      if (pLSet && pSynch->pdf && pLSet->fid == pSynch->pdf->fid && tsdbIsTowFSetSame(pLSet, pSynch->pdf)) {
+      if (pLSet && pSynch->pdf && pLSet->fid == pSynch->pdf->fid && tsdbIsTowFSetSame(pLSet, pSynch->pdf) &&
+          tsdbFSetIsOk(pLSet)) {
         // Just keep local files and notify remote not to send
         tsdbInfo("vgId:%d, fileset:%d is same and no need to recv", REPO_ID(pRepo), pLSet->fid);
 
