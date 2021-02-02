@@ -848,7 +848,7 @@ static int tsdbScanRootDir(STsdbRepo *pRepo) {
       continue;
     }
 
-    if (tfsIsSameFile(pf, &(pfs->cstatus->pmf->f))) {
+    if (pfs->cstatus->pmf && tfsIsSameFile(pf, &(pfs->cstatus->pmf->f))) {
       continue;
     }
 
