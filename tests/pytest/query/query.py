@@ -121,6 +121,7 @@ class TDTestCase:
 
         tdSql.query("select * from tb0")
         tdSql.checkRows(1)
+        
 
     def stop(self):
         tdSql.close()
