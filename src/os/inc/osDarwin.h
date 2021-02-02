@@ -105,6 +105,8 @@ typedef int(*__compar_fn_t)(const void *, const void *);
   #define  PTHREAD_MUTEX_RECURSIVE_NP PTHREAD_MUTEX_RECURSIVE
 #endif
 
+#define TAOS_OS_FUNC_PTHREAD_RWLOCK
+
 int64_t tsosStr2int64(char *str);
 
 #include "eok.h"

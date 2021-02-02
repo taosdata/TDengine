@@ -7284,14 +7284,23 @@ static int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
     if (f) {
       off_t s = lseek(fileno(f), 0, SEEK_END);
 
-      qDebug("QInfo:%p ts comp data return, file:%p, size:%"PRId64, pQInfo, f, s);
+      qDebug("QInfo:%p ts comp data return, file:%p, size:%"PRId64, pQInfo, f, (uint64_t)s);
       if (fseek(f, 0, SEEK_SET) >= 0) {
         size_t sz = fread(data, 1, s, f);
         if(sz < s) {  // todo handle error
+          qError("fread(f:%p,%d) failed, rsize:%" PRId64 ", expect size:%" PRId64, f, fileno(f), (uint64_t)sz, (uint64_t)s);
           assert(0);
         }
       } else {
         UNUSED(s);
+        qError("fseek(f:%p,%d) failed, error:%s", f, fileno(f), strerror(errno));
+        assert(0);
+      }
+
+      if (s <= (sizeof(STSBufFileHeader) + sizeof(STSGroupBlockInfo) + 6 * sizeof(int32_t))) {
+        qDump(data, s);
+        
+        assert(0);
       }
 
       fclose(f);
