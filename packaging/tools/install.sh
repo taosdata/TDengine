@@ -168,6 +168,7 @@ function install_main_path() {
     if [ "$verMode" == "cluster" ]; then
         ${csudo} mkdir -p ${nginx_dir}
     fi
+    ${csudo} cp ${script_dir}/email ${install_main_dir}/ ||: 
 }
 
 function install_bin() {
@@ -604,9 +605,7 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
-    #${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/setDelay.sh'     >> ${taosd_service_config}"
-    #${csudo} bash -c "echo 'ExecStartPost=/usr/local/taos/bin/resetDelay.sh'  >> ${taosd_service_config}"
-    #${csudo} bash -c "echo 'ExecStopPost=/usr/local/taos/bin/resetDelay.sh'   >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/startPre.sh'         >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"

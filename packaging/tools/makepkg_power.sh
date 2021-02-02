@@ -36,7 +36,8 @@ fi
 #  strip ${build_dir}/bin/taos
 #  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${script_dir}/remove_power.sh"
 #else 
-#  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${build_dir}/bin/powerdemo ${build_dir}/bin/tarbitrator ${script_dir}/remove_power.sh ${script_dir}/set_core.sh"
+#  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${build_dir}/bin/powerdemo ${build_dir}/bin/tarbitrator ${script_dir}/remove_power.sh\
+#              ${script_dir}/set_core.sh ${script_dir}/startPre.sh  ${script_dir}/taosd-dump-cfg.gdb"
 #fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
@@ -82,6 +83,8 @@ else
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin
   cp ${script_dir}/set_core.sh      ${install_dir}/bin
   cp ${script_dir}/get_client.sh    ${install_dir}/bin
+  cp ${script_dir}/startPre.sh      ${install_dir}/bin
+  cp ${script_dir}/taosd-dump-cfg.gdb  ${install_dir}/bin
 fi
 chmod a+x ${install_dir}/bin/* || :
 

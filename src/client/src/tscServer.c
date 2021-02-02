@@ -296,8 +296,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   if (pObj->signature != pObj) {
     tscDebug("%p DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command, pObj, pObj->signature);
 
-    taosRemoveRef(tscObjRef, pSql->self);
-    taosReleaseRef(tscObjRef, pSql->self);
+    taosRemoveRef(tscObjRef, handle);
+    taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -307,8 +307,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     tscDebug("%p sqlObj needs to be released or DB connection is closed, cmd:%d type:%d, pObj:%p signature:%p",
         pSql, pCmd->command, pQueryInfo->type, pObj, pObj->signature);
 
-    taosRemoveRef(tscObjRef, pSql->self);
-    taosReleaseRef(tscObjRef, pSql->self);
+    taosRemoveRef(tscObjRef, handle);
+    taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -354,7 +354,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
       // if there is an error occurring, proceed to the following error handling procedure.
       if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-        taosReleaseRef(tscObjRef, pSql->self);
+        taosReleaseRef(tscObjRef, handle);
         rpcFreeCont(rpcMsg->pCont);
         return;
       }
@@ -422,12 +422,14 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
 
-  taosReleaseRef(tscObjRef, pSql->self);
+  
 
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
-    taosRemoveRef(tscObjRef, pSql->self);
+    taosRemoveRef(tscObjRef, handle);
     tscDebug("%p sqlObj is automatically freed", pSql); 
   }
+
+  taosReleaseRef(tscObjRef, handle);
 
   rpcFreeCont(rpcMsg->pCont);
 }

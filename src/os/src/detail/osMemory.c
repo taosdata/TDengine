@@ -512,8 +512,9 @@ void * taosTRealloc(void *ptr, size_t size) {
   return (void *)((char *)tptr + sizeof(size_t));
 }
 
-void taosTZfree(void *ptr) {
+void* taosTZfree(void* ptr) {
   if (ptr) {
-    free((void *)((char *)ptr - sizeof(size_t)));
+    free((void*)((char*)ptr - sizeof(size_t)));
   }
+  return NULL;
 }

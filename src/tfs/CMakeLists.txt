@@ -1,0 +1,12 @@
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
+PROJECT(TDengine)
+
+INCLUDE_DIRECTORIES(inc)
+AUX_SOURCE_DIRECTORY(src SRC)
+ADD_LIBRARY(tfs ${SRC})
+TARGET_LINK_LIBRARIES(tfs tutil)
+
+IF (TD_LINUX)
+  # Someone has no gtest directory, so comment it
+  # ADD_SUBDIRECTORY(tests)
+ENDIF ()

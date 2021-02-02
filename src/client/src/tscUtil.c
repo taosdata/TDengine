@@ -32,6 +32,14 @@
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
 static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo);
 
+static void tscStrToLower(char *str, int32_t n) {
+  if (str == NULL || n <= 0) { return;}
+  for (int32_t i = 0; i < n; i++) {
+    if (str[i] >= 'A' && str[i] <= 'Z') {
+        str[i] -= ('A' - 'a');
+    }
+  }
+}
 SCond* tsGetSTableQueryCond(STagCond* pTagCond, uint64_t uid) {
   if (pTagCond->pCond == NULL) {
     return NULL;
@@ -1413,9 +1421,11 @@ int32_t tscValidateName(SStrToken* pToken) {
   char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
   if (sep == NULL) {  // single part
     if (pToken->type == TK_STRING) {
+       
       strdequote(pToken->z);
+      tscStrToLower(pToken->z, pToken->n);
       pToken->n = (uint32_t)strtrim(pToken->z);
-
+       
       int len = tSQLGetToken(pToken->z, &pToken->type);
 
       // single token, validate it
@@ -1467,7 +1477,7 @@ int32_t tscValidateName(SStrToken* pToken) {
     if (pToken->type == TK_STRING && validateQuoteToken(pToken) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
-
+    
     // re-build the whole name string
     if (pStr[firstPartLen] == TS_PATH_DELIMITER[0]) {
       // first part do not have quote do nothing
@@ -1479,6 +1489,8 @@ int32_t tscValidateName(SStrToken* pToken) {
     }
     pToken->n += (firstPartLen + sizeof(TS_PATH_DELIMITER[0]));
     pToken->z = pStr;
+
+    tscStrToLower(pToken->z,pToken->n);
   }
 
   return TSDB_CODE_SUCCESS;
