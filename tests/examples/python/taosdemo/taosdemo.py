@@ -32,6 +32,18 @@ def v_print(msg: str, arg: str):
         print(msg % arg)
 
 
+@dispatch(str, str, str)
+def v_print(msg: str, arg1: str, arg2: str):
+    if verbose:
+        print(msg % (arg1, arg2))
+
+
+@dispatch(str, str, str, str)
+def v_print(msg: str, arg1: str, arg2: str, arg3: str):
+    if verbose:
+        print(msg % (arg1, arg2, arg3))
+
+
 @dispatch(str, str, str, str, str)
 def v_print(msg: str, arg1: str, arg2: str, arg3: str, arg4: str):
     if verbose:
@@ -83,8 +95,7 @@ def v_print(msg: str, arg1: int, arg2: int, arg3: int, arg4: int):
 def restful_execute(host: str, port: int, user: str, password: str, cmd: str):
     url = "http://%s:%d/rest/sql" % (host, restPort)
 
-    if verbose:
-        v_print("cmd: %s", cmd)
+    v_print("restful_execute - cmd: %s", cmd)
 
     resp = requests.post(url, cmd, auth=(user, password))
 
@@ -103,6 +114,7 @@ def restful_execute(host: str, port: int, user: str, password: str, cmd: str):
 
 def query_func(process: int, thread: int, cmd: str):
     v_print("%d process %d thread cmd: %s", process, thread, cmd)
+
     if oneMoreHost != "NotSupported" and random.randint(
             0, 1) == 1:
         v_print("%s", "Send to second host")
@@ -140,6 +152,7 @@ def query_data_process(i: int, cmd: str):
 
 def query_data(cmd: str):
     v_print("query_data processes: %d, cmd: %s", processes, cmd)
+
     pool = Pool(processes)
     for i in range(processes):
         pool.apply_async(query_data_process, args=(i, cmd))
@@ -199,7 +212,6 @@ def create_stb():
 
 
 def use_database():
-    current_db = "%s%d" % (dbName, (numOfDb - 1))
 
     if native:
         cursor.execute("USE %s" % current_db)
@@ -272,14 +284,14 @@ def insert_func(process: int, thread: int):
             sqlCmd = ['INSERT INTO ']
             try:
                 sqlCmd.append(
-                    "%s.tb%s " % (current_db, thread))
+                    "%s.%s%d " % (current_db, tbName, thread))
 
                 if (numOfStb > 0 and autosubtable):
-                    sqlCmd.append("USING %s.st%d TAGS('%s') " %
-                                  (current_db, numOfStb - 1, uuid))
+                    sqlCmd.append("USING %s.%s%d TAGS('%s') " %
+                                  (current_db, stbName, numOfStb - 1, uuid))
 
                 start_time = datetime.datetime(
-                    2020, 9, 25) + datetime.timedelta(seconds=row)
+                    2021, 1, 25) + datetime.timedelta(seconds=row)
 
                 sqlCmd.append("VALUES ")
                 for batchIter in range(0, batch):
@@ -302,7 +314,10 @@ def insert_func(process: int, thread: int):
                 exec_start_time = datetime.datetime.now()
 
             if native:
-                cursor.execute(cmd)
+                v_print("insert_func - cursor:%x cmd:%s", hex(id(cursor)), cmd)
+                cursor.execute("SHOW DATABASES" )
+#                cursor.execute("%s" % cmd)
+                v_print("insert_func - cursor:%x cmd:%s done", hex(id(cursor)), cmd)
             else:
                 restful_execute(
                     host, port, user, password, cmd)
@@ -398,9 +413,9 @@ def printConfig():
     print("# Database name:                     %s" % dbName)
     print("# Replica:                           %s" % replica)
     print("# Use STable:                        %s" % useStable)
-    print("# Table prefix:                      %s" % tbNamePrefix)
+    print("# Table prefix:                      %s" % tbName)
     if useStable:
-        print("# STable prefix:                     %s" % stbNamePrefix)
+        print("# STable prefix:                     %s" % stbName)
 
     print("# Data order:                        %s" % outOfOrder)
     print("# Data out of order rate:            %s" % rateOOOO)
@@ -425,10 +440,10 @@ if __name__ == "__main__":
     replica = 1
     batch = 1
     numOfTb = 1
-    tbNamePrefix = "tb"
+    tbName = "tb"
     useStable = False
     numOfStb = 0
-    stbNamePrefix = "stb"
+    stbName = "stb"
     numOfRec = 10
     ieration = 1
     host = "127.0.0.1"
@@ -547,14 +562,14 @@ if __name__ == "__main__":
                 sys.exit(1)
 
         if key in ['-m', '--tbname']:
-            tbNamePrefix = value
+            tbName = value
 
         if key in ['-M', '--stable']:
             useStable = True
             numOfStb = 1
 
         if key in ['-s', '--stbname']:
-            stbNamePrefix = value
+            stbName = value
 
         if key in ['-Q', '--query']:
             queryCmd = str(value)
@@ -633,7 +648,7 @@ if __name__ == "__main__":
                 user=user,
                 password=password,
                 config=configDir)
-            print("conn: %p" % conn)
+            print("conn: %s" % str(conn.__class__))
         except Exception as e:
             print("Error: %s" % e.args[0])
             sys.exit(1)
@@ -641,6 +656,7 @@ if __name__ == "__main__":
     if native:
         try:
             cursor = conn.cursor()
+            print("cursor:%d %s" % (id(cursor), str(cursor.__class__)))
         except Exception as e:
             print("Error: %s" % e.args[0])
             sys.exit(1)
@@ -669,6 +685,7 @@ if __name__ == "__main__":
         start_time = time.time()
 
     # use last database
+    current_db = "%s%d" % (dbName, (numOfDb - 1))
     use_database()
 
     if numOfStb > 0:
