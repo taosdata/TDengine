@@ -19,15 +19,17 @@
 
 void osInit() {
   if (configDir[0] == 0) {
-    strcpy(configDir, "~/TDengine/cfg");
+    strcpy(configDir, "/etc/taos");
   }
 
   strcpy(tsVnodeDir, "");
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");
-  strcpy(tsDataDir, "~/TDengine/data");
-  strcpy(tsLogDir, "~/TDengine/log");
-  strcpy(tsScriptDir, "~/TDengine/cfg");
+
+  strcpy(tsDataDir, "/tmp/taosd/data");
+  strcpy(tsLogDir, "/tmp/taosd/log");
+  strcpy(tsScriptDir, "/etc/taos");
+
   strcpy(tsOsName, "Darwin");
 }
 
