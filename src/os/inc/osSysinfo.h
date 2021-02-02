@@ -21,10 +21,16 @@ extern "C" {
 #endif
 
 // TAOS_OS_FUNC_SYSINFO
+typedef struct {
+  int64_t tsize;
+  int64_t avail;
+} SysDiskSize;
+
+int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize);
 void taosGetSystemInfo();
 bool taosGetProcIO(float *readKB, float *writeKB);
 bool taosGetBandSpeed(float *bandSpeedKb);
-bool taosGetDisk();
+void taosGetDisk();
 bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) ;
 bool taosGetProcMemory(float *memoryUsedMB) ;
 bool taosGetSysMemory(float *memoryUsedMB);

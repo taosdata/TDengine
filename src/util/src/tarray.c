@@ -55,24 +55,29 @@ static int32_t taosArrayResize(SArray* pArray) {
   return 0;
 }
 
-void* taosArrayPush(SArray* pArray, void* pData) {
+void* taosArrayPushBatch(SArray* pArray, const void* pData, int nEles) {
   if (pArray == NULL || pData == NULL) {
     return NULL;
   }
 
-  if (pArray->size >= pArray->capacity) {
-    int32_t ret = taosArrayResize(pArray);
-    
-    // failed to push data into buffer due to the failure of memory allocation
-    if (ret != 0) {
+  if (pArray->size + nEles > pArray->capacity) {
+    size_t tsize = (pArray->capacity << 1u);
+    while (pArray->size + nEles > tsize) {
+      tsize = (tsize << 1u);
+    }
+
+    pArray->pData = realloc(pArray->pData, tsize * pArray->elemSize);
+    if (pArray->pData == NULL) {
       return NULL;
     }
+
+    pArray->capacity = tsize;
   }
 
   void* dst = TARRAY_GET_ELEM(pArray, pArray->size);
-  memcpy(dst, pData, pArray->elemSize);
+  memcpy(dst, pData, pArray->elemSize * nEles);
 
-  pArray->size += 1;
+  pArray->size += nEles;
   return dst;
 }
 
@@ -133,6 +138,11 @@ void* taosArrayInsert(SArray* pArray, size_t index, void* pData) {
   return dst;
 }
 
+void taosArraySet(SArray* pArray, size_t index, void* pData) {
+  assert(index < pArray->size);
+  memcpy(TARRAY_GET_ELEM(pArray, index), pData, pArray->elemSize);
+}
+
 void taosArrayRemove(SArray* pArray, size_t index) {
   assert(index < pArray->size);
   
@@ -184,13 +194,13 @@ void taosArrayClear(SArray* pArray) {
   pArray->size = 0;
 }
 
-void taosArrayDestroy(SArray* pArray) {
-  if (pArray == NULL) {
-    return;
+void* taosArrayDestroy(SArray* pArray) {
+  if (pArray) {
+    free(pArray->pData);
+    free(pArray);
   }
 
-  free(pArray->pData);
-  free(pArray);
+  return NULL;
 }
 
 void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {
@@ -217,11 +227,11 @@ void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*)) {
   qsort(pArray->pData, pArray->size, pArray->elemSize, compar);
 }
 
-void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn) {
+void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn, int flags) {
   assert(pArray != NULL && comparFn != NULL);
   assert(key != NULL);
 
-  return bsearch(key, pArray->pData, pArray->size, pArray->elemSize, comparFn);
+  return taosbsearch(key, pArray->pData, pArray->size, pArray->elemSize, comparFn, flags);
 }
 
 void taosArraySortString(SArray* pArray, __compar_fn_t comparFn) {
@@ -229,11 +239,11 @@ void taosArraySortString(SArray* pArray, __compar_fn_t comparFn) {
   qsort(pArray->pData, pArray->size, pArray->elemSize, comparFn);
 }
 
-char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn) {
+char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn, int flags) {
   assert(pArray != NULL);
   assert(key != NULL);
 
-  void* p = bsearch(&key, pArray->pData, pArray->size, pArray->elemSize, comparFn);
+  void* p = taosbsearch(&key, pArray->pData, pArray->size, pArray->elemSize, comparFn, flags);
   if (p == NULL) {
     return NULL;
   }

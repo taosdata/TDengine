@@ -18,6 +18,10 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
+#include "taoserror.h"
+#include <errno.h>
+#include <libproc.h>
+
 
 static void taosGetSystemTimezone() {
   // get and set default timezone
@@ -67,8 +71,6 @@ void taosGetSystemInfo() {
   taosGetSystemLocale();
 }
 
-bool taosGetDisk() { return true; }
-
 bool taosGetProcIO(float *readKB, float *writeKB) {
   *readKB = 0;
   *writeKB = 0;
@@ -103,8 +105,31 @@ int taosSystem(const char *cmd) {
 
 void taosSetCoreDump() {}
 
+int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
+  struct statvfs info;
+  if (statvfs(tsDataDir, &info)) {
+    uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  } else {
+    diskSize->tsize = info.f_blocks * info.f_frsize;
+    diskSize->avail = info.f_bavail * info.f_frsize;
+    return 0;
+  }
+}
+
+char cmdline[1024];
+
 char *taosGetCmdlineByPID(int pid) {
-  return "[not supported yet]";
+
+  errno = 0;
+
+  if (proc_pidpath(pid, cmdline, sizeof(cmdline)) <= 0) {
+    fprintf(stderr, "PID is %d, %s", pid, strerror(errno));
+    return strerror(errno);
+  }
+
+  return cmdline;
 }
 
 bool taosGetSystemUid(char *uid) {

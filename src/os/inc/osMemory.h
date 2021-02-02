@@ -35,7 +35,7 @@ void   taosDumpMemoryLeak();
 void * taosTMalloc(size_t size);
 void * taosTCalloc(size_t nmemb, size_t size);
 void * taosTRealloc(void *ptr, size_t size);
-void   taosTZfree(void *ptr);
+void * taosTZfree(void *ptr);
 size_t taosTSizeof(void *ptr);
 void   taosTMemset(void *ptr, int c);
 
