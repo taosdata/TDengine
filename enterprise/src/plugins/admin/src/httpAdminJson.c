@@ -79,7 +79,7 @@ void adminBuildSqlAffectRowJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t 
   // data row array end
   httpJsonToken(jsonBuf, JsonArrEnd);
 
-  cmd->numOfRows = affect_rows;
+  cmd->numOfRows = 1;
 }
 
 bool adminBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows) {
