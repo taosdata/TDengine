@@ -188,7 +188,11 @@ static void removeTimer(uintptr_t id) {
 }
 
 static int64_t getMonotonicMs(void) {
+#ifdef WINDOWS
   return (int64_t) getMonotonicUs() / 1000;
+#else
+  return taosGetTimestampMs();
+#endif
 }
 
 static void addToWheel(tmr_obj_t* timer, uint32_t delay) {
@@ -537,7 +541,8 @@ static void taosTmrModuleInit(void) {
 }
 
 void* taosTmrInit(int maxNumOfTmrs, int resolution, int longest, const char* label) {
-  tmrInfo("ttimer monotonic clock source:%s", monotonicInit());
+  const char* ret = monotonicInit();
+  tmrInfo("ttimer monotonic clock source:%s", ret);
 
   pthread_once(&tmrModuleInit, taosTmrModuleInit);
 
