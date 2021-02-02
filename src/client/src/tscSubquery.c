@@ -2410,7 +2410,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
   // record the total inserted rows
   if (numOfRows > 0) {
-    pParentObj->res.numOfRows += numOfRows;
+    atomic_add_fetch_32(&pParentObj->res.numOfRows, numOfRows);
   }
 
   if (taos_errno(tres) != TSDB_CODE_SUCCESS) {
