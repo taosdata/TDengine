@@ -85,6 +85,7 @@ int32_t tsdbSyncRecv(void *tsdb, SOCKET socketFd) {
   pRepo->state = TSDB_STATE_OK;
 
   tsdbInitSyncH(&synch, pRepo, socketFd);
+  tsem_wait(&(pRepo->readyToCommit));
   tsdbStartFSTxn(pRepo, 0, 0);
 
   if (tsdbSyncRecvMeta(&synch) < 0) {
@@ -98,6 +99,7 @@ int32_t tsdbSyncRecv(void *tsdb, SOCKET socketFd) {
   }
 
   tsdbEndFSTxn(pRepo);
+  tsem_post(&(pRepo->readyToCommit));
   tsdbDestroySyncH(&synch);
 
   // Reload file change
@@ -107,6 +109,7 @@ int32_t tsdbSyncRecv(void *tsdb, SOCKET socketFd) {
 
 _err:
   tsdbEndFSTxnWithError(REPO_FS(pRepo));
+  tsem_post(&(pRepo->readyToCommit));
   tsdbDestroySyncH(&synch);
   return -1;
 }
