@@ -84,11 +84,11 @@ static void monotonicInit_x86linux() {
     regfree(&constTscRegex);
 
     if (mono_ticksPerMicrosecond == 0) {
-        fprintf(stderr, "monotonic: x86 linux, unable to determine clock rate");
+        //fprintf(stderr, "monotonic: x86 linux, unable to determine clock rate");
         return;
     }
     if (!constantTsc) {
-        fprintf(stderr, "monotonic: x86 linux, 'constant_tsc' flag not present");
+        //fprintf(stderr, "monotonic: x86 linux, 'constant_tsc' flag not present");
         return;
     }
 
