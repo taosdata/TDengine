@@ -35,7 +35,7 @@ public class TSDBStatementTest {
     @Test
     public void executeUpdate() {
         String dbName = "test_" + UUID.randomUUID();
-        dbName = dbName.replace("-", "_");
+        dbName = dbName.replace("-", "_").substring(0,32);
         try {
             int affectRows = stmt.executeUpdate("create database " + dbName);
             Assert.assertEquals(0, affectRows);
