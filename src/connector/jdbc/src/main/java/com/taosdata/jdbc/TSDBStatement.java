@@ -80,12 +80,8 @@ public class TSDBStatement extends AbstractStatement {
 
     public void close() throws SQLException {
         if (!isClosed) {
-            //TODO：check if connector need to store resultSetPointer
-//            this.connector.freeResultSet(resultSet.getResultSetPointer());
-            this.resultSet.close();
-//            if (!this.connector.isResultsetClosed()) {
-//                this.connector.freeResultSet();
-//            }
+            if (this.resultSet != null)
+                this.resultSet.close();
             isClosed = true;
         }
     }
@@ -179,9 +175,9 @@ public class TSDBStatement extends AbstractStatement {
         int[] res = new int[batchedArgs.size()];
         for (int i = 0; i < batchedArgs.size(); i++) {
             boolean isSelect = execute(batchedArgs.get(i));
-            if (isSelect){
+            if (isSelect) {
                 res[i] = SUCCESS_NO_INFO;
-            }else {
+            } else {
                 res[i] = getUpdateCount();
             }
         }
