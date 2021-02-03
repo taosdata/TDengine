@@ -119,6 +119,42 @@ int64_t taosLSeekImp(int32_t fd, int64_t offset, int32_t whence) {
   return (int64_t)lseek(fd, (long)offset, whence);
 }
 
+int64_t taosCopy(char *from, char *to) {
+  char    buffer[4096];
+  int     fidto = -1, fidfrom = -1;
+  int64_t size = 0;
+  int64_t bytes;
+
+  fidfrom = open(from, O_RDONLY | O_BINARY);
+  if (fidfrom < 0) goto _err;
+
+  fidto = open(to, O_WRONLY | O_CREAT | O_EXCL | O_BINARY, 0755);
+  if (fidto < 0) goto _err;
+
+  while (true) {
+    bytes = taosRead(fidfrom, buffer, sizeof(buffer));
+    if (bytes < 0) goto _err;
+    if (bytes == 0) break;
+
+    size += bytes;
+
+    if (taosWrite(fidto, (void *)buffer, bytes) < bytes) goto _err;
+    if (bytes < sizeof(buffer)) break;
+  }
+
+  fsync(fidto);
+
+  close(fidfrom);
+  close(fidto);
+  return size;
+
+_err:
+  if (fidfrom >= 0) close(fidfrom);
+  if (fidto >= 0) close(fidto);
+  remove(to);
+  return -1;
+}
+
 #ifndef TAOS_OS_FUNC_FILE_SENDIFLE
 
 int64_t taosSendFile(SOCKET dfd, int32_t sfd, int64_t *offset, int64_t size) {

@@ -852,7 +852,7 @@ npm install td2.0-connector
 ### Linux
 
 - `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
-- `node`  必须采用v10.x版本，其他版本存在包兼容性的问题。
+- `node`  2.0.6支持v12.x和v10.x，2.0.5及更早版本支持v10.x版本，其他版本可能存在包兼容性的问题。
 - `make`
 - c语言编译器比如<a href="https://gcc.gnu.org">GCC</a>
 

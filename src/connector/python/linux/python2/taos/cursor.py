@@ -1,7 +1,6 @@
 from .cinterface import CTaosInterface
 from .error import *
 from .constants import FieldType
-import threading
 
 
 class TDengineCursor(object):
@@ -36,7 +35,6 @@ class TDengineCursor(object):
         self._block_iter = 0
         self._affected_rows = 0
         self._logfile = ""
-        self._threadId = threading.get_ident()
 
         if connection is not None:
             self._connection = connection

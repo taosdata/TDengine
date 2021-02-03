@@ -34,44 +34,37 @@ import java.util.*;
 import java.util.concurrent.Executor;
 
 public class TSDBConnection implements Connection {
-    protected Properties props = null;
 
     private TSDBJNIConnector connector = null;
 
     private String catalog = null;
 
-    private TSDBDatabaseMetaData dbMetaData = null;
+    private TSDBDatabaseMetaData dbMetaData;
 
     private Properties clientInfoProps = new Properties();
 
     private int timeoutMilliseconds = 0;
-    
+
     private boolean batchFetch = false;
 
     public TSDBConnection(Properties info, TSDBDatabaseMetaData meta) throws SQLException {
         this.dbMetaData = meta;
         connect(info.getProperty(TSDBDriver.PROPERTY_KEY_HOST),
                 Integer.parseInt(info.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "0")),
-                info.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME), 
+                info.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME),
                 info.getProperty(TSDBDriver.PROPERTY_KEY_USER),
                 info.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD));
-        
+
         String batchLoad = info.getProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD);
         if (batchLoad != null) {
-        	this.batchFetch = Boolean.parseBoolean(batchLoad);
+            this.batchFetch = Boolean.parseBoolean(batchLoad);
         }
     }
 
     private void connect(String host, int port, String dbName, String user, String password) throws SQLException {
         this.connector = new TSDBJNIConnector();
         this.connector.connect(host, port, dbName, user, password);
-
-        try {
-            this.setCatalog(dbName);
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-
+        this.setCatalog(dbName);
         this.dbMetaData.setConnection(this);
     }
 
@@ -80,68 +73,86 @@ public class TSDBConnection implements Connection {
     }
 
     public Statement createStatement() throws SQLException {
-        if (!this.connector.isClosed()) {
-            TSDBStatement statement = new TSDBStatement(this, this.connector);
-            statement.setConnection(this);
-            return statement;
-        } else {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
+
+        TSDBStatement statement = new TSDBStatement(this, this.connector);
+        statement.setConnection(this);
+        return statement;
     }
 
     public TSDBSubscribe subscribe(String topic, String sql, boolean restart) throws SQLException {
-        if (this.connector.isClosed()) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
 
         long id = this.connector.subscribe(topic, sql, restart, 0);
         if (id == 0) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("failed to create subscription"));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SUBSCRIBE_FAILED);
         }
-
         return new TSDBSubscribe(this.connector, id);
     }
 
     public PreparedStatement prepareStatement(String sql) throws SQLException {
-        if (!this.connector.isClosed()) {
-            return new TSDBPreparedStatement(this, this.connector, sql);
-        } else {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
+
+        return new TSDBPreparedStatement(this, this.connector, sql);
     }
 
     public CallableStatement prepareCall(String sql) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public String nativeSQL(String sql) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public void setAutoCommit(boolean autoCommit) throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+
     }
 
     public boolean getAutoCommit() throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+
         return true;
     }
 
     public void commit() throws SQLException {
-    }
-
-    public void rollback() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
-    }
-
-    public void close() throws SQLException {
-        if (this.connector != null && !this.connector.isClosed()) {
-            this.connector.closeConnection();
-        } else {
-            throw new SQLException(TSDBConstants.WrapErrMsg("connection is already closed!"));
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
     }
 
+    public void rollback() throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+    }
+
+    public void close() throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        this.connector.closeConnection();
+    }
+
     public boolean isClosed() throws SQLException {
-        return this.connector.isClosed();
+        return this.connector != null && this.connector.isClosed();
     }
 
     /**
@@ -154,6 +165,9 @@ public class TSDBConnection implements Connection {
      * @throws SQLException if a database access error occurs
      */
     public DatabaseMetaData getMetaData() throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
         return this.dbMetaData;
     }
 
@@ -165,17 +179,29 @@ public class TSDBConnection implements Connection {
      * @throws SQLException
      */
     public void setReadOnly(boolean readOnly) throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
     }
 
     public boolean isReadOnly() throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
         return true;
     }
 
     public void setCatalog(String catalog) throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
         this.catalog = catalog;
     }
 
     public String getCatalog() throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
         return this.catalog;
     }
 
@@ -187,6 +213,19 @@ public class TSDBConnection implements Connection {
      * @throws SQLException
      */
     public void setTransactionIsolation(int level) throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        switch (level) {
+            case Connection.TRANSACTION_NONE:
+            case Connection.TRANSACTION_READ_COMMITTED:
+            case Connection.TRANSACTION_READ_UNCOMMITTED:
+            case Connection.TRANSACTION_REPEATABLE_READ:
+            case Connection.TRANSACTION_SERIALIZABLE:
+                break;
+            default:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        }
     }
 
     /**
@@ -196,60 +235,81 @@ public class TSDBConnection implements Connection {
      * @throws SQLException
      */
     public int getTransactionIsolation() throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
         return Connection.TRANSACTION_NONE;
     }
 
     public SQLWarning getWarnings() throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
         //todo: implement getWarnings according to the warning messages returned from TDengine
         return null;
-//        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     public void clearWarnings() throws SQLException {
-        // left blank to support HikariCP connection
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
         //todo: implement clearWarnings according to the warning messages returned from TDengine
     }
 
     public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency)
             throws SQLException {
         // This method is implemented in the current way to support Spark
         if (resultSetType != ResultSet.TYPE_FORWARD_ONLY) {
-            throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
         }
 
         if (resultSetConcurrency != ResultSet.CONCUR_READ_ONLY) {
-            throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
         }
 
         return this.prepareStatement(sql);
     }
-    
+
     public Boolean getBatchFetch() {
-    	return this.batchFetch;
+        return this.batchFetch;
     }
-    
+
     public void setBatchFetch(Boolean batchFetch) {
-    	this.batchFetch = batchFetch;
+        this.batchFetch = batchFetch;
     }
 
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public Map<String, Class<?>> getTypeMap() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public void setTypeMap(Map<String, Class<?>> map) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public void setHoldability(int holdability) throws SQLException {
-        // intentionally left empty to support druid connection pool.
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
     }
 
     /**
@@ -259,67 +319,111 @@ public class TSDBConnection implements Connection {
      * @throws SQLException
      */
     public int getHoldability() throws SQLException {
-        //intentionally left empty to support HikariCP connection.
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
         return ResultSet.HOLD_CURSORS_OVER_COMMIT;
     }
 
     public Savepoint setSavepoint() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public Savepoint setSavepoint(String name) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public void rollback(Savepoint savepoint) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public void releaseSavepoint(Savepoint savepoint) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability)
             throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency,
                                               int resultSetHoldability) throws SQLException {
-        return this.prepareStatement(sql, resultSetType, resultSetConcurrency);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency,
                                          int resultSetHoldability) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public PreparedStatement prepareStatement(String sql, int[] columnIndexes) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public PreparedStatement prepareStatement(String sql, String[] columnNames) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public Clob createClob() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public Blob createBlob() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public NClob createNClob() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public SQLXML createSQLXML() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public boolean isValid(int timeout) throws SQLException {
@@ -338,31 +442,52 @@ public class TSDBConnection implements Connection {
     }
 
     public String getClientInfo(String name) throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
         return clientInfoProps.getProperty(name);
     }
 
     public Properties getClientInfo() throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
         return clientInfoProps;
     }
 
     public Array createArrayOf(String typeName, Object[] elements) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public Struct createStruct(String typeName, Object[] attributes) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public void setSchema(String schema) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public String getSchema() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public void abort(Executor executor) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public void setNetworkTimeout(Executor executor, int milliseconds) throws SQLException {
@@ -370,14 +495,21 @@ public class TSDBConnection implements Connection {
     }
 
     public int getNetworkTimeout() throws SQLException {
+        if (isClosed()) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        }
         return this.timeoutMilliseconds;
     }
 
     public <T> T unwrap(Class<T> iface) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        try {
+            return iface.cast(this);
+        } catch (ClassCastException cce) {
+            throw new SQLException("Unable to unwrap to " + iface.toString());
+        }
     }
 
     public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+        return iface.isInstance(this);
     }
 }
