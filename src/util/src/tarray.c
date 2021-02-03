@@ -220,7 +220,7 @@ void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*)) {
   taosArrayDestroy(pArray);
 }
 
-void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*)) {
+void taosArraySort(SArray* pArray, __compar_fn_t compar) {
   assert(pArray != NULL);
   assert(compar != NULL);
 
