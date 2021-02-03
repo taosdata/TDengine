@@ -204,7 +204,7 @@ void *taosAcquireRef(int rsetId, int64_t rid)
   void     *p = NULL;
 
   if (rsetId < 0 || rsetId >= TSDB_REF_OBJECTS) {
-    uTrace("rsetId:%d rid:%" PRId64 " failed to acquire, rsetId not valid", rsetId, rid);
+    //uTrace("rsetId:%d rid:%" PRId64 " failed to acquire, rsetId not valid", rsetId, rid);
     terrno = TSDB_CODE_REF_INVALID_ID;
     return NULL;
   }
