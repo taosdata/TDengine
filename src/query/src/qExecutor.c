@@ -3980,7 +3980,7 @@ void copyToOutputBuf(SQInfo *pQInfo, SResultRowInfo *pResultInfo) {
   SGroupResInfo *pGroupResInfo = &pQInfo->groupResInfo;
 
   assert(pQuery->rec.rows == 0 && pGroupResInfo->currentGroup <= pGroupResInfo->totalGroup);
-  if (pGroupResInfo->index >= taosArrayGetSize(pGroupResInfo->pRows)) {
+  if (!hasRemainData(pGroupResInfo)) {
     return;
   }
 
@@ -4033,6 +4033,10 @@ static void stableApplyFunctionsOnBlock(SQueryRuntimeEnv *pRuntimeEnv, SDataBloc
 bool hasNotReturnedResults(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pGroupResInfo) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   SFillInfo *pFillInfo = pRuntimeEnv->pFillInfo;
+
+  if (!Q_STATUS_EQUAL(pQuery->status, QUERY_COMPLETED)) {
+      return false;
+  }
 
   if (pQuery->limit.limit > 0 && pQuery->rec.total >= pQuery->limit.limit) {
     return false;
@@ -5682,7 +5686,7 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
   if (pQuery->fillType == TSDB_FILL_NONE || pRuntimeEnv->resultRowInfo.size == 0 || isPointInterpoQuery(pQuery)) {
     // all data scanned, the group by normal column can return
     int32_t numOfClosed = numOfClosedResultRows(&pRuntimeEnv->resultRowInfo);
-    if (pQuery->limit.offset > numOfClosed) {
+    if (pQuery->limit.offset > numOfClosed || numOfClosed == 0) {
       return;
     }
 
