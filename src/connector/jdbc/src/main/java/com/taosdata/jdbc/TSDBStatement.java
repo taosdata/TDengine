@@ -21,12 +21,10 @@ import java.util.List;
 public class TSDBStatement extends AbstractStatement {
 
     private TSDBJNIConnector connector;
-
     /**
      * To store batched commands
      */
     protected List<String> batchedArgs;
-//    private Long pSql = 0l;
     /**
      * Status of current statement
      */
@@ -107,7 +105,6 @@ public class TSDBStatement extends AbstractStatement {
     public ResultSet getResultSet() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
 //        long resultSetPointer = connector.getResultSet();
 //        TSDBResultSet resSet = null;
 //        if (resultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
@@ -120,33 +117,6 @@ public class TSDBStatement extends AbstractStatement {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         return this.affectedRows;
-    }
-
-    public int getFetchDirection() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        return this.resultSet.getFetchDirection();
-    }
-
-    /*
-     * used by spark
-     */
-    public int getFetchSize() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        return this.resultSet.getFetchSize();
-    }
-
-    public int getResultSetConcurrency() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        return this.resultSet.getConcurrency();
-    }
-
-    public int getResultSetType() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        return this.resultSet.getType();
     }
 
     public void addBatch(String sql) throws SQLException {
@@ -190,18 +160,6 @@ public class TSDBStatement extends AbstractStatement {
         if (this.connector == null)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
         return this.connection;
-    }
-
-    public boolean getMoreResults(int current) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
-    }
-
-    public int getResultSetHoldability() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        return this.resultSet.getHoldability();
     }
 
     public boolean isClosed() throws SQLException {

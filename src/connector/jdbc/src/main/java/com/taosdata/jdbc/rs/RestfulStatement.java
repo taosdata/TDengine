@@ -193,32 +193,6 @@ public class RestfulStatement extends AbstractStatement {
     }
 
     @Override
-    public int getFetchDirection() throws SQLException {
-        return this.resultSet.getFetchDirection();
-    }
-
-    @Override
-    public int getFetchSize() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return 0;
-    }
-
-    @Override
-    public int getResultSetConcurrency() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return this.resultSet.getConcurrency();
-    }
-
-    @Override
-    public int getResultSetType() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return this.resultSet.getType();
-    }
-
-    @Override
     public void addBatch(String sql) throws SQLException {
         if (isClosed())
             throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
@@ -241,36 +215,6 @@ public class RestfulStatement extends AbstractStatement {
         if (isClosed())
             throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
         return this.conn;
-    }
-
-    @Override
-    public boolean getMoreResults(int current) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        if (resultSet == null)
-            return false;
-
-//        switch (current) {
-//            case CLOSE_CURRENT_RESULT:
-//                resultSet.close();
-//                break;
-//            case KEEP_CURRENT_RESULT:
-//                break;
-//            case CLOSE_ALL_RESULTS:
-//                resultSet.close();
-//                break;
-//            default:
-//                throw new SQLException(TSDBConstants.INVALID_VARIABLES);
-//        }
-//        return next;
-        return false;
-    }
-
-    @Override
-    public int getResultSetHoldability() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return this.resultSet.getHoldability();
     }
 
     @Override

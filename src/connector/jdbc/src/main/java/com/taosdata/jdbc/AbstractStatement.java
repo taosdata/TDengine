@@ -5,6 +5,7 @@ import java.sql.*;
 public abstract class AbstractStatement implements Statement {
 
     private volatile boolean closeOnCompletion;
+    private int fetchSize;
 
     @Override
     public abstract ResultSet executeQuery(String sql) throws SQLException;
@@ -116,7 +117,11 @@ public abstract class AbstractStatement implements Statement {
     }
 
     @Override
-    public abstract int getFetchDirection() throws SQLException;
+    public int getFetchDirection() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        return ResultSet.FETCH_FORWARD;
+    }
 
     @Override
     public void setFetchSize(int rows) throws SQLException {
@@ -125,16 +130,29 @@ public abstract class AbstractStatement implements Statement {
         if (rows < 0)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
         //nothing to do
+        this.fetchSize = rows;
     }
 
     @Override
-    public abstract int getFetchSize() throws SQLException;
+    public int getFetchSize() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        return this.fetchSize;
+    }
 
     @Override
-    public abstract int getResultSetConcurrency() throws SQLException;
+    public int getResultSetConcurrency() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        return ResultSet.CONCUR_READ_ONLY;
+    }
 
     @Override
-    public abstract int getResultSetType() throws SQLException;
+    public int getResultSetType() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        return ResultSet.TYPE_FORWARD_ONLY;
+    }
 
     @Override
     public abstract void addBatch(String sql) throws SQLException;
@@ -149,7 +167,11 @@ public abstract class AbstractStatement implements Statement {
     public abstract Connection getConnection() throws SQLException;
 
     @Override
-    public abstract boolean getMoreResults(int current) throws SQLException;
+    public boolean getMoreResults(int current) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        return false;
+    }
 
     @Override
     public ResultSet getGeneratedKeys() throws SQLException {
@@ -187,7 +209,11 @@ public abstract class AbstractStatement implements Statement {
     }
 
     @Override
-    public abstract int getResultSetHoldability() throws SQLException;
+    public int getResultSetHoldability() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        return ResultSet.HOLD_CURSORS_OVER_COMMIT;
+    }
 
     @Override
     public abstract boolean isClosed() throws SQLException;

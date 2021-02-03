@@ -1,11 +1,13 @@
 package com.taosdata.jdbc;
 
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.sql.*;
 import java.util.Properties;
+import java.util.UUID;
 
 public class TSDBStatementTest {
     private static final String host = "127.0.0.1";
@@ -16,6 +18,7 @@ public class TSDBStatementTest {
     public void executeQuery() {
         try {
             ResultSet rs = stmt.executeQuery("show databases");
+            Assert.assertNotNull(rs);
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
                 for (int i = 1; i <= meta.getColumnCount(); i++) {
@@ -31,6 +34,15 @@ public class TSDBStatementTest {
 
     @Test
     public void executeUpdate() {
+        final String dbName = "test_" + UUID.randomUUID();
+        try {
+            int affectRows = stmt.executeUpdate("create database " + dbName);
+            Assert.assertEquals(0, affectRows);
+            affectRows = stmt.executeUpdate("drop database " + dbName);
+            Assert.assertEquals(0, affectRows);
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
     }
 
     @Test
@@ -39,6 +51,7 @@ public class TSDBStatementTest {
 
     @Test
     public void execute() {
+
     }
 
     @Test
@@ -47,14 +60,6 @@ public class TSDBStatementTest {
 
     @Test
     public void getUpdateCount() {
-    }
-
-    @Test
-    public void getFetchDirection() {
-    }
-
-    @Test
-    public void getFetchSize() {
     }
 
     @Test
