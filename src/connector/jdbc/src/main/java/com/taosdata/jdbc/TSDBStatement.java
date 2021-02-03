@@ -132,8 +132,8 @@ public class TSDBStatement extends AbstractStatement {
     public void clearBatch() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
-        batchedArgs.clear();
+        if (batchedArgs != null)
+            batchedArgs.clear();
     }
 
     public int[] executeBatch() throws SQLException {
