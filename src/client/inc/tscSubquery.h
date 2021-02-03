@@ -33,6 +33,7 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, int32_t index);
 void tscHandleMasterJoinQuery(SSqlObj* pSql);
 
 int32_t tscHandleMasterSTableQuery(SSqlObj *pSql);
+int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql);
 
 int32_t tscHandleMultivnodeInsert(SSqlObj *pSql);
 

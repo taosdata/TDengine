@@ -59,25 +59,27 @@ extern "C" {
 
 #define TSDB_FUNC_FIRST_DST    25
 #define TSDB_FUNC_LAST_DST     26
-#define TSDB_FUNC_INTERP       27
+#define TSDB_FUNC_STDDEV_DST   27
+#define TSDB_FUNC_INTERP       28
 
-#define TSDB_FUNC_RATE         28
-#define TSDB_FUNC_IRATE        29
-#define TSDB_FUNC_SUM_RATE     30
-#define TSDB_FUNC_SUM_IRATE    31
-#define TSDB_FUNC_AVG_RATE     32
-#define TSDB_FUNC_AVG_IRATE    33
+#define TSDB_FUNC_RATE         29
+#define TSDB_FUNC_IRATE        30
+#define TSDB_FUNC_SUM_RATE     31
+#define TSDB_FUNC_SUM_IRATE    32
+#define TSDB_FUNC_AVG_RATE     33
+#define TSDB_FUNC_AVG_IRATE    34
 
-#define TSDB_FUNC_TID_TAG      34
-#define TSDB_FUNC_HISTOGRAM    35
-#define TSDB_FUNC_HLL          36
-#define TSDB_FUNC_MODE         37
-#define TSDB_FUNC_SAMPLE       38
-#define TSDB_FUNC_CEIL         39
-#define TSDB_FUNC_FLOOR        40
-#define TSDB_FUNC_ROUND        41
-#define TSDB_FUNC_MAVG         42
-#define TSDB_FUNC_CSUM         43
+#define TSDB_FUNC_TID_TAG      35
+#define TSDB_FUNC_HISTOGRAM    36
+#define TSDB_FUNC_HLL          37
+#define TSDB_FUNC_MODE         38
+#define TSDB_FUNC_SAMPLE       39
+#define TSDB_FUNC_CEIL         40
+#define TSDB_FUNC_FLOOR        41
+#define TSDB_FUNC_ROUND        42
+#define TSDB_FUNC_MAVG         43
+#define TSDB_FUNC_CSUM         44
+
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -90,14 +92,11 @@ extern "C" {
 #define TSDB_BASE_FUNC_SO TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
 #define TSDB_BASE_FUNC_MO TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STREAM | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_OF
 
-
 #define TSDB_FUNCTIONS_NAME_MAX_LENGTH 16
 #define TSDB_AVG_FUNCTION_INTER_BUFFER_SIZE 50
 
 #define DATA_SET_FLAG ','  // to denote the output area has data, not null value
 #define DATA_SET_FLAG_SIZE sizeof(DATA_SET_FLAG)
-
-
 
 #define QUERY_ASC_FORWARD_STEP   1
 #define QUERY_DESC_FORWARD_STEP -1
@@ -167,8 +166,9 @@ typedef struct SExtTagsInfo {
 
 // sql function runtime context
 typedef struct SQLFunctionCtx {
-  int32_t      startOffset;
+  int32_t      startOffset;  // todo remove it
   int32_t      size;      // number of rows
+  void *       pInput;    //
   uint32_t     order;     // asc|desc
   int16_t      inputType;
   int16_t      inputBytes;
@@ -177,13 +177,12 @@ typedef struct SQLFunctionCtx {
   int16_t      outputBytes;   // size of results, determined by function and input column data type
   int32_t      interBufBytes; // internal buffer size
   bool         hasNull;       // null value exist in current block
-  bool         requireNull;  // require null in some function
+  bool         requireNull;   // require null in some function
   bool         stableQuery;
-  int16_t      functionId;   // function id
-  void *       aInputElemBuf;
-  char *       aOutputBuf;            // final result output buffer, point to sdata->data
-  uint8_t      currentStage;          // record current running step, default: 0
-  int64_t      nStartQueryTimestamp;  // timestamp range of current query when function is executed on a specific data block
+  int16_t      functionId;    // function id
+  char *       pOutput;       // final result output buffer, point to sdata->data
+  uint8_t      currentStage;  // record current running step, default: 0
+  int64_t      startTs;       // timestamp range of current query when function is executed on a specific data block
   int32_t      numOfParams;
   tVariant     param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param */
   int64_t     *ptsList;       // corresponding timestamp array list
@@ -198,17 +197,16 @@ typedef struct SQLFunctionCtx {
   SPoint1      end;
 } SQLFunctionCtx;
 
-typedef struct SQLAggFuncElem {
-  char     aName[TSDB_FUNCTIONS_NAME_MAX_LENGTH];
-
-  uint8_t  nAggIdx;       // index of function in aAggs
+typedef struct SAggFunctionInfo {
+  char     name[TSDB_FUNCTIONS_NAME_MAX_LENGTH];
+  uint8_t  index;       // index of function in aAggs
   int8_t   stableFuncId;  // transfer function for super table query
-  uint16_t nStatus;
+  uint16_t status;
 
   bool (*init)(SQLFunctionCtx *pCtx);  // setup the execute environment
 
   void (*xFunction)(SQLFunctionCtx *pCtx);                     // blocks version function
-  void (*xFunctionF)(SQLFunctionCtx *pCtx, int32_t position);  // single-row function version
+  void (*xFunctionF)(SQLFunctionCtx *pCtx, int32_t position);  // single-row function version, todo merge with blockwise function
 
   // some sql function require scan data twice or more, e.g.,stddev, percentile
   void (*xNextStep)(SQLFunctionCtx *pCtx);
@@ -218,7 +216,7 @@ typedef struct SQLAggFuncElem {
   void (*mergeFunc)(SQLFunctionCtx *pCtx);
 
   int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId);
-} SQLAggFuncElem;
+} SAggFunctionInfo;
 
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
@@ -246,7 +244,7 @@ typedef struct STwaInfo {
 } STwaInfo;
 
 /* global sql function array */
-extern struct SQLAggFuncElem aAggs[];
+extern struct SAggFunctionInfo aAggs[];
 
 extern int32_t functionCompatList[]; // compatible check array list
 

@@ -10,6 +10,7 @@
 
 #define VALID_NAME_TYPE(x)  ((x) == TSDB_DB_NAME_T || (x) == TSDB_TABLE_NAME_T)
 
+//TODO remove it
 void extractTableName(const char* tableId, char* name) {
   size_t s1 = strcspn(tableId, &TS_PATH_DELIMITER[0]);
   size_t s2 = strcspn(&tableId[s1 + 1], &TS_PATH_DELIMITER[0]);
@@ -24,6 +25,7 @@ char* extractDBName(const char* tableId, char* name) {
   return strncpy(name, &tableId[offset1 + 1], len);
 }
 
+// todo remove it
 size_t tableIdPrefix(const char* name, char* prefix, int32_t len) {
   tstrncpy(prefix, name, len);
   strcat(prefix, TS_PATH_DELIMITER);
@@ -31,14 +33,6 @@ size_t tableIdPrefix(const char* name, char* prefix, int32_t len) {
   return strlen(prefix);
 }
 
-SSchema tGetTableNameColumnSchema() {
-  SSchema s = {0};
-  s.bytes = TSDB_TABLE_NAME_LEN - 1 + VARSTR_HEADER_SIZE;
-  s.type  = TSDB_DATA_TYPE_BINARY;
-  s.colId = TSDB_TBNAME_COLUMN_INDEX;
-  tstrncpy(s.name, TSQL_TBNAME_L, TSDB_COL_NAME_LEN);
-  return s;
-}
 SSchema tGetBlockDistColumnSchema() {
   SSchema s = {0};
   s.bytes = TSDB_MAX_BINARY_LEN;;
@@ -189,15 +183,15 @@ void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
   }
 }
 
-SSchema tGetTbnameColumnSchema() {
-  struct SSchema s = {
-      .colId = TSDB_TBNAME_COLUMN_INDEX,
-      .type  = TSDB_DATA_TYPE_BINARY,
-      .bytes = TSDB_TABLE_NAME_LEN
-  };
+static struct SSchema _s = {
+    .colId = TSDB_TBNAME_COLUMN_INDEX,
+    .type  = TSDB_DATA_TYPE_BINARY,
+    .bytes = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE,
+    .name = TSQL_TBNAME_L,
+};
 
-  strcpy(s.name, TSQL_TBNAME_L);
-  return s;
+SSchema* tGetTbnameColumnSchema() {
+  return &_s;
 }
 
 static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen) {
