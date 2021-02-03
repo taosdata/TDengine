@@ -1081,20 +1081,13 @@ static int32_t mnodeDropSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pTable = (SSTableObj *)pMsg->pTable;
   if (code != TSDB_CODE_SUCCESS) {
     mError("msg:%p, app:%p stable:%s, failed to drop, sdb error", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
-  } else {
-    mLInfo("msg:%p, app:%p stable:%s, is dropped from sdb", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
+
+    return code;
   }
 
-  return code;
-}
-
-static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
-  if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
+  mLInfo("msg:%p, app:%p stable:%s, is dropped from sdb", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
 
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
-  mInfo("msg:%p, app:%p stable:%s will be dropped, hash:%p sizeOfVgList:%d", pMsg, pMsg->rpcMsg.ahandle,
-        pStable->info.tableId, pStable->vgHash, taosHashGetSize(pStable->vgHash));
-
   if (pStable->vgHash != NULL /*pStable->numOfTables != 0*/) {
     int32_t *pVgId = taosHashIterate(pStable->vgHash, NULL);
     while (pVgId) {
@@ -1121,6 +1114,16 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
 
     mnodeDropAllChildTablesInStable(pStable);
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
+  if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
+
+  SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
+  mInfo("msg:%p, app:%p stable:%s will be dropped, hash:%p sizeOfVgList:%d", pMsg, pMsg->rpcMsg.ahandle,
+        pStable->info.tableId, pStable->vgHash, taosHashGetSize(pStable->vgHash));
 
   SSdbRow row = {
     .type    = SDB_OPER_GLOBAL,
