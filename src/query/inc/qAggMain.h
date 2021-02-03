@@ -84,7 +84,7 @@ extern "C" {
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
 #define TSDB_FUNCSTATE_STREAM       0x4u    // function avail for stream
-#define TSDB_FUNCSTATE_STABLE       0x8u    // function avail for metric
+#define TSDB_FUNCSTATE_STABLE       0x8u    // function avail for super table
 #define TSDB_FUNCSTATE_OF           0x10u   // outer forward
 #define TSDB_FUNCSTATE_NEED_TS      0x20u   // timestamp is required during query processing
 #define TSDB_FUNCSTATE_SELECTIVITY  0x40u   // selectivity functions, can exists along with tag columns
@@ -166,9 +166,8 @@ typedef struct SExtTagsInfo {
 
 // sql function runtime context
 typedef struct SQLFunctionCtx {
-  int32_t      startOffset;  // todo remove it
   int32_t      size;      // number of rows
-  void *       pInput;    //
+  void *       pInput;    // input data buffer
   uint32_t     order;     // asc|desc
   int16_t      inputType;
   int16_t      inputBytes;
@@ -184,7 +183,7 @@ typedef struct SQLFunctionCtx {
   uint8_t      currentStage;  // record current running step, default: 0
   int64_t      startTs;       // timestamp range of current query when function is executed on a specific data block
   int32_t      numOfParams;
-  tVariant     param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param */
+  tVariant     param[4];      // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
   int64_t     *ptsList;       // corresponding timestamp array list
   void        *ptsOutputBuf;  // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   SQLPreAggVal preAggVals;
@@ -228,7 +227,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 #define IS_SINGLEOUTPUT(x)        (((x)&TSDB_FUNCSTATE_SO) != 0)
 #define IS_OUTER_FORWARD(x)       (((x)&TSDB_FUNCSTATE_OF) != 0)
 
-/* determine the real data need to calculated the result */
+// determine the real data need to calculated the result
 enum {
   BLK_DATA_NO_NEEDED     = 0x0,
   BLK_DATA_STATIS_NEEDED = 0x1,

@@ -86,7 +86,6 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalMerger *pReducer, tOrderDescr
     pCtx->outputBytes = pExpr->resBytes;
     pCtx->outputType = pExpr->resType;
 
-    pCtx->startOffset = 0;
     pCtx->size = 1;
     pCtx->hasNull = true;
     pCtx->currentStage = MERGE_STAGE;
