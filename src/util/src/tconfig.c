@@ -134,6 +134,11 @@ static bool taosReadDirectoryConfig(SGlobalCfg *cfg, char *input_value) {
 
       wordfree(&full_path);
 
+      char tmp[1025] = {0};
+      if (realpath(option, tmp) != NULL) {
+        strcpy(option, tmp);
+      }
+
       int code = taosMkDir(option, 0755);
       if (code != 0) {
         terrno = TAOS_SYSTEM_ERROR(errno);

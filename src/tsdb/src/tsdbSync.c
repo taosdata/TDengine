@@ -85,6 +85,7 @@ int32_t tsdbSyncRecv(void *tsdb, SOCKET socketFd) {
   pRepo->state = TSDB_STATE_OK;
 
   tsdbInitSyncH(&synch, pRepo, socketFd);
+  tsem_wait(&(pRepo->readyToCommit));
   tsdbStartFSTxn(pRepo, 0, 0);
 
   if (tsdbSyncRecvMeta(&synch) < 0) {
@@ -98,6 +99,7 @@ int32_t tsdbSyncRecv(void *tsdb, SOCKET socketFd) {
   }
 
   tsdbEndFSTxn(pRepo);
+  tsem_post(&(pRepo->readyToCommit));
   tsdbDestroySyncH(&synch);
 
   // Reload file change
@@ -107,6 +109,7 @@ int32_t tsdbSyncRecv(void *tsdb, SOCKET socketFd) {
 
 _err:
   tsdbEndFSTxnWithError(REPO_FS(pRepo));
+  tsem_post(&(pRepo->readyToCommit));
   tsdbDestroySyncH(&synch);
   return -1;
 }
@@ -191,7 +194,8 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
     return 0;
   }
 
-  if (pLMFile == NULL || memcmp(&(pSynch->pmf->info), &(pLMFile->info), sizeof(SMFInfo)) != 0) {
+  if (pLMFile == NULL || memcmp(&(pSynch->pmf->info), &(pLMFile->info), sizeof(SMFInfo)) != 0 ||
+      TSDB_FILE_IS_BAD(pLMFile)) {
     // Local has no meta file or has a different meta file, need to copy from remote
     pSynch->mfChanged = true;
 
@@ -409,7 +413,8 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
                pSynch->pdf != NULL ? pSynch->pdf->fid : -1);
       pLSet = tsdbFSIterNext(&fsiter);
     } else {
-      if (pLSet && pSynch->pdf && pLSet->fid == pSynch->pdf->fid && tsdbIsTowFSetSame(pLSet, pSynch->pdf)) {
+      if (pLSet && pSynch->pdf && pLSet->fid == pSynch->pdf->fid && tsdbIsTowFSetSame(pLSet, pSynch->pdf) &&
+          tsdbFSetIsOk(pLSet)) {
         // Just keep local files and notify remote not to send
         tsdbInfo("vgId:%d, fileset:%d is same and no need to recv", REPO_ID(pRepo), pLSet->fid);
 

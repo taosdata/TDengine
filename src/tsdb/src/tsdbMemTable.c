@@ -216,11 +216,13 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
 }
 
 int tsdbAsyncCommit(STsdbRepo *pRepo) {
-  if (pRepo->mem == NULL) return 0;
-
   tsem_wait(&(pRepo->readyToCommit));
 
   ASSERT(pRepo->imem == NULL);
+  if (pRepo->mem == NULL) {
+    tsem_post(&(pRepo->readyToCommit));
+    return 0;
+  }
 
   if (pRepo->code != TSDB_CODE_SUCCESS) {
     tsdbWarn("vgId:%d try to commit when TSDB not in good state: %s", REPO_ID(pRepo), tstrerror(terrno));

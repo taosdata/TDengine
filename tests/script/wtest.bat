@@ -44,10 +44,10 @@ echo serverPort     7100          >> %TAOS_CFG%
 echo logDir         %LOG_DIR%     >> %TAOS_CFG%
 echo scriptDir      %SCRIPT_DIR%  >> %TAOS_CFG%
 echo numOfLogLines  100000000     >> %TAOS_CFG%
-echo rpcDebugFlag   143           >> %TAOS_CFG%
+echo rpcDebugFlag   135           >> %TAOS_CFG%
 echo tmrDebugFlag   131           >> %TAOS_CFG%
-echo cDebugFlag     143           >> %TAOS_CFG%
-echo udebugFlag     143           >> %TAOS_CFG%
+echo cDebugFlag     135           >> %TAOS_CFG%
+echo udebugFlag     135           >> %TAOS_CFG%
 echo wal            0             >> %TAOS_CFG%
 echo asyncLog       0             >> %TAOS_CFG%
 echo locale         en_US.UTF-8   >> %TAOS_CFG%
