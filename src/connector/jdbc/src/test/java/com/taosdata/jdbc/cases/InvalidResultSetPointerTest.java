@@ -13,19 +13,19 @@ public class InvalidResultSetPointerTest {
     private static final String stbName = "stb";
     private static final String tbName = "tb";
     private static Connection connection;
-    private static int numOfSTb = 30000;
+    private static int numOfSTb = 300;
     private static int numOfTb = 3;
-    private static int numOfThreads = 10;
+    private static int numOfThreads = 100;
 
     @Test
     public void test() throws SQLException {
-//        execute("drop database if exists " + dbName);
-//        execute("create database if not exists " + dbName);
+        execute("drop database if exists " + dbName);
+        execute("create database if not exists " + dbName);
         execute("use " + dbName);
-//        execute("drop table if exists " + dbName + "." + stbName + "");
-//        createSTable();
-//        createTable();
-//        insert();
+        execute("drop table if exists " + dbName + "." + stbName + "");
+        createSTable();
+        createTable();
+        insert();
         selectMultiThreading();
         close();
     }
