@@ -31,10 +31,18 @@ class TDTestCase:
 
     def insertDataAndAlterTable(self, threadID):
         if(threadID == 0):
-            os.system("yes | taosdemo -t %d -n %d" % (self.numberOfTables, self.numberOfRecords))
+            os.system("yes | taosdemo -t %d -n %d -x" % (self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
             print("use test")
             tdSql.execute("use test")
+            while True:
+                print("query started")
+                tdSql.query("select * from test.t9")
+                rows = tdSql.queryRows
+                print("rows %d" % rows)
+                if(rows > 0):
+                    break
+                time.sleep(1)      
             print("alter table test.meters add column f4 int")
             tdSql.execute("alter table test.meters add column f4 int")
             print("insert into test.t0 values (now, 1, 2, 3, 4)")
@@ -46,8 +54,8 @@ class TDTestCase:
         t1 = threading.Thread(target=self.insertDataAndAlterTable, args=(0, ))
         t2 = threading.Thread(target=self.insertDataAndAlterTable, args=(1, ))
 
-        t1.start()
-        time.sleep(2)
+        t1.start() 
+        time.sleep(2)     
         t2.start()
         t1.join()
         t2.join()

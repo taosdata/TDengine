@@ -103,6 +103,11 @@ void syncCloseTcpThreadPool(void *param) {
 
 #ifdef WINDOWS
   closesocket(pPool->acceptFd);
+#elif defined(__APPLE__)
+  if (pPool->acceptFd!=-1) {
+    close(pPool->acceptFd);
+    pPool->acceptFd = -1;
+  }
 #else
   shutdown(pPool->acceptFd, SHUT_RD);
 #endif

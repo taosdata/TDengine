@@ -93,6 +93,8 @@ extern char configDir[];
 #define   MAX_QUERY_SQL_COUNT    10
 #define   MAX_QUERY_SQL_LENGTH   256
 
+#define   MAX_DATABASE_COUNT     256
+
 typedef enum CREATE_SUB_TALBE_MOD_EN {
   PRE_CREATE_SUBTBL,
   AUTO_CREATE_SUBTBL,
@@ -116,7 +118,41 @@ enum QUERY_TYPE {
   INSERT_TYPE, 
   QUERY_TYPE_BUT
 } ;  
-  
+
+enum _show_db_index {
+  TSDB_SHOW_DB_NAME_INDEX,
+  TSDB_SHOW_DB_CREATED_TIME_INDEX,
+  TSDB_SHOW_DB_NTABLES_INDEX,
+  TSDB_SHOW_DB_VGROUPS_INDEX,
+  TSDB_SHOW_DB_REPLICA_INDEX,
+  TSDB_SHOW_DB_QUORUM_INDEX,  
+  TSDB_SHOW_DB_DAYS_INDEX,
+  TSDB_SHOW_DB_KEEP_INDEX,
+  TSDB_SHOW_DB_CACHE_INDEX,
+  TSDB_SHOW_DB_BLOCKS_INDEX,
+  TSDB_SHOW_DB_MINROWS_INDEX,
+  TSDB_SHOW_DB_MAXROWS_INDEX,
+  TSDB_SHOW_DB_WALLEVEL_INDEX,
+  TSDB_SHOW_DB_FSYNC_INDEX,
+  TSDB_SHOW_DB_COMP_INDEX,
+  TSDB_SHOW_DB_CACHELAST_INDEX,
+  TSDB_SHOW_DB_PRECISION_INDEX,  
+  TSDB_SHOW_DB_UPDATE_INDEX,
+  TSDB_SHOW_DB_STATUS_INDEX,
+  TSDB_MAX_SHOW_DB
+};
+
+// -----------------------------------------SHOW TABLES CONFIGURE -------------------------------------
+enum _show_stables_index {
+  TSDB_SHOW_STABLES_NAME_INDEX,
+  TSDB_SHOW_STABLES_CREATED_TIME_INDEX,
+  TSDB_SHOW_STABLES_COLUMNS_INDEX,
+  TSDB_SHOW_STABLES_METRIC_INDEX,  
+  TSDB_SHOW_STABLES_UID_INDEX,  
+  TSDB_SHOW_STABLES_TID_INDEX,
+  TSDB_SHOW_STABLES_VGID_INDEX,  
+  TSDB_MAX_SHOW_STABLES
+};  
 enum _describe_table_index {
   TSDB_DESCRIBE_METRIC_FIELD_INDEX,
   TSDB_DESCRIBE_METRIC_TYPE_INDEX,
@@ -173,6 +209,7 @@ typedef struct SSuperTable_S {
   int          childTblCount;
   bool         superTblExists;    // 0: no, 1: yes
   bool         childTblExists;    // 0: no, 1: yes  
+  int          batchCreateTableNum;  // 0: no batch,  > 0: batch table number in one sql
   int8_t       autoCreateTable;                  // 0: create sub table, 1: auto create sub table
   char         childTblPrefix[MAX_TB_NAME_SIZE];
   char         dataSource[MAX_TB_NAME_SIZE];  // rand_gen or sample
@@ -217,6 +254,28 @@ typedef struct SSuperTable_S {
   int64_t    totalRowsInserted;
   int64_t    totalAffectedRows;
 } SSuperTable;
+
+typedef struct {
+  char     name[TSDB_DB_NAME_LEN + 1];
+  char     create_time[32];
+  int32_t  ntables;
+  int32_t  vgroups;  
+  int16_t  replica;
+  int16_t  quorum;
+  int16_t  days;  
+  char     keeplist[32];
+  int32_t  cache; //MB
+  int32_t  blocks;
+  int32_t  minrows;
+  int32_t  maxrows;
+  int8_t   wallevel;
+  int32_t  fsync;
+  int8_t   comp;
+  int8_t   cachelast;
+  char     precision[8];   // time resolution
+  int8_t   update;
+  char     status[16];
+} SDbInfo;
 
 typedef struct SDbCfg_S { 
 //  int       maxtablesPerVnode;
@@ -808,13 +867,14 @@ static void init_rand_data() {
 
 static void printfInsertMeta() {
   printf("\033[1m\033[40;32m================ insert.json parse result START ================\033[0m\n");
-  printf("host:                    \033[33m%s:%u\033[0m\n", g_Dbs.host, g_Dbs.port);
-  printf("user:                    \033[33m%s\033[0m\n", g_Dbs.user);
-  printf("password:                \033[33m%s\033[0m\n", g_Dbs.password);
-  printf("resultFile:              \033[33m%s\033[0m\n", g_Dbs.resultFile);
-  printf("thread count:            \033[33m%d\033[0m\n", g_Dbs.threadCount);
+  printf("host:                       \033[33m%s:%u\033[0m\n", g_Dbs.host, g_Dbs.port);
+  printf("user:                       \033[33m%s\033[0m\n", g_Dbs.user);
+  printf("password:                   \033[33m%s\033[0m\n", g_Dbs.password);
+  printf("resultFile:                 \033[33m%s\033[0m\n", g_Dbs.resultFile);
+  printf("thread num of insert data:  \033[33m%d\033[0m\n", g_Dbs.threadCount);
+  printf("thread num of create table: \033[33m%d\033[0m\n", g_Dbs.threadCountByCreateTbl);
 
-  printf("database count:          \033[33m%d\033[0m\n", g_Dbs.dbCount);
+  printf("database count:             \033[33m%d\033[0m\n", g_Dbs.dbCount);
   for (int i = 0; i < g_Dbs.dbCount; i++) {
     printf("database[\033[33m%d\033[0m]:\n", i);
     printf("  database name:         \033[33m%s\033[0m\n", g_Dbs.db[i].dbName);
@@ -944,11 +1004,12 @@ static void printfInsertMeta() {
 
 static void printfInsertMetaToFile(FILE* fp) {
   fprintf(fp, "================ insert.json parse result START================\n");
-  fprintf(fp, "host:                    %s:%u\n", g_Dbs.host, g_Dbs.port);
-  fprintf(fp, "user:                    %s\n", g_Dbs.user);
-  fprintf(fp, "password:                %s\n", g_Dbs.password);
-  fprintf(fp, "resultFile:              %s\n", g_Dbs.resultFile);
-  fprintf(fp, "thread count:            %d\n", g_Dbs.threadCount);
+  fprintf(fp, "host:                       %s:%u\n", g_Dbs.host, g_Dbs.port);
+  fprintf(fp, "user:                       %s\n", g_Dbs.user);
+  fprintf(fp, "password:                   %s\n", g_Dbs.password);
+  fprintf(fp, "resultFile:                 %s\n", g_Dbs.resultFile);
+  fprintf(fp, "thread num of insert data:  %d\n", g_Dbs.threadCount);
+  fprintf(fp, "thread num of create table: %d\n", g_Dbs.threadCountByCreateTbl);
 
   fprintf(fp, "database count:          %d\n", g_Dbs.dbCount);
   for (int i = 0; i < g_Dbs.dbCount; i++) {
@@ -1122,6 +1183,272 @@ static void printfQueryMeta() {
   printf("\n");
   printf("\033[1m\033[40;32m================ query.json parse result ================\033[0m\n");
 }
+
+
+static char* xFormatTimestamp(char* buf, int64_t val, int precision) {
+  time_t tt;
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    tt = (time_t)(val / 1000000);
+  } else {
+    tt = (time_t)(val / 1000);
+  }
+
+/* comment out as it make testcases like select_with_tags.sim fail.
+  but in windows, this may cause the call to localtime crash if tt < 0,
+  need to find a better solution.
+  if (tt < 0) {
+    tt = 0;
+  }
+  */
+
+#ifdef WINDOWS
+  if (tt < 0) tt = 0;
+#endif
+
+  struct tm* ptm = localtime(&tt);
+  size_t pos = strftime(buf, 32, "%Y-%m-%d %H:%M:%S", ptm);
+
+  if (precision == TSDB_TIME_PRECISION_MICRO) {
+    sprintf(buf + pos, ".%06d", (int)(val % 1000000));
+  } else {
+    sprintf(buf + pos, ".%03d", (int)(val % 1000));
+  }
+
+  return buf;
+}
+
+static void xDumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_t length, int precision) {
+  if (val == NULL) {
+    fprintf(fp, "%s", TSDB_DATA_NULL_STR);
+    return;
+  }
+
+  char buf[TSDB_MAX_BYTES_PER_ROW];
+  switch (field->type) {
+    case TSDB_DATA_TYPE_BOOL:
+      fprintf(fp, "%d", ((((int32_t)(*((char *)val))) == 1) ? 1 : 0));
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      fprintf(fp, "%d", *((int8_t *)val));
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      fprintf(fp, "%d", *((int16_t *)val));
+      break;
+    case TSDB_DATA_TYPE_INT:
+      fprintf(fp, "%d", *((int32_t *)val));
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      fprintf(fp, "%" PRId64, *((int64_t *)val));
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      fprintf(fp, "%.5f", GET_FLOAT_VAL(val));
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      fprintf(fp, "%.9f", GET_DOUBLE_VAL(val));
+      break;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+      memcpy(buf, val, length);
+      buf[length] = 0;
+      fprintf(fp, "\'%s\'", buf);
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      xFormatTimestamp(buf, *(int64_t*)val, precision);
+      fprintf(fp, "'%s'", buf);
+      break;
+    default:
+      break;
+  }
+}
+
+static int xDumpResultToFile(const char* fname, TAOS_RES* tres) {
+  TAOS_ROW row = taos_fetch_row(tres);
+  if (row == NULL) {
+    return 0;
+  }
+
+  FILE* fp = fopen(fname, "at");
+  if (fp == NULL) {
+    fprintf(stderr, "ERROR: failed to open file: %s\n", fname);
+    return -1;
+  }
+
+  int num_fields = taos_num_fields(tres);
+  TAOS_FIELD *fields = taos_fetch_fields(tres);
+  int precision = taos_result_precision(tres);
+
+  for (int col = 0; col < num_fields; col++) {
+    if (col > 0) {
+      fprintf(fp, ",");
+    }
+    fprintf(fp, "%s", fields[col].name);
+  }
+  fputc('\n', fp);
+  
+  int numOfRows = 0;
+  do {
+    int32_t* length = taos_fetch_lengths(tres);
+    for (int i = 0; i < num_fields; i++) {
+      if (i > 0) {
+        fputc(',', fp);
+      }
+      xDumpFieldToFile(fp, (const char*)row[i], fields +i, length[i], precision);
+    }
+    fputc('\n', fp);
+
+    numOfRows++;
+    row = taos_fetch_row(tres);
+  } while( row != NULL);
+
+  fclose(fp);
+
+  return numOfRows;
+}
+
+static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {  
+  TAOS_RES * res;  
+  TAOS_ROW row = NULL;
+  int count = 0;
+  
+  res = taos_query(taos, "show databases;");  
+  int32_t code = taos_errno(res);
+  
+  if (code != 0) {
+    fprintf(stderr, "failed to run <show databases>, reason: %s\n", taos_errstr(res));
+    return -1;
+  }
+
+  TAOS_FIELD *fields = taos_fetch_fields(res);
+
+  while ((row = taos_fetch_row(res)) != NULL) {
+    // sys database name : 'log'
+    if (strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "log", fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0) continue;
+
+    dbInfos[count] = (SDbInfo *)calloc(1, sizeof(SDbInfo));
+    if (dbInfos[count] == NULL) {
+      fprintf(stderr, "failed to allocate memory for some dbInfo[%d]\n", count);
+      return -1;
+    }
+
+    strncpy(dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX], fields[TSDB_SHOW_DB_NAME_INDEX].bytes);
+    xFormatTimestamp(dbInfos[count]->create_time, *(int64_t*)row[TSDB_SHOW_DB_CREATED_TIME_INDEX], TSDB_TIME_PRECISION_MILLI);
+    dbInfos[count]->ntables = *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
+    dbInfos[count]->vgroups = *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);  
+    dbInfos[count]->replica = *((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]);
+    dbInfos[count]->quorum = *((int16_t *)row[TSDB_SHOW_DB_QUORUM_INDEX]);
+    dbInfos[count]->days = *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);  
+
+    strncpy(dbInfos[count]->keeplist, (char *)row[TSDB_SHOW_DB_KEEP_INDEX], fields[TSDB_SHOW_DB_KEEP_INDEX].bytes);      
+    dbInfos[count]->cache = *((int32_t *)row[TSDB_SHOW_DB_CACHE_INDEX]);
+    dbInfos[count]->blocks = *((int32_t *)row[TSDB_SHOW_DB_BLOCKS_INDEX]);
+    dbInfos[count]->minrows = *((int32_t *)row[TSDB_SHOW_DB_MINROWS_INDEX]);
+    dbInfos[count]->maxrows = *((int32_t *)row[TSDB_SHOW_DB_MAXROWS_INDEX]);
+    dbInfos[count]->wallevel = *((int8_t *)row[TSDB_SHOW_DB_WALLEVEL_INDEX]);
+    dbInfos[count]->fsync = *((int32_t *)row[TSDB_SHOW_DB_FSYNC_INDEX]);
+    dbInfos[count]->comp = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
+    dbInfos[count]->cachelast = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
+
+    strncpy(dbInfos[count]->precision, (char *)row[TSDB_SHOW_DB_PRECISION_INDEX], fields[TSDB_SHOW_DB_PRECISION_INDEX].bytes);  
+    dbInfos[count]->update = *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
+    strncpy(dbInfos[count]->status, (char *)row[TSDB_SHOW_DB_STATUS_INDEX], fields[TSDB_SHOW_DB_STATUS_INDEX].bytes); 
+    
+    count++;
+    if (count > MAX_DATABASE_COUNT) {
+      fprintf(stderr, "The database count overflow than %d\n", MAX_DATABASE_COUNT);      
+      break;
+    }
+  }
+
+  return count;
+}
+
+static void printfDbInfoForQueryToFile(char* filename, SDbInfo* dbInfos, int index) {
+  FILE *fp = NULL;
+  if (filename[0] != 0) {
+    fp = fopen(filename, "at");
+    if (fp == NULL) {
+      fprintf(stderr, "failed to open file: %s\n", filename);
+      return;
+    }
+  }
+
+  fprintf(fp, "================ database[%d] ================\n", index);
+  fprintf(fp, "name: %s\n", dbInfos->name);
+  fprintf(fp, "created_time: %s\n", dbInfos->create_time);
+  fprintf(fp, "ntables: %d\n", dbInfos->ntables);
+  fprintf(fp, "vgroups: %d\n", dbInfos->vgroups);  
+  fprintf(fp, "replica: %d\n", dbInfos->replica);
+  fprintf(fp, "quorum: %d\n", dbInfos->quorum);
+  fprintf(fp, "days: %d\n", dbInfos->days);    
+  fprintf(fp, "keep1,keep2,keep(D): %s\n", dbInfos->keeplist);      
+  fprintf(fp, "cache(MB): %d\n", dbInfos->cache);
+  fprintf(fp, "blocks: %d\n", dbInfos->blocks);
+  fprintf(fp, "minrows: %d\n", dbInfos->minrows);
+  fprintf(fp, "maxrows: %d\n", dbInfos->maxrows);
+  fprintf(fp, "wallevel: %d\n", dbInfos->wallevel);
+  fprintf(fp, "fsync: %d\n", dbInfos->fsync);
+  fprintf(fp, "comp: %d\n", dbInfos->comp);
+  fprintf(fp, "cachelast: %d\n", dbInfos->cachelast);  
+  fprintf(fp, "precision: %s\n", dbInfos->precision);  
+  fprintf(fp, "update: %d\n", dbInfos->update);
+  fprintf(fp, "status: %s\n", dbInfos->status); 
+  fprintf(fp, "\n");
+
+  fclose(fp);
+}
+
+static void printfQuerySystemInfo(TAOS * taos) {
+  char filename[MAX_QUERY_SQL_LENGTH+1] = {0};
+  char buffer[MAX_QUERY_SQL_LENGTH+1] = {0};
+  TAOS_RES* res;
+
+  time_t t;
+  struct tm* lt;
+  time(&t);
+  lt = localtime(&t);
+  snprintf(filename, MAX_QUERY_SQL_LENGTH, "querySystemInfo-%d-%d-%d %d:%d:%d", lt->tm_year+1900, lt->tm_mon, lt->tm_mday, lt->tm_hour, lt->tm_min, lt->tm_sec);
+  
+  // show variables
+  res = taos_query(taos, "show variables;");
+  //getResult(res, filename);
+  xDumpResultToFile(filename, res);
+
+  // show dnodes
+  res = taos_query(taos, "show dnodes;");
+  xDumpResultToFile(filename, res);
+  //getResult(res, filename);
+  
+  // show databases
+  res = taos_query(taos, "show databases;");
+  SDbInfo** dbInfos = (SDbInfo **)calloc(MAX_DATABASE_COUNT, sizeof(SDbInfo *));
+  if (dbInfos == NULL) {
+    fprintf(stderr, "failed to allocate memory\n");
+    return;
+  }
+  int dbCount = getDbFromServer(taos, dbInfos);
+  if (dbCount <= 0) return;
+
+  for (int i = 0; i < dbCount; i++) {
+    // printf database info 
+    printfDbInfoForQueryToFile(filename, dbInfos[i], i);
+    
+    // show db.vgroups
+    snprintf(buffer, MAX_QUERY_SQL_LENGTH, "show %s.vgroups;", dbInfos[i]->name);
+    res = taos_query(taos, buffer);
+    xDumpResultToFile(filename, res);
+  
+    // show db.stables
+    snprintf(buffer, MAX_QUERY_SQL_LENGTH, "show %s.stables;", dbInfos[i]->name);
+    res = taos_query(taos, buffer);
+    xDumpResultToFile(filename, res);
+
+    free(dbInfos[i]);
+  }
+
+  free(dbInfos);
+  
+}
+
 
 #ifdef TD_LOWA_CURL
 static size_t responseCallback(void *contents, size_t size, size_t nmemb, void *userp)
@@ -1730,19 +2057,27 @@ static int createDatabases() {
 
 
 void * createTable(void *sarg) 
-{
-  char command[BUFFER_SIZE] = "\0";
-  
+{  
   threadInfo *winfo = (threadInfo *)sarg; 
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
   int64_t  lastPrintTime = taosGetTimestampMs();
 
+  char* buffer = calloc(superTblInfo->maxSqlLen, 1);
+
+  int len = 0;
+  int batchNum = 0;
   //printf("Creating table from %d to %d\n", winfo->start_table_id, winfo->end_table_id);
   for (int i = winfo->start_table_id; i <= winfo->end_table_id; i++) {
     if (0 == g_Dbs.use_metric) {
-      snprintf(command, BUFFER_SIZE, "create table if not exists %s.%s%d %s;", winfo->db_name, superTblInfo->childTblPrefix, i, superTblInfo->colsOfCreatChildTable);
+      snprintf(buffer, BUFFER_SIZE, "create table if not exists %s.%s%d %s;", winfo->db_name, superTblInfo->childTblPrefix, i, superTblInfo->colsOfCreatChildTable);
     } else {
+      if (0 == len) {  
+        batchNum = 0;
+        memset(buffer, 0, superTblInfo->maxSqlLen);
+        len += snprintf(buffer + len, superTblInfo->maxSqlLen - len, "create table ");
+      }
+      
       char* tagsValBuf = NULL;
       if (0 == superTblInfo->tagSource) {
         tagsValBuf = generateTagVaulesForStb(superTblInfo);
@@ -1750,13 +2085,22 @@ void * createTable(void *sarg)
         tagsValBuf = getTagValueFromTagSample(superTblInfo, i % superTblInfo->tagSampleCount);
       }
       if (NULL == tagsValBuf) {
+        free(buffer);
         return NULL;
       }
-      snprintf(command, BUFFER_SIZE, "create table if not exists %s.%s%d using %s.%s tags %s;", winfo->db_name, superTblInfo->childTblPrefix, i, winfo->db_name, superTblInfo->sTblName, tagsValBuf);
+      
+      len += snprintf(buffer + len, superTblInfo->maxSqlLen - len, "if not exists %s.%s%d using %s.%s tags %s ", winfo->db_name, superTblInfo->childTblPrefix, i, winfo->db_name, superTblInfo->sTblName, tagsValBuf);
       free(tagsValBuf);
+      batchNum++;
+
+      if ((batchNum < superTblInfo->batchCreateTableNum) && ((superTblInfo->maxSqlLen - len) >= (superTblInfo->lenOfTagOfOneRow + 256))) {
+        continue;
+      }
     }
-    
-    if (0 != queryDbExec(winfo->taos, command, NO_INSERT_TYPE)){
+
+    len = 0;
+    if (0 != queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE)){
+      free(buffer);
       return NULL;
     }
 
@@ -1766,7 +2110,12 @@ void * createTable(void *sarg)
       lastPrintTime = currentPrintTime;
     }
   }
-
+  
+  if (0 != len) {
+    (void)queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE);
+  }
+  
+  free(buffer);
   return NULL;
 }
 
@@ -2422,6 +2771,16 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         printf("failed to read json, auto_create_table not found");
         goto PARSE_OVER;
       }
+      
+      cJSON* batchCreateTbl = cJSON_GetObjectItem(stbInfo, "batch_create_tbl_num");
+      if (batchCreateTbl && batchCreateTbl->type == cJSON_Number) {
+        g_Dbs.db[i].superTbls[j].batchCreateTableNum = batchCreateTbl->valueint;
+      } else if (!batchCreateTbl) {
+        g_Dbs.db[i].superTbls[j].batchCreateTableNum = 2000;
+      } else {
+        printf("failed to read json, batch_create_tbl_num not found");
+        goto PARSE_OVER;
+      }      
 
       cJSON *childTblExists = cJSON_GetObjectItem(stbInfo, "child_table_exists"); // yes, no
       if (childTblExists && childTblExists->type == cJSON_String && childTblExists->valuestring != NULL) {
@@ -3679,14 +4038,14 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
     b = ntables % threads;
   }
 
-  TAOS* taos;
-  if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {
-    taos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, db_name, g_Dbs.port);
-    if (NULL == taos) {
-      printf("connect to server fail, reason: %s\n", taos_errstr(NULL));
-      exit(-1);
-    }
-  }
+  //TAOS* taos;
+  //if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {
+  //  taos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, db_name, g_Dbs.port);
+  //  if (NULL == taos) {
+  //    printf("connect to server fail, reason: %s\n", taos_errstr(NULL));
+  //    exit(-1);
+  //  }
+  //}
 
   int32_t timePrec = TSDB_TIME_PRECISION_MILLI;
   if (0 != precision[0]) {
@@ -3719,7 +4078,12 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
     t_info->start_time = start_time;
 
     if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {
-      t_info->taos = taos;
+      //t_info->taos = taos;
+      t_info->taos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, db_name, g_Dbs.port);
+      if (NULL == t_info->taos) {
+        printf("connect to server fail from insert sub thread, reason: %s\n", taos_errstr(NULL));
+        exit(-1);
+      }
     } else {
       t_info->taos = NULL;
       #ifdef TD_LOWA_CURL
@@ -3754,6 +4118,7 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
     threadInfo *t_info = infos + i;
 
     tsem_destroy(&(t_info->lock_sem));
+    taos_close(t_info->taos);
 
     superTblInfo->totalAffectedRows += t_info->totalAffectedRows;
     superTblInfo->totalRowsInserted += t_info->totalRowsInserted;
@@ -3766,7 +4131,7 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
 
   double end = getCurrentTime();
   
-  taos_close(taos);
+  //taos_close(taos);
 
   free(pids);
   free(infos);  
@@ -4093,7 +4458,7 @@ void *subQueryProcess(void *sarg) {
 int queryTestProcess() {
   TAOS * taos = NULL;  
   taos_init();
-  taos = taos_connect(g_queryInfo.host, g_queryInfo.user, g_queryInfo.password, g_queryInfo.dbName, g_queryInfo.port);
+  taos = taos_connect(g_queryInfo.host, g_queryInfo.user, g_queryInfo.password, NULL, g_queryInfo.port);
   if (taos == NULL) {
     fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
     exit(-1);
@@ -4106,6 +4471,8 @@ int queryTestProcess() {
   printfQueryMeta();
   printf("Press enter key to continue\n\n");
   (void)getchar();
+
+  printfQuerySystemInfo(taos);
   
   pthread_t  *pids  = NULL;
   threadInfo *infos = NULL;

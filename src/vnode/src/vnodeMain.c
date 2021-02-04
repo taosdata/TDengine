@@ -194,12 +194,14 @@ int32_t vnodeOpen(int32_t vgId) {
 
   int32_t code = vnodeReadCfg(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
+    vError("vgId:%d, failed to read config file, set cfgVersion to 0", pVnode->vgId);
     vnodeCleanUp(pVnode);
-    return code;
+    return 0;
   } 
 
   code = vnodeReadVersion(pVnode);
   if (code != TSDB_CODE_SUCCESS) {
+    pVnode->version = 0;
     vError("vgId:%d, failed to read file version, generate it from data file", pVnode->vgId);
     // Allow vnode start even when read file version fails, set file version as wal version or zero
     // vnodeCleanUp(pVnode);

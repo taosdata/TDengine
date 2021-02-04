@@ -679,7 +679,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     pShow->pIter = mnodeGetNextDb(pShow->pIter, &pDb);
 
     if (pDb == NULL) break;
-    if (pDb->pAcct != pUser->pAcct) {
+    if (pDb->pAcct != pUser->pAcct || pDb->status != TSDB_DB_STATUS_READY) {
       mnodeDecDbRef(pDb);
       continue;
     }
