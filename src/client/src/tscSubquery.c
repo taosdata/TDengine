@@ -2287,11 +2287,12 @@ static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32
   SSqlObj *pNew = tscCreateSTableSubquery(trsupport->pParentSql, trsupport, pSql);
   if (pNew == NULL) {
     tscError("%p sub:%p failed to create new subquery due to error:%s, abort retry, vgId:%d, orderOfSub:%d",
-             trsupport->pParentSql, pSql, tstrerror(terrno), pVgroup->vgId, trsupport->subqueryIndex);
+             oriTrs->pParentSql, pSql, tstrerror(terrno), pVgroup->vgId, oriTrs->subqueryIndex);
 
     pParentSql->res.code = terrno;
-    trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
+    oriTrs->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
 
+    tfree(trsupport);
     return pParentSql->res.code;
   }
 
@@ -2299,9 +2300,13 @@ static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32
 
   // if failed to process sql, let following code handle the pSql
   if (ret == TSDB_CODE_SUCCESS) {
+    tscFreeRetrieveSup(pSql);
     taos_free_result(pSql);
     return ret;
-  } else {
+  } else {    
+    pSql->pSubs[trsupport->subqueryIndex] = pSql;
+    tscFreeRetrieveSup(pNew);
+    taos_free_result(pNew);
     return ret;
   }
 }
