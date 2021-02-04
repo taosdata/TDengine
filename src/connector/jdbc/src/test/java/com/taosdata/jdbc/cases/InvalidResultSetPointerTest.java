@@ -9,10 +9,9 @@ import java.util.Properties;
 public class InvalidResultSetPointerTest {
 
     private static String host = "127.0.0.1";
-    private static String driverType = "jni";
     private static final String dbName = "test";
-    private static final String stbName = "weather";
-    private static final String tbName = "subweather";
+    private static final String stbName = "meters";
+    private static final String tbName = "t1";
     private static Connection connection;
     private static int numOfSTb = 300000;
     private static int numOfTb = 3;
@@ -54,7 +53,7 @@ public class InvalidResultSetPointerTest {
             instance[i].start();
         }
 
-        for (int i = 0; i < numOfThreads; i ++) {
+        for (int i = 0; i < numOfThreads; i++) {
             try {
                 instance[i].join();
             } catch (InterruptedException ie) {
@@ -72,12 +71,7 @@ public class InvalidResultSetPointerTest {
     public static void beforeClass() {
         try {
             String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
-            if (driverType.equals("restful")) {
-                Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-                url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
-            } else {
-                Class.forName("com.taosdata.jdbc.TSDBDriver");
-            }
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
             properties.setProperty("charset", "UTF-8");
             properties.setProperty("locale", "en_US.UTF-8");
