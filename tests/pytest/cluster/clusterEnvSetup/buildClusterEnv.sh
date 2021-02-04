@@ -34,6 +34,7 @@ function createDIR {
     mkdir -p /data/node$i/data
     mkdir -p /data/node$i/log
     mkdir -p /data/node$i/cfg
+    mkdir -p /data/node$i/core
   done
 }
 
@@ -54,16 +55,25 @@ function prepareBuild {
     rm -rf $CURR_DIR/../../../../release/*
   fi
 
-  cd $CURR_DIR/../../../../packaging
-  ./release.sh -v edge -n $VERSION >> /dev/null
 
-  if [ ! -f $CURR_DIR/../../../../release/TDengine-server-$VERSION-Linux-x64.tar.gz ]; then
-    echo "no TDengine install package found"
-    exit 1
+  if [ ! -e $DOCKER_DIR/TDengine-server-$VERSION-Linux-x64.tar.gz && ! -e TDengine-arbitrator-$VERSION-Linux-x64.tar.gz ]; then
+    cd $CURR_DIR/../../../../packaging
+    ./release.sh -v edge -n $VERSION >> /dev/null
+
+    if [ ! -e $CURR_DIR/../../../../release/TDengine-server-$VERSION-Linux-x64.tar.gz ]; then
+      echo "no TDengine install package found"
+      exit 1
+    fi
+
+    if [ ! -e $CURR_DIR/../../../../release/TDengine-arbitrator-$VERSION-Linux-x64.tar.gz ]; then
+      echo "no arbitrator install package found"
+      exit 1
+    fi
+
+    cd $CURR_DIR/../../../../release
+    mv TDengine-server-$VERSION-Linux-x64.tar.gz $DOCKER_DIR
+    mv TDengine-arbitrator-$VERSION-Linux-x64.tar.gz $DOCKER_DIR
   fi
-
-  cd $CURR_DIR/../../../../release
-  mv TDengine-server-$VERSION-Linux-x64.tar.gz $DOCKER_DIR
   
   rm -rf $DOCKER_DIR/*.yml
   cd $CURR_DIR

@@ -8,7 +8,7 @@ services:
          - PACKAGE=${PACKAGE}
          - EXTRACTDIR=${DIR}
      image: 'tdengine:2.0.13.1'
-     container_name: 'td2.0-node5'     
+     container_name: 'tdnode5'     
      cap_add:
        - ALL
      stdin_open: true
@@ -32,9 +32,18 @@ services:
        - type: bind
          source: /data/node5/cfg
          target: /etc/taos
+       # bind core dump path
+       - type: bind
+         source: /data/node2/core
+         target: /coredump
+         # bind core dump path
+       - type: bind
+         source: /data/node2/core
+         target: /coredump
        - type: bind
          source: /data
-         target: /root     
+         target: /root
+     hostname: tdnode5     
      networks:
          taos_update_net:
              ipv4_address: 172.27.0.11
