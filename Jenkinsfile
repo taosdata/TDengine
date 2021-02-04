@@ -31,7 +31,6 @@ def abort_previous(){
   if (buildNumber > 1) milestone(buildNumber - 1)
   milestone(buildNumber)
 }
-def kipstage=0
 def pre_test(){
     catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
@@ -46,7 +45,7 @@ def pre_test(){
     git pull
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|.*src/connector|Jenkinsfile' || exit 0
+    git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile' || exit 0
     cd ${WK}
     git reset --hard HEAD~10
     git checkout develop
@@ -73,29 +72,12 @@ pipeline {
   }
   
   stages {
-      stage('pre_build'){
-          agent{label 'master'}
-          steps {
-          sh'''
-          cd ${WORKSPACE}
-          git checkout develop
-          git pull
-          git fetch origin +refs/pull/${CHANGE_ID}/merge
-          git checkout -qf FETCH_HEAD
-          '''
-          script{
-            skipstage=sh(script:"git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 1 ",returnStdout:true) 
-          }
-          }
-      }
+      
     
       stage('Parallel test stage') {
         //only build pr
         when {
               changeRequest()
-              expression {
-                    skipstage == 0
-              }
           }
       parallel {
         stage('python_1_s1') {
@@ -145,7 +127,7 @@ pipeline {
         stage('test_b1_s2') {
           agent{label 'b1'}
           steps {     
-            timeout(time: 45, unit: 'MINUTES'){       
+            timeout(time: 90, unit: 'MINUTES'){       
               pre_test()
               sh '''
               cd ${WKC}/tests
@@ -283,7 +265,7 @@ pipeline {
                                     <li>构建结果：<span style="color:green"> Successful </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
                                     <li>触发用户：${env.CHANGE_AUTHOR}</li>
-                                    <li>提交信息：${CHANGE_TITLE}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
                                     
@@ -321,7 +303,7 @@ pipeline {
                                     <li>构建结果：<span style="color:green"> Successful </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
                                     <li>触发用户：${env.CHANGE_AUTHOR}</li>
-                                    <li>提交信息：${CHANGE_TITLE}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
                                     
