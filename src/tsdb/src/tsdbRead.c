@@ -317,7 +317,7 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
   pQueryHandle->window      = pCond->twindow;
   pQueryHandle->pTsdb       = tsdb;
   pQueryHandle->type        = TSDB_QUERY_TYPE_ALL;
-  pQueryHandle->cur.fid     = -1;
+  pQueryHandle->cur.fid     = INT32_MIN;
   pQueryHandle->cur.win     = TSWINDOW_INITIALIZER;
   pQueryHandle->checkFiles  = true;
   pQueryHandle->activeIndex = 0;   // current active table index
@@ -478,16 +478,18 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
   if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
     pMem = pMemT->tData[pCheckInfo->tableId.tid];
     if (pMem != NULL && pMem->uid == pCheckInfo->tableId.uid) { // check uid
+      TKEY tLastKey = keyToTkey(pCheckInfo->lastKey);
       pCheckInfo->iter =
-          tSkipListCreateIterFromVal(pMem->pData, (const char*)&pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
+          tSkipListCreateIterFromVal(pMem->pData, (const char*)&tLastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
     }
   }
 
   if (pIMemT && pCheckInfo->tableId.tid < pIMemT->maxTables) {
     pIMem = pIMemT->tData[pCheckInfo->tableId.tid];
     if (pIMem != NULL && pIMem->uid == pCheckInfo->tableId.uid) { // check uid
+      TKEY tLastKey = keyToTkey(pCheckInfo->lastKey);
       pCheckInfo->iiter =
-          tSkipListCreateIterFromVal(pIMem->pData, (const char*)&pCheckInfo->lastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
+          tSkipListCreateIterFromVal(pIMem->pData, (const char*)&tLastKey, TSDB_DATA_TYPE_TIMESTAMP, order);
     }
   }
 
@@ -652,7 +654,7 @@ static bool hasMoreDataInCache(STsdbQueryHandle* pHandle) {
   STsdbCfg *pCfg = &pHandle->pTsdb->config;
   size_t size = taosArrayGetSize(pHandle->pTableCheckInfo);
   assert(pHandle->activeIndex < size && pHandle->activeIndex >= 0 && size >= 1);
-  pHandle->cur.fid = -1;
+  pHandle->cur.fid = INT32_MIN;
 
   STableCheckInfo* pCheckInfo = taosArrayGet(pHandle->pTableCheckInfo, pHandle->activeIndex);
 
@@ -1117,7 +1119,12 @@ int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity
 
     if (pColInfo->info.colId == src->colId) {
 
-      if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
+      if (pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+        for (int32_t n = 0; n < num; n++) {
+          TKEY tkey = *(TKEY *)((char*)src->pData + bytes * start + n * sizeof(TKEY));
+          *(TSKEY *)(pData + n * sizeof(TSKEY)) = tdGetKey(tkey);
+        }
+      } else if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
         memmove(pData, (char*)src->pData + bytes * start, bytes * num);
       } else {  // handle the var-string
         char* dst = pData;
@@ -1222,7 +1229,6 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
           break;
         case TSDB_DATA_TYPE_BIGINT:
         case TSDB_DATA_TYPE_UBIGINT:
-        case TSDB_DATA_TYPE_TIMESTAMP:  
           *(uint64_t *)pData = *(uint64_t *)value;
           break;
         case TSDB_DATA_TYPE_FLOAT:
@@ -1230,6 +1236,9 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
           break;
         case TSDB_DATA_TYPE_DOUBLE:
           SET_DOUBLE_PTR(pData, value);
+          break;
+        case TSDB_DATA_TYPE_TIMESTAMP:  
+          *(TSKEY *)pData = tdGetKey(*(TKEY *)value);
           break;
         default:
           memcpy(pData, value, pColInfo->info.bytes);
@@ -1890,7 +1899,7 @@ static int32_t getFirstFileDataBlock(STsdbQueryHandle* pQueryHandle, bool* exist
       assert(pQueryHandle->pFileGroup == NULL);
     }
 
-    cur->fid = -1;  // denote that there are no data in file anymore
+    cur->fid = INT32_MIN;  // denote that there are no data in file anymore
     *exists = false;
     return code;
   }
@@ -2493,7 +2502,7 @@ void tsdbRetrieveDataBlockInfo(TsdbQueryHandleT* pQueryHandle, SDataBlockInfo* p
   STable* pTable = NULL;
 
   // there are data in file
-  if (pHandle->cur.fid >= 0) {
+  if (pHandle->cur.fid != INT32_MIN) {
     STableBlockInfo* pBlockInfo = &pHandle->pDataBlockInfo[cur->slot];
     pTable = pBlockInfo->pTableCheckInfo->pTableObj;
   } else {
@@ -2577,7 +2586,7 @@ SArray* tsdbRetrieveDataBlock(TsdbQueryHandleT* pQueryHandle, SArray* pIdList) {
    */
   STsdbQueryHandle* pHandle = (STsdbQueryHandle*)pQueryHandle;
 
-  if (pHandle->cur.fid < 0) {
+  if (pHandle->cur.fid == INT32_MIN) {
     return pHandle->pColumns;
   } else {
     STableBlockInfo* pBlockInfo = &pHandle->pDataBlockInfo[pHandle->cur.slot];
