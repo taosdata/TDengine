@@ -1380,7 +1380,7 @@ static void printfDbInfoForQueryToFile(char* filename, SDbInfo* dbInfos, int ind
   fprintf(fp, "replica: %d\n", dbInfos->replica);
   fprintf(fp, "quorum: %d\n", dbInfos->quorum);
   fprintf(fp, "days: %d\n", dbInfos->days);    
-  fprintf(fp, "keep1,keep2,keep(D): %s\n", dbInfos->keeplist);      
+  fprintf(fp, "keep0,keep1,keep(D): %s\n", dbInfos->keeplist);      
   fprintf(fp, "cache(MB): %d\n", dbInfos->cache);
   fprintf(fp, "blocks: %d\n", dbInfos->blocks);
   fprintf(fp, "minrows: %d\n", dbInfos->minrows);
