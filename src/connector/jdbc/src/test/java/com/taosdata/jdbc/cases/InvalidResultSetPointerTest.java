@@ -22,7 +22,6 @@ public class InvalidResultSetPointerTest {
         execute("drop database if exists " + dbName);
         execute("create database if not exists " + dbName);
         execute("use " + dbName);
-        execute("drop table if exists " + dbName + "." + stbName + "");
         createSTable();
         createTable();
         insert();
