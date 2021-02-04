@@ -13,7 +13,7 @@ public class InvalidResultSetPointerTest {
     private static final String stbName = "stb";
     private static final String tbName = "tb";
     private static Connection connection;
-    private static int numOfSTb = 300000;
+    private static int numOfSTb = 30000;
     private static int numOfTb = 3;
     private static int numOfThreads = 1;
 
