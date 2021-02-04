@@ -19,14 +19,14 @@ public class InvalidResultSetPointerTest {
 
     @Test
     public void test() throws SQLException {
-        execute("drop database if exists " + dbName);
-        execute("create database if not exists " + dbName);
+//        execute("drop database if exists " + dbName);
+//        execute("create database if not exists " + dbName);
         execute("use " + dbName);
-        execute("drop table if exists " + dbName + "." + stbName + "");
-        createSTable();
-        createTable();
-        insert();
-//        selectMultiThreading();
+//        execute("drop table if exists " + dbName + "." + stbName + "");
+//        createSTable();
+//        createTable();
+//        insert();
+        selectMultiThreading();
         close();
     }
 
