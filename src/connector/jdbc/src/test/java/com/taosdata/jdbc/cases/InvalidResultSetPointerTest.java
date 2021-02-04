@@ -13,7 +13,7 @@ public class InvalidResultSetPointerTest {
     private static final String stbName = "stb";
     private static final String tbName = "tb";
     private static Connection connection;
-    private static int numOfSTb = 300;
+    private static int numOfSTb = 30000;
     private static int numOfTb = 3;
     private static int numOfThreads = 100;
 
@@ -125,16 +125,16 @@ public class InvalidResultSetPointerTest {
     private void execute(String sql) {
         try (Statement statement = connection.createStatement()) {
             long start = System.currentTimeMillis();
-            boolean execute = statement.execute(sql);
+            statement.execute(sql);
             long end = System.currentTimeMillis();
-            printSql(sql, execute, (end - start));
+            printSql(sql, (end - start));
         } catch (SQLException e) {
             e.printStackTrace();
         }
     }
 
-    private void printSql(String sql, boolean succeed, long cost) {
-        System.out.println("[ " + (succeed ? "OK" : "ERROR!") + " ] time cost: " + cost + " ms, execute statement ====> " + sql);
+    private void printSql(String sql, long cost) {
+        System.out.println("time cost: " + cost + " ms, execute statement ====> " + sql);
     }
 
     private void executeQuery(String sql) {
@@ -142,7 +142,7 @@ public class InvalidResultSetPointerTest {
             long start = System.currentTimeMillis();
             ResultSet resultSet = statement.executeQuery(sql);
             long end = System.currentTimeMillis();
-            printSql(sql, true, (end - start));
+            printSql(sql, (end - start));
 //            printResult(resultSet);
             resultSet.close();
             statement.close();
@@ -156,7 +156,8 @@ public class InvalidResultSetPointerTest {
         public int from, to;
         public int numOfTb;
         public Connection connection;
-        public String dbName, stbName, tbName;
+        public String dbName;
+        public String tbName;
 
         public void run() {
             System.out.println("ID: " + id + " from: " + from + " to: " + to);
@@ -177,7 +178,6 @@ public class InvalidResultSetPointerTest {
                         }
                     }
                     final String sql = "select last_row(humidity) from " + dbName + "." + tbName + i + "_" + j;
-//              System.out.println(sql);
                     executeQuery(sql);
                 }
             }
