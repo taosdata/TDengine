@@ -770,6 +770,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       char n[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(&pTableMetaInfo->name, n);
 
+
       tscError("%p tid:%d uid:%" PRIu64" id:%s, column index out of range, numOfColumns:%d, index:%d, column name:%s",
           pSql, pTableMeta->id.tid, pTableMeta->id.uid, n, tscGetNumOfColumns(pTableMeta), pCol->colIndex.columnIndex,
                pColSchema->name);
