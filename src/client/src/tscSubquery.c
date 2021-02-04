@@ -95,11 +95,21 @@ static bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
 
   pthread_mutex_lock(&subState->mutex);
 
+  bool done = allSubqueryDone(pParentSql);
+
+  if (done) {
+    tscDebug("%p subquery:%p,%d all subs already done", pParentSql, pSql, idx);
+    
+    pthread_mutex_unlock(&subState->mutex);
+    
+    return false;
+  }
+  
   tscDebug("%p subquery:%p,%d state set to 1", pParentSql, pSql, idx);
   
   subState->states[idx] = 1;
 
-  bool done = allSubqueryDone(pParentSql);
+  done = allSubqueryDone(pParentSql);
 
   pthread_mutex_unlock(&subState->mutex);
 
