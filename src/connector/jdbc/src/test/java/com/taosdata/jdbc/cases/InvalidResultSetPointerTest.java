@@ -11,7 +11,7 @@ public class InvalidResultSetPointerTest {
     private static String host = "127.0.0.1";
     private static final String dbName = "test";
     private static final String stbName = "meters";
-    private static final String tbName = "t1";
+    private static final String tbName = "meters";
     private static Connection connection;
     private static int numOfSTb = 300000;
     private static int numOfTb = 3;
