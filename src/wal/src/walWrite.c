@@ -39,7 +39,7 @@ int32_t walRenew(void *handle) {
 
   if (tfValid(pWal->tfd)) {
     tfClose(pWal->tfd);
-    wDebug("vgId:%d, file:%s, it is closed", pWal->vgId, pWal->name);
+    wDebug("vgId:%d, file:%s, it is closed while renew", pWal->vgId, pWal->name);
   }
 
   if (pWal->keep == TAOS_WAL_KEEP) {
@@ -56,7 +56,7 @@ int32_t walRenew(void *handle) {
     code = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%s, failed to open since %s", pWal->vgId, pWal->name, strerror(errno));
   } else {
-    wDebug("vgId:%d, file:%s, it is created", pWal->vgId, pWal->name);
+    wDebug("vgId:%d, file:%s, it is created and open while renew", pWal->vgId, pWal->name);
   }
 
   pthread_mutex_unlock(&pWal->mutex);
@@ -95,11 +95,15 @@ void walRemoveAllOldFiles(void *handle) {
   int64_t fileId = -1;
 
   pthread_mutex_lock(&pWal->mutex);
+  
+  tfClose(pWal->tfd);
+  wDebug("vgId:%d, file:%s, it is closed before remove all wals", pWal->vgId, pWal->name);
+
   while (walGetNextFile(pWal, &fileId) >= 0) {
     snprintf(pWal->name, sizeof(pWal->name), "%s/%s%" PRId64, pWal->path, WAL_PREFIX, fileId);
 
     if (remove(pWal->name) < 0) {
-      wError("vgId:%d, wal:%p file:%s, failed to remove", pWal->vgId, pWal, pWal->name);
+      wError("vgId:%d, wal:%p file:%s, failed to remove since %s", pWal->vgId, pWal, pWal->name, strerror(errno));
     } else {
       wInfo("vgId:%d, wal:%p file:%s, it is removed", pWal->vgId, pWal, pWal->name);
     }
@@ -192,7 +196,7 @@ int32_t walRestore(void *handle, void *pVnode, FWalWrite writeFp) {
       wError("vgId:%d, file:%s, failed to open since %s", pWal->vgId, pWal->name, strerror(errno));
       return TAOS_SYSTEM_ERROR(errno);
     }
-    wDebug("vgId:%d, file:%s open success", pWal->vgId, pWal->name);
+    wDebug("vgId:%d, file:%s, it is created and open while restore", pWal->vgId, pWal->name);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -265,6 +269,8 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     wError("vgId:%d, file:%s, failed to open for restore since %s", pWal->vgId, name, strerror(errno));
     tfree(buffer);
     return TAOS_SYSTEM_ERROR(errno);
+  } else {
+    wDebug("vgId:%d, file:%s, open for restore", pWal->vgId, name);
   }
 
   int32_t   code = TSDB_CODE_SUCCESS;
@@ -332,6 +338,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   tfClose(tfd);
   tfree(buffer);
 
+  wDebug("vgId:%d, file:%s, it is closed after restore", pWal->vgId, name);
   return code;
 }
 
