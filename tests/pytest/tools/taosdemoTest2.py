@@ -34,7 +34,12 @@ class TDTestCase:
             os.system("yes | taosdemo -t %d -n %d -x" % (self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
             print("use test")
-            tdSql.execute("use test")
+            tdSql.execute("use test")            
+            while True:
+                tdSql.query("show tables")
+                rows = tdSql.queryRows
+                if(rows == 10):
+                    break                    
             while True:
                 print("query started")
                 tdSql.query("select * from test.t9")
@@ -54,8 +59,7 @@ class TDTestCase:
         t1 = threading.Thread(target=self.insertDataAndAlterTable, args=(0, ))
         t2 = threading.Thread(target=self.insertDataAndAlterTable, args=(1, ))
 
-        t1.start() 
-        time.sleep(2)     
+        t1.start()        
         t2.start()
         t1.join()
         t2.join()
