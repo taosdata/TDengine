@@ -59,7 +59,6 @@ char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
-char    tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -182,6 +181,7 @@ char   tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char   tsMnodeDir[TSDB_FILENAME_LEN] = {0};
 char   tsDataDir[TSDB_FILENAME_LEN] = {0};
 char   tsScriptDir[TSDB_FILENAME_LEN] = {0};
+char   tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
 
 int32_t  tsDiskCfgNum = 0;
 

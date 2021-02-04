@@ -143,6 +143,11 @@ typedef struct {
   int64_t ts;
 } SOrderedPrjQueryInfo;
 
+typedef struct {
+  char*   tags;
+  SArray* pResult;  // SArray<SStddevInterResult>
+} SInterResult;
+
 typedef struct SQuery {
   int16_t          numOfCols;
   int16_t          numOfTags;
@@ -152,9 +157,14 @@ typedef struct SQuery {
   int16_t          precision;
   int16_t          numOfOutput;
   int16_t          fillType;
-  int16_t          checkResultBuf;  // check if the buffer is full during scan each block
+  int16_t          checkResultBuf;   // check if the buffer is full during scan each block
   SLimitVal        limit;
-  int32_t          rowSize;
+
+  int32_t          srcRowSize;       // todo extract struct
+  int32_t          resultRowSize;
+  int32_t          maxSrcColumnSize;
+  int32_t          tagLen;           // tag value length of current query
+
   SSqlGroupbyExpr* pGroupbyExpr;
   SExprInfo*       pExpr1;
   SExprInfo*       pExpr2;
@@ -184,14 +194,13 @@ typedef struct SQueryRuntimeEnv {
   uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;
   SResultRowInfo       windowResInfo;
-  STSBuf*              pTsBuf;
-  STSCursor            cur;
+
   SQueryCostInfo       summary;
   void*                pQueryHandle;
   void*                pSecQueryHandle;  // another thread for
   bool                 stableQuery;      // super table query or not
   bool                 topBotQuery;      // TODO used bitwise flag
-  bool                 groupbyColumn; // denote if this is a groupby normal column query
+  bool                 groupbyColumn;    // denote if this is a groupby normal column query
   bool                 hasTagResults;    // if there are tag values in final result or not
   bool                 timeWindowInterpo;// if the time window start/end required interpolation
   bool                 queryWindowIdentical; // all query time windows are identical for all tables in one group
@@ -205,8 +214,12 @@ typedef struct SQueryRuntimeEnv {
 
   int32_t*             rowCellInfoOffset;// offset value for each row result cell info
   char**               prevRow;
-  char**               nextRow;
 
+  SArray*              prevResult;       // intermediate result, SArray<SInterResult>
+  STSBuf*              pTsBuf;           // timestamp filter list
+  STSCursor            cur;
+
+  char*                tagVal;           // tag value of current data block
   SArithmeticSupport  *sasArray;
 } SQueryRuntimeEnv;
 

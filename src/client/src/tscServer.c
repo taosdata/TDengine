@@ -752,6 +752,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
   pQueryMsg->vgroupLimit    = htobe64(pQueryInfo->vgroupLimit);
   pQueryMsg->sqlstrLen      = htonl(sqlLen);
+  pQueryMsg->prevResultLen  = htonl(pQueryInfo->bufLen);
 
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryMsg->numOfOutput = htons((int16_t)numOfOutput);  // this is the stage one output column number
@@ -987,6 +988,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       
       pMsg += pCond->len;
     }
+  }
+
+  if (pQueryInfo->bufLen > 0) {
+    memcpy(pMsg, pQueryInfo->buf, pQueryInfo->bufLen);
+    pMsg += pQueryInfo->bufLen;
   }
 
   SCond* pCond = &pQueryInfo->tagCond.tbnameCond;

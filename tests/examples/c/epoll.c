@@ -38,6 +38,8 @@
 #include <string.h>
 #include <arpa/inet.h>
 #include <libgen.h>
+#include <locale.h>
+#include <netdb.h>
 
 #define D(fmt, ...) fprintf(stderr, "%s[%d]%s(): " fmt "\n", basename(__FILE__), __LINE__, __func__, ##__VA_ARGS__)
 #define A(statement, fmt, ...) do {                                     \
@@ -55,6 +57,8 @@
           errno, strerror(errno),                                       \
           ##__VA_ARGS__);                                               \
 } while (0)
+
+#include "os.h"
 
 typedef struct ep_s            ep_t;
 struct ep_s {
@@ -214,7 +218,6 @@ static void* routine(void* arg) {
         A(0==pthread_mutex_lock(&ep->lock), "");
         ep->wakenup = 0;
         A(0==pthread_mutex_unlock(&ep->lock), "");
-        D("........");
         continue;
       }
       A(ev->data.ptr, "internal logic error");

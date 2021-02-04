@@ -33,7 +33,7 @@ static int   tsdbRollBackDFile(SDFile *pDFile);
 void tsdbInitMFile(SMFile *pMFile, SDiskID did, int vid, uint32_t ver) {
   char fname[TSDB_FILENAME_LEN];
 
-  TSDB_FILE_SET_CLOSED(pMFile);
+  TSDB_FILE_SET_STATE(pMFile, TSDB_FILE_STATE_OK);
 
   memset(&(pMFile->info), 0, sizeof(pMFile->info));
   pMFile->info.magic = TSDB_FILE_INIT_MAGIC;
@@ -42,7 +42,7 @@ void tsdbInitMFile(SMFile *pMFile, SDiskID did, int vid, uint32_t ver) {
   tfsInitFile(TSDB_FILE_F(pMFile), did.level, did.id, fname);
 }
 
-void tsdbInitMFileEx(SMFile *pMFile, SMFile *pOMFile) {
+void tsdbInitMFileEx(SMFile *pMFile, const SMFile *pOMFile) {
   *pMFile = *pOMFile;
   TSDB_FILE_SET_CLOSED(pMFile);
 }
@@ -201,6 +201,7 @@ int tsdbScanAndTryFixMFile(STsdbRepo *pRepo) {
     tsdbError("vgId:%d meta file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
               TSDB_FILE_FULL_NAME(pMFile));
     pRepo->state |= TSDB_STATE_BAD_META;
+    TSDB_FILE_SET_STATE(pMFile, TSDB_FILE_STATE_BAD);
     return 0;
   }
 
@@ -232,6 +233,7 @@ int tsdbScanAndTryFixMFile(STsdbRepo *pRepo) {
     tsdbError("vgId:%d meta file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
               REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile), mfstat.st_size, pMFile->info.size);
     pRepo->state |= TSDB_STATE_BAD_META;
+    TSDB_FILE_SET_STATE(pMFile, TSDB_FILE_STATE_BAD);
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return 0;
   } else {
@@ -292,6 +294,8 @@ static int tsdbRollBackMFile(SMFile *pMFile) {
 // ============== Operations on SDFile
 void tsdbInitDFile(SDFile *pDFile, SDiskID did, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype) {
   char fname[TSDB_FILENAME_LEN];
+
+  TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_OK);
 
   TSDB_FILE_SET_CLOSED(pDFile);
 
@@ -439,6 +443,7 @@ static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
     tsdbError("vgId:%d data file %s not exit, report to upper layer to fix it", REPO_ID(pRepo),
               TSDB_FILE_FULL_NAME(pDFile));
     pRepo->state |= TSDB_STATE_BAD_DATA;
+    TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
     return 0;
   }
 
@@ -470,6 +475,7 @@ static int tsdbScanAndTryFixDFile(STsdbRepo *pRepo, SDFile *pDFile) {
     tsdbError("vgId:%d data file %s has wrong size %" PRId64 " expected %" PRId64 ", report to upper layer to fix it",
               REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), dfstat.st_size, pDFile->info.size);
     pRepo->state |= TSDB_STATE_BAD_DATA;
+    TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_BAD);
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
     return 0;
   } else {

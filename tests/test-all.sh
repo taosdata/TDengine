@@ -6,15 +6,15 @@ GREEN='\033[1;32m'
 GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
-function git_branch {
-   branch="`git branch 2>/dev/null | grep "^\*" | sed -e "s/^\*\ //"`"
-   if [ "${branch}" != "" ];then
-       if [ "${branch}" = "(no branch)" ];then
-           branch="(`git rev-parse --short HEAD`...)"
-       fi  
-       branch=(${branch////_})
-       echo "$branch"
-   fi  
+
+function dohavecore(){
+  corefile=`find $corepath -mmin 1`  
+  if [ -n "$corefile" ];then
+  echo 'taosd or taos has generated core'
+  if [[ $1 == 1 ]];then
+    exit 8
+  fi
+  fi
 }
 function runSimCaseOneByOne {
   while read -r line; do
@@ -42,6 +42,7 @@ function runSimCaseOneByOne {
       # fi
       end_time=`date +%s`
       echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
+      dohavecore 0
     fi
   done < $1
 }
@@ -69,14 +70,15 @@ function runSimCaseOneByOnefq {
       out_log=`tail -1 out.log  `
       if [[ $out_log =~ 'failed' ]];then
         if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
-          cp -r ../../../sim ~/sim_$(git_branch)_`date "+%Y_%m_%d_%H:%M:%S"`
+          cp -r ../../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S"`
         else 
-          cp -r ../../sim ~/sim_$(git_branch)_`date "+%Y_%m_%d_%H:%M:%S" `
+          cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
         fi
         exit 8
       fi
       end_time=`date +%s`
       echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
+      dohavecore 1
     fi
   done < $1
 }
@@ -105,6 +107,7 @@ function runPyCaseOneByOne {
       else
         $line > /dev/null 2>&1
       fi
+      dohavecore 0
     fi
   done < $1
 }
@@ -126,13 +129,14 @@ function runPyCaseOneByOnefq {
         end_time=`date +%s`
         out_log=`tail -1 pytest-out.log  `
         if [[ $out_log =~ 'failed' ]];then
-          cp -r ../../sim ~/sim_$(git_branch)_`date "+%Y_%m_%d_%H:%M:%S" `
+          cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
           exit 8
         fi
         echo execution time of $case was `expr $end_time - $start_time`s. | tee -a pytest-out.log
       else
         $line > /dev/null 2>&1
       fi
+      dohavecore 1
     fi
   done < $1
 }
@@ -140,7 +144,7 @@ totalFailed=0
 totalPyFailed=0
 
 tests_dir=`pwd`
-
+corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
 if [ "$2" != "python" ]; then
   echo "### run TSIM test case ###"
   cd $tests_dir/script

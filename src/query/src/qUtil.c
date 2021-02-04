@@ -19,6 +19,7 @@
 
 #include "qExecutor.h"
 #include "qUtil.h"
+#include "tbuffer.h"
 
 int32_t getOutputInterResultBufSize(SQuery* pQuery) {
   int32_t size = 0;
@@ -228,4 +229,97 @@ void* destroyResultRowPool(SResultRowPool* p) {
 
   tfree(p);
   return NULL;
+}
+
+void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen) {
+  uint32_t numOfGroup = (uint32_t) taosArrayGetSize(pRes);
+  tbufWriteUint32(bw, numOfGroup);
+  tbufWriteUint16(bw, tagLen);
+
+  for(int32_t i = 0; i < numOfGroup; ++i) {
+    SInterResult* pOne = taosArrayGet(pRes, i);
+    if (tagLen > 0) {
+      tbufWriteBinary(bw, pOne->tags, tagLen);
+    }
+
+    uint32_t numOfCols = (uint32_t) taosArrayGetSize(pOne->pResult);
+    tbufWriteUint32(bw, numOfCols);
+    for(int32_t j = 0; j < numOfCols; ++j) {
+      SStddevInterResult* p = taosArrayGet(pOne->pResult, j);
+      uint32_t numOfRows = (uint32_t) taosArrayGetSize(p->pResult);
+
+      tbufWriteUint16(bw, p->colId);
+      tbufWriteUint32(bw, numOfRows);
+
+      for(int32_t k = 0; k < numOfRows; ++k) {
+        SResPair v = *(SResPair*) taosArrayGet(p->pResult, k);
+        tbufWriteDouble(bw, v.avg);
+        tbufWriteInt64(bw, v.key);
+      }
+    }
+  }
+}
+
+SArray* interResFromBinary(const char* data, int32_t len) {
+  SBufferReader br = tbufInitReader(data, len, false);
+  uint32_t numOfGroup = tbufReadUint32(&br);
+  uint16_t tagLen = tbufReadUint16(&br);
+
+  char* tag = NULL;
+  if (tagLen > 0) {
+    tag = calloc(1, tagLen);
+  }
+
+  SArray* pResult = taosArrayInit(4, sizeof(SInterResult));
+
+  for(int32_t i = 0; i < numOfGroup; ++i) {
+    if (tagLen > 0) {
+      memset(tag, 0, tagLen);
+      tbufReadToBinary(&br, tag, tagLen);
+    }
+
+    uint32_t numOfCols = tbufReadUint32(&br);
+
+    SArray* p = taosArrayInit(numOfCols, sizeof(SStddevInterResult));
+    for(int32_t j = 0; j < numOfCols; ++j) {
+      int16_t colId = tbufReadUint16(&br);
+      int32_t numOfRows = tbufReadUint32(&br);
+
+      SStddevInterResult interRes = {.colId = colId, .pResult = taosArrayInit(4, sizeof(struct SResPair)),};
+      for(int32_t k = 0; k < numOfRows; ++k) {
+        SResPair px = {0};
+        px.avg = tbufReadDouble(&br);
+        px.key = tbufReadInt64(&br);
+
+        taosArrayPush(interRes.pResult, &px);
+      }
+
+      taosArrayPush(p, &interRes);
+    }
+
+    char* p1 = NULL;
+    if (tagLen > 0) {
+      p1 = malloc(tagLen);
+      memcpy(p1, tag, tagLen);
+    }
+
+    SInterResult d = {.pResult = p, .tags = p1,};
+    taosArrayPush(pResult, &d);
+  }
+
+  tfree(tag);
+  return pResult;
+}
+
+void freeInterResult(void* param) {
+  SInterResult* pResult = (SInterResult*) param;
+  tfree(pResult->tags);
+
+  int32_t numOfCols = (int32_t) taosArrayGetSize(pResult->pResult);
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SStddevInterResult *p = taosArrayGet(pResult->pResult, i);
+    taosArrayDestroy(p->pResult);
+  }
+
+  taosArrayDestroy(pResult->pResult);
 }
