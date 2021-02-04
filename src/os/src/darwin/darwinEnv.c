@@ -29,17 +29,15 @@ static const char* expand_like_shell(const char *path) {
 
 void osInit() {
   if (configDir[0] == 0) {
-    strcpy(configDir, expand_like_shell("~/TDengine/cfg"));
+    strcpy(configDir, expand_like_shell("/usr/local/etc/taos"));
   }
+  strcpy(tsDataDir,   expand_like_shell("/usr/local/var/lib/taos"));
+  strcpy(tsLogDir,    expand_like_shell("/usr/local/var/log/taos"));
+  strcpy(tsScriptDir, expand_like_shell("/usr/local/etc/taos"));
 
   strcpy(tsVnodeDir, "");
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");
-
-  strcpy(tsDataDir,   expand_like_shell("~/TDengine/data"));
-  strcpy(tsLogDir,    expand_like_shell("~/TDengine/log"));
-  strcpy(tsScriptDir, expand_like_shell("~/TDengine/cfg"));
-
   strcpy(tsOsName, "Darwin");
 }
 
