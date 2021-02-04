@@ -1180,9 +1180,12 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
   char* pData = NULL;
 
   // the schema version info is embeded in SDataRow
-  int32_t numOfRowCols = schemaNCols(pSchema);
+  int32_t numOfRowCols = 0;
   if (pSchema == NULL) {
     pSchema = tsdbGetTableSchemaByVersion(pTable, dataRowVersion(row));
+    numOfRowCols = schemaNCols(pSchema);
+  } else {
+    numOfRowCols = schemaNCols(pSchema);
   }
   
   int32_t i = 0, j = 0;

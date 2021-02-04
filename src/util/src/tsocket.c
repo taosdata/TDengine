@@ -32,14 +32,27 @@ int32_t taosGetFqdn(char *fqdn) {
 
   struct addrinfo  hints = {0};
   struct addrinfo *result = NULL;
+#ifdef __APPLE__
+  // on macosx, hostname -f has the form of xxx.local
+  // which will block getaddrinfo for a few seconds if AI_CANONNAME is set
+  // thus, we choose AF_INET (ipv4 for the moment) to make getaddrinfo return
+  // immediately
+  hints.ai_family = AF_INET;
+#else // __APPLE__
   hints.ai_flags = AI_CANONNAME;
+#endif // __APPLE__
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
     uError("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
     return -1;
   }
 
+#ifdef __APPLE__
+  // refer to comments above
+  strcpy(fqdn, hostname);
+#else // __APPLE__
   strcpy(fqdn, result->ai_canonname);
+#endif // __APPLE__
   freeaddrinfo(result);
   return 0;
 }
@@ -286,7 +299,7 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
   int32_t bufSize = 1024 * 1024;
 
   sockFd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP);
-  
+
   if (sockFd <= 2) {
     uError("failed to open the socket: %d (%s)", errno, strerror(errno));
     taosCloseSocketNoCheck(sockFd);

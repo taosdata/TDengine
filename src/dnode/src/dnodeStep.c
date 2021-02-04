@@ -69,6 +69,6 @@ int32_t dnodeStepInit(SStep *pSteps, int32_t stepSize) {
   return 0;
 }
 
-void dnodeStepCleanup(SStep *pSteps, int32_t stepSize) { 
+void dnodeStepCleanup(SStep *pSteps, int32_t stepSize) {
   taosStepCleanupImp(pSteps, stepSize - 1);
 }

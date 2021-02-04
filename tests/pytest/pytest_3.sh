@@ -89,6 +89,7 @@ python3 ./test.py -f functions/function_sum.py -r 1
 python3 ./test.py -f functions/function_top.py -r 1
 python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
+python3 ./test.py -f functions/function_stddev_td2555.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
