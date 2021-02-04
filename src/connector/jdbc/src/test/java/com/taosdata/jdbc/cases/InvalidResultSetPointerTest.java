@@ -10,8 +10,8 @@ public class InvalidResultSetPointerTest {
 
     private static String host = "127.0.0.1";
     private static final String dbName = "test";
-    private static final String stbName = "meters";
-    private static final String tbName = "meters";
+    private static final String stbName = "stb";
+    private static final String tbName = "tb";
     private static Connection connection;
     private static int numOfSTb = 300000;
     private static int numOfTb = 3;
@@ -19,8 +19,51 @@ public class InvalidResultSetPointerTest {
 
     @Test
     public void test() throws SQLException {
+        execute("drop database if exists " + dbName);
+        execute("create database if not exists " + dbName);
         execute("use " + dbName);
+        execute("drop table if exists " + dbName + "." + stbName + "");
+        createSTable();
+        createTable();
+        insert();
+        selectMultiThreading();
+        close();
+    }
 
+    private void insert() {
+        for (int i = 0; i < numOfSTb; i++) {
+            for (int j = 0; j < numOfTb; j++) {
+                final String sql = "INSERT INTO " + dbName + "." + tbName + i + "_" + j + " (ts, temperature, humidity, name) values(now, 20.5, 34, \"" + i + "\")";
+                System.out.println(sql);
+                execute(sql);
+            }
+        }
+    }
+
+    private void createSTable() {
+        for (int i = 0; i < numOfSTb; i++) {
+            final String sql = "create table if not exists " + dbName + "." + stbName + i + " (ts timestamp, temperature float, humidity int, name BINARY(" + (i % 73 + 10) + ")) TAGS (tag1 INT)";
+            execute(sql);
+        }
+    }
+
+    private void createTable() {
+        for (int i = 0; i < numOfSTb; i++) {
+            for (int j = 0; j < numOfTb; j++) {
+                final String sql = "create table if not exists " + dbName + "." + tbName + i + "_" + j + " USING " + stbName + i + " TAGS(" + j + ")";
+                execute(sql);
+            }
+        }
+    }
+
+    private void close() throws SQLException {
+        if (connection != null) {
+            this.connection.close();
+            System.out.println("connection closed.");
+        }
+    }
+
+    private void selectMultiThreading() {
         int a = numOfSTb / numOfThreads;
         if (a < 1) {
             numOfThreads = numOfSTb;
@@ -59,11 +102,6 @@ public class InvalidResultSetPointerTest {
             } catch (InterruptedException ie) {
                 ie.printStackTrace();
             }
-        }
-
-        if (connection != null) {
-            this.connection.close();
-            System.out.println("connection closed.");
         }
     }
 
@@ -145,8 +183,6 @@ public class InvalidResultSetPointerTest {
                 }
             }
         }
-
-
     }
 
 }
