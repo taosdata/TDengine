@@ -26,7 +26,7 @@ public class InvalidResultSetPointerTest {
         createSTable();
         createTable();
         insert();
-        selectMultiThreading();
+//        selectMultiThreading();
         close();
     }
 
