@@ -33,18 +33,23 @@ class TDTestCase:
         if(threadID == 0):
             os.system("yes | taosdemo -t %d -n %d -x" % (self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
+            time.sleep(2)
             print("use test")
             tdSql.execute("use test")            
+            # check if all the tables have heen created
             while True:
                 tdSql.query("show tables")
                 rows = tdSql.queryRows
-                if(rows == 10):
-                    break                    
+                print("number of tables: %d" % rows)
+                if(rows == self.numberOfTables):
+                    break
+                time.sleep(1)
+            # check if there are any records in the last created table
             while True:
                 print("query started")
                 tdSql.query("select * from test.t9")
                 rows = tdSql.queryRows
-                print("rows %d" % rows)
+                print("number of records: %d" % rows)
                 if(rows > 0):
                     break
                 time.sleep(1)      
