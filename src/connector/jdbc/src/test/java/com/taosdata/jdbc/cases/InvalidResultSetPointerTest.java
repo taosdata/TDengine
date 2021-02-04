@@ -15,7 +15,7 @@ public class InvalidResultSetPointerTest {
     private static Connection connection;
     private static int numOfSTb = 30000;
     private static int numOfTb = 3;
-    private static int numOfThreads = 1;
+    private static int numOfThreads = 10;
 
     @Test
     public void test() throws SQLException {
