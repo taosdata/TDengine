@@ -175,16 +175,14 @@ static uint8_t convertOptr(SStrToken *pToken) {
 }
 
 static bool validateDebugFlag(int32_t v) {
-  const int validFlag[] = {131, 135, 143};
-  bool ret = false; 
+  const static int validFlag[] = {131, 135, 143};
   
   for (int i = 0; i < tListLen(validFlag); i++) {
     if (v == validFlag[i]) {
-      ret = true;
-      break;
+        return true;
     } 
   }
-  return ret;
+  return false;
 }
 /*
  * Used during parsing query sql. Since the query sql usually small in length, error position
@@ -5377,7 +5375,8 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
     // reset log does not need value
     for (int32_t i = 0; i < 1; ++i) {
       SDNodeDynConfOption* pOption = &LOCAL_DYNAMIC_CFG_OPTIONS[i];
-      if ((strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0) && (pOption->len == pOptionToken->n)) {
+      if ((pOption->len == pOptionToken->n) && 
+              (strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0)) {
         return TSDB_CODE_SUCCESS;
       }
     }
@@ -5391,8 +5390,8 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
 
     for (int32_t i = 1; i < tListLen(LOCAL_DYNAMIC_CFG_OPTIONS); ++i) {
       SDNodeDynConfOption* pOption = &LOCAL_DYNAMIC_CFG_OPTIONS[i];
-      if ((strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0) && (pOption->len == pOptionToken->n)) {
-        // options is valid
+      if ((pOption->len == pOptionToken->n) 
+              && (strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0)) {
         return TSDB_CODE_SUCCESS;
       }
     }
