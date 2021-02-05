@@ -45,6 +45,10 @@ class TDTestCase:
         tdSql.checkData(0, 0, "2018-10-03 14:38:05")
         tdSql.checkData(1, 0, "2018-10-03 14:38:15")
         tdSql.checkData(2, 0, "2018-10-03 14:38:16")
+
+        tdSql.error("SELECT SUM(current) as s, AVG(voltage) FROM meters WHERE groupId > 1 INTERVAL(1s) GROUP BY location order by s ASC")
+
+        tdSql.error("SELECT SUM(current) as s, AVG(voltage) FROM meters WHERE groupId > 1 INTERVAL(1s) GROUP BY location order by s DESC")
         
     def stop(self):
         tdSql.close()

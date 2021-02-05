@@ -39,12 +39,6 @@ class TDTestCase:
 
         # stddev verifacation 
         tdSql.error("select stddev(ts) from test1")
-        tdSql.error("select stddev(col1) from test")
-        tdSql.error("select stddev(col2) from test")
-        tdSql.error("select stddev(col3) from test")
-        tdSql.error("select stddev(col4) from test")
-        tdSql.error("select stddev(col5) from test")
-        tdSql.error("select stddev(col6) from test")
         tdSql.error("select stddev(col7) from test1")
         tdSql.error("select stddev(col8) from test1")
         tdSql.error("select stddev(col9) from test1")

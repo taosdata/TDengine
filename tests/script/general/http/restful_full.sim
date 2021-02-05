@@ -88,13 +88,13 @@ print ===============  step2 - no db
 #11
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show databases' 127.0.0.1:7111/rest/sql
 print 11-> $system_content
-if $system_content != @{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep1,keep2,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"data":[],"rows":0}@ then
+if $system_content != @{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep0,keep1,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"data":[],"rows":0}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d1' 127.0.0.1:7111/rest/sql
 print 12-> $system_content
-if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":0}@ then
+if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":1}@ then
   return -1
 endi
 
@@ -160,7 +160,7 @@ endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' create table d1.t1 (ts timestamp, speed int)' 127.0.0.1:7111/rest/sql
 print 22-> $system_content
-if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":0}@ then
+if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":1}@ then
   return -1
 endi
 
@@ -214,13 +214,13 @@ endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d2' 127.0.0.1:7111/rest/sql
 print 28-> $system_content
-if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":0}@ then
+if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":1}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' create table d2.t1 (ts timestamp, speed int)' 127.0.0.1:7111/rest/sql
 print 29-> $system_content
-if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":0}@ then
+if $system_content != @{"status":"succ","head":["affected_rows"],"data":[[0]],"rows":1}@ then
   return -1
 endi
 

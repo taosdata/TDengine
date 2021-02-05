@@ -192,7 +192,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_IN_DROPPING,           0, 0x0386, "Database n
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_READY,         0, 0x0387, "Database unsynced")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_DAYS,   0, 0x0390, "Invalid database option: days out of range")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_KEEP,   0, 0x0391, "Invalid database option: keep >= keep2 >= keep1 >= days")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_KEEP,   0, 0x0391, "Invalid database option: keep >= keep1 >= keep0 >= days")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_MSG_NOT_PROCESSED,        0, 0x0400, "Message not processed")
@@ -242,6 +242,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_TABLE_DATA_IN_MEM,     0, 0x060F, "No table d
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_FILE_ALREADY_EXISTS,      0, 0x0610, "File already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_RECONFIGURE,        0, 0x0611, "Need to reconfigure table")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO,    0, 0x0612, "Invalid information to create table")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_AVAIL_DISK,            0, 0x0613, "No available disk")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_MESSED_MSG,               0, 0x0614, "TSDB messed message")
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          0, 0x0700, "Invalid handle")

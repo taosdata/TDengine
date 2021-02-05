@@ -38,11 +38,13 @@ void tdListEmpty(SList *list) {
   list->numOfEles = 0;
 }
 
-void tdListFree(SList *list) {
+void *tdListFree(SList *list) {
   if (list) {
     tdListEmpty(list);
     free(list);
   }
+
+  return NULL;
 }
 
 void tdListPrependNode(SList *list, SListNode *node) {

@@ -470,7 +470,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
 
   wordexp_t full_path;
 
-  if (wordexp(fname, &full_path, 0) != 0) {
+  if (wordexp((char *)fname, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: invalid file name: %s\n", fname);
     return -1;
   }

@@ -36,6 +36,11 @@ typedef struct SColumnInfoData {
   void* pData;    // the corresponding block data in memory
 } SColumnInfoData;
 
+typedef struct SResPair {
+  TSKEY  key;
+  double avg;
+} SResPair;
+
 #define TSDB_DB_NAME_T     1
 #define TSDB_TABLE_NAME_T  2
 
@@ -58,7 +63,7 @@ size_t tableIdPrefix(const char* name, char* prefix, int32_t len);
 
 void extractTableNameFromToken(SStrToken *pToken, SStrToken* pTable);
 
-SSchema tGetTableNameColumnSchema();
+//SSchema tGetTbnameColumnSchema();
 
 SSchema tGetBlockDistColumnSchema();
 
@@ -68,7 +73,7 @@ bool tscValidateTableNameLength(size_t len);
 
 SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFilters);
 
-SSchema tGetTbnameColumnSchema();
+SSchema* tGetTbnameColumnSchema();
 
 /**
  * check if the schema is valid or not, including following aspects:

@@ -1,44 +1,3 @@
-
-./test.sh -f general/compute/avg.sim
-./test.sh -f general/compute/bottom.sim
-./test.sh -f general/compute/count.sim
-./test.sh -f general/compute/diff.sim
-./test.sh -f general/compute/diff2.sim
-./test.sh -f general/compute/first.sim
-./test.sh -f general/compute/interval.sim
-./test.sh -f general/compute/last.sim
-./test.sh -f general/compute/leastsquare.sim
-./test.sh -f general/compute/max.sim
-./test.sh -f general/compute/min.sim
-./test.sh -f general/compute/null.sim
-./test.sh -f general/compute/percentile.sim
-./test.sh -f general/compute/stddev.sim
-./test.sh -f general/compute/sum.sim
-./test.sh -f general/compute/top.sim
-
-./test.sh -f general/db/alter_option.sim
-./test.sh -f general/db/alter_tables_d2.sim
-./test.sh -f general/db/alter_tables_v1.sim
-./test.sh -f general/db/alter_tables_v4.sim
-./test.sh -f general/db/alter_vgroups.sim
-./test.sh -f general/db/basic.sim
-./test.sh -f general/db/basic1.sim
-./test.sh -f general/db/basic2.sim
-./test.sh -f general/db/basic3.sim
-./test.sh -f general/db/basic4.sim
-./test.sh -f general/db/basic5.sim
-./test.sh -f general/db/delete_reuse1.sim
-./test.sh -f general/db/delete_reuse2.sim
-./test.sh -f general/db/delete_reusevnode.sim
-./test.sh -f general/db/delete_reusevnode2.sim
-./test.sh -f general/db/delete_writing1.sim
-./test.sh -f general/db/delete_writing2.sim
-./test.sh -f general/db/delete.sim
-./test.sh -f general/db/len.sim
-./test.sh -f general/db/repeat.sim
-./test.sh -f general/db/tables.sim
-./test.sh -f general/db/vnodes.sim
-
 ./test.sh -f general/field/2.sim
 ./test.sh -f general/field/3.sim
 ./test.sh -f general/field/4.sim
@@ -63,10 +22,7 @@
 ./test.sh -f general/http/grafana_bug.sim
 ./test.sh -f general/http/grafana.sim
 
-./test.sh -f general/import/basic.sim
-./test.sh -f general/import/commit.sim
-./test.sh -f general/import/large.sim
-./test.sh -f general/import/replica1.sim
+
 
 ./test.sh -f general/insert/basic.sim
 ./test.sh -f general/insert/insert_drop.sim
@@ -129,32 +85,3 @@
 ./test.sh -f general/parser/topbot.sim
 ./test.sh -f general/db/nosuchfile.sim
 ./test.sh -f general/parser/function.sim
-
-./test.sh -f general/table/autocreate.sim
-./test.sh -f general/table/basic1.sim
-./test.sh -f general/table/basic2.sim
-./test.sh -f general/table/basic3.sim
-./test.sh -f general/table/bigint.sim
-./test.sh -f general/table/binary.sim
-./test.sh -f general/table/bool.sim
-./test.sh -f general/table/column_name.sim
-./test.sh -f general/table/column_num.sim
-./test.sh -f general/table/column_value.sim
-./test.sh -f general/table/column2.sim
-./test.sh -f general/table/date.sim
-./test.sh -f general/table/db.table.sim
-./test.sh -f general/table/delete_reuse1.sim
-./test.sh -f general/table/delete_reuse2.sim
-./test.sh -f general/table/delete_writing.sim
-./test.sh -f general/table/describe.sim
-./test.sh -f general/table/double.sim
-./test.sh -f general/table/fill.sim
-./test.sh -f general/table/float.sim
-./test.sh -f general/table/int.sim
-./test.sh -f general/table/limit.sim
-./test.sh -f general/table/smallint.sim
-./test.sh -f general/table/table_len.sim
-./test.sh -f general/table/table.sim
-./test.sh -f general/table/tinyint.sim
-./test.sh -f general/table/vgroup.sim
-./test.sh -f general/table/createmulti.sim

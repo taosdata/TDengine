@@ -568,7 +568,7 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
 
   pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "keep1,keep2,keep(D)");
+  strcpy(pSchema[cols].name, "keep0,keep1,keep(D)");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -679,7 +679,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     pShow->pIter = mnodeGetNextDb(pShow->pIter, &pDb);
 
     if (pDb == NULL) break;
-    if (pDb->pAcct != pUser->pAcct) {
+    if (pDb->pAcct != pUser->pAcct || pDb->status != TSDB_DB_STATUS_READY) {
       mnodeDecDbRef(pDb);
       continue;
     }
