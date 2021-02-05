@@ -101,7 +101,7 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
     tscError("failed to init connection to TDengine");
     return -1;
   } 
-  pRpcObj = taosCachePut(tscRpcCache, rpcObj.key, strlen(rpcObj.key), &rpcObj, sizeof(rpcObj), 1000*2);   
+  pRpcObj = taosCachePut(tscRpcCache, rpcObj.key, strlen(rpcObj.key), &rpcObj, sizeof(rpcObj), 1000*5);   
   if (pRpcObj == NULL) {
     rpcClose(rpcObj.pDnodeConn);
     pthread_mutex_unlock(&rpcObjMutex);
