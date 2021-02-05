@@ -41,10 +41,10 @@ if $data00 != 0.000000000 then
   return -1
 endi
 
-if $data01 != -nan then
-  print expect -nan, actual: $data01
-  return -1
-endi
+#if $data01 != -nan then
+#  print expect -nan, actual: $data01
+#  return -1
+#endi
 
 if $data10 != 0.666666667 then
   return -1
@@ -185,9 +185,9 @@ if $data00 != 0.000000000 then
   return -1
 endi
 
-if $data01 != -nan then
-  return -1
-endi
+#if $data01 != -nan then
+#  return -1
+#endi
 
 if $data02 != 0.000000000 then
   return -1
