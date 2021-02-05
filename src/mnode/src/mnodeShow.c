@@ -280,8 +280,11 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  pRsp->onlineDnodes = htonl(mnodeGetOnlineDnodesNum());
-  pRsp->totalDnodes = htonl(mnodeGetDnodesNum());
+  int32_t    onlineDnodes = 0, totalDnodes = 0;
+  mnodeGetOnlineAndTotalDnodesNum(&onlineDnodes, &totalDnodes);
+
+  pRsp->onlineDnodes = htonl(onlineDnodes);
+  pRsp->totalDnodes = htonl(totalDnodes);
   mnodeGetMnodeEpSetForShell(&pRsp->epSet, false);
 
   pMsg->rpcRsp.rsp = pRsp;

@@ -67,6 +67,7 @@ typedef struct DemoArguments {
   char *   sqlFile;
   bool     use_metric;
   bool     insert_only;
+  bool     answer_yes;
   char *   output_file;
   int      mode;
   char *   datatype[MAX_NUM_DATATYPE + 1];
@@ -114,6 +115,7 @@ typedef struct DemoArguments {
     {0, 'c', "config_directory",         0, "Configuration directory. Default is '/etc/taos/'.",                                                                14},
     #endif
     {0, 'x', 0,                          0, "Insert only flag.",                                                                                                13},
+    {0, 'y', 0,                          0, "Default input yes for prompt",                                                                                                13},
     {0, 'O', "order",                    0, "Insert mode--0: In order, 1: Out of order. Default is in order.",                                                  14},
     {0, 'R', "rate",                     0, "Out of order data's rate--if order=1 Default 10, min: 0, max: 50.",                                                14},
     {0, 'D', "delete table",             0, "Delete data methods——0: don't delete, 1: delete by table, 2: delete by stable, 3: delete by database",             14},
@@ -209,6 +211,9 @@ typedef struct DemoArguments {
         break;
       case 'x':
         arguments->insert_only = true;
+        break;
+      case 'y':
+        arguments->answer_yes = true;
         break;
       case 'c':
         if (wordexp(arg, &full_path, 0) != 0) {
@@ -328,6 +333,8 @@ typedef struct DemoArguments {
     #endif
     printf("%s%s\n", indent, "-x");
     printf("%s%s%s\n", indent, indent, "flag, Insert only flag.");
+    printf("%s%s\n", indent, "-y");
+    printf("%s%s%s\n", indent, indent, "flag, Anser Yes for prompt.");
     printf("%s%s\n", indent, "-O");
     printf("%s%s%s\n", indent, indent, "order, Insert mode--0: In order, 1: Out of order. Default is in order.");
     printf("%s%s\n", indent, "-R");
@@ -409,6 +416,8 @@ typedef struct DemoArguments {
         arguments->use_metric = true;
       } else if (strcmp(argv[i], "-x") == 0) {
         arguments->insert_only = true;
+      } else if (strcmp(argv[i], "-y") == 0) {
+        arguments->answer_yes = true;
       } else if (strcmp(argv[i], "-c") == 0) {
         strcpy(configDir, argv[++i]);
       } else if (strcmp(argv[i], "-O") == 0) {
@@ -549,6 +558,7 @@ int main(int argc, char *argv[]) {
                                 NULL,
                                 false,           // use_metric
                                 false,           // insert_only
+                                false,           // answer_yes
                                 "./output.txt",  // output_file
                                 0,               // mode
                                 {
@@ -584,6 +594,7 @@ int main(int argc, char *argv[]) {
   arguments.num_of_RPR = 1000;
   arguments.use_metric = true;
   arguments.insert_only = false;
+  arguments.answer_yes = false;
   // end change
 
   parse_args(argc, argv, &arguments);
@@ -606,6 +617,7 @@ int main(int argc, char *argv[]) {
   int nrecords_per_request = arguments.num_of_RPR;
   bool use_metric = arguments.use_metric;
   bool insert_only = arguments.insert_only;
+  bool answer_yes = arguments.answer_yes;
   char **data_type = arguments.datatype;
   int count_data_type = 0;
   char dataString[STRING_LEN];
@@ -666,9 +678,12 @@ int main(int argc, char *argv[]) {
   printf("# Delete method:                     %d\n", method_of_delete);
   printf("# Test time:                         %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
           tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-  printf("###################################################################\n\n");
-  printf("Press enter key to continue");
-  (void)getchar();
+
+  if (!answer_yes) {
+    printf("###################################################################\n\n");
+    printf("Press enter key to continue");
+    (void)getchar();
+  }
 
   fprintf(fp, "###################################################################\n");
   fprintf(fp, "# Server IP:                         %s:%hu\n", ip_addr == NULL ? "localhost" : ip_addr, port);
@@ -908,6 +923,7 @@ int main(int argc, char *argv[]) {
     }
     pthread_join(read_id, NULL);
     taos_close(rInfo->taos);
+    free(rInfo);
   }
 
   taos_cleanup();

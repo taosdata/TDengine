@@ -13,28 +13,40 @@ ELSE ()
   SET(TD_VER_COMPATIBLE "2.0.0.0")
 ENDIF ()
 
+find_program(HAVE_GIT NAMES git)
+
 IF (DEFINED GITINFO)
   SET(TD_VER_GIT ${GITINFO})
+ELSEIF (HAVE_GIT)
+  execute_process(COMMAND git log -1 --format=%H WORKING_DIRECTORY ${TD_COMMUNITY_DIR} OUTPUT_VARIABLE GIT_COMMITID)
+  message(STATUS "git log result:${GIT_COMMITID}")
+  IF (GIT_COMMITID)
+    string (REGEX REPLACE "[\n\t\r]" "" GIT_COMMITID ${GIT_COMMITID})
+    SET(TD_VER_GIT ${GIT_COMMITID})
+  ELSE ()
+    message(STATUS "not a git repository")
+    SET(TD_VER_GIT "no git commit id")
+  ENDIF ()
 ELSE ()
-  execute_process(
-	  COMMAND git log -1 --format=%H
-	  WORKING_DIRECTORY ${TD_COMMUNITY_DIR} 
-	  OUTPUT_VARIABLE GIT_COMMITID
-  )
-  string (REGEX REPLACE "[\n\t\r]" "" GIT_COMMITID ${GIT_COMMITID})
-  SET(TD_VER_GIT ${GIT_COMMITID})
+  message(STATUS "no git cmd")
+  SET(TD_VER_GIT "no git commit id")
 ENDIF ()
 
 IF (DEFINED GITINFOI)
   SET(TD_VER_GIT_INTERNAL ${GITINFOI})
+ELSEIF (HAVE_GIT)
+  execute_process(COMMAND git log -1 --format=%H WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} OUTPUT_VARIABLE GIT_COMMITID)
+  message(STATUS "git log result:${GIT_COMMITID}")
+  IF (GIT_COMMITID)
+    string (REGEX REPLACE "[\n\t\r]" "" GIT_COMMITID ${GIT_COMMITID})
+    SET(TD_VER_GIT_INTERNAL ${GIT_COMMITID})
+  ELSE ()
+    message(STATUS "not a git repository")
+    SET(TD_VER_GIT "no git commit id")
+  ENDIF ()
 ELSE ()
-  execute_process(
-	  COMMAND git log -1 --format=%H
-	  WORKING_DIRECTORY ${PROJECT_SOURCE_DIR} 
-	  OUTPUT_VARIABLE GIT_COMMITID
-  )
-  string (REGEX REPLACE "[\n\t\r]" "" GIT_COMMITID ${GIT_COMMITID})
-  SET(TD_VER_GIT_INTERNAL ${GIT_COMMITID})
+  message(STATUS "no git cmd")
+  SET(TD_VER_GIT_INTERNAL "no git commit id")
 ENDIF ()
 
 IF (DEFINED VERDATE)

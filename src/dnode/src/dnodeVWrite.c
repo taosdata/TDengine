@@ -53,7 +53,7 @@ void dnodeCleanupVWrite() {
   for (int32_t i = 0; i < tsVWriteWP.max; ++i) {
     SVWriteWorker *pWorker = tsVWriteWP.worker + i;
     if (taosCheckPthreadValid(pWorker->thread)) {
-      taosQsetThreadResume(pWorker->qset);
+      if (pWorker->qset) taosQsetThreadResume(pWorker->qset);
     }
   }
 

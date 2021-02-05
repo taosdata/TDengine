@@ -741,11 +741,14 @@ static SSyncPeer *syncCheckMaster(SSyncNode *pNode) {
       if (pTemp->role != TAOS_SYNC_ROLE_MASTER) continue;
       if (masterIndex < 0) {
         masterIndex = index;
+        sDebug("vgId:%d, peer:%s is master, index:%d", pNode->vgId, pTemp->id, index);
       } else {  // multiple masters, it shall not happen
         if (masterIndex == pNode->selfIndex) {
           sError("%s, peer is master, work as slave instead", pTemp->id);
           nodeRole = TAOS_SYNC_ROLE_SLAVE;
           (*pNode->notifyRoleFp)(pNode->vgId, nodeRole);
+        } else {
+          sError("vgId:%d, peer:%s is master too, masterIndex:%d index:%d", pNode->vgId, pTemp->id, masterIndex, index);
         }
       }
     }
@@ -833,7 +836,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus* peersStatus, int8_t new
   }
 
   if (oldPeerRole != newPeerRole || nodeRole != oldSelfRole) {
-    sDebug("vgId:%d, roles changed, broadcast status", pNode->vgId);
+    sDebug("vgId:%d, roles changed, broadcast status, replica:%d", pNode->vgId, pNode->replica);
     syncBroadcastStatus(pNode);
   }
 
@@ -860,8 +863,12 @@ static void syncRestartPeer(SSyncPeer *pPeer) {
 void syncRestartConnection(SSyncPeer *pPeer) {
   if (pPeer->ip == 0) return;
 
+  if (syncAcquirePeer(pPeer->rid) == NULL) return;
+  
   syncRestartPeer(pPeer);
   syncCheckRole(pPeer, NULL, TAOS_SYNC_ROLE_OFFLINE);
+
+  syncReleasePeer(pPeer);
 }
 
 static void syncProcessSyncRequest(char *msg, SSyncPeer *pPeer) {

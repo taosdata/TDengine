@@ -103,7 +103,7 @@ static void doLaunchQuery(void* param, TAOS_RES* tres, int32_t code) {
 
   // failed to get table Meta or vgroup list, retry in 10sec.
   if (code == TSDB_CODE_SUCCESS) {
-    tscTansformSQLFuncForSTableQuery(pQueryInfo);
+    tscTansformFuncForSTableQuery(pQueryInfo);
     tscDebug("%p stream:%p, start stream query on:%s", pSql, pStream, tNameGetTableName(&pTableMetaInfo->name));
 
     pSql->fp = tscProcessStreamQueryCallback;
