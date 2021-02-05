@@ -73,10 +73,7 @@ pipeline {
   }
   
   stages {
-      
-    
-      stage('Parallel test stage') {
-        stage('pre_build'){
+      stage('pre_build'){
           agent{label 'master'}
           steps {
           sh'''
@@ -91,6 +88,9 @@ pipeline {
           }
           }
       }
+    
+      stage('Parallel test stage') {
+        
         //only build pr
         when {
               changeRequest()
