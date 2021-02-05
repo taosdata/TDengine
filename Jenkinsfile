@@ -37,13 +37,13 @@ def pre_test(){
                 sudo rmtaos
                 '''
     }
-    sh '''
+    sh """
     
     cd ${WKC}
     git checkout develop
     git reset --hard HEAD~10 >/dev/null 
     git pull
-    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git fetch origin +refs/pull/${env.CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile' || exit 0
     cd ${WK}
@@ -60,7 +60,7 @@ def pre_test(){
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
-    '''
+    """
     return 1
 }
 def kipstage=0
@@ -76,13 +76,13 @@ pipeline {
       stage('pre_build'){
           agent{label 'master'}
           steps {
-          sh'''
+          sh"""
           cd ${WORKSPACE}
           git checkout develop
           git pull
-          git fetch origin +refs/pull/${CHANGE_ID}/merge
+          git fetch origin +refs/pull/${env.CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
-          '''
+          """
           script{
             skipstage=sh(script:"git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 1 ",returnStdout:true) 
           }
