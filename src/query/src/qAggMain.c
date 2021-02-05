@@ -1630,6 +1630,97 @@ static void stddev_dst_function(SQLFunctionCtx *pCtx) {
   memcpy(pCtx->pOutput, GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx)), sizeof(SAvgInfo));
 }
 
+static void stddev_dst_function_f(SQLFunctionCtx *pCtx, int32_t index) {
+  void *pData = GET_INPUT_DATA(pCtx, index);
+  if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
+    return;
+  }
+
+  // the second stage to calculate standard deviation
+  SStddevdstInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  double *retVal = &pStd->res;
+
+  // all data are null, no need to proceed
+  SArray* resList = (SArray*) pCtx->param[0].pz;
+  if (resList == NULL) {
+    return;
+  }
+
+  // find the correct group average results according to the tag value
+  int32_t len = (int32_t) taosArrayGetSize(resList);
+  assert(len > 0);
+
+  double avg = 0;
+  if (len == 1) {
+    SResPair* p = taosArrayGet(resList, 0);
+    avg = p->avg;
+  } else {  // todo opt performance by using iterator since the timestamp lsit is matched with the output result
+    SResPair* p = bsearch(&pCtx->startTs, resList->pData, len, sizeof(SResPair), tsCompare);
+    assert(p != NULL);
+
+    avg = p->avg;
+  }
+
+  int32_t num = 0;
+  switch (pCtx->inputType) {
+    case TSDB_DATA_TYPE_INT: {
+      for (int32_t i = 0; i < pCtx->size; ++i) {
+        if (pCtx->hasNull && isNull((const char*) (&((int32_t *)pData)[i]), pCtx->inputType)) {
+          continue;
+        }
+        num += 1;
+        *retVal += POW2(((int32_t *)pData)[i] - avg);
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      LOOP_STDDEV_IMPL(float, *retVal, pData, pCtx, avg, pCtx->inputType, num);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      LOOP_STDDEV_IMPL(double, *retVal, pData, pCtx, avg, pCtx->inputType, num);
+      break;
+    }
+    case TSDB_DATA_TYPE_TINYINT: {
+      LOOP_STDDEV_IMPL(int8_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      LOOP_STDDEV_IMPL(int8_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      LOOP_STDDEV_IMPL(int16_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      LOOP_STDDEV_IMPL(uint16_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      LOOP_STDDEV_IMPL(uint32_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      LOOP_STDDEV_IMPL(int64_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      LOOP_STDDEV_IMPL(uint64_t, *retVal, pData, pCtx, avg, pCtx->inputType, num);
+      break;
+    }
+    default:
+      qError("stddev function not support data type:%d", pCtx->inputType);
+  }
+
+  pStd->num += num;
+  SET_VAL(pCtx, num, 1);
+
+  // copy to the final output buffer for super table
+  memcpy(pCtx->pOutput, GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx)), sizeof(SAvgInfo));
+}
+
+
 static void stddev_dst_merge(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SStddevdstInfo* pRes = GET_ROWCELL_INTERBUF(pResInfo);
@@ -4835,7 +4926,7 @@ SAggFunctionInfo aAggs[] = {{
                               TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STABLE,
                               function_setup,
                               stddev_dst_function,
-                              noop2,
+                              stddev_dst_function_f,
                               no_next_step,
                               stddev_dst_finalizer,
                               stddev_dst_merge,

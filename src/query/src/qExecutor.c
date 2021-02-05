@@ -280,6 +280,17 @@ bool isGroupbyColumn(SSqlGroupbyExpr *pGroupbyExpr) {
   return false;
 }
 
+bool isStabledev(SQuery* pQuery) {
+  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+    int32_t functId = pQuery->pExpr1[i].base.functionId;
+    if (functId == TSDB_FUNC_STDDEV_DST) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 int16_t getGroupbyColumnType(SQuery *pQuery, SSqlGroupbyExpr *pGroupbyExpr) {
   assert(pGroupbyExpr != NULL);
 
@@ -1637,8 +1648,9 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
       pWindowResInfo->curIndex = index;
     } else {  // other queries
       // decide which group this rows belongs to according to current state value
+      char* val = NULL;
       if (groupbyColumnValue) {
-        char *val = groupbyColumnData + bytes * offset;
+        val = groupbyColumnData + bytes * offset;
         if (isNull(val, type)) {  // ignore the null value
           continue;
         }
@@ -1646,6 +1658,34 @@ static void rowwiseApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pS
         int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, val, type, bytes, item->groupIndex);
         if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
           longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
+        }
+      }
+
+      if (pRuntimeEnv->stabledev) {
+        for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
+          int32_t functionId = pQuery->pExpr1[k].base.functionId;
+          if (functionId != TSDB_FUNC_STDDEV_DST) {
+            continue;
+          }
+
+          pRuntimeEnv->pCtx[k].param[0].arr = NULL;
+          pRuntimeEnv->pCtx[k].param[0].nType = TSDB_DATA_TYPE_INT;  // avoid freeing the memory by setting the type to be int
+
+          // todo opt perf
+          int32_t numOfGroup = (int32_t)taosArrayGetSize(pRuntimeEnv->prevResult);
+          for (int32_t i = 0; i < numOfGroup; ++i) {
+            SInterResult *p = taosArrayGet(pRuntimeEnv->prevResult, i);
+            if (memcmp(p->tags, val, bytes) == 0) {
+              int32_t numOfCols = (int32_t)taosArrayGetSize(p->pResult);
+              for (int32_t f = 0; f < numOfCols; ++f) {
+                SStddevInterResult *pres = taosArrayGet(p->pResult, f);
+                if (pres->colId == pQuery->pExpr1[k].base.colInfo.colId) {
+                  pRuntimeEnv->pCtx[k].param[0].arr = pres->pResult;
+                  break;
+                }
+              }
+            }
+          }
         }
       }
 
@@ -3799,7 +3839,7 @@ int32_t setTimestampListJoinInfo(SQInfo *pQInfo, STableQueryInfo *pTableQueryInf
 int32_t setParamValue(SQueryRuntimeEnv* pRuntimeEnv) {
   SQuery* pQuery = pRuntimeEnv->pQuery;
 
-  if (pRuntimeEnv->prevResult == NULL) {
+  if (pRuntimeEnv->prevResult == NULL || pRuntimeEnv->groupbyColumn) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -4602,6 +4642,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   pRuntimeEnv->stableQuery = isSTableQuery;
   pRuntimeEnv->prevGroupId = INT32_MIN;
   pRuntimeEnv->groupbyColumn = isGroupbyColumn(pQuery->pGroupbyExpr);
+  pRuntimeEnv->stabledev = isStabledev(pQuery);
 
   if (pTsBuf != NULL) {
     int16_t order = (pQuery->order.order == pRuntimeEnv->pTsBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
@@ -4701,13 +4742,6 @@ static FORCE_INLINE void setEnvForEachBlock(SQInfo* pQInfo, STableQueryInfo* pTa
     setTimestampListJoinInfo(pQInfo, pTableQueryInfo);
   }
 
-  for(int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    if (pQuery->pExpr1[i].base.functionId == TSDB_FUNC_STDDEV_DST) {
-      setParamValue(pRuntimeEnv);
-      break;
-    }
-  }
-
   if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
     setIntervalQueryRange(pQInfo, pBlockInfo->window.skey);
   } else {  // non-interval query
@@ -4759,6 +4793,15 @@ static int64_t scanMultiTableDataBlocks(SQInfo *pQInfo) {
 
     if (!pRuntimeEnv->groupbyColumn) {
       setEnvForEachBlock(pQInfo, *pTableQueryInfo, &blockInfo);
+    }
+
+    if (pRuntimeEnv->stabledev) {
+      for(int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+        if (pQuery->pExpr1[i].base.functionId == TSDB_FUNC_STDDEV_DST) {
+          setParamValue(pRuntimeEnv);
+          break;
+        }
+      }
     }
 
     uint32_t     status = 0;
