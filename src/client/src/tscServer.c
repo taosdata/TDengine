@@ -688,7 +688,6 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
 }
 
 int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  return TSDB_CODE_TSC_INVALID_SQL;
   SSqlCmd *pCmd = &pSql->cmd;
 
   int32_t size = tscEstimateQueryMsgSize(pSql, pCmd->clauseIndex);
