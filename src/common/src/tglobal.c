@@ -273,7 +273,7 @@ bool taosCfgDynamicOptions(char *msg) {
   int32_t   vint = 0;
 
   paGetToken(msg, &option, &olen);
-  if (olen == 0) return TSDB_CODE_COM_INVALID_CFG_MSG;
+  if (olen == 0) return false;;
 
   paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)
@@ -316,11 +316,9 @@ bool taosCfgDynamicOptions(char *msg) {
       }
       return true;
     }
-
     if (strncasecmp(cfg->option, "debugFlag", olen) == 0) {
-      taosSetAllDebugFlag();
+       taosSetAllDebugFlag(); 
     }
-    
     return true;
   }
 

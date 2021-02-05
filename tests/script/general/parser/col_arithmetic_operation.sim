@@ -110,7 +110,7 @@ system sh/exec.sh -n dnode1 -s start
 
 print ================== server restart completed
 sql connect
-sleep 500c
+sleep 5000
 
 run general/parser/col_arithmetic_query.sim
 

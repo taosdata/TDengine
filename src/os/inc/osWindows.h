@@ -69,6 +69,8 @@ extern "C" {
 #define TAOS_OS_FUNC_FILE_GETTMPFILEPATH
 #define TAOS_OS_FUNC_FILE_FTRUNCATE 
 
+#define TAOS_OS_FUNC_DIR
+
 #define TAOS_OS_FUNC_MATH
   #define SWAP(a, b, c)      \
     do {                     \

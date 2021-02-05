@@ -64,7 +64,7 @@ typedef struct {
 #define tfsclose(fd) close(fd)
 #define tfsremove(pf) remove(TFILE_NAME(pf))
 #define tfscopy(sf, df) taosCopy(TFILE_NAME(sf), TFILE_NAME(df))
-#define tfsrename(sf, df) rename(TFILE_NAME(sf), TFILE_NAME(df))
+#define tfsrename(sf, df) taosRename(TFILE_NAME(sf), TFILE_NAME(df))
 
 void  tfsInitFile(TFILE *pf, int level, int id, const char *bname);
 bool  tfsIsSameFile(const TFILE *pf1, const TFILE *pf2);

@@ -395,7 +395,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
   }
 
   (void)close(fd);
-  (void)rename(tfname, cfname);
+  (void)taosRename(tfname, cfname);
   taosTZfree(pBuf);
 
   return 0;

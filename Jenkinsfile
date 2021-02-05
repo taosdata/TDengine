@@ -5,7 +5,7 @@ node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
 
-
+def kipstage=0
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -31,7 +31,6 @@ def abort_previous(){
   if (buildNumber > 1) milestone(buildNumber - 1)
   milestone(buildNumber)
 }
-def kipstage=0
 def pre_test(){
     catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
@@ -46,7 +45,7 @@ def pre_test(){
     git pull
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|.*src/connector|Jenkinsfile' || exit 0
+    git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile' || exit 0
     cd ${WK}
     git reset --hard HEAD~10
     git checkout develop
@@ -64,6 +63,7 @@ def pre_test(){
     '''
     return 1
 }
+
 pipeline {
   agent none
   
@@ -75,6 +75,9 @@ pipeline {
   stages {
       stage('pre_build'){
           agent{label 'master'}
+          when {
+              changeRequest()
+          }
           steps {
           sh'''
           cd ${WORKSPACE}
@@ -90,11 +93,12 @@ pipeline {
       }
     
       stage('Parallel test stage') {
+        
         //only build pr
         when {
               changeRequest()
-              expression {
-                    skipstage == 0
+               expression {
+                    skipstage != 1
               }
           }
       parallel {
@@ -258,8 +262,7 @@ pipeline {
     }
   }
   }
-  post {      
-      
+  post {  
         success {
             emailext (
                 subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS",
@@ -283,7 +286,7 @@ pipeline {
                                     <li>构建结果：<span style="color:green"> Successful </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
                                     <li>触发用户：${env.CHANGE_AUTHOR}</li>
-                                    <li>提交信息：${CHANGE_TITLE}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
                                     
@@ -318,10 +321,10 @@ pipeline {
                                 <ul>
                                 <div style="font-size:18px">
                                     <li>构建名称>>分支：${env.BRANCH_NAME}</li>
-                                    <li>构建结果：<span style="color:green"> Successful </span></li>
+                                    <li>构建结果：<span style="color:red"> Failure </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
                                     <li>触发用户：${env.CHANGE_AUTHOR}</li>
-                                    <li>提交信息：${CHANGE_TITLE}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
                                     
