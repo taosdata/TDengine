@@ -101,7 +101,7 @@ def restful_execute(host: str, port: int, user: str, password: str, cmd: str):
 
     v_print("resp status: %d", resp.status_code)
 
-    if verbose:
+    if debug:
         v_print(
             "resp text: %s",
             json.dumps(
@@ -138,7 +138,7 @@ def query_data_process(q_lock, i: int, cmd: str):
     v_print("Process:%d threads: %d cmd: %s", i, threads, cmd)
 
     q_lock.aquire()
-    cursor_p.execute(cmd)
+    cursor.execute(cmd)
     q_lock.release()
 
     return i
@@ -171,7 +171,7 @@ def insert_data(processes: int):
 
     remainder = numOfTb % processes
     v_print(
-        "num of tables: %d, quotient: %d, remainder: %d",
+        "insert_data num of tables: %d, quotient: %d, remainder: %d",
         numOfTb,
         quotient,
         remainder)
@@ -367,9 +367,9 @@ def create_tb():
                     (tbName, j))
 
 
-def insert_data_process(lock, i: int, begin: int, end: int):
-    print("CBD insert_data_process:%d table from %d to %d, tasks %d", i, begin, end, tasks)
-    time.sleep(1)
+def insert_data_process(i_lock, i: int, begin: int, end: int):
+    print("CBD LN371 insert_data_process:%d table from %d to %d, tasks %d", i, begin, end, tasks)
+    time.sleep(0.01)
     tasks = end - begin
     i_lock.aquire()
 
@@ -396,6 +396,23 @@ def insert_data_process(lock, i: int, begin: int, end: int):
                     end)]
             wait(workers, return_when=ALL_COMPLETED)
     i_lock.release()
+
+def query_db(i):
+    if native:
+        cursor.execute("USE %s%d" % (dbName, i))
+    else:
+        restful_execute(
+            host, port, user, password, "USE %s%d" %
+            (dbName, i))
+
+    for j in range(0, numOfTb):
+        if native:
+            cursor.execute(
+                "SELECT COUNT(*) FROM %s%d" % (tbName, j))
+        else:
+            restful_execute(
+                host, port, user, password, "SELECT COUNT(*) FROM %s%d" %
+                (tbName, j))
 
 
 def printConfig():
@@ -439,6 +456,7 @@ if __name__ == "__main__":
 
     native = False
     verbose = False
+    debug = False
     measure = True
     dropDbOnly = False
     colsPerRecord = 3
@@ -516,7 +534,7 @@ if __name__ == "__main__":
                   '\t-M, --stable                      flag, Use super table. Default is no')
             print(
                   '\t-s, --stbname <stable prefix>     stable_prefix, STable prefix name. Default is \'st\'')
-            print('\t-Q, --query <DEFAULT | command>   query, Execute query command. set \'DEFAULT\' means select * from each table')
+            print('\t-Q, --query <DEFAULT | NO | command>   query, Execute query command. set \'DEFAULT\' means select * from each table')
             print(
                   '\t-T, --threads <number>            num_of_threads, The number of threads. Default is 1.')
             print(
@@ -728,28 +746,12 @@ if __name__ == "__main__":
         create_tb()
         insert_data(processes)
 
-        if verbose:
+        if debug:
             for i in range(0, numOfDb):
-                if native:
-                    cursor.execute("USE %s%d" % (dbName, i))
-                else:
-                    restful_execute(
-                        host, port, user, password, "USE %s%d" %
-                        (dbName, i))
+                query_db(i)
 
-                for j in range(0, numOfTb):
-                    if native:
-                        cursor.execute(
-                            "SELECT COUNT(*) FROM %s%d" % (tbName, j))
-                    else:
-                        restful_execute(
-                            host, port, user, password, "SELECT COUNT(*) FROM %s%d" %
-                            (tbName, j))
-
-    if queryCmd != "DEFAULT":
+    if queryCmd != "NO":
         print("queryCmd: %s" % queryCmd)
-#        cursor.close() ##
-#        conn.close()  ## CBD
         query_data(queryCmd)
         sys.exit(0)
 
@@ -757,9 +759,10 @@ if __name__ == "__main__":
         cursor.close()
         conn.close()
 
-    print("done")
     if measure:
         end_time = time.time()
         print(
             "Total time consumed {} seconds.".format(
                 (end_time - start_time)))
+
+    print("done")
