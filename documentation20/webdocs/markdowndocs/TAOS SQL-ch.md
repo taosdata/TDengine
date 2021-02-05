@@ -290,7 +290,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 - **修改子表标签值**
 
     ```mysql
-    ALTER STABLE tb_name SET TAG tag_name=new_tag_value;
+    ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
     ```
     说明：除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于 STable，不能对单个子表操作。对 STable 添加标签以后，依托于该 STable 建立的所有表将自动增加了一个标签，所有新增标签的默认值都是 NULL。
 
