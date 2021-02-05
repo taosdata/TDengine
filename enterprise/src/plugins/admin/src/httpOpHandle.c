@@ -904,6 +904,6 @@ bool opProcessRequest(struct HttpContext *pContext) {
   } else {
   }
 
-  httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVLALID_URL);
+  httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVALID_URL);
   return false;
 }
