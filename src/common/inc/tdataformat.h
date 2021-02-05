@@ -134,6 +134,22 @@ typedef uint64_t TKEY;
 #define tdGetTKEY(key) (((TKEY)ABS(key)) | (TKEY_NEGATIVE_FLAG & (TKEY)(key)))
 #define tdGetKey(tkey) (((TSKEY)((tkey)&TKEY_VALUE_FILTER)) * (TKEY_IS_NEGATIVE(tkey) ? -1 : 1))
 
+#define MIN_TS_KEY ((TSKEY)0x8000000000000001)
+#define MAX_TS_KEY ((TSKEY)0x3fffffffffffffff)
+
+#define TD_TO_TKEY(key) tdGetTKEY(((key) < MIN_TS_KEY) ? MIN_TS_KEY : (((key) > MAX_TS_KEY) ? MAX_TS_KEY : key))
+
+static FORCE_INLINE TKEY keyToTkey(TSKEY key) {
+  TSKEY lkey = key;
+  if (key > MAX_TS_KEY) {
+    lkey = MAX_TS_KEY;
+  } else if (key < MIN_TS_KEY) {
+    lkey = MIN_TS_KEY;
+  }
+
+  return tdGetTKEY(lkey);
+}
+
 static FORCE_INLINE int tkeyComparFn(const void *tkey1, const void *tkey2) {
   TSKEY key1 = tdGetKey(*(TKEY *)tkey1);
   TSKEY key2 = tdGetKey(*(TKEY *)tkey2);
