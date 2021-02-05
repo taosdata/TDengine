@@ -450,6 +450,7 @@ int doProcessSql(SSqlObj *pSql) {
   }
   
   if (pRes->code != TSDB_CODE_SUCCESS) {
+    tscAsyncResultOnError(pSql);
     return pRes->code;
   }
 
@@ -458,6 +459,7 @@ int doProcessSql(SSqlObj *pSql) {
   // NOTE: if code is TSDB_CODE_SUCCESS, pSql may have been released here already by other threads.
   if (code != TSDB_CODE_SUCCESS) {
     pRes->code = code;
+    tscAsyncResultOnError(pSql);
     return code;
   }
   
@@ -686,6 +688,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
 }
 
 int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+  return TSDB_CODE_TSC_INVALID_SQL;
   SSqlCmd *pCmd = &pSql->cmd;
 
   int32_t size = tscEstimateQueryMsgSize(pSql, pCmd->clauseIndex);

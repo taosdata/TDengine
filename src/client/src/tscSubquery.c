@@ -2255,7 +2255,9 @@ static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES 
  * current query failed, and the retry count is less than the available
  * count, retry query clear previous retrieved data, then launch a new sub query
  */
-static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32_t code) {
+static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32_t code, int32_t *sent) {
+  *sent = 0;
+  
   SRetrieveSupport *trsupport = malloc(sizeof(SRetrieveSupport));
   if (trsupport == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -2298,6 +2300,8 @@ static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32
 
   int32_t ret = tscProcessSql(pNew);
 
+  *sent = 1;
+  
   // if failed to process sql, let following code handle the pSql
   if (ret == TSDB_CODE_SUCCESS) {
     tscFreeRetrieveSup(pSql);
@@ -2343,7 +2347,10 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
              subqueryIndex, tstrerror(pParentSql->res.code));
   } else {
     if (trsupport->numOfRetry++ < MAX_NUM_OF_SUBQUERY_RETRY && pParentSql->res.code == TSDB_CODE_SUCCESS) {
-      if (tscReissueSubquery(trsupport, pSql, numOfRows) == TSDB_CODE_SUCCESS) {
+      int32_t sent = 0;
+      
+      tscReissueSubquery(trsupport, pSql, numOfRows, &sent);
+      if (sent) {
         return;
       }
     } else {  // reach the maximum retry count, abort
@@ -2497,7 +2504,10 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     if (trsupport->numOfRetry++ < MAX_NUM_OF_SUBQUERY_RETRY) {
       tscError("%p sub:%p failed code:%s, retry:%d", pParentSql, pSql, tstrerror(numOfRows), trsupport->numOfRetry);
 
-      if (tscReissueSubquery(trsupport, pSql, numOfRows) == TSDB_CODE_SUCCESS) {
+      int32_t sent = 0;
+      
+      tscReissueSubquery(trsupport, pSql, numOfRows, &sent);
+      if (sent) {
         return;
       }
     } else {
@@ -2619,7 +2629,11 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
 
     if (trsupport->numOfRetry++ < MAX_NUM_OF_SUBQUERY_RETRY) {
       tscError("%p sub:%p failed code:%s, retry:%d", pParentSql, pSql, tstrerror(code), trsupport->numOfRetry);
-      if (tscReissueSubquery(trsupport, pSql, code) == TSDB_CODE_SUCCESS) {
+      
+      int32_t sent = 0;
+
+      tscReissueSubquery(trsupport, pSql, code, &sent);
+      if (sent) {
         return;
       }
     } else {
