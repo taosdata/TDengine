@@ -64,7 +64,7 @@ void tscReleaseRpc(void *param)  {
     return;
   }
   pthread_mutex_lock(&rpcObjMutex);
-  taosCacheRelease(tscRpcCache, (void *)&param, true); 
+  taosCacheRelease(tscRpcCache, (void *)&param, false); 
   pthread_mutex_unlock(&rpcObjMutex);
 } 
 
