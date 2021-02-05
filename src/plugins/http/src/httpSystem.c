@@ -92,6 +92,11 @@ void httpStopSystem() {
   tsHttpServer.stop = 1;
 #ifdef WINDOWS
   closesocket(tsHttpServer.fd);
+#elif __APPLE__
+  if (tsHttpServer.fd!=-1) {
+    close(tsHttpServer.fd);
+    tsHttpServer.fd = -1;
+  }
 #else
   shutdown(tsHttpServer.fd, SHUT_RD);
 #endif

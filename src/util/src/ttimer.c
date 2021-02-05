@@ -188,11 +188,7 @@ static void removeTimer(uintptr_t id) {
 }
 
 static int64_t getMonotonicMs(void) {
-#ifdef WINDOWS
   return (int64_t) getMonotonicUs() / 1000;
-#else
-  return taosGetTimestampMs();
-#endif
 }
 
 static void addToWheel(tmr_obj_t* timer, uint32_t delay) {

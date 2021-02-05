@@ -87,7 +87,7 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
-  rpcInit.idleTime = 2000; 
+  rpcInit.idleTime = tsShellActivityTimer * 1000; 
   rpcInit.ckey = "key"; 
   rpcInit.spi = 1; 
   rpcInit.secret = (char *)secretEncrypt;

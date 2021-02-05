@@ -24,42 +24,134 @@
 
 
 static void taosGetSystemTimezone() {
-  // get and set default timezone
   SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
-  if (cfg_timezone && cfg_timezone->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
-    char *tz = getenv("TZ");
-    if (tz == NULL || strlen(tz) == 0) {
-      strcpy(tsTimezone, "not configured");
-    }
-    else {
-      strcpy(tsTimezone, tz);
-    }
-    cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-    uInfo("timezone not configured, use default");
+  if (cfg_timezone == NULL) return;
+  if (cfg_timezone->cfgStatus >= TAOS_CFG_CSTATUS_DEFAULT) {
+    return;
   }
+
+  /* load time zone string from /etc/localtime */
+  char buf[4096];
+  char *tz = NULL; {
+    int n = readlink("/etc/localtime", buf, sizeof(buf));
+    if (n<0) {
+      uError("read /etc/localtime error, reason:%s", strerror(errno));
+      return;
+    }
+    buf[n] = '\0';
+    for(int i=n-1; i>=0; --i) {
+      if (buf[i]=='/') {
+        if (tz) {
+          tz = buf + i + 1;
+          break;
+        }
+        tz = buf + i + 1;
+      }
+    }
+    if (!tz || 0==strchr(tz, '/')) {
+      uError("parsing /etc/localtime failed");
+      return;
+    }
+
+    setenv("TZ", tz, 1);
+    tzset();
+  }
+
+  /*
+   * NOTE: do not remove it.
+   * Enforce set the correct daylight saving time(DST) flag according
+   * to current time
+   */
+  time_t    tx1 = time(NULL);
+  struct tm tm1;
+  localtime_r(&tx1, &tm1);
+
+  /*
+   * format example:
+   *
+   * Asia/Shanghai   (CST, +0800)
+   * Europe/London   (BST, +0100)
+   */
+  snprintf(tsTimezone, TSDB_TIMEZONE_LEN, "%s (%s, %+03ld00)",
+           tz, tm1.tm_isdst ? tzname[daylight] : tzname[0], -timezone/3600);
+
+  // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
+  uWarn("timezone not configured, set to system default:%s", tsTimezone);
 }
 
-static void taosGetSystemLocale() {
-  // get and set default locale
+/*
+ * originally from src/os/src/detail/osSysinfo.c
+ * POSIX format locale string:
+ * (Language Strings)_(Country/Region Strings).(code_page)
+ *
+ * example: en_US.UTF-8, zh_CN.GB18030, zh_CN.UTF-8,
+ *
+ * if user does not specify the locale in taos.cfg the program use default LC_CTYPE as system locale.
+ *
+ * In case of some CentOS systems, their default locale is "en_US.utf8", which is not valid code_page
+ * for libiconv that is employed to convert string in this system. This program will automatically use
+ * UTF-8 instead as the charset.
+ *
+ * In case of windows client, the locale string is not valid POSIX format, user needs to set the
+ * correct code_page for libiconv. Usually, the code_page of windows system with simple chinese is
+ * CP936, CP437 for English charset.
+ *
+ */
+static void taosGetSystemLocale() {  // get and set default locale
+  char  sep = '.';
+  char *locale = NULL;
+
   SGlobalCfg *cfg_locale = taosGetConfigOption("locale");
   if (cfg_locale && cfg_locale->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
-    char *locale = setlocale(LC_CTYPE, "chs");
-    if (locale != NULL) {
+    locale = setlocale(LC_CTYPE, "");
+    if (locale == NULL) {
+      uError("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
+      strcpy(tsLocale, "en_US.UTF-8");
+    } else {
       tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
-      cfg_locale->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-      uInfo("locale not configured, set to default:%s", tsLocale);
+      uWarn("locale not configured, set to system default:%s", tsLocale);
     }
   }
 
+  /* if user does not specify the charset, extract it from locale */
   SGlobalCfg *cfg_charset = taosGetConfigOption("charset");
   if (cfg_charset && cfg_charset->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
-    strcpy(tsCharset, "cp936");
-    cfg_charset->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-    uInfo("charset not configured, set to default:%s", tsCharset);
+    char *str = strrchr(tsLocale, sep);
+    if (str != NULL) {
+      str++;
+
+      char *revisedCharset = taosCharsetReplace(str);
+      tstrncpy(tsCharset, revisedCharset, TSDB_LOCALE_LEN);
+
+      free(revisedCharset);
+      uWarn("charset not configured, set to system default:%s", tsCharset);
+    } else {
+      strcpy(tsCharset, "UTF-8");
+      uWarn("can't get locale and charset from system, set it to UTF-8");
+    }
   }
 }
 
-void taosPrintOsInfo() {}
+void taosPrintOsInfo() {
+  uInfo(" os pageSize:            %" PRId64 "(KB)", tsPageSize / 1024);
+  // uInfo(" os openMax:             %" PRId64, tsOpenMax);
+  // uInfo(" os streamMax:           %" PRId64, tsStreamMax);
+  uInfo(" os numOfCores:          %d", tsNumOfCores);
+  uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
+  uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
+
+  struct utsname buf;
+  if (uname(&buf)) {
+    uInfo(" can't fetch os info");
+    return;
+  }
+  uInfo(" os sysname:             %s", buf.sysname);
+  uInfo(" os nodename:            %s", buf.nodename);
+  uInfo(" os release:             %s", buf.release);
+  uInfo(" os version:             %s", buf.version);
+  uInfo(" os machine:             %s", buf.machine);
+  uInfo("==================================");
+}
 
 void taosKillSystem() {
   uError("function taosKillSystem, exit!");
@@ -67,6 +159,22 @@ void taosKillSystem() {
 }
 
 void taosGetSystemInfo() {
+  // taosGetProcInfos();
+
+  tsNumOfCores        = sysconf(_SC_NPROCESSORS_ONLN);
+  long physical_pages = sysconf(_SC_PHYS_PAGES);
+  long page_size      = sysconf(_SC_PAGESIZE);
+  tsTotalMemoryMB     = physical_pages * page_size / (1024 * 1024);
+  tsPageSize          = page_size;
+
+  // float tmp1, tmp2;
+  // taosGetSysMemory(&tmp1);
+  // taosGetProcMemory(&tmp2);
+  // taosGetDisk();
+  // taosGetBandSpeed(&tmp1);
+  // taosGetCpuUsage(&tmp1, &tmp2);
+  // taosGetProcIO(&tmp1, &tmp2);
+
   taosGetSystemTimezone();
   taosGetSystemLocale();
 }
@@ -121,7 +229,6 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
 char cmdline[1024];
 
 char *taosGetCmdlineByPID(int pid) {
-
   errno = 0;
 
   if (proc_pidpath(pid, cmdline, sizeof(cmdline)) <= 0) {
@@ -136,6 +243,7 @@ bool taosGetSystemUid(char *uid) {
   uuid_t uuid = {0};
   uuid_generate(uuid);
   // it's caller's responsibility to make enough space for `uid`, that's 36-char + 1-null
-  uuid_unparse(uuid, uid);
+  uuid_unparse_lower(uuid, uid);
   return true;
 }
+

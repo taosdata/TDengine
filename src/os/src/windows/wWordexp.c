@@ -38,7 +38,3 @@ int wordexp(char *words, wordexp_t *pwordexp, int flags) {
 }
 
 void wordfree(wordexp_t *pwordexp) {}
-
-char *realpath(char *path, char *resolved_path) {
-  return _fullpath(path, resolved_path, TSDB_FILENAME_LEN - 1);
-}

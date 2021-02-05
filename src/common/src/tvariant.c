@@ -86,43 +86,53 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->i64 = GET_INT8_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->u64 = GET_UINT8_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->i64 = GET_INT16_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_USMALLINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->u64 = GET_UINT16_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_INT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->i64 = GET_INT32_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_UINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->u64 = GET_UINT32_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->i64 = GET_INT64_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_UBIGINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->u64 = GET_UINT64_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->dKey = GET_DOUBLE_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->dKey = GET_FLOAT_VAL(pz);
       break;
     }
@@ -144,6 +154,7 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
     
     default:
       pVar->i64 = GET_INT32_VAL(pz);
+      pVar->nLen = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
   }
   
   pVar->nType = type;

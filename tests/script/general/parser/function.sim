@@ -408,3 +408,358 @@ sql select count(*) from m1 where ts='2020-1-1 1:1:1' interval(1h) group by tbna
 if $rows != 2 then
   return -1
 endi
+
+sql drop table m1;
+sql drop table if exists tm1;
+sql drop table if exists tm2;
+sql create table m1(ts timestamp, k double, b double, c int, d smallint, e int unsigned) tags(a int);
+sql create table tm1 using m1 tags(1);
+sql create table tm2 using m1 tags(2);
+sql insert into tm1 values('2021-01-27 22:22:39.294', 1, 10, NULL, 110, 123) ('2021-01-27 22:22:40.294', 2, 20, NULL, 120, 124) ('2021-01-27 22:22:41.294', 3, 30, NULL, 130, 125)('2021-01-27 22:22:43.294', 4, 40, NULL, 140, 126)('2021-01-27 22:22:44.294', 5, 50, NULL, 150, 127);
+sql insert into tm2 values('2021-01-27 22:22:40.688', 5, 101, NULL, 210, 321) ('2021-01-27 22:22:41.688', 5, 102, NULL, 220, 322) ('2021-01-27 22:22:42.688', 5, 103, NULL, 230, 323)('2021-01-27 22:22:43.688', 5, 104, NULL, 240, 324)('2021-01-27 22:22:44.688', 5, 105, NULL, 250, 325)('2021-01-27 22:22:45.688', 5, 106, NULL, 260, 326);
+sql select stddev(k) from m1
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1.378704626 then
+  return -1
+endi
+
+sql select stddev(c) from m1
+if $rows != 0 then
+  return -1
+endi
+
+sql select stddev(k), stddev(c) from m1
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1.378704626 then
+  return -1
+endi
+
+if $data01 != NULL then
+  return -1;
+endi
+
+sql select stddev(b),stddev(b),stddev(k) from m1;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 37.840465463 then
+  return -1
+endi
+
+if $data01 != 37.840465463 then
+  return -1
+endi
+
+if $data02 != 1.378704626 then
+  return -1
+endi
+
+sql select stddev(k), stddev(b) from m1 group by a
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != 1.414213562 then
+  return -1
+endi
+
+if $data01 != 14.142135624 then
+  return -1
+endi
+
+if $data02 != 1 then
+  return -1
+endi
+
+if $data10 != 0.000000000 then
+  return -1
+endi
+
+if $data11 != 1.707825128 then
+  return -1
+endi
+
+if $data12 != 2 then
+  return -1
+endi
+
+sql select stddev(k), stddev(b) from m1 where a= 1 group by a
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1.414213562 then
+ return -1
+endi
+
+if $data01 != 14.142135624 then
+  return -1
+endi
+
+if $data02 != 1 then
+ return -1
+endi
+
+sql select stddev(k), stddev(b) from m1 group by tbname
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != 1.414213562 then
+  return -1
+endi
+
+if $data01 != 14.142135624 then
+  return -1
+endi
+
+if $data02 != @tm1@ then
+  return -1
+endi
+
+if $data10 != 0.000000000 then
+  return -1
+endi
+
+if $data11 != 1.707825128 then
+  return -1
+endi
+
+if $data12 != @tm2@ then
+  return -1
+endi
+
+sql select stddev(k), stddev(b) from m1 group by tbname,a
+if $rows != 2 then
+  return -1
+endi
+
+sql select stddev(k), stddev(b), stddev(c) from m1  group by tbname,a
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != 1.414213562 then
+  return -1
+endi
+
+if $data01 != 14.142135624 then
+  return -1
+endi
+
+if $data02 != NULL then
+  return -1
+endi
+
+if $data03 != @tm1@ then
+  return -1
+endi
+
+if $data04 != 1 then
+  return -1
+endi
+
+if $data10 != 0.000000000 then
+  return -1
+endi
+
+if $data11 != 1.707825128 then
+  return -1
+endi
+
+if $data12 != NULL then
+  return -1
+endi
+
+if $data13 != @tm2@ then
+  return -1
+endi
+
+if $data14 != 2 then
+  return -1
+endi
+
+sql select stddev(k), stddev(b), stddev(c) from m1 interval(10s) group by tbname,a
+if $rows != 3 then
+  return -1
+endi
+
+if $data01 != 0.000000000 then
+  return -1
+endi
+
+if $data02 != 0.000000000 then
+  return -1
+endi
+
+if $data03 != NULL then
+  return -1
+endi
+
+if $data04 != @tm1@ then
+  return -1
+endi
+
+if $data05 != 1 then
+  return -1
+endi
+
+if $data11 != 1.118033989 then
+  return -1
+endi
+
+if $data12 != 11.180339887 then
+  return -1
+endi
+
+if $data13 != NULL then
+  return -1
+endi
+
+if $data14 != @tm1@ then
+  return -1
+endi
+
+if $data22 != 1.707825128 then
+  return -1
+endi
+
+if $data23 != NULL then
+  return -1
+endi
+
+if $data24 != @tm2@ then
+  return -1
+endi
+
+if $data25 != 2 then
+  return -1
+endi
+
+sql select count(*), first(b), stddev(b), stddev(c) from m1 interval(10s) group by a
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != @21-01-27 22:22:30.000@ then
+  return -1
+endi
+
+if $data01 != 1 then
+  return -1
+endi
+
+if $data02 != 10.000000000 then
+  return -1
+endi
+
+if $data03 != 0.000000000 then
+  return -1
+endi
+
+if $data04 != NULL then
+  return -1
+endi
+
+if $data05 != 1 then
+  return -1
+endi
+
+if $data12 != 20.000000000 then
+  return -1
+endi
+
+if $data13 != 11.180339887 then
+  return -1
+endi
+
+if $data14 != NULL then
+  return -1
+endi
+
+if $data23 != 1.707825128 then
+  return -1
+endi
+
+sql select count(*), first(b), stddev(b), stddev(c) from m1 interval(10s) group by tbname,a
+if $rows != 3 then
+  return -1
+endi
+
+if $data23 != 1.707825128 then
+  return -1
+endi
+
+if $data25 != @tm2@ then
+  return -1
+endi
+
+sql select count(*), stddev(b), stddev(b)+20, stddev(c) from m1 interval(10s) group by tbname,a
+if $rows != 3 then
+  return -1
+endi
+
+if $data02 != 0.000000000 then
+  return -1
+endi
+
+if $data03 != 20.000000000 then
+  return -1
+endi
+
+if $data13 != 31.180339887 then
+  return -1
+endi
+
+if $data14 != NULL then
+  return -1
+endi
+
+sql select count(*), first(b), stddev(b)+first(b), stddev(c) from m1 interval(10s) group by tbname,a
+if $rows != 3 then
+  return -1
+endi
+
+if $data02 != 10.000000000 then
+  return -1
+endi
+
+if $data03 != 10.000000000 then
+  return -1
+endi
+
+if $data12 != 20.000000000 then
+  return -1
+endi
+
+if $data13 != 31.180339887 then
+  return -1
+endi
+
+if $data22 != 101.000000000 then
+  return -1
+endi
+
+if $data23 != 102.707825128 then
+  return -1
+endi
+
+sql select stddev(e),stddev(k) from m1 where a=1
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1.414213562 then
+  return -1
+endi
+
+if $data01 != 1.414213562 then
+  return -1
+endi

@@ -46,6 +46,8 @@
 #include "msvcFcntl.h"
 #include "msvcLibgen.h"
 #include "msvcStdio.h"
+#include "msvcUnistd.h"
+#include "msvcLibgen.h"
 #include "sys/msvcStat.h"
 #include "sys/msvcTypes.h"
 
@@ -144,7 +146,6 @@ typedef int (*__compar_fn_t)(const void *, const void *);
 #define in_addr_t unsigned long
 #define socklen_t int
 #define htobe64 htonll
-#define getpid _getpid
 
 struct tm *localtime_r(const time_t *timep, struct tm *result);
 char *     strptime(const char *buf, const char *fmt, struct tm *tm);
@@ -153,14 +154,7 @@ char *     getpass(const char *prefix);
 int        flock(int fd, int option);
 int        fsync(int filedes);
 char *     strndup(const char *s, size_t n);
-char *     dirname(char *pszPathname);
 int        gettimeofday(struct timeval *ptv, void *pTimeZone);
-
-// for access function in io.h
-#define F_OK 00  //Existence only
-#define W_OK 02  //Write - only
-#define R_OK 04  //Read - only
-#define X_OK 06  //Read and write
 
 // for send function in tsocket.c
 #define MSG_NOSIGNAL             0
@@ -207,8 +201,6 @@ typedef struct {
 } wordexp_t;
 int  wordexp(char *words, wordexp_t *pwordexp, int flags);
 void wordfree(wordexp_t *pwordexp);
-
-char *realpath(char *path, char *resolved_path);
 
 #define openlog(a, b, c)
 #define closelog()

@@ -20,6 +20,8 @@
 #define TSDB_FILE_DELIMITER 0xF00AFA0F
 #define TSDB_FILE_INIT_MAGIC 0xFFFFFFFF
 #define TSDB_IVLD_FID INT_MIN
+#define TSDB_FILE_STATE_OK 0
+#define TSDB_FILE_STATE_BAD 1
 
 #define TSDB_FILE_INFO(tf) (&((tf)->info))
 #define TSDB_FILE_F(tf) (&((tf)->f))
@@ -31,6 +33,10 @@
 #define TSDB_FILE_LEVEL(tf) TFILE_LEVEL(TSDB_FILE_F(tf))
 #define TSDB_FILE_ID(tf) TFILE_ID(TSDB_FILE_F(tf))
 #define TSDB_FILE_FSYNC(tf) fsync(TSDB_FILE_FD(tf))
+#define TSDB_FILE_STATE(tf) ((tf)->state)
+#define TSDB_FILE_SET_STATE(tf, s) ((tf)->state = (s))
+#define TSDB_FILE_IS_OK(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_OK)
+#define TSDB_FILE_IS_BAD(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_BAD)
 
 typedef enum { TSDB_FILE_HEAD = 0, TSDB_FILE_DATA, TSDB_FILE_LAST, TSDB_FILE_MAX, TSDB_FILE_META } TSDB_FILE_T;
 
@@ -47,10 +53,11 @@ typedef struct {
   SMFInfo info;
   TFILE   f;
   int     fd;
+  uint8_t state;
 } SMFile;
 
 void  tsdbInitMFile(SMFile* pMFile, SDiskID did, int vid, uint32_t ver);
-void  tsdbInitMFileEx(SMFile* pMFile, SMFile* pOMFile);
+void  tsdbInitMFileEx(SMFile* pMFile, const SMFile* pOMFile);
 int   tsdbEncodeSMFile(void** buf, SMFile* pMFile);
 void* tsdbDecodeSMFile(void* buf, SMFile* pMFile);
 int   tsdbEncodeSMFileEx(void** buf, SMFile* pMFile);
@@ -165,6 +172,7 @@ typedef struct {
   SDFInfo info;
   TFILE   f;
   int     fd;
+  uint8_t state;
 } SDFile;
 
 void  tsdbInitDFile(SDFile* pDFile, SDiskID did, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype);
@@ -344,6 +352,16 @@ static FORCE_INLINE int tsdbCopyDFileSet(SDFileSet* pSrc, SDFileSet* pDest) {
 static FORCE_INLINE void tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY* minKey, TSKEY* maxKey) {
   *minKey = fid * days * tsMsPerDay[precision];
   *maxKey = *minKey + days * tsMsPerDay[precision] - 1;
+}
+
+static FORCE_INLINE bool tsdbFSetIsOk(SDFileSet* pSet) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    if (TSDB_FILE_IS_BAD(TSDB_DFILE_IN_SET(pSet, ftype))) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 #endif /* _TS_TSDB_FILE_H_ */

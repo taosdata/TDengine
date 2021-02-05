@@ -263,6 +263,28 @@ int32_t mnodeGetOnlineDnodesNum() {
   return onlineDnodes;
 }
 
+void mnodeGetOnlineAndTotalDnodesNum(int32_t *onlineNum, int32_t *totalNum) {
+  SDnodeObj *pDnode = NULL;
+  void *     pIter = NULL;
+  int32_t    onlineDnodes = 0, totalDnodes = 0;
+
+  while (1) {
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
+    if (pDnode == NULL) break;
+    if (pDnode->status != TAOS_DN_STATUS_OFFLINE) ++onlineDnodes;
+    ++totalDnodes;
+    mnodeDecDnodeRef(pDnode);
+  }
+
+  if (onlineNum) {
+    *onlineNum = onlineDnodes;
+  }
+
+  if (totalNum) {
+    *totalNum = totalDnodes;
+  }
+}
+
 void *mnodeGetDnode(int32_t dnodeId) {
   return sdbGetRow(tsDnodeSdb, &dnodeId);
 }
