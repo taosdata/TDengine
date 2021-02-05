@@ -286,7 +286,7 @@ pipeline {
                                     <li>构建结果：<span style="color:green"> Successful </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
                                     <li>触发用户：${env.CHANGE_AUTHOR}</li>
-                                    <li>提交信息：${CHANGE_TITLE}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
                                     
@@ -324,7 +324,7 @@ pipeline {
                                     <li>构建结果：<span style="color:red"> Failure </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
                                     <li>触发用户：${env.CHANGE_AUTHOR}</li>
-                                    <li>提交信息：${CHANGE_TITLE}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
                                     
