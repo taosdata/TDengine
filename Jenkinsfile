@@ -5,7 +5,7 @@ node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
 
-
+def kipstage=0
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -37,13 +37,13 @@ def pre_test(){
                 sudo rmtaos
                 '''
     }
-    sh """
+    sh '''
     
     cd ${WKC}
     git checkout develop
     git reset --hard HEAD~10 >/dev/null 
     git pull
-    git fetch origin +refs/pull/${env.CHANGE_ID}/merge
+    git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile' || exit 0
     cd ${WK}
@@ -60,10 +60,10 @@ def pre_test(){
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
-    """
+    '''
     return 1
 }
-def kipstage=0
+
 pipeline {
   agent none
   
@@ -75,14 +75,17 @@ pipeline {
   stages {
       stage('pre_build'){
           agent{label 'master'}
+          when {
+              changeRequest()
+          }
           steps {
-          sh"""
+          sh'''
           cd ${WORKSPACE}
           git checkout develop
           git pull
-          git fetch origin +refs/pull/${env.CHANGE_ID}/merge
+          git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
-          """
+          '''
           script{
             skipstage=sh(script:"git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 1 ",returnStdout:true) 
           }
@@ -259,7 +262,7 @@ pipeline {
     }
   }
   }
-  post {      
+  post {  
         success {
             emailext (
                 subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS",
@@ -318,7 +321,7 @@ pipeline {
                                 <ul>
                                 <div style="font-size:18px">
                                     <li>构建名称>>分支：${env.BRANCH_NAME}</li>
-                                    <li>构建结果：<span style="color:green"> Successful </span></li>
+                                    <li>构建结果：<span style="color:red"> Failure </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
                                     <li>触发用户：${env.CHANGE_AUTHOR}</li>
                                     <li>提交信息：${CHANGE_TITLE}</li>
