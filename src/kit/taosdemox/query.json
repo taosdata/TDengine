@@ -5,6 +5,7 @@
   "port": 6030,
   "user": "root",
   "password": "taosdata",
+  "confirm_parameter_prompt": "yes",
   "databases": "db01",
   "specified_table_query":
     {"query_interval":1, "concurrent":1,
