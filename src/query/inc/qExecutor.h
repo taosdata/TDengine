@@ -235,7 +235,8 @@ typedef struct SQueryRuntimeEnv {
   bool                 hasTagResults;    // if there are tag values in final result or not
   bool                 timeWindowInterpo;// if the time window start/end required interpolation
   bool                 queryWindowIdentical; // all query time windows are identical for all tables in one group
-  bool                 queryBlockDist;    // if query data block distribution  
+  bool                 queryBlockDist;    // if query data block distribution
+  bool                 stabledev;        // super table stddev query
   int32_t              interBufSize;     // intermediate buffer sizse
   int32_t              prevGroupId;      // previous executed group id
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file

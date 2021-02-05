@@ -2970,7 +2970,6 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd)
 
   STableMeta* pTableMeta = NULL;
   SSchema*    pSchema = NULL;
-//  SSchema     s = tGetTbnameColumnSchema();
 
   int32_t tableIndex = COLUMN_INDEX_INITIAL_VAL;
 
