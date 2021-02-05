@@ -93,7 +93,6 @@ pipeline {
       }
     
       stage('Parallel test stage') {
-        
         //only build pr
         when {
               changeRequest()
