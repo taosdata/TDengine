@@ -98,7 +98,7 @@ pipeline {
         when {
               changeRequest()
                expression {
-                    skipstage == 0
+                    skipstage != 1
               }
           }
       parallel {
