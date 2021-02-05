@@ -21,9 +21,11 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "talgo.h"
 
 #define TARRAY_MIN_SIZE 8
 #define TARRAY_GET_ELEM(array, index) ((void*)((char*)((array)->pData) + (index) * (array)->elemSize))
+#define TARRAY_ELEM_IDX(array, ele) (POINTER_DISTANCE(ele, (array)->pData) / (array)->elemSize)
 
 typedef struct SArray {
   size_t size;
@@ -44,9 +46,20 @@ void* taosArrayInit(size_t size, size_t elemSize);
  *
  * @param pArray
  * @param pData
+ * @param nEles
  * @return
  */
-void* taosArrayPush(SArray* pArray, void* pData);
+void *taosArrayPushBatch(SArray *pArray, const void *pData, int nEles);
+
+/**
+ *
+ * @param pArray
+ * @param pData
+ * @return
+ */
+static FORCE_INLINE void* taosArrayPush(SArray* pArray, const void* pData) {
+  return taosArrayPushBatch(pArray, pData, 1);
+}
 
 /**
  *
@@ -93,6 +106,14 @@ size_t taosArrayGetSize(const SArray* pArray);
 void* taosArrayInsert(SArray* pArray, size_t index, void* pData);
 
 /**
+ * set data in array
+ * @param pArray
+ * @param index
+ * @param pData
+ */
+void taosArraySet(SArray* pArray, size_t index, void* pData);
+
+/**
  * remove data entry of the given index
  * @param pArray
  * @param index
@@ -122,7 +143,7 @@ void taosArrayClear(SArray* pArray);
  * destroy array list
  * @param pArray
  */
-void taosArrayDestroy(SArray* pArray);
+void* taosArrayDestroy(SArray* pArray);
 
 /**
  *
@@ -136,7 +157,7 @@ void taosArrayDestroyEx(SArray* pArray, void (*fp)(void*));
  * @param pArray
  * @param compar
  */
-void taosArraySort(SArray* pArray, int (*compar)(const void*, const void*));
+void taosArraySort(SArray* pArray, __compar_fn_t comparFn);
 
 /**
  * sort string array
@@ -150,14 +171,14 @@ void taosArraySortString(SArray* pArray, __compar_fn_t comparFn);
  * @param compar
  * @param key
  */
-void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn);
+void* taosArraySearch(const SArray* pArray, const void* key, __compar_fn_t comparFn, int flags);
 
 /**
  * search the array
  * @param pArray
  * @param key
  */
-char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn);
+char* taosArraySearchString(const SArray* pArray, const char* key, __compar_fn_t comparFn, int flags);
 
 #ifdef __cplusplus
 }

@@ -224,7 +224,9 @@ typedef struct SQueryInfo {
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
   int16_t          resColumnId;   // result column id
   bool             distinctTag;   // distinct tag or not
-  
+  int32_t          round;         // 0/1/....
+  int32_t          bufLen;
+  char*            buf;
 } SQueryInfo;
 
 typedef struct {
@@ -412,10 +414,9 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code);
 
 int tscProcessLocalCmd(SSqlObj *pSql);
 int tscCfgDynamicOptions(char *msg);
-int taos_retrieve(TAOS_RES *res);
 
-int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
-void    tscRestoreSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
+int32_t tscTansformFuncForSTableQuery(SQueryInfo *pQueryInfo);
+void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);

@@ -91,6 +91,20 @@ void cqRmFromList(SCqObj *pObj) {
 
 }
 
+static void freeSCqContext(void *handle) {
+  if (handle == NULL) {
+    return;
+  }
+  SCqContext *pContext = handle;
+  pthread_mutex_destroy(&pContext->mutex);
+    
+  taosTmrCleanUp(pContext->tmrCtrl);
+  pContext->tmrCtrl = NULL;
+  cDebug("vgId:%d, CQ is closed", pContext->vgId);
+  free(pContext);
+}
+
+
 void cqFree(void *handle) {
   if (tsEnableStream == 0) {
     return;
@@ -125,15 +139,7 @@ void cqFree(void *handle) {
   pthread_mutex_unlock(&pContext->mutex);
 
   if (delete) {
-    pthread_mutex_unlock(&pContext->mutex);
-    
-    pthread_mutex_destroy(&pContext->mutex);
-    
-    taosTmrCleanUp(pContext->tmrCtrl);
-    pContext->tmrCtrl = NULL;
-    
-    cDebug("vgId:%d, CQ is closed", pContext->vgId);
-    free(pContext);
+    freeSCqContext(pContext);
   }
 }
 
@@ -186,6 +192,7 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
   return pContext;
 }
 
+
 void cqClose(void *handle) {
   if (tsEnableStream == 0) {
     return;
@@ -194,6 +201,8 @@ void cqClose(void *handle) {
   if (handle == NULL) return;
 
   pContext->delete = 1;
+  int32_t hasCq = 0;
+  int32_t existLoop = 0;
   
   // stop all CQs
   cqStop(pContext);
@@ -208,6 +217,12 @@ void cqClose(void *handle) {
       cqRmFromList(pObj);
 
       rid = pObj->rid;
+
+      hasCq = 1;
+
+      if (pContext->pHead == NULL) {
+        existLoop = 1;
+      }
     } else {      
       pthread_mutex_unlock(&pContext->mutex);
       break;
@@ -216,6 +231,14 @@ void cqClose(void *handle) {
     pthread_mutex_unlock(&pContext->mutex);
     
     taosRemoveRef(cqObjRef, rid);
+
+    if (existLoop) {
+      break;
+    }
+  }
+
+  if (hasCq == 0) {
+    freeSCqContext(pContext);
   }
 }
 

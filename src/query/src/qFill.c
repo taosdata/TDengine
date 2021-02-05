@@ -321,7 +321,7 @@ static int32_t taosNumOfRemainRows(SFillInfo* pFillInfo) {
   return pFillInfo->numOfRows - pFillInfo->index;
 }
 
-SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
+SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
                             int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
                             SFillColInfo* pCol, void* handle) {
   if (fillType == TSDB_FILL_NONE) {
@@ -414,7 +414,7 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
 }
 
 // copy the data into source data buffer
-void taosFillCopyInputDataFromFilePage(SFillInfo* pFillInfo, const tFilePage** pInput) {
+void taosFillSetDataBlockFromFilePage(SFillInfo* pFillInfo, const tFilePage** pInput) {
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     memcpy(pFillInfo->pData[i], pInput[i]->data, pFillInfo->numOfRows * pFillInfo->pFillCol[i].col.bytes);
   }
