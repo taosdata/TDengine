@@ -87,7 +87,7 @@ pipeline {
           git checkout -qf FETCH_HEAD
           '''
           script{
-            skipstage=sh(script:"git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 1 ",returnStdout:true) 
+            skipstage=sh(script:"git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
           }
           }
       }
@@ -98,7 +98,7 @@ pipeline {
         when {
               changeRequest()
                expression {
-                    skipstage != 1
+                    skipstage != 0
               }
           }
       parallel {
@@ -216,6 +216,7 @@ pipeline {
               date
               cd ${WKC}/tests
               ./test-all.sh b4fq
+              ./test-all.sh p4
               date'''
             }
           }

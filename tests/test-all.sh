@@ -261,6 +261,9 @@ if [ "$2" != "sim" ]; then
   elif [ "$1" == "p3" ]; then
     echo "### run Python_3 test ###"
     runPyCaseOneByOnefq pytest_3.sh
+  elif [ "$1" == "p4" ]; then
+    echo "### run Python_4 test ###"
+    runPyCaseOneByOnefq pytest_4.sh
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
     exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
