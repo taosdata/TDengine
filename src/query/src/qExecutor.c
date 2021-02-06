@@ -3956,7 +3956,7 @@ static int32_t doCopyToSData(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pGrou
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
-  int32_t numOfResult = pQuery->rec.rows; // there are already exists result rows
+  int32_t numOfResult = (int32_t) pQuery->rec.rows; // there are already exists result rows
 
   int32_t start = 0;
   int32_t step = -1;
@@ -3981,7 +3981,7 @@ static int32_t doCopyToSData(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pGrou
 
     //current output space is not enough to accommodate all data of this page, prepare more space
     if (numOfRowsToCopy > (pQuery->rec.capacity - numOfResult)) {
-      int32_t newSize = pQuery->rec.capacity + (numOfRowsToCopy - numOfResult);
+      int32_t newSize = (int32_t) (pQuery->rec.capacity + (numOfRowsToCopy - numOfResult));
       expandBuffer(pRuntimeEnv, newSize, GET_QINFO_ADDR(pRuntimeEnv));
     }
 
@@ -4634,7 +4634,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
 
   pQInfo->tsdb = tsdb;
   pQInfo->vgId = vgId;
-  pQInfo->groupResInfo.totalGroup = isSTableQuery? GET_NUM_OF_TABLEGROUP(pQInfo):0;
+  pQInfo->groupResInfo.totalGroup = (int32_t) (isSTableQuery? GET_NUM_OF_TABLEGROUP(pQInfo):0);
 
   pRuntimeEnv->pQuery = pQuery;
   pRuntimeEnv->pTsBuf = pTsBuf;
@@ -5733,14 +5733,14 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
       return;
     }
 
-    initGroupResInfo(&pQInfo->groupResInfo, &pRuntimeEnv->resultRowInfo, pQuery->limit.offset);
+    initGroupResInfo(&pQInfo->groupResInfo, &pRuntimeEnv->resultRowInfo, (int32_t) pQuery->limit.offset);
     copyToOutputBuf(pQInfo, &pRuntimeEnv->resultRowInfo);
     doSecondaryArithmeticProcess(pQuery);
 
     limitOperator(pQuery, pQInfo);
   } else {
     initGroupResInfo(&pQInfo->groupResInfo, &pRuntimeEnv->resultRowInfo, 0);
-    return copyAndFillResult(pQInfo);
+    copyAndFillResult(pQInfo);
   }
 }
 
@@ -5759,7 +5759,7 @@ void tableQueryImpl(SQInfo *pQInfo) {
         limitOperator(pQuery, pQInfo);
         qDebug("QInfo:%p current:%" PRId64 " returned, total:%" PRId64, pQInfo, pQuery->rec.rows, pQuery->rec.total);
       } else {
-        return copyAndFillResult(pQInfo);
+        copyAndFillResult(pQInfo);
       }
 
     } else {
