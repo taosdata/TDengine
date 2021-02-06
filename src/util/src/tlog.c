@@ -667,7 +667,7 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
     start = LOG_BUF_START(tLogBuff);
     end = LOG_BUF_END(tLogBuff);
 
-    int32_t pollSize = taosGetLogRemainSize(tLogBuff, start, end);
+    pollSize = taosGetLogRemainSize(tLogBuff, start, end);
     if (pollSize < tLogBuff->minBuffSize) {
       break;
     }
