@@ -1,6 +1,7 @@
 package com.taosdata.jdbc;
 
 import java.sql.SQLException;
+import java.sql.SQLFeatureNotSupportedException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -47,6 +48,9 @@ public class TSDBError {
             else
                 message = TSDBErrorMap.get(TSDBErrorNumbers.ERROR_UNKNOWN);
         }
+
+        if (errorNumber == TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD)
+            return new SQLFeatureNotSupportedException(message);
 
         if (errorNumber < TSDBErrorNumbers.ERROR_UNKNOWN)
             // JDBC exception's error number is less than 0x2350
