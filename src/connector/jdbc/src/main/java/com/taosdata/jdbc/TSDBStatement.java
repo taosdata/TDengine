@@ -56,7 +56,7 @@ public class TSDBStatement extends AbstractStatement {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
         }
 
-        TSDBResultSet res = new TSDBResultSet(this.connector, pSql);
+        TSDBResultSet res = new TSDBResultSet(this, this.connector, pSql);
         res.setBatchFetch(this.connection.getBatchFetch());
         return res;
     }
@@ -97,7 +97,7 @@ public class TSDBStatement extends AbstractStatement {
             return false;
         }
 
-        this.resultSet = new TSDBResultSet(this.connector, pSql);
+        this.resultSet = new TSDBResultSet(this, this.connector, pSql);
         this.resultSet.setBatchFetch(this.connection.getBatchFetch());
         return true;
     }

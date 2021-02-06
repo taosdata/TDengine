@@ -115,6 +115,7 @@ public class ResultSetTest {
     public void testUnsupport() throws SQLException {
         statement.executeQuery("show databases");
         resSet = statement.getResultSet();
+
         Assert.assertNotNull(resSet.unwrap(TSDBResultSet.class));
         Assert.assertTrue(resSet.isWrapperFor(TSDBResultSet.class));
         try {

@@ -17,12 +17,12 @@ package com.taosdata.jdbc;
 import java.math.BigDecimal;
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
 
 public class TSDBResultSet extends AbstractResultSet implements ResultSet {
-    private TSDBJNIConnector jniConnector = null;
+    private TSDBJNIConnector jniConnector;
 
+    private final TSDBStatement statement;
     private long resultSetPointer = 0L;
     private List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
 
@@ -33,34 +33,12 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     private boolean lastWasNull = false;
     private final int COLUMN_INDEX_START_VALUE = 1;
 
-    private int rowIndex = 0;
-
-    public TSDBJNIConnector getJniConnector() {
-        return jniConnector;
-    }
-
-    public void setJniConnector(TSDBJNIConnector jniConnector) {
-        this.jniConnector = jniConnector;
-    }
-
-    public long getResultSetPointer() {
-        return resultSetPointer;
-    }
-
-    public void setResultSetPointer(long resultSetPointer) {
-        this.resultSetPointer = resultSetPointer;
-    }
-
     public void setBatchFetch(boolean batchFetch) {
         this.batchFetch = batchFetch;
     }
 
     public Boolean getBatchFetch() {
         return this.batchFetch;
-    }
-
-    public List<ColumnMetaData> getColumnMetaDataList() {
-        return columnMetaDataList;
     }
 
     public void setColumnMetaDataList(List<ColumnMetaData> columnMetaDataList) {
@@ -71,25 +49,11 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         return rowData;
     }
 
-    public void setRowData(TSDBResultSetRowData rowData) {
-        this.rowData = rowData;
-    }
-
-    public boolean isLastWasNull() {
-        return lastWasNull;
-    }
-
-    public void setLastWasNull(boolean lastWasNull) {
-        this.lastWasNull = lastWasNull;
-    }
-
-    public TSDBResultSet() {
-
-    }
-
-    public TSDBResultSet(TSDBJNIConnector connector, long resultSetPointer) throws SQLException {
+    public TSDBResultSet(TSDBStatement statement, TSDBJNIConnector connector, long resultSetPointer) throws SQLException {
+        this.statement = statement;
         this.jniConnector = connector;
         this.resultSetPointer = resultSetPointer;
+
         int code = this.jniConnector.getSchemaMetaData(this.resultSetPointer, this.columnMetaDataList);
         if (code == TSDBConstants.JNI_CONNECTION_NULL) {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
@@ -349,75 +313,109 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public boolean isBeforeFirst() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
-        return false;
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public boolean isAfterLast() throws SQLException {
-        return false;
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public boolean isFirst() throws SQLException {
-        return false;
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public boolean isLast() throws SQLException {
-        return false;
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void beforeFirst() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void afterLast() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public boolean first() throws SQLException {
-        return false;
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public boolean last() throws SQLException {
-        return false;
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public int getRow() throws SQLException {
-        return 0;
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public boolean absolute(int row) throws SQLException {
-        return false;
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public boolean relative(int rows) throws SQLException {
-        return false;
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public boolean previous() throws SQLException {
-        return false;
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public Statement getStatement() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
-//        return this.statement;
-        return null;
+        return this.statement;
     }
 
     public boolean isClosed() throws SQLException {
-        //TODO:
+        //TODO: check if need release resources
         boolean isClosed = true;
         if (jniConnector != null) {
             isClosed = jniConnector.isResultsetClosed();
