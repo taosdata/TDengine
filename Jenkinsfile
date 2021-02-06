@@ -80,7 +80,8 @@ pipeline {
           }
           steps {
           sh'''
-          cd ${WORKSPACE}
+          cp -r ${WORKSPACE} ${WORKSPACE}.tes
+          cd ${WORKSPACE}.tes
           git checkout develop
           git pull
           git fetch origin +refs/pull/${CHANGE_ID}/merge
