@@ -9,13 +9,14 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 public class SubscribeTest {
     Connection connection;
     Statement statement;
     String dbName = "test";
     String tName = "t0";
-    String host = "localhost";
+    String host = "127.0.0.1";
     String topic = "test";
 
     @Before
@@ -23,7 +24,6 @@ public class SubscribeTest {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             Properties properties = new Properties();
-            properties.setProperty(TSDBDriver.PROPERTY_KEY_HOST, host);
             properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
@@ -55,9 +55,8 @@ public class SubscribeTest {
 
             int a = 0;
             while (true) {
-                Thread.sleep(900);
+                TimeUnit.MILLISECONDS.sleep(1000);
                 TSDBResultSet resSet = subscribe.consume();
-
                 while (resSet.next()) {
                     for (int i = 1; i <= resSet.getMetaData().getColumnCount(); i++) {
                         System.out.printf(i + ": " + resSet.getString(i) + "\t");
@@ -82,7 +81,7 @@ public class SubscribeTest {
     @After
     public void close() {
         try {
-            statement.executeQuery("drop database " + dbName);
+            statement.execute("drop database " + dbName);
             if (statement != null)
                 statement.close();
             if (connection != null)

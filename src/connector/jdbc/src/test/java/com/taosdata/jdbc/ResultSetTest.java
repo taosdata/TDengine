@@ -98,7 +98,7 @@ public class ResultSetTest {
         }
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test(expected = SQLException.class)
     public void testUnsupport() throws SQLException, UnsupportedEncodingException {
         statement.execute("show databases");
         resSet = statement.getResultSet();
