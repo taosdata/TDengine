@@ -50,7 +50,7 @@ static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 
 void tscCheckDiskUsage(void *UNUSED_PARAM(para), void *UNUSED_PARAM(param)) {
   taosGetDisk();
-  taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
+  taosTmrReset(tscCheckDiskUsage, 20 * 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
 void tscFreeRpcObj(void *param) {
   assert(param);
@@ -164,7 +164,7 @@ void taos_init_imp(void) {
 
   tscTmr = taosTmrInit(tsMaxConnections * 2, 200, 60000, "TSC");
   if(0 == tscEmbedded){
-    taosTmrReset(tscCheckDiskUsage, 10, NULL, tscTmr, &tscCheckDiskUsageTmr);      
+    taosTmrReset(tscCheckDiskUsage, 20 * 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);      
   }
 
   if (tscTableMetaInfo == NULL) {
