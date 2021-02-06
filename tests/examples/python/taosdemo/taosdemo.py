@@ -143,16 +143,17 @@ def query_data_process(cmd: str):
                 user=user,
                 password=password,
                 config=configDir)
-            print("conn: %s" % str(conn.__class__))
+            v_print("conn: %s", str(conn.__class__))
         except Exception as e:
             print("Error: %s" % e.args[0])
             sys.exit(1)
 
         try:
             cursor = conn.cursor()
-            print("cursor:%d %s" % (id(cursor), str(cursor.__class__)))
+            v_print("cursor:%d %s", id(cursor), str(cursor.__class__))
         except Exception as e:
             print("Error: %s" % e.args[0])
+            conn.close()
             sys.exit(1)
 
     if native:
@@ -272,16 +273,17 @@ def insert_func(process: int, thread: int):
                 user=user,
                 password=password,
                 config=configDir)
-            print("conn: %s" % str(conn.__class__))
+            v_print("conn: %s", str(conn.__class__))
         except Exception as e:
             print("Error: %s" % e.args[0])
             sys.exit(1)
 
         try:
             cursor = conn.cursor()
-            print("cursor:%d %s" % (id(cursor), str(cursor.__class__)))
+            v_print("cursor:%d %s", id(cursor), str(cursor.__class__))
         except Exception as e:
             print("Error: %s" % e.args[0])
+            conn.close()
             sys.exit(1)
 
     v_print("numOfRec %d:", numOfRec)
@@ -331,10 +333,9 @@ def insert_func(process: int, thread: int):
         if measure:
             exec_end_time = datetime.datetime.now()
             exec_delta = exec_end_time - exec_start_time
-            print(
-                "%s, %d" %
-                (time.strftime('%X'),
-                 exec_delta.microseconds))
+            v_print(
+                "consume %d microseconds",
+                 exec_delta.microseconds)
 
         v_print("cmd: %s, length:%d", cmd, len(cmd))
 
@@ -489,7 +490,7 @@ if __name__ == "__main__":
     threads = 1
     insertOnly = False
     autosubtable = False
-    queryCmd = "DEFAULT"
+    queryCmd = "NO"
     outOfOrder = 0
     rateOOOO = 0
     deleteMethod = 0
@@ -541,7 +542,7 @@ if __name__ == "__main__":
                   '\t-M, --stable                      flag, Use super table. Default is no')
             print(
                   '\t-s, --stbname <stable prefix>     stable_prefix, STable prefix name. Default is \'st\'')
-            print('\t-Q, --query <DEFAULT | NO | command>   query, Execute query command. set \'DEFAULT\' means select * from each table')
+            print('\t-Q, --query [NO|EACHTB|command]   query, Execute query command. set \'EACHTB\' means select * from each table')
             print(
                   '\t-T, --threads <number>            num_of_threads, The number of threads. Default is 1.')
             print(
@@ -685,16 +686,17 @@ if __name__ == "__main__":
                 user=user,
                 password=password,
                 config=configDir)
-            print("conn: %s" % str(conn.__class__))
+            v_print("conn: %s", str(conn.__class__))
         except Exception as e:
             print("Error: %s" % e.args[0])
             sys.exit(1)
 
         try:
             cursor = conn.cursor()
-            print("cursor:%d %s" % (id(cursor), str(cursor.__class__)))
+            v_print("cursor:%d %s", id(cursor), str(cursor.__class__))
         except Exception as e:
             print("Error: %s" % e.args[0])
+            conn.close()
             sys.exit(1)
 
     # drop data only if delete method be set
@@ -769,7 +771,6 @@ if __name__ == "__main__":
         else:
             end = begin + quotient
         pool.apply_async(insert_data_process, args=(lock, i, begin, end,))
-#        pool.apply_async(text, args=(lock, i, begin, end,))
 
     pool.close()
     pool.join()
