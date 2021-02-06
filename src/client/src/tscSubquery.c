@@ -95,11 +95,21 @@ static bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
 
   pthread_mutex_lock(&subState->mutex);
 
+  bool done = allSubqueryDone(pParentSql);
+
+  if (done) {
+    tscDebug("%p subquery:%p,%d all subs already done", pParentSql, pSql, idx);
+    
+    pthread_mutex_unlock(&subState->mutex);
+    
+    return false;
+  }
+  
   tscDebug("%p subquery:%p,%d state set to 1", pParentSql, pSql, idx);
   
   subState->states[idx] = 1;
 
-  bool done = allSubqueryDone(pParentSql);
+  done = allSubqueryDone(pParentSql);
 
   pthread_mutex_unlock(&subState->mutex);
 
@@ -2245,7 +2255,9 @@ static void tscAbortFurtherRetryRetrieval(SRetrieveSupport *trsupport, TAOS_RES 
  * current query failed, and the retry count is less than the available
  * count, retry query clear previous retrieved data, then launch a new sub query
  */
-static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32_t code) {
+static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32_t code, int32_t *sent) {
+  *sent = 0;
+  
   SRetrieveSupport *trsupport = malloc(sizeof(SRetrieveSupport));
   if (trsupport == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -2277,21 +2289,28 @@ static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32
   SSqlObj *pNew = tscCreateSTableSubquery(trsupport->pParentSql, trsupport, pSql);
   if (pNew == NULL) {
     tscError("%p sub:%p failed to create new subquery due to error:%s, abort retry, vgId:%d, orderOfSub:%d",
-             trsupport->pParentSql, pSql, tstrerror(terrno), pVgroup->vgId, trsupport->subqueryIndex);
+             oriTrs->pParentSql, pSql, tstrerror(terrno), pVgroup->vgId, oriTrs->subqueryIndex);
 
     pParentSql->res.code = terrno;
-    trsupport->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
+    oriTrs->numOfRetry = MAX_NUM_OF_SUBQUERY_RETRY;
 
+    tfree(trsupport);
     return pParentSql->res.code;
   }
 
   int32_t ret = tscProcessSql(pNew);
 
+  *sent = 1;
+  
   // if failed to process sql, let following code handle the pSql
   if (ret == TSDB_CODE_SUCCESS) {
+    tscFreeRetrieveSup(pSql);
     taos_free_result(pSql);
     return ret;
-  } else {
+  } else {    
+    pSql->pSubs[trsupport->subqueryIndex] = pSql;
+    tscFreeRetrieveSup(pNew);
+    taos_free_result(pNew);
     return ret;
   }
 }
@@ -2328,7 +2347,10 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
              subqueryIndex, tstrerror(pParentSql->res.code));
   } else {
     if (trsupport->numOfRetry++ < MAX_NUM_OF_SUBQUERY_RETRY && pParentSql->res.code == TSDB_CODE_SUCCESS) {
-      if (tscReissueSubquery(trsupport, pSql, numOfRows) == TSDB_CODE_SUCCESS) {
+      int32_t sent = 0;
+      
+      tscReissueSubquery(trsupport, pSql, numOfRows, &sent);
+      if (sent) {
         return;
       }
     } else {  // reach the maximum retry count, abort
@@ -2450,7 +2472,6 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   SRetrieveSupport *trsupport = (SRetrieveSupport *)param;
   if (pSql->param == NULL || param == NULL) {
     tscDebug("%p already freed in dnodecallback", pSql);
-    assert(pSql->res.code == TSDB_CODE_TSC_QUERY_CANCELLED);
     return;
   }
 
@@ -2482,7 +2503,10 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
     if (trsupport->numOfRetry++ < MAX_NUM_OF_SUBQUERY_RETRY) {
       tscError("%p sub:%p failed code:%s, retry:%d", pParentSql, pSql, tstrerror(numOfRows), trsupport->numOfRetry);
 
-      if (tscReissueSubquery(trsupport, pSql, numOfRows) == TSDB_CODE_SUCCESS) {
+      int32_t sent = 0;
+      
+      tscReissueSubquery(trsupport, pSql, numOfRows, &sent);
+      if (sent) {
         return;
       }
     } else {
@@ -2604,7 +2628,11 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
 
     if (trsupport->numOfRetry++ < MAX_NUM_OF_SUBQUERY_RETRY) {
       tscError("%p sub:%p failed code:%s, retry:%d", pParentSql, pSql, tstrerror(code), trsupport->numOfRetry);
-      if (tscReissueSubquery(trsupport, pSql, code) == TSDB_CODE_SUCCESS) {
+      
+      int32_t sent = 0;
+
+      tscReissueSubquery(trsupport, pSql, code, &sent);
+      if (sent) {
         return;
       }
     } else {

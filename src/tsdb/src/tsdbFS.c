@@ -227,6 +227,7 @@ void *tsdbFreeFS(STsdbFS *pfs) {
     pfs->metaCache = NULL;
     pfs->cstatus = tsdbFreeFSStatus(pfs->cstatus);
     pthread_rwlock_destroy(&(pfs->lock));
+    free(pfs);
   }
 
   return NULL;

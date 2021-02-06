@@ -562,12 +562,13 @@ void tsdbRefTable(STable *pTable) {
 }
 
 void tsdbUnRefTable(STable *pTable) {
-  int32_t ref = T_REF_DEC(pTable);
-  tsdbDebug("unref table %s uid:%"PRIu64" tid:%d, refCount:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable), ref);
+  uint64_t uid = TABLE_UID(pTable);
+  int32_t  tid = TABLE_TID(pTable);
+  int32_t  ref = T_REF_DEC(pTable);
+
+  tsdbDebug("unref table, uid:%" PRIu64 " tid:%d, refCount:%d", uid, tid, ref);
 
   if (ref == 0) {
-    // tsdbDebug("destory table name:%s uid:%"PRIu64", tid:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable));
-
     if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) {
       tsdbUnRefTable(pTable->pSuper);
     }
