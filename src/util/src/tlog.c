@@ -659,7 +659,9 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
       dbgBigWN++;
       writeInterval = MIN_LOG_INTERVAL;
     } else if (pollSize > LOG_BUF_SIZE(tLogBuff)/4) {
-      writeInterval -= LOG_INTERVAL_STEP;
+      if (writeInterval > MIN_LOG_INTERVAL) {
+        writeInterval -= LOG_INTERVAL_STEP;
+      }
     }
 
     LOG_BUF_START(tLogBuff) = (LOG_BUF_START(tLogBuff) + pollSize) % LOG_BUF_SIZE(tLogBuff);
