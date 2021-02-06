@@ -90,7 +90,9 @@ pipeline {
           script{
             skipstage=sh(script:"git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
           }
+          sh'''
           rm -rf ${WORKSPACE}.tes
+          '''
           }
       }
     
