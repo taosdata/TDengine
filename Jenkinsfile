@@ -160,6 +160,9 @@ pipeline {
 
         stage('test_crash_gen_s3') {
           agent{label "b2"}
+          options{
+            timeout(time: 45, unit: 'MINUTES')
+          }
           steps {
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -171,17 +174,16 @@ pipeline {
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/pytest
+                rm -rf /var/lib/taos/*
                 ./handle_crash_gen_val_log.sh
                 '''
-            }
-            timeout(time: 45, unit: 'MINUTES'){
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b2fq
-              date
-              '''
-            }
+            }           
+            sh '''
+            date
+            cd ${WKC}/tests
+            ./test-all.sh b2fq
+            date
+            '''
           }
         }
 
@@ -215,6 +217,7 @@ pipeline {
               date
               cd ${WKC}/tests
               ./test-all.sh b4fq
+              cd ${WKC}/tests
               ./test-all.sh p4
               date'''
             }
