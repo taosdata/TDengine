@@ -74,7 +74,7 @@ void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
     httpCode = 404;
   else if (errNo == TSDB_CODE_HTTP_UNSUPPORT_URL)
     httpCode = 404;
-  else if (errNo == TSDB_CODE_HTTP_INVLALID_URL)
+  else if (errNo == TSDB_CODE_HTTP_INVALID_URL)
     httpCode = 404;
   else if (errNo == TSDB_CODE_HTTP_NO_ENOUGH_MEMORY)
     httpCode = 507;
