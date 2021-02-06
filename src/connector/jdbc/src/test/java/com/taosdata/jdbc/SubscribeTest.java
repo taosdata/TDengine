@@ -63,11 +63,11 @@ public class SubscribeTest {
                     }
                     System.out.println("\n======" + a + "==========");
                 }
-                resSet.close();
                 a++;
                 if (a >= 2) {
                     break;
                 }
+//                resSet.close();
             }
 
             subscribe.close(true);
