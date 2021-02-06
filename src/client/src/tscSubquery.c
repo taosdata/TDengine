@@ -2472,7 +2472,6 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   SRetrieveSupport *trsupport = (SRetrieveSupport *)param;
   if (pSql->param == NULL || param == NULL) {
     tscDebug("%p already freed in dnodecallback", pSql);
-    assert(pSql->res.code == TSDB_CODE_TSC_QUERY_CANCELLED);
     return;
   }
 
