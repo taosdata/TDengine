@@ -30,8 +30,9 @@ public class SubscribeTest {
             connection = DriverManager.getConnection("jdbc:TAOS://" + host + ":0/", properties);
 
             statement = connection.createStatement();
-            statement.executeUpdate("create database if not exists " + dbName);
-            statement.executeUpdate("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
+            statement.execute("drop database if exists " + dbName);
+            statement.execute("create database if not exists " + dbName);
+            statement.execute("create table if not exists " + dbName + "." + tName + " (ts timestamp, k int, v int)");
             long ts = System.currentTimeMillis();
             for (int i = 0; i < 2; i++) {
                 ts += i;
@@ -45,13 +46,12 @@ public class SubscribeTest {
     }
 
     @Test
-    public void subscribe() throws Exception {
-        TSDBSubscribe subscribe = null;
+    public void subscribe() {
         try {
 
             String rawSql = "select * from " + dbName + "." + tName + ";";
             System.out.println(rawSql);
-            subscribe = ((TSDBConnection) connection).subscribe(topic, rawSql, false);
+            TSDBSubscribe subscribe = ((TSDBConnection) connection).subscribe(topic, rawSql, false);
 
             int a = 0;
             while (true) {
@@ -69,12 +69,10 @@ public class SubscribeTest {
                     break;
                 }
             }
+
+            subscribe.close(true);
         } catch (Exception e) {
             e.printStackTrace();
-        } finally {
-            if (null != subscribe) {
-                subscribe.close(true);
-            }
         }
     }
 
