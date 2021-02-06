@@ -127,12 +127,12 @@ pipeline {
             
             pre_test()
             timeout(time: 45, unit: 'MINUTES'){
-            sh '''
-            date
-            cd ${WKC}/tests
-            find pytest -name '*'sql|xargs rm -rf
-            ./test-all.sh p2
-            date'''
+                sh '''
+                date
+                cd ${WKC}/tests
+                find pytest -name '*'sql|xargs rm -rf
+                ./test-all.sh p2
+                date'''
             }
           }
         }
@@ -164,9 +164,7 @@ pipeline {
 
         stage('test_crash_gen_s3') {
           agent{label "b2"}
-          options{
-            timeout(time: 45, unit: 'MINUTES')
-          }
+          
           steps {
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -182,13 +180,16 @@ pipeline {
                 rm -rf /var/log/taos/*
                 ./handle_crash_gen_val_log.sh
                 '''
-            }           
-            sh '''
-            date
-            cd ${WKC}/tests
-            ./test-all.sh b2fq
-            date
-            '''
+            }  
+            timeout(time: 45, unit: 'MINUTES'){
+                sh '''
+                date
+                cd ${WKC}/tests
+                ./test-all.sh b2fq
+                date
+                '''
+            }         
+            
           }
         }
 
