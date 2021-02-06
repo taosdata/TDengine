@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Properties;
 import java.util.StringTokenizer;
 
-public abstract class AbstractTaosDriver implements Driver {
+public abstract class AbstractDriver implements Driver {
 
     private static final String TAOS_CFG_FILENAME = "taos.cfg";
 
