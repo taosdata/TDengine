@@ -61,7 +61,7 @@ if [[ $1 == '--valgrind' ]]; then
   VALGRIND_OUT=valgrind.out 
   VALGRIND_ERR=valgrind.err
   # How to generate valgrind suppression file: https://stackoverflow.com/questions/17159578/generating-suppressions-for-memory-leaks
-  # valgrind --leak-check=full --gen-suppressions=all --log-fd=9 python3.8 ./crash_gen.py $@ 9>>memcheck.log
+  # valgrind --leak-check=full --gen-suppressions=all --log-fd=9 python3.8 ./concurrent_inquiry.py $@ 9>>memcheck.log
   echo Executing under VALGRIND, with STDOUT/ERR going to $VALGRIND_OUT and $VALGRIND_ERR, please watch them from a different terminal.
   valgrind  \
     --leak-check=yes \
