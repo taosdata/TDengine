@@ -1,16 +1,20 @@
 package com.taosdata.jdbc;
+
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
+
 import javax.sql.rowset.serial.SerialBlob;
 import javax.sql.rowset.serial.SerialClob;
 import java.io.UnsupportedEncodingException;
 import java.sql.*;
 import java.util.HashMap;
 import java.util.Properties;
+
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+
 public class ResultSetTest {
     static Connection connection;
     static Statement statement;
@@ -18,6 +22,7 @@ public class ResultSetTest {
     static String tName = "t0";
     static String host = "localhost";
     static ResultSet resSet;
+
     @BeforeClass
     public static void createDatabaseAndTable() {
         try {
@@ -36,6 +41,7 @@ public class ResultSetTest {
             return;
         }
     }
+
     @Test
     public void testResultSet() {
         String sql;
@@ -91,13 +97,13 @@ public class ResultSetTest {
             assert false : "insert error " + e.getMessage();
         }
     }
-    @Test
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void testUnsupport() throws SQLException, UnsupportedEncodingException {
         statement.execute("show databases");
         resSet = statement.getResultSet();
         Assert.assertNotNull(resSet.unwrap(TSDBResultSet.class));
         Assert.assertTrue(resSet.isWrapperFor(TSDBResultSet.class));
-        resSet.getAsciiStream(0);
         resSet.getUnicodeStream(null);
         resSet.getBinaryStream(null);
         resSet.getAsciiStream("");
@@ -232,6 +238,7 @@ public class ResultSetTest {
         resSet.updateBinaryStream(null, null);
         resSet.updateCharacterStream(null, null);
     }
+
     @Test
     public void testBatch() throws SQLException {
         String[] sqls = new String[]{"insert into test.t0 values (1496732686001,2147483600,1496732687000,3.1415925,3.1415926535897," +
@@ -244,6 +251,7 @@ public class ResultSetTest {
         assertEquals(res.length, 2);
         statement.clearBatch();
     }
+
     @AfterClass
     public static void close() {
         try {
