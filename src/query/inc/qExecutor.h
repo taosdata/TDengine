@@ -305,6 +305,36 @@ typedef struct SQueryParam {
   SSqlGroupbyExpr *pGroupbyExpr;
 } SQueryParam;
 
+typedef struct SSDataBlock {
+  SDataStatis *pBlockStatis;
+  SArray      *pDataBlock;
+  SDataBlockInfo info;
+} SSDataBlock;
+
+typedef struct STableScanInfo {
+  void        *pQueryHandle;
+  int32_t      numOfBlocks;
+  int32_t      numOfSkipped;
+  int32_t      numOfBlockStatis;
+
+  int64_t      numOfRows;
+  int32_t      order;
+  bool         completed;
+
+  SSDataBlock  block;
+
+  int64_t      elapsedTime;
+  SSDataBlock* (*apply)(void* param);
+} STableScanInfo;
+
+typedef struct SAggOperatorInfo {
+  SResultRowInfo   *pResultRowInfo;
+  STableQueryInfo  *pTableQueryInfo;
+  STableScanInfo   *pTableScanInfo;
+  SQueryRuntimeEnv *pRuntimeEnv;
+  SSDataBlock* (*apply)(void* param);
+} SAggOperatorInfo;
+
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);
 int32_t createQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo, SSqlFuncMsg **pExprMsg,
