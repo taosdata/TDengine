@@ -349,7 +349,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
 
-        return false;
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
@@ -357,7 +357,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
 
-        return false;
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
@@ -365,7 +365,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
 
-        return false;
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
