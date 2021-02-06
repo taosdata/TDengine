@@ -20,6 +20,11 @@ services:
        sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && 
        echo $TZ > /etc/timezone &&
        exec my-main-application"
+     extra_hosts:
+      - "tdnode2:172.27.0.8"
+      - "tdnode3:172.27.0.9"
+      - "tdnode4:172.27.0.10"
+      - "tdnode5:172.27.0.11"
      volumes: 
        # bind data directory
        - type: bind
@@ -40,11 +45,14 @@ services:
        - type: bind
          source: /data
          target: /root
-     hostname: tdnode1   
+     hostname: tdnode1
+
      networks:
          taos_update_net:
              ipv4_address: 172.27.0.7
-     command: taosd && tarbitrator
+     command: > 
+          sh -c "tarbitrator 
+                 && taosd"       
 
   td2.0-node2:
      build:
@@ -64,6 +72,11 @@ services:
        sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && 
        echo $TZ > /etc/timezone &&
        exec my-main-application"
+     extra_hosts:
+      - "tdnode1:172.27.0.7"
+      - "tdnode3:172.27.0.9"
+      - "tdnode4:172.27.0.10"
+      - "tdnode5:172.27.0.11"
      volumes: 
        # bind data directory
        - type: bind
@@ -109,6 +122,11 @@ services:
        sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && 
        echo $TZ > /etc/timezone &&       
        exec my-main-application"
+     extra_hosts:
+      - "tdnode1:172.27.0.7"
+      - "tdnode2:172.27.0.8"
+      - "tdnode4:172.27.0.10"
+      - "tdnode5:172.27.0.11"
      volumes: 
        # bind data directory
        - type: bind
