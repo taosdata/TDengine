@@ -529,7 +529,7 @@ public class RestfulResultSetTest {
         rs.updateSQLXML(1, null);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void getNString() throws SQLException {
         String f10 = rs.getNString("f10");
         Assert.assertEquals("涛思数据", f10);
