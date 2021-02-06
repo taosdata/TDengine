@@ -133,62 +133,52 @@ def query_func(process: int, thread: int, cmd: str):
                 host, port, user, password, cmd)
 
 
-def query_data_process(q_lock, i: int, cmd: str):
-    time.sleep(0.01)
-    v_print("Process:%d threads: %d cmd: %s", i, threads, cmd)
+def query_data_process(cmd: str):
+    # establish connection if native
+    if native:
+        v_print("host:%s, user:%s passwd:%s configDir:%s ", host, user, password, configDir)
+        try:
+            conn = taos.connect(
+                host=host,
+                user=user,
+                password=password,
+                config=configDir)
+            print("conn: %s" % str(conn.__class__))
+        except Exception as e:
+            print("Error: %s" % e.args[0])
+            sys.exit(1)
 
-    q_lock.aquire()
-    cursor.execute(cmd)
-    q_lock.release()
+        try:
+            cursor = conn.cursor()
+            print("cursor:%d %s" % (id(cursor), str(cursor.__class__)))
+        except Exception as e:
+            print("Error: %s" % e.args[0])
+            sys.exit(1)
 
-    return i
+    if native:
+        try:
+            cursor.execute(cmd)
+            cols = cursor.description
+            data = cursor.fetchall()
 
+            for col in data:
+                print(col)
+        except Exception as e:
+            conn.close()
+            print("Error: %s" % e.args[0])
+            sys.exit(1)
 
-def query_data(cmd: str):
-    v_print("query_data processes: %d, cmd: %s", processes, cmd)
+    else:
+        restful_execute(
+                host,
+                port,
+                user,
+                password,
+                cmd)
 
-    q_lock = Lock()
-
-    pool = Pool(processes)
-    for i in range(processes):
-        pool.apply_async(query_data_process, args=(q_lock, i, cmd))
-#        time.sleep(1)
-    pool.close()
-    pool.join()
-
-
-def insert_data(processes: int):
-    i_lock = Lock()
-    pool = Pool(processes)
-
-    begin = 0
-    end = 0
-
-    quotient = numOfTb // processes
-    if quotient < 1:
-        processes = numOfTb
-        quotient = 1
-
-    remainder = numOfTb % processes
-    v_print(
-        "insert_data num of tables: %d, quotient: %d, remainder: %d",
-        numOfTb,
-        quotient,
-        remainder)
-
-    for i in range(processes):
-        begin = end
-
-        if i < remainder:
-            end = begin + quotient + 1
-        else:
-            end = begin + quotient
-
-        v_print("insert_data Process %d from %d to %d", i, begin, end)
-        pool.apply_async(insert_data_process, args=(i_lock, i, begin, end))
-
-    pool.close()
-    pool.join()
+    if native:
+        cursor.close()
+        conn.close()
 
 
 def create_stb():
@@ -795,7 +785,7 @@ if __name__ == "__main__":
     # query data
     if queryCmd != "NO":
         print("queryCmd: %s" % queryCmd)
-        query_data(queryCmd)
+        query_data_process(queryCmd)
 
     if measure:
         end_time = time.time()
