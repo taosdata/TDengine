@@ -66,7 +66,7 @@ public class ResultSetTest {
         }
 
         try {
-            statement.executeQuery("select * from " + dbName + "." + tName + " where ts = " + ts);
+            statement.execute("select * from " + dbName + "." + tName + " where ts = " + ts);
             resSet = statement.getResultSet();
             System.out.println(((TSDBResultSet) resSet).getRowData());
             while (resSet.next()) {
@@ -113,7 +113,7 @@ public class ResultSetTest {
 
     @Test
     public void testUnsupport() throws SQLException {
-        statement.executeQuery("show databases");
+        statement.execute("show databases");
         resSet = statement.getResultSet();
 
         Assert.assertNotNull(resSet.unwrap(TSDBResultSet.class));
