@@ -27,9 +27,18 @@ do
   esac
 done
 
+function addTaoscfg {
+  for i in {1..5}
+  do 
+    touch /data/node$i/cfg/taos.cfg
+    echo 'firstEp          tdnode1:6030' > /data/node$i/cfg/taos.cfg
+    echo 'fqdn             tdnode$i' >> /data/node$i/cfg/taos.cfg
+    echo 'arbitrator       tdnode1:6042' >> /data/node$i/cfg/taos.cfg
+  done
+}
 
 function createDIR {
-  for i in {1.. $2}
+  for i in {1..5}
   do    
     mkdir -p /data/node$i/data
     mkdir -p /data/node$i/log
@@ -39,7 +48,7 @@ function createDIR {
 }
 
 function cleanEnv {    
-  for i in {1..3}
+  for i in {1..5}
   do
     echo /data/node$i/data/*
     rm -rf /data/node$i/data/*
@@ -78,35 +87,35 @@ function prepareBuild {
   rm -rf $DOCKER_DIR/*.yml
   cd $CURR_DIR
 
-  cp docker-compose.yml  $DOCKER_DIR
+  cp *.yml  $DOCKER_DIR
   cp Dockerfile $DOCKER_DIR
-
-  if [ $NUM_OF_NODES -eq 4 ]; then
-    cp ../node4.yml $DOCKER_DIR
-  fi
-
-  if [ $NUM_OF_NODES -eq 5 ]; then
-    cp ../node5.yml $DOCKER_DIR
-  fi
 }
 
 function clusterUp {
   
   cd $DOCKER_DIR
 
+  PARAMETERS=PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION
+
+  if [ $NUM_OF_NODES -eq 2 ]; then
+    $PARAMETERS docker-compose up -d
+  fi
+
   if [ $NUM_OF_NODES -eq 3 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION VERSION=$VERSION docker-compose up -d
+    $PARAMETERS docker-compose -f docker-compose.yml -f node3.yml up -d
   fi
 
   if [ $NUM_OF_NODES -eq 4 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION VERSION=$VERSION docker-compose -f docker-compose.yml -f node4.yml up -d
+    $PARAMETERS docker-compose -f docker-compose.yml -f node3.yml -f node4.yml up -d
   fi
 
   if [ $NUM_OF_NODES -eq 5 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION VERSION=$VERSION docker-compose -f docker-compose.yml -f node4.yml -f node5.yml up -d
+    $PARAMETERS docker-compose -f docker-compose.yml -f node3.yml -f node4.yml -f node5.yml up -d
   fi
 }
 
-cleanEnv 
+createDIR
+cleanEnv
+addTaoscfg
 prepareBuild
 clusterUp

@@ -1,12 +1,13 @@
 FROM ubuntu:latest AS builder
  
 ARG PACKAGE=TDengine-server-1.6.5.10-Linux-x64.tar.gz
-ARG TARBITRATORPKG=TDengine-tarbitrator-1.6.5.10-Linux-x64.tar.gz
 ARG EXTRACTDIR=TDengine-enterprise-server
+ARG TARBITRATORPKG=TDengine-tarbitrator-1.6.5.10-Linux-x64.tar.gz
+ARG EXTRACTDIR2=TDengine-enterprise-arbitrator
 ARG CONTENT=taos.tar.gz
  
 WORKDIR /root
- 
+
 COPY ${PACKAGE} .
 COPY ${TARBITRATORPKG} .
  
@@ -14,6 +15,7 @@ RUN tar -zxf ${PACKAGE}
 RUN tar -zxf ${TARBITRATORPKG}
 RUN mv ${EXTRACTDIR}/driver ./lib
 RUN tar -zxf ${EXTRACTDIR}/${CONTENT}
+RUN mv ${EXTRACTDIR2}/bin/* /root/bin
  
 FROM ubuntu:latest
  
@@ -22,6 +24,7 @@ WORKDIR /root
 RUN apt-get update
 RUN apt-get install -y vim tmux net-tools
 RUN echo 'alias ll="ls -l --color=auto"' >> /root/.bashrc
+RUN ulimit -c unlimited
        
 COPY --from=builder /root/bin/taosd /usr/bin
 COPY --from=builder /root/bin/tarbitrator /usr/bin
