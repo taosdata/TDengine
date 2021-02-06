@@ -111,16 +111,18 @@ void walRemoveAllOldFiles(void *handle) {
   pthread_mutex_unlock(&pWal->mutex);
 }
 
-static int walCalcChecksumAppend(SWalHead *pHead) {
+static void walUpdateChecksum(SWalHead *pHead) {
   pHead->sver = 1;
-  return taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(*pHead) + pHead->len);
+  pHead->cksum = taosCalcChecksum(0, (uint8_t *)pHead, sizeof(*pHead) + pHead->len);
 }
 
-static int walCheckChecksumWhole(SWalHead *pHead) {
+static int walValidateChecksum(SWalHead *pHead) {
   if (pHead->sver == 0) { // for compatible with wal before sver 1
     return taosCheckChecksumWhole((uint8_t *)pHead, sizeof(*pHead));
   } else if (pHead->sver == 1) {
-    return taosCheckChecksumWhole((uint8_t *)pHead, sizeof(*pHead) + pHead->len);
+    uint32_t cksum = pHead->cksum;
+    pHead->cksum = 0;
+    return taosCheckChecksum((uint8_t *)pHead, sizeof(*pHead) + pHead->len, cksum);
   }
 
   return 0;
@@ -138,7 +140,7 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
   if (pHead->version <= pWal->version) return 0;
 
   pHead->signature = WAL_SIGNATURE;
-  walCalcChecksumAppend(pHead);
+  walUpdateChecksum(pHead);
   int32_t contLen = pHead->len + sizeof(SWalHead);
 
   pthread_mutex_lock(&pWal->mutex);
@@ -261,7 +263,7 @@ static int32_t walSkipCorruptedRecord(SWal *pWal, SWalHead *pHead, int64_t tfd, 
       continue;
     }
 
-    if (walCheckChecksumWhole(pHead)) {
+    if (walValidateChecksum(pHead)) {
       wInfo("vgId:%d, wal head cksum check passed, offset:%" PRId64, pWal->vgId, pos);
       *offset = pos;
       return TSDB_CODE_SUCCESS;
@@ -308,16 +310,6 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
       break;
     }
 
-    if (!walCheckChecksumWhole(pHead)) {
-      wError("vgId:%d, file:%s, wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
-             pHead->version, pHead->len, offset);
-      code = walSkipCorruptedRecord(pWal, pHead, tfd, &offset);
-      if (code != TSDB_CODE_SUCCESS) {
-        walFtruncate(pWal, tfd, offset);
-        break;
-      }
-    }
-
     if (pHead->len < 0 || pHead->len > size - sizeof(SWalHead)) {
       wError("vgId:%d, file:%s, wal head len out of range, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
              pHead->version, pHead->len, offset);
@@ -339,6 +331,16 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
       wError("vgId:%d, file:%s, failed to read wal body, ret:%d len:%d", pWal->vgId, name, ret, pHead->len);
       offset += sizeof(SWalHead);
       continue;
+    }
+
+    if (!walValidateChecksum(pHead)) {
+      wError("vgId:%d, file:%s, wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
+             pHead->version, pHead->len, offset);
+      code = walSkipCorruptedRecord(pWal, pHead, tfd, &offset);
+      if (code != TSDB_CODE_SUCCESS) {
+        walFtruncate(pWal, tfd, offset);
+        break;
+      }
     }
 
     offset = offset + sizeof(SWalHead) + pHead->len;
