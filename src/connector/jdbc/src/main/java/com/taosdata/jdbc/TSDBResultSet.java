@@ -14,32 +14,13 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
-import java.io.InputStream;
-import java.io.Reader;
 import java.math.BigDecimal;
-import java.net.URL;
-import java.sql.Array;
-import java.sql.Blob;
-import java.sql.Clob;
-import java.sql.Date;
-import java.sql.NClob;
-import java.sql.Ref;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.RowId;
-import java.sql.SQLException;
-import java.sql.SQLWarning;
-import java.sql.SQLXML;
-import java.sql.Statement;
-import java.sql.Time;
-import java.sql.Timestamp;
+import java.sql.*;
 import java.util.ArrayList;
-import java.util.Calendar;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 
-public class TSDBResultSet implements ResultSet {
+public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     private TSDBJNIConnector jniConnector = null;
 
     private long resultSetPointer = 0L;
@@ -121,18 +102,6 @@ public class TSDBResultSet implements ResultSet {
         }
         this.rowData = new TSDBResultSetRowData(this.columnMetaDataList.size());
         this.blockData = new TSDBResultSetBlockData(this.columnMetaDataList, this.columnMetaDataList.size());
-    }
-
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        try {
-            return iface.cast(this);
-        } catch (ClassCastException cce) {
-            throw new SQLException("Unable to unwrap to " + iface.toString());
-        }
-    }
-
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return iface.isInstance(this);
     }
 
     public boolean next() throws SQLException {
@@ -268,7 +237,7 @@ public class TSDBResultSet implements ResultSet {
     }
 
     public long getLong(int columnIndex) throws SQLException {
-        long res = 0l;
+        long res = 0L;
         int colIndex = getTrueColumnIndex(columnIndex);
 
         if (!this.getBatchFetch()) {
@@ -312,14 +281,6 @@ public class TSDBResultSet implements ResultSet {
         }
     }
 
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.sql.ResultSet#getBigDecimal(int, int)
-     *
-     * @deprecated Use {@code getBigDecimal(int columnIndex)} or {@code
-     * getBigDecimal(String columnLabel)}
-     */
     @Deprecated
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
         return new BigDecimal(getLong(columnIndex));
@@ -327,16 +288,6 @@ public class TSDBResultSet implements ResultSet {
 
     public byte[] getBytes(int columnIndex) throws SQLException {
         return getString(columnIndex).getBytes();
-    }
-
-    public Date getDate(int columnIndex) throws SQLException {
-        int colIndex = getTrueColumnIndex(columnIndex);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Time getTime(int columnIndex) throws SQLException {
-        int colIndex = getTrueColumnIndex(columnIndex);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
@@ -354,112 +305,11 @@ public class TSDBResultSet implements ResultSet {
         }
     }
 
-    public InputStream getAsciiStream(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    /*
-     * (non-Javadoc)
-     *
-     * @see java.sql.ResultSet#getUnicodeStream(int)
-     *
-     * * @deprecated use <code>getCharacterStream</code> in place of
-     * <code>getUnicodeStream</code>
-     */
-    @Deprecated
-    public InputStream getUnicodeStream(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public InputStream getBinaryStream(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public String getString(String columnLabel) throws SQLException {
-        return this.getString(this.findColumn(columnLabel));
-    }
-
-    public boolean getBoolean(String columnLabel) throws SQLException {
-        return this.getBoolean(this.findColumn(columnLabel));
-    }
-
-    public byte getByte(String columnLabel) throws SQLException {
-        return this.getByte(this.findColumn(columnLabel));
-    }
-
-    public short getShort(String columnLabel) throws SQLException {
-        return this.getShort(this.findColumn(columnLabel));
-    }
-
-    public int getInt(String columnLabel) throws SQLException {
-        return this.getInt(this.findColumn(columnLabel));
-    }
-
-    public long getLong(String columnLabel) throws SQLException {
-        return this.getLong(this.findColumn(columnLabel));
-    }
-
-    public float getFloat(String columnLabel) throws SQLException {
-        return this.getFloat(this.findColumn(columnLabel));
-    }
-
-    public double getDouble(String columnLabel) throws SQLException {
-        return this.getDouble(this.findColumn(columnLabel));
-    }
-
-    /*
-     * used by spark
-     */
-    @Deprecated
-    public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
-        return this.getBigDecimal(this.findColumn(columnLabel), scale);
-    }
-
-    public byte[] getBytes(String columnLabel) throws SQLException {
-        return this.getBytes(this.findColumn(columnLabel));
-    }
-
-    public Date getDate(String columnLabel) throws SQLException {
-        return this.getDate(this.findColumn(columnLabel));
-    }
-
-    public Time getTime(String columnLabel) throws SQLException {
-        return this.getTime(this.findColumn(columnLabel));
-    }
-
-    public Timestamp getTimestamp(String columnLabel) throws SQLException {
-        return this.getTimestamp(this.findColumn(columnLabel));
-    }
-
-    public InputStream getAsciiStream(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    @Deprecated
-    public InputStream getUnicodeStream(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public InputStream getBinaryStream(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public SQLWarning getWarnings() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void clearWarnings() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public String getCursorName() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
     public ResultSetMetaData getMetaData() throws SQLException {
         return new TSDBResultSetMetaData(this.columnMetaDataList);
     }
 
+    @Override
     public Object getObject(int columnIndex) throws SQLException {
         int colIndex = getTrueColumnIndex(columnIndex);
 
@@ -471,32 +321,21 @@ public class TSDBResultSet implements ResultSet {
         }
     }
 
+    @Override
     public Object getObject(String columnLabel) throws SQLException {
         return this.getObject(this.findColumn(columnLabel));
     }
 
     public int findColumn(String columnLabel) throws SQLException {
-        Iterator<ColumnMetaData> colMetaDataIt = this.columnMetaDataList.iterator();
-        while (colMetaDataIt.hasNext()) {
-            ColumnMetaData colMetaData = colMetaDataIt.next();
+        for (ColumnMetaData colMetaData : this.columnMetaDataList) {
             if (colMetaData.getColName() != null && colMetaData.getColName().equalsIgnoreCase(columnLabel)) {
                 return colMetaData.getColIndex() + 1;
             }
         }
-        throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
     }
 
-    public Reader getCharacterStream(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Reader getCharacterStream(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    /*
-     * used by spark
-     */
+    @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
         int colIndex = getTrueColumnIndex(columnIndex);
 
@@ -508,405 +347,77 @@ public class TSDBResultSet implements ResultSet {
         }
     }
 
-    public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
-        return this.getBigDecimal(this.findColumn(columnLabel));
-    }
-
+    @Override
     public boolean isBeforeFirst() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+
+        return false;
     }
 
+    @Override
     public boolean isAfterLast() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return false;
     }
 
+    @Override
     public boolean isFirst() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return false;
     }
 
+    @Override
     public boolean isLast() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return false;
     }
 
+    @Override
     public void beforeFirst() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+
     }
 
+    @Override
     public void afterLast() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+
     }
 
+    @Override
     public boolean first() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return false;
     }
 
+    @Override
     public boolean last() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return false;
     }
 
+    @Override
     public int getRow() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return 0;
     }
 
+    @Override
     public boolean absolute(int row) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return false;
     }
 
+    @Override
     public boolean relative(int rows) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return false;
     }
 
+    @Override
     public boolean previous() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void setFetchDirection(int direction) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public int getFetchDirection() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void setFetchSize(int rows) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public int getFetchSize() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public int getType() throws SQLException {
-        return ResultSet.TYPE_FORWARD_ONLY;
-    }
-
-    public int getConcurrency() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public boolean rowUpdated() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public boolean rowInserted() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public boolean rowDeleted() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNull(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBoolean(int columnIndex, boolean x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateByte(int columnIndex, byte x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateShort(int columnIndex, short x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateInt(int columnIndex, int x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateLong(int columnIndex, long x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateFloat(int columnIndex, float x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateDouble(int columnIndex, double x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBigDecimal(int columnIndex, BigDecimal x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateString(int columnIndex, String x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBytes(int columnIndex, byte[] x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateDate(int columnIndex, Date x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateTime(int columnIndex, Time x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateTimestamp(int columnIndex, Timestamp x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateAsciiStream(int columnIndex, InputStream x, int length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBinaryStream(int columnIndex, InputStream x, int length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateCharacterStream(int columnIndex, Reader x, int length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateObject(int columnIndex, Object x, int scaleOrLength) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateObject(int columnIndex, Object x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNull(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBoolean(String columnLabel, boolean x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateByte(String columnLabel, byte x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateShort(String columnLabel, short x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateInt(String columnLabel, int x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateLong(String columnLabel, long x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateFloat(String columnLabel, float x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateDouble(String columnLabel, double x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBigDecimal(String columnLabel, BigDecimal x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateString(String columnLabel, String x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBytes(String columnLabel, byte[] x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateDate(String columnLabel, Date x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateTime(String columnLabel, Time x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateTimestamp(String columnLabel, Timestamp x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateAsciiStream(String columnLabel, InputStream x, int length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBinaryStream(String columnLabel, InputStream x, int length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateCharacterStream(String columnLabel, Reader reader, int length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateObject(String columnLabel, Object x, int scaleOrLength) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateObject(String columnLabel, Object x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void insertRow() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateRow() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void deleteRow() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void refreshRow() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void cancelRowUpdates() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void moveToInsertRow() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void moveToCurrentRow() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return false;
     }
 
     public Statement getStatement() throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Object getObject(int columnIndex, Map<String, Class<?>> map) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Ref getRef(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Blob getBlob(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Clob getClob(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Array getArray(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Object getObject(String columnLabel, Map<String, Class<?>> map) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Ref getRef(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Blob getBlob(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Clob getClob(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Array getArray(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Date getDate(int columnIndex, Calendar cal) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Date getDate(String columnLabel, Calendar cal) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Time getTime(int columnIndex, Calendar cal) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Time getTime(String columnLabel, Calendar cal) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public URL getURL(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public URL getURL(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateRef(int columnIndex, Ref x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateRef(String columnLabel, Ref x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBlob(int columnIndex, Blob x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBlob(String columnLabel, Blob x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateClob(int columnIndex, Clob x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateClob(String columnLabel, Clob x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateArray(int columnIndex, Array x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateArray(String columnLabel, Array x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public RowId getRowId(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public RowId getRowId(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateRowId(int columnIndex, RowId x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateRowId(String columnLabel, RowId x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public int getHoldability() throws SQLException {
         if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-        return ResultSet.HOLD_CURSORS_OVER_COMMIT;
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+//        return this.statement;
+        return null;
     }
 
     public boolean isClosed() throws SQLException {
+        //TODO:
         boolean isClosed = true;
         if (jniConnector != null) {
             isClosed = jniConnector.isResultsetClosed();
@@ -914,181 +425,9 @@ public class TSDBResultSet implements ResultSet {
         return isClosed;
     }
 
-    public void updateNString(int columnIndex, String nString) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNString(String columnLabel, String nString) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNClob(int columnIndex, NClob nClob) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNClob(String columnLabel, NClob nClob) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public NClob getNClob(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public NClob getNClob(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public SQLXML getSQLXML(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public SQLXML getSQLXML(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateSQLXML(int columnIndex, SQLXML xmlObject) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateSQLXML(String columnLabel, SQLXML xmlObject) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
     public String getNString(int columnIndex) throws SQLException {
         int colIndex = getTrueColumnIndex(columnIndex);
         return (String) rowData.get(colIndex);
-    }
-
-    public String getNString(String columnLabel) throws SQLException {
-        return (String) this.getString(columnLabel);
-    }
-
-    public Reader getNCharacterStream(int columnIndex) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public Reader getNCharacterStream(String columnLabel) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNCharacterStream(String columnLabel, Reader reader, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateAsciiStream(int columnIndex, InputStream x, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBinaryStream(int columnIndex, InputStream x, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateCharacterStream(int columnIndex, Reader x, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateAsciiStream(String columnLabel, InputStream x, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBinaryStream(String columnLabel, InputStream x, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateCharacterStream(String columnLabel, Reader reader, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBlob(int columnIndex, InputStream inputStream, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBlob(String columnLabel, InputStream inputStream, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateClob(int columnIndex, Reader reader, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateClob(String columnLabel, Reader reader, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNClob(int columnIndex, Reader reader, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNClob(String columnLabel, Reader reader, long length) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNCharacterStream(int columnIndex, Reader x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNCharacterStream(String columnLabel, Reader reader) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateAsciiStream(int columnIndex, InputStream x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBinaryStream(int columnIndex, InputStream x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateCharacterStream(int columnIndex, Reader x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateAsciiStream(String columnLabel, InputStream x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBinaryStream(String columnLabel, InputStream x) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateCharacterStream(String columnLabel, Reader reader) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBlob(int columnIndex, InputStream inputStream) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateBlob(String columnLabel, InputStream inputStream) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateClob(int columnIndex, Reader reader) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateClob(String columnLabel, Reader reader) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNClob(int columnIndex, Reader reader) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public void updateNClob(String columnLabel, Reader reader) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public <T> T getObject(int columnIndex, Class<T> type) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     private int getTrueColumnIndex(int columnIndex) throws SQLException {
@@ -1100,7 +439,6 @@ public class TSDBResultSet implements ResultSet {
         if (columnIndex > numOfCols) {
             throw new SQLException("Column Index out of range, " + columnIndex + " > " + numOfCols);
         }
-
         return columnIndex - 1;
     }
 }
