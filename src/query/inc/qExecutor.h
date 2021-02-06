@@ -318,11 +318,11 @@ typedef struct STableScanInfo {
   int32_t      numOfBlockStatis;
 
   int64_t      numOfRows;
-  int32_t      order;
-  bool         completed;
+
+  int32_t      order;  // scan order
+  int32_t      times;  // repeat counts
 
   SSDataBlock  block;
-
   int64_t      elapsedTime;
   SSDataBlock* (*apply)(void* param);
 } STableScanInfo;

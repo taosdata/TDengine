@@ -5608,25 +5608,34 @@ static SSDataBlock* doTableScan(void* param) {
     }
 
     return pBlock;
-//    int32_t ret = loadDataBlockOnDemand(pRuntimeEnv, &pRuntimeEnv->resultRowInfo, pQueryHandle, &blockInfo, &pStatis, &pDataBlock, &status);
-//    if (ret != TSDB_CODE_SUCCESS) {
-//      break;
-//    }
-
-//    if (status == BLK_DATA_DISCARD) {
-//      pQuery->current->lastKey =
-//              QUERY_IS_ASC_QUERY(pQuery) ? blockInfo.window.ekey + step : blockInfo.window.skey + step;
-//      continue;
-//    }
   }
+
+  STsdbQueryCond cond = createTsdbQueryCond(pQuery, &pQuery->window);
+  pRuntimeEnv->pSecQueryHandle = tsdbQueryTables(pQInfo->tsdb, &cond, &pQInfo->tableGroupInfo, pQInfo, &pQInfo->memRef);
+  if (pRuntimeEnv->pSecQueryHandle == NULL) {
+    longjmp(pRuntimeEnv->env, terrno);
+  }
+
+  pRuntimeEnv->resultRowInfo.curIndex = qstatus.windowIndex;
+  setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
+  pRuntimeEnv->scanFlag = REPEAT_SCAN;
+
+  if (pRuntimeEnv->pTsBuf) {
+    bool ret = tsBufNextPos(pRuntimeEnv->pTsBuf);
+    assert(ret);
+  }
+
+  qDebug("QInfo:%p start to repeat scan data blocks due to query func required, qrange:%"PRId64"-%"PRId64, pQInfo,
+         cond.twindow.skey, cond.twindow.ekey);
 
   return NULL;
 }
 
-static UNUSED_FUNC STableScanInfo* createTableScanInfo(void* pTsdbQueryHandle) {
+static UNUSED_FUNC STableScanInfo* createTableScanInfo(void* pTsdbQueryHandle, int32_t repeatTime) {
   STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
   pInfo->pQueryHandle = pTsdbQueryHandle;
   pInfo->apply = doTableScan;
+  pInfo->times = repeatTime;
   return pInfo;
 }
 
