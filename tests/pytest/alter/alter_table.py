@@ -126,7 +126,6 @@ class TDTestCase:
         for i in range(2, size):             
             tdSql.checkData(0, i, self.rowNum * (size - i))
 
-        tdSql.error("alter local debugflag 143")
 
         tdSql.execute("create table st(ts timestamp, c1 int) tags(t1 float)")
         tdSql.execute("create table t0 using st tags(null)")

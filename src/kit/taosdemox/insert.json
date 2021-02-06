@@ -8,6 +8,7 @@
 	"thread_count": 4,
 	"thread_count_create_tbl": 1,
 	"result_file": "./insert_res.txt",
+        "confirm_parameter_prompt": "no",
 	"databases": [{
 		"dbinfo": {
 			"name": "db",
