@@ -2090,7 +2090,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
       SSqlExpr* p = tscAddFuncInSelectClause(pNewQueryInfo, index++, TSDB_FUNC_TAG, &colIndex, schema, TSDB_COL_TAG);
       p->resColId = pExpr->resColId;
     } else if (pExpr->functionId == TSDB_FUNC_PRJ) {
-      int32_t num = taosArrayGetSize(pNewQueryInfo->groupbyExpr.columnInfo);
+      int32_t num = (int32_t) taosArrayGetSize(pNewQueryInfo->groupbyExpr.columnInfo);
       for(int32_t k = 0; k < num; ++k) {
         SColIndex* pIndex = taosArrayGet(pNewQueryInfo->groupbyExpr.columnInfo, k);
         if (pExpr->colInfo.colId == pIndex->colId) {
