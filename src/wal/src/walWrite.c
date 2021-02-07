@@ -310,6 +310,16 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
       break;
     }
 
+    if (pHead->sver == 0 && !walValidateChecksum(pHead)) {
+      wError("vgId:%d, file:%s, wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
+	     pHead->version, pHead->len, offset);
+      code = walSkipCorruptedRecord(pWal, pHead, tfd, &offset);
+      if (code != TSDB_CODE_SUCCESS) {
+	walFtruncate(pWal, tfd, offset);
+	break;
+      }
+    }
+
     if (pHead->len < 0 || pHead->len > size - sizeof(SWalHead)) {
       wError("vgId:%d, file:%s, wal head len out of range, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
              pHead->version, pHead->len, offset);
@@ -333,7 +343,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
       continue;
     }
 
-    if (!walValidateChecksum(pHead)) {
+    if (pHead->sver == 1 && !walValidateChecksum(pHead)) {
       wError("vgId:%d, file:%s, wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
              pHead->version, pHead->len, offset);
       code = walSkipCorruptedRecord(pWal, pHead, tfd, &offset);
