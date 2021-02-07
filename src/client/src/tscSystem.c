@@ -64,7 +64,7 @@ void tscReleaseRpc(void *param)  {
     return;
   }
   pthread_mutex_lock(&rpcObjMutex);
-  taosCacheRelease(tscRpcCache, (void *)&param, true); 
+  taosCacheRelease(tscRpcCache, (void *)&param, false); 
   pthread_mutex_unlock(&rpcObjMutex);
 } 
 
@@ -101,7 +101,7 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
     tscError("failed to init connection to TDengine");
     return -1;
   } 
-  pRpcObj = taosCachePut(tscRpcCache, rpcObj.key, strlen(rpcObj.key), &rpcObj, sizeof(rpcObj), 1000*10);   
+  pRpcObj = taosCachePut(tscRpcCache, rpcObj.key, strlen(rpcObj.key), &rpcObj, sizeof(rpcObj), 1000*5);   
   if (pRpcObj == NULL) {
     rpcClose(rpcObj.pDnodeConn);
     pthread_mutex_unlock(&rpcObjMutex);
@@ -154,6 +154,7 @@ void taos_init_imp(void) {
   if (tscNumOfThreads < 2) {
     tscNumOfThreads = 2;
   }
+  taosTmrThreads = tscNumOfThreads;
 
   tscQhandle = taosInitScheduler(queueSize, tscNumOfThreads, "tsc");
   if (NULL == tscQhandle) {
