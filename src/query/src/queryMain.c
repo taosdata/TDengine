@@ -353,6 +353,11 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     qDebug("QInfo:%p has more results to retrieve", pQInfo);
   }
 
+  if (pQInfo->code != TSDB_CODE_SUCCESS) {
+    rpcFreeCont(*pRsp);
+    *pRsp = NULL;
+  }
+
   return pQInfo->code;
 }
 
