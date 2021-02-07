@@ -281,7 +281,7 @@ static void tscAsyncResultCallback(SSchedMsg *pMsg) {
   }
 
   assert(pSql->res.code != TSDB_CODE_SUCCESS);
-  tscError("%p invoke user specified function due to error occured, code:%s", pSql, tstrerror(pSql->res.code));
+  tscError("%p invoke user specified function due to error occurred, code:%s", pSql, tstrerror(pSql->res.code));
 
   SSqlRes *pRes = &pSql->res;
   if (pSql->fp == NULL || pSql->fetchFp == NULL){
