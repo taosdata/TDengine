@@ -179,6 +179,12 @@ typedef struct {
   SArray* pResult;  // SArray<SStddevInterResult>
 } SInterResult;
 
+typedef struct SSDataBlock {
+  SDataStatis *pBlockStatis;
+  SArray      *pDataBlock;
+  SDataBlockInfo info;
+} SSDataBlock;
+
 typedef struct SQuery {
   int16_t          numOfCols;
   int16_t          numOfTags;
@@ -214,6 +220,7 @@ typedef struct SQuery {
 
   SOrderedPrjQueryInfo prjInfo;        // limit value for each vgroup, only available in global order projection query.
   SSingleColumnFilterInfo* pFilterInfo;
+  SSDataBlock *ouptputBuf;
 } SQuery;
 
 typedef struct SQueryRuntimeEnv {
@@ -306,12 +313,6 @@ typedef struct SQueryParam {
   SColumnInfo     *pTagColumnInfo;
   SSqlGroupbyExpr *pGroupbyExpr;
 } SQueryParam;
-
-typedef struct SSDataBlock {
-  SDataStatis *pBlockStatis;
-  SArray      *pDataBlock;
-  SDataBlockInfo info;
-} SSDataBlock;
 
 typedef struct STableScanInfo {
   SQInfo*      pQInfo;

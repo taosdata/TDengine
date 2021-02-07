@@ -176,6 +176,22 @@ static STableScanInfo* createBiDirectionTableScanInfo(void* pTsdbQueryHandle, SQ
 static STableScanInfo* createTableScanInfo(void* pTsdbQueryHandle, SQInfo* pQInfo, int32_t repeatTime);
 static int32_t getNumOfScanTimes(SQuery* pQuery);
 
+static SSDataBlock* createOutputBuf(SQuery* pQuery) {
+  // setup the output buffer
+  SSDataBlock *res = calloc(1, sizeof(SSDataBlock));
+  res->info.numOfCols = pQuery->numOfOutput;
+
+  res->pDataBlock = taosArrayInit(pQuery->numOfOutput, sizeof(SColumnInfoData));
+  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+    SColumnInfoData idata = {0};
+    idata.info.type = pQuery->pExpr1[i].type;
+    idata.info.bytes = pQuery->pExpr1[i].bytes;
+    idata.info.colId = pQuery->pExpr1[i].base.resColId;
+    idata.pData = calloc(4096, idata.info.bytes);
+    taosArrayPush(res->pDataBlock, &idata);
+  }
+}
+
 bool doFilterData(SQuery *pQuery, int32_t elemPos) {
   for (int32_t k = 0; k < pQuery->numOfFilterCols; ++k) {
     SSingleColumnFilterInfo *pFilterInfo = &pQuery->pFilterInfo[k];
@@ -1147,6 +1163,36 @@ static void doWindowBorderInterpolation(SQueryRuntimeEnv* pRuntimeEnv, SDataBloc
     }
   } else {
     setNotInterpoWindowKey(pRuntimeEnv->pCtx, pQuery->numOfOutput, RESULT_ROW_END_INTERP);
+  }
+}
+
+static void aggApplyFunctions_rv(SQueryRuntimeEnv *pRuntimeEnv, SDataStatis *pStatis, SDataBlockInfo *pDataBlockInfo,
+                                    SArray *pDataBlock) {
+  SQLFunctionCtx *pCtx = pRuntimeEnv->pCtx;
+  SQuery *        pQuery = pRuntimeEnv->pQuery;
+
+  TSKEY *tsCols = NULL;
+  if (pDataBlock != NULL) {
+    SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, 0);
+    tsCols = (TSKEY *)(pColInfo->pData);
+  }
+
+  for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
+    char *dataBlock = getDataBlock(pRuntimeEnv, &pRuntimeEnv->sasArray[k], k, pDataBlockInfo->rows, pDataBlock);
+    setExecParams(pQuery, &pCtx[k], dataBlock, tsCols, pDataBlockInfo, pStatis, &pQuery->pExpr1[k]);
+  }
+
+  /*
+   * the sqlfunctionCtx parameters should be set done before all functions are invoked,
+   * since the selectivity + tag_prj query needs all parameters been set done.
+   * tag_prj function are changed to be TSDB_FUNC_TAG_DUMMY
+   */
+  for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
+    int32_t functionId = pQuery->pExpr1[k].base.functionId;
+    if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
+      pCtx[k].startTs = pQuery->window.skey;
+      aAggs[functionId].xFunction(&pCtx[k]);
+    }
   }
 }
 
@@ -5634,37 +5680,46 @@ static void doSecondaryArithmeticProcess(SQuery* pQuery) {
   tfree(arithSup.data);
 }
 
+static SSDataBlock* doScanImpl(STableScanInfo *pTableScanInfo) {
+  SSDataBlock *pBlock = &pTableScanInfo->block;
+
+  while (tsdbNextDataBlock(pTableScanInfo->pQueryHandle)) {
+    pTableScanInfo->numOfBlocks += 1;
+
+    // todo check for query cancel
+
+    tsdbRetrieveDataBlockInfo(pTableScanInfo->pQueryHandle, &pBlock->info);
+
+    SDataStatis *pStatis = pBlock->pBlockStatis;
+
+    // this function never returns error?
+    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->pQueryHandle, &pStatis);
+    pTableScanInfo->numOfBlockStatis += 1;
+
+    if (pBlock->pBlockStatis == NULL) {  // data block statistics does not exist, load data block
+      pBlock->pDataBlock = tsdbRetrieveDataBlock(pTableScanInfo->pQueryHandle, NULL);
+      pTableScanInfo->numOfRows += pBlock->info.rows;
+    }
+
+    return pBlock;
+  }
+}
+
 static SSDataBlock* doTableScan(void* param) {
   STableScanInfo *  pTableScanInfo = (STableScanInfo *)param;
   SQueryRuntimeEnv *pRuntimeEnv = &pTableScanInfo->pQInfo->runtimeEnv;
 
-  SSDataBlock *pBlock = &pTableScanInfo->block;
   while (pTableScanInfo->current < pTableScanInfo->times) {
-    while (tsdbNextDataBlock(pTableScanInfo->pQueryHandle)) {
-      pTableScanInfo->numOfBlocks += 1;
-
-      // todo check for query cancel
-
-      tsdbRetrieveDataBlockInfo(pTableScanInfo->pQueryHandle, &pBlock->info);
-
-      SDataStatis *pStatis = pBlock->pBlockStatis;
-
-      // this function never returns error?
-      tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->pQueryHandle, &pStatis);
-      pTableScanInfo->numOfBlockStatis += 1;
-
-      if (pBlock->pBlockStatis == NULL) {  // data block statistics does not exist, load data block
-        pBlock->pDataBlock = tsdbRetrieveDataBlock(pTableScanInfo->pQueryHandle, NULL);
-        pTableScanInfo->numOfRows += pBlock->info.rows;
-      }
-
-      return pBlock;
+    SSDataBlock* p = doScanImpl(pTableScanInfo);
+    if (p != NULL) {
+      return p;
     }
 
     if (++pTableScanInfo->current >= pTableScanInfo->times) {
       return NULL;
     }
 
+    // do prepare for the next round table scan operation
     tsdbCleanupQueryHandle(pTableScanInfo->pQueryHandle);
     STsdbQueryCond cond = createTsdbQueryCond(pRuntimeEnv->pQuery, &pRuntimeEnv->pQuery->window);
     pTableScanInfo->pQueryHandle =
@@ -5697,29 +5752,16 @@ static SSDataBlock* doTableScan(void* param) {
         tsdbQueryTables(pTableScanInfo->pQInfo->tsdb, &cond, &pTableScanInfo->pQInfo->tableGroupInfo,
                         pTableScanInfo->pQInfo, &pTableScanInfo->pQInfo->memRef);
 
-    while (tsdbNextDataBlock(pTableScanInfo->pQueryHandle)) {
-      pTableScanInfo->numOfBlocks += 1;
-
-      // todo check for query cancel
-      tsdbRetrieveDataBlockInfo(pTableScanInfo->pQueryHandle, &pBlock->info);
-
-      SDataStatis *pStatis = pBlock->pBlockStatis;
-
-      // this function never returns error?
-      tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->pQueryHandle, &pStatis);
-      pTableScanInfo->numOfBlockStatis += 1;
-
-      if (pBlock->pBlockStatis == NULL) {  // data block statistics does not exist, load data block
-        pBlock->pDataBlock = tsdbRetrieveDataBlock(pTableScanInfo->pQueryHandle, NULL);
-        pTableScanInfo->numOfRows += pBlock->info.rows;
-      }
-
-      return pBlock;
-    }
-
-
     qDebug("QInfo:%p start to reverse scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            pTableScanInfo->pQInfo, cond.twindow.skey, cond.twindow.ekey);
+
+    pTableScanInfo->times = 1;
+    pTableScanInfo->current = 0;
+
+    SSDataBlock* p = doScanImpl(pTableScanInfo);
+    if (p != NULL) {
+      return p;
+    }
   }
 
   return NULL;
@@ -5761,27 +5803,6 @@ static UNUSED_FUNC int32_t getTableScanTime(STableScanInfo* pTableScanInfo) {
 static SSDataBlock* doAggOperator(void* param) {
   SAggOperatorInfo* pInfo = (SAggOperatorInfo*) param;
 
-  // setup the output buffer
-  SSDataBlock* res = calloc(1, sizeof(SSDataBlock));
-
-  SQuery* pQuery = pInfo->pRuntimeEnv->pQuery;
-  res->info.numOfCols = pQuery->numOfOutput;
-
-  res->pDataBlock = taosArrayInit(pQuery->numOfOutput, sizeof(SColumnInfoData));
-  for(int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-
-    SColumnInfoData idata = {0};
-    idata.info.type = pQuery->pExpr1[i].type;
-    idata.info.bytes = pQuery->pExpr1[i].bytes;
-    idata.info.colId = pQuery->pExpr1[i].base.resColId;
-    idata.pData = calloc(4096, idata.info.bytes);
-    taosArrayPush(res->pDataBlock, &idata);
-
-    pInfo->pRuntimeEnv->pCtx[i].pOutput = idata.pData;
-  }
-
-  pQuery->pos = 0;
-
   int32_t countId = 0;
   while(1) {
     SSDataBlock* pBlock = pInfo->pTableScanInfo->apply(pInfo->pTableScanInfo);
@@ -5793,7 +5814,7 @@ static SSDataBlock* doAggOperator(void* param) {
       needRepeatScan(pInfo->pRuntimeEnv);
     }
 
-    blockwiseApplyFunctions(pInfo->pRuntimeEnv, pBlock->pBlockStatis, &pBlock->info, pInfo->pResultRowInfo, binarySearchForKey, pBlock->pDataBlock);
+    aggApplyFunctions_rv(pInfo->pRuntimeEnv, pBlock->pBlockStatis, &pBlock->info, pBlock->pDataBlock);
   }
 
   setQueryStatus(pQuery, QUERY_COMPLETED);
@@ -6872,6 +6893,7 @@ SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr
   }
 
   doUpdateExprColumnIndex(pQuery);
+  pQuery->ouptputBuf = createOutputBuf(pQuery);
 
   int32_t ret = createFilterInfo(pQInfo, pQuery);
   if (ret != TSDB_CODE_SUCCESS) {
