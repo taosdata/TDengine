@@ -892,7 +892,12 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
   if (pCmd->command == TSDB_SQL_CFG_LOCAL) {
-    pRes->code = (uint8_t)taosCfgDynamicOptions(pCmd->payload);
+    if (taosCfgDynamicOptions(pCmd->payload)) {
+       pRes->code = TSDB_CODE_SUCCESS;
+    } else {
+       pRes->code = TSDB_CODE_COM_INVALID_CFG_MSG; 
+    } 
+    pRes->numOfRows = 0;
   } else if (pCmd->command == TSDB_SQL_DESCRIBE_TABLE) {
     pRes->code = (uint8_t)tscProcessDescribeTable(pSql);
   } else if (pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {

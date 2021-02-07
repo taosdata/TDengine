@@ -259,10 +259,12 @@ public class RestfulResultSetTest {
         rs.previous();
     }
 
-    @Test(expected = SQLException.class)
+    @Test
     public void setFetchDirection() throws SQLException {
         rs.setFetchDirection(ResultSet.FETCH_FORWARD);
+        Assert.assertEquals(ResultSet.FETCH_FORWARD, rs.getFetchDirection());
         rs.setFetchDirection(ResultSet.FETCH_UNKNOWN);
+        Assert.assertEquals(ResultSet.FETCH_FORWARD, rs.getFetchDirection());
     }
 
     @Test
@@ -270,14 +272,15 @@ public class RestfulResultSetTest {
         Assert.assertEquals(ResultSet.FETCH_FORWARD, rs.getFetchDirection());
     }
 
-    @Test(expected = SQLException.class)
+    @Test
     public void setFetchSize() throws SQLException {
         rs.setFetchSize(0);
+        Assert.assertEquals(0, rs.getFetchSize());
     }
 
     @Test
     public void getFetchSize() throws SQLException {
-        Assert.assertEquals(1, rs.getFetchSize());
+        Assert.assertEquals(0, rs.getFetchSize());
     }
 
     @Test
@@ -526,9 +529,12 @@ public class RestfulResultSetTest {
         rs.updateSQLXML(1, null);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void getNString() throws SQLException {
-        rs.getNString("f1");
+        String f10 = rs.getNString("f10");
+        Assert.assertEquals("涛思数据", f10);
+        f10 = rs.getNString(10);
+        Assert.assertEquals("涛思数据", f10);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)

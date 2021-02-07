@@ -1564,8 +1564,10 @@ static void stddev_dst_function(SQLFunctionCtx *pCtx) {
     avg = p->avg;
   } else {  // todo opt performance by using iterator since the timestamp lsit is matched with the output result
     SResPair* p = bsearch(&pCtx->startTs, resList->pData, len, sizeof(SResPair), tsCompare);
-    assert(p != NULL);
-
+    if (p == NULL) {
+      return;
+    }
+    
     avg = p->avg;
   }
 

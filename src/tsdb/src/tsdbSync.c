@@ -549,7 +549,7 @@ static int32_t tsdbSyncSendDFileSet(SSyncH *pSynch, SDFileSet *pSet) {
   bool toSend = false;
 
   if (tsdbSendDFileSetInfo(pSynch, pSet) < 0) {
-    tsdbError("vgId:%d, failed to send fileset:%d info since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+    tsdbError("vgId:%d, failed to send fileset:%d info since %s", REPO_ID(pRepo), pSet ? pSet->fid : -1, tstrerror(terrno));
     return -1;
   }
 

@@ -181,6 +181,7 @@ typedef struct SArguments_S {
   char *   sqlFile;
   bool     use_metric;
   bool     insert_only;
+  bool     answer_yes;
   char *   output_file;
   int      mode;
   char *   datatype[MAX_NUM_DATATYPE + 1];
@@ -430,13 +431,14 @@ typedef  struct curlMemInfo_S {
     {0, 'w', "length_of_chartype",       0, "The length of data_type 'BINARY' or 'NCHAR'. Default is 16",                                                       4},
     {0, 'l', "num_of_cols_per_record",   0, "The number of columns per record. Default is 10.",                                                                 4},
     {0, 'T', "num_of_threads",           0, "The number of threads. Default is 10.",                                                                            4},
-    // {0, 'r', "num_of_records_per_req",   0, "The number of records per request. Default is 100.",                                                               4},
+    // {0, 'r', "num_of_records_per_req",   0, "The number of records per request. Default is 100.",                                                            4},
     {0, 't', "num_of_tables",            0, "The number of tables. Default is 10000.",                                                                          4},
     {0, 'n', "num_of_records_per_table", 0, "The number of records per table. Default is 10000.",                                                               4},
-    {0, 'x', 0,                          0, "Not insert only flag.",                                                                                                4},
+    {0, 'x', 0,                          0, "Not insert only flag.",                                                                                            4},
+    {0, 'y', 0,                          0, "Default input yes for prompt.",                                                                                    4},
     {0, 'O', "disorderRatio",            0, "Insert mode--0: In order, > 0: disorder ratio. Default is in order.",                                              4},
     {0, 'R', "disorderRang",             0, "Out of order data's range, ms, default is 1000.",                                                                  4},
-    //{0, 'D', "delete database",          0, "if elete database if exists. 0: no, 1: yes, default is 1",                                                         5},
+    //{0, 'D', "delete database",          0, "if elete database if exists. 0: no, 1: yes, default is 1",                                                       5},
     {0}};
 
 /* Parse a single option. */
@@ -529,6 +531,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'x':
       arguments->insert_only = false;
+    case 'y':
+      arguments->answer_yes = true;
       break;
     case 'c':
       if (wordexp(arg, &full_path, 0) != 0) {
@@ -644,6 +648,7 @@ SArguments g_args = {NULL,
                      NULL,            // sqlFile
                      false,           // use_metric
                      true,            // insert_only
+                     false,           // answer_yes;
                      "./output.txt",  // output_file
                      0,               // mode : sync or async
                      {
@@ -1380,7 +1385,7 @@ static void printfDbInfoForQueryToFile(char* filename, SDbInfo* dbInfos, int ind
   fprintf(fp, "replica: %d\n", dbInfos->replica);
   fprintf(fp, "quorum: %d\n", dbInfos->quorum);
   fprintf(fp, "days: %d\n", dbInfos->days);    
-  fprintf(fp, "keep1,keep2,keep(D): %s\n", dbInfos->keeplist);      
+  fprintf(fp, "keep0,keep1,keep(D): %s\n", dbInfos->keeplist);      
   fprintf(fp, "cache(MB): %d\n", dbInfos->cache);
   fprintf(fp, "blocks: %d\n", dbInfos->blocks);
   fprintf(fp, "minrows: %d\n", dbInfos->minrows);
@@ -2535,6 +2540,22 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   } else {
     printf("failed to read json, threads2 not found");
     goto PARSE_OVER;
+  } 
+
+  cJSON *answerPrompt = cJSON_GetObjectItem(root, "confirm_parameter_prompt"); // yes, no,
+  if (answerPrompt && answerPrompt->type == cJSON_String && answerPrompt->valuestring != NULL) {
+    if (0 == strncasecmp(answerPrompt->valuestring, "yes", 3)) {
+      g_args.answer_yes = false;
+    } else if (0 == strncasecmp(answerPrompt->valuestring, "no", 2)) {
+      g_args.answer_yes = true;
+    } else {
+      g_args.answer_yes = false;
+    }
+  } else if (!answerPrompt) {
+    g_args.answer_yes = false;
+  } else {
+    printf("failed to read json, confirm_parameter_prompt not found");
+    goto PARSE_OVER;
   }  
 
   cJSON* dbs = cJSON_GetObjectItem(root, "databases");
@@ -3051,6 +3072,22 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   } else if (!password) {
     strncpy(g_queryInfo.password, "taosdata", MAX_DB_NAME_SIZE);;
   }
+
+  cJSON *answerPrompt = cJSON_GetObjectItem(root, "confirm_parameter_prompt"); // yes, no,
+  if (answerPrompt && answerPrompt->type == cJSON_String && answerPrompt->valuestring != NULL) {
+    if (0 == strncasecmp(answerPrompt->valuestring, "yes", 3)) {
+      g_args.answer_yes = false;
+    } else if (0 == strncasecmp(answerPrompt->valuestring, "no", 2)) {
+      g_args.answer_yes = true;
+    } else {
+      g_args.answer_yes = false;
+    }
+  } else if (!answerPrompt) {
+    g_args.answer_yes = false;
+  } else {
+    printf("failed to read json, confirm_parameter_prompt not found");
+    goto PARSE_OVER;
+  }  
 
   cJSON* dbs = cJSON_GetObjectItem(root, "databases");
   if (dbs && dbs->type == cJSON_String && dbs->valuestring != NULL) {
@@ -4289,9 +4326,11 @@ int insertTestProcess() {
   printfInsertMeta();
   printfInsertMetaToFile(g_fpOfInsertResult);
 
-  printf("Press enter key to continue\n\n");
-  (void)getchar();
- 
+  if (!g_args.answer_yes) {
+    printf("Press enter key to continue\n\n");
+    (void)getchar();
+  }
+  
   init_rand_data();
 
   // create database and super tables
@@ -4469,9 +4508,12 @@ int queryTestProcess() {
   }  
   
   printfQueryMeta();
-  printf("Press enter key to continue\n\n");
-  (void)getchar();
-
+  
+  if (!g_args.answer_yes) {
+    printf("Press enter key to continue\n\n");
+    (void)getchar();
+  }
+  
   printfQuerySystemInfo(taos);
   
   pthread_t  *pids  = NULL;
@@ -4724,8 +4766,10 @@ void *superSubscribeProcess(void *sarg) {
 int subscribeTestProcess() {
   printfQueryMeta();
 
-  printf("Press enter key to continue\n\n");
-  (void)getchar();
+  if (!g_args.answer_yes) {
+    printf("Press enter key to continue\n\n");
+    (void)getchar();
+  }
 
   TAOS * taos = NULL;  
   taos_init();

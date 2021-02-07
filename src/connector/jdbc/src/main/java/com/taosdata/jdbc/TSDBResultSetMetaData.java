@@ -29,11 +29,11 @@ public class TSDBResultSetMetaData implements ResultSetMetaData {
 	}
 
 	public <T> T unwrap(Class<T> iface) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
 	}
 
 	public boolean isWrapperFor(Class<?> iface) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
 	}
 
 	public int getColumnCount() throws SQLException {
@@ -94,7 +94,7 @@ public class TSDBResultSetMetaData implements ResultSetMetaData {
 	}
 
 	public String getSchemaName(int column) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
 	}
 
 	public int getPrecision(int column) throws SQLException {
@@ -125,11 +125,11 @@ public class TSDBResultSetMetaData implements ResultSetMetaData {
 	}
 
 	public String getTableName(int column) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
 	}
 
 	public String getCatalogName(int column) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
 	}
 
 	public int getColumnType(int column) throws SQLException {
@@ -173,7 +173,7 @@ public class TSDBResultSetMetaData implements ResultSetMetaData {
 	}
 
 	public boolean isDefinitelyWritable(int column) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
 	}
 
 	public String getColumnClassName(int column) throws SQLException {

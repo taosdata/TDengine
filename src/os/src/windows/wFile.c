@@ -160,7 +160,6 @@ int32_t taosFtruncate(int32_t fd, int64_t l_size) {
   return 0;
 }
 
-
 int fsync(int filedes) { 
   if (filedes < 0) {
     errno = EBADF;
@@ -171,4 +170,15 @@ int fsync(int filedes) {
   HANDLE h = (HANDLE)_get_osfhandle(filedes);
   
   return FlushFileBuffers(h);
+}
+
+int32_t taosRename(char* oldName, char *newName) {
+  int32_t code = MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
+  if (code < 0) {
+    uError("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
+  } else {
+    uTrace("successfully to rename file %s to %s", oldName, newName);
+  }
+
+  return code;
 }

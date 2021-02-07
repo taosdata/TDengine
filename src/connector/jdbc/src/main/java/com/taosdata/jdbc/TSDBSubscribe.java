@@ -50,7 +50,7 @@ public class TSDBSubscribe {
         } else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
             return null;
         } else {
-            return new TSDBResultSet(this.connecter, resultSetPointer);
+            return new TSDBResultSet(null, this.connecter, resultSetPointer);
         }
     }
 

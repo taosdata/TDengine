@@ -227,6 +227,7 @@ void *tsdbFreeFS(STsdbFS *pfs) {
     pfs->metaCache = NULL;
     pfs->cstatus = tsdbFreeFSStatus(pfs->cstatus);
     pthread_rwlock_destroy(&(pfs->lock));
+    free(pfs);
   }
 
   return NULL;
@@ -395,7 +396,7 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
   }
 
   (void)close(fd);
-  (void)rename(tfname, cfname);
+  (void)taosRename(tfname, cfname);
   taosTZfree(pBuf);
 
   return 0;
