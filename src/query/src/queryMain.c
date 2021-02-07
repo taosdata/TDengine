@@ -353,6 +353,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     qDebug("QInfo:%p has more results to retrieve", pQInfo);
   }
 
+  // the memory should be freed if the code of pQInfo is not TSDB_CODE_SUCCESS
   if (pQInfo->code != TSDB_CODE_SUCCESS) {
     rpcFreeCont(*pRsp);
     *pRsp = NULL;
