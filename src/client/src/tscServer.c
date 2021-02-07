@@ -451,7 +451,7 @@ int doProcessSql(SSqlObj *pSql) {
   
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscAsyncResultOnError(pSql);
-    return pRes->code;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t code = tscSendMsgToServer(pSql);
@@ -460,7 +460,7 @@ int doProcessSql(SSqlObj *pSql) {
   if (code != TSDB_CODE_SUCCESS) {
     pRes->code = code;
     tscAsyncResultOnError(pSql);
-    return code;
+    return  TSDB_CODE_SUCCESS;
   }
   
   return TSDB_CODE_SUCCESS;

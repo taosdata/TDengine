@@ -2362,7 +2362,7 @@ static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32
     taos_free_result(pSql);
     return ret;
   } else {    
-    pSql->pSubs[trsupport->subqueryIndex] = pSql;
+    pParentSql->pSubs[trsupport->subqueryIndex] = pSql;
     tscFreeRetrieveSup(pNew);
     taos_free_result(pNew);
     return ret;

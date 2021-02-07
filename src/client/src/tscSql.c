@@ -696,7 +696,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     }
 
     tscAsyncResultOnError(pSubObj);
-    taosReleaseRef(tscObjRef, pSubObj->self);
+    // taosRelekaseRef(tscObjRef, pSubObj->self);
   }
 
   if (pSql->subState.numOfSub <= 0) {
