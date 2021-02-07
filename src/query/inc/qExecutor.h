@@ -253,6 +253,8 @@ typedef struct SQueryRuntimeEnv {
 
   char*                tagVal;           // tag value of current data block
   SArithmeticSupport  *sasArray;
+
+  struct STableScanInfo*   pi;
 } SQueryRuntimeEnv;
 
 enum {
@@ -312,6 +314,7 @@ typedef struct SSDataBlock {
 } SSDataBlock;
 
 typedef struct STableScanInfo {
+  SQInfo*      pQInfo;
   void        *pQueryHandle;
   int32_t      numOfBlocks;
   int32_t      numOfSkipped;
@@ -321,6 +324,9 @@ typedef struct STableScanInfo {
 
   int32_t      order;  // scan order
   int32_t      times;  // repeat counts
+  int32_t      current;
+
+  int32_t      reverseTimes; // 0 by default
 
   SSDataBlock  block;
   int64_t      elapsedTime;
