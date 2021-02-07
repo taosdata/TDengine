@@ -4,6 +4,7 @@ import com.taosdata.taosdemo.components.DataSourceFactory;
 import com.taosdata.taosdemo.components.JdbcTaosdemoConfig;
 import com.taosdata.taosdemo.domain.SuperTableMeta;
 import com.taosdata.taosdemo.service.DatabaseService;
+import com.taosdata.taosdemo.service.QueryService;
 import com.taosdata.taosdemo.service.SubTableService;
 import com.taosdata.taosdemo.service.SuperTableService;
 import com.taosdata.taosdemo.service.data.SuperTableMetaGenerator;
@@ -34,6 +35,7 @@ public class TaosDemoApplication {
         final DatabaseService databaseService = new DatabaseService(dataSource);
         final SuperTableService superTableService = new SuperTableService(dataSource);
         final SubTableService subTableService = new SubTableService(dataSource);
+        final QueryService queryService = new QueryService(dataSource);
         // 创建数据库
         long start = System.currentTimeMillis();
         Map<String, String> databaseParam = new HashMap<>();
@@ -90,6 +92,11 @@ public class TaosDemoApplication {
         int affectedRows = subTableService.insertMultiThreads(superTableMeta, threadSize, tableSize, startTime, gap, config);
         end = System.currentTimeMillis();
         logger.info("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
+        /**********************************************************************************/
+        // 查询
+
+
+
         /**********************************************************************************/
         // 删除表
         if (config.dropTable) {
