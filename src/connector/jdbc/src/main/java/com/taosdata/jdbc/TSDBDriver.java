@@ -37,7 +37,7 @@ import java.util.logging.Logger;
  * register it with the DriverManager. This means that a user can load and
  * register a driver by doing Class.forName("foo.bah.Driver")
  */
-public class TSDBDriver extends AbstractTaosDriver {
+public class TSDBDriver extends AbstractDriver {
 
     @Deprecated
     private static final String URL_PREFIX1 = "jdbc:TSDB://";

@@ -356,7 +356,7 @@ static int32_t mnodeGetQueryMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pC
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
-  strcpy(pSchema[cols].name, "time(us)");
+  strcpy(pSchema[cols].name, "time");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
