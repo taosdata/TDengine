@@ -97,7 +97,7 @@ static void freeSCqContext(void *handle) {
   }
   SCqContext *pContext = handle;
   pthread_mutex_destroy(&pContext->mutex);
-    
+
   taosTmrCleanUp(pContext->tmrCtrl);
   pContext->tmrCtrl = NULL;
   cDebug("vgId:%d, CQ is closed", pContext->vgId);
@@ -203,7 +203,7 @@ void cqClose(void *handle) {
   pContext->delete = 1;
   int32_t hasCq = 0;
   int32_t existLoop = 0;
-  
+
   // stop all CQs
   cqStop(pContext);
 
@@ -223,7 +223,7 @@ void cqClose(void *handle) {
       if (pContext->pHead == NULL) {
         existLoop = 1;
       }
-    } else {      
+    } else {
       pthread_mutex_unlock(&pContext->mutex);
       break;
     }
@@ -267,6 +267,7 @@ void cqStop(void *handle) {
   if (tsEnableStream == 0) {
     return;
   }
+
   SCqContext *pContext = handle;
   cDebug("vgId:%d, stop all CQs", pContext->vgId);
   if (pContext->dbConn == NULL || pContext->master == 0) return;

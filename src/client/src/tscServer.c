@@ -770,6 +770,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       char n[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(&pTableMetaInfo->name, n);
 
+
       tscError("%p tid:%d uid:%" PRIu64" id:%s, column index out of range, numOfColumns:%d, index:%d, column name:%s",
           pSql, pTableMeta->id.tid, pTableMeta->id.uid, n, tscGetNumOfColumns(pTableMeta), pCol->colIndex.columnIndex,
                pColSchema->name);
@@ -812,6 +813,13 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlFuncMsg *pSqlFuncExpr = (SSqlFuncMsg *)pMsg;
   for (int32_t i = 0; i < tscSqlExprNumOfExprs(pQueryInfo); ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
+
+    // the queried table has been removed and a new table with the same name has already been created already
+    // return error msg
+    if (pExpr->uid != pTableMeta->id.uid) {
+      tscError("%p table has already been destroyed", pSql);
+      return TSDB_CODE_TSC_INVALID_TABLE_NAME;
+    }
 
     if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
       tscError("%p table schema is not matched with parsed sql", pSql);
@@ -856,6 +864,13 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       SInternalField* pField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
       SSqlExpr *pExpr = pField->pSqlExpr;
       if (pExpr != NULL) {
+        // the queried table has been removed and a new table with the same name has already been created already
+        // return error msg
+        if (pExpr->uid != pTableMeta->id.uid) {
+          tscError("%p table has already been destroyed", pSql);
+          return TSDB_CODE_TSC_INVALID_TABLE_NAME;
+        }
+
         if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
           tscError("%p table schema is not matched with parsed sql", pSql);
           return TSDB_CODE_TSC_INVALID_SQL;

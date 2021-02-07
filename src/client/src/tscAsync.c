@@ -333,7 +333,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       code = tscGetTableMeta(pSql, pTableMetaInfo);
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code == TSDB_CODE_SUCCESS);
 
-      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {        
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         taosReleaseRef(tscObjRef, pSql->self);
         return;
       }

@@ -1888,14 +1888,31 @@ void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, S
   }
 }
 
+static void destroySup(SFirstRoundQuerySup* pSup) {
+  taosArrayDestroyEx(pSup->pResult, freeInterResult);
+  taosArrayDestroy(pSup->pColsInfo);
+  tfree(pSup);
+}
+
 void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   SSqlObj* pSql = (SSqlObj*)tres;
   SSqlRes* pRes = &pSql->res;
 
   SFirstRoundQuerySup* pSup = param;
-  SQueryInfo*          pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
 
-  if (numOfRows > 0) {
+  SSqlObj*     pParent = pSup->pParent;
+  SQueryInfo*  pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+
+  int32_t code = taos_errno(pSql);
+  if (code != TSDB_CODE_SUCCESS) {
+    destroySup(pSup);
+    taos_free_result(pSql);
+    pParent->res.code = code;
+    tscAsyncResultOnError(pParent);
+    return;
+  }
+
+  if (numOfRows > 0) {  // the number is not correct for group by column in super table query
     TAOS_ROW row = NULL;
     int32_t  numOfCols = taos_field_count(tres);
 
@@ -1905,6 +1922,7 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 
       while ((row = taos_fetch_row(tres)) != NULL) {
         doAppendData(&interResult, row, numOfCols, pQueryInfo);
+        pSup->numOfRows += 1;
       }
     } else {  // tagLen > 0
       char* p = calloc(1, pSup->tagLen);
@@ -1916,7 +1934,9 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
         int32_t offset = 0;
         for (int32_t i = 0; i < numOfCols && offset < pSup->tagLen; ++i) {
           SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-          if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
+
+          // tag or group by column
+          if (TSDB_COL_IS_TAG(pExpr->colInfo.flag) || pExpr->functionId == TSDB_FUNC_PRJ) {
             memcpy(p + offset, row[i], length[i]);
             offset += pExpr->resBytes;
           }
@@ -1945,20 +1965,20 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
           taosArrayPush(pSup->pResult, &interResult);
           doAppendData(&interResult, row, numOfCols, pQueryInfo);
         }
+
+        pSup->numOfRows += 1;
       }
 
       tfree(p);
     }
   }
 
-  pSup->numOfRows += numOfRows;
   if (!pRes->completed) {
     taos_fetch_rows_a(tres, tscFirstRoundRetrieveCallback, param);
     return;
   }
 
   // set the parameters for the second round query process
-  SSqlObj    *pParent = pSup->pParent;
   SSqlCmd    *pPCmd   = &pParent->cmd;
   SQueryInfo *pQueryInfo1 = tscGetQueryInfoDetail(pPCmd, 0);
 
@@ -1984,9 +2004,19 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 }
 
 void tscFirstRoundCallback(void* param, TAOS_RES* tres, int code) {
-  int32_t c = taos_errno(tres);
+  SFirstRoundQuerySup* pSup = (SFirstRoundQuerySup*) param;
+
+  SSqlObj* pSql = (SSqlObj*) tres;
+  int32_t c = taos_errno(pSql);
+
   if (c != TSDB_CODE_SUCCESS) {
-    // TODO HANDLE ERROR
+    SSqlObj* parent = pSup->pParent;
+
+    destroySup(pSup);
+    taos_free_result(pSql);
+    parent->res.code = code;
+    tscAsyncResultOnError(parent);
+    return;
   }
 
   taos_fetch_rows_a(tres, tscFirstRoundRetrieveCallback, param);
@@ -2020,13 +2050,13 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
     pNewQueryInfo->groupbyExpr.columnInfo = taosArrayDup(pQueryInfo->groupbyExpr.columnInfo);
     if (pNewQueryInfo->groupbyExpr.columnInfo == NULL) {
       terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-//      goto _error;
+      goto _error;
     }
   }
 
   if (tscTagCondCopy(&pNewQueryInfo->tagCond, &pQueryInfo->tagCond) != 0) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-//    goto _error;
+    goto _error;
   }
 
   pNewQueryInfo->interval = pQueryInfo->interval;
@@ -2037,7 +2067,6 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
   int32_t numOfExprs = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
 
   int32_t index = 0;
-  int32_t numOfTags = 0;
   for(int32_t i = 0; i < numOfExprs; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
     if (pExpr->functionId == TSDB_FUNC_TS && pQueryInfo->interval.interval > 0) {
@@ -2070,7 +2099,25 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
 
       SSqlExpr* p = tscAddFuncInSelectClause(pNewQueryInfo, index++, TSDB_FUNC_TAG, &colIndex, schema, TSDB_COL_TAG);
       p->resColId = pExpr->resColId;
-      numOfTags += 1;
+    } else if (pExpr->functionId == TSDB_FUNC_PRJ) {
+      int32_t num = (int32_t) taosArrayGetSize(pNewQueryInfo->groupbyExpr.columnInfo);
+      for(int32_t k = 0; k < num; ++k) {
+        SColIndex* pIndex = taosArrayGet(pNewQueryInfo->groupbyExpr.columnInfo, k);
+        if (pExpr->colInfo.colId == pIndex->colId) {
+          pSup->tagLen += pExpr->resBytes;
+          taosArrayPush(pSup->pColsInfo, &pExpr->resColId);
+
+          SColumnIndex colIndex = {.tableIndex = 0, .columnIndex = pIndex->colIndex};
+          SSchema* schema = tscGetColumnSchemaById(pTableMetaInfo1->pTableMeta, pExpr->colInfo.colId);
+
+          //doLimitOutputNormalColOfGroupby
+          SSqlExpr* p = tscAddFuncInSelectClause(pNewQueryInfo, index++, TSDB_FUNC_PRJ, &colIndex, schema, TSDB_COL_NORMAL);
+          p->numOfParams = 1;
+          p->param[0].i64 = 1;
+          p->param[0].nType = TSDB_DATA_TYPE_INT;
+          p->resColId = pExpr->resColId;  // update the result column id
+        }
+      }
     }
   }
 
@@ -2087,6 +2134,13 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
 
   tscHandleMasterSTableQuery(pNew);
   return TSDB_CODE_SUCCESS;
+
+  _error:
+  destroySup(pSup);
+  taos_free_result(pNew);
+  pSql->res.code = terrno;
+  tscAsyncResultOnError(pSql);
+  return terrno;
 }
 
 int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
@@ -2128,7 +2182,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     tfree(pMemoryBuf);
     return ret;
   }
-  
+
   tscDebug("%p retrieved query data from %d vnode(s)", pSql, pState->numOfSub);
   pSql->pSubs = calloc(pState->numOfSub, POINTER_BYTES);
   if (pSql->pSubs == NULL) {

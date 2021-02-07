@@ -85,4 +85,12 @@ void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen);
 SArray* interResFromBinary(const char* data, int32_t len);
 void freeInterResult(void* param);
 
+void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo, int32_t offset);
+void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
+bool    hasRemainData(SGroupResInfo* pGroupResInfo);
+bool    incNextGroup(SGroupResInfo* pGroupResInfo);
+int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
+
+int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQInfo *pQInfo);
+
 #endif  // TDENGINE_QUERYUTIL_H
