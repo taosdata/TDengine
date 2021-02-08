@@ -269,6 +269,7 @@ typedef struct SQueryRuntimeEnv {
   SSDataBlock *ouptputBuf;
 
   int32_t          groupIndex;
+  int32_t          tableIndex;
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
 
 } SQueryRuntimeEnv;
@@ -295,7 +296,6 @@ typedef struct SQInfo {
    * the query is executed position on which meter of the whole list.
    * when the index reaches the last one of the list, it means the query is completed.
    */
-  int32_t          tableIndex;
   SGroupResInfo    groupResInfo;
   void*            pBuf;        // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
 

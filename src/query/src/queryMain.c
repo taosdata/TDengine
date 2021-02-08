@@ -216,7 +216,7 @@ bool qTableQuery(qinfo_t qinfo) {
     return doBuildResCheck(pQInfo);
   }
 
-  if (pQInfo->tableqinfoGroupInfo.numOfTables == 0) {
+  if (pQInfo->runtimeEnv.tableqinfoGroupInfo.numOfTables == 0) {
     qDebug("QInfo:%p no table exists for query, abort", pQInfo);
     setQueryStatus(pQInfo->runtimeEnv.pQuery, QUERY_COMPLETED);
     return doBuildResCheck(pQInfo);
@@ -236,9 +236,9 @@ bool qTableQuery(qinfo_t qinfo) {
   if (onlyQueryTags(pQInfo->runtimeEnv.pQuery)) {
     assert(pQInfo->runtimeEnv.pQueryHandle == NULL);
     buildTagQueryResult(pQInfo);
-  } else if (pQInfo->runtimeEnv.stableQuery) {
+  } else if (pQInfo->query.stableQuery) {
     stableQueryImpl(pQInfo);
-  } else if (pQInfo->runtimeEnv.queryBlockDist){
+  } else if (pQInfo->query.queryBlockDist){
     buildTableBlockDistResult(pQInfo);
   } else {
     tableQueryImpl(pQInfo);
@@ -248,7 +248,7 @@ bool qTableQuery(qinfo_t qinfo) {
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:%p query is killed", pQInfo);
   } else if (pQuery->rec.rows == 0) {
-    qDebug("QInfo:%p over, %" PRIzu " tables queried, %"PRId64" rows are returned", pQInfo, pQInfo->tableqinfoGroupInfo.numOfTables, pQuery->rec.total);
+    qDebug("QInfo:%p over, %" PRIzu " tables queried, %"PRId64" rows are returned", pQInfo, pRuntimeEnv->tableqinfoGroupInfo.numOfTables, pQuery->rec.total);
   } else {
     qDebug("QInfo:%p query paused, %" PRId64 " rows returned, numOfTotal:%" PRId64 " rows",
            pQInfo, pQuery->rec.rows, pQuery->rec.total + pQuery->rec.rows);
@@ -309,7 +309,6 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
-  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
   size_t  size = getResultSize(pQInfo, &pQuery->rec.rows);
 
@@ -328,10 +327,10 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
 
   if (pQInfo->code == TSDB_CODE_SUCCESS) {
     (*pRsp)->offset   = htobe64(pQuery->limit.offset);
-    (*pRsp)->useconds = htobe64(pRuntimeEnv->summary.elapsedTime);
+    (*pRsp)->useconds = htobe64(pQInfo->summary.elapsedTime);
   } else {
     (*pRsp)->offset   = 0;
-    (*pRsp)->useconds = htobe64(pRuntimeEnv->summary.elapsedTime);
+    (*pRsp)->useconds = htobe64(pQInfo->summary.elapsedTime);
   }
 
   (*pRsp)->precision = htons(pQuery->precision);

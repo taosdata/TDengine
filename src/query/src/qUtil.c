@@ -164,7 +164,8 @@ SResultRowCellInfo* getResultCell(SQueryRuntimeEnv* pRuntimeEnv, const SResultRo
 }
 
 size_t getResultRowSize(SQueryRuntimeEnv* pRuntimeEnv) {
-  return (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultRowCellInfo)) + pRuntimeEnv->interBufSize + sizeof(SResultRow);
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  return (pQuery->numOfOutput * sizeof(SResultRowCellInfo)) + pQuery->interBufSize + sizeof(SResultRow);
 }
 
 SResultRowPool* initResultRowPool(size_t size) {
@@ -540,11 +541,12 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
 
 int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQInfo *pQInfo) {
   int64_t st = taosGetTimestampUs();
+  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
 
   while (pGroupResInfo->currentGroup < pGroupResInfo->totalGroup) {
-    SArray *group = GET_TABLEGROUP(pQInfo, pGroupResInfo->currentGroup);
+    SArray *group = GET_TABLEGROUP(pRuntimeEnv, pGroupResInfo->currentGroup);
 
-    int32_t ret = mergeIntoGroupResultImpl(&pQInfo->runtimeEnv, pGroupResInfo, group, pQInfo);
+    int32_t ret = mergeIntoGroupResultImpl(pRuntimeEnv, pGroupResInfo, group, pQInfo);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -560,13 +562,13 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQInfo *pQInfo) {
   }
 
   if (pGroupResInfo->currentGroup >= pGroupResInfo->totalGroup && !hasRemainData(pGroupResInfo)) {
-    SET_STABLE_QUERY_OVER(pQInfo);
+    SET_STABLE_QUERY_OVER(pRuntimeEnv);
   }
 
   int64_t elapsedTime = taosGetTimestampUs() - st;
   qDebug("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", pQInfo,
          pGroupResInfo->currentGroup, pGroupResInfo->totalGroup, elapsedTime);
 
-  pQInfo->runtimeEnv.summary.firstStageMergeTime += elapsedTime;
+  pQInfo->summary.firstStageMergeTime += elapsedTime;
   return TSDB_CODE_SUCCESS;
 }
