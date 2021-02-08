@@ -882,8 +882,12 @@ class StateMechine:
         self._stateWeights = [1, 2, 10, 40]
 
     def init(self, dbc: DbConn): # late initailization, don't save the dbConn
-        self._curState = self._findCurrentState(dbc)  # starting state
-        Logging.debug("Found Starting State: {}".format(self._curState))
+        try:
+            self._curState = self._findCurrentState(dbc)  # starting state
+        except taos.error.ProgrammingError as err:            
+            Logging.error("Failed to initialized state machine, cannot find current state: {}".format(err))
+            traceback.print_stack()
+            raise # re-throw
 
     # TODO: seems no lnoger used, remove?
     def getCurrentState(self):
