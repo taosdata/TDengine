@@ -12,20 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <stdlib.h>
-#include "hash.h"
-#include "taosdef.h"
-#include "tchecksum.h"
-#include "tsdb.h"
-#include "tsdbMain.h"
-#include "tskiplist.h"
+#include "tsdbint.h"
 
 #define TSDB_SUPER_TABLE_SL_LEVEL 5
 #define DEFAULT_TAG_INDEX_COLUMN 0
 
 static int     tsdbCompareSchemaVersion(const void *key1, const void *key2);
-static int     tsdbRestoreTable(void *pHandle, void *cont, int contLen);
-static void    tsdbOrgMeta(void *pHandle);
 static char *  getTagIndexKey(const void *pData);
 static STable *tsdbNewTable();
 static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper);
@@ -53,7 +45,7 @@ static int     tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid);
 
 // ------------------ OUTER FUNCTIONS ------------------
-int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
+int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   STable *   super = NULL;
@@ -148,7 +140,7 @@ _err:
   return -1;
 }
 
-int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
+int tsdbDropTable(STsdbRepo *repo, STableId tableId) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   uint64_t   uid = tableId.uid;
@@ -301,7 +293,7 @@ static UNUSED_FUNC int32_t colIdCompar(const void* left, const void* right) {
   return (colId < p2->colId)? -1:1;
 }
 
-int tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
+int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   STSchema * pNewSchema = NULL;
@@ -469,6 +461,8 @@ void tsdbFreeMeta(STsdbMeta *pMeta) {
 }
 
 int tsdbOpenMeta(STsdbRepo *pRepo) {
+  return 0;
+#if 0
   char *     fname = NULL;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   ASSERT(pMeta != NULL);
@@ -479,11 +473,11 @@ int tsdbOpenMeta(STsdbRepo *pRepo) {
     goto _err;
   }
 
-  pMeta->pStore = tdOpenKVStore(fname, tsdbRestoreTable, tsdbOrgMeta, (void *)pRepo);
-  if (pMeta->pStore == NULL) {
-    tsdbError("vgId:%d failed to open TSDB meta while open the kv store since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
-  }
+  // pMeta->pStore = tdOpenKVStore(fname, tsdbRestoreTable, tsdbOrgMeta, (void *)pRepo);
+  // if (pMeta->pStore == NULL) {
+  //   tsdbError("vgId:%d failed to open TSDB meta while open the kv store since %s", REPO_ID(pRepo), tstrerror(terrno));
+  //   goto _err;
+  // }
 
   tsdbDebug("vgId:%d open TSDB meta succeed", REPO_ID(pRepo));
   tfree(fname);
@@ -492,6 +486,7 @@ int tsdbOpenMeta(STsdbRepo *pRepo) {
 _err:
   tfree(fname);
   return -1;
+#endif
 }
 
 int tsdbCloseMeta(STsdbRepo *pRepo) {
@@ -500,7 +495,7 @@ int tsdbCloseMeta(STsdbRepo *pRepo) {
   STable *   pTable = NULL;
 
   if (pMeta == NULL) return 0;
-  tdCloseKVStore(pMeta->pStore);
+  // tdCloseKVStore(pMeta->pStore);
   for (int i = 1; i < pMeta->maxTables; i++) {
     tsdbFreeTable(pMeta->tables[i]);
   }
@@ -567,12 +562,13 @@ void tsdbRefTable(STable *pTable) {
 }
 
 void tsdbUnRefTable(STable *pTable) {
-  int32_t ref = T_REF_DEC(pTable);
-  tsdbDebug("unref table %s uid:%"PRIu64" tid:%d, refCount:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable), ref);
+  uint64_t uid = TABLE_UID(pTable);
+  int32_t  tid = TABLE_TID(pTable);
+  int32_t  ref = T_REF_DEC(pTable);
+
+  tsdbDebug("unref table, uid:%" PRIu64 " tid:%d, refCount:%d", uid, tid, ref);
 
   if (ref == 0) {
-    // tsdbDebug("destory table name:%s uid:%"PRIu64", tid:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable));
-
     if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) {
       tsdbUnRefTable(pTable->pSuper);
     }
@@ -609,10 +605,8 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
   }
 }
 
-// ------------------ LOCAL FUNCTIONS ------------------
-static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
-  STsdbRepo *pRepo = (STsdbRepo *)pHandle;
-  STable *   pTable = NULL;
+int tsdbRestoreTable(STsdbRepo *pRepo, void *cont, int contLen) {
+  STable *pTable = NULL;
 
   if (!taosCheckChecksumWhole((uint8_t *)cont, contLen)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
@@ -631,8 +625,7 @@ static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   return 0;
 }
 
-static void tsdbOrgMeta(void *pHandle) {
-  STsdbRepo *pRepo = (STsdbRepo *)pHandle;
+void tsdbOrgMeta(STsdbRepo *pRepo) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
   for (int i = 1; i < pMeta->maxTables; i++) {
@@ -643,6 +636,7 @@ static void tsdbOrgMeta(void *pHandle) {
   }
 }
 
+// ------------------ LOCAL FUNCTIONS ------------------
 static char *getTagIndexKey(const void *pData) {
   STable *pTable = (STable *)pData;
 

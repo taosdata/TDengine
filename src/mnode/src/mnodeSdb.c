@@ -242,11 +242,6 @@ void sdbUpdateMnodeRoles() {
   mnodeUpdateMnodeEpSet(NULL);
 }
 
-static uint32_t sdbGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fversion) {
-  sdbUpdateMnodeRoles();
-  return 0;
-}
-
 static int32_t sdbGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId) {
   return walGetWalFile(tsSdbMgmt.wal, fileName, fileId);
 }
@@ -262,7 +257,9 @@ static void sdbNotifyRole(int32_t vgId, int8_t role) {
   sdbUpdateMnodeRoles();
 }
 
-static int32_t sdbNotifyFileSynced(int32_t vgId, uint64_t fversion) { return 0; }
+static void sdbStartFileSync(int32_t vgId) {}
+
+static void sdbStopFileSync(int32_t vgId, uint64_t fversion) {}
 
 static void sdbNotifyFlowCtrl(int32_t vgId, int32_t level) {}
 
@@ -396,14 +393,14 @@ int32_t sdbUpdateSync(void *pMnodes) {
   syncInfo.version = sdbGetVersion();
   syncInfo.syncCfg = syncCfg;
   sprintf(syncInfo.path, "%s", tsMnodeDir);
-  syncInfo.getFileInfo = sdbGetFileInfo;
-  syncInfo.getWalInfo = sdbGetWalInfo;
-  syncInfo.writeToCache = sdbWriteFwdToQueue;
+  syncInfo.getWalInfoFp = sdbGetWalInfo;
+  syncInfo.writeToCacheFp = sdbWriteFwdToQueue;
   syncInfo.confirmForward = sdbConfirmForward;
-  syncInfo.notifyRole = sdbNotifyRole;
-  syncInfo.notifyFileSynced = sdbNotifyFileSynced;
-  syncInfo.notifyFlowCtrl = sdbNotifyFlowCtrl;
-  syncInfo.getVersion = sdbGetSyncVersion;
+  syncInfo.notifyRoleFp = sdbNotifyRole;
+  syncInfo.startSyncFileFp = sdbStartFileSync;
+  syncInfo.stopSyncFileFp = sdbStopFileSync;
+  syncInfo.notifyFlowCtrlFp = sdbNotifyFlowCtrl;
+  syncInfo.getVersionFp = sdbGetSyncVersion;
   tsSdbMgmt.cfg = syncCfg;
 
   if (tsSdbMgmt.sync) {

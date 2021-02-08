@@ -3,7 +3,7 @@
 # generate release version:
 # mkdir release; cd release; cmake -DCMAKE_BUILD_TYPE=Release ..
 
-CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
 SET(CMAKE_C_STANDARD 11)

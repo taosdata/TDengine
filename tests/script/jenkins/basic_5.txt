@@ -1,0 +1,19 @@
+./test.sh -f unique/dnode/alternativeRole.sim
+./test.sh -f unique/dnode/balance1.sim
+./test.sh -f unique/dnode/balance2.sim
+./test.sh -f unique/dnode/balance3.sim
+./test.sh -f unique/dnode/balancex.sim
+./test.sh -f unique/dnode/offline1.sim
+./test.sh -f unique/dnode/offline2.sim
+
+./test.sh -f general/stream/metrics_del.sim
+./test.sh -f general/stream/metrics_replica1_vnoden.sim
+./test.sh -f general/stream/restart_stream.sim
+./test.sh -f general/stream/stream_3.sim
+./test.sh -f general/stream/stream_restart.sim
+./test.sh -f general/stream/table_del.sim
+./test.sh -f general/stream/table_replica1_vnoden.sim
+
+./test.sh -f general/connection/test_old_data.sim
+./test.sh -f unique/dnode/datatrans_3node.sim 
+./test.sh -f unique/dnode/datatrans_3node_2.sim

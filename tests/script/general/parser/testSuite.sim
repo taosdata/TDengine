@@ -106,4 +106,4 @@ run general/parser/sliding.sim
 sleep 100
 run general/parser/function.sim
 sleep 100
-run general/parse/stableOp.sim
+run general/parser/stableOp.sim

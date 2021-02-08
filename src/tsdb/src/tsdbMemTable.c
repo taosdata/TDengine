@@ -13,11 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdb.h"
-#include "tsdbMain.h"
+#include "tsdbint.h"
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
 #define TSDB_MAX_INSERT_BATCH 512
+
+typedef struct {
+  int32_t  totalLen;
+  int32_t  len;
+  SDataRow row;
+} SSubmitBlkIter;
+
+typedef struct {
+  int32_t totalLen;
+  int32_t len;
+  void *  pMsg;
+} SSubmitMsgIter;
 
 static SMemTable * tsdbNewMemTable(STsdbRepo *pRepo);
 static void        tsdbFreeMemTable(SMemTable *pMemTable);
@@ -41,8 +52,8 @@ static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SDataRow row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now);
 
-int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
-  STsdbRepo *    pRepo = (STsdbRepo *)repo;
+int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
+  STsdbRepo *    pRepo = repo;
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk *   pBlock = NULL;
   int32_t        affectedrows = 0;
@@ -205,11 +216,13 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
 }
 
 int tsdbAsyncCommit(STsdbRepo *pRepo) {
-  if (pRepo->mem == NULL) return 0;
-
   tsem_wait(&(pRepo->readyToCommit));
 
   ASSERT(pRepo->imem == NULL);
+  if (pRepo->mem == NULL) {
+    tsem_post(&(pRepo->readyToCommit));
+    return 0;
+  }
 
   if (pRepo->code != TSDB_CODE_SUCCESS) {
     tsdbWarn("vgId:%d try to commit when TSDB not in good state: %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -225,8 +238,8 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
   return 0;
 }
 
-int tsdbSyncCommit(TSDB_REPO_T *repo) {
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
+int tsdbSyncCommit(STsdbRepo *repo) {
+  STsdbRepo *pRepo = repo;
 
   tsdbAsyncCommit(pRepo);
   tsem_wait(&(pRepo->readyToCommit));
@@ -254,14 +267,17 @@ int tsdbSyncCommit(TSDB_REPO_T *repo) {
  */
 int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
                           TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo) {
-  ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0 && pMergeInfo != NULL);
+  ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0);
   if (pIter == NULL) return 0;
-  STSchema *pSchema = NULL;
-  TSKEY     rowKey = 0;
-  TSKEY     fKey = 0;
-  bool      isRowDel = false;
-  int       filterIter = 0;
-  SDataRow  row = NULL;
+  STSchema * pSchema = NULL;
+  TSKEY      rowKey = 0;
+  TSKEY      fKey = 0;
+  bool       isRowDel = false;
+  int        filterIter = 0;
+  SDataRow   row = NULL;
+  SMergeInfo mInfo;
+
+  if (pMergeInfo == NULL) pMergeInfo = &mInfo;
 
   memset(pMergeInfo, 0, sizeof(*pMergeInfo));
   pMergeInfo->keyFirst = INT64_MAX;
@@ -451,11 +467,6 @@ static void tsdbFreeTableData(STableData *pTableData) {
 }
 
 static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple((SDataRow)data); }
-
-void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey) {
-  *minKey = fileId * daysPerFile * tsMsPerDay[precision];
-  *maxKey = *minKey + daysPerFile * tsMsPerDay[precision] - 1;
-}
 
 static int tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables) {
   ASSERT(pMemTable->maxTables < maxTables);

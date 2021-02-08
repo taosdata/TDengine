@@ -46,6 +46,8 @@
 #include "msvcFcntl.h"
 #include "msvcLibgen.h"
 #include "msvcStdio.h"
+#include "msvcUnistd.h"
+#include "msvcLibgen.h"
 #include "sys/msvcStat.h"
 #include "sys/msvcTypes.h"
 
@@ -66,6 +68,8 @@ extern "C" {
 #define TAOS_OS_FUNC_FILE_SENDIFLE
 #define TAOS_OS_FUNC_FILE_GETTMPFILEPATH
 #define TAOS_OS_FUNC_FILE_FTRUNCATE 
+
+#define TAOS_OS_FUNC_DIR
 
 #define TAOS_OS_FUNC_MATH
   #define SWAP(a, b, c)      \
@@ -144,7 +148,6 @@ typedef int (*__compar_fn_t)(const void *, const void *);
 #define in_addr_t unsigned long
 #define socklen_t int
 #define htobe64 htonll
-#define getpid _getpid
 
 struct tm *localtime_r(const time_t *timep, struct tm *result);
 char *     strptime(const char *buf, const char *fmt, struct tm *tm);
@@ -153,14 +156,7 @@ char *     getpass(const char *prefix);
 int        flock(int fd, int option);
 int        fsync(int filedes);
 char *     strndup(const char *s, size_t n);
-char *     dirname(char *pszPathname);
 int        gettimeofday(struct timeval *ptv, void *pTimeZone);
-
-// for access function in io.h
-#define F_OK 00  //Existence only
-#define W_OK 02  //Write - only
-#define R_OK 04  //Read - only
-#define X_OK 06  //Read and write
 
 // for send function in tsocket.c
 #define MSG_NOSIGNAL             0
@@ -201,11 +197,11 @@ int        gettimeofday(struct timeval *ptv, void *pTimeZone);
 
 typedef struct {
   int    we_wordc;
-  char **we_wordv;
+  char  *we_wordv[1];
   int    we_offs;
-  char   wordPos[20];
+  char   wordPos[1025];
 } wordexp_t;
-int  wordexp(const char *words, wordexp_t *pwordexp, int flags);
+int  wordexp(char *words, wordexp_t *pwordexp, int flags);
 void wordfree(wordexp_t *pwordexp);
 
 #define openlog(a, b, c)

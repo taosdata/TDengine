@@ -18,7 +18,6 @@
 #include "tref.h"
 #include "trpc.h"
 #include "tnote.h"
-#include "tsystem.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "tsched.h"
@@ -49,7 +48,7 @@ int32_t   tscNumOfThreads = 1;     // num of rpc threads
 static    pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
 
-void tscCheckDiskUsage(void *UNUSED_PARAM(para), void* UNUSED_PARAM(param)) {
+void tscCheckDiskUsage(void *UNUSED_PARAM(para), void *UNUSED_PARAM(param)) {
   taosGetDisk();
   taosTmrReset(tscCheckDiskUsage, 1000, NULL, tscTmr, &tscCheckDiskUsageTmr);
 }
@@ -88,7 +87,7 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
-  rpcInit.idleTime = 2000; 
+  rpcInit.idleTime = tsShellActivityTimer * 1000; 
   rpcInit.ckey = "key"; 
   rpcInit.spi = 1; 
   rpcInit.secret = (char *)secretEncrypt;
@@ -102,7 +101,7 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
     tscError("failed to init connection to TDengine");
     return -1;
   } 
-  pRpcObj = taosCachePut(tscRpcCache, rpcObj.key, strlen(rpcObj.key), &rpcObj, sizeof(rpcObj), 1000*10);   
+  pRpcObj = taosCachePut(tscRpcCache, rpcObj.key, strlen(rpcObj.key), &rpcObj, sizeof(rpcObj), 1000*5);   
   if (pRpcObj == NULL) {
     rpcClose(rpcObj.pDnodeConn);
     pthread_mutex_unlock(&rpcObjMutex);
@@ -155,6 +154,7 @@ void taos_init_imp(void) {
   if (tscNumOfThreads < 2) {
     tscNumOfThreads = 2;
   }
+  taosTmrThreads = tscNumOfThreads;
 
   tscQhandle = taosInitScheduler(queueSize, tscNumOfThreads, "tsc");
   if (NULL == tscQhandle) {
@@ -216,7 +216,6 @@ void taos_cleanup(void) {
   taosCloseRef(id);
 
   taosCleanupKeywordsTable();
-  taosCloseLog();
 
   p = tscRpcCache; 
   tscRpcCache = NULL;
@@ -226,7 +225,10 @@ void taos_cleanup(void) {
     pthread_mutex_destroy(&rpcObjMutex);
   }
 
-  if (tscEmbedded == 0) rpcCleanup();
+  if (tscEmbedded == 0) {
+    rpcCleanup();
+    taosCloseLog();
+  };
 
   p = tscTmr;
   tscTmr = NULL;

@@ -1081,20 +1081,13 @@ static int32_t mnodeDropSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pTable = (SSTableObj *)pMsg->pTable;
   if (code != TSDB_CODE_SUCCESS) {
     mError("msg:%p, app:%p stable:%s, failed to drop, sdb error", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
-  } else {
-    mLInfo("msg:%p, app:%p stable:%s, is dropped from sdb", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
+
+    return code;
   }
 
-  return code;
-}
-
-static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
-  if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
+  mLInfo("msg:%p, app:%p stable:%s, is dropped from sdb", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
 
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
-  mInfo("msg:%p, app:%p stable:%s will be dropped, hash:%p sizeOfVgList:%d", pMsg, pMsg->rpcMsg.ahandle,
-        pStable->info.tableId, pStable->vgHash, taosHashGetSize(pStable->vgHash));
-
   if (pStable->vgHash != NULL /*pStable->numOfTables != 0*/) {
     int32_t *pVgId = taosHashIterate(pStable->vgHash, NULL);
     while (pVgId) {
@@ -1121,6 +1114,16 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
 
     mnodeDropAllChildTablesInStable(pStable);
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
+  if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
+
+  SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
+  mInfo("msg:%p, app:%p stable:%s will be dropped, hash:%p sizeOfVgList:%d", pMsg, pMsg->rpcMsg.ahandle,
+        pStable->info.tableId, pStable->vgHash, taosHashGetSize(pStable->vgHash));
 
   SSdbRow row = {
     .type    = SDB_OPER_GLOBAL,
@@ -1461,9 +1464,9 @@ static int32_t mnodeGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow,
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  SSchema tbnameSchema = tGetTableNameColumnSchema();
-  pShow->bytes[cols] = tbnameSchema.bytes;
-  pSchema[cols].type = tbnameSchema.type;
+  SSchema* tbnameSchema = tGetTbnameColumnSchema();
+  pShow->bytes[cols] = tbnameSchema->bytes;
+  pSchema[cols].type = tbnameSchema->type;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -2821,9 +2824,9 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  SSchema s = tGetTableNameColumnSchema();
-  pShow->bytes[cols] = s.bytes;
-  pSchema[cols].type = s.type;
+  SSchema* s = tGetTbnameColumnSchema();
+  pShow->bytes[cols] = s->bytes;
+  pSchema[cols].type = s->type;
   strcpy(pSchema[cols].name, "table_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -2840,9 +2843,9 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  SSchema tbCol = tGetTableNameColumnSchema();
-  pShow->bytes[cols] = tbCol.bytes + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = tbCol.type;
+  SSchema* tbCol = tGetTbnameColumnSchema();
+  pShow->bytes[cols] = tbCol->bytes + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = tbCol->type;
   strcpy(pSchema[cols].name, "stable_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -3076,9 +3079,9 @@ static int32_t mnodeGetStreamTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, vo
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  SSchema tbnameColSchema = tGetTableNameColumnSchema();
-  pShow->bytes[cols] = tbnameColSchema.bytes;
-  pSchema[cols].type = tbnameColSchema.type;
+  SSchema* tbnameColSchema = tGetTbnameColumnSchema();
+  pShow->bytes[cols] = tbnameColSchema->bytes;
+  pSchema[cols].type = tbnameColSchema->type;
   strcpy(pSchema[cols].name, "table_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;

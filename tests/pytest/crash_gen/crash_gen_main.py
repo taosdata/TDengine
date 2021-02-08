@@ -1280,6 +1280,7 @@ class Task():
                 0x510,  # vnode not in ready state
                 0x14,   # db not ready, errno changed
                 0x600,  # Invalid table ID, why?
+                0x218,  # Table does not exist
                 1000  # REST catch-all error
             ]: 
             return True # These are the ALWAYS-ACCEPTABLE ones
