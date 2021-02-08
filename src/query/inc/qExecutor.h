@@ -234,6 +234,7 @@ typedef struct SQuery {
 
   void*            tsdb;
   SMemRef          memRef;
+  STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
 } SQuery;
 
 typedef struct SQueryRuntimeEnv {
@@ -285,7 +286,6 @@ typedef struct SQInfo {
   int64_t          owner;  // if it is in execution
 
   int32_t          vgId;
-  STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
 
   SQueryRuntimeEnv runtimeEnv;
   SQuery           query;
@@ -305,8 +305,7 @@ typedef struct SQInfo {
   void*            rspContext;  // response context
   int64_t          startExecTs; // start to exec timestamp
   char*            sql;         // query sql string
-  SQueryCostInfo       summary;
-
+  SQueryCostInfo   summary;
 } SQInfo;
 
 typedef struct SQueryParam {
