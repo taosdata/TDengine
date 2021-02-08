@@ -2981,7 +2981,6 @@ int32_t parseGroupbyClause(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd)
 
   STableMeta* pTableMeta = NULL;
   SSchema*    pSchema = NULL;
-//  SSchema     s = tGetTbnameColumnSchema();
 
   int32_t tableIndex = COLUMN_INDEX_INITIAL_VAL;
 
@@ -4748,7 +4747,7 @@ static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
 int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQuerySql, SSchema* pSchema) {
   const char* msg0 = "only support order by primary timestamp";
   const char* msg1 = "invalid column name";
-  const char* msg2 = "only support order by primary timestamp or first tag in groupby clause allowed";
+  const char* msg2 = "order by primary timestamp or first tag in groupby clause allowed";
   const char* msg3 = "invalid column in order by clause, only primary timestamp or first tag in groupby clause allowed";
 
   setDefaultOrderInfo(pQueryInfo);

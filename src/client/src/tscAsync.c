@@ -281,7 +281,7 @@ static void tscAsyncResultCallback(SSchedMsg *pMsg) {
   }
 
   assert(pSql->res.code != TSDB_CODE_SUCCESS);
-  tscError("%p invoke user specified function due to error occured, code:%s", pSql, tstrerror(pSql->res.code));
+  tscError("%p invoke user specified function due to error occurred, code:%s", pSql, tstrerror(pSql->res.code));
 
   SSqlRes *pRes = &pSql->res;
   if (pSql->fp == NULL || pSql->fetchFp == NULL){
@@ -333,7 +333,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       code = tscGetTableMeta(pSql, pTableMetaInfo);
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code == TSDB_CODE_SUCCESS);
 
-      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {        
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         taosReleaseRef(tscObjRef, pSql->self);
         return;
       }
