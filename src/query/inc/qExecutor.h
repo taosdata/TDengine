@@ -240,6 +240,7 @@ typedef struct SQuery {
 typedef struct SQueryRuntimeEnv {
   jmp_buf              env;
   SQuery*              pQuery;
+  void*                qinfo;
 
   SQLFunctionCtx*      pCtx;
   int32_t              numOfRowsPerPage;
@@ -267,13 +268,17 @@ typedef struct SQueryRuntimeEnv {
   SArithmeticSupport  *sasArray;
 
   struct STableScanInfo*   pi;
-  SSDataBlock *ouptputBuf;
+  SSDataBlock *outputBuf;
 
   int32_t          groupIndex;
   int32_t          tableIndex;
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
-
 } SQueryRuntimeEnv;
+
+typedef struct {
+  char* name;
+  void* info;
+} SQEStage;
 
 enum {
   QUERY_RESULT_NOT_READY = 1,
@@ -325,7 +330,7 @@ typedef struct SQueryParam {
 } SQueryParam;
 
 typedef struct STableScanInfo {
-  SQInfo*      pQInfo;
+  SQueryRuntimeEnv*        pRuntimeEnv;
   void        *pQueryHandle;
   int32_t      numOfBlocks;
   int32_t      numOfSkipped;
@@ -341,7 +346,7 @@ typedef struct STableScanInfo {
 
   SSDataBlock  block;
   int64_t      elapsedTime;
-  SSDataBlock* (*apply)(void* param);
+  SSDataBlock* (*exec)(void* param);
 } STableScanInfo;
 
 typedef struct SAggOperatorInfo {

@@ -45,7 +45,7 @@ typedef struct SLimitVal {
 
 typedef struct SOrderVal {
   uint32_t order;
-  int32_t orderColId;
+  int32_t  orderColId;
 } SOrderVal;
 
 typedef struct tVariantListItem {
