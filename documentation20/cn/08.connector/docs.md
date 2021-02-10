@@ -2,7 +2,7 @@
 
 TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用。
 
-![image-connecotr](../assets/connector.png)
+![image-connecotr](page://images/connector.png)
 
 目前TDengine的连接器可支持的平台广泛，包括：X64/X86/ARM64/ARM32/MIPS/Alpha等硬件平台，以及Linux/Win64/Win32等开发环境。对照矩阵如下：
 
@@ -25,7 +25,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 * 所有执行 SQL 语句的 API，例如 C/C++ Connector 中的 `tao_query`、`taos_query_a`、`taos_subscribe` 等，以及其它语言中与它们对应的API，每次都只能执行一条 SQL 语句，如果实际参数中包含了多条语句，它们的行为是未定义的。
 * 升级到TDengine到2.0.8.0版本的用户，必须更新JDBC连接TDengine必须升级taos-jdbcdriver到2.0.12及以上。
 
-## 安装连接器驱动步骤
+## <a class="anchor" id="driver"></a>安装连接器驱动步骤
 
 服务器应该已经安装TDengine服务端安装包。连接器驱动安装步骤如下：
 
@@ -136,7 +136,7 @@ taos>
   taos>  
 ```
 
-## C/C++ Connector
+## <a class="anchor" id="c-cpp"></a>C/C++ Connector
 
 **C/C++连接器支持的系统有**： 
 
@@ -156,7 +156,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 * 在编译时需要链接TDengine动态库。Linux 为 *libtaos.so* ，安装后，位于 _/usr/local/taos/driver_。Windows为 taos.dll，安装后位于  *C:\TDengine*。
 * 如未特别说明，当API的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
 
-使用C/C++连接器的示例代码请参见 https://github.com/taosdata/TDengine/tree/develop/tests/examples/c。
+使用C/C++连接器的示例代码请参见 https://github.com/taosdata/TDengine/tree/develop/tests/examples/c 。
 
 ### 基础API
 
@@ -306,17 +306,17 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 
   进行参数绑定，bind指向一个数组，需保证此数组的元素数量和顺序与sql语句中的参数完全一致。TAOS_BIND 的使用方法与 MySQL中的 MYSQL_BIND 一致，具体定义如下：
 
-  ```c
-  typedef struct TAOS_BIND {
-    int            buffer_type;
-    void *         buffer;
-    unsigned long  buffer_length;  // 未实际使用
-    unsigned long *length;
-    int *          is_null;
-    int            is_unsigned;    // 未实际使用
-    int *          error;          // 未实际使用
-  } TAOS_BIND;
-  ```
+```c
+typedef struct TAOS_BIND {
+  int            buffer_type;
+  void *         buffer;
+  unsigned long  buffer_length;  // 未实际使用
+  unsigned long *length;
+  int *          is_null;
+  int            is_unsigned;    // 未实际使用
+  int *          error;          // 未实际使用
+} TAOS_BIND;
+```
 
 - `int taos_stmt_add_batch(TAOS_STMT *stmt)`
 
@@ -385,12 +385,12 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
 
   取消订阅。 如参数 `keepProgress` 不为0，API会保留订阅的进度信息，后续调用 `taos_subscribe` 时可以基于此进度继续；否则将删除进度信息，后续只能重新开始读取数据。
 
-## Python Connector
+## <a class="anchor" id="python"></a>Python Connector
 
-Python连接器的使用参见<a href="https://www.taosdata.com/blog/2020/11/11/1963.html">视频教程</a>
+Python连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1963.html)
 
 ### 安装准备
-* 应用驱动安装请参考<a href="https://www.taosdata.com/cn/documentation/connector/#安装连接器驱动步骤">安装连接器驱动步骤</a>。
+* 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
 * 已安装python 2.7 or >= 3.4
 * 已安装pip 或 pip3
 
@@ -431,6 +431,7 @@ python -m pip install python3\
 import taos
 ```
 * 获取连接并获取游标对象
+
 ```python
 conn = taos.connect(host="127.0.0.1", user="root", password="taosdata", config="/etc/taos")
 c1 = conn.cursor()
@@ -438,6 +439,7 @@ c1 = conn.cursor()
 * <em>host</em> 是TDengine 服务端所有IP, <em>config</em> 为客户端配置文件所在目录
 
 * 写入数据
+
 ```python
 import datetime
 
@@ -459,6 +461,7 @@ affected_rows = c1.execute(' '.join(sqlcmd))
 ```
 
 * 查询数据
+
 ```python
 c1.execute('select * from tb')
 # 拉取查询结果
@@ -476,6 +479,7 @@ for data in c1:
 ```
 
 * 创建订阅
+
 ```python
 # 创建一个主题为 'test' 消费周期为1000毫秒的订阅
 # 第一个参数为 True 表示重新开始订阅，如为 False 且之前创建过主题为 'test' 的订阅，则表示继续消费此订阅的数据，而不是重新开始消费所有数据
@@ -483,6 +487,7 @@ sub = conn.subscribe(True, "test", "select * from tb;", 1000)
 ```
 
 * 消费订阅的数据
+
 ```python
 data = sub.consume()
 for d in data:
@@ -490,15 +495,18 @@ for d in data:
 ```
 
 * 取消订阅
+
 ```python
 sub.close()
 ```
 
 * 关闭连接
+
 ```python
 c1.close()
 conn.close()
 ```
+
 #### 帮助信息
 
 用户可通过python的帮助信息直接查看模块的使用信息，或者参考tests/examples/python中的示例程序。以下为部分常用类和方法：
@@ -518,6 +526,7 @@ conn.close()
   用于生成taos.TDengineConnection的实例。
 
 ### Python客户端使用示例代码
+
 在tests/examples/python中，我们提供了一个示例Python程序read_example.py，可以参考这个程序来设计用户自己的写入、查询程序。在安装了对应的客户端后，通过import taos引入taos类。主要步骤如下
 
 - 通过taos.connect获取TDengineConnection对象，这个对象可以一个程序只申请一个，在多线程中共享。
@@ -527,9 +536,9 @@ conn.close()
 - 如果执行的是查询语句，则execute执行成功后，需要通过fetchall方法去拉取结果集。
 具体方法可以参考示例代码。
 
-## RESTful Connector
+## <a class="anchor" id="restful"></a>RESTful Connector
 
-为支持各种不同类型平台的开发，TDengine提供符合REST设计标准的API，即RESTful API。为最大程度降低学习成本，不同于其他数据库RESTful API的设计方法，TDengine直接通过HTTP POST 请求BODY中包含的SQL语句来操作数据库，仅需要一个URL。RESTful连接器的使用参见<a href=https://www.taosdata.com/blog/2020/11/11/1965.html>视频教程</a>。
+为支持各种不同类型平台的开发，TDengine提供符合REST设计标准的API，即RESTful API。为最大程度降低学习成本，不同于其他数据库RESTful API的设计方法，TDengine直接通过HTTP POST 请求BODY中包含的SQL语句来操作数据库，仅需要一个URL。RESTful连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
 
 ### HTTP请求格式 
 
@@ -721,13 +730,13 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 - httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式
 - httpDebugFlag: 日志开关，131：仅错误和报警信息，135：调试信息，143：非常详细的调试信息，默认131
 
-## CSharp Connector
+## <a class="anchor" id="csharp"></a>CSharp Connector
 
 C#连接器支持的系统有：Linux 64/Windows x64/Windows x86
 
 ### 安装准备
 
-* 应用驱动安装请参考<a href="https://www.taosdata.com/cn/documentation/connector/#安装连接器驱动步骤">安装连接器驱动步骤</a>。
+* 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
 * .NET接口文件﻿TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
 * 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（dapper）框架驱动。
 
@@ -766,15 +775,15 @@ https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos
 https://www.taosdata.com/blog/2020/11/02/1901.html                    
 ```
 
-## Go Connector
+## <a class="anchor" id="go"></a>Go Connector
 
 ### 安装准备
 
-* 应用驱动安装请参考<a href="https://www.taosdata.com/cn/documentation/connector/#安装连接器驱动步骤">安装连接器驱动步骤</a>。
+* 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
 
 TDengine提供了GO驱动程序`taosSql`。 `taosSql`实现了GO语言的内置接口`database/sql/driver`。用户只需按如下方式引入包就可以在应用程序中访问TDengine, 详见`https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go`。
 
-使用 Go 连接器的示例代码请参考 https://github.com/taosdata/TDengine/tree/develop/tests/examples/go 以及<a href="https://www.taosdata.com/blog/2020/11/11/1951.html">视频教程</a>。
+使用 Go 连接器的示例代码请参考 https://github.com/taosdata/TDengine/tree/develop/tests/examples/go 以及[视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。
 
 ```Go
 import (
@@ -821,7 +830,7 @@ go env -w GOPROXY=https://goproxy.io,direct
 
   sql.Open内置的方法，Close closes the statement.	
 
-## Node.js Connector
+## <a class="anchor" id="nodejs"></a>Node.js Connector
 
 Node.js连接器支持的系统有：
 
@@ -830,47 +839,47 @@ Node.js连接器支持的系统有：
 | **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux    |
 | **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
 
-Node.js连接器的使用参见<a href="https://www.taosdata.com/blog/2020/11/11/1957.html">视频教程</a>
+Node.js连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1957.html)
 
 ### 安装准备
 
-* 应用驱动安装请参考<a href="https://www.taosdata.com/cn/documentation/connector/#安装连接器驱动步骤">安装连接器驱动步骤</a>。
+* 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
 
 ### 安装Node.js连接器
 
-用户可以通过<a href="https://www.npmjs.com/">npm</a>来进行安装，也可以通过源代码*src/connector/nodejs/* 来进行安装。具体安装步骤如下：
+用户可以通过[npm](https://www.npmjs.com/)来进行安装，也可以通过源代码*src/connector/nodejs/* 来进行安装。具体安装步骤如下：
 
-首先，通过<a href="https://www.npmjs.com/">npm</a>安装node.js 连接器.
+首先，通过[npm](https://www.npmjs.com/)安装node.js 连接器.
 
 ```bash
 npm install td2.0-connector
 ```
 我们建议用户使用npm 安装node.js连接器。如果您没有安装npm, 可以将*src/connector/nodejs/*拷贝到您的nodejs 项目目录下
 
-我们使用<a href="https://github.com/nodejs/node-gyp">node-gyp</a>和TDengine服务端进行交互。安装node.js 连接器之前，还需安装以下软件：
+我们使用[node-gyp](https://github.com/nodejs/node-gyp)和TDengine服务端进行交互。安装node.js 连接器之前，还需安装以下软件：
 
 ### Linux
 
 - `python` (建议`v2.7` , `v3.x.x` 目前还不支持)
 - `node`  2.0.6支持v12.x和v10.x，2.0.5及更早版本支持v10.x版本，其他版本可能存在包兼容性的问题。
 - `make`
-- c语言编译器比如<a href="https://gcc.gnu.org">GCC</a>
+- c语言编译器比如[GCC](https://gcc.gnu.org)
 
 ### Windows
 
 #### 安装方法1
 
-使用微软的<a href="https://github.com/felixrieseberg/windows-build-tools">windows-build-tools</a>在`cmd` 命令行界面执行`npm install --global --production windows-build-tools` 即可安装所有的必备工具
+使用微软的[windows-build-tools](https://github.com/felixrieseberg/windows-build-tools)在`cmd` 命令行界面执行`npm install --global --production windows-build-tools` 即可安装所有的必备工具
 
 #### 安装方法2
 
 手动安装以下工具:
 
-- 安装Visual Studio相关：<a href="https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools>Visual Studio Build 工具</a> 或者 <a href="https://visualstudio.microsoft.com/pl/thank-you-downloading-visual-studio/?sku=Community">Visual Studio 2017 Community</a> 
-- 安装 <a href="https://www.python.org/downloads/">Python</a> 2.7(`v3.x.x` 暂不支持) 并执行 `npm config set python python2.7` 
+- 安装Visual Studio相关：[Visual Studio Build 工具](https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools) 或者 [Visual Studio 2017 Community](https://visualstudio.microsoft.com/pl/thank-you-downloading-visual-studio/?sku=Community)
+- 安装 [Python](https://www.python.org/downloads/) 2.7(`v3.x.x` 暂不支持) 并执行 `npm config set python python2.7` 
 - 进入`cmd`命令行界面, `npm config set msvs_version 2017`
 
-如果以上步骤不能成功执行, 可以参考微软的node.js用户手册<a href="https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules">Microsoft's Node.js Guidelines for Windows</a>
+如果以上步骤不能成功执行, 可以参考微软的node.js用户手册[Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules)
 
 如果在Windows 10 ARM 上使用ARM64 Node.js, 还需添加 "Visual C++ compilers and libraries for ARM64" 和 "Visual  C++ ATL for ARM64".
 
@@ -901,8 +910,7 @@ node nodejsChecker.js host=localhost
 
 ### Node.js连接器的使用
 
-(http://docs.taosdata.com/node)
-以下是node.js 连接器的一些基本使用方法，详细的使用方法可参考<a href="http://docs.taosdata.com/node">该文档</a>
+以下是node.js 连接器的一些基本使用方法，详细的使用方法可参考[TDengine Node.js connector](http://docs.taosdata.com/node)
 
 #### 建立连接
 
@@ -973,6 +981,7 @@ promise.then(function(result) {
 })
 ```
 #### 异步函数
+
 异步查询数据库的操作和上面类似，只需要在`cursor.execute`, `TaosQuery.execute`等函数后面加上`_a`。
 ```javascript
 var promise1 = cursor.query('select count(*), avg(v1), avg(v2) from meter1;').execute_a()
@@ -986,6 +995,7 @@ promise2.then(function(result) {
 ```
 
 ### 示例
-<a href="https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js">这里</a>提供了一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例
 
-<a href="https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js">这里</a>同样是一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用`cursor`.
+[node-example.js](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js)提供了一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例
+
+[node-example-raw.js](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)同样是一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用`cursor`.
