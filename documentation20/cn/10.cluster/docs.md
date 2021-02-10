@@ -1,19 +1,19 @@
 # TDengine 集群安装、管理
 
-多个TDengine服务器，也就是多个taosd的运行实例可以组成一个集群，以保证TDengine的高可靠运行，并提供水平扩展能力。要了解TDengine 2.0的集群管理，需要对集群的基本概念有所了解，请看TDengine 2.0整体架构一章。而且在安装集群之前，先请按照[《立即开始》](https://www.taosdata.com/cn/getting-started20/)一章安装并体验单节点功能。
+多个TDengine服务器，也就是多个taosd的运行实例可以组成一个集群，以保证TDengine的高可靠运行，并提供水平扩展能力。要了解TDengine 2.0的集群管理，需要对集群的基本概念有所了解，请看TDengine 2.0整体架构一章。而且在安装集群之前，先请按照[《立即开始》](https://www.taosdata.com/cn/documentation/getting-started/)一章安装并体验单节点功能。
 
 集群的每个数据节点是由End Point来唯一标识的，End Point是由FQDN(Fully Qualified Domain Name)外加Port组成，比如 h1.taosdata.com:6030。一般FQDN就是服务器的hostname，可通过Linux命令`hostname -f`获取（如何配置FQDN，请参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)）。端口是这个数据节点对外服务的端口号，缺省是6030，但可以通过taos.cfg里配置参数serverPort进行修改。一个物理节点可能配置了多个hostname, TDengine会自动获取第一个，但也可以通过taos.cfg里配置参数fqdn进行指定。如果习惯IP地址直接访问，可以将参数fqdn设置为本节点的IP地址。
 
 TDengine的集群管理极其简单，除添加和删除节点需要人工干预之外，其他全部是自动完成，最大程度的降低了运维的工作量。本章对集群管理的操作做详细的描述。
 
-关于集群搭建请参考<a href="https://www.taosdata.com/blog/2020/11/11/1961.html">视频教程</a>。
+关于集群搭建请参考[视频教程](https://www.taosdata.com/blog/2020/11/11/1961.html)。
 
-## 准备工作
+## <a class="anchor" id="prepare"></a>准备工作
 
 **第零步**：规划集群所有物理节点的FQDN，将规划好的FQDN分别添加到每个物理节点的/etc/hostname；修改每个物理节点的/etc/hosts，将所有集群物理节点的IP与FQDN的对应添加好。【如部署了DNS，请联系网络管理员在DNS上做好相关配置】
 
-**第一步**：如果搭建集群的物理节点中，存有之前的测试数据、装过1.X的版本，或者装过其他版本的TDengine，请先将其删除，并清空所有数据，具体步骤请参考博客[《TDengine多种安装包的安装和卸载》](https://www.taosdata.com/blog/2019/08/09/566.html ) 
-**注意1：**因为FQDN的信息会写进文件，如果之前没有配置或者更改FQDN，且启动了TDengine。请一定在确保数据无用或者备份的前提下，清理一下之前的数据（rm -rf /var/lib/taos/）；
+**第一步**：如果搭建集群的物理节点中，存有之前的测试数据、装过1.X的版本，或者装过其他版本的TDengine，请先将其删除，并清空所有数据，具体步骤请参考博客[《TDengine多种安装包的安装和卸载》](https://www.taosdata.com/blog/2019/08/09/566.html )   
+**注意1：**因为FQDN的信息会写进文件，如果之前没有配置或者更改FQDN，且启动了TDengine。请一定在确保数据无用或者备份的前提下，清理一下之前的数据（rm -rf /var/lib/taos/）；  
 **注意2：**客户端也需要配置，确保它可以正确解析每个节点的FQDN配置，不管是通过DNS服务，还是 Host 文件。
 
 **第二步**：建议关闭所有物理节点的防火墙，至少保证端口：6030 - 6042的TCP和UDP端口都是开放的。**强烈建议**先关闭防火墙，集群搭建完毕之后，再来配置端口；
@@ -63,11 +63,11 @@ arbitrator            ha.taosdata.com:6042
 
  
 
-## 启动第一个数据节点
+## <a class="anchor" id="node-one"></a>启动第一个数据节点
 
-按照[《立即开始》](https://www.taosdata.com/cn/getting-started20/)里的指示，启动第一个数据节点，例如h1.taosdata.com，然后执行taos, 启动taos shell，从shell里执行命令"show dnodes;"，如下所示：
+按照[《立即开始》](https://www.taosdata.com/cn/documentation/getting-started/)里的指示，启动第一个数据节点，例如h1.taosdata.com，然后执行taos, 启动taos shell，从shell里执行命令"show dnodes;"，如下所示：
 
-   ```
+```
 Welcome to the TDengine shell from Linux, Client Version:2.0.0.0
 Copyright (c) 2017 by TAOS Data, Inc. All rights reserved.
 
@@ -78,15 +78,15 @@ taos> show dnodes;
 Query OK, 1 row(s) in set (0.006385s)
 
 taos>
-   ```
+```
 
 上述命令里，可以看到这个刚启动的这个数据节点的End Point是：h1.taos.com:6030，就是这个新集群的firstEP。
 
-## 启动后续数据节点
+## <a class="anchor" id="node-other"></a>启动后续数据节点
 
 将后续的数据节点添加到现有集群，具体有以下几步：
 
-1. 按照["立即开始“](https://www.taosdata.com/cn/getting-started/)一章的方法在每个物理节点启动taosd；
+1. 按照[《立即开始》](https://www.taosdata.com/cn/documentation/getting-started/)一章的方法在每个物理节点启动taosd；
 
 2. 在第一个数据节点，使用CLI程序taos, 登录进TDengine系统, 执行命令:
 
@@ -115,7 +115,7 @@ taos>
 - firstEp这个参数仅仅在该数据节点首次加入集群时有作用，加入集群后，该数据节点会保存最新的mnode的End Point列表，不再依赖这个参数。
 - 两个没有配置firstEp参数的数据节点dnode启动后，会独立运行起来。这个时候，无法将其中一个数据节点加入到另外一个数据节点，形成集群。**无法将两个独立的集群合并成为新的集群**。
 
-## 数据节点管理
+## <a class="anchor" id="management"></a>数据节点管理
 
 上面已经介绍如何从零开始搭建集群。集群组建完后，还可以随时添加新的数据节点进行扩容，或删除数据节点，并检查集群当前状态。
 
@@ -169,7 +169,7 @@ SHOW DNODES;
 SHOW VGROUPS;
 ```
 
-## vnode的高可用性
+## <a class="anchor" id="high-availability"></a>vnode的高可用性
 
 TDengine通过多副本的机制来提供系统的高可用性，包括vnode和mnode的高可用性。
 
@@ -185,7 +185,7 @@ CREATE DATABASE demo replica 3;
 
 因为vnode的引入，无法简单的给出结论：“集群中过半数据节点dnode工作，集群就应该工作”。但是对于简单的情形，很好下结论。比如副本数为3，只有三个dnode，那如果仅有一个节点不工作，整个集群还是可以正常工作的，但如果有两个数据节点不工作，那整个集群就无法正常工作了。
 
-## Mnode的高可用性
+## <a class="anchor" id="mnode"></a>Mnode的高可用性
 
 TDengine集群是由mnode (taosd的一个模块，管理节点) 负责管理的，为保证mnode的高可用，可以配置多个mnode副本，副本数由系统配置参数numOfMnodes决定，有效范围为1-3。为保证元数据的强一致性，mnode副本之间是通过同步的方式进行数据复制的。
 
@@ -202,7 +202,7 @@ SHOW MNODES;
 
 **注意：**一个TDengine高可用系统，无论是vnode还是mnode, 都必须配置多个副本。
 
-## 负载均衡
+## <a class="anchor" id="load-balancing"></a>负载均衡
 
 有三种情况，将触发负载均衡，而且都无需人工干预。
 
@@ -214,7 +214,7 @@ SHOW MNODES;
 
 **【提示】负载均衡由参数balance控制，它决定是否启动自动负载均衡。**
 
-## 数据节点离线处理
+## <a class="anchor" id="offline"></a>数据节点离线处理
 
 如果一个数据节点离线，TDengine集群将自动检测到。有如下两种情况：
 
@@ -223,7 +223,7 @@ SHOW MNODES;
 
 **注意：**如果一个虚拟节点组（包括mnode组）里所归属的每个数据节点都处于离线或unsynced状态，必须等该虚拟节点组里的所有数据节点都上线、都能交换状态信息后，才能选出Master，该虚拟节点组才能对外提供服务。比如整个集群有3个数据节点，副本数为3，如果3个数据节点都宕机，然后2个数据节点重启，是无法工作的，只有等3个数据节点都重启成功，才能对外服务。
 
-## Arbitrator的使用
+## <a class="anchor" id="arbitrator"></a>Arbitrator的使用
 
 如果副本数为偶数，当一个vnode group里一半vnode不工作时，是无法从中选出master的。同理，一半mnode不工作时，是无法选出mnode的master的，因为存在“split brain”问题。为解决这个问题，TDengine引入了Arbitrator的概念。Arbitrator模拟一个vnode或mnode在工作，但只简单的负责网络连接，不处理任何数据插入或访问。只要包含Arbitrator在内，超过半数的vnode或mnode工作，那么该vnode group或mnode组就可以正常的提供数据插入或查询服务。比如对于副本数为2的情形，如果一个节点A离线，但另外一个节点B正常，而且能连接到Arbitrator，那么节点B就能正常工作。
 

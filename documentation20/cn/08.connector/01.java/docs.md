@@ -4,7 +4,7 @@ TDengine 提供了遵循 JDBC 标准（3.0）API 规范的 `taos-jdbcdriver` 实
 
 `taos-jdbcdriver` 的实现包括 2 种形式： JDBC-JNI 和 JDBC-RESTful（taos-jdbcdriver-2.0.18 开始支持 JDBC-RESTful）。 JDBC-JNI 通过调用客户端 libtaos.so（或 taos.dll ）的本地方法实现， JDBC-RESTful 则在内部封装了 RESTful 接口实现。
 
-![tdengine-connector](../assets/tdengine-jdbc-connector.png)
+![tdengine-connector](page://images/tdengine-jdbc-connector.png)
 
 上图显示了 3 种 Java 应用使用连接器访问 TDengine 的方式：
 
@@ -119,7 +119,7 @@ Connection conn = DriverManager.getConnection(jdbcUrl);
 
 > 在 windows 环境开发时需要安装 TDengine 对应的 [windows 客户端][14]，Linux 服务器安装完 TDengine 之后默认已安装 client，也可以单独安装 [Linux 客户端][15] 连接远程 TDengine Server。
 
-JDBC-JNI 的使用请参见<a href=https://www.taosdata.com/blog/2020/11/11/1955.html>视频教程</a>。
+JDBC-JNI 的使用请参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1955.html)。
 
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
@@ -170,6 +170,7 @@ properties 中的配置参数如下：
 如下所示：
 
 1. 在 Java 应用中不指定 hostname 和 port
+
 ```java
 public Connection getConn() throws Exception{
   Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -182,7 +183,9 @@ public Connection getConn() throws Exception{
   return conn;
 }
 ```
+
 2. 在配置文件中指定 firstEp 和 secondEp
+
 ```
 # first fully qualified domain name (FQDN) for TDengine system
 firstEp               cluster_node1:6030
@@ -191,7 +194,7 @@ firstEp               cluster_node1:6030
 secondEp              cluster_node2:6030
 
 # default system charset
-# charset               UTF-8
+# charset               UTF-8  
 
 # system locale
 # locale                en_US.UTF-8
@@ -322,6 +325,7 @@ conn.close();
 **HikariCP**
 
 * 引入相应 HikariCP maven 依赖：
+
 ```xml
 <dependency>
     <groupId>com.zaxxer</groupId>
@@ -331,6 +335,7 @@ conn.close();
 ```
 
 * 使用示例如下：
+
 ```java
  public static void main(String[] args) throws SQLException {
     HikariConfig config = new HikariConfig();
@@ -374,6 +379,7 @@ conn.close();
 ```
 
 * 使用示例如下：
+
 ```java
 public static void main(String[] args) throws Exception {
 
@@ -479,7 +485,7 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 [10]: https://maven.aliyun.com/mvn/search
 [11]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate
 [12]: https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo
-[13]: https://www.taosdata.com/cn/documentation20/administrator/#%E5%AE%A2%E6%88%B7%E7%AB%AF%E9%85%8D%E7%BD%AE
+[13]: https://www.taosdata.com/cn/documentation/administrator/#client
 [14]: https://www.taosdata.com/cn/all-downloads/#TDengine-Windows-Client
-[15]: https://www.taosdata.com/cn/getting-started/#%E5%BF%AB%E9%80%9F%E4%B8%8A%E6%89%8B
+[15]: https://www.taosdata.com/cn/getting-started/#%E5%AE%A2%E6%88%B7%E7%AB%AF
 

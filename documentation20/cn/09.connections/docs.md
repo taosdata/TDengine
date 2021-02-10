@@ -1,7 +1,7 @@
 # 与其他工具的连接
 
 
-## Grafana
+## <a class="anchor" id="grafana"></a>Grafana
 
 TDengine能够与开源数据可视化系统[Grafana](https://www.grafana.com/)快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine中数据表中内容可以在仪表盘(DashBoard)上进行可视化展现。
 
@@ -21,15 +21,15 @@ TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafanaplugin�
 
 用户可以直接通过 localhost:3000 的网址，登录 Grafana 服务器(用户名/密码:admin/admin)，通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
 
-![img](../assets/add_datasource1.jpg)
+![img](page://images/connections/add_datasource1.jpg)
 
 点击 `Add data source` 可进入新增数据源页面，在查询框中输入 TDengine 可选择添加，如下图所示：
 
-![img](../assets/add_datasource2.jpg)
+![img](page://images/connections/add_datasource2.jpg)
 
 进入数据源配置页面，按照默认提示修改相应配置即可：
 
-![img](../assets/add_datasource3.jpg)
+![img](page://images/connections/add_datasource3.jpg)
 
 * Host： TDengine 集群的中任意一台服务器的 IP 地址与 TDengine RESTful 接口的端口号(6041)，默认 http://localhost:6041
 * User：TDengine 用户名。
@@ -37,13 +37,13 @@ TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafanaplugin�
 
 点击 `Save & Test` 进行测试，成功会有如下提示：
 
-![img](../assets/add_datasource4.jpg)
+![img](page://images/connections/add_datasource4.jpg)
 
 #### 创建 Dashboard
 
 回到主界面创建 Dashboard，点击 Add Query 进入面板查询页面：
 
-![img](../assets/create_dashboard1.jpg)
+![img](page://images/connections/create_dashboard1.jpg)
 
 如上图所示，在 Query 中选中 `TDengine` 数据源，在下方查询框可输入相应 sql 进行查询，具体说明如下：
 
@@ -54,7 +54,7 @@ TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafanaplugin�
 
 按照默认提示查询当前 TDengine 部署所在服务器指定间隔系统内存平均使用量如下：
 
-![img](../assets/create_dashboard2.jpg)
+![img](page://images/connections/create_dashboard2.jpg)
 
 > 关于如何使用Grafana创建相应的监测界面以及更多有关使用Grafana的信息，请参考Grafana官方的[文档](https://grafana.com/docs/)。
 
@@ -64,14 +64,14 @@ TDengine的Grafana插件在安装包的/usr/local/taos/connector/grafanaplugin�
 
 点击左侧 `Import` 按钮，并上传 `tdengine-grafana.json` 文件：
 
-![img](../assets/import_dashboard1.jpg)
+![img](page://images/connections/import_dashboard1.jpg)
 
 导入完成之后可看到如下效果：
 
-![img](../assets/import_dashboard2.jpg)
+![img](page://images/connections/import_dashboard2.jpg)
 
 
-## Matlab
+## <a class="anchor" id="matlab"></a>Matlab
 
 MatLab可以通过安装包内提供的JDBC Driver直接连接到TDengine获取数据到本地工作空间。
 
@@ -82,12 +82,15 @@ MatLab的适配有下面几个步骤，下面以Windows10上适配MatLab2017a为
 - 将TDengine安装包内的驱动程序JDBCDriver-1.0.0-dist.jar拷贝到${matlab_root}\MATLAB\R2017a\java\jar\toolbox
 - 将TDengine安装包内的taos.lib文件拷贝至${matlab_ root _dir}\MATLAB\R2017a\lib\win64
 - 将新添加的驱动jar包加入MatLab的classpath。在${matlab_ root _dir}\MATLAB\R2017a\toolbox\local\classpath.txt文件中添加下面一行
-
-​          `$matlabroot/java/jar/toolbox/JDBCDriver-1.0.0-dist.jar`
-
+​
+```
+$matlabroot/java/jar/toolbox/JDBCDriver-1.0.0-dist.jar
+```
 - 在${user_home}\AppData\Roaming\MathWorks\MATLAB\R2017a\下添加一个文件javalibrarypath.txt, 并在该文件中添加taos.dll的路径，比如您的taos.dll是在安装时拷贝到了C:\Windows\System32下，那么就应该在javalibrarypath.txt中添加如下一行：
-
-​          `C:\Windows\System32`
+​
+```
+C:\Windows\System32
+```
 
 ### 在MatLab中连接TDengine获取数据
 
@@ -95,23 +98,25 @@ MatLab的适配有下面几个步骤，下面以Windows10上适配MatLab2017a为
 
 - 创建一个连接：
 
-  `conn = database(‘db’, ‘root’, ‘taosdata’, ‘com.taosdata.jdbc.TSDBDriver’, ‘jdbc:TSDB://127.0.0.1:0/’)`
-
+```matlab
+conn = database(‘db’, ‘root’, ‘taosdata’, ‘com.taosdata.jdbc.TSDBDriver’, ‘jdbc:TSDB://127.0.0.1:0/’)
+```
 - 执行一次查询：
 
-  `sql0 = [‘select * from tb’]`
-
-  `data = select(conn, sql0);`
-
+```matlab
+sql0 = [‘select * from tb’]
+data = select(conn, sql0);
+```
 - 插入一条记录:
 
-  `sql1 = [‘insert into tb values (now, 1)’]`
-
-  `exec(conn, sql1)`
+```matlab
+sql1 = [‘insert into tb values (now, 1)’]
+exec(conn, sql1)
+```
 
 更多例子细节请参考安装包内examples\Matlab\TDengineDemo.m文件。
 
-## R 
+## <a class="anchor" id="r"></a>R 
 
 R语言支持通过JDBC接口来连接TDengine数据库。首先需要安装R语言的JDBC包。启动R语言环境，然后执行以下命令安装R语言的JDBC支持库：
 

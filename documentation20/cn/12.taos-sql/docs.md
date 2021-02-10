@@ -25,7 +25,7 @@ taos> DESCRIBE meters;
 ```
 数据集包含4个智能电表的数据，按照TDengine的建模规则，对应4个子表，其名称分别是 d1001, d1002, d1003, d1004。
 
-## 支持的数据类型
+## <a class="anchor" id="data-type"></a>支持的数据类型
 
 使用TDengine，最重要的是时间戳。创建并插入记录、查询历史记录的时候，均需要指定时间戳。时间戳有如下规则：
 
@@ -54,7 +54,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 **Tips**: TDengine对SQL语句中的英文字符不区分大小写，自动转化为小写执行。因此用户大小写敏感的字符串及密码，需要使用单引号将字符串引起来。
 
-## 数据库管理
+## <a class="anchor" id="management"></a>数据库管理
 
 - **创建数据库**  
 
@@ -126,7 +126,8 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     SHOW DATABASES;
     ```
 
-## 表管理
+## <a class="anchor" id="table"></a>表管理
+
 - **创建数据表**
 
     ```mysql
@@ -212,7 +213,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
     如果表是通过[超级表](../super-table/)创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构
 
-## 超级表STable管理
+## <a class="anchor" id="super-table"></a>超级表STable管理
 
 注意：在 2.0.15 以前的版本中，并不支持 STABLE 保留字，而是写作 TABLE。也即，在本节后文的指令说明中，CREATE、DROP、ALTER 三个指令在老版本中保留字需写作 TABLE 而不是 STABLE。
 
@@ -265,7 +266,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ALTER STABLE stb_name DROP COLUMN field_name; 
     ```
 
-## 超级表 STable 中 TAG 管理
+## <a class="anchor" id="tags"></a>超级表 STable 中 TAG 管理
 - **添加标签**
 
     ```mysql
@@ -294,7 +295,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
     说明：除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于 STable，不能对单个子表操作。对 STable 添加标签以后，依托于该 STable 建立的所有表将自动增加了一个标签，所有新增标签的默认值都是 NULL。
 
-## 数据写入
+## <a class="anchor" id="insert"></a>数据写入
 
 - **插入一条记录**
     ```mysql
@@ -340,7 +341,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 **历史记录写入**：可使用IMPORT或者INSERT命令，IMPORT的语法，功能与INSERT完全一样。
 
-## 数据查询
+## <a class="anchor" id="select"></a>数据查询
 
 ### 查询语法：
 
@@ -385,9 +386,11 @@ Query OK, 1 row(s) in set (0.001091s)
 ```
 
 #### SELECT子句
+
 一个选择子句可以是联合查询（UNION）和另一个查询的子查询（SUBQUERY）。
 
 ##### 通配符
+
 通配符 * 可以用于代指全部列。对于普通表，结果中只有普通列。
 ```mysql
 taos> SELECT * FROM d1001;
@@ -496,6 +499,7 @@ Query OK, 3 row(s) in set (0.001191s)
 但是针对```first(*)```、```last(*)```、```last_row(*)```不支持针对单列的重命名。
 
 #### 隐式结果列
+
 ```Select_exprs```可以是表所属列的列名，也可以是基于列的函数表达式或计算式，数量的上限256个。当用户使用了```interval```或```group by tags```的子句以后，在最后返回结果中会强制返回时间戳列（第一列）和group by子句中的标签列。后续的版本中可以支持关闭group by子句中隐式列的输出，列输出完全由select子句控制。
 
 #### 表（超级表）列表
@@ -510,6 +514,7 @@ SELECT * FROM d1001;
 ```
 
 #### 特殊功能
+
 部分特殊的查询功能可以不使用FROM子句执行。获取当前所在的数据库 database() 
 ```mysql
 taos> SELECT DATABASE();
@@ -554,12 +559,14 @@ taos> SELECT SERVER_STATUS() AS status;
            1 |
 Query OK, 1 row(s) in set (0.000081s)
 ```
+
 #### TAOS SQL中特殊关键词
 
  >   TBNAME： 在超级表查询中可视为一个特殊的标签，代表查询涉及的子表名<br>
     \_c0: 表示表（超级表）的第一列
 
 #### 小技巧
+
 获取一个超级表所有的子表名及相关的标签信息：
 ```mysql
 SELECT TBNAME, location FROM meters;
@@ -640,7 +647,7 @@ Query OK, 1 row(s) in set (0.001091s)
     SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv;
     ```
 
-## SQL 函数
+## <a class="anchor" id="functions"></a>SQL 函数
 
 ### 聚合函数
 
@@ -1119,7 +1126,8 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     Query OK, 3 row(s) in set (0.001046s)
     ```
 
-## 时间维度聚合
+## <a class="anchor" id="aggregation"></a>时间维度聚合
+
 TDengine支持按时间段进行聚合，可以将表中数据按照时间段进行切割后聚合生成结果，比如温度传感器每秒采集一次数据，但需查询每隔10分钟的温度平均值。这个聚合适合于降维(down sample)操作, 语法如下：
 
 ```mysql
@@ -1138,10 +1146,10 @@ SELECT function_list FROM stb_name
 - 聚合时间段的长度由关键词INTERVAL指定，最短时间间隔10毫秒（10a），并且支持偏移（偏移必须小于间隔）。聚合查询中，能够同时执行的聚合和选择函数仅限于单个输出的函数：count、avg、sum 、stddev、leastsquares、percentile、min、max、first、last，不能使用具有多行输出结果的函数（例如：top、bottom、diff以及四则运算）。
 - WHERE语句可以指定查询的起止时间和其他过滤条件
 - FILL语句指定某一时间区间数据缺失的情况下的填充模式。填充模式包括以下几种：
-  1. 不进行填充：NONE(默认填充模式)。
-  2. VALUE填充：固定值填充，此时需要指定填充的数值。例如：fill(value, 1.23)。
-  3. NULL填充：使用NULL填充数据。例如：fill(null)。
-  4. PREV填充：使用前一个非NULL值填充数据。例如：fill(prev)。
+  * 不进行填充：NONE(默认填充模式)。
+  * VALUE填充：固定值填充，此时需要指定填充的数值。例如：fill(value, 1.23)。
+  * NULL填充：使用NULL填充数据。例如：fill(null)。
+  * PREV填充：使用前一个非NULL值填充数据。例如：fill(prev)。
 
 说明：
   1. 使用FILL语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过1千万条具有插值的结果。
@@ -1164,7 +1172,8 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
   FILL(PREV);
 ```
 
-## TAOS SQL 边界限制
+## <a class="anchor" id="limitation"></a>TAOS SQL 边界限制
+
 - 数据库名最大长度为32
 - 表名最大长度为192，每行数据最大长度16k个字符
 - 列名最大长度为64，最多允许1024列，最少需要2列，第一列必须是时间戳

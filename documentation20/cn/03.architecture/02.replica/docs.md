@@ -10,7 +10,7 @@ TDengine面向的是物联网场景，需要支持数据的实时复制，来最
 
 数据复制是与数据存储（写入、读取）密切相关的，但两者又是相对独立，可以完全脱耦的。在TDengine系统中，有两种不同类型的数据，一种是时序数据，由TSDB模块负责；一种是元数据(Meta Data), 由MNODE负责。这两种性质不同的数据都需要同步功能。数据复制模块通过不同的实例启动配置参数，为这两种类型数据都提供同步功能。
 
-在阅读本文之前，请先阅读《<a href="../architecture/ ">TDengine 2.0 整体架构</a >》，了解TDengine的集群设计和基本概念
+在阅读本文之前，请先阅读《[TDengine 2.0 整体架构](https://www.taosdata.com/cn/documentation/architecture/)》，了解TDengine的集群设计和基本概念
 
 特别注明：本文中提到数据更新操作包括数据的增加、删除与修改。
 
@@ -90,7 +90,7 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 
 具体的流程图如下：
 
-<center> <img src="../assets/replica-master.png"> </center>
+![replica-master.png](page://images/architecture/replica-master.png)
 
 选择Master的具体规则如下：
 
@@ -105,7 +105,7 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 
 如果vnode A是master, vnode B是slave, vnode A能接受客户端的写请求，而vnode B不能。当vnode A收到写的请求后，遵循下面的流程：
 
-<center> <img src="../assets/replica-forward.png"> </center>
+![replica-forward.png](page://images/architecture/replica-forward.png)
 
 1. 应用对写请求做基本的合法性检查，通过，则给改请求包打上一个版本号(version, 单调递增）
 2. 应用将打上版本号的写请求封装一个WAL Head, 写入WAL(Write Ahead Log)
@@ -128,19 +128,19 @@ TDengine采取的是Master-Slave模式进行同步，与流行的RAFT一致性�
 2. 任何一个数据文件(file)有名字、大小，还有一个magic number。只有文件名、大小与magic number一致时，两个文件才判断是一样的，无需同步。Magic number可以是checksum, 也可以是简单的文件大小。怎么计算magic，换句话说，如何检测数据文件是否有效，完全由应用决定。
 3. 文件名的处理有点复杂，因为每台服务器的路径可能不一致。比如node A的TDengine的数据文件存放在 /etc/taos目录下，而node B的数据存放在 /home/jhtao目录下。因此同步模块需要应用在启动一个同步实例时提供一个path，这样两台服务器的绝对路径可以不一样，但仍然可以做对比，做同步。
 4. 当sync模块调用回调函数getFileInfo获得数据文件信息时，有如下的规则
-   1. index 为0，表示获取最老的文件，同时修改index返回给sync模块。如果index不为0，表示获取指定位置的文件。
-   2. 如果name为空，表示sync想获取位于index位置的文件信息，包括magic, size。Master节点会这么调用
-   3. 如果name不为空，表示sync想获取指定文件名和index的信息，slave节点会这么调用
-   4. 如果某个index的文件不存在，magic返回0，表示文件已经是最后一个。因此整个系统里，文件的index必须是连续的一段整数。
+   * index 为0，表示获取最老的文件，同时修改index返回给sync模块。如果index不为0，表示获取指定位置的文件。
+   * 如果name为空，表示sync想获取位于index位置的文件信息，包括magic, size。Master节点会这么调用
+   * 如果name不为空，表示sync想获取指定文件名和index的信息，slave节点会这么调用
+   * 如果某个index的文件不存在，magic返回0，表示文件已经是最后一个。因此整个系统里，文件的index必须是连续的一段整数。
 5. 当sync模块调用回调函数getWalInfo获得wal信息时，有如下规则
-   1. index为0，表示获得最老的WAL文件, 返回时，index更新为具体的数字
-   2. 如果返回0，表示这是最新的一个WAL文件，如果返回值是1，表示后面还有更新的WAL文件
-   3. 返回的文件名为空，那表示没有WAL文件
+   * index为0，表示获得最老的WAL文件, 返回时，index更新为具体的数字
+   * 如果返回0，表示这是最新的一个WAL文件，如果返回值是1，表示后面还有更新的WAL文件
+   * 返回的文件名为空，那表示没有WAL文件
 6. 无论是getFileInfo, 还是getWalInfo, 只要获取出错（不是文件不存在），返回-1即可，系统会报错，停止同步
 
 整个数据恢复流程分为两大步骤，第一步，先恢复archived data(file), 然后恢复wal。具体流程如下：
 
-<center> <img src="../assets/replica-restore.png"> </center>
+![replica-forward.png](page://images/architecture/replica-forward.png)
 
 1. 通过已经建立的TCP连接，发送sync req给master节点
 2. master收到sync req后，以client的身份，向vnode B主动建立一新的专用于同步的TCP连接（syncFd)
