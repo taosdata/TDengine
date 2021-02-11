@@ -287,6 +287,26 @@ static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STa
   return pTableCheckInfo;
 }
 
+static void resetCheckInfo(STsdbQueryHandle* pQueryHandle) {
+  size_t numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
+  assert(numOfTables >= 1);
+
+  // todo apply the lastkey of table check to avoid to load header file
+  for (int32_t i = 0; i < numOfTables; ++i) {
+    STableCheckInfo* pCheckInfo = (STableCheckInfo*) taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+    pCheckInfo->lastKey = pQueryHandle->window.skey;
+    pCheckInfo->iter = tSkipListDestroyIter(pCheckInfo->iter);
+    pCheckInfo->iiter = tSkipListDestroyIter(pCheckInfo->iiter);
+
+      if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+        assert(pCheckInfo->lastKey >= pQueryHandle->window.skey);
+      } else {
+        assert(pCheckInfo->lastKey <= pQueryHandle->window.skey);
+      }
+
+  }
+}
+
 static SArray* createCheckInfoFromCheckInfo(SArray* pTableCheckInfo, TSKEY skey) {
   size_t si = taosArrayGetSize(pTableCheckInfo);
   SArray* pNew = taosArrayInit(si, sizeof(STableCheckInfo));
@@ -403,6 +423,34 @@ TsdbQueryHandleT* tsdbQueryTables(STsdbRepo* tsdb, STsdbQueryCond* pCond, STable
 
   tsdbDebug("%p total numOfTable:%" PRIzu " in query, %p", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo), pQueryHandle->qinfo);
   return (TsdbQueryHandleT) pQueryHandle;
+}
+
+void tsdbResetQueryHandle(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond) {
+  STsdbQueryHandle* pQueryHandle = queryHandle;
+
+  pQueryHandle->order       = pCond->order;
+  pQueryHandle->window      = pCond->twindow;
+  pQueryHandle->type        = TSDB_QUERY_TYPE_ALL;
+  pQueryHandle->cur.fid     = -1;
+  pQueryHandle->cur.win     = TSWINDOW_INITIALIZER;
+  pQueryHandle->checkFiles  = true;
+  pQueryHandle->activeIndex = 0;   // current active table index
+  pQueryHandle->locateStart = false;
+  pQueryHandle->loadExternalRow = pCond->loadExternalRows;
+
+  if (ASCENDING_TRAVERSE(pCond->order)) {
+    assert(pQueryHandle->window.skey <= pQueryHandle->window.ekey);
+  } else {
+    assert(pQueryHandle->window.skey >= pQueryHandle->window.ekey);
+  }
+
+  // allocate buffer in order to load data blocks from file
+  memset(pQueryHandle->statis, 0, sizeof(SDataStatis));
+
+  tsdbInitDataBlockLoadInfo(&pQueryHandle->dataBlockLoadInfo);
+  tsdbInitCompBlockLoadInfo(&pQueryHandle->compBlockLoadInfo);
+
+  resetCheckInfo(pQueryHandle);
 }
 
 TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo, SMemRef* pMemRef) {

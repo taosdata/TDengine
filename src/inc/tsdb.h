@@ -253,6 +253,7 @@ int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle);
  * @return
  */
 bool tsdbNextDataBlock(TsdbQueryHandleT *pQueryHandle);
+
 /**
  * move to next block if exists but not merge data in memtable 
  *
@@ -335,6 +336,8 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo *tsdb, SArray *pTableIdList, STabl
  * @param queryHandle
  */
 void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle);
+
+void tsdbResetQueryHandle(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond);
 
 /**
  * get the statistics of repo usage

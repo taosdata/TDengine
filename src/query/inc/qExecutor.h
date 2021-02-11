@@ -188,15 +188,15 @@ typedef struct SSDataBlock {
 typedef struct SQuery {
   SLimitVal        limit;
 
-  bool                 stableQuery;      // super table query or not
-  bool                 topBotQuery;      // TODO used bitwise flag
-  bool                 groupbyColumn;    // denote if this is a groupby normal column query
-  bool                 hasTagResults;    // if there are tag values in final result or not
-  bool                 timeWindowInterpo;// if the time window start/end required interpolation
-  bool                 queryWindowIdentical; // all query time windows are identical for all tables in one group
-  bool                 queryBlockDist;    // if query data block distribution
-  bool                 stabledev;        // super table stddev query
-  int32_t              interBufSize;     // intermediate buffer sizse
+  bool             stableQuery;      // super table query or not
+  bool             topBotQuery;      // TODO used bitwise flag
+  bool             groupbyColumn;    // denote if this is a groupby normal column query
+  bool             hasTagResults;    // if there are tag values in final result or not
+  bool             timeWindowInterpo;// if the time window start/end required interpolation
+  bool             queryWindowIdentical; // all query time windows are identical for all tables in one group
+  bool             queryBlockDist;    // if query data block distribution
+  bool             stabledev;        // super table stddev query
+  int32_t          interBufSize;     // intermediate buffer sizse
 
   SOrderVal        order;
 
@@ -267,7 +267,7 @@ typedef struct SQueryRuntimeEnv {
   char*                tagVal;           // tag value of current data block
   SArithmeticSupport  *sasArray;
 
-  struct STableScanInfo*   pi;
+  SOperatorInfo*   pi;
   SSDataBlock *outputBuf;
 
   int32_t          groupIndex;
@@ -329,8 +329,10 @@ typedef struct SQueryParam {
   SSqlGroupbyExpr *pGroupbyExpr;
 } SQueryParam;
 
+typedef SSDataBlock* (*__operator_fn_t)(void* param);
+
 typedef struct STableScanInfo {
-  SQueryRuntimeEnv*        pRuntimeEnv;
+  SQueryRuntimeEnv *pRuntimeEnv;
   void        *pQueryHandle;
   int32_t      numOfBlocks;
   int32_t      numOfSkipped;
@@ -346,15 +348,23 @@ typedef struct STableScanInfo {
 
   SSDataBlock  block;
   int64_t      elapsedTime;
-  SSDataBlock* (*exec)(void* param);
 } STableScanInfo;
+
+typedef struct SOperatorInfo {
+  char  *name;
+  bool   blockingOptr;
+  void  *optInfo;
+  
+  __operator_fn_t exec;
+} SOperatorInfo;
+
+SOperatorInfo optrList[5];
 
 typedef struct SAggOperatorInfo {
   SResultRowInfo   *pResultRowInfo;
   STableQueryInfo  *pTableQueryInfo;
-  STableScanInfo   *pTableScanInfo;
+  SOperatorInfo    *prevOptr;
   SQueryRuntimeEnv *pRuntimeEnv;
-  SSDataBlock* (*apply)(void* param);
 } SAggOperatorInfo;
 
 void freeParam(SQueryParam *param);

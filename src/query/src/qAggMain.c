@@ -1767,7 +1767,7 @@ static bool first_last_function_setup(SQLFunctionCtx *pCtx) {
 
 // todo opt for null block
 static void first_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order == TSDB_ORDER_DESC || pCtx->preAggVals.dataBlockLoaded == false) {
+  if (pCtx->order == TSDB_ORDER_DESC /*|| pCtx->preAggVals.dataBlockLoaded == false*/) {
     return;
   }
   
@@ -1912,7 +1912,7 @@ static void first_dist_func_merge(SQLFunctionCtx *pCtx) {
  *    least one data in this block that is not null.(TODO opt for this case)
  */
 static void last_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order != pCtx->param[0].i64 || pCtx->preAggVals.dataBlockLoaded == false) {
+  if (pCtx->order != pCtx->param[0].i64/* || pCtx->preAggVals.dataBlockLoaded == false*/) {
     return;
   }
   
