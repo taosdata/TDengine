@@ -237,6 +237,17 @@ typedef struct SQuery {
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
 } SQuery;
 
+typedef SSDataBlock* (*__operator_fn_t)(void* param);
+
+typedef struct SOperatorInfo {
+  char *name;
+  bool  blockingOptr;
+  void *optInfo;
+  
+  __operator_fn_t       exec;
+  struct SOperatorInfo *upstream;
+} SOperatorInfo;
+
 typedef struct SQueryRuntimeEnv {
   jmp_buf              env;
   SQuery*              pQuery;
@@ -329,8 +340,6 @@ typedef struct SQueryParam {
   SSqlGroupbyExpr *pGroupbyExpr;
 } SQueryParam;
 
-typedef SSDataBlock* (*__operator_fn_t)(void* param);
-
 typedef struct STableScanInfo {
   SQueryRuntimeEnv *pRuntimeEnv;
   void        *pQueryHandle;
@@ -350,22 +359,18 @@ typedef struct STableScanInfo {
   int64_t      elapsedTime;
 } STableScanInfo;
 
-typedef struct SOperatorInfo {
-  char  *name;
-  bool   blockingOptr;
-  void  *optInfo;
-  
-  __operator_fn_t exec;
-} SOperatorInfo;
-
 SOperatorInfo optrList[5];
 
 typedef struct SAggOperatorInfo {
   SResultRowInfo   *pResultRowInfo;
   STableQueryInfo  *pTableQueryInfo;
-  SOperatorInfo    *prevOptr;
   SQueryRuntimeEnv *pRuntimeEnv;
 } SAggOperatorInfo;
+
+typedef struct SArithOperatorInfo {
+  STableQueryInfo  *pTableQueryInfo;
+  SQueryRuntimeEnv *pRuntimeEnv;
+} SArithOperatorInfo;
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);
