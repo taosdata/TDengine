@@ -148,6 +148,7 @@ int32_t walWrite(void *handle, SWalHead *pHead) {
 #if defined(WAL_CHECKSUM_WHOLE)
   walUpdateChecksum(pHead);
 #else
+  pHead->sver = 0;
   taosCalcChecksumAppend(0, (uint8_t *)pHead, sizeof(SWalHead));
 #endif
 
@@ -329,7 +330,6 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
   SWalHead *pHead = buffer;
 
   while (1) {
-#if defined(WAL_CHECKSUM_WHOLE)
     int32_t ret = (int32_t)tfRead(tfd, pHead, sizeof(SWalHead));
     if (ret == 0) break;
 
@@ -345,6 +345,7 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
       break;
     }
 
+#if defined(WAL_CHECKSUM_WHOLE)
     if (pHead->sver == 0 && !walValidateChecksum(pHead)) {
       wError("vgId:%d, file:%s, wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
              pHead->version, pHead->len, offset);
@@ -389,21 +390,6 @@ static int32_t walRestoreWalFile(SWal *pWal, void *pVnode, FWalWrite writeFp, ch
     }
 
 #else
-    int32_t ret = (int32_t)tfRead(tfd, pHead, sizeof(SWalHead));
-    if (ret == 0) break;
-
-    if (ret < 0) {
-      wError("vgId:%d, file:%s, failed to read wal head since %s", pWal->vgId, name, strerror(errno));
-      code = TAOS_SYSTEM_ERROR(errno);
-      break;
-    }
-
-    if (ret < sizeof(SWalHead)) {
-      wError("vgId:%d, file:%s, failed to read wal head, ret is %d", pWal->vgId, name, ret);
-      walFtruncate(pWal, tfd, offset);
-      break;
-    }
-
     if (!taosCheckChecksumWhole((uint8_t *)pHead, sizeof(SWalHead))) {
       wError("vgId:%d, file:%s, wal head cksum is messed up, hver:%" PRIu64 " len:%d offset:%" PRId64, pWal->vgId, name,
              pHead->version, pHead->len, offset);
