@@ -235,15 +235,19 @@ typedef struct SQuery {
   void*            tsdb;
   SMemRef          memRef;
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
+  int32_t          vgId;
 } SQuery;
 
 typedef SSDataBlock* (*__operator_fn_t)(void* param);
 
 typedef struct SOperatorInfo {
-  char *name;
-  bool  blockingOptr;
-  void *optInfo;
-  
+  char      *name;
+  bool       blockingOptr;
+  bool       completed;
+  void      *optInfo;
+  SExprInfo *pExpr;
+  int32_t    numOfOutput;
+
   __operator_fn_t       exec;
   struct SOperatorInfo *upstream;
 } SOperatorInfo;
@@ -284,6 +288,7 @@ typedef struct SQueryRuntimeEnv {
   int32_t          groupIndex;
   int32_t          tableIndex;
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
+  SOperatorInfo* proot;
 } SQueryRuntimeEnv;
 
 typedef struct {
@@ -300,8 +305,6 @@ typedef struct SQInfo {
   void*            signature;
   int32_t          code;   // error code to returned to client
   int64_t          owner;  // if it is in execution
-
-  int32_t          vgId;
 
   SQueryRuntimeEnv runtimeEnv;
   SQuery           query;
@@ -365,12 +368,26 @@ typedef struct SAggOperatorInfo {
   SResultRowInfo   *pResultRowInfo;
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
+  SQLFunctionCtx   *pCtx;
 } SAggOperatorInfo;
 
 typedef struct SArithOperatorInfo {
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
+  SQLFunctionCtx* pCtx;
 } SArithOperatorInfo;
+
+typedef struct SLimitOperatorInfo {
+  int64_t limit;
+  int64_t total;
+  SQueryRuntimeEnv* pRuntimeEnv;
+} SLimitOperatorInfo;
+
+typedef struct SOffsetOperatorInfo {
+  int64_t offset;
+  int64_t currentOffset;
+  SQueryRuntimeEnv* pRuntimeEnv;
+} SOffsetOperatorInfo;
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);

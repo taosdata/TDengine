@@ -3564,7 +3564,7 @@ char *getArithColumnData(void *param, const char* name, int32_t colId) {
     }
   }
   
-  assert(index >= 0 && colId >= 0);
+  assert(index >= 0 /*&& colId >= 0*/);
   return pSupport->data[index] + pSupport->offset * pSupport->colList[index].bytes;
 }
 
