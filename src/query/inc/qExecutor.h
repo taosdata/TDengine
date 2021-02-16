@@ -289,6 +289,7 @@ typedef struct SQueryRuntimeEnv {
   int32_t          tableIndex;
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   SOperatorInfo* proot;
+  SGroupResInfo    groupResInfo;
 } SQueryRuntimeEnv;
 
 typedef struct {
@@ -315,7 +316,6 @@ typedef struct SQInfo {
    * the query is executed position on which meter of the whole list.
    * when the index reaches the last one of the list, it means the query is completed.
    */
-  SGroupResInfo    groupResInfo;
   void*            pBuf;        // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
 
   pthread_mutex_t  lock;        // used to synchronize the rsp/query threads
@@ -388,6 +388,13 @@ typedef struct SOffsetOperatorInfo {
   int64_t currentOffset;
   SQueryRuntimeEnv* pRuntimeEnv;
 } SOffsetOperatorInfo;
+
+typedef struct SHashIntervalOperatorInfo {
+  SResultRowInfo   *pResultRowInfo;
+  STableQueryInfo  *pTableQueryInfo;
+  SQueryRuntimeEnv *pRuntimeEnv;
+  SQLFunctionCtx   *pCtx;
+} SHashIntervalOperatorInfo;
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);
