@@ -283,12 +283,12 @@ typedef struct SQueryRuntimeEnv {
   SArithmeticSupport  *sasArray;
 
   SOperatorInfo*   pi;
-  SSDataBlock *outputBuf;
+  SSDataBlock     *outputBuf;
 
   int32_t          groupIndex;
   int32_t          tableIndex;
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
-  SOperatorInfo* proot;
+  SOperatorInfo   *proot;
   SGroupResInfo    groupResInfo;
 } SQueryRuntimeEnv;
 
@@ -362,8 +362,6 @@ typedef struct STableScanInfo {
   int64_t      elapsedTime;
 } STableScanInfo;
 
-SOperatorInfo optrList[5];
-
 typedef struct SAggOperatorInfo {
   SResultRowInfo   *pResultRowInfo;
   STableQueryInfo  *pTableQueryInfo;
@@ -396,10 +394,19 @@ typedef struct SHashIntervalOperatorInfo {
   SQLFunctionCtx   *pCtx;
 } SHashIntervalOperatorInfo;
 
+typedef struct SFillOperatorInfo {
+  SResultRowInfo   *pResultRowInfo;
+  STableQueryInfo  *pTableQueryInfo;
+  SQueryRuntimeEnv *pRuntimeEnv;
+} SFillOperatorInfo;
+
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);
 int32_t createQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo, SSqlFuncMsg **pExprMsg,
                                    SColumnInfo* pTagCols);
+int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo,
+                                           SSqlFuncMsg **pExprMsg, SExprInfo *prevExpr);
+
 SSqlGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code);
 SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
                         SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, bool stableQuery, char* sql);

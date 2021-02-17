@@ -1925,6 +1925,7 @@ static void last_function(SQLFunctionCtx *pCtx) {
         continue; 
       }
     }
+
     memcpy(pCtx->pOutput, data, pCtx->inputBytes);
     
     TSKEY ts = GET_TS_DATA(pCtx, i);

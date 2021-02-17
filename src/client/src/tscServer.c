@@ -856,33 +856,28 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     for (int32_t i = 0; i < output; ++i) {
       SInternalField* pField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
       SSqlExpr *pExpr = pField->pSqlExpr;
+
+      // this should be switched to projection query
       if (pExpr != NULL) {
         if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
           tscError("%p table schema is not matched with parsed sql", pSql);
           return TSDB_CODE_TSC_INVALID_SQL;
         }
 
-        pSqlFuncExpr1->colInfo.colId    = htons(pExpr->colInfo.colId);
-        pSqlFuncExpr1->colInfo.colIndex = htons(pExpr->colInfo.colIndex);
-        pSqlFuncExpr1->colInfo.flag     = htons(pExpr->colInfo.flag);
+        pSqlFuncExpr1->numOfParams = 0;  // no params for projection query
+        pSqlFuncExpr1->functionId  = htons(TSDB_FUNC_PRJ);
+        pSqlFuncExpr1->colInfo.colId = htons(pExpr->resColId);
+        pSqlFuncExpr1->colInfo.flag = htons(TSDB_COL_NORMAL);
 
-        pSqlFuncExpr1->functionId  = htons(pExpr->functionId);
-        pSqlFuncExpr1->numOfParams = htons(pExpr->numOfParams);
-        pMsg += sizeof(SSqlFuncMsg);
-
-        for (int32_t j = 0; j < pExpr->numOfParams; ++j) {
-          // todo add log
-          pSqlFuncExpr1->arg[j].argType = htons((uint16_t)pExpr->param[j].nType);
-          pSqlFuncExpr1->arg[j].argBytes = htons(pExpr->param[j].nLen);
-
-          if (pExpr->param[j].nType == TSDB_DATA_TYPE_BINARY) {
-            memcpy(pMsg, pExpr->param[j].pz, pExpr->param[j].nLen);
-            pMsg += pExpr->param[j].nLen;
-          } else {
-            pSqlFuncExpr1->arg[j].argValue.i64 = htobe64(pExpr->param[j].i64);
+        for (int32_t f = 0; f < tscSqlExprNumOfExprs(pQueryInfo); ++f) {
+          SSqlExpr *pe = tscSqlExprGet(pQueryInfo, f);
+          if (pe == pExpr) {
+            pSqlFuncExpr1->colInfo.colIndex = htons(f);
+            break;
           }
         }
 
+        pMsg += sizeof(SSqlFuncMsg);
         pSqlFuncExpr1 = (SSqlFuncMsg *)pMsg;
       } else {
         assert(pField->pArithExprInfo != NULL);
