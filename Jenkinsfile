@@ -5,7 +5,7 @@ node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
 
-def kipstage=0
+def skipstage=0
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
