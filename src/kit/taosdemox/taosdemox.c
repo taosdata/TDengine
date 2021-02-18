@@ -5072,6 +5072,18 @@ int main(int argc, char *argv[]) {
       printf("Failed to read %s\n", g_args.metaFile);
       return 1;
     }
+    if (INSERT_MODE == g_jsonType) {
+      if (g_Dbs.cfgDir[0]) taos_options(TSDB_OPTION_CONFIGDIR, g_Dbs.cfgDir);
+      (void)insertTestProcess();
+    } else if (QUERY_MODE == g_jsonType) {
+      if (g_queryInfo.cfgDir[0])  taos_options(TSDB_OPTION_CONFIGDIR, g_queryInfo.cfgDir);
+      (void)queryTestProcess();
+    } else if (SUBSCRIBE_MODE == g_jsonType) {
+      if (g_queryInfo.cfgDir[0])  taos_options(TSDB_OPTION_CONFIGDIR, g_queryInfo.cfgDir);
+      (void)subscribeTestProcess();
+    }  else {
+      ;
+    }
   } else {  
     
     memset(&g_Dbs, 0, sizeof(SDbs));
@@ -5079,7 +5091,8 @@ int main(int argc, char *argv[]) {
     setParaFromArg();
 
     if (NULL != g_args.sqlFile) {
-      TAOS* qtaos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, g_Dbs.db[0].dbName, g_Dbs.port);
+      TAOS* qtaos = taos_connect(
+          g_Dbs.host, g_Dbs.user, g_Dbs.password, g_Dbs.db[0].dbName, g_Dbs.port);
       querySqlFile(qtaos, g_args.sqlFile);  
       taos_close(qtaos);
       return 0;
@@ -5089,22 +5102,28 @@ int main(int argc, char *argv[]) {
     if (g_Dbs.insert_only) return 0;
 
     // select
-    
-    //printf("At present, there is no integration of taosdemo, please wait patiently!\n");
-    return 0;
-  }
- 
-  if (INSERT_MODE == g_jsonType) {
-    if (g_Dbs.cfgDir[0]) taos_options(TSDB_OPTION_CONFIGDIR, g_Dbs.cfgDir);
-    (void)insertTestProcess();
-  } else if (QUERY_MODE == g_jsonType) {
-    if (g_queryInfo.cfgDir[0])  taos_options(TSDB_OPTION_CONFIGDIR, g_queryInfo.cfgDir);
-    (void)queryTestProcess();
-  } else if (SUBSCRIBE_MODE == g_jsonType) {
-    if (g_queryInfo.cfgDir[0])  taos_options(TSDB_OPTION_CONFIGDIR, g_queryInfo.cfgDir);
-    (void)subscribeTestProcess();
-  }  else {
-    ;
+    if (false == insert_only) {
+      // query data
+      pthread_t read_id;
+      info *rInfo = malloc(sizeof(info));
+      rInfo->start_time = 1500000000000;
+      rInfo->start_table_id = 0;
+      rInfo->end_table_id = ntables - 1;
+      rInfo->do_aggreFunc = do_aggreFunc;
+      rInfo->nrecords_per_table = nrecords_per_table;
+      rInfo->taos = taos_connect(ip_addr, user, pass, db_name, port);
+      strcpy(rInfo->tb_prefix, tb_prefix);
+      strcpy(rInfo->fp, arguments.output_file);
+  
+      if (!use_metric) {
+        pthread_create(&read_id, NULL, readTable, rInfo);
+      } else {
+        pthread_create(&read_id, NULL, readMetric, rInfo);
+      }
+      pthread_join(read_id, NULL);
+      taos_close(rInfo->taos);
+      free(rInfo);
+    }
   }
 
   taos_cleanup();
