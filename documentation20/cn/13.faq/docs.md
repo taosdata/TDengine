@@ -140,3 +140,20 @@ TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A
 - 2.0.7.0 及以后的版本，到/var/lib/taos/dnode下，修复dnodeEps.json的dnodeId对应的FQDN，重启。确保机器内所有机器的此文件是完全相同的。
 - 1.x 和 2.x 版本的存储结构不兼容，需要使用迁移工具或者自己开发应用导出导入数据。
 
+## 17. 如何在命令行程序 taos 中临时调整日志级别
+
+为了调试方便，从 2.0.16 版本开始，命令行程序 taos 新增了与日志记录相关的两条指令：
+
+```mysql
+ALTER LOCAL flag_name flag_value;
+```
+
+其含义是，在当前的命令行程序下，修改一个特定模块的日志记录级别（只对当前命令行程序有效，如果 taos 命令行程序重启，则需要重新设置）：
+- flag_name 的取值可以是：debugFlag，cDebugFlag，tmrDebugFlag，uDebugFlag，rpcDebugFlag
+- flag_value 的取值可以是：131（输出错误和警告日志），135（ 输出错误、警告和调试日志），143（ 输出错误、警告、调试和跟踪日志）
+
+```mysql
+ALTER LOCAL RESETLOG;
+```
+
+其含义是，清空本机所有由客户端生成的日志文件。
