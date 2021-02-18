@@ -2488,7 +2488,7 @@ static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
 
 static bool top_bottom_function_setup(SQLFunctionCtx *pCtx) {
   if (!function_setup(pCtx)) {
-    return false;
+    //return false;
   }
   
   STopBotInfo *pInfo = getTopBotOutputInfo(pCtx);

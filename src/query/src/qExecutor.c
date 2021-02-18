@@ -3786,7 +3786,7 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
       pCtx->ptsOutputBuf = pRuntimeEnv->pCtx[0].pOutput;
     }
 
-    if (!pCtx->resultInfo->initialized) {
+    if (!pCtx->resultInfo->initialized || functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
       aAggs[functionId].init(pCtx);
     }
   }
