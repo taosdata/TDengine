@@ -214,7 +214,7 @@ typedef struct SAggFunctionInfo {
   void (*xFinalize)(SQLFunctionCtx *pCtx);
   void (*mergeFunc)(SQLFunctionCtx *pCtx);
 
-  int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId);
+  int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
 } SAggFunctionInfo;
 
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
@@ -247,7 +247,7 @@ extern struct SAggFunctionInfo aAggs[];
 
 extern int32_t functionCompatList[]; // compatible check array list
 
-bool topbot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, const char *minval, const char *maxval);
+bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const char *maxval);
 
 /**
  * the numOfRes should be kept, since it may be used later

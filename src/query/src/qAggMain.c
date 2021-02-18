@@ -457,7 +457,7 @@ static void count_func_merge(SQLFunctionCtx *pCtx) {
  * @param filterCols
  * @return
  */
-int32_t count_load_data_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+int32_t countRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
     return BLK_DATA_NO_NEEDED;
   } else {
@@ -465,7 +465,7 @@ int32_t count_load_data_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32
   }
 }
 
-int32_t no_data_info(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+int32_t noDataRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   return BLK_DATA_NO_NEEDED;
 }
 
@@ -667,16 +667,16 @@ static void sum_func_merge(SQLFunctionCtx *pCtx) {
   }
 }
 
-static int32_t statisRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+static int32_t statisRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   return BLK_DATA_STATIS_NEEDED;
 }
 
-static int32_t dataBlockRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+static int32_t dataBlockRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   return BLK_DATA_ALL_NEEDED;
 }
 
-// todo: if  column in current data block are null, opt for this case
-static int32_t firstFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+// todo: if column in current data block are null, opt for this case
+static int32_t firstFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (pCtx->order == TSDB_ORDER_DESC) {
     return BLK_DATA_NO_NEEDED;
   }
@@ -689,7 +689,7 @@ static int32_t firstFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, i
   }
 }
 
-static int32_t lastFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+static int32_t lastFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (pCtx->order != pCtx->param[0].i64) {
     return BLK_DATA_NO_NEEDED;
   }
@@ -701,7 +701,7 @@ static int32_t lastFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, in
   }
 }
 
-static int32_t firstDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+static int32_t firstDistFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (pCtx->order == TSDB_ORDER_DESC) {
     return BLK_DATA_NO_NEEDED;
   }
@@ -717,11 +717,11 @@ static int32_t firstDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY en
   if (pInfo->hasResult != DATA_SET_FLAG) {
     return BLK_DATA_ALL_NEEDED;
   } else {  // data in current block is not earlier than current result
-    return (pInfo->ts <= start) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+    return (pInfo->ts <= w->skey) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
   }
 }
 
-static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end, int32_t colId) {
+static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   if (pCtx->order != pCtx->param[0].i64) {
     return BLK_DATA_NO_NEEDED;
   }
@@ -737,7 +737,7 @@ static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, TSKEY start, TSKEY end
   if (pInfo->hasResult != DATA_SET_FLAG) {
     return BLK_DATA_ALL_NEEDED;
   } else {
-    return (pInfo->ts > end) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+    return (pInfo->ts > w->ekey) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
   }
 }
 
@@ -2412,7 +2412,7 @@ static STopBotInfo *getTopBotOutputInfo(SQLFunctionCtx *pCtx) {
   }
 }
 
-bool topbot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, const char *minval, const char *maxval) {
+bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const char *maxval) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pResInfo == NULL) {
     return true;
@@ -2427,7 +2427,7 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, int32_t functionId, const cha
   
   tValuePair **pRes = (tValuePair**) pTopBotInfo->res;
   
-  if (functionId == TSDB_FUNC_TOP) {
+  if (pCtx->functionId == TSDB_FUNC_TOP) {
     switch (pCtx->inputType) {
       case TSDB_DATA_TYPE_TINYINT:
         return GET_INT8_VAL(maxval) > pRes[0]->v.i64;
@@ -4549,7 +4549,7 @@ SAggFunctionInfo aAggs[] = {{
                               no_next_step,
                               doFinalizer,
                               count_func_merge,
-                              count_load_data_info,
+                              countRequired,
                           },
                           {
                               // 1
@@ -4734,7 +4734,7 @@ SAggFunctionInfo aAggs[] = {{
                               no_next_step,
                               spread_function_finalizer,
                               spread_func_merge,
-                              count_load_data_info,
+                              countRequired,
                           },
                           {
                               // 14
@@ -4776,7 +4776,7 @@ SAggFunctionInfo aAggs[] = {{
                               no_next_step,
                               doFinalizer,
                               copy_function,
-                              no_data_info,
+                              noDataRequired,
                           },
                           {
                               // 17
@@ -4804,7 +4804,7 @@ SAggFunctionInfo aAggs[] = {{
                               no_next_step,
                               doFinalizer,
                               copy_function,
-                              no_data_info,
+                              noDataRequired,
                           },
                           {
                               // 19
@@ -4832,7 +4832,7 @@ SAggFunctionInfo aAggs[] = {{
                               no_next_step,
                               doFinalizer,
                               copy_function,
-                              no_data_info,
+                              noDataRequired,
                           },
                           {
                               // 21, column project sql function
@@ -4860,7 +4860,7 @@ SAggFunctionInfo aAggs[] = {{
                               no_next_step,
                               doFinalizer,
                               copy_function,
-                              no_data_info,
+                              noDataRequired,
                           },
                           {
                               // 23

@@ -249,6 +249,7 @@ typedef struct SOperatorInfo {
   int32_t    numOfOutput;
 
   __operator_fn_t       exec;
+  __operator_fn_t       cleanup;
   struct SOperatorInfo *upstream;
 } SOperatorInfo;
 
@@ -291,11 +292,6 @@ typedef struct SQueryRuntimeEnv {
   SOperatorInfo   *proot;
   SGroupResInfo    groupResInfo;
 } SQueryRuntimeEnv;
-
-typedef struct {
-  char* name;
-  void* info;
-} SQEStage;
 
 enum {
   QUERY_RESULT_NOT_READY = 1,
@@ -345,11 +341,11 @@ typedef struct SQueryParam {
 
 typedef struct STableScanInfo {
   SQueryRuntimeEnv *pRuntimeEnv;
+
   void        *pQueryHandle;
   int32_t      numOfBlocks;
   int32_t      numOfSkipped;
   int32_t      numOfBlockStatis;
-
   int64_t      numOfRows;
 
   int32_t      order;  // scan order
@@ -359,11 +355,16 @@ typedef struct STableScanInfo {
   int32_t      reverseTimes; // 0 by default
 
   SSDataBlock  block;
+
+  SQLFunctionCtx* pCtx;  // next operator query context
+  SResultRowInfo* pResultRowInfo;
+  int32_t         numOfOutput;
+
   int64_t      elapsedTime;
 } STableScanInfo;
 
 typedef struct SAggOperatorInfo {
-  SResultRowInfo   *pResultRowInfo;
+  SResultRowInfo    resultRowInfo;
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
@@ -372,7 +373,9 @@ typedef struct SAggOperatorInfo {
 typedef struct SArithOperatorInfo {
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
-  SQLFunctionCtx* pCtx;
+  SQLFunctionCtx   *pCtx;
+  SResultRowInfo    resultRowInfo;
+  SSDataBlock      *pOutput;
 } SArithOperatorInfo;
 
 typedef struct SLimitOperatorInfo {
@@ -388,10 +391,10 @@ typedef struct SOffsetOperatorInfo {
 } SOffsetOperatorInfo;
 
 typedef struct SHashIntervalOperatorInfo {
-  SResultRowInfo   *pResultRowInfo;
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
+  SResultRowInfo    resultRowInfo;
 } SHashIntervalOperatorInfo;
 
 typedef struct SFillOperatorInfo {
@@ -399,6 +402,12 @@ typedef struct SFillOperatorInfo {
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
 } SFillOperatorInfo;
+
+typedef struct SFilterOperatorInfo {
+  SResultRowInfo   *pResultRowInfo;
+  STableQueryInfo  *pTableQueryInfo;
+  SQueryRuntimeEnv *pRuntimeEnv;
+} SFilterOperatorInfo;
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);
