@@ -6,7 +6,7 @@
 1. /var/log/taos （如果没有修改过默认路径）
 2. /etc/taos
 
-附上必要的问题描述，包括使用的 TDengine 版本信息、平台环境信息、发生该问题的执行操作、出现问题的表征及大概的时间，在<a href='https://github.com/taosdata/TDengine'> GitHub</a>提交Issue。
+附上必要的问题描述，包括使用的 TDengine 版本信息、平台环境信息、发生该问题的执行操作、出现问题的表征及大概的时间，在 [GitHub](https://github.com/taosdata/TDengine) 提交Issue。
 
 为了保证有足够的debug信息，如果问题能够重复，请修改/etc/taos/taos.cfg文件，最后面添加一行“debugFlag 135"(不带引号本身），然后重启taosd, 重复问题，然后再递交。也可以通过如下SQL语句，临时设置taosd的日志级别。
 ```
@@ -25,13 +25,16 @@
 5. 如果数据需要迁移数据或者数据文件损坏，请联系涛思数据官方技术支持团队，进行协助解决
 
 ## 2. Windows平台下JDBCDriver找不到动态链接库，怎么办？
-请看为此问题撰写的<a href='blog/2019/12/03/jdbcdriver找不到动态链接库/'>技术博客 </a>
+
+请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/jdbcdriver找不到动态链接库/)
 
 ## 3. 创建数据表时提示more dnodes are needed
-请看为此问题撰写的<a href='blog/2019/12/03/创建数据表时提示more-dnodes-are-needed/'>技术博客</a>
+
+请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/03/创建数据表时提示more-dnodes-are-needed/)
 
 ## 4. 如何让TDengine crash时生成core文件？
-请看为此问题撰写的<a href='blog/2019/12/06/tdengine-crash时生成core文件的方法/'>技术博客</a>
+
+请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2019/12/06/tdengine-crash时生成core文件的方法/)
 
 ## 5. 遇到错误"Unable to establish connection", 我怎么办？
 
@@ -46,7 +49,7 @@
 
 3. 在服务器，执行 `systemctl status taosd` 检查*taosd*运行状态。如果没有运行，启动*taosd*
 
-4. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得)）,FQDN配置参考：<a href="https://www.taosdata.com/blog/2020/09/11/1824.html">一篇文章说清楚TDengine的FQDN</a>。
+4. 确认客户端连接时指定了正确的服务器FQDN (Fully Qualified Domain Name(可在服务器上执行Linux命令hostname -f获得)）,FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
 
 5. ping服务器FQDN，如果没有反应，请检查你的网络，DNS设置，或客户端所在计算机的系统hosts文件
 
@@ -65,12 +68,12 @@
 
    * Windows 系统请使用 PowerShell 命令 Net-TestConnection -ComputerName {fqdn} -Port {port} 检测服务段端口是否访问
 
-10. 也可以使用taos程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅（包括TCP和UDP）：<a href="https://www.taosdata.com/blog/2020/09/08/1816.html">TDengine 内嵌网络检测工具使用指南</a>。
+10. 也可以使用taos程序内嵌的网络连通检测功能，来验证服务器和客户端之间指定的端口连接是否通畅（包括TCP和UDP）：[TDengine 内嵌网络检测工具使用指南](https://www.taosdata.com/blog/2020/09/08/1816.html)。
 
 ## 6. 遇到错误“Unexpected generic error in RPC”或者"TDengine Error: Unable to resolve FQDN"， 我怎么办？
 产生这个错误，是由于客户端或数据节点无法解析FQDN(Fully Qualified Domain Name)导致。对于TAOS Shell或客户端应用，请做如下检查：
 
-1. 请检查连接的服务器的FQDN是否正确,FQDN配置参考：<a href="https://www.taosdata.com/blog/2020/09/11/1824.html">一篇文章说清楚TDengine的FQDN</a>。
+1. 请检查连接的服务器的FQDN是否正确,FQDN配置参考：[一篇文章说清楚TDengine的FQDN](https://www.taosdata.com/blog/2020/09/11/1824.html)。
 2. 如果网络配置有DNS server, 请检查是否正常工作
 3. 如果网络没有配置DNS server, 请检查客户端所在机器的hosts文件，查看该FQDN是否配置，并是否有正确的IP地址。
 4. 如果网络配置OK，从客户端所在机器，你需要能Ping该连接的FQDN，否则客户端是无法连接服务器的
@@ -107,9 +110,11 @@ properties.setProperty(TSDBDriver.LOCALE_KEY, "UTF-8");
 Connection = DriverManager.getConnection(url, properties);
 ```
 ## 12.TDengine GO windows驱动的如何编译？
-请看为此问题撰写的<a href='blog/2020/01/06/tdengine-go-windows驱动的编译/'>技术博客</a>
+
+请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows驱动的编译/)
 
 ## 13.JDBC报错： the excuted SQL is not a DML or a DDL？
+
 请更新至最新的JDBC驱动
 ```JAVA
 <dependency>
@@ -118,6 +123,7 @@ Connection = DriverManager.getConnection(url, properties);
   <version>2.0.4</version>
 </dependency>
 ```
+
 ## 14. taos connect failed, reason: invalid timestamp
 
 常见原因是服务器和客户端时间没有校准，可以通过和时间服务器同步的方式（Linux 下使用 ntpdate 命令，Windows 在系统时间设置中选择自动同步）校准。

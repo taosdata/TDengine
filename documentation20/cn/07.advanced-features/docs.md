@@ -1,6 +1,6 @@
 # 高级功能
 
-## 连续查询(Continuous Query)
+## <a class="anchor" id="continuous-query"></a>连续查询(Continuous Query)
 
 连续查询是TDengine定期自动执行的查询，采用滑动窗口的方式进行计算，是一种简化的时间驱动的流式计算。
 针对库中的表或超级表，TDengine可提供定期自动执行的连续查询，
@@ -17,10 +17,8 @@ TDengine提供的连续查询与普通流计算中的时间窗口计算具有以
 
 - 不同于流计算的实时反馈计算结果，连续查询只在时间窗口关闭以后才开始计算。
 例如时间周期是1天，那么当天的结果只会在23:59:59以后才会生成。
-
 - 如果有历史记录写入到已经计算完成的时间区间，连续查询并不会重新进行计算，
 也不会重新将结果推送给用户。对于写回TDengine的模式，也不会更新已经存在的计算结果。
-
 - 使用连续查询推送结果的模式，服务端并不缓存客户端计算状态，也不提供Exactly-Once的语意保证。
 如果用户的应用端崩溃，再次拉起的连续查询将只会从再次拉起的时间开始重新计算最近的一个完整的时间窗口。
 如果使用写回模式，TDengine可确保数据写回的有效性和连续性。
@@ -95,7 +93,7 @@ create table avg_vol as select avg(voltage) from meters where ts > now and ts <=
 后续版本会提供更细粒度和便捷的连续查询管理命令。
 
 
-## 数据订阅(Publisher/Subscriber)
+## <a class="anchor" id="subscribe"></a>数据订阅(Publisher/Subscriber)
 
 基于数据天然的时间序列特性，TDengine的数据写入（insert）与消息系统的数据发布（pub）逻辑上一致，
 均可视为系统中插入一条带时间戳的新记录。
@@ -118,7 +116,7 @@ taos_consume
 taos_unsubscribe
 ```
 
-这些API的文档请见 [C/C++ Connector](https://www.taosdata.com/cn/documentation20/connector/)，
+这些API的文档请见 [C/C++ Connector](https://www.taosdata.com/cn/documentation/connector/)，
 下面仍以智能电表场景为例介绍一下它们的具体用法（超级表和子表结构请参考上一节“连续查询”），
 完整的示例代码可以在 [这里](https://github.com/taosdata/TDengine/blob/master/tests/examples/c/subscribe.c) 找到。
 
@@ -296,7 +294,7 @@ $ taos
 
 ### Java 使用数据订阅功能
 
-订阅功能也提供了 Java 开发接口，相关说明请见 [Java Connector](https://www.taosdata.com/cn/documentation20/connector/)。需要注意的是，目前 Java 接口没有提供异步订阅模式，但用户程序可以通过创建 `TimerTask` 等方式达到同样的效果。
+订阅功能也提供了 Java 开发接口，相关说明请见 [Java Connector](https://www.taosdata.com/cn/documentation/connector/)。需要注意的是，目前 Java 接口没有提供异步订阅模式，但用户程序可以通过创建 `TimerTask` 等方式达到同样的效果。
 
 下面以一个示例程序介绍其具体使用方法。它所完成的功能与前面介绍的 C 语言示例基本相同，也是订阅数据库中所有电流超过 10A 的记录。 
 
@@ -406,7 +404,7 @@ ts: 1597466400000	current: 12.4	voltage: 220	phase: 1	location: Beijing.Chaoyang
 ```
 
 
-## 缓存(Cache)
+## <a class="anchor" id="cache"></a>缓存(Cache)
 
 TDengine采用时间驱动缓存管理策略（First-In-First-Out，FIFO），又称为写驱动的缓存管理机制。这种策略有别于读驱动的数据缓存模式（Least-Recent-Use，LRU），直接将最近写入的数据保存在系统的缓存中。当缓存达到临界值的时候，将最早的数据批量写入磁盘。一般意义上来说，对于物联网数据的使用，用户最为关心最近产生的数据，即当前状态。TDengine充分利用了这一特性，将最近到达的（当前状态）数据保存在缓存中。
 
@@ -425,7 +423,7 @@ select last_row(voltage) from meters where location='Beijing.Chaoyang';
 该SQL语句将获取所有位于北京朝阳区的电表最后记录的电压值。
 
 
-## 报警监测(Alert)
+## <a class="anchor" id="alert"></a>报警监测(Alert)
 
 在 TDengine 的应用场景中，报警监测是一个常见需求，从概念上说，它要求程序从最近一段时间的数据中筛选出符合一定条件的数据，并基于这些数据根据定义好的公式计算出一个结果，当这个结果符合某个条件且持续一定时间后，以某种形式通知用户。
 

@@ -1,10 +1,10 @@
 # 立即开始
 
-## 快捷安装
+## <a class="anchor" id="install"></a>快捷安装
 
 TDengine软件分为服务器、客户端和报警模块三部分，目前2.0版服务器仅能在Linux系统上安装和运行，后续会支持Windows、mac OS等系统。客户端可以在Windows或Linux上安装和运行。任何OS的应用也可以选择RESTful接口连接服务器taosd。CPU支持X64/ARM64/MIPS64/Alpha64，后续会支持ARM32、RISC-V等CPU架构。用户可根据需求选择通过[源码](https://www.taosdata.com/cn/getting-started/#通过源码安装)或者[安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装)来安装。
 
-### 通过源码安装
+### <a class="anchor" id="source-install"></a>通过源码安装
 
 请参考我们的[TDengine github主页](https://github.com/taosdata/TDengine)下载源码并安装.
 
@@ -12,17 +12,15 @@ TDengine软件分为服务器、客户端和报警模块三部分，目前2.0版
 
 请参考[TDengine官方Docker镜像的发布、下载和使用](https://www.taosdata.com/blog/2020/05/13/1509.html)
 
-### 通过安装包安装
+### <a class="anchor" id="package-install"></a>通过安装包安装
 
 TDengine的安装非常简单，从下载到安装成功仅仅只要几秒钟。服务端安装包包含客户端和连接器，我们提供三种安装包，您可以根据需要选择：
 
-- TDengine-server-2.0.10.0-Linux-x64.rpm (4.2M)
-- TDengine-server-2.0.10.0-Linux-x64.deb (2.7M)
-- TDengine-server-2.0.10.0-Linux-x64.tar.gz (4.5M)
+安装包下载在[这里](https://www.taosdata.com/cn/getting-started/#通过安装包安装)。
 
-具体的安装过程，请参见<a href="https://www.taosdata.com/blog/2019/08/09/566.html">TDengine多种安装包的安装和卸载</a>以及<a href="https://www.taosdata.com/blog/2020/11/11/1941.html">视频教程</a>。
+具体的安装过程，请参见[TDengine多种安装包的安装和卸载](https://www.taosdata.com/blog/2019/08/09/566.html)以及[视频教程](https://www.taosdata.com/blog/2020/11/11/1941.html)。
 
-## 轻松启动
+## <a class="anchor" id="start"></a>轻松启动
 
 安装成功后，用户可使用`systemctl`命令来启动TDengine的服务进程。
 
@@ -52,8 +50,7 @@ $ systemctl status taosd
   如果系统中不支持systemd，也可以用手动运行 /usr/local/taos/bin/taosd 方式启动 TDengine 服务。
 
   
-
-## TDengine命令行程序
+## <a class="anchor" id="console"></a>TDengine命令行程序
 
 执行TDengine命令行程序，您只要在Linux终端执行`taos`即可。
 
@@ -61,7 +58,7 @@ $ systemctl status taosd
 $ taos
 ```
 
-如果TDengine终端连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考[FAQ](https://www.taosdata.com/cn/faq/)来解决终端连接服务端失败的问题）。TDengine终端的提示符号如下：
+如果TDengine终端连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考[FAQ](https://www.taosdata.com/cn/documentation/faq/)来解决终端连接服务端失败的问题）。TDengine终端的提示符号如下：
 
 ```cmd
 taos>
@@ -117,7 +114,8 @@ taos> source <filename>;
 - ctrl+c 中止正在进行中的查询
 - 执行`RESET QUERY CACHE`清空本地缓存的表的schema
 
-## TDengine 极速体验
+
+## <a class="anchor" id="demo"></a>TDengine 极速体验
 
 启动TDengine的服务，在Linux终端执行taosdemo
 
@@ -164,7 +162,6 @@ taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 **Note:** taosdemo命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help`详细列出。您可以设置不同参数进行体验。
 
 
-
 ## 客户端和报警模块
 
 如果客户端和服务端运行在不同的电脑上，可以单独安装客户端。Linux和Windows安装包如下：
@@ -178,8 +175,7 @@ taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 - TDengine-alert-2.0.10.0-Linux-x64.tar.gz (8.1M)
 
   
-
-## 支持平台列表
+## <a class="anchor" id="platforms"></a>支持平台列表
 
 ### TDengine服务器支持的平台列表
 
@@ -220,5 +216,5 @@ taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 
 注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。
 
-请跳转到 [连接器 ](https://www.taosdata.com/cn/documentation/connector)查看更详细的信息。
+请跳转到 [连接器](https://www.taosdata.com/cn/documentation/connector)查看更详细的信息。
 

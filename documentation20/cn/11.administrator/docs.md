@@ -1,6 +1,6 @@
 # TDengine的运营与维护
 
-## 容量规划
+## <a class="anchor" id="planning"></a>容量规划
 
 使用TDengine来搭建一个物联网大数据平台，计算资源、存储资源需要根据业务场景进行规划。下面分别讨论系统运行所需要的内存、CPU以及硬盘空间。
 
@@ -47,9 +47,9 @@ Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 
 因为TDengine具有很好的水平扩展能力，根据总量，再根据单个物理机或虚拟机的资源，就可以轻松决定需要购置多少台物理机或虚拟机了。
 
-**立即计算CPU、内存、存储，请参见：<a href='https://www.taosdata.com/config/config.html'>资源估算方法</a>**
+**立即计算CPU、内存、存储，请参见：[资源估算方法](https://www.taosdata.com/config/config.html)**
 
-## 容错和灾备
+## <a class="anchor" id="tolerance"></a>容错和灾备
 
 ### 容错
 
@@ -76,7 +76,7 @@ TDengine集群的节点数必须大于等于副本数，否则创建表时将报
 
 当TDengine集群中的节点部署在不同的物理机上，并设置多个副本数时，就实现了系统的高可靠性，无需再使用其他软件或工具。TDengine企业版还可以将副本部署在不同机房，从而实现异地容灾。
 
-## 服务端配置
+## <a class="anchor" id="config"></a>服务端配置
 
 TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修改配置参数，以满足不同场景的需求。配置文件的缺省位置在/etc/taos目录，可以通过taosd命令行执行参数-c指定配置文件目录。比如taosd -c /home/user来指定配置文件位于/home/user这个目录。
 
@@ -157,9 +157,9 @@ ALTER DNODE <dnode_id> <config>
     alter dnode 1 debugFlag 135;
 ```
 
-## 客户端配置
+## <a class="anchor" id="client"></a>客户端配置
 
-TDengine系统的前台交互客户端应用程序为taos，以及应用驱动，它与taosd共享同一个配置文件taos.cfg。运行taos时，使用参数-c指定配置文件目录，如taos -c /home/cfg，表示使用/home/cfg/目录下的taos.cfg配置文件中的参数，缺省目录是/etc/taos。更多taos的使用方法请见<a href="https://www.taosdata.com/cn/documentation/administrator/#_TDengine_Shell命令行程序">Shell命令行程序</a>。本节主要说明 taos 客户端应用在配置文件 taos.cfg 文件中使用到的参数。
+TDengine系统的前台交互客户端应用程序为taos，以及应用驱动，它与taosd共享同一个配置文件taos.cfg。运行taos时，使用参数-c指定配置文件目录，如taos -c /home/cfg，表示使用/home/cfg/目录下的taos.cfg配置文件中的参数，缺省目录是/etc/taos。更多taos的使用方法请见帮助信息 `taos --help`。本节主要说明 taos 客户端应用在配置文件 taos.cfg 文件中使用到的参数。
 
 **2.0.10.0 之后版本支持命令行以下参数显示当前客户端参数的配置**
 
@@ -247,7 +247,7 @@ taos -C  或  taos --dump-config
 
     Shell中binary 和 nchar字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 shell 中通过命令 set max_binary_display_width nn 动态修改此选项。
 
-## 用户管理
+## <a class="anchor" id="user"></a>用户管理
 
 系统管理员可以在CLI界面里添加、删除用户，也可以修改密码。CLI里SQL语法如下：
 
@@ -285,7 +285,7 @@ SHOW USERS;
 
 **注意：**SQL 语法中，< >表示需要用户输入的部分，但请不要输入< >本身
 
-## 数据导入
+## <a class="anchor" id="import"></a>数据导入
 
 TDengine提供多种方便的数据导入功能，一种按脚本文件导入，一种按数据文件导入，一种是taosdump工具导入本身导出的文件。
 
@@ -337,9 +337,9 @@ Query OK, 9 row(s) affected (0.004763s)
 
 **taosdump工具导入**
 
-TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见博客：<a href='https://www.taosdata.com/blog/2020/03/09/1334.html'>TDengine DUMP工具使用指南</a>
+TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见博客：[TDengine DUMP工具使用指南](https://www.taosdata.com/blog/2020/03/09/1334.html)
 
-## 数据导出
+## <a class="anchor" id="export"></a>数据导出
 
 为方便数据导出，TDengine提供了两种导出方式，分别是按表导出和用taosdump导出。
 
@@ -355,9 +355,9 @@ select * from <tb_name> >> data.csv;
 
 **用taosdump导出数据**
 
-TDengine提供了方便的数据库导出工具taosdump。用户可以根据需要选择导出所有数据库、一个数据库或者数据库中的一张表,所有数据或一时间段的数据，甚至仅仅表的定义。具体使用方法，请参见博客：<a href='https://www.taosdata.com/blog/2020/03/09/1334.html'>TDengine DUMP工具使用指南</a>
+TDengine提供了方便的数据库导出工具taosdump。用户可以根据需要选择导出所有数据库、一个数据库或者数据库中的一张表,所有数据或一时间段的数据，甚至仅仅表的定义。具体使用方法，请参见博客：[TDengine DUMP工具使用指南](https://www.taosdata.com/blog/2020/03/09/1334.html)
 
-## 系统连接、任务查询管理
+## <a class="anchor" id="status"></a>系统连接、任务查询管理
 
 系统管理员可以从CLI查询系统的连接、正在进行的查询、流式计算，并且可以关闭连接、停止正在进行的查询和流式计算。CLI里SQL语法如下：
 
@@ -403,7 +403,7 @@ TDengine启动后，会自动创建一个监测数据库log，并自动将服务
 
 这些监测信息的采集缺省是打开的，但可以修改配置文件里的选项enableMonitor将其关闭或打开。
 
-## 文件目录结构
+## <a class="anchor" id="directories"></a>文件目录结构
 
 安装TDengine后，默认会在操作系统中生成下列目录或文件：
 
@@ -429,7 +429,7 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 
 您可以通过修改系统配置文件taos.cfg来配置不同的数据目录和日志目录。
 
-## TDengine参数限制与保留关键字
+## <a class="anchor" id="keywords"></a>TDengine参数限制与保留关键字
 
 - 数据库名：不能包含“.”以及特殊字符，不能超过32个字符
 - 表名：不能包含“.”以及特殊字符，与所属数据库名一起，不能超过192个字符
