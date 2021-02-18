@@ -57,7 +57,7 @@ void stmtInsertTest() {
   v.ts = start_ts + 20;
   v.k = 123;
 
-  char* str = "abc";
+  char str[] = "abc";
   uintptr_t len = strlen(str);
 
   v.a = str;
@@ -65,7 +65,7 @@ void stmtInsertTest() {
   params[2].buffer_length = len;
   params[2].buffer = str;
 
-  char* nstr = "999";
+  char nstr[] = "999";
   uintptr_t len1 = strlen(nstr);
 
   v.b = nstr;
@@ -84,18 +84,18 @@ void stmtInsertTest() {
   v.ts = start_ts + 30;
   v.k = 911;
 
-  str = "92";
-  len = strlen(str);
+  char str1[] = "92";
+  len = strlen(str1);
 
   params[2].length = &len;
   params[2].buffer_length = len;
-  params[2].buffer = str;
+  params[2].buffer = str1;
 
-  nstr = "1920";
-  len1 = strlen(nstr);
+  char nstr1[] = "1920";
+  len1 = strlen(nstr1);
 
   params[3].buffer_length = len1;
-  params[3].buffer = nstr;
+  params[3].buffer = nstr1;
   params[3].length = &len1;
 
   taos_stmt_bind_param(stmt, params);
@@ -103,7 +103,7 @@ void stmtInsertTest() {
 
   ret = taos_stmt_execute(stmt);
   if (ret != 0) {
-    printf("%p\n", ret);
+    printf("%d\n", ret);
     printf("\033[31mfailed to execute insert statement.\033[0m\n");
     return;
   }

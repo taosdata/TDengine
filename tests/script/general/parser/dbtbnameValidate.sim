@@ -12,25 +12,25 @@ sql create database 'abc123'
 sql create database '_ab1234'
 sql create database 'ABC123'
 sql create database '_ABC123'
-sql create database 'aABb123 '
-sql create database ' xyz '
-sql create database ' XYZ '
+sql_error create database 'aABb123 '
+sql_error create database ' xyz '
+sql_error create database ' XYZ '
 
 sql use 'abc123'
 sql use '_ab1234'
 sql use 'ABC123'
 sql use '_ABC123'
-sql use 'aABb123'
-sql use ' xyz '
-sql use ' XYZ '
+sql_error use 'aABb123'
+sql_error use ' xyz '
+sql_error use ' XYZ '
 
 sql drop database 'abc123'
 sql drop database '_ab1234'
-sql drop database 'ABC123'
+sql_error drop database 'ABC123'
 sql drop database '_ABC123'
-sql drop database 'aABb123'
-sql drop database ' xyz '
-sql drop database ' XYZ '
+sql_error drop database 'aABb123'
+sql_error drop database ' xyz '
+sql_error drop database ' XYZ '
 
 
 sql use abc
@@ -67,9 +67,9 @@ sql describe mt
 sql describe sub_001
 sql describe sub_dy_tbl
 
-sql_error describe Dd
-sql_error describe FF
-sql_error describe gG
+sql describe Dd
+sql describe FF
+sql describe gG
 
 sql drop table abc.cc
 sql drop table  'abc.Dd'

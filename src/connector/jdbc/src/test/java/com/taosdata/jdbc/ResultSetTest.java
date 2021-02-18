@@ -7,6 +7,7 @@ import org.junit.Test;
 
 import javax.sql.rowset.serial.SerialBlob;
 import javax.sql.rowset.serial.SerialClob;
+import java.io.UnsupportedEncodingException;
 import java.sql.*;
 import java.util.HashMap;
 import java.util.Properties;
@@ -39,7 +40,6 @@ public class ResultSetTest {
         } catch (ClassNotFoundException | SQLException e) {
             return;
         }
-
     }
 
     @Test
@@ -54,51 +54,38 @@ public class ResultSetTest {
         short v6 = 12;
         boolean v7 = false;
         String v8 = "TDengine is powerful";
-
         sql = "insert into " + dbName + "." + tName + " values (" + ts + "," + v1 + "," + v2 + "," + v3 + "," + v4
                 + ",\"" + v5 + "\"," + v6 + "," + v7 + ",\"" + v8 + "\")";
-
         try {
             statement.executeUpdate(sql);
             assertEquals(1, statement.getUpdateCount());
         } catch (SQLException e) {
             assert false : "insert error " + e.getMessage();
         }
-
         try {
-            statement.executeQuery("select * from " + dbName + "." + tName + " where ts = " + ts);
+            statement.execute("select * from " + dbName + "." + tName + " where ts = " + ts);
             resSet = statement.getResultSet();
             System.out.println(((TSDBResultSet) resSet).getRowData());
             while (resSet.next()) {
                 assertEquals(ts, resSet.getLong(1));
                 assertEquals(ts, resSet.getLong("ts"));
-
                 System.out.println(resSet.getTimestamp(1));
-
                 assertEquals(v1, resSet.getInt(2));
                 assertEquals(v1, resSet.getInt("k1"));
-
                 assertEquals(v2, resSet.getLong(3));
                 assertEquals(v2, resSet.getLong("k2"));
-
                 assertEquals(v3, resSet.getFloat(4), 7);
                 assertEquals(v3, resSet.getFloat("k3"), 7);
-
                 assertEquals(v4, resSet.getDouble(5), 13);
                 assertEquals(v4, resSet.getDouble("k4"), 13);
-
                 assertEquals(v5, resSet.getString(6));
                 assertEquals(v5, resSet.getString("k5"));
-
                 assertEquals(v6, resSet.getShort(7));
                 assertEquals(v6, resSet.getShort("k6"));
-
                 assertEquals(v7, resSet.getBoolean(8));
                 assertEquals(v7, resSet.getBoolean("k7"));
-
                 assertEquals(v8, resSet.getString(9));
                 assertEquals(v8, resSet.getString("k8"));
-
                 resSet.getBytes(9);
                 resSet.getObject(6);
                 resSet.getObject("k8");
@@ -111,684 +98,145 @@ public class ResultSetTest {
         }
     }
 
-    @Test
-    public void testUnsupport() throws SQLException {
-        statement.executeQuery("show databases");
+    @Test(expected = SQLException.class)
+    public void testUnsupport() throws SQLException, UnsupportedEncodingException {
+        statement.execute("show databases");
         resSet = statement.getResultSet();
         Assert.assertNotNull(resSet.unwrap(TSDBResultSet.class));
         Assert.assertTrue(resSet.isWrapperFor(TSDBResultSet.class));
-        try {
-            resSet.getAsciiStream(0);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getUnicodeStream(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getBinaryStream(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getAsciiStream("");
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getUnicodeStream(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getBinaryStream(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getWarnings();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.clearWarnings();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getCursorName();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getCharacterStream(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getCharacterStream(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.isBeforeFirst();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.isAfterLast();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.isFirst();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.isLast();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.beforeFirst();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.afterLast();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.first();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.last();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getRow();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.absolute(1);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.relative(1);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.previous();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.setFetchDirection(0);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getFetchDirection();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.setFetchSize(0);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getFetchSize();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getConcurrency();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.rowUpdated();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.rowInserted();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.rowDeleted();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateNull(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBoolean(0, true);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateByte(0, (byte) 2);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateShort(0, (short) 1);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateInt(0, 0);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateLong(0, 0l);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateFloat(0, 3.14f);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateDouble(0, 3.1415);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBigDecimal(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateString(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBytes(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateDate(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateTime(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateTimestamp(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateAsciiStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBinaryStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateCharacterStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateObject(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateObject(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateNull(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBoolean("", false);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateByte("", (byte) 1);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateShort("", (short) 1);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateInt("", 0);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateLong("", 0l);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateFloat("", 3.14f);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateDouble("", 3.1415);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBigDecimal(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateString(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBytes(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateDate(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateTime(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateTimestamp(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateAsciiStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBinaryStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateCharacterStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateObject(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateObject(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.insertRow();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateRow();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.deleteRow();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.refreshRow();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.cancelRowUpdates();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.moveToInsertRow();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.moveToCurrentRow();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getStatement();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getObject(0, new HashMap<>());
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getRef(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getBlob(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getClob(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getArray(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getObject("", new HashMap<>());
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getRef(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getBlob(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getClob(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getArray(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getDate(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getDate(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getTime(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getTime(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getTimestamp(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getTimestamp(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getURL(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getURL(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateRef(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateRef(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBlob(0, new SerialBlob("".getBytes("UTF8")));
-        } catch (Exception e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBlob("", new SerialBlob("".getBytes("UTF8")));
-        } catch (Exception e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateClob("", new SerialClob("".toCharArray()));
-        } catch (Exception e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateClob(0, new SerialClob("".toCharArray()));
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateArray(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateArray(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getRowId(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getRowId(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateRowId(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateRowId(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getHoldability();
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateNString(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateNString(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-
-        try {
-            resSet.getNClob(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getNClob(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getSQLXML(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getSQLXML(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateSQLXML(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateSQLXML(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getNCharacterStream(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.getNCharacterStream(null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateNCharacterStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateNCharacterStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateAsciiStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBinaryStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateCharacterStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateAsciiStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBinaryStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateCharacterStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-
-        try {
-            resSet.updateNCharacterStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateNCharacterStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateAsciiStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBinaryStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateCharacterStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateAsciiStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateBinaryStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
-        try {
-            resSet.updateCharacterStream(null, null);
-        } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("this operation is NOT supported currently!"));
-        }
+        resSet.getUnicodeStream(null);
+        resSet.getBinaryStream(null);
+        resSet.getAsciiStream("");
+        resSet.getUnicodeStream(null);
+        resSet.getBinaryStream(null);
+        resSet.getWarnings();
+        resSet.clearWarnings();
+        resSet.getCursorName();
+        resSet.getCharacterStream(null);
+        resSet.getCharacterStream(null);
+        resSet.isBeforeFirst();
+        resSet.isAfterLast();
+        resSet.isFirst();
+        resSet.isLast();
+        resSet.beforeFirst();
+        resSet.afterLast();
+        resSet.first();
+        resSet.last();
+        resSet.getRow();
+        resSet.absolute(1);
+        resSet.relative(1);
+        resSet.previous();
+        resSet.setFetchDirection(0);
+        resSet.getFetchDirection();
+        resSet.setFetchSize(0);
+        resSet.getFetchSize();
+        resSet.getConcurrency();
+        resSet.rowUpdated();
+        resSet.rowInserted();
+        resSet.rowDeleted();
+        resSet.updateNull(null);
+        resSet.updateBoolean(0, true);
+        resSet.updateByte(0, (byte) 2);
+        resSet.updateShort(0, (short) 1);
+        resSet.updateInt(0, 0);
+        resSet.updateLong(0, 0l);
+        resSet.updateFloat(0, 3.14f);
+        resSet.updateDouble(0, 3.1415);
+        resSet.updateBigDecimal(null, null);
+        resSet.updateString(null, null);
+        resSet.updateBytes(null, null);
+        resSet.updateDate(null, null);
+        resSet.updateTime(null, null);
+        resSet.updateTimestamp(null, null);
+        resSet.updateAsciiStream(null, null);
+        resSet.updateBinaryStream(null, null);
+        resSet.updateCharacterStream(null, null);
+        resSet.updateObject(null, null);
+        resSet.updateObject(null, null);
+        resSet.updateNull(null);
+        resSet.updateBoolean("", false);
+        resSet.updateByte("", (byte) 1);
+        resSet.updateShort("", (short) 1);
+        resSet.updateInt("", 0);
+        resSet.updateLong("", 0l);
+        resSet.updateFloat("", 3.14f);
+        resSet.updateDouble("", 3.1415);
+        resSet.updateBigDecimal(null, null);
+        resSet.updateString(null, null);
+        resSet.updateBytes(null, null);
+        resSet.updateDate(null, null);
+        resSet.updateTime(null, null);
+        resSet.updateTimestamp(null, null);
+        resSet.updateAsciiStream(null, null);
+        resSet.updateBinaryStream(null, null);
+        resSet.updateCharacterStream(null, null);
+        resSet.updateObject(null, null);
+        resSet.updateObject(null, null);
+        resSet.insertRow();
+        resSet.updateRow();
+        resSet.deleteRow();
+        resSet.refreshRow();
+        resSet.cancelRowUpdates();
+        resSet.moveToInsertRow();
+        resSet.moveToCurrentRow();
+        resSet.getStatement();
+        resSet.getObject(0, new HashMap<>());
+        resSet.getRef(null);
+        resSet.getBlob(null);
+        resSet.getClob(null);
+        resSet.getArray(null);
+        resSet.getObject("", new HashMap<>());
+        resSet.getRef(null);
+        resSet.getBlob(null);
+        resSet.getClob(null);
+        resSet.getArray(null);
+        resSet.getDate(null, null);
+        resSet.getDate(null, null);
+        resSet.getTime(null, null);
+        resSet.getTime(null, null);
+        resSet.getTimestamp(null, null);
+        resSet.getTimestamp(null, null);
+        resSet.getURL(null);
+        resSet.getURL(null);
+        resSet.updateRef(null, null);
+        resSet.updateRef(null, null);
+        resSet.updateBlob(0, new SerialBlob("".getBytes("UTF8")));
+        resSet.updateBlob("", new SerialBlob("".getBytes("UTF8")));
+        resSet.updateClob("", new SerialClob("".toCharArray()));
+        resSet.updateClob(0, new SerialClob("".toCharArray()));
+        resSet.updateArray(null, null);
+        resSet.updateArray(null, null);
+        resSet.getRowId(null);
+        resSet.getRowId(null);
+        resSet.updateRowId(null, null);
+        resSet.updateRowId(null, null);
+        resSet.getHoldability();
+        resSet.updateNString(null, null);
+        resSet.updateNString(null, null);
+        resSet.getNClob(null);
+        resSet.getNClob(null);
+        resSet.getSQLXML(null);
+        resSet.getSQLXML(null);
+        resSet.updateSQLXML(null, null);
+        resSet.updateSQLXML(null, null);
+        resSet.getNCharacterStream(null);
+        resSet.getNCharacterStream(null);
+        resSet.updateNCharacterStream(null, null);
+        resSet.updateNCharacterStream(null, null);
+        resSet.updateAsciiStream(null, null);
+        resSet.updateBinaryStream(null, null);
+        resSet.updateCharacterStream(null, null);
+        resSet.updateAsciiStream(null, null);
+        resSet.updateBinaryStream(null, null);
+        resSet.updateCharacterStream(null, null);
+        resSet.updateNCharacterStream(null, null);
+        resSet.updateNCharacterStream(null, null);
+        resSet.updateAsciiStream(null, null);
+        resSet.updateBinaryStream(null, null);
+        resSet.updateCharacterStream(null, null);
+        resSet.updateAsciiStream(null, null);
+        resSet.updateBinaryStream(null, null);
+        resSet.updateCharacterStream(null, null);
     }
 
     @Test
@@ -816,5 +264,4 @@ public class ResultSetTest {
             e.printStackTrace();
         }
     }
-
 }

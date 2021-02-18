@@ -59,7 +59,6 @@ char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
-char    tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -105,6 +104,7 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 // 0  no query allowed, queries are disabled
 // positive value (in MB)
 int32_t tsQueryBufferSize = -1;
+int64_t tsQueryBufferSizeBytes = -1;
 
 // in retrieve blocking model, the retrieve threads will wait for the completion of the query processing.
 int32_t tsRetrieveBlockingModel = 0;
@@ -181,7 +181,15 @@ char   tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char   tsMnodeDir[TSDB_FILENAME_LEN] = {0};
 char   tsDataDir[TSDB_FILENAME_LEN] = {0};
 char   tsScriptDir[TSDB_FILENAME_LEN] = {0};
-char   tsVnodeBakDir[TSDB_FILENAME_LEN] = {0};
+char   tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
+
+int32_t  tsDiskCfgNum = 0;
+
+#ifndef _STORAGE
+SDiskCfg tsDiskCfg[1];
+#else
+SDiskCfg tsDiskCfg[TSDB_MAX_DISKS];
+#endif
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -226,6 +234,7 @@ int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 131;
+int32_t fsDebugFlag = 135;
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -264,7 +273,7 @@ bool taosCfgDynamicOptions(char *msg) {
   int32_t   vint = 0;
 
   paGetToken(msg, &option, &olen);
-  if (olen == 0) return TSDB_CODE_COM_INVALID_CFG_MSG;
+  if (olen == 0) return false;;
 
   paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)
@@ -283,7 +292,7 @@ bool taosCfgDynamicOptions(char *msg) {
     int32_t cfgLen = (int32_t)strlen(cfg->option);
     if (cfgLen != olen) continue;
     if (strncasecmp(option, cfg->option, olen) != 0) continue;
-    if (cfg->valType != TAOS_CFG_VTYPE_INT32) {
+    if (cfg->valType == TAOS_CFG_VTYPE_INT32) {
       *((int32_t *)cfg->ptr) = vint;
     } else {
       *((int8_t *)cfg->ptr) = (int8_t)vint;
@@ -307,11 +316,9 @@ bool taosCfgDynamicOptions(char *msg) {
       }
       return true;
     }
-
     if (strncasecmp(cfg->option, "debugFlag", olen) == 0) {
-      taosSetAllDebugFlag();
+       taosSetAllDebugFlag(); 
     }
-    
     return true;
   }
 
@@ -331,6 +338,39 @@ bool taosCfgDynamicOptions(char *msg) {
   }
 
   return false;
+}
+
+void taosAddDataDir(int index, char *v1, int level, int primary) {
+  tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
+  tsDiskCfg[index].level = level;
+  tsDiskCfg[index].primary = primary;
+  uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
+}
+
+#ifndef _STORAGE
+void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
+  if (tsDiskCfgNum == 1) {
+    SDiskCfg *cfg = &tsDiskCfg[0];
+    uInfo("dataDir:%s, level:%d primary:%d is replaced by %s", cfg->dir, cfg->level, cfg->primary, v1);
+  }
+  taosAddDataDir(0, v1, 0, 1);
+  tsDiskCfgNum = 1;
+}
+
+void taosPrintDataDirCfg() {
+  for (int i = 0; i < tsDiskCfgNum; ++i) {
+    SDiskCfg *cfg = &tsDiskCfg[i];
+    uInfo(" dataDir: %s", cfg->dir);
+  }
+}
+#endif
+
+static void taosCheckDataDirCfg() {
+  if (tsDiskCfgNum <= 0) {
+    taosAddDataDir(0, tsDataDir, 0, 1);
+    tsDiskCfgNum = 1;
+    uTrace("dataDir:%s, level:0 primary:1 is configured by default", tsDataDir);
+  }
 }
 
 static void doInitGlobalConfig(void) {
@@ -414,7 +454,7 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "dataDir";
   cfg.ptr = tsDataDir;
-  cfg.valType = TAOS_CFG_VTYPE_DIRECTORY;
+  cfg.valType = TAOS_CFG_VTYPE_DATA_DIRCTORY;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;
   cfg.maxValue = 0;
@@ -1447,6 +1487,7 @@ int32_t taosCheckGlobalCfg() {
     snprintf(tsSecond, sizeof(tsSecond), "%s:%u", fqdn, port);
   }
 
+  taosCheckDataDirCfg();
   taosGetSystemInfo();
 
   tsSetLocale();
@@ -1487,6 +1528,10 @@ int32_t taosCheckGlobalCfg() {
   tsDnodeDnodePort = tsServerPort + TSDB_PORT_DNODEDNODE;   // udp/tcp
   tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
   tsHttpPort = tsServerPort + TSDB_PORT_HTTP;
+
+  if (tsQueryBufferSize >= 0) {
+    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
+  }
 
   taosPrintGlobalCfg();
 

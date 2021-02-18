@@ -2,7 +2,7 @@ package com.taosdata.jdbc.rs;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.jdbc.AbstractTaosDriver;
+import com.taosdata.jdbc.AbstractDriver;
 import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.rs.util.HttpClientPoolUtil;
@@ -11,7 +11,7 @@ import java.sql.*;
 import java.util.Properties;
 import java.util.logging.Logger;
 
-public class RestfulDriver extends AbstractTaosDriver {
+public class RestfulDriver extends AbstractDriver {
 
     private static final String URL_PREFIX = "jdbc:TAOS-RS://";
 

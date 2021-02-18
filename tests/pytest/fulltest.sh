@@ -20,6 +20,7 @@ python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
 #python3 ./test.py -f insert/before_1970.py
+python3 ./test.py -f insert/metadataUpdate.py
 python3 bug2265.py
 
 #table
@@ -192,6 +193,7 @@ python3 ./test.py -f stream/table_n.py
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py
 python3 ./test.py -f alter/alter_table.py
+python3 ./test.py -f alter/alter_debugFlag.py
 
 # client
 python3 ./test.py -f client/client.py

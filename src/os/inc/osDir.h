@@ -25,8 +25,8 @@ extern "C" {
 // TAOS_OS_FUNC_DIR
 void taosRemoveDir(char *rootDir);
 int  taosMkDir(const char *pathname, mode_t mode); 
-void taosRename(char* oldName, char *newName);
 void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays);
+int32_t taosRename(char* oldName, char *newName);
 int32_t taosCompressFile(char *srcFileName, char *destFileName);
 
 #ifdef __cplusplus

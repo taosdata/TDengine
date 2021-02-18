@@ -147,8 +147,8 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-function kill_taosd() {
-  pid=$(ps -ef | grep "taosd" | grep -v "grep" | awk '{print $2}')
+function kill_process() {
+  pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -168,6 +168,10 @@ function install_main_path() {
     if [ "$verMode" == "cluster" ]; then
         ${csudo} mkdir -p ${nginx_dir}
     fi
+    
+    if [[ -e ${script_dir}/email ]]; then
+      ${csudo} cp ${script_dir}/email ${install_main_dir}/ ||: 
+    fi    
 }
 
 function install_bin() {
@@ -604,9 +608,7 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
-    #${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/setDelay.sh'     >> ${taosd_service_config}"
-    #${csudo} bash -c "echo 'ExecStartPost=/usr/local/taos/bin/resetDelay.sh'  >> ${taosd_service_config}"
-    #${csudo} bash -c "echo 'ExecStopPost=/usr/local/taos/bin/resetDelay.sh'   >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/startPre.sh'         >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"
@@ -681,7 +683,7 @@ function install_service() {
         install_service_on_sysvinit
     else
         # must manual stop taosd
-        kill_taosd
+        kill_process taosd
     fi
 }
 
@@ -750,9 +752,22 @@ function update_TDengine() {
         elif ((${service_mod}==1)); then
             ${csudo} service taosd stop || :
         else
-            kill_taosd
+            kill_process taosd
         fi
         sleep 1
+    fi
+    
+    if [ "$verMode" == "cluster" ]; then
+      if pidof nginx &> /dev/null; then
+        if ((${service_mod}==0)); then
+            ${csudo} systemctl stop nginxd || :
+        elif ((${service_mod}==1)); then
+            ${csudo} service nginxd stop || :
+        else
+            kill_process nginx
+        fi
+        sleep 1
+      fi
     fi
     
     install_main_path

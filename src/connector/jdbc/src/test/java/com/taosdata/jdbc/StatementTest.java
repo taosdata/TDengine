@@ -8,9 +8,6 @@ import org.junit.Test;
 import java.sql.*;
 import java.util.Properties;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-
 public class StatementTest {
     static Connection connection = null;
     static Statement statement = null;
@@ -58,12 +55,12 @@ public class StatementTest {
         statement.executeUpdate("create database if not exists " + dbName);
         statement.executeUpdate("create table if not exists " + dbName + "." + tName + "(ts timestamp, k1 int)");
         statement.executeUpdate("insert into " + dbName + "." + tName + " values (" + ts + ", 1)");
-        statement.executeQuery("select * from " + dbName + "." + tName);
+        statement.execute("select * from " + dbName + "." + tName);
         ResultSet resultSet = statement.getResultSet();
-        assertTrue(null != resultSet);
+        Assert.assertNotNull(resultSet);
 
         boolean isClosed = statement.isClosed();
-        assertEquals(false, isClosed);
+        Assert.assertEquals(false, isClosed);
     }
 
     @Test(expected = SQLException.class)

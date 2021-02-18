@@ -7,7 +7,7 @@ services:
        args:
          - PACKAGE=${PACKAGE}
          - EXTRACTDIR=${DIR}
-     image: 'tdengine:2.0.13.1'
+     image: 'tdengine:${VERSION}'
      container_name: 'td2.0-node1'     
      cap_add:
        - ALL
@@ -34,7 +34,8 @@ services:
          target: /etc/taos
        - type: bind
          source: /data
-         target: /root     
+         target: /root
+     hostname: node1     
      networks:
          taos_update_net:
              ipv4_address: 172.27.0.7
@@ -46,7 +47,7 @@ services:
        args:
          - PACKAGE=${PACKAGE}
          - EXTRACTDIR=${DIR}
-     image: 'tdengine:2.0.13.1'
+     image: 'tdengine:${VERSION}'
      container_name: 'td2.0-node2'     
      cap_add:
        - ALL
@@ -85,7 +86,7 @@ services:
        args:
          - PACKAGE=${PACKAGE}
          - EXTRACTDIR=${DIR}
-     image: 'tdengine:2.0.13.1'
+     image: 'tdengine:${VERSION}'
      container_name: 'td2.0-node3'     
      cap_add:
        - ALL

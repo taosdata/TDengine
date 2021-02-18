@@ -61,7 +61,7 @@ while $i < $tbNum
 endw 
 print ====== tables created
 
-sleep 2000
+sleep 500
 
 sql show tables
 if $rows != $tbNum then

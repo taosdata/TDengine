@@ -273,14 +273,15 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
   taosScheduleTask(tscQhandle, &schedMsg);
 }
 
-void tscAsyncResultOnError(SSqlObj *pSql) {
+static void tscAsyncResultCallback(SSchedMsg *pMsg) {
+  SSqlObj* pSql = pMsg->ahandle;
   if (pSql == NULL || pSql->signature != pSql) {
     tscDebug("%p SqlObj is freed, not add into queue async res", pSql);
     return;
   }
 
   assert(pSql->res.code != TSDB_CODE_SUCCESS);
-  tscError("%p invoke user specified function due to error occured, code:%s", pSql, tstrerror(pSql->res.code));
+  tscError("%p invoke user specified function due to error occurred, code:%s", pSql, tstrerror(pSql->res.code));
 
   SSqlRes *pRes = &pSql->res;
   if (pSql->fp == NULL || pSql->fetchFp == NULL){
@@ -290,6 +291,16 @@ void tscAsyncResultOnError(SSqlObj *pSql) {
   pSql->fp = pSql->fetchFp;
   (*pSql->fp)(pSql->param, pSql, pRes->code);
 }
+
+void tscAsyncResultOnError(SSqlObj* pSql) { 
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp = tscAsyncResultCallback;
+  schedMsg.ahandle = pSql;
+  schedMsg.thandle = (void *)1;
+  schedMsg.msg = 0;
+  taosScheduleTask(tscQhandle, &schedMsg);
+}
+
 
 int tscSendMsgToServer(SSqlObj *pSql);
 
@@ -322,7 +333,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       code = tscGetTableMeta(pSql, pTableMetaInfo);
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code == TSDB_CODE_SUCCESS);
 
-      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {        
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         taosReleaseRef(tscObjRef, pSql->self);
         return;
       }

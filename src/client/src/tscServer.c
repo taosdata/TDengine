@@ -157,13 +157,16 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     SRpcEpSet     *epSet = &pRsp->epSet;
     if (epSet->numOfEps > 0) {
       tscEpSetHtons(epSet);
-      if (!tscEpSetIsEqual(&pSql->pTscObj->tscCorMgmtEpSet->epSet, epSet)) {
-        tscTrace("%p updating epset: numOfEps: %d, inUse: %d", pSql, epSet->numOfEps, epSet->inUse);
-        for (int8_t i = 0; i < epSet->numOfEps; i++) {
-          tscTrace("endpoint %d: fqdn=%s, port=%d", i, epSet->fqdn[i], epSet->port[i]);
-        }
-        tscUpdateMgmtEpSet(pSql, epSet);
-      }
+
+      //SRpcCorEpSet *pCorEpSet = pSql->pTscObj->tscCorMgmtEpSet;
+      //if (!tscEpSetIsEqual(&pCorEpSet->epSet, epSet)) {
+      //  tscTrace("%p updating epset: numOfEps: %d, inUse: %d", pSql, epSet->numOfEps, epSet->inUse);
+      //  for (int8_t i = 0; i < epSet->numOfEps; i++) {
+      //    tscTrace("endpoint %d: fqdn=%s, port=%d", i, epSet->fqdn[i], epSet->port[i]);
+      //  }
+      //}
+      //concurrency problem, update mgmt epset anyway 
+      tscUpdateMgmtEpSet(pSql, epSet);
     }
 
     pSql->pTscObj->connId = htonl(pRsp->connId);
@@ -270,7 +273,8 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .code    = 0
   };
 
-  rpcSendRequest(pObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid);
+  
+  rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -292,8 +296,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   if (pObj->signature != pObj) {
     tscDebug("%p DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command, pObj, pObj->signature);
 
-    taosRemoveRef(tscObjRef, pSql->self);
-    taosReleaseRef(tscObjRef, pSql->self);
+    taosRemoveRef(tscObjRef, handle);
+    taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -303,8 +307,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     tscDebug("%p sqlObj needs to be released or DB connection is closed, cmd:%d type:%d, pObj:%p signature:%p",
         pSql, pCmd->command, pQueryInfo->type, pObj, pObj->signature);
 
-    taosRemoveRef(tscObjRef, pSql->self);
-    taosReleaseRef(tscObjRef, pSql->self);
+    taosRemoveRef(tscObjRef, handle);
+    taosReleaseRef(tscObjRef, handle);
     rpcFreeCont(rpcMsg->pCont);
     return;
   }
@@ -350,7 +354,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
       // if there is an error occurring, proceed to the following error handling procedure.
       if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-        taosReleaseRef(tscObjRef, pSql->self);
+        taosReleaseRef(tscObjRef, handle);
         rpcFreeCont(rpcMsg->pCont);
         return;
       }
@@ -418,12 +422,14 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
 
-  taosReleaseRef(tscObjRef, pSql->self);
+  
 
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
-    taosRemoveRef(tscObjRef, pSql->self);
+    taosRemoveRef(tscObjRef, handle);
     tscDebug("%p sqlObj is automatically freed", pSql); 
   }
+
+  taosReleaseRef(tscObjRef, handle);
 
   rpcFreeCont(rpcMsg->pCont);
 }
@@ -445,7 +451,7 @@ int doProcessSql(SSqlObj *pSql) {
   
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscAsyncResultOnError(pSql);
-    return pRes->code;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t code = tscSendMsgToServer(pSql);
@@ -454,7 +460,7 @@ int doProcessSql(SSqlObj *pSql) {
   if (code != TSDB_CODE_SUCCESS) {
     pRes->code = code;
     tscAsyncResultOnError(pSql);
-    return code;
+    return  TSDB_CODE_SUCCESS;
   }
   
   return TSDB_CODE_SUCCESS;
@@ -603,7 +609,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
   }
 
   return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + tsBufSize +
-         tableSerialize + sqlLen + 4096;
+         tableSerialize + sqlLen + 4096 + pQueryInfo->bufLen;
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {
@@ -746,6 +752,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
   pQueryMsg->vgroupLimit    = htobe64(pQueryInfo->vgroupLimit);
   pQueryMsg->sqlstrLen      = htonl(sqlLen);
+  pQueryMsg->prevResultLen  = htonl(pQueryInfo->bufLen);
 
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryMsg->numOfOutput = htons((int16_t)numOfOutput);  // this is the stage one output column number
@@ -762,6 +769,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     if (pCol->colIndex.columnIndex >= tscGetNumOfColumns(pTableMeta) || !isValidDataType(pColSchema->type)) {
       char n[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(&pTableMetaInfo->name, n);
+
 
       tscError("%p tid:%d uid:%" PRIu64" id:%s, column index out of range, numOfColumns:%d, index:%d, column name:%s",
           pSql, pTableMeta->id.tid, pTableMeta->id.uid, n, tscGetNumOfColumns(pTableMeta), pCol->colIndex.columnIndex,
@@ -806,6 +814,13 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   for (int32_t i = 0; i < tscSqlExprNumOfExprs(pQueryInfo); ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
+    // the queried table has been removed and a new table with the same name has already been created already
+    // return error msg
+    if (pExpr->uid != pTableMeta->id.uid) {
+      tscError("%p table has already been destroyed", pSql);
+      return TSDB_CODE_TSC_INVALID_TABLE_NAME;
+    }
+
     if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
       tscError("%p table schema is not matched with parsed sql", pSql);
       return TSDB_CODE_TSC_INVALID_SQL;
@@ -849,6 +864,13 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       SInternalField* pField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
       SSqlExpr *pExpr = pField->pSqlExpr;
       if (pExpr != NULL) {
+        // the queried table has been removed and a new table with the same name has already been created already
+        // return error msg
+        if (pExpr->uid != pTableMeta->id.uid) {
+          tscError("%p table has already been destroyed", pSql);
+          return TSDB_CODE_TSC_INVALID_TABLE_NAME;
+        }
+
         if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
           tscError("%p table schema is not matched with parsed sql", pSql);
           return TSDB_CODE_TSC_INVALID_SQL;
@@ -981,6 +1003,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       
       pMsg += pCond->len;
     }
+  }
+
+  if (pQueryInfo->bufLen > 0) {
+    memcpy(pMsg, pQueryInfo->buf, pQueryInfo->bufLen);
+    pMsg += pQueryInfo->bufLen;
   }
 
   SCond* pCond = &pQueryInfo->tagCond.tbnameCond;

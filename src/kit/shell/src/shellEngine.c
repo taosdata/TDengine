@@ -387,10 +387,13 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   }
 
   time_t tt;
+  int32_t ms = 0;
   if (precision == TSDB_TIME_PRECISION_MICRO) {
     tt = (time_t)(val / 1000000);
+    ms = val % 1000000;
   } else {
     tt = (time_t)(val / 1000);
+    ms = val % 1000;
   }
 
 /* comment out as it make testcases like select_with_tags.sim fail.
@@ -404,14 +407,22 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 #ifdef WINDOWS
   if (tt < 0) tt = 0;
 #endif
+  if (tt < 0 && ms != 0) {
+    tt--;
+    if (precision == TSDB_TIME_PRECISION_MICRO) {
+      ms += 1000000;
+    } else {
+      ms += 1000;
+    }
+  }
 
   struct tm* ptm = localtime(&tt);
   size_t pos = strftime(buf, 32, "%Y-%m-%d %H:%M:%S", ptm);
 
   if (precision == TSDB_TIME_PRECISION_MICRO) {
-    sprintf(buf + pos, ".%06d", (int)(val % 1000000));
+    sprintf(buf + pos, ".%06d", ms);
   } else {
-    sprintf(buf + pos, ".%03d", (int)(val % 1000));
+    sprintf(buf + pos, ".%03d", ms);
   }
 
   return buf;
@@ -470,7 +481,7 @@ static int dumpResultToFile(const char* fname, TAOS_RES* tres) {
 
   wordexp_t full_path;
 
-  if (wordexp(fname, &full_path, 0) != 0) {
+  if (wordexp((char *)fname, &full_path, 0) != 0) {
     fprintf(stderr, "ERROR: invalid file name: %s\n", fname);
     return -1;
   }

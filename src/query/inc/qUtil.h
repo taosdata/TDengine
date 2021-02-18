@@ -15,6 +15,8 @@
 #ifndef TDENGINE_QUERYUTIL_H
 #define TDENGINE_QUERYUTIL_H
 
+#include "tbuffer.h"
+
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
   do {                                               \
     assert(sizeof(_uid) == sizeof(uint64_t));        \
@@ -74,5 +76,21 @@ int32_t getNumOfUsedResultRows(SResultRowPool* p);
 
 bool isPointInterpoQuery(SQuery *pQuery);
 
+typedef struct {
+  SArray* pResult;     // SArray<SResPair>
+  int32_t colId;
+} SStddevInterResult;
+
+void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen);
+SArray* interResFromBinary(const char* data, int32_t len);
+void freeInterResult(void* param);
+
+void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo, int32_t offset);
+void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
+bool    hasRemainData(SGroupResInfo* pGroupResInfo);
+bool    incNextGroup(SGroupResInfo* pGroupResInfo);
+int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
+
+int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQInfo *pQInfo);
 
 #endif  // TDENGINE_QUERYUTIL_H

@@ -146,8 +146,8 @@ done
 
 #echo "verType=${verType} interactiveFqdn=${interactiveFqdn}"
 
-function kill_powerd() {
-  pid=$(ps -ef | grep "powerd" | grep -v "grep" | awk '{print $2}')
+function kill_process() {
+  pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo} kill -9 $pid   || :
   fi
@@ -578,6 +578,7 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Service]'                           >> ${powerd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                         >> ${powerd_service_config}"
     ${csudo} bash -c "echo 'ExecStart=/usr/bin/powerd'           >> ${powerd_service_config}"
+    ${csudo} bash -c "echo 'ExecStartPre=/usr/local/power/bin/startPre.sh'           >> ${powerd_service_config}"
     ${csudo} bash -c "echo 'LimitNOFILE=infinity'                >> ${powerd_service_config}"
     ${csudo} bash -c "echo 'LimitNPROC=infinity'                 >> ${powerd_service_config}"
     ${csudo} bash -c "echo 'LimitCORE=infinity'                  >> ${powerd_service_config}"
@@ -651,7 +652,7 @@ function install_service() {
         install_service_on_sysvinit
     else
         # must manual stop powerd
-        kill_powerd
+        kill_process powerd
     fi
 }
 
@@ -720,9 +721,21 @@ function update_PowerDB() {
         elif ((${service_mod}==1)); then
             ${csudo} service powerd stop || :
         else
-            kill_powerd
+            kill_process powerd
         fi
         sleep 1
+    fi    
+    if [ "$verMode" == "cluster" ]; then 
+      if pidof nginx &> /dev/null; then
+        if ((${service_mod}==0)); then
+            ${csudo} systemctl stop nginxd || :
+        elif ((${service_mod}==1)); then
+            ${csudo} service nginxd stop || :
+        else
+            kill_process nginx
+        fi
+        sleep 1
+      fi
     fi
     
     install_main_path

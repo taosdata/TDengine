@@ -34,6 +34,7 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   pVnode->tsdbCfg.maxRowsPerFileBlock = vnodeMsg->cfg.maxRowsPerFileBlock;
   pVnode->tsdbCfg.precision = vnodeMsg->cfg.precision;
   pVnode->tsdbCfg.compression = vnodeMsg->cfg.compression;
+  pVnode->tsdbCfg.update = vnodeMsg->cfg.update;
   pVnode->tsdbCfg.cacheLastRow = vnodeMsg->cfg.cacheLastRow;
   pVnode->walCfg.walLevel = vnodeMsg->cfg.walLevel;
   pVnode->walCfg.fsyncPeriod = vnodeMsg->cfg.fsyncPeriod;
@@ -227,6 +228,15 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   vnodeMsg.cfg.quorum = (int8_t)quorum->valueint;
 
+  cJSON *update = cJSON_GetObjectItem(root, "update");
+  if (!update || update->type != cJSON_Number) {
+    vError("vgId: %d, failed to read %s, update not found", pVnode->vgId, file);
+    vnodeMsg.cfg.update = 0;
+    vnodeMsg.cfg.vgCfgVersion = 0;
+  } else {
+    vnodeMsg.cfg.update = (int8_t)update->valueint;
+  }
+
   cJSON *cacheLastRow = cJSON_GetObjectItem(root, "cacheLastRow");
   if (!cacheLastRow || cacheLastRow->type != cJSON_Number) {
     vError("vgId: %d, failed to read %s, cacheLastRow not found", pVnode->vgId, file);
@@ -325,6 +335,7 @@ int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
   len += snprintf(content + len, maxLen - len, "  \"dbReplica\": %d,\n", pMsg->cfg.dbReplica);
   len += snprintf(content + len, maxLen - len, "  \"wals\": %d,\n", pMsg->cfg.wals);
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pMsg->cfg.quorum);
+  len += snprintf(content + len, maxLen - len, "  \"update\": %d,\n", pMsg->cfg.update);
   len += snprintf(content + len, maxLen - len, "  \"cacheLastRow\": %d,\n", pMsg->cfg.cacheLastRow);
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
   for (int32_t i = 0; i < pMsg->cfg.vgReplica; i++) {
@@ -341,7 +352,7 @@ int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
-  fflush(fp);
+  fsync(fileno(fp));
   fclose(fp);
   free(content);
   terrno = 0;

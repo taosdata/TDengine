@@ -2,6 +2,7 @@ package com.taosdata.jdbc.rs;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
+import com.taosdata.jdbc.AbstractStatement;
 import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.rs.util.HttpClientPoolUtil;
 import com.taosdata.jdbc.utils.SqlSyntaxValidator;
@@ -12,7 +13,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-public class RestfulStatement implements Statement {
+public class RestfulStatement extends AbstractStatement {
 
     private boolean closed;
     private String database;
@@ -20,7 +21,6 @@ public class RestfulStatement implements Statement {
 
     private volatile RestfulResultSet resultSet;
     private volatile int affectedRows;
-    private volatile boolean closeOnCompletion;
 
     public RestfulStatement(RestfulConnection conn, String database) {
         this.conn = conn;
@@ -102,85 +102,6 @@ public class RestfulStatement implements Statement {
             if (!isClosed())
                 this.closed = true;
         }
-    }
-
-    @Override
-    public int getMaxFieldSize() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return TSDBConstants.maxFieldSize;
-    }
-
-    @Override
-    public void setMaxFieldSize(int max) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        if (max < 0)
-            throw new SQLException(TSDBConstants.INVALID_VARIABLES);
-        // nothing to do
-    }
-
-    @Override
-    public int getMaxRows() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return 0;
-    }
-
-    @Override
-    public void setMaxRows(int max) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        if (max < 0)
-            throw new SQLException(TSDBConstants.INVALID_VARIABLES);
-        // nothing to do
-    }
-
-    @Override
-    public void setEscapeProcessing(boolean enable) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-    }
-
-    @Override
-    public int getQueryTimeout() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return 0;
-    }
-
-    @Override
-    public void setQueryTimeout(int seconds) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        if (seconds < 0)
-            throw new SQLException(TSDBConstants.INVALID_VARIABLES);
-    }
-
-    @Override
-    public void cancel() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
-    }
-
-    @Override
-    public SQLWarning getWarnings() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return null;
-    }
-
-    @Override
-    public void clearWarnings() throws SQLException {
-        // nothing to do
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-    }
-
-    @Override
-    public void setCursorName(String name) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
     }
 
     @Override
@@ -272,53 +193,6 @@ public class RestfulStatement implements Statement {
     }
 
     @Override
-    public boolean getMoreResults() throws SQLException {
-        return getMoreResults(CLOSE_CURRENT_RESULT);
-    }
-
-    @Override
-    public void setFetchDirection(int direction) throws SQLException {
-        if (direction != ResultSet.FETCH_FORWARD && direction != ResultSet.FETCH_REVERSE && direction != ResultSet.FETCH_UNKNOWN)
-            throw new SQLException(TSDBConstants.INVALID_VARIABLES);
-        this.resultSet.setFetchDirection(direction);
-    }
-
-    @Override
-    public int getFetchDirection() throws SQLException {
-        return this.resultSet.getFetchDirection();
-    }
-
-    @Override
-    public void setFetchSize(int rows) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        if (rows < 0)
-            throw new SQLException(TSDBConstants.INVALID_VARIABLES);
-        //nothing to do
-    }
-
-    @Override
-    public int getFetchSize() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return 0;
-    }
-
-    @Override
-    public int getResultSetConcurrency() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return this.resultSet.getConcurrency();
-    }
-
-    @Override
-    public int getResultSetType() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return this.resultSet.getType();
-    }
-
-    @Override
     public void addBatch(String sql) throws SQLException {
         if (isClosed())
             throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
@@ -344,114 +218,9 @@ public class RestfulStatement implements Statement {
     }
 
     @Override
-    public boolean getMoreResults(int current) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        if (resultSet == null)
-            return false;
-
-//        switch (current) {
-//            case CLOSE_CURRENT_RESULT:
-//                resultSet.close();
-//                break;
-//            case KEEP_CURRENT_RESULT:
-//                break;
-//            case CLOSE_ALL_RESULTS:
-//                resultSet.close();
-//                break;
-//            default:
-//                throw new SQLException(TSDBConstants.INVALID_VARIABLES);
-//        }
-//        return next;
-        return false;
-    }
-
-    @Override
-    public ResultSet getGeneratedKeys() throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
-    }
-
-    @Override
-    public int executeUpdate(String sql, int autoGeneratedKeys) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
-    }
-
-    @Override
-    public int executeUpdate(String sql, int[] columnIndexes) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
-    }
-
-    @Override
-    public int executeUpdate(String sql, String[] columnNames) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
-    }
-
-    @Override
-    public boolean execute(String sql, int autoGeneratedKeys) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
-    }
-
-    @Override
-    public boolean execute(String sql, int[] columnIndexes) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
-    }
-
-    @Override
-    public boolean execute(String sql, String[] columnNames) throws SQLException {
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
-    }
-
-    @Override
-    public int getResultSetHoldability() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return this.resultSet.getHoldability();
-    }
-
-    @Override
     public boolean isClosed() throws SQLException {
         return closed;
     }
 
-    @Override
-    public void setPoolable(boolean poolable) throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        //nothing to do
-    }
 
-    @Override
-    public boolean isPoolable() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return false;
-    }
-
-    @Override
-    public void closeOnCompletion() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        this.closeOnCompletion = true;
-    }
-
-    @Override
-    public boolean isCloseOnCompletion() throws SQLException {
-        if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
-        return this.closeOnCompletion;
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        try {
-            return iface.cast(this);
-        } catch (ClassCastException cce) {
-            throw new SQLException("Unable to unwrap to " + iface.toString());
-        }
-    }
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return iface.isInstance(this);
-    }
 }

@@ -19,12 +19,12 @@ import java.util.Map;
 
 public abstract class TSDBConstants {
 
-    public static final String STATEMENT_CLOSED = "Statement already closed.";
-    public static final String DEFAULT_PORT = "6200";
-    public static final String UNSUPPORT_METHOD_EXCEPTIONZ_MSG = "this operation is NOT supported currently!";
+    public static final String STATEMENT_CLOSED = "statement is closed";
+    public static final String UNSUPPORTED_METHOD_EXCEPTION_MSG = "this operation is NOT supported currently!";
     public static final String INVALID_VARIABLES = "invalid variables";
-    public static final String RESULT_SET_IS_CLOSED = "resultSet is closed.";
+    public static final String RESULT_SET_IS_CLOSED = "resultSet is closed";
 
+    public static final String DEFAULT_PORT = "6200";
     public static Map<Integer, String> DATATYPE_MAP = null;
 
     public static final long JNI_NULL_POINTER = 0L;
@@ -36,6 +36,7 @@ public abstract class TSDBConstants {
     public static final int JNI_NUM_OF_FIELDS_0 = -4;
     public static final int JNI_SQL_NULL = -5;
     public static final int JNI_FETCH_END = -6;
+    public static final int JNI_OUT_OF_MEMORY = -7;
 
     public static final int TSDB_DATA_TYPE_NULL = 0;
     public static final int TSDB_DATA_TYPE_BOOL = 1;
