@@ -2488,7 +2488,7 @@ static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
 
 static bool top_bottom_function_setup(SQLFunctionCtx *pCtx) {
   if (!function_setup(pCtx)) {
-    //return false;
+    return false;
   }
   
   STopBotInfo *pInfo = getTopBotOutputInfo(pCtx);
@@ -2573,6 +2573,10 @@ static void bottom_function(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
   
   STopBotInfo *pRes = getTopBotOutputInfo(pCtx);
+ 
+  if (pRes->res[0] != ((char *)pRes + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].i64)) {
+    buildTopBotStruct(pRes, pCtx);
+  }
   
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
@@ -2608,6 +2612,11 @@ static void bottom_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   }
   
   STopBotInfo *pRes = getTopBotOutputInfo(pCtx);
+
+  if (pRes->res[0] != ((char *)pRes + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].i64)) {
+    buildTopBotStruct(pRes, pCtx);
+  }
+  
   SET_VAL(pCtx, 1, 1);
   do_bottom_function_add(pRes, (int32_t)pCtx->param[0].i64, pData, ts, pCtx->inputType, &pCtx->tagInfo, NULL, 0);
   
