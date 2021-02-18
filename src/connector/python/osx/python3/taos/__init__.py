@@ -3,7 +3,6 @@ from .connection import TDengineConnection
 from .cursor import TDengineCursor
 
 # Globals
-apilevel = '2.0.4'
 threadsafety = 0
 paramstyle = 'pyformat'
 

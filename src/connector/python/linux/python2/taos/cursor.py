@@ -158,11 +158,26 @@ class TDengineCursor(object):
         if (dataType.upper() == "TINYINT"):
             if (self._description[col][1] == FieldType.C_TINYINT):
                 return True
+        if (dataType.upper() == "TINYINT UNSIGNED"):
+            if (self._description[col][1] == FieldType.C_TINYINT_UNSIGNED):
+                return True
+        if (dataType.upper() == "SMALLINT"):
+            if (self._description[col][1] == FieldType.C_SMALLINT):
+                return True
+        if (dataType.upper() == "SMALLINT UNSIGNED"):
+            if (self._description[col][1] == FieldType.C_SMALLINT_UNSIGNED):
+                return True
         if (dataType.upper() == "INT"):
             if (self._description[col][1] == FieldType.C_INT):
                 return True
+        if (dataType.upper() == "INT UNSIGNED"):
+            if (self._description[col][1] == FieldType.C_INT_UNSIGNED):
+                return True
         if (dataType.upper() == "BIGINT"):
-            if (self._description[col][1] == FieldType.C_INT):
+            if (self._description[col][1] == FieldType.C_BIGINT):
+                return True
+        if (dataType.upper() == "BIGINT UNSIGNED"):
+            if (self._description[col][1] == FieldType.C_BIGINT_UNSIGNED):
                 return True
         if (dataType.upper() == "FLOAT"):
             if (self._description[col][1] == FieldType.C_FLOAT):
