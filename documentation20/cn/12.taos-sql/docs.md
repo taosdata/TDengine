@@ -375,9 +375,8 @@ Query OK, 1 row(s) in set (0.001029s)
 taos> SHOW TABLES;
 Query OK, 0 row(s) in set (0.000946s)
 
-taos> INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2);
-
-DB error: invalid SQL: keyword VALUES or FILE required
+taos> INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2) VALUES(now, 2.22, 10, 3.15);
+Query OK, 1 row(s) affected (0.000316s)
 
 taos> SHOW TABLES;
            table_name           |      created_time       | columns |          stable_name           |
