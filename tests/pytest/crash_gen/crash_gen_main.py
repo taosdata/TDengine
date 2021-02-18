@@ -354,10 +354,11 @@ class ThreadCoordinator:
                 # end, and maybe signal them to stop
             if isinstance(err, CrashGenError): # our own transition failure
                 Logging.info("State transition error")
+                # TODO: saw an error here once, let's print out stack info for err?
                 traceback.print_stack()
                 transitionFailed = True
                 self._te = None  # Not running any more
-                self._execStats.registerFailure("State transition error")
+                self._execStats.registerFailure("State transition error: {}".format(err))
             else:
                 raise
         # return transitionFailed # Why did we have this??!!
@@ -955,6 +956,8 @@ class StateMechine:
 
     # We transition the system to a new state by examining the current state itself
     def transition(self, tasks, dbc: DbConn):
+        global gSvcMgr
+        
         if (len(tasks) == 0):  # before 1st step, or otherwise empty
             Logging.debug("[STT] Starting State: {}".format(self._curState))
             return  # do nothing
@@ -2374,7 +2377,7 @@ class MainExec:
             '-n',
             '--dynamic-db-table-names',
             action='store_true',
-            help='Use non-fixed names for dbs/tables, useful for multi-instance executions (default: false)')        
+            help='Use non-fixed names for dbs/tables, for -b, useful for multi-instance executions (default: false)')        
         parser.add_argument(
             '-o',
             '--num-dnodes',
