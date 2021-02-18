@@ -185,6 +185,7 @@ typedef struct SSDataBlock {
   SDataBlockInfo info;
 } SSDataBlock;
 
+
 typedef struct SQuery {
   SLimitVal        limit;
 
@@ -395,19 +396,22 @@ typedef struct SHashIntervalOperatorInfo {
   SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
   SResultRowInfo    resultRowInfo;
+  SSDataBlock      *pRes;
 } SHashIntervalOperatorInfo;
 
 typedef struct SFillOperatorInfo {
-  SResultRowInfo   *pResultRowInfo;
-  STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
+  SSDataBlock      *pRes;
 } SFillOperatorInfo;
 
-typedef struct SFilterOperatorInfo {
+typedef struct SHashGroupbyOperatorInfo {
   SResultRowInfo   *pResultRowInfo;
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
-} SFilterOperatorInfo;
+  SQLFunctionCtx   *pCtx;
+  SResultRowInfo    resultRowInfo;
+  SSDataBlock      *pRes;
+} SHashGroupbyOperatorInfo;
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);

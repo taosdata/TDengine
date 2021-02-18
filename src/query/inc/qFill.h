@@ -24,6 +24,8 @@ extern "C" {
 #include "qExtbuffer.h"
 #include "taosdef.h"
 
+struct SSDataBlock;
+
 typedef struct {
   STColumn col;             // column info
   int16_t  functionId;      // sql function id
@@ -80,6 +82,8 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
 
 void taosFillSetDataBlockFromFilePage(SFillInfo* pFillInfo, const tFilePage** pInput);
 
+void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
+
 void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage* pInput);
 
 bool taosFillHasMoreResults(SFillInfo* pFillInfo);
@@ -88,7 +92,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t 
 
 int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType);
 
-int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_t capacity);
+int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, void** output, int32_t capacity);
 
 #ifdef __cplusplus
 }

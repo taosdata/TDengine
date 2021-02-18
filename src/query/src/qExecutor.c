@@ -186,8 +186,12 @@ static SOperatorInfo* createArithOperatorInfo(STableQueryInfo* pTableQueryInfo, 
 static SOperatorInfo* createLimitOperatorInfo(STableQueryInfo* pTableQueryInfo, SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
 static SOperatorInfo* createOffsetOperatorInfo(STableQueryInfo* pTableQueryInfo, SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
 static SOperatorInfo* createHashIntervalAggOperatorInfo(STableQueryInfo* pTableQueryInfo, SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
-static SOperatorInfo* createFilterOperatorInfo(STableQueryInfo* pTableQueryInfo, SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
-//static SOperatorInfo* createHashGroupbyAggOperatorInfo(STableQueryInfo* pTableQueryInfo, SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
+static SOperatorInfo* createFillOperatorInfo(STableQueryInfo* pTableQueryInfo, SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
+static SOperatorInfo* createHashGroupbyAggOperatorInfo(STableQueryInfo* pTableQueryInfo, SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
+
+static char *getGroupbyColumnData(SQuery *pQuery, int16_t *type, int16_t *bytes, SArray* pDataBlock);
+
+static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, char *pData, int16_t type, int16_t bytes, int32_t groupIndex);
 
 static void destroyOperatorInfo(SOperatorInfo* pOperator);
 void initCtxOutputBuf_rv(SQLFunctionCtx* pCtx, int32_t size);
@@ -1310,6 +1314,7 @@ static void hashIntervalAgg(SQueryRuntimeEnv *pRuntimeEnv, SOperatorInfo* pOpera
   if (pSDataBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, 0);
     tsCols = pColDataInfo->pData;
+    assert(tsCols[0] == pSDataBlock->info.window.skey && tsCols[pSDataBlock->info.rows-1] == pSDataBlock->info.window.ekey);
   }
 
   TSKEY ts = getStartTsKey(pQuery, &pSDataBlock->info, tsCols, step);
@@ -1381,6 +1386,39 @@ static void hashIntervalAgg(SQueryRuntimeEnv *pRuntimeEnv, SOperatorInfo* pOpera
     // window start(end) key interpolation
     doWindowBorderInterpolation(pRuntimeEnv, &pSDataBlock->info, pSDataBlock->pDataBlock, pResult, &nextWin, startPos, forwardStep);
     doBlockwiseApplyFunctions(pRuntimeEnv, &nextWin, startPos, forwardStep, tsCols, pSDataBlock->info.rows, pSDataBlock->pDataBlock);
+  }
+}
+
+static void hashGroupbyAgg(SQueryRuntimeEnv *pRuntimeEnv, SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pSDataBlock) {
+  SQuery *pQuery = pRuntimeEnv->pQuery;
+
+  STableQueryInfo* item = pQuery->current;
+
+  SDataBlockInfo* pBlockInfo = &pSDataBlock->info;
+
+  int16_t type = 0;
+  int16_t bytes = 0;
+  char* groupbyColumnData = getGroupbyColumnData(pQuery, &type, &bytes, pSDataBlock->pDataBlock);
+
+  for (int32_t j = 0; j < pBlockInfo->rows; ++j) {
+    int32_t offset = GET_COL_DATA_POS(pQuery, j, 1);
+
+    char *val = groupbyColumnData + bytes * offset;
+    if (isNull(val, type)) {  // ignore the null value
+      continue;
+    }
+
+    int32_t ret = setGroupResultOutputBuf(pRuntimeEnv, val, type, bytes, item->groupIndex);
+    if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
+      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
+    }
+
+    for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
+      int32_t functionId = pQuery->pExpr1[k].base.functionId;
+      if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
+        aAggs[functionId].xFunctionF(&pCtx[k], offset);
+      }
+    }
   }
 }
 
@@ -2333,6 +2371,10 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       if (pQuery->pExpr2 != NULL) {
         pRuntimeEnv->proot = createArithOperatorInfo(pQuery->current, pRuntimeEnv, pRuntimeEnv->proot);
       }
+
+      if (pQuery->fillType != TSDB_FILL_NONE) {
+        pRuntimeEnv->proot = createFillOperatorInfo(pQuery->current, pRuntimeEnv, pRuntimeEnv->proot);
+      }
     } else {  // diff/add/multiply/subtract/division
       assert(pQuery->checkResultBuf == 1);
       pRuntimeEnv->proot = createArithOperatorInfo(pQuery->current, pRuntimeEnv, pRuntimeEnv->pi);
@@ -3013,7 +3055,10 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo * pW
 
 int32_t loadDataBlockOnDemand_rv(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, SResultRowInfo * pWindowResInfo,
     void* pQueryHandle, SSDataBlock* pBlock, uint32_t* status) {
+
   *status = BLK_DATA_NO_NEEDED;
+  pBlock->pDataBlock = NULL;
+  pBlock->pBlockStatis = NULL;
 
   SQuery *pQuery = pRuntimeEnv->pQuery;
   int64_t groupId = pQuery->current->groupIndex;
@@ -4613,6 +4658,7 @@ static int32_t doCopyToSData_rv(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* pG
 
 static void toSSDataBlock(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock) {
   assert(pGroupResInfo->currentGroup <= pGroupResInfo->totalGroup);
+  pBlock->info.rows = 0;
   if (!hasRemainData(pGroupResInfo)) {
     return;
   }
@@ -4620,6 +4666,12 @@ static void toSSDataBlock(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv* pRunti
   SQuery* pQuery = pRuntimeEnv->pQuery;
   int32_t orderType = (pQuery->pGroupbyExpr != NULL) ? pQuery->pGroupbyExpr->orderType : TSDB_ORDER_ASC;
   doCopyToSData_rv(pRuntimeEnv, pGroupResInfo, orderType, pBlock);
+
+  SColumnInfoData* pInfoData = taosArrayGet(pBlock->pDataBlock, 0);
+
+  STimeWindow* w = &pBlock->info.window;
+  w->skey = *(int64_t*)pInfoData->pData;
+  w->ekey = *(int64_t*)(pInfoData->pData + TSDB_KEYSIZE * (pBlock->info.rows - 1));
 }
 
 static void updateWindowResNumOfRes(SQueryRuntimeEnv *pRuntimeEnv) {
@@ -4763,8 +4815,8 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
   }
 }
 
+#if 0
 int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst) {
-  SQInfo *pQInfo = GET_QINFO_ADDR(pRuntimeEnv);
   SQuery *pQuery = pRuntimeEnv->pQuery;
   SFillInfo* pFillInfo = pRuntimeEnv->pFillInfo;
 
@@ -4774,13 +4826,13 @@ int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst) {
     // todo apply limit output function
     /* reached the start position of according to offset value, return immediately */
     if (pQuery->limit.offset == 0) {
-      qDebug("QInfo:%p initial numOfRows:%d, generate filled result:%d rows", pQInfo, pFillInfo->numOfRows, ret);
+      qDebug("QInfo:%p initial numOfRows:%d, generate filled result:%d rows", pRuntimeEnv->qinfo, pFillInfo->numOfRows, ret);
       return ret;
     }
 
     if (pQuery->limit.offset < ret) {
       qDebug("QInfo:%p initial numOfRows:%d, generate filled result:%d rows, offset:%" PRId64 ". Discard due to offset, remain:%" PRId64 ", new offset:%d",
-             pQInfo, pFillInfo->numOfRows, ret, pQuery->limit.offset, ret - pQuery->limit.offset, 0);
+             pRuntimeEnv->qinfo, pFillInfo->numOfRows, ret, pQuery->limit.offset, ret - pQuery->limit.offset, 0);
 
       ret -= (int32_t)pQuery->limit.offset;
       for (int32_t i = 0; i < pQuery->numOfOutput; ++i) { //???pExpr1 or pExpr2
@@ -4792,7 +4844,7 @@ int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst) {
       return ret;
     } else {
       qDebug("QInfo:%p initial numOfRows:%d, generate filled result:%d rows, offset:%" PRId64 ". Discard due to offset, "
-             "remain:%d, new offset:%" PRId64, pQInfo, pFillInfo->numOfRows, ret, pQuery->limit.offset, 0,
+             "remain:%d, new offset:%" PRId64, pRuntimeEnv->qinfo, pFillInfo->numOfRows, ret, pQuery->limit.offset, 0,
           pQuery->limit.offset - ret);
 
       pQuery->limit.offset -= ret;
@@ -4805,6 +4857,28 @@ int32_t doFillGapsInResults(SQueryRuntimeEnv* pRuntimeEnv, tFilePage **pDst) {
       return 0;
     }
   }
+}
+#endif
+
+int32_t doFillGapsInResults_rv(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock *pOutput) {
+  SQuery *pQuery = pRuntimeEnv->pQuery;
+  SFillInfo* pFillInfo = pRuntimeEnv->pFillInfo;
+
+  void** p = calloc(pFillInfo->numOfCols, POINTER_BYTES);
+  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pOutput->pDataBlock, i);
+    p[i] = pColInfoData->pData;
+  }
+
+  pOutput->info.rows = (int32_t)taosFillResultDataBlock(pFillInfo, p, (int32_t)pQuery->rec.capacity);
+
+  // no data in current data after fill
+  int32_t numOfTotal = (int32_t)getNumOfResultsAfterFillGap(pFillInfo, pFillInfo->end, (int32_t)pQuery->rec.capacity);
+  if (numOfTotal == 0) {
+    return 0;
+  }
+
+  return pOutput->info.rows;
 }
 
 void queryCostStatis(SQInfo *pQInfo) {
@@ -6525,11 +6599,18 @@ static SSDataBlock* doHashIntervalAgg(void* param) {
   SHashIntervalOperatorInfo* pIntervalInfo = pOperator->optInfo;
 
   SQueryRuntimeEnv* pRuntimeEnv = pIntervalInfo->pRuntimeEnv;
+  if (hasRemainData(&pRuntimeEnv->groupResInfo)) {
+    toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
+
+    if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
+      pOperator->completed = true;
+    }
+
+    return pIntervalInfo->pRes;
+  }
 
   SQuery* pQuery = pRuntimeEnv->pQuery;
   int32_t order = pQuery->order.order;
-
-  SSDataBlock* pRes = createOutputBuf(pOperator->pExpr, pOperator->numOfOutput);
 
   SOperatorInfo* upstream = pOperator->upstream;
   pQuery->pos = 0;
@@ -6550,16 +6631,64 @@ static SSDataBlock* doHashIntervalAgg(void* param) {
     hashIntervalAgg(pRuntimeEnv, pOperator, pIntervalInfo->pCtx, pBlock);
   }
 
-  pOperator->completed = true;
-
   closeAllResultRows(&pRuntimeEnv->resultRowInfo);
   setQueryStatus(pRuntimeEnv->pQuery, QUERY_COMPLETED);
   finalizeQueryResult(pRuntimeEnv);
 
   initGroupResInfo(&pRuntimeEnv->groupResInfo, &pRuntimeEnv->resultRowInfo, pQuery->limit.offset);
-  toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pRes);
+  toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
 
-  return pRes;
+  if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
+    pOperator->completed = true;
+  }
+
+  return pIntervalInfo->pRes;
+}
+
+static SSDataBlock* doHashGroupbyAgg(void* param) {
+  SOperatorInfo* pOperator = (SOperatorInfo*) param;
+  if (pOperator->completed) {
+    return NULL;
+  }
+
+  SHashIntervalOperatorInfo* pIntervalInfo = pOperator->optInfo;
+
+  SQueryRuntimeEnv* pRuntimeEnv = pIntervalInfo->pRuntimeEnv;
+  if (hasRemainData(&pRuntimeEnv->groupResInfo)) {
+    toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
+    if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
+      pOperator->completed = true;
+    }
+
+    return pIntervalInfo->pRes;
+  }
+
+  SOperatorInfo* upstream = pOperator->upstream;
+  pRuntimeEnv->pQuery->pos = 0;
+
+  while(1) {
+    SSDataBlock* pBlock = upstream->exec(upstream);
+    if (pBlock == NULL) {
+      break;
+    }
+
+    // the pDataBlock are always the same one, no need to call this again
+    setInputSDataBlock(pOperator, pIntervalInfo->pCtx, pBlock, pRuntimeEnv->pQuery->order.order);
+    hashGroupbyAgg(pRuntimeEnv, pOperator, pIntervalInfo->pCtx, pBlock);
+  }
+
+  closeAllResultRows(&pRuntimeEnv->resultRowInfo);
+  setQueryStatus(pRuntimeEnv->pQuery, QUERY_COMPLETED);
+  finalizeQueryResult(pRuntimeEnv);
+
+  initGroupResInfo(&pRuntimeEnv->groupResInfo, &pRuntimeEnv->resultRowInfo, 0);
+  toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
+
+  if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
+    pOperator->completed = true;
+  }
+
+  return pIntervalInfo->pRes;
 }
 
 static SSDataBlock* doFill(void* param) {
@@ -6570,39 +6699,28 @@ static SSDataBlock* doFill(void* param) {
 
   SFillOperatorInfo *pInfo = pOperator->optInfo;
   SQueryRuntimeEnv* pRuntimeEnv = pInfo->pRuntimeEnv;
-  SQuery* pQuery = pRuntimeEnv->pQuery;
+
+  if (taosFillHasMoreResults(pRuntimeEnv->pFillInfo)) {
+    doFillGapsInResults_rv(pRuntimeEnv, pInfo->pRes);
+    return pInfo->pRes;
+  }
 
   while(1) {
     SSDataBlock *pBlock = pOperator->upstream->exec(pOperator->upstream);
     if (pBlock == NULL) {
+      taosFillSetStartInfo(pRuntimeEnv->pFillInfo, 0, pRuntimeEnv->pQuery->window.ekey);
       setQueryStatus(pRuntimeEnv->pQuery, QUERY_COMPLETED);
-      return NULL;
+    } else {
+      taosFillSetStartInfo(pRuntimeEnv->pFillInfo, pBlock->info.rows, pBlock->info.window.ekey);
+      taosFillSetInputDataBlock(pRuntimeEnv->pFillInfo, pBlock);
     }
 
-    for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
-      memcpy(pQuery->sdata[i]->data, pColInfoData->pData, pColInfoData->info.bytes*pBlock->info.rows);
-    }
-
-    taosFillSetStartInfo(pRuntimeEnv->pFillInfo, pBlock->info.rows, pBlock->info.window.ekey);
-    taosFillSetDataBlockFromFilePage(pRuntimeEnv->pFillInfo, (const tFilePage **)pQuery->sdata);
-
-    pQuery->rec.rows = doFillGapsInResults(pRuntimeEnv, (tFilePage **)pQuery->sdata);
-
-    // here the pQuery->rec.rows == 0
-    if (!hasRemainData(&pRuntimeEnv->groupResInfo) && !taosFillHasMoreResults(pRuntimeEnv->pFillInfo)) {
-      break;
-    }
-
-    return NULL;
+    doFillGapsInResults_rv(pRuntimeEnv, pInfo->pRes);
+    return pInfo->pRes;
   }
 
-  return NULL;
+  return pInfo->pRes;
 }
-
-//SSDataBlock* doFilter(void* param) {
-//
-//}
 
 // todo set the attribute of query scan count
 static int32_t getNumOfScanTimes(SQuery* pQuery) {
@@ -6734,36 +6852,41 @@ static SOperatorInfo* createHashIntervalAggOperatorInfo(STableQueryInfo* pTableQ
   pOperator->optInfo      = pInfo;
 
   pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pOperator->numOfOutput, pOperator->pExpr, pQuery->order.order, pQuery->vgId);
+  pInfo->pRes = createOutputBuf(pOperator->pExpr, pOperator->numOfOutput);
   initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   return pOperator;
 }
 
-UNUSED_FUNC SOperatorInfo* createFilterOperatorInfo(STableQueryInfo* pTableQueryInfo, SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream) {
-  SFilterOperatorInfo* pInfo = calloc(1, sizeof(SFilterOperatorInfo));
+static UNUSED_FUNC SOperatorInfo* createHashGroupbyAggOperatorInfo(STableQueryInfo* pTableQueryInfo, SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream) {
+  SHashGroupbyOperatorInfo* pInfo = calloc(1, sizeof(SHashGroupbyOperatorInfo));
 
   pInfo->pRuntimeEnv = pRuntimeEnv;
   pInfo->pTableQueryInfo = pTableQueryInfo;
 
+  SQuery* pQuery = pRuntimeEnv->pQuery;
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
-  pOperator->name         = "FilterOp";
-  pOperator->blockingOptr = false;
+  pOperator->name         = "HashGroupbyOp";
+  pOperator->blockingOptr = true;
   pOperator->completed    = false;
   pOperator->upstream     = upstream;
-  pOperator->exec         = NULL;
-  pOperator->pExpr        = pRuntimeEnv->pQuery->pExpr1;
-  pOperator->numOfOutput  = pRuntimeEnv->pQuery->numOfOutput;
+  pOperator->exec         = doHashGroupbyAgg;
+  pOperator->pExpr        = pQuery->pExpr1;
+  pOperator->numOfOutput  = pQuery->numOfOutput;
   pOperator->optInfo      = pInfo;
+
+  pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pOperator->numOfOutput, pOperator->pExpr, pQuery->order.order, pQuery->vgId);
+  pInfo->pRes = createOutputBuf(pOperator->pExpr, pOperator->numOfOutput);
+  initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   return pOperator;
 }
 
-static UNUSED_FUNC SOperatorInfo* createFillOperatorInfo(STableQueryInfo* pTableQueryInfo, SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream) {
-  SHashIntervalOperatorInfo* pInfo = calloc(1, sizeof(SHashIntervalOperatorInfo));
+static SOperatorInfo* createFillOperatorInfo(STableQueryInfo* pTableQueryInfo, SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream) {
+  SFillOperatorInfo* pInfo = calloc(1, sizeof(SFillOperatorInfo));
 
   pInfo->pRuntimeEnv = pRuntimeEnv;
-  pInfo->pTableQueryInfo = pTableQueryInfo;
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
@@ -6776,6 +6899,7 @@ static UNUSED_FUNC SOperatorInfo* createFillOperatorInfo(STableQueryInfo* pTable
   pOperator->numOfOutput  = pRuntimeEnv->pQuery->numOfOutput;
   pOperator->optInfo      = pInfo;
 
+  pInfo->pRes = createOutputBuf(pOperator->pExpr, pOperator->numOfOutput);
   return pOperator;
 }
 
@@ -6796,7 +6920,7 @@ void tableAggregationProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
   }
 
   pRuntimeEnv->outputBuf = pRuntimeEnv->proot->exec(pRuntimeEnv->proot);
-  pQuery->rec.rows = pRuntimeEnv->outputBuf->info.rows;
+  pQuery->rec.rows = (pRuntimeEnv->outputBuf != NULL)? pRuntimeEnv->outputBuf->info.rows:0;
 }
 
 static void tableProjectionProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
@@ -6857,7 +6981,7 @@ static void tableProjectionProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) 
 #endif
 }
 
-static void copyAndFillResult(SQInfo* pQInfo) {
+static UNUSED_FUNC void copyAndFillResult(SQInfo* pQInfo) {
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery* pQuery = pRuntimeEnv->pQuery;
 
@@ -6877,7 +7001,7 @@ static void copyAndFillResult(SQInfo* pQInfo) {
     taosFillSetStartInfo(pRuntimeEnv->pFillInfo, (int32_t)pQuery->rec.rows, lastKey);
     taosFillSetDataBlockFromFilePage(pRuntimeEnv->pFillInfo, (const tFilePage **)pQuery->sdata);
 
-    pQuery->rec.rows = doFillGapsInResults(pRuntimeEnv, (tFilePage **)pQuery->sdata);
+//    pQuery->rec.rows = doFillGapsInResults(pRuntimeEnv, (tFilePage **)pQuery->sdata);
 
     if (pQuery->rec.rows > 0) {
       limitOperator(pQuery, pQInfo);
@@ -6908,46 +7032,21 @@ static void tableIntervalProcess(SQInfo *pQInfo, STableQueryInfo* pTableInfo) {
   }
 
   pRuntimeEnv->outputBuf = pRuntimeEnv->proot->exec(pRuntimeEnv->proot);
-  pQuery->rec.rows = pRuntimeEnv->outputBuf->info.rows;
-
-#if 0
-//  scanOneTableDataBlocks(pRuntimeEnv, newStartKey);
-//  finalizeQueryResult(pRuntimeEnv);
-
-  // skip offset result rows
-//  pQuery->rec.rows = 0;
-
-  // not fill or no result generated during this query
-  if (pQuery->fillType == TSDB_FILL_NONE || pRuntimeEnv->resultRowInfo.size == 0 || isPointInterpoQuery(pQuery)) {
-    // all data scanned, the group by normal column can return
-    int32_t numOfClosed = numOfClosedResultRows(&pRuntimeEnv->resultRowInfo);
-    if (pQuery->limit.offset > numOfClosed || numOfClosed == 0) {
-      return;
-    }
-
-    initGroupResInfo(&pRuntimeEnv->groupResInfo, &pRuntimeEnv->resultRowInfo, pQuery->limit.offset);
-    copyToOutputBuf(pQInfo, &pRuntimeEnv->resultRowInfo);
-    doSecondaryArithmeticProcess(pQuery);
-
-    limitOperator(pQuery, pQInfo);
-  } else {
-    initGroupResInfo(&pRuntimeEnv->groupResInfo, &pRuntimeEnv->resultRowInfo, 0);
-    return copyAndFillResult(pQInfo);
-  }
-#endif
+  pQuery->rec.rows = (pRuntimeEnv->outputBuf != NULL)? pRuntimeEnv->outputBuf->info.rows:0;
 }
 
 void tableQueryImpl(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *          pQuery = pRuntimeEnv->pQuery;
 
+#if 0
   if (hasNotReturnedResults(pRuntimeEnv, &pRuntimeEnv->groupResInfo)) {
     if (pQuery->fillType != TSDB_FILL_NONE && !isPointInterpoQuery(pQuery)) {
       /*
        * There are remain results that are not returned due to result interpolation
        * So, we do keep in this procedure instead of launching retrieve procedure for next results.
        */
-      pQuery->rec.rows = doFillGapsInResults(pRuntimeEnv, (tFilePage **)pQuery->sdata);
+//      pQuery->rec.rows = doFillGapsInResults(pRuntimeEnv, (tFilePage **)pQuery->sdata);
       if (pQuery->rec.rows > 0) {
         limitOperator(pQuery, pQInfo);
         qDebug("QInfo:%p current:%" PRId64 " returned, total:%" PRId64, pQInfo, pQuery->rec.rows, pQuery->rec.total);
@@ -6975,6 +7074,7 @@ void tableQueryImpl(SQInfo *pQInfo) {
 
     return;
   }
+#endif
 
   // number of points returned during this query
   pQuery->rec.rows = 0;
