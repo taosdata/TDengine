@@ -66,7 +66,7 @@ python3 ./test.py -f tag_lite/int.py
 python3 ./test.py -f tag_lite/set.py
 python3 ./test.py -f tag_lite/smallint.py
 python3 ./test.py -f tag_lite/tinyint.py
-
+python3 ./test.py -f tag_lite/alter_tag.py
 #python3 ./test.py -f dbmgmt/database-name-boundary.py
 
 python3 ./test.py -f import_merge/importBlock1HO.py
