@@ -102,7 +102,7 @@ pipeline {
         when {
               changeRequest()
                expression {
-                    skipstage != 0
+                    env.skipstage != 0
               }
           }
       parallel {
