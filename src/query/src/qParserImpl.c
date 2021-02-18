@@ -496,7 +496,8 @@ static void freeVariant(void *pItem) {
 }
 
 void freeCreateTableInfo(void* p) {
-  SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;
+  SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;  
+  taosArrayDestroy(pInfo->pTagNames);
   taosArrayDestroyEx(pInfo->pTagVals, freeVariant);
   tfree(pInfo->fullname);
   tfree(pInfo->tagdata.data);
@@ -574,11 +575,12 @@ SCreateTableSQL *tSetCreateSqlElems(SArray *pCols, SArray *pTags, SQuerySQL *pSe
   return pCreate;
 }
 
-SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists) {
+SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagNames, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists) {
   SCreatedTableInfo info;
   memset(&info, 0, sizeof(SCreatedTableInfo));
 
   info.name       = *pToken;
+  info.pTagNames  = pTagNames;
   info.pTagVals   = pTagVals;
   info.stableName = *pTableName;
   info.igExist    = (igExists->n > 0)? 1:0;
