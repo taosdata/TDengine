@@ -36,3 +36,5 @@
 ./test.sh -f general/stable/show.sim
 ./test.sh -f general/stable/values.sim
 ./test.sh -f general/stable/vnode3.sim
+
+./test.sh -f unique/column/replica3.sim

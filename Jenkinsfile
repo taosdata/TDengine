@@ -88,8 +88,9 @@ pipeline {
           git checkout -qf FETCH_HEAD
           '''
           script{
-            skipstage=sh(script:"git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+            env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
           }
+          println env.skipstage
           sh'''
           rm -rf ${WORKSPACE}.tes
           '''
