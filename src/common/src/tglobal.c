@@ -373,6 +373,23 @@ static void taosCheckDataDirCfg() {
   }
 }
 
+static int32_t taosCheckTmpDir(void) {
+  if (strlen(tsTempDir) <= 0){
+    uError("tempDir is not set");
+    return -1;
+  }
+
+  DIR *dir = opendir(tsTempDir);
+  if (dir == NULL) {
+    uError("can not open tempDir:%s, error:%s", tsTempDir, strerror(errno));
+    return -1;
+  }
+
+  closedir(dir);
+
+  return 0;
+}
+
 static void doInitGlobalConfig(void) {
   osInit();
   srand(taosSafeRand());
@@ -1488,6 +1505,11 @@ int32_t taosCheckGlobalCfg() {
   }
 
   taosCheckDataDirCfg();
+
+  if (taosCheckTmpDir()) {
+    return -1;
+  }
+  
   taosGetSystemInfo();
 
   tsSetLocale();
