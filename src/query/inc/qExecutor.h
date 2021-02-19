@@ -411,6 +411,7 @@ typedef struct SHashGroupbyOperatorInfo {
   SQLFunctionCtx   *pCtx;
   SResultRowInfo    resultRowInfo;
   SSDataBlock      *pRes;
+  int32_t           colIndex;
 } SHashGroupbyOperatorInfo;
 
 void freeParam(SQueryParam *param);

@@ -91,6 +91,6 @@ bool    hasRemainData(SGroupResInfo* pGroupResInfo);
 bool    incNextGroup(SGroupResInfo* pGroupResInfo);
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
-int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQInfo *pQInfo);
+int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv);
 
 #endif  // TDENGINE_QUERYUTIL_H

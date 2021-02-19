@@ -438,7 +438,7 @@ static int32_t tableResultComparFn(const void *pLeft, const void *pRight, void *
   }
 }
 
-static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList, void* qinfo) {
+static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList) {
   bool ascQuery = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQuery);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -456,7 +456,7 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
   pTableQueryInfoList = malloc(POINTER_BYTES * size);
 
   if (pTableQueryInfoList == NULL || posList == NULL || pGroupResInfo->pRows == NULL || pGroupResInfo->pRows == NULL) {
-    qError("QInfo:%p failed alloc memory", qinfo);
+    qError("QInfo:%p failed alloc memory", pRuntimeEnv->qinfo);
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _end;
   }
@@ -528,7 +528,7 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
 
   int64_t endt = taosGetTimestampMs();
 
-  qDebug("QInfo:%p result merge completed for group:%d, elapsed time:%" PRId64 " ms", qinfo,
+  qDebug("QInfo:%p result merge completed for group:%d, elapsed time:%" PRId64 " ms", pRuntimeEnv->qinfo,
          pGroupResInfo->currentGroup, endt - startt);
 
   _end:
@@ -539,14 +539,13 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
   return code;
 }
 
-int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQInfo *pQInfo) {
+int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv* pRuntimeEnv) {
   int64_t st = taosGetTimestampUs();
-  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
 
   while (pGroupResInfo->currentGroup < pGroupResInfo->totalGroup) {
     SArray *group = GET_TABLEGROUP(pRuntimeEnv, pGroupResInfo->currentGroup);
 
-    int32_t ret = mergeIntoGroupResultImpl(pRuntimeEnv, pGroupResInfo, group, pQInfo);
+    int32_t ret = mergeIntoGroupResultImpl(pRuntimeEnv, pGroupResInfo, group);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -556,7 +555,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQInfo *pQInfo) {
       break;
     }
 
-    qDebug("QInfo:%p no result in group %d, continue", pQInfo, pGroupResInfo->currentGroup);
+    qDebug("QInfo:%p no result in group %d, continue", pRuntimeEnv->qinfo, pGroupResInfo->currentGroup);
     cleanupGroupResInfo(pGroupResInfo);
     incNextGroup(pGroupResInfo);
   }
@@ -566,9 +565,9 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQInfo *pQInfo) {
   }
 
   int64_t elapsedTime = taosGetTimestampUs() - st;
-  qDebug("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", pQInfo,
+  qDebug("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", pRuntimeEnv->qinfo,
          pGroupResInfo->currentGroup, pGroupResInfo->totalGroup, elapsedTime);
 
-  pQInfo->summary.firstStageMergeTime += elapsedTime;
+//  pQInfo->summary.firstStageMergeTime += elapsedTime;
   return TSDB_CODE_SUCCESS;
 }
