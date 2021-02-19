@@ -5,6 +5,7 @@ import threading
 
 # querySeqNum = 0
 
+
 class TDengineCursor(object):
     """Database cursor which is used to manage the context of a fetch operation.
 
@@ -107,8 +108,8 @@ class TDengineCursor(object):
         # if threading.get_ident() != self._threadId:
         #     info ="Cursor execute:Thread ID not match,creater:"+str(self._threadId)+" caller:"+str(threading.get_ident())
         #     raise OperationalError(info)
-            # print(info)
-            # return None
+        # print(info)
+        # return None
 
         if not operation:
             return None
@@ -137,8 +138,8 @@ class TDengineCursor(object):
         if errno == 0:
             if CTaosInterface.fieldsCount(self._result) == 0:
                 self._affected_rows += CTaosInterface.affectedRows(
-                    self._result )
-                return CTaosInterface.affectedRows(self._result )
+                    self._result)
+                return CTaosInterface.affectedRows(self._result)
             else:
                 self._fields = CTaosInterface.useResult(
                     self._result)
@@ -216,10 +217,13 @@ class TDengineCursor(object):
         buffer = [[] for i in range(len(self._fields))]
         self._rowcount = 0
         while True:
-            block, num_of_fields = CTaosInterface.fetchRow(self._result, self._fields)
+            block, num_of_fields = CTaosInterface.fetchRow(
+                self._result, self._fields)
             errno = CTaosInterface.libtaos.taos_errno(self._result)
             if errno != 0:
-                raise ProgrammingError(CTaosInterface.errStr(self._result), errno)
+                raise ProgrammingError(
+                    CTaosInterface.errStr(
+                        self._result), errno)
             if num_of_fields == 0:
                 break
             self._rowcount += num_of_fields
@@ -234,15 +238,20 @@ class TDengineCursor(object):
         buffer = [[] for i in range(len(self._fields))]
         self._rowcount = 0
         while True:
-            block, num_of_fields = CTaosInterface.fetchBlock(self._result, self._fields)
+            block, num_of_fields = CTaosInterface.fetchBlock(
+                self._result, self._fields)
             errno = CTaosInterface.libtaos.taos_errno(self._result)
             if errno != 0:
-                raise ProgrammingError(CTaosInterface.errStr(self._result), errno)
-            if num_of_fields == 0: break
+                raise ProgrammingError(
+                    CTaosInterface.errStr(
+                        self._result), errno)
+            if num_of_fields == 0:
+                break
             self._rowcount += num_of_fields
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
         return list(map(tuple, zip(*buffer)))
+
     def nextset(self):
         """
         """
@@ -274,8 +283,8 @@ class TDengineCursor(object):
         # if threading.get_ident() != self._threadId:
         #     info = "Cursor handleresult:Thread ID not match,creater:"+str(self._threadId)+" caller:"+str(threading.get_ident())
         #     raise OperationalError(info)
-            # print(info)
-            # return None
+        # print(info)
+        # return None
 
         self._description = []
         for ele in self._fields:
@@ -283,4 +292,3 @@ class TDengineCursor(object):
                 (ele['name'], ele['type'], None, None, None, None, False))
 
         return self._result
-

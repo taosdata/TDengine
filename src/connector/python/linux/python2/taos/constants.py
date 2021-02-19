@@ -3,6 +3,7 @@
 
 from .dbapi import *
 
+
 class FieldType(object):
     """TDengine Field Types
     """

@@ -25,7 +25,8 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        ret = tdSql.execute('create table tb (ts timestamp, speed int unsigned)')
+        ret = tdSql.execute(
+            'create table tb (ts timestamp, speed int unsigned)')
 
         insertRows = 10
         tdLog.info("insert %d rows" % (insertRows))
