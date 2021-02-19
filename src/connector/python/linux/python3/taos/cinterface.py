@@ -523,6 +523,7 @@ class CTaosInterface(object):
         for i in range(len(fields)):
             data = ctypes.cast(pblock, ctypes.POINTER(ctypes.c_void_p))[i]
             if fields[i]['type'] not in _CONVERT_FUNC_BLOCK:
+                print("CBD cinterface.py LN526")
                 raise DatabaseError("Invalid data type returned from database")
             blocks[i] = _CONVERT_FUNC_BLOCK[fields[i]['type']](
                 data, num_of_rows, fieldLen[i], isMicro)
@@ -547,6 +548,7 @@ class CTaosInterface(object):
             for i in range(len(fields)):
                 data = ctypes.cast(pblock, ctypes.POINTER(ctypes.c_void_p))[i]
                 if fields[i]['type'] not in _CONVERT_FUNC:
+                    print("CBD cinterface.py LN551")
                     raise DatabaseError(
                         "Invalid data type returned from database")
                 if data is None:
