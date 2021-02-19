@@ -138,5 +138,25 @@ if $data03 != NULL then
   return -1
 endi
 
+sql create table tb13 using st2 ("t1",'id') tags (2,1);
+
+sql select id,t1,t2,t3 from tb13;
+
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != NULL then 
+  return -1
+endi
+if $data03 != NULL then 
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

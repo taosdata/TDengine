@@ -6415,6 +6415,10 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
 
       for (int32_t i = 0; i < nameSize; ++i) {
         SStrToken* sToken = taosArrayGet(pNameList, i);
+        if (TK_STRING == sToken->type) {
+          tscDequoteAndTrimToken(sToken);
+        }
+
         tVariantListItem* pItem = taosArrayGet(pValList, i);
 
         findColumnIndex = false;
