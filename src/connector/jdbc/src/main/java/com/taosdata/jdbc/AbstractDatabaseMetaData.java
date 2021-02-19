@@ -1067,6 +1067,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrap
     }
 
     public ResultSet getClientInfoProperties() throws SQLException {
+        //TODO: see https://docs.oracle.com/javase/8/docs/api/java/sql/Connection.html#setClientInfo-java.lang.String-java.lang.String-
         return getEmptyResultSet();
     }
 

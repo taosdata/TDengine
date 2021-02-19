@@ -1,5 +1,6 @@
 package com.taosdata.jdbc;
 
+import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
 import java.util.HashMap;
@@ -57,5 +58,9 @@ public class TSDBError {
             return new SQLException("ERROR (" + Integer.toHexString(errorNumber) + "): " + message);
         // JNI exception's error number is large than 0x2350
         return new SQLException("TDengine ERROR (" + Integer.toHexString(errorNumber) + "): " + message);
+    }
+
+    public static SQLClientInfoException createSQLClientInfoException(int errorNumber) {
+        return new SQLClientInfoException();
     }
 }
