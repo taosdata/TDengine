@@ -221,9 +221,9 @@ public class TSDBConnectionTest {
         String charset = info.getProperty(TSDBDriver.PROPERTY_KEY_CHARSET);
         Assert.assertEquals("UTF-8", charset);
         String locale = info.getProperty(TSDBDriver.PROPERTY_KEY_LOCALE);
-        Assert.assertEquals("en_US.UTF-8", charset);
+        Assert.assertEquals("en_US.UTF-8", locale);
         String timezone = info.getProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE);
-        Assert.assertEquals("UTC-8", charset);
+        Assert.assertEquals("UTC-8", timezone);
     }
 
     @Test
