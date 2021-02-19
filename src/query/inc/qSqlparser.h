@@ -76,6 +76,7 @@ typedef struct SQuerySQL {
 typedef struct SCreatedTableInfo {
   SStrToken  name;        // table name token
   SStrToken  stableName;  // super table name token , for using clause
+  SArray    *pTagNames;   // create by using super table, tag name
   SArray    *pTagVals;    // create by using super table, tag value
   char      *fullname;    // table full name
   STagData   tagdata;     // true tag data, super table full name is in STagData
@@ -246,7 +247,7 @@ SCreateTableSQL *tSetCreateSqlElems(SArray *pCols, SArray *pTags, SQuerySQL *pSe
 void tSqlExprNodeDestroy(tSQLExpr *pExpr);
 
 SAlterTableInfo *  tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableTable);
-SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists);
+SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagNames, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists);
 
 void destroyAllSelectClause(SSubclauseInfo *pSql);
 void doDestroyQuerySql(SQuerySQL *pSql);

@@ -9,6 +9,7 @@ Summary:	tdengine from taosdata
 Group:	  Application/Database
 License:	AGPL
 URL:		  www.taosdata.com
+AutoReqProv: no
 
 #BuildRoot:  %_topdir/BUILDROOT
 BuildRoot:   %{_tmppath}/%{name}-%{version}-%{release}-root 

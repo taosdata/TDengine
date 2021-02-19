@@ -47,6 +47,7 @@ void      *tscRpcCache;            // cache to keep rpc obj
 int32_t   tscNumOfThreads = 1;     // num of rpc threads  
 static    pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently 
 static pthread_once_t tscinit = PTHREAD_ONCE_INIT;
+static volatile int tscInitRes = 0;
 
 void tscCheckDiskUsage(void *UNUSED_PARAM(para), void *UNUSED_PARAM(param)) {
   taosGetDisk();
@@ -137,7 +138,11 @@ void taos_init_imp(void) {
     }
 
     taosReadGlobalCfg();
-    taosCheckGlobalCfg();
+    if (taosCheckGlobalCfg()) {
+      tscInitRes = -1;
+      return;
+    }
+    
     taosInitNotes();
 
     rpcInit();
@@ -159,6 +164,7 @@ void taos_init_imp(void) {
   tscQhandle = taosInitScheduler(queueSize, tscNumOfThreads, "tsc");
   if (NULL == tscQhandle) {
     tscError("failed to init scheduler");
+    tscInitRes = -1;
     return;
   }
 
@@ -187,7 +193,7 @@ void taos_init_imp(void) {
   tscDebug("client is initialized successfully");
 }
 
-void taos_init() { pthread_once(&tscinit, taos_init_imp); }
+int taos_init() {     pthread_once(&tscinit, taos_init_imp);  return tscInitRes;}
 
 // this function may be called by user or system, or by both simultaneously.
 void taos_cleanup(void) {

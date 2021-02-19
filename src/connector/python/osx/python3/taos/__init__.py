@@ -3,11 +3,11 @@ from .connection import TDengineConnection
 from .cursor import TDengineCursor
 
 # Globals
-apilevel = '2.0.4'
 threadsafety = 0
 paramstyle = 'pyformat'
 
 __all__ = ['connection', 'cursor']
+
 
 def connect(*args, **kwargs):
     """ Function to return a TDengine connector object

@@ -217,7 +217,10 @@ int main(int argc, char *argv[]) {
   }
 
   // init TAOS
-  taos_init();
+  if (taos_init()) {
+    printf("failed to init taos\n");
+    exit(1);
+  }
 
   TAOS* taos = taos_connect(host, user, passwd, "", 0);
   if (taos == NULL) {

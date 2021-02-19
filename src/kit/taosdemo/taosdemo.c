@@ -1971,7 +1971,6 @@ static int createSuperTable(TAOS * taos, char* dbName, SSuperTable*  superTbls, 
 static int createDatabases() {
   TAOS * taos = NULL;
   int    ret = 0;
-  taos_init();
   taos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, NULL, g_Dbs.port);
   if (taos == NULL) {
     fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
@@ -4496,7 +4495,6 @@ void *subQueryProcess(void *sarg) {
 
 int queryTestProcess() {
   TAOS * taos = NULL;  
-  taos_init();
   taos = taos_connect(g_queryInfo.host, g_queryInfo.user, g_queryInfo.password, NULL, g_queryInfo.port);
   if (taos == NULL) {
     fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
@@ -4772,7 +4770,6 @@ int subscribeTestProcess() {
   }
 
   TAOS * taos = NULL;  
-  taos_init();
   taos = taos_connect(g_queryInfo.host, g_queryInfo.user, g_queryInfo.password, g_queryInfo.dbName, g_queryInfo.port);
   if (taos == NULL) {
     fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
