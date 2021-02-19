@@ -330,7 +330,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     pSql->cmd.submitSchema = 1;
   }
 
-  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_FETCH || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
+  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
       (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||
        rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
