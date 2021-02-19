@@ -43,7 +43,7 @@ CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAG
 ## <a class="anchor" id="create-table"></a>创建表
 
 TDengine对每个数据采集点需要独立建表。与标准的关系型数据一样，一张表有表名，Schema，但除此之外，还可以带有一到多个标签。创建时，需要使用超级表做模板，同时指定标签的具体值。以表一中的智能电表为例，可以使用如下的SQL命令建表：
-```cmd
+```mysql
 CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);
 ```
 其中d1001是表名，meters是超级表的表名，后面紧跟标签Location的具体标签值”Beijing.Chaoyang"，标签groupId的具体标签值2。虽然在创建表时，需要指定标签值，但可以事后修改。详细细则请见 [TAOS SQL 的表管理](https://www.taosdata.com/cn/documentation/taos-sql#table) 章节。
@@ -54,10 +54,12 @@ TDengine建议将数据采集点的全局唯一ID作为表名(比如设备序列
 
 **自动建表**：在某些特殊场景中，用户在写数据时并不确定某个数据采集点的表是否存在，此时可在写入数据时使用自动建表语法来创建不存在的表，若该表已存在则不会建立新表。比如：
 
-```cmd
+```mysql
 INSERT INTO d1001 USING METERS TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 219, 0.32);
 ```
-上述SQL语句将记录(now, 10.2, 219, 0.32) 插入进表d1001。如果表d1001还未创建，则使用超级表meters做模板自动创建，同时打上标签值“Beijing.Chaoyang", 2。  
+上述SQL语句将记录 (now, 10.2, 219, 0.32) 插入表d1001。如果表d1001还未创建，则使用超级表meters做模板自动创建，同时打上标签值“Beijing.Chaoyang", 2。  
+
+关于自动建表的详细语法请参见 [插入记录时自动建表](https://www.taosdata.com/cn/documentation/taos-sql#auto_create_table) 章节。
 
 ## 多列模型 vs 单列模型
 
