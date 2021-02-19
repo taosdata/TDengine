@@ -1841,7 +1841,7 @@ static void first_dist_function(SQLFunctionCtx *pCtx) {
    * 1. data block that are not loaded
    * 2. scan data files in desc order
    */
-  if (pCtx->order == TSDB_ORDER_DESC || pCtx->preAggVals.dataBlockLoaded == false) {
+  if (pCtx->order == TSDB_ORDER_DESC/* || pCtx->preAggVals.dataBlockLoaded == false*/) {
     return;
   }
   

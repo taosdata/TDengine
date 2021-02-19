@@ -364,6 +364,12 @@ typedef struct STableScanInfo {
   int64_t      elapsedTime;
 } STableScanInfo;
 
+typedef struct STagScanInfo {
+  SQueryRuntimeEnv *pRuntimeEnv;
+  SColumnInfo* pCols;
+  SSDataBlock* pRes;
+} STagScanInfo;
+
 typedef struct SAggOperatorInfo {
   SResultRowInfo    resultRowInfo;
   STableQueryInfo  *pTableQueryInfo;
