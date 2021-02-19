@@ -267,6 +267,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
 
 ## <a class="anchor" id="tags"></a>超级表 STable 中 TAG 管理
+
 - **添加标签**
 
     ```mysql

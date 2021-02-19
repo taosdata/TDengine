@@ -111,6 +111,13 @@ pipeline {
             }
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
+                cp -rf ${WKC}/tests/examples/nodejs ${JENKINS_HOME}/workspace/
+                cd ${JENKINS_HOME}/workspace/nodejs
+                node nodejsChecker.js host=localhost
+                '''
+            }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
                 cd ${JENKINS_HOME}/workspace/C#NET/src/CheckC#
                 dotnet run
                 '''
