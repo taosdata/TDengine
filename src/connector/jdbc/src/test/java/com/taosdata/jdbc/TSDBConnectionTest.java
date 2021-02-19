@@ -5,10 +5,7 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.sql.Connection;
-import java.sql.Driver;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.Properties;
 
 import static org.junit.Assert.*;
@@ -199,47 +196,83 @@ public class TSDBConnectionTest {
     }
 
     @Test
-    public void setClientInfo() {
+    public void setClientInfo() throws SQLClientInfoException {
+        conn.setClientInfo(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        conn.setClientInfo(TSDBDriver.PROPERTY_KEY_CHARSET, "en_US.UTF-8");
+        conn.setClientInfo(TSDBDriver.PROPERTY_KEY_CHARSET, "UTC-8");
     }
 
     @Test
-    public void testSetClientInfo() {
+    public void testSetClientInfo() throws SQLClientInfoException {
+        Properties properties = new Properties();
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+        conn.setClientInfo(properties);
     }
 
     @Test
-    public void getClientInfo() {
+    public void getClientInfo() throws SQLException {
+        conn.setClientInfo(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        conn.setClientInfo(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        conn.setClientInfo(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+
+        Properties info = conn.getClientInfo();
+        String charset = info.getProperty(TSDBDriver.PROPERTY_KEY_CHARSET);
+        Assert.assertEquals("UTF-8", charset);
+        String locale = info.getProperty(TSDBDriver.PROPERTY_KEY_LOCALE);
+        Assert.assertEquals("en_US.UTF-8", charset);
+        String timezone = info.getProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE);
+        Assert.assertEquals("UTC-8", charset);
     }
 
     @Test
-    public void testGetClientInfo() {
+    public void testGetClientInfo() throws SQLException {
+        conn.setClientInfo(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
+        conn.setClientInfo(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
+        conn.setClientInfo(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
+
+        String charset = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_CHARSET);
+        Assert.assertEquals("UTF-8", charset);
+        String locale = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_LOCALE);
+        Assert.assertEquals("en_US.UTF-8", locale);
+        String timezone = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIME_ZONE);
+        Assert.assertEquals("UTC-8", timezone);
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void createArrayOf() throws SQLException {
+        conn.createArrayOf("", null);
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void createStruct() throws SQLException {
+        conn.createStruct("", null);
     }
 
     @Test
-    public void createArrayOf() {
+    public void setSchema() throws SQLException {
+        conn.setSchema("test");
     }
 
     @Test
-    public void createStruct() {
+    public void getSchema() throws SQLException {
+        Assert.assertNull(conn.getSchema());
     }
 
     @Test
-    public void setSchema() {
+    public void abort() throws SQLException {
+        conn.abort(null);
     }
 
-    @Test
-    public void getSchema() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setNetworkTimeout() throws SQLException {
+        conn.setNetworkTimeout(null, 1000);
     }
 
-    @Test
-    public void abort() {
-    }
-
-    @Test
-    public void setNetworkTimeout() {
-    }
-
-    @Test
-    public void getNetworkTimeout() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void getNetworkTimeout() throws SQLException {
+        conn.getNetworkTimeout();
     }
 
     @Test
