@@ -362,24 +362,6 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 **历史记录写入**：可使用IMPORT或者INSERT命令，IMPORT的语法，功能与INSERT完全一样。
 
-## <a class="anchor" id="select"></a>数据查询
-
-### 查询语法：
-
-```mysql
-SELECT select_expr [, select_expr ...]
-    FROM {tb_name_list}
-    [WHERE where_condition]
-    [INTERVAL (interval_val [, interval_offset])]
-    [FILL fill_val]
-    [SLIDING fill_val]
-    [GROUP BY col_list]
-    [ORDER BY col_list { DESC | ASC }]
-    [SLIMIT limit_val [, SOFFSET offset_val]]
-    [LIMIT limit_val [, OFFSET offset_val]]
-    [>> export_file];
-```
-
 说明：针对 insert 类型的 SQL 语句，我们采用的流式解析策略，在发现后面的错误之前，前面正确的部分SQL仍会执行。下面的sql中，insert语句是无效的，但是d1001仍会被创建。
 
 ```mysql
@@ -404,6 +386,24 @@ taos> SHOW TABLES;
 ======================================================================================================
  d1001                          | 2020-08-06 17:52:02.097 |       4 | meters                         |
 Query OK, 1 row(s) in set (0.001091s)
+```
+
+## <a class="anchor" id="select"></a>数据查询
+
+### 查询语法：
+
+```mysql
+SELECT select_expr [, select_expr ...]
+    FROM {tb_name_list}
+    [WHERE where_condition]
+    [INTERVAL (interval_val [, interval_offset])]
+    [FILL fill_val]
+    [SLIDING fill_val]
+    [GROUP BY col_list]
+    [ORDER BY col_list { DESC | ASC }]
+    [SLIMIT limit_val [, SOFFSET offset_val]]
+    [LIMIT limit_val [, OFFSET offset_val]]
+    [>> export_file];
 ```
 
 #### SELECT子句

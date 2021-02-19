@@ -7,8 +7,8 @@ services:
        args:
          - PACKAGE=${PACKAGE}
          - EXTRACTDIR=${DIR}
-     image: 'tdengine:2.0.13.1'
-     container_name: 'td2.0-node4'     
+     image: 'tdengine:${VERSION}'
+     container_name: 'tdnode4'     
      cap_add:
        - ALL
      stdin_open: true
@@ -18,7 +18,15 @@ services:
      command: >
        sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && 
        echo $TZ > /etc/timezone &&
+       mkdir /coredump &&
+       echo 'kernel.core_pattern=/coredump/core_%e_%p' >> /etc/sysctl.conf &&
+       sysctl -p &&
        exec my-main-application"
+     extra_hosts:
+      - "tdnode2:172.27.0.8"
+      - "tdnode3:172.27.0.9"
+      - "tdnode4:172.27.0.10"
+      - "tdnode5:172.27.0.11"
      volumes: 
        # bind data directory
        - type: bind
@@ -32,9 +40,14 @@ services:
        - type: bind
          source: /data/node4/cfg
          target: /etc/taos
+       # bind core dump path
+       - type: bind
+         source: /data/node4/core
+         target: /coredump
        - type: bind
          source: /data
-         target: /root     
+         target: /root  
+     hostname: tdnode4
      networks:
          taos_update_net:
              ipv4_address: 172.27.0.10

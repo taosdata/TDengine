@@ -76,7 +76,11 @@ TAOS *shellInit(SShellArguments *args) {
     args->user = TSDB_DEFAULT_USER;
   }
 
-  taos_init();
+  if (taos_init()) {
+    printf("failed to init taos\n");
+    fflush(stdout);
+    return NULL;
+  }
 
   // Connect to the database.
   TAOS *con = NULL;

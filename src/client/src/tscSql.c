@@ -52,7 +52,9 @@ static bool validPassword(const char* passwd) {
 
 static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
                          uint16_t port, void (*fp)(void *, TAOS_RES *, int), void *param, TAOS **taos) {
-  taos_init();
+  if (taos_init()) {
+    return NULL;
+  }
 
   if (!validUserName(user)) {
     terrno = TSDB_CODE_TSC_INVALID_USER_LENGTH;
