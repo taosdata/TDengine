@@ -31,7 +31,7 @@ class ConnectorChecker:
             numOfRows = self.cl.rowcount
             numOfCols = len(self.cl.description)
             for irow in range(numOfRows):
-                print("Row%d: ts=%s, temperature=%d, humidity=%f" %(irow, data[irow][0], data[irow][1],data[irow][2]))
+                print("Row%d: ts=%s, temperature=%s" %(irow, data[irow][0], data[irow][1]))
         except Exception as e:
             print("Failure sql: %s,exception: %s" %sql,str(e))  
     def execute(self,sql):
@@ -64,7 +64,7 @@ class ConnectorChecker:
         sql="insert into test.weather (ts, temperature, humidity) values(now, 20.5, 34)"
         self.execute(sql)
     def checkSelect(self):
-        sql = "select * from test.weather"
+        sql = "select * from db.tt"
         self.executeQuery(sql)
     def srun(self):
         try:
@@ -97,11 +97,11 @@ def main(argv):
     checker.init()
     checker.sethdt(FQDN,dbname,tbname)
     checker.srun()
-    checker.createDatabase()
-    checker.useDatabase()
-    checker.checkDropTable()
-    checker.createTable()
-    checker.checkInsert()
+    # checker.createDatabase()
+    # checker.useDatabase()
+    # checker.checkDropTable()
+    # checker.createTable()
+    # checker.checkInsert()
     checker.checkSelect()
     checker.checkDropTable()
     checker.close()
