@@ -15,7 +15,7 @@ import os
 import random
 import argparse
 
-class taosdemoxWrapper:
+class taosdemoWrapper:
 
     def __init__(self, host, metadata, database, tables, threads, configDir, replica, 
         columnType, columnsPerTable, rowsPerTable, disorderRatio, disorderRange, charTypeLen):
@@ -35,11 +35,11 @@ class taosdemoxWrapper:
         
     def run(self):
         if self.metadata is None:
-            os.system("taosdemox -h %s -d %s -t %d -T %d -c %s -a %d -b %s -n %d -t %d -O %d -R %d -w %d -x -y" 
+            os.system("taosdemo -h %s -d %s -t %d -T %d -c %s -a %d -b %s -n %d -t %d -O %d -R %d -w %d -x -y" 
             % (self.host, self.database, self.tables, self.threads, self.configDir, self.replica, self.columnType,
             self.rowsPerTable, self.disorderRatio, self.disorderRange, self.charTypeLen))
         else:
-            os.system("taosdemox -f %s" % self.metadata)
+            os.system("taosdemo -f %s" % self.metadata)
 
 
 parser = argparse.ArgumentParser()
@@ -136,7 +136,7 @@ parser.add_argument(
     help='Out of order datas range, ms (default: 16)')
     
 args = parser.parse_args()
-taosdemox = taosdemoxWrapper(args.host_name, args.metadata, args.db_name, args.num_of_tables, 
+taosdemo = taosdemoWrapper(args.host_name, args.metadata, args.db_name, args.num_of_tables, 
         args.num_of_threads, args.config_dir, args.replica, args.column_type, args.num_of_cols, 
         args.num_of_rows, args.disorder_ratio, args.disorder_range, args.char_type_length)
-taosdemox.run()
+taosdemo.run()
