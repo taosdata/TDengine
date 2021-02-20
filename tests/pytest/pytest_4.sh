@@ -31,3 +31,8 @@ python3 ./test.py -f query/last_row_cache.py
 python3 ./test.py -f account/account_create.py
 python3 ./test.py -f alter/alter_table.py
 python3 ./test.py -f query/queryGroupbySort.py
+
+python3 ./test.py -f insert/unsignedInt.py
+python3 ./test.py -f insert/unsignedBigint.py
+python3 ./test.py -f insert/unsignedSmallint.py
+python3 ./test.py -f insert/unsignedTinyint.py
