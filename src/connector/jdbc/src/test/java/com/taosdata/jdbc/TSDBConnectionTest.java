@@ -35,11 +35,18 @@ public class TSDBConnectionTest {
     public void subscribe() {
         try {
             TSDBConnection unwrap = conn.unwrap(TSDBConnection.class);
-            TSDBSubscribe subscribe = unwrap.subscribe("topic1", "select server_status()", false);
+            TSDBSubscribe subscribe = unwrap.subscribe("topic1", "select * from log.log", false);
             TSDBResultSet rs = subscribe.consume();
-            rs.next();
-            int status = rs.getInt("server_status()");
-            Assert.assertEquals(1, status);
+            ResultSetMetaData metaData = rs.getMetaData();
+            while (rs.next()) {
+                for (int i = 1; i <= metaData.getColumnCount(); i++) {
+                    String value = rs.getString(i);
+                    System.out.print(metaData.getColumnLabel(i) + ":" + value + "\t");
+                }
+                System.out.println();
+            }
+            Assert.assertNotNull(rs);
+            subscribe.close(false);
         } catch (SQLException | OperationsException e) {
             e.printStackTrace();
         }
