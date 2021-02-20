@@ -15,6 +15,7 @@ from util.log import *
 from .misc import Logging, CrashGenError, Helper, Dice
 import os
 import datetime
+import traceback
 # from .service_manager import TdeInstance
 
 class DbConn:
@@ -349,6 +350,7 @@ class DbConnNative(DbConn):
 
     def execute(self, sql):
         if (not self.isOpen):
+            traceback.print_stack()
             raise CrashGenError(
                 "Cannot exec SQL unless db connection is open", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))
@@ -361,6 +363,7 @@ class DbConnNative(DbConn):
 
     def query(self, sql):  # return rows affected
         if (not self.isOpen):
+            traceback.print_stack()
             raise CrashGenError(
                 "Cannot query database until connection is open, restarting?", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))

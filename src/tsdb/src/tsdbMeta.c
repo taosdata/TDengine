@@ -50,7 +50,8 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   STable *   super = NULL;
   STable *   table = NULL;
-  int        newSuper = 0;
+  bool       newSuper = false;
+  bool       superChanged = false;
   int        tid = pCfg->tableId.tid;
   STable *   pTable = NULL;
 
@@ -85,13 +86,24 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   if (pCfg->type == TSDB_CHILD_TABLE) {
     super = tsdbGetTableByUid(pMeta, pCfg->superUid);
     if (super == NULL) {  // super table not exists, try to create it
-      newSuper = 1;
+      newSuper = true;
       super = tsdbCreateTableFromCfg(pCfg, true);
       if (super == NULL) goto _err;
     } else {
       if (TABLE_TYPE(super) != TSDB_SUPER_TABLE || TABLE_UID(super) != pCfg->superUid) {
         terrno = TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO;
         goto _err;
+      }
+
+      if (schemaVersion(pCfg->tagSchema) > schemaVersion(super->tagSchema)) {
+        // tag schema out of date, need to update super table tag version
+        STSchema *pOldSchema = super->tagSchema;
+        TSDB_WLOCK_TABLE(super);
+        super->tagSchema = tdDupSchema(pCfg->tagSchema);
+        TSDB_WUNLOCK_TABLE(super);
+        tdFreeSchema(pOldSchema);
+
+        superChanged = true;
       }
     }
   }
@@ -117,7 +129,7 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   // TODO: refactor duplicate codes
   int   tlen = 0;
   void *pBuf = NULL;
-  if (newSuper) {
+  if (newSuper || superChanged) {
     tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, super);
     pBuf = tsdbAllocBytes(pRepo, tlen);
     if (pBuf == NULL) goto _err;

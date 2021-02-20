@@ -711,7 +711,11 @@ int main(int argc, char *argv[]) {
   fprintf(fp, "###################################################################\n\n");
   fprintf(fp, "|  WRecords  | Records/Second | Requests/Second |  WLatency(ms) |\n");
 
-  taos_init();
+  if (taos_init()) {
+    fprintf(stderr, "Failed to init taos\n");
+    return 1;
+  }
+  
   TAOS *taos = taos_connect(ip_addr, user, pass, NULL, port);
   if (taos == NULL) {
     fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
