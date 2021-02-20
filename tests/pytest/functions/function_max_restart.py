@@ -34,7 +34,7 @@ class TDTestCase:
         floatData = []
 
         #tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-        #             col7 bool, col8 binary(20), col9 nchar(20)) tags(loc nchar(20))''')
+        #             col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
         #tdSql.execute("create table test1 using test tags('beijing')")
         for i in range(self.rowNum):
             intData.append(i + 1)            

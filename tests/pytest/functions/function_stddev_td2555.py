@@ -42,15 +42,15 @@ class TDTestCase:
         tdSql.prepare()
 
         tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20)) tags(cid int,gbid binary(20),loc nchar(20))''')
+                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(cid int,gbid binary(20),loc nchar(20))''')
         tdSql.execute("create table test1 using test tags(1,'beijing','北京')")
         tdSql.execute("create table test2 using test tags(2,'shanghai','深圳')")
         tdSql.execute("create table test3 using test tags(2,'shenzhen','深圳')")
         tdSql.execute("create table test4 using test tags(1,'shanghai','上海')")
         for j in range(4):
             for i in range(self.rowNum):
-                tdSql.execute("insert into test%d values(now-%dh, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d')" 
-                            % (j+1,i, i + 1, i + 1, i + 1, i + 1, i + i * 0.1, i * 1.5, i % 2, i + 1, i + 1))                      
+                tdSql.execute("insert into test%d values(now-%dh, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
+                            % (j+1,i, i + 1, i + 1, i + 1, i + 1, i + i * 0.1, i * 1.5, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))                      
 
         # stddev verifacation 
         tdSql.error("select stddev(ts) from test")
