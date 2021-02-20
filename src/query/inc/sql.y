@@ -674,6 +674,8 @@ expr(A) ::= expr(X) GE expr(Y).      {A = tSqlExprCreate(X, Y, TK_GE);}
 expr(A) ::= expr(X) NE expr(Y).      {A = tSqlExprCreate(X, Y, TK_NE);}
 expr(A) ::= expr(X) EQ expr(Y).      {A = tSqlExprCreate(X, Y, TK_EQ);}
 
+expr(A) ::= expr(X) BETWEEN expr(Y) AND expr(Z).      { tSQLExpr* X2 = tSqlExprClone(X); A = tSqlExprCreate(tSqlExprCreate(X, Y, TK_GE), tSqlExprCreate(X2, Z, TK_LE), TK_AND);}
+
 expr(A) ::= expr(X) AND expr(Y).     {A = tSqlExprCreate(X, Y, TK_AND);}
 expr(A) ::= expr(X) OR  expr(Y).     {A = tSqlExprCreate(X, Y, TK_OR); }
 
