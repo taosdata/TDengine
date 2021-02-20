@@ -27,7 +27,6 @@
 
 #ifdef LINUX
   #include "os.h"
-  #include "cJSON.h"
   #include <argp.h>
   #include <assert.h>
   #include <inttypes.h>
@@ -51,11 +50,13 @@
   #include <stdio.h>
   #include "os.h"
   
-  #pragma comment ( lib, "libcurl.lib" )
+  #pragma comment ( lib, "libcurl_a.lib" )
   #pragma comment ( lib, "ws2_32.lib" )
   #pragma comment ( lib, "winmm.lib" )
   #pragma comment ( lib, "wldap32.lib" )  
 #endif  
+
+#include "cJSON.h"
 
 #include "taos.h"
 #include "tutil.h"
@@ -2238,7 +2239,7 @@ int readTagFromCsvFileToMem(SSuperTable  * superTblInfo) {
     return -1;
   }
 
-  while ((readLen = getline(&line, &n, fp)) != -1) {
+  while ((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
       line[--readLen] = 0;
     }
@@ -2292,7 +2293,7 @@ int readSampleFromCsvFileToMem(FILE *fp, SSuperTable* superTblInfo, char* sample
 
   memset(sampleBuf, 0, MAX_SAMPLES_ONCE_FROM_FILE* superTblInfo->lenOfOneRow);
   while (1) {
-    readLen = getline(&line, &n, fp);
+    readLen = tgetline(&line, &n, fp);
     if (-1 == readLen) {
       if(0 != fseek(fp, 0, SEEK_SET)) {
         printf("Failed to fseek file: %s, reason:%s\n", superTblInfo->sampleFile, strerror(errno));
@@ -4350,7 +4351,7 @@ int insertTestProcess() {
     fprintf(g_fpOfInsertResult, "Spent %.4f seconds to create %d tables with %d thread(s)\n\n", end - start, g_totalChildTables, g_Dbs.threadCount);
   }
   
-  usleep(1000*1000);
+  taosMsleep(1000);
 
   // create sub threads for inserting data
   //start = getCurrentTime();
