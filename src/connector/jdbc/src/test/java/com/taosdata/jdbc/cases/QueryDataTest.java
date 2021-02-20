@@ -1,5 +1,6 @@
-package com.taosdata.jdbc;
+package com.taosdata.jdbc.cases;
 
+import com.taosdata.jdbc.TSDBDriver;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

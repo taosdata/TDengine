@@ -47,7 +47,7 @@ public class TSDBConnectionTest {
             }
             Assert.assertNotNull(rs);
             subscribe.close(false);
-        } catch (SQLException | OperationsException e) {
+        } catch (SQLException e) {
             e.printStackTrace();
         }
 
