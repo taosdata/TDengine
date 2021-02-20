@@ -4,7 +4,7 @@ import java.sql.*;
 import java.util.Enumeration;
 import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.Executor;
+import java.util.concurrent.*;
 
 public abstract class AbstractConnection extends WrapperImpl implements Connection {
 
@@ -291,19 +291,37 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
 
     @Override
     public boolean isValid(int timeout) throws SQLException {
+        //true if the connection is valid, false otherwise
         if (isClosed())
             return false;
-        if (timeout < 0)
+        if (timeout < 0)    //SQLException - if the value supplied for timeout is less then 0
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
 
-        int status;
-        try (Statement stmt = createStatement()) {
-            ResultSet resultSet = stmt.executeQuery("select server_status()");
-            resultSet.next();
-            status = resultSet.getInt("server_status()");
-            resultSet.close();
+        ExecutorService executor = Executors.newCachedThreadPool();
+        Future<Boolean> future = executor.submit(() -> {
+            int status;
+            try (Statement stmt = createStatement()) {
+                ResultSet resultSet = stmt.executeQuery("select server_status()");
+                resultSet.next();
+                status = resultSet.getInt("server_status()");
+                resultSet.close();
+            }
+            return status == 1 ? true : false;
+        });
+
+        boolean status = false;
+        try {
+            status = future.get(timeout, TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        } catch (ExecutionException e) {
+            e.printStackTrace();
+        } catch (TimeoutException e) {
+            future.cancel(true);
+        } finally {
+            executor.shutdownNow();
         }
-        return status == 1 ? true : false;
+        return status;
     }
 
     @Override
