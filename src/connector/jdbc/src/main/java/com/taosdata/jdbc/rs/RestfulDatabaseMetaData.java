@@ -1,10 +1,11 @@
 package com.taosdata.jdbc.rs;
 
-import com.taosdata.jdbc.*;
+import com.taosdata.jdbc.AbstractDatabaseMetaData;
+import com.taosdata.jdbc.TSDBConstants;
 
-import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class RestfulDatabaseMetaData extends AbstractDatabaseMetaData {
 
