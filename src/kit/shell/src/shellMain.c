@@ -110,7 +110,10 @@ int main(int argc, char* argv[]) {
   }
 
   if (args.netTestRole && args.netTestRole[0] != 0) {
-    taos_init();
+    if (taos_init()) {
+      printf("Failed to init taos");
+      exit(EXIT_FAILURE);
+    }
     taosNetTest(args.netTestRole, args.host, args.port, args.pktLen);
     exit(0);
   }

@@ -103,7 +103,9 @@ int32_t monInitSystem() {
 }
 
 int32_t monStartSystem() {
-  taos_init();
+  if (taos_init()) {
+    return -1;
+  }
   tsMonitor.start = 1;
   monExecuteSQLFp = monExecuteSQL;
   monInfo("monitor module start");

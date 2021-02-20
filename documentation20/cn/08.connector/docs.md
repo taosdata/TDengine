@@ -24,6 +24,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 * 在没有安装TDengine服务端软件的系统中使用连接器（除RESTful外）访问 TDengine 数据库，需要安装相应版本的客户端安装包来使应用驱动（Linux系统中文件名为libtaos.so，Windows系统中为taos.dll）被安装在系统中，否则会产生无法找到相应库文件的错误。
 * 所有执行 SQL 语句的 API，例如 C/C++ Connector 中的 `tao_query`、`taos_query_a`、`taos_subscribe` 等，以及其它语言中与它们对应的API，每次都只能执行一条 SQL 语句，如果实际参数中包含了多条语句，它们的行为是未定义的。
 * 升级到TDengine到2.0.8.0版本的用户，必须更新JDBC连接TDengine必须升级taos-jdbcdriver到2.0.12及以上。
+* 无论选用何种编程语言的连接器，2.0 及以上版本的 TDengine 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池，以避免连接内的“USE statement”状态量在线程之间相互干扰（但连接的查询和写入操作都是线程安全的）。
 
 ## <a class="anchor" id="driver"></a>安装连接器驱动步骤
 
@@ -238,13 +239,13 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
   获取查询结果集每列数据的属性（数据类型、名字、字节数），与taos_num_fileds配合使用，可用来解析`taos_fetch_row`返回的一个元组(一行)的数据。 `TAOS_FIELD` 的结构如下：
 
-  ```c
-  typedef struct taosField {
-    char     name[65];  // 列名
-    uint8_t  type;      // 数据类型
-    int16_t  bytes;     // 字节数
-  } TAOS_FIELD;
-  ```
+```c
+typedef struct taosField {
+  char     name[65];  // 列名
+  uint8_t  type;      // 数据类型
+  int16_t  bytes;     // 字节数
+} TAOS_FIELD;
+```
 
 - `void taos_stop_query(TAOS_RES *res)`
 
@@ -266,7 +267,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 ### 异步查询API
 
-同步API之外，TDengine还提供性能更高的异步调用API处理数据插入、查询操作。在软硬件环境相同的情况下，异步API处理数据插入的速度比同步API快2\~4倍。异步API采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步API在网络延迟严重的情况下，优点尤为突出。
+同步API之外，TDengine还提供性能更高的异步调用API处理数据插入、查询操作。在软硬件环境相同的情况下，异步API处理数据插入的速度比同步API快2～4倍。异步API采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步API在网络延迟严重的情况下，优点尤为突出。
 
 异步API都需要应用提供相应的回调函数，回调函数参数设置如下：前两个参数都是一致的，第三个参数依不同的API而定。第一个参数param是应用调用异步API时提供给系统的，用于回调时，应用能够找回具体操作的上下文，依具体实现而定。第二个参数是SQL操作的结果集，如果为空，比如insert操作，表示没有记录返回，如果不为空，比如select操作，表示有记录返回。
 
@@ -896,7 +897,7 @@ Node-example-raw.js
 
 验证方法：
 
-1. 新建安装验证目录，例如：\~/tdengine-test，拷贝github上nodejsChecker.js源程序。下载地址：（https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）。
+1. 新建安装验证目录，例如：`~/tdengine-test`，拷贝github上nodejsChecker.js源程序。下载地址：（https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）。
 
 2. 在命令中执行以下命令：
 

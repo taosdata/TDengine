@@ -57,8 +57,8 @@ function runGeneralCaseOneByOne {
 
 			if [ -n "$case" ]; then
 				date +%F\ %T | tee -a  $TDENGINE_COVERAGE_REPORT  && ./test.sh -f $case > /dev/null 2>&1 && \
-                ( grep -q 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN}$case success${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT ) \
-                || echo -e "${RED}$case failed${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT
+				( grep -q 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN}$case success${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT ) \
+				|| echo -e "${RED}$case failed${NC}" | tee -a  $TDENGINE_COVERAGE_REPORT
 			fi
 		fi
 	done < $1
