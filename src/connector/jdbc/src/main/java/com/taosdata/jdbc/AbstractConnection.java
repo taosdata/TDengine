@@ -311,13 +311,17 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
 
         boolean status = false;
         try {
-            status = future.get(timeout, TimeUnit.MILLISECONDS);
+            if (timeout == 0)
+                status = future.get();
+            else
+                status = future.get(timeout, TimeUnit.SECONDS);
         } catch (InterruptedException e) {
             e.printStackTrace();
         } catch (ExecutionException e) {
             e.printStackTrace();
         } catch (TimeoutException e) {
             future.cancel(true);
+            status = false;
         } finally {
             executor.shutdownNow();
         }

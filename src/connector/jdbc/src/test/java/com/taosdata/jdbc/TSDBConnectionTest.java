@@ -194,7 +194,7 @@ public class TSDBConnectionTest {
 
     @Test
     public void isValid() throws SQLException {
-        Assert.assertTrue(conn.isValid(1000));
+        Assert.assertTrue(conn.isValid(5));
         conn.isValid(0);
     }
 
