@@ -49,17 +49,17 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
-        os.system("yes | %staosdemo -t %d -n %d -x" % (binPath,self.numberOfTables, self.numberOfRecords))
+        os.system("%staosdemo -y -M -t %d -n %d -x" % (binPath,self.numberOfTables, self.numberOfRecords))
 
         tdSql.execute("use test")
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, self.numberOfTables * self.numberOfRecords)
 
-        tdSql.query("select sum(f1) from test.meters interval(1h) sliding(30m)")
+        tdSql.query("select sum(col1) from test.meters interval(1h) sliding(30m)")
         tdSql.checkRows(2)
 
-        tdSql.query("select apercentile(f1, 1) from test.meters interval(10s)")
-        tdSql.checkRows(11)
+        tdSql.query("select apercentile(col1, 1) from test.meters interval(10s)")
+        tdSql.checkRows(1)
 
         tdSql.error("select loc, count(loc) from test.meters")
 
