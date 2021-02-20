@@ -93,8 +93,13 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     public void setCatalog(String catalog) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
-        this.catalog = catalog;
+        try (Statement stmt = createStatement()) {
+            boolean execute = stmt.execute("use " + catalog);
+            if (execute)
+                this.catalog = catalog;
+        } catch (SQLException e) {
+            // do nothing
+        }
     }
 
     @Override
