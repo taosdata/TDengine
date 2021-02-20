@@ -22,7 +22,8 @@ function runSimCaseOneByOne {
 			case=`echo $line | grep sim$ |awk '{print $NF}'`
       IN_TDINTERNAL="community"
       start_time=`date +%s`
-       IN_TDINTERNAL="community"
+      IN_TDINTERNAL="community"
+      date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
         ./test.sh -f $case > /dev/null 2>&1 && \
@@ -53,6 +54,7 @@ function runSimCaseOneByOnefq {
 
       start_time=`date +%s`
       IN_TDINTERNAL="community"
+      date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
         ./test.sh -f $case > /dev/null 2>&1 && \
@@ -94,6 +96,7 @@ function runPyCaseOneByOne {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
+        date +%F\ %T | tee -a pytest-out.log
         echo -n $case
         $line > /dev/null 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
@@ -122,6 +125,7 @@ function runPyCaseOneByOnefq {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
+        date +%F\ %T | tee -a pytest-out.log
         echo -n $case
         $line > /dev/null 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
