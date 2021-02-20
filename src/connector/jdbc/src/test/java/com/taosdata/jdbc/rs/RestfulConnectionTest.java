@@ -37,28 +37,6 @@ public class RestfulConnectionTest {
     }
 
     @Test
-    public void subscribe() {
-        try {
-            TSDBConnection unwrap = conn.unwrap(TSDBConnection.class);
-            TSDBSubscribe subscribe = unwrap.subscribe("topic1", "select * from log.log", false);
-            TSDBResultSet rs = subscribe.consume();
-            ResultSetMetaData metaData = rs.getMetaData();
-            for (int count = 0; count < 10 && rs.next(); count++) {
-                for (int i = 1; i <= metaData.getColumnCount(); i++) {
-                    String value = rs.getString(i);
-                    System.out.print(metaData.getColumnLabel(i) + ":" + value + "\t");
-                }
-                System.out.println();
-            }
-            Assert.assertNotNull(rs);
-            subscribe.close(false);
-        } catch (SQLException | OperationsException e) {
-            e.printStackTrace();
-        }
-
-    }
-
-    @Test
     public void prepareStatement() throws SQLException {
         PreparedStatement pstmt = conn.prepareStatement("select server_status()");
         ResultSet rs = pstmt.executeQuery();
