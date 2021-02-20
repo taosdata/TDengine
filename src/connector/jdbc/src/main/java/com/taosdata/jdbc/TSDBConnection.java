@@ -142,8 +142,9 @@ public class TSDBConnection extends AbstractConnection {
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
-    public boolean isValid(int timeout) throws SQLException {
-        return !this.isClosed();
-    }
+//    @Override
+//    public boolean isValid(int timeout) throws SQLException {
+//        return !this.isClosed();
+//    }
 
 }

@@ -357,9 +357,8 @@ public class RestfulConnection implements Connection {
     public boolean isValid(int timeout) throws SQLException {
         if (timeout < 0)
             throw new SQLException(TSDBConstants.INVALID_VARIABLES);
-        // TODO:
-        /* The driver shall submit a query on the connection or use some other mechanism that positively verifies
-         the connection is still valid when this method is called.*/
+        // TODO: The driver shall submit a query on the connection or use some other mechanism
+        //  that positively verifies the connection is still valid when this method is called.
         return !isClosed();
     }
 

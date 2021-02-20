@@ -290,7 +290,21 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     }
 
     @Override
-    public abstract boolean isValid(int timeout) throws SQLException;
+    public boolean isValid(int timeout) throws SQLException {
+        if (isClosed())
+            return false;
+        if (timeout < 0)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+
+        int status;
+        try (Statement stmt = createStatement()) {
+            ResultSet resultSet = stmt.executeQuery("select server_status()");
+            resultSet.next();
+            status = resultSet.getInt("server_status()");
+            resultSet.close();
+        }
+        return status == 1 ? true : false;
+    }
 
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {

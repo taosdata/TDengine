@@ -187,12 +187,15 @@ public class TSDBConnectionTest {
     public void createNClob() {
     }
 
-    @Test
-    public void createSQLXML() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void createSQLXML() throws SQLException {
+        conn.createSQLXML();
     }
 
     @Test
-    public void isValid() {
+    public void isValid() throws SQLException {
+        Assert.assertTrue(conn.isValid(1000));
+        conn.isValid(0);
     }
 
     @Test
