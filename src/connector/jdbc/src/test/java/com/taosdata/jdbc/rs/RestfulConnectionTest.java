@@ -15,7 +15,7 @@ import java.util.Properties;
 
 public class RestfulConnectionTest {
 
-//    private static final String host = "127.0.0.1";
+    //    private static final String host = "127.0.0.1";
     private static final String host = "master";
     private static Connection conn;
 
@@ -113,7 +113,7 @@ public class RestfulConnectionTest {
     public void getMetaData() throws SQLException {
         DatabaseMetaData meta = conn.getMetaData();
         Assert.assertNotNull(meta);
-        Assert.assertEquals("com.taosdata.jdbc.TSDBDriver", meta.getDriverName());
+        Assert.assertEquals("com.taosdata.jdbc.rs.RestfulDriver", meta.getDriverName());
     }
 
     @Test
@@ -238,7 +238,7 @@ public class RestfulConnectionTest {
         int status = rs.getInt("server_status()");
         Assert.assertEquals(1, status);
 
-        conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -393,7 +393,7 @@ public class RestfulConnectionTest {
 
     @Test
     public void isWrapperFor() throws SQLException {
-        Assert.assertTrue(conn.isWrapperFor(TSDBConnection.class));
+        Assert.assertTrue(conn.isWrapperFor(RestfulConnection.class));
     }
 
     @BeforeClass
