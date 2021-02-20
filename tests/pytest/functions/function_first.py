@@ -52,6 +52,18 @@ class TDTestCase:
         tdSql.query("select first(col4) from test1")
         tdSql.checkRows(0)
 
+        tdSql.query("select first(col11) from test1")
+        tdSql.checkRows(0)        
+
+        tdSql.query("select first(col12) from test1")
+        tdSql.checkRows(0)
+
+        tdSql.query("select first(col13) from test1")
+        tdSql.checkRows(0)
+
+        tdSql.query("select first(col14) from test1")
+        tdSql.checkRows(0)
+
         tdSql.query("select first(col5) from test1")
         tdSql.checkRows(0)
 
@@ -88,6 +100,22 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
 
         tdSql.query("select first(col4) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query("select first(col11) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query("select first(col12) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query("select first(col13) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query("select first(col14) from test1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
