@@ -981,9 +981,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrap
         return getEmptyResultSet();
     }
 
-    public Connection getConnection() throws SQLException {
-        return null;
-    }
+    public abstract Connection getConnection() throws SQLException;
 
     public boolean supportsSavepoints() throws SQLException {
         return false;
