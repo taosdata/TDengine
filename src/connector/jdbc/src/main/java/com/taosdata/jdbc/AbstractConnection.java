@@ -137,10 +137,57 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     }
 
     @Override
-    public abstract Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException;
+    public Statement createStatement(int resultSetType, int resultSetConcurrency) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+
+        switch (resultSetType) {
+            case ResultSet.TYPE_FORWARD_ONLY:
+                break;
+            case ResultSet.TYPE_SCROLL_INSENSITIVE:
+            case ResultSet.TYPE_SCROLL_SENSITIVE:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+            default:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        }
+
+        switch (resultSetConcurrency) {
+            case ResultSet.CONCUR_READ_ONLY:
+                break;
+            case ResultSet.CONCUR_UPDATABLE:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+            default:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        }
+
+        return createStatement();
+    }
 
     @Override
-    public abstract PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException;
+    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+
+        switch (resultSetType) {
+            case ResultSet.TYPE_FORWARD_ONLY:
+                break;
+            case ResultSet.TYPE_SCROLL_INSENSITIVE:
+            case ResultSet.TYPE_SCROLL_SENSITIVE:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+            default:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        }
+
+        switch (resultSetConcurrency) {
+            case ResultSet.CONCUR_READ_ONLY:
+                break;
+            case ResultSet.CONCUR_UPDATABLE:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+            default:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        }
+        return prepareStatement(sql);
+    }
 
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency) throws SQLException {
@@ -170,6 +217,15 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     public void setHoldability(int holdability) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+
+        switch (holdability) {
+            case ResultSet.HOLD_CURSORS_OVER_COMMIT:
+                break;
+            case ResultSet.CLOSE_CURSORS_AT_COMMIT:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+            default:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        }
         //do nothing
     }
 
@@ -214,10 +270,38 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     }
 
     @Override
-    public abstract Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException;
+    public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+
+        switch (resultSetHoldability) {
+            case ResultSet.HOLD_CURSORS_OVER_COMMIT:
+                break;
+            case ResultSet.CLOSE_CURSORS_AT_COMMIT:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+            default:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        }
+
+        return createStatement(resultSetType, resultSetConcurrency);
+    }
 
     @Override
-    public abstract PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException;
+    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability)
+            throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+
+        switch (resultSetHoldability) {
+            case ResultSet.HOLD_CURSORS_OVER_COMMIT:
+                break;
+            case ResultSet.CLOSE_CURSORS_AT_COMMIT:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+            default:
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        }
+        return prepareStatement(sql, resultSetType, resultSetConcurrency);
+    }
 
     @Override
     public CallableStatement prepareCall(String sql, int resultSetType, int resultSetConcurrency, int resultSetHoldability) throws SQLException {
@@ -231,14 +315,14 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     public PreparedStatement prepareStatement(String sql, int autoGeneratedKeys) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+
         switch (autoGeneratedKeys) {
             case Statement.RETURN_GENERATED_KEYS:
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
             case Statement.NO_GENERATED_KEYS:
                 break;
         }
-
-        return prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+        return prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
     }
 
     @Override

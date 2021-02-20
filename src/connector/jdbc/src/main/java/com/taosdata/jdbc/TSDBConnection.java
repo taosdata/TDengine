@@ -23,6 +23,14 @@ public class TSDBConnection extends AbstractConnection {
     private TSDBDatabaseMetaData databaseMetaData;
     private boolean batchFetch;
 
+    public Boolean getBatchFetch() {
+        return this.batchFetch;
+    }
+
+    public void setBatchFetch(Boolean batchFetch) {
+        this.batchFetch = batchFetch;
+    }
+
     public TSDBConnection(Properties info, TSDBDatabaseMetaData meta) throws SQLException {
         this.databaseMetaData = meta;
         connect(info.getProperty(TSDBDriver.PROPERTY_KEY_HOST),
@@ -103,48 +111,5 @@ public class TSDBConnection extends AbstractConnection {
         }
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
-
-    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency)
-            throws SQLException {
-        // This method is implemented in the current way to support Spark
-        if (resultSetType != ResultSet.TYPE_FORWARD_ONLY) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
-        }
-
-        if (resultSetConcurrency != ResultSet.CONCUR_READ_ONLY) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
-        }
-
-        return this.prepareStatement(sql);
-    }
-
-    public Boolean getBatchFetch() {
-        return this.batchFetch;
-    }
-
-    public void setBatchFetch(Boolean batchFetch) {
-        this.batchFetch = batchFetch;
-    }
-
-    public Statement createStatement(int resultSetType, int resultSetConcurrency, int resultSetHoldability)
-            throws SQLException {
-        if (isClosed()) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-        }
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-    public PreparedStatement prepareStatement(String sql, int resultSetType, int resultSetConcurrency,
-                                              int resultSetHoldability) throws SQLException {
-        if (isClosed()) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-        }
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
-
-//    @Override
-//    public boolean isValid(int timeout) throws SQLException {
-//        return !this.isClosed();
-//    }
 
 }
