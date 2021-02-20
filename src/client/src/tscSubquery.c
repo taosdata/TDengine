@@ -1981,7 +1981,8 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   // set the parameters for the second round query process
   SSqlCmd    *pPCmd   = &pParent->cmd;
   SQueryInfo *pQueryInfo1 = tscGetQueryInfoDetail(pPCmd, 0);
-
+  int32_t resRows = pSup->numOfRows;
+  
   if (pSup->numOfRows > 0) {
     SBufferWriter bw = tbufInitWriter(NULL, false);
     interResToBinary(&bw, pSup->pResult, pSup->tagLen);
@@ -1998,6 +1999,20 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   tfree(pSup);
 
   taos_free_result(pSql);
+
+/*
+  if (pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+    pParent->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    (*pParent->fp)(pParent->param, pParent, 0);
+    return;
+  }
+*/
+
+  if (resRows == 0) {
+    pParent->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    (*pParent->fp)(pParent->param, pParent, 0);
+    return;
+  }
 
   pQueryInfo1->round = 1;
   tscDoQuery(pParent);
@@ -2510,6 +2525,14 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   tscFreeRetrieveSup(pSql);
 
   // set the command flag must be after the semaphore been correctly set.
+  /*
+  if (pParentSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
+  } else {
+    pParentSql->res.completed = true;
+  }
+  */
+
   pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
   if (pParentSql->res.code == TSDB_CODE_SUCCESS) {
     (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
