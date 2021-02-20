@@ -152,6 +152,14 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
     以指定的超级表为模板，指定 tags 的值来创建数据表。
 
+- **以超级表为模板创建数据表，并指定具体的 tags 列**
+
+    ```mysql
+    CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...);
+    ```
+    以指定的超级表为模板，指定一部分 tags 列的值来创建数据表。（没被指定的 tags 列会设为空值。）  
+    说明：从 2.0.17 版本开始支持这种方式。在之前的版本中，不允许指定 tags 列，而必须显式给出所有 tags 列的取值。
+
 - **批量创建数据表**
 
     ```mysql
@@ -306,7 +314,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 - **插入一条记录，数据对应到指定的列**
     ```mysql
-    INSERT INTO tb_name (field1_name, ...) VALUES (field1_value, ...)
+    INSERT INTO tb_name (field1_name, ...) VALUES (field1_value1, ...);
     ```
     向表tb_name中插入一条记录，数据对应到指定的列。SQL语句中没有出现的列，数据库将自动填充为NULL。主键（时间戳）不能为NULL。
 
@@ -340,25 +348,19 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     1) 如果时间戳为0，系统将自动使用服务器当前时间作为该记录的时间戳；
     2) 允许插入的最老记录的时间戳，是相对于当前服务器时间，减去配置的keep值（数据保留的天数），允许插入的最新记录的时间戳，是相对于当前服务器时间，加上配置的days值（数据文件存储数据的时间跨度，单位为天）。keep和days都是可以在创建数据库时指定的，缺省值分别是3650天和10天。
 
+- <a class="anchor" id="auto_create_table"></a>**插入记录时自动建表**
+    ```mysql
+    INSERT INTO tb_name USING stb_name TAGS (tag_value1, ...) VALUES (field_value1, ...);
+    ```
+    如果用户在写数据时并不确定某个表是否存在，此时可以在写入数据时使用自动建表语法来创建不存在的表，若该表已存在则不会建立新表。自动建表时，要求必须以超级表为模板，并写明数据表的 tags 取值。
+
+- **插入记录时自动建表，并指定具体的 tags 列**
+    ```mysql
+    INSERT INTO tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...) VALUES (field_value1, ...);
+    ```
+    在自动建表时，可以只是指定部分 tags 列的取值，未被指定的 tags 列将取为空值。
+
 **历史记录写入**：可使用IMPORT或者INSERT命令，IMPORT的语法，功能与INSERT完全一样。
-
-## <a class="anchor" id="select"></a>数据查询
-
-### 查询语法：
-
-```mysql
-SELECT select_expr [, select_expr ...]
-    FROM {tb_name_list}
-    [WHERE where_condition]
-    [INTERVAL (interval_val [, interval_offset])]
-    [FILL fill_val]
-    [SLIDING fill_val]
-    [GROUP BY col_list]
-    [ORDER BY col_list { DESC | ASC }]
-    [SLIMIT limit_val [, SOFFSET offset_val]]
-    [LIMIT limit_val [, OFFSET offset_val]]
-    [>> export_file]
-```
 
 说明：针对 insert 类型的 SQL 语句，我们采用的流式解析策略，在发现后面的错误之前，前面正确的部分SQL仍会执行。下面的sql中，insert语句是无效的，但是d1001仍会被创建。
 
@@ -384,6 +386,24 @@ taos> SHOW TABLES;
 ======================================================================================================
  d1001                          | 2020-08-06 17:52:02.097 |       4 | meters                         |
 Query OK, 1 row(s) in set (0.001091s)
+```
+
+## <a class="anchor" id="select"></a>数据查询
+
+### 查询语法：
+
+```mysql
+SELECT select_expr [, select_expr ...]
+    FROM {tb_name_list}
+    [WHERE where_condition]
+    [INTERVAL (interval_val [, interval_offset])]
+    [FILL fill_val]
+    [SLIDING fill_val]
+    [GROUP BY col_list]
+    [ORDER BY col_list { DESC | ASC }]
+    [SLIMIT limit_val [, SOFFSET offset_val]]
+    [LIMIT limit_val [, OFFSET offset_val]]
+    [>> export_file];
 ```
 
 #### SELECT子句
