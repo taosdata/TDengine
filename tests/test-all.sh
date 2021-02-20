@@ -21,8 +21,7 @@ function runSimCaseOneByOne {
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
 			case=`echo $line | grep sim$ |awk '{print $NF}'`
       IN_TDINTERNAL="community"
-      start_time=`date +%s`
-      IN_TDINTERNAL="community"
+      start_time=`date +%s`      
       date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
