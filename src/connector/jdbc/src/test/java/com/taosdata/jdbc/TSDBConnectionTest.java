@@ -38,7 +38,7 @@ public class TSDBConnectionTest {
             TSDBSubscribe subscribe = unwrap.subscribe("topic1", "select * from log.log", false);
             TSDBResultSet rs = subscribe.consume();
             ResultSetMetaData metaData = rs.getMetaData();
-            while (rs.next()) {
+            for (int count = 0; count < 10 && rs.next(); count++) {
                 for (int i = 1; i <= metaData.getColumnCount(); i++) {
                     String value = rs.getString(i);
                     System.out.print(metaData.getColumnLabel(i) + ":" + value + "\t");
