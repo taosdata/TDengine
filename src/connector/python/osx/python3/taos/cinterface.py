@@ -67,13 +67,13 @@ def _crow_tinyint_unsigned_to_python(
         return [
             None if ele == FieldType.C_TINYINT_UNSIGNED_NULL else ele for ele in ctypes.cast(
                 data, ctypes.POINTER(
-                    ctypes.c_byte))[
+                    ctypes.c_ubyte))[
                 :abs(num_of_rows)]]
     else:
         return [
             None if ele == FieldType.C_TINYINT_UNSIGNED_NULL else ele for ele in ctypes.cast(
                 data, ctypes.POINTER(
-                    ctypes.c_byte))[
+                    ctypes.c_ubyte))[
                 :abs(num_of_rows)]]
 
 
@@ -102,13 +102,13 @@ def _crow_smallint_unsigned_to_python(
         return [
             None if ele == FieldType.C_SMALLINT_UNSIGNED_NULL else ele for ele in ctypes.cast(
                 data, ctypes.POINTER(
-                    ctypes.c_short))[
+                    ctypes.c_ushort))[
                 :abs(num_of_rows)]]
     else:
         return [
             None if ele == FieldType.C_SMALLINT_UNSIGNED_NULL else ele for ele in ctypes.cast(
                 data, ctypes.POINTER(
-                    ctypes.c_short))[
+                    ctypes.c_ushort))[
                 :abs(num_of_rows)]]
 
 
@@ -130,13 +130,13 @@ def _crow_int_unsigned_to_python(data, num_of_rows, nbytes=None, micro=False):
         return [
             None if ele == FieldType.C_INT_UNSIGNED_NULL else ele for ele in ctypes.cast(
                 data, ctypes.POINTER(
-                    ctypes.c_int))[
+                    ctypes.c_uint))[
                 :abs(num_of_rows)]]
     else:
         return [
             None if ele == FieldType.C_INT_UNSIGNED_NULL else ele for ele in ctypes.cast(
                 data, ctypes.POINTER(
-                    ctypes.c_int))[
+                    ctypes.c_uint))[
                 :abs(num_of_rows)]]
 
 
@@ -162,13 +162,13 @@ def _crow_bigint_unsigned_to_python(
         return [
             None if ele == FieldType.C_BIGINT_UNSIGNED_NULL else ele for ele in ctypes.cast(
                 data, ctypes.POINTER(
-                    ctypes.c_long))[
+                    ctypes.c_ulong))[
                 :abs(num_of_rows)]]
     else:
         return [
             None if ele == FieldType.C_BIGINT_UNSIGNED_NULL else ele for ele in ctypes.cast(
                 data, ctypes.POINTER(
-                    ctypes.c_long))[
+                    ctypes.c_ulong))[
                 :abs(num_of_rows)]]
 
 

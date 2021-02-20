@@ -26,7 +26,7 @@ class TDTestCase:
         tdSql.prepare()
 
         ret = tdSql.execute(
-            'create table tb (ts timestamp, speed int unsigned)')
+            'create table tb (ts timestamp, speed tinyint unsigned)')
 
         insertRows = 10
         tdLog.info("insert %d rows" % (insertRows))
@@ -38,11 +38,11 @@ class TDTestCase:
         tdLog.info("insert earlier data")
         tdSql.execute('insert into tb values (now - 5m , 10)')
         tdSql.execute('insert into tb values (now - 6m , 10)')
-        tdSql.execute('insert into tb values (now - 7m , 10)')
-        tdSql.execute('insert into tb values (now - 8m , 4294967294)')
+        tdSql.execute('insert into tb values (now - 7m , NULL)')
+        tdSql.execute('insert into tb values (now - 8m , 254)')
 
         tdSql.error('insert into tb values (now - 9m, -1)')
-        tdSql.error('insert into tb values (now - 9m, 4294967295)')
+        tdSql.error('insert into tb values (now - 9m, 255)')
 
         tdSql.query("select * from tb")
         tdSql.checkRows(insertRows + 4)
