@@ -384,8 +384,8 @@ public class RestfulConnectionTest {
     @Test
     public void unwrap() {
         try {
-            TSDBConnection tsdbConnection = conn.unwrap(TSDBConnection.class);
-            Assert.assertNotNull(tsdbConnection);
+            RestfulConnection restfulConnection = conn.unwrap(RestfulConnection.class);
+            Assert.assertNotNull(restfulConnection);
         } catch (SQLException e) {
             e.printStackTrace();
         }

@@ -10,8 +10,8 @@ import java.sql.*;
 import java.util.Properties;
 
 public class RestfulDatabaseMetaDataTest {
-    private static final String host = "master";
-    //    private static final String host = "127.0.0.1";
+    //    private static final String host = "master";
+    private static final String host = "127.0.0.1";
     private static final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
     private static Connection connection;
     private static RestfulDatabaseMetaData metaData;
