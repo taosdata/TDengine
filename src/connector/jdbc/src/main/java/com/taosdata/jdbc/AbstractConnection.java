@@ -109,6 +109,18 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     public void setTransactionIsolation(int level) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+
+        switch (level) {
+            case Connection.TRANSACTION_NONE:
+                break;
+            case Connection.TRANSACTION_READ_UNCOMMITTED:
+            case Connection.TRANSACTION_READ_COMMITTED:
+            case Connection.TRANSACTION_REPEATABLE_READ:
+            case Connection.TRANSACTION_SERIALIZABLE:
+                throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+            default:
+                throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+        }
         //do nothing
     }
 

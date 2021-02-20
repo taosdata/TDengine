@@ -122,6 +122,7 @@ public class TSDBConnectionTest {
 
     @Test
     public void getCatalog() throws SQLException {
+        conn.setCatalog("log");
         Assert.assertEquals("log", conn.getCatalog());
     }
 
@@ -129,7 +130,6 @@ public class TSDBConnectionTest {
     public void setTransactionIsolation() throws SQLException {
         conn.setTransactionIsolation(Connection.TRANSACTION_NONE);
         Assert.assertEquals(Connection.TRANSACTION_NONE, conn.getTransactionIsolation());
-
         conn.setTransactionIsolation(Connection.TRANSACTION_READ_UNCOMMITTED);
     }
 
@@ -238,7 +238,7 @@ public class TSDBConnectionTest {
         int status = rs.getInt("server_status()");
         Assert.assertEquals(1, status);
 
-        conn.prepareStatement("select server_status", ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        conn.prepareStatement("select server_status", ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
