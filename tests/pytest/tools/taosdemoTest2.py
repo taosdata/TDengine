@@ -31,7 +31,7 @@ class TDTestCase:
 
     def insertDataAndAlterTable(self, threadID):
         if(threadID == 0):
-            os.system("taosdemo -y -t %d -n %d -x" %
+            os.system("taosdemo -M -y -t %d -n %d -x" %
                       (self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
             time.sleep(2)
@@ -54,10 +54,10 @@ class TDTestCase:
                 if(rows > 0):
                     break
                 time.sleep(1)
-            print("alter table test.meters add column f4 int")
-            tdSql.execute("alter table test.meters add column f4 int")
-            print("insert into test.t0 values (now, 1, 2, 3, 4)")
-            tdSql.execute("insert into test.t0 values (now, 1, 2, 3, 4)")
+            print("alter table test.meters add column col10 int")
+            tdSql.execute("alter table test.meters add column col10 int")
+            print("insert into test.t0 values (now, 1, 2, 3, 4, 0.1, 0.01,'test', '测试', TRUE, 1610000000000, 0)")
+            tdSql.execute("insert into test.t0 values (now, 1, 2, 3, 4, 0.1, 0.01,'test', '测试', TRUE, 1610000000000, 0)")
 
     def run(self):
         tdSql.prepare()
