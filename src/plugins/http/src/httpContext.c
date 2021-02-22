@@ -154,7 +154,9 @@ void httpReleaseContext(HttpContext *pContext, bool clearRes) {
   }
 
   if (clearRes) {
-    httpClearParser(pContext->parser);
+    if (pContext->parser) {
+      httpClearParser(pContext->parser);
+    }
     memset(&pContext->singleCmd, 0, sizeof(HttpSqlCmd));
   }
 
