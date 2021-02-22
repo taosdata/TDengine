@@ -4,6 +4,8 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.AbstractStatement;
 import com.taosdata.jdbc.TSDBConstants;
+import com.taosdata.jdbc.TSDBError;
+import com.taosdata.jdbc.TSDBErrorNumbers;
 import com.taosdata.jdbc.rs.util.HttpClientPoolUtil;
 import com.taosdata.jdbc.utils.SqlSyntaxValidator;
 
@@ -63,9 +65,9 @@ public class RestfulStatement extends AbstractStatement {
     @Override
     public ResultSet executeQuery(String sql) throws SQLException {
         if (isClosed())
-            throw new SQLException("statement already closed");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
-            throw new SQLException("not a valid sql for executeQuery: " + sql);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "not a valid sql for executeQuery: " + sql);
 
         final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
         if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
@@ -73,7 +75,7 @@ public class RestfulStatement extends AbstractStatement {
         }
 
         if (this.database == null || this.database.isEmpty())
-            throw new SQLException("Database not specified or available");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
         HttpClientPoolUtil.execute(url, "use " + this.database);
         return executeOneQuery(url, sql);
     }
@@ -81,9 +83,9 @@ public class RestfulStatement extends AbstractStatement {
     @Override
     public int executeUpdate(String sql) throws SQLException {
         if (isClosed())
-            throw new SQLException("statement already closed");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         if (!SqlSyntaxValidator.isValidForExecuteUpdate(sql))
-            throw new SQLException("not a valid sql for executeUpdate: " + sql);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "not a valid sql for executeUpdate: " + sql);
 
         final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
         if (SqlSyntaxValidator.isDatabaseUnspecifiedUpdate(sql)) {
@@ -91,7 +93,8 @@ public class RestfulStatement extends AbstractStatement {
         }
 
         if (this.database == null || this.database.isEmpty())
-            throw new SQLException("Database not specified or available");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
+
         HttpClientPoolUtil.execute(url, "use " + this.database);
         return executeOneUpdate(url, sql);
     }
@@ -107,9 +110,9 @@ public class RestfulStatement extends AbstractStatement {
     @Override
     public boolean execute(String sql) throws SQLException {
         if (isClosed())
-            throw new SQLException("Invalid method call on a closed statement.");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         if (!SqlSyntaxValidator.isValidForExecute(sql))
-            throw new SQLException("not a valid sql for execute: " + sql);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE, "not a valid sql for execute: " + sql);
 
         //如果执行了use操作应该将当前Statement的catalog设置为新的database
         final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
@@ -134,7 +137,7 @@ public class RestfulStatement extends AbstractStatement {
 
     private ResultSet executeOneQuery(String url, String sql) throws SQLException {
         if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
-            throw new SQLException("not a select sql for executeQuery: " + sql);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "not a valid sql for executeQuery: " + sql);
 
         // row data
         String result = HttpClientPoolUtil.execute(url, sql);
@@ -165,7 +168,7 @@ public class RestfulStatement extends AbstractStatement {
 
     private int executeOneUpdate(String url, String sql) throws SQLException {
         if (!SqlSyntaxValidator.isValidForExecuteUpdate(sql))
-            throw new SQLException("not a valid sql for executeUpdate: " + sql);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "not a valid sql for executeUpdate: " + sql);
 
         String result = HttpClientPoolUtil.execute(url, sql);
         JSONObject jsonObject = JSON.parseObject(result);
@@ -186,16 +189,16 @@ public class RestfulStatement extends AbstractStatement {
 
     @Override
     public int getUpdateCount() throws SQLException {
-        if (isClosed()) {
-            throw new SQLException("Invalid method call on a closed statement.");
-        }
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
         return this.affectedRows;
     }
 
     @Override
     public void addBatch(String sql) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         //TODO:
     }
 
@@ -213,7 +216,7 @@ public class RestfulStatement extends AbstractStatement {
     @Override
     public Connection getConnection() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.STATEMENT_CLOSED);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         return this.conn;
     }
 

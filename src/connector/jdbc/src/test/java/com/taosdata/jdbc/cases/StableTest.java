@@ -1,5 +1,6 @@
-package com.taosdata.jdbc;
+package com.taosdata.jdbc.cases;
 
+import com.taosdata.jdbc.TSDBDriver;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 import org.junit.FixMethodOrder;
