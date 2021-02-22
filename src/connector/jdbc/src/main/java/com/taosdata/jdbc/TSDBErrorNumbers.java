@@ -12,6 +12,10 @@ public class TSDBErrorNumbers {
     public static final int ERROR_BATCH_IS_EMPTY = 0x2306;      //Batch is empty!
     public static final int ERROR_INVALID_WITH_EXECUTEQUERY = 0x2307;  //Can not issue data manipulation statements with executeQuery()
     public static final int ERROR_INVALID_WITH_EXECUTEUPDATE = 0x2308; //Can not issue SELECT via executeUpdate()
+    public static final int ERROR_INVALID_FOR_EXECUTE_QUERY = 0x2309;  //not a valid sql for executeQuery: (SQL)
+    public static final int ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE = 0x2310; //Database not specified or available
+    public static final int ERROR_INVALID_FOR_EXECUTE_UPDATE = 0x2311;  //not a valid sql for executeUpdate: (SQL)
+    public static final int ERROR_INVALID_FOR_EXECUTE = 0x2312;         //not a valid sql for execute: (SQL)
 
     public static final int ERROR_UNKNOWN = 0x2350;    //unknown error
 
@@ -37,6 +41,11 @@ public class TSDBErrorNumbers {
         errorNumbers.add(ERROR_RESULTSET_CLOSED);
         errorNumbers.add(ERROR_INVALID_WITH_EXECUTEQUERY);
         errorNumbers.add(ERROR_INVALID_WITH_EXECUTEUPDATE);
+        errorNumbers.add(ERROR_INVALID_FOR_EXECUTE_QUERY);
+        errorNumbers.add(ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
+        errorNumbers.add(ERROR_INVALID_FOR_EXECUTE_UPDATE);
+        errorNumbers.add(ERROR_INVALID_FOR_EXECUTE);
+
         /*****************************************************/
         errorNumbers.add(ERROR_SUBSCRIBE_FAILED);
         errorNumbers.add(ERROR_UNSUPPORTED_ENCODING);
