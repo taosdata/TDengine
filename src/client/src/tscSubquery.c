@@ -2000,14 +2000,6 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 
   taos_free_result(pSql);
 
-/*
-  if (pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-    pParent->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
-    (*pParent->fp)(pParent->param, pParent, 0);
-    return;
-  }
-*/
-
   if (resRows == 0) {
     pParent->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
     (*pParent->fp)(pParent->param, pParent, 0);
@@ -2525,14 +2517,6 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   tscFreeRetrieveSup(pSql);
 
   // set the command flag must be after the semaphore been correctly set.
-  /*
-  if (pParentSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
-  } else {
-    pParentSql->res.completed = true;
-  }
-  */
-
   pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
   if (pParentSql->res.code == TSDB_CODE_SUCCESS) {
     (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
