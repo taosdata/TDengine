@@ -297,13 +297,13 @@ static void resetCheckInfo(STsdbQueryHandle* pQueryHandle) {
     pCheckInfo->lastKey = pQueryHandle->window.skey;
     pCheckInfo->iter = tSkipListDestroyIter(pCheckInfo->iter);
     pCheckInfo->iiter = tSkipListDestroyIter(pCheckInfo->iiter);
+    pCheckInfo->initBuf = false;
 
-      if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
-        assert(pCheckInfo->lastKey >= pQueryHandle->window.skey);
-      } else {
-        assert(pCheckInfo->lastKey <= pQueryHandle->window.skey);
-      }
-
+    if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+      assert(pCheckInfo->lastKey >= pQueryHandle->window.skey);
+    } else {
+      assert(pCheckInfo->lastKey <= pQueryHandle->window.skey);
+    }
   }
 }
 
@@ -2035,7 +2035,8 @@ static bool doHasDataInBuffer(STsdbQueryHandle* pQueryHandle) {
   }
 
   // no data in memtable or imemtable, decrease the memory reference.
-  tsdbMayUnTakeMemSnapshot(pQueryHandle);
+  // TODO !!
+//  tsdbMayUnTakeMemSnapshot(pQueryHandle);
   return false;
 }
 

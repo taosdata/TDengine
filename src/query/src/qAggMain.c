@@ -2005,13 +2005,7 @@ static void last_dist_function(SQLFunctionCtx *pCtx) {
     return;
   }
 
-  // data block is discard, not loaded, do not need to check it
-  if (!pCtx->preAggVals.dataBlockLoaded) {
-    return;
-  }
-
   int32_t notNullElems = 0;
-  
   for (int32_t i = pCtx->size - 1; i >= 0; --i) {
     char *data = GET_INPUT_DATA(pCtx, i);
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
@@ -3174,8 +3168,6 @@ static void col_project_function(SQLFunctionCtx *pCtx) {
              pCtx->inputBytes);
     }
   }
-
-  pCtx->pOutput += pCtx->size * pCtx->outputBytes;
 }
 
 static void col_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
@@ -3574,7 +3566,7 @@ static void arithmetic_function(SQLFunctionCtx *pCtx) {
   SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
   
   arithmeticTreeTraverse(sas->pArithExpr->pExpr, pCtx->size, pCtx->pOutput, sas, pCtx->order, getArithColumnData);
-  pCtx->pOutput += pCtx->outputBytes * pCtx->size;
+//  pCtx->pOutput += pCtx->outputBytes * pCtx->size;
 }
 
 static void arithmetic_function_f(SQLFunctionCtx *pCtx, int32_t index) {

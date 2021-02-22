@@ -259,14 +259,12 @@ typedef struct SQueryRuntimeEnv {
   SQuery*              pQuery;
   void*                qinfo;
 
-  SQLFunctionCtx*      pCtx;
+//  SQLFunctionCtx*      pCtx;
   int32_t              numOfRowsPerPage;
   uint16_t*            offset;
   uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;
-  SResultRowInfo       resultRowInfo;
   void*                pQueryHandle;
-  void*                pSecQueryHandle;  // another thread for
 
   int32_t              prevGroupId;      // previous executed group id
   SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
@@ -375,6 +373,8 @@ typedef struct SAggOperatorInfo {
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
+  SSDataBlock* pRes;
+
 } SAggOperatorInfo;
 
 typedef struct SArithOperatorInfo {
@@ -383,6 +383,7 @@ typedef struct SArithOperatorInfo {
   SQLFunctionCtx   *pCtx;
   SResultRowInfo    resultRowInfo;
   SSDataBlock      *pOutput;
+  int32_t           bufCapacity;
 } SArithOperatorInfo;
 
 typedef struct SLimitOperatorInfo {
@@ -411,7 +412,6 @@ typedef struct SFillOperatorInfo {
 } SFillOperatorInfo;
 
 typedef struct SHashGroupbyOperatorInfo {
-  SResultRowInfo   *pResultRowInfo;
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;

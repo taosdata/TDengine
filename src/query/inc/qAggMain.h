@@ -258,14 +258,14 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const cha
     (_r)->initialized = false; \
   } while (0)
 
-static FORCE_INLINE void initResultInfo(SResultRowCellInfo *pResInfo, uint32_t bufLen) {
+static FORCE_INLINE void initResultInfo(SResultRowCellInfo *pResInfo, int32_t bufLen) {
   pResInfo->initialized = true;  // the this struct has been initialized flag
   
   pResInfo->complete = false;
   pResInfo->hasResult = false;
   pResInfo->numOfRes = 0;
   
-  memset(GET_ROWCELL_INTERBUF(pResInfo), 0, (size_t)bufLen);
+  memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }
 
 #ifdef __cplusplus

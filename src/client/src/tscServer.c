@@ -883,7 +883,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
         assert(pField->pArithExprInfo != NULL);
         SExprInfo* pExprInfo = pField->pArithExprInfo;
 
-        pSqlFuncExpr1->colInfo.colId    = htons(pExprInfo->base.colInfo.colId);
+        pSqlFuncExpr1->colInfo.colId = htons(pExprInfo->base.colInfo.colId);
         pSqlFuncExpr1->functionId  = htons(pExprInfo->base.functionId);
         pSqlFuncExpr1->numOfParams = htons(pExprInfo->base.numOfParams);
         pMsg += sizeof(SSqlFuncMsg);
