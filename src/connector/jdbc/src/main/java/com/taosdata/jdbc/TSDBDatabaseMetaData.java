@@ -57,39 +57,38 @@ public class TSDBDatabaseMetaData extends AbstractDatabaseMetaData {
      */
     public ResultSet getTables(String catalog, String schemaPattern, String tableNamePattern, String[] types) throws SQLException {
         if (conn == null || conn.isClosed()) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         }
         return super.getTables(catalog, schemaPattern, tableNamePattern, types, conn);
     }
 
-
     public ResultSet getCatalogs() throws SQLException {
         if (conn == null || conn.isClosed())
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         return super.getCatalogs(conn);
     }
 
     public ResultSet getTableTypes() throws SQLException {
         if (conn == null || conn.isClosed())
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         return super.getTableTypes();
     }
 
     public ResultSet getColumns(String catalog, String schemaPattern, String tableNamePattern, String columnNamePattern) throws SQLException {
         if (conn == null || conn.isClosed())
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         return super.getColumns(catalog, schemaPattern, tableNamePattern, columnNamePattern, conn);
     }
 
     public ResultSet getPrimaryKeys(String catalog, String schema, String table) throws SQLException {
         if (conn == null || conn.isClosed())
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         return super.getPrimaryKeys(catalog, schema, table, conn);
     }
 
     public ResultSet getSuperTables(String catalog, String schemaPattern, String tableNamePattern) throws SQLException {
         if (conn == null || conn.isClosed())
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         return super.getSuperTables(catalog, schemaPattern, tableNamePattern, conn);
     }
 

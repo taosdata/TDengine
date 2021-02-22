@@ -1,5 +1,6 @@
-package com.taosdata.jdbc;
+package com.taosdata.jdbc.cases;
 
+import com.taosdata.jdbc.TSDBDriver;
 import org.junit.*;
 import org.junit.runners.MethodSorters;
 

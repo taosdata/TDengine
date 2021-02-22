@@ -128,6 +128,7 @@
                     </includes>
                     <excludes>
                         <exclude>**/AppMemoryLeakTest.java</exclude>
+                        <exclude>**/AuthenticationTest.java</exclude>
                         <exclude>**/TaosInfoMonitorTest.java</exclude>
                         <exclude>**/FailOverTest.java</exclude>
                         <exclude>**/InvalidResultSetPointerTest.java</exclude>

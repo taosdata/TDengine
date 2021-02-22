@@ -16,9 +16,6 @@ package com.taosdata.jdbc;
 
 import javax.management.OperationsException;
 import java.sql.SQLException;
-import java.util.Map;
-import java.util.TimerTask;
-import java.util.concurrent.*;
 
 public class TSDBSubscribe {
     private TSDBJNIConnector connecter = null;
@@ -36,9 +33,8 @@ public class TSDBSubscribe {
     /**
      * consume
      *
-     * @throws OperationsException, SQLException
      */
-    public TSDBResultSet consume() throws OperationsException, SQLException {
+    public TSDBResultSet consume() throws SQLException {
         if (this.connecter.isClosed()) {
             throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
         }
