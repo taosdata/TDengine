@@ -33,7 +33,7 @@ class TDTestCase:
         tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
                     col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
         tdSql.execute("create table test1 using test tags('beijing')")
-        tdSql.execute("insert into test1 values(%d, 0, 0, 0, 0, 0.0, 0.0, False, ' ', ' ')" % (self.ts - 1))
+        tdSql.execute("insert into test1 values(%d, 0, 0, 0, 0, 0.0, 0.0, False, ' ', ' ', 0, 0, 0, 0)" % (self.ts - 1))
         
         # spread verifacation 
         tdSql.query("select spread(ts) from test1")
@@ -73,6 +73,14 @@ class TDTestCase:
         tdSql.error("select spread(col8) from test1")
         tdSql.error("select spread(col9) from test")        
         tdSql.error("select spread(col9) from test1")
+        tdSql.error("select spread(col11) from test")        
+        tdSql.error("select spread(col11) from test1")
+        tdSql.error("select spread(col12) from test")        
+        tdSql.error("select spread(col12) from test1")
+        tdSql.error("select spread(col13) from test")        
+        tdSql.error("select spread(col13) from test1")
+        tdSql.error("select spread(col14) from test")        
+        tdSql.error("select spread(col14) from test1")
         
         tdSql.query("select spread(col1) from test1")
         tdSql.checkRows(1)

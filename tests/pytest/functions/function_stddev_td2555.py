@@ -32,11 +32,17 @@ class TDTestCase:
         self.clist4 = []
         self.clist5 = []
         self.clist6 = []
+        self.clist11 = []
+        self.clist12 = []
+        self.clist13 = []
+        self.clist14 = []
     
     def getData(self):
         for i in range(tdSql.queryRows):
             for j in range(6):
                 exec('self.clist{}.append(tdSql.queryResult[i][j+1])'.format(j+1))
+            for j in range(11,15):
+                exec('self.clist{}.append(tdSql.queryResult[i][j-1])'.format(j))
         
     def run(self):
         tdSql.prepare()
@@ -70,6 +76,10 @@ class TDTestCase:
                 exec('tdSql.query("select stddev(col{}) from test {}")'.format(i+1,condition))
                 exec('tdSql.checkData(0, 0, np.std(self.clist{}))'.format(i+1))
                 exec('self.clist{}.clear()'.format(i+1))
+            for i in range(11,15):
+                exec('tdSql.query("select stddev(col{}) from test {}")'.format(i,condition))
+                exec('tdSql.checkData(0, 0, np.std(self.clist{}))'.format(i))
+                exec('self.clist{}.clear()'.format(i))
         print('step 2')
         con_group_list = {
             ' cid = 2 and ts >=now - 1d and ts <now group by tbname':2,
@@ -82,6 +92,10 @@ class TDTestCase:
                     exec('tdSql.query("select stddev(col{}) from test where {}")'.format(i+1,key))
                     for j in range(value):
                         tdSql.checkData(j, 0, result[i])
+            for i in range(11,15):
+                    exec('tdSql.query("select stddev(col{}) from test where {}")'.format(i,key))
+                    for j in range(value):
+                        tdSql.checkData(j, 0, result[0])
                       
     def stop(self):
         tdSql.close()

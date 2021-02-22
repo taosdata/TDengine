@@ -52,7 +52,15 @@ class TDTestCase:
 
         tdSql.error("select twa(col3) from test")
 
-        tdSql.error("select twa(col4) from test")        
+        tdSql.error("select twa(col4) from test")  
+
+        tdSql.error("select twa(col11) from test")        
+
+        tdSql.error("select twa(col12) from test")
+
+        tdSql.error("select twa(col13) from test")
+
+        tdSql.error("select twa(col14) from test")      
 
         tdSql.error("select twa(col5) from test")
 
@@ -78,6 +86,18 @@ class TDTestCase:
 
         tdSql.error("select twa(col4) from test where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum)) 
         tdSql.query("select twa(col4) from test1 where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum))
+
+        tdSql.error("select twa(col11) from test where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum))
+        tdSql.query("select twa(col11) from test1 where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum))
+
+        tdSql.error("select twa(col12) from test where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum))
+        tdSql.query("select twa(col12) from test1 where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum))
+
+        tdSql.error("select twa(col13) from test where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum))
+        tdSql.query("select twa(col13) from test1 where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum))
+
+        tdSql.error("select twa(col14) from test where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum)) 
+        tdSql.query("select twa(col14) from test1 where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum))
 
         tdSql.error("select twa(col5) from test where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum)) 
         tdSql.query("select twa(col5) from test1 where ts > %d  and ts < %d" % (self.ts, self.ts + self.rowNum))

@@ -56,6 +56,22 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
 
+        tdSql.query("select last_row(col11) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select last_row(col12) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select last_row(col13) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
+        tdSql.query("select last_row(col14) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+
         tdSql.query("select last_row(col5) from test1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, None)
@@ -97,6 +113,22 @@ class TDTestCase:
         tdSql.checkData(0, 0, 10)
 
         tdSql.query("select last_row(col4) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select last_row(col11) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select last_row(col12) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select last_row(col13) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select last_row(col14) from test1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 10)
 

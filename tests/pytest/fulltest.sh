@@ -154,6 +154,7 @@ python3 ./test.py -f query/filterCombo.py
 python3 ./test.py -f query/queryNormal.py
 python3 ./test.py -f query/queryError.py
 python3 ./test.py -f query/filterAllIntTypes.py
+python3 ./test.py -f query/filterAllUnsignedIntTypes.py
 python3 ./test.py -f query/filterFloatAndDouble.py
 python3 ./test.py -f query/filterOtherTypes.py
 python3 ./test.py -f query/querySort.py

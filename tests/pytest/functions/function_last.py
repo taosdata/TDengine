@@ -52,6 +52,18 @@ class TDTestCase:
         tdSql.query("select last(col4) from test1")
         tdSql.checkRows(0)
 
+        tdSql.query("select last(col11) from test1")
+        tdSql.checkRows(0)        
+
+        tdSql.query("select last(col12) from test1")
+        tdSql.checkRows(0)
+
+        tdSql.query("select last(col13) from test1")
+        tdSql.checkRows(0)
+
+        tdSql.query("select last(col14) from test1")
+        tdSql.checkRows(0)
+
         tdSql.query("select last(col5) from test1")
         tdSql.checkRows(0)
 
@@ -88,6 +100,22 @@ class TDTestCase:
         tdSql.checkData(0, 0, 10)
 
         tdSql.query("select last(col4) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select last(col11) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select last(col12) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select last(col13) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select last(col14) from test1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 10)
 

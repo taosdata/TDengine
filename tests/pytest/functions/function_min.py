@@ -63,6 +63,18 @@ class TDTestCase:
 
         tdSql.query("select min(col4) from test1")
         tdSql.checkData(0, 0, np.min(intData))
+
+        tdSql.query("select min(col11) from test1")
+        tdSql.checkData(0, 0, np.min(intData))
+
+        tdSql.query("select min(col12) from test1")
+        tdSql.checkData(0, 0, np.min(intData))
+
+        tdSql.query("select min(col13) from test1")
+        tdSql.checkData(0, 0, np.min(intData))
+
+        tdSql.query("select min(col14) from test1")
+        tdSql.checkData(0, 0, np.min(intData))
         
         tdSql.query("select min(col5) from test1")
         tdSql.checkData(0, 0, np.min(floatData))

@@ -59,6 +59,14 @@ class TDTestCase:
         tdSql.error("select top(col7, 10) from test")        
         tdSql.error("select top(col8, 10) from test")
         tdSql.error("select top(col9, 10) from test")
+        tdSql.error("select top(col11, 0) from test")
+        tdSql.error("select top(col11, 101) from test")
+        tdSql.error("select top(col12, 0) from test")
+        tdSql.error("select top(col12, 101) from test")
+        tdSql.error("select top(col13, 0) from test")
+        tdSql.error("select top(col13, 101) from test")
+        tdSql.error("select top(col14, 0) from test")
+        tdSql.error("select top(col14, 101) from test")
 
         tdSql.query("select top(col1, 2) from test")
         tdSql.checkRows(2)
@@ -76,6 +84,26 @@ class TDTestCase:
         tdSql.checkData(1, 1, 10)
 
         tdSql.query("select top(col4, 2) from test")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(1, 1, 10)
+
+        tdSql.query("select top(col11, 2) from test")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(1, 1, 10)
+
+        tdSql.query("select top(col12, 2) from test")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(1, 1, 10)
+
+        tdSql.query("select top(col13, 2) from test")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(1, 1, 10)
+
+        tdSql.query("select top(col14, 2) from test")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 9)
         tdSql.checkData(1, 1, 10)

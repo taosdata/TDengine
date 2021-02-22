@@ -54,18 +54,6 @@ class TDTestCase:
         tdSql.query("select diff(col6) from test1")
         tdSql.checkRows(0)
 
-        tdSql.query("select diff(col11) from test1")
-        tdSql.checkRows(0)
-        
-        tdSql.query("select diff(col12) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select diff(col13) from test1")
-        tdSql.checkRows(0)
-
-        tdSql.query("select diff(col14) from test1")
-        tdSql.checkRows(0)
-
         for i in range(self.rowNum):
             tdSql.execute("insert into test1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
                         % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))                                
@@ -84,7 +72,16 @@ class TDTestCase:
         tdSql.error("select diff(col8) from test1")
         tdSql.error("select diff(col9) from test")        
         tdSql.error("select diff(col9) from test1")
-        
+        tdSql.error("select diff(col11) from test1")
+        tdSql.error("select diff(col12) from test1")
+        tdSql.error("select diff(col13) from test1")
+        tdSql.error("select diff(col14) from test1")
+        tdSql.error("select diff(col11) from test")
+        tdSql.error("select diff(col12) from test")
+        tdSql.error("select diff(col13) from test")
+        tdSql.error("select diff(col14) from test")
+
+
         tdSql.query("select diff(col1) from test1")
         tdSql.checkRows(10)
 
@@ -95,18 +92,6 @@ class TDTestCase:
         tdSql.checkRows(10)
 
         tdSql.query("select diff(col4) from test1")
-        tdSql.checkRows(10)
-
-        tdSql.query("select diff(col11) from test1")
-        tdSql.checkRows(10)
-
-        tdSql.query("select diff(col12) from test1")
-        tdSql.checkRows(10)
-
-        tdSql.query("select diff(col13) from test1")
-        tdSql.checkRows(10)
-
-        tdSql.query("select diff(col14) from test1")
         tdSql.checkRows(10)
 
         tdSql.query("select diff(col5) from test1")

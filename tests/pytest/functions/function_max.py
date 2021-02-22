@@ -63,6 +63,18 @@ class TDTestCase:
 
         tdSql.query("select max(col4) from test1")
         tdSql.checkData(0, 0, np.max(intData))
+
+        tdSql.query("select max(col11) from test1")
+        tdSql.checkData(0, 0, np.max(intData))
+
+        tdSql.query("select max(col12) from test1")
+        tdSql.checkData(0, 0, np.max(intData))
+
+        tdSql.query("select max(col13) from test1")
+        tdSql.checkData(0, 0, np.max(intData))
+
+        tdSql.query("select max(col14) from test1")
+        tdSql.checkData(0, 0, np.max(intData))
         
         tdSql.query("select max(col5) from test1")
         tdSql.checkData(0, 0, np.max(floatData))

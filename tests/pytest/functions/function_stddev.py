@@ -68,6 +68,18 @@ class TDTestCase:
         tdSql.query("select stddev(col4) from test1")
         tdSql.checkData(0, 0, np.std(intData))
 
+        tdSql.query("select stddev(col11) from test1")
+        tdSql.checkData(0, 0, np.std(intData))
+
+        tdSql.query("select stddev(col12) from test1")
+        tdSql.checkData(0, 0, np.std(intData))
+
+        tdSql.query("select stddev(col13) from test1")
+        tdSql.checkData(0, 0, np.std(intData))
+
+        tdSql.query("select stddev(col14) from test1")
+        tdSql.checkData(0, 0, np.std(intData))
+
         tdSql.query("select stddev(col5) from test1")
         tdSql.checkData(0, 0, np.std(floatData))
 
