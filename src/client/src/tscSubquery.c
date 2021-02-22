@@ -1848,7 +1848,7 @@ void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, S
   TSKEY key = INT64_MIN;
   for(int32_t i = 0; i < numOfCols; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-    if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
+    if (TSDB_COL_IS_TAG(pExpr->colInfo.flag) || pExpr->functionId == TSDB_FUNC_PRJ) {
       continue;
     }
 
