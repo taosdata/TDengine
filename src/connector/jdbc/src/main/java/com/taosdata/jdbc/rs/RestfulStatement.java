@@ -75,8 +75,8 @@ public class RestfulStatement extends AbstractStatement {
             return executeOneQuery(url, sql);
         }
 
-        if (this.database == null || this.database.isEmpty())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
+//        if (this.database == null || this.database.isEmpty())
+//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
         HttpClientPoolUtil.execute(url, "use " + this.database);
         return executeOneQuery(url, sql);
     }
@@ -93,8 +93,8 @@ public class RestfulStatement extends AbstractStatement {
             return executeOneUpdate(url, sql);
         }
 
-        if (this.database == null || this.database.isEmpty())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
+//        if (this.database == null || this.database.isEmpty())
+//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
 
         HttpClientPoolUtil.execute(url, "use " + this.database);
         return executeOneUpdate(url, sql);
