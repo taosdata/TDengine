@@ -51,6 +51,68 @@ public class TSDBStatementTest {
 
     @Test
     public void close() {
+        // test in AfterClass method
+    }
+
+
+    @Test
+    public void getMaxFieldSize() throws SQLException {
+        Assert.assertEquals(16 * 1024, stmt.getMaxFieldSize());
+    }
+
+    @Test(expected = SQLException.class)
+    public void setMaxFieldSize() throws SQLException {
+
+        stmt.setMaxFieldSize(0);
+        stmt.setMaxFieldSize(-1);
+    }
+
+    @Test
+    public void getMaxRows() throws SQLException {
+        Assert.assertEquals(0, stmt.getMaxRows());
+    }
+
+    @Test(expected = SQLException.class)
+    public void setMaxRows() throws SQLException {
+        stmt.setMaxRows(0);
+        stmt.setMaxRows(-1);
+    }
+
+    @Test
+    public void setEscapeProcessing() throws SQLException {
+        stmt.setEscapeProcessing(true);
+        stmt.setEscapeProcessing(false);
+    }
+
+    @Test
+    public void getQueryTimeout() throws SQLException {
+        Assert.assertEquals(0, stmt.getQueryTimeout());
+    }
+
+    @Test
+    public void setQueryTimeout() throws SQLException {
+        stmt.setQueryTimeout(0);
+        stmt.setQueryTimeout(-1);
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void cancel() throws SQLException {
+        stmt.cancel();
+    }
+
+    @Test
+    public void getWarnings() throws SQLException {
+        Assert.assertNull(stmt.getWarnings());
+    }
+
+    @Test
+    public void clearWarnings() throws SQLException {
+        stmt.clearWarnings();
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setCursorName() throws SQLException {
+        stmt.setCursorName("");
     }
 
     @Test
@@ -130,7 +192,48 @@ public class TSDBStatementTest {
 
     @Test
     public void getUpdateCount() {
-        execute();
+        // already test in execute method
+    }
+
+    @Test
+    public void getMoreResults() throws SQLException {
+        Assert.assertEquals(false, stmt.getMoreResults());
+    }
+
+    @Test(expected = SQLException.class)
+    public void setFetchDirection() throws SQLException {
+        stmt.setFetchDirection(ResultSet.FETCH_FORWARD);
+        stmt.setFetchDirection(ResultSet.FETCH_REVERSE);
+        stmt.setFetchDirection(ResultSet.FETCH_UNKNOWN);
+        stmt.setFetchDirection(-1);
+    }
+
+    @Test
+    public void getFetchDirection() throws SQLException {
+        Assert.assertEquals(ResultSet.FETCH_FORWARD, stmt.getFetchDirection());
+    }
+
+    @Test(expected = SQLException.class)
+    public void setFetchSize() throws SQLException {
+        stmt.setFetchSize(0);
+        stmt.setFetchSize(-1);
+    }
+
+    @Test
+    public void getFetchSize() throws SQLException {
+        stmt.setFetchSize(0);
+        Assert.assertEquals(0, stmt.getFetchSize());
+        stmt.setFetchSize(0);
+    }
+
+    @Test
+    public void getResultSetConcurrency() throws SQLException {
+        Assert.assertEquals(ResultSet.CONCUR_READ_ONLY, stmt.getResultSetConcurrency());
+    }
+
+    @Test
+    public void getResultSetType() throws SQLException {
+        Assert.assertEquals(ResultSet.TYPE_FORWARD_ONLY, stmt.getResultSetType());
     }
 
     @Test
@@ -194,6 +297,52 @@ public class TSDBStatementTest {
         }
     }
 
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void testGetMoreResults() throws SQLException {
+        Assert.assertEquals(false, stmt.getMoreResults(Statement.CLOSE_CURRENT_RESULT));
+        stmt.getMoreResults(Statement.KEEP_CURRENT_RESULT);
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void getGeneratedKeys() throws SQLException {
+        stmt.getGeneratedKeys();
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void testExecuteUpdate() throws SQLException {
+        stmt.executeUpdate("", 1);
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void testExecuteUpdate1() throws SQLException {
+        stmt.executeUpdate("", new int[]{});
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void testExecuteUpdate2() throws SQLException {
+        stmt.executeUpdate("", new String[]{});
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void testExecute() throws SQLException {
+        stmt.execute("", 1);
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void testExecute1() throws SQLException {
+        stmt.execute("", new int[]{});
+    }
+
+    @Test
+    public void testExecute2() throws SQLException {
+        stmt.execute("", new String[]{});
+    }
+
+    @Test
+    public void getResultSetHoldability() throws SQLException {
+        Assert.assertEquals(ResultSet.HOLD_CURSORS_OVER_COMMIT, stmt.getResultSetHoldability());
+    }
+
     @Test
     public void isClosed() {
         try {
@@ -201,6 +350,38 @@ public class TSDBStatementTest {
         } catch (SQLException e) {
             e.printStackTrace();
         }
+    }
+
+    @Test
+    public void setPoolable() throws SQLException {
+        stmt.setPoolable(true);
+        stmt.setPoolable(false);
+    }
+
+    @Test
+    public void isPoolable() throws SQLException {
+        Assert.assertEquals(false, stmt.isPoolable());
+    }
+
+    @Test
+    public void closeOnCompletion() throws SQLException {
+        stmt.closeOnCompletion();
+    }
+
+    @Test
+    public void isCloseOnCompletion() throws SQLException {
+        Assert.assertFalse(stmt.isCloseOnCompletion());
+    }
+
+    @Test
+    public void unwrap() throws SQLException {
+        TSDBStatement unwrap = stmt.unwrap(TSDBStatement.class);
+        Assert.assertNotNull(unwrap);
+    }
+
+    @Test
+    public void isWrapperFor() throws SQLException {
+        Assert.assertTrue(stmt.isWrapperFor(TSDBStatement.class));
     }
 
     @BeforeClass
