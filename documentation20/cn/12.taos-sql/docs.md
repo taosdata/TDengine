@@ -96,27 +96,32 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```mysql
     ALTER DATABASE db_name COMP 2;
     ```
-    COMP参数是指修改数据库文件压缩标志位，取值范围为[0, 2]. 0表示不压缩，1表示一阶段压缩，2表示两阶段压缩。
+    COMP 参数是指修改数据库文件压缩标志位，缺省值为 2，取值范围为 [0, 2]。0 表示不压缩，1 表示一阶段压缩，2 表示两阶段压缩。
 
     ```mysql
     ALTER DATABASE db_name REPLICA 2;
     ```
-    REPLICA参数是指修改数据库副本数，取值范围[1, 3]。在集群中使用，副本数必须小于或等于dnode的数目。
+    REPLICA 参数是指修改数据库副本数，取值范围 [1, 3]。在集群中使用，副本数必须小于或等于 DNODE 的数目。
 
     ```mysql
     ALTER DATABASE db_name KEEP 365;
     ```
-    KEEP参数是指修改数据文件保存的天数，缺省值为3650，取值范围[days, 365000]，必须大于或等于days参数值。
+    KEEP 参数是指修改数据文件保存的天数，缺省值为 3650，取值范围 [days, 365000]，必须大于或等于 days 参数值。
 
     ```mysql
     ALTER DATABASE db_name QUORUM 2;
     ```
-    QUORUM参数是指数据写入成功所需要的确认数。取值范围[1, 3]。对于异步复制，quorum设为1，具有master角色的虚拟节点自己确认即可。对于同步复制，需要至少大于等于2。原则上，Quorum >=1 并且 Quorum <= replica(副本数)，这个参数在启动一个同步模块实例时需要提供。
+    QUORUM 参数是指数据写入成功所需要的确认数，取值范围 [1, 3]。对于异步复制，quorum 设为 1，具有 master 角色的虚拟节点自己确认即可。对于同步复制，需要至少大于等于 2。原则上，Quorum >= 1 并且 Quorum <= replica(副本数)，这个参数在启动一个同步模块实例时需要提供。
 
     ```mysql
     ALTER DATABASE db_name BLOCKS 100;
     ```
-    BLOCKS参数是每个VNODE (TSDB) 中有多少cache大小的内存块，因此一个VNODE的用的内存大小粗略为（cache * blocks）。取值范围[3, 1000]。
+    BLOCKS 参数是每个 VNODE (TSDB) 中有多少 cache 大小的内存块，因此一个 VNODE 的用的内存大小粗略为（cache * blocks）。取值范围 [3, 1000]。
+
+    ```mysql
+    ALTER DATABASE db_name CACHELAST 0;
+    ```
+    CACHELAST 参数控制是否在内存中缓存数据子表的 last_row。缺省值为 0，取值范围 [0, 1]。其中 0 表示不启用、1 表示启用。（从 2.0.11 版本开始支持）
 
     **Tips**: 以上所有参数修改后都可以用show databases来确认是否修改成功。
 
@@ -344,9 +349,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```
     同时向表tb1_name和tb2_name中按列分别插入多条记录 
 
-    注意：
-    1) 如果时间戳为0，系统将自动使用服务器当前时间作为该记录的时间戳；
-    2) 允许插入的最老记录的时间戳，是相对于当前服务器时间，减去配置的keep值（数据保留的天数），允许插入的最新记录的时间戳，是相对于当前服务器时间，加上配置的days值（数据文件存储数据的时间跨度，单位为天）。keep和days都是可以在创建数据库时指定的，缺省值分别是3650天和10天。
+    注意：允许插入的最老记录的时间戳，是相对于当前服务器时间，减去配置的keep值（数据保留的天数），允许插入的最新记录的时间戳，是相对于当前服务器时间，加上配置的days值（数据文件存储数据的时间跨度，单位为天）。keep和days都是可以在创建数据库时指定的，缺省值分别是3650天和10天。
 
 - <a class="anchor" id="auto_create_table"></a>**插入记录时自动建表**
     ```mysql
