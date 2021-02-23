@@ -61,6 +61,55 @@
 #include "taos.h"
 #include "tutil.h"
 
+#ifdef WINDOWS
+#include <windows.h>
+// Some old MinGW/CYGWIN distributions don't define this:
+#ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#define ENABLE_VIRTUAL_TERMINAL_PROCESSING  0x0004
+#endif
+static HANDLE g_stdoutHandle;
+static DWORD g_consoleMode;
+
+void setupForAnsiEscape(void) {
+  DWORD mode = 0;
+  g_stdoutHandle = GetStdHandle(STD_OUTPUT_HANDLE);
+
+  if(g_stdoutHandle == INVALID_HANDLE_VALUE) {
+    exit(GetLastError());
+  }
+
+  if(!GetConsoleMode(g_stdoutHandle, &mode)) {
+    exit(GetLastError());
+  }
+
+  g_consoleMode = mode;
+
+  // Enable ANSI escape codes
+  mode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
+
+  if(!SetConsoleMode(g_stdoutHandle, mode)) {
+    exit(GetLastError());
+  }    
+}
+
+void resetAfterAnsiEscape(void) {
+  // Reset colors
+  printf("\x1b[0m");    
+
+  // Reset console mode
+  if(!SetConsoleMode(g_stdoutHandle, g_consoleMode)) {
+    exit(GetLastError());
+  }
+}
+#else
+void setupForAnsiEscape(void) {}
+
+void resetAfterAnsiEscape(void) {
+  // Reset colors
+  printf("\x1b[0m");
+}
+#endif
+
 extern char configDir[];
 
 #define INSERT_JSON_NAME      "insert.json"
@@ -871,7 +920,7 @@ static void init_rand_data() {
   }
 }
 
-static void printfInsertMeta() {
+static int printfInsertMeta() {
   printf("\033[1m\033[40;32m================ insert.json parse result START ================\033[0m\n");
   printf("host:                       \033[33m%s:%u\033[0m\n", g_Dbs.host, g_Dbs.port);
   printf("user:                       \033[33m%s\033[0m\n", g_Dbs.user);
@@ -931,7 +980,7 @@ static void printfInsertMeta() {
         printf("  precision:             \033[33m%s\033[0m\n", g_Dbs.db[i].dbCfg.precision);
       } else {
         printf("  precision error:       \033[33m%s\033[0m\n", g_Dbs.db[i].dbCfg.precision);
-        exit(EXIT_FAILURE);
+	return -1;
       }
     }
 
@@ -1006,6 +1055,8 @@ static void printfInsertMeta() {
     printf("\n");
   }
   printf("\033[1m\033[40;32m================ insert.json parse result END================\033[0m\n");
+
+  return 0;
 }
 
 static void printfInsertMetaToFile(FILE* fp) {
@@ -4323,7 +4374,12 @@ int insertTestProcess() {
     return 1;
   };
 
-  printfInsertMeta();
+  setupForAnsiEscape();
+  int ret = printfInsertMeta();
+  resetAfterAnsiEscape();
+  if (ret == -1)
+    exit(EXIT_FAILURE);
+
   printfInsertMetaToFile(g_fpOfInsertResult);
 
   if (!g_args.answer_yes) {
