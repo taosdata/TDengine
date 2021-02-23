@@ -396,7 +396,7 @@
 		// begintime *= 1000;
         // endtime *= 1000;
 		
-		var sql = "select avg(cpu_taosd), avg(cpu_system), max(cpu_cores), avg(mem_taosd), avg(mem_system), max(mem_total), avg(disk_used), max(disk_total), avg(band_speed), avg(io_read), avg(io_write), sum(req_http), sum(req_select), sum(req_insert) from log.dn" + dbDnodeIp + " where ts>= " + begintime + " and ts<= " + endtime + " " + interval + " fill(value, 0);";
+		var sql = "select avg(cpu_taosd), avg(cpu_system), max(cpu_cores), avg(mem_taosd), avg(mem_system), max(mem_total), avg(disk_used), max(disk_total), avg(band_speed), avg(io_read), avg(io_write), sum(req_http), sum(req_select), sum(req_insert) from log.dn" + dbDnodeIp + " where ts>= " + begintime + " and ts<= g" + endtime + " " + interval + " fill(value, 0);";
 		dbQuery(sql, dbMonitorCallback)
 	}
 	
