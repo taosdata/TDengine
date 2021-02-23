@@ -315,7 +315,7 @@ Vnode会保持一个数据版本号(Version)，对内存数据进行持久化存
 3. 在线的虚拟节点数过半，而且有虚拟节点是slave的话，该虚拟节点自动成为master
 4. 对于2和3，如果多个虚拟节点满足成为master的要求，那么虚拟节点组的节点列表里，最前面的选为master
 
-更多的关于数据复制的流程，请见[TDengine 2.0数据复制模块设计](https://www.taosdata.com/cn/documentation/replica/)。
+更多的关于数据复制的流程，请见[TDengine 2.0数据复制模块设计](https://www.taosdata.com/cn/documentation/architecture/replica/)。
 
 ### 同步复制
 
