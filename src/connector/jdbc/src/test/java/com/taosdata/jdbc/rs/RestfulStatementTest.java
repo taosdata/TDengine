@@ -121,12 +121,12 @@ public class RestfulStatementTest {
     public void execute() {
         final String dbName = ("test_" + UUID.randomUUID()).replace("-", "_").substring(0, 32);
         try {
-            boolean isSelect = stmt.execute("create database " + dbName);
+            boolean isSelect = stmt.execute("create database if not exists " + dbName);
             Assert.assertEquals(false, isSelect);
             int affectedRows = stmt.getUpdateCount();
             Assert.assertEquals(0, affectedRows);
 
-            isSelect = stmt.execute("create table " + dbName + ".weather(ts timestamp, temperature float) tags(loc nchar(64))");
+            isSelect = stmt.execute("create table if not exists " + dbName + ".weather(ts timestamp, temperature float) tags(loc nchar(64))");
             Assert.assertEquals(false, isSelect);
             affectedRows = stmt.getUpdateCount();
             Assert.assertEquals(0, affectedRows);
