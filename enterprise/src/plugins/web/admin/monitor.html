@@ -355,41 +355,48 @@
 	function dbQueryAll(dnode)
 	{
 		var interval = "interval(1m)";
-		var begintime = Number(new Date());
-		var endtime = begintime;
+		// var begintime = Number(new Date());
+		var begintime = "now";
+		var endtime = "now - 1m";
 		
 		if (dbDnodeIntervalId == "last1hour") {
 			interval = "interval(1m)";	//60
-			begintime -= 60*60*1000;
+			// begintime -= 60*60*1000;
+			begintime = "now - 60m";
 		}
 		else if (dbDnodeIntervalId == "last4hours") {
 			interval = "interval(2m)";	//120
-			begintime -= 60*60*1000*4;
+			// begintime -= 60*60*1000*4;
+			begintime = "now - 240m";
 		}
 		else if (dbDnodeIntervalId == "last12hours") {
 			interval = "interval(5m)";	//144
-			begintime -= 60*60*1000*12;
+			// begintime -= 60*60*1000*12;
+			begintime = "now - 12h";
 		}
 		else if (dbDnodeIntervalId == "last1day") {
 			interval = "interval(10m)";	//144
-			begintime -= 60*60*1000*24;
+			//begintime -= 60*60*1000*24;
+			begintime = "now - 24h";
 		}
 		else if (dbDnodeIntervalId == "last7days") {
 			interval = "interval(1h)";	//164
-			begintime -= 60*60*1000*24*7;
+			// begintime -= 60*60*1000*24*7;
+			begintime = "now - 168h";
 		}
 		else if (dbDnodeIntervalId == "last30days") {
 			interval = "interval(4h)";	//180
-			begintime -= 60*60*1000*24*30;
+			// begintime -= 60*60*1000*24*30;
+			begintime = "now - 720m";
 		}
 		else {}
 		//begintime = "now-1h";
 		//endtime='now';
 		
-		begintime *= 1000;
-        endtime *= 1000;
+		// begintime *= 1000;
+        // endtime *= 1000;
 		
-		var sql = "select avg(cpu_taosd), avg(cpu_system), max(cpu_cores), avg(mem_taosd), avg(mem_system), max(mem_total), avg(disk_used), max(disk_total), avg(band_speed), avg(io_read), avg(io_write), sum(req_http), sum(req_select), sum(req_insert) from log.dn" + dbDnodeIp + " where ts>=" + begintime + " and ts<=" + endtime + " " + interval + " fill(value, 0);";
+		var sql = "select avg(cpu_taosd), avg(cpu_system), max(cpu_cores), avg(mem_taosd), avg(mem_system), max(mem_total), avg(disk_used), max(disk_total), avg(band_speed), avg(io_read), avg(io_write), sum(req_http), sum(req_select), sum(req_insert) from log.dn" + dbDnodeIp + " where ts>= " + begintime + " and ts<= " + endtime + " " + interval + " fill(value, 0);";
 		dbQuery(sql, dbMonitorCallback)
 	}
 	
