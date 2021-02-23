@@ -86,7 +86,7 @@ typedef struct SSqlGroupbyExpr {
 
 typedef struct SResultRow {
   int32_t       pageId;      // pageId & rowId is the position of current result in disk-based output buffer
-  int32_t       rowId:29;    // row index in buffer page
+  int32_t       offset:29;    // row index in buffer page
   bool          startInterp; // the time window start timestamp has done the interpolation already.
   bool          endInterp;   // the time window end timestamp has done the interpolation already.
   bool          closed;      // this result status: closed or opened
@@ -247,6 +247,8 @@ typedef struct SOperatorInfo {
   bool       completed;
   void      *optInfo;
   SExprInfo *pExpr;
+
+  int32_t*   rowCellInfoOffset;
   int32_t    numOfOutput;
 
   __operator_fn_t       exec;
@@ -258,10 +260,8 @@ typedef struct SQueryRuntimeEnv {
   jmp_buf              env;
   SQuery*              pQuery;
   void*                qinfo;
-
-//  SQLFunctionCtx*      pCtx;
-  int32_t              numOfRowsPerPage;
-  uint16_t*            offset;
+//  int32_t              numOfRowsPerPage;
+//  uint16_t*            offset;
   uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;
   void*                pQueryHandle;
@@ -272,7 +272,7 @@ typedef struct SQueryRuntimeEnv {
   char*                keyBuf;           // window key buffer
   SResultRowPool*      pool;             // window result object pool
 
-  int32_t*             rowCellInfoOffset;// offset value for each row result cell info
+//  int32_t*             rowCellInfoOffset;// offset value for each row result cell info
   char**               prevRow;
 
   SArray*              prevResult;       // intermediate result, SArray<SInterResult>
@@ -355,11 +355,11 @@ typedef struct STableScanInfo {
 
   SSDataBlock  block;
 
-  SQLFunctionCtx* pCtx;  // next operator query context
-  SResultRowInfo* pResultRowInfo;
+  SQLFunctionCtx *pCtx;  // next operator query context
+  SResultRowInfo *pResultRowInfo;
   int32_t         numOfOutput;
-
-  int64_t      elapsedTime;
+  int32_t        *rowCellInfoOffset;
+  int64_t         elapsedTime;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -373,14 +373,15 @@ typedef struct SAggOperatorInfo {
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
-  SSDataBlock* pRes;
-
+  int32_t          *rowCellInfoOffset;
+  SSDataBlock      *pRes;
 } SAggOperatorInfo;
 
 typedef struct SArithOperatorInfo {
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
+  int32_t          *rowCellInfoOffset;
   SResultRowInfo    resultRowInfo;
   SSDataBlock      *pOutput;
   int32_t           bufCapacity;
@@ -402,6 +403,7 @@ typedef struct SHashIntervalOperatorInfo {
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
+  int32_t          *rowCellInfoOffset;
   SResultRowInfo    resultRowInfo;
   SSDataBlock      *pRes;
 } SHashIntervalOperatorInfo;
@@ -415,6 +417,7 @@ typedef struct SHashGroupbyOperatorInfo {
   STableQueryInfo  *pTableQueryInfo;
   SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
+  int32_t          *rowCellInfoOffset;
   SResultRowInfo    resultRowInfo;
   SSDataBlock      *pRes;
   int32_t           colIndex;

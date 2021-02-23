@@ -44,22 +44,19 @@ void    closeResultRow(SResultRowInfo* pResultRowInfo, int32_t slot);
 bool    isResultRowClosed(SResultRowInfo *pResultRowInfo, int32_t slot);
 void    clearResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pResultRow, int16_t type);
 
-SResultRowCellInfo* getResultCell(SQueryRuntimeEnv* pRuntimeEnv, const SResultRow* pRow, int32_t index);
+SResultRowCellInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset);
 
 static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
   assert(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
   return pResultRowInfo->pResult[slot];
 }
 
-static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SResultRow *pResult,
-    tFilePage* page) {
-  assert(pResult != NULL && pRuntimeEnv != NULL);
+static FORCE_INLINE char *getPosInResultPage(SQuery *pQuery, tFilePage* page, int32_t rowOffset, int16_t offset) {
+  assert(rowOffset >= 0 && pQuery != NULL);
 
-  SQuery *pQuery = pRuntimeEnv->pQuery;
-
-  int32_t realRowId = (int32_t)(pResult->rowId * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery));
-  return ((char *)page->data) + pRuntimeEnv->offset[columnIndex] * pRuntimeEnv->numOfRowsPerPage +
-      pQuery->pExpr1[columnIndex].bytes * realRowId;
+//  int32_t realRowId = (int32_t)(rowId * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery));
+//  return ((char *)page->data) + offset * numOfRowsPerPage + bytes * realRowId;
+  return ((char *)page->data) + rowOffset + offset;
 }
 
 bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
@@ -91,6 +88,6 @@ bool    hasRemainData(SGroupResInfo* pGroupResInfo);
 bool    incNextGroup(SGroupResInfo* pGroupResInfo);
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
-int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv);
+int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t* offset);
 
 #endif  // TDENGINE_QUERYUTIL_H
