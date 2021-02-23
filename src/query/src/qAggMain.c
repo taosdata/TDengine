@@ -3687,6 +3687,14 @@ static void spread_function(SQLFunctionCtx *pCtx) {
     LIST_MINMAX_N(pCtx, pInfo->min, pInfo->max, pCtx->size, pData, double, pCtx->inputType, numOfElems);
   } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
     LIST_MINMAX_N(pCtx, pInfo->min, pInfo->max, pCtx->size, pData, float, pCtx->inputType, numOfElems);
+  } else if (pCtx->inputType == TSDB_DATA_TYPE_UTINYINT) {
+    LIST_MINMAX_N(pCtx, pInfo->min, pInfo->max, pCtx->size, pData, uint8_t, pCtx->inputType, numOfElems);
+  } else if (pCtx->inputType == TSDB_DATA_TYPE_USMALLINT) {
+    LIST_MINMAX_N(pCtx, pInfo->min, pInfo->max, pCtx->size, pData, uint16_t, pCtx->inputType, numOfElems);
+  } else if (pCtx->inputType == TSDB_DATA_TYPE_UINT) {
+    LIST_MINMAX_N(pCtx, pInfo->min, pInfo->max, pCtx->size, pData, uint32_t, pCtx->inputType, numOfElems);
+  } else if (pCtx->inputType == TSDB_DATA_TYPE_UBIGINT) {
+    LIST_MINMAX_N(pCtx, pInfo->min, pInfo->max, pCtx->size, pData, uint64_t, pCtx->inputType, numOfElems);
   }
   
   if (!pCtx->hasNull) {

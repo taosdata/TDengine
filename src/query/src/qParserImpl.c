@@ -289,6 +289,28 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   return pExpr;
 }
 
+
+
+tSQLExpr *tSqlExprClone(tSQLExpr *pSrc) {
+  tSQLExpr *pExpr = calloc(1, sizeof(tSQLExpr));
+
+  memcpy(pExpr, pSrc, sizeof(*pSrc));
+  
+  if (pSrc->pLeft) {
+    pExpr->pLeft = tSqlExprClone(pSrc->pLeft);
+  }
+
+  if (pSrc->pRight) {
+    pExpr->pRight = tSqlExprClone(pSrc->pRight);
+  }
+
+  //we don't clone pParam now because clone is only used for between/and
+  assert(pSrc->pParam == NULL);
+
+  return pExpr;
+}
+
+
 void tSqlExprNodeDestroy(tSQLExpr *pExpr) {
   if (pExpr == NULL) {
     return;
@@ -309,8 +331,9 @@ void tSqlExprDestroy(tSQLExpr *pExpr) {
   }
 
   tSqlExprDestroy(pExpr->pLeft);
+  pExpr->pLeft = NULL;
   tSqlExprDestroy(pExpr->pRight);
-
+  pExpr->pRight = NULL;
   tSqlExprNodeDestroy(pExpr);
 }
 

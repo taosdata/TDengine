@@ -1848,7 +1848,7 @@ void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, S
   TSKEY key = INT64_MIN;
   for(int32_t i = 0; i < numOfCols; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-    if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
+    if (TSDB_COL_IS_TAG(pExpr->colInfo.flag) || pExpr->functionId == TSDB_FUNC_PRJ) {
       continue;
     }
 
@@ -1981,7 +1981,8 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   // set the parameters for the second round query process
   SSqlCmd    *pPCmd   = &pParent->cmd;
   SQueryInfo *pQueryInfo1 = tscGetQueryInfoDetail(pPCmd, 0);
-
+  int32_t resRows = pSup->numOfRows;
+  
   if (pSup->numOfRows > 0) {
     SBufferWriter bw = tbufInitWriter(NULL, false);
     interResToBinary(&bw, pSup->pResult, pSup->tagLen);
@@ -1998,6 +1999,12 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   tfree(pSup);
 
   taos_free_result(pSql);
+
+  if (resRows == 0) {
+    pParent->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    (*pParent->fp)(pParent->param, pParent, 0);
+    return;
+  }
 
   pQueryInfo1->round = 1;
   tscDoQuery(pParent);

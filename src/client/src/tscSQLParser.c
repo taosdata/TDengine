@@ -6404,10 +6404,12 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
       nameSize = taosArrayGetSize(pNameList);
 
       if (valSize != nameSize) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
 
       if (schemaSize < valSize) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
 
@@ -6460,11 +6462,13 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         }
 
         if (!findColumnIndex) {
+          tdDestroyKVRowBuilder(&kvRowBuilder);
           return tscInvalidSQLErrMsg(pCmd->payload, "invalid tag name", sToken->z);
         }   
       }
     } else {
       if (schemaSize != valSize) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
 
