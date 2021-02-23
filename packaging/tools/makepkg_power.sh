@@ -42,7 +42,11 @@ fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
-cfg_dir="${top_dir}/packaging/cfg"
+if [ "$verMode" == "cluster" ]; then
+  cfg_dir="${top_dir}/../enterprise/packaging/cfg"
+else
+  cfg_dir="${top_dir}/packaging/cfg"
+fi
 install_files="${script_dir}/install_power.sh"
 nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 

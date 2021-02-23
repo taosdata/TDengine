@@ -55,7 +55,11 @@ else
 fi
 
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
-cfg_dir="${top_dir}/packaging/cfg"
+if [ "$verMode" == "cluster" ]; then
+  cfg_dir="${top_dir}/../enterprise/packaging/cfg"
+else
+  cfg_dir="${top_dir}/packaging/cfg"
+fi
 
 install_files="${script_dir}/install_client.sh"
 
