@@ -89,7 +89,7 @@ public class TSDBStatementTest {
         Assert.assertEquals(0, stmt.getQueryTimeout());
     }
 
-    @Test
+    @Test(expected = SQLException.class)
     public void setQueryTimeout() throws SQLException {
         stmt.setQueryTimeout(0);
         stmt.setQueryTimeout(-1);
@@ -333,7 +333,7 @@ public class TSDBStatementTest {
         stmt.execute("", new int[]{});
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void testExecute2() throws SQLException {
         stmt.execute("", new String[]{});
     }
