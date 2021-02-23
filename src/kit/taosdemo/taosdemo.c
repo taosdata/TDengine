@@ -373,6 +373,7 @@ typedef struct SDbs_S {
   // statistics
   int64_t    totalRowsInserted;
   int64_t    totalAffectedRows;
+
 } SDbs;
 
 typedef struct SuperQueryInfo_S {
@@ -447,6 +448,14 @@ typedef struct SThreadInfo_S {
   // statistics
   int64_t totalRowsInserted;
   int64_t totalAffectedRows;
+
+  // insert delay statistics
+  int64_t cntDelay;
+  int64_t totalDelay;
+  int64_t avgDelay;
+  int64_t maxDelay;
+  int64_t minDelay;
+  
 } threadInfo;
 
 typedef  struct curlMemInfo_S {
@@ -2209,6 +2218,7 @@ void startMultiThreadCreateChildTable(char* cols, int threads, int ntables, char
     last = t_info->end_table_id + 1;
     t_info->use_metric = 1;
     t_info->cols = cols;
+    t_info->minDelay = INT16_MAX;
     pthread_create(pids + i, NULL, createTable, t_info);
   }
   
@@ -3716,10 +3726,22 @@ void syncWriteForNumberOfTblInOneSql(threadInfo *winfo, FILE *fp, char* sampleDa
         if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {    
           //printf("multi table===== sql: %s \n\n", buffer);
           //int64_t t1 = taosGetTimestampMs();
+          int64_t startTs;
+          int64_t endTs;
+          startTs = taosGetTimestampUs();
+
           int affectedRows = queryDbExec(winfo->taos, buffer, INSERT_TYPE);
           if (0 > affectedRows) {
             goto free_and_statistics;
-          }          
+          } else {
+            endTs = taosGetTimestampUs();
+            int64_t delay = endTs - startTs;
+            if (delay > winfo->maxDelay) winfo->maxDelay = delay;
+            if (delay < winfo->minDelay) winfo->minDelay = delay;
+            winfo->cntDelay++;
+            winfo->totalDelay += delay;
+            //winfo->avgDelay = (double)winfo->totalDelay / winfo->cntDelay;      
+          }
           totalAffectedRows += affectedRows;
 
           int64_t  currentPrintTime = taosGetTimestampMs();
@@ -3938,9 +3960,21 @@ void *syncWrite(void *sarg) {
         if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {     
           //printf("===== sql: %s \n\n", buffer);
           //int64_t t1 = taosGetTimestampMs();
+          int64_t startTs;
+          int64_t endTs;
+          startTs = taosGetTimestampUs();
+
           int affectedRows = queryDbExec(winfo->taos, buffer, INSERT_TYPE);
           if (0 > affectedRows){
             goto free_and_statistics_2;
+          } else {
+            endTs = taosGetTimestampUs();
+            int64_t delay = endTs - startTs;
+            if (delay > winfo->maxDelay) winfo->maxDelay = delay;
+            if (delay < winfo->minDelay) winfo->minDelay = delay;
+            winfo->cntDelay++;
+            winfo->totalDelay += delay;
+            //winfo->avgDelay = (double)winfo->totalDelay / winfo->cntDelay;      
           }
           totalAffectedRows += affectedRows;
 
@@ -4164,6 +4198,7 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
     t_info->superTblInfo = superTblInfo;
 
     t_info->start_time = start_time;
+    t_info->minDelay = INT16_MAX;
 
     if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {
       //t_info->taos = taos;
@@ -4202,6 +4237,12 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
     pthread_join(pids[i], NULL);
   }
 
+  int64_t totalDelay = 0;
+  int64_t maxDelay = 0;
+  int64_t minDelay = INT16_MAX;
+  int64_t cntDelay = 0;
+  double  avgDelay = 0;
+
   for (int i = 0; i < threads; i++) {
     threadInfo *t_info = infos + i;
 
@@ -4210,6 +4251,11 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
 
     superTblInfo->totalAffectedRows += t_info->totalAffectedRows;
     superTblInfo->totalRowsInserted += t_info->totalRowsInserted;
+
+    totalDelay += t_info->totalDelay;
+    cntDelay   += t_info->cntDelay;
+    if (t_info->maxDelay > maxDelay) maxDelay = t_info->maxDelay;
+    if (t_info->minDelay < minDelay) minDelay = t_info->minDelay;    
     #ifdef TD_LOWA_CURL
     if (t_info->curl_handle) {
       curl_easy_cleanup(t_info->curl_handle);
@@ -4217,17 +4263,26 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
     #endif
   }
 
+  avgDelay = (double)totalDelay / cntDelay;
+
   double end = getCurrentTime();
+  printf("Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s\n\n", 
+          end - start, superTblInfo->totalRowsInserted, superTblInfo->totalAffectedRows, threads, db_name, superTblInfo->sTblName);
+  fprintf(g_fpOfInsertResult, "Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s\n\n", 
+          end - start, superTblInfo->totalRowsInserted, superTblInfo->totalAffectedRows, threads, db_name, superTblInfo->sTblName);
+
+
+  printf("insert delay, avg: %10.6fms, max: %10.6fms, min: %10.6fms\n\n",
+          avgDelay/1000.0, (double)maxDelay/1000.0, (double)minDelay/1000.0);
+  fprintf(g_fpOfInsertResult, "insert delay, avg:%10.6fms, max: %10.6fms, min: %10.6fms\n\n",
+          avgDelay/1000.0, (double)maxDelay/1000.0, (double)minDelay/1000.0);
+
   
   //taos_close(taos);
 
   free(pids);
   free(infos);  
 
-  printf("Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s\n\n", 
-          end - start, superTblInfo->totalRowsInserted, superTblInfo->totalAffectedRows, threads, db_name, superTblInfo->sTblName);
-  fprintf(g_fpOfInsertResult, "Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s\n\n", 
-          end - start, superTblInfo->totalRowsInserted, superTblInfo->totalAffectedRows, threads, db_name, superTblInfo->sTblName);
 }
 
 
