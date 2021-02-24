@@ -160,11 +160,9 @@ public class TSDBPreparedStatementTest {
         pstmt_insert.setArray(1, null);
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void getMetaData() throws SQLException {
-        ResultSetMetaData metaData = pstmt_insert.getMetaData();
-        Assert.assertNotNull(metaData);
-        //TODO
+        pstmt_insert.getMetaData();
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)

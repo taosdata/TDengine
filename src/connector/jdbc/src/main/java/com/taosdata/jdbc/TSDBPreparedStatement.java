@@ -41,6 +41,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     private boolean isSaved;
 
     private SavedPreparedStatement savedPreparedStatement;
+    private ParameterMetaData parameterMetaData;
 
     TSDBPreparedStatement(TSDBConnection connection, TSDBJNIConnector connecter, String sql) {
         super(connection, connecter);
@@ -240,8 +241,8 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         if (!isSupportedSQLType(sqlType) || parameterIndex < 0)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
-        if (parameterIndex >= parameters.size())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_BOUNDARY);
+//        if (parameterIndex >= parameters.size())
+//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_BOUNDARY);
 
         setObject(parameterIndex, "NULL");
     }
@@ -446,7 +447,8 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public ResultSetMetaData getMetaData() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        return this.getResultSet().getMetaData();
+//        return this.getResultSet().getMetaData();
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
@@ -489,9 +491,9 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public ParameterMetaData getParameterMetaData() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        //TODO:
-        return null;
-//        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        //TODO: parameterMetaData not supported
+//        return null;
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
