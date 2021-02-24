@@ -7,6 +7,9 @@ GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
+tests_dir=`pwd`
+IN_TDINTERNAL="community"
+
 function dohavecore(){
   corefile=`find $corepath -mmin 1`  
   if [ -n "$corefile" ];then
@@ -19,8 +22,7 @@ function dohavecore(){
 function runSimCaseOneByOne {
   while read -r line; do
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
-			case=`echo $line | grep sim$ |awk '{print $NF}'`
-      IN_TDINTERNAL="community"
+			case=`echo $line | grep sim$ |awk '{print $NF}'`    
       start_time=`date +%s`      
       date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
@@ -51,8 +53,7 @@ function runSimCaseOneByOnefq {
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
 			case=`echo $line | grep sim$ |awk '{print $NF}'`
 
-      start_time=`date +%s`
-      IN_TDINTERNAL="community"
+      start_time=`date +%s`    
       date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
@@ -143,12 +144,13 @@ function runPyCaseOneByOnefq {
     fi
   done < $1
 }
+
 totalFailed=0
 totalPyFailed=0
+totalJDBCFailed=0
 
-tests_dir=`pwd`
 corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
-if [ "$2" != "python" ]; then
+if [ "$2" != "jdbc" ] && [ "$2" != "python" ]; then
   echo "### run TSIM test case ###"
   cd $tests_dir/script
 
@@ -217,11 +219,10 @@ if [ "$2" != "python" ]; then
   fi
 fi
 
-if [ "$2" != "sim" ]; then
+if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] ; then
   echo "### run Python test case ###"
 
   cd $tests_dir
-  IN_TDINTERNAL="community"
 
   if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
     cd ../..
@@ -286,4 +287,45 @@ if [ "$2" != "sim" ]; then
   fi
 fi
 
-exit $(($totalFailed + $totalPyFailed))
+
+if [ "$2" != "sim" ] && [ "$2" != "python" ]; then
+  echo "### run JDBC test case ###"  
+
+  echo $tests_dir
+
+  if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+    cd ../../
+  else
+    cd ../
+  fi
+
+  cd debug/
+  nohup build/bin/taosd -c /etc/taos/ > /dev/null 2>&1 &
+  sleep 30
+
+  cd $tests_dir/../src/connector/jdbc
+    
+  mvn test > jdbc-out.log 2>&1
+  tail -n 20 jdbc-out.log
+
+  cases=`grep 'Tests run' jdbc-out.log | awk 'END{print $3}'`
+  totalJDBCCases=`echo ${cases/%,}`
+  failed=`grep 'Tests run' jdbc-out.log | awk 'END{print $5}'`
+  JDBCFailed=`echo ${failed/%,}`
+  error=`grep 'Tests run' jdbc-out.log | awk 'END{print $7}'`
+  JDBCError=`echo ${error/%,}`
+  
+  totalJDBCFailed=`expr $JDBCFailed + $JDBCError`
+  totalJDBCSuccess=`expr $totalJDBCCases - $totalJDBCFailed`
+
+  if [ "$totalJDBCSuccess" -gt "0" ]; then
+    echo -e "\n${GREEN} ### Total $totalJDBCSuccess JDBC case(s) succeed! ### ${NC}"
+  fi
+  
+  if [ "$totalJDBCFailed" -ne "0" ]; then
+    echo -e "\n${RED} ### Total $totalJDBCFailed JDBC case(s) failed! ### ${NC}"
+  fi
+  dohavecore 1
+fi
+
+exit $(($totalFailed + $totalPyFailed + $totalJDBCFailed))
