@@ -358,7 +358,7 @@ struct arguments tsArguments = {
   false, 
   false, 
   0, 
-  INT64_MAX, 
+  MAX_TS_KEY, 
   1,
   1,
   false,
