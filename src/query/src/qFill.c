@@ -425,8 +425,6 @@ void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) 
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pInput->pDataBlock, i);
     pFillInfo->pData[i] = pColData->pData;
-
-//    memcpy(pFillInfo->pData[i], pInput[i]->data, pFillInfo->numOfRows * pFillInfo->pFillCol[i].col.bytes);
   }
 }
 

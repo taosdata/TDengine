@@ -241,27 +241,12 @@ typedef struct SQuery {
 
 typedef SSDataBlock* (*__operator_fn_t)(void* param);
 
-typedef struct SOperatorInfo {
-  char      *name;
-  bool       blockingOptr;
-  bool       completed;
-  void      *optInfo;
-  SExprInfo *pExpr;
-
-  int32_t*   rowCellInfoOffset;
-  int32_t    numOfOutput;
-
-  __operator_fn_t       exec;
-  __operator_fn_t       cleanup;
-  struct SOperatorInfo *upstream;
-} SOperatorInfo;
+struct SOperatorInfo;
 
 typedef struct SQueryRuntimeEnv {
   jmp_buf              env;
   SQuery*              pQuery;
   void*                qinfo;
-//  int32_t              numOfRowsPerPage;
-//  uint16_t*            offset;
   uint16_t             scanFlag;         // denotes reversed scan of data or not
   SFillInfo*           pFillInfo;
   void*                pQueryHandle;
@@ -282,15 +267,30 @@ typedef struct SQueryRuntimeEnv {
   char*                tagVal;           // tag value of current data block
   SArithmeticSupport  *sasArray;
 
-  SOperatorInfo*   pi;
+  struct SOperatorInfo*   pi;
   SSDataBlock     *outputBuf;
 
   int32_t          groupIndex;
   int32_t          tableIndex;
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
-  SOperatorInfo   *proot;
+  struct SOperatorInfo   *proot;
   SGroupResInfo    groupResInfo;
 } SQueryRuntimeEnv;
+
+typedef struct SOperatorInfo {
+  char      *name;
+  bool       blockingOptr;
+  bool       completed;
+  void      *info;
+  SExprInfo *pExpr;
+  int32_t    numOfOutput;
+
+  SQueryRuntimeEnv *pRuntimeEnv;
+
+  __operator_fn_t       exec;
+  __operator_fn_t       cleanup;
+  struct SOperatorInfo *upstream;
+} SOperatorInfo;
 
 enum {
   QUERY_RESULT_NOT_READY = 1,
@@ -363,23 +363,18 @@ typedef struct STableScanInfo {
 } STableScanInfo;
 
 typedef struct STagScanInfo {
-  SQueryRuntimeEnv *pRuntimeEnv;
   SColumnInfo* pCols;
   SSDataBlock* pRes;
 } STagScanInfo;
 
 typedef struct SAggOperatorInfo {
   SResultRowInfo    resultRowInfo;
-  STableQueryInfo  *pTableQueryInfo;
-  SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
   int32_t          *rowCellInfoOffset;
   SSDataBlock      *pRes;
 } SAggOperatorInfo;
 
 typedef struct SArithOperatorInfo {
-  STableQueryInfo  *pTableQueryInfo;
-  SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
   int32_t          *rowCellInfoOffset;
   SResultRowInfo    resultRowInfo;
@@ -390,18 +385,14 @@ typedef struct SArithOperatorInfo {
 typedef struct SLimitOperatorInfo {
   int64_t limit;
   int64_t total;
-  SQueryRuntimeEnv* pRuntimeEnv;
 } SLimitOperatorInfo;
 
 typedef struct SOffsetOperatorInfo {
   int64_t offset;
   int64_t currentOffset;
-  SQueryRuntimeEnv* pRuntimeEnv;
 } SOffsetOperatorInfo;
 
 typedef struct SHashIntervalOperatorInfo {
-  STableQueryInfo  *pTableQueryInfo;
-  SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
   int32_t          *rowCellInfoOffset;
   SResultRowInfo    resultRowInfo;
@@ -409,13 +400,10 @@ typedef struct SHashIntervalOperatorInfo {
 } SHashIntervalOperatorInfo;
 
 typedef struct SFillOperatorInfo {
-  SQueryRuntimeEnv *pRuntimeEnv;
   SSDataBlock      *pRes;
 } SFillOperatorInfo;
 
 typedef struct SHashGroupbyOperatorInfo {
-  STableQueryInfo  *pTableQueryInfo;
-  SQueryRuntimeEnv *pRuntimeEnv;
   SQLFunctionCtx   *pCtx;
   int32_t          *rowCellInfoOffset;
   SResultRowInfo    resultRowInfo;
