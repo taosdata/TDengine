@@ -48,9 +48,6 @@ int       prompt_size = 6;
 
 int64_t result = 0;
 SShellHistory   history;
-uint32_t resShowMaxNum = UINT32_MAX;
-int32_t resShowMaxReached = 0;
-
 
 #define DEFAULT_MAX_BINARY_DISPLAY_WIDTH 30
 extern int32_t tsMaxBinaryDisplayWidth;
@@ -328,7 +325,6 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   if (!tscIsUpdateQuery(pSql)) {  // select and show kinds of commands
     int error_no = 0;    
-    resShowMaxReached = 0;
   
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
     if (numOfRows < 0) {
@@ -340,10 +336,6 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     et = taosGetTimestampUs();
     if (error_no == 0) {
       printf("Query OK, %d row(s) in set (%.6fs)\n", numOfRows, (et - st) / 1E6);
-      
-      if (resShowMaxReached) {
-        printf("Displayed 100 rows. You can add \"limit %d\" or redirect results to specific file to get all.\n", numOfRows);
-      }
     } else {
       printf("Query interrupted (%s), %d row(s) in set (%.6fs)\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
     }
@@ -697,18 +689,20 @@ static int verticalPrintResult(TAOS_RES* tres) {
     }
   }
 
-  if (isSelectQuery(tres) && !tscIsQueryWithLimit(tres)) {
+  uint64_t resShowMaxNum = UINT64_MAX;
+
+  if (args.commands == NULL && args.file[0] == 0 && isSelectQuery(tres) && !tscIsQueryWithLimit(tres)) {
     resShowMaxNum = DEFAULT_RES_SHOW_NUM;
-  } else {
-    resShowMaxNum = UINT32_MAX;
   }
 
   int numOfRows = 0;
+  int showMore = 1;
   do {
     printf("*************************** %d.row ***************************\n", numOfRows + 1);
-    int32_t* length = taos_fetch_lengths(tres);
   
     if (numOfRows < resShowMaxNum) {
+      int32_t* length = taos_fetch_lengths(tres);
+
       for (int i = 0; i < num_fields; i++) {
         TAOS_FIELD* field = fields + i;
 
@@ -718,8 +712,10 @@ static int verticalPrintResult(TAOS_RES* tres) {
         printField((const char*)row[i], field, 0, length[i], precision);
         putchar('\n');
       }
-    } else {
-      resShowMaxReached = 1;
+    } else if (showMore) {
+        printf("100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.\n");
+        printf("You can add limit statement to get more or redirect results to specific file to get all.\n");
+        showMore = 0;
     }
 
     numOfRows++;
@@ -826,13 +822,15 @@ static int horizontalPrintResult(TAOS_RES* tres) {
 
   printHeader(fields, width, num_fields);
 
-  if (isSelectQuery(tres) && !tscIsQueryWithLimit(tres)) {
+  uint64_t resShowMaxNum = UINT64_MAX;
+
+  if (args.commands == NULL && args.file[0] == 0 && isSelectQuery(tres) && !tscIsQueryWithLimit(tres)) {
     resShowMaxNum = DEFAULT_RES_SHOW_NUM;
-  } else {
-    resShowMaxNum = UINT32_MAX;
   }
 
   int numOfRows = 0;
+  int showMore = 1;
+ 
   do {
     int32_t* length = taos_fetch_lengths(tres);
     if (numOfRows < resShowMaxNum) {
@@ -843,8 +841,10 @@ static int horizontalPrintResult(TAOS_RES* tres) {
         putchar('|');
       }
       putchar('\n');
-    } else {
-      resShowMaxReached = 1;
+    } else if (showMore) {
+        printf("100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.\n");
+        printf("You can add limit statement to show more or redirect results to specific file to get all.\n");
+        showMore = 0;
     }
     
     numOfRows++;
