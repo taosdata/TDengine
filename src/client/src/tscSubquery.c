@@ -683,10 +683,14 @@ void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArr
     prev = tt;
   }
 
-  pTableMetaInfo->pVgroupTables = result;
   pTableMetaInfo->vgroupIndex = 0;
+  
+  if (taosArrayGetSize(result) <= 0) {
+    pTableMetaInfo->pVgroupTables = NULL;
+    taosArrayDestroy(result);
+  } else {
+    pTableMetaInfo->pVgroupTables = result;
 
-  if (taosArrayGetSize(result) > 0) {
     SVgroupTableInfo* g = taosArrayGet(result, taosArrayGetSize(result) - 1);
     tscDebug("%p vgId:%d, tables:%"PRIzu, pSql, g->vgInfo.vgId, taosArrayGetSize(g->itemList));
   }
