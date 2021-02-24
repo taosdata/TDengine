@@ -6,7 +6,7 @@
 
 ### 内存需求
 
-每个DB可以创建固定数目的vnode，默认与CPU核数相同，可通过maxVgroupsPerDb配置；每个vnode会占用固定大小的内存（大小与数据库的配置参数blocks和cache有关)；每个Table会占用与标签总长度有关的内存；此外，系统会有一些固定的内存开销。因此，每个DB需要的系统内存可通过如下公式计算：
+每个DB可以创建固定数目的vgroup，默认与CPU核数相同，可通过maxVgroupsPerDb配置；vgroup中的每个副本会是一个vnode；每个vnode会占用固定大小的内存（大小与数据库的配置参数blocks和cache有关)；每个Table会占用与标签总长度有关的内存；此外，系统会有一些固定的内存开销。因此，每个DB需要的系统内存可通过如下公式计算：
 
 ```
 Memory Size = maxVgroupsPerDb * (blocks * cache + 10Mb) + numOfTables * (tagSizePerTable + 0.5Kb)
@@ -138,7 +138,7 @@ TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数�
 - offlineThreshold: dnode离线阈值，超过该时间将导致该dnode从集群中删除。单位为秒，默认值：86400*10（即10天）。
 - statusInterval: dnode向mnode报告状态时长。单位为秒，默认值：1。
 - maxTablesPerVnode: 每个vnode中能够创建的最大表个数。默认值：1000000。
-- maxVgroupsPerDb: 每个数据库中能够使用的最大vnode个数。
+- maxVgroupsPerDb: 每个数据库中能够使用的最大vgroup个数。
 - arbitrator: 系统中裁决器的end point，缺省为空。
 - timezone、locale、charset 的配置见客户端配置。
 
