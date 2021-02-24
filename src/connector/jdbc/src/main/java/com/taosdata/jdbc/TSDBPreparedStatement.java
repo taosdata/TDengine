@@ -32,7 +32,7 @@ import java.util.regex.Pattern;
 public class TSDBPreparedStatement extends TSDBStatement implements PreparedStatement {
     protected String rawSql;
     protected String sql;
-    protected ArrayList<Object> parameters = new ArrayList<Object>();
+    protected ArrayList<Object> parameters = new ArrayList<>();
 
     //start with insert or import and is case-insensitive
     private static Pattern savePattern = Pattern.compile("(?i)^\\s*(insert|import)");
@@ -53,7 +53,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
         this.isSaved = isSavedSql(this.rawSql);
         if (this.isSaved) {
-
             try {
                 this.savedPreparedStatement = new SavedPreparedStatement(this.rawSql, this);
             } catch (SQLException e) {
@@ -88,10 +87,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     public void setParameters(ArrayList<Object> parameters) {
         this.parameters = parameters;
-    }
-
-    public String getRawSql() {
-        return rawSql;
     }
 
     /*
@@ -192,99 +187,191 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         }
     }
 
+    private boolean isSupportedSQLType(int sqlType) {
+        switch (sqlType) {
+            case Types.TIMESTAMP:
+            case Types.INTEGER:
+            case Types.BIGINT:
+            case Types.FLOAT:
+            case Types.DOUBLE:
+            case Types.SMALLINT:
+            case Types.TINYINT:
+            case Types.BOOLEAN:
+            case Types.BINARY:
+            case Types.NCHAR:
+                return true;
+            case Types.ARRAY:
+            case Types.BIT:
+            case Types.BLOB:
+            case Types.CHAR:
+            case Types.CLOB:
+            case Types.DATALINK:
+            case Types.DATE:
+            case Types.DECIMAL:
+            case Types.DISTINCT:
+            case Types.JAVA_OBJECT:
+            case Types.LONGNVARCHAR:
+            case Types.LONGVARBINARY:
+            case Types.LONGVARCHAR:
+            case Types.NCLOB:
+            case Types.NULL:
+            case Types.NUMERIC:
+            case Types.NVARCHAR:
+            case Types.OTHER:
+            case Types.REAL:
+            case Types.REF:
+            case Types.REF_CURSOR:
+            case Types.ROWID:
+            case Types.SQLXML:
+            case Types.STRUCT:
+            case Types.TIME:
+            case Types.TIME_WITH_TIMEZONE:
+            case Types.TIMESTAMP_WITH_TIMEZONE:
+            case Types.VARBINARY:
+            case Types.VARCHAR:
+            default:
+                return false;
+        }
+    }
+
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        if (!isSupportedSQLType(sqlType) || parameterIndex < 0)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        if (parameterIndex >= parameters.size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_BOUNDARY);
+
         setObject(parameterIndex, "NULL");
     }
 
     @Override
     public void setBoolean(int parameterIndex, boolean x) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setByte(int parameterIndex, byte x) throws SQLException {
-        setObject(parameterIndex, x);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setShort(int parameterIndex, short x) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setInt(int parameterIndex, int x) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setLong(int parameterIndex, long x) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setFloat(int parameterIndex, float x) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setDouble(int parameterIndex, double x) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setBigDecimal(int parameterIndex, BigDecimal x) throws SQLException {
-        setObject(parameterIndex, x);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setString(int parameterIndex, String x) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
-        setObject(parameterIndex, x);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setDate(int parameterIndex, Date x) throws SQLException {
-        setObject(parameterIndex, x);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x) throws SQLException {
-        setObject(parameterIndex, x);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         setObject(parameterIndex, x);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, int length) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void clearParameters() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         parameters.clear();
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
@@ -311,9 +398,8 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         if (isSaved) {
             this.savedPreparedStatement.addBatch();
         } else {
-
             if (this.batchedArgs == null) {
-                batchedArgs = new ArrayList<String>();
+                batchedArgs = new ArrayList<>();
             }
             super.addBatch(getNativeSql());
         }
@@ -321,156 +407,225 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader, int length) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setRef(int parameterIndex, Ref x) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBlob(int parameterIndex, Blob x) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setClob(int parameterIndex, Clob x) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setArray(int parameterIndex, Array x) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        return this.getResultSet().getMetaData();
     }
 
     @Override
     public void setDate(int parameterIndex, Date x, Calendar cal) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setTime(int parameterIndex, Time x, Calendar cal) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        // TODO：
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNull(int parameterIndex, int sqlType, String typeName) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setURL(int parameterIndex, URL x) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public ParameterMetaData getParameterMetaData() throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        //TODO:
+        return null;
+//        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setRowId(int parameterIndex, RowId x) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNString(int parameterIndex, String value) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader value, long length) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNClob(int parameterIndex, NClob value) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader reader, long length) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream inputStream, long length) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader reader, long length) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setSQLXML(int parameterIndex, SQLXML xmlObject) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        //TODO:
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x, long length) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader, long length) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setAsciiStream(int parameterIndex, InputStream x) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setBinaryStream(int parameterIndex, InputStream x) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNCharacterStream(int parameterIndex, Reader value) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setClob(int parameterIndex, Reader reader) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+
     }
 
     @Override
     public void setBlob(int parameterIndex, InputStream inputStream) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
     @Override
     public void setNClob(int parameterIndex, Reader reader) throws SQLException {
-        throw new SQLException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 }

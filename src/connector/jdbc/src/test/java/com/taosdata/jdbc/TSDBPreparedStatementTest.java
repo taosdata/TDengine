@@ -1,37 +1,58 @@
 package com.taosdata.jdbc;
 
 import org.junit.AfterClass;
+import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.SQLException;
+import java.sql.*;
 
 public class TSDBPreparedStatementTest {
     private static final String host = "127.0.0.1";
     private static Connection conn;
+    private static final String sql_insert = "insert into t1 values(?, ?)";
+    private static PreparedStatement pstmt_insert;
+    private static final String sql_select = "select * from t1 where ts > ? and ts <= ? and temperature >= ?";
+    private static PreparedStatement pstmt_select;
 
     @Test
-    public void executeQuery() {
+    public void executeQuery() throws SQLException {
+        pstmt_select.setString(1, "now - 1h");
+        pstmt_select.setString(2, "now");
+        pstmt_select.setFloat(3, 0);
 
+        ResultSet rs = pstmt_select.executeQuery();
+        Assert.assertNotNull(rs);
+        ResultSetMetaData meta = rs.getMetaData();
+        while (rs.next()) {
+            for (int i = 1; i <= meta.getColumnCount(); i++) {
+                System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
+            }
+            System.out.println();
+        }
     }
 
     @Test
-    public void executeUpdate() {
-
+    public void executeUpdate() throws SQLException {
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setFloat(2, 3.14f);
+        int result = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, result);
     }
 
     @Test
-    public void setNull() {
+    public void setNull() throws SQLException {
+        pstmt_insert.setNull(2, Types.FLOAT);
     }
 
     @Test
-    public void setBoolean() {
+    public void setBoolean() throws SQLException {
+        pstmt_insert.setBoolean(2, true);
     }
 
-    @Test
-    public void setByte() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setByte() throws SQLException {
+        pstmt_insert.setByte(1, (byte) 0x001);
     }
 
     @Test
@@ -54,120 +75,150 @@ public class TSDBPreparedStatementTest {
     public void setDouble() {
     }
 
-    @Test
-    public void setBigDecimal() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setBigDecimal() throws SQLException {
+        pstmt_insert.setBigDecimal(1, null);
     }
 
     @Test
     public void setString() {
     }
 
-    @Test
-    public void setBytes() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setBytes() throws SQLException {
+        pstmt_insert.setBytes(1, new byte[]{});
     }
 
-    @Test
-    public void setDate() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setDate() throws SQLException {
+        pstmt_insert.setDate(1, new Date(System.currentTimeMillis()));
     }
 
-    @Test
-    public void setTime() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setTime() throws SQLException {
+        pstmt_insert.setTime(1, new Time(System.currentTimeMillis()));
     }
 
     @Test
     public void setTimestamp() {
+        //TODO
     }
 
-    @Test
-    public void setAsciiStream() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setAsciiStream() throws SQLException {
+        pstmt_insert.setAsciiStream(1, null);
     }
 
-    @Test
-    public void setUnicodeStream() {
-    }
-
-    @Test
-    public void setBinaryStream() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setBinaryStream() throws SQLException {
+        pstmt_insert.setBinaryStream(1, null);
     }
 
     @Test
     public void clearParameters() {
+        //TODO
     }
 
     @Test
-    public void setObject() {
-
+    public void setObject() throws SQLException {
+        pstmt_insert.setObject(1, System.currentTimeMillis());
+        //TODO
     }
 
     @Test
     public void execute() {
+        //TODO
     }
 
     @Test
     public void addBatch() {
+        //TODO:
+    }
 
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setCharacterStream() throws SQLException {
+        pstmt_insert.setCharacterStream(1, null);
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setRef() throws SQLException {
+        pstmt_insert.setRef(1, null);
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setBlob() throws SQLException {
+        pstmt_insert.setBlob(1, (Blob) null);
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setClob() throws SQLException {
+        pstmt_insert.setClob(1, (Clob) null);
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setArray() throws SQLException {
+        pstmt_insert.setArray(1, null);
     }
 
     @Test
-    public void setCharacterStream() {
+    public void getMetaData() throws SQLException {
+        ResultSetMetaData metaData = pstmt_insert.getMetaData();
+        Assert.assertNotNull(metaData);
+        //TODO
+    }
+
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setURL() throws SQLException {
+        pstmt_insert.setURL(1, null);
     }
 
     @Test
-    public void setRef() {
+    public void getParameterMetaData() throws SQLException {
+        ParameterMetaData parameterMetaData = pstmt_insert.getParameterMetaData();
+        Assert.assertNotNull(parameterMetaData);
+        //TODO:
     }
 
-    @Test
-    public void setBlob() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setRowId() throws SQLException {
+        pstmt_insert.setRowId(1, null);
     }
 
-    @Test
-    public void setClob() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setNString() throws SQLException {
+        pstmt_insert.setNString(1, null);
     }
 
-    @Test
-    public void setArray() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setNCharacterStream() throws SQLException {
+        pstmt_insert.setNCharacterStream(1, null);
     }
 
-    @Test
-    public void getMetaData() {
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setNClob() throws SQLException {
+        pstmt_insert.setNClob(1, (NClob) null);
     }
 
-    @Test
-    public void setURL() {
-    }
-
-    @Test
-    public void getParameterMetaData() {
-    }
-
-    @Test
-    public void setRowId() {
-    }
-
-    @Test
-    public void setNString() {
-    }
-
-    @Test
-    public void setNCharacterStream() {
-    }
-
-    @Test
-    public void setNClob() {
-
-    }
-
-    @Test
-    public void setSQLXML() {
-
+    @Test(expected = SQLFeatureNotSupportedException.class)
+    public void setSQLXML() throws SQLException {
+        pstmt_insert.setSQLXML(1, null);
     }
 
 
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
             conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
+            try (Statement stmt = conn.createStatement()) {
+                stmt.execute("drop database if exists test_pstmt");
+                stmt.execute("create database if not exists test_pstmt");
+                stmt.execute("use test_pstmt");
+                stmt.execute("create table weather(ts timestamp, temperature float) tags(loc nchar(64))");
+                stmt.execute("create table t1 using weather tags('beijing')");
+            }
+            pstmt_insert = conn.prepareStatement(sql_insert);
+            pstmt_select = conn.prepareStatement(sql_select);
         } catch (ClassNotFoundException | SQLException e) {
             e.printStackTrace();
         }
@@ -176,6 +227,7 @@ public class TSDBPreparedStatementTest {
     @AfterClass
     public static void afterClass() {
         try {
+
             if (conn != null)
                 conn.close();
         } catch (SQLException e) {
