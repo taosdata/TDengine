@@ -3566,7 +3566,6 @@ static void arithmetic_function(SQLFunctionCtx *pCtx) {
   SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
   
   arithmeticTreeTraverse(sas->pArithExpr->pExpr, pCtx->size, pCtx->pOutput, sas, pCtx->order, getArithColumnData);
-//  pCtx->pOutput += pCtx->outputBytes * pCtx->size;
 }
 
 static void arithmetic_function_f(SQLFunctionCtx *pCtx, int32_t index) {

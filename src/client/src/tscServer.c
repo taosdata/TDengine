@@ -825,13 +825,31 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pSqlFuncExpr->colInfo.colIndex = htons(pExpr->colInfo.colIndex);
     pSqlFuncExpr->colInfo.flag     = htons(pExpr->colInfo.flag);
 
+    if (TSDB_COL_IS_UD_COL(pExpr->colInfo.flag)) {
+      pSqlFuncExpr->colType  = htons(pExpr->resType);
+      pSqlFuncExpr->colBytes = htons(pExpr->resBytes);
+    } else if (pExpr->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+      SSchema *s = tGetTbnameColumnSchema();
+
+      pSqlFuncExpr->colType = htons(s->type);
+      pSqlFuncExpr->colBytes = htons(s->bytes);
+    } else if (pExpr->colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
+      SSchema s = tGetBlockDistColumnSchema();
+
+      pSqlFuncExpr->colType = htons(s.type);
+      pSqlFuncExpr->colBytes = htons(s.bytes);
+    } else {
+      SSchema* s = tscGetColumnSchemaById(pTableMeta, pExpr->colInfo.colId);
+      pSqlFuncExpr->colType  = htons(s->type);
+      pSqlFuncExpr->colBytes = htons(s->bytes);
+    }
+
     pSqlFuncExpr->functionId  = htons(pExpr->functionId);
     pSqlFuncExpr->numOfParams = htons(pExpr->numOfParams);
     pSqlFuncExpr->resColId    = htons(pExpr->resColId);
     pMsg += sizeof(SSqlFuncMsg);
 
-    for (int32_t j = 0; j < pExpr->numOfParams; ++j) {
-      // todo add log
+    for (int32_t j = 0; j < pExpr->numOfParams; ++j) { // todo add log
       pSqlFuncExpr->arg[j].argType = htons((uint16_t)pExpr->param[j].nType);
       pSqlFuncExpr->arg[j].argBytes = htons(pExpr->param[j].nLen);
 
@@ -869,14 +887,19 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
         pSqlFuncExpr1->colInfo.colId = htons(pExpr->resColId);
         pSqlFuncExpr1->colInfo.flag = htons(TSDB_COL_NORMAL);
 
+        bool assign = false;
         for (int32_t f = 0; f < tscSqlExprNumOfExprs(pQueryInfo); ++f) {
           SSqlExpr *pe = tscSqlExprGet(pQueryInfo, f);
           if (pe == pExpr) {
             pSqlFuncExpr1->colInfo.colIndex = htons(f);
+            pSqlFuncExpr1->colType = htons(pe->resType);
+            pSqlFuncExpr1->colBytes = htons(pe->resBytes);
+            assign = true;
             break;
           }
         }
 
+        assert(assign);
         pMsg += sizeof(SSqlFuncMsg);
         pSqlFuncExpr1 = (SSqlFuncMsg *)pMsg;
       } else {

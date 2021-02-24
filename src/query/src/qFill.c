@@ -279,7 +279,7 @@ static int32_t setTagColumnInfo(SFillInfo* pFillInfo, int32_t numOfCols, int32_t
   int32_t k = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SFillColInfo* pColInfo = &pFillInfo->pFillCol[i];
-    pFillInfo->pData[i] = calloc(1, pColInfo->col.bytes * capacity);
+    pFillInfo->pData[i] = NULL;
 
     if (TSDB_COL_IS_TAG(pColInfo->flag)) {
       bool exists = false;
@@ -377,10 +377,10 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
   tfree(pFillInfo->prevValues);
   tfree(pFillInfo->nextValues);
   tfree(pFillInfo->pTags);
-  
-  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-    tfree(pFillInfo->pData[i]);
-  }
+
+//  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
+//    tfree(pFillInfo->pData[i]);
+//  }
   
   tfree(pFillInfo->pData);
   tfree(pFillInfo->pFillCol);

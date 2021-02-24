@@ -240,6 +240,7 @@ typedef struct SQuery {
 } SQuery;
 
 typedef SSDataBlock* (*__operator_fn_t)(void* param);
+typedef void (*__optr_cleanup_fn_t)(void* param, int32_t num);
 
 struct SOperatorInfo;
 
@@ -256,8 +257,6 @@ typedef struct SQueryRuntimeEnv {
   SHashObj*            pResultRowHashTable; // quick locate the window object for each result
   char*                keyBuf;           // window key buffer
   SResultRowPool*      pool;             // window result object pool
-
-//  int32_t*             rowCellInfoOffset;// offset value for each row result cell info
   char**               prevRow;
 
   SArray*              prevResult;       // intermediate result, SArray<SInterResult>
@@ -285,11 +284,11 @@ typedef struct SOperatorInfo {
   SExprInfo *pExpr;
   int32_t    numOfOutput;
 
-  SQueryRuntimeEnv *pRuntimeEnv;
+  SQueryRuntimeEnv     *pRuntimeEnv;
+  struct SOperatorInfo *upstream;
 
   __operator_fn_t       exec;
-  __operator_fn_t       cleanup;
-  struct SOperatorInfo *upstream;
+  __optr_cleanup_fn_t   cleanup;
 } SOperatorInfo;
 
 enum {
@@ -357,6 +356,7 @@ typedef struct STableScanInfo {
 
   SQLFunctionCtx *pCtx;  // next operator query context
   SResultRowInfo *pResultRowInfo;
+
   int32_t         numOfOutput;
   int32_t        *rowCellInfoOffset;
   int64_t         elapsedTime;
@@ -367,19 +367,19 @@ typedef struct STagScanInfo {
   SSDataBlock* pRes;
 } STagScanInfo;
 
-typedef struct SAggOperatorInfo {
+typedef struct SOptrBasicInfo {
   SResultRowInfo    resultRowInfo;
+  int32_t          *rowCellInfoOffset;  // offset value for each row result cell info
   SQLFunctionCtx   *pCtx;
-  int32_t          *rowCellInfoOffset;
   SSDataBlock      *pRes;
-} SAggOperatorInfo;
+} SOptrBasicInfo;
+
+typedef struct SOptrBasicInfo SAggOperatorInfo;
+typedef struct SOptrBasicInfo SHashIntervalOperatorInfo;
 
 typedef struct SArithOperatorInfo {
-  SQLFunctionCtx   *pCtx;
-  int32_t          *rowCellInfoOffset;
-  SResultRowInfo    resultRowInfo;
-  SSDataBlock      *pOutput;
-  int32_t           bufCapacity;
+  SOptrBasicInfo binfo;
+  int32_t        bufCapacity;
 } SArithOperatorInfo;
 
 typedef struct SLimitOperatorInfo {
@@ -392,22 +392,12 @@ typedef struct SOffsetOperatorInfo {
   int64_t currentOffset;
 } SOffsetOperatorInfo;
 
-typedef struct SHashIntervalOperatorInfo {
-  SQLFunctionCtx   *pCtx;
-  int32_t          *rowCellInfoOffset;
-  SResultRowInfo    resultRowInfo;
-  SSDataBlock      *pRes;
-} SHashIntervalOperatorInfo;
-
 typedef struct SFillOperatorInfo {
   SSDataBlock      *pRes;
 } SFillOperatorInfo;
 
 typedef struct SHashGroupbyOperatorInfo {
-  SQLFunctionCtx   *pCtx;
-  int32_t          *rowCellInfoOffset;
-  SResultRowInfo    resultRowInfo;
-  SSDataBlock      *pRes;
+  SOptrBasicInfo    binfo;
   int32_t           colIndex;
 } SHashGroupbyOperatorInfo;
 
