@@ -20,7 +20,7 @@ public class TSDBPreparedStatementTest {
         long end = System.currentTimeMillis();
         long start = end - 1000 * 60 * 60;
         pstmt_select.setTimestamp(1, new Timestamp(start));
-        pstmt_select.setTimestamp(2, new Timestamp(endg));
+        pstmt_select.setTimestamp(2, new Timestamp(end));
         pstmt_select.setFloat(3, 0);
 
         ResultSet rs = pstmt_select.executeQuery();
