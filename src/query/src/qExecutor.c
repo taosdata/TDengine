@@ -379,28 +379,24 @@ int16_t getGroupbyColumnType(SQuery *pQuery, SSqlGroupbyExpr *pGroupbyExpr) {
   return type;
 }
 
-//static bool isSelectivityWithTagsQuery(SQuery *pQuery) {
-//  bool    hasTags = false;
-//  int32_t numOfSelectivity = 0;
-//
-//  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-//    int32_t functId = pQuery->pExpr1[i].base.functionId;
-//    if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY) {
-//      hasTags = true;
-//      continue;
-//    }
-//
-//    if ((aAggs[functId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
-//      numOfSelectivity++;
-//    }
-//  }
-//
-//  if (numOfSelectivity > 0 && hasTags) {
-//    return true;
-//  }
-//
-//  return false;
-//}
+static bool isSelectivityWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
+  bool    hasTags = false;
+  int32_t numOfSelectivity = 0;
+
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    int32_t functId = pCtx[i].functionId;
+    if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY) {
+      hasTags = true;
+      continue;
+    }
+
+    if ((aAggs[functId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
+      numOfSelectivity++;
+    }
+  }
+
+  return (numOfSelectivity > 0 && hasTags);
+}
 
 static bool isProjQuery(SQuery *pQuery) {
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
@@ -1982,47 +1978,47 @@ void UNUSED_FUNC  setExecParams(SQuery *pQuery, SQLFunctionCtx *pCtx, void* inpu
 //  }
 }
 
-//// set the output buffer for the selectivity + tag query
-//static int32_t setCtxTagColumnInfo(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx) {
-//  SQuery* pQuery = pRuntimeEnv->pQuery;
-//
-//  if (isSelectivityWithTagsQuery(pQuery)) {
-//    int32_t num = 0;
-//    int16_t tagLen = 0;
-//
-//    SQLFunctionCtx *p = NULL;
-//    SQLFunctionCtx **pTagCtx = calloc(pQuery->numOfOutput, POINTER_BYTES);
-//    if (pTagCtx == NULL) {
-//      return TSDB_CODE_QRY_OUT_OF_MEMORY;
-//    }
-//
-//    for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-//      SSqlFuncMsg *pSqlFuncMsg = &pQuery->pExpr1[i].base;
-//
-//      if (pSqlFuncMsg->functionId == TSDB_FUNC_TAG_DUMMY || pSqlFuncMsg->functionId == TSDB_FUNC_TS_DUMMY) {
-//        tagLen += pCtx[i].outputBytes;
-//        pTagCtx[num++] = &pCtx[i];
-//      } else if ((aAggs[pSqlFuncMsg->functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
-//        p = &pCtx[i];
-//      } else if (pSqlFuncMsg->functionId == TSDB_FUNC_TS || pSqlFuncMsg->functionId == TSDB_FUNC_TAG) {
-//        // tag function may be the group by tag column
-//        // ts may be the required primary timestamp column
-//        continue;
-//      } else {
-//        // the column may be the normal column, group by normal_column, the functionId is TSDB_FUNC_PRJ
-//      }
-//    }
-//    if (p != NULL) {
-//      p->tagInfo.pTagCtxList = pTagCtx;
-//      p->tagInfo.numOfTagCols = num;
-//      p->tagInfo.tagsLen = tagLen;
-//    } else {
-//      tfree(pTagCtx);
-//    }
-//  }
-//
-//  return TSDB_CODE_SUCCESS;
-//}
+// set the output buffer for the selectivity + tag query
+static int32_t setCtxTagColumnInfo(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
+  if (!isSelectivityWithTagsQuery(pCtx, numOfOutput)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t num = 0;
+  int16_t tagLen = 0;
+
+  SQLFunctionCtx*  p = NULL;
+  SQLFunctionCtx** pTagCtx = calloc(numOfOutput, POINTER_BYTES);
+  if (pTagCtx == NULL) {
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
+
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    int32_t functionId = pCtx[i].functionId;
+
+    if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
+      tagLen += pCtx[i].outputBytes;
+      pTagCtx[num++] = &pCtx[i];
+    } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
+      p = &pCtx[i];
+    } else if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TAG) {
+      // tag function may be the group by tag column
+      // ts may be the required primary timestamp column
+      continue;
+    } else {
+      // the column may be the normal column, group by normal_column, the functionId is TSDB_FUNC_PRJ
+    }
+  }
+  if (p != NULL) {
+    p->tagInfo.pTagCtxList = pTagCtx;
+    p->tagInfo.numOfTagCols = num;
+    p->tagInfo.tagsLen = tagLen;
+  } else {
+    tfree(pTagCtx);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
                                             int32_t** rowCellInfoOffset) {
@@ -2123,6 +2119,8 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     }
   }
 
+  setCtxTagColumnInfo(pFuncCtx, numOfOutput);
+
   return pFuncCtx;
 }
 
@@ -2174,10 +2172,6 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   }
 
   *(int64_t*) pRuntimeEnv->prevRow[0] = INT64_MIN;
-
-//  if (setCtxTagColumnInfo(pRuntimeEnv, pRuntimeEnv->pCtx) != TSDB_CODE_SUCCESS) {
-//    goto _clean;
-//  }
 
   qDebug("QInfo:%p init runtime completed", GET_QINFO_ADDR(pRuntimeEnv));
 
@@ -6531,7 +6525,6 @@ static SSDataBlock* doSTableIntervalAgg(void* param) {
 
   SQuery* pQuery = pRuntimeEnv->pQuery;
   int32_t order = pQuery->order.order;
-  assert(order == 1);
 
   SOperatorInfo* upstream = pOperator->upstream;
   pQuery->pos = 0;
