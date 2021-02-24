@@ -16,7 +16,7 @@ public class TSDBErrorNumbers {
     public static final int ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE = 0x2310; //Database not specified or available
     public static final int ERROR_INVALID_FOR_EXECUTE_UPDATE = 0x2311;  //not a valid sql for executeUpdate: (SQL)
     public static final int ERROR_INVALID_FOR_EXECUTE = 0x2312;         //not a valid sql for execute: (SQL)
-    public static final int ERROR_PARAMETER_INDEX_OUT_BOUNDARY = 0x2313; // parameter index out of range
+    public static final int ERROR_PARAMETER_INDEX_OUT_RANGE = 0x2313; // parameter index out of range
 
     public static final int ERROR_UNKNOWN = 0x2350;    //unknown error
 
@@ -46,7 +46,7 @@ public class TSDBErrorNumbers {
         errorNumbers.add(ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
         errorNumbers.add(ERROR_INVALID_FOR_EXECUTE_UPDATE);
         errorNumbers.add(ERROR_INVALID_FOR_EXECUTE);
-        errorNumbers.add(ERROR_PARAMETER_INDEX_OUT_BOUNDARY);
+        errorNumbers.add(ERROR_PARAMETER_INDEX_OUT_RANGE);
 
         /*****************************************************/
         errorNumbers.add(ERROR_SUBSCRIBE_FAILED);

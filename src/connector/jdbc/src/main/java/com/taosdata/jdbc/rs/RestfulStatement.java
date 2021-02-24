@@ -30,7 +30,7 @@ public class RestfulStatement extends AbstractStatement {
         this.database = database;
     }
 
-    private String[] parseTableIdentifier(String sql) {
+    protected String[] parseTableIdentifier(String sql) {
         sql = sql.trim().toLowerCase();
         String[] ret = null;
         if (sql.contains("where"))

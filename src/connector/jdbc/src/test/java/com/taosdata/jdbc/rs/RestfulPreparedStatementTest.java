@@ -1,4 +1,4 @@
-package com.taosdata.jdbc;
+package com.taosdata.jdbc.rs;
 
 import org.junit.AfterClass;
 import org.junit.Assert;
@@ -7,12 +7,13 @@ import org.junit.Test;
 
 import java.sql.*;
 
-public class TSDBPreparedStatementTest {
-    private static final String host = "127.0.0.1";
+public class RestfulPreparedStatementTest {
+    //    private static final String host = "127.0.0.1";
+    private static final String host = "master";
     private static Connection conn;
-    private static final String sql_insert = "insert into t1 values(?, ?)";
+    private static final String sql_insert = "insert into t1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     private static PreparedStatement pstmt_insert;
-    private static final String sql_select = "select * from t1 where ts > ? and ts <= ? and temperature >= ?";
+    private static final String sql_select = "select * from t1 where ts > ? and ts <= ? and f1 >= ?";
     private static PreparedStatement pstmt_select;
 
     @Test
@@ -21,7 +22,7 @@ public class TSDBPreparedStatementTest {
         long start = end - 1000 * 60 * 60;
         pstmt_select.setTimestamp(1, new Timestamp(start));
         pstmt_select.setTimestamp(2, new Timestamp(end));
-        pstmt_select.setFloat(3, 0);
+        pstmt_select.setInt(3, 0);
 
         ResultSet rs = pstmt_select.executeQuery();
         Assert.assertNotNull(rs);
@@ -176,10 +177,10 @@ public class TSDBPreparedStatementTest {
         pstmt_insert.setURL(1, null);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void getParameterMetaData() throws SQLException {
         ParameterMetaData parameterMetaData = pstmt_insert.getParameterMetaData();
-//        Assert.assertNotNull(parameterMetaData);
+        Assert.assertNull(parameterMetaData);
         //TODO:
     }
 
@@ -212,13 +213,13 @@ public class TSDBPreparedStatementTest {
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
-            conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
+            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
+            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("drop database if exists test_pstmt");
                 stmt.execute("create database if not exists test_pstmt");
                 stmt.execute("use test_pstmt");
-                stmt.execute("create table weather(ts timestamp, temperature float) tags(loc nchar(64))");
+                stmt.execute("create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))");
                 stmt.execute("create table t1 using weather tags('beijing')");
             }
             pstmt_insert = conn.prepareStatement(sql_insert);
@@ -231,7 +232,10 @@ public class TSDBPreparedStatementTest {
     @AfterClass
     public static void afterClass() {
         try {
-
+            if (pstmt_insert != null)
+                pstmt_insert.close();
+            if (pstmt_select != null)
+                pstmt_select.close();
             if (conn != null)
                 conn.close();
         } catch (SQLException e) {
