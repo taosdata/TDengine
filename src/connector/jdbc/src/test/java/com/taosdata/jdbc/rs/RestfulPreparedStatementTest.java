@@ -8,8 +8,8 @@ import org.junit.Test;
 import java.sql.*;
 
 public class RestfulPreparedStatementTest {
-    //    private static final String host = "127.0.0.1";
-    private static final String host = "master";
+    private static final String host = "127.0.0.1";
+    //    private static final String host = "master";
     private static Connection conn;
     private static final String sql_insert = "insert into t1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     private static PreparedStatement pstmt_insert;
