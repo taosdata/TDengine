@@ -4535,13 +4535,13 @@ void *superQueryProcess(void *sarg) {
         }
         selectAndGetResult(winfo->taos, g_queryInfo.superQueryInfo.sql[i], tmpFile); 
         int64_t t2 = taosGetTimestampUs();          
-        printf("=[taosc] thread[%"PRIu64"] complete one sql, Spent %f s\n", (uint64_t)pthread_self(), (t2 - t1)/1000000.0);          
+        printf("=[taosc] thread[%"PRIu64"] complete one sql, Spent %f s\n", taosGetSelfPthreadId(), (t2 - t1)/1000000.0);          
       } else {
         #ifdef TD_LOWA_CURL
         int64_t t1 = taosGetTimestampUs();
         int retCode = curlProceSql(g_queryInfo.host, g_queryInfo.port, g_queryInfo.superQueryInfo.sql[i], winfo->curl_handle);
         int64_t t2 = taosGetTimestampUs();          
-        printf("=[restful] thread[%"PRIu64"] complete one sql, Spent %f s\n", (uint64_t)pthread_self(), (t2 - t1)/1000000.0);
+        printf("=[restful] thread[%"PRIu64"] complete one sql, Spent %f s\n", taosGetSelfPthreadId(), (t2 - t1)/1000000.0);
         
         if (0 != retCode) {
           printf("====curl return fail, threadID[%d]\n", winfo->threadID);
@@ -4551,7 +4551,7 @@ void *superQueryProcess(void *sarg) {
       }   
     }
     et = taosGetTimestampMs();
-    printf("==thread[%"PRIu64"] complete all sqls to specify tables once queries duration:%.6fs\n\n", (uint64_t)pthread_self(), (double)(et - st)/1000.0);
+    printf("==thread[%"PRIu64"] complete all sqls to specify tables once queries duration:%.6fs\n\n", taosGetSelfPthreadId(), (double)(et - st)/1000.0);
   }
   return NULL;
 }
@@ -4600,7 +4600,7 @@ void *subQueryProcess(void *sarg) {
       }
     }
     et = taosGetTimestampMs();
-    printf("####thread[%"PRIu64"] complete all sqls to allocate all sub-tables[%d - %d] once queries duration:%.4fs\n\n", (uint64_t)pthread_self(), winfo->start_table_id, winfo->end_table_id, (double)(et - st)/1000.0);
+    printf("####thread[%"PRIu64"] complete all sqls to allocate all sub-tables[%d - %d] once queries duration:%.4fs\n\n", taosGetSelfPthreadId(), winfo->start_table_id, winfo->end_table_id, (double)(et - st)/1000.0);
   }
   return NULL;
 }
@@ -4784,7 +4784,7 @@ void *subSubscribeProcess(void *sarg) {
       }
     }
     //et = taosGetTimestampMs();
-    //printf("========thread[%"PRId64"] complete all sqls to super table once queries duration:%.4fs\n", (uint64_t)pthread_self(), (double)(et - st)/1000.0);
+    //printf("========thread[%"PRId64"] complete all sqls to super table once queries duration:%.4fs\n", taosGetSelfPthreadId(), (double)(et - st)/1000.0);
   } while (0);
 
   // start loop to consume result
@@ -4844,7 +4844,7 @@ void *superSubscribeProcess(void *sarg) {
       }
     }
     //et = taosGetTimestampMs();
-    //printf("========thread[%"PRId64"] complete all sqls to super table once queries duration:%.4fs\n", (uint64_t)pthread_self(), (double)(et - st)/1000.0);
+    //printf("========thread[%"PRId64"] complete all sqls to super table once queries duration:%.4fs\n", taosGetSelfPthreadId(), (double)(et - st)/1000.0);
   } while (0);
 
   // start loop to consume result
