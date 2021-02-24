@@ -202,7 +202,7 @@ static int32_t syncRetrieveLastWal(SSyncPeer *pPeer, char *name, uint64_t fversi
       break;
     }
 
-    sDebug("%s, last wal is forwarded, hver:%" PRIu64, pPeer->id, pHead->version);
+    sTrace("%s, last wal is forwarded, hver:%" PRIu64, pPeer->id, pHead->version);
 
     int32_t wsize = code;
     int32_t ret = taosWriteMsg(pPeer->syncFd, pHead, wsize);
@@ -245,7 +245,7 @@ static int32_t syncProcessLastWal(SSyncPeer *pPeer, char *wname, int64_t index) 
 
     int32_t bytes = syncRetrieveLastWal(pPeer, fname, fversion, offset);
     if (bytes < 0) {
-      sDebug("%s, failed to retrieve last wal", pPeer->id);
+      sDebug("%s, failed to retrieve last wal, bytes:%d", pPeer->id, bytes);
       return bytes;
     }
 
@@ -309,6 +309,7 @@ static int32_t syncRetrieveWal(SSyncPeer *pPeer) {
 
     if (code == 0) {  // last wal
       code = syncProcessLastWal(pPeer, wname, index);
+      sInfo("%s, last wal processed, code:%d", pPeer->id, code);
       break;
     }
 
