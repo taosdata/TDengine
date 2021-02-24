@@ -232,7 +232,7 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
   if (tsdbLockRepo(pRepo) < 0) return -1;
   pRepo->imem = pRepo->mem;
   pRepo->mem = NULL;
-  tsdbScheduleCommit(pRepo);
+  tsdbScheduleCommit(pRepo, COMMIT_REQ);
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
   return 0;

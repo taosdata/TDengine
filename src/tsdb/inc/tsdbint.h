@@ -64,6 +64,8 @@ extern "C" {
 #include "tsdbReadImpl.h"
 // Commit
 #include "tsdbCommit.h"
+// Compact
+#include "tsdbCompact.h"
 // Commit Queue
 #include "tsdbCommitQueue.h"
 // Main definitions

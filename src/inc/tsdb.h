@@ -355,6 +355,9 @@ void tsdbDecCommitRef(int vgId);
 int tsdbSyncSend(void *pRepo, SOCKET socketFd);
 int tsdbSyncRecv(void *pRepo, SOCKET socketFd);
 
+// For TSDB Compact
+int tsdbCompact(STsdbRepo *pRepo);
+
 #ifdef __cplusplus
 }
 #endif

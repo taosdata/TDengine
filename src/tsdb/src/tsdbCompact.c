@@ -12,3 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "tsdb.h"
+
+int   tsdbCompact(STsdbRepo *pRepo) { return 0; }
+void *tsdbCompactImpl(STsdbRepo *pRepo) { return NULL; }
