@@ -16,7 +16,7 @@ TDengine面向的是物联网场景，需要支持数据的实时复制，来最
 
 ## 基本概念和定义
 
-TDengine里存在vnode, mnode, vnode用来存储时序数据，mnode用来存储元数据。但从同步数据复制的模块来看，两者没有本质的区别，因此本文里的虚拟节点不仅包括vnode, 也包括mnode, vgoup也指mnode group, 除非特别注明。
+TDengine里存在vnode, mnode, vnode用来存储时序数据，mnode用来存储元数据。但从同步数据复制的模块来看，两者没有本质的区别，因此本文里的虚拟节点不仅包括vnode, 也包括mnode, vgroup也指mnode group, 除非特别注明。
 
 **版本(version)**：
 
