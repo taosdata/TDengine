@@ -17,8 +17,10 @@ public class TSDBPreparedStatementTest {
 
     @Test
     public void executeQuery() throws SQLException {
-        pstmt_select.setString(1, "now - 1h");
-        pstmt_select.setString(2, "now");
+        long end = System.currentTimeMillis();
+        long start = end - 1000 * 60 * 60;
+        pstmt_select.setTimestamp(1, new Timestamp(start));
+        pstmt_select.setTimestamp(2, new Timestamp(endg));
         pstmt_select.setFloat(3, 0);
 
         ResultSet rs = pstmt_select.executeQuery();
@@ -170,10 +172,10 @@ public class TSDBPreparedStatementTest {
         pstmt_insert.setURL(1, null);
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void getParameterMetaData() throws SQLException {
         ParameterMetaData parameterMetaData = pstmt_insert.getParameterMetaData();
-        Assert.assertNotNull(parameterMetaData);
+//        Assert.assertNotNull(parameterMetaData);
         //TODO:
     }
 
