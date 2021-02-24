@@ -2310,6 +2310,35 @@ bool tscIsUpdateQuery(SSqlObj* pSql) {
   return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_USE_DB == pCmd->command);
 }
 
+char* tscGetSqlStr(SSqlObj* pSql) {
+  if (pSql == NULL || pSql->signature != pSql) {
+    return NULL;
+  }
+
+  return pSql->sqlstr;
+}
+
+bool tscIsQueryWithLimit(SSqlObj* pSql) {
+  if (pSql == NULL || pSql->signature != pSql) {
+    return false;
+  }
+
+  SSqlCmd* pCmd = &pSql->cmd;
+  for (int32_t i = 0; i < pCmd->numOfClause; ++i) {
+    SQueryInfo* pqi = tscGetQueryInfoDetailSafely(pCmd, i);
+    if (pqi == NULL) {
+      continue;
+    }
+
+    if (pqi->limit.limit > 0) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+
 int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* sql) {
   const char* msgFormat1 = "syntax error near \'%s\'";
   const char* msgFormat2 = "syntax error near \'%s\' (%s)";

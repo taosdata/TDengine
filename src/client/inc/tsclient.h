@@ -449,6 +449,9 @@ void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *para
 void tscImportDataFromFile(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(SSqlObj* pSql);
+char* tscGetSqlStr(SSqlObj* pSql);
+bool tscIsQueryWithLimit(SSqlObj* pSql);
+
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);

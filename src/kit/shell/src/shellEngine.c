@@ -48,6 +48,9 @@ int       prompt_size = 6;
 
 int64_t result = 0;
 SShellHistory   history;
+uint32_t resShowMaxNum = UINT32_MAX;
+int32_t resShowMaxReached = 0;
+
 
 #define DEFAULT_MAX_BINARY_DISPLAY_WIDTH 30
 extern int32_t tsMaxBinaryDisplayWidth;
@@ -324,7 +327,9 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   }
 
   if (!tscIsUpdateQuery(pSql)) {  // select and show kinds of commands
-    int error_no = 0;
+    int error_no = 0;    
+    resShowMaxReached = 0;
+  
     int numOfRows = shellDumpResult(pSql, fname, &error_no, printMode);
     if (numOfRows < 0) {
       atomic_store_64(&result, 0);
@@ -335,6 +340,10 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     et = taosGetTimestampUs();
     if (error_no == 0) {
       printf("Query OK, %d row(s) in set (%.6fs)\n", numOfRows, (et - st) / 1E6);
+      
+      if (resShowMaxReached) {
+        printf("Displayed 100 rows. You can add \"limit %d\" or redirect results to specific file to get all.\n", numOfRows);
+      }
     } else {
       printf("Query interrupted (%s), %d row(s) in set (%.6fs)\n", taos_errstr(pSql), numOfRows, (et - st) / 1E6);
     }
@@ -659,6 +668,17 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
 }
 
 
+bool isSelectQuery(TAOS_RES* tres) {
+  char *sql = tscGetSqlStr(tres);
+
+  if (regex_match(sql, "^[\t ]*select[ \t]*", REG_EXTENDED | REG_ICASE)) {
+    return true;
+  }
+
+  return false;
+}
+
+
 static int verticalPrintResult(TAOS_RES* tres) {
   TAOS_ROW row = taos_fetch_row(tres);
   if (row == NULL) {
@@ -677,18 +697,29 @@ static int verticalPrintResult(TAOS_RES* tres) {
     }
   }
 
+  if (isSelectQuery(tres) && !tscIsQueryWithLimit(tres)) {
+    resShowMaxNum = DEFAULT_RES_SHOW_NUM;
+  } else {
+    resShowMaxNum = UINT32_MAX;
+  }
+
   int numOfRows = 0;
   do {
     printf("*************************** %d.row ***************************\n", numOfRows + 1);
     int32_t* length = taos_fetch_lengths(tres);
-    for (int i = 0; i < num_fields; i++) {
-      TAOS_FIELD* field = fields + i;
+  
+    if (numOfRows < resShowMaxNum) {
+      for (int i = 0; i < num_fields; i++) {
+        TAOS_FIELD* field = fields + i;
 
-      int padding = (int)(maxColNameLen - strlen(field->name));
-      printf("%*.s%s: ", padding, " ", field->name);
+        int padding = (int)(maxColNameLen - strlen(field->name));
+        printf("%*.s%s: ", padding, " ", field->name);
 
-      printField((const char*)row[i], field, 0, length[i], precision);
-      putchar('\n');
+        printField((const char*)row[i], field, 0, length[i], precision);
+        putchar('\n');
+      }
+    } else {
+      resShowMaxReached = 1;
     }
 
     numOfRows++;
@@ -795,16 +826,27 @@ static int horizontalPrintResult(TAOS_RES* tres) {
 
   printHeader(fields, width, num_fields);
 
+  if (isSelectQuery(tres) && !tscIsQueryWithLimit(tres)) {
+    resShowMaxNum = DEFAULT_RES_SHOW_NUM;
+  } else {
+    resShowMaxNum = UINT32_MAX;
+  }
+
   int numOfRows = 0;
   do {
     int32_t* length = taos_fetch_lengths(tres);
-    for (int i = 0; i < num_fields; i++) {
-      putchar(' ');
-      printField((const char*)row[i], fields + i, width[i], length[i], precision);
-      putchar(' ');
-      putchar('|');
+    if (numOfRows < resShowMaxNum) {
+      for (int i = 0; i < num_fields; i++) {
+        putchar(' ');
+        printField((const char*)row[i], fields + i, width[i], length[i], precision);
+        putchar(' ');
+        putchar('|');
+      }
+      putchar('\n');
+    } else {
+      resShowMaxReached = 1;
     }
-    putchar('\n');
+    
     numOfRows++;
     row = taos_fetch_row(tres);
   } while(row != NULL);
