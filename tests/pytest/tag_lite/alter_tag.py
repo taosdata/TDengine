@@ -41,7 +41,23 @@ class TDTestCase:
         tdSql.query("select * from ampere")
         tdSql.checkRows(2)
         tdSql.checkData(0, 6, None)
-        tdSql.checkData(1, 6, 'test')        
+        tdSql.checkData(1, 6, 'test')
+
+        # Test case for: https://jira.taosdata.com:18080/browse/TD-2423 
+        tdSql.execute("create table stb(ts timestamp, col1 int, col2 nchar(20)) tags(tg1 int, tg2 binary(20), tg3 nchar(25))")
+        tdSql.execute("insert into tb1 using stb(tg1, tg3) tags(1, 'test1') values(now, 1, 'test1')")        
+        tdSql.query("select *, tg1, tg2, tg3 from tb1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 3, 1)
+        tdSql.checkData(0, 4, None)
+        tdSql.checkData(0, 5, 'test1')
+
+        tdSql.execute("create table tb2 using stb(tg3, tg2) tags('test3', 'test2')")
+        tdSql.query("select tg1, tg2, tg3 from tb2")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, None)
+        tdSql.checkData(0, 1, 'test2')
+        tdSql.checkData(0, 2, 'test3')
 
     def stop(self):
         tdSql.close()

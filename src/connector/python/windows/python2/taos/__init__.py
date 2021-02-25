@@ -8,6 +8,7 @@ paramstyle = 'pyformat'
 
 __all__ = ['connection', 'cursor']
 
+
 def connect(*args, **kwargs):
     """ Function to return a TDengine connector object
 

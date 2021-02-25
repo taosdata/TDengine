@@ -229,7 +229,7 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
     return 0;
   }
 
-  else if (strncasecmp(key, "Connection: ", 12) == 0) {
+  else if (strncasecmp(key, "Connection", 10) == 0) {
     if (strncasecmp(val, "Keep-Alive", 10) == 0) {
       parser->keepAlive = HTTP_KEEPALIVE_ENABLE;
     } else {

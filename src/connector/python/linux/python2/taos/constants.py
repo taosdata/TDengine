@@ -19,10 +19,10 @@ class FieldType(object):
     C_BINARY = 8
     C_TIMESTAMP = 9
     C_NCHAR = 10
-    C_TINYINT_UNSIGNED = 12
-    C_SMALLINT_UNSIGNED = 13
-    C_INT_UNSIGNED = 14
-    C_BIGINT_UNSIGNED = 15
+    C_TINYINT_UNSIGNED = 11
+    C_SMALLINT_UNSIGNED = 12
+    C_INT_UNSIGNED = 13
+    C_BIGINT_UNSIGNED = 14
     # NULL value definition
     # NOTE: These values should change according to C definition in tsdb.h
     C_BOOL_NULL = 0x02
