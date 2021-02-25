@@ -356,9 +356,11 @@ typedef struct STableScanInfo {
 
   SQLFunctionCtx *pCtx;  // next operator query context
   SResultRowInfo *pResultRowInfo;
+  int32_t        *rowCellInfoOffset;
+  SExprInfo      *pExpr;
 
   int32_t         numOfOutput;
-  int32_t        *rowCellInfoOffset;
+
   int64_t         elapsedTime;
 } STableScanInfo;
 

@@ -1352,7 +1352,21 @@ static void min_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   }
 
 static void stddev_function(SQLFunctionCtx *pCtx) {
-  SStddevInfo *pStd = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SStddevInfo *pStd = GET_ROWCELL_INTERBUF(pResInfo);
+
+  if (pCtx->currentStage == REPEAT_SCAN && pStd->stage == 0) {
+    pStd->stage++;
+    avg_finalizer(pCtx);
+
+    pResInfo->initialized = true; // set it initialized to avoid re-initialization
+
+    // save average value into tmpBuf, for second stage scan
+    SAvgInfo *pAvg = GET_ROWCELL_INTERBUF(pResInfo);
+
+    pStd->avg = GET_DOUBLE_VAL(pCtx->pOutput);
+    assert((isnan(pAvg->sum) && pAvg->num == 0) || (pStd->num == pAvg->num && pStd->avg == pAvg->sum));
+  }
   
   if (pStd->stage == 0) {
     // the first stage is to calculate average value
