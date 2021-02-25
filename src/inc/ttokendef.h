@@ -122,8 +122,8 @@
 #define TK_UNSIGNED                       103
 #define TK_TAGS                           104
 #define TK_USING                          105
-#define TK_AS                             106
-#define TK_COMMA                          107
+#define TK_COMMA                          106
+#define TK_AS                             107
 #define TK_NULL                           108
 #define TK_SELECT                         109
 #define TK_UNION                          110
@@ -226,6 +226,11 @@
 #define TK_INSERT                         207
 #define TK_INTO                           208
 #define TK_VALUES                         209
+
+
+
+
+
 
 
 #define TK_SPACE                          300

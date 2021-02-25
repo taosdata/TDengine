@@ -156,23 +156,14 @@ void taosArrayRemove(SArray* pArray, size_t index) {
   pArray->size -= 1;
 }
 
-void taosArrayCopy(SArray* pDst, const SArray* pSrc) {
-  assert(pSrc != NULL && pDst != NULL);
-  
-  if (pDst->capacity < pSrc->size) {
-    void* pData = realloc(pDst->pData, pSrc->size * pSrc->elemSize);
-    if (pData == NULL) { // todo handle oom
-    
-    } else {
-      pDst->pData = pData;
-      pDst->capacity = pSrc->size;
-    }
-  }
-  
-  memcpy(pDst->pData, pSrc->pData, pSrc->elemSize * pSrc->size);
-  pDst->elemSize = pSrc->elemSize;
-  pDst->capacity = pSrc->size;
-  pDst->size = pSrc->size;
+SArray* taosArrayFromList(const void* src, size_t size, size_t elemSize) {
+  assert(src != NULL && elemSize > 0);
+  SArray* pDst = taosArrayInit(size, elemSize);
+
+  memcpy(pDst->pData, src, elemSize * size);
+  pDst->size = size;
+
+  return pDst;
 }
 
 SArray* taosArrayDup(const SArray* pSrc) {

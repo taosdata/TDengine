@@ -1,3 +1,8 @@
+./test.sh -f unique/dnode/reason.sim
+./test.sh -f unique/dnode/remove1.sim
+./test.sh -f unique/dnode/remove2.sim
+./test.sh -f unique/dnode/vnode_clean.sim
+
 ./test.sh -f unique/db/commit.sim
 ./test.sh -f unique/db/delete.sim
 ./test.sh -f unique/db/delete_part.sim

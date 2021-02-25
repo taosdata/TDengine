@@ -324,7 +324,7 @@ while $i < 1
 endw
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 2000
+sleep 500
 
 system sh/exec.sh -n dnode1 -s start
 

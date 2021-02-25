@@ -5,7 +5,7 @@ node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
 
-def kipstage=0
+def skipstage=0
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -80,25 +80,29 @@ pipeline {
           }
           steps {
           sh'''
-          cd ${WORKSPACE}
+          cp -r ${WORKSPACE} ${WORKSPACE}.tes
+          cd ${WORKSPACE}.tes
           git checkout develop
           git pull
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
           '''
           script{
-            skipstage=sh(script:"git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 1 ",returnStdout:true) 
+            env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
           }
+          println env.skipstage
+          sh'''
+          rm -rf ${WORKSPACE}.tes
+          '''
           }
       }
     
       stage('Parallel test stage') {
-        
         //only build pr
         when {
               changeRequest()
                expression {
-                    skipstage != 1
+                    env.skipstage != 0
               }
           }
       parallel {
@@ -124,12 +128,12 @@ pipeline {
             
             pre_test()
             timeout(time: 45, unit: 'MINUTES'){
-            sh '''
-            date
-            cd ${WKC}/tests
-            find pytest -name '*'sql|xargs rm -rf
-            ./test-all.sh p2
-            date'''
+                sh '''
+                date
+                cd ${WKC}/tests
+                find pytest -name '*'sql|xargs rm -rf
+                ./test-all.sh p2
+                date'''
             }
           }
         }
@@ -161,6 +165,7 @@ pipeline {
 
         stage('test_crash_gen_s3') {
           agent{label "b2"}
+          
           steps {
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -169,20 +174,22 @@ pipeline {
                 ./crash_gen.sh -a -p -t 4 -s 2000
                 '''
             }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                ./handle_crash_gen_val_log.sh
-                '''
-            }
+
+            sh '''
+            cd ${WKC}/tests/pytest
+            rm -rf /var/lib/taos/*
+            rm -rf /var/log/taos/*
+            ./handle_crash_gen_val_log.sh
+            '''
             timeout(time: 45, unit: 'MINUTES'){
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b2fq
-              date
-              '''
-            }
+                sh '''
+                date
+                cd ${WKC}/tests
+                ./test-all.sh b2fq
+                date
+                '''
+            }         
+            
           }
         }
 
@@ -216,6 +223,8 @@ pipeline {
               date
               cd ${WKC}/tests
               ./test-all.sh b4fq
+              cd ${WKC}/tests
+              ./test-all.sh p4
               date'''
             }
           }

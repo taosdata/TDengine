@@ -330,7 +330,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     pSql->cmd.submitSchema = 1;
   }
 
-  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_FETCH || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
+  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
       (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||
        rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
@@ -451,7 +451,7 @@ int doProcessSql(SSqlObj *pSql) {
   
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscAsyncResultOnError(pSql);
-    return pRes->code;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t code = tscSendMsgToServer(pSql);
@@ -460,7 +460,7 @@ int doProcessSql(SSqlObj *pSql) {
   if (code != TSDB_CODE_SUCCESS) {
     pRes->code = code;
     tscAsyncResultOnError(pSql);
-    return code;
+    return  TSDB_CODE_SUCCESS;
   }
   
   return TSDB_CODE_SUCCESS;
@@ -609,7 +609,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
   }
 
   return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + tsBufSize +
-         tableSerialize + sqlLen + 4096;
+         tableSerialize + sqlLen + 4096 + pQueryInfo->bufLen;
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {
@@ -770,6 +770,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       char n[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(&pTableMetaInfo->name, n);
 
+
       tscError("%p tid:%d uid:%" PRIu64" id:%s, column index out of range, numOfColumns:%d, index:%d, column name:%s",
           pSql, pTableMeta->id.tid, pTableMeta->id.uid, n, tscGetNumOfColumns(pTableMeta), pCol->colIndex.columnIndex,
                pColSchema->name);
@@ -812,6 +813,13 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlFuncMsg *pSqlFuncExpr = (SSqlFuncMsg *)pMsg;
   for (int32_t i = 0; i < tscSqlExprNumOfExprs(pQueryInfo); ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
+
+    // the queried table has been removed and a new table with the same name has already been created already
+    // return error msg
+    if (pExpr->uid != pTableMeta->id.uid) {
+      tscError("%p table has already been destroyed", pSql);
+      return TSDB_CODE_TSC_INVALID_TABLE_NAME;
+    }
 
     if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
       tscError("%p table schema is not matched with parsed sql", pSql);
@@ -856,6 +864,13 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       SInternalField* pField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
       SSqlExpr *pExpr = pField->pSqlExpr;
       if (pExpr != NULL) {
+        // the queried table has been removed and a new table with the same name has already been created already
+        // return error msg
+        if (pExpr->uid != pTableMeta->id.uid) {
+          tscError("%p table has already been destroyed", pSql);
+          return TSDB_CODE_TSC_INVALID_TABLE_NAME;
+        }
+
         if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
           tscError("%p table schema is not matched with parsed sql", pSql);
           return TSDB_CODE_TSC_INVALID_SQL;

@@ -21,8 +21,8 @@ function runSimCaseOneByOne {
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
 			case=`echo $line | grep sim$ |awk '{print $NF}'`
       IN_TDINTERNAL="community"
-      start_time=`date +%s`
-       IN_TDINTERNAL="community"
+      start_time=`date +%s`      
+      date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
         ./test.sh -f $case > /dev/null 2>&1 && \
@@ -53,6 +53,7 @@ function runSimCaseOneByOnefq {
 
       start_time=`date +%s`
       IN_TDINTERNAL="community"
+      date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
         ./test.sh -f $case > /dev/null 2>&1 && \
@@ -94,6 +95,7 @@ function runPyCaseOneByOne {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
+        date +%F\ %T | tee -a pytest-out.log
         echo -n $case
         $line > /dev/null 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
@@ -122,6 +124,7 @@ function runPyCaseOneByOnefq {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
+        date +%F\ %T | tee -a pytest-out.log
         echo -n $case
         $line > /dev/null 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
@@ -261,6 +264,9 @@ if [ "$2" != "sim" ]; then
   elif [ "$1" == "p3" ]; then
     echo "### run Python_3 test ###"
     runPyCaseOneByOnefq pytest_3.sh
+  elif [ "$1" == "p4" ]; then
+    echo "### run Python_4 test ###"
+    runPyCaseOneByOnefq pytest_4.sh
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
     exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then

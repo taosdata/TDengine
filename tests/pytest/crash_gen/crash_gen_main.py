@@ -354,10 +354,11 @@ class ThreadCoordinator:
                 # end, and maybe signal them to stop
             if isinstance(err, CrashGenError): # our own transition failure
                 Logging.info("State transition error")
+                # TODO: saw an error here once, let's print out stack info for err?
                 traceback.print_stack()
                 transitionFailed = True
                 self._te = None  # Not running any more
-                self._execStats.registerFailure("State transition error")
+                self._execStats.registerFailure("State transition error: {}".format(err))
             else:
                 raise
         # return transitionFailed # Why did we have this??!!
@@ -882,8 +883,12 @@ class StateMechine:
         self._stateWeights = [1, 2, 10, 40]
 
     def init(self, dbc: DbConn): # late initailization, don't save the dbConn
-        self._curState = self._findCurrentState(dbc)  # starting state
-        Logging.debug("Found Starting State: {}".format(self._curState))
+        try:
+            self._curState = self._findCurrentState(dbc)  # starting state
+        except taos.error.ProgrammingError as err:            
+            Logging.error("Failed to initialized state machine, cannot find current state: {}".format(err))
+            traceback.print_stack()
+            raise # re-throw
 
     # TODO: seems no lnoger used, remove?
     def getCurrentState(self):
@@ -951,6 +956,8 @@ class StateMechine:
 
     # We transition the system to a new state by examining the current state itself
     def transition(self, tasks, dbc: DbConn):
+        global gSvcMgr
+        
         if (len(tasks) == 0):  # before 1st step, or otherwise empty
             Logging.debug("[STT] Starting State: {}".format(self._curState))
             return  # do nothing
@@ -1276,6 +1283,7 @@ class Task():
                 0x510,  # vnode not in ready state
                 0x14,   # db not ready, errno changed
                 0x600,  # Invalid table ID, why?
+                0x218,  # Table does not exist
                 1000  # REST catch-all error
             ]: 
             return True # These are the ALWAYS-ACCEPTABLE ones
@@ -2369,7 +2377,7 @@ class MainExec:
             '-n',
             '--dynamic-db-table-names',
             action='store_true',
-            help='Use non-fixed names for dbs/tables, useful for multi-instance executions (default: false)')        
+            help='Use non-fixed names for dbs/tables, for -b, useful for multi-instance executions (default: false)')        
         parser.add_argument(
             '-o',
             '--num-dnodes',

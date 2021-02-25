@@ -9,6 +9,7 @@ Summary:	tdengine from taosdata
 Group:	  Application/Database
 License:	AGPL
 URL:		  www.taosdata.com
+AutoReqProv: no
 
 #BuildRoot:  %_topdir/BUILDROOT
 BuildRoot:   %{_tmppath}/%{name}-%{version}-%{release}-root 
@@ -61,7 +62,6 @@ cp %{_compiledir}/../packaging/tools/taosd-dump-cfg.gdb    %{buildroot}%{homepat
 cp %{_compiledir}/build/bin/taos                    %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdemo                %{buildroot}%{homepath}/bin
-cp %{_compiledir}/build/bin/taosdemox               %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
@@ -139,7 +139,6 @@ if [ $1 -eq 0 ];then
     ${csudo} rm -f ${bin_link_dir}/taos       || :
     ${csudo} rm -f ${bin_link_dir}/taosd      || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
-    ${csudo} rm -f ${bin_link_dir}/taosdemox  || :
     ${csudo} rm -f ${bin_link_dir}/taosdump   || :
     ${csudo} rm -f ${cfg_link_dir}/*          || :
     ${csudo} rm -f ${inc_link_dir}/taos.h     || :

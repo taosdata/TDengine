@@ -185,7 +185,9 @@ static void *taosThreadToOpenNewFile(void *param) {
 
   int32_t fd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
-    uError("open new log file fail! fd:%d reason:%s", fd, strerror(errno));
+    tsLogObj.openInProgress = 0;
+    tsLogObj.lines = tsLogObj.maxLines - 1000;
+    uError("open new log file fail! fd:%d reason:%s, reuse lastlog", fd, strerror(errno));
     return NULL;
   }
 

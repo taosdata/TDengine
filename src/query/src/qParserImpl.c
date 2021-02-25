@@ -289,6 +289,28 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   return pExpr;
 }
 
+
+
+tSQLExpr *tSqlExprClone(tSQLExpr *pSrc) {
+  tSQLExpr *pExpr = calloc(1, sizeof(tSQLExpr));
+
+  memcpy(pExpr, pSrc, sizeof(*pSrc));
+  
+  if (pSrc->pLeft) {
+    pExpr->pLeft = tSqlExprClone(pSrc->pLeft);
+  }
+
+  if (pSrc->pRight) {
+    pExpr->pRight = tSqlExprClone(pSrc->pRight);
+  }
+
+  //we don't clone pParam now because clone is only used for between/and
+  assert(pSrc->pParam == NULL);
+
+  return pExpr;
+}
+
+
 void tSqlExprNodeDestroy(tSQLExpr *pExpr) {
   if (pExpr == NULL) {
     return;
@@ -309,8 +331,9 @@ void tSqlExprDestroy(tSQLExpr *pExpr) {
   }
 
   tSqlExprDestroy(pExpr->pLeft);
+  pExpr->pLeft = NULL;
   tSqlExprDestroy(pExpr->pRight);
-
+  pExpr->pRight = NULL;
   tSqlExprNodeDestroy(pExpr);
 }
 
@@ -496,7 +519,8 @@ static void freeVariant(void *pItem) {
 }
 
 void freeCreateTableInfo(void* p) {
-  SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;
+  SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;  
+  taosArrayDestroy(pInfo->pTagNames);
   taosArrayDestroyEx(pInfo->pTagVals, freeVariant);
   tfree(pInfo->fullname);
   tfree(pInfo->tagdata.data);
@@ -574,11 +598,12 @@ SCreateTableSQL *tSetCreateSqlElems(SArray *pCols, SArray *pTags, SQuerySQL *pSe
   return pCreate;
 }
 
-SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists) {
+SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagNames, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists) {
   SCreatedTableInfo info;
   memset(&info, 0, sizeof(SCreatedTableInfo));
 
   info.name       = *pToken;
+  info.pTagNames  = pTagNames;
   info.pTagVals   = pTagVals;
   info.stableName = *pTableName;
   info.igExist    = (igExists->n > 0)? 1:0;

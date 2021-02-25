@@ -1,14 +1,16 @@
 version: '3.7'
 
 services: 
-  td2.0-node1:
-     build:
+  td2.0-node1:    
+     build:      
        context: .
        args:
          - PACKAGE=${PACKAGE}
+         - TARBITRATORPKG=${TARBITRATORPKG}
          - EXTRACTDIR=${DIR}
+         - EXTRACTDIR2=${DIR2}
      image: 'tdengine:${VERSION}'
-     container_name: 'td2.0-node1'     
+     container_name: 'tdnode1'     
      cap_add:
        - ALL
      stdin_open: true
@@ -18,7 +20,15 @@ services:
      command: >
        sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && 
        echo $TZ > /etc/timezone &&
+       mkdir /coredump &&
+       echo 'kernel.core_pattern=/coredump/core_%e_%p' >> /etc/sysctl.conf &&
+       sysctl -p &&
        exec my-main-application"
+     extra_hosts:
+      - "tdnode2:172.27.0.8"
+      - "tdnode3:172.27.0.9"
+      - "tdnode4:172.27.0.10"
+      - "tdnode5:172.27.0.11"
      volumes: 
        # bind data directory
        - type: bind
@@ -32,14 +42,18 @@ services:
        - type: bind
          source: /data/node1/cfg
          target: /etc/taos
+       # bind core dump path
+       - type: bind
+         source: /data/node1/core
+         target: /coredump
        - type: bind
          source: /data
          target: /root
-     hostname: node1     
+     hostname: tdnode1
      networks:
          taos_update_net:
              ipv4_address: 172.27.0.7
-     command: taosd
+     command: taosd        
 
   td2.0-node2:
      build:
@@ -48,7 +62,7 @@ services:
          - PACKAGE=${PACKAGE}
          - EXTRACTDIR=${DIR}
      image: 'tdengine:${VERSION}'
-     container_name: 'td2.0-node2'     
+     container_name: 'tdnode2'     
      cap_add:
        - ALL
      stdin_open: true
@@ -58,7 +72,15 @@ services:
      command: >
        sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && 
        echo $TZ > /etc/timezone &&
+       mkdir /coredump &&
+       echo 'kernel.core_pattern=/coredump/core_%e_%p' >> /etc/sysctl.conf &&
+       sysctl -p &&
        exec my-main-application"
+     extra_hosts:
+      - "tdnode1:172.27.0.7"
+      - "tdnode3:172.27.0.9"
+      - "tdnode4:172.27.0.10"
+      - "tdnode5:172.27.0.11"
      volumes: 
        # bind data directory
        - type: bind
@@ -72,52 +94,19 @@ services:
        - type: bind
          source: /data/node2/cfg
          target: /etc/taos
+       # bind core dump path 
+       - type: bind
+         source: /data/node2/core
+         target: /coredump      
        - type: bind
          source: /data
          target: /root
+     hostname: tdnode2
      networks:
          taos_update_net:
              ipv4_address: 172.27.0.8
      command: taosd
 
-  td2.0-node3:
-     build:
-       context: .
-       args:
-         - PACKAGE=${PACKAGE}
-         - EXTRACTDIR=${DIR}
-     image: 'tdengine:${VERSION}'
-     container_name: 'td2.0-node3'     
-     cap_add:
-       - ALL
-     stdin_open: true
-     tty: true
-     environment:
-       TZ: "Asia/Shanghai"
-     command: >
-       sh -c "ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && 
-       echo $TZ > /etc/timezone &&
-       exec my-main-application"
-     volumes: 
-       # bind data directory
-       - type: bind
-         source: /data/node3/data
-         target: /var/lib/taos
-       # bind log directory
-       - type: bind
-         source: /data/node3/log
-         target: /var/log/taos
-       # bind configuration
-       - type: bind
-         source: /data/node3/cfg
-         target: /etc/taos
-       - type: bind
-         source: /data
-         target: /root     
-     networks:
-         taos_update_net:
-             ipv4_address: 172.27.0.9
-     command: taosd
 
 networks:
   taos_update_net:
