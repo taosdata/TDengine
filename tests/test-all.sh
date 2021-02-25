@@ -10,6 +10,18 @@ NC='\033[0m'
 tests_dir=`pwd`
 IN_TDINTERNAL="community"
 
+function stopTaosd {
+	echo "Stop taosd"
+  systemctl stop taosd
+  PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+	while [ -n "$PID" ]
+	do
+    pkill -TERM -x taosd
+    sleep 1
+  	PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+	done
+}
+
 function dohavecore(){
   corefile=`find $corepath -mmin 1`  
   if [ -n "$corefile" ];then
@@ -301,6 +313,7 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$1" == "full" ]; then
 
   pwd
   cd debug/
+  stopTaosd
   nohup build/bin/taosd -c /etc/taos/ > /dev/null 2>&1 &
   sleep 30
 
