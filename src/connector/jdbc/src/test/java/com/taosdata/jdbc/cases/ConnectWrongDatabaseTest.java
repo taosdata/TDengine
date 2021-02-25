@@ -16,8 +16,7 @@ public class ConnectWrongDatabaseTest {
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         } catch (SQLException e) {
-            System.out.println(e.getMessage());
-            Assert.assertEquals("TDengine Error: Invalid database name", e.getMessage());
+            Assert.assertEquals(-2147482749, e.getErrorCode());
         }
     }
 
