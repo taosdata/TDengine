@@ -574,7 +574,7 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
 
   if (lostLine > 0) {
     sprintf(tmpBuf, "...Lost %"PRId64" lines here...\n", lostLine);
-    tmpBufLen = strlen(tmpBuf);
+    tmpBufLen = (int32_t)strlen(tmpBuf);
   }
 
   if (remainSize <= msgLen || ((lostLine > 0) && (remainSize <= (msgLen + tmpBufLen)))) {
