@@ -2023,6 +2023,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       if (!IS_NUMERIC_TYPE(colType)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(colType) && optr == TK_DIFF) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg10);
       }
 
       int16_t resultType = 0;
