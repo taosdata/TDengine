@@ -1208,7 +1208,7 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
     return false;
   }
 
-  if (pColField->type < TSDB_DATA_TYPE_BOOL || pColField->type > TSDB_DATA_TYPE_NCHAR) {
+  if (pColField->type < TSDB_DATA_TYPE_BOOL || pColField->type > TSDB_DATA_TYPE_UBIGINT) {
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     return false;
   }
