@@ -23,6 +23,7 @@ public class TSDBError {
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "not a valid sql for executeUpdate: (?)");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE, "not a valid sql for execute: (?)");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "parameter index out of range");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED, "connection already closed");
 
         /**************************************************/
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN, "unknown error");
@@ -48,24 +49,24 @@ public class TSDBError {
     }
 
     public static SQLException createSQLException(int errorNumber, String message) {
-        if (message == null || message.isEmpty()) {
+        if (message == null || message.isEmpty() || message.replaceAll("\\s", "").isEmpty()) {
             if (TSDBErrorNumbers.contains(errorNumber))
                 message = TSDBErrorMap.get(errorNumber);
             else
                 message = TSDBErrorMap.get(TSDBErrorNumbers.ERROR_UNKNOWN);
         }
-
+        // throw SQLFeatureNotSupportedException
         if (errorNumber == TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD)
-            return new SQLFeatureNotSupportedException(message);
+            return new SQLFeatureNotSupportedException(message, "", errorNumber);
+        // throw SQLClientInfoException
+        if (errorNumber == TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED)
+            return new SQLClientInfoException(message,null);
 
         if (errorNumber < TSDBErrorNumbers.ERROR_UNKNOWN)
             // JDBC exception's error number is less than 0x2350
-            return new SQLException("ERROR (" + Integer.toHexString(errorNumber) + "): " + message);
+            return new SQLException("ERROR (" + Integer.toHexString(errorNumber) + "): " + message, "", errorNumber);
         // JNI exception's error number is large than 0x2350
-        return new SQLException("TDengine ERROR (" + Integer.toHexString(errorNumber) + "): " + message);
+        return new SQLException("TDengine ERROR (" + Integer.toHexString(errorNumber) + "): " + message, "", errorNumber);
     }
 
-    public static SQLClientInfoException createSQLClientInfoException(int errorNumber) {
-        return new SQLClientInfoException();
-    }
 }

@@ -22,9 +22,6 @@ public class TSDBStatement extends AbstractStatement {
 
     private TSDBJNIConnector connector;
     /**
-     * To store batched commands
-     */
-    /**
      * Status of current statement
      */
     private boolean isClosed;

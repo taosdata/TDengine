@@ -436,7 +436,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
         if (isClosed)
-            throw TSDBError.createSQLClientInfoException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+            throw (SQLClientInfoException) TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
 
         if (clientInfoProps == null)
             clientInfoProps = new Properties();
@@ -446,7 +446,8 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     @Override
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
         if (isClosed)
-            throw TSDBError.createSQLClientInfoException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+            throw (SQLClientInfoException) TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
+
 
         for (Enumeration<Object> enumer = properties.keys(); enumer.hasMoreElements(); ) {
             String name = (String) enumer.nextElement();
@@ -457,7 +458,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     @Override
     public String getClientInfo(String name) throws SQLException {
         if (isClosed)
-            throw TSDBError.createSQLClientInfoException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
 
         return clientInfoProps.getProperty(name);
     }
@@ -465,7 +466,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     @Override
     public Properties getClientInfo() throws SQLException {
         if (isClosed)
-            throw TSDBError.createSQLClientInfoException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
 
         return clientInfoProps;
     }

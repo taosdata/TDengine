@@ -17,6 +17,7 @@ public class TSDBErrorNumbers {
     public static final int ERROR_INVALID_FOR_EXECUTE_UPDATE = 0x2311;  //not a valid sql for executeUpdate: (SQL)
     public static final int ERROR_INVALID_FOR_EXECUTE = 0x2312;         //not a valid sql for execute: (SQL)
     public static final int ERROR_PARAMETER_INDEX_OUT_RANGE = 0x2313; // parameter index out of range
+    public static final int ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED = 0x2314;    // connection already closed
 
     public static final int ERROR_UNKNOWN = 0x2350;    //unknown error
 
@@ -47,6 +48,7 @@ public class TSDBErrorNumbers {
         errorNumbers.add(ERROR_INVALID_FOR_EXECUTE_UPDATE);
         errorNumbers.add(ERROR_INVALID_FOR_EXECUTE);
         errorNumbers.add(ERROR_PARAMETER_INDEX_OUT_RANGE);
+        errorNumbers.add(ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
 
         /*****************************************************/
         errorNumbers.add(ERROR_SUBSCRIBE_FAILED);
