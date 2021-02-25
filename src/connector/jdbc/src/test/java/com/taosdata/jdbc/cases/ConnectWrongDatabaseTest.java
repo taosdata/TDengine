@@ -1,5 +1,6 @@
 package com.taosdata.jdbc.cases;
 
+import com.taosdata.jdbc.TSDBErrorNumbers;
 import org.junit.Assert;
 import org.junit.Test;
 
@@ -16,7 +17,7 @@ public class ConnectWrongDatabaseTest {
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         } catch (SQLException e) {
-            Assert.assertEquals(-2, e.getErrorCode());
+            Assert.assertEquals(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL, e.getErrorCode());
         }
     }
 
