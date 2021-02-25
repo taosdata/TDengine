@@ -313,13 +313,14 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$1" == "full" ]; then
 
   pwd
   cd debug/
+  
   stopTaosd
   nohup build/bin/taosd -c /etc/taos/ > /dev/null 2>&1 &
   sleep 30
-
+  
   cd $tests_dir/../src/connector/jdbc
   
-  mvn test | tee -a jdbc-out.log
+  mvn test > jdbc-out.log 2>&1
   tail -n 20 jdbc-out.log
 
   cases=`grep 'Tests run' jdbc-out.log | awk 'END{print $3}'`
