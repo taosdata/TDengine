@@ -3059,17 +3059,17 @@ static void leastsquares_function(SQLFunctionCtx *pCtx) {
         numOfElem++;
       }
       break;
-    };
+    }
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t *p = pData;
       LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
       break;
-    };
+    }
     case TSDB_DATA_TYPE_DOUBLE: {
       double *p = pData;
       LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
       break;
-    };
+    }
     case TSDB_DATA_TYPE_FLOAT: {
       float *p = pData;
       LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
@@ -3079,12 +3079,32 @@ static void leastsquares_function(SQLFunctionCtx *pCtx) {
       int16_t *p = pData;
       LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
       break;
-    };
+    }
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *p = pData;
       LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
       break;
-    };
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      uint8_t *p = pData;
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      uint16_t *p = pData;
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      uint32_t *p = pData;
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      uint64_t *p = pData;
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
+      break;
+    }
   }
   
   pInfo->startVal = x;
