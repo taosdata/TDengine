@@ -126,9 +126,9 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
             case Connection.TRANSACTION_READ_COMMITTED:
             case Connection.TRANSACTION_REPEATABLE_READ:
             case Connection.TRANSACTION_SERIALIZABLE:
-                throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
             default:
-                throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
         }
         //do nothing
     }

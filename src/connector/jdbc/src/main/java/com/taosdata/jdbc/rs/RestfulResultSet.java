@@ -106,7 +106,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public boolean next() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         pos++;
         if (pos <= resultSet.size() - 1) {
             return true;
@@ -124,14 +124,14 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public boolean wasNull() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         return resultSet.isEmpty();
     }
 
     @Override
     public String getString(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         if (columnIndex > resultSet.get(pos).size()) {
             throw new SQLException(TSDBConstants.WrapErrMsg("Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size()));
@@ -144,7 +144,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         columnIndex = getTrueColumnIndex(columnIndex);
         int result = getInt(columnIndex);
@@ -154,7 +154,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public short getShort(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         columnIndex = getTrueColumnIndex(columnIndex);
         return Short.parseShort(resultSet.get(pos).get(columnIndex).toString());
     }
@@ -162,7 +162,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public int getInt(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         columnIndex = getTrueColumnIndex(columnIndex);
         return Integer.parseInt(resultSet.get(pos).get(columnIndex).toString());
     }
@@ -170,7 +170,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public long getLong(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         columnIndex = getTrueColumnIndex(columnIndex);
         return Long.parseLong(resultSet.get(pos).get(columnIndex).toString());
     }
@@ -178,7 +178,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public float getFloat(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         columnIndex = getTrueColumnIndex(columnIndex);
         return Float.parseFloat(resultSet.get(pos).get(columnIndex).toString());
     }
@@ -186,7 +186,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public double getDouble(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         columnIndex = getTrueColumnIndex(columnIndex);
         return Double.parseDouble(resultSet.get(pos).get(columnIndex).toString());
@@ -208,7 +208,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         columnIndex = getTrueColumnIndex(columnIndex);
         String strDate = resultSet.get(pos).get(columnIndex).toString();
@@ -220,7 +220,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         return this.metaData;
     }
@@ -233,7 +233,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public int findColumn(String columnLabel) throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         int columnIndex = columnNames.indexOf(columnLabel);
         if (columnIndex == -1)
@@ -244,14 +244,14 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public boolean isBeforeFirst() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         return this.pos == -1 && this.resultSet.size() != 0;
     }
 
     @Override
     public boolean isAfterLast() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         return this.pos >= resultSet.size() && this.resultSet.size() != 0;
     }
@@ -259,14 +259,14 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public boolean isFirst() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         return this.pos == 0;
     }
 
     @Override
     public boolean isLast() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         if (this.resultSet.size() == 0)
             return false;
         return this.pos == (this.resultSet.size() - 1);
@@ -275,7 +275,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public void beforeFirst() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         synchronized (this) {
             if (this.resultSet.size() > 0) {
@@ -287,7 +287,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public void afterLast() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         synchronized (this) {
             if (this.resultSet.size() > 0) {
                 this.pos = this.resultSet.size();
@@ -298,7 +298,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public boolean first() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         if (this.resultSet.size() == 0)
             return false;
@@ -312,7 +312,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public boolean last() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         if (this.resultSet.size() == 0)
             return false;
         synchronized (this) {
@@ -324,7 +324,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public int getRow() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         int row;
         synchronized (this) {
             if (this.pos < 0 || this.pos >= this.resultSet.size())
@@ -396,7 +396,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     @Override
     public Statement getStatement() throws SQLException {
         if (isClosed())
-            throw new SQLException(TSDBConstants.WrapErrMsg(TSDBConstants.RESULT_SET_IS_CLOSED));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         return this.statement;
     }
@@ -405,7 +405,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     public boolean isClosed() throws SQLException {
         return isClosed;
     }
-
 
 
 }
