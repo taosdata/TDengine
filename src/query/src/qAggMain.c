@@ -1051,7 +1051,7 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
       TYPED_LOOPCHECK_N(uint16_t, pOutput, p, pCtx, pCtx->inputType, isMin, *notNullElems);
     } else if (pCtx->inputType == TSDB_DATA_TYPE_UINT) {
       TYPED_LOOPCHECK_N(uint32_t, pOutput, p, pCtx, pCtx->inputType, isMin, *notNullElems);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
+    } else if (pCtx->inputType == TSDB_DATA_TYPE_UBIGINT) {
       TYPED_LOOPCHECK_N(uint64_t, pOutput, p, pCtx, pCtx->inputType, isMin, *notNullElems);
     }
   } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
