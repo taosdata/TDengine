@@ -29,10 +29,17 @@ typedef struct {
   int64_t  size;
 } SKVRecord;
 
+#define TSDB_DEFAULT_BLOCK_ROWS(maxRows) ((maxRows)*4 / 5)
+
 void  tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn);
 int   tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord);
 void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord);
 void *tsdbCommitData(STsdbRepo *pRepo);
+int   tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn);
+int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray *pSubA, void **ppBuf, SBlockIdx *pIdx);
+int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
+int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCols *pDataCols, SBlock *pBlock,
+                       bool isLast, bool isSuper, void **ppBuf, void **ppCBuf);
 
 static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
   if (fid >= pRtn->maxFid) {
