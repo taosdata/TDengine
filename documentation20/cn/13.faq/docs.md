@@ -109,11 +109,8 @@ Properties properties = new Properties();
 properties.setProperty(TSDBDriver.LOCALE_KEY, "UTF-8");
 Connection = DriverManager.getConnection(url, properties);
 ```
-## 12.TDengine GO windows驱动的如何编译？
 
-请看为此问题撰写的[技术博客](https://www.taosdata.com/blog/2020/01/06/tdengine-go-windows驱动的编译/)
-
-## 13.JDBC报错： the excuted SQL is not a DML or a DDL？
+## 12.JDBC报错： the excuted SQL is not a DML or a DDL？
 
 请更新至最新的JDBC驱动
 ```JAVA
@@ -124,15 +121,15 @@ Connection = DriverManager.getConnection(url, properties);
 </dependency>
 ```
 
-## 14. taos connect failed, reason: invalid timestamp
+## 13. taos connect failed, reason: invalid timestamp
 
 常见原因是服务器和客户端时间没有校准，可以通过和时间服务器同步的方式（Linux 下使用 ntpdate 命令，Windows 在系统时间设置中选择自动同步）校准。
 
-## 15. 表名显示不全
+## 14. 表名显示不全
 
 由于 taos shell 在终端中显示宽度有限，有可能比较长的表名显示不全，如果按照显示的不全的表名进行相关操作会发生 Table does not exist 错误。解决方法可以是通过修改 taos.cfg 文件中的设置项 maxBinaryDisplayWidth， 或者直接输入命令 set max_binary_display_width 100。或者在命令结尾使用 \G 参数来调整结果的显示方式。
 
-## 16. 如何进行数据迁移？
+## 15. 如何进行数据迁移？
 
 TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A移动机器B时，注意如下两件事：
 
@@ -140,7 +137,7 @@ TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A
 - 2.0.7.0 及以后的版本，到/var/lib/taos/dnode下，修复dnodeEps.json的dnodeId对应的FQDN，重启。确保机器内所有机器的此文件是完全相同的。
 - 1.x 和 2.x 版本的存储结构不兼容，需要使用迁移工具或者自己开发应用导出导入数据。
 
-## 17. 如何在命令行程序 taos 中临时调整日志级别
+## 16. 如何在命令行程序 taos 中临时调整日志级别
 
 为了调试方便，从 2.0.16 版本开始，命令行程序 taos 新增了与日志记录相关的两条指令：
 

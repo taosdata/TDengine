@@ -5162,6 +5162,8 @@ static void sequentialTableProcess(SQInfo *pQInfo) {
       assert(pQuery->prjInfo.vgroupLimit == -1);
     }
 
+    setQueryStatus(pQuery, QUERY_NOT_COMPLETED);
+
     bool hasMoreBlock = true;
     int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
     SQueryCostInfo *summary = &pRuntimeEnv->summary;

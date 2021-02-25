@@ -3,5 +3,4 @@ PROJECT(TDengine)
 
 ADD_SUBDIRECTORY(shell)
 ADD_SUBDIRECTORY(taosdemo)
-ADD_SUBDIRECTORY(taosdemox)
 ADD_SUBDIRECTORY(taosdump)

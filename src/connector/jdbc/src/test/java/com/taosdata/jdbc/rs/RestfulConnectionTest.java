@@ -12,7 +12,8 @@ import java.util.Properties;
 public class RestfulConnectionTest {
 
     private static final String host = "127.0.0.1";
-    //    private static final String host = "master";
+    // private static final String host = "master";
+
     private static Connection conn;
 
     @Test

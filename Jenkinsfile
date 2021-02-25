@@ -174,14 +174,13 @@ pipeline {
                 ./crash_gen.sh -a -p -t 4 -s 2000
                 '''
             }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                rm -rf /var/lib/taos/*
-                rm -rf /var/log/taos/*
-                ./handle_crash_gen_val_log.sh
-                '''
-            }  
+
+            sh '''
+            cd ${WKC}/tests/pytest
+            rm -rf /var/lib/taos/*
+            rm -rf /var/log/taos/*
+            ./handle_crash_gen_val_log.sh
+            '''
             timeout(time: 45, unit: 'MINUTES'){
                 sh '''
                 date
@@ -226,6 +225,8 @@ pipeline {
               ./test-all.sh b4fq
               cd ${WKC}/tests
               ./test-all.sh p4
+              cd ${WKC}/tests
+              ./test-all.sh full jdbc
               date'''
             }
           }

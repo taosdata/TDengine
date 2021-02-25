@@ -6,7 +6,7 @@
 
 ### 内存需求
 
-每个DB可以创建固定数目的vnode，默认与CPU核数相同，可通过maxVgroupsPerDb配置；每个vnode会占用固定大小的内存（大小与数据库的配置参数blocks和cache有关)；每个Table会占用与标签总长度有关的内存；此外，系统会有一些固定的内存开销。因此，每个DB需要的系统内存可通过如下公式计算：
+每个DB可以创建固定数目的vgroup，默认与CPU核数相同，可通过maxVgroupsPerDb配置；vgroup中的每个副本会是一个vnode；每个vnode会占用固定大小的内存（大小与数据库的配置参数blocks和cache有关)；每个Table会占用与标签总长度有关的内存；此外，系统会有一些固定的内存开销。因此，每个DB需要的系统内存可通过如下公式计算：
 
 ```
 Memory Size = maxVgroupsPerDb * (blocks * cache + 10Mb) + numOfTables * (tagSizePerTable + 0.5Kb)
@@ -111,15 +111,16 @@ taosd -C
 
 - days：一个数据文件存储数据的时间跨度，单位为天，默认值：10。
 - keep：数据库中数据保留的天数，单位为天，默认值：3650。
-- minRows: 文件块中记录的最小条数，单位为条，默认值：100。
-- maxRows: 文件块中记录的最大条数，单位为条，默认值：4096。
-- comp: 文件压缩标志位，0：关闭，1:一阶段压缩，2:两阶段压缩。默认值：2。
-- walLevel：WAL级别。1：写wal, 但不执行fsync; 2：写wal, 而且执行fsync。默认值：1。
+- minRows：文件块中记录的最小条数，单位为条，默认值：100。
+- maxRows：文件块中记录的最大条数，单位为条，默认值：4096。
+- comp：文件压缩标志位，0：关闭；1：一阶段压缩；2：两阶段压缩。默认值：2。
+- walLevel：WAL级别。1：写wal，但不执行fsync；2：写wal, 而且执行fsync。默认值：1。
 - fsync：当wal设置为2时，执行fsync的周期。设置为0，表示每次写入，立即执行fsync。单位为毫秒，默认值：3000。
-- cache: 内存块的大小，单位为兆字节（MB），默认值：16。
-- blocks: 每个VNODE（TSDB）中有多少cache大小的内存块。因此一个VNODE的用的内存大小粗略为（cache * blocks）。单位为块，默认值：4。
+- cache：内存块的大小，单位为兆字节（MB），默认值：16。
+- blocks：每个VNODE（TSDB）中有多少cache大小的内存块。因此一个VNODE的用的内存大小粗略为（cache * blocks）。单位为块，默认值：4。
 - replica：副本个数，取值范围：1-3。单位为个，默认值：1
 - precision：时间戳精度标识，ms表示毫秒，us表示微秒。默认值：ms
+- cacheLast：是否在内存中缓存子表 last_row，0：关闭；1：开启。默认值：0。（从 2.0.11 版本开始支持此参数）
 
 对于一个应用场景，可能有多种数据特征的数据并存，最佳的设计是将具有相同数据特征的表放在一个库里，这样一个应用有多个库，而每个库可以配置不同的存储参数，从而保证系统有最优的性能。TDengine允许应用在创建库时指定上述存储参数，如果指定，该参数就将覆盖对应的系统配置参数。举例，有下述SQL：
 
@@ -137,7 +138,7 @@ TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数�
 - offlineThreshold: dnode离线阈值，超过该时间将导致该dnode从集群中删除。单位为秒，默认值：86400*10（即10天）。
 - statusInterval: dnode向mnode报告状态时长。单位为秒，默认值：1。
 - maxTablesPerVnode: 每个vnode中能够创建的最大表个数。默认值：1000000。
-- maxVgroupsPerDb: 每个数据库中能够使用的最大vnode个数。
+- maxVgroupsPerDb: 每个数据库中能够使用的最大vgroup个数。
 - arbitrator: 系统中裁决器的end point，缺省为空。
 - timezone、locale、charset 的配置见客户端配置。
 

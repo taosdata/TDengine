@@ -107,6 +107,7 @@
                         <exclude>**/TaosInfoMonitorTest.java</exclude>
                         <exclude>**/FailOverTest.java</exclude>
                         <exclude>**/InvalidResultSetPointerTest.java</exclude>
+                        <exclude>**/RestfulConnectionTest.java</exclude>
                     </excludes>
                     <testFailureIgnore>true</testFailureIgnore>
                 </configuration>

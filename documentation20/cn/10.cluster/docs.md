@@ -59,7 +59,7 @@ arbitrator            ha.taosdata.com:6042
 | 8     | charset            | 字符集编码                               |
 | 9     | balance            | 是否启动负载均衡                         |
 | 10    | maxTablesPerVnode  | 每个vnode中能够创建的最大表个数          |
-| 11    | maxVgroupsPerDb    | 每个DB中 能够使用的最大vnode个数         |
+| 11    | maxVgroupsPerDb    | 每个DB中能够使用的最大vgroup个数         |
 
  
 

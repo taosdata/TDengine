@@ -152,3 +152,10 @@ TDengine客户端暂不支持如下函数：
 - dbListTables(conn)：显示连接中的所有表
 
 
+## <a class="anchor" id="datax"></a>DataX
+
+[DataX](https://github.com/alibaba/DataX) 是阿里巴巴集团开源的一款通用离线数据采集/同步工具，能够简单、高效地接入 TDengine 进行数据写入和读取。
+
+* 数据读取集成的方法请参见 [TSDBReader 插件文档](https://github.com/alibaba/DataX/blob/master/tsdbreader/doc/tsdbreader.md)
+* 数据写入集成的方法请参见 [TSDBWriter 插件文档](https://github.com/alibaba/DataX/blob/master/tsdbwriter/doc/tsdbhttpwriter.md)
+

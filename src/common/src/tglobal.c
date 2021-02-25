@@ -1555,6 +1555,8 @@ int32_t taosCheckGlobalCfg() {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
 
+  uInfo("   check global cfg completed");
+  uInfo("==================================");
   taosPrintGlobalCfg();
 
   return 0;

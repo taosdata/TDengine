@@ -42,7 +42,11 @@ fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
-cfg_dir="${top_dir}/packaging/cfg"
+if [ "$verMode" == "cluster" ]; then
+  cfg_dir="${top_dir}/../enterprise/packaging/cfg"
+else
+  cfg_dir="${top_dir}/packaging/cfg"
+fi
 install_files="${script_dir}/install_power.sh"
 nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 
@@ -78,7 +82,6 @@ else
   cp ${build_dir}/bin/taosd         ${install_dir}/bin/powerd
   cp ${script_dir}/remove_power.sh  ${install_dir}/bin
   cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/powerdemo   
-  cp ${build_dir}/bin/taosdemox     ${install_dir}/bin/powerdemox   
   cp ${build_dir}/bin/taosdump      ${install_dir}/bin/powerdump  
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin
   cp ${script_dir}/set_core.sh      ${install_dir}/bin
