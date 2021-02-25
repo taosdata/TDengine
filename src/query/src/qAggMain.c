@@ -3956,6 +3956,58 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
       }
       break;
     }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      uint8_t *val = (uint8_t*) GET_INPUT_DATA(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        SPoint1 st = {.key = tsList[i], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      uint16_t *val = (uint16_t*) GET_INPUT_DATA(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        SPoint1 st = {.key = tsList[i], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      uint32_t *val = (uint32_t*) GET_INPUT_DATA(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        SPoint1 st = {.key = tsList[i], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      uint64_t *val = (uint64_t*) GET_INPUT_DATA(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        SPoint1 st = {.key = tsList[i], .val = (double) val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
+      }
+      break;
+    }
     default: assert(0);
   }
 
