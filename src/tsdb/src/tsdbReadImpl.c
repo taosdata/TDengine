@@ -466,14 +466,14 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       continue;
     }
 
-    int16_t tcolId = 0;
-    int32_t toffset = TSDB_KEY_COL_OFFSET;
-    int32_t tlen = pBlock->keyLen;
+    int16_t  tcolId = 0;
+    uint32_t toffset = TSDB_KEY_COL_OFFSET;
+    int32_t  tlen = pBlock->keyLen;
 
     if (dcol != 0) {
       SBlockCol *pBlockCol = &(pBlockData->cols[ccol]);
       tcolId = pBlockCol->colId;
-      toffset = pBlockCol->offset;
+      toffset = tsdbGetBlockColOffset(pBlockCol);
       tlen = pBlockCol->len;
     } else {
       ASSERT(pDataCol->colId == tcolId);
@@ -488,7 +488,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       if (tsdbCheckAndDecodeColumnData(pDataCol, POINTER_SHIFT(pBlockData, tsize + toffset), tlen, pBlock->algorithm,
                                        pBlock->numOfRows, pDataCols->maxPoints, TSDB_READ_COMP_BUF(pReadh),
                                        (int)taosTSizeof(TSDB_READ_COMP_BUF(pReadh))) < 0) {
-        tsdbError("vgId:%d file %s is broken at column %d block offset %" PRId64 " column offset %d",
+        tsdbError("vgId:%d file %s is broken at column %d block offset %" PRId64 " column offset %u",
                   TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tcolId, (int64_t)pBlock->offset, toffset);
         return -1;
       }
@@ -627,7 +627,7 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   if (tsdbMakeRoom((void **)(&TSDB_READ_BUF(pReadh)), pBlockCol->len) < 0) return -1;
   if (tsdbMakeRoom((void **)(&TSDB_READ_COMP_BUF(pReadh)), tsize) < 0) return -1;
 
-  int64_t offset = pBlock->offset + TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols) + pBlockCol->offset;
+  int64_t offset = pBlock->offset + TSDB_BLOCK_STATIS_SIZE(pBlock->numOfCols) + tsdbGetBlockColOffset(pBlockCol);
   if (tsdbSeekDFile(pDFile, offset, SEEK_SET) < 0) {
     tsdbError("vgId:%d failed to load block column data while seek file %s to offset %" PRId64 " since %s",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), offset, tstrerror(terrno));
