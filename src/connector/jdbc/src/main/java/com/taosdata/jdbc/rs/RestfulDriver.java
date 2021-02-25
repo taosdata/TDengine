@@ -5,7 +5,7 @@ import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.AbstractDriver;
 import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.TSDBDriver;
-import com.taosdata.jdbc.rs.util.HttpClientPoolUtil;
+import com.taosdata.jdbc.utils.HttpClientPoolUtil;
 
 import java.sql.*;
 import java.util.Properties;

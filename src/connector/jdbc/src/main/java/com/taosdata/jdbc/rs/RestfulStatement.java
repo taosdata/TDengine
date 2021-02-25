@@ -7,7 +7,7 @@ import com.taosdata.jdbc.AbstractStatement;
 import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.TSDBError;
 import com.taosdata.jdbc.TSDBErrorNumbers;
-import com.taosdata.jdbc.rs.util.HttpClientPoolUtil;
+import com.taosdata.jdbc.utils.HttpClientPoolUtil;
 import com.taosdata.jdbc.utils.SqlSyntaxValidator;
 
 import java.sql.*;
