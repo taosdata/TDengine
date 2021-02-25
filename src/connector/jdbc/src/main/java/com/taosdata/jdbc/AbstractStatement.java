@@ -1,9 +1,12 @@
 package com.taosdata.jdbc;
 
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class AbstractStatement extends WrapperImpl implements Statement {
 
+    protected List<String> batchedArgs;
     private int fetchSize;
 
     @Override
@@ -168,13 +171,42 @@ public abstract class AbstractStatement extends WrapperImpl implements Statement
     }
 
     @Override
-    public abstract void addBatch(String sql) throws SQLException;
+    public void addBatch(String sql) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
+        if (batchedArgs == null) {
+            batchedArgs = new ArrayList<>();
+        }
+        batchedArgs.add(sql);
+    }
 
     @Override
-    public abstract void clearBatch() throws SQLException;
+    public void clearBatch() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        if (batchedArgs != null)
+            batchedArgs.clear();
+    }
 
     @Override
-    public abstract int[] executeBatch() throws SQLException;
+    public int[] executeBatch() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        if (batchedArgs == null || batchedArgs.isEmpty())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_BATCH_IS_EMPTY);
+
+        int[] res = new int[batchedArgs.size()];
+        for (int i = 0; i < batchedArgs.size(); i++) {
+            boolean isSelect = execute(batchedArgs.get(i));
+            if (isSelect) {
+                res[i] = SUCCESS_NO_INFO;
+            } else {
+                res[i] = getUpdateCount();
+            }
+        }
+        return res;
+    }
 
     @Override
     public abstract Connection getConnection() throws SQLException;

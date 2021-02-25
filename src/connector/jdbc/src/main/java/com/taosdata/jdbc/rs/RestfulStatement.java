@@ -214,24 +214,6 @@ public class RestfulStatement extends AbstractStatement {
     }
 
     @Override
-    public void addBatch(String sql) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        //TODO:
-    }
-
-    @Override
-    public void clearBatch() throws SQLException {
-        //TODO:
-    }
-
-    @Override
-    public int[] executeBatch() throws SQLException {
-        //TODO:
-        return new int[0];
-    }
-
-    @Override
     public Connection getConnection() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
