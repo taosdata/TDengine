@@ -2172,16 +2172,19 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
   
   if (pInfo->num < maxLen) {
     if (pInfo->num == 0 ||
-        ((type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) &&
-            val.i64 >= pList[pInfo->num - 1]->v.i64) ||
-        ((type >= TSDB_DATA_TYPE_FLOAT && type <= TSDB_DATA_TYPE_DOUBLE) &&
-            val.dKey >= pList[pInfo->num - 1]->v.dKey)) {
+        (IS_SIGNED_NUMERIC_TYPE(type) && val.i64 >= pList[pInfo->num - 1]->v.i64) ||
+        (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 >= pList[pInfo->num - 1]->v.u64) ||
+        (IS_FLOAT_TYPE(type) && val.dKey >= pList[pInfo->num - 1]->v.dKey)) {
       valuePairAssign(pList[pInfo->num], type, (const char*)&val.i64, ts, pTags, pTagInfo, stage);
     } else {
       int32_t i = pInfo->num - 1;
-      
-      if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) {
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
         while (i >= 0 && pList[i]->v.i64 > val.i64) {
+          VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
+          i -= 1;
+        }
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+        while (i >= 0 && pList[i]->v.u64 > val.u64) {
           VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
           i -= 1;
         }
@@ -2198,12 +2201,18 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
     pInfo->num++;
   } else {
     int32_t i = 0;
-    
-    if (((type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) && val.i64 > pList[0]->v.i64) ||
-        ((type >= TSDB_DATA_TYPE_FLOAT && type <= TSDB_DATA_TYPE_DOUBLE) && val.dKey > pList[0]->v.dKey)) {
+
+    if ((IS_SIGNED_NUMERIC_TYPE(type) && val.i64 > pList[0]->v.i64) ||
+        (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 > pList[0]->v.u64) ||
+        (IS_FLOAT_TYPE(type) && val.dKey > pList[0]->v.dKey)) {
       // find the appropriate the slot position
-      if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) {
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
         while (i + 1 < maxLen && pList[i + 1]->v.i64 < val.i64) {
+          VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
+          i += 1;
+        }
+      } if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+        while (i + 1 < maxLen && pList[i + 1]->v.u64 < val.u64) {
           VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
           i += 1;
         }
@@ -2213,8 +2222,8 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
           i += 1;
         }
       }
-      
-      valuePairAssign(pList[i], type, (const char*) &val.i64, ts, pTags, pTagInfo, stage);
+
+      valuePairAssign(pList[i], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
     }
   }
 }
@@ -2233,11 +2242,16 @@ static void do_bottom_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pDa
     } else {
       int32_t i = pInfo->num - 1;
       
-      if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) {
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
         while (i >= 0 && pList[i]->v.i64 < val.i64) {
           VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
           i -= 1;
         }
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+          while (i >= 0 && pList[i]->v.u64 < val.u64) {
+            VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
+            i -= 1;
+          }
       } else {
         while (i >= 0 && pList[i]->v.dKey < val.dKey) {
           VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
@@ -2252,11 +2266,17 @@ static void do_bottom_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pDa
   } else {
     int32_t i = 0;
     
-    if (((type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) && val.i64 < pList[0]->v.i64) ||
-        ((type >= TSDB_DATA_TYPE_FLOAT && type <= TSDB_DATA_TYPE_DOUBLE) && val.dKey < pList[0]->v.dKey)) {
+    if ((IS_SIGNED_NUMERIC_TYPE(type) && val.i64 < pList[0]->v.i64) ||
+        (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 < pList[0]->v.u64) ||
+        (IS_FLOAT_TYPE(type) && val.dKey < pList[0]->v.dKey)) {
       // find the appropriate the slot position
-      if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) {
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
         while (i + 1 < maxLen && pList[i + 1]->v.i64 > val.i64) {
+          VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
+          i += 1;
+        }
+      } if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+        while (i + 1 < maxLen && pList[i + 1]->v.u64 > val.u64) {
           VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
           i += 1;
         }
@@ -2289,18 +2309,23 @@ static int32_t resDataAscComparFn(const void *pLeft, const void *pRight) {
   tValuePair *pLeftElem = *(tValuePair **)pLeft;
   tValuePair *pRightElem = *(tValuePair **)pRight;
   
-  int32_t type = pLeftElem->v.nType;
-  if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
+  if (IS_FLOAT_TYPE(pLeftElem->v.nType)) {
     if (pLeftElem->v.dKey == pRightElem->v.dKey) {
       return 0;
     } else {
       return pLeftElem->v.dKey > pRightElem->v.dKey ? 1 : -1;
     }
-  } else {
+  } else if (IS_SIGNED_NUMERIC_TYPE(pLeftElem->v.nType)){
     if (pLeftElem->v.i64 == pRightElem->v.i64) {
       return 0;
     } else {
       return pLeftElem->v.i64 > pRightElem->v.i64 ? 1 : -1;
+    }
+  } else {
+    if (pLeftElem->v.u64 == pRightElem->v.u64) {
+      return 0;
+    } else {
+      return pLeftElem->v.u64 > pRightElem->v.u64 ? 1 : -1;
     }
   }
 }
