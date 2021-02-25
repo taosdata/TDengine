@@ -697,10 +697,10 @@ static int verticalPrintResult(TAOS_RES* tres) {
 
   int numOfRows = 0;
   int showMore = 1;
-  do {
-    printf("*************************** %d.row ***************************\n", numOfRows + 1);
-  
+  do {  
     if (numOfRows < resShowMaxNum) {
+      printf("*************************** %d.row ***************************\n", numOfRows + 1);
+
       int32_t* length = taos_fetch_lengths(tres);
 
       for (int i = 0; i < num_fields; i++) {
@@ -713,8 +713,8 @@ static int verticalPrintResult(TAOS_RES* tres) {
         putchar('\n');
       }
     } else if (showMore) {
-        printf("100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.\n");
-        printf("You can add limit statement to get more or redirect results to specific file to get all.\n");
+        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
+        printf("[You can add limit statement to get more or redirect results to specific file to get all.]\n");
         showMore = 0;
     }
 
@@ -842,8 +842,8 @@ static int horizontalPrintResult(TAOS_RES* tres) {
       }
       putchar('\n');
     } else if (showMore) {
-        printf("100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.\n");
-        printf("You can add limit statement to show more or redirect results to specific file to get all.\n");
+        printf("[100 Rows showed, and more rows are fetching but will not be showed. You can ctrl+c to stop or wait.]\n");
+        printf("[You can add limit statement to show more or redirect results to specific file to get all.]\n");
         showMore = 0;
     }
     
