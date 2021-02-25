@@ -24,49 +24,45 @@ public class TSDBError {
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE, "not a valid sql for execute: (?)");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "parameter index out of range");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED, "connection already closed");
-
         /**************************************************/
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN, "unknown error");
         /**************************************************/
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_SUBSCRIBE_FAILED, "failed to create subscription");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNSUPPORTED_ENCODING, "Unsupported encoding");
 
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_TDENGINE_ERROR, "internal error of database!");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL, "JNI connection already closed!");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL, "invalid JNI result set!");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0, "invalid num of fields!");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_SQL_NULL, "empty sql string!");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_FETCH_END, "fetch to the end of resultset");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY, "JNI alloc memory failed!");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_TDENGINE_ERROR, "internal error of database");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL, "JNI connection already closed");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL, "invalid JNI result set");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0, "invalid num of fields");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_SQL_NULL, "empty sql string");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_FETCH_END, "fetch to the end of resultSet");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_OUT_OF_MEMORY, "JNI alloc memory failed");
     }
 
-    public static String wrapErrMsg(String msg) {
-        return "TDengine Error: " + msg;
+    public static SQLException createSQLException(int errorCode) {
+        String message;
+        if (TSDBErrorNumbers.contains(errorCode))
+            message = TSDBErrorMap.get(errorCode);
+        else
+            message = TSDBErrorMap.get(TSDBErrorNumbers.ERROR_UNKNOWN);
+        return createSQLException(errorCode, message);
     }
 
-    public static SQLException createSQLException(int errorNumber) {
-        return createSQLException(errorNumber, null);
-    }
-
-    public static SQLException createSQLException(int errorNumber, String message) {
-        if (message == null || message.isEmpty() || message.replaceAll("\\s", "").isEmpty()) {
-            if (TSDBErrorNumbers.contains(errorNumber))
-                message = TSDBErrorMap.get(errorNumber);
-            else
-                message = TSDBErrorMap.get(TSDBErrorNumbers.ERROR_UNKNOWN);
-        }
+    public static SQLException createSQLException(int errorCode, String message) {
         // throw SQLFeatureNotSupportedException
-        if (errorNumber == TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD)
-            return new SQLFeatureNotSupportedException(message, "", errorNumber);
+        if (errorCode == TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD)
+            return new SQLFeatureNotSupportedException(message, "", errorCode);
         // throw SQLClientInfoException
-        if (errorNumber == TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED)
-            return new SQLClientInfoException(message,null);
+        if (errorCode == TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED)
+            return new SQLClientInfoException(message, null);
 
-        if (errorNumber < TSDBErrorNumbers.ERROR_UNKNOWN)
+        if (errorCode > 0x2300 && errorCode < 0x2350)
             // JDBC exception's error number is less than 0x2350
-            return new SQLException("ERROR (" + Integer.toHexString(errorNumber) + "): " + message, "", errorNumber);
-        // JNI exception's error number is large than 0x2350
-        return new SQLException("TDengine ERROR (" + Integer.toHexString(errorNumber) + "): " + message, "", errorNumber);
+            return new SQLException("ERROR (" + Integer.toHexString(errorCode) + "): " + message, "", errorCode);
+        if (errorCode > 0x2350 && errorCode < 0x2400)
+            // JNI exception's error number is large than 0x2350
+            return new SQLException("JNI ERROR (" + Integer.toHexString(errorCode) + "): " + message, "", errorCode);
+        return new SQLException("TDengine ERROR (" + Integer.toHexString(errorCode) + "): " + message, "", errorCode);
     }
 
 }

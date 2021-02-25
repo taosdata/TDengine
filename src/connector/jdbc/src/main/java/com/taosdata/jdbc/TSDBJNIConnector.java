@@ -102,7 +102,8 @@ public class TSDBJNIConnector {
 
         this.taos = this.connectImp(host, port, dbName, user, password);
         if (this.taos == TSDBConstants.JNI_NULL_POINTER) {
-            throw new SQLException(TSDBConstants.WrapErrMsg(this.getErrMsg(0L)), "", this.getErrCode(0l));
+            throw TSDBError.createSQLException(this.getErrCode(0l), this.getErrMsg(0L));
+//            throw new SQLException(TSDBConstants.WrapErrMsg(, "", );
         }
         // invoke connectImp only here
         taosInfo.conn_open_increment();
@@ -187,7 +188,6 @@ public class TSDBJNIConnector {
 //    public long getResultSet() {
 //        return taosResultSetPointer;
 //    }
-
     private native long getResultSetImp(long connection, long pSql);
 
     public boolean isUpdateQuery(long pSql) {
@@ -206,7 +206,7 @@ public class TSDBJNIConnector {
 //        }
 
 //        if (taosResultSetPointer != TSDBConstants.JNI_NULL_POINTER) {
-            res = this.freeResultSetImp(this.taos, pSql);
+        res = this.freeResultSetImp(this.taos, pSql);
 //            taosResultSetPointer = TSDBConstants.JNI_NULL_POINTER;
 //        }
 
@@ -227,7 +227,6 @@ public class TSDBJNIConnector {
 //        }
 //        return resCode;
 //    }
-
     private native int freeResultSetImp(long connection, long result);
 
     /**
