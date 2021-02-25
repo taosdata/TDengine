@@ -30,11 +30,11 @@
 #define LOG_FILE_NAME_LEN          300
 #define TSDB_DEFAULT_LOG_BUF_SIZE (20 * 1024 * 1024)  // 20MB
 
-#define DEFAULT_LOG_INTERVAL 25000
-#define LOG_INTERVAL_STEP 5000
-#define MIN_LOG_INTERVAL 5000
-#define MAX_LOG_INTERVAL 25000
-#define LOG_MAX_WAIT_USEC 1000000
+#define DEFAULT_LOG_INTERVAL 25
+#define LOG_INTERVAL_STEP 5
+#define MIN_LOG_INTERVAL 5
+#define MAX_LOG_INTERVAL 25
+#define LOG_MAX_WAIT_MSEC 1000
 
 #define LOG_BUF_BUFFER(x) ((x)->buffer)
 #define LOG_BUF_START(x)  ((x)->buffStart)
@@ -122,7 +122,7 @@ static void taosStopLog() {
 void taosCloseLog() {
   taosStopLog();
   //tsem_post(&(tsLogObj.logHandle->buffNotEmpty));
-  usleep(MAX_LOG_INTERVAL);
+  taosMsleep(MAX_LOG_INTERVAL/1000);
   if (taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
     pthread_join(tsLogObj.logHandle->asyncThread, NULL);
   }
@@ -632,7 +632,7 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
       pollSize = taosGetLogRemainSize(tLogBuff, start, end);
       if (pollSize < tLogBuff->minBuffSize) {
         lastDuration += writeInterval;
-        if (lastDuration < LOG_MAX_WAIT_USEC) {
+        if (lastDuration < LOG_MAX_WAIT_MSEC) {
           break;
         }
       }
@@ -688,7 +688,7 @@ static void *taosAsyncOutputLog(void *param) {
   while (1) {
     //tsem_wait(&(tLogBuff->buffNotEmpty));
 
-    usleep(writeInterval);
+    taosMsleep(writeInterval);
 
     // Polling the buffer
     taosWriteLog(tLogBuff);
