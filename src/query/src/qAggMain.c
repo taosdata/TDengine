@@ -3487,9 +3487,6 @@ static void diff_function(SQLFunctionCtx *pCtx) {
     int32_t forwardStep = (isFirstBlock) ? notNullElems - 1 : notNullElems;
     
     GET_RES_INFO(pCtx)->numOfRes += forwardStep;
-    
-    pCtx->pOutput += forwardStep * pCtx->outputBytes;
-    pCtx->ptsOutputBuf = (char*)pCtx->ptsOutputBuf + forwardStep * TSDB_KEYSIZE;
   }
 }
 
