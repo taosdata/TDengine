@@ -102,7 +102,7 @@ public class TSDBJNIConnector {
 
         this.taos = this.connectImp(host, port, dbName, user, password);
         if (this.taos == TSDBConstants.JNI_NULL_POINTER) {
-            throw TSDBError.createSQLException(this.getErrCode(0l), this.getErrMsg(0L));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
         }
         // invoke connectImp only here
         taosInfo.conn_open_increment();
@@ -273,7 +273,7 @@ public class TSDBJNIConnector {
     public void closeConnection() throws SQLException {
         int code = this.closeConnectionImp(this.taos);
         if (code < 0) {
-            throw TSDBError.createSQLException(this.getErrCode(0l), this.getErrMsg(0L));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
         } else if (code == 0) {
             this.taos = TSDBConstants.JNI_NULL_POINTER;
         } else {

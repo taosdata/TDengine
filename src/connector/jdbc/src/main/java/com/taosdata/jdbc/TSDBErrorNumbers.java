@@ -25,7 +25,7 @@ public class TSDBErrorNumbers {
     public static final int ERROR_UNSUPPORTED_ENCODING = 0x2352; // Unsupported encoding
 
     public static final int ERROR_JNI_TDENGINE_ERROR = 0x2353;   // internal error of database
-    public static final int ERROR_JNI_CONNECTION_NULL = 0x2354;  // JNI connection already closed
+    public static final int ERROR_JNI_CONNECTION_NULL = 0x2354;  // JNI connection is NULL
     public static final int ERROR_JNI_RESULT_SET_NULL = 0x2355;  // invalid JNI result set
     public static final int ERROR_JNI_NUM_OF_FIELDS_0 = 0x2356;  // invalid num of fields
     public static final int ERROR_JNI_SQL_NULL = 0x2357;        // empty sql string

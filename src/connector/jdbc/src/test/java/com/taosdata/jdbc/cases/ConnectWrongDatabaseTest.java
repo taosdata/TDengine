@@ -16,7 +16,7 @@ public class ConnectWrongDatabaseTest {
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
         } catch (SQLException e) {
-            Assert.assertEquals(-2147482749, e.getErrorCode());
+            Assert.assertEquals(-2, e.getErrorCode());
         }
     }
 
