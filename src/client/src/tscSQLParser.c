@@ -1885,6 +1885,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg7 = "normal table can not apply this function";
   const char* msg8 = "multi-columns selection does not support alias column name";
   const char* msg9 = "invalid function";
+  const char* msg10 = "diff can no be applied to unsigned numeric type";
 
   switch (optr) {
     case TK_COUNT: {
