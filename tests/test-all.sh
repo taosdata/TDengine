@@ -288,10 +288,10 @@ if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] ; then
 fi
 
 
-if [ "$2" != "sim" ] && [ "$2" != "python" ]; then
+if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$1" == "full" ]; then
   echo "### run JDBC test case ###"  
 
-  echo $tests_dir
+  cd $tests_dir
 
   if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
     cd ../../
@@ -299,12 +299,13 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ]; then
     cd ../
   fi
 
+  pwd
   cd debug/
   nohup build/bin/taosd -c /etc/taos/ > /dev/null 2>&1 &
   sleep 30
 
   cd $tests_dir/../src/connector/jdbc
-    
+  
   mvn test > jdbc-out.log 2>&1
   tail -n 20 jdbc-out.log
 
