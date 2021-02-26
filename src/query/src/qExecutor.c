@@ -573,20 +573,20 @@ static SResultRow *doPrepareResultRowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SRes
 }
 
 // get the correct time window according to the handled timestamp
-static STimeWindow getActiveTimeWindow(SResultRowInfo *pWindowResInfo, int64_t ts, SQuery *pQuery) {
+static STimeWindow getActiveTimeWindow(SResultRowInfo * pResultRowInfo, int64_t ts, SQuery *pQuery) {
   STimeWindow w = {0};
 
- if (pWindowResInfo->curIndex == -1) {  // the first window, from the previous stored value
-   if (pWindowResInfo->prevSKey == TSKEY_INITIAL_VAL) {
+ if (pResultRowInfo->curIndex == -1) {  // the first window, from the previous stored value
+   if (pResultRowInfo->prevSKey == TSKEY_INITIAL_VAL) {
      if (QUERY_IS_ASC_QUERY(pQuery)) {
        getAlignQueryTimeWindow(pQuery, ts, ts, pQuery->window.ekey, &w);
      } else { // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
        getAlignQueryTimeWindow(pQuery, ts, pQuery->window.ekey, ts, &w);
      }
 
-     pWindowResInfo->prevSKey = w.skey;
+     pResultRowInfo->prevSKey = w.skey;
    } else {
-    w.skey = pWindowResInfo->prevSKey;
+    w.skey = pResultRowInfo->prevSKey;
    }
 
     if (pQuery->interval.intervalUnit == 'n' || pQuery->interval.intervalUnit == 'y') {
@@ -595,8 +595,8 @@ static STimeWindow getActiveTimeWindow(SResultRowInfo *pWindowResInfo, int64_t t
       w.ekey = w.skey + pQuery->interval.interval - 1;
     }
   } else {
-    int32_t slot = curTimeWindowIndex(pWindowResInfo);
-    SResultRow* pWindowRes = getResultRow(pWindowResInfo, slot);
+    int32_t slot = curTimeWindowIndex(pResultRowInfo);
+    SResultRow* pWindowRes = getResultRow(pResultRowInfo, slot);
     w = pWindowRes->win;
   }
 
@@ -4376,12 +4376,6 @@ void setIntervalQueryRange(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key) {
   pTableQueryInfo->win.skey = key;
   STimeWindow win = {.skey = key, .ekey = pQuery->window.ekey};
 
-  // for too small query range, no data in this interval.
-  if ((QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.ekey < pQuery->window.skey)) ||
-      (!QUERY_IS_ASC_QUERY(pQuery) && (pQuery->window.skey < pQuery->window.ekey))) {
-    return;
-  }
-
   /**
    * In handling the both ascending and descending order super table query, we need to find the first qualified
    * timestamp of this table, and then set the first qualified start timestamp.
@@ -4398,6 +4392,7 @@ void setIntervalQueryRange(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key) {
     if (!QUERY_IS_ASC_QUERY(pQuery)) {
       assert(win.ekey == pQuery->window.ekey);
     }
+
     pWindowResInfo->prevSKey = w.skey;
   }
 
@@ -6106,6 +6101,8 @@ static SSDataBlock* doTableScan(void* param) {
   SQueryRuntimeEnv *pRuntimeEnv = pTableScanInfo->pRuntimeEnv;
   SQuery* pQuery = pRuntimeEnv->pQuery;
 
+  SResultRowInfo* pResultRowInfo = pTableScanInfo->pResultRowInfo;
+
   while (pTableScanInfo->current < pTableScanInfo->times) {
     SSDataBlock* p = doTableScanImpl(pTableScanInfo);
     if (p != NULL) {
@@ -6132,6 +6129,9 @@ static SSDataBlock* doTableScan(void* param) {
       assert(ret);
     }
 
+    pResultRowInfo->curIndex = 0;
+    pResultRowInfo->prevSKey = pResultRowInfo->pResult[0]->win.skey;
+
     qDebug("QInfo:%p start to repeat scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            pRuntimeEnv->qinfo, cond.twindow.skey, cond.twindow.ekey);
   }
@@ -6151,6 +6151,11 @@ static SSDataBlock* doTableScan(void* param) {
     pTableScanInfo->current = 0;
     pTableScanInfo->reverseTimes = 0;
     pTableScanInfo->order = cond.order;
+
+    // todo refactor, extract function
+    SResultRowInfo* pResultRowInfo = pTableScanInfo->pResultRowInfo;
+    pResultRowInfo->curIndex = pResultRowInfo->size-1;
+    pResultRowInfo->prevSKey = pResultRowInfo->pResult[pResultRowInfo->size-1]->win.skey;
 
     SSDataBlock* p = doTableScanImpl(pTableScanInfo);
     if (p != NULL) {
