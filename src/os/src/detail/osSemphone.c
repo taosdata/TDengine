@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <sys/syscall.h>
-
 #define _DEFAULT_SOURCE
 #include "os.h"
 
