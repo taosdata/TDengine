@@ -781,11 +781,11 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
   ASSERT(nColsNotAllNull >= 0 && nColsNotAllNull <= pDataCols->numOfCols);
 
   // Compress the data if neccessary
-  int     tcol = 0;  // counter of not all NULL and written columns
-  int32_t toffset = 0;
-  int32_t tsize = TSDB_BLOCK_STATIS_SIZE(nColsNotAllNull);
-  int32_t lsize = tsize;
-  int32_t keyLen = 0;
+  int      tcol = 0;  // counter of not all NULL and written columns
+  uint32_t toffset = 0;
+  int32_t  tsize = TSDB_BLOCK_STATIS_SIZE(nColsNotAllNull);
+  int32_t  lsize = tsize;
+  int32_t  keyLen = 0;
   for (int ncol = 0; ncol < pDataCols->numOfCols; ncol++) {
     // All not NULL columns finish
     if (ncol != 0 && tcol >= nColsNotAllNull) break;
@@ -829,7 +829,7 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
     tsdbUpdateDFileMagic(pDFile, POINTER_SHIFT(tptr, flen - sizeof(TSCKSUM)));
 
     if (ncol != 0) {
-      pBlockCol->offset = toffset;
+      tsdbSetBlockColOffset(pBlockCol, toffset);
       pBlockCol->len = flen;
       tcol++;
     } else {
