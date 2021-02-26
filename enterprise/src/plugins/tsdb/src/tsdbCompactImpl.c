@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#if 0
 #include "tsdbint.h"
 
 typedef struct {
@@ -34,8 +33,13 @@ typedef struct {
   SDataCols *pDataCols;
 } SCompactH;
 
-#define TSDB_COMPACT_WSET(pComp) &((pComp)->wSet)
-#define TSDB_COMPACT_REPO(pComp) TSDB_READ_REPO(&((pComp)->readh))
+#define TSDB_COMPACT_WSET(pComph) &((pComph)->wSet)
+#define TSDB_COMPACT_REPO(pComph) TSDB_READ_REPO(&((pComph)->readh))
+#define TSDB_COMPACT_HEAD_FILE(pComph) TSDB_DFILE_IN_SET(TSDB_COMPACT_WSET(pComph), TSDB_FILE_HEAD)
+#define TSDB_COMPACT_DATA_FILE(pComph) TSDB_DFILE_IN_SET(TSDB_COMPACT_WSET(pComph), TSDB_FILE_DATA)
+#define TSDB_COMPACT_LAST_FILE(pComph) TSDB_DFILE_IN_SET(TSDB_COMPACT_WSET(pComph), TSDB_FILE_LAST)
+#define TSDB_COMPACT_BUF(pComph) TSDB_READ_BUF(&((pComph)->readh))
+#define TSDB_COMPACT_COMP_BUF(pComph) TSDB_READ_COMP_BUF(&((pComph)->readh))
 
 int tsdbCompact(STsdbRepo *pRepo) { return tsdbAsyncCompact(pRepo); }
 
@@ -89,12 +93,12 @@ static void tsdbEndCompact(STsdbRepo *pRepo, int eno) {
   tsem_post(&(pRepo->readyToCommit));
 }
 
-static int tsdbCompactMeta(pRepo) {
+static int tsdbCompactMeta(STsdbRepo *pRepo) {
   // TODO
   return 0;
 }
 
-static int tsdbCompactTSData(pRepo) {
+static int tsdbCompactTSData(STsdbRepo *pRepo) {
   SCompactH  compactH;
   SDFileSet *pSet = NULL;
 
@@ -142,6 +146,9 @@ static int tsdbCompactFSet(SCompactH *pCompH, SDFileSet *pSet) {
   SReadH *   pReadH = &(pCompH->readh);
   SDiskID    did;
   SBlock     block;
+  SBlockIdx  blkIdx;
+  void **    ppBuf = &TSDB_COMPACT_BUF(pCompH);
+  void **    ppCBuf = &TSDB_COMPACT_COMP_BUF(pCompH);
   int        defaultRows = TSDB_DEFAULT_BLOCK_ROWS(pCfg->maxRowsPerFileBlock);
 
   tsdbDebug("vgId:%d start to compact FSET %d", REPO_ID(pRepo), pSet->fid);
@@ -181,13 +188,15 @@ static int tsdbCompactFSet(SCompactH *pCompH, SDFileSet *pSet) {
       for (int i = 0; i < pTh->pBlkIdx->numOfBlocks; i++) {
         SBlock *pBlock = pTh->pInfo->blocks + i;
 
-        if (pBlock->numOfSubBlocks == 1 && pCompH->pDataCols->numOfRows == 0 && pBlock->numOfRows >= defaultRows ) {
+        if (pBlock->numOfSubBlocks == 1 && pCompH->pDataCols->numOfRows == 0 && pBlock->numOfRows >= defaultRows) {
           if (tsdbLoadBlockData(pReadH, pBlock, pTh->pInfo) < 0) {
             // TODO
             return -1;
           }
 
-          if (tsdbWriteBlock(NULL, NULL, pReadH->pDCols[0], &block, true, true) < 0) {
+          if (tsdbWriteBlockImpl(TSDB_COMPACT_REPO(pCompH), pTh->pTable, TSDB_COMPACT_DATA_FILE(pCompH),
+                                 pReadH->pDCols[0], &block, false, true, ppBuf, ppCBuf) < 0) {
+            // if (tsdbWriteBlock(NULL, NULL, pReadH->pDCols[0], &block, true, true) < 0) {
             // TODO
             return -1;
           }
@@ -204,7 +213,6 @@ static int tsdbCompactFSet(SCompactH *pCompH, SDFileSet *pSet) {
           }
 
           int rowsToMerge = (pBlock->numOfRows, defaultRows - pCompH->pDataCols->numOfRows);
-
         }
 
         if (pCompH->pDataCols->numOfRows > 0) {
@@ -215,13 +223,22 @@ static int tsdbCompactFSet(SCompactH *pCompH, SDFileSet *pSet) {
         }
       }
 
-      if (tsdbWriteBlockInfo() < 0) {
+      if (tsdbWriteBlockInfoImpl(TSDB_COMPACT_HEAD_FILE(pCompH), pTh->pTable, pCompH->aSupBlk, NULL, ppBuf, &blkIdx) <
+          0) {
         // TODO
         return -1;
       }
+
+      if (blkIdx.numOfBlocks > 0) {
+        if (taosArrayPush(pCompH->aBlkIdx, (void *)(&blkIdx)) == NULL) {
+          // TODO
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          return -1;
+        }
+      }
     }
 
-    if (tsdbWriteBlockIdx() < 0) {
+    if (tsdbWriteBlockIdx(TSDB_COMPACT_HEAD_FILE(pCompH), pCompH->aBlkIdx, ppBuf) < 0) {
       // TODO
       return -1;
     }
@@ -358,4 +375,3 @@ static int tsdbCacheFSetIndex(SCompactH *pCompH, SDFileSet *pSet) {
 
   return 0;
 }
-#endif
