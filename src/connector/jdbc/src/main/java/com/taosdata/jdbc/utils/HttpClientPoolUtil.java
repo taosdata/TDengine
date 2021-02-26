@@ -1,6 +1,5 @@
-package com.taosdata.jdbc.rs.util;
+package com.taosdata.jdbc.utils;
 
-import org.apache.commons.lang3.StringUtils;
 import org.apache.http.HeaderElement;
 import org.apache.http.HeaderElementIterator;
 import org.apache.http.HttpEntity;
@@ -39,7 +38,7 @@ public class HttpClientPoolUtil {
     /**
      * 初始化连接池
      */
-    public static synchronized void initPools() {
+    private static synchronized void initPools() {
         if (httpClient == null) {
             cm = new PoolingHttpClientConnectionManager();
             cm.setDefaultMaxPerRoute(count);
@@ -51,7 +50,7 @@ public class HttpClientPoolUtil {
     /**
      * Http connection keepAlive 设置
      */
-    public static ConnectionKeepAliveStrategy defaultStrategy = (response, context) -> {
+    private static ConnectionKeepAliveStrategy defaultStrategy = (response, context) -> {
         HeaderElementIterator it = new BasicHeaderElementIterator(response.headerIterator(HTTP.CONN_KEEP_ALIVE));
         int keepTime = Http_Default_Keep_Time * 1000;
         while (it.hasNext()) {
@@ -68,14 +67,6 @@ public class HttpClientPoolUtil {
         }
         return keepTime;
     };
-
-    public static CloseableHttpClient getHttpClient() {
-        return httpClient;
-    }
-
-    public static PoolingHttpClientConnectionManager getHttpConnectionManager() {
-        return cm;
-    }
 
     /**
      * 执行http post请求
@@ -95,8 +86,10 @@ public class HttpClientPoolUtil {
                 initPools();
             }
             method = (HttpEntityEnclosingRequestBase) getRequest(uri, HttpPost.METHOD_NAME, DEFAULT_CONTENT_TYPE, 0);
-            method.setHeader("Authorization", "Taosd " + token);
             method.setHeader("Content-Type", "text/plain");
+            method.setHeader("Connection", "keep-alive");
+            method.setHeader("Authorization", "Taosd " + token);
+
             method.setEntity(new StringEntity(data, Charset.forName("UTF-8")));
             HttpContext context = HttpClientContext.create();
             CloseableHttpResponse httpResponse = httpClient.execute(method, context);
@@ -131,7 +124,7 @@ public class HttpClientPoolUtil {
      * @return HttpRequestBase    返回类型
      * @author lisc
      */
-    public static HttpRequestBase getRequest(String uri, String methodName, String contentType, int timeout) {
+    private static HttpRequestBase getRequest(String uri, String methodName, String contentType, int timeout) {
         if (httpClient == null) {
             initPools();
         }
@@ -152,7 +145,7 @@ public class HttpClientPoolUtil {
             method = new HttpPost(uri);
         }
 
-        if (StringUtils.isBlank(contentType)) {
+        if (contentType == null || contentType.isEmpty() || contentType.replaceAll("\\s", "").isEmpty()) {
             contentType = DEFAULT_CONTENT_TYPE;
         }
         method.addHeader("Content-Type", contentType);

@@ -413,7 +413,55 @@ void tSqlSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) 
   } else {
     pField->bytes = pType->bytes;
   }
+}
 
+static int32_t tryParseNameTwoParts(SStrToken *type) {
+  int32_t t = -1;
+
+  char* str = strndup(type->z, type->n);
+  if (str == NULL) {
+    return t;
+  }
+
+  char* p = strtok(str, " ");
+  if (p == NULL) {
+    tfree(str);
+    return t;
+  } else {
+    char* unsign = strtok(NULL, " ");
+    if (unsign == NULL) {
+      tfree(str);
+      return t;
+    }
+
+    if (strncasecmp(unsign, "UNSIGNED", 8) == 0) {
+      for(int32_t j = TSDB_DATA_TYPE_TINYINT; j <= TSDB_DATA_TYPE_BIGINT; ++j) {
+        if (strcasecmp(p, tDataTypes[j].name) == 0) {
+          t = j;
+          break;
+        }
+      }
+
+      tfree(str);
+
+      if (t == -1) {
+        return -1;
+      }
+
+      switch(t) {
+        case TSDB_DATA_TYPE_TINYINT:  return TSDB_DATA_TYPE_UTINYINT;
+        case TSDB_DATA_TYPE_SMALLINT: return TSDB_DATA_TYPE_USMALLINT;
+        case TSDB_DATA_TYPE_INT:      return TSDB_DATA_TYPE_UINT;
+        case TSDB_DATA_TYPE_BIGINT:   return TSDB_DATA_TYPE_UBIGINT;
+        default:
+          return -1;
+      }
+
+    } else {
+      tfree(str);
+      return -1;
+    }
+  }
 }
 
 void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
@@ -431,8 +479,12 @@ void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
     i += 1;
   }
 
+  // no qualified data type found, try unsigned data type
   if (i == tListLen(tDataTypes)) {
-    return;
+    i = tryParseNameTwoParts(type);
+    if (i == -1) {
+      return;
+    }
   }
 
   pField->type = i;

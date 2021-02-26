@@ -1,12 +1,13 @@
 package com.taosdata.jdbc.rs;
 
 import com.alibaba.fastjson.JSON;
+import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.AbstractStatement;
 import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.TSDBError;
 import com.taosdata.jdbc.TSDBErrorNumbers;
-import com.taosdata.jdbc.rs.util.HttpClientPoolUtil;
+import com.taosdata.jdbc.utils.HttpClientPoolUtil;
 import com.taosdata.jdbc.utils.SqlSyntaxValidator;
 
 import java.sql.*;
@@ -29,7 +30,7 @@ public class RestfulStatement extends AbstractStatement {
         this.database = database;
     }
 
-    private String[] parseTableIdentifier(String sql) {
+    protected String[] parseTableIdentifier(String sql) {
         sql = sql.trim().toLowerCase();
         String[] ret = null;
         if (sql.contains("where"))
@@ -74,8 +75,8 @@ public class RestfulStatement extends AbstractStatement {
             return executeOneQuery(url, sql);
         }
 
-        if (this.database == null || this.database.isEmpty())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
+//        if (this.database == null || this.database.isEmpty())
+//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
         HttpClientPoolUtil.execute(url, "use " + this.database);
         return executeOneQuery(url, sql);
     }
@@ -92,8 +93,8 @@ public class RestfulStatement extends AbstractStatement {
             return executeOneUpdate(url, sql);
         }
 
-        if (this.database == null || this.database.isEmpty())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
+//        if (this.database == null || this.database.isEmpty())
+//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE);
 
         HttpClientPoolUtil.execute(url, "use " + this.database);
         return executeOneUpdate(url, sql);
@@ -115,24 +116,28 @@ public class RestfulStatement extends AbstractStatement {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE, "not a valid sql for execute: " + sql);
 
         //如果执行了use操作应该将当前Statement的catalog设置为新的database
+        boolean result = true;
         final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
         if (SqlSyntaxValidator.isUseSql(sql)) {
             HttpClientPoolUtil.execute(url, sql);
             this.database = sql.trim().replace("use", "").trim();
             this.conn.setCatalog(this.database);
+            result = false;
         } else if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
             executeOneQuery(url, sql);
         } else if (SqlSyntaxValidator.isDatabaseUnspecifiedUpdate(sql)) {
             executeOneUpdate(url, sql);
+            result = false;
         } else {
             if (SqlSyntaxValidator.isValidForExecuteQuery(sql)) {
                 executeQuery(sql);
             } else {
                 executeUpdate(sql);
+                result = false;
             }
         }
 
-        return true;
+        return result;
     }
 
     private ResultSet executeOneQuery(String url, String sql) throws SQLException {
@@ -176,8 +181,21 @@ public class RestfulStatement extends AbstractStatement {
             throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + jsonObject.getString("desc") + "\n" + "error code: " + jsonObject.getString("code")));
         }
         this.resultSet = null;
-        this.affectedRows = Integer.parseInt(jsonObject.getString("rows"));
+        this.affectedRows = checkJsonResultSet(jsonObject);
         return this.affectedRows;
+    }
+
+    private int checkJsonResultSet(JSONObject jsonObject) {
+        // create ... SQLs should return 0 , and Restful result is this:
+        // {"status": "succ", "head": ["affected_rows"], "data": [[0]], "rows": 1}
+        JSONArray head = jsonObject.getJSONArray("head");
+        JSONArray data = jsonObject.getJSONArray("data");
+        int rows = Integer.parseInt(jsonObject.getString("rows"));
+        if (head.size() == 1 && "affected_rows".equals(head.getString(0))
+                && data.size() == 1 && data.getJSONArray(0).getInteger(0) == 0 && rows == 1) {
+            return 0;
+        }
+        return rows;
     }
 
     @Override
@@ -193,24 +211,6 @@ public class RestfulStatement extends AbstractStatement {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
 
         return this.affectedRows;
-    }
-
-    @Override
-    public void addBatch(String sql) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        //TODO:
-    }
-
-    @Override
-    public void clearBatch() throws SQLException {
-        //TODO:
-    }
-
-    @Override
-    public int[] executeBatch() throws SQLException {
-        //TODO:
-        return new int[0];
     }
 
     @Override

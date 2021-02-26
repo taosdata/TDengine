@@ -26,7 +26,8 @@ public class RestfulConnection extends AbstractConnection {
     @Override
     public Statement createStatement() throws SQLException {
         if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);;
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        ;
 
         return new RestfulStatement(this, database);
     }
@@ -34,9 +35,8 @@ public class RestfulConnection extends AbstractConnection {
     @Override
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);;
-        //TODO: prepareStatement
-        throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        return new RestfulPreparedStatement(this, database, sql);
     }
 
     @Override
@@ -55,7 +55,8 @@ public class RestfulConnection extends AbstractConnection {
     @Override
     public DatabaseMetaData getMetaData() throws SQLException {
         if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);;
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+        ;
 
         return this.metadata;
     }
