@@ -355,12 +355,20 @@ void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo,
   assert(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
 
-bool hasRemainData(SGroupResInfo* pGroupResInfo) {
+bool hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo) {
   if (pGroupResInfo->pRows == NULL) {
     return false;
   }
 
   return pGroupResInfo->index < taosArrayGetSize(pGroupResInfo->pRows);
+}
+
+bool hasRemainData(SGroupResInfo* pGroupResInfo) {
+  if (hasRemainDataInCurrentGroup(pGroupResInfo)) {
+    return true;
+  }
+
+  return pGroupResInfo->currentGroup < pGroupResInfo->totalGroup;
 }
 
 bool incNextGroup(SGroupResInfo* pGroupResInfo) {

@@ -376,11 +376,12 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
 
   tfree(pFillInfo->prevValues);
   tfree(pFillInfo->nextValues);
-  tfree(pFillInfo->pTags);
 
-//  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-//    tfree(pFillInfo->pData[i]);
-//  }
+  for(int32_t i = 0; i < pFillInfo->numOfTags; ++i) {
+    tfree(pFillInfo->pTags[i].tagVal);
+  }
+
+  tfree(pFillInfo->pTags);
   
   tfree(pFillInfo->pData);
   tfree(pFillInfo->pFillCol);
@@ -435,12 +436,16 @@ void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage*
     SFillColInfo* pCol = &pFillInfo->pFillCol[i];
 
     const char* data = pInput->data + pCol->col.offset * pInput->num;
-    memcpy(pFillInfo->pData[i], data, (size_t)(pInput->num * pCol->col.bytes));
+    if (pFillInfo->pData[i] == NULL) {
+      pFillInfo->pData[i] = calloc(4096, pCol->col.bytes);
+    }
+    memcpy(pFillInfo->pData[i], data, pCol->col.bytes * pInput->num);
+//    pFillInfo->pData[i] = (char*) data;
 
     if (TSDB_COL_IS_TAG(pCol->flag)) {  // copy the tag value to tag value buffer
       SFillTagColInfo* pTag = &pFillInfo->pTags[pCol->tagIndex];
       assert (pTag->col.colId == pCol->col.colId);
-      memcpy(pTag->tagVal, data, pCol->col.bytes);
+      memcpy(pTag->tagVal, data, pCol->col.bytes);  // TODO not memcpy??
     }
   }
 }

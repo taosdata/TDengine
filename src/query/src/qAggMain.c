@@ -1439,7 +1439,20 @@ static void stddev_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   // the second stage to calculate standard deviation
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SStddevInfo *pStd = GET_ROWCELL_INTERBUF(pResInfo);
-  
+
+  if (pCtx->currentStage == REPEAT_SCAN && pStd->stage == 0) {
+    pStd->stage++;
+    avg_finalizer(pCtx);
+
+    pResInfo->initialized = true; // set it initialized to avoid re-initialization
+
+    // save average value into tmpBuf, for second stage scan
+    SAvgInfo *pAvg = GET_ROWCELL_INTERBUF(pResInfo);
+
+    pStd->avg = GET_DOUBLE_VAL(pCtx->pOutput);
+    assert((isnan(pAvg->sum) && pAvg->num == 0) || (pStd->num == pAvg->num && pStd->avg == pAvg->sum));
+  }
+
   /* the first stage is to calculate average value */
   if (pStd->stage == 0) {
     avg_function_f(pCtx, index);
@@ -2695,19 +2708,34 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
+  if (pCtx->currentStage == REPEAT_SCAN && pInfo->stage == 0) {
+    // all data are null, set it completed
+    if (pInfo->numOfElems == 0) {
+      pResInfo->complete = true;
+    } else {
+      pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, pInfo->minval, pInfo->maxval);
+    }
+
+    pInfo->stage += 1;
+  }
+
   // the first stage, only acquire the min/max value
   if (pInfo->stage == 0) {
     if (pCtx->preAggVals.isSet) {
       double tmin = 0.0, tmax = 0.0;
-      if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
+      if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
         tmin = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.min); 
         tmax = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.max); 
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
+      } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
         tmin = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.min); 
         tmax = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.max); 
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+        tmin = (double)GET_UINT64_VAL(pCtx->preAggVals.statis.min);
+        tmax = (double)GET_UINT64_VAL(pCtx->preAggVals.statis.max);
       } else {
         assert(true);
       }
+
       if (GET_DOUBLE_VAL(&pInfo->minval) > tmin) {
         SET_DOUBLE_VAL(&pInfo->minval, tmin);
       }
@@ -2764,10 +2792,20 @@ static void percentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   }
 
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-
   SPercentileInfo *pInfo = (SPercentileInfo *)GET_ROWCELL_INTERBUF(pResInfo);
-  if (pInfo->stage == 0) {
 
+  if (pCtx->currentStage == REPEAT_SCAN && pInfo->stage == 0) {
+    // all data are null, set it completed
+    if (pInfo->numOfElems == 0) {
+      pResInfo->complete = true;
+    } else {
+      pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, pInfo->minval, pInfo->maxval);
+    }
+
+    pInfo->stage += 1;
+  }
+
+  if (pInfo->stage == 0) {
     double v = 0;
     GET_TYPED_DATA(v, double, pCtx->inputType, pData);
 

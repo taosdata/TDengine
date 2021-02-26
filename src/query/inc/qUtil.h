@@ -84,7 +84,9 @@ void freeInterResult(void* param);
 
 void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo, int32_t offset);
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
+bool    hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo);
 bool    hasRemainData(SGroupResInfo* pGroupResInfo);
+
 bool    incNextGroup(SGroupResInfo* pGroupResInfo);
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 

@@ -326,7 +326,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   (*pRsp)->numOfRows = htonl((int32_t)pQuery->rec.rows);
 
   if (pQInfo->code == TSDB_CODE_SUCCESS) {
-    (*pRsp)->offset   = htobe64(pQuery->limit.offset);
+    (*pRsp)->offset   = htobe64(pQInfo->runtimeEnv.currentOffset);
     (*pRsp)->useconds = htobe64(pQInfo->summary.elapsedTime);
   } else {
     (*pRsp)->offset   = 0;

@@ -274,19 +274,27 @@ typedef struct SQueryRuntimeEnv {
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   struct SOperatorInfo   *proot;
   SGroupResInfo    groupResInfo;
+  int64_t          currentOffset;        // dynamic offset value
 } SQueryRuntimeEnv;
 
+enum {
+  OP_IN_EXECUTING   = 1,
+  OP_RES_TO_RETURN  = 2,
+  OP_EXEC_DONE      = 3,
+};
+
 typedef struct SOperatorInfo {
-  char      *name;
-  bool       blockingOptr;
-  bool       completed;
-  void      *info;
-  SExprInfo *pExpr;
-  int32_t    numOfOutput;
+  uint8_t           operatorType;
+  bool              blockingOptr;  // block operator or not
+  uint8_t           completed;     // denote if current operator is completed
+  uint32_t          seed;          // operator seed
+  int32_t           numOfOutput;   // number of columns of the current operator results
+  char             *name;          // name, used to show the query execution plan
+  void             *info;          // extension attribution
+  SExprInfo        *pExpr;
+  SQueryRuntimeEnv *pRuntimeEnv;
 
-  SQueryRuntimeEnv     *pRuntimeEnv;
   struct SOperatorInfo *upstream;
-
   __operator_fn_t       exec;
   __optr_cleanup_fn_t   cleanup;
 } SOperatorInfo;
@@ -391,11 +399,11 @@ typedef struct SLimitOperatorInfo {
 
 typedef struct SOffsetOperatorInfo {
   int64_t offset;
-  int64_t currentOffset;
 } SOffsetOperatorInfo;
 
 typedef struct SFillOperatorInfo {
-  SSDataBlock      *pRes;
+  SSDataBlock *pRes;
+  int64_t      totalInputRows;
 } SFillOperatorInfo;
 
 typedef struct SHashGroupbyOperatorInfo {
