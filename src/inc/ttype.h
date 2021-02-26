@@ -27,7 +27,7 @@ typedef struct tstr {
 #define IS_VAR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_BINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 // this data type is internally used only in 'in' query to hold the values
-#define TSDB_DATA_TYPE_ARRAY      (TSDB_DATA_TYPE_NCHAR + 1)
+#define TSDB_DATA_TYPE_ARRAY      (1000)
 
 #define GET_TYPED_DATA(_v, _finalType, _type, _data) \
   do {                                               \
