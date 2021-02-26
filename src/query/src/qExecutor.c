@@ -4743,7 +4743,11 @@ static FORCE_INLINE void setEnvForEachBlock(SQInfo* pQInfo, STableQueryInfo* pTa
   }
 
   if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
-    setIntervalQueryRange(pQInfo, pBlockInfo->window.skey);
+    if (!QUERY_IS_ASC_QUERY(pRuntimeEnv->pQuery)) {
+      setIntervalQueryRange(pQInfo, pBlockInfo->window.ekey);
+    } else {
+      setIntervalQueryRange(pQInfo, pBlockInfo->window.skey);
+    }
   } else {  // non-interval query
     setExecutionContext(pQInfo, pTableQueryInfo->groupIndex, pBlockInfo->window.ekey + step);
   }
