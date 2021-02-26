@@ -52,10 +52,6 @@ class TDTestCase:
         tdSql.error("select leastsquares(col12, 1, 1) from test")
         tdSql.error("select leastsquares(col13, 1, 1) from test")
         tdSql.error("select leastsquares(col14, 1, 1) from test")
-        tdSql.error("select leastsquares(col11, 1, 1) from test1")
-        tdSql.error("select leastsquares(col12, 1, 1) from test1")
-        tdSql.error("select leastsquares(col13, 1, 1) from test1")
-        tdSql.error("select leastsquares(col14, 1, 1) from test1")
                 
         tdSql.query("select leastsquares(col1, 1, 1) from test1")
         tdSql.checkData(0, 0, '{slop:1.000000, intercept:0.000000}')
@@ -67,6 +63,18 @@ class TDTestCase:
         tdSql.checkData(0, 0, '{slop:1.000000, intercept:0.000000}')
 
         tdSql.query("select leastsquares(col4, 1, 1) from test1")
+        tdSql.checkData(0, 0, '{slop:1.000000, intercept:0.000000}')
+
+        tdSql.query("select leastsquares(col11, 1, 1) from test1")
+        tdSql.checkData(0, 0, '{slop:1.000000, intercept:0.000000}')
+
+        tdSql.query("select leastsquares(col12, 1, 1) from test1")
+        tdSql.checkData(0, 0, '{slop:1.000000, intercept:0.000000}')
+
+        tdSql.query("select leastsquares(col13, 1, 1) from test1")
+        tdSql.checkData(0, 0, '{slop:1.000000, intercept:0.000000}')
+
+        tdSql.query("select leastsquares(col14, 1, 1) from test1")
         tdSql.checkData(0, 0, '{slop:1.000000, intercept:0.000000}')
 
         tdSql.query("select leastsquares(col5, 1, 1) from test1")

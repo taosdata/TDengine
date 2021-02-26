@@ -63,13 +63,13 @@ class TDTestCase:
         tdSql.checkData(0, 0, 11)
 
         tdSql.query("select count(col11) from test")        
-        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(0, 0, 11)
         tdSql.query("select count(col12) from test")        
-        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(0, 0, 11)
         tdSql.query("select count(col13) from test")        
-        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(0, 0, 11)
         tdSql.query("select count(col14) from test")        
-        tdSql.checkData(0, 0, 10)
+        tdSql.checkData(0, 0, 11)
 
         #tdSql.execute("alter table test add column col10 int")
         #tdSql.query("select count(col10) from test")        

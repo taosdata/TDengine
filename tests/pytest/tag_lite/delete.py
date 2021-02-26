@@ -954,8 +954,6 @@ class TDTestCase:
         tdSql.execute('alter table %s drop tag tgcol6' % (mt))
         tdLog.info('alter table %s drop tag tgcol8' % (mt))
         tdSql.execute('alter table %s drop tag tgcol8' % (mt))
-        tdLog.info('alter table %s drop tag tgcol9' % (mt))
-        tdSql.execute('alter table %s drop tag tgcol9' % (mt))
         # TSIM:
         # TSIM: sleep 5000
         # TSIM:
@@ -1643,7 +1641,7 @@ class TDTestCase:
         # TSIM: print =============== step14
         tdLog.info('=============== step14')
         # TSIM: $i = 14
-        i = 14
+        i = 20
         # TSIM: $mt = $mtPrefix . $i
         mt = "%s%d" % (mtPrefix, i)
         # TSIM: $tb = $tbPrefix . $i
