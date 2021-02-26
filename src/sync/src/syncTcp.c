@@ -327,8 +327,8 @@ static void syncStopPoolThread(SThreadObj *pThread) {
     return;
   }
   pThread->stop = true;
-  if (taosComparePthread(thread, pthread_self())) {
-    pthread_detach(pthread_self());
+  if (taosComparePthread(thread, taosGetSelfPthreadId())) {
+    pthread_detach(taosGetSelfPthreadId());
     return;
   }
   pthread_join(thread, NULL);

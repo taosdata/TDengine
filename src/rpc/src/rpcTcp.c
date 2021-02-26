@@ -181,8 +181,8 @@ static void taosStopTcpThread(SThreadObj* pThreadObj) {
     return;
   }
   pThreadObj->stop = true;
-  if (taosComparePthread(thread, pthread_self())) {
-    pthread_detach(pthread_self());
+  if (taosComparePthread(thread, taosGetSelfPthreadId())) {
+    pthread_detach(taosGetSelfPthreadId());
     return;
   }
   pthread_join(thread, NULL);
@@ -207,8 +207,8 @@ void taosStopTcpServer(void *handle) {
 #endif
   }
   if (taosCheckPthreadValid(pServerObj->thread)) {
-    if (taosComparePthread(pServerObj->thread, pthread_self())) {
-      pthread_detach(pthread_self());
+    if (taosComparePthread(pServerObj->thread, taosGetSelfPthreadId())) {
+      pthread_detach(taosGetSelfPthreadId());
     } else {
       pthread_join(pServerObj->thread, NULL);
     }
