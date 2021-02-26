@@ -31,9 +31,13 @@ USE power;
 ## <a class="anchor" id="create-stable"></a>创建超级表
 
 一个物联网系统，往往存在多种类型的设备，比如对于电网，存在智能电表、变压器、母线、开关等等。为便于多表之间的聚合，使用TDengine, 需要对每个类型的数据采集点创建一超级表。以表一中的智能电表为例，可以使用如下的SQL命令创建超级表：
+
 ```mysql
 CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupdId int);
 ```
+
+**注意：**这一指令中的 STABLE 关键字，在 2.0.15 之前的版本中需写作 TABLE 。
+
 与创建普通表一样，创建表时，需要提供表名（示例中为meters），表结构Schema，即数据列的定义。第一列必须为时间戳（示例中为ts)，其他列为采集的物理量（示例中为current, voltage, phase)，数据类型可以为整型、浮点型、字符串等。除此之外，还需要提供标签的schema (示例中为location, groupId)，标签的数据类型可以为整型、浮点型、字符串等。采集点的静态属性往往可以作为标签，比如采集点的地理位置、设备型号、设备组ID、管理员ID等等。标签的schema可以事后增加、删除、修改。具体定义以及细节请见 [TAOS SQL 的超级表管理](https://www.taosdata.com/cn/documentation/taos-sql#super-table) 章节。
 
 每一种类型的数据采集点需要建立一个超级表，因此一个物联网系统，往往会有多个超级表。对于电网，我们就需要对智能电表、变压器、母线、开关等都建立一个超级表。在物联网中，一个设备就可能有多个数据采集点（比如一台风力发电的风机，有的采集点采集电流、电压等电参数，有的采集点采集温度、湿度、风向等环境参数），这个时候，对这一类型的设备，需要建立多张超级表。一张超级表里包含的采集物理量必须是同时采集的（时间戳是一致的）。
@@ -43,9 +47,11 @@ CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAG
 ## <a class="anchor" id="create-table"></a>创建表
 
 TDengine对每个数据采集点需要独立建表。与标准的关系型数据一样，一张表有表名，Schema，但除此之外，还可以带有一到多个标签。创建时，需要使用超级表做模板，同时指定标签的具体值。以表一中的智能电表为例，可以使用如下的SQL命令建表：
+
 ```mysql
 CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);
 ```
+
 其中d1001是表名，meters是超级表的表名，后面紧跟标签Location的具体标签值”Beijing.Chaoyang"，标签groupId的具体标签值2。虽然在创建表时，需要指定标签值，但可以事后修改。详细细则请见 [TAOS SQL 的表管理](https://www.taosdata.com/cn/documentation/taos-sql#table) 章节。
 
 **注意：**目前 TDengine 没有从技术层面限制使用一个 database （dbA）的超级表作为模板建立另一个 database （dbB）的子表，后续会禁止这种用法，不建议使用这种方法建表。
@@ -57,6 +63,7 @@ TDengine建议将数据采集点的全局唯一ID作为表名(比如设备序列
 ```mysql
 INSERT INTO d1001 USING METERS TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 219, 0.32);
 ```
+
 上述SQL语句将记录 (now, 10.2, 219, 0.32) 插入表d1001。如果表d1001还未创建，则使用超级表meters做模板自动创建，同时打上标签值“Beijing.Chaoyang", 2。  
 
 关于自动建表的详细语法请参见 [插入记录时自动建表](https://www.taosdata.com/cn/documentation/taos-sql#auto_create_table) 章节。
