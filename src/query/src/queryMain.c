@@ -244,14 +244,15 @@ bool qTableQuery(qinfo_t qinfo) {
     tableQueryImpl(pQInfo);
   }
 
-  SQuery* pQuery = pRuntimeEnv->pQuery;
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:%p query is killed", pQInfo);
-  } else if (pQuery->rec.rows == 0) {
-    qDebug("QInfo:%p over, %" PRIzu " tables queried, %"PRId64" rows are returned", pQInfo, pRuntimeEnv->tableqinfoGroupInfo.numOfTables, pQuery->rec.total);
+  } else if (pRuntimeEnv->outputBuf->info.rows == 0) {
+    qDebug("QInfo:%p over, %" PRIzu " tables queried, %"PRId64" rows are returned", pQInfo, pRuntimeEnv->tableqinfoGroupInfo.numOfTables,
+           pRuntimeEnv->resultInfo.total);
   } else {
-    qDebug("QInfo:%p query paused, %" PRId64 " rows returned, numOfTotal:%" PRId64 " rows",
-           pQInfo, pQuery->rec.rows, pQuery->rec.total + pQuery->rec.rows);
+    qDebug("QInfo:%p query paused, %d rows returned, numOfTotal:%" PRId64 " rows",
+           pQInfo, pRuntimeEnv->outputBuf->info.rows,
+           pRuntimeEnv->resultInfo.total + pRuntimeEnv->outputBuf->info.rows);
   }
 
   return doBuildResCheck(pQInfo);
@@ -279,6 +280,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
     *buildRes = true;
     code = pQInfo->code;
   } else {
+    SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
     SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
     pthread_mutex_lock(&pQInfo->lock);
@@ -286,8 +288,8 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
     assert(pQInfo->rspContext == NULL);
     if (pQInfo->dataReady == QUERY_RESULT_READY) {
       *buildRes = true;
-      qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%" PRId64 ", code:%s", pQInfo, pQuery->resultRowSize,
-             pQuery->rec.rows, tstrerror(pQInfo->code));
+      qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%d, code:%s", pQInfo, pQuery->resultRowSize,
+             pRuntimeEnv->outputBuf->info.rows, tstrerror(pQInfo->code));
     } else {
       *buildRes = false;
       qDebug("QInfo:%p retrieve req set query return result after paused", pQInfo);
@@ -310,7 +312,10 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
-  size_t  size = getResultSize(pQInfo, &pQuery->rec.rows);
+  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
+  int64_t s = pRuntimeEnv->outputBuf->info.rows;
+
+  size_t  size = getResultSize(pQInfo, &s);
 
   size += sizeof(int32_t);
   size += sizeof(STableIdInfo) * taosHashGetSize(pQInfo->arrTableIdInfo);
@@ -323,7 +328,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
-  (*pRsp)->numOfRows = htonl((int32_t)pQuery->rec.rows);
+  (*pRsp)->numOfRows = htonl((int32_t)s);
 
   if (pQInfo->code == TSDB_CODE_SUCCESS) {
     (*pRsp)->offset   = htobe64(pQInfo->runtimeEnv.currentOffset);
@@ -334,7 +339,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   (*pRsp)->precision = htons(pQuery->precision);
-  if (pQuery->rec.rows > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
+  if (pQInfo->runtimeEnv.outputBuf->info.rows > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
     doDumpQueryResult(pQInfo, (*pRsp)->data);
   } else {
     setQueryStatus(pQuery, QUERY_OVER);

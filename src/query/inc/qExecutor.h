@@ -106,12 +106,11 @@ typedef struct SGroupResInfo {
  * If the number of generated results is greater than this value,
  * query query will be halt and return results to client immediate.
  */
-typedef struct SResultRec {
+typedef struct SRspResultInfo {
   int64_t total;      // total generated result size in rows
-  int64_t rows;       // current result set size in rows
   int64_t capacity;   // capacity of current result output buffer
   int32_t threshold;  // result size threshold in rows.
-} SResultRec;
+} SRspResultInfo;
 
 typedef struct SResultRowInfo {
   SResultRow** pResult;    // result list
@@ -185,7 +184,6 @@ typedef struct SSDataBlock {
   SDataBlockInfo info;
 } SSDataBlock;
 
-
 typedef struct SQuery {
   SLimitVal        limit;
 
@@ -227,9 +225,6 @@ typedef struct SQuery {
   SSingleColumnFilterInfo* pFilterInfo;
 
   uint32_t         status;             // query status
-  SResultRec       rec;
-  int32_t          pos;
-  tFilePage**      sdata;
   STableQueryInfo* current;
   int32_t          numOfCheckedBlocks; // number of check data blocks
 
@@ -266,15 +261,15 @@ typedef struct SQueryRuntimeEnv {
   char*                tagVal;           // tag value of current data block
   SArithmeticSupport  *sasArray;
 
-  struct SOperatorInfo*   pi;
   SSDataBlock     *outputBuf;
-
   int32_t          groupIndex;
   int32_t          tableIndex;
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   struct SOperatorInfo   *proot;
   SGroupResInfo    groupResInfo;
   int64_t          currentOffset;        // dynamic offset value
+
+  SRspResultInfo   resultInfo;
 } SQueryRuntimeEnv;
 
 enum {
