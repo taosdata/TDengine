@@ -281,7 +281,9 @@ try (Statement statement = connection.createStatement()) {
 }
 ```
 JDBC连接器可能报错的错误码包括3种：JDBC driver本身的报错（错误码在0x2301到0x2350之间），JNI方法的报错（错误码在0x2351到0x2400之间），TDengine其他功能模块的报错。
-具体的错误码请参考：https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
+具体的错误码请参考：
+* https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
+* https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
 
 ### 订阅
 
