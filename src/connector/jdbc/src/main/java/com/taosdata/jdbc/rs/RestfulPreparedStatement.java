@@ -1,249 +1,82 @@
-/***************************************************************************
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- *
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- *
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************/
-package com.taosdata.jdbc;
+package com.taosdata.jdbc.rs;
+
+import com.taosdata.jdbc.TSDBError;
+import com.taosdata.jdbc.TSDBErrorNumbers;
 
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
 import java.sql.*;
-import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-/*
- * TDengine only supports a subset of the standard SQL, thus this implemetation of the
- * standard JDBC API contains more or less some adjustments customized for certain
- * compatibility needs.
- */
-public class TSDBPreparedStatement extends TSDBStatement implements PreparedStatement {
-    protected String rawSql;
-    protected String sql;
-    protected ArrayList<Object> parameters = new ArrayList<>();
+public class RestfulPreparedStatement extends RestfulStatement implements PreparedStatement {
 
-    //start with insert or import and is case-insensitive
-    private static Pattern savePattern = Pattern.compile("(?i)^\\s*(insert|import)");
-
-    // is insert or import
-    private boolean isSaved;
-
-    private SavedPreparedStatement savedPreparedStatement;
     private ParameterMetaData parameterMetaData;
+    private final String rawSql;
+    private Object[] parameters;
+    private boolean isPrepared;
 
-    TSDBPreparedStatement(TSDBConnection connection, TSDBJNIConnector connecter, String sql) {
-        super(connection, connecter);
-        init(sql);
-    }
-
-    private void init(String sql) {
+    public RestfulPreparedStatement(RestfulConnection conn, String database, String sql) {
+        super(conn, database);
         this.rawSql = sql;
-        preprocessSql();
-
-        this.isSaved = isSavedSql(this.rawSql);
-        if (this.isSaved) {
-            try {
-                this.savedPreparedStatement = new SavedPreparedStatement(this.rawSql, this);
-            } catch (SQLException e) {
-                e.printStackTrace();
+        if (sql.contains("?")) {
+            int parameterCnt = 0;
+            for (int i = 0; i < sql.length(); i++) {
+                if ('?' == sql.charAt(i)) {
+                    parameterCnt++;
+                }
             }
+            parameters = new Object[parameterCnt];
+            this.isPrepared = true;
         }
-    }
-
-    /**
-     * if the precompiled sql is insert or import
-     *
-     * @param sql
-     * @return
-     */
-    private boolean isSavedSql(String sql) {
-        Matcher matcher = savePattern.matcher(sql);
-        return matcher.find();
+        //TODO: build parameterMetaData
     }
 
     @Override
-    public int[] executeBatch() throws SQLException {
-        if (isSaved) {
-            return this.savedPreparedStatement.executeBatch();
-        } else {
-            return super.executeBatch();
-        }
+    public ResultSet executeQuery() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        if (!isPrepared)
+            return executeQuery(this.rawSql);
+
+        final String sql = getNativeSql(this.rawSql);
+        return executeQuery(sql);
     }
 
-    public ArrayList<Object> getParameters() {
-        return parameters;
+    @Override
+    public int executeUpdate() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        if (!isPrepared)
+            return executeUpdate(this.rawSql);
+
+        final String sql = getNativeSql(this.rawSql);
+        return executeUpdate(sql);
     }
 
-    public void setParameters(ArrayList<Object> parameters) {
-        this.parameters = parameters;
-    }
-
-    /*
-     * Some of the SQLs sent by other popular frameworks or tools like Spark, contains syntax that cannot be parsed by
-     * the TDengine client. Thus, some simple parsers/filters are intentionally added in this JDBC implementation in
-     * order to process those supported SQLs.
-     */
-    private void preprocessSql() {
-        /***** For processing some of Spark SQLs*****/
-        // should replace it first
-        this.rawSql = this.rawSql.replaceAll("or (.*) is null", "");
-        this.rawSql = this.rawSql.replaceAll(" where ", " WHERE ");
-        this.rawSql = this.rawSql.replaceAll(" or ", " OR ");
-        this.rawSql = this.rawSql.replaceAll(" and ", " AND ");
-        this.rawSql = this.rawSql.replaceAll(" is null", " IS NULL");
-        this.rawSql = this.rawSql.replaceAll(" is not null", " IS NOT NULL");
-
-        // SELECT * FROM db.tb WHERE 1=0
-        this.rawSql = this.rawSql.replaceAll("WHERE 1=0", "WHERE _c0=1");
-        this.rawSql = this.rawSql.replaceAll("WHERE 1=2", "WHERE _c0=1");
-
-        // SELECT "ts","val" FROM db.tb
-        this.rawSql = this.rawSql.replaceAll("\"", "");
-
-        // SELECT 1 FROM db.tb
-        this.rawSql = this.rawSql.replaceAll("SELECT 1 FROM", "SELECT * FROM");
-
-        // SELECT "ts","val" FROM db.tb WHERE ts < 33 or ts is null
-        this.rawSql = this.rawSql.replaceAll("OR (.*) IS NULL", "");
-
-        // SELECT "ts","val" FROM db.tb WHERE ts is null or ts < 33
-        this.rawSql = this.rawSql.replaceAll("(.*) IS NULL OR", "");
-
-        // SELECT 1 FROM db.tb WHERE (("val" IS NOT NULL) AND ("val" > 50)) AND (ts >= 66)
-        this.rawSql = this.rawSql.replaceAll("\\(\\((.*) IS NOT NULL\\) AND", "(");
-
-        // SELECT 1 FROM db.tb WHERE ("val" IS NOT NULL) AND ("val" > 50) AND (ts >= 66)
-        this.rawSql = this.rawSql.replaceAll("\\((.*) IS NOT NULL\\) AND", "");
-
-        // SELECT "ts","val" FROM db.tb WHERE (("val" IS NOT NULL)) AND (ts < 33 or ts is null)
-        this.rawSql = this.rawSql.replaceAll("\\(\\((.*) IS NOT NULL\\)\\) AND", "");
-
-        /***** For processing inner subqueries *****/
-        Pattern pattern = Pattern.compile("FROM\\s+((\\(.+\\))\\s+SUB_QRY)", Pattern.CASE_INSENSITIVE);
-        Matcher matcher = pattern.matcher(rawSql);
-        String tableFullName = "";
-        if (matcher.find() && matcher.groupCount() == 2) {
-            String subQry = matcher.group(2);
-            Pattern pattern1 = Pattern.compile("FROM\\s+(\\w+\\.\\w+)", Pattern.CASE_INSENSITIVE);
-            Matcher matcher1 = pattern1.matcher(subQry);
-            if (matcher1.find() && matcher1.groupCount() == 1) {
-                tableFullName = matcher1.group(1);
-            }
-            rawSql = rawSql.replace(matcher.group(1), tableFullName);
-        }
-        /***** for inner queries *****/
-    }
-
-    /**
-     * Populate parameters into prepared sql statements
-     *
-     * @return a string of the native sql statement for TSDB
-     */
-    private String getNativeSql() {
-        this.sql = this.rawSql;
-        for (int i = 0; i < parameters.size(); ++i) {
-            Object para = parameters.get(i);
+    private String getNativeSql(String rawSql) throws SQLException {
+        String sql = rawSql;
+        for (int i = 0; i < parameters.length; ++i) {
+            Object para = parameters[i];
             if (para != null) {
                 String paraStr = para.toString();
                 if (para instanceof Timestamp || para instanceof String) {
                     paraStr = "'" + paraStr + "'";
                 }
-                this.sql = this.sql.replaceFirst("[?]", paraStr);
+                sql = sql.replaceFirst("[?]", paraStr);
             } else {
-                this.sql = this.sql.replaceFirst("[?]", "NULL");
+                sql = sql.replaceFirst("[?]", "NULL");
             }
         }
-        parameters.clear();
+        clearParameters();
         return sql;
-    }
-
-    @Override
-    public ResultSet executeQuery() throws SQLException {
-        if (isSaved) {
-            this.savedPreparedStatement.executeBatchInternal();
-            return null;
-        } else {
-            return super.executeQuery(getNativeSql());
-        }
-    }
-
-    @Override
-    public int executeUpdate() throws SQLException {
-        if (isSaved) {
-            return this.savedPreparedStatement.executeBatchInternal();
-        } else {
-            return super.executeUpdate(getNativeSql());
-        }
-    }
-
-    private boolean isSupportedSQLType(int sqlType) {
-        switch (sqlType) {
-            case Types.TIMESTAMP:
-            case Types.INTEGER:
-            case Types.BIGINT:
-            case Types.FLOAT:
-            case Types.DOUBLE:
-            case Types.SMALLINT:
-            case Types.TINYINT:
-            case Types.BOOLEAN:
-            case Types.BINARY:
-            case Types.NCHAR:
-                return true;
-            case Types.ARRAY:
-            case Types.BIT:
-            case Types.BLOB:
-            case Types.CHAR:
-            case Types.CLOB:
-            case Types.DATALINK:
-            case Types.DATE:
-            case Types.DECIMAL:
-            case Types.DISTINCT:
-            case Types.JAVA_OBJECT:
-            case Types.LONGNVARCHAR:
-            case Types.LONGVARBINARY:
-            case Types.LONGVARCHAR:
-            case Types.NCLOB:
-            case Types.NULL:
-            case Types.NUMERIC:
-            case Types.NVARCHAR:
-            case Types.OTHER:
-            case Types.REAL:
-            case Types.REF:
-            case Types.REF_CURSOR:
-            case Types.ROWID:
-            case Types.SQLXML:
-            case Types.STRUCT:
-            case Types.TIME:
-            case Types.TIME_WITH_TIMEZONE:
-            case Types.TIMESTAMP_WITH_TIMEZONE:
-            case Types.VARBINARY:
-            case Types.VARCHAR:
-            default:
-                return false;
-        }
     }
 
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (!isSupportedSQLType(sqlType) || parameterIndex < 0)
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
-//        if (parameterIndex >= parameters.size())
-//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_BOUNDARY);
-
         setObject(parameterIndex, "NULL");
     }
 
@@ -266,6 +99,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setShort(int parameterIndex, short x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
         setObject(parameterIndex, x);
     }
 
@@ -280,6 +114,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setLong(int parameterIndex, long x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
         setObject(parameterIndex, x);
     }
 
@@ -287,6 +122,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setFloat(int parameterIndex, float x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
         setObject(parameterIndex, x);
     }
 
@@ -294,6 +130,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setDouble(int parameterIndex, double x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
         setObject(parameterIndex, x);
     }
 
@@ -308,6 +145,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setString(int parameterIndex, String x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
         setObject(parameterIndex, x);
     }
 
@@ -336,6 +174,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setTimestamp(int parameterIndex, Timestamp x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
         setObject(parameterIndex, x);
     }
 
@@ -350,7 +189,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setUnicodeStream(int parameterIndex, InputStream x, int length) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -365,7 +203,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void clearParameters() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        parameters.clear();
+        this.parameters = new Object[parameters.length];
     }
 
     @Override
@@ -377,40 +215,39 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
-        if (isSaved) {
-            this.savedPreparedStatement.setParam(parameterIndex, x);
-        } else {
-            parameters.add(x);
-        }
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
+        if (parameterIndex < 1 && parameterIndex >= parameters.length)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
+
+        parameters[parameterIndex - 1] = x;
+
     }
 
     @Override
     public boolean execute() throws SQLException {
-        if (isSaved) {
-            int result = this.savedPreparedStatement.executeBatchInternal();
-            return result > 0;
-        } else {
-            return super.execute(getNativeSql());
-        }
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+        if (!isPrepared)
+            return execute(this.rawSql);
+        final String sql = getNativeSql(rawSql);
+        return execute(sql);
     }
 
     @Override
     public void addBatch() throws SQLException {
-        if (isSaved) {
-            this.savedPreparedStatement.addBatch();
-        } else {
-            if (this.batchedArgs == null) {
-                batchedArgs = new ArrayList<>();
-            }
-            super.addBatch(getNativeSql());
-        }
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
+
+        final String sql = getNativeSql(this.rawSql);
+        addBatch(sql);
     }
 
     @Override
     public void setCharacterStream(int parameterIndex, Reader reader, int length) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -418,7 +255,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setRef(int parameterIndex, Ref x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -447,7 +283,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public ResultSetMetaData getMetaData() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-//        return this.getResultSet().getMetaData();
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -469,7 +304,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setTimestamp(int parameterIndex, Timestamp x, Calendar cal) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        // TODO：
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -491,9 +325,9 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public ParameterMetaData getParameterMetaData() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        //TODO: parameterMetaData not supported
-//        return null;
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+//        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+
+        return this.parameterMetaData;
     }
 
     @Override
@@ -556,7 +390,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setObject(int parameterIndex, Object x, int targetSqlType, int scaleOrLength) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        //TODO:
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
     }
 
@@ -614,7 +447,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-
     }
 
     @Override

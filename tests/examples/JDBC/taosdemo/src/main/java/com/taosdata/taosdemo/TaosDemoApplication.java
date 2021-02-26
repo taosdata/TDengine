@@ -35,7 +35,7 @@ public class TaosDemoApplication {
         final DatabaseService databaseService = new DatabaseService(dataSource);
         final SuperTableService superTableService = new SuperTableService(dataSource);
         final SubTableService subTableService = new SubTableService(dataSource);
-        final QueryService queryService = new QueryService(dataSource);
+
         // 创建数据库
         long start = System.currentTimeMillis();
         Map<String, String> databaseParam = new HashMap<>();

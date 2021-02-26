@@ -14,17 +14,13 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
-import java.sql.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class TSDBStatement extends AbstractStatement {
 
     private TSDBJNIConnector connector;
-    /**
-     * To store batched commands
-     */
-    protected List<String> batchedArgs;
     /**
      * Status of current statement
      */
@@ -117,41 +113,6 @@ public class TSDBStatement extends AbstractStatement {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
         return this.affectedRows;
-    }
-
-    public void addBatch(String sql) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
-        if (batchedArgs == null) {
-            batchedArgs = new ArrayList<>();
-        }
-        batchedArgs.add(sql);
-    }
-
-    public void clearBatch() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (batchedArgs != null)
-            batchedArgs.clear();
-    }
-
-    public int[] executeBatch() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        if (batchedArgs == null || batchedArgs.isEmpty())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_BATCH_IS_EMPTY);
-
-        int[] res = new int[batchedArgs.size()];
-        for (int i = 0; i < batchedArgs.size(); i++) {
-            boolean isSelect = execute(batchedArgs.get(i));
-            if (isSelect) {
-                res[i] = SUCCESS_NO_INFO;
-            } else {
-                res[i] = getUpdateCount();
-            }
-        }
-        return res;
     }
 
     public Connection getConnection() throws SQLException {
