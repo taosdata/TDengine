@@ -230,7 +230,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
 
 ## <a class="anchor" id="super-table"></a>超级表STable管理
 
-注意：在 2.0.15 以前的版本中，并不支持 STABLE 保留字，而是写作 TABLE。也即，在本节后文的指令说明中，CREATE、DROP、ALTER 三个指令在老版本中保留字需写作 TABLE 而不是 STABLE。
+注意：在 2.0.15.0 及以后的版本中，开始支持 STABLE 保留字。也即，在本节后文的指令说明中，CREATE、DROP、ALTER 三个指令在老版本中保留字需写作 TABLE 而不是 STABLE。
 
 - **创建超级表**
 
