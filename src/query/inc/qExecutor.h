@@ -42,6 +42,8 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 
 #define GET_TABLEGROUP(q, _index)   ((SArray*) taosArrayGetP((q)->tableqinfoGroupInfo.pGroupList, (_index)))
 
+#define GET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:((_r)->outputBuf)->info.rows)
+
 enum {
   // when query starts to execute, this status will set
       QUERY_NOT_COMPLETED = 0x1u,
@@ -281,8 +283,7 @@ enum {
 typedef struct SOperatorInfo {
   uint8_t           operatorType;
   bool              blockingOptr;  // block operator or not
-  uint8_t           completed;     // denote if current operator is completed
-  uint32_t          seed;          // operator seed
+  uint8_t           status;        // denote if current operator is completed
   int32_t           numOfOutput;   // number of columns of the current operator results
   char             *name;          // name, used to show the query execution plan
   void             *info;          // extension attribution
@@ -306,7 +307,6 @@ typedef struct SQInfo {
 
   SQueryRuntimeEnv runtimeEnv;
   SQuery           query;
-
   SHashObj*        arrTableIdInfo;
 
   /*
@@ -363,13 +363,14 @@ typedef struct STableScanInfo {
   SExprInfo      *pExpr;
 
   int32_t         numOfOutput;
-
   int64_t         elapsedTime;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
   SColumnInfo* pCols;
   SSDataBlock* pRes;
+  int32_t      totalTables;
+  int32_t      currentIndex;
 } STagScanInfo;
 
 typedef struct SOptrBasicInfo {
@@ -379,12 +380,17 @@ typedef struct SOptrBasicInfo {
   SSDataBlock      *pRes;
 } SOptrBasicInfo;
 
-typedef struct SOptrBasicInfo SAggOperatorInfo;
-typedef struct SOptrBasicInfo SHashIntervalOperatorInfo;
+typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
+
+typedef struct SAggOperatorInfo {
+  SOptrBasicInfo binfo;
+  uint32_t       seed;
+} SAggOperatorInfo;
 
 typedef struct SArithOperatorInfo {
   SOptrBasicInfo binfo;
   int32_t        bufCapacity;
+  uint32_t       seed;
 } SArithOperatorInfo;
 
 typedef struct SLimitOperatorInfo {
@@ -401,10 +407,10 @@ typedef struct SFillOperatorInfo {
   int64_t      totalInputRows;
 } SFillOperatorInfo;
 
-typedef struct SHashGroupbyOperatorInfo {
-  SOptrBasicInfo    binfo;
-  int32_t           colIndex;
-} SHashGroupbyOperatorInfo;
+typedef struct SGroupbyOperatorInfo {
+  SOptrBasicInfo binfo;
+  int32_t        colIndex;
+} SGroupbyOperatorInfo;
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);

@@ -246,13 +246,12 @@ bool qTableQuery(qinfo_t qinfo) {
 
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:%p query is killed", pQInfo);
-  } else if (pRuntimeEnv->outputBuf->info.rows == 0) {
+  } else if (GET_NUM_OF_RESULTS(pRuntimeEnv) == 0) {
     qDebug("QInfo:%p over, %" PRIzu " tables queried, %"PRId64" rows are returned", pQInfo, pRuntimeEnv->tableqinfoGroupInfo.numOfTables,
            pRuntimeEnv->resultInfo.total);
   } else {
     qDebug("QInfo:%p query paused, %d rows returned, numOfTotal:%" PRId64 " rows",
-           pQInfo, pRuntimeEnv->outputBuf->info.rows,
-           pRuntimeEnv->resultInfo.total + pRuntimeEnv->outputBuf->info.rows);
+           pQInfo, GET_NUM_OF_RESULTS(pRuntimeEnv), pRuntimeEnv->resultInfo.total + GET_NUM_OF_RESULTS(pRuntimeEnv));
   }
 
   return doBuildResCheck(pQInfo);
@@ -289,7 +288,7 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
     if (pQInfo->dataReady == QUERY_RESULT_READY) {
       *buildRes = true;
       qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%d, code:%s", pQInfo, pQuery->resultRowSize,
-             pRuntimeEnv->outputBuf->info.rows, tstrerror(pQInfo->code));
+             GET_NUM_OF_RESULTS(pRuntimeEnv), tstrerror(pQInfo->code));
     } else {
       *buildRes = false;
       qDebug("QInfo:%p retrieve req set query return result after paused", pQInfo);
@@ -313,7 +312,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
-  int64_t s = pRuntimeEnv->outputBuf->info.rows;
+  int64_t s = GET_NUM_OF_RESULTS(pRuntimeEnv);
 
   size_t  size = getResultSize(pQInfo, &s);
 
@@ -339,7 +338,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   }
 
   (*pRsp)->precision = htons(pQuery->precision);
-  if (pQInfo->runtimeEnv.outputBuf->info.rows > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
+  if (GET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv)) > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
     doDumpQueryResult(pQInfo, (*pRsp)->data);
   } else {
     setQueryStatus(pQuery, QUERY_OVER);
