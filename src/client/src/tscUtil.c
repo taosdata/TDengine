@@ -2592,7 +2592,6 @@ bool tscSetSqlOwner(SSqlObj* pSql) {
 }
 
 void tscClearSqlOwner(SSqlObj* pSql) {
-  assert(taosCheckPthreadValid(pSql->owner));
   atomic_store_64(&pSql->owner, 0);
 }
 
