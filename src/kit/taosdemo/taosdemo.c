@@ -46,9 +46,11 @@
   #include <stdio.h>
   #include "os.h"
   
+#ifdef TD_WINDOWS
   #pragma comment ( lib, "ws2_32.lib" )
   #pragma comment ( lib, "winmm.lib" )
   #pragma comment ( lib, "wldap32.lib" )  
+#endif
 #endif  
 
 #include "cJSON.h"
