@@ -334,7 +334,7 @@ typedef struct SSubqueryState {
 
 typedef struct SSqlObj {
   void            *signature;
-  pthread_t        owner;        // owner of sql object, by which it is executed
+  int64_t          owner;        // owner of sql object, by which it is executed
   STscObj         *pTscObj;
   int64_t          rpcRid;
   __async_cb_func_t  fp;

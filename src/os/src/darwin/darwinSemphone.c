@@ -32,6 +32,7 @@
 #include <mach/mach_error.h>
 #include <mach/semaphore.h>
 #include <mach/task.h>
+#include <pthread.h>
 
 static pthread_t                 sem_thread;
 static pthread_once_t            sem_once;
@@ -288,7 +289,9 @@ bool taosCheckPthreadValid(pthread_t thread) {
 }
 
 int64_t taosGetSelfPthreadId() {
-  return (int64_t)pthread_self();
+  uint64_t id;
+  pthread_threadid_np(0, &id);
+  return (int64_t) id;
 }
 
 int64_t taosGetPthreadId(pthread_t thread) {
