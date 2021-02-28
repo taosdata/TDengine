@@ -793,6 +793,7 @@ int32_t taosSaveTableOfMetricToTempFile(TAOS *taosCon, char* metric, struct argu
 
   *totalNumOfThread = numOfThread;
 
+  free(tblBuf);
   return 0;
 }
 
@@ -1553,6 +1554,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
     (void)remove(tmpBuf);
   }  
 
+  free(tblBuf);
   return 0;
 }
 
