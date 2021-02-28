@@ -1151,7 +1151,7 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsHttpMaxThreads;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 1;
+  cfg.minValue = 2;
   cfg.maxValue = 1000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
@@ -1521,6 +1521,13 @@ int32_t taosCheckGlobalCfg() {
 
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
+  }
+
+  if (tsHttpMaxThreads == 2) {
+    int32_t halfNumOfCores = tsNumOfCores >> 1;
+    if (halfNumOfCores > 2) {
+      tsHttpMaxThreads = halfNumOfCores;
+    }
   }
 
   if (tsMaxTablePerVnode < tsMinTablePerVnode) {
