@@ -529,7 +529,7 @@ static void do_sum(SQLFunctionCtx *pCtx) {
     } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
       uint64_t *retVal = (uint64_t *)pCtx->pOutput;
       *retVal += (uint64_t)pCtx->preAggVals.statis.sum;
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
+    } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
       double *retVal = (double*) pCtx->pOutput;
       *retVal += GET_DOUBLE_VAL((const char*)&(pCtx->preAggVals.statis.sum));
     }
@@ -552,13 +552,13 @@ static void do_sum(SQLFunctionCtx *pCtx) {
     } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
       uint64_t *retVal = (uint64_t *)pCtx->pOutput;
 
-      if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
+      if (pCtx->inputType == TSDB_DATA_TYPE_UTINYINT) {
         LIST_ADD_N(*retVal, pCtx, pData, uint8_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
+      } else if (pCtx->inputType == TSDB_DATA_TYPE_USMALLINT) {
         LIST_ADD_N(*retVal, pCtx, pData, uint16_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
+      } else if (pCtx->inputType == TSDB_DATA_TYPE_UINT) {
         LIST_ADD_N(*retVal, pCtx, pData, uint32_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
+      } else if (pCtx->inputType == TSDB_DATA_TYPE_UBIGINT) {
         LIST_ADD_N(*retVal, pCtx, pData, uint64_t, notNullElems, pCtx->inputType);
       }
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
