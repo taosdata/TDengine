@@ -145,6 +145,14 @@ void dnodeSendRpcMWriteRsp(void *pMsg, int32_t code) {
     return;
   }
 
+  dTrace("msg:%p, app:%p type:%s master:%p will be responsed", pWrite, pWrite->rpcMsg.ahandle,
+	 taosMsg[pWrite->rpcMsg.msgType], pWrite->pBatchMasterMsg);
+  if (pWrite->pBatchMasterMsg && pWrite != pWrite->pBatchMasterMsg) {
+    dError("msg:%p, app:%p type:%s master:%p sub message should not response!", pWrite, pWrite->rpcMsg.ahandle,
+	 taosMsg[pWrite->rpcMsg.msgType], pWrite->pBatchMasterMsg);
+    return;
+  }
+
   SRpcMsg rpcRsp = {
     .handle  = pWrite->rpcMsg.handle,
     .pCont   = pWrite->rpcRsp.rsp,
