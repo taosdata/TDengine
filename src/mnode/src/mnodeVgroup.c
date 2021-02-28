@@ -534,6 +534,19 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
            tstrerror(code));
     SSdbRow desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .pTable = tsVgroupSdb};
     sdbDeleteRow(&desc);
+
+    if (pMsg->pBatchMasterMsg) {
+      ++pMsg->pBatchMasterMsg->received;
+      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
+          >= pMsg->pBatchMasterMsg->expected) {
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, pMsg->code);
+      }
+
+      mnodeDestroySubMsg(pMsg);
+
+      return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    }
+
     return code;
   } else {
     mInfo("msg:%p, app:%p vgId:%d, is created in sdb, db:%s replica:%d", pMsg, pMsg->rpcMsg.ahandle, pVgroup->vgId,

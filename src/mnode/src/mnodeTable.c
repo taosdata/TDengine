@@ -777,11 +777,11 @@ static int32_t mnodeValidateCreateTableMsg(SCreateTableMsg *pCreateTable, SMnode
   }
 
   if (pCreateTable->numOfTags != 0) {
-    mDebug("msg:%p, app:%p table:%s, create stable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
+    mDebug("msg:%p, app:%p table:%s, batch create stable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
            pCreateTable->tableName, pMsg->rpcMsg.handle);
     return mnodeProcessCreateSuperTableMsg(pMsg);
   } else {
-    mDebug("msg:%p, app:%p table:%s, create ctable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
+    mDebug("msg:%p, app:%p table:%s, batch create ctable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
            pCreateTable->tableName, pMsg->rpcMsg.handle);
     return mnodeProcessCreateChildTableMsg(pMsg);
   }
@@ -1904,6 +1904,19 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
            pMsg->rpcMsg.ahandle, pTable->info.tableId, pTable->tid, pTable->uid, tstrerror(code));
     SSdbRow desc = {.type = SDB_OPER_GLOBAL, .pObj = pTable, .pTable = tsChildTableSdb};
     sdbDeleteRow(&desc);
+
+    if (pMsg->pBatchMasterMsg) {
+      ++pMsg->pBatchMasterMsg->successed;
+      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
+	  >= pMsg->pBatchMasterMsg->expected) {
+	dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
+      }
+
+      mnodeDestroySubMsg(pMsg);
+
+      return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    }
+
     return code;
   }
 }
