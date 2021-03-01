@@ -3218,13 +3218,7 @@ int32_t loadDataBlockOnDemand_rv(SQueryRuntimeEnv *pRuntimeEnv, STableScanInfo* 
       }
     }
 
-    // todo add tscomp filter
-    STableId* id = TSDB_TABLEID(pQuery->current->pTable);
     if (pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTsBuf != NULL) {
-      if (id->tid == 2) {
-        int32_t k = 1;
-        printf("%d\n", k);
-      }
       filterDataBlock_rv(pRuntimeEnv, pQuery->pFilterInfo, pQuery->numOfFilterCols, pBlock, pRuntimeEnv->pTsBuf,
                          QUERY_IS_ASC_QUERY(pQuery));
     }
