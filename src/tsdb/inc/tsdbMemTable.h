@@ -37,6 +37,7 @@ typedef struct {
   TSKEY      keyLast;
   int64_t    numOfRows;
   SSkipList* pData;
+  T_REF_DECLARE();
 } STableData;
 
 typedef struct {
@@ -76,7 +77,7 @@ typedef struct {
 
 int   tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
-int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem);
+int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem, SArray* pATable);
 void  tsdbUnTakeMemSnapShot(STsdbRepo* pRepo, SMemTable* pMem, SMemTable* pIMem);
 void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
 int   tsdbAsyncCommit(STsdbRepo* pRepo);

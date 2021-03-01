@@ -192,7 +192,7 @@ static void tsdbMayTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
 
   SMemRef* pMemRef = pQueryHandle->pMemRef;
   if (pQueryHandle->pMemRef->ref++ == 0) {
-    tsdbTakeMemSnapshot(pQueryHandle->pTsdb, (SMemTable**)&(pMemRef->mem), (SMemTable**)&(pMemRef->imem));
+    tsdbTakeMemSnapshot(pQueryHandle->pTsdb, (SMemTable**)&(pMemRef->mem), (SMemTable**)&(pMemRef->imem), NULL);
   }
 }
 
