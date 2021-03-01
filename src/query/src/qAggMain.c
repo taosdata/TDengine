@@ -208,7 +208,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   
   if (functionId == TSDB_FUNC_TS_COMP) {
     *type = TSDB_DATA_TYPE_BINARY;
-    *bytes = sizeof(int32_t);  // this results is compressed ts data
+    *bytes = 1;  // this results is compressed ts data, only one byte
     *interBytes = POINTER_BYTES;
     return TSDB_CODE_SUCCESS;
   }
@@ -4203,11 +4203,22 @@ static void ts_comp_finalize(SQLFunctionCtx *pCtx) {
   STSBuf *     pTSbuf = pInfo->pTSBuf;
   
   tsBufFlush(pTSbuf);
-  
+  qDebug("total timestamp :%"PRId64, pTSbuf->numOfTotal);
+
+  // TODO refactor transfer ownership of current file
   *(FILE **)pCtx->pOutput = pTSbuf->f;
+
+  pResInfo->complete = true;
+
+  // get the file size
+  struct stat fStat;
+  if ((fstat(fileno(pTSbuf->f), &fStat) == 0)) {
+    pResInfo->numOfRes = fStat.st_size;
+  }
 
   pTSbuf->remainOpen = true;
   tsBufDestroy(pTSbuf);
+
   doFinalizer(pCtx);
 }
 

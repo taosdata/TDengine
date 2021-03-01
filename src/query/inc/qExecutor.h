@@ -241,12 +241,16 @@ typedef void (*__optr_cleanup_fn_t)(void* param, int32_t num);
 
 struct SOperatorInfo;
 
+typedef struct {
+  FILE* file;   // file struct pointer
+} SFileResultInfo;
+
 typedef struct SQueryRuntimeEnv {
   jmp_buf              env;
   SQuery*              pQuery;
   void*                qinfo;
   uint16_t             scanFlag;         // denotes reversed scan of data or not
-  SFillInfo*           pFillInfo;
+  SFillInfo*           pFillInfo;        // todo move to operatorInfo
   void*                pQueryHandle;
 
   int32_t              prevGroupId;      // previous executed group id
@@ -264,10 +268,10 @@ typedef struct SQueryRuntimeEnv {
   SArithmeticSupport  *sasArray;
 
   SSDataBlock     *outputBuf;
-  int32_t          groupIndex;
-  int32_t          tableIndex;
+  int32_t          tableIndex;  //TODO remove it
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   struct SOperatorInfo   *proot;
+  struct SOperatorInfo   *pTableScanner;  // table scan operator
   SGroupResInfo    groupResInfo;
   int64_t          currentOffset;        // dynamic offset value
 
@@ -364,6 +368,8 @@ typedef struct STableScanInfo {
 
   int32_t         numOfOutput;
   int64_t         elapsedTime;
+
+  int32_t tableIndex;
 } STableScanInfo;
 
 typedef struct STagScanInfo {

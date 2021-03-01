@@ -295,8 +295,8 @@ static void resetCheckInfo(STsdbQueryHandle* pQueryHandle) {
   for (int32_t i = 0; i < numOfTables; ++i) {
     STableCheckInfo* pCheckInfo = (STableCheckInfo*) taosArrayGet(pQueryHandle->pTableCheckInfo, i);
     pCheckInfo->lastKey = pQueryHandle->window.skey;
-    pCheckInfo->iter = tSkipListDestroyIter(pCheckInfo->iter);
-    pCheckInfo->iiter = tSkipListDestroyIter(pCheckInfo->iiter);
+    pCheckInfo->iter    = tSkipListDestroyIter(pCheckInfo->iter);
+    pCheckInfo->iiter   = tSkipListDestroyIter(pCheckInfo->iiter);
     pCheckInfo->initBuf = false;
 
     if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
@@ -451,6 +451,39 @@ void tsdbResetQueryHandle(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond) {
   tsdbInitCompBlockLoadInfo(&pQueryHandle->compBlockLoadInfo);
 
   resetCheckInfo(pQueryHandle);
+}
+
+void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond, STableGroupInfo* groupList) {
+  STsdbQueryHandle* pQueryHandle = queryHandle;
+
+  pQueryHandle->order       = pCond->order;
+  pQueryHandle->window      = pCond->twindow;
+  pQueryHandle->type        = TSDB_QUERY_TYPE_ALL;
+  pQueryHandle->cur.fid     = -1;
+  pQueryHandle->cur.win     = TSWINDOW_INITIALIZER;
+  pQueryHandle->checkFiles  = true;
+  pQueryHandle->activeIndex = 0;   // current active table index
+  pQueryHandle->locateStart = false;
+  pQueryHandle->loadExternalRow = pCond->loadExternalRows;
+
+  if (ASCENDING_TRAVERSE(pCond->order)) {
+    assert(pQueryHandle->window.skey <= pQueryHandle->window.ekey);
+  } else {
+    assert(pQueryHandle->window.skey >= pQueryHandle->window.ekey);
+  }
+
+  // allocate buffer in order to load data blocks from file
+  memset(pQueryHandle->statis, 0, sizeof(SDataStatis));
+
+  tsdbInitDataBlockLoadInfo(&pQueryHandle->dataBlockLoadInfo);
+  tsdbInitCompBlockLoadInfo(&pQueryHandle->compBlockLoadInfo);
+
+  STsdbMeta* pMeta = tsdbGetMeta(pQueryHandle->pTsdb);
+  pQueryHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pQueryHandle, groupList, pMeta);
+  if (pQueryHandle->pTableCheckInfo == NULL) {
+    tsdbCleanupQueryHandle(pQueryHandle);
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+  }
 }
 
 TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo, SMemRef* pMemRef) {
@@ -3105,23 +3138,26 @@ static void* doFreeColumnInfoData(SArray* pColumnInfoData) {
   return NULL;
 }
 
+static void* destroyTableCheckInfo(SArray* pTableCheckInfo) {
+  size_t size = taosArrayGetSize(pTableCheckInfo);
+  for (int32_t i = 0; i < size; ++i) {
+    STableCheckInfo* p = taosArrayGet(pTableCheckInfo, i);
+    destroyTableMemIterator(p);
+
+    tfree(p->pCompInfo);
+  }
+
+  taosArrayDestroy(pTableCheckInfo);
+  return NULL;
+}
+
 void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*)queryHandle;
   if (pQueryHandle == NULL) {
     return;
   }
-  
-  if (pQueryHandle->pTableCheckInfo != NULL) {
-    size_t size = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
-    for (int32_t i = 0; i < size; ++i) {
-      STableCheckInfo* pTableCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
-      destroyTableMemIterator(pTableCheckInfo);
 
-      tfree(pTableCheckInfo->pCompInfo);
-    }
-    taosArrayDestroy(pQueryHandle->pTableCheckInfo);
-  }
-
+  pQueryHandle->pTableCheckInfo = destroyTableCheckInfo(pQueryHandle->pTableCheckInfo);
   pQueryHandle->pColumns = doFreeColumnInfoData(pQueryHandle->pColumns);
 
   taosArrayDestroy(pQueryHandle->defaultLoadColumn);

@@ -497,6 +497,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, 0);
     int16_t funcId = pExpr->functionId;
 
+    // add the invisible timestamp column
     if ((pExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) ||
         (funcId != TSDB_FUNC_TS && funcId != TSDB_FUNC_TS_DUMMY && funcId != TSDB_FUNC_PRJ)) {
 
