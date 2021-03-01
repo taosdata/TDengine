@@ -83,7 +83,7 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
   rpcInit.label = "TSC";
-  rpcInit.numOfThreads = tscNumOfThreads * 2;    
+  rpcInit.numOfThreads = tscNumOfThreads;    
   rpcInit.cfp = tscProcessMsgFromServer;
   rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
@@ -159,8 +159,6 @@ void taos_init_imp(void) {
   if (tscNumOfThreads < 2) {
     tscNumOfThreads = 2;
   }
-  taosTmrThreads = tscNumOfThreads;
-
   tscQhandle = taosInitScheduler(queueSize, tscNumOfThreads, "tsc");
   if (NULL == tscQhandle) {
     tscError("failed to init scheduler");
