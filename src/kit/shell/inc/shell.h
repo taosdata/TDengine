@@ -30,6 +30,8 @@
 #define MAX_COMMAND_SIZE       65536
 #define HISTORY_FILE           ".taos_history"
 
+#define DEFAULT_RES_SHOW_NUM   100
+
 typedef struct SShellHistory {
   char* hist[MAX_HISTORY_SIZE];
   int   hstart;

@@ -126,9 +126,9 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
             case Connection.TRANSACTION_READ_COMMITTED:
             case Connection.TRANSACTION_REPEATABLE_READ:
             case Connection.TRANSACTION_SERIALIZABLE:
-                throw new SQLFeatureNotSupportedException(TSDBConstants.UNSUPPORTED_METHOD_EXCEPTION_MSG);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
             default:
-                throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
         }
         //do nothing
     }
@@ -436,7 +436,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     @Override
     public void setClientInfo(String name, String value) throws SQLClientInfoException {
         if (isClosed)
-            throw TSDBError.createSQLClientInfoException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+            throw (SQLClientInfoException) TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
 
         if (clientInfoProps == null)
             clientInfoProps = new Properties();
@@ -446,7 +446,8 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     @Override
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
         if (isClosed)
-            throw TSDBError.createSQLClientInfoException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+            throw (SQLClientInfoException) TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
+
 
         for (Enumeration<Object> enumer = properties.keys(); enumer.hasMoreElements(); ) {
             String name = (String) enumer.nextElement();
@@ -457,7 +458,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     @Override
     public String getClientInfo(String name) throws SQLException {
         if (isClosed)
-            throw TSDBError.createSQLClientInfoException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
 
         return clientInfoProps.getProperty(name);
     }
@@ -465,7 +466,7 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     @Override
     public Properties getClientInfo() throws SQLException {
         if (isClosed)
-            throw TSDBError.createSQLClientInfoException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
 
         return clientInfoProps;
     }

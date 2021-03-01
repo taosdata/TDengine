@@ -2310,6 +2310,35 @@ bool tscIsUpdateQuery(SSqlObj* pSql) {
   return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_USE_DB == pCmd->command);
 }
 
+char* tscGetSqlStr(SSqlObj* pSql) {
+  if (pSql == NULL || pSql->signature != pSql) {
+    return NULL;
+  }
+
+  return pSql->sqlstr;
+}
+
+bool tscIsQueryWithLimit(SSqlObj* pSql) {
+  if (pSql == NULL || pSql->signature != pSql) {
+    return false;
+  }
+
+  SSqlCmd* pCmd = &pSql->cmd;
+  for (int32_t i = 0; i < pCmd->numOfClause; ++i) {
+    SQueryInfo* pqi = tscGetQueryInfoDetailSafely(pCmd, i);
+    if (pqi == NULL) {
+      continue;
+    }
+
+    if (pqi->limit.limit > 0) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+
 int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* sql) {
   const char* msgFormat1 = "syntax error near \'%s\'";
   const char* msgFormat2 = "syntax error near \'%s\' (%s)";
@@ -2549,11 +2578,7 @@ bool tscSetSqlOwner(SSqlObj* pSql) {
   SSqlRes* pRes = &pSql->res;
 
   // set the sql object owner
-#ifdef __APPLE__
-  pthread_t threadId = (pthread_t)taosGetSelfPthreadId();
-#else // __APPLE__
-  uint64_t threadId = taosGetSelfPthreadId();
-#endif // __APPLE__
+  int64_t threadId = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(&pSql->owner, 0, threadId) != 0) {
     pRes->code = TSDB_CODE_QRY_IN_EXEC;
     return false;
@@ -2563,7 +2588,6 @@ bool tscSetSqlOwner(SSqlObj* pSql) {
 }
 
 void tscClearSqlOwner(SSqlObj* pSql) {
-  assert(taosCheckPthreadValid(pSql->owner));
   atomic_store_64(&pSql->owner, 0);
 }
 

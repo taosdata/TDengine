@@ -266,6 +266,25 @@ while(resultSet.next()){
 
 > 查询和操作关系型数据库一致，使用下标获取返回字段内容时从 1 开始，建议使用字段名称获取。
 
+### 处理异常
+在报错后，通过SQLException可以获取到错误的信息和错误码：
+```java
+try (Statement statement = connection.createStatement()) {
+    // executeQuery
+    ResultSet resultSet = statement.executeQuery(sql);
+    // print result
+    printResult(resultSet);
+} catch (SQLException e) {
+    System.out.println("ERROR Message: " + e.getMessage());
+    System.out.println("ERROR Code: " + e.getErrorCode());
+    e.printStackTrace();
+}
+```
+JDBC连接器可能报错的错误码包括3种：JDBC driver本身的报错（错误码在0x2301到0x2350之间），JNI方法的报错（错误码在0x2351到0x2400之间），TDengine其他功能模块的报错。
+具体的错误码请参考：
+* https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
+* https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
+
 ### 订阅
 
 #### 创建

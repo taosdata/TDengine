@@ -1,5 +1,6 @@
-package com.taosdata.jdbc;
+package com.taosdata.jdbc.rs;
 
+import com.taosdata.jdbc.TSDBDriver;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -9,8 +10,9 @@ import java.sql.*;
 import java.util.Properties;
 import java.util.UUID;
 
-public class TSDBStatementTest {
-    private static final String host = "127.0.0.1";
+public class RestfulStatementTest {
+//    private static final String host = "127.0.0.1";
+            private static final String host = "master";
     private static Connection conn;
     private static Statement stmt;
 
@@ -119,12 +121,12 @@ public class TSDBStatementTest {
     public void execute() {
         final String dbName = ("test_" + UUID.randomUUID()).replace("-", "_").substring(0, 32);
         try {
-            boolean isSelect = stmt.execute("create database " + dbName);
+            boolean isSelect = stmt.execute("create database if not exists " + dbName);
             Assert.assertEquals(false, isSelect);
             int affectedRows = stmt.getUpdateCount();
             Assert.assertEquals(0, affectedRows);
 
-            isSelect = stmt.execute("create table " + dbName + ".weather(ts timestamp, temperature float) tags(loc nchar(64))");
+            isSelect = stmt.execute("create table if not exists " + dbName + ".weather(ts timestamp, temperature float) tags(loc nchar(64))");
             Assert.assertEquals(false, isSelect);
             affectedRows = stmt.getUpdateCount();
             Assert.assertEquals(0, affectedRows);
@@ -150,12 +152,12 @@ public class TSDBStatementTest {
     public void getResultSet() {
         final String dbName = ("test_" + UUID.randomUUID()).replace("-", "_").substring(0, 32);
         try {
-            boolean isSelect = stmt.execute("create database " + dbName);
+            boolean isSelect = stmt.execute("create database if not exists " + dbName);
             Assert.assertEquals(false, isSelect);
             int affectedRows = stmt.getUpdateCount();
             Assert.assertEquals(0, affectedRows);
 
-            isSelect = stmt.execute("create table " + dbName + ".weather(ts timestamp, temperature float) tags(loc nchar(64))");
+            isSelect = stmt.execute("create table if not exists " + dbName + ".weather(ts timestamp, temperature float) tags(loc nchar(64))");
             Assert.assertEquals(false, isSelect);
             affectedRows = stmt.getUpdateCount();
             Assert.assertEquals(0, affectedRows);
@@ -375,24 +377,24 @@ public class TSDBStatementTest {
 
     @Test
     public void unwrap() throws SQLException {
-        TSDBStatement unwrap = stmt.unwrap(TSDBStatement.class);
+        RestfulStatement unwrap = stmt.unwrap(RestfulStatement.class);
         Assert.assertNotNull(unwrap);
     }
 
     @Test
     public void isWrapperFor() throws SQLException {
-        Assert.assertTrue(stmt.isWrapperFor(TSDBStatement.class));
+        Assert.assertTrue(stmt.isWrapperFor(RestfulStatement.class));
     }
 
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.TSDBDriver");
+            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
             Properties properties = new Properties();
             properties.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_LOCALE, "en_US.UTF-8");
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
-            conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata", properties);
+            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata", properties);
             stmt = conn.createStatement();
         } catch (ClassNotFoundException e) {
             e.printStackTrace();
@@ -412,4 +414,5 @@ public class TSDBStatementTest {
             e.printStackTrace();
         }
     }
+
 }

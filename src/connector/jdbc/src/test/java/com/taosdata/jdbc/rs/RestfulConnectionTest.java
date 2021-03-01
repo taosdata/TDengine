@@ -1,15 +1,11 @@
 package com.taosdata.jdbc.rs;
 
-import com.taosdata.jdbc.TSDBConnection;
 import com.taosdata.jdbc.TSDBDriver;
-import com.taosdata.jdbc.TSDBResultSet;
-import com.taosdata.jdbc.TSDBSubscribe;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
-import javax.management.OperationsException;
 import java.sql.*;
 import java.util.Properties;
 
@@ -17,6 +13,7 @@ public class RestfulConnectionTest {
 
     private static final String host = "127.0.0.1";
     // private static final String host = "master";
+
     private static Connection conn;
 
     @Test

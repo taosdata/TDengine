@@ -529,7 +529,7 @@ static void do_sum(SQLFunctionCtx *pCtx) {
     } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
       uint64_t *retVal = (uint64_t *)pCtx->pOutput;
       *retVal += (uint64_t)pCtx->preAggVals.statis.sum;
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
+    } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
       double *retVal = (double*) pCtx->pOutput;
       *retVal += GET_DOUBLE_VAL((const char*)&(pCtx->preAggVals.statis.sum));
     }
@@ -552,13 +552,13 @@ static void do_sum(SQLFunctionCtx *pCtx) {
     } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
       uint64_t *retVal = (uint64_t *)pCtx->pOutput;
 
-      if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
+      if (pCtx->inputType == TSDB_DATA_TYPE_UTINYINT) {
         LIST_ADD_N(*retVal, pCtx, pData, uint8_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
+      } else if (pCtx->inputType == TSDB_DATA_TYPE_USMALLINT) {
         LIST_ADD_N(*retVal, pCtx, pData, uint16_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
+      } else if (pCtx->inputType == TSDB_DATA_TYPE_UINT) {
         LIST_ADD_N(*retVal, pCtx, pData, uint32_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
+      } else if (pCtx->inputType == TSDB_DATA_TYPE_UBIGINT) {
         LIST_ADD_N(*retVal, pCtx, pData, uint64_t, notNullElems, pCtx->inputType);
       }
     } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
@@ -1051,7 +1051,7 @@ static void minMax_function(SQLFunctionCtx *pCtx, char *pOutput, int32_t isMin, 
       TYPED_LOOPCHECK_N(uint16_t, pOutput, p, pCtx, pCtx->inputType, isMin, *notNullElems);
     } else if (pCtx->inputType == TSDB_DATA_TYPE_UINT) {
       TYPED_LOOPCHECK_N(uint32_t, pOutput, p, pCtx, pCtx->inputType, isMin, *notNullElems);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
+    } else if (pCtx->inputType == TSDB_DATA_TYPE_UBIGINT) {
       TYPED_LOOPCHECK_N(uint64_t, pOutput, p, pCtx, pCtx->inputType, isMin, *notNullElems);
     }
   } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
@@ -2172,16 +2172,19 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
   
   if (pInfo->num < maxLen) {
     if (pInfo->num == 0 ||
-        ((type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) &&
-            val.i64 >= pList[pInfo->num - 1]->v.i64) ||
-        ((type >= TSDB_DATA_TYPE_FLOAT && type <= TSDB_DATA_TYPE_DOUBLE) &&
-            val.dKey >= pList[pInfo->num - 1]->v.dKey)) {
+        (IS_SIGNED_NUMERIC_TYPE(type) && val.i64 >= pList[pInfo->num - 1]->v.i64) ||
+        (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 >= pList[pInfo->num - 1]->v.u64) ||
+        (IS_FLOAT_TYPE(type) && val.dKey >= pList[pInfo->num - 1]->v.dKey)) {
       valuePairAssign(pList[pInfo->num], type, (const char*)&val.i64, ts, pTags, pTagInfo, stage);
     } else {
       int32_t i = pInfo->num - 1;
-      
-      if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) {
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
         while (i >= 0 && pList[i]->v.i64 > val.i64) {
+          VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
+          i -= 1;
+        }
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+        while (i >= 0 && pList[i]->v.u64 > val.u64) {
           VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
           i -= 1;
         }
@@ -2198,12 +2201,18 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
     pInfo->num++;
   } else {
     int32_t i = 0;
-    
-    if (((type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) && val.i64 > pList[0]->v.i64) ||
-        ((type >= TSDB_DATA_TYPE_FLOAT && type <= TSDB_DATA_TYPE_DOUBLE) && val.dKey > pList[0]->v.dKey)) {
+
+    if ((IS_SIGNED_NUMERIC_TYPE(type) && val.i64 > pList[0]->v.i64) ||
+        (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 > pList[0]->v.u64) ||
+        (IS_FLOAT_TYPE(type) && val.dKey > pList[0]->v.dKey)) {
       // find the appropriate the slot position
-      if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) {
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
         while (i + 1 < maxLen && pList[i + 1]->v.i64 < val.i64) {
+          VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
+          i += 1;
+        }
+      } if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+        while (i + 1 < maxLen && pList[i + 1]->v.u64 < val.u64) {
           VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
           i += 1;
         }
@@ -2213,8 +2222,8 @@ static void do_top_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pData,
           i += 1;
         }
       }
-      
-      valuePairAssign(pList[i], type, (const char*) &val.i64, ts, pTags, pTagInfo, stage);
+
+      valuePairAssign(pList[i], type, (const char *)&val.i64, ts, pTags, pTagInfo, stage);
     }
   }
 }
@@ -2233,11 +2242,16 @@ static void do_bottom_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pDa
     } else {
       int32_t i = pInfo->num - 1;
       
-      if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) {
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
         while (i >= 0 && pList[i]->v.i64 < val.i64) {
           VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
           i -= 1;
         }
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+          while (i >= 0 && pList[i]->v.u64 < val.u64) {
+            VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
+            i -= 1;
+          }
       } else {
         while (i >= 0 && pList[i]->v.dKey < val.dKey) {
           VALUEPAIRASSIGN(pList[i + 1], pList[i], pTagInfo->tagsLen);
@@ -2252,11 +2266,17 @@ static void do_bottom_function_add(STopBotInfo *pInfo, int32_t maxLen, void *pDa
   } else {
     int32_t i = 0;
     
-    if (((type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) && val.i64 < pList[0]->v.i64) ||
-        ((type >= TSDB_DATA_TYPE_FLOAT && type <= TSDB_DATA_TYPE_DOUBLE) && val.dKey < pList[0]->v.dKey)) {
+    if ((IS_SIGNED_NUMERIC_TYPE(type) && val.i64 < pList[0]->v.i64) ||
+        (IS_UNSIGNED_NUMERIC_TYPE(type) && val.u64 < pList[0]->v.u64) ||
+        (IS_FLOAT_TYPE(type) && val.dKey < pList[0]->v.dKey)) {
       // find the appropriate the slot position
-      if (type >= TSDB_DATA_TYPE_TINYINT && type <= TSDB_DATA_TYPE_BIGINT) {
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
         while (i + 1 < maxLen && pList[i + 1]->v.i64 > val.i64) {
+          VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
+          i += 1;
+        }
+      } if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+        while (i + 1 < maxLen && pList[i + 1]->v.u64 > val.u64) {
           VALUEPAIRASSIGN(pList[i], pList[i + 1], pTagInfo->tagsLen);
           i += 1;
         }
@@ -2289,18 +2309,23 @@ static int32_t resDataAscComparFn(const void *pLeft, const void *pRight) {
   tValuePair *pLeftElem = *(tValuePair **)pLeft;
   tValuePair *pRightElem = *(tValuePair **)pRight;
   
-  int32_t type = pLeftElem->v.nType;
-  if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
+  if (IS_FLOAT_TYPE(pLeftElem->v.nType)) {
     if (pLeftElem->v.dKey == pRightElem->v.dKey) {
       return 0;
     } else {
       return pLeftElem->v.dKey > pRightElem->v.dKey ? 1 : -1;
     }
-  } else {
+  } else if (IS_SIGNED_NUMERIC_TYPE(pLeftElem->v.nType)){
     if (pLeftElem->v.i64 == pRightElem->v.i64) {
       return 0;
     } else {
       return pLeftElem->v.i64 > pRightElem->v.i64 ? 1 : -1;
+    }
+  } else {
+    if (pLeftElem->v.u64 == pRightElem->v.u64) {
+      return 0;
+    } else {
+      return pLeftElem->v.u64 > pRightElem->v.u64 ? 1 : -1;
     }
   }
 }
@@ -3034,17 +3059,17 @@ static void leastsquares_function(SQLFunctionCtx *pCtx) {
         numOfElem++;
       }
       break;
-    };
+    }
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t *p = pData;
       LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
       break;
-    };
+    }
     case TSDB_DATA_TYPE_DOUBLE: {
       double *p = pData;
       LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
       break;
-    };
+    }
     case TSDB_DATA_TYPE_FLOAT: {
       float *p = pData;
       LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
@@ -3054,12 +3079,32 @@ static void leastsquares_function(SQLFunctionCtx *pCtx) {
       int16_t *p = pData;
       LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
       break;
-    };
+    }
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *p = pData;
       LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
       break;
-    };
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      uint8_t *p = pData;
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      uint16_t *p = pData;
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      uint32_t *p = pData;
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      uint64_t *p = pData;
+      LEASTSQR_CAL_LOOP(pCtx, param, x, p, pCtx->inputType, numOfElem, pCtx->param[1].dKey);
+      break;
+    }
   }
   
   pInfo->startVal = x;
@@ -3951,6 +3996,58 @@ static int32_t twa_function_impl(SQLFunctionCtx* pCtx, int32_t index, int32_t si
         }
 
         SPoint1 st = {.key = tsList[i], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      uint8_t *val = (uint8_t*) GET_INPUT_DATA(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        SPoint1 st = {.key = tsList[i], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      uint16_t *val = (uint16_t*) GET_INPUT_DATA(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        SPoint1 st = {.key = tsList[i], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      uint32_t *val = (uint32_t*) GET_INPUT_DATA(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        SPoint1 st = {.key = tsList[i], .val = val[i]};
+        pInfo->dOutput += twa_get_area(pInfo->p, st);
+        pInfo->p = st;
+      }
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      uint64_t *val = (uint64_t*) GET_INPUT_DATA(pCtx, 0);
+      for (; i < size && i >= 0; i += step) {
+        if (pCtx->hasNull && isNull((const char*) &val[i], pCtx->inputType)) {
+          continue;
+        }
+
+        SPoint1 st = {.key = tsList[i], .val = (double) val[i]};
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }

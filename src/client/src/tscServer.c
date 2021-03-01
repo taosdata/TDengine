@@ -418,6 +418,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   bool shouldFree = tscShouldBeFreed(pSql);
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+    if (rpcMsg->code != TSDB_CODE_SUCCESS) {
+      pRes->code = rpcMsg->code;
+    }
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? (int32_t)pRes->numOfRows : pRes->code;
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
@@ -1807,7 +1810,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   pMetaMsg->uid = htobe64(pMetaMsg->uid);
   pMetaMsg->contLen = htons(pMetaMsg->contLen);
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
-
+  
   if ((pMetaMsg->tableType != TSDB_SUPER_TABLE) &&
       (pMetaMsg->tid <= 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
     tscError("invalid value in table numOfEps:%d, vgId:%d tid:%d, name:%s", pMetaMsg->vgroup.numOfEps, pMetaMsg->vgroup.vgId,

@@ -1144,7 +1144,7 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
     return false;
   }
 
-  if ((pTagField->type < TSDB_DATA_TYPE_BOOL) || (pTagField->type > TSDB_DATA_TYPE_NCHAR)) {
+  if ((pTagField->type < TSDB_DATA_TYPE_BOOL) || (pTagField->type > TSDB_DATA_TYPE_UBIGINT)) {
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
     return false;
   }
@@ -1208,7 +1208,7 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
     return false;
   }
 
-  if (pColField->type < TSDB_DATA_TYPE_BOOL || pColField->type > TSDB_DATA_TYPE_NCHAR) {
+  if (pColField->type < TSDB_DATA_TYPE_BOOL || pColField->type > TSDB_DATA_TYPE_UBIGINT) {
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     return false;
   }
@@ -1885,6 +1885,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg7 = "normal table can not apply this function";
   const char* msg8 = "multi-columns selection does not support alias column name";
   const char* msg9 = "invalid function";
+  const char* msg10 = "diff can no be applied to unsigned numeric type";
 
   switch (optr) {
     case TK_COUNT: {
@@ -2023,6 +2024,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       if (!IS_NUMERIC_TYPE(colType)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(colType) && optr == TK_DIFF) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg10);
       }
 
       int16_t resultType = 0;

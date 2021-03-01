@@ -276,7 +276,8 @@ void *syncRestoreData(void *param) {
   atomic_add_fetch_32(&tsSyncNum, 1);
   sInfo("%s, start to restore data, sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
 
-  (*pNode->notifyRoleFp)(pNode->vgId, TAOS_SYNC_ROLE_SYNCING);
+  nodeRole = TAOS_SYNC_ROLE_SYNCING;
+  (*pNode->notifyRoleFp)(pNode->vgId, nodeRole);
 
   if (syncOpenRecvBuffer(pNode) < 0) {
     sError("%s, failed to allocate recv buffer, restart connection", pPeer->id);

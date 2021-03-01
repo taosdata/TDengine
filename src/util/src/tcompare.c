@@ -297,32 +297,14 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
   
   switch (type) {
-    case TSDB_DATA_TYPE_SMALLINT: {
-      comparFn = compareInt16Val;  break;
-    }
-    
-    case TSDB_DATA_TYPE_INT: {
-      comparFn = compareInt32Val;  break;
-    }
-    
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP: {
-      comparFn = compareInt64Val;  break;
-    }
-
     case TSDB_DATA_TYPE_BOOL:
-    case TSDB_DATA_TYPE_TINYINT:{
-      comparFn = compareInt8Val;   break;
-    }
-
-    case TSDB_DATA_TYPE_FLOAT: {
-      comparFn = compareFloatVal;  break;
-    }
-    
-    case TSDB_DATA_TYPE_DOUBLE: {
-      comparFn = compareDoubleVal; break;
-    }
-
+    case TSDB_DATA_TYPE_TINYINT:   comparFn = compareInt8Val;   break;
+    case TSDB_DATA_TYPE_SMALLINT:  comparFn = compareInt16Val;  break;
+    case TSDB_DATA_TYPE_INT:       comparFn = compareInt32Val;  break;
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: comparFn = compareInt64Val;  break;
+    case TSDB_DATA_TYPE_FLOAT:     comparFn = compareFloatVal;  break;
+    case TSDB_DATA_TYPE_DOUBLE:    comparFn = compareDoubleVal; break;
     case TSDB_DATA_TYPE_BINARY: {
       if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = compareStrPatternComp;
@@ -341,10 +323,14 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       } else {
         comparFn = compareLenPrefixedWStr;
       }
-    
       break;
     }
-    
+
+    case TSDB_DATA_TYPE_UTINYINT:  comparFn = compareUint8Val; break;
+    case TSDB_DATA_TYPE_USMALLINT: comparFn = compareUint16Val;break;
+    case TSDB_DATA_TYPE_UINT:      comparFn = compareUint32Val;break;
+    case TSDB_DATA_TYPE_UBIGINT:   comparFn = compareUint64Val;break;
+
     default:
       comparFn = compareInt32Val;
       break;
