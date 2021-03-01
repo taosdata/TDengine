@@ -21,10 +21,6 @@
 #define _GNU_SOURCE
 #define CURL_STATICLIB
 
-#ifdef TD_LOWA_CURL
-#include "curl/curl.h"
-#endif
-
 #ifdef LINUX
   #include "os.h"
   #include <argp.h>
@@ -50,7 +46,6 @@
   #include <stdio.h>
   #include "os.h"
   
-  #pragma comment ( lib, "libcurl_a.lib" )
   #pragma comment ( lib, "ws2_32.lib" )
   #pragma comment ( lib, "winmm.lib" )
   #pragma comment ( lib, "wldap32.lib" )  
@@ -423,9 +418,6 @@ typedef struct SQueryMetaInfo_S {
 
 typedef struct SThreadInfo_S {
   TAOS *taos;
-  #ifdef TD_LOWA_CURL
-  CURL *curl_handle;
-  #endif
   int threadID;
   char db_name[MAX_DB_NAME_SIZE];
   char fp[4096];
@@ -459,12 +451,6 @@ typedef struct SThreadInfo_S {
   
 } threadInfo;
 
-typedef  struct curlMemInfo_S {
-    char *buf;
-    size_t sizeleft;
-  } curlMemInfo;
-  
-  
 
 #ifdef LINUX
   /* The options we understand. */
@@ -1524,6 +1510,7 @@ static void printfQuerySystemInfo(TAOS * taos) {
 
 
 #ifdef TD_LOWA_CURL
+#if 0
 static size_t responseCallback(void *contents, size_t size, size_t nmemb, void *userp)
 {
   size_t realsize = size * nmemb;
@@ -1598,6 +1585,7 @@ void curlProceLogin(void)
  
   return;
 }
+#endif
 
 int curlProceSql(char* host, uint16_t port, char* sqlstr, CURL *curl_handle)
 {
@@ -1664,17 +1652,83 @@ int curlProceSql(char* host, uint16_t port, char* sqlstr, CURL *curl_handle)
 
   curl_slist_free_all(list); /* free the list again */
   
-  /* cleanup curl stuff */ 
-  //curl_easy_cleanup(curl_handle);
- 
   free(chunk.buf);
- 
-  /* we're done with libcurl, so clean it up */ 
-  //curl_global_cleanup();
  
   return 0;
 }
 #endif
+
+#define REQ_BUF_LEN     1024000
+#define REP_BUF_LEN     4096000
+
+void ERROR(const char *msg) { perror(msg); exit(0); }
+
+int postProceSql(char* host, uint16_t port, char* sqlstr)
+{
+    char *req_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nUser-Agent: postress/0.1\r\nAccept: */*\r\n%s\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s";
+
+    char *url = "/rest/sql";
+    char *auth = "Authorization: Basic cm9vdDp0YW9zZGF0YQ==";
+
+    struct hostent *server;
+    struct sockaddr_in serv_addr;
+    int sockfd, bytes, sent, received, total;
+    char request[REQ_BUF_LEN], response[REP_BUF_LEN];
+
+    int r = snprintf(request, 
+            REQ_BUF_LEN, 
+            req_fmt, url, host, port + TSDB_PORT_HTTP, 
+            auth, strlen(sqlstr), sqlstr);
+    if (r >= REQ_BUF_LEN)
+        ERROR("ERROR too long request");
+    printf("Request:\n%s\n", request);
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) ERROR("ERROR opening socket");
+
+    server = gethostbyname(host);
+    if (server == NULL) ERROR("ERROR, no such host");
+
+    memset(&serv_addr,0,sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(port);
+    memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
+
+    if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0)
+        ERROR("ERROR connecting");
+
+    total = strlen(request);
+    sent = 0;
+    do {
+        bytes = write(sockfd, request + sent, total - sent);
+        if (bytes < 0)
+            ERROR("ERROR writing message to socket");
+        if (bytes == 0)
+            break;
+        sent+=bytes;
+    } while (sent < total);
+
+    memset(response, 0, sizeof(response));
+    total = sizeof(response)-1;
+    received = 0;
+    do {
+        bytes = read(sockfd, response + received, total - received);
+        if (bytes < 0)
+            ERROR("ERROR reading response from socket");
+        if (bytes == 0)
+            break;
+        received+=bytes;
+    } while (received < total);
+
+    if (received == total)
+        ERROR("ERROR storing complete response from socket");
+
+    close(sockfd);
+    printf("Response:\n%s\n",response);
+
+    return 0;
+}
+
 
 char* getTagValueFromTagSample(        SSuperTable* stbInfo, int tagUsePos) {
   char*  dataBuf = (char*)calloc(TSDB_MAX_SQL_LEN+1, 1);
@@ -2907,12 +2961,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       cJSON *insertMode = cJSON_GetObjectItem(stbInfo, "insert_mode"); // taosc , restful
       if (insertMode && insertMode->type == cJSON_String && insertMode->valuestring != NULL) {
         tstrncpy(g_Dbs.db[i].superTbls[j].insertMode, insertMode->valuestring, MAX_DB_NAME_SIZE);
-        #ifndef TD_LOWA_CURL
-        if (0 == strncasecmp(g_Dbs.db[i].superTbls[j].insertMode, "restful", 7)) {          
-          printf("There no libcurl, so no support resetful test! please use taosc mode.\n");
-          goto PARSE_OVER;
-        } 
-        #endif
       } else if (!insertMode) {
         tstrncpy(g_Dbs.db[i].superTbls[j].insertMode, "taosc", MAX_DB_NAME_SIZE);
       } else {
@@ -3499,12 +3547,6 @@ void prePareSampleData() {
       if (g_Dbs.db[i].superTbls[j].tagsFile[0] != 0) {
         (void)readTagFromCsvFileToMem(&g_Dbs.db[i].superTbls[j]);
       }
-
-      #ifdef TD_LOWA_CURL
-      if (0 == strncasecmp(g_Dbs.db[i].superTbls[j].insertMode, "restful", 8)) {
-        curl_global_init(CURL_GLOBAL_ALL);
-      }
-      #endif
     }
   }
 }
@@ -3529,12 +3571,6 @@ void postFreeResource() {
         free(g_Dbs.db[i].superTbls[j].childTblName);
         g_Dbs.db[i].superTbls[j].childTblName = NULL;
       }
-
-      #ifdef TD_LOWA_CURL
-      if (0 == strncasecmp(g_Dbs.db[i].superTbls[j].insertMode, "restful", 8)) {
-        curl_global_cleanup();
-      }
-      #endif
     }
   }
 }
@@ -3759,9 +3795,8 @@ void syncWriteForNumberOfTblInOneSql(threadInfo *winfo, FILE *fp, char* sampleDa
           //int64_t t2 = taosGetTimestampMs();          
           //printf("taosc insert sql return, Spent %.4f seconds \n", (double)(t2 - t1)/1000.0);          
         } else {
-          #ifdef TD_LOWA_CURL
           //int64_t t1 = taosGetTimestampMs();
-          int retCode = curlProceSql(g_Dbs.host, g_Dbs.port, buffer, winfo->curl_handle);
+          int retCode = postProceSql(g_Dbs.host, g_Dbs.port, buffer);
           //int64_t t2 = taosGetTimestampMs();          
           //printf("http insert sql return, Spent %ld ms \n", t2 - t1);
           
@@ -3769,10 +3804,6 @@ void syncWriteForNumberOfTblInOneSql(threadInfo *winfo, FILE *fp, char* sampleDa
             printf("========curl return fail, threadID[%d]\n", winfo->threadID);
             goto free_and_statistics;
           }
-          #else
-          printf("========no use http mode for no curl lib!\n");
-          goto free_and_statistics;
-          #endif
         }
         
         //printf("========tID:%d, k:%d, loop_cnt:%d\n", tID, k, loop_cnt);
@@ -3993,9 +4024,8 @@ void *syncWrite(void *sarg) {
           //int64_t t2 = taosGetTimestampMs();          
           //printf("taosc insert sql return, Spent %.4f seconds \n", (double)(t2 - t1)/1000.0);  
         } else {
-          #ifdef TD_LOWA_CURL
           //int64_t t1 = taosGetTimestampMs();
-          int retCode = curlProceSql(g_Dbs.host, g_Dbs.port, buffer, winfo->curl_handle);
+          int retCode = postProceSql(g_Dbs.host, g_Dbs.port, buffer);
           //int64_t t2 = taosGetTimestampMs();          
           //printf("http insert sql return, Spent %ld ms \n", t2 - t1);
           
@@ -4003,10 +4033,6 @@ void *syncWrite(void *sarg) {
             printf("========curl return fail, threadID[%d]\n", winfo->threadID);
             goto free_and_statistics_2;
           }
-          #else
-          printf("========no use http mode for no curl lib!\n");
-          goto free_and_statistics_2;
-          #endif
         }
         
         //printf("========tID:%d, k:%d, loop_cnt:%d\n", tID, k, loop_cnt);
@@ -4554,7 +4580,7 @@ void *superQueryProcess(void *sarg) {
       } else {
         #ifdef TD_LOWA_CURL
         int64_t t1 = taosGetTimestampUs();
-        int retCode = curlProceSql(g_queryInfo.host, g_queryInfo.port, g_queryInfo.superQueryInfo.sql[i], winfo->curl_handle);
+        int retCode = postProceSql(g_queryInfo.host, g_queryInfo.port, g_queryInfo.superQueryInfo.sql[i]);
         int64_t t2 = taosGetTimestampUs();          
         printf("=[restful] thread[%"PRId64"] complete one sql, Spent %f s\n", taosGetSelfPthreadId(), (t2 - t1)/1000000.0);
         
