@@ -3981,9 +3981,7 @@ void setQueryStatus(SQuery *pQuery, int8_t status) {
   }
 }
 
-
 #if 0
-
 bool needRepeatScan(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
@@ -4133,7 +4131,6 @@ static void setEnvBeforeReverseScan_rv(SQueryRuntimeEnv *pRuntimeEnv, SResultRow
 }
 
 #if 0
-
 static UNUSED_FUNC void clearEnvAfterReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SQueryStatusInfo *pStatus) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   STableQueryInfo* pTableQueryInfo = pQuery->current;
@@ -4297,7 +4294,6 @@ void scanOneTableDataBlocks(SQueryRuntimeEnv *pRuntimeEnv, TSKEY start) {
 
   handleInterpolationQuery(pQInfo);
 }
-
 #endif
 
 void finalizeQueryResult_rv(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset) {
