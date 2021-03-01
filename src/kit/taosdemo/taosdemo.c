@@ -3072,9 +3072,9 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       cJSON* insertRows = cJSON_GetObjectItem(stbInfo, "insert_rows");
       if (insertRows && insertRows->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].insertRows = insertRows->valueint;
-        if (0 == g_Dbs.db[i].superTbls[j].insertRows) {
-          g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
-        }
+        //if (0 == g_Dbs.db[i].superTbls[j].insertRows) {
+        //  g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
+        //}
       } else if (!insertRows) {
         g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
       } else {
@@ -4481,6 +4481,9 @@ int insertTestProcess() {
   for (int i = 0; i < g_Dbs.dbCount; i++) {    
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
       SSuperTable* superTblInfo = &g_Dbs.db[i].superTbls[j];
+      if (0 == g_Dbs.db[i].superTbls[j].insertRows) {
+        continue;
+      }
       startMultiThreadInsertData(g_Dbs.threadCount, g_Dbs.db[i].dbName, g_Dbs.db[i].dbCfg.precision, superTblInfo);
     }
   }  
