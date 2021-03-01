@@ -35,7 +35,7 @@ import os
 import signal
 import traceback
 import resource
-from guppy import hpy
+# from guppy import hpy
 import gc
 
 from crash_gen.service_manager import ServiceManager, TdeInstance
@@ -1774,13 +1774,13 @@ class TdSuperTable:
                     ]) # TODO: add more from 'top'
 
             
-                if aggExpr not in ['stddev(speed)']: #TODO: STDDEV not valid for super tables?!
-                    sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
-                    if Dice.throw(3) == 0: # 1 in X chance
-                        sql = sql + ' GROUP BY color'
-                        Progress.emit(Progress.QUERY_GROUP_BY)
-                        # Logging.info("Executing GROUP-BY query: " + sql)
-                    ret.append(SqlQuery(sql))
+                # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
+                sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
+                if Dice.throw(3) == 0: # 1 in X chance
+                    sql = sql + ' GROUP BY color'
+                    Progress.emit(Progress.QUERY_GROUP_BY)
+                    # Logging.info("Executing GROUP-BY query: " + sql)
+                ret.append(SqlQuery(sql))
 
         return ret        
 
