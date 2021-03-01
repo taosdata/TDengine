@@ -443,7 +443,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     pSubQueryInfo->tsBuf = NULL;
   
     // free result for async object will also free sqlObj
-    assert(tscSqlExprNumOfExprs(pSubQueryInfo) == 1); // ts_comp query only requires one resutl columns
+    assert(tscSqlExprNumOfExprs(pSubQueryInfo) == 1); // ts_comp query only requires one result columns
     taos_free_result(pPrevSub);
   
     SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, pSupporter, TSDB_SQL_SELECT, NULL);
@@ -834,6 +834,8 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   SSqlRes* pRes = &pSql->res;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+
+  // todo, the type may not include TSDB_QUERY_TYPE_TAG_FILTER_QUERY
   assert(TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY));
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
@@ -2605,12 +2607,17 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
 
     pQueryInfo->type |= TSDB_QUERY_TYPE_STABLE_SUBQUERY;
+
+    // clear the limit/offset info, since it should not be sent to vnode to be executed.
+    pQueryInfo->limit.limit = -1;
+    pQueryInfo->limit.offset = 0;
+
     assert(pQueryInfo->numOfTables == 1 && pNew->cmd.numOfClause == 1 && trsupport->subqueryIndex < pSql->subState.numOfSub);
     
     // launch subquery for each vnode, so the subquery index equals to the vgroupIndex.
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, table_index);
     pTableMetaInfo->vgroupIndex = trsupport->subqueryIndex;
-    
+
     pSql->pSubs[trsupport->subqueryIndex] = pNew;
   }
   

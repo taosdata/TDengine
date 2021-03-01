@@ -1722,10 +1722,15 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->fieldsInfo.internalField = taosArrayInit(4, sizeof(SInternalField));
   
   assert(pQueryInfo->exprList == NULL);
-  pQueryInfo->exprList   = taosArrayInit(4, POINTER_BYTES);
-  pQueryInfo->colList    = taosArrayInit(4, POINTER_BYTES);
-  pQueryInfo->udColumnId = TSDB_UD_COLUMN_INDEX;
-  pQueryInfo->resColumnId= -1000;
+  pQueryInfo->exprList    = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->colList     = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->udColumnId  = TSDB_UD_COLUMN_INDEX;
+  pQueryInfo->resColumnId = -1000;
+  pQueryInfo->limit.limit = -1;
+  pQueryInfo->limit.offset = 0;
+
+  pQueryInfo->slimit.limit = -1;
+  pQueryInfo->slimit.offset = 0;
 }
 
 int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {

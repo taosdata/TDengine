@@ -228,8 +228,6 @@ typedef struct SQuery {
 
   uint32_t         status;             // query status
   STableQueryInfo* current;
-  int32_t          numOfCheckedBlocks; // number of check data blocks
-
   void*            tsdb;
   SMemRef          memRef;
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
