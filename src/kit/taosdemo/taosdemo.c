@@ -4271,7 +4271,7 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
   }
   cntDelay -= 1;
 
-  assert(cntDelay != 0);
+  if (cntDelay == 0)    cntDelay = 1;
   avgDelay = (double)totalDelay / cntDelay;
 
   double end = getCurrentTime();
