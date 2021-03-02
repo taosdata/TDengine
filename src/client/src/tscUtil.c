@@ -1061,6 +1061,10 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
 
       tfree(pInfo->pArithExprInfo);
     }
+
+    if (pInfo->pFieldFilters != NULL) {
+      tscColumnDestroy(pInfo->pFieldFilters);
+    }
   }
   
   taosArrayDestroy(pFieldInfo->internalField);

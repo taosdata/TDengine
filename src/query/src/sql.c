@@ -2864,7 +2864,7 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 147: /* select ::= SELECT selcollist from where_opt interval_opt fill_opt sliding_opt groupby_opt orderby_opt having_opt slimit_opt limit_opt */
 {
-  yylhsminor.yy114 = tSetQuerySqlElems(&yymsp[-11].minor.yy0, yymsp[-10].minor.yy522, yymsp[-9].minor.yy247, yymsp[-8].minor.yy326, yymsp[-4].minor.yy247, yymsp[-3].minor.yy247, &yymsp[-7].minor.yy430, &yymsp[-5].minor.yy0, yymsp[-6].minor.yy247, &yymsp[0].minor.yy204, &yymsp[-1].minor.yy204);
+  yylhsminor.yy114 = tSetQuerySqlElems(&yymsp[-11].minor.yy0, yymsp[-10].minor.yy522, yymsp[-9].minor.yy247, yymsp[-8].minor.yy326, yymsp[-4].minor.yy247, yymsp[-3].minor.yy247, &yymsp[-7].minor.yy430, &yymsp[-5].minor.yy0, yymsp[-6].minor.yy247, &yymsp[0].minor.yy204, &yymsp[-1].minor.yy204, yymsp[-2].minor.yy326);
 }
   yymsp[-11].minor.yy114 = yylhsminor.yy114;
         break;
@@ -2888,7 +2888,7 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 153: /* select ::= SELECT selcollist */
 {
-  yylhsminor.yy114 = tSetQuerySqlElems(&yymsp[-1].minor.yy0, yymsp[0].minor.yy522, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+  yylhsminor.yy114 = tSetQuerySqlElems(&yymsp[-1].minor.yy0, yymsp[0].minor.yy522, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
   yymsp[-1].minor.yy114 = yylhsminor.yy114;
         break;

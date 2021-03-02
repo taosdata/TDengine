@@ -121,6 +121,7 @@ typedef struct SInternalField {
   bool            visible;
   SExprInfo      *pArithExprInfo;
   SSqlExpr       *pSqlExpr;
+  SColumn        *pFieldFilters;
 } SInternalField;
 
 typedef struct SFieldInfo {

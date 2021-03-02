@@ -71,6 +71,7 @@ typedef struct SQuerySQL {
   SLimitVal            slimit;       // group limit offset [optional]
   SArray *             fillType;     // fill type[optional], SArray<tVariantListItem>
   SStrToken            selectToken;  // sql string
+  struct tSQLExpr *    pHaving;      // having clause [optional]
 } SQuerySQL;
 
 typedef struct SCreatedTableInfo {
@@ -242,7 +243,7 @@ void tSqlExprListDestroy(tSQLExprList *pList);
 
 SQuerySQL *tSetQuerySqlElems(SStrToken *pSelectToken, tSQLExprList *pSelection, SArray *pFrom, tSQLExpr *pWhere,
                              SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
-                             SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit);
+                             SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit, tSQLExpr *pHaving);
 
 SCreateTableSQL *tSetCreateSqlElems(SArray *pCols, SArray *pTags, SQuerySQL *pSelect, int32_t type);
 

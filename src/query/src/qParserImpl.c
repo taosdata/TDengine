@@ -531,7 +531,7 @@ void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
  */
 SQuerySQL *tSetQuerySqlElems(SStrToken *pSelectToken, tSQLExprList *pSelection, SArray *pFrom, tSQLExpr *pWhere,
                              SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
-                             SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
+                             SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit, tSQLExpr *pHaving) {
   assert(pSelection != NULL);
 
   SQuerySQL *pQuery = calloc(1, sizeof(SQuerySQL));
@@ -543,6 +543,7 @@ SQuerySQL *tSetQuerySqlElems(SStrToken *pSelectToken, tSQLExprList *pSelection, 
   pQuery->pGroupby = pGroupby;
   pQuery->pSortOrder = pSortOrder;
   pQuery->pWhere = pWhere;
+  pQuery->pHaving = pHaving;
 
   if (pLimit != NULL) {
     pQuery->limit = *pLimit;
@@ -589,6 +590,9 @@ void doDestroyQuerySql(SQuerySQL *pQuerySql) {
 
   tSqlExprDestroy(pQuerySql->pWhere);
   pQuerySql->pWhere = NULL;
+
+  tSqlExprDestroy(pQuerySql->pHaving);
+  pQuerySql->pHaving = NULL;
   
   taosArrayDestroyEx(pQuerySql->pSortOrder, freeVariant);
   pQuerySql->pSortOrder = NULL;

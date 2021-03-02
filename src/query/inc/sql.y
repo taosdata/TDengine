@@ -437,7 +437,7 @@ tagitem(A) ::= PLUS(X) FLOAT(Y).  {
 %type select {SQuerySQL*}
 %destructor select {doDestroyQuerySql($$);}
 select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
-  A = tSetQuerySqlElems(&T, W, X, Y, P, Z, &K, &S, F, &L, &G);
+  A = tSetQuerySqlElems(&T, W, X, Y, P, Z, &K, &S, F, &L, &G, N);
 }
 
 %type union {SSubclauseInfo*}
@@ -455,7 +455,7 @@ cmd ::= union(X). { setSqlInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
 // select server_version(), select client_version(),
 // select server_state();
 select(A) ::= SELECT(T) selcollist(W). {
-  A = tSetQuerySqlElems(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+  A = tSetQuerySqlElems(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 // selcollist is a list of expressions that are to become the return
