@@ -12,7 +12,7 @@ IN_TDINTERNAL="community"
 
 function stopTaosd {
 	echo "Stop taosd"
-  systemctl stop taosd
+  sudo systemctl stop taosd
   PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
 	while [ -n "$PID" ]
 	do
