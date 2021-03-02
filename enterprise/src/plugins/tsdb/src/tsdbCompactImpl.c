@@ -146,21 +146,18 @@ static int tsdbCompactFSet(SCompactH *pComph, SDFileSet *pSet) {
   SDiskID    did;
   SBlock     block;
   SBlockIdx  blkIdx;
-  void **    ppBuf = &TSDB_COMPACT_BUF(pComph);
-  void **    ppCBuf = &TSDB_COMPACT_COMP_BUF(pComph);
-  int        defaultRows = TSDB_DEFAULT_BLOCK_ROWS(pCfg->maxRowsPerFileBlock);
 
-  tsdbDebug("vgId:%d start to compact FSET %d", REPO_ID(pRepo), pSet->fid);
+  tsdbDebug("vgId:%d start to compact FSET %d on level %d id %d", REPO_ID(pRepo), pSet->fid, TSDB_FSET_LEVEL(pSet),
+            TSDB_FSET_ID(pSet));
 
-  // TODO: init fset state
-  if (tsdbCacheFSetIndex(pComph, pSet) < 0) {
-    // TODO
+  if (tsdbCompactFSetInit(pComph, pSet) < 0) {
     return -1;
   }
 
   if (!tsdbShouldCompact(pCommit)) {
     tsdbDebug("vgId:%d no need to compact FSET %d", REPO_ID(pRepo), pSet->fid);
     if (tsdbApplyRtnOnFSet(TSDB_COMPACT_REPO(pComph), pSet, &(pComph->rtn)) < 0) {
+      tsdbCompactFSetEnd(pComph);
       return -1;
     }
   } else {
@@ -169,76 +166,22 @@ static int tsdbCompactFSet(SCompactH *pComph, SDFileSet *pSet) {
     if (did.level == TFS_UNDECIDED_LEVEL) {
       terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
       tsdbError("vgId:%d failed to compact FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+      tsdbCompactFSetEnd(pComph);
       return -1;
     }
 
-    tsdbInitDFileSet(TSDB_COMPACT_WSET(pComph), did, REPO_ID(pRepo), TSDB_FSET_FID(pSet), FS_TXN_VERSION(REPO_FS(pRepo)));
-    if (tsdbCreateDFileSet(&wfset, true) < 0) {
-      // TODO
+    tsdbInitDFileSet(TSDB_COMPACT_WSET(pComph), did, REPO_ID(pRepo), TSDB_FSET_FID(pSet),
+                     FS_TXN_VERSION(REPO_FS(pRepo)));
+    if (tsdbCreateDFileSet(TSDB_COMPACT_WSET(pComph), true) < 0) {
+      tsdbError("vgId:%d failed to compact FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
+      tsdbCompactFSetEnd(pComph);
       return -1;
     }
 
-    for (int tid = 1; tid < taosArrayGetSize(pComph->tbArray); tid++) {
-      STableCompactH *pTh = (STableCompactH *)taosArrayGet(pComph->tbArray, tid);
-
-      if (pTh->pTable == NULL || pTh->pBlkIdx == NULL) continue;
-
-      tdInitDataCols(pComph->pDataCols, tsdbGetTableSchemaImpl(pTh->pTable, false, false, -1)); // TODO
-      for (int i = 0; i < pTh->pBlkIdx->numOfBlocks; i++) {
-        SBlock *pBlock = pTh->pInfo->blocks + i;
-
-        if (pBlock->numOfSubBlocks == 1 && pComph->pDataCols->numOfRows == 0 && pBlock->numOfRows >= defaultRows) {
-          if (tsdbLoadBlockData(pReadH, pBlock, pTh->pInfo) < 0) {
-            // TODO
-            return -1;
-          }
-
-          if (tsdbWriteBlockImpl(TSDB_COMPACT_REPO(pComph), pTh->pTable, TSDB_COMPACT_DATA_FILE(pComph),
-                                 pReadH->pDCols[0], &block, false, true, ppBuf, ppCBuf) < 0) {
-            // if (tsdbWriteBlock(NULL, NULL, pReadH->pDCols[0], &block, true, true) < 0) {
-            // TODO
-            return -1;
-          }
-
-          if (taosArrayPush(pComph->aSupBlk, (void *)pBlock) < 0) {
-            // TODO
-            terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-            return -1;
-          }
-        } else {
-          if (tsdbLoadBlockData(pReadH, pBlock, pTh->pInfo) < 0) {
-            // TODO
-            return -1;
-          }
-
-          int rowsToMerge = (pBlock->numOfRows, defaultRows - pComph->pDataCols->numOfRows);
-        }
-
-        if (pComph->pDataCols->numOfRows > 0) {
-          if (tsdbWriteBlock(NULL/*TODO*/, NULL, pComph->pDataCols, &block, true/*TODO*/, true) < 0) {
-            // TODO
-            return -1;
-          }
-        }
-      }
-
-      if (tsdbWriteBlockInfoImpl(TSDB_COMPACT_HEAD_FILE(pComph), pTh->pTable, pComph->aSupBlk, NULL, ppBuf, &blkIdx) <
-          0) {
-        // TODO
-        return -1;
-      }
-
-      if (blkIdx.numOfBlocks > 0) {
-        if (taosArrayPush(pComph->aBlkIdx, (void *)(&blkIdx)) == NULL) {
-          // TODO
-          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-          return -1;
-        }
-      }
-    }
-
-    if (tsdbWriteBlockIdx(TSDB_COMPACT_HEAD_FILE(pComph), pComph->aBlkIdx, ppBuf) < 0) {
-      // TODO
+    if (tsdbCompactFSetImpl(pComph) < 0) {
+      tsdbCloseDFileSet(TSDB_COMPACT_WSET(pComph));
+      tsdbRemoveDFileSet(TSDB_COMPACT_WSET(pComph));
+      tsdbCompactFSetEnd(pComph);
       return -1;
     }
 
@@ -247,6 +190,7 @@ static int tsdbCompactFSet(SCompactH *pComph, SDFileSet *pSet) {
     tsdbDebug("vgId:%d FSET %d compact over", REPO_ID(pRepo), fset.fid);
   }
 
+  tsdbCompactFSetEnd(pComph);
   return 0;
 }
 
@@ -328,7 +272,7 @@ static int tsdbInitCompTbArray(SCompactH *pComph) {  // Init pComp->tbArray
       ch.pTable = pMeta->tables[i];
     }
 
-    if (taosArrayPush(pComph->tbArray, &ch) < 0) {
+    if (taosArrayPush(pComph->tbArray, &ch) == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       tsdbUnlockRepoMeta(pRepo);
       return -1;
@@ -349,6 +293,8 @@ static void tsdbDestroyCompTbArray(SCompactH *pComph) {
     if (pTh->pTable) {
       tsdbUnRefTable(pTh->pTable);
     }
+
+    pTh->pInfo = taosTZfree(pTh->pInfo);
   }
 
   pComph->tbArray = taosArrayDestroy(pComph->tbArray);
@@ -358,17 +304,15 @@ static int tsdbCacheFSetIndex(SCompactH *pComph) {
   SReadH *pReadH = &(pComph->readh);
 
   if (tsdbLoadBlockIdx(pReadH) < 0) {
-    // TODO
     return -1;
   }
 
   for (int tid = 1; tid < taosArrayGetSize(pComph->tbArray); tid++) {
-    STableCompactH *pTh = taosArrayGet(pComph->tbArray, tid);
+    STableCompactH *pTh = (STableCompactH *)taosArrayGet(pComph->tbArray, tid);
     pTh->pBlkIdx = NULL;
 
     if (pTh->pTable == NULL) continue;
     if (tsdbSetReadTable(pReadH, pTh->pTable) < 0) {
-      // TODO
       return -1;
     }
 
@@ -376,13 +320,11 @@ static int tsdbCacheFSetIndex(SCompactH *pComph) {
     pTh->bindex = *(pReadH->pBlkIdx);
     pTh->pBlkIdx = &(pTh->bindex);
 
-    if (tsdbMakeRoom((void **)(&pTh->pInfo), pTh->pBlkIdx->len) < 0) {
-      // TODO
+    if (tsdbMakeRoom((void **)(&(pTh->pInfo)), pTh->pBlkIdx->len) < 0) {
       return -1;
     }
 
     if (tsdbLoadBlockInfo(pReadH, (void *)(pTh->pInfo)) < 0) {
-      // TODO
       return -1;
     }
   }
@@ -406,6 +348,112 @@ static int tsdbCompactFSetInit(SCompactH *pComph, SDFileSet *pSet) {
   return 0;
 }
 
-static void tsdbCompactFSetEnd(SCompactH *pComph) {
-  // TODO
+static void tsdbCompactFSetEnd(SCompactH *pComph) { tsdbCloseAndUnsetFSet(&(pComph->readh)); }
+
+static int tsdbCompactFSetImpl(SCompactH *pComph) {
+  STsdbRepo *pRepo = TSDB_COMPACT_REPO(pComph);
+  STsdbCfg * pCfg = REPO_CFG(pRepo);
+  SReadH *   pReadh = &(pComph->readh);
+  void **    ppBuf = &(TSDB_COMPACT_BUF(pComph));
+  void **    ppCBuf = &(TSDB_COMPACT_COMP_BUF(pComph));
+  SBlock     block;
+  int        defaultRows = TSDB_DEFAULT_BLOCK_ROWS(pCfg->maxRowsPerFileBlock);
+
+  taosArrayClear(pComph->aBlkIdx);
+
+  for (int tid = 1; tid < taosArrayGetSize(pComph->tbArray); tid++) {
+    STableCompactH *pTh = (STableCompactH *)taosArrayGet(pComph->tbArray, tid);
+    STSchema *      pSchema;
+
+    if (pTh->pTable == NULL || pTh->pBlkIdx == NULL) continue;
+
+    pSchema = tsdbGetTableSchemaImpl(pTh->pTable, false, false, -1);
+    taosArrayClear(pComph->aSupBlk);
+    if ((tdInitDataCols(pComph->pDataCols, pSchema) < 0) || (tdInitDataCols(pReadh->pDCols[0], pSchema) < 0) ||
+        (tdInitDataCols(pReadh->pDCols[1], pSchema) < 0)) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    // Loop to compact each block data
+    for (int i = 0; i < pTh->pBlkIdx->numOfBlocks; i++) {
+      SBlock *pBlock = pTh->pInfo->blocks + i;
+
+      // Load the block data
+      if (tsdbLoadBlockData(pReadH, pBlock, pTh->pInfo) < 0) {
+        return -1;
+      }
+
+      if (pComph->pDataCols->numOfRows == 0 && pBlock->numOfRows >= defaultRows) {
+        if (tsdbWriteBlockImpl(pRepo, pTh->pTable, TSDB_COMPACT_DATA_FILE(pComph), pReadH->pDCols[0], &block, false,
+                                true, ppBuf, ppCBuf) < 0) {
+          return -1;
+        }
+
+        if (taosArrayPush(pComph->aSupBlk, (void *)(&block)) == NULL) {
+          terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+          return -1;
+        }
+      } else {
+        // TODO
+        int rowsToMerge = (pBlock->numOfRows, defaultRows - pComph->pDataCols->numOfRows);
+      }
+    }
+
+    if (pComph->pDataCols->numOfRows > 0 && tsdbWriteBlockToRightFile(pComph, pTh->pTable, )) {
+      if (tsdbWriteBlockImpl(pRepo, pTh->pTable, , pComph->pDataCols, &block, , true, ppBuf, ppCBuf) < 0) {
+        return -1;
+      }
+
+      if (taosArrayPush(pComph->aSupBlk, (void *)(&block)) == NULL) {
+        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+        return -1;
+      }
+    }
+
+    if (tsdbWriteBlockInfoImpl(TSDB_COMPACT_HEAD_FILE(pComph), pTh->pTable, pComph->aSupBlk, NULL, ppBuf, &blkIdx) <
+        0) {
+      return -1;
+    }
+
+    if ((blkIdx.numOfBlocks > 0) && (taosArrayPush(pComph->aBlkIdx, (void *)(&blkIdx)) == NULL)) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      return -1;
+    }
+  }
+
+  if (tsdbWriteBlockIdx(TSDB_COMPACT_HEAD_FILE(pComph), pComph->aBlkIdx, ppBuf) < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int tsdbWriteBlockToRightFile(SCompactH *pComph, STable *pTable, SDataCols *pDataCols, void **ppBuf, void **ppCBuf) {
+  STsdbRepo *pRepo = TSDB_COMPACT_REPO(pComph);
+  STsdbCfg * pCfg = REPO_CFG(pRepo);
+  SDFile *   pDFile;
+  bool       isLast;
+  SBlock     block;
+
+  ASSERT(pDataCols->numOfRows > 0);
+
+  if (pDataCols->numOfRows < pCfg->minRowsPerFileBlock) {
+    pDFile = TSDB_COMPACT_LAST_FILE(pComph);
+    isLast = true;
+  } else {
+    pDFile = TSDB_COMPACT_DATA_FILE(pComph);
+    isLast = false;
+  }
+
+  if (tsdbWriteBlockImpl(pRepo, pTable, pDFile, pDataCols, &block, isLast, true, ppBuf, ppCBuf) < 0) {
+    return -1;
+  }
+
+  if (taosArrayPush(pComph->aSupBlk, (void *)(&block)) == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  return 0;
 }
