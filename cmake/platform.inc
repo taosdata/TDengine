@@ -101,6 +101,14 @@ ELSEIF (${CPUTYPE} MATCHES "x86")
   MESSAGE(STATUS "input cpuType: x86")
 ELSE ()
   MESSAGE(STATUS "input cpuType unknown " ${CPUTYPE})
+
+  MESSAGE(STATUS "The current platform is " ${CMAKE_SYSTEM_PROCESSOR})
+  IF (CMAKE_SYSTEM_PROCESSOR MATCHES "(x86)|(X86)|(amd64)|(AMD64)")
+    MESSAGE(STATUS "The current platform is x86")
+  ELSE ()
+    MESSAGE(STATUS "The current os is NOT x86")
+  ENDIF ()
+
 ENDIF ()
 
 #   cmake -DOSTYPE=Ningsi
