@@ -2733,15 +2733,19 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   if (pInfo->stage == 0) {
     if (pCtx->preAggVals.isSet) {
       double tmin = 0.0, tmax = 0.0;
-      if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
-        tmin = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.min); 
-        tmax = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.max); 
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
-        tmin = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.min); 
-        tmax = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.max); 
+      if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+        tmin = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.min);
+        tmax = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.max);
+      } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
+        tmin = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.min);
+        tmax = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.max);
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+        tmin = (double)GET_UINT64_VAL(&pCtx->preAggVals.statis.min);
+        tmax = (double)GET_UINT64_VAL(&pCtx->preAggVals.statis.max);
       } else {
         assert(true);
       }
+
       if (GET_DOUBLE_VAL(&pInfo->minval) > tmin) {
         SET_DOUBLE_VAL(&pInfo->minval, tmin);
       }
