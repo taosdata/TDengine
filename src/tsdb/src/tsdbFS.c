@@ -1045,7 +1045,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
     int code = regexec(&regex, bname, 0, NULL, 0);
     if (code == 0) {
-      if (taosArrayPush(fArray, (void *)pf) < 0) {
+      if (taosArrayPush(fArray, (void *)pf) == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         tfsClosedir(tdir);
         taosArrayDestroy(fArray);

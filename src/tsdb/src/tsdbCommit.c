@@ -1188,12 +1188,12 @@ static int tsdbMoveBlock(SCommitH *pCommith, int bidx) {
 }
 
 static int tsdbCommitAddBlock(SCommitH *pCommith, const SBlock *pSupBlock, const SBlock *pSubBlocks, int nSubBlocks) {
-  if (taosArrayPush(pCommith->aSupBlk, pSupBlock) < 0) {
+  if (taosArrayPush(pCommith->aSupBlk, pSupBlock) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
 
-  if (pSubBlocks && taosArrayPushBatch(pCommith->aSubBlk, pSubBlocks, nSubBlocks) < 0) {
+  if (pSubBlocks && taosArrayPushBatch(pCommith->aSubBlk, pSubBlocks, nSubBlocks) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
