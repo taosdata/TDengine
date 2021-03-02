@@ -57,9 +57,7 @@ sudo apt-get install -y  maven
 
 ### Centos 7:
 ```bash
-sudo yum install -y gcc gcc-c++ make cmake3 epel-release git
-sudo yum remove -y cmake
-sudo ln -s /usr/bin/cmake3 /usr/bin/cmake
+sudo yum install -y gcc gcc-c++ make cmake git
 ```
 
 To install openjdk-8:
