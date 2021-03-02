@@ -58,15 +58,15 @@
 #include "taos.h"
 #include "tutil.h"
 
+#define REQ_EXTRA_BUF_LEN   1024
+#define RESP_BUF_LEN        4096
+
 #ifdef WINDOWS
 #include <windows.h>
 // Some old MinGW/CYGWIN distributions don't define this:
 #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
 #define ENABLE_VIRTUAL_TERMINAL_PROCESSING  0x0004
 #endif
-
-#define REQ_EXTRA_BUF_LEN   1024
-#define RESP_BUF_LEN        4096
 
 static HANDLE g_stdoutHandle;
 static DWORD g_consoleMode;
