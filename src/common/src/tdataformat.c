@@ -441,30 +441,35 @@ void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols)
   pCols->numOfRows++;
 }
 
-int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge) {
+int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *pOffset) {
   ASSERT(rowsToMerge > 0 && rowsToMerge <= source->numOfRows);
   ASSERT(target->numOfCols == source->numOfCols);
+  int offset = 0;
+
+  if (pOffset == NULL) {
+    pOffset = &offset;
+  }
 
   SDataCols *pTarget = NULL;
 
-  if (dataColsKeyLast(target) < dataColsKeyFirst(source)) {  // No overlap
+  if ((target->numOfRows == 0) || (dataColsKeyLast(target) < dataColsKeyFirst(source))) {  // No overlap
     ASSERT(target->numOfRows + rowsToMerge <= target->maxPoints);
     for (int i = 0; i < rowsToMerge; i++) {
       for (int j = 0; j < source->numOfCols; j++) {
         if (source->cols[j].len > 0) {
-          dataColAppendVal(target->cols + j, tdGetColDataOfRow(source->cols + j, i), target->numOfRows,
+          dataColAppendVal(target->cols + j, tdGetColDataOfRow(source->cols + j, i + (*pOffset)), target->numOfRows,
                            target->maxPoints);
         }
       }
       target->numOfRows++;
+      (*pOffset)++;
     }
   } else {
     pTarget = tdDupDataCols(target, true);
     if (pTarget == NULL) goto _err;
 
     int iter1 = 0;
-    int iter2 = 0;
-    tdMergeTwoDataCols(target, pTarget, &iter1, pTarget->numOfRows, source, &iter2, source->numOfRows,
+    tdMergeTwoDataCols(target, pTarget, &iter1, pTarget->numOfRows, source, pOffset, source->numOfRows,
                        pTarget->numOfRows + rowsToMerge);
   }
 
