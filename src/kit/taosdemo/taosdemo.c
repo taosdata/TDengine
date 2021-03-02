@@ -65,6 +65,9 @@
 #define ENABLE_VIRTUAL_TERMINAL_PROCESSING  0x0004
 #endif
 
+#define REQ_EXTRA_BUF_LEN   1024
+#define RESP_BUF_LEN        4096
+
 static HANDLE g_stdoutHandle;
 static DWORD g_consoleMode;
 
@@ -1510,10 +1513,7 @@ static void printfQuerySystemInfo(TAOS * taos) {
   
 }
 
-#define REQ_EXTRA_BUF_LEN   1024
-#define RESP_BUF_LEN        4096
-
-void ERROR(const char *msg) { perror(msg); exit(0); }
+void ERROR_EXIT(const char *msg) { perror(msg); exit(0); }
 
 int postProceSql(char* host, uint16_t port, char* sqlstr)
 {
@@ -1533,7 +1533,7 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
 
     request_buf = malloc(req_buf_len);
     if (NULL == request_buf)
-        ERROR("ERROR, cannot allocate memory.");
+        ERROR_EXIT("ERROR, cannot allocate memory.");
 
     int r = snprintf(request_buf, 
             req_buf_len, 
@@ -1541,20 +1541,20 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
             auth, strlen(sqlstr), sqlstr);
     if (r >= req_buf_len) {
         free(request_buf);
-        ERROR("ERROR too long request");
+        ERROR_EXIT("ERROR too long request");
     }
     printf("Request:\n%s\n", request_buf);
 
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         free(request_buf);
-        ERROR("ERROR opening socket");
+        ERROR_EXIT("ERROR opening socket");
     }
 
     server = gethostbyname(host);
     if (server == NULL) {
         free(request_buf);
-        ERROR("ERROR, no such host");
+        ERROR_EXIT("ERROR, no such host");
     }
 
     memset(&serv_addr, 0, sizeof(serv_addr));
@@ -1564,7 +1564,7 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
 
     if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) {
         free(request_buf);
-        ERROR("ERROR connecting");
+        ERROR_EXIT("ERROR connecting");
     }
 
     req_str_len = strlen(request_buf);
@@ -1572,7 +1572,7 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
     do {
         bytes = write(sockfd, request_buf + sent, req_str_len - sent);
         if (bytes < 0)
-            ERROR("ERROR writing message to socket");
+            ERROR_EXIT("ERROR writing message to socket");
         if (bytes == 0)
             break;
         sent+=bytes;
@@ -1585,7 +1585,7 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
         bytes = read(sockfd, response_buf + received, resp_len - received);
         if (bytes < 0) {
             free(request_buf);
-            ERROR("ERROR reading response from socket");
+            ERROR_EXIT("ERROR reading response from socket");
         }
         if (bytes == 0)
             break;
@@ -1594,7 +1594,7 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
 
     if (received == resp_len) {
         free(request_buf);
-        ERROR("ERROR storing complete response from socket");
+        ERROR_EXIT("ERROR storing complete response from socket");
     }
 
     printf("Response:\n%s\n", response_buf);
