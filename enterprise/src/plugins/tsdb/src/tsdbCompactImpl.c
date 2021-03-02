@@ -210,8 +210,49 @@ static int tsdbCompactFSet(SCompactH *pComph, SDFileSet *pSet) {
 }
 
 static bool tsdbShouldCompact(SCompactH *pComph) {
-  // TODO
-  return false;
+  STsdbRepo *     pRepo = TSDB_COMPACT_REPO(pComph);
+  STsdbCfg *      pCfg = REPO_CFG(pRepo);
+  SReadH *        pReadh = &(pComph->readh);
+  STableCompactH *pTh;
+  SBlock *        pBlock;
+  int             defaultRows = TSDB_DEFAULT_BLOCK_ROWS(pCfg->maxRowsPerFileBlock);
+  SDFile *        pDataF = TSDB_READ_DATA_FILE(pReadh);
+  SDFile *        pLastF = TSDB_READ_LAST_FILE(pReadh);
+
+  int     tblocks = 0;       // total blocks
+  int     nSubBlocks = 0;    // # of blocks with sub-blocks
+  int     nSmallBlocks = 0;  // # of blocks with rows < defaultRows
+  int64_t tsize = 0;
+
+  for (size_t i = 0; i < taosArrayGetSize(pComph->tbArray); i++) {
+    pTh = (STableCompactH *)taosArrayGet(pComph->tbArray, i);
+
+    if (pTh->pTable == NULL || pTh->pBlkIdx == NULL) continue;
+
+    for (size_t bidx = 0; bidx < pTh->pBlkIdx->numOfBlocks; bidx++) {
+      tblocks++;
+      pBlock = pTh->pInfo->blocks + bidx;
+
+      if (pBlock->numOfRows < defaultRows) {
+        nSmallBlocks++;
+      }
+
+      if (pBlock->numOfSubBlocks > 1) {
+        nSubBlocks++;
+        for (int k = 0; k < pBlock->numOfSubBlocks; k++) {
+          SBlock *iBlock = ((SBlock *)POINTER_SHIFT(pTh->pInfo, pBlock->offset)) + k;
+          tsize = tsize + iBlock->len;
+        }
+      } else if (pBlock->numOfSubBlocks == 1) {
+        tsize += pBlock->len;
+      } else {
+        ASSERT(0);
+      }
+    }
+  }
+
+  return (((nSubBlocks * 1.0 / tblocks) > 0.33) || ((nSmallBlocks * 1.0 / tblocks) > 0.33) ||
+          (tsize * 1.0 / (pDataF->info.size + pLastF->info.size - 2 * TSDB_FILE_HEAD_SIZE) < 0.85));
 }
 
 static int tsdbInitCompactH(SCompactH *pComph, STsdbRepo *pRepo) {
