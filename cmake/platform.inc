@@ -102,10 +102,11 @@ ELSEIF (${CPUTYPE} MATCHES "x86")
 ELSE ()
   MESSAGE(STATUS "input cpuType unknown " ${CPUTYPE})
 
-  MESSAGE(STATUS "The current platform is " ${CMAKE_SYSTEM_PROCESSOR})
+  MESSAGE(STATUS "The current platform is detected as " ${CMAKE_SYSTEM_PROCESSOR})
   IF (CMAKE_SYSTEM_PROCESSOR MATCHES "(x86)|(X86)|(amd64)|(AMD64)")
     MESSAGE(STATUS "The current platform is x86")
   ELSEIF (CMAKE_SYSTEM_PROCESSOR MATCHES "armv7l")
+    MESSAGE(STATUS "Set CPUTYPE to aarch32")
     SET(CPUTYPE "aarch32")
   ENDIF ()
 
