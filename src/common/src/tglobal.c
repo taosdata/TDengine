@@ -47,7 +47,7 @@ char     tsEmail[TSDB_FQDN_LEN] = {0};
 // common
 int32_t tsRpcTimer       = 1000;
 int32_t tsRpcMaxTime     = 600;  // seconds;
-int32_t tsMaxShellConns  = 5000;
+int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0f;
