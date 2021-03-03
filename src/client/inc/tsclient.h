@@ -116,13 +116,6 @@ typedef struct SColumnIndex {
   int16_t columnIndex;
 } SColumnIndex;
 
-typedef struct SInternalField {
-  TAOS_FIELD      field;
-  bool            visible;
-  SExprInfo      *pArithExprInfo;
-  SSqlExpr       *pSqlExpr;
-  SColumn        *pFieldFilters;
-} SInternalField;
 
 typedef struct SFieldInfo {
   int16_t      numOfOutput;   // number of column in result
@@ -135,6 +128,15 @@ typedef struct SColumn {
   int32_t            numOfFilters;
   SColumnFilterInfo *filterInfo;
 } SColumn;
+
+typedef struct SInternalField {
+  TAOS_FIELD      field;
+  bool            visible;
+  SExprInfo      *pArithExprInfo;
+  SSqlExpr       *pSqlExpr;
+  tSQLExpr       *pExpr;          //used for having parse 
+  SColumn        *pFieldFilters;  //having filter info
+} SInternalField;
 
 typedef struct SCond {
   uint64_t uid;
@@ -228,6 +230,7 @@ typedef struct SQueryInfo {
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;
+  int32_t          havingFieldNum;
 } SQueryInfo;
 
 typedef struct {

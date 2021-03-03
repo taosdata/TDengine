@@ -233,6 +233,8 @@ SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t s
 
 tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType);
 
+int32_t tSqlExprCompare(tSQLExpr *left, tSQLExpr *right);
+
 tSQLExpr *tSqlExprClone(tSQLExpr *pSrc);
 
 void tSqlExprDestroy(tSQLExpr *pExpr);

@@ -1229,6 +1229,24 @@ static bool saveGroupResultInfo(SSqlObj *pSql) {
   return false;
 }
 
+int32_t doHavingFilter(SQueryInfo* pQueryInfo) {
+  if (pQueryInfo->havingFieldNum <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  size_t numOfOutput = tscNumOfFields(pQueryInfo);
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    SColumn* pFieldFilters = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i)->pFieldFilters;
+    if (pFieldFilters != NULL) {
+      continue;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
 /**
  *
  * @param pSql
@@ -1268,6 +1286,8 @@ bool genFinalResults(SSqlObj *pSql, SLocalMerger *pLocalMerge, bool noMoreCurren
   if (tscIsSecondStageQuery(pQueryInfo)) {
     doArithmeticCalculate(pQueryInfo, pResBuf, pModel->rowSize, pLocalMerge->finalModel->rowSize);
   }
+
+  doHavingFilter(pQueryInfo);
 
   // no interval query, no fill operation
   if (pQueryInfo->interval.interval == 0 || pQueryInfo->fillType == TSDB_FILL_NONE) {
