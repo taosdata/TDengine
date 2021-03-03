@@ -43,7 +43,7 @@
         select tbname from test.weather
     </select>
 
-    <select id="count">
+    <select id="count" resultType="int">
         select count(*) from test.weather
     </select>
 
