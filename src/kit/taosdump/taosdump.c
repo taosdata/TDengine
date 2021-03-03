@@ -793,6 +793,7 @@ int32_t taosSaveTableOfMetricToTempFile(TAOS *taosCon, char* metric, struct argu
 
   *totalNumOfThread = numOfThread;
 
+  free(tblBuf);
   return 0;
 }
 
@@ -1553,6 +1554,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
     (void)remove(tmpBuf);
   }  
 
+  free(tblBuf);
   return 0;
 }
 
@@ -2107,13 +2109,15 @@ static void taosGetDirectoryFileList(char *inputDir)
   if (fileStat.st_mode & S_IFDIR) {
     taosCheckTablesSQLFile(inputDir);
     tsSqlFileNum = taosGetFilesNum(inputDir, "sql");
-    int totalSQLFileNum = tsSqlFileNum;
+    int tsSqlFileNumOfTbls = tsSqlFileNum;
     if (tsDbSqlFile[0] != 0) {
-      tsSqlFileNum--;
+      tsSqlFileNumOfTbls--;
     }
     taosMallocSQLFiles();
-    taosParseDirectory(inputDir, "sql", tsDumpInSqlFiles, tsSqlFileNum);
-    fprintf(stdout, "\nstart to dispose %d files in %s\n", totalSQLFileNum, inputDir);
+    if (0 != tsSqlFileNumOfTbls) {
+      taosParseDirectory(inputDir, "sql", tsDumpInSqlFiles, tsSqlFileNumOfTbls);
+    }
+    fprintf(stdout, "\nstart to dispose %d files in %s\n", tsSqlFileNum, inputDir);
   }
   else {
     fprintf(stderr, "ERROR: %s is not a directory\n", inputDir);
@@ -2266,7 +2270,10 @@ int taosDumpIn(struct arguments *arguments) {
 
   taosGetDirectoryFileList(arguments->inpath);
 
+  int32_t  tsSqlFileNumOfTbls = tsSqlFileNum;
   if (tsDbSqlFile[0] != 0) {
+    tsSqlFileNumOfTbls--;
+    
     fp = taosOpenDumpInFile(tsDbSqlFile);
     if (NULL == fp) {
       fprintf(stderr, "failed to open input file %s\n", tsDbSqlFile);
@@ -2279,7 +2286,9 @@ int taosDumpIn(struct arguments *arguments) {
     taosDumpInOneFile(taos, fp, tsfCharset, arguments->encode, tsDbSqlFile);
   }
 
-  taosStartDumpInWorkThreads(taos, arguments);
+  if (0 != tsSqlFileNumOfTbls) {
+      taosStartDumpInWorkThreads(taos, arguments);
+  } 
 
   taos_close(taos);
   taosFreeSQLFiles();

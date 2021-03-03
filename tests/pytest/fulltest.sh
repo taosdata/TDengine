@@ -3,12 +3,16 @@ ulimit -c unlimited
 
 python3 ./test.py -f insert/basic.py
 python3 ./test.py -f insert/int.py
+python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/float.py
 python3 ./test.py -f insert/bigint.py
+python3 ./test.py -f insert/unsignedBigint.py
 python3 ./test.py -f insert/bool.py
 python3 ./test.py -f insert/double.py
 python3 ./test.py -f insert/smallint.py
+python3 ./test.py -f insert/unsignedSmallint.py
 python3 ./test.py -f insert/tinyint.py
+python3 ./test.py -f insert/unsignedTinyint.py
 python3 ./test.py -f insert/date.py
 python3 ./test.py -f insert/binary.py
 python3 ./test.py -f insert/nchar.py
@@ -22,6 +26,7 @@ python3 ./test.py -f insert/insertIntoTwoTables.py
 #python3 ./test.py -f insert/before_1970.py
 python3 ./test.py -f insert/metadataUpdate.py
 python3 bug2265.py
+python3 ./test.py -f insert/boundary2.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -150,6 +155,7 @@ python3 ./test.py -f query/filterCombo.py
 python3 ./test.py -f query/queryNormal.py
 python3 ./test.py -f query/queryError.py
 python3 ./test.py -f query/filterAllIntTypes.py
+python3 ./test.py -f query/filterAllUnsignedIntTypes.py
 python3 ./test.py -f query/filterFloatAndDouble.py
 python3 ./test.py -f query/filterOtherTypes.py
 python3 ./test.py -f query/querySort.py
