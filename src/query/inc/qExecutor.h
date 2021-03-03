@@ -226,7 +226,6 @@ typedef struct SQuery {
   SOrderedPrjQueryInfo prjInfo;        // limit value for each vgroup, only available in global order projection query.
   SSingleColumnFilterInfo* pFilterInfo;
 
-  uint32_t         status;             // query status
   STableQueryInfo* current;
   void*            tsdb;
   SMemRef          memRef;
@@ -239,35 +238,32 @@ typedef void (*__optr_cleanup_fn_t)(void* param, int32_t num);
 
 struct SOperatorInfo;
 
-typedef struct {
-  FILE* file;   // file struct pointer
-} SFileResultInfo;
-
 typedef struct SQueryRuntimeEnv {
-  jmp_buf              env;
-  SQuery*              pQuery;
-  void*                qinfo;
-  uint16_t             scanFlag;         // denotes reversed scan of data or not
-  SFillInfo*           pFillInfo;        // todo move to operatorInfo
-  void*                pQueryHandle;
+  jmp_buf               env;
+  SQuery*               pQuery;
+  uint32_t              status;             // query status
+  void*                 qinfo;
+  uint16_t              scanFlag;         // denotes reversed scan of data or not
+  SFillInfo*            pFillInfo;        // todo move to operatorInfo
+  void*                 pQueryHandle;
 
-  int32_t              prevGroupId;      // previous executed group id
-  SDiskbasedResultBuf* pResultBuf;       // query result buffer based on blocked-wised disk file
-  SHashObj*            pResultRowHashTable; // quick locate the window object for each result
-  char*                keyBuf;           // window key buffer
-  SResultRowPool*      pool;             // window result object pool
-  char**               prevRow;
+  int32_t               prevGroupId;      // previous executed group id
+  SDiskbasedResultBuf*  pResultBuf;       // query result buffer based on blocked-wised disk file
+  SHashObj*             pResultRowHashTable; // quick locate the window object for each result
+  char*                 keyBuf;           // window key buffer
+  SResultRowPool*       pool;             // window result object pool
+  char**                prevRow;
 
-  SArray*              prevResult;       // intermediate result, SArray<SInterResult>
-  STSBuf*              pTsBuf;           // timestamp filter list
-  STSCursor            cur;
+  SArray*               prevResult;       // intermediate result, SArray<SInterResult>
+  STSBuf*               pTsBuf;           // timestamp filter list
+  STSCursor             cur;
 
-  char*                tagVal;           // tag value of current data block
-  SArithmeticSupport  *sasArray;
+  char*                 tagVal;           // tag value of current data block
+  SArithmeticSupport   *sasArray;
 
-  SSDataBlock         *outputBuf;
-  int32_t              tableIndex;  //TODO remove it
-  STableGroupInfo      tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
+  SSDataBlock          *outputBuf;
+  int32_t               tableIndex;  //TODO remove it
+  STableGroupInfo       tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   struct SOperatorInfo *proot;
   struct SOperatorInfo *pTableScanner;   // table scan operator
   SGroupResInfo         groupResInfo;
@@ -431,7 +427,7 @@ void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 bool isQueryKilled(SQInfo *pQInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
 bool doBuildResCheck(SQInfo* pQInfo);
-void setQueryStatus(SQuery *pQuery, int8_t status);
+void setQueryStatus(SQueryRuntimeEnv *pRuntimeEnv, int8_t status);
 
 bool onlyQueryTags(SQuery* pQuery);
 void buildTagQueryResult(SQInfo *pQInfo);

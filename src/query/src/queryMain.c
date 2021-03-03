@@ -218,7 +218,7 @@ bool qTableQuery(qinfo_t qinfo) {
 
   if (pQInfo->runtimeEnv.tableqinfoGroupInfo.numOfTables == 0) {
     qDebug("QInfo:%p no table exists for query, abort", pQInfo);
-    setQueryStatus(pQInfo->runtimeEnv.pQuery, QUERY_COMPLETED);
+    setQueryStatus(&pQInfo->runtimeEnv, QUERY_COMPLETED);
     return doBuildResCheck(pQInfo);
   }
 
@@ -340,13 +340,13 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   if (GET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv)) > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
     doDumpQueryResult(pQInfo, (*pRsp)->data);
   } else {
-    setQueryStatus(pQuery, QUERY_OVER);
+    setQueryStatus(pRuntimeEnv, QUERY_OVER);
   }
 
   pQInfo->rspContext = NULL;
   pQInfo->dataReady  = QUERY_RESULT_NOT_READY;
 
-  if (IS_QUERY_KILLED(pQInfo) || Q_STATUS_EQUAL(pQuery->status, QUERY_OVER)) {
+  if (IS_QUERY_KILLED(pQInfo) || Q_STATUS_EQUAL(pRuntimeEnv->status, QUERY_OVER)) {
     // here current thread hold the refcount, so it is safe to free tsdbQueryHandle.
     *continueExec = false;
     (*pRsp)->completed = 1;  // notify no more result to client
@@ -390,8 +390,7 @@ int32_t qQueryCompleted(qinfo_t qinfo) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
-  SQuery* pQuery = pQInfo->runtimeEnv.pQuery;
-  return isQueryKilled(pQInfo) || Q_STATUS_EQUAL(pQuery->status, QUERY_OVER);
+  return isQueryKilled(pQInfo) || Q_STATUS_EQUAL(pQInfo->runtimeEnv.status, QUERY_OVER);
 }
 
 void qDestroyQueryInfo(qinfo_t qHandle) {
