@@ -20,7 +20,7 @@ public class WeatherController {
      * @return
      */
     @GetMapping("/init")
-    public boolean init() {
+    public int init() {
         return weatherService.init();
     }
 
@@ -44,7 +44,7 @@ public class WeatherController {
      * @return
      */
     @PostMapping("/{temperature}/{humidity}")
-    public int saveWeather(@PathVariable int temperature, @PathVariable float humidity) {
+    public int saveWeather(@PathVariable float temperature, @PathVariable int humidity) {
         return weatherService.save(temperature, humidity);
     }
 

@@ -7,15 +7,17 @@ import java.util.List;
 
 public interface WeatherMapper {
 
-    int insert(Weather weather);
+    void createDB();
 
-    int batchInsert(List<Weather> weatherList);
+    void createSuperTable();
+
+    void createTable();
 
     List<Weather> select(@Param("limit") Long limit, @Param("offset") Long offset);
 
-    void createDB();
+    int insert(Weather weather);
 
-    void createTable();
+    int batchInsert(List<Weather> weatherList);
 
     int count();
 
