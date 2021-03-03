@@ -4085,37 +4085,51 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
   }
 
   if (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
-    *(TSKEY *) pCtx->pOutput = pCtx->startTs;
+    *(TSKEY *)pCtx->pOutput = pCtx->startTs;
+  } else if (type == TSDB_FILL_NULL) {
+    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+  } else if (type == TSDB_FILL_SET_VALUE) {
+    tVariantDump(&pCtx->param[1], pCtx->pOutput, pCtx->inputType, true);
   } else {
-    if (type == TSDB_FILL_NULL) {
-      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
-    } else if (type == TSDB_FILL_SET_VALUE) {
-      tVariantDump(&pCtx->param[1], pCtx->pOutput, pCtx->inputType, true);
-    } else if (type == TSDB_FILL_PREV) {
-      assignVal(pCtx->pOutput, pCtx->pInput, pCtx->outputBytes, pCtx->inputType);
-    } else if (type == TSDB_FILL_NEXT) {
-      char* d = GET_INPUT_DATA(pCtx, 1);
-      assignVal(pCtx->pOutput, d, pCtx->outputBytes, pCtx->inputType);
-    } else if (type == TSDB_FILL_LINEAR) {
-      char* start = GET_INPUT_DATA(pCtx, 0);
-      char* end   = GET_INPUT_DATA(pCtx, 1);
-
+    if (pCtx->start.key != INT64_MIN && pCtx->start.key < pCtx->startTs && pCtx->end.key > pCtx->startTs) {
+      // the value of prev/next/linear interpolation is placed in pCtx->start
+      if (IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL) {
+        SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, pCtx->start.val);
+      } else {
+        assignVal(pCtx->pOutput, pCtx->start.ptr, pCtx->outputBytes, pCtx->inputType);
+      }
+    } else {
+      // check the timestamp in input buffer
       TSKEY skey = GET_TS_DATA(pCtx, 0);
       TSKEY ekey = GET_TS_DATA(pCtx, 1);
 
-      SPoint point1 = {.key = skey,   .val = start};
-      SPoint point2 = {.key = ekey,   .val = end  };
-      SPoint point  = {.key = pCtx->startTs,   .val = pCtx->pOutput};
+      assert(pCtx->start.key == INT64_MIN && skey < pCtx->startTs && ekey > pCtx->startTs);
 
-      int32_t srcType = pCtx->inputType;
-      if (IS_NUMERIC_TYPE(srcType)) {  // TODO should find the not null data?
-        if (isNull(start, srcType) || isNull(end, srcType)) {
-          setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
+      if (type == TSDB_FILL_PREV) {
+        assignVal(pCtx->pOutput, pCtx->pInput, pCtx->outputBytes, pCtx->inputType);
+      } else if (type == TSDB_FILL_NEXT) {
+        char* val = pCtx->pInput + pCtx->inputBytes;
+        assignVal(pCtx->pOutput, val, pCtx->outputBytes, pCtx->inputType);
+      } else if (type == TSDB_FILL_LINEAR) {
+        char *start = GET_INPUT_DATA(pCtx, 0);
+        char *end = GET_INPUT_DATA(pCtx, 1);
+
+
+
+        SPoint point1 = {.key = skey, .val = start};
+        SPoint point2 = {.key = ekey, .val = end};
+        SPoint point = {.key = pCtx->startTs, .val = pCtx->pOutput};
+
+        int32_t srcType = pCtx->inputType;
+        if (IS_NUMERIC_TYPE(srcType)) {  // TODO should find the not null data?
+          if (isNull(start, srcType) || isNull(end, srcType)) {
+            setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
+          } else {
+            taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, srcType);
+          }
         } else {
-          taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, srcType);
+          setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
         }
-      } else {
-        setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
       }
     }
   }
