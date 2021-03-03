@@ -95,7 +95,7 @@ class TDTestCase:
         tdSql.query('show databases')
         tdLog.info('tdSql.checkRow(0)')
         tdSql.checkRows(0)
-# convert end
+
 
     def stop(self):
         tdSql.close()
