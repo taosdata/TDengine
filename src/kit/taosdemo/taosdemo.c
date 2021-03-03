@@ -335,6 +335,7 @@ typedef struct SDbCfg_S {
   int       maxRows;
   int       comp;
   int       walLevel;
+  int       cacheLast;
   int       fsync;  
   int       replica;
   int       update;
@@ -2022,6 +2023,9 @@ static int createDatabases() {
     if (g_Dbs.db[i].dbCfg.walLevel > 0) {
       dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen, "wal %d ", g_Dbs.db[i].dbCfg.walLevel);
     }
+    if (g_Dbs.db[i].dbCfg.cacheLast > 0) {
+      dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen, "cachelast %d ", g_Dbs.db[i].dbCfg.cacheLast);
+    }
     if (g_Dbs.db[i].dbCfg.fsync > 0) {
       dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen, "fsync %d ", g_Dbs.db[i].dbCfg.fsync);
     }
@@ -2719,6 +2723,16 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       g_Dbs.db[i].dbCfg.walLevel = -1;
     } else {
      printf("failed to read json, walLevel not found");
+     goto PARSE_OVER;
+    }
+
+    cJSON* cacheLast= cJSON_GetObjectItem(dbinfo, "cachelast");
+    if (cacheLast && cacheLast->type == cJSON_Number) {
+      g_Dbs.db[i].dbCfg.cacheLast = cacheLast->valueint;
+    } else if (!cacheLast) {
+      g_Dbs.db[i].dbCfg.cacheLast = -1;
+    } else {
+     printf("failed to read json, cacheLast not found");
      goto PARSE_OVER;
     }
 
