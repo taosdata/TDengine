@@ -37,7 +37,7 @@ typedef struct {
   TSKEY      keyLast;
   int64_t    numOfRows;
   SSkipList* pData;
-  T_REF_DECLARE();
+  T_REF_DECLARE()
 } STableData;
 
 typedef struct {
