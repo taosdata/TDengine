@@ -262,7 +262,7 @@ bool tsdbNextDataBlock(TsdbQueryHandleT *pQueryHandle);
  */
 bool tsdbNextDataBlockWithoutMerge(TsdbQueryHandleT *pQueryHandle);
 
-SArray* tsdbGetExternalRow(TsdbQueryHandleT *pHandle, SMemRef* pMemRef, int16_t type);
+SArray* tsdbGetExternalRow(TsdbQueryHandleT *pHandle, SDataBlockInfo* blockInfo);
 
 /**
  * Get current data block information

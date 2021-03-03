@@ -484,6 +484,9 @@ void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCon
     tsdbCleanupQueryHandle(pQueryHandle);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
   }
+
+  pQueryHandle->prev = doFreeColumnInfoData(pQueryHandle->prev);
+  pQueryHandle->next = doFreeColumnInfoData(pQueryHandle->next);
 }
 
 TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, void* qinfo, SMemRef* pMemRef) {
@@ -2445,10 +2448,37 @@ out_of_memory:
   return terrno;
 }
 
-SArray* tsdbGetExternalRow(TsdbQueryHandleT *pHandle, SMemRef* pMemRef, int16_t type) {
+SArray* tsdbGetExternalRow(TsdbQueryHandleT *pHandle, SDataBlockInfo* blockInfo) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) pHandle;
-  assert(type == TSDB_PREV_ROW || type == TSDB_NEXT_ROW);
-  return (type == TSDB_PREV_ROW)? pQueryHandle->prev:pQueryHandle->next;
+  int32_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
+
+  STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, 0);
+  blockInfo->tid = pCheckInfo->tableId.tid;
+  blockInfo->uid = pCheckInfo->tableId.uid;
+  blockInfo->numOfCols = numOfCols;
+
+  if (pQueryHandle->prev == NULL || pQueryHandle->next == NULL) {
+    blockInfo->rows = 0;
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pQueryHandle->pColumns, i);
+    SColumnInfoData* first = taosArrayGet(pQueryHandle->prev, i);
+
+    memcpy(pColInfoData->pData, first->pData, pColInfoData->info.bytes);
+
+    SColumnInfoData* sec = taosArrayGet(pQueryHandle->next, i);
+    memcpy(pColInfoData->pData + pColInfoData->info.bytes, sec->pData, pColInfoData->info.bytes);
+
+    if (i == 0 && pColInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      blockInfo->window.skey = *(TSKEY*)pColInfoData->pData;
+      blockInfo->window.ekey = *(TSKEY*)(pColInfoData->pData + TSDB_KEYSIZE);
+    }
+  }
+
+  blockInfo->rows = 2;
+  return pQueryHandle->pColumns;
 }
 
 /*

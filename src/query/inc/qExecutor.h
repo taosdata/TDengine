@@ -345,29 +345,28 @@ typedef struct SQueryParam {
 typedef struct STableScanInfo {
   SQueryRuntimeEnv *pRuntimeEnv;
 
-  void        *pQueryHandle;
-  int32_t      numOfBlocks;
-  int32_t      numOfSkipped;
-  int32_t      numOfBlockStatis;
-  int64_t      numOfRows;
+  void           *pQueryHandle;
+  int32_t         numOfBlocks;
+  int32_t         numOfSkipped;
+  int32_t         numOfBlockStatis;
+  int64_t         numOfRows;
+                 
+  int32_t         order;        // scan order
+  int32_t         times;        // repeat counts
+  int32_t         current;
+  int32_t         reverseTimes; // 0 by default
 
-  int32_t      order;  // scan order
-  int32_t      times;  // repeat counts
-  int32_t      current;
-
-  int32_t      reverseTimes; // 0 by default
-
-  SSDataBlock  block;
-
-  SQLFunctionCtx *pCtx;  // next operator query context
+  SQLFunctionCtx *pCtx;         // next operator query context
   SResultRowInfo *pResultRowInfo;
   int32_t        *rowCellInfoOffset;
   SExprInfo      *pExpr;
-
+  SSDataBlock     block;
+  bool            loadExternalRows; // load external rows (prev & next rows)
+  bool            externalLoaded;   // external rows loaded
   int32_t         numOfOutput;
   int64_t         elapsedTime;
 
-  int32_t tableIndex;
+  int32_t         tableIndex;
 } STableScanInfo;
 
 typedef struct STagScanInfo {

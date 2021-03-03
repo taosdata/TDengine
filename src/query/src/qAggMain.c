@@ -4087,38 +4087,32 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
   if (pCtx->inputType == TSDB_DATA_TYPE_TIMESTAMP) {
     *(TSKEY *) pCtx->pOutput = pCtx->startTs;
   } else {
-    if (pCtx->start.key == INT64_MIN) {
-      assert(pCtx->end.key == INT64_MIN);
-      return;
-    }
-
     if (type == TSDB_FILL_NULL) {
       setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
     } else if (type == TSDB_FILL_SET_VALUE) {
       tVariantDump(&pCtx->param[1], pCtx->pOutput, pCtx->inputType, true);
     } else if (type == TSDB_FILL_PREV) {
-      if (IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL) {
-        SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, pCtx->start.val);
-      } else {
-        assignVal(pCtx->pOutput, pCtx->start.ptr, pCtx->outputBytes, pCtx->inputType);
-      }
+      assignVal(pCtx->pOutput, pCtx->pInput, pCtx->outputBytes, pCtx->inputType);
     } else if (type == TSDB_FILL_NEXT) {
-      if (IS_NUMERIC_TYPE(pCtx->inputType) || pCtx->inputType == TSDB_DATA_TYPE_BOOL) {
-        SET_TYPED_DATA(pCtx->pOutput, pCtx->inputType, pCtx->end.val);
-      } else {
-        assignVal(pCtx->pOutput, pCtx->end.ptr, pCtx->outputBytes, pCtx->inputType);
-      }
+      char* d = GET_INPUT_DATA(pCtx, 1);
+      assignVal(pCtx->pOutput, d, pCtx->outputBytes, pCtx->inputType);
     } else if (type == TSDB_FILL_LINEAR) {
-      SPoint point1 = {.key = pCtx->start.key, .val = &pCtx->start.val};
-      SPoint point2 = {.key = pCtx->end.key, .val = &pCtx->end.val};
-      SPoint point  = {.key = pCtx->startTs, .val = pCtx->pOutput};
+      char* start = GET_INPUT_DATA(pCtx, 0);
+      char* end   = GET_INPUT_DATA(pCtx, 1);
+
+      TSKEY skey = GET_TS_DATA(pCtx, 0);
+      TSKEY ekey = GET_TS_DATA(pCtx, 1);
+
+      SPoint point1 = {.key = skey,   .val = start};
+      SPoint point2 = {.key = ekey,   .val = end  };
+      SPoint point  = {.key = pCtx->startTs,   .val = pCtx->pOutput};
 
       int32_t srcType = pCtx->inputType;
       if (IS_NUMERIC_TYPE(srcType)) {  // TODO should find the not null data?
-        if (isNull((char *)&pCtx->start.val, srcType) || isNull((char *)&pCtx->end.val, srcType)) {
+        if (isNull(start, srcType) || isNull(end, srcType)) {
           setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
         } else {
-          taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, TSDB_DATA_TYPE_DOUBLE);
+          taosGetLinearInterpolationVal(&point, pCtx->outputType, &point1, &point2, srcType);
         }
       } else {
         setNull(pCtx->pOutput, srcType, pCtx->inputBytes);
@@ -4127,8 +4121,8 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
   }
 
   SET_VAL(pCtx, 1, 1);
-
 }
+
 static void interp_function(SQLFunctionCtx *pCtx) {
   // at this point, the value is existed, return directly
   if (pCtx->size > 0) {
