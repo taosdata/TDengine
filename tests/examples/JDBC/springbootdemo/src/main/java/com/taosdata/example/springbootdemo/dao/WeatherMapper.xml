@@ -39,7 +39,7 @@
         insert into test.t#{groupId} (ts, temperature, humidity) values (#{ts}, ${temperature}, ${humidity})
     </insert>
 
-    <select id="getSubTables">
+    <select id="getSubTables" resultType="String">
         select tbname from test.weather
     </select>
 
