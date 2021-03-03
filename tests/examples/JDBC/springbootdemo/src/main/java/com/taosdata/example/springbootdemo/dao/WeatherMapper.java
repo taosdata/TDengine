@@ -11,9 +11,13 @@ public interface WeatherMapper {
 
     int batchInsert(List<Weather> weatherList);
 
-    List<Weather> select(@Param("limit") Long limit, @Param("offset")Long offset);
+    List<Weather> select(@Param("limit") Long limit, @Param("offset") Long offset);
 
     void createDB();
 
     void createTable();
+
+    int count();
+
+    List<String> getSubTables();
 }

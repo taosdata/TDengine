@@ -59,4 +59,14 @@ public class WeatherController {
         return weatherService.save(weatherList);
     }
 
+    @GetMapping("/count")
+    public int count() {
+        return weatherService.count();
+    }
+
+    @GetMapping("/subTables")
+    public List<String> getSubTables() {
+        return weatherService.getSubTables();
+    }
+
 }

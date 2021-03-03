@@ -35,4 +35,12 @@ public class WeatherService {
         return weatherMapper.batchInsert(weatherList);
     }
 
+    public int count() {
+        return weatherMapper.count();
+    }
+
+    public List<String> getSubTables() {
+        return weatherMapper.getSubTables();
+    }
+
 }

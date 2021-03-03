@@ -4,16 +4,16 @@
 <mapper namespace="com.taosdata.example.springbootdemo.dao.WeatherMapper">
 
     <resultMap id="BaseResultMap" type="com.taosdata.example.springbootdemo.domain.Weather">
-        <id column="ts" jdbcType="TIMESTAMP" property="ts" />
-        <result column="temperature" jdbcType="INTEGER" property="temperature" />
-        <result column="humidity" jdbcType="FLOAT" property="humidity" />
+        <id column="ts" jdbcType="TIMESTAMP" property="ts"/>
+        <result column="temperature" jdbcType="INTEGER" property="temperature"/>
+        <result column="humidity" jdbcType="FLOAT" property="humidity"/>
     </resultMap>
 
-    <update id="createDB" >
+    <update id="createDB">
         create database if not exists test;
     </update>
 
-    <update id="createTable" >
+    <update id="createTable">
         create table if not exists test.weather(ts timestamp, temperature int, humidity float);
     </update>
 
@@ -23,7 +23,7 @@
 
     <select id="select" resultMap="BaseResultMap">
         select
-        <include refid="Base_Column_List" />
+        <include refid="Base_Column_List"/>
         from test.weather
         order by ts desc
         <if test="limit != null">
@@ -34,16 +34,23 @@
         </if>
     </select>
 
-    <insert id="insert" parameterType="com.taosdata.example.springbootdemo.domain.Weather" >
+    <insert id="insert" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
         insert into test.weather (ts, temperature, humidity) values (now, #{temperature,jdbcType=INTEGER}, #{humidity,jdbcType=FLOAT})
     </insert>
 
-    <insert id="batchInsert" parameterType="java.util.List" >
+    <insert id="batchInsert" parameterType="java.util.List">
         insert into test.weather (ts, temperature, humidity) values
-        <foreach separator=" " collection="list" item="weather" index="index" >
+        <foreach separator=" " collection="list" item="weather" index="index">
             (now + #{index}a, #{weather.temperature}, #{weather.humidity})
         </foreach>
     </insert>
 
+    <select id="getSubTables">
+        select tbname from test.weather
+    </select>
+
+    <select id="count">
+        select count(*) from test.weather;
+    </select>
 
 </mapper>
