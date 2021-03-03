@@ -4,8 +4,11 @@ import com.taosdata.example.springbootdemo.domain.Weather;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
+import java.util.Map;
 
 public interface WeatherMapper {
+
+    void dropDB();
 
     void createDB();
 
@@ -20,4 +23,7 @@ public interface WeatherMapper {
     int count();
 
     List<String> getSubTables();
+
+    Map avg();
+
 }

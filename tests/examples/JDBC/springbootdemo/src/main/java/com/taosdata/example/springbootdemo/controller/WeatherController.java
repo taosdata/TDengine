@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RequestMapping("/weather")
 @RestController
@@ -56,6 +57,11 @@ public class WeatherController {
     @GetMapping("/subTables")
     public List<String> getSubTables() {
         return weatherService.getSubTables();
+    }
+
+    @GetMapping("/avg")
+    public Map avg() {
+        return weatherService.avg();
     }
 
 }

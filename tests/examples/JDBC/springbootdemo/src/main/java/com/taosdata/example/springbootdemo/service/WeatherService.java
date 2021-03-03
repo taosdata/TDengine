@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 
 import java.sql.Timestamp;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 
 @Service
@@ -18,12 +19,14 @@ public class WeatherService {
     private String[] locations = {"北京", "上海", "广州", "深圳", "天津"};
 
     public int init() {
+        weatherMapper.dropDB();
         weatherMapper.createDB();
         weatherMapper.createSuperTable();
         long ts = System.currentTimeMillis();
+        long thirtySec = 1000 * 30;
         int count = 0;
-        for (int i = 0; i < 10; i++) {
-            Weather weather = new Weather(new Timestamp(ts + (1000 * i)), 30 * random.nextFloat(), random.nextInt(100));
+        for (int i = 0; i < 20; i++) {
+            Weather weather = new Weather(new Timestamp(ts + (thirtySec * i)), 30 * random.nextFloat(), random.nextInt(100));
             weather.setLocation(locations[random.nextInt(locations.length)]);
             weather.setGroupId(i % locations.length);
             weatherMapper.createTable(weather);
@@ -52,4 +55,7 @@ public class WeatherService {
         return weatherMapper.getSubTables();
     }
 
+    public Map avg() {
+        return weatherMapper.avg();
+    }
 }

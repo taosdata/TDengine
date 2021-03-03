@@ -9,16 +9,20 @@
         <result column="humidity" jdbcType="FLOAT" property="humidity"/>
     </resultMap>
 
+    <update id="dropDB">
+        drop database if exists test
+    </update>
+
     <update id="createDB">
         create database if not exists test
     </update>
 
     <update id="createSuperTable">
-        create table if not exists test.weather(ts timestamp, temporary float, humidity int) tags(location nchar(64), groupId int)
+        create table if not exists test.weather(ts timestamp, temperature float, humidity int) tags(location nchar(64), groupId int)
     </update>
 
     <update id="createTable" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
-        create table test.t#{groupId} using test.weather tags(#{location}, #{groupId})
+        create table if not exists test.t#{groupId} using test.weather tags(#{location}, #{groupId})
     </update>
 
     <select id="select" resultMap="BaseResultMap">
@@ -32,7 +36,7 @@
     </select>
 
     <insert id="insert" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
-        insert into test.t#{groupId} (ts, temperature, humidity) values (#{ts}, #{temperature}, #{humidity})
+        insert into test.t#{groupId} (ts, temperature, humidity) values (#{ts}, ${temperature}, ${humidity})
     </insert>
 
     <select id="getSubTables">
@@ -41,6 +45,10 @@
 
     <select id="count">
         select count(*) from test.weather
+    </select>
+
+    <select id="avg" resultType="map">
+        select avg(temperature), avg(humidity)from test.weather interval(1m)
     </select>
 
 </mapper>
