@@ -1894,8 +1894,7 @@ _clean:
   return TSDB_CODE_QRY_OUT_OF_MEMORY;
 }
 
-static void doFreeQueryHandle(SQInfo* pQInfo) {
-  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
+static void doFreeQueryHandle(SQueryRuntimeEnv* pRuntimeEnv) {
   SQuery* pQuery = pRuntimeEnv->pQuery;
 
   tsdbCleanupQueryHandle(pRuntimeEnv->pQueryHandle);
@@ -1923,7 +1922,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   pRuntimeEnv->pFillInfo = taosDestroyFillInfo(pRuntimeEnv->pFillInfo);
 
   destroyResultBuf(pRuntimeEnv->pResultBuf);
-  doFreeQueryHandle(pQInfo);
+  doFreeQueryHandle(pRuntimeEnv);
 
   pRuntimeEnv->pTsBuf = tsBufDestroy(pRuntimeEnv->pTsBuf);
 

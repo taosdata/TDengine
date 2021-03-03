@@ -265,13 +265,13 @@ typedef struct SQueryRuntimeEnv {
   char*                tagVal;           // tag value of current data block
   SArithmeticSupport  *sasArray;
 
-  SSDataBlock     *outputBuf;
-  int32_t          tableIndex;  //TODO remove it
-  STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
-  struct SOperatorInfo   *proot;
-  struct SOperatorInfo   *pTableScanner;  // table scan operator
-  SGroupResInfo    groupResInfo;
-  int64_t          currentOffset;        // dynamic offset value
+  SSDataBlock         *outputBuf;
+  int32_t              tableIndex;  //TODO remove it
+  STableGroupInfo      tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
+  struct SOperatorInfo *proot;
+  struct SOperatorInfo *pTableScanner;   // table scan operator
+  SGroupResInfo         groupResInfo;
+  int64_t               currentOffset;   // dynamic offset value
 
   SRspResultInfo   resultInfo;
 } SQueryRuntimeEnv;
