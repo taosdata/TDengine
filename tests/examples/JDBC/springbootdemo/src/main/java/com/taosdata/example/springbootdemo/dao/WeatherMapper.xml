@@ -10,7 +10,7 @@
     </resultMap>
 
     <update id="createDB">
-        create database if not exists test;
+        create database if not exists test
     </update>
 
     <update id="createSuperTable">
@@ -32,14 +32,7 @@
     </select>
 
     <insert id="insert" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
-        insert into test.weather (ts, temperature, humidity) values (now, #{temperature,jdbcType=INTEGER}, #{humidity,jdbcType=FLOAT})
-    </insert>
-
-    <insert id="batchInsert" parameterType="java.util.List">
-        insert into test.weather (ts, temperature, humidity) values
-        <foreach separator=" " collection="list" item="weather" index="index">
-            (now + #{index}a, #{weather.temperature}, #{weather.humidity})
-        </foreach>
+        insert into test.t#{groupId} (ts, temperature, humidity) values (#{ts}, #{temperature}, #{humidity})
     </insert>
 
     <select id="getSubTables">

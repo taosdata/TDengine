@@ -15,15 +15,19 @@ public class WeatherService {
     @Autowired
     private WeatherMapper weatherMapper;
     private Random random = new Random(System.currentTimeMillis());
+    private String[] locations = {"北京", "上海", "广州", "深圳", "天津"};
 
     public int init() {
         weatherMapper.createDB();
         weatherMapper.createSuperTable();
-        weatherMapper.createTable();
         long ts = System.currentTimeMillis();
         int count = 0;
         for (int i = 0; i < 10; i++) {
-            count += weatherMapper.insert(new Weather(new Timestamp(ts + (1000 * i)), 30 * random.nextFloat(), random.nextInt(100)));
+            Weather weather = new Weather(new Timestamp(ts + (1000 * i)), 30 * random.nextFloat(), random.nextInt(100));
+            weather.setLocation(locations[random.nextInt(locations.length)]);
+            weather.setGroupId(i % locations.length);
+            weatherMapper.createTable(weather);
+            count += weatherMapper.insert(weather);
         }
         return count;
     }
@@ -38,10 +42,6 @@ public class WeatherService {
         weather.setHumidity(humidity);
 
         return weatherMapper.insert(weather);
-    }
-
-    public int save(List<Weather> weatherList) {
-        return weatherMapper.batchInsert(weatherList);
     }
 
     public int count() {

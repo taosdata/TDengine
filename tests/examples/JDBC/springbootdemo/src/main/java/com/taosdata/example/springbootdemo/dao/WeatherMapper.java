@@ -11,13 +11,11 @@ public interface WeatherMapper {
 
     void createSuperTable();
 
-    void createTable();
+    void createTable(Weather weather);
 
     List<Weather> select(@Param("limit") Long limit, @Param("offset") Long offset);
 
     int insert(Weather weather);
-
-    int batchInsert(List<Weather> weatherList);
 
     int count();
 

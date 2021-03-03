@@ -48,17 +48,6 @@ public class WeatherController {
         return weatherService.save(temperature, humidity);
     }
 
-    /**
-     * upload multi weather info
-     *
-     * @param weatherList
-     * @return
-     */
-    @PostMapping("/batch")
-    public int batchSaveWeather(@RequestBody List<Weather> weatherList) {
-        return weatherService.save(weatherList);
-    }
-
     @GetMapping("/count")
     public int count() {
         return weatherService.count();
