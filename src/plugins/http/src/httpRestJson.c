@@ -75,6 +75,26 @@ void restStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) 
   // head array end
   httpJsonToken(jsonBuf, JsonArrEnd);
 
+  // head_type begin
+  httpJsonItemToken(jsonBuf);
+  httpJsonPairHead(jsonBuf, REST_JSON_HEAD_TYPE, REST_JSON_HEAD_TYPE_LEN);
+  // head_type array begin
+  httpJsonItemToken(jsonBuf);
+  httpJsonToken(jsonBuf, JsonArrStt);
+
+  if (num_fields == 0) {
+    httpJsonItemToken(jsonBuf);
+    httpJsonInt(jsonBuf, TSDB_DATA_TYPE_INT);
+  } else {
+    for (int32_t i = 0; i < num_fields; ++i) {
+      httpJsonItemToken(jsonBuf);
+      httpJsonInt(jsonBuf, fields[i].type);
+    }
+  }
+
+  // head_type array end
+  httpJsonToken(jsonBuf, JsonArrEnd);
+
   // data begin
   httpJsonItemToken(jsonBuf);
   httpJsonPairHead(jsonBuf, REST_JSON_DATA, REST_JSON_DATA_LEN);
