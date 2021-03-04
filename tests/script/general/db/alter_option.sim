@@ -209,7 +209,7 @@ sql alter database db wal 1
 sql alter database db wal 2
 sql alter database db wal 1
 sql alter database db wal 2
-sql_error alter database db wal 0
+sql alter database db wal 0
 sql_error alter database db wal 3
 sql_error alter database db wal 4
 sql_error alter database db wal -1
