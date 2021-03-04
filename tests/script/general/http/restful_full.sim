@@ -88,13 +88,13 @@ print ===============  step2 - no db
 #11
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'show databases' 127.0.0.1:7111/rest/sql
 print 11-> $system_content
-if $system_content != @{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep0,keep1,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"head_type":[8,9,4,4,3,3,3,8,4,4,4,4,2,4,2,2,8,2,8],"data":[],"rows":0}@ then
+if $system_content != @{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep0,keep1,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep0,keep1,keep(D)",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[],"rows":0}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d1' 127.0.0.1:7111/rest/sql
 print 12-> $system_content
-if $system_content != @{"status":"succ","head":["affected_rows"],"head_type":[4],"data":[[0]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["affected_rows"],"column_meta":[["affected_rows",4,4]],"data":[[0]],"rows":1}@ then
   return -1
 endi
 
@@ -160,26 +160,26 @@ endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' create table d1.t1 (ts timestamp, speed int)' 127.0.0.1:7111/rest/sql
 print 22-> $system_content
-if $system_content != @{"status":"succ","head":["affected_rows"],"head_type":[4],"data":[[0]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["affected_rows"],"column_meta":[["affected_rows",4,4]],"data":[[0]],"rows":1}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1 ' 127.0.0.1:7111/rest/sql
 print 23-> $system_content
-if $system_content != @{"status":"succ","head":["ts","speed"],"head_type":[9,4],"data":[],"rows":0}@ then
+if $system_content != @{"status":"succ","head":["ts","speed"],"column_meta":[["ts",9,8],["speed",4,4]],"data":[],"rows":0}@ then
   return -1
 endi
 
 #24
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d1.t1 values('2017-12-25 21:28:41.022', 1)" 127.0.0.1:7111/rest/sql
 print 24-> $system_content
-if $system_content != @{"status":"succ","head":["affected_rows"],"head_type":[4],"data":[[1]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["affected_rows"],"column_meta":[["affected_rows",4,4]],"data":[[1]],"rows":1}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1 ' 127.0.0.1:7111/rest/sql
 print 25-> $system_content
-if $system_content != @{"status":"succ","head":["ts","speed"],"head_type":[9,4],"data":[["2017-12-25 21:28:41.022",1]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["ts","speed"],"column_meta":[["ts",9,8],["speed",4,4]],"data":[["2017-12-25 21:28:41.022",1]],"rows":1}@ then
   return -1
 endi
 
@@ -208,32 +208,32 @@ system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl
 #27
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d1.t1 ' 127.0.0.1:7111/rest/sql
 print 27-> $system_content
-if $system_content != @{"status":"succ","head":["ts","speed"],"head_type":[9,4],"data":[["2017-12-25 21:28:41.022",1],["2017-12-25 21:28:42.022",2],["2017-12-25 21:28:43.022",3],["2017-12-25 21:28:44.022",4],["2017-12-25 21:28:45.022",5],["2017-12-25 21:28:46.022",6],["2017-12-25 21:28:47.022",7],["2017-12-25 21:28:48.022",8],["2017-12-25 21:28:49.022",9],["2017-12-25 21:28:50.022",10],["2017-12-25 21:28:51.022",11]],"rows":11}@ then
+if $system_content != @{"status":"succ","head":["ts","speed"],"column_meta":[["ts",9,8],["speed",4,4]],"data":[["2017-12-25 21:28:41.022",1],["2017-12-25 21:28:42.022",2],["2017-12-25 21:28:43.022",3],["2017-12-25 21:28:44.022",4],["2017-12-25 21:28:45.022",5],["2017-12-25 21:28:46.022",6],["2017-12-25 21:28:47.022",7],["2017-12-25 21:28:48.022",8],["2017-12-25 21:28:49.022",9],["2017-12-25 21:28:50.022",10],["2017-12-25 21:28:51.022",11]],"rows":11}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d 'create database d2' 127.0.0.1:7111/rest/sql
 print 28-> $system_content
-if $system_content != @{"status":"succ","head":["affected_rows"],"head_type":[4],"data":[[0]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["affected_rows"],"column_meta":[["affected_rows",4,4]],"data":[[0]],"rows":1}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' create table d2.t1 (ts timestamp, speed int)' 127.0.0.1:7111/rest/sql
 print 29-> $system_content
-if $system_content != @{"status":"succ","head":["affected_rows"],"head_type":[4],"data":[[0]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["affected_rows"],"column_meta":[["affected_rows",4,4]],"data":[[0]],"rows":1}@ then
   return -1
 endi
 
 #30
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d "insert into d2.t1 values('2017-12-25 21:28:41.022', 1)" 127.0.0.1:7111/rest/sql
 print 30-> $system_content
-if $system_content != @{"status":"succ","head":["affected_rows"],"head_type":[4],"data":[[1]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["affected_rows"],"column_meta":[["affected_rows",4,4]],"data":[[1]],"rows":1}@ then
   return -1
 endi
 
 system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04'  -d ' select * from d2.t1 ' 127.0.0.1:7111/rest/sql
 print 31-> $system_content
-if $system_content != @{"status":"succ","head":["ts","speed"],"head_type":[9,4],"data":[["2017-12-25 21:28:41.022",1]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["ts","speed"],"column_meta":[["ts",9,8],["speed",4,4]],"data":[["2017-12-25 21:28:41.022",1]],"rows":1}@ then
   return -1
 endi
 
