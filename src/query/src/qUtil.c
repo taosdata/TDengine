@@ -572,9 +572,9 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv* pRu
     incNextGroup(pGroupResInfo);
   }
 
-  if (pGroupResInfo->currentGroup >= pGroupResInfo->totalGroup && !hasRemainData(pGroupResInfo)) {
-    SET_STABLE_QUERY_OVER(pRuntimeEnv);
-  }
+//  if (pGroupResInfo->currentGroup >= pGroupResInfo->totalGroup && !hasRemainData(pGroupResInfo)) {
+//    SET_STABLE_QUERY_OVER(pRuntimeEnv);
+//  }
 
   int64_t elapsedTime = taosGetTimestampUs() - st;
   qDebug("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", pRuntimeEnv->qinfo,

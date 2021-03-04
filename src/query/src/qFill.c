@@ -357,6 +357,10 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
   pFillInfo->rowSize = setTagColumnInfo(pFillInfo, pFillInfo->numOfCols, pFillInfo->alloc);
   assert(pFillInfo->rowSize > 0);
 
+  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
+    pFillInfo->pData[i] = malloc(pFillInfo->pFillCol[i].col.bytes * pFillInfo->alloc);
+  }
+
   return pFillInfo;
 }
 
@@ -379,6 +383,10 @@ void* taosDestroyFillInfo(SFillInfo* pFillInfo) {
 
   for(int32_t i = 0; i < pFillInfo->numOfTags; ++i) {
     tfree(pFillInfo->pTags[i].tagVal);
+  }
+
+  for(int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
+    tfree(pFillInfo->pData[i]);
   }
 
   tfree(pFillInfo->pTags);
@@ -415,17 +423,19 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
   }
 }
 
-// copy the data into source data buffer
-void taosFillSetDataBlockFromFilePage(SFillInfo* pFillInfo, const tFilePage** pInput) {
-  for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
-    memcpy(pFillInfo->pData[i], pInput[i]->data, pFillInfo->numOfRows * pFillInfo->pFillCol[i].col.bytes);
-  }
-}
-
 void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) {
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pInput->pDataBlock, i);
-    pFillInfo->pData[i] = pColData->pData;
+//    pFillInfo->pData[i] = pColData->pData;
+    if (pInput->info.rows > pFillInfo->alloc) {
+      char* t = realloc(pFillInfo->pData[i], pColData->info.bytes * pInput->info.rows);
+      assert(t != NULL);
+
+      pFillInfo->pData[i] = t;
+      pFillInfo->alloc = pInput->info.rows;
+    }
+
+    memcpy(pFillInfo->pData[i], pColData->pData, pColData->info.bytes * pInput->info.rows);
   }
 }
 
@@ -436,11 +446,15 @@ void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage*
     SFillColInfo* pCol = &pFillInfo->pFillCol[i];
 
     const char* data = pInput->data + pCol->col.offset * pInput->num;
-    if (pFillInfo->pData[i] == NULL) {
-      pFillInfo->pData[i] = calloc(4096, pCol->col.bytes);
+    if (pInput->num > pFillInfo->alloc) {
+      char* t = realloc(pFillInfo->pData[i], pCol->col.bytes * pInput->num);
+      assert(t != NULL);
+
+      pFillInfo->pData[i] = t;
+      pFillInfo->alloc = pInput->num;
     }
+
     memcpy(pFillInfo->pData[i], data, pCol->col.bytes * pInput->num);
-//    pFillInfo->pData[i] = (char*) data;
 
     if (TSDB_COL_IS_TAG(pCol->flag)) {  // copy the tag value to tag value buffer
       SFillTagColInfo* pTag = &pFillInfo->pTags[pCol->tagIndex];

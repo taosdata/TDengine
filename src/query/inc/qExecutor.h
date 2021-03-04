@@ -37,9 +37,6 @@ typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int
 #define Q_STATUS_EQUAL(p, s)  (((p) & (s)) != 0u)
 #define QUERY_IS_ASC_QUERY(q) (GET_FORWARD_DIRECTION_FACTOR((q)->order.order) == QUERY_ASC_FORWARD_STEP)
 
-#define SET_STABLE_QUERY_OVER(_q) ((_q)->tableIndex = (int32_t)((_q)->tableqinfoGroupInfo.numOfTables))
-#define IS_STASBLE_QUERY_OVER(_q) ((_q)->tableIndex >= (int32_t)((_q)->tableqinfoGroupInfo.numOfTables))
-
 #define GET_TABLEGROUP(q, _index)   ((SArray*) taosArrayGetP((q)->tableqinfoGroupInfo.pGroupList, (_index)))
 
 #define GET_NUM_OF_RESULTS(_r) (((_r)->outputBuf) == NULL? 0:((_r)->outputBuf)->info.rows)
@@ -241,10 +238,10 @@ struct SOperatorInfo;
 typedef struct SQueryRuntimeEnv {
   jmp_buf               env;
   SQuery*               pQuery;
-  uint32_t              status;             // query status
+  uint32_t              status;           // query status
   void*                 qinfo;
   uint16_t              scanFlag;         // denotes reversed scan of data or not
-  SFillInfo*            pFillInfo;        // todo move to operatorInfo
+//  SFillInfo*            pFillInfo;        // todo move to operatorInfo
   void*                 pQueryHandle;
 
   int32_t               prevGroupId;      // previous executed group id
@@ -262,14 +259,13 @@ typedef struct SQueryRuntimeEnv {
   SArithmeticSupport   *sasArray;
 
   SSDataBlock          *outputBuf;
-  int32_t               tableIndex;  //TODO remove it
   STableGroupInfo       tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   struct SOperatorInfo *proot;
   struct SOperatorInfo *pTableScanner;   // table scan operator
   SGroupResInfo         groupResInfo;
   int64_t               currentOffset;   // dynamic offset value
 
-  SRspResultInfo   resultInfo;
+  SRspResultInfo        resultInfo;
 } SQueryRuntimeEnv;
 
 enum {
@@ -278,15 +274,31 @@ enum {
   OP_EXEC_DONE      = 3,
 };
 
+enum OPERATOR_TYPE_E {
+  OP_TableScan         = 1,
+  OP_DataBlocksOptScan = 2,
+  OP_TableSeqScan      = 3,
+  OP_TagScan           = 4,
+  OP_Aggregate         = 5,
+  OP_Arithmetic        = 6,
+  OP_Groupby           = 7,
+  OP_Limit             = 8,
+  OP_Offset            = 9,
+  OP_TimeInterval      = 10,
+  OP_Fill              = 11,
+  OP_MultiTableAggregate     = 12,
+  OP_MultiTableTimeInterval  = 13,
+};
+
 typedef struct SOperatorInfo {
-  uint8_t           operatorType;
-  bool              blockingOptr;  // block operator or not
-  uint8_t           status;        // denote if current operator is completed
-  int32_t           numOfOutput;   // number of columns of the current operator results
-  char             *name;          // name, used to show the query execution plan
-  void             *info;          // extension attribution
-  SExprInfo        *pExpr;
-  SQueryRuntimeEnv *pRuntimeEnv;
+  uint8_t               operatorType;
+  bool                  blockingOptr;  // block operator or not
+  uint8_t               status;        // denote if current operator is completed
+  int32_t               numOfOutput;   // number of columns of the current operator results
+  char                 *name;          // name, used to show the query execution plan
+  void                 *info;          // extension attribution
+  SExprInfo            *pExpr;
+  SQueryRuntimeEnv     *pRuntimeEnv;
 
   struct SOperatorInfo *upstream;
   __operator_fn_t       exec;
@@ -402,6 +414,7 @@ typedef struct SOffsetOperatorInfo {
 } SOffsetOperatorInfo;
 
 typedef struct SFillOperatorInfo {
+  SFillInfo   *pFillInfo;
   SSDataBlock *pRes;
   int64_t      totalInputRows;
 } SFillOperatorInfo;

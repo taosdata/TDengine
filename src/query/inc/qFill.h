@@ -80,8 +80,6 @@ void* taosDestroyFillInfo(SFillInfo *pFillInfo);
 
 void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
 
-void taosFillSetDataBlockFromFilePage(SFillInfo* pFillInfo, const tFilePage** pInput);
-
 void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
 
 void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage* pInput);
