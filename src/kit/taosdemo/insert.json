@@ -9,6 +9,8 @@
 	"thread_count_create_tbl": 1,
 	"result_file": "./insert_res.txt",
         "confirm_parameter_prompt": "no",
+    "insert_interval": 0,
+    "num_of_records_per_req": 100,
 	"databases": [{
 		"dbinfo": {
 			"name": "db",
@@ -35,8 +37,6 @@
 			"auto_create_table": "no",
 			"data_source": "rand",
 			"insert_mode": "taosc",
-			"insert_interval": 0,
-            "num_of_records_per_req": 100,
 			"insert_rows": 100000,
 			"multi_thread_write_one_tbl": "no",
 			"number_of_tbl_in_one_sql": 1,
