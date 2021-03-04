@@ -213,9 +213,6 @@ bool doFilterData(SQuery *pQuery, int32_t elemPos) {
   return true;
 }
 
-bool doFilterDataOnce() {
-
-}
 
 int64_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;

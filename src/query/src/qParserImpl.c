@@ -296,6 +296,10 @@ static FORCE_INLINE int32_t tStrTokenCompare(SStrToken* left, SStrToken* right) 
 
 
 int32_t tSqlExprCompare(tSQLExpr *left, tSQLExpr *right) {
+  if ((left == NULL && right) || (left && right == NULL)) {
+    return 1;
+  }
+  
   if (left->nSQLOptr != right->nSQLOptr) {
     return 1;
   }

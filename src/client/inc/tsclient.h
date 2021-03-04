@@ -129,13 +129,18 @@ typedef struct SColumn {
   SColumnFilterInfo *filterInfo;
 } SColumn;
 
+typedef struct SExprFilter {
+  tSQLExpr       *pExpr;     //used for having parse
+  SArray         *fp;
+  SColumn        *pFilters;  //having filter info
+}SExprFilter;
+
 typedef struct SInternalField {
   TAOS_FIELD      field;
   bool            visible;
   SExprInfo      *pArithExprInfo;
   SSqlExpr       *pSqlExpr;
-  tSQLExpr       *pExpr;          //used for having parse 
-  SColumn        *pFieldFilters;  //having filter info
+  SExprFilter    *pFieldFilters;
 } SInternalField;
 
 typedef struct SCond {

@@ -34,6 +34,7 @@
 #include "tstoken.h"
 #include "tstrbuild.h"
 #include "ttokendef.h"
+#include "qutil.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
@@ -6709,16 +6710,25 @@ static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   int32_t slot = tscNumOfFields(pQueryInfo) - 1;
   SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, slot);
   pInfo->visible = false;
-  pInfo->pExpr = pExpr;
   
   if (pInfo->pFieldFilters == NULL) {
-    SColumn* pFieldFilters = calloc(1, sizeof(SColumn));
+    SExprFilter* pFieldFilters = calloc(1, sizeof(SExprFilter));
     if (pFieldFilters == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
-    
+
+    SColumn* pFilters = calloc(1, sizeof(SColumn));
+    if (pFilters == NULL) {
+      tfree(pFieldFilters);
+      
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+
+    pFieldFilters->pFilters = pFilters;
     pInfo->pFieldFilters = pFieldFilters;
   }
+
+  pInfo->pFieldFilters->pExpr = pExpr;
 
   *interField = pInfo;
 
@@ -6731,7 +6741,7 @@ int32_t tscGetExprFilters(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr
   for (int32_t i = pQueryInfo->havingFieldNum - 1; i >= 0; --i) {
     pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
 
-    if (0 == tSqlExprCompare(pInfo->pExpr, pExpr)) {
+    if (pInfo->pFieldFilters && 0 == tSqlExprCompare(pInfo->pFieldFilters->pExpr, pExpr)) {
       *pField = pInfo;
       return TSDB_CODE_SUCCESS;
     }
@@ -6747,7 +6757,33 @@ int32_t tscGetExprFilters(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t genExprFilter(SExprFilter    * exprFilter) {
+  exprFilter->fp = taosArrayInit(4, sizeof(__filter_func_t));
+  if (exprFilter->fp == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
 
+  for (int32_t i = 0; i < exprFilter->pFilters->numOfFilters; ++i) {
+    SColumnFilterInfo *filterInfo = &exprFilter->pFilters->filterInfo[i];
+
+    int32_t lower = filterInfo->lowerRelOptr;
+    int32_t upper = filterInfo->upperRelOptr;
+    if (lower == TSDB_RELATION_INVALID && upper == TSDB_RELATION_INVALID) {
+      tscError("invalid rel optr");
+      return TSDB_CODE_TSC_APP_ERROR;
+    }
+
+    __filter_func_t ffp = getFilterOperator(lower, upper);
+    if (ffp == NULL) {
+      tscError("invalid filter info");
+      return TSDB_CODE_TSC_APP_ERROR;
+    }
+
+    taosArrayPush(exprFilter->fp, &ffp);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr, int32_t sqlOptr) {
   const char* msg1 = "non binary column not support like operator";
@@ -6768,7 +6804,7 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       return ret;
     }
 
-    pColumn = pInfo->pFieldFilters;
+    pColumn = pInfo->pFieldFilters->pFilters;
     
     // this is a new filter condition on this column
     if (pColumn->numOfFilters == 0) {
@@ -6819,7 +6855,12 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     }
   }
 
-  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pInfo->field.type, pExpr);
+  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pInfo->field.type, pExpr);
+  if (ret) {
+    return ret; 
+  }
+  
+  return genExprFilter(pInfo->pFieldFilters);
 }
 
 int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr, int32_t parentOptr) {

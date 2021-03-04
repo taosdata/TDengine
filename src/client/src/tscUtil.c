@@ -1081,7 +1081,8 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
     }
 
     if (pInfo->pFieldFilters != NULL) {
-      tscColumnDestroy(pInfo->pFieldFilters);
+      tscColumnDestroy(pInfo->pFieldFilters->pFilters);
+      tfree(pInfo->pFieldFilters);
     }
   }
   
