@@ -285,7 +285,7 @@ system_content curl -u root:taosdata -d  'select count(*) from db.win_cpu' 127.0
 
 print $system_content
 
-if $system_content != @{"status":"succ","head":["count(*)"],"data":[[3]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["count(*)"],"column_meta":[["count(*)",5,8]],"data":[[3]],"rows":1}@ then
   return -1
 endi
 

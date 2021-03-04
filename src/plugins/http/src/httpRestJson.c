@@ -75,6 +75,44 @@ void restStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) 
   // head array end
   httpJsonToken(jsonBuf, JsonArrEnd);
 
+  // column_meta begin
+  httpJsonItemToken(jsonBuf);
+  httpJsonPairHead(jsonBuf, REST_JSON_HEAD_INFO, REST_JSON_HEAD_INFO_LEN);
+  // column_meta array begin
+  httpJsonItemToken(jsonBuf);
+  httpJsonToken(jsonBuf, JsonArrStt);
+
+  if (num_fields == 0) {
+    httpJsonItemToken(jsonBuf);
+    httpJsonToken(jsonBuf, JsonArrStt);
+
+    httpJsonItemToken(jsonBuf);
+    httpJsonString(jsonBuf, REST_JSON_AFFECT_ROWS, REST_JSON_AFFECT_ROWS_LEN);
+    httpJsonItemToken(jsonBuf);
+    httpJsonInt(jsonBuf, TSDB_DATA_TYPE_INT);
+    httpJsonItemToken(jsonBuf);
+    httpJsonInt(jsonBuf, 4);
+
+    httpJsonToken(jsonBuf, JsonArrEnd);
+  } else {
+    for (int32_t i = 0; i < num_fields; ++i) {
+      httpJsonItemToken(jsonBuf);
+      httpJsonToken(jsonBuf, JsonArrStt);
+
+      httpJsonItemToken(jsonBuf);
+      httpJsonString(jsonBuf, fields[i].name, (int32_t)strlen(fields[i].name));
+      httpJsonItemToken(jsonBuf);
+      httpJsonInt(jsonBuf, fields[i].type);
+      httpJsonItemToken(jsonBuf);
+      httpJsonInt(jsonBuf, fields[i].bytes);
+
+      httpJsonToken(jsonBuf, JsonArrEnd);
+    }
+  }
+
+  // column_meta array end
+  httpJsonToken(jsonBuf, JsonArrEnd);
+
   // data begin
   httpJsonItemToken(jsonBuf);
   httpJsonPairHead(jsonBuf, REST_JSON_DATA, REST_JSON_DATA_LEN);

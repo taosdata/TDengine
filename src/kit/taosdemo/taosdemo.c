@@ -257,14 +257,14 @@ typedef struct SColumn_S {
 } StrColumn;
 
 typedef struct SSuperTable_S {
-  char         sTblName[MAX_TB_NAME_SIZE];
+  char         sTblName[MAX_TB_NAME_SIZE+1];
   int          childTblCount;
   bool         superTblExists;    // 0: no, 1: yes
   bool         childTblExists;    // 0: no, 1: yes  
   int          batchCreateTableNum;  // 0: no batch,  > 0: batch table number in one sql
   int8_t       autoCreateTable;                  // 0: create sub table, 1: auto create sub table
   char         childTblPrefix[MAX_TB_NAME_SIZE];
-  char         dataSource[MAX_TB_NAME_SIZE];  // rand_gen or sample
+  char         dataSource[MAX_TB_NAME_SIZE+1];  // rand_gen or sample
   char         insertMode[MAX_TB_NAME_SIZE];  // taosc, restful
   int          insertRate;  // 0: unlimit  > 0   rows/s
 
@@ -279,8 +279,8 @@ typedef struct SSuperTable_S {
   int          timeStampStep;
   char         startTimestamp[MAX_TB_NAME_SIZE];  // 
   char         sampleFormat[MAX_TB_NAME_SIZE];  // csv, json
-  char         sampleFile[MAX_FILE_NAME_LEN];
-  char         tagsFile[MAX_FILE_NAME_LEN];
+  char         sampleFile[MAX_FILE_NAME_LEN+1];
+  char         tagsFile[MAX_FILE_NAME_LEN+1];
 
   int          columnCount;
   StrColumn    columns[MAX_COLUMN_COUNT];
@@ -335,6 +335,7 @@ typedef struct SDbCfg_S {
   int       maxRows;
   int       comp;
   int       walLevel;
+  int       cacheLast;
   int       fsync;  
   int       replica;
   int       update;
@@ -355,12 +356,12 @@ typedef struct SDataBase_S {
 } SDataBase;
 
 typedef struct SDbs_S {
-  char         cfgDir[MAX_FILE_NAME_LEN];
+  char         cfgDir[MAX_FILE_NAME_LEN+1];
   char         host[MAX_DB_NAME_SIZE];
   uint16_t     port;
   char         user[MAX_DB_NAME_SIZE];
   char         password[MAX_DB_NAME_SIZE];
-  char         resultFile[MAX_FILE_NAME_LEN];
+  char         resultFile[MAX_FILE_NAME_LEN+1];
   bool         use_metric;
   bool         insert_only;
   bool         do_aggreFunc;
@@ -385,13 +386,13 @@ typedef struct SuperQueryInfo_S {
   int          subscribeInterval; // ms
   int          subscribeRestart;
   int          subscribeKeepProgress;
-  char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH];  
-  char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN];
+  char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];  
+  char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
 } SuperQueryInfo;
 
 typedef struct SubQueryInfo_S {
-  char         sTblName[MAX_TB_NAME_SIZE];
+  char         sTblName[MAX_TB_NAME_SIZE+1];
   int          rate;  // 0: unlimit  > 0   loop/s
   int          threadCnt;  
   int          subscribeMode; // 0: sync, 1: async
@@ -401,20 +402,20 @@ typedef struct SubQueryInfo_S {
   int          childTblCount;
   char         childTblPrefix[MAX_TB_NAME_SIZE];
   int          sqlCount;
-  char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH];  
-  char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN];
+  char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];  
+  char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
   
   char*        childTblName;
 } SubQueryInfo;
 
 typedef struct SQueryMetaInfo_S {
-  char         cfgDir[MAX_FILE_NAME_LEN];
+  char         cfgDir[MAX_FILE_NAME_LEN+1];
   char         host[MAX_DB_NAME_SIZE];
   uint16_t     port;
   char         user[MAX_DB_NAME_SIZE];
   char         password[MAX_DB_NAME_SIZE];
-  char         dbName[MAX_DB_NAME_SIZE];
+  char         dbName[MAX_DB_NAME_SIZE+1];
   char         queryMode[MAX_TB_NAME_SIZE];  // taosc, restful
 
   SuperQueryInfo  superQueryInfo;
@@ -424,7 +425,7 @@ typedef struct SQueryMetaInfo_S {
 typedef struct SThreadInfo_S {
   TAOS *taos;
   int threadID;
-  char db_name[MAX_DB_NAME_SIZE];
+  char db_name[MAX_DB_NAME_SIZE+1];
   char fp[4096];
   char tb_prefix[MAX_TB_NAME_SIZE];
   int start_table_id;
@@ -1766,7 +1767,7 @@ static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName, char* sTblName
   char* pTblName = childTblName;
   while ((row = taos_fetch_row(res)) != NULL) {
     int32_t* len = taos_fetch_lengths(res);
-    tstrncpy(pTblName, (char *)row[0], len[0]);
+    tstrncpy(pTblName, (char *)row[0], len[0]+1);
     //printf("==== sub table name: %s\n", pTblName);
     count++;
     if (count >= childTblCount - 1) {
@@ -2021,6 +2022,9 @@ static int createDatabases() {
     }
     if (g_Dbs.db[i].dbCfg.walLevel > 0) {
       dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen, "wal %d ", g_Dbs.db[i].dbCfg.walLevel);
+    }
+    if (g_Dbs.db[i].dbCfg.cacheLast > 0) {
+      dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen, "cachelast %d ", g_Dbs.db[i].dbCfg.cacheLast);
     }
     if (g_Dbs.db[i].dbCfg.fsync > 0) {
       dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen, "fsync %d ", g_Dbs.db[i].dbCfg.fsync);
@@ -2722,6 +2726,16 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
      goto PARSE_OVER;
     }
 
+    cJSON* cacheLast= cJSON_GetObjectItem(dbinfo, "cachelast");
+    if (cacheLast && cacheLast->type == cJSON_Number) {
+      g_Dbs.db[i].dbCfg.cacheLast = cacheLast->valueint;
+    } else if (!cacheLast) {
+      g_Dbs.db[i].dbCfg.cacheLast = -1;
+    } else {
+     printf("failed to read json, cacheLast not found");
+     goto PARSE_OVER;
+    }
+
     cJSON* quorum= cJSON_GetObjectItem(dbinfo, "quorum");
     if (quorum && quorum->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.quorum = quorum->valueint;
@@ -2795,7 +2809,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       if (batchCreateTbl && batchCreateTbl->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].batchCreateTableNum = batchCreateTbl->valueint;
       } else if (!batchCreateTbl) {
-        g_Dbs.db[i].superTbls[j].batchCreateTableNum = 2000;
+        g_Dbs.db[i].superTbls[j].batchCreateTableNum = 1000;
       } else {
         printf("failed to read json, batch_create_tbl_num not found");
         goto PARSE_OVER;
@@ -4475,7 +4489,7 @@ void replaceSubTblName(char* inSql, char* outSql, int tblIndex) {
     return; 
   }
   
-  tstrncpy(outSql, inSql, pos - inSql);
+  tstrncpy(outSql, inSql, pos - inSql + 1);
   //printf("1: %s\n", outSql);
   strcat(outSql, subTblName);  
   //printf("2: %s\n", outSql);  
@@ -4496,12 +4510,12 @@ void *subQueryProcess(void *sarg) {
 
     st = taosGetTimestampMs();
     for (int i = winfo->start_table_id; i <= winfo->end_table_id; i++) {
-      for (int i = 0; i < g_queryInfo.subQueryInfo.sqlCount; i++) {
+      for (int j = 0; j < g_queryInfo.subQueryInfo.sqlCount; j++) {
         memset(sqlstr,0,sizeof(sqlstr));
-        replaceSubTblName(g_queryInfo.subQueryInfo.sql[i], sqlstr, i);
+        replaceSubTblName(g_queryInfo.subQueryInfo.sql[j], sqlstr, i);
         char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
-        if (g_queryInfo.subQueryInfo.result[i][0] != 0) {
-          sprintf(tmpFile, "%s-%d", g_queryInfo.subQueryInfo.result[i], winfo->threadID);
+        if (g_queryInfo.subQueryInfo.result[j][0] != 0) {
+          sprintf(tmpFile, "%s-%d", g_queryInfo.subQueryInfo.result[j], winfo->threadID);
         }
         selectAndGetResult(winfo->taos, sqlstr, tmpFile); 
       }

@@ -73,19 +73,19 @@ class TDTestCase:
         print("======= step 1: create table and insert data =========")
         tdLog.debug(
             ''' create table st(ts timestamp, tbcol1 tinyint, tbcol2 smallint, tbcol3 int, tbcol4 bigint, tbcol5 float, tbcol6 double,
-                tbcol7 bool, tbcol8 nchar(20), tbcol9 binary(20)) tags(tagcol1 tinyint, tagcol2 smallint, tagcol3 int, tagcol4 bigint, tagcol5 float,
-                tagcol6 double, tagcol7 bool, tagcol8 nchar(20), tagcol9 binary(20))''')
+                tbcol7 bool, tbcol8 nchar(20), tbcol9 binary(20), tbcol11 tinyint unsigned, tbcol12 smallint unsigned, tbcol13 int unsigned, tbcol14 bigint unsigned) tags(tagcol1 tinyint, tagcol2 smallint, tagcol3 int, tagcol4 bigint, tagcol5 float,
+                tagcol6 double, tagcol7 bool, tagcol8 nchar(20), tagcol9 binary(20),  tagcol11 tinyint unsigned, tagcol12 smallint unsigned, tagcol13 int unsigned, tagcol14 bigint unsigned)''')
         tdSql.execute(
             ''' create table st(ts timestamp, tbcol1 tinyint, tbcol2 smallint, tbcol3 int, tbcol4 bigint, tbcol5 float, tbcol6 double,
-                tbcol7 bool, tbcol8 nchar(20), tbcol9 binary(20)) tags(tagcol1 tinyint, tagcol2 smallint, tagcol3 int, tagcol4 bigint, tagcol5 float,
-                tagcol6 double, tagcol7 bool, tagcol8 nchar(20), tagcol9 binary(20))''')
+                tbcol7 bool, tbcol8 nchar(20), tbcol9 binary(20), tbcol11 tinyint unsigned, tbcol12 smallint unsigned, tbcol13 int unsigned, tbcol14 bigint unsigned) tags(tagcol1 tinyint, tagcol2 smallint, tagcol3 int, tagcol4 bigint, tagcol5 float,
+                tagcol6 double, tagcol7 bool, tagcol8 nchar(20), tagcol9 binary(20),  tagcol11 tinyint unsigned, tagcol12 smallint unsigned, tagcol13 int unsigned, tagcol14 bigint unsigned)''')
 
         for i in range(self.rowNum):
-            tdSql.execute("create table st%d using st tags(%d, %d, %d, %d, %f, %f, %d, 'tag%d', '标签%d')" % (
-                i + 1, i + 1, i + 1, i + 1, i + 1, 1.1 * (i + 1), 1.23 * (i + 1), (i + 1) % 2, i + 1, i + 1))
+            tdSql.execute("create table st%d using st tags(%d, %d, %d, %d, %f, %f, %d, 'tag%d', '标签%d', %d, %d, %d, %d)" % (
+                i + 1, i + 1, i + 1, i + 1, i + 1, 1.1 * (i + 1), 1.23 * (i + 1), (i + 1) % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
             for j in range(self.rowNum):
-                tdSql.execute("insert into st%d values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d')" % (
-                    i + 1, self.ts + 10 * (i + 1) + j + 1, j + 1, j + 1, j + 1, j + 1, 1.1 * (j + 1), 1.23 * (j + 1), (j + 1) % 2, j + 1, j + 1))
+                tdSql.execute("insert into st%d values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" % (
+                    i + 1, self.ts + 10 * (i + 1) + j + 1, j + 1, j + 1, j + 1, j + 1, 1.1 * (j + 1), 1.23 * (j + 1), (j + 1) % 2, j + 1, j + 1, i + 1, i + 1, i + 1, i + 1))
 
         print("======= step 2: verify order for each column =========")
         # sort for timestamp in asc order
