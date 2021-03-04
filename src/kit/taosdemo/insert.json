@@ -13,7 +13,7 @@
     "num_of_records_per_req": 100,
 	"databases": [{
 		"dbinfo": {
-			"name": "dbx",
+			"name": "db",
 			"drop": "yes",
 			"replica": 1,
 			"days": 10,
