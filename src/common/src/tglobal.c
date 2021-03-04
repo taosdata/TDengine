@@ -125,6 +125,7 @@ int8_t  tsCompression   = TSDB_DEFAULT_COMP_LEVEL;
 int8_t  tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
 int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
 int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
+int16_t tsPartitons     = TSDB_DEFAULT_DB_PARTITON_OPTION;
 int32_t tsQuorum        = TSDB_DEFAULT_DB_QUORUM_OPTION;
 int8_t  tsUpdate        = TSDB_DEFAULT_DB_UPDATE_OPTION;
 int8_t  tsCacheLastRow  = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
@@ -849,6 +850,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = TSDB_MIN_DB_REPLICA_OPTION;
   cfg.maxValue = TSDB_MAX_DB_REPLICA_OPTION;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "partitions";
+  cfg.ptr = &tsPartitons;
+  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_DB_PARTITON_OPTION;
+  cfg.maxValue = TSDB_MAX_DB_PARTITON_OPTION;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
