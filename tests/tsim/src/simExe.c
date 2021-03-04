@@ -146,7 +146,7 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
 int32_t simExecuteExpression(SScript *script, char *exp) {
   char *  op1, *op2, *var1, *var2, *var3, *rest;
   int32_t op1Len, op2Len, var1Len, var2Len, var3Len, val0, val1;
-  char    t0[512], t1[512], t2[512], t3[1024];
+  char    t0[1024], t1[1024], t2[1024], t3[2048];
   int32_t result;
 
   rest = paGetToken(exp, &var1, &var1Len);
