@@ -2809,7 +2809,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       if (batchCreateTbl && batchCreateTbl->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].batchCreateTableNum = batchCreateTbl->valueint;
       } else if (!batchCreateTbl) {
-        g_Dbs.db[i].superTbls[j].batchCreateTableNum = 2000;
+        g_Dbs.db[i].superTbls[j].batchCreateTableNum = 1000;
       } else {
         printf("failed to read json, batch_create_tbl_num not found");
         goto PARSE_OVER;
