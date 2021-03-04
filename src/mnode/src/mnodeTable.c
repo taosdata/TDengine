@@ -916,11 +916,13 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
+#if 0
   if (mnodeCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
     mError("msg:%p, app:%p table:%s, failed to drop table, in monitor database", pMsg, pMsg->rpcMsg.ahandle,
            pDrop->name);
     return TSDB_CODE_MND_MONITOR_DB_FORBIDDEN;
   }
+#endif
 
   if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pDrop->name);
   if (pMsg->pTable == NULL) {
@@ -3020,10 +3022,12 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
+#if 0
   if (mnodeCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
     mError("msg:%p, app:%p table:%s, failed to alter table, its log db", pMsg, pMsg->rpcMsg.ahandle, pAlter->tableFname);
     return TSDB_CODE_MND_MONITOR_DB_FORBIDDEN;
   }
+#endif
 
   if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pAlter->tableFname);
   if (pMsg->pTable == NULL) {
