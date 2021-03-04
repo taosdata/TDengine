@@ -2714,7 +2714,11 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild) {
 uint32_t tscGetTableMetaSize(STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
 
-  int32_t totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
+  int32_t totalCols = 0;
+  if (pTableMeta->tableInfo.numOfColumns >= 0 && pTableMeta->tableInfo.numOfTags >= 0) {
+    totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
+  }
+  
   return sizeof(STableMeta) + totalCols * sizeof(SSchema);
 }
 
