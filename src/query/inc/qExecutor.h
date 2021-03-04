@@ -210,6 +210,7 @@ typedef struct SQuery {
 
   int32_t          srcRowSize;       // todo extract struct
   int32_t          resultRowSize;
+  int32_t          intermediateResultRowSize; // intermediate result row size, in case of top-k query.
   int32_t          maxSrcColumnSize;
   int32_t          tagLen;           // tag value length of current query
   SSqlGroupbyExpr* pGroupbyExpr;

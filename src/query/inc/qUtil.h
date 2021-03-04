@@ -54,9 +54,9 @@ static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int
 static FORCE_INLINE char *getPosInResultPage(SQuery *pQuery, tFilePage* page, int32_t rowOffset, int16_t offset) {
   assert(rowOffset >= 0 && pQuery != NULL);
 
-//  int32_t realRowId = (int32_t)(rowId * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery));
+  int32_t numOfRows = GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery);
 //  return ((char *)page->data) + offset * numOfRowsPerPage + bytes * realRowId;
-  return ((char *)page->data) + rowOffset + offset;
+  return ((char *)page->data) + rowOffset + offset * numOfRows;
 }
 
 bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
@@ -82,7 +82,7 @@ void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen);
 SArray* interResFromBinary(const char* data, int32_t len);
 void freeInterResult(void* param);
 
-void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo, int32_t offset);
+void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo);
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 bool    hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo);
 bool    hasRemainData(SGroupResInfo* pGroupResInfo);

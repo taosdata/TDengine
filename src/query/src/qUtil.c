@@ -344,13 +344,13 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   pGroupResInfo->index     = 0;
 }
 
-void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo, int32_t offset) {
+void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo) {
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);
   }
 
   pGroupResInfo->pRows = taosArrayFromList(pResultInfo->pResult, pResultInfo->size, POINTER_BYTES);
-  pGroupResInfo->index = offset;
+  pGroupResInfo->index = 0;
 
   assert(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
