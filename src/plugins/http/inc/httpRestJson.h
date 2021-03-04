@@ -34,6 +34,8 @@
 #define REST_JSON_DATA_LEN       4
 #define REST_JSON_HEAD           "head"
 #define REST_JSON_HEAD_LEN       4
+#define REST_JSON_HEAD_TYPE      "head_type"
+#define REST_JSON_HEAD_TYPE_LEN  9
 #define REST_JSON_ROWS           "rows"
 #define REST_JSON_ROWS_LEN       4
 #define REST_JSON_AFFECT_ROWS    "affected_rows"
