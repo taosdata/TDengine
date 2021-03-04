@@ -6,13 +6,14 @@
   "user": "root",
   "password": "taosdata",
   "confirm_parameter_prompt": "yes",
-  "databases": "db01",
+  "databases": "dbx",
   "specified_table_query":
-    {"query_interval":1, "concurrent":1,
-     "sqls": [{"sql": "select count(*) from stb01", "result": "./query_res0.txt"}]
+    {"query_interval":1, "concurrent":4,
+     "sqls": [{"sql": "select last_row(*) from stb where color='red'", "result": "./query_res0.txt"},
+              {"sql": "select count(*) from stb_01", "result": "./query_res1.txt"}]
     },
   "super_table_query": 
-    {"stblname": "stb01", "query_interval":1, "threads":1,
-     "sqls": [{"sql": "select count(*) from xxxx", "result": "./query_res1.txt"}]
+    {"stblname": "stb", "query_interval":1, "threads":4,
+     "sqls": [{"sql": "select last_row(*) from xxxx", "result": "./query_res2.txt"}]
     }
 }
