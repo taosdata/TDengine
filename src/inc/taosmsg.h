@@ -683,7 +683,8 @@ typedef struct {
   int8_t   cacheLastRow;
   int32_t  vgCfgVersion;
   int8_t   dbReplica;
-  int8_t   reserved[9];
+  int8_t   dbType;
+  int8_t   reserved[8];
 } SVnodeCfg;
 
 typedef struct {

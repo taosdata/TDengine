@@ -49,12 +49,13 @@ static int32_t mnodeSetDbDropping(SDbObj *pDb);
 static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg);
-static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
+int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
 
 #ifndef _TOPIC
 int32_t tpInit() {}
 void    tpCleanUp() {}
+void    tpUpdateTs(int32_t *seq, void *pMsg) {}
 #endif
 
 static void mnodeDestroyDb(SDbObj *pDb) {
@@ -180,16 +181,9 @@ int32_t mnodeInitDbs() {
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mnodeGetDbMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mnodeRetrieveDbs);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DB, mnodeCancelGetNextDb);
-
-  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_TP, mnodeProcessCreateDbMsg);
-  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_TP, mnodeProcessAlterDbMsg);
-  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_TP, mnodeProcessDropDbMsg);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_TP, mnodeGetDbMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_TP, mnodeRetrieveDbs);
-  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_TP, mnodeCancelGetNextDb);
-
+  
   mDebug("table:dbs table is created");
-  return 0;
+  return tpInit();
 }
 
 void *mnodeGetNextDb(void *pIter, SDbObj **pDb) {
@@ -342,6 +336,17 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
 
   if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) {
     mError("invalid db option cacheLastRow:%d valid range: [%d, %d]", pCfg->cacheLastRow, TSDB_MIN_DB_CACHE_LAST_ROW, TSDB_MAX_DB_CACHE_LAST_ROW);
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
+  }
+
+  if (pCfg->dbType < 0 || pCfg->dbType > 1) {
+    mError("invalid db option dbType:%d valid range: [%d, %d]", pCfg->dbType, 0, 1);
+    return TSDB_CODE_MND_INVALID_DB_OPTION;
+  }
+
+  if (pCfg->partitions < TSDB_MIN_DB_PARTITON_OPTION || pCfg->partitions > TSDB_MAX_DB_PARTITON_OPTION) {
+    mError("invalid db option partitions:%d valid range: [%d, %d]", pCfg->partitions, TSDB_MIN_DB_PARTITON_OPTION,
+           TSDB_MAX_DB_PARTITON_OPTION);
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
@@ -697,7 +702,7 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
     pShow->pIter = mnodeGetNextDb(pShow->pIter, &pDb);
 
     if (pDb == NULL) break;
-    if (pDb->pAcct != pUser->pAcct || pDb->status != TSDB_DB_STATUS_READY /*|| pDb->cfg.dbType != TSDB_DB_TYPE_DEFAULT*/) {
+    if (pDb->pAcct != pUser->pAcct || pDb->status != TSDB_DB_STATUS_READY) {
       mnodeDecDbRef(pDb);
       continue;
     }
@@ -1092,7 +1097,7 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
   return code;
 }
 
-static int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
+int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
   SAlterDbMsg *pAlter = pMsg->rpcMsg.pCont;
   mDebug("db:%s, alter db msg is received from thandle:%p", pAlter->db, pMsg->rpcMsg.handle);
 

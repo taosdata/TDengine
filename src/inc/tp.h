@@ -22,6 +22,7 @@ extern "C" {
 
 int32_t tpInit();
 void    tpCleanUp();
+void    tpUpdateTs(int32_t *seq, void *pMsg);
 
 #ifdef __cplusplus
 }

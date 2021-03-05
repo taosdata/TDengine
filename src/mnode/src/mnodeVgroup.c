@@ -367,6 +367,11 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
     maxIdPoolSize = MAX(maxIdPoolSize, idPoolSize);
   }
 
+  // create one table each vnode
+  if (pDb->cfg.dbType == TSDB_DB_TYPE_TOPIC) {
+    maxIdPoolSize = 1;
+  }
+
   // new vgroup
   if (pInputVgroup->idPool == NULL) {
     pInputVgroup->idPool = taosInitIdPool(maxIdPoolSize);
@@ -377,6 +382,11 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
       mDebug("vgId:%d, init idPool for vgroup, size:%d", pInputVgroup->vgId, maxIdPoolSize);
       return TSDB_CODE_SUCCESS;
     }
+  }
+
+  // create one table each vnode
+  if (pDb->cfg.dbType == TSDB_DB_TYPE_TOPIC) {
+    return TSDB_CODE_SUCCESS;
   }
 
   // realloc all vgroups in db
@@ -447,6 +457,10 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
     maxVgroupsPerDb = mnodeGetOnlinDnodesCpuCoreNum();
     maxVgroupsPerDb = MAX(maxVgroupsPerDb, TSDB_MIN_VNODES_PER_DB);
     maxVgroupsPerDb = MIN(maxVgroupsPerDb, TSDB_MAX_VNODES_PER_DB);
+  }
+
+  if (pDb->cfg.dbType == TSDB_DB_TYPE_TOPIC && pDb->cfg.partitions > 0) {
+    maxVgroupsPerDb = pDb->cfg.partitions;
   }
 
   int32_t code = TSDB_CODE_MND_NO_ENOUGH_DNODES;
@@ -880,6 +894,7 @@ static SCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   pCfg->update              = pDb->cfg.update;
   pCfg->cacheLastRow        = pDb->cfg.cacheLastRow;
   pCfg->dbReplica           = pDb->cfg.replications;
+  pCfg->dbType              = pDb->cfg.dbType;
   
   SVnodeDesc *pNodes = pVnode->nodes;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {
