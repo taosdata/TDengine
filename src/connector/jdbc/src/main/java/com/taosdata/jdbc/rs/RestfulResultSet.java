@@ -98,7 +98,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             case Types.DOUBLE:
                 return row.getDouble(colIndex);
             case Types.TIMESTAMP:
-                return row.getTimestamp(colIndex);
+                return new Timestamp(row.getDate(colIndex).getTime());
             case Types.BINARY:
             case Types.NCHAR:
             default:
