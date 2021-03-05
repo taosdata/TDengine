@@ -160,7 +160,7 @@ function runPyCaseOneByOnefq {
 totalFailed=0
 totalPyFailed=0
 totalJDBCFailed=0
-totalUnitTestFailed=0
+totalUnitFailed=0
 
 corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
 if [ "$2" != "jdbc" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]; then
