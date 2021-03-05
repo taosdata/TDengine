@@ -181,6 +181,11 @@ typedef struct SDataBlockInfo {
   int32_t     tid;
 } SDataBlockInfo;
 
+typedef struct SFileBlockInfo {
+  int32_t len;
+  int32_t numOfRows;
+} SFileBlockInfo;
+
 typedef struct {
   void *pTable;
   TSKEY lastKey;
@@ -340,6 +345,8 @@ void tsdbCleanupQueryHandle(TsdbQueryHandleT queryHandle);
 void tsdbResetQueryHandle(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond);
 
 void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond, STableGroupInfo* groupList);
+
+int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, SArray* pBlockInfo);
 
 /**
  * get the statistics of repo usage

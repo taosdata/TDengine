@@ -55,7 +55,6 @@ static FORCE_INLINE char *getPosInResultPage(SQuery *pQuery, tFilePage* page, in
   assert(rowOffset >= 0 && pQuery != NULL);
 
   int32_t numOfRows = GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery);
-//  return ((char *)page->data) + offset * numOfRowsPerPage + bytes * realRowId;
   return ((char *)page->data) + rowOffset + offset * numOfRows;
 }
 
@@ -71,8 +70,6 @@ void* destroyResultRowPool(SResultRowPool* p);
 int32_t getNumOfAllocatedResultRows(SResultRowPool* p);
 int32_t getNumOfUsedResultRows(SResultRowPool* p);
 
-bool isPointInterpoQuery(SQuery *pQuery);
-
 typedef struct {
   SArray* pResult;     // SArray<SResPair>
   int32_t colId;
@@ -81,6 +78,16 @@ typedef struct {
 void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen);
 SArray* interResFromBinary(const char* data, int32_t len);
 void freeInterResult(void* param);
+
+typedef struct {
+  int64_t  numOfTables;
+  SArray  *dataBlockInfos;
+  int64_t  firstSeekTimeUs;
+  int64_t  numOfRowsInMemTable;
+} STableBlockDist;
+
+void blockDistInfoToBinary(SBufferWriter* bw, STableBlockDist* pDist);
+void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist);
 
 void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo);
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);

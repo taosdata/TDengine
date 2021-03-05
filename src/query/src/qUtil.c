@@ -243,6 +243,7 @@ void* destroyResultRowPool(SResultRowPool* p) {
   return NULL;
 }
 
+// TODO refactor
 void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen) {
   uint32_t numOfGroup = (uint32_t) taosArrayGetSize(pRes);
   tbufWriteUint32(bw, numOfGroup);
@@ -572,14 +573,33 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv* pRu
     incNextGroup(pGroupResInfo);
   }
 
-//  if (pGroupResInfo->currentGroup >= pGroupResInfo->totalGroup && !hasRemainData(pGroupResInfo)) {
-//    SET_STABLE_QUERY_OVER(pRuntimeEnv);
-//  }
-
   int64_t elapsedTime = taosGetTimestampUs() - st;
   qDebug("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", pRuntimeEnv->qinfo,
          pGroupResInfo->currentGroup, pGroupResInfo->totalGroup, elapsedTime);
 
 //  pQInfo->summary.firstStageMergeTime += elapsedTime;
   return TSDB_CODE_SUCCESS;
+}
+
+/*
+ * typedef struct {
+  int64_t  numOfTables;
+  SArray  *dataBlockInfos;
+  int64_t  firstSeekTimeUs;
+  int64_t  numOfRowsInMemTable;
+} STableBlockDist;
+ *
+ */
+SBufferWriter* blockDistInfoToBinary(STableBlockDist* pDist) {
+  SBufferWriter bw = tbufInitWriter(NULL, false);
+
+  tbufWriteUint64(&bw, pDist->numOfTables);
+  tbufWriteUint64(&bw, pDist->numOfRowsInMemTable);
+  tbufWriteUint64(&bw, taosArrayGetSize(pDist->dataBlockInfos));
+
+  pDist->dataBlockInfos->pData
+}
+
+void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist) {
+
 }

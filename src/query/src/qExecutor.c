@@ -61,13 +61,6 @@ typedef struct {
   STSCursor   cur;
 } SQueryStatusInfo;
 
-typedef struct {
-  SArray  *dataBlockInfos; 
-  int64_t firstSeekTimeUs; 
-  int64_t numOfRowsInMemTable;
-  char    *result;
-} STableBlockDist;
-
 #if 0
 static UNUSED_FUNC void *u_malloc (size_t __size) {
   uint32_t v = rand();
@@ -199,6 +192,7 @@ static int32_t setGroupResultOutputBuf_rv(SQueryRuntimeEnv *pRuntimeEnv, SResult
 static void destroyOperatorInfo(SOperatorInfo* pOperator);
 void initCtxOutputBuf_rv(SQLFunctionCtx* pCtx, int32_t size);
 void getAlignQueryTimeWindow(SQuery *pQuery, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *win);
+static bool isPointInterpoQuery(SQuery *pQuery);
 
 // setup the output buffer for each operator
 static SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows) {
@@ -3738,7 +3732,6 @@ void queryCostStatis(SQInfo *pQInfo) {
 static void freeTableBlockDist(STableBlockDist *pTableBlockDist) {
   if (pTableBlockDist != NULL) {
     taosArrayDestroy(pTableBlockDist->dataBlockInfos); 
-    free(pTableBlockDist->result);
     free(pTableBlockDist);
   }
 }
@@ -3765,12 +3758,13 @@ static void generateBlockDistResult(STableBlockDist *pTableBlockDist) {
   if (pTableBlockDist == NULL) {
      return;
   }
+#if 0
   int64_t min = INT64_MAX, max = INT64_MIN, avg = 0;    
   SArray* blockInfos= pTableBlockDist->dataBlockInfos;  
   int64_t totalRows = 0, totalBlocks = taosArrayGetSize(blockInfos); 
   for (size_t i = 0; i < taosArrayGetSize(blockInfos); i++) {
-    SDataBlockInfo *blockInfo = taosArrayGet(blockInfos, i); 
-    int64_t rows = blockInfo->rows;
+    SFileBlockInfo *blockInfo = taosArrayGet(blockInfos, i);
+    int64_t rows = blockInfo->numOfRows;
     min = MIN(min, rows);       
     max = MAX(max, rows);
     totalRows += rows;  
@@ -3778,18 +3772,16 @@ static void generateBlockDistResult(STableBlockDist *pTableBlockDist) {
   avg = totalBlocks > 0 ? (int64_t)(totalRows/totalBlocks) : 0;
 
   taosArraySort(blockInfos, compareBlockInfo);
-
-  int sz = sprintf(pTableBlockDist->result, 
-          "summery: \n\t 5th=[%d], 25th=[%d], 50th=[%d],75th=[%d], 95th=[%d], 99th=[%d] \n\t min=[%"PRId64"], max=[%"PRId64"], avg = [%"PRId64"] \n\t totalRows=[%"PRId64"], totalBlocks=[%"PRId64"] \n\t seekHeaderTimeCost=[%"PRId64"(us)] \n\t rowsInMem=[%"PRId64"]",  
-          getPercentileFromSortedArray(blockInfos, 0.05), getPercentileFromSortedArray(blockInfos, 0.25), getPercentileFromSortedArray(blockInfos, 0.50), 
-          getPercentileFromSortedArray(blockInfos, 0.75), getPercentileFromSortedArray(blockInfos, 0.95), getPercentileFromSortedArray(blockInfos, 0.99),
-          min, max, avg,
-          totalRows, totalBlocks,
-          pTableBlockDist->firstSeekTimeUs,
-          pTableBlockDist->numOfRowsInMemTable);
-  UNUSED(sz);
-  return;
-} 
+#endif
+//  int sz = sprintf(pTableBlockDist->result,
+//          "summary: \n\t 5th=[%d], 25th=[%d], 50th=[%d],75th=[%d], 95th=[%d], 99th=[%d] \n\t min=[%"PRId64"], max=[%"PRId64"], avg = [%"PRId64"] \n\t totalRows=[%"PRId64"], totalBlocks=[%"PRId64"] \n\t seekHeaderTimeCost=[%"PRId64"(us)] \n\t rowsInMem=[%"PRId64"]",
+//          getPercentileFromSortedArray(blockInfos, 0.05), getPercentileFromSortedArray(blockInfos, 0.25), getPercentileFromSortedArray(blockInfos, 0.50),
+//          getPercentileFromSortedArray(blockInfos, 0.75), getPercentileFromSortedArray(blockInfos, 0.95), getPercentileFromSortedArray(blockInfos, 0.99),
+//          min, max, avg,
+//          totalRows, totalBlocks,
+//          pTableBlockDist->firstSeekTimeUs,
+//          pTableBlockDist->numOfRowsInMemTable);
+}
 //void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 //  SQuery *pQuery = pRuntimeEnv->pQuery;
 //
@@ -4412,6 +4404,26 @@ static SSDataBlock* doSeqTableBlocksScan(void* param) {
     pTableScanInfo->pQueryHandle = pRuntimeEnv->pQueryHandle;
     pTableScanInfo->externalLoaded = false;
   }
+}
+
+static SSDataBlock* doBlockInfoScan(void* param) {
+  SOperatorInfo *pOperator = (SOperatorInfo*)param;
+
+  STableScanInfo *pTableScanInfo = pOperator->info;
+
+  STableBlockDist tableBlockDist = {0};
+  tableBlockDist.dataBlockInfos  = taosArrayInit(512, sizeof(SFileBlockInfo));
+
+  tsdbGetFileBlocksDistInfo(pTableScanInfo->pQueryHandle, tableBlockDist.dataBlockInfos);
+  tableBlockDist.numOfRowsInMemTable = tsdbGetNumOfRowsInMemTable(pTableScanInfo->pQueryHandle);
+
+  SSDataBlock* pBlock = &pTableScanInfo->block;
+  pBlock->info.rows   = 1;
+  pBlock->info.numOfCols = 1;
+
+
+
+
 }
 
 SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime) {
@@ -5390,40 +5402,23 @@ void tableQueryImpl(SQInfo *pQInfo) {
   pQInfo->summary.elapsedTime += (taosGetTimestampUs() - st);
 }
 
+
+
 void buildTableBlockDistResult(SQInfo *pQInfo) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
   SQuery *pQuery = pRuntimeEnv->pQuery;
-//  pQuery->pos = 0;
 
-  STableBlockDist *pTableBlockDist  = calloc(1, sizeof(STableBlockDist)); 
-  pTableBlockDist->dataBlockInfos   = taosArrayInit(512, sizeof(SDataBlockInfo));
-  pTableBlockDist->result           = (char *)malloc(512);
+  STableBlockDist *pTableBlockDist = calloc(1, sizeof(STableBlockDist));
+  pTableBlockDist->dataBlockInfos  = taosArrayInit(512, sizeof(SFileBlockInfo));
 
   TsdbQueryHandleT pQueryHandle = pRuntimeEnv->pQueryHandle;
-  SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
   SSchema blockDistSchema = tGetBlockDistColumnSchema();
 
-  int64_t startTime = taosGetTimestampUs();
-  while (tsdbNextDataBlockWithoutMerge(pQueryHandle)) {
-    if (isQueryKilled(pRuntimeEnv->qinfo)) {
-      freeTableBlockDist(pTableBlockDist);
-      longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
-    }
-    if (pTableBlockDist->firstSeekTimeUs == 0) {
-       pTableBlockDist->firstSeekTimeUs = taosGetTimestampUs() - startTime;
-    }   
-   
-    tsdbRetrieveDataBlockInfo(pQueryHandle, &blockInfo);
-    taosArrayPush(pTableBlockDist->dataBlockInfos, &blockInfo); 
-  }
-  if (terrno != TSDB_CODE_SUCCESS) {
-    freeTableBlockDist(pTableBlockDist);
-    longjmp(pRuntimeEnv->env, terrno);
-  }
-
-  pTableBlockDist->numOfRowsInMemTable = tsdbGetNumOfRowsInMemTable(pQueryHandle); 
+//  int64_t startTime = taosGetTimestampUs();
+  tsdbGetFileBlocksDistInfo(pQueryHandle, pTableBlockDist->dataBlockInfos);
+  pTableBlockDist->numOfRowsInMemTable = tsdbGetNumOfRowsInMemTable(pQueryHandle);
   
-  generateBlockDistResult(pTableBlockDist); 
+//  generateBlockDistResult(pTableBlockDist);
 
   int type = -1;
   assert(pQuery->numOfOutput == 1);
@@ -5432,6 +5427,7 @@ void buildTableBlockDistResult(SQInfo *pQInfo) {
     if (pExprInfo[j].base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
       type = blockDistSchema.type;
     }
+
     assert(type == TSDB_DATA_TYPE_BINARY);
 //    STR_WITH_SIZE_TO_VARSTR(pQuery->sdata[j]->data, pTableBlockDist->result, (VarDataLenT)strlen(pTableBlockDist->result));
   }
