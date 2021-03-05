@@ -31,6 +31,20 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [创建超级表](/model#create-stable)：为同一类型的数据采集点创建一个超级表
 * [创建表](/model#create-table)：使用超级表做模板，为每一个具体的数据采集点单独建表
 
+## [TAOS SQL](/taos-sql)
+
+* [支持的数据类型](/taos-sql#data-type)：支持时间戳、整型、浮点型、布尔型、字符型等多种数据类型
+* [数据库管理](/taos-sql#management)：添加、删除、查看数据库
+* [表管理](/taos-sql#table)：添加、删除、查看、修改表
+* [超级表管理](/taos-sql#super-table)：添加、删除、查看、修改超级表
+* [标签管理](/taos-sql#tags)：增加、删除、修改标签
+* [数据写入](/taos-sql#insert)：支持单表单条、多条、多表多条写入，支持历史数据写入
+* [数据查询](/taos-sql#select)：支持时间段、值过滤、排序、查询结果手动分页等
+* [SQL函数](/taos-sql#functions)：支持各种聚合函数、选择函数、计算函数，如avg, min, diff等
+* [时间维度聚合](/taos-sql#aggregation)：将表中数据按照时间段进行切割后聚合，降维处理
+* [边界限制](/taos-sql#limitation)：库、表、SQL等边界限制条件
+* [错误码](/taos-sql/error-code)：TDengine 2.0 错误码以及对应的十进制码
+
 ## [高效写入数据](/insert)
 
 * [SQL写入](/insert#sql)：使用SQL insert命令向一张或多张表写入单条或多条记录
@@ -93,20 +107,6 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [系统监控](/administrator#status)：检查系统现有的连接、查询、流式计算，日志和事件等
 * [文件目录结构](/administrator#directories)：TDengine数据文件、配置文件等所在目录
 * [参数限制与保留关键字](/administrator#keywords)：TDengine的参数限制与保留关键字列表
-
-## [TAOS SQL](/taos-sql)
-
-* [支持的数据类型](/taos-sql#data-type)：支持时间戳、整型、浮点型、布尔型、字符型等多种数据类型
-* [数据库管理](/taos-sql#management)：添加、删除、查看数据库
-* [表管理](/taos-sql#table)：添加、删除、查看、修改表
-* [超级表管理](/taos-sql#super-table)：添加、删除、查看、修改超级表
-* [标签管理](/taos-sql#tags)：增加、删除、修改标签
-* [数据写入](/taos-sql#insert)：支持单表单条、多条、多表多条写入，支持历史数据写入
-* [数据查询](/taos-sql#select)：支持时间段、值过滤、排序、查询结果手动分页等
-* [SQL函数](/taos-sql#functions)：支持各种聚合函数、选择函数、计算函数，如avg, min, diff等
-* [时间维度聚合](/taos-sql#aggregation)：将表中数据按照时间段进行切割后聚合，降维处理
-* [边界限制](/taos-sql#limitation)：库、表、SQL等边界限制条件
-* [错误码](/taos-sql/error-code)：TDengine 2.0 错误码以及对应的十进制码
 
 ## TDengine的技术设计
 
