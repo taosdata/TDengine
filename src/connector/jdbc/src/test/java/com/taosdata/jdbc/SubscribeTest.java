@@ -69,7 +69,7 @@ public class SubscribeTest {
                 resSet.close();
             }
 
-            subscribe.close(false);
+            subscribe.close(true);
         } catch (Exception e) {
             e.printStackTrace();
         }
