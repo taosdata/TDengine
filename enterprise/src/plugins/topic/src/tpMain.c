@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taosdef.h"
+#include "tglobal.h"
 #include "mnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
@@ -25,8 +27,13 @@
 #include "mnodeRead.h"
 #include "mnodeWrite.h"
 
+#define TQ_SCHEMA_SQL_LEN 4096
+#define TQ_BINARY_LEN     16000
+#define TQ_MAX_PARTITIONS 1000
+
 extern void *  tsDbSdb;
 extern char *  mnodeGetDbStr(char *src);
+extern int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
 static int32_t mnodeGetTpMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveTps(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeProcessCreateTpMsg(SMnodeMsg *pMsg);
@@ -47,18 +54,203 @@ int32_t tpInit() {
 
 void tpCleanUp() {}
 
+void tpBuildCreateDbSql(char *sql, SCreateDbMsg *pCreate) {
+  snprintf(sql, TQ_SCHEMA_SQL_LEN,
+           "create database if not exists %s replica %d days %d keep %d minrows %d maxrows %d cache %d blocks %d "
+           "ctime %d wal %d "
+           "fsync %d comp %d quorum %d cachelast %d precision us update 1",
+           pCreate->db, pCreate->replications, pCreate->daysPerFile, pCreate->daysToKeep, pCreate->minRowsPerFileBlock,
+           pCreate->maxRowsPerFileBlock, pCreate->cacheBlockSize, pCreate->totalBlocks, pCreate->commitTime,
+           pCreate->walLevel, pCreate->fsyncPeriod, pCreate->compression, pCreate->quorum, pCreate->cacheLastRow);
+}
 
+static void tpBuildDropDbSql(char *sql, const char *topic) {
+  snprintf(sql, TQ_SCHEMA_SQL_LEN, "drop database %s", topic);
+}
 
-static int32_t mnodeProcessCreateTpMsg(SMnodeMsg *pMsg) {  
-  
+static void tpBuildCreateStableSql(char *sql, const char *topic) {
+  snprintf(sql, TQ_SCHEMA_SQL_LEN, "create table if not exists %s.partitions (offset timestamp, content binary(%d))",
+           topic, TQ_BINARY_LEN);
+}
+
+static void tpBuildCreateCtableSql(char *sql, const char *topic, int32_t tableId) {
+  snprintf(sql, TQ_SCHEMA_SQL_LEN, "create table if not exists %s.p%d using %s.ps tags(%d))", topic, tableId, topic,
+           tableId);
+}
+
+static int32_t tpCreateTopicDb(TAOS *taos, SCreateDbMsg *pCreate) {
+  char sql[TQ_SCHEMA_SQL_LEN] = {0};
+  tpBuildCreateDbSql(sql, pCreate);
+
+  TAOS_RES *pSql = taos_query(taos, sql);
+  int32_t   code = taos_errno(pSql);
+  if (code == 0) {
+    mInfo("topic:%s, db create success, code:%x", pCreate->db, code);
+  } else {
+    mError("topic:%s, failed to create db since %s, code:%x", pCreate->db, taos_errstr(pSql), code);
+  }
+
+  taos_free_result(pSql);
+  return code;
+}
+
+static int32_t tpDropTopicDb(TAOS *taos, const char *topic) {
+  char sql[TQ_SCHEMA_SQL_LEN] = {0};
+  tpBuildDropDbSql(sql, topic);
+
+  TAOS_RES *pSql = taos_query(taos, sql);
+  int32_t   code = taos_errno(pSql);
+  if (code == 0 || code == TSDB_CODE_MND_INVALID_DB || code == TSDB_CODE_MND_DB_IN_DROPPING) {
+    code = 0;
+    mInfo("topic:%s, db drop success, code:%x", topic, code);
+  } else {
+    mError("topic:%s, failed to drop db since %s, code:%x", topic, taos_errstr(pSql), code);
+  }
+
+  taos_free_result(pSql);
+  return code;
+}
+
+static int32_t tpCreateTopicStable(TAOS *taos, const char *topic) {
+  char sql[TQ_SCHEMA_SQL_LEN] = {0};
+  tpBuildCreateStableSql(sql, topic);
+
+  TAOS_RES *pSql = taos_query(taos, sql);
+  int32_t   code = taos_errno(pSql);
+  if (code == 0) {
+    code = 0;
+    mInfo("topic:%s, stable create success, code:%x", topic, code);
+  } else {
+    mError("topic:%s, failed to create stable since %s, code:%x", topic, taos_errstr(pSql), code);
+  }
+
+  taos_free_result(pSql);
+  return code;
+}
+
+static int32_t tpCreateTopicCtable(TAOS *taos, const char *topic, int32_t partitions) {
+  TAOS_RES *pSql = NULL;
+  int32_t   code = 0;
+
+  for (int32_t tableId = 1; tableId <= partitions; ++tableId) {
+    char sql[TQ_SCHEMA_SQL_LEN] = {0};
+    tpBuildCreateCtableSql(sql, topic, tableId);
+
+    pSql = taos_query(taos, sql);
+    code = taos_errno(pSql);
+    if (code == 0 || code == TSDB_CODE_MND_TABLE_ALREADY_EXIST) {
+      code = 0;
+      mInfo("topic:%s, table:%d create success, code:%x", topic, tableId, code);
+    } else {
+      mError("topic:%s, failed to create table:%d since %s, code:%x", topic, tableId, taos_errstr(pSql), code);
+      break;
+    }
+  }
+  taos_free_result(pSql);
+  return code;
+}
+
+static int32_t mnodeProcessCreateTpMsg(SMnodeMsg *pMsg) {
+  SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
+  pCreate->maxTables = htonl(pCreate->maxTables);
+  pCreate->cacheBlockSize = htonl(pCreate->cacheBlockSize);
+  pCreate->totalBlocks = htonl(pCreate->totalBlocks);
+  pCreate->daysPerFile = htonl(pCreate->daysPerFile);
+  pCreate->daysToKeep = htonl(pCreate->daysToKeep);
+  pCreate->daysToKeep1 = htonl(pCreate->daysToKeep1);
+  pCreate->daysToKeep2 = htonl(pCreate->daysToKeep2);
+  pCreate->commitTime = htonl(pCreate->commitTime);
+  pCreate->fsyncPeriod = htonl(pCreate->fsyncPeriod);
+  pCreate->partitions = htons(pCreate->partitions);
+  pCreate->minRowsPerFileBlock = htonl(pCreate->minRowsPerFileBlock);
+  pCreate->maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
+
+  void *taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
+  if (taos == NULL) {
+    mError("failed to connect to database, reason:%s", tstrerror(terrno));
+    return terrno;
+  } else {
+    mDebug("connect to database success");
+  }
+
+  int32_t code = tpCreateTopicDb(taos, pCreate);
+  if (code != 0) {
+    taos_close(taos);
+    return code;
+  }
+
+  code = tpCreateTopicStable(taos, pCreate->db);
+  if (code != 0) {
+    taos_close(taos);
+    return code;
+  }
+
+  code = tpCreateTopicCtable(taos, pCreate->db, pCreate->partitions);
+  if (code != 0) {
+    taos_close(taos);
+    return code;
+  }
+
+  mInfo("topic:%s, create success, partitions:%d", pCreate->db, pCreate->partitions);
   return 0;
 }
 
 static int32_t mnodeProcessAlterTpMsg(SMnodeMsg *pMsg) {
-  return 0;
+  SAlterDbMsg *pAlter = pMsg->rpcMsg.pCont;
+  int32_t      partitions = htons(pAlter->partitions);
+
+  if (partitions < 1 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
+    mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, TSDB_MIN_DB_PARTITON_OPTION,
+           TSDB_MAX_DB_PARTITON_OPTION);
+    return TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+  }
+
+  SDbObj *pDb = mnodeGetDb(pAlter->db);
+  if (pDb == NULL || pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
+    mError("topic:%s, failed to alter, invalid topic", pAlter->db);
+    return TSDB_CODE_MND_INVALID_TOPIC;
+  }
+  pDb->cfg.partitions = partitions;
+
+  void *taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
+  if (taos == NULL) {
+    mError("failed to connect to database, reason:%s", tstrerror(terrno));
+    return terrno;
+  } else {
+    mDebug("connect to database success");
+  }
+
+  int32_t code = tpCreateTopicCtable(taos, pAlter->db, partitions);
+  if (code != 0) {
+    taos_close(taos);
+    return code;
+  }
+
+  mInfo("topic:%s, alter success, partitions:%d", pAlter->db, pAlter->partitions);
+  taos_close(taos);
+
+  return mnodeProcessAlterDbMsg(pMsg);
 }
 
 static int32_t mnodeProcessDropTpMsg(SMnodeMsg *pMsg) {
+  SDropDbMsg *pDrop = pMsg->rpcMsg.pCont;
+
+  void *taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
+  if (taos == NULL) {
+    mError("failed to connect to database, reason:%s", tstrerror(terrno));
+    return terrno;
+  } else {
+    mDebug("connect to database success");
+  }
+
+  int32_t code = tpDropTopicDb(taos, pDrop->db);
+  if (code != 0) {
+    taos_close(taos);
+    return code;
+  }
+
+  mInfo("topic:%s, drop success", pDrop->db);
+  taos_close(taos);
   return 0;
 }
 
@@ -84,72 +276,6 @@ static int32_t mnodeGetTpMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "partitions");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "replica");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "quorum");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 2;
-  pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
-  strcpy(pSchema[cols].name, "days");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "keep0,keep1,keep(D)");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "cache(MB)");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "blocks");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "minrows");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "maxrows");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 1;
-  pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
-  strcpy(pSchema[cols].name, "wallevel");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "fsync");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 1;
-  pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
-  strcpy(pSchema[cols].name, "comp");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
@@ -204,53 +330,6 @@ static int32_t mnodeRetrieveTps(SShowObj *pShow, char *data, int32_t rows, void 
     *(int32_t *)pWrite = pDb->cfg.partitions;
     cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDb->cfg.replications;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDb->cfg.quorum;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pDb->cfg.daysPerFile;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-
-    char tmp[128] = {0};
-    sprintf(tmp, "%d,%d,%d", pDb->cfg.daysToKeep1, pDb->cfg.daysToKeep2, pDb->cfg.daysToKeep);
-    STR_WITH_SIZE_TO_VARSTR(pWrite, tmp, strlen(tmp));
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.cacheBlockSize;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.totalBlocks;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.minRowsPerFileBlock;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.maxRowsPerFileBlock;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pDb->cfg.walLevel;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pDb->cfg.fsyncPeriod;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int8_t *)pWrite = pDb->cfg.compression;
-    cols++;
-
     numOfRows++;
     mnodeDecDbRef(pDb);
   }
@@ -264,4 +343,35 @@ static int32_t mnodeRetrieveTps(SShowObj *pShow, char *data, int32_t rows, void 
 
 void mnodeCancelGetNextTp(void *pIter) {
   sdbFreeIter(tsDbSdb, pIter);
+}
+
+void tpUpdateTs(int32_t *seq, void *pMsg) {
+  SSubmitMsg *pSubmit = pMsg;
+  int32_t     numOfBlocks = htonl(pSubmit->numOfBlocks);
+  int32_t     msgTotalLen = htonl(pSubmit->length);
+  int32_t     blockOffset = sizeof(SSubmitMsg);
+  int32_t     blocks = 0;
+
+  while (blocks < numOfBlocks && blockOffset < msgTotalLen) {
+    SSubmitBlk *pBlock = (SSubmitBlk *)((char *)pSubmit + blockOffset);
+    int16_t     numOfRows = htons(pBlock->numOfRows);
+    int32_t     blockTotalLen = htonl(pBlock->dataLen);
+    int32_t     blockSchemaLen = htonl(pBlock->schemaLen);
+
+    blockOffset += (sizeof(SSubmitBlk) + blockTotalLen + blockSchemaLen);
+    blocks++;
+
+    int32_t rowOffset = blockSchemaLen;
+    int32_t rows = 0;
+    while (rows < numOfRows && rowOffset < blockTotalLen) {
+      SDataRow *pRow = (SDataRow *)((char *)pBlock->data + rowOffset);
+
+      rowOffset += dataRowLen(pRow);
+      rows++;
+
+      (*seq)++;
+      if ((*seq) > 1000000) seq = 0;
+      dataRowTKey(pRow) = (1614873600000000L + *seq);
+    }
+  }
 }
