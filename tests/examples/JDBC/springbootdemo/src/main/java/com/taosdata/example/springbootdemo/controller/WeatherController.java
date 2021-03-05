@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RequestMapping("/weather")
 @RestController
@@ -20,7 +21,7 @@ public class WeatherController {
      * @return
      */
     @GetMapping("/init")
-    public boolean init() {
+    public int init() {
         return weatherService.init();
     }
 
@@ -44,19 +45,23 @@ public class WeatherController {
      * @return
      */
     @PostMapping("/{temperature}/{humidity}")
-    public int saveWeather(@PathVariable int temperature, @PathVariable float humidity) {
+    public int saveWeather(@PathVariable float temperature, @PathVariable int humidity) {
         return weatherService.save(temperature, humidity);
     }
 
-    /**
-     * upload multi weather info
-     *
-     * @param weatherList
-     * @return
-     */
-    @PostMapping("/batch")
-    public int batchSaveWeather(@RequestBody List<Weather> weatherList) {
-        return weatherService.save(weatherList);
+    @GetMapping("/count")
+    public int count() {
+        return weatherService.count();
+    }
+
+    @GetMapping("/subTables")
+    public List<String> getSubTables() {
+        return weatherService.getSubTables();
+    }
+
+    @GetMapping("/avg")
+    public List<Weather> avg() {
+        return weatherService.avg();
     }
 
 }
