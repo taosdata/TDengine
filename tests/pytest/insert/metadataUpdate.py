@@ -54,10 +54,11 @@ class TDTestCase:
         p.terminate()
         
         tdSql.execute("insert into tb values(%d, 1, 2)" % (self.ts + 1))
+        tdSql.execute("insert into tb(ts, col1, col2) values(%d, 1, 2)" % (self.ts + 2))
 
         print("==============step2")
         tdSql.query("select * from tb")
-        tdSql.checkRows(2)
+        tdSql.checkRows(3)
 
     def stop(self):
         tdSql.close()
