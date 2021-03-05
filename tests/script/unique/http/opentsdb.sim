@@ -169,7 +169,7 @@ endi
 
 system_content curl -u root:taosdata -d  'select * from db.sys_cpu_d_bbb_lga_1_web01' 127.0.0.1:7111/rest/sql/
 print $system_content
-if $system_content != @{"status":"succ","head":["ts","value"],"data":[["2012-09-05 20:00:00.000",18.000000000]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["ts","value"],"column_meta":[["ts",9,8],["value",7,8]],"data":[["2012-09-05 20:00:00.000",18.000000000]],"rows":1}@ then
   return -1
 endi
 
@@ -186,7 +186,7 @@ system_content curl -u root:taosdata -d  'select * from db.sys_cpu_d_bbb_lga_1_w
 
 print $system_content
 
-if $system_content != @{"status":"succ","head":["ts","value"],"data":[["2012-09-05 20:00:00.000",18.000000000],["2012-09-05 20:00:05.000",18.000000000]],"rows":2}@ then
+if $system_content != @{"status":"succ","head":["ts","value"],"column_meta":[["ts",9,8],["value",7,8]],"data":[["2012-09-05 20:00:00.000",18.000000000],["2012-09-05 20:00:05.000",18.000000000]],"rows":2}@ then
   return -1
 endi
 
@@ -194,7 +194,7 @@ system_content curl -u root:taosdata -d  'select count(*) from db.sys_cpu_d_bbb'
 
 print $system_content
 
-if $system_content != @{"status":"succ","head":["count(*)"],"data":[[3]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["count(*)"],"column_meta":[["count(*)",5,8]],"data":[[3]],"rows":1}@ then
   return -1
 endi
 
@@ -211,7 +211,7 @@ system_content curl -u root:taosdata -d  'select * from db.sys_mem_d_bbb_lga_1_w
 
 print $system_content
 
-if $system_content != @{"status":"succ","head":["ts","value"],"data":[["2012-09-05 20:00:00.000",8.000000000],["2012-09-05 20:00:05.000",9.000000000]],"rows":2}@ then
+if $system_content != @{"status":"succ","head":["ts","value"],"column_meta":[["ts",9,8],["value",7,8]],"data":[["2012-09-05 20:00:00.000",8.000000000],["2012-09-05 20:00:05.000",9.000000000]],"rows":2}@ then
   return -1
 endi
 
@@ -219,7 +219,7 @@ system_content curl -u root:taosdata -d  'select count(*) from db.sys_mem_d_bbb'
 
 print $system_content
 
-if $system_content != @{"status":"succ","head":["count(*)"],"data":[[2]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["count(*)"],"column_meta":[["count(*)",5,8]],"data":[[2]],"rows":1}@ then
   return -1
 endi
 
@@ -233,7 +233,7 @@ system_content curl -u root:taosdata -d  '[{"metric": "sys_cpu","timestamp": 134
 
 system_content curl -u root:taosdata -d  'select count(*) from db.sys_cpu_d_bbb' 127.0.0.1:7111/rest/sql/
 print $system_content
-if $system_content != @{"status":"succ","head":["count(*)"],"data":[[7]],"rows":1}@ then
+if $system_content != @{"status":"succ","head":["count(*)"],"column_meta":[["count(*)",5,8]],"data":[[7]],"rows":1}@ then
   return -1
 endi
 

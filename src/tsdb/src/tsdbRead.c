@@ -187,13 +187,15 @@ static SArray* getDefaultLoadColumns(STsdbQueryHandle* pQueryHandle, bool loadTS
   return pLocalIdList;
 }
 
-static void tsdbMayTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
+static void tsdbMayTakeMemSnapshot(STsdbQueryHandle* pQueryHandle, SArray* psTable) {
   assert(pQueryHandle != NULL && pQueryHandle->pMemRef != NULL);
 
   SMemRef* pMemRef = pQueryHandle->pMemRef;
   if (pQueryHandle->pMemRef->ref++ == 0) {
-    tsdbTakeMemSnapshot(pQueryHandle->pTsdb, (SMemTable**)&(pMemRef->mem), (SMemTable**)&(pMemRef->imem));
+    tsdbTakeMemSnapshot(pQueryHandle->pTsdb, (SMemTable**)&(pMemRef->mem), (SMemTable**)&(pMemRef->imem), psTable);
   }
+
+  taosArrayDestroy(psTable);
 }
 
 static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
@@ -242,13 +244,19 @@ int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle) {
   return rows;
 }
 
-static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STableGroupInfo* pGroupList, STsdbMeta* pMeta) {
+static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STableGroupInfo* pGroupList, STsdbMeta* pMeta, SArray** psTable) {
   size_t sizeOfGroup = taosArrayGetSize(pGroupList->pGroupList);
   assert(sizeOfGroup >= 1 && pMeta != NULL);
 
   // allocate buffer in order to load data blocks from file
   SArray* pTableCheckInfo = taosArrayInit(pGroupList->numOfTables, sizeof(STableCheckInfo));
   if (pTableCheckInfo == NULL) {
+    return NULL;
+  }
+
+  SArray* pTable = taosArrayInit(4, sizeof(STable*));
+  if (pTable == NULL) {
+    taosArrayDestroy(pTableCheckInfo);
     return NULL;
   }
 
@@ -284,15 +292,28 @@ static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STa
   }
 
   taosArraySort(pTableCheckInfo, tsdbCheckInfoCompar);
+
+  size_t gsize = taosArrayGetSize(pTableCheckInfo);
+  
+  for (int32_t i = 0; i < gsize; ++i) {
+    STableCheckInfo* pInfo = (STableCheckInfo*) taosArrayGet(pTableCheckInfo, i);
+    
+    taosArrayPush(pTable, &pInfo->pTableObj);
+  }
+
+  *psTable = pTable;
+  
   return pTableCheckInfo;
 }
 
-static SArray* createCheckInfoFromCheckInfo(SArray* pTableCheckInfo, TSKEY skey) {
+static SArray* createCheckInfoFromCheckInfo(SArray* pTableCheckInfo, TSKEY skey, SArray** psTable) {
   size_t si = taosArrayGetSize(pTableCheckInfo);
   SArray* pNew = taosArrayInit(si, sizeof(STableCheckInfo));
   if (pNew == NULL) {
     return NULL;
   }
+
+  SArray* pTable = taosArrayInit(si, sizeof(STable*));
 
   for (int32_t j = 0; j < si; ++j) {
     STableCheckInfo* pCheckInfo = (STableCheckInfo*) taosArrayGet(pTableCheckInfo, j);
@@ -300,7 +321,10 @@ static SArray* createCheckInfoFromCheckInfo(SArray* pTableCheckInfo, TSKEY skey)
 
     info.tableId = pCheckInfo->tableId;
     taosArrayPush(pNew, &info);
+    taosArrayPush(pTable, &pCheckInfo->pTableObj);
   }
+
+  *psTable = pTable;
 
   // it is ordered already, no need to sort again.
   taosArraySort(pNew, tsdbCheckInfoCompar);
@@ -332,7 +356,7 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
     goto out_of_memory;
   }
 
-  tsdbMayTakeMemSnapshot(pQueryHandle);
+  //tsdbMayTakeMemSnapshot(pQueryHandle);
   assert(pCond != NULL && pCond->numOfCols > 0 && pMemRef != NULL);
 
   if (ASCENDING_TRAVERSE(pCond->order)) {
@@ -393,13 +417,17 @@ TsdbQueryHandleT* tsdbQueryTables(STsdbRepo* tsdb, STsdbQueryCond* pCond, STable
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
   assert(pMeta != NULL);
 
+  SArray* psTable = NULL;
+
   // todo apply the lastkey of table check to avoid to load header file
-  pQueryHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pQueryHandle, groupList, pMeta);
+  pQueryHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pQueryHandle, groupList, pMeta, &psTable);
   if (pQueryHandle->pTableCheckInfo == NULL) {
     tsdbCleanupQueryHandle(pQueryHandle);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
   }
+
+  tsdbMayTakeMemSnapshot(pQueryHandle, psTable);
 
   tsdbDebug("%p total numOfTable:%" PRIzu " in query, %p", pQueryHandle, taosArrayGetSize(pQueryHandle->pTableCheckInfo), pQueryHandle->qinfo);
   return (TsdbQueryHandleT) pQueryHandle;
@@ -2337,11 +2365,17 @@ static int32_t doGetExternalRow(STsdbQueryHandle* pQueryHandle, int16_t type, SM
   pSecQueryHandle = tsdbQueryTablesImpl(pQueryHandle->pTsdb, &cond, pQueryHandle->qinfo, pMemRef);
 
   tfree(cond.colList);
-  pSecQueryHandle->pTableCheckInfo = createCheckInfoFromCheckInfo(pQueryHandle->pTableCheckInfo, pSecQueryHandle->window.skey);
+
+  SArray* psTable = NULL;
+  
+  pSecQueryHandle->pTableCheckInfo = createCheckInfoFromCheckInfo(pQueryHandle->pTableCheckInfo, pSecQueryHandle->window.skey, &psTable);
   if (pSecQueryHandle->pTableCheckInfo == NULL) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto out_of_memory;
   }
+
+  
+  tsdbMayTakeMemSnapshot(pSecQueryHandle, psTable);
 
   if (!tsdbNextDataBlock((void*)pSecQueryHandle)) {
     // no result in current query, free the corresponding result rows structure

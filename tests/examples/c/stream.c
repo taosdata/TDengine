@@ -54,12 +54,6 @@ int main(int argc, char *argv[])
     exit(0);
   } 
 
-  // init TAOS
-  if (taos_init()) {
-    printf("failed to init taos\n");
-    exit(1);
-  }
-
   strcpy(db_name, argv[2]);
   strcpy(tbl_name, argv[3]);
   
