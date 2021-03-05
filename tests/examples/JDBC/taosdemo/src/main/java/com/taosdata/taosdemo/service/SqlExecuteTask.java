@@ -8,11 +8,11 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 
-public class SqlExecuteor implements Runnable {
+public class SqlExecuteTask implements Runnable {
     private final DataSource dataSource;
     private final String sql;
 
-    public SqlExecuteor(DataSource dataSource, String sql) {
+    public SqlExecuteTask(DataSource dataSource, String sql) {
         this.dataSource = dataSource;
         this.sql = sql;
     }

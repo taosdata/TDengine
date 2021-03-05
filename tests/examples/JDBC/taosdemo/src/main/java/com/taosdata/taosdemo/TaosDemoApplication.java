@@ -3,17 +3,15 @@ package com.taosdata.taosdemo;
 import com.taosdata.taosdemo.components.DataSourceFactory;
 import com.taosdata.taosdemo.components.JdbcTaosdemoConfig;
 import com.taosdata.taosdemo.domain.SuperTableMeta;
-import com.taosdata.taosdemo.service.*;
+import com.taosdata.taosdemo.service.DatabaseService;
+import com.taosdata.taosdemo.service.SqlExecuteTask;
+import com.taosdata.taosdemo.service.SubTableService;
+import com.taosdata.taosdemo.service.SuperTableService;
 import com.taosdata.taosdemo.service.data.SuperTableMetaGenerator;
-import com.taosdata.taosdemo.utils.Printer;
 import org.apache.log4j.Logger;
 
 import javax.sql.DataSource;
 import java.io.IOException;
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
@@ -35,7 +33,7 @@ public class TaosDemoApplication {
         // 初始化
         final DataSource dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user, config.password);
         if (config.executeSql != null && !config.executeSql.isEmpty() && !config.executeSql.replaceAll("\\s", "").isEmpty()) {
-            Thread task = new Thread(new SqlExecuteor(dataSource, config.executeSql));
+            Thread task = new Thread(new SqlExecuteTask(dataSource, config.executeSql));
             task.start();
             try {
                 task.join();

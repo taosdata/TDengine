@@ -18,10 +18,10 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     private final String database;
     private final Statement statement;
     // data
-    private ArrayList<ArrayList<Object>> resultSet = new ArrayList<>();
+    private ArrayList<ArrayList<Object>> resultSet;
     // meta
-    private ArrayList<String> columnNames = new ArrayList<>();
-    private ArrayList<Field> columns = new ArrayList<>();
+    private ArrayList<String> columnNames;
+    private ArrayList<Field> columns;
     private RestfulResultSetMetaData metaData;
 
     /**
@@ -29,11 +29,36 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
      *
      * @param resultJson: 包含data信息的结果集，有sql返回的结果集
      ***/
-    public RestfulResultSet(String database, Statement statement, JSONObject resultJson) {
+    public RestfulResultSet(String database, Statement statement, JSONObject resultJson) throws SQLException {
         this.database = database;
         this.statement = statement;
+        // column metadata
+        JSONArray columnMeta = resultJson.getJSONArray("column_meta");
+        columnNames = new ArrayList<>();
+        columns = new ArrayList<>();
+        for (int colIndex = 0; colIndex < columnMeta.size(); colIndex++) {
+            JSONArray col = columnMeta.getJSONArray(colIndex);
+            String col_name = col.getString(0);
+            int col_type = TSDBConstants.taosType2JdbcType(col.getInteger(1));
+            int col_length = col.getInteger(2);
+            columnNames.add(col_name);
+            columns.add(new Field(col_name, col_type, col_length, ""));
+        }
+        this.metaData = new RestfulResultSetMetaData(this.database, columns, this);
+
         // row data
         JSONArray data = resultJson.getJSONArray("data");
+        resultSet = new ArrayList<>();
+        for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
+            ArrayList row = new ArrayList();
+            JSONArray jsonRow = data.getJSONArray(rowIndex);
+            for (int colIndex = 0; colIndex < jsonRow.size(); colIndex++) {
+                row.add(parseColumnData(jsonRow, colIndex, columns.get(colIndex).type));
+            }
+            resultSet.add(row);
+        }
+
+        /*
         int columnIndex = 0;
         for (; columnIndex < data.size(); columnIndex++) {
             ArrayList oneRow = new ArrayList<>();
@@ -52,50 +77,77 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             columns.add(new Field(name, "", 0, ""));
         }
         this.metaData = new RestfulResultSetMetaData(this.database, columns, this);
+         */
     }
 
-    /**
-     * 由多个resultSet的JSON构造结果集
-     *
-     * @param resultJson: 包含data信息的结果集，有sql返回的结果集
-     * @param fieldJson:  包含多个（最多2个）meta信息的结果集，有describe xxx
-     **/
-    public RestfulResultSet(String database, Statement statement, JSONObject resultJson, List<JSONObject> fieldJson) {
-        this(database, statement, resultJson);
-        ArrayList<Field> newColumns = new ArrayList<>();
-
-        for (Field column : columns) {
-            Field field = findField(column.name, fieldJson);
-            if (field != null) {
-                newColumns.add(field);
-            } else {
-                newColumns.add(column);
-            }
+    private Object parseColumnData(JSONArray row, int colIndex, int sqlType) {
+        switch (sqlType) {
+            case Types.NULL:
+                return null;
+            case Types.BOOLEAN:
+                return row.getBoolean(colIndex);
+            case Types.TINYINT:
+            case Types.SMALLINT:
+                return row.getShort(colIndex);
+            case Types.INTEGER:
+                return row.getInteger(colIndex);
+            case Types.BIGINT:
+                return row.getBigInteger(colIndex);
+            case Types.FLOAT:
+                return row.getFloat(colIndex);
+            case Types.DOUBLE:
+                return row.getDouble(colIndex);
+            case Types.TIMESTAMP:
+                return row.getTimestamp(colIndex);
+            case Types.BINARY:
+            case Types.NCHAR:
+            default:
+                return row.getString(colIndex);
         }
-        this.columns = newColumns;
-        this.metaData = new RestfulResultSetMetaData(this.database, this.columns, this);
     }
 
-    public Field findField(String columnName, List<JSONObject> fieldJsonList) {
-        for (JSONObject fieldJSON : fieldJsonList) {
-            JSONArray fieldDataJson = fieldJSON.getJSONArray("data");
-            for (int i = 0; i < fieldDataJson.size(); i++) {
-                JSONArray field = fieldDataJson.getJSONArray(i);
-                if (columnName.equalsIgnoreCase(field.getString(0))) {
-                    return new Field(field.getString(0), field.getString(1), field.getInteger(2), field.getString(3));
-                }
-            }
-        }
-        return null;
-    }
+//    /**
+//     * 由多个resultSet的JSON构造结果集
+//     *
+//     * @param resultJson: 包含data信息的结果集，有sql返回的结果集
+//     * @param fieldJson:  包含多个（最多2个）meta信息的结果集，有describe xxx
+//     **/
+//    public RestfulResultSet(String database, Statement statement, JSONObject resultJson, List<JSONObject> fieldJson) throws SQLException {
+//        this(database, statement, resultJson);
+//        ArrayList<Field> newColumns = new ArrayList<>();
+//
+//        for (Field column : columns) {
+//            Field field = findField(column.name, fieldJson);
+//            if (field != null) {
+//                newColumns.add(field);
+//            } else {
+//                newColumns.add(column);
+//            }
+//        }
+//        this.columns = newColumns;
+//        this.metaData = new RestfulResultSetMetaData(this.database, this.columns, this);
+//    }
+
+//    public Field findField(String columnName, List<JSONObject> fieldJsonList) {
+//        for (JSONObject fieldJSON : fieldJsonList) {
+//            JSONArray fieldDataJson = fieldJSON.getJSONArray("data");
+//            for (int i = 0; i < fieldDataJson.size(); i++) {
+//                JSONArray field = fieldDataJson.getJSONArray(i);
+//                if (columnName.equalsIgnoreCase(field.getString(0))) {
+//                    return new Field(field.getString(0), field.getString(1), field.getInteger(2), field.getString(3));
+//                }
+//            }
+//        }
+//        return null;
+//    }
 
     public class Field {
         String name;
-        String type;
+        int type;
         int length;
         String note;
 
-        public Field(String name, String type, int length, String note) {
+        public Field(String name, int type, int length, String note) {
             this.name = name;
             this.type = type;
             this.length = length;

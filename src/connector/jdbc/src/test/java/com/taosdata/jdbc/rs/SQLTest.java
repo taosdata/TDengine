@@ -11,8 +11,8 @@ import java.sql.*;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class SQLTest {
-    private static final String host = "127.0.0.1";
-    //    private static final String host = "master";
+//    private static final String host = "127.0.0.1";
+        private static final String host = "master";
     private static Connection connection;
 
     @Test
@@ -320,6 +320,18 @@ public class SQLTest {
     @Test
     public void testCase051() {
         String sql = "select * from restful_test.t1 tt, restful_test.t3 yy where tt.ts = yy.ts";
+        SQLExecutor.executeQuery(connection, sql);
+    }
+
+    @Test
+    public void testCase052() {
+        String sql = "select server_status()";
+        SQLExecutor.executeQuery(connection, sql);
+    }
+
+    @Test
+    public void testCase053() {
+        String sql = "select avg(cpu_taosd), avg(cpu_system), max(cpu_cores), avg(mem_taosd), avg(mem_system), max(mem_total), avg(disk_used), max(disk_total), avg(band_speed), avg(io_read), avg(io_write), sum(req_http), sum(req_select), sum(req_insert) from log.dn1 where ts> now - 60m and ts<= now interval(1m) fill(value, 0)";
         SQLExecutor.executeQuery(connection, sql);
     }
 
