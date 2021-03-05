@@ -36,7 +36,7 @@ class TDTestCase:
                 (i, i))
 
         tdLog.info("insert earlier data")
-        tdSql.execute('insert into tb values (now - 5m , 10)')
+        tdSql.execute('insert into tb values (now - 5m , NULL)')
         tdSql.execute('insert into tb values (now - 6m , 10)')
         tdSql.execute('insert into tb values (now - 7m , NULL)')
         tdSql.execute('insert into tb values (now - 8m , 254)')

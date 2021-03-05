@@ -124,17 +124,66 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
   return 0;
 }
 
-int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem) {
+int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem, SArray *pATable) {
+  SMemTable *tmem;
+
+  // Get snap object
   if (tsdbLockRepo(pRepo) < 0) return -1;
 
-  *pMem = pRepo->mem;
+  tmem = pRepo->mem;
   *pIMem = pRepo->imem;
-  tsdbRefMemTable(pRepo, *pMem);
+  tsdbRefMemTable(pRepo, tmem);
   tsdbRefMemTable(pRepo, *pIMem);
 
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
-  if (*pMem != NULL) taosRLockLatch(&((*pMem)->latch));
+  // Copy mem objects and ref needed STableData
+  if (tmem) {
+    taosRLockLatch(&(tmem->latch));
+
+    *pMem = (SMemTable *)calloc(1, sizeof(**pMem));
+    if (*pMem == NULL) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      taosRUnLockLatch(&(tmem->latch));
+      tsdbUnRefMemTable(pRepo, tmem);
+      tsdbUnRefMemTable(pRepo, *pIMem);
+      *pMem = NULL;
+      *pIMem = NULL;
+      return -1;
+    }
+
+    (*pMem)->tData = (STableData **)calloc(tmem->maxTables, sizeof(STableData *));
+    if ((*pMem)->tData == NULL) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      taosRUnLockLatch(&(tmem->latch));
+      free(*pMem);
+      tsdbUnRefMemTable(pRepo, tmem);
+      tsdbUnRefMemTable(pRepo, *pIMem);
+      *pMem = NULL;
+      *pIMem = NULL;
+      return -1;
+    }
+
+    (*pMem)->keyFirst = tmem->keyFirst;
+    (*pMem)->keyLast = tmem->keyLast;
+    (*pMem)->numOfRows = tmem->numOfRows;
+    (*pMem)->maxTables = tmem->maxTables;
+
+    for (size_t i = 0; i < taosArrayGetSize(pATable); i++) {
+      STable *    pTable = *(STable **)taosArrayGet(pATable, i);
+      int32_t     tid = TABLE_TID(pTable);
+      STableData *pTableData = (tid < tmem->maxTables) ? tmem->tData[tid] : NULL;
+
+      if ((pTableData == NULL) || (TABLE_UID(pTable) != pTableData->uid)) continue;
+
+      (*pMem)->tData[tid] = tmem->tData[tid];
+      T_REF_INC(tmem->tData[tid]);
+    }
+
+    taosRUnLockLatch(&(tmem->latch));
+  }
+
+  tsdbUnRefMemTable(pRepo, tmem);
 
   tsdbDebug("vgId:%d take memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), *pMem, *pIMem);
   return 0;
@@ -144,8 +193,14 @@ void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemTable *pMem, SMemTable *pIMem) 
   tsdbDebug("vgId:%d untake memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), pMem, pIMem);
 
   if (pMem != NULL) {
-    taosRUnLockLatch(&(pMem->latch));
-    tsdbUnRefMemTable(pRepo, pMem);
+    for (size_t i = 0; i < pMem->maxTables; i++) {
+      STableData *pTableData = pMem->tData[i];
+      if (pTableData) {
+        tsdbFreeTableData(pTableData);
+      }
+    }
+    free(pMem->tData);
+    free(pMem);
   }
 
   if (pIMem != NULL) {
@@ -436,7 +491,7 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
   STableData *pTableData = (STableData *)calloc(1, sizeof(*pTableData));
   if (pTableData == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
+    return NULL;
   }
 
   pTableData->uid = TABLE_UID(pTable);
@@ -449,20 +504,22 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
                       tkeyComparFn, pCfg->update ? SL_UPDATE_DUP_KEY : SL_DISCARD_DUP_KEY, tsdbGetTsTupleKey);
   if (pTableData->pData == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
+    free(pTableData);
+    return NULL;
   }
 
-  return pTableData;
+  T_REF_INC(pTableData);
 
-_err:
-  tsdbFreeTableData(pTableData);
-  return NULL;
+  return pTableData;
 }
 
 static void tsdbFreeTableData(STableData *pTableData) {
   if (pTableData) {
-    tSkipListDestroy(pTableData->pData);
-    free(pTableData);
+    int32_t ref = T_REF_DEC(pTableData);
+    if (ref == 0) {
+      tSkipListDestroy(pTableData->pData);
+      free(pTableData);
+    }
   }
 }
 

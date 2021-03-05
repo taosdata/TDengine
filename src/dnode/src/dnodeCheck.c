@@ -29,7 +29,7 @@ typedef struct {
 static  SCheckItem  tsCheckItem[TSDB_CHECK_ITEM_MAX] = {{0}};
 int64_t tsMinFreeMemSizeForStart = 0;
 
-static int32_t bindTcpPort(int16_t port) {
+static int32_t bindTcpPort(uint16_t port) {
   SOCKET serverSocket;
   struct sockaddr_in server_addr;
 
@@ -85,9 +85,9 @@ static int32_t bindUdpPort(int16_t port) {
 
 static int32_t dnodeCheckNetwork() {
   int32_t ret;
-  int16_t startPort = tsServerPort;
+  uint16_t startPort = tsServerPort;
 
-  for (int16_t port = startPort; port < startPort + 12; port++) {
+  for (uint16_t port = startPort; port < startPort + 12; port++) {
     ret = bindTcpPort(port);
     if (0 != ret) {
       dError("failed to tcp bind port %d, quit", port);

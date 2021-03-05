@@ -61,11 +61,6 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  // init TAOS
-  if (taos_init()) {
-    exit(1);
-  }
-  
   TAOS *taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("failed to connect to server, reason:%s\n", "null taos"/*taos_errstr(taos)*/);

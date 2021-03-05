@@ -108,7 +108,8 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-To compile on an ARM processor (aarch64 or aarch32), please add option CPUTYPE as below:
+TDengine build script can detect the host machine's architecture on X86-64, X86, arm64 and arm32 platform.
+You can also specify CPUTYPE option like aarch64 or aarch32 too if the detection result is not correct:
 
 aarch64:
 ```bash

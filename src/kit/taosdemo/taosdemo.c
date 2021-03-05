@@ -21,10 +21,6 @@
 #define _GNU_SOURCE
 #define CURL_STATICLIB
 
-#ifdef TD_LOWA_CURL
-#include "curl/curl.h"
-#endif
-
 #ifdef LINUX
   #include "os.h"
   #include <argp.h>
@@ -50,16 +46,20 @@
   #include <stdio.h>
   #include "os.h"
   
-  #pragma comment ( lib, "libcurl_a.lib" )
+#ifdef TD_WINDOWS
   #pragma comment ( lib, "ws2_32.lib" )
   #pragma comment ( lib, "winmm.lib" )
   #pragma comment ( lib, "wldap32.lib" )  
+#endif
 #endif  
 
 #include "cJSON.h"
 
 #include "taos.h"
 #include "tutil.h"
+
+#define REQ_EXTRA_BUF_LEN   1024
+#define RESP_BUF_LEN        4096
 
 #ifdef WINDOWS
 #include <windows.h>
@@ -257,14 +257,14 @@ typedef struct SColumn_S {
 } StrColumn;
 
 typedef struct SSuperTable_S {
-  char         sTblName[MAX_TB_NAME_SIZE];
+  char         sTblName[MAX_TB_NAME_SIZE+1];
   int          childTblCount;
   bool         superTblExists;    // 0: no, 1: yes
   bool         childTblExists;    // 0: no, 1: yes  
   int          batchCreateTableNum;  // 0: no batch,  > 0: batch table number in one sql
   int8_t       autoCreateTable;                  // 0: create sub table, 1: auto create sub table
   char         childTblPrefix[MAX_TB_NAME_SIZE];
-  char         dataSource[MAX_TB_NAME_SIZE];  // rand_gen or sample
+  char         dataSource[MAX_TB_NAME_SIZE+1];  // rand_gen or sample
   char         insertMode[MAX_TB_NAME_SIZE];  // taosc, restful
   int          insertRate;  // 0: unlimit  > 0   rows/s
 
@@ -279,8 +279,8 @@ typedef struct SSuperTable_S {
   int          timeStampStep;
   char         startTimestamp[MAX_TB_NAME_SIZE];  // 
   char         sampleFormat[MAX_TB_NAME_SIZE];  // csv, json
-  char         sampleFile[MAX_FILE_NAME_LEN];
-  char         tagsFile[MAX_FILE_NAME_LEN];
+  char         sampleFile[MAX_FILE_NAME_LEN+1];
+  char         tagsFile[MAX_FILE_NAME_LEN+1];
 
   int          columnCount;
   StrColumn    columns[MAX_COLUMN_COUNT];
@@ -335,6 +335,7 @@ typedef struct SDbCfg_S {
   int       maxRows;
   int       comp;
   int       walLevel;
+  int       cacheLast;
   int       fsync;  
   int       replica;
   int       update;
@@ -355,12 +356,12 @@ typedef struct SDataBase_S {
 } SDataBase;
 
 typedef struct SDbs_S {
-  char         cfgDir[MAX_FILE_NAME_LEN];
+  char         cfgDir[MAX_FILE_NAME_LEN+1];
   char         host[MAX_DB_NAME_SIZE];
   uint16_t     port;
   char         user[MAX_DB_NAME_SIZE];
   char         password[MAX_DB_NAME_SIZE];
-  char         resultFile[MAX_FILE_NAME_LEN];
+  char         resultFile[MAX_FILE_NAME_LEN+1];
   bool         use_metric;
   bool         insert_only;
   bool         do_aggreFunc;
@@ -385,13 +386,13 @@ typedef struct SuperQueryInfo_S {
   int          subscribeInterval; // ms
   int          subscribeRestart;
   int          subscribeKeepProgress;
-  char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH];  
-  char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN];
+  char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];  
+  char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
 } SuperQueryInfo;
 
 typedef struct SubQueryInfo_S {
-  char         sTblName[MAX_TB_NAME_SIZE];
+  char         sTblName[MAX_TB_NAME_SIZE+1];
   int          rate;  // 0: unlimit  > 0   loop/s
   int          threadCnt;  
   int          subscribeMode; // 0: sync, 1: async
@@ -401,20 +402,20 @@ typedef struct SubQueryInfo_S {
   int          childTblCount;
   char         childTblPrefix[MAX_TB_NAME_SIZE];
   int          sqlCount;
-  char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH];  
-  char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN];
+  char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];  
+  char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
   
   char*        childTblName;
 } SubQueryInfo;
 
 typedef struct SQueryMetaInfo_S {
-  char         cfgDir[MAX_FILE_NAME_LEN];
+  char         cfgDir[MAX_FILE_NAME_LEN+1];
   char         host[MAX_DB_NAME_SIZE];
   uint16_t     port;
   char         user[MAX_DB_NAME_SIZE];
   char         password[MAX_DB_NAME_SIZE];
-  char         dbName[MAX_DB_NAME_SIZE];
+  char         dbName[MAX_DB_NAME_SIZE+1];
   char         queryMode[MAX_TB_NAME_SIZE];  // taosc, restful
 
   SuperQueryInfo  superQueryInfo;
@@ -423,11 +424,8 @@ typedef struct SQueryMetaInfo_S {
 
 typedef struct SThreadInfo_S {
   TAOS *taos;
-  #ifdef TD_LOWA_CURL
-  CURL *curl_handle;
-  #endif
   int threadID;
-  char db_name[MAX_DB_NAME_SIZE];
+  char db_name[MAX_DB_NAME_SIZE+1];
   char fp[4096];
   char tb_prefix[MAX_TB_NAME_SIZE];
   int start_table_id;
@@ -459,12 +457,6 @@ typedef struct SThreadInfo_S {
   
 } threadInfo;
 
-typedef  struct curlMemInfo_S {
-    char *buf;
-    size_t sizeleft;
-  } curlMemInfo;
-  
-  
 
 #ifdef LINUX
   /* The options we understand. */
@@ -1522,159 +1514,98 @@ static void printfQuerySystemInfo(TAOS * taos) {
   
 }
 
+void ERROR_EXIT(const char *msg) { perror(msg); exit(0); }
 
-#ifdef TD_LOWA_CURL
-static size_t responseCallback(void *contents, size_t size, size_t nmemb, void *userp)
+int postProceSql(char* host, uint16_t port, char* sqlstr)
 {
-  size_t realsize = size * nmemb;
-  curlMemInfo* mem = (curlMemInfo*)userp;
- 
-  char *ptr = realloc(mem->buf, mem->sizeleft + realsize + 1);
-  if(ptr == NULL) {
-    /* out of memory! */ 
-    printf("not enough memory (realloc returned NULL)\n");
+    char *req_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\n%s\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s";
+
+    char *url = "/rest/sql";
+    char *auth = "Authorization: Basic cm9vdDp0YW9zZGF0YQ==";
+
+    struct hostent *server;
+    struct sockaddr_in serv_addr;
+    int sockfd, bytes, sent, received, req_str_len, resp_len;
+    char *request_buf;
+    char response_buf[RESP_BUF_LEN];
+    uint16_t rest_port = port + TSDB_PORT_HTTP;
+
+    int req_buf_len = strlen(sqlstr) + REQ_EXTRA_BUF_LEN;
+
+    request_buf = malloc(req_buf_len);
+    if (NULL == request_buf)
+        ERROR_EXIT("ERROR, cannot allocate memory.");
+
+    int r = snprintf(request_buf, 
+            req_buf_len, 
+            req_fmt, url, host, rest_port, 
+            auth, strlen(sqlstr), sqlstr);
+    if (r >= req_buf_len) {
+        free(request_buf);
+        ERROR_EXIT("ERROR too long request");
+    }
+    printf("Request:\n%s\n", request_buf);
+
+    sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    if (sockfd < 0) {
+        free(request_buf);
+        ERROR_EXIT("ERROR opening socket");
+    }
+
+    server = gethostbyname(host);
+    if (server == NULL) {
+        free(request_buf);
+        ERROR_EXIT("ERROR, no such host");
+    }
+
+    memset(&serv_addr, 0, sizeof(serv_addr));
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(rest_port);
+    memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
+
+    if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) {
+        free(request_buf);
+        ERROR_EXIT("ERROR connecting");
+    }
+
+    req_str_len = strlen(request_buf);
+    sent = 0;
+    do {
+        bytes = write(sockfd, request_buf + sent, req_str_len - sent);
+        if (bytes < 0)
+            ERROR_EXIT("ERROR writing message to socket");
+        if (bytes == 0)
+            break;
+        sent+=bytes;
+    } while (sent < req_str_len);
+
+    memset(response_buf, 0, RESP_BUF_LEN);
+    resp_len = sizeof(response_buf) - 1;
+    received = 0;
+    do {
+        bytes = read(sockfd, response_buf + received, resp_len - received);
+        if (bytes < 0) {
+            free(request_buf);
+            ERROR_EXIT("ERROR reading response from socket");
+        }
+        if (bytes == 0)
+            break;
+        received += bytes;
+    } while (received < resp_len);
+
+    if (received == resp_len) {
+        free(request_buf);
+        ERROR_EXIT("ERROR storing complete response from socket");
+    }
+
+    printf("Response:\n%s\n", response_buf);
+
+    free(request_buf);
+    close(sockfd);
+
     return 0;
-  }
- 
-  mem->buf = ptr;
-  memcpy(&(mem->buf[mem->sizeleft]), contents, realsize);
-  mem->sizeleft += realsize;
-  mem->buf[mem->sizeleft] = 0;
-
-  //printf("result:%s\n\n", mem->buf);
- 
-  return realsize;
 }
 
-void curlProceLogin(void)
-{
-  CURL *curl_handle;
-  CURLcode res;
- 
-  curlMemInfo chunk;
- 
-  chunk.buf = malloc(1);  /* will be grown as needed by the realloc above */ 
-  chunk.sizeleft = 0;    /* no data at this point */ 
- 
-  //curl_global_init(CURL_GLOBAL_ALL);
- 
-  /* init the curl session */ 
-  curl_handle = curl_easy_init();
-
-  curl_easy_setopt(curl_handle,CURLOPT_POSTFIELDS,"");
-  curl_easy_setopt(curl_handle, CURLOPT_POST, 1);
-
-  char dstUrl[128] = {0};
-  snprintf(dstUrl, 128, "http://%s:6041/rest/login/root/taosdata", g_Dbs.host);
-        
-  /* specify URL to get */ 
-  curl_easy_setopt(curl_handle, CURLOPT_URL, dstUrl);
- 
-  /* send all data to this function  */ 
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, responseCallback);
- 
-  /* we pass our 'chunk' struct to the callback function */ 
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
- 
-  /* do it! */ 
-  res = curl_easy_perform(curl_handle);
- 
-  /* check for errors */ 
-  if(res != CURLE_OK) {
-    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-  }
-  else {
-    //printf("response len:%lu, content: %s \n", (unsigned long)chunk.sizeleft, chunk.buf);
-    ;
-  }
- 
-  /* cleanup curl stuff */ 
-  curl_easy_cleanup(curl_handle);
- 
-  free(chunk.buf);
- 
-  /* we're done with libcurl, so clean it up */ 
-  //curl_global_cleanup();
- 
-  return;
-}
-
-int curlProceSql(char* host, uint16_t port, char* sqlstr, CURL *curl_handle)
-{
-  //curlProceLogin();
-
-  //CURL *curl_handle;
-  CURLcode res;
- 
-  curlMemInfo chunk;
- 
-  chunk.buf = malloc(1);  /* will be grown as needed by the realloc above */ 
-  chunk.sizeleft = 0;    /* no data at this point */ 
-
-  
-  char dstUrl[128] = {0};
-  snprintf(dstUrl, 128, "http://%s:%u/rest/sql", host, port+TSDB_PORT_HTTP);
-        
-  //curl_global_init(CURL_GLOBAL_ALL);
- 
-  /* init the curl session */ 
-  //curl_handle = curl_easy_init();
- 
-  //curl_easy_setopt(curl_handle,CURLOPT_POSTFIELDS,"");
-  curl_easy_setopt(curl_handle, CURLOPT_POST, 1L);
-  
-  /* specify URL to get */ 
-  curl_easy_setopt(curl_handle, CURLOPT_URL, dstUrl);
-
-  /* enable TCP keep-alive for this transfer */
-  curl_easy_setopt(curl_handle, CURLOPT_TCP_KEEPALIVE, 1L);
-  /* keep-alive idle time to 120 seconds */
-  curl_easy_setopt(curl_handle, CURLOPT_TCP_KEEPIDLE, 120L);
-  /* interval time between keep-alive probes: 60 seconds */
-  curl_easy_setopt(curl_handle, CURLOPT_TCP_KEEPINTVL, 60L);
-  
-  /* send all data to this function  */ 
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEFUNCTION, responseCallback);
- 
-  /* we pass our 'chunk' struct to the callback function */ 
-  curl_easy_setopt(curl_handle, CURLOPT_WRITEDATA, (void *)&chunk);
-
-  struct curl_slist *list = NULL;
-  list = curl_slist_append(list, "Authorization: Basic cm9vdDp0YW9zZGF0YQ==");
-  curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, list);
-  curl_easy_setopt(curl_handle, CURLOPT_HTTPHEADER, list);
-
-  /* Set the expected upload size. */ 
-  curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDSIZE_LARGE, (curl_off_t)strlen(sqlstr));
-  curl_easy_setopt(curl_handle, CURLOPT_POSTFIELDS, sqlstr);
-
-  /* get it! */ 
-  res = curl_easy_perform(curl_handle);
- 
-  /* check for errors */ 
-  if(res != CURLE_OK) {
-    fprintf(stderr, "curl_easy_perform() failed: %s\n", curl_easy_strerror(res));
-    return -1;
-  }
-  else {
-    /* curl_easy_perform() block end and return result */  
-    //printf("[%32.32s] sql response len:%lu, content: %s \n\n", sqlstr, (unsigned long)chunk.sizeleft, chunk.buf);
-    ;
-  }
-
-  curl_slist_free_all(list); /* free the list again */
-  
-  /* cleanup curl stuff */ 
-  //curl_easy_cleanup(curl_handle);
- 
-  free(chunk.buf);
- 
-  /* we're done with libcurl, so clean it up */ 
-  //curl_global_cleanup();
- 
-  return 0;
-}
-#endif
 
 char* getTagValueFromTagSample(        SSuperTable* stbInfo, int tagUsePos) {
   char*  dataBuf = (char*)calloc(TSDB_MAX_SQL_LEN+1, 1);
@@ -1836,7 +1767,7 @@ static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName, char* sTblName
   char* pTblName = childTblName;
   while ((row = taos_fetch_row(res)) != NULL) {
     int32_t* len = taos_fetch_lengths(res);
-    tstrncpy(pTblName, (char *)row[0], len[0]);
+    tstrncpy(pTblName, (char *)row[0], len[0]+1);
     //printf("==== sub table name: %s\n", pTblName);
     count++;
     if (count >= childTblCount - 1) {
@@ -2091,6 +2022,9 @@ static int createDatabases() {
     }
     if (g_Dbs.db[i].dbCfg.walLevel > 0) {
       dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen, "wal %d ", g_Dbs.db[i].dbCfg.walLevel);
+    }
+    if (g_Dbs.db[i].dbCfg.cacheLast > 0) {
+      dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen, "cachelast %d ", g_Dbs.db[i].dbCfg.cacheLast);
     }
     if (g_Dbs.db[i].dbCfg.fsync > 0) {
       dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen, "fsync %d ", g_Dbs.db[i].dbCfg.fsync);
@@ -2792,6 +2726,16 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
      goto PARSE_OVER;
     }
 
+    cJSON* cacheLast= cJSON_GetObjectItem(dbinfo, "cachelast");
+    if (cacheLast && cacheLast->type == cJSON_Number) {
+      g_Dbs.db[i].dbCfg.cacheLast = cacheLast->valueint;
+    } else if (!cacheLast) {
+      g_Dbs.db[i].dbCfg.cacheLast = -1;
+    } else {
+     printf("failed to read json, cacheLast not found");
+     goto PARSE_OVER;
+    }
+
     cJSON* quorum= cJSON_GetObjectItem(dbinfo, "quorum");
     if (quorum && quorum->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.quorum = quorum->valueint;
@@ -2865,7 +2809,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       if (batchCreateTbl && batchCreateTbl->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].batchCreateTableNum = batchCreateTbl->valueint;
       } else if (!batchCreateTbl) {
-        g_Dbs.db[i].superTbls[j].batchCreateTableNum = 2000;
+        g_Dbs.db[i].superTbls[j].batchCreateTableNum = 1000;
       } else {
         printf("failed to read json, batch_create_tbl_num not found");
         goto PARSE_OVER;
@@ -2907,12 +2851,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       cJSON *insertMode = cJSON_GetObjectItem(stbInfo, "insert_mode"); // taosc , restful
       if (insertMode && insertMode->type == cJSON_String && insertMode->valuestring != NULL) {
         tstrncpy(g_Dbs.db[i].superTbls[j].insertMode, insertMode->valuestring, MAX_DB_NAME_SIZE);
-        #ifndef TD_LOWA_CURL
-        if (0 == strncasecmp(g_Dbs.db[i].superTbls[j].insertMode, "restful", 7)) {          
-          printf("There no libcurl, so no support resetful test! please use taosc mode.\n");
-          goto PARSE_OVER;
-        } 
-        #endif
       } else if (!insertMode) {
         tstrncpy(g_Dbs.db[i].superTbls[j].insertMode, "taosc", MAX_DB_NAME_SIZE);
       } else {
@@ -3499,12 +3437,6 @@ void prePareSampleData() {
       if (g_Dbs.db[i].superTbls[j].tagsFile[0] != 0) {
         (void)readTagFromCsvFileToMem(&g_Dbs.db[i].superTbls[j]);
       }
-
-      #ifdef TD_LOWA_CURL
-      if (0 == strncasecmp(g_Dbs.db[i].superTbls[j].insertMode, "restful", 8)) {
-        curl_global_init(CURL_GLOBAL_ALL);
-      }
-      #endif
     }
   }
 }
@@ -3529,12 +3461,6 @@ void postFreeResource() {
         free(g_Dbs.db[i].superTbls[j].childTblName);
         g_Dbs.db[i].superTbls[j].childTblName = NULL;
       }
-
-      #ifdef TD_LOWA_CURL
-      if (0 == strncasecmp(g_Dbs.db[i].superTbls[j].insertMode, "restful", 8)) {
-        curl_global_cleanup();
-      }
-      #endif
     }
   }
 }
@@ -3759,20 +3685,15 @@ void syncWriteForNumberOfTblInOneSql(threadInfo *winfo, FILE *fp, char* sampleDa
           //int64_t t2 = taosGetTimestampMs();          
           //printf("taosc insert sql return, Spent %.4f seconds \n", (double)(t2 - t1)/1000.0);          
         } else {
-          #ifdef TD_LOWA_CURL
           //int64_t t1 = taosGetTimestampMs();
-          int retCode = curlProceSql(g_Dbs.host, g_Dbs.port, buffer, winfo->curl_handle);
+          int retCode = postProceSql(g_Dbs.host, g_Dbs.port, buffer);
           //int64_t t2 = taosGetTimestampMs();          
           //printf("http insert sql return, Spent %ld ms \n", t2 - t1);
           
           if (0 != retCode) {
-            printf("========curl return fail, threadID[%d]\n", winfo->threadID);
+            printf("========restful return fail, threadID[%d]\n", winfo->threadID);
             goto free_and_statistics;
           }
-          #else
-          printf("========no use http mode for no curl lib!\n");
-          goto free_and_statistics;
-          #endif
         }
         
         //printf("========tID:%d, k:%d, loop_cnt:%d\n", tID, k, loop_cnt);
@@ -3993,20 +3914,15 @@ void *syncWrite(void *sarg) {
           //int64_t t2 = taosGetTimestampMs();          
           //printf("taosc insert sql return, Spent %.4f seconds \n", (double)(t2 - t1)/1000.0);  
         } else {
-          #ifdef TD_LOWA_CURL
           //int64_t t1 = taosGetTimestampMs();
-          int retCode = curlProceSql(g_Dbs.host, g_Dbs.port, buffer, winfo->curl_handle);
+          int retCode = postProceSql(g_Dbs.host, g_Dbs.port, buffer);
           //int64_t t2 = taosGetTimestampMs();          
           //printf("http insert sql return, Spent %ld ms \n", t2 - t1);
           
           if (0 != retCode) {
-            printf("========curl return fail, threadID[%d]\n", winfo->threadID);
+            printf("========restful return fail, threadID[%d]\n", winfo->threadID);
             goto free_and_statistics_2;
           }
-          #else
-          printf("========no use http mode for no curl lib!\n");
-          goto free_and_statistics_2;
-          #endif
         }
         
         //printf("========tID:%d, k:%d, loop_cnt:%d\n", tID, k, loop_cnt);
@@ -4216,9 +4132,6 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
       }
     } else {
       t_info->taos = NULL;
-      #ifdef TD_LOWA_CURL
-      t_info->curl_handle = curl_easy_init();     
-      #endif
     }
 
     if (0 == superTblInfo->multiThreadWriteOneTbl) {
@@ -4263,11 +4176,6 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision, SSu
     cntDelay   += t_info->cntDelay;
     if (t_info->maxDelay > maxDelay) maxDelay = t_info->maxDelay;
     if (t_info->minDelay < minDelay) minDelay = t_info->minDelay;    
-    #ifdef TD_LOWA_CURL
-    if (t_info->curl_handle) {
-      curl_easy_cleanup(t_info->curl_handle);
-    }
-    #endif
   }
   cntDelay -= 1;
 
@@ -4552,17 +4460,15 @@ void *superQueryProcess(void *sarg) {
         int64_t t2 = taosGetTimestampUs();          
         printf("=[taosc] thread[%"PRId64"] complete one sql, Spent %f s\n", taosGetSelfPthreadId(), (t2 - t1)/1000000.0);
       } else {
-        #ifdef TD_LOWA_CURL
         int64_t t1 = taosGetTimestampUs();
-        int retCode = curlProceSql(g_queryInfo.host, g_queryInfo.port, g_queryInfo.superQueryInfo.sql[i], winfo->curl_handle);
+        int retCode = postProceSql(g_queryInfo.host, g_queryInfo.port, g_queryInfo.superQueryInfo.sql[i]);
         int64_t t2 = taosGetTimestampUs();          
         printf("=[restful] thread[%"PRId64"] complete one sql, Spent %f s\n", taosGetSelfPthreadId(), (t2 - t1)/1000000.0);
         
         if (0 != retCode) {
-          printf("====curl return fail, threadID[%d]\n", winfo->threadID);
+          printf("====restful return fail, threadID[%d]\n", winfo->threadID);
           return NULL;
         }
-        #endif
       }   
     }
     et = taosGetTimestampMs();
@@ -4583,7 +4489,7 @@ void replaceSubTblName(char* inSql, char* outSql, int tblIndex) {
     return; 
   }
   
-  tstrncpy(outSql, inSql, pos - inSql);
+  tstrncpy(outSql, inSql, pos - inSql + 1);
   //printf("1: %s\n", outSql);
   strcat(outSql, subTblName);  
   //printf("2: %s\n", outSql);  
@@ -4604,12 +4510,12 @@ void *subQueryProcess(void *sarg) {
 
     st = taosGetTimestampMs();
     for (int i = winfo->start_table_id; i <= winfo->end_table_id; i++) {
-      for (int i = 0; i < g_queryInfo.subQueryInfo.sqlCount; i++) {
+      for (int j = 0; j < g_queryInfo.subQueryInfo.sqlCount; j++) {
         memset(sqlstr,0,sizeof(sqlstr));
-        replaceSubTblName(g_queryInfo.subQueryInfo.sql[i], sqlstr, i);
+        replaceSubTblName(g_queryInfo.subQueryInfo.sql[j], sqlstr, i);
         char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
-        if (g_queryInfo.subQueryInfo.result[i][0] != 0) {
-          sprintf(tmpFile, "%s-%d", g_queryInfo.subQueryInfo.result[i], winfo->threadID);
+        if (g_queryInfo.subQueryInfo.result[j][0] != 0) {
+          sprintf(tmpFile, "%s-%d", g_queryInfo.subQueryInfo.result[j], winfo->threadID);
         }
         selectAndGetResult(winfo->taos, sqlstr, tmpFile); 
       }
@@ -4666,9 +4572,6 @@ int queryTestProcess() {
         (void)queryDbExec(t_info->taos, sqlStr, NO_INSERT_TYPE);
       } else {
         t_info->taos = NULL;
-        #ifdef TD_LOWA_CURL
-        t_info->curl_handle = curl_easy_init();      
-        #endif
       }
   
       pthread_create(pids + i, NULL, superQueryProcess, t_info);    

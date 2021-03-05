@@ -95,6 +95,23 @@ static void taosReadInt16Config(SGlobalCfg *cfg, char *input_value) {
   }
 }
 
+static void taosReadUInt16Config(SGlobalCfg *cfg, char *input_value) {
+  int32_t  value = atoi(input_value);
+  uint16_t *option = (uint16_t *)cfg->ptr;
+  if (value < cfg->minValue || value > cfg->maxValue) {
+    uError("config option:%s, input value:%s, out of range[%f, %f], use default value:%d",
+           cfg->option, input_value, cfg->minValue, cfg->maxValue, *option);
+  } else {
+    if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_FILE) {
+      *option = (uint16_t)value;
+      cfg->cfgStatus = TAOS_CFG_CSTATUS_FILE;
+    } else {
+      uWarn("config option:%s, input value:%s, is configured by %s, use %d", cfg->option, input_value,
+            tsCfgStatusStr[cfg->cfgStatus], *option);
+    }
+  }
+}
+
 static void taosReadInt8Config(SGlobalCfg *cfg, char *input_value) {
   int32_t  value = atoi(input_value);
   int8_t *option = (int8_t *)cfg->ptr;
@@ -238,6 +255,9 @@ static void taosReadConfigOption(const char *option, char *value, char *value2, 
         break;
       case TAOS_CFG_VTYPE_INT32:
         taosReadInt32Config(cfg, value);
+        break;
+      case TAOS_CFG_VTYPE_UINT16:
+        taosReadUInt16Config(cfg, value);
         break;
       case TAOS_CFG_VTYPE_FLOAT:
         taosReadFloatConfig(cfg, value);
@@ -422,6 +442,9 @@ void taosPrintGlobalCfg() {
       case TAOS_CFG_VTYPE_INT32:
         uInfo(" %s:%s%d%s", cfg->option, blank, *((int32_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
+      case TAOS_CFG_VTYPE_UINT16:
+        uInfo(" %s:%s%d%s", cfg->option, blank, *((uint16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
       case TAOS_CFG_VTYPE_FLOAT:
         uInfo(" %s:%s%f%s", cfg->option, blank, *((float *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
@@ -458,6 +481,9 @@ static void taosDumpCfg(SGlobalCfg *cfg) {
         break;
       case TAOS_CFG_VTYPE_INT32:
         printf(" %s:%s%d%s\n", cfg->option, blank, *((int32_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
+        break;
+      case TAOS_CFG_VTYPE_UINT16:
+        printf(" %s:%s%d%s\n", cfg->option, blank, *((uint16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
         break;
       case TAOS_CFG_VTYPE_FLOAT:
         printf(" %s:%s%f%s\n", cfg->option, blank, *((float *)cfg->ptr), tsGlobalUnit[cfg->unitType]);

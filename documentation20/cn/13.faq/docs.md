@@ -96,11 +96,11 @@ TDengine 目前尚不支持删除功能，未来根据用户需求可能会支�
 
 使用2.0及其以上版本，默认支持1024列；2.0之前的版本，TDengine最大允许创建250列的表。但是如果确实超过限值，建议按照数据特性，逻辑地将这个宽表分解成几个小表。
 
-## 10. 最有效的写入数据的方法是什么？
+## 11. 最有效的写入数据的方法是什么？
 
 批量插入。每条写入语句可以一张表同时插入多条记录，也可以同时插入多张表的多条记录。
 
-## 11. 最有效的写入数据的方法是什么？windows系统下插入的nchar类数据中的汉字被解析成了乱码如何解决？
+## 12. 最有效的写入数据的方法是什么？windows系统下插入的nchar类数据中的汉字被解析成了乱码如何解决？
 
 Windows下插入nchar类的数据中如果有中文，请先确认系统的地区设置成了中国（在Control Panel里可以设置），这时cmd中的`taos`客户端应该已经可以正常工作了；如果是在IDE里开发Java应用，比如Eclipse， Intellij，请确认IDE里的文件编码为GBK（这是Java默认的编码类型），然后在生成Connection时，初始化客户端的配置，具体语句如下：
 ```JAVA
@@ -110,7 +110,7 @@ properties.setProperty(TSDBDriver.LOCALE_KEY, "UTF-8");
 Connection = DriverManager.getConnection(url, properties);
 ```
 
-## 12.JDBC报错： the excuted SQL is not a DML or a DDL？
+## 13.JDBC报错： the excuted SQL is not a DML or a DDL？
 
 请更新至最新的JDBC驱动
 ```JAVA
@@ -121,15 +121,15 @@ Connection = DriverManager.getConnection(url, properties);
 </dependency>
 ```
 
-## 13. taos connect failed, reason: invalid timestamp
+## 14. taos connect failed, reason: invalid timestamp
 
 常见原因是服务器和客户端时间没有校准，可以通过和时间服务器同步的方式（Linux 下使用 ntpdate 命令，Windows 在系统时间设置中选择自动同步）校准。
 
-## 14. 表名显示不全
+## 15. 表名显示不全
 
 由于 taos shell 在终端中显示宽度有限，有可能比较长的表名显示不全，如果按照显示的不全的表名进行相关操作会发生 Table does not exist 错误。解决方法可以是通过修改 taos.cfg 文件中的设置项 maxBinaryDisplayWidth， 或者直接输入命令 set max_binary_display_width 100。或者在命令结尾使用 \G 参数来调整结果的显示方式。
 
-## 15. 如何进行数据迁移？
+## 16. 如何进行数据迁移？
 
 TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A移动机器B时，注意如下两件事：
 
@@ -137,7 +137,7 @@ TDengine是根据hostname唯一标志一台机器的，在数据文件从机器A
 - 2.0.7.0 及以后的版本，到/var/lib/taos/dnode下，修复dnodeEps.json的dnodeId对应的FQDN，重启。确保机器内所有机器的此文件是完全相同的。
 - 1.x 和 2.x 版本的存储结构不兼容，需要使用迁移工具或者自己开发应用导出导入数据。
 
-## 16. 如何在命令行程序 taos 中临时调整日志级别
+## 17. 如何在命令行程序 taos 中临时调整日志级别
 
 为了调试方便，从 2.0.16 版本开始，命令行程序 taos 新增了与日志记录相关的两条指令：
 
