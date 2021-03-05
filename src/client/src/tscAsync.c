@@ -74,12 +74,16 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
 // TODO return the correct error code to client in tscQueueAsyncError
 void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param) {
+  taos_query_ra(taos, sqlstr, fp, param);
+}
+
+TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
     tscError("bug!!! pObj:%p", pObj);
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     tscQueueAsyncError(fp, param, TSDB_CODE_TSC_DISCONNECTED);
-    return;
+    return NULL;
   }
   
   int32_t sqlLen = (int32_t)strlen(sqlstr);
@@ -87,7 +91,7 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     tscQueueAsyncError(fp, param, terrno);
-    return;
+    return NULL;
   }
   
   nPrintTsc("%s", sqlstr);
@@ -96,11 +100,14 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
     tscQueueAsyncError(fp, param, TSDB_CODE_TSC_OUT_OF_MEMORY);
-    return;
+    return NULL;
   }
   
   doAsyncQuery(pObj, pSql, fp, param, sqlstr, sqlLen);
+
+  return pSql;
 }
+
 
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
   if (tres == NULL) {
