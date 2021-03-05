@@ -6,6 +6,10 @@ AUX_SOURCE_DIRECTORY(src SRC)
 ADD_LIBRARY(tsdb ${SRC})
 TARGET_LINK_LIBRARIES(tsdb tfs common tutil)
 
+IF (TD_TSDB_PLUGINS)
+  TARGET_LINK_LIBRARIES(tsdb tsdbPlugins)
+ENDIF ()
+
 IF (TD_LINUX)
   # Someone has no gtest directory, so comment it
   # ADD_SUBDIRECTORY(tests)

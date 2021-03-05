@@ -14,5 +14,9 @@
  */
 #include "tsdb.h"
 
+#ifndef _TSDB_PLUGINS
+
 int   tsdbCompact(STsdbRepo *pRepo) { return 0; }
 void *tsdbCompactImpl(STsdbRepo *pRepo) { return NULL; }
+
+#endif
