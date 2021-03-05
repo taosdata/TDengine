@@ -48,7 +48,6 @@ public class SubscribeTest {
     @Test
     public void subscribe() {
         try {
-
             String rawSql = "select * from " + dbName + "." + tName + ";";
             System.out.println(rawSql);
             TSDBSubscribe subscribe = ((TSDBConnection) connection).subscribe(topic, rawSql, false);
@@ -67,10 +66,10 @@ public class SubscribeTest {
                 if (a >= 2) {
                     break;
                 }
-//                resSet.close();
+                resSet.close();
             }
 
-            subscribe.close(true);
+            subscribe.close(false);
         } catch (Exception e) {
             e.printStackTrace();
         }
