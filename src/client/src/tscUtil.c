@@ -30,7 +30,7 @@
 #include "ttokendef.h"
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
-static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo);
+static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta);
 
 static void tscStrToLower(char *str, int32_t n) {
   if (str == NULL || n <= 0) { return;}
@@ -367,7 +367,7 @@ static void tscDestroyResPointerInfo(SSqlRes* pRes) {
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
 }
 
-void tscFreeQueryInfo(SSqlCmd* pCmd) {
+void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta) {
   if (pCmd == NULL || pCmd->numOfClause == 0) {
     return;
   }
@@ -376,7 +376,7 @@ void tscFreeQueryInfo(SSqlCmd* pCmd) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
     
     freeQueryInfoImpl(pQueryInfo);
-    clearAllTableMetaInfo(pQueryInfo);
+    clearAllTableMetaInfo(pQueryInfo, removeMeta);
     tfree(pQueryInfo);
   }
   
@@ -404,7 +404,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
 
   pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList, removeMeta);
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-  tscFreeQueryInfo(pCmd);
+  tscFreeQueryInfo(pCmd, removeMeta);
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
@@ -1847,10 +1847,17 @@ SArray* tscVgroupTableInfoDup(SArray* pVgroupTables) {
   return pa;
 }
 
-void clearAllTableMetaInfo(SQueryInfo* pQueryInfo) {
+void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta) {
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
 
+    if (removeMeta) {  
+      char name[TSDB_TABLE_FNAME_LEN] = {0};
+      tNameExtractFullName(&pTableMetaInfo->name, name);
+    
+      taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    }
+    
     tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
     tscClearTableMetaInfo(pTableMetaInfo);
     free(pTableMetaInfo);
