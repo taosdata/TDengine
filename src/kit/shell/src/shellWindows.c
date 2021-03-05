@@ -221,7 +221,7 @@ void insertChar(Command *cmd, char c) {
   cmd->command[cmd->cursorOffset++] = c;
 }
 
-void shellReadCommand(TAOS *con, char command[]) {
+int32_t shellReadCommand(TAOS *con, char command[]) {
   Command cmd;
   memset(&cmd, 0, sizeof(cmd));
   cmd.buffer = (char *)calloc(1, MAX_COMMAND_SIZE);
@@ -241,7 +241,7 @@ void shellReadCommand(TAOS *con, char command[]) {
           cmd.buffer = NULL;
           free(cmd.command);
           cmd.command = NULL;
-          return;
+          return 0;
         } else {
           shellPrintContinuePrompt();
           updateBuffer(&cmd);
@@ -251,6 +251,8 @@ void shellReadCommand(TAOS *con, char command[]) {
         insertChar(&cmd, c);
     }
   }
+
+  return 0;
 }
 
 void *shellLoopQuery(void *arg) {
@@ -258,12 +260,17 @@ void *shellLoopQuery(void *arg) {
   char *command = malloc(MAX_COMMAND_SIZE);
   if (command == NULL) return NULL;
 
+  int32_t err = 0;
+  
   do {
     memset(command, 0, MAX_COMMAND_SIZE);
     shellPrintPrompt();
 
     // Read command from shell.
-    shellReadCommand(con, command);
+    err = shellReadCommand(con, command);
+    if (err) {
+      break;
+    }    
   } while (shellRunCommand(con, command) == 0);
 
   return NULL;

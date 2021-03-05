@@ -92,8 +92,9 @@ typedef struct SSpreadInfo {
 
 typedef struct SSumInfo {
   union {
-    int64_t isum;
-    double  dsum;
+    int64_t  isum;
+    uint64_t usum;
+    double   dsum;
   };
   int8_t hasResult;
 } SSumInfo;
@@ -595,6 +596,18 @@ static void do_sum_f(SQLFunctionCtx *pCtx, int32_t index) {
     *res += GET_INT32_VAL(pData);
   } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
     *res += GET_INT64_VAL(pData);
+  } else if (pCtx->inputType == TSDB_DATA_TYPE_UTINYINT) {
+    uint64_t *r = (uint64_t *)pCtx->pOutput;
+    *r += GET_UINT8_VAL(pData);
+  } else if (pCtx->inputType == TSDB_DATA_TYPE_USMALLINT) {
+    uint64_t *r = (uint64_t *)pCtx->pOutput;
+    *r += GET_UINT16_VAL(pData);
+  } else if (pCtx->inputType == TSDB_DATA_TYPE_UINT) {
+    uint64_t *r = (uint64_t *)pCtx->pOutput;
+    *r += GET_UINT32_VAL(pData);
+  } else if (pCtx->inputType == TSDB_DATA_TYPE_UBIGINT) {
+    uint64_t *r = (uint64_t *)pCtx->pOutput;
+    *r += GET_UINT64_VAL(pData);
   } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
     double *retVal = (double*) pCtx->pOutput;
     *retVal += GET_DOUBLE_VAL(pData);
@@ -644,18 +657,12 @@ static void sum_func_merge(SQLFunctionCtx *pCtx) {
 
     notNullElems++;
 
-    switch (type) {
-      case TSDB_DATA_TYPE_TINYINT:
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_INT:
-      case TSDB_DATA_TYPE_BIGINT: {
-        *(int64_t *)pCtx->pOutput += pInput->isum;
-        break;
-      };
-      case TSDB_DATA_TYPE_FLOAT:
-      case TSDB_DATA_TYPE_DOUBLE: {
-        *(double *)pCtx->pOutput += pInput->dsum;
-      }
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      *(int64_t *)pCtx->pOutput += pInput->isum;
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      *(uint64_t *) pCtx->pOutput += pInput->usum;
+    } else {
+      *(double *)pCtx->pOutput += pInput->dsum;
     }
   }
 
@@ -2726,15 +2733,19 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   if (pInfo->stage == 0) {
     if (pCtx->preAggVals.isSet) {
       double tmin = 0.0, tmax = 0.0;
-      if (pCtx->inputType >= TSDB_DATA_TYPE_TINYINT && pCtx->inputType <= TSDB_DATA_TYPE_BIGINT) {
-        tmin = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.min); 
-        tmax = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.max); 
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE || pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
-        tmin = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.min); 
-        tmax = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.max); 
+      if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+        tmin = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.min);
+        tmax = (double)GET_INT64_VAL(&pCtx->preAggVals.statis.max);
+      } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
+        tmin = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.min);
+        tmax = GET_DOUBLE_VAL(&pCtx->preAggVals.statis.max);
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
+        tmin = (double)GET_UINT64_VAL(&pCtx->preAggVals.statis.min);
+        tmax = (double)GET_UINT64_VAL(&pCtx->preAggVals.statis.max);
       } else {
         assert(true);
       }
+
       if (GET_DOUBLE_VAL(&pInfo->minval) > tmin) {
         SET_DOUBLE_VAL(&pInfo->minval, tmin);
       }

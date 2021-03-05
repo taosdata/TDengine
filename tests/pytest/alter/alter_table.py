@@ -19,6 +19,10 @@ class TDTestCase:
             "double",
             "smallint",
             "tinyint",
+            "int unsigned",
+            "bigint unsigned",
+            "smallint unsigned",
+            "tinyint unsigned",
             "binary(10)",
             "nchar(10)",
             "timestamp"]
