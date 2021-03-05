@@ -18,6 +18,7 @@ public class TSDBErrorNumbers {
     public static final int ERROR_INVALID_FOR_EXECUTE = 0x230c;         //not a valid sql for execute: (SQL)
     public static final int ERROR_PARAMETER_INDEX_OUT_RANGE = 0x230d; // parameter index out of range
     public static final int ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED = 0x230e;    // connection already closed
+    public static final int ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE = 0x230f;        //unknown sql type in tdengine
 
     public static final int ERROR_UNKNOWN = 0x2350;    //unknown error
 
@@ -49,6 +50,7 @@ public class TSDBErrorNumbers {
         errorNumbers.add(ERROR_INVALID_FOR_EXECUTE);
         errorNumbers.add(ERROR_PARAMETER_INDEX_OUT_RANGE);
         errorNumbers.add(ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
+        errorNumbers.add(ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE);
 
         /*****************************************************/
         errorNumbers.add(ERROR_SUBSCRIBE_FAILED);
