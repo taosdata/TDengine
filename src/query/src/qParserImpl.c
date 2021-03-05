@@ -58,6 +58,15 @@ SSqlInfo qSQLParse(const char *pStr) {
         sqlInfo.valid = false;
         goto abort_parse;
       }
+      
+      case TK_HEX:
+      case TK_OCT:
+      case TK_BIN:{
+        snprintf(sqlInfo.msg, tListLen(sqlInfo.msg), "unsupported token: \"%s\"", t0.z);
+        sqlInfo.valid = false;
+        goto abort_parse;
+      }
+        
       default:
         Parse(pParser, t0.type, t0, &sqlInfo);
         if (sqlInfo.valid == false) {

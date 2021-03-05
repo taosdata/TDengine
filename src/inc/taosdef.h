@@ -286,7 +286,7 @@ do { \
 #define TSDB_MAX_COMP_LEVEL             2
 #define TSDB_DEFAULT_COMP_LEVEL         2
 
-#define TSDB_MIN_WAL_LEVEL              1
+#define TSDB_MIN_WAL_LEVEL              0
 #define TSDB_MAX_WAL_LEVEL              2
 #define TSDB_DEFAULT_WAL_LEVEL          1
 

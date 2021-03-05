@@ -285,17 +285,24 @@ static SArray* createCheckInfoFromTableGroup(STsdbQueryHandle* pQueryHandle, STa
         assert(info.lastKey <= pQueryHandle->window.skey);
       }
 
-      taosArrayPush(pTable, &pKeyInfo->pTable);
-
       taosArrayPush(pTableCheckInfo, &info);
       tsdbDebug("%p check table uid:%"PRId64", tid:%d from lastKey:%"PRId64" %p", pQueryHandle, info.tableId.uid,
                 info.tableId.tid, info.lastKey, pQueryHandle->qinfo);
     }
   }
 
-  *psTable = pTable;
-
   taosArraySort(pTableCheckInfo, tsdbCheckInfoCompar);
+
+  size_t gsize = taosArrayGetSize(pTableCheckInfo);
+  
+  for (int32_t i = 0; i < gsize; ++i) {
+    STableCheckInfo* pInfo = (STableCheckInfo*) taosArrayGet(pTableCheckInfo, i);
+    
+    taosArrayPush(pTable, &pInfo->pTableObj);
+  }
+
+  *psTable = pTable;
+  
   return pTableCheckInfo;
 }
 

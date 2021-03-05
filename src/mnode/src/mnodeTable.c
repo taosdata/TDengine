@@ -832,12 +832,13 @@ static int32_t mnodeProcessBatchCreateTableMsg(SMnodeMsg *pMsg) {
         return code;
       } else if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
         ++pMsg->pBatchMasterMsg->received;
+        pMsg->pBatchMasterMsg->code = code;
         mnodeDestroySubMsg(pMsg);
       }
 
       if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	  >= pMsg->pBatchMasterMsg->expected) {
-        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, TSDB_CODE_SUCCESS);
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, pMsg->pBatchMasterMsg->code);
       }
 
       return TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -1908,7 +1909,8 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
     sdbDeleteRow(&desc);
 
     if (pMsg->pBatchMasterMsg) {
-      ++pMsg->pBatchMasterMsg->successed;
+      ++pMsg->pBatchMasterMsg->received;
+      pMsg->pBatchMasterMsg->code = code;
       if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	  >= pMsg->pBatchMasterMsg->expected) {
 	dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
@@ -2690,6 +2692,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
       if (pMsg->pBatchMasterMsg) {
 	++pMsg->pBatchMasterMsg->received;
+	pMsg->pBatchMasterMsg->code = code;
 	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	    >= pMsg->pBatchMasterMsg->expected) {
 	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
@@ -2728,6 +2731,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
       if (pMsg->pBatchMasterMsg) {
 	++pMsg->pBatchMasterMsg->received;
+	pMsg->pBatchMasterMsg->code = rpcMsg->code;
 	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	    >= pMsg->pBatchMasterMsg->expected) {
 	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, rpcMsg->code);
