@@ -209,7 +209,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 - `TAOS_RES* taos_query(TAOS *taos, const char *sql)`
 
-  该API用来执行SQL语句，可以是DQL、DML或DDL语句。 其中的`taos`参数是通过`taos_connect`获得的指针。返回值 NULL 表示失败。
+  该API用来执行SQL语句，可以是DQL、DML或DDL语句。 其中的`taos`参数是通过`taos_connect`获得的指针。不能通过返回值是否是 NULL 来判断执行结果是否失败，而是需要用`taos_errno`函数解析结果集中的错误代码来进行判断。
 
 - `int taos_result_precision(TAOS_RES *res)`
 
