@@ -27,9 +27,8 @@
 #include "mnodeRead.h"
 #include "mnodeWrite.h"
 
-#define TQ_SCHEMA_SQL_LEN 4096
-#define TQ_BINARY_LEN     16000
-#define TQ_MAX_PARTITIONS 1000
+#define TP_SCHEMA_SQL_LEN 4096
+#define TP_BINARY_LEN     16000
 
 extern void *  tsDbSdb;
 extern char *  mnodeGetDbStr(char *src);
@@ -55,7 +54,7 @@ int32_t tpInit() {
 void tpCleanUp() {}
 
 void tpBuildCreateDbSql(char *sql, SCreateDbMsg *pCreate) {
-  snprintf(sql, TQ_SCHEMA_SQL_LEN,
+  snprintf(sql, TP_SCHEMA_SQL_LEN,
            "create database if not exists %s replica %d days %d keep %d minrows %d maxrows %d cache %d blocks %d "
            "ctime %d wal %d "
            "fsync %d comp %d quorum %d cachelast %d precision us update 1",
@@ -65,21 +64,25 @@ void tpBuildCreateDbSql(char *sql, SCreateDbMsg *pCreate) {
 }
 
 static void tpBuildDropDbSql(char *sql, const char *topic) {
-  snprintf(sql, TQ_SCHEMA_SQL_LEN, "drop database %s", topic);
+  snprintf(sql, TP_SCHEMA_SQL_LEN, "drop database %s", topic);
 }
 
 static void tpBuildCreateStableSql(char *sql, const char *topic) {
-  snprintf(sql, TQ_SCHEMA_SQL_LEN, "create table if not exists %s.partitions (offset timestamp, content binary(%d))",
-           topic, TQ_BINARY_LEN);
+  snprintf(sql, TP_SCHEMA_SQL_LEN, "create table if not exists %s.partitions (offset timestamp, content binary(%d))",
+           topic, TP_BINARY_LEN);
 }
 
 static void tpBuildCreateCtableSql(char *sql, const char *topic, int32_t tableId) {
-  snprintf(sql, TQ_SCHEMA_SQL_LEN, "create table if not exists %s.p%d using %s.ps tags(%d))", topic, tableId, topic,
+  snprintf(sql, TP_SCHEMA_SQL_LEN, "create table if not exists %s.p%d using %s.ps tags(%d)", topic, tableId, topic,
            tableId);
 }
 
+static void tpBuildDropCtableSql(char *sql, const char *topic, int32_t tableId) {
+  snprintf(sql, TP_SCHEMA_SQL_LEN, "drop table %s.p%d", topic, tableId);
+}
+
 static int32_t tpCreateTopicDb(TAOS *taos, SCreateDbMsg *pCreate) {
-  char sql[TQ_SCHEMA_SQL_LEN] = {0};
+  char sql[TP_SCHEMA_SQL_LEN] = {0};
   tpBuildCreateDbSql(sql, pCreate);
 
   TAOS_RES *pSql = taos_query(taos, sql);
@@ -95,7 +98,7 @@ static int32_t tpCreateTopicDb(TAOS *taos, SCreateDbMsg *pCreate) {
 }
 
 static int32_t tpDropTopicDb(TAOS *taos, const char *topic) {
-  char sql[TQ_SCHEMA_SQL_LEN] = {0};
+  char sql[TP_SCHEMA_SQL_LEN] = {0};
   tpBuildDropDbSql(sql, topic);
 
   TAOS_RES *pSql = taos_query(taos, sql);
@@ -112,13 +115,12 @@ static int32_t tpDropTopicDb(TAOS *taos, const char *topic) {
 }
 
 static int32_t tpCreateTopicStable(TAOS *taos, const char *topic) {
-  char sql[TQ_SCHEMA_SQL_LEN] = {0};
+  char sql[TP_SCHEMA_SQL_LEN] = {0};
   tpBuildCreateStableSql(sql, topic);
 
   TAOS_RES *pSql = taos_query(taos, sql);
   int32_t   code = taos_errno(pSql);
   if (code == 0) {
-    code = 0;
     mInfo("topic:%s, stable create success, code:%x", topic, code);
   } else {
     mError("topic:%s, failed to create stable since %s, code:%x", topic, taos_errstr(pSql), code);
@@ -133,13 +135,12 @@ static int32_t tpCreateTopicCtable(TAOS *taos, const char *topic, int32_t partit
   int32_t   code = 0;
 
   for (int32_t tableId = 1; tableId <= partitions; ++tableId) {
-    char sql[TQ_SCHEMA_SQL_LEN] = {0};
+    char sql[TP_SCHEMA_SQL_LEN] = {0};
     tpBuildCreateCtableSql(sql, topic, tableId);
 
     pSql = taos_query(taos, sql);
     code = taos_errno(pSql);
-    if (code == 0 || code == TSDB_CODE_MND_TABLE_ALREADY_EXIST) {
-      code = 0;
+    if (code == 0) {
       mInfo("topic:%s, table:%d create success, code:%x", topic, tableId, code);
     } else {
       mError("topic:%s, failed to create table:%d since %s, code:%x", topic, tableId, taos_errstr(pSql), code);
@@ -148,6 +149,27 @@ static int32_t tpCreateTopicCtable(TAOS *taos, const char *topic, int32_t partit
   }
   taos_free_result(pSql);
   return code;
+}
+
+static int32_t tpDropTopicCtable(TAOS *taos, const char *topic, int32_t oldPartitions, int32_t partitions) {
+  TAOS_RES *pSql = NULL;
+  int32_t   code = 0;
+
+  for (int32_t tableId = partitions + 1; tableId <= oldPartitions; ++tableId) {
+    char sql[TP_SCHEMA_SQL_LEN] = {0};
+    tpBuildDropCtableSql(sql, topic, tableId);
+
+    pSql = taos_query(taos, sql);
+    code = taos_errno(pSql);
+    if (code == 0) {
+      mInfo("topic:%s, table:%d drop success, code:%x", topic, tableId, code);
+    } else {
+      mError("topic:%s, failed to drop table:%d since %s, code:%x", topic, tableId, taos_errstr(pSql), code);
+    }
+  }
+
+  taos_free_result(pSql);
+  return 0;
 }
 
 static int32_t mnodeProcessCreateTpMsg(SMnodeMsg *pMsg) {
@@ -200,8 +222,7 @@ static int32_t mnodeProcessAlterTpMsg(SMnodeMsg *pMsg) {
   int32_t      partitions = htons(pAlter->partitions);
 
   if (partitions < 1 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
-    mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, TSDB_MIN_DB_PARTITON_OPTION,
-           TSDB_MAX_DB_PARTITON_OPTION);
+    mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, 1, TSDB_MAX_DB_PARTITON_OPTION);
     return TSDB_CODE_MND_INVALID_TOPIC_OPTION;
   }
 
@@ -210,6 +231,8 @@ static int32_t mnodeProcessAlterTpMsg(SMnodeMsg *pMsg) {
     mError("topic:%s, failed to alter, invalid topic", pAlter->db);
     return TSDB_CODE_MND_INVALID_TOPIC;
   }
+
+  int32_t oldPartitons = pDb->cfg.partitions;
   pDb->cfg.partitions = partitions;
 
   void *taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
@@ -220,11 +243,9 @@ static int32_t mnodeProcessAlterTpMsg(SMnodeMsg *pMsg) {
     mDebug("connect to database success");
   }
 
-  int32_t code = tpCreateTopicCtable(taos, pAlter->db, partitions);
-  if (code != 0) {
-    taos_close(taos);
-    return code;
-  }
+  
+  tpCreateTopicCtable(taos, pAlter->db, partitions);
+  tpDropTopicCtable(taos, pAlter->db, oldPartitons, partitions);
 
   mInfo("topic:%s, alter success, partitions:%d", pAlter->db, pAlter->partitions);
   taos_close(taos);
