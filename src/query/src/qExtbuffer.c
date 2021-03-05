@@ -362,20 +362,10 @@ static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, i
       return (first < second) ? -1 : 1;
     };
     case TSDB_DATA_TYPE_DOUBLE: {
-      double first  = GET_DOUBLE_VAL(f1);
-      double second = GET_DOUBLE_VAL(f2);
-      if (first == second) {
-        return 0;
-      }
-      return (first < second) ? -1 : 1;
+      DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
     };
     case TSDB_DATA_TYPE_FLOAT: {
-      float first  = GET_FLOAT_VAL(f1);
-      float second = GET_FLOAT_VAL(f2);
-      if (first == second) {
-        return 0;
-      }
-      return (first < second) ? -1 : 1;
+      DEFAULT_FLOAT_COMP(GET_FLOAT_VAL(f1), GET_FLOAT_VAL(f2));
     };
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t first = *(int64_t *)f1;
