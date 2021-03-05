@@ -24,6 +24,6 @@ public interface WeatherMapper {
 
     List<String> getSubTables();
 
-    Map avg();
+    List<Weather> avg();
 
 }

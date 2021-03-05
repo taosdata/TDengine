@@ -60,7 +60,7 @@ public class WeatherController {
     }
 
     @GetMapping("/avg")
-    public Map avg() {
+    public List<Weather> avg() {
         return weatherService.avg();
     }
 

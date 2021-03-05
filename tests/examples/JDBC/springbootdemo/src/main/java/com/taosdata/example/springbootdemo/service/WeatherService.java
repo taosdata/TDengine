@@ -55,7 +55,7 @@ public class WeatherService {
         return weatherMapper.getSubTables();
     }
 
-    public Map avg() {
+    public List<Weather> avg() {
         return weatherMapper.avg();
     }
 }
