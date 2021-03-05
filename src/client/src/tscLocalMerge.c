@@ -1291,7 +1291,7 @@ int32_t doHavingFilter(SQueryInfo* pQueryInfo, tFilePage* pOutput, bool* notSkip
     char* pInput = pOutput->data + pOutput->num* pExpr->offset;
     
     doFilterFieldData(pQueryInfo, pInput, pOutput, pFieldFilters, type, notSkipped);
-    if (!notSkipped) {
+    if (*notSkipped == false) {
       return TSDB_CODE_SUCCESS;
     }
   } 

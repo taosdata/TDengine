@@ -6912,27 +6912,29 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr, in
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if (pLeft->pParam == NULL || pLeft->pParam->nExpr < 1) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-  }
+  //if (pLeft->pParam == NULL || pLeft->pParam->nExpr < 1) {
+  //  return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  //}
 
-  for (int32_t i = 0; i < pLeft->pParam->nExpr; i++) {
-    tSqlExprItem* pParamElem = &(pLeft->pParam->a[i]);
-    if (pParamElem->pNode->nSQLOptr != TK_ALL && pParamElem->pNode->nSQLOptr != TK_ID) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-    }
-    
-    SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-    if ((getColumnIndexByName(pCmd, &pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS)) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-    }
-    
-    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
-    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
-    
-    if (index.columnIndex <= 0 || 
-      index.columnIndex >= tscGetNumOfColumns(pTableMeta)) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  if (pLeft->pParam) {
+    for (int32_t i = 0; i < pLeft->pParam->nExpr; i++) {
+      tSqlExprItem* pParamElem = &(pLeft->pParam->a[i]);
+      if (pParamElem->pNode->nSQLOptr != TK_ALL && pParamElem->pNode->nSQLOptr != TK_ID) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+      
+      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+      if ((getColumnIndexByName(pCmd, &pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS)) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+      
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+      STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+      
+      if (index.columnIndex <= 0 || 
+        index.columnIndex >= tscGetNumOfColumns(pTableMeta)) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
     }
   }
 
@@ -6941,23 +6943,10 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr, in
 
 
 
-int32_t parseHavingClause(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SSqlCmd* pCmd) {
+int32_t parseHavingClause(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SSqlCmd* pCmd, bool isSTable, int32_t joinQuery, int32_t intervalQuery) {
   const char* msg1 = "having only works with group by";
-  //const char* msg2 = "invalid column name in having clause";
-  //const char* msg3 = "columns from one table allowed as having columns";
-  //const char* msg4 = "no tag allowed in having clause";
-  const char* msg5 = "invalid expression in having clause";
-
-/*  
-  const char* msg1 = "too many columns in group by clause";
-  const char* msg4 = "join query does not support group by";
-  const char* msg7 = "not support group by expression";
-  const char* msg8 = "not allowed column type for group by";
-  const char* msg9 = "tags not allowed for table query";
-*/
-
-  // todo : handle two tables situation
-  //STableMetaInfo* pTableMetaInfo = NULL;
+  const char* msg2 = "functions can not be mixed up";
+  const char* msg3 = "invalid expression in having clause";
 
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -6968,7 +6957,7 @@ int32_t parseHavingClause(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SSqlCmd* pCmd
   }
 
   if (pExpr->pLeft == NULL || pExpr->pRight == NULL) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
   if (pQueryInfo->colList == NULL) {
@@ -6979,6 +6968,23 @@ int32_t parseHavingClause(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SSqlCmd* pCmd
   
   if ((ret = getHavingExpr(pCmd, pQueryInfo, pExpr, TK_AND)) != TSDB_CODE_SUCCESS) {
     return ret;
+  }
+
+  //REDO function check
+  if (!functionCompatibleCheck(pQueryInfo, joinQuery, intervalQuery)) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  }
+
+  /*
+   * transfer sql functions that need secondary merge into another format
+   * in dealing with super table queries such as: count/first/last
+   */
+  if (isSTable) {
+    tscTansformFuncForSTableQuery(pQueryInfo);
+
+    if (hasUnsupportFunctionsForSTableQuery(pCmd, pQueryInfo)) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
   }
 
   return TSDB_CODE_SUCCESS;
@@ -7114,11 +7120,6 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
-  // parse the having clause in the first place
-  if (parseHavingClause(pQueryInfo, pQuerySql->pHaving, pCmd) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_TSC_INVALID_SQL;
-  }
-
   // set where info
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
@@ -7159,6 +7160,11 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
         (validateFunctionsInIntervalOrGroupbyQuery(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS)) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
+  }
+
+  // parse the having clause in the first place
+  if (parseHavingClause(pQueryInfo, pQuerySql->pHaving, pCmd, isSTable, joinQuery, intervalQuery) != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_TSC_INVALID_SQL;
   }
 
   // no result due to invalid query time range
