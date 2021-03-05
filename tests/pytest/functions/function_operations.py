@@ -68,6 +68,15 @@ class TDTestCase:
         tdSql.checkRows(11)
         tdSql.checkData(10, 0, None)
 
+        # test for  tarithoperator.c coverage
+        col_list = [ 'col1' , 'col2' , 'col3' , 'col4' , 'col5' , 'col6' , 'col11' , 'col12' , 'col13' , 'col14' , '1' ]
+        op_list = [ '+' , '-' , '*' , '/' , '%' ]
+        for i in col_list :
+            for j in col_list :
+                for k in op_list :
+                    sql = " select %s %s %s from test1 " % ( i , k , j )
+                    print(sql)
+                    tdSql.query(sql)
 
     def stop(self):
         tdSql.close()

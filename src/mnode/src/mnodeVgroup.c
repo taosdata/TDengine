@@ -551,6 +551,7 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
 
     if (pMsg->pBatchMasterMsg) {
       ++pMsg->pBatchMasterMsg->received;
+      pMsg->pBatchMasterMsg->code = pMsg->code;
       if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
           >= pMsg->pBatchMasterMsg->expected) {
         dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, pMsg->code);
@@ -1017,6 +1018,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
 
       if (mnodeMsg->pBatchMasterMsg) {
         ++mnodeMsg->pBatchMasterMsg->received;
+        mnodeMsg->pBatchMasterMsg->code = code;
         if (mnodeMsg->pBatchMasterMsg->successed + mnodeMsg->pBatchMasterMsg->received
             >= mnodeMsg->pBatchMasterMsg->expected) {
           dnodeSendRpcMWriteRsp(mnodeMsg->pBatchMasterMsg, code);
@@ -1039,6 +1041,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
 
     if (mnodeMsg->pBatchMasterMsg) {
       ++mnodeMsg->pBatchMasterMsg->received;
+      mnodeMsg->pBatchMasterMsg->code = mnodeMsg->code;
       if (mnodeMsg->pBatchMasterMsg->successed + mnodeMsg->pBatchMasterMsg->received
           >= mnodeMsg->pBatchMasterMsg->expected) {
         dnodeSendRpcMWriteRsp(mnodeMsg->pBatchMasterMsg, mnodeMsg->code);

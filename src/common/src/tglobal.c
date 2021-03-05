@@ -431,10 +431,10 @@ static void doInitGlobalConfig(void) {
   // port
   cfg.option = "serverPort";
   cfg.ptr = &tsServerPort;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.valType = TAOS_CFG_VTYPE_UINT16;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 1;
-  cfg.maxValue = 65535;
+  cfg.maxValue = 65056;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
