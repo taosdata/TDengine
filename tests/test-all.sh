@@ -160,9 +160,10 @@ function runPyCaseOneByOnefq {
 totalFailed=0
 totalPyFailed=0
 totalJDBCFailed=0
+totalUnitTestFailed=0
 
 corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
-if [ "$2" != "jdbc" ] && [ "$2" != "python" ]; then
+if [ "$2" != "jdbc" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]; then
   echo "### run TSIM test case ###"
   cd $tests_dir/script
 
@@ -231,7 +232,7 @@ if [ "$2" != "jdbc" ] && [ "$2" != "python" ]; then
   fi
 fi
 
-if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] ; then
+if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] && [ "$2" != "unit" ]; then
   echo "### run Python test case ###"
 
   cd $tests_dir
@@ -300,8 +301,8 @@ if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] ; then
 fi
 
 
-if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$1" == "full" ]; then
-  echo "### run JDBC test case ###"  
+if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "unit" ] && [ "$1" == "full" ]; then
+  echo "### run JDBC test cases ###"
 
   cd $tests_dir
 
@@ -318,7 +319,7 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$1" == "full" ]; then
   nohup build/bin/taosd -c /etc/taos/ > /dev/null 2>&1 &
   sleep 30
   
-  cd $tests_dir/../src/connector/jdbc
+  cd $tests_dir/../src/connector/jdbc  
   
   mvn test > jdbc-out.log 2>&1
   tail -n 20 jdbc-out.log
@@ -343,4 +344,40 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$1" == "full" ]; then
   dohavecore 1
 fi
 
-exit $(($totalFailed + $totalPyFailed + $totalJDBCFailed))
+if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$1" == "full" ]; then
+  echo "### run Unit tests ###"  
+
+  stopTaosd
+  cd $tests_dir
+
+  if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+    cd ../../
+  else
+    cd ../
+  fi
+
+  pwd
+  cd debug/build/bin
+  nohup ./taosd -c /etc/taos/ > /dev/null 2>&1 &
+  sleep 30
+  
+  pwd
+  ./queryTest > unittest-out.log 2>&1
+  tail -n 20 unittest-out.log
+
+  totalUnitTests=`grep "Running" unittest-out.log | awk '{print $3}'`  
+  totalUnitSuccess=`grep 'PASSED' unittest-out.log | awk '{print $4}'`
+  totalUnitFailed=`expr $totalUnitTests - $totalUnitSuccess`
+
+  if [ "$totalUnitSuccess" -gt "0" ]; then
+    echo -e "\n${GREEN} ### Total $totalUnitSuccess Unit test succeed! ### ${NC}"
+  fi
+  
+  if [ "$totalUnitFailed" -ne "0" ]; then
+    echo -e "\n${RED} ### Total $totalUnitFailed Unit test failed! ### ${NC}"
+  fi
+  dohavecore 1
+fi
+
+
+exit $(($totalFailed + $totalPyFailed + $totalJDBCFailed + $totalUnitFailed))
