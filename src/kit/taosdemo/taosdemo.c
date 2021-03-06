@@ -4232,7 +4232,9 @@ static void* syncWriteWithStb(void *sarg) {
   uint64_t st = 0;
   uint64_t et = 0;
 
-  debugPrint("DEBUG - %s() LN%d insertRows=%ld\n", __func__, __LINE__, superTblInfo->insertRows);
+  debugPrint("DEBUG - %s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__, superTblInfo->insertRows);
+              //printf("disorder rows, rand_num:%d, last ts:%"PRId64" current ts:%"PRId64"\n", rand_num, tmp_time, d);
+
   for (int i = 0; i < superTblInfo->insertRows;) {
 
     for (uint32_t tID = winfo->start_table_id; tID <= winfo->end_table_id; tID++) {
@@ -4325,7 +4327,6 @@ static void* syncWriteWithStb(void *sarg) {
         k++;
         totalRowsInserted++;
   
-        debugPrint("DEBUG %s() LN%d inserted=%ld k=%d totalRowsInserted=%ld superTblInfo->insertRows=%ld\n", __func__, __LINE__, inserted, k, totalRowsInserted, superTblInfo->insertRows);
         if (inserted > superTblInfo->insertRows)
             break;
 /*        if (inserted >= superTblInfo->insertRows 
