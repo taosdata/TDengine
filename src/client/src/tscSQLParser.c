@@ -1539,6 +1539,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
   if (pQueryInfo->colList == NULL) {
     pQueryInfo->colList = taosArrayInit(4, POINTER_BYTES);
   }
+
   bool hasDistinct = false;
   for (int32_t i = 0; i < pSelection->nExpr; ++i) {
     int32_t outputIndex = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
@@ -1547,25 +1548,26 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     if (hasDistinct == false) {
        hasDistinct = (pItem->distinct == true); 
     }
-    // project on all fields
-    int32_t optr = pItem->pNode->nSQLOptr;
 
-    if (optr == TK_ALL || optr == TK_ID || optr == TK_STRING || optr == TK_INTEGER || optr == TK_FLOAT) {
-      // it is actually a function, but the function name is invalid
-      if (pItem->pNode->nSQLOptr == TK_ID && (pItem->pNode->colInfo.z == NULL && pItem->pNode->colInfo.n == 0)) {
+    int32_t optr = pItem->pNode->nSQLOptr;
+    if (optr == TK_FUNCTION) {
+      int32_t functId = isValidFunction(pItem->pNode->token.z, pItem->pNode->token.n);
+      if (functId < 0) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
 
-      // select table_name1.field_name1, table_name2.field_name2  from table_name1, table_name2
-      if (addProjectionExprAndResultField(pCmd, pQueryInfo, pItem) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_SQL;
-      }
-    } else if (pItem->pNode->nSQLOptr >= TK_COUNT && pItem->pNode->nSQLOptr <= TK_TBID) {
+      pItem->pNode->nSQLOptr = functId;
+
       // sql function in selection clause, append sql function info in pSqlCmd structure sequentially
       if (addExprAndResultField(pCmd, pQueryInfo, outputIndex, pItem, true) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
-
+    } else if (optr == TK_ALL || optr == TK_ID || optr == TK_STRING || optr == TK_INTEGER || optr == TK_FLOAT) {
+      // use the dynamic array list to decide if the function is valid or not
+        // select table_name1.field_name1, table_name2.field_name2  from table_name1, table_name2
+        if (addProjectionExprAndResultField(pCmd, pQueryInfo, pItem) != TSDB_CODE_SUCCESS) {
+          return TSDB_CODE_TSC_INVALID_SQL;
+        }
     } else if (pItem->pNode->nSQLOptr >= TK_PLUS && pItem->pNode->nSQLOptr <= TK_REM) {
       int32_t code = handleArithmeticExpr(pCmd, clauseIndex, i, pItem);
       if (code != TSDB_CODE_SUCCESS) {
@@ -1589,7 +1591,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
   
   // there is only one user-defined column in the final result field, add the timestamp column.
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
-  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo)) {
+  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
     addPrimaryTsColIntoResult(pQueryInfo);
   }
 
@@ -1876,7 +1878,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg9 = "invalid function";
 
   switch (optr) {
-    case TK_COUNT: {
+    case TSDB_FUNC_COUNT: {
         /* more than one parameter for count() function */
       if (pItem->pNode->pParam != NULL && pItem->pNode->pParam->nExpr != 1) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -1971,23 +1973,23 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       return TSDB_CODE_SUCCESS;
     }
-    case TK_SUM:
-    case TK_AVG:
-    case TK_RATE:
-    case TK_IRATE:
-    case TK_SUM_RATE:
-    case TK_SUM_IRATE:
-    case TK_AVG_RATE:
-    case TK_AVG_IRATE:
-    case TK_TWA:
-    case TK_MIN:
-    case TK_MAX:
-    case TK_DIFF:
-    case TK_STDDEV:
-    case TK_LEASTSQUARES: {
+    case TSDB_FUNC_SUM:
+    case TSDB_FUNC_AVG:
+    case TSDB_FUNC_RATE:
+    case TSDB_FUNC_IRATE:
+    case TSDB_FUNC_SUM_RATE:
+    case TSDB_FUNC_SUM_IRATE:
+    case TSDB_FUNC_AVG_RATE:
+    case TSDB_FUNC_AVG_IRATE:
+    case TSDB_FUNC_TWA:
+    case TSDB_FUNC_MIN:
+    case TSDB_FUNC_MAX:
+    case TSDB_FUNC_DIFF:
+    case TSDB_FUNC_STDDEV:
+    case TSDB_FUNC_LEASTSQR: {
       // 1. valid the number of parameters
-      if (pItem->pNode->pParam == NULL || (optr != TK_LEASTSQUARES && pItem->pNode->pParam->nExpr != 1) ||
-          (optr == TK_LEASTSQUARES && pItem->pNode->pParam->nExpr != 3)) {
+      if (pItem->pNode->pParam == NULL || (optr != TSDB_FUNC_LEASTSQR && pItem->pNode->pParam->nExpr != 1) ||
+          (optr == TSDB_FUNC_LEASTSQR && pItem->pNode->pParam->nExpr != 3)) {
         /* no parameters or more than one parameter for function */
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
@@ -2029,7 +2031,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       // set the first column ts for diff query
-      if (optr == TK_DIFF) {
+      if (optr == TSDB_FUNC_DIFF) {
         colIndex += 1;
         SColumnIndex indexTS = {.tableIndex = index.tableIndex, .columnIndex = 0};
         SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS_DUMMY, &indexTS, TSDB_DATA_TYPE_TIMESTAMP, TSDB_KEYSIZE,
@@ -2046,7 +2048,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, functionID, &index, resultType, resultSize, getNewResColId(pQueryInfo), resultSize, false);
 
-      if (optr == TK_LEASTSQUARES) {
+      if (optr == TSDB_FUNC_LEASTSQR) {
         /* set the leastsquares parameters */
         char val[8] = {0};
         if (tVariantDump(&pParamElem[1].pNode->val, val, TSDB_DATA_TYPE_DOUBLE, true) < 0) {
@@ -2082,11 +2084,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       tscInsertPrimaryTsSourceColumn(pQueryInfo, &index);
       return TSDB_CODE_SUCCESS;
     }
-    case TK_FIRST:
-    case TK_LAST:
-    case TK_SPREAD:
-    case TK_LAST_ROW:
-    case TK_INTERP: {
+    case TSDB_FUNC_FIRST:
+    case TSDB_FUNC_LAST:
+    case TSDB_FUNC_SPREAD:
+    case TSDB_FUNC_LAST_ROW:
+    case TSDB_FUNC_INTERP: {
       bool requireAllFields = (pItem->pNode->pParam == NULL);
 
       int16_t functionID = 0;
@@ -2162,7 +2164,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 
-            if (optr == TK_LAST) {  // todo refactor
+            if (optr == TSDB_FUNC_LAST) {  // todo refactor
               SSqlGroupbyExpr* pGroupBy = &pQueryInfo->groupbyExpr;
               if (pGroupBy->numOfGroupCols > 0) {
                 for(int32_t k = 0; k < pGroupBy->numOfGroupCols; ++k) {
@@ -2210,14 +2212,13 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           numOfFields += tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
         }
 
-        
         return TSDB_CODE_SUCCESS;
       }
     }
-    case TK_TOP:
-    case TK_BOTTOM:
-    case TK_PERCENTILE:
-    case TK_APERCENTILE: {
+    case TSDB_FUNC_TOP:
+    case TSDB_FUNC_BOTTOM:
+    case TSDB_FUNC_PERCT:
+    case TSDB_FUNC_APERCT: {
       // 1. valid the number of parameters
       if (pItem->pNode->pParam == NULL || pItem->pNode->pParam->nExpr != 2) {
         /* no parameters or more than one parameter for function */
@@ -2265,7 +2266,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       char    val[8] = {0};
       SSqlExpr* pExpr = NULL;
       
-      if (optr == TK_PERCENTILE || optr == TK_APERCENTILE) {
+      if (optr == TSDB_FUNC_PERCT || optr == TSDB_FUNC_APERCT) {
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_DOUBLE, true);
 
         double dp = GET_DOUBLE_VAL(val);
@@ -2336,7 +2337,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       return TSDB_CODE_SUCCESS;
     };
     
-    case TK_TBID: {
+    case TSDB_FUNC_TID_TAG: {
       pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
       if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
@@ -2402,6 +2403,30 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY);
       tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_TID_TAG, &index, &s, TSDB_COL_TAG);
       
+      return TSDB_CODE_SUCCESS;
+    }
+    case TSDB_FUNC_BLKINFO: {
+      // no parameters or more than one parameter for function
+      if (pItem->pNode->pParam != NULL && pItem->pNode->pParam->nExpr != 0) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      SColumnIndex index = {.tableIndex = 0, .columnIndex = TSDB_BLOCK_DIST_COLUMN_INDEX,};
+      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+
+      SSchema s = {.name = "block_dist", .type = TSDB_DATA_TYPE_BINARY};
+      int32_t inter   = 0;
+      int16_t resType = 0;
+      int16_t bytes   = 0;
+      getResultDataInfo(TSDB_DATA_TYPE_INT, 4, TSDB_FUNC_BLKINFO, 0, &resType, &bytes, &inter, 0, 0);
+
+      s.bytes = bytes;
+      s.type = resType;
+      SSqlExpr* pExpr = tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_BLKINFO, &index, &s, TSDB_COL_TAG);
+      pExpr->numOfParams = 1;
+      pExpr->param[0].i64 = pTableMetaInfo->pTableMeta->tableInfo.rowSize;
+      pExpr->param[0].nType = TSDB_DATA_TYPE_BIGINT;
+
       return TSDB_CODE_SUCCESS;
     }
     
@@ -2572,76 +2597,76 @@ int32_t getColumnIndexByName(SSqlCmd* pCmd, const SStrToken* pToken, SQueryInfo*
 
 int32_t convertFunctionId(int32_t optr, int16_t* functionId) {
   switch (optr) {
-    case TK_COUNT:
+    case TSDB_FUNC_COUNT:
       *functionId = TSDB_FUNC_COUNT;
       break;
-    case TK_SUM:
+    case TSDB_FUNC_SUM:
       *functionId = TSDB_FUNC_SUM;
       break;
-    case TK_AVG:
+    case TSDB_FUNC_AVG:
       *functionId = TSDB_FUNC_AVG;
       break;
-    case TK_RATE:
+    case TSDB_FUNC_RATE:
       *functionId = TSDB_FUNC_RATE;
       break;
-    case TK_IRATE:
+    case TSDB_FUNC_IRATE:
       *functionId = TSDB_FUNC_IRATE;
       break;
-    case TK_SUM_RATE:
+    case TSDB_FUNC_SUM_RATE:
       *functionId = TSDB_FUNC_SUM_RATE;
       break;
-    case TK_SUM_IRATE:
+    case TSDB_FUNC_SUM_IRATE:
       *functionId = TSDB_FUNC_SUM_IRATE;
       break;
-    case TK_AVG_RATE:
+    case TSDB_FUNC_AVG_RATE:
       *functionId = TSDB_FUNC_AVG_RATE;
       break;
-    case TK_AVG_IRATE:
+    case TSDB_FUNC_AVG_IRATE:
       *functionId = TSDB_FUNC_AVG_IRATE;
       break;
-    case TK_MIN:
+    case TSDB_FUNC_MIN:
       *functionId = TSDB_FUNC_MIN;
       break;
-    case TK_MAX:
+    case TSDB_FUNC_MAX:
       *functionId = TSDB_FUNC_MAX;
       break;
-    case TK_STDDEV:
+    case TSDB_FUNC_STDDEV:
       *functionId = TSDB_FUNC_STDDEV;
       break;
-    case TK_PERCENTILE:
+    case TSDB_FUNC_PERCT:
       *functionId = TSDB_FUNC_PERCT;
       break;
-    case TK_APERCENTILE:
+    case TSDB_FUNC_APERCT:
       *functionId = TSDB_FUNC_APERCT;
       break;
-    case TK_FIRST:
+    case TSDB_FUNC_FIRST:
       *functionId = TSDB_FUNC_FIRST;
       break;
-    case TK_LAST:
+    case TSDB_FUNC_LAST:
       *functionId = TSDB_FUNC_LAST;
       break;
-    case TK_LEASTSQUARES:
+    case TSDB_FUNC_LEASTSQR:
       *functionId = TSDB_FUNC_LEASTSQR;
       break;
-    case TK_TOP:
+    case TSDB_FUNC_TOP:
       *functionId = TSDB_FUNC_TOP;
       break;
-    case TK_BOTTOM:
+    case TSDB_FUNC_BOTTOM:
       *functionId = TSDB_FUNC_BOTTOM;
       break;
-    case TK_DIFF:
+    case TSDB_FUNC_DIFF:
       *functionId = TSDB_FUNC_DIFF;
       break;
-    case TK_SPREAD:
+    case TSDB_FUNC_SPREAD:
       *functionId = TSDB_FUNC_SPREAD;
       break;
-    case TK_TWA:
+    case TSDB_FUNC_TWA:
       *functionId = TSDB_FUNC_TWA;
       break;
-    case TK_INTERP:
+    case TSDB_FUNC_INTERP:
       *functionId = TSDB_FUNC_INTERP;
       break;
-    case TK_LAST_ROW:
+    case TSDB_FUNC_LAST_ROW:
       *functionId = TSDB_FUNC_LAST_ROW;
       break;
     default:
@@ -3176,7 +3201,7 @@ static int32_t tSQLExprNodeToString(tSQLExpr* pExpr, char** str) {
   } else if (pExpr->nSQLOptr >= TK_BOOL && pExpr->nSQLOptr <= TK_STRING) {  // value
     *str += tVariantToString(&pExpr->val, *str);
 
-  } else if (pExpr->nSQLOptr >= TK_COUNT && pExpr->nSQLOptr <= TK_AVG_IRATE) {
+  } else if (pExpr->nSQLOptr >= TSDB_FUNC_COUNT && pExpr->nSQLOptr <= TSDB_FUNC_BLKINFO) {
     /*
      * arithmetic expression of aggregation, such as count(ts) + count(ts) *2
      */
@@ -3579,7 +3604,7 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQuer
     pList->ids[pList->num++] = index;
   } else if (pExpr->nSQLOptr == TK_FLOAT && (isnan(pExpr->val.dKey) || isinf(pExpr->val.dKey))) {
     return TSDB_CODE_TSC_INVALID_SQL;
-  } else if (pExpr->nSQLOptr >= TK_COUNT && pExpr->nSQLOptr <= TK_AVG_IRATE) {
+  } else if (pExpr->nSQLOptr >= TSDB_FUNC_COUNT && pExpr->nSQLOptr <= TSDB_FUNC_AVG_IRATE) {
     if (*type == NON_ARITHMEIC_EXPR) {
       *type = AGG_ARIGHTMEIC;
     } else if (*type == NORMAL_ARITHMETIC) {
@@ -3679,7 +3704,7 @@ static bool isValidExpr(tSQLExpr* pLeft, tSQLExpr* pRight, int32_t optr) {
    *
    * However, columnA < 4+12 is valid
    */
-  if (pLeft->nSQLOptr >= TK_COUNT && pLeft->nSQLOptr <= TK_AVG_IRATE) {
+  if (pLeft->nSQLOptr >= TSDB_FUNC_COUNT && pLeft->nSQLOptr <= TSDB_FUNC_AVG_IRATE) {
     return false;
   }
 
@@ -3687,7 +3712,7 @@ static bool isValidExpr(tSQLExpr* pLeft, tSQLExpr* pRight, int32_t optr) {
     return true;
   }
 
-  if (pRight->nSQLOptr >= TK_COUNT && pRight->nSQLOptr <= TK_AVG_IRATE) {
+  if (pRight->nSQLOptr >= TSDB_FUNC_COUNT && pRight->nSQLOptr <= TSDB_FUNC_AVG_IRATE) {
     return false;
   }
   
@@ -6848,7 +6873,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pS
       
       tVariantAssign((*pExpr)->pVal, &pSqlExpr->val);
       return TSDB_CODE_SUCCESS;
-    } else if (pSqlExpr->nSQLOptr >= TK_COUNT && pSqlExpr->nSQLOptr <= TK_AVG_IRATE) {
+    } else if (pSqlExpr->nSQLOptr >= TSDB_FUNC_COUNT && pSqlExpr->nSQLOptr <= TSDB_FUNC_BLKINFO) {
       // arithmetic expression on the results of aggregation functions
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_COL;

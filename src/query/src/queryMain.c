@@ -238,8 +238,8 @@ bool qTableQuery(qinfo_t qinfo) {
     buildTagQueryResult(pQInfo);
   } else if (pQInfo->query.stableQuery) {
     stableQueryImpl(pQInfo);
-  } else if (pQInfo->query.queryBlockDist){
-    buildTableBlockDistResult(pQInfo);
+//  } else if (pQInfo->query.queryBlockDist){
+//    buildTableBlockDistResult(pQInfo);
   } else {
     tableQueryImpl(pQInfo);
   }

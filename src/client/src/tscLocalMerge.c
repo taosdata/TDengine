@@ -100,6 +100,10 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalMerger *pReducer, tOrderDescr
     } else if (functionId == TSDB_FUNC_APERCT) {
       pCtx->param[0].i64 = pExpr->param[0].i64;
       pCtx->param[0].nType  = pExpr->param[0].nType;
+    } else if (functionId == TSDB_FUNC_BLKINFO) {
+      pCtx->param[0].i64 = pExpr->param[0].i64;
+      pCtx->param[0].nType = pExpr->param[0].nType;
+      pCtx->numOfParams = 1;
     }
 
     pCtx->interBufBytes = pExpr->interBytes;

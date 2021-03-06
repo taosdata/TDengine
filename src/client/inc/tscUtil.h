@@ -133,6 +133,7 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryTags(SQueryInfo* pQueryInfo);
 bool tscMultiRoundQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscQueryBlockInfo(SQueryInfo* pQueryInfo);
 
 SSqlExpr* tscAddFuncInSelectClause(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId,
                                        SColumnIndex* pIndex, SSchema* pColSchema, int16_t colType);

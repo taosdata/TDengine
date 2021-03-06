@@ -22,6 +22,7 @@
 #include "tbuffer.h"
 #include "tlosertree.h"
 #include "queryLog.h"
+#include "tscompression.h"
 
 typedef struct SCompSupporter {
   STableQueryInfo **pTableQueryInfo;
@@ -243,7 +244,6 @@ void* destroyResultRowPool(SResultRowPool* p) {
   return NULL;
 }
 
-// TODO refactor
 void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen) {
   uint32_t numOfGroup = (uint32_t) taosArrayGetSize(pRes);
   tbufWriteUint32(bw, numOfGroup);
@@ -581,25 +581,70 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv* pRu
   return TSDB_CODE_SUCCESS;
 }
 
-/*
- * typedef struct {
-  int64_t  numOfTables;
-  SArray  *dataBlockInfos;
-  int64_t  firstSeekTimeUs;
-  int64_t  numOfRowsInMemTable;
-} STableBlockDist;
- *
- */
-SBufferWriter* blockDistInfoToBinary(STableBlockDist* pDist) {
-  SBufferWriter bw = tbufInitWriter(NULL, false);
+void blockDistInfoToBinary(STableBlockDist* pDist, struct SBufferWriter* bw) {
+  tbufWriteUint32(bw, pDist->numOfTables);
+  tbufWriteUint16(bw, pDist->numOfFiles);
+  tbufWriteUint64(bw, pDist->totalSize);
+  tbufWriteUint32(bw, pDist->numOfRowsInMemTable);
+  tbufWriteUint64(bw, taosArrayGetSize(pDist->dataBlockInfos));
 
-  tbufWriteUint64(&bw, pDist->numOfTables);
-  tbufWriteUint64(&bw, pDist->numOfRowsInMemTable);
-  tbufWriteUint64(&bw, taosArrayGetSize(pDist->dataBlockInfos));
+  // compress the binary string
+  char* p = TARRAY_GET_START(pDist->dataBlockInfos);
 
-  pDist->dataBlockInfos->pData
+  // compress extra bytes
+  size_t x = taosArrayGetSize(pDist->dataBlockInfos) * pDist->dataBlockInfos->elemSize;
+  char* tmp = malloc(x + 2);
+
+  bool comp = false;
+  int32_t len = tsCompressString(p, x, 1, tmp, x, ONE_STAGE_COMP, NULL, 0);
+  if (len == -1 || len >= x) { // compress failed, do not compress this binary data
+    comp = false;
+    len = x;
+  } else {
+    comp = true;
+  }
+
+  tbufWriteUint8(bw, comp);
+  tbufWriteUint32(bw, len);
+  if (comp) {
+    tbufWriteBinary(bw, tmp, len);
+  } else {
+    tbufWriteBinary(bw, p, len);
+  }
+  tfree(tmp);
 }
 
 void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist) {
+  SBufferReader br = tbufInitReader(data, len, false);
 
+  pDist->numOfTables = tbufReadUint32(&br);
+  pDist->numOfFiles  = tbufReadUint16(&br);
+  pDist->totalSize   = tbufReadUint64(&br);
+  pDist->numOfRowsInMemTable = tbufReadUint32(&br);
+  int32_t numOfBlocks = tbufReadUint64(&br);
+
+  bool comp = tbufReadUint8(&br);
+  uint32_t compLen = tbufReadUint32(&br);
+
+  size_t originalLen = numOfBlocks*sizeof(SFileBlockInfo);
+
+  char* outputBuf = NULL;
+  if (comp) {
+    outputBuf = malloc(originalLen);
+
+    size_t actualLen = compLen;
+    const char* compStr = tbufReadBinary(&br, &actualLen);
+
+    int32_t orignalLen = tsDecompressString(compStr, compLen, 1, outputBuf,
+                                            originalLen , ONE_STAGE_COMP, NULL, 0);
+    assert(orignalLen == numOfBlocks*sizeof(SFileBlockInfo));
+  } else {
+    outputBuf = (char*) tbufReadBinary(&br, &originalLen);
+  }
+
+  pDist->dataBlockInfos = taosArrayFromList(outputBuf, numOfBlocks, sizeof(SFileBlockInfo));
+  if (comp) {
+    tfree(outputBuf);
+  }
 }
+

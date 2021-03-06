@@ -79,16 +79,6 @@ void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen);
 SArray* interResFromBinary(const char* data, int32_t len);
 void freeInterResult(void* param);
 
-typedef struct {
-  int64_t  numOfTables;
-  SArray  *dataBlockInfos;
-  int64_t  firstSeekTimeUs;
-  int64_t  numOfRowsInMemTable;
-} STableBlockDist;
-
-void blockDistInfoToBinary(SBufferWriter* bw, STableBlockDist* pDist);
-void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist);
-
 void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo);
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
 bool    hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo);

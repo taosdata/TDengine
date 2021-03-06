@@ -158,19 +158,22 @@ tSQLExpr *tSqlExprIdValueCreate(SStrToken *pToken, int32_t optrType) {
  * function name is denoted by pFunctionToken
  */
 tSQLExpr *tSqlExprCreateFunction(tSQLExprList *pList, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType) {
-  if (pFuncToken == NULL) return NULL;
+  if (pFuncToken == NULL) {
+    return NULL;
+  }
+
+  assert(optType == TK_ID);
 
   tSQLExpr *pExpr = calloc(1, sizeof(tSQLExpr));
-  pExpr->nSQLOptr = optType;
+  pExpr->nSQLOptr = TK_FUNCTION;
   pExpr->pParam = pList;
 
   int32_t len = (int32_t)((endToken->z + endToken->n) - pFuncToken->z);
   pExpr->operand.z = pFuncToken->z;
-
   pExpr->operand.n = len;  // raw field name
   pExpr->operand.type = pFuncToken->type;
 
-  pExpr->token = pExpr->operand;
+  pExpr->token = (*pFuncToken);
   return pExpr;
 }
 

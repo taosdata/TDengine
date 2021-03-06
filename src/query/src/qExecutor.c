@@ -26,11 +26,7 @@
 #include "queryLog.h"
 #include "tlosertree.h"
 #include "ttype.h"
-
-/**
- * check if the primary column is load by default, otherwise, the program will
- * forced to load primary column explicitly.
- */
+#include "tscompression.h"
 
 #define IS_MASTER_SCAN(runtime)        ((runtime)->scanFlag == MASTER_SCAN)
 #define IS_REVERSE_SCAN(runtime)       ((runtime)->scanFlag == REVERSE_SCAN)
@@ -177,6 +173,7 @@ static SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, S
 static SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 static SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 static SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput);
+static SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
 
 static void destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 static void destroySFillOperatorInfo(void* param, int32_t numOfOutput);
@@ -1050,12 +1047,13 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
       setArithParams((SArithmeticSupport*)pCtx[i].param[1].pz, &pOperator->pExpr[i], pBlock);
     } else {
       SColIndex* pCol = &pOperator->pExpr[i].base.colInfo;
-      if (TSDB_COL_IS_NORMAL_COL(pCol->flag)) {
+      if (TSDB_COL_IS_NORMAL_COL(pCol->flag) || pCol->colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
         SColIndex*       pColIndex = &pOperator->pExpr[i].base.colInfo;
         SColumnInfoData* p = taosArrayGet(pBlock->pDataBlock, pColIndex->colIndex);
 
+        // in case of the block distribution query, the inputBytes is not a constant value.
         pCtx[i].pInput = p->pData;
-        assert(p->info.colId == pColIndex->colId && pCtx[i].inputType == p->info.type && pCtx[i].inputBytes == p->info.bytes);
+        assert(p->info.colId == pColIndex->colId && pCtx[i].inputType == p->info.type);// && pCtx[i].inputBytes == p->info.bytes);
 
         uint32_t status = aAggs[pCtx[i].functionId].status;
         if ((status & (TSDB_FUNCSTATE_SELECTIVITY | TSDB_FUNCSTATE_NEED_TS)) != 0) {
@@ -3736,6 +3734,7 @@ static void freeTableBlockDist(STableBlockDist *pTableBlockDist) {
   }
 }
 
+#if 0
 static int32_t getPercentileFromSortedArray(const SArray* pArray, double rate) {
   int32_t len = (int32_t)taosArrayGetSize(pArray);
   if (len <= 0) {
@@ -3746,42 +3745,17 @@ static int32_t getPercentileFromSortedArray(const SArray* pArray, double rate) {
   return ((SDataBlockInfo *)(taosArrayGet(pArray, idx)))->rows;
 }
 
+
 static int compareBlockInfo(const void *pLeft, const void *pRight) {
   int32_t left = ((SDataBlockInfo *)pLeft)->rows;
   int32_t right = ((SDataBlockInfo *)pRight)->rows; 
   if (left > right) return 1; 
   if (left < right) return -1; 
   return 0;
-} 
-
-static void generateBlockDistResult(STableBlockDist *pTableBlockDist) {
-  if (pTableBlockDist == NULL) {
-     return;
-  }
-#if 0
-  int64_t min = INT64_MAX, max = INT64_MIN, avg = 0;    
-  SArray* blockInfos= pTableBlockDist->dataBlockInfos;  
-  int64_t totalRows = 0, totalBlocks = taosArrayGetSize(blockInfos); 
-  for (size_t i = 0; i < taosArrayGetSize(blockInfos); i++) {
-    SFileBlockInfo *blockInfo = taosArrayGet(blockInfos, i);
-    int64_t rows = blockInfo->numOfRows;
-    min = MIN(min, rows);       
-    max = MAX(max, rows);
-    totalRows += rows;  
-  }
-  avg = totalBlocks > 0 ? (int64_t)(totalRows/totalBlocks) : 0;
-
-  taosArraySort(blockInfos, compareBlockInfo);
-#endif
-//  int sz = sprintf(pTableBlockDist->result,
-//          "summary: \n\t 5th=[%d], 25th=[%d], 50th=[%d],75th=[%d], 95th=[%d], 99th=[%d] \n\t min=[%"PRId64"], max=[%"PRId64"], avg = [%"PRId64"] \n\t totalRows=[%"PRId64"], totalBlocks=[%"PRId64"] \n\t seekHeaderTimeCost=[%"PRId64"(us)] \n\t rowsInMem=[%"PRId64"]",
-//          getPercentileFromSortedArray(blockInfos, 0.05), getPercentileFromSortedArray(blockInfos, 0.25), getPercentileFromSortedArray(blockInfos, 0.50),
-//          getPercentileFromSortedArray(blockInfos, 0.75), getPercentileFromSortedArray(blockInfos, 0.95), getPercentileFromSortedArray(blockInfos, 0.99),
-//          min, max, avg,
-//          totalRows, totalBlocks,
-//          pTableBlockDist->firstSeekTimeUs,
-//          pTableBlockDist->numOfRowsInMemTable);
 }
+
+#endif
+
 //void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
 //  SQuery *pQuery = pRuntimeEnv->pQuery;
 //
@@ -4145,6 +4119,8 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
     // TODO refactor.
     pRuntimeEnv->resultInfo.capacity = 4096;
     pRuntimeEnv->proot = createTagScanOperatorInfo(pRuntimeEnv, pQuery->pExpr1, pQuery->numOfOutput);
+  } else if (pQuery->queryBlockDist) {
+    pRuntimeEnv->pTableScanner = createTableBlockInfoScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
   } else if (isTsCompQuery(pQuery) || isPointInterpoQuery(pQuery)) {
     pRuntimeEnv->pTableScanner = createTableSeqScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv, isPointInterpoQuery(pQuery));
   } else if (needReverseScan(pQuery)) {
@@ -4408,22 +4384,40 @@ static SSDataBlock* doSeqTableBlocksScan(void* param) {
 
 static SSDataBlock* doBlockInfoScan(void* param) {
   SOperatorInfo *pOperator = (SOperatorInfo*)param;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
 
   STableScanInfo *pTableScanInfo = pOperator->info;
 
   STableBlockDist tableBlockDist = {0};
+  tableBlockDist.numOfTables     = pTableScanInfo->pRuntimeEnv->tableqinfoGroupInfo.numOfTables;
   tableBlockDist.dataBlockInfos  = taosArrayInit(512, sizeof(SFileBlockInfo));
 
-  tsdbGetFileBlocksDistInfo(pTableScanInfo->pQueryHandle, tableBlockDist.dataBlockInfos);
+  tsdbGetFileBlocksDistInfo(pTableScanInfo->pQueryHandle, &tableBlockDist);
   tableBlockDist.numOfRowsInMemTable = tsdbGetNumOfRowsInMemTable(pTableScanInfo->pQueryHandle);
 
   SSDataBlock* pBlock = &pTableScanInfo->block;
   pBlock->info.rows   = 1;
   pBlock->info.numOfCols = 1;
 
+  SBufferWriter bw = tbufInitWriter(NULL, false);
+  blockDistInfoToBinary(&tableBlockDist, &bw);
+  SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
 
+  int32_t len = (int32_t) tbufTell(&bw);
+  pColInfo->pData = malloc(len + sizeof(int32_t));
 
+  *(int32_t*) pColInfo->pData = len;
+  memcpy(pColInfo->pData + sizeof(int32_t), tbufGetData(&bw, false), len);
 
+  tbufCloseWriter(&bw);
+
+  SArray* g = GET_TABLEGROUP(pOperator->pRuntimeEnv, 0);
+  pOperator->pRuntimeEnv->pQuery->current = taosArrayGetP(g, 0);
+
+  pOperator->status = OP_EXEC_DONE;
+  return pBlock;
 }
 
 SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime) {
@@ -4467,6 +4461,32 @@ SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeE
   pOperator->info         = pInfo;
   pOperator->numOfOutput  = pRuntimeEnv->pQuery->numOfCols;
   pOperator->exec         = doSeqTableBlocksScan;
+
+  return pOperator;
+}
+
+SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv) {
+  STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
+
+  pInfo->pQueryHandle     = pTsdbQueryHandle;
+  pInfo->pRuntimeEnv      = pRuntimeEnv;
+  pInfo->block.pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+
+  SColumnInfoData infoData = {{0}};
+  infoData.info.type = TSDB_DATA_TYPE_BINARY;
+  infoData.info.bytes = 1024;
+  infoData.info.colId = TSDB_BLOCK_DIST_COLUMN_INDEX;
+  taosArrayPush(pInfo->block.pDataBlock, &infoData);
+
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+  pOperator->name         = "TableBlockInfoScanOperator";
+  pOperator->operatorType = OP_TableBlockInfoScan;
+  pOperator->blockingOptr = false;
+  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->info         = pInfo;
+  pOperator->pRuntimeEnv  = pRuntimeEnv;
+  pOperator->numOfOutput  = pRuntimeEnv->pQuery->numOfCols;
+  pOperator->exec         = doBlockInfoScan;
 
   return pOperator;
 }
@@ -4633,10 +4653,6 @@ static SSDataBlock* doSTableAggregate(void* param) {
 
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pInfo->resultRowInfo);
-
-  if (isTsCompQuery(pQuery)) {
-    finalizeQueryResult_rv(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
-  }
 
   updateWindowResNumOfRes_rv(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput, &pInfo->resultRowInfo,
                              pInfo->rowCellInfoOffset);
@@ -5415,7 +5431,7 @@ void buildTableBlockDistResult(SQInfo *pQInfo) {
   SSchema blockDistSchema = tGetBlockDistColumnSchema();
 
 //  int64_t startTime = taosGetTimestampUs();
-  tsdbGetFileBlocksDistInfo(pQueryHandle, pTableBlockDist->dataBlockInfos);
+//  tsdbGetFileBlocksDistInfo(pQueryHandle, pTableBlockDist->dataBlockInfos, );
   pTableBlockDist->numOfRowsInMemTable = tsdbGetNumOfRowsInMemTable(pQueryHandle);
   
 //  generateBlockDistResult(pTableBlockDist);
@@ -5524,7 +5540,8 @@ static bool validateQuerySourceCols(SQueryTableMsg *pQueryMsg, SSqlFuncMsg** pEx
 
       if ((pFuncMsg->functionId == TSDB_FUNC_TAGPRJ) ||
           (pFuncMsg->functionId == TSDB_FUNC_TID_TAG && pFuncMsg->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) ||
-          (pFuncMsg->functionId == TSDB_FUNC_COUNT && pFuncMsg->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX)) {
+          (pFuncMsg->functionId == TSDB_FUNC_COUNT && pFuncMsg->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) ||
+          (pFuncMsg->functionId == TSDB_FUNC_BLKINFO)) {
         continue;
       }
 
@@ -6166,6 +6183,9 @@ static void doUpdateExprColumnIndex(SQuery *pQuery) {
       assert(f < pQuery->numOfCols);
     } else if (pColIndex->colId <= TSDB_UD_COLUMN_INDEX) {
       // do nothing for user-defined constant value result columns
+    } else if (pColIndex->colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
+      pColIndex->colIndex = 0;// only one source column, so it must be 0;
+      assert(pQuery->numOfOutput == 1);
     } else {
       int32_t f = 0;
       for (f = 0; f < pQuery->numOfTags; ++f) {

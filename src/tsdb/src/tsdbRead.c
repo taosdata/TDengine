@@ -353,7 +353,9 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
   }
 
   tsdbMayTakeMemSnapshot(pQueryHandle);
-  assert(pCond != NULL && pCond->numOfCols > 0 && pMemRef != NULL);
+
+  // In case of data block info retrieval, the pCond->numOfCols is 0.
+  assert(pCond != NULL && pCond->numOfCols >= 0 && pMemRef != NULL);
 
   if (ASCENDING_TRAVERSE(pCond->order)) {
     assert(pQueryHandle->window.skey <= pQueryHandle->window.ekey);
@@ -384,7 +386,9 @@ static STsdbQueryHandle* tsdbQueryTablesImpl(STsdbRepo* tsdb, STsdbQueryCond* pC
     pQueryHandle->statis[i].colId = colInfo.info.colId;
   }
 
-  pQueryHandle->defaultLoadColumn = getDefaultLoadColumns(pQueryHandle, true);
+  if (pCond->numOfCols > 0) {
+    pQueryHandle->defaultLoadColumn = getDefaultLoadColumns(pQueryHandle, true);
+  }
 
   STsdbMeta* pMeta = tsdbGetMeta(tsdb);
   assert(pMeta != NULL);
@@ -2006,9 +2010,10 @@ static void moveToNextDataBlockInCurrentFile(STsdbQueryHandle* pQueryHandle) {
   cur->blockCompleted = false;
 }
 
-int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, SArray* pBlockInfo) {
+int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist* pTableBlockInfo) {
   STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*) queryHandle;
 
+  pTableBlockInfo->totalSize = 0;
   STsdbFS* pFileHandle = REPO_FS(pQueryHandle->pTsdb);
 
   // find the start data block in file
@@ -2021,8 +2026,9 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, SArray* pBlockI
   tsdbFSIterSeek(&pQueryHandle->fileIter, fid);
   tsdbUnLockFS(pFileHandle);
 
-  int32_t code = TSDB_CODE_SUCCESS;
+  pTableBlockInfo->numOfFiles += 1;
 
+  int32_t     code = TSDB_CODE_SUCCESS;
   int32_t     numOfBlocks = 0;
   int32_t     numOfTables = (int32_t)taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   STimeWindow win = TSWINDOW_INITIALIZER;
@@ -2048,6 +2054,7 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, SArray* pBlockI
       break;
     }
 
+    pTableBlockInfo->numOfFiles += 1;
     if (tsdbSetAndOpenReadFSet(&pQueryHandle->rhelper, pQueryHandle->pFileGroup) < 0) {
       tsdbUnLockFS(REPO_FS(pQueryHandle->pTsdb));
       code = terrno;
@@ -2072,16 +2079,15 @@ int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, SArray* pBlockI
       continue;
     }
 
-    SFileBlockInfo info = {0};
     for (int32_t i = 0; i < numOfTables; ++i) {
       STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
 
       SBlock* pBlock = pCheckInfo->pCompInfo->blocks;
       for (int32_t j = 0; j < pCheckInfo->numOfBlocks; ++j) {
-        info.numOfRows = pBlock[j].numOfRows;
-        info.len = pBlock[j].len;
+        pTableBlockInfo->totalSize += pBlock[j].len;
 
-        taosArrayPush(pBlockInfo, &info);
+        int32_t numOfRows = pBlock[j].numOfRows;
+        taosArrayPush(pTableBlockInfo->dataBlockInfos, &numOfRows);
       }
     }
   }

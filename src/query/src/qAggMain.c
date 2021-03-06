@@ -18,6 +18,7 @@
 #include "taosmsg.h"
 #include "texpr.h"
 #include "ttype.h"
+#include "tsdb.h"
 
 #include "qAggMain.h"
 #include "qFill.h"
@@ -26,11 +27,9 @@
 #include "qTsbuf.h"
 #include "queryLog.h"
 
-//#define GET_INPUT_DATA_LIST(x) (((char *)((x)->pInput)) + ((x)->startOffset) * ((x)->inputBytes))
 #define GET_INPUT_DATA_LIST(x) ((char *)((x)->pInput))
 #define GET_INPUT_DATA(x, y) (GET_INPUT_DATA_LIST(x) + (y) * (x)->inputBytes)
 
-//#define GET_TS_LIST(x)    ((TSKEY*)&((x)->ptsList[(x)->startOffset]))
 #define GET_TS_LIST(x)    ((TSKEY*)((x)->ptsList))
 #define GET_TS_DATA(x, y) (GET_TS_LIST(x)[(y)])
 
@@ -188,6 +187,11 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   if (functionId == TSDB_FUNC_TID_TAG) { // todo use struct
     *type = TSDB_DATA_TYPE_BINARY;
     *bytes = (int16_t)(dataBytes + sizeof(int16_t) + sizeof(int64_t) + sizeof(int32_t) + sizeof(int32_t) + VARSTR_HEADER_SIZE);
+    *interBytes = 0;
+    return TSDB_CODE_SUCCESS;
+  } else if (functionId == TSDB_FUNC_BLKINFO) {
+    *type = TSDB_DATA_TYPE_BINARY;
+    *bytes = 16384;
     *interBytes = 0;
     return TSDB_CODE_SUCCESS;
   }
@@ -352,6 +356,22 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   }
   
   return TSDB_CODE_SUCCESS;
+}
+
+// TODO use hash table
+int32_t isValidFunction(const char* name, int32_t len) {
+  for(int32_t i = 0; i <= TSDB_FUNC_BLKINFO; ++i) {
+    int32_t nameLen = strlen(aAggs[i].name);
+    if (len != nameLen) {
+      continue;
+    }
+
+    if (strncasecmp(aAggs[i].name, name, len) == 0) {
+      return i;
+    }
+  }
+
+  return -1;
 }
 
 // set the query flag to denote that query is completed
@@ -4600,10 +4620,126 @@ static void sumrate_finalizer(SQLFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
+void blockInfo_func(SQLFunctionCtx* pCtx) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+
+  int32_t len = *(int32_t*) pCtx->pInput;
+  blockDistInfoFromBinary(pCtx->pInput + sizeof(int32_t), len, pDist);
+  pDist->rowSize = pCtx->param[0].i64;
+
+  memcpy(pCtx->pOutput, pCtx->pInput, sizeof(int32_t) + len);
+
+  pResInfo->numOfRes  = 1;
+  pResInfo->hasResult = DATA_SET_FLAG;
+}
+
+static void mergeTableBlockDist(STableBlockDist* pDist, const STableBlockDist* pSrc) {
+  assert(pDist != NULL && pSrc != NULL);
+  pDist->numOfTables += pSrc->numOfTables;
+  pDist->numOfRowsInMemTable += pSrc->numOfRowsInMemTable;
+  pDist->numOfFiles += pSrc->numOfFiles;
+  pDist->totalSize += pSrc->totalSize;
+
+  if (pDist->dataBlockInfos == NULL) {
+    pDist->dataBlockInfos = taosArrayInit(4, sizeof(SFileBlockInfo));
+  }
+
+  taosArrayPushBatch(pDist->dataBlockInfos, pSrc->dataBlockInfos->pData, taosArrayGetSize(pSrc->dataBlockInfos));
+}
+
+void block_func_merge(SQLFunctionCtx* pCtx) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+
+  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+  STableBlockDist info = {0};
+
+  int32_t len = *(int32_t*) pCtx->pInput;
+  blockDistInfoFromBinary(pCtx->pInput + sizeof(int32_t), len, &info);
+
+  mergeTableBlockDist(pDist, &info);
+}
+
+static int32_t doGetPercentile(const SArray* pArray, double rate) {
+  int32_t len = (int32_t)taosArrayGetSize(pArray);
+  if (len <= 0) {
+    return 0;
+  }
+
+  assert(rate >= 0 && rate <= 1.0);
+  int idx = (int32_t)((len - 1) * rate);
+
+  return ((SFileBlockInfo *)(taosArrayGet(pArray, idx)))->numOfRows;
+}
+
+static int compareBlockInfo(const void *pLeft, const void *pRight) {
+  int32_t left  = ((SFileBlockInfo *)pLeft)->numOfRows;
+  int32_t right = ((SFileBlockInfo *)pRight)->numOfRows;
+
+  if (left > right) return 1;
+  if (left < right) return -1;
+  return 0;
+}
+
+void generateBlockDistResult(STableBlockDist *pTableBlockDist, char* result) {
+  if (pTableBlockDist == NULL) {
+    return;
+  }
+
+  int64_t min = INT64_MAX, max = INT64_MIN, avg = 0;
+  SArray* blockInfos= pTableBlockDist->dataBlockInfos;
+  int64_t totalRows = 0, totalBlocks = taosArrayGetSize(blockInfos);
+
+  for (size_t i = 0; i < taosArrayGetSize(blockInfos); i++) {
+    SFileBlockInfo *blockInfo = taosArrayGet(blockInfos, i);
+    int64_t rows = blockInfo->numOfRows;
+
+    min = MIN(min, rows);
+    max = MAX(max, rows);
+    totalRows += rows;
+  }
+
+  avg = totalBlocks > 0 ? (int64_t)(totalRows/totalBlocks) : 0;
+  taosArraySort(blockInfos, compareBlockInfo);
+
+  uint64_t totalLen = pTableBlockDist->totalSize;
+  int32_t rowSize = pTableBlockDist->rowSize;
+
+  int sz = sprintf(result + VARSTR_HEADER_SIZE,
+                   "summary: \n\t "
+                   "5th=[%d], 10th=[%d], 20th=[%d], 30th=[%d], 40th=[%d], 50th=[%d]\n\t "
+                   "60th=[%d], 70th=[%d], 80th=[%d], 90th=[%d], 95th=[%d], 99th=[%d]\n\t "
+                   "Min=[%"PRId64"(Rows)] Max=[%"PRId64"(Rows)] Avg=[%"PRId64"(Rows)] Stddev=[%.2f] \n\t "
+                   "Rows=[%"PRId64"], Blocks=[%"PRId64"], Size=[%.3f(Kb)] Comp=[%.2f%%]\n\t "
+                   "RowsInMem=[%d] \n\t SeekHeaderTime=[%d(us)]",
+                   doGetPercentile(blockInfos, 0.05), doGetPercentile(blockInfos, 0.10),
+                   doGetPercentile(blockInfos, 0.20), doGetPercentile(blockInfos, 0.30),
+                   doGetPercentile(blockInfos, 0.40), doGetPercentile(blockInfos, 0.50),
+                   doGetPercentile(blockInfos, 0.60), doGetPercentile(blockInfos, 0.70),
+                   doGetPercentile(blockInfos, 0.80), doGetPercentile(blockInfos, 0.90),
+                   doGetPercentile(blockInfos, 0.95), doGetPercentile(blockInfos, 0.99),
+                   min, max, avg, 0.0,
+                   totalRows, totalBlocks, totalLen/1024.0, (double)(totalLen*100.0)/(rowSize*totalRows),
+                   pTableBlockDist->numOfRowsInMemTable, pTableBlockDist->firstSeekTimeUs);
+  varDataSetLen(result, sz);
+  UNUSED(sz);
+}
+
+void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
+
+  pDist->rowSize = pCtx->param[0].i64;
+  generateBlockDistResult(pDist, pCtx->pOutput);
+
+  // cannot set the numOfIteratedElems again since it is set during previous iteration
+  pResInfo->numOfRes  = 1;
+  pResInfo->hasResult = DATA_SET_FLAG;
+
+  doFinalizer(pCtx);
+}
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-
-
 /*
  * function compatible list.
  * tag and ts are not involved in the compatibility check
@@ -4622,8 +4758,8 @@ int32_t functionCompatList[] = {
     4,         -1,       -1,         1,        1,      1,          1,           1,        1,     -1,
     //  tag,    colprj,   tagprj,    arithmetic, diff, first_dist, last_dist,   interp    rate    irate
     1,          1,        1,         1,       -1,      1,          1,           5,        1,      1,
-    // sum_rate, sum_irate, avg_rate, avg_irate
-    1,          1,        1,         1,
+    // sum_rate, sum_irate, avg_rate, avg_irate, tid_tag, blk_info
+    1,          1,        1,         1,          6,       7
 };
 
 SAggFunctionInfo aAggs[] = {{
@@ -5133,4 +5269,18 @@ SAggFunctionInfo aAggs[] = {{
                               noop1,
                               noop1,
                               dataBlockRequired,
-                          } };
+                          },
+                          {
+                                // 35
+                                "_block_dist",   // return table id and the corresponding tags for join match and subscribe
+                                TSDB_FUNC_BLKINFO,
+                                TSDB_FUNC_BLKINFO,
+                                TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STABLE,
+                                function_setup,
+                                blockInfo_func,
+                                noop2,
+                                no_next_step,
+                                blockinfo_func_finalizer,
+                                block_func_merge,
+                                dataBlockRequired,
+                          }};

@@ -26,6 +26,7 @@ extern "C" {
 #include "taosdef.h"
 #include "trpc.h"
 #include "tvariant.h"
+#include "tsdb.h"
 
 #define TSDB_FUNC_INVALID_ID  -1
 #define TSDB_FUNC_COUNT        0
@@ -70,15 +71,17 @@ extern "C" {
 #define TSDB_FUNC_AVG_IRATE    34
 
 #define TSDB_FUNC_TID_TAG      35
-#define TSDB_FUNC_HISTOGRAM    36
-#define TSDB_FUNC_HLL          37
-#define TSDB_FUNC_MODE         38
-#define TSDB_FUNC_SAMPLE       39
-#define TSDB_FUNC_CEIL         40
-#define TSDB_FUNC_FLOOR        41
-#define TSDB_FUNC_ROUND        42
-#define TSDB_FUNC_MAVG         43
-#define TSDB_FUNC_CSUM         44
+#define TSDB_FUNC_BLKINFO      36
+
+#define TSDB_FUNC_HISTOGRAM    37
+#define TSDB_FUNC_HLL          38
+#define TSDB_FUNC_MODE         39
+#define TSDB_FUNC_SAMPLE       40
+#define TSDB_FUNC_CEIL         41
+#define TSDB_FUNC_FLOOR        42
+#define TSDB_FUNC_ROUND        43
+#define TSDB_FUNC_MAVG         44
+#define TSDB_FUNC_CSUM         45
 
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
@@ -221,6 +224,7 @@ typedef struct SAggFunctionInfo {
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable);
+int32_t isValidFunction(const char* name, int32_t len);
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)
 #define IS_MULTIOUTPUT(x)         (((x)&TSDB_FUNCSTATE_MO) != 0)
@@ -241,6 +245,10 @@ typedef struct STwaInfo {
   SPoint1     p;
   STimeWindow win;
 } STwaInfo;
+
+struct SBufferWriter;
+void blockDistInfoToBinary(STableBlockDist* pDist, struct SBufferWriter* bw);
+void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist);
 
 /* global sql function array */
 extern struct SAggFunctionInfo aAggs[];

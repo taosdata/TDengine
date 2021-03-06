@@ -182,7 +182,6 @@ typedef struct SDataBlockInfo {
 } SDataBlockInfo;
 
 typedef struct SFileBlockInfo {
-  int32_t len;
   int32_t numOfRows;
 } SFileBlockInfo;
 
@@ -196,6 +195,16 @@ typedef struct {
   SArray *  pGroupList;
   SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
 } STableGroupInfo;
+
+typedef struct {
+  uint16_t  rowSize;
+  uint16_t  numOfFiles;
+  uint32_t  numOfTables;
+  uint64_t  totalSize;
+  int32_t   firstSeekTimeUs;
+  uint32_t  numOfRowsInMemTable;
+  SArray   *dataBlockInfos;
+} STableBlockDist;
 
 /**
  * Get the data block iterator, starting from position according to the query condition
@@ -346,7 +355,7 @@ void tsdbResetQueryHandle(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond);
 
 void tsdbResetQueryHandleForNewTable(TsdbQueryHandleT queryHandle, STsdbQueryCond *pCond, STableGroupInfo* groupList);
 
-int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, SArray* pBlockInfo);
+int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist* pTableBlockInfo);
 
 /**
  * get the statistics of repo usage

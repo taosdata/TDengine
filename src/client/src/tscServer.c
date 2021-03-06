@@ -700,7 +700,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
 
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
-  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo)) {
+  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
     tscError("%p illegal value of numOfCols in query msg: %" PRIu64 ", table cols:%d", pSql, (uint64_t)numOfSrcCols,
         tscGetNumOfColumns(pTableMeta));
 

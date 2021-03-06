@@ -97,6 +97,22 @@ bool tscQueryTags(SQueryInfo* pQueryInfo) {
   return true;
 }
 
+bool tscQueryBlockInfo(SQueryInfo* pQueryInfo) {
+  int32_t numOfCols = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    int32_t functId = pExpr->functionId;
+
+    // "select count(tbname)" query
+    if (functId == TSDB_FUNC_BLKINFO) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (pQueryInfo == NULL) {
     return false;
