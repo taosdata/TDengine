@@ -4271,6 +4271,11 @@ static void updateOffsetVal(SQueryRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBloc
   pTableQueryInfo->lastKey = keys[pQuery->pos];
   pQuery->limit.offset = 0;
 
+  // tags inited  
+  if (!pRuntimeEnv->groupbyColumn && pRuntimeEnv->hasTagResults) {
+    setTagVal(pRuntimeEnv, pTableQueryInfo->pTable);
+  }
+
   int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, pBlockInfo, NULL, binarySearchForKey, pDataBlock);
 
   qDebug("QInfo:%p check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%"PRId64, GET_QINFO_ADDR(pRuntimeEnv),
