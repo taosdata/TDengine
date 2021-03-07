@@ -126,28 +126,33 @@ tSQLExpr *tSqlExprIdValueCreate(SStrToken *pToken, int32_t optrType) {
   if (optrType == TK_INTEGER || optrType == TK_STRING || optrType == TK_FLOAT || optrType == TK_BOOL) {
     toTSDBType(pToken->type);
 
-    tVariantCreate(&pSqlExpr->val, pToken);
-    pSqlExpr->nSQLOptr = optrType;
+    tVariantCreate(&pSqlExpr->value, pToken);
+    pSqlExpr->tokenId = optrType;
+    pSqlExpr->type    = SQL_NODE_VALUE;
   } else if (optrType == TK_NOW) {
     // use microsecond by default
-    pSqlExpr->val.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_MICRO);
-    pSqlExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
-    pSqlExpr->nSQLOptr = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
+    pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_MICRO);
+    pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+    pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
+    pSqlExpr->type    = SQL_NODE_VALUE;
   } else if (optrType == TK_VARIABLE) {
-    int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->val.i64);
+    int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64);
     if (ret != TSDB_CODE_SUCCESS) {
       terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
 
-    pSqlExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
-    pSqlExpr->nSQLOptr = TK_TIMESTAMP;
-  } else {  // it must be the column name (tk_id) if it is not the number
+    pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+    pSqlExpr->tokenId = TK_TIMESTAMP;
+    pSqlExpr->type    = SQL_NODE_VALUE;
+  } else {
+    // Here it must be the column name (tk_id) if it is not a number or string.
     assert(optrType == TK_ID || optrType == TK_ALL);
     if (pToken != NULL) {
       pSqlExpr->colInfo = *pToken;
     }
 
-    pSqlExpr->nSQLOptr = optrType;
+    pSqlExpr->tokenId = optrType;
+    pSqlExpr->type    = SQL_NODE_TABLE_COLUMN;
   }
 
   return pSqlExpr;
@@ -162,18 +167,18 @@ tSQLExpr *tSqlExprCreateFunction(tSQLExprList *pList, SStrToken *pFuncToken, SSt
     return NULL;
   }
 
-  assert(optType == TK_ID);
-
   tSQLExpr *pExpr = calloc(1, sizeof(tSQLExpr));
-  pExpr->nSQLOptr = TK_FUNCTION;
-  pExpr->pParam = pList;
+  pExpr->tokenId = optType;
+  pExpr->type    = SQL_NODE_SQLFUNCTION;
+  pExpr->pParam  = pList;
 
   int32_t len = (int32_t)((endToken->z + endToken->n) - pFuncToken->z);
-  pExpr->operand.z = pFuncToken->z;
-  pExpr->operand.n = len;  // raw field name
-  pExpr->operand.type = pFuncToken->type;
+  pExpr->operand = (*pFuncToken);
 
-  pExpr->token = (*pFuncToken);
+  pExpr->token.n = len;
+  pExpr->token.z = pFuncToken->z;
+  pExpr->token.type = pFuncToken->type;
+
   return pExpr;
 }
 
@@ -184,6 +189,7 @@ tSQLExpr *tSqlExprCreateFunction(tSQLExprList *pList, SStrToken *pFuncToken, SSt
 tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   tSQLExpr *pExpr = calloc(1, sizeof(tSQLExpr));
 
+  pExpr->type = SQL_NODE_EXPR;
   if (pLeft != NULL && pRight != NULL && (optrType != TK_IN)) {
     char* endPos = pRight->token.z + pRight->token.n;
     pExpr->token.z = pLeft->token.z;
@@ -197,32 +203,33 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
      * if a token is noted as the TK_TIMESTAMP, the time precision is microsecond
      * Otherwise, the time precision is adaptive, determined by the time precision from databases.
      */
-    if ((pLeft->nSQLOptr == TK_INTEGER && pRight->nSQLOptr == TK_INTEGER) ||
-        (pLeft->nSQLOptr == TK_TIMESTAMP && pRight->nSQLOptr == TK_TIMESTAMP)) {
-      pExpr->val.nType = TSDB_DATA_TYPE_BIGINT;
-      pExpr->nSQLOptr = pLeft->nSQLOptr;
+    if ((pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_INTEGER) ||
+        (pLeft->tokenId == TK_TIMESTAMP && pRight->tokenId == TK_TIMESTAMP)) {
+      pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->tokenId = pLeft->tokenId;
+      pExpr->type    = SQL_NODE_VALUE;
 
       switch (optrType) {
         case TK_PLUS: {
-          pExpr->val.i64 = pLeft->val.i64 + pRight->val.i64;
+          pExpr->value.i64 = pLeft->value.i64 + pRight->value.i64;
           break;
         }
         case TK_MINUS: {
-          pExpr->val.i64 = pLeft->val.i64 - pRight->val.i64;
+          pExpr->value.i64 = pLeft->value.i64 - pRight->value.i64;
           break;
         }
         case TK_STAR: {
-          pExpr->val.i64 = pLeft->val.i64 * pRight->val.i64;
+          pExpr->value.i64 = pLeft->value.i64 * pRight->value.i64;
           break;
         }
         case TK_DIVIDE: {
-          pExpr->nSQLOptr = TK_FLOAT;
-          pExpr->val.nType = TSDB_DATA_TYPE_DOUBLE;
-          pExpr->val.dKey = (double)pLeft->val.i64 / pRight->val.i64;
+          pExpr->tokenId = TK_FLOAT;
+          pExpr->value.nType = TSDB_DATA_TYPE_DOUBLE;
+          pExpr->value.dKey = (double)pLeft->value.i64 / pRight->value.i64;
           break;
         }
         case TK_REM: {
-          pExpr->val.i64 = pLeft->val.i64 % pRight->val.i64;
+          pExpr->value.i64 = pLeft->value.i64 % pRight->value.i64;
           break;
         }
       }
@@ -230,33 +237,35 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
       tSqlExprDestroy(pLeft);
       tSqlExprDestroy(pRight);
 
-    } else if ((pLeft->nSQLOptr == TK_FLOAT && pRight->nSQLOptr == TK_INTEGER) || (pLeft->nSQLOptr == TK_INTEGER && pRight->nSQLOptr == TK_FLOAT) ||
-        (pLeft->nSQLOptr == TK_FLOAT && pRight->nSQLOptr == TK_FLOAT)) {
-      pExpr->val.nType = TSDB_DATA_TYPE_DOUBLE;
-      pExpr->nSQLOptr  = TK_FLOAT;
+    } else if ((pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_INTEGER) ||
+               (pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_FLOAT) ||
+               (pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_FLOAT)) {
+      pExpr->value.nType = TSDB_DATA_TYPE_DOUBLE;
+      pExpr->tokenId  = TK_FLOAT;
+      pExpr->type     = SQL_NODE_VALUE;
 
-      double left  = (pLeft->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pLeft->val.dKey : pLeft->val.i64;
-      double right = (pRight->val.nType == TSDB_DATA_TYPE_DOUBLE) ? pRight->val.dKey : pRight->val.i64;
+      double left  = (pLeft->value.nType == TSDB_DATA_TYPE_DOUBLE) ? pLeft->value.dKey : pLeft->value.i64;
+      double right = (pRight->value.nType == TSDB_DATA_TYPE_DOUBLE) ? pRight->value.dKey : pRight->value.i64;
 
       switch (optrType) {
         case TK_PLUS: {
-          pExpr->val.dKey = left + right;
+          pExpr->value.dKey = left + right;
           break;
         }
         case TK_MINUS: {
-          pExpr->val.dKey = left - right;
+          pExpr->value.dKey = left - right;
           break;
         }
         case TK_STAR: {
-          pExpr->val.dKey = left * right;
+          pExpr->value.dKey = left * right;
           break;
         }
         case TK_DIVIDE: {
-          pExpr->val.dKey = left / right;
+          pExpr->value.dKey = left / right;
           break;
         }
         case TK_REM: {
-          pExpr->val.dKey = left - ((int64_t)(left / right)) * right;
+          pExpr->value.dKey = left - ((int64_t)(left / right)) * right;
           break;
         }
       }
@@ -265,21 +274,21 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
       tSqlExprDestroy(pRight);
 
     } else {
-      pExpr->nSQLOptr = optrType;
+      pExpr->tokenId = optrType;
       pExpr->pLeft = pLeft;
       pExpr->pRight = pRight;
     }
   } else if (optrType == TK_IN) {
-    pExpr->nSQLOptr = optrType;
+    pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;
 
     tSQLExpr *pRSub = calloc(1, sizeof(tSQLExpr));
-    pRSub->nSQLOptr = TK_SET;  // TODO refactor .....
+    pRSub->tokenId = TK_SET;  // TODO refactor .....
     pRSub->pParam = (tSQLExprList *)pRight;
 
     pExpr->pRight = pRSub;
   } else {
-    pExpr->nSQLOptr = optrType;
+    pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;
 
     if (pLeft != NULL && pRight == NULL) {
@@ -297,8 +306,8 @@ void tSqlExprNodeDestroy(tSQLExpr *pExpr) {
     return;
   }
 
-  if (pExpr->nSQLOptr == TK_STRING) {
-    tVariantDestroy(&pExpr->val);
+  if (pExpr->tokenId == TK_STRING) {
+    tVariantDestroy(&pExpr->value);
   }
 
   tSqlExprListDestroy(pExpr->pParam);
