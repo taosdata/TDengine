@@ -356,8 +356,19 @@ create_stable_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP T
 create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(F) TAGS LP tagitemlist(Y) RP.  {
   X.n += F.n;
   V.n += Z.n;
-  A = createNewChildTableInfo(&X, Y, &V, &U);
+  A = createNewChildTableInfo(&X, NULL, Y, &V, &U);
 }
+
+create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(F) LP tagNamelist(P) RP TAGS LP tagitemlist(Y) RP.  {
+  X.n += F.n;
+  V.n += Z.n;
+  A = createNewChildTableInfo(&X, P, Y, &V, &U);
+}
+
+%type tagNamelist{SArray*}
+%destructor tagNamelist {taosArrayDestroy($$);}
+tagNamelist(A) ::= tagNamelist(X) COMMA ids(Y).  {taosArrayPush(X, &Y); A = X;  }
+tagNamelist(A) ::= ids(X).                      {A = taosArrayInit(4, sizeof(SStrToken)); taosArrayPush(A, &X);}
 
 // create stream
 // create table table_name as select count(*) from super_table_name interval(time)
@@ -662,6 +673,8 @@ expr(A) ::= expr(X) LE expr(Y).      {A = tSqlExprCreate(X, Y, TK_LE);}
 expr(A) ::= expr(X) GE expr(Y).      {A = tSqlExprCreate(X, Y, TK_GE);}
 expr(A) ::= expr(X) NE expr(Y).      {A = tSqlExprCreate(X, Y, TK_NE);}
 expr(A) ::= expr(X) EQ expr(Y).      {A = tSqlExprCreate(X, Y, TK_EQ);}
+
+expr(A) ::= expr(X) BETWEEN expr(Y) AND expr(Z).      { tSQLExpr* X2 = tSqlExprClone(X); A = tSqlExprCreate(tSqlExprCreate(X, Y, TK_GE), tSqlExprCreate(X2, Z, TK_LE), TK_AND);}
 
 expr(A) ::= expr(X) AND expr(Y).     {A = tSqlExprCreate(X, Y, TK_AND);}
 expr(A) ::= expr(X) OR  expr(Y).     {A = tSqlExprCreate(X, Y, TK_OR); }

@@ -58,6 +58,15 @@ SSqlInfo qSQLParse(const char *pStr) {
         sqlInfo.valid = false;
         goto abort_parse;
       }
+      
+      case TK_HEX:
+      case TK_OCT:
+      case TK_BIN:{
+        snprintf(sqlInfo.msg, tListLen(sqlInfo.msg), "unsupported token: \"%s\"", t0.z);
+        sqlInfo.valid = false;
+        goto abort_parse;
+      }
+        
       default:
         Parse(pParser, t0.type, t0, &sqlInfo);
         if (sqlInfo.valid == false) {
@@ -301,6 +310,28 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   return pExpr;
 }
 
+
+
+tSQLExpr *tSqlExprClone(tSQLExpr *pSrc) {
+  tSQLExpr *pExpr = calloc(1, sizeof(tSQLExpr));
+
+  memcpy(pExpr, pSrc, sizeof(*pSrc));
+  
+  if (pSrc->pLeft) {
+    pExpr->pLeft = tSqlExprClone(pSrc->pLeft);
+  }
+
+  if (pSrc->pRight) {
+    pExpr->pRight = tSqlExprClone(pSrc->pRight);
+  }
+
+  //we don't clone pParam now because clone is only used for between/and
+  assert(pSrc->pParam == NULL);
+
+  return pExpr;
+}
+
+
 void tSqlExprNodeDestroy(tSQLExpr *pExpr) {
   if (pExpr == NULL) {
     return;
@@ -321,8 +352,9 @@ void tSqlExprDestroy(tSQLExpr *pExpr) {
   }
 
   tSqlExprDestroy(pExpr->pLeft);
+  pExpr->pLeft = NULL;
   tSqlExprDestroy(pExpr->pRight);
-
+  pExpr->pRight = NULL;
   tSqlExprNodeDestroy(pExpr);
 }
 
@@ -402,7 +434,55 @@ void tSqlSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) 
   } else {
     pField->bytes = pType->bytes;
   }
+}
 
+static int32_t tryParseNameTwoParts(SStrToken *type) {
+  int32_t t = -1;
+
+  char* str = strndup(type->z, type->n);
+  if (str == NULL) {
+    return t;
+  }
+
+  char* p = strtok(str, " ");
+  if (p == NULL) {
+    tfree(str);
+    return t;
+  } else {
+    char* unsign = strtok(NULL, " ");
+    if (unsign == NULL) {
+      tfree(str);
+      return t;
+    }
+
+    if (strncasecmp(unsign, "UNSIGNED", 8) == 0) {
+      for(int32_t j = TSDB_DATA_TYPE_TINYINT; j <= TSDB_DATA_TYPE_BIGINT; ++j) {
+        if (strcasecmp(p, tDataTypes[j].name) == 0) {
+          t = j;
+          break;
+        }
+      }
+
+      tfree(str);
+
+      if (t == -1) {
+        return -1;
+      }
+
+      switch(t) {
+        case TSDB_DATA_TYPE_TINYINT:  return TSDB_DATA_TYPE_UTINYINT;
+        case TSDB_DATA_TYPE_SMALLINT: return TSDB_DATA_TYPE_USMALLINT;
+        case TSDB_DATA_TYPE_INT:      return TSDB_DATA_TYPE_UINT;
+        case TSDB_DATA_TYPE_BIGINT:   return TSDB_DATA_TYPE_UBIGINT;
+        default:
+          return -1;
+      }
+
+    } else {
+      tfree(str);
+      return -1;
+    }
+  }
 }
 
 void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
@@ -420,8 +500,12 @@ void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
     i += 1;
   }
 
+  // no qualified data type found, try unsigned data type
   if (i == tListLen(tDataTypes)) {
-    return;
+    i = tryParseNameTwoParts(type);
+    if (i == -1) {
+      return;
+    }
   }
 
   pField->type = i;
@@ -508,7 +592,8 @@ static void freeVariant(void *pItem) {
 }
 
 void freeCreateTableInfo(void* p) {
-  SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;
+  SCreatedTableInfo* pInfo = (SCreatedTableInfo*) p;  
+  taosArrayDestroy(pInfo->pTagNames);
   taosArrayDestroyEx(pInfo->pTagVals, freeVariant);
   tfree(pInfo->fullname);
   tfree(pInfo->tagdata.data);
@@ -586,11 +671,12 @@ SCreateTableSQL *tSetCreateSqlElems(SArray *pCols, SArray *pTags, SQuerySQL *pSe
   return pCreate;
 }
 
-SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists) {
+SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagNames, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists) {
   SCreatedTableInfo info;
   memset(&info, 0, sizeof(SCreatedTableInfo));
 
   info.name       = *pToken;
+  info.pTagNames  = pTagNames;
   info.pTagVals   = pTagVals;
   info.stableName = *pTableName;
   info.igExist    = (igExists->n > 0)? 1:0;

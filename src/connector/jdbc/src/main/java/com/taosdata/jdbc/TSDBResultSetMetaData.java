@@ -20,20 +20,12 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.List;
 
-public class TSDBResultSetMetaData implements ResultSetMetaData {
+public class TSDBResultSetMetaData extends WrapperImpl implements ResultSetMetaData {
 
 	List<ColumnMetaData> colMetaDataList = null;
 
 	public TSDBResultSetMetaData(List<ColumnMetaData> metaDataList) {
 		this.colMetaDataList = metaDataList;
-	}
-
-	public <T> T unwrap(Class<T> iface) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
-	}
-
-	public boolean isWrapperFor(Class<?> iface) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
 	}
 
 	public int getColumnCount() throws SQLException {
@@ -94,7 +86,7 @@ public class TSDBResultSetMetaData implements ResultSetMetaData {
 	}
 
 	public String getSchemaName(int column) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
 	}
 
 	public int getPrecision(int column) throws SQLException {
@@ -125,18 +117,18 @@ public class TSDBResultSetMetaData implements ResultSetMetaData {
 	}
 
 	public String getTableName(int column) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
 	}
 
 	public String getCatalogName(int column) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
 	}
 
 	public int getColumnType(int column) throws SQLException {
 		ColumnMetaData meta = this.colMetaDataList.get(column - 1);
 		switch (meta.getColType()) {
 		case TSDBConstants.TSDB_DATA_TYPE_BOOL:
-			return java.sql.Types.BIT;
+			return Types.BOOLEAN;
 		case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
 			return java.sql.Types.TINYINT;
 		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
@@ -150,13 +142,13 @@ public class TSDBResultSetMetaData implements ResultSetMetaData {
 		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
 			return java.sql.Types.DOUBLE;
 		case TSDBConstants.TSDB_DATA_TYPE_BINARY:
-			return java.sql.Types.CHAR;
+			return Types.BINARY;
 		case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
-			return java.sql.Types.BIGINT;
+			return java.sql.Types.TIMESTAMP;
 		case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-			return java.sql.Types.CHAR;
+			return Types.NCHAR;
 		}
-		throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+		throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
 	}
 
 	public String getColumnTypeName(int column) throws SQLException {
@@ -173,7 +165,7 @@ public class TSDBResultSetMetaData implements ResultSetMetaData {
 	}
 
 	public boolean isDefinitelyWritable(int column) throws SQLException {
-		throw new SQLException(TSDBConstants.UNSUPPORT_METHOD_EXCEPTIONZ_MSG);
+		throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
 	}
 
 	public String getColumnClassName(int column) throws SQLException {

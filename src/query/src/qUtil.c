@@ -382,7 +382,7 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
     return 0;
   }
 
-  return taosArrayGetSize(pGroupResInfo->pRows);
+  return (int32_t) taosArrayGetSize(pGroupResInfo->pRows);
 }
 
 static int64_t getNumOfResultWindowRes(SQueryRuntimeEnv* pRuntimeEnv, SResultRow *pResultRow, int32_t* rowCellInfoOffset) {

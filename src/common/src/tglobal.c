@@ -47,7 +47,7 @@ char     tsEmail[TSDB_FQDN_LEN] = {0};
 // common
 int32_t tsRpcTimer       = 1000;
 int32_t tsRpcMaxTime     = 600;  // seconds;
-int32_t tsMaxShellConns  = 5000;
+int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0f;
@@ -273,7 +273,7 @@ bool taosCfgDynamicOptions(char *msg) {
   int32_t   vint = 0;
 
   paGetToken(msg, &option, &olen);
-  if (olen == 0) return TSDB_CODE_COM_INVALID_CFG_MSG;
+  if (olen == 0) return false;;
 
   paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)
@@ -316,11 +316,9 @@ bool taosCfgDynamicOptions(char *msg) {
       }
       return true;
     }
-
     if (strncasecmp(cfg->option, "debugFlag", olen) == 0) {
-      taosSetAllDebugFlag();
+       taosSetAllDebugFlag(); 
     }
-    
     return true;
   }
 
@@ -375,6 +373,23 @@ static void taosCheckDataDirCfg() {
   }
 }
 
+static int32_t taosCheckTmpDir(void) {
+  if (strlen(tsTempDir) <= 0){
+    uError("tempDir is not set");
+    return -1;
+  }
+
+  DIR *dir = opendir(tsTempDir);
+  if (dir == NULL) {
+    uError("can not open tempDir:%s, error:%s", tsTempDir, strerror(errno));
+    return -1;
+  }
+
+  closedir(dir);
+
+  return 0;
+}
+
 static void doInitGlobalConfig(void) {
   osInit();
   srand(taosSafeRand());
@@ -415,10 +430,10 @@ static void doInitGlobalConfig(void) {
   // port
   cfg.option = "serverPort";
   cfg.ptr = &tsServerPort;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.valType = TAOS_CFG_VTYPE_UINT16;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 1;
-  cfg.maxValue = 65535;
+  cfg.maxValue = 65056;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1136,7 +1151,7 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsHttpMaxThreads;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 1;
+  cfg.minValue = 2;
   cfg.maxValue = 1000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
@@ -1490,6 +1505,11 @@ int32_t taosCheckGlobalCfg() {
   }
 
   taosCheckDataDirCfg();
+
+  if (taosCheckTmpDir()) {
+    return -1;
+  }
+  
   taosGetSystemInfo();
 
   tsSetLocale();
@@ -1501,6 +1521,13 @@ int32_t taosCheckGlobalCfg() {
 
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
+  }
+
+  if (tsHttpMaxThreads == 2) {
+    int32_t halfNumOfCores = tsNumOfCores >> 1;
+    if (halfNumOfCores > 2) {
+      tsHttpMaxThreads = halfNumOfCores;
+    }
   }
 
   if (tsMaxTablePerVnode < tsMinTablePerVnode) {
@@ -1535,6 +1562,8 @@ int32_t taosCheckGlobalCfg() {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
 
+  uInfo("   check global cfg completed");
+  uInfo("==================================");
   taosPrintGlobalCfg();
 
   return 0;

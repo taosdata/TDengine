@@ -467,7 +467,6 @@ int main(int argc, char *argv[]) {
   const char* passwd = "taosdata";
 
   taos_options(TSDB_OPTION_TIMEZONE, "GMT-8");
-  taos_init();
 
   TAOS* taos = taos_connect(host, user, passwd, "", 0);
   if (taos == NULL) {

@@ -2,16 +2,18 @@ package com.taosdata.jdbc.rs;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.taosdata.jdbc.AbstractTaosDriver;
+import com.taosdata.jdbc.AbstractDriver;
 import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.TSDBDriver;
-import com.taosdata.jdbc.rs.util.HttpClientPoolUtil;
+import com.taosdata.jdbc.utils.HttpClientPoolUtil;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.sql.*;
 import java.util.Properties;
 import java.util.logging.Logger;
 
-public class RestfulDriver extends AbstractTaosDriver {
+public class RestfulDriver extends AbstractDriver {
 
     private static final String URL_PREFIX = "jdbc:TAOS-RS://";
 
@@ -41,6 +43,15 @@ public class RestfulDriver extends AbstractTaosDriver {
                 + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/"
                 + props.getProperty(TSDBDriver.PROPERTY_KEY_USER) + "/"
                 + props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD) + "";
+        try {
+            String user = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_USER), "UTF-8");
+            String password = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD), "UTF-8");
+            loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":"
+                    + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
+        } catch (UnsupportedEncodingException e) {
+            e.printStackTrace();
+        }
+
         String result = HttpClientPoolUtil.execute(loginUrl);
         JSONObject jsonResult = JSON.parseObject(result);
         String status = jsonResult.getString("status");

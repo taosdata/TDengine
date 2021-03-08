@@ -72,7 +72,6 @@ function clean_bin() {
     ${csudo} rm -f ${bin_link_dir}/taos        || :
     ${csudo} rm -f ${bin_link_dir}/taosd       || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo    || :
-    ${csudo} rm -f ${bin_link_dir}/taosdemox   || :
     ${csudo} rm -f ${bin_link_dir}/taosdump    || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos      || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator || :

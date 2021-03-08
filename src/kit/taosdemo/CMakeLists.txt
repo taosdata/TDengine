@@ -1,29 +1,35 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/client/inc)
-INCLUDE_DIRECTORIES(inc)
 
 IF (TD_LINUX)
   AUX_SOURCE_DIRECTORY(. SRC)
   ADD_EXECUTABLE(taosdemo ${SRC})
 
   IF (TD_SOMODE_STATIC)
-    TARGET_LINK_LIBRARIES(taosdemo taos_static)
+    TARGET_LINK_LIBRARIES(taosdemo taos_static cJson)
   ELSE ()
-    TARGET_LINK_LIBRARIES(taosdemo taos)
+    TARGET_LINK_LIBRARIES(taosdemo taos cJson)
   ENDIF ()
 ELSEIF (TD_WINDOWS)
   AUX_SOURCE_DIRECTORY(. SRC)
   ADD_EXECUTABLE(taosdemo ${SRC})
-  TARGET_LINK_LIBRARIES(taosdemo taos_static)
+  SET_SOURCE_FILES_PROPERTIES(./taosdemo.c PROPERTIES COMPILE_FLAGS -w)
+  IF (TD_SOMODE_STATIC)
+    TARGET_LINK_LIBRARIES(taosdemo taos_static cJson)
+  ELSE ()
+    TARGET_LINK_LIBRARIES(taosdemo taos cJson})
+  ENDIF ()
 ELSEIF (TD_DARWIN)
+  # missing a few dependencies, such as <argp.h>
   AUX_SOURCE_DIRECTORY(. SRC)
   ADD_EXECUTABLE(taosdemo ${SRC})
-
+  
   IF (TD_SOMODE_STATIC)
-    TARGET_LINK_LIBRARIES(taosdemo taos_static)
+    TARGET_LINK_LIBRARIES(taosdemo taos_static cJson)
   ELSE ()
-    TARGET_LINK_LIBRARIES(taosdemo taos)
+    TARGET_LINK_LIBRARIES(taosdemo taos cJson)
   ENDIF ()
 ENDIF ()
+

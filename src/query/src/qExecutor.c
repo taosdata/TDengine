@@ -1639,10 +1639,11 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     } else if (functionId == TSDB_FUNC_ARITHM) {
       pCtx->param[1].pz = (char*) &pRuntimeEnv->sasArray[i];
     }
+  }
 
-    if (i > 0) {
-      (*rowCellInfoOffset)[i] = (*rowCellInfoOffset)[i - 1] + sizeof(SResultRowCellInfo) + pExpr[i - 1].interBytes;
-    }
+  for(int32_t i = 1; i < numOfOutput; ++i) {
+    (*rowCellInfoOffset)[i] = (*rowCellInfoOffset)[i - 1] + sizeof(SResultRowCellInfo) +
+        pExpr[i - 1].interBytes * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery);
   }
 
   setCtxTagColumnInfo(pFuncCtx, numOfOutput);
@@ -2157,7 +2158,7 @@ static void getIntermediateBufInfo(SQueryRuntimeEnv* pRuntimeEnv, int32_t* ps, i
   // one page contains at least two rows
   *ps = DEFAULT_INTERN_BUF_PAGE_SIZE;
   while(((*rowsize) * MIN_ROWS_PER_PAGE) > (*ps) - overhead) {
-    *ps = (*ps << 1u);
+    *ps = ((*ps) << 1u);
   }
 
 //  pRuntimeEnv->numOfRowsPerPage = ((*ps) - sizeof(tFilePage)) / (*rowsize);
@@ -2988,6 +2989,14 @@ int32_t initResultRow(SResultRow *pResultRow) {
   return TSDB_CODE_SUCCESS;
 }
 
+/*
+ * The start of each column SResultRowCellInfo is denote by RowCellInfoOffset.
+ * Note that in case of top/bottom query, the whole multiple rows of result is treated as only one row of results.
+ * +------------+-----------------result column 1-----------+-----------------result column 2-----------+
+ * + SResultRow | SResultRowCellInfo | intermediate buffer1 | SResultRowCellInfo | intermediate buffer 2|
+ * +------------+-------------------------------------------+-------------------------------------------+
+ *           offset[0]                                  offset[1]
+ */
 void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, int64_t uid) {
   SQLFunctionCtx* pCtx           = pInfo->pCtx;
   SSDataBlock* pDataBlock        = pInfo->pRes;
@@ -3632,7 +3641,7 @@ void queryCostStatis(SQInfo *pQInfo) {
 
 static void freeTableBlockDist(STableBlockDist *pTableBlockDist) {
   if (pTableBlockDist != NULL) {
-    taosArrayDestroy(pTableBlockDist->dataBlockInfos); 
+    taosArrayDestroy(pTableBlockDist->dataBlockInfos);
     free(pTableBlockDist);
   }
 }
@@ -4576,7 +4585,7 @@ static SSDataBlock* doArithmeticOperation(void* param) {
   SArithOperatorInfo* pArithInfo = pOperator->info;
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
   SOptrBasicInfo *pInfo = &pArithInfo->binfo;
-  
+
   pInfo->pRes->info.rows = 0;
 
   while(1) {
@@ -4964,6 +4973,7 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
   SAggOperatorInfo* pInfo = calloc(1, sizeof(SAggOperatorInfo));
 
   size_t tableGroup = GET_NUM_OF_TABLEGROUP(pRuntimeEnv);
+
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, (int32_t) tableGroup);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, tableGroup, TSDB_DATA_TYPE_INT);
@@ -5814,8 +5824,7 @@ static int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, SQueryTable
   return TSDB_CODE_SUCCESS;
 }
 
-static UNUSED_FUNC int32_t ddx(SQueryTableMsg* pQueryMsg, SSqlFuncMsg** pExprMsg, SColumnInfo* pTagCols, SExprInfo* pExprs,
-    int32_t numOfOutput, int32_t tagLen, bool superTable) {
+static int32_t updateOutputBufForTopBotQuery(SQueryTableMsg* pQueryMsg, SColumnInfo* pTagCols, SExprInfo* pExprs, int32_t numOfOutput, int32_t tagLen, bool superTable) {
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int16_t functId = pExprs[i].base.functionId;
 
@@ -5835,6 +5844,7 @@ static UNUSED_FUNC int32_t ddx(SQueryTableMsg* pQueryMsg, SSqlFuncMsg** pExprMsg
   return TSDB_CODE_SUCCESS;
 }
 
+// TODO tag length should be passed from client
 int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutput, SExprInfo** pExprInfo,
                                    SSqlFuncMsg** pExprMsg, SColumnInfo* pTagCols) {
   *pExprInfo = NULL;
@@ -5928,7 +5938,8 @@ int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutpu
     assert(isValidDataType(pExprs[i].type));
   }
 
-//  ddx(pQueryMsg, pExprMsg, pTagCols, pExprs, numOfOutput, tagLen, isSuperTable);
+  // the tag length is affected by other tag columns, so this should be update.
+  updateOutputBufForTopBotQuery(pQueryMsg, pTagCols, pExprs, numOfOutput, tagLen, isSuperTable);
 
   *pExprInfo = pExprs;
   return TSDB_CODE_SUCCESS;

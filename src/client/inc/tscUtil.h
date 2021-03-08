@@ -271,7 +271,7 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 bool hasMoreVnodesToTry(SSqlObj *pSql);
 bool hasMoreClauseToTry(SSqlObj* pSql);
 
-void tscFreeQueryInfo(SSqlCmd* pCmd);
+void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta);
 
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);

@@ -334,7 +334,7 @@ typedef struct SSubqueryState {
 
 typedef struct SSqlObj {
   void            *signature;
-  pthread_t        owner;        // owner of sql object, by which it is executed
+  int64_t          owner;        // owner of sql object, by which it is executed
   STscObj         *pTscObj;
   int64_t          rpcRid;
   __async_cb_func_t  fp;
@@ -442,6 +442,8 @@ void tscCloseTscObj(void *pObj);
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, TAOS **taos);
 TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, int64_t* res);
+TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param);
+
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
@@ -449,6 +451,9 @@ void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *para
 void tscImportDataFromFile(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(SSqlObj* pSql);
+char* tscGetSqlStr(SSqlObj* pSql);
+bool tscIsQueryWithLimit(SSqlObj* pSql);
+
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);

@@ -27,7 +27,6 @@ tests/hdfs/
 nmake/
 sln/
 hdfs/
-c/
 taoshebei/
 taosdalipu/
 Target/
@@ -79,3 +78,15 @@ tests/comparisonTest/opentsdb/opentsdbtest/.settings/
 tests/examples/JDBC/JDBCDemo/.classpath
 tests/examples/JDBC/JDBCDemo/.project
 tests/examples/JDBC/JDBCDemo/.settings/
+
+# Emacs
+# -*- mode: gitignore; -*-
+*~
+\#*\#
+/.emacs.desktop
+/.emacs.desktop.lock
+*.elc
+auto-save-list
+tramp
+.\#*
+TAGS

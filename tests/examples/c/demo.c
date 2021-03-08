@@ -61,8 +61,6 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
-  // init TAOS
-  taos_init();
   TAOS *taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL) {
     printf("failed to connect to server, reason:%s\n", "null taos"/*taos_errstr(taos)*/);
@@ -94,15 +92,14 @@ void Test(TAOS *taos, char *qstr, int index)  {
     //   printf("insert row: %i, reason:%s\n", i, taos_errstr(taos));
     // }
     TAOS_RES *result1 = taos_query(taos, qstr);
-    if (result1) {
-      printf("insert row: %i\n", i);
-    } else {
-      printf("failed to insert row: %i, reason:%s\n", i, "null result"/*taos_errstr(result)*/);
+    if (result1 == NULL || taos_errno(result1) != 0) {
+      printf("failed to insert row, reason:%s\n", taos_errstr(result1));    
       taos_free_result(result1);
       exit(1);
+    } else {
+      printf("insert row: %i\n", i);
     }
     taos_free_result(result1);
-
   }
   printf("success to insert rows, total %d rows\n", i);
 

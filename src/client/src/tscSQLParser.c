@@ -128,6 +128,7 @@ static int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index);
 static int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSQLExpr* pSqlExpr, SQueryInfo* pQueryInfo, SArray* pCols, int64_t *uid);
+static bool    validateDebugFlag(int32_t flag);
 
 int16_t getNewResColId(SQueryInfo* pQueryInfo) {
   return pQueryInfo->resColumnId--;
@@ -172,6 +173,16 @@ static uint8_t convertOptr(SStrToken *pToken) {
   }
 }
 
+static bool validateDebugFlag(int32_t v) {
+  const static int validFlag[] = {131, 135, 143};
+
+  for (int i = 0; i < tListLen(validFlag); i++) {
+    if (v == validFlag[i]) {
+        return true;
+    }
+  }
+  return false;
+}
 /*
  * Used during parsing query sql. Since the query sql usually small in length, error position
  * is not needed in the final error message.
@@ -564,16 +575,16 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       }
 
       int32_t numOfToken = (int32_t) taosArrayGetSize(pMiscInfo->a);
-      SStrToken* t = taosArrayGet(pMiscInfo->a, 0);
-      SStrToken* t1 = taosArrayGet(pMiscInfo->a, 1);
+      assert(numOfToken >= 1 && numOfToken <= 2);
 
+      SStrToken* t = taosArrayGet(pMiscInfo->a, 0);
       strncpy(pCmd->payload, t->z, t->n);
       if (numOfToken == 2) {
+        SStrToken* t1 = taosArrayGet(pMiscInfo->a, 1);
         pCmd->payload[t->n] = ' ';  // add sep
         strncpy(&pCmd->payload[t->n + 1], t1->z, t1->n);
       }
-
-      break;
+      return TSDB_CODE_SUCCESS;
     }
 
     case TSDB_SQL_CREATE_TABLE: {
@@ -1132,7 +1143,7 @@ bool validateOneTags(SSqlCmd* pCmd, TAOS_FIELD* pTagField) {
     return false;
   }
 
-  if ((pTagField->type < TSDB_DATA_TYPE_BOOL) || (pTagField->type > TSDB_DATA_TYPE_NCHAR)) {
+  if ((pTagField->type < TSDB_DATA_TYPE_BOOL) || (pTagField->type > TSDB_DATA_TYPE_UBIGINT)) {
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
     return false;
   }
@@ -1196,7 +1207,7 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
     return false;
   }
 
-  if (pColField->type < TSDB_DATA_TYPE_BOOL || pColField->type > TSDB_DATA_TYPE_NCHAR) {
+  if (pColField->type < TSDB_DATA_TYPE_BOOL || pColField->type > TSDB_DATA_TYPE_UBIGINT) {
     invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
     return false;
   }
@@ -1872,6 +1883,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg6 = "function applied to tags not allowed";
   const char* msg7 = "normal table can not apply this function";
   const char* msg8 = "multi-columns selection does not support alias column name";
+  const char* msg10 = "diff can no be applied to unsigned numeric type";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -1994,6 +2006,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       if ((getColumnIndexByName(pCmd, &pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
+
       if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
@@ -2005,6 +2018,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       if (!IS_NUMERIC_TYPE(colType)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(colType) && functionId == TSDB_FUNC_DIFF) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg10);
       }
 
       int16_t resultType = 0;
@@ -5270,13 +5285,15 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
   SDNodeDynConfOption LOCAL_DYNAMIC_CFG_OPTIONS[6] = {{"resetLog", 8},    {"rpcDebugFlag", 12}, {"tmrDebugFlag", 12},
                                                       {"cDebugFlag", 10}, {"uDebugFlag", 10},   {"debugFlag", 9}};
 
+
   SStrToken* pOptionToken = taosArrayGet(pOptions->a, 0);
 
   if (numOfToken == 1) {
     // reset log does not need value
     for (int32_t i = 0; i < 1; ++i) {
       SDNodeDynConfOption* pOption = &LOCAL_DYNAMIC_CFG_OPTIONS[i];
-      if ((strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0) && (pOption->len == pOptionToken->n)) {
+      if ((pOption->len == pOptionToken->n) &&
+              (strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0)) {
         return TSDB_CODE_SUCCESS;
       }
     }
@@ -5284,15 +5301,14 @@ int32_t validateLocalConfig(SMiscInfo* pOptions) {
     SStrToken* pValToken = taosArrayGet(pOptions->a, 1);
 
     int32_t val = strtol(pValToken->z, NULL, 10);
-    if (val < 131 || val > 199) {
-      // options value is out of valid range
+    if (!validateDebugFlag(val)) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
     for (int32_t i = 1; i < tListLen(LOCAL_DYNAMIC_CFG_OPTIONS); ++i) {
       SDNodeDynConfOption* pOption = &LOCAL_DYNAMIC_CFG_OPTIONS[i];
-      if ((strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0) && (pOption->len == pOptionToken->n)) {
-        // options is valid
+      if ((pOption->len == pOptionToken->n)
+              && (strncasecmp(pOption->name, pOptionToken->z, pOptionToken->n) == 0)) {
         return TSDB_CODE_SUCCESS;
       }
     }
@@ -6039,8 +6055,8 @@ int32_t doLocalQueryProcess(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySQL* pQ
     index = 2;
   } else {
     for (int32_t i = 0; i < tListLen(functionsInfo); ++i) {
-      if (strncasecmp(functionsInfo[i].name, pExpr->operand.z, functionsInfo[i].len) == 0 &&
-          functionsInfo[i].len == pExpr->operand.n) {
+      if (strncasecmp(functionsInfo[i].name, pExpr->token.z, functionsInfo[i].len) == 0 &&
+          functionsInfo[i].len == pExpr->token.n) {
         index = i;
         break;
       }
@@ -6277,16 +6293,14 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
     // get table meta from mnode
     code = tNameExtractFullName(&pStableMetaInfo->name, pCreateTableInfo->tagdata.name);
 
-    SArray* pList = pCreateTableInfo->pTagVals;
+    SArray* pValList = pCreateTableInfo->pTagVals;
     code = tscGetTableMeta(pSql, pStableMetaInfo);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    size_t size = taosArrayGetSize(pList);
-    if (tscGetNumOfTags(pStableMetaInfo->pTableMeta) != size) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
-    }
+    size_t valSize = taosArrayGetSize(pValList);
+
 
     // too long tag values will return invalid sql, not be truncated automatically
     SSchema  *pTagSchema = tscGetTableTagSchema(pStableMetaInfo->pTableMeta);
@@ -6297,36 +6311,115 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
+
+    SArray* pNameList = NULL;
+    size_t nameSize = 0;
+    int32_t schemaSize = tscGetNumOfTags(pStableMetaInfo->pTableMeta);
     int32_t ret = TSDB_CODE_SUCCESS;
-    for (int32_t i = 0; i < size; ++i) {
-      SSchema*          pSchema = &pTagSchema[i];
-      tVariantListItem* pItem = taosArrayGet(pList, i);
 
-      char tagVal[TSDB_MAX_TAGS_LEN];
-      if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-        if (pItem->pVar.nLen > pSchema->bytes) {
-          tdDestroyKVRowBuilder(&kvRowBuilder);
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-        }
-      }
+    if (pCreateTableInfo->pTagNames) {
+      pNameList = pCreateTableInfo->pTagNames;
+      nameSize = taosArrayGetSize(pNameList);
 
-      ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
-
-      // check again after the convert since it may be converted from binary to nchar.
-      if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
-        int16_t len = varDataTLen(tagVal);
-        if (len > pSchema->bytes) {
-          tdDestroyKVRowBuilder(&kvRowBuilder);
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-        }
-      }
-
-      if (ret != TSDB_CODE_SUCCESS) {
+      if (valSize != nameSize) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
 
-      tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
+      if (schemaSize < valSize) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+      }
+
+      bool findColumnIndex = false;
+
+      for (int32_t i = 0; i < nameSize; ++i) {
+        SStrToken* sToken = taosArrayGet(pNameList, i);
+        if (TK_STRING == sToken->type) {
+          tscDequoteAndTrimToken(sToken);
+        }
+
+        tVariantListItem* pItem = taosArrayGet(pValList, i);
+
+        findColumnIndex = false;
+
+        // todo speedup by using hash list
+        for (int32_t t = 0; t < schemaSize; ++t) {
+          if (strncmp(sToken->z, pTagSchema[t].name, sToken->n) == 0 && strlen(pTagSchema[t].name) == sToken->n) {
+            SSchema*          pSchema = &pTagSchema[t];
+
+            char tagVal[TSDB_MAX_TAGS_LEN];
+            if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
+              if (pItem->pVar.nLen > pSchema->bytes) {
+                tdDestroyKVRowBuilder(&kvRowBuilder);
+                return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+              }
+            }
+
+            ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
+
+            // check again after the convert since it may be converted from binary to nchar.
+            if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
+              int16_t len = varDataTLen(tagVal);
+              if (len > pSchema->bytes) {
+                tdDestroyKVRowBuilder(&kvRowBuilder);
+                return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+              }
+            }
+
+            if (ret != TSDB_CODE_SUCCESS) {
+              tdDestroyKVRowBuilder(&kvRowBuilder);
+              return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+            }
+
+            tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
+
+            findColumnIndex = true;
+            break;
+          }
+        }
+
+        if (!findColumnIndex) {
+          tdDestroyKVRowBuilder(&kvRowBuilder);
+          return tscInvalidSQLErrMsg(pCmd->payload, "invalid tag name", sToken->z);
+        }
+      }
+    } else {
+      if (schemaSize != valSize) {
+        tdDestroyKVRowBuilder(&kvRowBuilder);
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+      }
+
+      for (int32_t i = 0; i < valSize; ++i) {
+        SSchema*          pSchema = &pTagSchema[i];
+        tVariantListItem* pItem = taosArrayGet(pValList, i);
+
+        char tagVal[TSDB_MAX_TAGS_LEN];
+        if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
+          if (pItem->pVar.nLen > pSchema->bytes) {
+            tdDestroyKVRowBuilder(&kvRowBuilder);
+            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+          }
+        }
+
+        ret = tVariantDump(&(pItem->pVar), tagVal, pSchema->type, true);
+
+        // check again after the convert since it may be converted from binary to nchar.
+        if (pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR) {
+          int16_t len = varDataTLen(tagVal);
+          if (len > pSchema->bytes) {
+            tdDestroyKVRowBuilder(&kvRowBuilder);
+            return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+          }
+        }
+
+        if (ret != TSDB_CODE_SUCCESS) {
+          tdDestroyKVRowBuilder(&kvRowBuilder);
+          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+        }
+
+        tdAddColToKVRow(&kvRowBuilder, pSchema->colId, pSchema->type, tagVal);
+      }
     }
 
     SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);

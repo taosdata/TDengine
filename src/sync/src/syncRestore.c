@@ -131,6 +131,11 @@ static int32_t syncProcessBufferedFwd(SSyncPeer *pPeer) {
   SRecvBuffer *pRecv = pNode->pRecv;
   int32_t      forwards = 0;
 
+  if (pRecv == NULL) {
+    sError("%s, recv buffer is null, restart connect", pPeer->id);
+    return -1;
+  }
+
   sDebug("%s, number of buffered forwards:%d", pPeer->id, pRecv->forwards);
 
   char *offset = pRecv->buffer;
@@ -179,6 +184,7 @@ int32_t syncSaveIntoBuffer(SSyncPeer *pPeer, SWalHead *pHead) {
 
 static void syncCloseRecvBuffer(SSyncNode *pNode) {
   if (pNode->pRecv) {
+    sDebug("vgId:%d, recv buffer:%p is freed", pNode->vgId, pNode->pRecv);
     tfree(pNode->pRecv->buffer);
   }
 
@@ -203,6 +209,7 @@ static int32_t syncOpenRecvBuffer(SSyncNode *pNode) {
 
   pNode->pRecv = pRecv;
 
+  sDebug("vgId:%d, recv buffer:%p is created", pNode->vgId, pNode->pRecv);
   return 0;
 }
 
@@ -269,7 +276,8 @@ void *syncRestoreData(void *param) {
   atomic_add_fetch_32(&tsSyncNum, 1);
   sInfo("%s, start to restore data, sstatus:%s", pPeer->id, syncStatus[nodeSStatus]);
 
-  (*pNode->notifyRoleFp)(pNode->vgId, TAOS_SYNC_ROLE_SYNCING);
+  nodeRole = TAOS_SYNC_ROLE_SYNCING;
+  (*pNode->notifyRoleFp)(pNode->vgId, nodeRole);
 
   if (syncOpenRecvBuffer(pNode) < 0) {
     sError("%s, failed to allocate recv buffer, restart connection", pPeer->id);

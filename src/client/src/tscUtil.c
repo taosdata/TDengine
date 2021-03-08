@@ -30,7 +30,7 @@
 #include "ttokendef.h"
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
-static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo);
+static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta);
 
 static void tscStrToLower(char *str, int32_t n) {
   if (str == NULL || n <= 0) { return;}
@@ -383,7 +383,7 @@ static void tscDestroyResPointerInfo(SSqlRes* pRes) {
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
 }
 
-void tscFreeQueryInfo(SSqlCmd* pCmd) {
+void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta) {
   if (pCmd == NULL || pCmd->numOfClause == 0) {
     return;
   }
@@ -392,7 +392,7 @@ void tscFreeQueryInfo(SSqlCmd* pCmd) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
     
     freeQueryInfoImpl(pQueryInfo);
-    clearAllTableMetaInfo(pQueryInfo);
+    clearAllTableMetaInfo(pQueryInfo, removeMeta);
     tfree(pQueryInfo);
   }
   
@@ -420,7 +420,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
 
   pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList, removeMeta);
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-  tscFreeQueryInfo(pCmd);
+  tscFreeQueryInfo(pCmd, removeMeta);
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
@@ -1868,10 +1868,17 @@ SArray* tscVgroupTableInfoDup(SArray* pVgroupTables) {
   return pa;
 }
 
-void clearAllTableMetaInfo(SQueryInfo* pQueryInfo) {
+void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta) {
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
 
+    if (removeMeta) {  
+      char name[TSDB_TABLE_FNAME_LEN] = {0};
+      tNameExtractFullName(&pTableMetaInfo->name, name);
+    
+      taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    }
+    
     tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
     tscClearTableMetaInfo(pTableMetaInfo);
     free(pTableMetaInfo);
@@ -2078,6 +2085,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pnCmd->parseFinished = 1;
   pnCmd->pTableNameList = NULL;
   pnCmd->pTableBlockHashList = NULL;
+  pnCmd->tagData.data = NULL;
+  pnCmd->tagData.dataLen = 0;
 
   if (tscAddSubqueryInfo(pnCmd) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -2329,6 +2338,35 @@ bool tscIsUpdateQuery(SSqlObj* pSql) {
   return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_USE_DB == pCmd->command);
 }
 
+char* tscGetSqlStr(SSqlObj* pSql) {
+  if (pSql == NULL || pSql->signature != pSql) {
+    return NULL;
+  }
+
+  return pSql->sqlstr;
+}
+
+bool tscIsQueryWithLimit(SSqlObj* pSql) {
+  if (pSql == NULL || pSql->signature != pSql) {
+    return false;
+  }
+
+  SSqlCmd* pCmd = &pSql->cmd;
+  for (int32_t i = 0; i < pCmd->numOfClause; ++i) {
+    SQueryInfo* pqi = tscGetQueryInfoDetailSafely(pCmd, i);
+    if (pqi == NULL) {
+      continue;
+    }
+
+    if (pqi->limit.limit > 0) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+
 int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* sql) {
   const char* msgFormat1 = "syntax error near \'%s\'";
   const char* msgFormat2 = "syntax error near \'%s\' (%s)";
@@ -2568,11 +2606,7 @@ bool tscSetSqlOwner(SSqlObj* pSql) {
   SSqlRes* pRes = &pSql->res;
 
   // set the sql object owner
-#ifdef __APPLE__
-  pthread_t threadId = (pthread_t)taosGetSelfPthreadId();
-#else // __APPLE__
-  uint64_t threadId = taosGetSelfPthreadId();
-#endif // __APPLE__
+  int64_t threadId = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(&pSql->owner, 0, threadId) != 0) {
     pRes->code = TSDB_CODE_QRY_IN_EXEC;
     return false;
@@ -2582,7 +2616,6 @@ bool tscSetSqlOwner(SSqlObj* pSql) {
 }
 
 void tscClearSqlOwner(SSqlObj* pSql) {
-  assert(taosCheckPthreadValid(pSql->owner));
   atomic_store_64(&pSql->owner, 0);
 }
 
@@ -2709,7 +2742,11 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild) {
 uint32_t tscGetTableMetaSize(STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
 
-  int32_t totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
+  int32_t totalCols = 0;
+  if (pTableMeta->tableInfo.numOfColumns >= 0 && pTableMeta->tableInfo.numOfTags >= 0) {
+    totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
+  }
+  
   return sizeof(STableMeta) + totalCols * sizeof(SSchema);
 }
 

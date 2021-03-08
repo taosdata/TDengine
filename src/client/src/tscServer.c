@@ -330,7 +330,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     pSql->cmd.submitSchema = 1;
   }
 
-  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_FETCH || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
+  if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
       (rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID ||
        rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID ||
        rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL ||
@@ -418,6 +418,9 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   bool shouldFree = tscShouldBeFreed(pSql);
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+    if (rpcMsg->code != TSDB_CODE_SUCCESS) {
+      pRes->code = rpcMsg->code;
+    }
     rpcMsg->code = (pRes->code == TSDB_CODE_SUCCESS) ? (int32_t)pRes->numOfRows : pRes->code;
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
@@ -451,7 +454,7 @@ int doProcessSql(SSqlObj *pSql) {
   
   if (pRes->code != TSDB_CODE_SUCCESS) {
     tscAsyncResultOnError(pSql);
-    return pRes->code;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t code = tscSendMsgToServer(pSql);
@@ -460,7 +463,7 @@ int doProcessSql(SSqlObj *pSql) {
   if (code != TSDB_CODE_SUCCESS) {
     pRes->code = code;
     tscAsyncResultOnError(pSql);
-    return code;
+    return  TSDB_CODE_SUCCESS;
   }
   
   return TSDB_CODE_SUCCESS;
@@ -607,7 +610,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
   }
 
   return MIN_QUERY_MSG_PKT_SIZE + minMsgSize() + sizeof(SQueryTableMsg) + srcColListSize + exprSize + tsBufSize +
-         tableSerialize + sqlLen + 4096;
+         tableSerialize + sqlLen + 4096 + pQueryInfo->bufLen;
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {
@@ -812,6 +815,13 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   for (int32_t i = 0; i < tscSqlExprNumOfExprs(pQueryInfo); ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
+    // the queried table has been removed and a new table with the same name has already been created already
+    // return error msg
+    if (pExpr->uid != pTableMeta->id.uid) {
+      tscError("%p table has already been destroyed", pSql);
+      return TSDB_CODE_TSC_INVALID_TABLE_NAME;
+    }
+
     if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
       tscError("%p table schema is not matched with parsed sql", pSql);
       return TSDB_CODE_TSC_INVALID_SQL;
@@ -875,6 +885,13 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
       // this should be switched to projection query
       if (pExpr != NULL) {
+        // the queried table has been removed and a new table with the same name has already been created already
+        // return error msg
+        if (pExpr->uid != pTableMeta->id.uid) {
+          tscError("%p table has already been destroyed", pSql);
+          return TSDB_CODE_TSC_INVALID_TABLE_NAME;
+        }
+
         if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
           tscError("%p table schema is not matched with parsed sql", pSql);
           return TSDB_CODE_TSC_INVALID_SQL;
@@ -1809,7 +1826,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
   pMetaMsg->uid = htobe64(pMetaMsg->uid);
   pMetaMsg->contLen = htons(pMetaMsg->contLen);
   pMetaMsg->numOfColumns = htons(pMetaMsg->numOfColumns);
-
+  
   if ((pMetaMsg->tableType != TSDB_SUPER_TABLE) &&
       (pMetaMsg->tid <= 0 || pMetaMsg->vgroup.vgId < 2 || pMetaMsg->vgroup.numOfEps <= 0)) {
     tscError("invalid value in table numOfEps:%d, vgId:%d tid:%d, name:%s", pMetaMsg->vgroup.numOfEps, pMetaMsg->vgroup.vgId,

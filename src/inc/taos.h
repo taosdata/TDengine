@@ -68,7 +68,7 @@ typedef struct taosField {
   #define DLL_EXPORT 
 #endif
 
-DLL_EXPORT void  taos_init();
+DLL_EXPORT int  taos_init();
 DLL_EXPORT void  taos_cleanup(void);
 DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
 DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);

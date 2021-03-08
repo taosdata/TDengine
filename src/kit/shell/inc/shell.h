@@ -30,6 +30,8 @@
 #define MAX_COMMAND_SIZE       65536
 #define HISTORY_FILE           ".taos_history"
 
+#define DEFAULT_RES_SHOW_NUM   100
+
 typedef struct SShellHistory {
   char* hist[MAX_HISTORY_SIZE];
   int   hstart;
@@ -62,7 +64,7 @@ extern TAOS* shellInit(SShellArguments* args);
 extern void* shellLoopQuery(void* arg);
 extern void taos_error(TAOS_RES* tres, int64_t st);
 extern int regex_match(const char* s, const char* reg, int cflags);
-void shellReadCommand(TAOS* con, char command[]);
+int32_t shellReadCommand(TAOS* con, char command[]);
 int32_t shellRunCommand(TAOS* con, char* command);
 void shellRunCommandOnServer(TAOS* con, char command[]);
 void read_history();

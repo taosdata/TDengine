@@ -49,18 +49,31 @@ typedef struct {
 } SBlockInfo;
 
 typedef struct {
-  int16_t colId;
-  int32_t len;
-  int32_t type : 8;
-  int32_t offset : 24;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
-  int16_t maxIndex;
-  int16_t minIndex;
-  int16_t numOfNull;
-  char    padding[2];
+  int16_t  colId;
+  int32_t  len;
+  uint32_t type : 8;
+  uint32_t offset : 24;
+  int64_t  sum;
+  int64_t  max;
+  int64_t  min;
+  int16_t  maxIndex;
+  int16_t  minIndex;
+  int16_t  numOfNull;
+  uint8_t  offsetH;
+  char     padding[1];
 } SBlockCol;
+
+// Code here just for back-ward compatibility
+static FORCE_INLINE void tsdbSetBlockColOffset(SBlockCol *pBlockCol, uint32_t offset) {
+  pBlockCol->offset = offset & ((((uint32_t)1) << 24) - 1);
+  pBlockCol->offsetH = (uint8_t)(offset >> 24);
+}
+
+static FORCE_INLINE uint32_t tsdbGetBlockColOffset(SBlockCol *pBlockCol) {
+  uint32_t offset1 = pBlockCol->offset;
+  uint32_t offset2 = pBlockCol->offsetH;
+  return (offset1 | (offset2 << 24));
+}
 
 typedef struct {
   int32_t   delimiter;  // For recovery usage

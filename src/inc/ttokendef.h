@@ -122,8 +122,8 @@
 #define TK_UNSIGNED                       103
 #define TK_TAGS                           104
 #define TK_USING                          105
-#define TK_AS                             106
-#define TK_COMMA                          107
+#define TK_COMMA                          106
+#define TK_AS                             107
 #define TK_NULL                           108
 #define TK_SELECT                         109
 #define TK_UNION                          110

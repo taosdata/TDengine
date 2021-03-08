@@ -534,6 +534,20 @@ static int32_t mnodeCreateVgroupCb(SMnodeMsg *pMsg, int32_t code) {
            tstrerror(code));
     SSdbRow desc = {.type = SDB_OPER_GLOBAL, .pObj = pVgroup, .pTable = tsVgroupSdb};
     sdbDeleteRow(&desc);
+
+    if (pMsg->pBatchMasterMsg) {
+      ++pMsg->pBatchMasterMsg->received;
+      pMsg->pBatchMasterMsg->code = pMsg->code;
+      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
+          >= pMsg->pBatchMasterMsg->expected) {
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, pMsg->code);
+      }
+
+      mnodeDestroySubMsg(pMsg);
+
+      return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    }
+
     return code;
   } else {
     mInfo("msg:%p, app:%p vgId:%d, is created in sdb, db:%s replica:%d", pMsg, pMsg->rpcMsg.ahandle, pVgroup->vgId,
@@ -989,6 +1003,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
 
       if (mnodeMsg->pBatchMasterMsg) {
         ++mnodeMsg->pBatchMasterMsg->received;
+        mnodeMsg->pBatchMasterMsg->code = code;
         if (mnodeMsg->pBatchMasterMsg->successed + mnodeMsg->pBatchMasterMsg->received
             >= mnodeMsg->pBatchMasterMsg->expected) {
           dnodeSendRpcMWriteRsp(mnodeMsg->pBatchMasterMsg, code);
@@ -1011,6 +1026,7 @@ static void mnodeProcessCreateVnodeRsp(SRpcMsg *rpcMsg) {
 
     if (mnodeMsg->pBatchMasterMsg) {
       ++mnodeMsg->pBatchMasterMsg->received;
+      mnodeMsg->pBatchMasterMsg->code = mnodeMsg->code;
       if (mnodeMsg->pBatchMasterMsg->successed + mnodeMsg->pBatchMasterMsg->received
           >= mnodeMsg->pBatchMasterMsg->expected) {
         dnodeSendRpcMWriteRsp(mnodeMsg->pBatchMasterMsg, mnodeMsg->code);

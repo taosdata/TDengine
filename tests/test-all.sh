@@ -7,6 +7,21 @@ GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
 
+tests_dir=`pwd`
+IN_TDINTERNAL="community"
+
+function stopTaosd {
+	echo "Stop taosd"
+  sudo systemctl stop taosd
+  PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+	while [ -n "$PID" ]
+	do
+    pkill -TERM -x taosd
+    sleep 1
+  	PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+	done
+}
+
 function dohavecore(){
   corefile=`find $corepath -mmin 1`  
   if [ -n "$corefile" ];then
@@ -19,10 +34,9 @@ function dohavecore(){
 function runSimCaseOneByOne {
   while read -r line; do
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
-			case=`echo $line | grep sim$ |awk '{print $NF}'`
-      IN_TDINTERNAL="community"
-      start_time=`date +%s`
-       IN_TDINTERNAL="community"
+			case=`echo $line | grep sim$ |awk '{print $NF}'`    
+      start_time=`date +%s`      
+      date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
         ./test.sh -f $case > /dev/null 2>&1 && \
@@ -51,8 +65,8 @@ function runSimCaseOneByOnefq {
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
 			case=`echo $line | grep sim$ |awk '{print $NF}'`
 
-      start_time=`date +%s`
-      IN_TDINTERNAL="community"
+      start_time=`date +%s`    
+      date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
         ./test.sh -f $case > /dev/null 2>&1 && \
@@ -94,6 +108,7 @@ function runPyCaseOneByOne {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
+        date +%F\ %T | tee -a pytest-out.log
         echo -n $case
         $line > /dev/null 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
@@ -122,6 +137,7 @@ function runPyCaseOneByOnefq {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
+        date +%F\ %T | tee -a pytest-out.log
         echo -n $case
         $line > /dev/null 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
@@ -140,12 +156,14 @@ function runPyCaseOneByOnefq {
     fi
   done < $1
 }
+
 totalFailed=0
 totalPyFailed=0
+totalJDBCFailed=0
+totalUnitFailed=0
 
-tests_dir=`pwd`
 corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
-if [ "$2" != "python" ]; then
+if [ "$2" != "jdbc" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]; then
   echo "### run TSIM test case ###"
   cd $tests_dir/script
 
@@ -214,11 +232,10 @@ if [ "$2" != "python" ]; then
   fi
 fi
 
-if [ "$2" != "sim" ]; then
+if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] && [ "$2" != "unit" ]; then
   echo "### run Python test case ###"
 
   cd $tests_dir
-  IN_TDINTERNAL="community"
 
   if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
     cd ../..
@@ -261,6 +278,9 @@ if [ "$2" != "sim" ]; then
   elif [ "$1" == "p3" ]; then
     echo "### run Python_3 test ###"
     runPyCaseOneByOnefq pytest_3.sh
+  elif [ "$1" == "p4" ]; then
+    echo "### run Python_4 test ###"
+    runPyCaseOneByOnefq pytest_4.sh
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
     exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
@@ -280,4 +300,84 @@ if [ "$2" != "sim" ]; then
   fi
 fi
 
-exit $(($totalFailed + $totalPyFailed))
+
+if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "unit" ] && [ "$1" == "full" ]; then
+  echo "### run JDBC test cases ###"
+
+  cd $tests_dir
+
+  if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+    cd ../../
+  else
+    cd ../
+  fi
+
+  pwd
+  cd debug/
+  
+  stopTaosd
+  nohup build/bin/taosd -c /etc/taos/ > /dev/null 2>&1 &
+  sleep 30
+  
+  cd $tests_dir/../src/connector/jdbc  
+  
+  mvn test > jdbc-out.log 2>&1
+  tail -n 20 jdbc-out.log
+
+  cases=`grep 'Tests run' jdbc-out.log | awk 'END{print $3}'`
+  totalJDBCCases=`echo ${cases/%,}`
+  failed=`grep 'Tests run' jdbc-out.log | awk 'END{print $5}'`
+  JDBCFailed=`echo ${failed/%,}`
+  error=`grep 'Tests run' jdbc-out.log | awk 'END{print $7}'`
+  JDBCError=`echo ${error/%,}`
+  
+  totalJDBCFailed=`expr $JDBCFailed + $JDBCError`
+  totalJDBCSuccess=`expr $totalJDBCCases - $totalJDBCFailed`
+
+  if [ "$totalJDBCSuccess" -gt "0" ]; then
+    echo -e "\n${GREEN} ### Total $totalJDBCSuccess JDBC case(s) succeed! ### ${NC}"
+  fi
+  
+  if [ "$totalJDBCFailed" -ne "0" ]; then
+    echo -e "\n${RED} ### Total $totalJDBCFailed JDBC case(s) failed! ### ${NC}"
+  fi
+  dohavecore 1
+fi
+
+if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$1" == "full" ]; then
+  echo "### run Unit tests ###"  
+
+  stopTaosd
+  cd $tests_dir
+
+  if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+    cd ../../
+  else
+    cd ../
+  fi
+
+  pwd
+  cd debug/build/bin
+  nohup ./taosd -c /etc/taos/ > /dev/null 2>&1 &
+  sleep 30
+  
+  pwd
+  ./queryTest > unittest-out.log 2>&1
+  tail -n 20 unittest-out.log
+
+  totalUnitTests=`grep "Running" unittest-out.log | awk '{print $3}'`  
+  totalUnitSuccess=`grep 'PASSED' unittest-out.log | awk '{print $4}'`
+  totalUnitFailed=`expr $totalUnitTests - $totalUnitSuccess`
+
+  if [ "$totalUnitSuccess" -gt "0" ]; then
+    echo -e "\n${GREEN} ### Total $totalUnitSuccess Unit test succeed! ### ${NC}"
+  fi
+  
+  if [ "$totalUnitFailed" -ne "0" ]; then
+    echo -e "\n${RED} ### Total $totalUnitFailed Unit test failed! ### ${NC}"
+  fi
+  dohavecore 1
+fi
+
+
+exit $(($totalFailed + $totalPyFailed + $totalJDBCFailed + $totalUnitFailed))

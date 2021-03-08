@@ -83,7 +83,7 @@
 #run general/parser/join.sim
 #sleep 100
 #run general/parser/join_multivnode.sim
-#sleep 100
+sleep 100
 run general/parser/projection_limit_offset.sim
 sleep 100
 run general/parser/select_with_tags.sim
