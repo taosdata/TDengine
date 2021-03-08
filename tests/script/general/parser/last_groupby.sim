@@ -28,8 +28,6 @@ sql insert into tb1 values (now+500s,4,4.0,4.0,4,4,4,true,"4","4")
 
 sql select f1,last(*) from st2 group by f1;
 
-print $data00 $data01 $data02 $data03 $data04 $data05 $data06 $data07 $data08 $data09 $data10
-
 if $rows != 4 then
   return -1
 endi
@@ -49,6 +47,40 @@ if $data04 != 1.000000000 then
   return -1
 endi
 if $data05 != 1 then 
+  return -1
+endi
+if $data06 != 1 then 
+  return -1
+endi
+if $data07 != 1 then 
+  return -1
+endi
+if $data08 != 1 then 
+  return -1
+endi
+if $data09 != 1 then 
+  return -1
+endi
+
+sql select f1,last(f1,st2.*) from st2 group by f1;
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != 1 then 
+  return -1
+endi
+
+if $data01 != 1 then 
+  return -1
+endi
+if $data03 != 1 then 
+  return -1
+endi
+if $data04 != 1.00000 then 
+  return -1
+endi
+if $data05 != 1.000000000 then 
   return -1
 endi
 if $data06 != 1 then 
