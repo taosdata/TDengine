@@ -324,13 +324,15 @@ int32_t tSqlExprCompare(tSQLExpr *left, tSQLExpr *right) {
   if (left->pParam && left->pParam->nExpr != right->pParam->nExpr) {
     return 1;
   }
-  
-  for (int32_t i = 0; i < right->pParam->nExpr; i++) {
-    tSQLExpr* pSubLeft = left->pParam->a[i].pNode;
-    tSQLExpr* pSubRight = right->pParam->a[i].pNode;
-  
-    if (tSqlExprCompare(pSubLeft, pSubRight)) {
-      return 1;
+
+  if (right->pParam && left->pParam) {
+    for (int32_t i = 0; i < right->pParam->nExpr; i++) {
+      tSQLExpr* pSubLeft = left->pParam->a[i].pNode;
+      tSQLExpr* pSubRight = right->pParam->a[i].pNode;
+    
+      if (tSqlExprCompare(pSubLeft, pSubRight)) {
+        return 1;
+      }
     }
   }
 

@@ -1287,8 +1287,7 @@ int32_t doHavingFilter(SQueryInfo* pQueryInfo, tFilePage* pOutput, bool* notSkip
 
     int32_t type = pInterField->field.type;
 
-    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
-    char* pInput = pOutput->data + pOutput->num* pExpr->offset;
+    char* pInput = pOutput->data + pOutput->num* pFieldFilters->pSqlExpr->offset;
     
     doFilterFieldData(pQueryInfo, pInput, pOutput, pFieldFilters, type, notSkipped);
     if (*notSkipped == false) {

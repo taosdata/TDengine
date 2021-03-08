@@ -131,6 +131,7 @@ typedef struct SColumn {
 
 typedef struct SExprFilter {
   tSQLExpr       *pExpr;     //used for having parse
+  SSqlExpr       *pSqlExpr;
   SArray         *fp;
   SColumn        *pFilters;  //having filter info
 }SExprFilter;

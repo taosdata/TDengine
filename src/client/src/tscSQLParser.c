@@ -6708,6 +6708,9 @@ static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
 
   ++pQueryInfo->havingFieldNum;
 
+  size_t n = tscSqlExprNumOfExprs(pQueryInfo);
+  SSqlExpr* pSqlExpr = tscSqlExprGet(pQueryInfo, n - 1);
+
   int32_t slot = tscNumOfFields(pQueryInfo) - 1;
   SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, slot);
   pInfo->visible = false;
@@ -6726,6 +6729,7 @@ static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     }
 
     pFieldFilters->pFilters = pFilters;
+    pFieldFilters->pSqlExpr = pSqlExpr;
     pInfo->pFieldFilters = pFieldFilters;
   }
 
@@ -6740,7 +6744,7 @@ int32_t tscGetExprFilters(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr
   SInternalField* pInfo = NULL;
 
   for (int32_t i = pQueryInfo->havingFieldNum - 1; i >= 0; --i) {
-    pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
+    pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, pQueryInfo->fieldsInfo.numOfOutput - 1 - i);
 
     if (pInfo->pFieldFilters && 0 == tSqlExprCompare(pInfo->pFieldFilters->pExpr, pExpr)) {
       *pField = pInfo;
@@ -6818,10 +6822,12 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
   } else if (sqlOptr == TK_OR) {
-    int32_t ret = tscInsertExprFields(pCmd, pQueryInfo, pExpr->pLeft, &pInfo);
+    int32_t ret = tscGetExprFilters(pCmd, pQueryInfo, pExpr->pLeft, &pInfo);
     if (ret) {
       return ret;
     }
+
+    pColumn = pInfo->pFieldFilters->pFilters;
   
     // TODO fixme: failed to invalid the filter expression: "col1 = 1 OR col2 = 2"
     pColFilter = addColumnFilterInfo(pColumn);
