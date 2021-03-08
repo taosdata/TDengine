@@ -47,9 +47,10 @@
   #include "os.h"
   
 #ifdef TD_WINDOWS
+  #include <winsock2.h>
+  typedef unsigned __int32 uint32_t;
+
   #pragma comment ( lib, "ws2_32.lib" )
-  #pragma comment ( lib, "winmm.lib" )
-  #pragma comment ( lib, "wldap32.lib" )  
 #endif
 #endif  
 
@@ -94,6 +95,7 @@ extern char configDir[];
 #define   MAX_QUERY_SQL_LENGTH   256
 
 #define   MAX_DATABASE_COUNT     256
+#define INPUT_BUF_LEN   256
 
 typedef enum CREATE_SUB_TALBE_MOD_EN {
   PRE_CREATE_SUBTBL,
@@ -1592,11 +1594,10 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
     char *req_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\n%s\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s";
 
     char *url = "/rest/sql";
-    char *auth = "Authorization: Basic cm9vdDp0YW9zZGF0YQ==";
 
     struct hostent *server;
     struct sockaddr_in serv_addr;
-    int sockfd, bytes, sent, received, req_str_len, resp_len;
+    int bytes, sent, received, req_str_len, resp_len;
     char *request_buf;
     char response_buf[RESP_BUF_LEN];
     uint16_t rest_port = port + TSDB_PORT_HTTP;
@@ -1607,16 +1608,54 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
     if (NULL == request_buf)
         ERROR_EXIT("ERROR, cannot allocate memory.");
 
-    int r = snprintf(request_buf, 
-            req_buf_len, 
-            req_fmt, url, host, rest_port, 
-            auth, strlen(sqlstr), sqlstr);
-    if (r >= req_buf_len) {
-        free(request_buf);
-        ERROR_EXIT("ERROR too long request");
-    }
-    printf("Request:\n%s\n", request_buf);
+    char userpass_buf[INPUT_BUF_LEN];
+    int mod_table[] = {0, 2, 1};
 
+    static char base64[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H',
+      'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+      'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X',
+      'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+      'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n',
+      'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+      'w', 'x', 'y', 'z', '0', '1', '2', '3',
+      '4', '5', '6', '7', '8', '9', '+', '/'};
+
+    snprintf(userpass_buf, INPUT_BUF_LEN, "%s:%s",
+        g_Dbs.user, g_Dbs.password);
+    size_t userpass_buf_len = strlen(userpass_buf);
+    size_t encoded_len = 4 * ((userpass_buf_len +2) / 3);
+
+    char base64_buf[INPUT_BUF_LEN];
+    memset(base64_buf, 0, INPUT_BUF_LEN);
+
+    for (int n = 0, m = 0; n < userpass_buf_len;) {
+      uint32_t oct_a = n < userpass_buf_len ? 
+        (unsigned char) userpass_buf[n++]:0;
+      uint32_t oct_b = n < userpass_buf_len ? 
+        (unsigned char) userpass_buf[n++]:0;
+      uint32_t oct_c = n < userpass_buf_len ? 
+        (unsigned char) userpass_buf[n++]:0;
+      uint32_t triple = (oct_a << 0x10) + (oct_b << 0x08) + oct_c;
+
+      base64_buf[m++] = base64[(triple >> 3* 6) & 0x3f];
+      base64_buf[m++] = base64[(triple >> 2* 6) & 0x3f];
+      base64_buf[m++] = base64[(triple >> 1* 6) & 0x3f];
+      base64_buf[m++] = base64[(triple >> 0* 6) & 0x3f];
+    }
+
+    for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++)
+      base64_buf[encoded_len - 1 - l] = '=';
+
+    printf("auth string base64 encoded: %s\n", base64_buf);
+    char *auth = base64_buf;
+
+#ifdef TD_WINDOWS
+    WSADATA wsaData;
+    WSAStartup(MAKEWORD(2, 1), &wsaData);
+    SOCKET sockfd;
+#else
+    int sockfd;
+#endif
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
         free(request_buf);
@@ -1629,20 +1668,43 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
         ERROR_EXIT("ERROR, no such host");
     }
 
+    debugPrint("h_name: %s\nh_addretype: %s\nh_length: %d\n", 
+            server->h_name,
+            (server->h_addrtype == AF_INET)?"ipv4":"ipv6",
+            server->h_length);
+
     memset(&serv_addr, 0, sizeof(serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(rest_port);
+#ifdef WINDOWS
+    serv_addr.sin_addr.s_addr = inet_addr(host);
+#else
     memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
+#endif
 
     if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) {
         free(request_buf);
         ERROR_EXIT("ERROR connecting");
     }
 
+    int r = snprintf(request_buf, 
+            req_buf_len, 
+            req_fmt, url, host, rest_port, 
+            auth, strlen(sqlstr), sqlstr);
+    if (r >= req_buf_len) {
+        free(request_buf);
+        ERROR_EXIT("ERROR too long request");
+    }
+    printf("Request:\n%s\n", request_buf);
+
     req_str_len = strlen(request_buf);
     sent = 0;
     do {
+#ifdef WINDOWS
+        bytes = send(sockfd, request_buf + sent, req_str_len - sent, 0);
+#else
         bytes = write(sockfd, request_buf + sent, req_str_len - sent);
+#endif
         if (bytes < 0)
             ERROR_EXIT("ERROR writing message to socket");
         if (bytes == 0)
@@ -1654,7 +1716,11 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
     resp_len = sizeof(response_buf) - 1;
     received = 0;
     do {
+#ifdef WINDOWS
+        bytes = recv(sockfd, response_buf + received, resp_len - received, 0);
+#else
         bytes = read(sockfd, response_buf + received, resp_len - received);
+#endif
         if (bytes < 0) {
             free(request_buf);
             ERROR_EXIT("ERROR reading response from socket");
@@ -1672,7 +1738,12 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
     printf("Response:\n%s\n", response_buf);
 
     free(request_buf);
+#ifdef WINDOWS
+    closesocket(sockfd);
+    WSACleanup();
+#else
     close(sockfd);
+#endif
 
     return 0;
 }
