@@ -1281,7 +1281,7 @@ static void rpcSendReqToServer(SRpcInfo *pRpc, SRpcReqContext *pContext) {
   SRpcConn *pConn = rpcSetupConnToServer(pContext);
   if (pConn == NULL) {
     pContext->code = terrno;
-    taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
+    taosTmrStart(rpcProcessConnError, 1, pContext, pRpc->tmrCtrl);
     return;
   }
 

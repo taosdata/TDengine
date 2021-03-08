@@ -48,29 +48,28 @@ public class SubscribeTest {
     @Test
     public void subscribe() {
         try {
-
             String rawSql = "select * from " + dbName + "." + tName + ";";
             System.out.println(rawSql);
-            TSDBSubscribe subscribe = ((TSDBConnection) connection).subscribe(topic, rawSql, false);
+//            TSDBSubscribe subscribe = ((TSDBConnection) connection).subscribe(topic, rawSql, false);
 
-            int a = 0;
-            while (true) {
-                TimeUnit.MILLISECONDS.sleep(1000);
-                TSDBResultSet resSet = subscribe.consume();
-                while (resSet.next()) {
-                    for (int i = 1; i <= resSet.getMetaData().getColumnCount(); i++) {
-                        System.out.printf(i + ": " + resSet.getString(i) + "\t");
-                    }
-                    System.out.println("\n======" + a + "==========");
-                }
-                a++;
-                if (a >= 2) {
-                    break;
-                }
+//            int a = 0;
+//            while (true) {
+//                TimeUnit.MILLISECONDS.sleep(1000);
+//                TSDBResultSet resSet = subscribe.consume();
+//                while (resSet.next()) {
+//                    for (int i = 1; i <= resSet.getMetaData().getColumnCount(); i++) {
+//                        System.out.printf(i + ": " + resSet.getString(i) + "\t");
+//                    }
+//                    System.out.println("\n======" + a + "==========");
+//                }
+//                a++;
+//                if (a >= 2) {
+//                    break;
+//                }
 //                resSet.close();
-            }
-
-            subscribe.close(true);
+//            }
+//
+//            subscribe.close(true);
         } catch (Exception e) {
             e.printStackTrace();
         }

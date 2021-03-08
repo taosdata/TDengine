@@ -41,24 +41,24 @@ class TDTestCase:
         tdSql.error("select col1 + col9 from test1")
 
         tdSql.query("select col1 + col2 from test1")
-        tdSql.checkRows(11)
+        tdSql.checkRows(25)
         tdSql.checkData(0, 0, 2.0)        
 
         tdSql.query("select col1 + col2 * col3 + col3 / col4 + col5 + col6 + col11 + col12 + col13 + col14 from test1")
-        tdSql.checkRows(11)
+        tdSql.checkRows(25)
         tdSql.checkData(0, 0, 7.2)
 
         #tdSql.execute("insert into test1(ts, col1) values(%d, 11)" % (self.ts + 11))
         tdSql.query("select col1 + col2 from test1")
-        tdSql.checkRows(11)
+        tdSql.checkRows(25)
         tdSql.checkData(10, 0, None)
         
         tdSql.query("select col1 + col2 * col3 from test1")
-        tdSql.checkRows(11)
+        tdSql.checkRows(25)
         tdSql.checkData(10, 0, None)
 
         tdSql.query("select col1 + col2 * col3 + col3 / col4 + col5 + col6 + col11 + col12 + col13 + col14 from test1")
-        tdSql.checkRows(11)
+        tdSql.checkRows(25)
         tdSql.checkData(10, 0, None)
 
 
