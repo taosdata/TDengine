@@ -42,7 +42,7 @@ public final class JdbcTaosdemoConfig {
     public int rate = 10;
     public long range = 1000l;
     // select task
-
+    public String executeSql;
     // drop task
     public boolean dropTable = false;
 
@@ -89,7 +89,7 @@ public final class JdbcTaosdemoConfig {
         System.out.println("-rate                       The proportion of data out of order. effective only if order is 1. min 0, max 100, default is 10");
         System.out.println("-range                      The range of data out of order. effective only if order is 1. default is 1000 ms");
         // query task
-//        System.out.println("-sqlFile                   The select sql file");
+        System.out.println("-executeSql                 execute a specific sql.");
         // drop task
         System.out.println("-dropTable                  Drop data before quit. Default is false");
         System.out.println("--help                      Give this help list");
@@ -207,6 +207,9 @@ public final class JdbcTaosdemoConfig {
                 range = Integer.parseInt(args[++i]);
             }
             // select task
+            if ("-executeSql".equals(args[i]) && i < args.length - 1) {
+                executeSql = args[++i];
+            }
 
             // drop task
             if ("-dropTable".equals(args[i]) && i < args.length - 1) {

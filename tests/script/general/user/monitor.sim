@@ -15,18 +15,18 @@ print ========== step2
 #  return -1
 #step21:
 sql drop table log.dn -x step22
-  return -1
+#  return -1
 step22:
 sql drop user log -x step23
-  return -1
+#  return -1
 step23:
 
 print ========== step3
 
 sleep 2000
-sql select * from log.dn
-if $rows == 0 then
-  return -1
-endi
+#sql select * from log.dn
+#if $rows == 0 then
+#  return -1
+#endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

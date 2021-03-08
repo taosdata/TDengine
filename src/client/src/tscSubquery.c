@@ -2802,7 +2802,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
         numOfFailed += 1;
 
         // clean up tableMeta in cache
-        tscFreeQueryInfo(&pSql->cmd);
+        tscFreeQueryInfo(&pSql->cmd, false);
         SQueryInfo* pQueryInfo = tscGetQueryInfoDetailSafely(&pSql->cmd, 0);
         STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pParentObj->cmd, pSql->cmd.clauseIndex, 0);
         tscAddTableMetaInfo(pQueryInfo, &pMasterTableMetaInfo->name, NULL, NULL, NULL, NULL);

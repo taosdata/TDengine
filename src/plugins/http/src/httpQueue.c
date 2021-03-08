@@ -59,7 +59,9 @@ void httpDispatchToResultQueue(void *param, TAOS_RES *result, int32_t code, int3
     pMsg->fp = fp;
     taosWriteQitem(tsHttpQueue, TAOS_QTYPE_RPC, pMsg);
   } else {
-    (*fp)(param, result, code, rows);
+    taos_stop_query(result);
+    taos_free_result(result);
+    //(*fp)(param, result, code, rows);
   }
 }
 

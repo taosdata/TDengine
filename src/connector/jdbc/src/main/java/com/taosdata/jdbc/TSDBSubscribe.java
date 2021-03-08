@@ -14,12 +14,11 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
-import javax.management.OperationsException;
 import java.sql.SQLException;
 
 public class TSDBSubscribe {
-    private TSDBJNIConnector connecter = null;
-    private long id = 0;
+    private final TSDBJNIConnector connecter;
+    private final long id;
 
     TSDBSubscribe(TSDBJNIConnector connecter, long id) throws SQLException {
         if (null != connecter) {

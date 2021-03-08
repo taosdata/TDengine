@@ -832,12 +832,13 @@ static int32_t mnodeProcessBatchCreateTableMsg(SMnodeMsg *pMsg) {
         return code;
       } else if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
         ++pMsg->pBatchMasterMsg->received;
+        pMsg->pBatchMasterMsg->code = code;
         mnodeDestroySubMsg(pMsg);
       }
 
       if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	  >= pMsg->pBatchMasterMsg->expected) {
-        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, TSDB_CODE_SUCCESS);
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, pMsg->pBatchMasterMsg->code);
       }
 
       return TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -916,11 +917,13 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
+#if 0
   if (mnodeCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
     mError("msg:%p, app:%p table:%s, failed to drop table, in monitor database", pMsg, pMsg->rpcMsg.ahandle,
            pDrop->name);
     return TSDB_CODE_MND_MONITOR_DB_FORBIDDEN;
   }
+#endif
 
   if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pDrop->name);
   if (pMsg->pTable == NULL) {
@@ -1906,7 +1909,8 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
     sdbDeleteRow(&desc);
 
     if (pMsg->pBatchMasterMsg) {
-      ++pMsg->pBatchMasterMsg->successed;
+      ++pMsg->pBatchMasterMsg->received;
+      pMsg->pBatchMasterMsg->code = code;
       if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	  >= pMsg->pBatchMasterMsg->expected) {
 	dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
@@ -2688,6 +2692,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
       if (pMsg->pBatchMasterMsg) {
 	++pMsg->pBatchMasterMsg->received;
+	pMsg->pBatchMasterMsg->code = code;
 	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	    >= pMsg->pBatchMasterMsg->expected) {
 	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
@@ -2726,6 +2731,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
       if (pMsg->pBatchMasterMsg) {
 	++pMsg->pBatchMasterMsg->received;
+	pMsg->pBatchMasterMsg->code = rpcMsg->code;
 	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	    >= pMsg->pBatchMasterMsg->expected) {
 	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, rpcMsg->code);
@@ -3020,10 +3026,12 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
+#if 0
   if (mnodeCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
     mError("msg:%p, app:%p table:%s, failed to alter table, its log db", pMsg, pMsg->rpcMsg.ahandle, pAlter->tableFname);
     return TSDB_CODE_MND_MONITOR_DB_FORBIDDEN;
   }
+#endif
 
   if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pAlter->tableFname);
   if (pMsg->pTable == NULL) {
