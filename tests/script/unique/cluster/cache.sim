@@ -4,8 +4,8 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 
-system sh/cfg.sh -n dnode1 -c walLevel            -v 0
-system sh/cfg.sh -n dnode2 -c walLevel            -v 0
+system sh/cfg.sh -n dnode1 -c walLevel            -v 1
+system sh/cfg.sh -n dnode2 -c walLevel            -v 1
 system sh/cfg.sh -n dnode1 -c httpMaxThreads      -v 2
 system sh/cfg.sh -n dnode2 -c httpMaxThreads      -v 2
 system sh/cfg.sh -n dnode1 -c monitor             -v 1
@@ -55,3 +55,11 @@ if $rows < 10 then
 endi
 
 #sql create table sys.st as select avg(taosd), avg(system) from sys.cpu interval(30s)
+
+sql show log.vgroups
+if $data05 != master then
+  return -1
+endi
+if $data15 != master then
+  return -1
+endi
