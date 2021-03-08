@@ -218,6 +218,8 @@ typedef struct SSuperTable_S {
   char         childTblPrefix[MAX_TB_NAME_SIZE];
   char         dataSource[MAX_TB_NAME_SIZE+1];  // rand_gen or sample
   char         insertMode[MAX_TB_NAME_SIZE];  // taosc, restful
+  int           childTblLimit;
+  int           childTblOffset;
 
   int          multiThreadWriteOneTbl;   // 0: no, 1: yes
   int          numberOfTblInOneSql;      // 0/1: one table, > 1: number of tbl
@@ -1071,30 +1073,36 @@ static int printfInsertMeta() {
       } else {
         printf("      childTblExists:    \033[33m%s\033[0m\n",  "error");
       }
-      
-      printf("      childTblCount:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblCount);      
-      printf("      childTblPrefix:    \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblPrefix);      
-      printf("      dataSource:        \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].dataSource);      
-      printf("      insertMode:        \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].insertMode);      
-      printf("      insertRows:        \033[33m%"PRId64"\033[0m\n", g_Dbs.db[i].superTbls[j].insertRows); 
+
+      printf("      childTblCount:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblCount);
+      printf("      childTblPrefix:    \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblPrefix);
+      printf("      dataSource:        \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].dataSource);
+      printf("      insertMode:        \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].insertMode);
+      if (g_Dbs.db[i].superTbls[j].childTblLimit > 0) {
+        printf("      childTblLimit:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblLimit);
+      }
+      if (g_Dbs.db[i].superTbls[j].childTblOffset > 0) {
+        printf("      childTblOffset:    \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblOffset);
+      }
+      printf("      insertRows:        \033[33m%"PRId64"\033[0m\n", g_Dbs.db[i].superTbls[j].insertRows);
 
       if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
-        printf("      multiThreadWriteOneTbl:  \033[33mno\033[0m\n");     
+        printf("      multiThreadWriteOneTbl:  \033[33mno\033[0m\n");
       }else {
-        printf("      multiThreadWriteOneTbl:  \033[33myes\033[0m\n"); 
+        printf("      multiThreadWriteOneTbl:  \033[33myes\033[0m\n");
       }
-      printf("      numberOfTblInOneSql:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].numberOfTblInOneSql);     
-      printf("      rowsPerTbl:        \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].rowsPerTbl);     
-      printf("      disorderRange:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].disorderRange);     
+      printf("      numberOfTblInOneSql:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].numberOfTblInOneSql);
+      printf("      rowsPerTbl:        \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].rowsPerTbl);
+      printf("      disorderRange:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].disorderRange);
       printf("      disorderRatio:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].disorderRatio);
-      printf("      maxSqlLen:         \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].maxSqlLen);     
-      
-      printf("      timeStampStep:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].timeStampStep);      
-      printf("      startTimestamp:    \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].startTimestamp);             
+      printf("      maxSqlLen:         \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].maxSqlLen);
+
+      printf("      timeStampStep:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].timeStampStep);
+      printf("      startTimestamp:    \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].startTimestamp);
       printf("      sampleFormat:      \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].sampleFormat);
-      printf("      sampleFile:        \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].sampleFile); 
-      printf("      tagsFile:          \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].tagsFile);   
-    
+      printf("      sampleFile:        \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].sampleFile);
+      printf("      tagsFile:          \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].tagsFile);
+
       printf("      columnCount:       \033[33m%d\033[0m\n        ",  g_Dbs.db[i].superTbls[j].columnCount);
       for (int k = 0; k < g_Dbs.db[i].superTbls[j].columnCount; k++) {
         //printf("dataType:%s, dataLen:%d\t", g_Dbs.db[i].superTbls[j].columns[k].dataType, g_Dbs.db[i].superTbls[j].columns[k].dataLen);
@@ -1120,7 +1128,7 @@ static int printfInsertMeta() {
         } else {
           printf("tag[%d]:\033[33m%s\033[0m ", k,
                   g_Dbs.db[i].superTbls[j].tags[k].dataType);
-        }     
+        }
       }
       printf("\n");
     }
@@ -1814,15 +1822,25 @@ static int calcRowLen(SSuperTable*  superTbls) {
 }
 
 
-static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName, char* sTblName, char** childTblNameOfSuperTbl, int* childTblCountOfSuperTbl) {  
+static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
+        char* dbName, char* sTblName, char** childTblNameOfSuperTbl,
+        int* childTblCountOfSuperTbl, int limit, int offset) {
+
   char command[BUFFER_SIZE] = "\0";
+  char limitBuf[100] = "\0";
+
   TAOS_RES * res;  
   TAOS_ROW row = NULL;
 
   char* childTblName = *childTblNameOfSuperTbl;
-  
+
+  if (offset >= 0) {
+    snprintf(limitBuf, 100, " limit %d offset %d", limit, offset);
+  }
+
   //get all child table name use cmd: select tbname from superTblName;  
-  snprintf(command, BUFFER_SIZE, "select tbname from %s.%s", dbName, sTblName);
+  snprintf(command, BUFFER_SIZE, "select tbname from %s.%s %s", dbName, sTblName, limitBuf);
+
   res = taos_query(taos, command);  
   int32_t code = taos_errno(res);
   if (code != 0) {
@@ -1846,7 +1864,8 @@ static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName, char* sTblName
       if (tmp != NULL) {
         childTblName = tmp;
         childTblCount = (int)(childTblCount*1.5);
-        memset(childTblName + count*TSDB_TABLE_NAME_LEN, 0, (size_t)((childTblCount-count)*TSDB_TABLE_NAME_LEN));
+        memset(childTblName + count*TSDB_TABLE_NAME_LEN, 0,
+                (size_t)((childTblCount-count)*TSDB_TABLE_NAME_LEN));
       } else {
         // exit, if allocate more memory failed
         printf("realloc fail for save child table name of %s.%s\n", dbName, sTblName);
@@ -1858,12 +1877,22 @@ static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName, char* sTblName
     }
     pTblName = childTblName + count * TSDB_TABLE_NAME_LEN;    
   }
-  
+
   *childTblCountOfSuperTbl = count;
   *childTblNameOfSuperTbl  = childTblName;
 
   taos_free_result(res);
   return 0;
+}
+
+static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName,
+        char* sTblName, char** childTblNameOfSuperTbl,
+        int* childTblCountOfSuperTbl) {  
+
+    return getChildNameOfSuperTableWithLimitAndOffset(taos, dbName, sTblName,
+            childTblNameOfSuperTbl, childTblCountOfSuperTbl,
+            -1, -1);
+
 }
 
 static int getSuperTableFromServer(TAOS * taos, char* dbName, SSuperTable*  superTbls) {  
@@ -1915,7 +1944,8 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName, SSuperTable*  supe
 
   if (TBL_ALREADY_EXISTS == superTbls->childTblExists) {
     //get all child table name use cmd: select tbname from superTblName;  
-    getAllChildNameOfSuperTable(taos, dbName, superTbls->sTblName, &superTbls->childTblName, &superTbls->childTblCount);  
+    getAllChildNameOfSuperTable(taos, dbName, 
+            superTbls->sTblName, &superTbls->childTblName, &superTbls->childTblCount);
   }
   return 0;
 }
@@ -2340,8 +2370,8 @@ static void createChildTables() {
         g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
       }
     } else {
-        // normal table
-        len = snprintf(tblColsBuf, MAX_SQL_SIZE, "(TS TIMESTAMP");
+      // normal table
+      len = snprintf(tblColsBuf, MAX_SQL_SIZE, "(TS TIMESTAMP");
       for (int i = 0; i < MAX_COLUMN_COUNT; i++) {
         if (g_args.datatype[i]) {
             if ((strncasecmp(g_args.datatype[i], "BINARY", strlen("BINARY")) == 0)
@@ -2357,12 +2387,12 @@ static void createChildTables() {
         }
       }
 
-        debugPrint("DEBUG - %s() LN%d: %s\n", __func__, __LINE__,
+      debugPrint("DEBUG - %s() LN%d: %s\n", __func__, __LINE__,
                 tblColsBuf);
       startMultiThreadCreateChildTable(
               tblColsBuf,
               g_Dbs.threadCountByCreateTbl,
-              g_args.num_of_DPT,
+              g_args.num_of_tables,
               g_Dbs.db[i].dbName,
               NULL);
     }
@@ -2534,7 +2564,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
   // columns 
   cJSON *columns = cJSON_GetObjectItem(stbInfo, "columns");
   if (columns && columns->type != cJSON_Array) {
-    printf("failed to read json, columns not found\n");
+    printf("ERROR: failed to read json, columns not found\n");
     goto PARSE_OVER;
   } else if (NULL == columns) {
     superTbls->columnCount = 0;
@@ -2544,7 +2574,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
   
   int columnSize = cJSON_GetArraySize(columns);
   if (columnSize > MAX_COLUMN_COUNT) {
-    printf("failed to read json, column size overflow, max column size is %d\n",
+    printf("ERROR: failed to read json, column size overflow, max column size is %d\n",
             MAX_COLUMN_COUNT);
     goto PARSE_OVER;
   }
@@ -2563,7 +2593,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     if (countObj && countObj->type == cJSON_Number) {
       count = countObj->valueint;    
     } else if (countObj && countObj->type != cJSON_Number) {
-      printf("failed to read json, column count not found");
+      printf("ERROR: failed to read json, column count not found\n");
       goto PARSE_OVER;
     } else {
       count = 1;
@@ -2573,7 +2603,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     memset(&columnCase, 0, sizeof(StrColumn));
     cJSON *dataType = cJSON_GetObjectItem(column, "type");
     if (!dataType || dataType->type != cJSON_String || dataType->valuestring == NULL) {
-      printf("failed to read json, column type not found");
+      printf("ERROR: failed to read json, column type not found\n");
       goto PARSE_OVER;
     }
     //tstrncpy(superTbls->columns[k].dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
@@ -2583,7 +2613,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     if (dataLen && dataLen->type == cJSON_Number) {
       columnCase.dataLen = dataLen->valueint;    
     } else if (dataLen && dataLen->type != cJSON_Number) {
-      printf("failed to read json, column len not found");
+      printf("ERROR: failed to read json, column len not found\n");
       goto PARSE_OVER;
     } else {
       columnCase.dataLen = 8;
@@ -2602,13 +2632,13 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
   // tags 
   cJSON *tags = cJSON_GetObjectItem(stbInfo, "tags");
   if (!tags || tags->type != cJSON_Array) {
-    printf("failed to read json, tags not found");
+    printf("ERROR: failed to read json, tags not found\n");
     goto PARSE_OVER;
   }
   
   int tagSize = cJSON_GetArraySize(tags);
   if (tagSize > MAX_TAG_COUNT) {
-    printf("failed to read json, tags size overflow, max tag size is %d\n", MAX_TAG_COUNT);
+    printf("ERROR: failed to read json, tags size overflow, max tag size is %d\n", MAX_TAG_COUNT);
     goto PARSE_OVER;
   }
   
@@ -2622,7 +2652,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     if (countObj && countObj->type == cJSON_Number) {
       count = countObj->valueint;    
     } else if (countObj && countObj->type != cJSON_Number) {
-      printf("failed to read json, column count not found");
+      printf("ERROR: failed to read json, column count not found\n");
       goto PARSE_OVER;
     } else {
       count = 1;
@@ -2632,7 +2662,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     memset(&columnCase, 0, sizeof(StrColumn));
     cJSON *dataType = cJSON_GetObjectItem(tag, "type");
     if (!dataType || dataType->type != cJSON_String || dataType->valuestring == NULL) {
-      printf("failed to read json, tag type not found");
+      printf("ERROR: failed to read json, tag type not found\n");
       goto PARSE_OVER;
     }
     tstrncpy(columnCase.dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
@@ -2641,7 +2671,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     if (dataLen && dataLen->type == cJSON_Number) {
       columnCase.dataLen = dataLen->valueint;    
     } else if (dataLen && dataLen->type != cJSON_Number) {
-      printf("failed to read json, column len not found");
+      printf("ERROR: failed to read json, column len not found\n");
       goto PARSE_OVER;
     } else {
       columnCase.dataLen = 0;
@@ -2678,7 +2708,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   } else if (!host) {
     tstrncpy(g_Dbs.host, "127.0.0.1", MAX_DB_NAME_SIZE);
   } else {
-    printf("failed to read json, host not found\n");
+    printf("ERROR: failed to read json, host not found\n");
     goto PARSE_OVER;
   }
 
@@ -2716,7 +2746,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   } else if (!threads) {
     g_Dbs.threadCount = 1;
   } else {
-    printf("failed to read json, threads not found");
+    printf("ERROR: failed to read json, threads not found\n");
     goto PARSE_OVER;
   }  
   
@@ -2726,7 +2756,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   } else if (!threads2) {
     g_Dbs.threadCountByCreateTbl = 1;
   } else {
-    printf("failed to read json, threads2 not found");
+    printf("ERROR: failed to read json, threads2 not found\n");
     goto PARSE_OVER;
   } 
 
@@ -2736,7 +2766,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!insertInterval) {
         g_args.insert_interval = 0;
       } else {
-        printf("failed to read json, insert_interval not found");
+        printf("ERROR: failed to read json, insert_interval not found\n");
         goto PARSE_OVER;
       }
  
@@ -2746,7 +2776,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!numRecPerReq) {
         g_args.num_of_RPR = 100;
       } else {
-        printf("failed to read json, num_of_records_per_req not found");
+        printf("ERROR: failed to read json, num_of_records_per_req not found\n");
         goto PARSE_OVER;
       }
  
@@ -2764,19 +2794,19 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   } else if (!answerPrompt) {
     g_args.answer_yes = false;
   } else {
-    printf("failed to read json, confirm_parameter_prompt not found");
+    printf("ERROR: failed to read json, confirm_parameter_prompt not found\n");
     goto PARSE_OVER;
   }  
 
   cJSON* dbs = cJSON_GetObjectItem(root, "databases");
   if (!dbs || dbs->type != cJSON_Array) {
-    printf("failed to read json, databases not found\n");
+    printf("ERROR: failed to read json, databases not found\n");
     goto PARSE_OVER;
   }
 
   int dbSize = cJSON_GetArraySize(dbs);
   if (dbSize > MAX_DB_COUNT) {
-    printf("failed to read json, databases size overflow, max database is %d\n", MAX_DB_COUNT);
+    printf("ERROR: failed to read json, databases size overflow, max database is %d\n", MAX_DB_COUNT);
     goto PARSE_OVER;
   }
 
@@ -2788,13 +2818,13 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     // dbinfo 
     cJSON *dbinfo = cJSON_GetObjectItem(dbinfos, "dbinfo");
     if (!dbinfo || dbinfo->type != cJSON_Object) {
-      printf("failed to read json, dbinfo not found");
+      printf("ERROR: failed to read json, dbinfo not found\n");
       goto PARSE_OVER;
     }
     
     cJSON *dbName = cJSON_GetObjectItem(dbinfo, "name");
     if (!dbName || dbName->type != cJSON_String || dbName->valuestring == NULL) {
-      printf("failed to read json, db name not found");
+      printf("ERROR: failed to read json, db name not found\n");
       goto PARSE_OVER;
     }
     tstrncpy(g_Dbs.db[i].dbName, dbName->valuestring, MAX_DB_NAME_SIZE);
@@ -2809,7 +2839,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!drop) {
       g_Dbs.db[i].drop = 0;
     } else {
-      printf("failed to read json, drop not found");
+      printf("ERROR: failed to read json, drop not found\n");
       goto PARSE_OVER;
     }
 
@@ -2820,7 +2850,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       //tstrncpy(g_Dbs.db[i].dbCfg.precision, "ms", MAX_DB_NAME_SIZE);
       memset(g_Dbs.db[i].dbCfg.precision, 0, MAX_DB_NAME_SIZE);
     } else {
-      printf("failed to read json, precision not found");
+      printf("ERROR: failed to read json, precision not found\n");
       goto PARSE_OVER;
     }
 
@@ -2830,7 +2860,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!update) {
       g_Dbs.db[i].dbCfg.update = -1;
     } else {
-      printf("failed to read json, update not found");
+      printf("ERROR: failed to read json, update not found\n");
       goto PARSE_OVER;
     }
 
@@ -2840,7 +2870,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!replica) {
       g_Dbs.db[i].dbCfg.replica = -1;
     } else {
-      printf("failed to read json, replica not found");
+      printf("ERROR: failed to read json, replica not found\n");
       goto PARSE_OVER;
     }
 
@@ -2850,7 +2880,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!keep) {
       g_Dbs.db[i].dbCfg.keep = -1;
     } else {
-     printf("failed to read json, keep not found");
+     printf("ERROR: failed to read json, keep not found\n");
      goto PARSE_OVER;
     }
     
@@ -2860,7 +2890,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!days) {
       g_Dbs.db[i].dbCfg.days = -1;
     } else {
-     printf("failed to read json, days not found");
+     printf("ERROR: failed to read json, days not found\n");
      goto PARSE_OVER;
     }
     
@@ -2870,7 +2900,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!cache) {
       g_Dbs.db[i].dbCfg.cache = -1;
     } else {
-     printf("failed to read json, cache not found");
+     printf("ERROR: failed to read json, cache not found\n");
      goto PARSE_OVER;
     }
         
@@ -2880,7 +2910,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!blocks) {
       g_Dbs.db[i].dbCfg.blocks = -1;
     } else {
-     printf("failed to read json, block not found");
+     printf("ERROR: failed to read json, block not found\n");
      goto PARSE_OVER;
     }
 
@@ -2900,7 +2930,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!minRows) {
       g_Dbs.db[i].dbCfg.minRows = -1;
     } else {
-     printf("failed to read json, minRows not found");
+     printf("ERROR: failed to read json, minRows not found\n");
      goto PARSE_OVER;
     }
 
@@ -2910,7 +2940,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!maxRows) {
       g_Dbs.db[i].dbCfg.maxRows = -1;
     } else {
-     printf("failed to read json, maxRows not found");
+     printf("ERROR: failed to read json, maxRows not found\n");
      goto PARSE_OVER;
     }
 
@@ -2920,7 +2950,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!comp) {
       g_Dbs.db[i].dbCfg.comp = -1;
     } else {
-     printf("failed to read json, comp not found");
+     printf("ERROR: failed to read json, comp not found\n");
      goto PARSE_OVER;
     }
 
@@ -2930,7 +2960,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!walLevel) {
       g_Dbs.db[i].dbCfg.walLevel = -1;
     } else {
-     printf("failed to read json, walLevel not found");
+     printf("ERROR: failed to read json, walLevel not found\n");
      goto PARSE_OVER;
     }
 
@@ -2940,7 +2970,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!cacheLast) {
       g_Dbs.db[i].dbCfg.cacheLast = -1;
     } else {
-     printf("failed to read json, cacheLast not found");
+     printf("ERROR: failed to read json, cacheLast not found\n");
      goto PARSE_OVER;
     }
 
@@ -2950,7 +2980,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!quorum) {
       g_Dbs.db[i].dbCfg.quorum = -1;
     } else {
-     printf("failed to read json, walLevel not found");
+     printf("ERROR: failed to read json, walLevel not found\n");
      goto PARSE_OVER;
     }
 
@@ -2960,20 +2990,20 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!fsync) {
       g_Dbs.db[i].dbCfg.fsync = -1;
     } else {
-     printf("failed to read json, fsync not found");
+     printf("ERROR: failed to read json, fsync not found\n");
      goto PARSE_OVER;
     }    
 
     // super_talbes 
     cJSON *stables = cJSON_GetObjectItem(dbinfos, "super_tables");
     if (!stables || stables->type != cJSON_Array) {
-      printf("failed to read json, super_tables not found");
+      printf("ERROR: failed to read json, super_tables not found\n");
       goto PARSE_OVER;
     }    
     
     int stbSize = cJSON_GetArraySize(stables);
     if (stbSize > MAX_SUPER_TABLE_COUNT) {
-      printf("failed to read json, databases size overflow, max database is %d\n", MAX_SUPER_TABLE_COUNT);
+      printf("ERROR: failed to read json, databases size overflow, max database is %d\n", MAX_SUPER_TABLE_COUNT);
       goto PARSE_OVER;
     }
 
@@ -2985,14 +3015,14 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       // dbinfo 
       cJSON *stbName = cJSON_GetObjectItem(stbInfo, "name");
       if (!stbName || stbName->type != cJSON_String || stbName->valuestring == NULL) {
-        printf("failed to read json, stb name not found");
+        printf("ERROR: failed to read json, stb name not found\n");
         goto PARSE_OVER;
       }
       tstrncpy(g_Dbs.db[i].superTbls[j].sTblName, stbName->valuestring, MAX_TB_NAME_SIZE);
     
       cJSON *prefix = cJSON_GetObjectItem(stbInfo, "childtable_prefix");
       if (!prefix || prefix->type != cJSON_String || prefix->valuestring == NULL) {
-        printf("failed to read json, childtable_prefix not found");
+        printf("ERROR: failed to read json, childtable_prefix not found\n");
         goto PARSE_OVER;
       }
       tstrncpy(g_Dbs.db[i].superTbls[j].childTblPrefix, prefix->valuestring, MAX_DB_NAME_SIZE);
@@ -3011,7 +3041,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!autoCreateTbl) {
         g_Dbs.db[i].superTbls[j].autoCreateTable = PRE_CREATE_SUBTBL;
       } else {
-        printf("failed to read json, auto_create_table not found");
+        printf("ERROR: failed to read json, auto_create_table not found\n");
         goto PARSE_OVER;
       }
       
@@ -3021,7 +3051,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!batchCreateTbl) {
         g_Dbs.db[i].superTbls[j].batchCreateTableNum = 1000;
       } else {
-        printf("failed to read json, batch_create_tbl_num not found");
+        printf("ERROR: failed to read json, batch_create_tbl_num not found\n");
         goto PARSE_OVER;
       }      
 
@@ -3039,13 +3069,13 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!childTblExists) {
         g_Dbs.db[i].superTbls[j].childTblExists = TBL_NO_EXISTS;
       } else {
-        printf("failed to read json, child_table_exists not found");
+        printf("ERROR: failed to read json, child_table_exists not found\n");
         goto PARSE_OVER;
       }
       
       cJSON* count = cJSON_GetObjectItem(stbInfo, "childtable_count");
       if (!count || count->type != cJSON_Number || 0 >= count->valueint) {
-        printf("failed to read json, childtable_count not found");
+        printf("ERROR: failed to read json, childtable_count not found\n");
         goto PARSE_OVER;
       }
       g_Dbs.db[i].superTbls[j].childTblCount = count->valueint;
@@ -3058,7 +3088,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!dataSource) {
         tstrncpy(g_Dbs.db[i].superTbls[j].dataSource, "rand", MAX_DB_NAME_SIZE);
       } else {
-        printf("failed to read json, data_source not found");
+        printf("ERROR: failed to read json, data_source not found\n");
         goto PARSE_OVER;
       }
 
@@ -3070,8 +3100,30 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!insertMode) {
         tstrncpy(g_Dbs.db[i].superTbls[j].insertMode, "taosc", MAX_DB_NAME_SIZE);
       } else {
-        printf("failed to read json, insert_mode not found");
+        printf("ERROR: failed to read json, insert_mode not found\n");
         goto PARSE_OVER;
+      }
+
+      cJSON* childTbl_limit = cJSON_GetObjectItem(stbInfo, "childtable_limit");
+      if (childTbl_limit) {
+        if (childTbl_limit->type != cJSON_Number) {
+            printf("ERROR: failed to read json, childtable_limit\n");
+            goto PARSE_OVER;
+        }
+        g_Dbs.db[i].superTbls[j].childTblLimit = childTbl_limit->valueint;
+      } else {
+        g_Dbs.db[i].superTbls[j].childTblLimit = -1;    // select ... limit -1 means all query result
+      }
+
+      cJSON* childTbl_offset = cJSON_GetObjectItem(stbInfo, "childtable_offset");
+      if (childTbl_offset) {
+        if (childTbl_offset->type != cJSON_Number || 0 > childTbl_offset->valueint) {
+            printf("ERROR: failed to read json, childtable_offset\n");
+            goto PARSE_OVER;
+        }
+        g_Dbs.db[i].superTbls[j].childTblOffset = childTbl_offset->valueint;
+      } else {
+        g_Dbs.db[i].superTbls[j].childTblOffset = 0;
       }
 
       cJSON *ts = cJSON_GetObjectItem(stbInfo, "start_timestamp");
@@ -3080,17 +3132,17 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!ts) {
         tstrncpy(g_Dbs.db[i].superTbls[j].startTimestamp, "now", MAX_DB_NAME_SIZE);
       } else {
-        printf("failed to read json, start_timestamp not found");
+        printf("ERROR: failed to read json, start_timestamp not found\n");
         goto PARSE_OVER;
       }
-    
+
       cJSON* timestampStep = cJSON_GetObjectItem(stbInfo, "timestamp_step");
       if (timestampStep && timestampStep->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].timeStampStep = timestampStep->valueint;
       } else if (!timestampStep) {
         g_Dbs.db[i].superTbls[j].timeStampStep = 1000;
       } else {
-        printf("failed to read json, timestamp_step not found");
+        printf("ERROR: failed to read json, timestamp_step not found\n");
         goto PARSE_OVER;
       }
 
@@ -3103,10 +3155,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!sampleDataBufSize) {
         g_Dbs.db[i].superTbls[j].sampleDataBufSize = 1024*1024 + 1024;
       } else {
-        printf("failed to read json, sample_buf_size not found");
+        printf("ERROR: failed to read json, sample_buf_size not found\n");
         goto PARSE_OVER;
       }      
-       
+
       cJSON *sampleFormat = cJSON_GetObjectItem(stbInfo, "sample_format");
       if (sampleFormat && sampleFormat->type == cJSON_String && sampleFormat->valuestring != NULL) {
         tstrncpy(g_Dbs.db[i].superTbls[j].sampleFormat,
@@ -3114,10 +3166,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!sampleFormat) {
         tstrncpy(g_Dbs.db[i].superTbls[j].sampleFormat, "csv", MAX_DB_NAME_SIZE);
       } else {
-        printf("failed to read json, sample_format not found");
+        printf("ERROR: failed to read json, sample_format not found\n");
         goto PARSE_OVER;
       }      
-      
+
       cJSON *sampleFile = cJSON_GetObjectItem(stbInfo, "sample_file");
       if (sampleFile && sampleFile->type == cJSON_String && sampleFile->valuestring != NULL) {
         tstrncpy(g_Dbs.db[i].superTbls[j].sampleFile,
@@ -3125,10 +3177,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!sampleFile) {
         memset(g_Dbs.db[i].superTbls[j].sampleFile, 0, MAX_FILE_NAME_LEN);
       } else {
-        printf("failed to read json, sample_file not found");
+        printf("ERROR: failed to read json, sample_file not found\n");
         goto PARSE_OVER;
       }          
-      
+
       cJSON *tagsFile = cJSON_GetObjectItem(stbInfo, "tags_file");
       if (tagsFile && tagsFile->type == cJSON_String && tagsFile->valuestring != NULL) {
         tstrncpy(g_Dbs.db[i].superTbls[j].tagsFile,
@@ -3142,10 +3194,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         memset(g_Dbs.db[i].superTbls[j].tagsFile, 0, MAX_FILE_NAME_LEN);
         g_Dbs.db[i].superTbls[j].tagSource = 0;
       } else {
-        printf("failed to read json, tags_file not found");
+        printf("ERROR: failed to read json, tags_file not found\n");
         goto PARSE_OVER;
       }
-    
+
       cJSON* maxSqlLen = cJSON_GetObjectItem(stbInfo, "max_sql_len");
       if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
         int32_t len = maxSqlLen->valueint;
@@ -3158,7 +3210,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!maxSqlLen) {
         g_Dbs.db[i].superTbls[j].maxSqlLen = TSDB_MAX_SQL_LEN;
       } else {
-        printf("failed to read json, maxSqlLen not found");
+        printf("ERROR: failed to read json, maxSqlLen not found\n");
         goto PARSE_OVER;
       }      
 
@@ -3175,7 +3227,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!multiThreadWriteOneTbl) {
         g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl = 0;
       } else {
-        printf("failed to read json, multiThreadWriteOneTbl not found");
+        printf("ERROR: failed to read json, multiThreadWriteOneTbl not found\n");
         goto PARSE_OVER;
       }
 
@@ -3185,7 +3237,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!numberOfTblInOneSql) {
         g_Dbs.db[i].superTbls[j].numberOfTblInOneSql = 0;
       } else {
-        printf("failed to read json, numberOfTblInOneSql not found");
+        printf("ERROR: failed to read json, numberOfTblInOneSql not found\n");
         goto PARSE_OVER;
       }      
 
@@ -3195,7 +3247,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!rowsPerTbl) {
         g_Dbs.db[i].superTbls[j].rowsPerTbl = 1;
       } else {
-        printf("failed to read json, rowsPerTbl not found");
+        printf("ERROR: failed to read json, rowsPerTbl not found\n");
         goto PARSE_OVER;
       }      
 
@@ -3205,7 +3257,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!disorderRatio) {
         g_Dbs.db[i].superTbls[j].disorderRatio = 0;
       } else {
-        printf("failed to read json, disorderRatio not found");
+        printf("ERROR: failed to read json, disorderRatio not found\n");
         goto PARSE_OVER;
       }      
 
@@ -3215,10 +3267,9 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!disorderRange) {
         g_Dbs.db[i].superTbls[j].disorderRange = 1000;
       } else {
-        printf("failed to read json, disorderRange not found");
+        printf("ERROR: failed to read json, disorderRange not found\n");
         goto PARSE_OVER;
       }
-      
 
       cJSON* insertRows = cJSON_GetObjectItem(stbInfo, "insert_rows");
       if (insertRows && insertRows->type == cJSON_Number) {
@@ -3229,7 +3280,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!insertRows) {
         g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
       } else {
-        printf("failed to read json, insert_rows not found");
+        printf("ERROR: failed to read json, insert_rows not found\n");
         goto PARSE_OVER;
       }
 
@@ -3268,7 +3319,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   } else if (!host) {
     tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_DB_NAME_SIZE);
   } else {
-    printf("failed to read json, host not found\n");
+    printf("ERROR: failed to read json, host not found\n");
     goto PARSE_OVER;
   }
 
@@ -3306,7 +3357,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   } else if (!answerPrompt) {
     g_args.answer_yes = false;
   } else {
-    printf("failed to read json, confirm_parameter_prompt not found");
+    printf("ERROR: failed to read json, confirm_parameter_prompt not found\n");
     goto PARSE_OVER;
   }  
 
@@ -3314,7 +3365,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   if (dbs && dbs->type == cJSON_String && dbs->valuestring != NULL) {
     tstrncpy(g_queryInfo.dbName, dbs->valuestring, MAX_DB_NAME_SIZE);
   } else if (!dbs) {
-    printf("failed to read json, databases not found\n");
+    printf("ERROR: failed to read json, databases not found\n");
     goto PARSE_OVER;
   }
 
@@ -3324,7 +3375,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   } else if (!queryMode) {
     tstrncpy(g_queryInfo.queryMode, "taosc", MAX_TB_NAME_SIZE);
   } else {
-    printf("failed to read json, query_mode not found\n");
+    printf("ERROR: failed to read json, query_mode not found\n");
     goto PARSE_OVER;
   }
   
@@ -3334,7 +3385,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     g_queryInfo.superQueryInfo.concurrent = 0;
     g_queryInfo.superQueryInfo.sqlCount = 0;
   } else if (superQuery->type != cJSON_Object) {
-    printf("failed to read json, super_table_query not found");
+    printf("ERROR: failed to read json, super_table_query not found\n");
     goto PARSE_OVER;
   } else {  
     cJSON* rate = cJSON_GetObjectItem(superQuery, "query_interval");
@@ -3358,7 +3409,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       } else if (0 == strcmp("async", mode->valuestring)) {      
         g_queryInfo.superQueryInfo.subscribeMode = 1;
       } else {
-        printf("failed to read json, subscribe mod error\n");
+        printf("ERROR: failed to read json, subscribe mod error\n");
         goto PARSE_OVER;
       }
     } else {
@@ -3381,7 +3432,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       } else if (0 == strcmp("no", restart->valuestring)) {      
         g_queryInfo.superQueryInfo.subscribeRestart = 0;
       } else {
-        printf("failed to read json, subscribe restart error\n");
+        printf("ERROR: failed to read json, subscribe restart error\n");
         goto PARSE_OVER;
       }
     } else {
@@ -3397,7 +3448,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       } else if (0 == strcmp("no", keepProgress->valuestring)) {      
         g_queryInfo.superQueryInfo.subscribeKeepProgress = 0;
       } else {
-        printf("failed to read json, subscribe keepProgress error\n");
+        printf("ERROR: failed to read json, subscribe keepProgress error\n");
         goto PARSE_OVER;
       }
     } else {
@@ -3409,15 +3460,15 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     if (!superSqls) {
       g_queryInfo.superQueryInfo.sqlCount = 0;
     } else if (superSqls->type != cJSON_Array) {
-      printf("failed to read json, super sqls not found\n");
+      printf("ERROR: failed to read json, super sqls not found\n");
       goto PARSE_OVER;
     } else {  
       int superSqlSize = cJSON_GetArraySize(superSqls);
       if (superSqlSize > MAX_QUERY_SQL_COUNT) {
-        printf("failed to read json, query sql size overflow, max is %d\n", MAX_QUERY_SQL_COUNT);
+        printf("ERROR: failed to read json, query sql size overflow, max is %d\n", MAX_QUERY_SQL_COUNT);
         goto PARSE_OVER;
       }
-      
+
       g_queryInfo.superQueryInfo.sqlCount = superSqlSize;
       for (int j = 0; j < superSqlSize; ++j) {
         cJSON* sql = cJSON_GetArrayItem(superSqls, j);
@@ -3425,7 +3476,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       
         cJSON *sqlStr = cJSON_GetObjectItem(sql, "sql");
         if (!sqlStr || sqlStr->type != cJSON_String || sqlStr->valuestring == NULL) {
-          printf("failed to read json, sql not found\n");
+          printf("ERROR: failed to read json, sql not found\n");
           goto PARSE_OVER;
         }
         tstrncpy(g_queryInfo.superQueryInfo.sql[j], sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
@@ -3436,20 +3487,20 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         } else if (NULL == result) {
           memset(g_queryInfo.superQueryInfo.result[j], 0, MAX_FILE_NAME_LEN);
         } else {
-          printf("failed to read json, super query result file not found\n");
+          printf("ERROR: failed to read json, super query result file not found\n");
           goto PARSE_OVER;
         } 
       }
     }
   }
-  
+
   // sub_table_query 
   cJSON *subQuery = cJSON_GetObjectItem(root, "super_table_query");
   if (!subQuery) {
     g_queryInfo.subQueryInfo.threadCnt = 0;
     g_queryInfo.subQueryInfo.sqlCount = 0;
   } else if (subQuery->type != cJSON_Object) {
-    printf("failed to read json, sub_table_query not found");
+    printf("ERROR: failed to read json, sub_table_query not found\n");
     ret = true;
     goto PARSE_OVER;
   } else {
@@ -3459,29 +3510,29 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     } else if (!subrate) {
       g_queryInfo.subQueryInfo.rate = 0;
     }
-  
+
     cJSON* threads = cJSON_GetObjectItem(subQuery, "threads");
     if (threads && threads->type == cJSON_Number) {
       g_queryInfo.subQueryInfo.threadCnt = threads->valueint;
     } else if (!threads) {
       g_queryInfo.subQueryInfo.threadCnt = 1;
     }
-  
+
     //cJSON* subTblCnt = cJSON_GetObjectItem(subQuery, "childtable_count");
     //if (subTblCnt && subTblCnt->type == cJSON_Number) {
     //  g_queryInfo.subQueryInfo.childTblCount = subTblCnt->valueint;
     //} else if (!subTblCnt) {
     //  g_queryInfo.subQueryInfo.childTblCount = 0;
     //}
-  
+
     cJSON* stblname = cJSON_GetObjectItem(subQuery, "stblname");
     if (stblname && stblname->type == cJSON_String && stblname->valuestring != NULL) {
       tstrncpy(g_queryInfo.subQueryInfo.sTblName, stblname->valuestring, MAX_TB_NAME_SIZE);
     } else {
-      printf("failed to read json, super table name not found\n");
+      printf("ERROR: failed to read json, super table name not found\n");
       goto PARSE_OVER;
     }
-  
+
     cJSON* submode = cJSON_GetObjectItem(subQuery, "mode");
     if (submode && submode->type == cJSON_String && submode->valuestring != NULL) {
       if (0 == strcmp("sync", submode->valuestring)) {      
@@ -3489,13 +3540,13 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       } else if (0 == strcmp("async", submode->valuestring)) {      
         g_queryInfo.subQueryInfo.subscribeMode = 1;
       } else {
-        printf("failed to read json, subscribe mod error\n");
+        printf("ERROR: failed to read json, subscribe mod error\n");
         goto PARSE_OVER;
       }
     } else {
       g_queryInfo.subQueryInfo.subscribeMode = 0;
     }
-    
+
     cJSON* subinterval = cJSON_GetObjectItem(subQuery, "interval");
     if (subinterval && subinterval->type == cJSON_Number) {
       g_queryInfo.subQueryInfo.subscribeInterval = subinterval->valueint;
@@ -3512,7 +3563,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       } else if (0 == strcmp("no", subrestart->valuestring)) {      
         g_queryInfo.subQueryInfo.subscribeRestart = 0;
       } else {
-        printf("failed to read json, subscribe restart error\n");
+        printf("ERROR: failed to read json, subscribe restart error\n");
         goto PARSE_OVER;
       }
     } else {
@@ -3526,7 +3577,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       } else if (0 == strcmp("no", subkeepProgress->valuestring)) {      
         g_queryInfo.subQueryInfo.subscribeKeepProgress = 0;
       } else {
-        printf("failed to read json, subscribe keepProgress error\n");
+        printf("ERROR: failed to read json, subscribe keepProgress error\n");
         goto PARSE_OVER;
       }
     } else {
@@ -3538,12 +3589,12 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     if (!subsqls) {
       g_queryInfo.subQueryInfo.sqlCount = 0;
     } else if (subsqls->type != cJSON_Array) {
-      printf("failed to read json, super sqls not found\n");
+      printf("ERROR: failed to read json, super sqls not found\n");
       goto PARSE_OVER;
     } else {  
       int superSqlSize = cJSON_GetArraySize(subsqls);
       if (superSqlSize > MAX_QUERY_SQL_COUNT) {
-        printf("failed to read json, query sql size overflow, max is %d\n", MAX_QUERY_SQL_COUNT);
+        printf("ERROR: failed to read json, query sql size overflow, max is %d\n", MAX_QUERY_SQL_COUNT);
         goto PARSE_OVER;
       }
     
@@ -3554,7 +3605,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         
         cJSON *sqlStr = cJSON_GetObjectItem(sql, "sql");
         if (!sqlStr || sqlStr->type != cJSON_String || sqlStr->valuestring == NULL) {
-          printf("failed to read json, sql not found\n");
+          printf("ERROR: failed to read json, sql not found\n");
           goto PARSE_OVER;
         }
         tstrncpy(g_queryInfo.subQueryInfo.sql[j], sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
@@ -3565,7 +3616,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         } else if (NULL == result) {
           memset(g_queryInfo.subQueryInfo.result[j], 0, MAX_FILE_NAME_LEN);
         }  else {
-          printf("failed to read json, sub query result file not found\n");
+          printf("ERROR: failed to read json, sub query result file not found\n");
           goto PARSE_OVER;
         } 
       }
@@ -3604,7 +3655,7 @@ static bool getInfoFromJsonFile(char* file) {
   content[len] = 0;
   cJSON* root = cJSON_Parse(content);
   if (root == NULL) {
-    printf("failed to cjson parse %s, invalid json format", file);
+    printf("ERROR: failed to cjson parse %s, invalid json format\n", file);
     goto PARSE_OVER;
   }
 
@@ -3617,13 +3668,13 @@ static bool getInfoFromJsonFile(char* file) {
     } else if (0 == strcasecmp("subscribe", filetype->valuestring)) {
       g_args.test_mode = SUBSCRIBE_MODE;
     } else {
-      printf("failed to read json, filetype not support\n");
+      printf("ERROR: failed to read json, filetype not support\n");
       goto PARSE_OVER;
     }
   } else if (!filetype) {
     g_args.test_mode = INSERT_MODE;
   } else {
-    printf("failed to read json, filetype not found\n");
+    printf("ERROR: failed to read json, filetype not found\n");
     goto PARSE_OVER;
   }
 
@@ -3634,7 +3685,7 @@ static bool getInfoFromJsonFile(char* file) {
   } else if (SUBSCRIBE_MODE == g_args.test_mode) {
     ret = getMetaFromQueryJsonFile(root);
   } else {
-    printf("input json file type error! please input correct file type: insert or query or subscribe\n");
+    printf("ERROR: input json file type error! please input correct file type: insert or query or subscribe\n");
     goto PARSE_OVER;
   } 
 
@@ -4507,8 +4558,8 @@ void *asyncWrite(void *sarg) {
   return NULL;
 }
 
-void startMultiThreadInsertData(int threads, char* db_name, char* precision,
-        SSuperTable* superTblInfo) {
+static void startMultiThreadInsertData(int threads, char* db_name,
+        char* precision,SSuperTable* superTblInfo) {
 
     pthread_t *pids = malloc(threads * sizeof(pthread_t));
     threadInfo *infos = malloc(threads * sizeof(threadInfo));
@@ -4617,7 +4668,7 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision,
       pthread_create(pids + i, NULL, asyncWrite, t_info);
     }
   }
-  
+
   for (int i = 0; i < threads; i++) {
     pthread_join(pids[i], NULL);
   }
@@ -4658,7 +4709,8 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision,
           superTblInfo->totalAffectedRows,
           threads, db_name, superTblInfo->sTblName,
           superTblInfo->totalRowsInserted / t);
-    fprintf(g_fpOfInsertResult, "Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s. %2.f records/second\n\n", 
+    fprintf(g_fpOfInsertResult,
+          "Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s. %2.f records/second\n\n", 
           t, superTblInfo->totalRowsInserted,
           superTblInfo->totalAffectedRows,
           threads, db_name, superTblInfo->sTblName,
@@ -4820,7 +4872,7 @@ void *readMetric(void *sarg) {
 }
 
 
-int insertTestProcess() {
+static int insertTestProcess() {
 
   setupForAnsiEscape();
   int ret = printfInsertMeta();
@@ -4842,7 +4894,7 @@ int insertTestProcess() {
     printf("Press enter key to continue\n\n");
     (void)getchar();
   }
-  
+ 
   init_rand_data();
 
   // create database and super tables
@@ -4863,10 +4915,10 @@ int insertTestProcess() {
   end = getCurrentTime();
 
   if (g_totalChildTables > 0) {
-    printf("Spent %.4f seconds to create %d tables with %d thread(s)\n\n", 
+    printf("Spent %.4f seconds to create %d tables with %d thread(s)\n\n",
             end - start, g_totalChildTables, g_Dbs.threadCount);
-    fprintf(g_fpOfInsertResult, 
-            "Spent %.4f seconds to create %d tables with %d thread(s)\n\n", 
+    fprintf(g_fpOfInsertResult,
+            "Spent %.4f seconds to create %d tables with %d thread(s)\n\n",
             end - start, g_totalChildTables, g_Dbs.threadCount);
   }
 
