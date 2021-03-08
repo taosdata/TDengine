@@ -228,7 +228,6 @@ typedef struct SSuperTable_S {
   int          disorderRange;            // ms or us by database precision
   int          maxSqlLen;                // 
   
-//  int64_t      insertRows;               // 0: no limit
   int          timeStampStep;
   char         startTimestamp[MAX_TB_NAME_SIZE];  // 
   char         sampleFormat[MAX_TB_NAME_SIZE];  // csv, json
@@ -1086,7 +1085,6 @@ static int printfInsertMeta() {
       printf("      childTblPrefix:    \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblPrefix);      
       printf("      dataSource:        \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].dataSource);      
       printf("      insertMode:        \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].insertMode);      
-//      printf("      insertRows:        \033[33m%"PRId64"\033[0m\n", g_Dbs.db[i].superTbls[j].insertRows); 
 
       if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
         printf("      multiThreadWriteOneTbl:  \033[33mno\033[0m\n");     
@@ -1233,7 +1231,6 @@ static void printfInsertMetaToFile(FILE* fp) {
       fprintf(fp, "      childTblPrefix:    %s\n",  g_Dbs.db[i].superTbls[j].childTblPrefix);      
       fprintf(fp, "      dataSource:        %s\n",  g_Dbs.db[i].superTbls[j].dataSource);      
       fprintf(fp, "      insertMode:        %s\n",  g_Dbs.db[i].superTbls[j].insertMode);      
-//      fprintf(fp, "      insertRows:        %"PRId64"\n", g_Dbs.db[i].superTbls[j].insertRows); 
 
       if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
         fprintf(fp, "      multiThreadWriteOneTbl:  no\n");     
@@ -3231,20 +3228,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         printf("failed to read json, disorderRange not found");
         goto PARSE_OVER;
       }
-/*
-      cJSON* insertRows = cJSON_GetObjectItem(stbInfo, "insert_rows");
-      if (insertRows && insertRows->type == cJSON_Number) {
-        g_Dbs.db[i].superTbls[j].insertRows = insertRows->valueint;
-        //if (0 == g_Dbs.db[i].superTbls[j].insertRows) {
-        //  g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
-        //}
-      } else if (!insertRows) {
-        g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
-      } else {
-        printf("failed to read json, insert_rows not found");
-        goto PARSE_OVER;
-      }
-*/
       if (NO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable
               || (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists)) {
         continue;
@@ -3788,7 +3771,6 @@ static void syncWriteForNumberOfTblInOneSql(
 
   int64_t st = 0;
   int64_t et = 0;
-//  for (int i = 0; i < superTblInfo->insertRows;) {
   for (int i = 0; i < g_args.num_of_RPR;) {
     int32_t  tbl_id = 0;
     for (int tID = winfo->start_table_id; tID <= winfo->end_table_id; ) {
@@ -3912,7 +3894,6 @@ static void syncWriteForNumberOfTblInOneSql(
             k++;
             totalRowsInserted++;
 
-  //          if (inserted >= superTblInfo->insertRows || 
             if (inserted >= g_args.num_of_RPR ||
                     (superTblInfo->maxSqlLen - len) < (superTblInfo->lenOfOneRow + 128)) {
               tID = tbl_id + 1;
@@ -4244,16 +4225,11 @@ static void* syncWriteWithStb(void *sarg) {
   int64_t time_counter = winfo->start_time;
   uint64_t st = 0;
   uint64_t et = 0;
-/*
-  debugPrint("%s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__,
-      superTblInfo->insertRows);
-  for (int i = 0; i < superTblInfo->insertRows;) {
-*/
   for (int i = 0; i < g_args.num_of_RPR;) {
 
     for (uint32_t tID = winfo->start_table_id; tID <= winfo->end_table_id;
         tID++) {
-      int64_t inserted = i;
+      int64_t inserted = 0;
       uint64_t tmp_time = time_counter;
 
       if (i > 0 && g_args.insert_interval 
@@ -4355,13 +4331,8 @@ static void* syncWriteWithStb(void *sarg) {
         totalRowsInserted++;
         debugPrint("%s() LN%d totalInserted=%"PRId64" inserted=%"PRId64"\n", __func__, __LINE__, totalRowsInserted, inserted);
   
-//        if (inserted > superTblInfo->insertRows)
         if (inserted > g_args.num_of_RPR)
             break;
-/*        if (inserted >= superTblInfo->insertRows 
-                  || (superTblInfo->maxSqlLen - len) < (superTblInfo->lenOfOneRow + 128)) 
-              break;
-*/
 
         if (0 == strncasecmp(superTblInfo->insertMode, "taosc", strlen("taosc"))) {
           //printf("===== sql: %s \n\n", buffer);
@@ -4469,7 +4440,6 @@ void callBack(void *param, TAOS_RES *res, int code) {
   char *data   = calloc(1, MAX_DATA_SIZE);
   char *pstr = buffer;
   pstr += sprintf(pstr, "insert into %s.%s%d values", winfo->db_name, winfo->tb_prefix, winfo->start_table_id);
-//  if (winfo->counter >= winfo->superTblInfo->insertRows) {
   if (winfo->counter >= g_args.num_of_RPR) {
     winfo->start_table_id++;
     winfo->counter = 0;
@@ -4496,7 +4466,6 @@ void callBack(void *param, TAOS_RES *res, int code) {
     pstr += sprintf(pstr, "%s", data);
     winfo->counter++;
 
-//    if (winfo->counter >= winfo->superTblInfo->insertRows) {
     if (winfo->counter >= g_args.num_of_RPR) {
       break;
     }
@@ -4715,13 +4684,7 @@ void *readTable(void *sarg) {
     return NULL;
   }
 
-    int num_of_DPT;
-/*  if (rinfo->superTblInfo) {
-    num_of_DPT = rinfo->superTblInfo->insertRows; //  nrecords_per_table;
-  } else {
-  */
-      num_of_DPT = g_args.num_of_DPT;
-//  }
+  int num_of_DPT = g_args.num_of_DPT;
 
   int num_of_tables = rinfo->end_table_id - rinfo->start_table_id + 1;
   int totalData = num_of_DPT * num_of_tables;
@@ -4784,7 +4747,6 @@ void *readMetric(void *sarg) {
     return NULL;
   }
 
-//  int num_of_DPT = rinfo->superTblInfo->insertRows;
   int num_of_DPT = g_args.num_of_DPT;
   int num_of_tables = rinfo->end_table_id - rinfo->start_table_id + 1;
   int totalData = num_of_DPT * num_of_tables;
@@ -4904,7 +4866,6 @@ int insertTestProcess() {
         if (g_Dbs.db[i].superTblCount > 0) {
             for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
                 SSuperTable* superTblInfo = &g_Dbs.db[i].superTbls[j];
-//                if (0 == g_Dbs.db[i].superTbls[j].insertRows) {
                 if (0 == g_args.num_of_DPT) {
                     continue;
                 }
@@ -5530,7 +5491,6 @@ void setParaFromArg(){
             "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
     g_Dbs.db[0].superTbls[0].timeStampStep = 10;
   
- //   g_Dbs.db[0].superTbls[0].insertRows = g_args.num_of_DPT;
     g_Dbs.db[0].superTbls[0].maxSqlLen = TSDB_PAYLOAD_SIZE;
 
     g_Dbs.db[0].superTbls[0].columnCount = 0;
