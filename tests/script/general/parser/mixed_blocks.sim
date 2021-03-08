@@ -5,7 +5,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
 
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = mb_db
@@ -59,7 +59,7 @@ sql show databases
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 2000
+sleep 500
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 
@@ -144,4 +144,20 @@ if $data03 != 319 then
   return -1
 endi
 
+print ===================> TD-2488
+sql create table m1(ts timestamp, k int) tags(a int);
+sql create table t1 using m1 tags(1);
+sql create table t2 using m1 tags(2);
+sql insert into t1 values('2020-1-1 1:1:1', 1);
+sql insert into t1 values('2020-1-1 1:10:1', 2);
+sql insert into t2 values('2020-1-1 1:5:1', 99);
+
+print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 500
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sql select ts from m1 where ts='2020-1-1 1:5:1'
+if $rows != 1 then
+  return -1
+endi

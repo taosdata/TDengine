@@ -5,7 +5,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
 
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = wh_db
@@ -324,7 +324,7 @@ while $i < 1
 endw
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 2000
+sleep 500
 
 system sh/exec.sh -n dnode1 -s start
 

@@ -72,7 +72,7 @@ static int32_t mnodeMnodeActionInsert(SSdbRow *pRow) {
   pDnode->isMgmt = true;
   mnodeDecDnodeRef(pDnode);
 
-  mInfo("mnode:%d, fqdn:%s ep:%s port:%u, do insert action", pMnode->mnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp,
+  mInfo("mnode:%d, fqdn:%s ep:%s port:%u is created", pMnode->mnodeId, pDnode->dnodeFqdn, pDnode->dnodeEp,
         pDnode->dnodePort);
   return TSDB_CODE_SUCCESS;
 }
@@ -136,14 +136,14 @@ int32_t mnodeInitMnodes() {
   mnodeMnodeInitLock();
 
   SMnodeObj tObj;
-  tsMnodeUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+  tsMnodeUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj);
 
   SSdbTableDesc desc = {
     .id           = SDB_TABLE_MNODE,
     .name         = "mnodes",
     .hashSessions = TSDB_DEFAULT_MNODES_HASH_SIZE,
     .maxRowSize   = tsMnodeUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_INT,
     .fpInsert     = mnodeMnodeActionInsert,
     .fpDelete     = mnodeMnodeActionDelete,
@@ -176,7 +176,7 @@ void mnodeCleanupMnodes() {
 }
 
 int32_t mnodeGetMnodesNum() { 
-  return sdbGetNumOfRows(tsMnodeSdb); 
+  return (int32_t)sdbGetNumOfRows(tsMnodeSdb); 
 }
 
 void *mnodeGetMnode(int32_t mnodeId) {
@@ -202,13 +202,13 @@ void mnodeCancelGetNextMnode(void *pIter) {
 void mnodeUpdateMnodeEpSet(SMInfos *pMinfos) {
   bool    set = false;
   SMInfos mInfos = {0};
-  mInfo("vgId:1, update mnodes epSet, numOfMnodes:%d pMinfos:%p", mnodeGetMnodesNum(), pMinfos);
 
   if (pMinfos != NULL) {
+    mInfo("vgId:1, update mnodes epSet, numOfMinfos:%d", pMinfos->mnodeNum);
     set = true;
     mInfos = *pMinfos;
-  }
-  else {
+  } else {
+    mInfo("vgId:1, update mnodes epSet, numOfMnodes:%d", mnodeGetMnodesNum());
     int32_t index = 0;
     void *  pIter = NULL;
     while (1) {
@@ -273,14 +273,14 @@ void mnodeUpdateMnodeEpSet(SMInfos *pMinfos) {
   mnodeMnodeUnLock();
 }
 
-void mnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet) {
+void mnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet, bool redirect) {
   mnodeMnodeRdLock();
   *epSet = tsMEpForPeer;
   mnodeMnodeUnLock();
 
   mTrace("vgId:1, mnodes epSet for peer is returned, num:%d inUse:%d", tsMEpForPeer.numOfEps, tsMEpForPeer.inUse);
   for (int32_t i = 0; i < epSet->numOfEps; ++i) {
-    if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort + TSDB_PORT_DNODEDNODE) {
+    if (redirect && strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort + TSDB_PORT_DNODEDNODE) {
       epSet->inUse = (i + 1) % epSet->numOfEps;
       mTrace("vgId:1, mnode:%d, for peer ep:%s:%u, set inUse to %d", i, epSet->fqdn[i], htons(epSet->port[i]), epSet->inUse);
     } else {
@@ -289,14 +289,19 @@ void mnodeGetMnodeEpSetForPeer(SRpcEpSet *epSet) {
   }
 }
 
-void mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet) {
+void mnodeGetMnodeEpSetForShell(SRpcEpSet *epSet, bool redirect) {
   mnodeMnodeRdLock();
   *epSet = tsMEpForShell;
   mnodeMnodeUnLock();
 
+  if (mnodeGetDnodesNum() <= 1) {
+    epSet->numOfEps = 0;
+    return;
+  }
+
   mTrace("vgId:1, mnodes epSet for shell is returned, num:%d inUse:%d", tsMEpForShell.numOfEps, tsMEpForShell.inUse);
   for (int32_t i = 0; i < epSet->numOfEps; ++i) {
-    if (strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
+    if (redirect && strcmp(epSet->fqdn[i], tsLocalFqdn) == 0 && htons(epSet->port[i]) == tsServerPort) {
       epSet->inUse = (i + 1) % epSet->numOfEps;
       mTrace("vgId:1, mnode:%d, for shell ep:%s:%u, set inUse to %d", i, epSet->fqdn[i], htons(epSet->port[i]), epSet->inUse);
     } else {
@@ -372,6 +377,25 @@ static int32_t mnodeCreateMnodeCb(SMnodeMsg *pMsg, int32_t code) {
   return code;
 }
 
+static bool mnodeAllOnline() {
+  void *pIter = NULL;
+  bool  allOnline = true;
+
+  while (1) {
+    SMnodeObj *pMnode = NULL;
+    pIter = mnodeGetNextMnode(pIter, &pMnode);
+    if (pMnode == NULL) break;
+    if (pMnode->role != TAOS_SYNC_ROLE_MASTER && pMnode->role != TAOS_SYNC_ROLE_SLAVE) {
+      allOnline = false;
+      mDebug("mnode:%d, role:%s, not online", pMnode->mnodeId, syncRole[pMnode->role]);
+      mnodeDecMnodeRef(pMnode);
+    }
+  }
+  mnodeCancelGetNextMnode(pIter);
+
+  return allOnline;
+}
+
 void mnodeCreateMnode(int32_t dnodeId, char *dnodeEp, bool needConfirm) {
   SMnodeObj *pMnode = calloc(1, sizeof(SMnodeObj));
   pMnode->mnodeId = dnodeId;
@@ -383,6 +407,11 @@ void mnodeCreateMnode(int32_t dnodeId, char *dnodeEp, bool needConfirm) {
     .pObj    = pMnode,
     .fpRsp   = mnodeCreateMnodeCb
   };
+
+  if (needConfirm && !mnodeAllOnline()) {
+    mDebug("wait all mnode online then create new mnode");
+    return;
+  }
 
   int32_t code = TSDB_CODE_SUCCESS;
   if (needConfirm) {

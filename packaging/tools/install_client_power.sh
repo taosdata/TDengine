@@ -85,8 +85,8 @@ function install_bin() {
   # Remove links
   ${csudo} rm -f ${bin_link_dir}/power         || :
   if [ "$osType" != "Darwin" ]; then
-      ${csudo} rm -f ${bin_link_dir}/powerdemo || :
-      ${csudo} rm -f ${bin_link_dir}/powerdump || :
+      ${csudo} rm -f ${bin_link_dir}/powerdemo  || :
+      ${csudo} rm -f ${bin_link_dir}/powerdump  || :
   fi
   ${csudo} rm -f ${bin_link_dir}/rmpower       || :
   ${csudo} rm -f ${bin_link_dir}/set_core      || :

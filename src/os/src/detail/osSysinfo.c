@@ -18,6 +18,7 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
+#include "taoserror.h"
 
 #ifndef TAOS_OS_FUNC_SYSINFO
 
@@ -44,6 +45,21 @@ static char  tsProcCpuFile[25] = {0};
 static char  tsProcMemFile[25] = {0};
 static char  tsProcIOFile[25] = {0};
 static float tsPageSizeKB = 0;
+
+static void taosGetProcInfos() {
+  tsPageSize = sysconf(_SC_PAGESIZE);
+  tsOpenMax = sysconf(_SC_OPEN_MAX);
+  tsStreamMax = sysconf(_SC_STREAM_MAX);
+
+  tsProcId = (pid_t)syscall(SYS_gettid);
+  tsPageSizeKB = (float)(sysconf(_SC_PAGESIZE)) / 1024;
+
+  snprintf(tsProcMemFile, 25, "/proc/%d/status", tsProcId);
+  snprintf(tsProcCpuFile, 25, "/proc/%d/stat", tsProcId);
+  snprintf(tsProcIOFile, 25, "/proc/%d/io", tsProcId);
+}
+
+static int32_t taosGetTotalMemory() { return (int32_t)((float)sysconf(_SC_PHYS_PAGES) * tsPageSizeKB / 1024); }
 
 bool taosGetSysMemory(float *memoryUsedMB) {
   float memoryAvailMB = (float)sysconf(_SC_AVPHYS_PAGES) * tsPageSizeKB / 1024;
@@ -105,7 +121,8 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   }
 
   char cpu[10] = {0};
-  sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system, &cpuInfo->idle);
+  sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system,
+         &cpuInfo->idle);
 
   tfree(line);
   fclose(fp);
@@ -131,7 +148,8 @@ static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   for (int i = 0, blank = 0; line[i] != 0; ++i) {
     if (line[i] == ' ') blank++;
     if (blank == PROCESS_ITEM) {
-      sscanf(line + i + 1, "%" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &cpuInfo->utime, &cpuInfo->stime, &cpuInfo->cutime, &cpuInfo->cstime);
+      sscanf(line + i + 1, "%" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, &cpuInfo->utime, &cpuInfo->stime,
+             &cpuInfo->cutime, &cpuInfo->cstime);
       break;
     }
   }
@@ -162,12 +180,12 @@ static void taosGetSystemTimezone() {
   char  buf[68] = {0};
   if (f != NULL) {
     int len = fread(buf, 64, 1, f);
-    if(len < 64 && ferror(f)) {
+    if (len < 64 && ferror(f)) {
       fclose(f);
       uError("read /etc/timezone error, reason:%s", strerror(errno));
       return;
     }
-    
+
     fclose(f);
 
     buf[sizeof(buf) - 1] = 0;
@@ -231,7 +249,7 @@ static void taosGetSystemLocale() {  // get and set default locale
   if (cfg_locale && cfg_locale->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
     locale = setlocale(LC_CTYPE, "");
     if (locale == NULL) {
-      uError("can't get locale from system, set it to en_US.UTF-8");
+      uError("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
       strcpy(tsLocale, "en_US.UTF-8");
     } else {
       tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
@@ -257,6 +275,8 @@ static void taosGetSystemLocale() {  // get and set default locale
     }
   }
 }
+
+static int32_t taosGetCpuCores() { return (int32_t)sysconf(_SC_NPROCESSORS_ONLN); }
 
 bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   static uint64_t lastSysUsed = 0;
@@ -297,43 +317,17 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   return true;
 }
 
-bool taosGetDisk() {
+int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   struct statvfs info;
-  const double   unit = 1024 * 1024 * 1024;
-  
-  if (tscEmbedded) {
-    if (statvfs(tsDataDir, &info)) {
-      //tsTotalDataDirGB = 0;
-      //tsAvailDataDirGB = 0;
-      uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
-      return false;
-    } else {
-      tsTotalDataDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
-      tsAvailDataDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
-    }
-  }
-
-  if (statvfs(tsLogDir, &info)) {
-    //tsTotalLogDirGB = 0;
-    //tsAvailLogDirGB = 0;
-    uError("failed to get disk size, logDir:%s errno:%s", tsLogDir, strerror(errno));
-    return false;
+  if (statvfs(tsDataDir, &info)) {
+    uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
   } else {
-    tsTotalLogDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
-    tsAvailLogDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
+    diskSize->tsize = info.f_blocks * info.f_frsize;
+    diskSize->avail = info.f_bavail * info.f_frsize;
+    return 0;
   }
-
-  if (statvfs("/tmp", &info)) {
-    //tsTotalTmpDirGB = 0;
-    //tsAvailTmpDirectorySpace = 0;
-    uError("failed to get disk size, tmpDir:/tmp errno:%s", strerror(errno));
-    return false;
-  } else {
-    tsTotalTmpDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
-    tsAvailTmpDirectorySpace = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
-  }
-
-  return true;
 }
 
 static bool taosGetCardInfo(int64_t *bytes) {
@@ -344,13 +338,12 @@ static bool taosGetCardInfo(int64_t *bytes) {
     return false;
   }
 
-
   size_t len = 2048;
   char * line = calloc(1, len);
 
   while (!feof(fp)) {
     memset(line, 0, len);
-    
+
     int64_t rbytes = 0;
     int64_t rpackts = 0;
     int64_t tbytes = 0;
@@ -465,7 +458,7 @@ bool taosGetProcIO(float *readKB, float *writeKB) {
   static int64_t lastReadbyte = -1;
   static int64_t lastWritebyte = -1;
 
-  int64_t curReadbyte  = 0;
+  int64_t curReadbyte = 0;
   int64_t curWritebyte = 0;
 
   if (!taosReadProcIO(&curReadbyte, &curWritebyte)) {
@@ -490,23 +483,15 @@ bool taosGetProcIO(float *readKB, float *writeKB) {
 }
 
 void taosGetSystemInfo() {
-  tsNumOfCores = (int32_t)sysconf(_SC_NPROCESSORS_ONLN);
-  tsPageSize = sysconf(_SC_PAGESIZE);
-  tsOpenMax = sysconf(_SC_OPEN_MAX);
-  tsStreamMax = sysconf(_SC_STREAM_MAX);
+  taosGetProcInfos();
 
-  tsProcId = (pid_t)syscall(SYS_gettid);
-  tsPageSizeKB = (float)(sysconf(_SC_PAGESIZE)) / 1024;
-  tsTotalMemoryMB = (int32_t)((float)sysconf(_SC_PHYS_PAGES) * tsPageSizeKB / 1024);
-
-  snprintf(tsProcMemFile, 25, "/proc/%d/status", tsProcId);
-  snprintf(tsProcCpuFile, 25, "/proc/%d/stat", tsProcId);
-  snprintf(tsProcIOFile, 25, "/proc/%d/io", tsProcId);
+  tsNumOfCores = taosGetCpuCores();
+  tsTotalMemoryMB = taosGetTotalMemory();
 
   float tmp1, tmp2;
   taosGetSysMemory(&tmp1);
   taosGetProcMemory(&tmp2);
-  taosGetDisk();
+  // taosGetDisk();
   taosGetBandSpeed(&tmp1);
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
@@ -533,7 +518,6 @@ void taosPrintOsInfo() {
   uInfo(" os release:             %s", buf.release);
   uInfo(" os version:             %s", buf.version);
   uInfo(" os machine:             %s", buf.machine);
-  uInfo("==================================");
 }
 
 void taosKillSystem() {
@@ -573,16 +557,16 @@ void taosSetCoreDump() {
   if (0 == tsEnableCoreFile) {
     return;
   }
-  
+
   // 1. set ulimit -c unlimited
   struct rlimit rlim;
   struct rlimit rlim_new;
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    #ifndef _ALPINE
+#ifndef _ALPINE
     uInfo("the old unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
-    #else
+#else
     uInfo("the old unlimited para: rlim_cur=%llu, rlim_max=%llu", rlim.rlim_cur, rlim.rlim_max);
-    #endif
+#endif
     rlim_new.rlim_cur = RLIM_INFINITY;
     rlim_new.rlim_max = RLIM_INFINITY;
     if (setrlimit(RLIMIT_CORE, &rlim_new) != 0) {
@@ -594,57 +578,56 @@ void taosSetCoreDump() {
   }
 
   if (getrlimit(RLIMIT_CORE, &rlim) == 0) {
-    #ifndef _ALPINE
+#ifndef _ALPINE
     uInfo("the new unlimited para: rlim_cur=%" PRIu64 ", rlim_max=%" PRIu64, rlim.rlim_cur, rlim.rlim_max);
-    #else
+#else
     uInfo("the new unlimited para: rlim_cur=%llu, rlim_max=%llu", rlim.rlim_cur, rlim.rlim_max);
-    #endif
+#endif
   }
 
 #ifndef _TD_ARM_
   // 2. set the path for saving core file
   struct __sysctl_args args;
-  int     old_usespid = 0;
-  size_t  old_len     = 0;
-  int     new_usespid = 1;
-  size_t  new_len     = sizeof(new_usespid);
-  
+
+  int    old_usespid = 0;
+  size_t old_len = 0;
+  int    new_usespid = 1;
+  size_t new_len = sizeof(new_usespid);
+
   int name[] = {CTL_KERN, KERN_CORE_USES_PID};
-  
+
   memset(&args, 0, sizeof(struct __sysctl_args));
-  args.name    = name;
-  args.nlen    = sizeof(name)/sizeof(name[0]);
-  args.oldval  = &old_usespid;
+  args.name = name;
+  args.nlen = sizeof(name) / sizeof(name[0]);
+  args.oldval = &old_usespid;
   args.oldlenp = &old_len;
-  args.newval  = &new_usespid;
-  args.newlen  = new_len;
-  
+  args.newval = &new_usespid;
+  args.newlen = new_len;
+
   old_len = sizeof(old_usespid);
-  
+
   if (syscall(SYS__sysctl, &args) == -1) {
-      uInfo("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
+    uInfo("_sysctl(kern_core_uses_pid) set fail: %s", strerror(errno));
   }
-  
+
   uInfo("The old core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
 
-
   old_usespid = 0;
-  old_len     = 0;
+  old_len = 0;
   memset(&args, 0, sizeof(struct __sysctl_args));
-  args.name    = name;
-  args.nlen    = sizeof(name)/sizeof(name[0]);
-  args.oldval  = &old_usespid;
+  args.name = name;
+  args.nlen = sizeof(name) / sizeof(name[0]);
+  args.oldval = &old_usespid;
   args.oldlenp = &old_len;
-  
+
   old_len = sizeof(old_usespid);
-  
+
   if (syscall(SYS__sysctl, &args) == -1) {
-      uInfo("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
+    uInfo("_sysctl(kern_core_uses_pid) get fail: %s", strerror(errno));
   }
-  
+
   uInfo("The new core_uses_pid[%" PRIu64 "]: %d", old_len, old_usespid);
 #endif
-
 }
 
 bool taosGetSystemUid(char *uid) {

@@ -61,7 +61,7 @@ TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid, TSKEY dflt) {
   SSub* pSub = (SSub*)sub;
 
   SSubscriptionProgress target = {.uid = uid, .key = 0};
-  SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress);
+  SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress, TD_EQ);
   if (p == NULL) {
     return dflt;
   }
@@ -69,14 +69,17 @@ TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid, TSKEY dflt) {
 }
 
 void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts) {
-  if( sub == NULL)
+  if( sub == NULL) {
     return;
+  }
+
   SSub* pSub = (SSub*)sub;
 
   SSubscriptionProgress target = {.uid = uid, .key = ts};
-  SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress);
+  SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress, TD_EQ);
   if (p != NULL) {
     p->key = ts;
+    tscDebug("subscribe:%s, uid:%"PRIu64" update sub start ts:%"PRId64, pSub->topic, p->uid, p->key);
   }
 }
 
@@ -267,7 +270,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   if (UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
     STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
     SSubscriptionProgress target = {.uid = pTableMeta->id.uid, .key = 0};
-    SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress);
+    SSubscriptionProgress* p = taosArraySearch(pSub->progress, &target, tscCompareSubscriptionProgress, TD_EQ);
     if (p == NULL) {
       taosArrayClear(pSub->progress);
       taosArrayPush(pSub->progress, &target);
@@ -310,7 +313,7 @@ static int tscLoadSubscriptionProgress(SSub* pSub) {
   char buf[TSDB_MAX_SQL_LEN];
   sprintf(buf, "%s/subscribe/%s", tsDataDir, pSub->topic);
 
-  FILE* fp = fopen(buf, "r");
+  FILE* fp = fopen(buf, "rb");
   if (fp == NULL) {
     tscDebug("subscription progress file does not exist: %s", pSub->topic);
     return 1;
@@ -365,7 +368,7 @@ void tscSaveSubscriptionProgress(void* sub) {
   }
 
   sprintf(path, "%s/subscribe/%s", tsDataDir, pSub->topic);
-  FILE* fp = fopen(path, "w+");
+  FILE* fp = fopen(path, "wb+");
   if (fp == NULL) {
     tscError("failed to create progress file for subscription: %s", pSub->topic);
     return;
@@ -502,6 +505,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   if (taosArrayGetSize(pSub->progress) > 0) { // fix crash in single tabel subscription
     pQueryInfo->window.skey = ((SSubscriptionProgress*)taosArrayGet(pSub->progress, 0))->key;
+    tscDebug("subscribe:%s set subscribe skey:%"PRId64, pSub->topic, pQueryInfo->window.skey);
   }
 
   if (pSub->pTimer == NULL) {

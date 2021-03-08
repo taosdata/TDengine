@@ -6,7 +6,7 @@ system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 20
 
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 
 print ============================ step1
@@ -70,9 +70,9 @@ endi
 print ============================ step3
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 2
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 5000
+sleep 3000
 
 sql create table db.t100 using db.st tags(0)
 sql create table db.t101 using db.st tags(1)
@@ -132,9 +132,9 @@ print ============================ step5
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 3
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 5000
+sleep 3000
 
 sql create table db.t200 using db.st tags(0)
 sql create table db.t201 using db.st tags(1)

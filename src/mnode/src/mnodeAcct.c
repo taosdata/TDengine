@@ -81,7 +81,7 @@ static int32_t mnodeAcctActionDecode(SSdbRow *pRow) {
 }
 
 static int32_t mnodeAcctActionRestored() {
-  int32_t numOfRows = sdbGetNumOfRows(tsAcctSdb);
+  int64_t numOfRows = sdbGetNumOfRows(tsAcctSdb);
   if (numOfRows <= 0 && dnodeIsFirstDeploy()) {
     mInfo("dnode first deploy, create root acct");
     int32_t code = mnodeCreateRootAcct();
@@ -97,14 +97,14 @@ static int32_t mnodeAcctActionRestored() {
 
 int32_t mnodeInitAccts() {
   SAcctObj tObj;
-  tsAcctUpdateSize = (int8_t *)tObj.updateEnd - (int8_t *)&tObj;
+  tsAcctUpdateSize = (int32_t)((int8_t *)tObj.updateEnd - (int8_t *)&tObj);
 
   SSdbTableDesc desc = {
     .id           = SDB_TABLE_ACCOUNT,
     .name         = "accounts",
     .hashSessions = TSDB_DEFAULT_ACCOUNTS_HASH_SIZE,
     .maxRowSize   = tsAcctUpdateSize,
-    .refCountPos  = (int8_t *)(&tObj.refCount) - (int8_t *)&tObj,
+    .refCountPos  = (int32_t)((int8_t *)(&tObj.refCount) - (int8_t *)&tObj),
     .keyType      = SDB_KEY_STRING,
     .fpInsert     = mnodeAcctActionInsert,
     .fpDelete     = mnodeAcctActionDelete,
@@ -206,7 +206,7 @@ void mnodeDropUserFromAcct(SAcctObj *pAcct, SUserObj *pUser) {
 }
 
 static int32_t mnodeCreateRootAcct() {
-  int32_t numOfAccts = sdbGetNumOfRows(tsAcctSdb);
+  int64_t numOfAccts = sdbGetNumOfRows(tsAcctSdb);
   if (numOfAccts != 0) return TSDB_CODE_SUCCESS;
 
   SAcctObj *pAcct = malloc(sizeof(SAcctObj));

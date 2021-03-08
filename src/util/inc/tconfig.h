@@ -41,12 +41,15 @@ enum {
 };
 
 enum {
+  TAOS_CFG_VTYPE_INT8,
   TAOS_CFG_VTYPE_INT16,
   TAOS_CFG_VTYPE_INT32,
+  TAOS_CFG_VTYPE_UINT16,
   TAOS_CFG_VTYPE_FLOAT,
   TAOS_CFG_VTYPE_STRING,
   TAOS_CFG_VTYPE_IPSTR,
   TAOS_CFG_VTYPE_DIRECTORY,
+  TAOS_CFG_VTYPE_DATA_DIRCTORY,
 };
 
 enum {
@@ -78,6 +81,7 @@ extern char *     tsCfgStatusStr[];
 void taosReadGlobalLogCfg();
 bool taosReadGlobalCfg();
 void taosPrintGlobalCfg();
+void taosDumpGlobalCfg();
 
 void taosInitConfigOption(SGlobalCfg cfg);
 SGlobalCfg * taosGetConfigOption(const char *option);

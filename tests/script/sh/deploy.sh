@@ -132,10 +132,12 @@ echo "cqdebugFlag            143"                >> $TAOS_CFG
 echo "monitor                0"                  >> $TAOS_CFG
 echo "monitorInterval        1"                  >> $TAOS_CFG
 echo "http                   0"                  >> $TAOS_CFG
+echo "slaveQuery             0"                  >> $TAOS_CFG
 echo "numOfThreadsPerCore    2.0"                >> $TAOS_CFG
 echo "defaultPass            taosdata"           >> $TAOS_CFG
 echo "numOfLogLines          20000000"           >> $TAOS_CFG
 echo "mnodeEqualVnodeNum     0"                  >> $TAOS_CFG
+echo "balanceInterval        1"                  >> $TAOS_CFG
 echo "clog                   2"                  >> $TAOS_CFG
 #echo "cache                 1"                  >> $TAOS_CFG
 echo "days                   10"                  >> $TAOS_CFG

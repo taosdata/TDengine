@@ -24,10 +24,6 @@ extern "C" {
 #include "tstoken.h"
 #include "tsclient.h"
 
-#define VALIDNUMOFCOLS(x) ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
-
-//struct SSchema;
-
 /**
  * get the number of tags of this table
  * @param pTableMeta
@@ -80,32 +76,15 @@ SSchema *tscGetTableColumnSchema(const STableMeta *pMeta, int32_t colIndex);
 SSchema* tscGetColumnSchemaById(STableMeta* pTableMeta, int16_t colId);
 
 /**
- * check if the schema is valid or not, including following aspects:
- * 1. number of columns
- * 2. column types
- * 3. column length
- * 4. column names
- * 5. total length
- *
- * @param pSchema
- * @param numOfCols
- * @return
- */
-bool isValidSchema(struct SSchema *pSchema, int32_t numOfCols);
-
-/**
- * get the schema for the "tbname" column. it is a built column
- * @return
- */
-SSchema tscGetTbnameColumnSchema();
-
-/**
  * create the table meta from the msg
  * @param pTableMetaMsg
  * @param size size of the table meta
  * @return
  */
-STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg, size_t* size);
+STableMeta* tscCreateTableMetaFromMsg(STableMetaMsg* pTableMetaMsg);
+
+bool vgroupInfoIdentical(SNewVgroupInfo *pExisted, SVgroupMsg* src);
+SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg);
 
 #ifdef __cplusplus
 }

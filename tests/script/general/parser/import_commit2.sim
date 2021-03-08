@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c ctime -v 30
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = ic_db
@@ -39,7 +39,7 @@ while $x < $rowNum
 endw 
 print ====== tables created
 
-sleep 3000
+sleep 500
 
 $ts = $ts0 + $delta
 $ts = $ts + 1

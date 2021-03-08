@@ -233,6 +233,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
 
   // We extract the lock to tscBuildHeartBeatMsg function.
 
+  int64_t now = taosGetTimestampMs();
   SSqlObj *pSql = pObj->sqlList;
   while (pSql) {
     /*
@@ -247,7 +248,8 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     tstrncpy(pQdesc->sql, pSql->sqlstr, sizeof(pQdesc->sql));
     pQdesc->stime = htobe64(pSql->stime);
     pQdesc->queryId = htonl(pSql->queryId);
-    pQdesc->useconds = htobe64(pSql->res.useconds);
+    //pQdesc->useconds = htobe64(pSql->res.useconds);
+    pQdesc->useconds = htobe64(now - pSql->stime);
     pQdesc->qHandle = htobe64(pSql->res.qhandle);
 
     pHeartbeat->numOfQueries++;
@@ -262,6 +264,11 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
   SSqlStream *pStream = pObj->streamList;
   while (pStream) {
     tstrncpy(pSdesc->sql, pStream->pSql->sqlstr, sizeof(pSdesc->sql));
+    if (pStream->dstTable == NULL) {
+      pSdesc->dstTable[0] = 0;
+    } else {
+      tstrncpy(pSdesc->dstTable, pStream->dstTable, sizeof(pSdesc->dstTable));
+    }
     pSdesc->streamId = htonl(pStream->streamId);
     pSdesc->num = htobe64(pStream->num);
 

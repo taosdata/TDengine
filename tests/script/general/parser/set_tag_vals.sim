@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 1
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = db
@@ -61,7 +61,7 @@ while $i < $tbNum
 endw 
 print ====== tables created
 
-sleep 2000
+sleep 500
 
 sql show tables
 if $rows != $tbNum then

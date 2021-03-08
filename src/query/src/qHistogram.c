@@ -143,6 +143,9 @@ SHistogramInfo* tHistogramCreateFrom(void* pBuf, int32_t numOfBins) {
 
   SHistogramInfo* pHisto = (SHistogramInfo*)pBuf;
   pHisto->elems = (SHistBin*)((char*)pBuf + sizeof(SHistogramInfo));
+  for(int32_t i = 0; i < numOfBins; ++i) {
+    pHisto->elems[i].val = -DBL_MAX;
+  }
 
   pHisto->maxEntries = numOfBins;
 
@@ -158,8 +161,8 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
   }
 
 #if defined(USE_ARRAYLIST)
-  int32_t idx = vnodeHistobinarySearch((*pHisto)->elems, (*pHisto)->numOfEntries, val);
-  assert(idx >= 0 && idx <= (*pHisto)->maxEntries);
+  int32_t idx = histoBinarySearch((*pHisto)->elems, (*pHisto)->numOfEntries, val);
+  assert(idx >= 0 && idx <= (*pHisto)->maxEntries && (*pHisto)->elems != NULL);
 
   if ((*pHisto)->elems[idx].val == val && idx >= 0) {
     (*pHisto)->elems[idx].num += 1;
@@ -171,17 +174,17 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
     if ((*pHisto)->numOfElems >= 1 && idx < (*pHisto)->numOfEntries) {
       if (idx > 0) {
         assert((*pHisto)->elems[idx - 1].val <= val);
+      } else {
+        assert((*pHisto)->elems[idx].val > val);
       }
-
-      assert((*pHisto)->elems[idx].val > val);
-    } else {
-      assert((*pHisto)->elems[(*pHisto)->numOfEntries].val < val);
+    } else if ((*pHisto)->numOfElems > 0) {
+      assert((*pHisto)->elems[(*pHisto)->numOfEntries].val <= val);
     }
 
     histogramCreateBin(*pHisto, idx, val);
   }
 #else
-  tSkipListKey key = tSkipListCreateKey(TSDB_DATA_TYPE_DOUBLE, &val, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+  tSkipListKey key = tSkipListCreateKey(TSDB_DATA_TYPE_DOUBLE, &val, tDataTypes[TSDB_DATA_TYPE_DOUBLE].nSize);
   SHistBin*    entry = calloc(1, sizeof(SHistBin));
   entry->val = val;
 
@@ -214,7 +217,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
         }
 
         tSkipListKey kx =
-            tSkipListCreateKey(TSDB_DATA_TYPE_DOUBLE, &(*pHisto)->max, tDataTypeDesc[TSDB_DATA_TYPE_DOUBLE].nSize);
+            tSkipListCreateKey(TSDB_DATA_TYPE_DOUBLE, &(*pHisto)->max, tDataTypes[TSDB_DATA_TYPE_DOUBLE].nSize);
         pLast = tSkipListGetOne((*pHisto)->pList, &kx);
       }
     } else {
@@ -356,7 +359,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
   return 0;
 }
 
-int32_t vnodeHistobinarySearch(SHistBin* pEntry, int32_t len, double val) {
+int32_t histoBinarySearch(SHistBin* pEntry, int32_t len, double val) {
   int32_t end = len - 1;
   int32_t start = 0;
 
@@ -466,7 +469,7 @@ void tHistogramPrint(SHistogramInfo* pHisto) {
  */
 int64_t tHistogramSum(SHistogramInfo* pHisto, double v) {
 #if defined(USE_ARRAYLIST)
-  int32_t slotIdx = vnodeHistobinarySearch(pHisto->elems, pHisto->numOfEntries, v);
+  int32_t slotIdx = histoBinarySearch(pHisto->elems, pHisto->numOfEntries, v);
   if (pHisto->elems[slotIdx].val != v) {
     slotIdx -= 1;
 

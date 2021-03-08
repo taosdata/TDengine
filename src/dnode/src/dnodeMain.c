@@ -16,15 +16,14 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taos.h"
-#include "tutil.h"
+#include "tnote.h"
+#include "ttimer.h"
 #include "tconfig.h"
-#include "tglobal.h"
 #include "tfile.h"
 #include "twal.h"
-#include "trpc.h"
-#include "dnode.h"
-#include "dnodeInt.h"
-#include "dnodeMgmt.h"
+#include "tfs.h"
+#include "tsync.h"
+#include "dnodeStep.h"
 #include "dnodePeer.h"
 #include "dnodeModule.h"
 #include "dnodeEps.h"
@@ -33,50 +32,47 @@
 #include "dnodeCheck.h"
 #include "dnodeVRead.h"
 #include "dnodeVWrite.h"
+#include "dnodeVMgmt.h"
+#include "dnodeVnodes.h"
 #include "dnodeMRead.h"
 #include "dnodeMWrite.h"
 #include "dnodeMPeer.h"
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
 
+void *tsDnodeTmr = NULL;
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
 
 static int32_t dnodeInitStorage();
 static void    dnodeCleanupStorage();
 static void    dnodeSetRunStatus(SRunStatus status);
 static void    dnodeCheckDataDirOpenned(char *dir);
-static int32_t dnodeInitComponents();
-static void    dnodeCleanupComponents(int32_t stepId);
 static int     dnodeCreateDir(const char *dir);
 
-typedef struct {
-  const char *const name;
-  int32_t (*init)();
-  void (*cleanup)();
-} SDnodeComponent;
-
-static const SDnodeComponent tsDnodeComponents[] = {
-  {"tfile",     tfInit,              tfCleanup},
-  {"rpc",       rpcInit,             rpcCleanup},
-  {"storage",   dnodeInitStorage,    dnodeCleanupStorage},
-  {"dnodecfg",  dnodeInitCfg,        dnodeCleanupCfg},
-  {"dnodeeps",  dnodeInitEps,        dnodeCleanupEps},
-  {"globalcfg" ,taosCheckGlobalCfg,  NULL},
-  {"mnodeinfos",dnodeInitMInfos,     dnodeCleanupMInfos},
-  {"wal",       walInit,             walCleanUp},
-  {"check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
-  {"vread",     dnodeInitVRead,      dnodeCleanupVRead},
-  {"vwrite",    dnodeInitVWrite,     dnodeCleanupVWrite},
-  {"mread",     dnodeInitMRead,      dnodeCleanupMRead},
-  {"mwrite",    dnodeInitMWrite,     dnodeCleanupMWrite},
-  {"mpeer",     dnodeInitMPeer,      dnodeCleanupMPeer},  
-  {"client",    dnodeInitClient,     dnodeCleanupClient},
-  {"server",    dnodeInitServer,     dnodeCleanupServer},
-  {"mgmt",      dnodeInitMgmt,       dnodeCleanupMgmt},
-  {"modules",   dnodeInitModules,    dnodeCleanupModules},
-  {"mgmt-tmr",  dnodeInitMgmtTimer,  dnodeCleanupMgmtTimer},
-  {"shell",     dnodeInitShell,      dnodeCleanupShell},
-  {"telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
+static SStep tsDnodeSteps[] = {
+  {"dnode-tfile",     tfInit,              tfCleanup},
+  {"dnode-rpc",       rpcInit,             rpcCleanup},
+  {"dnode-globalcfg", taosCheckGlobalCfg,  NULL},
+  {"dnode-storage",   dnodeInitStorage,    dnodeCleanupStorage},
+  {"dnode-cfg",       dnodeInitCfg,        dnodeCleanupCfg},
+  {"dnode-eps",       dnodeInitEps,        dnodeCleanupEps},
+  {"dnode-minfos",    dnodeInitMInfos,     dnodeCleanupMInfos},
+  {"dnode-wal",       walInit,             walCleanUp},
+  {"dnode-sync",      syncInit,            syncCleanUp},
+  {"dnode-check",     dnodeInitCheck,      dnodeCleanupCheck},     // NOTES: dnodeInitCheck must be behind the dnodeinitStorage component !!!
+  {"dnode-vread",     dnodeInitVRead,      dnodeCleanupVRead},
+  {"dnode-vwrite",    dnodeInitVWrite,     dnodeCleanupVWrite},
+  {"dnode-vmgmt",     dnodeInitVMgmt,      dnodeCleanupVMgmt},
+  {"dnode-mread",     dnodeInitMRead,      dnodeCleanupMRead},
+  {"dnode-mwrite",    dnodeInitMWrite,     dnodeCleanupMWrite},
+  {"dnode-mpeer",     dnodeInitMPeer,      dnodeCleanupMPeer},  
+  {"dnode-client",    dnodeInitClient,     dnodeCleanupClient},
+  {"dnode-server",    dnodeInitServer,     dnodeCleanupServer},
+  {"dnode-vnodes",    dnodeInitVnodes,     dnodeCleanupVnodes},
+  {"dnode-modules",   dnodeInitModules,    dnodeCleanupModules},
+  {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
+  {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
+  {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
 };
 
 static int dnodeCreateDir(const char *dir) {
@@ -87,35 +83,44 @@ static int dnodeCreateDir(const char *dir) {
   return 0;
 }
 
-static void dnodeCleanupComponents(int32_t stepId) {
-  for (int32_t i = stepId; i >= 0; i--) {
-    if (tsDnodeComponents[i].cleanup) {
-      (*tsDnodeComponents[i].cleanup)();
-    }
-  }
+static void dnodeCleanupComponents() {
+  int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
+  dnodeStepCleanup(tsDnodeSteps, stepSize);
 }
 
 static int32_t dnodeInitComponents() {
-  int32_t code = 0;
-  for (int32_t i = 0; i < sizeof(tsDnodeComponents) / sizeof(tsDnodeComponents[0]); i++) {
-    if (tsDnodeComponents[i].init() != 0) {
-      dnodeCleanupComponents(i);
-      code = -1;
-      break;
-    }
+  int32_t stepSize = sizeof(tsDnodeSteps) / sizeof(SStep);
+  return dnodeStepInit(tsDnodeSteps, stepSize);
+}
+
+static int32_t dnodeInitTmr() {
+  tsDnodeTmr = taosTmrInit(100, 200, 60000, "DND-DM");
+  if (tsDnodeTmr == NULL) {
+    dError("failed to init dnode timer");
+    return -1;
   }
-  return code;
+
+  return 0;
+}
+
+static void dnodeCleanupTmr() {
+  if (tsDnodeTmr != NULL) {
+    taosTmrCleanUp(tsDnodeTmr);
+    tsDnodeTmr = NULL;
+  }
 }
 
 int32_t dnodeInitSystem() {
   dnodeSetRunStatus(TSDB_RUN_STATUS_INITIALIZE);
   tscEmbedded  = 1;
+  taosIgnSIGPIPE();
   taosBlockSIGPIPE();
   taosResolveCRC();
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
   taosSetCoreDump();
-  signal(SIGPIPE, SIG_IGN);
+  taosInitNotes();
+  dnodeInitTmr();
 
   if (dnodeCreateDir(tsLogDir) < 0) {
    printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
@@ -140,9 +145,9 @@ int32_t dnodeInitSystem() {
     return -1;
   }
 
-  dnodeStartModules();
   dnodeSetRunStatus(TSDB_RUN_STATUS_RUNING);
 
+  dnodeReportStep("TDengine", "initialized successfully", 1);
   dInfo("TDengine is initialized successfully");
 
   return 0;
@@ -151,7 +156,8 @@ int32_t dnodeInitSystem() {
 void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_RUN_STATUS_STOPPED) {
     dnodeSetRunStatus(TSDB_RUN_STATUS_STOPPED);
-    dnodeCleanupComponents(sizeof(tsDnodeComponents) / sizeof(tsDnodeComponents[0]) - 1);
+    dnodeCleanupTmr();
+    dnodeCleanupComponents();
     taos_cleanup();
     taosCloseLog();
   }
@@ -183,32 +189,35 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
-  if (dnodeCreateDir(tsDataDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
-   return -1;
+  if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
+    dError("failed to init TFS since %s", tstrerror(terrno));
+    return -1;
   }
+  strncpy(tsDataDir, TFS_PRIMARY_PATH(), TSDB_FILENAME_LEN);
   sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
   sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
   sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
-  sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
+  // sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
 
   //TODO(dengyihao): no need to init here 
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
   } 
-  //TODO(dengyihao): no need to init here
-  if (dnodeCreateDir(tsVnodeDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsVnodeDir, strerror(errno));
-   return -1;
-  }
+
   if (dnodeCreateDir(tsDnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsDnodeDir, strerror(errno));
    return -1;
-  } 
-  if (dnodeCreateDir(tsVnodeBakDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsVnodeBakDir, strerror(errno));
-   return -1;
+  }
+
+  if (tfsMkdir("vnode") < 0) {
+    dError("failed to create vnode dir since %s", tstrerror(terrno));
+    return -1;
+  }
+
+  if (tfsMkdir("vnode_bak") < 0) {
+    dError("failed to create vnode_bak dir since %s", tstrerror(terrno));
+    return -1;
   }
 
   dnodeCheckDataDirOpenned(tsDnodeDir);
@@ -217,7 +226,7 @@ static int32_t dnodeInitStorage() {
   return 0;
 }
 
-static void dnodeCleanupStorage() {}
+static void dnodeCleanupStorage() { tfsDestroy(); }
 
 bool  dnodeIsFirstDeploy() {
   return strcmp(tsFirst, tsLocalEp) == 0;

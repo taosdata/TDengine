@@ -1,6 +1,10 @@
 cd ../../../debug; cmake ..
 cd ../../../debug; make
 
+./test.sh -f issue/TD-2677.sim
+./test.sh -f issue/TD-2680.sim
+./test.sh -f issue/TD-2713.sim
+
 ./test.sh -f general/alter/cached_schema_after_alter.sim
 ./test.sh -f general/alter/count.sim
 ./test.sh -f general/alter/dnode.sim
@@ -154,6 +158,8 @@ cd ../../../debug; make
 ./test.sh -f general/parser/repeatAlter.sim
 ./test.sh -f general/parser/union.sim
 ./test.sh -f general/parser/topbot.sim
+./test.sh -f general/parser/function.sim
+./test.sh -f general/parser/select_distinct_tag.sim
 
 ./test.sh -f general/stable/disk.sim
 ./test.sh -f general/stable/dnode3.sim
@@ -190,6 +196,7 @@ cd ../../../debug; make
 ./test.sh -f general/table/table.sim
 ./test.sh -f general/table/tinyint.sim
 ./test.sh -f general/table/vgroup.sim
+./test.sh -f general/table/createmulti.sim
 
 ./test.sh -f general/tag/3.sim
 ./test.sh -f general/tag/4.sim
@@ -285,8 +292,12 @@ cd ../../../debug; make
 ./test.sh -f unique/dnode/balance3.sim
 ./test.sh -f unique/dnode/balancex.sim
 ./test.sh -f unique/dnode/data1.sim
+./test.sh -f unique/dnode/m2.sim
+./test.sh -f unique/dnode/m3.sim
+./test.sh -f unique/dnode/lossdata.sim
 ./test.sh -f unique/dnode/offline1.sim
 ./test.sh -f unique/dnode/offline2.sim
+./test.sh -f unique/dnode/offline3.sim
 ./test.sh -f unique/dnode/reason.sim
 ./test.sh -f unique/dnode/remove1.sim
 ./test.sh -f unique/dnode/remove2.sim
@@ -314,6 +325,7 @@ cd ../../../debug; make
 ./test.sh -f unique/mnode/mgmt24.sim
 ./test.sh -f unique/mnode/mgmt25.sim
 ./test.sh -f unique/mnode/mgmt26.sim
+./test.sh -f unique/mnode/mgmt30.sim
 ./test.sh -f unique/mnode/mgmt33.sim
 ./test.sh -f unique/mnode/mgmt34.sim
 ./test.sh -f unique/mnode/mgmtr2.sim
@@ -325,16 +337,12 @@ cd ../../../debug; make
 ./test.sh -f unique/vnode/replica3_repeat.sim
 ./test.sh -f unique/vnode/replica3_vgroup.sim
 
-./test.sh -f general/parser/stream_on_sys.sim
 ./test.sh -f general/stream/metrics_del.sim
-./test.sh -f general/stream/metrics_n.sim
 ./test.sh -f general/stream/metrics_replica1_vnoden.sim
 ./test.sh -f general/stream/restart_stream.sim
 ./test.sh -f general/stream/stream_3.sim
 ./test.sh -f general/stream/stream_restart.sim
-./test.sh -f general/stream/table_1.sim
 ./test.sh -f general/stream/table_del.sim
-./test.sh -f general/stream/table_n.sim
 ./test.sh -f general/stream/table_replica1_vnoden.sim
 
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
@@ -383,3 +391,8 @@ cd ../../../debug; make
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmVnodeDir.sim
+
+./test.sh -f general/connection/test_old_data.sim
+./test.sh -f unique/dnode/datatrans_3node.sim 
+./test.sh -f unique/dnode/datatrans_3node_2.sim
+

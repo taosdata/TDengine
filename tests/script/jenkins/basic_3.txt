@@ -1,38 +1,4 @@
 
-./test.sh -f unique/stable/balance_replica1.sim
-./test.sh -f unique/stable/dnode2_stop.sim
-./test.sh -f unique/stable/dnode2.sim
-./test.sh -f unique/stable/dnode3.sim
-./test.sh -f unique/stable/replica2_dnode4.sim
-./test.sh -f unique/stable/replica2_vnode3.sim
-./test.sh -f unique/stable/replica3_dnode6.sim
-./test.sh -f unique/stable/replica3_vnode3.sim
-
-./test.sh -f unique/mnode/mgmt20.sim
-./test.sh -f unique/mnode/mgmt21.sim
-./test.sh -f unique/mnode/mgmt22.sim
-./test.sh -f unique/mnode/mgmt23.sim
-./test.sh -f unique/mnode/mgmt24.sim
-#./test.sh -f unique/mnode/mgmt25.sim
-#./test.sh -f unique/mnode/mgmt26.sim
-./test.sh -f unique/mnode/mgmt33.sim
-./test.sh -f unique/mnode/mgmt34.sim
-./test.sh -f unique/mnode/mgmtr2.sim
-
-
-
-./test.sh -f general/parser/stream_on_sys.sim
-./test.sh -f general/stream/metrics_del.sim
-./test.sh -f general/stream/metrics_n.sim
-./test.sh -f general/stream/metrics_replica1_vnoden.sim
-./test.sh -f general/stream/restart_stream.sim
-./test.sh -f general/stream/stream_3.sim
-./test.sh -f general/stream/stream_restart.sim
-./test.sh -f general/stream/table_1.sim
-./test.sh -f general/stream/table_del.sim
-./test.sh -f general/stream/table_n.sim
-./test.sh -f general/stream/table_replica1_vnoden.sim
-
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
 #./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
@@ -53,7 +19,7 @@
 ./test.sh -f unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim
 ./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim
 ./test.sh -f unique/arbitrator/dn3_mn2_killDnode.sim
-./test.sh -f unique/arbitrator/insert_duplicationTs.sim
+
 ./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim
 ./test.sh -f unique/arbitrator/offline_replica2_alterTag_online.sim
 ./test.sh -f unique/arbitrator/offline_replica2_createTable_online.sim
@@ -79,3 +45,14 @@
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim
 ./test.sh -f unique/migrate/mn2_vn2_repl2_rmVnodeDir.sim
+
+./test.sh -f unique/stable/balance_replica1.sim
+./test.sh -f unique/stable/dnode2_stop.sim
+./test.sh -f unique/stable/dnode2.sim
+./test.sh -f unique/stable/dnode3.sim
+./test.sh -f unique/stable/replica2_dnode4.sim
+./test.sh -f unique/stable/replica2_vnode3.sim
+./test.sh -f unique/stable/replica3_dnode6.sim
+./test.sh -f unique/stable/replica3_vnode3.sim
+
+

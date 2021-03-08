@@ -19,11 +19,11 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "dnodeInt.h"
 
 int32_t dnodeInitModules();
-void    dnodeStartModules();
 void    dnodeCleanupModules();
-void    dnodeProcessModuleStatus(uint32_t moduleStatus);
+int32_t dnodeStartMnode(SMInfos *pMinfos);
 
 #ifdef __cplusplus
 }

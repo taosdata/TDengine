@@ -4,7 +4,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = group_db
@@ -317,7 +317,6 @@ sql_error select count(*) from group_tb0 where ts in ('2016-1-1 12:12:12');
 sql_error select count(*) from group_tb0 where ts < '12:12:12';
 
 #===============================sql for twa==========================================
-sql_error select twa(c1) from group_tb0;
 sql_error select twa(c1) from group_stb0;
 sql_error select twa(c2) from group_stb0 where ts<now and ts>now-1h group by t1;
 sql_error select twa(c2) from group_stb0 where ts<now and ts>now-1h group by tbname,t1;
@@ -335,6 +334,9 @@ sql insert into tm0 values(10000, 1) (20000, 2)(30000, 3) (40000, NULL) (50000, 
 
 #=============================tbase-1205
 sql select count(*) from tm1 where ts<now and ts>= now -1d interval(1h) fill(NULL);
+if $rows != 0 then
+  return -1
+endi
 
 print ===================>TD-1834
 sql select * from tm0 where ts>11000 and ts< 20000 order by ts asc
@@ -393,7 +395,7 @@ endi
 
 #error sql
 sql_error select * from 1;
-sql_error select 1;
+#sql_error select 1;  // equals to select server_status();
 sql_error select k+k;
 sql_error select k+1;
 sql_error select abc();
@@ -410,7 +412,7 @@ sql_error select k, sum(k)+1 from tm0;
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 3000
+sleep 500
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 

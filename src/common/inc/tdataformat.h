@@ -20,30 +20,30 @@
 #include <string.h>
 
 #include "talgo.h"
-#include "taosdef.h"
+#include "ttype.h"
 #include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define STR_TO_VARSTR(x, str)             \
-  do {                                    \
-    VarDataLenT __len = strlen(str);      \
-    *(VarDataLenT *)(x) = __len;          \
-    memcpy(varDataVal(x), (str), __len); \
+#define STR_TO_VARSTR(x, str)                     \
+  do {                                            \
+    VarDataLenT __len = (VarDataLenT)strlen(str); \
+    *(VarDataLenT *)(x) = __len;                  \
+    memcpy(varDataVal(x), (str), __len);          \
   } while (0);
 
-#define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)      \
-  do {                                                 \
+#define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)                         \
+  do {                                                                    \
     char *_e = stpncpy(varDataVal(x), (str), (_maxs)-VARSTR_HEADER_SIZE); \
-    varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));   \
+    varDataSetLen(x, (_e - (x)-VARSTR_HEADER_SIZE));                      \
   } while (0)
 
-#define STR_WITH_SIZE_TO_VARSTR(x, str, _size) \
-  do {                                         \
-    *(VarDataLenT *)(x) = (_size);             \
-    memcpy(varDataVal(x), (str), (_size));    \
+#define STR_WITH_SIZE_TO_VARSTR(x, str, _size)  \
+  do {                                          \
+    *(VarDataLenT *)(x) = (VarDataLenT)(_size); \
+    memcpy(varDataVal(x), (str), (_size));      \
   } while (0);
 
 // ----------------- TSDB COLUMN DEFINITION
@@ -68,9 +68,9 @@ typedef struct {
 typedef struct {
   int      version;    // version
   int      numOfCols;  // Number of columns appended
-  int      tlen;       // maximum length of a SDataRow without the header part
+  int      tlen;       // maximum length of a SDataRow without the header part (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) + (bytes))
   uint16_t flen;       // First part length in a SDataRow after the header part
-  uint16_t vlen;       // pure value part length, excluded the overhead
+  uint16_t vlen;       // pure value part length, excluded the overhead (bytes only)
   STColumn columns[];
 } STSchema;
 
@@ -134,6 +134,22 @@ typedef uint64_t TKEY;
 #define tdGetTKEY(key) (((TKEY)ABS(key)) | (TKEY_NEGATIVE_FLAG & (TKEY)(key)))
 #define tdGetKey(tkey) (((TSKEY)((tkey)&TKEY_VALUE_FILTER)) * (TKEY_IS_NEGATIVE(tkey) ? -1 : 1))
 
+#define MIN_TS_KEY ((TSKEY)0x8000000000000001)
+#define MAX_TS_KEY ((TSKEY)0x3fffffffffffffff)
+
+#define TD_TO_TKEY(key) tdGetTKEY(((key) < MIN_TS_KEY) ? MIN_TS_KEY : (((key) > MAX_TS_KEY) ? MAX_TS_KEY : key))
+
+static FORCE_INLINE TKEY keyToTkey(TSKEY key) {
+  TSKEY lkey = key;
+  if (key > MAX_TS_KEY) {
+    lkey = MAX_TS_KEY;
+  } else if (key < MIN_TS_KEY) {
+    lkey = MIN_TS_KEY;
+  }
+
+  return tdGetTKEY(lkey);
+}
+
 static FORCE_INLINE int tkeyComparFn(const void *tkey1, const void *tkey2) {
   TSKEY key1 = tdGetKey(*(TKEY *)tkey1);
   TSKEY key2 = tdGetKey(*(TKEY *)tkey2);
@@ -156,7 +172,7 @@ static FORCE_INLINE int tkeyComparFn(const void *tkey1, const void *tkey2) {
  * +----------+----------+---------------------------------+---------------------------------+
  * |   len    | sversion |           First part            |             Second part         |
  * +----------+----------+---------------------------------+---------------------------------+
- * 
+ *
  * NOTE: timestamp in this row structure is TKEY instead of TSKEY
  */
 typedef void *SDataRow;
@@ -278,7 +294,7 @@ SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
 int        tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
-void       tdFreeDataCols(SDataCols *pCols);
+SDataCols *tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols);
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 

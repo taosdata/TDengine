@@ -29,13 +29,6 @@ typedef struct {
   int32_t httpReqNum;
 } SStatisInfo;
 
-typedef enum {
-  TSDB_RUN_STATUS_INITIALIZE,
-  TSDB_RUN_STATUS_RUNING,
-  TSDB_RUN_STATUS_STOPPED
-} SRunStatus;
-
-SRunStatus  dnodeGetRunStatus();
 SStatisInfo dnodeGetStatisInfo();
 
 bool    dnodeIsFirstDeploy();
@@ -43,9 +36,11 @@ bool    dnodeIsMasterEp(char *ep);
 void    dnodeGetEpSetForPeer(SRpcEpSet *epSet);
 void    dnodeGetEpSetForShell(SRpcEpSet *epSet);
 int32_t dnodeGetDnodeId();
+void    dnodeGetClusterId(char *clusterId);
+
 void    dnodeUpdateEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 bool    dnodeCheckEpChanged(int32_t dnodeId, char *epstr);
-bool    dnodeStartMnode(SMInfos *pMinfos);
+int32_t dnodeStartMnode(SMInfos *pMinfos);
 
 void  dnodeAddClientRspHandle(uint8_t msgType, void (*fp)(SRpcMsg *rpcMsg));
 void  dnodeSendMsgToDnode(SRpcEpSet *epSet, SRpcMsg *rpcMsg);
@@ -56,8 +51,10 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid);
 void *dnodeAllocVWriteQueue(void *pVnode);
 void  dnodeFreeVWriteQueue(void *pWqueue);
 void  dnodeSendRpcVWriteRsp(void *pVnode, void *pWrite, int32_t code);
-void *dnodeAllocVReadQueue(void *pVnode);
-void  dnodeFreeVReadQueue(void *pRqueue);
+void *dnodeAllocVQueryQueue(void *pVnode);
+void *dnodeAllocVFetchQueue(void *pVnode);
+void  dnodeFreeVQueryQueue(void *pQqueue);
+void  dnodeFreeVFetchQueue(void *pFqueue);
 
 int32_t dnodeAllocateMPeerQueue();
 void    dnodeFreeMPeerQueue();
@@ -70,6 +67,16 @@ void    dnodeReprocessMWriteMsg(void *pMsg);
 void    dnodeDelayReprocessMWriteMsg(void *pMsg);
 
 void    dnodeSendStatusMsgToMnode();
+
+typedef struct {
+  char *name;
+  int32_t (*initFp)();
+  void (*cleanupFp)();
+} SStep;
+
+int32_t dnodeStepInit(SStep *pSteps, int32_t stepSize);
+void    dnodeStepCleanup(SStep *pSteps, int32_t stepSize);
+void    dnodeReportStep(char *name, char *desc, int8_t finished);
 
 #ifdef __cplusplus
 }

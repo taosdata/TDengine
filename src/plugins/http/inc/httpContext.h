@@ -22,7 +22,7 @@ bool        httpInitContexts();
 void        httpCleanupContexts();
 const char *httpContextStateStr(HttpContextState state);
 
-HttpContext *httpCreateContext(int32_t fd);
+HttpContext *httpCreateContext(SOCKET fd);
 bool         httpInitContext(HttpContext *pContext);
 HttpContext *httpGetContext(void * pContext);
 void         httpReleaseContext(HttpContext *pContext, bool clearRes);

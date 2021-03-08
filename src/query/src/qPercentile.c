@@ -12,14 +12,14 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "os.h"
 
 #include "qPercentile.h"
 #include "qResultbuf.h"
-#include "os.h"
 #include "queryLog.h"
 #include "taosdef.h"
-#include "tulog.h"
 #include "tcompare.h"
+#include "ttype.h"
 
 #define DEFAULT_NUM_OF_SLOT 1024
 
@@ -48,25 +48,15 @@ static tFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
 }
 
 static void resetBoundingBox(MinMaxEntry* range, int32_t type) {
-  switch (type) {
-    case TSDB_DATA_TYPE_BIGINT: {
-      range->i64MaxVal = INT64_MIN;
-      range->i64MinVal = INT64_MAX;
-      break;
-    };
-    case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_TINYINT: {
-      range->iMaxVal = INT32_MIN;
-      range->iMinVal = INT32_MAX;
-      break;
-    };
-    case TSDB_DATA_TYPE_DOUBLE:
-    case TSDB_DATA_TYPE_FLOAT: {
-      range->dMaxVal = -DBL_MAX;
-      range->dMinVal = DBL_MAX;
-      break;
-    }
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
+    range->i64MaxVal = INT64_MIN;
+    range->i64MinVal = INT64_MAX;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    range->u64MaxVal = 0;
+    range->u64MinVal = UINT64_MAX;
+  } else {
+    range->dMaxVal = -DBL_MAX;
+    range->dMinVal = DBL_MAX;
   }
 }
 
@@ -75,23 +65,15 @@ static int32_t setBoundingBox(MinMaxEntry* range, int16_t type, double minval, d
     return -1;
   }
 
-  switch(type) {
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_INT:
-      range->iMinVal = (int32_t) minval;
-      range->iMaxVal = (int32_t) maxval;
-      break;
-
-    case TSDB_DATA_TYPE_BIGINT:
-      range->i64MinVal = (int64_t) minval;
-      range->i64MaxVal = (int64_t) maxval;
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE:
-      range->dMinVal = minval;
-      range->dMaxVal = maxval;
-      break;
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
+    range->i64MinVal = (int64_t) minval;
+    range->i64MaxVal = (int64_t) maxval;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)){
+    range->u64MinVal = (uint64_t) minval;
+    range->u64MaxVal = (uint64_t) maxval;
+  } else {
+    range->dMinVal = minval;
+    range->dMaxVal = maxval;
   }
 
   return 0;
@@ -120,179 +102,106 @@ double findOnlyResult(tMemBucket *pMemBucket) {
     tFilePage* pPage = getResBufPage(pMemBucket->pBuffer, pgInfo->pageId);
     assert(pPage->num == 1);
 
-    switch (pMemBucket->type) {
-      case TSDB_DATA_TYPE_INT:
-        return *(int32_t *)pPage->data;
-      case TSDB_DATA_TYPE_SMALLINT:
-        return *(int16_t *)pPage->data;
-      case TSDB_DATA_TYPE_TINYINT:
-        return *(int8_t *)pPage->data;
-      case TSDB_DATA_TYPE_BIGINT:
-        return (double)(*(int64_t *)pPage->data);
-      case TSDB_DATA_TYPE_DOUBLE: {
-        double dv = GET_DOUBLE_VAL(pPage->data);
-        return dv;
-      }
-      case TSDB_DATA_TYPE_FLOAT: {
-        float fv = GET_FLOAT_VAL(pPage->data);
-        return fv;
-      }
-      default:
-        return 0;
-    }
+    double v = 0;
+    GET_TYPED_DATA(v, double, pMemBucket->type, pPage->data);
+    return v;
   }
 
   return 0;
 }
 
-int32_t tBucketBigIntHash(tMemBucket *pBucket, const void *value) {
-  int64_t v = *(int64_t *)value;
+int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
+  int64_t v = 0;
+  GET_TYPED_DATA(v, int64_t, pBucket->type, value);
+
   int32_t index = -1;
 
-  int32_t halfSlot = pBucket->numOfSlots >> 1;
-//  int32_t bits = 32;//bitsOfNumber(pBucket->numOfSlots) - 1;
-
-  if (pBucket->range.i64MaxVal == INT64_MIN) {
-    if (v >= 0) {
-      index = (v >> (64 - 9)) + halfSlot;
-    } else {  // v<0
-      index = ((-v) >> (64 - 9));
-      index = -index + (halfSlot - 1);
-    }
-
-    return index;
-  } else {
-    // out of range
-    if (v < pBucket->range.i64MinVal || v > pBucket->range.i64MaxVal) {
-      return -1;
-    }
-
-    // todo hash for bigint and float and double
-    int64_t span = pBucket->range.i64MaxVal - pBucket->range.i64MinVal;
-    if (span < pBucket->numOfSlots) {
-      int32_t delta = (int32_t)(v - pBucket->range.i64MinVal);
-      index = delta % pBucket->numOfSlots;
-    } else {
-      double slotSpan = (double)span / pBucket->numOfSlots;
-      index = (int32_t)((v - pBucket->range.i64MinVal) / slotSpan);
-      if (v == pBucket->range.i64MaxVal) {
-        index -= 1;
-      }
-    }
-
+  if (v > pBucket->range.i64MaxVal || v < pBucket->range.i64MinVal) {
     return index;
   }
+  
+  // divide the value range into 1024 buckets
+  uint64_t span = pBucket->range.i64MaxVal - pBucket->range.i64MinVal;
+  if (span < pBucket->numOfSlots) {
+    int64_t delta = v - pBucket->range.i64MinVal;
+    index = (delta % pBucket->numOfSlots);
+  } else {
+    double slotSpan = (double)span / pBucket->numOfSlots;
+    index = (int32_t)((v - pBucket->range.i64MinVal) / slotSpan);
+    if (v == pBucket->range.i64MaxVal) {
+      index -= 1;
+    }
+  }
+
+  assert(index >= 0 && index < pBucket->numOfSlots);
+  return index;
 }
 
-// todo refactor to more generic
-int32_t tBucketIntHash(tMemBucket *pBucket, const void *value) {
-  int32_t v = 0;
-  switch(pBucket->type) {
-    case TSDB_DATA_TYPE_SMALLINT: v = *(int16_t*) value; break;
-    case TSDB_DATA_TYPE_TINYINT: v = *(int8_t*) value; break;
-    default: v = *(int32_t*) value;break;
-  }
+int32_t tBucketUintHash(tMemBucket *pBucket, const void *value) {
+  int64_t v = 0;
+  GET_TYPED_DATA(v, uint64_t, pBucket->type, value);
 
   int32_t index = -1;
-  if (pBucket->range.iMaxVal == INT32_MIN) {
-    /*
-     * taking negative integer into consideration,
-     * there is only half of pBucket->segs available for non-negative integer
-     */
-    int32_t halfSlot = pBucket->numOfSlots >> 1;
-    int32_t bits = 32;//bitsOfNumber(pBucket->numOfSlots) - 1;
 
-    if (v >= 0) {
-      index = (v >> (bits - 9)) + halfSlot;
-    } else {  // v < 0
-      index = ((-v) >> (32 - 9));
-      index = -index + (halfSlot - 1);
-    }
-
-    return index;
-  } else {
-    // out of range
-    if (v < pBucket->range.iMinVal || v > pBucket->range.iMaxVal) {
-      return -1;
-    }
-
-    // divide a range of [iMinVal, iMaxVal] into 1024 buckets
-    int32_t span = pBucket->range.iMaxVal - pBucket->range.iMinVal;
-    if (span < pBucket->numOfSlots) {
-      int32_t delta = v - pBucket->range.iMinVal;
-      index = (delta % pBucket->numOfSlots);
-    } else {
-      double slotSpan = (double)span / pBucket->numOfSlots;
-      index = (int32_t)((v - pBucket->range.iMinVal) / slotSpan);
-      if (v == pBucket->range.iMaxVal) {
-        index -= 1;
-      }
-    }
-
+  if (v > pBucket->range.u64MaxVal || v < pBucket->range.u64MinVal) {
     return index;
   }
+  
+  // divide the value range into 1024 buckets
+  uint64_t span = pBucket->range.u64MaxVal - pBucket->range.u64MinVal;
+  if (span < pBucket->numOfSlots) {
+    int64_t delta = v - pBucket->range.u64MinVal;
+    index = (int32_t) (delta % pBucket->numOfSlots);
+  } else {
+    double slotSpan = (double)span / pBucket->numOfSlots;
+    index = (int32_t)((v - pBucket->range.u64MinVal) / slotSpan);
+    if (v == pBucket->range.u64MaxVal) {
+      index -= 1;
+    }
+  }
+
+  assert(index >= 0 && index < pBucket->numOfSlots);
+  return index;
 }
 
 int32_t tBucketDoubleHash(tMemBucket *pBucket, const void *value) {
-  double v = GET_DOUBLE_VAL(value);
+  double v = 0;
+  if (pBucket->type == TSDB_DATA_TYPE_FLOAT) {
+    v = GET_FLOAT_VAL(value);
+  } else {
+    v = GET_DOUBLE_VAL(value);
+  }
+
   int32_t index = -1;
 
-  if (pBucket->range.dMinVal == DBL_MAX) {
-    /*
-     * taking negative integer into consideration,
-     * there is only half of pBucket->segs available for non-negative integer
-     */
-    double x = DBL_MAX / (pBucket->numOfSlots >> 1);
-    double posx = (v + DBL_MAX) / x;
-    return ((int32_t)posx) % pBucket->numOfSlots;
-  } else {
-
-    // out of range
-    if (v < pBucket->range.dMinVal || v > pBucket->range.dMaxVal) {
-      return -1;
-    }
-
-    // divide a range of [dMinVal, dMaxVal] into 1024 buckets
-    double span = pBucket->range.dMaxVal - pBucket->range.dMinVal;
-    if (span < pBucket->numOfSlots) {
-      int32_t delta = (int32_t)(v - pBucket->range.dMinVal);
-      index = (delta % pBucket->numOfSlots);
-    } else {
-      double slotSpan = span / pBucket->numOfSlots;
-      index = (int32_t)((v - pBucket->range.dMinVal) / slotSpan);
-      if (v == pBucket->range.dMaxVal) {
-        index -= 1;
-      }
-    }
-
-    if (index < 0 || index > pBucket->numOfSlots) {
-      uError("error in hash process. slot id: %d", index);
-    }
-
+  if (v > pBucket->range.dMaxVal || v < pBucket->range.dMinVal) {
     return index;
   }
+
+  // divide a range of [dMinVal, dMaxVal] into 1024 buckets
+  double span = pBucket->range.dMaxVal - pBucket->range.dMinVal;
+  if (span < pBucket->numOfSlots) {
+    int32_t delta = (int32_t)(v - pBucket->range.dMinVal);
+    index = (delta % pBucket->numOfSlots);
+  } else {
+    double slotSpan = span / pBucket->numOfSlots;
+    index = (int32_t)((v - pBucket->range.dMinVal) / slotSpan);
+    if (v == pBucket->range.dMaxVal) {
+      index -= 1;
+    }
+  }
+
+  assert(index >= 0 && index < pBucket->numOfSlots);
+  return index;
 }
 
 static __perc_hash_func_t getHashFunc(int32_t type) {
-  switch (type) {
-    case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_TINYINT: {
-      return tBucketIntHash;
-    };
-
-    case TSDB_DATA_TYPE_DOUBLE:
-    case TSDB_DATA_TYPE_FLOAT: {
-      return tBucketDoubleHash;
-    };
-
-    case TSDB_DATA_TYPE_BIGINT: {
-      return tBucketBigIntHash;
-    };
-
-    default: {
-      return NULL;
-    }
+  if (IS_SIGNED_NUMERIC_TYPE(type)) {
+    return tBucketIntHash;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    return tBucketUintHash;
+  } else {
+    return tBucketDoubleHash;
   }
 }
 
@@ -322,7 +231,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
   pBucket->maxCapacity = 200000;
 
   if (setBoundingBox(&pBucket->range, pBucket->type, minval, maxval) != 0) {
-    uError("MemBucket:%p, invalid value range: %f-%f", pBucket, minval, maxval);
+    qError("MemBucket:%p, invalid value range: %f-%f", pBucket, minval, maxval);
     free(pBucket);
     return NULL;
   }
@@ -332,7 +241,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
 
   pBucket->hashFunc = getHashFunc(pBucket->type);
   if (pBucket->hashFunc == NULL) {
-    uError("MemBucket:%p, not support data type %d, failed", pBucket, pBucket->type);
+    qError("MemBucket:%p, not support data type %d, failed", pBucket, pBucket->type);
     free(pBucket);
     return NULL;
   }
@@ -351,7 +260,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
     return NULL;
   }
   
-  uDebug("MemBucket:%p, elem size:%d", pBucket, pBucket->bytes);
+  qDebug("MemBucket:%p, elem size:%d", pBucket, pBucket->bytes);
   return pBucket;
 }
 
@@ -366,77 +275,41 @@ void tMemBucketDestroy(tMemBucket *pBucket) {
 }
 
 void tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataType) {
-  switch (dataType) {
-    case TSDB_DATA_TYPE_INT: {
-      int32_t val = *(int32_t *)data;
-      if (r->iMinVal > val) {
-        r->iMinVal = val;
-      }
+  if (IS_SIGNED_NUMERIC_TYPE(dataType)) {
+    int64_t v = 0;
+    GET_TYPED_DATA(v, int64_t, dataType, data);
 
-      if (r->iMaxVal < val) {
-        r->iMaxVal = val;
-      }
-      break;
-    };
-    case TSDB_DATA_TYPE_BIGINT: {
-      int64_t val = *(int64_t *)data;
-      if (r->i64MinVal > val) {
-        r->i64MinVal = val;
-      }
+    if (r->i64MinVal > v) {
+      r->i64MinVal = v;
+    }
 
-      if (r->i64MaxVal < val) {
-        r->i64MaxVal = val;
-      }
-      break;
-    };
-    case TSDB_DATA_TYPE_SMALLINT: {
-      int32_t val = *(int16_t *)data;
-      if (r->iMinVal > val) {
-        r->iMinVal = val;
-      }
+    if (r->i64MaxVal < v) {
+      r->i64MaxVal = v;
+    }
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(dataType)) {
+    uint64_t v = 0;
+    GET_TYPED_DATA(v, uint64_t, dataType, data);
 
-      if (r->iMaxVal < val) {
-        r->iMaxVal = val;
-      }
-      break;
-    };
-    case TSDB_DATA_TYPE_TINYINT: {
-      int32_t val = *(int8_t *)data;
-      if (r->iMinVal > val) {
-        r->iMinVal = val;
-      }
+    if (r->i64MinVal > v) {
+      r->i64MinVal = v;
+    }
 
-      if (r->iMaxVal < val) {
-        r->iMaxVal = val;
-      }
+    if (r->i64MaxVal < v) {
+      r->i64MaxVal = v;
+    }
+  } else if (IS_FLOAT_TYPE(dataType)) {
+    double v = 0;
+    GET_TYPED_DATA(v, double, dataType, data);
 
-      break;
-    };
-    case TSDB_DATA_TYPE_DOUBLE: {
-      // double val = *(double *)data;
-      double val = GET_DOUBLE_VAL(data);
-      if (r->dMinVal > val) {
-        r->dMinVal = val;
-      }
+    if (r->dMinVal > v) {
+      r->dMinVal = v;
+    }
 
-      if (r->dMaxVal < val) {
-        r->dMaxVal = val;
-      }
-      break;
-    };
-    case TSDB_DATA_TYPE_FLOAT: {
-      double val = GET_FLOAT_VAL(data);
-
-      if (r->dMinVal > val) {
-        r->dMinVal = val;
-      }
-
-      if (r->dMaxVal < val) {
-        r->dMaxVal = val;
-      }
-      break;
-    };
-    default: { assert(false); }
+    if (r->dMaxVal < v) {
+      r->dMaxVal = v;
+    }
+  } else {
+    assert(0);
   }
 }
 
@@ -446,16 +319,17 @@ void tMemBucketUpdateBoundingBox(MinMaxEntry *r, const char *data, int32_t dataT
 int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
   assert(pBucket != NULL && data != NULL && size > 0);
 
-  pBucket->total += (int32_t)size;
-
+  int32_t count = 0;
   int32_t bytes = pBucket->bytes;
   for (int32_t i = 0; i < size; ++i) {
     char *d = (char *) data + i * bytes;
 
     int32_t index = (pBucket->hashFunc)(pBucket, d);
-    if (index == -1) {  // the value is out of range, do not add it into bucket
-      return -1;
+    if (index < 0) {
+      continue;
     }
+
+    count += 1;
 
     tMemBucketSlot *pSlot = &pBucket->pSlots[index];
     tMemBucketUpdateBoundingBox(&pSlot->range, d, pBucket->type);
@@ -483,64 +357,11 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
     pSlot->info.size += 1;
   }
 
+  pBucket->total += count;
   return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
-static UNUSED_FUNC void findMaxMinValue(tMemBucket *pMemBucket, double *maxVal, double *minVal) {
-  *minVal = DBL_MAX;
-  *maxVal = -DBL_MAX;
-
-  for (int32_t i = 0; i < pMemBucket->numOfSlots; ++i) {
-    tMemBucketSlot *pSlot = &pMemBucket->pSlots[i];
-    if (pSlot->info.size == 0) {
-      continue;
-    }
-
-    switch (pMemBucket->type) {
-      case TSDB_DATA_TYPE_INT:
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_TINYINT: {
-        double minv = pSlot->range.iMinVal;
-        double maxv = pSlot->range.iMaxVal;
-
-        if (*minVal > minv) {
-          *minVal = minv;
-        }
-        if (*maxVal < maxv) {
-          *maxVal = maxv;
-        }
-        break;
-      }
-      case TSDB_DATA_TYPE_DOUBLE:
-      case TSDB_DATA_TYPE_FLOAT: {
-        double minv = pSlot->range.dMinVal;
-        double maxv = pSlot->range.dMaxVal;
-
-        if (*minVal > minv) {
-          *minVal = minv;
-        }
-        if (*maxVal < maxv) {
-          *maxVal = maxv;
-        }
-        break;
-      }
-      case TSDB_DATA_TYPE_BIGINT: {
-        double minv = (double)pSlot->range.i64MinVal;
-        double maxv = (double)pSlot->range.i64MaxVal;
-
-        if (*minVal > minv) {
-          *minVal = minv;
-        }
-        if (*maxVal < maxv) {
-          *maxVal = maxv;
-        }
-        break;
-      }
-    }
-  }
-}
-
 /*
  *
  * now, we need to find the minimum value of the next slot for
@@ -559,7 +380,6 @@ static MinMaxEntry getMinMaxEntryOfNextSlotWithData(tMemBucket *pMemBucket, int3
 }
 
 static bool isIdenticalData(tMemBucket *pMemBucket, int32_t index);
-char *getFirstElemOfMemBuffer(tMemBucketSlot *pSeg, int32_t slotIdx, tFilePage *pPage);
 
 static double getIdenticalDataVal(tMemBucket* pMemBucket, int32_t slotIndex) {
   assert(isIdenticalData(pMemBucket, slotIndex));
@@ -567,24 +387,12 @@ static double getIdenticalDataVal(tMemBucket* pMemBucket, int32_t slotIndex) {
   tMemBucketSlot *pSlot = &pMemBucket->pSlots[slotIndex];
 
   double finalResult = 0.0;
-  switch (pMemBucket->type) {
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_INT: {
-      finalResult = pSlot->range.iMinVal;
-      break;
-    }
-
-    case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE: {
-      finalResult = pSlot->range.dMinVal;
-      break;
-    };
-
-    case TSDB_DATA_TYPE_BIGINT: {
-      finalResult = (double)pSlot->range.i64MinVal;
-      break;
-    }
+  if (IS_SIGNED_NUMERIC_TYPE(pMemBucket->type)) {
+    finalResult = (double) pSlot->range.i64MinVal;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(pMemBucket->type)) {
+    finalResult = (double) pSlot->range.u64MinVal;
+  } else {
+    finalResult = (double) pSlot->range.dMinVal;
   }
 
   return finalResult;
@@ -610,26 +418,16 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
         double maxOfThisSlot = 0;
         double minOfNextSlot = 0;
-        switch (pMemBucket->type) {
-          case TSDB_DATA_TYPE_INT:
-          case TSDB_DATA_TYPE_SMALLINT:
-          case TSDB_DATA_TYPE_TINYINT: {
-            maxOfThisSlot = pSlot->range.iMaxVal;
-            minOfNextSlot = next.iMinVal;
-            break;
-          };
-          case TSDB_DATA_TYPE_FLOAT:
-          case TSDB_DATA_TYPE_DOUBLE: {
-            maxOfThisSlot = pSlot->range.dMaxVal;
-            minOfNextSlot = next.dMinVal;
-            break;
-          };
-          case TSDB_DATA_TYPE_BIGINT: {
-            maxOfThisSlot = (double)pSlot->range.i64MaxVal;
-            minOfNextSlot = (double)next.i64MinVal;
-            break;
-          }
-        };
+        if (IS_SIGNED_NUMERIC_TYPE(pMemBucket->type)) {
+          maxOfThisSlot = (double) pSlot->range.i64MaxVal;
+          minOfNextSlot = (double) next.i64MinVal;
+        } else if (IS_UNSIGNED_NUMERIC_TYPE(pMemBucket->type)) {
+          maxOfThisSlot = (double) pSlot->range.u64MaxVal;
+          minOfNextSlot = (double) next.u64MinVal;
+        } else {
+          maxOfThisSlot = (double) pSlot->range.dMaxVal;
+          minOfNextSlot = (double) next.dMinVal;
+        }
 
         assert(minOfNextSlot > maxOfThisSlot);
 
@@ -646,38 +444,8 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
         char *nextVal = thisVal + pMemBucket->bytes;
 
         double td = 1.0, nd = 1.0;
-        switch (pMemBucket->type) {
-          case TSDB_DATA_TYPE_SMALLINT: {
-            td = *(int16_t *)thisVal;
-            nd = *(int16_t *)nextVal;
-            break;
-          }
-          case TSDB_DATA_TYPE_TINYINT: {
-            td = *(int8_t *)thisVal;
-            nd = *(int8_t *)nextVal;
-            break;
-          }
-          case TSDB_DATA_TYPE_INT: {
-            td = *(int32_t *)thisVal;
-            nd = *(int32_t *)nextVal;
-            break;
-          };
-          case TSDB_DATA_TYPE_FLOAT: {
-            td = GET_FLOAT_VAL(thisVal);
-            nd = GET_FLOAT_VAL(nextVal);
-            break;
-          }
-          case TSDB_DATA_TYPE_DOUBLE: {
-            td = GET_DOUBLE_VAL(thisVal);
-            nd = GET_DOUBLE_VAL(nextVal);
-            break;
-          }
-          case TSDB_DATA_TYPE_BIGINT: {
-            td = (double)*(int64_t *)thisVal;
-            nd = (double)*(int64_t *)nextVal;
-            break;
-          }
-        }
+        GET_TYPED_DATA(td, double, pMemBucket->type, thisVal);
+        GET_TYPED_DATA(nd, double, pMemBucket->type, nextVal);
 
         double val = (1 - fraction) * td + fraction * nd;
         tfree(buffer);
@@ -690,7 +458,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
        // try next round
        pMemBucket->times += 1;
-       uDebug("MemBucket:%p, start next round data bucketing, time:%d", pMemBucket, pMemBucket->times);
+       qDebug("MemBucket:%p, start next round data bucketing, time:%d", pMemBucket, pMemBucket->times);
 
        pMemBucket->range = pSlot->range;
        pMemBucket->total = 0;
@@ -735,20 +503,14 @@ double getPercentile(tMemBucket *pMemBucket, double percent) {
   if (fabs(percent - 100.0) < DBL_EPSILON || (percent < DBL_EPSILON)) {
     MinMaxEntry* pRange = &pMemBucket->range;
 
-    switch(pMemBucket->type) {
-      case TSDB_DATA_TYPE_TINYINT:
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_INT:
-        return fabs(percent - 100) < DBL_EPSILON? pRange->iMaxVal:pRange->iMinVal;
-      case TSDB_DATA_TYPE_BIGINT: {
-        double v = (double)(fabs(percent - 100) < DBL_EPSILON ? pRange->i64MaxVal : pRange->i64MinVal);
-        return v;
-      }
-      case TSDB_DATA_TYPE_FLOAT:
-      case TSDB_DATA_TYPE_DOUBLE:
-        return fabs(percent - 100) < DBL_EPSILON? pRange->dMaxVal:pRange->dMinVal;
-        default:
-        return -1;
+    if (IS_SIGNED_NUMERIC_TYPE(pMemBucket->type)) {
+      double v = (double)(fabs(percent - 100) < DBL_EPSILON ? pRange->i64MaxVal : pRange->i64MinVal);
+      return v;
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(pMemBucket->type)) {
+      double v = (double)(fabs(percent - 100) < DBL_EPSILON ? pRange->u64MaxVal : pRange->u64MinVal);
+      return v;
+    } else {
+      return fabs(percent - 100) < DBL_EPSILON? pRange->dMaxVal:pRange->dMinVal;
     }
   }
 
@@ -765,40 +527,9 @@ double getPercentile(tMemBucket *pMemBucket, double percent) {
 bool isIdenticalData(tMemBucket *pMemBucket, int32_t index) {
   tMemBucketSlot *pSeg = &pMemBucket->pSlots[index];
 
-  if (pMemBucket->type == TSDB_DATA_TYPE_INT || pMemBucket->type == TSDB_DATA_TYPE_BIGINT ||
-      pMemBucket->type == TSDB_DATA_TYPE_SMALLINT || pMemBucket->type == TSDB_DATA_TYPE_TINYINT) {
+  if (IS_FLOAT_TYPE(pMemBucket->type)) {
+    return fabs(pSeg->range.dMaxVal - pSeg->range.dMinVal) < DBL_EPSILON;
+  } else {
     return pSeg->range.i64MinVal == pSeg->range.i64MaxVal;
   }
-
-  if (pMemBucket->type == TSDB_DATA_TYPE_FLOAT || pMemBucket->type == TSDB_DATA_TYPE_DOUBLE) {
-    return fabs(pSeg->range.dMaxVal - pSeg->range.dMinVal) < DBL_EPSILON;
-  }
-
-  return false;
-}
-
-/*
- * get the first element of one slot into memory.
- * if no data of current slot in memory, load it from disk
- */
-char *getFirstElemOfMemBuffer(tMemBucketSlot *pSeg, int32_t slotIdx, tFilePage *pPage) {
-//  STSBuf *pMemBuffer = pSeg->pBuffer[slotIdx];
-  char *thisVal = NULL;
-
-//  if (pSeg->pBuffer[slotIdx]->numOfTotal != 0) {
-////    thisVal = pSeg->pBuffer[slotIdx]->pHead->item.data;
-//  } else {
-//    /*
-//     * no data in memory, load one page into memory
-//     */
-//    tFlushoutInfo *pFlushInfo = &pMemBuffer->fileMeta.flushoutData.pFlushoutInfo[0];
-//    assert(pFlushInfo->numOfPages == pMemBuffer->fileMeta.nFileSize);
-//    int32_t ret;
-//    ret = fseek(pMemBuffer->file, pFlushInfo->startPageId * pMemBuffer->pageSize, SEEK_SET);
-//    UNUSED(ret);
-//    size_t sz = fread(pPage, pMemBuffer->pageSize, 1, pMemBuffer->file);
-//    UNUSED(sz);
-//    thisVal = pPage->data;
-//  }
-  return thisVal;
 }

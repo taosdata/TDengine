@@ -21,6 +21,7 @@
 #include "ttimer.h"
 #include "tulog.h"
 #include "tutil.h"
+#include "taoserror.h"
 #if (_WIN64)
 #include <iphlpapi.h>
 #include <mswsock.h>
@@ -31,10 +32,53 @@
 #pragma comment(lib, "Mswsock.lib ")
 #endif
 
+#include <objbase.h>
+
 #pragma warning(push)
-#pragma warning(disable:4091)
+#pragma warning(disable : 4091)
 #include <DbgHelp.h>
 #pragma warning(pop)
+
+static int32_t taosGetTotalMemory() {
+  MEMORYSTATUSEX memsStat;
+  memsStat.dwLength = sizeof(memsStat);
+  if (!GlobalMemoryStatusEx(&memsStat)) {
+    return 0;
+  }
+
+  float nMemTotal = memsStat.ullTotalPhys / (1024.0f * 1024.0f);
+  return (int32_t)nMemTotal;
+}
+
+bool taosGetSysMemory(float *memoryUsedMB) {
+  MEMORYSTATUSEX memsStat;
+  memsStat.dwLength = sizeof(memsStat);
+  if (!GlobalMemoryStatusEx(&memsStat)) {
+    return false;
+  }
+
+  float nMemFree = memsStat.ullAvailPhys / (1024.0f * 1024.0f);
+  float nMemTotal = memsStat.ullTotalPhys / (1024.0f * 1024.0f);
+
+  *memoryUsedMB = nMemTotal - nMemFree;
+  return true;
+}
+
+bool taosGetProcMemory(float *memoryUsedMB) {
+  unsigned bytes_used = 0;
+
+#if defined(_WIN64) && defined(_MSC_VER)
+  PROCESS_MEMORY_COUNTERS pmc;
+  HANDLE                  cur_proc = GetCurrentProcess();
+
+  if (GetProcessMemoryInfo(cur_proc, &pmc, sizeof(pmc))) {
+    bytes_used = (unsigned)(pmc.WorkingSetSize + pmc.PagefileUsage);
+  }
+#endif
+
+  *memoryUsedMB = (float)bytes_used / 1024 / 1024;
+  return true;
+}
 
 static void taosGetSystemTimezone() {
   // get and set default timezone
@@ -71,38 +115,38 @@ static void taosGetSystemLocale() {
   }
 }
 
-void taosPrintOsInfo() {}
-
-void taosKillSystem() {
-  uError("function taosKillSystem, exit!");
-  exit(0);
+static int32_t taosGetCpuCores() {
+  SYSTEM_INFO info;
+  GetSystemInfo(&info);
+  return (int32_t)info.dwNumberOfProcessors;
 }
 
-void taosGetSystemInfo() {
-  taosGetSystemTimezone();
-  taosGetSystemLocale();
+bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
+  *sysCpuUsage = 0;
+  *procCpuUsage = 0;
+  return true;
 }
 
-bool taosGetDisk() {
-  const double    unit = 1024 * 1024 * 1024;
-  BOOL            fResult;
+int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   unsigned _int64 i64FreeBytesToCaller;
   unsigned _int64 i64TotalBytes;
   unsigned _int64 i64FreeBytes;
-  char            dir[4] = {'C', ':', '\\', '\0'};
-  int             drive_type;
 
-  if (tscEmbedded) {
-    drive_type = GetDriveTypeA(dir);
-    if (drive_type == DRIVE_FIXED) {
-      fResult = GetDiskFreeSpaceExA(dir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
-                                    (PULARGE_INTEGER)&i64FreeBytes);
-      if (fResult) {
-        tsTotalDataDirGB = tsTotalLogDirGB = tsTotalTmpDirGB = (float)(i64TotalBytes / unit);
-        tsAvailDataDirGB = tsAvailLogDirGB = tsAvailTmpDirectorySpace = (float)(i64FreeBytes / unit);
-      }
-    }
+  BOOL fResult = GetDiskFreeSpaceExA(dataDir, (PULARGE_INTEGER)&i64FreeBytesToCaller, (PULARGE_INTEGER)&i64TotalBytes,
+                                     (PULARGE_INTEGER)&i64FreeBytes);
+  if (fResult) {
+    diskSize->tsize = (int64_t)(i64TotalBytes);
+    diskSize->avail = (int64_t)(i64FreeBytes);
+    return 0;
+  } else {
+    uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
   }
+}
+
+bool taosGetBandSpeed(float *bandSpeedKb) {
+  *bandSpeedKb = 0;
   return true;
 }
 
@@ -144,48 +188,30 @@ bool taosGetProcIO(float *readKB, float *writeKB) {
   return true;
 }
 
-bool taosGetBandSpeed(float *bandSpeedKb) {
-  *bandSpeedKb = 0;
-  return true;
+void taosGetSystemInfo() {
+  tsNumOfCores = taosGetCpuCores();
+  tsTotalMemoryMB = taosGetTotalMemory();
+
+  float tmp1, tmp2;
+  // taosGetDisk();
+  taosGetBandSpeed(&tmp1);
+  taosGetCpuUsage(&tmp1, &tmp2);
+  taosGetProcIO(&tmp1, &tmp2);
+
+  taosGetSystemTimezone();
+  taosGetSystemLocale();
 }
 
-bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
-  *sysCpuUsage = 0;
-  *procCpuUsage = 0;
-  return true;
+void taosPrintOsInfo() {
+  uInfo(" os numOfCores:          %d", tsNumOfCores);
+  uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
+  uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
+  uInfo("==================================");
 }
 
-bool taosGetProcMemory(float *memoryUsedMB) {
-  unsigned bytes_used = 0;
-#if 0
-#if defined(_WIN32) && defined(_MSC_VER)
-   PROCESS_MEMORY_COUNTERS pmc;
-   HANDLE                  cur_proc = GetCurrentProcess();
-
-   if (GetProcessMemoryInfo(cur_proc, &pmc, sizeof(pmc))) {
-     bytes_used = (unsigned)(pmc.WorkingSetSize + pmc.PagefileUsage);
-   }
-#endif
-#endif
-
-  *memoryUsedMB = (float)bytes_used / 1024 / 1024;
-
-  return true;
-}
-
-bool taosGetSysMemory(float *memoryUsedMB) {
-  MEMORYSTATUSEX memsStat;
-  float          nMemFree;
-  float          nMemTotal;
-
-  memsStat.dwLength = sizeof(memsStat);
-  if (!GlobalMemoryStatusEx(&memsStat)) {
-    return false;
-  }
-  nMemFree = memsStat.ullAvailPhys / (1024.0f * 1024.0f);
-  nMemTotal = memsStat.ullTotalPhys / (1024.0f * 1024.0f);
-  *memoryUsedMB = nMemTotal - nMemFree;
-  return true;
+void taosKillSystem() {
+  uError("function taosKillSystem, exit!");
+  exit(0);
 }
 
 int taosSystem(const char *cmd) {
@@ -194,10 +220,6 @@ int taosSystem(const char *cmd) {
 }
 
 int flock(int fd, int option) { return 0; }
-
-int fsync(int filedes) { return 0; }
-
-int sigaction(int sig, struct sigaction *d, void *p) { return 0; }
 
 LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
   typedef BOOL(WINAPI * FxMiniDumpWriteDump)(IN HANDLE hProcess, IN DWORD ProcessId, IN HANDLE hFile,
@@ -236,3 +258,21 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 }
 
 void taosSetCoreDump() { SetUnhandledExceptionFilter(&FlCrashDump); }
+
+bool taosGetSystemUid(char *uid) {
+  GUID guid;
+  CoCreateGuid(&guid);
+
+  sprintf(
+    uid,
+    "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X",
+    guid.Data1, guid.Data2, guid.Data3,
+    guid.Data4[0], guid.Data4[1],
+    guid.Data4[2], guid.Data4[3],
+    guid.Data4[4], guid.Data4[5],
+    guid.Data4[6], guid.Data4[7]);
+
+  return true;
+}
+
+char *taosGetCmdlineByPID(int pid) { return ""; }

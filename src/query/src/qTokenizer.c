@@ -129,6 +129,7 @@ static SKeyword keywordTable[] = {
     {"PRECISION",    TK_PRECISION},
     {"LP",           TK_LP},
     {"RP",           TK_RP},
+    {"UNSIGNED",     TK_UNSIGNED},
     {"TAGS",         TK_TAGS},
     {"USING",        TK_USING},
     {"AS",           TK_AS},
@@ -238,6 +239,8 @@ static SKeyword keywordTable[] = {
     {"SUM_IRATE",    TK_SUM_IRATE},
     {"AVG_RATE",     TK_AVG_RATE},
     {"AVG_IRATE",    TK_AVG_IRATE},
+    {"CACHELAST",    TK_CACHELAST},
+    {"DISTINCT",     TK_DISTINCT},
 };
 
 static const char isIdChar[] = {

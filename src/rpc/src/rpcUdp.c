@@ -15,7 +15,6 @@
 
 #include "os.h"
 #include "tsocket.h"
-#include "tsystem.h"
 #include "ttimer.h"
 #include "tutil.h"
 #include "taosdef.h"
@@ -140,6 +139,7 @@ void taosStopUdpConnection(void *handle) {
     pConn = pSet->udpConn + i;
     if (pConn->fd >=0) shutdown(pConn->fd, SHUT_RDWR);
     if (pConn->fd >=0) taosCloseSocket(pConn->fd);
+    pConn->fd = -1;
   }
 
   for (int i = 0; i < pSet->threads; ++i) {
@@ -197,9 +197,16 @@ static void *taosRecvUdpData(void *param) {
 
   while (1) {
     dataLen = recvfrom(pConn->fd, pConn->buffer, RPC_MAX_UDP_SIZE, 0, (struct sockaddr *)&sourceAdd, &addLen);
-    if(dataLen <= 0) {
-      tDebug("%s UDP socket was closed, exiting(%s)", pConn->label, strerror(errno));
-      break;
+    if (dataLen <= 0) {
+      tDebug("%s UDP socket was closed, exiting(%s), dataLen:%d fd:%d", pConn->label, strerror(errno), (int32_t)dataLen,
+             pConn->fd);
+
+      // for windows usage, remote shutdown also returns - 1 in windows client
+      if (pConn->fd == -1) {
+        break;
+      } else {
+        continue;
+      }
     }
 
     port = ntohs(sourceAdd.sin_port);

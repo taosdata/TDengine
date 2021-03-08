@@ -50,12 +50,48 @@ print ========= start dnode1
 system sh/exec.sh -n dnode1 -s start
 
 sql connect
-sleep 4001
 sql create dnode $hostname2
 sql create dnode $hostname3
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-sleep 4001
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+
+sql show mnodes
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step1
+endi
+if $data2_2 != slave then
+  goto step1
+endi
+if $data2_3 != slave then
+  goto step1
+endi
+
 
 sql create database c_b2_d1 replica 2 
 sql use c_b2_d1
@@ -112,13 +148,12 @@ endi
 print ============================== step2
 print ========= drop dnode2
 sql drop dnode $hostname2
-sleep 9000
 
 $x = 0
 show2: 
 	$x = $x + 1
-	sleep 3000
-	if $x == 20 then 
+	sleep 1000
+	if $x == 30 then 
 	  return -1
 	endi
 sql show dnodes -x show2
@@ -155,13 +190,12 @@ print ============================== step3
 print ========= start dnode4
 sql create dnode $hostname4
 system sh/exec.sh -n dnode4 -s start
-sleep 10000
 
 $x = 0
 show3: 
 	$x = $x + 1
-	sleep 3000
-	if $x == 20 then 
+	sleep 1000
+	if $x == 30 then 
 	  return -1
 	endi
 sql show dnodes -x show3
@@ -209,13 +243,12 @@ endi
 print ============================== step4
 print ========= drop dnode3
 sql drop dnode $hostname3
-sleep 9000
 
 $x = 0
 show4: 
 	$x = $x + 1
-	sleep 3000
-	if $x == 20 then 
+	sleep 1000
+	if $x == 40 then 
 	  return -1
 	endi
 sql show dnodes -x show4
@@ -266,12 +299,11 @@ print ============================== step5
 print ========= start dnode3
 sql create dnode $hostname5
 system sh/exec.sh -n dnode5 -s start
-sleep 9000
 
 $x = 0
 show5: 
 	$x = $x + 1
-	sleep 2000
+	sleep 1000
 	if $x == 30 then
 	  return -1
 	endi
@@ -303,8 +335,8 @@ print dnode5 ==> $dnode5Role
 
 print ============================== step6
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
-print stop dnode1 and sleep 10000
-sleep 10000
+print stop dnode1 and sleep 3000
+sleep 3000
 
 sql drop dnode $hostname1
 print drop dnode1 and sleep 9000
@@ -364,7 +396,7 @@ print ============================== step12
 print ========= check data
 
 sql reset query cache
-sleep 1000
+sleep 100
 
 sql select * from c_b2_d1.c_b2_t1 order by t desc
 print $data01 $data11 $data21 $data31 $data41

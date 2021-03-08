@@ -64,7 +64,7 @@ void httpProcessMultiSqlRetrieveCallBackImp(void *param, TAOS_RES *result, int32
     }
 
     taos_free_result(result);
-    
+
     if (singleCmd->cmdReturnType == HTTP_CMD_RETURN_TYPE_WITH_RETURN && encode->stopJsonFp) {
       (encode->stopJsonFp)(pContext, singleCmd);
     }
@@ -82,7 +82,7 @@ void httpProcessMultiSqlCallBackImp(void *param, TAOS_RES *result, int32_t code,
   HttpContext *pContext = (HttpContext *)param;
   if (pContext == NULL) return;
 
-  HttpSqlCmds *multiCmds = pContext->multiCmds;
+  HttpSqlCmds *     multiCmds = pContext->multiCmds;
   HttpEncodeMethod *encode = pContext->encodeMethod;
 
   HttpSqlCmd *singleCmd = multiCmds->cmds + multiCmds->pos;
@@ -181,7 +181,7 @@ void httpProcessMultiSql(HttpContext *pContext) {
   char *sql = httpGetCmdsString(pContext, cmd->sql);
   httpTraceL("context:%p, fd:%d, user:%s, process pos:%d, start query, sql:%s", pContext, pContext->fd, pContext->user,
              multiCmds->pos, sql);
-  taosNotePrintHttp(sql);
+  nPrintHttp("%s", sql);
   taos_query_a(pContext->session->taos, sql, httpProcessMultiSqlCallBack, (void *)pContext);
 }
 
@@ -269,8 +269,8 @@ void httpProcessSingleSqlCallBackImp(void *param, TAOS_RES *result, int32_t code
                 pContext->user, tstrerror(code), pObj, taos_errstr(pObj));
       httpSendTaosdInvalidSqlErrorResp(pContext, taos_errstr(pObj));
     } else {
-      httpError("context:%p, fd:%d, user:%s, query error, code:%s, sqlObj:%p", pContext, pContext->fd,
-                pContext->user, tstrerror(code), pObj);
+      httpError("context:%p, fd:%d, user:%s, query error, code:%s, sqlObj:%p", pContext, pContext->fd, pContext->user,
+                tstrerror(code), pObj);
       httpSendErrorResp(pContext, code);
     }
     taos_free_result(result);
@@ -329,7 +329,7 @@ void httpProcessSingleSqlCmd(HttpContext *pContext) {
   }
 
   httpTraceL("context:%p, fd:%d, user:%s, start query, sql:%s", pContext, pContext->fd, pContext->user, sql);
-  taosNotePrintHttp(sql);
+  nPrintHttp("%s", sql);
   taos_query_a(pSession->taos, sql, httpProcessSingleSqlCallBack, (void *)pContext);
 }
 
@@ -381,7 +381,7 @@ void httpExecCmd(HttpContext *pContext) {
 void httpProcessRequestCb(void *param, TAOS_RES *result, int32_t code) {
   HttpContext *pContext = param;
   taos_free_result(result);
-  
+
   if (pContext == NULL) return;
 
   if (code < 0) {

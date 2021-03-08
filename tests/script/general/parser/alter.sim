@@ -2,9 +2,8 @@ system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode1 -c tableMetaKeepTimer -v 3
 system sh/exec.sh -n dnode1 -s start
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = m_alt_db
@@ -114,7 +113,7 @@ endi
 sql drop table tb
 sql drop table mt
 
-sleep 500
+sleep 100
 ### ALTER TABLE WHILE STREAMING [TBASE271]
 #sql create table tb1 (ts timestamp, c1 int, c2 nchar(5), c3 int)
 #sql create table strm as select count(*), avg(c1), first(c2), sum(c3) from tb1 interval(2s)
@@ -134,7 +133,7 @@ sleep 500
 #  return -1
 #endi
 #sql alter table tb1 drop column c3
-#sleep 3000
+#sleep 500
 #sql insert into tb1 values (now, 2, 'taos')
 #sleep 30000
 #sql select * from strm
@@ -145,9 +144,9 @@ sleep 500
 #  return -1
 #endi
 #sql alter table tb1 add column c3 int
-#sleep 3000
-#sql insert into tb1 values (now, 3, 'taos', 3);
 #sleep 500
+#sql insert into tb1 values (now, 3, 'taos', 3);
+#sleep 100
 #sql select * from strm
 #if $rows != 3 then
 #   return -1
@@ -186,7 +185,7 @@ sql create database $db
 sql use $db
 sql create table mt (ts timestamp, c1 int, c2 nchar(7), c3 int) tags (t1 int)
 sql create table tb using mt tags(1)
-sleep 500
+sleep 100
 sql insert into tb values ('2018-11-01 16:30:00.000', 1, 'insert', 1)
 sql alter table mt drop column c3
 

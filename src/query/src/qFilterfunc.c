@@ -19,197 +19,174 @@
 #include "qExecutor.h"
 #include "taosmsg.h"
 #include "tcompare.h"
-#include "tsqlfunction.h"
+#include "ttype.h"
 
-bool less_i8(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int8_t *)minval < pFilter->filterInfo.upperBndi);
+#define FLT_COMPAR_TOL_FACTOR    4
+#define FLT_EQUAL(_x, _y)        (fabs((_x) - (_y)) <= (FLT_COMPAR_TOL_FACTOR * FLT_EPSILON))
+#define FLT_GREATER(_x, _y)      (!FLT_EQUAL((_x), (_y)) && ((_x) > (_y)))
+#define FLT_LESS(_x, _y)         (!FLT_EQUAL((_x), (_y)) && ((_x) < (_y)))
+#define FLT_GREATEREQUAL(_x, _y) (FLT_EQUAL((_x), (_y)) || ((_x) > (_y)))
+#define FLT_LESSEQUAL(_x, _y)    (FLT_EQUAL((_x), (_y)) || ((_x) < (_y)))
+
+bool lessOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type) {
+  SColumnFilterInfo* pFilterInfo = &pFilter->filterInfo;
+
+  switch(type) {
+    case TSDB_DATA_TYPE_TINYINT: return (*(int8_t *)minval < pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_UTINYINT: return (*(uint8_t *)minval < pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_SMALLINT: return (*(int16_t *)minval < pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_USMALLINT: return (*(uint16_t *)minval < pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_INT: return (*(int32_t *)minval < pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_UINT: return (*(uint32_t *)minval < pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT: return (*(int64_t *)minval < pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_UBIGINT: return (*(uint64_t *)minval < pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_FLOAT: return FLT_LESS(*(float*)minval, pFilter->filterInfo.upperBndd);
+    case TSDB_DATA_TYPE_DOUBLE: return (*(double *)minval < pFilterInfo->upperBndd);
+    default:
+      return false;
+  }
 }
 
-bool less_i16(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int16_t *)minval < pFilter->filterInfo.upperBndi);
+bool greaterOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type) {
+  SColumnFilterInfo *pFilterInfo = &pFilter->filterInfo;
+
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT: return (*(int8_t *)maxval > pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_UTINYINT: return (*(uint8_t *)maxval > pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_SMALLINT: return (*(int16_t *)maxval > pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_USMALLINT: return (*(uint16_t *)maxval > pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_INT: return (*(int32_t *)maxval > pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_UINT: return (*(uint32_t *)maxval > pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT: return (*(int64_t *)maxval > pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_UBIGINT: return (*(uint64_t *)maxval > pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_FLOAT: return FLT_GREATER(*(float *)maxval, pFilterInfo->lowerBndd);
+    case TSDB_DATA_TYPE_DOUBLE: return (*(double *)maxval > pFilterInfo->lowerBndd);
+    default:
+      return false;
+  }
 }
 
-bool less_i32(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int32_t *)minval < pFilter->filterInfo.upperBndi);
+bool lessEqualOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type) {
+  SColumnFilterInfo* pFilterInfo = &pFilter->filterInfo;
+
+  switch(type) {
+    case TSDB_DATA_TYPE_TINYINT: return (*(int8_t *)minval <= pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_UTINYINT: return (*(uint8_t *)minval <= pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_SMALLINT: return (*(int16_t *)minval <= pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_USMALLINT: return (*(uint16_t *)minval <= pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_INT: return (*(int32_t *)minval <= pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_UINT: return (*(uint32_t *)minval <= pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT: return (*(int64_t *)minval <= pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_UBIGINT: return (*(uint64_t *)minval <= pFilterInfo->upperBndi);
+    case TSDB_DATA_TYPE_FLOAT: return FLT_LESSEQUAL(*(float*)minval, pFilterInfo->upperBndd);
+    case TSDB_DATA_TYPE_DOUBLE: {
+      if ((fabs(*(double*)minval) - pFilterInfo->upperBndd) <= 2 * DBL_EPSILON) {
+        return true;
+      }
+
+      return (*(double *)minval <= pFilterInfo->upperBndd);
+    }
+    default:
+      return false;
+  }
 }
 
-bool less_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int64_t *)minval < pFilter->filterInfo.upperBndi);
-}
+bool greaterEqualOperator(SColumnFilterElem *pFilter, const char *minval, const char *maxval, int16_t type) {
+  SColumnFilterInfo *pFilterInfo = &pFilter->filterInfo;
 
-bool less_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(float *)minval < pFilter->filterInfo.upperBndd);
-}
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT: return (*(int8_t *)maxval >= pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_UTINYINT: return (*(uint8_t *)maxval >= pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_SMALLINT: return (*(int16_t *)maxval >= pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_USMALLINT: return (*(uint16_t *)maxval >= pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_INT: return (*(int32_t *)maxval >= pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_UINT: return (*(uint32_t *)maxval >= pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT: return (*(int64_t *)maxval >= pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_UBIGINT: return (*(uint64_t *)maxval >= pFilterInfo->lowerBndi);
+    case TSDB_DATA_TYPE_FLOAT: return FLT_GREATEREQUAL(*(float*)maxval, pFilterInfo->lowerBndd);
+    case TSDB_DATA_TYPE_DOUBLE: {
+      if (fabs(*(double *)maxval - pFilterInfo->lowerBndd) <= 2 * DBL_EPSILON) {
+        return true;
+      }
 
-bool less_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(double *)minval < pFilter->filterInfo.upperBndd);
-}
-
-//////////////////////////////////////////////////////////////////
-bool large_i8(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int8_t *)maxval > pFilter->filterInfo.lowerBndi);
-}
-
-bool large_i16(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int16_t *)maxval > pFilter->filterInfo.lowerBndi);
-}
-
-bool large_i32(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int32_t *)maxval > pFilter->filterInfo.lowerBndi);
-}
-
-bool large_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int64_t *)maxval > pFilter->filterInfo.lowerBndi);
-}
-
-bool large_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(float *)maxval > pFilter->filterInfo.lowerBndd);
-}
-
-bool large_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(double *)maxval > pFilter->filterInfo.lowerBndd);
-}
-/////////////////////////////////////////////////////////////////////
-
-bool lessEqual_i8(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int8_t *)minval <= pFilter->filterInfo.upperBndi);
-}
-
-bool lessEqual_i16(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int16_t *)minval <= pFilter->filterInfo.upperBndi);
-}
-
-bool lessEqual_i32(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int32_t *)minval <= pFilter->filterInfo.upperBndi);
-}
-
-bool lessEqual_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int64_t *)minval <= pFilter->filterInfo.upperBndi);
-}
-
-bool lessEqual_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(float *)minval <= pFilter->filterInfo.upperBndd);
-}
-
-bool lessEqual_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(double *)minval <= pFilter->filterInfo.upperBndd);
-}
-
-//////////////////////////////////////////////////////////////////////////
-bool largeEqual_i8(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int8_t *)maxval >= pFilter->filterInfo.lowerBndi);
-}
-
-bool largeEqual_i16(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int16_t *)maxval >= pFilter->filterInfo.lowerBndi);
-}
-
-bool largeEqual_i32(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int32_t *)maxval >= pFilter->filterInfo.lowerBndi);
-}
-
-bool largeEqual_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int64_t *)maxval >= pFilter->filterInfo.lowerBndi);
-}
-
-bool largeEqual_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(float *)maxval >= pFilter->filterInfo.lowerBndd);
-}
-
-bool largeEqual_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(double *)maxval >= pFilter->filterInfo.lowerBndd);
+      return (*(double *)maxval - pFilterInfo->lowerBndd > (2 * DBL_EPSILON));
+    }
+    default:
+      return false;
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////
+bool equalOperator(SColumnFilterElem *pFilter, const char *minval, const char *maxval, int16_t type) {
+  SColumnFilterInfo *pFilterInfo = &pFilter->filterInfo;
 
-bool equal_i8(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(int8_t *)minval == *(int8_t *)maxval) {
-    return (*(int8_t *)minval == pFilter->filterInfo.lowerBndi);
-  } else { /* range filter */
-    assert(*(int8_t *)minval < *(int8_t *)maxval);
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+    int64_t minv = -1, maxv = -1;
+    GET_TYPED_DATA(minv, int64_t, type, minval);
+    GET_TYPED_DATA(maxv, int64_t, type, maxval);
 
-    return *(int8_t *)minval <= pFilter->filterInfo.lowerBndi && *(int8_t *)maxval >= pFilter->filterInfo.lowerBndi;
-  }
-}
+    if (minv == maxv) {
+      return minv == pFilterInfo->lowerBndi;
+    } else {
+      assert(minv < maxv);
+      return minv <= pFilterInfo->lowerBndi && pFilterInfo->lowerBndi <= maxv;
+    }
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    uint64_t minv = 0, maxv = 0;
+    GET_TYPED_DATA(minv, uint64_t, type, minval);
+    GET_TYPED_DATA(maxv, uint64_t, type, maxval);
 
-bool equal_i16(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(int16_t *)minval == *(int16_t *)maxval) {
-    return (*(int16_t *)minval == pFilter->filterInfo.lowerBndi);
-  } else { /* range filter */
-    assert(*(int16_t *)minval < *(int16_t *)maxval);
+    if (minv == maxv) {
+      return minv == pFilterInfo->lowerBndi;
+    } else {
+      assert(minv < maxv);
+      return minv <= pFilterInfo->lowerBndi && pFilterInfo->lowerBndi <= maxv;
+    }
+  } else if (IS_FLOAT_TYPE(type)) {
+    double minv = -1, maxv = -1;
+    GET_TYPED_DATA(minv, double, type, minval);
+    GET_TYPED_DATA(maxv, double, type, maxval);
 
-    return *(int16_t *)minval <= pFilter->filterInfo.lowerBndi && *(int16_t *)maxval >= pFilter->filterInfo.lowerBndi;
-  }
-}
+    if (minv == maxv) {
+      return FLT_EQUAL(minv, pFilterInfo->lowerBndd);
+    } else {  // range filter
+      assert(minv < maxv);
+      return minv <= pFilterInfo->lowerBndd && pFilterInfo->lowerBndd <= maxv;
+    }
+  } else if (type == TSDB_DATA_TYPE_BINARY) {
+    // query condition string is greater than the max length of string, not qualified data
+    if (pFilterInfo->len != varDataLen(minval)) {
+      return false;
+    }
 
-bool equal_i32(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(int32_t *)minval == *(int32_t *)maxval) {
-    return (*(int32_t *)minval == pFilter->filterInfo.lowerBndi);
-  } else { /* range filter */
-    assert(*(int32_t *)minval < *(int32_t *)maxval);
+    return strncmp((char *)pFilterInfo->pz, varDataVal(minval), varDataLen(minval)) == 0;
+  } else if (type == TSDB_DATA_TYPE_NCHAR) {
+    // query condition string is greater than the max length of string, not qualified data
+    if (pFilterInfo->len != varDataLen(minval)) {
+      return false;
+    }
 
-    return *(int32_t *)minval <= pFilter->filterInfo.lowerBndi && *(int32_t *)maxval >= pFilter->filterInfo.lowerBndi;
-  }
-}
-
-bool equal_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(int64_t *)minval == *(int64_t *)maxval) {
-    return (*(int64_t *)minval == pFilter->filterInfo.lowerBndi);
-  } else { /* range filter */
-    assert(*(int64_t *)minval < *(int64_t *)maxval);
-
-    return *(int64_t *)minval <= pFilter->filterInfo.lowerBndi && *(int64_t *)maxval >= pFilter->filterInfo.lowerBndi;
-  }
-}
-
-bool equal_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(float *)minval == *(float *)maxval) {
-    return (fabs(*(float *)minval - pFilter->filterInfo.lowerBndd) <= FLT_EPSILON);
-  } else { /* range filter */
-    assert(*(float *)minval < *(float *)maxval);
-    return *(float *)minval <= pFilter->filterInfo.lowerBndd && *(float *)maxval >= pFilter->filterInfo.lowerBndd;
-  }
-}
-
-bool equal_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(double *)minval == *(double *)maxval) {
-    return (*(double *)minval == pFilter->filterInfo.lowerBndd);
-  } else { /* range filter */
-    assert(*(double *)minval < *(double *)maxval);
-
-    return *(double *)minval <= pFilter->filterInfo.lowerBndi && *(double *)maxval >= pFilter->filterInfo.lowerBndi;
-  }
-}
-
-bool equal_str(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  // query condition string is greater than the max length of string, not qualified data
-  if (pFilter->filterInfo.len != varDataLen(minval)) {
+    return wcsncmp((wchar_t *)pFilterInfo->pz, varDataVal(minval), varDataLen(minval) / TSDB_NCHAR_SIZE) == 0;
+  } else {
     return false;
   }
-
-  return strncmp((char *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)) == 0;
-}
-
-bool equal_nchar(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  // query condition string is greater than the max length of string, not qualified data
-  if (pFilter->filterInfo.len != varDataLen(minval)) {
-    return false;
-  }
-
-  return wcsncmp((wchar_t *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE) == 0;
 }
 
 ////////////////////////////////////////////////////////////////
-bool like_str(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-
-  return patternMatch((char *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval), &info) == TSDB_PATTERN_MATCH;
-}
-
-bool like_nchar(SColumnFilterElem* pFilter, char* minval, char *maxval) {
-  SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
-  
-  return WCSPatternMatch((wchar_t*)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE, &info) == TSDB_PATTERN_MATCH;
+bool likeOperator(SColumnFilterElem *pFilter, const char *minval, const char *maxval, int16_t type) {
+  if (type == TSDB_DATA_TYPE_BINARY) {
+    SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
+    return patternMatch((char *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval), &info) == TSDB_PATTERN_MATCH;
+  } else if (type == TSDB_DATA_TYPE_NCHAR) {
+    SPatternCompareInfo info = PATTERN_COMPARE_INFO_INITIALIZER;
+    return WCSPatternMatch((wchar_t*)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE, &info) == TSDB_PATTERN_MATCH;
+  } else {
+    return false;
+  }
 }
 
 ////////////////////////////////////////////////////////////////
@@ -221,360 +198,237 @@ bool like_nchar(SColumnFilterElem* pFilter, char* minval, char *maxval) {
  *  During pre-filter stage, if there is one element that locates in [minval, maxval],
  *  the filter function will return true.
  */
-bool nequal_i8(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(int8_t *)minval == *(int8_t *)maxval) {
-    return (*(int8_t *)minval != pFilter->filterInfo.lowerBndi);
-  }
+// TODO not equal need to refactor
+bool notEqualOperator(SColumnFilterElem *pFilter, const char *minval, const char *maxval, int16_t type) {
+  SColumnFilterInfo *pFilterInfo = &pFilter->filterInfo;
 
-  return true;
-}
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+    int64_t minv = -1, maxv = -1;
+    GET_TYPED_DATA(minv, int64_t, type, minval);
+    GET_TYPED_DATA(maxv, int64_t, type, maxval);
 
-bool nequal_i16(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(int16_t *)minval == *(int16_t *)maxval) {
-    return (*(int16_t *)minval != pFilter->filterInfo.lowerBndi);
-  }
-
-  return true;
-}
-
-bool nequal_i32(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(int32_t *)minval == *(int32_t *)maxval) {
-    return (*(int32_t *)minval != pFilter->filterInfo.lowerBndi);
-  }
-
-  return true;
-}
-
-bool nequal_i64(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(int64_t *)minval == *(int64_t *)maxval) {
-    return (*(int64_t *)minval != pFilter->filterInfo.lowerBndi);
-  }
-
-  return true;
-}
-
-bool nequal_ds(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(float *)minval == *(float *)maxval) {
-    return (*(float *)minval != pFilter->filterInfo.lowerBndd);
-  }
-
-  return true;
-}
-
-bool nequal_dd(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (*(double *)minval == *(double *)maxval) {
-    return (*(double *)minval != pFilter->filterInfo.lowerBndd);
-  }
-
-  return true;
-}
-
-bool nequal_str(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  if (pFilter->filterInfo.len != varDataLen(minval)) {
+    if (minv == maxv) {
+      return minv != pFilterInfo->lowerBndi;
+    }
     return true;
-  }
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    uint64_t minv = 0, maxv = 0;
+    GET_TYPED_DATA(minv, uint64_t, type, minval);
+    GET_TYPED_DATA(maxv, uint64_t, type, maxval);
 
-  return strncmp((char *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)) != 0;
-}
-
-bool nequal_nchar(SColumnFilterElem *pFilter, char* minval, char *maxval) {
-  if (pFilter->filterInfo.len > pFilter->bytes) {
+    if (minv == maxv) {
+      return minv != pFilterInfo->lowerBndi;
+    }
     return true;
+  } else if (IS_FLOAT_TYPE(type)) {
+    double minv = -1, maxv = -1;
+    GET_TYPED_DATA(minv, double, type, minval);
+    GET_TYPED_DATA(maxv, double, type, maxval);
+
+    if (minv == maxv) {
+      return !FLT_EQUAL(minv,  pFilterInfo->lowerBndd);
+    }
+    return true;
+  } else if (type == TSDB_DATA_TYPE_BINARY) {
+    if (pFilterInfo->len != varDataLen(minval)) {
+      return true;
+    }
+    return strncmp((char *)pFilterInfo->pz, varDataVal(minval), varDataLen(minval)) != 0;
+  } else if (type == TSDB_DATA_TYPE_NCHAR) {
+    if (pFilterInfo->len != varDataLen(minval)) {
+      return true;
+    }
+    return wcsncmp((wchar_t *)pFilterInfo->pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE) != 0;
+  } else {
+    return false;
   }
-
-  return wcsncmp((wchar_t *)pFilter->filterInfo.pz, varDataVal(minval), varDataLen(minval)/TSDB_NCHAR_SIZE) != 0;
-}
-////////////////////////////////////////////////////////////////
-bool isNull_filter(SColumnFilterElem *pFilter, char* minval, char* maxval) {
-  return true;
-}
-
-bool notNull_filter(SColumnFilterElem *pFilter, char* minval, char* maxval) {
-  return true;
 }
 
 ////////////////////////////////////////////////////////////////
-
-bool rangeFilter_i32_ii(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int32_t *)minval <= pFilter->filterInfo.upperBndi && *(int32_t *)maxval >= pFilter->filterInfo.lowerBndi);
+// dummy filter, not used
+bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type) {
+  return true;
 }
 
-bool rangeFilter_i32_ee(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int32_t *)minval<pFilter->filterInfo.upperBndi &&*(int32_t *)maxval> pFilter->filterInfo.lowerBndi);
-}
-
-bool rangeFilter_i32_ie(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int32_t *)minval < pFilter->filterInfo.upperBndi && *(int32_t *)maxval >= pFilter->filterInfo.lowerBndi);
-}
-
-bool rangeFilter_i32_ei(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int32_t *)minval <= pFilter->filterInfo.upperBndi && *(int32_t *)maxval > pFilter->filterInfo.lowerBndi);
+bool notNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type) {
+  return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-bool rangeFilter_i8_ii(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int8_t *)minval <= pFilter->filterInfo.upperBndi && *(int8_t *)maxval >= pFilter->filterInfo.lowerBndi);
+bool rangeFilter_ii(SColumnFilterElem *pFilter, const char *minval, const char *maxval, int16_t type) {
+  SColumnFilterInfo *pFilterInfo = &pFilter->filterInfo;
+
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT:
+      return ((*(int8_t *)minval <= pFilterInfo->upperBndi) && (*(int8_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UTINYINT:
+      return ((*(uint8_t *)minval <= pFilterInfo->upperBndi) && (*(uint8_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_SMALLINT:
+      return ((*(int16_t *)minval <= pFilterInfo->upperBndi) && (*(int16_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_USMALLINT:
+      return ((*(uint16_t *)minval <= pFilterInfo->upperBndi) && (*(uint16_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_INT:
+      return ((*(int32_t *)minval <= pFilterInfo->upperBndi) && (*(int32_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UINT:
+      return ((*(uint32_t *)minval <= pFilterInfo->upperBndi) && (*(uint32_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT:
+      return ((*(int64_t *)minval <= pFilterInfo->upperBndi) && (*(int64_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UBIGINT:
+      return ((*(uint64_t *)minval <= pFilterInfo->upperBndi) && (*(uint64_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_FLOAT:
+      return FLT_LESSEQUAL(*(float *)minval, pFilterInfo->upperBndd) &&
+             FLT_GREATEREQUAL(*(float *)maxval, pFilterInfo->lowerBndd);
+    case TSDB_DATA_TYPE_DOUBLE:
+      return (*(double *)minval <= pFilterInfo->upperBndd && *(double *)maxval >= pFilterInfo->lowerBndd);
+    default:
+      return false;
+  }
 }
 
-bool rangeFilter_i8_ee(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int8_t *)minval<pFilter->filterInfo.upperBndi &&*(int8_t *)maxval> pFilter->filterInfo.lowerBndi);
+bool rangeFilter_ee(SColumnFilterElem *pFilter, const char *minval, const char *maxval, int16_t type) {
+  SColumnFilterInfo *pFilterInfo = &pFilter->filterInfo;
+
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT:
+      return ((*(int8_t *)minval < pFilterInfo->upperBndi) && (*(int8_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UTINYINT:
+      return ((*(uint8_t *)minval < pFilterInfo->upperBndi) && (*(uint8_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_SMALLINT:
+      return ((*(int16_t *)minval < pFilterInfo->upperBndi) && (*(int16_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_USMALLINT:
+      return ((*(uint16_t *)minval < pFilterInfo->upperBndi) && (*(uint16_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_INT:
+      return ((*(int32_t *)minval < pFilterInfo->upperBndi) && (*(int32_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UINT:
+      return ((*(uint32_t *)minval < pFilterInfo->upperBndi) && (*(uint32_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT:
+      return ((*(int64_t *)minval < pFilterInfo->upperBndi) && (*(int64_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UBIGINT:
+      return ((*(uint64_t *)minval < pFilterInfo->upperBndi) && (*(uint64_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_FLOAT:
+      return ((*(float *)minval < pFilterInfo->upperBndd) && (*(float *)maxval > pFilterInfo->lowerBndd));
+    case TSDB_DATA_TYPE_DOUBLE:
+      return ((*(double *)minval < pFilterInfo->upperBndd) && (*(double *)maxval > pFilterInfo->lowerBndd));
+    default:
+      return false;
+  }
 }
 
-bool rangeFilter_i8_ie(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int8_t *)minval < pFilter->filterInfo.upperBndi && *(int8_t *)maxval >= pFilter->filterInfo.lowerBndi);
+bool rangeFilter_ie(SColumnFilterElem *pFilter, const char *minval, const char *maxval, int16_t type) {
+  SColumnFilterInfo *pFilterInfo = &pFilter->filterInfo;
+
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT:
+      return ((*(int8_t *)minval < pFilterInfo->upperBndi) && (*(int8_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UTINYINT:
+      return ((*(uint8_t *)minval < pFilterInfo->upperBndi) && (*(uint8_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_SMALLINT:
+      return ((*(int16_t *)minval < pFilterInfo->upperBndi) && (*(int16_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_USMALLINT:
+      return ((*(uint16_t *)minval < pFilterInfo->upperBndi) && (*(uint16_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_INT:
+      return ((*(int32_t *)minval < pFilterInfo->upperBndi) && (*(int32_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UINT:
+      return ((*(uint32_t *)minval < pFilterInfo->upperBndi) && (*(uint32_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT:
+      return ((*(int64_t *)minval < pFilterInfo->upperBndi) && (*(int64_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UBIGINT:
+      return ((*(uint64_t *)minval < pFilterInfo->upperBndi) && (*(uint64_t *)maxval >= pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_FLOAT:
+      return ((*(float *)minval < pFilterInfo->upperBndd) && (*(float *)maxval >= pFilterInfo->lowerBndd));
+    case TSDB_DATA_TYPE_DOUBLE:
+      return ((*(double *)minval < pFilterInfo->upperBndd) && (*(double *)maxval >= pFilterInfo->lowerBndd));
+    default:
+      return false;
+  }
 }
 
-bool rangeFilter_i8_ei(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int8_t *)minval <= pFilter->filterInfo.upperBndi && *(int8_t *)maxval > pFilter->filterInfo.lowerBndi);
-}
+bool rangeFilter_ei(SColumnFilterElem *pFilter, const char *minval, const char *maxval, int16_t type) {
+  SColumnFilterInfo *pFilterInfo = &pFilter->filterInfo;
 
-/////////////////////////////////////////////////////////////////////////////////////
-bool rangeFilter_i16_ii(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int16_t *)minval <= pFilter->filterInfo.upperBndi && *(int16_t *)maxval >= pFilter->filterInfo.lowerBndi);
-}
-
-bool rangeFilter_i16_ee(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int16_t *)minval<pFilter->filterInfo.upperBndi &&*(int16_t *)maxval> pFilter->filterInfo.lowerBndi);
-}
-
-bool rangeFilter_i16_ie(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int16_t *)minval < pFilter->filterInfo.upperBndi && *(int16_t *)maxval >= pFilter->filterInfo.lowerBndi);
-}
-
-bool rangeFilter_i16_ei(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int16_t *)minval <= pFilter->filterInfo.upperBndi && *(int16_t *)maxval > pFilter->filterInfo.lowerBndi);
-}
-
-////////////////////////////////////////////////////////////////////////
-bool rangeFilter_i64_ii(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int64_t *)minval <= pFilter->filterInfo.upperBndi && *(int64_t *)maxval >= pFilter->filterInfo.lowerBndi);
-}
-
-bool rangeFilter_i64_ee(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int64_t *)minval<pFilter->filterInfo.upperBndi &&*(int64_t *)maxval> pFilter->filterInfo.lowerBndi);
-}
-
-bool rangeFilter_i64_ie(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int64_t *)minval < pFilter->filterInfo.upperBndi && *(int64_t *)maxval >= pFilter->filterInfo.lowerBndi);
-}
-
-bool rangeFilter_i64_ei(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(int64_t *)minval <= pFilter->filterInfo.upperBndi && *(int64_t *)maxval > pFilter->filterInfo.lowerBndi);
-}
-
-////////////////////////////////////////////////////////////////////////
-bool rangeFilter_ds_ii(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(float *)minval <= pFilter->filterInfo.upperBndd && *(float *)maxval >= pFilter->filterInfo.lowerBndd);
-}
-
-bool rangeFilter_ds_ee(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(float *)minval<pFilter->filterInfo.upperBndd &&*(float *)maxval> pFilter->filterInfo.lowerBndd);
-}
-
-bool rangeFilter_ds_ie(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(float *)minval < pFilter->filterInfo.upperBndd && *(float *)maxval >= pFilter->filterInfo.lowerBndd);
-}
-
-bool rangeFilter_ds_ei(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(float *)minval <= pFilter->filterInfo.upperBndd && *(float *)maxval > pFilter->filterInfo.lowerBndd);
-}
-
-//////////////////////////////////////////////////////////////////////////
-bool rangeFilter_dd_ii(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(double *)minval <= pFilter->filterInfo.upperBndd && *(double *)maxval >= pFilter->filterInfo.lowerBndd);
-}
-
-bool rangeFilter_dd_ee(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(double *)minval<pFilter->filterInfo.upperBndd &&*(double *)maxval> pFilter->filterInfo.lowerBndd);
-}
-
-bool rangeFilter_dd_ie(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(double *)minval < pFilter->filterInfo.upperBndd && *(double *)maxval >= pFilter->filterInfo.lowerBndd);
-}
-
-bool rangeFilter_dd_ei(SColumnFilterElem *pFilter, char *minval, char *maxval) {
-  return (*(double *)minval <= pFilter->filterInfo.upperBndd && *(double *)maxval > pFilter->filterInfo.lowerBndd);
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT:
+      return ((*(int8_t *)minval <= pFilterInfo->upperBndi) && (*(int8_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UTINYINT:
+      return ((*(uint8_t *)minval <= pFilterInfo->upperBndi) && (*(uint8_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_SMALLINT:
+      return ((*(int16_t *)minval <= pFilterInfo->upperBndi) && (*(int16_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_USMALLINT:
+      return ((*(uint16_t *)minval <= pFilterInfo->upperBndi) && (*(uint16_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_INT:
+      return ((*(int32_t *)minval <= pFilterInfo->upperBndi) && (*(int32_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UINT:
+      return ((*(uint32_t *)minval <= pFilterInfo->upperBndi) && (*(uint32_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_TIMESTAMP:
+    case TSDB_DATA_TYPE_BIGINT:
+      return ((*(int64_t *)minval <= pFilterInfo->upperBndi) && (*(int64_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_UBIGINT:
+      return ((*(uint64_t *)minval <= pFilterInfo->upperBndi) && (*(uint64_t *)maxval > pFilterInfo->lowerBndi));
+    case TSDB_DATA_TYPE_FLOAT:
+      return FLT_GREATER(*(float *)maxval, pFilterInfo->lowerBndd) &&
+             FLT_LESSEQUAL(*(float *)minval, pFilterInfo->upperBndd);
+    case TSDB_DATA_TYPE_DOUBLE:
+      return ((*(double *)minval <= pFilterInfo->upperBndd) && (*(double *)maxval > pFilterInfo->lowerBndd));
+    default:
+      return false;
+  }
 }
 
 ////////////////////////////////////////////////////////////////////////////
-bool (*filterFunc_i8[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  less_i8,
-  large_i8,
-  equal_i8,
-  lessEqual_i8,
-  largeEqual_i8,
-  nequal_i8,
-  NULL,
-  isNull_filter,
-  notNull_filter,
+bool (*filterOperators[])(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type) = {
+    NULL,
+    lessOperator,
+    greaterOperator,
+    equalOperator,
+    lessEqualOperator,
+    greaterEqualOperator,
+    notEqualOperator,
+    likeOperator,
+    isNullOperator,
+    notNullOperator,
 };
 
-bool (*filterFunc_i16[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  less_i16,
-  large_i16,
-  equal_i16,
-  lessEqual_i16,
-  largeEqual_i16,
-  nequal_i16,
-  NULL,
-  isNull_filter,
-  notNull_filter,
+bool (*rangeFilterOperators[])(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type) = {
+    NULL,
+    rangeFilter_ee,
+    rangeFilter_ie,
+    rangeFilter_ei,
+    rangeFilter_ii,
 };
 
-bool (*filterFunc_i32[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  less_i32,
-  large_i32,
-  equal_i32,
-  lessEqual_i32,
-  largeEqual_i32,
-  nequal_i32,
-  NULL,
-  isNull_filter,
-  notNull_filter,
-};
+__filter_func_t getFilterOperator(int32_t lowerOptr, int32_t upperOptr) {
+  __filter_func_t funcFp = NULL;
 
-bool (*filterFunc_i64[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  less_i64,
-  large_i64,
-  equal_i64,
-  lessEqual_i64,
-  largeEqual_i64,
-  nequal_i64,
-  NULL,
-  isNull_filter,
-  notNull_filter,
-};
+  if ((lowerOptr == TSDB_RELATION_GREATER_EQUAL || lowerOptr == TSDB_RELATION_GREATER) &&
+      (upperOptr == TSDB_RELATION_LESS_EQUAL || upperOptr == TSDB_RELATION_LESS)) {
+    if (lowerOptr == TSDB_RELATION_GREATER_EQUAL) {
+      if (upperOptr == TSDB_RELATION_LESS_EQUAL) {
+        funcFp = rangeFilterOperators[4];
+      } else {
+        funcFp = rangeFilterOperators[2];
+      }
+    } else {
+      if (upperOptr == TSDB_RELATION_LESS_EQUAL) {
+        funcFp = rangeFilterOperators[3];
+      } else {
+        funcFp = rangeFilterOperators[1];
+      }
+    }
+  } else {  // set callback filter function
+    if (lowerOptr != TSDB_RELATION_INVALID) {
+      funcFp = filterOperators[lowerOptr];
 
-bool (*filterFunc_ds[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  less_ds,
-  large_ds,
-  equal_ds,
-  lessEqual_ds,
-  largeEqual_ds,
-  nequal_ds,
-  NULL,
-  isNull_filter,
-  notNull_filter,
-};
-
-bool (*filterFunc_dd[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  less_dd,
-  large_dd,
-  equal_dd,
-  lessEqual_dd,
-  largeEqual_dd,
-  nequal_dd,
-  NULL,
-  isNull_filter,
-  notNull_filter,
-};
-
-bool (*filterFunc_str[])(SColumnFilterElem* pFilter, char* minval, char *maxval) = {
-  NULL,
-  NULL,
-  NULL,
-  equal_str,
-  NULL,
-  NULL,
-  nequal_str,
-  like_str,
-  isNull_filter,
-  notNull_filter,
-};
-
-bool (*filterFunc_nchar[])(SColumnFilterElem* pFitler, char* minval, char* maxval) = {
-  NULL,
-  NULL,
-  NULL,
-  equal_nchar,
-  NULL,
-  NULL,
-  nequal_nchar,
-  like_nchar,
-  isNull_filter,
-  notNull_filter,
-};
-
-bool (*rangeFilterFunc_i8[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  rangeFilter_i8_ee,
-  rangeFilter_i8_ie,
-  rangeFilter_i8_ei,
-  rangeFilter_i8_ii,
-};
-
-bool (*rangeFilterFunc_i16[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  rangeFilter_i16_ee,
-  rangeFilter_i16_ie,
-  rangeFilter_i16_ei,
-  rangeFilter_i16_ii,
-};
-
-bool (*rangeFilterFunc_i32[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  rangeFilter_i32_ee,
-  rangeFilter_i32_ie,
-  rangeFilter_i32_ei,
-  rangeFilter_i32_ii,
-};
-
-bool (*rangeFilterFunc_i64[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  rangeFilter_i64_ee,
-  rangeFilter_i64_ie,
-  rangeFilter_i64_ei,
-  rangeFilter_i64_ii,
-};
-
-bool (*rangeFilterFunc_ds[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  rangeFilter_ds_ee,
-  rangeFilter_ds_ie,
-  rangeFilter_ds_ei,
-  rangeFilter_ds_ii,
-};
-
-bool (*rangeFilterFunc_dd[])(SColumnFilterElem *pFilter, char *minval, char *maxval) = {
-  NULL,
-  rangeFilter_dd_ee,
-  rangeFilter_dd_ie,
-  rangeFilter_dd_ei,
-  rangeFilter_dd_ii,
-};
-
-__filter_func_t* getRangeFilterFuncArray(int32_t type) {
-  switch(type) {
-    case TSDB_DATA_TYPE_BOOL:       return rangeFilterFunc_i8;
-    case TSDB_DATA_TYPE_TINYINT:    return rangeFilterFunc_i8;
-    case TSDB_DATA_TYPE_SMALLINT:   return rangeFilterFunc_i16;
-    case TSDB_DATA_TYPE_INT:        return rangeFilterFunc_i32;
-    case TSDB_DATA_TYPE_TIMESTAMP:  //timestamp uses bigint filter
-    case TSDB_DATA_TYPE_BIGINT:     return rangeFilterFunc_i64;
-    case TSDB_DATA_TYPE_FLOAT:      return rangeFilterFunc_ds;
-    case TSDB_DATA_TYPE_DOUBLE:     return rangeFilterFunc_dd;
-    default:return NULL;
+      // invalid filter condition: %d", pQInfo, type
+      if (upperOptr != TSDB_RELATION_INVALID) {
+        return NULL;
+      }
+    } else {
+      funcFp = filterOperators[upperOptr];
+    }
   }
-}
 
-__filter_func_t* getValueFilterFuncArray(int32_t type) {
-  switch(type) {
-    case TSDB_DATA_TYPE_BOOL:       return filterFunc_i8;
-    case TSDB_DATA_TYPE_TINYINT:    return filterFunc_i8;
-    case TSDB_DATA_TYPE_SMALLINT:   return filterFunc_i16;
-    case TSDB_DATA_TYPE_INT:        return filterFunc_i32;
-    case TSDB_DATA_TYPE_TIMESTAMP:  //timestamp uses bigint filter
-    case TSDB_DATA_TYPE_BIGINT:     return filterFunc_i64;
-    case TSDB_DATA_TYPE_FLOAT:      return filterFunc_ds;
-    case TSDB_DATA_TYPE_DOUBLE:     return filterFunc_dd;
-    case TSDB_DATA_TYPE_BINARY:     return filterFunc_str;
-    case TSDB_DATA_TYPE_NCHAR:      return filterFunc_nchar;
-    default: return NULL;
-  }
+  return funcFp;
 }

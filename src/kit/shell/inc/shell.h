@@ -30,6 +30,8 @@
 #define MAX_COMMAND_SIZE       65536
 #define HISTORY_FILE           ".taos_history"
 
+#define DEFAULT_RES_SHOW_NUM   100
+
 typedef struct SShellHistory {
   char* hist[MAX_HISTORY_SIZE];
   int   hstart;
@@ -45,13 +47,13 @@ typedef struct SShellArguments {
   char* timezone;
   bool  is_raw_time;
   bool  is_use_passwd;
+  bool  dump_config;
   char  file[TSDB_FILENAME_LEN];
   char  dir[TSDB_FILENAME_LEN];
   int   threadNum;
   char* commands;
   int   abort;
   int   port;
-  int   endPort;
   int   pktLen;
   char* netTestRole;
 } SShellArguments;
@@ -62,7 +64,7 @@ extern TAOS* shellInit(SShellArguments* args);
 extern void* shellLoopQuery(void* arg);
 extern void taos_error(TAOS_RES* tres, int64_t st);
 extern int regex_match(const char* s, const char* reg, int cflags);
-void shellReadCommand(TAOS* con, char command[]);
+int32_t shellReadCommand(TAOS* con, char command[]);
 int32_t shellRunCommand(TAOS* con, char* command);
 void shellRunCommandOnServer(TAOS* con, char command[]);
 void read_history();
@@ -86,6 +88,6 @@ extern void           set_terminal_mode();
 extern int get_old_terminal_mode(struct termios* tio);
 extern void            reset_terminal_mode();
 extern SShellArguments args;
-extern TAOS_RES*       result;
+extern int64_t         result;
 
 #endif

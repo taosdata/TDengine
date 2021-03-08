@@ -19,12 +19,16 @@
 
 extern char configDir[];
 
+void printVersion() {
+  printf("version: %s\n", version);
+}
+
 void printHelp() {
   char indent[10] = "        ";
   printf("taos shell is used to test the TDengine database\n");
 
   printf("%s%s\n", indent, "-h");
-  printf("%s%s%s\n", indent, indent, "TDengine server IP address to connect. The default host is localhost.");
+  printf("%s%s%s\n", indent, indent, "TDengine server FQDN to connect. The default host is localhost.");
   printf("%s%s\n", indent, "-p");
   printf("%s%s%s\n", indent, indent, "The password to use when connecting to the server.");
   printf("%s%s\n", indent, "-P");
@@ -35,6 +39,8 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "The user auth to use when connecting to the server.");
   printf("%s%s\n", indent, "-c");
   printf("%s%s%s\n", indent, indent, "Configuration directory.");
+  printf("%s%s\n", indent, "-C");
+  printf("%s%s%s\n", indent, indent, "Dump configuration.");
   printf("%s%s\n", indent, "-s");
   printf("%s%s%s\n", indent, indent, "Commands to run without enter the shell.");
   printf("%s%s\n", indent, "-r");
@@ -45,6 +51,12 @@ void printHelp() {
   printf("%s%s%s\n", indent, indent, "Database to use when connecting to the server.");
   printf("%s%s\n", indent, "-t");
   printf("%s%s%s\n", indent, indent, "Time zone of the shell, default is local.");
+  printf("%s%s\n", indent, "-n");
+  printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync.");
+  printf("%s%s\n", indent, "-l");
+  printf("%s%s%s\n", indent, indent, "Packet length used for net test, default is 1000 bytes.");
+  printf("%s%s\n", indent, "-V");
+  printf("%s%s%s\n", indent, indent, "Print program version.");
 
   exit(EXIT_SUCCESS);
 }
@@ -63,6 +75,9 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     // for password
     else if (strcmp(argv[i], "-p") == 0) {
       arguments->is_use_passwd = true;
+      if (i < argc - 1 && argv[i + 1][0] != '-') {
+        arguments->password = argv[++i];
+      }
     }
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
@@ -100,6 +115,8 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         fprintf(stderr, "Option -c requires an argument\n");
         exit(EXIT_FAILURE);
       }
+    } else if (strcmp(argv[i], "-C") == 0) {
+      arguments->dump_config = true;
     } else if (strcmp(argv[i], "-s") == 0) {
       if (i < argc - 1) {
         arguments->commands = argv[++i];
@@ -137,10 +154,30 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
+    else if (strcmp(argv[i], "-n") == 0) {
+      if (i < argc - 1) {
+        arguments->netTestRole = argv[++i];
+      } else {
+        fprintf(stderr, "option -n requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+    else if (strcmp(argv[i], "-l") == 0) {
+      if (i < argc - 1) {
+        arguments->pktLen = atoi(argv[++i]);
+      } else {
+        fprintf(stderr, "option -l requires an argument\n");
+        exit(EXIT_FAILURE);
+      }
+    }
+    else if (strcmp(argv[i], "-V") == 0) {
+      printVersion();
+      exit(EXIT_SUCCESS);
+    }
     // For temperory command TODO
     else if (strcmp(argv[i], "--help") == 0) {
       printHelp();
-      exit(EXIT_FAILURE);
+      exit(EXIT_SUCCESS);
     } else {
       fprintf(stderr, "wrong options\n");
       printHelp();
@@ -184,7 +221,7 @@ void insertChar(Command *cmd, char c) {
   cmd->command[cmd->cursorOffset++] = c;
 }
 
-void shellReadCommand(TAOS *con, char command[]) {
+int32_t shellReadCommand(TAOS *con, char command[]) {
   Command cmd;
   memset(&cmd, 0, sizeof(cmd));
   cmd.buffer = (char *)calloc(1, MAX_COMMAND_SIZE);
@@ -204,7 +241,7 @@ void shellReadCommand(TAOS *con, char command[]) {
           cmd.buffer = NULL;
           free(cmd.command);
           cmd.command = NULL;
-          return;
+          return 0;
         } else {
           shellPrintContinuePrompt();
           updateBuffer(&cmd);
@@ -214,6 +251,8 @@ void shellReadCommand(TAOS *con, char command[]) {
         insertChar(&cmd, c);
     }
   }
+
+  return 0;
 }
 
 void *shellLoopQuery(void *arg) {
@@ -221,12 +260,17 @@ void *shellLoopQuery(void *arg) {
   char *command = malloc(MAX_COMMAND_SIZE);
   if (command == NULL) return NULL;
 
+  int32_t err = 0;
+  
   do {
     memset(command, 0, MAX_COMMAND_SIZE);
     shellPrintPrompt();
 
     // Read command from shell.
-    shellReadCommand(con, command);
+    err = shellReadCommand(con, command);
+    if (err) {
+      break;
+    }    
   } while (shellRunCommand(con, command) == 0);
 
   return NULL;

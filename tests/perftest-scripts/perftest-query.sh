@@ -39,6 +39,8 @@ function buildTDengine {
 	cd $WORK_DIR/TDengine
 
 	git remote update > /dev/null
+	git reset --hard HEAD
+	git checkout develop
 	REMOTE_COMMIT=`git rev-parse --short remotes/origin/develop`
 	LOCAL_COMMIT=`git rev-parse --short @`
 
@@ -54,18 +56,36 @@ function buildTDengine {
 		cd debug
 		rm -rf *
 		cmake .. > /dev/null
-		make > /dev/null
-		make install
+		make && make install > /dev/null		
 	fi
 }
 
 function runQueryPerfTest {
 	[ -f $PERFORMANCE_TEST_REPORT ] && rm $PERFORMANCE_TEST_REPORT
 	nohup $WORK_DIR/TDengine/debug/build/bin/taosd -c /etc/taosperf/ > /dev/null 2>&1 &
-	echoInfo "Run Performance Test"
+	echoInfo "Wait TDengine to start"
+	sleep 120
+	echoInfo "Run Performance Test"	
 	cd $WORK_DIR/TDengine/tests/pytest
 	
-	python3 query/queryPerformance.py 0 | tee -a $PERFORMANCE_TEST_REPORT
+	python3 query/queryPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
+
+	python3 insert/insertFromCSVPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
+
+	yes | taosdemo -c /etc/taosperf/ -d taosdemo_insert_test -x > taosdemoperf.txt
+
+	CREATETABLETIME=`grep 'Spent' taosdemoperf.txt | awk 'NR==1{print $2}'`
+	INSERTRECORDSTIME=`grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $2}'`
+	REQUESTSPERSECOND=`grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $13}'`
+	delay=`grep 'delay' taosdemoperf.txt | awk '{print $4}'`
+	AVGDELAY=`echo ${delay:0:${#delay}-3}`
+	delay=`grep 'delay' taosdemoperf.txt | awk '{print $6}'`		
+	MAXDELAY=`echo ${delay:0:${#delay}-3}`	
+	delay=`grep 'delay' taosdemoperf.txt | awk '{print $8}'`
+	MINDELAY=`echo ${delay:0:${#delay}-2}`	
+	
+	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -t $CREATETABLETIME -i $INSERTRECORDSTIME -r $REQUESTSPERSECOND -avg $AVGDELAY -max $MAXDELAY -min $MINDELAY  | tee -a $PERFORMANCE_TEST_REPORT
+	[ -f taosdemoperf.txt ] && rm taosdemoperf.txt
 }
 
 
@@ -87,6 +107,7 @@ function sendReport {
 stopTaosd
 buildTDengine
 runQueryPerfTest
+stopTaosd
 
 echoInfo "Send Report"
 sendReport

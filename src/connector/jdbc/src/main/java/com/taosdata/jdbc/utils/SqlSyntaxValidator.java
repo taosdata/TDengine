@@ -15,36 +15,21 @@
 package com.taosdata.jdbc.utils;
 
 import com.taosdata.jdbc.TSDBConnection;
-import com.taosdata.jdbc.TSDBJNIConnector;
 
 import java.sql.Connection;
-import java.sql.SQLException;
 
 public class SqlSyntaxValidator {
 
-    private static final String[] updateSQL = {"insert", "update", "delete", "create", "alter", "drop", "show", "describe", "use"};
-    private static final String[] querySQL = {"select"};
+    private static final String[] SQL = {"select", "insert", "import", "create", "use", "alter", "drop", "set", "show", "describe"};
+    private static final String[] updateSQL = {"insert", "import", "create", "use", "alter", "drop", "set"};
+    private static final String[] querySQL = {"select", "show", "describe"};
+
+    private static final String[] databaseUnspecifiedShow = {"databases", "dnodes", "mnodes", "variables"};
 
     private TSDBConnection tsdbConnection;
 
     public SqlSyntaxValidator(Connection connection) {
         this.tsdbConnection = (TSDBConnection) connection;
-    }
-
-    public boolean validateSqlSyntax(String sql) throws SQLException {
-
-        boolean res = false;
-        if (tsdbConnection == null || tsdbConnection.isClosed()) {
-            throw new SQLException("invalid connection");
-        } else {
-            TSDBJNIConnector jniConnector = tsdbConnection.getConnection();
-            if (jniConnector == null) {
-                throw new SQLException("jniConnector is null");
-            } else {
-                res = jniConnector.validateCreateTableSql(sql);
-            }
-        }
-        return res;
     }
 
     public static boolean isValidForExecuteUpdate(String sql) {
@@ -55,19 +40,60 @@ public class SqlSyntaxValidator {
         return false;
     }
 
-    public static boolean isUseSql(String sql) {
-        return sql.trim().toLowerCase().startsWith(updateSQL[8]) || sql.trim().toLowerCase().matches("create\\s*database.*") || sql.toLowerCase().toLowerCase().matches("drop\\s*database.*");
+    public static boolean isValidForExecuteQuery(String sql) {
+        for (String prefix : querySQL) {
+            if (sql.trim().toLowerCase().startsWith(prefix))
+                return true;
+        }
+        return false;
     }
 
-    public static boolean isUpdateSql(String sql) {
-        return sql.trim().toLowerCase().startsWith(updateSQL[1]);
+    public static boolean isValidForExecute(String sql) {
+        for (String prefix : SQL) {
+            if (sql.trim().toLowerCase().startsWith(prefix))
+                return true;
+        }
+        return false;
     }
+
+    public static boolean isDatabaseUnspecifiedQuery(String sql) {
+        for (String databaseObj : databaseUnspecifiedShow) {
+            if (sql.trim().toLowerCase().matches("show\\s+" + databaseObj + ".*"))
+                return true;
+        }
+        return false;
+    }
+
+    public static boolean isDatabaseUnspecifiedUpdate(String sql) {
+        sql = sql.trim().toLowerCase();
+        return sql.matches("create\\s+database.*") || sql.startsWith("set") || sql.matches("drop\\s+database.*");
+    }
+
+    public static boolean isUseSql(String sql) {
+        return sql.trim().toLowerCase().startsWith("use");
+//                || sql.trim().toLowerCase().matches("create\\s*database.*") || sql.toLowerCase().toLowerCase().matches("drop\\s*database.*");
+    }
+
+    public static boolean isShowSql(String sql) {
+        return sql.trim().toLowerCase().startsWith("show");
+    }
+
+    public static boolean isDescribeSql(String sql) {
+        return sql.trim().toLowerCase().startsWith("describe");
+    }
+
 
     public static boolean isInsertSql(String sql) {
-        return sql.trim().toLowerCase().startsWith(updateSQL[0]);
+        return sql.trim().toLowerCase().startsWith("insert") || sql.trim().toLowerCase().startsWith("import");
     }
 
     public static boolean isSelectSql(String sql) {
-        return sql.trim().toLowerCase().startsWith(querySQL[0]);
+        return sql.trim().toLowerCase().startsWith("select");
     }
+
+    public static boolean isShowDatabaseSql(String sql) {
+        return sql.trim().toLowerCase().matches("show\\s*databases");
+    }
+
+
 }

@@ -34,6 +34,7 @@ matrix:
           - psmisc
           - unixodbc
           - unixodbc-dev
+          - mono-complete
 
     before_script:
       - export TZ=Asia/Harbin
@@ -59,6 +60,18 @@ matrix:
           pip3 install guppy3
           pip3 install --user ${TRAVIS_BUILD_DIR}/src/connector/python/linux/python3/
 
+          cd ${TRAVIS_BUILD_DIR}/tests/examples/C#/taosdemo
+          mcs -out:taosdemo *.cs || travis_terminate $?
+          pkill -TERM -x taosd
+          fuser -k -n tcp 6030
+          sleep 1
+          ${TRAVIS_BUILD_DIR}/debug/build/bin/taosd -c ${TRAVIS_BUILD_DIR}/debug/test/cfg > /dev/null &
+          sleep 5
+          mono taosdemo -Q DEFAULT -y || travis_terminate $?
+          pkill -KILL -x taosd
+          fuser -k -n tcp 6030
+          sleep 1
+
           cd ${TRAVIS_BUILD_DIR}/tests
           ./test-all.sh smoke || travis_terminate $?
           sleep 1
@@ -73,6 +86,7 @@ matrix:
           cd ${TRAVIS_BUILD_DIR}/tests/pytest
           ./valgrind-test.sh 2>&1 > mem-error-out.log
           sleep 1
+
 
           # Color setting
           RED='\033[0;31m'
@@ -156,8 +170,9 @@ matrix:
         packages:
           - build-essential
           - cmake
+          - binutils-2.26
     env: 
-      - DESC="trusty/gcc-4.8 build"
+      - DESC="trusty/gcc-4.8/bintuils-2.26 build"
 
     before_script:
       - export TZ=Asia/Harbin
@@ -168,7 +183,7 @@ matrix:
 
     script:
       - cmake .. > /dev/null
-      - make
+      - export PATH=/usr/lib/binutils-2.26/bin:$PATH && make
 
   - os: linux
     dist: bionic
@@ -200,7 +215,7 @@ matrix:
     dist: bionic
     language: c
     compiler: clang
-    env: DESC="linux/clang build"
+    env: DESC="arm64 linux/clang build"
     git:
       - depth: 1
 
@@ -227,7 +242,7 @@ matrix:
 
   - os: linux
     arch: arm64
-    dist: trusty
+    dist: xenial
     language: c
     git:
       - depth: 1
@@ -238,7 +253,7 @@ matrix:
           - build-essential
           - cmake
     env:
-      - DESC="trusty/gcc-4.8 build"
+      - DESC="arm64 xenial build"
 
     before_script:
       - export TZ=Asia/Harbin
@@ -255,19 +270,20 @@ matrix:
         fi
       - make > /dev/null
 
-#  - os: osx
-#    language: c
-#    compiler: clang
-#    env: DESC="mac/clang build"
-#    git:
-#      - depth: 1
-#    addons:
-#      homebrew:
-#        - cmake
-#
-#    script:
-#      - cd ${TRAVIS_BUILD_DIR}
-#      - mkdir debug
-#      - cd debug
-#      - cmake .. > /dev/null
-#      - make > /dev/null
+  - os: osx
+    osx_image: xcode11.4
+    language: c
+    compiler: clang
+    env: DESC="mac/clang build"
+    git:
+      - depth: 1
+    addons:
+      homebrew:
+        - cmake
+
+    script:
+      - cd ${TRAVIS_BUILD_DIR}
+      - mkdir debug
+      - cd debug
+      - cmake .. > /dev/null
+      - make > /dev/null

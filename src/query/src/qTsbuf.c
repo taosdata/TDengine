@@ -19,12 +19,18 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   if (pTSBuf == NULL) {
     return NULL;
   }
+
+  pTSBuf->autoDelete = autoDelete;
   
   taosGetTmpfilePath("join", pTSBuf->path);
-  pTSBuf->f = fopen(pTSBuf->path, "w+");
+  pTSBuf->f = fopen(pTSBuf->path, "wb+");
   if (pTSBuf->f == NULL) {
     free(pTSBuf);
     return NULL;
+  }
+
+  if (!autoDelete) {
+    unlink(pTSBuf->path);
   }
   
   if (NULL == allocResForTSBuf(pTSBuf)) {
@@ -37,8 +43,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   
   tsBufResetPos(pTSBuf);
   pTSBuf->cur.order = TSDB_ORDER_ASC;
-  
-  pTSBuf->autoDelete = autoDelete;
+
   pTSBuf->tsOrder = order;
   
   return pTSBuf;
@@ -49,10 +54,12 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   if (pTSBuf == NULL) {
     return NULL;
   }
+
+  pTSBuf->autoDelete = autoDelete;
   
   tstrncpy(pTSBuf->path, path, sizeof(pTSBuf->path));
   
-  pTSBuf->f = fopen(pTSBuf->path, "r+");
+  pTSBuf->f = fopen(pTSBuf->path, "rb+");
   if (pTSBuf->f == NULL) {
     free(pTSBuf);
     return NULL;
@@ -129,7 +136,6 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   
   // ascending by default
   pTSBuf->cur.order = TSDB_ORDER_ASC;
-  pTSBuf->autoDelete = autoDelete;
   
 //  tscDebug("create tsBuf from file:%s, fd:%d, size:%d, numOfGroups:%d, autoDelete:%d", pTSBuf->path, fileno(pTSBuf->f),
 //           pTSBuf->fileSize, pTSBuf->numOfGroups, pTSBuf->autoDelete);
@@ -147,8 +153,10 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
   
   tfree(pTSBuf->pData);
   tfree(pTSBuf->block.payload);
-  
-  fclose(pTSBuf->f);
+
+  if (!pTSBuf->remainOpen) {
+    fclose(pTSBuf->f);
+  }
   
   if (pTSBuf->autoDelete) {
 //    ("tsBuf %p destroyed, delete tmp file:%s", pTSBuf, pTSBuf->path);
@@ -260,7 +268,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
     metaLen += (int32_t)fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
     metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
-    metaLen += (int32_t)fwrite(&pBlock->tag.i64Key, 1, (size_t) pBlock->tag.nLen, pTSBuf->f);
+    metaLen += (int32_t)fwrite(&pBlock->tag.i64, 1, (size_t) pBlock->tag.nLen, pTSBuf->f);
   } else {
     trueLen = 0;
     metaLen += (int32_t)fwrite(&trueLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
@@ -343,7 +351,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
     sz = fread(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
     UNUSED(sz);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) { //TODO check the return value
-    sz = fread(&pBlock->tag.i64Key, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
+    sz = fread(&pBlock->tag.i64, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
     UNUSED(sz);
   }
 
@@ -947,7 +955,7 @@ void tsBufDisplay(STSBuf* pTSBuf) {
   while (tsBufNextPos(pTSBuf)) {
     STSElem elem = tsBufGetElem(pTSBuf);
     if (elem.tag->nType == TSDB_DATA_TYPE_BIGINT) {
-      printf("%d-%" PRId64 "-%" PRId64 "\n", elem.id, elem.tag->i64Key, elem.ts);
+      printf("%d-%" PRId64 "-%" PRId64 "\n", elem.id, elem.tag->i64, elem.ts);
     }
   }
   

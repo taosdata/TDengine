@@ -16,9 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cJSON.h"
-#include "tglobal.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeCfg.h"
 
 static SDnodeCfg tsCfg = {0};
@@ -52,6 +49,12 @@ int32_t dnodeGetDnodeId() {
   dnodeId = tsCfg.dnodeId;
   pthread_mutex_unlock(&tsCfgMutex);
   return dnodeId;
+}
+
+void dnodeGetClusterId(char *clusterId) {
+  pthread_mutex_lock(&tsCfgMutex);
+  tstrncpy(clusterId, tsCfg.clusterId, TSDB_CLUSTER_ID_LEN);
+  pthread_mutex_unlock(&tsCfgMutex);
 }
 
 void dnodeGetCfg(int32_t *dnodeId, char *clusterId) {
@@ -94,7 +97,7 @@ static int32_t dnodeReadCfg() {
     goto PARSE_CFG_OVER;
   }
 
-  len = fread(content, 1, maxLen, fp);
+  len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
     dError("failed to read %s, content is null", file);
     goto PARSE_CFG_OVER;
@@ -112,7 +115,7 @@ static int32_t dnodeReadCfg() {
     dError("failed to read %s, dnodeId not found", file);
     goto PARSE_CFG_OVER;
   }
-  cfg.dnodeId = dnodeId->valueint;
+  cfg.dnodeId = (int32_t)dnodeId->valueint;
 
   cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
   if (!clusterId || clusterId->type != cJSON_String) {
@@ -153,7 +156,7 @@ static int32_t dnodeWriteCfg() {
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
-  fflush(fp);
+  fsync(fileno(fp));
   fclose(fp);
   free(content);
   terrno = 0;

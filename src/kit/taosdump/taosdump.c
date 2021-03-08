@@ -14,6 +14,9 @@
  */
 
 #include <iconv.h>
+#include <sys/stat.h>
+#include <sys/syscall.h>
+
 #include "os.h"
 #include "taos.h"
 #include "taosdef.h"
@@ -64,7 +67,10 @@ enum _show_tables_index {
   TSDB_SHOW_TABLES_NAME_INDEX,
   TSDB_SHOW_TABLES_CREATED_TIME_INDEX,
   TSDB_SHOW_TABLES_COLUMNS_INDEX,
-  TSDB_SHOW_TABLES_METRIC_INDEX,
+  TSDB_SHOW_TABLES_METRIC_INDEX,  
+  TSDB_SHOW_TABLES_UID_INDEX,  
+  TSDB_SHOW_TABLES_TID_INDEX,
+  TSDB_SHOW_TABLES_VGID_INDEX,  
   TSDB_MAX_SHOW_TABLES
 };
 
@@ -92,24 +98,27 @@ typedef struct {
 extern char version[];
 
 typedef struct {
-  char name[TSDB_DB_NAME_LEN + 1];
-  int32_t  tables;
+  char     name[TSDB_DB_NAME_LEN + 1];
+  char     create_time[32];
+  int32_t  ntables;
   int32_t  vgroups;  
-  int16_t  replications;
+  int16_t  replica;
   int16_t  quorum;
-  int16_t  daysPerFile;  
-  int16_t  daysToKeep;
-  int16_t  daysToKeep1;
-  int16_t  daysToKeep2;
-  int32_t  cacheBlockSize; //MB
-  int32_t  totalBlocks;
-  int32_t  minRowsPerFileBlock;
-  int32_t  maxRowsPerFileBlock;
-  int8_t   walLevel;
-  int32_t  fsyncPeriod;
-  int8_t   compression;
-  int8_t   precision;   // time resolution
+  int16_t  days;  
+  char     keeplist[32];
+  //int16_t  daysToKeep;
+  //int16_t  daysToKeep1;
+  //int16_t  daysToKeep2;
+  int32_t  cache; //MB
+  int32_t  blocks;
+  int32_t  minrows;
+  int32_t  maxrows;
+  int8_t   wallevel;
+  int32_t  fsync;
+  int8_t   comp;
+  char     precision[8];   // time resolution
   int8_t   update;
+  char     status[16];
 } SDbInfo;
 
 typedef struct {
@@ -128,7 +137,16 @@ typedef struct {
   int32_t   totalThreads;
   char      dbName[TSDB_TABLE_NAME_LEN + 1];
   void     *taosCon;
+  int64_t   rowsOfDumpOut;
+  int64_t   tablesOfDumpOut;
 } SThreadParaObj;
+
+typedef struct {
+  int64_t   totalRowsOfDumpOut;
+  int64_t   totalChildTblsOfDumpOut;
+  int32_t   totalSuperTblsOfDumpOut;
+  int32_t   totalDatabasesOfDumpOut;
+} resultStatistics;
 
 static int64_t totalDumpOutRows = 0;
 
@@ -167,6 +185,7 @@ static struct argp_option options[] = {
   // input/output file
   {"outpath",       'o', "OUTPATH",     0,  "Output file path.",                                          1},
   {"inpath",        'i', "INPATH",      0,  "Input file path.",                                           1},
+  {"resultFile",    'r', "RESULTFILE",  0,  "DumpOut/In Result file path and name.",                      1},
   #ifdef _TD_POWER_
   {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.",       1},
   #else
@@ -200,6 +219,8 @@ struct arguments {
   // output file
   char     outpath[TSDB_FILENAME_LEN+1];
   char     inpath[TSDB_FILENAME_LEN+1];
+  // result file
+  char    *resultFile;
   char    *encode;
   // dump unit option
   bool     all_databases;
@@ -274,6 +295,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       tstrncpy(arguments->inpath, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
       break;
+    case 'r':
+      arguments->resultFile = arg;
+      break;
     case 'c':
       if (wordexp(arg, &full_path, 0) != 0) {
         fprintf(stderr, "Invalid path %s\n", arg);
@@ -308,6 +332,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       break;
     case 'N':
       arguments->data_batch = atoi(arg);
+      if (arguments->data_batch >= INT16_MAX) {
+        arguments->data_batch = INT16_MAX - 1;
+      } 
       break;
     case 'L': 
     {
@@ -343,19 +370,22 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 
 /* Our argp parser. */
 static struct argp argp = {options, parse_opt, args_doc, doc};
+static resultStatistics g_resultStatistics = {0};
+static FILE *g_fpOfResult = NULL;
+static int g_numOfCores = 1;
 
 int taosDumpOut(struct arguments *arguments);
 int taosDumpIn(struct arguments *arguments);
 void taosDumpCreateDbClause(SDbInfo *dbInfo, bool isDumpProperty, FILE *fp);
 int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *taosCon);
-int32_t taosDumpStable(char *table, FILE *fp, TAOS* taosCon);
-void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, FILE *fp);
-void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols, FILE *fp);
-int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FILE *fp, TAOS* taosCon);
-int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS* taosCon);
+int32_t taosDumpStable(char *table, FILE *fp, TAOS* taosCon, char* dbName);
+void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, FILE *fp, char* dbName);
+void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols, FILE *fp, char* dbName);
+int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FILE *fp, TAOS* taosCon, char* dbName);
+int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS* taosCon, char* dbName);
 int taosCheckParam(struct arguments *arguments);
 void taosFreeDbInfos();
-static void taosStartDumpOutWorkThreads(struct arguments* args, int32_t  numOfThread, char *dbName);
+static void taosStartDumpOutWorkThreads(void* taosCon, struct arguments* args, int32_t  numOfThread, char *dbName);
 
 struct arguments tsArguments = {
   // connection option
@@ -371,7 +401,8 @@ struct arguments tsArguments = {
   0,
   // outpath and inpath
   "", 
-  "", 
+  "",
+  "./dump_result.txt",
   NULL,
   // dump unit option
   false, 
@@ -392,18 +423,34 @@ struct arguments tsArguments = {
   0, 
   false
 };
-
-int queryDB(TAOS *taos, char *command) {
-  TAOS_RES *pSql = NULL;
+  
+static int queryDbImpl(TAOS *taos, char *command) {
+  int i;
+  TAOS_RES *res = NULL;
   int32_t   code = -1;
+
+  for (i = 0; i < 5; i++) {
+    if (NULL != res) {
+      taos_free_result(res);
+      res = NULL;
+    }
     
-  pSql = taos_query(taos, command);
-  code = taos_errno(pSql);
-  if (code) {
-    fprintf(stderr, "sql error: %s, reason:%s\n", command, taos_errstr(pSql));
-  } 
-  taos_free_result(pSql);
-  return code;
+    res = taos_query(taos, command);
+    code = taos_errno(res);
+    if (0 == code) {
+      break;
+    }
+  }
+
+  if (code != 0) {
+    fprintf(stderr, "Failed to run <%s>, reason: %s\n", command, taos_errstr(res));
+    taos_free_result(res);
+    //taos_close(taos);
+    return -1;
+  }
+
+  taos_free_result(res);
+  return 0;
 }
 
 int main(int argc, char *argv[]) {
@@ -430,6 +477,7 @@ int main(int argc, char *argv[]) {
     printf("mysqlFlag: %d\n", tsArguments.mysqlFlag);    
     printf("outpath: %s\n", tsArguments.outpath);
     printf("inpath: %s\n", tsArguments.inpath);
+    printf("resultFile: %s\n", tsArguments.resultFile);
     printf("encode: %s\n", tsArguments.encode);
     printf("all_databases: %d\n", tsArguments.all_databases);
     printf("databases: %d\n", tsArguments.databases);
@@ -459,12 +507,79 @@ int main(int argc, char *argv[]) {
   if (taosCheckParam(&tsArguments) < 0) {
     exit(EXIT_FAILURE);
   }
+  
+  g_fpOfResult = fopen(tsArguments.resultFile, "a");
+  if (NULL == g_fpOfResult) {
+    fprintf(stderr, "Failed to open %s for save result\n", tsArguments.resultFile);
+    return 1;
+  };
 
-  if (tsArguments.isDumpIn) {
-    if (taosDumpIn(&tsArguments) < 0) return -1;
-  } else {
-    if (taosDumpOut(&tsArguments) < 0) return -1;
+  fprintf(g_fpOfResult, "#############################################################################\n");
+  fprintf(g_fpOfResult, "============================== arguments config =============================\n");
+  {
+    fprintf(g_fpOfResult, "host: %s\n", tsArguments.host);
+    fprintf(g_fpOfResult, "user: %s\n", tsArguments.user);
+    fprintf(g_fpOfResult, "password: %s\n", tsArguments.password);
+    fprintf(g_fpOfResult, "port: %u\n", tsArguments.port);
+    fprintf(g_fpOfResult, "cversion: %s\n", tsArguments.cversion);    
+    fprintf(g_fpOfResult, "mysqlFlag: %d\n", tsArguments.mysqlFlag);    
+    fprintf(g_fpOfResult, "outpath: %s\n", tsArguments.outpath);
+    fprintf(g_fpOfResult, "inpath: %s\n", tsArguments.inpath);
+    fprintf(g_fpOfResult, "resultFile: %s\n", tsArguments.resultFile);
+    fprintf(g_fpOfResult, "encode: %s\n", tsArguments.encode);
+    fprintf(g_fpOfResult, "all_databases: %d\n", tsArguments.all_databases);
+    fprintf(g_fpOfResult, "databases: %d\n", tsArguments.databases);
+    fprintf(g_fpOfResult, "schemaonly: %d\n", tsArguments.schemaonly);
+    fprintf(g_fpOfResult, "with_property: %d\n", tsArguments.with_property);
+    fprintf(g_fpOfResult, "start_time: %" PRId64 "\n", tsArguments.start_time);
+    fprintf(g_fpOfResult, "end_time: %" PRId64 "\n", tsArguments.end_time);
+    fprintf(g_fpOfResult, "data_batch: %d\n", tsArguments.data_batch);
+    fprintf(g_fpOfResult, "max_sql_len: %d\n", tsArguments.max_sql_len);
+    fprintf(g_fpOfResult, "table_batch: %d\n", tsArguments.table_batch);
+    fprintf(g_fpOfResult, "thread_num: %d\n", tsArguments.thread_num);    
+    fprintf(g_fpOfResult, "allow_sys: %d\n", tsArguments.allow_sys);
+    fprintf(g_fpOfResult, "abort: %d\n", tsArguments.abort);
+    fprintf(g_fpOfResult, "isDumpIn: %d\n", tsArguments.isDumpIn);
+    fprintf(g_fpOfResult, "arg_list_len: %d\n", tsArguments.arg_list_len);
+
+    for (int32_t i = 0; i < tsArguments.arg_list_len; i++) {
+      fprintf(g_fpOfResult, "arg_list[%d]: %s\n", i, tsArguments.arg_list[i]);
+    }
   }
+
+  g_numOfCores = (int32_t)sysconf(_SC_NPROCESSORS_ONLN);
+
+  time_t tTime = time(NULL);
+  struct tm tm = *localtime(&tTime);
+
+  if (tsArguments.isDumpIn) {    
+    fprintf(g_fpOfResult, "============================== DUMP IN ============================== \n");
+    fprintf(g_fpOfResult, "# DumpIn start time:                   %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
+          tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    if (taosDumpIn(&tsArguments) < 0) {
+      fprintf(g_fpOfResult, "\n");
+      fclose(g_fpOfResult);
+      return -1;
+    }
+  } else {
+    fprintf(g_fpOfResult, "============================== DUMP OUT ============================== \n");
+    fprintf(g_fpOfResult, "# DumpOut start time:                   %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
+          tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
+    if (taosDumpOut(&tsArguments) < 0) {
+      fprintf(g_fpOfResult, "\n");
+      fclose(g_fpOfResult);
+      return -1;
+    }
+
+    fprintf(g_fpOfResult, "\n============================== TOTAL STATISTICS ============================== \n");
+    fprintf(g_fpOfResult, "# total database count:     %d\n", g_resultStatistics.totalDatabasesOfDumpOut);
+    fprintf(g_fpOfResult, "# total super table count:  %d\n", g_resultStatistics.totalSuperTblsOfDumpOut);    
+    fprintf(g_fpOfResult, "# total child table count:  %"PRId64"\n", g_resultStatistics.totalChildTblsOfDumpOut);   
+    fprintf(g_fpOfResult, "# total row count:          %"PRId64"\n", g_resultStatistics.totalRowsOfDumpOut);    
+  }
+
+  fprintf(g_fpOfResult, "\n");
+  fclose(g_fpOfResult);
 
   return 0;
 }
@@ -586,65 +701,100 @@ int32_t taosSaveTableOfMetricToTempFile(TAOS *taosCon, char* metric, struct argu
 
   sprintf(tmpCommand, "select tbname from %s", metric);
   
-  TAOS_RES *result = taos_query(taosCon, tmpCommand);  
-  int32_t code = taos_errno(result);
+  TAOS_RES *res = taos_query(taosCon, tmpCommand);
+  int32_t code = taos_errno(res);
   if (code != 0) {
     fprintf(stderr, "failed to run command %s\n", tmpCommand);
     free(tmpCommand);
-    taos_free_result(result);
+    taos_free_result(res);
+    return -1;
+  }
+  free(tmpCommand);
+
+  char     tmpBuf[TSDB_FILENAME_LEN + 1];
+  memset(tmpBuf, 0, TSDB_FILENAME_LEN);
+  sprintf(tmpBuf, ".select-tbname.tmp");
+  fd = open(tmpBuf, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
+  if (fd == -1) {
+    fprintf(stderr, "failed to open temp file: %s\n", tmpBuf);
+    taos_free_result(res);
     return -1;
   }
 
-  TAOS_FIELD *fields = taos_fetch_fields(result);
-
-  int32_t  numOfTable  = 0;
-  int32_t  numOfThread = *totalNumOfThread;
-  char     tmpFileName[TSDB_FILENAME_LEN + 1];
-  while ((row = taos_fetch_row(result)) != NULL) {
-    if (0 == numOfTable) {
-      memset(tmpFileName, 0, TSDB_FILENAME_LEN);
-      sprintf(tmpFileName, ".tables.tmp.%d", numOfThread);
-      fd = open(tmpFileName, O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
-      if (fd == -1) {
-        fprintf(stderr, "failed to open temp file: %s\n", tmpFileName);
-        taos_free_result(result);
-        for (int32_t loopCnt = 0; loopCnt < numOfThread; loopCnt++) {
-          sprintf(tmpFileName, ".tables.tmp.%d", loopCnt);
-          (void)remove(tmpFileName);
-        }
-        free(tmpCommand);
-        return -1;
-      }
-      
-      numOfThread++;
-    }
+  TAOS_FIELD *fields = taos_fetch_fields(res);
   
+  int32_t  numOfTable  = 0;
+  while ((row = taos_fetch_row(res)) != NULL) {  
+
     memset(&tableRecord, 0, sizeof(STableRecord));
     tstrncpy(tableRecord.name, (char *)row[0], fields[0].bytes);
     tstrncpy(tableRecord.metric, metric, TSDB_TABLE_NAME_LEN);
-
-    taosWrite(fd, &tableRecord, sizeof(STableRecord));
-
+    
+    taosWrite(fd, &tableRecord, sizeof(STableRecord));    
     numOfTable++;
-
-    if (numOfTable >= arguments->table_batch) {
-      numOfTable = 0;
-      close(fd);
-      fd = -1;
-    }
   }
+  taos_free_result(res);
+  lseek(fd, 0, SEEK_SET);
+  
+  int maxThreads = arguments->thread_num;
+  int tableOfPerFile ;
+  if (numOfTable <= arguments->thread_num) {
+    tableOfPerFile = 1;
+    maxThreads = numOfTable;
+  } else {
+    tableOfPerFile = numOfTable / arguments->thread_num;
+    if (0 != numOfTable % arguments->thread_num) {
+      tableOfPerFile += 1;
+    }    
+  }
+
+  char* tblBuf = (char*)calloc(1, tableOfPerFile * sizeof(STableRecord));
+  if (NULL == tblBuf){
+    fprintf(stderr, "failed to calloc %" PRIzu "\n", tableOfPerFile * sizeof(STableRecord));      
+    close(fd);
+    return -1;
+  }
+  
+  int32_t  numOfThread = *totalNumOfThread;
+  int      subFd = -1;
+  for (; numOfThread < maxThreads; numOfThread++) {
+    memset(tmpBuf, 0, TSDB_FILENAME_LEN);
+    sprintf(tmpBuf, ".tables.tmp.%d", numOfThread);
+    subFd = open(tmpBuf, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
+    if (subFd == -1) {
+      fprintf(stderr, "failed to open temp file: %s\n", tmpBuf);
+      for (int32_t loopCnt = 0; loopCnt < numOfThread; loopCnt++) {
+        sprintf(tmpBuf, ".tables.tmp.%d", loopCnt);
+        (void)remove(tmpBuf);
+      }
+      sprintf(tmpBuf, ".select-tbname.tmp");
+      (void)remove(tmpBuf);      
+      free(tblBuf);
+      close(fd);
+      return -1;
+    }
+
+    // read tableOfPerFile for fd, write to subFd
+    ssize_t readLen = read(fd, tblBuf, tableOfPerFile * sizeof(STableRecord));
+    if (readLen <= 0) {
+      close(subFd);
+      break;
+    }
+    taosWrite(subFd, tblBuf, readLen);
+    close(subFd);
+  }
+
+  sprintf(tmpBuf, ".select-tbname.tmp");
+  (void)remove(tmpBuf);
   
   if (fd >= 0) {
     close(fd);
     fd = -1;
-  }
-  
-  taos_free_result(result);
+  }  
 
   *totalNumOfThread = numOfThread;
- 
-  free(tmpCommand);
 
+  free(tblBuf);
   return 0;
 }
 
@@ -700,7 +850,7 @@ int taosDumpOut(struct arguments *arguments) {
   int32_t code = taos_errno(result);
   
   if (code != 0) {
-    fprintf(stderr, "failed to run command: %s, reason: %s\n", command, taos_errstr(taos));
+    fprintf(stderr, "failed to run command: %s, reason: %s\n", command, taos_errstr(result));
     goto _exit_failure;
   }
 
@@ -736,27 +886,29 @@ int taosDumpOut(struct arguments *arguments) {
     }
 
     strncpy(dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX], fields[TSDB_SHOW_DB_NAME_INDEX].bytes);
-#if 0
     if (arguments->with_property) {
-      dbInfos[count]->tables = *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
+      dbInfos[count]->ntables = *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
       dbInfos[count]->vgroups = *((int32_t *)row[TSDB_SHOW_DB_VGROUPS_INDEX]);  
-      dbInfos[count]->replications = *((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]);
+      dbInfos[count]->replica = *((int16_t *)row[TSDB_SHOW_DB_REPLICA_INDEX]);
       dbInfos[count]->quorum = *((int16_t *)row[TSDB_SHOW_DB_QUORUM_INDEX]);
-      dbInfos[count]->daysPerFile = *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);  
-      dbInfos[count]->daysToKeep = *((int16_t *)row[TSDB_SHOW_DB_KEEP_INDEX]);
-      dbInfos[count]->daysToKeep1;
-      dbInfos[count]->daysToKeep2;
-      dbInfos[count]->cacheBlockSize = *((int32_t *)row[TSDB_SHOW_DB_CACHE_INDEX]);
-      dbInfos[count]->totalBlocks = *((int32_t *)row[TSDB_SHOW_DB_BLOCKS_INDEX]);
-      dbInfos[count]->minRowsPerFileBlock = *((int32_t *)row[TSDB_SHOW_DB_MINROWS_INDEX]);
-      dbInfos[count]->maxRowsPerFileBlock = *((int32_t *)row[TSDB_SHOW_DB_MAXROWS_INDEX]);
-      dbInfos[count]->walLevel = *((int8_t *)row[TSDB_SHOW_DB_WALLEVEL_INDEX]);
-      dbInfos[count]->fsyncPeriod = *((int32_t *)row[TSDB_SHOW_DB_FSYNC_INDEX]);
-      dbInfos[count]->compression = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
-      dbInfos[count]->precision = *((int8_t *)row[TSDB_SHOW_DB_PRECISION_INDEX]);
+      dbInfos[count]->days = *((int16_t *)row[TSDB_SHOW_DB_DAYS_INDEX]);  
+
+      strncpy(dbInfos[count]->keeplist, (char *)row[TSDB_SHOW_DB_KEEP_INDEX], fields[TSDB_SHOW_DB_KEEP_INDEX].bytes);      
+      //dbInfos[count]->daysToKeep = *((int16_t *)row[TSDB_SHOW_DB_KEEP_INDEX]);
+      //dbInfos[count]->daysToKeep1;
+      //dbInfos[count]->daysToKeep2;
+      dbInfos[count]->cache = *((int32_t *)row[TSDB_SHOW_DB_CACHE_INDEX]);
+      dbInfos[count]->blocks = *((int32_t *)row[TSDB_SHOW_DB_BLOCKS_INDEX]);
+      dbInfos[count]->minrows = *((int32_t *)row[TSDB_SHOW_DB_MINROWS_INDEX]);
+      dbInfos[count]->maxrows = *((int32_t *)row[TSDB_SHOW_DB_MAXROWS_INDEX]);
+      dbInfos[count]->wallevel = *((int8_t *)row[TSDB_SHOW_DB_WALLEVEL_INDEX]);
+      dbInfos[count]->fsync = *((int32_t *)row[TSDB_SHOW_DB_FSYNC_INDEX]);
+      dbInfos[count]->comp = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
+
+      strncpy(dbInfos[count]->precision, (char *)row[TSDB_SHOW_DB_PRECISION_INDEX], fields[TSDB_SHOW_DB_PRECISION_INDEX].bytes);  
+      //dbInfos[count]->precision = *((int8_t *)row[TSDB_SHOW_DB_PRECISION_INDEX]);
       dbInfos[count]->update = *((int8_t *)row[TSDB_SHOW_DB_UPDATE_INDEX]);
     }
-#endif
     count++;
 
     if (arguments->databases) {
@@ -781,6 +933,8 @@ int taosDumpOut(struct arguments *arguments) {
       taosDumpDb(dbInfos[0], arguments, fp, taos);
     } else {                                        // case: taosdump <db> tablex tabley ...
       taosDumpCreateDbClause(dbInfos[0], arguments->with_property, fp);
+      fprintf(g_fpOfResult, "\n#### database:                       %s\n", dbInfos[0]->name);
+      g_resultStatistics.totalDatabasesOfDumpOut++;
 
       sprintf(command, "use %s", dbInfos[0]->name);
       
@@ -796,6 +950,7 @@ int taosDumpOut(struct arguments *arguments) {
       int32_t totalNumOfThread = 1;  // 0: all normal talbe into .tables.tmp.0
       int  normalTblFd = -1;
       int32_t retCode;
+      int superTblCnt = 0 ;
       for (int i = 1; arguments->arg_list[i]; i++) {
         if (taosGetTableRecordInfo(arguments->arg_list[i], &tableRecordInfo, taos) < 0) {
           fprintf(stderr, "input the invalide table %s\n", arguments->arg_list[i]);
@@ -803,11 +958,17 @@ int taosDumpOut(struct arguments *arguments) {
         }
 
         if (tableRecordInfo.isMetric) {  // dump all table of this metric
-          (void)taosDumpStable(tableRecordInfo.tableRecord.metric, fp, taos);
+          int ret = taosDumpStable(tableRecordInfo.tableRecord.metric, fp, taos, dbInfos[0]->name);
+          if (0 == ret) {
+            superTblCnt++;
+          }
           retCode = taosSaveTableOfMetricToTempFile(taos, tableRecordInfo.tableRecord.metric, arguments, &totalNumOfThread);
         } else {
           if (tableRecordInfo.tableRecord.metric[0] != '\0') {  // dump this sub table and it's metric
-            (void)taosDumpStable(tableRecordInfo.tableRecord.metric, fp, taos);          
+            int ret = taosDumpStable(tableRecordInfo.tableRecord.metric, fp, taos, dbInfos[0]->name);
+            if (0 == ret) {
+              superTblCnt++;
+            }            
           }
           retCode = taosSaveAllNormalTableToTempFile(taos, tableRecordInfo.tableRecord.name, tableRecordInfo.tableRecord.metric, &normalTblFd);
         }
@@ -819,13 +980,17 @@ int taosDumpOut(struct arguments *arguments) {
           goto _clean_tmp_file;
         }
       }
+      
+      // TODO: save dump super table <superTblCnt> into result_output.txt
+      fprintf(g_fpOfResult, "# super table counter:               %d\n", superTblCnt);
+      g_resultStatistics.totalSuperTblsOfDumpOut += superTblCnt;
 
       if (-1 != normalTblFd){
         taosClose(normalTblFd);
       }
 
       // start multi threads to dumpout
-      taosStartDumpOutWorkThreads(arguments, totalNumOfThread, dbInfos[0]->name);
+      taosStartDumpOutWorkThreads(taos, arguments, totalNumOfThread, dbInfos[0]->name);
 
       char tmpFileName[TSDB_FILENAME_LEN + 1];
       _clean_tmp_file:
@@ -855,41 +1020,27 @@ _exit_failure:
   return -1;
 }
 
-int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSuperTable) {
+int taosGetTableDes(char* dbName, char *table, STableDef *tableDes, TAOS* taosCon, bool isSuperTable) {
   TAOS_ROW row = NULL;
-  TAOS_RES *tmpResult = NULL;
+  TAOS_RES* res = NULL;
   int count = 0;
 
-  char* tempCommand = (char *)malloc(COMMAND_SIZE);
-  if (tempCommand == NULL) {
-    fprintf(stderr, "failed to allocate memory\n");
-    return -1;
-  }
-
-  char* tbuf = (char *)malloc(COMMAND_SIZE);
-  if (tbuf == NULL) {
-    fprintf(stderr, "failed to allocate memory\n");
-    free(tempCommand);
-    return -1;
-  }
-
-  sprintf(tempCommand, "describe %s", table);
+  char sqlstr[COMMAND_SIZE];
+  sprintf(sqlstr, "describe %s.%s;", dbName, table);
   
-  tmpResult = taos_query(taosCon, tempCommand);  
-  int32_t code = taos_errno(tmpResult);
+  res = taos_query(taosCon, sqlstr);  
+  int32_t code = taos_errno(res);
   if (code != 0) {
-    fprintf(stderr, "failed to run command %s\n", tempCommand);
-    free(tempCommand);
-    free(tbuf);
-    taos_free_result(tmpResult);
+    fprintf(stderr, "failed to run command <%s>, reason:%s\n", sqlstr, taos_errstr(res));
+    taos_free_result(res);
     return -1;
   }
 
-  TAOS_FIELD *fields = taos_fetch_fields(tmpResult);
+  TAOS_FIELD *fields = taos_fetch_fields(res);
 
   tstrncpy(tableDes->name, table, TSDB_COL_NAME_LEN);
 
-  while ((row = taos_fetch_row(tmpResult)) != NULL) {
+  while ((row = taos_fetch_row(res)) != NULL) {
     strncpy(tableDes->cols[count].field, (char *)row[TSDB_DESCRIBE_METRIC_FIELD_INDEX],
             fields[TSDB_DESCRIBE_METRIC_FIELD_INDEX].bytes);
     strncpy(tableDes->cols[count].type, (char *)row[TSDB_DESCRIBE_METRIC_TYPE_INDEX],
@@ -901,12 +1052,10 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
     count++;
   }
 
-  taos_free_result(tmpResult);
-  tmpResult = NULL;
+  taos_free_result(res);
+  res = NULL;
 
   if (isSuperTable) {
-    free(tempCommand);
-    free(tbuf);
     return count;
   }
   
@@ -915,37 +1064,33 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
     if (strcmp(tableDes->cols[i].note, "TAG") != 0) continue;
 
 
-    sprintf(tempCommand, "select %s from %s", tableDes->cols[i].field, table);
+    sprintf(sqlstr, "select %s from %s.%s", tableDes->cols[i].field, dbName, table);
     
-    tmpResult = taos_query(taosCon, tempCommand);  
-    code = taos_errno(tmpResult);
+    res = taos_query(taosCon, sqlstr);  
+    code = taos_errno(res);
     if (code != 0) {
-      fprintf(stderr, "failed to run command %s\n", tempCommand);
-      free(tempCommand);
-      free(tbuf);
-      taos_free_result(tmpResult);
+      fprintf(stderr, "failed to run command <%s>, reason:%s\n", sqlstr, taos_errstr(res));
+      taos_free_result(res);
       return -1;
     }
     
-    fields = taos_fetch_fields(tmpResult); 
+    fields = taos_fetch_fields(res); 
 
-    row = taos_fetch_row(tmpResult);
+    row = taos_fetch_row(res);
     if (NULL == row) {
-      fprintf(stderr, " fetch failed to run command %s\n", tempCommand);
-      free(tempCommand);
-      free(tbuf);
-      taos_free_result(tmpResult);
+      fprintf(stderr, " fetch failed to run command <%s>, reason:%s\n", sqlstr, taos_errstr(res));
+      taos_free_result(res);
       return -1;
     }
 
     if (row[0] == NULL) {
       sprintf(tableDes->cols[i].note, "%s", "NULL");
-      taos_free_result(tmpResult);
-      tmpResult = NULL;
+      taos_free_result(res);
+      res = NULL;
       continue;
     }
     
-    int32_t* length = taos_fetch_lengths(tmpResult);
+    int32_t* length = taos_fetch_lengths(res);
 
     //int32_t* length = taos_fetch_lengths(tmpResult);
     switch (fields[0].type) {
@@ -970,18 +1115,22 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
       case TSDB_DATA_TYPE_DOUBLE:
         sprintf(tableDes->cols[i].note, "%f", GET_DOUBLE_VAL(row[0]));
         break;
-      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_BINARY: {
         memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
         tableDes->cols[i].note[0] = '\'';
+        char tbuf[COMMAND_SIZE];
         converStringToReadable((char *)row[0], length[0], tbuf, COMMAND_SIZE);
         char* pstr = stpcpy(&(tableDes->cols[i].note[1]), tbuf);
         *(pstr++) = '\'';
         break;
-      case TSDB_DATA_TYPE_NCHAR:
+      }
+      case TSDB_DATA_TYPE_NCHAR: {
         memset(tableDes->cols[i].note, 0, sizeof(tableDes->cols[i].note));
+        char tbuf[COMMAND_SIZE];
         convertNCharToReadable((char *)row[0], length[0], tbuf, COMMAND_SIZE);
         sprintf(tableDes->cols[i].note, "\'%s\'", tbuf);
         break;
+      }
       case TSDB_DATA_TYPE_TIMESTAMP:
         sprintf(tableDes->cols[i].note, "%" PRId64 "", *(int64_t *)row[0]);
         #if 0
@@ -1001,17 +1150,14 @@ int taosGetTableDes(char *table, STableDef *tableDes, TAOS* taosCon, bool isSupe
         break;
     }
   
-    taos_free_result(tmpResult);
-    tmpResult = NULL;    
+    taos_free_result(res);
+    res = NULL;    
   }
-
-  free(tempCommand);
-  free(tbuf);
 
   return count;
 }
 
-int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FILE *fp, TAOS* taosCon) {
+int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FILE *fp, TAOS* taosCon, char* dbName) {
   int count = 0;
 
   STableDef *tableDes = (STableDef *)calloc(1, sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
@@ -1030,7 +1176,7 @@ int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FI
     memset(tableDes, 0, sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
     */
 
-    count = taosGetTableDes(table, tableDes, taosCon, false);
+    count = taosGetTableDes(dbName, table, tableDes, taosCon, false);
 
     if (count < 0) {
       free(tableDes);
@@ -1038,10 +1184,10 @@ int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FI
     }
 
     // create child-table using super-table
-    taosDumpCreateMTableClause(tableDes, metric, count, fp);
+    taosDumpCreateMTableClause(tableDes, metric, count, fp, dbName);
 
   } else {  // dump table definition
-    count = taosGetTableDes(table, tableDes, taosCon, false);
+    count = taosGetTableDes(dbName, table, tableDes, taosCon, false);
 
     if (count < 0) {
       free(tableDes);
@@ -1049,39 +1195,28 @@ int32_t taosDumpTable(char *table, char *metric, struct arguments *arguments, FI
     }
 
     // create normal-table or super-table
-    taosDumpCreateTableClause(tableDes, count, fp);
+    taosDumpCreateTableClause(tableDes, count, fp, dbName);
   }
 
   free(tableDes);
 
-  return taosDumpTableData(fp, table, arguments, taosCon);
+  return taosDumpTableData(fp, table, arguments, taosCon, dbName);
 }
 
 void taosDumpCreateDbClause(SDbInfo *dbInfo, bool isDumpProperty, FILE *fp) {
+  char sqlstr[TSDB_MAX_SQL_LEN] = {0};
 
-  char* tmpCommand = (char *)malloc(COMMAND_SIZE);
-  if (tmpCommand == NULL) {
-    fprintf(stderr, "failed to allocate memory\n");
-    return;
-  }
-
-  char *pstr = tmpCommand;
-
-  pstr += sprintf(pstr, "CREATE DATABASE IF NOT EXISTS %s", dbInfo->name);
+  char *pstr = sqlstr;
+  pstr += sprintf(pstr, "CREATE DATABASE IF NOT EXISTS %s ", dbInfo->name);
   if (isDumpProperty) {
-    #if 0
     pstr += sprintf(pstr,
-        "TABLES %d vgroups %d REPLICA %d quorum %d DAYS %d KEEP %d CACHE %d BLOCKS %d MINROWS %d MAXROWS %d WALLEVEL %d FYNC %d COMP %d PRECISION %s UPDATE %d",
-        dbInfo->tables, dbInfo->vgroups, dbInfo->replications, dbInfo->quorum, dbInfo->daysPerFile, dbInfo->daysToKeep, dbInfo->cacheBlockSize,
-        dbInfo->totalBlocks, dbInfo->minRowsPerFileBlock, dbInfo->maxRowsPerFileBlock,  dbInfo->walLevel, dbInfo->fsyncPeriod, dbInfo->compression, 
-        dbInfo->precision, dbInfo->update);
-    #endif
+        "TABLES %d VGROUPS %d REPLICA %d QUORUM %d DAYS %d KEEP %s CACHE %d BLOCKS %d MINROWS %d MAXROWS %d WALLEVEL %d FYNC %d COMP %d PRECISION '%s' UPDATE %d",
+        dbInfo->ntables, dbInfo->vgroups, dbInfo->replica, dbInfo->quorum, dbInfo->days, dbInfo->keeplist, dbInfo->cache,
+        dbInfo->blocks, dbInfo->minrows, dbInfo->maxrows,  dbInfo->wallevel, dbInfo->fsync, dbInfo->comp, dbInfo->precision, dbInfo->update);
   }
 
   pstr += sprintf(pstr, ";");
-
-  fprintf(fp, "%s\n\n", tmpCommand);
-  free(tmpCommand);
+  fprintf(fp, "%s\n\n", sqlstr);
 }
 
 void* taosDumpOutWorkThreadFp(void *arg)
@@ -1090,34 +1225,34 @@ void* taosDumpOutWorkThreadFp(void *arg)
   STableRecord    tableRecord;
   int fd;  
   
-  char tmpFileName[TSDB_FILENAME_LEN*4] = {0};
-  sprintf(tmpFileName, ".tables.tmp.%d", pThread->threadIndex);
-  fd = open(tmpFileName, O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
+  char tmpBuf[TSDB_FILENAME_LEN*4] = {0};
+  sprintf(tmpBuf, ".tables.tmp.%d", pThread->threadIndex);
+  fd = open(tmpBuf, O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
   if (fd == -1) {
-    fprintf(stderr, "taosDumpTableFp() failed to open temp file: %s\n", tmpFileName);
+    fprintf(stderr, "taosDumpTableFp() failed to open temp file: %s\n", tmpBuf);
     return NULL;
   }
 
   FILE *fp = NULL;
-  memset(tmpFileName, 0, TSDB_FILENAME_LEN + 128);
+  memset(tmpBuf, 0, TSDB_FILENAME_LEN + 128);
   
   if (tsArguments.outpath[0] != 0) {
-    sprintf(tmpFileName, "%s/%s.tables.%d.sql", tsArguments.outpath, pThread->dbName, pThread->threadIndex);
+    sprintf(tmpBuf, "%s/%s.tables.%d.sql", tsArguments.outpath, pThread->dbName, pThread->threadIndex);
   } else {
-    sprintf(tmpFileName, "%s.tables.%d.sql", pThread->dbName, pThread->threadIndex);
+    sprintf(tmpBuf, "%s.tables.%d.sql", pThread->dbName, pThread->threadIndex);
   }
   
-  fp = fopen(tmpFileName, "w");
+  fp = fopen(tmpBuf, "w");
   if (fp == NULL) {
-    fprintf(stderr, "failed to open file %s\n", tmpFileName);
+    fprintf(stderr, "failed to open file %s\n", tmpBuf);
     close(fd);
     return NULL;
   }
 
-  memset(tmpFileName, 0, TSDB_FILENAME_LEN);
-  sprintf(tmpFileName, "use %s", pThread->dbName);
+  memset(tmpBuf, 0, TSDB_FILENAME_LEN);
+  sprintf(tmpBuf, "use %s", pThread->dbName);
   
-  TAOS_RES* tmpResult = taos_query(pThread->taosCon, tmpFileName);  
+  TAOS_RES* tmpResult = taos_query(pThread->taosCon, tmpBuf);  
   int32_t code = taos_errno(tmpResult);
   if (code != 0) {
     fprintf(stderr, "invalid database %s\n", pThread->dbName);
@@ -1127,11 +1262,47 @@ void* taosDumpOutWorkThreadFp(void *arg)
     return NULL;
   }
 
+  int     fileNameIndex = 1;
+  int     tablesInOneFile = 0;
+  int64_t lastRowsPrint = 5000000;
   fprintf(fp, "USE %s;\n\n", pThread->dbName);
   while (1) {
     ssize_t readLen = read(fd, &tableRecord, sizeof(STableRecord));
     if (readLen <= 0) break;
-    taosDumpTable(tableRecord.name, tableRecord.metric, &tsArguments, fp, pThread->taosCon);
+
+    int ret = taosDumpTable(tableRecord.name, tableRecord.metric, &tsArguments, fp, pThread->taosCon, pThread->dbName);
+    if (ret >= 0) {
+      // TODO: sum table count and table rows by self
+      pThread->tablesOfDumpOut++;
+      pThread->rowsOfDumpOut += ret;
+      
+      if (pThread->rowsOfDumpOut >= lastRowsPrint) {
+        printf(" %"PRId64 " rows already be dumpout from database %s\n", pThread->rowsOfDumpOut, pThread->dbName);
+        lastRowsPrint += 5000000;
+      }
+
+      tablesInOneFile++;
+      if (tablesInOneFile >= tsArguments.table_batch) {
+        fclose(fp);
+        tablesInOneFile = 0;
+        
+        memset(tmpBuf, 0, TSDB_FILENAME_LEN + 128);        
+        if (tsArguments.outpath[0] != 0) {
+          sprintf(tmpBuf, "%s/%s.tables.%d-%d.sql", tsArguments.outpath, pThread->dbName, pThread->threadIndex, fileNameIndex);
+        } else {
+          sprintf(tmpBuf, "%s.tables.%d-%d.sql", pThread->dbName, pThread->threadIndex, fileNameIndex);
+        }
+        fileNameIndex++;
+        
+        fp = fopen(tmpBuf, "w");
+        if (fp == NULL) {
+          fprintf(stderr, "failed to open file %s\n", tmpBuf);
+          close(fd);
+          taos_free_result(tmpResult);
+          return NULL;
+        }
+      }
+    }
   }
 
   taos_free_result(tmpResult);
@@ -1141,21 +1312,18 @@ void* taosDumpOutWorkThreadFp(void *arg)
   return NULL;
 }
 
-static void taosStartDumpOutWorkThreads(struct arguments* args, int32_t  numOfThread, char *dbName)
+static void taosStartDumpOutWorkThreads(void* taosCon, struct arguments* args, int32_t  numOfThread, char *dbName)
 {
   pthread_attr_t thattr;
   SThreadParaObj *threadObj = (SThreadParaObj *)calloc(numOfThread, sizeof(SThreadParaObj));
   for (int t = 0; t < numOfThread; ++t) {
     SThreadParaObj *pThread = threadObj + t;
+    pThread->rowsOfDumpOut = 0;
+    pThread->tablesOfDumpOut = 0;
     pThread->threadIndex = t;
     pThread->totalThreads = numOfThread;
     tstrncpy(pThread->dbName, dbName, TSDB_TABLE_NAME_LEN);
-    pThread->taosCon = taos_connect(args->host, args->user, args->password, NULL, args->port);
-                                
-    if (pThread->taosCon == NULL) {
-      fprintf(stderr, "ERROR: thread:%d failed connect to TDengine, error:%s\n", pThread->threadIndex, taos_errstr(pThread->taosCon));
-      exit(0);
-    }
+    pThread->taosCon = taosCon;        
 
     pthread_attr_init(&thattr);
     pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
@@ -1170,15 +1338,24 @@ static void taosStartDumpOutWorkThreads(struct arguments* args, int32_t  numOfTh
     pthread_join(threadObj[t].threadID, NULL);
   }
 
+  // TODO: sum all thread dump table count and rows of per table, then save into result_output.txt  
+  int64_t   totalRowsOfDumpOut = 0;
+  int64_t   totalChildTblsOfDumpOut = 0;
   for (int32_t t = 0; t < numOfThread; ++t) {
-    taos_close(threadObj[t].taosCon);
+    totalChildTblsOfDumpOut += threadObj[t].tablesOfDumpOut;
+    totalRowsOfDumpOut      += threadObj[t].rowsOfDumpOut;
   }
+
+  fprintf(g_fpOfResult, "# child table counter:               %"PRId64"\n", totalChildTblsOfDumpOut);
+  fprintf(g_fpOfResult, "# row counter:                       %"PRId64"\n", totalRowsOfDumpOut);
+  g_resultStatistics.totalChildTblsOfDumpOut += totalChildTblsOfDumpOut;
+  g_resultStatistics.totalRowsOfDumpOut      += totalRowsOfDumpOut;
   free(threadObj);
 }
 
 
 
-int32_t taosDumpStable(char *table, FILE *fp, TAOS* taosCon) {
+int32_t taosDumpStable(char *table, FILE *fp, TAOS* taosCon, char* dbName) {
   int count = 0;
 
   STableDef *tableDes = (STableDef *)calloc(1, sizeof(STableDef) + sizeof(SColDes) * TSDB_MAX_COLUMNS);
@@ -1187,15 +1364,15 @@ int32_t taosDumpStable(char *table, FILE *fp, TAOS* taosCon) {
     exit(-1);
   }
 
-  count = taosGetTableDes(table, tableDes, taosCon, true);
+  count = taosGetTableDes(dbName, table, tableDes, taosCon, true);
 
   if (count < 0) {
     free(tableDes);
-    fprintf(stderr, "failed to get stable schema\n");
+    fprintf(stderr, "failed to get stable[%s] schema\n", table);
     exit(-1);
   }
 
-  taosDumpCreateTableClause(tableDes, count, fp);
+  taosDumpCreateTableClause(tableDes, count, fp, dbName);
 
   free(tableDes);
   return 0;
@@ -1207,38 +1384,19 @@ int32_t taosDumpCreateSuperTableClause(TAOS* taosCon, char* dbName, FILE *fp)
   TAOS_ROW row;
   int fd = -1;
   STableRecord tableRecord;
+  char sqlstr[TSDB_MAX_SQL_LEN] = {0};
 
-  char* tmpCommand = (char *)malloc(COMMAND_SIZE);
-  if (tmpCommand == NULL) {
-    fprintf(stderr, "failed to allocate memory\n");
-    exit(-1);
-  }
-
-  sprintf(tmpCommand, "use %s", dbName);
+  sprintf(sqlstr, "show %s.stables", dbName);
   
-  TAOS_RES* tmpResult = taos_query(taosCon, tmpCommand);  
-  int32_t code = taos_errno(tmpResult);
+  TAOS_RES* res = taos_query(taosCon, sqlstr);  
+  int32_t  code = taos_errno(res);
   if (code != 0) {
-    fprintf(stderr, "invalid database %s, error: %s\n", dbName, taos_errstr(taosCon));
-    free(tmpCommand);
-    taos_free_result(tmpResult);
-    exit(-1);
-  }
-  
-  taos_free_result(tmpResult);
-
-  sprintf(tmpCommand, "show stables");
-  
-  tmpResult = taos_query(taosCon, tmpCommand);  
-  code = taos_errno(tmpResult);
-  if (code != 0) {
-    fprintf(stderr, "failed to run command %s, error: %s\n", tmpCommand, taos_errstr(taosCon));
-    free(tmpCommand);
-    taos_free_result(tmpResult);
+    fprintf(stderr, "failed to run command <%s>, reason: %s\n", sqlstr, taos_errstr(res));
+    taos_free_result(res);
     exit(-1);
   }
 
-  TAOS_FIELD *fields = taos_fetch_fields(tmpResult);
+  TAOS_FIELD *fields = taos_fetch_fields(res);
 
   char     tmpFileName[TSDB_FILENAME_LEN + 1];
   memset(tmpFileName, 0, TSDB_FILENAME_LEN);
@@ -1246,32 +1404,38 @@ int32_t taosDumpCreateSuperTableClause(TAOS* taosCon, char* dbName, FILE *fp)
   fd = open(tmpFileName, O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
   if (fd == -1) {
     fprintf(stderr, "failed to open temp file: %s\n", tmpFileName);
-    taos_free_result(tmpResult);
-    free(tmpCommand);
+    taos_free_result(res);
     (void)remove(".stables.tmp");
     exit(-1);
   }
   
-  while ((row = taos_fetch_row(tmpResult)) != NULL) {  
+  while ((row = taos_fetch_row(res)) != NULL) {  
     memset(&tableRecord, 0, sizeof(STableRecord));
     strncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
     taosWrite(fd, &tableRecord, sizeof(STableRecord));
   }  
   
-  taos_free_result(tmpResult);
+  taos_free_result(res);
   (void)lseek(fd, 0, SEEK_SET);
 
+  int superTblCnt = 0;
   while (1) {
     ssize_t readLen = read(fd, &tableRecord, sizeof(STableRecord));
     if (readLen <= 0) break;
     
-    (void)taosDumpStable(tableRecord.name, fp, taosCon);
+    int ret = taosDumpStable(tableRecord.name, fp, taosCon, dbName);
+    if (0 == ret) {
+      superTblCnt++;
+    }
   }
+
+  // TODO: save dump super table <superTblCnt> into result_output.txt
+  fprintf(g_fpOfResult, "# super table counter:               %d\n", superTblCnt);
+  g_resultStatistics.totalSuperTblsOfDumpOut += superTblCnt;
 
   close(fd);
   (void)remove(".stables.tmp");
   
-  free(tmpCommand);
   return 0;  
 }
 
@@ -1282,111 +1446,128 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
   STableRecord tableRecord;
 
   taosDumpCreateDbClause(dbInfo, arguments->with_property, fp);
-
-  char* tmpCommand = (char *)malloc(COMMAND_SIZE);
-  if (tmpCommand == NULL) {
-    fprintf(stderr, "failed to allocate memory\n");
-    return -1;
-  }
-
-  sprintf(tmpCommand, "use %s", dbInfo->name);
   
-  TAOS_RES* tmpResult = taos_query(taosCon, tmpCommand);  
-  int32_t code = taos_errno(tmpResult);
-  if (code != 0) {
-    fprintf(stderr, "invalid database %s\n", dbInfo->name);
-    free(tmpCommand);
-    taos_free_result(tmpResult);
-    return -1;
-  }
-  taos_free_result(tmpResult);
+  fprintf(g_fpOfResult, "\n#### database:                       %s\n", dbInfo->name);
+  g_resultStatistics.totalDatabasesOfDumpOut++;
+
+  char sqlstr[TSDB_MAX_SQL_LEN] = {0};
 
   fprintf(fp, "USE %s;\n\n", dbInfo->name);
   
   (void)taosDumpCreateSuperTableClause(taosCon, dbInfo->name, fp);
 
-  sprintf(tmpCommand, "show tables");
+  sprintf(sqlstr, "show %s.tables", dbInfo->name);
   
-  tmpResult = taos_query(taosCon, tmpCommand);  
-  code = taos_errno(tmpResult);
+  TAOS_RES* res = taos_query(taosCon, sqlstr);  
+  int code = taos_errno(res);
   if (code != 0) {
-    fprintf(stderr, "failed to run command %s\n", tmpCommand);
-    free(tmpCommand);
-    taos_free_result(tmpResult);
+    fprintf(stderr, "failed to run command <%s>, reason:%s\n", sqlstr, taos_errstr(res));
+    taos_free_result(res);
     return -1;
   }
 
-  TAOS_FIELD *fields = taos_fetch_fields(tmpResult);
+  char tmpBuf[TSDB_FILENAME_LEN + 1];
+  memset(tmpBuf, 0, TSDB_FILENAME_LEN);
+  sprintf(tmpBuf, ".show-tables.tmp");
+  fd = open(tmpBuf, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
+  if (fd == -1) {
+    fprintf(stderr, "failed to open temp file: %s\n", tmpBuf);
+    taos_free_result(res);
+    return -1;
+  }
 
-  int32_t  numOfTable  = 0;
-  int32_t  numOfThread = 0;
-  char     tmpFileName[TSDB_FILENAME_LEN + 1];
-  while ((row = taos_fetch_row(tmpResult)) != NULL) {
-    if (0 == numOfTable) {
-      memset(tmpFileName, 0, TSDB_FILENAME_LEN);
-      sprintf(tmpFileName, ".tables.tmp.%d", numOfThread);
-      fd = open(tmpFileName, O_RDWR | O_CREAT, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
-      if (fd == -1) {
-        fprintf(stderr, "failed to open temp file: %s\n", tmpFileName);
-        taos_free_result(tmpResult);
-        for (int32_t loopCnt = 0; loopCnt < numOfThread; loopCnt++) {
-          sprintf(tmpFileName, ".tables.tmp.%d", loopCnt);
-          (void)remove(tmpFileName);
-        }
-        free(tmpCommand);
-        return -1;
-      }
-
-      numOfThread++;
-    }
+  TAOS_FIELD *fields = taos_fetch_fields(res);
   
+  int32_t  numOfTable  = 0;
+  while ((row = taos_fetch_row(res)) != NULL) {  
     memset(&tableRecord, 0, sizeof(STableRecord));
     tstrncpy(tableRecord.name, (char *)row[TSDB_SHOW_TABLES_NAME_INDEX], fields[TSDB_SHOW_TABLES_NAME_INDEX].bytes);
     tstrncpy(tableRecord.metric, (char *)row[TSDB_SHOW_TABLES_METRIC_INDEX], fields[TSDB_SHOW_TABLES_METRIC_INDEX].bytes);
-
+  
     taosWrite(fd, &tableRecord, sizeof(STableRecord));
-
+  
     numOfTable++;
-
-    if (numOfTable >= arguments->table_batch) {
-      numOfTable = 0;
-      close(fd);
-      fd = -1;
-    }
   }
+  taos_free_result(res);
+  lseek(fd, 0, SEEK_SET);
+
+  int maxThreads = tsArguments.thread_num;
+  int tableOfPerFile ;
+  if (numOfTable <= tsArguments.thread_num) {
+    tableOfPerFile = 1;
+    maxThreads = numOfTable;
+  } else {
+    tableOfPerFile = numOfTable / tsArguments.thread_num;
+    if (0 != numOfTable % tsArguments.thread_num) {
+      tableOfPerFile += 1;
+    }    
+  }
+
+  char* tblBuf = (char*)calloc(1, tableOfPerFile * sizeof(STableRecord));
+  if (NULL == tblBuf){
+    fprintf(stderr, "failed to calloc %" PRIzu "\n", tableOfPerFile * sizeof(STableRecord));
+    close(fd);
+    return -1;
+  }
+  
+  int32_t  numOfThread = 0;
+  int      subFd = -1;
+  for (numOfThread = 0; numOfThread < maxThreads; numOfThread++) {
+    memset(tmpBuf, 0, TSDB_FILENAME_LEN);
+    sprintf(tmpBuf, ".tables.tmp.%d", numOfThread);
+    subFd = open(tmpBuf, O_RDWR | O_CREAT | O_TRUNC, S_IRWXU | S_IRGRP | S_IXGRP | S_IROTH);
+    if (subFd == -1) {
+      fprintf(stderr, "failed to open temp file: %s\n", tmpBuf);
+      for (int32_t loopCnt = 0; loopCnt < numOfThread; loopCnt++) {
+        sprintf(tmpBuf, ".tables.tmp.%d", loopCnt);
+        (void)remove(tmpBuf);
+      }
+      sprintf(tmpBuf, ".show-tables.tmp");
+      (void)remove(tmpBuf);
+      free(tblBuf);
+      close(fd);
+      return -1;
+    }
+
+    // read tableOfPerFile for fd, write to subFd
+    ssize_t readLen = read(fd, tblBuf, tableOfPerFile * sizeof(STableRecord));
+    if (readLen <= 0) {
+      close(subFd);
+      break;
+    }
+    taosWrite(subFd, tblBuf, readLen);
+    close(subFd);
+  }
+
+  sprintf(tmpBuf, ".show-tables.tmp");
+  (void)remove(tmpBuf);
 
   if (fd >= 0) {
     close(fd);
     fd = -1;
   }
   
-  taos_free_result(tmpResult);
+  taos_free_result(res);
 
   // start multi threads to dumpout
-  taosStartDumpOutWorkThreads(arguments, numOfThread, dbInfo->name);
+  taosStartDumpOutWorkThreads(taosCon, arguments, numOfThread, dbInfo->name);
   for (int loopCnt = 0; loopCnt < numOfThread; loopCnt++) {
-    sprintf(tmpFileName, ".tables.tmp.%d", loopCnt);
-    (void)remove(tmpFileName);
-  }
-  
-  free(tmpCommand);
+    sprintf(tmpBuf, ".tables.tmp.%d", loopCnt);
+    (void)remove(tmpBuf);
+  }  
 
+  free(tblBuf);
   return 0;
 }
 
-void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, FILE *fp) {
+void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, FILE *fp, char* dbName) {
   int counter = 0;
   int count_temp = 0;
+  char sqlstr[COMMAND_SIZE];
 
-  char* tmpBuf = (char *)malloc(COMMAND_SIZE);
-  if (tmpBuf == NULL) {
-    fprintf(stderr, "failed to allocate memory\n");
-    return;
-  }
+  char* pstr = sqlstr;
 
-  char* pstr = tmpBuf;
-
-  pstr += sprintf(tmpBuf, "CREATE TABLE IF NOT EXISTS %s", tableDes->name);
+  pstr += sprintf(sqlstr, "CREATE TABLE IF NOT EXISTS %s.%s", dbName, tableDes->name);
 
   for (; counter < numOfCols; counter++) {
     if (tableDes->cols[counter].note[0] != '\0') break;
@@ -1420,12 +1601,10 @@ void taosDumpCreateTableClause(STableDef *tableDes, int numOfCols, FILE *fp) {
 
   pstr += sprintf(pstr, ");");
 
-  fprintf(fp, "%s\n", tmpBuf);
-
-  free(tmpBuf);
+  fprintf(fp, "%s\n\n", sqlstr);
 }
 
-void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols, FILE *fp) {
+void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols, FILE *fp, char* dbName) {
   int counter = 0;
   int count_temp = 0;
 
@@ -1438,7 +1617,7 @@ void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols
   char *pstr = NULL;
   pstr = tmpBuf;
 
-  pstr += sprintf(tmpBuf, "CREATE TABLE IF NOT EXISTS %s USING %s TAGS (", tableDes->name, metric);
+  pstr += sprintf(tmpBuf, "CREATE TABLE IF NOT EXISTS %s.%s USING %s.%s TAGS (", dbName, tableDes->name, dbName, metric);
 
   for (; counter < numOfCols; counter++) {
     if (tableDes->cols[counter].note[0] != '\0') break;
@@ -1479,48 +1658,36 @@ void taosDumpCreateMTableClause(STableDef *tableDes, char *metric, int numOfCols
   free(tmpBuf);
 }
 
-int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS* taosCon) {
-  /* char       temp[MAX_COMMAND_SIZE] = "\0"; */
-  int64_t totalRows = 0;
+int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS* taosCon, char* dbName) {
+  int64_t    lastRowsPrint = 5000000;
+  int64_t    totalRows     = 0;
   int count = 0;
   char *pstr = NULL;
   TAOS_ROW row = NULL;
   int numFields = 0;
-  char *tbuf = NULL;
-
-  char* tmpCommand = (char *)calloc(1, COMMAND_SIZE);
-  if (tmpCommand == NULL) {
-    fprintf(stderr, "failed to allocate memory\n");
-    return -1;
+  
+  if (arguments->schemaonly) {
+    return 0;
   }
 
   int32_t  sql_buf_len = arguments->max_sql_len;
   char* tmpBuffer = (char *)calloc(1, sql_buf_len + 128);
   if (tmpBuffer == NULL) {
     fprintf(stderr, "failed to allocate memory\n");
-    free(tmpCommand);
     return -1;
   }
 
   pstr = tmpBuffer;
 
-  if (arguments->schemaonly) {
-    free(tmpCommand);
-    free(tmpBuffer);
-    return 0;
-  }
+  char sqlstr[1024] = {0};
+  sprintf(sqlstr, 
+          "select * from %s.%s where _c0 >= %" PRId64 " and _c0 <= %" PRId64 " order by _c0 asc;", 
+          dbName, tbname, arguments->start_time, arguments->end_time);
   
-  sprintf(tmpCommand, 
-          "select * from %s where _c0 >= %" PRId64 " and _c0 <= %" PRId64 " order by _c0 asc", 
-          tbname, 
-          arguments->start_time,
-          arguments->end_time);
-  
-  TAOS_RES* tmpResult = taos_query(taosCon, tmpCommand);  
+  TAOS_RES* tmpResult = taos_query(taosCon, sqlstr);  
   int32_t code = taos_errno(tmpResult);
   if (code != 0) {
-    fprintf(stderr, "failed to run command %s, reason: %s\n", tmpCommand, taos_errstr(taosCon));
-    free(tmpCommand);
+    fprintf(stderr, "failed to run command %s, reason: %s\n", sqlstr, taos_errstr(tmpResult));
     free(tmpBuffer);
     taos_free_result(tmpResult);
     return -1;
@@ -1529,14 +1696,6 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
   numFields = taos_field_count(tmpResult);
   assert(numFields > 0);
   TAOS_FIELD *fields = taos_fetch_fields(tmpResult);
-  tbuf = (char *)malloc(COMMAND_SIZE);
-  if (tbuf == NULL) {
-    fprintf(stderr, "No enough memory\n");
-    free(tmpCommand);
-    free(tmpBuffer);
-    taos_free_result(tmpResult);
-    return -1;
-  }
 
   int rowFlag = 0;
   int32_t  curr_sqlstr_len = 0;
@@ -1550,7 +1709,7 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
 
     if (count == 0) {
       total_sqlstr_len = 0;
-      curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "INSERT INTO %s VALUES (", tbname);
+      curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "INSERT INTO %s.%s VALUES (", dbName, tbname);
     } else {
       if (arguments->mysqlFlag) {
         if (0 == rowFlag) {
@@ -1594,17 +1753,21 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
         case TSDB_DATA_TYPE_DOUBLE:
           curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%f", GET_DOUBLE_VAL(row[col]));
           break;
-        case TSDB_DATA_TYPE_BINARY:
+        case TSDB_DATA_TYPE_BINARY: {
+          char tbuf[COMMAND_SIZE] = {0};
           //*(pstr++) = '\'';
           converStringToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
           //pstr = stpcpy(pstr, tbuf);
           //*(pstr++) = '\'';
           pstr += sprintf(pstr + curr_sqlstr_len, "\'%s\'", tbuf);          
           break;
-        case TSDB_DATA_TYPE_NCHAR:
+        }
+        case TSDB_DATA_TYPE_NCHAR: {
+          char tbuf[COMMAND_SIZE] = {0};
           convertNCharToReadable((char *)row[col], length[col], tbuf, COMMAND_SIZE);
           pstr += sprintf(pstr + curr_sqlstr_len, "\'%s\'", tbuf);
           break;
+        }
         case TSDB_DATA_TYPE_TIMESTAMP:
           if (!arguments->mysqlFlag) {
             curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, "%" PRId64 "", *(int64_t *)row[col]);
@@ -1624,9 +1787,14 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
 
     curr_sqlstr_len += sprintf(pstr + curr_sqlstr_len, ") ");
 
-    totalRows++;
+    totalRows++;    
     count++;
     fprintf(fp, "%s", tmpBuffer);
+    
+    if (totalRows >= lastRowsPrint) {
+      printf(" %"PRId64 " rows already be dumpout from %s.%s\n", totalRows, dbName, tbname);
+      lastRowsPrint += 5000000;
+    }
 
     total_sqlstr_len += curr_sqlstr_len;
 
@@ -1638,19 +1806,12 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
     //}
   }
 
+  fprintf(fp, "\n");  
   atomic_add_fetch_64(&totalDumpOutRows, totalRows);
-
-  fprintf(fp, "\n");
-
-  if (tbuf) {
-    free(tbuf);
-  }
   
   taos_free_result(tmpResult);
-  tmpResult = NULL;
-  free(tmpCommand);
   free(tmpBuffer);
-  return 0;
+  return totalRows;
 }
 
 int taosCheckParam(struct arguments *arguments) {
@@ -1950,13 +2111,15 @@ static void taosGetDirectoryFileList(char *inputDir)
   if (fileStat.st_mode & S_IFDIR) {
     taosCheckTablesSQLFile(inputDir);
     tsSqlFileNum = taosGetFilesNum(inputDir, "sql");
-    int totalSQLFileNum = tsSqlFileNum;
+    int tsSqlFileNumOfTbls = tsSqlFileNum;
     if (tsDbSqlFile[0] != 0) {
-      tsSqlFileNum--;
+      tsSqlFileNumOfTbls--;
     }
     taosMallocSQLFiles();
-    taosParseDirectory(inputDir, "sql", tsDumpInSqlFiles, tsSqlFileNum);
-    fprintf(stdout, "\nstart to dispose %d files in %s\n", totalSQLFileNum, inputDir);
+    if (0 != tsSqlFileNumOfTbls) {
+      taosParseDirectory(inputDir, "sql", tsDumpInSqlFiles, tsSqlFileNumOfTbls);
+    }
+    fprintf(stdout, "\nstart to dispose %d files in %s\n", tsSqlFileNum, inputDir);
   }
   else {
     fprintf(stderr, "ERROR: %s is not a directory\n", inputDir);
@@ -1986,159 +2149,6 @@ static FILE*  taosOpenDumpInFile(char *fptr) {
   return f;
 }
 
-int taosDumpInOneFile_old(TAOS     * taos, FILE* fp, char* fcharset, char* encode) {
-  char     *command       = NULL;
-  char     *lcommand      = NULL;
-  int       tsize         = 0;
-  char     *line          = NULL;
-  _Bool     isRun         = true;
-  size_t    line_size     = 0;
-  char     *pstr          = NULL;
-  char     *lstr          = NULL;
-  size_t    inbytesleft   = 0;
-  size_t    outbytesleft  = COMMAND_SIZE;
-  char     *tcommand      = NULL;
-  char     *charsetOfFile = NULL;
-  iconv_t   cd            = (iconv_t)(-1);
-
-  command  = (char *)malloc(COMMAND_SIZE);
-  lcommand = (char *)malloc(COMMAND_SIZE);
-  if (command == NULL || lcommand == NULL) {
-    fprintf(stderr, "failed to connect to allocate memory\n");
-    goto _dumpin_exit_failure;
-  }
-
-  // Resolve locale
-  if (*fcharset != '\0') {
-    charsetOfFile = fcharset;
-  } else {
-    charsetOfFile = encode;
-  }
-
-  if (charsetOfFile != NULL && strcasecmp(tsCharset, charsetOfFile) != 0) {
-    cd = iconv_open(tsCharset, charsetOfFile);
-    if (cd == ((iconv_t)(-1))) {
-      fprintf(stderr, "Failed to open iconv handle\n");
-      goto _dumpin_exit_failure;
-    }
-  }
-
-  pstr = command;
-  int64_t linenu = 0;
-  while (1) {
-    ssize_t size = getline(&line, &line_size, fp);
-    linenu++;
-    if (size <= 0) break;
-    if (size == 1) {
-      if (pstr != command) {
-        inbytesleft = pstr - command;
-        memset(lcommand, 0, COMMAND_SIZE);
-        pstr = command;
-        lstr = lcommand;
-        outbytesleft = COMMAND_SIZE;
-        if (cd != ((iconv_t)(-1))) {
-          iconv(cd, &pstr, &inbytesleft, &lstr, &outbytesleft);
-          tcommand = lcommand;
-        } else {
-          tcommand = command;
-        }
-        
-        taosReplaceCtrlChar(tcommand);
-        
-        if (queryDB(taos, tcommand) != 0) {
-          fprintf(stderr, "error sql: linenu: %" PRId64 " failed\n", linenu);
-          exit(0);
-        }
-        
-        pstr = command;
-        pstr[0] = '\0';
-        tsize = 0;
-        isRun = true;
-      }
-
-      continue;
-    }
-
-    /* if (line[0] == '-' && line[1] == '-') continue; */
-
-    line[size - 1] = 0;
-
-    if (tsize + size - 1 > COMMAND_SIZE) {
-      fprintf(stderr, "command is too long\n");
-      goto _dumpin_exit_failure;
-    }
-
-    if (line[size - 2] == '\\') {
-      line[size - 2] = ' ';
-      isRun = false;
-    } else {
-      isRun = true;
-    }
-
-    memcpy(pstr, line, size - 1);
-    pstr += (size - 1);
-    *pstr = '\0';
-
-    if (!isRun) continue;
-
-    if (command != pstr && !isEmptyCommand(command)) {
-      inbytesleft = pstr - command;
-      memset(lcommand, 0, COMMAND_SIZE);
-      pstr = command;
-      lstr = lcommand;
-      outbytesleft = COMMAND_SIZE;
-      if (cd != ((iconv_t)(-1))) {
-        iconv(cd, &pstr, &inbytesleft, &lstr, &outbytesleft);
-        tcommand = lcommand;
-      } else {
-        tcommand = command;
-      }
-      taosReplaceCtrlChar(tcommand);
-      if (queryDB(taos, tcommand) != 0) {
-        fprintf(stderr, "error sql: linenu:%" PRId64 " failed\n", linenu);
-        exit(0); 
-      }
-    }
-
-    pstr = command;
-    *pstr = '\0';
-    tsize = 0;
-  }
-
-  if (pstr != command) {
-    inbytesleft = pstr - command;
-    memset(lcommand, 0, COMMAND_SIZE);
-    pstr = command;
-    lstr = lcommand;
-    outbytesleft = COMMAND_SIZE;
-    if (cd != ((iconv_t)(-1))) {
-      iconv(cd, &pstr, &inbytesleft, &lstr, &outbytesleft);
-      tcommand = lcommand;
-    } else {
-      tcommand = command;
-    }
-    taosReplaceCtrlChar(lcommand);
-    if (queryDB(taos, tcommand) != 0)
-      fprintf(stderr, "error sql: linenu:%" PRId64 " failed \n", linenu);
-  }
-
-  if (cd != ((iconv_t)(-1))) iconv_close(cd);
-  tfree(line);
-  tfree(command);
-  tfree(lcommand);
-  taos_close(taos);
-  fclose(fp);
-  return 0;
-
-_dumpin_exit_failure:
-  if (cd != ((iconv_t)(-1))) iconv_close(cd);
-  tfree(command);
-  tfree(lcommand);
-  taos_close(taos);
-  fclose(fp);
-  return -1;
-}
-
 int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, char* fileName) {
   int       read_len = 0;
   char *    cmd      = NULL;
@@ -2152,6 +2162,7 @@ int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, c
     return -1;
   }
 
+  int lastRowsPrint = 5000000;
   int lineNo = 0;
   while ((read_len = getline(&line, &line_len, fp)) != -1) {
     ++lineNo;
@@ -2172,12 +2183,18 @@ int taosDumpInOneFile(TAOS     * taos, FILE* fp, char* fcharset, char* encode, c
 
     memcpy(cmd + cmd_len, line, read_len);
     cmd[read_len + cmd_len]= '\0';
-    if (queryDB(taos, cmd)) {
+    if (queryDbImpl(taos, cmd)) {
       fprintf(stderr, "error sql: linenu:%d, file:%s\n", lineNo, fileName);
+      fprintf(g_fpOfResult, "error sql: linenu:%d, file:%s\n", lineNo, fileName);
     }
 
     memset(cmd, 0, TSDB_MAX_ALLOWED_SQL_LEN);
-    cmd_len = 0;
+    cmd_len = 0;    
+    
+    if (lineNo >= lastRowsPrint) {
+      printf(" %d lines already be executed from file %s\n", lineNo, fileName);
+      lastRowsPrint += 5000000;
+    }
   }
 
   tfree(cmd);
@@ -2204,7 +2221,7 @@ void* taosDumpInWorkThreadFp(void *arg)
   return NULL;
 }
 
-static void taosStartDumpInWorkThreads(struct arguments *args)
+static void taosStartDumpInWorkThreads(void* taosCon, struct arguments *args)
 {
   pthread_attr_t  thattr;
   SThreadParaObj *pThread;
@@ -2219,11 +2236,7 @@ static void taosStartDumpInWorkThreads(struct arguments *args)
     pThread = threadObj + t;
     pThread->threadIndex = t;
     pThread->totalThreads = totalThreads;
-    pThread->taosCon = taos_connect(args->host, args->user, args->password, NULL, args->port);
-    if (pThread->taosCon == NULL) {
-      fprintf(stderr, "ERROR: thread:%d failed connect to TDengine, error:%s\n", pThread->threadIndex, taos_errstr(pThread->taosCon));
-      exit(0);
-    }
+    pThread->taosCon = taosCon;
 
     pthread_attr_init(&thattr);
     pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
@@ -2259,7 +2272,10 @@ int taosDumpIn(struct arguments *arguments) {
 
   taosGetDirectoryFileList(arguments->inpath);
 
+  int32_t  tsSqlFileNumOfTbls = tsSqlFileNum;
   if (tsDbSqlFile[0] != 0) {
+    tsSqlFileNumOfTbls--;
+    
     fp = taosOpenDumpInFile(tsDbSqlFile);
     if (NULL == fp) {
       fprintf(stderr, "failed to open input file %s\n", tsDbSqlFile);
@@ -2272,7 +2288,9 @@ int taosDumpIn(struct arguments *arguments) {
     taosDumpInOneFile(taos, fp, tsfCharset, arguments->encode, tsDbSqlFile);
   }
 
-  taosStartDumpInWorkThreads(arguments);
+  if (0 != tsSqlFileNumOfTbls) {
+      taosStartDumpInWorkThreads(taos, arguments);
+  } 
 
   taos_close(taos);
   taosFreeSQLFiles();

@@ -20,9 +20,6 @@
 extern "C" {
 #endif
 
-/*
- * @date   2018/09/30
- */
 #include "exception.h"
 #include "os.h"
 #include "qExtbuffer.h"
@@ -101,20 +98,20 @@ static FORCE_INLINE SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t sub
   return pCmd->pQueryInfo[subClauseIndex];
 }
 
-int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, const char* name,
-                           STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
-void tscDestroyDataBlock(STableDataBlocks* pDataBlock);
+int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
+void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta);
 void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);
 
 SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, int16_t bytes,
                                    uint32_t offset);
 
 void*   tscDestroyBlockArrayList(SArray* pDataBlockList);
+void*   tscDestroyBlockHashTable(SHashObj* pBlockHashTable, bool removeMeta);
+
 int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock);
-int32_t tscMergeTableDataBlocks(SSqlObj* pSql, SArray* pDataList);
-int32_t tscGetDataBlockFromList(void* pHashList, SArray* pDataBlockList, int64_t id, int32_t size,
-                                int32_t startOffset, int32_t rowSize, const char* tableId, STableMeta* pTableMeta,
-                                STableDataBlocks** dataBlocks);
+int32_t tscMergeTableDataBlocks(SSqlObj* pSql, bool freeBlockMap);
+int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize, SName* pName, STableMeta* pTableMeta,
+                                STableDataBlocks** dataBlocks, SArray* pBlockList);
 
 /**
  * for the projection query on metric or point interpolation query on metric,
@@ -135,18 +132,15 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);
 
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryTags(SQueryInfo* pQueryInfo);
+bool tscMultiRoundQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
-SSqlExpr* tscAddSpecialColumnForSelect(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId,
+SSqlExpr* tscAddFuncInSelectClause(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId,
                                        SColumnIndex* pIndex, SSchema* pColSchema, int16_t colType);
 
 int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableName, SSqlObj* pSql);
 void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
 bool tscIsInsertData(char* sqlstr);
-
-/* use for keep current db info temporarily, for handle table with db prefix */
-// todo remove it
-void tscGetDBInfoFromTableFullName(char* tableId, char* db);
 
 int tscAllocPayload(SSqlCmd* pCmd, int size);
 
@@ -181,6 +175,7 @@ SSqlExpr* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIn
 SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int16_t size);
 size_t   tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo);
+void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 
 SSqlExpr* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index);
 int32_t   tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
@@ -215,10 +210,10 @@ STableMetaInfo* tscGetMetaInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
 SQueryInfo *tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex);
 SQueryInfo *tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex);
 
-void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo, bool removeFromCache);
+void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo);
 
-STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, const char* name, STableMeta* pTableMeta,
-    SVgroupsInfo* vgroupList, SArray* pTagCols, SArray* pVgroupTables);
+STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableMeta* pTableMeta,
+                                    SVgroupsInfo* vgroupList, SArray* pTagCols, SArray* pVgroupTables);
 
 STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo *pQueryInfo);
 int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
@@ -227,13 +222,13 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo);
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd);
 void tscFreeVgroupTableInfo(SArray* pVgroupTables);
-SArray* tscVgroupTableInfoClone(SArray* pVgroupTables);
+SArray* tscVgroupTableInfoDup(SArray* pVgroupTables);
 void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index);
 void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo);
 
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
-int  tscGetMeterMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
+int  tscGetTableMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
 void tscDoQuery(SSqlObj* pSql);
@@ -258,11 +253,11 @@ void tscSVgroupInfoCopy(SVgroupInfo* dst, const SVgroupInfo* src);
  * @param pPrevSql
  * @return
  */
-SSqlObj* createSimpleSubObj(SSqlObj* pSql, void (*fp)(), void* param, int32_t cmd);
+SSqlObj* createSimpleSubObj(SSqlObj* pSql, __async_cb_func_t fp, void* param, int32_t cmd);
 
 void registerSqlObj(SSqlObj* pSql);
 
-SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, void (*fp)(), void* param, int32_t cmd, SSqlObj* pPrevSql);
+SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t fp, void* param, int32_t cmd, SSqlObj* pPrevSql);
 void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClauseIndex, int32_t tableIndex);
 
 void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex);
@@ -275,6 +270,8 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
 bool hasMoreVnodesToTry(SSqlObj *pSql);
 bool hasMoreClauseToTry(SSqlObj* pSql);
 
+void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta);
+
 void tscTryQueryNextVnode(SSqlObj *pSql, __async_cb_func_t fp);
 void tscAsyncQuerySingleRowForNextVnode(void *param, TAOS_RES *tres, int numOfRows);
 void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp);
@@ -283,6 +280,17 @@ int  tscSetMgmtEpSetFromCfg(const char *first, const char *second, SRpcCorEpSet 
 bool tscSetSqlOwner(SSqlObj* pSql);
 void tscClearSqlOwner(SSqlObj* pSql);
 int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
+
+char*   serializeTagData(STagData* pTagData, char* pMsg);
+int32_t copyTagData(STagData* dst, const STagData* src);
+
+STableMeta* createSuperTableMeta(STableMetaMsg* pChild);
+uint32_t tscGetTableMetaSize(STableMeta* pTableMeta);
+CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
+uint32_t tscGetTableMetaMaxSize();
+int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name);
+STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
+
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);

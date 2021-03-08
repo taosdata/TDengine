@@ -19,8 +19,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-
+#include "taoserror.h"
+#include "taosmsg.h"
 #include "tlog.h"
+#include "trpc.h"
+#include "tglobal.h"
+#include "dnode.h"
+#include "vnode.h"
 
 extern int32_t dDebugFlag;
 
@@ -30,6 +35,14 @@ extern int32_t dDebugFlag;
 #define dInfo(...)  { if (dDebugFlag & DEBUG_INFO)  { taosPrintLog("DND ", 255, __VA_ARGS__); }}
 #define dDebug(...) { if (dDebugFlag & DEBUG_DEBUG) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
 #define dTrace(...) { if (dDebugFlag & DEBUG_TRACE) { taosPrintLog("DND ", dDebugFlag, __VA_ARGS__); }}
+
+typedef enum {
+  TSDB_RUN_STATUS_INITIALIZE,
+  TSDB_RUN_STATUS_RUNING,
+  TSDB_RUN_STATUS_STOPPED
+} SRunStatus;
+
+SRunStatus dnodeGetRunStatus();
 
 #ifdef __cplusplus
 }

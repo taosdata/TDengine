@@ -38,13 +38,7 @@ typedef struct SLocalDataSource {
   tFilePage      filePage;
 } SLocalDataSource;
 
-enum {
-  TSC_LOCALREDUCE_READY = 0x0,
-  TSC_LOCALREDUCE_IN_PROGRESS = 0x1,
-  TSC_LOCALREDUCE_TOBE_FREED = 0x2,
-};
-
-typedef struct SLocalReducer {
+typedef struct SLocalMerger {
   SLocalDataSource **    pLocalDataSrc;
   int32_t                numOfBuffer;
   int32_t                numOfCompleted;
@@ -56,7 +50,6 @@ typedef struct SLocalReducer {
   tFilePage *            pTempBuffer;
   struct SQLFunctionCtx *pCtx;
   int32_t                rowSize;      // size of each intermediate result.
-  int32_t                status;       // denote it is in reduce process, in reduce process, it
   bool                   hasPrevRow;   // cannot be released
   bool                   hasUnprocessedRow;
   tOrderDescriptor *     pDesc;
@@ -69,7 +62,7 @@ typedef struct SLocalReducer {
   bool                   discard;
   int32_t                offset;             // limit offset value
   bool                   orderPrjOnSTable;   // projection query on stable
-} SLocalReducer;
+} SLocalMerger;
 
 typedef struct SRetrieveSupport {
   tExtMemBuffer **  pExtMemBuffer;     // for build loser tree
@@ -96,10 +89,10 @@ int32_t tscFlushTmpBuffer(tExtMemBuffer *pMemoryBuf, tOrderDescriptor *pDesc, tF
 /*
  * create local reducer to launch the second-stage reduce process at client site
  */
-void tscCreateLocalReducer(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrderDescriptor *pDesc,
+void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrderDescriptor *pDesc,
                            SColumnModel *finalModel, SColumnModel *pFFModel, SSqlObj* pSql);
 
-void tscDestroyLocalReducer(SSqlObj *pSql);
+void tscDestroyLocalMerger(SSqlObj *pSql);
 
 int32_t tscDoLocalMerge(SSqlObj *pSql);
 

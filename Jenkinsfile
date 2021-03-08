@@ -1,230 +1,285 @@
+import hudson.model.Result
+import jenkins.model.CauseOfInterruption
+properties([pipelineTriggers([githubPush()])])
+node {
+    git url: 'https://github.com/taosdata/TDengine.git'
+}
+
+def skipstage=0
+def abortPreviousBuilds() {
+  def currentJobName = env.JOB_NAME
+  def currentBuildNumber = env.BUILD_NUMBER.toInteger()
+  def jobs = Jenkins.instance.getItemByFullName(currentJobName)
+  def builds = jobs.getBuilds()
+
+  for (build in builds) {
+    if (!build.isBuilding()) {
+      continue;
+    }
+
+    if (currentBuildNumber == build.getNumber().toInteger()) {
+      continue;
+    }
+
+    build.doKill()    //doTerm(),doKill(),doTerm()
+  }
+}
+//abort previous build
+abortPreviousBuilds()
+def abort_previous(){
+  def buildNumber = env.BUILD_NUMBER as int
+  if (buildNumber > 1) milestone(buildNumber - 1)
+  milestone(buildNumber)
+}
+def pre_test(){
+    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                sudo rmtaos
+                '''
+    }
+    sh '''
+    
+    cd ${WKC}
+    git checkout develop
+    git reset --hard HEAD~10 >/dev/null 
+    git pull
+    git fetch origin +refs/pull/${CHANGE_ID}/merge
+    git checkout -qf FETCH_HEAD
+    git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile' || exit 0
+    cd ${WK}
+    git reset --hard HEAD~10
+    git checkout develop
+    git pull
+    cd ${WK}
+    export TZ=Asia/Harbin
+    date
+    rm -rf ${WK}/debug
+    mkdir debug
+    cd debug
+    cmake .. > /dev/null
+    make > /dev/null
+    make install > /dev/null
+    cd ${WKC}/tests
+    '''
+    return 1
+}
+
 pipeline {
   agent none
+  
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDinternal/community'
   }
-
+  
   stages {
-      stage('Parallel test stage') {
-      parallel {
-        stage('pytest') {
-          agent{label '184'}
+      stage('pre_build'){
+          agent{label 'master'}
+          when {
+              changeRequest()
+          }
           steps {
-            sh '''
-            date
-            cd ${WKC}
-            git reset --hard
-            git checkout develop
-            git pull
-            git submodule update
-            cd ${WK}
-            git reset --hard
-            git checkout develop
-            git pull
-            export TZ=Asia/Harbin
-            date
-            rm -rf ${WK}/debug
-            mkdir debug
-            cd debug
-            cmake .. > /dev/null
-            make > /dev/null
-            make install > /dev/null
-            cd ${WKC}/tests
-            #./test-all.sh smoke
-            ./test-all.sh pytest
-            date'''
+          sh'''
+          cp -r ${WORKSPACE} ${WORKSPACE}.tes
+          cd ${WORKSPACE}.tes
+          git checkout develop
+          git pull
+          git fetch origin +refs/pull/${CHANGE_ID}/merge
+          git checkout -qf FETCH_HEAD
+          '''
+          script{
+            env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+          }
+          println env.skipstage
+          sh'''
+          rm -rf ${WORKSPACE}.tes
+          '''
+          }
+      }
+    
+      stage('Parallel test stage') {
+        //only build pr
+        when {
+              changeRequest()
+               expression {
+                    env.skipstage != 0
+              }
+          }
+      parallel {
+        stage('python_1_s1') {
+          agent{label 'p1'}
+          steps {
+            
+            pre_test()
+            timeout(time: 45, unit: 'MINUTES'){
+              sh '''
+              date
+              cd ${WKC}/tests
+              find pytest -name '*'sql|xargs rm -rf
+              ./test-all.sh p1
+              date'''
+            }
+            
           }
         }
-        stage('test_b1') {
-          agent{label 'master'}
+        stage('python_2_s5') {
+          agent{label 'p2'}
           steps {
-            sh '''
-            cd ${WKC}
-            git reset --hard
-            git checkout develop
-            git pull
-              
-            git submodule update
-            cd ${WK}
-            git reset --hard
-            git checkout develop
-            git pull
-            export TZ=Asia/Harbin
-            date
-            rm -rf ${WK}/debug
-            mkdir debug
-            cd debug
-            cmake .. > /dev/null
-            make > /dev/null
-            cd ${WKC}/tests
-            #./test-all.sh smoke
-            ./test-all.sh b1
-            date'''
+            
+            pre_test()
+            timeout(time: 45, unit: 'MINUTES'){
+                sh '''
+                date
+                cd ${WKC}/tests
+                find pytest -name '*'sql|xargs rm -rf
+                ./test-all.sh p2
+                date'''
+            }
+          }
+        }
+        stage('python_3_s6') {
+          agent{label 'p3'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh p3
+              date'''
+            }
+          }
+        }
+        stage('test_b1_s2') {
+          agent{label 'b1'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              cd ${WKC}/tests
+              ./test-all.sh b1fq
+              date'''
+            }
           }
         }
 
-        stage('test_crash_gen') {
-          agent{label "185"}
+        stage('test_crash_gen_s3') {
+          agent{label "b2"}
+          
           steps {
-            sh '''
-            cd ${WKC}
-            git reset --hard
-            git checkout develop
-            git pull
-              
-            git submodule update
-            cd ${WK}
-            git reset --hard
-            git checkout develop
-            git pull
-            export TZ=Asia/Harbin
-            
-            rm -rf ${WK}/debug
-            mkdir debug
-            cd debug
-            cmake .. > /dev/null
-            make > /dev/null
-            cd ${WKC}/tests/pytest
-            '''
+            pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/pytest
                 ./crash_gen.sh -a -p -t 4 -s 2000
                 '''
             }
+
+            sh '''
+            cd ${WKC}/tests/pytest
+            rm -rf /var/lib/taos/*
+            rm -rf /var/log/taos/*
+            ./handle_crash_gen_val_log.sh
+            '''
+            timeout(time: 45, unit: 'MINUTES'){
+                sh '''
+                date
+                cd ${WKC}/tests
+                ./test-all.sh b2fq
+                date
+                '''
+            }         
+            
+          }
+        }
+
+        stage('test_valgrind_s4') {
+          agent{label "b3"}
+
+          steps {
+            pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/pytest
-                ./handle_crash_gen_val_log.sh
+                ./valgrind-test.sh 2>&1 > mem-error-out.log
+                ./handle_val_log.sh
                 '''
+            }     
+            timeout(time: 45, unit: 'MINUTES'){      
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b3fq
+              date'''
             }
-            sh '''
-            date
-            cd ${WKC}/tests
-            ./test-all.sh b2
-            date
-            '''
           }
         }
-
-        stage('test_valgrind') {
-          agent{label "186"}
-
-          steps {
-            sh '''
-            cd ${WKC}
-            git reset --hard
-            git checkout develop
-            git pull
-              
-            git submodule update
-            cd ${WK}
-            git reset --hard
-            git checkout develop
-            git pull
-            export TZ=Asia/Harbin
-            date
-            rm -rf ${WK}/debug
-            mkdir debug
-            cd debug
-            cmake .. > /dev/null
-            make > /dev/null
-            cd ${WKC}/tests/pytest
-            ./valgrind-test.sh 2>&1 > mem-error-out.log
-            ./handle_val_log.sh
-          
-            date
-            cd ${WKC}/tests
-            ./test-all.sh b3
-            date'''
+        stage('test_b4_s7') {
+          agent{label 'b4'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b4fq
+              cd ${WKC}/tests
+              ./test-all.sh p4
+              cd ${WKC}/tests
+              ./test-all.sh full jdbc
+              cd ${WKC}/tests
+              ./test-all.sh full unit
+              date'''
+            }
           }
         }
-       stage('connector'){
-         agent{label "release"}
-         steps{
-            sh'''
-            cd ${WORKSPACE}
-            git checkout develop
-            '''
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WORKSPACE}/tests/gotest
-                bash batchtest.sh
-                '''
+        stage('test_b5_s8') {
+          agent{label 'b5'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b5fq
+              date'''
             }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WORKSPACE}/tests/examples/python/PYTHONConnectorChecker
-                python3 PythonChecker.py
-                '''
+          }
+        }
+        stage('test_b6_s9') {
+          agent{label 'b6'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b6fq
+              date'''
             }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WORKSPACE}/tests/examples/JDBC/JDBCDemo/
-                mvn clean package assembly:single >/dev/null 
-                java -jar target/jdbcChecker-SNAPSHOT-jar-with-dependencies.jar -host 127.0.0.1
-                '''
+          }
+        }
+        stage('test_b7_s10') {
+          agent{label 'b7'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b7fq
+              date'''
             }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${JENKINS_HOME}/workspace/C#NET/src/CheckC#
-                dotnet run
-                '''
-            }
-          
-         }
-       }
-       stage('arm64_build'){
-                agent{label 'arm64'}
-                steps{
-                    sh '''
-                    cd ${WK}
-                    git fetch
-                    git checkout develop
-                    git pull
-                    cd ${WKC}
-                    git fetch
-                    git checkout develop
-                    git pull
-                    git submodule update                    
-                    cd ${WKC}/packaging
-                    ./release.sh -v cluster -c aarch64 -n 2.0.0.0 -m 2.0.0.0
-                    
-                    '''
-                }
-            }
-            stage('arm32_build'){
-                agent{label 'arm32'}
-                steps{
-                    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                        sh '''
-                        cd ${WK}
-                        git fetch
-                        git checkout develop
-                        git pull
-                        cd ${WKC}
-                        git fetch
-                        git checkout develop
-                        git pull
-                        git submodule update
-                        cd ${WKC}/packaging
-                        ./release.sh -v cluster -c aarch32 -n 2.0.0.0 -m 2.0.0.0
-                        
-                        '''
-                    }
-                    
-                }
-            }
-      }
+          }
+        }        
     }
-
   }
-  post {             
+  }
+  post {  
         success {
             emailext (
-                subject: "SUCCESSFUL: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: '''<!DOCTYPE html>
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS",
+                body: """<!DOCTYPE html>
                 <html>
                 <head>
                 <meta charset="UTF-8">
@@ -240,29 +295,29 @@ pipeline {
                             <td>
                                 <ul>
                                 <div style="font-size:18px">
-                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
+                                    <li>构建名称>>分支：${env.BRANCH_NAME}</li>
                                     <li>构建结果：<span style="color:green"> Successful </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
-                                    <li>触发用户：${CAUSE}</li>
-                                    <li>变更概要：${CHANGES}</li>
+                                    <li>触发用户：${env.CHANGE_AUTHOR}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    <li>变更集：${JELLY_SCRIPT}</li>
+                                    
                                 </div>
                                 </ul>
                             </td>
                         </tr>
                     </table></font>
                 </body>
-                </html>''',
-                to: "yqliu@taosdata.com,pxiao@taosdata.com",
+                </html>""",
+                to: "${env.CHANGE_AUTHOR_EMAIL}",
                 from: "support@taosdata.com"
             )
         }
         failure {
             emailext (
-                subject: "FAILED: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: '''<!DOCTYPE html>
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' FAIL",
+                body: """<!DOCTYPE html>
                 <html>
                 <head>
                 <meta charset="UTF-8">
@@ -278,24 +333,25 @@ pipeline {
                             <td>
                                 <ul>
                                 <div style="font-size:18px">
-                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
-                                    <li>构建结果：<span style="color:green"> Successful </span></li>
+                                    <li>构建名称>>分支：${env.BRANCH_NAME}</li>
+                                    <li>构建结果：<span style="color:red"> Failure </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
-                                    <li>触发用户：${CAUSE}</li>
-                                    <li>变更概要：${CHANGES}</li>
+                                    <li>触发用户：${env.CHANGE_AUTHOR}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    <li>变更集：${JELLY_SCRIPT}</li>
+                                    
                                 </div>
                                 </ul>
                             </td>
                         </tr>
                     </table></font>
                 </body>
-                </html>''',
-                to: "yqliu@taosdata.com,pxiao@taosdata.com",
+                </html>""",
+                to: "${env.CHANGE_AUTHOR_EMAIL}",
                 from: "support@taosdata.com"
             )
         }
     }
+   
 }

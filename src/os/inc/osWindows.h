@@ -46,6 +46,8 @@
 #include "msvcFcntl.h"
 #include "msvcLibgen.h"
 #include "msvcStdio.h"
+#include "msvcUnistd.h"
+#include "msvcLibgen.h"
 #include "sys/msvcStat.h"
 #include "sys/msvcTypes.h"
 
@@ -66,6 +68,8 @@ extern "C" {
 #define TAOS_OS_FUNC_FILE_SENDIFLE
 #define TAOS_OS_FUNC_FILE_GETTMPFILEPATH
 #define TAOS_OS_FUNC_FILE_FTRUNCATE 
+
+#define TAOS_OS_FUNC_DIR
 
 #define TAOS_OS_FUNC_MATH
   #define SWAP(a, b, c)      \
@@ -93,6 +97,12 @@ typedef SOCKET eventfd_t;
 
 #define TAOS_OS_DEF_EPOLL
   #define TAOS_EPOLL_WAIT_TIME 100
+  typedef SOCKET EpollFd; 
+  #define EpollClose(pollFd) epoll_close(pollFd) 
+  
+#ifndef EPOLLWAKEUP
+  #define EPOLLWAKEUP (1u << 29)
+#endif
 
 #define TAOS_OS_DEF_ZU
   #define PRIzu "ld"  
@@ -138,7 +148,6 @@ typedef int (*__compar_fn_t)(const void *, const void *);
 #define in_addr_t unsigned long
 #define socklen_t int
 #define htobe64 htonll
-#define getpid _getpid
 
 struct tm *localtime_r(const time_t *timep, struct tm *result);
 char *     strptime(const char *buf, const char *fmt, struct tm *tm);
@@ -147,14 +156,7 @@ char *     getpass(const char *prefix);
 int        flock(int fd, int option);
 int        fsync(int filedes);
 char *     strndup(const char *s, size_t n);
-char *     dirname(char *pszPathname);
 int        gettimeofday(struct timeval *ptv, void *pTimeZone);
-
-// for access function in io.h
-#define F_OK 00  //Existence only
-#define W_OK 02  //Write - only
-#define R_OK 04  //Read - only
-#define X_OK 06  //Read and write
 
 // for send function in tsocket.c
 #define MSG_NOSIGNAL             0
@@ -191,22 +193,22 @@ int        gettimeofday(struct timeval *ptv, void *pTimeZone);
   #define PATH_MAX 256
 #endif
 
-//for signal, not dispose
-#define SIGALRM 1234
-typedef int sigset_t;
-struct sigaction {
-  void (*sa_handler)(int);
-};
-int sigaction(int, struct sigaction *, void *);
+#define TAOS_OS_FUNC_SIGNAL
 
 typedef struct {
   int    we_wordc;
-  char **we_wordv;
+  char  *we_wordv[1];
   int    we_offs;
-  char   wordPos[20];
+  char   wordPos[1025];
 } wordexp_t;
-int  wordexp(const char *words, wordexp_t *pwordexp, int flags);
+int  wordexp(char *words, wordexp_t *pwordexp, int flags);
 void wordfree(wordexp_t *pwordexp);
+
+#define openlog(a, b, c)
+#define closelog()
+#define LOG_ERR 0
+#define LOG_INFO 1
+void syslog(int unused, const char *format, ...);
 
 #define TAOS_OS_FUNC_ATOMIC
   #define atomic_load_8(ptr) (*(char volatile*)(ptr))

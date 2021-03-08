@@ -88,6 +88,7 @@ typedef struct STSBuf {
   STSList   tsData;  // uncompressed raw ts data
   uint64_t  numOfTotal;
   bool      autoDelete;
+  bool      remainOpen;
   int32_t   tsOrder;  // order of timestamp in ts comp buffer
   STSCursor cur;
 } STSBuf;

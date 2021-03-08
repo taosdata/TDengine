@@ -16,10 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cJSON.h"
-#include "tglobal.h"
 #include "mnode.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeMInfos.h"
 
 static SMInfos   tsMInfos;
@@ -83,7 +80,7 @@ void dnodeUpdateEpSetForPeer(SRpcEpSet *ep) {
 
   pthread_mutex_lock(&tsMInfosMutex);
   dInfo("minfos is changed, numOfEps:%d inUse:%d", ep->numOfEps, ep->inUse);
-  for (int i = 0; i < ep->numOfEps; ++i) {
+  for (int32_t i = 0; i < ep->numOfEps; ++i) {
     ep->port[i] -= TSDB_PORT_DNODEDNODE;
     dInfo("minfo:%d %s:%u", i, ep->fqdn[i], ep->port[i]);
   }
@@ -111,7 +108,7 @@ void dnodeGetMInfos(SMInfos *pMinfos) {
 void dnodeGetEpSetForPeer(SRpcEpSet *epSet) {
   pthread_mutex_lock(&tsMInfosMutex);
   *epSet = tsMEpSet;
-  for (int i = 0; i < epSet->numOfEps; ++i) {
+  for (int32_t i = 0; i < epSet->numOfEps; ++i) {
     epSet->port[i] += TSDB_PORT_DNODEDNODE;
   }
   pthread_mutex_unlock(&tsMInfosMutex);
@@ -157,12 +154,13 @@ static void dnodeResetMInfos(SMInfos *pMinfos) {
 }
 
 static int32_t dnodeReadMInfos() {
-  int32_t     len = 0;
-  int32_t     maxLen = 2000;
-  char *      content = calloc(1, maxLen + 1);
-  cJSON *     root = NULL;
-  FILE *      fp = NULL;
-  SMInfos     minfos = {0};
+  int32_t len = 0;
+  int32_t maxLen = 2000;
+  char *  content = calloc(1, maxLen + 1);
+  cJSON * root = NULL;
+  FILE *  fp = NULL;
+  SMInfos minfos = {0};
+  bool    nodeChanged = false;
 
   char file[TSDB_FILENAME_LEN + 20] = {0};
   sprintf(file, "%s/mnodeEpSet.json", tsDnodeDir);
@@ -173,7 +171,7 @@ static int32_t dnodeReadMInfos() {
     goto PARSE_MINFOS_OVER;
   }
 
-  len = fread(content, 1, maxLen, fp);
+  len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
     dError("failed to read %s, content is null", file);
     goto PARSE_MINFOS_OVER;
@@ -191,14 +189,14 @@ static int32_t dnodeReadMInfos() {
     dError("failed to read mnodeEpSet.json, inUse not found");
     goto PARSE_MINFOS_OVER;
   }
-  tsMInfos.inUse = inUse->valueint;
+  tsMInfos.inUse = (int8_t)inUse->valueint;
 
   cJSON *nodeNum = cJSON_GetObjectItem(root, "nodeNum");
   if (!nodeNum || nodeNum->type != cJSON_Number) {
     dError("failed to read mnodeEpSet.json, nodeNum not found");
     goto PARSE_MINFOS_OVER;
   }
-  minfos.mnodeNum = nodeNum->valueint;
+  minfos.mnodeNum = (int8_t)nodeNum->valueint;
 
   cJSON *nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {
@@ -206,13 +204,13 @@ static int32_t dnodeReadMInfos() {
     goto PARSE_MINFOS_OVER;
   }
 
-  int size = cJSON_GetArraySize(nodeInfos);
+  int32_t size = cJSON_GetArraySize(nodeInfos);
   if (size != minfos.mnodeNum) {
     dError("failed to read mnodeEpSet.json, nodeInfos size not matched");
     goto PARSE_MINFOS_OVER;
   }
 
-  for (int i = 0; i < size; ++i) {
+  for (int32_t i = 0; i < size; ++i) {
     cJSON *nodeInfo = cJSON_GetArrayItem(nodeInfos, i);
     if (nodeInfo == NULL) continue;
 
@@ -221,14 +219,19 @@ static int32_t dnodeReadMInfos() {
       dError("failed to read mnodeEpSet.json, nodeId not found");
       goto PARSE_MINFOS_OVER;
     }
-    minfos.mnodeInfos[i].mnodeId = nodeId->valueint;
 
     cJSON *nodeEp = cJSON_GetObjectItem(nodeInfo, "nodeEp");
     if (!nodeEp || nodeEp->type != cJSON_String || nodeEp->valuestring == NULL) {
       dError("failed to read mnodeEpSet.json, nodeName not found");
       goto PARSE_MINFOS_OVER;
     }
-    strncpy(minfos.mnodeInfos[i].mnodeEp, nodeEp->valuestring, TSDB_EP_LEN);
+
+    SMInfo *pMinfo = &minfos.mnodeInfos[i];
+    pMinfo->mnodeId = (int32_t)nodeId->valueint;
+    tstrncpy(pMinfo->mnodeEp, nodeEp->valuestring, TSDB_EP_LEN);
+
+    bool changed = dnodeCheckEpChanged(pMinfo->mnodeId, pMinfo->mnodeEp);
+    if (changed) nodeChanged = changed;
   }
 
   dInfo("read file %s successed", file);
@@ -245,6 +248,11 @@ PARSE_MINFOS_OVER:
     dnodeUpdateEp(mInfo->mnodeId, mInfo->mnodeEp, NULL, NULL);
   }
   dnodeResetMInfos(&minfos);
+
+  if (nodeChanged) {
+    dnodeWriteMInfos();
+  }
+
   return 0;
 }
 
@@ -278,11 +286,41 @@ static int32_t dnodeWriteMInfos() {
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
-  fflush(fp);
+  fsync(fileno(fp));
   fclose(fp);
   free(content);
   terrno = 0;
 
   dInfo("successed to write %s", file);
   return 0;
+}
+
+void dnodeSendRedirectMsg(SRpcMsg *rpcMsg, bool forShell) {
+  SRpcConnInfo connInfo = {0};
+  rpcGetConnInfo(rpcMsg->handle, &connInfo);
+
+  SRpcEpSet epSet = {0};
+  if (forShell) {
+    dnodeGetEpSetForShell(&epSet);
+  } else {
+    dnodeGetEpSetForPeer(&epSet);
+  }
+
+  dDebug("msg:%s will be redirected, dnodeIp:%s user:%s, numOfEps:%d inUse:%d", taosMsg[rpcMsg->msgType],
+         taosIpStr(connInfo.clientIp), connInfo.user, epSet.numOfEps, epSet.inUse);
+
+  for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+    dDebug("mnode index:%d %s:%d", i, epSet.fqdn[i], epSet.port[i]);
+    if (strcmp(epSet.fqdn[i], tsLocalFqdn) == 0) {
+      if ((epSet.port[i] == tsServerPort + TSDB_PORT_DNODEDNODE && !forShell) ||
+          (epSet.port[i] == tsServerPort && forShell)) {
+        epSet.inUse = (i + 1) % epSet.numOfEps;
+        dDebug("mnode index:%d %s:%d set inUse to %d", i, epSet.fqdn[i], epSet.port[i], epSet.inUse);
+      }
+    }
+
+    epSet.port[i] = htons(epSet.port[i]);
+  }
+
+  rpcSendRedirectRsp(rpcMsg->handle, &epSet);
 }

@@ -15,16 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
-#include "taosmsg.h"
-#include "tutil.h"
 #include "tqueue.h"
 #include "twal.h"
-#include "tglobal.h"
 #include "mnode.h"
-#include "dnode.h"
-#include "dnodeInt.h"
-#include "dnodeMgmt.h"
+#include "dnodeVMgmt.h"
+#include "dnodeMInfos.h"
 #include "dnodeMWrite.h"
 
 typedef struct {
@@ -65,7 +60,7 @@ int32_t dnodeInitMPeer() {
 void dnodeCleanupMPeer() {
   for (int32_t i = 0; i < tsMPeerWP.maxNum; ++i) {
     SMPeerWorker *pWorker = tsMPeerWP.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(tsMPeerQset);
     }
     dDebug("dnode mpeer worker:%d is closed", i);
@@ -74,7 +69,7 @@ void dnodeCleanupMPeer() {
   for (int32_t i = 0; i < tsMPeerWP.maxNum; ++i) {
     SMPeerWorker *pWorker = tsMPeerWP.worker + i;
     dDebug("dnode mpeer worker:%d start to join", i);
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
     }
     dDebug("dnode mpeer worker:%d join success", i);

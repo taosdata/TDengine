@@ -146,7 +146,7 @@ char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
 int32_t simExecuteExpression(SScript *script, char *exp) {
   char *  op1, *op2, *var1, *var2, *var3, *rest;
   int32_t op1Len, op2Len, var1Len, var2Len, var3Len, val0, val1;
-  char    t0[512], t1[512], t2[512], t3[1024];
+  char    t0[1024], t1[1024], t2[1024], t3[2048];
   int32_t result;
 
   rest = paGetToken(exp, &var1, &var1Len);
@@ -292,17 +292,46 @@ bool simExecuteRunBackCmd(SScript *script, char *option) {
   if (pthread_create(&newScript->bgPid, NULL, simExecuteScript, (void *)newScript) != 0) {
     sprintf(script->error, "lineNum:%d. create background thread failed", script->lines[script->linePos].lineNum);
     return false;
+  } else {
+    simDebug("script:%s, background thread:0x%08" PRIx64 " is created", newScript->fileName,
+             taosGetPthreadId(newScript->bgPid));
   }
 
   script->linePos++;
   return true;
 }
 
+void simReplaceShToBat(char *dst) {
+  char* sh = strstr(dst, ".sh");
+  if (sh != NULL) {
+    int32_t dstLen = (int32_t)strlen(dst);
+    char *end = dst + dstLen;
+    *(end + 1) = 0;
+
+    for (char *p = end; p >= sh; p--) {
+      *(p + 1) = *p;
+    }
+
+    sh[0] = '.';
+    sh[1] = 'b';
+    sh[2] = 'a';
+    sh[3] = 't';
+    sh[4] = ' ';
+  }
+
+  simDebug("system cmd is %s", dst);
+}
+
 bool simExecuteSystemCmd(SScript *script, char *option) {
   char buf[4096] = {0};
 
+#ifndef WINDOWS
   sprintf(buf, "cd %s; ", tsScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
+#else
+  sprintf(buf, "%s%s", tsScriptDir, option);
+  simReplaceShToBat(buf);
+#endif
 
   simLogSql(buf, true);
   int32_t code = system(buf);
@@ -311,9 +340,7 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
     simError("script:%s, failed to execute %s , code %d, errno:%d %s, repeatTimes:%d", script->fileName, buf, code,
              errno, strerror(errno), repeatTimes);
     taosMsleep(1000);
-#ifdef LINUX
-    signal(SIGCHLD, SIG_DFL);
-#endif
+    taosDflSignal(SIGCHLD);
     if (repeatTimes++ >= 10) {
       exit(0);
     }
@@ -448,7 +475,6 @@ void simCloseNativeConnect(SScript *script) {
 
   simDebug("script:%s, taos:%p closed", script->fileName, script->taos);
   taos_close(script->taos);
-  taosMsleep(1200);
 
   script->taos = NULL;
 }
@@ -744,14 +770,26 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
             case TSDB_DATA_TYPE_TINYINT:
               sprintf(value, "%d", *((int8_t *)row[i]));
               break;
+            case TSDB_DATA_TYPE_UTINYINT:
+              sprintf(value, "%u", *((uint8_t*)row[i]));
+              break;
             case TSDB_DATA_TYPE_SMALLINT:
               sprintf(value, "%d", *((int16_t *)row[i]));
+              break;
+            case TSDB_DATA_TYPE_USMALLINT:
+              sprintf(value, "%u", *((uint16_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_INT:
               sprintf(value, "%d", *((int32_t *)row[i]));
               break;
+            case TSDB_DATA_TYPE_UINT:
+              sprintf(value, "%u", *((uint32_t *)row[i]));
+              break;
             case TSDB_DATA_TYPE_BIGINT:
               sprintf(value, "%" PRId64, *((int64_t *)row[i]));
+              break;
+            case TSDB_DATA_TYPE_UBIGINT:
+              sprintf(value, "%" PRIu64, *((uint64_t *)row[i]));
               break;
             case TSDB_DATA_TYPE_FLOAT:
               sprintf(value, "%.5f", GET_FLOAT_VAL(row[i]));

@@ -218,7 +218,7 @@ static int32_t mnodeProcessRetrieveMsg(SMnodeMsg *pMsg) {
   }
 
   pRsp->numOfRows = htonl(rowsRead);
-  pRsp->precision = htonl(TSDB_TIME_PRECISION_MILLI);  // millisecond time precision
+  pRsp->precision = (int16_t)htonl(TSDB_TIME_PRECISION_MILLI);  // millisecond time precision
 
   pMsg->rpcRsp.rsp = pRsp;
   pMsg->rpcRsp.len = size;
@@ -280,9 +280,12 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  pRsp->onlineDnodes = htonl(mnodeGetOnlineDnodesNum());
-  pRsp->totalDnodes = htonl(mnodeGetDnodesNum());
-  mnodeGetMnodeEpSetForShell(&pRsp->epSet);
+  int32_t    onlineDnodes = 0, totalDnodes = 0;
+  mnodeGetOnlineAndTotalDnodesNum(&onlineDnodes, &totalDnodes);
+
+  pRsp->onlineDnodes = htonl(onlineDnodes);
+  pRsp->totalDnodes = htonl(totalDnodes);
+  mnodeGetMnodeEpSetForShell(&pRsp->epSet, false);
 
   pMsg->rpcRsp.rsp = pRsp;
   pMsg->rpcRsp.len = sizeof(SHeartBeatRsp);
@@ -349,7 +352,9 @@ static int32_t mnodeProcessConnectMsg(SMnodeMsg *pMsg) {
   pConnectRsp->writeAuth = pUser->writeAuth;
   pConnectRsp->superAuth = pUser->superAuth;
   
-  mnodeGetMnodeEpSetForShell(&pConnectRsp->epSet);
+  mnodeGetMnodeEpSetForShell(&pConnectRsp->epSet, false);
+
+  dnodeGetClusterId(pConnectRsp->clusterId);
 
 connect_over:
   if (code != TSDB_CODE_SUCCESS) {

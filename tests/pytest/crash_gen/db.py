@@ -15,6 +15,7 @@ from util.log import *
 from .misc import Logging, CrashGenError, Helper, Dice
 import os
 import datetime
+import traceback
 # from .service_manager import TdeInstance
 
 class DbConn:
@@ -349,6 +350,7 @@ class DbConnNative(DbConn):
 
     def execute(self, sql):
         if (not self.isOpen):
+            traceback.print_stack()
             raise CrashGenError(
                 "Cannot exec SQL unless db connection is open", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))
@@ -361,6 +363,7 @@ class DbConnNative(DbConn):
 
     def query(self, sql):  # return rows affected
         if (not self.isOpen):
+            traceback.print_stack()
             raise CrashGenError(
                 "Cannot query database until connection is open, restarting?", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))
@@ -394,6 +397,7 @@ class DbManager():
             cType == 'native') else DbConn.createRest(dbTarget)
         try:
             self._dbConn.open()  # may throw taos.error.ProgrammingError: disconnected
+            Logging.debug("DbManager opened DB connection...")
         except taos.error.ProgrammingError as err:
             # print("Error type: {}, msg: {}, value: {}".format(type(err), err.msg, err))
             if (err.msg == 'client disconnected'):  # cannot open DB connection
@@ -411,6 +415,10 @@ class DbManager():
         # Do this after dbConn is in proper shape
         # Moved to Database()
         # self._stateMachine = StateMechine(self._dbConn)
+
+    def __del__(self):
+        ''' Release the underlying DB connection upon deletion of DbManager '''
+        self.cleanUp()
 
     def getDbConn(self):
         return self._dbConn
@@ -438,5 +446,8 @@ class DbManager():
         return "table_{}".format(tblNum)
 
     def cleanUp(self):
-        self._dbConn.close()
+        if self._dbConn:
+            self._dbConn.close()
+            self._dbConn = None
+            Logging.debug("DbManager closed DB connection...")
 

@@ -15,18 +15,15 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taosmsg.h"
-#include "taoserror.h"
 #include "cJSON.h"
 #include "tglobal.h"
-#include "tsdb.h"
 #include "dnode.h"
-#include "vnodeInt.h"
 #include "vnodeCfg.h"
 
 static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   tstrncpy(pVnode->db, vnodeMsg->db, sizeof(pVnode->db));
-  pVnode->cfgVersion = vnodeMsg->cfg.cfgVersion;
+  pVnode->dbCfgVersion = vnodeMsg->cfg.dbCfgVersion;
+  pVnode->vgCfgVersion = vnodeMsg->cfg.vgCfgVersion;
   pVnode->tsdbCfg.cacheBlockSize = vnodeMsg->cfg.cacheBlockSize;
   pVnode->tsdbCfg.totalBlocks = vnodeMsg->cfg.totalBlocks;
   pVnode->tsdbCfg.daysPerFile = vnodeMsg->cfg.daysPerFile;
@@ -37,11 +34,14 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   pVnode->tsdbCfg.maxRowsPerFileBlock = vnodeMsg->cfg.maxRowsPerFileBlock;
   pVnode->tsdbCfg.precision = vnodeMsg->cfg.precision;
   pVnode->tsdbCfg.compression = vnodeMsg->cfg.compression;
+  pVnode->tsdbCfg.update = vnodeMsg->cfg.update;
+  pVnode->tsdbCfg.cacheLastRow = vnodeMsg->cfg.cacheLastRow;
   pVnode->walCfg.walLevel = vnodeMsg->cfg.walLevel;
   pVnode->walCfg.fsyncPeriod = vnodeMsg->cfg.fsyncPeriod;
   pVnode->walCfg.keep = TAOS_WAL_NOT_KEEP;
-  pVnode->syncCfg.replica = vnodeMsg->cfg.replications;
+  pVnode->syncCfg.replica = vnodeMsg->cfg.vgReplica;
   pVnode->syncCfg.quorum = vnodeMsg->cfg.quorum;
+  pVnode->dbReplica = vnodeMsg->cfg.dbReplica;
 
   for (int i = 0; i < pVnode->syncCfg.replica; ++i) {
     SVnodeDesc *node = &vnodeMsg->nodes[i];
@@ -79,7 +79,7 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     goto PARSE_VCFG_ERROR;
   }
 
-  len = fread(content, 1, maxLen, fp);
+  len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
     vError("vgId:%d, failed to read %s, content is null", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
@@ -99,68 +99,76 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   tstrncpy(vnodeMsg.db, db->valuestring, sizeof(vnodeMsg.db));
 
-  cJSON *cfgVersion = cJSON_GetObjectItem(root, "cfgVersion");
-  if (!cfgVersion || cfgVersion->type != cJSON_Number) {
+  cJSON *dbCfgVersion = cJSON_GetObjectItem(root, "cfgVersion");
+  if (!dbCfgVersion || dbCfgVersion->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, cfgVersion not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.cfgVersion = cfgVersion->valueint;
+  vnodeMsg.cfg.dbCfgVersion = (int32_t)dbCfgVersion->valueint;
+
+  cJSON *vgCfgVersion = cJSON_GetObjectItem(root, "vgCfgVersion");
+  if (!vgCfgVersion || vgCfgVersion->type != cJSON_Number) {
+    vError("vgId:%d, failed to read %s, vgCfgVersion not found", pVnode->vgId, file);
+    vnodeMsg.cfg.vgCfgVersion = 0;
+  } else {
+    vnodeMsg.cfg.vgCfgVersion = (int32_t)vgCfgVersion->valueint;
+  }
 
   cJSON *cacheBlockSize = cJSON_GetObjectItem(root, "cacheBlockSize");
   if (!cacheBlockSize || cacheBlockSize->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, cacheBlockSize not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.cacheBlockSize = cacheBlockSize->valueint;
+  vnodeMsg.cfg.cacheBlockSize = (int32_t)cacheBlockSize->valueint;
 
   cJSON *totalBlocks = cJSON_GetObjectItem(root, "totalBlocks");
   if (!totalBlocks || totalBlocks->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, totalBlocks not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.totalBlocks = totalBlocks->valueint;
+  vnodeMsg.cfg.totalBlocks = (int32_t)totalBlocks->valueint;
 
   cJSON *daysPerFile = cJSON_GetObjectItem(root, "daysPerFile");
   if (!daysPerFile || daysPerFile->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, daysPerFile not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.daysPerFile = daysPerFile->valueint;
+  vnodeMsg.cfg.daysPerFile = (int32_t)daysPerFile->valueint;
 
   cJSON *daysToKeep = cJSON_GetObjectItem(root, "daysToKeep");
   if (!daysToKeep || daysToKeep->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, daysToKeep not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.daysToKeep = daysToKeep->valueint;
+  vnodeMsg.cfg.daysToKeep = (int32_t)daysToKeep->valueint;
 
   cJSON *daysToKeep1 = cJSON_GetObjectItem(root, "daysToKeep1");
   if (!daysToKeep1 || daysToKeep1->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, daysToKeep1 not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.daysToKeep1 = daysToKeep1->valueint;
+  vnodeMsg.cfg.daysToKeep1 = (int32_t)daysToKeep1->valueint;
 
   cJSON *daysToKeep2 = cJSON_GetObjectItem(root, "daysToKeep2");
   if (!daysToKeep2 || daysToKeep2->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, daysToKeep2 not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.daysToKeep2 = daysToKeep2->valueint;
+  vnodeMsg.cfg.daysToKeep2 = (int32_t)daysToKeep2->valueint;
 
   cJSON *minRowsPerFileBlock = cJSON_GetObjectItem(root, "minRowsPerFileBlock");
   if (!minRowsPerFileBlock || minRowsPerFileBlock->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, minRowsPerFileBlock not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.minRowsPerFileBlock = minRowsPerFileBlock->valueint;
+  vnodeMsg.cfg.minRowsPerFileBlock = (int32_t)minRowsPerFileBlock->valueint;
 
   cJSON *maxRowsPerFileBlock = cJSON_GetObjectItem(root, "maxRowsPerFileBlock");
   if (!maxRowsPerFileBlock || maxRowsPerFileBlock->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, maxRowsPerFileBlock not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.maxRowsPerFileBlock = maxRowsPerFileBlock->valueint;
+  vnodeMsg.cfg.maxRowsPerFileBlock = (int32_t)maxRowsPerFileBlock->valueint;
 
   cJSON *precision = cJSON_GetObjectItem(root, "precision");
   if (!precision || precision->type != cJSON_Number) {
@@ -188,7 +196,7 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     vError("vgId:%d, failed to read %s, fsyncPeriod not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.fsyncPeriod = fsyncPeriod->valueint;
+  vnodeMsg.cfg.fsyncPeriod = (int32_t)fsyncPeriod->valueint;
 
   cJSON *wals = cJSON_GetObjectItem(root, "wals");
   if (!wals || wals->type != cJSON_Number) {
@@ -197,12 +205,21 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   vnodeMsg.cfg.wals = (int8_t)wals->valueint;
 
-  cJSON *replica = cJSON_GetObjectItem(root, "replica");
-  if (!replica || replica->type != cJSON_Number) {
+  cJSON *vgReplica = cJSON_GetObjectItem(root, "replica");
+  if (!vgReplica || vgReplica->type != cJSON_Number) {
     vError("vgId:%d, failed to read %s, replica not found", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
-  vnodeMsg.cfg.replications = (int8_t)replica->valueint;
+  vnodeMsg.cfg.vgReplica = (int8_t)vgReplica->valueint;
+
+  cJSON *dbReplica = cJSON_GetObjectItem(root, "dbReplica");
+  if (!dbReplica || dbReplica->type != cJSON_Number) {
+    vError("vgId:%d, failed to read %s, dbReplica not found", pVnode->vgId, file);
+    vnodeMsg.cfg.dbReplica = vnodeMsg.cfg.vgReplica;
+    vnodeMsg.cfg.vgCfgVersion = 0;
+  } else {
+    vnodeMsg.cfg.dbReplica = (int8_t)dbReplica->valueint;
+  }
 
   cJSON *quorum = cJSON_GetObjectItem(root, "quorum");
   if (!quorum || quorum->type != cJSON_Number) {
@@ -211,6 +228,24 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   vnodeMsg.cfg.quorum = (int8_t)quorum->valueint;
 
+  cJSON *update = cJSON_GetObjectItem(root, "update");
+  if (!update || update->type != cJSON_Number) {
+    vError("vgId: %d, failed to read %s, update not found", pVnode->vgId, file);
+    vnodeMsg.cfg.update = 0;
+    vnodeMsg.cfg.vgCfgVersion = 0;
+  } else {
+    vnodeMsg.cfg.update = (int8_t)update->valueint;
+  }
+
+  cJSON *cacheLastRow = cJSON_GetObjectItem(root, "cacheLastRow");
+  if (!cacheLastRow || cacheLastRow->type != cJSON_Number) {
+    vError("vgId: %d, failed to read %s, cacheLastRow not found", pVnode->vgId, file);
+    vnodeMsg.cfg.cacheLastRow = 0;
+    vnodeMsg.cfg.vgCfgVersion = 0;
+  } else {
+    vnodeMsg.cfg.cacheLastRow = (int8_t)cacheLastRow->valueint;
+  }
+
   cJSON *nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
   if (!nodeInfos || nodeInfos->type != cJSON_Array) {
     vError("vgId:%d, failed to read %s, nodeInfos not found", pVnode->vgId, file);
@@ -218,7 +253,7 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
 
   int size = cJSON_GetArraySize(nodeInfos);
-  if (size != vnodeMsg.cfg.replications) {
+  if (size != vnodeMsg.cfg.vgReplica) {
     vError("vgId:%d, failed to read %s, nodeInfos size not matched", pVnode->vgId, file);
     goto PARSE_VCFG_ERROR;
   }
@@ -233,7 +268,7 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
       vError("vgId:%d, failed to read %s, nodeId not found", pVnode->vgId, file);
       goto PARSE_VCFG_ERROR;
     }
-    node->nodeId = nodeId->valueint;
+    node->nodeId = (int32_t)nodeId->valueint;
 
     cJSON *nodeEp = cJSON_GetObjectItem(nodeInfo, "nodeEp");
     if (!nodeEp || nodeEp->type != cJSON_String || nodeEp->valuestring == NULL) {
@@ -242,9 +277,8 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
     }
     tstrncpy(node->nodeEp, nodeEp->valuestring, TSDB_EP_LEN);
 
-    if (!nodeChanged) {
-      nodeChanged = dnodeCheckEpChanged(node->nodeId, node->nodeEp);
-    }
+    bool changed = dnodeCheckEpChanged(node->nodeId, node->nodeEp);
+    if (changed) nodeChanged = changed;
   }
 
   ret = TSDB_CODE_SUCCESS;
@@ -283,7 +317,8 @@ int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"db\": \"%s\",\n", pMsg->db);
-  len += snprintf(content + len, maxLen - len, "  \"cfgVersion\": %d,\n", pMsg->cfg.cfgVersion);
+  len += snprintf(content + len, maxLen - len, "  \"cfgVersion\": %d,\n", pMsg->cfg.dbCfgVersion);
+  len += snprintf(content + len, maxLen - len, "  \"vgCfgVersion\": %d,\n", pMsg->cfg.vgCfgVersion);
   len += snprintf(content + len, maxLen - len, "  \"cacheBlockSize\": %d,\n", pMsg->cfg.cacheBlockSize);
   len += snprintf(content + len, maxLen - len, "  \"totalBlocks\": %d,\n", pMsg->cfg.totalBlocks);
   len += snprintf(content + len, maxLen - len, "  \"daysPerFile\": %d,\n", pMsg->cfg.daysPerFile);
@@ -296,16 +331,19 @@ int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
   len += snprintf(content + len, maxLen - len, "  \"compression\": %d,\n", pMsg->cfg.compression);
   len += snprintf(content + len, maxLen - len, "  \"walLevel\": %d,\n", pMsg->cfg.walLevel);
   len += snprintf(content + len, maxLen - len, "  \"fsync\": %d,\n", pMsg->cfg.fsyncPeriod);
-  len += snprintf(content + len, maxLen - len, "  \"replica\": %d,\n", pMsg->cfg.replications);
+  len += snprintf(content + len, maxLen - len, "  \"replica\": %d,\n", pMsg->cfg.vgReplica);
+  len += snprintf(content + len, maxLen - len, "  \"dbReplica\": %d,\n", pMsg->cfg.dbReplica);
   len += snprintf(content + len, maxLen - len, "  \"wals\": %d,\n", pMsg->cfg.wals);
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pMsg->cfg.quorum);
+  len += snprintf(content + len, maxLen - len, "  \"update\": %d,\n", pMsg->cfg.update);
+  len += snprintf(content + len, maxLen - len, "  \"cacheLastRow\": %d,\n", pMsg->cfg.cacheLastRow);
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
-  for (int32_t i = 0; i < pMsg->cfg.replications; i++) {
+  for (int32_t i = 0; i < pMsg->cfg.vgReplica; i++) {
     SVnodeDesc *node = &pMsg->nodes[i];
     dnodeUpdateEp(node->nodeId, node->nodeEp, NULL, NULL);
     len += snprintf(content + len, maxLen - len, "    \"nodeId\": %d,\n", node->nodeId);
     len += snprintf(content + len, maxLen - len, "    \"nodeEp\": \"%s\"\n", node->nodeEp);
-    if (i < pMsg->cfg.replications - 1) {
+    if (i < pMsg->cfg.vgReplica - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");
     } else {
       len += snprintf(content + len, maxLen - len, "  }]\n");
@@ -314,7 +352,7 @@ int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
-  fflush(fp);
+  fsync(fileno(fp));
   fclose(fp);
   free(content);
   terrno = 0;

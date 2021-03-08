@@ -16,6 +16,8 @@
 #ifndef TDENGINE_COMMON_GLOBAL_H
 #define TDENGINE_COMMON_GLOBAL_H
 
+#include "taosdef.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -32,9 +34,11 @@ extern uint16_t tsSyncPort;
 extern uint16_t tsArbitratorPort;
 extern int32_t  tsStatusInterval;
 extern int32_t  tsNumOfMnodes;
-extern int32_t  tsEnableVnodeBak;
-extern int32_t  tsEnableTelemetryReporting;
+extern int8_t   tsEnableVnodeBak;
+extern int8_t   tsEnableTelemetryReporting;
 extern char     tsEmail[];
+extern char     tsArbitrator[];
+extern int8_t   tsArbOnline;
 
 // common
 extern int      tsRpcTimer;
@@ -45,23 +49,25 @@ extern int32_t  tsShellActivityTimer;
 extern uint32_t tsMaxTmrCtrl;
 extern float    tsNumOfThreadsPerCore;
 extern int32_t  tsNumOfCommitThreads;
-extern float    tsRatioOfQueryThreads;  // todo remove it
+extern float    tsRatioOfQueryCores;
 extern int8_t   tsDaylight;
 extern char     tsTimezone[];
 extern char     tsLocale[];
 extern char     tsCharset[];            // default encode string
-extern int32_t  tsEnableCoreFile;
+extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
 extern char     tsTempDir[];
 
 //query buffer management
-extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer for each data node during query processing
-extern int32_t  tsHalfCoresForQuery;         // only 50% will be used in query processing
+extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer size in MB for each data node during query processing
+extern int64_t  tsQueryBufferSizeBytes; // maximum allowed usage buffer size in byte for each data node during query processing
+extern int32_t  tsRetrieveBlockingModel;// retrieve threads will be blocked
+
+extern int8_t   tsKeepOriginalColumnName;
 
 // client
-extern int32_t tsTableMetaKeepTimer;
 extern int32_t tsMaxSQLStringLen;
-extern int32_t tsTscEnableRecordSql;
+extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
@@ -85,53 +91,56 @@ extern int32_t tsMinRowsInFileBlock;
 extern int32_t tsMaxRowsInFileBlock;
 extern int16_t tsCommitTime;  // seconds
 extern int32_t tsTimePrecision;
-extern int16_t tsCompression;
-extern int16_t tsWAL;
+extern int8_t  tsCompression;
+extern int8_t  tsWAL;
 extern int32_t tsFsyncPeriod;
 extern int32_t tsReplications;
 extern int32_t tsQuorum;
-extern int32_t tsUpdate;
+extern int8_t  tsUpdate;
+extern int8_t  tsCacheLastRow;
 
 // balance
-extern int32_t tsEnableBalance;
-extern int32_t tsAlternativeRole;
+extern int8_t  tsEnableBalance;
+extern int8_t  tsAlternativeRole;
 extern int32_t tsBalanceInterval;
 extern int32_t tsOfflineThreshold;
 extern int32_t tsMnodeEqualVnodeNum;
-extern int32_t tsFlowCtrl;
+extern int8_t  tsEnableFlowCtrl;
+extern int8_t  tsEnableSlaveQuery;
+extern int8_t  tsEnableAdjustMaster;
 
 // restful
-extern int32_t  tsEnableHttpModule;
+extern int8_t   tsEnableHttpModule;
 extern int32_t  tsRestRowLimit;
 extern uint16_t tsHttpPort;
 extern int32_t  tsHttpCacheSessions;
 extern int32_t  tsHttpSessionExpire;
 extern int32_t  tsHttpMaxThreads;
-extern int32_t  tsHttpEnableCompress;
-extern int32_t  tsHttpEnableRecordSql;
-extern int32_t  tsTelegrafUseFieldNum;
+extern int8_t   tsHttpEnableCompress;
+extern int8_t   tsHttpEnableRecordSql;
+extern int8_t   tsTelegrafUseFieldNum;
 
 // mqtt
-extern int32_t tsEnableMqttModule;
-extern char tsMqttHostName[];
-extern char tsMqttPort[];
-extern char tsMqttUser[];
-extern char tsMqttPass[];
-extern char tsMqttClientId[];
-extern char tsMqttTopic[];
+extern int8_t tsEnableMqttModule;
+extern char   tsMqttHostName[];
+extern char   tsMqttPort[];
+extern char   tsMqttUser[];
+extern char   tsMqttPass[];
+extern char   tsMqttClientId[];
+extern char   tsMqttTopic[];
 
 // monitor
-extern int32_t tsEnableMonitorModule;
+extern int8_t  tsEnableMonitorModule;
 extern char    tsMonitorDbName[];
 extern char    tsInternalPass[];
 extern int32_t tsMonitorInterval;
 
 // stream
-extern int32_t tsEnableStream;
+extern int8_t tsEnableStream;
 
 // internal
-extern int32_t tsPrintAuth;
-extern int32_t tscEmbedded;
+extern int8_t  tsPrintAuth;
+extern int8_t  tscEmbedded;
 extern char    configDir[];
 extern char    tsVnodeDir[];
 extern char    tsDnodeDir[];
@@ -140,7 +149,6 @@ extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
 extern int64_t tsMsPerDay[3];
-extern char    tsVnodeBakDir[];
 
 // system info
 extern char    tsOsName[];
@@ -158,7 +166,7 @@ extern float   tsMinimalLogDirGB;
 extern float   tsReservedTmpDirectorySpace;
 extern float   tsMinimalDataDirGB;
 extern int32_t tsTotalMemoryMB;
-extern int32_t tsVersion;
+extern uint32_t tsVersion;
 
 // build info
 extern char version[];
@@ -168,13 +176,13 @@ extern char gitinfoOfInternal[];
 extern char buildinfo[];
 
 // log
-extern int32_t tsAsyncLog;
+extern int8_t  tsAsyncLog;
 extern int32_t tsNumOfLogLines;
 extern int32_t tsLogKeepDays;
 extern int32_t dDebugFlag;
 extern int32_t vDebugFlag;
 extern int32_t mDebugFlag;
-extern int32_t cDebugFlag;
+extern uint32_t cDebugFlag;
 extern int32_t jniDebugFlag;
 extern int32_t tmrDebugFlag;
 extern int32_t sdbDebugFlag;
@@ -184,10 +192,18 @@ extern int32_t monDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t odbcDebugFlag;
-extern int32_t qDebugFlag;
+extern uint32_t qDebugFlag;
 extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
+
+typedef struct {
+  char dir[TSDB_FILENAME_LEN];
+  int  level;
+  int  primary;
+} SDiskCfg;
+extern int32_t  tsDiskCfgNum;
+extern SDiskCfg tsDiskCfg[];
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
@@ -197,6 +213,9 @@ void    taosSetAllDebugFlag();
 bool    taosCfgDynamicOptions(char *msg);
 int     taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port);
 bool    taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);
+void    taosAddDataDir(int index, char *v1, int level, int primary);
+void    taosReadDataDirCfg(char *v1, char *v2, char *v3);
+void    taosPrintDataDirCfg();
 
 #ifdef __cplusplus
 }

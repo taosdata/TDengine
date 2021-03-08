@@ -16,10 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "cJSON.h"
-#include "tglobal.h"
 #include "hash.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeEps.h"
 
 static SDnodeEps *tsEps = NULL;
@@ -133,7 +130,7 @@ static void dnodePrintEps(SDnodeEps *eps) {
   dDebug("print dnodeEp, dnodeNum:%d", eps->dnodeNum);
   for (int32_t i = 0; i < eps->dnodeNum; i++) {
     SDnodeEp *ep = &eps->dnodeEps[i];
-    dDebug("dnodeId:%d, dnodeFqdn:%s dnodePort:%u", ep->dnodeId, ep->dnodeFqdn, ep->dnodePort);
+    dDebug("dnode:%d, dnodeFqdn:%s dnodePort:%u", ep->dnodeId, ep->dnodeFqdn, ep->dnodePort);
   }
 }
 
@@ -155,7 +152,7 @@ static int32_t dnodeReadEps() {
     goto PRASE_EPS_OVER;
   }
 
-  len = fread(content, 1, maxLen, fp);
+  len = (int32_t)fread(content, 1, maxLen, fp);
   if (len <= 0) {
     dError("failed to read %s, content is null", file);
     goto PRASE_EPS_OVER;
@@ -202,7 +199,7 @@ static int32_t dnodeReadEps() {
       dError("failed to read %s, dnodeId not found", file);
       goto PRASE_EPS_OVER;
     }
-    ep->dnodeId = dnodeId->valueint;
+    ep->dnodeId = (int32_t)dnodeId->valueint;
 
     cJSON *dnodeFqdn = cJSON_GetObjectItem(dnodeInfo, "dnodeFqdn");
     if (!dnodeFqdn || dnodeFqdn->type != cJSON_String || dnodeFqdn->valuestring == NULL) {
@@ -236,7 +233,14 @@ PRASE_EPS_OVER:
   dnodeResetEps(eps);
   if (eps) free(eps);
 
+#if 0
   dnodeUpdateEp(dnodeGetDnodeId(), tsLocalEp, tsLocalFqdn, &tsServerPort);
+#else
+  if (dnodeCheckEpChanged(dnodeGetDnodeId(), tsLocalEp)) {
+    dError("dnode:%d, localEp is different from %s in dnodeEps.json and need reconfigured", dnodeGetDnodeId(), tsLocalEp);
+    return -1;
+  }
+#endif
 
   terrno = 0;
   return 0;
@@ -273,7 +277,7 @@ static int32_t dnodeWriteEps() {
   len += snprintf(content + len, maxLen - len, "}\n");
 
   fwrite(content, 1, len, fp);
-  fflush(fp);
+  fsync(fileno(fp));
   fclose(fp);
   free(content);
   terrno = 0;

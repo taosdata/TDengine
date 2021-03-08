@@ -1,0 +1,37 @@
+./test.sh -f unique/dnode/reason.sim
+./test.sh -f unique/dnode/remove1.sim
+./test.sh -f unique/dnode/remove2.sim
+./test.sh -f unique/dnode/vnode_clean.sim
+
+./test.sh -f unique/db/commit.sim
+./test.sh -f unique/db/delete.sim
+./test.sh -f unique/db/delete_part.sim
+./test.sh -f unique/db/replica_add12.sim
+./test.sh -f unique/db/replica_add13.sim
+./test.sh -f unique/db/replica_add23.sim
+./test.sh -f unique/db/replica_reduce21.sim
+./test.sh -f unique/db/replica_reduce32.sim
+./test.sh -f unique/db/replica_reduce31.sim
+./test.sh -f unique/db/replica_part.sim
+
+./test.sh -f unique/vnode/many.sim
+./test.sh -f unique/vnode/replica2_basic2.sim
+./test.sh -f unique/vnode/replica2_repeat.sim
+./test.sh -f unique/vnode/replica3_basic.sim
+./test.sh -f unique/vnode/replica3_repeat.sim
+./test.sh -f unique/vnode/replica3_vgroup.sim
+
+./test.sh -f unique/dnode/monitor.sim
+./test.sh -f unique/dnode/monitor_bug.sim
+./test.sh -f unique/dnode/simple.sim
+./test.sh -f unique/dnode/data1.sim
+./test.sh -f unique/dnode/m2.sim
+./test.sh -f unique/dnode/m3.sim
+./test.sh -f unique/dnode/offline3.sim
+./test.sh -f general/wal/kill.sim
+./test.sh -f general/wal/maxtables.sim
+
+./test.sh -f general/import/basic.sim
+./test.sh -f general/import/commit.sim
+./test.sh -f general/import/large.sim
+./test.sh -f general/import/replica1.sim

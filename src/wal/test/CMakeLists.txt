@@ -10,4 +10,12 @@ IF (TD_LINUX)
 
 ENDIF ()
 
+IF (TD_DARWIN)
+  INCLUDE_DIRECTORIES(../inc)
+
+  LIST(APPEND WALTEST_SRC ./waltest.c)
+  ADD_EXECUTABLE(waltest ${WALTEST_SRC})
+  TARGET_LINK_LIBRARIES(waltest twal osdetail tutil)
+
+ENDIF ()
 

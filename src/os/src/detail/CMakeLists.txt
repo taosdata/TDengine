@@ -13,3 +13,4 @@ TARGET_LINK_LIBRARIES(osdetail os)
 IF (TD_ARM_32 OR TD_LINUX_32)
   TARGET_LINK_LIBRARIES(osdetail atomic)
 ENDIF ()
+

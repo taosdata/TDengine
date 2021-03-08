@@ -15,20 +15,14 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "taoserror.h"
-#include "taosdef.h"
-#include "taosmsg.h"
-#include "tglobal.h"
-#include "tutil.h"
 #include "http.h"
 #include "mnode.h"
-#include "dnode.h"
-#include "dnodeInt.h"
 #include "dnodeVRead.h"
 #include "dnodeVWrite.h"
 #include "dnodeMRead.h"
 #include "dnodeMWrite.h"
 #include "dnodeShell.h"
+#include "dnodeStep.h"
 
 static void  (*dnodeProcessShellMsgFp[TSDB_MSG_TYPE_MAX])(SRpcMsg *);
 static void    dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *);
@@ -42,12 +36,12 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_QUERY]          = dnodeDispatchToVReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_FETCH]          = dnodeDispatchToVReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_UPDATE_TAG_VAL] = dnodeDispatchToVWriteQueue;
-  
+
   // the following message shall be treated as mnode write
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_ACCT] = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_ACCT]  = dnodeDispatchToMWriteQueue;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_ACCT]   = dnodeDispatchToMWriteQueue; 
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_USER] = dnodeDispatchToMWriteQueue; 
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_ACCT]   = dnodeDispatchToMWriteQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_USER] = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_ALTER_USER]  = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_DROP_USER]   = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CREATE_DNODE]= dnodeDispatchToMWriteQueue;
@@ -63,19 +57,20 @@ int32_t dnodeInitShell() {
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_KILL_STREAM] = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_KILL_CONN]   = dnodeDispatchToMWriteQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CONFIG_DNODE]= dnodeDispatchToMWriteQueue;
-  
-  // the following message shall be treated as mnode query 
+
+  // the following message shall be treated as mnode query
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_HEARTBEAT]   = dnodeDispatchToMReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_CONNECT]     = dnodeDispatchToMReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_USE_DB]      = dnodeDispatchToMReadQueue;
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLE_META]  = dnodeDispatchToMReadQueue; 
-  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_STABLE_VGROUP]= dnodeDispatchToMReadQueue;   
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLE_META]  = dnodeDispatchToMReadQueue;
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_STABLE_VGROUP]= dnodeDispatchToMReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_TABLES_META] = dnodeDispatchToMReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_SHOW]        = dnodeDispatchToMReadQueue;
   dnodeProcessShellMsgFp[TSDB_MSG_TYPE_CM_RETRIEVE]    = dnodeDispatchToMReadQueue;
 
-  int32_t numOfThreads = tsNumOfCores * tsNumOfThreadsPerCore;
-  numOfThreads = (int32_t) ((1.0 - tsRatioOfQueryThreads) * numOfThreads / 2.0);
+  dnodeProcessShellMsgFp[TSDB_MSG_TYPE_NETWORK_TEST]   = dnodeSendStartupStep;
+
+  int32_t numOfThreads = (int32_t)((tsNumOfCores * tsNumOfThreadsPerCore) / 2.0);
   if (numOfThreads < 1) {
     numOfThreads = 1;
   }
@@ -142,7 +137,23 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
   }
 }
 
+static int32_t dnodeAuthNettestUser(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  if (strcmp(user, "nettestinternal") == 0) {
+    char pass[32] = {0};
+    taosEncryptPass((uint8_t *)user, strlen(user), pass);
+    *spi = 0;
+    *encrypt = 0;
+    *ckey = 0;
+    memcpy(secret, pass, TSDB_KEY_LEN);
+    dTrace("nettest user is authorized");
+    return 0;
+  }
+
+  return -1;
+}
+
 static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  if (dnodeAuthNettestUser(user, spi, encrypt, secret, ckey) == 0) return 0;
   int code = mnodeRetriveAuth(user, spi, encrypt, secret, ckey);
   if (code != TSDB_CODE_APP_NOT_READY) return code;
 
@@ -153,7 +164,7 @@ static int dnodeRetrieveUserAuthInfo(char *user, char *spi, char *encrypt, char 
   rpcMsg.pCont = pMsg;
   rpcMsg.contLen = sizeof(SAuthMsg);
   rpcMsg.msgType = TSDB_MSG_TYPE_DM_AUTH;
-  
+
   dDebug("user:%s, send auth msg to mnodes", user);
   SRpcMsg rpcRsp = {0};
   dnodeSendMsgToMnodeRecv(&rpcMsg, &rpcRsp);
@@ -191,21 +202,21 @@ void *dnodeSendCfgTableToRecv(int32_t vgId, int32_t tid) {
   SRpcMsg rpcRsp = {0};
   dnodeSendMsgToMnodeRecv(&rpcMsg, &rpcRsp);
   terrno = rpcRsp.code;
-  
+
   if (rpcRsp.code != 0) {
     rpcFreeCont(rpcRsp.pCont);
     dError("vgId:%d, tid:%d failed to config table from mnode", vgId, tid);
     return NULL;
   } else {
     dInfo("vgId:%d, tid:%d config table msg is received", vgId, tid);
-    
+
     // delete this after debug finished
     SMDCreateTableMsg *pTable = rpcRsp.pCont;
     int16_t   numOfColumns = htons(pTable->numOfColumns);
     int16_t   numOfTags = htons(pTable->numOfTags);
     int32_t   tableId = htonl(pTable->tid);
     uint64_t  uid = htobe64(pTable->uid);
-    dInfo("table:%s, numOfColumns:%d numOfTags:%d tid:%d uid:%" PRIu64, pTable->tableId, numOfColumns, numOfTags, tableId, uid);
+    dInfo("table:%s, numOfColumns:%d numOfTags:%d tid:%d uid:%" PRIu64, pTable->tableFname, numOfColumns, numOfTags, tableId, uid);
 
     return rpcRsp.pCont;
   }

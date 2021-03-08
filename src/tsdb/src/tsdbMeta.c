@@ -12,20 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <stdlib.h>
-#include "hash.h"
-#include "taosdef.h"
-#include "tchecksum.h"
-#include "tsdb.h"
-#include "tsdbMain.h"
-#include "tskiplist.h"
+#include "tsdbint.h"
 
 #define TSDB_SUPER_TABLE_SL_LEVEL 5
 #define DEFAULT_TAG_INDEX_COLUMN 0
 
 static int     tsdbCompareSchemaVersion(const void *key1, const void *key2);
-static int     tsdbRestoreTable(void *pHandle, void *cont, int contLen);
-static void    tsdbOrgMeta(void *pHandle);
 static char *  getTagIndexKey(const void *pData);
 static STable *tsdbNewTable();
 static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper);
@@ -53,12 +45,13 @@ static int     tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid);
 
 // ------------------ OUTER FUNCTIONS ------------------
-int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
+int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   STable *   super = NULL;
   STable *   table = NULL;
-  int        newSuper = 0;
+  bool       newSuper = false;
+  bool       superChanged = false;
   int        tid = pCfg->tableId.tid;
   STable *   pTable = NULL;
 
@@ -93,13 +86,24 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   if (pCfg->type == TSDB_CHILD_TABLE) {
     super = tsdbGetTableByUid(pMeta, pCfg->superUid);
     if (super == NULL) {  // super table not exists, try to create it
-      newSuper = 1;
+      newSuper = true;
       super = tsdbCreateTableFromCfg(pCfg, true);
       if (super == NULL) goto _err;
     } else {
       if (TABLE_TYPE(super) != TSDB_SUPER_TABLE || TABLE_UID(super) != pCfg->superUid) {
         terrno = TSDB_CODE_TDB_IVD_CREATE_TABLE_INFO;
         goto _err;
+      }
+
+      if (schemaVersion(pCfg->tagSchema) > schemaVersion(super->tagSchema)) {
+        // tag schema out of date, need to update super table tag version
+        STSchema *pOldSchema = super->tagSchema;
+        TSDB_WLOCK_TABLE(super);
+        super->tagSchema = tdDupSchema(pCfg->tagSchema);
+        TSDB_WUNLOCK_TABLE(super);
+        tdFreeSchema(pOldSchema);
+
+        superChanged = true;
       }
     }
   }
@@ -125,7 +129,7 @@ int tsdbCreateTable(TSDB_REPO_T *repo, STableCfg *pCfg) {
   // TODO: refactor duplicate codes
   int   tlen = 0;
   void *pBuf = NULL;
-  if (newSuper) {
+  if (newSuper || superChanged) {
     tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, super);
     pBuf = tsdbAllocBytes(pRepo, tlen);
     if (pBuf == NULL) goto _err;
@@ -148,7 +152,7 @@ _err:
   return -1;
 }
 
-int tsdbDropTable(TSDB_REPO_T *repo, STableId tableId) {
+int tsdbDropTable(STsdbRepo *repo, STableId tableId) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   uint64_t   uid = tableId.uid;
@@ -253,7 +257,7 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
     }
   }
   if (tsdbTableSetSchema(pCfg, tdGetSchemaFromBuilder(&schemaBuilder), false) < 0) goto _err;
-  if (tsdbTableSetName(pCfg, pMsg->tableId, true) < 0) goto _err;
+  if (tsdbTableSetName(pCfg, pMsg->tableFname, true) < 0) goto _err;
 
   if (numOfTags > 0) {
     // Decode tag schema
@@ -265,7 +269,7 @@ STableCfg *tsdbCreateTableCfgFromMsg(SMDCreateTableMsg *pMsg) {
       }
     }
     if (tsdbTableSetTagSchema(pCfg, tdGetSchemaFromBuilder(&schemaBuilder), false) < 0) goto _err;
-    if (tsdbTableSetSName(pCfg, pMsg->superTableId, true) < 0) goto _err;
+    if (tsdbTableSetSName(pCfg, pMsg->stableFname, true) < 0) goto _err;
     if (tsdbTableSetSuperUid(pCfg, htobe64(pMsg->superTableUid)) < 0) goto _err;
 
     int32_t tagDataLen = htonl(pMsg->tagDataLen);
@@ -301,7 +305,7 @@ static UNUSED_FUNC int32_t colIdCompar(const void* left, const void* right) {
   return (colId < p2->colId)? -1:1;
 }
 
-int tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
+int tsdbUpdateTableTagValue(STsdbRepo *repo, SUpdateTableTagValMsg *pMsg) {
   STsdbRepo *pRepo = (STsdbRepo *)repo;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   STSchema * pNewSchema = NULL;
@@ -377,11 +381,11 @@ int tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
 
   // Chage in memory
   if (pNewSchema != NULL) { // change super table tag schema
-    taosWLockLatch(&(pTable->pSuper->latch));
+    TSDB_WLOCK_TABLE(pTable->pSuper);
     STSchema *pOldSchema = pTable->pSuper->tagSchema;
     pTable->pSuper->tagSchema = pNewSchema;
     tdFreeSchema(pOldSchema);
-    taosWUnLockLatch(&(pTable->pSuper->latch));
+    TSDB_WUNLOCK_TABLE(pTable->pSuper);
   }
 
   bool      isChangeIndexCol = (pMsg->colId == colColId(schemaColAt(pTable->pSuper->tagSchema, 0)));
@@ -392,9 +396,9 @@ int tsdbUpdateTableTagValue(TSDB_REPO_T *repo, SUpdateTableTagValMsg *pMsg) {
     tsdbWLockRepoMeta(pRepo);
     tsdbRemoveTableFromIndex(pMeta, pTable);
   }
-  taosWLockLatch(&(pTable->latch));
+  TSDB_WLOCK_TABLE(pTable);
   tdSetKVRowDataOfCol(&(pTable->tagVal), pMsg->colId, pMsg->type, POINTER_SHIFT(pMsg->data, pMsg->schemaLen));
-  taosWUnLockLatch(&(pTable->latch));
+  TSDB_WUNLOCK_TABLE(pTable);
   if (isChangeIndexCol) {
     tsdbAddTableIntoIndex(pMeta, pTable, false);
     tsdbUnlockRepoMeta(pRepo);
@@ -469,6 +473,8 @@ void tsdbFreeMeta(STsdbMeta *pMeta) {
 }
 
 int tsdbOpenMeta(STsdbRepo *pRepo) {
+  return 0;
+#if 0
   char *     fname = NULL;
   STsdbMeta *pMeta = pRepo->tsdbMeta;
   ASSERT(pMeta != NULL);
@@ -479,11 +485,11 @@ int tsdbOpenMeta(STsdbRepo *pRepo) {
     goto _err;
   }
 
-  pMeta->pStore = tdOpenKVStore(fname, tsdbRestoreTable, tsdbOrgMeta, (void *)pRepo);
-  if (pMeta->pStore == NULL) {
-    tsdbError("vgId:%d failed to open TSDB meta while open the kv store since %s", REPO_ID(pRepo), tstrerror(terrno));
-    goto _err;
-  }
+  // pMeta->pStore = tdOpenKVStore(fname, tsdbRestoreTable, tsdbOrgMeta, (void *)pRepo);
+  // if (pMeta->pStore == NULL) {
+  //   tsdbError("vgId:%d failed to open TSDB meta while open the kv store since %s", REPO_ID(pRepo), tstrerror(terrno));
+  //   goto _err;
+  // }
 
   tsdbDebug("vgId:%d open TSDB meta succeed", REPO_ID(pRepo));
   tfree(fname);
@@ -492,6 +498,7 @@ int tsdbOpenMeta(STsdbRepo *pRepo) {
 _err:
   tfree(fname);
   return -1;
+#endif
 }
 
 int tsdbCloseMeta(STsdbRepo *pRepo) {
@@ -500,7 +507,7 @@ int tsdbCloseMeta(STsdbRepo *pRepo) {
   STable *   pTable = NULL;
 
   if (pMeta == NULL) return 0;
-  tdCloseKVStore(pMeta->pStore);
+  // tdCloseKVStore(pMeta->pStore);
   for (int i = 1; i < pMeta->maxTables; i++) {
     tsdbFreeTable(pMeta->tables[i]);
   }
@@ -567,12 +574,13 @@ void tsdbRefTable(STable *pTable) {
 }
 
 void tsdbUnRefTable(STable *pTable) {
-  int32_t ref = T_REF_DEC(pTable);
-  tsdbDebug("unref table %s uid:%"PRIu64" tid:%d, refCount:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable), ref);
+  uint64_t uid = TABLE_UID(pTable);
+  int32_t  tid = TABLE_TID(pTable);
+  int32_t  ref = T_REF_DEC(pTable);
+
+  tsdbDebug("unref table, uid:%" PRIu64 " tid:%d, refCount:%d", uid, tid, ref);
 
   if (ref == 0) {
-    // tsdbDebug("destory table name:%s uid:%"PRIu64", tid:%d", TABLE_CHAR_NAME(pTable), TABLE_UID(pTable), TABLE_TID(pTable));
-
     if (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) {
       tsdbUnRefTable(pTable->pSuper);
     }
@@ -587,7 +595,7 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
   STable *pCTable = (TABLE_TYPE(pTable) == TSDB_CHILD_TABLE) ? pTable->pSuper : pTable;
   ASSERT(schemaVersion(pSchema) > schemaVersion(pCTable->schema[pCTable->numOfSchemas - 1]));
 
-  taosWLockLatch(&(pCTable->latch));
+  TSDB_WLOCK_TABLE(pCTable);
   if (pCTable->numOfSchemas < TSDB_MAX_TABLE_SCHEMAS) {
     pCTable->schema[pCTable->numOfSchemas++] = pSchema;
   } else {
@@ -599,7 +607,7 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
 
   if (schemaNCols(pSchema) > pMeta->maxCols) pMeta->maxCols = schemaNCols(pSchema);
   if (schemaTLen(pSchema) > pMeta->maxRowBytes) pMeta->maxRowBytes = schemaTLen(pSchema);
-  taosWUnLockLatch(&(pCTable->latch));
+  TSDB_WUNLOCK_TABLE(pCTable);
 
   if (insertAct) {
     int   tlen = tsdbGetTableEncodeSize(TSDB_UPDATE_META, pCTable);
@@ -609,10 +617,8 @@ void tsdbUpdateTableSchema(STsdbRepo *pRepo, STable *pTable, STSchema *pSchema, 
   }
 }
 
-// ------------------ LOCAL FUNCTIONS ------------------
-static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
-  STsdbRepo *pRepo = (STsdbRepo *)pHandle;
-  STable *   pTable = NULL;
+int tsdbRestoreTable(STsdbRepo *pRepo, void *cont, int contLen) {
+  STable *pTable = NULL;
 
   if (!taosCheckChecksumWhole((uint8_t *)cont, contLen)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
@@ -631,8 +637,7 @@ static int tsdbRestoreTable(void *pHandle, void *cont, int contLen) {
   return 0;
 }
 
-static void tsdbOrgMeta(void *pHandle) {
-  STsdbRepo *pRepo = (STsdbRepo *)pHandle;
+void tsdbOrgMeta(STsdbRepo *pRepo) {
   STsdbMeta *pMeta = pRepo->tsdbMeta;
 
   for (int i = 1; i < pMeta->maxTables; i++) {
@@ -643,6 +648,7 @@ static void tsdbOrgMeta(void *pHandle) {
   }
 }
 
+// ------------------ LOCAL FUNCTIONS ------------------
 static char *getTagIndexKey(const void *pData) {
   STable *pTable = (STable *)pData;
 
@@ -775,6 +781,7 @@ static void tsdbFreeTable(STable *pTable) {
     kvRowFree(pTable->tagVal);
 
     tSkipListDestroy(pTable->pIndex);
+    taosTZfree(pTable->lastRow);
     tfree(pTable->sql);
     free(pTable);
   }
@@ -828,7 +835,7 @@ static int tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, boo
 
   if (lock && tsdbUnlockRepoMeta(pRepo) < 0) return -1;
   if (TABLE_TYPE(pTable) == TSDB_STREAM_TABLE && addIdx) {
-    pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), pTable->sql,
+    pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), TABLE_NAME(pTable)->data, pTable->sql,
                                                    tsdbGetTableSchemaImpl(pTable, false, false, -1));
   }
 

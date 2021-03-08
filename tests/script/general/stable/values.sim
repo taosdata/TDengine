@@ -6,7 +6,7 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/exec.sh -n dnode1 -s start
 
-sleep 3000
+sleep 2000
 sql connect
 
 print ======================== dnode1 start
@@ -18,16 +18,25 @@ sql create table vdb0.vtb00 using vdb0.mt tags( 0 )
 sql create table vdb0.vtb01 using vdb0.mt tags( 0 )
 
 sql create database vdb1
-sql create table vdb1.vtb10 using vdb0.mt tags( 1 )
-sql create table vdb1.vtb11 using vdb0.mt tags( 1 )
+sql create table vdb1.mt (ts timestamp, tbcol int) TAGS(tgcol int)
+sql_error create table vdb1.vtb10 using vdb0.mt tags( 1 )
+sql_error create table vdb1.vtb11 using vdb0.mt tags( 1 )
+sql create table vdb1.vtb10 using vdb1.mt tags( 1 )
+sql create table vdb1.vtb11 using vdb1.mt tags( 1 )
 
 sql create database vdb2
-sql create table vdb2.vtb20 using vdb0.mt tags( 2 )
-sql create table vdb2.vtb21 using vdb0.mt tags( 2 )
+sql create table vdb2.mt (ts timestamp, tbcol int) TAGS(tgcol int)
+sql_error create table vdb2.vtb20 using vdb0.mt tags( 2 )
+sql_error create table vdb2.vtb21 using vdb0.mt tags( 2 )
+sql create table vdb2.vtb20 using vdb2.mt tags( 2 )
+sql create table vdb2.vtb21 using vdb2.mt tags( 2 )
 
 sql create database vdb3
-sql create table vdb3.vtb30 using vdb0.mt tags( 3 )
-sql create table vdb3.vtb31 using vdb0.mt tags( 3 )
+sql create table vdb3.mt (ts timestamp, tbcol int) TAGS(tgcol int)
+sql_error create table vdb3.vtb20 using vdb0.mt tags( 2 )
+sql_error create table vdb3.vtb21 using vdb0.mt tags( 2 )
+sql create table vdb3.vtb30 using vdb3.mt tags( 3 )
+sql create table vdb3.vtb31 using vdb3.mt tags( 3 )
 
 print =============== step2
 sql insert into vdb0.vtb00 values (1519833600000 , 10) (1519833600001, 20) (1519833600002, 30) 
@@ -40,7 +49,7 @@ sql insert into vdb3.vtb30 values (1519833600000 , 13) (1519833600001, 23) (1519
 sql insert into vdb3.vtb31 values (1519833600000 , 13) (1519833600001, 23) (1519833600002, 33) 
 sql select * from vdb0.mt
 
-if $rows != 24 then 
+if $rows != 6 then 
   return -1
 endi
 
@@ -55,7 +64,7 @@ sql insert into vdb3.vtb30 values (1519833600003 , 43) (1519833600005, 53) (1519
 sql insert into vdb3.vtb31 values (1519833600003 , 43) (1519833600005, 53) (1519833600004, 63) 
 sql select * from vdb0.mt
 
-if $rows != 48 then 
+if $rows != 12 then 
   return -1
 endi
 
@@ -66,7 +75,7 @@ sql insert into vdb2.vtb20 values(1519833600006, 62) (1519833600007, 72) vdb2.vt
 sql insert into vdb3.vtb30 values(1519833600006, 63) (1519833600007, 73) vdb3.vtb31 values(1519833600006, 63) (1519833600007, 73) 
 sql select * from vdb0.mt
 
-if $rows != 64 then 
+if $rows != 16 then 
   return -1
 endi
 
@@ -77,7 +86,7 @@ sql insert into vdb2.vtb20 values(1519833600008, 82) (1519833600007, 72) vdb2.vt
 sql insert into vdb3.vtb30 values(1519833600008, 83) (1519833600007, 73) vdb3.vtb31 values(1519833600006, 83) (1519833600007, 73) 
 sql select * from vdb0.mt
 
-if $rows != 68 then 
+if $rows != 17 then 
   return -1
 endi
 
@@ -87,7 +96,7 @@ sql insert into vdb0.vtb01 values(1519833600009, 90) (1519833600010, 100) vdb1.v
 
 sql select * from vdb0.mt
 
-if $rows != 84 then 
+if $rows != 21 then 
   return -1
 endi
 
@@ -97,7 +106,7 @@ sql insert into vdb0.vtb01 values(1519833600012, 120) (1519833600011, 110) vdb1.
 
 sql select * from vdb0.mt
 
-if $rows != 100 then 
+if $rows != 25 then 
   return -1
 endi
 

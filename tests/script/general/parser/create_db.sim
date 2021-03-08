@@ -5,7 +5,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 
-sleep 500
+sleep 100
 sql connect
 print ======================== dnode1 start
 
@@ -169,8 +169,8 @@ sql_error create database $db cache 0
 sql_error create database $db ctime 29
 sql_error create database $db ctime 40961
 
-# wal {1, 2}
-sql_error create database $db wal 0
+# wal {0, 2}
+#sql_error create database $db wal 0
 sql_error create database $db wal -1
 sql_error create database $db wal 3
 

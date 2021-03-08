@@ -37,7 +37,6 @@ void opInitHandle(HttpServer* pServer) {}
 #endif
 
 HttpServer tsHttpServer;
-void taosInitNote(int32_t numOfNoteLines, int32_t maxNotes, char* lable);
 
 int32_t httpInitSystem() {
   strcpy(tsHttpServer.label, "rest");
@@ -48,9 +47,6 @@ int32_t httpInitSystem() {
 
   pthread_mutex_init(&tsHttpServer.serverMutex, NULL);
 
-  if (tsHttpEnableRecordSql != 0) {
-    taosInitNote(tsNumOfLogLines / 10, 1, (char*)"http_note");
-  }
   restInitHandle(&tsHttpServer);
   adminInitHandle(&tsHttpServer);
   gcInitHandle(&tsHttpServer);
@@ -93,7 +89,17 @@ int32_t httpStartSystem() {
 
 void httpStopSystem() {
   tsHttpServer.status = HTTP_SERVER_CLOSING;
+  tsHttpServer.stop = 1;
+#ifdef WINDOWS
+  closesocket(tsHttpServer.fd);
+#elif __APPLE__
+  if (tsHttpServer.fd!=-1) {
+    close(tsHttpServer.fd);
+    tsHttpServer.fd = -1;
+  }
+#else
   shutdown(tsHttpServer.fd, SHUT_RD);
+#endif
   tgCleanupHandle();
 }
 
@@ -109,10 +115,8 @@ void httpCleanUpSystem() {
   pthread_mutex_destroy(&tsHttpServer.serverMutex);
   tfree(tsHttpServer.pThreads);
   tsHttpServer.pThreads = NULL;
-  
+
   tsHttpServer.status = HTTP_SERVER_CLOSED;
 }
 
-int32_t httpGetReqCount() {
-  return atomic_exchange_32(&tsHttpServer.requestNum, 0);
-}
+int32_t httpGetReqCount() { return atomic_exchange_32(&tsHttpServer.requestNum, 0); }

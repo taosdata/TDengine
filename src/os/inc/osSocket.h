@@ -33,11 +33,13 @@ extern "C" {
         x = FD_INITIALIZER;  \
       }                      \
     }
-  typedef int32_t SOCKET;
 #endif
 
 #ifndef TAOS_OS_DEF_EPOLL
   #define TAOS_EPOLL_WAIT_TIME 500 
+  typedef int32_t SOCKET;
+  typedef SOCKET EpollFd;
+  #define EpollClose(pollFd) taosCloseSocket(pollFd)
 #endif  
 
 #ifdef TAOS_RANDOM_NETWORK_FAIL
@@ -59,7 +61,9 @@ extern "C" {
 
 // TAOS_OS_FUNC_SOCKET
 int32_t taosSetNonblocking(SOCKET sock, int32_t on);
+void    taosIgnSIGPIPE();
 void    taosBlockSIGPIPE();
+void    taosSetMaskSIGPIPE();
 
 // TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen);

@@ -35,7 +35,7 @@ void restBuildSqlAffectRowsJson(HttpContext *pContext, HttpSqlCmd *cmd, int32_t 
   // data row array end
   httpJsonToken(jsonBuf, JsonArrEnd);
 
-  cmd->numOfRows = affect_rows;
+  cmd->numOfRows = 1;
 }
 
 void restStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) {
@@ -75,6 +75,44 @@ void restStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) 
   // head array end
   httpJsonToken(jsonBuf, JsonArrEnd);
 
+  // column_meta begin
+  httpJsonItemToken(jsonBuf);
+  httpJsonPairHead(jsonBuf, REST_JSON_HEAD_INFO, REST_JSON_HEAD_INFO_LEN);
+  // column_meta array begin
+  httpJsonItemToken(jsonBuf);
+  httpJsonToken(jsonBuf, JsonArrStt);
+
+  if (num_fields == 0) {
+    httpJsonItemToken(jsonBuf);
+    httpJsonToken(jsonBuf, JsonArrStt);
+
+    httpJsonItemToken(jsonBuf);
+    httpJsonString(jsonBuf, REST_JSON_AFFECT_ROWS, REST_JSON_AFFECT_ROWS_LEN);
+    httpJsonItemToken(jsonBuf);
+    httpJsonInt(jsonBuf, TSDB_DATA_TYPE_INT);
+    httpJsonItemToken(jsonBuf);
+    httpJsonInt(jsonBuf, 4);
+
+    httpJsonToken(jsonBuf, JsonArrEnd);
+  } else {
+    for (int32_t i = 0; i < num_fields; ++i) {
+      httpJsonItemToken(jsonBuf);
+      httpJsonToken(jsonBuf, JsonArrStt);
+
+      httpJsonItemToken(jsonBuf);
+      httpJsonString(jsonBuf, fields[i].name, (int32_t)strlen(fields[i].name));
+      httpJsonItemToken(jsonBuf);
+      httpJsonInt(jsonBuf, fields[i].type);
+      httpJsonItemToken(jsonBuf);
+      httpJsonInt(jsonBuf, fields[i].bytes);
+
+      httpJsonToken(jsonBuf, JsonArrEnd);
+    }
+  }
+
+  // column_meta array end
+  httpJsonToken(jsonBuf, JsonArrEnd);
+
   // data begin
   httpJsonItemToken(jsonBuf);
   httpJsonPairHead(jsonBuf, REST_JSON_DATA, REST_JSON_DATA_LEN);
@@ -83,7 +121,8 @@ void restStartSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result) 
   httpJsonToken(jsonBuf, JsonArrStt);
 }
 
-bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows, int32_t timestampFormat) {
+bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows,
+                      int32_t timestampFormat) {
   JsonBuf *jsonBuf = httpMallocJsonBuf(pContext);
   if (jsonBuf == NULL) return false;
 
@@ -95,7 +134,7 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
     if (row == NULL) {
       continue;
     }
-    int32_t* length = taos_fetch_lengths(result);
+    int32_t *length = taos_fetch_lengths(result);
 
     // data row array begin
     httpJsonItemToken(jsonBuf);
@@ -131,15 +170,17 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
           break;
         case TSDB_DATA_TYPE_BINARY:
         case TSDB_DATA_TYPE_NCHAR:
-          httpJsonStringForTransMean(jsonBuf, (char*)row[i], length[i]);
+          httpJsonStringForTransMean(jsonBuf, (char *)row[i], length[i]);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
           if (timestampFormat == REST_TIMESTAMP_FMT_LOCAL_STRING) {
-            httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
+            httpJsonTimestamp(jsonBuf, *((int64_t *)row[i]),
+                              taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
           } else if (timestampFormat == REST_TIMESTAMP_FMT_TIMESTAMP) {
             httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
           } else {
-            httpJsonUtcTimestamp(jsonBuf, *((int64_t *)row[i]), taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
+            httpJsonUtcTimestamp(jsonBuf, *((int64_t *)row[i]),
+                                 taos_result_precision(result) == TSDB_TIME_PRECISION_MICRO);
           }
           break;
         default:
@@ -148,8 +189,8 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
     }
 
     // data row array end
-    httpJsonToken(jsonBuf, JsonArrEnd);   
-    cmd->numOfRows ++;
+    httpJsonToken(jsonBuf, JsonArrEnd);
+    cmd->numOfRows++;
 
     if (pContext->fd <= 0) {
       httpError("context:%p, fd:%d, user:%s, conn closed, abort retrieve", pContext, pContext->fd, pContext->user);
@@ -168,15 +209,15 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
 }
 
 bool restBuildSqlTimestampJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows) {
-  return restBuildSqlJson(pContext,cmd, result, numOfRows, REST_TIMESTAMP_FMT_TIMESTAMP);
+  return restBuildSqlJson(pContext, cmd, result, numOfRows, REST_TIMESTAMP_FMT_TIMESTAMP);
 }
 
 bool restBuildSqlLocalTimeStringJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows) {
-  return restBuildSqlJson(pContext,cmd, result, numOfRows, REST_TIMESTAMP_FMT_LOCAL_STRING);
+  return restBuildSqlJson(pContext, cmd, result, numOfRows, REST_TIMESTAMP_FMT_LOCAL_STRING);
 }
 
 bool restBuildSqlUtcTimeStringJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, int32_t numOfRows) {
-  return restBuildSqlJson(pContext,cmd, result, numOfRows, REST_TIMESTAMP_FMT_UTC_STRING);
+  return restBuildSqlJson(pContext, cmd, result, numOfRows, REST_TIMESTAMP_FMT_UTC_STRING);
 }
 
 void restStopSqlJson(HttpContext *pContext, HttpSqlCmd *cmd) {

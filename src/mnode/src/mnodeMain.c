@@ -37,16 +37,10 @@
 #include "mnodeShow.h"
 #include "mnodeProfile.h"
 
-typedef struct {
-  const char *const name;
-  int               (*init)();
-  void              (*cleanup)();
-} SMnodeComponent;
-
 void *tsMnodeTmr = NULL;
 static bool tsMgmtIsRunning = false;
 
-static const SMnodeComponent tsMnodeComponents[] = {
+static SStep tsMnodeSteps[] = {
   {"sdbref",  sdbInitRef,       sdbCleanUpRef},
   {"profile", mnodeInitProfile, mnodeCleanupProfile},
   {"cluster", mnodeInitCluster, mnodeCleanupCluster},
@@ -67,34 +61,26 @@ static void mnodeInitTimer();
 static void mnodeCleanupTimer();
 static bool mnodeNeedStart() ;
 
-static void mnodeCleanupComponents(int32_t stepId) {
-  for (int32_t i = stepId; i >= 0; i--) {
-    tsMnodeComponents[i].cleanup();
-  }
+static void mnodeCleanupComponents() {
+  int32_t stepSize = sizeof(tsMnodeSteps) / sizeof(SStep);
+  dnodeStepCleanup(tsMnodeSteps, stepSize);
 }
 
 static int32_t mnodeInitComponents() {
-  int32_t code = 0;
-  for (int32_t i = 0; i < sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]); i++) {
-    if (tsMnodeComponents[i].init() != 0) {
-      mnodeCleanupComponents(i);
-      code = -1;
-      break;
-    }
-  }
-  return code;
+  int32_t stepSize = sizeof(tsMnodeSteps) / sizeof(SStep);
+  return dnodeStepInit(tsMnodeSteps, stepSize);
 }
 
 int32_t mnodeStartSystem() {
   if (tsMgmtIsRunning) {
     mInfo("mnode module already started...");
-    return 0;
+    return TSDB_CODE_SUCCESS;
   }
 
   mInfo("starting to initialize mnode ...");
   if (mkdir(tsMnodeDir, 0755) != 0 && errno != EEXIST) {
     mError("failed to init mnode dir:%s, reason:%s", tsMnodeDir, strerror(errno));
-    return -1;
+    return TSDB_CODE_MND_FAILED_TO_CREATE_DIR;
   }
 
   dnodeAllocMWritequeue();
@@ -102,9 +88,10 @@ int32_t mnodeStartSystem() {
   dnodeAllocateMPeerQueue();
 
   if (mnodeInitComponents() != 0) {
-    return -1;
+    return TSDB_CODE_MND_FAILED_TO_INIT_STEP;
   }
 
+  dnodeReportStep("mnode-grant", "start to set grant infomation", 0);
   grantReset(TSDB_GRANT_ALL, 0);
   tsMgmtIsRunning = true;
 
@@ -112,7 +99,7 @@ int32_t mnodeStartSystem() {
 
   sdbUpdateSync(NULL);
 
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t mnodeInitSystem() {
@@ -132,7 +119,7 @@ void mnodeCleanupSystem() {
     dnodeFreeMReadQueue();
     dnodeFreeMPeerQueue();
     mnodeCleanupTimer();
-    mnodeCleanupComponents(sizeof(tsMnodeComponents) / sizeof(tsMnodeComponents[0]) - 1);
+    mnodeCleanupComponents();
 
     mInfo("mnode is cleaned up");
   }

@@ -39,6 +39,10 @@ int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
   return 0;
 }
 
+void taosIgnSIGPIPE() {
+  signal(SIGPIPE, SIG_IGN);
+}
+
 void taosBlockSIGPIPE() {
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
@@ -46,6 +50,16 @@ void taosBlockSIGPIPE() {
   int32_t rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
   if (rc != 0) {
     uError("failed to block SIGPIPE");
+  }
+}
+
+void taosSetMaskSIGPIPE() {
+  sigset_t signal_mask;
+  sigemptyset(&signal_mask);
+  sigaddset(&signal_mask, SIGPIPE);
+  int32_t rc = pthread_sigmask(SIG_SETMASK, &signal_mask, NULL);
+  if (rc != 0) {
+    uError("failed to setmask SIGPIPE");
   }
 }
 

@@ -13,4 +13,3 @@ IF (TD_LINUX)
   TARGET_LINK_LIBRARIES(syncServer sync trpc common)
 ENDIF ()
 
-

@@ -1,4 +1,4 @@
-sleep 500
+sleep 100
 sql connect
 
 $dbPrefix = lm2_db
@@ -140,6 +140,97 @@ if $data01 != 0 then
   return -1
 endi
 if $data11 != -1 then
+  return -1
+endi
+
+sql select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000, -2) limit 8200
+if $rows != 8200 then
+  return -1
+endi
+
+sql select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000, -2) limit 10 offset 8190;
+if $rows != 10 then
+  return -1
+endi
+
+if $data00 != @18-10-15 19:30:00.000@ then
+  return -1
+endi
+
+if $data01 != 5 then
+  return -1
+endi
+
+if $data10 != @18-10-15 19:35:00.000@ then
+  return -1
+endi
+
+if $data11 != -1000 then
+  return -1
+endi
+
+if $data20 != @18-10-15 19:40:00.000@ then
+  return -1
+endi
+
+if $data21 != 6 then
+  return -1
+endi
+
+if $data30 != @18-10-15 19:45:00.000@ then
+  return -1
+endi
+
+if $data31 != -1000 then
+  return -1
+endi
+
+sql select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000, -2) limit 10 offset 10001;
+if $rows != 10 then
+  return -1
+endi
+
+if $data00 != @18-10-22 02:25:00.000@ then
+  return -1
+endi
+
+if $data01 != -1000 then
+  return -1
+endi
+
+if $data10 != @18-10-22 02:30:00.000@ then
+  return -1
+endi
+
+if $data11 != 1 then
+  return -1
+endi
+
+if $data20 != @18-10-22 02:35:00.000@ then
+  return -1
+endi
+
+if $data21 != -1000 then
+  return -1
+endi
+
+if $data30 != @18-10-22 02:40:00.000@ then
+  return -1
+endi
+
+if $data31 != 2 then
+  return -1
+endi
+
+sql select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000, -2) limit 10000 offset 10001;
+print ====> needs to validate the last row result
+if $rows != 9998 then
+  return -1
+endi
+
+
+sql select max(c1) from lm2_tb0 where ts >= 1537146000000 and ts <= 1543145400000 interval(5m) fill(value, -1000, -2) limit 100 offset 20001;
+if $rows != 0 then
   return -1
 endi
 

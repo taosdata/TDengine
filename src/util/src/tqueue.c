@@ -61,7 +61,7 @@ taos_queue taosOpenQueue() {
 
   pthread_mutex_init(&queue->mutex, NULL);
 
-  uTrace("queue:%p is openned", queue);
+  uTrace("queue:%p is opened", queue);
   return queue;
 }
 
@@ -230,7 +230,7 @@ taos_qset taosOpenQset() {
   pthread_mutex_init(&qset->mutex, NULL);
   tsem_init(&qset->sem, 0, 0);
 
-  uTrace("qset:%p is openned", qset);
+  uTrace("qset:%p is opened", qset);
   return qset;
 }
 
@@ -358,15 +358,15 @@ int taosReadQitemFromQset(taos_qset param, int *type, void **pitem, void **phand
     if (queue->head) {
         pNode = queue->head;
         *pitem = pNode->item;
-        *type = pNode->type;
-        *phandle = queue->ahandle;
+        if (type) *type = pNode->type;
+        if (phandle) *phandle = queue->ahandle;
         queue->head = pNode->next;
         if (queue->head == NULL) 
           queue->tail = NULL;
         queue->numOfItems--;
         atomic_sub_fetch_32(&qset->numOfItems, 1);
         code = 1;
-        uTrace("item:%p is read out from queue:%p, type:%d items:%d", *pitem, queue, *type, queue->numOfItems);
+        uTrace("item:%p is read out from queue:%p, type:%d items:%d", *pitem, queue, pNode->type, queue->numOfItems);
     } 
 
     pthread_mutex_unlock(&queue->mutex);
