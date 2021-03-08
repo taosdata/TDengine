@@ -57,6 +57,7 @@
 #include "cJSON.h"
 
 #include "taos.h"
+#include "taoserror.h"
 #include "tutil.h"
 
 #define REQ_EXTRA_BUF_LEN   1024
@@ -840,7 +841,8 @@ static void getResult(TAOS_RES *res, char* resultFileName) {
   char* databuf = (char*) calloc(1, 100*1024*1024);
   if (databuf == NULL) {
     fprintf(stderr, "failed to malloc, warning: save result to file slowly!\n");
-    fclose(fp);
+    if (fp)
+        fclose(fp);
     return ;
   }
 
@@ -998,7 +1000,7 @@ static int printfInsertMeta() {
   printf("database count:             \033[33m%d\033[0m\n", g_Dbs.dbCount);
   for (int i = 0; i < g_Dbs.dbCount; i++) {
     printf("database[\033[33m%d\033[0m]:\n", i);
-    printf("  database name:         \033[33m%s\033[0m\n", g_Dbs.db[i].dbName);
+    printf("  database[%d] name:      \033[33m%s\033[0m\n", i, g_Dbs.db[i].dbName);
     if (0 == g_Dbs.db[i].drop) {
       printf("  drop:                  \033[33mno\033[0m\n");     
     }else {
@@ -1147,7 +1149,7 @@ static void printfInsertMetaToFile(FILE* fp) {
   fprintf(fp, "database count:          %d\n", g_Dbs.dbCount);
   for (int i = 0; i < g_Dbs.dbCount; i++) {
     fprintf(fp, "database[%d]:\n", i);
-    fprintf(fp, "  database name:         %s\n", g_Dbs.db[i].dbName);
+    fprintf(fp, "  database[%d] name:       %s\n", i, g_Dbs.db[i].dbName);
     if (0 == g_Dbs.db[i].drop) {
       fprintf(fp, "  drop:                  no\n");     
     }else {
@@ -1735,6 +1737,7 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
         ERROR_EXIT("ERROR storing complete response from socket");
     }
 
+    response_buf[RESP_BUF_LEN - 1] = '\0';
     printf("Response:\n%s\n", response_buf);
 
     free(request_buf);
@@ -2208,7 +2211,7 @@ static int createDatabases() {
     }
     printf("\ncreate database %s success!\n\n", g_Dbs.db[i].dbName);
 
-    debugPrint("DEBUG %s() %d count:%d\n", __func__, __LINE__, g_Dbs.db[i].superTblCount);
+    debugPrint("DEBUG %s() %d supertbl count:%d\n", __func__, __LINE__, g_Dbs.db[i].superTblCount);
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
       // describe super table, if exists
       sprintf(command, "describe %s.%s;", g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].sTblName);
@@ -2353,6 +2356,7 @@ int startMultiThreadCreateChildTable(
     t_info->threadID = i;
     tstrncpy(t_info->db_name, db_name, MAX_DB_NAME_SIZE);
     t_info->superTblInfo = superTblInfo;
+    debugPrint("DEBUG %s() %d db_name: %s\n", __func__, __LINE__, db_name);
     t_info->taos = taos_connect(
             g_Dbs.host,
             g_Dbs.user,
@@ -2361,6 +2365,8 @@ int startMultiThreadCreateChildTable(
             g_Dbs.port);
     if (t_info->taos == NULL) {
       fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
+      free(pids);
+      free(infos);  
       return -1;
     }
     t_info->start_table_id = last;
@@ -2413,27 +2419,26 @@ static void createChildTables() {
     } else {
         // normal table
         len = snprintf(tblColsBuf, MAX_SQL_SIZE, "(TS TIMESTAMP");
-      for (int i = 0; i < MAX_COLUMN_COUNT; i++) {
-        if (g_args.datatype[i]) {
-            if ((strncasecmp(g_args.datatype[i], "BINARY", strlen("BINARY")) == 0)
-                    || (strncasecmp(g_args.datatype[i], "NCHAR", strlen("NCHAR")) == 0)) {
-                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE, ", COL%d %s(60)", i, g_args.datatype[i]);
+        int j = 0;
+        while (g_args.datatype[j]) {
+            if ((strncasecmp(g_args.datatype[j], "BINARY", strlen("BINARY")) == 0)
+                    || (strncasecmp(g_args.datatype[j], "NCHAR", strlen("NCHAR")) == 0)) {
+                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE, ", COL%d %s(60)", j, g_args.datatype[j]);
             } else {
-                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE, ", COL%d %s", i, g_args.datatype[i]);
+                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE, ", COL%d %s", j, g_args.datatype[j]);
             }
             len = strlen(tblColsBuf);
-        } else {
-            len = snprintf(tblColsBuf + len, MAX_SQL_SIZE, ")");
-            break;
+            j++;
         }
-      }
 
-        debugPrint("DEBUG - %s() LN%d: %s\n", __func__, __LINE__,
-                tblColsBuf);
-      startMultiThreadCreateChildTable(
+        len = snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
+
+        debugPrint("DEBUG - %s() LN%d: dbName: %s num of tb: %d schema: %s\n", __func__, __LINE__,
+                g_Dbs.db[i].dbName, g_args.num_of_tables, tblColsBuf);
+        startMultiThreadCreateChildTable(
               tblColsBuf,
               g_Dbs.threadCountByCreateTbl,
-              g_args.num_of_DPT,
+              g_args.num_of_tables,
               g_Dbs.db[i].dbName,
               NULL);
     }
@@ -4144,11 +4149,10 @@ static void* syncWrite(void *sarg) {
   int len_of_binary = g_args.len_of_binary;
 
   int ncols_per_record = 1; // count first col ts
-  for (int i = 0; i < MAX_COLUMN_COUNT; i ++) {
-      if (NULL == g_args.datatype[i])
-          break;
-      else
-          ncols_per_record ++;
+  int i = 0;
+  while(g_args.datatype[i]) {
+    i ++;
+    ncols_per_record ++;
   }
 
   srand((uint32_t)time(NULL));
@@ -4629,11 +4633,14 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision,
     if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
         start_time = taosGetTimestamp(timePrec);
     } else {    
-        taosParseTime(
+        if (TSDB_CODE_SUCCESS != taosParseTime(
             superTblInfo->startTimestamp, 
             &start_time, 
             strlen(superTblInfo->startTimestamp), 
-            timePrec, 0);
+            timePrec, 0)) {
+            printf("ERROR to parse time!\n");
+            exit(-1);
+        }
     }
   } else {
      start_time = 1500000000000;
