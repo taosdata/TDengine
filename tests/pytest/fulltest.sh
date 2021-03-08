@@ -239,6 +239,7 @@ python3 ./test.py -f query/queryInterval.py
 python3 ./test.py -f query/queryFillTest.py
 python3 ./test.py -f query/last_row_cache.py
 python3 ./test.py -f query/last_cache.py
+python3 ./test.py -f query/queryBetweenAnd.py
 
 # tools
 python3 test.py -f tools/taosdemoTest.py

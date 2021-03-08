@@ -139,7 +139,7 @@ class TDTestCase:
             tdSql.query(f"select * from t1 where c4 between {3.4*10**38} and {3.4*10**38+10}")
             tdSql.checkRows(10)
             tdSql.query(f"select * from t1 where c4 between {1.7*10**308+1} and {1.7*10**308+2}")
-            # 因为精度原因，在超出bigint边界后，数值不能进行准确的判断
+            # 因为float和double类型数据的精度原因，在超出bigint边界后，数值不能进行准确的判断,非计算错误
             # tdSql.checkRows(0)
             tdSql.query(f"select * from t1 where c4 between {3.4*10**38+10} and {3.4*10**38}")
             # tdSql.checkRows(0)
