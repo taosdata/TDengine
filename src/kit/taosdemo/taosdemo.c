@@ -56,6 +56,7 @@
 #include "cJSON.h"
 
 #include "taos.h"
+#include "taoserror.h"
 #include "tutil.h"
 
 #define REQ_EXTRA_BUF_LEN   1024
@@ -838,7 +839,8 @@ static void getResult(TAOS_RES *res, char* resultFileName) {
   char* databuf = (char*) calloc(1, 100*1024*1024);
   if (databuf == NULL) {
     fprintf(stderr, "failed to malloc, warning: save result to file slowly!\n");
-    fclose(fp);
+    if (fp)
+        fclose(fp);
     return ;
   }
 
@@ -1669,6 +1671,7 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
         ERROR_EXIT("ERROR storing complete response from socket");
     }
 
+    response_buf[RESP_BUF_LEN - 1] = '\0';
     printf("Response:\n%s\n", response_buf);
 
     free(request_buf);
@@ -2290,6 +2293,8 @@ int startMultiThreadCreateChildTable(
             g_Dbs.port);
     if (t_info->taos == NULL) {
       fprintf(stderr, "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
+      free(pids);
+      free(infos);  
       return -1;
     }
     t_info->start_table_id = last;
@@ -2342,8 +2347,8 @@ static void createChildTables() {
     } else {
         // normal table
         len = snprintf(tblColsBuf, MAX_SQL_SIZE, "(TS TIMESTAMP");
-      for (int i = 0; i < MAX_COLUMN_COUNT; i++) {
-        if (g_args.datatype[i]) {
+        int i = 0;
+        while (g_args.datatype[i]) {
             if ((strncasecmp(g_args.datatype[i], "BINARY", strlen("BINARY")) == 0)
                     || (strncasecmp(g_args.datatype[i], "NCHAR", strlen("NCHAR")) == 0)) {
                 len = snprintf(tblColsBuf + len, MAX_SQL_SIZE, ", COL%d %s(60)", i, g_args.datatype[i]);
@@ -2351,15 +2356,13 @@ static void createChildTables() {
                 len = snprintf(tblColsBuf + len, MAX_SQL_SIZE, ", COL%d %s", i, g_args.datatype[i]);
             }
             len = strlen(tblColsBuf);
-        } else {
-            len = snprintf(tblColsBuf + len, MAX_SQL_SIZE, ")");
-            break;
         }
-      }
+
+        len = snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
 
         debugPrint("DEBUG - %s() LN%d: %s\n", __func__, __LINE__,
                 tblColsBuf);
-      startMultiThreadCreateChildTable(
+        startMultiThreadCreateChildTable(
               tblColsBuf,
               g_Dbs.threadCountByCreateTbl,
               g_args.num_of_DPT,
@@ -4073,11 +4076,10 @@ static void* syncWrite(void *sarg) {
   int len_of_binary = g_args.len_of_binary;
 
   int ncols_per_record = 1; // count first col ts
-  for (int i = 0; i < MAX_COLUMN_COUNT; i ++) {
-      if (NULL == g_args.datatype[i])
-          break;
-      else
-          ncols_per_record ++;
+  int i = 0;
+  while(g_args.datatype[i]) {
+    i ++;
+    ncols_per_record ++;
   }
 
   srand((uint32_t)time(NULL));
@@ -4558,11 +4560,14 @@ void startMultiThreadInsertData(int threads, char* db_name, char* precision,
     if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
         start_time = taosGetTimestamp(timePrec);
     } else {    
-        taosParseTime(
+        if (TSDB_CODE_SUCCESS != taosParseTime(
             superTblInfo->startTimestamp, 
             &start_time, 
             strlen(superTblInfo->startTimestamp), 
-            timePrec, 0);
+            timePrec, 0)) {
+            printf("ERROR to parse time!\n");
+            exit(-1);
+        }
     }
   } else {
      start_time = 1500000000000;
