@@ -3918,7 +3918,7 @@ static void syncWriteForNumberOfTblInOneSql(
 send_to_server:
         if (g_args.insert_interval && (g_args.insert_interval > (et - st))) {
             int sleep_time = g_args.insert_interval - (et -st);
-            debugPrint("DEBUG sleep: %d ms\n", sleep_time);
+            printf("sleep: %d ms specified by insert_interval\n", sleep_time);
             taosMsleep(sleep_time); // ms
         }
 
@@ -4135,7 +4135,7 @@ static void* syncWrite(void *sarg) {
         if (i > 0 && g_args.insert_interval 
             && (g_args.insert_interval > (et - st) )) {
             int sleep_time = g_args.insert_interval - (et -st);
-            debugPrint("DEBUG sleep: %d ms\n", sleep_time);
+            printf("sleep: %d ms specified by insert_interval\n", sleep_time);
             taosMsleep(sleep_time); // ms
         }
 
@@ -4242,6 +4242,17 @@ static void* syncWriteWithStb(void *sarg) {
       uint64_t inserted = i;
       uint64_t tmp_time = time_counter;
 
+      if (i > 0 && g_args.insert_interval 
+            && (g_args.insert_interval > (et - st) )) {
+        int sleep_time = g_args.insert_interval - (et -st);
+        printf("sleep: %d ms specified by insert_interval\n", sleep_time);
+        taosMsleep(sleep_time); // ms
+      }
+
+      if (g_args.insert_interval) {
+        st = taosGetTimestampMs();
+      }
+
       int sampleUsePos = samplePos;
       int k = 0;
       debugPrint("DEBUG - %s() LN%d num_of_RPR=%d\n", __func__, __LINE__, g_args.num_of_RPR);
@@ -4326,6 +4337,7 @@ static void* syncWriteWithStb(void *sarg) {
 */
         inserted++;
         k++;
+        i++;
         totalRowsInserted++;
   
         if (inserted > superTblInfo->insertRows)
@@ -4334,16 +4346,6 @@ static void* syncWriteWithStb(void *sarg) {
                   || (superTblInfo->maxSqlLen - len) < (superTblInfo->lenOfOneRow + 128)) 
               break;
 */
-        if (i > 0 && g_args.insert_interval 
-                && (g_args.insert_interval > (et - st) )) {
-            int sleep_time = g_args.insert_interval - (et -st);
-            debugPrint("DEBUG sleep: %d ms\n", sleep_time);
-            taosMsleep(sleep_time); // ms
-        }
-
-        if (g_args.insert_interval) {
-            st = taosGetTimestampMs();
-        }
 
         if (0 == strncasecmp(superTblInfo->insertMode, "taosc", strlen("taosc"))) {
           //printf("===== sql: %s \n\n", buffer);
