@@ -1,17 +1,19 @@
 # TAOS SQL
 
-本文档说明TAOS SQL支持的语法规则、主要查询功能、支持的SQL查询函数，以及常用技巧等内容。阅读本文档需要读者具有基本的SQL语言的基础。
+本文档说明 TAOS SQL 支持的语法规则、主要查询功能、支持的 SQL 查询函数，以及常用技巧等内容。阅读本文档需要读者具有基本的 SQL 语言的基础。
 
-TAOS SQL是用户对TDengine进行数据写入和查询的主要工具。TAOS SQL为了便于用户快速上手，在一定程度上提供类似于标准SQL类似的风格和模式。严格意义上，TAOS SQL并不是也不试图提供SQL标准的语法。此外，由于TDengine针对的时序性结构化数据不提供删除功能，因此在TAO SQL中不提供数据删除的相关功能。
+TAOS SQL 是用户对 TDengine 进行数据写入和查询的主要工具。TAOS SQL 为了便于用户快速上手，在一定程度上提供类似于标准 SQL 类似的风格和模式。严格意义上，TAOS SQL 并不是也不试图提供 SQL 标准的语法。此外，由于 TDengine 针对的时序性结构化数据不提供删除功能，因此在 TAO SQL 中不提供数据删除的相关功能。
 
-本章节SQL语法遵循如下约定：
+TAOS SQL 不支持关键字的缩写，例如 DESCRIBE 不能缩写为 DESC。 
 
-- < > 里的内容是用户需要输入的，但不要输入<>本身
-- [ ]表示内容为可选项，但不能输入[]本身
-- | 表示多选一，选择其中一个即可，但不能输入|本身
+本章节 SQL 语法遵循如下约定：
+
+- < > 里的内容是用户需要输入的，但不要输入 <> 本身
+- [ ] 表示内容为可选项，但不能输入 [] 本身
+- | 表示多选一，选择其中一个即可，但不能输入 | 本身
 - … 表示前面的项可重复多个
 
-为更好地说明SQL语法的规则及其特点，本文假设存在一个数据集。以智能电表(meters)为例，假设每个智能电表采集电流、电压、相位三个量。其建模如下：
+为更好地说明 SQL 语法的规则及其特点，本文假设存在一个数据集。以智能电表(meters)为例，假设每个智能电表采集电流、电压、相位三个量。其建模如下：
 ```mysql
 taos> DESCRIBE meters;
              Field              |        Type        |   Length    |    Note    |
@@ -23,7 +25,7 @@ taos> DESCRIBE meters;
  location                       | BINARY             |          64 | TAG        |
  groupid                        | INT                |           4 | TAG        |
 ```
-数据集包含4个智能电表的数据，按照TDengine的建模规则，对应4个子表，其名称分别是 d1001, d1002, d1003, d1004。
+数据集包含 4 个智能电表的数据，按照 TDengine 的建模规则，对应 4 个子表，其名称分别是 d1001, d1002, d1003, d1004。
 
 ## <a class="anchor" id="data-type"></a>支持的数据类型
 
@@ -402,8 +404,8 @@ SELECT select_expr [, select_expr ...]
     FROM {tb_name_list}
     [WHERE where_condition]
     [INTERVAL (interval_val [, interval_offset])]
+    [SLIDING sliding_val]
     [FILL fill_val]
-    [SLIDING fill_val]
     [GROUP BY col_list]
     [ORDER BY col_list { DESC | ASC }]
     [SLIMIT limit_val [, SOFFSET offset_val]]
@@ -619,10 +621,11 @@ taos> SELECT COUNT(tbname) FROM meters WHERE groupId > 2;
 Query OK, 1 row(s) in set (0.001091s)
 ```
 
-- 可以使用* 返回所有列，或指定列名。可以对数字列进行四则运算，可以给输出的列取列名
-- where语句可以使用各种逻辑判断来过滤数字值，或使用通配符来过滤字符串
-- 输出结果缺省按首列时间戳升序排序，但可以指定按降序排序(_c0指首列时间戳)。使用ORDER BY对其他字段进行排序为非法操作。
-- 参数LIMIT控制输出条数，OFFSET指定从第几条开始输出。LIMIT/OFFSET对结果集的执行顺序在ORDER BY之后。
+- 可以使用 * 返回所有列，或指定列名。可以对数字列进行四则运算，可以给输出的列取列名
+- WHERE 语句可以使用各种逻辑判断来过滤数字值，或使用通配符来过滤字符串
+- 输出结果缺省按首列时间戳升序排序，但可以指定按降序排序( _c0 指首列时间戳)。使用 ORDER BY 对其他字段进行排序为非法操作。
+- 参数 LIMIT 控制输出条数，OFFSET 指定从第几条开始输出。LIMIT/OFFSET 对结果集的执行顺序在 ORDER BY 之后。
+- 参数 SLIMIT 控制由 GROUP BY 指令划分的每个分组中的输出条数。
 - 通过”>>"输出结果可以导出到指定文件
 
 ### 支持的条件过滤操作
@@ -1162,17 +1165,20 @@ TDengine支持按时间段进行聚合，可以将表中数据按照时间段进
 SELECT function_list FROM tb_name
   [WHERE where_condition]
   INTERVAL (interval [, offset])
+  [SLIDING sliding]
   [FILL ({NONE | VALUE | PREV | NULL | LINEAR})]
 
 SELECT function_list FROM stb_name
   [WHERE where_condition]
   INTERVAL (interval [, offset])
+  [SLIDING sliding]
   [FILL ({ VALUE | PREV | NULL | LINEAR})]
   [GROUP BY tags]
 ```
 
 - 聚合时间段的长度由关键词INTERVAL指定，最短时间间隔10毫秒（10a），并且支持偏移（偏移必须小于间隔）。聚合查询中，能够同时执行的聚合和选择函数仅限于单个输出的函数：count、avg、sum 、stddev、leastsquares、percentile、min、max、first、last，不能使用具有多行输出结果的函数（例如：top、bottom、diff以及四则运算）。
 - WHERE语句可以指定查询的起止时间和其他过滤条件
+- SLIDING语句用于指定聚合时间段的前向增量
 - FILL语句指定某一时间区间数据缺失的情况下的填充模式。填充模式包括以下几种：
   * 不进行填充：NONE(默认填充模式)。
   * VALUE填充：固定值填充，此时需要指定填充的数值。例如：fill(value, 1.23)。
@@ -1183,6 +1189,8 @@ SELECT function_list FROM stb_name
   1. 使用FILL语句的时候可能生成大量的填充输出，务必指定查询的时间区间。针对每次查询，系统可返回不超过1千万条具有插值的结果。
   2. 在时间维度聚合中，返回的结果中时间序列严格单调递增。
   3. 如果查询对象是超级表，则聚合函数会作用于该超级表下满足值过滤条件的所有表的数据。如果查询中没有使用group by语句，则返回的结果按照时间序列严格单调递增；如果查询中使用了group by语句分组，则返回结果中每个group内不按照时间序列严格单调递增。
+
+时间聚合也常被用于连续查询场景，可以参考文档 [连续查询(Continuous Query)](https://www.taosdata.com/cn/documentation/advanced-features#continuous-query)。
 
 **示例:** 智能电表的建表语句如下：
 
@@ -1222,3 +1230,4 @@ TAOS SQL支持表之间按主键时间戳来join两张表的列，暂不支持�
 **is not null与不为空的表达式适用范围**
 
 is not null支持所有类型的列。不为空的表达式为 <>""，仅对非数值类型的列适用。
+
