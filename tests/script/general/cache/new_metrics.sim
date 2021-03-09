@@ -94,8 +94,9 @@ while $i < 10
   $i = $i + 1
 endw 
 
-print ==> sleep 8 seconds to renew cache
-sleep 8000
+print ==> sleep 1 seconds to renew cache
+sql reset query cache
+sleep 1000
 
 print =============== step5
 

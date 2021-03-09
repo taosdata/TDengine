@@ -100,8 +100,9 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 0
 system sh/exec.sh -n dnode1 -s start
 
 print =============== step5
-print ==> sleep 8 seconds to renew cache
-sleep 8000
+print ==> renew cache
+sql reset query cache
+sleep 1000
 
 
 print =============== step6
