@@ -4992,7 +4992,7 @@ void *subQueryProcess(void *sarg) {
   int64_t st = 0;
   int64_t et = (int64_t)g_queryInfo.subQueryInfo.rate*1000;
   while (1) {
-    if (g_queryInfo.subQueryInfo.rate && (et - st) < g_queryInfo.subQueryInfo.rate*1000) {
+    if (g_queryInfo.subQueryInfo.rate && (et - st) < (int64_t)g_queryInfo.subQueryInfo.rate*1000) {
       taosMsleep(g_queryInfo.subQueryInfo.rate*1000 - (et - st)); // ms
       //printf("========sleep duration:%"PRId64 "========inserted rows:%d, table range:%d - %d\n", (1000 - (et - st)), i, winfo->start_table_id, winfo->end_table_id);
     }
@@ -5615,7 +5615,13 @@ void querySqlFile(TAOS* taos, char* sqlFile)
 
     memcpy(cmd + cmd_len, line, read_len);
     debugPrint("DEBUG %s() LN%d cmd: %s\n", __func__, __LINE__, cmd);
-    queryDbExec(taos, cmd, NO_INSERT_TYPE);
+    if (0 != queryDbExec(taos, cmd, NO_INSERT_TYPE)) {
+        printf("queryDbExec %s failed!\n", cmd);
+        tmfree(cmd);
+        tmfree(line);
+        tmfclose(fp);
+        return;
+    }
     memset(cmd, 0, MAX_SQL_SIZE);
     cmd_len = 0;
   }
