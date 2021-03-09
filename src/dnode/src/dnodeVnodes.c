@@ -198,6 +198,10 @@ void dnodeCleanupVnodes() {
 static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   if (pMsg->code != TSDB_CODE_SUCCESS) {
     dError("status rsp is received, error:%s", tstrerror(pMsg->code));
+    if (pMsg->code == TSDB_CODE_MND_DNODE_NOT_EXIST) {
+      dError("exit zombie dnode");
+      exit(EXIT_FAILURE);
+    }
     taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
     return;
   }
