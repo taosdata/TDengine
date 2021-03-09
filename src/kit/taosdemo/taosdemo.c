@@ -3784,7 +3784,6 @@ static void syncWriteForNumberOfTblInOneSql(
   }
 
   uint64_t time_counter = winfo->start_time;
-  int64_t tmp_time;
   int sampleUsePos;
 
   int64_t st = 0;
@@ -3792,6 +3791,7 @@ static void syncWriteForNumberOfTblInOneSql(
   for (int i = 0; i < superTblInfo->insertRows;) {
     int32_t  tbl_id = 0;
     for (int tID = winfo->start_table_id; tID <= winfo->end_table_id; ) {
+      int64_t tmp_time = 0;
       int inserted = i;
 
       for (int k = 0; k < g_args.num_of_RPR;) {
@@ -4250,7 +4250,6 @@ static void* syncWriteWithStb(void *sarg) {
     return NULL;
   }
 
-  int64_t time_counter = winfo->start_time;
   uint64_t st = 0;
   uint64_t et = 0;
 
@@ -4258,16 +4257,16 @@ static void* syncWriteWithStb(void *sarg) {
   winfo->totalAffectedRows = 0;
 
   int sampleUsePos;
-  uint64_t tmp_time;
 
   debugPrint("%s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__, superTblInfo->insertRows);
 
   for (uint32_t tID = winfo->start_table_id; tID <= winfo->end_table_id;
         tID++) {
+    int64_t start_time = winfo->start_time;
+
     for (int i = 0; i < superTblInfo->insertRows;) {
 
       int64_t tblInserted = i;
-      tmp_time = time_counter;
 
       if (i > 0 && g_args.insert_interval 
             && (g_args.insert_interval > (et - st) )) {
@@ -4333,7 +4332,7 @@ static void* syncWriteWithStb(void *sarg) {
             retLen = getRowDataFromSample(
                     pstr + len, 
                     superTblInfo->maxSqlLen - len, 
-                    tmp_time += superTblInfo->timeStampStep, 
+                    start_time + superTblInfo->timeStampStep * i,
                     superTblInfo, 
                     &sampleUsePos, 
                     fp, 
@@ -4345,7 +4344,7 @@ static void* syncWriteWithStb(void *sarg) {
             int rand_num = rand_tinyint() % 100;
             if (0 != superTblInfo->disorderRatio 
                     && rand_num < superTblInfo->disorderRatio) {
-              int64_t d = tmp_time - rand() % superTblInfo->disorderRange;
+              int64_t d = start_time - rand() % superTblInfo->disorderRange;
               retLen = generateRowData(
                       pstr + len, 
                       superTblInfo->maxSqlLen - len,
@@ -4356,7 +4355,7 @@ static void* syncWriteWithStb(void *sarg) {
               retLen = generateRowData(
                       pstr + len, 
                       superTblInfo->maxSqlLen - len, 
-                      tmp_time += superTblInfo->timeStampStep, 
+                      start_time + superTblInfo->timeStampStep * i, 
                       superTblInfo);
             }
             if (retLen < 0) {
@@ -4416,8 +4415,6 @@ static void* syncWriteWithStb(void *sarg) {
       if (g_args.insert_interval) {
         et = taosGetTimestampMs();
       }
-
-      time_counter = tmp_time;
 
       if (tblInserted >= superTblInfo->insertRows)
         break;
