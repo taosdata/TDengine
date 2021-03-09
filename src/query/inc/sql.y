@@ -64,6 +64,7 @@ program ::= cmd.    {}
 
 //////////////////////////////////THE SHOW STATEMENT///////////////////////////////////////////
 cmd ::= SHOW DATABASES.  { setShowOptions(pInfo, TSDB_MGMT_TABLE_DB, 0, 0);}
+cmd ::= SHOW TOPICS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_TP, 0, 0);}
 cmd ::= SHOW MNODES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_MNODE, 0, 0);}
 cmd ::= SHOW DNODES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_DNODE, 0, 0);}
 cmd ::= SHOW ACCOUNTS.   { setShowOptions(pInfo, TSDB_MGMT_TABLE_ACCT, 0, 0);}
@@ -131,16 +132,18 @@ cmd ::= SHOW dbPrefix(X) VGROUPS ids(Y).    {
 //drop configure for tables
 cmd ::= DROP TABLE ifexists(Y) ids(X) cpxName(Z).   {
     X.n += Z.n;
-    setDropDbTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &X, &Y, -1);
+    setDropDbTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &X, &Y, -1, -1);
 }
 
 //drop stable
 cmd ::= DROP STABLE ifexists(Y) ids(X) cpxName(Z).   {
     X.n += Z.n;
-    setDropDbTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &X, &Y, TSDB_SUPER_TABLE);
+    setDropDbTableInfo(pInfo, TSDB_SQL_DROP_TABLE, &X, &Y, -1, TSDB_SUPER_TABLE);
 }
 
-cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y, -1); }
+cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y, TSDB_DB_TYPE_DEFAULT, -1); }
+cmd ::= DROP TOPIC ifexists(Y) ids(X).    { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y, TSDB_DB_TYPE_TOPIC, -1); }
+
 cmd ::= DROP DNODE ids(X).       { setDCLSQLElems(pInfo, TSDB_SQL_DROP_DNODE, 1, &X);    }
 cmd ::= DROP USER ids(X).        { setDCLSQLElems(pInfo, TSDB_SQL_DROP_USER, 1, &X);     }
 cmd ::= DROP ACCOUNT ids(X).     { setDCLSQLElems(pInfo, TSDB_SQL_DROP_ACCT, 1, &X);  }
@@ -162,6 +165,7 @@ cmd ::= ALTER DNODE ids(X) ids(Y) ids(Z).       { setDCLSQLElems(pInfo, TSDB_SQL
 cmd ::= ALTER LOCAL ids(X).                     { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 1, &X);              }
 cmd ::= ALTER LOCAL ids(X) ids(Y).              { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 2, &X, &Y);          }
 cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SStrToken t = {0};  setCreateDbInfo(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
+cmd ::= ALTER TOPIC ids(X) alter_topic_optr(Y). { SStrToken t = {0};  setCreateDbInfo(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
 
 cmd ::= ALTER ACCOUNT ids(X) acct_optr(Z).      { setCreateAcctSql(pInfo, TSDB_SQL_ALTER_ACCT, &X, NULL, &Z);}
 cmd ::= ALTER ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).      { setCreateAcctSql(pInfo, TSDB_SQL_ALTER_ACCT, &X, &Y, &Z);}
@@ -187,6 +191,7 @@ cmd ::= CREATE DNODE   ids(X).     { setDCLSQLElems(pInfo, TSDB_SQL_CREATE_DNODE
 cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
                                 { setCreateAcctSql(pInfo, TSDB_SQL_CREATE_ACCT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
+cmd ::= CREATE TOPIC ifnotexists(Z) ids(X) topic_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
 cmd ::= CREATE USER ids(X) PASS ids(Y).     { setCreateUserSql(pInfo, &X, &Y);}
 
 pps(Y) ::= .                                { Y.n = 0;   }
@@ -247,6 +252,7 @@ comp(Y)    ::= COMP INTEGER(X).               { Y = X; }
 prec(Y)    ::= PRECISION STRING(X).           { Y = X; }
 update(Y)  ::= UPDATE INTEGER(X).             { Y = X; }     
 cachelast(Y) ::= CACHELAST INTEGER(X).        { Y = X; }
+partitions(Y) ::= PARTITIONS INTEGER(X).      { Y = X; }
 
 %type db_optr {SCreateDbInfo}
 db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
@@ -267,6 +273,11 @@ db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
 db_optr(Y) ::= db_optr(Z) update(X).         { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) cachelast(X).      { Y = Z; Y.cachelast = strtol(X.z, NULL, 10); }
 
+%type topic_optr {SCreateDbInfo}
+
+topic_optr(Y) ::= db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_TYPE_TOPIC; }
+topic_optr(Y) ::= topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
+
 %type alter_db_optr {SCreateDbInfo}
 alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y);}
 
@@ -279,6 +290,11 @@ alter_db_optr(Y) ::= alter_db_optr(Z) wal(X).         { Y = Z; Y.walLevel = strt
 alter_db_optr(Y) ::= alter_db_optr(Z) fsync(X).       { Y = Z; Y.fsyncPeriod = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) update(X).      { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) cachelast(X).   { Y = Z; Y.cachelast = strtol(X.z, NULL, 10); }
+
+%type alter_topic_optr {SCreateDbInfo}
+
+alter_topic_optr(Y) ::= alter_db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_TYPE_TOPIC; }
+alter_topic_optr(Y) ::= alter_topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
 
 %type typename {TAOS_FIELD}
 typename(A) ::= ids(X). { 
