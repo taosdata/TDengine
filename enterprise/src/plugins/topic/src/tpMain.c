@@ -16,8 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taosdef.h"
+#include "taoserror.h"
 #include "tglobal.h"
 #include "mnode.h"
+#include "dnode.h"
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeDb.h"
@@ -33,20 +35,21 @@
 extern void *  tsDbSdb;
 extern char *  mnodeGetDbStr(char *src);
 extern int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
-static int32_t mnodeGetTpMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
-static int32_t mnodeRetrieveTps(SShowObj *pShow, char *data, int32_t rows, void *pConn);
-static int32_t mnodeProcessCreateTpMsg(SMnodeMsg *pMsg);
-static int32_t mnodeProcessAlterTpMsg(SMnodeMsg *pMsg);
-static int32_t mnodeProcessDropTpMsg(SMnodeMsg *pMsg);
-static void    mnodeCancelGetNextTp(void *pIter);
+static int32_t tpGetTpMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t tpRetrieveTps(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static void    tpCancelGetNextTp(void *pIter);
+static int32_t tpRunInThread(int32_t msgType, SMnodeMsg *pMsg);
+static int32_t tpProcessCreateTpMsg(SMnodeMsg *pMsg) { return tpRunInThread(TSDB_MSG_TYPE_CM_CREATE_TP, pMsg); }
+static int32_t tpProcessAlterTpMsg(SMnodeMsg *pMsg) { return tpRunInThread(TSDB_MSG_TYPE_CM_ALTER_TP, pMsg); }
+static int32_t tpProcessDropTpMsg(SMnodeMsg *pMsg) { return tpRunInThread(TSDB_MSG_TYPE_CM_DROP_TP, pMsg); }
 
 int32_t tpInit() {
-  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_TP, mnodeProcessCreateTpMsg);
-  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_TP, mnodeProcessAlterTpMsg);
-  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_TP, mnodeProcessDropTpMsg);
-  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_TP, mnodeGetTpMeta);
-  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_TP, mnodeRetrieveTps);
-  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_TP, mnodeCancelGetNextTp);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_TP, tpProcessCreateTpMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_TP, tpProcessAlterTpMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_TP, tpProcessDropTpMsg);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_TP, tpGetTpMeta);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_TP, tpRetrieveTps);
+  mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_TP, tpCancelGetNextTp);
 
   return 0;
 }
@@ -54,13 +57,52 @@ int32_t tpInit() {
 void tpCleanUp() {}
 
 void tpBuildCreateDbSql(char *sql, SCreateDbMsg *pCreate) {
+  int32_t maxTables = htonl(pCreate->maxTables);
+  int32_t cacheBlockSize = htonl(pCreate->cacheBlockSize);
+  int32_t totalBlocks = htonl(pCreate->totalBlocks);
+  int32_t daysPerFile = htonl(pCreate->daysPerFile);
+  int32_t daysToKeep = htonl(pCreate->daysToKeep);
+  int32_t daysToKeep1 = htonl(pCreate->daysToKeep1);
+  int32_t daysToKeep2 = htonl(pCreate->daysToKeep2);
+  int32_t commitTime = htonl(pCreate->commitTime);
+  int32_t fsyncPeriod = htonl(pCreate->fsyncPeriod);
+  int32_t partitions = htons(pCreate->partitions);
+  int32_t minRowsPerFileBlock = htonl(pCreate->minRowsPerFileBlock);
+  int32_t maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
+  int8_t  precision = pCreate->precision;
+  int8_t  compression = pCreate->compression;
+  int8_t  walLevel = pCreate->walLevel;
+  int8_t  replications = pCreate->replications;
+  int8_t  quorum = pCreate->quorum;
+  int8_t  update = pCreate->update;
+  int8_t  cacheLastRow = pCreate->cacheLastRow;
+
+  if (maxTables < 0) maxTables = tsMaxTablePerVnode;
+  if (cacheBlockSize < 0) cacheBlockSize = tsCacheBlockSize;
+  if (totalBlocks < 0) totalBlocks = tsBlocksPerVnode;
+  if (daysPerFile < 0) daysPerFile = tsDaysPerFile;
+  if (daysToKeep < 0) daysToKeep = tsDaysToKeep;
+  if (daysToKeep1 < 0) daysToKeep1 = daysToKeep;
+  if (daysToKeep2 < 0) daysToKeep2 = daysToKeep;
+  if (commitTime < 0) commitTime = tsCommitTime;
+  if (fsyncPeriod < 0) fsyncPeriod = tsFsyncPeriod;
+  if (partitions < 0) partitions = tsPartitons;
+  if (minRowsPerFileBlock < 0) minRowsPerFileBlock = tsMinRowsInFileBlock;
+  if (maxRowsPerFileBlock < 0) maxRowsPerFileBlock = tsMaxRowsInFileBlock;
+  if (precision < 0) precision = tsTimePrecision;
+  if (compression < 0) compression = tsCompression;
+  if (walLevel < 0) walLevel = tsWAL;
+  if (replications < 0) replications = tsReplications;
+  if (quorum < 0) quorum = tsQuorum;
+  if (update < 0) update = tsUpdate;
+  if (cacheLastRow < 0) cacheLastRow = tsCacheLastRow;
+
   snprintf(sql, TP_SCHEMA_SQL_LEN,
            "create database if not exists %s replica %d days %d keep %d minrows %d maxrows %d cache %d blocks %d "
            "ctime %d wal %d "
-           "fsync %d comp %d quorum %d cachelast %d precision us update 1",
-           pCreate->db, pCreate->replications, pCreate->daysPerFile, pCreate->daysToKeep, pCreate->minRowsPerFileBlock,
-           pCreate->maxRowsPerFileBlock, pCreate->cacheBlockSize, pCreate->totalBlocks, pCreate->commitTime,
-           pCreate->walLevel, pCreate->fsyncPeriod, pCreate->compression, pCreate->quorum, pCreate->cacheLastRow);
+           "fsync %d comp %d quorum %d cachelast %d precision 'us' update 0",
+           mnodeGetDbStr(pCreate->db), replications, daysPerFile, daysToKeep, minRowsPerFileBlock, maxRowsPerFileBlock,
+           cacheBlockSize, totalBlocks, commitTime, walLevel, fsyncPeriod, compression, quorum, cacheLastRow);
 }
 
 static void tpBuildDropDbSql(char *sql, const char *topic) {
@@ -68,7 +110,7 @@ static void tpBuildDropDbSql(char *sql, const char *topic) {
 }
 
 static void tpBuildCreateStableSql(char *sql, const char *topic) {
-  snprintf(sql, TP_SCHEMA_SQL_LEN, "create table if not exists %s.partitions (offset timestamp, content binary(%d))",
+  snprintf(sql, TP_SCHEMA_SQL_LEN, "create table if not exists %s.ps (off timestamp, content binary(%d)) tags(pid int)",
            topic, TP_BINARY_LEN);
 }
 
@@ -172,110 +214,177 @@ static int32_t tpDropTopicCtable(TAOS *taos, const char *topic, int32_t oldParti
   return 0;
 }
 
-static int32_t mnodeProcessCreateTpMsg(SMnodeMsg *pMsg) {
+static void *tpProcessCreateTp(void *param) {
+  SMnodeMsg *   pMsg = param;
   SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
-  pCreate->maxTables = htonl(pCreate->maxTables);
-  pCreate->cacheBlockSize = htonl(pCreate->cacheBlockSize);
-  pCreate->totalBlocks = htonl(pCreate->totalBlocks);
-  pCreate->daysPerFile = htonl(pCreate->daysPerFile);
-  pCreate->daysToKeep = htonl(pCreate->daysToKeep);
-  pCreate->daysToKeep1 = htonl(pCreate->daysToKeep1);
-  pCreate->daysToKeep2 = htonl(pCreate->daysToKeep2);
-  pCreate->commitTime = htonl(pCreate->commitTime);
-  pCreate->fsyncPeriod = htonl(pCreate->fsyncPeriod);
-  pCreate->partitions = htons(pCreate->partitions);
-  pCreate->minRowsPerFileBlock = htonl(pCreate->minRowsPerFileBlock);
-  pCreate->maxRowsPerFileBlock = htonl(pCreate->maxRowsPerFileBlock);
+
+  int32_t partitions = htons(pCreate->partitions);
+  mDebug("topic:%s, start to create, partitions:%d", pCreate->db, partitions);
+  int32_t code = 0;
+
+  if (partitions < 1 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
+    mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, 1, TSDB_MAX_DB_PARTITON_OPTION);
+    code = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+    goto ctp_over;
+  }
 
   void *taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
   if (taos == NULL) {
     mError("failed to connect to database, reason:%s", tstrerror(terrno));
-    return terrno;
+    code = terrno;
+    goto ctp_over;
   } else {
     mDebug("connect to database success");
   }
 
-  int32_t code = tpCreateTopicDb(taos, pCreate);
+  code = tpCreateTopicDb(taos, pCreate);
   if (code != 0) {
-    taos_close(taos);
-    return code;
+    goto ctp_over;
   }
 
-  code = tpCreateTopicStable(taos, pCreate->db);
+  SDbObj *pDb = mnodeGetDb(pCreate->db);
+  if (pDb != NULL) pDb->cfg.dbType = TSDB_DB_TYPE_TOPIC;
+
+  code = tpCreateTopicStable(taos, mnodeGetDbStr(pCreate->db));
   if (code != 0) {
-    taos_close(taos);
-    return code;
+    goto ctp_over;
   }
 
-  code = tpCreateTopicCtable(taos, pCreate->db, pCreate->partitions);
+  code = tpCreateTopicCtable(taos, mnodeGetDbStr(pCreate->db), partitions);
   if (code != 0) {
-    taos_close(taos);
-    return code;
+    goto ctp_over;
   }
 
-  mInfo("topic:%s, create success, partitions:%d", pCreate->db, pCreate->partitions);
-  return 0;
+  mInfo("topic:%s, all table created", pCreate->db);
+
+ctp_over:
+  taos_close(taos);
+  if (code == 0) {
+    if (pDb != NULL) pDb->cfg.dbType = TSDB_DB_TYPE_DEFAULT;
+    pCreate->dbType = TSDB_DB_TYPE_TOPIC;
+    code = mnodeProcessAlterDbMsg(pMsg);
+  }
+
+  dnodeSendRpcMWriteRsp(pMsg, code);
+
+  mDebug("topic:%s, create topic thread finished", pCreate->db);
+  return NULL;
 }
 
-static int32_t mnodeProcessAlterTpMsg(SMnodeMsg *pMsg) {
+static void *tpProcessAlterTp(void *param) {
+  SMnodeMsg *  pMsg = param;
+  void *       taos = NULL;
   SAlterDbMsg *pAlter = pMsg->rpcMsg.pCont;
   int32_t      partitions = htons(pAlter->partitions);
 
+  int32_t code = 0;
+
   if (partitions < 1 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
     mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, 1, TSDB_MAX_DB_PARTITON_OPTION);
-    return TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+    code = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+    goto atp_over;
   }
 
   SDbObj *pDb = mnodeGetDb(pAlter->db);
   if (pDb == NULL || pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
     mError("topic:%s, failed to alter, invalid topic", pAlter->db);
-    return TSDB_CODE_MND_INVALID_TOPIC;
+    goto atp_over;
   }
 
   int32_t oldPartitons = pDb->cfg.partitions;
   pDb->cfg.partitions = partitions;
+  mDebug("topic:%s, start to alter, partitions:%d, old:%d", pAlter->db, partitions, oldPartitons);
 
-  void *taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
+  taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
   if (taos == NULL) {
     mError("failed to connect to database, reason:%s", tstrerror(terrno));
-    return terrno;
+    code = terrno;
+    goto atp_over;
   } else {
     mDebug("connect to database success");
   }
 
-  
-  tpCreateTopicCtable(taos, pAlter->db, partitions);
-  tpDropTopicCtable(taos, pAlter->db, oldPartitons, partitions);
+  tpCreateTopicCtable(taos, mnodeGetDbStr(pAlter->db), partitions);
+  tpDropTopicCtable(taos, mnodeGetDbStr(pAlter->db), oldPartitons, partitions);
 
-  mInfo("topic:%s, alter success, partitions:%d", pAlter->db, pAlter->partitions);
+  mInfo("topic:%s, all table updated, partitions:%d", pAlter->db, partitions);
+
+atp_over:
   taos_close(taos);
+  if (code == 0) {
+    pAlter->dbType = TSDB_DB_TYPE_TOPIC;
+    code = mnodeProcessAlterDbMsg(pMsg);
+  }
 
-  return mnodeProcessAlterDbMsg(pMsg);
+  dnodeSendRpcMWriteRsp(pMsg, code);
+
+  mDebug("topic:%s, alter topic thread finished", pAlter->db);
+  return NULL;
 }
 
-static int32_t mnodeProcessDropTpMsg(SMnodeMsg *pMsg) {
+static void *tpProcessDropTp(void *param) {
+  SMnodeMsg * pMsg = param;
   SDropDbMsg *pDrop = pMsg->rpcMsg.pCont;
+
+  mDebug("topic:%s, start to drop", pDrop->db);
+  int32_t code = 0;
 
   void *taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
   if (taos == NULL) {
     mError("failed to connect to database, reason:%s", tstrerror(terrno));
-    return terrno;
+    code = terrno;
+    goto dtp_over;
   } else {
     mDebug("connect to database success");
   }
 
-  int32_t code = tpDropTopicDb(taos, pDrop->db);
+  code = tpDropTopicDb(taos, mnodeGetDbStr(pDrop->db));
   if (code != 0) {
-    taos_close(taos);
-    return code;
+    goto dtp_over;
   }
 
   mInfo("topic:%s, drop success", pDrop->db);
+
+dtp_over:
   taos_close(taos);
-  return 0;
+  dnodeSendRpcMWriteRsp(pMsg, code);
+
+  mDebug("topic:%s, drop topic thread finished", pDrop->db);
+  return NULL;
 }
 
-static int32_t mnodeGetTpMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+static int32_t tpRunInThread(int32_t msgType, SMnodeMsg *pMsg) {
+  mDebug("msg:%s will be processd in topic thread", taosMsg[msgType]);
+
+  void *(*msgFp)(void *arg) = NULL;
+  if (msgType == TSDB_MSG_TYPE_CM_CREATE_TP) {
+    msgFp = tpProcessCreateTp;
+  } else if (msgType == TSDB_MSG_TYPE_CM_ALTER_TP) {
+    msgFp = tpProcessAlterTp;
+  } else if (msgType == TSDB_MSG_TYPE_CM_DROP_TP) {
+    msgFp = tpProcessDropTp;
+  } else {
+  }
+
+  if (msgFp == NULL) {
+    mDebug("msg:%s won't be processed in topic thread", taosMsg[msgType]);
+    return TSDB_CODE_MND_MSG_NOT_PROCESSED;
+  }
+
+  pthread_t      threadID;
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  if (pthread_create(&threadID, &thattr, msgFp, pMsg) != 0) {
+    mError("failed to topic thread since %s", strerror(errno));
+    return TSDB_CODE_MND_APP_ERROR;
+  }
+  mTrace("topic thread is created to process msg:%s", taosMsg[msgType]);
+
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+}
+
+static int32_t tpGetTpMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
 
   SSchema * pSchema = pMeta->schema;
@@ -315,7 +424,7 @@ static int32_t mnodeGetTpMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
   return 0;
 }
 
-static int32_t mnodeRetrieveTps(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+static int32_t tpRetrieveTps(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t   numOfRows = 0;
   SDbObj *  pDb = NULL;
   char *    pWrite;
@@ -362,7 +471,7 @@ static int32_t mnodeRetrieveTps(SShowObj *pShow, char *data, int32_t rows, void 
   return numOfRows;
 }
 
-void mnodeCancelGetNextTp(void *pIter) {
+void tpCancelGetNextTp(void *pIter) {
   sdbFreeIter(tsDbSdb, pIter);
 }
 
