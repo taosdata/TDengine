@@ -161,7 +161,7 @@ static bool isFixedOutputQuery(SQuery* pQuery);
 
 static SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime, int32_t reverseTime);
 static SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime);
-static SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, bool loadExternalRows);
+static SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
 
 static SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 static SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
@@ -225,47 +225,6 @@ static void* destroyOutputBuf(SSDataBlock* pBlock) {
   tfree(pBlock->pBlockStatis);
   tfree(pBlock);
   return NULL;
-}
-
-bool doFilterData(SQuery *pQuery, int32_t elemPos) {
-  for (int32_t k = 0; k < pQuery->numOfFilterCols; ++k) {
-    SSingleColumnFilterInfo *pFilterInfo = &pQuery->pFilterInfo[k];
-
-    char *pElem = (char*)pFilterInfo->pData + pFilterInfo->info.bytes * elemPos;
-
-    bool qualified = false;
-    for (int32_t j = 0; j < pFilterInfo->numOfFilters; ++j) {
-      SColumnFilterElem *pFilterElem = &pFilterInfo->pFilters[j];
-
-      bool isnull = isNull(pElem, pFilterInfo->info.type);
-      if (isnull) {
-        if (pFilterElem->fp == isNullOperator) {
-          qualified = true;
-          break;
-        } else {
-          continue;
-        }
-      } else {
-        if (pFilterElem->fp == notNullOperator) {
-          qualified = true;
-          break;
-        } else if (pFilterElem->fp == isNullOperator) {
-          continue;
-        }
-      }
-
-      if (pFilterElem->fp(pFilterElem, pElem, pElem, pFilterInfo->info.type)) {
-        qualified = true;
-        break;
-      }
-    }
-
-    if (!qualified) {
-      return false;
-    }
-  }
-
-  return true;
 }
 
 int64_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput) {
@@ -2448,21 +2407,23 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
   SQInfo*         pQInfo = pRuntimeEnv->qinfo;
   SQueryCostInfo* pCost = &pQInfo->summary;
 
-  if (pRuntimeEnv->pTsBuf != NULL && pQuery->stableQuery) {
-    SExprInfo*   pExprInfo = &pTableScanInfo->pExpr[0];
-    int16_t      tagId = (int16_t)pExprInfo->base.arg->argValue.i64;
-    SColumnInfo* pColInfo = doGetTagColumnInfoById(pQuery->tagColList, pQuery->numOfTags, tagId);
+  if (pRuntimeEnv->pTsBuf != NULL) {
+    *status = BLK_DATA_ALL_NEEDED;
 
-    // compare tag first
-    tVariant t = {0};
-    doSetTagValueInParam(pQuery->current->pTable, tagId, &t, pColInfo->type, pColInfo->bytes);
+    if (pQuery->stableQuery) {
+      SExprInfo*   pExprInfo = &pTableScanInfo->pExpr[0];
+      int16_t      tagId = (int16_t)pExprInfo->base.arg->argValue.i64;
+      SColumnInfo* pColInfo = doGetTagColumnInfoById(pQuery->tagColList, pQuery->numOfTags, tagId);
 
-    STSElem elem = tsBufGetElem(pRuntimeEnv->pTsBuf);
-    if (tsBufIsValidElem(&elem) && tVariantCompare(&t, elem.tag) == 0) {
-      *status = BLK_DATA_ALL_NEEDED;
-    } else {
-      (*status) = BLK_DATA_DISCARD;
-      return TSDB_CODE_SUCCESS;
+      // compare tag first
+      tVariant t = {0};
+      doSetTagValueInParam(pQuery->current->pTable, tagId, &t, pColInfo->type, pColInfo->bytes);
+
+      STSElem elem = tsBufGetElem(pRuntimeEnv->pTsBuf);
+      if (!tsBufIsValidElem(&elem) || (tsBufIsValidElem(&elem) && (tVariantCompare(&t, elem.tag) != 0))) {
+        (*status) = BLK_DATA_DISCARD;
+        return TSDB_CODE_SUCCESS;
+      }
     }
   }
 
@@ -3870,7 +3831,7 @@ static int compareBlockInfo(const void *pLeft, const void *pRight) {
 
 static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo);
 
-static void setTableQueryHandle(SQueryRuntimeEnv* pRuntimeEnv, int32_t tableIndex) {
+static UNUSED_FUNC void setTableQueryHandle(SQueryRuntimeEnv* pRuntimeEnv, int32_t tableIndex) {
   SQuery* pQuery = pRuntimeEnv->pQuery;
 
   int32_t numOfGroup = GET_NUM_OF_TABLEGROUP(pRuntimeEnv);
@@ -3920,12 +3881,15 @@ static int32_t setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) 
   // TODO set the tags scan handle
   if (onlyQueryTags(pQuery)) {
     return TSDB_CODE_SUCCESS;
-  } else if (isTsCompQuery(pQuery)) {
-    setTableQueryHandle(pRuntimeEnv, 0);
-    return terrno;
+//  } else if (isTsCompQuery(pQuery)) {
+//    setTableQueryHandle(pRuntimeEnv, 0);
+//    return terrno;
   }
 
   STsdbQueryCond cond = createTsdbQueryCond(pQuery, &pQuery->window);
+  if (isTsCompQuery(pQuery) || isPointInterpoQuery(pQuery)) {
+    cond.type = BLOCK_LOAD_TABLE_SEQ_ORDER;
+  }
 
   if (!isSTableQuery
     && (pRuntimeEnv->tableqinfoGroupInfo.numOfTables == 1)
@@ -4034,7 +3998,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   } else if (pQuery->queryBlockDist) {
     pRuntimeEnv->pTableScanner = createTableBlockInfoScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
   } else if (isTsCompQuery(pQuery) || isPointInterpoQuery(pQuery)) {
-    pRuntimeEnv->pTableScanner = createTableSeqScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv, isPointInterpoQuery(pQuery));
+    pRuntimeEnv->pTableScanner = createTableSeqScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
   } else if (needReverseScan(pQuery)) {
     pRuntimeEnv->pTableScanner = createDataBlocksOptScanInfo(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQuery), 1);
   } else {
@@ -4095,6 +4059,7 @@ STsdbQueryCond createTsdbQueryCond(SQuery* pQuery, STimeWindow* win) {
       .colList   = pQuery->colList,
       .order     = pQuery->order.order,
       .numOfCols = pQuery->numOfCols,
+      .type      = BLOCK_LOAD_OFFSET_SEQ_ORDER,
       .loadExternalRows = false,
   };
 
@@ -4173,25 +4138,7 @@ static SSDataBlock* doTableScanImpl(STableScanInfo *pTableScanInfo) {
       continue;
     }
 
-    if (pTableScanInfo->loadExternalRows) {
-       pTableScanInfo->externalLoaded = true;
-    }
-
     return pBlock;
-  }
-
-  if (pTableScanInfo->loadExternalRows && (!pTableScanInfo->externalLoaded)) {
-    pBlock->pDataBlock = tsdbGetExternalRow(pTableScanInfo->pQueryHandle, &pBlock->info);
-    pTableScanInfo->externalLoaded = true;
-
-    if (pBlock->pDataBlock != NULL) {
-      STableQueryInfo** pTableQueryInfo =
-          (STableQueryInfo**)taosHashGet(pTableGroupInfo->map, &pBlock->info.tid, sizeof(pBlock->info.tid));
-      assert(*pTableQueryInfo != NULL);
-      pQuery->current = *pTableQueryInfo;
-    }
-
-    return (pBlock->pDataBlock != NULL)? pBlock:NULL;
   }
 
   return NULL;
@@ -4273,25 +4220,26 @@ static SSDataBlock* doSeqTableBlocksScan(void* param) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
 
   STableScanInfo   *pTableScanInfo = pOperator->info;
-  SQueryRuntimeEnv *pRuntimeEnv = pTableScanInfo->pRuntimeEnv;
+//  SQueryRuntimeEnv *pRuntimeEnv = pTableScanInfo->pRuntimeEnv;
 
-  int32_t totalTables = pRuntimeEnv->tableqinfoGroupInfo.numOfTables;
+//  int32_t totalTables = pRuntimeEnv->tableqinfoGroupInfo.numOfTables;
 
-  while (1) {
-    SSDataBlock* p = doTableScanImpl(pTableScanInfo);
-    if (p != NULL) {
-      return p;
-    }
+//  while (1) {
+    return doTableScanImpl(pTableScanInfo);
+//    SSDataBlock* p = doTableScanImpl(pTableScanInfo);
+//    if (p != NULL) {
+//      return p;
+//    }
 
     // try the next table
-    if (++pTableScanInfo->tableIndex >= totalTables) {
-      return NULL;
-    }
-
-    setTableQueryHandle(pRuntimeEnv, pTableScanInfo->tableIndex);
-    pTableScanInfo->pQueryHandle = pRuntimeEnv->pQueryHandle;
-    pTableScanInfo->externalLoaded = false;
-  }
+//    if (++pTableScanInfo->tableIndex >= totalTables) {
+//      return NULL;
+//    }
+//
+//    setTableQueryHandle(pRuntimeEnv, pTableScanInfo->tableIndex);
+//    pTableScanInfo->pQueryHandle = pRuntimeEnv->pQueryHandle;
+//    pTableScanInfo->externalLoaded = false;
+//  }
 }
 
 static SSDataBlock* doBlockInfoScan(void* param) {
@@ -4354,7 +4302,7 @@ SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv*
   return pOperator;
 }
 
-SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, bool loadExternalRows) {
+SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv) {
   STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
 
   pInfo->pQueryHandle     = pTsdbQueryHandle;
@@ -4363,7 +4311,6 @@ SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeE
   pInfo->order            = pRuntimeEnv->pQuery->order.order;
   pInfo->current          = 0;
   pInfo->pRuntimeEnv      = pRuntimeEnv;
-  pInfo->loadExternalRows = loadExternalRows;
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "TableSeqScanOperator";

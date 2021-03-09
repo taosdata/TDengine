@@ -3106,30 +3106,6 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
   }
 }
 
-static UNUSED_FUNC void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pField) {
-  SSqlRes *pRes = &pSql->res;
-  
-  if (pRes->tsrow[columnIndex] != NULL && pField->type == TSDB_DATA_TYPE_NCHAR) {
-    // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
-    if (pRes->buffer[columnIndex] == NULL) {
-      pRes->buffer[columnIndex] = malloc(pField->bytes + TSDB_NCHAR_SIZE);
-    }
-    
-    /* string terminated char for binary data*/
-    memset(pRes->buffer[columnIndex], 0, pField->bytes + TSDB_NCHAR_SIZE);
-    
-    int32_t length = taosUcs4ToMbs(pRes->tsrow[columnIndex], pRes->length[columnIndex], pRes->buffer[columnIndex]);
-    if ( length >= 0 ) {
-      pRes->tsrow[columnIndex] = (unsigned char*)pRes->buffer[columnIndex];
-      pRes->length[columnIndex] = length;
-    } else {
-      tscError("%p charset:%s to %s. val:%s convert failed.", pSql, DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)pRes->tsrow[columnIndex]);
-      pRes->tsrow[columnIndex] = NULL;
-      pRes->length[columnIndex] = 0;
-    }
-  }
-}
-
 char *getArithmeticInputSrc(void *param, const char *name, int32_t colId) {
   SArithmeticSupport *pSupport = (SArithmeticSupport *) param;
 

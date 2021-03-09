@@ -158,13 +158,18 @@ int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pR
 
 typedef void *TsdbQueryHandleT;  // Use void to hide implementation details
 
-// query condition to build vnode iterator
+#define BLOCK_LOAD_OFFSET_SEQ_ORDER   1
+#define BLOCK_LOAD_TABLE_SEQ_ORDER    2
+#define BLOCK_LOAD_TABLE_RR_ORDER     3
+
+// query condition to build multi-table data block iterator
 typedef struct STsdbQueryCond {
   STimeWindow  twindow;
   int32_t      order;             // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo *colList;
   bool         loadExternalRows;  // load external rows or not
+  int32_t      type;              // data block load type:
 } STsdbQueryCond;
 
 typedef struct SMemRef {
@@ -266,17 +271,7 @@ int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle);
  * @param pQueryHandle
  * @return
  */
-bool tsdbNextDataBlock(TsdbQueryHandleT *pQueryHandle);
-
-/**
- * move to next block if exists but not merge data in memtable 
- *
- * @param pQueryHandle
- * @return
- */
-bool tsdbNextDataBlockWithoutMerge(TsdbQueryHandleT *pQueryHandle);
-
-SArray* tsdbGetExternalRow(TsdbQueryHandleT *pHandle, SDataBlockInfo* blockInfo);
+bool tsdbNextDataBlock(TsdbQueryHandleT pQueryHandle);
 
 /**
  * Get current data block information
