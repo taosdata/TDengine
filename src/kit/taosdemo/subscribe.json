@@ -5,7 +5,7 @@
   "port": 6030,
   "user": "root",
   "password": "taosdata",
-  "databases": "db",
+  "databases": "dbx",
   "specified_table_query":
     {"concurrent":1, "mode":"sync", "interval":5000, "restart":"yes", "keepProgress":"yes",
      "sqls": [{"sql": "select avg(col1) from stb01 where col1 > 1;", "result": "./subscribe_res0.txt"}]

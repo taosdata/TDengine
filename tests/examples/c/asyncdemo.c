@@ -99,8 +99,6 @@ int main(int argc, char *argv[])
   tableList = (STable *)malloc(size);
   memset(tableList, 0, size);
 
-  taos_init();
-
   taos = taos_connect(argv[1], "root", "taosdata", NULL, 0);
   if (taos == NULL)
     taos_error(taos);

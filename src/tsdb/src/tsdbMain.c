@@ -597,7 +597,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
           // Get the data in row
           ASSERT(pTable->lastRow == NULL);
           STSchema *pSchema = tsdbGetTableSchema(pTable);
-          pTable->lastRow = taosTMalloc(schemaTLen(pSchema));
+          pTable->lastRow = taosTMalloc(dataRowMaxBytesFromSchema(pSchema));
           if (pTable->lastRow == NULL) {
             terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
             tsdbDestroyReadH(&readh);

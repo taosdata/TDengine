@@ -55,8 +55,14 @@ pipeline {
             sh '''
             cd ${WKC}/tests
             ./test-all.sh b1
+            date'''
+            sh '''
             cd ${WKC}/tests
             ./test-all.sh full jdbc
+            date'''
+            sh '''
+            cd ${WKC}/tests
+            ./test-all.sh full unit
             date'''
           }
         }

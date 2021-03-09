@@ -308,7 +308,7 @@ public class DatabaseMetaDataResultSet implements ResultSet {
                 return colMetaData.getColIndex() + 1;
             }
         }
-        throw new SQLException(TSDBConstants.INVALID_VARIABLES);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
     }
 
     @Override
