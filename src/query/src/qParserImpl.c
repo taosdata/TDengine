@@ -946,10 +946,10 @@ void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {
 
 
 void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo) {
+  setDefaultCreateDbOption(pDBInfo);
+
   pDBInfo->dbType = TSDB_DB_TYPE_TOPIC;
   pDBInfo->partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
-
-  setDefaultCreateDbOption(pDBInfo);
 }
 
 
