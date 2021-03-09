@@ -459,8 +459,8 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
     maxVgroupsPerDb = MIN(maxVgroupsPerDb, TSDB_MAX_VNODES_PER_DB);
   }
 
-  if (pDb->cfg.dbType == TSDB_DB_TYPE_TOPIC && pDb->cfg.partitions > 0) {
-    maxVgroupsPerDb = pDb->cfg.partitions;
+  if (pDb->cfg.dbType == TSDB_DB_TYPE_TOPIC) {
+    maxVgroupsPerDb = TSDB_MAX_DB_PARTITON_OPTION;
   }
 
   int32_t code = TSDB_CODE_MND_NO_ENOUGH_DNODES;

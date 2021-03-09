@@ -1,0 +1,351 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ==== step1 
+sql create topic t1 partitions 2;
+sql show t1.tables
+if $rows != 2 then 
+  return -1
+endi
+if $data00 != p1 then 
+  return -1
+endi
+if $data10 != p2 then 
+  return -1
+endi
+sql show t1.vgroups
+if $rows != 2 then 
+  return -1
+endi
+
+sql insert into t1.p1 values(now, '1');
+sql insert into t1.p1 values(now, '2');
+sql insert into t1.p1 values(now, '3');
+sql insert into t1.p1 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql insert into t1.p1 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p1 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql insert into t1.p2 values(now, '1');
+sql insert into t1.p2 values(now, '2');
+sql insert into t1.p2 values(now, '3');
+sql insert into t1.p2 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql insert into t1.p2 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p2 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql_error insert into t1.p3 values(now, '1');
+sql_error insert into t1.p3 values(now, '2');
+sql_error insert into t1.p3 values(now, '3');
+sql_error insert into t1.p3 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql_error insert into t1.p3 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p3 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql select * from t1.p1 order by off desc
+if $rows != 21 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data10 != 3 then 
+  return -1
+endi
+
+sql select * from t1.p2 order by off desc
+if $rows != 21 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data10 != 3 then 
+  return -1
+endi
+
+print ==== step2
+sql alter topic t1 partitions 4;
+sql show t1.tables
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != p1 then 
+  return -1
+endi
+if $data10 != p2 then 
+  return -1
+endi
+if $data10 != p3 then 
+  return -1
+endi
+if $data10 != p4 then 
+  return -1
+endi
+sql show t1.vgroups
+if $rows != 4 then 
+  return -1
+endi
+
+sql insert into t1.p1 values(now, '1');
+sql insert into t1.p1 values(now, '2');
+sql insert into t1.p1 values(now, '3');
+sql insert into t1.p1 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql insert into t1.p1 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p1 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql insert into t1.p2 values(now, '1');
+sql insert into t1.p2 values(now, '2');
+sql insert into t1.p2 values(now, '3');
+sql insert into t1.p2 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql insert into t1.p2 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p2 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql insert into t1.p3 values(now, '1');
+sql insert into t1.p3 values(now, '2');
+sql insert into t1.p3 values(now, '3');
+sql insert into t1.p3 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql insert into t1.p3 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p3 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql insert into t1.p4 values(now, '1');
+sql insert into t1.p4 values(now, '2');
+sql insert into t1.p4 values(now, '3');
+sql insert into t1.p4 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql insert into t1.p4 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p4 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql_error insert into t1.p5 values(now, '1');
+sql_error insert into t1.p5 values(now, '2');
+sql_error insert into t1.p5 values(now, '3');
+sql_error insert into t1.p5 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql_error insert into t1.p5 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p5 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql select * from t1.p1 order by off desc
+if $rows != 42 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data10 != 3 then 
+  return -1
+endi
+
+sql select * from t1.p2 order by off desc
+if $rows != 42 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data10 != 3 then 
+  return -1
+endi
+
+sql select * from t1.p3 order by off desc
+if $rows != 21 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data10 != 3 then 
+  return -1
+endi
+
+sql select * from t1.p3 order by off desc
+if $rows != 21 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data10 != 3 then 
+  return -1
+endi
+
+print ==== step3
+sql alter topic t1 partitions 1;
+sql show t1.tables
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != p1 then 
+  return -1
+endi
+sql show t1.vgroups
+if $rows != 1 then 
+  return -1
+endi
+
+sql insert into t1.p1 values(now, '1');
+sql insert into t1.p1 values(now, '2');
+sql insert into t1.p1 values(now, '3');
+sql insert into t1.p1 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql insert into t1.p1 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p1 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql_error insert into t1.p2 values(now, '1');
+sql_error insert into t1.p2 values(now, '2');
+sql_error insert into t1.p2 values(now, '3');
+sql_error insert into t1.p2 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql_error insert into t1.p2 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p2 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql_error insert into t1.p3 values(now, '1');
+sql_error insert into t1.p3 values(now, '2');
+sql_error insert into t1.p3 values(now, '3');
+sql_error insert into t1.p3 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql_error insert into t1.p3 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p3 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql_error insert into t1.p4 values(now, '1');
+sql_error insert into t1.p4 values(now, '2');
+sql_error insert into t1.p4 values(now, '3');
+sql_error insert into t1.p4 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql_error insert into t1.p4 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p4 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql_error insert into t1.p5 values(now, '1');
+sql_error insert into t1.p5 values(now, '2');
+sql_error insert into t1.p5 values(now, '3');
+sql_error insert into t1.p5 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql_error insert into t1.p5 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p5 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql select * from t1.p1 order by off desc
+if $rows != 63 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data10 != 3 then 
+  return -1
+endi
+
+sql_error select * from t1.p2 order by off desc
+sql_error select * from t1.p3 order by off desc
+sql_error select * from t1.p4 order by off desc
+
+print ==== step4
+sql alter topic t1 partitions 3;
+sql show t1.tables
+if $rows != 3 then 
+  return -1
+endi
+if $data00 != p1 then 
+  return -1
+endi
+if $data00 != p2 then 
+  return -1
+endi
+if $data00 != p3 then 
+  return -1
+endi
+sql show t1.vgroups
+if $rows != 3 then 
+  return -1
+endi
+
+sql insert into t1.p1 values(now, '1');
+sql insert into t1.p1 values(now, '2');
+sql insert into t1.p1 values(now, '3');
+sql insert into t1.p1 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql insert into t1.p1 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p1 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql insert into t1.p2 values(now, '1');
+sql insert into t1.p2 values(now, '2');
+sql insert into t1.p2 values(now, '3');
+sql insert into t1.p2 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql insert into t1.p2 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p2 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql insert into t1.p3 values(now, '1');
+sql insert into t1.p3 values(now, '2');
+sql insert into t1.p3 values(now, '3');
+sql insert into t1.p3 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
+sql insert into t1.p3 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p3 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+
+sql insert into t1.p4 values(now, '1');
+sql insert into t1.p5 values(now, '1');
+sql insert into t1.p6 values(now, '1');
+sql_error select * from t1.p4 order by off desc
+sql_error select * from t1.p5 order by off desc
+sql_error select * from t1.p6 order by off desc
+
+sql select * from t1.p1 order by off desc
+if $rows != 84 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data10 != 3 then 
+  return -1
+endi
+
+sql select * from t1.p1 order by off desc
+if $rows != 21 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data10 != 3 then 
+  return -1
+endi
+
+sql select * from t1.p1 order by off desc
+if $rows != 21 then 
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data10 != 3 then 
+  return -1
+endi
+
+sql select * from t1.ps order by off desc
+if $rows != 126 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

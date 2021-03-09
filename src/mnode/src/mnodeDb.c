@@ -912,7 +912,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   int8_t  update         = pAlter->update;
   int8_t  cacheLastRow   = pAlter->cacheLastRow;
   int8_t  dbType         = pAlter->dbType;
-  int16_t partitions     = pAlter->partitions;
+  int16_t partitions     = htons(pAlter->partitions);
   
   terrno = TSDB_CODE_SUCCESS;
 
@@ -1031,8 +1031,8 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   }
 
   if (dbType >= 0 && dbType != pDb->cfg.dbType) {
-    mError("db:%s, can't alter dbType option", pDb->name);
-    terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
+    mDebug("db:%s, dbType:%d change to %d", pDb->name, pDb->cfg.dbType, dbType);
+    newCfg.dbType = dbType;
   }
 
   if (partitions >= 0 && partitions != pDb->cfg.partitions) {
@@ -1067,6 +1067,8 @@ static int32_t mnodeAlterDbCb(SMnodeMsg *pMsg, int32_t code) {
 }
 
 static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
+  mDebug("db:%s, type:%d do alter operation", pDb->name, pDb->cfg.dbType);
+
   SDbCfg newCfg = mnodeGetAlterDbOption(pDb, pAlter);
   if (terrno != TSDB_CODE_SUCCESS) {
     return terrno;
@@ -1099,7 +1101,7 @@ static int32_t mnodeAlterDb(SDbObj *pDb, SAlterDbMsg *pAlter, void *pMsg) {
 
 int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg) {
   SAlterDbMsg *pAlter = pMsg->rpcMsg.pCont;
-  mDebug("db:%s, alter db msg is received from thandle:%p", pAlter->db, pMsg->rpcMsg.handle);
+  mDebug("db:%s, alter db msg is received from thandle:%p, dbType:%d", pAlter->db, pMsg->rpcMsg.handle, pAlter->dbType);
 
   if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pAlter->db);
   if (pMsg->pDb == NULL) {

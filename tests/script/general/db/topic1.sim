@@ -1,0 +1,849 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 100
+system sh/cfg.sh -n dnode1 -c partitions -v 4
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ====step1 create with default para
+sql create topic t1;
+sql use t1;
+
+sql show topics;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+if $data02 != 4 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+#tables
+if $data02 < 1 then 
+  return -1
+endi
+#numofvgroups
+if $data03 < 1 then 
+  return -1
+endi
+
+sql show t1.vgroups;
+if $rows < 1 then 
+  return -1
+endi
+
+sql show t1.stables;
+if $rows != 1 then 
+  return -1
+endi
+if $data04 < 1 then 
+  return -1
+endi
+
+sql show t1.tables;
+if $rows < 1 then 
+  return -1
+endi
+
+sql drop topic t1
+sql show topics;
+if $rows != 0 then 
+  return -1
+endi
+sql show databases;
+if $rows != 0 then 
+  return -1
+endi
+
+sql_error use t1;
+sql_error show t1.vgroups;
+sql_error show t1.stables;
+sql_error show t1.tables;
+
+print ====step2 create with giving para
+sql create topic t1 partitions 6;
+
+sql show topics;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+if $data02 != 6 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+#tables
+if $data02 != 6 then 
+  return -1
+endi
+#numofvgroups
+if $data03 != 6 then 
+  return -1
+endi
+
+sql show t1.vgroups;
+if $rows != 6 then 
+  return -1
+endi
+
+sql show t1.stables;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != ps then 
+  return -1
+endi
+if $data04 != 6 then 
+  return -1
+endi
+
+sql show t1.tables;
+if $rows != 6 then 
+  return -1
+endi
+
+sql describe t1.ps;
+if $data00 != off then 
+  return -1
+endi
+if $data10 != content then 
+  return -1
+endi
+if $data20 != pid then 
+  return -1
+endi
+
+sql describe t1.p1;
+if $data00 != off then 
+  return -1
+endi
+if $data10 != content then 
+  return -1
+endi
+if $data20 != pid then 
+  return -1
+endi
+
+sql drop topic t1
+sql show topics;
+if $rows != 0 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 0 then 
+  return -1
+endi
+
+sql_error show t1.vgroups;
+sql_error show t1.stables;
+sql_error show t1.tables;
+
+sql_error create topic t1 partitions -1;
+sql_error create topic t1 partitions 0;
+sql_error create topic t1 partitions 10001;
+
+print =============step3 create with db para
+sql create topic db cache 2 blocks 4 days 10 keep 20 minRows 300 maxRows 400 ctime 120 precision 'ms' comp 2 wal 1 replica 1
+sql show databases
+if $data00 != db then 
+  return -1
+endi
+if $data02 != 4 then 
+  return -1
+endi
+if $data03 != 4 then 
+  return -1
+endi
+if $data04 != 1 then 
+  return -1
+endi
+if $data06 != 10 then 
+  return -1
+endi
+if $data07 != 20,20,20 then 
+  return -1
+endi
+if $data08 != 2 then 
+  return -1
+endi
+if $data09 != 4 then 
+  return -1
+endi
+sql drop topic db;
+
+sql create topic db cache 2 blocks 4 days 10 keep 20 minRows 300 maxRows 400 ctime 120 precision 'ms' comp 2 wal 1 replica 1 partitions 7
+sql show databases
+if $data00 != db then 
+  return -1
+endi
+if $data02 != 7 then 
+  return -1
+endi
+if $data03 != 7 then 
+  return -1
+endi
+if $data04 != 1 then 
+  return -1
+endi
+if $data06 != 10 then 
+  return -1
+endi
+if $data07 != 20,20,20 then 
+  return -1
+endi
+if $data08 != 2 then 
+  return -1
+endi
+if $data09 != 4 then 
+  return -1
+endi
+
+sql show topics;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != db then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != db then 
+  return -1
+endi
+#tables
+if $data02 != 7 then 
+  return -1
+endi
+#numofvgroups
+sql show db.vgroups;
+if $rows != 7 then 
+  return -1
+endi
+sql show db.stables;
+if $rows != 1 then 
+  return -1
+endi
+sql show db.tables;
+if $rows != 7 then 
+  return -1
+endi
+
+print ============== step name
+sql_error alter database db name d1
+sql_error alter database db name d2
+sql_error alter topic db name d1
+sql_error alter topic db name d2
+
+print ============== step ntables
+sql_error alter database db ntables -1
+sql_error alter database db ntables 0
+sql_error alter database db ntables 1
+sql_error alter database db ntables 10
+sql_error alter topic db ntables -1
+sql_error alter topic db ntables 0
+sql_error alter topic db ntables 1
+sql_error alter topic db ntables 10
+
+print ============== step vgroups
+sql_error alter database db vgroups -1
+sql_error alter database db vgroups 0
+sql_error alter database db vgroups 1
+sql_error alter database db vgroups 10
+sql_error alter topic db vgroups -1
+sql_error alter topic db vgroups 0
+sql_error alter topic db vgroups 1
+sql_error alter topic db vgroups 10
+
+print ============== step replica
+sql_error alter database db replica 2
+sql_error alter database db replica 3
+sql_error alter database db replica 0
+sql_error alter topic db replica 2
+sql_error alter topic db replica 3
+sql_error alter topic db replica 0
+
+sql alter database db replica 1
+sql show databases
+print replica $data4_db
+if $data4_db != 1 then 
+  return -1
+endi
+
+sql show topics
+if $rows != 0 then 
+  return -1
+endi
+
+print ============== step quorum
+sql show databases
+print quorum $data5_db
+if $data5_db != 1 then 
+  return -1
+endi
+
+sql_error alter topic db quorum 1
+sql alter database db quorum 1
+sql show databases
+print quorum $data5_db
+if $data5_db != 1 then 
+  return -1
+endi
+
+sql_error alter database db quorum 2
+sql_error alter database db quorum 3
+sql_error alter topic db quorum 2
+sql_error alter topic db quorum 3
+
+sql_error alter database db quorum 0
+sql_error alter database db quorum 4
+sql_error alter database db quorum 5
+sql_error alter database db quorum -1
+sql_error alter topic db quorum 0
+sql_error alter topic db quorum 4
+sql_error alter topic db quorum 5
+sql_error alter topic db quorum -1
+
+print ============== step days
+sql_error alter database db days 0
+sql_error alter database db days 1
+sql_error alter database db days 2
+sql_error alter database db days 10
+sql_error alter database db days 50
+sql_error alter database db days 100
+sql_error alter topic db days 0
+sql_error alter topic db days 1
+sql_error alter topic db days 2
+sql_error alter topic db days 10
+sql_error alter topic db days 50
+sql_error alter topic db days 100
+
+print ============== step keep
+sql show databases
+print keep $data7_db
+if $data7_db != 20,20,20 then 
+  return -1
+endi
+
+sql_error topic db keep 20
+sql alter database db keep 20
+sql show databases
+print keep $data7_db
+if $data7_db != 20,20,20 then
+  return -1
+endi
+
+sql_error topic db keep 30
+sql alter database db keep 30
+sql show databases
+print keep $data7_db
+if $data7_db != 20,20,30 then
+  return -1
+endi
+
+sql_error alter database db keep 40
+sql alter database db keep 40
+sql show databases
+print keep $data7_db
+if $data7_db != 20,20,40 then
+  return -1
+endi
+
+sql alter database db keep 40
+sql alter database db keep 30
+sql alter database db keep 20
+sql_error alter database db keep 10
+sql_error alter database db keep 9
+sql_error alter database db keep 1
+sql alter database db keep 0
+sql alter database db keep -1
+sql_error alter database db keep 365001
+
+sql_error alter topic db keep 40
+sql_error alter topic db keep 30
+sql_error alter topic db keep 20
+sql_error alter topic db keep 10
+sql_error alter topic db keep 9
+sql_error alter topic db keep 1
+sql_error alter topic db keep 0
+sql_error alter topic db keep -1
+sql_error alter topic db keep 365001
+
+print ============== step cache
+sql_error alter database db cache 60
+sql_error alter database db cache 50
+sql_error alter database db cache 20
+sql_error alter database db cache 3
+sql_error alter database db cache 129
+sql_error alter database db cache 300
+sql_error alter database db cache 0
+sql_error alter database db cache -1
+
+sql_error alter topic db cache 60
+sql_error alter topic db cache 50
+sql_error alter topic db cache 20
+sql_error alter topic db cache 3
+sql_error alter topic db cache 129
+sql_error alter topic db cache 300
+sql_error alter topic db cache 0
+sql_error alter topic db cache -1
+
+print ============== step blocks
+sql show databases
+print blocks $data9_db
+if $data9_db != 4 then 
+  return -1
+endi
+
+sql_error alter topic db blocks 10
+sql alter database db blocks 10
+sql show databases
+print blocks $data9_db
+if $data9_db != 10 then 
+  return -1
+endi
+
+sql_error alter topic db blocks 20
+sql alter database db blocks 20
+sql show databases
+print blocks $data9_db
+if $data9_db != 20 then 
+  return -1
+endi
+
+sql_error alter topic db blocks 20
+sql alter database db blocks 30
+sql show databases
+print blocks $data9_db
+if $data9_db != 30 then 
+  return -1
+endi
+
+sql alter database db blocks 40
+sql alter database db blocks 30
+sql alter database db blocks 20
+sql alter database db blocks 10
+sql_error alter database db blocks 2
+sql_error alter database db blocks 1
+sql alter database db blocks 0
+sql_error alter database db blocks -1
+sql_error alter database db blocks 10001
+
+sql_error alter topic db blocks 40
+sql_error alter topic db blocks 30
+sql_error alter topic db blocks 20
+sql_error alter topic db blocks 10
+sql_error alter topic db blocks 2
+sql_error alter topic db blocks 1
+sql_error alter topic db blocks 0
+sql_error alter topic db blocks -1
+sql_error alter topic db blocks 10001
+
+print ============== step minrows
+sql_error alter database db minrows 1
+sql_error alter database db minrows 100
+sql_error alter database db minrows 1000
+
+sql_error alter topic db minrows 1
+sql_error alter topic db minrows 100
+sql_error alter topic db minrows 1000
+
+print ============== step maxrows
+sql_error alter database db maxrows 1
+sql_error alter database db maxrows 100
+sql_error alter database db maxrows 1000
+
+sql_error alter topic db maxrows 1
+sql_error alter topic db maxrows 100
+sql_error alter topic db maxrows 1000
+
+print ============== step wallevel
+sql show databases
+print wallevel $data12_db
+if $data12_db != 1 then 
+  return -1
+endi
+
+sql_error alter topic db wal 1
+sql alter database db wal 1
+sql show databases
+print wal $data12_db
+if $data12_db != 1 then 
+  return -1
+endi
+
+sql alter database db wal 1
+sql alter database db wal 2
+sql alter database db wal 1
+sql alter database db wal 2
+sql alter database db wal 0
+sql_error alter database db wal 3
+sql_error alter database db wal 4
+sql_error alter database db wal -1
+sql_error alter database db wal 1000
+
+sql_error alter topic db wal 1
+sql_error alter topic db wal 2
+sql_error alter topic db wal 1
+sql_error alter topic db wal 2
+sql_error alter topic db wal 0
+sql_error alter topic db wal 3
+sql_error alter topic db wal 4
+sql_error alter topic db wal -1
+sql_error alter topic db wal 1000
+
+print ============== step fsync
+sql alter database db fsync 0
+sql alter database db fsync 1
+sql alter database db fsync 3600
+sql alter database db fsync 18000
+sql alter database db fsync 180000
+sql_error alter database db fsync 180001
+sql_error alter database db fsync -1
+
+sql_error alter topic db fsync 0
+sql_error alter topic db fsync 1
+sql_error alter topic db fsync 3600
+sql_error alter topic db fsync 18000
+sql_error alter topic db fsync 180000
+sql_error alter topic db fsync 180001
+sql_error alter topic db fsync -1
+
+print ============== step comp
+sql show databases
+print comp $data14_db
+if $data14_db != 2 then 
+  return -1
+endi
+
+sql_error alter topic db comp 1
+sql alter database db comp 1
+sql show databases
+print comp $data14_db
+if $data14_db != 1 then 
+  return -1
+endi
+
+sql_error alter topic db comp 2
+sql alter database db comp 2
+sql show databases
+print comp $data14_db
+if $data14_db != 2 then 
+  return -1
+endi
+
+sql_error alter topic db comp 0
+sql alter database db comp 0
+sql show databases
+print comp $data14_db
+if $data14_db != 0 then 
+  return -1
+endi
+
+sql_error alter database db comp 3
+sql_error alter database db comp 4
+sql_error alter database db comp 5
+sql_error alter database db comp -1
+
+sql_error alter topic db comp 3
+sql_error alter topic db comp 4
+sql_error alter topic db comp 5
+sql_error alter topic db comp -1
+
+print ============== step precision
+sql_error alter database db prec 'us'
+sql_error alter topic db prec 'us'
+
+print ============== step status
+sql_error alter database db status 'delete'
+sql_error alter topic db status 'delete'
+
+print ============== step drop
+sql drop database db
+sql show topics;
+if $rows != 0 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 0 then 
+  return -1
+endi
+
+print ============== step db1
+sql create database d1
+sql show topics;
+if $rows != 0 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+
+sql alter database d1 fsync 0
+sql show topics;
+if $rows != 0 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 0 then 
+  return -1
+endi
+
+sql drop database db
+sql show topics;
+if $rows != 0 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 0 then 
+  return -1
+endi
+
+print ============== step db2
+sql create topic d1
+sql show topics;
+if $rows != 1 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+
+sql alter database d1 fsync 0
+sql show topics;
+if $rows != 1 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop database db
+sql show topics;
+if $rows != 0 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 0 then 
+  return -1
+endi
+
+print ============== step db3
+sql create topic d1
+sql show topics;
+if $rows != 1 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+
+sql alter topic d1 partitions 2
+sql show topics;
+if $rows != 1 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop database db
+sql show topics;
+if $rows != 0 then 
+  return -1
+endi
+
+sql show databases;
+if $rows != 0 then 
+  return -1
+endi
+
+print ============== step partitons
+sql create partiton t1 partitons 5
+
+sql_error alter database t1 partitons -1
+sql_error alter database t1 partitons 0
+sql_error alter database t1 partitons 1
+sql_error alter database t1 partitons 2
+sql_error alter database t1 partitons 3
+sql_error alter database t1 partitons 100
+sql_error alter database t1 partitons 1000
+sql_error alter database t1 partitons 10000
+
+sql_error alter topic t1 partitons -1
+sql_error alter topic t1 partitons 0
+sql_error alter database t1 partitons 10000
+
+sql alter topic t1 partitons 1
+sql show topics;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+#tables
+if $data02 != 6 then 
+  return -1
+endi
+#numofvgroups
+sql show t1.vgroups;
+if $rows < 6 then 
+  return -1
+endi
+sql show t1.stables;
+if $rows != 1 then 
+  return -1
+endi
+sql show t1.tables;
+if $rows < 6 then 
+  return -1
+endi
+
+sql alter topic t1 partitons 2
+sql show topics;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+#tables
+if $data02 != 6 then 
+  return -1
+endi
+#numofvgroups
+sql show t1.vgroups;
+if $rows < 6 then 
+  return -1
+endi
+sql show t1.stables;
+if $rows != 1 then 
+  return -1
+endi
+sql show t1.tables;
+if $rows < 6 then 
+  return -1
+endi
+
+sql alter topic t1 partitons 3
+sql show topics;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+#tables
+if $data02 != 6 then 
+  return -1
+endi
+#numofvgroups
+sql show t1.vgroups;
+if $rows < 6 then 
+  return -1
+endi
+sql show t1.stables;
+if $rows != 1 then 
+  return -1
+endi
+sql show t1.tables;
+if $rows < 6 then 
+  return -1
+endi
+
+sql alter topic t1 partitons 20
+sql show topics;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+sql show databases;
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != t1 then 
+  return -1
+endi
+#tables
+if $data02 != 6 then 
+  return -1
+endi
+#numofvgroups
+sql show t1.vgroups;
+if $rows < 6 then 
+  return -1
+endi
+sql show t1.stables;
+if $rows != 1 then 
+  return -1
+endi
+sql show t1.tables;
+if $rows < 6 then 
+  return -1
+endi
+
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
