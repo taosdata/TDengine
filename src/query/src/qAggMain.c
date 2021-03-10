@@ -362,7 +362,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 // TODO use hash table
 int32_t isValidFunction(const char* name, int32_t len) {
   for(int32_t i = 0; i <= TSDB_FUNC_BLKINFO; ++i) {
-    int32_t nameLen = strlen(aAggs[i].name);
+    int32_t nameLen = (int32_t) strlen(aAggs[i].name);
     if (len != nameLen) {
       continue;
     }
@@ -4282,7 +4282,7 @@ static void interp_function_impl(SQLFunctionCtx *pCtx) {
       if (type == TSDB_FILL_PREV) {
         assignVal(pCtx->pOutput, pCtx->pInput, pCtx->outputBytes, pCtx->inputType);
       } else if (type == TSDB_FILL_NEXT) {
-        char* val = pCtx->pInput + pCtx->inputBytes;
+        char* val = ((char*)pCtx->pInput) + pCtx->inputBytes;
         assignVal(pCtx->pOutput, val, pCtx->outputBytes, pCtx->inputType);
       } else if (type == TSDB_FILL_LINEAR) {
         char *start = GET_INPUT_DATA(pCtx, 0);
@@ -4747,8 +4747,8 @@ void blockInfo_func(SQLFunctionCtx* pCtx) {
   STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
 
   int32_t len = *(int32_t*) pCtx->pInput;
-  blockDistInfoFromBinary(pCtx->pInput + sizeof(int32_t), len, pDist);
-  pDist->rowSize = pCtx->param[0].i64;
+  blockDistInfoFromBinary((char*)pCtx->pInput + sizeof(int32_t), len, pDist);
+  pDist->rowSize = (int16_t) pCtx->param[0].i64;
 
   memcpy(pCtx->pOutput, pCtx->pInput, sizeof(int32_t) + len);
 
@@ -4767,7 +4767,7 @@ static void mergeTableBlockDist(STableBlockDist* pDist, const STableBlockDist* p
     pDist->dataBlockInfos = taosArrayInit(4, sizeof(SFileBlockInfo));
   }
 
-  taosArrayPushBatch(pDist->dataBlockInfos, pSrc->dataBlockInfos->pData, taosArrayGetSize(pSrc->dataBlockInfos));
+  taosArrayPushBatch(pDist->dataBlockInfos, pSrc->dataBlockInfos->pData, (int32_t) taosArrayGetSize(pSrc->dataBlockInfos));
 }
 
 void block_func_merge(SQLFunctionCtx* pCtx) {
@@ -4777,7 +4777,7 @@ void block_func_merge(SQLFunctionCtx* pCtx) {
   STableBlockDist info = {0};
 
   int32_t len = *(int32_t*) pCtx->pInput;
-  blockDistInfoFromBinary(pCtx->pInput + sizeof(int32_t), len, &info);
+  blockDistInfoFromBinary(((char*)pCtx->pInput) + sizeof(int32_t), len, &info);
 
   mergeTableBlockDist(pDist, &info);
 }
@@ -4851,7 +4851,7 @@ void blockinfo_func_finalizer(SQLFunctionCtx* pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   STableBlockDist* pDist = (STableBlockDist*) GET_ROWCELL_INTERBUF(pResInfo);
 
-  pDist->rowSize = pCtx->param[0].i64;
+  pDist->rowSize = (int16_t)pCtx->param[0].i64;
   generateBlockDistResult(pDist, pCtx->pOutput);
 
   // cannot set the numOfIteratedElems again since it is set during previous iteration
