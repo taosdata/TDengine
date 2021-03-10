@@ -102,7 +102,7 @@ typedef struct SGroupResInfo {
  */
 typedef struct SRspResultInfo {
   int64_t total;      // total generated result size in rows
-  int64_t capacity;   // capacity of current result output buffer
+  int32_t capacity;   // capacity of current result output buffer
   int32_t threshold;  // result size threshold in rows.
 } SRspResultInfo;
 
