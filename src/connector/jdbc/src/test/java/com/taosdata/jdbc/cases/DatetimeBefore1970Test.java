@@ -41,7 +41,7 @@ public class DatetimeBefore1970Test {
     }
 
     @BeforeClass
-    public void beforeClass() {
+    public static void beforeClass() {
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             conn = DriverManager.getConnection("jdbc:TAOS://127.0.0.1:6030/?user=root&password=taosdata");
@@ -57,7 +57,7 @@ public class DatetimeBefore1970Test {
     }
 
     @AfterClass
-    public void afterClass() {
+    public static void afterClass() {
         try {
             if (conn != null)
                 conn.close();
