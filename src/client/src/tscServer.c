@@ -1518,6 +1518,8 @@ int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->msgType = (pInfo->pMiscInfo->dbOpt.dbType == TSDB_DB_TYPE_DEFAULT) ? TSDB_MSG_TYPE_CM_ALTER_DB : TSDB_MSG_TYPE_CM_ALTER_TP;
 
   SAlterDbMsg *pAlterDbMsg = (SAlterDbMsg* )pCmd->payload;
+  pAlterDbMsg->dbType = -1;
+  
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   tNameExtractFullName(&pTableMetaInfo->name, pAlterDbMsg->db);
 
