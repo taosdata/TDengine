@@ -2167,12 +2167,7 @@ static void last_row_finalizer(SQLFunctionCtx *pCtx) {
   // do nothing at the first stage
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pResInfo->hasResult != DATA_SET_FLAG) {
-    if (pCtx->outputType == TSDB_DATA_TYPE_BINARY || pCtx->outputType == TSDB_DATA_TYPE_NCHAR) {
-      setVardataNull(pCtx->pOutput, pCtx->outputType);
-    } else {
-      setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
-    }
-    
+    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
     return;
   }
   

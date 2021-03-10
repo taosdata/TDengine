@@ -86,7 +86,7 @@ typedef struct SResultRow {
   bool          closed;      // this result status: closed or opened
   uint32_t      numOfRows;   // number of rows of current time window
   SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
-  union {STimeWindow win; char* key;};  // start key of current time window
+  union {STimeWindow win; char* key;};  // start key of current result row
 } SResultRow;
 
 typedef struct SGroupResInfo {
@@ -131,7 +131,6 @@ typedef struct SSingleColumnFilterInfo {
 typedef struct STableQueryInfo {
   TSKEY       lastKey;
   int32_t     groupIndex;     // group id in table list
-  int16_t     queryRangeSet;  // denote if the query range is set, only available for interval query
   tVariant    tag;
   STimeWindow win;
   STSCursor   cur;
@@ -409,6 +408,7 @@ typedef struct SFillOperatorInfo {
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo binfo;
   int32_t        colIndex;
+  char          *prevData;   // previous group by value
 } SGroupbyOperatorInfo;
 
 void freeParam(SQueryParam *param);
