@@ -987,7 +987,7 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
         uint32_t status = aAggs[pCtx[i].functionId].status;
         if ((status & (TSDB_FUNCSTATE_SELECTIVITY | TSDB_FUNCSTATE_NEED_TS)) != 0) {
           SColumnInfoData* tsInfo = taosArrayGet(pBlock->pDataBlock, 0);
-          pCtx[i].ptsList = tsInfo->pData;
+          pCtx[i].ptsList = (int64_t*) tsInfo->pData;
         }
       }
     }
@@ -1191,7 +1191,7 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   TSKEY* tsCols = NULL;
   if (pSDataBlock->pDataBlock != NULL) {
     SColumnInfoData* pColDataInfo = taosArrayGet(pSDataBlock->pDataBlock, 0);
-    tsCols = pColDataInfo->pData;
+    tsCols = (int64_t*) pColDataInfo->pData;
     assert(tsCols[0] == pSDataBlock->info.window.skey &&
            tsCols[pSDataBlock->info.rows - 1] == pSDataBlock->info.window.ekey);
   }
