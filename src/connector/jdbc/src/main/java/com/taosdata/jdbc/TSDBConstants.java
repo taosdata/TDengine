@@ -14,15 +14,12 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import java.sql.SQLException;
+import java.sql.Types;
 import java.util.HashMap;
 import java.util.Map;
 
 public abstract class TSDBConstants {
-
-    public static final String STATEMENT_CLOSED = "statement is closed";
-    public static final String UNSUPPORTED_METHOD_EXCEPTION_MSG = "this operation is NOT supported currently!";
-    public static final String INVALID_VARIABLES = "invalid variables";
-    public static final String RESULT_SET_IS_CLOSED = "resultSet is closed";
 
     public static final String DEFAULT_PORT = "6200";
     public static Map<Integer, String> DATATYPE_MAP = null;
@@ -77,8 +74,65 @@ public abstract class TSDBConstants {
         return WrapErrMsg("unkown error!");
     }
 
+    public static int taosType2JdbcType(int taosType) throws SQLException {
+        switch (taosType) {
+            case TSDBConstants.TSDB_DATA_TYPE_NULL:
+                return Types.NULL;
+            case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+                return Types.BOOLEAN;
+            case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+                return Types.TINYINT;
+            case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+                return Types.SMALLINT;
+            case TSDBConstants.TSDB_DATA_TYPE_INT:
+                return Types.INTEGER;
+            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+                return Types.BIGINT;
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                return Types.FLOAT;
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                return Types.DOUBLE;
+            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+                return Types.BINARY;
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+                return Types.TIMESTAMP;
+            case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+                return Types.NCHAR;
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE);
+    }
+
+    public static int jdbcType2TaosType(int jdbcType) throws SQLException {
+        switch (jdbcType){
+            case Types.NULL:
+                return TSDBConstants.TSDB_DATA_TYPE_NULL;
+            case Types.BOOLEAN:
+                return TSDBConstants.TSDB_DATA_TYPE_BOOL;
+            case Types.TINYINT:
+                return TSDBConstants.TSDB_DATA_TYPE_TINYINT;
+            case Types.SMALLINT:
+                return TSDBConstants.TSDB_DATA_TYPE_SMALLINT;
+            case Types.INTEGER:
+                return TSDBConstants.TSDB_DATA_TYPE_INT;
+            case Types.BIGINT:
+                return TSDBConstants.TSDB_DATA_TYPE_BIGINT;
+            case Types.FLOAT:
+                return TSDBConstants.TSDB_DATA_TYPE_FLOAT;
+            case Types.DOUBLE:
+                return TSDBConstants.TSDB_DATA_TYPE_DOUBLE;
+            case Types.BINARY:
+                return TSDBConstants.TSDB_DATA_TYPE_BINARY;
+            case Types.TIMESTAMP:
+                return TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP;
+            case Types.NCHAR:
+                return TSDBConstants.TSDB_DATA_TYPE_NCHAR;
+        }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE);
+    }
+
     static {
         DATATYPE_MAP = new HashMap<>();
+        DATATYPE_MAP.put(0, "NULL");
         DATATYPE_MAP.put(1, "BOOL");
         DATATYPE_MAP.put(2, "TINYINT");
         DATATYPE_MAP.put(3, "SMALLINT");
@@ -89,5 +143,9 @@ public abstract class TSDBConstants {
         DATATYPE_MAP.put(8, "BINARY");
         DATATYPE_MAP.put(9, "TIMESTAMP");
         DATATYPE_MAP.put(10, "NCHAR");
+    }
+
+    public static String jdbcType2TaosTypeName(int type) throws SQLException {
+        return DATATYPE_MAP.get(jdbcType2TaosType(type));
     }
 }

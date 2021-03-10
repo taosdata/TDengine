@@ -13,7 +13,7 @@ TDengine的集群管理极其简单，除添加和删除节点需要人工干预
 **第零步**：规划集群所有物理节点的FQDN，将规划好的FQDN分别添加到每个物理节点的/etc/hostname；修改每个物理节点的/etc/hosts，将所有集群物理节点的IP与FQDN的对应添加好。【如部署了DNS，请联系网络管理员在DNS上做好相关配置】
 
 **第一步**：如果搭建集群的物理节点中，存有之前的测试数据、装过1.X的版本，或者装过其他版本的TDengine，请先将其删除，并清空所有数据，具体步骤请参考博客[《TDengine多种安装包的安装和卸载》](https://www.taosdata.com/blog/2019/08/09/566.html )   
-**注意1：**因为FQDN的信息会写进文件，如果之前没有配置或者更改FQDN，且启动了TDengine。请一定在确保数据无用或者备份的前提下，清理一下之前的数据（rm -rf /var/lib/taos/）；  
+**注意1：**因为FQDN的信息会写进文件，如果之前没有配置或者更改FQDN，且启动了TDengine。请一定在确保数据无用或者备份的前提下，清理一下之前的数据（`rm -rf /var/lib/taos/*`）；  
 **注意2：**客户端也需要配置，确保它可以正确解析每个节点的FQDN配置，不管是通过DNS服务，还是 Host 文件。
 
 **第二步**：建议关闭所有物理节点的防火墙，至少保证端口：6030 - 6042的TCP和UDP端口都是开放的。**强烈建议**先关闭防火墙，集群搭建完毕之后，再来配置端口；
@@ -225,7 +225,13 @@ SHOW MNODES;
 
 ## <a class="anchor" id="arbitrator"></a>Arbitrator的使用
 
-如果副本数为偶数，当一个vnode group里一半vnode不工作时，是无法从中选出master的。同理，一半mnode不工作时，是无法选出mnode的master的，因为存在“split brain”问题。为解决这个问题，TDengine引入了Arbitrator的概念。Arbitrator模拟一个vnode或mnode在工作，但只简单的负责网络连接，不处理任何数据插入或访问。只要包含Arbitrator在内，超过半数的vnode或mnode工作，那么该vnode group或mnode组就可以正常的提供数据插入或查询服务。比如对于副本数为2的情形，如果一个节点A离线，但另外一个节点B正常，而且能连接到Arbitrator，那么节点B就能正常工作。
+如果副本数为偶数，当一个 vnode group 里一半 vnode 不工作时，是无法从中选出 master 的。同理，一半 mnode 不工作时，是无法选出 mnode 的 master 的，因为存在“split brain”问题。为解决这个问题，TDengine 引入了 Arbitrator 的概念。Arbitrator 模拟一个 vnode 或 mnode 在工作，但只简单的负责网络连接，不处理任何数据插入或访问。只要包含 Arbitrator 在内，超过半数的 vnode 或 mnode 工作，那么该 vnode group 或 mnode 组就可以正常的提供数据插入或查询服务。比如对于副本数为 2 的情形，如果一个节点 A 离线，但另外一个节点 B 正常，而且能连接到 Arbitrator，那么节点 B 就能正常工作。
 
-TDengine提供一个执行程序，名为 tarbitrator，找任何一台Linux服务器运行它即可。请点击[安装包下载](https://www.taosdata.com/cn/all-downloads/)，在TDengine Arbitrator Linux一节中，选择适合的版本下载并安装。该程序对系统资源几乎没有要求，只需要保证有网络连接即可。该应用的命令行参数`-p`可以指定其对外服务的端口号，缺省是6042。配置每个taosd实例时，可以在配置文件taos.cfg里将参数arbitrator设置为Arbitrator的End Point。如果该参数配置了，当副本数为偶数时，系统将自动连接配置的Arbitrator。如果副本数为奇数，即使配置了Arbitrator，系统也不会去建立连接。
+总之，在目前版本下，TDengine 建议在双副本环境要配置 Arbitrator，以提升系统的可用性。
+
+Arbitrator 的执行程序名为 tarbitrator。该程序对系统资源几乎没有要求，只需要保证有网络连接，找任何一台 Linux 服务器运行它即可。以下简要描述安装配置的步骤：
+1. 请点击 [安装包下载](https://www.taosdata.com/cn/all-downloads/)，在 TDengine Arbitrator Linux 一节中，选择合适的版本下载并安装。
+2. 该应用的命令行参数 `-p` 可以指定其对外服务的端口号，缺省是 6042。
+3. 修改每个 taosd 实例的配置文件，在 taos.cfg 里将参数 arbitrator 设置为 tarbitrator 程序所对应的 End Point。（如果该参数配置了，当副本数为偶数时，系统将自动连接配置的 Arbitrator。如果副本数为奇数，即使配置了 Arbitrator，系统也不会去建立连接。）
+4. 在配置文件中配置了的 Arbitrator，会出现在 `SHOW DNODES;` 指令的返回结果中，对应的 role 列的值会是“arb”。
 

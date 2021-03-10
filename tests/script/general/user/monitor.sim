@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
 
 print ========== step1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c monitor -v 1
 system sh/cfg.sh -n dnode1 -c monitorInterval -v 1
 system sh/exec.sh -n dnode1 -s start

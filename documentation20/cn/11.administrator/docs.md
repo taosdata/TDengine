@@ -432,60 +432,62 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 
 ## <a class="anchor" id="keywords"></a>TDengine参数限制与保留关键字
 
-- 数据库名：不能包含“.”以及特殊字符，不能超过32个字符
-- 表名：不能包含“.”以及特殊字符，与所属数据库名一起，不能超过192个字符
-- 表的列名：不能包含特殊字符，不能超过64个字符
+- 数据库名：不能包含“.”以及特殊字符，不能超过 32 个字符
+- 表名：不能包含“.”以及特殊字符，与所属数据库名一起，不能超过 192 个字符
+- 表的列名：不能包含特殊字符，不能超过 64 个字符
 - 数据库名、表名、列名，都不能以数字开头
-- 表的列数：不能超过1024列
-- 记录的最大长度：包括时间戳8 byte，不能超过16KB
-- 单条SQL语句默认最大字符串长度：65480 byte
-- 数据库副本数：不能超过3
-- 用户名：不能超过23个byte
-- 用户密码：不能超过15个byte
-- 标签(Tags)数量：不能超过128个
-- 标签的总长度：不能超过16Kbyte
+- 表的列数：不能超过 1024 列
+- 记录的最大长度：包括时间戳 8 byte，不能超过 16KB（每个 BINARY/NCHAR 类型的列还会额外占用 2 个 byte 的存储位置）
+- 单条 SQL 语句默认最大字符串长度：65480 byte
+- 数据库副本数：不能超过 3
+- 用户名：不能超过 23 个 byte
+- 用户密码：不能超过 15 个 byte
+- 标签(Tags)数量：不能超过 128 个
+- 标签的总长度：不能超过 16K byte
 - 记录条数：仅受存储空间限制
 - 表的个数：仅受节点个数限制
 - 库的个数：仅受节点个数限制
-- 单个库上虚拟节点个数：不能超过64个
+- 单个库上虚拟节点个数：不能超过 64 个
 
-目前TDengine有将近200个内部保留关键字，这些关键字无论大小写均不可以用作库名、表名、STable名、数据列名及标签列名等。这些关键字列表如下：
+目前 TDengine 有将近 200 个内部保留关键字，这些关键字无论大小写均不可以用作库名、表名、STable 名、数据列名及标签列名等。这些关键字列表如下：
 
 | 关键字列表 |             |              |            |           |
 | ---------- | ----------- | ------------ | ---------- | --------- |
-| ABLOCKS    | CONNECTION  | GROUP        | MINUS      | SLASH     |
-| ABORT      | CONNECTIONS | GT           | MNODES     | SLIDING   |
-| ACCOUNT    | COPY        | ID           | MODULES    | SMALLINT  |
-| ACCOUNTS   | COUNT       | IF           | NCHAR      | SPREAD    |
-| ADD        | CREATE      | IGNORE       | NE         | STABLE    |
-| AFTER      | CTIME       | IMMEDIATE    | NONE       | STABLES   |
-| ALL        | DATABASE    | IMPORT       | NOT        | STAR      |
-| ALTER      | DATABASES   | IN           | NOTNULL    | STATEMENT |
-| AND        | DAYS        | INITIALLY    | NOW        | STDDEV    |
-| AS         | DEFERRED    | INSERT       | OF         | STREAM    |
-| ASC        | DELIMITERS  | INSTEAD      | OFFSET     | STREAMS   |
-| ATTACH     | DESC        | INTEGER      | OR         | STRING    |
-| AVG        | DESCRIBE    | INTERVAL     | ORDER      | SUM       |
-| BEFORE     | DETACH      | INTO         | PASS       | TABLE     |
-| BEGIN      | DIFF        | IP           | PERCENTILE | TABLES    |
-| BETWEEN    | DISTINCT    | IS           | PLUS       | TAG       |
-| BIGINT     | DIVIDE      | ISNULL       | PRAGMA     | TAGS      |
-| BINARY     | DNODE       | JOIN         | PREV       | TBLOCKS   |
-| BITAND     | DNODES      | KEEP         | PRIVILEGE  | TBNAME    |
-| BITNOT     | DOT         | KEY          | QUERIES    | TIMES     |
-| BITOR      | DOUBLE      | KILL         | QUERY      | TIMESTAMP |
-| BOOL       | DROP        | LAST         | RAISE      | TINYINT   |
-| BOTTOM     | EACH        | LE           | REM        | TOP       |
-| BY         | END         | LEASTSQUARES | REPLACE    | TRIGGER   |
-| CACHE      | EQ          | LIKE         | REPLICA    | UMINUS    |
-| CASCADE    | EXISTS      | LIMIT        | RESET      | UPLUS     |
-| CHANGE     | EXPLAIN     | LINEAR       | RESTRICT   | USE       |
-| CLOG       | FAIL        | LOCAL        | ROW        | USER      |
-| CLUSTER    | FILL        | LP           | ROWS       | USERS     |
-| COLON      | FIRST       | LSHIFT       | RP         | USING     |
-| COLUMN     | FLOAT       | LT           | RSHIFT     | VALUES    |
-| COMMA      | FOR         | MATCH        | SCORES     | VARIABLE  |
-| COMP       | FROM        | MAX          | SELECT     | VGROUPS   |
-| CONCAT     | GE          | METRIC       | SEMI       | VIEW      |
-| CONFIGS    | GLOB        | METRICS      | SET        | WAVG      |
-| CONFLICT   | GRANTS      | MIN          | SHOW       | WHERE     |
+| ABLOCKS    | CONNECTIONS | GT           | MNODES     | SLIDING   |
+| ABORT      | COPY        | ID           | MODULES    | SLIMIT    |
+| ACCOUNT    | COUNT       | IF           | NCHAR      | SMALLINT  |
+| ACCOUNTS   | CREATE      | IGNORE       | NE         | SPREAD    |
+| ADD        | CTIME       | IMMEDIATE    | NONE       | STABLE    |
+| AFTER      | DATABASE    | IMPORT       | NOT        | STABLES   |
+| ALL        | DATABASES   | IN           | NOTNULL    | STAR      |
+| ALTER      | DAYS        | INITIALLY    | NOW        | STATEMENT |
+| AND        | DEFERRED    | INSERT       | OF         | STDDEV    |
+| AS         | DELIMITERS  | INSTEAD      | OFFSET     | STREAM    |
+| ASC        | DESC        | INTEGER      | OR         | STREAMS   |
+| ATTACH     | DESCRIBE    | INTERVAL     | ORDER      | STRING    |
+| AVG        | DETACH      | INTO         | PASS       | SUM       |
+| BEFORE     | DIFF        | IP           | PERCENTILE | TABLE     |
+| BEGIN      | DISTINCT    | IS           | PLUS       | TABLES    |
+| BETWEEN    | DIVIDE      | ISNULL       | PRAGMA     | TAG       |
+| BIGINT     | DNODE       | JOIN         | PREV       | TAGS      |
+| BINARY     | DNODES      | KEEP         | PRIVILEGE  | TBLOCKS   |
+| BITAND     | DOT         | KEY          | QUERIES    | TBNAME    |
+| BITNOT     | DOUBLE      | KILL         | QUERY      | TIMES     |
+| BITOR      | DROP        | LAST         | RAISE      | TIMESTAMP |
+| BOOL       | EACH        | LE           | REM        | TINYINT   |
+| BOTTOM     | END         | LEASTSQUARES | REPLACE    | TOP       |
+| BY         | EQ          | LIKE         | REPLICA    | TRIGGER   |
+| CACHE      | EXISTS      | LIMIT        | RESET      | UMINUS    |
+| CASCADE    | EXPLAIN     | LINEAR       | RESTRICT   | UPLUS     |
+| CHANGE     | FAIL        | LOCAL        | ROW        | USE       |
+| CLOG       | FILL        | LP           | ROWS       | USER      |
+| CLUSTER    | FIRST       | LSHIFT       | RP         | USERS     |
+| COLON      | FLOAT       | LT           | RSHIFT     | USING     |
+| COLUMN     | FOR         | MATCH        | SCORES     | VALUES    |
+| COMMA      | FROM        | MAX          | SELECT     | VARIABLE  |
+| COMP       | GE          | METRIC       | SEMI       | VGROUPS   |
+| CONCAT     | GLOB        | METRICS      | SET        | VIEW      |
+| CONFIGS    | GRANTS      | MIN          | SHOW       | WAVG      |
+| CONFLICT   | GROUP       | MINUS        | SLASH      | WHERE     |
+| CONNECTION |             |              |            |           |
+
