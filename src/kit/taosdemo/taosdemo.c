@@ -2081,7 +2081,7 @@ static int createDatabases() {
 
     int dataLen = 0;
     dataLen += snprintf(command + dataLen, 
-        BUFFER_SIZE - dataLen, "create database if not exists %s ", g_Dbs.db[i].dbName);
+        BUFFER_SIZE - dataLen, "create database if not exists %s", g_Dbs.db[i].dbName);
 
     if (g_Dbs.db[i].dbCfg.blocks > 0) {
       dataLen += snprintf(command + dataLen,
@@ -2098,6 +2098,10 @@ static int createDatabases() {
     if (g_Dbs.db[i].dbCfg.keep > 0) {
       dataLen += snprintf(command + dataLen,
           BUFFER_SIZE - dataLen, "keep %d ", g_Dbs.db[i].dbCfg.keep);
+    }
+    if (g_Dbs.db[i].dbCfg.quorum > 1) {
+      dataLen += snprintf(command + dataLen,
+          BUFFER_SIZE - dataLen, "quorum %d ", g_Dbs.db[i].dbCfg.quorum);
     }
     if (g_Dbs.db[i].dbCfg.replica > 0) {
       dataLen += snprintf(command + dataLen,
