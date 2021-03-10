@@ -1644,18 +1644,6 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  /*
-   * transfer sql functions that need secondary merge into another format
-   * in dealing with super table queries such as: count/first/last
-   */
-  if (isSTable) {
-    tscTansformFuncForSTableQuery(pQueryInfo);
-
-    if (hasUnsupportFunctionsForSTableQuery(pCmd, pQueryInfo)) {
-      return TSDB_CODE_TSC_INVALID_SQL;
-    }
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5968,7 +5956,7 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
   
     if (TSDB_COL_IS_TAG(pColIndex->flag)) {
       SColumnIndex index = {.tableIndex = pQueryInfo->groupbyExpr.tableIndex, .columnIndex = colIndex};
-      SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TAG, &index, type, bytes, getNewResColId(pQueryInfo), bytes, true);
+      SSqlExpr* pExpr = tscSqlExprInsert(pQueryInfo, size - pQueryInfo->havingFieldNum, TSDB_FUNC_TAG, &index, type, bytes, getNewResColId(pQueryInfo), bytes, true);
       
       memset(pExpr->aliasName, 0, sizeof(pExpr->aliasName));
       tstrncpy(pExpr->aliasName, name, sizeof(pExpr->aliasName));
@@ -5977,7 +5965,7 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
 
       // NOTE: tag column does not add to source column list
       SColumnList ids = getColumnList(1, 0, pColIndex->colIndex);
-      insertResultField(pQueryInfo, (int32_t)size, &ids, bytes, (int8_t)type, name, pExpr);
+      insertResultField(pQueryInfo, (int32_t)size - pQueryInfo->havingFieldNum, &ids, bytes, (int8_t)type, name, pExpr);
     } else {
       // if this query is "group by" normal column, interval is not allowed
       if (pQueryInfo->interval.interval > 0) {
@@ -6981,18 +6969,6 @@ int32_t parseHavingClause(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SSqlCmd* pCmd
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  /*
-   * transfer sql functions that need secondary merge into another format
-   * in dealing with super table queries such as: count/first/last
-   */
-  if (isSTable) {
-    tscTansformFuncForSTableQuery(pQueryInfo);
-
-    if (hasUnsupportFunctionsForSTableQuery(pCmd, pQueryInfo)) {
-      return TSDB_CODE_TSC_INVALID_SQL;
-    }
-  }
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -7171,6 +7147,18 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   // parse the having clause in the first place
   if (parseHavingClause(pQueryInfo, pQuerySql->pHaving, pCmd, isSTable, joinQuery, intervalQuery) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
+  }
+
+  /*
+   * transfer sql functions that need secondary merge into another format
+   * in dealing with super table queries such as: count/first/last
+   */
+  if (isSTable) {
+    tscTansformFuncForSTableQuery(pQueryInfo);
+  
+    if (hasUnsupportFunctionsForSTableQuery(pCmd, pQueryInfo)) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
   }
 
   // no result due to invalid query time range
