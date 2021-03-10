@@ -6247,7 +6247,7 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCreateDbMsg* pCreate) {
   }
 
   val = htons(pCreate->partitions);
-  if (pCreate->dbType == TSDB_DB_TYPE_TOPIC &&
+  if (val != -1 &&
       (val < TSDB_MIN_DB_PARTITON_OPTION || val > TSDB_MAX_DB_PARTITON_OPTION)) {
     snprintf(msg, tListLen(msg), "invalid topic option partition: %d valid range: [%d, %d]", val,
              TSDB_MIN_DB_PARTITON_OPTION, TSDB_MAX_DB_PARTITON_OPTION);
