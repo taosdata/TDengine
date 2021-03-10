@@ -1540,7 +1540,7 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery, bool intervalQuery) {
   assert(pSelection != NULL && pCmd != NULL);
 
-  const char* msg2 = "functions can not be mixed up";
+  const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "not support query expression";
   const char* msg5 = "invalid function name";
   const char* msg6 = "only support distinct one tag";
@@ -2902,6 +2902,23 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
   return false;
 }
 
+static bool groupbyTagsOrNull(SQueryInfo* pQueryInfo) {
+  if (pQueryInfo->groupbyExpr.columnInfo == NULL ||
+    taosArrayGetSize(pQueryInfo->groupbyExpr.columnInfo) == 0) {
+    return true;
+  }
+
+  size_t s = taosArrayGetSize(pQueryInfo->groupbyExpr.columnInfo);
+  for (int32_t i = 0; i < s; i++) {
+    SColIndex* colIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, i);
+    if (colIndex->flag != TSDB_COL_TAG) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
 static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool intervalQuery) {
   int32_t startIdx = 0;
 
@@ -2918,7 +2935,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
 
   int32_t factor = functionCompatList[tscSqlExprGet(pQueryInfo, startIdx)->functionId];
 
-  if (tscSqlExprGet(pQueryInfo, 0)->functionId == TSDB_FUNC_LAST_ROW && (joinQuery || intervalQuery)) {
+  if (tscSqlExprGet(pQueryInfo, 0)->functionId == TSDB_FUNC_LAST_ROW && (joinQuery || intervalQuery || !groupbyTagsOrNull(pQueryInfo))) {
     return false;
   }
 
@@ -2946,7 +2963,7 @@ static bool functionCompatibleCheck(SQueryInfo* pQueryInfo, bool joinQuery, bool
       }
     }
 
-    if (functionId == TSDB_FUNC_LAST_ROW && (joinQuery || intervalQuery)) {
+    if (functionId == TSDB_FUNC_LAST_ROW && (joinQuery || intervalQuery || !groupbyTagsOrNull(pQueryInfo))) {
       return false;
     }
   }
