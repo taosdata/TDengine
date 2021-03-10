@@ -365,7 +365,7 @@ if $data7_db != 20,20,30 then
   return -1
 endi
 
-sql_error alter database db keep 40
+sql_error alter topic db keep 40
 sql alter database db keep 40
 sql show databases
 print keep $data7_db
@@ -596,6 +596,9 @@ endi
 
 print ============== step db1
 sql create database d1
+sql_error alter database d1 partitions 2
+sql_error alter topic d1 partitions 2
+
 sql show topics;
 if $rows != 0 then 
   return -1
@@ -613,11 +616,11 @@ if $rows != 0 then
 endi
 
 sql show databases;
-if $rows != 0 then 
+if $rows != 1 then 
   return -1
 endi
 
-sql drop database db
+sql drop database d1
 sql show topics;
 if $rows != 0 then 
   return -1
@@ -651,7 +654,7 @@ if $rows != 1 then
   return -1
 endi
 
-sql drop database db
+sql drop database d1
 sql show topics;
 if $rows != 0 then 
   return -1
@@ -685,7 +688,7 @@ if $rows != 1 then
   return -1
 endi
 
-sql drop database db
+sql drop database d1
 sql show topics;
 if $rows != 0 then 
   return -1
@@ -696,23 +699,23 @@ if $rows != 0 then
   return -1
 endi
 
-print ============== step partitons
-sql create partiton t1 partitons 5
+print ============== step partitions
+sql create topic t1 partitions 5
 
-sql_error alter database t1 partitons -1
-sql_error alter database t1 partitons 0
-sql_error alter database t1 partitons 1
-sql_error alter database t1 partitons 2
-sql_error alter database t1 partitons 3
-sql_error alter database t1 partitons 100
-sql_error alter database t1 partitons 1000
-sql_error alter database t1 partitons 10000
+sql_error alter database t1 partitions -1
+sql_error alter database t1 partitions 0
+sql_error alter database t1 partitions 1
+sql_error alter database t1 partitions 2
+sql_error alter database t1 partitions 3
+sql_error alter database t1 partitions 100
+sql_error alter database t1 partitions 1000
+sql_error alter database t1 partitions 10000
 
-sql_error alter topic t1 partitons -1
-sql_error alter topic t1 partitons 0
-sql_error alter database t1 partitons 10000
+sql_error alter topic t1 partitions -1
+sql_error alter topic t1 partitions 0
+sql_error alter database t1 partitions 10000
 
-sql alter topic t1 partitons 1
+sql alter topic t1 partitions 1
 sql show topics;
 if $rows != 1 then 
   return -1
@@ -728,12 +731,12 @@ if $data00 != t1 then
   return -1
 endi
 #tables
-if $data02 != 6 then 
+if $data02 != 1 then 
   return -1
 endi
 #numofvgroups
 sql show t1.vgroups;
-if $rows < 6 then 
+if $rows != 1 then 
   return -1
 endi
 sql show t1.stables;
@@ -741,11 +744,11 @@ if $rows != 1 then
   return -1
 endi
 sql show t1.tables;
-if $rows < 6 then 
+if $rows != 1 then 
   return -1
 endi
 
-sql alter topic t1 partitons 2
+sql alter topic t1 partitions 2
 sql show topics;
 if $rows != 1 then 
   return -1
@@ -761,12 +764,12 @@ if $data00 != t1 then
   return -1
 endi
 #tables
-if $data02 != 6 then 
+if $data02 != 2 then 
   return -1
 endi
 #numofvgroups
 sql show t1.vgroups;
-if $rows < 6 then 
+if $rows != 2 then 
   return -1
 endi
 sql show t1.stables;
@@ -774,11 +777,11 @@ if $rows != 1 then
   return -1
 endi
 sql show t1.tables;
-if $rows < 6 then 
+if $rows != 2 then 
   return -1
 endi
 
-sql alter topic t1 partitons 3
+sql alter topic t1 partitions 3
 sql show topics;
 if $rows != 1 then 
   return -1
@@ -794,12 +797,12 @@ if $data00 != t1 then
   return -1
 endi
 #tables
-if $data02 != 6 then 
+if $data02 != 3 then 
   return -1
 endi
 #numofvgroups
 sql show t1.vgroups;
-if $rows < 6 then 
+if $rows != 3 then 
   return -1
 endi
 sql show t1.stables;
@@ -807,11 +810,11 @@ if $rows != 1 then
   return -1
 endi
 sql show t1.tables;
-if $rows < 6 then 
+if $rows != 3 then 
   return -1
 endi
 
-sql alter topic t1 partitons 20
+sql alter topic t1 partitions 10
 sql show topics;
 if $rows != 1 then 
   return -1
@@ -827,12 +830,12 @@ if $data00 != t1 then
   return -1
 endi
 #tables
-if $data02 != 6 then 
+if $data02 != 10 then 
   return -1
 endi
 #numofvgroups
 sql show t1.vgroups;
-if $rows < 6 then 
+if $rows != 10 then 
   return -1
 endi
 sql show t1.stables;
@@ -840,10 +843,8 @@ if $rows != 1 then
   return -1
 endi
 sql show t1.tables;
-if $rows < 6 then 
+if $rows != 10 then 
   return -1
 endi
-
-
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

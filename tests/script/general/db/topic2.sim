@@ -12,63 +12,57 @@ sql show t1.tables
 if $rows != 2 then 
   return -1
 endi
-if $data00 != p1 then 
-  return -1
-endi
-if $data10 != p2 then 
-  return -1
-endi
 sql show t1.vgroups
 if $rows != 2 then 
   return -1
 endi
 
-sql insert into t1.p1 values(now, '1');
-sql insert into t1.p1 values(now, '2');
-sql insert into t1.p1 values(now, '3');
-sql insert into t1.p1 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql insert into t1.p1 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql insert into t1.p1 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p1 values(1, '1');
+sql insert into t1.p1 values(1, '2');
+sql insert into t1.p1 values(1, '3');
+sql insert into t1.p1 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql insert into t1.p1 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql insert into t1.p1 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql insert into t1.p2 values(now, '1');
-sql insert into t1.p2 values(now, '2');
-sql insert into t1.p2 values(now, '3');
-sql insert into t1.p2 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql insert into t1.p2 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql insert into t1.p2 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p2 values(1, '1');
+sql insert into t1.p2 values(1, '2');
+sql insert into t1.p2 values(1, '3');
+sql insert into t1.p2 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql insert into t1.p2 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql insert into t1.p2 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql_error insert into t1.p3 values(now, '1');
-sql_error insert into t1.p3 values(now, '2');
-sql_error insert into t1.p3 values(now, '3');
-sql_error insert into t1.p3 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql_error insert into t1.p3 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql_error insert into t1.p3 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p3 values(1, '1');
+sql_error insert into t1.p3 values(1, '2');
+sql_error insert into t1.p3 values(1, '3');
+sql_error insert into t1.p3 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql_error insert into t1.p3 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql_error insert into t1.p3 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql select * from t1.p1 order by off desc
-if $rows != 21 then 
+sql select * from t1.p1 order by off asc
+if $rows != 33 then 
   return -1
 endi
-if $data00 != 1 then 
+if $data01 != 1 then 
   return -1
 endi
-if $data10 != 2 then 
+if $data11 != 2 then 
   return -1
 endi
-if $data10 != 3 then 
+if $data21 != 3 then 
   return -1
 endi
 
-sql select * from t1.p2 order by off desc
-if $rows != 21 then 
+sql select * from t1.p2 order by off asc
+if $rows != 33 then 
   return -1
 endi
-if $data00 != 1 then 
+if $data01 != 1 then 
   return -1
 endi
-if $data10 != 2 then 
+if $data11 != 2 then 
   return -1
 endi
-if $data10 != 3 then 
+if $data21 != 3 then 
   return -1
 endi
 
@@ -78,111 +72,99 @@ sql show t1.tables
 if $rows != 4 then 
   return -1
 endi
-if $data00 != p1 then 
-  return -1
-endi
-if $data10 != p2 then 
-  return -1
-endi
-if $data10 != p3 then 
-  return -1
-endi
-if $data10 != p4 then 
-  return -1
-endi
 sql show t1.vgroups
 if $rows != 4 then 
   return -1
 endi
 
-sql insert into t1.p1 values(now, '1');
-sql insert into t1.p1 values(now, '2');
-sql insert into t1.p1 values(now, '3');
-sql insert into t1.p1 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql insert into t1.p1 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql insert into t1.p1 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p1 values(1, '1');
+sql insert into t1.p1 values(1, '2');
+sql insert into t1.p1 values(1, '3');
+sql insert into t1.p1 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql insert into t1.p1 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql insert into t1.p1 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql insert into t1.p2 values(now, '1');
-sql insert into t1.p2 values(now, '2');
-sql insert into t1.p2 values(now, '3');
-sql insert into t1.p2 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql insert into t1.p2 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql insert into t1.p2 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p2 values(1, '1');
+sql insert into t1.p2 values(1, '2');
+sql insert into t1.p2 values(1, '3');
+sql insert into t1.p2 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql insert into t1.p2 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql insert into t1.p2 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql insert into t1.p3 values(now, '1');
-sql insert into t1.p3 values(now, '2');
-sql insert into t1.p3 values(now, '3');
-sql insert into t1.p3 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql insert into t1.p3 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql insert into t1.p3 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p3 values(1, '1');
+sql insert into t1.p3 values(1, '2');
+sql insert into t1.p3 values(1, '3');
+sql insert into t1.p3 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql insert into t1.p3 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql insert into t1.p3 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql insert into t1.p4 values(now, '1');
-sql insert into t1.p4 values(now, '2');
-sql insert into t1.p4 values(now, '3');
-sql insert into t1.p4 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql insert into t1.p4 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql insert into t1.p4 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p4 values(1, '1');
+sql insert into t1.p4 values(1, '2');
+sql insert into t1.p4 values(1, '3');
+sql insert into t1.p4 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql insert into t1.p4 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql insert into t1.p4 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql_error insert into t1.p5 values(now, '1');
-sql_error insert into t1.p5 values(now, '2');
-sql_error insert into t1.p5 values(now, '3');
-sql_error insert into t1.p5 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql_error insert into t1.p5 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql_error insert into t1.p5 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p5 values(1, '1');
+sql_error insert into t1.p5 values(1, '2');
+sql_error insert into t1.p5 values(1, '3');
+sql_error insert into t1.p5 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql_error insert into t1.p5 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql_error insert into t1.p5 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql select * from t1.p1 order by off desc
-if $rows != 42 then 
+sql select * from t1.p1 order by off asc
+if $rows != 66 then 
   return -1
 endi
-if $data00 != 1 then 
+if $data01 != 1 then 
   return -1
 endi
-if $data10 != 2 then 
+if $data11 != 2 then 
   return -1
 endi
-if $data10 != 3 then 
-  return -1
-endi
-
-sql select * from t1.p2 order by off desc
-if $rows != 42 then 
-  return -1
-endi
-if $data00 != 1 then 
-  return -1
-endi
-if $data10 != 2 then 
-  return -1
-endi
-if $data10 != 3 then 
+if $data21 != 3 then 
   return -1
 endi
 
-sql select * from t1.p3 order by off desc
-if $rows != 21 then 
+sql select * from t1.p2 order by off asc
+if $rows != 66 then 
   return -1
 endi
-if $data00 != 1 then 
+if $data01 != 1 then 
   return -1
 endi
-if $data10 != 2 then 
+if $data11 != 2 then 
   return -1
 endi
-if $data10 != 3 then 
+if $data21 != 3 then 
   return -1
 endi
 
-sql select * from t1.p3 order by off desc
-if $rows != 21 then 
+sql select * from t1.p3 order by off asc
+if $rows != 33 then 
   return -1
 endi
-if $data00 != 1 then 
+if $data01 != 1 then 
   return -1
 endi
-if $data10 != 2 then 
+if $data11 != 2 then 
   return -1
 endi
-if $data10 != 3 then 
+if $data21 != 3 then 
+  return -1
+endi
+
+sql select * from t1.p4 order by off asc
+if $rows != 33 then 
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data21 != 3 then 
   return -1
 endi
 
@@ -192,66 +174,63 @@ sql show t1.tables
 if $rows != 1 then 
   return -1
 endi
-if $data00 != p1 then 
-  return -1
-endi
 sql show t1.vgroups
 if $rows != 1 then 
   return -1
 endi
 
-sql insert into t1.p1 values(now, '1');
-sql insert into t1.p1 values(now, '2');
-sql insert into t1.p1 values(now, '3');
-sql insert into t1.p1 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql insert into t1.p1 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql insert into t1.p1 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p1 values(1, '1');
+sql insert into t1.p1 values(1, '2');
+sql insert into t1.p1 values(1, '3');
+sql insert into t1.p1 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql insert into t1.p1 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql insert into t1.p1 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql_error insert into t1.p2 values(now, '1');
-sql_error insert into t1.p2 values(now, '2');
-sql_error insert into t1.p2 values(now, '3');
-sql_error insert into t1.p2 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql_error insert into t1.p2 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql_error insert into t1.p2 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p2 values(1, '1');
+sql_error insert into t1.p2 values(1, '2');
+sql_error insert into t1.p2 values(1, '3');
+sql_error insert into t1.p2 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql_error insert into t1.p2 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql_error insert into t1.p2 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql_error insert into t1.p3 values(now, '1');
-sql_error insert into t1.p3 values(now, '2');
-sql_error insert into t1.p3 values(now, '3');
-sql_error insert into t1.p3 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql_error insert into t1.p3 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql_error insert into t1.p3 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p3 values(1, '1');
+sql_error insert into t1.p3 values(1, '2');
+sql_error insert into t1.p3 values(1, '3');
+sql_error insert into t1.p3 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql_error insert into t1.p3 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql_error insert into t1.p3 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql_error insert into t1.p4 values(now, '1');
-sql_error insert into t1.p4 values(now, '2');
-sql_error insert into t1.p4 values(now, '3');
-sql_error insert into t1.p4 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql_error insert into t1.p4 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql_error insert into t1.p4 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p4 values(1, '1');
+sql_error insert into t1.p4 values(1, '2');
+sql_error insert into t1.p4 values(1, '3');
+sql_error insert into t1.p4 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql_error insert into t1.p4 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql_error insert into t1.p4 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql_error insert into t1.p5 values(now, '1');
-sql_error insert into t1.p5 values(now, '2');
-sql_error insert into t1.p5 values(now, '3');
-sql_error insert into t1.p5 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql_error insert into t1.p5 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql_error insert into t1.p5 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql_error insert into t1.p5 values(1, '1');
+sql_error insert into t1.p5 values(1, '2');
+sql_error insert into t1.p5 values(1, '3');
+sql_error insert into t1.p5 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql_error insert into t1.p5 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql_error insert into t1.p5 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql select * from t1.p1 order by off desc
-if $rows != 63 then 
+sql select * from t1.p1 order by off asc
+if $rows != 99 then 
   return -1
 endi
-if $data00 != 1 then 
+if $data01 != 1 then 
   return -1
 endi
-if $data10 != 2 then 
+if $data11 != 2 then 
   return -1
 endi
-if $data10 != 3 then 
+if $data21 != 3 then 
   return -1
 endi
 
-sql_error select * from t1.p2 order by off desc
-sql_error select * from t1.p3 order by off desc
-sql_error select * from t1.p4 order by off desc
+sql_error select * from t1.p2 order by off asc
+sql_error select * from t1.p3 order by off asc
+sql_error select * from t1.p4 order by off asc
 
 print ==== step4
 sql alter topic t1 partitions 3;
@@ -259,92 +238,83 @@ sql show t1.tables
 if $rows != 3 then 
   return -1
 endi
-if $data00 != p1 then 
-  return -1
-endi
-if $data00 != p2 then 
-  return -1
-endi
-if $data00 != p3 then 
-  return -1
-endi
 sql show t1.vgroups
 if $rows != 3 then 
   return -1
 endi
 
-sql insert into t1.p1 values(now, '1');
-sql insert into t1.p1 values(now, '2');
-sql insert into t1.p1 values(now, '3');
-sql insert into t1.p1 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql insert into t1.p1 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql insert into t1.p1 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p1 values(1, '1');
+sql insert into t1.p1 values(1, '2');
+sql insert into t1.p1 values(1, '3');
+sql insert into t1.p1 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql insert into t1.p1 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql insert into t1.p1 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql insert into t1.p2 values(now, '1');
-sql insert into t1.p2 values(now, '2');
-sql insert into t1.p2 values(now, '3');
-sql insert into t1.p2 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql insert into t1.p2 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql insert into t1.p2 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p2 values(1, '1');
+sql insert into t1.p2 values(1, '2');
+sql insert into t1.p2 values(1, '3');
+sql insert into t1.p2 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql insert into t1.p2 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql insert into t1.p2 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql insert into t1.p3 values(now, '1');
-sql insert into t1.p3 values(now, '2');
-sql insert into t1.p3 values(now, '3');
-sql insert into t1.p3 values(now, '4')(now, '5')(now, '6')(now, '7')(now, '8')(now, '9');
-sql insert into t1.p3 values(now, '14')(now, '15')(now, '16')(now, '17')(now, '18')(now, '19');
-sql insert into t1.p3 values(now, '24')(now, '25')(now, '16')(now, '17')(now, '18')(now, '19');
+sql insert into t1.p3 values(1, '1');
+sql insert into t1.p3 values(1, '2');
+sql insert into t1.p3 values(1, '3');
+sql insert into t1.p3 values(1, '4')(2, '5')(3, '6')(4, '7')(5, '8')(6, '9');
+sql insert into t1.p3 values(1, '10')(2, '11')(3, '12')(4, '13')(5, '14')(6, '15');
+sql insert into t1.p3 values(1, '16')(2, '17')(3, '18')(4, '19')(5, '20')(6, '21')(7, '22')(8, '23')(9, '24')(10, '25')(11, '26')(12, '27')(13, '28')(14, '29')(15, '30')(16, '31')(17, '32')(18, '33');
 
-sql insert into t1.p4 values(now, '1');
-sql insert into t1.p5 values(now, '1');
-sql insert into t1.p6 values(now, '1');
-sql_error select * from t1.p4 order by off desc
-sql_error select * from t1.p5 order by off desc
-sql_error select * from t1.p6 order by off desc
+sql_error insert into t1.p4 values(1, '1');
+sql_error insert into t1.p5 values(1, '1');
+sql_error insert into t1.p6 values(1, '1');
+sql_error select * from t1.p4 order by off asc
+sql_error select * from t1.p5 order by off asc
+sql_error select * from t1.p6 order by off asc
 
-sql select * from t1.p1 order by off desc
-if $rows != 84 then 
+sql select * from t1.p1 order by off asc
+if $rows != 132 then 
   return -1
 endi
-if $data00 != 1 then 
+if $data01 != 1 then 
   return -1
 endi
-if $data10 != 2 then 
+if $data11 != 2 then 
   return -1
 endi
-if $data10 != 3 then 
-  return -1
-endi
-
-sql select * from t1.p1 order by off desc
-if $rows != 21 then 
-  return -1
-endi
-if $data00 != 1 then 
-  return -1
-endi
-if $data10 != 2 then 
-  return -1
-endi
-if $data10 != 3 then 
+if $data21 != 3 then 
   return -1
 endi
 
-sql select * from t1.p1 order by off desc
-if $rows != 21 then 
+sql select * from t1.p2 order by off asc
+if $rows != 33 then 
   return -1
 endi
-if $data00 != 1 then 
+if $data01 != 1 then 
   return -1
 endi
-if $data10 != 2 then 
+if $data11 != 2 then 
   return -1
 endi
-if $data10 != 3 then 
+if $data21 != 3 then 
   return -1
 endi
 
-sql select * from t1.ps order by off desc
-if $rows != 126 then 
+sql select * from t1.p3 order by off asc
+if $rows != 33 then 
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data21 != 3 then 
+  return -1
+endi
+
+sql select * from t1.ps order by off asc
+if $rows != 198 then 
   return -1
 endi
 
