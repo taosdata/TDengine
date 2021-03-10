@@ -447,7 +447,7 @@ void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage*
 
     const char* data = pInput->data + pCol->col.offset * pInput->num;
     if (pInput->num > pFillInfo->alloc) {
-      char* t = realloc(pFillInfo->pData[i], pCol->col.bytes * pInput->num);
+      char* t = realloc(pFillInfo->pData[i], (size_t)(pCol->col.bytes * pInput->num));
       assert(t != NULL);
 
       pFillInfo->pData[i] = t;
