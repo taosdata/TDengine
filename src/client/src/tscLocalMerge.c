@@ -970,7 +970,7 @@ static void doFillResult(SSqlObj *pSql, SLocalMerger *pLocalMerge, bool doneOutp
       if (pQueryInfo->limit.offset > 0) {
         for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
           TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-          memmove(pResPages[i], pResPages[i] + pField->bytes * pQueryInfo->limit.offset,
+          memmove(pResPages[i], ((char*)pResPages[i]) + pField->bytes * pQueryInfo->limit.offset,
                   (size_t)(newRows * pField->bytes));
         }
       }

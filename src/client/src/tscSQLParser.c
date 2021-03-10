@@ -2408,7 +2408,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       getResultDataInfo(TSDB_DATA_TYPE_INT, 4, TSDB_FUNC_BLKINFO, 0, &resType, &bytes, &inter, 0, 0);
 
       s.bytes = bytes;
-      s.type = resType;
+      s.type = (uint8_t)resType;
       SSqlExpr* pExpr = tscAddFuncInSelectClause(pQueryInfo, 0, TSDB_FUNC_BLKINFO, &index, &s, TSDB_COL_TAG);
       pExpr->numOfParams = 1;
       pExpr->param[0].i64 = pTableMetaInfo->pTableMeta->tableInfo.rowSize;

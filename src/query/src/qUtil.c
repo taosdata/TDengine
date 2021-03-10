@@ -140,7 +140,7 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
     for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutput; ++i) {
       SResultRowCellInfo *pResultInfo = &pResultRow->pCellInfo[i];
 
-      size_t size = pRuntimeEnv->pQuery->pExpr1[i].bytes;
+      int16_t size = pRuntimeEnv->pQuery->pExpr1[i].bytes;
       char * s = getPosInResultPage(pRuntimeEnv->pQuery, page, pResultRow->offset, offset);
       memset(s, 0, size);
 
@@ -596,10 +596,10 @@ void blockDistInfoToBinary(STableBlockDist* pDist, struct SBufferWriter* bw) {
   char* tmp = malloc(x + 2);
 
   bool comp = false;
-  int32_t len = tsCompressString(p, x, 1, tmp, x, ONE_STAGE_COMP, NULL, 0);
+  int32_t len = tsCompressString(p, (int32_t)x, 1, tmp, (int32_t)x, ONE_STAGE_COMP, NULL, 0);
   if (len == -1 || len >= x) { // compress failed, do not compress this binary data
     comp = false;
-    len = x;
+    len = (int32_t)x;
   } else {
     comp = true;
   }
@@ -621,7 +621,7 @@ void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDi
   pDist->numOfFiles  = tbufReadUint16(&br);
   pDist->totalSize   = tbufReadUint64(&br);
   pDist->numOfRowsInMemTable = tbufReadUint32(&br);
-  int32_t numOfBlocks = tbufReadUint64(&br);
+  int64_t numOfBlocks = tbufReadUint64(&br);
 
   bool comp = tbufReadUint8(&br);
   uint32_t compLen = tbufReadUint32(&br);
@@ -636,7 +636,7 @@ void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDi
     const char* compStr = tbufReadBinary(&br, &actualLen);
 
     int32_t orignalLen = tsDecompressString(compStr, compLen, 1, outputBuf,
-                                            originalLen , ONE_STAGE_COMP, NULL, 0);
+                                            (int32_t)originalLen , ONE_STAGE_COMP, NULL, 0);
     assert(orignalLen == numOfBlocks*sizeof(SFileBlockInfo));
   } else {
     outputBuf = (char*) tbufReadBinary(&br, &originalLen);

@@ -451,7 +451,7 @@ void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage*
       assert(t != NULL);
 
       pFillInfo->pData[i] = t;
-      pFillInfo->alloc = pInput->num;
+      pFillInfo->alloc = (int32_t)pInput->num;
     }
 
     memcpy(pFillInfo->pData[i], data, pCol->col.bytes * pInput->num);

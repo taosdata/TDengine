@@ -232,11 +232,11 @@ static void* destroyOutputBuf(SSDataBlock* pBlock) {
   return NULL;
 }
 
-int64_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput) {
+int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   bool    hasMainFunction = hasMainOutput(pQuery);
 
-  int64_t maxOutput = 0;
+  int32_t maxOutput = 0;
   for (int32_t j = 0; j < numOfOutput; ++j) {
     int32_t id = pCtx[j].functionId;
 
@@ -1390,6 +1390,7 @@ static int32_t getGroupbyColumnIndex(SSqlGroupbyExpr *pGroupbyExpr, SSDataBlock*
   }
 
   assert(0);
+  return -1;
 }
 
 static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t functionId) {
@@ -1584,8 +1585,8 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
   }
 
   for(int32_t i = 1; i < numOfOutput; ++i) {
-    (*rowCellInfoOffset)[i] = (*rowCellInfoOffset)[i - 1] + sizeof(SResultRowCellInfo) +
-        pExpr[i - 1].interBytes * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery);
+    (*rowCellInfoOffset)[i] = (int32_t)((*rowCellInfoOffset)[i - 1] + sizeof(SResultRowCellInfo) +
+        pExpr[i - 1].interBytes * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery));
   }
 
   setCtxTagColumnInfo(pFuncCtx, numOfOutput);
@@ -3803,7 +3804,7 @@ static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo);
 static UNUSED_FUNC void setTableQueryHandle(SQueryRuntimeEnv* pRuntimeEnv, int32_t tableIndex) {
   SQuery* pQuery = pRuntimeEnv->pQuery;
 
-  int32_t numOfGroup = GET_NUM_OF_TABLEGROUP(pRuntimeEnv);
+  int32_t numOfGroup = (int32_t) GET_NUM_OF_TABLEGROUP(pRuntimeEnv);
 
   STableQueryInfo* pCheckInfo = NULL;
   if (numOfGroup == 1) {
@@ -3951,7 +3952,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   pQuery->stableQuery = isSTableQuery;
   pQuery->groupbyColumn = isGroupbyColumn(pQuery->pGroupbyExpr);
 
-  pRuntimeEnv->groupResInfo.totalGroup = isSTableQuery? GET_NUM_OF_TABLEGROUP(pRuntimeEnv):0;
+  pRuntimeEnv->groupResInfo.totalGroup = (int32_t) (isSTableQuery? GET_NUM_OF_TABLEGROUP(pRuntimeEnv):0);
 
   pRuntimeEnv->pQuery = pQuery;
   pRuntimeEnv->pTsBuf = pTsBuf;
@@ -3986,7 +3987,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   }
 
   // create runtime environment
-  int32_t numOfTables = pQuery->tableGroupInfo.numOfTables;
+  int32_t numOfTables = (int32_t)pQuery->tableGroupInfo.numOfTables;
   pQInfo->summary.tableInfoSize += (numOfTables * sizeof(STableQueryInfo));
   code = setupQueryRuntimeEnv(pRuntimeEnv, (int32_t) pQuery->tableGroupInfo.numOfTables);
   if (code != TSDB_CODE_SUCCESS) {
@@ -4183,11 +4184,11 @@ static SSDataBlock* doBlockInfoScan(void* param) {
   STableScanInfo *pTableScanInfo = pOperator->info;
 
   STableBlockDist tableBlockDist = {0};
-  tableBlockDist.numOfTables     = pOperator->pRuntimeEnv->tableqinfoGroupInfo.numOfTables;
+  tableBlockDist.numOfTables     = (int32_t)pOperator->pRuntimeEnv->tableqinfoGroupInfo.numOfTables;
   tableBlockDist.dataBlockInfos  = taosArrayInit(512, sizeof(SFileBlockInfo));
 
   tsdbGetFileBlocksDistInfo(pTableScanInfo->pQueryHandle, &tableBlockDist);
-  tableBlockDist.numOfRowsInMemTable = tsdbGetNumOfRowsInMemTable(pTableScanInfo->pQueryHandle);
+  tableBlockDist.numOfRowsInMemTable = (int32_t) tsdbGetNumOfRowsInMemTable(pTableScanInfo->pQueryHandle);
 
   SSDataBlock* pBlock = &pTableScanInfo->block;
   pBlock->info.rows   = 1;
@@ -4508,7 +4509,7 @@ static SSDataBlock* doLimit(void* param) {
   }
 
   if (pInfo->total + pBlock->info.rows >= pInfo->limit) {
-    pBlock->info.rows = (pInfo->limit - pInfo->total);
+    pBlock->info.rows = (int32_t) (pInfo->limit - pInfo->total);
 
     pInfo->total = pInfo->limit;
 
@@ -4543,7 +4544,7 @@ static SSDataBlock* doOffset(void* param) {
     } else if (pRuntimeEnv->currentOffset > pBlock->info.rows) {
       pRuntimeEnv->currentOffset -= pBlock->info.rows;
     } else {
-      int32_t remain = pBlock->info.rows - pRuntimeEnv->currentOffset;
+      int32_t remain = (int32_t)(pBlock->info.rows - pRuntimeEnv->currentOffset);
       pBlock->info.rows = remain;
 
       for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
@@ -4733,7 +4734,7 @@ static SSDataBlock* doFill(void* param) {
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
 
   if (taosFillHasMoreResults(pInfo->pFillInfo)) {
-    doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, pRuntimeEnv->resultInfo.capacity);
+    doFillTimeIntervalGapsInResults(pInfo->pFillInfo, pInfo->pRes, (int32_t)pRuntimeEnv->resultInfo.capacity);
     return pInfo->pRes;
   }
 
@@ -4860,7 +4861,7 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
 
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, (int32_t) tableGroup);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
-  initResultRowInfo(&pInfo->binfo.resultRowInfo, tableGroup, TSDB_DATA_TYPE_INT);
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, (int32_t)tableGroup, TSDB_DATA_TYPE_INT);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "MultiTableAggregate";

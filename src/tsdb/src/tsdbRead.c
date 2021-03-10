@@ -3201,7 +3201,7 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
       goto _error;
     }
 
-    pGroupInfo->numOfTables = taosArrayGetSize(res);
+    pGroupInfo->numOfTables = (uint32_t) taosArrayGetSize(res);
     pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, skey);
 
     tsdbDebug("%p no table name/tag condition, all tables belong to one group, numOfTables:%u", tsdb, pGroupInfo->numOfTables);
@@ -3246,7 +3246,7 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
   } END_TRY
 
   doQueryTableList(pTable, res, expr);
-  pGroupInfo->numOfTables = taosArrayGetSize(res);
+  pGroupInfo->numOfTables = (uint32_t)taosArrayGetSize(res);
   pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, skey);
 
   tsdbDebug("%p stable tid:%d, uid:%"PRIu64" query, numOfTables:%u, belong to %" PRIzu " groups", tsdb, pTable->tableId.tid,
@@ -3326,7 +3326,7 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo* tsdb, SArray* pTableIdList, STabl
     return terrno;
   }
 
-  pGroupInfo->numOfTables = taosArrayGetSize(group);
+  pGroupInfo->numOfTables = (uint32_t) taosArrayGetSize(group);
   if (pGroupInfo->numOfTables > 0) {
     taosArrayPush(pGroupInfo->pGroupList, &group);
   } else {
