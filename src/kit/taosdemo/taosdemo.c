@@ -1601,7 +1601,7 @@ void ERROR_EXIT(const char *msg) { perror(msg); exit(0); }
 
 int postProceSql(char* host, uint16_t port, char* sqlstr)
 {
-    char *req_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\n%s\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s";
+    char *req_fmt = "POST %s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: Basic %s\r\nContent-Length: %d\r\nContent-Type: application/x-www-form-urlencoded\r\n\r\n%s";
 
     char *url = "/rest/sql";
 
@@ -1656,7 +1656,7 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
     for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++)
       base64_buf[encoded_len - 1 - l] = '=';
 
-    printf("auth string base64 encoded: %s\n", base64_buf);
+    debugPrint("%s() LN%d: auth string base64 encoded: %s\n", __func__, __LINE__, base64_buf);
     char *auth = base64_buf;
 
 #ifdef TD_WINDOWS
@@ -1705,7 +1705,7 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
         free(request_buf);
         ERROR_EXIT("ERROR too long request");
     }
-    printf("Request:\n%s\n", request_buf);
+    verbosePrint("%s() LN%d: Request:\n%s\n", __func__, __LINE__, request_buf);
 
     req_str_len = strlen(request_buf);
     sent = 0;
@@ -4447,42 +4447,46 @@ static void* syncWriteWithStb(void *sarg) {
   
       winfo->totalRowsInserted += k;
 
+      int64_t startTs = taosGetTimestampUs();
+      int64_t endTs;
+      int affectedRows;
       if (0 == strncasecmp(superTblInfo->insertMode, "taosc", strlen("taosc"))) {
-          int64_t startTs;
-          int64_t endTs;
-          startTs = taosGetTimestampUs();
-
           verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
-          int affectedRows = queryDbExec(winfo->taos, buffer, INSERT_TYPE);
+          affectedRows = queryDbExec(winfo->taos, buffer, INSERT_TYPE);
 
           if (0 > affectedRows){
             goto free_and_statistics_2;
-          } else {
-            endTs = taosGetTimestampUs();
-            int64_t delay = endTs - startTs;
-            if (delay > winfo->maxDelay) winfo->maxDelay = delay;
-            if (delay < winfo->minDelay) winfo->minDelay = delay;
-            winfo->cntDelay++;
-            winfo->totalDelay += delay;
-          }
-          winfo->totalAffectedRows += affectedRows;
-
-          int64_t  currentPrintTime = taosGetTimestampMs();
-          if (currentPrintTime - lastPrintTime > 30*1000) {
-            printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n", 
-                    winfo->threadID, 
-                    winfo->totalRowsInserted, 
-                    winfo->totalAffectedRows);
-            lastPrintTime = currentPrintTime;
           }
       } else {
+          verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
           int retCode = postProceSql(g_Dbs.host, g_Dbs.port, buffer);
-          
+
           if (0 != retCode) {
             printf("========restful return fail, threadID[%d]\n", winfo->threadID);
             goto free_and_statistics_2;
           }
+
+          affectedRows = k;
       }
+
+      endTs = taosGetTimestampUs();
+      int64_t delay = endTs - startTs;
+      if (delay > winfo->maxDelay) winfo->maxDelay = delay;
+      if (delay < winfo->minDelay) winfo->minDelay = delay;
+      winfo->cntDelay++;
+      winfo->totalDelay += delay;
+
+      winfo->totalAffectedRows += affectedRows;
+
+      int64_t  currentPrintTime = taosGetTimestampMs();
+      if (currentPrintTime - lastPrintTime > 30*1000) {
+        printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n", 
+                    winfo->threadID, 
+                    winfo->totalRowsInserted, 
+                    winfo->totalAffectedRows);
+        lastPrintTime = currentPrintTime;
+      }
+
       if (g_args.insert_interval) {
         et = taosGetTimestampMs();
       }
