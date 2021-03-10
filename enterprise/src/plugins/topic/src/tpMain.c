@@ -218,8 +218,13 @@ static void *tpProcessCreateTp(void *param) {
   SMnodeMsg *   pMsg = param;
   SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
 
-  int32_t partitions = htons(pCreate->partitions);
+  int16_t partitions = htons(pCreate->partitions);
   mDebug("topic:%s, start to create, partitions:%d", pCreate->db, partitions);
+
+  if (partitions == -1) {
+    partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
+  }
+
   int32_t code = 0;
 
   if (partitions < 1 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
@@ -262,6 +267,7 @@ ctp_over:
   if (code == 0) {
     if (pDb != NULL) pDb->cfg.dbType = TSDB_DB_TYPE_DEFAULT;
     pCreate->dbType = TSDB_DB_TYPE_TOPIC;
+    pCreate->partitions = htons(partitions);
     code = mnodeProcessAlterDbMsg(pMsg);
   }
 
