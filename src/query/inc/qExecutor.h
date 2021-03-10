@@ -445,9 +445,6 @@ bool doBuildResCheck(SQInfo* pQInfo);
 void setQueryStatus(SQueryRuntimeEnv *pRuntimeEnv, int8_t status);
 
 bool onlyQueryTags(SQuery* pQuery);
-void buildTagQueryResult(SQInfo *pQInfo);
-void stableQueryImpl(SQInfo *pQInfo);
-void buildTableBlockDistResult(SQInfo *pQInfo);
 void tableQueryImpl(SQInfo *pQInfo);
 bool isValidQInfo(void *param);
 

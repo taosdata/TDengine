@@ -209,6 +209,7 @@ bool qTableQuery(qinfo_t qinfo) {
     return false;
   }
 
+
   pQInfo->startExecTs = taosGetTimestampSec();
 
   if (isQueryKilled(pQInfo)) {
@@ -216,9 +217,10 @@ bool qTableQuery(qinfo_t qinfo) {
     return doBuildResCheck(pQInfo);
   }
 
-  if (pQInfo->runtimeEnv.tableqinfoGroupInfo.numOfTables == 0) {
+  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
+  if (pRuntimeEnv->tableqinfoGroupInfo.numOfTables == 0) {
     qDebug("QInfo:%p no table exists for query, abort", pQInfo);
-    setQueryStatus(&pQInfo->runtimeEnv, QUERY_COMPLETED);
+    setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
     return doBuildResCheck(pQInfo);
   }
 
@@ -232,17 +234,7 @@ bool qTableQuery(qinfo_t qinfo) {
 
   qDebug("QInfo:%p query task is launched", pQInfo);
 
-  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
-  if (onlyQueryTags(pQInfo->runtimeEnv.pQuery)) {
-    assert(pQInfo->runtimeEnv.pQueryHandle == NULL);
-    buildTagQueryResult(pQInfo);
-  } else if (pQInfo->query.stableQuery) {
-    stableQueryImpl(pQInfo);
-//  } else if (pQInfo->query.queryBlockDist){
-//    buildTableBlockDistResult(pQInfo);
-  } else {
-    tableQueryImpl(pQInfo);
-  }
+  pRuntimeEnv->outputBuf = pRuntimeEnv->proot->exec(pRuntimeEnv->proot);
 
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:%p query is killed", pQInfo);

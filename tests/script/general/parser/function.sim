@@ -784,7 +784,15 @@ if $rows != 1 then
   return -1
 endi
 
+if $data00 != 1 then
+  return -1
+endi
+
 sql select count(id) from st1
 if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
   return -1
 endi
