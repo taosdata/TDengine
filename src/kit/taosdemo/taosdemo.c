@@ -1659,7 +1659,7 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
         ERROR_EXIT("ERROR, no such host");
     }
 
-    debugPrint("h_name: %s\nh_addretype: %s\nh_length: %d\n", 
+    debugPrint("h_name: %s\nh_addretype: %s\nh_length: %d\n",
             server->h_name,
             (server->h_addrtype == AF_INET)?"ipv4":"ipv6",
             server->h_length);
@@ -1683,11 +1683,11 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
     memset(base64_buf, 0, INPUT_BUF_LEN);
 
     for (int n = 0, m = 0; n < userpass_buf_len;) {
-      uint32_t oct_a = n < userpass_buf_len ? 
+      uint32_t oct_a = n < userpass_buf_len ?
         (unsigned char) userpass_buf[n++]:0;
-      uint32_t oct_b = n < userpass_buf_len ? 
+      uint32_t oct_b = n < userpass_buf_len ?
         (unsigned char) userpass_buf[n++]:0;
-      uint32_t oct_c = n < userpass_buf_len ? 
+      uint32_t oct_c = n < userpass_buf_len ?
         (unsigned char) userpass_buf[n++]:0;
       uint32_t triple = (oct_a << 0x10) + (oct_b << 0x08) + oct_c;
 
@@ -1703,9 +1703,9 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
     debugPrint("%s() LN%d: auth string base64 encoded: %s\n", __func__, __LINE__, base64_buf);
     char *auth = base64_buf;
 
-    int r = snprintf(request_buf, 
-            req_buf_len, 
-            req_fmt, url, host, rest_port, 
+    int r = snprintf(request_buf,
+            req_buf_len,
+            req_fmt, url, host, rest_port,
             auth, strlen(sqlstr), sqlstr);
     if (r >= req_buf_len) {
         free(request_buf);
@@ -4041,8 +4041,8 @@ send_to_server:
 
           int64_t  currentPrintTime = taosGetTimestampMs();
           if (currentPrintTime - lastPrintTime > 30*1000) {
-            printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n", 
-                    winfo->threadID, 
+            printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n",
+                    winfo->threadID,
                     winfo->totalRowsInserted,
                     winfo->totalAffectedRows);
             lastPrintTime = currentPrintTime;
@@ -4486,9 +4486,9 @@ static void* syncWriteWithStb(void *sarg) {
 
       int64_t  currentPrintTime = taosGetTimestampMs();
       if (currentPrintTime - lastPrintTime > 30*1000) {
-        printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n", 
-                    winfo->threadID, 
-                    winfo->totalRowsInserted, 
+        printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n",
+                    winfo->threadID,
+                    winfo->totalRowsInserted,
                     winfo->totalAffectedRows);
         lastPrintTime = currentPrintTime;
       }
