@@ -288,6 +288,7 @@ static void *tpProcessAlterTp(void *param) {
   SDbObj *pDb = mnodeGetDb(pAlter->db);
   if (pDb == NULL || pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
     mError("topic:%s, failed to alter, invalid topic", pAlter->db);
+    code = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
     goto atp_over;
   }
 
@@ -499,9 +500,10 @@ void tpUpdateTs(int32_t *seq, void *pMsg) {
       rowOffset += dataRowLen(pRow);
       rows++;
 
-      (*seq)++;
-      if ((*seq) > 1000000) seq = 0;
-      dataRowTKey(pRow) = (1614873600000000L + *seq);
+      int64_t ts = taosGetTimestampSec();
+      dataRowTKey(pRow) = (ts * 1000000 + (*seq)++);
+
+      if ((*seq) > 1000000) *seq = 0;
     }
   }
 }
