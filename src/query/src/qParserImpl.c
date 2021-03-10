@@ -936,10 +936,10 @@ void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {
   pDBInfo->keep = NULL;
 
   pDBInfo->update = -1;
-  pDBInfo->cachelast = 0;
+  pDBInfo->cachelast = -1;
 
-  pDBInfo->dbType = TSDB_DB_TYPE_DEFAULT;
-  pDBInfo->partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
+  pDBInfo->dbType = -1;
+  pDBInfo->partitions = -1;
   
   memset(&pDBInfo->precision, 0, sizeof(SStrToken));
 }

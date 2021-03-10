@@ -2682,7 +2682,7 @@ static YYACTIONTYPE yy_reduce(
 { yymsp[-1].minor.yy0 = yymsp[0].minor.yy0; }
         break;
       case 93: /* db_optr ::= */
-{setDefaultCreateDbOption(&yymsp[1].minor.yy100);}
+{setDefaultCreateDbOption(&yymsp[1].minor.yy100); yymsp[1].minor.yy100.dbType = TSDB_DB_TYPE_DEFAULT;}
         break;
       case 94: /* db_optr ::= db_optr cache */
 { yylhsminor.yy100 = yymsp[-1].minor.yy100; yylhsminor.yy100.cacheBlockSize = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
@@ -2764,7 +2764,7 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-1].minor.yy100 = yylhsminor.yy100;
         break;
       case 111: /* alter_db_optr ::= */
-{ setDefaultCreateDbOption(&yymsp[1].minor.yy100);}
+{ setDefaultCreateDbOption(&yymsp[1].minor.yy100); yymsp[1].minor.yy100.dbType = TSDB_DB_TYPE_DEFAULT;}
         break;
       case 123: /* typename ::= ids */
 { 

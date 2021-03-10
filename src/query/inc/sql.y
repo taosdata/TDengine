@@ -255,7 +255,7 @@ cachelast(Y) ::= CACHELAST INTEGER(X).        { Y = X; }
 partitions(Y) ::= PARTITIONS INTEGER(X).      { Y = X; }
 
 %type db_optr {SCreateDbInfo}
-db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
+db_optr(Y) ::= . {setDefaultCreateDbOption(&Y); Y.dbType = TSDB_DB_TYPE_DEFAULT;}
 
 db_optr(Y) ::= db_optr(Z) cache(X).          { Y = Z; Y.cacheBlockSize = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) replica(X).        { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
@@ -279,7 +279,7 @@ topic_optr(Y) ::= db_optr(Z).                       { Y = Z; Y.dbType = TSDB_DB_
 topic_optr(Y) ::= topic_optr(Z) partitions(X).      { Y = Z; Y.partitions = strtol(X.z, NULL, 10); }
 
 %type alter_db_optr {SCreateDbInfo}
-alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y);}
+alter_db_optr(Y) ::= . { setDefaultCreateDbOption(&Y); Y.dbType = TSDB_DB_TYPE_DEFAULT;}
 
 alter_db_optr(Y) ::= alter_db_optr(Z) replica(X).     { Y = Z; Y.replica = strtol(X.z, NULL, 10); }
 alter_db_optr(Y) ::= alter_db_optr(Z) quorum(X).      { Y = Z; Y.quorum = strtol(X.z, NULL, 10); }
