@@ -6246,7 +6246,7 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCreateDbMsg* pCreate) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
 
-  val = htons(pCreate->partitions);
+  val = (int16_t)htons(pCreate->partitions);
   if (val != -1 &&
       (val < TSDB_MIN_DB_PARTITON_OPTION || val > TSDB_MAX_DB_PARTITON_OPTION)) {
     snprintf(msg, tListLen(msg), "invalid topic option partition: %d valid range: [%d, %d]", val,
