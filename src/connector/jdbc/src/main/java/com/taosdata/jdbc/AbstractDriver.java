@@ -57,10 +57,8 @@ public abstract class AbstractDriver implements Driver {
     }
 
     protected void loadTaosConfig(Properties info) {
-        if ((info.getProperty(TSDBDriver.PROPERTY_KEY_HOST) == null ||
-                info.getProperty(TSDBDriver.PROPERTY_KEY_HOST).isEmpty()) && (
-                info.getProperty(TSDBDriver.PROPERTY_KEY_PORT) == null ||
-                        info.getProperty(TSDBDriver.PROPERTY_KEY_PORT).isEmpty())) {
+        if ((info.getProperty(TSDBDriver.PROPERTY_KEY_HOST) == null || info.getProperty(TSDBDriver.PROPERTY_KEY_HOST).isEmpty()) && (
+                info.getProperty(TSDBDriver.PROPERTY_KEY_PORT) == null || info.getProperty(TSDBDriver.PROPERTY_KEY_PORT).isEmpty())) {
             File cfgDir = loadConfigDir(info.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR));
             File cfgFile = cfgDir.listFiles((dir, name) -> TAOS_CFG_FILENAME.equalsIgnoreCase(name))[0];
             List<String> endpoints = loadConfigEndpoints(cfgFile);
