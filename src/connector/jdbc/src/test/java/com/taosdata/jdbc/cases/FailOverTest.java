@@ -18,7 +18,7 @@ public class FailOverTest {
         long end = System.currentTimeMillis() + 1000 * 60 * 5;
         while (System.currentTimeMillis() < end) {
             try (Connection conn = DriverManager.getConnection(url); Statement stmt = conn.createStatement()) {
-                ResultSet rs = stmt.executeQuery("show dnodes()");
+                ResultSet rs = stmt.executeQuery("show dnodes");
                 ResultSetMetaData meta = rs.getMetaData();
                 while (rs.next()) {
                     for (int i = 1; i <= meta.getColumnCount(); i++) {
