@@ -560,7 +560,7 @@ static int32_t addNewWindowResultBuf(SResultRow *pWindowRes, SDiskbasedResultBuf
   // set the number of rows in current disk page
   if (pWindowRes->pageId == -1) {  // not allocated yet, allocate new buffer
     pWindowRes->pageId = pageId;
-    pWindowRes->offset = pData->num;
+    pWindowRes->offset = (int32_t)pData->num;
 
     pData->num += size;
     assert(pWindowRes->pageId >= 0);
@@ -941,7 +941,7 @@ static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SQLFunctionCtx* pC
   for (int32_t i = 0; i < pOperator->numOfOutput; ++i) {
     pCtx[i].order = order;
     pCtx[i].size  = pBlock->info.rows;
-    pCtx[i].currentStage = pOperator->pRuntimeEnv->scanFlag;
+    pCtx[i].currentStage = (uint8_t)pOperator->pRuntimeEnv->scanFlag;
 
     setBlockStatisInfo(&pCtx[i], pBlock, &pOperator->pExpr[i].base.colInfo);
   }
@@ -968,7 +968,7 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
   for (int32_t i = 0; i < pOperator->numOfOutput; ++i) {
     pCtx[i].order = order;
     pCtx[i].size  = pBlock->info.rows;
-    pCtx[i].currentStage = pOperator->pRuntimeEnv->scanFlag;
+    pCtx[i].currentStage = (uint8_t)pOperator->pRuntimeEnv->scanFlag;
 
     setBlockStatisInfo(&pCtx[i], pBlock, &pOperator->pExpr[i].base.colInfo);
 
@@ -1296,7 +1296,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
   }
 
   for (int32_t j = 0; j < pSDataBlock->info.rows; ++j) {
-    char* val = pColInfoData->pData + bytes * j;
+    char* val = ((char*)pColInfoData->pData) + bytes * j;
     if (isNull(val, type)) {
       continue;
     }
@@ -2351,7 +2351,7 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
             SColumnInfoData *pColumnInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
             int16_t bytes = pColumnInfoData->info.bytes;
-            memmove(pColumnInfoData->pData + start * bytes, pColumnInfoData->pData + cstart * bytes, len * bytes);
+            memmove(((char*)pColumnInfoData->pData) + start * bytes, pColumnInfoData->pData + cstart * bytes, len * bytes);
           }
 
           start += len;
@@ -3446,7 +3446,7 @@ static void toSSDataBlock(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv* pRunti
   if (pInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
     STimeWindow* w = &pBlock->info.window;
     w->skey = *(int64_t*)pInfoData->pData;
-    w->ekey = *(int64_t*)(pInfoData->pData + TSDB_KEYSIZE * (pBlock->info.rows - 1));
+    w->ekey = *(int64_t*)(((char*)pInfoData->pData) + TSDB_KEYSIZE * (pBlock->info.rows - 1));
   }
 }
 

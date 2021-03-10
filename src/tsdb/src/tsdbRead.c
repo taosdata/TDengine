@@ -2644,7 +2644,7 @@ bool tsdbGetExternalRow(TsdbQueryHandleT pHandle) {
     return false;
   }
 
-  int32_t numOfCols = QH_GET_NUM_OF_COLS(pQueryHandle);
+  int32_t numOfCols = (int32_t) QH_GET_NUM_OF_COLS(pQueryHandle);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pQueryHandle->pColumns, i);
     SColumnInfoData* first = taosArrayGet(pQueryHandle->prev, i);
@@ -2652,11 +2652,11 @@ bool tsdbGetExternalRow(TsdbQueryHandleT pHandle) {
     memcpy(pColInfoData->pData, first->pData, pColInfoData->info.bytes);
 
     SColumnInfoData* sec = taosArrayGet(pQueryHandle->next, i);
-    memcpy(pColInfoData->pData + pColInfoData->info.bytes, sec->pData, pColInfoData->info.bytes);
+    memcpy(((char*)pColInfoData->pData) + pColInfoData->info.bytes, sec->pData, pColInfoData->info.bytes);
 
     if (i == 0 && pColInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
       cur->win.skey = *(TSKEY*)pColInfoData->pData;
-      cur->win.ekey = *(TSKEY*)(pColInfoData->pData + TSDB_KEYSIZE);
+      cur->win.ekey = *(TSKEY*)(((char*)pColInfoData->pData) + TSDB_KEYSIZE);
     }
   }
 
