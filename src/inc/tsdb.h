@@ -196,7 +196,7 @@ typedef struct {
 } STableKeyInfo;
 
 typedef struct {
-  size_t    numOfTables;
+  uint32_t  numOfTables;
   SArray *  pGroupList;
   SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
 } STableGroupInfo;

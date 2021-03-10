@@ -144,11 +144,11 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
         goto _over;
       }
 
-      qDebug("qmsg:%p query on %" PRIzu " tables in one group from client", pQueryMsg, tableGroupInfo.numOfTables);
+      qDebug("qmsg:%p query on %u tables in one group from client", pQueryMsg, tableGroupInfo.numOfTables);
     }
 
     int64_t el = taosGetTimestampUs() - st;
-    qDebug("qmsg:%p tag filter completed, numOfTables:%" PRIzu ", elapsed time:%"PRId64"us", pQueryMsg, tableGroupInfo.numOfTables, el);
+    qDebug("qmsg:%p tag filter completed, numOfTables:%u, elapsed time:%"PRId64"us", pQueryMsg, tableGroupInfo.numOfTables, el);
   } else {
     assert(0);
   }
@@ -239,7 +239,7 @@ bool qTableQuery(qinfo_t qinfo) {
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:%p query is killed", pQInfo);
   } else if (GET_NUM_OF_RESULTS(pRuntimeEnv) == 0) {
-    qDebug("QInfo:%p over, %" PRIzu " tables queried, %"PRId64" rows are returned", pQInfo, pRuntimeEnv->tableqinfoGroupInfo.numOfTables,
+    qDebug("QInfo:%p over, %u tables queried, %"PRId64" rows are returned", pQInfo, pRuntimeEnv->tableqinfoGroupInfo.numOfTables,
            pRuntimeEnv->resultInfo.total);
   } else {
     qDebug("QInfo:%p query paused, %d rows returned, numOfTotal:%" PRId64 " rows",
