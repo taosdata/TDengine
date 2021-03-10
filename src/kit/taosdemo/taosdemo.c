@@ -46,7 +46,7 @@
   #include <stdio.h>
   #include "os.h"
   
-#ifdef TD_WINDOWS
+#ifdef WINDOWS
   #include <winsock2.h>
   typedef unsigned __int32 uint32_t;
 
@@ -1597,7 +1597,7 @@ static void printfQuerySystemInfo(TAOS * taos) {
   
 }
 
-void ERROR_EXIT(const char *msg) { perror(msg); exit(0); }
+void ERROR_EXIT(const char *msg) { perror(msg); exit(-1); }
 
 int postProceSql(char* host, uint16_t port, char* sqlstr)
 {
@@ -1636,38 +1636,19 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
     size_t encoded_len = 4 * ((userpass_buf_len +2) / 3);
 
     char base64_buf[INPUT_BUF_LEN];
-    memset(base64_buf, 0, INPUT_BUF_LEN);
-
-    for (int n = 0, m = 0; n < userpass_buf_len;) {
-      uint32_t oct_a = n < userpass_buf_len ? 
-        (unsigned char) userpass_buf[n++]:0;
-      uint32_t oct_b = n < userpass_buf_len ? 
-        (unsigned char) userpass_buf[n++]:0;
-      uint32_t oct_c = n < userpass_buf_len ? 
-        (unsigned char) userpass_buf[n++]:0;
-      uint32_t triple = (oct_a << 0x10) + (oct_b << 0x08) + oct_c;
-
-      base64_buf[m++] = base64[(triple >> 3* 6) & 0x3f];
-      base64_buf[m++] = base64[(triple >> 2* 6) & 0x3f];
-      base64_buf[m++] = base64[(triple >> 1* 6) & 0x3f];
-      base64_buf[m++] = base64[(triple >> 0* 6) & 0x3f];
-    }
-
-    for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++)
-      base64_buf[encoded_len - 1 - l] = '=';
-
-    debugPrint("%s() LN%d: auth string base64 encoded: %s\n", __func__, __LINE__, base64_buf);
-    char *auth = base64_buf;
-
-#ifdef TD_WINDOWS
+#ifdef WINDOWS
     WSADATA wsaData;
-    WSAStartup(MAKEWORD(2, 1), &wsaData);
+    WSAStartup(MAKEWORD(2, 2), &wsaData);
     SOCKET sockfd;
 #else
     int sockfd;
 #endif
     sockfd = socket(AF_INET, SOCK_STREAM, 0);
     if (sockfd < 0) {
+#ifdef WINDOWS
+        fprintf(stderr, "Could not create socket : %d" , WSAGetLastError());
+#endif
+        debugPrint("%s() LN%d sockfd=%d\n", __func__, __LINE__, sockfd);
         free(request_buf);
         ERROR_EXIT("ERROR opening socket");
     }
@@ -1692,10 +1673,35 @@ int postProceSql(char* host, uint16_t port, char* sqlstr)
     memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
 #endif
 
-    if (connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr)) < 0) {
+    int retConn = connect(sockfd,(struct sockaddr *)&serv_addr,sizeof(serv_addr));
+    debugPrint("%s() LN%d connect() return %d\n", __func__, __LINE__, retConn);
+    if (retConn < 0) {
         free(request_buf);
         ERROR_EXIT("ERROR connecting");
     }
+
+    memset(base64_buf, 0, INPUT_BUF_LEN);
+
+    for (int n = 0, m = 0; n < userpass_buf_len;) {
+      uint32_t oct_a = n < userpass_buf_len ? 
+        (unsigned char) userpass_buf[n++]:0;
+      uint32_t oct_b = n < userpass_buf_len ? 
+        (unsigned char) userpass_buf[n++]:0;
+      uint32_t oct_c = n < userpass_buf_len ? 
+        (unsigned char) userpass_buf[n++]:0;
+      uint32_t triple = (oct_a << 0x10) + (oct_b << 0x08) + oct_c;
+
+      base64_buf[m++] = base64[(triple >> 3* 6) & 0x3f];
+      base64_buf[m++] = base64[(triple >> 2* 6) & 0x3f];
+      base64_buf[m++] = base64[(triple >> 1* 6) & 0x3f];
+      base64_buf[m++] = base64[(triple >> 0* 6) & 0x3f];
+    }
+
+    for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++)
+      base64_buf[encoded_len - 1 - l] = '=';
+
+    debugPrint("%s() LN%d: auth string base64 encoded: %s\n", __func__, __LINE__, base64_buf);
+    char *auth = base64_buf;
 
     int r = snprintf(request_buf, 
             req_buf_len, 
@@ -4435,7 +4441,7 @@ static void* syncWriteWithStb(void *sarg) {
         }
 
         len += retLen;
-        verbosePrint("%s() LN%d retLen=%d len=%d k=%d buffer=%s\n", __func__, __LINE__, retLen, len, k, buffer);
+        verbosePrint("%s() LN%d retLen=%d len=%d k=%d \nbuffer=%s\n", __func__, __LINE__, retLen, len, k, buffer);
 
         tblInserted++;
         k++;
