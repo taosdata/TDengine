@@ -234,7 +234,7 @@ typedef struct SQueryRuntimeEnv {
   SQuery*               pQuery;
   uint32_t              status;           // query status
   void*                 qinfo;
-  uint16_t              scanFlag;         // denotes reversed scan of data or not
+  uint8_t               scanFlag;         // denotes reversed scan of data or not
   void*                 pQueryHandle;
 
   int32_t               prevGroupId;      // previous executed group id
