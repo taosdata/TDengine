@@ -626,7 +626,7 @@ void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDi
   bool comp = tbufReadUint8(&br);
   uint32_t compLen = tbufReadUint32(&br);
 
-  size_t originalLen = numOfBlocks*sizeof(SFileBlockInfo);
+  size_t originalLen = (size_t) (numOfBlocks*sizeof(SFileBlockInfo));
 
   char* outputBuf = NULL;
   if (comp) {
