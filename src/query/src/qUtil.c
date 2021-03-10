@@ -642,7 +642,7 @@ void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDi
     outputBuf = (char*) tbufReadBinary(&br, &originalLen);
   }
 
-  pDist->dataBlockInfos = taosArrayFromList(outputBuf, numOfBlocks, sizeof(SFileBlockInfo));
+  pDist->dataBlockInfos = taosArrayFromList(outputBuf, (uint32_t) numOfBlocks, sizeof(SFileBlockInfo));
   if (comp) {
     tfree(outputBuf);
   }
