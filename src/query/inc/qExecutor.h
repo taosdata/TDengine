@@ -260,6 +260,7 @@ typedef struct SQueryRuntimeEnv {
   int64_t               currentOffset;   // dynamic offset value
 
   SRspResultInfo        resultInfo;
+  SHashObj             *pTableRetrieveTsMap;
 } SQueryRuntimeEnv;
 
 enum {
@@ -307,17 +308,11 @@ enum {
 
 typedef struct SQInfo {
   void*            signature;
-  int32_t          code;   // error code to returned to client
-  int64_t          owner;  // if it is in execution
+  int32_t          code;        // error code to returned to client
+  int64_t          owner;       // if it is in execution
 
   SQueryRuntimeEnv runtimeEnv;
   SQuery           query;
-  SHashObj*        arrTableIdInfo;
-
-  /*
-   * the query is executed position on which meter of the whole list.
-   * when the index reaches the last one of the list, it means the query is completed.
-   */
   void*            pBuf;        // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
 
   pthread_mutex_t  lock;        // used to synchronize the rsp/query threads

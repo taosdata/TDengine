@@ -308,7 +308,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
   int32_t s = GET_NUM_OF_RESULTS(pRuntimeEnv);
   size_t size = pQuery->resultRowSize * s;
   size += sizeof(int32_t);
-  size += sizeof(STableIdInfo) * taosHashGetSize(pQInfo->arrTableIdInfo);
+  size += sizeof(STableIdInfo) * taosHashGetSize(pRuntimeEnv->pTableRetrieveTsMap);
 
   *contLen = (int32_t)(size + sizeof(SRetrieveTableRsp));
 
