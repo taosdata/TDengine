@@ -194,7 +194,7 @@ static SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32
 
   res->pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    SColumnInfoData idata = {0};
+    SColumnInfoData idata = {{0}};
     idata.info.type = pExpr[i].type;
     idata.info.bytes = pExpr[i].bytes;
     idata.info.colId = pExpr[i].base.resColId;
