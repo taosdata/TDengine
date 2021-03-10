@@ -769,6 +769,7 @@ int32_t taosSaveTableOfMetricToTempFile(TAOS *taosCon, char* metric, struct argu
       }
       sprintf(tmpBuf, ".select-tbname.tmp");
       (void)remove(tmpBuf);      
+      free(tblBuf);
       close(fd);
       return -1;
     }
@@ -1523,6 +1524,7 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
       }
       sprintf(tmpBuf, ".show-tables.tmp");
       (void)remove(tmpBuf);
+      free(tblBuf);
       close(fd);
       return -1;
     }

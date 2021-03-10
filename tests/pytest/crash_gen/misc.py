@@ -176,11 +176,13 @@ class Progress:
     SERVICE_START_NAP           = 7
     CREATE_TABLE_ATTEMPT        = 8
     QUERY_GROUP_BY              = 9
+    CONCURRENT_INSERTION        = 10
+    ACCEPTABLE_ERROR            = 11
 
     tokens = {
         STEP_BOUNDARY:      '.',
-        BEGIN_THREAD_STEP:  '[',
-        END_THREAD_STEP:    '] ',
+        BEGIN_THREAD_STEP:  ' [',
+        END_THREAD_STEP:    ']',
         SERVICE_HEART_BEAT: '.Y.',
         SERVICE_RECONNECT_START:    '<r.',
         SERVICE_RECONNECT_SUCCESS:  '.r>',
@@ -188,8 +190,14 @@ class Progress:
         SERVICE_START_NAP:           '_zz',
         CREATE_TABLE_ATTEMPT:       'c',
         QUERY_GROUP_BY:             'g',
+        CONCURRENT_INSERTION:       'x',
+        ACCEPTABLE_ERROR:           '_',
     }
 
     @classmethod
     def emit(cls, token):
         print(cls.tokens[token], end="", flush=True)
+
+    @classmethod
+    def emitStr(cls, str):
+        print('({})'.format(str), end="", flush=True)
