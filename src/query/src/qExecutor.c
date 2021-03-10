@@ -686,14 +686,14 @@ static void doUpdateResultRowIndex(SResultRowInfo*pResultRowInfo, TSKEY lastKey,
   }
 }
 
-static void updateResultRowInfoActiveIndex(SResultRowInfo* pResultRowInfo, STimeWindow* pWindow, TSKEY lastKey,
-                                           bool ascQuery, bool timeWindowInterpo) {
-  if ((lastKey > pWindow->ekey && ascQuery) || (lastKey < pWindow->ekey && (!ascQuery))) {
+static void updateResultRowInfoActiveIndex(SResultRowInfo* pResultRowInfo, SQuery* pQuery, TSKEY lastKey) {
+  bool ascQuery = QUERY_IS_ASC_QUERY(pQuery);
+  if ((lastKey > pQuery->window.ekey && ascQuery) || (lastKey < pQuery->window.ekey && (!ascQuery))) {
     closeAllResultRows(pResultRowInfo);
     pResultRowInfo->curIndex = pResultRowInfo->size - 1;
   } else {
     int32_t step = ascQuery ? 1 : -1;
-    doUpdateResultRowIndex(pResultRowInfo, lastKey - step, ascQuery, timeWindowInterpo);
+    doUpdateResultRowIndex(pResultRowInfo, lastKey - step, ascQuery, pQuery->timeWindowInterpo);
   }
 }
 
@@ -1276,7 +1276,7 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
     saveDataBlockLastRow(pRuntimeEnv, &pSDataBlock->info, pSDataBlock->pDataBlock, rowIndex);
   }
 
-  updateResultRowInfoActiveIndex(pResultRowInfo, &pQuery->window, pQuery->current->lastKey, ascQuery, pQuery->timeWindowInterpo);
+  updateResultRowInfoActiveIndex(pResultRowInfo, pQuery, pQuery->current->lastKey);
 }
 
 static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pInfo, SSDataBlock *pSDataBlock) {
