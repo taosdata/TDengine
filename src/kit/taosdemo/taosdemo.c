@@ -2081,7 +2081,7 @@ static int createDatabases() {
 
     int dataLen = 0;
     dataLen += snprintf(command + dataLen, 
-        BUFFER_SIZE - dataLen, "create database if not exists %s", g_Dbs.db[i].dbName);
+        BUFFER_SIZE - dataLen, "create database if not exists %s ", g_Dbs.db[i].dbName);
 
     if (g_Dbs.db[i].dbCfg.blocks > 0) {
       dataLen += snprintf(command + dataLen,
@@ -2965,9 +2965,9 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     if (quorum && quorum->type == cJSON_Number) {
       g_Dbs.db[i].dbCfg.quorum = quorum->valueint;
     } else if (!quorum) {
-      g_Dbs.db[i].dbCfg.quorum = -1;
+      g_Dbs.db[i].dbCfg.quorum = 1;
     } else {
-     printf("failed to read json, walLevel not found");
+     printf("failed to read json, quorum input mistake");
      goto PARSE_OVER;
     }
 
