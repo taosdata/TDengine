@@ -14,10 +14,10 @@ public class DatetimeBefore1970Test {
     @Test
     public void test() {
         try (Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("insert into weather values('1969-12-31 23:59:59.999')");
-            stmt.executeUpdate("insert into weather values('1970-01-01 00:00:00.000')");
-            stmt.executeUpdate("insert into weather values('1970-01-01 08:00:00.000')");
-            stmt.executeUpdate("insert into weather values('1970-01-01 07:59:59.999')");
+            stmt.executeUpdate("insert into weather(ts) values('1969-12-31 23:59:59.999')");
+            stmt.executeUpdate("insert into weather(ts) values('1970-01-01 00:00:00.000')");
+            stmt.executeUpdate("insert into weather(ts) values('1970-01-01 08:00:00.000')");
+            stmt.executeUpdate("insert into weather(ts) values('1970-01-01 07:59:59.999')");
 
             ResultSet rs = stmt.executeQuery("select * from weather");
             while (rs.next()) {
@@ -49,7 +49,7 @@ public class DatetimeBefore1970Test {
             stmt.execute("drop database if exists test_timestamp");
             stmt.execute("create database if not exists test_timestamp keep 36500");
             stmt.execute("use test_timestamp");
-            stmt.execute("create table weather(ts timestamp)");
+            stmt.execute("create table weather(ts timestamp,f1 float)");
             stmt.close();
         } catch (ClassNotFoundException | SQLException e) {
             e.printStackTrace();
