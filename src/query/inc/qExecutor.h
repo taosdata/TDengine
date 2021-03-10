@@ -12,8 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TDENGINE_QUERYEXECUTOR_H
-#define TDENGINE_QUERYEXECUTOR_H
+#ifndef TDENGINE_QEXECUTOR_H
+#define TDENGINE_QEXECUTOR_H
 
 #include "os.h"
 
@@ -45,21 +45,16 @@ enum {
   // when query starts to execute, this status will set
       QUERY_NOT_COMPLETED = 0x1u,
 
-  /* result output buffer is full, current query is paused.
-   * this status is only exist in group-by clause and diff/add/division/multiply/ query.
-   */
-      QUERY_RESBUF_FULL = 0x2u,
-
   /* query is over
    * 1. this status is used in one row result query process, e.g., count/sum/first/last/ avg...etc.
    * 2. when all data within queried time window, it is also denoted as query_completed
    */
-      QUERY_COMPLETED = 0x4u,
+      QUERY_COMPLETED = 0x2u,
 
   /* when the result is not completed return to client, this status will be
    * usually used in case of interval query with interpolation option
    */
-      QUERY_OVER = 0x8u,
+      QUERY_OVER = 0x4u,
 };
 
 typedef struct SResultRowPool {
@@ -197,7 +192,6 @@ typedef struct SQuery {
   int32_t          interBufSize;     // intermediate buffer sizse
 
   SOrderVal        order;
-
   int16_t          numOfCols;
   int16_t          numOfTags;
 
@@ -242,7 +236,6 @@ typedef struct SQueryRuntimeEnv {
   uint32_t              status;           // query status
   void*                 qinfo;
   uint16_t              scanFlag;         // denotes reversed scan of data or not
-//  SFillInfo*            pFillInfo;        // todo move to operatorInfo
   void*                 pQueryHandle;
 
   int32_t               prevGroupId;      // previous executed group id
@@ -353,8 +346,6 @@ typedef struct SQueryParam {
 } SQueryParam;
 
 typedef struct STableScanInfo {
-  SQueryRuntimeEnv *pRuntimeEnv;
-
   void           *pQueryHandle;
   int32_t         numOfBlocks;
   int32_t         numOfSkipped;
@@ -372,7 +363,6 @@ typedef struct STableScanInfo {
   SExprInfo      *pExpr;
   SSDataBlock     block;
   bool            loadExternalRows; // load external rows (prev & next rows)
-  bool            externalLoaded;   // external rows loaded
   int32_t         numOfOutput;
   int64_t         elapsedTime;
 
@@ -445,7 +435,6 @@ bool doBuildResCheck(SQInfo* pQInfo);
 void setQueryStatus(SQueryRuntimeEnv *pRuntimeEnv, int8_t status);
 
 bool onlyQueryTags(SQuery* pQuery);
-void tableQueryImpl(SQInfo *pQInfo);
 bool isValidQInfo(void *param);
 
 int32_t doDumpQueryResult(SQInfo *pQInfo, char *data);
@@ -457,4 +446,4 @@ void freeQInfo(SQInfo *pQInfo);
 
 int32_t getMaximumIdleDurationSec();
 
-#endif  // TDENGINE_QUERYEXECUTOR_H
+#endif  // TDENGINE_QEXECUTOR_H
