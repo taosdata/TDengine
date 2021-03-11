@@ -127,10 +127,13 @@ sql describe t1.ps;
 if $data00 != off then 
   return -1
 endi
-if $data10 != content then 
+if $data10 != ts then 
   return -1
 endi
-if $data20 != pid then 
+if $data20 != content then 
+  return -1
+endi
+if $data30 != pid then 
   return -1
 endi
 
@@ -138,10 +141,13 @@ sql describe t1.p1;
 if $data00 != off then 
   return -1
 endi
-if $data10 != content then 
+if $data10 != ts then 
   return -1
 endi
-if $data20 != pid then 
+if $data20 != content then 
+  return -1
+endi
+if $data30 != pid then 
   return -1
 endi
 
@@ -295,7 +301,7 @@ if $data4_db != 1 then
 endi
 
 sql show topics
-if $rows != 0 then 
+if $rows != 1 then 
   return -1
 endi
 

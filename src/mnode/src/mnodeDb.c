@@ -53,7 +53,7 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
 int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
 
 #ifndef _TOPIC
-int32_t tpInit() {}
+int32_t tpInit() { return 0; }
 void    tpCleanUp() {}
 void    tpUpdateTs(int32_t *seq, void *pMsg) {}
 #endif
