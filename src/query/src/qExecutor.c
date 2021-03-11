@@ -215,7 +215,6 @@ static SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32
     idata.info.colId = pExpr[i].base.resColId;
 
     idata.pData = calloc(1, MAX(idata.info.bytes * numOfRows, minSize));  // at least to hold a pointer on x64 platform
-
     taosArrayPush(res->pDataBlock, &idata);
   }
 
@@ -2504,7 +2503,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
                                   pTableScanInfo->rowCellInfoOffset) != TSDB_CODE_SUCCESS) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
-    } else if (pQuery->stableQuery) { // stable aggregate, not interval aggregate or normal column aggregate
+    } else if (pQuery->stableQuery && (!isTsCompQuery(pQuery))) { // stable aggregate, not interval aggregate or normal column aggregate
       doSetTableGroupOutputBuf(pRuntimeEnv, pTableScanInfo->pResultRowInfo, pTableScanInfo->pCtx,
                                pTableScanInfo->rowCellInfoOffset, pTableScanInfo->numOfOutput,
                                pQuery->current->groupIndex);
