@@ -46,6 +46,7 @@ def pre_test(){
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile' || exit 0
+    find ${WKC}/tests/pytest -name '*'.sql -exec rm -rf {} \;
     cd ${WK}
     git reset --hard HEAD~10
     git checkout develop
@@ -115,7 +116,6 @@ pipeline {
               sh '''
               date
               cd ${WKC}/tests
-              find pytest -name '*'sql|xargs rm -rf
               ./test-all.sh p1
               date'''
             }
@@ -131,7 +131,6 @@ pipeline {
                 sh '''
                 date
                 cd ${WKC}/tests
-                find pytest -name '*'sql|xargs rm -rf
                 ./test-all.sh p2
                 date'''
             }
