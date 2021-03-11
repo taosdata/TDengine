@@ -53,7 +53,7 @@ static int32_t grantRetrieveData(SShowObj *pShow, char *data, int32_t rows, void
 
 static void *grantCheckTimer = NULL;
 static void *grantSendTimer = NULL;
-static SGrantStatus grantStatus = {
+SGrantStatus grantStatus = {
   false,
   false,
   GRANT_EXPIRE_TIME,
