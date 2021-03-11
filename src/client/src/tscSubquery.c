@@ -74,14 +74,14 @@ static bool allSubqueryDone(SSqlObj *pParentSql) {
   SSubqueryState *subState = &pParentSql->subState;
 
   //lock in caller
-  
+  tscDebug("%p total subqueries: %d", pParentSql, subState->numOfSub);
   for (int i = 0; i < subState->numOfSub; i++) {
     if (0 == subState->states[i]) {
-      tscDebug("%p subquery:%p,%d is NOT finished, total:%d", pParentSql, pParentSql->pSubs[i], i, subState->numOfSub);
+      tscDebug("%p subquery:%p, index: %d NOT finished, abort query completion check", pParentSql, pParentSql->pSubs[i], i);
       done = false;
       break;
     } else {
-      tscDebug("%p subquery:%p,%d is finished, total:%d", pParentSql, pParentSql->pSubs[i], i, subState->numOfSub);
+      tscDebug("%p subquery:%p, index: %d finished", pParentSql, pParentSql->pSubs[i], i);
     }
   }
 
