@@ -4,7 +4,7 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-public class TimeStampUtil {
+public class TimestampUtil {
 
     private static final String datetimeFormat = "yyyy-MM-dd HH:mm:ss.SSS";
 
