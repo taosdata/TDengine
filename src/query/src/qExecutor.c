@@ -6120,8 +6120,34 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     pExprMsg->functionId    = htons(pExprMsg->functionId);
     pExprMsg->numOfParams   = htons(pExprMsg->numOfParams);
     pExprMsg->resColId      = htons(pExprMsg->resColId);
+    pExprMsg->filterNum     = htonl(pExprMsg->filterNum);
 
     pMsg += sizeof(SSqlFuncMsg);
+
+    SColumnFilterInfo* pExprFilterInfo = pExprMsg->filterInfo;
+
+    pMsg += sizeof(SColumnFilterInfo) * pExprMsg->filterNum;
+
+    for (int32_t f = 0; f < pExprMsg->filterNum; ++f) {
+      SColumnFilterInfo *pFilterMsg = (SColumnFilterInfo *)pExprFilterInfo;
+
+      pFilterMsg->filterstr = htons(pFilterMsg->filterstr);
+
+      if (pFilterMsg->filterstr) {
+        pFilterMsg->len = htobe64(pFilterMsg->len);
+
+        pFilterMsg->pz = (int64_t)pMsg;
+        pMsg += (pFilterMsg->len + 1);
+      } else {
+        pFilterMsg->lowerBndi = htobe64(pFilterMsg->lowerBndi);
+        pFilterMsg->upperBndi = htobe64(pFilterMsg->upperBndi);
+      }
+
+      pFilterMsg->lowerRelOptr = htons(pFilterMsg->lowerRelOptr);
+      pFilterMsg->upperRelOptr = htons(pFilterMsg->upperRelOptr);
+
+      pExprFilterInfo++;
+    }
 
     for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
       pExprMsg->arg[j].argType = htons(pExprMsg->arg[j].argType);
@@ -6304,6 +6330,42 @@ _cleanup:
   return code;
 }
 
+int32_t cloneExprFilterInfo(SColumnFilterInfo **dst, SColumnFilterInfo* src, int32_t filterNum) {
+  if (filterNum <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *dst = calloc(filterNum, sizeof(*src));
+  if (*dst == NULL) {
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
+
+  memcpy(*dst, src, sizeof(*src) * filterNum);
+  
+  for (int32_t i = 0; i < filterNum; i++) {
+    if (dst[i]->filterstr && dst[i]->len > 0) {
+      void *pz = calloc(1, dst[i]->len + 1); 
+    
+      if (pz == NULL) {
+        if (i == 0) {
+          free(*dst);
+        } else {
+          freeColumnFilterInfo(*dst, i);
+        }
+
+        return TSDB_CODE_QRY_OUT_OF_MEMORY;
+      }
+
+      memcpy(pz, (void *)src->pz, src->len + 1);
+
+      dst[i]->pz = (int64_t)pz;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 static int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, SQueryTableMsg *pQueryMsg) {
   qDebug("qmsg:%p create arithmetic expr from binary", pQueryMsg);
 
@@ -6395,6 +6457,13 @@ int32_t createQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutpu
 
         type  = s->type;
         bytes = s->bytes;
+      }
+
+      if (pExprs[i].base.filterNum > 0) {
+        int32_t ret = cloneExprFilterInfo(&pExprs[i].pFilter, pExprMsg[i]->filterInfo, pExprMsg[i]->filterNum);
+        if (ret) {
+          return ret;
+        }
       }
     }
 
@@ -6770,6 +6839,10 @@ _cleanup_query:
       tExprTreeDestroy(pExprInfo->pExpr, NULL);
       pExprInfo->pExpr = NULL;
     }
+
+    if (pExprInfo->pFilter) {
+      freeColumnFilterInfo(pExprInfo->pFilter, pExprInfo->base.filterNum);
+    }
   }
 
   tfree(pExprs);
@@ -6850,7 +6923,7 @@ void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters) {
     }
 
     for (int32_t i = 0; i < numOfFilters; i++) {
-      if (pFilter[i].filterstr) {
+      if (pFilter[i].filterstr && pFilter[i].pz) {
         free((void*)(pFilter[i].pz));
       }
     }
@@ -6891,6 +6964,10 @@ static void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr) {
   for (int32_t i = 0; i < numOfExpr; ++i) {
     if (pExprInfo[i].pExpr != NULL) {
       tExprTreeDestroy(pExprInfo[i].pExpr, NULL);
+    }
+
+    if (pExprInfo[i].pFilter) {
+      freeColumnFilterInfo(pExprInfo[i].pFilter, pExprInfo[i].base.filterNum);
     }
   }
 

@@ -838,7 +838,43 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pSqlFuncExpr->functionId  = htons(pExpr->functionId);
     pSqlFuncExpr->numOfParams = htons(pExpr->numOfParams);
     pSqlFuncExpr->resColId    = htons(pExpr->resColId);
+    if (pExpr->pFilter && pExpr->pFilter->numOfFilters > 0) {
+      pSqlFuncExpr->filterNum    = htonl(pExpr->pFilter->numOfFilters);
+    } else {
+      pSqlFuncExpr->filterNum = 0;
+    }
+
     pMsg += sizeof(SSqlFuncMsg);
+
+    if (pSqlFuncExpr->filterNum) {
+      pMsg += sizeof(SColumnFilterInfo) * pExpr->pFilter->numOfFilters;
+
+      // append the filter information after the basic column information
+      for (int32_t f = 0; f < pExpr->pFilter->numOfFilters; ++f) {
+        SColumnFilterInfo *pColFilter = &pExpr->pFilter->filterInfo[f];
+
+        SColumnFilterInfo *pFilterMsg = &pSqlFuncExpr->filterInfo[f];
+        pFilterMsg->filterstr = htons(pColFilter->filterstr);
+
+        if (pColFilter->filterstr) {
+          pFilterMsg->len = htobe64(pColFilter->len);
+          memcpy(pMsg, (void *)pColFilter->pz, (size_t)(pColFilter->len + 1));
+          pMsg += (pColFilter->len + 1);  // append the additional filter binary info
+        } else {
+          pFilterMsg->lowerBndi = htobe64(pColFilter->lowerBndi);
+          pFilterMsg->upperBndi = htobe64(pColFilter->upperBndi);
+        }
+
+        pFilterMsg->lowerRelOptr = htons(pColFilter->lowerRelOptr);
+        pFilterMsg->upperRelOptr = htons(pColFilter->upperRelOptr);
+
+        if (pColFilter->lowerRelOptr == TSDB_RELATION_INVALID && pColFilter->upperRelOptr == TSDB_RELATION_INVALID) {
+          tscError("invalid filter info");
+          return TSDB_CODE_TSC_INVALID_SQL;
+        }
+      }
+    }
+
 
     for (int32_t j = 0; j < pExpr->numOfParams; ++j) {
       // todo add log

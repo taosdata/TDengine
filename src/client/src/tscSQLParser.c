@@ -6735,6 +6735,7 @@ static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
 
     pFieldFilters->pFilters = pFilters;
     pFieldFilters->pSqlExpr = pSqlExpr;
+    pSqlExpr->pFilter = pFilters;
     pInfo->pFieldFilters = pFieldFilters;
   }
 
