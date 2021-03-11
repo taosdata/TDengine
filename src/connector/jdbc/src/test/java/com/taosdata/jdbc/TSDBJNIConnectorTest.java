@@ -11,18 +11,21 @@ public class TSDBJNIConnectorTest {
 
     private static TSDBResultSetRowData rowData;
 
-    public static void main(String[] args) {
+    @Test
+    public void test() {
         try {
+            // init
             TSDBJNIConnector.init("/etc/taos/taos.cfg", "en_US.UTF-8", "", "");
+            // connect
             TSDBJNIConnector connector = new TSDBJNIConnector();
             connector.connect("127.0.0.1", 6030, "test", "root", "taosdata");
+            // executeQuery
             long pSql = connector.executeQuery("show dnodes");
-            // if pSql is create/insert/update/delete/alter SQL
             if (connector.isUpdateQuery(pSql)) {
                 connector.freeResultSet(pSql);
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
             }
-
+            // get schema
             List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
             int code = connector.getSchemaMetaData(pSql, columnMetaDataList);
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
@@ -53,6 +56,7 @@ public class TSDBJNIConnectorTest {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
             }
             // close statement
+
             // close connection
             connector.closeConnection();
 
