@@ -4029,10 +4029,7 @@ send_to_server:
           int affectedRows = queryDbExec(
                   winfo->taos, buffer, INSERT_TYPE);
 
-          if (0 > affectedRows) {
-            fprintf(stderr, "queryDbExec() buffer:\n%s\naffected rows is %d", buffer, affectedRows);
-            goto free_and_statistics;
-          } else {
+          if (0 < affectedRows) {
             endTs = taosGetTimestampUs();
             int64_t delay = endTs - startTs;
             if (delay > winfo->maxDelay) winfo->maxDelay = delay;
@@ -4041,6 +4038,9 @@ send_to_server:
             winfo->totalDelay += delay;
             winfo->avgDelay = (double)winfo->totalDelay / winfo->cntDelay;
             winfo->totalAffectedRows += affectedRows;
+          } else {
+            fprintf(stderr, "queryDbExec() buffer:\n%s\naffected rows is %d", buffer, affectedRows);
+            goto free_and_statistics;
           }
 
           int64_t  currentPrintTime = taosGetTimestampMs();
@@ -4242,7 +4242,7 @@ static void* syncWrite(void *sarg) {
       verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
       int affectedRows = queryDbExec(winfo->taos, buffer, 1);
 
-      if (0 <= affectedRows){
+      if (0 < affectedRows){
         endTs = taosGetTimestampUs();
         int64_t delay = endTs - startTs;
         if (delay > winfo->maxDelay)
@@ -4341,7 +4341,7 @@ static void* syncWriteWithStb(void *sarg) {
 
   int sampleUsePos;
 
-  debugPrint("%s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__, superTblInfo->insertRows);
+  verbosePrint("%s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__, superTblInfo->insertRows);
 
   for (uint32_t tID = winfo->start_table_id; tID <= winfo->end_table_id;
         tID++) {
