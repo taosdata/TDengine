@@ -113,7 +113,7 @@ public class TSDBDriver extends AbstractDriver {
             return null;
         }
         //load taos.cfg start
-        loadTaosConfig(info);
+//        loadTaosConfig(info);
 
         try {
             TSDBJNIConnector.init((String) props.get(PROPERTY_KEY_CONFIG_DIR), (String) props.get(PROPERTY_KEY_LOCALE),

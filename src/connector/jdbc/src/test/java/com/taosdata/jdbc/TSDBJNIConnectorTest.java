@@ -18,9 +18,9 @@ public class TSDBJNIConnectorTest {
             TSDBJNIConnector.init("/etc/taos/taos.cfg", "en_US.UTF-8", "", "");
             // connect
             TSDBJNIConnector connector = new TSDBJNIConnector();
-            connector.connect("127.0.0.1", 6030, "test", "root", "taosdata");
+            connector.connect("", 0, "test", "root", "taosdata");
             // executeQuery
-            long pSql = connector.executeQuery("show dnodes");
+            long pSql = connector.executeQuery("show variable");
             if (connector.isUpdateQuery(pSql)) {
                 connector.freeResultSet(pSql);
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
