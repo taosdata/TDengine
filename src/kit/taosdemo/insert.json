@@ -11,6 +11,7 @@
     "confirm_parameter_prompt": "no",
     "insert_interval": 0,
     "num_of_records_per_req": 100,
+    "max_sql_len": 1024000,
 	"databases": [{
 		"dbinfo": {
 			"name": "db",
