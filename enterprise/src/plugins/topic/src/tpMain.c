@@ -110,7 +110,7 @@ static void tpBuildDropDbSql(char *sql, const char *topic) {
 }
 
 static void tpBuildCreateStableSql(char *sql, const char *topic) {
-  snprintf(sql, TP_SCHEMA_SQL_LEN, "create table if not exists %s.ps (off timestamp, content binary(%d)) tags(pid int)",
+  snprintf(sql, TP_SCHEMA_SQL_LEN, "create table if not exists %s.ps (off timestamp, ts timestamp, content binary(%d)) tags(pid int)",
            topic, TP_BINARY_LEN);
 }
 
@@ -500,13 +500,13 @@ void tpUpdateTs(int32_t *seq, void *pMsg) {
 
     int32_t rowOffset = blockSchemaLen;
     int32_t rows = 0;
+    int64_t ts = taosGetTimestampSec();
     while (rows < numOfRows && rowOffset < blockTotalLen) {
       SDataRow *pRow = (SDataRow *)((char *)pBlock->data + rowOffset);
 
       rowOffset += dataRowLen(pRow);
       rows++;
 
-      int64_t ts = taosGetTimestampSec();
       dataRowTKey(pRow) = (ts * 1000000 + (*seq)++);
 
       if ((*seq) > 1000000) *seq = 0;
