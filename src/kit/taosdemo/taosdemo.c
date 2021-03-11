@@ -4179,10 +4179,11 @@ static void* syncWrite(void *sarg) {
   winfo->totalAffectedRows = 0;
 
   for (int tID = winfo->start_table_id; tID <= winfo->end_table_id; tID++) {
+    int64_t tmp_time = time_counter;
+
     for (int i = 0; i < g_args.num_of_DPT;) {
 
       int tblInserted = i;
-      int64_t tmp_time = time_counter;
 
       char *pstr = buffer;
       pstr += sprintf(pstr,
@@ -4251,7 +4252,7 @@ static void* syncWrite(void *sarg) {
         winfo->avgDelay = (double)winfo->totalDelay / winfo->cntDelay;      
       }
 
-      verbosePrint("%s() LN%d: totalaffectedRows:%"PRId64"\n", __func__, __LINE__, winfo->totalAffectedRows);
+      verbosePrint("%s() LN%d: totalaffectedRows:%"PRId64" tblInserted\n", __func__, __LINE__, winfo->totalAffectedRows, tblInserted);
       if (g_args.insert_interval) {
             et = taosGetTimestampMs();
       }
