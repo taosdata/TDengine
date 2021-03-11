@@ -316,6 +316,7 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "unit" ] && [ "$1" == 
   cd debug/
   
   stopTaosd
+  rm -rf /var/lib/taos/*
   nohup build/bin/taosd -c /etc/taos/ > /dev/null 2>&1 &
   sleep 30
   
@@ -358,6 +359,7 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$1" == 
 
   pwd
   cd debug/build/bin
+  rm -rf /var/lib/taos/*
   nohup ./taosd -c /etc/taos/ > /dev/null 2>&1 &
   sleep 30
   
