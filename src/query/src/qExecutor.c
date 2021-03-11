@@ -202,6 +202,8 @@ static void doSetTableGroupOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SResultRowIn
 
 // setup the output buffer for each operator
 static SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows) {
+  const static int32_t minSize = 8;
+
   SSDataBlock *res = calloc(1, sizeof(SSDataBlock));
   res->info.numOfCols = numOfOutput;
 
@@ -211,7 +213,8 @@ static SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32
     idata.info.type = pExpr[i].type;
     idata.info.bytes = pExpr[i].bytes;
     idata.info.colId = pExpr[i].base.resColId;
-    idata.pData = calloc(numOfRows, idata.info.bytes);
+
+    idata.pData = calloc(1, MAX(idata.info.bytes * numOfRows, minSize));  // at least to hold a pointer on x64 platform
 
     taosArrayPush(res->pDataBlock, &idata);
   }
