@@ -1536,6 +1536,7 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
   }
   return false;
 }
+
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery, bool intervalQuery) {
   assert(pSelection != NULL && pCmd != NULL);
 
@@ -1871,6 +1872,26 @@ void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrT
   }
 }
 
+static void updateLastQueryInfoForGroupby(SQueryInfo* pQueryInfo, STableMeta* pTableMeta, int32_t functionId, int32_t index) {
+  if (functionId != TSDB_FUNC_LAST) {  // todo refactor
+    return;
+  }
+
+  SSqlGroupbyExpr* pGroupBy = &pQueryInfo->groupbyExpr;
+  if (pGroupBy->numOfGroupCols > 0) {
+    for(int32_t k = 0; k < pGroupBy->numOfGroupCols; ++k) {
+      SColIndex* pIndex = taosArrayGet(pGroupBy->columnInfo, k);
+      if (!TSDB_COL_IS_TAG(pIndex->flag) && pIndex->colIndex < tscGetNumOfColumns(pTableMeta)) { // group by normal columns
+        SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, index);
+        pExpr->numOfParams = 1;
+        pExpr->param->i64 = TSDB_ORDER_ASC;
+
+        return;
+      }
+    }
+  }
+}
+
 int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSqlExprItem* pItem, bool finalResult) {
   STableMetaInfo* pTableMetaInfo = NULL;
   int32_t functionId = pItem->pNode->functionId;
@@ -2135,6 +2156,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
               if (setExprInfoForFunctions(pCmd, pQueryInfo, &pSchema[j], cvtFunc, name, colIndex++, &index, finalResult) != 0) {
                 return TSDB_CODE_TSC_INVALID_SQL;
               }
+
+              updateLastQueryInfoForGroupby(pQueryInfo, pTableMetaInfo->pTableMeta, functionId, colIndex - 1);
             }
 
           } else {
@@ -2150,7 +2173,6 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             }
 
             char name[TSDB_COL_NAME_LEN] = {0};
-
             SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
             bool multiColOutput = pItem->pNode->pParam->nExpr > 1;
@@ -2160,21 +2182,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 
-            if (functionId == TSDB_FUNC_LAST) {  // todo refactor
-              SSqlGroupbyExpr* pGroupBy = &pQueryInfo->groupbyExpr;
-              if (pGroupBy->numOfGroupCols > 0) {
-                for(int32_t k = 0; k < pGroupBy->numOfGroupCols; ++k) {
-                  SColIndex* pIndex = taosArrayGet(pGroupBy->columnInfo, k);
-                  if (!TSDB_COL_IS_TAG(pIndex->flag) && pIndex->colIndex < tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) { // group by normal columns
-                    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, colIndex + i);
-                    pExpr->numOfParams = 1;
-                    pExpr->param->i64 = TSDB_ORDER_ASC;
-
-                    break;
-                  }
-                }
-              }
-            }
+            updateLastQueryInfoForGroupby(pQueryInfo, pTableMetaInfo->pTableMeta, functionId, colIndex + i);
           }
         }
         
@@ -2202,6 +2210,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 
+            updateLastQueryInfoForGroupby(pQueryInfo, pTableMetaInfo->pTableMeta, functionId, colIndex);
             colIndex++;
           }
 
@@ -2211,6 +2220,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return TSDB_CODE_SUCCESS;
       }
     }
+
     case TSDB_FUNC_TOP:
     case TSDB_FUNC_BOTTOM:
     case TSDB_FUNC_PERCT:
