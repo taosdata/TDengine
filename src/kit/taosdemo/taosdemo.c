@@ -4252,7 +4252,7 @@ static void* syncWrite(void *sarg) {
         winfo->avgDelay = (double)winfo->totalDelay / winfo->cntDelay;      
       }
 
-      verbosePrint("%s() LN%d: totalaffectedRows:%"PRId64" tblInserted\n", __func__, __LINE__, winfo->totalAffectedRows, tblInserted);
+      verbosePrint("%s() LN%d: totalaffectedRows:%"PRId64" tblInserted=%d\n", __func__, __LINE__, winfo->totalAffectedRows, tblInserted);
       if (g_args.insert_interval) {
             et = taosGetTimestampMs();
       }
