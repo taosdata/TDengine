@@ -7,9 +7,9 @@ import java.sql.SQLWarning;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.*;
-
 public class TSDBJNIConnectorTest {
+
+    private static TSDBResultSetRowData rowData;
 
     public static void main(String[] args) {
         try {
@@ -24,7 +24,6 @@ public class TSDBJNIConnectorTest {
             }
 
             List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
-
             int code = connector.getSchemaMetaData(pSql, columnMetaDataList);
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
                 throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
@@ -35,6 +34,27 @@ public class TSDBJNIConnectorTest {
             if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
                 throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_NUM_OF_FIELDS_0));
             }
+            int columnSize = columnMetaDataList.size();
+            // print metadata
+            for (int i = 0; i < columnSize; i++) {
+                System.out.println(columnMetaDataList.get(i));
+            }
+            rowData = new TSDBResultSetRowData(columnSize);
+            // iterate resultSet
+            while (next(connector, pSql)) {
+                System.out.println(rowData.getColSize());
+                rowData.getData().stream().forEach(System.out::println);
+            }
+            // close resultSet
+            code = connector.freeResultSet(pSql);
+            if (code == TSDBConstants.JNI_CONNECTION_NULL) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+            } else if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
+            }
+            // close statement
+            // close connection
+            connector.closeConnection();
 
         } catch (SQLWarning throwables) {
             throwables.printStackTrace();
@@ -43,88 +63,22 @@ public class TSDBJNIConnectorTest {
         }
     }
 
+    private static boolean next(TSDBJNIConnector connector, long pSql) throws SQLException {
+        if (rowData != null)
+            rowData.clear();
 
-    @Test
-    public void isClosed() {
+        int code = connector.fetchRow(pSql, rowData);
+        if (code == TSDBConstants.JNI_CONNECTION_NULL) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+        } else if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
+        } else if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
+        } else if (code == TSDBConstants.JNI_FETCH_END) {
+            return false;
+        } else {
+            return true;
+        }
     }
 
-    @Test
-    public void isResultsetClosed() {
-    }
-
-    @Test
-    public void init() {
-    }
-
-    @Test
-    public void initImp() {
-    }
-
-    @Test
-    public void setOptions() {
-    }
-
-    @Test
-    public void getTsCharset() {
-    }
-
-    @Test
-    public void connect() {
-    }
-
-    @Test
-    public void executeQuery() {
-    }
-
-    @Test
-    public void getErrCode() {
-    }
-
-    @Test
-    public void getErrMsg() {
-    }
-
-    @Test
-    public void isUpdateQuery() {
-    }
-
-    @Test
-    public void freeResultSet() {
-    }
-
-    @Test
-    public void getAffectedRows() {
-    }
-
-    @Test
-    public void getSchemaMetaData() {
-    }
-
-    @Test
-    public void fetchRow() {
-    }
-
-    @Test
-    public void fetchBlock() {
-    }
-
-    @Test
-    public void closeConnection() {
-    }
-
-    @Test
-    public void subscribe() {
-    }
-
-    @Test
-    public void consume() {
-    }
-
-    @Test
-    public void unsubscribe() {
-    }
-
-    @Test
-    public void validateCreateTableSql() {
-    }
 }
