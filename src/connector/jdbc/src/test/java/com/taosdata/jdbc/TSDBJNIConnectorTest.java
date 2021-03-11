@@ -15,10 +15,10 @@ public class TSDBJNIConnectorTest {
     public void test() {
         try {
             // init
-            TSDBJNIConnector.init("/etc/taos/taos.cfg", "en_US.UTF-8", "", "");
+            TSDBJNIConnector.init(null, null, null, null);
             // connect
             TSDBJNIConnector connector = new TSDBJNIConnector();
-            connector.connect("", 0, "test", "root", "taosdata");
+            connector.connect("127.0.0.1", 6030, null, "root", "taosdata");
             // executeQuery
             long pSql = connector.executeQuery("show variable");
             if (connector.isUpdateQuery(pSql)) {
