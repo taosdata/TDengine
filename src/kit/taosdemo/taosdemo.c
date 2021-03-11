@@ -2220,7 +2220,7 @@ static int createDatabases() {
     debugPrint("%s() %d command: %s\n", __func__, __LINE__, command);
     if (0 != queryDbExec(taos, command, NO_INSERT_TYPE)) {
       taos_close(taos);
-      printf("\ncreate database %s failed!\n\n", g_Dbs.db[i].dbName);
+      fprintf(stderr, "\ncreate database %s failed!\n\n", g_Dbs.db[i].dbName);
       return -1;
     }
     printf("\ncreate database %s success!\n\n", g_Dbs.db[i].dbName);
@@ -2319,6 +2319,7 @@ static void* createTable(void *sarg)
     len = 0;
     verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
     if (0 != queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE)){
+      fprintf(stderr, "queryDbExec() failed. buffer:\n%s\n", buffer);
       free(buffer);
       return NULL;
     }
@@ -2333,7 +2334,9 @@ static void* createTable(void *sarg)
   
   if (0 != len) {
     verbosePrint("%s() %d buffer: %s\n", __func__, __LINE__, buffer);
-    (void)queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE);
+    if (0 != queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE)) {
+      fprintf(stderr, "queryDbExec() failed. buffer:\n%s\n", buffer);
+    }
   }
 
   free(buffer);
@@ -4027,6 +4030,7 @@ send_to_server:
                   winfo->taos, buffer, INSERT_TYPE);
 
           if (0 > affectedRows) {
+            fprintf(stderr, "queryDbExec() buffer:\n%s\naffected rows is %d", buffer, affectedRows);
             goto free_and_statistics;
           } else {
             endTs = taosGetTimestampUs();
@@ -4238,7 +4242,6 @@ static void* syncWrite(void *sarg) {
       verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
       int affectedRows = queryDbExec(winfo->taos, buffer, 1);
 
-      verbosePrint("%s() LN%d: affectedRows:%d\n", __func__, __LINE__, affectedRows);
       if (0 <= affectedRows){
         endTs = taosGetTimestampUs();
         int64_t delay = endTs - startTs;
@@ -4250,6 +4253,8 @@ static void* syncWrite(void *sarg) {
         winfo->totalDelay += delay;
         winfo->totalAffectedRows += affectedRows;
         winfo->avgDelay = (double)winfo->totalDelay / winfo->cntDelay;      
+      } else {
+          fprintf(stderr, "queryDbExec() buffer:\n%s\naffected rows is %d", buffer, affectedRows);
       }
 
       verbosePrint("%s() LN%d: totalaffectedRows:%"PRId64" tblInserted=%d\n", __func__, __LINE__, winfo->totalAffectedRows, tblInserted);
