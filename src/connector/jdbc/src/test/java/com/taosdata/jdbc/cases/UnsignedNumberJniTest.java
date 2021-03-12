@@ -18,6 +18,8 @@ public class UnsignedNumberJniTest {
 
     @Test
     public void testCase001() {
+        System.out.println("###################");
+
         try (Statement stmt = jniConn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select * from us_test");
             ResultSetMetaData meta = rs.getMetaData();
