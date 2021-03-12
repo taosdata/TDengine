@@ -51,7 +51,7 @@ public class TSDBStatement extends AbstractStatement {
             this.connector.freeResultSet(pSql);
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
         }
-
+        System.out.println("###################");
         TSDBResultSet res = new TSDBResultSet(this, this.connector, pSql);
         res.setBatchFetch(this.connection.getBatchFetch());
         return res;
