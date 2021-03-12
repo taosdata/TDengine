@@ -3,6 +3,7 @@ package com.taosdata.jdbc;
 import java.sql.SQLClientInfoException;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
+import java.sql.SQLWarning;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -18,18 +19,23 @@ public class TSDBError {
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_BATCH_IS_EMPTY, "Batch is empty!");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY, "Can not issue data manipulation statements with executeQuery()");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEUPDATE, "Can not issue SELECT via executeUpdate()");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "not a valid sql for executeQuery: (?)");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "invalid sql for executeQuery: (?)");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE, "Database not specified or available");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "not a valid sql for executeUpdate: (?)");
-        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE, "not a valid sql for execute: (?)");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_UPDATE, "invalid sql for executeUpdate: (?)");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE, "invalid sql for execute: (?)");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "parameter index out of range");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED, "connection already closed");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE, "unknown sql type in tdengine");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_CANNOT_REGISTER_JNI_DRIVER, "can't register JDBC-JNI driver");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_CANNOT_REGISTER_RESTFUL_DRIVER, "can't register JDBC-RESTful driver");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_URL_NOT_SET, "url is not set");
+        TSDBErrorMap.put(TSDBErrorNumbers.ERROR_INVALID_SQL, "invalid sql");
+
         /**************************************************/
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNKNOWN, "unknown error");
         /**************************************************/
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_SUBSCRIBE_FAILED, "failed to create subscription");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_UNSUPPORTED_ENCODING, "Unsupported encoding");
-
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_TDENGINE_ERROR, "internal error of database");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL, "JNI connection is NULL");
         TSDBErrorMap.put(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL, "JNI result set is NULL");
@@ -65,4 +71,12 @@ public class TSDBError {
         return new SQLException("TDengine ERROR (" + Integer.toHexString(errorCode) + "): " + message, "", errorCode);
     }
 
+    public static RuntimeException createRuntimeException(int errorCode, Throwable t) {
+        String message = TSDBErrorMap.get(errorCode);
+        return new RuntimeException("ERROR (" + Integer.toHexString(errorCode) + "): " + message, t);
+    }
+
+    public static SQLWarning createSQLWarning(String message) {
+        return new SQLWarning(message);
+    }
 }

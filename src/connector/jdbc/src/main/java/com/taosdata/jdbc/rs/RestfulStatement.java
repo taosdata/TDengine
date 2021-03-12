@@ -148,7 +148,7 @@ public class RestfulStatement extends AbstractStatement {
         String result = HttpClientPoolUtil.execute(url, sql);
         JSONObject resultJson = JSON.parseObject(result);
         if (resultJson.getString("status").equals("error")) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + resultJson.getString("desc") + "\n" + "error code: " + resultJson.getString("code")));
+            throw TSDBError.createSQLException(resultJson.getInteger("code"), resultJson.getString("desc"));
         }
         // parse table name from sql
 //        String[] tableIdentifiers = parseTableIdentifier(sql);
@@ -177,7 +177,7 @@ public class RestfulStatement extends AbstractStatement {
         String result = HttpClientPoolUtil.execute(url, sql);
         JSONObject jsonObject = JSON.parseObject(result);
         if (jsonObject.getString("status").equals("error")) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + jsonObject.getString("desc") + "\n" + "error code: " + jsonObject.getString("code")));
+            throw TSDBError.createSQLException(jsonObject.getInteger("code"), jsonObject.getString("desc"));
         }
         this.resultSet = null;
         this.affectedRows = checkJsonResultSet(jsonObject);

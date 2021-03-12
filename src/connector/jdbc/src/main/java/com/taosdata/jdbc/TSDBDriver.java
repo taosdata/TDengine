@@ -96,19 +96,19 @@ public class TSDBDriver extends AbstractDriver {
     static {
         try {
             java.sql.DriverManager.registerDriver(new TSDBDriver());
-        } catch (SQLException E) {
-            throw new RuntimeException(TSDBConstants.WrapErrMsg("can't register tdengine jdbc driver!"));
+        } catch (SQLException e) {
+            throw TSDBError.createRuntimeException(TSDBErrorNumbers.ERROR_CANNOT_REGISTER_JNI_DRIVER, e);
         }
     }
 
     public Connection connect(String url, Properties info) throws SQLException {
         if (url == null)
-            throw new SQLException(TSDBConstants.WrapErrMsg("url is not set!"));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_URL_NOT_SET);
 
         if (!acceptsURL(url))
             return null;
 
-        Properties props = null;
+        Properties props;
         if ((props = parseURL(url, info)) == null) {
             return null;
         }
@@ -116,18 +116,14 @@ public class TSDBDriver extends AbstractDriver {
         try {
             TSDBJNIConnector.init((String) props.get(PROPERTY_KEY_CONFIG_DIR), (String) props.get(PROPERTY_KEY_LOCALE),
                     (String) props.get(PROPERTY_KEY_CHARSET), (String) props.get(PROPERTY_KEY_TIME_ZONE));
-            Connection newConn = new TSDBConnection(props, this.dbMetaData);
-            return newConn;
+            return new TSDBConnection(props, this.dbMetaData);
         } catch (SQLWarning sqlWarning) {
             sqlWarning.printStackTrace();
-            Connection newConn = new TSDBConnection(props, this.dbMetaData);
-            return newConn;
+            return new TSDBConnection(props, this.dbMetaData);
         } catch (SQLException sqlEx) {
             throw sqlEx;
         } catch (Exception ex) {
-            SQLException sqlEx = new SQLException("SQLException:" + ex.toString());
-            sqlEx.initCause(ex);
-            throw sqlEx;
+            throw new SQLException("SQLException:" + ex.toString(), ex);
         }
     }
 
@@ -139,8 +135,8 @@ public class TSDBDriver extends AbstractDriver {
      */
     public boolean acceptsURL(String url) throws SQLException {
         if (url == null)
-            throw new SQLException(TSDBConstants.WrapErrMsg("url is null"));
-        return (url != null && url.length() > 0 && url.trim().length() > 0) && (url.startsWith(URL_PREFIX) || url.startsWith(URL_PREFIX1));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_URL_NOT_SET);
+        return url.length() > 0 && url.trim().length() > 0 && (url.startsWith(URL_PREFIX) || url.startsWith(URL_PREFIX1));
     }
 
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {

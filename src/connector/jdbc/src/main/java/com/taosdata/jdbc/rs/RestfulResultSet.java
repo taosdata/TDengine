@@ -9,7 +9,6 @@ import com.taosdata.jdbc.TSDBErrorNumbers;
 
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.List;
 
 public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     private volatile boolean isClosed;
@@ -186,7 +185,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         if (columnIndex > resultSet.get(pos).size()) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size()));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE
+                    , "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
         }
 
         columnIndex = getTrueColumnIndex(columnIndex);
@@ -246,12 +246,14 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     private int getTrueColumnIndex(int columnIndex) throws SQLException {
         if (columnIndex < 1) {
-            throw new SQLException("Column Index out of range, " + columnIndex + " < 1");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE
+                    , "Column Index out of range, " + columnIndex + " < 1");
         }
 
         int numOfCols = resultSet.get(pos).size();
         if (columnIndex > numOfCols) {
-            throw new SQLException("Column Index out of range, " + columnIndex + " > " + numOfCols);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE
+                    , "Column Index out of range, " + columnIndex + " > " + numOfCols);
         }
 
         return columnIndex - 1;
