@@ -5380,7 +5380,7 @@ SAggFunctionInfo aAggs[] = {{
                           },
                           {
                               // 35
-                              "tid_tag",   // return table id and the corresponding tags for join match and subscribe
+                              "tbid",   // return table id and the corresponding tags for join match and subscribe
                               TSDB_FUNC_TID_TAG,
                               TSDB_FUNC_TID_TAG,
                               TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE,
