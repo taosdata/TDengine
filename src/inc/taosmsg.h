@@ -148,6 +148,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_CLUSTER,
   TSDB_MGMT_TABLE_TP,
+  TSDB_MGMT_TABLE_FUNCTION,
   TSDB_MGMT_TABLE_MAX,
 };
 
@@ -566,6 +567,11 @@ typedef struct {
   int16_t  partitions;
   int8_t   reserve[5];
 } SCreateDbMsg, SAlterDbMsg;
+
+typedef struct {
+  int32_t  codeLen;
+  char     code[];
+} SCreateFuncMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];

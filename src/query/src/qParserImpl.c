@@ -820,6 +820,18 @@ void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrTo
   pInfo->pMiscInfo->tableType = tableType;
 }
 
+void setDropFuncInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken) {
+  pInfo->type = type;
+
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = (SMiscInfo *)calloc(1, sizeof(SMiscInfo));
+    pInfo->pMiscInfo->a = taosArrayInit(4, sizeof(SStrToken));
+  }
+
+  taosArrayPush(pInfo->pMiscInfo->a, pToken);
+}
+
+
 void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken* pPatterns) {
   if (pInfo->pMiscInfo == NULL) {
     pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
@@ -853,6 +865,17 @@ void setCreateDbInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDb
   pInfo->pMiscInfo->dbOpt.dbname = *pToken;
   pInfo->pMiscInfo->dbOpt.ignoreExists = pIgExists->n; // sql.y has: ifnotexists(X) ::= IF NOT EXISTS.   {X.n = 1;}
 }
+
+void setCreateFuncInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPath) {
+  pInfo->type = type;
+  if (pInfo->pMiscInfo == NULL) {
+    pInfo->pMiscInfo = calloc(1, sizeof(SMiscInfo));
+  }
+
+  pInfo->pMiscInfo->funcOpt.name = *pName;
+  pInfo->pMiscInfo->funcOpt.path = *pPath;
+}
+
 
 void setCreateAcctSql(SSqlInfo *pInfo, int32_t type, SStrToken *pName, SStrToken *pPwd, SCreateAcctInfo *pAcctInfo) {
   pInfo->type = type;

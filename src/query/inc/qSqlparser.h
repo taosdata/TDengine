@@ -129,6 +129,12 @@ typedef struct SCreateDbInfo {
   int16_t   partitions;
 } SCreateDbInfo;
 
+typedef struct SCreateFuncInfo {
+  SStrToken name;
+  SStrToken path;
+} SCreateFuncInfo;
+
+
 typedef struct SCreateAcctInfo {
   int32_t   maxUsers;
   int32_t   maxDbs;
@@ -163,6 +169,7 @@ typedef struct SMiscInfo {
   union {
     SCreateDbInfo   dbOpt;
     SCreateAcctInfo acctOpt;
+    SCreateFuncInfo funcOpt;
     SShowInfo       showOpt;
     SStrToken       id;
   };

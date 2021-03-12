@@ -241,6 +241,80 @@ static int32_t handlePassword(SSqlCmd* pCmd, SStrToken* pPwd) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t readFromFile(char *name, uint32_t *len, void **buf) {
+  struct stat fileStat;
+  if (stat(name, &fileStat) < 0) {
+    tscError("stat file %s failed, error:%s", name, strerror(errno));
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  *len = fileStat.st_size;
+
+  *buf = calloc(1, *len);
+  if (*buf == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  int fd = open(name, O_RDONLY);
+  if (fd < 0) {
+    tscError("open file %s failed, error:%s", name, strerror(errno));
+    tfree(*buf);
+    return TAOS_SYSTEM_ERROR(errno);
+  }
+
+  int64_t s = taosReadImp(fd, *buf, *len);
+  if (s != *len) {
+    tscError("read file %s failed, error:%s", name, strerror(errno));
+    close(fd);
+    tfree(*buf);
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t handleCreateFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
+  switch (pInfo->type) {
+  case TSDB_SQL_CREATE_FUNCTION:
+    SCreateFuncInfo *createInfo = &pInfo->pMiscInfo->funcOpt;
+    SCreateFuncMsg *pMsg = (SCreateFuncMsg *)pSql->cmd.payload;
+    int32_t len = 0;
+    void *buf = NULL;
+
+    createInfo->path.z[createInfo->path.n] = 0;
+
+    strdequote(createInfo->path.z);
+    
+    int32_t ret = readFromFile(createInfo->path.z, &len, &buf);
+    if (ret) {
+      return ret;
+    }
+
+    //TODO CHECK CODE
+
+
+    if (len + sizeof(SCreateFuncMsg) > pSql->cmd.allocSize) {
+      ret = tscAllocPayload(&pSql->cmd, len + sizeof(SCreateFuncMsg));
+      if (ret) {
+        return ret;
+      }
+    }
+
+    pMsg->codeLen = htonl(len);
+    memcpy(pMsg->code, *buf, len);
+    
+    break;
+  case TSDB_SQL_DROP_FUNCTION:
+
+  default:
+    return TSDB_CODE_TSC_APP_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   if (pInfo == NULL || pSql == NULL) {
     return TSDB_CODE_TSC_APP_ERROR;
@@ -346,6 +420,15 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_SHOW: {
       if (setShowInfo(pSql, pInfo) != TSDB_CODE_SUCCESS) {
+        return TSDB_CODE_TSC_INVALID_SQL;
+      }
+
+      break;
+    }
+
+    case TSDB_SQL_CREATE_FUNCTION: 
+    case TSDB_SQL_DROP_FUNCTION:  {
+      if (handleCreateFunc(pSql, pInfo) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
 
