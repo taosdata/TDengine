@@ -1,4 +1,5 @@
-/***************************************************************************
+/**
+ * *************************************************************************
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
@@ -11,7 +12,7 @@
  *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************/
+ **************************************************************************** */
 package com.taosdata.jdbc;
 
 import com.taosdata.jdbc.utils.TaosInfo;
@@ -20,6 +21,9 @@ import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
 
+/**
+ * JNI connector
+ * */
 public class TSDBJNIConnector {
     private static volatile Boolean isInitialized = false;
 
