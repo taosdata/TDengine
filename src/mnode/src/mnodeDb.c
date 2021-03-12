@@ -48,7 +48,9 @@ static int32_t mnodeCreateFunc(SAcctObj *pAcct, SCreateFuncMsg *pCreate, SMnodeM
 static int32_t mnodeDropDb(SMnodeMsg *newMsg);
 static int32_t mnodeSetDbDropping(SDbObj *pDb);
 static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
+static int32_t mnodeGetFuncMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mnodeRetrieveFuncs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessCreateFuncMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
@@ -185,7 +187,9 @@ int32_t mnodeInitDbs() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mnodeProcessDropDbMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_FUNCTION, mnodeProcessDropFuncMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mnodeGetDbMeta);
+  mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_FUNCTION, mnodeGetFuncMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mnodeRetrieveDbs);
+  mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_FUNCTION, mnodeRetrieveFuncs);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DB, mnodeCancelGetNextDb);
   
   mDebug("table:dbs table is created");
@@ -473,7 +477,7 @@ static int32_t mnodeCreateFunc(SAcctObj *pAcct, SCreateFuncMsg *pCreate, SMnodeM
   int32_t code = acctCheck(pAcct, ACCT_GRANT_DB);
   if (code != 0) return code;
 
-  mError("Function name:%s, code:%.*s", pCreate->name, pCreate->codeLen, pCreate->code);
+  mError("Function name:%s, path:%s, code:%.*s", pCreate->name, pCreate->path, pCreate->codeLen, pCreate->code);
 
   return code;
 }
@@ -544,6 +548,9 @@ void mnodeCleanupDbs() {
   sdbCloseTable(tsDbRid);
   tsDbSdb = NULL;
 }
+
+
+
 
 static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
   int32_t cols = 0;
@@ -700,6 +707,41 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
   return 0;
 }
 
+static int32_t mnodeGetFuncMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn) {
+  int32_t cols = 0;
+
+  SSchema *pSchema = pMeta->schema;
+
+  pShow->bytes[cols] = (TSDB_FUNC_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "name");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pShow->bytes[cols] = PATH_MAX + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "path");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
+  pMeta->numOfColumns = htons(cols);
+  pShow->numOfColumns = cols;
+
+  pShow->offset[0] = 0;
+  for (int32_t i = 1; i < cols; ++i) {
+    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
+  }
+
+  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
+
+  //TODO GET ROWS NUM
+  
+  pShow->numOfRows = 1;
+
+  return 0;
+}
+
+
 char *mnodeGetDbStr(char *src) {
   char *pos = strstr(src, TS_PATH_DELIMITER);
   if (pos != NULL) ++pos;
@@ -846,6 +888,36 @@ static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void 
   mnodeDecUserRef(pUser);
   return numOfRows;
 }
+
+
+static int32_t mnodeRetrieveFuncs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
+  int32_t numOfRows = 0;
+  char *  pWrite;
+  int32_t cols = 0;
+
+  while (numOfRows < rows) {
+    cols = 0;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;  
+
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, "aaa", pShow->bytes[cols]);
+
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, "/tmp/abc", pShow->bytes[cols]);
+    cols++;
+
+    numOfRows++;
+  }
+
+  pShow->numOfReads += numOfRows;
+  mnodeVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
+
+  return numOfRows;
+}
+
+
 
 void mnodeAddSuperTableIntoDb(SDbObj *pDb) {
   atomic_add_fetch_32(&pDb->numOfSuperTables, 1);

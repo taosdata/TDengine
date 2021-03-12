@@ -572,6 +572,7 @@ typedef struct {
 
 typedef struct {
   char     name[TSDB_FUNC_NAME_LEN];
+  char     path[PATH_MAX];
   int32_t  codeLen;
   char     code[];
 } SCreateFuncMsg;

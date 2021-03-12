@@ -1300,7 +1300,19 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
+  SShowInfo *pShowInfo = &pInfo->pMiscInfo->showOpt;
+
   SShowMsg *pShowMsg = (SShowMsg *)pCmd->payload;
+
+  if (pShowInfo->showType == TSDB_MGMT_TABLE_FUNCTION) {
+    pShowMsg->type = pShowInfo->showType;
+
+    pShowMsg->payloadLen = 0;
+
+    pCmd->payloadLen = sizeof(SShowMsg);
+
+    return TSDB_CODE_SUCCESS;
+  }
 
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
 
@@ -1312,7 +1324,6 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     tNameGetFullDbName(&pTableMetaInfo->name, pShowMsg->db);
   }
 
-  SShowInfo *pShowInfo = &pInfo->pMiscInfo->showOpt;
   pShowMsg->type = pShowInfo->showType;
 
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {

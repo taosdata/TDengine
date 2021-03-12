@@ -276,6 +276,7 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
 
 int32_t handleCreateFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char *msg1 = "function name is too long";
+  const char *msg2 = "path is too long";
   SSqlCmd *pCmd = &pSql->cmd;
   
   switch (pInfo->type) {
@@ -284,6 +285,8 @@ int32_t handleCreateFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     SCreateFuncMsg *pMsg = (SCreateFuncMsg *)pSql->cmd.payload;
     uint32_t len = 0;
     void *buf = NULL;
+
+    createInfo->name.z[createInfo->name.n] = 0;
 
     strdequote(createInfo->name.z);
 
@@ -296,6 +299,12 @@ int32_t handleCreateFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     createInfo->path.z[createInfo->path.n] = 0;
 
     strdequote(createInfo->path.z);
+
+    if (strlen(createInfo->path.z) >= PATH_MAX) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    }
+    
+    strcpy(pMsg->path, createInfo->path.z);
     
     int32_t ret = readFromFile(createInfo->path.z, &len, &buf);
     if (ret) {
