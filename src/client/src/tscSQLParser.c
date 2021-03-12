@@ -275,12 +275,23 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
 
 
 int32_t handleCreateFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
+  const char *msg1 = "function name is too long";
+  SSqlCmd *pCmd = &pSql->cmd;
+  
   switch (pInfo->type) {
-  case TSDB_SQL_CREATE_FUNCTION:
+  case TSDB_SQL_CREATE_FUNCTION: {
     SCreateFuncInfo *createInfo = &pInfo->pMiscInfo->funcOpt;
     SCreateFuncMsg *pMsg = (SCreateFuncMsg *)pSql->cmd.payload;
-    int32_t len = 0;
+    uint32_t len = 0;
     void *buf = NULL;
+
+    strdequote(createInfo->name.z);
+
+    if (strlen(createInfo->name.z) >= TSDB_FUNC_NAME_LEN) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
+
+    strcpy(pMsg->name, createInfo->name.z);
 
     createInfo->path.z[createInfo->path.n] = 0;
 
@@ -302,11 +313,25 @@ int32_t handleCreateFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     pMsg->codeLen = htonl(len);
-    memcpy(pMsg->code, *buf, len);
+    memcpy(pMsg->code, buf, len);
     
     break;
-  case TSDB_SQL_DROP_FUNCTION:
+    }
+  case TSDB_SQL_DROP_FUNCTION: {
+    SStrToken* t0 = taosArrayGet(pInfo->pMiscInfo->a, 0);
+    
+    SDropFuncMsg *pMsg = (SDropFuncMsg *)pSql->cmd.payload;
 
+    strdequote(t0->z);
+
+    if (strlen(t0->z) >= TSDB_FUNC_NAME_LEN) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
+
+    strcpy(pMsg->name, t0->z);
+
+    break;
+    }
   default:
     return TSDB_CODE_TSC_APP_ERROR;
   }
@@ -428,8 +453,9 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_CREATE_FUNCTION: 
     case TSDB_SQL_DROP_FUNCTION:  {
-      if (handleCreateFunc(pSql, pInfo) != TSDB_CODE_SUCCESS) {
-        return TSDB_CODE_TSC_INVALID_SQL;
+      code = handleCreateFunc(pSql, pInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
       }
 
       break;

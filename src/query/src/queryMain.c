@@ -68,7 +68,7 @@ void freeParam(SQueryParam *param) {
   tfree(param->prevResult);
 }
 
-int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qinfo_t* pQInfo) {
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qinfo_t* pQInfo, uint64_t *qId) {
   assert(pQueryMsg != NULL && tsdb != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -158,7 +158,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     goto _over;
   }
 
-  (*pQInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo, param.pTagColumnInfo, isSTableQuery, param.sql);
+  (*pQInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo, param.pTagColumnInfo, isSTableQuery, param.sql, qId);
 
   param.sql    = NULL;
   param.pExprs = NULL;
@@ -479,7 +479,7 @@ void qCleanupQueryMgmt(void* pQMgmt) {
   qDebug("vgId:%d, queryMgmt cleanup completed", vgId);
 }
 
-void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
+void** qRegisterQInfo(void* pMgmt, uint64_t qId, uint64_t qInfo) {
   if (pMgmt == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     return NULL;
@@ -499,8 +499,7 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qInfo) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     return NULL;
   } else {
-    TSDB_CACHE_PTR_TYPE handleVal = (TSDB_CACHE_PTR_TYPE) qInfo;
-    void** handle = taosCachePut(pQueryMgmt->qinfoPool, &handleVal, sizeof(TSDB_CACHE_PTR_TYPE), &qInfo, sizeof(TSDB_CACHE_PTR_TYPE),
+    void** handle = taosCachePut(pQueryMgmt->qinfoPool, &qId, sizeof(qId), &qInfo, sizeof(TSDB_CACHE_PTR_TYPE),
                                  (getMaximumIdleDurationSec()*1000));
     pthread_mutex_unlock(&pQueryMgmt->lock);
 

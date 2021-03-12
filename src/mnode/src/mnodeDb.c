@@ -44,12 +44,16 @@ void *  tsDbSdb = NULL;
 static int32_t tsDbUpdateSize;
 
 static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *pMsg);
+static int32_t mnodeCreateFunc(SAcctObj *pAcct, SCreateFuncMsg *pCreate, SMnodeMsg *pMsg);
 static int32_t mnodeDropDb(SMnodeMsg *newMsg);
 static int32_t mnodeSetDbDropping(SDbObj *pDb);
 static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessCreateFuncMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessDropFuncMsg(SMnodeMsg *pMsg);
+
 int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
 
 #ifndef _TOPIC
@@ -176,8 +180,10 @@ int32_t mnodeInitDbs() {
   }
 
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DB, mnodeProcessCreateDbMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_FUNCTION, mnodeProcessCreateFuncMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_DB, mnodeProcessAlterDbMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mnodeProcessDropDbMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_FUNCTION, mnodeProcessDropFuncMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mnodeGetDbMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mnodeRetrieveDbs);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DB, mnodeCancelGetNextDb);
@@ -462,6 +468,17 @@ static int32_t mnodeCreateDb(SAcctObj *pAcct, SCreateDbMsg *pCreate, SMnodeMsg *
 
   return code;
 }
+
+static int32_t mnodeCreateFunc(SAcctObj *pAcct, SCreateFuncMsg *pCreate, SMnodeMsg *pMsg) {
+  int32_t code = acctCheck(pAcct, ACCT_GRANT_DB);
+  if (code != 0) return code;
+
+  mError("Function name:%s, code:%.*s", pCreate->name, pCreate->codeLen, pCreate->code);
+
+  return code;
+}
+
+
 
 bool mnodeCheckIsMonitorDB(char *db, char *monitordb) {
   char dbName[TSDB_DB_NAME_LEN] = {0};
@@ -891,6 +908,23 @@ static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg) {
   return code;
 }
 
+static int32_t mnodeProcessCreateFuncMsg(SMnodeMsg *pMsg) {
+  SCreateFuncMsg *pCreate    = pMsg->rpcMsg.pCont;  
+  pCreate->codeLen       = htonl(pCreate->codeLen);
+  
+  int32_t code;
+  if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_GRANT_EXPIRED;
+  } else if (!pMsg->pUser->writeAuth) {
+    code = TSDB_CODE_MND_NO_RIGHTS;
+  } else {
+    code = mnodeCreateFunc(pMsg->pUser->pAcct, pCreate, pMsg);
+  }
+
+  return code;
+}
+
+
 static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
   SDbCfg  newCfg = pDb->cfg;
   int32_t maxTables      = htonl(pAlter->maxTables);
@@ -1183,6 +1217,15 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
   mDebug("db:%s, all vgroups is dropped", pMsg->pDb->name);
   return mnodeDropDb(pMsg);
 }
+
+static int32_t mnodeProcessDropFuncMsg(SMnodeMsg *pMsg) {
+  SDropFuncMsg *pDrop = pMsg->rpcMsg.pCont;
+
+  mError("drop function:%s", pDrop->name);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 void  mnodeDropAllDbs(SAcctObj *pAcct)  {
   int32_t numOfDbs = 0;
