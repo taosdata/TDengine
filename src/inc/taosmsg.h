@@ -107,6 +107,12 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY13, "dummy13" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY14, "dummy14" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
 
+// message for topic
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_TP, "create-tp" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TP, "drop-tp" )	  
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_TP, "use-tp" )	 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TP, "alter-tp" )
+
 #ifndef TAOS_MESSAGE_C
   TSDB_MSG_TYPE_MAX  // 105
 #endif
@@ -141,6 +147,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_CLUSTER,
+  TSDB_MGMT_TABLE_TP,
   TSDB_MGMT_TABLE_MAX,
 };
 
@@ -555,7 +562,9 @@ typedef struct {
   int8_t   ignoreExist;
   int8_t   update;
   int8_t   cacheLastRow;
-  int8_t   reserve[8];
+  int8_t   dbType;
+  int16_t  partitions;
+  int8_t   reserve[5];
 } SCreateDbMsg, SAlterDbMsg;
 
 typedef struct {
@@ -675,7 +684,8 @@ typedef struct {
   int8_t   cacheLastRow;
   int32_t  vgCfgVersion;
   int8_t   dbReplica;
-  int8_t   reserved[9];
+  int8_t   dbType;
+  int8_t   reserved[8];
 } SVnodeCfg;
 
 typedef struct {
