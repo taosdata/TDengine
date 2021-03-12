@@ -1883,6 +1883,13 @@ void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, S
       }
     }
 
+    if (p && taosArrayGetSize(p) > 0) {
+      SResPair *l = taosArrayGetLast(p);
+      if (l->key == key && key == INT64_MIN) {
+        continue;
+      }
+    }
+
     //append a new column
     if (p == NULL) {
       SStddevInterResult t = {.colId = id, .pResult = taosArrayInit(10, sizeof(SResPair)),};
