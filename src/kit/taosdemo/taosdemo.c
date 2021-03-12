@@ -229,7 +229,8 @@ typedef struct SSuperTable_S {
   int          disorderRatio;            // 0: no disorder, >0: x%
   int          disorderRange;            // ms or us by database precision
   int          maxSqlLen;                // 
-  
+
+  int          insertInterval;          // insert interval, will override global insert interval
   int64_t      insertRows;               // 0: no limit
   int          timeStampStep;
   char         startTimestamp[MAX_TB_NAME_SIZE];  // 
@@ -475,8 +476,8 @@ char *aggreFunc[] = {"*", "count(*)", "avg(col0)", "sum(col0)",
     "max(col0)", "min(col0)", "first(col0)", "last(col0)"};
 
 SArguments g_args = {
-    NULL,                             // metaFile
-    0,                              // test_mode
+                     NULL,            // metaFile
+                     0,               // test_mode
                      "127.0.0.1",     // host
                      6030,            // port
                      "root",          // user
@@ -739,7 +740,8 @@ void parse_args(int argc, char *argv[], SArguments *arguments) {
     }
   }
 
-  if (arguments->debug_print) {
+  if (((arguments->debug_print) && (arguments->metaFile == NULL))
+          || arguments->verbose_print) {
     printf("###################################################################\n");
     printf("# meta file:                         %s\n", arguments->metaFile);
     printf("# Server IP:                         %s:%hu\n", 
@@ -1236,6 +1238,7 @@ static void printfInsertMetaToFile(FILE* fp) {
       fprintf(fp, "      dataSource:        %s\n",  g_Dbs.db[i].superTbls[j].dataSource);      
       fprintf(fp, "      insertMode:        %s\n",  g_Dbs.db[i].superTbls[j].insertMode);      
       fprintf(fp, "      insertRows:        %"PRId64"\n", g_Dbs.db[i].superTbls[j].insertRows); 
+      fprintf(fp, "      insert interval:   %d\n", g_Dbs.db[i].superTbls[j].insertInterval);
 
       if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
         fprintf(fp, "      multiThreadWriteOneTbl:  no\n");     
@@ -2827,13 +2830,13 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     goto PARSE_OVER;
   } 
 
-      cJSON* insertInterval = cJSON_GetObjectItem(root, "insert_interval");
-      if (insertInterval && insertInterval->type == cJSON_Number) {
-        g_args.insert_interval = insertInterval->valueint;
-      } else if (!insertInterval) {
+      cJSON* gInsertInterval = cJSON_GetObjectItem(root, "insert_interval");
+      if (gInsertInterval && gInsertInterval->type == cJSON_Number) {
+        g_args.insert_interval = gInsertInterval->valueint;
+      } else if (!gInsertInterval) {
         g_args.insert_interval = 0;
       } else {
-        printf("failed to read json, insert_interval not found");
+        printf("failed to read json, insert_interval input mistake");
         goto PARSE_OVER;
       }
  
@@ -3319,13 +3322,22 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       cJSON* insertRows = cJSON_GetObjectItem(stbInfo, "insert_rows");
       if (insertRows && insertRows->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].insertRows = insertRows->valueint;
-        //if (0 == g_Dbs.db[i].superTbls[j].insertRows) {
-        //  g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
-        //}
       } else if (!insertRows) {
         g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
       } else {
-        printf("failed to read json, insert_rows not found");
+        printf("failed to read json, insert_rows input mistake");
+        goto PARSE_OVER;
+      }
+
+      cJSON* insertInterval = cJSON_GetObjectItem(stbInfo, "insert_interval");
+      if (insertInterval && insertInterval->type == cJSON_Number) {
+        g_Dbs.db[i].superTbls[j].insertInterval = insertInterval->valueint;
+      } else if (!insertInterval) {
+        debugPrint("%s() LN%d: stable insert interval be overrided by global %d.\n",
+                __func__, __LINE__, g_args.insert_interval);
+        g_Dbs.db[i].superTbls[j].insertInterval = g_args.insert_interval;
+      } else {
+        printf("failed to read json, insert_interval input mistake");
         goto PARSE_OVER;
       }
 
@@ -4012,7 +4024,7 @@ static void syncWriteForNumberOfTblInOneSql(
 send_to_server:
         if (g_args.insert_interval && (g_args.insert_interval > (et - st))) {
             int sleep_time = g_args.insert_interval - (et -st);
-            printf("sleep: %d ms specified by insert_interval\n", sleep_time);
+            printf("sleep: %d ms insert interval\n", sleep_time);
             taosMsleep(sleep_time); // ms
         }
 
@@ -4355,14 +4367,14 @@ static void* syncWriteWithStb(void *sarg) {
 
       int64_t tblInserted = i;
 
-      if (i > 0 && g_args.insert_interval 
-            && (g_args.insert_interval > (et - st) )) {
-        int sleep_time = g_args.insert_interval - (et -st);
-        printf("sleep: %d ms specified by insert_interval\n", sleep_time);
+      if (i > 0 && superTblInfo->insertInterval
+            && (superTblInfo->insertInterval > (et - st) )) {
+        int sleep_time = superTblInfo->insertInterval - (et -st);
+        printf("sleep: %d ms insert interval\n", sleep_time);
         taosMsleep(sleep_time); // ms
       }
 
-      if (g_args.insert_interval) {
+      if (superTblInfo->insertInterval) {
         st = taosGetTimestampMs();
       }
 
@@ -4503,7 +4515,7 @@ static void* syncWriteWithStb(void *sarg) {
         lastPrintTime = currentPrintTime;
       }
 
-      if (g_args.insert_interval) {
+      if (superTblInfo->insertInterval) {
         et = taosGetTimestampMs();
       }
 
@@ -4518,7 +4530,6 @@ static void* syncWriteWithStb(void *sarg) {
         } 
 
     }
-    //printf("========loop %d childTables duration:%"PRId64 "========inserted rows:%d\n", winfo->end_table_id - winfo->start_table_id, et - st, i);
   } // tID
 
 free_and_statistics_2:
