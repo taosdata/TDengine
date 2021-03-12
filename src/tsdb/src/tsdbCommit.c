@@ -15,7 +15,13 @@
 #include "tsdbint.h"
 
 #define TSDB_MAX_SUBBLOCKS 8
-#define TSDB_KEY_FID(key, days, precision) ((key) / tsMsPerDay[(precision)] / (days))
+static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
+  if (key < 0) {
+    return -((-key) / tsMsPerDay[precision] / days + 1);
+  } else {
+    return (key / tsMsPerDay[precision] / days);
+  }
+}
 
 typedef struct {
   SRtn         rtn;     // retention snapshot
