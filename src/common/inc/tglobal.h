@@ -95,6 +95,7 @@ extern int8_t  tsCompression;
 extern int8_t  tsWAL;
 extern int32_t tsFsyncPeriod;
 extern int32_t tsReplications;
+extern int16_t tsPartitons;
 extern int32_t tsQuorum;
 extern int8_t  tsUpdate;
 extern int8_t  tsCacheLastRow;
