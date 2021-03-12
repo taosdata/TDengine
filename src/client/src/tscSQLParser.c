@@ -331,6 +331,8 @@ int32_t handleCreateFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     
     SDropFuncMsg *pMsg = (SDropFuncMsg *)pSql->cmd.payload;
 
+    t0->z[t0->n] = 0;
+
     strdequote(t0->z);
 
     if (strlen(t0->z) >= TSDB_FUNC_NAME_LEN) {
