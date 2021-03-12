@@ -97,6 +97,22 @@ bool tscQueryTags(SQueryInfo* pQueryInfo) {
   return true;
 }
 
+bool tscQueryBlockInfo(SQueryInfo* pQueryInfo) {
+  int32_t numOfCols = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    int32_t functId = pExpr->functionId;
+
+    // "select count(tbname)" query
+    if (functId == TSDB_FUNC_BLKINFO) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (pQueryInfo == NULL) {
     return false;
@@ -1722,10 +1738,15 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->fieldsInfo.internalField = taosArrayInit(4, sizeof(SInternalField));
   
   assert(pQueryInfo->exprList == NULL);
-  pQueryInfo->exprList   = taosArrayInit(4, POINTER_BYTES);
-  pQueryInfo->colList    = taosArrayInit(4, POINTER_BYTES);
-  pQueryInfo->udColumnId = TSDB_UD_COLUMN_INDEX;
-  pQueryInfo->resColumnId= -1000;
+  pQueryInfo->exprList    = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->colList     = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->udColumnId  = TSDB_UD_COLUMN_INDEX;
+  pQueryInfo->resColumnId = -1000;
+  pQueryInfo->limit.limit = -1;
+  pQueryInfo->limit.offset = 0;
+
+  pQueryInfo->slimit.limit = -1;
+  pQueryInfo->slimit.offset = 0;
 }
 
 int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {
