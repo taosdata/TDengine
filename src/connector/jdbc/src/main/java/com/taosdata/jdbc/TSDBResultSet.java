@@ -20,18 +20,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TSDBResultSet extends AbstractResultSet implements ResultSet {
-    private TSDBJNIConnector jniConnector;
-
+    private final TSDBJNIConnector jniConnector;
     private final TSDBStatement statement;
-    private long resultSetPointer = 0L;
+    private final long resultSetPointer;
     private List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
-
-    private TSDBResultSetRowData rowData;
-    private TSDBResultSetBlockData blockData;
+    private final TSDBResultSetRowData rowData;
+    private final TSDBResultSetBlockData blockData;
 
     private boolean batchFetch = false;
     private boolean lastWasNull = false;
-    private final int COLUMN_INDEX_START_VALUE = 1;
+    private boolean isClosed;
 
     public void setBatchFetch(boolean batchFetch) {
         this.batchFetch = batchFetch;
@@ -56,13 +54,13 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
         int code = this.jniConnector.getSchemaMetaData(this.resultSetPointer, this.columnMetaDataList);
         if (code == TSDBConstants.JNI_CONNECTION_NULL) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
         }
         if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_RESULT_SET_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
         }
         if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_NUM_OF_FIELDS_0));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
         }
         this.rowData = new TSDBResultSetRowData(this.columnMetaDataList.size());
         this.blockData = new TSDBResultSetBlockData(this.columnMetaDataList, this.columnMetaDataList.size());
@@ -78,16 +76,12 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
             this.blockData.reset();
 
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
             } else if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_RESULT_SET_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
             } else if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_NUM_OF_FIELDS_0));
-            } else if (code == TSDBConstants.JNI_FETCH_END) {
-                return false;
-            }
-
-            return true;
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
+            } else return code != TSDBConstants.JNI_FETCH_END;
         } else {
             if (rowData != null) {
                 this.rowData.clear();
@@ -95,11 +89,11 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
             int code = this.jniConnector.fetchRow(this.resultSetPointer, this.rowData);
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
             } else if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_RESULT_SET_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
             } else if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_NUM_OF_FIELDS_0));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
             } else if (code == TSDBConstants.JNI_FETCH_END) {
                 return false;
             } else {
@@ -109,14 +103,17 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     }
 
     public void close() throws SQLException {
+        if (isClosed)
+            return;
         if (this.jniConnector != null) {
             int code = this.jniConnector.freeResultSet(this.resultSetPointer);
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
             } else if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_RESULT_SET_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
             }
         }
+        isClosed = true;
     }
 
     public boolean wasNull() throws SQLException {
@@ -415,8 +412,8 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     }
 
     public boolean isClosed() throws SQLException {
-        //TODO: check if need release resources
-        boolean isClosed = true;
+        if (isClosed)
+            return true;
         if (jniConnector != null) {
             isClosed = jniConnector.isResultsetClosed();
         }
@@ -429,14 +426,12 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     }
 
     private int getTrueColumnIndex(int columnIndex) throws SQLException {
-        if (columnIndex < this.COLUMN_INDEX_START_VALUE) {
-            throw new SQLException("Column Index out of range, " + columnIndex + " < " + this.COLUMN_INDEX_START_VALUE);
-        }
+        if (columnIndex < 1)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "columnIndex(" + columnIndex + "): < 1");
 
         int numOfCols = this.columnMetaDataList.size();
-        if (columnIndex > numOfCols) {
-            throw new SQLException("Column Index out of range, " + columnIndex + " > " + numOfCols);
-        }
+        if (columnIndex > numOfCols)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "columnIndex: " + columnIndex);
         return columnIndex - 1;
     }
 }

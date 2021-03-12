@@ -198,6 +198,14 @@ void dnodeCleanupVnodes() {
 static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
   if (pMsg->code != TSDB_CODE_SUCCESS) {
     dError("status rsp is received, error:%s", tstrerror(pMsg->code));
+    if (pMsg->code == TSDB_CODE_MND_DNODE_NOT_EXIST) {
+      char clusterId[TSDB_CLUSTER_ID_LEN];
+      dnodeGetClusterId(clusterId);
+      if (clusterId[0] != '\0') {
+	dError("exit zombie dropped dnode");
+	exit(EXIT_FAILURE);
+      }
+    }
     taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
     return;
   }

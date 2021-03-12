@@ -95,12 +95,11 @@ class TDTestCase:
         for i in col_list :
             for j in col_list :
                 for k in op_list :
-                    for l in [' order by ts' , ' order by ts desc' ]:
-                        sql = " select %s %s %s from test1 %s" % ( i , k , j , l )
-                        if i in err_list or j in err_list:
-                            tdSql.error(sql)
-                        else:
-                            tdSql.query(sql)
+                    sql = " select %s %s %s from test1 " % ( i , k , j )
+                    if i in err_list or j in err_list:
+                        tdSql.error(sql)
+                    else:
+                        tdSql.query(sql)
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

@@ -87,11 +87,10 @@ public class TSDBConnection extends AbstractConnection {
     }
 
     public void close() throws SQLException {
-        if (isClosed()) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-        }
-        this.isClosed = true;
+        if (isClosed)
+            return;
         this.connector.closeConnection();
+        this.isClosed = true;
     }
 
     public boolean isClosed() throws SQLException {
