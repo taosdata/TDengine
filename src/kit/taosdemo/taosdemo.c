@@ -2161,35 +2161,35 @@ static int createDatabases() {
 
     int dataLen = 0;
     dataLen += snprintf(command + dataLen, 
-        BUFFER_SIZE - dataLen, "create database if not exists %s ", g_Dbs.db[i].dbName);
+        BUFFER_SIZE - dataLen, "create database if not exists %s", g_Dbs.db[i].dbName);
 
     if (g_Dbs.db[i].dbCfg.blocks > 0) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "blocks %d ", g_Dbs.db[i].dbCfg.blocks);
+          BUFFER_SIZE - dataLen, " blocks %d", g_Dbs.db[i].dbCfg.blocks);
     }
     if (g_Dbs.db[i].dbCfg.cache > 0) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "cache %d ", g_Dbs.db[i].dbCfg.cache);
+          BUFFER_SIZE - dataLen, " cache %d", g_Dbs.db[i].dbCfg.cache);
     }
     if (g_Dbs.db[i].dbCfg.days > 0) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "days %d ", g_Dbs.db[i].dbCfg.days);
+          BUFFER_SIZE - dataLen, " days %d", g_Dbs.db[i].dbCfg.days);
     }
     if (g_Dbs.db[i].dbCfg.keep > 0) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "keep %d ", g_Dbs.db[i].dbCfg.keep);
+          BUFFER_SIZE - dataLen, " keep %d", g_Dbs.db[i].dbCfg.keep);
     }
     if (g_Dbs.db[i].dbCfg.quorum > 1) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "quorum %d ", g_Dbs.db[i].dbCfg.quorum);
+          BUFFER_SIZE - dataLen, " quorum %d", g_Dbs.db[i].dbCfg.quorum);
     }
     if (g_Dbs.db[i].dbCfg.replica > 0) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "replica %d ", g_Dbs.db[i].dbCfg.replica);
+          BUFFER_SIZE - dataLen, " replica %d", g_Dbs.db[i].dbCfg.replica);
     }
     if (g_Dbs.db[i].dbCfg.update > 0) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "update %d ", g_Dbs.db[i].dbCfg.update);
+          BUFFER_SIZE - dataLen, " update %d", g_Dbs.db[i].dbCfg.update);
     }
     //if (g_Dbs.db[i].dbCfg.maxtablesPerVnode > 0) {
     //  dataLen += snprintf(command + dataLen,
@@ -2197,31 +2197,32 @@ static int createDatabases() {
     //}
     if (g_Dbs.db[i].dbCfg.minRows > 0) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "minrows %d ", g_Dbs.db[i].dbCfg.minRows);
+          BUFFER_SIZE - dataLen, " minrows %d", g_Dbs.db[i].dbCfg.minRows);
     }
     if (g_Dbs.db[i].dbCfg.maxRows > 0) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "maxrows %d ", g_Dbs.db[i].dbCfg.maxRows);
+          BUFFER_SIZE - dataLen, " maxrows %d", g_Dbs.db[i].dbCfg.maxRows);
     }
     if (g_Dbs.db[i].dbCfg.comp > 0) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "comp %d ", g_Dbs.db[i].dbCfg.comp);
+          BUFFER_SIZE - dataLen, " comp %d", g_Dbs.db[i].dbCfg.comp);
     }
     if (g_Dbs.db[i].dbCfg.walLevel > 0) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "wal %d ", g_Dbs.db[i].dbCfg.walLevel);
+          BUFFER_SIZE - dataLen, " wal %d", g_Dbs.db[i].dbCfg.walLevel);
     }
     if (g_Dbs.db[i].dbCfg.cacheLast > 0) {
       dataLen += snprintf(command + dataLen,
-          BUFFER_SIZE - dataLen, "cachelast %d ", g_Dbs.db[i].dbCfg.cacheLast);
+          BUFFER_SIZE - dataLen, " cachelast %d", g_Dbs.db[i].dbCfg.cacheLast);
     }
     if (g_Dbs.db[i].dbCfg.fsync > 0) {
-      dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen, "fsync %d ", g_Dbs.db[i].dbCfg.fsync);
-    }
-    if ((0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ms", 2))
-            || (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "us", 2))) {
       dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen,
-              "precision \'%s\';", g_Dbs.db[i].dbCfg.precision);
+              " fsync %d", g_Dbs.db[i].dbCfg.fsync);
+    }
+    if ((0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ms", strlen("ms")))
+            || (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "us", strlen("us")))) {
+      dataLen += snprintf(command + dataLen, BUFFER_SIZE - dataLen,
+              " precision \'%s\';", g_Dbs.db[i].dbCfg.precision);
     }
 
     debugPrint("%s() %d command: %s\n", __func__, __LINE__, command);
