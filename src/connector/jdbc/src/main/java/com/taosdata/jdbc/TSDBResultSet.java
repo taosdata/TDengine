@@ -90,6 +90,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
             int code = this.jniConnector.fetchRow(this.resultSetPointer, this.rowData);
             //////
             this.rowData.getData().stream().forEach(i -> System.out.print(">>>>" + i + "\t"));
+            System.out.println();
             //////
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
