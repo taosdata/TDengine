@@ -27,7 +27,6 @@ public class UnsignedNumberJniTest {
                 }
                 System.out.println();
             }
-
         } catch (SQLException e) {
             e.printStackTrace();
         }
