@@ -185,6 +185,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_DB_OPTION_DAYS    TAOS_DEF_ERROR_CODE(0, 0x0390)  //"Invalid database option: days out of range")
 #define TSDB_CODE_MND_INVALID_DB_OPTION_KEEP    TAOS_DEF_ERROR_CODE(0, 0x0391)  //"Invalid database option: keep >= keep1 >= keep0 >= days")
 
+#define TSDB_CODE_MND_INVALID_TOPIC             TAOS_DEF_ERROR_CODE(0, 0x0392)  //"Invalid topic name)
+#define TSDB_CODE_MND_INVALID_TOPIC_OPTION      TAOS_DEF_ERROR_CODE(0, 0x0393)  //"Invalid topic option)
+
 // dnode
 #define TSDB_CODE_DND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0400)  //"Message not processed")
 #define TSDB_CODE_DND_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x0401)  //"Dnode out of memory")

@@ -817,7 +817,7 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   va_end(va);
 }
 
-void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck, int16_t tableType) {
+void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck, int16_t dbType, int16_t tableType) {
   pInfo->type = type;
 
   if (pInfo->pMiscInfo == NULL) {
@@ -828,6 +828,7 @@ void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrTo
   taosArrayPush(pInfo->pMiscInfo->a, pToken);
 
   pInfo->pMiscInfo->existsCheck = (existsCheck->n == 1);
+  pInfo->pMiscInfo->dbType = dbType;
   pInfo->pMiscInfo->tableType = tableType;
 }
 
@@ -947,6 +948,17 @@ void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {
   pDBInfo->keep = NULL;
 
   pDBInfo->update = -1;
-  pDBInfo->cachelast = 0;
+  pDBInfo->cachelast = -1;
+
+  pDBInfo->dbType = -1;
+  pDBInfo->partitions = -1;
+  
   memset(&pDBInfo->precision, 0, sizeof(SStrToken));
+}
+
+void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo) {
+  setDefaultCreateDbOption(pDBInfo);
+
+  pDBInfo->dbType = TSDB_DB_TYPE_TOPIC;
+  pDBInfo->partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
 }
