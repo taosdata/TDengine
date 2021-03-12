@@ -63,6 +63,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
         }
         ////////
+        System.out.println("###################");
         this.columnMetaDataList.stream().forEach(System.out::println);
         ////////
         this.rowData = new TSDBResultSetRowData(this.columnMetaDataList.size());
