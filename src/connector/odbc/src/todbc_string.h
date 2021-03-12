@@ -25,7 +25,6 @@
 
 typedef struct todbc_string_s            todbc_string_t;
 struct todbc_string_s {
-  char                     enc[64];
   // null if init failed because of internal resources shortage
   const unsigned char     *buf;             // null-terminator inclusive
   size_t                   total_bytes;     // not counting null-terminator
@@ -33,6 +32,9 @@ struct todbc_string_s {
   // <= total_bytes
   // truncated if < total_bytes
   size_t                   bytes;           // not counting null-terminator
+
+  // move here to satisfy todbc_string_t dummy = {0};
+  char                     enc[64];
 };
 
 
