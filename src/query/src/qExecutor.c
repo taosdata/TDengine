@@ -2913,7 +2913,9 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
         return;
       }
 
-      tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
+      int32_t maxLen = bytes - VARSTR_HEADER_SIZE;
+      int32_t len = (varDataLen(val) > maxLen)? maxLen:varDataLen(val);
+      tVariantCreateFromBinary(tag, varDataVal(val), len, type);
     } else {
       if (isNull(val, type)) {
         tag->nType = TSDB_DATA_TYPE_NULL;
@@ -7070,8 +7072,15 @@ static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type
     return;
   }
 
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    memcpy(output, val, varDataTLen(val));
+  if (IS_VAR_DATA_TYPE(type)) {
+    // Binary data overflows for sort of unknown reasons. Let trim the overflow data
+    if (varDataTLen(val) > bytes) {
+      int32_t len = bytes;
+      memcpy(varDataVal(output), varDataVal(val), len);
+      varDataSetLen(output, len);
+    } else {
+      varDataCopy(output, val);
+    }
   } else {
     memcpy(output, val, bytes);
   }
