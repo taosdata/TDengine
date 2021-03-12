@@ -73,11 +73,11 @@ public class TSDBStatement extends AbstractStatement {
     }
 
     public void close() throws SQLException {
-        if (!isClosed) {
-            if (this.resultSet != null)
-                this.resultSet.close();
-            isClosed = true;
-        }
+        if (isClosed)
+            return;
+        if (this.resultSet != null && !this.resultSet.isClosed())
+            this.resultSet.close();
+        isClosed = true;
     }
 
     public boolean execute(String sql) throws SQLException {
