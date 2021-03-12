@@ -39,7 +39,6 @@ public class TSDBStatement extends AbstractStatement {
     }
 
     public ResultSet executeQuery(String sql) throws SQLException {
-        System.out.println("###################");
         // check if closed
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
@@ -52,7 +51,6 @@ public class TSDBStatement extends AbstractStatement {
             this.connector.freeResultSet(pSql);
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
         }
-        System.out.println("###################");
         TSDBResultSet res = new TSDBResultSet(this, this.connector, pSql);
         res.setBatchFetch(this.connection.getBatchFetch());
         return res;
