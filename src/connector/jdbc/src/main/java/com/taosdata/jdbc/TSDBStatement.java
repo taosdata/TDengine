@@ -39,6 +39,7 @@ public class TSDBStatement extends AbstractStatement {
     }
 
     public ResultSet executeQuery(String sql) throws SQLException {
+        System.out.println("###################");
         // check if closed
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
