@@ -1,75 +1,11 @@
 package com.taosdata.jdbc;
 
-import java.io.*;
 import java.sql.Driver;
 import java.sql.DriverPropertyInfo;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Properties;
 import java.util.StringTokenizer;
 
 public abstract class AbstractDriver implements Driver {
-
-    private static final String TAOS_CFG_FILENAME = "taos.cfg";
-
-    /**
-     * @param cfgDirPath
-     * @return return the config dir
-     **/
-    protected File loadConfigDir(String cfgDirPath) {
-        if (cfgDirPath == null)
-            return loadDefaultConfigDir();
-        File cfgDir = new File(cfgDirPath);
-        if (!cfgDir.exists())
-            return loadDefaultConfigDir();
-        return cfgDir;
-    }
-
-    /**
-     * @return search the default config dir, if the config dir is not exist will return null
-     */
-    protected File loadDefaultConfigDir() {
-        File cfgDir;
-        File cfgDir_linux = new File("/etc/taos");
-        cfgDir = cfgDir_linux.exists() ? cfgDir_linux : null;
-        File cfgDir_windows = new File("C:\\TDengine\\cfg");
-        cfgDir = (cfgDir == null && cfgDir_windows.exists()) ? cfgDir_windows : cfgDir;
-        return cfgDir;
-    }
-
-    protected List<String> loadConfigEndpoints(File cfgFile) {
-        List<String> endpoints = new ArrayList<>();
-        try (BufferedReader reader = new BufferedReader(new FileReader(cfgFile))) {
-            String line = null;
-            while ((line = reader.readLine()) != null) {
-                if (line.trim().startsWith("firstEp") || line.trim().startsWith("secondEp")) {
-                    endpoints.add(line.substring(line.indexOf('p') + 1).trim());
-                }
-                if (endpoints.size() > 1)
-                    break;
-            }
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return endpoints;
-    }
-
-    protected void loadTaosConfig(Properties info) {
-        if ((info.getProperty(TSDBDriver.PROPERTY_KEY_HOST) == null ||
-                info.getProperty(TSDBDriver.PROPERTY_KEY_HOST).isEmpty()) && (
-                info.getProperty(TSDBDriver.PROPERTY_KEY_PORT) == null ||
-                        info.getProperty(TSDBDriver.PROPERTY_KEY_PORT).isEmpty())) {
-            File cfgDir = loadConfigDir(info.getProperty(TSDBDriver.PROPERTY_KEY_CONFIG_DIR));
-            File cfgFile = cfgDir.listFiles((dir, name) -> TAOS_CFG_FILENAME.equalsIgnoreCase(name))[0];
-            List<String> endpoints = loadConfigEndpoints(cfgFile);
-            if (!endpoints.isEmpty()) {
-                info.setProperty(TSDBDriver.PROPERTY_KEY_HOST, endpoints.get(0).split(":")[0]);
-                info.setProperty(TSDBDriver.PROPERTY_KEY_PORT, endpoints.get(0).split(":")[1]);
-            }
-        }
-    }
 
     protected DriverPropertyInfo[] getPropertyInfo(Properties info) {
         DriverPropertyInfo hostProp = new DriverPropertyInfo(TSDBDriver.PROPERTY_KEY_HOST, info.getProperty(TSDBDriver.PROPERTY_KEY_HOST));
@@ -155,7 +91,5 @@ public abstract class AbstractDriver implements Driver {
         }
         return urlProps;
     }
-
-
 
 }

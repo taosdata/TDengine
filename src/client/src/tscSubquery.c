@@ -1941,7 +1941,11 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 
           // tag or group by column
           if (TSDB_COL_IS_TAG(pExpr->colInfo.flag) || pExpr->functionId == TSDB_FUNC_PRJ) {
-            memcpy(p + offset, row[i], length[i]);
+            if (row[i] == NULL) {
+              setNull(p + offset, pExpr->resType, pExpr->resBytes);
+            } else {
+              memcpy(p + offset, row[i], length[i]);
+            }
             offset += pExpr->resBytes;
           }
         }
@@ -2802,7 +2806,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
         numOfFailed += 1;
 
         // clean up tableMeta in cache
-        tscFreeQueryInfo(&pSql->cmd);
+        tscFreeQueryInfo(&pSql->cmd, false);
         SQueryInfo* pQueryInfo = tscGetQueryInfoDetailSafely(&pSql->cmd, 0);
         STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pParentObj->cmd, pSql->cmd.clauseIndex, 0);
         tscAddTableMetaInfo(pQueryInfo, &pMasterTableMetaInfo->name, NULL, NULL, NULL, NULL);

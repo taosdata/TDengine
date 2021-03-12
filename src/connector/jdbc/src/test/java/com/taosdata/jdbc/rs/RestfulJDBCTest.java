@@ -10,7 +10,7 @@ import java.util.Random;
 public class RestfulJDBCTest {
 
     private static final String host = "127.0.0.1";
-    //    private static final String host = "master";
+//        private static final String host = "master";
     private static Connection connection;
     private Random random = new Random(System.currentTimeMillis());
 

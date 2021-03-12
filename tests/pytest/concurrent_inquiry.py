@@ -350,18 +350,27 @@ class ConcurrentInquiry:
         cl.execute("create database if not exists %s;" %self.dbname)
         cl.execute("use %s" % self.dbname)
         for k in range(stableNum):
-            sql="create table %s (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool,c8 binary(20),c9 nchar(20)) \
-            tags(t1 int, t2 float, t3 bigint, t4 smallint, t5 tinyint, t6 double, t7 bool,t8 binary(20),t9 nchar(20))" % (self.stb_prefix+str(k))
+            sql="create table %s (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool,c8 binary(20),c9 nchar(20),c11 int unsigned,c12 smallint unsigned,c13 tinyint unsigned,c14 bigint unsigned) \
+            tags(t1 int, t2 float, t3 bigint, t4 smallint, t5 tinyint, t6 double, t7 bool,t8 binary(20),t9 nchar(20), t11 int unsigned , t12 smallint unsigned , t13 tinyint unsigned , t14 bigint unsigned)" % (self.stb_prefix+str(k))
             cl.execute(sql)
             for j in range(subtableNum):
-                sql = "create table %s using %s tags(%d,%d,%d,%d,%d,%d,%d,'%s','%s')" % \
-                        (self.subtb_prefix+str(k)+'_'+str(j),self.stb_prefix+str(k),j,j/2.0,j%41,j%51,j%53,j*1.0,j%2,'taos'+str(j),'涛思'+str(j))
+                if j % 100 == 0:
+                    sql = "create table %s using %s tags(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)" % \
+                            (self.subtb_prefix+str(k)+'_'+str(j),self.stb_prefix+str(k))
+                else:
+                    sql = "create table %s using %s tags(%d,%d,%d,%d,%d,%d,%d,'%s','%s',%d,%d,%d,%d)" % \
+                            (self.subtb_prefix+str(k)+'_'+str(j),self.stb_prefix+str(k),j,j/2.0,j%41,j%51,j%53,j*1.0,j%2,'taos'+str(j),'涛思'+str(j), j%43, j%23 , j%17 , j%3167)
                 print(sql)
                 cl.execute(sql)
                 for i in range(insertRows):
-                    ret = cl.execute(
-                        "insert into %s values (%d , %d,%d,%d,%d,%d,%d,%d,'%s','%s')" %
-                        (self.subtb_prefix+str(k)+'_'+str(j),t0+i,i%100,i/2.0,i%41,i%51,i%53,i*1.0,i%2,'taos'+str(i),'涛思'+str(i)))
+                    if i % 100 == 0 :
+                        ret = cl.execute(
+                        "insert into %s values (%d , NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)" %
+                        (self.subtb_prefix+str(k)+'_'+str(j), t0+i))
+                    else:
+                        ret = cl.execute(
+                            "insert into %s values (%d , %d,%d,%d,%d,%d,%d,%d,'%s','%s',%d,%d,%d,%d)" %
+                            (self.subtb_prefix+str(k)+'_'+str(j), t0+i, i%100, i/2.0, i%41, i%51, i%53, i*1.0, i%2,'taos'+str(i),'涛思'+str(i), i%43, i%23 , i%17 , i%3167))
         cl.close()
         conn.close()
         

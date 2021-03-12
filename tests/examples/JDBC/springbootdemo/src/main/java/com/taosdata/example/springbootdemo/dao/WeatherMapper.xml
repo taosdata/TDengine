@@ -4,28 +4,29 @@
 <mapper namespace="com.taosdata.example.springbootdemo.dao.WeatherMapper">
 
     <resultMap id="BaseResultMap" type="com.taosdata.example.springbootdemo.domain.Weather">
-        <id column="ts" jdbcType="TIMESTAMP" property="ts" />
-        <result column="temperature" jdbcType="INTEGER" property="temperature" />
-        <result column="humidity" jdbcType="FLOAT" property="humidity" />
+        <id column="ts" jdbcType="TIMESTAMP" property="ts"/>
+        <result column="temperature" jdbcType="FLOAT" property="temperature"/>
+        <result column="humidity" jdbcType="FLOAT" property="humidity"/>
     </resultMap>
 
-    <update id="createDB" >
-        create database if not exists test;
+    <update id="dropDB">
+        drop database if exists test
     </update>
 
-    <update id="createTable" >
-        create table if not exists test.weather(ts timestamp, temperature int, humidity float);
+    <update id="createDB">
+        create database if not exists test
     </update>
 
-    <sql id="Base_Column_List">
-        ts, temperature, humidity
-    </sql>
+    <update id="createSuperTable">
+        create table if not exists test.weather(ts timestamp, temperature float, humidity float) tags(location nchar(64), groupId int)
+    </update>
+
+    <update id="createTable" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
+        create table if not exists test.t#{groupId} using test.weather tags(#{location}, #{groupId})
+    </update>
 
     <select id="select" resultMap="BaseResultMap">
-        select
-        <include refid="Base_Column_List" />
-        from test.weather
-        order by ts desc
+        select * from test.weather order by ts desc
         <if test="limit != null">
             limit #{limit,jdbcType=BIGINT}
         </if>
@@ -34,16 +35,26 @@
         </if>
     </select>
 
-    <insert id="insert" parameterType="com.taosdata.example.springbootdemo.domain.Weather" >
-        insert into test.weather (ts, temperature, humidity) values (now, #{temperature,jdbcType=INTEGER}, #{humidity,jdbcType=FLOAT})
+    <insert id="insert" parameterType="com.taosdata.example.springbootdemo.domain.Weather">
+        insert into test.t#{groupId} (ts, temperature, humidity) values (#{ts}, ${temperature}, ${humidity})
     </insert>
 
-    <insert id="batchInsert" parameterType="java.util.List" >
-        insert into test.weather (ts, temperature, humidity) values
-        <foreach separator=" " collection="list" item="weather" index="index" >
-            (now + #{index}a, #{weather.temperature}, #{weather.humidity})
-        </foreach>
-    </insert>
+    <select id="getSubTables" resultType="String">
+        select tbname from test.weather
+    </select>
 
+    <select id="count" resultType="int">
+        select count(*) from test.weather
+    </select>
+
+    <resultMap id="avgResultSet" type="com.taosdata.example.springbootdemo.domain.Weather">
+        <id column="ts" jdbcType="TIMESTAMP" property="ts" />
+        <result column="avg(temperature)" jdbcType="FLOAT" property="temperature" />
+        <result column="avg(humidity)" jdbcType="FLOAT" property="humidity" />
+    </resultMap>
+
+    <select id="avg" resultMap="avgResultSet">
+        select avg(temperature), avg(humidity)from test.weather interval(1m)
+    </select>
 
 </mapper>

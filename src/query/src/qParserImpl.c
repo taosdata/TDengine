@@ -58,6 +58,15 @@ SSqlInfo qSQLParse(const char *pStr) {
         sqlInfo.valid = false;
         goto abort_parse;
       }
+      
+      case TK_HEX:
+      case TK_OCT:
+      case TK_BIN:{
+        snprintf(sqlInfo.msg, tListLen(sqlInfo.msg), "unsupported token: \"%s\"", t0.z);
+        sqlInfo.valid = false;
+        goto abort_parse;
+      }
+        
       default:
         Parse(pParser, t0.type, t0, &sqlInfo);
         if (sqlInfo.valid == false) {
@@ -796,7 +805,7 @@ void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   va_end(va);
 }
 
-void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck, int16_t tableType) {
+void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck, int16_t dbType, int16_t tableType) {
   pInfo->type = type;
 
   if (pInfo->pMiscInfo == NULL) {
@@ -807,6 +816,7 @@ void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrTo
   taosArrayPush(pInfo->pMiscInfo->a, pToken);
 
   pInfo->pMiscInfo->existsCheck = (existsCheck->n == 1);
+  pInfo->pMiscInfo->dbType = dbType;
   pInfo->pMiscInfo->tableType = tableType;
 }
 
@@ -926,6 +936,17 @@ void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo) {
   pDBInfo->keep = NULL;
 
   pDBInfo->update = -1;
-  pDBInfo->cachelast = 0;
+  pDBInfo->cachelast = -1;
+
+  pDBInfo->dbType = -1;
+  pDBInfo->partitions = -1;
+  
   memset(&pDBInfo->precision, 0, sizeof(SStrToken));
+}
+
+void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo) {
+  setDefaultCreateDbOption(pDBInfo);
+
+  pDBInfo->dbType = TSDB_DB_TYPE_TOPIC;
+  pDBInfo->partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
 }

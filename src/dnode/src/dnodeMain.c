@@ -189,6 +189,11 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
+  if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
+    dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
+    return -1;
+  } 
+  
   if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
     dError("failed to init TFS since %s", tstrerror(terrno));
     return -1;

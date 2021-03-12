@@ -6,12 +6,21 @@ import java.sql.Timestamp;
 
 public class Weather {
 
-    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS",timezone = "GMT+8")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS", timezone = "GMT+8")
     private Timestamp ts;
-
-    private int temperature;
-
+    private float temperature;
     private float humidity;
+    private String location;
+    private int groupId;
+
+    public Weather() {
+    }
+
+    public Weather(Timestamp ts, float temperature, float humidity) {
+        this.ts = ts;
+        this.temperature = temperature;
+        this.humidity = humidity;
+    }
 
     public Timestamp getTs() {
         return ts;
@@ -21,11 +30,11 @@ public class Weather {
         this.ts = ts;
     }
 
-    public int getTemperature() {
+    public float getTemperature() {
         return temperature;
     }
 
-    public void setTemperature(int temperature) {
+    public void setTemperature(float temperature) {
         this.temperature = temperature;
     }
 
@@ -35,5 +44,21 @@ public class Weather {
 
     public void setHumidity(float humidity) {
         this.humidity = humidity;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
+    }
+
+    public int getGroupId() {
+        return groupId;
+    }
+
+    public void setGroupId(int groupId) {
+        this.groupId = groupId;
     }
 }

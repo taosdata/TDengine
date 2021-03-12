@@ -68,7 +68,38 @@ class TDTestCase:
         tdSql.checkRows(11)
         tdSql.checkData(10, 0, None)
 
+        # test for  tarithoperator.c coverage
+        tdSql.execute("insert into test1 values(1537146000010,1,NULL,9,8,1.2,1.3,0,1,1,5,4,3,2)")
+        tdSql.execute("insert into test1 values(1537146000011,2,1,NULL,9,1.2,1.3,1,2,2,6,5,4,3)")
+        tdSql.execute("insert into test1 values(1537146000012,3,2,1,NULL,1.2,1.3,0,3,3,7,6,5,4)")
+        tdSql.execute("insert into test1 values(1537146000013,4,3,2,1,1.2,1.3,1,4,4,8,7,6,5)")
+        tdSql.execute("insert into test1 values(1537146000014,5,4,3,2,1.2,1.3,0,5,5,9,8,7,6)")
+        tdSql.execute("insert into test1 values(1537146000015,6,5,4,3,1.2,1.3,1,6,6,NULL,9,8,7)")
+        tdSql.execute("insert into test1 values(1537146000016,7,6,5,4,1.2,1.3,0,7,7,1,NULL,9,8)")
+        tdSql.execute("insert into test1 values(1537146000017,8,7,6,5,1.2,1.3,1,8,8,2,1,NULL,9)")
+        tdSql.execute("insert into test1 values(1537146000018,9,8,7,6,1.2,1.3,0,9,9,3,2,1,NULL)")
+        tdSql.execute("insert into test1 values(1537146000019,NULL,9,8,7,1.2,1.3,1,10,10,4,3,2,1)")
 
+        self.ts = self.ts + self.rowNum + 10
+
+        tdSql.execute("insert into test1 values(%d, 1, 1, 1, 1, 1.1, 1.1, 1, NULL, '涛思数据3', 1, 1, 1, 1)"  % (  self.ts + self.rowNum + 1 ))
+        tdSql.execute("insert into test1 values(%d, 1, 1, 1, 1, 1.1, 1.1, 1, 'taosdata', NULL, 1, 1, 1, 1)"  % (  self.ts + self.rowNum + 2 ))
+        tdSql.execute("insert into test1 values(%d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"  % (  self.ts + self.rowNum + 3 ))
+        tdSql.execute("insert into test1 values(%d, 1, 1, 1, 1, NULL, 1.1, 1, NULL, '涛思数据3', 1, 1, 1, 1)"  % (  self.ts + self.rowNum + 4 ))
+        tdSql.execute("insert into test1 values(%d, 1, 1, 1, 1, 1.1, NULL, 1, 'taosdata', NULL, 1, 1, 1, 1)"  % (  self.ts + self.rowNum + 5 ))
+        self.rowNum = self.rowNum + 5
+
+        col_list = [ 'col1' , 'col2' , 'col3' , 'col4' , 'col5' , 'col6' , 'col7' , 'col8' , 'col9' , 'col11' , 'col12' , 'col13' , 'col14' , '1' , '1.1' , 'NULL' ]
+        op_list = [ '+' , '-' , '*' , '/' , '%' ]
+        err_list = [ 'col7' , 'col8' , 'col9' , 'NULL' ]
+        for i in col_list :
+            for j in col_list :
+                for k in op_list :
+                    sql = " select %s %s %s from test1 " % ( i , k , j )
+                    if i in err_list or j in err_list:
+                        tdSql.error(sql)
+                    else:
+                        tdSql.query(sql)
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
