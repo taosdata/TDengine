@@ -53,10 +53,10 @@ typedef struct todbc_iconvset_s       todbc_iconvset_t;
 typedef struct todbc_iconv_s          todbc_iconv_t;
 typedef struct todbc_enc_s            todbc_enc_t;
 struct todbc_enc_s {
-  char               enc[64];
   int                char_size;  // character size at most
   int                null_size;  // size for null terminator
   int                variable_char_size; // such as 3 for UTF8
+  char               enc[64];    // move here to satisfy todbc_enc_t enc = {0};
 };
 
 todbc_iconvset_t* todbc_iconvset_create(void);
