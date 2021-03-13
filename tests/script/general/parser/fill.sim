@@ -313,6 +313,7 @@ if $rows != 9 then
   return -1
 endi
 if $data01 != 0 then
+  print expect 0, actual:$data01
   return -1
 endi
 if $data11 != 6 then 
@@ -979,10 +980,6 @@ if $data00 != @20-01-01 01:01:00.000@ then
   return -1
 endi
 
-if $data00 != @20-01-01 01:01:00.000@ then
-  return -1
-endi
-if $data1
 if $data01 != 2.000000000 then
   return -1
 endi

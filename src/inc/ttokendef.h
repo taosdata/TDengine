@@ -191,52 +191,18 @@
 #define TK_STATEMENT                      172
 #define TK_TRIGGER                        173
 #define TK_VIEW                           174
-#define TK_COUNT                          175
-#define TK_SUM                            176
-#define TK_AVG                            177
-#define TK_MIN                            178
-#define TK_MAX                            179
-#define TK_FIRST                          180
-#define TK_LAST                           181
-#define TK_TOP                            182
-#define TK_BOTTOM                         183
-#define TK_STDDEV                         184
-#define TK_PERCENTILE                     185
-#define TK_APERCENTILE                    186
-#define TK_LEASTSQUARES                   187
-#define TK_HISTOGRAM                      188
-#define TK_DIFF                           189
-#define TK_SPREAD                         190
-#define TK_TWA                            191
-#define TK_INTERP                         192
-#define TK_LAST_ROW                       193
-#define TK_RATE                           194
-#define TK_IRATE                          195
-#define TK_SUM_RATE                       196
-#define TK_SUM_IRATE                      197
-#define TK_AVG_RATE                       198
-#define TK_AVG_IRATE                      199
-#define TK_TBID                           200
-#define TK_SEMI                           201
-#define TK_NONE                           202
-#define TK_PREV                           203
-#define TK_LINEAR                         204
-#define TK_IMPORT                         205
-#define TK_METRIC                         206
-#define TK_TBNAME                         207
-#define TK_JOIN                           208
-#define TK_METRICS                        209
-#define TK_INSERT                         210
-#define TK_INTO                           211
-#define TK_VALUES                         212
-
-
-
-
-
-
-
-
+#define TK_SEMI                           175
+#define TK_NONE                           176
+#define TK_PREV                           177
+#define TK_LINEAR                         178
+#define TK_IMPORT                         179
+#define TK_METRIC                         180
+#define TK_TBNAME                         181
+#define TK_JOIN                           182
+#define TK_METRICS                        183
+#define TK_INSERT                         184
+#define TK_INTO                           185
+#define TK_VALUES                         186
 
 
 #define TK_SPACE                          300
