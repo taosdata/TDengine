@@ -4564,7 +4564,7 @@ static SSDataBlock* doOffset(void* param) {
 
     if (pRuntimeEnv->currentOffset == 0) {
       return pBlock;
-    } else if (pRuntimeEnv->currentOffset > pBlock->info.rows) {
+    } else if (pRuntimeEnv->currentOffset >= pBlock->info.rows) {
       pRuntimeEnv->currentOffset -= pBlock->info.rows;
     } else {
       int32_t remain = (int32_t)(pBlock->info.rows - pRuntimeEnv->currentOffset);
