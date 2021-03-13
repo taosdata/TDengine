@@ -55,7 +55,6 @@ typedef struct SResultBufStatis {
 } SResultBufStatis;
 
 typedef struct SDiskbasedResultBuf {
-  int32_t   numOfRowsPerPage;
   int32_t   numOfPages;
   int64_t   totalBufSize;
   int64_t   fileSize;            // disk file size
@@ -77,7 +76,7 @@ typedef struct SDiskbasedResultBuf {
   SResultBufStatis statis;
 } SDiskbasedResultBuf;
 
-#define DEFAULT_INTERN_BUF_PAGE_SIZE  (256L)                          // in bytes
+#define DEFAULT_INTERN_BUF_PAGE_SIZE  (1024L)                          // in bytes
 #define PAGE_INFO_INITIALIZER         (SPageDiskInfo){-1, -1}
 
 /**
@@ -89,8 +88,7 @@ typedef struct SDiskbasedResultBuf {
  * @param handle
  * @return
  */
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t rowSize, int32_t pagesize,
-                                    int32_t inMemBufSize, const void* handle);
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, const void* handle);
 
 /**
  *
@@ -100,13 +98,6 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t ro
  * @return
  */
 tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32_t* pageId);
-
-/**
- *
- * @param pResultBuf
- * @return
- */
-size_t getNumOfRowsPerPage(const SDiskbasedResultBuf* pResultBuf);
 
 /**
  *

@@ -394,7 +394,7 @@ typedef struct SColIndex {
   int16_t  colId;      // column id
   int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
   uint16_t flag;       // denote if it is a tag or a normal column
-  char     name[TSDB_COL_NAME_LEN];
+  char     name[TSDB_COL_NAME_LEN];  // TODO remove it
 } SColIndex;
 
 /* sql function msg, to describe the message to vnode about sql function
@@ -402,7 +402,10 @@ typedef struct SColIndex {
 typedef struct SSqlFuncMsg {
   int16_t functionId;
   int16_t numOfParams;
+
   int16_t resColId;      // result column id, id of the current output column
+  int16_t colType;
+  int16_t colBytes;
 
   SColIndex colInfo;
   struct ArgElem {

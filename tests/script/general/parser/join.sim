@@ -347,6 +347,7 @@ $val = $rowNum  + $rowNum
 print $val
 print $rows
 if $rows != $val then
+  print expect $val , actual:$rows
   return -1
 endi
 

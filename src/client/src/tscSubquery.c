@@ -74,14 +74,14 @@ static bool allSubqueryDone(SSqlObj *pParentSql) {
   SSubqueryState *subState = &pParentSql->subState;
 
   //lock in caller
-  
+  tscDebug("%p total subqueries: %d", pParentSql, subState->numOfSub);
   for (int i = 0; i < subState->numOfSub; i++) {
     if (0 == subState->states[i]) {
-      tscDebug("%p subquery:%p,%d is NOT finished, total:%d", pParentSql, pParentSql->pSubs[i], i, subState->numOfSub);
+      tscDebug("%p subquery:%p, index: %d NOT finished, abort query completion check", pParentSql, pParentSql->pSubs[i], i);
       done = false;
       break;
     } else {
-      tscDebug("%p subquery:%p,%d is finished, total:%d", pParentSql, pParentSql->pSubs[i], i, subState->numOfSub);
+      tscDebug("%p subquery:%p, index: %d finished", pParentSql, pParentSql->pSubs[i], i);
     }
   }
 
@@ -453,7 +453,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     pSubQueryInfo->tsBuf = NULL;
   
     // free result for async object will also free sqlObj
-    assert(tscSqlExprNumOfExprs(pSubQueryInfo) == 1); // ts_comp query only requires one resutl columns
+    assert(tscSqlExprNumOfExprs(pSubQueryInfo) == 1); // ts_comp query only requires one result columns
     taos_free_result(pPrevSub);
   
     SSqlObj *pNew = createSubqueryObj(pSql, (int16_t) i, tscJoinQueryCallback, pSupporter, TSDB_SQL_SELECT, NULL);
@@ -507,6 +507,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, 0);
     int16_t funcId = pExpr->functionId;
 
+    // add the invisible timestamp column
     if ((pExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) ||
         (funcId != TSDB_FUNC_TS && funcId != TSDB_FUNC_TS_DUMMY && funcId != TSDB_FUNC_PRJ)) {
 
@@ -847,6 +848,8 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   SSqlRes* pRes = &pSql->res;
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+
+  // todo, the type may not include TSDB_QUERY_TYPE_TAG_FILTER_QUERY
   assert(TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY));
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
@@ -1880,6 +1883,13 @@ void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, S
       }
     }
 
+    if (p && taosArrayGetSize(p) > 0) {
+      SResPair *l = taosArrayGetLast(p);
+      if (l->key == key && key == INT64_MIN) {
+        continue;
+      }
+    }
+
     //append a new column
     if (p == NULL) {
       SStddevInterResult t = {.colId = id, .pResult = taosArrayInit(10, sizeof(SResPair)),};
@@ -2643,12 +2653,17 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
     SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pNew->cmd, 0);
 
     pQueryInfo->type |= TSDB_QUERY_TYPE_STABLE_SUBQUERY;
+
+    // clear the limit/offset info, since it should not be sent to vnode to be executed.
+    pQueryInfo->limit.limit = -1;
+    pQueryInfo->limit.offset = 0;
+
     assert(pQueryInfo->numOfTables == 1 && pNew->cmd.numOfClause == 1 && trsupport->subqueryIndex < pSql->subState.numOfSub);
     
     // launch subquery for each vnode, so the subquery index equals to the vgroupIndex.
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, table_index);
     pTableMetaInfo->vgroupIndex = trsupport->subqueryIndex;
-    
+
     pSql->pSubs[trsupport->subqueryIndex] = pNew;
   }
   
@@ -3099,30 +3114,6 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
     (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
   } else {
     tscAsyncResultOnError(pSql);
-  }
-}
-
-static UNUSED_FUNC void transferNcharData(SSqlObj *pSql, int32_t columnIndex, TAOS_FIELD *pField) {
-  SSqlRes *pRes = &pSql->res;
-  
-  if (pRes->tsrow[columnIndex] != NULL && pField->type == TSDB_DATA_TYPE_NCHAR) {
-    // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
-    if (pRes->buffer[columnIndex] == NULL) {
-      pRes->buffer[columnIndex] = malloc(pField->bytes + TSDB_NCHAR_SIZE);
-    }
-    
-    /* string terminated char for binary data*/
-    memset(pRes->buffer[columnIndex], 0, pField->bytes + TSDB_NCHAR_SIZE);
-    
-    int32_t length = taosUcs4ToMbs(pRes->tsrow[columnIndex], pRes->length[columnIndex], pRes->buffer[columnIndex]);
-    if ( length >= 0 ) {
-      pRes->tsrow[columnIndex] = (unsigned char*)pRes->buffer[columnIndex];
-      pRes->length[columnIndex] = length;
-    } else {
-      tscError("%p charset:%s to %s. val:%s convert failed.", pSql, DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)pRes->tsrow[columnIndex]);
-      pRes->tsrow[columnIndex] = NULL;
-      pRes->length[columnIndex] = 0;
-    }
   }
 }
 
