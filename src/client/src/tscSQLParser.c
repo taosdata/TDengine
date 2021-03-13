@@ -1925,7 +1925,7 @@ void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrT
 
 static void updateLastScanOrderIfNeeded(SQueryInfo* pQueryInfo) {
   if (pQueryInfo->sessionWindow.gap > 0 || tscGroupbyColumn(pQueryInfo)) {
-    int32_t numOfExpr = tscSqlExprNumOfExprs(pQueryInfo);
+    size_t numOfExpr = tscSqlExprNumOfExprs(pQueryInfo);
     for (int32_t i = 0; i < numOfExpr; ++i) {
       SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
       if (pExpr->functionId != TSDB_FUNC_LAST && pExpr->functionId != TSDB_FUNC_LAST_DST) {
