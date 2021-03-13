@@ -1021,7 +1021,7 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   const char* msg1 = "first column must be timestamp";
   const char* msg2 = "row length exceeds max length";
   const char* msg3 = "duplicated column names";
-  const char* msg4 = "invalid data types";
+  const char* msg4 = "invalid data type";
   const char* msg5 = "invalid binary/nchar column length";
   const char* msg6 = "invalid column name";
 
@@ -1042,14 +1042,13 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   int32_t nLen = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     pField = taosArrayGet(pFieldList, i);
-
-    if (pField->bytes == 0) {
-      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+    if (!isValidDataType(pField->type)) {
+      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
       return false;
     }
 
-    if (!isValidDataType(pField->type)) {
-      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+    if (pField->bytes == 0) {
+      invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       return false;
     }
 
@@ -1242,7 +1241,7 @@ bool validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
   const char* msg1 = "too many columns";
   const char* msg2 = "duplicated column names";
   const char* msg3 = "column length too long";
-  const char* msg4 = "invalid data types";
+  const char* msg4 = "invalid data type";
   const char* msg5 = "invalid column name";
   const char* msg6 = "invalid column length";
 
