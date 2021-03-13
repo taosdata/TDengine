@@ -628,6 +628,7 @@ typedef struct {
   int32_t  maxtablesPerVnode;
   int32_t  maxVgroupsPerDb;
   char     arbitrator[TSDB_EP_LEN];   // tsArbitrator
+  char     reserve[2];                // to solve arm32 bus error
   char     timezone[64];              // tsTimezone
   int64_t  checkTime;                 // 1970-01-01 00:00:00.000
   char     locale[TSDB_LOCALE_LEN];   // tsLocale
