@@ -1,10 +1,7 @@
 package com.taosdata.jdbc.cases;
 
 import com.taosdata.jdbc.TSDBDriver;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.runners.MethodSorters;
 
 import java.sql.*;
@@ -26,6 +23,10 @@ public class UnsignedNumberJniTest {
                     System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
                 }
                 System.out.println();
+                Assert.assertEquals("127", rs.getString(2));
+                Assert.assertEquals("32767", rs.getString(3));
+                Assert.assertEquals("2147483647", rs.getString(4));
+                Assert.assertEquals("9223372036854775807", rs.getString(5));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -35,7 +36,6 @@ public class UnsignedNumberJniTest {
     @Test
     public void testCase002() {
         try (Statement stmt = conn.createStatement()) {
-            long now = System.currentTimeMillis();
             ResultSet rs = stmt.executeQuery("select * from us_table");
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
@@ -45,6 +45,10 @@ public class UnsignedNumberJniTest {
                 System.out.print(meta.getColumnLabel(4) + ": " + rs.getInt(4) + "\t");
                 System.out.print(meta.getColumnLabel(5) + ": " + rs.getLong(5) + "\t");
                 System.out.println();
+                Assert.assertEquals(127, rs.getByte(2));
+                Assert.assertEquals(32767, rs.getShort(3));
+                Assert.assertEquals(2147483647, rs.getInt(4));
+                Assert.assertEquals(9223372036854775807l, rs.getLong(5));
             }
         } catch (SQLException e) {
             e.printStackTrace();
@@ -65,6 +69,9 @@ public class UnsignedNumberJniTest {
                 System.out.print(meta.getColumnLabel(4) + ": " + rs.getInt(4) + "\t");
                 System.out.print(meta.getColumnLabel(5) + ": " + rs.getLong(5) + "\t");
                 System.out.println();
+                Assert.assertEquals(127, rs.getByte(2));
+                Assert.assertEquals(32767, rs.getShort(3));
+                Assert.assertEquals(2147483647, rs.getInt(4));
             }
         }
     }
@@ -83,6 +90,8 @@ public class UnsignedNumberJniTest {
                 System.out.print(meta.getColumnLabel(4) + ": " + rs.getInt(4) + "\t");
                 System.out.print(meta.getColumnLabel(5) + ": " + rs.getLong(5) + "\t");
                 System.out.println();
+                Assert.assertEquals(127, rs.getByte(2));
+                Assert.assertEquals(32767, rs.getShort(3));
             }
         }
     }
@@ -101,6 +110,8 @@ public class UnsignedNumberJniTest {
                 System.out.print(meta.getColumnLabel(4) + ": " + rs.getInt(4) + "\t");
                 System.out.print(meta.getColumnLabel(5) + ": " + rs.getLong(5) + "\t");
                 System.out.println();
+
+                Assert.assertEquals(127, rs.getByte(2));
             }
         }
     }
