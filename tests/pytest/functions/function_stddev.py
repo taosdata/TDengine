@@ -26,6 +26,8 @@ class TDTestCase:
 
         self.rowNum = 10
         self.ts = 1537146000000
+        self.stb_prefix = 's'
+        self.subtb_prefix = 't'
         
     def run(self):
         tdSql.prepare()
@@ -85,6 +87,33 @@ class TDTestCase:
 
         tdSql.query("select stddev(col6) from test1")
         tdSql.checkData(0, 0, np.std(floatData))
+
+        #add for td-3276
+        sql="create table s (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool,c8 binary(20),c9 nchar(20),c11 int unsigned,c12 smallint unsigned,c13 tinyint unsigned,c14 bigint unsigned) \
+            tags(t1 int, t2 float, t3 bigint, t4 smallint, t5 tinyint, t6 double, t7 bool,t8 binary(20),t9 nchar(20), t10 int unsigned , t11 smallint unsigned , t12 tinyint unsigned , t13 bigint unsigned)"
+        tdSql.execute(sql)
+        for j in range(2):
+            if j % 2 == 0:
+                sql = "create table %s using %s tags(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)" % \
+                        (self.subtb_prefix+str(j)+'_'+str(j),self.stb_prefix)
+            else:
+                sql = "create table %s using %s tags(%d,%d,%d,%d,%d,%d,%d,'%s','%s',%d,%d,%d,%d)" % \
+                        (self.subtb_prefix+str(j)+'_'+str(j),self.stb_prefix,j,j/2.0,j%41,j%51,j%53,j*1.0,j%2,'taos'+str(j),'涛思'+str(j), j%43, j%23 , j%17 , j%3167)
+            tdSql.execute(sql)
+            for i in range(10):
+                if i % 5 == 0 :
+                    ret = tdSql.execute(
+                    "insert into %s values (%d , NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)" %
+                    (self.subtb_prefix+str(j)+'_'+str(j), self.ts+i))
+                else:
+                    ret = tdSql.execute(
+                        "insert into %s values (%d , %d,%d,%d,%d,%d,%d,%d,'%s','%s',%d,%d,%d,%d)" %
+                        (self.subtb_prefix+str(j)+'_'+str(j), self.ts+i, i%100, i/2.0, i%41, i%51, i%53, i*1.0, i%2,'taos'+str(i),'涛思'+str(i), i%43, i%23 , i%17 , i%3167))
+        
+        for i in range(13):
+            tdSql.query('select stddev(c4) from s group by t%s' % str(i+1) )
+
+        
             
     def stop(self):
         tdSql.close()
