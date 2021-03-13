@@ -643,7 +643,6 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     }
 
     pSql->epSet.inUse = rand()%pSql->epSet.numOfEps;
-
     pQueryMsg->head.vgId = htonl(vgId);
 
     STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
@@ -658,8 +657,6 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
     assert(index >= 0 && index < numOfVgroups);
 
-    tscDebug("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, numOfVgroups);
-
     SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
 
     // set the vgroup info 
@@ -668,7 +665,10 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     
     int32_t numOfTables = (int32_t)taosArrayGetSize(pTableIdList->itemList);
     pQueryMsg->numOfTables = htonl(numOfTables);  // set the number of tables
-  
+
+    tscDebug("%p query on stable, vgId:%d, numOfTables:%d, vgIndex:%d, numOfVgroups:%d", pSql,
+             pTableIdList->vgInfo.vgId, numOfTables, index, numOfVgroups);
+
     // serialize each table id info
     for(int32_t i = 0; i < numOfTables; ++i) {
       STableIdInfo* pItem = taosArrayGet(pTableIdList->itemList, i);
@@ -754,6 +754,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->vgroupLimit    = htobe64(pQueryInfo->vgroupLimit);
   pQueryMsg->sqlstrLen      = htonl(sqlLen);
   pQueryMsg->prevResultLen  = htonl(pQueryInfo->bufLen);
+  pQueryMsg->sw.gap         = htobe64(pQueryInfo->sessionWindow.gap);
+  pQueryMsg->sw.primaryColId = htonl(PRIMARYKEY_TIMESTAMP_COL_INDEX);
 
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryMsg->numOfOutput = htons((int16_t)numOfOutput);  // this is the stage one output column number

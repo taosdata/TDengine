@@ -550,8 +550,8 @@ void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 /*
  * extract the select info out of sql string
  */
-SQuerySQL *tSetQuerySqlElems(SStrToken *pSelectToken, tSQLExprList *pSelection, SArray *pFrom, tSQLExpr *pWhere,
-                             SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
+SQuerySQL *tSetQuerySqlNode(SStrToken *pSelectToken, tSQLExprList *pSelection, SArray *pFrom, tSQLExpr *pWhere,
+                             SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *pSession,
                              SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
   assert(pSelection != NULL);
 
@@ -574,12 +574,15 @@ SQuerySQL *tSetQuerySqlElems(SStrToken *pSelectToken, tSQLExprList *pSelection, 
   }
 
   if (pInterval != NULL) {
-    pQuery->interval = pInterval->interval;
-    pQuery->offset = pInterval->offset;
+    pQuery->interval = *pInterval;
   }
 
   if (pSliding != NULL) {
     pQuery->sliding = *pSliding;
+  }
+
+  if (pSession != NULL) {
+    pQuery->sessionVal = *pSession;
   }
 
   pQuery->fillType = pFill;
