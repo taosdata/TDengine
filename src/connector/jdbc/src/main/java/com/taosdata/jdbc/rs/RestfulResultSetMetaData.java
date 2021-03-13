@@ -1,6 +1,7 @@
 package com.taosdata.jdbc.rs;
 
 import com.taosdata.jdbc.TSDBConstants;
+import com.taosdata.jdbc.WrapperImpl;
 
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -8,7 +9,7 @@ import java.sql.Timestamp;
 import java.sql.Types;
 import java.util.ArrayList;
 
-public class RestfulResultSetMetaData implements ResultSetMetaData {
+public class RestfulResultSetMetaData extends WrapperImpl implements ResultSetMetaData {
 
     private final String database;
     private ArrayList<RestfulResultSet.Field> fields;
@@ -18,6 +19,10 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
         this.database = database;
         this.fields = fields;
         this.resultSet = resultSet;
+    }
+
+    public ArrayList<RestfulResultSet.Field> getFields() {
+        return fields;
     }
 
     @Override
@@ -134,8 +139,8 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
 
     @Override
     public String getColumnTypeName(int column) throws SQLException {
-        int type = fields.get(column - 1).type;
-        return TSDBConstants.jdbcType2TaosTypeName(type);
+        int taos_type = fields.get(column - 1).taos_type;
+        return TSDBConstants.taosType2JdbcTypeName(taos_type);
     }
 
     @Override
@@ -178,20 +183,6 @@ public class RestfulResultSetMetaData implements ResultSetMetaData {
                 return String.class.getName();
         }
         return columnClassName;
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        try {
-            return iface.cast(this);
-        } catch (ClassCastException cce) {
-            throw new SQLException("Unable to unwrap to " + iface.toString());
-        }
-    }
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return iface.isInstance(this);
     }
 
 }

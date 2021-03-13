@@ -27,8 +27,8 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     private final TSDBResultSetRowData rowData;
     private final TSDBResultSetBlockData blockData;
 
-    private boolean batchFetch = false;
-    private boolean lastWasNull = false;
+    private boolean batchFetch;
+    private boolean lastWasNull;
     private boolean isClosed;
 
     public void setBatchFetch(boolean batchFetch) {
@@ -123,15 +123,24 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         String res = null;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getString(colIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType());
         }
+        return res;
+
+//        if (!this.getBatchFetch()) {
+//            this.lastWasNull = this.rowData.wasNull(colIndex);
+//            if (!lastWasNull) {
+//                res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+//            }
+//            return res;
+//        } else {
+//            return this.blockData.getString(colIndex);
+//        }
     }
 
     public boolean getBoolean(int columnIndex) throws SQLException {

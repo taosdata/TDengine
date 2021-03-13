@@ -4,16 +4,15 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.AbstractStatement;
-import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.TSDBError;
 import com.taosdata.jdbc.TSDBErrorNumbers;
 import com.taosdata.jdbc.utils.HttpClientPoolUtil;
 import com.taosdata.jdbc.utils.SqlSyntaxValidator;
 
-import java.sql.*;
-import java.util.ArrayList;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.stream.Collectors;
 
 public class RestfulStatement extends AbstractStatement {
@@ -150,22 +149,7 @@ public class RestfulStatement extends AbstractStatement {
         if (resultJson.getString("status").equals("error")) {
             throw TSDBError.createSQLException(resultJson.getInteger("code"), resultJson.getString("desc"));
         }
-        // parse table name from sql
-//        String[] tableIdentifiers = parseTableIdentifier(sql);
-//        if (tableIdentifiers != null) {
-//            List<JSONObject> fieldJsonList = new ArrayList<>();
-//            for (String tableIdentifier : tableIdentifiers) {
-//                String fields = HttpClientPoolUtil.execute(url, "DESCRIBE " + tableIdentifier);
-//                JSONObject fieldJson = JSON.parseObject(fields);
-//                if (fieldJson.getString("status").equals("error")) {
-//                    throw new SQLException(TSDBConstants.WrapErrMsg("SQL execution error: " + fieldJson.getString("desc") + "\n" + "error code: " + fieldJson.getString("code")));
-//                }
-//                fieldJsonList.add(fieldJson);
-//            }
-//            this.resultSet = new RestfulResultSet(database, this, resultJson, fieldJsonList);
-//        } else {
         this.resultSet = new RestfulResultSet(database, this, resultJson);
-//        }
         this.affectedRows = 0;
         return resultSet;
     }

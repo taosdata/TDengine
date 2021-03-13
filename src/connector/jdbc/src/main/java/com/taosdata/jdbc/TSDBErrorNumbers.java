@@ -23,6 +23,8 @@ public class TSDBErrorNumbers {
     public static final int ERROR_CANNOT_REGISTER_RESTFUL_DRIVER = 0x2311;  // can't register JDBC-RESTful driver
     public static final int ERROR_URL_NOT_SET = 0x2312;  // url is not set
     public static final int ERROR_INVALID_SQL = 0x2313;     // invalid sql
+    public static final int ERROR_NUMERIC_VALUE_OUT_OF_RANGE = 0x2314;  // numeric value out of range
+    public static final int ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE = 0x2315; //unknown taos type in tdengine
 
     public static final int ERROR_UNKNOWN = 0x2350;    //unknown error
 
@@ -58,11 +60,12 @@ public class TSDBErrorNumbers {
         errorNumbers.add(ERROR_CANNOT_REGISTER_RESTFUL_DRIVER);
         errorNumbers.add(ERROR_URL_NOT_SET);
         errorNumbers.add(ERROR_INVALID_SQL);
+        errorNumbers.add(ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+        errorNumbers.add(ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE);
 
         /*****************************************************/
         errorNumbers.add(ERROR_SUBSCRIBE_FAILED);
         errorNumbers.add(ERROR_UNSUPPORTED_ENCODING);
-
         errorNumbers.add(ERROR_JNI_TDENGINE_ERROR);
         errorNumbers.add(ERROR_JNI_CONNECTION_NULL);
         errorNumbers.add(ERROR_JNI_RESULT_SET_NULL);
@@ -70,7 +73,6 @@ public class TSDBErrorNumbers {
         errorNumbers.add(ERROR_JNI_SQL_NULL);
         errorNumbers.add(ERROR_JNI_FETCH_END);
         errorNumbers.add(ERROR_JNI_OUT_OF_MEMORY);
-
     }
 
     private TSDBErrorNumbers() {

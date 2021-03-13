@@ -12,7 +12,7 @@ public abstract class AbstractDriver implements Driver {
         hostProp.required = false;
         hostProp.description = "Hostname";
 
-        DriverPropertyInfo portProp = new DriverPropertyInfo(TSDBDriver.PROPERTY_KEY_PORT, info.getProperty(TSDBDriver.PROPERTY_KEY_PORT, TSDBConstants.DEFAULT_PORT));
+        DriverPropertyInfo portProp = new DriverPropertyInfo(TSDBDriver.PROPERTY_KEY_PORT, info.getProperty(TSDBDriver.PROPERTY_KEY_PORT));
         portProp.required = false;
         portProp.description = "Port";
 
