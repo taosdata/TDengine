@@ -4015,7 +4015,9 @@ static void syncWriteForNumberOfTblInOneSql(
   int insert_interval = superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
   int64_t st = 0;
   int64_t et = 0xffffffff;
-  for (int i = 0; i < superTblInfo->insertRows;) {
+
+  int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
+  for (int i = 0; i < insertRows;) {
     int32_t  tbl_id = 0;
     for (int tableSeq = winfo->start_table_id; tableSeq <= winfo->end_table_id; ) {
       int64_t start_time = 0;
@@ -4311,7 +4313,7 @@ static int prepareSampleDataForSTable(SSuperTable *superTblInfo) {
 
     int ret = readSampleFromCsvFileToMem(superTblInfo);
     if (0 != ret) {
-      tmfree(superTblInfo->sampleDataBuf);
+      tmfree(sampleDataBuf);
       return -1;
     }
   }
@@ -4376,7 +4378,6 @@ static int generateDataBuffer(int32_t tableSeq,
   int childTblCount;
 
   if (superTblInfo && (superTblInfo->childTblOffset > 0)) {
-      // TODO
       // select tbname from stb limit 1 offset tableSeq
     getChildNameOfSuperTableWithLimitAndOffset(pThreadInfo->taos,
             pThreadInfo->db_name, superTblInfo->sTblName,
@@ -4436,7 +4437,7 @@ static int generateDataBuffer(int32_t tableSeq,
     }
   } else {
       pstr += snprintf(pstr,
-                  (superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len),
+                  g_args.max_sql_len,
                   "insert into %s.%s values",
                   pThreadInfo->db_name,
                   pChildTblName);
@@ -4521,6 +4522,8 @@ static int generateDataBuffer(int32_t tableSeq,
       break;
   }
 
+  free(pChildTblName);
+
   return k;
 }
 
@@ -4537,6 +4540,13 @@ static void* syncWrite(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg; 
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
+  char* buffer = calloc(superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len, 1);
+  if (NULL == buffer) {
+    fprintf(stderr, "Failed to alloc %d Bytes, reason:%s\n",
+              superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len,
+              strerror(errno));
+    return NULL;
+  }
 
   if (superTblInfo) {
     if (0 != prepareSampleDataForSTable(superTblInfo))
@@ -4550,15 +4560,6 @@ static void* syncWrite(void *sarg) {
   }
  
   int   samplePos     = 0;
-
-  char* buffer = calloc(superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len, 1);
-  if (NULL == buffer) {
-    fprintf(stderr, "Failed to alloc %d Bytes, reason:%s\n",
-              superTblInfo->maxSqlLen,
-              strerror(errno));
-    tmfree(superTblInfo->sampleDataBuf);
-    return NULL;
-  }
 
   int64_t lastPrintTime = taosGetTimestampMs();
   int64_t startTs = taosGetTimestampUs();
