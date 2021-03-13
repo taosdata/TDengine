@@ -9,6 +9,9 @@
 #include <sqlext.h>
 #include <odbcinst.h>
 
+#include "taos.h"
+#include "taoserror.h"
+
 #include <stdio.h>
 #include <string.h>
 
@@ -26,6 +29,9 @@ typedef struct {
   int         batch_size;
   int         batchs;
   int         keep_stmt_among_batchs;
+  int         use_odbc;
+  int         use_taos_query;
+  int         use_taos_stmt;
 } insert_arg_t;
 
 typedef struct db_column_s          db_column_t;
@@ -574,7 +580,7 @@ static int do_insert_in_conn(SQLHENV env, SQLHDBC conn, insert_arg_t *arg) {
   return r ? 1 : 0;
 }
 
-static int do_insert_batch(const char *dsn, const char *uid, const char *pwd, const char *connstr, insert_arg_t *arg) {
+static int do_insert_batch(const char *dsn, const char *uid, const char *pwd, const char *connstr, insert_arg_t *arg, const char *sqls[]) {
   int r = 0;
   SQLHENV env  = {0};
   SQLHDBC conn = {0};
@@ -584,12 +590,6 @@ static int do_insert_batch(const char *dsn, const char *uid, const char *pwd, co
     CHK_TEST(open_driver_connect(connstr, &env, &conn));
   }
 
-  const char *sqls[] = {
-    "drop database if exists test",
-    "create database test",
-    "create table test.v (ts timestamp, v1 tinyint, v2 smallint, v4 int, v8 bigint)",
-    NULL
-  };
   SQLHSTMT stmt = {0};
   CHK_TEST(create_statement(env, conn, &stmt));
   CHK_TEST(do_statements(stmt, sqls));
@@ -602,6 +602,235 @@ static int do_insert_batch(const char *dsn, const char *uid, const char *pwd, co
   SQLDisconnect(conn);
   SQLFreeConnect(conn);
   SQLFreeEnv(env);
+  return r ? 1 : 0;
+}
+
+static int inited = 0;
+static void init_once(void) {
+  if (inited) return;
+
+  int r = taos_init();
+  if (r) OILE(0, "");
+  inited = 1;
+}
+
+static int do_sqls(TAOS *taos, const char *sqls[]) {
+  for (int i=0; sqls[i]; ++i) {
+    OD("[%s]", sqls[i]);
+    TAOS_RES *res = taos_query(taos, sqls[i]);
+    if (!res) {
+      int e = terrno;
+      OD("taos_query [%s] failed: [%d]%s", sqls[i], e, tstrerror(e));
+      return -1;
+    }
+    int e = taos_errno(res);
+    if (e) {
+      OD("taos_query [%s] failed: [%d]%s", sqls[i], e, tstrerror(e));
+    }
+    taos_stop_query(res);
+    if (e) return -1;
+  }
+  return 0;
+}
+
+static int do_taos_query(TAOS *taos, insert_arg_t *arg) {
+  char **sqls = (char**)calloc((size_t)arg->batchs, sizeof(*sqls));
+  if (!sqls) {
+    OILE(0, "out of memory");
+  }
+
+  int64_t ts = 1502535178128;
+  for (int i=0; i<arg->batchs; ++i) {
+    size_t  bytes = 100 * (size_t)arg->batch_size;
+    sqls[i]       = (char*)malloc(bytes);
+    OILE(sqls[i], "");
+    char   *p     = sqls[i];
+    size_t  count = 0;
+
+    while (1) {
+      int n = 0;
+      n = snprintf(p, bytes, "insert into test.v values");
+      OILE(n>0, "");
+      if (p) p += n;
+      OILE(bytes>n, "");
+      if (bytes>=n) bytes -= (size_t)n;
+      else          bytes  = 0;
+      count += (size_t)n;
+
+      for (int j=0; j<arg->batch_size; ++j) {
+        int8_t  v1 = (int8_t)rand();         if (v1==INT8_MIN) v1++;
+        int16_t v2 = (int16_t)rand();        if (v2==INT16_MIN) v2++;
+        int32_t v4 = (int32_t)rand();        if (v4==INT32_MIN) v4++;
+        int64_t v8 = (int64_t)rand();        if (v8==INT64_MIN) v8++;
+        n = snprintf(p, bytes, " (%" PRId64 ", %d, %d, %d, %" PRId64 ")", ts + i*arg->batch_size + j, (int)v1, (int)v2, v4, v8);
+        OILE(n>0, "");
+        if (p) p += n;
+        OILE(bytes>n, "");
+        if (bytes>=n) bytes -= (size_t)n;
+        else          bytes  = 0;
+        count += (size_t)n;
+      }
+
+      if (p) break;
+      OILE(0, "");
+    }
+  }
+
+  OD("..............");
+  for (int i=0; i<arg->batchs; ++i) {
+    TAOS_RES *res = taos_query(taos, sqls[i]);
+    if (!res) {
+      int e = terrno;
+      OD("taos_query [%s] failed: [%d]%s", sqls[i], e, tstrerror(e));
+      return -1;
+    }
+    int e = taos_errno(res);
+    if (e) {
+      OD("taos_query [%s] failed: [%d]%s", sqls[i], e, tstrerror(e));
+    }
+    taos_stop_query(res);
+    if (e) return -1;
+  }
+  OD("..............");
+
+  for (int i=0; i<arg->batchs; ++i) {
+    free(sqls[i]);
+  }
+  free(sqls);
+
+  return 0;
+}
+
+static int do_taos_stmt(TAOS *taos, insert_arg_t *arg) {
+  TAOS_STMT *stmt = taos_stmt_init(taos);
+  OILE(stmt, "");
+  const char *sql = "insert into test.v values (?,?,?,?,?)";
+  int r = 0;
+  do {
+    r = taos_stmt_prepare(stmt, sql, strlen(sql));
+    if (r) {
+      OD("taos_stmt_prepare [%s] failed: [%d]%s", sql, r, tstrerror(r));
+      break;
+    }
+    int64_t ts = 1502535178128;
+    TAOS_BIND *bindings = (TAOS_BIND*)calloc(5, sizeof(*bindings));
+    TAOS_BIND *b_ts = bindings + 0;
+    TAOS_BIND *b_v1 = bindings + 1;
+    TAOS_BIND *b_v2 = bindings + 2;
+    TAOS_BIND *b_v4 = bindings + 3;
+    TAOS_BIND *b_v8 = bindings + 4;
+    b_ts->buffer_type         = TSDB_DATA_TYPE_TIMESTAMP;
+    b_ts->buffer_length       = sizeof(b_ts->u.ts);
+    b_ts->length              = &b_ts->buffer_length;
+    b_ts->buffer              = &b_ts->u.ts;
+    b_ts->is_null             = NULL;
+
+    b_v1->buffer_type         = TSDB_DATA_TYPE_TINYINT;
+    b_v1->buffer_length       = sizeof(b_v1->u.v1);
+    b_v1->length              = &b_v1->buffer_length;
+    b_v1->buffer              = &b_v1->u.v1;
+    b_v1->is_null             = NULL;
+
+    b_v2->buffer_type         = TSDB_DATA_TYPE_SMALLINT;
+    b_v2->buffer_length       = sizeof(b_v2->u.v2);
+    b_v2->length              = &b_v2->buffer_length;
+    b_v2->buffer              = &b_v2->u.v2;
+    b_v2->is_null             = NULL;
+
+    b_v4->buffer_type         = TSDB_DATA_TYPE_INT;
+    b_v4->buffer_length       = sizeof(b_v4->u.v4);
+    b_v4->length              = &b_v4->buffer_length;
+    b_v4->buffer              = &b_v4->u.v4;
+    b_v4->is_null             = NULL;
+
+    b_v8->buffer_type         = TSDB_DATA_TYPE_BIGINT;
+    b_v8->buffer_length       = sizeof(b_v8->u.v8);
+    b_v8->length              = &b_v8->buffer_length;
+    b_v8->buffer              = &b_v8->u.v8;
+    b_v8->is_null             = NULL;
+
+    OILE(bindings, "");
+    OD("................");
+    for (int i=0; i<arg->batchs; ++i) {
+      for (int j=0; j<arg->batch_size; ++j) {
+        b_ts->u.ts = ts + i*arg->batch_size + j;
+        b_v1->u.v1 = (int8_t)rand();
+        b_v2->u.v2 = (int16_t)rand();
+        b_v4->u.v4 = (int32_t)rand();
+        b_v8->u.v8 = (int64_t)rand();
+        r = taos_stmt_bind_param(stmt, bindings);
+        if (r) {
+          OD("taos_stmt_bind_param failed: [%d]%s", r, tstrerror(r));
+          break;
+        }
+        r = taos_stmt_add_batch(stmt);
+        if (r) {
+          OD("taos_stmt_add_batch failed: [%d]%s", r, tstrerror(r));
+          break;
+        }
+      }
+
+      if (r) break;
+
+      r = taos_stmt_execute(stmt);
+      if (r) {
+        OD("taos_stmt_execute failed: [%d]%s", r, tstrerror(r));
+        break;
+      }
+    }
+    OD("................");
+
+    free(bindings);
+
+    if (r) break;
+  } while (0);
+  taos_stmt_close(stmt);
+  return r ? -1 : 0;
+}
+
+static int do_insert_batch_taos(const char *dsn, const char *uid, const char *pwd, const char *connstr, insert_arg_t *arg, const char *sqls[]) {
+  int r = 0;
+
+  init_once();
+
+  int port = 0;
+  char *ip = NULL;
+  const char *p = strchr(connstr, ':');
+  if (p) {
+    ip = strndup(connstr, (size_t)(p-connstr));
+    ++p;
+    sscanf(p, "%d", &port);
+  } else {
+    ip = strdup(connstr);
+    port = 6030;
+  }
+  if (!ip) {
+    OD("bad ip/port:[%s]", connstr);
+    return -1;
+  }
+
+  TAOS *taos = NULL;
+  do {
+    taos = taos_connect(ip, uid, pwd, NULL, (uint16_t)port);
+    if (!taos) {
+      int e = terrno;
+      OD("taos_connect [%s/%d] failed:[%d]%s", ip, port, e, tstrerror(e));
+      break;
+    }
+    r = do_sqls(taos, sqls);
+    if (r) break;
+    if (arg->use_taos_query) {
+      r = do_taos_query(taos, arg);
+    } else if (arg->use_taos_stmt) {
+      r = do_taos_stmt(taos, arg);
+    } else {
+      OILE(0, "");
+    }
+  } while (0);
+
+  if (taos) taos_close(taos);
+  free(ip);
+
   return r ? 1 : 0;
 }
 
@@ -692,6 +921,18 @@ int main(int argc, char *argv[]) {
     }
     if (strcmp(arg, "-d")==0) {
       debug_col_name_max_len = 1;
+      continue;
+    }
+    if (strcmp(arg, "--odbc")==0) {
+      insert_arg.use_odbc = 1;
+      continue;
+    }
+    if (strcmp(arg, "--taos_query")==0) {
+      insert_arg.use_taos_query= 1;
+      continue;
+    }
+    if (strcmp(arg, "--taos_stmt")==0) {
+      insert_arg.use_taos_stmt= 1;
       continue;
     }
     if (strcmp(arg, "--insert")==0) {
@@ -791,7 +1032,18 @@ int main(int argc, char *argv[]) {
     if (r) return 1;
   }
   if (insert) {
-    int r = do_insert_batch(dsn, uid, pwd, conn_str, &insert_arg);
+    const char *sqls[] = {
+      "drop database if exists test",
+      "create database test",
+      "create table test.v (ts timestamp, v1 tinyint, v2 smallint, v4 int, v8 bigint)",
+      NULL
+    };
+    int r = 0;
+    if (insert_arg.use_odbc) {
+      r = do_insert_batch(dsn, uid, pwd, conn_str, &insert_arg, sqls);
+    } else {
+      r = do_insert_batch_taos(dsn, uid, pwd, conn_str, &insert_arg, sqls);
+    }
     if (r) return 1;
   }
   if (sts) {
