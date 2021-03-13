@@ -102,6 +102,7 @@
                         <include>**/*Test.java</include>
                     </includes>
                     <excludes>
+                        <exclude>**/UnsignedNumberJniTest.java</exclude>
                         <exclude>**/DatetimeBefore1970Test.java</exclude>
                         <exclude>**/AppMemoryLeakTest.java</exclude>
                         <exclude>**/AuthenticationTest.java</exclude>
