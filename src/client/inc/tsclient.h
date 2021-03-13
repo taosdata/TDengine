@@ -198,9 +198,10 @@ typedef struct STableDataBlocks {
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
+  STimeWindow      window;        // the whole query time window
 
-  STimeWindow      window;        // query time window
-  SInterval        interval;
+  SInterval        interval;      // tumble time window
+  SSessionWindow   sessionWindow; // session time window
 
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
   SArray *         colList;       // SArray<SColumn*>
@@ -396,7 +397,6 @@ typedef struct SSqlStream {
 } SSqlStream;
 
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
-
 
 int  tscAcquireRpc(const char *key, const char *user, const char *secret,void **pRpcObj);
 void tscReleaseRpc(void *param);
