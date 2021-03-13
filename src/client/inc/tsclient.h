@@ -245,10 +245,10 @@ typedef struct {
 
   char *       curSql;       // current sql, resume position of sql after parsing paused
   int8_t       parseFinished;
-  char    reserve2[3];        // fix bus error on arm32
+  char         reserve2[3];        // fix bus error on arm32
 
   int16_t      numOfCols;
-  char    reserve3[2];        // fix bus error on arm32
+  char         reserve3[2];        // fix bus error on arm32
   uint32_t     allocSize;
   char *       payload;
   int32_t      payloadLen;
@@ -258,9 +258,9 @@ typedef struct {
   int32_t      numOfParams;
 
   int8_t       dataSourceType;     // load data from file or not
-  char    reserve4[3];        // fix bus error on arm32
+  char         reserve4[3];        // fix bus error on arm32
   int8_t       submitSchema;   // submit block is built with table schema
-  char    reserve5[3];        // fix bus error on arm32
+  char         reserve5[3];        // fix bus error on arm32
   STagData     tagData;        // NOTE: pTagData->data is used as a variant length array
 
   SName      **pTableNameList; // all involved tableMeta list of current insert sql statement.
