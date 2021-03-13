@@ -233,6 +233,7 @@ python3 ./test.py -f functions/function_top.py -r 1
 python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
 python3 ./test.py -f functions/all_null_value.py
+python3 ./test.py -f functions/function_percentile2.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
