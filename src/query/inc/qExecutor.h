@@ -185,7 +185,6 @@ typedef struct SQuery {
   bool             groupbyColumn;    // denote if this is a groupby normal column query
   bool             hasTagResults;    // if there are tag values in final result or not
   bool             timeWindowInterpo;// if the time window start/end required interpolation
-  bool             queryWindowIdentical; // all query time windows are identical for all tables in one group
   bool             queryBlockDist;    // if query data block distribution
   bool             stabledev;        // super table stddev query
   int32_t          interBufSize;     // intermediate buffer sizse
@@ -196,6 +195,7 @@ typedef struct SQuery {
 
   STimeWindow      window;
   SInterval        interval;
+  SSessionWindow   sw;
   int16_t          precision;
   int16_t          numOfOutput;
   int16_t          fillType;
@@ -279,10 +279,11 @@ enum OPERATOR_TYPE_E {
   OP_Groupby           = 8,
   OP_Limit             = 9,
   OP_Offset            = 10,
-  OP_TimeInterval      = 11,
-  OP_Fill              = 12,
-  OP_MultiTableAggregate     = 13,
-  OP_MultiTableTimeInterval  = 14,
+  OP_TimeWindow        = 11,
+  OP_SessionWindow     = 12,
+  OP_Fill              = 13,
+  OP_MultiTableAggregate     = 14,
+  OP_MultiTableTimeInterval  = 15,
 };
 
 typedef struct SOperatorInfo {
@@ -410,6 +411,14 @@ typedef struct SGroupbyOperatorInfo {
   int32_t        colIndex;
   char          *prevData;   // previous group by value
 } SGroupbyOperatorInfo;
+
+typedef struct SSWindowOperatorInfo {
+  SOptrBasicInfo binfo;
+  STimeWindow    curWindow;  // current time window
+  TSKEY          prevTs;     // previous timestamp
+  int32_t        numOfRows;  // number of rows
+  int32_t        start;      // start row index
+} SSWindowOperatorInfo;
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);
