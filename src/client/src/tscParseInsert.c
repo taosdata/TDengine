@@ -1359,7 +1359,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
       }
     }
   } else {
-    SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
+    SSqlInfo SQLInfo = qSqlParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
     if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0 && SQLInfo.type == TSDB_SQL_NULL) {
       tscResetSqlCmd(pCmd, true);
