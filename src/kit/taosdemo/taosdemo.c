@@ -22,7 +22,6 @@
 #define CURL_STATICLIB
 
 #ifdef LINUX
-  #include "os.h"
   #include <argp.h>
   #include <assert.h>
   #include <inttypes.h>
@@ -33,7 +32,6 @@
   #include <semaphore.h>
   #include <stdbool.h>
   #include <stdio.h>
-  #include <stdlib.h>
   #include <string.h>
   #include <sys/time.h>
   #include <time.h>
@@ -44,18 +42,12 @@
   #include <assert.h>
   #include <regex.h>
   #include <stdio.h>
-  #include "os.h"
-  
-#ifdef WINDOWS
-  #include <winsock2.h>
-  typedef unsigned __int32 uint32_t;
-
-  #pragma comment ( lib, "ws2_32.lib" )
-#endif
 #endif  
 
+#include <stdlib.h>
 #include "cJSON.h"
 
+#include "os.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "tutil.h"
@@ -418,11 +410,18 @@ typedef struct SThreadInfo_S {
 } threadInfo;
 
 #ifdef WINDOWS
+#define _CRT_RAND_S
+
 #include <windows.h>
+#include <winsock2.h>
+
+typedef unsigned __int32 uint32_t;
+
+#pragma comment ( lib, "ws2_32.lib" )
 // Some old MinGW/CYGWIN distributions don't define this:
 #ifndef ENABLE_VIRTUAL_TERMINAL_PROCESSING
-#define ENABLE_VIRTUAL_TERMINAL_PROCESSING  0x0004
-#endif
+  #define ENABLE_VIRTUAL_TERMINAL_PROCESSING  0x0004
+#endif // ENABLE_VIRTUAL_TERMINAL_PROCESSING
 
 static HANDLE g_stdoutHandle;
 static DWORD g_consoleMode;
@@ -458,6 +457,14 @@ void resetAfterAnsiEscape(void) {
     exit(GetLastError());
   }
 }
+
+int taosRandom()
+{
+    int number;
+    rand_s(&number);
+
+    return number;
+}
 #else
 void setupForAnsiEscape(void) {}
 
@@ -465,6 +472,12 @@ void resetAfterAnsiEscape(void) {
   // Reset colors
   printf("\x1b[0m");
 }
+
+int taosRandom()
+{
+    return random();
+}
+
 #endif
 
 static int createDatabases();
@@ -977,10 +990,10 @@ static double rand_double() {
 
 static void init_rand_data() {
   for (int i = 0; i < MAX_PREPARED_RAND; i++){
-    randint[i] = (int)(rand() % 65535);
-    randbigint[i] = (int64_t)(rand() % 2147483648);
-    randfloat[i] = (float)(rand() / 1000.0);
-    randdouble[i] = (double)(rand() / 1000000.0);
+    randint[i] = (int)(taosRandom() % 65535);
+    randbigint[i] = (int64_t)(taosRandom() % 2147483648);
+    randfloat[i] = (float)(taosRandom() / 1000.0);
+    randdouble[i] = (double)(taosRandom() / 1000000.0);
   }
 }
 
@@ -4119,7 +4132,7 @@ static void syncWriteForNumberOfTblInOneSql(
               int rand_num = rand_tinyint() % 100;            
               if (0 != superTblInfo->disorderRatio 
                       && rand_num < superTblInfo->disorderRatio) {
-                int64_t d = start_time - rand() % superTblInfo->disorderRange;
+                int64_t d = start_time - taosRandom() % superTblInfo->disorderRange;
                 retLen = generateRowData(pstr + len,
                         superTblInfo->maxSqlLen - len,
                         d,
@@ -4270,7 +4283,7 @@ int32_t generateData(char *res, char **data_type,
       double t = rand_double();
       pstr += sprintf(pstr, ", %20.8f", t);
     } else if (strcasecmp(data_type[i % c], "bool") == 0) {
-      bool b = rand() & 1;
+      bool b = taosRandom() & 1;
       pstr += sprintf(pstr, ", %s", b ? "true" : "false");
     } else if (strcasecmp(data_type[i % c], "binary") == 0) {
       char *s = malloc(lenOfBinary);
@@ -4464,7 +4477,7 @@ static int generateDataBuffer(int32_t tableSeq,
           int rand_num = rand_tinyint() % 100;
           if (0 != superTblInfo->disorderRatio 
                     && rand_num < superTblInfo->disorderRatio) {
-            int64_t d = startTime - rand() % superTblInfo->disorderRange;
+            int64_t d = startTime - taosRandom() % superTblInfo->disorderRange;
             retLen = generateRowData(
                       pstr + len, 
                       superTblInfo->maxSqlLen - len,
@@ -4487,7 +4500,7 @@ static int generateDataBuffer(int32_t tableSeq,
         len += retLen;
       }
     } else {
-      int rand_num = rand() % 100;
+      int rand_num = taosRandom() % 100;
           char data[MAX_DATA_SIZE];
           char **data_type = g_args.datatype;
           int lenOfBinary = g_args.len_of_binary;
@@ -4495,7 +4508,7 @@ static int generateDataBuffer(int32_t tableSeq,
       if ((g_args.disorderRatio != 0)
                 && (rand_num < g_args.disorderRange)) {
              
-        int64_t d = startTime - rand() % 1000000 + rand_num;
+        int64_t d = startTime - taosRandom() % 1000000 + rand_num;
         len = generateData(data, data_type,
                   ncols_per_record, d, lenOfBinary);
       } else {
@@ -4682,10 +4695,10 @@ void callBack(void *param, TAOS_RES *res, int code) {
   }
   
   for (int i = 0; i < g_args.num_of_RPR; i++) {
-    int rand_num = rand() % 100;
+    int rand_num = taosRandom() % 100;
     if (0 != winfo->superTblInfo->disorderRatio && rand_num < winfo->superTblInfo->disorderRatio)
     {
-      int64_t d = winfo->lastTs - rand() % 1000000 + rand_num;
+      int64_t d = winfo->lastTs - taosRandom() % 1000000 + rand_num;
       //generateData(data, datatype, ncols_per_record, d, len_of_binary);
       (void)generateRowData(data, MAX_DATA_SIZE, d, winfo->superTblInfo);
     } else {
