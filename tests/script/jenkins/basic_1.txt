@@ -22,8 +22,6 @@
 ./test.sh -f general/http/grafana_bug.sim
 ./test.sh -f general/http/grafana.sim
 
-
-
 ./test.sh -f general/insert/basic.sim
 ./test.sh -f general/insert/insert_drop.sim
 ./test.sh -f general/insert/query_block1_memory.sim

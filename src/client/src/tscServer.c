@@ -497,8 +497,6 @@ int tscProcessSql(SSqlObj *pSql) {
       return pSql->res.code;
     }
   } else if (pCmd->command >= TSDB_SQL_LOCAL) {
-    //pSql->epSet = tscMgmtEpSet;
-//  } else {  // local handler
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
   
@@ -645,7 +643,6 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     }
 
     pSql->epSet.inUse = rand()%pSql->epSet.numOfEps;
-
     pQueryMsg->head.vgId = htonl(vgId);
 
     STableIdInfo *pTableIdInfo = (STableIdInfo *)pMsg;
@@ -660,8 +657,6 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
     assert(index >= 0 && index < numOfVgroups);
 
-    tscDebug("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, numOfVgroups);
-
     SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, index);
 
     // set the vgroup info 
@@ -670,7 +665,10 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     
     int32_t numOfTables = (int32_t)taosArrayGetSize(pTableIdList->itemList);
     pQueryMsg->numOfTables = htonl(numOfTables);  // set the number of tables
-  
+
+    tscDebug("%p query on stable, vgId:%d, numOfTables:%d, vgIndex:%d, numOfVgroups:%d", pSql,
+             pTableIdList->vgInfo.vgId, numOfTables, index, numOfVgroups);
+
     // serialize each table id info
     for(int32_t i = 0; i < numOfTables; ++i) {
       STableIdInfo* pItem = taosArrayGet(pTableIdList->itemList, i);
@@ -705,7 +703,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
 
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
-  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo)) {
+  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
     tscError("%p illegal value of numOfCols in query msg: %" PRIu64 ", table cols:%d", pSql, (uint64_t)numOfSrcCols,
         tscGetNumOfColumns(pTableMeta));
 
@@ -756,6 +754,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->vgroupLimit    = htobe64(pQueryInfo->vgroupLimit);
   pQueryMsg->sqlstrLen      = htonl(sqlLen);
   pQueryMsg->prevResultLen  = htonl(pQueryInfo->bufLen);
+  pQueryMsg->sw.gap         = htobe64(pQueryInfo->sessionWindow.gap);
+  pQueryMsg->sw.primaryColId = htonl(PRIMARYKEY_TIMESTAMP_COL_INDEX);
 
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryMsg->numOfOutput = htons((int16_t)numOfOutput);  // this is the stage one output column number
@@ -835,13 +835,31 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pSqlFuncExpr->colInfo.colIndex = htons(pExpr->colInfo.colIndex);
     pSqlFuncExpr->colInfo.flag     = htons(pExpr->colInfo.flag);
 
+    if (TSDB_COL_IS_UD_COL(pExpr->colInfo.flag)) {
+      pSqlFuncExpr->colType  = htons(pExpr->resType);
+      pSqlFuncExpr->colBytes = htons(pExpr->resBytes);
+    } else if (pExpr->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+      SSchema *s = tGetTbnameColumnSchema();
+
+      pSqlFuncExpr->colType = htons(s->type);
+      pSqlFuncExpr->colBytes = htons(s->bytes);
+    } else if (pExpr->colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
+      SSchema s = tGetBlockDistColumnSchema();
+
+      pSqlFuncExpr->colType = htons(s.type);
+      pSqlFuncExpr->colBytes = htons(s.bytes);
+    } else {
+      SSchema* s = tscGetColumnSchemaById(pTableMeta, pExpr->colInfo.colId);
+      pSqlFuncExpr->colType  = htons(s->type);
+      pSqlFuncExpr->colBytes = htons(s->bytes);
+    }
+
     pSqlFuncExpr->functionId  = htons(pExpr->functionId);
     pSqlFuncExpr->numOfParams = htons(pExpr->numOfParams);
     pSqlFuncExpr->resColId    = htons(pExpr->resColId);
     pMsg += sizeof(SSqlFuncMsg);
 
-    for (int32_t j = 0; j < pExpr->numOfParams; ++j) {
-      // todo add log
+    for (int32_t j = 0; j < pExpr->numOfParams; ++j) { // todo add log
       pSqlFuncExpr->arg[j].argType = htons((uint16_t)pExpr->param[j].nType);
       pSqlFuncExpr->arg[j].argBytes = htons(pExpr->param[j].nLen);
 
@@ -866,6 +884,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     for (int32_t i = 0; i < output; ++i) {
       SInternalField* pField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
       SSqlExpr *pExpr = pField->pSqlExpr;
+
+      // this should be switched to projection query
       if (pExpr != NULL) {
         // the queried table has been removed and a new table with the same name has already been created already
         // return error msg
@@ -879,33 +899,31 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
 
-        pSqlFuncExpr1->colInfo.colId    = htons(pExpr->colInfo.colId);
-        pSqlFuncExpr1->colInfo.colIndex = htons(pExpr->colInfo.colIndex);
-        pSqlFuncExpr1->colInfo.flag     = htons(pExpr->colInfo.flag);
+        pSqlFuncExpr1->numOfParams = 0;  // no params for projection query
+        pSqlFuncExpr1->functionId  = htons(TSDB_FUNC_PRJ);
+        pSqlFuncExpr1->colInfo.colId = htons(pExpr->resColId);
+        pSqlFuncExpr1->colInfo.flag = htons(TSDB_COL_NORMAL);
 
-        pSqlFuncExpr1->functionId  = htons(pExpr->functionId);
-        pSqlFuncExpr1->numOfParams = htons(pExpr->numOfParams);
-        pMsg += sizeof(SSqlFuncMsg);
-
-        for (int32_t j = 0; j < pExpr->numOfParams; ++j) {
-          // todo add log
-          pSqlFuncExpr1->arg[j].argType = htons((uint16_t)pExpr->param[j].nType);
-          pSqlFuncExpr1->arg[j].argBytes = htons(pExpr->param[j].nLen);
-
-          if (pExpr->param[j].nType == TSDB_DATA_TYPE_BINARY) {
-            memcpy(pMsg, pExpr->param[j].pz, pExpr->param[j].nLen);
-            pMsg += pExpr->param[j].nLen;
-          } else {
-            pSqlFuncExpr1->arg[j].argValue.i64 = htobe64(pExpr->param[j].i64);
+        bool assign = false;
+        for (int32_t f = 0; f < tscSqlExprNumOfExprs(pQueryInfo); ++f) {
+          SSqlExpr *pe = tscSqlExprGet(pQueryInfo, f);
+          if (pe == pExpr) {
+            pSqlFuncExpr1->colInfo.colIndex = htons(f);
+            pSqlFuncExpr1->colType = htons(pe->resType);
+            pSqlFuncExpr1->colBytes = htons(pe->resBytes);
+            assign = true;
+            break;
           }
         }
 
+        assert(assign);
+        pMsg += sizeof(SSqlFuncMsg);
         pSqlFuncExpr1 = (SSqlFuncMsg *)pMsg;
       } else {
         assert(pField->pArithExprInfo != NULL);
         SExprInfo* pExprInfo = pField->pArithExprInfo;
 
-        pSqlFuncExpr1->colInfo.colId    = htons(pExprInfo->base.colInfo.colId);
+        pSqlFuncExpr1->colInfo.colId = htons(pExprInfo->base.colInfo.colId);
         pSqlFuncExpr1->functionId  = htons(pExprInfo->base.functionId);
         pSqlFuncExpr1->numOfParams = htons(pExprInfo->base.numOfParams);
         pMsg += sizeof(SSqlFuncMsg);
@@ -1055,7 +1073,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 int32_t tscBuildCreateDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCreateDbMsg);
-  pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_DB;
+  
+  pCmd->msgType = (pInfo->pMiscInfo->dbOpt.dbType == TSDB_DB_TYPE_DEFAULT) ? TSDB_MSG_TYPE_CM_CREATE_DB : TSDB_MSG_TYPE_CM_CREATE_TP;
 
   SCreateDbMsg *pCreateDbMsg = (SCreateDbMsg *)pCmd->payload;
 
@@ -1187,7 +1206,7 @@ int32_t tscBuildDropDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pDropDbMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
 
-  pCmd->msgType = TSDB_MSG_TYPE_CM_DROP_DB;
+  pCmd->msgType = (pInfo->pMiscInfo->dbType == TSDB_DB_TYPE_DEFAULT) ? TSDB_MSG_TYPE_CM_DROP_DB : TSDB_MSG_TYPE_CM_DROP_TP;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1514,9 +1533,11 @@ int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
 int tscAlterDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SAlterDbMsg);
-  pCmd->msgType = TSDB_MSG_TYPE_CM_ALTER_DB;
+  pCmd->msgType = (pInfo->pMiscInfo->dbOpt.dbType == TSDB_DB_TYPE_DEFAULT) ? TSDB_MSG_TYPE_CM_ALTER_DB : TSDB_MSG_TYPE_CM_ALTER_TP;
 
   SAlterDbMsg *pAlterDbMsg = (SAlterDbMsg* )pCmd->payload;
+  pAlterDbMsg->dbType = -1;
+  
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   tNameExtractFullName(&pTableMetaInfo->name, pAlterDbMsg->db);
 
