@@ -1116,7 +1116,7 @@ static int printfInsertMeta() {
       if (g_Dbs.db[i].superTbls[j].childTblLimit > 0) {
         printf("      childTblLimit:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblLimit);
       }
-      if (g_Dbs.db[i].superTbls[j].childTblOffset > 0) {
+      if (g_Dbs.db[i].superTbls[j].childTblOffset >= 0) {
         printf("      childTblOffset:    \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblOffset);
       }
       printf("      insertRows:        \033[33m%"PRId64"\033[0m\n", g_Dbs.db[i].superTbls[j].insertRows);
@@ -4759,13 +4759,18 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     memset(infos, 0, threads * sizeof(threadInfo));
 
     int ntables = 0;
-    if (superTblInfo)
-        if (superTblInfo->childTblOffset)
+    if (superTblInfo) {
+
+        if ((superTblInfo->childTblOffset >= 0) 
+            && (superTblInfo->childTblLimit != -1)) {
+
             ntables = superTblInfo->childTblLimit;
-        else
+        } else {
             ntables = superTblInfo->childTblCount;
-    else
+        }
+    } else {
         ntables = g_args.num_of_tables;
+    }
 
     int a = ntables / threads;
     if (a < 1) {
@@ -4821,7 +4826,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
  
   int last;
 
-  if ((superTblInfo) && (superTblInfo->childTblOffset))
+  if ((superTblInfo) && (superTblInfo->childTblOffset >= 0))
       last = superTblInfo->childTblOffset;
   else
       last = 0;
