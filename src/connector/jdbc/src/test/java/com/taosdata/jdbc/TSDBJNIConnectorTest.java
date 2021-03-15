@@ -18,7 +18,7 @@ public class TSDBJNIConnectorTest {
             TSDBJNIConnector.init(null, null, null, null);
             // connect
             TSDBJNIConnector connector = new TSDBJNIConnector();
-            connector.connect("127.0.0.1", 6030, null, "root", "taosdata");
+            connector.connect("127.0.0.1", 6030, "unsign_jni", "root", "taosdata");
             // executeQuery
             long pSql = connector.executeQuery("select * from unsign_jni.us_table");
             if (connector.isUpdateQuery(pSql)) {
