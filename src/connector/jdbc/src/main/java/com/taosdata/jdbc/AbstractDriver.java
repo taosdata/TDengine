@@ -40,11 +40,11 @@ public abstract class AbstractDriver implements Driver {
     protected Properties parseURL(String url, Properties defaults) {
         Properties urlProps = (defaults != null) ? defaults : new Properties();
 
-        // parse properties
+        // parse properties in url
         int beginningOfSlashes = url.indexOf("//");
         int index = url.indexOf("?");
         if (index != -1) {
-            String paramString = url.substring(index + 1, url.length());
+            String paramString = url.substring(index + 1);
             url = url.substring(0, index);
             StringTokenizer queryParams = new StringTokenizer(paramString, "&");
             while (queryParams.hasMoreElements()) {
@@ -68,6 +68,7 @@ public abstract class AbstractDriver implements Driver {
         String dbProductName = url.substring(0, beginningOfSlashes);
         dbProductName = dbProductName.substring(dbProductName.indexOf(":") + 1);
         dbProductName = dbProductName.substring(0, dbProductName.indexOf(":"));
+        urlProps.setProperty(TSDBDriver.PROPERTY_KEY_PRODUCT_NAME,dbProductName);
         // parse dbname
         url = url.substring(beginningOfSlashes + 2);
         int indexOfSlash = url.indexOf("/");

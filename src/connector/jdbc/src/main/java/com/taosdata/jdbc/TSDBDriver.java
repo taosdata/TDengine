@@ -45,6 +45,10 @@ public class TSDBDriver extends AbstractDriver {
     private static final String URL_PREFIX = "jdbc:TAOS://";
 
     /**
+     * PRODUCT_NAME
+     */
+    public static final String PROPERTY_KEY_PRODUCT_NAME = "productName";
+    /**
      * Key used to retrieve the host value from the properties instance passed to
      * the driver.
      */
@@ -108,8 +112,8 @@ public class TSDBDriver extends AbstractDriver {
         if (!acceptsURL(url))
             return null;
 
-        Properties props;
-        if ((props = parseURL(url, info)) == null) {
+        Properties props = parseURL(url, info);
+        if (props == null) {
             return null;
         }
 

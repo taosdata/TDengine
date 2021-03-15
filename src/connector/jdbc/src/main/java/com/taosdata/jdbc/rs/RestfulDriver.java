@@ -19,14 +19,14 @@ public class RestfulDriver extends AbstractDriver {
         try {
             DriverManager.registerDriver(new RestfulDriver());
         } catch (SQLException e) {
-            throw TSDBError.createRuntimeException(TSDBErrorNumbers.ERROR_URL_NOT_SET,e);
+            throw TSDBError.createRuntimeException(TSDBErrorNumbers.ERROR_URL_NOT_SET, e);
         }
     }
 
     @Override
     public Connection connect(String url, Properties info) throws SQLException {
         // throw SQLException if url is null
-        if (url == null)
+        if (url == null || url.trim().isEmpty() || url.trim().replaceAll("\\s", "").isEmpty())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_URL_NOT_SET);
 
         // return null if url is not be accepted
