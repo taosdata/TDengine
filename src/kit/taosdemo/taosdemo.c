@@ -2103,6 +2103,12 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
 
   if (TBL_ALREADY_EXISTS == superTbls->childTblExists) {
     //get all child table name use cmd: select tbname from superTblName;  
+    int childTblCount = 10000;
+    superTbls->childTblName = (char*)calloc(1, childTblCount * TSDB_TABLE_NAME_LEN);
+    if (superTbls->childTblName == NULL) {
+      fprintf(stderr, "alloc memory failed!");
+      return -1;
+    }
     getAllChildNameOfSuperTable(taos, dbName,
             superTbls->sTblName,
             &superTbls->childTblName,
@@ -2680,6 +2686,7 @@ static int readSampleFromCsvFileToMem(
       return -1;
   }
 
+  assert(superTblInfo->sampleDataBuf);
   memset(superTblInfo->sampleDataBuf, 0,
           MAX_SAMPLES_ONCE_FROM_FILE * superTblInfo->lenOfOneRow);
   while (1) {
@@ -3938,6 +3945,7 @@ static int getRowDataFromSample(char*  dataBuf, int maxLen, int64_t timestamp,
     int ret = readSampleFromCsvFileToMem(superTblInfo);
     if (0 != ret) {
       tmfree(superTblInfo->sampleDataBuf);
+      superTblInfo->sampleDataBuf = NULL;
       return -1;
     }
     *sampleUsePos = 0;
@@ -4324,14 +4332,14 @@ static int prepareSampleDataForSTable(SSuperTable *superTblInfo) {
       return -1;
     }
 
+    superTblInfo->sampleDataBuf = sampleDataBuf;
     int ret = readSampleFromCsvFileToMem(superTblInfo);
     if (0 != ret) {
       tmfree(sampleDataBuf);
+      superTblInfo->sampleDataBuf = NULL;
       return -1;
     }
   }
-
-  superTblInfo->sampleDataBuf = sampleDataBuf;
 
   return 0;
 }
@@ -4571,6 +4579,7 @@ static void* syncWrite(void *sarg) {
     if (superTblInfo->numberOfTblInOneSql > 0) {
       syncWriteForNumberOfTblInOneSql(winfo, superTblInfo->sampleDataBuf);
       tmfree(superTblInfo->sampleDataBuf);
+      superTblInfo->sampleDataBuf = NULL;
       return NULL;
     }
   }
@@ -4659,8 +4668,10 @@ static void* syncWrite(void *sarg) {
 
 free_and_statistics_2:
   tmfree(buffer);
-  if (superTblInfo)
+  if (superTblInfo) {
     tmfree(superTblInfo->sampleDataBuf);
+    superTblInfo->sampleDataBuf = NULL;
+  }
 
   printf("====thread[%d] completed total inserted rows: %"PRId64 ", total affected rows: %"PRId64 "====\n", 
           winfo->threadID, 
@@ -4762,7 +4773,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     if (superTblInfo) {
 
         if ((superTblInfo->childTblOffset >= 0) 
-            && (superTblInfo->childTblLimit != -1)) {
+            && (superTblInfo->childTblLimit > 0)) {
 
             ntables = superTblInfo->childTblLimit;
         } else {
