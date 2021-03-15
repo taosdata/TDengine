@@ -146,9 +146,9 @@ public class UnsignedNumberJniTest {
             conn = DriverManager.getConnection(url, properties);
 
             Statement stmt = conn.createStatement();
-            stmt.execute("drop database if exists unsign_restful");
-            stmt.execute("create database if not exists unsign_restful");
-            stmt.execute("use unsign_restful");
+            stmt.execute("drop database if exists unsign_jni");
+            stmt.execute("create database if not exists unsign_jni");
+            stmt.execute("use unsign_jni");
             stmt.execute("create table us_table(ts timestamp, f1 tinyint unsigned, f2 smallint unsigned, f3 int unsigned, f4 bigint unsigned)");
             stmt.executeUpdate("insert into us_table(ts,f1,f2,f3,f4) values(now, 127, 32767,2147483647, 9223372036854775807)");
             stmt.close();
