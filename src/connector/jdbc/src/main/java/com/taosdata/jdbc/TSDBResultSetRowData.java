@@ -110,6 +110,30 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
                 return Integer.parseInt((String) obj);
+            case TSDBConstants.TSDB_DATA_TYPE_UTINYINT: {
+                Byte value = (byte) obj;
+                if (value < 0)
+                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+                return value;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_USMALLINT: {
+                short value = (short) obj;
+                if (value < 0)
+                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+                return value;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_UINT: {
+                int value = (int) obj;
+                if (value < 0)
+                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+                return value;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_UBIGINT: {
+                long value = (long) obj;
+                if (value < 0)
+                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+                return new Long(value).intValue();
+            }
         }
 
         return 0;
@@ -141,6 +165,30 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
                 return Long.parseLong((String) obj);
+            case TSDBConstants.TSDB_DATA_TYPE_UTINYINT: {
+                Byte value = (byte) obj;
+                if (value < 0)
+                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+                return value;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_USMALLINT: {
+                short value = (short) obj;
+                if (value < 0)
+                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+                return value;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_UINT: {
+                int value = (int) obj;
+                if (value < 0)
+                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+                return value;
+            }
+            case TSDBConstants.TSDB_DATA_TYPE_UBIGINT: {
+                long value = (long) obj;
+                if (value < 0)
+                    throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+                return value;
+            }
         }
 
         return 0;

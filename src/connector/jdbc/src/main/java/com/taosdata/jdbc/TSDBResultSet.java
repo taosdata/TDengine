@@ -131,31 +131,19 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
             res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType());
         }
         return res;
-
-//        if (!this.getBatchFetch()) {
-//            this.lastWasNull = this.rowData.wasNull(colIndex);
-//            if (!lastWasNull) {
-//                res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-//            }
-//            return res;
-//        } else {
-//            return this.blockData.getString(colIndex);
-//        }
     }
 
     public boolean getBoolean(int columnIndex) throws SQLException {
         boolean res = false;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getBoolean(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getBoolean(colIndex);
-        }
 
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getBoolean(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+        }
         return res;
     }
 
@@ -163,91 +151,84 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         byte res = 0;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = (byte) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return (byte) this.blockData.getInt(colIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = (byte) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
         }
+        return res;
     }
 
     public short getShort(int columnIndex) throws SQLException {
         short res = 0;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = (short) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return (short) this.blockData.getInt(colIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = (short) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
         }
+        return res;
     }
 
     public int getInt(int columnIndex) throws SQLException {
         int res = 0;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getInt(colIndex);
-        }
 
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+        }
+        return res;
     }
 
     public long getLong(int columnIndex) throws SQLException {
         long res = 0L;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getLong(colIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType());
         }
+        return res;
     }
 
     public float getFloat(int columnIndex) throws SQLException {
         float res = 0;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getFloat(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return (float) this.blockData.getDouble(colIndex);
-        }
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull)
+            res = this.rowData.getFloat(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+
+        return res;
     }
 
     public double getDouble(int columnIndex) throws SQLException {
         double res = 0;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getDouble(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getDouble(colIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getDouble(colIndex, this.columnMetaDataList.get(colIndex).getColType());
         }
+        return res;
     }
 
     @Deprecated
@@ -263,15 +244,14 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         Timestamp res = null;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getTimestamp(colIndex);
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getTimestamp(columnIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getTimestamp(colIndex);
         }
+        return res;
     }
 
     public ResultSetMetaData getMetaData() throws SQLException {
@@ -282,12 +262,11 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     public Object getObject(int columnIndex) throws SQLException {
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            return this.rowData.get(colIndex);
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.get(colIndex);
-        }
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        return this.rowData.get(colIndex);
     }
 
     @Override
