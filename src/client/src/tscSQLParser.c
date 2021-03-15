@@ -1602,7 +1602,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelectLis
   }
 
   bool hasDistinct = false;
-  int32_t numOfExpr = taosArrayGetSize(pSelectList);
+  size_t numOfExpr = taosArrayGetSize(pSelectList);
   for (int32_t i = 0; i < numOfExpr; ++i) {
     int32_t outputIndex = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
     tSqlExprItem* pItem = taosArrayGet(pSelectList, i);
