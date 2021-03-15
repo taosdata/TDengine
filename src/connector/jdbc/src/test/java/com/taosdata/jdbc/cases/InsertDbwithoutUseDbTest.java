@@ -70,7 +70,10 @@ public class InsertDbwithoutUseDbTest {
 
     @BeforeClass
     public static void beforeClass() {
-
+        Properties properties = new Properties();
+        properties.setProperty("charset", "UTF-8");
+        properties.setProperty("locale", "en_US.UTF-8");
+        properties.setProperty("timezone", "UTC-8");
 
         try {
             Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
