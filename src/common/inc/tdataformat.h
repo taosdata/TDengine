@@ -283,12 +283,37 @@ typedef struct {
 #define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
 #define dataColsTKeyAt(pCols, idx) ((TKEY *)(keyCol(pCols)->pData))[(idx)]
 #define dataColsKeyAt(pCols, idx) tdGetKey(dataColsTKeyAt(pCols, idx))
-#define dataColsTKeyFirst(pCols) (((pCols)->numOfRows == 0) ? TKEY_INVALID : dataColsTKeyAt(pCols, 0))
-#define dataColsKeyFirst(pCols) (((pCols)->numOfRows == 0) ? TSDB_DATA_TIMESTAMP_NULL : dataColsKeyAt(pCols, 0))
-#define dataColsTKeyLast(pCols) \
-  (((pCols)->numOfRows == 0) ? TKEY_INVALID : dataColsTKeyAt(pCols, (pCols)->numOfRows - 1))
-#define dataColsKeyLast(pCols) \
-  (((pCols)->numOfRows == 0) ? TSDB_DATA_TIMESTAMP_NULL : dataColsKeyAt(pCols, (pCols)->numOfRows - 1))
+static FORCE_INLINE TKEY dataColsTKeyFirst(SDataCols *pCols) {
+  if (pCols->numOfRows) {
+    return dataColsTKeyAt(pCols, 0);
+  } else {
+    return TKEY_INVALID;
+  }
+}
+
+static FORCE_INLINE TSKEY dataColsKeyFirst(SDataCols *pCols) {
+  if (pCols->numOfRows) {
+    return dataColsKeyAt(pCols, 0);
+  } else {
+    return TSDB_DATA_TIMESTAMP_NULL;
+  }
+}
+
+static FORCE_INLINE TKEY dataColsTKeyLast(SDataCols *pCols) {
+  if (pCols->numOfRows) {
+    return dataColsTKeyAt(pCols, pCols->numOfRows - 1);
+  } else {
+    return TKEY_INVALID;
+  }
+}
+
+static FORCE_INLINE TSKEY dataColsKeyLast(SDataCols *pCols) {
+  if (pCols->numOfRows) {
+    return dataColsKeyAt(pCols, pCols->numOfRows - 1);
+  } else {
+    return TSDB_DATA_TIMESTAMP_NULL;
+  }
+}
 
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);

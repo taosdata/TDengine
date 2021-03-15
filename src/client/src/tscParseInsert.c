@@ -307,7 +307,8 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload,
           return tscInvalidSQLErrMsg(msg, "illegal float data", pToken->z);
         }
 
-        *((float *)payload) = (float)dv;
+//        *((float *)payload) = (float)dv;
+        SET_FLOAT_VAL(payload, dv);
       }
       break;
 

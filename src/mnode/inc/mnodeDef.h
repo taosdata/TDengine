@@ -175,7 +175,9 @@ typedef struct {
   int8_t  quorum;
   int8_t  update;
   int8_t  cacheLastRow;
-  int8_t  reserved[10];
+  int8_t  dbType;
+  int16_t partitions;
+  int8_t  reserved[7];
 } SDbCfg;
 
 typedef struct SDbObj {

@@ -426,7 +426,7 @@ if $data02 != 9.000000020 then
 endi
 
 # all possible function in the arithmetic expression, add more
-sql select min(c1) * max(c2) /4, sum(c1) * apercentile(c2, 20), apercentile(c4, 33) + 52/9, spread(c5)/min(c2), count(1)/sum(c1), avg(c2)*count(c2) from $stb where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-11-25 19:30:00.000';
+sql select min(c1) * max(c2) /4, sum(c1) * apercentile(c2, 20), apercentile(c4, 33) + 52/9, spread(c5)/min(c2), count(1)/sum(c1), avg(c2)*count(c2) from $stb where ts >= '2018-09-17 09:00:00.000' and ts <= '2018-11-25 19:30:01.000';
 if $rows != 1 then
   return -1
 endi
@@ -462,7 +462,7 @@ if $rows != 0 then
 endi
 
 # no result return [d.3]
-sql select sum(c2) - avg(c2) from $stb where ts > '2018-11-25 19:30:00.000'
+sql select sum(c2) - avg(c2) from $stb where ts > '2018-11-25 19:30:01.000'
 if $rows != 0 then
   return -1
 endi
@@ -520,35 +520,35 @@ if $data91 != 9 then
 endi
 
 # in group by column
-sql select apercentile(c6, 50)-first(c6)+last(c5)*12, last(c5)*12 from ca_stb0 group by c2;
-if $rows != 10 then
-  return -1
-endi
-
-if $data00 != 0.000000000 then
-  return -1
-endi
-
-if $data01 != 0.000000000 then
-  return -1
-endi
-
-if $data10 != 12.000000000 then
-  return -1
-endi
-
-if $data11 != 12.000000000 then
-  return -1
-endi
-
-if $data20 != 24.000000000 then
-  return -1
-endi
-
-if $data21 != 24.000000000 then
-  return -1
-endi
-
+#sql select apercentile(c6, 50)-first(c6)+last(c5)*12, last(c5)*12 from ca_stb0 group by c2;
+#if $rows != 10 then
+#  return -1
+#endi
+#
+#if $data00 != 0.000000000 then
+#  return -1
+#endi
+#
+#if $data01 != 0.000000000 then
+#  return -1
+#endi
+#
+#if $data10 != 12.000000000 then
+#  return -1
+#endi
+#
+#if $data11 != 12.000000000 then
+#  return -1
+#endi
+#
+#if $data20 != 24.000000000 then
+#  return -1
+#endi
+#
+#if $data21 != 24.000000000 then
+#  return -1
+#endi
+#
 sql_error select first(c6) - last(c6) *12 / count(*) from $stb group by c3;
 
 sql select first(c6) - last(c6) *12 / count(*) from $stb group by c5;
