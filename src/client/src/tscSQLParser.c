@@ -1872,6 +1872,24 @@ void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrT
   }
 }
 
+
+void setLastOrderForGoupBy(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo) {  // todo refactor
+  SSqlGroupbyExpr* pGroupBy = &pQueryInfo->groupbyExpr;
+  if (pGroupBy->numOfGroupCols > 0) {
+    size_t idx = taosArrayGetSize(pQueryInfo->exprList);
+    for(int32_t k = 0; k < pGroupBy->numOfGroupCols; ++k) {
+      SColIndex* pIndex = taosArrayGet(pGroupBy->columnInfo, k);
+      if (!TSDB_COL_IS_TAG(pIndex->flag) && pIndex->colIndex < tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) { // group by normal columns
+        SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, idx - 1);
+        pExpr->numOfParams = 1;
+        pExpr->param->i64 = TSDB_ORDER_ASC;
+
+        break;
+      }
+    }
+  }
+}
+
 int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t colIndex, tSqlExprItem* pItem, bool finalResult) {
   STableMetaInfo* pTableMetaInfo = NULL;
   int32_t optr = pItem->pNode->nSQLOptr;
@@ -2152,6 +2170,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
               if (setExprInfoForFunctions(pCmd, pQueryInfo, &pSchema[j], cvtFunc, name, colIndex++, &index, finalResult) != 0) {
                 return TSDB_CODE_TSC_INVALID_SQL;
               }
+
+              if (optr == TK_LAST) {
+                setLastOrderForGoupBy(pQueryInfo, pTableMetaInfo);
+              }
             }
 
           } else {
@@ -2173,24 +2195,12 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             bool multiColOutput = pItem->pNode->pParam->nExpr > 1;
             setResultColName(name, pItem, cvtFunc.originFuncId, &pParamElem->pNode->colInfo, multiColOutput);
 
-            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, name, colIndex + i, &index, finalResult) != 0) {
+            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, name, colIndex++, &index, finalResult) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
             }
 
-            if (optr == TK_LAST) {  // todo refactor
-              SSqlGroupbyExpr* pGroupBy = &pQueryInfo->groupbyExpr;
-              if (pGroupBy->numOfGroupCols > 0) {
-                for(int32_t k = 0; k < pGroupBy->numOfGroupCols; ++k) {
-                  SColIndex* pIndex = taosArrayGet(pGroupBy->columnInfo, k);
-                  if (!TSDB_COL_IS_TAG(pIndex->flag) && pIndex->colIndex < tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) { // group by normal columns
-                    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, colIndex + i);
-                    pExpr->numOfParams = 1;
-                    pExpr->param->i64 = TSDB_ORDER_ASC;
-
-                    break;
-                  }
-                }
-              }
+            if (optr == TK_LAST) {
+              setLastOrderForGoupBy(pQueryInfo, pTableMetaInfo);
             }
           }
         }
@@ -2220,6 +2230,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             }
 
             colIndex++;
+
+            if (optr == TK_LAST) {
+              setLastOrderForGoupBy(pQueryInfo, pTableMetaInfo);
+            }
           }
 
           numOfFields += tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
@@ -5614,6 +5628,8 @@ static void setCreateDBOption(SCreateDbMsg* pMsg, SCreateDbInfo* pCreateDb) {
   pMsg->ignoreExist = pCreateDb->ignoreExists;
   pMsg->update = pCreateDb->update;
   pMsg->cacheLastRow = pCreateDb->cachelast;
+  pMsg->dbType = pCreateDb->dbType;
+  pMsg->partitions = htons(pCreateDb->partitions);
 }
 
 int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDbInfo* pCreateDbSql) {
@@ -6243,6 +6259,15 @@ int32_t tscCheckCreateDbParams(SSqlCmd* pCmd, SCreateDbMsg* pCreate) {
              TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
   }
+
+  val = (int16_t)htons(pCreate->partitions);
+  if (val != -1 &&
+      (val < TSDB_MIN_DB_PARTITON_OPTION || val > TSDB_MAX_DB_PARTITON_OPTION)) {
+    snprintf(msg, tListLen(msg), "invalid topic option partition: %d valid range: [%d, %d]", val,
+             TSDB_MIN_DB_PARTITON_OPTION, TSDB_MAX_DB_PARTITON_OPTION);
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg);
+  }
+
 
   return TSDB_CODE_SUCCESS;
 }

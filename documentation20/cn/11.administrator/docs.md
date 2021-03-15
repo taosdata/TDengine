@@ -2,52 +2,52 @@
 
 ## <a class="anchor" id="planning"></a>容量规划
 
-使用TDengine来搭建一个物联网大数据平台，计算资源、存储资源需要根据业务场景进行规划。下面分别讨论系统运行所需要的内存、CPU以及硬盘空间。
+使用 TDengine 来搭建一个物联网大数据平台，计算资源、存储资源需要根据业务场景进行规划。下面分别讨论系统运行所需要的内存、CPU 以及硬盘空间。
 
 ### 内存需求
 
-每个DB可以创建固定数目的vgroup，默认与CPU核数相同，可通过maxVgroupsPerDb配置；vgroup中的每个副本会是一个vnode；每个vnode会占用固定大小的内存（大小与数据库的配置参数blocks和cache有关)；每个Table会占用与标签总长度有关的内存；此外，系统会有一些固定的内存开销。因此，每个DB需要的系统内存可通过如下公式计算：
+每个 DB 可以创建固定数目的 vgroup，默认与 CPU 核数相同，可通过 maxVgroupsPerDb 配置；vgroup 中的每个副本会是一个 vnode；每个 vnode 会占用固定大小的内存（大小与数据库的配置参数 blocks 和 cache 有关)；每个 Table 会占用与标签总长度有关的内存；此外，系统会有一些固定的内存开销。因此，每个 DB 需要的系统内存可通过如下公式计算：
 
 ```
-Memory Size = maxVgroupsPerDb * (blocks * cache + 10Mb) + numOfTables * (tagSizePerTable + 0.5Kb)
+Memory Size = maxVgroupsPerDb * (blocks * cache + 10MB) + numOfTables * (tagSizePerTable + 0.5KB)
 ```
 
-示例：假设是4核机器，cache是缺省大小16M, blocks是缺省值6，假设有10万张表，标签总长度是256字节，则总的内存需求为：4\*(16\*6+10) + 100000\*(0.25+0.5)/1000 = 499M。
+示例：假设是 4 核机器，cache 是缺省大小 16M, blocks 是缺省值 6，假设有 10 万张表，标签总长度是 256 字节，则总的内存需求为：4 \* (16 \* 6 + 10) + 100000 \* (0.25 + 0.5) / 1000 = 499M。
 
-实际运行的系统往往会根据数据特点的不同，将数据存放在不同的DB里。因此做规划时，也需要考虑。
+实际运行的系统往往会根据数据特点的不同，将数据存放在不同的 DB 里。因此做规划时，也需要考虑。
 
-如果内存充裕，可以加大Blocks的配置，这样更多数据将保存在内存里，提高查询速度。
+如果内存充裕，可以加大 Blocks 的配置，这样更多数据将保存在内存里，提高查询速度。
 
-### CPU需求
+### CPU 需求
 
-CPU的需求取决于如下两方面：
+CPU 的需求取决于如下两方面：
 
-* __数据插入__ TDengine单核每秒能至少处理一万个插入请求。每个插入请求可以带多条记录，一次插入一条记录与插入10条记录，消耗的计算资源差别很小。因此每次插入，条数越大，插入效率越高。如果一个插入请求带200条以上记录，单核就能达到每秒插入100万条记录的速度。但对前端数据采集的要求越高，因为需要缓存记录，然后一批插入。
-* __查询需求__ TDengine提供高效的查询，但是每个场景的查询差异很大，查询频次变化也很大，难以给出客观数字。需要用户针对自己的场景，写一些查询语句，才能确定。
+* __数据插入__ TDengine 单核每秒能至少处理一万个插入请求。每个插入请求可以带多条记录，一次插入一条记录与插入 10 条记录，消耗的计算资源差别很小。因此每次插入，条数越大，插入效率越高。如果一个插入请求带 200 条以上记录，单核就能达到每秒插入 100 万条记录的速度。但对前端数据采集的要求越高，因为需要缓存记录，然后一批插入。
+* __查询需求__ TDengine 提供高效的查询，但是每个场景的查询差异很大，查询频次变化也很大，难以给出客观数字。需要用户针对自己的场景，写一些查询语句，才能确定。
 
-因此仅对数据插入而言，CPU是可以估算出来的，但查询所耗的计算资源无法估算。在实际运营过程中，不建议CPU使用率超过50%，超过后，需要增加新的节点，以获得更多计算资源。
+因此仅对数据插入而言，CPU 是可以估算出来的，但查询所耗的计算资源无法估算。在实际运营过程中，不建议 CPU 使用率超过 50%，超过后，需要增加新的节点，以获得更多计算资源。
 
 ### 存储需求
 
-TDengine相对于通用数据库，有超高的压缩比，在绝大多数场景下，TDengine的压缩比不会低于5倍，有的场合，压缩比可达到10倍以上，取决于实际场景的数据特征。压缩前的原始数据大小可通过如下方式计算：
+TDengine 相对于通用数据库，有超高的压缩比，在绝大多数场景下，TDengine 的压缩比不会低于 5 倍，有的场合，压缩比可达到 10 倍以上，取决于实际场景的数据特征。压缩前的原始数据大小可通过如下方式计算：
 
 ```
 Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 ```
 
-示例：1000万台智能电表，每台电表每15分钟采集一次数据，每次采集的数据128字节，那么一年的原始数据量是：10000000\*128\*24\*60/15\*365 = 44.8512T。TDengine大概需要消耗44.851/5=8.97024T空间。
+示例：1000 万台智能电表，每台电表每 15 分钟采集一次数据，每次采集的数据 128 字节，那么一年的原始数据量是：10000000 \* 128 \* 24 \* 60 / 15 \* 365 = 44.8512T。TDengine大概需要消耗 44.851 / 5 = 8.97024T 空间。
 
-用户可以通过参数keep，设置数据在磁盘中的最大保存时长。为进一步减少存储成本，TDengine还提供多级存储，最冷的数据可以存放在最廉价的存储介质上，应用的访问不用做任何调整，只是读取速度降低了。
+用户可以通过参数 keep，设置数据在磁盘中的最大保存时长。为进一步减少存储成本，TDengine 还提供多级存储，最冷的数据可以存放在最廉价的存储介质上，应用的访问不用做任何调整，只是读取速度降低了。
 
-为提高速度，可以配置多块硬盘，这样可以并发写入或读取数据。需要提醒的是，TDengine采取多副本的方式提供数据的高可靠，因此不再需要采用昂贵的磁盘阵列。
+为提高速度，可以配置多块硬盘，这样可以并发写入或读取数据。需要提醒的是，TDengine 采取多副本的方式提供数据的高可靠，因此不再需要采用昂贵的磁盘阵列。
 
 ### 物理机或虚拟机台数
 
-根据上面的内存、CPU、存储的预估，就可以知道整个系统需要多少核、多少内存、多少存储空间。如果数据副本数不为1，总需求量需要再乘以副本数。
+根据上面的内存、CPU、存储的预估，就可以知道整个系统需要多少核、多少内存、多少存储空间。如果数据副本数不为 1，总需求量需要再乘以副本数。
 
-因为TDengine具有很好的水平扩展能力，根据总量，再根据单个物理机或虚拟机的资源，就可以轻松决定需要购置多少台物理机或虚拟机了。
+因为 TDengine 具有很好的水平扩展能力，根据总量，再根据单个物理机或虚拟机的资源，就可以轻松决定需要购置多少台物理机或虚拟机了。
 
-**立即计算CPU、内存、存储，请参见：[资源估算方法](https://www.taosdata.com/config/config.html)**
+**立即计算 CPU、内存、存储，请参见：[资源估算方法](https://www.taosdata.com/config/config.html)**
 
 ## <a class="anchor" id="tolerance"></a>容错和灾备
 
@@ -432,60 +432,62 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 
 ## <a class="anchor" id="keywords"></a>TDengine参数限制与保留关键字
 
-- 数据库名：不能包含“.”以及特殊字符，不能超过32个字符
-- 表名：不能包含“.”以及特殊字符，与所属数据库名一起，不能超过192个字符
-- 表的列名：不能包含特殊字符，不能超过64个字符
+- 数据库名：不能包含“.”以及特殊字符，不能超过 32 个字符
+- 表名：不能包含“.”以及特殊字符，与所属数据库名一起，不能超过 192 个字符
+- 表的列名：不能包含特殊字符，不能超过 64 个字符
 - 数据库名、表名、列名，都不能以数字开头
-- 表的列数：不能超过1024列
-- 记录的最大长度：包括时间戳8 byte，不能超过16KB
-- 单条SQL语句默认最大字符串长度：65480 byte
-- 数据库副本数：不能超过3
-- 用户名：不能超过23个byte
-- 用户密码：不能超过15个byte
-- 标签(Tags)数量：不能超过128个
-- 标签的总长度：不能超过16Kbyte
+- 表的列数：不能超过 1024 列
+- 记录的最大长度：包括时间戳 8 byte，不能超过 16KB（每个 BINARY/NCHAR 类型的列还会额外占用 2 个 byte 的存储位置）
+- 单条 SQL 语句默认最大字符串长度：65480 byte
+- 数据库副本数：不能超过 3
+- 用户名：不能超过 23 个 byte
+- 用户密码：不能超过 15 个 byte
+- 标签(Tags)数量：不能超过 128 个
+- 标签的总长度：不能超过 16K byte
 - 记录条数：仅受存储空间限制
 - 表的个数：仅受节点个数限制
 - 库的个数：仅受节点个数限制
-- 单个库上虚拟节点个数：不能超过64个
+- 单个库上虚拟节点个数：不能超过 64 个
 
-目前TDengine有将近200个内部保留关键字，这些关键字无论大小写均不可以用作库名、表名、STable名、数据列名及标签列名等。这些关键字列表如下：
+目前 TDengine 有将近 200 个内部保留关键字，这些关键字无论大小写均不可以用作库名、表名、STable 名、数据列名及标签列名等。这些关键字列表如下：
 
 | 关键字列表 |             |              |            |           |
 | ---------- | ----------- | ------------ | ---------- | --------- |
-| ABLOCKS    | CONNECTION  | GROUP        | MINUS      | SLASH     |
-| ABORT      | CONNECTIONS | GT           | MNODES     | SLIDING   |
-| ACCOUNT    | COPY        | ID           | MODULES    | SMALLINT  |
-| ACCOUNTS   | COUNT       | IF           | NCHAR      | SPREAD    |
-| ADD        | CREATE      | IGNORE       | NE         | STABLE    |
-| AFTER      | CTIME       | IMMEDIATE    | NONE       | STABLES   |
-| ALL        | DATABASE    | IMPORT       | NOT        | STAR      |
-| ALTER      | DATABASES   | IN           | NOTNULL    | STATEMENT |
-| AND        | DAYS        | INITIALLY    | NOW        | STDDEV    |
-| AS         | DEFERRED    | INSERT       | OF         | STREAM    |
-| ASC        | DELIMITERS  | INSTEAD      | OFFSET     | STREAMS   |
-| ATTACH     | DESC        | INTEGER      | OR         | STRING    |
-| AVG        | DESCRIBE    | INTERVAL     | ORDER      | SUM       |
-| BEFORE     | DETACH      | INTO         | PASS       | TABLE     |
-| BEGIN      | DIFF        | IP           | PERCENTILE | TABLES    |
-| BETWEEN    | DISTINCT    | IS           | PLUS       | TAG       |
-| BIGINT     | DIVIDE      | ISNULL       | PRAGMA     | TAGS      |
-| BINARY     | DNODE       | JOIN         | PREV       | TBLOCKS   |
-| BITAND     | DNODES      | KEEP         | PRIVILEGE  | TBNAME    |
-| BITNOT     | DOT         | KEY          | QUERIES    | TIMES     |
-| BITOR      | DOUBLE      | KILL         | QUERY      | TIMESTAMP |
-| BOOL       | DROP        | LAST         | RAISE      | TINYINT   |
-| BOTTOM     | EACH        | LE           | REM        | TOP       |
-| BY         | END         | LEASTSQUARES | REPLACE    | TRIGGER   |
-| CACHE      | EQ          | LIKE         | REPLICA    | UMINUS    |
-| CASCADE    | EXISTS      | LIMIT        | RESET      | UPLUS     |
-| CHANGE     | EXPLAIN     | LINEAR       | RESTRICT   | USE       |
-| CLOG       | FAIL        | LOCAL        | ROW        | USER      |
-| CLUSTER    | FILL        | LP           | ROWS       | USERS     |
-| COLON      | FIRST       | LSHIFT       | RP         | USING     |
-| COLUMN     | FLOAT       | LT           | RSHIFT     | VALUES    |
-| COMMA      | FOR         | MATCH        | SCORES     | VARIABLE  |
-| COMP       | FROM        | MAX          | SELECT     | VGROUPS   |
-| CONCAT     | GE          | METRIC       | SEMI       | VIEW      |
-| CONFIGS    | GLOB        | METRICS      | SET        | WAVG      |
-| CONFLICT   | GRANTS      | MIN          | SHOW       | WHERE     |
+| ABLOCKS    | CONNECTIONS | GT           | MNODES     | SLIDING   |
+| ABORT      | COPY        | ID           | MODULES    | SLIMIT    |
+| ACCOUNT    | COUNT       | IF           | NCHAR      | SMALLINT  |
+| ACCOUNTS   | CREATE      | IGNORE       | NE         | SPREAD    |
+| ADD        | CTIME       | IMMEDIATE    | NONE       | STABLE    |
+| AFTER      | DATABASE    | IMPORT       | NOT        | STABLES   |
+| ALL        | DATABASES   | IN           | NOTNULL    | STAR      |
+| ALTER      | DAYS        | INITIALLY    | NOW        | STATEMENT |
+| AND        | DEFERRED    | INSERT       | OF         | STDDEV    |
+| AS         | DELIMITERS  | INSTEAD      | OFFSET     | STREAM    |
+| ASC        | DESC        | INTEGER      | OR         | STREAMS   |
+| ATTACH     | DESCRIBE    | INTERVAL     | ORDER      | STRING    |
+| AVG        | DETACH      | INTO         | PASS       | SUM       |
+| BEFORE     | DIFF        | IP           | PERCENTILE | TABLE     |
+| BEGIN      | DISTINCT    | IS           | PLUS       | TABLES    |
+| BETWEEN    | DIVIDE      | ISNULL       | PRAGMA     | TAG       |
+| BIGINT     | DNODE       | JOIN         | PREV       | TAGS      |
+| BINARY     | DNODES      | KEEP         | PRIVILEGE  | TBLOCKS   |
+| BITAND     | DOT         | KEY          | QUERIES    | TBNAME    |
+| BITNOT     | DOUBLE      | KILL         | QUERY      | TIMES     |
+| BITOR      | DROP        | LAST         | RAISE      | TIMESTAMP |
+| BOOL       | EACH        | LE           | REM        | TINYINT   |
+| BOTTOM     | END         | LEASTSQUARES | REPLACE    | TOP       |
+| BY         | EQ          | LIKE         | REPLICA    | TRIGGER   |
+| CACHE      | EXISTS      | LIMIT        | RESET      | UMINUS    |
+| CASCADE    | EXPLAIN     | LINEAR       | RESTRICT   | UPLUS     |
+| CHANGE     | FAIL        | LOCAL        | ROW        | USE       |
+| CLOG       | FILL        | LP           | ROWS       | USER      |
+| CLUSTER    | FIRST       | LSHIFT       | RP         | USERS     |
+| COLON      | FLOAT       | LT           | RSHIFT     | USING     |
+| COLUMN     | FOR         | MATCH        | SCORES     | VALUES    |
+| COMMA      | FROM        | MAX          | SELECT     | VARIABLE  |
+| COMP       | GE          | METRIC       | SEMI       | VGROUPS   |
+| CONCAT     | GLOB        | METRICS      | SET        | VIEW      |
+| CONFIGS    | GRANTS      | MIN          | SHOW       | WAVG      |
+| CONFLICT   | GROUP       | MINUS        | SLASH      | WHERE     |
+| CONNECTION |             |              |            |           |
+
