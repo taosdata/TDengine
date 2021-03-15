@@ -214,6 +214,17 @@ typedef struct SUserObj {
   struct SAcctObj * pAcct;
 } SUserObj;
 
+typedef struct SFuncObj {
+  char              name[TSDB_FUNC_NAME_LEN];
+  char              path[PATH_MAX];
+  int32_t           codeLen;
+  char              code[TSDB_FUNC_CODE_LEN];
+  int64_t           createdTime;
+  int8_t            reserved[64];
+  int8_t            updateEnd[4];
+  int32_t           refCount;
+} SFuncObj;
+
 typedef struct {
   int64_t totalStorage;  // Total storage wrtten from this account
   int64_t compStorage;   // Compressed storage on disk

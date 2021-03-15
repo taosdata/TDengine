@@ -185,6 +185,12 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_FIELD_NOT_EXIST,          "Field does not exist"
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STABLE_NAME,      "Super table does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG, "Invalid create table message")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_NAME,        "Invalid func name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_LEN,         "Invalid func length")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_CODE,        "Invalid func code")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_FUNC_ALREADY_EXIST,       "Func already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC,             "Invalid func")
+
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_NOT_SELECTED,          "Database not specified or available")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_DB_ALREADY_EXIST,         "Database already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION,        "Invalid database options")

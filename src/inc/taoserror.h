@@ -173,6 +173,12 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_STABLE_NAME       TAOS_DEF_ERROR_CODE(0, 0x036D)  //"Super table does not exist")
 #define TSDB_CODE_MND_INVALID_CREATE_TABLE_MSG  TAOS_DEF_ERROR_CODE(0, 0x036E)  //"Invalid create table message")
 
+#define TSDB_CODE_MND_INVALID_FUNC_NAME         TAOS_DEF_ERROR_CODE(0, 0x0370)  //"Invalid func name")
+#define TSDB_CODE_MND_INVALID_FUNC_LEN          TAOS_DEF_ERROR_CODE(0, 0x0371)  //"Invalid func length")
+#define TSDB_CODE_MND_INVALID_FUNC_CODE         TAOS_DEF_ERROR_CODE(0, 0x0372)  //"Invalid func code")
+#define TSDB_CODE_MND_FUNC_ALREADY_EXIST        TAOS_DEF_ERROR_CODE(0, 0x0373)  //"Func already exists")
+#define TSDB_CODE_MND_INVALID_FUNC              TAOS_DEF_ERROR_CODE(0, 0x0351)  //"Invalid func")
+
 #define TSDB_CODE_MND_DB_NOT_SELECTED           TAOS_DEF_ERROR_CODE(0, 0x0380)  //"Database not specified or available")
 #define TSDB_CODE_MND_DB_ALREADY_EXIST          TAOS_DEF_ERROR_CODE(0, 0x0381)  //"Database already exists")
 #define TSDB_CODE_MND_INVALID_DB_OPTION         TAOS_DEF_ERROR_CODE(0, 0x0382)  //"Invalid database options")

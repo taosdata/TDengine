@@ -33,7 +33,8 @@ typedef enum {
   SDB_TABLE_VGROUP  = 6,
   SDB_TABLE_STABLE  = 7,
   SDB_TABLE_CTABLE  = 8,
-  SDB_TABLE_MAX     = 9
+  SDB_TABLE_FUNC    = 9,
+  SDB_TABLE_MAX     = 10
 } ESdbTable;
 
 typedef enum {
