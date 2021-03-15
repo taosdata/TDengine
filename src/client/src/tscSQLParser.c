@@ -114,7 +114,6 @@ static int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t i
 static int32_t parseCreateDBOptions(SSqlCmd* pCmd, SCreateDbInfo* pCreateDbSql);
 static int32_t getColumnIndexByName(SSqlCmd* pCmd, const SStrToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t getTableIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
-static int32_t optrToString(tSqlExpr* pExpr, char** exprString);
 
 static int32_t getTableIndexImpl(SStrToken* pTableToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 static int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
@@ -3169,127 +3168,6 @@ typedef struct SCondExpr {
 
 static int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t timePrecision);
 
-static int32_t tSQLExprNodeToString(tSqlExpr* pExpr, char** str) {
-  if (pExpr->tokenId == TK_ID) {  // column name
-    strncpy(*str, pExpr->colInfo.z, pExpr->colInfo.n);
-    *str += pExpr->colInfo.n;
-
-  } else if (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_STRING) {  // value
-    *str += tVariantToString(&pExpr->value, *str);
-
-  } else if (pExpr->tokenId >= TSDB_FUNC_COUNT && pExpr->tokenId <= TSDB_FUNC_BLKINFO) {
-    /*
-     * arithmetic expression of aggregation, such as count(ts) + count(ts) *2
-     */
-    strncpy(*str, pExpr->operand.z, pExpr->operand.n);
-    *str += pExpr->operand.n;
-  } else {  // not supported operation
-    assert(false);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-// pExpr->tokenId == 0 while handling "is null" query
-static bool isExprLeafNode(tSqlExpr* pExpr) {
-  return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
-         (pExpr->tokenId == 0 || pExpr->tokenId == TK_ID || (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) || pExpr->tokenId == TK_SET);
-}
-
-static bool isExprDirectParentOfLeafNode(tSqlExpr* pExpr) {
-  return (pExpr->pLeft != NULL && pExpr->pRight != NULL) &&
-         (isExprLeafNode(pExpr->pLeft) && isExprLeafNode(pExpr->pRight));
-}
-
-static int32_t tSQLExprLeafToString(tSqlExpr* pExpr, bool addParentheses, char** output) {
-  if (!isExprDirectParentOfLeafNode(pExpr)) {
-    return TSDB_CODE_TSC_INVALID_SQL;
-  }
-
-  tSqlExpr* pLeft = pExpr->pLeft;
-  tSqlExpr* pRight = pExpr->pRight;
-
-  if (addParentheses) {
-    *(*output) = '(';
-    *output += 1;
-  }
-
-  tSQLExprNodeToString(pLeft, output);
-  if (optrToString(pExpr, output) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_TSC_INVALID_SQL;
-  }
-
-  tSQLExprNodeToString(pRight, output);
-
-  if (addParentheses) {
-    *(*output) = ')';
-    *output += 1;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t optrToString(tSqlExpr* pExpr, char** exprString) {
-  const char* le = "<=";
-  const char* ge = ">=";
-  const char* ne = "<>";
-  const char* likeOptr = "LIKE";
-
-  switch (pExpr->tokenId) {
-    case TK_LE: {
-      *(int16_t*)(*exprString) = *(int16_t*)le;
-      *exprString += 1;
-      break;
-    }
-    case TK_GE: {
-      *(int16_t*)(*exprString) = *(int16_t*)ge;
-      *exprString += 1;
-      break;
-    }
-    case TK_NE: {
-      *(int16_t*)(*exprString) = *(int16_t*)ne;
-      *exprString += 1;
-      break;
-    }
-
-    case TK_LT:
-      *(*exprString) = '<';
-      break;
-    case TK_GT:
-      *(*exprString) = '>';
-      break;
-    case TK_EQ:
-      *(*exprString) = '=';
-      break;
-    case TK_PLUS:
-      *(*exprString) = '+';
-      break;
-    case TK_MINUS:
-      *(*exprString) = '-';
-      break;
-    case TK_STAR:
-      *(*exprString) = '*';
-      break;
-    case TK_DIVIDE:
-      *(*exprString) = '/';
-      break;
-    case TK_REM:
-      *(*exprString) = '%';
-      break;
-    case TK_LIKE: {
-      int32_t len = sprintf(*exprString, " %s ", likeOptr);
-      *exprString += (len - 1);
-      break;
-    }
-    default:
-      return TSDB_CODE_TSC_INVALID_SQL;
-  }
-
-  *exprString += 1;
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t tablenameListToString(tSqlExpr* pExpr, SStringBuilder* sb) {
   SArray* pList = pExpr->pParam;
 
@@ -3400,50 +3278,6 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
   return doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pIndex, pExpr);
 }
 
-static void relToString(tSqlExpr* pExpr, char** str) {
-  assert(pExpr->tokenId == TK_AND || pExpr->tokenId == TK_OR);
-
-  const char* or = "OR";
-  const char*and = "AND";
-
-  //    if (pQueryInfo->tagCond.relType == TSQL_STABLE_QTYPE_COND) {
-  if (pExpr->tokenId == TK_AND) {
-    strcpy(*str, and);
-    *str += strlen(and);
-  } else {
-    strcpy(*str, or);
-    *str += strlen(or);
-  }
-}
-
-UNUSED_FUNC
-static int32_t getTagCondString(tSqlExpr* pExpr, char** str) {
-  if (pExpr == NULL) {
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (!isExprDirectParentOfLeafNode(pExpr)) {
-    *(*str) = '(';
-    *str += 1;
-
-    int32_t ret = getTagCondString(pExpr->pLeft, str);
-    if (ret != TSDB_CODE_SUCCESS) {
-      return ret;
-    }
-
-    relToString(pExpr, str);
-
-    ret = getTagCondString(pExpr->pRight, str);
-
-    *(*str) = ')';
-    *str += 1;
-
-    return ret;
-  }
-
-  return tSQLExprLeafToString(pExpr, true, str);
-}
-
 static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pTableCond, SStringBuilder* sb) {
   const char* msg0 = "invalid table name list";
   const char* msg1 = "not string following like";
@@ -3483,7 +3317,7 @@ static int32_t getColumnQueryCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSq
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!isExprDirectParentOfLeafNode(pExpr)) {  // internal node
+  if (!tSqlExprIsParentOfLeaf(pExpr)) {  // internal node
     int32_t ret = getColumnQueryCondInfo(pCmd, pQueryInfo, pExpr->pLeft, pExpr->tokenId);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
@@ -3510,7 +3344,7 @@ static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* 
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!isExprDirectParentOfLeafNode(pExpr)) {
+  if (!tSqlExprIsParentOfLeaf(pExpr)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
@@ -3705,7 +3539,7 @@ static bool isValidExpr(tSqlExpr* pLeft, tSqlExpr* pRight, int32_t optr) {
 }
 
 static void exchangeExpr(tSqlExpr* pExpr) {
-  tSqlExpr* pLeft = pExpr->pLeft;
+  tSqlExpr* pLeft  = pExpr->pLeft;
   tSqlExpr* pRight = pExpr->pRight;
 
   if (pRight->tokenId == TK_ID && (pLeft->tokenId == TK_INTEGER || pLeft->tokenId == TK_FLOAT ||
@@ -3827,7 +3661,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   const char* msg7 = "only in/like allowed in filter table name";
   const char* msg8 = "wildcard string should be less than 20 characters";
   
-  tSqlExpr* pLeft = (*pExpr)->pLeft;
+  tSqlExpr* pLeft  = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
 
   int32_t ret = TSDB_CODE_SUCCESS;
@@ -3837,7 +3671,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  assert(isExprDirectParentOfLeafNode(*pExpr));
+  assert(tSqlExprIsParentOfLeaf(*pExpr));
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
@@ -3957,7 +3791,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   int32_t leftType = -1;
   int32_t rightType = -1;
 
-  if (!isExprDirectParentOfLeafNode(*pExpr)) {
+  if (!tSqlExprIsParentOfLeaf(*pExpr)) {
     int32_t ret = getQueryCondExpr(pCmd, pQueryInfo, &(*pExpr)->pLeft, pCondExpr, &leftType, (*pExpr)->tokenId);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
@@ -3987,39 +3821,8 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   return handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, parentOptr);
 }
 
-static void doCompactQueryExpr(tSqlExpr** pExpr) {
-  if (*pExpr == NULL || isExprDirectParentOfLeafNode(*pExpr)) {
-    return;
-  }
-
-  if ((*pExpr)->pLeft) {
-    doCompactQueryExpr(&(*pExpr)->pLeft);
-  }
-
-  if ((*pExpr)->pRight) {
-    doCompactQueryExpr(&(*pExpr)->pRight);
-  }
-
-  if ((*pExpr)->pLeft == NULL && (*pExpr)->pRight == NULL &&
-      ((*pExpr)->tokenId == TK_OR || (*pExpr)->tokenId == TK_AND)) {
-    tSqlExprDestroy(*pExpr);
-    *pExpr = NULL;
-
-  } else if ((*pExpr)->pLeft == NULL && (*pExpr)->pRight != NULL) {
-    tSqlExpr* tmpPtr = (*pExpr)->pRight;
-    tSqlExprDestroy(*pExpr);
-
-    (*pExpr) = tmpPtr;
-  } else if ((*pExpr)->pRight == NULL && (*pExpr)->pLeft != NULL) {
-    tSqlExpr* tmpPtr = (*pExpr)->pLeft;
-    tSqlExprDestroy(*pExpr);
-
-    (*pExpr) = tmpPtr;
-  }
-}
-
 static void doExtractExprForSTable(SSqlCmd* pCmd, tSqlExpr** pExpr, SQueryInfo* pQueryInfo, tSqlExpr** pOut, int32_t tableIndex) {
-  if (isExprDirectParentOfLeafNode(*pExpr)) {
+  if (tSqlExprIsParentOfLeaf(*pExpr)) {
     tSqlExpr* pLeft = (*pExpr)->pLeft;
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
@@ -4047,7 +3850,7 @@ static tSqlExpr* extractExprForSTable(SSqlCmd* pCmd, tSqlExpr** pExpr, SQueryInf
 
   if (*pExpr != NULL) {
     doExtractExprForSTable(pCmd, pExpr, pQueryInfo, &pResExpr, tableIndex);
-    doCompactQueryExpr(&pResExpr);
+    tSqlExprCompact(&pResExpr);
   }
 
   return pResExpr;
@@ -4176,7 +3979,7 @@ static int32_t getTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlE
     return TSDB_CODE_SUCCESS;
   }
 
-  if (!isExprDirectParentOfLeafNode(pExpr)) {
+  if (!tSqlExprIsParentOfLeaf(pExpr)) {
     if (pExpr->tokenId == TK_OR) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
@@ -4397,7 +4200,7 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
     }
     
     tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &bw);
-    doCompactQueryExpr(pExpr);
+    tSqlExprCompact(pExpr);
 
     if (ret == TSDB_CODE_SUCCESS) {
       ret = validateTagCondExpr(pCmd, p);
@@ -4443,7 +4246,7 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql
     return ret;
   }
 
-  doCompactQueryExpr(pExpr);
+  tSqlExprCompact(pExpr);
 
   // after expression compact, the expression tree is only include tag query condition
   condExpr.pTagCond = (*pExpr);

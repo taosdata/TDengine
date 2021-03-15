@@ -195,7 +195,7 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
 
   pExpr->type = SQL_NODE_EXPR;
   if (pLeft != NULL && pRight != NULL && (optrType != TK_IN)) {
-    char* endPos = pRight->token.z + pRight->token.n;
+    char* endPos   = pRight->token.z + pRight->token.n;
     pExpr->token.z = pLeft->token.z;
     pExpr->token.n = (uint32_t)(endPos - pExpr->token.z);
     pExpr->token.type = pLeft->token.type;
@@ -305,8 +305,6 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
   return pExpr;
 }
 
-
-
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
 
@@ -322,12 +320,51 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
 
   //we don't clone pParam now because clone is only used for between/and
   assert(pSrc->pParam == NULL);
-
   return pExpr;
 }
 
+void tSqlExprCompact(tSqlExpr** pExpr) {
+  if (*pExpr == NULL || tSqlExprIsParentOfLeaf(*pExpr)) {
+    return;
+  }
 
-void doDestroySqlExprNode(tSqlExpr *pExpr) {
+  if ((*pExpr)->pLeft) {
+    tSqlExprCompact(&(*pExpr)->pLeft);
+  }
+
+  if ((*pExpr)->pRight) {
+    tSqlExprCompact(&(*pExpr)->pRight);
+  }
+
+  if ((*pExpr)->pLeft == NULL && (*pExpr)->pRight == NULL && ((*pExpr)->tokenId == TK_OR || (*pExpr)->tokenId == TK_AND)) {
+    tSqlExprDestroy(*pExpr);
+    *pExpr = NULL;
+  } else if ((*pExpr)->pLeft == NULL && (*pExpr)->pRight != NULL) {
+    tSqlExpr* tmpPtr = (*pExpr)->pRight;
+    (*pExpr)->pRight = NULL;
+
+    tSqlExprDestroy(*pExpr);
+    (*pExpr) = tmpPtr;
+  } else if ((*pExpr)->pRight == NULL && (*pExpr)->pLeft != NULL) {
+    tSqlExpr* tmpPtr = (*pExpr)->pLeft;
+    (*pExpr)->pLeft = NULL;
+
+    tSqlExprDestroy(*pExpr);
+    (*pExpr) = tmpPtr;
+  }
+}
+
+bool tSqlExprIsLeaf(tSqlExpr* pExpr) {
+  return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
+         (pExpr->tokenId == 0 || pExpr->tokenId == TK_ID || (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) || pExpr->tokenId == TK_SET);
+}
+
+bool tSqlExprIsParentOfLeaf(tSqlExpr* pExpr) {
+  return (pExpr->pLeft != NULL && pExpr->pRight != NULL) &&
+         (tSqlExprIsLeaf(pExpr->pLeft) && tSqlExprIsLeaf(pExpr->pRight));
+}
+
+static void doDestroySqlExprNode(tSqlExpr *pExpr) {
   if (pExpr == NULL) {
     return;
   }
@@ -548,28 +585,56 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SArray *pFrom, tSqlExpr *pWhere,
                              SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *pSession,
                              SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *psLimit) {
-  assert(pSelectList != NULL && pLimit != NULL && psLimit != NULL && pInterval != NULL && pSliding != NULL &&
-         pSession != NULL);
+  assert(pSelectList != NULL);
 
-  SQuerySqlNode *pQuery = calloc(1, sizeof(SQuerySqlNode));
+  SQuerySqlNode *pSqlNode = calloc(1, sizeof(SQuerySqlNode));
 
   // all later sql string are belonged to the stream sql
-  pQuery->sqlstr   = *pSelectToken;
-  pQuery->sqlstr.n = (uint32_t)strlen(pQuery->sqlstr.z);
+  pSqlNode->sqlstr   = *pSelectToken;
+  pSqlNode->sqlstr.n = (uint32_t)strlen(pSqlNode->sqlstr.z);
 
-  pQuery->pSelectList = pSelectList;
-  pQuery->from        = pFrom;
-  pQuery->pGroupby    = pGroupby;
-  pQuery->pSortOrder  = pSortOrder;
-  pQuery->pWhere      = pWhere;
-  pQuery->limit       = *pLimit;
-  pQuery->slimit      = *psLimit;
-  pQuery->interval    = *pInterval;
-  pQuery->sliding     = *pSliding;
-  pQuery->sessionVal  = *pSession;
+  pSqlNode->pSelectList = pSelectList;
+  pSqlNode->from        = pFrom;
+  pSqlNode->pGroupby    = pGroupby;
+  pSqlNode->pSortOrder  = pSortOrder;
+  pSqlNode->pWhere      = pWhere;
+  pSqlNode->fillType    = pFill;
 
-  pQuery->fillType = pFill;
-  return pQuery;
+  if (pLimit != NULL) {
+    pSqlNode->limit = *pLimit;
+  } else {
+    pSqlNode->limit.limit = -1;
+    pSqlNode->limit.offset = 0;
+  }
+
+  if (psLimit != NULL) {
+    pSqlNode->slimit = *psLimit;
+  } else {
+    pSqlNode->slimit.limit = -1;
+    pSqlNode->slimit.offset = 0;
+  }
+
+  if (pInterval != NULL) {
+    pSqlNode->interval = *pInterval;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->interval.interval);
+    TPARSER_SET_NONE_TOKEN(pSqlNode->interval.offset);
+  }
+
+  if (pSliding != NULL) {
+    pSqlNode->sliding = *pSliding;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->sliding);
+  }
+
+  if (pSession != NULL) {
+    pSqlNode->sessionVal = *pSession;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.gap);
+    TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.col);
+  }
+
+  return pSqlNode;
 }
 
 static void freeVariant(void *pItem) {

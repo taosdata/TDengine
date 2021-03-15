@@ -50,7 +50,8 @@ extern char tTokenTypeSwitcher[13];
     }                                          \
   } while (0)
 
-#define TPARSER_HAS_TOKEN(_t) ((_t).n > 0)
+#define TPARSER_HAS_TOKEN(_t)      ((_t).n > 0)
+#define TPARSER_SET_NONE_TOKEN(_t) ((_t).n = 0)
 
 typedef struct SLimitVal {
   int64_t            limit;
@@ -238,6 +239,9 @@ tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToke
 
 tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType);
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc);
+void      tSqlExprCompact(tSqlExpr** pExpr);
+bool      tSqlExprIsLeaf(tSqlExpr* pExpr);
+bool      tSqlExprIsParentOfLeaf(tSqlExpr* pExpr);
 void      tSqlExprDestroy(tSqlExpr *pExpr);
 SArray   *tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SStrToken *pDistinct, SStrToken *pToken);
 void      tSqlExprListDestroy(SArray *pList);
