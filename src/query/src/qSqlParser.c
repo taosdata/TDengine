@@ -23,7 +23,7 @@
 #include "ttokendef.h"
 #include "tutil.h"
 
-SSqlInfo qSQLParse(const char *pStr) {
+SSqlInfo qSqlParse(const char *pStr) {
   void *pParser = ParseAlloc(malloc);
 
   SSqlInfo sqlInfo = {0};
@@ -80,53 +80,48 @@ abort_parse:
   return sqlInfo;
 }
 
-tSQLExprList *tSqlExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken *pDistinct, SStrToken *pToken) {
+SArray *tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SStrToken *pDistinct, SStrToken *pToken) {
   if (pList == NULL) {
-    pList = calloc(1, sizeof(tSQLExprList));
+    pList = taosArrayInit(4, sizeof(tSqlExprItem));
   }
-
-  if (pList->nAlloc <= pList->nExpr) {
-    pList->nAlloc = (pList->nAlloc << 1u) + 4;
-    pList->a = realloc(pList->a, pList->nAlloc * sizeof(pList->a[0]));
-    if (pList->a == 0) {
-      pList->nExpr = pList->nAlloc = 0;
-      return pList;
-    }
-  }
-  assert(pList->a != 0);
 
   if (pNode || pToken) {
-    struct tSqlExprItem *pItem = &pList->a[pList->nExpr++];
-    memset(pItem, 0, sizeof(*pItem));
-    pItem->pNode = pNode;
-    if (pToken) {  // set the as clause
-      pItem->aliasName = malloc(pToken->n + 1);
-      strncpy(pItem->aliasName, pToken->z, pToken->n);
-      pItem->aliasName[pToken->n] = 0;
+    struct tSqlExprItem item = {0};
 
-      strdequote(pItem->aliasName);
+    item.pNode = pNode;
+    item.distinct = (pDistinct != NULL);
+
+    if (pToken) {  // set the as clause
+      item.aliasName = malloc(pToken->n + 1);
+      strncpy(item.aliasName, pToken->z, pToken->n);
+      item.aliasName[pToken->n] = 0;
+
+      strdequote(item.aliasName);
     }
-    pItem->distinct = (pDistinct != NULL);
+
+    taosArrayPush(pList, &item);
   }
+
   return pList;
 }
 
-void tSqlExprListDestroy(tSQLExprList *pList) {
-  if (pList == NULL) return;
+static void freeExprElem(void* item) {
+  tSqlExprItem* exprItem = item;
 
-  for (int32_t i = 0; i < pList->nExpr; ++i) {
-    if (pList->a[i].aliasName != NULL) {
-      free(pList->a[i].aliasName);
-    }
-    tSqlExprDestroy(pList->a[i].pNode);
-  }
-
-  free(pList->a);
-  free(pList);
+  tfree(exprItem->aliasName);
+  tSqlExprDestroy(exprItem->pNode);
 }
 
-tSQLExpr *tSqlExprIdValueCreate(SStrToken *pToken, int32_t optrType) {
-  tSQLExpr *pSqlExpr = calloc(1, sizeof(tSQLExpr));
+void tSqlExprListDestroy(SArray *pList) {
+  if (pList == NULL) {
+    return;
+  }
+
+  taosArrayDestroyEx(pList, freeExprElem);
+}
+
+tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
+  tSqlExpr *pSqlExpr = calloc(1, sizeof(tSqlExpr));
 
   if (pToken != NULL) {
     pSqlExpr->token = *pToken;
@@ -171,15 +166,15 @@ tSQLExpr *tSqlExprIdValueCreate(SStrToken *pToken, int32_t optrType) {
  * pList is the parameters for function with id(optType)
  * function name is denoted by pFunctionToken
  */
-tSQLExpr *tSqlExprCreateFunction(tSQLExprList *pList, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType) {
+tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType) {
   if (pFuncToken == NULL) {
     return NULL;
   }
 
-  tSQLExpr *pExpr = calloc(1, sizeof(tSQLExpr));
+  tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
   pExpr->tokenId = optType;
   pExpr->type    = SQL_NODE_SQLFUNCTION;
-  pExpr->pParam  = pList;
+  pExpr->pParam  = pParam;
 
   int32_t len = (int32_t)((endToken->z + endToken->n) - pFuncToken->z);
   pExpr->operand = (*pFuncToken);
@@ -193,14 +188,14 @@ tSQLExpr *tSqlExprCreateFunction(tSQLExprList *pList, SStrToken *pFuncToken, SSt
 
 /*
  * create binary expression in this procedure
- * if the expr is arithmetic, calculate the result and set it to tSQLExpr Object
+ * if the expr is arithmetic, calculate the result and set it to tSqlExpr Object
  */
-tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
-  tSQLExpr *pExpr = calloc(1, sizeof(tSQLExpr));
+tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
+  tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
 
   pExpr->type = SQL_NODE_EXPR;
   if (pLeft != NULL && pRight != NULL && (optrType != TK_IN)) {
-    char* endPos = pRight->token.z + pRight->token.n;
+    char* endPos   = pRight->token.z + pRight->token.n;
     pExpr->token.z = pLeft->token.z;
     pExpr->token.n = (uint32_t)(endPos - pExpr->token.z);
     pExpr->token.type = pLeft->token.type;
@@ -291,9 +286,9 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
     pExpr->tokenId = optrType;
     pExpr->pLeft = pLeft;
 
-    tSQLExpr *pRSub = calloc(1, sizeof(tSQLExpr));
+    tSqlExpr *pRSub = calloc(1, sizeof(tSqlExpr));
     pRSub->tokenId = TK_SET;  // TODO refactor .....
-    pRSub->pParam = (tSQLExprList *)pRight;
+    pRSub->pParam = (SArray *)pRight;
 
     pExpr->pRight = pRSub;
   } else {
@@ -301,7 +296,7 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
     pExpr->pLeft = pLeft;
 
     if (pLeft != NULL && pRight == NULL) {
-      pRight = calloc(1, sizeof(tSQLExpr));
+      pRight = calloc(1, sizeof(tSqlExpr));
     }
 
     pExpr->pRight = pRight;
@@ -310,10 +305,8 @@ tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType) {
   return pExpr;
 }
 
-
-
-tSQLExpr *tSqlExprClone(tSQLExpr *pSrc) {
-  tSQLExpr *pExpr = calloc(1, sizeof(tSQLExpr));
+tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
+  tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
 
   memcpy(pExpr, pSrc, sizeof(*pSrc));
   
@@ -327,12 +320,51 @@ tSQLExpr *tSqlExprClone(tSQLExpr *pSrc) {
 
   //we don't clone pParam now because clone is only used for between/and
   assert(pSrc->pParam == NULL);
-
   return pExpr;
 }
 
+void tSqlExprCompact(tSqlExpr** pExpr) {
+  if (*pExpr == NULL || tSqlExprIsParentOfLeaf(*pExpr)) {
+    return;
+  }
 
-void tSqlExprNodeDestroy(tSQLExpr *pExpr) {
+  if ((*pExpr)->pLeft) {
+    tSqlExprCompact(&(*pExpr)->pLeft);
+  }
+
+  if ((*pExpr)->pRight) {
+    tSqlExprCompact(&(*pExpr)->pRight);
+  }
+
+  if ((*pExpr)->pLeft == NULL && (*pExpr)->pRight == NULL && ((*pExpr)->tokenId == TK_OR || (*pExpr)->tokenId == TK_AND)) {
+    tSqlExprDestroy(*pExpr);
+    *pExpr = NULL;
+  } else if ((*pExpr)->pLeft == NULL && (*pExpr)->pRight != NULL) {
+    tSqlExpr* tmpPtr = (*pExpr)->pRight;
+    (*pExpr)->pRight = NULL;
+
+    tSqlExprDestroy(*pExpr);
+    (*pExpr) = tmpPtr;
+  } else if ((*pExpr)->pRight == NULL && (*pExpr)->pLeft != NULL) {
+    tSqlExpr* tmpPtr = (*pExpr)->pLeft;
+    (*pExpr)->pLeft = NULL;
+
+    tSqlExprDestroy(*pExpr);
+    (*pExpr) = tmpPtr;
+  }
+}
+
+bool tSqlExprIsLeaf(tSqlExpr* pExpr) {
+  return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
+         (pExpr->tokenId == 0 || pExpr->tokenId == TK_ID || (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) || pExpr->tokenId == TK_SET);
+}
+
+bool tSqlExprIsParentOfLeaf(tSqlExpr* pExpr) {
+  return (pExpr->pLeft != NULL && pExpr->pRight != NULL) &&
+         (tSqlExprIsLeaf(pExpr->pLeft) && tSqlExprIsLeaf(pExpr->pRight));
+}
+
+static void doDestroySqlExprNode(tSqlExpr *pExpr) {
   if (pExpr == NULL) {
     return;
   }
@@ -342,11 +374,10 @@ void tSqlExprNodeDestroy(tSQLExpr *pExpr) {
   }
 
   tSqlExprListDestroy(pExpr->pParam);
-
   free(pExpr);
 }
 
-void tSqlExprDestroy(tSQLExpr *pExpr) {
+void tSqlExprDestroy(tSqlExpr *pExpr) {
   if (pExpr == NULL) {
     return;
   }
@@ -355,7 +386,8 @@ void tSqlExprDestroy(tSQLExpr *pExpr) {
   pExpr->pLeft = NULL;
   tSqlExprDestroy(pExpr->pRight);
   pExpr->pRight = NULL;
-  tSqlExprNodeDestroy(pExpr);
+
+  doDestroySqlExprNode(pExpr);
 }
 
 SArray *tVariantListAppendToken(SArray *pList, SStrToken *pToken, uint8_t order) {
@@ -411,13 +443,13 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
   return pList;
 }
 
-void setDbName(SStrToken *pCpxName, SStrToken *pDb) {
+void tSetDbName(SStrToken *pCpxName, SStrToken *pDb) {
   pCpxName->type = pDb->type;
   pCpxName->z = pDb->z;
   pCpxName->n = pDb->n;
 }
 
-void tSqlSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) {
+void tSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType) {
   int32_t maxLen = sizeof(pField->name) / sizeof(pField->name[0]);
   
   // truncate the column name
@@ -485,7 +517,7 @@ static int32_t tryParseNameTwoParts(SStrToken *type) {
   }
 }
 
-void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
+void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
   // set the field type invalid
   pField->type = -1;
   pField->name[0] = 0;
@@ -550,43 +582,59 @@ void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 /*
  * extract the select info out of sql string
  */
-SQuerySQL *tSetQuerySqlNode(SStrToken *pSelectToken, tSQLExprList *pSelection, SArray *pFrom, tSQLExpr *pWhere,
+SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SArray *pFrom, tSqlExpr *pWhere,
                              SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *pSession,
-                             SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
-  assert(pSelection != NULL);
+                             SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *psLimit) {
+  assert(pSelectList != NULL);
 
-  SQuerySQL *pQuery = calloc(1, sizeof(SQuerySQL));
-  pQuery->selectToken = *pSelectToken;
-  pQuery->selectToken.n = (uint32_t)strlen(pQuery->selectToken.z);  // all later sql string are belonged to the stream sql
+  SQuerySqlNode *pSqlNode = calloc(1, sizeof(SQuerySqlNode));
 
-  pQuery->pSelection = pSelection;
-  pQuery->from = pFrom;
-  pQuery->pGroupby = pGroupby;
-  pQuery->pSortOrder = pSortOrder;
-  pQuery->pWhere = pWhere;
+  // all later sql string are belonged to the stream sql
+  pSqlNode->sqlstr   = *pSelectToken;
+  pSqlNode->sqlstr.n = (uint32_t)strlen(pSqlNode->sqlstr.z);
+
+  pSqlNode->pSelectList = pSelectList;
+  pSqlNode->from        = pFrom;
+  pSqlNode->pGroupby    = pGroupby;
+  pSqlNode->pSortOrder  = pSortOrder;
+  pSqlNode->pWhere      = pWhere;
+  pSqlNode->fillType    = pFill;
 
   if (pLimit != NULL) {
-    pQuery->limit = *pLimit;
+    pSqlNode->limit = *pLimit;
+  } else {
+    pSqlNode->limit.limit = -1;
+    pSqlNode->limit.offset = 0;
   }
 
-  if (pGLimit != NULL) {
-    pQuery->slimit = *pGLimit;
+  if (psLimit != NULL) {
+    pSqlNode->slimit = *psLimit;
+  } else {
+    pSqlNode->slimit.limit = -1;
+    pSqlNode->slimit.offset = 0;
   }
 
   if (pInterval != NULL) {
-    pQuery->interval = *pInterval;
+    pSqlNode->interval = *pInterval;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->interval.interval);
+    TPARSER_SET_NONE_TOKEN(pSqlNode->interval.offset);
   }
 
   if (pSliding != NULL) {
-    pQuery->sliding = *pSliding;
+    pSqlNode->sliding = *pSliding;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->sliding);
   }
 
   if (pSession != NULL) {
-    pQuery->sessionVal = *pSession;
+    pSqlNode->sessionVal = *pSession;
+  } else {
+    TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.gap);
+    TPARSER_SET_NONE_TOKEN(pSqlNode->sessionVal.col);
   }
 
-  pQuery->fillType = pFill;
-  return pQuery;
+  return pSqlNode;
 }
 
 static void freeVariant(void *pItem) {
@@ -602,14 +650,14 @@ void freeCreateTableInfo(void* p) {
   tfree(pInfo->tagdata.data);
 }
 
-void doDestroyQuerySql(SQuerySQL *pQuerySql) {
+void destroyQuerySqlNode(SQuerySqlNode *pQuerySql) {
   if (pQuerySql == NULL) {
     return;
   }
 
-  tSqlExprListDestroy(pQuerySql->pSelection);
+  tSqlExprListDestroy(pQuerySql->pSelectList);
   
-  pQuerySql->pSelection = NULL;
+  pQuerySql->pSelectList = NULL;
 
   tSqlExprDestroy(pQuerySql->pWhere);
   pQuerySql->pWhere = NULL;
@@ -635,15 +683,15 @@ void destroyAllSelectClause(SSubclauseInfo *pClause) {
   }
 
   for(int32_t i = 0; i < pClause->numOfClause; ++i) {
-    SQuerySQL *pQuerySql = pClause->pClause[i];
-    doDestroyQuerySql(pQuerySql);
+    SQuerySqlNode *pQuerySql = pClause->pClause[i];
+    destroyQuerySqlNode(pQuerySql);
   }
   
   tfree(pClause->pClause);
 }
 
-SCreateTableSQL *tSetCreateSqlElems(SArray *pCols, SArray *pTags, SQuerySQL *pSelect, int32_t type) {
-  SCreateTableSQL *pCreate = calloc(1, sizeof(SCreateTableSQL));
+SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SQuerySqlNode *pSelect, int32_t type) {
+  SCreateTableSql *pCreate = calloc(1, sizeof(SCreateTableSql));
 
   switch (type) {
     case TSQL_CREATE_TABLE: {
@@ -687,7 +735,7 @@ SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagNam
   return info;
 }
 
-SAlterTableInfo *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableType) {
+SAlterTableInfo *tSetAlterTableInfo(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableType) {
   SAlterTableInfo *pAlterTable = calloc(1, sizeof(SAlterTableInfo));
   
   pAlterTable->name = *pTableName;
@@ -709,8 +757,8 @@ SAlterTableInfo *tAlterTableSqlElems(SStrToken *pTableName, SArray *pCols, SArra
   return pAlterTable;
 }
 
-void* destroyCreateTableSql(SCreateTableSQL* pCreate) {
-  doDestroyQuerySql(pCreate->pSelect);
+void* destroyCreateTableSql(SCreateTableSql* pCreate) {
+  destroyQuerySqlNode(pCreate->pSelect);
 
   taosArrayDestroy(pCreate->colInfo.pColumns);
   taosArrayDestroy(pCreate->colInfo.pTagColumns);
@@ -757,7 +805,7 @@ SSubclauseInfo* setSubclause(SSubclauseInfo* pSubclause, void *pSqlExprInfo) {
     return pSubclause;
   }
   
-  pSubclause->pClause = (SQuerySQL**) tmp;
+  pSubclause->pClause = (SQuerySqlNode**) tmp;
   
   pSubclause->pClause[newSize - 1] = pSqlExprInfo;
   pSubclause->numOfClause++;
@@ -765,7 +813,7 @@ SSubclauseInfo* setSubclause(SSubclauseInfo* pSubclause, void *pSqlExprInfo) {
   return pSubclause;
 }
 
-SSqlInfo*setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pTableName, int32_t type) {
+SSqlInfo* setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pTableName, int32_t type) {
   pInfo->type = type;
   
   if (type == TSDB_SQL_SELECT) {
@@ -788,7 +836,7 @@ SSubclauseInfo* appendSelectClause(SSubclauseInfo *pQueryInfo, void *pSubclause)
     return pQueryInfo;
   }
   
-  pQueryInfo->pClause = (SQuerySQL**) tmp;
+  pQueryInfo->pClause = (SQuerySqlNode**) tmp;
   pQueryInfo->pClause[pQueryInfo->numOfClause++] = pSubclause;
   
   return pQueryInfo;
@@ -799,7 +847,7 @@ void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken 
   pInfo->pCreateTableInfo->existCheck = (pIfNotExists->n != 0);
 }
 
-void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
+void setDCLSqlElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
   pInfo->type = type;
   if (nParam == 0) {
     return;
