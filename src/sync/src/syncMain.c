@@ -182,6 +182,7 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   pNode->startSyncFileFp = pInfo->startSyncFileFp;
   pNode->stopSyncFileFp = pInfo->stopSyncFileFp;
   pNode->getVersionFp = pInfo->getVersionFp;
+  pNode->resetVersionFp = pInfo->resetVersionFp;
   pNode->sendFileFp = pInfo->sendFileFp;
   pNode->recvFileFp = pInfo->recvFileFp;
 

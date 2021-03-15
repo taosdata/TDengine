@@ -79,6 +79,9 @@ typedef void     (*FStopSyncFile)(int32_t vgId, uint64_t fversion);
 // get file version
 typedef int32_t  (*FGetVersion)(int32_t vgId, uint64_t *fver, uint64_t *vver);
 
+// reset version
+typedef int32_t  (*FResetVersion)(int32_t vgId, uint64_t fver);
+
 typedef int32_t  (*FSendFile)(void *tsdb, SOCKET socketFd);
 typedef int32_t  (*FRecvFile)(void *tsdb, SOCKET socketFd);
 
@@ -96,6 +99,7 @@ typedef struct {
   FStartSyncFile    startSyncFileFp;
   FStopSyncFile     stopSyncFileFp;
   FGetVersion       getVersionFp;
+  FResetVersion     resetVersionFp;
   FSendFile         sendFileFp;
   FRecvFile         recvFileFp;
 } SSyncInfo;
