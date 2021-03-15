@@ -44,10 +44,10 @@ public class InsertDbwithoutUseDbTest {
         properties.setProperty("locale", "en_US.UTF-8");
         properties.setProperty("timezone", "UTC-8");
 
-//        try {
-//            Class.forName("com.taosdata.jdbc.TSDBDriver");
-//            final String url = "jdbc:TAOS://" + host + ":6030/test?user=root&password=taosdata";
-//            jniConn = DriverManager.getConnection(url, properties);
+        try {
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
+            final String url = "jdbc:TAOS://" + host + ":6030/test?user=root&password=taosdata";
+            jniConn = DriverManager.getConnection(url, properties);
 //            try (Statement stmt = jniConn.createStatement()) {
 //                stmt.execute("drop database if exists inWithoutDb");
 //                stmt.execute("create database if not exists inWithoutDb");
@@ -55,9 +55,9 @@ public class InsertDbwithoutUseDbTest {
 //            }
 //            jniConn.close();
 //            jniConn = DriverManager.getConnection(url, properties);
-//        } catch (ClassNotFoundException | SQLException e) {
-//            e.printStackTrace();
-//        }
+        } catch (ClassNotFoundException | SQLException e) {
+            e.printStackTrace();
+        }
 
         try {
             Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
