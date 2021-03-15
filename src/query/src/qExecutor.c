@@ -476,22 +476,41 @@ static SResultRow *doPrepareResultRowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SRes
   return getResultRow(pResultRowInfo, pResultRowInfo->curIndex);
 }
 
+static void getInitialStartTimeWindow(SQuery* pQuery, TSKEY ts, STimeWindow* w) {
+  if (QUERY_IS_ASC_QUERY(pQuery)) {
+    getAlignQueryTimeWindow(pQuery, ts, ts, pQuery->window.ekey, w);
+  } else {
+    // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
+    getAlignQueryTimeWindow(pQuery, ts, pQuery->window.ekey, ts, w);
+
+    int64_t key = w->skey;
+    while(key < ts) { // moving towards end
+      if (pQuery->interval.intervalUnit == 'n' || pQuery->interval.intervalUnit == 'y') {
+        key = taosTimeAdd(key, pQuery->interval.sliding, pQuery->interval.slidingUnit, pQuery->precision);
+      } else {
+        key += pQuery->interval.sliding;
+      }
+
+      if (key >= ts) {
+        break;
+      }
+
+      w->skey = key;
+    }
+  }
+}
+
 // get the correct time window according to the handled timestamp
 static STimeWindow getActiveTimeWindow(SResultRowInfo * pResultRowInfo, int64_t ts, SQuery *pQuery) {
   STimeWindow w = {0};
 
  if (pResultRowInfo->curIndex == -1) {  // the first window, from the previous stored value
-   if (pResultRowInfo->prevSKey == TSKEY_INITIAL_VAL) {
-     if (QUERY_IS_ASC_QUERY(pQuery)) {
-       getAlignQueryTimeWindow(pQuery, ts, ts, pQuery->window.ekey, &w);
-     } else { // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
-       getAlignQueryTimeWindow(pQuery, ts, pQuery->window.ekey, ts, &w);
-     }
-
-     pResultRowInfo->prevSKey = w.skey;
-   } else {
-    w.skey = pResultRowInfo->prevSKey;
-   }
+    if (pResultRowInfo->prevSKey == TSKEY_INITIAL_VAL) {
+      getInitialStartTimeWindow(pQuery, ts, &w);
+      pResultRowInfo->prevSKey = w.skey;
+    } else {
+      w.skey = pResultRowInfo->prevSKey;
+    }
 
     if (pQuery->interval.intervalUnit == 'n' || pQuery->interval.intervalUnit == 'y') {
       w.ekey = taosTimeAdd(w.skey, pQuery->interval.interval, pQuery->interval.intervalUnit, pQuery->precision) - 1;
