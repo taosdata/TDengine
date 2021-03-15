@@ -239,6 +239,21 @@ bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+bool tscGroupbyColumn(SQueryInfo* pQueryInfo) {
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  int32_t         numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+
+  SSqlGroupbyExpr* pGroupbyExpr = &pQueryInfo->groupbyExpr;
+  for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
+    SColIndex* pIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
+    if (!TSDB_COL_IS_TAG(pIndex->flag) && pIndex->colIndex < numOfCols) {  // group by normal columns
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo) {
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   for (int32_t i = 0; i < numOfExprs; ++i) {

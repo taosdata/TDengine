@@ -42,12 +42,11 @@ int32_t getOutputInterResultBufSize(SQuery* pQuery) {
 }
 
 int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size, int16_t type) {
-  pResultRowInfo->capacity = size;
-
-  pResultRowInfo->type = type;
-  pResultRowInfo->curIndex = -1;
+  pResultRowInfo->type     = type;
   pResultRowInfo->size     = 0;
   pResultRowInfo->prevSKey = TSKEY_INITIAL_VAL;
+  pResultRowInfo->curIndex = -1;
+  pResultRowInfo->capacity = size;
 
   pResultRowInfo->pResult = calloc(pResultRowInfo->capacity, POINTER_BYTES);
   if (pResultRowInfo->pResult == NULL) {

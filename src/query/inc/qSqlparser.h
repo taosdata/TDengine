@@ -58,14 +58,19 @@ typedef struct SIntervalVal {
   SStrToken offset;
 } SIntervalVal;
 
+typedef struct SSessionWindowVal {
+  SStrToken col;
+  SStrToken gap;
+} SSessionWindowVal;
+
 typedef struct SQuerySQL {
   struct tSQLExprList *pSelection;   // select clause
   SArray *             from;         // from clause  SArray<tVariantListItem>
   struct tSQLExpr *    pWhere;       // where clause [optional]
   SArray *             pGroupby;     // groupby clause, only for tags[optional], SArray<tVariantListItem>
   SArray *             pSortOrder;   // orderby [optional], SArray<tVariantListItem>
-  SStrToken            interval;     // interval [optional]
-  SStrToken            offset;       // offset window [optional]
+  SIntervalVal         interval;     // (interval, interval_offset) [optional]
+  SSessionWindowVal    sessionVal;   // session window [optional]
   SStrToken            sliding;      // sliding window [optional]
   SLimitVal            limit;        // limit offset [optional]
   SLimitVal            slimit;       // group limit offset [optional]
@@ -256,8 +261,8 @@ tSQLExprList *tSqlExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken
 
 void tSqlExprListDestroy(tSQLExprList *pList);
 
-SQuerySQL *tSetQuerySqlElems(SStrToken *pSelectToken, tSQLExprList *pSelection, SArray *pFrom, tSQLExpr *pWhere,
-                             SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
+SQuerySQL *tSetQuerySqlNode(SStrToken *pSelectToken, tSQLExprList *pSelection, SArray *pFrom, tSQLExpr *pWhere,
+                             SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *pSession,
                              SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit);
 
 SCreateTableSQL *tSetCreateSqlElems(SArray *pCols, SArray *pTags, SQuerySQL *pSelect, int32_t type);
