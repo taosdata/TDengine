@@ -59,8 +59,13 @@ public class RestfulDriver extends AbstractDriver {
         if (!status.equals("succ")) {
             throw new SQLException(jsonResult.getString("desc"));
         }
-
-        return new RestfulConnection(host, port, props, database, url);
+        RestfulConnection conn = new RestfulConnection(host, port, props, database, url);
+        if (database != null && !database.trim().replaceAll("\\s", "").isEmpty()) {
+            Statement stmt = conn.createStatement();
+            stmt.execute("use " + database);
+            stmt.close();
+        }
+        return conn;
     }
 
     @Override
