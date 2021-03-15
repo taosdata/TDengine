@@ -33,7 +33,7 @@ typedef struct SDataStatis {
 
 typedef struct SColumnInfoData {
   SColumnInfo info;
-  void* pData;    // the corresponding block data in memory
+  char* pData;    // the corresponding block data in memory
 } SColumnInfoData;
 
 typedef struct SResPair {

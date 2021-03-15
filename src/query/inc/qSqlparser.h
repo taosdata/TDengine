@@ -45,7 +45,7 @@ typedef struct SLimitVal {
 
 typedef struct SOrderVal {
   uint32_t order;
-  int32_t orderColId;
+  int32_t  orderColId;
 } SOrderVal;
 
 typedef struct tVariantListItem {
@@ -58,14 +58,19 @@ typedef struct SIntervalVal {
   SStrToken offset;
 } SIntervalVal;
 
+typedef struct SSessionWindowVal {
+  SStrToken col;
+  SStrToken gap;
+} SSessionWindowVal;
+
 typedef struct SQuerySQL {
   struct tSQLExprList *pSelection;   // select clause
   SArray *             from;         // from clause  SArray<tVariantListItem>
   struct tSQLExpr *    pWhere;       // where clause [optional]
   SArray *             pGroupby;     // groupby clause, only for tags[optional], SArray<tVariantListItem>
   SArray *             pSortOrder;   // orderby [optional], SArray<tVariantListItem>
-  SStrToken            interval;     // interval [optional]
-  SStrToken            offset;       // offset window [optional]
+  SIntervalVal         interval;     // (interval, interval_offset) [optional]
+  SSessionWindowVal    sessionVal;   // session window [optional]
   SStrToken            sliding;      // sliding window [optional]
   SLimitVal            limit;        // limit offset [optional]
   SLimitVal            slimit;       // group limit offset [optional]
@@ -185,19 +190,32 @@ typedef struct SSqlInfo {
   };
 } SSqlInfo;
 
+#define NON_ARITHMEIC_EXPR 0
+#define NORMAL_ARITHMETIC  1
+#define AGG_ARIGHTMEIC     2
+
+enum SQL_NODE_TYPE {
+  SQL_NODE_TABLE_COLUMN= 1,
+  SQL_NODE_SQLFUNCTION = 2,
+  SQL_NODE_VALUE       = 3,
+  SQL_NODE_EXPR        = 4,
+};
+
 typedef struct tSQLExpr {
-  uint32_t         nSQLOptr;    // TK_FUNCTION: sql function, TK_LE: less than(binary expr)
-  
-  // the full sql string of function(col, param), which is actually the raw
-  // field name, since the function name is kept in nSQLOptr already
+  uint16_t         type;       // sql node type
+  uint32_t         tokenId;    // TK_FUNCTION: sql function, TK_LE: less than(binary expr)
+
+  // the whole string of the function(col, param), while the function name is kept in token
   SStrToken        operand;
-  SStrToken        colInfo;     // field id
-  tVariant         val;         // value only for string, float, int
+  uint32_t         functionId;  // function id
+
+  SStrToken        colInfo;     // table column info
+  tVariant         value;       // the use input value
   SStrToken        token;       // original sql expr string
 
   struct tSQLExpr *pLeft;       // left child
   struct tSQLExpr *pRight;      // right child
-  struct tSQLExprList *pParam;  // function parameters
+  struct tSQLExprList *pParam;  // function parameters list
 } tSQLExpr;
 
 // used in select clause. select <tSQLExprList> from xxx
@@ -243,8 +261,8 @@ tSQLExprList *tSqlExprListAppend(tSQLExprList *pList, tSQLExpr *pNode, SStrToken
 
 void tSqlExprListDestroy(tSQLExprList *pList);
 
-SQuerySQL *tSetQuerySqlElems(SStrToken *pSelectToken, tSQLExprList *pSelection, SArray *pFrom, tSQLExpr *pWhere,
-                             SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
+SQuerySQL *tSetQuerySqlNode(SStrToken *pSelectToken, tSQLExprList *pSelection, SArray *pFrom, tSQLExpr *pWhere,
+                             SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *pSession,
                              SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit);
 
 SCreateTableSQL *tSetCreateSqlElems(SArray *pCols, SArray *pTags, SQuerySQL *pSelect, int32_t type);
@@ -293,16 +311,6 @@ void tSqlSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType);
 void tSqlSetColumnType(TAOS_FIELD *pField, SStrToken *type);
 
 void *ParseAlloc(void *(*mallocProc)(size_t));
-
-enum {
-  TSQL_NODE_TYPE_EXPR  = 0x1,
-  TSQL_NODE_TYPE_ID    = 0x2,
-  TSQL_NODE_TYPE_VALUE = 0x4,
-};
-
-#define NON_ARITHMEIC_EXPR 0
-#define NORMAL_ARITHMETIC  1
-#define AGG_ARIGHTMEIC     2
 
 SSqlInfo qSQLParse(const char *str);
 

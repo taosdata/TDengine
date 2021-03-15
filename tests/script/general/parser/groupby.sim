@@ -610,6 +610,11 @@ print =================>TD-2665
 sql_error create table txx as select avg(c) as t from st;
 sql_error create table txx1 as select avg(c) as t from t1;
 
+sql select stddev(c),stddev(c) from st group by c;
+if $rows != 4 then
+  return -1
+endi
+
 print =================>TD-2236
 sql select first(ts),last(ts) from t1 group by c;
 if $rows != 4 then
