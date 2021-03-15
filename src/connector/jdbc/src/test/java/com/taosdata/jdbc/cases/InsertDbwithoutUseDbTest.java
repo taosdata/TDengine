@@ -48,13 +48,13 @@ public class InsertDbwithoutUseDbTest {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             final String url = "jdbc:TAOS://" + host + ":6030/inWithoutDb?user=root&password=taosdata";
             jniConn = DriverManager.getConnection(url, properties);
-//            try (Statement stmt = jniConn.createStatement()) {
-//                stmt.execute("drop database if exists inWithoutDb");
-//                stmt.execute("create database if not exists inWithoutDb");
-//                stmt.execute("create table inWithoutDb.weather(ts timestamp, f1 int)");
-//            }
-//            jniConn.close();
-//            jniConn = DriverManager.getConnection(url, properties);
+            try (Statement stmt = jniConn.createStatement()) {
+                stmt.execute("drop database if exists inWithoutDb");
+                stmt.execute("create database if not exists inWithoutDb");
+                stmt.execute("create table inWithoutDb.weather(ts timestamp, f1 int)");
+            }
+            jniConn.close();
+            jniConn = DriverManager.getConnection(url, properties);
         } catch (ClassNotFoundException | SQLException e) {
             e.printStackTrace();
         }
