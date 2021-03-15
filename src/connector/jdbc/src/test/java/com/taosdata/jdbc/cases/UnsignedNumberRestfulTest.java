@@ -36,7 +36,6 @@ public class UnsignedNumberRestfulTest {
     @Test
     public void testCase002() {
         try (Statement stmt = restfulConn.createStatement()) {
-            long now = System.currentTimeMillis();
             ResultSet rs = stmt.executeQuery("select * from us_table");
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
