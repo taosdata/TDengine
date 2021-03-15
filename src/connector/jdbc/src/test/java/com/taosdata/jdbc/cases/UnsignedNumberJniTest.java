@@ -133,6 +133,27 @@ public class UnsignedNumberJniTest {
         }
     }
 
+    @Test
+    public void testCase007() throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            long now = System.currentTimeMillis();
+            stmt.executeUpdate("insert into us_table(ts,f1,f2,f3,f4) values(" + now + ", 254, 65534,4294967294, 18446744073709551614)");
+            ResultSet rs = stmt.executeQuery("select * from us_table where ts = " + now);
+            ResultSetMetaData meta = rs.getMetaData();
+            while (rs.next()) {
+                for (int i = 1; i <= meta.getColumnCount(); i++) {
+                    System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
+                }
+                System.out.println();
+                Assert.assertEquals("254", rs.getString(2));
+                Assert.assertEquals("65534", rs.getString(3));
+                Assert.assertEquals("4294967294", rs.getString(4));
+                Assert.assertEquals("18446744073709551614", rs.getString(5));
+            }
+        }
+    }
+
+
     @BeforeClass
     public static void beforeClass() {
         Properties properties = new Properties();

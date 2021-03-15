@@ -15,7 +15,7 @@ public class TSDBJNIConnectorTest {
     public void test() {
         try {
             // init
-            TSDBJNIConnector.init(null, null, null, null);
+            TSDBJNIConnector.init("/etc/taos/taos.cfg", null, null, null);
             // connect
             TSDBJNIConnector connector = new TSDBJNIConnector();
             connector.connect("127.0.0.1", 6030, "unsign_jni", "root", "taosdata");

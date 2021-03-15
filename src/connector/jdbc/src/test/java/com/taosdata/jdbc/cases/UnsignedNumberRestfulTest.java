@@ -1,10 +1,7 @@
 package com.taosdata.jdbc.cases;
 
 import com.taosdata.jdbc.TSDBDriver;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
-import org.junit.FixMethodOrder;
-import org.junit.Test;
+import org.junit.*;
 import org.junit.runners.MethodSorters;
 
 import java.sql.*;
@@ -13,13 +10,13 @@ import java.util.Properties;
 
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class UnsignedNumberRestfulTest {
-    private static final String host = "127.0.0.1";
-    //    private static final String host = "master";
-    private static Connection restfulConn;
+//    private static final String host = "127.0.0.1";
+        private static final String host = "master";
+    private static Connection conn;
 
     @Test
     public void testCase001() {
-        try (Statement stmt = restfulConn.createStatement()) {
+        try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select * from us_table");
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
@@ -35,7 +32,7 @@ public class UnsignedNumberRestfulTest {
 
     @Test
     public void testCase002() {
-        try (Statement stmt = restfulConn.createStatement()) {
+        try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select * from us_table");
             ResultSetMetaData meta = rs.getMetaData();
             while (rs.next()) {
@@ -53,7 +50,7 @@ public class UnsignedNumberRestfulTest {
 
     @Test(expected = SQLException.class)
     public void testCase003() throws SQLException {
-        try (Statement stmt = restfulConn.createStatement()) {
+        try (Statement stmt = conn.createStatement()) {
             long now = System.currentTimeMillis();
             stmt.executeUpdate("insert into us_table(ts,f1,f2,f3,f4) values(" + now + ", 127, 32767,2147483647, 18446744073709551614)");
             ResultSet rs = stmt.executeQuery("select * from us_table where ts = " + now);
@@ -71,7 +68,7 @@ public class UnsignedNumberRestfulTest {
 
     @Test(expected = SQLException.class)
     public void testCase004() throws SQLException {
-        try (Statement stmt = restfulConn.createStatement()) {
+        try (Statement stmt = conn.createStatement()) {
             long now = System.currentTimeMillis();
             stmt.executeUpdate("insert into us_table(ts,f1,f2,f3,f4) values(" + now + ", 127, 32767,4294967294, 18446744073709551614)");
             ResultSet rs = stmt.executeQuery("select * from us_table where ts = " + now);
@@ -89,7 +86,7 @@ public class UnsignedNumberRestfulTest {
 
     @Test(expected = SQLException.class)
     public void testCase005() throws SQLException {
-        try (Statement stmt = restfulConn.createStatement()) {
+        try (Statement stmt = conn.createStatement()) {
             long now = System.currentTimeMillis();
             stmt.executeUpdate("insert into us_table(ts,f1,f2,f3,f4) values(" + now + ", 127, 65534,4294967294, 18446744073709551614)");
             ResultSet rs = stmt.executeQuery("select * from us_table where ts = " + now);
@@ -107,7 +104,7 @@ public class UnsignedNumberRestfulTest {
 
     @Test(expected = SQLException.class)
     public void testCase006() throws SQLException {
-        try (Statement stmt = restfulConn.createStatement()) {
+        try (Statement stmt = conn.createStatement()) {
             long now = System.currentTimeMillis();
             stmt.executeUpdate("insert into us_table(ts,f1,f2,f3,f4) values(" + now + ", 254, 65534,4294967294, 18446744073709551614)");
             ResultSet rs = stmt.executeQuery("select * from us_table where ts = " + now);
@@ -123,6 +120,26 @@ public class UnsignedNumberRestfulTest {
         }
     }
 
+    @Test
+    public void testCase007() throws SQLException {
+        try (Statement stmt = conn.createStatement()) {
+            long now = System.currentTimeMillis();
+            stmt.executeUpdate("insert into us_table(ts,f1,f2,f3,f4) values(" + now + ", 254, 65534,4294967294, 18446744073709551614)");
+            ResultSet rs = stmt.executeQuery("select * from us_table where ts = " + now);
+            ResultSetMetaData meta = rs.getMetaData();
+            while (rs.next()) {
+                for (int i = 1; i <= meta.getColumnCount(); i++) {
+                    System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
+                }
+                System.out.println();
+                Assert.assertEquals("254", rs.getString(2));
+                Assert.assertEquals("65534", rs.getString(3));
+                Assert.assertEquals("4294967294", rs.getString(4));
+                Assert.assertEquals("18446744073709551614", rs.getString(5));
+            }
+        }
+    }
+
     @BeforeClass
     public static void beforeClass() {
         Properties properties = new Properties();
@@ -133,9 +150,9 @@ public class UnsignedNumberRestfulTest {
         try {
             Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
             final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
-            restfulConn = DriverManager.getConnection(url, properties);
+            conn = DriverManager.getConnection(url, properties);
 
-            Statement stmt = restfulConn.createStatement();
+            Statement stmt = conn.createStatement();
             stmt.execute("drop database if exists unsign_restful");
             stmt.execute("create database if not exists unsign_restful");
             stmt.execute("use unsign_restful");
@@ -150,8 +167,8 @@ public class UnsignedNumberRestfulTest {
     @AfterClass
     public static void afterClass() {
         try {
-            if (restfulConn != null)
-                restfulConn.close();
+            if (conn != null)
+                conn.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
