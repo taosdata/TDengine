@@ -253,6 +253,11 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
 
   *len = fileStat.st_size;
 
+  if (*len <= 0) {
+    tscError("file %s is empty", name);
+    return TSDB_CODE_TSC_FILE_EMPTY;
+  }
+
   *buf = calloc(1, *len);
   if (*buf == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -277,17 +282,21 @@ int32_t readFromFile(char *name, uint32_t *len, void **buf) {
 }
 
 
-int32_t handleCreateFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
+int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char *msg1 = "function name is too long";
   const char *msg2 = "path is too long";
+  const char *msg3 = "invalid outputtype";
   SSqlCmd *pCmd = &pSql->cmd;
   
   switch (pInfo->type) {
   case TSDB_SQL_CREATE_FUNCTION: {
     SCreateFuncInfo *createInfo = &pInfo->pMiscInfo->funcOpt;
-    SCreateFuncMsg *pMsg = (SCreateFuncMsg *)pSql->cmd.payload;
     uint32_t len = 0;
     void *buf = NULL;
+
+    if (createInfo->output.type == (uint8_t)-1 || createInfo->output.bytes < 0) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
 
     createInfo->name.z[createInfo->name.n] = 0;
 
@@ -297,8 +306,6 @@ int32_t handleCreateFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    strcpy(pMsg->name, createInfo->name.z);
-
     createInfo->path.z[createInfo->path.n] = 0;
 
     strdequote(createInfo->path.z);
@@ -307,12 +314,12 @@ int32_t handleCreateFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
     
-    strcpy(pMsg->path, createInfo->path.z);
-    
     int32_t ret = readFromFile(createInfo->path.z, &len, &buf);
     if (ret) {
       return ret;
     }
+
+
 
     //TODO CHECK CODE
 
@@ -320,12 +327,22 @@ int32_t handleCreateFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (len + sizeof(SCreateFuncMsg) > pSql->cmd.allocSize) {
       ret = tscAllocPayload(&pSql->cmd, len + sizeof(SCreateFuncMsg));
       if (ret) {
+        tfree(buf);
         return ret;
       }
     }
 
+    SCreateFuncMsg *pMsg = (SCreateFuncMsg *)pSql->cmd.payload;
+
+    strcpy(pMsg->name, createInfo->name.z);
+    strcpy(pMsg->path, createInfo->path.z);
+
+    pMsg->outputType = createInfo->output.type;
+    pMsg->outputLen = htons(createInfo->output.bytes);
+
     pMsg->codeLen = htonl(len);
     memcpy(pMsg->code, buf, len);
+    tfree(buf);
     
     break;
     }
@@ -467,7 +484,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     case TSDB_SQL_CREATE_FUNCTION: 
     case TSDB_SQL_DROP_FUNCTION:  {
-      code = handleCreateFunc(pSql, pInfo);
+      code = handleUserDefinedFunc(pSql, pInfo);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }

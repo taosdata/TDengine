@@ -186,7 +186,7 @@ static int32_t mnodeUpdateFunc(SFuncObj *pFunc, void *pMsg) {
   return code;
 }
 */
-int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *codeScript, char *path, SMnodeMsg *pMsg) {
+int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *codeScript, char *path, uint8_t outputType, int16_t outputLen, SMnodeMsg *pMsg) {
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_GRANT_EXPIRED;
   }
@@ -230,6 +230,8 @@ int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code
   tstrncpy(pFunc->code, codeScript, TSDB_FUNC_CODE_LEN);
   pFunc->codeLen = codeLen;
   pFunc->createdTime = taosGetTimestampMs();
+  pFunc->outputType = outputType;
+  pFunc->outputLen = outputLen;
 
   SSdbRow row = {
     .type     = SDB_OPER_GLOBAL,
@@ -293,6 +295,12 @@ static int32_t mnodeGetFuncMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = TSDB_TYPE_STR_MAX_LEN + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema[cols].name, "outputtype");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
@@ -328,11 +336,30 @@ static int32_t mnodeGetFuncMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   return 0;
 }
 
+static void* mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int16_t len) {
+  char *msg = "unknown";
+  if (type >= sizeof(tDataTypes)/sizeof(tDataTypes[0])) {
+    return msg;
+  }
+  
+  if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
+    int32_t bytes = len > 0 ? (int)(len - VARSTR_HEADER_SIZE) : len;
+    
+    snprintf(buf, buflen - 1, "%s(%d)", tDataTypes[type].name, type == TSDB_DATA_TYPE_NCHAR ? bytes/4 : bytes);
+    buf[buflen - 1] = 0;
+
+    return buf;
+  }
+  
+  return tDataTypes[type].name;
+}
+
 static int32_t mnodeRetrieveFuncs(SShowObj *pShow, char *data, int32_t rows, void *pConn) {
   int32_t   numOfRows = 0;
   SFuncObj *pFunc    = NULL;
   int32_t   cols      = 0;
   char     *pWrite;
+  char      buf[TSDB_TYPE_STR_MAX_LEN];
 
   while (numOfRows < rows) {
     pShow->pIter = mnodeGetNextFunc(pShow->pIter, &pFunc);
@@ -346,6 +373,10 @@ static int32_t mnodeRetrieveFuncs(SShowObj *pShow, char *data, int32_t rows, voi
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pFunc->path, pShow->bytes[cols]);
+    cols++;
+
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen), pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -372,8 +403,9 @@ static int32_t mnodeRetrieveFuncs(SShowObj *pShow, char *data, int32_t rows, voi
 static int32_t mnodeProcessCreateFuncMsg(SMnodeMsg *pMsg) {
   SCreateFuncMsg *pCreate    = pMsg->rpcMsg.pCont;
   pCreate->codeLen       = htonl(pCreate->codeLen);
+  pCreate->outputLen     = htons(pCreate->outputLen);
 
-  return mnodeCreateFunc(pMsg->pUser->pAcct, pCreate->name, pCreate->codeLen, pCreate->code, pCreate->path, pMsg);
+  return mnodeCreateFunc(pMsg->pUser->pAcct, pCreate->name, pCreate->codeLen, pCreate->code, pCreate->path, pCreate->outputType, pCreate->outputLen, pMsg);
 }
 
 static int32_t mnodeProcessDropFuncMsg(SMnodeMsg *pMsg) {

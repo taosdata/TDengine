@@ -220,6 +220,8 @@ typedef struct SFuncObj {
   int32_t           codeLen;
   char              code[TSDB_FUNC_CODE_LEN];
   int64_t           createdTime;
+  uint8_t           outputType;
+  int16_t           outputLen;
   int8_t            reserved[64];
   int8_t            updateEnd[4];
   int32_t           refCount;

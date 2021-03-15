@@ -1,0 +1,609 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
+system sh/exec.sh -n dnode1 -s start
+system sh/prepare_udf.sh
+
+sleep 100
+sql connect
+print ======================== dnode1 start
+
+sql create function n01 as '/tmp/normal' outputtype int;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n01 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != INT then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n01;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+sql create function n02 as '/tmp/normal' outputtype bool;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n02 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != BOOL then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n02;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+
+
+sql create function n03 as '/tmp/normal' outputtype TINYINT;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n03 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != TINYINT then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n03;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+
+
+
+sql create function n04 as '/tmp/normal' outputtype SMALLINT;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n04 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != SMALLINT then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n04;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+
+
+
+
+sql create function n05 as '/tmp/normal' outputtype INT;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n05 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != INT then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n05;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+
+
+
+
+
+
+
+
+sql create function n06 as '/tmp/normal' outputtype BIGINT;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n06 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != BIGINT then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n06;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+
+
+
+
+
+
+sql create function n07 as '/tmp/normal' outputtype FLOAT;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n07 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != FLOAT then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n07;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+
+
+
+
+
+sql create function n08 as '/tmp/normal' outputtype DOUBLE;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n08 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != DOUBLE then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n08;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+
+
+
+
+
+sql create function n09 as '/tmp/normal' outputtype BINARY;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n09 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != BINARY(0) then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n09;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+sql create function n10 as '/tmp/normal' outputtype BINARY(10);
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n10 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != BINARY(10) then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n10;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+sql create function n11 as '/tmp/normal' outputtype TIMESTAMP;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n11 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != TIMESTAMP then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n11;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+sql create function n12 as '/tmp/normal' outputtype NCHAR;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n12 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != NCHAR(0) then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n12;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+sql create function n13 as '/tmp/normal' outputtype NCHAR(10);
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n13 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != NCHAR(10) then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n13;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+
+
+sql create function n14 as '/tmp/normal' outputtype TINYINT UNSIGNED;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n14 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n14;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+
+sql create function n15 as '/tmp/normal' outputtype SMALLINT UNSIGNED;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n15 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n15;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+sql create function n16 as '/tmp/normal' outputtype INT UNSIGNED;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n16 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n16;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+
+sql create function n17 as '/tmp/normal' outputtype BIGINT UNSIGNED;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n17 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data04 != 5 then 
+  return -1
+endi
+if $data05 != hello then 
+  return -1
+endi
+
+sql drop function n17;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+
+sql create function t01 as '/tmp/normal' outputtype INT;
+sql_error create function t01 as '/tmp/normal' outputtype SMALLINT;
+sql drop function t01;
+sql create function t01 as '/tmp/normal' outputtype INT;
+sql create function t02 as '/tmp/normal' outputtype SMALLINT;
+sql show functions;
+if $rows != 2 then
+  return -1
+endi
+
+
+
+
+
+
+sql_error create function e1 as '/tmp/normal';
+sql_error create function e2 as '/tmp/normal' outputtype;
+sql_error create function e3 as '/tmp/normal' a;
+sql_error create function e4 as '/tmp/normal' outputtype a;
+sql_error create function e5 as '/tmp/normal' outputtype bool int;
+sql_error create function as '/tmp/normal' outputtype;
+sql_error create function e6 as '/tmp/empty' outputtype int;
+sql_error create function e7 as '/tmp/big' outputtype int;
+sql_error create function e8 as '/tmp/noexistfile' outputtype int;
+sql_error create function e0123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456 as '/tmp/normal' outputtype int;
+sql_error create function e9 as outputtype int;
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
