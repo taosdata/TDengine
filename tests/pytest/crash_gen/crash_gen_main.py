@@ -1574,9 +1574,9 @@ class TaskCreateDb(StateTransitionTask):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # was: self.execWtSql(wt, "create database db")
         repStr = ""
-        if gConfig.max_replicas != 1:
+        if gConfig.num_replicas != 1:
             # numReplica = Dice.throw(gConfig.max_replicas) + 1 # 1,2 ... N
-            numReplica = gConfig.max_replicas # fixed, always
+            numReplica = gConfig.num_replicas # fixed, always
             repStr = "replica {}".format(numReplica)
         updatePostfix = "update 1" if gConfig.verify_data else "" # allow update only when "verify data" is active
         dbName = self._db.getName()
@@ -2394,11 +2394,11 @@ class MainExec:
             help='Ignore error codes, comma separated, 0x supported (default: None)')
         parser.add_argument(
             '-i',
-            '--max-replicas',
+            '--num-replicas',
             action='store',
             default=1,
             type=int,
-            help='Maximum number of replicas to use, when testing against clusters. (default: 1)')
+            help='Number (fixed) of replicas to use, when testing against clusters. (default: 1)')
         parser.add_argument(
             '-l',
             '--larger-data',
