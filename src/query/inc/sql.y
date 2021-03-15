@@ -451,7 +451,7 @@ tagitem(A) ::= PLUS(X) FLOAT(Y).  {
 
 //////////////////////// The SELECT statement /////////////////////////////////
 %type select {SQuerySqlNode*}
-%destructor select {doDestroyQuerySql($$);}
+%destructor select {destroyQuerySqlNode($$);}
 select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) session_option(H) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
   A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &S, F, &L, &G);
 }

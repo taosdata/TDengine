@@ -50,29 +50,31 @@ extern char tTokenTypeSwitcher[13];
     }                                          \
   } while (0)
 
+#define TPARSER_HAS_TOKEN(_t) ((_t).n > 0)
+
 typedef struct SLimitVal {
-  int64_t limit;
-  int64_t offset;
+  int64_t            limit;
+  int64_t            offset;
 } SLimitVal;
 
 typedef struct SOrderVal {
-  uint32_t order;
-  int32_t  orderColId;
+  uint32_t           order;
+  int32_t            orderColId;
 } SOrderVal;
 
 typedef struct tVariantListItem {
-  tVariant pVar;
-  uint8_t  sortOrder;
+  tVariant           pVar;
+  uint8_t            sortOrder;
 } tVariantListItem;
 
 typedef struct SIntervalVal {
-  SStrToken interval;
-  SStrToken offset;
+  SStrToken          interval;
+  SStrToken          offset;
 } SIntervalVal;
 
 typedef struct SSessionWindowVal {
-  SStrToken col;
-  SStrToken gap;
+  SStrToken          col;
+  SStrToken          gap;
 } SSessionWindowVal;
 
 typedef struct SQuerySqlNode {
@@ -81,113 +83,113 @@ typedef struct SQuerySqlNode {
   struct tSqlExpr   *pWhere;       // where clause [optional]
   SArray            *pGroupby;     // groupby clause, only for tags[optional], SArray<tVariantListItem>
   SArray            *pSortOrder;   // orderby [optional], SArray<tVariantListItem>
-  SIntervalVal      *interval;     // (interval, interval_offset) [optional]
-  SSessionWindowVal *sessionVal;   // session window [optional]
-  SStrToken         *sliding;      // sliding window [optional]
-  SLimitVal         *limit;        // limit offset [optional]
-  SLimitVal         *slimit;       // group limit offset [optional]
   SArray            *fillType;     // fill type[optional], SArray<tVariantListItem>
+  SIntervalVal       interval;     // (interval, interval_offset) [optional]
+  SSessionWindowVal  sessionVal;   // session window [optional]
+  SStrToken          sliding;      // sliding window [optional]
+  SLimitVal          limit;        // limit offset [optional]
+  SLimitVal          slimit;       // group limit offset [optional]
   SStrToken          sqlstr;       // sql string in select clause
 } SQuerySqlNode;
 
 typedef struct SCreatedTableInfo {
-  SStrToken  name;        // table name token
-  SStrToken  stableName;  // super table name token , for using clause
-  SArray    *pTagNames;   // create by using super table, tag name
-  SArray    *pTagVals;    // create by using super table, tag value
-  char      *fullname;    // table full name
-  STagData   tagdata;     // true tag data, super table full name is in STagData
-  int8_t     igExist;     // ignore if exists
+  SStrToken          name;        // table name token
+  SStrToken          stableName;  // super table name token , for using clause
+  SArray            *pTagNames;   // create by using super table, tag name
+  SArray            *pTagVals;    // create by using super table, tag value
+  char              *fullname;    // table full name
+  STagData           tagdata;     // true tag data, super table full name is in STagData
+  int8_t             igExist;     // ignore if exists
 } SCreatedTableInfo;
 
 typedef struct SCreateTableSql {
-  SStrToken    name;  // table name, create table [name] xxx
-  int8_t       type;  // create normal table/from super table/ stream
-  bool         existCheck;
+  SStrToken          name;  // table name, create table [name] xxx
+  int8_t             type;  // create normal table/from super table/ stream
+  bool               existCheck;
 
   struct {
-    SArray    *pTagColumns; // SArray<TAOS_FIELD>
-    SArray    *pColumns;    // SArray<TAOS_FIELD>
+    SArray          *pTagColumns; // SArray<TAOS_FIELD>
+    SArray          *pColumns;    // SArray<TAOS_FIELD>
   } colInfo;
 
-  SArray      *childTableInfo;        // SArray<SCreatedTableInfo>
-  SQuerySqlNode   *pSelect;
+  SArray            *childTableInfo;        // SArray<SCreatedTableInfo>
+  SQuerySqlNode     *pSelect;
 } SCreateTableSql;
 
 typedef struct SAlterTableInfo {
-  SStrToken  name;
-  int16_t    tableType;
-  int16_t    type;
-  STagData   tagData;
-  SArray    *pAddColumns; // SArray<TAOS_FIELD>
-  SArray    *varList;     // set t=val or: change src dst, SArray<tVariantListItem>
+  SStrToken          name;
+  int16_t            tableType;
+  int16_t            type;
+  STagData           tagData;
+  SArray            *pAddColumns; // SArray<TAOS_FIELD>
+  SArray            *varList;     // set t=val or: change src dst, SArray<tVariantListItem>
 } SAlterTableInfo;
 
 typedef struct SCreateDbInfo {
-  SStrToken dbname;
-  int32_t   replica;
-  int32_t   cacheBlockSize;
-  int32_t   maxTablesPerVnode;
-  int32_t   numOfBlocks;
-  int32_t   daysPerFile;
-  int32_t   minRowsPerBlock;
-  int32_t   maxRowsPerBlock;
-  int32_t   fsyncPeriod;
-  int64_t   commitTime;
-  int32_t   walLevel;
-  int32_t   quorum;
-  int32_t   compressionLevel;
-  SStrToken precision;
-  bool      ignoreExists;
-  int8_t    update;
-  int8_t    cachelast; 
-  SArray    *keep;
-  int8_t    dbType;
-  int16_t   partitions;
+  SStrToken          dbname;
+  int32_t            replica;
+  int32_t            cacheBlockSize;
+  int32_t            maxTablesPerVnode;
+  int32_t            numOfBlocks;
+  int32_t            daysPerFile;
+  int32_t            minRowsPerBlock;
+  int32_t            maxRowsPerBlock;
+  int32_t            fsyncPeriod;
+  int64_t            commitTime;
+  int32_t            walLevel;
+  int32_t            quorum;
+  int32_t            compressionLevel;
+  SStrToken          precision;
+  bool               ignoreExists;
+  int8_t             update;
+  int8_t             cachelast;
+  SArray            *keep;
+  int8_t             dbType;
+  int16_t            partitions;
 } SCreateDbInfo;
 
 typedef struct SCreateAcctInfo {
-  int32_t   maxUsers;
-  int32_t   maxDbs;
-  int32_t   maxTimeSeries;
-  int32_t   maxStreams;
-  int32_t   maxPointsPerSecond;
-  int64_t   maxStorage;
-  int64_t   maxQueryTime;
-  int32_t   maxConnections;
-  SStrToken stat;
+  int32_t            maxUsers;
+  int32_t            maxDbs;
+  int32_t            maxTimeSeries;
+  int32_t            maxStreams;
+  int32_t            maxPointsPerSecond;
+  int64_t            maxStorage;
+  int64_t            maxQueryTime;
+  int32_t            maxConnections;
+  SStrToken          stat;
 } SCreateAcctInfo;
 
 typedef struct SShowInfo {
-  uint8_t    showType;
-  SStrToken  prefix;
-  SStrToken  pattern;
+  uint8_t            showType;
+  SStrToken          prefix;
+  SStrToken          pattern;
 } SShowInfo;
 
 typedef struct SUserInfo {
-  SStrToken user;
-  SStrToken passwd;
-  SStrToken privilege;
-  int16_t   type;
+  SStrToken          user;
+  SStrToken          passwd;
+  SStrToken          privilege;
+  int16_t            type;
 } SUserInfo;
 
 typedef struct SMiscInfo {
-  SArray    *a;         // SArray<SStrToken>
-  bool       existsCheck;
-  int16_t    dbType;
-  int16_t    tableType;
-  SUserInfo  user;
+  SArray            *a;         // SArray<SStrToken>
+  bool               existsCheck;
+  int16_t            dbType;
+  int16_t            tableType;
+  SUserInfo          user;
   union {
-    SCreateDbInfo   dbOpt;
-    SCreateAcctInfo acctOpt;
-    SShowInfo       showOpt;
-    SStrToken       id;
+    SCreateDbInfo    dbOpt;
+    SCreateAcctInfo  acctOpt;
+    SShowInfo        showOpt;
+    SStrToken        id;
   };
 } SMiscInfo;
 
 typedef struct SSubclauseInfo {  // "UNION" multiple select sub-clause
-  SQuerySqlNode **pClause;
-  int32_t     numOfClause;
+  SQuerySqlNode    **pClause;
+  int32_t            numOfClause;
 } SSubclauseInfo;
 
 typedef struct SSqlInfo {
@@ -196,34 +198,34 @@ typedef struct SSqlInfo {
   SSubclauseInfo     subclauseInfo;
   char               msg[256];
   union {
-    SCreateTableSql  *pCreateTableInfo;
-    SAlterTableInfo  *pAlterInfo;
-    SMiscInfo        *pMiscInfo;
+    SCreateTableSql *pCreateTableInfo;
+    SAlterTableInfo *pAlterInfo;
+    SMiscInfo       *pMiscInfo;
   };
 } SSqlInfo;
 
 typedef struct tSqlExpr {
-  uint16_t         type;       // sql node type
-  uint32_t         tokenId;    // TK_LE: less than(binary expr)
+  uint16_t           type;       // sql node type
+  uint32_t           tokenId;    // TK_LE: less than(binary expr)
 
   // the whole string of the function(col, param), while the function name is kept in token
-  SStrToken        operand;
-  uint32_t         functionId;  // function id
+  SStrToken          operand;
+  uint32_t           functionId;  // function id
 
-  SStrToken        colInfo;     // table column info
-  tVariant         value;       // the use input value
-  SStrToken        token;       // original sql expr string
+  SStrToken          colInfo;     // table column info
+  tVariant           value;       // the use input value
+  SStrToken          token;       // original sql expr string
 
-  struct tSqlExpr *pLeft;       // left child
-  struct tSqlExpr *pRight;      // right child
-  struct SArray   *pParam;      // function parameters list
+  struct tSqlExpr   *pLeft;       // left child
+  struct tSqlExpr   *pRight;      // right child
+  struct SArray     *pParam;      // function parameters list
 } tSqlExpr;
 
 // used in select clause. select <SArray> from xxx
 typedef struct tSqlExprItem {
-  tSqlExpr *pNode;      // The list of expressions
-  char *    aliasName;  // alias name, null-terminated string
-  bool      distinct;
+  tSqlExpr          *pNode;      // The list of expressions
+  char              *aliasName;  // alias name, null-terminated string
+  bool               distinct;
 } tSqlExprItem;
 
 SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
@@ -241,9 +243,8 @@ SArray   *tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SStrToken *pDistinc
 void      tSqlExprListDestroy(SArray *pList);
 
 SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SArray *pFrom, tSqlExpr *pWhere,
-                                SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
-                                SSessionWindowVal *pSession, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
-                                SLimitVal *pGLimit);
+                                SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,
+                                SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit);
 
 SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SQuerySqlNode *pSelect, int32_t type);
 
@@ -251,7 +252,7 @@ SAlterTableInfo *tSetAlterTableInfo(SStrToken *pTableName, SArray *pCols, SArray
 SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagNames, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists);
 
 void destroyAllSelectClause(SSubclauseInfo *pSql);
-void doDestroyQuerySql(SQuerySqlNode *pSql);
+void destroyQuerySqlNode(SQuerySqlNode *pSql);
 void freeCreateTableInfo(void* p);
 
 SSqlInfo       *setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pTableName, int32_t type);

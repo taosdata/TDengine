@@ -780,8 +780,8 @@ int32_t parseIntervalClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuerySqlNode
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
   
-  if (pQuerySqlNode->interval == NULL) {
-    if (pQuerySqlNode->sliding != NULL) {
+  if (!TPARSER_HAS_TOKEN(pQuerySqlNode->interval.interval)) {
+    if (TPARSER_HAS_TOKEN(pQuerySqlNode->sliding)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
@@ -794,7 +794,7 @@ int32_t parseIntervalClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuerySqlNode
   }
 
   // interval is not null
-  SStrToken *t = &pQuerySqlNode->interval->interval;
+  SStrToken *t = &pQuerySqlNode->interval.interval;
   if (parseNatualDuration(t->z, t->n, &pQueryInfo->interval.interval, &pQueryInfo->interval.intervalUnit) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -811,11 +811,11 @@ int32_t parseIntervalClause(SSqlObj* pSql, SQueryInfo* pQueryInfo, SQuerySqlNode
     }
   }
 
-  if (parseIntervalOffset(pCmd, pQueryInfo, &pQuerySqlNode->interval->offset) != TSDB_CODE_SUCCESS) {
+  if (parseIntervalOffset(pCmd, pQueryInfo, &pQuerySqlNode->interval.offset) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
-  if (parseSlidingClause(pCmd, pQueryInfo, pQuerySqlNode->sliding) != TSDB_CODE_SUCCESS) {
+  if (parseSlidingClause(pCmd, pQueryInfo, &pQuerySqlNode->sliding) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
@@ -830,12 +830,12 @@ int32_t parseSessionClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySqlNode 
   const char* msg4 = "invalid time window";
 
   // no session window
-  if (pQuerySqlNode->sessionVal == NULL) {
+  if (!TPARSER_HAS_TOKEN(pQuerySqlNode->sessionVal.gap)) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SStrToken* col = &pQuerySqlNode->sessionVal->col;
-  SStrToken* gap = &pQuerySqlNode->sessionVal->gap;
+  SStrToken* col = &pQuerySqlNode->sessionVal.col;
+  SStrToken* gap = &pQuerySqlNode->sessionVal.gap;
 
   char timeUnit = 0;
   if (parseNatualDuration(gap->z, gap->n, &pQueryInfo->sessionWindow.gap, &timeUnit) != TSDB_CODE_SUCCESS) {
@@ -5439,9 +5439,9 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
   const char* msg2 = "slimit/soffset can not apply to projection query";
 
   // handle the limit offset value, validate the limit
-  pQueryInfo->limit = *pQuerySqlNode->limit;
+  pQueryInfo->limit = pQuerySqlNode->limit;
   pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
-  pQueryInfo->slimit = *pQuerySqlNode->slimit;
+  pQueryInfo->slimit = pQuerySqlNode->slimit;
   
   tscDebug("%p limit:%" PRId64 ", offset:%" PRId64 " slimit:%" PRId64 ", soffset:%" PRId64, pSql, pQueryInfo->limit.limit,
       pQueryInfo->limit.offset, pQueryInfo->slimit.limit, pQueryInfo->slimit.offset);
@@ -6840,7 +6840,8 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
   }
 
   int32_t joinQuery = (pQuerySqlNode->from != NULL && taosArrayGetSize(pQuerySqlNode->from) > 2);
-  int32_t timeWindowQuery = !(pQuerySqlNode->interval == NULL || pQuerySqlNode->sessionVal == NULL);
+  int32_t timeWindowQuery =
+      (TPARSER_HAS_TOKEN(pQuerySqlNode->interval.interval) || TPARSER_HAS_TOKEN(pQuerySqlNode->sessionVal.gap));
 
   if (parseSelectClause(pCmd, index, pQuerySqlNode->pSelectList, isSTable, joinQuery, timeWindowQuery) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;

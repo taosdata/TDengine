@@ -547,38 +547,26 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
  */
 SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SArray *pFrom, tSqlExpr *pWhere,
                              SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *pSession,
-                             SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pGLimit) {
-  assert(pSelectList != NULL);
+                             SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *psLimit) {
+  assert(pSelectList != NULL && pLimit != NULL && psLimit != NULL && pInterval != NULL && pSliding != NULL &&
+         pSession != NULL);
 
   SQuerySqlNode *pQuery = calloc(1, sizeof(SQuerySqlNode));
-  pQuery->sqlstr = *pSelectToken;
-  pQuery->sqlstr.n = (uint32_t)strlen(pQuery->sqlstr.z);  // all later sql string are belonged to the stream sql
+
+  // all later sql string are belonged to the stream sql
+  pQuery->sqlstr   = *pSelectToken;
+  pQuery->sqlstr.n = (uint32_t)strlen(pQuery->sqlstr.z);
 
   pQuery->pSelectList = pSelectList;
-  pQuery->from = pFrom;
-  pQuery->pGroupby = pGroupby;
-  pQuery->pSortOrder = pSortOrder;
-  pQuery->pWhere = pWhere;
-
-  if (pLimit != NULL) {
-    pQuery->limit = pLimit;
-  }
-
-  if (pGLimit != NULL) {
-    pQuery->slimit = pGLimit;
-  }
-
-  if (pInterval != NULL) {
-    pQuery->interval = pInterval;
-  }
-
-  if (pSliding != NULL) {
-    pQuery->sliding = pSliding;
-  }
-
-  if (pSession != NULL) {
-    pQuery->sessionVal = pSession;
-  }
+  pQuery->from        = pFrom;
+  pQuery->pGroupby    = pGroupby;
+  pQuery->pSortOrder  = pSortOrder;
+  pQuery->pWhere      = pWhere;
+  pQuery->limit       = *pLimit;
+  pQuery->slimit      = *psLimit;
+  pQuery->interval    = *pInterval;
+  pQuery->sliding     = *pSliding;
+  pQuery->sessionVal  = *pSession;
 
   pQuery->fillType = pFill;
   return pQuery;
@@ -597,7 +585,7 @@ void freeCreateTableInfo(void* p) {
   tfree(pInfo->tagdata.data);
 }
 
-void doDestroyQuerySql(SQuerySqlNode *pQuerySql) {
+void destroyQuerySqlNode(SQuerySqlNode *pQuerySql) {
   if (pQuerySql == NULL) {
     return;
   }
@@ -631,7 +619,7 @@ void destroyAllSelectClause(SSubclauseInfo *pClause) {
 
   for(int32_t i = 0; i < pClause->numOfClause; ++i) {
     SQuerySqlNode *pQuerySql = pClause->pClause[i];
-    doDestroyQuerySql(pQuerySql);
+    destroyQuerySqlNode(pQuerySql);
   }
   
   tfree(pClause->pClause);
@@ -705,7 +693,7 @@ SAlterTableInfo *tSetAlterTableInfo(SStrToken *pTableName, SArray *pCols, SArray
 }
 
 void* destroyCreateTableSql(SCreateTableSql* pCreate) {
-  doDestroyQuerySql(pCreate->pSelect);
+  destroyQuerySqlNode(pCreate->pSelect);
 
   taosArrayDestroy(pCreate->colInfo.pColumns);
   taosArrayDestroy(pCreate->colInfo.pTagColumns);

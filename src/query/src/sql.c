@@ -1425,7 +1425,7 @@ destroyCreateTableSql((yypminor->yy230));
       break;
     case 235: /* select */
 {
-doDestroyQuerySql((yypminor->yy342));
+destroyQuerySqlNode((yypminor->yy342));
 }
       break;
     case 238: /* selcollist */
