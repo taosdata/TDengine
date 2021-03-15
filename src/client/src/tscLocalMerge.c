@@ -100,6 +100,10 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalMerger *pReducer, tOrderDescr
     } else if (functionId == TSDB_FUNC_APERCT) {
       pCtx->param[0].i64 = pExpr->param[0].i64;
       pCtx->param[0].nType  = pExpr->param[0].nType;
+    } else if (functionId == TSDB_FUNC_BLKINFO) {
+      pCtx->param[0].i64 = pExpr->param[0].i64;
+      pCtx->param[0].nType = pExpr->param[0].nType;
+      pCtx->numOfParams = 1;
     }
 
     pCtx->interBufBytes = pExpr->interBytes;
@@ -951,10 +955,10 @@ static void doFillResult(SSqlObj *pSql, SLocalMerger *pLocalMerge, bool doneOutp
   // todo extract function
   int64_t actualETime = (pQueryInfo->order.order == TSDB_ORDER_ASC)? pQueryInfo->window.ekey: pQueryInfo->window.skey;
 
-  tFilePage **pResPages = malloc(POINTER_BYTES * pQueryInfo->fieldsInfo.numOfOutput);
+  void** pResPages = malloc(POINTER_BYTES * pQueryInfo->fieldsInfo.numOfOutput);
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-    pResPages[i] = calloc(1, sizeof(tFilePage) + pField->bytes * pLocalMerge->resColModel->capacity);
+    pResPages[i] = calloc(1, pField->bytes * pLocalMerge->resColModel->capacity);
   }
 
   while (1) {
@@ -966,7 +970,7 @@ static void doFillResult(SSqlObj *pSql, SLocalMerger *pLocalMerge, bool doneOutp
       if (pQueryInfo->limit.offset > 0) {
         for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
           TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-          memmove(pResPages[i]->data, pResPages[i]->data + pField->bytes * pQueryInfo->limit.offset,
+          memmove(pResPages[i], ((char*)pResPages[i]) + pField->bytes * pQueryInfo->limit.offset,
                   (size_t)(newRows * pField->bytes));
         }
       }
@@ -1010,7 +1014,7 @@ static void doFillResult(SSqlObj *pSql, SLocalMerger *pLocalMerge, bool doneOutp
     int32_t offset = 0;
     for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
       TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, i);
-      memcpy(pRes->data + offset * pRes->numOfRows, pResPages[i]->data, (size_t)(pField->bytes * pRes->numOfRows));
+      memcpy(pRes->data + offset * pRes->numOfRows, pResPages[i], (size_t)(pField->bytes * pRes->numOfRows));
       offset += pField->bytes;
     }
 

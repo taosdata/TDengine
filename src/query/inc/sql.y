@@ -329,8 +329,8 @@ signed(A) ::= PLUS INTEGER(X).    { A = strtol(X.z, NULL, 10); }
 signed(A) ::= MINUS INTEGER(X).   { A = -strtol(X.z, NULL, 10);}
 
 ////////////////////////////////// The CREATE TABLE statement ///////////////////////////////
-cmd ::= CREATE TABLE create_table_args. {}
-cmd ::= CREATE TABLE create_stable_args. {}
+cmd ::= CREATE TABLE  create_table_args.  {}
+cmd ::= CREATE TABLE  create_stable_args. {}
 cmd ::= CREATE STABLE create_stable_args. {}
 cmd ::= CREATE TABLE create_table_list(Z). { pInfo->type = TSDB_SQL_CREATE_TABLE; pInfo->pCreateTableInfo = Z;}
 
@@ -455,8 +455,8 @@ tagitem(A) ::= PLUS(X) FLOAT(Y).  {
 //////////////////////// The SELECT statement /////////////////////////////////
 %type select {SQuerySQL*}
 %destructor select {doDestroyQuerySql($$);}
-select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
-  A = tSetQuerySqlElems(&T, W, X, Y, P, Z, &K, &S, F, &L, &G);
+select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) session_option(H) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
+  A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &S, F, &L, &G);
 }
 
 %type union {SSubclauseInfo*}
@@ -474,7 +474,7 @@ cmd ::= union(X). { setSqlInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
 // select server_version(), select client_version(),
 // select server_state();
 select(A) ::= SELECT(T) selcollist(W). {
-  A = tSetQuerySqlElems(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+  A = tSetQuerySqlNode(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 // selcollist is a list of expressions that are to become the return
@@ -549,13 +549,21 @@ tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
 tmvar(A) ::= VARIABLE(X).   {A = X;}
 
 %type interval_opt {SIntervalVal}
-interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N.interval = E; N.offset.n = 0; N.offset.z = NULL; N.offset.type = 0;}
-interval_opt(N) ::= INTERVAL LP tmvar(E) COMMA tmvar(O) RP.    {N.interval = E; N.offset = O;}
+interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N.interval = E; N.offset.n = 0;}
+interval_opt(N) ::= INTERVAL LP tmvar(E) COMMA tmvar(X) RP.    {N.interval = E; N.offset = X;}
 interval_opt(N) ::= .                           {memset(&N, 0, sizeof(N));}
+
+%type session_option {SSessionWindowVal}
+session_option(X) ::= .                                                  {X.col.n = 0; X.gap.n = 0;}
+session_option(X) ::= SESSION LP ids(V) cpxName(Z) COMMA tmvar(Y) RP.    {
+   V.n += Z.n;
+   X.col = V;
+   X.gap = Y;
+}
 
 %type fill_opt {SArray*}
 %destructor fill_opt {taosArrayDestroy($$);}
-fill_opt(N) ::= .                               {N = 0;     }
+fill_opt(N) ::= .                                           { N = 0;     }
 fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
     tVariant A = {0};
     toTSDBType(Y.type);
@@ -837,6 +845,5 @@ cmd ::= KILL QUERY INTEGER(X) COLON(Z) INTEGER(Y).        {X.n += (Z.n + Y.n); s
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
   LIKE MATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
-  COUNT SUM AVG MIN MAX FIRST LAST TOP BOTTOM STDDEV PERCENTILE APERCENTILE LEASTSQUARES HISTOGRAM DIFF
-  SPREAD TWA INTERP LAST_ROW RATE IRATE SUM_RATE SUM_IRATE AVG_RATE AVG_IRATE TBID NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT
+  NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT
   METRIC TBNAME JOIN METRICS STABLE NULL INSERT INTO VALUES.

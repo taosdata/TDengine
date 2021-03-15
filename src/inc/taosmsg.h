@@ -397,7 +397,7 @@ typedef struct SColIndex {
   int16_t  colId;      // column id
   int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
   uint16_t flag;       // denote if it is a tag or a normal column
-  char     name[TSDB_COL_NAME_LEN];
+  char     name[TSDB_COL_NAME_LEN];  // TODO remove it
 } SColIndex;
 
 /* sql function msg, to describe the message to vnode about sql function
@@ -405,7 +405,10 @@ typedef struct SColIndex {
 typedef struct SSqlFuncMsg {
   int16_t functionId;
   int16_t numOfParams;
+
   int16_t resColId;      // result column id, id of the current output column
+  int16_t colType;
+  int16_t colBytes;
 
   SColIndex colInfo;
   struct ArgElem {
@@ -485,12 +488,13 @@ typedef struct {
   int16_t     orderColId;
   int16_t     numOfCols;        // the number of columns will be load from vnode
   SInterval   interval;
+  SSessionWindow sw;            // session window
   uint16_t    tagCondLen;       // tag length in current query
   uint32_t    tbnameCondLen;    // table name filter condition string length
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
-  int64_t     vgroupLimit;       // limit the number of rows for each table, used in order by + limit in stable projection query.
+  int64_t     vgroupLimit;      // limit the number of rows for each table, used in order by + limit in stable projection query.
   int16_t     prjOrder;         // global order in super table projection query.
   int64_t     limit;
   int64_t     offset;
@@ -640,6 +644,7 @@ typedef struct {
   int32_t  maxtablesPerVnode;
   int32_t  maxVgroupsPerDb;
   char     arbitrator[TSDB_EP_LEN];   // tsArbitrator
+  char     reserve[2];                // to solve arm32 bus error
   char     timezone[64];              // tsTimezone
   int64_t  checkTime;                 // 1970-01-01 00:00:00.000
   char     locale[TSDB_LOCALE_LEN];   // tsLocale

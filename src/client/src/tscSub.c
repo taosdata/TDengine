@@ -503,9 +503,19 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SSqlCmd *pCmd = &pSql->cmd;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
-  if (taosArrayGetSize(pSub->progress) > 0) { // fix crash in single tabel subscription
-    pQueryInfo->window.skey = ((SSubscriptionProgress*)taosArrayGet(pSub->progress, 0))->key;
-    tscDebug("subscribe:%s set subscribe skey:%"PRId64, pSub->topic, pQueryInfo->window.skey);
+  if (taosArrayGetSize(pSub->progress) > 0) { // fix crash in single table subscription
+
+    size_t size = taosArrayGetSize(pSub->progress);
+    TSKEY s = INT64_MAX;
+    for(int32_t i = 0; i < size; ++i) {
+      TSKEY k = ((SSubscriptionProgress*)taosArrayGet(pSub->progress, i))->key;
+      if (s > k) {
+        s = k;
+      }
+    }
+
+    pQueryInfo->window.skey = s;
+    tscDebug("subscribe:%s set next round subscribe skey:%"PRId64, pSub->topic, pQueryInfo->window.skey);
   }
 
   if (pSub->pTimer == NULL) {
