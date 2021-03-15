@@ -46,7 +46,7 @@ public class InsertDbwithoutUseDbTest {
 
         try {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
-            final String url = "jdbc:TAOS://" + host + ":6030/test?user=root&password=taosdata";
+            final String url = "jdbc:TAOS://" + host + ":6030/inWithoutDb?user=root&password=taosdata";
             jniConn = DriverManager.getConnection(url, properties);
 //            try (Statement stmt = jniConn.createStatement()) {
 //                stmt.execute("drop database if exists inWithoutDb");
@@ -80,6 +80,8 @@ public class InsertDbwithoutUseDbTest {
         try {
             if (jniConn != null)
                 jniConn.close();
+            if (restConn != null)
+                restConn.close();
         } catch (SQLException e) {
             e.printStackTrace();
         }
