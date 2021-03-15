@@ -132,6 +132,7 @@ typedef struct SCreateDbInfo {
 typedef struct SCreateFuncInfo {
   SStrToken name;
   SStrToken path;
+  TAOS_FIELD output;
 } SCreateFuncInfo;
 
 

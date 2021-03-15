@@ -245,7 +245,8 @@ static SKeyword keywordTable[] = {
     {"TOPIC",        TK_TOPIC},
     {"TOPICS",       TK_TOPICS},
     {"FUNCTION",     TK_FUNCTION},
-    {"FUNCTIONS",    TK_FUNCTIONS}
+    {"FUNCTIONS",    TK_FUNCTIONS},
+    {"OUTPUTTYPE",   TK_OUTPUTTYPE}
 };
 
 static const char isIdChar[] = {

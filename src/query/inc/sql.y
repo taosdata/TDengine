@@ -194,7 +194,7 @@ cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
                                 { setCreateAcctSql(pInfo, TSDB_SQL_CREATE_ACCT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
 cmd ::= CREATE TOPIC ifnotexists(Z) ids(X) topic_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
-cmd ::= CREATE FUNCTION ids(X) AS ids(Y).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y);}
+cmd ::= CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z).   { setCreateFuncInfo(pInfo, TSDB_SQL_CREATE_FUNCTION, &X, &Y, &Z);}
 cmd ::= CREATE USER ids(X) PASS ids(Y).     { setCreateUserSql(pInfo, &X, &Y);}
 
 pps(Y) ::= .                                { Y.n = 0;   }
