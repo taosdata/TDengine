@@ -243,10 +243,12 @@ python3 ./test.py -f query/last_row_cache.py
 python3 ./test.py -f query/last_cache.py
 
 # tools
-python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdumpTest.py
 python3 test.py -f tools/lowaTest.py
+python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdemoTest2.py
+python3 test.py -f tools/taosdemoTestWithoutMetric.py
+python3 test.py -f tools/taosdemoTestLimitOffset.py
 
 # subscribe
 python3 test.py -f subscribe/singlemeter.py

@@ -23,7 +23,7 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-        
+
         self.numberOfTables = 10000
         self.numberOfRecords = 100
 
@@ -42,7 +42,7 @@ class TDTestCase:
                     buildPath = root[:len(root)-len("/build/bin")]
                     break
         return buildPath
-        
+
     def run(self):
         tdSql.prepare()
         buildPath = self.getBuildPath()
