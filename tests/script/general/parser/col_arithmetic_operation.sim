@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
 sleep 100
 sql connect
@@ -93,6 +93,7 @@ $halfTbNum = $tbNum / 2
     $nchar = 'nchar . $c
     $nchar = $nchar . '
 
+    $ts = $ts + 1
     sql insert into $tb5 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb6 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb7 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb8 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb9 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar )
     $x = $x + 1
   endw

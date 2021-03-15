@@ -5,7 +5,7 @@ $maxTables = 4
 $totalRows = $totalVnodes * $maxTables
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel            -v 0
+system sh/cfg.sh -n dnode1 -c walLevel            -v 1
 system sh/cfg.sh -n dnode1 -c maxTablesPerVnode   -v $maxTables
 system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb     -v $totalVnodes
 system sh/cfg.sh -n dnode1 -c maxVnodeConnections -v 100000

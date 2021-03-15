@@ -2,7 +2,7 @@ system sh/stop_dnodes.sh
 
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
 
 sleep 2000
@@ -51,11 +51,11 @@ print =============== step2
 system sh/exec.sh -n dnode1 -s stop
 sleep 3000
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
 
 print =============== step3
-print ==> sleep 8 seconds to renew cache
+print ==> sleep 1 seconds to renew cache
 sql reset query cache
 sleep 1000
 

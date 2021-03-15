@@ -38,6 +38,8 @@
 ./test.sh -f general/db/repeat.sim
 ./test.sh -f general/db/tables.sim
 ./test.sh -f general/db/vnodes.sim
+./test.sh -f general/db/topic1.sim
+./test.sh -f general/db/topic2.sim
 ./test.sh -f general/table/autocreate.sim
 ./test.sh -f general/table/basic1.sim
 ./test.sh -f general/table/basic2.sim

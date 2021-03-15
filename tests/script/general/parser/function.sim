@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
 sleep 100
 sql connect
@@ -775,8 +775,24 @@ if $rows != 1 then
   return -1
 endi
 
-
 if $data00 != 0.000000000 then
   return -1
 endi
 
+sql select count(tbname) from st1
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi
+
+sql select count(id) from st1
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 1 then
+  return -1
+endi

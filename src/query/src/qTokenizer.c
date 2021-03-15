@@ -139,6 +139,7 @@ static SKeyword keywordTable[] = {
     {"FROM",         TK_FROM},
     {"VARIABLE",     TK_VARIABLE},
     {"INTERVAL",     TK_INTERVAL},
+    {"SESSION",      TK_SESSION},
     {"FILL",         TK_FILL},
     {"SLIDING",      TK_SLIDING},
     {"ORDER",        TK_ORDER},
@@ -200,25 +201,6 @@ static SKeyword keywordTable[] = {
     {"TRIGGER",      TK_TRIGGER},
     {"VIEW",         TK_VIEW},
     {"ALL",          TK_ALL},
-    {"COUNT",        TK_COUNT},
-    {"SUM",          TK_SUM},
-    {"AVG",          TK_AVG},
-    {"MIN",          TK_MIN},
-    {"MAX",          TK_MAX},
-    {"FIRST",        TK_FIRST},
-    {"LAST",         TK_LAST},
-    {"TOP",          TK_TOP},
-    {"BOTTOM",       TK_BOTTOM},
-    {"STDDEV",       TK_STDDEV},
-    {"PERCENTILE",   TK_PERCENTILE},
-    {"APERCENTILE",  TK_APERCENTILE},
-    {"LEASTSQUARES", TK_LEASTSQUARES},
-    {"HISTOGRAM",    TK_HISTOGRAM},
-    {"DIFF",         TK_DIFF},
-    {"SPREAD",       TK_SPREAD},
-    {"TWA",          TK_TWA},
-    {"INTERP",       TK_INTERP},
-    {"LAST_ROW",     TK_LAST_ROW},
     {"SEMI",         TK_SEMI},
     {"NONE",         TK_NONE},
     {"PREV",         TK_PREV},
@@ -228,19 +210,15 @@ static SKeyword keywordTable[] = {
     {"TBNAME",       TK_TBNAME},
     {"JOIN",         TK_JOIN},
     {"METRICS",      TK_METRICS},
-    {"TBID",         TK_TBID},
     {"STABLE",       TK_STABLE},
     {"FILE",         TK_FILE},
     {"VNODES",       TK_VNODES},
     {"UNION",        TK_UNION},
-    {"RATE",         TK_RATE},
-    {"IRATE",        TK_IRATE},
-    {"SUM_RATE",     TK_SUM_RATE},
-    {"SUM_IRATE",    TK_SUM_IRATE},
-    {"AVG_RATE",     TK_AVG_RATE},
-    {"AVG_IRATE",    TK_AVG_IRATE},
     {"CACHELAST",    TK_CACHELAST},
     {"DISTINCT",     TK_DISTINCT},
+    {"PARTITIONS",   TK_PARTITIONS},
+    {"TOPIC",        TK_TOPIC},
+    {"TOPICS",       TK_TOPICS}
 };
 
 static const char isIdChar[] = {
@@ -294,7 +272,7 @@ int tSQLKeywordCode(const char* z, int n) {
  * Return the length of the token that begins at z[0].
  * Store the token type in *type before returning.
  */
-uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
+uint32_t tSQLGetToken(char* z, uint32_t* tokenId) {
   uint32_t i;
   switch (*z) {
     case ' ':
@@ -304,121 +282,121 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
     case '\r': {
       for (i = 1; isspace(z[i]); i++) {
       }
-      *tokenType = TK_SPACE;
+      *tokenId = TK_SPACE;
       return i;
     }
     case ':': {
-      *tokenType = TK_COLON;
+      *tokenId = TK_COLON;
       return 1;
     }
     case '-': {
       if (z[1] == '-') {
         for (i = 2; z[i] && z[i] != '\n'; i++) {
         }
-        *tokenType = TK_COMMENT;
+        *tokenId = TK_COMMENT;
         return i;
       }
-      *tokenType = TK_MINUS;
+      *tokenId = TK_MINUS;
       return 1;
     }
     case '(': {
-      *tokenType = TK_LP;
+      *tokenId = TK_LP;
       return 1;
     }
     case ')': {
-      *tokenType = TK_RP;
+      *tokenId = TK_RP;
       return 1;
     }
     case ';': {
-      *tokenType = TK_SEMI;
+      *tokenId = TK_SEMI;
       return 1;
     }
     case '+': {
-      *tokenType = TK_PLUS;
+      *tokenId = TK_PLUS;
       return 1;
     }
     case '*': {
-      *tokenType = TK_STAR;
+      *tokenId = TK_STAR;
       return 1;
     }
     case '/': {
       if (z[1] != '*' || z[2] == 0) {
-        *tokenType = TK_SLASH;
+        *tokenId = TK_SLASH;
         return 1;
       }
       for (i = 3; z[i] && (z[i] != '/' || z[i - 1] != '*'); i++) {
       }
       if (z[i]) i++;
-      *tokenType = TK_COMMENT;
+      *tokenId = TK_COMMENT;
       return i;
     }
     case '%': {
-      *tokenType = TK_REM;
+      *tokenId = TK_REM;
       return 1;
     }
     case '=': {
-      *tokenType = TK_EQ;
+      *tokenId = TK_EQ;
       return 1 + (z[1] == '=');
     }
     case '<': {
       if (z[1] == '=') {
-        *tokenType = TK_LE;
+        *tokenId = TK_LE;
         return 2;
       } else if (z[1] == '>') {
-        *tokenType = TK_NE;
+        *tokenId = TK_NE;
         return 2;
       } else if (z[1] == '<') {
-        *tokenType = TK_LSHIFT;
+        *tokenId = TK_LSHIFT;
         return 2;
       } else {
-        *tokenType = TK_LT;
+        *tokenId = TK_LT;
         return 1;
       }
     }
     case '>': {
       if (z[1] == '=') {
-        *tokenType = TK_GE;
+        *tokenId = TK_GE;
         return 2;
       } else if (z[1] == '>') {
-        *tokenType = TK_RSHIFT;
+        *tokenId = TK_RSHIFT;
         return 2;
       } else {
-        *tokenType = TK_GT;
+        *tokenId = TK_GT;
         return 1;
       }
     }
     case '!': {
       if (z[1] != '=') {
-        *tokenType = TK_ILLEGAL;
+        *tokenId = TK_ILLEGAL;
         return 2;
       } else {
-        *tokenType = TK_NE;
+        *tokenId = TK_NE;
         return 2;
       }
     }
     case '|': {
       if (z[1] != '|') {
-        *tokenType = TK_BITOR;
+        *tokenId = TK_BITOR;
         return 1;
       } else {
-        *tokenType = TK_CONCAT;
+        *tokenId = TK_CONCAT;
         return 2;
       }
     }
     case ',': {
-      *tokenType = TK_COMMA;
+      *tokenId = TK_COMMA;
       return 1;
     }
     case '&': {
-      *tokenType = TK_BITAND;
+      *tokenId = TK_BITAND;
       return 1;
     }
     case '~': {
-      *tokenType = TK_BITNOT;
+      *tokenId = TK_BITNOT;
       return 1;
     }
     case '?': {
-      *tokenType = TK_QUESTION;
+      *tokenId = TK_QUESTION;
       return 1;
     }
     case '\'':
@@ -444,7 +422,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       if (z[i]) i++;
 
       if (strEnd) {
-        *tokenType = TK_STRING;
+        *tokenId = TK_STRING;
         return i;
       }
 
@@ -468,10 +446,10 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
           }
         }
 
-        *tokenType = TK_FLOAT;
+        *tokenId = TK_FLOAT;
         return i;
       } else {
-        *tokenType = TK_DOT;
+        *tokenId = TK_DOT;
         return 1;
       }
     }
@@ -480,7 +458,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       char next = z[1];
 
       if (next == 'b') { // bin number
-        *tokenType = TK_BIN;
+        *tokenId = TK_BIN;
         for (i = 2; (z[i] == '0' || z[i] == '1'); ++i) {
         }
 
@@ -490,7 +468,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
 
         return i;
       } else if (next == 'x') {  //hex number
-        *tokenType = TK_HEX;
+        *tokenId = TK_HEX;
         for (i = 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
         }
 
@@ -510,7 +488,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
     case '7':
     case '8':
     case '9': {
-      *tokenType = TK_INTEGER;
+      *tokenId = TK_INTEGER;
       for (i = 1; isdigit(z[i]); i++) {
       }
 
@@ -520,7 +498,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
            z[i] == 'U' || z[i] == 'A' || z[i] == 'S' || z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' ||
            z[i] == 'Y' || z[i] == 'W') &&
           (isIdChar[(uint8_t)z[i + 1]] == 0)) {
-        *tokenType = TK_VARIABLE;
+        *tokenId = TK_VARIABLE;
         i += 1;
         return i;
       }
@@ -531,12 +509,12 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
         while (isdigit(z[i])) {
           i++;
         }
-        *tokenType = TK_FLOAT;
+        *tokenId = TK_FLOAT;
         seg++;
       }
 
       if (seg == 4) {  // ip address
-        *tokenType = TK_IPTOKEN;
+        *tokenId = TK_IPTOKEN;
         return i;
       }
 
@@ -546,14 +524,14 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
         while (isdigit(z[i])) {
           i++;
         }
-        *tokenType = TK_FLOAT;
+        *tokenId = TK_FLOAT;
       }
       return i;
     }
     case '[': {
       for (i = 1; z[i] && z[i - 1] != ']'; i++) {
       }
-      *tokenType = TK_ID;
+      *tokenId = TK_ID;
       return i;
     }
     case 'T':
@@ -564,7 +542,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       }
 
       if ((i == 4 && strncasecmp(z, "true", 4) == 0) || (i == 5 && strncasecmp(z, "false", 5) == 0)) {
-        *tokenType = TK_BOOL;
+        *tokenId = TK_BOOL;
         return i;
       }
     }
@@ -574,12 +552,12 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenType) {
       }
       for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
       }
-      *tokenType = tSQLKeywordCode(z, i);
+      *tokenId = tSQLKeywordCode(z, i);
       return i;
     }
   }
 
-  *tokenType = TK_ILLEGAL;
+  *tokenId = TK_ILLEGAL;
   return 0;
 }
 
