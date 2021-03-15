@@ -28,13 +28,13 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
 
-        tdSql.execute("create table test(ts timestamp, col1 int, col2 float)")
+        tdSql.execute("create table test(ts timestamp, col1 int, col2 float, col3 double)")
         for i in range(1000):
             sql = "insert into test values"
             batchSize = int (self.rowNum / 1000)            
             for j in range (batchSize):                
                 currTime = self.ts + batchSize * i + j
-                sql += "(%d, 1, 2.37)" % currTime
+                sql += "(%d, 1, 2.37, 3.1415926)" % currTime
             tdSql.execute(sql)
 
         tdSql.query("select percentile(col1, 20) from test")
@@ -43,11 +43,17 @@ class TDTestCase:
         tdSql.query("select percentile(col2, 20) from test")
         tdSql.checkData(0, 0, 2.3699998)
 
+        tdSql.query("select percentile(col3, 20) from test")
+        tdSql.checkData(0, 0, 3.1415926)
+
         tdSql.query("select apercentile(col1, 20) from test")
         tdSql.checkData(0, 0, 1)
 
         tdSql.query("select apercentile(col2, 20) from test")
         tdSql.checkData(0, 0, 2.3699998)
+
+        tdSql.query("select apercentile(col3, 20) from test")
+        tdSql.checkData(0, 0, 3.1415926)
 
     def stop(self):
         tdSql.close()
