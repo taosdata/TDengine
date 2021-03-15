@@ -20,7 +20,7 @@ public class TSDBJNIConnectorTest {
             TSDBJNIConnector connector = new TSDBJNIConnector();
             connector.connect("127.0.0.1", 6030, null, "root", "taosdata");
             // executeQuery
-            long pSql = connector.executeQuery("select * from unsigned_jni.us_test");
+            long pSql = connector.executeQuery("select * from unsign_jni.us_table");
             if (connector.isUpdateQuery(pSql)) {
                 connector.freeResultSet(pSql);
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
