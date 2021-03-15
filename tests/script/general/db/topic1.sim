@@ -740,11 +740,7 @@ endi
 if $data02 != 1 then 
   return -1
 endi
-#numofvgroups
-sql show t1.vgroups;
-if $rows != 1 then 
-  return -1
-endi
+
 sql show t1.stables;
 if $rows != 1 then 
   return -1
@@ -773,11 +769,8 @@ endi
 if $data02 != 2 then 
   return -1
 endi
-#numofvgroups
-sql show t1.vgroups;
-if $rows != 2 then 
-  return -1
-endi
+
+
 sql show t1.stables;
 if $rows != 1 then 
   return -1
@@ -806,11 +799,7 @@ endi
 if $data02 != 3 then 
   return -1
 endi
-#numofvgroups
-sql show t1.vgroups;
-if $rows != 3 then 
-  return -1
-endi
+
 sql show t1.stables;
 if $rows != 1 then 
   return -1

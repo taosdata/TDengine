@@ -22,10 +22,10 @@ def _crow_timestamp_to_python(data, num_of_rows, nbytes=None, micro=False):
 
     if num_of_rows > 0:
         return list(map(_timestamp_converter, ctypes.cast(
-            data, ctypes.POINTER(ctypes.c_long))[:abs(num_of_rows)]))
+            data, ctypes.POINTER(ctypes.c_int64))[:abs(num_of_rows)]))
     else:
         return list(map(_timestamp_converter, ctypes.cast(
-            data, ctypes.POINTER(ctypes.c_long))[:abs(num_of_rows)]))
+            data, ctypes.POINTER(ctypes.c_int64))[:abs(num_of_rows)]))
 
 
 def _crow_bool_to_python(data, num_of_rows, nbytes=None, micro=False):
@@ -145,10 +145,10 @@ def _crow_bigint_to_python(data, num_of_rows, nbytes=None, micro=False):
     """
     if num_of_rows > 0:
         return [None if ele == FieldType.C_BIGINT_NULL else ele for ele in ctypes.cast(
-            data, ctypes.POINTER(ctypes.c_long))[:abs(num_of_rows)]]
+            data, ctypes.POINTER(ctypes.c_int64))[:abs(num_of_rows)]]
     else:
         return [None if ele == FieldType.C_BIGINT_NULL else ele for ele in ctypes.cast(
-            data, ctypes.POINTER(ctypes.c_long))[:abs(num_of_rows)]]
+            data, ctypes.POINTER(ctypes.c_int64))[:abs(num_of_rows)]]
 
 
 def _crow_bigint_unsigned_to_python(
@@ -162,13 +162,13 @@ def _crow_bigint_unsigned_to_python(
         return [
             None if ele == FieldType.C_BIGINT_UNSIGNED_NULL else ele for ele in ctypes.cast(
                 data, ctypes.POINTER(
-                    ctypes.c_ulong))[
+                    ctypes.c_uint64))[
                 :abs(num_of_rows)]]
     else:
         return [
             None if ele == FieldType.C_BIGINT_UNSIGNED_NULL else ele for ele in ctypes.cast(
                 data, ctypes.POINTER(
-                    ctypes.c_ulong))[
+                    ctypes.c_uint64))[
                 :abs(num_of_rows)]]
 
 
@@ -600,7 +600,7 @@ class CTaosInterface(object):
     #     elif (dtype == CTaosInterface.TSDB_DATA_TYPE_INT):
     #         return ctypes.cast(data,  ctypes.POINTER(ctypes.c_int))[0]
     #     elif (dtype == CTaosInterface.TSDB_DATA_TYPE_BIGINT):
-    #         return ctypes.cast(data,  ctypes.POINTER(ctypes.c_long))[0]
+    #         return ctypes.cast(data,  ctypes.POINTER(ctypes.c_int64))[0]
     #     elif (dtype == CTaosInterface.TSDB_DATA_TYPE_FLOAT):
     #         return ctypes.cast(data,  ctypes.POINTER(ctypes.c_float))[0]
     #     elif (dtype == CTaosInterface.TSDB_DATA_TYPE_DOUBLE):
@@ -608,7 +608,7 @@ class CTaosInterface(object):
     #     elif (dtype == CTaosInterface.TSDB_DATA_TYPE_BINARY):
     #         return (ctypes.cast(data,  ctypes.POINTER(ctypes.c_char))[0:byte]).rstrip('\x00')
     #     elif (dtype == CTaosInterface.TSDB_DATA_TYPE_TIMESTAMP):
-    #         return ctypes.cast(data,  ctypes.POINTER(ctypes.c_long))[0]
+    #         return ctypes.cast(data,  ctypes.POINTER(ctypes.c_int64))[0]
     #     elif (dtype == CTaosInterface.TSDB_DATA_TYPE_NCHAR):
     #         return (ctypes.cast(data,  ctypes.c_char_p).value).rstrip('\x00')
 

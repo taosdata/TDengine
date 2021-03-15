@@ -183,6 +183,7 @@ python3 ./test.py -f query/isNullTest.py
 python3 ./test.py -f query/queryWithTaosdKilled.py
 python3 ./test.py -f query/floatCompare.py
 python3 ./test.py -f query/queryGroupbySort.py
+python3 ./test.py -f query/queryBetweenAnd.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -232,6 +233,7 @@ python3 ./test.py -f functions/function_top.py -r 1
 python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
 python3 ./test.py -f functions/all_null_value.py
+python3 ./test.py -f functions/function_percentile2.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py

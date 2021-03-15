@@ -136,7 +136,8 @@ class TDDnode:
             "monitorDebugFlag":"135",
             "udebugFlag":"135",
             "jnidebugFlag":"135",
-            "qdebugFlag":"135"
+            "qdebugFlag":"135",
+            "maxSQLLength":"1048576"
         }
 
     def init(self, path):

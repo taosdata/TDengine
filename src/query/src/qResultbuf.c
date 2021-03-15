@@ -9,8 +9,7 @@
 #define GET_DATA_PAYLOAD(_p) ((char *)(_p)->pData + POINTER_BYTES)
 #define NO_IN_MEM_AVAILABLE_PAGES(_b) (listNEles((_b)->lruList) >= (_b)->inMemPages)
 
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t rowSize, int32_t pagesize,
-                                    int32_t inMemBufSize, const void* handle) {
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, const void* handle) {
   *pResultBuf = calloc(1, sizeof(SDiskbasedResultBuf));
 
   SDiskbasedResultBuf* pResBuf = *pResultBuf;
@@ -31,7 +30,6 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t ro
   // at least more than 2 pages must be in memory
   assert(inMemBufSize >= pagesize * 2);
 
-  pResBuf->numOfRowsPerPage = (pagesize - sizeof(tFilePage)) / rowSize;
   pResBuf->lruList = tdListNew(POINTER_BYTES);
 
   // init id hash table
@@ -386,8 +384,6 @@ void releaseResBufPageInfo(SDiskbasedResultBuf* pResultBuf, SPageInfo* pi) {
   pi->used = false;
   pResultBuf->statis.releasePages += 1;
 }
-
-size_t getNumOfRowsPerPage(const SDiskbasedResultBuf* pResultBuf) { return pResultBuf->numOfRowsPerPage; }
 
 size_t getNumOfResultBufGroupId(const SDiskbasedResultBuf* pResultBuf) { return taosHashGetSize(pResultBuf->groupSet); }
 
