@@ -2366,13 +2366,13 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key, bool asc
 }
 
 void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols,
-                        SSDataBlock* pBlock, STSBuf* pTsBuf, bool ascQuery) {
+                        SSDataBlock* pBlock, bool ascQuery) {
   int32_t numOfRows = pBlock->info.rows;
 
   int8_t *p = calloc(numOfRows, sizeof(int8_t));
   bool    all = true;
 
-  if (pTsBuf != NULL) {
+  if (pRuntimeEnv->pTsBuf != NULL) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
 
     TSKEY* k = (TSKEY*) pColInfoData->pData;
@@ -2393,6 +2393,9 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
         break;
       }
     }
+
+    // save the cursor status
+    pRuntimeEnv->pQuery->current->cur = tsBufGetCursor(pRuntimeEnv->pTsBuf);
   } else {
     for (int32_t i = 0; i < numOfRows; ++i) {
       bool qualified = false;
@@ -2653,8 +2656,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
 
     doSetFilterColumnInfo(pQuery, pBlock);
     if (pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTsBuf != NULL) {
-      filterRowsInDataBlock(pRuntimeEnv, pQuery->pFilterInfo, pQuery->numOfFilterCols, pBlock, pRuntimeEnv->pTsBuf,
-                            ascQuery);
+      filterRowsInDataBlock(pRuntimeEnv, pQuery->pFilterInfo, pQuery->numOfFilterCols, pBlock, ascQuery);
     }
   }
 
@@ -2745,7 +2747,10 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
   }
 
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
+    int32_t maxLen = bytes - VARSTR_HEADER_SIZE;
+    int32_t len = (varDataLen(val) > maxLen)? maxLen:varDataLen(val);
+    tVariantCreateFromBinary(tag, varDataVal(val), len, type);
+    //tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
   } else {
     tVariantCreateFromBinary(tag, val, bytes, type);
   }
@@ -6537,8 +6542,15 @@ static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type
     return;
   }
 
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    memcpy(output, val, varDataTLen(val));
+  if (IS_VAR_DATA_TYPE(type)) {
+    // Binary data overflows for sort of unknown reasons. Let trim the overflow data
+    if (varDataTLen(val) > bytes) {
+      int32_t len = bytes - VARSTR_HEADER_SIZE;   // remain available space
+      memcpy(varDataVal(output), varDataVal(val), len);
+      varDataSetLen(output, len);
+    } else {
+      varDataCopy(output, val);
+    }
   } else {
     memcpy(output, val, bytes);
   }

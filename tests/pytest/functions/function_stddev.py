@@ -113,6 +113,12 @@ class TDTestCase:
         for i in range(13):
             tdSql.query('select stddev(c4) from s group by t%s' % str(i+1) )
 
+        #add for td-3223
+        for i in range(13):
+            if i == 1 or i == 5 or i == 6 or i == 7 or i == 9 or i == 8 :continue
+            tdSql.query('select stddev(c%d),stddev(c%d) from s group by c%d' %( i+1 , i+1 , i+1  ) )
+        
+
         
             
     def stop(self):

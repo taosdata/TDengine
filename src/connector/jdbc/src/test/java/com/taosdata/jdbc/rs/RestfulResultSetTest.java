@@ -40,9 +40,12 @@ public class RestfulResultSetTest {
         Assert.assertEquals(true, f9);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void getByte() throws SQLException {
-        rs.getByte(1);
+        byte f8 = rs.getByte("f8");
+        Assert.assertEquals(10, f8);
+        f8 = rs.getByte(8);
+        Assert.assertEquals(10, f8);
     }
 
     @Test
