@@ -174,7 +174,7 @@ int32_t vnodeResetVersion(int32_t vgId, uint64_t fver) {
   return 0;
 }
 
-void vnodeConfirmForward(void *vparam, uint64_t version, int32_t code) {
+void vnodeConfirmForward(void *vparam, uint64_t version, int32_t code, bool force) {
   SVnodeObj *pVnode = vparam;
-  syncConfirmForward(pVnode->sync, version, code);
+  syncConfirmForward(pVnode->sync, version, code, force);
 }

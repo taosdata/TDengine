@@ -56,7 +56,7 @@ static void    syncMonitorNodeRole(void *param, void *tmrId);
 static void    syncProcessFwdAck(SSyncNode *pNode, SFwdInfo *pFwdInfo, int32_t code);
 static int32_t syncSaveFwdInfo(SSyncNode *pNode, uint64_t version, void *mhandle);
 static void    syncRestartPeer(SSyncPeer *pPeer);
-static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle, int32_t qtyp);
+static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle, int32_t qtype, bool force);
 
 static SSyncPeer *syncAddPeer(SSyncNode *pNode, const SNodeInfo *pInfo);
 static void       syncStartCheckPeerConn(SSyncPeer *pPeer);
@@ -378,24 +378,24 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg *pNewCfg) {
   return 0;
 }
 
-int32_t syncForwardToPeer(int64_t rid, void *data, void *mhandle, int32_t qtype) {
+int32_t syncForwardToPeer(int64_t rid, void *data, void *mhandle, int32_t qtype, bool force) {
   if (rid <= 0) return 0;
 
   SSyncNode *pNode = syncAcquireNode(rid);
   if (pNode == NULL) return 0;
 
-  int32_t code = syncForwardToPeerImpl(pNode, data, mhandle, qtype);
+  int32_t code = syncForwardToPeerImpl(pNode, data, mhandle, qtype, force);
 
   syncReleaseNode(pNode);
   return code;
 }
 
-void syncConfirmForward(int64_t rid, uint64_t version, int32_t code) {
+void syncConfirmForward(int64_t rid, uint64_t version, int32_t code, bool force) {
   SSyncNode *pNode = syncAcquireNode(rid);
   if (pNode == NULL) return;
 
   SSyncPeer *pPeer = pNode->pMaster;
-  if (pPeer && pNode->quorum > 1) {
+  if (pPeer && (pNode->quorum > 1 || force)) {
     SFwdRsp rsp;
     syncBuildSyncFwdRsp(&rsp, pNode->vgId, version, code);
 
@@ -1414,7 +1414,7 @@ static void syncMonitorFwdInfos(void *param, void *tmrId) {
   syncReleaseNode(pNode);
 }
 
-static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle, int32_t qtype) {
+static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle, int32_t qtype, bool force) {
   SSyncPeer *pPeer;
   SSyncHead *pSyncHead;
   SWalHead * pWalHead = data;
@@ -1458,7 +1458,7 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
     if (pPeer == NULL || pPeer->peerFd < 0) continue;
     if (pPeer->role != TAOS_SYNC_ROLE_SLAVE && pPeer->sstatus != TAOS_SYNC_STATUS_CACHE) continue;
 
-    if (pNode->quorum > 1 && code == 0) {
+    if ((pNode->quorum > 1 || force) && code == 0) {
       code = syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
       if (code >= 0) code = 1;
     }
