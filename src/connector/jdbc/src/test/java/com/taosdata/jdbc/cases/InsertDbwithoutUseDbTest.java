@@ -2,18 +2,20 @@ package com.taosdata.jdbc.cases;
 
 import org.junit.Assert;
 import org.junit.BeforeClass;
+import org.junit.FixMethodOrder;
 import org.junit.Test;
+import org.junit.runners.MethodSorters;
 
 import java.sql.*;
 import java.util.Properties;
 import java.util.Random;
 
+@FixMethodOrder(MethodSorters.NAME_ASCENDING)
 public class InsertDbwithoutUseDbTest {
 
     private static String host = "127.0.0.1";
     //    private static String host = "master";
     private static Properties properties;
-    private static Connection restConn;
     private static Random random = new Random(System.currentTimeMillis());
 
     @Test
