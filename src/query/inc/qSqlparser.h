@@ -39,6 +39,11 @@ enum SQL_NODE_TYPE {
   SQL_NODE_EXPR        = 4,
 };
 
+enum SQL_NODE_FROM_TYPE {
+  SQL_NODE_FROM_SUBQUERY  = 1,
+  SQL_NODE_FROM_NAMELIST  = 2,
+};
+
 extern char tTokenTypeSwitcher[13];
 
 #define toTSDBType(x)                          \
@@ -78,12 +83,14 @@ typedef struct SSessionWindowVal {
   SStrToken          gap;
 } SSessionWindowVal;
 
+struct SFromInfo;
+
 typedef struct SQuerySqlNode {
   struct SArray     *pSelectList;  // select clause
-  SArray            *from;         // from clause  SArray<SQuerySqlNode>
+  struct SFromInfo  *from;         // from clause SArray<SQuerySqlNode>
   struct tSqlExpr   *pWhere;       // where clause [optional]
   SArray            *pGroupby;     // groupby clause, only for tags[optional], SArray<tVariantListItem>
-  SArray            *pSortOrder;   // orderby [optional], SArray<tVariantListItem>
+  SArray            *pSortOrder;   // orderby [optional],  SArray<tVariantListItem>
   SArray            *fillType;     // fill type[optional], SArray<tVariantListItem>
   SIntervalVal       interval;     // (interval, interval_offset) [optional]
   SSessionWindowVal  sessionVal;   // session window [optional]
@@ -92,6 +99,24 @@ typedef struct SQuerySqlNode {
   SLimitVal          slimit;       // group limit offset [optional]
   SStrToken          sqlstr;       // sql string in select clause
 } SQuerySqlNode;
+
+typedef struct STableNamePair {
+  SStrToken name;
+  SStrToken aliasName;
+} STableNamePair;
+
+typedef struct SSubclauseInfo {  // "UNION" multiple select sub-clause
+  SQuerySqlNode    **pClause;
+  int32_t            numOfClause;
+} SSubclauseInfo;
+
+typedef struct SFromInfo {
+  int32_t            type;        // nested query|table name list
+  union {
+    SSubclauseInfo  *pNode;
+    SArray          *tableList;   // SArray<STableNamePair>
+  };
+} SFromInfo;
 
 typedef struct SCreatedTableInfo {
   SStrToken          name;        // table name token
@@ -188,11 +213,6 @@ typedef struct SMiscInfo {
   };
 } SMiscInfo;
 
-typedef struct SSubclauseInfo {  // "UNION" multiple select sub-clause
-  SQuerySqlNode    **pClause;
-  int32_t            numOfClause;
-} SSubclauseInfo;
-
 typedef struct SSqlInfo {
   int32_t            type;
   bool               valid;
@@ -233,6 +253,10 @@ SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
 SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
 SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 
+SFromInfo *setTableNameList(SFromInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
+SFromInfo *setSubquery(SFromInfo* pFromInfo, SQuerySqlNode *pSqlNode);
+void      *destroyFromInfo(SFromInfo* pFromInfo);
+
 // sql expr leaf node
 tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType);
 tSqlExpr *tSqlExprCreateFunction(SArray *pParam, SStrToken *pFuncToken, SStrToken *endToken, int32_t optType);
@@ -246,7 +270,7 @@ void      tSqlExprDestroy(tSqlExpr *pExpr);
 SArray   *tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SStrToken *pDistinct, SStrToken *pToken);
 void      tSqlExprListDestroy(SArray *pList);
 
-SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SArray *pFrom, tSqlExpr *pWhere,
+SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SFromInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,
                                 SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit);
 
