@@ -20,7 +20,7 @@ public class InsertDbwithoutUseDbTest {
     public void case001() throws ClassNotFoundException, SQLException {
         // prepare schema
         Class.forName("com.taosdata.jdbc.TSDBDriver");
-        final String url = "jdbc:TAOS://127.0.0.1:6030/inWithoutDb?user=root&password=taosdata";
+        String url = "jdbc:TAOS://127.0.0.1:6030/?user=root&password=taosdata";
         Connection conn = DriverManager.getConnection(url, properties);
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("drop database if exists inWithoutDb");
@@ -30,6 +30,7 @@ public class InsertDbwithoutUseDbTest {
         conn.close();
 
         // execute insert
+        url = "jdbc:TAOS://127.0.0.1:6030/inWithoutDb?user=root&password=taosdata";
         conn = DriverManager.getConnection(url, properties);
         try (Statement stmt = conn.createStatement()) {
             int affectedRow = stmt.executeUpdate("insert into weather(ts, f1) values(now," + random.nextInt(100) + ")");
