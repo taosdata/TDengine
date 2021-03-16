@@ -188,6 +188,7 @@ typedef struct SArguments_S {
   int      num_of_CPR;
   int      num_of_threads;
   int      insert_interval;
+  int      rows_per_tbl;
   int      num_of_RPR;
   int      max_sql_len;
   int      num_of_tables;
@@ -531,6 +532,7 @@ SArguments g_args = {
                      10,              // num_of_CPR
                      10,              // num_of_connections/thread
                      0,               // insert_interval
+                     0,               // rows_per_tbl;
                      100,             // num_of_RPR
                      TSDB_PAYLOAD_SIZE,  // max_sql_len
                      10000,           // num_of_tables
@@ -652,6 +654,8 @@ void parse_args(int argc, char *argv[], SArguments *arguments) {
       arguments->num_of_threads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") == 0) {
       arguments->insert_interval = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-B") == 0) {
+      arguments->rows_per_tbl = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
       arguments->num_of_RPR = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0) {
@@ -2958,6 +2962,16 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
  
+      cJSON* rowsPerTbl = cJSON_GetObjectItem(root, "rows_per_tbl");
+      if (rowsPerTbl && rowsPerTbl->type == cJSON_Number) {
+        g_args.rows_per_tbl = rowsPerTbl->valueint;
+      } else if (!rowsPerTbl) {
+        g_args.rows_per_tbl = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
+      } else {
+        fprintf(stderr, "ERROR: failed to read json, rows_per_tbl input mistake\n");
+        goto PARSE_OVER;
+      }      
+
       cJSON* maxSqlLen = cJSON_GetObjectItem(root, "max_sql_len");
       if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
         g_args.max_sql_len = maxSqlLen->valueint;
@@ -3429,6 +3443,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         printf("ERROR: failed to read json, multiThreadWriteOneTbl not found\n");
         goto PARSE_OVER;
       }
+
       cJSON* rowsPerTbl = cJSON_GetObjectItem(stbInfo, "rows_per_tbl");
       if (rowsPerTbl && rowsPerTbl->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].rowsPerTbl = rowsPerTbl->valueint;
@@ -4330,6 +4345,8 @@ static void* syncWrite(void *sarg) {
 
   int insert_interval = superTblInfo?superTblInfo->insertInterval:
       g_args.insert_interval;
+  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:
+      g_args.rows_per_tbl;
   uint64_t st = 0;
   uint64_t et = 0xffffffff;
 
@@ -4338,6 +4355,12 @@ static void* syncWrite(void *sarg) {
 
   winfo->samplePos = 0;
 
+  if (rowsPerTbl > 0) {
+    // interlace mode
+  } else {
+    // progressive mode
+
+  }
   for (uint32_t tableSeq = winfo->start_table_id; tableSeq <= winfo->end_table_id;
         tableSeq ++) {
     int64_t start_time = winfo->start_time;
