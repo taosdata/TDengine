@@ -456,20 +456,20 @@ select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) sessi
   A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &S, F, &L, &G);
 }
 
+select(A) ::= LP select(B) RP. {A = B;}
+
 %type union {SSubclauseInfo*}
 %destructor union {destroyAllSelectClause($$);}
-
 union(Y) ::= select(X). { Y = setSubclause(NULL, X); }
-union(Y) ::= LP union(X) RP. { Y = X; }
 union(Y) ::= union(Z) UNION ALL select(X). { Y = appendSelectClause(Z, X); }
-union(Y) ::= union(Z) UNION ALL LP select(X) RP. { Y = appendSelectClause(Z, X); }
 
 cmd ::= union(X). { setSqlInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
 
 // Support for the SQL exprssion without from & where subclauses, e.g.,
-// select current_database(),
-// select server_version(), select client_version(),
-// select server_state();
+// select current_database()
+// select server_version()
+// select client_version()
+// select server_state()
 select(A) ::= SELECT(T) selcollist(W). {
   A = tSetQuerySqlNode(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
@@ -495,7 +495,6 @@ selcollist(A) ::= sclp(P) STAR. {
 
 // An option "AS <id>" phrase that can follow one of the expressions that
 // define the result set, or one of the tables in the FROM clause.
-//
 %type as {SStrToken}
 as(X) ::= AS ids(Y).    { X = Y;    }
 as(X) ::= ids(Y).       { X = Y;    }
@@ -506,39 +505,36 @@ distinct(X) ::= DISTINCT(Y). { X = Y;  }
 distinct(X) ::= .            { X.n = 0;}
 
 // A complete FROM clause.
-%type from {SArray*}
-// current not support query from no-table
+%type from {SFromInfo*}
 from(A) ::= FROM tablelist(X).                 {A = X;}
+from(A) ::= FROM LP union(Y) RP.               {A = Y;}
 
 %type tablelist {SArray*}
 tablelist(A) ::= ids(X) cpxName(Y).                     {
   toTSDBType(X.type);
   X.n += Y.n;
-  A = tVariantListAppendToken(NULL, &X, -1);
-  A = tVariantListAppendToken(A, &X, -1);  // table alias name
+  A = setTableNameList(NULL, &X, NULL);
 }
 
 tablelist(A) ::= ids(X) cpxName(Y) ids(Z).             {
   toTSDBType(X.type);
   toTSDBType(Z.type);
   X.n += Y.n;
-  A = tVariantListAppendToken(NULL, &X, -1);
-  A = tVariantListAppendToken(A, &Z, -1);
+  A = setTableNameList(NULL, &X, &Y);
 }
 
 tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z).  {
   toTSDBType(X.type);
   X.n += Z.n;
-  A = tVariantListAppendToken(Y, &X, -1);
-  A = tVariantListAppendToken(A, &X, -1);
+  A = setTableNameList(Y, &X, NULL);
 }
 
 tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
   toTSDBType(X.type);
   toTSDBType(F.type);
   X.n += Z.n;
-  A = tVariantListAppendToken(Y, &X, -1);
-  A = tVariantListAppendToken(A, &F, -1);
+
+  A = setTableNameList(Y, &X, &F);
 }
 
 // The value of interval should be the form of "number+[a,s,m,h,d,n,y]" or "now"

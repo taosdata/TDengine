@@ -6374,12 +6374,12 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
   
-  SArray* pSrcMeterName = pInfo->pCreateTableInfo->pSelect->from;
-  if (pSrcMeterName == NULL || taosArrayGetSize(pSrcMeterName) == 0) {
+  SFromInfo* pFromInfo = pInfo->pCreateTableInfo->pSelect->from;
+  if (pFromInfo == NULL || taosArrayGetSize(pFromInfo->tableList) == 0) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
   
-  tVariantListItem* p1 = taosArrayGet(pSrcMeterName, 0);
+  tVariantListItem* p1 = taosArrayGet(pFromInfo->tableList, 0);
   SStrToken srcToken = {.z = p1->pVar.pz, .n = p1->pVar.nLen, .type = TK_STRING};
   if (tscValidateName(&srcToken) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -6498,7 +6498,7 @@ static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
 }
 
 int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t index) {
-  assert(pQuerySqlNode != NULL && (pQuerySqlNode->from == NULL || taosArrayGetSize(pQuerySqlNode->from) > 0));
+  assert(pQuerySqlNode != NULL && (pQuerySqlNode->from == NULL || taosArrayGetSize(pQuerySqlNode->from->tableList) > 0));
 
   const char* msg0 = "invalid table name";
   const char* msg1 = "point interpolation query needs timestamp";
@@ -6539,60 +6539,59 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
     return doLocalQueryProcess(pCmd, pQueryInfo, pQuerySqlNode);
   }
 
-  size_t fromSize = taosArrayGetSize(pQuerySqlNode->from);
-  if (fromSize > TSDB_MAX_JOIN_TABLE_NUM * 2) {
+  size_t fromSize = taosArrayGetSize(pQuerySqlNode->from->tableList);
+  if (fromSize > TSDB_MAX_JOIN_TABLE_NUM) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
   }
 
   pQueryInfo->command = TSDB_SQL_SELECT;
 
-  if (fromSize > 4) {
+  if (fromSize > 2) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
 
   // set all query tables, which are maybe more than one.
   for (int32_t i = 0; i < fromSize; ) {
-    tVariantListItem* item = taosArrayGet(pQuerySqlNode->from, i);
-    tVariant* pTableItem = &item->pVar;
+    STableNamePair* item = taosArrayGet(pQuerySqlNode->from->tableList, i);
+    SStrToken* pTableItem = &item->name;
 
-    if (pTableItem->nType != TSDB_DATA_TYPE_BINARY) {
+    if (pTableItem->type != TSDB_DATA_TYPE_BINARY) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
     }
 
-    pTableItem->nLen = strdequote(pTableItem->pz);
+    pTableItem->n = strdequote(pTableItem->z);
 
-    SStrToken tableName = {.z = pTableItem->pz, .n = pTableItem->nLen, .type = TK_STRING};
+    SStrToken tableName = {.z = pTableItem->z, .n = pTableItem->n, .type = TK_STRING};
     if (tscValidateName(&tableName) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
     }
 
-    if (pQueryInfo->numOfTables <= i/2) {  // more than one table
+    if (pQueryInfo->numOfTables <= i) {  // more than one table
       tscAddEmptyMetaInfo(pQueryInfo);
     }
 
     STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, i/2);
 
-    SStrToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->nLen, .z = pTableItem->pz};
+    SStrToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->n, .z = pTableItem->z};
     code = tscSetTableFullName(pTableMetaInfo1, &t, pSql);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    tVariantListItem* p1 = taosArrayGet(pQuerySqlNode->from, i + 1);
-    if (p1->pVar.nType != TSDB_DATA_TYPE_BINARY) {
+    SStrToken* aliasName = &item->aliasName;
+    if (aliasName->type != TSDB_DATA_TYPE_BINARY) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
     }
 
-    SStrToken aliasName = {.z = p1->pVar.pz, .n = p1->pVar.nLen, .type = TK_STRING};
-    if (tscValidateName(&aliasName) != TSDB_CODE_SUCCESS) {
+    if (TPARSER_HAS_TOKEN(*aliasName) && tscValidateName(aliasName) != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
     }
 
     // has no table alias name
-    if (memcmp(pTableItem->pz, p1->pVar.pz, p1->pVar.nLen) == 0) {
-      strncpy(pTableMetaInfo1->aliasName, tNameGetTableName(&pTableMetaInfo1->name), tListLen(pTableMetaInfo->aliasName));
+    if (!TPARSER_HAS_TOKEN(*aliasName)) {
+      strncpy(pTableMetaInfo1->aliasName, tNameGetTableName(&pTableMetaInfo1->name), tListLen(pTableMetaInfo1->aliasName));
     } else {
-      tstrncpy(pTableMetaInfo1->aliasName, p1->pVar.pz, sizeof(pTableMetaInfo1->aliasName));
+      tstrncpy(pTableMetaInfo1->aliasName, aliasName->z, sizeof(pTableMetaInfo1->aliasName));
     }
 
     code = tscGetTableMeta(pSql, pTableMetaInfo1);
@@ -6603,7 +6602,7 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
     i += 2;
   }
 
-  assert(pQueryInfo->numOfTables == taosArrayGetSize(pQuerySqlNode->from) / 2);
+  assert(pQueryInfo->numOfTables == taosArrayGetSize(pQuerySqlNode->from->tableList) / 2);
   bool isSTable = false;
   
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
@@ -6637,12 +6636,12 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
       pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
     }
   } else {  // set the time rang
-    if (taosArrayGetSize(pQuerySqlNode->from) > 2) { // it is a join query, no wher clause is not allowed.
+    if (taosArrayGetSize(pQuerySqlNode->from->tableList) > 1) { // it is a join query, no where clause is not allowed.
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "condition missing for join query ");
     }
   }
 
-  int32_t joinQuery = (pQuerySqlNode->from != NULL && taosArrayGetSize(pQuerySqlNode->from) > 2);
+  int32_t joinQuery = (pQuerySqlNode->from != NULL && taosArrayGetSize(pQuerySqlNode->from->tableList) > 1);
   int32_t timeWindowQuery =
       (TPARSER_HAS_TOKEN(pQuerySqlNode->interval.interval) || TPARSER_HAS_TOKEN(pQuerySqlNode->sessionVal.gap));
 
