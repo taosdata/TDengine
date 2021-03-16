@@ -4170,8 +4170,10 @@ static SSDataBlock* doTableScan(void* param) {
       assert(ret);
     }
 
-    pResultRowInfo->curIndex = 0;
-    pResultRowInfo->prevSKey = pResultRowInfo->pResult[0]->win.skey;
+    if (pResultRowInfo->size > 0) {
+      pResultRowInfo->curIndex = 0;
+      pResultRowInfo->prevSKey = pResultRowInfo->pResult[0]->win.skey;
+    }
 
     qDebug("QInfo:%p start to repeat scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            pRuntimeEnv->qinfo, cond.twindow.skey, cond.twindow.ekey);
