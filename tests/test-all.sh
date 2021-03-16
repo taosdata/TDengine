@@ -24,12 +24,14 @@ function stopTaosd {
 
 function dohavecore(){
   corefile=`find $corepath -mmin 1`  
+  core_file=`echo $corefile|cut -d " " -f2`
+  echo $core_file
   proc=`echo $corefile|cut -d "_" -f3`
   if [ -n "$corefile" ];then
     echo 'taosd or taos has generated core'
-    tar zcvf $corepath/taos_`date "+%Y_%m_%d_%H:%M:%S"`.tar.gz /usr/local/taos
+    tar -zcvPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz /usr/local/taos/
     if [[ $1 == 1 ]];then
-      echo '\n'|gdb /usr/local/taos/bin/$proc $corepath/$corefile -ex "bt 10" -ex quit
+      echo '\n'|gdb /usr/local/taos/bin/$proc $core_file -ex "bt 10" -ex quit
       exit 8
     fi
   fi
