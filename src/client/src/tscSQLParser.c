@@ -6379,8 +6379,8 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
   
-  tVariantListItem* p1 = taosArrayGet(pFromInfo->tableList, 0);
-  SStrToken srcToken = {.z = p1->pVar.pz, .n = p1->pVar.nLen, .type = TK_STRING};
+  STableNamePair* p1 = taosArrayGet(pFromInfo->tableList, 0);
+  SStrToken srcToken = {.z = p1->name.z, .n = p1->name.n, .type = TK_STRING};
   if (tscValidateName(&srcToken) != TSDB_CODE_SUCCESS) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
