@@ -216,6 +216,7 @@ static int32_t tpDropTopicCtable(TAOS *taos, const char *topic, int32_t oldParti
 
 static void *tpProcessCreateTp(void *param) {
   SMnodeMsg *   pMsg = param;
+  void *        taos = NULL;
   SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
 
   int16_t partitions = htons(pCreate->partitions);
@@ -233,7 +234,7 @@ static void *tpProcessCreateTp(void *param) {
     goto ctp_over;
   }
 
-  void *taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
+  taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
   if (taos == NULL) {
     mError("failed to connect to database, reason:%s", tstrerror(terrno));
     code = terrno;
@@ -332,11 +333,12 @@ atp_over:
 static void *tpProcessDropTp(void *param) {
   SMnodeMsg * pMsg = param;
   SDropDbMsg *pDrop = pMsg->rpcMsg.pCont;
+  void *      taos = NULL;
 
   mDebug("topic:%s, start to drop", pDrop->db);
   int32_t code = 0;
 
-  void *taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
+  taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
   if (taos == NULL) {
     mError("failed to connect to database, reason:%s", tstrerror(terrno));
     code = terrno;
