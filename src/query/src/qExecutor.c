@@ -2720,7 +2720,7 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
     val = tsdbGetTableTagVal(pTable, tagColId, type, bytes);
   }
 
-  if (isNull(val, type)) {
+  if (val == NULL || isNull(val, type)) {
     tag->nType = TSDB_DATA_TYPE_NULL;
     return;
   }
@@ -6524,7 +6524,7 @@ static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type
   if (IS_VAR_DATA_TYPE(type)) {
     // Binary data overflows for sort of unknown reasons. Let trim the overflow data
     if (varDataTLen(val) > bytes) {
-      int32_t len = bytes;
+      int32_t len = bytes - VARSTR_HEADER_SIZE;   // remain available space
       memcpy(varDataVal(output), varDataVal(val), len);
       varDataSetLen(output, len);
     } else {
