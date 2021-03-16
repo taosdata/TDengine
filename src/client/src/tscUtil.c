@@ -97,6 +97,22 @@ bool tscQueryTags(SQueryInfo* pQueryInfo) {
   return true;
 }
 
+bool tscQueryBlockInfo(SQueryInfo* pQueryInfo) {
+  int32_t numOfCols = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    int32_t functId = pExpr->functionId;
+
+    // "select count(tbname)" query
+    if (functId == TSDB_FUNC_BLKINFO) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (pQueryInfo == NULL) {
     return false;
@@ -216,6 +232,21 @@ bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo) {
   for(int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExprInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i)->pArithExprInfo;
     if (pExprInfo != NULL) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool tscGroupbyColumn(SQueryInfo* pQueryInfo) {
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  int32_t         numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+
+  SSqlGroupbyExpr* pGroupbyExpr = &pQueryInfo->groupbyExpr;
+  for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
+    SColIndex* pIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
+    if (!TSDB_COL_IS_TAG(pIndex->flag) && pIndex->colIndex < numOfCols) {  // group by normal columns
       return true;
     }
   }
@@ -1128,7 +1159,7 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
 }
 
 SSqlExpr* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t resColId, int16_t interSize, bool isTagCol) {
+                           int16_t size, int16_t resColId, int16_t interSize, bool isTagCol) {
   SSqlExpr* pExpr = doCreateSqlExpr(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
   taosArrayPush(pQueryInfo->exprList, &pExpr);
   return pExpr;
@@ -1722,10 +1753,15 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->fieldsInfo.internalField = taosArrayInit(4, sizeof(SInternalField));
   
   assert(pQueryInfo->exprList == NULL);
-  pQueryInfo->exprList   = taosArrayInit(4, POINTER_BYTES);
-  pQueryInfo->colList    = taosArrayInit(4, POINTER_BYTES);
-  pQueryInfo->udColumnId = TSDB_UD_COLUMN_INDEX;
-  pQueryInfo->resColumnId= -1000;
+  pQueryInfo->exprList    = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->colList     = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->udColumnId  = TSDB_UD_COLUMN_INDEX;
+  pQueryInfo->resColumnId = -1000;
+  pQueryInfo->limit.limit = -1;
+  pQueryInfo->limit.offset = 0;
+
+  pQueryInfo->slimit.limit = -1;
+  pQueryInfo->slimit.offset = 0;
 }
 
 int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {

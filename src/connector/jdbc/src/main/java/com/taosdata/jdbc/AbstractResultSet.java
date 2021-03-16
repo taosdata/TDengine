@@ -29,12 +29,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     public abstract boolean getBoolean(int columnIndex) throws SQLException;
 
     @Override
-    public byte getByte(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
+    public abstract byte getByte(int columnIndex) throws SQLException;
 
     @Override
     public abstract short getShort(int columnIndex) throws SQLException;
@@ -1205,6 +1200,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);    }
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+    }
 
 }

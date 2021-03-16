@@ -183,6 +183,7 @@ python3 ./test.py -f query/isNullTest.py
 python3 ./test.py -f query/queryWithTaosdKilled.py
 python3 ./test.py -f query/floatCompare.py
 python3 ./test.py -f query/queryGroupbySort.py
+python3 ./test.py -f query/queryBetweenAnd.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -232,6 +233,7 @@ python3 ./test.py -f functions/function_top.py -r 1
 python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
 python3 ./test.py -f functions/all_null_value.py
+python3 ./test.py -f functions/function_percentile2.py
 python3 queryCount.py
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
@@ -241,10 +243,12 @@ python3 ./test.py -f query/last_row_cache.py
 python3 ./test.py -f query/last_cache.py
 
 # tools
-python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdumpTest.py
 python3 test.py -f tools/lowaTest.py
+python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdemoTest2.py
+python3 test.py -f tools/taosdemoTestWithoutMetric.py
+python3 test.py -f tools/taosdemoTestLimitOffset.py
 
 # subscribe
 python3 test.py -f subscribe/singlemeter.py

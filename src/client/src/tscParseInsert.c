@@ -307,7 +307,8 @@ int32_t tsParseOneColumnData(SSchema *pSchema, SStrToken *pToken, char *payload,
           return tscInvalidSQLErrMsg(msg, "illegal float data", pToken->z);
         }
 
-        *((float *)payload) = (float)dv;
+//        *((float *)payload) = (float)dv;
+        SET_FLOAT_VAL(payload, dv);
       }
       break;
 
@@ -1359,7 +1360,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
       }
     }
   } else {
-    SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
+    SSqlInfo SQLInfo = qSqlParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
     if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0 && SQLInfo.type == TSDB_SQL_NULL) {
       tscResetSqlCmd(pCmd, true);

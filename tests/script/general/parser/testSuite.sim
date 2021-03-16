@@ -107,3 +107,6 @@ sleep 100
 run general/parser/function.sim
 sleep 100
 run general/parser/stableOp.sim
+sleep 100
+run general/parser/slimit_alter_tags.sim
+
