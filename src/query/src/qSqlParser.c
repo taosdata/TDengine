@@ -474,7 +474,10 @@ SFromInfo *setSubquery(SFromInfo* pFromInfo, SQuerySqlNode* pSqlNode) {
 }
 
 void* destroyFromInfo(SFromInfo* pFromInfo) {
-  assert(pFromInfo != NULL);
+  if (pFromInfo == NULL) {
+    return NULL;
+  }
+
   if (pFromInfo->type == SQL_NODE_FROM_NAMELIST) {
     taosArrayDestroy(pFromInfo->tableList);
   } else {
