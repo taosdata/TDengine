@@ -2366,13 +2366,13 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key, bool asc
 }
 
 void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols,
-                        SSDataBlock* pBlock, STSBuf* pTsBuf, bool ascQuery) {
+                        SSDataBlock* pBlock, bool ascQuery) {
   int32_t numOfRows = pBlock->info.rows;
 
   int8_t *p = calloc(numOfRows, sizeof(int8_t));
   bool    all = true;
 
-  if (pTsBuf != NULL) {
+  if (pRuntimeEnv->pTsBuf != NULL) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
 
     TSKEY* k = (TSKEY*) pColInfoData->pData;
@@ -2393,6 +2393,9 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
         break;
       }
     }
+
+    // save the cursor status
+    pRuntimeEnv->pQuery->current->cur = tsBufGetCursor(pRuntimeEnv->pTsBuf);
   } else {
     for (int32_t i = 0; i < numOfRows; ++i) {
       bool qualified = false;
@@ -2653,8 +2656,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
 
     doSetFilterColumnInfo(pQuery, pBlock);
     if (pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTsBuf != NULL) {
-      filterRowsInDataBlock(pRuntimeEnv, pQuery->pFilterInfo, pQuery->numOfFilterCols, pBlock, pRuntimeEnv->pTsBuf,
-                            ascQuery);
+      filterRowsInDataBlock(pRuntimeEnv, pQuery->pFilterInfo, pQuery->numOfFilterCols, pBlock, ascQuery);
     }
   }
 
