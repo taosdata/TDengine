@@ -92,11 +92,11 @@ cpxName(A) ::= DOT ids(Y).   {A = Y; A.n += 1;    }
 
 cmd ::= SHOW CREATE TABLE ids(X) cpxName(Y).    {
    X.n += Y.n;
-   setDCLSQLElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &X);
+   setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_TABLE, 1, &X);
 }    
 
 cmd ::= SHOW CREATE DATABASE ids(X). {
-  setDCLSQLElems(pInfo, TSDB_SQL_SHOW_CREATE_DATABASE, 1, &X);
+  setDCLSqlElems(pInfo, TSDB_SQL_SHOW_CREATE_DATABASE, 1, &X);
 } 
 
 cmd ::= SHOW dbPrefix(X) TABLES.         {
@@ -113,19 +113,19 @@ cmd ::= SHOW dbPrefix(X) STABLES.      {
 
 cmd ::= SHOW dbPrefix(X) STABLES LIKE ids(Y).      {
     SStrToken token;
-    setDbName(&token, &X);
+    tSetDbName(&token, &X);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &token, &Y);
 }
 
 cmd ::= SHOW dbPrefix(X) VGROUPS.    {
     SStrToken token;
-    setDbName(&token, &X);
+    tSetDbName(&token, &X);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, 0);
 }
 
 cmd ::= SHOW dbPrefix(X) VGROUPS ids(Y).    {
     SStrToken token;
-    setDbName(&token, &X);
+    tSetDbName(&token, &X);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_VGROUP, &token, &Y);
 }
 
@@ -144,26 +144,26 @@ cmd ::= DROP STABLE ifexists(Y) ids(X) cpxName(Z).   {
 cmd ::= DROP DATABASE ifexists(Y) ids(X).    { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y, TSDB_DB_TYPE_DEFAULT, -1); }
 cmd ::= DROP TOPIC ifexists(Y) ids(X).    { setDropDbTableInfo(pInfo, TSDB_SQL_DROP_DB, &X, &Y, TSDB_DB_TYPE_TOPIC, -1); }
 
-cmd ::= DROP DNODE ids(X).       { setDCLSQLElems(pInfo, TSDB_SQL_DROP_DNODE, 1, &X);    }
-cmd ::= DROP USER ids(X).        { setDCLSQLElems(pInfo, TSDB_SQL_DROP_USER, 1, &X);     }
-cmd ::= DROP ACCOUNT ids(X).     { setDCLSQLElems(pInfo, TSDB_SQL_DROP_ACCT, 1, &X);  }
+cmd ::= DROP DNODE ids(X).       { setDCLSqlElems(pInfo, TSDB_SQL_DROP_DNODE, 1, &X);    }
+cmd ::= DROP USER ids(X).        { setDCLSqlElems(pInfo, TSDB_SQL_DROP_USER, 1, &X);     }
+cmd ::= DROP ACCOUNT ids(X).     { setDCLSqlElems(pInfo, TSDB_SQL_DROP_ACCT, 1, &X);  }
 
 /////////////////////////////////THE USE STATEMENT//////////////////////////////////////////
-cmd ::= USE ids(X).              { setDCLSQLElems(pInfo, TSDB_SQL_USE_DB, 1, &X);}
+cmd ::= USE ids(X).              { setDCLSqlElems(pInfo, TSDB_SQL_USE_DB, 1, &X);}
 
 /////////////////////////////////THE DESCRIBE STATEMENT/////////////////////////////////////
 cmd ::= DESCRIBE ids(X) cpxName(Y). {
     X.n += Y.n;
-    setDCLSQLElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
+    setDCLSqlElems(pInfo, TSDB_SQL_DESCRIBE_TABLE, 1, &X);
 }
 
 /////////////////////////////////THE ALTER STATEMENT////////////////////////////////////////
 cmd ::= ALTER USER ids(X) PASS ids(Y).          { setAlterUserSql(pInfo, TSDB_ALTER_USER_PASSWD, &X, &Y, NULL);    }
 cmd ::= ALTER USER ids(X) PRIVILEGE ids(Y).     { setAlterUserSql(pInfo, TSDB_ALTER_USER_PRIVILEGES, &X, NULL, &Y);}
-cmd ::= ALTER DNODE ids(X) ids(Y).              { setDCLSQLElems(pInfo, TSDB_SQL_CFG_DNODE, 2, &X, &Y);          }
-cmd ::= ALTER DNODE ids(X) ids(Y) ids(Z).       { setDCLSQLElems(pInfo, TSDB_SQL_CFG_DNODE, 3, &X, &Y, &Z);      }
-cmd ::= ALTER LOCAL ids(X).                     { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 1, &X);              }
-cmd ::= ALTER LOCAL ids(X) ids(Y).              { setDCLSQLElems(pInfo, TSDB_SQL_CFG_LOCAL, 2, &X, &Y);          }
+cmd ::= ALTER DNODE ids(X) ids(Y).              { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 2, &X, &Y);          }
+cmd ::= ALTER DNODE ids(X) ids(Y) ids(Z).       { setDCLSqlElems(pInfo, TSDB_SQL_CFG_DNODE, 3, &X, &Y, &Z);      }
+cmd ::= ALTER LOCAL ids(X).                     { setDCLSqlElems(pInfo, TSDB_SQL_CFG_LOCAL, 1, &X);              }
+cmd ::= ALTER LOCAL ids(X) ids(Y).              { setDCLSqlElems(pInfo, TSDB_SQL_CFG_LOCAL, 2, &X, &Y);          }
 cmd ::= ALTER DATABASE ids(X) alter_db_optr(Y). { SStrToken t = {0};  setCreateDbInfo(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
 cmd ::= ALTER TOPIC ids(X) alter_topic_optr(Y). { SStrToken t = {0};  setCreateDbInfo(pInfo, TSDB_SQL_ALTER_DB, &X, &Y, &t);}
 
@@ -187,7 +187,7 @@ ifnotexists(X) ::= .                { X.n = 0;}
 
 /////////////////////////////////THE CREATE STATEMENT///////////////////////////////////////
 //create option for dnode/db/user/account
-cmd ::= CREATE DNODE   ids(X).     { setDCLSQLElems(pInfo, TSDB_SQL_CREATE_DNODE, 1, &X);}
+cmd ::= CREATE DNODE   ids(X).     { setDCLSqlElems(pInfo, TSDB_SQL_CREATE_DNODE, 1, &X);}
 cmd ::= CREATE ACCOUNT ids(X) PASS ids(Y) acct_optr(Z).
                                 { setCreateAcctSql(pInfo, TSDB_SQL_CREATE_ACCT, &X, &Y, &Z);}
 cmd ::= CREATE DATABASE ifnotexists(Z) ids(X) db_optr(Y).  { setCreateDbInfo(pInfo, TSDB_SQL_CREATE_DB, &X, &Y, &Z);}
@@ -299,17 +299,17 @@ alter_topic_optr(Y) ::= alter_topic_optr(Z) partitions(X).      { Y = Z; Y.parti
 %type typename {TAOS_FIELD}
 typename(A) ::= ids(X). { 
   X.type = 0;
-  tSqlSetColumnType (&A, &X);
+  tSetColumnType (&A, &X);
 }
 
 //define binary type, e.g., binary(10), nchar(10)
 typename(A) ::= ids(X) LP signed(Y) RP.    {
   if (Y <= 0) {
     X.type = 0;
-    tSqlSetColumnType(&A, &X);
+    tSetColumnType(&A, &X);
   } else {
     X.type = -Y;  // negative value of name length
-    tSqlSetColumnType(&A, &X);
+    tSetColumnType(&A, &X);
   }
 }
 
@@ -317,7 +317,7 @@ typename(A) ::= ids(X) LP signed(Y) RP.    {
 typename(A) ::= ids(X) UNSIGNED(Z). {
   X.type = 0;
   X.n = ((Z.z + Z.n) - X.z);
-  tSqlSetColumnType (&A, &X);
+  tSetColumnType (&A, &X);
 }
 
 %type signed {int64_t}
@@ -326,15 +326,15 @@ signed(A) ::= PLUS INTEGER(X).    { A = strtol(X.z, NULL, 10); }
 signed(A) ::= MINUS INTEGER(X).   { A = -strtol(X.z, NULL, 10);}
 
 ////////////////////////////////// The CREATE TABLE statement ///////////////////////////////
-cmd ::= CREATE TABLE create_table_args. {}
-cmd ::= CREATE TABLE create_stable_args. {}
+cmd ::= CREATE TABLE  create_table_args.  {}
+cmd ::= CREATE TABLE  create_stable_args. {}
 cmd ::= CREATE STABLE create_stable_args. {}
 cmd ::= CREATE TABLE create_table_list(Z). { pInfo->type = TSDB_SQL_CREATE_TABLE; pInfo->pCreateTableInfo = Z;}
 
-%type create_table_list{SCreateTableSQL*}
+%type create_table_list{SCreateTableSql*}
 %destructor create_table_list{destroyCreateTableSql($$);}
 create_table_list(A) ::= create_from_stable(Z). {
-  SCreateTableSQL* pCreateTable = calloc(1, sizeof(SCreateTableSQL));
+  SCreateTableSql* pCreateTable = calloc(1, sizeof(SCreateTableSql));
   pCreateTable->childTableInfo = taosArrayInit(4, sizeof(SCreatedTableInfo));
 
   taosArrayPush(pCreateTable->childTableInfo, &Z);
@@ -347,9 +347,9 @@ create_table_list(A) ::= create_table_list(X) create_from_stable(Z). {
   A = X;
 }
 
-%type create_table_args{SCreateTableSQL*}
+%type create_table_args{SCreateTableSql*}
 create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP. {
-  A = tSetCreateSqlElems(X, NULL, NULL, TSQL_CREATE_TABLE);
+  A = tSetCreateTableInfo(X, NULL, NULL, TSQL_CREATE_TABLE);
   setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 
   V.n += Z.n;
@@ -357,9 +357,9 @@ create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP. {
 }
 
 // create super table
-%type create_stable_args{SCreateTableSQL*}
+%type create_stable_args{SCreateTableSql*}
 create_stable_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) LP columnlist(X) RP TAGS LP columnlist(Y) RP. {
-  A = tSetCreateSqlElems(X, Y, NULL, TSQL_CREATE_STABLE);
+  A = tSetCreateTableInfo(X, Y, NULL, TSQL_CREATE_STABLE);
   setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 
   V.n += Z.n;
@@ -389,7 +389,7 @@ tagNamelist(A) ::= ids(X).                      {A = taosArrayInit(4, sizeof(SSt
 // create stream
 // create table table_name as select count(*) from super_table_name interval(time)
 create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) AS select(S). {
-  A = tSetCreateSqlElems(NULL, NULL, S, TSQL_CREATE_STREAM);
+  A = tSetCreateTableInfo(NULL, NULL, S, TSQL_CREATE_STREAM);
   setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 
   V.n += Z.n;
@@ -405,7 +405,7 @@ columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(T
 // The information used for a column is the name and type of column:
 // tinyint smallint int bigint float double bool timestamp binary(x) nchar(x)
 column(A) ::= ids(X) typename(Y).          {
-  tSqlSetColumnInfo(&A, &X, &Y);
+  tSetColumnInfo(&A, &X, &Y);
 }
 
 %type tagitemlist {SArray*}
@@ -450,10 +450,10 @@ tagitem(A) ::= PLUS(X) FLOAT(Y).  {
 }
 
 //////////////////////// The SELECT statement /////////////////////////////////
-%type select {SQuerySQL*}
-%destructor select {doDestroyQuerySql($$);}
-select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
-  A = tSetQuerySqlElems(&T, W, X, Y, P, Z, &K, &S, F, &L, &G);
+%type select {SQuerySqlNode*}
+%destructor select {destroyQuerySqlNode($$);}
+select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) session_option(H) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
+  A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &S, F, &L, &G);
 }
 
 %type union {SSubclauseInfo*}
@@ -471,16 +471,16 @@ cmd ::= union(X). { setSqlInfo(pInfo, X, NULL, TSDB_SQL_SELECT); }
 // select server_version(), select client_version(),
 // select server_state();
 select(A) ::= SELECT(T) selcollist(W). {
-  A = tSetQuerySqlElems(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+  A = tSetQuerySqlNode(&T, W, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
 
 // selcollist is a list of expressions that are to become the return
 // values of the SELECT statement.  The "*" in statements like
 // "SELECT * FROM ..." is encoded as a special expression with an opcode of TK_ALL.
-%type selcollist {tSQLExprList*}
+%type selcollist {SArray*}
 %destructor selcollist {tSqlExprListDestroy($$);}
 
-%type sclp {tSQLExprList*}
+%type sclp {SArray*}
 %destructor sclp {tSqlExprListDestroy($$);}
 sclp(A) ::= selcollist(X) COMMA.             {A = X;}
 sclp(A) ::= .                                {A = 0;}
@@ -489,7 +489,7 @@ selcollist(A) ::= sclp(P) distinct(Z) expr(X) as(Y).     {
 }
 
 selcollist(A) ::= sclp(P) STAR. {
-   tSQLExpr *pNode = tSqlExprIdValueCreate(NULL, TK_ALL);
+   tSqlExpr *pNode = tSqlExprCreateIdValue(NULL, TK_ALL);
    A = tSqlExprListAppend(P, pNode, 0, 0);
 }
 
@@ -546,13 +546,21 @@ tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
 tmvar(A) ::= VARIABLE(X).   {A = X;}
 
 %type interval_opt {SIntervalVal}
-interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N.interval = E; N.offset.n = 0; N.offset.z = NULL; N.offset.type = 0;}
-interval_opt(N) ::= INTERVAL LP tmvar(E) COMMA tmvar(O) RP.    {N.interval = E; N.offset = O;}
+interval_opt(N) ::= INTERVAL LP tmvar(E) RP.    {N.interval = E; N.offset.n = 0;}
+interval_opt(N) ::= INTERVAL LP tmvar(E) COMMA tmvar(X) RP.    {N.interval = E; N.offset = X;}
 interval_opt(N) ::= .                           {memset(&N, 0, sizeof(N));}
+
+%type session_option {SSessionWindowVal}
+session_option(X) ::= .                                                  {X.col.n = 0; X.gap.n = 0;}
+session_option(X) ::= SESSION LP ids(V) cpxName(Z) COMMA tmvar(Y) RP.    {
+   V.n += Z.n;
+   X.col = V;
+   X.gap = Y;
+}
 
 %type fill_opt {SArray*}
 %destructor fill_opt {taosArrayDestroy($$);}
-fill_opt(N) ::= .                               {N = 0;     }
+fill_opt(N) ::= .                                           { N = 0;     }
 fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
     tVariant A = {0};
     toTSDBType(Y.type);
@@ -622,7 +630,7 @@ grouplist(A) ::= item(X).                       {
 }
 
 //having clause, ignore the input condition in having
-%type having_opt {tSQLExpr*}
+%type having_opt {tSqlExpr*}
 %destructor having_opt {tSqlExprDestroy($$);}
 having_opt(A) ::=.                  {A = 0;}
 having_opt(A) ::= HAVING expr(X).   {A = X;}
@@ -644,7 +652,7 @@ slimit_opt(A) ::= SLIMIT signed(X) SOFFSET signed(Y).
 slimit_opt(A) ::= SLIMIT signed(X) COMMA  signed(Y).
                                        {A.limit = Y;  A.offset = X;}
 
-%type where_opt {tSQLExpr*}
+%type where_opt {tSqlExpr*}
 %destructor where_opt {tSqlExprDestroy($$);}
 
 where_opt(A) ::= .                    {A = 0;}
@@ -652,25 +660,25 @@ where_opt(A) ::= WHERE expr(X).       {A = X;}
 
 /////////////////////////// Expression Processing /////////////////////////////
 //
-%type expr {tSQLExpr*}
+%type expr {tSqlExpr*}
 %destructor expr {tSqlExprDestroy($$);}
 
 expr(A) ::= LP(X) expr(Y) RP(Z).       {A = Y; A->token.z = X.z; A->token.n = (Z.z - X.z + 1);}
 
-expr(A) ::= ID(X).               { A = tSqlExprIdValueCreate(&X, TK_ID);}
-expr(A) ::= ID(X) DOT ID(Y).     { X.n += (1+Y.n); A = tSqlExprIdValueCreate(&X, TK_ID);}
-expr(A) ::= ID(X) DOT STAR(Y).   { X.n += (1+Y.n); A = tSqlExprIdValueCreate(&X, TK_ALL);}
+expr(A) ::= ID(X).               { A = tSqlExprCreateIdValue(&X, TK_ID);}
+expr(A) ::= ID(X) DOT ID(Y).     { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ID);}
+expr(A) ::= ID(X) DOT STAR(Y).   { X.n += (1+Y.n); A = tSqlExprCreateIdValue(&X, TK_ALL);}
 
-expr(A) ::= INTEGER(X).          { A = tSqlExprIdValueCreate(&X, TK_INTEGER);}
-expr(A) ::= MINUS(X) INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprIdValueCreate(&X, TK_INTEGER);}
-expr(A) ::= PLUS(X)  INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprIdValueCreate(&X, TK_INTEGER);}
-expr(A) ::= FLOAT(X).            { A = tSqlExprIdValueCreate(&X, TK_FLOAT);}
-expr(A) ::= MINUS(X) FLOAT(Y).   { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprIdValueCreate(&X, TK_FLOAT);}
-expr(A) ::= PLUS(X) FLOAT(Y).    { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprIdValueCreate(&X, TK_FLOAT);}
-expr(A) ::= STRING(X).           { A = tSqlExprIdValueCreate(&X, TK_STRING);}
-expr(A) ::= NOW(X).              { A = tSqlExprIdValueCreate(&X, TK_NOW); }
-expr(A) ::= VARIABLE(X).         { A = tSqlExprIdValueCreate(&X, TK_VARIABLE);}
-expr(A) ::= BOOL(X).             { A = tSqlExprIdValueCreate(&X, TK_BOOL);}
+expr(A) ::= INTEGER(X).          { A = tSqlExprCreateIdValue(&X, TK_INTEGER);}
+expr(A) ::= MINUS(X) INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(&X, TK_INTEGER);}
+expr(A) ::= PLUS(X)  INTEGER(Y). { X.n += Y.n; X.type = TK_INTEGER; A = tSqlExprCreateIdValue(&X, TK_INTEGER);}
+expr(A) ::= FLOAT(X).            { A = tSqlExprCreateIdValue(&X, TK_FLOAT);}
+expr(A) ::= MINUS(X) FLOAT(Y).   { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCreateIdValue(&X, TK_FLOAT);}
+expr(A) ::= PLUS(X) FLOAT(Y).    { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCreateIdValue(&X, TK_FLOAT);}
+expr(A) ::= STRING(X).           { A = tSqlExprCreateIdValue(&X, TK_STRING);}
+expr(A) ::= NOW(X).              { A = tSqlExprCreateIdValue(&X, TK_NOW); }
+expr(A) ::= VARIABLE(X).         { A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
+expr(A) ::= BOOL(X).             { A = tSqlExprCreateIdValue(&X, TK_BOOL);}
 
 // ordinary functions: min(x), max(x), top(k, 20)
 expr(A) ::= ID(X) LP exprlist(Y) RP(E). { A = tSqlExprCreateFunction(Y, &X, &E, X.type); }
@@ -690,7 +698,7 @@ expr(A) ::= expr(X) GE expr(Y).      {A = tSqlExprCreate(X, Y, TK_GE);}
 expr(A) ::= expr(X) NE expr(Y).      {A = tSqlExprCreate(X, Y, TK_NE);}
 expr(A) ::= expr(X) EQ expr(Y).      {A = tSqlExprCreate(X, Y, TK_EQ);}
 
-expr(A) ::= expr(X) BETWEEN expr(Y) AND expr(Z).      { tSQLExpr* X2 = tSqlExprClone(X); A = tSqlExprCreate(tSqlExprCreate(X, Y, TK_GE), tSqlExprCreate(X2, Z, TK_LE), TK_AND);}
+expr(A) ::= expr(X) BETWEEN expr(Y) AND expr(Z).      { tSqlExpr* X2 = tSqlExprClone(X); A = tSqlExprCreate(tSqlExprCreate(X, Y, TK_GE), tSqlExprCreate(X2, Z, TK_LE), TK_AND);}
 
 expr(A) ::= expr(X) AND expr(Y).     {A = tSqlExprCreate(X, Y, TK_AND);}
 expr(A) ::= expr(X) OR  expr(Y).     {A = tSqlExprCreate(X, Y, TK_OR); }
@@ -706,12 +714,12 @@ expr(A) ::= expr(X) REM   expr(Y).   {A = tSqlExprCreate(X, Y, TK_REM);   }
 expr(A) ::= expr(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }
 
 //in expression
-expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSqlExprCreate(X, (tSQLExpr*)Y, TK_IN); }
+expr(A) ::= expr(X) IN LP exprlist(Y) RP.   {A = tSqlExprCreate(X, (tSqlExpr*)Y, TK_IN); }
 
-%type exprlist {tSQLExprList*}
+%type exprlist {SArray*}
 %destructor exprlist {tSqlExprListDestroy($$);}
 
-%type expritem {tSQLExpr*}
+%type expritem {tSqlExpr*}
 %destructor expritem {tSqlExprDestroy($$);}
 
 exprlist(A) ::= exprlist(X) COMMA expritem(Y). {A = tSqlExprListAppend(X,Y,0, 0);}
@@ -720,12 +728,12 @@ expritem(A) ::= expr(X).                       {A = X;}
 expritem(A) ::= .                              {A = 0;}
 
 ///////////////////////////////////reset query cache//////////////////////////////////////
-cmd ::= RESET QUERY CACHE.  { setDCLSQLElems(pInfo, TSDB_SQL_RESET_CACHE, 0);}
+cmd ::= RESET QUERY CACHE.  { setDCLSqlElems(pInfo, TSDB_SQL_RESET_CACHE, 0);}
 
 ///////////////////////////////////ALTER TABLE statement//////////////////////////////////
 cmd ::= ALTER TABLE ids(X) cpxName(F) ADD COLUMN columnlist(A).     {
     X.n += F.n;
-    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_COLUMN, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_ADD_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -735,14 +743,14 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     toTSDBType(A.type);
     SArray* K = tVariantListAppendToken(NULL, &A, -1);
 
-    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
 //////////////////////////////////ALTER TAGS statement/////////////////////////////////////
 cmd ::= ALTER TABLE ids(X) cpxName(Y) ADD TAG columnlist(A).        {
     X.n += Y.n;
-    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
@@ -751,7 +759,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
     toTSDBType(Y.type);
     SArray* A = tVariantListAppendToken(NULL, &Y, -1);
 
-    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -764,7 +772,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     toTSDBType(Z.type);
     A = tVariantListAppendToken(A, &Z, -1);
 
-    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -775,7 +783,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
     SArray* A = tVariantListAppendToken(NULL, &Y, -1);
     A = tVariantListAppend(A, &Z, -1);
 
-    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -783,7 +791,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
 ///////////////////////////////////ALTER STABLE statement//////////////////////////////////
 cmd ::= ALTER STABLE ids(X) cpxName(F) ADD COLUMN columnlist(A).     {
     X.n += F.n;
-    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_COLUMN, TSDB_SUPER_TABLE);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_ADD_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -793,14 +801,14 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     toTSDBType(A.type);
     SArray* K = tVariantListAppendToken(NULL, &A, -1);
 
-    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, TSDB_SUPER_TABLE);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
 //////////////////////////////////ALTER TAGS statement/////////////////////////////////////
 cmd ::= ALTER STABLE ids(X) cpxName(Y) ADD TAG columnlist(A).        {
     X.n += Y.n;
-    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, A, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, TSDB_SUPER_TABLE);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, A, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 cmd ::= ALTER STABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
@@ -809,7 +817,7 @@ cmd ::= ALTER STABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
     toTSDBType(Y.type);
     SArray* A = tVariantListAppendToken(NULL, &Y, -1);
 
-    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, TSDB_SUPER_TABLE);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -822,7 +830,7 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     toTSDBType(Z.type);
     A = tVariantListAppendToken(A, &Z, -1);
 
-    SAlterTableInfo* pAlterTable = tAlterTableSqlElems(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, TSDB_SUPER_TABLE);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
 
@@ -834,7 +842,6 @@ cmd ::= KILL QUERY INTEGER(X) COLON(Z) INTEGER(Y).        {X.n += (Z.n + Y.n); s
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
   LIKE MATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
-  COUNT SUM AVG MIN MAX FIRST LAST TOP BOTTOM STDDEV PERCENTILE APERCENTILE LEASTSQUARES HISTOGRAM DIFF
-  SPREAD TWA INTERP LAST_ROW RATE IRATE SUM_RATE SUM_IRATE AVG_RATE AVG_IRATE TBID NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT
+  NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT
   METRIC TBNAME JOIN METRICS STABLE NULL INSERT INTO VALUES.
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       
