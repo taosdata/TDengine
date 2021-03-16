@@ -1159,7 +1159,7 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
 }
 
 SSqlExpr* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t resColId, int16_t interSize, bool isTagCol) {
+                           int16_t size, int16_t resColId, int16_t interSize, bool isTagCol) {
   SSqlExpr* pExpr = doCreateSqlExpr(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
   taosArrayPush(pQueryInfo->exprList, &pExpr);
   return pExpr;
