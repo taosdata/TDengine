@@ -125,6 +125,8 @@ typedef struct SCreateDbInfo {
   int8_t    update;
   int8_t    cachelast; 
   SArray    *keep;
+  int8_t    dbType;
+  int16_t   partitions;
 } SCreateDbInfo;
 
 typedef struct SCreateAcctInfo {
@@ -155,6 +157,7 @@ typedef struct SUserInfo {
 typedef struct SMiscInfo {
   SArray    *a;         // SArray<SStrToken>
   bool       existsCheck;
+  int16_t    dbType;
   int16_t    tableType;
   SUserInfo  user;
   union {
@@ -265,7 +268,7 @@ void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken 
 void SqlInfoDestroy(SSqlInfo *pInfo);
 
 void setDCLSQLElems(SSqlInfo *pInfo, int32_t type, int32_t nParams, ...);
-void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck,int16_t tableType);
+void setDropDbTableInfo(SSqlInfo *pInfo, int32_t type, SStrToken* pToken, SStrToken* existsCheck,int16_t dbType,int16_t tableType);
 void setShowOptions(SSqlInfo *pInfo, int32_t type, SStrToken* prefix, SStrToken* pPatterns);
 
 void setCreateDbInfo(SSqlInfo *pInfo, int32_t type, SStrToken *pToken, SCreateDbInfo *pDB, SStrToken *pIgExists);
@@ -276,6 +279,7 @@ void setKillSql(SSqlInfo *pInfo, int32_t type, SStrToken *ip);
 void setAlterUserSql(SSqlInfo *pInfo, int16_t type, SStrToken *pName, SStrToken* pPwd, SStrToken *pPrivilege);
 
 void setDefaultCreateDbOption(SCreateDbInfo *pDBInfo);
+void setDefaultCreateTopicOption(SCreateDbInfo *pDBInfo);
 
 // prefix show db.tables;
 void setDbName(SStrToken *pCpxName, SStrToken *pDb);

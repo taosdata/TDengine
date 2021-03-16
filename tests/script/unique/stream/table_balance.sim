@@ -6,8 +6,8 @@ system sh/cfg.sh -n dnode1 -c statusInterval -v 1
 system sh/cfg.sh -n dnode2 -c statusInterval -v 1
 system sh/cfg.sh -n dnode1 -c balanceInterval -v 10
 system sh/cfg.sh -n dnode2 -c balanceInterval -v 10
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode2 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode2 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4

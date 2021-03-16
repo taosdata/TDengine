@@ -19,10 +19,10 @@ system sh/cfg.sh -n dnode2 -c maxtablesPerVnode -v 2000
 system sh/cfg.sh -n dnode3 -c maxtablesPerVnode -v 2000
 system sh/cfg.sh -n dnode4 -c maxtablesPerVnode -v 2000
 
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode2 -c walLevel -v 0
-system sh/cfg.sh -n dnode3 -c walLevel -v 0
-system sh/cfg.sh -n dnode4 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode2 -c walLevel -v 1
+system sh/cfg.sh -n dnode3 -c walLevel -v 1
+system sh/cfg.sh -n dnode4 -c walLevel -v 1
 
 print ========= start dnode1
 system sh/exec.sh -n dnode1 -s start

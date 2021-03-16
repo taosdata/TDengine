@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "tp.h"
 #include "taosmsg.h"
 #include "taoserror.h"
 #include "tglobal.h"
@@ -139,6 +140,10 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   int32_t code = TSDB_CODE_SUCCESS;
 
   vTrace("vgId:%d, submit msg is processed", pVnode->vgId);
+
+  if (pVnode->dbType == TSDB_DB_TYPE_TOPIC && pVnode->role == TAOS_SYNC_ROLE_MASTER) {
+    tpUpdateTs(&pVnode->sequence, pCont);
+  }
 
   // save insert result into item
   SShellSubmitRspMsg *pRsp = NULL;
