@@ -82,6 +82,7 @@ python3 test.py -f tools/lowaTest.py
 python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdemoTestWithoutMetric.py
 python3 test.py -f tools/taosdemoTestLimitOffset.py
+python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdumpTest.py
 #python3 test.py -f tools/taosdemoTest2.py
 

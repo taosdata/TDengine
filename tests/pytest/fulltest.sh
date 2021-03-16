@@ -249,6 +249,7 @@ python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdemoTest2.py
 python3 test.py -f tools/taosdemoTestWithoutMetric.py
 python3 test.py -f tools/taosdemoTestLimitOffset.py
+python3 test.py -f tools/taosdemoTestSampleData.py
 
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
