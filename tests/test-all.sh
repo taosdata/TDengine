@@ -24,11 +24,14 @@ function stopTaosd {
 
 function dohavecore(){
   corefile=`find $corepath -mmin 1`  
+  proc=`echo $corefile|cut -d "_" -f2`
   if [ -n "$corefile" ];then
-  echo 'taosd or taos has generated core'
-  if [[ $1 == 1 ]];then
-    exit 8
-  fi
+    echo 'taosd or taos has generated core'
+    echo '\n'|gdb /usr/local/taos/bin/$proc $corepath/$corefile -ex "bt 10" -ex quit
+    tar zcvf $corepath/taos_`date "+%Y_%m_%d_%H:%M:%S"`.tar.gz /usr/local/taos
+    if [[ $1 == 1 ]];then
+      exit 8
+    fi
   fi
 }
 function runSimCaseOneByOne {
