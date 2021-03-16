@@ -6508,6 +6508,7 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
   const char* msg5 = "too many columns in selection clause";
   const char* msg6 = "too many tables in from clause";
   const char* msg7 = "invalid table alias name";
+  const char* msg8 = "alias name too long";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -6545,13 +6546,12 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
   }
 
   pQueryInfo->command = TSDB_SQL_SELECT;
-
   if (fromSize > 2) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
 
   // set all query tables, which are maybe more than one.
-  for (int32_t i = 0; i < fromSize; ) {
+  for (int32_t i = 0; i < fromSize; ++i) {
     STableNamePair* item = taosArrayGet(pQuerySqlNode->from->tableList, i);
     SStrToken* pTableItem = &item->name;
 
@@ -6559,7 +6559,7 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
     }
 
-    pTableItem->n = strdequote(pTableItem->z);
+    tscDequoteAndTrimToken(pTableItem);
 
     SStrToken tableName = {.z = pTableItem->z, .n = pTableItem->n, .type = TK_STRING};
     if (tscValidateName(&tableName) != TSDB_CODE_SUCCESS) {
@@ -6570,39 +6570,41 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
       tscAddEmptyMetaInfo(pQueryInfo);
     }
 
-    STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, i/2);
-
-    SStrToken t = {.type = TSDB_DATA_TYPE_BINARY, .n = pTableItem->n, .z = pTableItem->z};
-    code = tscSetTableFullName(pTableMetaInfo1, &t, pSql);
+    STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo, i);
+    code = tscSetTableFullName(pTableMetaInfo1, pTableItem, pSql);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
     SStrToken* aliasName = &item->aliasName;
-    if (aliasName->type != TSDB_DATA_TYPE_BINARY) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
-    }
+    if (TPARSER_HAS_TOKEN(*aliasName)) {
+      if (aliasName->type != TSDB_DATA_TYPE_BINARY) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+      }
 
-    if (TPARSER_HAS_TOKEN(*aliasName) && tscValidateName(aliasName) != TSDB_CODE_SUCCESS) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
-    }
+      tscDequoteAndTrimToken(aliasName);
 
-    // has no table alias name
-    if (!TPARSER_HAS_TOKEN(*aliasName)) {
-      strncpy(pTableMetaInfo1->aliasName, tNameGetTableName(&pTableMetaInfo1->name), tListLen(pTableMetaInfo1->aliasName));
+      SStrToken aliasName1 = {.z = aliasName->z, .n = aliasName->n, .type = TK_STRING};
+      if (tscValidateName(&aliasName1) != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
+      }
+
+      if (aliasName1.n >= TSDB_TABLE_NAME_LEN) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
+      }
+
+      strncpy(pTableMetaInfo1->aliasName, aliasName1.z, aliasName1.n);
     } else {
-      tstrncpy(pTableMetaInfo1->aliasName, aliasName->z, sizeof(pTableMetaInfo1->aliasName));
+      strncpy(pTableMetaInfo1->aliasName, tNameGetTableName(&pTableMetaInfo1->name), tListLen(pTableMetaInfo1->aliasName));
     }
 
     code = tscGetTableMeta(pSql, pTableMetaInfo1);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
-
-    i += 2;
   }
 
-  assert(pQueryInfo->numOfTables == taosArrayGetSize(pQuerySqlNode->from->tableList) / 2);
+  assert(pQueryInfo->numOfTables == taosArrayGetSize(pQuerySqlNode->from->tableList));
   bool isSTable = false;
   
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {

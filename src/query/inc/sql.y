@@ -520,7 +520,7 @@ tablelist(A) ::= ids(X) cpxName(Y) ids(Z).             {
   toTSDBType(X.type);
   toTSDBType(Z.type);
   X.n += Y.n;
-  A = setTableNameList(NULL, &X, &Y);
+  A = setTableNameList(NULL, &X, &Z);
 }
 
 tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z).  {

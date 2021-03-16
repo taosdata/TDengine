@@ -2671,7 +2671,7 @@ static void yy_reduce(
   toTSDBType(yymsp[-2].minor.yy0.type);
   toTSDBType(yymsp[0].minor.yy0.type);
   yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n;
-  yylhsminor.yy285 = setTableNameList(NULL, &yymsp[-2].minor.yy0, &yymsp[-1].minor.yy0);
+  yylhsminor.yy285 = setTableNameList(NULL, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);
 }
   yymsp[-2].minor.yy285 = yylhsminor.yy285;
         break;
