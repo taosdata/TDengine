@@ -267,6 +267,17 @@ pipeline {
         }        
     }
   }
+  stage('after_build'){
+          agent{label 'master'}
+          when {
+              changeRequest()
+          }
+          steps {
+          sh'''
+          df -h
+          '''
+          }
+      }
   }
   post {  
         success {

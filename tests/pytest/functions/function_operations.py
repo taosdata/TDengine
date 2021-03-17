@@ -92,7 +92,7 @@ class TDTestCase:
         col_list = [ 'col1' , 'col2' , 'col3' , 'col4' , 'col5' , 'col6' , 'col7' , 'col8' , 'col9' , 'col11' , 'col12' , 'col13' , 'col14' , '1' , '1.1' , 'NULL' ]
         op_list = [ '+' , '-' , '*' , '/' , '%' ]
         err_list = [ 'col7' , 'col8' , 'col9' , 'NULL' ]
-        order_lsit = [ ' order by ts ', ' order by ts desc ', ' order by ts asc ']
+        order_lsit = [ ' order by ts ', ' order by ts desc ', ' order by ts asc']
         for i in col_list :
             for j in col_list :
                 for k in op_list :
