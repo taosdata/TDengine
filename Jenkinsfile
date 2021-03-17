@@ -49,8 +49,8 @@ def pre_test(){
     find ${WKC}/tests/pytest -name \'*\'.sql -exec rm -rf {} \\;
     cd ${WK}
     git reset --hard HEAD~10
-    git checkout develop >/dev/null 
-    git pull
+    git checkout develop 
+    git pull >/dev/null 
     cd ${WK}
     export TZ=Asia/Harbin
     date
