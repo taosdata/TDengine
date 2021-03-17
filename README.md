@@ -176,18 +176,18 @@ option "-c test/cfg" specifies the system configuration file directory.
 # Installing
 After building successfully, TDengine can be installed by:
 ```bash
-make install
+sudo make install
 ```
-Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. It should be noted that installing from source code does not configure service management for TDengine.
+Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. Since version 2.0, installing from source code will also configure service management for TDengine.
 Users can also choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) for it.
 
 To start the service after installation, in a terminal, use:
-```cmd
-taosd
+```bash
+sudo systemctl start taosd
 ```
 
 Then users can use the [TDengine shell](https://www.taosdata.com/en/getting-started/#TDengine-Shell) to connect the TDengine server. In a terminal, use:
-```cmd
+```bash
 taos
 ```
 

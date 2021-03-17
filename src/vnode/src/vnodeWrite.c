@@ -89,7 +89,8 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
 
   // forward to peers, even it is WAL/FWD, it shall be called to update version in sync
   int32_t syncCode = 0;
-  syncCode = syncForwardToPeer(pVnode->sync, pHead, pWrite, qtype);
+  bool    force = (pWrite == NULL ? false : pWrite->pHead.msgType != TSDB_MSG_TYPE_SUBMIT);
+  syncCode = syncForwardToPeer(pVnode->sync, pHead, pWrite, qtype, force);
   if (syncCode < 0) return syncCode;
 
   // write into WAL

@@ -162,6 +162,10 @@ cd ../../../debug; make
 ./test.sh -f general/parser/topbot.sim
 ./test.sh -f general/parser/function.sim
 ./test.sh -f general/parser/select_distinct_tag.sim
+./test.sh -f general/parser/join_manyblocks.sim
+./test.sh -f general/parser/stableOp.sim
+./test.sh -f general/parser/timestamp.sim
+./test.sh -f general/parser/sliding.sim
 
 ./test.sh -f general/stable/disk.sim
 ./test.sh -f general/stable/dnode3.sim
