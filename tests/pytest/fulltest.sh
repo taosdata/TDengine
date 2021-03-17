@@ -231,12 +231,13 @@ python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
 
 # tools
-python3 test.py -f tools/lowaTest.py
 python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdemoTestWithoutMetric.py
+python3 test.py -f tools/taosdemoTestWithJson.py
 python3 test.py -f tools/taosdemoTestLimitOffset.py
 python3 test.py -f tools/taosdumpTest.py
 python3 test.py -f tools/taosdemoTest2.py
+python3 test.py -f tools/taosdemoTestSampleData.py
 
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
@@ -291,6 +292,5 @@ python3 ./test.py -f insert/boundary2.py
 python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
-python3 test.py -f tools/taosdemoTestSampleData.py
 
 #======================p4-end===============
