@@ -1,76 +1,7 @@
 cd ../../../debug; cmake ..
 cd ../../../debug; make
 
-./test.sh -f issue/TD-2677.sim
-./test.sh -f issue/TD-2680.sim
-./test.sh -f issue/TD-2713.sim
-
-./test.sh -f general/alter/cached_schema_after_alter.sim
-./test.sh -f general/alter/count.sim
-./test.sh -f general/alter/dnode.sim
-./test.sh -f general/alter/import.sim
-./test.sh -f general/alter/insert1.sim
-./test.sh -f general/alter/insert2.sim
-./test.sh -f general/alter/metrics.sim
-./test.sh -f general/alter/table.sim
-
-./test.sh -f general/cache/new_metrics.sim
-./test.sh -f general/cache/restart_metrics.sim
-./test.sh -f general/cache/restart_table.sim
-
-./test.sh -f general/connection/connection.sim  
-
-./test.sh -f general/column/commit.sim
-./test.sh -f general/column/metrics.sim
-./test.sh -f general/column/table.sim
-
-./test.sh -f general/compress/commitlog.sim
-./test.sh -f general/compress/compress.sim
-./test.sh -f general/compress/compress2.sim
-./test.sh -f general/compress/uncompress.sim
-
-./test.sh -f general/compute/avg.sim
-./test.sh -f general/compute/bottom.sim
-./test.sh -f general/compute/count.sim
-./test.sh -f general/compute/diff.sim
-./test.sh -f general/compute/diff2.sim
-./test.sh -f general/compute/first.sim
-./test.sh -f general/compute/interval.sim
-./test.sh -f general/compute/last.sim
-./test.sh -f general/compute/leastsquare.sim
-./test.sh -f general/compute/max.sim
-./test.sh -f general/compute/min.sim
-./test.sh -f general/compute/null.sim
-./test.sh -f general/compute/percentile.sim
-./test.sh -f general/compute/stddev.sim
-./test.sh -f general/compute/sum.sim
-./test.sh -f general/compute/top.sim
-
-./test.sh -f general/db/alter_option.sim
-./test.sh -f general/db/alter_tables_d2.sim
-./test.sh -f general/db/alter_tables_v1.sim
-./test.sh -f general/db/alter_tables_v4.sim
-./test.sh -f general/db/alter_vgroups.sim
-./test.sh -f general/db/basic.sim
-./test.sh -f general/db/basic1.sim
-./test.sh -f general/db/basic2.sim
-./test.sh -f general/db/basic3.sim
-./test.sh -f general/db/basic4.sim
-./test.sh -f general/db/basic5.sim
-./test.sh -f general/db/delete_reuse1.sim
-./test.sh -f general/db/delete_reuse2.sim
-./test.sh -f general/db/delete_reusevnode.sim
-./test.sh -f general/db/delete_reusevnode2.sim
-./test.sh -f general/db/delete_writing1.sim
-./test.sh -f general/db/delete_writing2.sim
-./test.sh -f general/db/delete.sim
-./test.sh -f general/db/len.sim
-./test.sh -f general/db/repeat.sim
-./test.sh -f general/db/tables.sim
-./test.sh -f general/db/vnodes.sim
-./test.sh -f general/db/topic1.sim
-./test.sh -f general/db/topic2.sim
-./test.sh -f general/db/nosuchfile.sim
+#======================b1-start===============
 
 ./test.sh -f general/field/2.sim
 ./test.sh -f general/field/3.sim
@@ -95,11 +26,6 @@ cd ../../../debug; make
 ./test.sh -f general/http/telegraf.sim
 ./test.sh -f general/http/grafana_bug.sim
 ./test.sh -f general/http/grafana.sim
-
-./test.sh -f general/import/basic.sim
-./test.sh -f general/import/commit.sim
-./test.sh -f general/import/large.sim
-./test.sh -f general/import/replica1.sim
 
 ./test.sh -f general/insert/basic.sim
 ./test.sh -f general/insert/insert_drop.sim
@@ -160,12 +86,171 @@ cd ../../../debug; make
 ./test.sh -f general/parser/repeatAlter.sim
 ./test.sh -f general/parser/union.sim
 ./test.sh -f general/parser/topbot.sim
+./test.sh -f general/db/nosuchfile.sim
 ./test.sh -f general/parser/function.sim
-./test.sh -f general/parser/select_distinct_tag.sim
-./test.sh -f general/parser/join_manyblocks.sim
-./test.sh -f general/parser/stableOp.sim
-./test.sh -f general/parser/timestamp.sim
-./test.sh -f general/parser/sliding.sim
+./test.sh -f unique/cluster/vgroup100.sim
+
+#======================b1-end===============
+#======================b2-start===============
+
+./test.sh -f general/tag/3.sim
+./test.sh -f general/tag/4.sim
+./test.sh -f general/tag/5.sim
+./test.sh -f general/tag/6.sim
+./test.sh -f general/tag/add.sim
+./test.sh -f general/tag/bigint.sim
+./test.sh -f general/tag/binary_binary.sim
+./test.sh -f general/tag/binary.sim
+./test.sh -f general/tag/bool_binary.sim
+./test.sh -f general/tag/bool_int.sim
+./test.sh -f general/tag/bool.sim
+./test.sh -f general/tag/change.sim
+./test.sh -f general/tag/column.sim
+./test.sh -f general/tag/commit.sim
+./test.sh -f general/tag/create.sim
+./test.sh -f general/tag/delete.sim
+./test.sh -f general/tag/double.sim
+./test.sh -f general/tag/filter.sim
+./test.sh -f general/tag/float.sim
+./test.sh -f general/tag/int_binary.sim
+./test.sh -f general/tag/int_float.sim
+./test.sh -f general/tag/int.sim
+./test.sh -f general/tag/set.sim
+./test.sh -f general/tag/smallint.sim
+./test.sh -f general/tag/tinyint.sim
+./test.sh -f general/wal/sync.sim
+./test.sh -f general/wal/kill.sim
+./test.sh -f general/wal/maxtables.sim
+
+./test.sh -f general/user/authority.sim
+./test.sh -f general/user/monitor.sim
+./test.sh -f general/user/pass_alter.sim
+./test.sh -f general/user/pass_len.sim
+./test.sh -f general/user/user_create.sim
+./test.sh -f general/user/user_len.sim
+
+./test.sh -f general/vector/metrics_field.sim
+./test.sh -f general/vector/metrics_mix.sim
+./test.sh -f general/vector/metrics_query.sim
+./test.sh -f general/vector/metrics_tag.sim
+./test.sh -f general/vector/metrics_time.sim
+./test.sh -f general/vector/multi.sim
+./test.sh -f general/vector/single.sim
+./test.sh -f general/vector/table_field.sim
+./test.sh -f general/vector/table_mix.sim
+./test.sh -f general/vector/table_query.sim
+./test.sh -f general/vector/table_time.sim
+
+./test.sh -f unique/account/account_create.sim
+./test.sh -f unique/account/account_delete.sim
+./test.sh -f unique/account/account_len.sim
+./test.sh -f unique/account/authority.sim
+./test.sh -f unique/account/basic.sim
+./test.sh -f unique/account/paras.sim
+./test.sh -f unique/account/pass_alter.sim
+./test.sh -f unique/account/pass_len.sim
+./test.sh -f unique/account/usage.sim
+./test.sh -f unique/account/user_create.sim
+./test.sh -f unique/account/user_len.sim
+
+./test.sh -f unique/big/maxvnodes.sim
+./test.sh -f unique/big/tcp.sim
+
+./test.sh -f unique/cluster/alter.sim
+./test.sh -f unique/cluster/cache.sim
+
+
+#======================b2-end===============
+#======================b3-start===============
+
+./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
+#./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
+./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
+./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_nw_disable_timeout_autoDropDnode.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_replica2_wal1_AddDelDnode.sim
+./test.sh -f unique/arbitrator/dn3_mn1_replica_change_dropDnod.sim
+./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_stopDnode_timeout.sim
+# lower the priority while file corruption
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_change.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_online.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_createErrData_online.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim
+./test.sh -f unique/arbitrator/dn3_mn2_killDnode.sim
+
+./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_alterTag_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_createTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_dropDb_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_dropTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_alterTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_alterTag_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_createTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_dropDb_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_dropTable_online.sim
+./test.sh -f unique/arbitrator/replica_changeWithArbitrator.sim
+./test.sh -f unique/arbitrator/sync_replica2_alterTable_add.sim
+./test.sh -f unique/arbitrator/sync_replica2_alterTable_drop.sim
+
+./test.sh -f unique/arbitrator/sync_replica2_dropDb.sim
+./test.sh -f unique/arbitrator/sync_replica2_dropTable.sim
+./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim
+./test.sh -f unique/arbitrator/sync_replica3_alterTable_drop.sim
+./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim
+./test.sh -f unique/arbitrator/sync_replica3_dropTable.sim
+
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeDir.sim
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmVnodeDir.sim
+
+./test.sh -f unique/stable/balance_replica1.sim
+./test.sh -f unique/stable/dnode2_stop.sim
+./test.sh -f unique/stable/dnode2.sim
+./test.sh -f unique/stable/dnode3.sim
+./test.sh -f unique/stable/replica2_dnode4.sim
+./test.sh -f unique/stable/replica2_vnode3.sim
+./test.sh -f unique/stable/replica3_dnode6.sim
+./test.sh -f unique/stable/replica3_vnode3.sim
+
+#======================b3-end===============
+#======================b4-start===============
+
+./test.sh -f unique/http/admin.sim
+./test.sh -f unique/http/opentsdb.sim
+
+./test.sh -f unique/import/replica2.sim
+./test.sh -f unique/import/replica3.sim
+
+./test.sh -f general/alter/cached_schema_after_alter.sim
+./test.sh -f general/alter/count.sim
+./test.sh -f general/alter/dnode.sim
+./test.sh -f general/alter/import.sim
+./test.sh -f general/alter/insert1.sim
+./test.sh -f general/alter/insert2.sim
+./test.sh -f general/alter/metrics.sim
+./test.sh -f general/alter/table.sim
+
+./test.sh -f general/cache/new_metrics.sim
+./test.sh -f general/cache/restart_metrics.sim
+./test.sh -f general/cache/restart_table.sim
+
+./test.sh -f general/connection/connection.sim  
+
+./test.sh -f general/column/commit.sim
+./test.sh -f general/column/metrics.sim
+./test.sh -f general/column/table.sim
+
+./test.sh -f general/compress/commitlog.sim
+./test.sh -f general/compress/compress.sim
+./test.sh -f general/compress/compress2.sim
+./test.sh -f general/compress/uncompress.sim
 
 ./test.sh -f general/stable/disk.sim
 ./test.sh -f general/stable/dnode3.sim
@@ -175,6 +260,125 @@ cd ../../../debug; make
 ./test.sh -f general/stable/values.sim
 ./test.sh -f general/stable/vnode3.sim
 
+./test.sh -f unique/column/replica3.sim
+./test.sh -f issue/TD-2713.sim
+./test.sh -f general/parser/select_distinct_tag.sim
+./test.sh -f unique/mnode/mgmt30.sim
+./test.sh -f issue/TD-2677.sim
+./test.sh -f issue/TD-2680.sim
+./test.sh -f unique/dnode/lossdata.sim
+
+#======================b4-end===============
+#======================b5-start===============
+
+./test.sh -f unique/dnode/alternativeRole.sim
+./test.sh -f unique/dnode/balance1.sim
+./test.sh -f unique/dnode/balance2.sim
+./test.sh -f unique/dnode/balance3.sim
+./test.sh -f unique/dnode/balancex.sim
+./test.sh -f unique/dnode/offline1.sim
+./test.sh -f unique/dnode/offline2.sim
+
+./test.sh -f general/stream/metrics_del.sim
+./test.sh -f general/stream/metrics_replica1_vnoden.sim
+./test.sh -f general/stream/restart_stream.sim
+./test.sh -f general/stream/stream_3.sim
+./test.sh -f general/stream/stream_restart.sim
+./test.sh -f general/stream/table_del.sim
+./test.sh -f general/stream/table_replica1_vnoden.sim
+
+./test.sh -f general/connection/test_old_data.sim
+./test.sh -f unique/dnode/datatrans_3node.sim 
+./test.sh -f unique/dnode/datatrans_3node_2.sim
+./test.sh -f general/db/alter_tables_d2.sim
+./test.sh -f general/db/alter_tables_v1.sim
+./test.sh -f general/db/alter_tables_v4.sim
+
+#======================b5-end===============
+#======================b6-start===============
+
+./test.sh -f unique/dnode/reason.sim
+./test.sh -f unique/dnode/remove1.sim
+./test.sh -f unique/dnode/remove2.sim
+./test.sh -f unique/dnode/vnode_clean.sim
+
+./test.sh -f unique/db/commit.sim
+./test.sh -f unique/db/delete.sim
+./test.sh -f unique/db/delete_part.sim
+./test.sh -f unique/db/replica_add12.sim
+./test.sh -f unique/db/replica_add13.sim
+./test.sh -f unique/db/replica_add23.sim
+./test.sh -f unique/db/replica_reduce21.sim
+./test.sh -f unique/db/replica_reduce32.sim
+./test.sh -f unique/db/replica_reduce31.sim
+./test.sh -f unique/db/replica_part.sim
+
+./test.sh -f unique/vnode/many.sim
+./test.sh -f unique/vnode/replica2_basic2.sim
+./test.sh -f unique/vnode/replica2_repeat.sim
+./test.sh -f unique/vnode/replica3_basic.sim
+./test.sh -f unique/vnode/replica3_repeat.sim
+./test.sh -f unique/vnode/replica3_vgroup.sim
+
+./test.sh -f unique/dnode/monitor.sim
+./test.sh -f unique/dnode/monitor_bug.sim
+./test.sh -f unique/dnode/simple.sim
+./test.sh -f unique/dnode/data1.sim
+./test.sh -f unique/dnode/m2.sim
+./test.sh -f unique/dnode/m3.sim
+./test.sh -f unique/dnode/offline3.sim
+./test.sh -f general/wal/kill.sim
+./test.sh -f general/wal/maxtables.sim
+
+./test.sh -f general/import/basic.sim
+./test.sh -f general/import/commit.sim
+./test.sh -f general/import/large.sim
+./test.sh -f general/import/replica1.sim
+./test.sh -f unique/cluster/balance1.sim
+./test.sh -f unique/cluster/balance2.sim
+./test.sh -f unique/cluster/balance3.sim
+
+#======================b6-end===============
+#======================b7-start===============
+
+./test.sh -f general/compute/avg.sim
+./test.sh -f general/compute/bottom.sim
+./test.sh -f general/compute/count.sim
+./test.sh -f general/compute/diff.sim
+./test.sh -f general/compute/diff2.sim
+./test.sh -f general/compute/first.sim
+./test.sh -f general/compute/interval.sim
+./test.sh -f general/compute/last.sim
+./test.sh -f general/compute/leastsquare.sim
+./test.sh -f general/compute/max.sim
+./test.sh -f general/compute/min.sim
+./test.sh -f general/compute/null.sim
+./test.sh -f general/compute/percentile.sim
+./test.sh -f general/compute/stddev.sim
+./test.sh -f general/compute/sum.sim
+./test.sh -f general/compute/top.sim
+
+./test.sh -f general/db/alter_option.sim
+./test.sh -f general/db/alter_vgroups.sim
+./test.sh -f general/db/basic.sim
+./test.sh -f general/db/basic1.sim
+./test.sh -f general/db/basic2.sim
+./test.sh -f general/db/basic3.sim
+./test.sh -f general/db/basic4.sim
+./test.sh -f general/db/basic5.sim
+./test.sh -f general/db/delete_reuse1.sim
+./test.sh -f general/db/delete_reuse2.sim
+./test.sh -f general/db/delete_reusevnode.sim
+./test.sh -f general/db/delete_reusevnode2.sim
+./test.sh -f general/db/delete_writing1.sim
+./test.sh -f general/db/delete_writing2.sim
+./test.sh -f general/db/delete.sim
+./test.sh -f general/db/len.sim
+./test.sh -f general/db/repeat.sim
+./test.sh -f general/db/tables.sim
+./test.sh -f general/db/vnodes.sim
+./test.sh -f general/db/topic1.sim
+./test.sh -f general/db/topic2.sim
 ./test.sh -f general/table/autocreate.sim
 ./test.sh -f general/table/basic1.sim
 ./test.sh -f general/table/basic2.sim
@@ -204,126 +408,6 @@ cd ../../../debug; make
 ./test.sh -f general/table/vgroup.sim
 ./test.sh -f general/table/createmulti.sim
 
-./test.sh -f general/tag/3.sim
-./test.sh -f general/tag/4.sim
-./test.sh -f general/tag/5.sim
-./test.sh -f general/tag/6.sim
-./test.sh -f general/tag/add.sim
-./test.sh -f general/tag/bigint.sim
-./test.sh -f general/tag/binary_binary.sim
-./test.sh -f general/tag/binary.sim
-./test.sh -f general/tag/bool_binary.sim
-./test.sh -f general/tag/bool_int.sim
-./test.sh -f general/tag/bool.sim
-./test.sh -f general/tag/change.sim
-./test.sh -f general/tag/column.sim
-./test.sh -f general/tag/commit.sim
-./test.sh -f general/tag/create.sim
-./test.sh -f general/tag/delete.sim
-./test.sh -f general/tag/double.sim
-./test.sh -f general/tag/filter.sim
-./test.sh -f general/tag/float.sim
-./test.sh -f general/tag/int_binary.sim
-./test.sh -f general/tag/int_float.sim
-./test.sh -f general/tag/int.sim
-./test.sh -f general/tag/set.sim
-./test.sh -f general/tag/smallint.sim
-./test.sh -f general/tag/tinyint.sim
-
-./test.sh -f general/user/authority.sim
-./test.sh -f general/user/monitor.sim
-./test.sh -f general/user/pass_alter.sim
-./test.sh -f general/user/pass_len.sim
-./test.sh -f general/user/user_create.sim
-./test.sh -f general/user/user_len.sim
-
-./test.sh -f general/vector/metrics_field.sim
-./test.sh -f general/vector/metrics_mix.sim
-./test.sh -f general/vector/metrics_query.sim
-./test.sh -f general/vector/metrics_tag.sim
-./test.sh -f general/vector/metrics_time.sim
-./test.sh -f general/vector/multi.sim
-./test.sh -f general/vector/single.sim
-./test.sh -f general/vector/table_field.sim
-./test.sh -f general/vector/table_mix.sim
-./test.sh -f general/vector/table_query.sim
-./test.sh -f general/vector/table_time.sim
-
-./test.sh -f general/wal/sync.sim
-./test.sh -f general/wal/kill.sim
-./test.sh -f general/wal/maxtables.sim
-
-./test.sh -f unique/account/account_create.sim
-./test.sh -f unique/account/account_delete.sim
-./test.sh -f unique/account/account_len.sim
-./test.sh -f unique/account/authority.sim
-./test.sh -f unique/account/basic.sim
-./test.sh -f unique/account/paras.sim
-./test.sh -f unique/account/pass_alter.sim
-./test.sh -f unique/account/pass_len.sim
-./test.sh -f unique/account/usage.sim
-./test.sh -f unique/account/user_create.sim
-./test.sh -f unique/account/user_len.sim
-
-./test.sh -f unique/big/balance.sim
-./test.sh -f unique/big/maxvnodes.sim
-./test.sh -f unique/big/tcp.sim
-
-./test.sh -f unique/cluster/alter.sim
-./test.sh -f unique/cluster/balance1.sim
-./test.sh -f unique/cluster/balance2.sim
-./test.sh -f unique/cluster/balance3.sim
-./test.sh -f unique/cluster/cache.sim
-./test.sh -f unique/cluster/vgroup100.sim
-
-./test.sh -f unique/column/replica3.sim
-
-./test.sh -f unique/db/commit.sim
-./test.sh -f unique/db/delete.sim
-./test.sh -f unique/db/delete_part.sim
-./test.sh -f unique/db/replica_add12.sim
-./test.sh -f unique/db/replica_add13.sim
-./test.sh -f unique/db/replica_add23.sim
-./test.sh -f unique/db/replica_reduce21.sim
-./test.sh -f unique/db/replica_reduce32.sim
-./test.sh -f unique/db/replica_reduce31.sim
-./test.sh -f unique/db/replica_part.sim
-
-./test.sh -f unique/dnode/alternativeRole.sim
-./test.sh -f unique/dnode/monitor.sim
-./test.sh -f unique/dnode/monitor_bug.sim
-./test.sh -f unique/dnode/simple.sim
-./test.sh -f unique/dnode/balance1.sim
-./test.sh -f unique/dnode/balance2.sim
-./test.sh -f unique/dnode/balance3.sim
-./test.sh -f unique/dnode/balancex.sim
-./test.sh -f unique/dnode/data1.sim
-./test.sh -f unique/dnode/m2.sim
-./test.sh -f unique/dnode/m3.sim
-./test.sh -f unique/dnode/lossdata.sim
-./test.sh -f unique/dnode/offline1.sim
-./test.sh -f unique/dnode/offline2.sim
-./test.sh -f unique/dnode/offline3.sim
-./test.sh -f unique/dnode/reason.sim
-./test.sh -f unique/dnode/remove1.sim
-./test.sh -f unique/dnode/remove2.sim
-./test.sh -f unique/dnode/vnode_clean.sim
-
-./test.sh -f unique/http/admin.sim
-./test.sh -f unique/http/opentsdb.sim
-
-./test.sh -f unique/import/replica2.sim
-./test.sh -f unique/import/replica3.sim
-
-./test.sh -f unique/stable/balance_replica1.sim
-./test.sh -f unique/stable/dnode2_stop.sim
-./test.sh -f unique/stable/dnode2.sim
-./test.sh -f unique/stable/dnode3.sim
-./test.sh -f unique/stable/replica2_dnode4.sim
-./test.sh -f unique/stable/replica2_vnode3.sim
-./test.sh -f unique/stable/replica3_dnode6.sim
-./test.sh -f unique/stable/replica3_vnode3.sim
-
 ./test.sh -f unique/mnode/mgmt20.sim
 ./test.sh -f unique/mnode/mgmt21.sim
 ./test.sh -f unique/mnode/mgmt22.sim
@@ -331,74 +415,15 @@ cd ../../../debug; make
 ./test.sh -f unique/mnode/mgmt24.sim
 ./test.sh -f unique/mnode/mgmt25.sim
 ./test.sh -f unique/mnode/mgmt26.sim
-./test.sh -f unique/mnode/mgmt30.sim
 ./test.sh -f unique/mnode/mgmt33.sim
 ./test.sh -f unique/mnode/mgmt34.sim
 ./test.sh -f unique/mnode/mgmtr2.sim
 
-./test.sh -f unique/vnode/many.sim
-./test.sh -f unique/vnode/replica2_basic2.sim
-./test.sh -f unique/vnode/replica2_repeat.sim
-./test.sh -f unique/vnode/replica3_basic.sim
-./test.sh -f unique/vnode/replica3_repeat.sim
-./test.sh -f unique/vnode/replica3_vgroup.sim
-
-./test.sh -f general/stream/metrics_del.sim
-./test.sh -f general/stream/metrics_replica1_vnoden.sim
-./test.sh -f general/stream/restart_stream.sim
-./test.sh -f general/stream/stream_3.sim
-./test.sh -f general/stream/stream_restart.sim
-./test.sh -f general/stream/table_del.sim
-./test.sh -f general/stream/table_replica1_vnoden.sim
-
-./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
-#./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
-./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
-./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim
-#./test.sh -f unique/arbitrator/dn3_mn1_nw_disable_timeout_autoDropDnode.sim
-#./test.sh -f unique/arbitrator/dn3_mn1_replica2_wal1_AddDelDnode.sim
-./test.sh -f unique/arbitrator/dn3_mn1_replica_change_dropDnod.sim
-./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim
-#./test.sh -f unique/arbitrator/dn3_mn1_stopDnode_timeout.sim
-# lower the priority while file corruption
-#./test.sh -f unique/arbitrator/dn3_mn1_vnode_change.sim
-#./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim
-#./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_online.sim
-#./test.sh -f unique/arbitrator/dn3_mn1_vnode_createErrData_online.sim
-./test.sh -f unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim
-./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim
-./test.sh -f unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim
-./test.sh -f unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim
-./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim
-./test.sh -f unique/arbitrator/dn3_mn2_killDnode.sim
 ./test.sh -f unique/arbitrator/insert_duplicationTs.sim
-./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim
-./test.sh -f unique/arbitrator/offline_replica2_alterTag_online.sim
-./test.sh -f unique/arbitrator/offline_replica2_createTable_online.sim
-./test.sh -f unique/arbitrator/offline_replica2_dropDb_online.sim
-./test.sh -f unique/arbitrator/offline_replica2_dropTable_online.sim
-./test.sh -f unique/arbitrator/offline_replica3_alterTable_online.sim
-./test.sh -f unique/arbitrator/offline_replica3_alterTag_online.sim
-./test.sh -f unique/arbitrator/offline_replica3_createTable_online.sim
-./test.sh -f unique/arbitrator/offline_replica3_dropDb_online.sim
-./test.sh -f unique/arbitrator/offline_replica3_dropTable_online.sim
-./test.sh -f unique/arbitrator/replica_changeWithArbitrator.sim
-./test.sh -f unique/arbitrator/sync_replica2_alterTable_add.sim
-./test.sh -f unique/arbitrator/sync_replica2_alterTable_drop.sim
+./test.sh -f general/parser/join_manyblocks.sim
+./test.sh -f general/parser/stableOp.sim
+./test.sh -f general/parser/timestamp.sim
+./test.sh -f general/parser/sliding.sim
+./test.sh -f unique/big/balance.sim
 
-./test.sh -f unique/arbitrator/sync_replica2_dropDb.sim
-./test.sh -f unique/arbitrator/sync_replica2_dropTable.sim
-./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim
-./test.sh -f unique/arbitrator/sync_replica3_alterTable_drop.sim
-./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim
-./test.sh -f unique/arbitrator/sync_replica3_dropTable.sim
-
-./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeDir.sim
-./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim
-./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim
-./test.sh -f unique/migrate/mn2_vn2_repl2_rmVnodeDir.sim
-
-./test.sh -f general/connection/test_old_data.sim
-./test.sh -f unique/dnode/datatrans_3node.sim 
-./test.sh -f unique/dnode/datatrans_3node_2.sim
-
+#======================b7-end===============
