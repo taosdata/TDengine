@@ -680,7 +680,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
   if (pRow != NULL) {
     // forward to peers
     pRow->processedCount = 0;
-    int32_t syncCode = syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC);
+    int32_t syncCode = syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
     if (syncCode <= 0) pRow->processedCount = 1;
 
     if (syncCode < 0) {
@@ -700,7 +700,7 @@ static int32_t sdbProcessWrite(void *wparam, void *hparam, int32_t qtype, void *
            actStr[action], sdbGetKeyStr(pTable, pHead->cont), pHead->version);
 
   // even it is WAL/FWD, it shall be called to update version in sync
-  syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC);
+  syncForwardToPeer(tsSdbMgmt.sync, pHead, pRow, TAOS_QTYPE_RPC, false);
 
   // from wal or forward msg, row not created, should add into hash
   if (action == SDB_ACTION_INSERT) {
@@ -1119,7 +1119,7 @@ static void *sdbWorkerFp(void *pWorker) {
         sdbConfirmForward(1, pRow, pRow->code);
       } else {
         if (qtype == TAOS_QTYPE_FWD) {
-          syncConfirmForward(tsSdbMgmt.sync, pRow->pHead.version, pRow->code);
+          syncConfirmForward(tsSdbMgmt.sync, pRow->pHead.version, pRow->code, false);
         }
         sdbFreeFromQueue(pRow);
       }

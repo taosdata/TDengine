@@ -158,7 +158,23 @@ int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver) {
   return code;
 }
 
-void vnodeConfirmForward(void *vparam, uint64_t version, int32_t code) {
+int32_t vnodeResetVersion(int32_t vgId, uint64_t fver) {
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  if (pVnode == NULL) {
+    vError("vgId:%d, vnode not found while reset version", vgId);
+    return -1;
+  }
+
+  pVnode->fversion = fver;
+  pVnode->version = fver;
+  walResetVersion(pVnode->wal, fver);
+  vDebug("vgId:%d, version reset to %" PRIu64, vgId, fver);
+
+  vnodeRelease(pVnode);
+  return 0;
+}
+
+void vnodeConfirmForward(void *vparam, uint64_t version, int32_t code, bool force) {
   SVnodeObj *pVnode = vparam;
-  syncConfirmForward(pVnode->sync, version, code);
+  syncConfirmForward(pVnode->sync, version, code, force);
 }
