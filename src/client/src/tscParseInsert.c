@@ -394,7 +394,7 @@ static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start
 
   TSKEY k = *(TSKEY *)start;
 
-  if (k == 0) {
+  if (k == INT64_MIN) {
     if (pDataBlocks->tsSource == TSDB_USE_CLI_TS) {
       return -1;
     } else if (pDataBlocks->tsSource == -1) {
