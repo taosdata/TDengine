@@ -121,6 +121,12 @@ TAOS *shellInit(SShellArguments *args) {
     taos_close(con);
     exit(EXIT_SUCCESS);
   }
+
+  if (args->check != 0) {
+    shellCheck(con, args);
+    taos_close(con);
+    exit(EXIT_SUCCESS);
+  }
 #endif
 
   return con;
@@ -412,7 +418,7 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 #ifdef WINDOWS
   if (tt < 0) tt = 0;
 #endif
-  if (tt < 0 && ms != 0) {
+  if (tt <= 0 && ms < 0) {
     tt--;
     if (precision == TSDB_TIME_PRECISION_MICRO) {
       ms += 1000000;

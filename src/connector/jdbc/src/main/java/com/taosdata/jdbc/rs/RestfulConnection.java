@@ -27,7 +27,6 @@ public class RestfulConnection extends AbstractConnection {
     public Statement createStatement() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-        ;
 
         return new RestfulStatement(this, database);
     }

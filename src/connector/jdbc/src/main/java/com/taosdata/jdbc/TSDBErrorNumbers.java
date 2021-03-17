@@ -16,15 +16,20 @@ public class TSDBErrorNumbers {
     public static final int ERROR_DATABASE_NOT_SPECIFIED_OR_AVAILABLE = 0x230a; //Database not specified or available
     public static final int ERROR_INVALID_FOR_EXECUTE_UPDATE = 0x230b;  //not a valid sql for executeUpdate: (SQL)
     public static final int ERROR_INVALID_FOR_EXECUTE = 0x230c;         //not a valid sql for execute: (SQL)
-    public static final int ERROR_PARAMETER_INDEX_OUT_RANGE = 0x230d; // parameter index out of range
+    public static final int ERROR_PARAMETER_INDEX_OUT_RANGE = 0x230d;   // parameter index out of range
     public static final int ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED = 0x230e;    // connection already closed
     public static final int ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE = 0x230f;        //unknown sql type in tdengine
+    public static final int ERROR_CANNOT_REGISTER_JNI_DRIVER = 0x2310;  // can't register JDBC-JNI driver
+    public static final int ERROR_CANNOT_REGISTER_RESTFUL_DRIVER = 0x2311;  // can't register JDBC-RESTful driver
+    public static final int ERROR_URL_NOT_SET = 0x2312;  // url is not set
+    public static final int ERROR_INVALID_SQL = 0x2313;     // invalid sql
+    public static final int ERROR_NUMERIC_VALUE_OUT_OF_RANGE = 0x2314;  // numeric value out of range
+    public static final int ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE = 0x2315; //unknown taos type in tdengine
 
     public static final int ERROR_UNKNOWN = 0x2350;    //unknown error
 
     public static final int ERROR_SUBSCRIBE_FAILED = 0x2351;     // failed to create subscription
     public static final int ERROR_UNSUPPORTED_ENCODING = 0x2352; // Unsupported encoding
-
     public static final int ERROR_JNI_TDENGINE_ERROR = 0x2353;   // internal error of database
     public static final int ERROR_JNI_CONNECTION_NULL = 0x2354;  // JNI connection is NULL
     public static final int ERROR_JNI_RESULT_SET_NULL = 0x2355;  // invalid JNI result set
@@ -51,11 +56,16 @@ public class TSDBErrorNumbers {
         errorNumbers.add(ERROR_PARAMETER_INDEX_OUT_RANGE);
         errorNumbers.add(ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
         errorNumbers.add(ERROR_UNKNOWN_SQL_TYPE_IN_TDENGINE);
+        errorNumbers.add(ERROR_CANNOT_REGISTER_JNI_DRIVER);
+        errorNumbers.add(ERROR_CANNOT_REGISTER_RESTFUL_DRIVER);
+        errorNumbers.add(ERROR_URL_NOT_SET);
+        errorNumbers.add(ERROR_INVALID_SQL);
+        errorNumbers.add(ERROR_NUMERIC_VALUE_OUT_OF_RANGE);
+        errorNumbers.add(ERROR_UNKNOWN_TAOS_TYPE_IN_TDENGINE);
 
         /*****************************************************/
         errorNumbers.add(ERROR_SUBSCRIBE_FAILED);
         errorNumbers.add(ERROR_UNSUPPORTED_ENCODING);
-
         errorNumbers.add(ERROR_JNI_TDENGINE_ERROR);
         errorNumbers.add(ERROR_JNI_CONNECTION_NULL);
         errorNumbers.add(ERROR_JNI_RESULT_SET_NULL);
@@ -63,7 +73,6 @@ public class TSDBErrorNumbers {
         errorNumbers.add(ERROR_JNI_SQL_NULL);
         errorNumbers.add(ERROR_JNI_FETCH_END);
         errorNumbers.add(ERROR_JNI_OUT_OF_MEMORY);
-
     }
 
     private TSDBErrorNumbers() {

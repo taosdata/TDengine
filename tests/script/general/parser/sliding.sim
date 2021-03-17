@@ -469,11 +469,12 @@ if $data25 != 33 then
 endi
 
 sql select count(*),stddev(c1),count(c1),first(c2),last(c3) from sliding_tb0 where ts>'2000-1-1 00:00:00' and ts<'2000-1-1 00:00:01.002' and c2 >= 0 interval(30s) sliding(10s) order by ts desc limit 1000;
-if $row != 1 then
+if $row != 3 then
  return -1
 endi
 
-if $data00 != @99-12-31 23:59:40.000@ then
+if $data00 != @00-01-01 00:00:00.000@ then
+ print expect 00-01-01 00:00:00.000, actual: $data00
  return -1
 endi
 
@@ -489,7 +490,28 @@ if $data03 != 33 then
  return -1
 endi
 
-print check boundary check crash at client side
+if $data10 != @99-12-31 23:59:50.000@ then
+ return -1
+endi
+
+if $data11 != 33 then
+ return -1
+endi
+if $data12 != 9.521904571 then
+ return -1
+endi
+
+if $data20 != @99-12-31 23:59:40.000@ then
+ return -1
+endi
+if $data21 != 33 then
+ return -1
+endi
+if $data22 != 9.521904571 then
+ return -1
+endi
+
+print ====================>check boundary check crash at client side
 sql select count(*) from sliding_mt0 where ts>now and ts < now-1h;
 
 print ========================query on super table
