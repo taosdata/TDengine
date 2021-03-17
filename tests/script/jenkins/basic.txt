@@ -88,6 +88,7 @@ cd ../../../debug; make
 ./test.sh -f general/parser/topbot.sim
 ./test.sh -f general/db/nosuchfile.sim
 ./test.sh -f general/parser/function.sim
+./test.sh -f unique/cluster/vgroup100.sim
 
 #======================b1-end===============
 #======================b2-start===============
@@ -152,13 +153,12 @@ cd ../../../debug; make
 ./test.sh -f unique/account/user_create.sim
 ./test.sh -f unique/account/user_len.sim
 
-./test.sh -f unique/big/balance.sim
 ./test.sh -f unique/big/maxvnodes.sim
 ./test.sh -f unique/big/tcp.sim
 
 ./test.sh -f unique/cluster/alter.sim
 ./test.sh -f unique/cluster/cache.sim
-./test.sh -f unique/cluster/vgroup100.sim
+
 
 #======================b2-end===============
 #======================b3-start===============
@@ -424,5 +424,6 @@ cd ../../../debug; make
 ./test.sh -f general/parser/stableOp.sim
 ./test.sh -f general/parser/timestamp.sim
 ./test.sh -f general/parser/sliding.sim
+./test.sh -f unique/big/balance.sim
 
 #======================b7-end===============
