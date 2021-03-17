@@ -109,6 +109,8 @@ bool vnodeSetResetStatus(SVnodeObj* pVnode) {
     taosMsleep(1);
   }
 
+  vInfo("vgId:%d, set to reset status", pVnode->vgId);
+
   // release local resources only after cutting off outside connections
   qQueryMgmtNotifyClosed(pVnode->qMgmt);
   vnodeWaitReadCompleted(pVnode);
