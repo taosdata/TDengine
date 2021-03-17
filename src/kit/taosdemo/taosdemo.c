@@ -4444,110 +4444,102 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int64_t startTime = pThreadInfo->start_time;
 
   int batchPerTblTimes;
-  int prevBatchPerTbl, lastBatchPerTbl;
+  int batchPerTbl;
 
-  if (pThreadInfo->ntables == 1) {
-    batchPerTblTimes = 1;
-    lastBatchPerTbl = rowsPerTbl;
-    prevBatchPerTbl = rowsPerTbl;
-  } else if (rowsPerTbl > 0) {
+  if ((rowsPerTbl > 0) && (pThreadInfo->ntables > 1)) {
     batchPerTblTimes = g_args.num_of_RPR / rowsPerTbl;
-    lastBatchPerTbl = g_args.num_of_RPR % rowsPerTbl;
-
-    if (lastBatchPerTbl > 0)
-      batchPerTblTimes += 1;
-    else
-      lastBatchPerTbl = rowsPerTbl;
-    prevBatchPerTbl = rowsPerTbl;
+    batchPerTbl = rowsPerTbl;
   } else {
     batchPerTblTimes = 1;
-    prevBatchPerTbl = g_args.num_of_RPR;
-    lastBatchPerTbl = g_args.num_of_RPR;
+    batchPerTbl = g_args.num_of_RPR;
   }
 
+  int generatedRecPerTbl = 0;
   while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
-      if (insert_interval) {
+    if (insert_interval) {
         st = taosGetTimestampUs();
-      }
-      // generate data
-      memset(buffer, 0, superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len);
+    }
+    // generate data
+    memset(buffer, 0, superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len);
 
-      char *pstr = buffer;
-      int recGenerated = 0;
+    char *pstr = buffer;
+    int recGenerated = 0;
 
-      for (int i = 0; i < batchPerTblTimes; i ++) {
-        if (insertMode == INTERLACE_INSERT_MODE) {
-          if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
-            // turn to first table
-            tableSeq = pThreadInfo->start_table_from;
-          }
-        }
-        getTableName(tableName, pThreadInfo, tableSeq);
+    for (int i = 0; i < batchPerTblTimes; i ++) {
+      getTableName(tableName, pThreadInfo, tableSeq);
 
-        int headLen;
-        if (i == 0) {
+      int headLen;
+      if (i == 0) {
           headLen = generateSQLHead(tableName, tableSeq, pThreadInfo, superTblInfo, pstr);
-        } else {
+      } else {
           headLen = snprintf(pstr, TSDB_TABLE_NAME_LEN, "%s.%s values", 
                   pThreadInfo->db_name,
                   tableName);
-        }
+      }
 
-        // generate data buffer
-        verbosePrint("%s() LN%d i=%d buffer:\n%s\n",
+      // generate data buffer
+      verbosePrint("%s() LN%d i=%d buffer:\n%s\n",
                 __func__, __LINE__, i, buffer);
 
-        pstr += headLen;
-        int dataLen = 0;
+      pstr += headLen;
+      int dataLen = 0;
 
-        int batchPerTbl;
-        if (i == batchPerTblTimes - 1) {
-            batchPerTbl = lastBatchPerTbl;
-        } else {
-            batchPerTbl = prevBatchPerTbl;
-        }
-
-        verbosePrint("%s() LN%d batchPerTbl = %d\n",
-                __func__, __LINE__, batchPerTbl);
-        int numOfRecGenerated = generateDataTail(
+      printf("%s() LN%d i=%d batchPerTblTimes=%d batchPerTbl = %d\n",
+                __func__, __LINE__, i, batchPerTblTimes, batchPerTbl);
+      int numOfRecGenerated = generateDataTail(
                 tableName, tableSeq, pThreadInfo, superTblInfo,
                 batchPerTbl, pstr, insertRows, 0,
                 startTime + pThreadInfo->totalInsertRows * superTblInfo->timeStampStep,
                 &(pThreadInfo->samplePos), &dataLen);
-        verbosePrint("%s() LN%d numOfRecGenerated= %d\n",
+      verbosePrint("%s() LN%d numOfRecGenerated= %d\n",
                 __func__, __LINE__, numOfRecGenerated);
-        pstr += dataLen;
-        recGenerated += numOfRecGenerated;
+      pstr += dataLen;
+      recGenerated += numOfRecGenerated;
 
-        tableSeq ++;
+      tableSeq ++;
+      if (insertMode == INTERLACE_INSERT_MODE) {
+          if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
+            // turn to first table
+            tableSeq = pThreadInfo->start_table_from;
+            generatedRecPerTbl += numOfRecGenerated;
+          }
       }
-      verbosePrint("%s() LN%d buffer:\n%s\n",
-              __func__, __LINE__, buffer);
-      pThreadInfo->totalInsertRows += recGenerated;
 
-      int affectedRows = execInsert(pThreadInfo, buffer, recGenerated);
-      if (affectedRows < 0)
+      int remainRows = insertRows - generatedRecPerTbl;
+      if (batchPerTbl > remainRows)
+        batchPerTbl = remainRows;
+
+      if ((g_args.num_of_RPR - recGenerated) < batchPerTbl)
+        break;
+    }
+    pThreadInfo->totalInsertRows += recGenerated;
+    printf("%s() LN%d recGenerated=%d totalInsertRows=%"PRId64" buffer:\n%s\n",
+              __func__, __LINE__, recGenerated, 
+              pThreadInfo->totalInsertRows, buffer);
+
+    int affectedRows = execInsert(pThreadInfo, buffer, recGenerated);
+    if (affectedRows < 0)
         goto free_and_statistics_interlace;
 
-      pThreadInfo->totalAffectedRows += affectedRows;
+    pThreadInfo->totalAffectedRows += affectedRows;
 
-      endTs = taosGetTimestampUs();
-      int64_t delay = endTs - startTs;
-      if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
-      if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
-      pThreadInfo->cntDelay++;
-      pThreadInfo->totalDelay += delay;
+    endTs = taosGetTimestampUs();
+    int64_t delay = endTs - startTs;
+    if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
+    if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
+    pThreadInfo->cntDelay++;
+    pThreadInfo->totalDelay += delay;
 
-      int64_t  currentPrintTime = taosGetTimestampMs();
-      if (currentPrintTime - lastPrintTime > 30*1000) {
-        printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n",
+    int64_t  currentPrintTime = taosGetTimestampMs();
+    if (currentPrintTime - lastPrintTime > 30*1000) {
+      printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n",
                     pThreadInfo->threadID,
                     pThreadInfo->totalInsertRows,
                     pThreadInfo->totalAffectedRows);
-        lastPrintTime = currentPrintTime;
-      }
+      lastPrintTime = currentPrintTime;
+    }
 
-      if (insert_interval) {
+    if (insert_interval) {
         et = taosGetTimestampUs();
 
         if (insert_interval > ((et - st)/1000) ) {
@@ -4556,7 +4548,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                     __func__, __LINE__, sleep_time);
             taosMsleep(sleep_time); // ms
         }
-      }
+    }
   }
 
 free_and_statistics_interlace:
