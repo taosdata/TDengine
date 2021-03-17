@@ -157,9 +157,6 @@ cd ../../../debug; make
 ./test.sh -f unique/big/tcp.sim
 
 ./test.sh -f unique/cluster/alter.sim
-./test.sh -f unique/cluster/balance1.sim
-./test.sh -f unique/cluster/balance2.sim
-./test.sh -f unique/cluster/balance3.sim
 ./test.sh -f unique/cluster/cache.sim
 ./test.sh -f unique/cluster/vgroup100.sim
 
@@ -293,6 +290,9 @@ cd ../../../debug; make
 ./test.sh -f general/connection/test_old_data.sim
 ./test.sh -f unique/dnode/datatrans_3node.sim 
 ./test.sh -f unique/dnode/datatrans_3node_2.sim
+./test.sh -f general/db/alter_tables_d2.sim
+./test.sh -f general/db/alter_tables_v1.sim
+./test.sh -f general/db/alter_tables_v4.sim
 
 #======================b5-end===============
 #======================b6-start===============
@@ -334,6 +334,9 @@ cd ../../../debug; make
 ./test.sh -f general/import/commit.sim
 ./test.sh -f general/import/large.sim
 ./test.sh -f general/import/replica1.sim
+./test.sh -f unique/cluster/balance1.sim
+./test.sh -f unique/cluster/balance2.sim
+./test.sh -f unique/cluster/balance3.sim
 
 #======================b6-end===============
 #======================b7-start===============
@@ -356,9 +359,6 @@ cd ../../../debug; make
 ./test.sh -f general/compute/top.sim
 
 ./test.sh -f general/db/alter_option.sim
-./test.sh -f general/db/alter_tables_d2.sim
-./test.sh -f general/db/alter_tables_v1.sim
-./test.sh -f general/db/alter_tables_v4.sim
 ./test.sh -f general/db/alter_vgroups.sim
 ./test.sh -f general/db/basic.sim
 ./test.sh -f general/db/basic1.sim
