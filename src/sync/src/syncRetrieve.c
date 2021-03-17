@@ -334,7 +334,7 @@ static int64_t syncRetrieveWal(SSyncPeer *pPeer) {
       break;
     }
 
-    code = (int32_t)taosSendFile(pPeer->syncFd, sfd, NULL, size);
+    code = taosSendFile(pPeer->syncFd, sfd, NULL, size);
     close(sfd);
     if (code < 0) {
       sError("%s, failed to send wal:%s for retrieve since %s, code:0x%" PRIx64, pPeer->id, fname, strerror(errno), code);
