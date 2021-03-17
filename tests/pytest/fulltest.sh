@@ -1,18 +1,15 @@
 #!/bin/bash
 ulimit -c unlimited
+#======================p1-start===============
 
 python3 ./test.py -f insert/basic.py
 python3 ./test.py -f insert/int.py
-python3 ./test.py -f insert/unsignedInt.py
 python3 ./test.py -f insert/float.py
 python3 ./test.py -f insert/bigint.py
-python3 ./test.py -f insert/unsignedBigint.py
 python3 ./test.py -f insert/bool.py
 python3 ./test.py -f insert/double.py
 python3 ./test.py -f insert/smallint.py
-python3 ./test.py -f insert/unsignedSmallint.py
 python3 ./test.py -f insert/tinyint.py
-python3 ./test.py -f insert/unsignedTinyint.py
 python3 ./test.py -f insert/date.py
 python3 ./test.py -f insert/binary.py
 python3 ./test.py -f insert/nchar.py
@@ -23,10 +20,8 @@ python3 ./test.py -f insert/randomNullCommit.py
 python3 insert/retentionpolicy.py
 python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
-#python3 ./test.py -f insert/before_1970.py
-python3 ./test.py -f insert/metadataUpdate.py
+python3 ./test.py -f insert/before_1970.py
 python3 bug2265.py
-python3 ./test.py -f insert/boundary2.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -71,7 +66,7 @@ python3 ./test.py -f tag_lite/int.py
 python3 ./test.py -f tag_lite/set.py
 python3 ./test.py -f tag_lite/smallint.py
 python3 ./test.py -f tag_lite/tinyint.py
-python3 ./test.py -f tag_lite/alter_tag.py
+
 #python3 ./test.py -f dbmgmt/database-name-boundary.py
 
 python3 ./test.py -f import_merge/importBlock1HO.py
@@ -142,6 +137,26 @@ python3 ./test.py -f import_merge/importTPORestart.py
 python3 ./test.py -f import_merge/importTRestart.py
 python3 ./test.py -f import_merge/importInsertThenImport.py
 python3 ./test.py -f import_merge/importCSV.py
+#======================p1-end===============
+#======================p2-start===============
+# update
+python3 ./test.py -f update/allow_update.py
+python3 ./test.py -f update/allow_update-0.py
+python3 ./test.py -f update/append_commit_data.py
+python3 ./test.py -f update/append_commit_last-0.py
+python3 ./test.py -f update/append_commit_last.py
+python3 ./test.py -f update/merge_commit_data.py
+
+python3 ./test.py -f update/merge_commit_data2.py
+python3 ./test.py -f update/merge_commit_data2_update0.py
+python3 ./test.py -f update/merge_commit_last-0.py
+python3 ./test.py -f update/merge_commit_last.py
+python3 ./test.py -f update/bug_td2279.py
+
+#======================p2-end===============
+#======================p3-start===============
+
+
 # user
 python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
@@ -155,7 +170,6 @@ python3 ./test.py -f query/filterCombo.py
 python3 ./test.py -f query/queryNormal.py
 python3 ./test.py -f query/queryError.py
 python3 ./test.py -f query/filterAllIntTypes.py
-python3 ./test.py -f query/filterAllUnsignedIntTypes.py
 python3 ./test.py -f query/filterFloatAndDouble.py
 python3 ./test.py -f query/filterOtherTypes.py
 python3 ./test.py -f query/querySort.py
@@ -182,8 +196,6 @@ python3 ./test.py -f query/bug2119.py
 python3 ./test.py -f query/isNullTest.py
 python3 ./test.py -f query/queryWithTaosdKilled.py
 python3 ./test.py -f query/floatCompare.py
-python3 ./test.py -f query/queryGroupbySort.py
-python3 ./test.py -f query/queryBetweenAnd.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -199,8 +211,6 @@ python3 ./test.py -f stream/table_n.py
 
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py
-python3 ./test.py -f alter/alter_table.py
-python3 ./test.py -f alter/alter_debugFlag.py
 
 # client
 python3 ./test.py -f client/client.py
@@ -213,6 +223,36 @@ python3 testCompress.py
 python3 testNoCompress.py
 python3 testMinTablesPerVnode.py
 
+
+python3 queryCount.py
+python3 ./test.py -f query/queryGroupbyWithInterval.py
+python3 client/twoClients.py
+python3 test.py -f query/queryInterval.py
+python3 test.py -f query/queryFillTest.py
+
+# tools
+python3 test.py -f tools/lowaTest.py
+python3 test.py -f tools/taosdemoTest.py
+python3 test.py -f tools/taosdemoTestWithoutMetric.py
+python3 test.py -f tools/taosdemoTestLimitOffset.py
+python3 test.py -f tools/taosdumpTest.py
+python3 test.py -f tools/taosdemoTest2.py
+
+# subscribe
+python3 test.py -f subscribe/singlemeter.py
+#python3 test.py -f subscribe/stability.py  
+python3 test.py -f subscribe/supertable.py
+
+
+#======================p3-end===============
+#======================p4-start===============
+
+python3 ./test.py -f update/merge_commit_data-0.py
+# wal
+python3 ./test.py -f wal/addOldWalTest.py
+
+# function
+python3 ./test.py -f functions/all_null_value.py
 # functions
 python3 ./test.py -f functions/function_avg.py -r 1
 python3 ./test.py -f functions/function_bottom.py -r 1
@@ -232,47 +272,25 @@ python3 ./test.py -f functions/function_sum.py -r 1
 python3 ./test.py -f functions/function_top.py -r 1
 python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
-python3 ./test.py -f functions/all_null_value.py
-python3 ./test.py -f functions/function_percentile2.py
-python3 queryCount.py
-python3 ./test.py -f query/queryGroupbyWithInterval.py
-python3 client/twoClients.py
-python3 ./test.py -f query/queryInterval.py
-python3 ./test.py -f query/queryFillTest.py
-python3 ./test.py -f query/last_row_cache.py
+python3 ./test.py -f functions/function_stddev_td2555.py
+python3 ./test.py -f insert/metadataUpdate.py
 python3 ./test.py -f query/last_cache.py
+python3 ./test.py -f query/last_row_cache.py
+python3 ./test.py -f account/account_create.py
+python3 ./test.py -f alter/alter_table.py
+python3 ./test.py -f query/queryGroupbySort.py
 
-# tools
-python3 test.py -f tools/taosdumpTest.py
-python3 test.py -f tools/lowaTest.py
-python3 test.py -f tools/taosdemoTest.py
-python3 test.py -f tools/taosdemoTest2.py
-python3 test.py -f tools/taosdemoTestWithoutMetric.py
-python3 test.py -f tools/taosdemoTestLimitOffset.py
+python3 ./test.py -f insert/unsignedInt.py
+python3 ./test.py -f insert/unsignedBigint.py
+python3 ./test.py -f insert/unsignedSmallint.py
+python3 ./test.py -f insert/unsignedTinyint.py
+python3 ./test.py -f query/filterAllUnsignedIntTypes.py
+
+python3 ./test.py -f functions/function_percentile2.py
+python3 ./test.py -f insert/boundary2.py
+python3 ./test.py -f alter/alter_debugFlag.py
+python3 ./test.py -f query/queryBetweenAnd.py
+python3 ./test.py -f tag_lite/alter_tag.py
 python3 test.py -f tools/taosdemoTestSampleData.py
 
-# subscribe
-python3 test.py -f subscribe/singlemeter.py
-#python3 test.py -f subscribe/stability.py
-python3 test.py -f subscribe/supertable.py
-
-
-# update
-python3 ./test.py -f update/allow_update.py
-python3 ./test.py -f update/allow_update-0.py
-python3 ./test.py -f update/append_commit_data.py
-python3 ./test.py -f update/append_commit_last-0.py
-python3 ./test.py -f update/append_commit_last.py
-python3 ./test.py -f update/merge_commit_data.py
-python3 ./test.py -f update/merge_commit_data-0.py
-python3 ./test.py -f update/merge_commit_data2.py
-python3 ./test.py -f update/merge_commit_data2_update0.py
-python3 ./test.py -f update/merge_commit_last-0.py
-python3 ./test.py -f update/merge_commit_last.py
-python3 ./test.py -f update/bug_td2279.py
-
-# wal
-python3 ./test.py -f wal/addOldWalTest.py
-
-# account
-python3 ./test.py -f account/account_create.py
+#======================p4-end===============
