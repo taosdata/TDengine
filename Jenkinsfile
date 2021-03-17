@@ -273,7 +273,7 @@ pipeline {
         }        
     }
   }
- 
+  }
   post {  
         success {
             emailext (
