@@ -420,5 +420,9 @@ cd ../../../debug; make
 ./test.sh -f unique/mnode/mgmtr2.sim
 
 ./test.sh -f unique/arbitrator/insert_duplicationTs.sim
+./test.sh -f general/parser/join_manyblocks.sim
+./test.sh -f general/parser/stableOp.sim
+./test.sh -f general/parser/timestamp.sim
+./test.sh -f general/parser/sliding.sim
 
 #======================s7-end===============

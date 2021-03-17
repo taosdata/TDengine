@@ -294,5 +294,6 @@ python3 ./test.py -f query/queryFillTest.py
 python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
+python3 test.py -f tools/taosdemoTestSampleData.py
 
 #======================p4-end===============
