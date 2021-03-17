@@ -1,0 +1,131 @@
+XFDSN:XX_TEST__L_O_G, 2, 4096, 3994 samples, 0 Hz, 2004,160,10:47:32.810000
+ASCII Data:
+
+Quanterra Packet Baler Model 14 Restart. Version 1.45
+Control Port 3512 Opened
+Baler ready on Serial at 115200 baud
+Retry of command type 5A
+Retry of command type 5A
+Retry of command type 5A
+Retry of command type 5A
+Retry of command type 5A
+Power Cycled Baler Acknowledged
+Commands Accepted by Q330
+Access timeout: 11265 sec
+Control Port 1490 Opened
+Data Port 1491 Opened
+Registered with Q330
+Combination Record Received
+Window=4   Min. Timeout=10   Max. Timeout=30
+Link Reset, starting window sequence: 9705
+GPS Receiver ID Received
+Msg From 1xx.xx.xx.xxx:Baler readback. 368 recs. seq end: 9698
+Baler clock set to 2004-06-08 10:47:31
+Starting to Read DP Tokens
+Msg From 1xx.xx.xx.xxx:Baler14-1.45 registered. clock set: 2004-06-08 10:47:31
+DP Tokens loaded, size=1274 bytes
+Webserver advertising 1xx.xx.xx.xxx:80
+filters & delay BHZ:1@40,Linear below 100sps=0.405462
+filters & delay BHN:2@40,Linear below 100sps=0.405462
+filters & delay BHE:3@40,Linear below 100sps=0.405462
+filters & delay LHZ:1@1,Linear below 100sps=14.930462
+filters & delay LHN:2@1,Linear below 100sps=14.930462
+filters & delay LHE:3@1,Linear below 100sps=14.930462
+filters & delay VHZ:LHZ@0.1000=214.430462
+filters & delay VHN:LHN@0.1000=214.430462
+filters & delay VHE:LHE@0.1000=214.430462
+filters & delay UHZ:VHZ@0.0100=2209.430462
+filters & delay UHN:VHN@0.0100=2209.430462
+filters & delay UHE:VHE@0.0100=2209.430462
+[2004-06-08 00:57:51.000000] continuity found: 9698 139971471.000000  Q=58
+[2004-06-08 00:57:51.000000] restoring continuity
+Sending DT_OPEN
+Station: TA-V04C
+Q330 Serial Number: 0100000000000000
+AMB Serial Number: 0100000000000000
+Seismo 1 Serial Number: 0000000000000000
+Seismo 2 Serial Number: 0000000000000000
+QAPCHP 1 Serial Number: 0000000
+QAPCHP 2 Serial Number: 0
+KMI Property Tag Number: 000
+System Software Version: 1.53
+Slave Processor Version: 1.10
+Calibrator Type: QCAL330
+Calibrator Version: 1.6
+Clock Type: Motorola M12
+PLD Version: 4.6
+GPS Engine Identification
+SFTW P/N #     61-G10002A
+SOFTWARE VER # 1
+SOFTWARE REV # 8
+SOFTWARE DATE  MAY 15 2002
+MODEL #    P273000000
+HWDR P/N # 2
+SERIAL #   P05ISY
+MANUFACTUR DATE 3D17
+Total Hours: 4188.05
+Power On Hours: 1737.89
+Time of Last Boot: 2004-06-07 22:15:01
+Total Number of Boots: 34
+Time of Last Re-Sync: 2004-06-07 22:28:15
+Total Number of Re-Syncs: 39
+Status Inputs: 00000000
+AC OK: Off,   Input 1,2: Off,Off,   Analog Fault: Off
+Clock Quality: 44%
+Clock quality mapping: L=100 T=90 H=80 N=0 zone=0
+Clock Phase: 1 usec. max allowed=50000
+Boom positions:
+Ch1: -11 Ch2: 0 Ch3: -2 Ch4: 20 Ch5: 20 Ch6: 20 
+Analog Status
+Analog Positive Supply: 5.47V
+Input Voltage: 12.00V
+System Temperature: 23C
+Main Current: 39ma
+Antenna Current: 0ma
+GPS Status
+Time: 
+Date: 
+Fix Type: OFF
+Height: 
+Latitude: 
+Longitude: 
+Off Time: 169min
+Sat. Used: 0
+In View: 0
+Checksum Errors: 0
+Last GPS timemark: 2004-06-08 07:58:07
+PLL Status
+State: Hold
+Intitial VCO: 1955.836792
+Time Error: 0.000003
+RMS VCO: 0.0000000
+Best VCO: 1955.84
+Seconds Since Track or Lock: 10169.4
+Vco Control: 1957
+timing mode: internal GPS
+internal GPS power management mode: Until PLL lock
+tempco normal
+power off-time: 180m max on-time: 120m resync at: 0
+PLL update: 10s  PLL lock criterion: 5us
+Pfrac: 150.00
+VCO slope: -0.0175000
+VCO intercept: 7.1100001
+Km delta: 600.0000000
+Logical Port 4 Status
+Data Packets Sent: 9715
+Flood Packets Sent: 0
+Packets Re-Sent: 18
+Sequence Errors: 0
+Packet Buffer Used: 4194044
+Physical Port: Serial 2
+Baler Model: 14   Software Version: 1.45
+MAC Address: F2:3F:09:9E:AF:C2
+Disk Size: 20000669696
+Percent of 1177 data files in use: 2.2
+DMU2 Software Version=4, Serial Number=0100000000000000
+Supply Voltage=11.9
+Temperature=20C
+Disk Model: IC250000000000-0 Revision: C0000000
+[2004-06-08 00:57:51.000000] SEQUENCE GAP 16134 FROM 9698 TO 25832
+[2004-06-08 05:26:45.000003] time label discontinuity: LCQ 16133.000003
+

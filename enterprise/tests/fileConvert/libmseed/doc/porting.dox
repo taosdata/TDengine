@@ -1,0 +1,170 @@
+/**
+@page porting-guide Guide for porting from earlier libmseed versions
+
+@tableofcontents
+
+@section porting-overview Overview and approach
+
+This page contains a description of major API changes from version 2
+to 3 of the library.
+
+The recommended approach to porting is as follows:
+
+-# Quickly read through the @ref porting-important, changing anything
+in the calling program that is obvious.
+
+-# Try compiling the target program with the new library and fix any
+identified problems.
+
+-# Read @ref porting-other to understand other changes that may not be
+identified at compile time but may yet effect the program.
+
+@subsection porting-important Most important changes that commonly need attention
+
+- Change \c MSRecord structure type usage with MS3Record, which has
+  similar (but not the same) members.
+
+- Change \c MSTraceList, \c MSTraceID, and \c MSTraceSeg structure
+  types usage with MS3TraceList, MS3TraceID, and MS3TraceSeg, which
+  have similar (but not the same) members.
+
+- Convert usage of MSTraceGroups to MS3TraceLists. Trace Groups are no
+  longer supported.  The @ref page-examples page contains examples of
+  using @ref trace-list functionality.
+
+- Convert all \c hptime_t typed variables to \c nstime_t type.
+@note the \c nstime_t type is a nanosecond epoch value, whereas the
+previous \c hptime_t was a microsecond epoch value.  Careful review is
+required for values used by a program directly (they really _should
+not_ be).
+
+- Review and change functions with \c hptime in the name to their
+  closest equivalent for the new \c nstime version.  See @ref time-related.
+
+- Change all usage of \c ms_hptime2isotimestr(), \c ms_hptime2mdtimestr(),
+and \c ms_hptime2seedtimestr() functions to use ms_nstime2timestr(), which
+has enumerated flags to specify the time string format.  In general:
+  - ms_hptime2isotimestr() becomes ms_nstime2timestr(nstime, timestr, ISOMONTHDAY, subsecond)
+  - ms_hptime2mdtimestr() becomes ms_nstime2timestr(nstime, timestr, ISOMONTHDAY_SPACE, subsecond)
+  - ms_hptime2seedtimestr() becomes ms_nstime2timestr(nstime, timestr, SEEDORDINAL, subsecond)
+
+- The _time format_ and _subseconds_ flags have changed from integers
+to \c enum values, review and change calling of \c
+ms_nstime2timestr(), \c mstl3_printtracelist(), \c
+mstl3_printsynclist(), and \c mstl3_printgaplist().
+@note If the above functions are simply renamed and the flag values
+are not changed to use the enumerated types, leaving integers as
+arguments, there may be a **non-obvious bug**.  Most compilers will
+quiety accept an integer for the enum argument, which may or may not
+match the desired time format or subsecond handling. Assume _not_.
+
+- Adapt to new identification of a record source.  The channel
+identification has changed from \c NN_SSS_LL_CHA, commonly printed in
+library console output and logging, to an URI-style Source Identifier
+(SID) with the pattern \c XFDSN:NN_SSS_LL_C_H_A.  The following helper
+functions are available for mapping between the new URI-based scheme
+and the traditional SEED networ, station, location, channel scheme:
+  - ms_sid2nslc(): convert SID to traditional SEED identifiers
+  - ms_nslc2sid(): convert traditional SEED identifiers to an SID
+  - ms_seedchan2xchan(): convert SEED channel to SID-style channel components
+  - ms_xchan2seedchan(): convert SID band, source and position to SEED channel
+
+- The new data model allows sampling rate to be specified in samples/second
+  (Hertz) or sampling period (seconds).  This is represented in the \a
+  samprate values, such as ::MS3Record.samprate, as follows:
+  - \c samprate >= 0.0 is a rate in samples/second (Hertz)
+  - \c samprate < 0.0 is a (negated) sampling period in seconds
+
+  It is common that rates equal to or greater than 1 Hz are reprensented
+  in samples/second and rates less than 1 Hz are represented as a
+  period.
+
+  Applications that must consistenly have access to the samples/second
+  representation may use the msr3_sampratehz() function.
+
+@subsection porting-other Other changes that may need attention
+
+- The supported range for the internal time scale is reduced from year
+5000 to year 2262 (due to the change in time resolution). If an
+application previously used the library with years beyond 2262, such
+programs should be adapted for this new limit.
+
+- The \c off_t type is no longer used by the library due to
+non-portable, inconsistent size.  Instead, the \c int64_t type is
+used.  Calling programs should adjust their usage accordingly.  The
+API changed as follows:
+  - The global LM_SIZEOF_OFF_T is removed, no longer needed
+  - The type of \a fpos (file position) arument of ms3_readmsr(), ms3_readmsr_r(), and ms3_readmsr_selection() has changed
+  - Some internal functions and structures rarely used by callers were changed
+
+- The \c flag typedef is now legacy, you may wish to convert to directly using int8_t
+
+- The time and sample rate tolerances, specified as \c timetol and
+  \c sampratetol arguments, have been replaced with ::MS3Tolerance which
+  identifies callback functions that return tolerances for a specified ::MS3Record.
+
+- The SEED 2.x data quality identifiers no longer exist in the new data model.
+  The library maps these values to integer publications versions as follows:
+  - Quality \b R => \b 1
+  - Quality \b D => \b 2
+  - Quality \b Q => \b 3
+  - Quality \b M => \b 4
+  - Unknown quality => \b 0
+
+- For applications that need access to flags in the miniSEED 2.x fixed
+  header, they have moved to the following locations:
+  - Activity flags (field 12):
+    - Bit 0 (calibration signals present) => Fixed header flags, bit 0
+    - Bit 1 (time correction applied), not retained
+    - Bit 2 (begining of event) => Extra header FDSN.Event.Begin
+    - Bit 3 (end of event) => Extra header FDSN.Event.End
+    - Bit 4 (positive leap second included) => Extra header FDSN.Time.LeapSecond
+    - Bit 5 (negative leap second included) => Extra header FDSN.Time.LeapSecond
+    - Bit 6 (event in progress) => Extra header FDSN.Event.InProgress
+  - I/O flags (field 13):
+    - Bit 0 (Station volume parity error) => Extra header FDSN.Flags.StationVolumeParityError
+    - Bit 1 (Long record read) => Extra header FDSN.Flags.LongRecordRead
+    - Bit 2 (Short record read) => Extra header FDSN.Flags.ShortRecordRead
+    - Bit 3 (Start of time series) => Extra header FDSN.Flags.StartOfTimeSeries
+    - Bit 4 (End of time series) => Extra header FDSN.Flags.EndOfTimeSeries
+    - Bit 5 (Clock locked) => Fixed header flags, bit 2
+  - Data quality flags (field 14):
+    - Bit 0 (Amplifier saturation detected) => Extra header FDSN.Flags.AmplifierSaturation
+    - Bit 1 (Digitizer clipping detected) => Extra header FDSN.Flags.DigitizerClipping
+    - Bit 2 (Spikes detected) => Extra header FDSN.Flags.Spikes
+    - Bit 3 (Glitches detected) => Extra header FDSN.Flags.Glitches
+    - Bit 4 (Missing/padded data present) => Extra header FDSN.Flags.MissingData
+    - Bit 5 (Telemetry synchronization error) => Extra header FDSN.Flags.TelemetrySyncError
+    - Bit 6 (Digital filter may be charging) => Extra header FDSN.Flags.FilterCharging
+    - Bit 7 (Time tag questionable) => Fixed header flags, bit 1
+
+  The existence of these boolean extra header values can be tested with mseh_exists().
+
+@subsection porting-data-model-change Ramifications for change in data model
+
+With an internal change in the data model, from miniSEED 2 to
+version 3, results in the following consequences:
+
+- Version 2.x data quality indicators (D, R, Q and M) are no longer
+  supported.  These are mapped to version 3 publication versions.
+
+- Version 2.x beam blockettes (400 & 405) are no longer supported,
+  they will be dropped if reading records that contain such
+  blockettes.
+
+- Version 2.x opaque blockettes (2000) are no longer supported, they
+  will be dropped if reading records that contain such blockettes.
+  Note that the format version 3 @ref extra-headers functionality can
+  be used to contain most arbitrary data.
+
+- Version 2.x timing blockettes (500) contain one "Clock Model"
+  designation per blockette, potentially allowing for multiple
+  designations in a single record.  Upon reading such a record, only
+  the last clock model is retained (in the \c FDSN.Clock.Model @ref
+  extra-headers).
+
+- Version 2.x sequence numbers, as six digit ASCII string, are not
+  retained.  In the new format these values may be placed in @ref
+  extra-headers by a calling program as desired.
+
+*/

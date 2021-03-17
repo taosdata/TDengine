@@ -1,0 +1,73 @@
+/**
+@mainpage libmseed Documentation
+
+@section Overview
+
+The miniSEED library provides a framework for manipulation of miniSEED
+records, a format commonly used for seismological time series and
+related data.  The library includes the functionality to read and
+write data records, in addition to reconstructing time series from
+multiple records.
+
+The library should work in Unix-like, Windows and potentially other
+environments.
+
+@subsection main-tutorial Getting started
+
+The @subpage page-tutorial contains an overview of basic usage and
+examples to get you going.
+
+The @subpage page-capabilities page provides an overview the data format
+fundamentals and capabilities of the library.
+
+@subsection main-downloding Downloading and installing
+
+The <a class="el" href="https://github.com/iris-edu/libmseed/releases">releases</a>
+area contains release versions.
+
+For installation instructions see the
+<a class="el" href="https://github.com/iris-edu/libmseed/tree/master/INSTALL.md">INSTALL</a>
+file.
+
+@subsection develop-main Development and issues
+
+Please report <a class="el" href="https://github.com/iris-edu/libmseed/issues">issues</a>
+to the project.
+
+If you would like to contribute to the project please file Pull Requests
+and/or create issues for discussion at the <a class="el" href="https://github.com/iris-edu/libmseed/">
+libmseed project</a>.
+
+@subsubsection porting-main Porting from earlier version of the library
+
+A @ref porting-guide is available for developer porting software that
+previously used version 2 of the library.
+
+@subsection main-acknowledgements Acknowlegements
+
+Numerous improvements have been incorporated based on feedback and
+patches submitted by others.  Individual acknowlegements are included
+in the ChangeLog.  Contributions are welcome and greatly appreciated.
+
+This library also uses code bits published in the public domain and
+acknowledgement is included in the code whenever possible.
+
+@subsection main-license License
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this software except in compliance with the License.
+You may obtain a copy of the License at
+
+<a class="el" href="http://www.apache.org/licenses/LICENSE-2.0">
+http://www.apache.org/licenses/LICENSE-2.0</a>
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+
+Copyright (C) @currentyear Chad Trabant, IRIS Data Management Center
+
+Documentation last generated @currentdate
+*/

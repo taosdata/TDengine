@@ -1,0 +1,35 @@
+XFDSN:XX_TEST_00_B_H_Z, version 2, 512 bytes (format: 2)
+             start time: 2004,210,20:28:09.000000
+      number of samples: 0
+       sample rate (Hz): 0
+                  flags: [00000000] 8 bits
+                    CRC: 0x0
+    extra header length: 269 bytes
+    data payload length: 0 bytes
+       payload encoding: Text (val: 0)
+          extra headers:
+                "FDSN": {
+                  "Event": {
+                    "Detection": [
+                      {
+                        "Type": "MURDOCK",
+                        "SignalAmplitude": 80,
+                        "SignalPeriod": 0.399999976,
+                        "BackgroundEstimate": 18,
+                        "Wave": "DILATATION",
+                        "OnsetTime": "2004-07-28T20:28:06.185000Z",
+                        "MEDSNR": [
+                          1,
+                          3,
+                          2,
+                          1,
+                          4,
+                          0
+                        ],
+                        "MEDLookback": 2,
+                        "MEDPickAlgorithm": 0,
+                        "Detector": "Z_SPWWSS"
+                      }
+                    ]
+                  }
+                }

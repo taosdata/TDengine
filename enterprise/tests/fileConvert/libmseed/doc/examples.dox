@@ -1,0 +1,90 @@
+/**
+@page page-examples Examples
+
+@tableofcontents
+
+@section examples-overview Overview
+
+The most basic usage of the library is illustrated in the @ref
+page-tutorial.  This page contains full example programs that utilize
+the library for common tasks.  These examples are included in the
+source distribution and (most) are used in the test suite.
+
+While these are full working programs the aspects not related to
+library usage, e.g. argument parsing, are often minimized and left
+uncommented as they will change in real world usage.
+
+@section example-mseedview Read miniSEED from files
+
+A simple program to read miniSEED from files and print details from
+each record:
+
+@include mseedview.c
+
+@section example-lm_read_selection Reading with selections
+
+Read miniSEED with @ref data-selections used to limit what is read.
+Additionally, this program reads data into a @ref trace-list and
+illustrates traversing the entries.
+
+@include lm_read_selection.c
+
+@section example-lm_read_recordlist Reading with record lists
+
+Read miniSEED a file in 2 passes:
+-# Read the file and construct a @ref trace-list without unpacking the
+   data samples and constructing a @ref record-list
+-# Unpack the data samples for each segment individually.
+
+This pattern allows the caller to selectively unpack the data by
+segment if desired.
+
+While this example unpacks the data into a buffer allocated by the
+library, the unpacking routine mstl3_unpack_recordlist() also allows
+data samples to be placed directly into caller-specified memory
+buffers.
+
+While this example uses ms3_readtracelist() for reading data from a
+file, the same functionality exists in mstl3_readbuffer() for reading
+data from a memory buffer.
+
+@include lm_read_recordlist.c
+
+@section example-lm_read_buffer Reading from memory buffers
+
+Read miniSEED from memory buffers.  In this case a file is read into a
+buffer simply to illustrate reading from a buffer.  In practice this
+would functionality would be used with data received via a network
+connection or some other, non-file, mechanism.
+
+@include lm_read_buffer.c
+
+@section example-lm_pack Writing miniSEED
+
+An example of creating miniSEED.  Static data with known signal is
+used for input for illustration and testing.
+
+@include lm_pack.c
+
+@section example-lm_pack_rollingbuffer Writing miniSEED with rolling buffer
+
+An example of creating miniSEED using a ::MS3TraceList as a rolling
+buffer of data.  This pattern is useful for generating miniSEED in a
+streaming fashion for scenarios where holding all data in memory is
+not possible or practical.  For example, very large data sets or
+continuous, streaming data.
+
+An input file of miniSEED is used as a convenient data source.
+::MS3Record containers can be constructed for any arbitrary data and
+follow the same pattern of record generation.
+
+@include lm_pack_rollingbuffer.c
+
+@section example-lm_sids Working with Source Identifiers
+
+An example of mapping between source identifiers (SIDs) and SEED
+identifier codes.
+
+@include lm_sids.c
+
+*/

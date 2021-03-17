@@ -1,0 +1,8 @@
+
+Documentation of the libmseed interfaces can be found in the 'doc'
+directory.
+
+Unix: the Makefile should work for most systems, try 'make'.
+
+Win32: the Makefile.win is for Microsoft's nmake, try
+ 'nmake -f Makefile.win'

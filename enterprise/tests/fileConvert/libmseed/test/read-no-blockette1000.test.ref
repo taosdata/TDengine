@@ -1,0 +1,20 @@
+XFDSN:XX_TEST__B_H_E, version 2, 4096 bytes (format: 2)
+             start time: 1995,265,00:00:18.238400
+      number of samples: 3632
+       sample rate (Hz): 20
+                  flags: [00000000] 8 bits
+                    CRC: 0x0
+    extra header length: 0 bytes
+    data payload length: 4048 bytes
+       payload encoding: STEIM-1 integer compression (val: 10)
+       337         396         454         503         547         581  
+XFDSN:XX_TEST__B_H_E, version 2, 4096 bytes (format: 2)
+             start time: 1995,265,00:03:19.838500
+      number of samples: 3680
+       sample rate (Hz): 20
+                  flags: [00000000] 8 bits
+                    CRC: 0x0
+    extra header length: 0 bytes
+    data payload length: 4048 bytes
+       payload encoding: STEIM-1 integer compression (val: 10)
+      -110        -188        -261        -329        -391        -448  

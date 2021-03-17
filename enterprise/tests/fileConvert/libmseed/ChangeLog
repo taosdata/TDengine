@@ -1,0 +1,1219 @@
+2020.156: 3.0.8
+	- Add error/warning log registry for accumulation of messages.
+	- Log and diagnostic printing callbacks now require 'const char *'.
+	- Verbose-triggered messages are now sent to stdout instead of stderr.
+
+2020.137:
+	- Add capability to read data from URLs.  This feature is optional,
+	enabled at build time with LIBMSEED_URL and requires libcurl to be
+	available on the system.
+
+2019.216:
+	- Copy only UTF-8 characters in ms_strncpclean(), ms_strncpcleantail(),
+	and ms_strncpopen().
+
+2019.172: 3.0.7
+	- Add conversion of epoch values via ms_timestr2nstime().
+	- Allow trailing 'Z' in date-times in ms_timestr2nstime().
+
+2019.170: 3.0.6
+	- Generalize ms_timestr2nstime() to detect all supported time formats.
+	- Rename old ms_timestr2nstime() to ms_mdtimestr2nstime().
+	- Change minimum valid year from 1000 to 1678 to avoid wrap-around.
+	- ms_nstime2timestr(): fix printing of pre-epoch values for UNIXEPOCH.
+	- Add test for time string parsing and conversion.
+
+2019.166: 3.0.5
+	- Allow trace list packing with multiple data sample types.
+
+2019.163:
+	- Portable printing of size_t values.
+
+2019.162:
+	- Re-license all libmseed code under the Apache License V2.0.
+
+2019.161: 3.0.4
+	- Add record record list capability, replacing segment-level record metadata.
+
+2019.142:
+	- Add ability to pack miniSEED version 2 records.
+
+2019.137:
+	- Allow packing records with no payload, i.e. header-only.
+
+2019.135:
+	- Add pre-allocation of data buffers, enable on Windows and disable otherwise.
+
+2019.123: 3.0.3
+	- Fix version splitting, clarify behavior
+	- Fix publication version filtering, thanks @krischer
+	- Allow selections without time ranges, thanks @krischer
+	- Normalize encoding string lookups, the SEED manual values are messy no need to perpetuate them
+	- Add option to build PDF manual and clarifications in documentation
+	- Remove steps in install target of Makefile that no longer function, thanks @senshu
+
+2019.103: 3.0.2
+	- mstl3_pack() can be called without modifying the Trace List with MSF_MAINTAINMSTL flag.
+	- Add lm_pack_rollingbuffer.c example of generating records with a rolling buffer.
+	- Consistently provide extra headers as terminated string from MS3Record.extra.
+	- Fix segment start time tracking in mstl3_pack().
+
+2019.102: 3.0.1
+	- Add mstl3_readbuffer_selection() and fix selection-based ms3_readmsr_selection().
+	- Use callback functions for time and sample rate tolerance instead of fixed values.
+	- Fix progression of record start time when packing records.
+	- Optionally store record-level metadata, header flags and extra headers, in a MS3TraceList.
+	- More documentation and examples.
+
+2019.094: 3.0.0
+	- A new major version refactored to support the next generation miniSEED
+	Documentation including porting guide avilable at:
+	https://iris-edu.github.io/libmseed/
+
+	Almost all core data structures and functions have been modified,
+	often mostly in name (due to structure changes), so porting is required.
+
+	Major new features and changes of note:
+
+	- Support for reading/writing of miniSEED 3 and read support of miniSEED 2.
+
+	- Support for nanosecond time resolution:
+	The HPTMODULUS is renamed NSTMODULUS and changed for nanoseconds.
+	Related change of HTPERROR to NSTPERROR value.
+	hptime_t changed to nstime_t and all time functions changed accordingly.
+	The hptime2XYZtimestr() function is combined into single nstime2timestr()
+	  function with format flag.
+
+	- Added mstl3_readbuffer() to read all records in a data buffer into a Trace List.
+
+	- Add global libmseed_memory that contains user-definable function pointers to
+	malloc(), realloc() and free().  This allows all memory management from the library
+	to be performed with user-defined functions.
+
+	- Data structure change and rename:
+	Rename MSRecord to MS3Record and restructure for miniSEED 3.
+	Rename MSTrace[ID,Seg,List] to MS3Trace[ID,Seg,List] and restructure for miniSEED 3.
+	Rename Selections and SelectTime to MS3Selections and MS3SelectTime.
+
+	- Remove MSTrace_s and MSTraceGroup and related functions, use MS3Trace[ID,Seg,List] instead.
+
+	- Remove all platform defines (LWP_*) except LWP_WIN for MS Windows.
+
+	- Rename all library structs by removing the "_s" suffix so they match their typedef names
+
+	- Rename macros and functions specific to miniSEED 2.x by adding "2".
+
+	- Remove packheaderbyteorder and packdatabyteorder handling and related
+	envrionment variables. Byte order is either detected or fixed.
+
+	- Decrease MINRECLEN from 256 to 40, decrease MAXRECLEN from 1MB to 128 KiB.
+
+	- Increase 'recbuflen' to msr3_parse[_selection]() to uint64_t to work with very large buffers.
+
+	- Remove record length specifier from many parsing routines, always autodetermined.
+
+	- Remove MS_ISVALIDBLANK macro, was only used for notification of archaic structure.
+
+	- Add JSON handling and general wrapper functions to support extra headers
+
+	- Add CRC-32C calculation, new ms_crc32c() function.
+
+	- Set msr->swapflag bit flags to indicate if header and payload need swapping during parsing.
+
+	- Selection file format allows two selection listing variants
+	If the "quality" field is an integer it is assumed to be a publication version,
+	otherwise it is ignored.
+
+	- Remove capability to read the deprecated "pack" file format used at IRIS DMC.
+
+	- Remove StreamState tracking, effectively dropping the compression history capability
+	between records.  Not worth the complexity.
+
+2017.283: 2.19.5
+	- msr_endtime(): calculate correct end time during a leap second.
+	- Fixed signedness comparison warning.
+
+2017.125:
+	- Export LM_SIZEOF_OFF_T on Windows via libmseed.def.
+
+2017.118: 2.19.4
+	- Add global LM_SIZEOF_OFF_T variable that is set to the size of
+	the off_t data type as determined at compile time.
+
+2017.075: 2.19.3
+	- Add missing public, global symbols to libmseed.map, thanks
+	to Elliott Sales de Andrade.
+
+2017.061: 2.19.2
+	- Provide install target in Makefile thanks to by Pierre Duperray.
+	- Deprecate dynamic build target, the shared target will now build
+	shared or dynamic (Darwin) libraries depending on the system.
+	- Limit symbols exported in shared libraries to public interfaces
+	as defined in libmseed.map, thanks again to Pierre Duperray.
+	- Allow tests to work on Darwin with dynamic libraries.
+
+2017.060: 2.19.1
+	- Derive versioning of shared/dynamic library from canonical version
+	defined as LIBMSEED_VERSION in libmseed.h.
+	- Apply updates to more standardized use of NAME and typos in man pages,
+	submitted by Pierre Duperray.
+
+2017.053: 2.19
+	- Incorporate lmplatform.h details into libmseed.h for improved usage.
+	All that is needed is the static/shared/dynamic library and libmseed.h.
+	- Avoid undefined left shifts of signed values that would go out of
+	range and specify the types of some constants.
+
+2016.290:
+	- Remove dependency on ntwin32.mak for Windows nmake makefiles, now
+	building works in plain MSVC development environments.
+
+2016.286: 2.18
+	- Remove limitation on sample rate before calling ms_genfactmult()
+	in the normal path of packing records.  Previously generating the
+	factor and multiplier was not attempted for rates higher than
+	32,767.
+
+2016.281: 2.18rc4
+	- ms_genfactmult() now support a much larger range of integer
+	sample rates and periods.
+	- ms_genfactmult() now sets the factor and multiplier using the
+	SECONDS/SAMPLE notation for sample rates less than 1.0 to retain
+	precision for low rates.
+	- ms_genfactmult() now assumes the specified rate is a sample
+	period in seconds if the samprate value is negative.
+	- Add ms_rsqrt64() as a general use reciprocal sqrt for doubles.
+	- Use memcpy() instead of assignment when unpacking float32 and
+	float64 samples to avoid problems with NaN's.  Thanks Lion Krischer.
+	- Add test for reading records without Blockette 1000.
+	- Reformat all source code using included clang-format profile.
+
+2016.277:
+	- A more elegant sanity check for output length in packing by mbyt.
+
+2016:276: 2.18rc3
+	- Improvements for test suite, more consistency.
+	- Remove msr_decode_steim? from libmseed.def, they are internal.
+	- Add sanity to length check before memset calls in packing functions.
+
+2016:274: 2.18rc2
+	- Check for environment variables ENCODE_DEBUG and DECODE_DEBUG
+	and set debugging output, at this point it is Steim frame details
+	and differences being encoded/decoded.
+	- Fix padding in steim[12] encoding routines.
+	- Remove unneeded output buffer checks in steim[12] decoding routines.
+
+2016.272: 2.18rc1
+	- Replace data sample packing and unpacking routines from qlib2 with
+	new routines developed from scratch.  All code is now LGPL licensed.
+	- Add test suite with tests for encoding, decoding, parsing, etc.
+	- Update licensing to GNU-LGPL version 3 and include (L)GPL licenses
+	in LICENSE.txt.
+
+2015.053:
+	- Define needed C99 int types for MSVC 2012 or earlier.  Previously
+	this was only done for versions earlier than MSVC 2010.
+
+2015.213: 2.17
+	- Round Fixed Section Data Header start time values to the nearest
+	tenth of millisecond and restrict the microsecond offset value
+	to a range between -50 and +49 as recommended in SEED.  Previously
+	start times were truncated at tenths of millisecond resolution
+	and the microsecond offset value was between 0 and +99.  This also
+	addresses a bug where microsecond offsets were off by 100ms for times
+	before Jan 1 1970.  Thanks to Lion Krischer for reporting.
+
+	Note to future hackers: the definition of HPTMODULUS governing the
+	time tick interval for high precision time values implies that this
+	tick interval may be changed.  In reality, this should not be changed
+	from the default, microsecond tick value without thorough testing.
+	Some logic is know to be dependent on the microsecond tick.
+
+2015.134: 2.16m
+	- Add defines for needed integer types and macros from inttypes.h
+	missing in older MSVC versions.  MSVC 2010 and later appear to have
+	enough C99 support.
+	- Add define tests for _WIN32 and _WIN64 to cover all WINs.
+	- ms_fread(): Add cast to quiet warning for conversion from size_t
+	to int.  In this case the read will always be <= MAXRECLEN, much
+	smaller than int, making the conversion safe.
+
+2015.113: 2.16
+	- Update minor release version in Makefile.
+
+2015.108:
+	- Cleanup of lmplatform.h removing unneeded headers and using C99
+	standard headers except for a few platform specific cases.
+	- Convert all printf() and scanf() usage of %lld for 64-bit integers
+	to use the C99 PRId64 and SCNd64 macros for portability (MinGW).
+	- Change detection of Linux/Cygwin to set global define LMP_LINUX
+	instead of LMP_GLIB2 (now marked as deprecated).
+	- Change detection of Windows to set global define LMP_WIN instead
+	of LMP_WIN32 (now marked as deprecated).
+	- Add detection of __MINGW64__ define.
+	- Tested building on Win7 with: Open Watcom 1.9, MinGW gcc 4.8.1 and
+	Cygwin 1.7.35 (gcc 2.9.2).
+
+2015.074:
+	- Define NTP-Posix time epoch conversion constant specifically as
+	a long long integer to avoid warnings on some compilers.
+
+2015.070: 2.15
+	- Fix infinite loop if blockette chain is corrupt.  Patch submitted
+	by Elliott Sales de Andrade.
+
+2015.062: 2.14
+	- Fix memory leak when msr_pack() returns after an error. Patch
+	contributed by Larry Baker and Eric Thomas.
+	- Change casting of values passed to isdigit() to int intead of
+	unsigned character.  Apparently this was consufing on ARM archs.
+	
+2015.061:
+	- Add ms_readleapseconds() and ms_readleapsecondfile() routines to
+	read a leap seconds file into an internal list.
+	- Modify msr_endtime() to check for an internal leap second list,
+	check for overlap with the record and adjust the end time as needed
+	when leap seconds are present.  When a leap second list is present
+	any indication of positive leap seconds in the fixed section data
+	header are ignored.
+
+2014.248:
+	- Add casting to size_t and int to avoid build warnings on certain
+	build systems (e.g. older MS Visual Studio).
+	The effective maximum sample buffer and record buffer size is ~2GB.
+
+2014.234: 2.13
+	- Clean up Makefile and example/Makefile, remove all GCC-specific and
+	debug targets.  Makefiles are compatible with both GNU and BSD make. 
+	As before, the shared target works only for GCC-compatible compilers.
+	Thanks to Elliott Sales de Andrade for pointing out that shared library
+	targets did not work with parallel builds, prompting this clean up.
+
+2014.197: 2.13rc
+	- Support 128-byte record length by changing MINRECLEN to 128 (was 256).
+	The current SEED specification is a minimum record length of 256-bytes,
+	but there are cases (e.g. low latency data flow) using 128-byte records.
+	- Add declarations, casting and string truncation to clear warnings
+	uncovered in ObsPy testing (thanks to Elliott Sales de Andrade).
+
+2014.074:
+	- Add __CYGWIN__ defined test to Linux section of lmplatform.h.
+
+2013.273: 2.12
+	- Add mst_convertsamples() and mstl_convertsamples() to convert sample
+	types.  When converting from float & double types to integer type
+	a simple rounding is employed to compensate for machine representation
+	of floating point numbers.
+
+2013.267:
+	- msr_endtime(): Check activity flags in fixed section of data header,
+	if bit 4 is set then a positive leap occurred during the record and
+	the end time should be reduced by one second to properly match the now
+	shifted UTC time.  As long as the next record in the series is
+	properly marked with the correct UTC time no artificial time tear
+	will be generated when reconstructing the time series.
+
+2013.137:
+	- Update docs for transition to 64-bit sample counts done in 2011!
+
+2013.117: 2.11
+	- Initialize internal counters in mst_pack() to avoid their use 
+	in error conditions. Thanks to D. Ketchum and M. Potter for help. 
+	- Add 'const' qualifier to the msfile argument of the file reading and
+	writing family of routines to stop compiler warnings resulting from
+	generated binding functions.  Thanks to M. Bach for reporting.
+
+2013.056: 2.10
+	- Add more sanity checks to msr_unpack_data() to catch bad/corrupted
+	data records and avoid crashes due to impossible pointer construction.
+
+2013.053: 2.9
+	- Extend parsing of day-of-year style time strings to allow parsing
+	of time fields separated by dashes in addition to allowing the day
+	and time fields to be separated by a 'T' or space.  Modifications 
+	were made to ms_seedtimestr2hptime().
+	- Extend parsing of year-month-day style time strings to allow parsing
+	of time fields separated by commas.  Modifications were made to
+	ms_timestr2hptime().
+
+2013.050:
+	- Add MS_ISVALIDYEARDAY() macro to test range for year and day values,
+	years between 1900 and 2100 and days between 1 and 366.
+	- Use new macro to determine when byte swapping is needed.  This test
+	leaves a non-determination of byte order for days 1, 256 and 257 in
+	the year 2056, beware future data users.
+
+2013.007: 2.8 (again)
+	- Add msr_parse_selection() to libmseed.def for Windows builds.
+	- Fix errors in pseudo code in doc/msr_parse.3.
+
+2012.363: 2.8
+	- Implement msr_parse_selection() which is a wrapper of msr_parse()
+	that searches for the first parsable miniSEED record in a memory
+	buffer and returns it.  Optionally a Selections list may be specified
+	to limit the returned data to records matching specific criteria.
+
+2012.357:
+	- Fix corruption of float sample types when opposite byte order than
+	host in certain architecture combinations.  By not addressing
+	individual float samples directly as floats prior to byte swapping
+	we avoid the values being placed into the FPU where they may be
+	corrupted.  Thanks to Moritz Beyreuther and Lion Krischer for discovery
+	and testing.
+	- Expose the msr_unpack_data() function for use by removing the static
+	declaration.  Change verbose flag type to match others and document.
+	- Fix some logging messages, typos, etc.
+
+2012.138: 2.7
+	Add define for MINGW32 to use _fstat and _stat.
+
+2012.114: 2.7rc2
+	- Change record parsing code to trim trailing spaces from network,
+	station, location and channel parameters.  Spaces in between non-space
+	characters remain.
+
+2012.111:
+	- Update example/test.mseed to new data with an earthquake to make it
+	more recognizable compared to ambient noise in the previous example.
+
+2012.105: 2.7rc1
+	- Add many type casts to quiet newer GCC and MSVC compilers.
+	For 32-bit programs there are some places, mostly in packing routines,
+	where 64-bit integers are converted to 32-bit values for sample buffer
+	sizes and counts leaving the potential for overflow.  This will become
+	a problem when byte counts for sample buffers are beyond 2^31, for
+	32-bit integer sample values that is more than 536 million samples.
+	So programmer beware if using such buffer sizes for packing miniSEED.
+
+2012.088:
+	- When parsing records copy the ASCII string fields (sequence number,
+	network, station, location, channel) directly without removing spaces.
+	This makes the parser more lenient to unallowed characters and
+	synchronizes read and write capabilities.
+
+	- For sampling rates above 32,767 Hz only print a warning for high
+	verbosity settings and set the sample rate factor and multipler to zero.
+	Previously an error was printed during rational approximation.
+	The expectation is that a record with such a high sample rate will
+	include a blockette 100 to specify the actual sample rate.
+	This is not an official convention for SEED, but is a kludge to
+	support extremly high sample rates without printing errors.
+
+	- Fix conversion to doubles in examples/msrepack.c.
+
+2011.304: 2.6.2
+	- Increase precision of sample rate in SYNC printing routines to
+	avoid trucation of rate values.
+
+2011.262:
+	- Add '_lm' suffix to declaration of pivotal_gmtime_r_stamp in
+	genutils.c to avoid conflicts with other libraries.  Thanks to Doug
+	Neuhauser for the tip.
+
+2011.164:
+	- example/msrepack.c: add -N option to specify network code for output
+	data records.
+
+2011.160:
+	- example/msrepack.c: make sure input buffer is flushed/packed, retain
+	good input data when the end of the file contains bad data.
+
+2011.158:
+	- example/msrepack.c: convert samples to needed type for specified
+	output encoding, e.g. integers to floats.
+	- example/msrepack.c: do not open output file until after all options
+	have been parsed to avoid clobbering the output file unnecessarily.
+
+2011.144: 2.6.1
+	- Update dynamic library version.
+	- Add notes to the users guide and intro about functions useful for
+	detecting and parsing records in a memory buffer.
+
+2011.129:
+	- Correctly determine record lengths implied by presence of pack header
+	by avoiding record header searches in buffer beyond pack header.
+	- Fix ms_parse to return correct hint of how many more bytes are needed
+	when record length has not been determined.
+	- Change the samplecnt and numsamples elements of the MSRecord, MSTrace
+	and MSTraceSeg structures to 64-bit integers to avoid overflow.
+
+2011.124:
+	- Allow lowercase 't' in ISO time string parsing.
+
+2011.090:
+	- Add check for invalid blockette offset in ms_detect().
+
+2011.056: 2.6
+	- Fix handling of sample data in internal MSTraceList routines.
+	- Cleanup WIN32 defines, make MSVC and Open Watcom play nicely.
+	- Default data byte order to big endian when blockette 1000 contains
+	invalid byte order value, previously defaulted to host byte order.
+
+2011.042: 
+	- Update libmseed.def to match current libmseed.h declaractions.
+	- Cleanup to avoid MSVC warnings.
+
+2011.039: 2.6rc4
+	- Do not return MS_NOTSEED when no records read from packed file.
+	- Update user guide to include note about MSTraceLists and change
+	the miniSEED creation example to use mst_writemseed().
+
+2011.036: 2.6rc3
+	- Fix parsing of records without blockette 1000, use pack headers
+	and end-of-file to determine implied record lengths.
+
+2011.032: 2.6rc2
+	- Fix handling of truncated records, partial reads at EOF.
+	- Fix offset tracking when reading from stdin.
+
+2011.006: 2.6rc1
+	- Add convience routines to only read selected records from a file:
+	   ms_readtracegroup_timewin()
+	   ms_readtracegroup_selection()
+	   ms_readtracelist_timewin()
+	   ms_readtracelist_selection()
+	- Add convience routines to write miniSEED data to specified file:
+	   msr_writemseed()
+	   mst_writemseed()
+	   mst_writemseedgroup().
+	- Fix bug when either mst_pack() or mst_packgroup() was called with
+	a NULL packedsamples pointer.
+	- Fix bugs when (re)initializing read buffer.
+	- Fix return of file position in ms_readmsr_main()..
+	
+2010.365:
+	- Add internal ms_gmtime_r() to replace call to system gmtime_r(). The
+	internal version handles dates beyond year 2038 and avoids the system
+	call.  Tested with years up to 5000.
+
+2010.363:
+	- Add parseutils.c source file.
+	- Add msr_parse() to detect & unpack a record in a memory buffer.
+	- Add ms_detect() to check a memory buffer for a record.
+
+	- Rewrite ms_readmsr_main() to use msr_parse() and reduce I/O by
+	using a double-buffer to increase the average read size and other
+	simplifications and optimizations.
+
+	The internal read buffer size is MAXRECLEN as defined in libmseed.h.
+	Each file parameter structure used, including the global default,
+	will allocate a buffer of this size.  For specialized applications
+	requiring low memory use the MAXRECLEN, current 1 MB, can be reduced.
+
+	- Change ms_readmsr_main() to interpret reclen <= 0 as a request
+	for autodetection of each record, a value of 0 no longer means all
+	records are the same length as the first record.
+	- Remove ms_find_reclen() function, replacement is ms_detect().
+	- Move ms_parse_raw() into parseutils.c.
+	- Change year sanity check to allow range 1800 to 5000.
+	- Use 64-bit values in hptime calculation to correctly handle years
+	beyond 2038.
+	- The "last" record indicator argument to the ms_readmsr() family
+	is considered deprecated and will probably be removed in future
+	releases.  New programs should not use this functionality, it does
+	not, and will never, work in cases where there is more than
+	MINRECLEN padding after the last valid record in a file.
+
+2010.304:
+	- Use gmtime_r() to avoid the non-thread-safe system gmtime() function.
+	- Define gmtime_r() for WIN32 and WIN64 in terms of gmtime() which is
+	thread-safe under WIN32.
+	- Add define for WIN64 even though WIN32 is probably defined for 64-bit.
+
+2010.291:
+	- Add check for spaces as valid characters in sequence numbers.
+
+2010.253:
+	- Add check for log parameters in ms_log_main().
+
+2010.129:
+	- Fix small printing bug in diagnostic ms_printselections().
+
+2010.068: 2.5.1
+	- Allow file name for ms_readselectionfile() to be "-" and read
+	stdin as a special case.
+
+2010.047: 2.5
+	- Fix tracking of first and last MSTraceSeg entries in mstl_addmsr().
+	- Make the non-fatal Steim integrity failure and sample mismatch log
+	output print as "Warning" instead of "ERROR".
+
+2010.015: 2.4
+	- Change ms_addselect() to take a srcname argument and create
+	ms_addselect_comp() as a wrapper that creates a srcname from
+	individual source name components.
+
+2010.012:
+	- Fix unpacking of 16-bit integer encoded data, thanks to
+	Robert Barsch. 
+	
+2010.008:
+	- Fix special case of "--" location ID in ms_addselect().
+	
+2010.007:
+	- Add SelectTime **ppselecttime argument to ms_matchselect()
+	and msr_matchselect() routines so that the matching time range
+	can optionally be returned to the caller.
+
+2010.006:
+	- Add a check for ATTRIBUTE_PACKED define (lmplatform.h) and
+	if set add an __attribute__((packed)) qualifier to all structs
+	that are mapped to SEED structures (and cannot be padded).
+	This is useful on platforms such as ARM that pad structures 
+	for alignment by default.  To use add "-DATTRIBUTE_PACKED" to
+	CFLAGS or equivalent.
+	- Fixes to gswapX() routines for platforms where structures
+	are padded for alignment; patch from Laurence Withers, thanks.
+	- Add msr_matchselect and ms_printselections() routine to
+	selections.c.
+
+2010.005:
+	- Simplify packed file reading in ms_readmsr_main() and allow
+	data sections to be skipped based on a Selection list, packed
+	files are used internally at the IRIS DMC.  
+	- Rename ms_readmsr_r() to ms_readmsr_main() and create a
+	simple wrapper function for ms_readmsr_r().
+
+2010.004:
+	- Add selection.c containing routines to manage data selection
+	lists based on network, station, location, channel, quality,
+	start and end times.  The name parameters may contain globbing
+	charaters for matching.  External routines are: ms_addselect(),
+	ms_matchselect(), ms_readselectionfile() and ms_freeselections().
+
+2009.365:
+	- Correctly track microsecond offset in Blockette 1001 when
+	msr_pack() creates more than one record.
+
+2009.357:
+	- Reduce error accumulation of record start times in pack.c,
+	thanks to Roman Racine for the report and suggested fix.
+	The error only accumulated to significant values when packing
+	a large number of records with a single call to msr_pack().
+	
+2009.354:
+	- Change return type of internal ms_readpackinfo() to off_t and
+	fix small error return check.
+
+2009.353:
+	- Add ms_splitsrcname() routine to split "NET_STA_LOC_CHAN[_QUAL]"
+	into separate components.
+	- Update MINOR_VER version to 4 anticipating the 2.4 release 
+	(seem to have forgotten 3).
+
+2009.201: 2.3
+	- msr_unpack(): change new blockette count and data offset
+	test failures to "Warning" instead of "ERROR".
+
+2009.194: 2.3rc
+	- Fix record offset reporting when record length detection fails.
+	- Add diagnostic reporting of data problems in ms_readmsr_r()
+	by calling ms_parse_raw().
+
+2009.174: 
+	- Fix corner case trace sorting error in mstl_addmsr().
+	- Add ms_nomsamprate() to genutils.c to calculate the sample rate
+	specified as a SEED sample rate factor and multiplier.
+	- Add ms_parse_raw() implementing a simple validating parser
+	to report invalid header values and print raw header fields.
+	- msr_unpack(): add tests for blockette count and data offset.
+	- Change byte swapping test of year to 1920 to 2050 range.
+	- Store blockette offset in BlktLink structure.
+
+2009.111: 2.2
+	- Add CDSN decoding support due to popular demand.
+	- Incorporate enhanced dynamic library versioning as recommended
+	by Laurence Withers.
+	- Fix bug in ASCII encoding routine, thanks again Laurence Withers.
+	- Add and update libmseed.def which can be used with the Win32 DLL
+	for linking, original file contributed by Robert Barsch.
+
+2008.361: 2.2rc3
+	- Improve mstl_addmsr() sorting and suturing logic so that it
+	matches the healed and sorted output from the trace group routines.
+
+2008.327: 2.2rc2
+	- Add ms_readtracelist() to read all records from a file into a
+	MSTraceList.
+	- Update all man pages with changes and add new man pages.
+	- Fix auto sorting of traces in mstl_addmsr().
+
+2008.320: 2.2rc
+	- Add MSTraceList facility which is functionally equivalent to
+	the existing MSTraceGroup facility but more efficiently populated,
+	especially when data records are in time order or the time series
+	are very gappy.  The MSTraceList related functions are prefixed
+	with "mstl_" and exist in the new source file tracelist.c.	
+	- Add mst_printsynclist() and mstl_printsynclist() functions to
+	print trace segment lists in SYNC format.
+
+2008.318:
+	- Change one call in fileutils.c to fseeko() to lmp_fseeko()
+	so Win32 builds work again.
+
+2008.313:
+	- Optimize mst_findadjacent() by first testing for time segment
+	match, then sample rate and finally source name components.
+
+2008.283: 2.1.7
+	- Allow a caller of ms_readmsr()/ms_readmsr_r() to specify a
+	starting offset into the file by setting the value pointed to by
+	the fpos argument to a negative value (interpreted as a positive
+	offset).
+
+2008.220: 2.1.6
+	- Optimize Steim 1 & 2 encoders significantly by using small local
+	working buffers and eliminating many redundant calculations.
+	Thanks to Jean-Francois Fels.
+
+2008.171:
+	- Add Matlab/GNU Octave interface routines, thanks to Stefan Mertl.
+	- Remove 'const' qualifier from argument of log printing function
+	pointers, too many useless compiler warnings.
+
+2008.163:
+	- Allow data record sequence numbers to be NULL values in addition
+	to ASCII numbers.
+ 
+2008.161: 2.1.5
+	- Fix string parsing error for IRIS DMC packed files, thanks Sandy!
+	- Use a merge sort algorithm insteam of the bubble sort previsouly
+	used in mst_groupsort(), better performance.
+	- Do raw string manipulation in msr_srcname() and mst_srcname()
+	instead of using sprintf(), slightly better performance.
+	- Do raw string comparison in mst_findmatch() for better performance.
+
+2007.228: 2.1.4
+	- Include compression history for Steim encodings by tracking the
+	last sample value packed for each data stream.  For the first
+	record of a stream, a cold-start, the first difference is zero.
+	This included the addition of a StreamState struct and associated
+	pointers for MSRecord and MSTrace which get allocated during packing
+	routines.
+	- Do not adjust start time of record header during packing when
+	sampling rate is zero or negative.
+	- Add ms_hptime2mdtimestr() and ms_btime2mdtimestr routines to
+	create time strings in month-day format, this is the same as
+	the ISO format without the 'T' between the date and time.
+	- Add a 'subsecond' flag argument to all ms_hptime2<string>
+	routines to control the addition of sub-second precision.
+
+2007.178: 2.1.3
+	- Fix log message bug for unknown encoding format while unpacking,
+	this could cause certain systems to segfault if encountered.
+	- Rename MS_UNPACKENCODINGFORMATFALLBACK macro to 
+	MS_UNPACKENCODINGFALLBACK to match the actual variable name.
+	- Fix handling of fallback encoding format in unpack.c, worked
+	earlier but had regressed to a broken state.
+	- Remove declaration for lmp_strerror() which does not exist.
+
+2007.148: 2.1.2
+	- Use calloc instead of malloc to allocate and clear a fsdh_s
+        in msr_pack_header_raw() when none is available in the passed
+        MSRecord.  Previously this could result in a subtle bug for systems
+        where malloc'd memory is not zeroed.  This would only have effected
+	programs that were creating miniSEED in a particular way.
+
+2007.138: 2.1.1
+	- Create LMP_BSD platform definition to cover the BSDs including
+	Apple Mac OS X, this replaces LMP_DARWIN.  Specifically FreeBSD,
+	OpenBSD, NetBSD and Apple are detected for this platform.
+
+2007.118:
+	- Add msr_duplicate() function to duplicate an MSRecord struct.
+	- Use msr_duplicate() in example/msrepack.c example program to
+	track the most current MSRecord as a template for packing.
+
+2007.102: 2.1
+	- Removed caveat comment from mst_groupheal() man page.
+
+2007.083:
+	- mst_groupheal() now sorts the MSTraceGroup before it tries to
+	heal the traces, this increases the chances of healing all
+	possible segments.
+	- msr_pack(): add void *handlerdata argument that wil be passed
+	directly to the record_handler(), this is intended to allow
+	private data to be passed from the msr_repack() caller to the
+	record handling routine.
+	- mst_pack(): add void *handlerdata argument that is passed
+	directly to msr_pack() and used as described above.
+	- mst_packgroup(): add void *handlerdata argument that is passed
+	directly to mst_pack() and used as described above.
+	- Add macros for setting the pack & unpack, header & data byte
+	order override variables: MS_PACKHEADERBYTEORDER(X),
+	MS_PACKDATABYTEORDER(X), MS_UNPACKHEADERBYTEORDER(X) and
+	MS_UNPACKDATABYTEORDER(X).
+	- Add macros for setting the unpack encoding format override and 
+	encoding format fallback variables: MS_UNPACKENCODINGFORMAT(X)
+	and MS_UNPACKENCODINGFORMATFALLBACK(X).
+	
+2007.074:
+	- Fix typos in the docs referring to msr_readtraces() that should
+	be ms_readtraces(), thanks Richard Boaz.
+
+2007.034:
+	- mst_groupheal(): fix removal of first trace in group.
+	- mst_groupheal(): reset MSTrace data quality indicator when
+	merged traces do not have matching qualities.
+
+2007.030: 2.0
+	- Set no default CFLAGS and CC variables for building and add a
+	note to the Makefile about using them for build configuration.
+	- Eliminate compiler warning for genutils.c routines.
+
+2007.028:
+	- Add new pack file type 8.
+	- Allow 'M' as a valid data record indidator/quality flag.
+
+2007.023:
+	- Determine needs for GEOSCOPE decoding and remove the need
+	for using the pow() function and linking with the math library.
+
+2007.005:
+	- Fix resetting of global MSFileParam in ms_readmsr_f() when
+	cleanup is requested.
+
+2006.363:
+	- Change mst_groupsort() to sort on: srcname, then starttime,
+	then descending endtime and finally sample rate.  This moves
+	sample rate to the end of the criteria, the previous order was:
+	srcname, sample rate, starttime and endtime.
+
+2006.354: 2.0rc1
+	- Stamp 2.0rc1.
+        - Fix diagnostic printing bug in pack.c.
+	- Fix ms_gswap.3 man page.
+
+2006.346:
+	- Change "get_" prefix for lookup routines to "ms_".
+	- Change ms_encoding() to ms_encodingstr().
+	- Document ms_errorstr() in the lookup and other man pages.
+	- Document and use ms_log(3) in User Guide/ms_intro(3).
+
+2006.344:
+	- Add "ms_" prefix to gswap routines.
+	- Change SWAPBTIME macro to MS_SWAPBTIME.
+
+2006.339: 2.0pre8
+	- Add buffer length sanity check in ms_find_reclen() suggested by
+	Doreen Pahlke.
+	- Change mst_printracelist() and mst_printgaplist() to print
+	"-0" when the gap is 0 (one sample overlap) and "==" when there
+	is no gap.
+
+2006.332:
+	- Add memory allocation checks, every allocation is now tested.
+	- Fix usage message for example programs, use fprintf for the long
+	section of the output.
+
+2006.331: 2.0pre7
+	- Add source name to all unpacking error and diagnostic messages.
+        - Add source name to all packing error and diagnostic messages.
+	- Reorganize sanity check code in msr_unpack() to use the
+	MS_ISVALIDHEADER macro.
+	- Add ms_recsrcname() function to calculate the source name for 
+	an unpacked record.
+
+2006.326: 2.0pre6
+	- Add ms_readmsr_r() as a reenentrant, thread safe version of what
+	ms_readmsr() used to be and make ms_readmsr() a wrapper for the new
+	reentrant version that uses global file reading parameters.
+	- Use ms_readmsr_r() in ms_readtraces() so that it's now thread
+	safe too.
+	- Add logging.c routines and declarations in libmseed.h.  This
+	constitutes a new logging facility that is used throughout the
+	library and can be used by libmseed based programs.  The facility
+	allows the caller to redirect all the log, diagnostic and error
+	output from the library to specific functions.  The facility 
+	also allows user specifed prefixes for all output messages.
+
+2006.321:
+	- Prefix all data encoding type defines with DE_ to avoid collision.
+	- Add GEOSCOPE (three subtypes), SRO and DWWSSN data decoders, there
+	are no encoders for these types.
+	- Need of the pow() function now requires linking with -lm (math lib).
+
+2006.312: 2.0pre5
+	- Add MS_ISVALIDBLANK macro to libmseed.h to test memory for valid
+	blank/noise records: valid sequence number followed by ASCII spaces.
+	- Use MS_ISVALIDBLANK in ms_find_reclen() to implicitly find record
+	lengths, when reading ahead the record length can now be determined
+	if then next record is a real data record or a blank record.
+	- Use MS_ISVALIDBLANK in ms_readmsr() to print out a more specific
+	message when skipping blank records as opposed to non-data records
+	records.
+
+2006.311: 2.0pre4
+	- Use MS_ISVALIDHEADER instead of MS_ISDATAINDICATOR when verifying
+	data records when the record length is not autodetected in ms_readmsr().
+	- In msr_unpack_data() move the test of reallocation directly after
+	the reallocation so it's only tested when actually done.
+	- In msr_unpack_data() include text description of encoding in the
+	unsupported encoding error message.
+
+2006.296: 2.0pre3
+	- Add 'quality' flag argument to mst_srcname() to control the 
+	addition of the quality indicator in the srcname.
+	- Add 'quality' flag argument to mst_groupsort() to control the
+	inclusion of quality indicator in the sorting.
+
+2006.292: 2.0pre2
+	- Use memory-aligned swap functions in unpackdata.c for speed.
+
+2006.291:
+	- Fix return type of ms_readtraces() on success and documentation.
+	- Tweak verbose flag checking in fileutils.c to avoid spurious msgs.
+        - Add gcc32gprof and gcc64gprof targets to Makefiles for profiling.
+
+2006.284: 2.0pre
+	- Fix dynamic target and update API version in Makefile.
+        - Require GCC for shared and dynamic library building.
+	- Include ctype.h header in lmplatform.h for WIN32 platform.
+	
+2006.283:
+	- Add function msr_normalize_header() to update the FSDH and
+	blockettes with values at the MSRecord level.
+	- Add 'normalize' flag argument to msr_pack_header() control the
+	calling of msr_normalize_header() when packing.
+	- Change the MSRecord element 'private' to 'prvtptr' to avoid 
+	collision with the C++ reserved word.
+	- Add a 'quality' flag argument to msr_srcname() to control the
+	addition of the quality indicator to the srcname.
+	- Move MS_ISVALIDHEADER(X) macro to libmseed.h for general use; this
+	macro tests for valid SEED data record signatures and is used for
+	detection of data records when reading data from files.
+	- Remove two redundant tests of swapflag in Steim-1 decompression.
+	- Declare starttime in msr_starttime() as hptime_t instead of double,
+	testing indicates that this never caused a problem in practice.
+	- Update example programs for API changes.
+	- Add -fPIC to GCCFLAGS in Makefile.
+	- Remove declaration for non-existent ms_verify_header() in libmseed.h
+	(thanks LLoyd Carothers).
+
+2006.251:
+	- Add correct swapping of fsdh.numsamples and fsdh.data_offset,
+	problem and fix reported by Doreen Pahlke (thanks!).  This fixes
+	packing of data when packing to a byte-order opposite of the host
+	machine.
+
+2006.208: version 1.8
+	- Fix memmove bounds for out-of-time-order data additions in both
+	mst_addmsr() and mst_addspan().
+	- Fix memory leak in mst_pack() by freeing the temporary MSRecord
+	when no template is used.
+	- Add get_errorstr() function in lookup.c to return text descriptions
+	for specified libmseed return/error codes.
+	- Add gcc32, gcc32debug and gcc64debug targets to Makefiles.
+
+2006.182: version 1.7
+	- Add MS_WRONGLENGTH error code and have msr_unpack() and the
+	file reading routines return it when the read length does not match
+	length specified in the Blockette 1000.  This most commonly occurs
+	when either the specified record length or the length of the first
+	record is auto detected and the following record lengths assumed
+	do not match the actual records.
+	- Use MS_ISRATETOLERABLE macro in mst_groupsort() to compare the
+	sampling rates of adjacent trace segments.  This is how sampling
+	rates are compared in other routines and will avoid problems
+	associated with testing the equality of floating point values.
+
+2006.173:
+	- Remove some of the useless error codes.
+	- Steim compression integrity check failure and sample count
+	mismatch are not fatal unpacking errors, only warnings are printed.
+
+2006.172:
+	- Changed return type of ms_readmsr() to int and added a pointer
+	to a pointer to an MSRecord to the arguments.  Function now returns
+	status/error codes.
+	- Changed return type of ms_readtraces() to int and added a pointer
+	to a pointer to an MSTraceGroup to the arguments.  Function now
+	returns status/error codes.
+	- Changed return type of msr_unpack() to int.  Function now
+	returns status/error codes.
+	- Changes to many internal functions to support the new unpacking
+	error code bubble.	
+        - Removed the MSRecord.unpackerr element as it is now unneeded.
+	- Found and fixed bug resulting in the assumption that all sample
+	sizes were 8 bytes (which would usually be wrong) during unpacking.
+
+2006.124: version 1.6.3
+	- Fix (int *)packedsamples handling for packing routines.
+	- Fix compilation under Open Watcom (Win32).
+
+2006.122: version 1.6.2
+	- More fixes for sampling rate == 0 when calculating the sample
+	period.
+
+2006.121: version 1.6.1
+	- msr_endtime() now checks that the sample count is greater than
+	zero.  If the sampling rate or sample count is less than or equal
+	to zero msr_endtime() returns the starttime.
+
+2006.115: version 1.6
+	- Rename mst_heal() to mst_groupheal().
+	- Change examples for ms_readtraces() in documentation that implied
+	an incorrect return type.
+	- Small changes to error messages for clarity (e.g. add file read
+	offset, print sample types as char not int).
+	- Fix offset determination for packed files and files without
+	blockette 1000s.
+
+2006.107:
+	- Add MS_ISVALIDHEADER macro to fileutils.c, verifies that a
+	specified buffer contains a valid fixed section data header.
+	- ms_find_reclen(): moved to fileutils.c
+	- ms_find_reclen(): More data record verification by checking
+	for valid time values (e.g. 0 <= hour <= 23 ).
+        - ms_find_reclen(): Detect record lengths even when no blockette
+	1000 is found by reading the next 48 bytes from the file and
+	looking for another record header or EOF.  This check is not
+	performed if the specified FILE pointer is NULL.  The original
+	file read position is restored.  This required adding another
+	argument: FILE *fileptr.
+	- Change output of msr_print() to include record length for
+	the lowest detail output (single line per record).
+	- Change example msview program to autodetect each record by
+	default.
+
+2006.082: version 1.5.2
+        - Make msr_pack() emit a warning with the function pointer to
+	the record_handler() is not set instead of bombing out.  The
+	packed record is not accessible any other way.
+	- Make the packedsamples argument to msr_pack() optional, the
+	pointer can be NULL if this information is not needed.
+	- Modify ms_readmsr() to be able to read packed files which are
+	indexed files used internally at the IRIS-DMC and probably no
+	where else.
+	- Add lmp_fseeko() portable function (used in fileutils.c).
+
+2006.079: version 1.5.1
+	- Add file name check in ms_readmsr() to make sure subsequent
+	reads are done on the same file.  If the function is called with a
+	different file name than the file that is currently open the
+	current file will be closed and the new one opened and an error
+	message printed.
+	- Change mst_srcname to include the data quality code in the
+	srcname if it is non-zero.
+	- Remove the data quality code specifics from mst_print* functions
+	as it is now included in the source name.
+	
+2006.076: version 1.5
+	- No changes, just stamp 1.5.
+
+2006.058:
+	- Change structure names:
+	  * Trace -> MSTrace
+	  * TraceGroup -> MSTraceGroup
+	  * MSrecord -> MSRecord
+	A bothersome change, but it will ease inclusion into source
+	base of other libraries, etc.
+	- Change struct fsdh.drec_indicator to fsdh.dataquality.
+	- Change MSRecord.drec_indicator to MSRecord.dataquality.
+	- Add MSTrace.dataquality element.
+	- Add data quality matching flag arguments to ms_readtraces()
+	and mst_addmsrtogroup() to control matching of data qualities.
+	- Add data quality value arguments to mst_findmatch() and
+	mst_findadjacent() to control matching of data qualities.
+	- Modify mst_printtracelist() and mst_printgaplist() to include
+	data quality flags in their output when they have been set.
+	
+2005.336: 1.4.5
+	- Improve the data record verification in ms_find_reclen() to
+	improve the detection of non-data versus data records.  In
+	particular the routine now requires a record to start with 
+	6 ASCII digits followed by a valid data record indicator
+	followed by either a space or NULL character (even though
+	a NULL here is not valid SEED).
+	- Fix mst_groupsort for near srcname matches.
+
+2005.325: 1.4.4
+	- Add end time sort level to mst_groupsort(), now the function
+	will sort on: source name, sample rate, start time and
+	descending end time in that order.
+
+2005.315: 1.4.3
+	- Include WIN32 define for strcasecmp->_stricmp.
+	- Fix typo in blockette 200 printing.
+
+2005.300: 1.4.2
+	- Include sys/types.h for Win32 systems in lmplatform.h and
+	do not typedef off_t.
+
+2005.299: 1.4.1
+	- In mst_findadjacent() do not perform the time and sample
+	rate tolerance checks if the tolerance is specified as -2.0.
+	- Remove the msi.c example program, it has diverged from the
+	separate released msi.
+
+2005.292: 1.4
+	- In mst_addmsr() and mst_addspan() test if data sample
+	memory needs to be moved before moving, allows adding an
+	msr to a trace which has no data samples (e.g. a flushing
+	pack has been done).
+	- Do not try to pack Traces with numsamples==0 in
+	mst_packgroup().
+	
+2005.289:
+	- Add check for sample count mismatch and decrement
+	mst->samplecnt when packing in mst_pack().
+	- Free mst->private in mst_init().
+
+2005.271: 1.3
+	- Add lmplatform.[ch] to hold platform dependent defines
+	and portability routines.
+	- Create lmp_ftello() portable routines and use it.
+	- Change all uses of fopen() to include a 'b' in the mode
+	in order to open files in "binary" mode on Win32.
+	- Add Makefile.wat for Open Watcom's wmake.
+	- Add Makefile.win for Microsoft's nmake.
+	- Test using Open Watcom 1.3 under Win32 (Windows XP).
+	- Add 'dynamic' target in Makefile to build a dynamic lib
+        on Mac OSX.
+ 
+2005.269: 1.2
+	- Update many unpacking routines so that the MS_SAMPMISMATCH
+	error code is correctly returned and that none of the errors
+	are show stoppers, it is left to the application to decide. 
+	- Remove error message when read fails during detection, the
+	end of the file is simply that, no error.
+	- Fix definition of MS_EPOCH2HPTIME and MS_HPTIME2EPOCH in
+	ms_time.3 man page.
+	- Change int64_t types to hptime_t types in documentation. 
+
+2005.203: 1.1
+	- Add 'chainpos' argument to msr_addblockette() to control
+	which end of the blockette chain the blockette is added to.
+	- Change msr_pack() to add any missing 1000 Blockettes to
+	the end of the blockette chain.
+
+2005.201: 1.0 Final
+	- Change version of example programs so they don't conflict
+	with future, non-example versions.
+	- Generate links to man pages and tar up a source package.
+	- No library code changes since pre6.
+
+2005.173: 1.0pre6
+	- Set MSrecord->reclen to -1 in msr_init() to trigger
+	the default value in msr_pack(), etc.
+
+2005.157: 1.0pre5
+	- Fix off-by-one error in number of samples for overlaps.
+
+2005.146: 1.0pre4
+	- Add check for an UNPACK_DATA_FORMAT_FALLBACK environment
+	variable that defines a fallback format for when no encoding
+	format is specified in the data record (no blkt 1000).
+	- Set a default format fallback encoding of 10 (Steim 1).
+	If this default gets invoked, the byteorder will fallback
+	to big-endian if it has not been specified.
+	- Change the MS_EPOCH2HPTIME(X) and MS_HPTIME2EPOCH(X)
+	macro definitions to not include a semi-colon, duh.
+	- Add a 'timeformat' flag to the mst_printtracelist() and
+	mst_printgaplist() functions that indicates which format
+	the time stamp will be in: SEED time, ISO time or epoch.
+	- Add an option to msi to specify the time format in trace
+	and gap listings.
+
+2005.117: 1.0pre3
+	- Add check for the following environment variable to force
+	the data encoding format when unpacking:
+	UNPACK_DATA_FORMAT = data encoding format
+	- Add '-e' option to msi/msrepack to specify the input data
+	encoding format allowing them to work with plain data records.
+	- Define _LARGEFILE_SOURCE in fileutils.c to get ftello()
+	without a compiler warning on Linux.
+	- Fixup swapping when byte order is forced on LE arch.
+
+2005.116: 1.0pre2
+	- Add checking for the following environment variables that
+	can be used to force the byte-order for the header and data:
+	PACK_HEADER_BYTEORDER = 0 or 1
+	PACK_DATA_BYTEORDER = 0 or 1
+	UNPACK_HEADER_BYTEORDER = 0 or 1
+	UNPACK_DATA_BYTEORDER = 0 or 1
+	- Change the fpos argument to ms_readmsr() to be type off_t.
+	- Change the calls to ftell() in ms_readmsr() to ftello() to
+	return type off_t, this is required for large file support
+	where 64-bit offsets are needed.
+	- Change the header byte order determination to check for
+	start years between 1920 and 2020.
+	- Add gcc64 target to Makefile and example/Makefile.
+
+2005.102: 1.0pre1
+	- Change msr_pack() to use a 'D' record indicator by default.
+	- Cleanup examples directory.
+
+2005.097: 0.9.9b
+	- Remove '-g' from common GCCFLAGS in examples/Makefile.
+	- Small update to ms_time.3 to clarify that MS_HPTIME2EPOCH
+	can be used to get both a truncated integer epoch or a
+	double precision epoch.
+
+2005.093: 0.9.9a
+	- Remove '-g' from common GCCFLAGS in Makefile.
+
+2005.091: 0.9.9
+	- Fix printing of Blockette 500.
+	- Change macro defines to upper case macro names.
+	
+2005.080: 0.9.8
+	- Add ms_isratetolerable() macro to perform the default
+	sample rate tolerance check. Update appropriate functions.
+	- Fix sample rate checking in mst_print*() functions.
+	- Fix msi example code so negative min/max gaps (overlaps)
+	are parsed correctly from command line.
+
+2005.069: 0.9.7
+	- Change mst_print() to mst_printtracelist() and add
+	mst_printgaplist().
+	- Both of the above routines now report gaps as the time
+	of the first sample after the gap minus the time of the last
+	sample before the gap, sample "coverage" time is no longer
+	included.
+	- Make mst_groupsort() sort on source->samplerate->starttime
+	instead of source->starttime.
+	- ms_readmsr() will now skip non-data records when doing
+	record length autodetection.
+	- Add ms_hptime2epoch() macro to convert hptimes to
+	Unix/POSIX epoch times, integer truncation, no rounding.
+	- Add macro ms_isdataindicator() which tests a character
+	for a valid data record header indicator (D,R,Q,etc.)
+	- Example program msi now takes -min and -max options to
+	specify min and max gap/overlap to display in gap list.
+	
+2005.047: 0.9.6
+	- Add ms_epoch2hptime() macro to convert Unix/POSIX
+	epoch times to hptimes.
+
+2005.025: 0.9.5
+	- Add 'skipnotdata' flag argument to ms_readmsr() and
+	ms_readtraces() and update their respective man pages.
+	- Shuffle order of arguments for ms_readtraces(), no big
+	deal but since the interface was changing anyway...
+
+2005.004: 0.9.4
+	- Change printing of sample rates to print higher precision
+	so that small differences in rates are noticeable.
+	- Change fixed section header printing of sample rate to be
+	the actual calculated value using the factor and multiplier.
+	- Spell check README/INSTALL files and man pages.
+	- Remove WIN32 Makefiles and hooks in example sources.
+	- Minor printing fixups in the example code msi.c.
+
+2004.352: 0.9.3
+	- Change ms_readmsr() to search valid record lengths up
+	to 8192 bytes when auto detecting the record size.
+	- Change msr_addblockette() to always add Blockette 1000s
+	to the beginning of the blockette chain and others to the
+	end of the blockette chain.
+
+2004.349:
+	- Fix reduction of precision when unpacking doubles.
+	- Change typo in pack.c from 'Unpacking' to 'Packing'.
+	- Improve printing of float/double samples in msi.
+
+2004.342: 0.9.2
+	- Add proper rounding for span calculation in msr_endtime().
+
+2004.341 - Release version 0.9.1

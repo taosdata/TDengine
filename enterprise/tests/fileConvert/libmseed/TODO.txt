@@ -1,0 +1,5 @@
+* Add some xSEED/mseed3 parsing tests, reference data.
+
+* Remove last from ms3_readmsr(), last and fpos from two other family routines
+  - The last indicator is a crutch and increasingly wrong with unknown stream lengths
+  - the fpos from the _r and _selection members is undeeded as the MSFP can be inspected.
