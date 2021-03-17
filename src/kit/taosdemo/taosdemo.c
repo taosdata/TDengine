@@ -4679,6 +4679,15 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         }
   }
 
+  // read sample data from file first
+  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource, 
+              "sample", strlen("sample")))) {
+        if (0 != prepareSampleDataForSTable(superTblInfo)) {
+            fprintf(stderr, "prepare sample data for stable failed!\n");
+            exit(-1);
+        }
+  }
+
   for (int i = 0; i < threads; i++) {
     threadInfo *t_info = infos + i;
     t_info->threadID = i;
@@ -4714,6 +4723,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
       t_info->ntables = superTblInfo->childTblCount;
       t_info->start_time = t_info->start_time + rand_int() % 10000 - rand_tinyint();
     }
+
 
     tsem_init(&(t_info->lock_sem), 0, 0);
     if (SYNC == g_Dbs.queryMode) {
