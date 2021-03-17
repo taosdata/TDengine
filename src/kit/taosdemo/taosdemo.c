@@ -4186,7 +4186,6 @@ static int generateDataBuffer(int32_t tableSeq,
   assert(buffer != NULL);
 
   char *pChildTblName;
-  int childTblCount;
 
   pChildTblName = calloc(TSDB_TABLE_NAME_LEN, 1);
   if (NULL == pChildTblName) {
@@ -4196,13 +4195,10 @@ static int generateDataBuffer(int32_t tableSeq,
 
   if (superTblInfo && (superTblInfo->childTblOffset >= 0)
             && (superTblInfo->childTblLimit > 0)) {
-      // select tbname from stb limit 1 offset tableSeq
-    getChildNameOfSuperTableWithLimitAndOffset(pThreadInfo->taos,
-            pThreadInfo->db_name, superTblInfo->sTblName,
-            &pChildTblName, &childTblCount,
-            1, tableSeq);
+    snprintf(pChildTblName, TSDB_TABLE_NAME_LEN, "%s",
+        superTblInfo->childTblName + (tableSeq - superTblInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
   } else {
-      snprintf(pChildTblName, TSDB_TABLE_NAME_LEN, "%s%d",
+    snprintf(pChildTblName, TSDB_TABLE_NAME_LEN, "%s%d",
         superTblInfo?superTblInfo->childTblPrefix:g_args.tb_prefix, tableSeq);
   }
 
@@ -4682,10 +4678,40 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   // read sample data from file first
   if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource, 
               "sample", strlen("sample")))) {
-        if (0 != prepareSampleDataForSTable(superTblInfo)) {
-            fprintf(stderr, "prepare sample data for stable failed!\n");
-            exit(-1);
-        }
+    if (0 != prepareSampleDataForSTable(superTblInfo)) {
+      fprintf(stderr, "prepare sample data for stable failed!\n");
+      exit(-1);
+    }
+  }
+
+  if (superTblInfo && (superTblInfo->childTblOffset >= 0)
+            && (superTblInfo->childTblLimit > 0)) {
+
+    TAOS* taos = taos_connect(
+              g_Dbs.host, g_Dbs.user,
+              g_Dbs.password, db_name, g_Dbs.port);
+    if (NULL == taos) {
+        fprintf(stderr, "connect to server fail , reason: %s\n",
+                taos_errstr(NULL));
+        exit(-1);
+    }
+
+    superTblInfo->childTblName = (char*)calloc(1,
+        superTblInfo->childTblLimit * TSDB_TABLE_NAME_LEN);
+    if (superTblInfo->childTblName == NULL) {
+      fprintf(stderr, "alloc memory failed!");
+      taos_close(taos);
+      exit(-1);
+    }
+    int childTblCount;
+
+    getChildNameOfSuperTableWithLimitAndOffset(
+        taos,
+        db_name, superTblInfo->sTblName,
+        &superTblInfo->childTblName, &childTblCount,
+        superTblInfo->childTblLimit,
+        superTblInfo->childTblOffset);
+    taos_close(taos);
   }
 
   for (int i = 0; i < threads; i++) {
@@ -4723,7 +4749,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
       t_info->ntables = superTblInfo->childTblCount;
       t_info->start_time = t_info->start_time + rand_int() % 10000 - rand_tinyint();
     }
-
 
     tsem_init(&(t_info->lock_sem), 0, 0);
     if (SYNC == g_Dbs.queryMode) {
