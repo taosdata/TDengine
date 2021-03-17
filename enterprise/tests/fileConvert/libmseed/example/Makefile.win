@@ -1,0 +1,21 @@
+#
+# Nmake file - Windows version
+# Use 'nmake -f Makefile.win'
+
+NODEBUG=1
+
+INCS = /I..
+OPTS = /O2 /D_CRT_SECURE_NO_WARNINGS
+LIBS = ../libmseed.lib
+
+SRCS = mseedview.c lm_parse.c lm_pack.c lm_pack_rollingbuffer.c lm_read_selection.c lm_read_recordlist.c lm_read_buffer.c lm_timestr.c
+BINS = $(SRCS:.c=.exe)
+
+all: $(BINS)
+
+.c.exe:
+	$(CC) /nologo $(CFLAGS) $(INCS) $(OPTS) $(LIBS) $<
+
+# Clean-up directives
+clean:
+	-del *.obj *.exe *% *~

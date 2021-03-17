@@ -1,0 +1,20 @@
+.memtitle {
+  padding-left: 0px;
+}
+
+/* Replace content of permalinks */
+.permalink a {
+  color: transparent;
+  font-size: 0;
+}
+
+.permalink a:before {
+  content: url('https://cdnjs.cloudflare.com/ajax/libs/octicons/8.5.0/svg/link.svg');
+  visibility: hidden;
+  padding-right: 2px;
+}
+
+/* Show link icon when member title is hovered */
+h2.memtitle:hover .permalink a:before {
+  visibility: visible;
+}

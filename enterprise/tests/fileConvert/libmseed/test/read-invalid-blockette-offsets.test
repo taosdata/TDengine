@@ -1,0 +1,4 @@
+#!/bin/sh
+LD_LIBRARY_PATH=.. \
+DYLD_LIBRARY_PATH=.. \
+./lm_parse data/invalid-blockette-offsets.mseed
