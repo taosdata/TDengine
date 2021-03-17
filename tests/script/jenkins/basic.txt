@@ -1,7 +1,7 @@
 cd ../../../debug; cmake ..
 cd ../../../debug; make
 
-#======================s1-start===============
+#======================b1-start===============
 
 ./test.sh -f general/field/2.sim
 ./test.sh -f general/field/3.sim
@@ -89,8 +89,8 @@ cd ../../../debug; make
 ./test.sh -f general/db/nosuchfile.sim
 ./test.sh -f general/parser/function.sim
 
-#======================s1-end===============
-#======================s2-start===============
+#======================b1-end===============
+#======================b2-start===============
 
 ./test.sh -f general/tag/3.sim
 ./test.sh -f general/tag/4.sim
@@ -163,8 +163,8 @@ cd ../../../debug; make
 ./test.sh -f unique/cluster/cache.sim
 ./test.sh -f unique/cluster/vgroup100.sim
 
-#======================s2-end===============
-#======================s3-start===============
+#======================b2-end===============
+#======================b3-start===============
 
 ./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
 #./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
@@ -222,8 +222,8 @@ cd ../../../debug; make
 ./test.sh -f unique/stable/replica3_dnode6.sim
 ./test.sh -f unique/stable/replica3_vnode3.sim
 
-#======================s3-end===============
-#======================s4-start===============
+#======================b3-end===============
+#======================b4-start===============
 
 ./test.sh -f unique/http/admin.sim
 ./test.sh -f unique/http/opentsdb.sim
@@ -271,8 +271,8 @@ cd ../../../debug; make
 ./test.sh -f issue/TD-2680.sim
 ./test.sh -f unique/dnode/lossdata.sim
 
-#======================s4-end===============
-#======================s5-start===============
+#======================b4-end===============
+#======================b5-start===============
 
 ./test.sh -f unique/dnode/alternativeRole.sim
 ./test.sh -f unique/dnode/balance1.sim
@@ -294,8 +294,8 @@ cd ../../../debug; make
 ./test.sh -f unique/dnode/datatrans_3node.sim 
 ./test.sh -f unique/dnode/datatrans_3node_2.sim
 
-#======================s5-end===============
-#======================s6-start===============
+#======================b5-end===============
+#======================b6-start===============
 
 ./test.sh -f unique/dnode/reason.sim
 ./test.sh -f unique/dnode/remove1.sim
@@ -335,8 +335,8 @@ cd ../../../debug; make
 ./test.sh -f general/import/large.sim
 ./test.sh -f general/import/replica1.sim
 
-#======================s6-end===============
-#======================s7-start===============
+#======================b6-end===============
+#======================b7-start===============
 
 ./test.sh -f general/compute/avg.sim
 ./test.sh -f general/compute/bottom.sim
@@ -425,4 +425,4 @@ cd ../../../debug; make
 ./test.sh -f general/parser/timestamp.sim
 ./test.sh -f general/parser/sliding.sim
 
-#======================s7-end===============
+#======================b7-end===============
