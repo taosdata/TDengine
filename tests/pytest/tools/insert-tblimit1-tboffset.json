@@ -9,8 +9,7 @@
     "thread_count_create_tbl": 4,
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
-    "insert_interval": 5000,
-    "rows_per_tbl": 50,
+    "insert_interval": 0,
     "num_of_records_per_req": 100,
     "max_sql_len": 1024000,
     "databases": [{
@@ -35,14 +34,16 @@
         "super_tables": [{
             "name": "stb",
             "child_table_exists":"no",
-            "childtable_count": 9,
+            "childtable_count": 100,
             "childtable_prefix": "stb_",
             "auto_create_table": "no",
             "data_source": "rand",
             "insert_mode": "taosc",
-            "insert_rows": 250,
+            "insert_rows": 1000,
+            "childtable_limit": 1,
+            "childtable_offset": 50,
             "multi_thread_write_one_tbl": "no",
-            "rows_per_tbl": 80,
+            "number_of_tbl_in_one_sql": 0,
             "max_sql_len": 1024000,
             "disorder_ratio": 0,
             "disorder_range": 1000,
@@ -52,7 +53,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "INT"}],
-            "tags": [{"type": "INT", "count":1}]
+            "tags": [{"type": "TINYINT", "count":1}]
         }]
     }]
 }

@@ -68,6 +68,15 @@ class TDTestCase:
         tdSql.query("select count(*) from db.stb")
         tdSql.checkData(0, 0, 20000)
 
+        os.system("%staosdemo -f tools/insert-tblimit1-tboffset.json" % binPath)
+
+        tdSql.execute("reset query cache")
+        tdSql.execute("use db")
+        tdSql.query("select count(tbname) from db.stb")
+        tdSql.checkData(0, 0, 100)
+        tdSql.query("select count(*) from db.stb")
+        tdSql.checkData(0, 0, 1000)
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
