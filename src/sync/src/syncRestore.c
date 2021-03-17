@@ -238,6 +238,7 @@ static int32_t syncRestoreDataStepByStep(SSyncPeer *pPeer) {
 
   (*pNode->stopSyncFileFp)(pNode->vgId, fversion);
   nodeVersion = fversion;
+  if (pNode->resetVersionFp) (*pNode->resetVersionFp)(pNode->vgId, fversion);
 
   sInfo("%s, start to restore wal, fver:%" PRIu64, pPeer->id, nodeVersion);
   uint64_t wver = 0;

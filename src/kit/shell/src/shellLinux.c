@@ -45,6 +45,7 @@ static struct argp_option options[] = {
   {"file",       'f', "FILE",       0,                   "Script to run without enter the shell."},
   {"directory",  'D', "DIRECTORY",  0,                   "Use multi-thread to import all SQL files in the directory separately."},
   {"thread",     'T', "THREADNUM",  0,                   "Number of threads when using multi-thread to import data."},
+  {"check",      'k', "CHECK",      0,                   "Check tables."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   't', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
   {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync."},
@@ -129,6 +130,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         fprintf(stderr, "Invalid number of threads\n");
         return -1;
       }
+      break;
+    case 'k':
+      arguments->check = atoi(arg);
       break;
     case 'd':
       arguments->database = arg;
