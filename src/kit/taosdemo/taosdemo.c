@@ -4669,10 +4669,40 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   // read sample data from file first
   if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource, 
               "sample", strlen("sample")))) {
-        if (0 != prepareSampleDataForSTable(superTblInfo)) {
-            fprintf(stderr, "prepare sample data for stable failed!\n");
-            exit(-1);
-        }
+    if (0 != prepareSampleDataForSTable(superTblInfo)) {
+      fprintf(stderr, "prepare sample data for stable failed!\n");
+      exit(-1);
+    }
+  }
+
+  if (superTblInfo && (superTblInfo->childTblOffset >= 0)
+            && (superTblInfo->childTblLimit > 0)) {
+
+    TAOS* taos = taos_connect(
+              g_Dbs.host, g_Dbs.user,
+              g_Dbs.password, db_name, g_Dbs.port);
+    if (NULL == taos) {
+        fprintf(stderr, "connect to server fail , reason: %s\n",
+                taos_errstr(NULL));
+        exit(-1);
+    }
+
+    superTblInfo->childTblName = (char*)calloc(1,
+        superTblInfo->childTblLimit * TSDB_TABLE_NAME_LEN);
+    if (superTblInfo->childTblName == NULL) {
+      fprintf(stderr, "alloc memory failed!");
+      taos_close(taos);
+      exit(-1);
+    }
+    int childTblCount;
+
+    getChildNameOfSuperTableWithLimitAndOffset(
+        taos,
+        db_name, superTblInfo->sTblName,
+        &superTblInfo->childTblName, &childTblCount,
+        superTblInfo->childTblLimit,
+        superTblInfo->childTblOffset);
+    taos_close(taos);
   }
 
   // read sample data from file first
