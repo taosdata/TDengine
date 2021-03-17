@@ -153,6 +153,18 @@ bool vnodeInReadyOrUpdatingStatus(SVnodeObj* pVnode) {
   return in;
 }
 
+bool vnodeInClosingStatus(SVnodeObj* pVnode) {
+  bool in = false;
+  pthread_mutex_lock(&pVnode->statusMutex);
+
+  if (pVnode->status == TAOS_VN_STATUS_CLOSING) {
+    in = true;
+  }
+
+  pthread_mutex_unlock(&pVnode->statusMutex);
+  return in;
+}
+
 bool vnodeInResetStatus(SVnodeObj* pVnode) {
   bool in = false;
   pthread_mutex_lock(&pVnode->statusMutex);
