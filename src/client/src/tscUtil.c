@@ -1279,6 +1279,33 @@ int32_t tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepco
   return 0;
 }
 
+bool tscColumnExists(SArray* pColumnList, SColumnIndex* pColIndex) {
+  // ignore the tbname columnIndex to be inserted into source list
+  if (pColIndex->columnIndex < 0) {
+    return false;
+  }
+  
+  size_t numOfCols = taosArrayGetSize(pColumnList);
+  int16_t col = pColIndex->columnIndex;
+
+  int32_t i = 0;
+  while (i < numOfCols) {
+    SColumn* pCol = taosArrayGetP(pColumnList, i);
+    if ((pCol->colIndex.columnIndex != col) || (pCol->colIndex.tableIndex != pColIndex->tableIndex)) {
+      continue;
+    } else {
+      break;
+    }
+  }
+
+  if (i >= numOfCols || numOfCols == 0) {
+    return false;
+  }
+
+  return true;
+}
+
+
 SColumn* tscColumnListInsert(SArray* pColumnList, SColumnIndex* pColIndex) {
   // ignore the tbname columnIndex to be inserted into source list
   if (pColIndex->columnIndex < 0) {
@@ -1583,7 +1610,20 @@ int32_t tscTagCondCopy(STagCond* dest, const STagCond* src) {
   dest->tbnameCond.uid = src->tbnameCond.uid;
   dest->tbnameCond.len = src->tbnameCond.len;
 
-  memcpy(&dest->joinInfo, &src->joinInfo, sizeof(SJoinInfo));
+  dest->joinInfo.hasJoin = src->joinInfo.hasJoin;
+  
+  for (int32_t i = 0; i < TSDB_MAX_JOIN_TABLE_NUM; ++i) {
+    if (src->joinInfo.joinTables[i]) {
+      dest->joinInfo.joinTables[i] = calloc(1, sizeof(SJoinNode));
+
+      memcpy(dest->joinInfo.joinTables[i], src->joinInfo.joinTables[i], sizeof(SJoinNode));
+
+      dest->joinInfo.joinTables[i]->tsJoin = taosArrayDup(src->joinInfo.joinTables[i]->tsJoin);
+      dest->joinInfo.joinTables[i]->tagJoin = taosArrayDup(src->joinInfo.joinTables[i]->tagJoin);
+    }
+  }
+
+  
   dest->relType = src->relType;
   
   if (src->pCond == NULL) {
@@ -1627,6 +1667,23 @@ void tscTagCondRelease(STagCond* pTagCond) {
     }
   
     taosArrayDestroy(pTagCond->pCond);
+  }
+
+  for (int32_t i = 0; i < TSDB_MAX_JOIN_TABLE_NUM; ++i) {
+    SJoinNode *node = pTagCond->joinInfo.joinTables[i];
+    if (node == NULL) {
+      continue;
+    }
+
+    if (node->tsJoin != NULL) {
+      taosArrayDestroy(node->tsJoin);
+    }
+
+    if (node->tagJoin != NULL) {
+      taosArrayDestroy(node->tagJoin);
+    }
+
+    tfree(node);
   }
 
   memset(pTagCond, 0, sizeof(STagCond));
@@ -2318,15 +2375,20 @@ void tscDoQuery(SSqlObj* pSql) {
 }
 
 int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid) {
-  if (pTagCond->joinInfo.left.uid == uid) {
-    return pTagCond->joinInfo.left.tagColId;
-  } else if (pTagCond->joinInfo.right.uid == uid) {
-    return pTagCond->joinInfo.right.tagColId;
-  } else {
-    assert(0);
-    return -1;
+  int32_t i = 0;
+  while (i < TSDB_MAX_JOIN_TABLE_NUM) {
+    SJoinNode* node = pTagCond->joinInfo.joinTables[i];
+    if (node && node->uid == uid) {
+      return node->tagColId;
+    }
+
+    i++;
   }
+
+  assert(0);
+  return -1;
 }
+
 
 int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId) {
   int32_t numOfTags = tscGetNumOfTags(pTableMeta);
