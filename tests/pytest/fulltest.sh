@@ -156,7 +156,6 @@ python3 ./test.py -f update/bug_td2279.py
 #======================p2-end===============
 #======================p3-start===============
 
-python3 ./test.py -f insert/randomNullCommit.py
 
 # user
 python3 ./test.py -f user/user_create.py
@@ -275,7 +274,6 @@ python3 ./test.py -f functions/function_twa.py -r 1
 python3 ./test.py -f functions/function_twa_test2.py
 python3 ./test.py -f functions/function_stddev_td2555.py
 python3 ./test.py -f insert/metadataUpdate.py
-python3 ./test.py -f tools/taosdemoTest2.py
 python3 ./test.py -f query/last_cache.py
 python3 ./test.py -f query/last_row_cache.py
 python3 ./test.py -f account/account_create.py
@@ -290,7 +288,6 @@ python3 ./test.py -f query/filterAllUnsignedIntTypes.py
 
 python3 ./test.py -f functions/function_percentile2.py
 python3 ./test.py -f insert/boundary2.py
-python3 ./test.py -f query/queryFillTest.py
 python3 ./test.py -f alter/alter_debugFlag.py
 python3 ./test.py -f query/queryBetweenAnd.py
 python3 ./test.py -f tag_lite/alter_tag.py
