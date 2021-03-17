@@ -98,6 +98,9 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #define GET_NUM_OF_TABLEGROUP(q)    taosArrayGetSize((q)->tableqinfoGroupInfo.pGroupList)
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
+
+uint64_t queryHandleId = 0;
+
 int32_t getMaximumIdleDurationSec() {
   return tsShellActivityTimer * 2;
 }
@@ -6111,9 +6114,13 @@ void setResultBufSize(SQuery* pQuery, SRspResultInfo* pResultInfo) {
   pResultInfo->total = 0;
 }
 
+FORCE_INLINE bool checkQIdEqual(void *qHandle, uint64_t qId) {
+  return ((SQInfo *)qHandle)->qId == qId;
+}
+
 SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr, SExprInfo* pExprs,
                         SExprInfo* pSecExprs, STableGroupInfo* pTableGroupInfo, SColumnInfo* pTagCols, bool stableQuery,
-                        char* sql) {
+                        char* sql, uint64_t *qId) {
   int16_t numOfCols = pQueryMsg->numOfCols;
   int16_t numOfOutput = pQueryMsg->numOfOutput;
 
@@ -6254,7 +6261,9 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   // todo refactor
   pQInfo->query.queryBlockDist = (numOfOutput == 1 && pExprs[0].base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX);
 
-  qDebug("qmsg:%p QInfo:%p created", pQueryMsg, pQInfo);
+  pQInfo->qId = atomic_add_fetch_64(&queryHandleId, 1);
+  *qId = pQInfo->qId;
+  qDebug("qmsg:%p QInfo:%" PRIu64 "-%p created", pQueryMsg, pQInfo->qId, pQInfo);
   return pQInfo;
 
 _cleanup_qinfo:
