@@ -2431,7 +2431,11 @@ static void* createTable(void *sarg)
 
   int len = 0;
   int batchNum = 0;
-  //printf("Creating table from %d to %d\n", winfo->start_table_from, winfo->end_table_to);
+
+  verbosePrint("%s() LN%d: Creating table from %d to %d\n", 
+          __func__, __LINE__,
+          winfo->start_table_from, winfo->end_table_to);
+
   for (int i = winfo->start_table_from; i <= winfo->end_table_to; i++) {
     if (0 == g_Dbs.use_metric) {
       snprintf(buffer, buff_len, 
@@ -2545,10 +2549,11 @@ static int startMultiThreadCreateChildTable(
       free(infos);  
       return -1;
     }
+
     t_info->start_table_from = startFrom;
     t_info->ntables = i<b?a+1:a;
     t_info->end_table_to = i < b ? startFrom + a : startFrom + a - 1;
-    startFrom = startFrom + t_info->ntables + 1;
+    startFrom = t_info->end_table_to + 1;
     t_info->use_metric = 1;
     t_info->cols = cols;
     t_info->minDelay = INT16_MAX;
@@ -4209,7 +4214,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
   verbosePrint("%s() LN%d num_of_RPR=%d\n", __func__, __LINE__, g_args.num_of_RPR);
 
   int k;
-  for (k = 0; k < g_args.num_of_RPR;) {
+  for (k = 0; k < batch;) {
     if (superTblInfo) {
         int retLen = 0;
 
@@ -4286,6 +4291,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
       break;
   }
 
+  *dataLen = len;
   return k;
 }
 
@@ -4406,6 +4412,10 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   uint64_t st = 0;
   uint64_t et = 0xffffffff;
 
+  int64_t lastPrintTime = taosGetTimestampMs();
+  int64_t startTs = taosGetTimestampUs();
+  int64_t endTs;
+
   int tableSeq = pThreadInfo->start_table_from;
 
   debugPrint("%s() LN%d: start_table_from=%d ntables=%d insertRows=%"PRId64"\n",
@@ -4415,48 +4425,77 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int64_t startTime = pThreadInfo->start_time;
 
   while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
+      if (insert_interval) {
+        st = taosGetTimestampUs();
+      }
       // generate data
       printf("### generate %d data\n", g_args.num_of_RPR);
-      int recGenerated = 0;
+      memset(buffer, 0, superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len);
+
       char *pstr = buffer;
+      int recGenerated = 0;
 
-      while(recGenerated < g_args.num_of_RPR) {
-        if (insert_interval) {
-            st = taosGetTimestampUs();
-        }
+      int times;
+      int batchPerTbl;
+      if (rowsPerTbl > 0) {
+        times = g_args.num_of_RPR / rowsPerTbl;
+        batchPerTbl = rowsPerTbl;
+      } else {
+        times = 1;
+        batchPerTbl = g_args.num_of_RPR;
+      }
 
-        int numOfRecNeedGenerate = 0;
-
-        if ((insertMode == INTERLACE_INSERT_MODE) 
-              && (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables)) {
-          // loop to first table
-          tableSeq = pThreadInfo->start_table_from;
-          numOfRecNeedGenerate = insertRows;
-        } else {
-          numOfRecNeedGenerate = g_args.num_of_RPR;
+      for (int i = 0; i < times; i ++) {
+        if (insertMode == INTERLACE_INSERT_MODE) {
+          if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
+            // turn to first table
+            tableSeq = pThreadInfo->start_table_from;
+          }
         }
         getTableName(tableName, superTblInfo, tableSeq);
 
         // generate data buffer
-        memset(buffer, 0, superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len);
         int headLen = generateSQLHead(tableName, tableSeq, pThreadInfo, superTblInfo, buffer);
-        verbosePrint("%s() LN%d buffer:\n%s\n", __func__, __LINE__, buffer);
+        printf("%s() LN%d buffer:\n%s\n", __func__, __LINE__, buffer);
 
         pstr += headLen;
         int dataLen = 0;
 
         int64_t startFrom = recGenerated;
         int numOfRecGenerated = generateDataTail(
-                tableName, tableSeq, pThreadInfo, superTblInfo, buffer,
-                numOfRecNeedGenerate, insertRows, startFrom,
+                tableName, tableSeq, pThreadInfo, superTblInfo, pstr,
+                batchPerTbl, insertRows, startFrom,
                 startTime, &(pThreadInfo->samplePos), &dataLen);
         pstr += dataLen;
         recGenerated += numOfRecGenerated;
-      }
-      printf("### insert %d data\n", g_args.num_of_RPR);
-      pThreadInfo->totalInsertRows += g_args.num_of_RPR;
 
-      tableSeq ++;
+        tableSeq ++;
+      }
+      printf("%s() LN%d buffer:\n%s\n", __func__, __LINE__, buffer);
+      pThreadInfo->totalInsertRows += recGenerated;
+
+      int affectedRows = execInsert(pThreadInfo, buffer, recGenerated);
+      if (affectedRows < 0)
+        goto free_and_statistics_interlace;
+
+      pThreadInfo->totalAffectedRows += affectedRows;
+
+      endTs = taosGetTimestampUs();
+      int64_t delay = endTs - startTs;
+      if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
+      if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
+      pThreadInfo->cntDelay++;
+      pThreadInfo->totalDelay += delay;
+
+      int64_t  currentPrintTime = taosGetTimestampMs();
+      if (currentPrintTime - lastPrintTime > 30*1000) {
+        printf("thread[%d] has currently inserted rows: %"PRId64 ", affected rows: %"PRId64 "\n",
+                    pThreadInfo->threadID,
+                    pThreadInfo->totalInsertRows,
+                    pThreadInfo->totalAffectedRows);
+        lastPrintTime = currentPrintTime;
+      }
+
       if (insert_interval) {
         et = taosGetTimestampUs();
 
@@ -4469,6 +4508,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       }
   }
 
+free_and_statistics_interlace:
   tmfree(buffer);
 
   printf("====thread[%d] completed total inserted rows: %"PRId64 ", total affected rows: %"PRId64 "====\n", 
@@ -5680,6 +5720,7 @@ static int subscribeTestProcess() {
       t_info->start_table_from = startFrom;
       t_info->ntables = i<b?a+1:a;
       t_info->end_table_to = i < b ? startFrom + a : startFrom + a - 1;
+      startFrom = t_info->end_table_to + 1;
       t_info->taos = taos;
       pthread_create(pidsOfSub + i, NULL, subSubscribeProcess, t_info);
     }
