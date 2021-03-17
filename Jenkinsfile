@@ -24,13 +24,7 @@ def abortPreviousBuilds() {
     build.doKill()    //doTerm(),doKill(),doTerm()
   }
 }
-//abort previous build
-abortPreviousBuilds()
-def abort_previous(){
-  def buildNumber = env.BUILD_NUMBER as int
-  if (buildNumber > 1) milestone(buildNumber - 1)
-  milestone(buildNumber)
-}
+
 def pre_test(){
     catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
