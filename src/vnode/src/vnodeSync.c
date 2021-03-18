@@ -91,7 +91,7 @@ void vnodeStartSyncFile(int32_t vgId) {
     return;
   }
 
-  vDebug("vgId:%d, datafile will be synced", vgId);
+  vInfo("vgId:%d, datafile will be synced", vgId);
   vnodeSetResetStatus(pVnode);
 
   vnodeRelease(pVnode);
@@ -147,7 +147,7 @@ int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver) {
 
   int32_t code = 0;
   if (pVnode->isCommiting) {
-    vDebug("vgId:%d, vnode is commiting while get version", vgId);
+    vInfo("vgId:%d, vnode is commiting while get version", vgId);
     code = -1;
   } else {
     *fver = pVnode->fversion;
@@ -168,7 +168,7 @@ int32_t vnodeResetVersion(int32_t vgId, uint64_t fver) {
   pVnode->fversion = fver;
   pVnode->version = fver;
   walResetVersion(pVnode->wal, fver);
-  vDebug("vgId:%d, version reset to %" PRIu64, vgId, fver);
+  vInfo("vgId:%d, version reset to %" PRIu64, vgId, fver);
 
   vnodeRelease(pVnode);
   return 0;
