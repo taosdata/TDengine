@@ -216,12 +216,14 @@ typedef struct SUserObj {
 
 typedef struct SFuncObj {
   char              name[TSDB_FUNC_NAME_LEN];
-  char              path[PATH_MAX];
-  int32_t           codeLen;
-  char              code[TSDB_FUNC_CODE_LEN];
+  char              path[128];
+  int32_t           contLen;
+  char              cont[TSDB_FUNC_CODE_LEN];
   int64_t           createdTime;
-  uint8_t           outputType;
-  int16_t           outputLen;
+  uint8_t           resType;
+  int16_t           resBytes;
+  int64_t           sig;         // partial md5 sign
+  int16_t           type;        // [lua script|so|js]
   int8_t            reserved[64];
   int8_t            updateEnd[4];
   int32_t           refCount;

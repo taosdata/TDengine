@@ -758,6 +758,12 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->sw.gap         = htobe64(pQueryInfo->sessionWindow.gap);
   pQueryMsg->sw.primaryColId = htonl(PRIMARYKEY_TIMESTAMP_COL_INDEX);
 
+  if (pCmd->pUdfInfo != NULL) {
+    pQueryMsg->udfNum = htonl((uint32_t) taosArrayGetSize(pCmd->pUdfInfo));
+  } else {
+    pQueryMsg->udfNum = 0;
+  }
+
   size_t numOfOutput = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryMsg->numOfOutput = htons((int16_t)numOfOutput);  // this is the stage one output column number
 
@@ -1054,6 +1060,23 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->tsOrder = htonl(pQueryInfo->tsBuf->tsOrder);
     pQueryMsg->tsLen   = htonl(pQueryMsg->tsLen);
     pQueryMsg->tsNumOfBlocks = htonl(pQueryMsg->tsNumOfBlocks);
+  }
+
+  // support only one udf
+  if (pCmd->pUdfInfo != NULL) {
+    assert(taosArrayGetSize(pCmd->pUdfInfo) == 1);
+
+    pQueryMsg->udfContentOffset = htonl((int32_t) (pMsg - pCmd->payload));
+    for(int32_t i = 0; i < taosArrayGetSize(pCmd->pUdfInfo); ++i) {
+      SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, i);
+      STR_TO_VARSTR(pMsg, pUdfInfo->name);
+
+      pMsg += varDataTLen(pMsg);
+      pQueryMsg->udfContentLen = htonl(pUdfInfo->contLen);
+      memcpy(pMsg, pUdfInfo->content, pUdfInfo->contLen);
+
+      pMsg += pUdfInfo->contLen;
+    }
   }
 
   memcpy(pMsg, pSql->sqlstr, sqlLen);
@@ -2100,11 +2123,11 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
     SUdfInfo info = {0};
     info.name = strndup(pFunc->name, TSDB_FUNC_NAME_LEN);
     info.resBytes = htons(pFunc->resBytes);
-    info.resType = htons(pFunc->resType);
+    info.resType  = htons(pFunc->resType);
     info.funcType = TSDB_UDF_TYPE_SCALAR;
 
-    info.contLen = htons(pFunc->contentLen);
-    info.content = malloc(pFunc->contentLen);
+    info.contLen = htonl(pFunc->len);
+    info.content = malloc(pFunc->len);
     memcpy(info.content, pFunc->content, info.contLen);
 
     taosArrayPush(pCmd->pUdfInfo, &info);

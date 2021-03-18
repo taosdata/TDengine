@@ -52,7 +52,7 @@ static int32_t mnodeFuncActionDestroy(SSdbRow *pRow) {
 static int32_t mnodeFuncActionInsert(SSdbRow *pRow) {
   SFuncObj *pFunc = pRow->pObj;
 
-  mTrace("func:%s, length: %d, insert into sdb", pFunc->name, pFunc->codeLen);
+  mTrace("func:%s, contLen: %d, insert into sdb", pFunc->name, pFunc->contLen);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -60,7 +60,7 @@ static int32_t mnodeFuncActionInsert(SSdbRow *pRow) {
 static int32_t mnodeFuncActionDelete(SSdbRow *pRow) {
   SFuncObj *pFunc = pRow->pObj;
 
-  mTrace("func:%s, length: %d, delete from sdb", pFunc->name, pFunc->codeLen);
+  mTrace("func:%s, length: %d, delete from sdb", pFunc->name, pFunc->contLen);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -73,8 +73,8 @@ static int32_t mnodeFuncActionUpdate(SSdbRow *pRow) {
     memcpy(pSaved, pFunc, tsFuncUpdateSize);
     free(pFunc);
   }
-  mnodeDecFuncRef(pSaved);
 
+  mnodeDecFuncRef(pSaved);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -230,12 +230,14 @@ int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code
 
   pFunc = calloc(1, sizeof(SFuncObj));
   tstrncpy(pFunc->name, name, TSDB_FUNC_NAME_LEN);
-  tstrncpy(pFunc->path, path, PATH_MAX);
-  tstrncpy(pFunc->code, codeScript, TSDB_FUNC_CODE_LEN);
-  pFunc->codeLen = codeLen;
+  tstrncpy(pFunc->path, path, tListLen(pFunc->path));
+  tstrncpy(pFunc->cont, codeScript, codeLen);
+  pFunc->contLen     = codeLen;
   pFunc->createdTime = taosGetTimestampMs();
-  pFunc->outputType = outputType;
-  pFunc->outputLen = outputLen;
+  pFunc->resType     = outputType;
+  pFunc->resBytes    = outputLen;
+  pFunc->sig  = 0;
+  pFunc->type = 1; //lua script, refactor
 
   SSdbRow row = {
     .type     = SDB_OPER_GLOBAL,
@@ -380,7 +382,7 @@ static int32_t mnodeRetrieveFuncs(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen), pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->resType, pFunc->resBytes), pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -388,11 +390,11 @@ static int32_t mnodeRetrieveFuncs(SShowObj *pShow, char *data, int32_t rows, voi
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pFunc->codeLen;
+    *(int32_t *)pWrite = pFunc->contLen;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pFunc->code, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pFunc->cont, pShow->bytes[cols]);
     cols++;
 
     numOfRows++;
@@ -442,9 +444,11 @@ static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg) {
     SFunctionInfoMsg* pFuncInfo = (SFunctionInfoMsg*) pOutput;
 
     strcpy(pFuncInfo->name, buf);
-    pFuncInfo->contentLen = htonl(pFuncObj->codeLen);
-    pFuncInfo->resType = htons(pFuncObj->outputType);
-    pOutput += sizeof(SFunctionInfoMsg) + pFuncObj->codeLen;
+    pFuncInfo->len = htonl(pFuncObj->contLen);
+    memcpy(pFuncInfo->content, pFuncObj->cont, pFuncObj->contLen);
+
+    pFuncInfo->resType = htons(pFuncObj->resType);
+    pOutput += sizeof(SFunctionInfoMsg) + pFuncObj->contLen;
   }
 
   pMsg->rpcRsp.rsp = pFuncMsg;

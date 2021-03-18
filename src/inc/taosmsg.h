@@ -511,6 +511,9 @@ typedef struct {
   int32_t     numOfTags;        // number of tags columns involved
   int32_t     sqlstrLen;        // sql query string
   int32_t     prevResultLen;    // previous result length
+  int32_t     udfNum;           // number of udf function
+  int32_t     udfContentOffset;
+  int32_t     udfContentLen;
   SColumnInfo colList[];
 } SQueryTableMsg;
 
@@ -592,7 +595,7 @@ typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
   int16_t resType;
   int16_t resBytes;
-  int16_t contentLen;
+  int32_t len;
   char    content[];
 } SFunctionInfoMsg;
 
