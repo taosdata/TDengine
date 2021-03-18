@@ -136,7 +136,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
 
         columnIndex = getTrueColumnIndex(columnIndex);
-        return resultSet.get(pos).get(columnIndex).toString();
+        Object value = resultSet.get(pos).get(columnIndex);
+        return value == null ? null : value.toString();
     }
 
     @Override
