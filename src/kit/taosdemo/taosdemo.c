@@ -2044,7 +2044,8 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
     //printf("==== sub table name: %s\n", pTblName);
     count++;
     if (count >= childTblCount - 1) {
-      char *tmp = realloc(childTblName, (size_t)childTblCount*1.5*TSDB_TABLE_NAME_LEN+1);
+      char *tmp = realloc(childTblName,
+              (size_t)childTblCount*1.5*TSDB_TABLE_NAME_LEN+1);
       if (tmp != NULL) {
         childTblName = tmp;
         childTblCount = (int)(childTblCount*1.5);
@@ -2052,14 +2053,15 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
                 (size_t)((childTblCount-count)*TSDB_TABLE_NAME_LEN));
       } else {
         // exit, if allocate more memory failed
-        printf("realloc fail for save child table name of %s.%s\n", dbName, sTblName);
+        errorPrint("%s() LN%d, realloc fail for save child table name of %s.%s\n",
+               __func__, __LINE__, dbName, sTblName);
         tmfree(childTblName);
         taos_free_result(res);
         taos_close(taos);
         exit(-1);
       }
     }
-    pTblName = childTblName + count * TSDB_TABLE_NAME_LEN;    
+    pTblName = childTblName + count * TSDB_TABLE_NAME_LEN;
   }
 
   *childTblCountOfSuperTbl = count;
@@ -2140,6 +2142,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
 
   calcRowLen(superTbls);
 
+/*
   if (TBL_ALREADY_EXISTS == superTbls->childTblExists) {
     //get all child table name use cmd: select tbname from superTblName;  
     int childTblCount = 10000;
@@ -2153,6 +2156,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
             &superTbls->childTblName,
             &superTbls->childTblCount);
   }
+  */
   return 0;
 }
 
@@ -4356,7 +4360,7 @@ static int generateSQLHead(char *tableName, int32_t tableSeq, threadInfo* pThrea
                   superTblInfo->maxSqlLen,
                   "insert into %s.%s values",
                   pThreadInfo->db_name,
-                  superTblInfo->childTblName + tableSeq * TSDB_TABLE_NAME_LEN);
+                  tableName);
     } else {
       len = snprintf(buffer,
                   (superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len),
@@ -4561,10 +4565,10 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     int affectedRows = execInsert(pThreadInfo, buffer, recOfBatch);
     verbosePrint("[%d] %s() LN%d affectedRows=%d\n", pThreadInfo->threadID,
             __func__, __LINE__, affectedRows);
-    if (affectedRows < 0) {
-        errorPrint("[%d] %s() LN%d execInsert affected rows: %d\n%s\n",
+    if ((affectedRows < 0) || (recOfBatch != affectedRows)) {
+        errorPrint("[%d] %s() LN%d execInsert insert %d, affected rows: %d\n%s\n",
                 pThreadInfo->threadID, __func__, __LINE__,
-                affectedRows, buffer);
+                recOfBatch, affectedRows, buffer);
         goto free_and_statistics_interlace;
     }
 
@@ -4885,10 +4889,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         &start_time,
         strlen(superTblInfo->startTimestamp),
         timePrec, 0)) {
-        errorPrint("%s() LN%d, failed to parse time!\n", __func__, __LINE__);
-        exit(-1);
+          ERROR_EXIT("failed to parse time!\n");
       }
-  }
+    }
   } else {
      start_time = 1500000000000;
   }
@@ -4911,36 +4914,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     }
   }
 
-  if (superTblInfo && (superTblInfo->childTblOffset >= 0)
-            && (superTblInfo->childTblLimit > 0)) {
-
-    TAOS* taos = taos_connect(
-              g_Dbs.host, g_Dbs.user,
-              g_Dbs.password, db_name, g_Dbs.port);
-    if (NULL == taos) {
-        errorPrint("%s() LN%d, connect to server fail , reason: %s\n",
-                __func__, __LINE__, taos_errstr(NULL));
-        exit(-1);
-    }
-
-    superTblInfo->childTblName = (char*)calloc(1,
-        superTblInfo->childTblLimit * TSDB_TABLE_NAME_LEN);
-    if (superTblInfo->childTblName == NULL) {
-      errorPrint("%s() LN%d, alloc memory failed!\n", __func__, __LINE__);
-      taos_close(taos);
-      exit(-1);
-    }
-    int childTblCount;
-
-    getChildNameOfSuperTableWithLimitAndOffset(
-        taos,
-        db_name, superTblInfo->sTblName,
-        &superTblInfo->childTblName, &childTblCount,
-        superTblInfo->childTblLimit,
-        superTblInfo->childTblOffset);
-    taos_close(taos);
-  }
-
   // read sample data from file first
   if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource, 
               "sample", strlen("sample")))) {
@@ -4949,7 +4922,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
       exit(-1);
     }
   }
-
 
   TAOS* taos = taos_connect(
               g_Dbs.host, g_Dbs.user,
