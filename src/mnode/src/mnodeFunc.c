@@ -32,6 +32,7 @@
 #include "mnodeShow.h"
 #include "mnodeFunc.h"
 #include "mnodeWrite.h"
+#include "mnodeRead.h"
 #include "mnodePeer.h"
 
 int64_t        tsFuncRid = -1;
@@ -39,6 +40,7 @@ static void *  tsFuncSdb = NULL;
 static int32_t tsFuncUpdateSize = 0;
 static int32_t mnodeGetFuncMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 static int32_t mnodeRetrieveFuncs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
+static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessCreateFuncMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropFuncMsg(SMnodeMsg *pMsg);
 
@@ -134,6 +136,8 @@ int32_t mnodeInitFuncs() {
 
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_FUNCTION, mnodeProcessCreateFuncMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_FUNCTION, mnodeProcessDropFuncMsg);
+  mnodeAddReadMsgHandle(TSDB_MSG_TYPE_CM_RETRIEVE_FUNC, mnodeProcessRetrieveFuncImplMsg);
+
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_FUNCTION, mnodeGetFuncMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_FUNCTION, mnodeRetrieveFuncs);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_FUNCTION, mnodeCancelGetNextFunc);
@@ -417,4 +421,33 @@ static int32_t mnodeProcessDropFuncMsg(SMnodeMsg *pMsg) {
   }
 
   return mnodeDropFunc(pFunc, pMsg);
+}
+
+static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg) {
+  SRetrieveFuncMsg *pInfo = pMsg->rpcMsg.pCont;
+  pInfo->num = htonl(pInfo->num);
+
+  int32_t t = sizeof(SUdfFuncMsg) + sizeof(SFunctionInfoMsg) * pInfo->num + 16384;
+
+  SUdfFuncMsg *pFuncMsg = rpcMallocCont(t);
+  pFuncMsg->num = htonl(pInfo->num);
+  char* pOutput = pFuncMsg->content;
+  for(int32_t i = 0; i < pInfo->num; ++i) {
+    tstr* name = (tstr*) pInfo->name;
+
+    char buf[TSDB_FUNC_NAME_LEN] = {0};
+    tstrncpy(buf, name->data, TSDB_FUNC_NAME_LEN);
+
+    SFuncObj* pFuncObj = mnodeGetFunc(buf);
+    SFunctionInfoMsg* pFuncInfo = (SFunctionInfoMsg*) pOutput;
+
+    strcpy(pFuncInfo->name, buf);
+    pFuncInfo->contentLen = htonl(pFuncObj->codeLen);
+    pFuncInfo->resType = htons(pFuncObj->outputType);
+    pOutput += sizeof(SFunctionInfoMsg) + pFuncObj->codeLen;
+  }
+
+  pMsg->rpcRsp.rsp = pFuncMsg;
+  pMsg->rpcRsp.len = (pOutput - (char*)pFuncMsg);
+  return TSDB_CODE_SUCCESS;
 }

@@ -448,6 +448,7 @@ int doProcessSql(SSqlObj *pSql) {
       pCmd->command == TSDB_SQL_CONNECT ||
       pCmd->command == TSDB_SQL_HB ||
       pCmd->command == TSDB_SQL_META ||
+      pCmd->command == TSDB_SQL_RETRIEVE_FUNC ||
       pCmd->command == TSDB_SQL_STABLEVGROUP) {
     pRes->code = tscBuildMsg[pCmd->command](pSql, NULL);
   }
@@ -1319,14 +1320,11 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   SShowInfo *pShowInfo = &pInfo->pMiscInfo->showOpt;
-
-  SShowMsg *pShowMsg = (SShowMsg *)pCmd->payload;
+  SShowMsg  *pShowMsg = (SShowMsg *)pCmd->payload;
 
   if (pShowInfo->showType == TSDB_MGMT_TABLE_FUNCTION) {
     pShowMsg->type = pShowInfo->showType;
-
     pShowMsg->payloadLen = 0;
-
     pCmd->payloadLen = sizeof(SShowMsg);
 
     return TSDB_CODE_SUCCESS;
@@ -1807,6 +1805,28 @@ int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+int tscBuildRetrieveFuncMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
+  SSqlCmd *pCmd = &pSql->cmd;
+
+  char *pMsg = pCmd->payload;
+  int32_t numOfFuncs = taosArrayGetSize(pCmd->pUdfInfo);
+
+  SRetrieveFuncMsg *pRetrieveFuncMsg = (SRetrieveFuncMsg *)pMsg;
+  pRetrieveFuncMsg->num = htonl(numOfFuncs);
+
+  pMsg += sizeof(SRetrieveFuncMsg);
+  for(int32_t i = 0; i < numOfFuncs; ++i) {
+    SUdfInfo* pUdf = taosArrayGet(pCmd->pUdfInfo, i);
+    STR_TO_VARSTR(pMsg, pUdf->name);
+    pMsg += varDataTLen(pMsg);
+  }
+
+  pCmd->msgType = TSDB_MSG_TYPE_CM_RETRIEVE_FUNC;
+  pCmd->payloadLen = (int32_t)(pMsg - pCmd->payload);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   STscObj *pObj = pSql->pTscObj;
@@ -2065,6 +2085,32 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
   tscDebug("%p load multi-metermeta resp from complete num:%d", pSql, pSql->res.numOfTotal);
 #endif
   
+  return TSDB_CODE_SUCCESS;
+}
+
+int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
+  SSqlCmd* pCmd = &pSql->cmd;
+  SUdfFuncMsg* pFuncMsg = (SUdfFuncMsg *)pSql->res.pRsp;
+  pFuncMsg->num = htonl(pFuncMsg->num);
+
+  char* pMsg = pFuncMsg->content;
+  for(int32_t i = 0; i < pFuncMsg->num; ++i) {
+    SFunctionInfoMsg* pFunc = (SFunctionInfoMsg*) pMsg;
+
+    SUdfInfo info = {0};
+    info.name = strndup(pFunc->name, TSDB_FUNC_NAME_LEN);
+    info.resBytes = htons(pFunc->resBytes);
+    info.resType = htons(pFunc->resType);
+    info.funcType = TSDB_UDF_TYPE_SCALAR;
+
+    info.contLen = htons(pFunc->contentLen);
+    info.content = malloc(pFunc->contentLen);
+    memcpy(info.content, pFunc->content, info.contLen);
+
+    taosArrayPush(pCmd->pUdfInfo, &info);
+    pMsg += sizeof(SFunctionInfoMsg) + info.contLen;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2480,6 +2526,50 @@ int tscGetTableMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
   return tscGetTableMeta(pSql, pTableMetaInfo);
 }
 
+int32_t tscGetUdfFromNode(SSqlObj *pSql) {
+  SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
+  if (NULL == pNew) {
+    tscError("%p malloc failed for new sqlobj to get user-defined functions", pSql);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  pNew->pTscObj = pSql->pTscObj;
+  pNew->signature = pNew;
+  pNew->cmd.command = TSDB_SQL_RETRIEVE_FUNC;
+
+  pNew->cmd.pUdfInfo = taosArrayInit(4, sizeof(SUdfInfo));
+  for(int32_t i = 0; i < taosArrayGetSize(pSql->cmd.pUdfInfo); ++i) {
+    SUdfInfo info = {0};
+    SUdfInfo* p1 = taosArrayGet(pSql->cmd.pUdfInfo, i);
+    info = *p1;
+    info.name = strdup(p1->name);
+    taosArrayPush(pNew->cmd.pUdfInfo, &info);
+  }
+
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen)) {
+    tscError("%p malloc failed for payload to get table meta", pSql);
+    tscFreeSqlObj(pNew);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  tscDebug("%p new pSqlObj:%p to retrieve udf", pSql, pNew);
+  registerSqlObj(pNew);
+
+  pNew->fp = tscTableMetaCallBack;
+  pNew->param = (void *)pSql->self;
+
+  tscDebug("%p metaRid from %" PRId64 " to %" PRId64 , pSql, pSql->metaRid, pNew->self);
+
+  pSql->metaRid = pNew->self;
+
+  int32_t code = tscProcessSql(pNew);
+  if (code == TSDB_CODE_SUCCESS) {
+    code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;  // notify application that current process needs to be terminated
+  }
+
+  return code;
+}
+
 /**
  * retrieve table meta from mnode, and update the local table meta hashmap.
  * @param pSql          sql object
@@ -2609,6 +2699,7 @@ void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_META] = tscBuildTableMetaMsg;
   tscBuildMsg[TSDB_SQL_STABLEVGROUP] = tscBuildSTableVgroupMsg;
   tscBuildMsg[TSDB_SQL_MULTI_META] = tscBuildMultiMeterMetaMsg;
+  tscBuildMsg[TSDB_SQL_RETRIEVE_FUNC] = tscBuildRetrieveFuncMsg;
 
   tscBuildMsg[TSDB_SQL_HB] = tscBuildHeartBeatMsg;
   tscBuildMsg[TSDB_SQL_SHOW] = tscBuildShowMsg;
@@ -2627,6 +2718,7 @@ void tscInitMsgsFp() {
   tscProcessMsgRsp[TSDB_SQL_META] = tscProcessTableMetaRsp;
   tscProcessMsgRsp[TSDB_SQL_STABLEVGROUP] = tscProcessSTableVgroupRsp;
   tscProcessMsgRsp[TSDB_SQL_MULTI_META] = tscProcessMultiMeterMetaRsp;
+  tscProcessMsgRsp[TSDB_SQL_RETRIEVE_FUNC] = tscProcessRetrieveFuncRsp;
 
   tscProcessMsgRsp[TSDB_SQL_SHOW] = tscProcessShowRsp;
   tscProcessMsgRsp[TSDB_SQL_RETRIEVE] = tscProcessRetrieveRspFromNode;  // rsp handled by same function.

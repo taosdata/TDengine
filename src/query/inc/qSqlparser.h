@@ -215,7 +215,7 @@ typedef struct tSQLExpr {
 
   // the whole string of the function(col, param), while the function name is kept in token
   SStrToken        operand;
-  uint32_t         functionId;  // function id
+  int32_t          functionId;  // function id
 
   SStrToken        colInfo;     // table column info
   tVariant         value;       // the use input value

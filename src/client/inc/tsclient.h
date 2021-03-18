@@ -47,6 +47,9 @@ enum {
   DATA_FROM_DATA_FILE  = 2,
 };
 
+#define TSDB_UDF_TYPE_SCALAR       1
+#define TSDB_UDF_TYPE_AGGREGATE    2
+
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 
 typedef struct STableComInfo {
@@ -259,9 +262,9 @@ typedef struct {
   int32_t      numOfParams;
 
   int8_t       dataSourceType;     // load data from file or not
-  char    reserve4[3];        // fix bus error on arm32
+  char         reserve4[3];        // fix bus error on arm32
   int8_t       submitSchema;   // submit block is built with table schema
-  char    reserve5[3];        // fix bus error on arm32
+  char         reserve5[3];        // fix bus error on arm32
   STagData     tagData;        // NOTE: pTagData->data is used as a variant length array
 
   SName      **pTableNameList; // all involved tableMeta list of current insert sql statement.
@@ -269,12 +272,23 @@ typedef struct {
 
   SHashObj    *pTableBlockHashList;     // data block for each table
   SArray      *pDataBlocks;    // SArray<STableDataBlocks*>. Merged submit block for each vgroup
+  SArray      *pUdfInfo;       // user defined function information SArray<SUdfInfo>
 } SSqlCmd;
 
 typedef struct SResRec {
   int numOfRows;
   int numOfTotal;
 } SResRec;
+
+typedef struct SUdfInfo {
+  int32_t  functionId; // system assigned function id
+  char    *name;       // function name
+  int16_t  resType;    // result type
+  int16_t  resBytes;   // result byte
+  int32_t  funcType;   // scalar function or aggregate function
+  int32_t  contLen;    // content length
+  char    *content;    // binary content
+} SUdfInfo;
 
 typedef struct {
   int32_t        numOfRows;                  // num of results in current retrieval

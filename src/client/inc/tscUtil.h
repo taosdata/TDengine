@@ -230,6 +230,7 @@ void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo);
 int  tscGetSTableVgroupInfo(SSqlObj* pSql, int32_t clauseIndex);
 int  tscGetTableMeta(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo);
 int  tscGetTableMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool createIfNotExists);
+int32_t tscGetUdfFromNode(SSqlObj *pSql);
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
 void tscDoQuery(SSqlObj* pSql);

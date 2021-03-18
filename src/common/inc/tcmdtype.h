@@ -73,6 +73,7 @@ enum {
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_STABLEVGROUP, "stable-vgroup" )
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_MULTI_META, "multi-meta" )
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_HB, "heart-beat" )
+  TSDB_DEFINE_SQL_TYPE( TSDB_SQL_RETRIEVE_FUNC, "retrieve-function" )
 
   // SQL below for client local 
   TSDB_DEFINE_SQL_TYPE( TSDB_SQL_LOCAL, "local" ) 

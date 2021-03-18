@@ -1725,6 +1725,34 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+static int32_t checkForUdf(SSqlObj* pSql, tSQLExprList* pSelection) {
+  SSqlCmd* pCmd = &pSql->cmd;
+  if (pCmd->pUdfInfo != NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pCmd->pUdfInfo = taosArrayInit(4, sizeof(struct SUdfInfo));
+  for (int32_t i = 0; i < pSelection->nExpr; ++i) {
+    tSqlExprItem* pItem = &pSelection->a[i];
+
+    int32_t type = pItem->pNode->type;
+    if (type == SQL_NODE_SQLFUNCTION) {
+      pItem->pNode->functionId = isValidFunction(pItem->pNode->operand.z, pItem->pNode->operand.n);
+      if (pItem->pNode->functionId < 0) { // extract all possible user defined function
+        struct SUdfInfo info = {0};
+        info.name = strndup(pItem->pNode->operand.z, pItem->pNode->operand.n);
+        taosArrayPush(pCmd->pUdfInfo, &info);
+      }
+    }
+  }
+
+  if (taosArrayGetSize(pCmd->pUdfInfo) > 0) {
+    return tscGetUdfFromNode(pSql);
+  } else {
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSelection, bool isSTable, bool joinQuery, bool timeWindowQuery) {
   assert(pSelection != NULL && pCmd != NULL);
 
@@ -1752,6 +1780,14 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, tSQLExprList* pSel
     if (type == SQL_NODE_SQLFUNCTION) {
       pItem->pNode->functionId = isValidFunction(pItem->pNode->operand.z, pItem->pNode->operand.n);
       if (pItem->pNode->functionId < 0) {
+        // extract all possible user defined function
+        struct SUdfInfo info = {0};
+        memcpy(info.name, pItem->pNode->operand.z, pItem->pNode->operand.n);
+        if (pCmd->pUdfInfo == NULL) {
+          pCmd->pUdfInfo = taosArrayInit(4, sizeof(struct SUdfInfo));
+        }
+
+        taosArrayPush(pCmd->pUdfInfo, &info);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
 
@@ -6719,6 +6755,11 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return code;
   }
 
+  code = checkForUdf(pSql, pQuerySql->pSelection);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
   if (parseSelectClause(&pSql->cmd, 0, pQuerySql->pSelection, isSTable, false, false) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
@@ -6969,6 +7010,12 @@ int32_t doCheckForQuery(SSqlObj* pSql, SQuerySQL* pQuerySql, int32_t index) {
   int32_t joinQuery = (pQuerySql->from != NULL && taosArrayGetSize(pQuerySql->from) > 2);
   int32_t timeWindowQuery = !(pQuerySql->interval.interval.type == 0 || pQuerySql->interval.interval.n == 0 ||
                               pQuerySql->sessionVal.gap.n == 0);
+
+
+  code = checkForUdf(pSql, pQuerySql->pSelection);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   if (parseSelectClause(pCmd, index, pQuerySql->pSelection, isSTable, joinQuery, timeWindowQuery) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
