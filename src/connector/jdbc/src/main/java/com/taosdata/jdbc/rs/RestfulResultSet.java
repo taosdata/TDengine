@@ -16,7 +16,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     private final String database;
     private final Statement statement;
-//    private final JSONObject resultJson;
+    //    private final JSONObject resultJson;
     // data
     private final ArrayList<ArrayList<Object>> resultSet;
     // meta
@@ -148,8 +148,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
 
         columnIndex = getTrueColumnIndex(columnIndex);
-        int result = getInt(columnIndex);
-        return result == 0 ? false : true;
+        Object value = resultSet.get(pos).get(columnIndex);
+        return value == null ? false : (Boolean) value;
     }
 
     @Override
@@ -281,9 +281,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         columnIndex = getTrueColumnIndex(columnIndex);
-        String strDate = resultSet.get(pos).get(columnIndex).toString();
-//        strDate = strDate.substring(1, strDate.length() - 1);
-        return Timestamp.valueOf(strDate);
+        Object value = resultSet.get(pos).get(columnIndex);
+        return value == null ? null : (Timestamp) value;
     }
 
     /*************************************************************************************************************/
@@ -293,6 +292,36 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         return this.metaData;
+    }
+
+    @Override
+    public Object getObject(int columnIndex) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        int fieldColumnIndex = getTrueColumnIndex(columnIndex);
+        Field field = this.columns.get(fieldColumnIndex);
+        switch (field.taos_type) {
+            case TSDBConstants.TSDB_DATA_TYPE_BOOL:
+                return this.getBoolean(columnIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+                return Integer.valueOf(this.getByte(columnIndex));
+            case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+                return this.getShort(columnIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_INT:
+                return this.getInt(columnIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+                return this.getLong(columnIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                return this.getFloat(columnIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                return this.getDouble(columnIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+                return this.getTimestamp(columnIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+            case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+            default:
+                return this.getString(columnIndex);
+        }
     }
 
     @Override
