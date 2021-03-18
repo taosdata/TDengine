@@ -834,14 +834,14 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
   return numOfRows;
 }
 
-int32_t mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
+int32_t mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable, bool needCheck) {
   int32_t idPoolSize = taosIdPoolMaxSize(pVgroup->idPool);
   if (pTable->tid > idPoolSize) {
     mnodeAllocVgroupIdPool(pVgroup);
   }
 
   if (pTable->tid >= 1) {
-    if (taosIdPoolMarkStatus(pVgroup->idPool, pTable->tid)) {
+    if (taosIdPoolMarkStatus(pVgroup->idPool, pTable->tid) || !needCheck) {
       pVgroup->numOfTables++;
       mTrace("table:%s, vgId:%d tid:%d, mark tid used, uid:%" PRIu64, pTable->info.tableId, pTable->vgId, pTable->tid,
              pTable->uid);

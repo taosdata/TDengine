@@ -124,7 +124,6 @@ bool taosIdPoolMarkStatus(void *handle, int id) {
     ret = true;
   } else {
     ret = false;
-    uError("pool:%p, id:%d is already used by other obj", pIdPool, id);
   }
 
   pthread_mutex_unlock(&pIdPool->mutex);

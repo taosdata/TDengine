@@ -152,7 +152,7 @@ static int32_t mnodeChildTableActionInsert(SSdbRow *pRow) {
 
   if (pDb) mnodeAddTableIntoDb(pDb);
   if (pVgroup) {
-    if (mnodeAddTableIntoVgroup(pVgroup, pTable) != 0) {
+    if (mnodeAddTableIntoVgroup(pVgroup, pTable, pRow->pMsg == NULL) != 0) {
       mError("table:%s, vgId:%d tid:%d, failed to perform insert action, uid:%" PRIu64 " suid:%" PRIu64,
              pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid, pTable->suid);
       code = -1;
@@ -1912,15 +1912,14 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
              pMsg->rpcMsg.handle);
 
       if (pMsg->pBatchMasterMsg) {
-	++pMsg->pBatchMasterMsg->successed;
-	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
-	    >= pMsg->pBatchMasterMsg->expected) {
-	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
-	}
+        ++pMsg->pBatchMasterMsg->successed;
+        if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received >= pMsg->pBatchMasterMsg->expected) {
+          dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
+        }
 
-	mnodeDestroySubMsg(pMsg);
+        mnodeDestroySubMsg(pMsg);
 
-	return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+        return TSDB_CODE_MND_ACTION_IN_PROGRESS;
       }
 
       dnodeSendRpcMWriteRsp(pMsg, TSDB_CODE_SUCCESS);
@@ -1935,9 +1934,8 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
     if (pMsg->pBatchMasterMsg) {
       ++pMsg->pBatchMasterMsg->received;
       pMsg->pBatchMasterMsg->code = code;
-      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
-	  >= pMsg->pBatchMasterMsg->expected) {
-	dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
+      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received >= pMsg->pBatchMasterMsg->expected) {
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
       }
 
       mnodeDestroySubMsg(pMsg);
@@ -2686,9 +2684,8 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
     if (pMsg->pBatchMasterMsg) {
       ++pMsg->pBatchMasterMsg->successed;
-      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
-	  >= pMsg->pBatchMasterMsg->expected) {
-	dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, rpcMsg->code);
+      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received >= pMsg->pBatchMasterMsg->expected) {
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, rpcMsg->code);
       }
 
       mnodeDestroySubMsg(pMsg);
