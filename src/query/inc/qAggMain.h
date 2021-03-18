@@ -205,7 +205,7 @@ typedef struct SAggFunctionInfo {
   int8_t   stableFuncId;  // transfer function for super table query
   uint16_t status;
 
-  bool (*init)(SQLFunctionCtx *pCtx);  // setup the execute environment
+  bool (*init)(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResultCellInfo);  // setup the execute environment
 
   void (*xFunction)(SQLFunctionCtx *pCtx);                     // blocks version function
   void (*xFunctionF)(SQLFunctionCtx *pCtx, int32_t position);  // single-row function version, todo merge with blockwise function
@@ -269,9 +269,9 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const cha
 static FORCE_INLINE void initResultInfo(SResultRowCellInfo *pResInfo, int32_t bufLen) {
   pResInfo->initialized = true;  // the this struct has been initialized flag
   
-  pResInfo->complete = false;
+  pResInfo->complete  = false;
   pResInfo->hasResult = false;
-  pResInfo->numOfRes = 0;
+  pResInfo->numOfRes  = 0;
   
   memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }

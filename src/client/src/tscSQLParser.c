@@ -322,8 +322,6 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
 
     //TODO CHECK CODE
-
-
     if (len + sizeof(SCreateFuncMsg) > pSql->cmd.allocSize) {
       ret = tscAllocPayload(&pSql->cmd, len + sizeof(SCreateFuncMsg));
       if (ret) {

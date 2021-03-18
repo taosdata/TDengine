@@ -35,13 +35,6 @@
 
 #define SWITCH_ORDER(n) (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
 
-#define CHECK_IF_QUERY_KILLED(_q)                        \
-  do {                                                   \
-    if (isQueryKilled((_q)->qinfo)) {                    \
-      longjmp((_q)->env, TSDB_CODE_TSC_QUERY_CANCELLED); \
-    }                                                    \
-  } while (0)
-
 #define SDATA_BLOCK_INITIALIZER (SDataBlockInfo) {{0}, 0}
 
 #define TIME_WINDOW_COPY(_dst, _src)  do {\
@@ -116,6 +109,7 @@ static void getNextTimeWindow(SQuery* pQuery, STimeWindow* tw) {
   if (pQuery->precision == TSDB_TIME_PRECISION_MICRO) {
     key /= 1000;
   }
+
   if (pQuery->interval.intervalUnit == 'y') {
     interval *= 12;
   }
@@ -3066,7 +3060,11 @@ void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size) {
       continue;
     }
 
-    aAggs[pCtx[j].functionId].init(&pCtx[j]);
+    if (pCtx[j].functionId < 0) { // udf initialize
+
+    } else {
+      aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
+    }
   }
 }
 
@@ -3205,7 +3203,7 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
     }
 
     if (!pResInfo->initialized) {
-      aAggs[functionId].init(&pCtx[i]);
+      aAggs[functionId].init(&pCtx[i], pResInfo);
     }
   }
 }
@@ -5482,6 +5480,9 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   pQueryMsg->prevResultLen = htonl(pQueryMsg->prevResultLen);
   pQueryMsg->sw.gap = htobe64(pQueryMsg->sw.gap);
   pQueryMsg->sw.primaryColId = htonl(pQueryMsg->sw.primaryColId);
+  pQueryMsg->udfContentOffset = htonl(pQueryMsg->udfContentOffset);
+  pQueryMsg->udfContentLen    = htonl(pQueryMsg->udfContentLen);
+  pQueryMsg->udfNum           = htonl(pQueryMsg->udfNum);
 
   // query msg safety check
   if (!validateQueryMsg(pQueryMsg)) {
@@ -5728,6 +5729,27 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     pMsg = (char *)pQueryMsg + pQueryMsg->tsOffset + pQueryMsg->tsLen;
   }
 
+  if (pQueryMsg->udfContentLen > 0) {
+    param->pUdfInfo = calloc(1, sizeof(SUdfInfo));
+    param->pUdfInfo->contLen = pQueryMsg->udfContentLen;
+
+    pMsg = (char*)pQueryMsg + pQueryMsg->udfContentOffset;
+    param->pUdfInfo->resType = *(int8_t*) pMsg;
+    pMsg += sizeof(int8_t);
+
+    param->pUdfInfo->resBytes = htons(*(int16_t*)pMsg);
+    pMsg += sizeof(int16_t);
+
+    tstr* name = (tstr*)(pMsg);
+    param->pUdfInfo->name = strndup(name->data, name->len);
+
+    pMsg += varDataTLen(name);
+    param->pUdfInfo->content = malloc(pQueryMsg->udfContentLen);
+    memcpy(param->pUdfInfo->content, pMsg, pQueryMsg->udfContentLen);
+
+    pMsg += pQueryMsg->udfContentLen;
+  }
+
   param->sql = strndup(pMsg, pQueryMsg->sqlstrLen);
 
   if (!validateQuerySourceCols(pQueryMsg, param->pExprMsg, param->pTagColumnInfo)) {
@@ -5790,11 +5812,33 @@ static int32_t updateOutputBufForTopBotQuery(SQueryTableMsg* pQueryMsg, SColumnI
   return TSDB_CODE_SUCCESS;
 }
 
+static UNUSED_FUNC int32_t flushUdfContentToDisk(SUdfInfo* pUdfInfo) {
+  if (pUdfInfo == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char path[PATH_MAX] = {0};
+  taosGetTmpfilePath("script", path);
+
+  FILE* file = fopen(path, "w+");
+
+  // TODO check for failure of flush to disk
+  /*size_t t = */ fwrite(pUdfInfo->content, pUdfInfo->contLen, 1, file);
+  fclose(file);
+
+  tfree(pUdfInfo->content);
+  pUdfInfo->path = strdup(path);
+  return TSDB_CODE_SUCCESS;
+}
+
 // TODO tag length should be passed from client
 int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutput, SExprInfo** pExprInfo,
-                                   SSqlFuncMsg** pExprMsg, SColumnInfo* pTagCols) {
+                                   SSqlFuncMsg** pExprMsg, SColumnInfo* pTagCols, SUdfInfo* pUdfInfo) {
   *pExprInfo = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
+
+  // save the udf script or so file
+//  flushUdfContentToDisk(pUdfInfo);
 
   SExprInfo *pExprs = (SExprInfo *)calloc(pQueryMsg->numOfOutput, sizeof(SExprInfo));
   if (pExprs == NULL) {
@@ -5871,10 +5915,15 @@ int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutpu
       return TSDB_CODE_QRY_INVALID_MSG;
     }
 
-    if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].type, &pExprs[i].bytes,
-                          &pExprs[i].interBytes, 0, isSuperTable) != TSDB_CODE_SUCCESS) {
-      tfree(pExprs);
-      return TSDB_CODE_QRY_INVALID_MSG;
+    if (pExprs[i].base.functionId < 0) {
+      pExprs[i].type  = pUdfInfo->resType;
+      pExprs[i].bytes = pUdfInfo->resBytes;
+    } else {
+      if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].type, &pExprs[i].bytes,
+                            &pExprs[i].interBytes, 0, isSuperTable) != TSDB_CODE_SUCCESS) {
+        tfree(pExprs);
+        return TSDB_CODE_QRY_INVALID_MSG;
+      }
     }
 
     if (pExprs[i].base.functionId == TSDB_FUNC_TAG_DUMMY || pExprs[i].base.functionId == TSDB_FUNC_TS_DUMMY) {

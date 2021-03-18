@@ -280,16 +280,6 @@ typedef struct SResRec {
   int numOfTotal;
 } SResRec;
 
-typedef struct SUdfInfo {
-  int32_t  functionId; // system assigned function id
-  char    *name;       // function name
-  int16_t  resType;    // result type
-  int16_t  resBytes;   // result byte
-  int32_t  funcType;   // scalar function or aggregate function
-  int32_t  contLen;    // content length
-  char    *content;    // binary content
-} SUdfInfo;
-
 typedef struct {
   int32_t        numOfRows;                  // num of results in current retrieval
   int64_t        numOfRowsGroup;             // num of results of current group

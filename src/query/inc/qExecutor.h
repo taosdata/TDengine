@@ -28,6 +28,7 @@
 #include "tarray.h"
 #include "tlockfree.h"
 #include "tsdb.h"
+#include "qUdf.h"
 
 struct SColumnFilterElem;
 typedef bool (*__filter_func_t)(struct SColumnFilterElem* pFilter, const char* val1, const char* val2, int16_t type);
@@ -339,6 +340,7 @@ typedef struct SQueryParam {
   SColIndex       *pGroupColIndex;
   SColumnInfo     *pTagColumnInfo;
   SSqlGroupbyExpr *pGroupbyExpr;
+  SUdfInfo        *pUdfInfo;
 } SQueryParam;
 
 typedef struct STableScanInfo {
@@ -424,7 +426,7 @@ typedef struct SSWindowOperatorInfo {
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);
 int32_t createQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo, SSqlFuncMsg **pExprMsg,
-                                   SColumnInfo* pTagCols);
+                                   SColumnInfo* pTagCols, SUdfInfo* pUdfInfo);
 int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo,
                                            SSqlFuncMsg **pExprMsg, SExprInfo *prevExpr);
 

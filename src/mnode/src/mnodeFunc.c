@@ -447,7 +447,8 @@ static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg) {
     pFuncInfo->len = htonl(pFuncObj->contLen);
     memcpy(pFuncInfo->content, pFuncObj->cont, pFuncObj->contLen);
 
-    pFuncInfo->resType = htons(pFuncObj->resType);
+    pFuncInfo->resType = pFuncObj->resType;
+    pFuncInfo->resBytes = htons(pFuncObj->resBytes);
     pOutput += sizeof(SFunctionInfoMsg) + pFuncObj->contLen;
   }
 

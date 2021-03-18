@@ -593,7 +593,7 @@ typedef struct {
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
-  int16_t resType;
+  int8_t  resType;
   int16_t resBytes;
   int32_t len;
   char    content[];

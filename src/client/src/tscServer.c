@@ -1063,12 +1063,16 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   // support only one udf
-  if (pCmd->pUdfInfo != NULL) {
-    assert(taosArrayGetSize(pCmd->pUdfInfo) == 1);
-
+  if (pCmd->pUdfInfo != NULL && taosArrayGetSize(pCmd->pUdfInfo) > 0) {
     pQueryMsg->udfContentOffset = htonl((int32_t) (pMsg - pCmd->payload));
     for(int32_t i = 0; i < taosArrayGetSize(pCmd->pUdfInfo); ++i) {
       SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, i);
+      *(int8_t*) pMsg = pUdfInfo->resType;
+      pMsg += sizeof(pUdfInfo->resType);
+
+      *(int16_t*) pMsg = htons(pUdfInfo->resBytes);
+      pMsg += sizeof(pUdfInfo->resBytes);
+
       STR_TO_VARSTR(pMsg, pUdfInfo->name);
 
       pMsg += varDataTLen(pMsg);
@@ -2115,25 +2119,41 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SUdfFuncMsg* pFuncMsg = (SUdfFuncMsg *)pSql->res.pRsp;
   pFuncMsg->num = htonl(pFuncMsg->num);
+  assert(pFuncMsg->num == taosArrayGetSize(pCmd->pUdfInfo));
 
   char* pMsg = pFuncMsg->content;
   for(int32_t i = 0; i < pFuncMsg->num; ++i) {
     SFunctionInfoMsg* pFunc = (SFunctionInfoMsg*) pMsg;
 
-    SUdfInfo info = {0};
-    info.name = strndup(pFunc->name, TSDB_FUNC_NAME_LEN);
-    info.resBytes = htons(pFunc->resBytes);
-    info.resType  = htons(pFunc->resType);
-    info.funcType = TSDB_UDF_TYPE_SCALAR;
+    for(int32_t j = 0; j < pFuncMsg->num; ++j) {
+      SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, j);
+      if (strcmp(pUdfInfo->name, pFunc->name) != 0) {
+        continue;
+      }
 
-    info.contLen = htonl(pFunc->len);
-    info.content = malloc(pFunc->len);
-    memcpy(info.content, pFunc->content, info.contLen);
+      pUdfInfo->resBytes = htons(pFunc->resBytes);
+      pUdfInfo->resType  = pFunc->resType;
+      pUdfInfo->funcType = TSDB_UDF_TYPE_SCALAR;
+      pUdfInfo->contLen  = htonl(pFunc->len);
 
-    taosArrayPush(pCmd->pUdfInfo, &info);
-    pMsg += sizeof(SFunctionInfoMsg) + info.contLen;
+      pUdfInfo->content = malloc(pUdfInfo->contLen);
+      memcpy(pUdfInfo->content, pFunc->content, pUdfInfo->contLen);
+
+      pMsg += sizeof(SFunctionInfoMsg) + pUdfInfo->contLen;
+    }
   }
 
+  // master sqlObj locates in param
+  SSqlObj* parent = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pSql->param);
+  if(parent == NULL) {
+    return pSql->res.code;
+  }
+
+  assert(parent->signature == parent && (int64_t)pSql->param == parent->self);
+  taosArrayDestroy(parent->cmd.pUdfInfo);
+
+  parent->cmd.pUdfInfo = pCmd->pUdfInfo;   // assigned to parent sql obj.
+  pCmd->pUdfInfo = NULL;
   return TSDB_CODE_SUCCESS;
 }
 
