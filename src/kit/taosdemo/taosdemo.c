@@ -3027,16 +3027,16 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   }
  
 
-      cJSON* numRecPerReq = cJSON_GetObjectItem(root, "num_of_records_per_req");
-      if (numRecPerReq && numRecPerReq->type == cJSON_Number) {
-        g_args.num_of_RPR = numRecPerReq->valueint;
-      } else if (!numRecPerReq) {
-        g_args.num_of_RPR = 100;
-      } else {
-        printf("ERROR: failed to read json, num_of_records_per_req not found\n");
-        goto PARSE_OVER;
-      }
- 
+  cJSON* numRecPerReq = cJSON_GetObjectItem(root, "num_of_records_per_req");
+  if (numRecPerReq && numRecPerReq->type == cJSON_Number) {
+    g_args.num_of_RPR = numRecPerReq->valueint;
+  } else if (!numRecPerReq) {
+    g_args.num_of_RPR = 100;
+  } else {
+    errorPrint("%s() LN%d, failed to read json, num_of_records_per_req not found\n", __func__, __LINE__);
+    goto PARSE_OVER;
+  }
+
   cJSON *answerPrompt = cJSON_GetObjectItem(root, "confirm_parameter_prompt"); // yes, no,
   if (answerPrompt 
           && answerPrompt->type == cJSON_String
@@ -3389,9 +3389,11 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
       cJSON *ts = cJSON_GetObjectItem(stbInfo, "start_timestamp");
       if (ts && ts->type == cJSON_String && ts->valuestring != NULL) {
-        tstrncpy(g_Dbs.db[i].superTbls[j].startTimestamp, ts->valuestring, MAX_DB_NAME_SIZE);
+        tstrncpy(g_Dbs.db[i].superTbls[j].startTimestamp,
+                ts->valuestring, MAX_DB_NAME_SIZE);
       } else if (!ts) {
-        tstrncpy(g_Dbs.db[i].superTbls[j].startTimestamp, "now", MAX_DB_NAME_SIZE);
+        tstrncpy(g_Dbs.db[i].superTbls[j].startTimestamp,
+                "now", MAX_DB_NAME_SIZE);
       } else {
         printf("ERROR: failed to read json, start_timestamp not found\n");
         goto PARSE_OVER;
@@ -4163,29 +4165,26 @@ static int prepareSampleDataForSTable(SSuperTable *superTblInfo) {
   return 0;
 }
 
-static int execInsert(threadInfo *winfo, char *buffer, int k)
+static int execInsert(threadInfo *pThreadInfo, char *buffer, int k)
 {
   int affectedRows;
-  SSuperTable* superTblInfo = winfo->superTblInfo;
+  SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
+  verbosePrint("[%d] %s() LN%d %s\n", pThreadInfo->threadID,
+            __func__, __LINE__, buffer);
   if (superTblInfo) {
     if (0 == strncasecmp(superTblInfo->insertMode, "taosc", strlen("taosc"))) {
-      verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
-      affectedRows = queryDbExec(winfo->taos, buffer, INSERT_TYPE);
+      affectedRows = queryDbExec(pThreadInfo->taos, buffer, INSERT_TYPE);
     } else {
-      verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
-      int retCode = postProceSql(g_Dbs.host, g_Dbs.port, buffer);
-
-      if (0 != retCode) {
+      if (0 != postProceSql(g_Dbs.host, g_Dbs.port, buffer)) {
         affectedRows = -1;
-        printf("========restful return fail, threadID[%d]\n", winfo->threadID);
+        printf("========restful return fail, threadID[%d]\n", pThreadInfo->threadID);
       } else {
         affectedRows = k;
       }
     }
   } else {
-    verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
-    affectedRows = queryDbExec(winfo->taos, buffer, 1);
+    affectedRows = queryDbExec(pThreadInfo->taos, buffer, 1);
   }
 
   return affectedRows;
@@ -4201,8 +4200,9 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, int tableSeq)
             superTblInfo->childTblName + (tableSeq - superTblInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
     } else {
 
-        verbosePrint("%s() LN%d: from=%d count=%d seq=%d\n",
-                __func__, __LINE__, pThreadInfo->start_table_from,
+        verbosePrint("[%d] %s() LN%d: from=%d count=%d seq=%d\n",
+                pThreadInfo->threadID, __func__, __LINE__,
+                pThreadInfo->start_table_from,
                 pThreadInfo->ntables, tableSeq);
         snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
             superTblInfo->childTblName + tableSeq * TSDB_TABLE_NAME_LEN);
@@ -4402,7 +4402,8 @@ static int generateDataBuffer(char *pTblName,
 }
 
 static void* syncWriteInterlace(threadInfo *pThreadInfo) {
-  debugPrint("%s() LN%d: ### interlace write\n", __func__, __LINE__);
+  debugPrint("[%d] %s() LN%d: ### interlace write\n",
+         pThreadInfo->threadID, __func__, __LINE__);
 
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
@@ -4443,8 +4444,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   int tableSeq = pThreadInfo->start_table_from;
 
-  debugPrint("%s() LN%d: start_table_from=%d ntables=%d insertRows=%"PRId64"\n",
-          __func__, __LINE__, pThreadInfo->start_table_from,
+  debugPrint("[%d] %s() LN%d: start_table_from=%d ntables=%d insertRows=%"PRId64"\n",
+          pThreadInfo->threadID, __func__, __LINE__, pThreadInfo->start_table_from,
           pThreadInfo->ntables, insertRows);
 
   int64_t startTime = pThreadInfo->start_time;
@@ -4452,80 +4453,111 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int batchPerTblTimes;
   int batchPerTbl;
 
+  assert(pThreadInfo->ntables > 0);
+
+  if (rowsPerTbl > g_args.num_of_RPR)
+        rowsPerTbl = g_args.num_of_RPR;
+
+  batchPerTbl = rowsPerTbl;
   if ((rowsPerTbl > 0) && (pThreadInfo->ntables > 1)) {
-    batchPerTblTimes = g_args.num_of_RPR / rowsPerTbl;
-    batchPerTbl = rowsPerTbl;
+    batchPerTblTimes =
+        (g_args.num_of_RPR / (rowsPerTbl * pThreadInfo->ntables)) + 1;
   } else {
     batchPerTblTimes = 1;
-    batchPerTbl = g_args.num_of_RPR;
   }
 
   int generatedRecPerTbl = 0;
+  bool flagSleep = true;
+  int sleepTimeTotal = 0;
   while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
-    if (insert_interval) {
+    if ((flagSleep) && (insert_interval)) {
         st = taosGetTimestampUs();
+        flagSleep = false;
     }
     // generate data
     memset(buffer, 0, superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len);
 
     char *pstr = buffer;
-    int recGenerated = 0;
+    int recOfBatch = 0;
 
     for (int i = 0; i < batchPerTblTimes; i ++) {
       getTableName(tableName, pThreadInfo, tableSeq);
 
       int headLen;
       if (i == 0) {
-          headLen = generateSQLHead(tableName, tableSeq, pThreadInfo, superTblInfo, pstr);
+        headLen = generateSQLHead(tableName, tableSeq, pThreadInfo,
+                superTblInfo, pstr);
       } else {
-          headLen = snprintf(pstr, TSDB_TABLE_NAME_LEN, "%s.%s values", 
+        headLen = snprintf(pstr, TSDB_TABLE_NAME_LEN, "%s.%s values",
                   pThreadInfo->db_name,
                   tableName);
       }
 
       // generate data buffer
-      verbosePrint("%s() LN%d i=%d buffer:\n%s\n",
-                __func__, __LINE__, i, buffer);
+      verbosePrint("[%d] %s() LN%d i=%d buffer:\n%s\n",
+                pThreadInfo->threadID, __func__, __LINE__, i, buffer);
 
       pstr += headLen;
       int dataLen = 0;
 
-      verbosePrint("%s() LN%d i=%d batchPerTblTimes=%d batchPerTbl = %d\n",
-                __func__, __LINE__, i, batchPerTblTimes, batchPerTbl);
-      int numOfRecGenerated = generateDataTail(
-                tableName, tableSeq, pThreadInfo, superTblInfo,
-                batchPerTbl, pstr, insertRows, 0,
-                startTime + pThreadInfo->totalInsertRows * superTblInfo->timeStampStep,
-                &(pThreadInfo->samplePos), &dataLen);
-      verbosePrint("%s() LN%d numOfRecGenerated= %d\n",
-                __func__, __LINE__, numOfRecGenerated);
+      debugPrint("[%d] %s() LN%d i=%d batchPerTblTimes=%d batchPerTbl = %d\n",
+                pThreadInfo->threadID, __func__, __LINE__,
+                i, batchPerTblTimes, batchPerTbl);
+      generateDataTail(
+        tableName, tableSeq, pThreadInfo, superTblInfo,
+        batchPerTbl, pstr, insertRows, 0,
+        startTime + sleepTimeTotal +
+            pThreadInfo->totalInsertRows * superTblInfo->timeStampStep,
+        &(pThreadInfo->samplePos), &dataLen);
       pstr += dataLen;
-      recGenerated += numOfRecGenerated;
+      recOfBatch += batchPerTbl;
+      pThreadInfo->totalInsertRows += batchPerTbl;
+      debugPrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
+                pThreadInfo->threadID, __func__, __LINE__,
+                batchPerTbl, recOfBatch);
 
       tableSeq ++;
       if (insertMode == INTERLACE_INSERT_MODE) {
           if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
             // turn to first table
             tableSeq = pThreadInfo->start_table_from;
-            generatedRecPerTbl += numOfRecGenerated;
+            generatedRecPerTbl += batchPerTbl;
+            flagSleep = true;
+            if (generatedRecPerTbl >= insertRows)
+              break;
+
+            if (pThreadInfo->ntables * batchPerTbl < g_args.num_of_RPR)
+                break;
           }
       }
 
       int remainRows = insertRows - generatedRecPerTbl;
-      if (batchPerTbl > remainRows)
+      if ((remainRows > 0) && (batchPerTbl > remainRows))
         batchPerTbl = remainRows;
 
-      if ((g_args.num_of_RPR - recGenerated) < batchPerTbl)
+      debugPrint("[%d] %s() LN%d generatedRecPerTbl=%d insertRows=%"PRId64"\n",
+                pThreadInfo->threadID, __func__, __LINE__,
+                generatedRecPerTbl, insertRows);
+
+      if ((g_args.num_of_RPR - recOfBatch) < batchPerTbl)
         break;
     }
-    pThreadInfo->totalInsertRows += recGenerated;
-    verbosePrint("%s() LN%d recGenerated=%d totalInsertRows=%"PRId64" buffer:\n%s\n",
-              __func__, __LINE__, recGenerated, 
-              pThreadInfo->totalInsertRows, buffer);
 
-    int affectedRows = execInsert(pThreadInfo, buffer, recGenerated);
-    if (affectedRows < 0)
+    debugPrint("[%d] %s() LN%d recOfBatch=%d totalInsertRows=%"PRId64"\n",
+              pThreadInfo->threadID, __func__, __LINE__, recOfBatch,
+              pThreadInfo->totalInsertRows);
+    verbosePrint("[%d] %s() LN%d, buffer=%s\n",
+           pThreadInfo->threadID, __func__, __LINE__, buffer);
+
+    int affectedRows = execInsert(pThreadInfo, buffer, recOfBatch);
+    verbosePrint("[%d] %s() LN%d affectedRows=%d\n", pThreadInfo->threadID,
+            __func__, __LINE__, affectedRows);
+    if (affectedRows < 0) {
+        errorPrint("[%d] %s() LN%d execInsert affected rows: %d\n%s\n",
+                pThreadInfo->threadID, __func__, __LINE__,
+                affectedRows, buffer);
         goto free_and_statistics_interlace;
+    }
 
     pThreadInfo->totalAffectedRows += affectedRows;
 
@@ -4545,15 +4577,16 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       lastPrintTime = currentPrintTime;
     }
 
-    if (insert_interval) {
-        et = taosGetTimestampUs();
+    if ((insert_interval) && flagSleep) {
+      et = taosGetTimestampUs();
 
-        if (insert_interval > ((et - st)/1000) ) {
-            int sleep_time = insert_interval - (et -st)/1000;
-            verbosePrint("%s() LN%d sleep: %d ms for insert interval\n",
-                    __func__, __LINE__, sleep_time);
-            taosMsleep(sleep_time); // ms
-        }
+      if (insert_interval > ((et - st)/1000) ) {
+        int sleepTime = insert_interval - (et -st)/1000;
+//        verbosePrint("%s() LN%d sleep: %d ms for insert interval\n",
+//                    __func__, __LINE__, sleepTime);
+        taosMsleep(sleepTime); // ms
+        sleepTimeTotal += insert_interval;
+      }
     }
   }
 
@@ -4838,15 +4871,15 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
         start_time = taosGetTimestamp(timePrec);
     } else {
-        if (TSDB_CODE_SUCCESS != taosParseTime(
-            superTblInfo->startTimestamp,
-            &start_time,
-            strlen(superTblInfo->startTimestamp),
-            timePrec, 0)) {
-            errorPrint("%s() LN%d, failed to parse time!\n", __func__, __LINE__);
-            exit(-1);
-        }
-    }
+      if (TSDB_CODE_SUCCESS != taosParseTime(
+        superTblInfo->startTimestamp,
+        &start_time,
+        strlen(superTblInfo->startTimestamp),
+        timePrec, 0)) {
+        errorPrint("%s() LN%d, failed to parse time!\n", __func__, __LINE__);
+        exit(-1);
+      }
+  }
   } else {
      start_time = 1500000000000;
   }
@@ -5008,6 +5041,10 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     tsem_destroy(&(t_info->lock_sem));
     taos_close(t_info->taos);
 
+    debugPrint("%s() LN%d, [%d] totalInsert=%"PRId64" totalAffected=%"PRId64"\n",
+            __func__, __LINE__,
+            t_info->threadID, t_info->totalInsertRows,
+            t_info->totalAffectedRows);
     if (superTblInfo) {
         superTblInfo->totalAffectedRows += t_info->totalAffectedRows;
         superTblInfo->totalInsertRows += t_info->totalInsertRows;
