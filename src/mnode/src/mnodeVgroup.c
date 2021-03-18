@@ -443,6 +443,7 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
       mDebug("msg:%p, app:%p db:%s, no enough sid in vgId:%d", pMsg, pMsg->rpcMsg.ahandle, pDb->name, pVgroup->vgId);
       continue;
     }
+    mTrace("vgId:%d, alloc tid:%d", pVgroup->vgId, sid);
 
     *pSid = sid;
     *ppVgroup = pVgroup;
@@ -507,6 +508,7 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
   pDb->vgListIndex = 0;
   pthread_mutex_unlock(&pDb->mutex);
 
+  mTrace("vgId:%d, alloc tid:%d", pVgroup->vgId, sid);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -832,26 +834,37 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
   return numOfRows;
 }
 
-void mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
+int32_t mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
   int32_t idPoolSize = taosIdPoolMaxSize(pVgroup->idPool);
   if (pTable->tid > idPoolSize) {
     mnodeAllocVgroupIdPool(pVgroup);
   }
 
   if (pTable->tid >= 1) {
-    taosIdPoolMarkStatus(pVgroup->idPool, pTable->tid);
-    pVgroup->numOfTables++;
-    // The create vgroup message may be received later than the create table message
-    // and the writing order in sdb is therefore uncertain
-    // which will cause the reference count of the vgroup to be incorrect when restarting
-    // mnodeIncVgroupRef(pVgroup);
+    if (taosIdPoolMarkStatus(pVgroup->idPool, pTable->tid)) {
+      pVgroup->numOfTables++;
+      mTrace("table:%s, vgId:%d tid:%d, mark tid used, uid:%" PRIu64, pTable->info.tableId, pTable->vgId, pTable->tid,
+             pTable->uid);
+      // The create vgroup message may be received later than the create table message
+      // and the writing order in sdb is therefore uncertain
+      // which will cause the reference count of the vgroup to be incorrect when restarting
+      // mnodeIncVgroupRef(pVgroup);
+    } else {
+      mError("table:%s, vgId:%d tid:%d, failed to mark tid, uid:%" PRIu64, pTable->info.tableId, pTable->vgId,
+             pTable->tid, pTable->uid);
+      return -1;
+    }
   }
+
+  return 0;
 }
 
 void mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
   if (pTable->tid >= 1) {
     taosFreeId(pVgroup->idPool, pTable->tid);
     pVgroup->numOfTables--;
+    mTrace("table:%s, vgId:%d tid:%d, put tid back uid:%" PRIu64, pTable->info.tableId, pTable->vgId, pTable->tid,
+           pTable->uid);
     // The create vgroup message may be received later than the create table message
     // and the writing order in sdb is therefore uncertain
     // which will cause the reference count of the vgroup to be incorrect when restarting

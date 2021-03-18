@@ -108,10 +108,12 @@ static int32_t mnodeChildTableActionDestroy(SSdbRow *pRow) {
 
 static int32_t mnodeChildTableActionInsert(SSdbRow *pRow) {
   SCTableObj *pTable = pRow->pObj;
+  int32_t code = 0;
 
   SVgObj *pVgroup = mnodeGetVgroup(pTable->vgId);
   if (pVgroup == NULL) {
     mError("ctable:%s, not in vgId:%d", pTable->info.tableId, pTable->vgId);
+    code = -1;
   }
 
   SDbObj *pDb = NULL;
@@ -119,6 +121,7 @@ static int32_t mnodeChildTableActionInsert(SSdbRow *pRow) {
     pDb = mnodeGetDb(pVgroup->dbName);
     if (pDb == NULL) {
       mError("ctable:%s, vgId:%d not in db:%s", pTable->info.tableId, pVgroup->vgId, pVgroup->dbName);
+      code = -1;
     }
   }
 
@@ -127,6 +130,7 @@ static int32_t mnodeChildTableActionInsert(SSdbRow *pRow) {
     pAcct = mnodeGetAcct(pDb->acct);
     if (pAcct == NULL) {
       mError("ctable:%s, acct:%s not exists", pTable->info.tableId, pDb->acct);
+      code = -1;
     }
   }
 
@@ -139,6 +143,7 @@ static int32_t mnodeChildTableActionInsert(SSdbRow *pRow) {
       if (pAcct) pAcct->acctInfo.numOfTimeSeries += (pTable->superTable->numOfColumns - 1);
     } else {
       mError("table:%s:%p, correspond stable not found suid:%" PRIu64, pTable->info.tableId, pTable, pTable->suid);
+      code = -1;
     }
   } else {
     grantAdd(TSDB_GRANT_TIMESERIES, pTable->numOfColumns - 1);
@@ -146,18 +151,31 @@ static int32_t mnodeChildTableActionInsert(SSdbRow *pRow) {
   }
 
   if (pDb) mnodeAddTableIntoDb(pDb);
-  if (pVgroup) mnodeAddTableIntoVgroup(pVgroup, pTable);
+  if (pVgroup) {
+    if (mnodeAddTableIntoVgroup(pVgroup, pTable) != 0) {
+      mError("table:%s, vgId:%d tid:%d, failed to perform insert action, uid:%" PRIu64 " suid:%" PRIu64,
+             pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid, pTable->suid);
+      code = -1;
+    }
+  }
 
   mnodeDecVgroupRef(pVgroup);
   mnodeDecDbRef(pDb);
   mnodeDecAcctRef(pAcct);
 
-  return TSDB_CODE_SUCCESS;
+  if (code == 0) {
+    mTrace("table:%s, vgId:%d tid:%d, perform insert action, uid:%" PRIu64 " suid:%" PRIu64, pTable->info.tableId,
+           pTable->vgId, pTable->tid, pTable->uid, pTable->suid);
+  }
+
+  return code;
 }
 
 static int32_t mnodeChildTableActionDelete(SSdbRow *pRow) {
   SCTableObj *pTable = pRow->pObj;
   if (pTable->vgId == 0) {
+    mError("table:%s, vgId:%d tid:%d, failed to perform delete action, uid:%" PRIu64 " suid:%" PRIu64,
+           pTable->info.tableId, pTable->vgId, pTable->tid, pTable->uid, pTable->suid);
     return TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
 
@@ -188,6 +206,8 @@ static int32_t mnodeChildTableActionDelete(SSdbRow *pRow) {
   mnodeDecDbRef(pDb);
   mnodeDecAcctRef(pAcct);
 
+  mTrace("table:%s, vgId:%d tid:%d, perform delete action, uid:%" PRIu64 " suid:%" PRIu64, pTable->info.tableId,
+         pTable->vgId, pTable->tid, pTable->uid, pTable->suid);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -399,13 +419,13 @@ static void mnodeAddTableIntoStable(SSTableObj *pStable, SCTableObj *pCtable) {
 
   if (pStable->vgHash == NULL) {
     pStable->vgHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-    mDebug("table:%s, create hash:%p", pStable->info.tableId, pStable->vgHash);
+    mDebug("stable:%s, create vgId hash:%p", pStable->info.tableId, pStable->vgHash);
   }
 
   if (pStable->vgHash != NULL) {
     if (taosHashGet(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId)) == NULL) {
       taosHashPut(pStable->vgHash, &pCtable->vgId, sizeof(pCtable->vgId), &pCtable->vgId, sizeof(pCtable->vgId));
-      mDebug("table:%s, vgId:%d is put into stable hash:%p, sizeOfVgList:%d", pStable->info.tableId, pCtable->vgId,
+      mDebug("stable:%s, vgId:%d is put into stable vgId hash:%p, sizeOfVgList:%d", pStable->info.tableId, pCtable->vgId,
              pStable->vgHash, taosHashGetSize(pStable->vgHash));
     }
   }
@@ -443,19 +463,21 @@ static int32_t mnodeSuperTableActionDestroy(SSdbRow *pRow) {
 
 static int32_t mnodeSuperTableActionInsert(SSdbRow *pRow) {
   SSTableObj *pStable = pRow->pObj;
-  SDbObj *pDb = mnodeGetDbByTableName(pStable->info.tableId);
+  SDbObj *    pDb = mnodeGetDbByTableName(pStable->info.tableId);
   if (pDb != NULL && pDb->status == TSDB_DB_STATUS_READY) {
     mnodeAddSuperTableIntoDb(pDb);
   }
   mnodeDecDbRef(pDb);
 
   taosHashPut(tsSTableUidHash, &pStable->uid, sizeof(int64_t), &pStable, sizeof(int64_t));
+
+  mTrace("stable:%s, perform insert action, uid:%" PRIu64, pStable->info.tableId, pStable->uid);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t mnodeSuperTableActionDelete(SSdbRow *pRow) {
   SSTableObj *pStable = pRow->pObj;
-  SDbObj *pDb = mnodeGetDbByTableName(pStable->info.tableId);
+  SDbObj *    pDb = mnodeGetDbByTableName(pStable->info.tableId);
   if (pDb != NULL) {
     mnodeRemoveSuperTableFromDb(pDb);
     mnodeDropAllChildTablesInStable((SSTableObj *)pStable);
@@ -463,6 +485,8 @@ static int32_t mnodeSuperTableActionDelete(SSdbRow *pRow) {
   mnodeDecDbRef(pDb);
 
   taosHashRemove(tsSTableUidHash, &pStable->uid, sizeof(int64_t));
+
+  mTrace("stable:%s, perform delete action, uid:%" PRIu64, pStable->info.tableId, pStable->uid);
   return TSDB_CODE_SUCCESS;
 }
 

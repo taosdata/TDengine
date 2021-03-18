@@ -104,10 +104,16 @@ void taosIdPoolCleanUp(void *handle) {
 
 int taosIdPoolNumOfUsed(void *handle) {
   id_pool_t *pIdPool = handle;
-  return pIdPool->maxId - pIdPool->numOfFree;
+
+  pthread_mutex_lock(&pIdPool->mutex);
+  int ret = pIdPool->maxId - pIdPool->numOfFree;
+  pthread_mutex_unlock(&pIdPool->mutex);
+
+  return ret;
 }
 
-void taosIdPoolMarkStatus(void *handle, int id) {
+bool taosIdPoolMarkStatus(void *handle, int id) {
+  bool ret = false;
   id_pool_t *pIdPool = handle;
   pthread_mutex_lock(&pIdPool->mutex);
 
@@ -115,9 +121,14 @@ void taosIdPoolMarkStatus(void *handle, int id) {
   if (!pIdPool->freeList[slot]) {
     pIdPool->freeList[slot] = true;
     pIdPool->numOfFree--;
+    ret = true;
+  } else {
+    ret = false;
+    uError("pool:%p, id:%d is already used by other obj", pIdPool, id);
   }
 
   pthread_mutex_unlock(&pIdPool->mutex);
+  return ret;
 }
 
 int taosUpdateIdPool(id_pool_t *handle, int maxId) {
@@ -147,6 +158,11 @@ int taosUpdateIdPool(id_pool_t *handle, int maxId) {
 }
 
 int taosIdPoolMaxSize(void *handle) {
-  id_pool_t *pIdPool = (id_pool_t*)handle;
-  return pIdPool->maxId;
+  id_pool_t *pIdPool = (id_pool_t *)handle;
+
+  pthread_mutex_lock(&pIdPool->mutex);
+  int ret = pIdPool->maxId;
+  pthread_mutex_unlock(&pIdPool->mutex);
+
+  return ret;
 }
