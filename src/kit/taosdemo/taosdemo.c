@@ -101,8 +101,8 @@ typedef enum CREATE_SUB_TALBE_MOD_EN {
 } CREATE_SUB_TALBE_MOD_EN;
   
 typedef enum TALBE_EXISTS_EN {
-  TBL_ALREADY_EXISTS,
   TBL_NO_EXISTS,
+  TBL_ALREADY_EXISTS,
   TBL_EXISTS_BUTT
 } TALBE_EXISTS_EN;
 
@@ -2405,8 +2405,11 @@ static int createDatabases() {
                 &g_Dbs.db[i].superTbls[j], g_Dbs.use_metric);
       } else {      
         g_Dbs.db[i].superTbls[j].superTblExists = TBL_ALREADY_EXISTS;
-        ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
+
+        if (g_Dbs.db[i].superTbls[j].childTblExists != TBL_ALREADY_EXISTS) {
+            ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
                 &g_Dbs.db[i].superTbls[j]);
+        }
       }
 
       if (0 != ret) {
@@ -2798,9 +2801,10 @@ void readSampleFromFileToMem(SSuperTable  * supterTblInfo) {
   }
 }
 */
-static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* superTbls) {  
+static bool getColumnAndTagTypeFromInsertJsonFile(
+        cJSON* stbInfo, SSuperTable* superTbls) {
   bool  ret = false;
-  
+
   // columns 
   cJSON *columns = cJSON_GetObjectItem(stbInfo, "columns");
   if (columns && columns->type != cJSON_Array) {
@@ -2811,7 +2815,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     superTbls->tagCount    = 0;
     return true;
   }
-  
+ 
   int columnSize = cJSON_GetArraySize(columns);
   if (columnSize > MAX_COLUMN_COUNT) {
     errorPrint("%s() LN%d, failed to read json, column size overflow, max column size is %d\n",
@@ -2823,7 +2827,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
   int index = 0;
   StrColumn    columnCase;
 
-  //superTbls->columnCount = columnSize;  
+  //superTbls->columnCount = columnSize;
   for (int k = 0; k < columnSize; ++k) {
     cJSON* column = cJSON_GetArrayItem(columns, k);
     if (column == NULL) continue;
@@ -2831,7 +2835,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     count = 1;
     cJSON* countObj = cJSON_GetObjectItem(column, "count");
     if (countObj && countObj->type == cJSON_Number) {
-      count = countObj->valueint;    
+      count = countObj->valueint;
     } else if (countObj && countObj->type != cJSON_Number) {
       errorPrint("%s() LN%d, failed to read json, column count not found\n", __func__, __LINE__);
       goto PARSE_OVER;
@@ -2848,25 +2852,26 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     }
     //tstrncpy(superTbls->columns[k].dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
     tstrncpy(columnCase.dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
-            
+
     cJSON* dataLen = cJSON_GetObjectItem(column, "len");
     if (dataLen && dataLen->type == cJSON_Number) {
-      columnCase.dataLen = dataLen->valueint;    
+      columnCase.dataLen = dataLen->valueint;
     } else if (dataLen && dataLen->type != cJSON_Number) {
       debugPrint("%s() LN%d: failed to read json, column len not found\n", __func__, __LINE__);
       goto PARSE_OVER;
     } else {
       columnCase.dataLen = 8;
     }
-    
+
     for (int n = 0; n < count; ++n) {
-      tstrncpy(superTbls->columns[index].dataType, columnCase.dataType, MAX_TB_NAME_SIZE);
-      superTbls->columns[index].dataLen = columnCase.dataLen; 
+      tstrncpy(superTbls->columns[index].dataType,
+              columnCase.dataType, MAX_TB_NAME_SIZE);
+      superTbls->columns[index].dataLen = columnCase.dataLen;
       index++;
     }
-  }  
-  superTbls->columnCount = index;  
-  
+  }
+  superTbls->columnCount = index;
+ 
   count = 1;
   index = 0;
   // tags 
@@ -2881,16 +2886,16 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
     debugPrint("%s() LN%d, failed to read json, tags size overflow, max tag size is %d\n", __func__, __LINE__, MAX_TAG_COUNT);
     goto PARSE_OVER;
   }
-  
-  //superTbls->tagCount = tagSize;  
+
+  //superTbls->tagCount = tagSize;
   for (int k = 0; k < tagSize; ++k) {
     cJSON* tag = cJSON_GetArrayItem(tags, k);
     if (tag == NULL) continue;
-    
+
     count = 1;
     cJSON* countObj = cJSON_GetObjectItem(tag, "count");
     if (countObj && countObj->type == cJSON_Number) {
-      count = countObj->valueint;    
+      count = countObj->valueint;
     } else if (countObj && countObj->type != cJSON_Number) {
       printf("ERROR: failed to read json, column count not found\n");
       goto PARSE_OVER;
@@ -2906,23 +2911,23 @@ static bool getColumnAndTagTypeFromInsertJsonFile(cJSON* stbInfo, SSuperTable* s
       goto PARSE_OVER;
     }
     tstrncpy(columnCase.dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
-            
+
     cJSON* dataLen = cJSON_GetObjectItem(tag, "len");
     if (dataLen && dataLen->type == cJSON_Number) {
-      columnCase.dataLen = dataLen->valueint;    
+      columnCase.dataLen = dataLen->valueint;
     } else if (dataLen && dataLen->type != cJSON_Number) {
       printf("ERROR: failed to read json, column len not found\n");
       goto PARSE_OVER;
     } else {
       columnCase.dataLen = 0;
-    }  
-    
+    }
+
     for (int n = 0; n < count; ++n) {
       tstrncpy(superTbls->tags[index].dataType, columnCase.dataType, MAX_TB_NAME_SIZE);
-      superTbls->tags[index].dataLen = columnCase.dataLen; 
+      superTbls->tags[index].dataLen = columnCase.dataLen;
       index++;
     }
-  }      
+  }
   superTbls->tagCount = index;
 
   ret = true;
@@ -3107,8 +3112,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     }
 
     cJSON *precision = cJSON_GetObjectItem(dbinfo, "precision");
-    if (precision && precision->type == cJSON_String && precision->valuestring != NULL) {
-      tstrncpy(g_Dbs.db[i].dbCfg.precision, precision->valuestring, MAX_DB_NAME_SIZE);
+    if (precision && precision->type == cJSON_String
+            && precision->valuestring != NULL) {
+      tstrncpy(g_Dbs.db[i].dbCfg.precision, precision->valuestring,
+              MAX_DB_NAME_SIZE);
     } else if (!precision) {
       //tstrncpy(g_Dbs.db[i].dbCfg.precision, "ms", MAX_DB_NAME_SIZE);
       memset(g_Dbs.db[i].dbCfg.precision, 0, MAX_DB_NAME_SIZE);
@@ -3334,13 +3341,13 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!childTblExists) {
         g_Dbs.db[i].superTbls[j].childTblExists = TBL_NO_EXISTS;
       } else {
-        printf("ERROR: failed to read json, child_table_exists not found\n");
+        errorPrint("%s() LN%d, failed to read json, child_table_exists not found\n", __func__, __LINE__);
         goto PARSE_OVER;
       }
       
       cJSON* count = cJSON_GetObjectItem(stbInfo, "childtable_count");
       if (!count || count->type != cJSON_Number || 0 >= count->valueint) {
-        printf("ERROR: failed to read json, childtable_count not found\n");
+        errorPrint("%s() LN%d, failed to read json, childtable_count not found\n", __func__, __LINE__);
         goto PARSE_OVER;
       }
       g_Dbs.db[i].superTbls[j].childTblCount = count->valueint;
@@ -3353,7 +3360,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!dataSource) {
         tstrncpy(g_Dbs.db[i].superTbls[j].dataSource, "rand", MAX_DB_NAME_SIZE);
       } else {
-        printf("ERROR: failed to read json, data_source not found\n");
+        errorPrint("%s() LN%d, failed to read json, data_source not found\n", __func__, __LINE__);
         goto PARSE_OVER;
       }
 
@@ -3550,12 +3557,14 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      if (NO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable
+/* CBD      if (NO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable
               || (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists)) {
         continue;
       }
+      */
 
-      int retVal = getColumnAndTagTypeFromInsertJsonFile(stbInfo, &g_Dbs.db[i].superTbls[j]);
+      int retVal = getColumnAndTagTypeFromInsertJsonFile(
+              stbInfo, &g_Dbs.db[i].superTbls[j]);
       if (false == retVal) {
         goto PARSE_OVER;
       }      
@@ -4504,7 +4513,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       pstr += headLen;
       int dataLen = 0;
 
-      debugPrint("[%d] %s() LN%d i=%d batchPerTblTimes=%d batchPerTbl = %d\n",
+      verbosePrint("[%d] %s() LN%d i=%d batchPerTblTimes=%d batchPerTbl = %d\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 i, batchPerTblTimes, batchPerTbl);
       generateDataTail(
@@ -4516,7 +4525,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       pstr += dataLen;
       recOfBatch += batchPerTbl;
       pThreadInfo->totalInsertRows += batchPerTbl;
-      debugPrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
+      verbosePrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 batchPerTbl, recOfBatch);
 
@@ -4539,7 +4548,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       if ((remainRows > 0) && (batchPerTbl > remainRows))
         batchPerTbl = remainRows;
 
-      debugPrint("[%d] %s() LN%d generatedRecPerTbl=%d insertRows=%"PRId64"\n",
+      verbosePrint("[%d] %s() LN%d generatedRecPerTbl=%d insertRows=%"PRId64"\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 generatedRecPerTbl, insertRows);
 
@@ -4547,7 +4556,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         break;
     }
 
-    debugPrint("[%d] %s() LN%d recOfBatch=%d totalInsertRows=%"PRId64"\n",
+    verbosePrint("[%d] %s() LN%d recOfBatch=%d totalInsertRows=%"PRId64"\n",
               pThreadInfo->threadID, __func__, __LINE__, recOfBatch,
               pThreadInfo->totalInsertRows);
     verbosePrint("[%d] %s() LN%d, buffer=%s\n",
