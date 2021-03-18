@@ -485,7 +485,7 @@ int64_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len) {
       return -1;
     }
 
-    writeLen = taosWriteMsg(dfd, temp, readLen);
+    writeLen = taosWriteMsg(dfd, temp, (int32_t)readLen);
 
     if (readLen != writeLen) {
       uError("copy error, readLen:%" PRId64 " writeLen:%" PRId64 " len:%" PRId64 " leftLen:%" PRId64 ", reason:%s",
