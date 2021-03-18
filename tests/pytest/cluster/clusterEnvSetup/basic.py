@@ -18,13 +18,15 @@ import argparse
 
 class BuildDockerCluser:
 
-    def __init__(self, hostName, user, password, configDir, numOfNodes, clusterVersion):
+    def __init__(self, hostName, user, password, configDir, numOfNodes, clusterVersion, dockerDir, removeFlag):
         self.hostName = hostName
         self.user = user
         self.password = password
         self.configDir = configDir
         self.numOfNodes = numOfNodes
-        self.clusterVersion = clusterVersion        
+        self.clusterVersion = clusterVersion
+        self.dockerDir = dockerDir
+        self.removeFlag = removeFlag
 
     def getConnection(self):
         self.conn = taos.connect(
@@ -42,14 +44,17 @@ class BuildDockerCluser:
         print("start arbitrator")
         os.system("docker exec -d $(docker ps|grep tdnode1|awk '{print $1}') tarbitrator")
 
-    def run(self):
+    def run(self):        
         if self.numOfNodes < 2 or self.numOfNodes > 5:
             print("the number of nodes must be between 2 and 5")
-            exit(0)        
-        os.system("./buildClusterEnv.sh -n %d -v %s" % (self.numOfNodes, self.clusterVersion))
+            exit(0)   
+        print("remove Flag value %s" % self.removeFlag)     
+        if self.removeFlag == False:
+            os.system("./cleanClusterEnv.sh -d %s" % self.dockerDir)
+        os.system("./buildClusterEnv.sh -n %d -v %s -d %s" % (self.numOfNodes, self.clusterVersion, self.dockerDir))
         self.getConnection()
         self.createDondes()
-        self.startArbitrator() 
+        self.startArbitrator()
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -91,10 +96,24 @@ parser.add_argument(
     '-v',
     '--version',
     action='store',
-    default='2.0.14.1',
+    default='2.0.17.1',
     type=str,
-    help='the version of the cluster to be build, Default is 2.0.14.1')
+    help='the version of the cluster to be build, Default is 2.0.17.1')
+parser.add_argument(
+    '-d',
+    '--docker-dir',
+    action='store',
+    default='/data',
+    type=str,
+    help='the data dir for docker, default is /data')
+parser.add_argument(
+    '--flag',
+    action='store_true',        
+    help='remove docker containers flag, default: True')
 
 args = parser.parse_args()
-cluster = BuildDockerCluser(args.host, args.user, args.password, args.config_dir, args.num_of_nodes, args.version)
+cluster = BuildDockerCluser(args.host, args.user, args.password, args.config_dir, args.num_of_nodes, args.version, args.docker_dir, args.flag)
 cluster.run()
+
+# usage 1: python3 basic.py -n 2 --flag   (flag is True)
+# usage 2: python3 basic.py -n 2 (flag should be False when it is not specified)
