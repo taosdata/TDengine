@@ -316,4 +316,13 @@ if $data13 != @20-02-02 01:01:01.000@ then
   return -1
 endi
 
+print ===============================>td-3361
+sql create table ttm1(ts timestamp, k int) tags(a nchar(12));
+sql create table ttm1_t1 using ttm1 tags('abcdef')
+sql insert into ttm1_t1 values(now, 1)
+sql select * from ttm1 where a=123456789012
+if $row != 0 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
