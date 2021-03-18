@@ -1840,7 +1840,7 @@ static void doFreeQueryHandle(SQueryRuntimeEnv* pRuntimeEnv) {
   pRuntimeEnv->pQueryHandle = NULL;
 
   SMemRef* pMemRef = &pQuery->memRef;
-  assert(pMemRef->ref == 0 && pMemRef->imem == NULL && pMemRef->mem == NULL);
+  assert(pMemRef->ref == 0 && pMemRef->snapshot.imem == NULL && pMemRef->snapshot.mem == NULL);
 }
 
 static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {

@@ -31,29 +31,14 @@ typedef struct {
   SSkipListIterator *pIter;
 } SCommitIter;
 
-typedef struct {
+struct STableData {
   uint64_t   uid;
   TSKEY      keyFirst;
   TSKEY      keyLast;
   int64_t    numOfRows;
   SSkipList* pData;
   T_REF_DECLARE()
-} STableData;
-
-typedef struct {
-  T_REF_DECLARE()
-  SRWLatch     latch;
-  TSKEY        keyFirst;
-  TSKEY        keyLast;
-  int64_t      numOfRows;
-  int32_t      maxTables;
-  STableData** tData;
-  SList*       actList;
-  SList*       extraBuffList;
-  SList*       bufBlockList;
-  int64_t      pointsAdd;   // TODO
-  int64_t      storageAdd;  // TODO
-} SMemTable;
+};
 
 enum { TSDB_UPDATE_META, TSDB_DROP_META };
 
@@ -77,8 +62,8 @@ typedef struct {
 
 int   tsdbRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
 int   tsdbUnRefMemTable(STsdbRepo* pRepo, SMemTable* pMemTable);
-int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemTable** pMem, SMemTable** pIMem, SArray* pATable);
-void  tsdbUnTakeMemSnapShot(STsdbRepo* pRepo, SMemTable* pMem, SMemTable* pIMem);
+int   tsdbTakeMemSnapshot(STsdbRepo* pRepo, SMemSnapshot* pSnapshot, SArray* pATable);
+void  tsdbUnTakeMemSnapShot(STsdbRepo* pRepo, SMemSnapshot* pSnapshot);
 void* tsdbAllocBytes(STsdbRepo* pRepo, int bytes);
 int   tsdbAsyncCommit(STsdbRepo* pRepo);
 int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxKey, int maxRowsToRead, SDataCols* pCols,
