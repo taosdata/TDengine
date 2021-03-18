@@ -997,7 +997,7 @@ void rand_string(char *str, int size) {
   if (size > 0) {
     //--size;
     int n;
-    for (n = 0; n < size; n++) {
+    for (n = 0; n < size - 1; n++) {
       int key = rand_tinyint() % (int)(sizeof(charset) - 1);
       str[n] = charset[key];
     }
