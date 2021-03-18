@@ -1292,6 +1292,7 @@ bool tscColumnExists(SArray* pColumnList, SColumnIndex* pColIndex) {
   while (i < numOfCols) {
     SColumn* pCol = taosArrayGetP(pColumnList, i);
     if ((pCol->colIndex.columnIndex != col) || (pCol->colIndex.tableIndex != pColIndex->tableIndex)) {
+      ++i;
       continue;
     } else {
       break;

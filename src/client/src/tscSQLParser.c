@@ -4341,6 +4341,65 @@ int32_t validateJoinNodes(SQueryInfo* pQueryInfo, SSqlObj* pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+void mergeJoinNodesImpl(int8_t* r, int8_t* p, int16_t* tidx, SJoinNode** nodes, int32_t type) {
+  SJoinNode *node = nodes[*tidx];  
+  SArray* arr = (type == 0) ? node->tsJoin : node->tagJoin;
+  int32_t size = taosArrayGetSize(arr);
+
+  p[*tidx] = 1;
+  
+  for (int32_t j = 0; j < size; j++) {
+    int16_t* idx = taosArrayGet(arr, j);
+    r[*idx] = 1;
+    if (p[*idx] == 0) {
+      mergeJoinNodesImpl(r, p, idx, nodes, type);
+    }
+  }
+}
+
+int32_t mergeJoinNodes(SQueryInfo* pQueryInfo) {
+  int8_t r[TSDB_MAX_JOIN_TABLE_NUM] = {0};
+  int8_t p[TSDB_MAX_JOIN_TABLE_NUM] = {0};
+  
+  for (int16_t i = 0; i < pQueryInfo->numOfTables; ++i) {
+    mergeJoinNodesImpl(r, p, &i, pQueryInfo->tagCond.joinInfo.joinTables, 0);
+    
+    taosArrayClear(pQueryInfo->tagCond.joinInfo.joinTables[i]->tsJoin);
+  
+    for (int32_t j = 0; j < TSDB_MAX_JOIN_TABLE_NUM; ++j) {
+      if (r[j]) {
+        taosArrayPush(pQueryInfo->tagCond.joinInfo.joinTables[i]->tsJoin, &j);
+      }
+    }
+    
+    memset(r, 0, sizeof(r));
+    memset(p, 0, sizeof(p));
+  }
+
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    for (int16_t i = 0; i < pQueryInfo->numOfTables; ++i) {
+      mergeJoinNodesImpl(r, p, &i, pQueryInfo->tagCond.joinInfo.joinTables, 1);
+      
+      taosArrayClear(pQueryInfo->tagCond.joinInfo.joinTables[i]->tagJoin);
+    
+      for (int32_t j = 0; j < TSDB_MAX_JOIN_TABLE_NUM; ++j) {
+        if (r[j]) {
+          taosArrayPush(pQueryInfo->tagCond.joinInfo.joinTables[i]->tagJoin, &j);
+        }
+      }
+      
+      memset(r, 0, sizeof(r));
+      memset(p, 0, sizeof(p));
+    }
+
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -4419,6 +4478,11 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql
     if (ret) {
       goto PARSE_WHERE_EXIT;
     }
+
+    ret = mergeJoinNodes(pQueryInfo);
+    if (ret) {
+      goto PARSE_WHERE_EXIT;
+    }    
   }
 
 PARSE_WHERE_EXIT:
