@@ -430,7 +430,7 @@ void qQueryMgmtNotifyClosed(void* pQMgmt) {
   }
 
   SQueryMgmt* pQueryMgmt = pQMgmt;
-  qDebug("vgId:%d, set querymgmt closed, wait for all queries cancelled", pQueryMgmt->vgId);
+  qInfo("vgId:%d, set querymgmt closed, wait for all queries cancelled", pQueryMgmt->vgId);
 
   pthread_mutex_lock(&pQueryMgmt->lock);
   pQueryMgmt->closed = true;
@@ -445,7 +445,7 @@ void qQueryMgmtReOpen(void *pQMgmt) {
   }
 
   SQueryMgmt *pQueryMgmt = pQMgmt;
-  qDebug("vgId:%d, set querymgmt reopen", pQueryMgmt->vgId);
+  qInfo("vgId:%d, set querymgmt reopen", pQueryMgmt->vgId);
 
   pthread_mutex_lock(&pQueryMgmt->lock);
   pQueryMgmt->closed = false;
