@@ -6,23 +6,43 @@ GREEN='\033[1;32m'
 GREEN_DARK='\033[0;32m'
 GREEN_UNDERLINE='\033[4;32m'
 NC='\033[0m'
-function git_branch {
-   branch="`git branch 2>/dev/null | grep "^\*" | sed -e "s/^\*\ //"`"
-   if [ "${branch}" != "" ];then
-       if [ "${branch}" = "(no branch)" ];then
-           branch="(`git rev-parse --short HEAD`...)"
-       fi  
-       branch=(${branch////_})
-       echo "$branch"
-   fi  
+
+tests_dir=`pwd`
+IN_TDINTERNAL="community"
+
+function stopTaosd {
+	echo "Stop taosd"
+  sudo systemctl stop taosd
+  PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+	while [ -n "$PID" ]
+	do
+    pkill -TERM -x taosd
+    sleep 1
+  	PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+	done
 }
+
+function dohavecore(){
+  corefile=`find $corepath -mmin 1`  
+  core_file=`echo $corefile|cut -d " " -f2`
+  echo $core_file
+  proc=`echo $corefile|cut -d "_" -f3`
+  if [ -n "$corefile" ];then
+    echo 'taosd or taos has generated core'
+    tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz /usr/local/taos/
+    if [[ $1 == 1 ]];then
+      echo '\n'|gdb /usr/local/taos/bin/$proc $core_file -ex "bt 10" -ex quit
+      exit 8
+    fi
+  fi
+}
+
 function runSimCaseOneByOne {
   while read -r line; do
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
-			case=`echo $line | grep sim$ |awk '{print $NF}'`
-      IN_TDINTERNAL="community"
-      start_time=`date +%s`
-       IN_TDINTERNAL="community"
+			case=`echo $line | grep sim$ |awk '{print $NF}'`    
+      start_time=`date +%s`      
+      date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
         ./test.sh -f $case > /dev/null 2>&1 && \
@@ -42,16 +62,21 @@ function runSimCaseOneByOne {
       # fi
       end_time=`date +%s`
       echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
+      dohavecore 0
     fi
   done < $1
 }
 function runSimCaseOneByOnefq {
-  while read -r line; do
+
+  start=`sed -n "/$1-start/=" jenkins/basic.txt`
+  end=`sed -n "/$1-end/=" jenkins/basic.txt`  
+  for ((i=$start;i<=$end;i++)) ; do
+    line=`sed -n "$i"p jenkins/basic.txt`
     if [[ $line =~ ^./test.sh* ]] || [[ $line =~ ^run* ]]; then
 			case=`echo $line | grep sim$ |awk '{print $NF}'`
 
-      start_time=`date +%s`
-      IN_TDINTERNAL="community"
+      start_time=`date +%s`    
+      date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
         ./test.sh -f $case > /dev/null 2>&1 && \
@@ -69,16 +94,17 @@ function runSimCaseOneByOnefq {
       out_log=`tail -1 out.log  `
       if [[ $out_log =~ 'failed' ]];then
         if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
-          cp -r ../../../sim ~/sim_$(git_branch)_`date "+%Y_%m_%d_%H:%M:%S"`
+          cp -r ../../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S"`
         else 
-          cp -r ../../sim ~/sim_$(git_branch)_`date "+%Y_%m_%d_%H:%M:%S" `
+          cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
         fi
         exit 8
       fi
       end_time=`date +%s`
       echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
+      dohavecore $2
     fi
-  done < $1
+  done 
 }
 
 function runPyCaseOneByOne {
@@ -92,6 +118,7 @@ function runPyCaseOneByOne {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
+        date +%F\ %T | tee -a pytest-out.log
         echo -n $case
         $line > /dev/null 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
@@ -105,11 +132,21 @@ function runPyCaseOneByOne {
       else
         $line > /dev/null 2>&1
       fi
+      dohavecore 0
     fi
   done < $1
 }
-function runPyCaseOneByOnefq {
-  while read -r line; do
+function runPyCaseOneByOnefq() {
+  cd $tests_dir/pytest
+  if [[ $1 =~ full ]] ; then
+    start=1
+    end=`sed -n '$=' fulltest.sh`
+  else
+    start=`sed -n "/$1-start/=" fulltest.sh`
+    end=`sed -n "/$1-end/=" fulltest.sh`
+  fi
+  for ((i=$start;i<=$end;i++)) ; do
+    line=`sed -n "$i"p fulltest.sh`
     if [[ $line =~ ^python.* ]]; then
       if [[ $line != *sleep* ]]; then
         
@@ -119,6 +156,7 @@ function runPyCaseOneByOnefq {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
+        date +%F\ %T | tee -a pytest-out.log
         echo -n $case
         $line > /dev/null 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
@@ -126,22 +164,25 @@ function runPyCaseOneByOnefq {
         end_time=`date +%s`
         out_log=`tail -1 pytest-out.log  `
         if [[ $out_log =~ 'failed' ]];then
-          cp -r ../../sim ~/sim_$(git_branch)_`date "+%Y_%m_%d_%H:%M:%S" `
+          cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
           exit 8
         fi
         echo execution time of $case was `expr $end_time - $start_time`s. | tee -a pytest-out.log
       else
         $line > /dev/null 2>&1
       fi
+      dohavecore $2
     fi
-  done < $1
+  done 
 }
+
 totalFailed=0
 totalPyFailed=0
+totalJDBCFailed=0
+totalUnitFailed=0
 
-tests_dir=`pwd`
-
-if [ "$2" != "python" ]; then
+corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
+if [ "$2" != "jdbc" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]; then
   echo "### run TSIM test case ###"
   cd $tests_dir/script
 
@@ -154,26 +195,38 @@ if [ "$2" != "python" ]; then
     runSimCaseOneByOne jenkins/basic.txt
   elif [ "$1" == "b1" ]; then
     echo "### run TSIM b1 test ###"
-    runSimCaseOneByOne jenkins/basic_1.txt
-    runSimCaseOneByOne jenkins/basic_4.txt
+    runSimCaseOneByOnefq b1 0
+    runSimCaseOneByOnefq b4 0
+    runSimCaseOneByOnefq b5 0
+    runSimCaseOneByOnefq b6 0
+    runSimCaseOneByOnefq b7 0
   elif [ "$1" == "b2" ]; then
     echo "### run TSIM b2 test ###"
-    runSimCaseOneByOne jenkins/basic_2.txt
+    runSimCaseOneByOnefq b2 0
   elif [ "$1" == "b3" ]; then
     echo "### run TSIM b3 test ###"
-    runSimCaseOneByOne jenkins/basic_3.txt
+    runSimCaseOneByOnefq b3 0
   elif [ "$1" == "b1fq" ]; then
     echo "### run TSIM b1 test ###"
-    runSimCaseOneByOnefq jenkins/basic_1.txt
+    runSimCaseOneByOnefq b1 1
   elif [ "$1" == "b2fq" ]; then
     echo "### run TSIM b2 test ###"
-    runSimCaseOneByOnefq jenkins/basic_2.txt
+    runSimCaseOneByOnefq b2 1
   elif [ "$1" == "b3fq" ]; then
     echo "### run TSIM b3 test ###"
-    runSimCaseOneByOnefq jenkins/basic_3.txt
+    runSimCaseOneByOnefq b3 1
   elif [ "$1" == "b4fq" ]; then
     echo "### run TSIM b4 test ###"
-    runSimCaseOneByOnefq jenkins/basic_4.txt
+    runSimCaseOneByOnefq b4 1
+  elif [ "$1" == "b5fq" ]; then
+    echo "### run TSIM b5 test ###"
+    runSimCaseOneByOnefq b5 1
+  elif [ "$1" == "b6fq" ]; then
+    echo "### run TSIM b6 test ###"
+    runSimCaseOneByOnefq b6 1
+  elif [ "$1" == "b7fq" ]; then
+    echo "### run TSIM b7 test ###"
+    runSimCaseOneByOnefq b7 1
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
     echo "### run TSIM smoke test ###"
     runSimCaseOneByOne basicSuite.sim
@@ -198,11 +251,10 @@ if [ "$2" != "python" ]; then
   fi
 fi
 
-if [ "$2" != "sim" ]; then
+if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] && [ "$2" != "unit" ]; then
   echo "### run Python test case ###"
 
   cd $tests_dir
-  IN_TDINTERNAL="community"
 
   if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
     cd ../..
@@ -235,13 +287,19 @@ if [ "$2" != "sim" ]; then
     runPyCaseOneByOne fulltest.sh
   elif [ "$1" == "pytestfq" ]; then
     echo "### run Python full test ###"
-    runPyCaseOneByOnefq fulltest.sh
+    runPyCaseOneByOnefq full 0
   elif [ "$1" == "p1" ]; then
     echo "### run Python_1 test ###"
-    runPyCaseOneByOnefq pytest_1.sh
+    runPyCaseOneByOnefq p1 1
   elif [ "$1" == "p2" ]; then
     echo "### run Python_2 test ###"
-    runPyCaseOneByOnefq pytest_2.sh
+    runPyCaseOneByOnefq p2 1
+  elif [ "$1" == "p3" ]; then
+    echo "### run Python_3 test ###"
+    runPyCaseOneByOnefq p3 1 
+  elif [ "$1" == "p4" ]; then
+    echo "### run Python_4 test ###"
+    runPyCaseOneByOnefq p4 1
   elif [ "$1" == "b2" ] || [ "$1" == "b3" ]; then
     exit $(($totalFailed + $totalPyFailed))
   elif [ "$1" == "smoke" ] || [ -z "$1" ]; then
@@ -261,4 +319,86 @@ if [ "$2" != "sim" ]; then
   fi
 fi
 
-exit $(($totalFailed + $totalPyFailed))
+
+if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "unit" ] && [ "$1" == "full" ]; then
+  echo "### run JDBC test cases ###"
+
+  cd $tests_dir
+
+  if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+    cd ../../
+  else
+    cd ../
+  fi
+
+  pwd
+  cd debug/
+  
+  stopTaosd
+  rm -rf /var/lib/taos/*
+  nohup build/bin/taosd -c /etc/taos/ > /dev/null 2>&1 &
+  sleep 30
+  
+  cd $tests_dir/../src/connector/jdbc  
+  
+  mvn test > jdbc-out.log 2>&1
+  tail -n 20 jdbc-out.log
+
+  cases=`grep 'Tests run' jdbc-out.log | awk 'END{print $3}'`
+  totalJDBCCases=`echo ${cases/%,}`
+  failed=`grep 'Tests run' jdbc-out.log | awk 'END{print $5}'`
+  JDBCFailed=`echo ${failed/%,}`
+  error=`grep 'Tests run' jdbc-out.log | awk 'END{print $7}'`
+  JDBCError=`echo ${error/%,}`
+  
+  totalJDBCFailed=`expr $JDBCFailed + $JDBCError`
+  totalJDBCSuccess=`expr $totalJDBCCases - $totalJDBCFailed`
+
+  if [ "$totalJDBCSuccess" -gt "0" ]; then
+    echo -e "\n${GREEN} ### Total $totalJDBCSuccess JDBC case(s) succeed! ### ${NC}"
+  fi
+  
+  if [ "$totalJDBCFailed" -ne "0" ]; then
+    echo -e "\n${RED} ### Total $totalJDBCFailed JDBC case(s) failed! ### ${NC}"
+  fi
+  dohavecore 1
+fi
+
+if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$1" == "full" ]; then
+  echo "### run Unit tests ###"  
+
+  stopTaosd
+  cd $tests_dir
+
+  if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
+    cd ../../
+  else
+    cd ../
+  fi
+
+  pwd
+  cd debug/build/bin
+  rm -rf /var/lib/taos/*
+  nohup ./taosd -c /etc/taos/ > /dev/null 2>&1 &
+  sleep 30
+  
+  pwd
+  ./queryTest > unittest-out.log 2>&1
+  tail -n 20 unittest-out.log
+
+  totalUnitTests=`grep "Running" unittest-out.log | awk '{print $3}'`  
+  totalUnitSuccess=`grep 'PASSED' unittest-out.log | awk '{print $4}'`
+  totalUnitFailed=`expr $totalUnitTests - $totalUnitSuccess`
+
+  if [ "$totalUnitSuccess" -gt "0" ]; then
+    echo -e "\n${GREEN} ### Total $totalUnitSuccess Unit test succeed! ### ${NC}"
+  fi
+  
+  if [ "$totalUnitFailed" -ne "0" ]; then
+    echo -e "\n${RED} ### Total $totalUnitFailed Unit test failed! ### ${NC}"
+  fi
+  dohavecore 1
+fi
+
+
+exit $(($totalFailed + $totalPyFailed + $totalJDBCFailed + $totalUnitFailed))

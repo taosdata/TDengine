@@ -15,7 +15,10 @@ from util.log import *
 from .misc import Logging, CrashGenError, Helper, Dice
 import os
 import datetime
+import traceback
 # from .service_manager import TdeInstance
+
+import crash_gen.settings 
 
 class DbConn:
     TYPE_NATIVE = "native-c"
@@ -243,7 +246,7 @@ class MyTDSql:
         self._conn.close() # TODO: very important, cursor close does NOT close DB connection!
         self._cursor.close()
 
-    def _execInternal(self, sql):
+    def _execInternal(self, sql):        
         startTime = time.time() 
         # Logging.debug("Executing SQL: " + sql)
         ret = self._cursor.execute(sql)
@@ -256,6 +259,27 @@ class MyTDSql:
                 cls.longestQuery = sql
                 cls.longestQueryTime = queryTime
                 cls.lqStartTime = startTime
+
+        # Now write to the shadow database
+        if crash_gen.settings.gConfig.use_shadow_db:
+            if sql[:11] == "INSERT INTO":
+                if sql[:16] == "INSERT INTO db_0":
+                    sql2 = "INSERT INTO db_s" + sql[16:]
+                    self._cursor.execute(sql2)
+                else:
+                    raise CrashGenError("Did not find db_0 in INSERT statement: {}".format(sql))
+            else: # not an insert statement
+                pass
+
+            if sql[:12] == "CREATE TABLE":
+                if sql[:17] == "CREATE TABLE db_0":
+                    sql2 = sql.replace('db_0', 'db_s')
+                    self._cursor.execute(sql2)
+                else:
+                    raise CrashGenError("Did not find db_0 in CREATE TABLE statement: {}".format(sql))
+            else: # not an insert statement
+                pass
+        
         return ret
 
     def query(self, sql):
@@ -301,12 +325,18 @@ class DbConnNative(DbConn):
     _lock = threading.Lock()
     # _connInfoDisplayed = False # TODO: find another way to display this
     totalConnections = 0 # Not private
+    totalRequests = 0 
 
     def __init__(self, dbTarget):
         super().__init__(dbTarget)
         self._type = self.TYPE_NATIVE
         self._conn = None
-        # self._cursor = None        
+        # self._cursor = None   
+        
+    @classmethod
+    def resetTotalRequests(cls):        
+        with cls._lock: # force single threading for opening DB connections. # TODO: whaaat??!!!            
+            cls.totalRequests = 0
 
     def openByType(self):  # Open connection
         # global gContainer
@@ -349,11 +379,14 @@ class DbConnNative(DbConn):
 
     def execute(self, sql):
         if (not self.isOpen):
+            traceback.print_stack()
             raise CrashGenError(
                 "Cannot exec SQL unless db connection is open", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))
         self._lastSql = sql
         nRows = self._tdSql.execute(sql)
+        cls = self.__class__
+        cls.totalRequests += 1
         Logging.debug(
             "[SQL] Execution Result, nRows = {}, SQL = {}".format(
                 nRows, sql))
@@ -361,11 +394,14 @@ class DbConnNative(DbConn):
 
     def query(self, sql):  # return rows affected
         if (not self.isOpen):
+            traceback.print_stack()
             raise CrashGenError(
                 "Cannot query database until connection is open, restarting?", CrashGenError.DB_CONNECTION_NOT_OPEN)
         Logging.debug("[SQL] Executing SQL: {}".format(sql))
         self._lastSql = sql
         nRows = self._tdSql.query(sql)
+        cls = self.__class__
+        cls.totalRequests += 1
         Logging.debug(
             "[SQL] Query Result, nRows = {}, SQL = {}".format(
                 nRows, sql))

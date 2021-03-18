@@ -1,7 +1,6 @@
 from .cinterface import CTaosInterface
 from .error import *
 from .constants import FieldType
-import threading
 
 
 class TDengineCursor(object):
@@ -36,7 +35,6 @@ class TDengineCursor(object):
         self._block_iter = 0
         self._affected_rows = 0
         self._logfile = ""
-        self._threadId = threading.get_ident()
 
         if connection is not None:
             self._connection = connection
@@ -130,8 +128,8 @@ class TDengineCursor(object):
         if errno == 0:
             if CTaosInterface.fieldsCount(self._result) == 0:
                 self._affected_rows += CTaosInterface.affectedRows(
-                    self._result )
-                return CTaosInterface.affectedRows(self._result )
+                    self._result)
+                return CTaosInterface.affectedRows(self._result)
             else:
                 self._fields = CTaosInterface.useResult(
                     self._result)
@@ -150,6 +148,7 @@ class TDengineCursor(object):
         """Fetch the next row of a query result set, returning a single sequence, or None when no more data is available.
         """
         pass
+
     def fetchmany(self):
         pass
 
@@ -160,11 +159,26 @@ class TDengineCursor(object):
         if (dataType.upper() == "TINYINT"):
             if (self._description[col][1] == FieldType.C_TINYINT):
                 return True
+        if (dataType.upper() == "TINYINT UNSIGNED"):
+            if (self._description[col][1] == FieldType.C_TINYINT_UNSIGNED):
+                return True
+        if (dataType.upper() == "SMALLINT"):
+            if (self._description[col][1] == FieldType.C_SMALLINT):
+                return True
+        if (dataType.upper() == "SMALLINT UNSIGNED"):
+            if (self._description[col][1] == FieldType.C_SMALLINT_UNSIGNED):
+                return True
         if (dataType.upper() == "INT"):
             if (self._description[col][1] == FieldType.C_INT):
                 return True
+        if (dataType.upper() == "INT UNSIGNED"):
+            if (self._description[col][1] == FieldType.C_INT_UNSIGNED):
+                return True
         if (dataType.upper() == "BIGINT"):
-            if (self._description[col][1] == FieldType.C_INT):
+            if (self._description[col][1] == FieldType.C_BIGINT):
+                return True
+        if (dataType.upper() == "BIGINT UNSIGNED"):
+            if (self._description[col][1] == FieldType.C_BIGINT_UNSIGNED):
                 return True
         if (dataType.upper() == "FLOAT"):
             if (self._description[col][1] == FieldType.C_FLOAT):
@@ -193,16 +207,20 @@ class TDengineCursor(object):
         buffer = [[] for i in range(len(self._fields))]
         self._rowcount = 0
         while True:
-            block, num_of_fields = CTaosInterface.fetchRow(self._result, self._fields)
+            block, num_of_fields = CTaosInterface.fetchRow(
+                self._result, self._fields)
             errno = CTaosInterface.libtaos.taos_errno(self._result)
             if errno != 0:
-                raise ProgrammingError(CTaosInterface.errStr(self._result), errno)
+                raise ProgrammingError(
+                    CTaosInterface.errStr(
+                        self._result), errno)
             if num_of_fields == 0:
                 break
             self._rowcount += num_of_fields
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
         return list(map(tuple, zip(*buffer)))
+
     def fetchall(self):
         if self._result is None or self._fields is None:
             raise OperationalError("Invalid use of fetchall")
@@ -210,16 +228,20 @@ class TDengineCursor(object):
         buffer = [[] for i in range(len(self._fields))]
         self._rowcount = 0
         while True:
-            block, num_of_fields = CTaosInterface.fetchBlock(self._result, self._fields)
+            block, num_of_fields = CTaosInterface.fetchBlock(
+                self._result, self._fields)
             errno = CTaosInterface.libtaos.taos_errno(self._result)
             if errno != 0:
-                raise ProgrammingError(CTaosInterface.errStr(self._result), errno)
+                raise ProgrammingError(
+                    CTaosInterface.errStr(
+                        self._result), errno)
             if num_of_fields == 0:
                 break
             self._rowcount += num_of_fields
             for i in range(len(self._fields)):
                 buffer[i].extend(block[i])
         return list(map(tuple, zip(*buffer)))
+
     def nextset(self):
         """
         """

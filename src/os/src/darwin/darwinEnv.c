@@ -17,17 +17,27 @@
 #include "os.h"
 #include "tglobal.h"
 
+static const char* expand_like_shell(const char *path) {
+  static __thread char buf[TSDB_FILENAME_LEN];
+  buf[0] = '\0';
+  wordexp_t we;
+  if (wordexp(path, &we, 0)) return "/tmp/taosd";
+  if (sizeof(buf)<=snprintf(buf, sizeof(buf), "%s", we.we_wordv[0])) return "/tmp/taosd";
+  wordfree(&we);
+  return buf;
+}
+
 void osInit() {
   if (configDir[0] == 0) {
-    strcpy(configDir, "~/TDengine/cfg");
+    strcpy(configDir, expand_like_shell("/usr/local/etc/taos"));
   }
+  strcpy(tsDataDir,   expand_like_shell("/usr/local/var/lib/taos"));
+  strcpy(tsLogDir,    expand_like_shell("/usr/local/var/log/taos"));
+  strcpy(tsScriptDir, expand_like_shell("/usr/local/etc/taos"));
 
   strcpy(tsVnodeDir, "");
   strcpy(tsDnodeDir, "");
   strcpy(tsMnodeDir, "");
-  strcpy(tsDataDir, "~/TDengine/data");
-  strcpy(tsLogDir, "~/TDengine/log");
-  strcpy(tsScriptDir, "~/TDengine/cfg");
   strcpy(tsOsName, "Darwin");
 }
 

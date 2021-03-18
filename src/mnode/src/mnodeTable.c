@@ -777,11 +777,11 @@ static int32_t mnodeValidateCreateTableMsg(SCreateTableMsg *pCreateTable, SMnode
   }
 
   if (pCreateTable->numOfTags != 0) {
-    mDebug("msg:%p, app:%p table:%s, create stable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
+    mDebug("msg:%p, app:%p table:%s, batch create stable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
            pCreateTable->tableName, pMsg->rpcMsg.handle);
     return mnodeProcessCreateSuperTableMsg(pMsg);
   } else {
-    mDebug("msg:%p, app:%p table:%s, create ctable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
+    mDebug("msg:%p, app:%p table:%s, batch create ctable msg is received from thandle:%p", pMsg, pMsg->rpcMsg.ahandle,
            pCreateTable->tableName, pMsg->rpcMsg.handle);
     return mnodeProcessCreateChildTableMsg(pMsg);
   }
@@ -832,12 +832,13 @@ static int32_t mnodeProcessBatchCreateTableMsg(SMnodeMsg *pMsg) {
         return code;
       } else if (code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
         ++pMsg->pBatchMasterMsg->received;
+        pMsg->pBatchMasterMsg->code = code;
         mnodeDestroySubMsg(pMsg);
       }
 
       if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	  >= pMsg->pBatchMasterMsg->expected) {
-        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, TSDB_CODE_SUCCESS);
+        dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, pMsg->pBatchMasterMsg->code);
       }
 
       return TSDB_CODE_MND_ACTION_IN_PROGRESS;
@@ -916,11 +917,13 @@ static int32_t mnodeProcessDropTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
+#if 0
   if (mnodeCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
     mError("msg:%p, app:%p table:%s, failed to drop table, in monitor database", pMsg, pMsg->rpcMsg.ahandle,
            pDrop->name);
     return TSDB_CODE_MND_MONITOR_DB_FORBIDDEN;
   }
+#endif
 
   if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pDrop->name);
   if (pMsg->pTable == NULL) {
@@ -1081,20 +1084,13 @@ static int32_t mnodeDropSuperTableCb(SMnodeMsg *pMsg, int32_t code) {
   SSTableObj *pTable = (SSTableObj *)pMsg->pTable;
   if (code != TSDB_CODE_SUCCESS) {
     mError("msg:%p, app:%p stable:%s, failed to drop, sdb error", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
-  } else {
-    mLInfo("msg:%p, app:%p stable:%s, is dropped from sdb", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
+
+    return code;
   }
 
-  return code;
-}
-
-static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
-  if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
+  mLInfo("msg:%p, app:%p stable:%s, is dropped from sdb", pMsg, pMsg->rpcMsg.ahandle, pTable->info.tableId);
 
   SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
-  mInfo("msg:%p, app:%p stable:%s will be dropped, hash:%p sizeOfVgList:%d", pMsg, pMsg->rpcMsg.ahandle,
-        pStable->info.tableId, pStable->vgHash, taosHashGetSize(pStable->vgHash));
-
   if (pStable->vgHash != NULL /*pStable->numOfTables != 0*/) {
     int32_t *pVgId = taosHashIterate(pStable->vgHash, NULL);
     while (pVgId) {
@@ -1121,6 +1117,16 @@ static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
 
     mnodeDropAllChildTablesInStable(pStable);
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mnodeProcessDropSuperTableMsg(SMnodeMsg *pMsg) {
+  if (pMsg == NULL) return TSDB_CODE_MND_APP_ERROR;
+
+  SSTableObj *pStable = (SSTableObj *)pMsg->pTable;
+  mInfo("msg:%p, app:%p stable:%s will be dropped, hash:%p sizeOfVgList:%d", pMsg, pMsg->rpcMsg.ahandle,
+        pStable->info.tableId, pStable->vgHash, taosHashGetSize(pStable->vgHash));
 
   SSdbRow row = {
     .type    = SDB_OPER_GLOBAL,
@@ -1461,9 +1467,9 @@ static int32_t mnodeGetShowSuperTableMeta(STableMetaMsg *pMeta, SShowObj *pShow,
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  SSchema tbnameSchema = tGetTableNameColumnSchema();
-  pShow->bytes[cols] = tbnameSchema.bytes;
-  pSchema[cols].type = tbnameSchema.type;
+  SSchema* tbnameSchema = tGetTbnameColumnSchema();
+  pShow->bytes[cols] = tbnameSchema->bytes;
+  pSchema[cols].type = tbnameSchema->type;
   strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -1901,6 +1907,20 @@ static int32_t mnodeDoCreateChildTableCb(SMnodeMsg *pMsg, int32_t code) {
            pMsg->rpcMsg.ahandle, pTable->info.tableId, pTable->tid, pTable->uid, tstrerror(code));
     SSdbRow desc = {.type = SDB_OPER_GLOBAL, .pObj = pTable, .pTable = tsChildTableSdb};
     sdbDeleteRow(&desc);
+
+    if (pMsg->pBatchMasterMsg) {
+      ++pMsg->pBatchMasterMsg->received;
+      pMsg->pBatchMasterMsg->code = code;
+      if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
+	  >= pMsg->pBatchMasterMsg->expected) {
+	dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
+      }
+
+      mnodeDestroySubMsg(pMsg);
+
+      return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    }
+
     return code;
   }
 }
@@ -2672,6 +2692,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
       if (pMsg->pBatchMasterMsg) {
 	++pMsg->pBatchMasterMsg->received;
+	pMsg->pBatchMasterMsg->code = code;
 	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	    >= pMsg->pBatchMasterMsg->expected) {
 	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, code);
@@ -2710,6 +2731,7 @@ static void mnodeProcessCreateChildTableRsp(SRpcMsg *rpcMsg) {
 
       if (pMsg->pBatchMasterMsg) {
 	++pMsg->pBatchMasterMsg->received;
+	pMsg->pBatchMasterMsg->code = rpcMsg->code;
 	if (pMsg->pBatchMasterMsg->successed + pMsg->pBatchMasterMsg->received
 	    >= pMsg->pBatchMasterMsg->expected) {
 	  dnodeSendRpcMWriteRsp(pMsg->pBatchMasterMsg, rpcMsg->code);
@@ -2821,9 +2843,9 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  SSchema s = tGetTableNameColumnSchema();
-  pShow->bytes[cols] = s.bytes;
-  pSchema[cols].type = s.type;
+  SSchema* s = tGetTbnameColumnSchema();
+  pShow->bytes[cols] = s->bytes;
+  pSchema[cols].type = s->type;
   strcpy(pSchema[cols].name, "table_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -2840,9 +2862,9 @@ static int32_t mnodeGetShowTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, void
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  SSchema tbCol = tGetTableNameColumnSchema();
-  pShow->bytes[cols] = tbCol.bytes + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = tbCol.type;
+  SSchema* tbCol = tGetTbnameColumnSchema();
+  pShow->bytes[cols] = tbCol->bytes + VARSTR_HEADER_SIZE;
+  pSchema[cols].type = tbCol->type;
   strcpy(pSchema[cols].name, "stable_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
@@ -3004,10 +3026,12 @@ static int32_t mnodeProcessAlterTableMsg(SMnodeMsg *pMsg) {
     return TSDB_CODE_MND_DB_IN_DROPPING;
   }
 
+#if 0
   if (mnodeCheckIsMonitorDB(pMsg->pDb->name, tsMonitorDbName)) {
     mError("msg:%p, app:%p table:%s, failed to alter table, its log db", pMsg, pMsg->rpcMsg.ahandle, pAlter->tableFname);
     return TSDB_CODE_MND_MONITOR_DB_FORBIDDEN;
   }
+#endif
 
   if (pMsg->pTable == NULL) pMsg->pTable = mnodeGetTable(pAlter->tableFname);
   if (pMsg->pTable == NULL) {
@@ -3076,9 +3100,9 @@ static int32_t mnodeGetStreamTableMeta(STableMetaMsg *pMeta, SShowObj *pShow, vo
   int32_t cols = 0;
   SSchema *pSchema = pMeta->schema;
 
-  SSchema tbnameColSchema = tGetTableNameColumnSchema();
-  pShow->bytes[cols] = tbnameColSchema.bytes;
-  pSchema[cols].type = tbnameColSchema.type;
+  SSchema* tbnameColSchema = tGetTbnameColumnSchema();
+  pShow->bytes[cols] = tbnameColSchema->bytes;
+  pSchema[cols].type = tbnameColSchema->type;
   strcpy(pSchema[cols].name, "table_name");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;

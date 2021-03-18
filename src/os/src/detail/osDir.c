@@ -51,18 +51,21 @@ int taosMkDir(const char *path, mode_t mode) {
   return code;
 }
 
-void taosRename(char* oldName, char *newName) {
-  // if newName in not empty, rename return fail. 
-  // the newName must be empty or does not exist
-#ifdef WINDOWS
-  remove(newName);
-#endif
-  if (rename(oldName, newName)) {
+
+#ifndef TAOS_OS_FUNC_DIR
+
+int32_t taosRename(char* oldName, char *newName) {
+  int32_t code = rename(oldName, newName);
+  if (code < 0) {
     uError("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
   } else {
-    uInfo("successfully to rename file %s to %s", oldName, newName);
+    uTrace("successfully to rename file %s to %s", oldName, newName);
   }
+
+  return code;
 }
+
+#endif
 
 void taosRemoveOldLogFiles(char *rootDir, int32_t keepDays) {
   DIR *dir = opendir(rootDir);

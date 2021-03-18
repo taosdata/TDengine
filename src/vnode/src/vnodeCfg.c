@@ -34,6 +34,7 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   pVnode->tsdbCfg.maxRowsPerFileBlock = vnodeMsg->cfg.maxRowsPerFileBlock;
   pVnode->tsdbCfg.precision = vnodeMsg->cfg.precision;
   pVnode->tsdbCfg.compression = vnodeMsg->cfg.compression;
+  pVnode->tsdbCfg.update = vnodeMsg->cfg.update;
   pVnode->tsdbCfg.cacheLastRow = vnodeMsg->cfg.cacheLastRow;
   pVnode->walCfg.walLevel = vnodeMsg->cfg.walLevel;
   pVnode->walCfg.fsyncPeriod = vnodeMsg->cfg.fsyncPeriod;
@@ -41,6 +42,7 @@ static void vnodeLoadCfg(SVnodeObj *pVnode, SCreateVnodeMsg* vnodeMsg) {
   pVnode->syncCfg.replica = vnodeMsg->cfg.vgReplica;
   pVnode->syncCfg.quorum = vnodeMsg->cfg.quorum;
   pVnode->dbReplica = vnodeMsg->cfg.dbReplica;
+  pVnode->dbType = vnodeMsg->cfg.dbType;
 
   for (int i = 0; i < pVnode->syncCfg.replica; ++i) {
     SVnodeDesc *node = &vnodeMsg->nodes[i];
@@ -213,7 +215,7 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
 
   cJSON *dbReplica = cJSON_GetObjectItem(root, "dbReplica");
   if (!dbReplica || dbReplica->type != cJSON_Number) {
-    vError("vgId:%d, failed to read %s, dbReplica not found", pVnode->vgId, file);
+    vWarn("vgId:%d, failed to read %s, dbReplica not found", pVnode->vgId, file);
     vnodeMsg.cfg.dbReplica = vnodeMsg.cfg.vgReplica;
     vnodeMsg.cfg.vgCfgVersion = 0;
   } else {
@@ -227,13 +229,30 @@ int32_t vnodeReadCfg(SVnodeObj *pVnode) {
   }
   vnodeMsg.cfg.quorum = (int8_t)quorum->valueint;
 
+  cJSON *update = cJSON_GetObjectItem(root, "update");
+  if (!update || update->type != cJSON_Number) {
+    vWarn("vgId: %d, failed to read %s, update not found", pVnode->vgId, file);
+    vnodeMsg.cfg.update = 0;
+    vnodeMsg.cfg.vgCfgVersion = 0;
+  } else {
+    vnodeMsg.cfg.update = (int8_t)update->valueint;
+  }
+
   cJSON *cacheLastRow = cJSON_GetObjectItem(root, "cacheLastRow");
   if (!cacheLastRow || cacheLastRow->type != cJSON_Number) {
-    vError("vgId: %d, failed to read %s, cacheLastRow not found", pVnode->vgId, file);
+    vWarn("vgId: %d, failed to read %s, cacheLastRow not found", pVnode->vgId, file);
     vnodeMsg.cfg.cacheLastRow = 0;
     vnodeMsg.cfg.vgCfgVersion = 0;
   } else {
     vnodeMsg.cfg.cacheLastRow = (int8_t)cacheLastRow->valueint;
+  }
+
+  cJSON *dbType = cJSON_GetObjectItem(root, "dbType");
+  if (!dbType || dbType->type != cJSON_Number) {
+    vWarn("vgId: %d, failed to read %s, dbType not found", pVnode->vgId, file);
+    vnodeMsg.cfg.dbType = 0;
+  } else {
+    vnodeMsg.cfg.dbType = (int8_t)dbType->valueint;
   }
 
   cJSON *nodeInfos = cJSON_GetObjectItem(root, "nodeInfos");
@@ -325,7 +344,9 @@ int32_t vnodeWriteCfg(SCreateVnodeMsg *pMsg) {
   len += snprintf(content + len, maxLen - len, "  \"dbReplica\": %d,\n", pMsg->cfg.dbReplica);
   len += snprintf(content + len, maxLen - len, "  \"wals\": %d,\n", pMsg->cfg.wals);
   len += snprintf(content + len, maxLen - len, "  \"quorum\": %d,\n", pMsg->cfg.quorum);
+  len += snprintf(content + len, maxLen - len, "  \"update\": %d,\n", pMsg->cfg.update);
   len += snprintf(content + len, maxLen - len, "  \"cacheLastRow\": %d,\n", pMsg->cfg.cacheLastRow);
+  len += snprintf(content + len, maxLen - len, "  \"dbType\": %d,\n", pMsg->cfg.dbType);
   len += snprintf(content + len, maxLen - len, "  \"nodeInfos\": [{\n");
   for (int32_t i = 0; i < pMsg->cfg.vgReplica; i++) {
     SVnodeDesc *node = &pMsg->nodes[i];

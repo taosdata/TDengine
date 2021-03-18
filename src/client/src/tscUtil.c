@@ -30,8 +30,16 @@
 #include "ttokendef.h"
 
 static void freeQueryInfoImpl(SQueryInfo* pQueryInfo);
-static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo);
+static void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta);
 
+static void tscStrToLower(char *str, int32_t n) {
+  if (str == NULL || n <= 0) { return;}
+  for (int32_t i = 0; i < n; i++) {
+    if (str[i] >= 'A' && str[i] <= 'Z') {
+        str[i] -= ('A' - 'a');
+    }
+  }
+}
 SCond* tsGetSTableQueryCond(STagCond* pTagCond, uint64_t uid) {
   if (pTagCond->pCond == NULL) {
     return NULL;
@@ -89,6 +97,22 @@ bool tscQueryTags(SQueryInfo* pQueryInfo) {
   return true;
 }
 
+bool tscQueryBlockInfo(SQueryInfo* pQueryInfo) {
+  int32_t numOfCols = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    int32_t functId = pExpr->functionId;
+
+    // "select count(tbname)" query
+    if (functId == TSDB_FUNC_BLKINFO) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (pQueryInfo == NULL) {
     return false;
@@ -98,11 +122,6 @@ bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex) {
   if (pTableMetaInfo == NULL) {
     return false;
   }
-  
-  // for select query super table, the super table vgroup list can not be null in any cases.
-  // if (pQueryInfo->command == TSDB_SQL_SELECT && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-  //   assert(pTableMetaInfo->vgroupList != NULL);
-  // }
   
   if ((pQueryInfo->type & TSDB_QUERY_TYPE_FREE_RESOURCE) == TSDB_QUERY_TYPE_FREE_RESOURCE) {
     return false;
@@ -213,6 +232,21 @@ bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo) {
   for(int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExprInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i)->pArithExprInfo;
     if (pExprInfo != NULL) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool tscGroupbyColumn(SQueryInfo* pQueryInfo) {
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  int32_t         numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+
+  SSqlGroupbyExpr* pGroupbyExpr = &pQueryInfo->groupbyExpr;
+  for (int32_t k = 0; k < pGroupbyExpr->numOfGroupCols; ++k) {
+    SColIndex* pIndex = taosArrayGet(pGroupbyExpr->columnInfo, k);
+    if (!TSDB_COL_IS_TAG(pIndex->flag) && pIndex->colIndex < numOfCols) {  // group by normal columns
       return true;
     }
   }
@@ -364,7 +398,7 @@ static void tscDestroyResPointerInfo(SSqlRes* pRes) {
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
 }
 
-void tscFreeQueryInfo(SSqlCmd* pCmd) {
+void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta) {
   if (pCmd == NULL || pCmd->numOfClause == 0) {
     return;
   }
@@ -373,7 +407,7 @@ void tscFreeQueryInfo(SSqlCmd* pCmd) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, i);
     
     freeQueryInfoImpl(pQueryInfo);
-    clearAllTableMetaInfo(pQueryInfo);
+    clearAllTableMetaInfo(pQueryInfo, removeMeta);
     tfree(pQueryInfo);
   }
   
@@ -401,7 +435,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
 
   pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList, removeMeta);
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-  tscFreeQueryInfo(pCmd);
+  tscFreeQueryInfo(pCmd, removeMeta);
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
@@ -1066,7 +1100,7 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
   memset(pFieldInfo, 0, sizeof(SFieldInfo));
 }
 
-static SSqlExpr* doBuildSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+static SSqlExpr* doCreateSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
     int16_t size, int16_t resColId, int16_t interSize, int32_t colType) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pColIndex->tableIndex);
   
@@ -1119,14 +1153,14 @@ SSqlExpr* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
     return tscSqlExprAppend(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
   }
   
-  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
+  SSqlExpr* pExpr = doCreateSqlExpr(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
   taosArrayInsert(pQueryInfo->exprList, index, &pExpr);
   return pExpr;
 }
 
 SSqlExpr* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t resColId, int16_t interSize, bool isTagCol) {
-  SSqlExpr* pExpr = doBuildSqlExpr(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
+                           int16_t size, int16_t resColId, int16_t interSize, bool isTagCol) {
+  SSqlExpr* pExpr = doCreateSqlExpr(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
   taosArrayPush(pQueryInfo->exprList, &pExpr);
   return pExpr;
 }
@@ -1148,6 +1182,22 @@ SSqlExpr* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functi
   pExpr->resBytes = size;
 
   return pExpr;
+}
+
+bool tscMultiRoundQuery(SQueryInfo* pQueryInfo, int32_t index) {
+  if (!UTIL_TABLE_IS_SUPER_TABLE(pQueryInfo->pTableMetaInfo[index])) {
+    return false;
+  }
+
+  int32_t numOfExprs = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+  for(int32_t i = 0; i < numOfExprs; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    if (pExpr->functionId == TSDB_FUNC_STDDEV_DST) {
+      return true;
+    }
+  }
+
+  return false;
 }
 
 size_t tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo) {
@@ -1413,9 +1463,11 @@ int32_t tscValidateName(SStrToken* pToken) {
   char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
   if (sep == NULL) {  // single part
     if (pToken->type == TK_STRING) {
-      strdequote(pToken->z);
-      pToken->n = (uint32_t)strtrim(pToken->z);
-
+       
+      tscDequoteAndTrimToken(pToken);
+      tscStrToLower(pToken->z, pToken->n);
+      //pToken->n = (uint32_t)strtrim(pToken->z);
+       
       int len = tSQLGetToken(pToken->z, &pToken->type);
 
       // single token, validate it
@@ -1467,7 +1519,7 @@ int32_t tscValidateName(SStrToken* pToken) {
     if (pToken->type == TK_STRING && validateQuoteToken(pToken) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
-
+    
     // re-build the whole name string
     if (pStr[firstPartLen] == TS_PATH_DELIMITER[0]) {
       // first part do not have quote do nothing
@@ -1479,6 +1531,8 @@ int32_t tscValidateName(SStrToken* pToken) {
     }
     pToken->n += (firstPartLen + sizeof(TS_PATH_DELIMITER[0]));
     pToken->z = pStr;
+
+    tscStrToLower(pToken->z,pToken->n);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1699,10 +1753,15 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->fieldsInfo.internalField = taosArrayInit(4, sizeof(SInternalField));
   
   assert(pQueryInfo->exprList == NULL);
-  pQueryInfo->exprList   = taosArrayInit(4, POINTER_BYTES);
-  pQueryInfo->colList    = taosArrayInit(4, POINTER_BYTES);
-  pQueryInfo->udColumnId = TSDB_UD_COLUMN_INDEX;
-  pQueryInfo->resColumnId= -1000;
+  pQueryInfo->exprList    = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->colList     = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->udColumnId  = TSDB_UD_COLUMN_INDEX;
+  pQueryInfo->resColumnId = -1000;
+  pQueryInfo->limit.limit = -1;
+  pQueryInfo->limit.offset = 0;
+
+  pQueryInfo->slimit.limit = -1;
+  pQueryInfo->slimit.offset = 0;
 }
 
 int32_t tscAddSubqueryInfo(SSqlCmd* pCmd) {
@@ -1750,6 +1809,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   pQueryInfo->tsBuf = tsBufDestroy(pQueryInfo->tsBuf);
 
   tfree(pQueryInfo->fillVal);
+  tfree(pQueryInfo->buf);
 }
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd) {
@@ -1823,10 +1883,17 @@ SArray* tscVgroupTableInfoDup(SArray* pVgroupTables) {
   return pa;
 }
 
-void clearAllTableMetaInfo(SQueryInfo* pQueryInfo) {
+void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta) {
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
 
+    if (removeMeta) {  
+      char name[TSDB_TABLE_FNAME_LEN] = {0};
+      tNameExtractFullName(&pTableMetaInfo->name, name);
+    
+      taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+    }
+    
     tscFreeVgroupTableInfo(pTableMetaInfo->pVgroupTables);
     tscClearTableMetaInfo(pTableMetaInfo);
     free(pTableMetaInfo);
@@ -2017,7 +2084,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNew->signature = pNew;
   pNew->sqlstr    = strdup(pSql->sqlstr);
 
-  SSqlCmd* pnCmd = &pNew->cmd;
+  SSqlCmd* pnCmd  = &pNew->cmd;
   memcpy(pnCmd, pCmd, sizeof(SSqlCmd));
   
   pnCmd->command = cmd;
@@ -2033,6 +2100,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pnCmd->parseFinished = 1;
   pnCmd->pTableNameList = NULL;
   pnCmd->pTableBlockHashList = NULL;
+  pnCmd->tagData.data = NULL;
+  pnCmd->tagData.dataLen = 0;
 
   if (tscAddSubqueryInfo(pnCmd) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -2056,7 +2125,18 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->clauseLimit = pQueryInfo->clauseLimit;
   pNewQueryInfo->numOfTables = 0;
   pNewQueryInfo->pTableMetaInfo = NULL;
-  
+  pNewQueryInfo->bufLen = pQueryInfo->bufLen;
+
+  pNewQueryInfo->buf = malloc(pQueryInfo->bufLen);
+  if (pNewQueryInfo->buf == NULL) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    goto _error;
+  }
+
+  if (pQueryInfo->bufLen > 0) {
+    memcpy(pNewQueryInfo->buf, pQueryInfo->buf, pQueryInfo->bufLen);
+  }
+
   pNewQueryInfo->groupbyExpr = pQueryInfo->groupbyExpr;
   if (pQueryInfo->groupbyExpr.columnInfo != NULL) {
     pNewQueryInfo->groupbyExpr.columnInfo = taosArrayDup(pQueryInfo->groupbyExpr.columnInfo);
@@ -2223,6 +2303,9 @@ void tscDoQuery(SSqlObj* pSql) {
       }
 
       return;
+    } else if (tscMultiRoundQuery(pQueryInfo, 0) && pQueryInfo->round == 0) {
+      tscHandleFirstRoundStableQuery(pSql);  // todo lock?
+      return;
     } else if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
       tscLockByThread(&pSql->squeryLock);
       tscHandleMasterSTableQuery(pSql);
@@ -2269,6 +2352,35 @@ bool tscIsUpdateQuery(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_USE_DB == pCmd->command);
 }
+
+char* tscGetSqlStr(SSqlObj* pSql) {
+  if (pSql == NULL || pSql->signature != pSql) {
+    return NULL;
+  }
+
+  return pSql->sqlstr;
+}
+
+bool tscIsQueryWithLimit(SSqlObj* pSql) {
+  if (pSql == NULL || pSql->signature != pSql) {
+    return false;
+  }
+
+  SSqlCmd* pCmd = &pSql->cmd;
+  for (int32_t i = 0; i < pCmd->numOfClause; ++i) {
+    SQueryInfo* pqi = tscGetQueryInfoDetailSafely(pCmd, i);
+    if (pqi == NULL) {
+      continue;
+    }
+
+    if (pqi->limit.limit > 0) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 
 int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* sql) {
   const char* msgFormat1 = "syntax error near \'%s\'";
@@ -2509,11 +2621,7 @@ bool tscSetSqlOwner(SSqlObj* pSql) {
   SSqlRes* pRes = &pSql->res;
 
   // set the sql object owner
-#ifdef __APPLE__
-  pthread_t threadId = (pthread_t)taosGetSelfPthreadId();
-#else // __APPLE__
-  uint64_t threadId = taosGetSelfPthreadId();
-#endif // __APPLE__
+  int64_t threadId = taosGetSelfPthreadId();
   if (atomic_val_compare_exchange_64(&pSql->owner, 0, threadId) != 0) {
     pRes->code = TSDB_CODE_QRY_IN_EXEC;
     return false;
@@ -2523,7 +2631,6 @@ bool tscSetSqlOwner(SSqlObj* pSql) {
 }
 
 void tscClearSqlOwner(SSqlObj* pSql) {
-  assert(taosCheckPthreadValid(pSql->owner));
   atomic_store_64(&pSql->owner, 0);
 }
 
@@ -2650,7 +2757,11 @@ STableMeta* createSuperTableMeta(STableMetaMsg* pChild) {
 uint32_t tscGetTableMetaSize(STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
 
-  int32_t totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
+  int32_t totalCols = 0;
+  if (pTableMeta->tableInfo.numOfColumns >= 0 && pTableMeta->tableInfo.numOfTags >= 0) {
+    totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
+  }
+  
   return sizeof(STableMeta) + totalCols * sizeof(SSchema);
 }
 

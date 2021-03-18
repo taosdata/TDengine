@@ -27,7 +27,7 @@ typedef struct tstr {
 #define IS_VAR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_BINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
 // this data type is internally used only in 'in' query to hold the values
-#define TSDB_DATA_TYPE_ARRAY      (TSDB_DATA_TYPE_NCHAR + 1)
+#define TSDB_DATA_TYPE_ARRAY      (1000)
 
 #define GET_TYPED_DATA(_v, _finalType, _type, _data) \
   do {                                               \
@@ -171,10 +171,10 @@ extern tDataTypeDescriptor tDataTypes[15];
 
 bool isValidDataType(int32_t type);
 
-void setVardataNull(char* val, int32_t type);
-void setNull(char *val, int32_t type, int32_t bytes);
-void setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
-void* getNullValue(int32_t type);
+void  setVardataNull(char* val, int32_t type);
+void  setNull(char *val, int32_t type, int32_t bytes);
+void  setNullN(char *val, int32_t type, int32_t bytes, int32_t numOfElems);
+void *getNullValue(int32_t type);
 
 void assignVal(char *val, const char *src, int32_t len, int32_t type);
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf);

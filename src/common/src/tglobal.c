@@ -47,7 +47,7 @@ char     tsEmail[TSDB_FQDN_LEN] = {0};
 // common
 int32_t tsRpcTimer       = 1000;
 int32_t tsRpcMaxTime     = 600;  // seconds;
-int32_t tsMaxShellConns  = 5000;
+int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0f;
@@ -59,7 +59,6 @@ char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
-char    tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -105,6 +104,7 @@ int64_t tsMaxRetentWindow = 24 * 3600L;  // maximum time window tolerance
 // 0  no query allowed, queries are disabled
 // positive value (in MB)
 int32_t tsQueryBufferSize = -1;
+int64_t tsQueryBufferSizeBytes = -1;
 
 // in retrieve blocking model, the retrieve threads will wait for the completion of the query processing.
 int32_t tsRetrieveBlockingModel = 0;
@@ -126,8 +126,9 @@ int8_t  tsWAL           = TSDB_DEFAULT_WAL_LEVEL;
 int32_t tsFsyncPeriod   = TSDB_DEFAULT_FSYNC_PERIOD;
 int32_t tsReplications  = TSDB_DEFAULT_DB_REPLICA_OPTION;
 int32_t tsQuorum        = TSDB_DEFAULT_DB_QUORUM_OPTION;
+int16_t tsPartitons     = TSDB_DEFAULT_DB_PARTITON_OPTION;
 int8_t  tsUpdate        = TSDB_DEFAULT_DB_UPDATE_OPTION;
-int8_t  tsCacheLastRow  = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
+int8_t  tsCacheLastRow  = TSDB_DEFAULT_CACHE_LAST_ROW;
 int32_t tsMaxVgroupsPerDb  = 0;
 int32_t tsMinTablePerVnode = TSDB_TABLES_STEP;
 int32_t tsMaxTablePerVnode = TSDB_DEFAULT_TABLES;
@@ -181,7 +182,15 @@ char   tsDnodeDir[TSDB_FILENAME_LEN] = {0};
 char   tsMnodeDir[TSDB_FILENAME_LEN] = {0};
 char   tsDataDir[TSDB_FILENAME_LEN] = {0};
 char   tsScriptDir[TSDB_FILENAME_LEN] = {0};
-char   tsVnodeBakDir[TSDB_FILENAME_LEN] = {0};
+char   tsTempDir[TSDB_FILENAME_LEN] = "/tmp/";
+
+int32_t  tsDiskCfgNum = 0;
+
+#ifndef _STORAGE
+SDiskCfg tsDiskCfg[1];
+#else
+SDiskCfg tsDiskCfg[TSDB_MAX_DISKS];
+#endif
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -226,6 +235,7 @@ int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
 int32_t cqDebugFlag = 131;
+int32_t fsDebugFlag = 135;
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -264,7 +274,7 @@ bool taosCfgDynamicOptions(char *msg) {
   int32_t   vint = 0;
 
   paGetToken(msg, &option, &olen);
-  if (olen == 0) return TSDB_CODE_COM_INVALID_CFG_MSG;
+  if (olen == 0) return false;;
 
   paGetToken(option + olen + 1, &value, &vlen);
   if (vlen == 0)
@@ -283,7 +293,7 @@ bool taosCfgDynamicOptions(char *msg) {
     int32_t cfgLen = (int32_t)strlen(cfg->option);
     if (cfgLen != olen) continue;
     if (strncasecmp(option, cfg->option, olen) != 0) continue;
-    if (cfg->valType != TAOS_CFG_VTYPE_INT32) {
+    if (cfg->valType == TAOS_CFG_VTYPE_INT32) {
       *((int32_t *)cfg->ptr) = vint;
     } else {
       *((int8_t *)cfg->ptr) = (int8_t)vint;
@@ -307,11 +317,9 @@ bool taosCfgDynamicOptions(char *msg) {
       }
       return true;
     }
-
     if (strncasecmp(cfg->option, "debugFlag", olen) == 0) {
-      taosSetAllDebugFlag();
+       taosSetAllDebugFlag(); 
     }
-    
     return true;
   }
 
@@ -331,6 +339,56 @@ bool taosCfgDynamicOptions(char *msg) {
   }
 
   return false;
+}
+
+void taosAddDataDir(int index, char *v1, int level, int primary) {
+  tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
+  tsDiskCfg[index].level = level;
+  tsDiskCfg[index].primary = primary;
+  uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
+}
+
+#ifndef _STORAGE
+void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
+  if (tsDiskCfgNum == 1) {
+    SDiskCfg *cfg = &tsDiskCfg[0];
+    uInfo("dataDir:%s, level:%d primary:%d is replaced by %s", cfg->dir, cfg->level, cfg->primary, v1);
+  }
+  taosAddDataDir(0, v1, 0, 1);
+  tsDiskCfgNum = 1;
+}
+
+void taosPrintDataDirCfg() {
+  for (int i = 0; i < tsDiskCfgNum; ++i) {
+    SDiskCfg *cfg = &tsDiskCfg[i];
+    uInfo(" dataDir: %s", cfg->dir);
+  }
+}
+#endif
+
+static void taosCheckDataDirCfg() {
+  if (tsDiskCfgNum <= 0) {
+    taosAddDataDir(0, tsDataDir, 0, 1);
+    tsDiskCfgNum = 1;
+    uTrace("dataDir:%s, level:0 primary:1 is configured by default", tsDataDir);
+  }
+}
+
+static int32_t taosCheckTmpDir(void) {
+  if (strlen(tsTempDir) <= 0){
+    uError("tempDir is not set");
+    return -1;
+  }
+
+  DIR *dir = opendir(tsTempDir);
+  if (dir == NULL) {
+    uError("can not open tempDir:%s, error:%s", tsTempDir, strerror(errno));
+    return -1;
+  }
+
+  closedir(dir);
+
+  return 0;
 }
 
 static void doInitGlobalConfig(void) {
@@ -373,10 +431,10 @@ static void doInitGlobalConfig(void) {
   // port
   cfg.option = "serverPort";
   cfg.ptr = &tsServerPort;
-  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.valType = TAOS_CFG_VTYPE_UINT16;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 1;
-  cfg.maxValue = 65535;
+  cfg.maxValue = 65056;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -414,7 +472,7 @@ static void doInitGlobalConfig(void) {
 
   cfg.option = "dataDir";
   cfg.ptr = tsDataDir;
-  cfg.valType = TAOS_CFG_VTYPE_DIRECTORY;
+  cfg.valType = TAOS_CFG_VTYPE_DATA_DIRCTORY;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;
   cfg.maxValue = 0;
@@ -796,6 +854,16 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
+  cfg.option = "partitions";
+  cfg.ptr = &tsPartitons;
+  cfg.valType = TAOS_CFG_VTYPE_INT16;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = TSDB_MIN_DB_PARTITON_OPTION;
+  cfg.maxValue = TSDB_MAX_DB_PARTITON_OPTION;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
   cfg.option = "quorum";
   cfg.ptr = &tsQuorum;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1094,7 +1162,7 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &tsHttpMaxThreads;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 1;
+  cfg.minValue = 2;
   cfg.maxValue = 1000000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
@@ -1447,6 +1515,12 @@ int32_t taosCheckGlobalCfg() {
     snprintf(tsSecond, sizeof(tsSecond), "%s:%u", fqdn, port);
   }
 
+  taosCheckDataDirCfg();
+
+  if (taosCheckTmpDir()) {
+    return -1;
+  }
+  
   taosGetSystemInfo();
 
   tsSetLocale();
@@ -1458,6 +1532,13 @@ int32_t taosCheckGlobalCfg() {
 
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
+  }
+
+  if (tsHttpMaxThreads == 2) {
+    int32_t halfNumOfCores = tsNumOfCores >> 1;
+    if (halfNumOfCores > 2) {
+      tsHttpMaxThreads = halfNumOfCores;
+    }
   }
 
   if (tsMaxTablePerVnode < tsMinTablePerVnode) {
@@ -1488,6 +1569,12 @@ int32_t taosCheckGlobalCfg() {
   tsSyncPort = tsServerPort + TSDB_PORT_SYNC;
   tsHttpPort = tsServerPort + TSDB_PORT_HTTP;
 
+  if (tsQueryBufferSize >= 0) {
+    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
+  }
+
+  uInfo("   check global cfg completed");
+  uInfo("==================================");
   taosPrintGlobalCfg();
 
   return 0;

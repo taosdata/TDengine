@@ -110,7 +110,7 @@ static void httpCleanupString(HttpString *str) {
 static int32_t httpAppendString(HttpString *str, const char *s, int32_t len) {
   if (str->size == 0) {
     str->pos = 0;
-    str->size = 64;
+    str->size = len + 1;
     str->str = malloc(str->size);
   } else if (str->pos + len + 1 >= str->size) {
     str->size += len;
@@ -229,7 +229,7 @@ static int32_t httpOnParseHeaderField(HttpParser *parser, const char *key, const
     return 0;
   }
 
-  else if (strncasecmp(key, "Connection: ", 12) == 0) {
+  else if (strncasecmp(key, "Connection", 10) == 0) {
     if (strncasecmp(val, "Keep-Alive", 10) == 0) {
       parser->keepAlive = HTTP_KEEPALIVE_ENABLE;
     } else {
@@ -715,10 +715,12 @@ static int32_t httpParserOnVersion(HttpParser *parser, HTTP_PARSER_STATE state, 
 
     if (parser->method) {
       ok = httpOnRequestLine(parser, parser->method, parser->target, parser->version);
+      /*
       if (parser->target) {
         free(parser->target);
         parser->target = NULL;
       }
+      */
     }
 
     httpClearString(&parser->str);

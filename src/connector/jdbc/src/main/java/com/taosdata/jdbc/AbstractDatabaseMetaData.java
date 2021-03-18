@@ -4,7 +4,7 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrapper {
+public abstract class AbstractDatabaseMetaData extends WrapperImpl implements DatabaseMetaData {
 
     private final static String PRODUCT_NAME = "TDengine";
     private final static String PRODUCT_VESION = "2.0.x.x";
@@ -981,9 +981,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrap
         return getEmptyResultSet();
     }
 
-    public Connection getConnection() throws SQLException {
-        return null;
-    }
+    public abstract Connection getConnection() throws SQLException;
 
     public boolean supportsSavepoints() throws SQLException {
         return false;
@@ -1067,6 +1065,7 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrap
     }
 
     public ResultSet getClientInfoProperties() throws SQLException {
+        //TODO: see https://docs.oracle.com/javase/8/docs/api/java/sql/Connection.html#setClientInfo-java.lang.String-java.lang.String-
         return getEmptyResultSet();
     }
 
@@ -1091,20 +1090,6 @@ public abstract class AbstractDatabaseMetaData implements DatabaseMetaData, Wrap
 
     private ResultSet getEmptyResultSet() {
         return new EmptyResultSet();
-    }
-
-    @Override
-    public <T> T unwrap(Class<T> iface) throws SQLException {
-        try {
-            return iface.cast(this);
-        } catch (ClassCastException cce) {
-            throw new SQLException("Unable to unwrap to " + iface.toString());
-        }
-    }
-
-    @Override
-    public boolean isWrapperFor(Class<?> iface) throws SQLException {
-        return iface.isInstance(this);
     }
 
     protected ResultSet getCatalogs(Connection conn) throws SQLException {

@@ -21,6 +21,8 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
+#include <libproc.h>
+
 // #define SEM_USE_PTHREAD
 // #define SEM_USE_POSIX
 #define SEM_USE_SEM
@@ -30,6 +32,7 @@
 #include <mach/mach_error.h>
 #include <mach/semaphore.h>
 #include <mach/task.h>
+#include <pthread.h>
 
 static pthread_t                 sem_thread;
 static pthread_once_t            sem_once;
@@ -278,4 +281,44 @@ int tsem_destroy(tsem_t *sem) {
   *sem = NULL;
   return 0;
 }
+
+bool taosCheckPthreadValid(pthread_t thread) {
+  uint64_t id = 0;
+  int r = pthread_threadid_np(thread, &id);
+  return r ? false : true;
+}
+
+int64_t taosGetSelfPthreadId() {
+  uint64_t id;
+  pthread_threadid_np(0, &id);
+  return (int64_t) id;
+}
+
+int64_t taosGetPthreadId(pthread_t thread) {
+  return (int64_t)thread;
+}
+
+void taosResetPthread(pthread_t* thread) {
+  *thread = NULL;
+}
+
+bool taosComparePthread(pthread_t first, pthread_t second) {
+  return pthread_equal(first, second) ? true : false;
+}
+
+int32_t taosGetPId() {
+  return (int32_t)getpid();
+}
+
+int32_t taosGetCurrentAPPName(char* name, int32_t* len) {
+  char buf[PATH_MAX+1];
+  buf[0] = '\0';
+  proc_name(getpid(), buf, sizeof(buf)-1);
+  buf[PATH_MAX] = '\0';
+  size_t n = strlen(buf);
+  if (len) *len = n;
+  if (name) strcpy(name, buf);
+  return 0;
+}
+
 

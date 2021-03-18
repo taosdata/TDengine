@@ -48,7 +48,7 @@ tMemBucket *createUnsignedDataBucket(int32_t start, int32_t end, int32_t type) {
     uint64_t k = i;
     int32_t ret = tMemBucketPut(pBucket, &k, 1);
     if (ret != 0) {
-      printf("value out of range:%f", k);
+      printf("value out of range:%" PRId64, k);
     }
   }
 
@@ -245,7 +245,7 @@ void unsignedDataTest() {
 }  // namespace
 
 TEST(testCase, percentileTest) {
-  //  qsortTest();
+//  qsortTest();
   intDataTest();
   bigintDataTest();
   doubleDataTest();

@@ -277,7 +277,7 @@ int32_t taosArrayCompareString(const void* a, const void* b) {
 
 static int32_t compareFindStrInArray(const void* pLeft, const void* pRight) {
   const SArray* arr = (const SArray*) pRight;
-  return taosArraySearchString(arr, pLeft, taosArrayCompareString) == NULL ? 0 : 1;
+  return taosArraySearchString(arr, pLeft, taosArrayCompareString, TD_EQ) == NULL ? 0 : 1;
 }
 
 static int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
@@ -297,32 +297,14 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
   
   switch (type) {
-    case TSDB_DATA_TYPE_SMALLINT: {
-      comparFn = compareInt16Val;  break;
-    }
-    
-    case TSDB_DATA_TYPE_INT: {
-      comparFn = compareInt32Val;  break;
-    }
-    
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP: {
-      comparFn = compareInt64Val;  break;
-    }
-
     case TSDB_DATA_TYPE_BOOL:
-    case TSDB_DATA_TYPE_TINYINT:{
-      comparFn = compareInt8Val;   break;
-    }
-
-    case TSDB_DATA_TYPE_FLOAT: {
-      comparFn = compareFloatVal;  break;
-    }
-    
-    case TSDB_DATA_TYPE_DOUBLE: {
-      comparFn = compareDoubleVal; break;
-    }
-
+    case TSDB_DATA_TYPE_TINYINT:   comparFn = compareInt8Val;   break;
+    case TSDB_DATA_TYPE_SMALLINT:  comparFn = compareInt16Val;  break;
+    case TSDB_DATA_TYPE_INT:       comparFn = compareInt32Val;  break;
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: comparFn = compareInt64Val;  break;
+    case TSDB_DATA_TYPE_FLOAT:     comparFn = compareFloatVal;  break;
+    case TSDB_DATA_TYPE_DOUBLE:    comparFn = compareDoubleVal; break;
     case TSDB_DATA_TYPE_BINARY: {
       if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = compareStrPatternComp;
@@ -341,10 +323,14 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       } else {
         comparFn = compareLenPrefixedWStr;
       }
-    
       break;
     }
-    
+
+    case TSDB_DATA_TYPE_UTINYINT:  comparFn = compareUint8Val; break;
+    case TSDB_DATA_TYPE_USMALLINT: comparFn = compareUint16Val;break;
+    case TSDB_DATA_TYPE_UINT:      comparFn = compareUint32Val;break;
+    case TSDB_DATA_TYPE_UBIGINT:   comparFn = compareUint64Val;break;
+
     default:
       comparFn = compareInt32Val;
       break;
@@ -406,8 +392,8 @@ __compar_fn_t getKeyComparFunc(int32_t keyType) {
 int32_t doCompare(const char* f1, const char* f2, int32_t type, size_t size) {
   switch (type) {
     case TSDB_DATA_TYPE_INT:        DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
-    case TSDB_DATA_TYPE_DOUBLE:     DEFAULT_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
-    case TSDB_DATA_TYPE_FLOAT:      DEFAULT_COMP(GET_FLOAT_VAL(f1), GET_FLOAT_VAL(f2));
+    case TSDB_DATA_TYPE_DOUBLE:     DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
+    case TSDB_DATA_TYPE_FLOAT:      DEFAULT_FLOAT_COMP(GET_FLOAT_VAL(f1), GET_FLOAT_VAL(f2));
     case TSDB_DATA_TYPE_BIGINT:     DEFAULT_COMP(GET_INT64_VAL(f1), GET_INT64_VAL(f2));
     case TSDB_DATA_TYPE_SMALLINT:   DEFAULT_COMP(GET_INT16_VAL(f1), GET_INT16_VAL(f2));
     case TSDB_DATA_TYPE_TINYINT:

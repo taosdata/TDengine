@@ -31,23 +31,41 @@ class TDTestCase:
 
     def insertDataAndAlterTable(self, threadID):
         if(threadID == 0):
-            os.system("yes | taosdemo -t %d -n %d" % (self.numberOfTables, self.numberOfRecords))
+            os.system("taosdemo -M -y -t %d -n %d -x" %
+                      (self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
+            time.sleep(2)
             print("use test")
             tdSql.execute("use test")
-            print("alter table test.meters add column f4 int")
-            tdSql.execute("alter table test.meters add column f4 int")
-            print("insert into test.t0 values (now, 1, 2, 3, 4)")
-            tdSql.execute("insert into test.t0 values (now, 1, 2, 3, 4)")
+            # check if all the tables have heen created
+            while True:
+                tdSql.query("show tables")
+                rows = tdSql.queryRows
+                print("number of tables: %d" % rows)
+                if(rows == self.numberOfTables):
+                    break
+                time.sleep(1)
+            # check if there are any records in the last created table
+            while True:
+                print("query started")
+                tdSql.query("select * from test.t9")
+                rows = tdSql.queryRows
+                print("number of records: %d" % rows)
+                if(rows > 0):
+                    break
+                time.sleep(1)
+            print("alter table test.meters add column col10 int")
+            tdSql.execute("alter table test.meters add column col10 int")
+            print("insert into test.t0 values (now, 1, 2, 3, 4, 0.1, 0.01,'test', '测试', TRUE, 1610000000000, 0)")
+            tdSql.execute("insert into test.t0 values (now, 1, 2, 3, 4, 0.1, 0.01,'test', '测试', TRUE, 1610000000000, 0)")
 
-    def run(self):        
+    def run(self):
         tdSql.prepare()
 
         t1 = threading.Thread(target=self.insertDataAndAlterTable, args=(0, ))
         t2 = threading.Thread(target=self.insertDataAndAlterTable, args=(1, ))
 
         t1.start()
-        time.sleep(2)
         t2.start()
         t1.join()
         t2.join()
@@ -61,4 +79,4 @@ class TDTestCase:
 
 
 tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase()) 
+tdCases.addLinux(__file__, TDTestCase())

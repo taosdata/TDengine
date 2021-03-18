@@ -57,9 +57,7 @@ sudo apt-get install -y  maven
 
 ### Centos 7:
 ```bash
-sudo yum install -y gcc gcc-c++ make cmake3 epel-release git
-sudo yum remove -y cmake
-sudo ln -s /usr/bin/cmake3 /usr/bin/cmake
+sudo yum install -y gcc gcc-c++ make cmake git
 ```
 
 To install openjdk-8:
@@ -110,7 +108,8 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-To compile on an ARM processor (aarch64 or aarch32), please add option CPUTYPE as below:
+TDengine build script can detect the host machine's architecture on X86-64, X86, arm64 and arm32 platform.
+You can also specify CPUTYPE option like aarch64 or aarch32 too if the detection result is not correct:
 
 aarch64:
 ```bash
@@ -161,38 +160,41 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-# Quick Run
-
-# Quick Run
-To quickly start a TDengine server after building, run the command below in terminal:
-```bash
-./build/bin/taosd -c test/cfg
-```
-In another terminal, use the TDengine shell to connect the server:
-```bash
-./build/bin/taos -c test/cfg
-```
-option "-c test/cfg" specifies the system configuration file directory. 
-
 # Installing
+
 After building successfully, TDengine can be installed by:
 ```bash
-make install
+sudo make install
 ```
-Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. It should be noted that installing from source code does not configure service management for TDengine.
+
+Users can find more information about directories installed on the system in the [directory and files](https://www.taosdata.com/en/documentation/administrator/#Directory-and-Files) section. Since version 2.0, installing from source code will also configure service management for TDengine.
 Users can also choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) for it.
 
 To start the service after installation, in a terminal, use:
-```cmd
-taosd
+```bash
+sudo systemctl start taosd
 ```
 
 Then users can use the [TDengine shell](https://www.taosdata.com/en/getting-started/#TDengine-Shell) to connect the TDengine server. In a terminal, use:
-```cmd
+```bash
 taos
 ```
 
 If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
+
+## Quick Run
+
+If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal:
+```bash
+./build/bin/taosd -c test/cfg
+```
+
+In another terminal, use the TDengine shell to connect the server:
+```bash
+./build/bin/taos -c test/cfg
+```
+
+option "-c test/cfg" specifies the system configuration file directory. 
 
 # Try TDengine
 It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.

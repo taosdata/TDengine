@@ -37,13 +37,17 @@ import java.util.logging.Logger;
  * register it with the DriverManager. This means that a user can load and
  * register a driver by doing Class.forName("foo.bah.Driver")
  */
-public class TSDBDriver extends AbstractTaosDriver {
+public class TSDBDriver extends AbstractDriver {
 
     @Deprecated
     private static final String URL_PREFIX1 = "jdbc:TSDB://";
 
     private static final String URL_PREFIX = "jdbc:TAOS://";
 
+    /**
+     * PRODUCT_NAME
+     */
+    public static final String PROPERTY_KEY_PRODUCT_NAME = "productName";
     /**
      * Key used to retrieve the host value from the properties instance passed to
      * the driver.
@@ -90,46 +94,40 @@ public class TSDBDriver extends AbstractTaosDriver {
      * fetch data from native function in a batch model
      */
     public static final String PROPERTY_KEY_BATCH_LOAD = "batchfetch";
-    
+
     private TSDBDatabaseMetaData dbMetaData = null;
 
     static {
         try {
             java.sql.DriverManager.registerDriver(new TSDBDriver());
-        } catch (SQLException E) {
-            throw new RuntimeException(TSDBConstants.WrapErrMsg("can't register tdengine jdbc driver!"));
+        } catch (SQLException e) {
+            throw TSDBError.createRuntimeException(TSDBErrorNumbers.ERROR_CANNOT_REGISTER_JNI_DRIVER, e);
         }
     }
 
     public Connection connect(String url, Properties info) throws SQLException {
         if (url == null)
-            throw new SQLException(TSDBConstants.WrapErrMsg("url is not set!"));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_URL_NOT_SET);
 
         if (!acceptsURL(url))
             return null;
 
-        Properties props = null;
-        if ((props = parseURL(url, info)) == null) {
+        Properties props = parseURL(url, info);
+        if (props == null) {
             return null;
         }
-        //load taos.cfg start
-        loadTaosConfig(info);
 
         try {
             TSDBJNIConnector.init((String) props.get(PROPERTY_KEY_CONFIG_DIR), (String) props.get(PROPERTY_KEY_LOCALE),
                     (String) props.get(PROPERTY_KEY_CHARSET), (String) props.get(PROPERTY_KEY_TIME_ZONE));
-            Connection newConn = new TSDBConnection(props, this.dbMetaData);
-            return newConn;
+            return new TSDBConnection(props, this.dbMetaData);
         } catch (SQLWarning sqlWarning) {
             sqlWarning.printStackTrace();
-            Connection newConn = new TSDBConnection(props, this.dbMetaData);
-            return newConn;
+            return new TSDBConnection(props, this.dbMetaData);
         } catch (SQLException sqlEx) {
             throw sqlEx;
         } catch (Exception ex) {
-            SQLException sqlEx = new SQLException("SQLException:" + ex.toString());
-            sqlEx.initCause(ex);
-            throw sqlEx;
+            throw new SQLException("SQLException:" + ex.toString(), ex);
         }
     }
 
@@ -141,8 +139,8 @@ public class TSDBDriver extends AbstractTaosDriver {
      */
     public boolean acceptsURL(String url) throws SQLException {
         if (url == null)
-            throw new SQLException(TSDBConstants.WrapErrMsg("url is null"));
-        return (url != null && url.length() > 0 && url.trim().length() > 0) && (url.startsWith(URL_PREFIX) || url.startsWith(URL_PREFIX1));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_URL_NOT_SET);
+        return url.length() > 0 && url.trim().length() > 0 && (url.startsWith(URL_PREFIX) || url.startsWith(URL_PREFIX1));
     }
 
     public DriverPropertyInfo[] getPropertyInfo(String url, Properties info) throws SQLException {
@@ -179,18 +177,18 @@ public class TSDBDriver extends AbstractTaosDriver {
             while (queryParams.hasMoreElements()) {
                 String oneToken = queryParams.nextToken();
                 String[] pair = oneToken.split("=");
-                
+
                 if ((pair[0] != null && pair[0].trim().length() > 0) && (pair[1] != null && pair[1].trim().length() > 0)) {
                     urlProps.setProperty(pair[0].trim(), pair[1].trim());
                 }
             }
         }
-        
+
         // parse Product Name
         String dbProductName = url.substring(0, beginningOfSlashes);
         dbProductName = dbProductName.substring(dbProductName.indexOf(":") + 1);
         dbProductName = dbProductName.substring(0, dbProductName.indexOf(":"));
-        
+
         // parse database name
         url = url.substring(beginningOfSlashes + 2);
         int indexOfSlash = url.indexOf("/");
@@ -200,7 +198,7 @@ public class TSDBDriver extends AbstractTaosDriver {
             }
             url = url.substring(0, indexOfSlash);
         }
-        
+
         // parse port
         int indexOfColon = url.indexOf(":");
         if (indexOfColon != -1) {
@@ -209,11 +207,11 @@ public class TSDBDriver extends AbstractTaosDriver {
             }
             url = url.substring(0, indexOfColon);
         }
-        
+
         if (url != null && url.length() > 0 && url.trim().length() > 0) {
             urlProps.setProperty(TSDBDriver.PROPERTY_KEY_HOST, url);
         }
-        
+
         this.dbMetaData = new TSDBDatabaseMetaData(urlForMeta, urlProps.getProperty(TSDBDriver.PROPERTY_KEY_USER));
         return urlProps;
     }

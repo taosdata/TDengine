@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 200
 
 system sh/exec.sh -n dnode1 -s start
@@ -73,6 +73,60 @@ if $row != 100 then
   return -1
 endi
 
+sql select bottom(c3, 5) from tb_tb1 interval(1y);
+if $rows != 5 then
+  return -1
+endi
+
+if $data01 != 0.00000 then
+  print expect 0.00000, actual:$data01
+  return -1
+endi
+
+if $data11 != 0.00000 then
+  return -1
+endi
+
+if $data21 != 0.00000 then
+  return -1
+endi
+
+if $data31 != 0.00000 then
+  return -1
+endi
+
+sql select top(c4, 5) from tb_tb1 interval(1y);
+if $rows != 5 then
+  return -1
+endi
+
+if $data01 != 9.000000000 then
+  print expect 9.000000000, acutal:$data01
+  return -1
+endi
+
+if $data11 != 9.000000000 then
+  return -1
+endi
+
+if $data21 != 9.000000000 then
+  return -1
+endi
+
+if $data31 != 9.000000000 then
+  return -1
+endi
+
+sql select top(c3, 5) from tb_tb1 interval(40h)
+if $rows != 25 then
+  return -1
+endi
+
+if $data01 != 9.00000 then
+  print expect 9.00000, actual:$data01
+  return -1
+endi
+
 sql select last(*) from tb_tb9
 if $row != 1 then
   return -1
@@ -128,7 +182,7 @@ sql insert into test values(29999, 1)(70000, 2)(80000, 3)
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 2000
+sleep 500
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect
@@ -259,6 +313,15 @@ if $data03 != @20-01-02 01:01:01.000@ then
 endi
 
 if $data13 != @20-02-02 01:01:01.000@ then
+  return -1
+endi
+
+print ===============================>td-3361
+sql create table ttm1(ts timestamp, k int) tags(a nchar(12));
+sql create table ttm1_t1 using ttm1 tags('abcdef')
+sql insert into ttm1_t1 values(now, 1)
+sql select * from ttm1 where a=123456789012
+if $row != 0 then
   return -1
 endi
 

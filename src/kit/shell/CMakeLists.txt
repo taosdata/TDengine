@@ -1,4 +1,4 @@
-CMAKE_MINIMUM_REQUIRED(VERSION 3.5)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
 INCLUDE_DIRECTORIES(${TD_COMMUNITY_DIR}/src/client/inc)
@@ -36,6 +36,7 @@ ELSEIF (TD_DARWIN)
   LIST(APPEND SRC ./src/shellDarwin.c)
   LIST(APPEND SRC ./src/shellCommand.c)
   LIST(APPEND SRC ./src/shellImport.c)
+  LIST(APPEND SRC ./src/shellCheck.c)
   ADD_EXECUTABLE(shell ${SRC})
   # linking with dylib
   TARGET_LINK_LIBRARIES(shell taos)

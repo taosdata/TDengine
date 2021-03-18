@@ -154,7 +154,10 @@ void httpReleaseContext(HttpContext *pContext, bool clearRes) {
   }
 
   if (clearRes) {
-    httpClearParser(pContext->parser);
+    if (pContext->parser) {
+      httpClearParser(pContext->parser);
+    }
+    memset(&pContext->singleCmd, 0, sizeof(HttpSqlCmd));
   }
 
   HttpContext **ppContext = pContext->ppContext;
@@ -185,9 +188,9 @@ void httpCloseContextByApp(HttpContext *pContext) {
   pContext->parsed = false;
   bool keepAlive = true;
 
-  if (parser->httpVersion == HTTP_VERSION_10 && parser->keepAlive != HTTP_KEEPALIVE_ENABLE) {
+  if (parser && parser->httpVersion == HTTP_VERSION_10 && parser->keepAlive != HTTP_KEEPALIVE_ENABLE) {
     keepAlive = false;
-  } else if (parser->httpVersion != HTTP_VERSION_10 && parser->keepAlive == HTTP_KEEPALIVE_DISABLE) {
+  } else if (parser && parser->httpVersion != HTTP_VERSION_10 && parser->keepAlive == HTTP_KEEPALIVE_DISABLE) {
     keepAlive = false;
   } else {
   }

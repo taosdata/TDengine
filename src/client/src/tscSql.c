@@ -52,7 +52,9 @@ static bool validPassword(const char* passwd) {
 
 static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
                          uint16_t port, void (*fp)(void *, TAOS_RES *, int), void *param, TAOS **taos) {
-  taos_init();
+  if (taos_init()) {
+    return NULL;
+  }
 
   if (!validUserName(user)) {
     terrno = TSDB_CODE_TSC_INVALID_USER_LENGTH;
@@ -443,24 +445,6 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   return pFieldInfo->final;
 }
 
-int taos_retrieve(TAOS_RES *res) {
-  if (res == NULL) return 0;
-  SSqlObj *pSql = (SSqlObj *)res;
-  SSqlCmd *pCmd = &pSql->cmd;
-  SSqlRes *pRes = &pSql->res;
-  if (pSql == NULL || pSql->signature != pSql) return 0;
-  if (pRes->qhandle == 0) return 0;
-
-  tscResetForNextRetrieve(pRes);
-
-  if (pCmd->command < TSDB_SQL_LOCAL) {
-    pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-  }
-
-  tscProcessSql(pSql);
-  return pRes->numOfRows;
-}
-
 static bool needToFetchNewBlock(SSqlObj* pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
@@ -714,7 +698,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
     }
 
     tscAsyncResultOnError(pSubObj);
-    taosReleaseRef(tscObjRef, pSubObj->self);
+    // taosRelekaseRef(tscObjRef, pSubObj->self);
   }
 
   if (pSql->subState.numOfSub <= 0) {

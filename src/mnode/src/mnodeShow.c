@@ -109,6 +109,7 @@ static char *mnodeGetShowType(int32_t showType) {
     case TSDB_MGMT_TABLE_VNODES:  return "show vnodes";
     case TSDB_MGMT_TABLE_CLUSTER: return "show clusters";
     case TSDB_MGMT_TABLE_STREAMTABLES : return "show streamtables";
+    case TSDB_MGMT_TABLE_TP:      return "show topics";
     default:                      return "undefined";
   }
 }
@@ -280,8 +281,11 @@ static int32_t mnodeProcessHeartBeatMsg(SMnodeMsg *pMsg) {
     }
   }
 
-  pRsp->onlineDnodes = htonl(mnodeGetOnlineDnodesNum());
-  pRsp->totalDnodes = htonl(mnodeGetDnodesNum());
+  int32_t    onlineDnodes = 0, totalDnodes = 0;
+  mnodeGetOnlineAndTotalDnodesNum(&onlineDnodes, &totalDnodes);
+
+  pRsp->onlineDnodes = htonl(onlineDnodes);
+  pRsp->totalDnodes = htonl(totalDnodes);
   mnodeGetMnodeEpSetForShell(&pRsp->epSet, false);
 
   pMsg->rpcRsp.rsp = pRsp;

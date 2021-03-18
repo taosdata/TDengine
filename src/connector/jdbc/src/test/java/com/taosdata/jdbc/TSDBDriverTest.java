@@ -24,11 +24,10 @@ public class TSDBDriverTest {
             "jdbc:TAOS://:/test",
             "jdbc:TAOS://localhost:0/?user=root&password=taosdata"
     };
-
     private Connection conn;
 
     @Test
-    public void testConnectWithJdbcURL() {
+    public void connectWithJdbcURL() {
         final String url = "jdbc:TAOS://localhost:6030/log?user=root&password=taosdata";
         try {
             conn = DriverManager.getConnection(url);
@@ -40,7 +39,7 @@ public class TSDBDriverTest {
     }
 
     @Test
-    public void testConnectWithProperties() {
+    public void connectWithProperties() {
         final String jdbcUrl = "jdbc:TAOS://localhost:6030/log?user=root&password=taosdata";
         Properties connProps = new Properties();
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
@@ -56,7 +55,7 @@ public class TSDBDriverTest {
     }
 
     @Test
-    public void testConnectWithConfigFile() {
+    public void connectWithConfigFile() {
         String jdbcUrl = "jdbc:TAOS://:/log?user=root&password=taosdata";
         Properties connProps = new Properties();
         connProps.setProperty(TSDBDriver.PROPERTY_KEY_CHARSET, "UTF-8");
@@ -69,16 +68,6 @@ public class TSDBDriverTest {
             e.printStackTrace();
             fail("failure - should not throw Exception");
         }
-    }
-
-    @Test(expected = SQLException.class)
-    public void testAcceptsURL() throws SQLException {
-        Driver driver = new TSDBDriver();
-        for (String url : validURLs) {
-            assertTrue("failure - acceptsURL(\" " + url + " \") should be true", driver.acceptsURL(url));
-        }
-        driver.acceptsURL(null);
-        fail("acceptsURL throws exception when parameter is null");
     }
 
     @Test
@@ -121,8 +110,19 @@ public class TSDBDriverTest {
         assertNull("failure - dbname should be null", actual.getProperty("dbname"));
     }
 
+
+    @Test(expected = SQLException.class)
+    public void acceptsURL() throws SQLException {
+        Driver driver = new TSDBDriver();
+        for (String url : validURLs) {
+            assertTrue("failure - acceptsURL(\" " + url + " \") should be true", driver.acceptsURL(url));
+        }
+        driver.acceptsURL(null);
+        fail("acceptsURL throws exception when parameter is null");
+    }
+
     @Test
-    public void testGetPropertyInfo() throws SQLException {
+    public void getPropertyInfo() throws SQLException {
         Driver driver = new TSDBDriver();
         final String url = "jdbc:TAOS://localhost:6030/log?user=root&password=taosdata";
         Properties connProps = new Properties();
@@ -142,23 +142,23 @@ public class TSDBDriverTest {
     }
 
     @Test
-    public void testGetMajorVersion() {
-        assertEquals("failure - getMajorVersion should be 2", 2, new TSDBDriver().getMajorVersion());
+    public void getMajorVersion() {
+        assertEquals(2, new TSDBDriver().getMajorVersion());
     }
 
     @Test
-    public void testGetMinorVersion() {
-        assertEquals("failure - getMinorVersion should be 0", 0, new TSDBDriver().getMinorVersion());
+    public void getMinorVersion() {
+        assertEquals(0, new TSDBDriver().getMinorVersion());
     }
 
     @Test
-    public void testJdbcCompliant() {
-        assertFalse("failure - jdbcCompliant should be false", new TSDBDriver().jdbcCompliant());
+    public void jdbcCompliant() {
+        assertFalse(new TSDBDriver().jdbcCompliant());
     }
 
     @Test
-    public void testGetParentLogger() throws SQLFeatureNotSupportedException {
-        assertNull("failure - getParentLogger should be be null", new TSDBDriver().getParentLogger());
+    public void getParentLogger() throws SQLFeatureNotSupportedException {
+        assertNull(new TSDBDriver().getParentLogger());
     }
 
     @BeforeClass
@@ -169,6 +169,4 @@ public class TSDBDriverTest {
             e.printStackTrace();
         }
     }
-
-
 }

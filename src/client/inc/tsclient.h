@@ -198,9 +198,10 @@ typedef struct STableDataBlocks {
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
+  STimeWindow      window;        // the whole query time window
 
-  STimeWindow      window;        // query time window
-  SInterval        interval;
+  SInterval        interval;      // tumble time window
+  SSessionWindow   sessionWindow; // session time window
 
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
   SArray *         colList;       // SArray<SColumn*>
@@ -224,12 +225,15 @@ typedef struct SQueryInfo {
   int32_t          udColumnId;    // current user-defined constant output field column id, monotonically decreases from TSDB_UD_COLUMN_INDEX
   int16_t          resColumnId;   // result column id
   bool             distinctTag;   // distinct tag or not
-  
+  int32_t          round;         // 0/1/....
+  int32_t          bufLen;
+  char*            buf;
 } SQueryInfo;
 
 typedef struct {
   int     command;
   uint8_t msgType;
+  char    reserve1[3];        // fix bus error on arm32
   bool    autoCreated;        // create table if it is not existed during retrieve table meta in mnode
 
   union {
@@ -242,8 +246,10 @@ typedef struct {
 
   char *       curSql;       // current sql, resume position of sql after parsing paused
   int8_t       parseFinished;
+  char    reserve2[3];        // fix bus error on arm32
 
   int16_t      numOfCols;
+  char    reserve3[2];        // fix bus error on arm32
   uint32_t     allocSize;
   char *       payload;
   int32_t      payloadLen;
@@ -253,7 +259,9 @@ typedef struct {
   int32_t      numOfParams;
 
   int8_t       dataSourceType;     // load data from file or not
+  char    reserve4[3];        // fix bus error on arm32
   int8_t       submitSchema;   // submit block is built with table schema
+  char    reserve5[3];        // fix bus error on arm32
   STagData     tagData;        // NOTE: pTagData->data is used as a variant length array
 
   SName      **pTableNameList; // all involved tableMeta list of current insert sql statement.
@@ -332,7 +340,7 @@ typedef struct SSubqueryState {
 
 typedef struct SSqlObj {
   void            *signature;
-  pthread_t        owner;        // owner of sql object, by which it is executed
+  int64_t          owner;        // owner of sql object, by which it is executed
   STscObj         *pTscObj;
   int64_t          rpcRid;
   __async_cb_func_t  fp;
@@ -395,7 +403,6 @@ typedef struct SSqlStream {
 
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
 
-
 int  tscAcquireRpc(const char *key, const char *user, const char *secret,void **pRpcObj);
 void tscReleaseRpc(void *param);
 void tscInitMsgsFp();
@@ -412,10 +419,9 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code);
 
 int tscProcessLocalCmd(SSqlObj *pSql);
 int tscCfgDynamicOptions(char *msg);
-int taos_retrieve(TAOS_RES *res);
 
-int32_t tscTansformSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
-void    tscRestoreSQLFuncForSTableQuery(SQueryInfo *pQueryInfo);
+int32_t tscTansformFuncForSTableQuery(SQueryInfo *pQueryInfo);
+void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
@@ -441,6 +447,8 @@ void tscCloseTscObj(void *pObj);
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, TAOS **taos);
 TAOS_RES* taos_query_h(TAOS* taos, const char *sqlstr, int64_t* res);
+TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param);
+
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
@@ -448,6 +456,9 @@ void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *para
 void tscImportDataFromFile(SSqlObj *pSql);
 void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen);
 bool tscIsUpdateQuery(SSqlObj* pSql);
+char* tscGetSqlStr(SSqlObj* pSql);
+bool tscIsQueryWithLimit(SSqlObj* pSql);
+
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);

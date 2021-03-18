@@ -68,9 +68,9 @@ typedef struct {
 typedef struct {
   int      version;    // version
   int      numOfCols;  // Number of columns appended
-  int      tlen;       // maximum length of a SDataRow without the header part
+  int      tlen;       // maximum length of a SDataRow without the header part (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) + (bytes))
   uint16_t flen;       // First part length in a SDataRow after the header part
-  uint16_t vlen;       // pure value part length, excluded the overhead
+  uint16_t vlen;       // pure value part length, excluded the overhead (bytes only)
   STColumn columns[];
 } STSchema;
 
@@ -133,6 +133,22 @@ typedef uint64_t TKEY;
 #define tdSetTKEYDeleted(tkey) ((tkey) | TKEY_DELETE_FLAG)
 #define tdGetTKEY(key) (((TKEY)ABS(key)) | (TKEY_NEGATIVE_FLAG & (TKEY)(key)))
 #define tdGetKey(tkey) (((TSKEY)((tkey)&TKEY_VALUE_FILTER)) * (TKEY_IS_NEGATIVE(tkey) ? -1 : 1))
+
+#define MIN_TS_KEY ((TSKEY)0x8000000000000001)
+#define MAX_TS_KEY ((TSKEY)0x3fffffffffffffff)
+
+#define TD_TO_TKEY(key) tdGetTKEY(((key) < MIN_TS_KEY) ? MIN_TS_KEY : (((key) > MAX_TS_KEY) ? MAX_TS_KEY : key))
+
+static FORCE_INLINE TKEY keyToTkey(TSKEY key) {
+  TSKEY lkey = key;
+  if (key > MAX_TS_KEY) {
+    lkey = MAX_TS_KEY;
+  } else if (key < MIN_TS_KEY) {
+    lkey = MIN_TS_KEY;
+  }
+
+  return tdGetTKEY(lkey);
+}
 
 static FORCE_INLINE int tkeyComparFn(const void *tkey1, const void *tkey2) {
   TSKEY key1 = tdGetKey(*(TKEY *)tkey1);
@@ -267,18 +283,43 @@ typedef struct {
 #define keyCol(pCols) (&((pCols)->cols[0]))  // Key column
 #define dataColsTKeyAt(pCols, idx) ((TKEY *)(keyCol(pCols)->pData))[(idx)]
 #define dataColsKeyAt(pCols, idx) tdGetKey(dataColsTKeyAt(pCols, idx))
-#define dataColsTKeyFirst(pCols) (((pCols)->numOfRows == 0) ? TKEY_INVALID : dataColsTKeyAt(pCols, 0))
-#define dataColsKeyFirst(pCols) (((pCols)->numOfRows == 0) ? TSDB_DATA_TIMESTAMP_NULL : dataColsKeyAt(pCols, 0))
-#define dataColsTKeyLast(pCols) \
-  (((pCols)->numOfRows == 0) ? TKEY_INVALID : dataColsTKeyAt(pCols, (pCols)->numOfRows - 1))
-#define dataColsKeyLast(pCols) \
-  (((pCols)->numOfRows == 0) ? TSDB_DATA_TIMESTAMP_NULL : dataColsKeyAt(pCols, (pCols)->numOfRows - 1))
+static FORCE_INLINE TKEY dataColsTKeyFirst(SDataCols *pCols) {
+  if (pCols->numOfRows) {
+    return dataColsTKeyAt(pCols, 0);
+  } else {
+    return TKEY_INVALID;
+  }
+}
+
+static FORCE_INLINE TSKEY dataColsKeyFirst(SDataCols *pCols) {
+  if (pCols->numOfRows) {
+    return dataColsKeyAt(pCols, 0);
+  } else {
+    return TSDB_DATA_TIMESTAMP_NULL;
+  }
+}
+
+static FORCE_INLINE TKEY dataColsTKeyLast(SDataCols *pCols) {
+  if (pCols->numOfRows) {
+    return dataColsTKeyAt(pCols, pCols->numOfRows - 1);
+  } else {
+    return TKEY_INVALID;
+  }
+}
+
+static FORCE_INLINE TSKEY dataColsKeyLast(SDataCols *pCols) {
+  if (pCols->numOfRows) {
+    return dataColsKeyAt(pCols, pCols->numOfRows - 1);
+  } else {
+    return TSDB_DATA_TIMESTAMP_NULL;
+  }
+}
 
 SDataCols *tdNewDataCols(int maxRowSize, int maxCols, int maxRows);
 void       tdResetDataCols(SDataCols *pCols);
 int        tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
-void       tdFreeDataCols(SDataCols *pCols);
+SDataCols *tdFreeDataCols(SDataCols *pCols);
 void       tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols);
 int        tdMergeDataCols(SDataCols *target, SDataCols *src, int rowsToMerge);
 

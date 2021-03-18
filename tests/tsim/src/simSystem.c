@@ -81,7 +81,9 @@ char *simParseHostName(char *varName) {
 }
 
 bool simSystemInit() {
-  taos_init();
+  if (taos_init()) {
+    return false;
+  }
   taosGetFqdn(simHostName);
   simInitsimCmdList();
   memset(simScriptList, 0, sizeof(SScript *) * MAX_MAIN_SCRIPT_NUM);

@@ -41,41 +41,46 @@ static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, co
 
 static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOfRows) {
   switch(type) {
-    case TSDB_DATA_TYPE_TINYINT: {
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_UTINYINT:{
       int8_t* p = (int8_t*) dest;
       int8_t* pSrc = (int8_t*) src;
 
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
-    case TSDB_DATA_TYPE_SMALLINT: {
+
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:{
       int16_t* p = (int16_t*) dest;
       int16_t* pSrc = (int16_t*) src;
 
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
-    case TSDB_DATA_TYPE_INT: {
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UINT: {
       int32_t* p = (int32_t*) dest;
       int32_t* pSrc = (int32_t*) src;
 
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
-    case TSDB_DATA_TYPE_BIGINT: {
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT: {
       int64_t* p = (int64_t*) dest;
       int64_t* pSrc = (int64_t*) src;
 
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
     case TSDB_DATA_TYPE_FLOAT: {
       float* p = (float*) dest;
@@ -84,7 +89,7 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       double* p = (double*) dest;
@@ -93,7 +98,7 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
       for(int32_t i = 0; i < numOfRows; ++i) {
         p[i] = pSrc[numOfRows - i - 1];
       }
-      break;
+      return;
     }
     default: assert(0);
   }
@@ -407,7 +412,7 @@ tExprNode* exprTreeFromTableName(const char* tbnameCond) {
   SSchema* pSchema = exception_calloc(1, sizeof(SSchema));
   left->pSchema = pSchema;
 
-  *pSchema = tGetTbnameColumnSchema();
+  *pSchema = *tGetTbnameColumnSchema();
 
   tExprNode* right = exception_calloc(1, sizeof(tExprNode));
   expr->_node.pRight = right;

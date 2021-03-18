@@ -36,7 +36,7 @@ class TDTestCase:
         tdSql.error("select spread(col8) from test1")
         tdSql.error("select spread(col9) from test")        
         tdSql.error("select spread(col9) from test1")
-        
+
         tdSql.query("select spread(col1) from test1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 10)
@@ -52,6 +52,23 @@ class TDTestCase:
         tdSql.query("select spread(col4) from test1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select spread(col11) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select spread(col12) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select spread(col13) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
+        tdSql.query("select spread(col14) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 10)
+
 
         tdSql.query("select spread(col5) from test1")
         tdSql.checkRows(1)

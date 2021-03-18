@@ -74,12 +74,16 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
 // TODO return the correct error code to client in tscQueueAsyncError
 void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param) {
+  taos_query_ra(taos, sqlstr, fp, param);
+}
+
+TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
     tscError("bug!!! pObj:%p", pObj);
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     tscQueueAsyncError(fp, param, TSDB_CODE_TSC_DISCONNECTED);
-    return;
+    return NULL;
   }
   
   int32_t sqlLen = (int32_t)strlen(sqlstr);
@@ -87,7 +91,7 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
     tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     tscQueueAsyncError(fp, param, terrno);
-    return;
+    return NULL;
   }
   
   nPrintTsc("%s", sqlstr);
@@ -96,11 +100,14 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
   if (pSql == NULL) {
     tscError("failed to malloc sqlObj");
     tscQueueAsyncError(fp, param, TSDB_CODE_TSC_OUT_OF_MEMORY);
-    return;
+    return NULL;
   }
   
   doAsyncQuery(pObj, pSql, fp, param, sqlstr, sqlLen);
+
+  return pSql;
 }
+
 
 static void tscAsyncFetchRowsProxy(void *param, TAOS_RES *tres, int numOfRows) {
   if (tres == NULL) {
@@ -273,23 +280,37 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
   taosScheduleTask(tscQhandle, &schedMsg);
 }
 
-void tscAsyncResultOnError(SSqlObj *pSql) {
+static void tscAsyncResultCallback(SSchedMsg *pMsg) {
+  SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pMsg->ahandle);
   if (pSql == NULL || pSql->signature != pSql) {
     tscDebug("%p SqlObj is freed, not add into queue async res", pSql);
     return;
   }
 
   assert(pSql->res.code != TSDB_CODE_SUCCESS);
-  tscError("%p invoke user specified function due to error occured, code:%s", pSql, tstrerror(pSql->res.code));
+  tscError("%p invoke user specified function due to error occurred, code:%s", pSql, tstrerror(pSql->res.code));
 
   SSqlRes *pRes = &pSql->res;
   if (pSql->fp == NULL || pSql->fetchFp == NULL){
+    taosReleaseRef(tscObjRef, pSql->self);
     return;
   }
 
   pSql->fp = pSql->fetchFp;
   (*pSql->fp)(pSql->param, pSql, pRes->code);
+  taosReleaseRef(tscObjRef, pSql->self);
 }
+
+void tscAsyncResultOnError(SSqlObj* pSql) { 
+  SSchedMsg schedMsg = {0};
+  schedMsg.fp = tscAsyncResultCallback;
+  schedMsg.ahandle = (void *)pSql->self;
+  schedMsg.thandle = (void *)1;
+  schedMsg.msg = 0;
+  taosScheduleTask(tscQhandle, &schedMsg);
+}
+
+
 
 int tscSendMsgToServer(SSqlObj *pSql);
 
@@ -322,7 +343,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       code = tscGetTableMeta(pSql, pTableMetaInfo);
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code == TSDB_CODE_SUCCESS);
 
-      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {        
+      if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         taosReleaseRef(tscObjRef, pSql->self);
         return;
       }

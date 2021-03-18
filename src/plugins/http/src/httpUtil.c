@@ -239,6 +239,10 @@ JsonBuf *httpMallocJsonBuf(HttpContext *pContext) {
     pContext->jsonBuf = (JsonBuf *)malloc(sizeof(JsonBuf));
   }
 
+  if (!pContext->jsonBuf->pContext) {
+    pContext->jsonBuf->pContext = pContext;
+  }
+
   return pContext->jsonBuf;
 }
 

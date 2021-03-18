@@ -4,10 +4,10 @@ system sh/deploy.sh -n dnode2 -i 2
 system sh/deploy.sh -n dnode3 -i 3
 system sh/deploy.sh -n dnode4 -i 4
 
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
-system sh/cfg.sh -n dnode2 -c walLevel -v 0
-system sh/cfg.sh -n dnode3 -c walLevel -v 0
-system sh/cfg.sh -n dnode4 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode2 -c walLevel -v 1
+system sh/cfg.sh -n dnode3 -c walLevel -v 1
+system sh/cfg.sh -n dnode4 -c walLevel -v 1
 
 system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
 system sh/cfg.sh -n dnode2 -c numOfMnodes -v 1

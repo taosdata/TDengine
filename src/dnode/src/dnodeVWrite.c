@@ -53,7 +53,7 @@ void dnodeCleanupVWrite() {
   for (int32_t i = 0; i < tsVWriteWP.max; ++i) {
     SVWriteWorker *pWorker = tsVWriteWP.worker + i;
     if (taosCheckPthreadValid(pWorker->thread)) {
-      taosQsetThreadResume(pWorker->qset);
+      if (pWorker->qset) taosQsetThreadResume(pWorker->qset);
     }
   }
 
@@ -222,7 +222,7 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
         dnodeSendRpcVWriteRsp(pVnode, pWrite, pWrite->code);
       } else {
         if (qtype == TAOS_QTYPE_FWD) {
-          vnodeConfirmForward(pVnode, pWrite->pHead.version, 0);
+          vnodeConfirmForward(pVnode, pWrite->pHead.version, 0, pWrite->pHead.msgType != TSDB_MSG_TYPE_SUBMIT);
         }
         if (pWrite->rspRet.rsp) {
           rpcFreeCont(pWrite->rspRet.rsp);

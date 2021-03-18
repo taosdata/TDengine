@@ -14,43 +14,34 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
-import javax.management.OperationsException;
 import java.sql.SQLException;
-import java.util.Map;
-import java.util.TimerTask;
-import java.util.concurrent.*;
 
 public class TSDBSubscribe {
-    private TSDBJNIConnector connecter = null;
-    private long id = 0;
+    private final TSDBJNIConnector connecter;
+    private final long id;
 
     TSDBSubscribe(TSDBJNIConnector connecter, long id) throws SQLException {
-        if (null != connecter) {
-            this.connecter = connecter;
-            this.id = id;
-        } else {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
-        }
+        if (connecter == null)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+
+        this.connecter = connecter;
+        this.id = id;
     }
 
     /**
      * consume
-     *
-     * @throws OperationsException, SQLException
      */
-    public TSDBResultSet consume() throws OperationsException, SQLException {
-        if (this.connecter.isClosed()) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
-        }
+    public TSDBResultSet consume() throws SQLException {
+        if (this.connecter.isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
 
         long resultSetPointer = this.connecter.consume(this.id);
-
         if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
         } else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
             return null;
         } else {
-            return new TSDBResultSet(this.connecter, resultSetPointer);
+            return new TSDBResultSet(null, this.connecter, resultSetPointer);
         }
     }
 
@@ -61,9 +52,9 @@ public class TSDBSubscribe {
      * @throws SQLException
      */
     public void close(boolean keepProgress) throws SQLException {
-        if (this.connecter.isClosed()) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
-        }
+        if (this.connecter.isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+
         this.connecter.unsubscribe(this.id, keepProgress);
     }
 }

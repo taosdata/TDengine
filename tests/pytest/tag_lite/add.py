@@ -141,6 +141,98 @@ class TDTestCase:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step2
         tdLog.info('select * from %s where tgcol2 = 1 -x step2' % (mt))
         tdSql.error('select * from %s where tgcol2 = 1' % (mt))
+        tdLog.info('=============== step2-1')
+        # TSIM: $i = 2
+        i = 21
+        # TSIM: $mt = $mtPrefix . $i
+        mt = "%s%d" % (mtPrefix, i)
+        # TSIM: $tb = $tbPrefix . $i
+        tb = "%s%d" % (tbPrefix, i)
+        # TSIM: sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1
+        # bool, tgcol2 int)
+        tdLog.info(
+            'create table %s (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int unsigned)' %
+            (mt))
+        tdSql.execute(
+            'create table %s (ts timestamp, tbcol int) TAGS(tgcol1 bool, tgcol2 int unsigned)' %
+            (mt))
+        # TSIM: sql create table $tb using $mt tags( 1, 2 )
+        tdLog.info('create table %s using %s tags( 1, 2 )' % (tb, mt))
+        tdSql.execute('create table %s using %s tags( 1, 2 )' % (tb, mt))
+        # TSIM: sql insert into $tb values(now, 1)
+        tdLog.info('insert into %s values(now, 1)' % (tb))
+        tdSql.execute('insert into %s values(now, 1)' % (tb))
+        # TSIM: sql select * from $mt where tgcol2 = 2
+        tdLog.info('select * from %s where tgcol2 = 2' % (mt))
+        tdSql.query('select * from %s where tgcol2 = 2' % (mt))
+        # TSIM: if $rows != 1 then
+        tdLog.info('tdSql.checkRow(1)')
+        tdSql.checkRows(1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data01 != 1 then
+        tdLog.info('tdSql.checkData(0, 1, 1)')
+        tdSql.checkData(0, 1, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data02 != 1 then
+        tdLog.info('tdSql.checkData(0, 2, 1)')
+        tdSql.checkData(0, 2, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data03 != 2 then
+        tdLog.info('tdSql.checkData(0, 3, 2)')
+        tdSql.checkData(0, 3, 2)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM:
+        # TSIM: sql alter table $mt drop tag tgcol2
+        tdLog.info('alter table %s drop tag tgcol2' % (mt))
+        tdSql.execute('alter table %s drop tag tgcol2' % (mt))
+        # TSIM: sql alter table $mt add tag tgcol4 int
+        tdLog.info('alter table %s add tag tgcol4 int unsigned' % (mt))
+        tdSql.execute('alter table %s add tag tgcol4 int unsigned' % (mt))
+        tdLog.info('select * from %s where tgcol4=6' % (mt))
+        tdSql.query('select * from %s where tgcol4=6' % (mt))
+        # TSIM: sql reset query cache
+        tdLog.info('reset query cache')
+        tdSql.execute('reset query cache')
+        # TSIM: sql alter table $tb set tag tgcol4 =4
+        tdLog.info('alter table %s set tag tgcol4 =4' % (tb))
+        tdSql.execute('alter table %s set tag tgcol4 =4' % (tb))
+        # TSIM: sql reset query cache
+        tdLog.info('reset query cache')
+        tdSql.execute('reset query cache')
+        # TSIM:
+        # TSIM: sql select * from $mt where tgcol4 = 4
+        tdLog.info('select * from %s where tgcol4 = 4' % (mt))
+        tdSql.query('select * from %s where tgcol4 = 4' % (mt))
+        # TSIM: print $data01 $data02 $data03
+        tdLog.info('$data01 $data02 $data03')
+        # TSIM: if $rows != 1 then
+        tdLog.info('tdSql.checkRow(1)')
+        tdSql.checkRows(1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data01 != 1 then
+        tdLog.info('tdSql.checkData(0, 1, 1)')
+        tdSql.checkData(0, 1, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data02 != 1 then
+        tdLog.info('tdSql.checkData(0, 2, 1)')
+        tdSql.checkData(0, 2, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data03 != 4 then
+        tdLog.info('tdSql.checkData(0, 3, 4)')
+        tdSql.checkData(0, 3, 4)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM:
+        # TSIM: sql select * from $mt where tgcol2 = 1 -x step2
+        tdLog.info('select * from %s where tgcol2 = 1 -x step2' % (mt))
+        tdSql.error('select * from %s where tgcol2 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step2:
         # TSIM:
@@ -196,6 +288,96 @@ class TDTestCase:
         # TSIM: sql alter table $mt add tag tgcol4 tinyint
         tdLog.info('alter table %s add tag tgcol4 tinyint' % (mt))
         tdSql.execute('alter table %s add tag tgcol4 tinyint' % (mt))
+        # TSIM: sql reset query cache
+        tdLog.info('reset query cache')
+        tdSql.execute('reset query cache')
+        # TSIM: sql alter table $tb set tag tgcol4=4
+        tdLog.info('alter table %s set tag tgcol4=4' % (tb))
+        tdSql.execute('alter table %s set tag tgcol4=4' % (tb))
+        # TSIM: sql reset query cache
+        tdLog.info('reset query cache')
+        tdSql.execute('reset query cache')
+        # TSIM:
+        # TSIM: sql select * from $mt where tgcol4 = 4
+        tdLog.info('select * from %s where tgcol4 = 4' % (mt))
+        tdSql.query('select * from %s where tgcol4 = 4' % (mt))
+        # TSIM: print $data01 $data02 $data03
+        tdLog.info('$data01 $data02 $data03')
+        # TSIM: if $rows != 1 then
+        tdLog.info('tdSql.checkRow(1)')
+        tdSql.checkRows(1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data01 != 1 then
+        tdLog.info('tdSql.checkData(0, 1, 1)')
+        tdSql.checkData(0, 1, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data02 != 1 then
+        tdLog.info('tdSql.checkData(0, 2, 1)')
+        tdSql.checkData(0, 2, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data03 != 4 then
+        tdLog.info('tdSql.checkData(0, 3, 4)')
+        tdSql.checkData(0, 3, 4)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM:
+        # TSIM: sql select * from $mt where tgcol2 = 1 -x step3
+        tdLog.info('select * from %s where tgcol2 = 1 -x step3' % (mt))
+        tdSql.error('select * from %s where tgcol2 = 1' % (mt))
+        tdLog.info('=============== step3-1')
+        # TSIM: $i = 3
+        i = 31
+        # TSIM: $mt = $mtPrefix . $i
+        mt = "%s%d" % (mtPrefix, i)
+        # TSIM: $tb = $tbPrefix . $i
+        tb = "%s%d" % (tbPrefix, i)
+        # TSIM: sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1
+        # smallint, tgcol2 tinyint)
+        tdLog.info(
+            'create table %s (ts timestamp, tbcol int) TAGS(tgcol1 smallint unsigned, tgcol2 tinyint unsigned)' %
+            (mt))
+        tdSql.execute(
+            'create table %s (ts timestamp, tbcol int) TAGS(tgcol1 smallint unsigned, tgcol2 tinyint unsigned)' %
+            (mt))
+        # TSIM: sql create table $tb using $mt tags( 1, 2 )
+        tdLog.info('create table %s using %s tags( 1, 2 )' % (tb, mt))
+        tdSql.execute('create table %s using %s tags( 1, 2 )' % (tb, mt))
+        # TSIM: sql insert into $tb values(now, 1)
+        tdLog.info('insert into %s values(now, 1)' % (tb))
+        tdSql.execute('insert into %s values(now, 1)' % (tb))
+        # TSIM: sql select * from $mt where tgcol2 = 2
+        tdLog.info('select * from %s where tgcol2 = 2' % (mt))
+        tdSql.query('select * from %s where tgcol2 = 2' % (mt))
+        # TSIM: if $rows != 1 then
+        tdLog.info('tdSql.checkRow(1)')
+        tdSql.checkRows(1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data01 != 1 then
+        tdLog.info('tdSql.checkData(0, 1, 1)')
+        tdSql.checkData(0, 1, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data02 != 1 then
+        tdLog.info('tdSql.checkData(0, 2, 1)')
+        tdSql.checkData(0, 2, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data03 != 2 then
+        tdLog.info('tdSql.checkData(0, 3, 2)')
+        tdSql.checkData(0, 3, 2)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM:
+        # TSIM: sql alter table $mt drop tag tgcol2
+        tdLog.info('alter table %s drop tag tgcol2' % (mt))
+        tdSql.execute('alter table %s drop tag tgcol2' % (mt))
+        # TSIM: sql alter table $mt add tag tgcol4 tinyint
+        tdLog.info('alter table %s add tag tgcol4 tinyint unsigned' % (mt))
+        tdSql.execute('alter table %s add tag tgcol4 tinyint unsigned' % (mt))
         # TSIM: sql reset query cache
         tdLog.info('reset query cache')
         tdSql.execute('reset query cache')
@@ -353,6 +535,120 @@ class TDTestCase:
         # TSIM: sql select * from $mt where tgcol2 = 1 -x step4
         tdLog.info('select * from %s where tgcol2 = 1 -x step4' % (mt))
         tdSql.error('select * from %s where tgcol2 = 1' % (mt))
+        tdLog.info('=============== step4-1')
+        # TSIM: $i = 4
+        i = 41
+        # TSIM: $mt = $mtPrefix . $i
+        mt = "%s%d" % (mtPrefix, i)
+        # TSIM: $tb = $tbPrefix . $i
+        tb = "%s%d" % (tbPrefix, i)
+        # TSIM: sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1
+        # bigint, tgcol2 float)
+        tdLog.info(
+            'create table %s (ts timestamp, tbcol int) TAGS(tgcol1 bigint unsigned, tgcol2 float)' %
+            (mt))
+        tdSql.execute(
+            'create table %s (ts timestamp, tbcol int) TAGS(tgcol1 bigint unsigned, tgcol2 float)' %
+            (mt))
+        # TSIM: sql create table $tb using $mt tags( 1, 2 )
+        tdLog.info('create table %s using %s tags( 1, 2 )' % (tb, mt))
+        tdSql.execute('create table %s using %s tags( 1, 2 )' % (tb, mt))
+        # TSIM: sql insert into $tb values(now, 1)
+        tdLog.info('insert into %s values(now, 1)' % (tb))
+        tdSql.execute('insert into %s values(now, 1)' % (tb))
+        # TSIM: sql select * from $mt where tgcol2 = 2
+        tdLog.info('select * from %s where tgcol2 = 2' % (mt))
+        tdSql.query('select * from %s where tgcol2 = 2' % (mt))
+        # TSIM: if $rows != 1 then
+        tdLog.info('tdSql.checkRow(1)')
+        tdSql.checkRows(1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data01 != 1 then
+        tdLog.info('tdSql.checkData(0, 1, 1)')
+        tdSql.checkData(0, 1, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data02 != 1 then
+        tdLog.info('tdSql.checkData(0, 2, 1)')
+        tdSql.checkData(0, 2, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data03 != 2.00000 then
+        tdLog.info('tdSql.checkData(0, 3, 2.00000)')
+        tdSql.checkData(0, 3, 2.00000)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM:
+        # TSIM: sql describe $tb
+        tdLog.info('describe %s' % (tb))
+        tdSql.query('describe %s' % (tb))
+        # TSIM: if $data21 != BIGINT then
+        tdLog.info('tdSql.checkDataType(2, 1, "BIGINT UNSIGNED")')
+        tdSql.checkDataType(2, 1, "BIGINT")
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data31 != FLOAT then
+        tdLog.info('tdSql.checkDataType(3, 1, "FLOAT")')
+        tdSql.checkDataType(3, 1, "FLOAT")
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data23 != 1 then
+        tdLog.info('tdSql.checkData(2, 3, TAG)')
+        tdSql.checkData(2, 3, "TAG")
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data33 != 2.000000 then
+        tdLog.info('tdSql.checkData(3, 3, 2.000000)')
+        tdSql.checkData(3, 3, "TAG")
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM:
+        # TSIM: sql alter table $mt drop tag tgcol2
+        tdLog.info('alter table %s drop tag tgcol2' % (mt))
+        tdSql.execute('alter table %s drop tag tgcol2' % (mt))
+        # TSIM: sql alter table $mt add tag tgcol4 float
+        tdLog.info('alter table %s add tag tgcol4 float' % (mt))
+        tdSql.execute('alter table %s add tag tgcol4 float' % (mt))
+        # TSIM: sql reset query cache
+        tdLog.info('reset query cache')
+        tdSql.execute('reset query cache')
+        # TSIM: sql alter table $tb set tag tgcol4=4
+        tdLog.info('alter table %s set tag tgcol4=4' % (tb))
+        tdSql.execute('alter table %s set tag tgcol4=4' % (tb))
+        # TSIM: sql reset query cache
+        tdLog.info('reset query cache')
+        tdSql.execute('reset query cache')
+        # TSIM:
+        # TSIM: sql select * from $mt where tgcol4 = 4
+        tdLog.info('select * from %s where tgcol4 = 4' % (mt))
+        tdSql.query('select * from %s where tgcol4 = 4' % (mt))
+        # TSIM: print $data01 $data02 $data03
+        tdLog.info('$data01 $data02 $data03')
+        # TSIM: if $rows != 1 then
+        tdLog.info('tdSql.checkRow(1)')
+        tdSql.checkRows(1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data01 != 1 then
+        tdLog.info('tdSql.checkData(0, 1, 1)')
+        tdSql.checkData(0, 1, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data02 != 1 then
+        tdLog.info('tdSql.checkData(0, 2, 1)')
+        tdSql.checkData(0, 2, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data03 != 4.00000 then
+        tdLog.info('tdSql.checkData(0, 3, 4.00000)')
+        tdSql.checkData(0, 3, 4.00000)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM:
+        # TSIM: sql select * from $mt where tgcol2 = 1 -x step4
+        tdLog.info('select * from %s where tgcol2 = 1 -x step4' % (mt))
+        tdSql.error('select * from %s where tgcol2 = 1' % (mt))
         # TSIM: return -1
         # TSIM: step4:
         # TSIM:
@@ -408,12 +704,18 @@ class TDTestCase:
         # TSIM: sql alter table $mt add tag tgcol4 smallint
         tdLog.info('alter table %s add tag tgcol4 smallint' % (mt))
         tdSql.execute('alter table %s add tag tgcol4 smallint' % (mt))
+        # TSIM: sql alter table $mt add tag tgcol5 smallint unsigned
+        tdLog.info('alter table %s add tag tgcol5 smallint unsigned' % (mt))
+        tdSql.execute('alter table %s add tag tgcol5 smallint unsigned' % (mt))
         # TSIM: sql reset query cache
         tdLog.info('reset query cache')
         tdSql.execute('reset query cache')
         # TSIM: sql alter table $tb set tag tgcol4=4
         tdLog.info('alter table %s set tag tgcol4=4' % (tb))
         tdSql.execute('alter table %s set tag tgcol4=4' % (tb))
+        # TSIM: sql alter table $tb set tag tgcol5=5
+        tdLog.info('alter table %s set tag tgcol5=5' % (tb))
+        tdSql.execute('alter table %s set tag tgcol5=5' % (tb))
         # TSIM: sql reset query cache
         tdLog.info('reset query cache')
         tdSql.execute('reset query cache')
@@ -441,6 +743,11 @@ class TDTestCase:
         # TSIM: if $data03 != 4 then
         tdLog.info('tdSql.checkData(0, 3, 4)')
         tdSql.checkData(0, 3, 4)
+        tdSql.query('select * from %s where tgcol5 = 5' % (mt))
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(0, 2, 1.000000000)
+        tdSql.checkData(0, 4, 5)
         # TSIM: return -1
         # TSIM: endi
         # TSIM:

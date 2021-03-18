@@ -5,7 +5,7 @@ node {
     git url: 'https://github.com/taosdata/TDengine.git'
 }
 
-
+def skipstage=0
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -42,13 +42,15 @@ def pre_test(){
     cd ${WKC}
     git checkout develop
     git reset --hard HEAD~10 >/dev/null 
-    git pull
+    git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
+    git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile'
+    find ${WKC}/tests/pytest -name \'*\'.sql -exec rm -rf {} \\;
     cd ${WK}
     git reset --hard HEAD~10
-    git checkout develop
-    git pull
+    git checkout develop 
+    git pull >/dev/null 
     cd ${WK}
     export TZ=Asia/Harbin
     date
@@ -62,6 +64,7 @@ def pre_test(){
     '''
     return 1
 }
+
 pipeline {
   agent none
   
@@ -71,49 +74,85 @@ pipeline {
   }
   
   stages {
-      
+      stage('pre_build'){
+          agent{label 'master'}
+          when {
+              changeRequest()
+          }
+          steps {
+          sh'''
+          cp -r ${WORKSPACE} ${WORKSPACE}.tes
+          cd ${WORKSPACE}.tes
+          git checkout develop
+          git pull
+          git fetch origin +refs/pull/${CHANGE_ID}/merge
+          git checkout -qf FETCH_HEAD
+          '''
+          script{
+            env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
+          }
+          println env.skipstage
+          sh'''
+          rm -rf ${WORKSPACE}.tes
+          '''
+          }
+      }
     
       stage('Parallel test stage') {
         //only build pr
         when {
               changeRequest()
+               expression {
+                    env.skipstage != 0
+              }
           }
       parallel {
-        stage('python_1') {
+        stage('python_1_s1') {
           agent{label 'p1'}
           steps {
             
             pre_test()
-            timeout(time: 90, unit: 'MINUTES'){
+            timeout(time: 45, unit: 'MINUTES'){
               sh '''
+              date
               cd ${WKC}/tests
-              find pytest -name '*'sql|xargs rm -rf
               ./test-all.sh p1
               date'''
             }
             
           }
         }
-        stage('python_2') {
+        stage('python_2_s5') {
           agent{label 'p2'}
           steps {
             
             pre_test()
-            sh '''
-            cd ${WKC}/tests
-            find pytest -name '*'sql|xargs rm -rf
-            ./test-all.sh p2
-            date'''
-            sh '''
-            cd ${WKC}/tests
-            ./test-all.sh b4fq
-            '''
+            timeout(time: 45, unit: 'MINUTES'){
+                sh '''
+                date
+                cd ${WKC}/tests
+                ./test-all.sh p2
+                date'''
+            }
           }
         }
-        stage('test_b1') {
+        stage('python_3_s6') {
+          agent{label 'p3'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh p3
+              date'''
+            }
+          }
+        }
+        stage('test_b1_s2') {
           agent{label 'b1'}
           steps {     
-            timeout(time: 90, unit: 'MINUTES'){       
+            timeout(time: 45, unit: 'MINUTES'){       
               pre_test()
               sh '''
               cd ${WKC}/tests
@@ -123,8 +162,9 @@ pipeline {
           }
         }
 
-        stage('test_crash_gen') {
+        stage('test_crash_gen_s3') {
           agent{label "b2"}
+          
           steps {
             pre_test()
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
@@ -133,24 +173,26 @@ pipeline {
                 ./crash_gen.sh -a -p -t 4 -s 2000
                 '''
             }
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+
+            sh '''
+            cd ${WKC}/tests/pytest
+            rm -rf /var/lib/taos/*
+            rm -rf /var/log/taos/*
+            ./handle_crash_gen_val_log.sh
+            '''
+            timeout(time: 45, unit: 'MINUTES'){
                 sh '''
-                cd ${WKC}/tests/pytest
-                ./handle_crash_gen_val_log.sh
+                date
+                cd ${WKC}/tests
+                ./test-all.sh b2fq
+                date
                 '''
-            }
-            timeout(time: 90, unit: 'MINUTES'){
-              sh '''
-              date
-              cd ${WKC}/tests
-              ./test-all.sh b2fq
-              date
-              '''
-            }
+            }         
+            
           }
         }
 
-        stage('test_valgrind') {
+        stage('test_valgrind_s4') {
           agent{label "b3"}
 
           steps {
@@ -162,7 +204,7 @@ pipeline {
                 ./handle_val_log.sh
                 '''
             }     
-            timeout(time: 90, unit: 'MINUTES'){      
+            timeout(time: 45, unit: 'MINUTES'){      
               sh '''
               date
               cd ${WKC}/tests
@@ -171,17 +213,72 @@ pipeline {
             }
           }
         }
-   
-        
+        stage('test_b4_s7') {
+          agent{label 'b4'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b4fq
+              cd ${WKC}/tests
+              ./test-all.sh p4
+              cd ${WKC}/tests
+              ./test-all.sh full jdbc
+              cd ${WKC}/tests
+              ./test-all.sh full unit
+              date'''
+            }
+          }
+        }
+        stage('test_b5_s8') {
+          agent{label 'b5'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b5fq
+              date'''
+            }
+          }
+        }
+        stage('test_b6_s9') {
+          agent{label 'b6'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b6fq
+              date'''
+            }
+          }
+        }
+        stage('test_b7_s10') {
+          agent{label 'b7'}
+          steps {     
+            timeout(time: 45, unit: 'MINUTES'){       
+              pre_test()
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh b7fq
+              date'''
+            }
+          }
+        }        
     }
   }
   }
-  post {      
-      
+  post {  
         success {
             emailext (
-                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: '''<!DOCTYPE html>
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS",
+                body: """<!DOCTYPE html>
                 <html>
                 <head>
                 <meta charset="UTF-8">
@@ -197,29 +294,29 @@ pipeline {
                             <td>
                                 <ul>
                                 <div style="font-size:18px">
-                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
+                                    <li>构建名称>>分支：${env.BRANCH_NAME}</li>
                                     <li>构建结果：<span style="color:green"> Successful </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
-                                    <li>触发用户：${CAUSE}</li>
-                                    <li>提交信息：${CHANGE_TITLE}</li>
+                                    <li>触发用户：${env.CHANGE_AUTHOR}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    <li>变更集：${JELLY_SCRIPT}</li>
+                                    
                                 </div>
                                 </ul>
                             </td>
                         </tr>
                     </table></font>
                 </body>
-                </html>''',
+                </html>""",
                 to: "${env.CHANGE_AUTHOR_EMAIL}",
                 from: "support@taosdata.com"
             )
         }
         failure {
             emailext (
-                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]'",
-                body: '''<!DOCTYPE html>
+                subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' FAIL",
+                body: """<!DOCTYPE html>
                 <html>
                 <head>
                 <meta charset="UTF-8">
@@ -235,21 +332,21 @@ pipeline {
                             <td>
                                 <ul>
                                 <div style="font-size:18px">
-                                    <li>构建名称>>分支：${PROJECT_NAME}</li>
-                                    <li>构建结果：<span style="color:green"> Successful </span></li>
+                                    <li>构建名称>>分支：${env.BRANCH_NAME}</li>
+                                    <li>构建结果：<span style="color:red"> Failure </span></li>
                                     <li>构建编号：${BUILD_NUMBER}</li>
-                                    <li>触发用户：${CAUSE}</li>
-                                    <li>提交信息：${CHANGE_TITLE}</li>
+                                    <li>触发用户：${env.CHANGE_AUTHOR}</li>
+                                    <li>提交信息：${env.CHANGE_TITLE}</li>
                                     <li>构建地址：<a href=${BUILD_URL}>${BUILD_URL}</a></li>
                                     <li>构建日志：<a href=${BUILD_URL}console>${BUILD_URL}console</a></li>
-                                    <li>变更集：${JELLY_SCRIPT}</li>
+                                    
                                 </div>
                                 </ul>
                             </td>
                         </tr>
                     </table></font>
                 </body>
-                </html>''',
+                </html>""",
                 to: "${env.CHANGE_AUTHOR_EMAIL}",
                 from: "support@taosdata.com"
             )

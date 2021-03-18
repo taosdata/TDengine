@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb -v 1
 system sh/exec.sh -n dnode1 -s start
 sleep 100
@@ -66,7 +66,7 @@ run general/parser/limit_stb.sim
 
 print ================== restart server to commit data into disk
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 2000
+sleep 500
 system sh/exec.sh -n dnode1 -s start
 print ================== server restart completed
 sql connect

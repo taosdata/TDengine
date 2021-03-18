@@ -21,7 +21,7 @@
 #include "tconfig.h"
 #include "tfile.h"
 #include "twal.h"
-// #include "tfs.h"
+#include "tfs.h"
 #include "tsync.h"
 #include "dnodeStep.h"
 #include "dnodePeer.h"
@@ -189,32 +189,40 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
-  if (dnodeCreateDir(tsDataDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
-   return -1;
+  if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
+    dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
+    return -1;
+  } 
+  
+  if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
+    dError("failed to init TFS since %s", tstrerror(terrno));
+    return -1;
   }
+  strncpy(tsDataDir, TFS_PRIMARY_PATH(), TSDB_FILENAME_LEN);
   sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
   sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
   sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
-  sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
+  // sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
 
   //TODO(dengyihao): no need to init here 
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
   } 
-  //TODO(dengyihao): no need to init here
-  if (dnodeCreateDir(tsVnodeDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsVnodeDir, strerror(errno));
-   return -1;
-  }
+
   if (dnodeCreateDir(tsDnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsDnodeDir, strerror(errno));
    return -1;
-  } 
-  if (dnodeCreateDir(tsVnodeBakDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsVnodeBakDir, strerror(errno));
-   return -1;
+  }
+
+  if (tfsMkdir("vnode") < 0) {
+    dError("failed to create vnode dir since %s", tstrerror(terrno));
+    return -1;
+  }
+
+  if (tfsMkdir("vnode_bak") < 0) {
+    dError("failed to create vnode_bak dir since %s", tstrerror(terrno));
+    return -1;
   }
 
   dnodeCheckDataDirOpenned(tsDnodeDir);
@@ -223,7 +231,7 @@ static int32_t dnodeInitStorage() {
   return 0;
 }
 
-static void dnodeCleanupStorage() {}
+static void dnodeCleanupStorage() { tfsDestroy(); }
 
 bool  dnodeIsFirstDeploy() {
   return strcmp(tsFirst, tsLocalEp) == 0;

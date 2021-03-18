@@ -45,6 +45,7 @@ static struct argp_option options[] = {
   {"file",       'f', "FILE",       0,                   "Script to run without enter the shell."},
   {"directory",  'D', "DIRECTORY",  0,                   "Use multi-thread to import all SQL files in the directory separately."},
   {"thread",     'T', "THREADNUM",  0,                   "Number of threads when using multi-thread to import data."},
+  {"check",      'k', "CHECK",      0,                   "Check tables."},
   {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
   {"timezone",   't', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
   {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync."},
@@ -130,6 +131,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         return -1;
       }
       break;
+    case 'k':
+      arguments->check = atoi(arg);
+      break;
     case 'd':
       arguments->database = arg;
       break;
@@ -172,7 +176,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   }
 }
 
-void shellReadCommand(TAOS *con, char *command) {
+int32_t shellReadCommand(TAOS *con, char *command) {
   unsigned hist_counter = history.hend;
   char utf8_array[10] = "\0";
   Command cmd;
@@ -185,6 +189,10 @@ void shellReadCommand(TAOS *con, char *command) {
   char c;
   while (1) {
     c = (char)getchar(); // getchar() return an 'int' value
+
+    if (c == EOF) {
+      return c;
+    }
 
     if (c < 0) {  // For UTF-8
       int count = countPrefixOnes(c);
@@ -225,7 +233,7 @@ void shellReadCommand(TAOS *con, char *command) {
             sprintf(command, "%s%s", cmd.buffer, cmd.command);
             tfree(cmd.buffer);
             tfree(cmd.command);
-            return;
+            return 0;
           } else {
             updateBuffer(&cmd);
           }
@@ -316,6 +324,8 @@ void shellReadCommand(TAOS *con, char *command) {
       insertChar(&cmd, &c, 1);
     }
   }
+
+  return 0;
 }
 
 void *shellLoopQuery(void *arg) {
@@ -333,12 +343,17 @@ void *shellLoopQuery(void *arg) {
     uError("failed to malloc command");
     return NULL;
   }
+
+  int32_t err = 0;
   
   do {
     // Read command from shell.
     memset(command, 0, MAX_COMMAND_SIZE);
     set_terminal_mode();
-    shellReadCommand(con, command);
+    err = shellReadCommand(con, command);
+    if (err) {
+      break;
+    }
     reset_terminal_mode();
   } while (shellRunCommand(con, command) == 0);
   

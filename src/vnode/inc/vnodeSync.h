@@ -25,12 +25,14 @@ uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t ei
 int32_t  vnodeGetWalInfo(int32_t vgId, char *fileName, int64_t *fileId);
 void     vnodeNotifyRole(int32_t vgId, int8_t role);
 void     vnodeCtrlFlow(int32_t vgId, int32_t level);
-int32_t  vnodeNotifyFileSynced(int32_t vgId, uint64_t fversion);
+void     vnodeStartSyncFile(int32_t vgId);
+void     vnodeStopSyncFile(int32_t vgId, uint64_t fversion);
 void     vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code);
 int32_t  vnodeWriteToCache(int32_t vgId, void *wparam, int32_t qtype, void *rparam);
 int32_t  vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver);
+int32_t  vnodeResetVersion(int32_t vgId, uint64_t fver);
 
-void     vnodeConfirmForward(void *pVnode, uint64_t version, int32_t code);
+void     vnodeConfirmForward(void *pVnode, uint64_t version, int32_t code, bool force);
 
 #ifdef __cplusplus
 }

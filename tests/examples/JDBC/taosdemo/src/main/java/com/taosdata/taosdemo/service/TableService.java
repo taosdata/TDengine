@@ -2,7 +2,6 @@ package com.taosdata.taosdemo.service;
 
 import com.taosdata.taosdemo.dao.TableMapper;
 import com.taosdata.taosdemo.domain.TableMeta;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.List;

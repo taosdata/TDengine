@@ -18,6 +18,7 @@
 #include "tconfig.h"
 #include "tglobal.h"
 #include "tulog.h"
+#include "taoserror.h"
 
 #ifndef TAOS_OS_FUNC_SYSINFO
 
@@ -316,37 +317,17 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   return true;
 }
 
-bool taosGetDisk() {
+int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   struct statvfs info;
-  const double   unit = 1024 * 1024 * 1024;
-
-  if (tscEmbedded) {
-    if (statvfs(tsDataDir, &info)) {
-      uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
-      return false;
-    } else {
-      tsTotalDataDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
-      tsAvailDataDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
-    }
-  }
-
-  if (statvfs(tsLogDir, &info)) {
-    uError("failed to get disk size, logDir:%s errno:%s", tsLogDir, strerror(errno));
-    return false;
+  if (statvfs(tsDataDir, &info)) {
+    uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
   } else {
-    tsTotalLogDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
-    tsAvailLogDirGB = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
+    diskSize->tsize = info.f_blocks * info.f_frsize;
+    diskSize->avail = info.f_bavail * info.f_frsize;
+    return 0;
   }
-
-  if (statvfs("/tmp", &info)) {
-    uError("failed to get disk size, tmpDir:/tmp errno:%s", strerror(errno));
-    return false;
-  } else {
-    tsTotalTmpDirGB = (float)((double)info.f_blocks * (double)info.f_frsize / unit);
-    tsAvailTmpDirectorySpace = (float)((double)info.f_bavail * (double)info.f_frsize / unit);
-  }
-
-  return true;
 }
 
 static bool taosGetCardInfo(int64_t *bytes) {
@@ -510,7 +491,7 @@ void taosGetSystemInfo() {
   float tmp1, tmp2;
   taosGetSysMemory(&tmp1);
   taosGetProcMemory(&tmp2);
-  taosGetDisk();
+  // taosGetDisk();
   taosGetBandSpeed(&tmp1);
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
@@ -537,7 +518,6 @@ void taosPrintOsInfo() {
   uInfo(" os release:             %s", buf.release);
   uInfo(" os version:             %s", buf.version);
   uInfo(" os machine:             %s", buf.machine);
-  uInfo("==================================");
 }
 
 void taosKillSystem() {

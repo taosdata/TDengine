@@ -4,6 +4,7 @@ import com.taosdata.taosdemo.components.DataSourceFactory;
 import com.taosdata.taosdemo.components.JdbcTaosdemoConfig;
 import com.taosdata.taosdemo.domain.SuperTableMeta;
 import com.taosdata.taosdemo.service.DatabaseService;
+import com.taosdata.taosdemo.service.SqlExecuteTask;
 import com.taosdata.taosdemo.service.SubTableService;
 import com.taosdata.taosdemo.service.SuperTableService;
 import com.taosdata.taosdemo.service.data.SuperTableMetaGenerator;
@@ -31,9 +32,21 @@ public class TaosDemoApplication {
         }
         // 初始化
         final DataSource dataSource = DataSourceFactory.getInstance(config.host, config.port, config.user, config.password);
+        if (config.executeSql != null && !config.executeSql.isEmpty() && !config.executeSql.replaceAll("\\s", "").isEmpty()) {
+            Thread task = new Thread(new SqlExecuteTask(dataSource, config.executeSql));
+            task.start();
+            try {
+                task.join();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+            return;
+        }
+
         final DatabaseService databaseService = new DatabaseService(dataSource);
         final SuperTableService superTableService = new SuperTableService(dataSource);
         final SubTableService subTableService = new SubTableService(dataSource);
+
         // 创建数据库
         long start = System.currentTimeMillis();
         Map<String, String> databaseParam = new HashMap<>();
@@ -90,6 +103,10 @@ public class TaosDemoApplication {
         int affectedRows = subTableService.insertMultiThreads(superTableMeta, threadSize, tableSize, startTime, gap, config);
         end = System.currentTimeMillis();
         logger.info("insert " + affectedRows + " rows, time cost: " + (end - start) + " ms");
+        /**********************************************************************************/
+        // 查询
+
+
         /**********************************************************************************/
         // 删除表
         if (config.dropTable) {

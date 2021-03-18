@@ -13,11 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdb.h"
-#include "tsdbMain.h"
+#include "tsdbint.h"
 
 #define TSDB_DATA_SKIPLIST_LEVEL 5
 #define TSDB_MAX_INSERT_BATCH 512
+
+typedef struct {
+  int32_t  totalLen;
+  int32_t  len;
+  SDataRow row;
+} SSubmitBlkIter;
+
+typedef struct {
+  int32_t totalLen;
+  int32_t len;
+  void *  pMsg;
+} SSubmitMsgIter;
 
 static SMemTable * tsdbNewMemTable(STsdbRepo *pRepo);
 static void        tsdbFreeMemTable(SMemTable *pMemTable);
@@ -41,8 +52,8 @@ static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, 
 static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SDataRow row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now);
 
-int32_t tsdbInsertData(TSDB_REPO_T *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
-  STsdbRepo *    pRepo = (STsdbRepo *)repo;
+int32_t tsdbInsertData(STsdbRepo *repo, SSubmitMsg *pMsg, SShellSubmitRspMsg *pRsp) {
+  STsdbRepo *    pRepo = repo;
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk *   pBlock = NULL;
   int32_t        affectedrows = 0;
@@ -113,17 +124,66 @@ int tsdbUnRefMemTable(STsdbRepo *pRepo, SMemTable *pMemTable) {
   return 0;
 }
 
-int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem) {
+int tsdbTakeMemSnapshot(STsdbRepo *pRepo, SMemTable **pMem, SMemTable **pIMem, SArray *pATable) {
+  SMemTable *tmem;
+
+  // Get snap object
   if (tsdbLockRepo(pRepo) < 0) return -1;
 
-  *pMem = pRepo->mem;
+  tmem = pRepo->mem;
   *pIMem = pRepo->imem;
-  tsdbRefMemTable(pRepo, *pMem);
+  tsdbRefMemTable(pRepo, tmem);
   tsdbRefMemTable(pRepo, *pIMem);
 
   if (tsdbUnlockRepo(pRepo) < 0) return -1;
 
-  if (*pMem != NULL) taosRLockLatch(&((*pMem)->latch));
+  // Copy mem objects and ref needed STableData
+  if (tmem) {
+    taosRLockLatch(&(tmem->latch));
+
+    *pMem = (SMemTable *)calloc(1, sizeof(**pMem));
+    if (*pMem == NULL) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      taosRUnLockLatch(&(tmem->latch));
+      tsdbUnRefMemTable(pRepo, tmem);
+      tsdbUnRefMemTable(pRepo, *pIMem);
+      *pMem = NULL;
+      *pIMem = NULL;
+      return -1;
+    }
+
+    (*pMem)->tData = (STableData **)calloc(tmem->maxTables, sizeof(STableData *));
+    if ((*pMem)->tData == NULL) {
+      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+      taosRUnLockLatch(&(tmem->latch));
+      free(*pMem);
+      tsdbUnRefMemTable(pRepo, tmem);
+      tsdbUnRefMemTable(pRepo, *pIMem);
+      *pMem = NULL;
+      *pIMem = NULL;
+      return -1;
+    }
+
+    (*pMem)->keyFirst = tmem->keyFirst;
+    (*pMem)->keyLast = tmem->keyLast;
+    (*pMem)->numOfRows = tmem->numOfRows;
+    (*pMem)->maxTables = tmem->maxTables;
+
+    for (size_t i = 0; i < taosArrayGetSize(pATable); i++) {
+      STable *    pTable = *(STable **)taosArrayGet(pATable, i);
+      int32_t     tid = TABLE_TID(pTable);
+      STableData *pTableData = (tid < tmem->maxTables) ? tmem->tData[tid] : NULL;
+
+      if ((pTableData == NULL) || (TABLE_UID(pTable) != pTableData->uid)) continue;
+
+      (*pMem)->tData[tid] = tmem->tData[tid];
+      T_REF_INC(tmem->tData[tid]);
+    }
+
+    taosRUnLockLatch(&(tmem->latch));
+  }
+
+  tsdbUnRefMemTable(pRepo, tmem);
 
   tsdbDebug("vgId:%d take memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), *pMem, *pIMem);
   return 0;
@@ -133,8 +193,14 @@ void tsdbUnTakeMemSnapShot(STsdbRepo *pRepo, SMemTable *pMem, SMemTable *pIMem) 
   tsdbDebug("vgId:%d untake memory snapshot, pMem %p pIMem %p", REPO_ID(pRepo), pMem, pIMem);
 
   if (pMem != NULL) {
-    taosRUnLockLatch(&(pMem->latch));
-    tsdbUnRefMemTable(pRepo, pMem);
+    for (size_t i = 0; i < pMem->maxTables; i++) {
+      STableData *pTableData = pMem->tData[i];
+      if (pTableData) {
+        tsdbFreeTableData(pTableData);
+      }
+    }
+    free(pMem->tData);
+    free(pMem);
   }
 
   if (pIMem != NULL) {
@@ -205,11 +271,13 @@ void *tsdbAllocBytes(STsdbRepo *pRepo, int bytes) {
 }
 
 int tsdbAsyncCommit(STsdbRepo *pRepo) {
-  if (pRepo->mem == NULL) return 0;
-
   tsem_wait(&(pRepo->readyToCommit));
 
   ASSERT(pRepo->imem == NULL);
+  if (pRepo->mem == NULL) {
+    tsem_post(&(pRepo->readyToCommit));
+    return 0;
+  }
 
   if (pRepo->code != TSDB_CODE_SUCCESS) {
     tsdbWarn("vgId:%d try to commit when TSDB not in good state: %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -225,8 +293,8 @@ int tsdbAsyncCommit(STsdbRepo *pRepo) {
   return 0;
 }
 
-int tsdbSyncCommit(TSDB_REPO_T *repo) {
-  STsdbRepo *pRepo = (STsdbRepo *)repo;
+int tsdbSyncCommit(STsdbRepo *repo) {
+  STsdbRepo *pRepo = repo;
 
   tsdbAsyncCommit(pRepo);
   tsem_wait(&(pRepo->readyToCommit));
@@ -254,14 +322,17 @@ int tsdbSyncCommit(TSDB_REPO_T *repo) {
  */
 int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
                           TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo) {
-  ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0 && pMergeInfo != NULL);
+  ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0);
   if (pIter == NULL) return 0;
-  STSchema *pSchema = NULL;
-  TSKEY     rowKey = 0;
-  TSKEY     fKey = 0;
-  bool      isRowDel = false;
-  int       filterIter = 0;
-  SDataRow  row = NULL;
+  STSchema * pSchema = NULL;
+  TSKEY      rowKey = 0;
+  TSKEY      fKey = 0;
+  bool       isRowDel = false;
+  int        filterIter = 0;
+  SDataRow   row = NULL;
+  SMergeInfo mInfo;
+
+  if (pMergeInfo == NULL) pMergeInfo = &mInfo;
 
   memset(pMergeInfo, 0, sizeof(*pMergeInfo));
   pMergeInfo->keyFirst = INT64_MAX;
@@ -420,7 +491,7 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
   STableData *pTableData = (STableData *)calloc(1, sizeof(*pTableData));
   if (pTableData == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
+    return NULL;
   }
 
   pTableData->uid = TABLE_UID(pTable);
@@ -433,29 +504,26 @@ static STableData *tsdbNewTableData(STsdbCfg *pCfg, STable *pTable) {
                       tkeyComparFn, pCfg->update ? SL_UPDATE_DUP_KEY : SL_DISCARD_DUP_KEY, tsdbGetTsTupleKey);
   if (pTableData->pData == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    goto _err;
+    free(pTableData);
+    return NULL;
   }
 
-  return pTableData;
+  T_REF_INC(pTableData);
 
-_err:
-  tsdbFreeTableData(pTableData);
-  return NULL;
+  return pTableData;
 }
 
 static void tsdbFreeTableData(STableData *pTableData) {
   if (pTableData) {
-    tSkipListDestroy(pTableData->pData);
-    free(pTableData);
+    int32_t ref = T_REF_DEC(pTableData);
+    if (ref == 0) {
+      tSkipListDestroy(pTableData->pData);
+      free(pTableData);
+    }
   }
 }
 
 static char *tsdbGetTsTupleKey(const void *data) { return dataRowTuple((SDataRow)data); }
-
-void tsdbGetFidKeyRange(int daysPerFile, int8_t precision, int fileId, TSKEY *minKey, TSKEY *maxKey) {
-  *minKey = fileId * daysPerFile * tsMsPerDay[precision];
-  *maxKey = *minKey + daysPerFile * tsMsPerDay[precision] - 1;
-}
 
 static int tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables) {
   ASSERT(pMemTable->maxTables < maxTables);
