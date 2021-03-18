@@ -29,7 +29,7 @@ function dohavecore(){
   proc=`echo $corefile|cut -d "_" -f3`
   if [ -n "$corefile" ];then
     echo 'taosd or taos has generated core'
-    tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz 
+    tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz /usr/local/taos/
     if [[ $1 == 1 ]];then
       echo '\n'|gdb /usr/local/taos/bin/$proc $core_file -ex "bt 10" -ex quit
       exit 8
