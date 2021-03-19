@@ -32,11 +32,10 @@ def abort_previous(){
   milestone(buildNumber)
 }
 def pre_test(){
-    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                sudo rmtaos
-                '''
-    }
+
+    sh '''
+    sudo rmtaos || echo "taosd has not installed "
+    '''
     sh '''
     
     cd ${WKC}
