@@ -6,6 +6,8 @@
 
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
+English | [简体中文](./README-CN.md) 
+
 # What is TDengine？
 
 TDengine is an open-sourced big data platform under [GNU AGPL v3.0](http://www.gnu.org/licenses/agpl-3.0.html), designed and optimized for the Internet of Things (IoT), Connected Cars, Industrial IoT, and IT Infrastructure and Application Monitoring. Besides the 10x faster time-series database, it provides caching, stream computing, message queuing and other functionalities to reduce the complexity and cost of development and operation.
