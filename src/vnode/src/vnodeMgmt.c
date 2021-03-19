@@ -128,7 +128,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
   int64_t compStorage = 0;
   int64_t pointsWritten = 0;
 
-  if (!vnodeInReadyStatus(pVnode)) return;
+  if (vnodeInClosingStatus(pVnode)) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
 
   if (pVnode->tsdb) {

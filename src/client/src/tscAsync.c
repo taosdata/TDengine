@@ -281,7 +281,7 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
 }
 
 static void tscAsyncResultCallback(SSchedMsg *pMsg) {
-  SSqlObj* pSql = pMsg->ahandle;
+  SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pMsg->ahandle);
   if (pSql == NULL || pSql->signature != pSql) {
     tscDebug("%p SqlObj is freed, not add into queue async res", pSql);
     return;
@@ -292,21 +292,24 @@ static void tscAsyncResultCallback(SSchedMsg *pMsg) {
 
   SSqlRes *pRes = &pSql->res;
   if (pSql->fp == NULL || pSql->fetchFp == NULL){
+    taosReleaseRef(tscObjRef, pSql->self);
     return;
   }
 
   pSql->fp = pSql->fetchFp;
   (*pSql->fp)(pSql->param, pSql, pRes->code);
+  taosReleaseRef(tscObjRef, pSql->self);
 }
 
 void tscAsyncResultOnError(SSqlObj* pSql) { 
   SSchedMsg schedMsg = {0};
   schedMsg.fp = tscAsyncResultCallback;
-  schedMsg.ahandle = pSql;
+  schedMsg.ahandle = (void *)pSql->self;
   schedMsg.thandle = (void *)1;
   schedMsg.msg = 0;
   taosScheduleTask(tscQhandle, &schedMsg);
 }
+
 
 
 int tscSendMsgToServer(SSqlObj *pSql);

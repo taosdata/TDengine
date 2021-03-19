@@ -122,8 +122,7 @@ public class SavedPreparedStatement {
             initPreparedParam = initDefaultParam(tableName, middleParamSize, valueListSize);
 
         } else {
-            // not match
-            throw new SQLException(TSDBConstants.WrapErrMsg("the sql is not complete!"));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_SQL);
         }
 
     }
@@ -189,7 +188,7 @@ public class SavedPreparedStatement {
         String errorMsg = String.format("the parameterIndex %s out of the range [1, %s]", parameterIndex, paramSize);
 
         if (parameterIndex < 1 || parameterIndex > paramSize) {
-            throw new SQLException(TSDBConstants.WrapErrMsg(errorMsg));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE,errorMsg);
         }
 
         this.isAddBatch = false; //set isAddBatch to false
@@ -212,7 +211,7 @@ public class SavedPreparedStatement {
             return;
         }
 
-        throw new SQLException(TSDBConstants.WrapErrMsg(errorMsg));
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE,errorMsg);
     }
 
     public void addBatch() {

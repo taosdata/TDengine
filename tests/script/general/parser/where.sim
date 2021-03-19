@@ -350,5 +350,13 @@ if $rows != 0 then
   return -1
 endi
 
+print ==========================>td-3318
+sql create table tu(ts timestamp,  k int, b binary(12))
+sql insert into tu values(now, 1, 'abc')
+sql select stddev(k) from tu where b <>'abc' interval(1s)
+if $rows != 0 then
+ return -1
+endi
+
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

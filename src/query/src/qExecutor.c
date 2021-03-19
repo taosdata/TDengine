@@ -98,6 +98,9 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #define GET_NUM_OF_TABLEGROUP(q)    taosArrayGetSize((q)->tableqinfoGroupInfo.pGroupList)
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
+
+uint64_t queryHandleId = 0;
+
 int32_t getMaximumIdleDurationSec() {
   return tsShellActivityTimer * 2;
 }
@@ -476,22 +479,41 @@ static SResultRow *doPrepareResultRowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SRes
   return getResultRow(pResultRowInfo, pResultRowInfo->curIndex);
 }
 
+static void getInitialStartTimeWindow(SQuery* pQuery, TSKEY ts, STimeWindow* w) {
+  if (QUERY_IS_ASC_QUERY(pQuery)) {
+    getAlignQueryTimeWindow(pQuery, ts, ts, pQuery->window.ekey, w);
+  } else {
+    // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
+    getAlignQueryTimeWindow(pQuery, ts, pQuery->window.ekey, ts, w);
+
+    int64_t key = w->skey;
+    while(key < ts) { // moving towards end
+      if (pQuery->interval.intervalUnit == 'n' || pQuery->interval.intervalUnit == 'y') {
+        key = taosTimeAdd(key, pQuery->interval.sliding, pQuery->interval.slidingUnit, pQuery->precision);
+      } else {
+        key += pQuery->interval.sliding;
+      }
+
+      if (key >= ts) {
+        break;
+      }
+
+      w->skey = key;
+    }
+  }
+}
+
 // get the correct time window according to the handled timestamp
 static STimeWindow getActiveTimeWindow(SResultRowInfo * pResultRowInfo, int64_t ts, SQuery *pQuery) {
   STimeWindow w = {0};
 
  if (pResultRowInfo->curIndex == -1) {  // the first window, from the previous stored value
-   if (pResultRowInfo->prevSKey == TSKEY_INITIAL_VAL) {
-     if (QUERY_IS_ASC_QUERY(pQuery)) {
-       getAlignQueryTimeWindow(pQuery, ts, ts, pQuery->window.ekey, &w);
-     } else { // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
-       getAlignQueryTimeWindow(pQuery, ts, pQuery->window.ekey, ts, &w);
-     }
-
-     pResultRowInfo->prevSKey = w.skey;
-   } else {
-    w.skey = pResultRowInfo->prevSKey;
-   }
+    if (pResultRowInfo->prevSKey == TSKEY_INITIAL_VAL) {
+      getInitialStartTimeWindow(pQuery, ts, &w);
+      pResultRowInfo->prevSKey = w.skey;
+    } else {
+      w.skey = pResultRowInfo->prevSKey;
+    }
 
     if (pQuery->interval.intervalUnit == 'n' || pQuery->interval.intervalUnit == 'y') {
       w.ekey = taosTimeAdd(w.skey, pQuery->interval.interval, pQuery->interval.intervalUnit, pQuery->precision) - 1;
@@ -1818,7 +1840,7 @@ static void doFreeQueryHandle(SQueryRuntimeEnv* pRuntimeEnv) {
   pRuntimeEnv->pQueryHandle = NULL;
 
   SMemRef* pMemRef = &pQuery->memRef;
-  assert(pMemRef->ref == 0 && pMemRef->imem == NULL && pMemRef->mem == NULL);
+  assert(pMemRef->ref == 0 && pMemRef->snapshot.imem == NULL && pMemRef->snapshot.mem == NULL);
 }
 
 static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
@@ -2347,13 +2369,13 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key, bool asc
 }
 
 void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols,
-                        SSDataBlock* pBlock, STSBuf* pTsBuf, bool ascQuery) {
+                        SSDataBlock* pBlock, bool ascQuery) {
   int32_t numOfRows = pBlock->info.rows;
 
   int8_t *p = calloc(numOfRows, sizeof(int8_t));
   bool    all = true;
 
-  if (pTsBuf != NULL) {
+  if (pRuntimeEnv->pTsBuf != NULL) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
 
     TSKEY* k = (TSKEY*) pColInfoData->pData;
@@ -2374,6 +2396,9 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
         break;
       }
     }
+
+    // save the cursor status
+    pRuntimeEnv->pQuery->current->cur = tsBufGetCursor(pRuntimeEnv->pTsBuf);
   } else {
     for (int32_t i = 0; i < numOfRows; ++i) {
       bool qualified = false;
@@ -2634,8 +2659,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
 
     doSetFilterColumnInfo(pQuery, pBlock);
     if (pQuery->numOfFilterCols > 0 || pRuntimeEnv->pTsBuf != NULL) {
-      filterRowsInDataBlock(pRuntimeEnv, pQuery->pFilterInfo, pQuery->numOfFilterCols, pBlock, pRuntimeEnv->pTsBuf,
-                            ascQuery);
+      filterRowsInDataBlock(pRuntimeEnv, pQuery->pFilterInfo, pQuery->numOfFilterCols, pBlock, ascQuery);
     }
   }
 
@@ -2726,7 +2750,10 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
   }
 
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
+    int32_t maxLen = bytes - VARSTR_HEADER_SIZE;
+    int32_t len = (varDataLen(val) > maxLen)? maxLen:varDataLen(val);
+    tVariantCreateFromBinary(tag, varDataVal(val), len, type);
+    //tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
   } else {
     tVariantCreateFromBinary(tag, val, bytes, type);
   }
@@ -4149,8 +4176,10 @@ static SSDataBlock* doTableScan(void* param) {
       assert(ret);
     }
 
-    pResultRowInfo->curIndex = 0;
-    pResultRowInfo->prevSKey = pResultRowInfo->pResult[0]->win.skey;
+    if (pResultRowInfo->size > 0) {
+      pResultRowInfo->curIndex = 0;
+      pResultRowInfo->prevSKey = pResultRowInfo->pResult[0]->win.skey;
+    }
 
     qDebug("QInfo:%p start to repeat scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            pRuntimeEnv->qinfo, cond.twindow.skey, cond.twindow.ekey);
@@ -4564,7 +4593,7 @@ static SSDataBlock* doOffset(void* param) {
 
     if (pRuntimeEnv->currentOffset == 0) {
       return pBlock;
-    } else if (pRuntimeEnv->currentOffset > pBlock->info.rows) {
+    } else if (pRuntimeEnv->currentOffset >= pBlock->info.rows) {
       pRuntimeEnv->currentOffset -= pBlock->info.rows;
     } else {
       int32_t remain = (int32_t)(pBlock->info.rows - pRuntimeEnv->currentOffset);
@@ -6085,9 +6114,13 @@ void setResultBufSize(SQuery* pQuery, SRspResultInfo* pResultInfo) {
   pResultInfo->total = 0;
 }
 
+FORCE_INLINE bool checkQIdEqual(void *qHandle, uint64_t qId) {
+  return ((SQInfo *)qHandle)->qId == qId;
+}
+
 SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr, SExprInfo* pExprs,
                         SExprInfo* pSecExprs, STableGroupInfo* pTableGroupInfo, SColumnInfo* pTagCols, bool stableQuery,
-                        char* sql) {
+                        char* sql, uint64_t *qId) {
   int16_t numOfCols = pQueryMsg->numOfCols;
   int16_t numOfOutput = pQueryMsg->numOfOutput;
 
@@ -6228,7 +6261,9 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   // todo refactor
   pQInfo->query.queryBlockDist = (numOfOutput == 1 && pExprs[0].base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX);
 
-  qDebug("qmsg:%p QInfo:%p created", pQueryMsg, pQInfo);
+  pQInfo->qId = atomic_add_fetch_64(&queryHandleId, 1);
+  *qId = pQInfo->qId;
+  qDebug("qmsg:%p QInfo:%" PRIu64 "-%p created", pQueryMsg, pQInfo->qId, pQInfo);
   return pQInfo;
 
 _cleanup_qinfo:
@@ -6518,8 +6553,15 @@ static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type
     return;
   }
 
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    memcpy(output, val, varDataTLen(val));
+  if (IS_VAR_DATA_TYPE(type)) {
+    // Binary data overflows for sort of unknown reasons. Let trim the overflow data
+    if (varDataTLen(val) > bytes) {
+      int32_t len = bytes - VARSTR_HEADER_SIZE;   // remain available space
+      memcpy(varDataVal(output), varDataVal(val), len);
+      varDataSetLen(output, len);
+    } else {
+      varDataCopy(output, val);
+    }
   } else {
     memcpy(output, val, bytes);
   }

@@ -94,8 +94,9 @@ class TDTestCase:
         tdSql.query("select * from stb1 limit 2 offset 3")
         tdSql.checkRows(1)
 
-        # query ... alias for table ---- bug
-        tdSql.error("select t.ts from tb1 t")        
+        # query ... alias for table
+        tdSql.query("select t.ts from tb1 t")
+        tdSql.checkRows(2)
 
         # query ... tbname
         tdSql.query("select tbname from stb1")
