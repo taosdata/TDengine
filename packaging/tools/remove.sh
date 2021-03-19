@@ -213,10 +213,10 @@ fi
 
 if echo $osinfo | grep -qwi "ubuntu" ; then
 #  echo "this is ubuntu system"
-   ${csudo} rm -f /var/lib/dpkg/info/tdengine* || :
+   ${csudo} dpkg --force-all  -P tdengine || :
 elif echo $osinfo | grep -qwi "debian" ; then
 #  echo "this is debian system"
-   ${csudo} rm -f /var/lib/dpkg/info/tdengine* || :
+   ${csudo} dpkg --force-all  -P tdengine || :
 elif  echo $osinfo | grep -qwi "centos" ; then
 #  echo "this is centos system"
   ${csudo} rpm -e --noscripts tdengine || :

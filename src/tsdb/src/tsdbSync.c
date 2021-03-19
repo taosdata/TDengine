@@ -677,13 +677,13 @@ static int32_t tsdbRecvDFileSetInfo(SSyncH *pSynch) {
 
 static int tsdbReload(STsdbRepo *pRepo, bool isMfChanged) {
   // TODO: may need to stop and restart stream
-  if (isMfChanged) {
-    tsdbCloseMeta(pRepo);
-    tsdbFreeMeta(pRepo->tsdbMeta);
-    pRepo->tsdbMeta = tsdbNewMeta(REPO_CFG(pRepo));
-    tsdbOpenMeta(pRepo);
-    tsdbLoadMetaCache(pRepo, true);
-  }
+  // if (isMfChanged) {
+  tsdbCloseMeta(pRepo);
+  tsdbFreeMeta(pRepo->tsdbMeta);
+  pRepo->tsdbMeta = tsdbNewMeta(REPO_CFG(pRepo));
+  tsdbOpenMeta(pRepo);
+  tsdbLoadMetaCache(pRepo, true);
+  // }
 
   tsdbUnRefMemTable(pRepo, pRepo->mem);
   tsdbUnRefMemTable(pRepo, pRepo->imem);
