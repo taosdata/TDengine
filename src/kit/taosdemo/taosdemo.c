@@ -4254,7 +4254,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
           retLen = getRowDataFromSample(
                     buffer + len, 
                     superTblInfo->maxSqlLen - len, 
-                    startTime + superTblInfo->timeStampStep * startFrom,
+                    startTime + superTblInfo->timeStampStep * (startFrom + k),
                     superTblInfo, 
                     pSamplePos);
        } else if (0 == strncasecmp(superTblInfo->dataSource,
@@ -4262,7 +4262,9 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
           int rand_num = rand_tinyint() % 100;
           if (0 != superTblInfo->disorderRatio 
                     && rand_num < superTblInfo->disorderRatio) {
-            int64_t d = startTime - taosRandom() % superTblInfo->disorderRange;
+            int64_t d = startTime
+                + superTblInfo->timeStampStep * (startFrom + k)
+                - taosRandom() % superTblInfo->disorderRange;
             retLen = generateRowData(
                       buffer + len, 
                       superTblInfo->maxSqlLen - len,
@@ -4272,7 +4274,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
             retLen = generateRowData(
                       buffer + len, 
                       superTblInfo->maxSqlLen - len, 
-                      startTime + superTblInfo->timeStampStep * startFrom,
+                      startTime + superTblInfo->timeStampStep * (startFrom + k),
                       superTblInfo);
           }
        }
@@ -4519,8 +4521,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       generateDataTail(
         tableName, tableSeq, pThreadInfo, superTblInfo,
         batchPerTbl, pstr, insertRows, 0,
-        startTime + sleepTimeTotal +
-            pThreadInfo->totalInsertRows * superTblInfo->timeStampStep,
+        startTime + sleepTimeTotal,
         &(pThreadInfo->samplePos), &dataLen);
       pstr += dataLen;
       recOfBatch += batchPerTbl;
@@ -4562,7 +4563,16 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     verbosePrint("[%d] %s() LN%d, buffer=%s\n",
            pThreadInfo->threadID, __func__, __LINE__, buffer);
 
+    startTs = taosGetTimestampUs();
     int affectedRows = execInsert(pThreadInfo, buffer, recOfBatch);
+
+    endTs = taosGetTimestampUs();
+    int64_t delay = endTs - startTs;
+    if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
+    if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
+    pThreadInfo->cntDelay++;
+    pThreadInfo->totalDelay += delay;
+
     verbosePrint("[%d] %s() LN%d affectedRows=%d\n", pThreadInfo->threadID,
             __func__, __LINE__, affectedRows);
     if ((affectedRows < 0) || (recOfBatch != affectedRows)) {
@@ -4573,13 +4583,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     }
 
     pThreadInfo->totalAffectedRows += affectedRows;
-
-    endTs = taosGetTimestampUs();
-    int64_t delay = endTs - startTs;
-    if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
-    if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
-    pThreadInfo->cntDelay++;
-    pThreadInfo->totalDelay += delay;
 
     int64_t  currentPrintTime = taosGetTimestampMs();
     if (currentPrintTime - lastPrintTime > 30*1000) {
@@ -4672,12 +4675,10 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       else
         goto free_and_statistics_2;
 
-      int affectedRows = execInsert(pThreadInfo, buffer, generated);
-      if (affectedRows < 0)
-        goto free_and_statistics_2;
-
       pThreadInfo->totalInsertRows += generated;
-      pThreadInfo->totalAffectedRows += affectedRows;
+
+      startTs = taosGetTimestampUs();
+      int affectedRows = execInsert(pThreadInfo, buffer, generated);
 
       endTs = taosGetTimestampUs();
       int64_t delay = endTs - startTs;
@@ -4685,6 +4686,11 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
       pThreadInfo->cntDelay++;
       pThreadInfo->totalDelay += delay;
+
+      if (affectedRows < 0)
+        goto free_and_statistics_2;
+
+      pThreadInfo->totalAffectedRows += affectedRows;
 
       int64_t  currentPrintTime = taosGetTimestampMs();
       if (currentPrintTime - lastPrintTime > 30*1000) {
