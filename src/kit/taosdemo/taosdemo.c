@@ -2633,10 +2633,10 @@ static void createChildTables() {
             if ((strncasecmp(g_args.datatype[j], "BINARY", strlen("BINARY")) == 0)
                     || (strncasecmp(g_args.datatype[j],
                         "NCHAR", strlen("NCHAR")) == 0)) {
-                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE,
+                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
                         ", COL%d %s(60)", j, g_args.datatype[j]);
             } else {
-                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE,
+                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
                         ", COL%d %s", j, g_args.datatype[j]);
             }
             len = strlen(tblColsBuf);
@@ -4319,7 +4319,8 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
   return k;
 }
 
-static int generateSQLHead(char *tableName, int32_t tableSeq, threadInfo* pThreadInfo, SSuperTable* superTblInfo, char *buffer)
+static int generateSQLHead(char *tableName, int32_t tableSeq,
+        threadInfo* pThreadInfo, SSuperTable* superTblInfo, char *buffer)
 {
   int len;
   if (superTblInfo) {
