@@ -1073,7 +1073,6 @@ static void doExecuteFinalMerge(SSqlCmd *pCmd, SLocalMerger *pLocalMerge, bool n
     }
 
     pCtx->currentStage = MERGE_STAGE;
-
     if (needInit) {
       aAggs[pCtx->functionId].init(pCtx, pCtx->resultInfo);
     }
