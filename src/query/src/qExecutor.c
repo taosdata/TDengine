@@ -753,6 +753,11 @@ static int32_t getNumOfRowsInTimeWindow(SQuery *pQuery, SDataBlockInfo *pDataBlo
   return num;
 }
 
+static void doInvokeUdf(char* data, int8_t type, int32_t numOfRows, int64_t* ts, char* dataOutput, char* tsOutput,
+                        int32_t* numOfOutput, char* buf) {
+
+}
+
 static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, STimeWindow* pWin, int32_t offset,
                              int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
@@ -783,9 +788,18 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
 
     if (functionNeedToExecute(pRuntimeEnv, &pCtx[k], functionId)) {
 //      aAggs[functionId].xFunction(&pCtx[k]);
-      if (functionId < 0) {
-        // load the script and exec, pRuntimeEnv->pUdfInfo
+      if (functionId < 0) { // load the script and exec, pRuntimeEnv->pUdfInfo
+        int32_t output = 0;
+        char* buf = GET_ROWCELL_INTERBUF(pCtx[k].resultInfo);
 
+        doInvokeUdf(pCtx[k].pInput, pCtx[k].inputType, pCtx[k].size, pCtx[k].ptsList, pCtx[k].pOutput,
+            pCtx[k].ptsOutputBuf, &output, buf);
+
+        // set the output value exist
+        pCtx[k].resultInfo->numOfRes = output;
+        if (output > 0) {
+          pCtx[k].resultInfo->hasResult = DATA_SET_FLAG;
+        }
       } else {
         aAggs[functionId].xFunction(&pCtx[k]);
       }
@@ -1034,7 +1048,17 @@ static void arithmeticApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionC
 
     if (pCtx[k].functionId < 0) {
       // load the script and exec, pRuntimeEnv->pUdfInfo
+      int32_t output = 0;
+      char* buf = GET_ROWCELL_INTERBUF(pCtx[k].resultInfo);
 
+      doInvokeUdf(pCtx[k].pInput, pCtx[k].inputType, pCtx[k].size, pCtx[k].ptsList, pCtx[k].pOutput,
+                  pCtx[k].ptsOutputBuf, &output, buf);
+
+      // set the output value exist
+      pCtx[k].resultInfo->numOfRes = output;
+      if (output > 0) {
+        pCtx[k].resultInfo->hasResult = DATA_SET_FLAG;
+      }
     } else {
       aAggs[pCtx[k].functionId].xFunction(&pCtx[k]);
     }
