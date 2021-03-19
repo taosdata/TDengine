@@ -1619,8 +1619,13 @@ int32_t tscTagCondCopy(STagCond* dest, const STagCond* src) {
 
       memcpy(dest->joinInfo.joinTables[i], src->joinInfo.joinTables[i], sizeof(SJoinNode));
 
-      dest->joinInfo.joinTables[i]->tsJoin = taosArrayDup(src->joinInfo.joinTables[i]->tsJoin);
-      dest->joinInfo.joinTables[i]->tagJoin = taosArrayDup(src->joinInfo.joinTables[i]->tagJoin);
+      if (src->joinInfo.joinTables[i]->tsJoin) {
+        dest->joinInfo.joinTables[i]->tsJoin = taosArrayDup(src->joinInfo.joinTables[i]->tsJoin);
+      }
+
+      if (src->joinInfo.joinTables[i]->tagJoin) {
+        dest->joinInfo.joinTables[i]->tagJoin = taosArrayDup(src->joinInfo.joinTables[i]->tagJoin);
+      }
     }
   }
 

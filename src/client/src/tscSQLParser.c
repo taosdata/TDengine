@@ -2344,13 +2344,13 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
         // todo REFACTOR
         // set the first column ts for top/bottom query
-        SColumnIndex index1 = {0, PRIMARYKEY_TIMESTAMP_COL_INDEX};
+        SColumnIndex index1 = {index.tableIndex, PRIMARYKEY_TIMESTAMP_COL_INDEX};
         pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TS, &index1, TSDB_DATA_TYPE_TIMESTAMP, TSDB_KEYSIZE, getNewResColId(pQueryInfo),
                                  TSDB_KEYSIZE, false);
         tstrncpy(pExpr->aliasName, aAggs[TSDB_FUNC_TS].name, sizeof(pExpr->aliasName));
 
         const int32_t TS_COLUMN_INDEX = PRIMARYKEY_TIMESTAMP_COL_INDEX;
-        SColumnList   ids = getColumnList(1, 0, TS_COLUMN_INDEX);
+        SColumnList   ids = getColumnList(1, index.tableIndex, TS_COLUMN_INDEX);
         insertResultField(pQueryInfo, TS_COLUMN_INDEX, &ids, TSDB_KEYSIZE, TSDB_DATA_TYPE_TIMESTAMP,
                           aAggs[TSDB_FUNC_TS].name, pExpr);
 
@@ -2363,7 +2363,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       memset(pExpr->aliasName, 0, tListLen(pExpr->aliasName));
       getColumnName(pItem, pExpr->aliasName, sizeof(pExpr->aliasName) - 1);
   
-      SColumnList ids = getColumnList(1, 0, index.columnIndex);
+      SColumnList ids = getColumnList(1, index.tableIndex, index.columnIndex);
       if (finalResult) {
         insertResultField(pQueryInfo, colIndex, &ids, resultSize, resultType, pExpr->aliasName, pExpr);
       } else {
@@ -3715,6 +3715,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   const char* msg1 = "table query cannot use tags filter";
   const char* msg2 = "illegal column name";
   const char* msg3 = "only one query time range allowed";
+  const char* msg4 = "too many join tables";
   const char* msg5 = "not support ordinary column join";
   const char* msg6 = "only one query condition on tbname allowed";
   const char* msg7 = "only in/like allowed in filter table name";
@@ -3761,7 +3762,9 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      assert(index.tableIndex >= 0 && index.tableIndex < TSDB_MAX_JOIN_TABLE_NUM);
+      if (index.tableIndex < 0 || index.tableIndex >= TSDB_MAX_JOIN_TABLE_NUM) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+      }
 
       SJoinNode **rightNode = &pQueryInfo->tagCond.joinInfo.joinTables[index.tableIndex];
       if (*rightNode == NULL) {
@@ -4374,7 +4377,10 @@ void mergeJoinNodesImpl(int8_t* r, int8_t* p, int16_t* tidx, SJoinNode** nodes, 
   }
 }
 
-int32_t mergeJoinNodes(SQueryInfo* pQueryInfo) {
+int32_t mergeJoinNodes(SQueryInfo* pQueryInfo, SSqlObj* pSql) {
+  const char* msg1 = "not all join tables have same timestamp";
+  const char* msg2 = "not all join tables have same tag";
+  
   int8_t r[TSDB_MAX_JOIN_TABLE_NUM] = {0};
   int8_t p[TSDB_MAX_JOIN_TABLE_NUM] = {0};
   
@@ -4393,6 +4399,10 @@ int32_t mergeJoinNodes(SQueryInfo* pQueryInfo) {
     memset(p, 0, sizeof(p));
   }
 
+  if (taosArrayGetSize(pQueryInfo->tagCond.joinInfo.joinTables[0]->tsJoin) != pQueryInfo->numOfTables) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(&pSql->cmd), msg1);
+  }
+  
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     for (int16_t i = 0; i < pQueryInfo->numOfTables; ++i) {
@@ -4408,6 +4418,10 @@ int32_t mergeJoinNodes(SQueryInfo* pQueryInfo) {
       
       memset(r, 0, sizeof(r));
       memset(p, 0, sizeof(p));
+    }
+
+    if (taosArrayGetSize(pQueryInfo->tagCond.joinInfo.joinTables[0]->tagJoin) != pQueryInfo->numOfTables) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(&pSql->cmd), msg2);
     }
 
   }
@@ -4489,13 +4503,13 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql
   }
 
   //doAddJoinTagsColumnsIntoTagList(&pSql->cmd, pQueryInfo, &condExpr);
-  if (pQueryInfo->tagCond.joinInfo.hasJoin) {
+  if (condExpr.tsJoin) {
     ret = validateJoinNodes(pQueryInfo, pSql);
     if (ret) {
       goto PARSE_WHERE_EXIT;
     }
 
-    ret = mergeJoinNodes(pQueryInfo);
+    ret = mergeJoinNodes(pQueryInfo, pSql);
     if (ret) {
       goto PARSE_WHERE_EXIT;
     }    
