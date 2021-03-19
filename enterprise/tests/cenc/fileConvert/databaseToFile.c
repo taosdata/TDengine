@@ -81,11 +81,11 @@ int main(int argc, char *argv[])
         fprintf(stderr,
                 "Usage: %s -o filename -t tb_name[ -b begin_time(YYYY-MM-DD hh:mm:ss.sss) "
                 "-e end_time(YYYY-MM-DD hh:mm:ss.sss) -s tsdb_server -u user "
-                "-p password -P port -d db_name -S stable_name]\r\n", argv[0]);
+                "-p password -P port -d db_name]\r\n", argv[0]);
         exit(1);
     } 
 
-    while ((opt = getopt(argc, argv, "o:t:b:e:s:u:p:P:d:S:")) != -1) {   
+    while ((opt = getopt(argc, argv, "o:t:b:e:s:u:p:P:d:")) != -1) {
         switch (opt) {
             case 'o':
                 file_name = strdup(optarg);
@@ -108,9 +108,6 @@ int main(int argc, char *argv[])
             case 'd':
                 db_name = strdup(optarg);
                 break;
-	    case 'S':
-		stb_name = strdup(optarg);
-		break;
 	    case 'b':
 		begin_time = strdup(optarg);
 		break;
@@ -121,7 +118,7 @@ int main(int argc, char *argv[])
                 fprintf(stderr,
                         "Usage: %s -o filename -t tb_name[ -b begin_time(YYYY-MM-DD hh:mm:ss.sss) "
                         "-e end_time(YYYY-MM-DD hh:mm:ss.sss) -s tsdb_server -u user "
-                        "-p password -P port -d db_name -S stable_name]\r\n", argv[0]);
+                        "-p password -P port -d db_name]\r\n", argv[0]);
                 exit(1);
         }
     }
