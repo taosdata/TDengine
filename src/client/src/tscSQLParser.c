@@ -4138,13 +4138,21 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
     }
     
     int32_t retVal = TSDB_CODE_SUCCESS;
+
+    int32_t bufLen = 0;
+    if (IS_NUMERIC_TYPE(vVariant->nType)) {
+      bufLen = 60;  // The maximum length of string that a number is converted to.
+    } else {
+      bufLen = vVariant->nLen + 1;
+    }
+
     if (schemaType == TSDB_DATA_TYPE_BINARY) {
-      char *tmp = calloc(1, vVariant->nLen + TSDB_NCHAR_SIZE);
+      char *tmp = calloc(1, bufLen * TSDB_NCHAR_SIZE);
       retVal = tVariantDump(vVariant, tmp, schemaType, false);
       free(tmp);
     } else if (schemaType == TSDB_DATA_TYPE_NCHAR) {
       // pRight->value.nLen + 1 is larger than the actual nchar string length
-      char *tmp = calloc(1, (vVariant->nLen + 1) * TSDB_NCHAR_SIZE);
+      char *tmp = calloc(1, bufLen * TSDB_NCHAR_SIZE);
       retVal = tVariantDump(vVariant, tmp, schemaType, false);
       free(tmp);
     } else {
@@ -4155,7 +4163,7 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
     if (retVal != TSDB_CODE_SUCCESS) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
-  }while (0);
+  } while (0);
 
   return TSDB_CODE_SUCCESS;
 }

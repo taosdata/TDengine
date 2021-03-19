@@ -125,7 +125,7 @@ TDengine缺省的时间戳是毫秒精度，但通过修改配置参数enableMic
     ```mysql
     ALTER DATABASE db_name CACHELAST 0;
     ```
-    CACHELAST 参数控制是否在内存中缓存数据子表的 last_row。缺省值为 0，取值范围 [0, 1]。其中 0 表示不启用、1 表示启用。（从 2.0.11 版本开始支持）
+    CACHELAST 参数控制是否在内存中缓存数据子表的 last_row。缺省值为 0，取值范围 [0, 1]。其中 0 表示不启用、1 表示启用。（从 2.0.11 版本开始支持，修改后需要重启服务器生效。）
 
     **Tips**: 以上所有参数修改后都可以用show databases来确认是否修改成功。
 
