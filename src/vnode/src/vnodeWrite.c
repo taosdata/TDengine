@@ -142,7 +142,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   vTrace("vgId:%d, submit msg is processed", pVnode->vgId);
 
   if (pVnode->dbType == TSDB_DB_TYPE_TOPIC && pVnode->role == TAOS_SYNC_ROLE_MASTER) {
-    tpUpdateTs(&pVnode->sequence, pCont);
+    tpUpdateTs(pVnode->vgId, &pVnode->sequence, pCont);
   }
 
   // save insert result into item

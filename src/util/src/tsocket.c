@@ -465,36 +465,36 @@ void tinet_ntoa(char *ipstr, uint32_t ip) {
 #define COPY_SIZE 32768
 // sendfile shall be used
 
-int32_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len) {
+int64_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len) {
   int64_t leftLen;
-  int32_t readLen, writeLen;
+  int64_t readLen, writeLen;
   char    temp[COPY_SIZE];
 
   leftLen = len;
 
   while (leftLen > 0) {
     if (leftLen < COPY_SIZE)
-      readLen = (int32_t)leftLen;
+      readLen = leftLen;
     else
       readLen = COPY_SIZE;  // 4K
 
-    int32_t retLen = taosReadMsg(sfd, temp, (int32_t)readLen);
+    int64_t retLen = taosReadMsg(sfd, temp, (int32_t)readLen);
     if (readLen != retLen) {
-      uError("read error, readLen:%d retLen:%d len:%" PRId64 " leftLen:%" PRId64 ", reason:%s", readLen, retLen, len,
-             leftLen, strerror(errno));
+      uError("read error, readLen:%" PRId64 " retLen:%" PRId64 " len:%" PRId64 " leftLen:%" PRId64 ", reason:%s",
+             readLen, retLen, len, leftLen, strerror(errno));
       return -1;
     }
 
-    writeLen = taosWriteMsg(dfd, temp, readLen);
+    writeLen = taosWriteMsg(dfd, temp, (int32_t)readLen);
 
     if (readLen != writeLen) {
-      uError("copy error, readLen:%d writeLen:%d len:%" PRId64 " leftLen:%" PRId64 ", reason:%s", readLen, writeLen,
-             len, leftLen, strerror(errno));
+      uError("copy error, readLen:%" PRId64 " writeLen:%" PRId64 " len:%" PRId64 " leftLen:%" PRId64 ", reason:%s",
+             readLen, writeLen, len, leftLen, strerror(errno));
       return -1;
     }
 
     leftLen -= readLen;
   }
 
-  return (int32_t)len;
+  return len;
 }
