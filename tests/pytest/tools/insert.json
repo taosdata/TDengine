@@ -5,11 +5,13 @@
     "port": 6030,
     "user": "root",
     "password": "taosdata",
-    "thread_count": 4,
+    "thread_count": 2,
+    "num_of_records_per_req": 10,
     "thread_count_create_tbl": 4,
     "databases": [{
         "dbinfo": {
             "name": "db01",
+            "drop": "yes",
             "replica": 1,
             "days": 10,
             "cache": 16,
@@ -20,31 +22,23 @@
         },
         "super_tables": [{
             "name": "stb01",
-            "childtable_count": 100,
+            "childtable_count": 3,
             "childtable_prefix": "stb01_",
             "auto_create_table": "no",
             "data_source": "rand",
             "insert_mode": "taosc",
             "insert_rate": 0,
-            "insert_rows": 1000,
+            "insert_rows": 20,
             "timestamp_step": 1000,
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "/home/data/sample.csv",
             "tags_file": "",
             "columns": [{
-                "type": "SMALLINT"
-            }, {
-                "type": "BOOL"
-            }, {
-                "type": "BINARY",
-                "len": 6
+                "type": "INT"
             }],
             "tags": [{
                 "type": "INT"
-            },{
-                "type": "BINARY",
-                "len": 4
             }]
         }]
     }]
