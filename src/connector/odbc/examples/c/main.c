@@ -707,7 +707,7 @@ static int do_taos_stmt(TAOS *taos, insert_arg_t *arg) {
   const char *sql = "insert into test.v values (?,?,?,?,?)";
   int r = 0;
   do {
-    r = taos_stmt_prepare(stmt, sql, strlen(sql));
+    r = taos_stmt_prepare(stmt, sql, (unsigned long)strlen(sql));
     if (r) {
       OD("taos_stmt_prepare [%s] failed: [%d]%s", sql, r, tstrerror(r));
       break;
