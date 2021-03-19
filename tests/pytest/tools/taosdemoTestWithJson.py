@@ -24,9 +24,6 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         
-        self.numberOfTables = 10000
-        self.numberOfRecords = 100
-
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
@@ -55,7 +52,7 @@ class TDTestCase:
 
         tdSql.execute("use db01")
         tdSql.query("select count(*) from stb01")
-        tdSql.checkData(0, 0, 100000)
+        tdSql.checkData(0, 0, 60)
 
     def stop(self):
         tdSql.close()
