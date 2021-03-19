@@ -4405,7 +4405,8 @@ static int generateDataBuffer(char *pTblName,
 
   char *pstr = buffer;
 
-  int headLen = generateSQLHead(pTblName, tableSeq, pThreadInfo, superTblInfo, buffer);
+  int headLen = generateSQLHead(pTblName, tableSeq, pThreadInfo, superTblInfo,
+          buffer);
   pstr += headLen;
 
   int k;
@@ -4668,8 +4669,9 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
              __func__, __LINE__,
              pThreadInfo->threadID, tableSeq, tableName);
 
-      int generated = generateDataBuffer(tableName, tableSeq, pThreadInfo, buffer, insertRows,
-            i, start_time, &(pThreadInfo->samplePos));
+      int generated = generateDataBuffer(
+              tableName, tableSeq, pThreadInfo, buffer, insertRows,
+            i, start_time + i, &(pThreadInfo->samplePos));
       if (generated > 0)
         i += generated;
       else
