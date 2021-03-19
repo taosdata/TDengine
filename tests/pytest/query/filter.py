@@ -28,18 +28,18 @@ class TDTestCase:
 
         print("==============step1")
         tdSql.execute(
-            "create table if not exists st (ts timestamp, tagtype int, name nchar(16)) tags(dev nchar(50))")
+            "create table if not exists st (ts timestamp, tagtype int, name nchar(16), col4 binary(16)) tags(dev nchar(50), tag2 binary(16))")
         tdSql.execute(
-            'CREATE TABLE if not exists dev_001 using st tags("dev_01")')
+            'CREATE TABLE if not exists dev_001 using st tags("dev_01", "tag_01")')
         tdSql.execute(
-            'CREATE TABLE if not exists dev_002 using st tags("dev_02")')
+            'CREATE TABLE if not exists dev_002 using st tags("dev_02", "tag_02")')
 
         print("==============step2")
 
         tdSql.execute(
-            """INSERT INTO dev_001(ts, tagtype, name) VALUES('2020-05-13 10:00:00.000', 1, 'first'),('2020-05-13 10:00:00.001', 2, 'second'),
-            ('2020-05-13 10:00:00.002', 3, 'third') dev_002 VALUES('2020-05-13 10:00:00.003', 1, 'first'), ('2020-05-13 10:00:00.004', 2, 'second'),
-            ('2020-05-13 10:00:00.005', 3, 'third')""")
+            """INSERT INTO dev_001 VALUES('2020-05-13 10:00:00.000', 1, 'first', 'binary1'),('2020-05-13 10:00:00.001', 2, 'second', 'binary2'),
+            ('2020-05-13 10:00:00.002', 3, 'third' , 'binary3') dev_002 VALUES('2020-05-13 10:00:00.003', 1, 'first', 'binary4'), ('2020-05-13 10:00:00.004', 2, 'second', 'binary5'),
+            ('2020-05-13 10:00:00.005', 3, 'third', 'binary6')""")
 
         # > for timestamp type
         tdSql.query("select * from db.st where ts > '2020-05-13 10:00:00.002'")
@@ -85,6 +85,9 @@ class TDTestCase:
         tdSql.query("select * from db.st where name = 'first'")
         tdSql.checkRows(2)
 
+        tdSql.error("select * from db.st where col1 = 1231231")
+        tdSql.error("select * from db.st where name = 1231231")
+
         # <> for timestamp type
         tdSql.query("select * from db.st where ts <> '2020-05-13 10:00:00.002'")
         # tdSql.checkRows(4)
@@ -104,6 +107,10 @@ class TDTestCase:
         # - for nchar type
         tdSql.query("select * from db.st where name like '_econd'")
         tdSql.checkRows(2)
+
+        # for tag
+        tdSql.error("select * from db.st where dev=1")
+        tdSql.error("select * from db.st where tag2=1")
 
     def stop(self):
         tdSql.close()
