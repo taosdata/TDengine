@@ -85,8 +85,11 @@ class TDTestCase:
         tdSql.query("select * from db.st where name = 'first'")
         tdSql.checkRows(2)
 
-        tdSql.error("select * from db.st where col1 = 1231231")
-        tdSql.error("select * from db.st where name = 1231231")
+        tdSql.query("select * from db.st where col4 = 1231231")
+        tdSql.checkRows(0)
+
+        tdSql.query("select * from db.st where name = 1231231")
+        tdSql.checkRows(0)
 
         # <> for timestamp type
         tdSql.query("select * from db.st where ts <> '2020-05-13 10:00:00.002'")
@@ -109,8 +112,11 @@ class TDTestCase:
         tdSql.checkRows(2)
 
         # for tag
-        tdSql.error("select * from db.st where dev=1")
-        tdSql.error("select * from db.st where tag2=1")
+        tdSql.query("select * from db.st where dev=1")
+        tdSql.checkRows(0)
+
+        tdSql.query("select * from db.st where tag2=1")
+        tdSql.checkRows(0)
 
     def stop(self):
         tdSql.close()
