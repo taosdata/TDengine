@@ -163,6 +163,7 @@ extern float   tsTotalDataDirGB;
 extern float   tsAvailLogDirGB;
 extern float   tsAvailTmpDirectorySpace;
 extern float   tsAvailDataDirGB;
+extern float   tsUsedDataDirGB;
 extern float   tsMinimalLogDirGB;
 extern float   tsReservedTmpDirectorySpace;
 extern float   tsMinimalDataDirGB;
