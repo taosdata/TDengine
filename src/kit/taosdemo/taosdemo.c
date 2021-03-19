@@ -5487,7 +5487,11 @@ static int queryTestProcess() {
         char sqlStr[MAX_TB_NAME_SIZE*2];
         sprintf(sqlStr, "use %s", g_queryInfo.dbName);
         verbosePrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
-        (void)queryDbExec(t_info->taos, sqlStr, NO_INSERT_TYPE);
+        if (0 != queryDbExec(t_info->taos, sqlStr, NO_INSERT_TYPE)) {
+            errorPrint( "use database %s failed!\n\n",
+                g_queryInfo.dbName);
+            return -1;
+        }
       } else {
         t_info->taos = NULL;
       }
@@ -5757,22 +5761,27 @@ static int subscribeTestProcess() {
   pthread_t  *pids = NULL;
   threadInfo *infos = NULL;
   //==== create sub threads for query from super table
-  if (g_queryInfo.superQueryInfo.sqlCount > 0 
-          && g_queryInfo.superQueryInfo.concurrent > 0) {
-    pids  = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(pthread_t));
-    infos = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(threadInfo));
-    if ((NULL == pids) || (NULL == infos)) {
+  if ((g_queryInfo.superQueryInfo.sqlCount <= 0) ||
+          (g_queryInfo.superQueryInfo.concurrent <= 0)) {
+    errorPrint("%s() LN%d, query sqlCount %d or concurrent %d is not correct.\n",
+              __func__, __LINE__, g_queryInfo.superQueryInfo.sqlCount,
+              g_queryInfo.superQueryInfo.concurrent);
+    exit(-1);
+  }
+
+  pids  = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(pthread_t));
+  infos = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(threadInfo));
+  if ((NULL == pids) || (NULL == infos)) {
       printf("malloc failed for create threads\n");
       taos_close(taos);
       exit(-1);
-    }
+  }
 
-    for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
+  for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
       threadInfo *t_info = infos + i;
       t_info->threadID = i;
       t_info->taos = taos;
       pthread_create(pids + i, NULL, superSubscribeProcess, t_info);
-    }
   }
  
   //==== create sub threads for query from sub table  
@@ -6032,7 +6041,6 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
 
     memcpy(cmd + cmd_len, line, read_len);
     verbosePrint("%s() LN%d cmd: %s\n", __func__, __LINE__, cmd);
-    queryDbExec(taos, cmd, NO_INSERT_TYPE);
     if (0 != queryDbExec(taos, cmd, NO_INSERT_TYPE)) {
         printf("queryDbExec %s failed!\n", cmd);
         tmfree(cmd);
