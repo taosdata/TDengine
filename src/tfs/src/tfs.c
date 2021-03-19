@@ -134,6 +134,7 @@ void tfsUpdateInfo(SFSMeta *pFSMeta) {
     tfsUpdateTierInfo(pTier, &tierMeta);
     pFSMeta->tsize += tierMeta.size;
     pFSMeta->avail += tierMeta.free;
+    pFSMeta->used += tierMeta.used;
   }
 
   tfsLock();
@@ -585,6 +586,7 @@ void taosGetDisk() {
   if (tscEmbedded) {
     tfsUpdateInfo(&fsMeta);
     tsTotalDataDirGB = (float)(fsMeta.tsize / unit);
+    tsUsedDataDirGB = (float)(fsMeta.used / unit);
     tsAvailDataDirGB = (float)(fsMeta.avail / unit);
   }
 
