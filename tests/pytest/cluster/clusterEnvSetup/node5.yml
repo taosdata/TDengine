@@ -7,6 +7,7 @@ services:
        args:
          - PACKAGE=${PACKAGE}
          - EXTRACTDIR=${DIR}
+         - DATADIR=${DATADIR}
      image: 'tdengine:${VERSION}'
      container_name: 'tdnode5'     
      cap_add:
@@ -30,22 +31,22 @@ services:
      volumes: 
        # bind data directory
        - type: bind
-         source: /data/node5/data
+         source: ${DATADIR}/node5/data
          target: /var/lib/taos
        # bind log directory
        - type: bind
-         source: /data/node5/log
+         source: ${DATADIR}/node5/log
          target: /var/log/taos
        # bind configuration
        - type: bind
-         source: /data/node5/cfg
+         source: ${DATADIR}/node5/cfg
          target: /etc/taos
        # bind core dump path
        - type: bind
-         source: /data/node5/core
+         source: ${DATADIR}/node5/core
          target: /coredump
        - type: bind
-         source: /data
+         source: ${DATADIR}
          target: /root
      hostname: tdnode5     
      networks:

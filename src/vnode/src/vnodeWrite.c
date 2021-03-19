@@ -89,7 +89,8 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
 
   // forward to peers, even it is WAL/FWD, it shall be called to update version in sync
   int32_t syncCode = 0;
-  syncCode = syncForwardToPeer(pVnode->sync, pHead, pWrite, qtype);
+  bool    force = (pWrite == NULL ? false : pWrite->pHead.msgType != TSDB_MSG_TYPE_SUBMIT);
+  syncCode = syncForwardToPeer(pVnode->sync, pHead, pWrite, qtype, force);
   if (syncCode < 0) return syncCode;
 
   // write into WAL
@@ -141,7 +142,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   vTrace("vgId:%d, submit msg is processed", pVnode->vgId);
 
   if (pVnode->dbType == TSDB_DB_TYPE_TOPIC && pVnode->role == TAOS_SYNC_ROLE_MASTER) {
-    tpUpdateTs(&pVnode->sequence, pCont);
+    tpUpdateTs(pVnode->vgId, &pVnode->sequence, pCont);
   }
 
   // save insert result into item

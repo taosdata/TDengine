@@ -443,6 +443,52 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
   return pList;
 }
 
+SFromInfo *setTableNameList(SFromInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias) {
+  if (pFromInfo == NULL) {
+    pFromInfo = calloc(1, sizeof(SFromInfo));
+    pFromInfo->tableList = taosArrayInit(4, sizeof(STableNamePair));
+  }
+
+  pFromInfo->type = SQL_NODE_FROM_NAMELIST;
+  STableNamePair p = {.name = *pName};
+  if (pAlias != NULL) {
+    p.aliasName = *pAlias;
+  } else {
+    TPARSER_SET_NONE_TOKEN(p.aliasName);
+  }
+
+  taosArrayPush(pFromInfo->tableList, &p);
+
+  return pFromInfo;
+}
+
+SFromInfo *setSubquery(SFromInfo* pFromInfo, SQuerySqlNode* pSqlNode) {
+  if (pFromInfo == NULL) {
+    pFromInfo = calloc(1, sizeof(SFromInfo));
+  }
+
+  pFromInfo->type = SQL_NODE_FROM_SUBQUERY;
+  pFromInfo->pNode->pClause[pFromInfo->pNode->numOfClause - 1] = pSqlNode;
+
+  return pFromInfo;
+}
+
+void* destroyFromInfo(SFromInfo* pFromInfo) {
+  if (pFromInfo == NULL) {
+    return NULL;
+  }
+
+  if (pFromInfo->type == SQL_NODE_FROM_NAMELIST) {
+    taosArrayDestroy(pFromInfo->tableList);
+  } else {
+    destroyAllSelectClause(pFromInfo->pNode);
+  }
+
+  tfree(pFromInfo);
+  return NULL;
+}
+
+
 void tSetDbName(SStrToken *pCpxName, SStrToken *pDb) {
   pCpxName->type = pDb->type;
   pCpxName->z = pDb->z;
@@ -582,9 +628,10 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 /*
  * extract the select info out of sql string
  */
-SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SArray *pFrom, tSqlExpr *pWhere,
-                             SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *pSession,
-                             SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *psLimit) {
+SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SFromInfo *pFrom, tSqlExpr *pWhere,
+                                SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
+                                SSessionWindowVal *pSession, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
+                                SLimitVal *psLimit) {
   assert(pSelectList != NULL);
 
   SQuerySqlNode *pSqlNode = calloc(1, sizeof(SQuerySqlNode));
@@ -668,8 +715,7 @@ void destroyQuerySqlNode(SQuerySqlNode *pQuerySql) {
   taosArrayDestroyEx(pQuerySql->pGroupby, freeVariant);
   pQuerySql->pGroupby = NULL;
 
-  taosArrayDestroyEx(pQuerySql->from, freeVariant);
-  pQuerySql->from = NULL;
+  pQuerySql->from = destroyFromInfo(pQuerySql->from);
 
   taosArrayDestroyEx(pQuerySql->fillType, freeVariant);
   pQuerySql->fillType = NULL;
