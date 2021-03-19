@@ -191,6 +191,7 @@ typedef struct SArguments_S {
   bool     answer_yes;
   bool     debug_print;
   bool     verbose_print;
+  bool     performance_print;
   char *   output_file;
   int      mode;
   char *   datatype[MAX_NUM_DATATYPE + 1];
@@ -440,7 +441,7 @@ typedef unsigned __int32 uint32_t;
 static HANDLE g_stdoutHandle;
 static DWORD g_consoleMode;
 
-void setupForAnsiEscape(void) {
+static void setupForAnsiEscape(void) {
   DWORD mode = 0;
   g_stdoutHandle = GetStdHandle(STD_OUTPUT_HANDLE);
 
@@ -462,7 +463,7 @@ void setupForAnsiEscape(void) {
   }    
 }
 
-void resetAfterAnsiEscape(void) {
+static void resetAfterAnsiEscape(void) {
   // Reset colors
   printf("\x1b[0m");    
 
@@ -472,7 +473,7 @@ void resetAfterAnsiEscape(void) {
   }
 }
 
-int taosRandom()
+static int taosRandom()
 {
     int number;
     rand_s(&number);
@@ -480,14 +481,14 @@ int taosRandom()
     return number;
 }
 #else
-void setupForAnsiEscape(void) {}
+static void setupForAnsiEscape(void) {}
 
-void resetAfterAnsiEscape(void) {
+static void resetAfterAnsiEscape(void) {
   // Reset colors
   printf("\x1b[0m");
 }
 
-int taosRandom()
+static int taosRandom()
 {
     return random();
 }
@@ -526,6 +527,7 @@ SArguments g_args = {
                      false,           // insert_only
                      false,           // debug_print
                      false,           // verbose_print
+                     false,           // performance statistic print 
                      false,           // answer_yes;
                      "./output.txt",  // output_file
                      0,               // mode : sync or async
@@ -572,6 +574,10 @@ static FILE *          g_fpOfInsertResult = NULL;
     do { if (g_args.verbose_print) \
         fprintf(stderr, "VERB: "fmt, __VA_ARGS__); } while(0)
 
+#define performancePrint(fmt, ...) \
+    do { if (g_args.performance_print) \
+        fprintf(stderr, "VERB: "fmt, __VA_ARGS__); } while(0)
+
 #define errorPrint(fmt, ...) \
     do { fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); } while(0)
 
@@ -580,7 +586,7 @@ static FILE *          g_fpOfInsertResult = NULL;
 
 static void ERROR_EXIT(const char *msg) { perror(msg); exit(-1); }
 
-void printHelp() {
+static void printHelp() {
   char indent[10] = "        ";
   printf("%s%s%s%s\n", indent, "-f", indent, 
           "The meta file to the execution procedure. Default is './meta.json'.");
@@ -642,7 +648,7 @@ void printHelp() {
           */
 }
 
-void parse_args(int argc, char *argv[], SArguments *arguments) {
+static void parse_args(int argc, char *argv[], SArguments *arguments) {
   char **sptr;
   wordexp_t full_path;
 
@@ -746,6 +752,8 @@ void parse_args(int argc, char *argv[], SArguments *arguments) {
       arguments->debug_print = true;
     } else if (strcmp(argv[i], "-gg") == 0) {
       arguments->verbose_print = true;
+    } else if (strcmp(argv[i], "-pp") == 0) {
+      arguments->performance_print = true;
     } else if (strcmp(argv[i], "-c") == 0) {
       strcpy(configDir, argv[++i]);
     } else if (strcmp(argv[i], "-O") == 0) {
@@ -833,13 +841,13 @@ static bool getInfoFromJsonFile(char* file);
 //static int generateOneRowDataForStb(SSuperTable* stbInfo);
 //static int getDataIntoMemForStb(SSuperTable* stbInfo);
 static void init_rand_data();
-void tmfclose(FILE *fp) {
+static void tmfclose(FILE *fp) {
   if (NULL != fp) {
     fclose(fp);
   }
 }
 
-void tmfree(char *buf) {
+static void tmfree(char *buf) {
   if (NULL != buf) {
     free(buf);
   }
@@ -938,7 +946,7 @@ static void selectAndGetResult(TAOS *taos, char *command, char* resultFileName) 
   taos_free_result(res);
 }
 
-double getCurrentTime() {
+static double getCurrentTime() {
   struct timeval tv;
   if (gettimeofday(&tv, NULL) != 0) {
     perror("Failed to get current time in ms");
@@ -992,7 +1000,7 @@ static float rand_float(){
 }
 
 static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
-void rand_string(char *str, int size) {
+static void rand_string(char *str, int size) {
   str[0] = 0;
   if (size > 0) {
     //--size;
@@ -2787,20 +2795,6 @@ static int readSampleFromCsvFileToMem(
   return 0;
 }
 
-/*
-void readSampleFromFileToMem(SSuperTable  * supterTblInfo) {
-  int ret;
-  if (0 == strncasecmp(supterTblInfo->sampleFormat, "csv", 3)) {
-    ret = readSampleFromCsvFileToMem(supterTblInfo);
-  } else if (0 == strncasecmp(supterTblInfo->sampleFormat, "json", 4)) {
-    ret = readSampleFromJsonFileToMem(supterTblInfo);
-  }
-
-  if (0 != ret) {
-    exit(-1);
-  }
-}
-*/
 static bool getColumnAndTagTypeFromInsertJsonFile(
         cJSON* stbInfo, SSuperTable* superTbls) {
   bool  ret = false;
@@ -3976,10 +3970,6 @@ PARSE_OVER:
 static void prepareSampleData() {
   for (int i = 0; i < g_Dbs.dbCount; i++) {    
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-      //if (0 == strncasecmp(g_Dbs.db[i].superTbls[j].dataSource, "sample", 6)) {
-      //  readSampleFromFileToMem(&g_Dbs.db[i].superTbls[j]);
-      //}
-
       if (g_Dbs.db[i].superTbls[j].tagsFile[0] != 0) {
         (void)readTagFromCsvFileToMem(&g_Dbs.db[i].superTbls[j]);
       }
@@ -4094,7 +4084,7 @@ static int generateRowData(char*  dataBuf, int maxLen, int64_t timestamp, SSuper
   return dataLen;
 }
 
-int32_t generateData(char *res, char **data_type,
+static int32_t generateData(char *res, char **data_type,
         int num_of_cols, int64_t timestamp, int lenOfBinary) {
   memset(res, 0, MAX_DATA_SIZE);
   char *pstr = res;
@@ -4227,8 +4217,7 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, int tableSeq)
 }
 
 static int generateDataTail(char *tableName, int32_t tableSeq,
-        threadInfo* pThreadInfo,
-        SSuperTable* superTblInfo,
+        threadInfo* pThreadInfo, SSuperTable* superTblInfo,
         int batch, char* buffer, int64_t insertRows,
         int64_t startFrom, uint64_t startTime, int *pSamplePos, int *dataLen) {
   int len = 0;
@@ -4254,7 +4243,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
           retLen = getRowDataFromSample(
                     buffer + len, 
                     superTblInfo->maxSqlLen - len, 
-                    startTime + superTblInfo->timeStampStep * startFrom,
+                    startTime + superTblInfo->timeStampStep * k,
                     superTblInfo, 
                     pSamplePos);
        } else if (0 == strncasecmp(superTblInfo->dataSource,
@@ -4262,7 +4251,9 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
           int rand_num = rand_tinyint() % 100;
           if (0 != superTblInfo->disorderRatio 
                     && rand_num < superTblInfo->disorderRatio) {
-            int64_t d = startTime - taosRandom() % superTblInfo->disorderRange;
+            int64_t d = startTime
+                + superTblInfo->timeStampStep * k
+                - taosRandom() % superTblInfo->disorderRange;
             retLen = generateRowData(
                       buffer + len, 
                       superTblInfo->maxSqlLen - len,
@@ -4272,7 +4263,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
             retLen = generateRowData(
                       buffer + len, 
                       superTblInfo->maxSqlLen - len, 
-                      startTime + superTblInfo->timeStampStep * startFrom,
+                      startTime + superTblInfo->timeStampStep * k,
                       superTblInfo);
           }
        }
@@ -4403,7 +4394,8 @@ static int generateDataBuffer(char *pTblName,
 
   char *pstr = buffer;
 
-  int headLen = generateSQLHead(pTblName, tableSeq, pThreadInfo, superTblInfo, buffer);
+  int headLen = generateSQLHead(pTblName, tableSeq, pThreadInfo, superTblInfo,
+          buffer);
   pstr += headLen;
 
   int k;
@@ -4448,6 +4440,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
   int insert_interval = superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
+  int timeStempStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
   uint64_t st = 0;
   uint64_t et = 0xffffffff;
 
@@ -4519,8 +4512,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       generateDataTail(
         tableName, tableSeq, pThreadInfo, superTblInfo,
         batchPerTbl, pstr, insertRows, 0,
-        startTime + sleepTimeTotal +
-            pThreadInfo->totalInsertRows * superTblInfo->timeStampStep,
+        startTime + sleepTimeTotal + 0 * timeStempStep,
         &(pThreadInfo->samplePos), &dataLen);
       pstr += dataLen;
       recOfBatch += batchPerTbl;
@@ -4562,7 +4554,20 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     verbosePrint("[%d] %s() LN%d, buffer=%s\n",
            pThreadInfo->threadID, __func__, __LINE__, buffer);
 
+    startTs = taosGetTimestampUs();
+
     int affectedRows = execInsert(pThreadInfo, buffer, recOfBatch);
+
+    endTs = taosGetTimestampUs();
+    int64_t delay = endTs - startTs;
+    performancePrint("%s() LN%d, insert execution time is %10.6fms\n",
+            __func__, __LINE__, delay/1000.0);
+
+    if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
+    if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
+    pThreadInfo->cntDelay++;
+    pThreadInfo->totalDelay += delay;
+
     verbosePrint("[%d] %s() LN%d affectedRows=%d\n", pThreadInfo->threadID,
             __func__, __LINE__, affectedRows);
     if ((affectedRows < 0) || (recOfBatch != affectedRows)) {
@@ -4573,13 +4578,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     }
 
     pThreadInfo->totalAffectedRows += affectedRows;
-
-    endTs = taosGetTimestampUs();
-    int64_t delay = endTs - startTs;
-    if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
-    if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
-    pThreadInfo->cntDelay++;
-    pThreadInfo->totalDelay += delay;
 
     int64_t  currentPrintTime = taosGetTimestampMs();
     if (currentPrintTime - lastPrintTime > 30*1000) {
@@ -4595,8 +4593,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
       if (insert_interval > ((et - st)/1000) ) {
         int sleepTime = insert_interval - (et -st)/1000;
-//        verbosePrint("%s() LN%d sleep: %d ms for insert interval\n",
-//                    __func__, __LINE__, sleepTime);
+        performancePrint("%s() LN%d sleep: %d ms for insert interval\n",
+                    __func__, __LINE__, sleepTime);
         taosMsleep(sleepTime); // ms
         sleepTimeTotal += insert_interval;
       }
@@ -4638,6 +4636,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
   int64_t startTs = taosGetTimestampUs();
   int64_t endTs;
 
+  int timeStampStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
   int insert_interval = superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
   uint64_t st = 0;
   uint64_t et = 0xffffffff;
@@ -4665,26 +4664,35 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
              __func__, __LINE__,
              pThreadInfo->threadID, tableSeq, tableName);
 
-      int generated = generateDataBuffer(tableName, tableSeq, pThreadInfo, buffer, insertRows,
-            i, start_time, &(pThreadInfo->samplePos));
+      int generated = generateDataBuffer(
+              tableName, tableSeq, pThreadInfo, buffer, insertRows,
+            i, start_time + pThreadInfo->totalInsertRows * timeStampStep,
+            &(pThreadInfo->samplePos));
       if (generated > 0)
         i += generated;
       else
         goto free_and_statistics_2;
 
-      int affectedRows = execInsert(pThreadInfo, buffer, generated);
-      if (affectedRows < 0)
-        goto free_and_statistics_2;
-
       pThreadInfo->totalInsertRows += generated;
-      pThreadInfo->totalAffectedRows += affectedRows;
+
+      startTs = taosGetTimestampUs();
+
+      int affectedRows = execInsert(pThreadInfo, buffer, generated);
 
       endTs = taosGetTimestampUs();
       int64_t delay = endTs - startTs;
+      performancePrint("%s() LN%d, insert execution time is %10.6fms\n",
+              __func__, __LINE__, delay/1000.0);
+
       if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
       if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
       pThreadInfo->cntDelay++;
       pThreadInfo->totalDelay += delay;
+
+      if (affectedRows < 0)
+        goto free_and_statistics_2;
+
+      pThreadInfo->totalAffectedRows += affectedRows;
 
       int64_t  currentPrintTime = taosGetTimestampMs();
       if (currentPrintTime - lastPrintTime > 30*1000) {
@@ -4703,7 +4711,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
         if (insert_interval > ((et - st)/1000) ) {
             int sleep_time = insert_interval - (et -st)/1000;
-            verbosePrint("%s() LN%d sleep: %d ms for insert interval\n", __func__, __LINE__, sleep_time);
+            performancePrint("%s() LN%d sleep: %d ms for insert interval\n",
+                    __func__, __LINE__, sleep_time);
             taosMsleep(sleep_time); // ms
         }
       }
@@ -4743,7 +4752,7 @@ static void* syncWrite(void *sarg) {
   }
 }
 
-void callBack(void *param, TAOS_RES *res, int code) {
+static void callBack(void *param, TAOS_RES *res, int code) {
   threadInfo* winfo = (threadInfo*)param; 
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
@@ -4802,7 +4811,7 @@ void callBack(void *param, TAOS_RES *res, int code) {
   taos_free_result(res);
 }
 
-void *asyncWrite(void *sarg) {
+static void *asyncWrite(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg;
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
@@ -5084,7 +5093,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   free(infos);
 }
 
-void *readTable(void *sarg) {
+static void *readTable(void *sarg) {
 #if 1  
   threadInfo *rinfo = (threadInfo *)sarg;
   TAOS *taos = rinfo->taos;
@@ -5155,7 +5164,7 @@ void *readTable(void *sarg) {
   return NULL;
 }
 
-void *readMetric(void *sarg) {
+static void *readMetric(void *sarg) {
 #if 1  
   threadInfo *rinfo = (threadInfo *)sarg;
   TAOS *taos = rinfo->taos;
@@ -5318,7 +5327,7 @@ static int insertTestProcess() {
   return 0;
 }
 
-void *superQueryProcess(void *sarg) {
+static void *superQueryProcess(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg; 
 
   //char sqlStr[MAX_TB_NAME_SIZE*2];
@@ -5583,7 +5592,7 @@ static TAOS_SUB* subscribeImpl(TAOS *taos, char *sql, char* topic, char* resultF
   return tsub;
 }
 
-void *subSubscribeProcess(void *sarg) {
+static void *subSubscribeProcess(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg; 
   char subSqlstr[1024];
 
@@ -5650,7 +5659,7 @@ void *subSubscribeProcess(void *sarg) {
   return NULL;
 }
 
-void *superSubscribeProcess(void *sarg) {
+static void *superSubscribeProcess(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg; 
 
   char sqlStr[MAX_TB_NAME_SIZE*2];
@@ -5826,7 +5835,7 @@ static int subscribeTestProcess() {
   return 0;
 }
 
-void initOfInsertMeta() {
+static void initOfInsertMeta() {
   memset(&g_Dbs, 0, sizeof(SDbs));
    
   // set default values
@@ -5838,7 +5847,7 @@ void initOfInsertMeta() {
   g_Dbs.use_metric = true;
 }
 
-void initOfQueryMeta() {
+static void initOfQueryMeta() {
   memset(&g_queryInfo, 0, sizeof(SQueryMetaInfo));
    
   // set default values
@@ -5848,7 +5857,7 @@ void initOfQueryMeta() {
   tstrncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, MAX_DB_NAME_SIZE);
 }
 
-void setParaFromArg(){
+static void setParaFromArg(){
   if (g_args.host) {
     strcpy(g_Dbs.host, g_args.host);
   } else {
@@ -5989,7 +5998,7 @@ static int isCommentLine(char *line) {
   return regexMatch(line, "^\\s*#.*", REG_EXTENDED);
 }
 
-void querySqlFile(TAOS* taos, char* sqlFile)
+static void querySqlFile(TAOS* taos, char* sqlFile)
 {
   FILE *fp = fopen(sqlFile, "r");
   if (fp == NULL) {

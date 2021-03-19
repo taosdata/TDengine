@@ -63,7 +63,7 @@ class TDTestCase:
         tdSql.checkRows(2)
 
         tdSql.query(
-            "select apercentile(col1, 1) from test.meters interval(10s)")
+            "select apercentile(col1, 1) from test.meters interval(100s)")
         tdSql.checkRows(1)
 
         tdSql.error("select loc, count(loc) from test.meters")
