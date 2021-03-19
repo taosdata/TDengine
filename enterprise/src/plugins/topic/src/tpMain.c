@@ -481,11 +481,9 @@ static int32_t tpRetrieveTps(SShowObj *pShow, char *data, int32_t rows, void *pC
   return numOfRows;
 }
 
-void tpCancelGetNextTp(void *pIter) {
-  sdbFreeIter(tsDbSdb, pIter);
-}
+void tpCancelGetNextTp(void *pIter) { sdbFreeIter(tsDbSdb, pIter); }
 
-void tpUpdateTs(int32_t *seq, void *pMsg) {
+void tpUpdateTs(int32_t vgId, int64_t *seq, void *pMsg) {
   SSubmitMsg *pSubmit = pMsg;
   int32_t     numOfBlocks = htonl(pSubmit->numOfBlocks);
   int32_t     msgTotalLen = htonl(pSubmit->length);
@@ -503,16 +501,19 @@ void tpUpdateTs(int32_t *seq, void *pMsg) {
 
     int32_t rowOffset = blockSchemaLen;
     int32_t rows = 0;
-    int64_t ts = taosGetTimestampSec();
+    int64_t sec = (int64_t)taosGetTimestampSec() * 1000000L;
     while (rows < numOfRows && rowOffset < blockTotalLen) {
       SDataRow *pRow = (SDataRow *)((char *)pBlock->data + rowOffset);
 
       rowOffset += dataRowLen(pRow);
       rows++;
 
-      dataRowTKey(pRow) = (ts * 1000000 + (*seq)++);
+      if ((*seq)++ < sec) {
+        *seq = sec;
+      }
 
-      if ((*seq) > 1000000) *seq = 0;
+      dataRowTKey(pRow) = *seq;
+      mTrace("vgId:%d, sec:%" PRId64 ", seq:%" PRId64, vgId, sec, *seq);
     }
   }
 }
