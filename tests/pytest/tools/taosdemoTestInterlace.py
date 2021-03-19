@@ -51,31 +51,13 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
-        os.system("%staosdemo -f tools/insert-tblimit-tboffset.json" % binPath)
+        os.system("%staosdemo -f tools/insert-interlace.json" % binPath)
 
         tdSql.execute("use db")
         tdSql.query("select count(tbname) from db.stb")
         tdSql.checkData(0, 0, 100)
         tdSql.query("select count(*) from db.stb")
         tdSql.checkData(0, 0, 33000)
-
-        os.system("%staosdemo -f tools/insert-tblimit-tboffset0.json" % binPath)
-
-        tdSql.execute("reset query cache")
-        tdSql.execute("use db")
-        tdSql.query("select count(tbname) from db.stb")
-        tdSql.checkData(0, 0, 100)
-        tdSql.query("select count(*) from db.stb")
-        tdSql.checkData(0, 0, 20000)
-
-        os.system("%staosdemo -f tools/insert-tblimit1-tboffset.json" % binPath)
-
-        tdSql.execute("reset query cache")
-        tdSql.execute("use db")
-        tdSql.query("select count(tbname) from db.stb")
-        tdSql.checkData(0, 0, 100)
-        tdSql.query("select count(*) from db.stb")
-        tdSql.checkData(0, 0, 1000)
 
     def stop(self):
         tdSql.close()
