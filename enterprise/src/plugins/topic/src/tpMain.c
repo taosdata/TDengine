@@ -217,6 +217,7 @@ static int32_t tpDropTopicCtable(TAOS *taos, const char *topic, int32_t oldParti
 static void *tpProcessCreateTp(void *param) {
   SMnodeMsg *   pMsg = param;
   void *        taos = NULL;
+  SDbObj *      pDb = NULL;
   SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
 
   int16_t partitions = htons(pCreate->partitions);
@@ -248,7 +249,7 @@ static void *tpProcessCreateTp(void *param) {
     goto ctp_over;
   }
 
-  SDbObj *pDb = mnodeGetDb(pCreate->db);
+  pDb = mnodeGetDb(pCreate->db);
   if (pDb != NULL) pDb->cfg.dbType = TSDB_DB_TYPE_TOPIC;
 
   code = tpCreateTopicStable(taos, mnodeGetDbStr(pCreate->db));
