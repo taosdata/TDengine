@@ -4217,8 +4217,7 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, int tableSeq)
 }
 
 static int generateDataTail(char *tableName, int32_t tableSeq,
-        threadInfo* pThreadInfo,
-        SSuperTable* superTblInfo,
+        threadInfo* pThreadInfo, SSuperTable* superTblInfo,
         int batch, char* buffer, int64_t insertRows,
         int64_t startFrom, uint64_t startTime, int *pSamplePos, int *dataLen) {
   int len = 0;
@@ -4244,7 +4243,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
           retLen = getRowDataFromSample(
                     buffer + len, 
                     superTblInfo->maxSqlLen - len, 
-                    startTime + superTblInfo->timeStampStep * (startFrom + k),
+                    startTime + superTblInfo->timeStampStep * k,
                     superTblInfo, 
                     pSamplePos);
        } else if (0 == strncasecmp(superTblInfo->dataSource,
@@ -4253,7 +4252,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
           if (0 != superTblInfo->disorderRatio 
                     && rand_num < superTblInfo->disorderRatio) {
             int64_t d = startTime
-                + superTblInfo->timeStampStep * (startFrom + k)
+                + superTblInfo->timeStampStep * k
                 - taosRandom() % superTblInfo->disorderRange;
             retLen = generateRowData(
                       buffer + len, 
@@ -4264,7 +4263,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
             retLen = generateRowData(
                       buffer + len, 
                       superTblInfo->maxSqlLen - len, 
-                      startTime + superTblInfo->timeStampStep * (startFrom + k),
+                      startTime + superTblInfo->timeStampStep * k,
                       superTblInfo);
           }
        }
@@ -4441,6 +4440,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
   int insert_interval = superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
+  int timeStempStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
   uint64_t st = 0;
   uint64_t et = 0xffffffff;
 
@@ -4512,7 +4512,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       generateDataTail(
         tableName, tableSeq, pThreadInfo, superTblInfo,
         batchPerTbl, pstr, insertRows, 0,
-        startTime + sleepTimeTotal,
+        startTime + sleepTimeTotal + 0 * timeStempStep,
         &(pThreadInfo->samplePos), &dataLen);
       pstr += dataLen;
       recOfBatch += batchPerTbl;
@@ -4560,7 +4560,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
     endTs = taosGetTimestampUs();
     int64_t delay = endTs - startTs;
-    performancePrint("%s() LN%d, insert execution time is %10.6fms\n", __func__, __LINE__, delay/1000.0);
+    performancePrint("%s() LN%d, insert execution time is %10.6fms\n",
+            __func__, __LINE__, delay/1000.0);
 
     if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
     if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
@@ -4592,8 +4593,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
       if (insert_interval > ((et - st)/1000) ) {
         int sleepTime = insert_interval - (et -st)/1000;
-//        verbosePrint("%s() LN%d sleep: %d ms for insert interval\n",
-//                    __func__, __LINE__, sleepTime);
+        performancePrint("%s() LN%d sleep: %d ms for insert interval\n",
+                    __func__, __LINE__, sleepTime);
         taosMsleep(sleepTime); // ms
         sleepTimeTotal += insert_interval;
       }
@@ -4635,6 +4636,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
   int64_t startTs = taosGetTimestampUs();
   int64_t endTs;
 
+  int timeStampStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
   int insert_interval = superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
   uint64_t st = 0;
   uint64_t et = 0xffffffff;
@@ -4664,7 +4666,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
       int generated = generateDataBuffer(
               tableName, tableSeq, pThreadInfo, buffer, insertRows,
-            i, start_time + i, &(pThreadInfo->samplePos));
+            i, start_time + pThreadInfo->totalInsertRows * timeStampStep,
+            &(pThreadInfo->samplePos));
       if (generated > 0)
         i += generated;
       else
@@ -4678,7 +4681,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
       endTs = taosGetTimestampUs();
       int64_t delay = endTs - startTs;
-      performancePrint("%s() LN%d, insert execution time is %10.6fms\n", __func__, __LINE__, delay/1000.0);
+      performancePrint("%s() LN%d, insert execution time is %10.6fms\n",
+              __func__, __LINE__, delay/1000.0);
 
       if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
       if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
@@ -4707,7 +4711,8 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
         if (insert_interval > ((et - st)/1000) ) {
             int sleep_time = insert_interval - (et -st)/1000;
-            verbosePrint("%s() LN%d sleep: %d ms for insert interval\n", __func__, __LINE__, sleep_time);
+            performancePrint("%s() LN%d sleep: %d ms for insert interval\n",
+                    __func__, __LINE__, sleep_time);
             taosMsleep(sleep_time); // ms
         }
       }
