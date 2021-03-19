@@ -34,7 +34,7 @@ def abort_previous(){
 def pre_test(){
 
     sh '''
-    sudo rmtaos || echo "taosd has not installed "
+    sudo rmtaos || echo "taosd has not installed"
     '''
     sh '''
     
