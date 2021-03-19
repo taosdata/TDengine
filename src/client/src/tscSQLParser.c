@@ -2223,7 +2223,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             bool multiColOutput = taosArrayGetSize(pItem->pNode->pParam) > 1;
             setResultColName(name, pItem, cvtFunc.originFuncId, &pParamElem->pNode->colInfo, multiColOutput);
 
-            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, name, colIndex + i, &index, finalResult) != 0) {
+            if (setExprInfoForFunctions(pCmd, pQueryInfo, pSchema, cvtFunc, name, colIndex++, &index, finalResult) != 0) {
               return TSDB_CODE_TSC_INVALID_SQL;
             }
           }
@@ -3092,18 +3092,26 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
   }
 
   int32_t retVal = TSDB_CODE_SUCCESS;
+
+  int32_t bufLen = 0;
+  if (IS_NUMERIC_TYPE(pRight->value.nType)) {
+    bufLen = 60;
+  } else {
+    bufLen = pRight->value.nLen + 1;
+  }
+
   if (pExpr->tokenId == TK_LE || pExpr->tokenId == TK_LT) {
     retVal = tVariantDump(&pRight->value, (char*)&pColumnFilter->upperBndd, colType, false);
 
   // TK_GT,TK_GE,TK_EQ,TK_NE are based on the pColumn->lowerBndd
   } else if (colType == TSDB_DATA_TYPE_BINARY) {
-    pColumnFilter->pz = (int64_t)calloc(1, pRight->value.nLen + TSDB_NCHAR_SIZE);
+    pColumnFilter->pz = (int64_t)calloc(1, bufLen * TSDB_NCHAR_SIZE);
     pColumnFilter->len = pRight->value.nLen;
     retVal = tVariantDump(&pRight->value, (char*)pColumnFilter->pz, colType, false);
 
   } else if (colType == TSDB_DATA_TYPE_NCHAR) {
     // pRight->value.nLen + 1 is larger than the actual nchar string length
-    pColumnFilter->pz = (int64_t)calloc(1, (pRight->value.nLen + 1) * TSDB_NCHAR_SIZE);
+    pColumnFilter->pz = (int64_t)calloc(1, bufLen * TSDB_NCHAR_SIZE);
     retVal = tVariantDump(&pRight->value, (char*)pColumnFilter->pz, colType, false);
     size_t len = twcslen((wchar_t*)pColumnFilter->pz);
     pColumnFilter->len = len * TSDB_NCHAR_SIZE;

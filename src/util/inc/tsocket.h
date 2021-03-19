@@ -28,7 +28,7 @@ int32_t taosReadn(SOCKET sock, char *buffer, int32_t len);
 int32_t taosWriteMsg(SOCKET fd, void *ptr, int32_t nbytes);
 int32_t taosReadMsg(SOCKET fd, void *ptr, int32_t nbytes);
 int32_t taosNonblockwrite(SOCKET fd, char *ptr, int32_t nbytes);
-int32_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len);
+int64_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len);
 int32_t taosSetNonblocking(SOCKET sock, int32_t on);
 
 SOCKET  taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
