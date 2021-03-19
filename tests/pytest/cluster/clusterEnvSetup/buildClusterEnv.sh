@@ -1,18 +1,19 @@
 #!/bin/bash
 echo "Executing buildClusterEnv.sh"
-DOCKER_DIR=/data
 CURR_DIR=`pwd`
 
-if [ $# != 4 ]; then 
+if [ $# != 6 ]; then 
   echo "argument list need input : "
   echo "  -n numOfNodes"
-  echo "  -v version"  
+  echo "  -v version"
+  echo "  -d docker dir" 
   exit 1
 fi
 
 NUM_OF_NODES=
 VERSION=
-while getopts "n:v:" arg
+DOCKER_DIR=
+while getopts "n:v:d:" arg
 do
   case $arg in
     n)
@@ -20,6 +21,9 @@ do
       ;;
     v)
       VERSION=$OPTARG
+      ;;
+    d)
+      DOCKER_DIR=$OPTARG
       ;;    
     ?)
       echo "unkonwn argument"
@@ -30,30 +34,29 @@ done
 function addTaoscfg {
   for i in {1..5}
   do 
-    touch /data/node$i/cfg/taos.cfg
-    echo 'firstEp          tdnode1:6030' > /data/node$i/cfg/taos.cfg
-    echo 'fqdn             tdnode'$i >> /data/node$i/cfg/taos.cfg
-    echo 'arbitrator       tdnode1:6042' >> /data/node$i/cfg/taos.cfg
+    touch $DOCKER_DIR/node$i/cfg/taos.cfg
+    echo 'firstEp          tdnode1:6030' > $DOCKER_DIR/node$i/cfg/taos.cfg
+    echo 'fqdn             tdnode'$i >> $DOCKER_DIR/node$i/cfg/taos.cfg
+    echo 'arbitrator       tdnode1:6042' >> $DOCKER_DIR/node$i/cfg/taos.cfg
   done
 }
 
 function createDIR {
   for i in {1..5}
   do    
-    mkdir -p /data/node$i/data
-    mkdir -p /data/node$i/log
-    mkdir -p /data/node$i/cfg
-    mkdir -p /data/node$i/core
+    mkdir -p $DOCKER_DIR/node$i/data
+    mkdir -p $DOCKER_DIR/node$i/log
+    mkdir -p $DOCKER_DIR/node$i/cfg
+    mkdir -p $DOCKER_DIR/node$i/core
   done
 }
 
-function cleanEnv {    
+function cleanEnv {
+  echo "Clean up docker environment"    
   for i in {1..5}
-  do
-    echo /data/node$i/data/*
-    rm -rf /data/node$i/data/*
-    echo /data/node$i/log/*
-    rm -rf /data/node$i/log/*
+  do    
+    rm -rf $DOCKER_DIR/node$i/data/*    
+    rm -rf $DOCKER_DIR/node$i/log/*
   done
 }
 
@@ -98,19 +101,19 @@ function clusterUp {
 
   if [ $NUM_OF_NODES -eq 2 ]; then
     echo "create 2 dnodes"
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION docker-compose up -d
+    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose up -d
   fi
 
   if [ $NUM_OF_NODES -eq 3 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION  docker-compose -f docker-compose.yml -f node3.yml up -d
+    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml -f node3.yml up -d
   fi
 
   if [ $NUM_OF_NODES -eq 4 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION  docker-compose -f docker-compose.yml -f node3.yml -f node4.yml up -d
+    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml -f node3.yml -f node4.yml up -d
   fi
 
   if [ $NUM_OF_NODES -eq 5 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION  docker-compose -f docker-compose.yml -f node3.yml -f node4.yml -f node5.yml up -d
+    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml -f node3.yml -f node4.yml -f node5.yml up -d
   fi
 
   echo "docker compose finish"

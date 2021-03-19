@@ -455,7 +455,7 @@ uint64_t walGetVersion(twalh param) {
 void walResetVersion(twalh param, uint64_t newVer) {
   SWal *pWal = param;
   if (pWal == 0) return;
-  wDebug("vgId:%d, version reset from %" PRIu64 " to %" PRIu64, pWal->vgId, pWal->version, newVer);
+  wInfo("vgId:%d, version reset from %" PRIu64 " to %" PRIu64, pWal->vgId, pWal->version, newVer);
 
   pWal->version = newVer;
 }

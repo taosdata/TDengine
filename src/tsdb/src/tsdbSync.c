@@ -152,14 +152,14 @@ static int32_t tsdbSyncSendMeta(SSyncH *pSynch) {
       return -1;
     }
 
-    int32_t writeLen = (int32_t)mf.info.size;
-    tsdbInfo("vgId:%d, metafile:%s will be sent, size:%d", REPO_ID(pRepo), mf.f.aname, writeLen);
+    int64_t writeLen = mf.info.size;
+    tsdbInfo("vgId:%d, metafile:%s will be sent, size:%" PRId64, REPO_ID(pRepo), mf.f.aname, writeLen);
 
-    int32_t ret = (int32_t)taosSendFile(pSynch->socketFd, TSDB_FILE_FD(&mf), 0, writeLen);
+    int64_t ret = taosSendFile(pSynch->socketFd, TSDB_FILE_FD(&mf), 0, writeLen);
     if (ret != writeLen) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      tsdbError("vgId:%d, failed to send metafile since %s, ret:%d writeLen:%d", REPO_ID(pRepo), tstrerror(terrno), ret,
-                writeLen);
+      tsdbError("vgId:%d, failed to send metafile since %s, ret:%" PRId64 " writeLen:%" PRId64, REPO_ID(pRepo),
+                tstrerror(terrno), ret, writeLen);
       tsdbCloseMFile(&mf);
       return -1;
     }
@@ -217,18 +217,18 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
 
     tsdbInfo("vgId:%d, metafile:%s is created", REPO_ID(pRepo), mf.f.aname);
 
-    int32_t readLen = (int32_t)pSynch->pmf->info.size;
-    int32_t ret = taosCopyFds(pSynch->socketFd, TSDB_FILE_FD(&mf), readLen);
+    int64_t readLen = pSynch->pmf->info.size;
+    int64_t ret = taosCopyFds(pSynch->socketFd, TSDB_FILE_FD(&mf), readLen);
     if (ret != readLen) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      tsdbError("vgId:%d, failed to recv metafile since %s, ret:%d readLen:%d", REPO_ID(pRepo), tstrerror(terrno), ret,
-                readLen);
+      tsdbError("vgId:%d, failed to recv metafile since %s, ret:%" PRId64 " readLen:%" PRId64, REPO_ID(pRepo),
+                tstrerror(terrno), ret, readLen);
       tsdbCloseMFile(&mf);
       tsdbRemoveMFile(&mf);
       return -1;
     }
 
-    tsdbInfo("vgId:%d, metafile is received, size:%d", REPO_ID(pRepo), readLen);
+    tsdbInfo("vgId:%d, metafile is received, size:%" PRId64, REPO_ID(pRepo), readLen);
 
     mf.info = pSynch->pmf->info;
     tsdbCloseMFile(&mf);
@@ -463,12 +463,12 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
           tsdbInfo("vgId:%d, file:%s will be received, osize:%" PRIu64 " rsize:%" PRIu64, REPO_ID(pRepo),
                    pDFile->f.aname, pDFile->info.size, pRDFile->info.size);
 
-          int32_t writeLen = (int32_t)pRDFile->info.size;
-          int32_t ret = taosCopyFds(pSynch->socketFd, pDFile->fd, writeLen);
+          int64_t writeLen = pRDFile->info.size;
+          int64_t ret = taosCopyFds(pSynch->socketFd, pDFile->fd, writeLen);
           if (ret != writeLen) {
             terrno = TAOS_SYSTEM_ERROR(errno);
-            tsdbError("vgId:%d, failed to recv file:%s since %s, ret:%d writeLen:%d", REPO_ID(pRepo), pDFile->f.aname,
-                      tstrerror(terrno), ret, writeLen);
+            tsdbError("vgId:%d, failed to recv file:%s since %s, ret:%" PRId64 " writeLen:%" PRId64, REPO_ID(pRepo),
+                      pDFile->f.aname, tstrerror(terrno), ret, writeLen);
             tsdbCloseDFileSet(&fset);
             tsdbRemoveDFileSet(&fset);
             return -1;
@@ -476,7 +476,7 @@ static int32_t tsdbSyncRecvDFileSetArray(SSyncH *pSynch) {
 
           // Update new file info
           pDFile->info = pRDFile->info;
-          tsdbInfo("vgId:%d, file:%s is received, size:%d", REPO_ID(pRepo), pDFile->f.aname, writeLen);
+          tsdbInfo("vgId:%d, file:%s is received, size:%" PRId64, REPO_ID(pRepo), pDFile->f.aname, writeLen);
         }
 
         tsdbCloseDFileSet(&fset);
@@ -575,14 +575,14 @@ static int32_t tsdbSyncSendDFileSet(SSyncH *pSynch, SDFileSet *pSet) {
         return -1;
       }
 
-      int32_t writeLen = (int32_t)df.info.size;
-      tsdbInfo("vgId:%d, file:%s will be sent, size:%d", REPO_ID(pRepo), df.f.aname, writeLen);
+      int64_t writeLen = df.info.size;
+      tsdbInfo("vgId:%d, file:%s will be sent, size:%" PRId64, REPO_ID(pRepo), df.f.aname, writeLen);
 
-      int32_t ret = (int32_t)taosSendFile(pSynch->socketFd, TSDB_FILE_FD(&df), 0, writeLen);
+      int64_t ret = taosSendFile(pSynch->socketFd, TSDB_FILE_FD(&df), 0, writeLen);
       if (ret != writeLen) {
         terrno = TAOS_SYSTEM_ERROR(errno);
-        tsdbError("vgId:%d, failed to send file:%s since %s, ret:%d writeLen:%d", REPO_ID(pRepo), df.f.aname,
-                  tstrerror(terrno), ret, writeLen);
+        tsdbError("vgId:%d, failed to send file:%s since %s, ret:%" PRId64 " writeLen:%" PRId64, REPO_ID(pRepo),
+                  df.f.aname, tstrerror(terrno), ret, writeLen);
         tsdbCloseDFile(&df);
         return -1;
       }
@@ -677,13 +677,13 @@ static int32_t tsdbRecvDFileSetInfo(SSyncH *pSynch) {
 
 static int tsdbReload(STsdbRepo *pRepo, bool isMfChanged) {
   // TODO: may need to stop and restart stream
-  if (isMfChanged) {
-    tsdbCloseMeta(pRepo);
-    tsdbFreeMeta(pRepo->tsdbMeta);
-    pRepo->tsdbMeta = tsdbNewMeta(REPO_CFG(pRepo));
-    tsdbOpenMeta(pRepo);
-    tsdbLoadMetaCache(pRepo, true);
-  }
+  // if (isMfChanged) {
+  tsdbCloseMeta(pRepo);
+  tsdbFreeMeta(pRepo->tsdbMeta);
+  pRepo->tsdbMeta = tsdbNewMeta(REPO_CFG(pRepo));
+  tsdbOpenMeta(pRepo);
+  tsdbLoadMetaCache(pRepo, true);
+  // }
 
   tsdbUnRefMemTable(pRepo, pRepo->mem);
   tsdbUnRefMemTable(pRepo, pRepo->imem);

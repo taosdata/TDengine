@@ -118,7 +118,11 @@ class TDTestCase:
             if i == 1 or i == 5 or i == 6 or i == 7 or i == 9 or i == 8 :continue
             tdSql.query('select stddev(c%d),stddev(c%d) from s group by c%d' %( i+1 , i+1 , i+1  ) )
         
-
+        #add for TD-3318
+        tdSql.execute('create table t1(ts timestamp, k int, b binary(12));')
+        tdSql.execute("insert into t1 values(now, 1, 'abc');")
+        tdLog.info("select stddev(k) from t1  where b <> 'abc' interval(1s);")
+        tdSql.query("select stddev(k) from t1  where b <> 'abc' interval(1s);")
         
             
     def stop(self):

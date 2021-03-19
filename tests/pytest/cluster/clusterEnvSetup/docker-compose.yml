@@ -9,6 +9,7 @@ services:
          - TARBITRATORPKG=${TARBITRATORPKG}
          - EXTRACTDIR=${DIR}
          - EXTRACTDIR2=${DIR2}
+         - DATADIR=${DATADIR}
      image: 'tdengine:${VERSION}'
      container_name: 'tdnode1'     
      cap_add:
@@ -32,19 +33,19 @@ services:
      volumes: 
        # bind data directory
        - type: bind
-         source: /data/node1/data
+         source: ${DATADIR}/node1/data
          target: /var/lib/taos
        # bind log directory
        - type: bind
-         source: /data/node1/log
+         source: ${DATADIR}/node1/log
          target: /var/log/taos
        # bind configuration
        - type: bind
-         source: /data/node1/cfg
+         source: ${DATADIR}/node1/cfg
          target: /etc/taos
        # bind core dump path
        - type: bind
-         source: /data/node1/core
+         source: ${DATADIR}/node1/core
          target: /coredump
        - type: bind
          source: /data
@@ -61,6 +62,7 @@ services:
        args:
          - PACKAGE=${PACKAGE}
          - EXTRACTDIR=${DIR}
+         - DATADIR=${DATADIR}
      image: 'tdengine:${VERSION}'
      container_name: 'tdnode2'     
      cap_add:
@@ -84,22 +86,22 @@ services:
      volumes: 
        # bind data directory
        - type: bind
-         source: /data/node2/data
+         source: ${DATADIR}/node2/data
          target: /var/lib/taos
        # bind log directory
        - type: bind
-         source: /data/node2/log
+         source: ${DATADIR}/node2/log
          target: /var/log/taos
        # bind configuration
        - type: bind
-         source: /data/node2/cfg
+         source: ${DATADIR}/node2/cfg
          target: /etc/taos
        # bind core dump path 
        - type: bind
-         source: /data/node2/core
+         source: ${DATADIR}/node2/core
          target: /coredump      
        - type: bind
-         source: /data
+         source: ${DATADIR}
          target: /root
      hostname: tdnode2
      networks:

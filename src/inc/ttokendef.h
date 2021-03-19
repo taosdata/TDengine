@@ -197,13 +197,11 @@
 #define TK_PREV                           178
 #define TK_LINEAR                         179
 #define TK_IMPORT                         180
-#define TK_METRIC                         181
-#define TK_TBNAME                         182
-#define TK_JOIN                           183
-#define TK_METRICS                        184
-#define TK_INSERT                         185
-#define TK_INTO                           186
-#define TK_VALUES                         187
+#define TK_TBNAME                         181
+#define TK_JOIN                           182
+#define TK_INSERT                         183
+#define TK_INTO                           184
+#define TK_VALUES                         185
 
 
 #define TK_SPACE                          300
