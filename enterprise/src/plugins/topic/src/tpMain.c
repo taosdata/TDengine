@@ -223,13 +223,23 @@ static void *tpProcessCreateTp(void *param) {
 
   pDb = mnodeGetDb(pCreate->db);
   if (pDb != NULL) {
-    mnodeDecDbRef(pDb);
+    if (pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
+      mError("topic:%s, db already exist but type is not topic", pCreate->db);
+      code = TSDB_CODE_MND_DB_ALREADY_EXIST;
+      mnodeDecDbRef(pDb);
+      pDb = NULL;
+      goto ctp_over;
+    }
+
     if (pCreate->ignoreExist) {
       mDebug("topic:%s, db already exist, ignore exist is set", pCreate->db);
+      mnodeDecDbRef(pDb);
       pDb = NULL;
     } else {
       mError("topic:%s, db already exist, ignore exist not set", pCreate->db);
       code = TSDB_CODE_MND_TOPIC_ALREADY_EXIST;
+      mnodeDecDbRef(pDb);
+      pDb = NULL;
       goto ctp_over;
     }
   }
@@ -243,7 +253,7 @@ static void *tpProcessCreateTp(void *param) {
 
   if (partitions < 1 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
     mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, 1, TSDB_MAX_DB_PARTITON_OPTION);
-    code = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+    code = TSDB_CODE_MND_INVALID_TOPIC_PARTITONS;
     goto ctp_over;
   }
 
@@ -298,21 +308,21 @@ ctp_over:
 static void *tpProcessAlterTp(void *param) {
   SMnodeMsg *  pMsg = param;
   void *       taos = NULL;
+  SDbObj *     pDb = NULL;
   SAlterDbMsg *pAlter = pMsg->rpcMsg.pCont;
   int32_t      partitions = htons(pAlter->partitions);
+  int32_t      code = 0;
 
-  int32_t code = 0;
-
-  if (partitions < 1 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
-    mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, 1, TSDB_MAX_DB_PARTITON_OPTION);
-    code = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+  pDb = mnodeGetDb(pAlter->db);
+  if (pDb == NULL || pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
+    mError("topic:%s, failed to alter, invalid topic", pAlter->db);
+    code = TSDB_CODE_MND_INVALID_TOPIC;
     goto atp_over;
   }
 
-  SDbObj *pDb = mnodeGetDb(pAlter->db);
-  if (pDb == NULL || pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
-    mError("topic:%s, failed to alter, invalid topic", pAlter->db);
-    code = TSDB_CODE_MND_INVALID_TOPIC_OPTION;
+  if (partitions < 1 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
+    mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, 1, TSDB_MAX_DB_PARTITON_OPTION);
+    code = TSDB_CODE_MND_INVALID_TOPIC_PARTITONS;
     goto atp_over;
   }
 
@@ -336,6 +346,10 @@ static void *tpProcessAlterTp(void *param) {
 
 atp_over:
   taos_close(taos);
+  if (pDb != NULL) {
+    mnodeDecDbRef(pDb);
+  }
+
   if (code == 0) {
     pAlter->dbType = TSDB_DB_TYPE_TOPIC;
     code = mnodeProcessAlterDbMsg(pMsg);
@@ -349,11 +363,18 @@ atp_over:
 
 static void *tpProcessDropTp(void *param) {
   SMnodeMsg * pMsg = param;
+  SDbObj *    pDb = NULL;
+  int32_t     code = 0;
   SDropDbMsg *pDrop = pMsg->rpcMsg.pCont;
   void *      taos = NULL;
 
   mDebug("topic:%s, start to drop", pDrop->db);
-  int32_t code = 0;
+  pDb = mnodeGetDb(pDrop->db);
+  if (pDb == NULL || pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
+    mError("topic:%s, failed to drop, invalid topic", pDrop->db);
+    code = TSDB_CODE_MND_INVALID_TOPIC;
+    goto dtp_over;
+  }
 
   taos = taos_connect(NULL, "monitor", tsInternalPass, "", 0);
   if (taos == NULL) {
@@ -373,6 +394,10 @@ static void *tpProcessDropTp(void *param) {
 
 dtp_over:
   taos_close(taos);
+  if (pDb != NULL) {
+    mnodeDecDbRef(pDb);
+  }
+
   dnodeSendRpcMWriteRsp(pMsg, code);
 
   mDebug("topic:%s, drop topic thread finished", pDrop->db);
