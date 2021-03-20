@@ -110,7 +110,7 @@ static void tpBuildDropDbSql(char *sql, const char *topic) {
 }
 
 static void tpBuildCreateStableSql(char *sql, const char *topic) {
-  snprintf(sql, TP_SCHEMA_SQL_LEN, "create table if not exists %s.ps (off timestamp, ts timestamp, content binary(%d)) tags(pid int)",
+  snprintf(sql, TP_SCHEMA_SQL_LEN, "create table if not exists %s.ps (offset timestamp, ts timestamp, content binary(%d)) tags(pid int)",
            topic, TP_BINARY_LEN);
 }
 
