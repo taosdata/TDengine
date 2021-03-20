@@ -88,7 +88,7 @@ class TDTestCase:
             "disorder_ratio": 0,
             "disorder_range": 1000,
             "timestamp_step": 20000,
-            "start_timestamp": "1969-12-31 00:00:00.000",
+            "start_timestamp": "1969-12-30 23:59:40.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
@@ -153,7 +153,7 @@ class TDTestCase:
         return file_create_table
 
     def inserttable(self, filepath):
-        create_table_cmd = f"taosdemo -f {filepath}  > /tmp/1.log 2>&1"
+        create_table_cmd = f"taosdemo -f {filepath}  > /dev/null 2>&1"
         _ = subprocess.check_output(create_table_cmd, shell=True).decode("utf-8")
 
     def sqlsquery(self):
