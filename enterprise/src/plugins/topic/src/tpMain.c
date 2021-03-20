@@ -218,7 +218,21 @@ static void *tpProcessCreateTp(void *param) {
   SMnodeMsg *   pMsg = param;
   void *        taos = NULL;
   SDbObj *      pDb = NULL;
+  int32_t       code = 0;
   SCreateDbMsg *pCreate = pMsg->rpcMsg.pCont;
+
+  pDb = mnodeGetDb(pCreate->db);
+  if (pDb != NULL) {
+    mnodeDecDbRef(pDb);
+    if (pCreate->ignoreExist) {
+      mDebug("topic:%s, db already exist, ignore exist is set", pCreate->db);
+      pDb = NULL;
+    } else {
+      mError("topic:%s, db already exist, ignore exist not set", pCreate->db);
+      code = TSDB_CODE_MND_TOPIC_ALREADY_EXIST;
+      goto ctp_over;
+    }
+  }
 
   int16_t partitions = htons(pCreate->partitions);
   mDebug("topic:%s, start to create, partitions:%d", pCreate->db, partitions);
@@ -226,8 +240,6 @@ static void *tpProcessCreateTp(void *param) {
   if (partitions == -1) {
     partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
   }
-
-  int32_t code = 0;
 
   if (partitions < 1 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
     mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, 1, TSDB_MAX_DB_PARTITON_OPTION);
@@ -266,8 +278,12 @@ static void *tpProcessCreateTp(void *param) {
 
 ctp_over:
   taos_close(taos);
+  if (pDb != NULL) {
+    pDb->cfg.dbType = TSDB_DB_TYPE_DEFAULT;
+    mnodeDecDbRef(pDb);
+  }
+
   if (code == 0) {
-    if (pDb != NULL) pDb->cfg.dbType = TSDB_DB_TYPE_DEFAULT;
     pCreate->dbType = TSDB_DB_TYPE_TOPIC;
     pCreate->partitions = htons(partitions);
     code = mnodeProcessAlterDbMsg(pMsg);
