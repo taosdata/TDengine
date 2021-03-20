@@ -2633,10 +2633,10 @@ static void createChildTables() {
             if ((strncasecmp(g_args.datatype[j], "BINARY", strlen("BINARY")) == 0)
                     || (strncasecmp(g_args.datatype[j],
                         "NCHAR", strlen("NCHAR")) == 0)) {
-                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE,
+                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
                         ", COL%d %s(60)", j, g_args.datatype[j]);
             } else {
-                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE,
+                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
                         ", COL%d %s", j, g_args.datatype[j]);
             }
             len = strlen(tblColsBuf);
@@ -4319,7 +4319,8 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
   return k;
 }
 
-static int generateSQLHead(char *tableName, int32_t tableSeq, threadInfo* pThreadInfo, SSuperTable* superTblInfo, char *buffer)
+static int generateSQLHead(char *tableName, int32_t tableSeq,
+        threadInfo* pThreadInfo, SSuperTable* superTblInfo, char *buffer)
 {
   int len;
   if (superTblInfo) {
@@ -4440,7 +4441,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
   int insert_interval = superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
-  int timeStempStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
   uint64_t st = 0;
   uint64_t et = 0xffffffff;
 
@@ -4475,6 +4475,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int generatedRecPerTbl = 0;
   bool flagSleep = true;
   int sleepTimeTotal = 0;
+  int timeShift = 0;
   while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
     if ((flagSleep) && (insert_interval)) {
         st = taosGetTimestampUs();
@@ -4512,7 +4513,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       generateDataTail(
         tableName, tableSeq, pThreadInfo, superTblInfo,
         batchPerTbl, pstr, insertRows, 0,
-        startTime + sleepTimeTotal + 0 * timeStempStep,
+        startTime + timeShift + sleepTimeTotal,
         &(pThreadInfo->samplePos), &dataLen);
       pstr += dataLen;
       recOfBatch += batchPerTbl;
@@ -4521,6 +4522,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                 pThreadInfo->threadID, __func__, __LINE__,
                 batchPerTbl, recOfBatch);
 
+      timeShift ++;
       tableSeq ++;
       if (insertMode == INTERLACE_INSERT_MODE) {
           if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
@@ -5486,7 +5488,11 @@ static int queryTestProcess() {
         char sqlStr[MAX_TB_NAME_SIZE*2];
         sprintf(sqlStr, "use %s", g_queryInfo.dbName);
         verbosePrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
-        (void)queryDbExec(t_info->taos, sqlStr, NO_INSERT_TYPE);
+        if (0 != queryDbExec(t_info->taos, sqlStr, NO_INSERT_TYPE)) {
+            errorPrint( "use database %s failed!\n\n",
+                g_queryInfo.dbName);
+            return -1;
+        }
       } else {
         t_info->taos = NULL;
       }
@@ -5756,22 +5762,27 @@ static int subscribeTestProcess() {
   pthread_t  *pids = NULL;
   threadInfo *infos = NULL;
   //==== create sub threads for query from super table
-  if (g_queryInfo.superQueryInfo.sqlCount > 0 
-          && g_queryInfo.superQueryInfo.concurrent > 0) {
-    pids  = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(pthread_t));
-    infos = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(threadInfo));
-    if ((NULL == pids) || (NULL == infos)) {
+  if ((g_queryInfo.superQueryInfo.sqlCount <= 0) ||
+          (g_queryInfo.superQueryInfo.concurrent <= 0)) {
+    errorPrint("%s() LN%d, query sqlCount %d or concurrent %d is not correct.\n",
+              __func__, __LINE__, g_queryInfo.superQueryInfo.sqlCount,
+              g_queryInfo.superQueryInfo.concurrent);
+    exit(-1);
+  }
+
+  pids  = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(pthread_t));
+  infos = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(threadInfo));
+  if ((NULL == pids) || (NULL == infos)) {
       printf("malloc failed for create threads\n");
       taos_close(taos);
       exit(-1);
-    }
+  }
 
-    for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
+  for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
       threadInfo *t_info = infos + i;
       t_info->threadID = i;
       t_info->taos = taos;
       pthread_create(pids + i, NULL, superSubscribeProcess, t_info);
-    }
   }
  
   //==== create sub threads for query from sub table  
@@ -6031,7 +6042,6 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
 
     memcpy(cmd + cmd_len, line, read_len);
     verbosePrint("%s() LN%d cmd: %s\n", __func__, __LINE__, cmd);
-    queryDbExec(taos, cmd, NO_INSERT_TYPE);
     if (0 != queryDbExec(taos, cmd, NO_INSERT_TYPE)) {
         printf("queryDbExec %s failed!\n", cmd);
         tmfree(cmd);
