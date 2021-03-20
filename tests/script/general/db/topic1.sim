@@ -124,7 +124,7 @@ if $rows != 6 then
 endi
 
 sql describe t1.ps;
-if $data00 != offset then 
+if $data00 != off then 
   return -1
 endi
 if $data10 != ts then 
@@ -138,7 +138,7 @@ if $data30 != pid then
 endi
 
 sql describe t1.p1;
-if $data00 != offset then 
+if $data00 != off then 
   return -1
 endi
 if $data10 != ts then 
