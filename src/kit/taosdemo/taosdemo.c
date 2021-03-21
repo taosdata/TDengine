@@ -2778,7 +2778,7 @@ static int readSampleFromCsvFileToMem(
       continue;
     }
 
-    verbosePrint("readLen=%ld stb->lenOfOneRow=%d getRows=%d\n", readLen,
+    verbosePrint("readLen=%ld stb->lenOfOneRow=%d getRows=%d\n", (long)readLen,
             superTblInfo->lenOfOneRow, getRows);
 
     memcpy(superTblInfo->sampleDataBuf + getRows * superTblInfo->lenOfOneRow,
