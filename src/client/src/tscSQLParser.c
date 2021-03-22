@@ -4364,7 +4364,7 @@ int32_t validateJoinNodes(SQueryInfo* pQueryInfo, SSqlObj* pSql) {
 void mergeJoinNodesImpl(int8_t* r, int8_t* p, int16_t* tidx, SJoinNode** nodes, int32_t type) {
   SJoinNode *node = nodes[*tidx];  
   SArray* arr = (type == 0) ? node->tsJoin : node->tagJoin;
-  int32_t size = taosArrayGetSize(arr);
+  size_t size = taosArrayGetSize(arr);
 
   p[*tidx] = 1;
   
