@@ -4441,7 +4441,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
   int insert_interval = superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
-  int timeStempStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
   uint64_t st = 0;
   uint64_t et = 0xffffffff;
 
@@ -4476,6 +4475,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int generatedRecPerTbl = 0;
   bool flagSleep = true;
   int sleepTimeTotal = 0;
+  int timeShift = 0;
   while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
     if ((flagSleep) && (insert_interval)) {
         st = taosGetTimestampUs();
@@ -4513,7 +4513,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       generateDataTail(
         tableName, tableSeq, pThreadInfo, superTblInfo,
         batchPerTbl, pstr, insertRows, 0,
-        startTime + sleepTimeTotal + 0 * timeStempStep,
+        startTime + timeShift + sleepTimeTotal,
         &(pThreadInfo->samplePos), &dataLen);
       pstr += dataLen;
       recOfBatch += batchPerTbl;
@@ -4522,6 +4522,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                 pThreadInfo->threadID, __func__, __LINE__,
                 batchPerTbl, recOfBatch);
 
+      timeShift ++;
       tableSeq ++;
       if (insertMode == INTERLACE_INSERT_MODE) {
           if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
