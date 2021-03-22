@@ -92,7 +92,7 @@ enum TEST_MODE {
 #define   MAX_DATABASE_COUNT     256
 #define INPUT_BUF_LEN   256
 
-#define DEFAULT_TIMESTAMP_STEP  10
+#define DEFAULT_TIMESTAMP_STEP  1
 
 typedef enum CREATE_SUB_TALBE_MOD_EN {
   PRE_CREATE_SUBTBL,
@@ -4519,7 +4519,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
       pstr += dataLen;
       recOfBatch += batchPerTbl;
-      startTime += batchPerTbl * superTblInfo->timeStampStep;
       pThreadInfo->totalInsertRows += batchPerTbl;
 
       verbosePrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
@@ -4530,6 +4529,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       if (insertMode == INTERLACE_INSERT_MODE) {
           if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
             // turn to first table
+            startTime += batchPerTbl * superTblInfo->timeStampStep;
             tableSeq = pThreadInfo->start_table_from;
             generatedRecPerTbl += batchPerTbl;
             flagSleep = true;
