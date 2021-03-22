@@ -18,7 +18,6 @@ import json
 import subprocess
 import datetime
 
-
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -71,7 +70,7 @@ class TDTestCase:
             "update": 0
         }
 
-        # 设置创建的超级表格式
+        # set stable schema
         stable1 = {
             "name": "stb2",
             "child_table_exists": "no",
@@ -83,7 +82,7 @@ class TDTestCase:
             "insert_rows": 5000,
             "multi_thread_write_one_tbl": "no",
             "number_of_tbl_in_one_sql": 0,
-            "rows_per_tbl": 1000,
+            "rows_per_tbl": 1,
             "max_sql_len": 65480,
             "disorder_ratio": 0,
             "disorder_range": 1000,
@@ -117,7 +116,7 @@ class TDTestCase:
             ]
         }
 
-        # 创建不同的超级表格式并添加至super_tables
+        # create different stables like stable1 and add to list super_tables
         super_tables = []
         super_tables.append(stable1)
         database = {
@@ -235,7 +234,7 @@ class TDTestCase:
         tdLog.info("==========step2:query join")
         self.sqlsquery()
 
-        # 进行数据落盘后检查
+        # after wal and sync, check again
         tdSql.query("show dnodes")
         index = tdSql.getData(0, 0)
         tdDnodes.stop(index)
@@ -246,8 +245,9 @@ class TDTestCase:
 
     def stop(self):
         tdSql.close()
+        rm_cmd = f"rm -f /tmp/insert* > /dev/null 2>&1"
+        _ = subprocess.check_output(rm_cmd, shell=True).decode("utf-8")
         tdLog.success(f"{__file__} successfully executed")
-
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
