@@ -69,7 +69,8 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
     return;
   }
 
-  tscDoQuery(pSql);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  executeQuery(pSql, pQueryInfo);
 }
 
 // TODO return the correct error code to client in tscQueueAsyncError
@@ -179,7 +180,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
     tscFetchDatablockForSubquery(pSql);
   } else {
-    tscProcessSql(pSql);
+    tscProcessSql(pSql, NULL);
   }
 }
 
@@ -193,8 +194,8 @@ static void tscAsyncQueryRowsForNextVnode(void *param, TAOS_RES *tres, int numOf
   tscProcessAsyncRetrieveImpl(param, tres, numOfRows, tscAsyncFetchRowsProxy);
 }
 
-void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
-  SSqlObj *pSql = (SSqlObj *)taosa;
+void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
+  SSqlObj *pSql = (SSqlObj *)tres;
   if (pSql == NULL || pSql->signature != pSql) {
     tscError("sql object is NULL");
     tscQueueAsyncError(fp, param, TSDB_CODE_TSC_DISCONNECTED);
@@ -206,18 +207,17 @@ void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
 
   // user-defined callback function is stored in fetchFp
   pSql->fetchFp = fp;
-  pSql->fp = tscAsyncFetchRowsProxy;
+  pSql->fp      = tscAsyncFetchRowsProxy;
+  pSql->param   = param;
 
   if (pRes->qhandle == 0) {
     tscError("qhandle is NULL");
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
-    pSql->param = param;
 
     tscAsyncResultOnError(pSql);
     return;
   }
 
-  pSql->param = param;
   tscResetForNextRetrieve(pRes);
   
   // handle the sub queries of join query
@@ -255,8 +255,9 @@ void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
     if (pCmd->command != TSDB_SQL_RETRIEVE_LOCALMERGE && pCmd->command < TSDB_SQL_LOCAL) {
       pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     }
-  
-    tscProcessSql(pSql);
+
+    SQueryInfo* pQueryInfo1 = tscGetActiveQueryInfo(&pSql->cmd);
+    tscProcessSql(pSql, pQueryInfo1);
   }
 }
 
@@ -330,7 +331,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
   tscDebug("%p get %s successfully", pSql, msg);
   if (pSql->pStream == NULL) {
-    SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+    SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
     // check if it is a sub-query of super table query first, if true, enter another routine
     if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY|TSDB_QUERY_TYPE_SUBQUERY|TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
@@ -348,7 +349,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0));
 
       // tscProcessSql can add error into async res
-      tscProcessSql(pSql);
+      tscProcessSql(pSql, NULL);
       taosReleaseRef(tscObjRef, pSql->self);
       return;
     } else {  // continue to process normal async query
@@ -379,9 +380,9 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
             goto _error;
           }
 
-          tscProcessSql(pSql);
+          tscProcessSql(pSql, NULL);
         } else {  // in all other cases, simple retry
-          tscProcessSql(pSql);
+          tscProcessSql(pSql, NULL);
         }
 
         taosReleaseRef(tscObjRef, pSql->self);
@@ -408,11 +409,15 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
           }
 
           (*pSql->fp)(pSql->param, pSql, code);
-          taosReleaseRef(tscObjRef, pSql->self);
-          return;
+        } else if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
+          tscHandleMultivnodeInsert(pSql);
+        } else {
+          SQueryInfo* pQueryInfo1 = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+          executeQuery(pSql, pQueryInfo1);
         }
 
-        // proceed to invoke the tscDoQuery();
+        taosReleaseRef(tscObjRef, pSql->self);
+        return;
       }
     }
 
@@ -449,7 +454,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     return;
   }
 
-  tscDoQuery(pSql);
+//  tscDoQuery(pSql);
 
   taosReleaseRef(tscObjRef, pSql->self);
   

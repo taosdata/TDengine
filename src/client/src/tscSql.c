@@ -191,7 +191,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     pSql->fp = syncConnCallback;
     pSql->param = pSql;
 
-    tscProcessSql(pSql);
+    tscProcessSql(pSql, NULL);
     tsem_wait(&pSql->rspSem);
 
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
@@ -265,7 +265,7 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
   if (taos) *taos = pObj;
 
   pSql->fetchFp = fp;
-  pSql->res.code = tscProcessSql(pSql);
+  pSql->res.code = tscProcessSql(pSql, NULL);
   tscDebug("%p DB async connection is opening", taos);
   return pObj;
 }
@@ -373,7 +373,7 @@ int taos_num_fields(TAOS_RES *res) {
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
   int32_t num = 0;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     return num;
   }
@@ -407,7 +407,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     return NULL;
   }
@@ -558,7 +558,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
     return true;
   }
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
 
   if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     return true;
@@ -577,7 +577,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     tscDebug("%p send msg to dnode to free qhandle ASAP before free sqlObj, command:%s", pSql, sqlCmd[pCmd->command]);
 
-    tscProcessSql(pSql);
+    tscProcessSql(pSql, NULL);
     return false;
   }
 
@@ -671,7 +671,7 @@ char *taos_get_client_info() { return version; }
 static void tscKillSTableQuery(SSqlObj *pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     return;
@@ -722,7 +722,7 @@ void taos_stop_query(TAOS_RES *res) {
   // set the error code for master pSqlObj firstly
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     assert(pSql->rpcRid <= 0);
@@ -752,7 +752,7 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
     return true;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     return true;
   }
@@ -932,7 +932,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   char *str = (char *)tblNameList;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetailSafely(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
   if (pQueryInfo == NULL) {
     pSql->res.code = terrno;
     return terrno;

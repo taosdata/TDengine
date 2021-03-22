@@ -228,6 +228,9 @@ typedef struct SQueryInfo {
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;
+
+  struct SQueryInfo *sibling;     // sibling
+  SArray            *pUpstream;   //SArray<struct SQueryInfo>
 } SQueryInfo;
 
 typedef struct {
@@ -242,8 +245,6 @@ typedef struct {
   };
 
   uint32_t     insertType;   // TODO remove it
-  int32_t      clauseIndex;  // index of multiple subclause query
-
   char *       curSql;       // current sql, resume position of sql after parsing paused
   int8_t       parseFinished;
   char    reserve2[3];        // fix bus error on arm32
@@ -253,22 +254,26 @@ typedef struct {
   uint32_t     allocSize;
   char *       payload;
   int32_t      payloadLen;
+
   SQueryInfo **pQueryInfo;
   int32_t      numOfClause;
+  int32_t      clauseIndex;  // index of multiple subclause query
+  SQueryInfo  *active;       // current active query info
+
   int32_t      batchSize;    // for parameter ('?') binding and batch processing
   int32_t      numOfParams;
 
   int8_t       dataSourceType;     // load data from file or not
-  char    reserve4[3];        // fix bus error on arm32
+  char    reserve4[3];         // fix bus error on arm32
   int8_t       submitSchema;   // submit block is built with table schema
-  char    reserve5[3];        // fix bus error on arm32
+  char    reserve5[3];         // fix bus error on arm32
   STagData     tagData;        // NOTE: pTagData->data is used as a variant length array
 
   SName      **pTableNameList; // all involved tableMeta list of current insert sql statement.
   int32_t      numOfTables;
 
   SHashObj    *pTableBlockHashList;     // data block for each table
-  SArray      *pDataBlocks;    // SArray<STableDataBlocks*>. Merged submit block for each vgroup
+  SArray      *pDataBlocks;             // SArray<STableDataBlocks*>. Merged submit block for each vgroup
 } SSqlCmd;
 
 typedef struct SResRec {
@@ -410,7 +415,7 @@ void tscInitMsgsFp();
 int tsParseSql(SSqlObj *pSql, bool initial);
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
-int  tscProcessSql(SSqlObj *pSql);
+int  tscProcessSql(SSqlObj *pSql, SQueryInfo* pQueryInfo);
 
 int  tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex);
 void tscAsyncResultOnError(SSqlObj *pSql);
@@ -425,6 +430,7 @@ void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
+void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo);
 
 void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
 

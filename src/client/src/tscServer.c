@@ -237,7 +237,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
   assert(pHB->self == pObj->hbrid);
 
   pHB->retry = 0;
-  int32_t code = tscProcessSql(pHB);
+  int32_t code = tscProcessSql(pHB, NULL);
   taosReleaseRef(tscObjRef, pObj->hbrid);
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -302,7 +302,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     return;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, 0);
   if (pQueryInfo != NULL && pQueryInfo->type == TSDB_QUERY_TYPE_FREE_RESOURCE) {
     tscDebug("%p sqlObj needs to be released or DB connection is closed, cmd:%d type:%d, pObj:%p signature:%p",
         pSql, pCmd->command, pQueryInfo->type, pObj, pObj->signature);
@@ -469,13 +469,16 @@ int doProcessSql(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tscProcessSql(SSqlObj *pSql) {
+int tscProcessSql(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
 
   SSqlCmd *pCmd = &pSql->cmd;
   uint32_t type = 0;
 
-  SQueryInfo     *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  if (pQueryInfo == NULL) {
+     pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  }
+
   STableMetaInfo *pTableMetaInfo = NULL;
 
   if (pQueryInfo != NULL) {
@@ -506,7 +509,7 @@ int tscProcessSql(SSqlObj *pSql) {
 int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SRetrieveTableMsg *pRetrieveMsg = (SRetrieveTableMsg *) pSql->cmd.payload;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(&pSql->cmd);
   pRetrieveMsg->free    = htons(pQueryInfo->type);
   pRetrieveMsg->qhandle = htobe64(pSql->res.qhandle);
 
@@ -545,7 +548,7 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
   
   char* pMsg = pSql->cmd.payload;
@@ -584,7 +587,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
   const static int32_t MIN_QUERY_MSG_PKT_SIZE = TSDB_MAX_BYTES_PER_ROW * 5;
 
   SSqlCmd* pCmd = &pSql->cmd;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, clauseIndex);
 
   int32_t srcColListSize = (int32_t)(taosArrayGetSize(pQueryInfo->colList) * sizeof(SColumnInfo));
 
@@ -614,7 +617,9 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
 }
 
 static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg) {
-  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
+  SQueryInfo* pQueryInfo = tscGetActiveQueryInfo(&pSql->cmd);
+  STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
   TSKEY dfltKey = htobe64(pQueryMsg->window.skey);
 
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
@@ -698,7 +703,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return TSDB_CODE_TSC_INVALID_SQL;  // todo add test for this
   }
   
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
 
@@ -1371,7 +1376,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSchema *pSchema;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SQueryInfo     *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   // Reallocate the payload size
@@ -1460,7 +1465,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 }
 
 int tscEstimateAlterTableMsgLength(SSqlCmd *pCmd) {
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
   return minMsgSize() + sizeof(SAlterTableMsg) + sizeof(SSchema) * tscNumOfFields(pQueryInfo) + TSDB_EXTRA_PAYLOAD_SIZE;
 }
 
@@ -1469,7 +1474,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   int   msgLen = 0;
 
   SSqlCmd    *pCmd = &pSql->cmd;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   
@@ -1518,7 +1523,7 @@ int tscBuildUpdateTagMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
   SUpdateTableTagValMsg* pUpdateMsg = (SUpdateTableTagValMsg*) pCmd->payload;
   pCmd->payloadLen = htonl(pUpdateMsg->head.contLen);
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
   STableMeta *pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
 
   SNewVgroupInfo vgroupInfo = {.vgId = -1};
@@ -1554,7 +1559,7 @@ int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
   SRetrieveTableMsg *pRetrieveMsg = (SRetrieveTableMsg*)pCmd->payload;
   pRetrieveMsg->qhandle = htobe64(pSql->res.qhandle);
   pRetrieveMsg->free = htons(pQueryInfo->type);
@@ -1578,7 +1583,7 @@ static int tscLocalResultCommonBuilder(SSqlObj *pSql, int32_t numOfRes) {
     pRes->row = 0;
     pRes->rspType = 1;
 
-    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+    SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
     if (tscCreateResPointerInfo(pRes, pQueryInfo) != TSDB_CODE_SUCCESS) {
       return pRes->code;
     }
@@ -1629,7 +1634,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   pRes->code = tscDoLocalMerge(pSql);
 
   if (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows > 0) {
-    SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+    SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
     tscCreateResPointerInfo(pRes, pQueryInfo);
     tscSetResRawPtr(pRes, pQueryInfo);
   }
@@ -1683,7 +1688,7 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
 int tscBuildTableMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd    *pCmd = &pSql->cmd;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableInfoMsg  *pInfoMsg = (STableInfoMsg *)pCmd->payload;
@@ -1753,7 +1758,7 @@ int tscBuildSTableVgroupMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   
   char* pMsg = pCmd->payload;
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, 0);
 
   SSTableVgroupMsg *pStableVgroupMsg = (SSTableVgroupMsg *)pMsg;
   pStableVgroupMsg->numOfTables = htonl(pQueryInfo->numOfTables);
@@ -2096,7 +2101,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
@@ -2155,7 +2160,7 @@ static void createHbObj(STscObj* pObj) {
 
   pSql->fp = tscProcessHeartBeatRsp;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetailSafely(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfoS(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tfree(pSql);
@@ -2311,7 +2316,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   pRes->completed = (pRetrieve->completed == 1);
   pRes->data      = pRetrieve->data;
   
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetActiveQueryInfo(pCmd);
   if (tscCreateResPointerInfo(pRes, pQueryInfo) != TSDB_CODE_SUCCESS) {
     return pRes->code;
   }
@@ -2325,6 +2330,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     tscSetResRawPtr(pRes, pQueryInfo);
   }
 
+  prepareInputDataFromUpstream(pRes, pQueryInfo);
   if (pSql->pSubscription != NULL) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
     
@@ -2364,9 +2370,9 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   pNew->signature = pNew;
   pNew->cmd.command = TSDB_SQL_META;
 
-  tscAddSubqueryInfo(&pNew->cmd);
+  tscAddQueryInfo(&pNew->cmd);
 
-  SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetailSafely(&pNew->cmd, 0);
+  SQueryInfo *pNewQueryInfo = tscGetQueryInfoS(&pNew->cmd, 0);
 
   pNew->cmd.autoCreated = pSql->cmd.autoCreated;  // create table if not exists
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen)) {
@@ -2400,7 +2406,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   
   pSql->metaRid = pNew->self;
 
-  int32_t code = tscProcessSql(pNew);
+  int32_t code = tscProcessSql(pNew, NULL);
   if (code == TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;  // notify application that current process needs to be terminated
   }
@@ -2455,7 +2461,7 @@ int tscGetTableMetaEx(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, bool create
 int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SQueryInfo     *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd, 0);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, tableIndex);
 
   char name[TSDB_TABLE_FNAME_LEN] = {0};
@@ -2479,7 +2485,7 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
 }
 
 static bool allVgroupInfoRetrieved(SSqlCmd* pCmd, int32_t clauseIndex) {
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, clauseIndex);
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
     if (pTableMetaInfo->vgroupList == NULL) {
@@ -2506,13 +2512,13 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
   pNew->cmd.command = TSDB_SQL_STABLEVGROUP;
 
   // TODO TEST IT
-  SQueryInfo *pNewQueryInfo = tscGetQueryInfoDetailSafely(&pNew->cmd, 0);
+  SQueryInfo *pNewQueryInfo = tscGetQueryInfoS(&pNew->cmd, 0);
   if (pNewQueryInfo == NULL) {
     tscFreeSqlObj(pNew);
     return code;
   }
   
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, clauseIndex);
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo *pMInfo = tscGetMetaInfo(pQueryInfo, i);
     STableMeta* pTableMeta = tscTableMetaDup(pMInfo->pTableMeta);
@@ -2536,7 +2542,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
 
   pNew->fp = tscTableMetaCallBack;
   pNew->param = (void *)pSql->self;
-  code = tscProcessSql(pNew);
+  code = tscProcessSql(pNew, NULL);
   if (code == TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;
   }

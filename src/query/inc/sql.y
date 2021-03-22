@@ -507,33 +507,26 @@ distinct(X) ::= .            { X.n = 0;}
 // A complete FROM clause.
 %type from {SFromInfo*}
 from(A) ::= FROM tablelist(X).                 {A = X;}
-from(A) ::= FROM LP union(Y) RP.               {A = Y;}
+from(A) ::= FROM LP union(Y) RP.               {A = setSubquery(NULL, Y);}
 
-%type tablelist {SArray*}
+%type tablelist {SFromInfo*}
 tablelist(A) ::= ids(X) cpxName(Y).                     {
-  toTSDBType(X.type);
   X.n += Y.n;
   A = setTableNameList(NULL, &X, NULL);
 }
 
 tablelist(A) ::= ids(X) cpxName(Y) ids(Z).             {
-  toTSDBType(X.type);
-  toTSDBType(Z.type);
   X.n += Y.n;
   A = setTableNameList(NULL, &X, &Z);
 }
 
 tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z).  {
-  toTSDBType(X.type);
   X.n += Z.n;
   A = setTableNameList(Y, &X, NULL);
 }
 
 tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
-  toTSDBType(X.type);
-  toTSDBType(F.type);
   X.n += Z.n;
-
   A = setTableNameList(Y, &X, &F);
 }
 

@@ -2649,45 +2649,38 @@ static void yy_reduce(
   yymsp[0].minor.yy0 = yylhsminor.yy0;
         break;
       case 171: /* from ::= FROM tablelist */
-{yymsp[-1].minor.yy70 = yymsp[0].minor.yy429;}
+{yymsp[-1].minor.yy70 = yymsp[0].minor.yy70;}
         break;
       case 172: /* from ::= FROM LP union RP */
-{yymsp[-3].minor.yy70 = yymsp[-1].minor.yy141;}
+{yymsp[-3].minor.yy70 = setSubquery(NULL, yymsp[-1].minor.yy141);}
         break;
       case 173: /* tablelist ::= ids cpxName */
 {
-  toTSDBType(yymsp[-1].minor.yy0.type);
   yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
-  yylhsminor.yy429 = setTableNameList(NULL, &yymsp[-1].minor.yy0, NULL);
+  yylhsminor.yy70 = setTableNameList(NULL, &yymsp[-1].minor.yy0, NULL);
 }
-  yymsp[-1].minor.yy429 = yylhsminor.yy429;
+  yymsp[-1].minor.yy70 = yylhsminor.yy70;
         break;
       case 174: /* tablelist ::= ids cpxName ids */
 {
-  toTSDBType(yymsp[-2].minor.yy0.type);
-  toTSDBType(yymsp[0].minor.yy0.type);
   yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n;
-  yylhsminor.yy429 = setTableNameList(NULL, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);
+  yylhsminor.yy70 = setTableNameList(NULL, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);
 }
-  yymsp[-2].minor.yy429 = yylhsminor.yy429;
+  yymsp[-2].minor.yy70 = yylhsminor.yy70;
         break;
       case 175: /* tablelist ::= tablelist COMMA ids cpxName */
 {
-  toTSDBType(yymsp[-1].minor.yy0.type);
   yymsp[-1].minor.yy0.n += yymsp[0].minor.yy0.n;
-  yylhsminor.yy429 = setTableNameList(yymsp[-3].minor.yy429, &yymsp[-1].minor.yy0, NULL);
+  yylhsminor.yy70 = setTableNameList(yymsp[-3].minor.yy70, &yymsp[-1].minor.yy0, NULL);
 }
-  yymsp[-3].minor.yy429 = yylhsminor.yy429;
+  yymsp[-3].minor.yy70 = yylhsminor.yy70;
         break;
       case 176: /* tablelist ::= tablelist COMMA ids cpxName ids */
 {
-  toTSDBType(yymsp[-2].minor.yy0.type);
-  toTSDBType(yymsp[0].minor.yy0.type);
   yymsp[-2].minor.yy0.n += yymsp[-1].minor.yy0.n;
-
-  yylhsminor.yy429 = setTableNameList(yymsp[-4].minor.yy429, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);
+  yylhsminor.yy70 = setTableNameList(yymsp[-4].minor.yy70, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0);
 }
-  yymsp[-4].minor.yy429 = yylhsminor.yy429;
+  yymsp[-4].minor.yy70 = yylhsminor.yy70;
         break;
       case 177: /* tmvar ::= VARIABLE */
 {yylhsminor.yy0 = yymsp[0].minor.yy0;}

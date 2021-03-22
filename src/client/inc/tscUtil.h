@@ -88,15 +88,16 @@ typedef struct SVgroupTableInfo {
   SArray*     itemList;   //SArray<STableIdInfo>
 } SVgroupTableInfo;
 
-static FORCE_INLINE SQueryInfo* tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex) {
+static FORCE_INLINE SQueryInfo* tscGetQueryInfo(SSqlCmd* pCmd, int32_t subClauseIndex) {
   assert(pCmd != NULL && subClauseIndex >= 0);
-
   if (pCmd->pQueryInfo == NULL || subClauseIndex >= pCmd->numOfClause) {
     return NULL;
   }
 
   return pCmd->pQueryInfo[subClauseIndex];
 }
+
+SQueryInfo* tscGetActiveQueryInfo(SSqlCmd* pCmd);
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta);
@@ -208,8 +209,11 @@ bool tscShouldBeFreed(SSqlObj* pSql);
 STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd *pCmd, int32_t subClauseIndex, int32_t tableIndex);
 STableMetaInfo* tscGetMetaInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
 
-SQueryInfo *tscGetQueryInfoDetail(SSqlCmd* pCmd, int32_t subClauseIndex);
-SQueryInfo *tscGetQueryInfoDetailSafely(SSqlCmd *pCmd, int32_t subClauseIndex);
+void        tscInitQueryInfo(SQueryInfo* pQueryInfo);
+void        tscClearSubqueryInfo(SSqlCmd* pCmd);
+int32_t     tscAddQueryInfo(SSqlCmd *pCmd);
+SQueryInfo *tscGetQueryInfo(SSqlCmd* pCmd, int32_t subClauseIndex);
+SQueryInfo *tscGetQueryInfoS(SSqlCmd *pCmd, int32_t subClauseIndex);
 
 void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo);
 
@@ -217,11 +221,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableM
                                     SVgroupsInfo* vgroupList, SArray* pTagCols, SArray* pVgroupTables);
 
 STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo *pQueryInfo);
-int32_t tscAddSubqueryInfo(SSqlCmd *pCmd);
 
-void tscInitQueryInfo(SQueryInfo* pQueryInfo);
-
-void tscClearSubqueryInfo(SSqlCmd* pCmd);
 void tscFreeVgroupTableInfo(SArray* pVgroupTables);
 SArray* tscVgroupTableInfoDup(SArray* pVgroupTables);
 void tscRemoveVgroupTableGroup(SArray* pVgroupTable, int32_t index);
@@ -233,6 +233,8 @@ int  tscGetTableMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool creat
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
 void tscDoQuery(SSqlObj* pSql);
+void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
+void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 
 SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *pInfo);
 void* tscVgroupInfoClear(SVgroupsInfo *pInfo);
@@ -266,7 +268,7 @@ void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex);
 int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid);
 int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId);
 
-void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex);
+void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex);
 
 bool hasMoreVnodesToTry(SSqlObj *pSql);
 bool hasMoreClauseToTry(SSqlObj* pSql);

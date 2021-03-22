@@ -284,7 +284,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
   size_t numOfTables = taosArrayGetSize(tables);
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, 0);
   SArray* progress = taosArrayInit(numOfTables, sizeof(SSubscriptionProgress));
   for( size_t i = 0; i < numOfTables; i++ ) {
     STidTags* tt = taosArrayGet( tables, i );
@@ -304,7 +304,7 @@ static int tscUpdateSubscription(STscObj* pObj, SSub* pSub) {
   }
   taosArrayDestroy(tables);
 
-  TSDB_QUERY_SET_TYPE(tscGetQueryInfoDetail(pCmd, 0)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
+  TSDB_QUERY_SET_TYPE(tscGetQueryInfo(pCmd, 0)->type, TSDB_QUERY_TYPE_MULTITABLE_QUERY);
   return 1;
 }
 
@@ -502,7 +502,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
   SSqlRes *pRes = &pSql->res;
   SSqlCmd *pCmd = &pSql->cmd;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
   if (taosArrayGetSize(pSub->progress) > 0) { // fix crash in single table subscription
 
     size_t size = taosArrayGetSize(pSub->progress);

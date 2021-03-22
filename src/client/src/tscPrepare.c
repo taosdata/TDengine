@@ -815,7 +815,7 @@ static int insertStmtExecute(STscStmt* stmt) {
   pRes->numOfRows  = 0;
   pRes->numOfTotal = 0;
 
-  tscProcessSql(pSql);
+  tscProcessSql(pSql, NULL);
 
   // wait for the callback function to post the semaphore
   tsem_wait(&pSql->rspSem);

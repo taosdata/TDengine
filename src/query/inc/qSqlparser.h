@@ -86,7 +86,7 @@ typedef struct SSessionWindowVal {
 struct SFromInfo;
 
 typedef struct SQuerySqlNode {
-  struct SArray     *pSelectList;  // select clause
+  struct SArray     *pSelNodeList; // select clause
   struct SFromInfo  *from;         // from clause SArray<SQuerySqlNode>
   struct tSqlExpr   *pWhere;       // where clause [optional]
   SArray            *pGroupby;     // groupby clause, only for tags[optional], SArray<tVariantListItem>
@@ -113,7 +113,7 @@ typedef struct SSubclauseInfo {  // "UNION" multiple select sub-clause
 typedef struct SFromInfo {
   int32_t            type;        // nested query|table name list
   union {
-    SSubclauseInfo  *pNode;
+    SSubclauseInfo   pNode;
     SArray          *tableList;   // SArray<STableNamePair>
   };
 } SFromInfo;
@@ -254,7 +254,7 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
 SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 
 SFromInfo *setTableNameList(SFromInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
-SFromInfo *setSubquery(SFromInfo* pFromInfo, SQuerySqlNode *pSqlNode);
+SFromInfo *setSubquery(SFromInfo* pFromInfo, SSubclauseInfo* pSqlNode);
 void      *destroyFromInfo(SFromInfo* pFromInfo);
 
 // sql expr leaf node
@@ -270,7 +270,7 @@ void      tSqlExprDestroy(tSqlExpr *pExpr);
 SArray   *tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SStrToken *pDistinct, SStrToken *pToken);
 void      tSqlExprListDestroy(SArray *pList);
 
-SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SFromInfo *pFrom, tSqlExpr *pWhere,
+SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SFromInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,
                                 SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit);
 

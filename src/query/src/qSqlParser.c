@@ -462,13 +462,13 @@ SFromInfo *setTableNameList(SFromInfo* pFromInfo, SStrToken *pName, SStrToken* p
   return pFromInfo;
 }
 
-SFromInfo *setSubquery(SFromInfo* pFromInfo, SQuerySqlNode* pSqlNode) {
+SFromInfo *setSubquery(SFromInfo* pFromInfo, SSubclauseInfo* pSqlNode) {
   if (pFromInfo == NULL) {
     pFromInfo = calloc(1, sizeof(SFromInfo));
   }
 
   pFromInfo->type = SQL_NODE_FROM_SUBQUERY;
-  pFromInfo->pNode->pClause[pFromInfo->pNode->numOfClause - 1] = pSqlNode;
+  pFromInfo->pNode = *pSqlNode;
 
   return pFromInfo;
 }
@@ -481,7 +481,7 @@ void* destroyFromInfo(SFromInfo* pFromInfo) {
   if (pFromInfo->type == SQL_NODE_FROM_NAMELIST) {
     taosArrayDestroy(pFromInfo->tableList);
   } else {
-    destroyAllSelectClause(pFromInfo->pNode);
+    destroyAllSelectClause(&pFromInfo->pNode);
   }
 
   tfree(pFromInfo);
@@ -628,11 +628,11 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 /*
  * extract the select info out of sql string
  */
-SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SFromInfo *pFrom, tSqlExpr *pWhere,
+SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SFromInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
                                 SSessionWindowVal *pSession, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
                                 SLimitVal *psLimit) {
-  assert(pSelectList != NULL);
+  assert(pSelNodeList != NULL);
 
   SQuerySqlNode *pSqlNode = calloc(1, sizeof(SQuerySqlNode));
 
@@ -640,7 +640,7 @@ SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SF
   pSqlNode->sqlstr   = *pSelectToken;
   pSqlNode->sqlstr.n = (uint32_t)strlen(pSqlNode->sqlstr.z);
 
-  pSqlNode->pSelectList = pSelectList;
+  pSqlNode->pSelNodeList = pSelNodeList;
   pSqlNode->from        = pFrom;
   pSqlNode->pGroupby    = pGroupby;
   pSqlNode->pSortOrder  = pSortOrder;
@@ -702,9 +702,9 @@ void destroyQuerySqlNode(SQuerySqlNode *pQuerySql) {
     return;
   }
 
-  tSqlExprListDestroy(pQuerySql->pSelectList);
+  tSqlExprListDestroy(pQuerySql->pSelNodeList);
   
-  pQuerySql->pSelectList = NULL;
+  pQuerySql->pSelNodeList = NULL;
 
   tSqlExprDestroy(pQuerySql->pWhere);
   pQuerySql->pWhere = NULL;

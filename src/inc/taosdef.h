@@ -388,9 +388,10 @@ typedef enum {
 typedef enum {
   TSDB_SUPER_TABLE  = 0,   // super table
   TSDB_CHILD_TABLE  = 1,   // table created from super table
-  TSDB_NORMAL_TABLE = 2,  // ordinary table
-  TSDB_STREAM_TABLE = 3,  // table created from stream computing
-  TSDB_TABLE_MAX    = 4
+  TSDB_NORMAL_TABLE = 2,   // ordinary table
+  TSDB_STREAM_TABLE = 3,   // table created from stream computing
+  TSDB_TEMP_TABLE   = 4,   // temp table created by nest query
+  TSDB_TABLE_MAX    = 5
 } ETableType;
 
 typedef enum {

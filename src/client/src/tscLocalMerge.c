@@ -61,7 +61,7 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalMerger *pReducer, tOrderDescr
    * the fields and offset attributes in pCmd and pModel may be different due to
    * merge requirement. So, the final result in pRes structure is formatted in accordance with the pCmd object.
    */
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   
   for (int32_t i = 0; i < size; ++i) {
@@ -262,7 +262,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
 #ifdef _DEBUG_VIEW
       printf("load data page into mem for build loser tree: %" PRIu64 " rows\n", ds->filePage.num);
       SSrcColumnInfo colInfo[256] = {0};
-      SQueryInfo *   pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+      SQueryInfo *   pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
       tscGetSrcColumnInfo(colInfo, pQueryInfo);
 
@@ -297,7 +297,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   param->pLocalData = pReducer->pLocalDataSrc;
   param->pDesc = pReducer->pDesc;
   param->num = pReducer->pLocalDataSrc[0]->pMemBuffer->numOfElemsPerPage;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   param->groupOrderType = pQueryInfo->groupbyExpr.orderType;
   pReducer->orderPrjOnSTable = tscOrderedProjectionQueryOnSTable(pQueryInfo, 0);
@@ -491,7 +491,7 @@ void tscDestroyLocalMerger(SSqlObj *pSql) {
   }
 
   SSqlCmd *   pCmd = &pSql->cmd;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   // there is no more result, so we release all allocated resource
   SLocalMerger *pLocalMerge = (SLocalMerger *)atomic_exchange_ptr(&pRes->pLocalMerger, NULL);
@@ -545,7 +545,7 @@ void tscDestroyLocalMerger(SSqlObj *pSql) {
 
 static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCmd, SColumnModel *pModel) {
   int32_t     numOfGroupByCols = 0;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     numOfGroupByCols = pQueryInfo->groupbyExpr.numOfGroupCols;
@@ -608,7 +608,7 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCm
 }
 
 bool isSameGroup(SSqlCmd *pCmd, SLocalMerger *pReducer, char *pPrev, tFilePage *tmpBuffer) {
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   // disable merge procedure for column projection query
   int16_t functionId = pReducer->pCtx[0].functionId;
@@ -659,7 +659,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   SColumnModel *pModel = NULL;
   *pFinalModel = NULL;
 
-  SQueryInfo *    pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *    pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pSql->subState.numOfSub);
@@ -949,7 +949,7 @@ static void doFillResult(SSqlObj *pSql, SLocalMerger *pLocalMerge, bool doneOutp
   SSqlRes *pRes = &pSql->res;
   
   tFilePage  *pBeforeFillData = pLocalMerge->pResultBuf;
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   SFillInfo  *pFillInfo = pLocalMerge->pFillInfo;
 
   // todo extract function
@@ -1048,7 +1048,7 @@ static void savePreviousRow(SLocalMerger *pLocalMerge, tFilePage *tmpBuffer) {
 
 static void doExecuteFinalMerge(SSqlCmd *pCmd, SLocalMerger *pLocalMerge, bool needInit) {
   // the tag columns need to be set before all functions execution
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   for (int32_t j = 0; j < size; ++j) {
@@ -1215,7 +1215,7 @@ static bool saveGroupResultInfo(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   if (pRes->numOfRowsGroup > 0) {
     pRes->numOfGroups += 1;
@@ -1244,7 +1244,7 @@ bool genFinalResults(SSqlObj *pSql, SLocalMerger *pLocalMerge, bool noMoreCurren
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  SQueryInfo *  pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *  pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   tFilePage *   pResBuf = pLocalMerge->pResultBuf;
   SColumnModel *pModel = pLocalMerge->resColModel;
 
@@ -1310,7 +1310,7 @@ static void resetEnvForNewResultset(SSqlRes *pRes, SSqlCmd *pCmd, SLocalMerger *
   pRes->numOfRows = 0;
   pRes->numOfRowsGroup = 0;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   pQueryInfo->limit.offset = pLocalMerge->offset;
 
@@ -1333,7 +1333,7 @@ static bool doBuildFilledResultForGroup(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   SLocalMerger *pLocalMerge = pRes->pLocalMerger;
   SFillInfo *pFillInfo = pLocalMerge->pFillInfo;
 
@@ -1364,7 +1364,7 @@ static bool doHandleLastRemainData(SSqlObj *pSql) {
 
   bool prevGroupCompleted = (!pLocalMerge->discard) && pLocalMerge->hasUnprocessedRow;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   if ((isAllSourcesCompleted(pLocalMerge) && !pLocalMerge->hasPrevRow) || pLocalMerge->pLocalDataSrc[0] == NULL ||
       prevGroupCompleted) {
@@ -1405,7 +1405,7 @@ static void doProcessResultInNextWindow(SSqlObj *pSql, int32_t numOfRes) {
   SSqlRes *pRes = &pSql->res;
 
   SLocalMerger *pLocalMerge = pRes->pLocalMerger;
-  SQueryInfo *   pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo *   pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
 
   for (int32_t k = 0; k < size; ++k) {
@@ -1437,7 +1437,7 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
   }
 
   SLocalMerger  *pLocalMerge = pRes->pLocalMerger;
-  SQueryInfo    *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
+  SQueryInfo    *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   tFilePage     *tmpBuffer = pLocalMerge->pTempBuffer;
 
   if (doHandleLastRemainData(pSql)) {
