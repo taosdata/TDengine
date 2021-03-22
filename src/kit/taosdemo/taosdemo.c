@@ -523,8 +523,8 @@ SArguments g_args = {
                      1,               // replica
                      "t",             // tb_prefix
                      NULL,            // sqlFile
-                     false,           // use_metric
-                     false,           // insert_only
+                     true,            // use_metric
+                     true,            // insert_only
                      false,           // debug_print
                      false,           // verbose_print
                      false,           // performance statistic print 
@@ -614,7 +614,7 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, "-m", indent, 
           "Table prefix name. Default is 't'.");
   printf("%s%s%s%s\n", indent, "-s", indent, "The select sql file.");
-  printf("%s%s%s%s\n", indent, "-M", indent, "Use metric flag.");
+  printf("%s%s%s%s\n", indent, "-N", indent, "Use normal table flag.");
   printf("%s%s%s%s\n", indent, "-o", indent, 
           "Direct output to the named file. Default is './output.txt'.");
   printf("%s%s%s%s\n", indent, "-q", indent, 
@@ -742,10 +742,10 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       arguments->len_of_binary = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m") == 0) {
       arguments->tb_prefix = argv[++i];
-    } else if (strcmp(argv[i], "-M") == 0) {
-      arguments->use_metric = true;
+    } else if (strcmp(argv[i], "-N") == 0) {
+      arguments->use_metric = false;
     } else if (strcmp(argv[i], "-x") == 0) {
-      arguments->insert_only = true;
+      arguments->insert_only = false;
     } else if (strcmp(argv[i], "-y") == 0) {
       arguments->answer_yes = true;
     } else if (strcmp(argv[i], "-g") == 0) {
@@ -2576,12 +2576,12 @@ static int startMultiThreadCreateChildTable(
     t_info->ntables = i<b?a+1:a;
     t_info->end_table_to = i < b ? startFrom + a : startFrom + a - 1;
     startFrom = t_info->end_table_to + 1;
-    t_info->use_metric = 1;
+    t_info->use_metric = true;
     t_info->cols = cols;
     t_info->minDelay = INT16_MAX;
     pthread_create(pids + i, NULL, createTable, t_info);
   }
-  
+ 
   for (int i = 0; i < threads; i++) {
     pthread_join(pids[i], NULL);
   }
@@ -2592,11 +2592,10 @@ static int startMultiThreadCreateChildTable(
   }
 
   free(pids);
-  free(infos);  
+  free(infos);
 
   return 0;
 }
-
 
 static void createChildTables() {
     char tblColsBuf[MAX_SQL_SIZE];
@@ -6150,13 +6149,13 @@ static void queryResult() {
 
 static void testCmdLine() {
 
-    g_args.test_mode = INSERT_TEST;
-    insertTestProcess();
+  g_args.test_mode = INSERT_TEST;
+  insertTestProcess();
 
-    if (g_Dbs.insert_only)
-      return;
-    else
-        queryResult();
+  if (g_Dbs.insert_only)
+    return;
+  else
+    queryResult();
 }
 
 int main(int argc, char *argv[]) {
@@ -6166,7 +6165,7 @@ int main(int argc, char *argv[]) {
 
   if (g_args.metaFile) {
     initOfInsertMeta();
-    initOfQueryMeta();    
+    initOfQueryMeta();
 
     if (false == getInfoFromJsonFile(g_args.metaFile)) {
       printf("Failed to read %s\n", g_args.metaFile);
@@ -6180,12 +6179,12 @@ int main(int argc, char *argv[]) {
 
     if (NULL != g_args.sqlFile) {
       TAOS* qtaos = taos_connect(
-          g_Dbs.host, 
-          g_Dbs.user, 
-          g_Dbs.password, 
-          g_Dbs.db[0].dbName, 
+          g_Dbs.host,
+          g_Dbs.user,
+          g_Dbs.password,
+          g_Dbs.db[0].dbName,
           g_Dbs.port);
-      querySqlFile(qtaos, g_args.sqlFile);  
+      querySqlFile(qtaos, g_args.sqlFile);
       taos_close(qtaos);
 
     } else {
