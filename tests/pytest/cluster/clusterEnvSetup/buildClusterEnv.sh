@@ -110,6 +110,7 @@ function clusterUp {
         sed -i "s/td2.0-node3/td2.0-node$i/g" node$i.yml
         sed -i "s/'tdnode3'/'tdnode$i'/g" node$i.yml
         sed -i "s#/node3/#/node$i/#g" node$i.yml
+        sed -i "s#/hostname: tdnode3/#/hostname: tdnode$i/#g" node$i.yml
         sed -i "s#ipv4_address: 172.27.0.9#ipv4_address: 172.27.0.`expr $i + 6`#g" node$i.yml
       fi
       docker_run=$docker_run" -f node$i.yml "

@@ -66,7 +66,9 @@ services:
        context: .
        args:
          - PACKAGE=${PACKAGE}
+         - TARBITRATORPKG=${TARBITRATORPKG}
          - EXTRACTDIR=${DIR}
+         - EXTRACTDIR2=${DIR2}
          - DATADIR=${DATADIR}
      image: 'tdengine:${VERSION}'
      container_name: 'tdnode2'     
