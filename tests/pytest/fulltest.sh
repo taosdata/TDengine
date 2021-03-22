@@ -196,8 +196,6 @@ python3 ./test.py -f query/bug2119.py
 python3 ./test.py -f query/isNullTest.py
 python3 ./test.py -f query/queryWithTaosdKilled.py
 python3 ./test.py -f query/floatCompare.py
-python3 ./test.py -f query/query1970YearsAf.py
-python3 ./test.py -f query/bug3351.py
 python3 ./test.py -f query/bug3375.py
 
 
