@@ -41,10 +41,11 @@
 #include "dnodeTelemetry.h"
 #include "module.h"
 
-#ifndef _MODULE
+#if !defined(_MODULE) || !defined(_TD_LINUX)
 int32_t moduleStart() { return 0; }
-void    moduleStop();
+void    moduleStop() {}
 #endif
+
 
 void *tsDnodeTmr = NULL;
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
