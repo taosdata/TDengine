@@ -79,24 +79,26 @@ function runSimCaseOneByOnefq {
       date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
-        ./test.sh -f $case > /dev/null 2>&1 && \
+        ./test.sh -f $case > ../../../sim/case.log 2>&1 && \
         ( grep -q 'script.*'$case'.*failed.*, err.*lineNum' ../../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
         ( grep -q 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
-        echo -e "${RED} failed${NC}" | tee -a out.log
+        ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' && cat ../../../sim/case.log )
       else
         echo -n $case
-        ./test.sh -f $case > /dev/null 2>&1 && \
+        ./test.sh -f $case > ../../sim/case.log 2>&1 && \
         ( grep -q 'script.*'$case'.*failed.*, err.*lineNum' ../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
         ( grep -q 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
-        echo -e "${RED} failed${NC}" | tee -a out.log
+        ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' &&  cat ../../sim/case.log )
       fi
       
       out_log=`tail -1 out.log  `
       if [[ $out_log =~ 'failed' ]];then
         if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
           cp -r ../../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S"`
+          rm -rf ../../../sim/case.log
         else 
           cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
+          rm -rf ../../sim/case.log
         fi
         exit 8
       fi
@@ -105,6 +107,8 @@ function runSimCaseOneByOnefq {
       dohavecore $2
     fi
   done 
+  rm -rf ../../../sim/case.log
+  rm -rf ../../sim/case.log
 }
 
 function runPyCaseOneByOne {
@@ -158,13 +162,16 @@ function runPyCaseOneByOnefq() {
         start_time=`date +%s`
         date +%F\ %T | tee -a pytest-out.log
         echo -n $case
-        $line > /dev/null 2>&1 && \
+        $line > ../../sim/case.log 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
-          echo -e "${RED} failed${NC}" | tee -a pytest-out.log
+          echo -e "${RED} failed${NC}" | tee -a pytest-out.log 
         end_time=`date +%s`
         out_log=`tail -1 pytest-out.log  `
         if [[ $out_log =~ 'failed' ]];then
           cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
+          echo '=====================log====================='
+          cat ../../sim/case.log
+          rm -rf ../../sim/case.log
           exit 8
         fi
         echo execution time of $case was `expr $end_time - $start_time`s. | tee -a pytest-out.log
@@ -174,6 +181,7 @@ function runPyCaseOneByOnefq() {
       dohavecore $2
     fi
   done 
+  rm -rf ../../sim/case.log
 }
 
 totalFailed=0
