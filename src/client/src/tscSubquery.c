@@ -134,7 +134,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
   SLimitVal* pLimit = &pQueryInfo->limit;
   int32_t    order = pQueryInfo->order.order;
   int32_t    joinNum = pSql->subState.numOfSub;
-  SMergeTsCtx ctxlist[TSDB_MAX_JOIN_TABLE_NUM] = {0};
+  SMergeTsCtx ctxlist[TSDB_MAX_JOIN_TABLE_NUM] = {{0}};
   SMergeTsCtx* ctxStack[TSDB_MAX_JOIN_TABLE_NUM] = {0};
   int32_t slot = 0;
   size_t tableNum = 0;
@@ -895,7 +895,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   int16_t tagColId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
   SJoinSupporter* p0 = pParentSql->pSubs[0]->param;
-  SMergeCtx ctxlist[TSDB_MAX_JOIN_TABLE_NUM] = {0};
+  SMergeCtx ctxlist[TSDB_MAX_JOIN_TABLE_NUM] = {{0}};
   SMergeCtx* ctxStack[TSDB_MAX_JOIN_TABLE_NUM] = {0};
 
   // int16_t for padding
