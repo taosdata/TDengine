@@ -167,7 +167,7 @@ sql_error show t1.stables;
 sql_error show t1.tables;
 
 sql_error create topic t1 partitions -1;
-sql_error create topic t1 partitions 0;
+#sql_error create topic t1 partitions 0;
 sql_error create topic t1 partitions 10001;
 
 print =============step3 create with db para
@@ -718,7 +718,7 @@ sql_error alter database t1 partitions 1000
 sql_error alter database t1 partitions 10000
 
 sql_error alter topic t1 partitions -1
-sql_error alter topic t1 partitions 0
+#sql_error alter topic t1 partitions 0
 sql_error alter database t1 partitions 10000
 
 sql alter topic t1 partitions 1
@@ -858,12 +858,25 @@ sql_error create topic t2 partitions 3;
 
 sql_error alter topic t3 partitions 1
 sql_error alter topic d2 partitions 1
-sql_error alter topic t2 partitions 0
+#sql_error alter topic t2 partitions 0
 sql_error alter topic t2 partitions 10000
 
 sql_error drop topic d2
 sql_error drop topic d3
 sql       drop database d2
 sql       drop database t2
+
+print ============== create partitons 0
+sql create topic t2 partitions 0
+sql show t2.stables;
+if $rows != 0 then 
+  return -1
+endi
+sql show t2.tables;
+if $rows != 0 then 
+  return -1
+endi
+
+sql drop topic t2
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
