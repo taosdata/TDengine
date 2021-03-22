@@ -17,6 +17,7 @@ from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import *
+import subprocess
 
 
 class TDTestCase:
@@ -39,7 +40,7 @@ class TDTestCase:
             if ("taosd" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
+                    buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
 
@@ -50,14 +51,23 @@ class TDTestCase:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath+ "/build/bin/"
-        os.system("%staosdemo -f tools/insert-interlace.json" % binPath)
+        binPath = buildPath + "/build/bin/"
+        taosdemoCmd = "%staosdemo -f tools/insert-interlace.json -pp 2>&1 | grep sleep | wc -l" % binPath
+        sleepTimes = subprocess.check_output(
+            taosdemoCmd, shell=True).decode("utf-8")
+        print("sleep times: %d" % int(sleepTimes))
+
+        if (int(sleepTimes) != 16):
+            caller = inspect.getframeinfo(inspect.stack()[0][0])
+            tdLog.exit(
+                "%s(%d) failed: expected sleep times 16, actual %d" %
+                (caller.filename, caller.lineno, int(sleepTimes)))
 
         tdSql.execute("use db")
         tdSql.query("select count(tbname) from db.stb")
-        tdSql.checkData(0, 0, 100)
+        tdSql.checkData(0, 0, 9)
         tdSql.query("select count(*) from db.stb")
-        tdSql.checkData(0, 0, 33000)
+        tdSql.checkData(0, 0, 2250)
 
     def stop(self):
         tdSql.close()
