@@ -135,7 +135,7 @@ static int32_t tpCreateTopicDb(TAOS *taos, SCreateDbMsg *pCreate) {
     mError("topic:%s, failed to create db since %s, code:%x", pCreate->db, taos_errstr(pSql), code);
   }
 
-  taos_free_result(pSql);
+  if (pSql != NULL) taos_free_result(pSql);
   return code;
 }
 
@@ -152,7 +152,7 @@ static int32_t tpDropTopicDb(TAOS *taos, const char *topic) {
     mError("topic:%s, failed to drop db since %s, code:%x", topic, taos_errstr(pSql), code);
   }
 
-  taos_free_result(pSql);
+  if (pSql != NULL) taos_free_result(pSql);
   return code;
 }
 
@@ -168,7 +168,7 @@ static int32_t tpCreateTopicStable(TAOS *taos, const char *topic) {
     mError("topic:%s, failed to create stable since %s, code:%x", topic, taos_errstr(pSql), code);
   }
 
-  taos_free_result(pSql);
+  if (pSql != NULL) taos_free_result(pSql);
   return code;
 }
 
@@ -189,7 +189,7 @@ static int32_t tpCreateTopicCtable(TAOS *taos, const char *topic, int32_t partit
       break;
     }
   }
-  taos_free_result(pSql);
+  if (pSql != NULL) taos_free_result(pSql);
   return code;
 }
 
@@ -210,7 +210,7 @@ static int32_t tpDropTopicCtable(TAOS *taos, const char *topic, int32_t oldParti
     }
   }
 
-  taos_free_result(pSql);
+  if (pSql != NULL) taos_free_result(pSql);
   return 0;
 }
 
@@ -251,8 +251,8 @@ static void *tpProcessCreateTp(void *param) {
     partitions = TSDB_DEFAULT_DB_PARTITON_OPTION;
   }
 
-  if (partitions < 1 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
-    mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, 1, TSDB_MAX_DB_PARTITON_OPTION);
+  if (partitions < 0 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
+    mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, 0, TSDB_MAX_DB_PARTITON_OPTION);
     code = TSDB_CODE_MND_INVALID_TOPIC_PARTITONS;
     goto ctp_over;
   }
@@ -274,9 +274,11 @@ static void *tpProcessCreateTp(void *param) {
   pDb = mnodeGetDb(pCreate->db);
   if (pDb != NULL) pDb->cfg.dbType = TSDB_DB_TYPE_TOPIC;
 
-  code = tpCreateTopicStable(taos, mnodeGetDbStr(pCreate->db));
-  if (code != 0) {
-    goto ctp_over;
+  if (partitions != 0) {
+    code = tpCreateTopicStable(taos, mnodeGetDbStr(pCreate->db));
+    if (code != 0) {
+      goto ctp_over;
+    }
   }
 
   code = tpCreateTopicCtable(taos, mnodeGetDbStr(pCreate->db), partitions);
@@ -320,8 +322,8 @@ static void *tpProcessAlterTp(void *param) {
     goto atp_over;
   }
 
-  if (partitions < 1 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
-    mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, 1, TSDB_MAX_DB_PARTITON_OPTION);
+  if (partitions < 0 || partitions > TSDB_MAX_DB_PARTITON_OPTION) {
+    mError("invalid db option partitions:%d valid range: [%d, %d]", partitions, 0, TSDB_MAX_DB_PARTITON_OPTION);
     code = TSDB_CODE_MND_INVALID_TOPIC_PARTITONS;
     goto atp_over;
   }
@@ -337,6 +339,13 @@ static void *tpProcessAlterTp(void *param) {
     goto atp_over;
   } else {
     mDebug("connect to database success");
+  }
+
+  if (partitions != 0) {
+    code = tpCreateTopicStable(taos, mnodeGetDbStr(pAlter->db));
+    if (code != 0) {
+      goto atp_over;
+    }
   }
 
   tpCreateTopicCtable(taos, mnodeGetDbStr(pAlter->db), partitions);
