@@ -169,6 +169,8 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
       return 0;
     }
 
+    tscDebug("%p sub:%p table idx:%d, input group number:%d", pSql, pSql->pSubs[i], i, pSupporter->pTSBuf->numOfGroups);
+
     ctxlist[i].p = pSupporter;
     ctxlist[i].res = output;
   }
@@ -291,7 +293,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
           for (int32_t i = 0; i < stackidx; ++i) {
             SMergeTsCtx* tctx = ctxStack[i];
           
-            if (!tsBufNextPos(tctx->p->pTSBuf)) {
+            if (!tsBufNextPos(tctx->p->pTSBuf) && tctx == mainCtx) {
               mergeDone = 1;
             }
             tctx->numOfInput++;            
@@ -306,7 +308,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
 
           ctxStack[stackidx++] = pctx;
         } else if (ret > 0) {
-          if (!tsBufNextPos(ctx->p->pTSBuf)) {
+          if (!tsBufNextPos(ctx->p->pTSBuf) && ctx == mainCtx) {
             mergeDone = 1;
             break;
           }
@@ -319,7 +321,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
           for (int32_t i = 0; i < stackidx; ++i) {
             SMergeTsCtx* tctx = ctxStack[i];
             
-            if (!tsBufNextPos(tctx->p->pTSBuf)) {
+            if (!tsBufNextPos(tctx->p->pTSBuf) && tctx == mainCtx) {
               mergeDone = 1;
             }
             tctx->numOfInput++;
@@ -373,11 +375,9 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
   TSKEY et = taosGetTimestampUs();
 
   for (int32_t i = 0; i < joinNum; ++i) {
-    tsBufFlush(ctxlist[i].res);
-    
-    tscDebug("%p tblidx:%d, input:%" PRId64 ", final:%" PRId64 " in %d vnodes for secondary query after ts blocks "
+    tscDebug("%p sub:%p tblidx:%d, input:%" PRId64 ", final:%" PRId64 " in %d vnodes for secondary query after ts blocks "
              "intersecting, skey:%" PRId64 ", ekey:%" PRId64 ", numOfVnode:%d, elapsed time:%" PRId64 " us",
-             pSql, i, ctxlist[i].numOfInput, ctxlist[i].res->numOfTotal, ctxlist[i].res->numOfGroups, win->skey, win->ekey,
+             pSql, pSql->pSubs[i], i, ctxlist[i].numOfInput, ctxlist[i].res->numOfTotal, ctxlist[i].res->numOfGroups, win->skey, win->ekey,
              tsBufGetNumOfGroup(ctxlist[i].res), et - st);
   }  
 
@@ -1880,6 +1880,8 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
 
     pNewQueryInfo->limit.limit = -1;
     pNewQueryInfo->limit.offset = 0;
+
+    pNewQueryInfo->order.orderColId = INT32_MIN;
 
     // backup the data and clear it in the sqlcmd object
     memset(&pNewQueryInfo->groupbyExpr, 0, sizeof(SSqlGroupbyExpr));
