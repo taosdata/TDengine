@@ -96,7 +96,7 @@ parser.add_argument(
     '-v',
     '--version',
     action='store',
-    default='2.0.17.1',
+    default='2.0.18.1',
     type=str,
     help='the version of the cluster to be build, Default is 2.0.17.1')
 parser.add_argument(
