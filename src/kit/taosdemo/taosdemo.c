@@ -4519,7 +4519,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
       pstr += dataLen;
       recOfBatch += batchPerTbl;
-      startTime += batchPerTbl * superTblInfo->timeStampStep;
       pThreadInfo->totalInsertRows += batchPerTbl;
 
       verbosePrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
@@ -4530,6 +4529,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       if (insertMode == INTERLACE_INSERT_MODE) {
           if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
             // turn to first table
+            startTime += batchPerTbl * superTblInfo->timeStampStep;
             tableSeq = pThreadInfo->start_table_from;
             generatedRecPerTbl += batchPerTbl;
             flagSleep = true;
