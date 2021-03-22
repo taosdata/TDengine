@@ -45,8 +45,8 @@ class BuildDockerCluser:
         os.system("docker exec -d $(docker ps|grep tdnode1|awk '{print $1}') tarbitrator")
 
     def run(self):        
-        if self.numOfNodes < 2 or self.numOfNodes > 5:
-            print("the number of nodes must be between 2 and 5")
+        if self.numOfNodes < 2 or self.numOfNodes > 10:
+            print("the number of nodes must be between 2 and 10")
             exit(0)   
         print("remove Flag value %s" % self.removeFlag)     
         if self.removeFlag == False:

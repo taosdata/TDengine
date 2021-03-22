@@ -24,10 +24,15 @@ services:
        sysctl -p &&
        exec my-main-application"
      extra_hosts:
-      - "tdnode1:172.27.0.7"
       - "tdnode2:172.27.0.8"
+      - "tdnode3:172.27.0.9"
       - "tdnode4:172.27.0.10"
       - "tdnode5:172.27.0.11"
+      - "tdnode6:172.27.0.12"
+      - "tdnode7:172.27.0.13"
+      - "tdnode8:172.27.0.14"
+      - "tdnode9:172.27.0.15"
+      - "tdnode9:172.27.0.16"
      volumes: 
        # bind data directory
        - type: bind

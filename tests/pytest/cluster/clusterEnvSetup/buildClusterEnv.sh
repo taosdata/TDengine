@@ -32,7 +32,7 @@ do
 done
 
 function addTaoscfg {
-  for i in {1..5}
+  for((i=1;i<=$NUM_OF_NODES;i++))
   do 
     touch $DOCKER_DIR/node$i/cfg/taos.cfg
     echo 'firstEp          tdnode1:6030' > $DOCKER_DIR/node$i/cfg/taos.cfg
@@ -42,7 +42,7 @@ function addTaoscfg {
 }
 
 function createDIR {
-  for i in {1..5}
+  for((i=1;i<=$NUM_OF_NODES;i++))
   do    
     mkdir -p $DOCKER_DIR/node$i/data
     mkdir -p $DOCKER_DIR/node$i/log
@@ -53,7 +53,7 @@ function createDIR {
 
 function cleanEnv {
   echo "Clean up docker environment"    
-  for i in {1..5}
+  for((i=1;i<=$NUM_OF_NODES;i++))
   do    
     rm -rf $DOCKER_DIR/node$i/data/*    
     rm -rf $DOCKER_DIR/node$i/log/*
@@ -99,23 +99,25 @@ function clusterUp {
   
   cd $DOCKER_DIR  
 
-  if [ $NUM_OF_NODES -eq 2 ]; then
-    echo "create 2 dnodes"
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose up -d
+  docker_run="PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml "
+  if [ $NUM_OF_NODES -ge 2 ];then
+    echo "create $NUM_OF_NODES dnodes"
+    for((i=3;i<=$NUM_OF_NODES;i++))
+    do
+      if [ ! -f node$i.yml ];then
+        echo "node$i.yml not exist"
+        cp node3.yml node$i.yml
+        sed -i "s/td2.0-node3/td2.0-node$i/g" node$i.yml
+        sed -i "s/'tdnode3'/'tdnode$i'/g" node$i.yml
+        sed -i "s#/node3/#/node$i/#g" node$i.yml
+        sed -i "s#ipv4_address: 172.27.0.9#ipv4_address: 172.27.0.`expr $i + 6`#g" node$i.yml
+      fi
+      docker_run=$docker_run" -f node$i.yml "
+    done
+    docker_run=$docker_run" up -d"
   fi
-
-  if [ $NUM_OF_NODES -eq 3 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml -f node3.yml up -d
-  fi
-
-  if [ $NUM_OF_NODES -eq 4 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml -f node3.yml -f node4.yml up -d
-  fi
-
-  if [ $NUM_OF_NODES -eq 5 ]; then
-    PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml -f node3.yml -f node4.yml -f node5.yml up -d
-  fi
-
+  echo $docker_run |sh 
+  
   echo "docker compose finish"
 }
 
