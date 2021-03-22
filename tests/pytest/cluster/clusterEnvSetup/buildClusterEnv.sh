@@ -126,7 +126,7 @@ function clusterUp {
   cd $DOCKER_DIR  
 
   if [[ "$CURR_DIR" == *"$IN_TDINTERNAL"* ]]; then
-    docker_run="PACKAGE=TDengine-enterprise-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine--enterprisearbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-enterprise-server-$VERSION DIR2=TDengine-enterprise-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml "
+    docker_run="PACKAGE=TDengine-enterprise-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-enterprise-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-enterprise-server-$VERSION DIR2=TDengine-enterprise-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml "
   else
     docker_run="PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml "
   fi
