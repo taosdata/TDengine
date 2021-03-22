@@ -32,7 +32,7 @@ services:
       - "tdnode7:172.27.0.13"
       - "tdnode8:172.27.0.14"
       - "tdnode9:172.27.0.15"
-      - "tdnode9:172.27.0.16"
+      - "tdnode10:172.27.0.16"
      volumes: 
        # bind data directory
        - type: bind
