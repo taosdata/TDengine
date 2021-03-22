@@ -6,7 +6,9 @@ services:
        context: .
        args:
          - PACKAGE=${PACKAGE}
+         - TARBITRATORPKG=${TARBITRATORPKG}
          - EXTRACTDIR=${DIR}
+         - EXTRACTDIR2=${DIR2}
          - DATADIR=${DATADIR}
      image: 'tdengine:${VERSION}'
      container_name: 'tdnode5'     
@@ -28,6 +30,11 @@ services:
       - "tdnode3:172.27.0.9"
       - "tdnode4:172.27.0.10"
       - "tdnode5:172.27.0.11"
+      - "tdnode6:172.27.0.12"
+      - "tdnode7:172.27.0.13"
+      - "tdnode8:172.27.0.14"
+      - "tdnode9:172.27.0.15"
+      - "tdnode10:172.27.0.16"
      volumes: 
        # bind data directory
        - type: bind

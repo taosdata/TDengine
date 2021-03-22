@@ -1,6 +1,8 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8)
 PROJECT(TDengine)
 
+add_subdirectory(base)
+
 IF (TD_LINUX_64)
   FLEX_TARGET(todbcFlexScanner
               todbc_scanner.l
@@ -15,8 +17,31 @@ IF (TD_LINUX_64)
   ADD_LIBRARY(todbc SHARED ${SRC} ${todbc_flex_scanner_src})
   SET_TARGET_PROPERTIES(todbc PROPERTIES CLEAN_DIRECT_OUTPUT 1)
   SET_TARGET_PROPERTIES(todbc PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
-  TARGET_LINK_LIBRARIES(todbc taos odbcinst)
+  TARGET_LINK_LIBRARIES(todbc todbc_base taos odbcinst)
   target_include_directories(todbc PUBLIC .)
+
+  install(CODE "execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/install.sh ${CMAKE_BINARY_DIR})")
+ENDIF ()
+
+IF (TD_DARWIN)
+  FLEX_TARGET(todbcFlexScanner
+              todbc_scanner.l
+              ${CMAKE_CURRENT_BINARY_DIR}/todbc_scanner.c
+  )
+  set(todbc_flex_scanner_src
+      ${FLEX_todbcFlexScanner_OUTPUTS}
+  )
+  set_source_files_properties(${CMAKE_CURRENT_BINARY_DIR}/todbc_scanner.c PROPERTIES COMPILE_OPTIONS "-Wno-conversion")
+  AUX_SOURCE_DIRECTORY(. SRC)
+
+  # generate dynamic library (*.dylib)
+  ADD_LIBRARY(todbc SHARED ${SRC} ${todbc_flex_scanner_src})
+  SET_TARGET_PROPERTIES(todbc PROPERTIES CLEAN_DIRECT_OUTPUT 1)
+  SET_TARGET_PROPERTIES(todbc PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
+  TARGET_LINK_LIBRARIES(todbc todbc_base taos odbcinst)
+  target_include_directories(todbc PUBLIC .)
+  target_include_directories(todbc PRIVATE /usr/local/include)
+  target_link_directories(todbc PUBLIC /usr/local/lib)
 
   install(CODE "execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/install.sh ${CMAKE_BINARY_DIR})")
 ENDIF ()
@@ -37,7 +62,7 @@ IF (TD_WINDOWS_64)
               ${todbc_flex_scanner_src}
               ${CMAKE_CURRENT_BINARY_DIR}/todbc.rc
               todbc.def)
-  TARGET_LINK_LIBRARIES(todbc taos_static odbccp32 legacy_stdio_definitions)
+  TARGET_LINK_LIBRARIES(todbc todbc_base taos_static odbccp32 legacy_stdio_definitions)
   target_include_directories(todbc PUBLIC .)
   target_compile_definitions(todbc PRIVATE "todbc_EXPORT")
 
@@ -52,3 +77,4 @@ IF (TD_WINDOWS_64)
   INSTALL(FILES ${LIBRARY_OUTPUT_PATH}/todbc.exp DESTINATION driver)
   INSTALL(FILES ${LIBRARY_OUTPUT_PATH}/todbc.dll DESTINATION driver)
 ENDIF ()
+

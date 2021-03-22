@@ -40,7 +40,7 @@ class TDTestCase:
             if ("taosd" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root)-len("/build/bin")]
+                    buildPath = root[:len(root) - len("/build/bin")]
                     break
         return buildPath
 
@@ -51,14 +51,17 @@ class TDTestCase:
             tdLog.exit("taosd not found!")
         else:
             tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath+ "/build/bin/"
+        binPath = buildPath + "/build/bin/"
         taosdemoCmd = "%staosdemo -f tools/insert-interlace.json -pp 2>&1 | grep sleep | wc -l" % binPath
-        sleepTimes = subprocess.check_output(taosdemoCmd, shell=True).decode("utf-8")
+        sleepTimes = subprocess.check_output(
+            taosdemoCmd, shell=True).decode("utf-8")
         print("sleep times: %d" % int(sleepTimes))
 
         if (int(sleepTimes) != 16):
             caller = inspect.getframeinfo(inspect.stack()[0][0])
-            tdLog.exit("%s(%d) failed: expected sleep times 16, actual %d" % (caller.filename, caller.lineno, int(sleepTimes)))
+            tdLog.exit(
+                "%s(%d) failed: expected sleep times 16, actual %d" %
+                (caller.filename, caller.lineno, int(sleepTimes)))
 
         tdSql.execute("use db")
         tdSql.query("select count(tbname) from db.stb")
