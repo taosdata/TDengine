@@ -292,7 +292,7 @@ static int32_t monBuildCpuSql(char *sql) {
 
 // unit is GB
 static int32_t monBuildDiskSql(char *sql) {
-  return sprintf(sql, ", %f, %d", (tsTotalDataDirGB - tsAvailDataDirGB), (int32_t)tsTotalDataDirGB);
+  return sprintf(sql, ", %f, %d", tsUsedDataDirGB, (int32_t)tsTotalDataDirGB);
 }
 
 // unit is Kb

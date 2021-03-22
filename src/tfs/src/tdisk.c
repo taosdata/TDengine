@@ -52,6 +52,7 @@ int tfsUpdateDiskInfo(SDisk *pDisk) {
   }
 
   pDisk->dmeta.size = diskSize.tsize;
+  pDisk->dmeta.used = diskSize.used;
   pDisk->dmeta.free = diskSize.avail;
 
   return code;
