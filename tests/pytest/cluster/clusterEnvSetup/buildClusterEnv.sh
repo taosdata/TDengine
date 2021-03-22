@@ -99,10 +99,6 @@ function clusterUp {
   
   cd $DOCKER_DIR  
 
-  # if [ $NUM_OF_NODES -eq 2 ]; then
-  #   echo "create 2 dnodes"
-  #   PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose up -d
-  # fi
   docker_run="PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml "
   if [ $NUM_OF_NODES -ge 2 ];then
     echo "create $NUM_OF_NODES dnodes"
@@ -110,11 +106,6 @@ function clusterUp {
     do
       if [ ! -f node$i.yml ];then
         echo "node$i.yml not exist"
-        # cp $CURR_DIR/node3.yml $CURR_DIR/node$i.yml
-        # sed -i "s/td2.0-node3/td2.0-node$i/g" $CURR_DIR/node$i.yml
-        # sed -i "s/'tdnode3'/'tdnode$i'/g" $CURR_DIR/node$i.yml
-        # sed -i "s#/node3/#/node$i/#g" $CURR_DIR/node$i.yml
-        # sed -i "s#ipv4_address: 172.27.0.9#ipv4_address: 172.27.0.`expr $i + 6`#g" $CURR_DIR/node$i.yml
         cp node3.yml node$i.yml
         sed -i "s/td2.0-node3/td2.0-node$i/g" node$i.yml
         sed -i "s/'tdnode3'/'tdnode$i'/g" node$i.yml
@@ -126,18 +117,7 @@ function clusterUp {
     docker_run=$docker_run" up -d"
   fi
   echo $docker_run |sh 
-  # if [ $NUM_OF_NODES -eq 3 ]; then
-  #   PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml -f node3.yml up -d
-  # fi
-
-  # if [ $NUM_OF_NODES -eq 4 ]; then
-  #   PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml -f node3.yml -f node4.yml up -d
-  # fi
-
-  # if [ $NUM_OF_NODES -eq 5 ]; then
-  #   PACKAGE=TDengine-server-$VERSION-Linux-x64.tar.gz TARBITRATORPKG=TDengine-arbitrator-$VERSION-Linux-x64.tar.gz DIR=TDengine-server-$VERSION DIR2=TDengine-arbitrator-$VERSION VERSION=$VERSION DATADIR=$DOCKER_DIR docker-compose -f docker-compose.yml -f node3.yml -f node4.yml -f node5.yml up -d
-  # fi
-
+  
   echo "docker compose finish"
 }
 
