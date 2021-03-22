@@ -137,7 +137,7 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, STimeWindow * win) {
   SMergeTsCtx ctxlist[TSDB_MAX_JOIN_TABLE_NUM] = {0};
   SMergeTsCtx* ctxStack[TSDB_MAX_JOIN_TABLE_NUM] = {0};
   int32_t slot = 0;
-  int32_t tableNum = 0;
+  size_t tableNum = 0;
   int16_t* tableMIdx = 0;
   int32_t equalNum = 0;
   int32_t stackidx = 0;
@@ -925,7 +925,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
   }
 
   int32_t slot = 0;
-  int32_t tableNum = 0;
+  size_t tableNum = 0;
   int16_t* tableMIdx = 0;
   int32_t equalNum = 0;
   int32_t stackidx = 0;
@@ -1072,7 +1072,7 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
 }
 
 bool emptyTagList(SArray* resList, int32_t size) {
-  int32_t rsize = taosArrayGetSize(resList);
+  size_t rsize = taosArrayGetSize(resList);
   if (rsize != size) {
     return true;
   }
@@ -1231,7 +1231,7 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     }
   }
 
-  int32_t rsize = taosArrayGetSize(resList);
+  size_t rsize = taosArrayGetSize(resList);
   for (int32_t i = 0; i < rsize; ++i) {
     SArray** s = taosArrayGet(resList, i);
     if (*s) {
