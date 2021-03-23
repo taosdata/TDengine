@@ -4450,7 +4450,7 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql
 
   int32_t type = 0;
   if ((ret = getQueryCondExpr(&pSql->cmd, pQueryInfo, pExpr, &condExpr, &type, (*pExpr)->tokenId)) != TSDB_CODE_SUCCESS) {
-    goto PARSE_WHERE_EXIT;
+    return ret;
   }
 
   tSqlExprCompact(pExpr);
@@ -4460,17 +4460,17 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql
 
   // 1. check if it is a join query
   if ((ret = validateJoinExpr(&pSql->cmd, pQueryInfo, &condExpr)) != TSDB_CODE_SUCCESS) {
-    goto PARSE_WHERE_EXIT;
+    return ret;
   }
 
   // 2. get the query time range
   if ((ret = getTimeRangeFromExpr(&pSql->cmd, pQueryInfo, condExpr.pTimewindow)) != TSDB_CODE_SUCCESS) {
-    goto PARSE_WHERE_EXIT;
+    return ret;
   }
 
   // 3. get the tag query condition
   if ((ret = getTagQueryCondExpr(&pSql->cmd, pQueryInfo, &condExpr, pExpr)) != TSDB_CODE_SUCCESS) {
-    goto PARSE_WHERE_EXIT;
+    return ret;
   }
 
   // 4. get the table name query condition
