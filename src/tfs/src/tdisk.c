@@ -27,7 +27,7 @@ SDisk *tfsNewDisk(int level, int id, const char *dir) {
 
   pDisk->level = level;
   pDisk->id = id;
-  strncpy(pDisk->dir, dir, TSDB_FILENAME_LEN);
+  tstrncpy(pDisk->dir, dir, TSDB_FILENAME_LEN);
 
   return pDisk;
 }
@@ -52,6 +52,7 @@ int tfsUpdateDiskInfo(SDisk *pDisk) {
   }
 
   pDisk->dmeta.size = diskSize.tsize;
+  pDisk->dmeta.used = diskSize.used;
   pDisk->dmeta.free = diskSize.avail;
 
   return code;

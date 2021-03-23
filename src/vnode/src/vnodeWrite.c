@@ -24,7 +24,7 @@
 #include "dnode.h"
 #include "vnodeStatus.h"
 
-#define MAX_QUEUED_MSG_NUM 10000
+#define MAX_QUEUED_MSG_NUM 100000
 
 extern void *  tsDnodeTmr;
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *pCont, SRspRet *);
@@ -142,7 +142,7 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
   vTrace("vgId:%d, submit msg is processed", pVnode->vgId);
 
   if (pVnode->dbType == TSDB_DB_TYPE_TOPIC && pVnode->role == TAOS_SYNC_ROLE_MASTER) {
-    tpUpdateTs(&pVnode->sequence, pCont);
+    tpUpdateTs(pVnode->vgId, &pVnode->sequence, pCont);
   }
 
   // save insert result into item

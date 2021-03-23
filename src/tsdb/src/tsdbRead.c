@@ -194,7 +194,7 @@ static void tsdbMayTakeMemSnapshot(STsdbQueryHandle* pQueryHandle, SArray* psTab
 
   SMemRef* pMemRef = pQueryHandle->pMemRef;
   if (pQueryHandle->pMemRef->ref++ == 0) {
-    tsdbTakeMemSnapshot(pQueryHandle->pTsdb, (SMemTable**)&(pMemRef->mem), (SMemTable**)&(pMemRef->imem), psTable);
+    tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &(pMemRef->snapshot), psTable);
   }
 
   taosArrayDestroy(psTable);
@@ -208,9 +208,7 @@ static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
   }
 
   if (--pMemRef->ref == 0) {
-    tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pMemRef->mem, pMemRef->imem);
-    pMemRef->mem = NULL;
-    pMemRef->imem = NULL;
+    tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, &(pMemRef->snapshot));
   }
 
   pQueryHandle->pMemRef = NULL;
@@ -229,10 +227,10 @@ int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle) {
   if (pMemRef == NULL) { return rows; }
 
   STableData* pMem  = NULL;
-  STableData* pIMem = NULL; 
+  STableData* pIMem = NULL;
 
-  SMemTable *pMemT  = (SMemTable *)(pMemRef->mem);  
-  SMemTable *pIMemT = (SMemTable *)(pMemRef->imem);
+  SMemTable* pMemT = pMemRef->snapshot.mem;
+  SMemTable* pIMemT = pMemRef->snapshot.imem;
 
   if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
     pMem = pMemT->tData[pCheckInfo->tableId.tid];
@@ -605,7 +603,7 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
   int32_t order = pHandle->order;
 
   // no data in buffer, abort
-  if (pHandle->pMemRef->mem == NULL && pHandle->pMemRef->imem == NULL) {
+  if (pHandle->pMemRef->snapshot.mem == NULL && pHandle->pMemRef->snapshot.imem == NULL) {
     return false;
   }
 
@@ -614,8 +612,8 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
   STableData* pMem = NULL;
   STableData* pIMem = NULL;
 
-  SMemTable* pMemT = pHandle->pMemRef->mem;
-  SMemTable* pIMemT = pHandle->pMemRef->imem;
+  SMemTable* pMemT = pHandle->pMemRef->snapshot.mem;
+  SMemTable* pIMemT = pHandle->pMemRef->snapshot.imem;
 
   if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
     pMem = pMemT->tData[pCheckInfo->tableId.tid];
@@ -844,6 +842,10 @@ static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile, int32_t precisio
     return INT32_MIN;
   }
 
+  if (key < 0) {
+    key -= (daysPerFile * tsMsPerDay[precision]);
+  }
+  
   int64_t fid = (int64_t)(key / (daysPerFile * tsMsPerDay[precision]));  // set the starting fileId
   if (fid < 0L && llabs(fid) > INT32_MAX) { // data value overflow for INT32
     fid = INT32_MIN;

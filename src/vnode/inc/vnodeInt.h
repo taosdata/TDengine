@@ -40,7 +40,7 @@ typedef struct {
   int32_t  queuedWMsg;
   int32_t  queuedRMsg;
   int32_t  flowctrlLevel;
-  int32_t  sequence;  // for topic
+  int64_t  sequence;  // for topic
   int8_t   status;
   int8_t   role;
   int8_t   accessState;
