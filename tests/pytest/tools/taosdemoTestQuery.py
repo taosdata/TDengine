@@ -52,7 +52,7 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
-        os.system("%staosdemo -M -y -t %d -n %d -x" %
+        os.system("%staosdemo -y -t %d -n %d" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
         taosdemoCmd = '%staosdemo -f tools/query.json | grep "####thread" | wc -l' % binPath
         threads = subprocess.check_output(
