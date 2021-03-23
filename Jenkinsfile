@@ -6,51 +6,51 @@ node {
 }
 
 def skipstage=0
-def cancelPreviousBuilds() {
-    def jobName = env.JOB_NAME
-    def buildNumber = env.BUILD_NUMBER.toInteger()
-    /* Get job name */
-    def currentJob = Jenkins.instance.getItemByFullName(jobName)
+// def cancelPreviousBuilds() {
+//     def jobName = env.JOB_NAME
+//     def buildNumber = env.BUILD_NUMBER.toInteger()
+//     /* Get job name */
+//     def currentJob = Jenkins.instance.getItemByFullName(jobName)
 
-    /* Iterating over the builds for specific job */
-    for (def build : currentJob.builds) {
-        def exec = build.getExecutor()
-        /* If there is a build that is currently running and it's not current build */
-        if (build.isBuilding() && build.number.toInteger() != buildNumber && exec != null) {
-            /* Then stop it */
-            exec.interrupt(
-                    Result.ABORTED,
-                    new CauseOfInterruption.UserInterruption("Aborted by #${currentBuild.number}")
-                )
-            println("Aborted previously running build #${build.number}")            
-        }
+//     /* Iterating over the builds for specific job */
+//     for (def build : currentJob.builds) {
+//         def exec = build.getExecutor()
+//         /* If there is a build that is currently running and it's not current build */
+//         if (build.isBuilding() && build.number.toInteger() != buildNumber && exec != null) {
+//             /* Then stop it */
+//             exec.interrupt(
+//                     Result.ABORTED,
+//                     new CauseOfInterruption.UserInterruption("Aborted by #${currentBuild.number}")
+//                 )
+//             println("Aborted previously running build #${build.number}")            
+//         }
+//     }
+// }
+def abortPreviousBuilds() {
+  def currentJobName = env.JOB_NAME
+  def currentBuildNumber = env.BUILD_NUMBER.toInteger()
+  def jobs = Jenkins.instance.getItemByFullName(currentJobName)
+  def builds = jobs.getBuilds()
+
+  for (build in builds) {
+    if (!build.isBuilding()) {
+      continue;
     }
+
+    if (currentBuildNumber == build.getNumber().toInteger()) {
+      continue;
+    }
+
+    build.doKill()    //doTerm(),doKill(),doTerm()
+  }
 }
-// def abortPreviousBuilds() {
-//   def currentJobName = env.JOB_NAME
-//   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
-//   def jobs = Jenkins.instance.getItemByFullName(currentJobName)
-//   def builds = jobs.getBuilds()
-
-//   for (build in builds) {
-//     if (!build.isBuilding()) {
-//       continue;
-//     }
-
-//     if (currentBuildNumber == build.getNumber().toInteger()) {
-//       continue;
-//     }
-
-//     build.doKill()    //doTerm(),doKill(),doTerm()
-//   }
-// }
- //abort previous build
-// abortPreviousBuilds()
-// def abort_previous(){
-//   def buildNumber = env.BUILD_NUMBER as int
-//   if (buildNumber > 1) milestone(buildNumber - 1)
-//   milestone(buildNumber)
-// }
+//  abort previous build
+abortPreviousBuilds()
+def abort_previous(){
+  def buildNumber = env.BUILD_NUMBER as int
+  if (buildNumber > 1) milestone(buildNumber - 1)
+  milestone(buildNumber)
+}
 def pre_test(){
 
     sh '''
