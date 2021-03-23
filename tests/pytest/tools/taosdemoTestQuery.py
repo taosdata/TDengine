@@ -13,6 +13,7 @@
 
 import sys
 import os
+import time
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -54,6 +55,8 @@ class TDTestCase:
         binPath = buildPath + "/build/bin/"
         os.system("%staosdemo -y -t %d -n %d" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
+        print("Sleep 2 seconds..")
+        time.sleep(2)
         taosdemoCmd = '%staosdemo -f tools/query.json | grep "####thread" | wc -l' % binPath
         threads = subprocess.check_output(
             taosdemoCmd, shell=True).decode("utf-8")
