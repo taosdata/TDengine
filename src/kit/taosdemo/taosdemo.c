@@ -199,7 +199,7 @@ typedef struct SArguments_S {
   int      num_of_CPR;
   int      num_of_threads;
   int      insert_interval;
-  int      rows_per_tbl;
+  int      interlace_rows;
   int      num_of_RPR;
   int      max_sql_len;
   int      num_of_tables;
@@ -547,7 +547,7 @@ SArguments g_args = {
                      10,              // num_of_CPR
                      10,              // num_of_connections/thread
                      0,               // insert_interval
-                     0,               // rows_per_tbl;
+                     0,               // interlace_rows;
                      100,             // num_of_RPR
                      TSDB_PAYLOAD_SIZE,  // max_sql_len
                      10000,           // num_of_tables
@@ -682,7 +682,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     } else if (strcmp(argv[i], "-i") == 0) {
       arguments->insert_interval = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-B") == 0) {
-      arguments->rows_per_tbl = atoi(argv[++i]);
+      arguments->interlace_rows = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
       arguments->num_of_RPR = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0) {
@@ -3008,13 +3008,13 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     goto PARSE_OVER;
   }
 
-  cJSON* rowsPerTbl = cJSON_GetObjectItem(root, "rows_per_tbl");
+  cJSON* rowsPerTbl = cJSON_GetObjectItem(root, "interlace_rows");
   if (rowsPerTbl && rowsPerTbl->type == cJSON_Number) {
-    g_args.rows_per_tbl = rowsPerTbl->valueint;
+    g_args.interlace_rows = rowsPerTbl->valueint;
   } else if (!rowsPerTbl) {
-    g_args.rows_per_tbl = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
+    g_args.interlace_rows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
   } else {
-    errorPrint("%s() LN%d, failed to read json, rows_per_tbl input mistake\n", __func__, __LINE__);
+    errorPrint("%s() LN%d, failed to read json, interlace_rows input mistake\n", __func__, __LINE__);
     goto PARSE_OVER;
   }      
 
@@ -3498,7 +3498,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      cJSON* rowsPerTbl = cJSON_GetObjectItem(stbInfo, "rows_per_tbl");
+      cJSON* rowsPerTbl = cJSON_GetObjectItem(stbInfo, "interlace_rows");
       if (rowsPerTbl && rowsPerTbl->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].rowsPerTbl = rowsPerTbl->valueint;
       } else if (!rowsPerTbl) {
@@ -4425,7 +4425,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int insertMode;
   char tableName[TSDB_TABLE_NAME_LEN];
 
-  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.rows_per_tbl;
+  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.interlace_rows;
 
   if (rowsPerTbl > 0) {
     insertMode = INTERLACE_INSERT_MODE;
@@ -4518,6 +4518,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
       pstr += dataLen;
       recOfBatch += batchPerTbl;
+      startTime += batchPerTbl * superTblInfo->timeStampStep;
       pThreadInfo->totalInsertRows += batchPerTbl;
 
       verbosePrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
@@ -4746,7 +4747,7 @@ static void* syncWrite(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg; 
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
-  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.rows_per_tbl;
+  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.interlace_rows;
 
   if (rowsPerTbl > 0) {
     // interlace mode
