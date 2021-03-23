@@ -6,7 +6,10 @@ services:
        context: .
        args:
          - PACKAGE=${PACKAGE}
+         - TARBITRATORPKG=${TARBITRATORPKG}
          - EXTRACTDIR=${DIR}
+         - EXTRACTDIR2=${DIR2}
+         - DATADIR=${DATADIR}
      image: 'tdengine:${VERSION}'
      container_name: 'tdnode4'     
      cap_add:
@@ -27,26 +30,31 @@ services:
       - "tdnode3:172.27.0.9"
       - "tdnode4:172.27.0.10"
       - "tdnode5:172.27.0.11"
+      - "tdnode6:172.27.0.12"
+      - "tdnode7:172.27.0.13"
+      - "tdnode8:172.27.0.14"
+      - "tdnode9:172.27.0.15"
+      - "tdnode10:172.27.0.16"
      volumes: 
        # bind data directory
        - type: bind
-         source: /data/node4/data
+         source: ${DATADIR}/node4/data
          target: /var/lib/taos
        # bind log directory
        - type: bind
-         source: /data/node4/log
+         source: ${DATADIR}/node4/log
          target: /var/log/taos
        # bind configuration
        - type: bind
-         source: /data/node4/cfg
+         source: ${DATADIR}/node4/cfg
          target: /etc/taos
-       # bind core dump path
+       # bind core dump path 
        - type: bind
-         source: /data/node4/core
+         source: ${DATADIR}/node4/core
          target: /coredump
        - type: bind
-         source: /data
-         target: /root  
+         source: ${DATADIR}
+         target: /root
      hostname: tdnode4
      networks:
          taos_update_net:

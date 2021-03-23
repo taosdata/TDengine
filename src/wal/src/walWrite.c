@@ -446,3 +446,16 @@ uint64_t walGetVersion(twalh param) {
 
   return pWal->version;
 }
+
+// Wal version in slave (dnode1) must be reset. 
+// Because after the data file is recovered from peer (dnode2), the new file version in dnode1 may become smaller than origin.
+// Some new wal record cannot be written to the wal file in dnode1 for wal version not reset, then fversion and the record in wal file may inconsistent, 
+// At this time, if dnode2 down, dnode1 switched to master. After dnode2 start and restore data from dnode1, data loss will occur
+
+void walResetVersion(twalh param, uint64_t newVer) {
+  SWal *pWal = param;
+  if (pWal == 0) return;
+  wInfo("vgId:%d, version reset from %" PRIu64 " to %" PRIu64, pWal->vgId, pWal->version, newVer);
+
+  pWal->version = newVer;
+}

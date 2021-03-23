@@ -197,6 +197,11 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_READY,         "Database unsynced")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_DAYS,   "Invalid database option: days out of range")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_DB_OPTION_KEEP,   "Invalid database option: keep >= keep1 >= keep0 >= days")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC,            "Invalid topic name")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_OPTION,     "Invalid topic option")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TOPIC_PARTITONS,  "Invalid topic partitons num, valid range: [1, 1000]")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_ALREADY_EXIST,      "Topic already exists")
+
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_MSG_NOT_PROCESSED,        "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_OUT_OF_MEMORY,            "Dnode out of memory")

@@ -90,8 +90,7 @@ $tb_ = table
 $tbs = tables
 $db_ = database
 $dbs = databases
-$mt_ = metric
-$mts = metrics
+$ses = session
 $int = int
 $bint = bigint
 $binary = binary
@@ -105,9 +104,8 @@ $nchar = nchar
 sql_error create table $tb (ts timestamp, $tb_ int)
 sql_error create table $tb (ts timestamp, $tbs int) 
 sql_error create table $tb (ts timestamp, $db_ int) 
-sql_error create table $tb (ts timestamp, $dbs int) 
-sql_error create table $tb (ts timestamp, $mt_ int) 
-sql_error create table $tb (ts timestamp, $mts int) 
+sql_error create table $tb (ts timestamp, $dbs int)
+sql_error create table $tb (ts timestamp, $ses int)
 sql_error create table $tb (ts timestamp, $int int)
 sql_error create table $tb (ts timestamp, $bint int) 
 sql_error create table $tb (ts timestamp, $binary int) 

@@ -7,34 +7,59 @@ import java.sql.SQLWarning;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.junit.Assert.*;
-
 public class TSDBJNIConnectorTest {
 
-    public static void main(String[] args) {
+    private static TSDBResultSetRowData rowData;
+
+    @Test
+    public void test() {
         try {
-            TSDBJNIConnector.init("/etc/taos/taos.cfg", "en_US.UTF-8", "", "");
+            // init
+            TSDBJNIConnector.init("/etc/taos/taos.cfg", null, null, null);
+            // connect
             TSDBJNIConnector connector = new TSDBJNIConnector();
-            connector.connect("127.0.0.1", 6030, "test", "root", "taosdata");
-            long pSql = connector.executeQuery("show dnodes");
-            // if pSql is create/insert/update/delete/alter SQL
+            connector.connect("127.0.0.1", 6030, "unsign_jni", "root", "taosdata");
+            // executeQuery
+            long pSql = connector.executeQuery("select * from unsign_jni.us_table");
             if (connector.isUpdateQuery(pSql)) {
                 connector.freeResultSet(pSql);
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
             }
-
+            // get schema
             List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
-
             int code = connector.getSchemaMetaData(pSql, columnMetaDataList);
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
             }
             if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_RESULT_SET_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
             }
             if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_NUM_OF_FIELDS_0));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
             }
+            int columnSize = columnMetaDataList.size();
+            // print metadata
+            for (int i = 0; i < columnSize; i++) {
+                System.out.println(columnMetaDataList.get(i));
+            }
+            rowData = new TSDBResultSetRowData(columnSize);
+            // iterate resultSet
+            for (int i = 0; next(connector, pSql); i++) {
+                System.out.println("col[" + i + "] size: " + rowData.getColSize());
+                rowData.getData().stream().forEach(col -> System.out.print(col + "\t"));
+                System.out.println();
+            }
+            // close resultSet
+            code = connector.freeResultSet(pSql);
+            if (code == TSDBConstants.JNI_CONNECTION_NULL) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+            } else if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
+            }
+            // close statement
+
+            // close connection
+            connector.closeConnection();
 
         } catch (SQLWarning throwables) {
             throwables.printStackTrace();
@@ -43,88 +68,22 @@ public class TSDBJNIConnectorTest {
         }
     }
 
+    private static boolean next(TSDBJNIConnector connector, long pSql) throws SQLException {
+        if (rowData != null)
+            rowData.clear();
 
-    @Test
-    public void isClosed() {
+        int code = connector.fetchRow(pSql, rowData);
+        if (code == TSDBConstants.JNI_CONNECTION_NULL) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+        } else if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
+        } else if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
+        } else if (code == TSDBConstants.JNI_FETCH_END) {
+            return false;
+        } else {
+            return true;
+        }
     }
 
-    @Test
-    public void isResultsetClosed() {
-    }
-
-    @Test
-    public void init() {
-    }
-
-    @Test
-    public void initImp() {
-    }
-
-    @Test
-    public void setOptions() {
-    }
-
-    @Test
-    public void getTsCharset() {
-    }
-
-    @Test
-    public void connect() {
-    }
-
-    @Test
-    public void executeQuery() {
-    }
-
-    @Test
-    public void getErrCode() {
-    }
-
-    @Test
-    public void getErrMsg() {
-    }
-
-    @Test
-    public void isUpdateQuery() {
-    }
-
-    @Test
-    public void freeResultSet() {
-    }
-
-    @Test
-    public void getAffectedRows() {
-    }
-
-    @Test
-    public void getSchemaMetaData() {
-    }
-
-    @Test
-    public void fetchRow() {
-    }
-
-    @Test
-    public void fetchBlock() {
-    }
-
-    @Test
-    public void closeConnection() {
-    }
-
-    @Test
-    public void subscribe() {
-    }
-
-    @Test
-    public void consume() {
-    }
-
-    @Test
-    public void unsubscribe() {
-    }
-
-    @Test
-    public void validateCreateTableSql() {
-    }
 }

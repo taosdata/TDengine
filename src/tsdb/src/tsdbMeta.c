@@ -20,7 +20,7 @@
 static int     tsdbCompareSchemaVersion(const void *key1, const void *key2);
 static char *  getTagIndexKey(const void *pData);
 static STable *tsdbNewTable();
-static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper);
+static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper, STable *pSTable);
 static void    tsdbFreeTable(STable *pTable);
 static int     tsdbAddTableToMeta(STsdbRepo *pRepo, STable *pTable, bool addIdx, bool lock);
 static void    tsdbRemoveTableFromMeta(STsdbRepo *pRepo, STable *pTable, bool rmFromIdx, bool lock);
@@ -43,6 +43,7 @@ static void *  tsdbInsertTableAct(STsdbRepo *pRepo, int8_t act, void *buf, STabl
 static int     tsdbRemoveTableFromStore(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbRmTableFromMeta(STsdbRepo *pRepo, STable *pTable);
 static int     tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid);
+static int     tsdbCheckTableTagVal(SKVRow *pKVRow, STSchema *pSchema);
 
 // ------------------ OUTER FUNCTIONS ------------------
 int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
@@ -87,7 +88,7 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
     super = tsdbGetTableByUid(pMeta, pCfg->superUid);
     if (super == NULL) {  // super table not exists, try to create it
       newSuper = true;
-      super = tsdbCreateTableFromCfg(pCfg, true);
+      super = tsdbCreateTableFromCfg(pCfg, true, NULL);
       if (super == NULL) goto _err;
     } else {
       if (TABLE_TYPE(super) != TSDB_SUPER_TABLE || TABLE_UID(super) != pCfg->superUid) {
@@ -108,7 +109,7 @@ int tsdbCreateTable(STsdbRepo *repo, STableCfg *pCfg) {
     }
   }
 
-  table = tsdbCreateTableFromCfg(pCfg, false);
+  table = tsdbCreateTableFromCfg(pCfg, false, super);
   if (table == NULL) goto _err;
 
   // Register to meta
@@ -212,9 +213,9 @@ void *tsdbGetTableTagVal(const void* pTable, int32_t colId, int16_t type, int16_
   char *val = tdGetKVRowValOfCol(((STable*)pTable)->tagVal, colId);
   assert(type == pCol->type && bytes == pCol->bytes);
 
-  if (val != NULL && IS_VAR_DATA_TYPE(type)) {
-    assert(varDataLen(val) < pCol->bytes);
-  }
+  // if (val != NULL && IS_VAR_DATA_TYPE(type)) {
+  //   assert(varDataLen(val) < pCol->bytes);
+  // }
 
   return val;
 }
@@ -674,7 +675,7 @@ static STable *tsdbNewTable() {
   return pTable;
 }
 
-static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper) {
+static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper, STable *pSTable) {
   STable *pTable = NULL;
   size_t  tsize = 0;
 
@@ -726,6 +727,9 @@ static STable *tsdbCreateTableFromCfg(STableCfg *pCfg, bool isSuper) {
 
     if (pCfg->type == TSDB_CHILD_TABLE) {
       TABLE_SUID(pTable) = pCfg->superUid;
+      if (tsdbCheckTableTagVal(pCfg->tagValues, pSTable->tagSchema) < 0) {
+        goto _err;
+      }
       pTable->tagVal = tdKVRowDup(pCfg->tagValues);
       if (pTable->tagVal == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -1299,6 +1303,23 @@ static int tsdbAdjustMetaTables(STsdbRepo *pRepo, int tid) {
   pMeta->tables = tables;
   tfree(tTables);
   tsdbDebug("vgId:%d tsdb meta maxTables is adjusted as %d", REPO_ID(pRepo), maxTables);
+
+  return 0;
+}
+
+static int tsdbCheckTableTagVal(SKVRow *pKVRow, STSchema *pSchema) {
+  for (size_t i = 0; i < kvRowNCols(pKVRow); i++) {
+    SColIdx * pColIdx = kvRowColIdxAt(pKVRow, i);
+    STColumn *pCol = tdGetColOfID(pSchema, pColIdx->colId);
+
+    if ((pCol == NULL) || (!IS_VAR_DATA_TYPE(pCol->type))) continue;
+
+    void *pValue = tdGetKVRowValOfCol(pKVRow, pCol->colId);
+    if (varDataTLen(pValue) > pCol->bytes) {
+      terrno = TSDB_CODE_TDB_IVLD_TAG_VAL;
+      return -1;
+    }
+  }
 
   return 0;
 }

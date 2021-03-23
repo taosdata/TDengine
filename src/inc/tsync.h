@@ -79,6 +79,9 @@ typedef void     (*FStopSyncFile)(int32_t vgId, uint64_t fversion);
 // get file version
 typedef int32_t  (*FGetVersion)(int32_t vgId, uint64_t *fver, uint64_t *vver);
 
+// reset version
+typedef int32_t  (*FResetVersion)(int32_t vgId, uint64_t fver);
+
 typedef int32_t  (*FSendFile)(void *tsdb, SOCKET socketFd);
 typedef int32_t  (*FRecvFile)(void *tsdb, SOCKET socketFd);
 
@@ -96,6 +99,7 @@ typedef struct {
   FStartSyncFile    startSyncFileFp;
   FStopSyncFile     stopSyncFileFp;
   FGetVersion       getVersionFp;
+  FResetVersion     resetVersionFp;
   FSendFile         sendFileFp;
   FRecvFile         recvFileFp;
 } SSyncInfo;
@@ -108,8 +112,8 @@ void    syncCleanUp();
 int64_t syncStart(const SSyncInfo *);
 void    syncStop(int64_t rid);
 int32_t syncReconfig(int64_t rid, const SSyncCfg *);
-int32_t syncForwardToPeer(int64_t rid, void *pHead, void *mhandle, int32_t qtype);
-void    syncConfirmForward(int64_t rid, uint64_t version, int32_t code);
+int32_t syncForwardToPeer(int64_t rid, void *pHead, void *mhandle, int32_t qtype, bool force);
+void    syncConfirmForward(int64_t rid, uint64_t version, int32_t code, bool force);
 void    syncRecover(int64_t rid);  // recover from other nodes:
 int32_t syncGetNodesRole(int64_t rid, SNodesRole *);
 

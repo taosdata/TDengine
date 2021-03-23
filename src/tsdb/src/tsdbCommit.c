@@ -15,7 +15,13 @@
 #include "tsdbint.h"
 
 #define TSDB_MAX_SUBBLOCKS 8
-#define TSDB_KEY_FID(key, days, precision) ((key) / tsMsPerDay[(precision)] / (days))
+static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
+  if (key < 0) {
+    return (int)(-((-key) / tsMsPerDay[precision] / days + 1));
+  } else {
+    return (int)((key / tsMsPerDay[precision] / days));
+  }
+}
 
 typedef struct {
   SRtn         rtn;     // retention snapshot
@@ -158,7 +164,7 @@ static int tsdbCommitMeta(STsdbRepo *pRepo) {
         tsdbError("vgId:%d failed to update META record, uid %" PRIu64 " since %s", REPO_ID(pRepo), pAct->uid,
                   tstrerror(terrno));
         tsdbCloseMFile(&mf);
-        tsdbApplyMFileChange(&mf, pOMFile);
+        (void)tsdbApplyMFileChange(&mf, pOMFile);
         // TODO: need to reload metaCache
         return -1;
       }
@@ -298,7 +304,7 @@ static int tsdbCommitTSData(STsdbRepo *pRepo) {
   SDFileSet *pSet = NULL;
   int        fid;
 
-  memset(&commith, 0, sizeof(SMemTable *));
+  memset(&commith, 0, sizeof(commith));
 
   if (pMem->numOfRows <= 0) {
     // No memory data, just apply retention on each file on disk
@@ -393,9 +399,9 @@ static void tsdbEndCommit(STsdbRepo *pRepo, int eno) {
   if (pRepo->appH.notifyStatus) pRepo->appH.notifyStatus(pRepo->appH.appH, TSDB_STATUS_COMMIT_OVER, eno);
 
   SMemTable *pIMem = pRepo->imem;
-  tsdbLockRepo(pRepo);
+  (void)tsdbLockRepo(pRepo);
   pRepo->imem = NULL;
-  tsdbUnlockRepo(pRepo);
+  (void)tsdbUnlockRepo(pRepo);
   tsdbUnRefMemTable(pRepo, pIMem);
   tsem_post(&(pRepo->readyToCommit));
 }
@@ -1130,12 +1136,12 @@ static int tsdbMoveBlock(SCommitH *pCommith, int bidx) {
 }
 
 static int tsdbCommitAddBlock(SCommitH *pCommith, const SBlock *pSupBlock, const SBlock *pSubBlocks, int nSubBlocks) {
-  if (taosArrayPush(pCommith->aSupBlk, pSupBlock) < 0) {
+  if (taosArrayPush(pCommith->aSupBlk, pSupBlock) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
 
-  if (pSubBlocks && taosArrayPushBatch(pCommith->aSubBlk, pSubBlocks, nSubBlocks) < 0) {
+  if (pSubBlocks && taosArrayPushBatch(pCommith->aSubBlk, pSubBlocks, nSubBlocks) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
@@ -1373,7 +1379,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
                   tstrerror(terrno));
 
         tsdbCloseDFileSet(pWSet);
-        tsdbRemoveDFile(pWHeadf);
+        (void)tsdbRemoveDFile(pWHeadf);
         if (pCommith->isRFileSet) {
           tsdbCloseAndUnsetFSet(&(pCommith->readh));
           return -1;

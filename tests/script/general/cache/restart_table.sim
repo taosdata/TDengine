@@ -39,10 +39,9 @@ system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/exec.sh -n dnode1 -s start
 
 print =============== step3
-print ==> sleep 8 seconds to renew cache
-sleep 2000
+print ==> sleep 1 seconds to renew cache
 sql reset query cache
-sleep 18000
+sleep 1000
 
 print =============== step4
 sql create database $db

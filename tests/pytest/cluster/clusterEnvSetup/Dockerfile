@@ -28,6 +28,8 @@ RUN ulimit -c unlimited
        
 COPY --from=builder /root/bin/taosd /usr/bin
 COPY --from=builder /root/bin/tarbitrator /usr/bin
+COPY --from=builder /root/bin/taosdemo /usr/bin
+COPY --from=builder /root/bin/taosdump /usr/bin
 COPY --from=builder /root/bin/taos /usr/bin
 COPY --from=builder /root/cfg/taos.cfg /etc/taos/
 COPY --from=builder /root/lib/libtaos.so.* /usr/lib/libtaos.so.1

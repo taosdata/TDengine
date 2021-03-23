@@ -92,14 +92,16 @@ class TDTestCase:
         col_list = [ 'col1' , 'col2' , 'col3' , 'col4' , 'col5' , 'col6' , 'col7' , 'col8' , 'col9' , 'col11' , 'col12' , 'col13' , 'col14' , '1' , '1.1' , 'NULL' ]
         op_list = [ '+' , '-' , '*' , '/' , '%' ]
         err_list = [ 'col7' , 'col8' , 'col9' , 'NULL' ]
+        order_lsit = [ ' order by ts ', ' order by ts desc ', ' order by ts asc ']
         for i in col_list :
             for j in col_list :
                 for k in op_list :
-                    sql = " select %s %s %s from test1 " % ( i , k , j )
-                    if i in err_list or j in err_list:
-                        tdSql.error(sql)
-                    else:
-                        tdSql.query(sql)
+                    for l in order_lsit :
+                        sql = " select %s %s %s from test1 %s" % ( i , k , j , l )
+                        if i in err_list or j in err_list:
+                            tdSql.error(sql)
+                        else:
+                            tdSql.query(sql)
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
