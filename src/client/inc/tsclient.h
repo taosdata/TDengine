@@ -230,7 +230,8 @@ typedef struct SQueryInfo {
   char*            buf;
 
   struct SQueryInfo *sibling;     // sibling
-  SArray            *pUpstream;   //SArray<struct SQueryInfo>
+  SArray            *pUpstream;   // SArray<struct SQueryInfo>
+  SArray            *pDownstream; // SArray<struct SQueryInfo>
 } SQueryInfo;
 
 typedef struct {

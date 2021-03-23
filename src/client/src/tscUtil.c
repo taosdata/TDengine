@@ -372,7 +372,11 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 }
 
 void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
-  printf("abc\n");
+  if (pQueryInfo->pDownstream != NULL && taosArrayGetSize(pQueryInfo->pDownstream) > 0) {
+    // handle the following query process
+    SQueryInfo* px = taosArrayGetP(pQueryInfo->pDownstream, 0);
+    printf("%d\n", px->type);
+  }
 }
 
 static void tscDestroyResPointerInfo(SSqlRes* pRes) {
@@ -1772,6 +1776,8 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->slimit.limit   = -1;
   pQueryInfo->slimit.offset  = 0;
   pQueryInfo->pUpstream      = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->pDownstream    = taosArrayInit(4, POINTER_BYTES);
+
 }
 
 int32_t tscAddQueryInfo(SSqlCmd* pCmd) {

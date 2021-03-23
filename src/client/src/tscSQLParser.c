@@ -6677,8 +6677,11 @@ int32_t validateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t ind
     tscInitQueryInfo(pQueryInfo1);
 
     pQueryInfo1->pUpstream = taosArrayInit(4, POINTER_BYTES);
+    pQueryInfo1->pDownstream = taosArrayInit(4, POINTER_BYTES);
+
     for(int32_t x = 0; x < pCmd->numOfClause; ++x) {
       taosArrayPush(pQueryInfo1->pUpstream, &pCmd->pQueryInfo[x]);
+      taosArrayPush(pCmd->pQueryInfo[x]->pDownstream, &pQueryInfo1);
     }
 
     pQueryInfo1->numOfTables = 1;

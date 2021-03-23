@@ -5770,7 +5770,7 @@ _cleanup:
   return code;
 }
 
-static int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, SQueryTableMsg *pQueryMsg) {
+static int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQueryMsg) {
   qDebug("qmsg:%p create arithmetic expr from binary", pQueryMsg);
 
   tExprNode* pExprNode = NULL;
@@ -5812,17 +5812,25 @@ static int32_t updateOutputBufForTopBotQuery(SQueryTableMsg* pQueryMsg, SColumnI
 }
 
 // TODO tag length should be passed from client
+typedef struct {
+  int32_t numOfOutput;
+  int32_t numOfTags;
+  int32_t numOfCols;
+  SColumnInfo* colList;
+  int32_t queryTest;
+} SQueriedTableMeta;
+
 int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutput, SExprInfo** pExprInfo,
-                                   SSqlFuncMsg** pExprMsg, SColumnInfo* pTagCols) {
+                                   SSqlFuncMsg** pExprMsg, SColumnInfo* pTagCols, bool isSuperTable) {
   *pExprInfo = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SExprInfo *pExprs = (SExprInfo *)calloc(pQueryMsg->numOfOutput, sizeof(SExprInfo));
+  SExprInfo *pExprs = (SExprInfo *)calloc(numOfOutput, sizeof(SExprInfo));
   if (pExprs == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
-  bool    isSuperTable = QUERY_IS_STABLE_QUERY(pQueryMsg->queryType);
+//  bool    isSuperTable = QUERY_IS_STABLE_QUERY(pQueryMsg->queryType);
   int16_t tagLen = 0;
 
   for (int32_t i = 0; i < numOfOutput; ++i) {

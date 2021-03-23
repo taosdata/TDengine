@@ -2331,6 +2331,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   prepareInputDataFromUpstream(pRes, pQueryInfo);
+
   if (pSql->pSubscription != NULL) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;
     
