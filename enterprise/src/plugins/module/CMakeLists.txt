@@ -8,4 +8,7 @@ AUX_SOURCE_DIRECTORY(src SRC)
 IF (TD_LINUX)
   ADD_LIBRARY(module ${SRC})
   TARGET_LINK_LIBRARIES(module)
+
+  ADD_LIBRARY(moduleTest1 SHARED test/moduleTest1.c)
+  ADD_LIBRARY(moduleTest2 SHARED test/moduleTest2.c)
 ENDIF ()
