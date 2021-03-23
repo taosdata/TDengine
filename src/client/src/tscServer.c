@@ -350,8 +350,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
         taosMsleep(duration);
       }
 
+      pSql->retryReason = rpcMsg->code;
       rpcMsg->code = tscRenewTableMeta(pSql, 0);
-
       // if there is an error occurring, proceed to the following error handling procedure.
       if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         taosReleaseRef(tscObjRef, handle);
