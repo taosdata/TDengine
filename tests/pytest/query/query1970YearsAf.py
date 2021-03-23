@@ -87,7 +87,11 @@ class TDTestCase:
             "disorder_ratio": 0,
             "disorder_range": 1000,
             "timestamp_step": 20000,
+<<<<<<< HEAD
             "start_timestamp": "1969-12-31 00:00:00.000",
+=======
+            "start_timestamp": "1969-12-30 23:59:40.000",
+>>>>>>> 53a128b2a3a469b06ae28ff013397b8d015433c8
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
@@ -172,7 +176,11 @@ class TDTestCase:
         )
         tdSql.checkRows(3590)
 
+<<<<<<< HEAD
         # child-tables query
+=======
+        # child-table query
+>>>>>>> 53a128b2a3a469b06ae28ff013397b8d015433c8
         tdSql.query(
             "select * from t0 where t0.ts < '1970-01-01 00:00:00.000' "
         )
@@ -243,12 +251,19 @@ class TDTestCase:
         tdLog.info("==========step3: query join again")
         self.sqlsquery()
 
+<<<<<<< HEAD
         # delete temporary file
         rm_cmd = f"rm -f /tmp/insert* > /dev/null 2>&1"
         _ = subprocess.check_output(rm_cmd, shell=True).decode("utf-8")
 
     def stop(self):
         tdSql.close()
+=======
+    def stop(self):
+        tdSql.close()
+        rm_cmd = f"rm -f /tmp/insert* > /dev/null 2>&1"
+        _ = subprocess.check_output(rm_cmd, shell=True).decode("utf-8")
+>>>>>>> 53a128b2a3a469b06ae28ff013397b8d015433c8
         tdLog.success(f"{__file__} successfully executed")
 
 tdCases.addLinux(__file__, TDTestCase())
