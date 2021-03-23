@@ -100,7 +100,7 @@ function runSimCaseOneByOnefq {
           cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
           rm -rf ../../sim/case.log
         fi
-        dohavecore 1
+        dohavecore $2
         exit 8
       fi
       end_time=`date +%s`

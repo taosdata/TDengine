@@ -6,26 +6,7 @@ node {
 }
 
 def skipstage=0
-// def cancelPreviousBuilds() {
-//     def jobName = env.JOB_NAME
-//     def buildNumber = env.BUILD_NUMBER.toInteger()
-//     /* Get job name */
-//     def currentJob = Jenkins.instance.getItemByFullName(jobName)
 
-//     /* Iterating over the builds for specific job */
-//     for (def build : currentJob.builds) {
-//         def exec = build.getExecutor()
-//         /* If there is a build that is currently running and it's not current build */
-//         if (build.isBuilding() && build.number.toInteger() != buildNumber && exec != null) {
-//             /* Then stop it */
-//             exec.interrupt(
-//                     Result.ABORTED,
-//                     new CauseOfInterruption.UserInterruption("Aborted by #${currentBuild.number}")
-//                 )
-//             println("Aborted previously running build #${build.number}")            
-//         }
-//     }
-// }
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -52,7 +33,8 @@ def abort_previous(){
   milestone(buildNumber)
 }
 def pre_test(){
-
+    abort_previous()
+    abortPreviousBuilds()
     sh '''
     sudo rmtaos || echo "taosd has not installed"
     '''
