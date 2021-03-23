@@ -200,7 +200,7 @@ typedef struct SArguments_S {
   int      num_of_threads;
   int      insert_interval;
   int      query_times;
-  int      rows_per_tbl;
+  int      interlace_rows;
   int      num_of_RPR;
   int      max_sql_len;
   int      num_of_tables;
@@ -549,7 +549,7 @@ SArguments g_args = {
                      10,              // num_of_connections/thread
                      0,               // insert_interval
                      1,               // query_times
-                     0,               // rows_per_tbl;
+                     0,               // interlace_rows;
                      100,             // num_of_RPR
                      TSDB_PAYLOAD_SIZE,  // max_sql_len
                      10000,           // num_of_tables
@@ -686,7 +686,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     } else if (strcmp(argv[i], "-qt") == 0) {
       arguments->query_times = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-B") == 0) {
-      arguments->rows_per_tbl = atoi(argv[++i]);
+      arguments->interlace_rows = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
       arguments->num_of_RPR = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0) {
@@ -1068,6 +1068,7 @@ static int printfInsertMeta() {
   printf("max sql length:             \033[33m%d\033[0m\n", g_args.max_sql_len);
 
   printf("database count:             \033[33m%d\033[0m\n", g_Dbs.dbCount);
+
   for (int i = 0; i < g_Dbs.dbCount; i++) {
     printf("database[\033[33m%d\033[0m]:\n", i);
     printf("  database[%d] name:      \033[33m%s\033[0m\n", i, g_Dbs.db[i].dbName);
@@ -1224,16 +1225,19 @@ static int printfInsertMeta() {
 }
 
 static void printfInsertMetaToFile(FILE* fp) {
-    SHOW_PARSE_RESULT_START_TO_FILE(fp);
+
+  SHOW_PARSE_RESULT_START_TO_FILE(fp);
 
   fprintf(fp, "host:                       %s:%u\n", g_Dbs.host, g_Dbs.port);
   fprintf(fp, "user:                       %s\n", g_Dbs.user);
-  fprintf(fp, "password:                   %s\n", g_Dbs.password);
   fprintf(fp, "resultFile:                 %s\n", g_Dbs.resultFile);
   fprintf(fp, "thread num of insert data:  %d\n", g_Dbs.threadCount);
   fprintf(fp, "thread num of create table: %d\n", g_Dbs.threadCountByCreateTbl);
-
+  fprintf(fp, "insert interval:            %d\n", g_args.insert_interval);
+  fprintf(fp, "number of records per req:  %d\n", g_args.num_of_RPR);
+  fprintf(fp, "max sql length:             %d\n", g_args.max_sql_len);
   fprintf(fp, "database count:          %d\n", g_Dbs.dbCount);
+
   for (int i = 0; i < g_Dbs.dbCount; i++) {
     fprintf(fp, "database[%d]:\n", i);
     fprintf(fp, "  database[%d] name:       %s\n", i, g_Dbs.db[i].dbName);
@@ -1368,11 +1372,14 @@ static void printfInsertMetaToFile(FILE* fp) {
     }
     fprintf(fp, "\n");
   }
+
   SHOW_PARSE_RESULT_END_TO_FILE(fp);
 }
 
 static void printfQueryMeta() {
+
   SHOW_PARSE_RESULT_START();
+
   printf("host:                    \033[33m%s:%u\033[0m\n",
           g_queryInfo.host, g_queryInfo.port);
   printf("user:                    \033[33m%s\033[0m\n", g_queryInfo.user);
@@ -1415,10 +1422,10 @@ static void printfQueryMeta() {
   }  
   printf("\n");
 
-    SHOW_PARSE_RESULT_END();
+  SHOW_PARSE_RESULT_END();
 }
 
-static char* xFormatTimestamp(char* buf, int64_t val, int precision) {
+static char* formatTimestamp(char* buf, int64_t val, int precision) {
   time_t tt;
   if (precision == TSDB_TIME_PRECISION_MICRO) {
     tt = (time_t)(val / 1000000);
@@ -1450,7 +1457,9 @@ static char* xFormatTimestamp(char* buf, int64_t val, int precision) {
   return buf;
 }
 
-static void xDumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_t length, int precision) {
+static void xDumpFieldToFile(FILE* fp, const char* val,
+        TAOS_FIELD* field, int32_t length, int precision) {
+
   if (val == NULL) {
     fprintf(fp, "%s", TSDB_DATA_NULL_STR);
     return;
@@ -1486,7 +1495,7 @@ static void xDumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32
       fprintf(fp, "\'%s\'", buf);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
-      xFormatTimestamp(buf, *(int64_t*)val, precision);
+      formatTimestamp(buf, *(int64_t*)val, precision);
       fprintf(fp, "'%s'", buf);
       break;
     default:
@@ -1565,7 +1574,7 @@ static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {
 
     tstrncpy(dbInfos[count]->name, (char *)row[TSDB_SHOW_DB_NAME_INDEX],
             fields[TSDB_SHOW_DB_NAME_INDEX].bytes);
-    xFormatTimestamp(dbInfos[count]->create_time,
+    formatTimestamp(dbInfos[count]->create_time,
             *(int64_t*)row[TSDB_SHOW_DB_CREATED_TIME_INDEX],
             TSDB_TIME_PRECISION_MILLI);
     dbInfos[count]->ntables = *((int32_t *)row[TSDB_SHOW_DB_NTABLES_INDEX]);
@@ -3031,13 +3040,13 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     goto PARSE_OVER;
   }
 
-  cJSON* rowsPerTbl = cJSON_GetObjectItem(root, "rows_per_tbl");
-  if (rowsPerTbl && rowsPerTbl->type == cJSON_Number) {
-    g_args.rows_per_tbl = rowsPerTbl->valueint;
-  } else if (!rowsPerTbl) {
-    g_args.rows_per_tbl = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
+  cJSON* interlaceRows = cJSON_GetObjectItem(root, "interlace_rows");
+  if (interlaceRows && interlaceRows->type == cJSON_Number) {
+    g_args.interlace_rows = interlaceRows->valueint;
+  } else if (!interlaceRows) {
+    g_args.interlace_rows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
   } else {
-    errorPrint("%s() LN%d, failed to read json, rows_per_tbl input mistake\n", __func__, __LINE__);
+    errorPrint("%s() LN%d, failed to read json, interlace_rows input mistake\n", __func__, __LINE__);
     goto PARSE_OVER;
   }      
 
@@ -3521,7 +3530,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      cJSON* rowsPerTbl = cJSON_GetObjectItem(stbInfo, "rows_per_tbl");
+      cJSON* rowsPerTbl = cJSON_GetObjectItem(stbInfo, "interlace_rows");
       if (rowsPerTbl && rowsPerTbl->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].rowsPerTbl = rowsPerTbl->valueint;
       } else if (!rowsPerTbl) {
@@ -4448,7 +4457,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int insertMode;
   char tableName[TSDB_TABLE_NAME_LEN];
 
-  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.rows_per_tbl;
+  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.interlace_rows;
 
   if (rowsPerTbl > 0) {
     insertMode = INTERLACE_INSERT_MODE;
@@ -4542,6 +4551,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
       pstr += dataLen;
       recOfBatch += batchPerTbl;
+      startTime += batchPerTbl * superTblInfo->timeStampStep;
       pThreadInfo->totalInsertRows += batchPerTbl;
 
       verbosePrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
@@ -4773,7 +4783,7 @@ static void* syncWrite(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg; 
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
-  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.rows_per_tbl;
+  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.interlace_rows;
 
   if (rowsPerTbl > 0) {
     // interlace mode
