@@ -31,7 +31,7 @@ class TDTestCase:
 
     def insertDataAndAlterTable(self, threadID):
         if(threadID == 0):
-            os.system("taosdemo -M -y -t %d -n %d -x" %
+            os.system("taosdemo -y -t %d -n %d" %
                       (self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
             time.sleep(2)
