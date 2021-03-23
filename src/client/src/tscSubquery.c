@@ -954,6 +954,20 @@ static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pPar
       SMergeCtx* tctx = &ctxlist[*tableMIdx];
       tctx->compared = 1;
     }
+
+    for (int32_t i = 0; i < tableNum; ++i) {
+      tableMIdx = taosArrayGet(tagCond, i);
+      SMergeCtx* tctx = &ctxlist[*tableMIdx];
+      if (tctx->p->num <= 0 || tctx->p->pIdTagList == NULL) {
+        mergeDone = 1;
+        break;
+      }
+    }
+
+    if (mergeDone) {
+      mergeDone = 0;
+      continue;
+    }
     
     tableMIdx = taosArrayGet(tagCond, slot);
     
