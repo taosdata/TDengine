@@ -87,7 +87,7 @@ class TDTestCase:
             "disorder_ratio": 0,
             "disorder_range": 1000,
             "timestamp_step": 20000,
-            "start_timestamp": "1969-12-30 23:59:40.000",
+            "start_timestamp": "1969-12-31 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
@@ -172,7 +172,7 @@ class TDTestCase:
         )
         tdSql.checkRows(3590)
 
-        # child-table query
+        # child-tables query
         tdSql.query(
             "select * from t0 where t0.ts < '1970-01-01 00:00:00.000' "
         )
@@ -243,6 +243,7 @@ class TDTestCase:
         tdLog.info("==========step3: query join again")
         self.sqlsquery()
 
+        # delete temporary file
         rm_cmd = f"rm -f /tmp/insert* > /dev/null 2>&1"
         _ = subprocess.check_output(rm_cmd, shell=True).decode("utf-8")
 
