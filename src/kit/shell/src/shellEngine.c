@@ -121,6 +121,12 @@ TAOS *shellInit(SShellArguments *args) {
     taos_close(con);
     exit(EXIT_SUCCESS);
   }
+
+  if (args->check != 0) {
+    shellCheck(con, args);
+    taos_close(con);
+    exit(EXIT_SUCCESS);
+  }
 #endif
 
   return con;

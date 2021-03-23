@@ -261,7 +261,7 @@ static int doBindParam(char* data, SParamInfo* param, TAOS_BIND* bind) {
     return TSDB_CODE_SUCCESS;
   }
 
-  if (1) {
+  if (0) {
     // allow user bind param data with different type
     union {
       int8_t          v1;
@@ -1057,14 +1057,28 @@ int taos_stmt_get_param(TAOS_STMT *stmt, int idx, int *type, int *bytes) {
   }
 
   if (pStmt->isInsert) {
-    SSqlObj* pSql = pStmt->pSql;
-    SSqlCmd *pCmd    = &pSql->cmd;
-    STableDataBlocks* pBlock = taosArrayGetP(pCmd->pDataBlocks, 0);
+    SSqlCmd* pCmd = &pStmt->pSql->cmd;
+    STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, 0, 0);
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+    if (pCmd->pTableBlockHashList == NULL) {
+      pCmd->pTableBlockHashList = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+    }
 
-    assert(pCmd->numOfParams == pBlock->numOfParams);
-    if (idx < 0 || idx >= pBlock->numOfParams) return -1;
+    STableDataBlocks* pBlock = NULL;
 
-    SParamInfo* param = pBlock->params + idx;
+    int32_t ret =
+      tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_PAYLOAD_SIZE, sizeof(SSubmitBlk),
+          pTableMeta->tableInfo.rowSize, &pTableMetaInfo->name, pTableMeta, &pBlock, NULL);
+    if (ret != 0) {
+      // todo handle error
+    }
+
+    if (idx<0 || idx>=pBlock->numOfParams) {
+      tscError("param %d: out of range", idx);
+      abort();
+    }
+
+    SParamInfo* param = &pBlock->params[idx];
     if (type) *type = param->type;
     if (bytes) *bytes = param->bytes;
 

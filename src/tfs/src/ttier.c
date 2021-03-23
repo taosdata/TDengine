@@ -100,6 +100,7 @@ void tfsUpdateTierInfo(STier *pTier, STierMeta *pTierMeta) {
       continue;
     }
     pTierMeta->size += DISK_SIZE(DISK_AT_TIER(pTier, id));
+    pTierMeta->used += DISK_USED_SIZE(DISK_AT_TIER(pTier, id));
     pTierMeta->free += DISK_FREE_SIZE(DISK_AT_TIER(pTier, id));
     pTierMeta->nAvailDisks++;
   }

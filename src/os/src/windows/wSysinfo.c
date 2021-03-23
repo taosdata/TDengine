@@ -136,7 +136,8 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
                                      (PULARGE_INTEGER)&i64FreeBytes);
   if (fResult) {
     diskSize->tsize = (int64_t)(i64TotalBytes);
-    diskSize->avail = (int64_t)(i64FreeBytes);
+    diskSize->avail = (int64_t)(i64FreeBytesToCaller);
+    diskSize->used = (int64_t)(i64TotalBytes - i64FreeBytes);
     return 0;
   } else {
     uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
@@ -205,6 +206,8 @@ void taosGetSystemInfo() {
 void taosPrintOsInfo() {
   uInfo(" os numOfCores:          %d", tsNumOfCores);
   uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
+  uInfo(" os usedDisk:            %f(GB)", tsUsedDataDirGB);
+  uInfo(" os availDisk:           %f(GB)", tsAvailDataDirGB);
   uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
   uInfo("==================================");
 }

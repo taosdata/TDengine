@@ -98,6 +98,9 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #define GET_NUM_OF_TABLEGROUP(q)    taosArrayGetSize((q)->tableqinfoGroupInfo.pGroupList)
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
+
+uint64_t queryHandleId = 0;
+
 int32_t getMaximumIdleDurationSec() {
   return tsShellActivityTimer * 2;
 }
@@ -1837,7 +1840,7 @@ static void doFreeQueryHandle(SQueryRuntimeEnv* pRuntimeEnv) {
   pRuntimeEnv->pQueryHandle = NULL;
 
   SMemRef* pMemRef = &pQuery->memRef;
-  assert(pMemRef->ref == 0 && pMemRef->imem == NULL && pMemRef->mem == NULL);
+  assert(pMemRef->ref == 0 && pMemRef->snapshot.imem == NULL && pMemRef->snapshot.mem == NULL);
 }
 
 static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
@@ -2747,7 +2750,10 @@ static void doSetTagValueInParam(void* pTable, int32_t tagColId, tVariant *tag, 
   }
 
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
+    int32_t maxLen = bytes - VARSTR_HEADER_SIZE;
+    int32_t len = (varDataLen(val) > maxLen)? maxLen:varDataLen(val);
+    tVariantCreateFromBinary(tag, varDataVal(val), len, type);
+    //tVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
   } else {
     tVariantCreateFromBinary(tag, val, bytes, type);
   }
@@ -6116,9 +6122,13 @@ void setResultBufSize(SQuery* pQuery, SRspResultInfo* pResultInfo) {
   pResultInfo->total = 0;
 }
 
+FORCE_INLINE bool checkQIdEqual(void *qHandle, uint64_t qId) {
+  return ((SQInfo *)qHandle)->qId == qId;
+}
+
 SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr, SExprInfo* pExprs,
                         SExprInfo* pSecExprs, STableGroupInfo* pTableGroupInfo, SColumnInfo* pTagCols, bool stableQuery,
-                        char* sql) {
+                        char* sql, uint64_t *qId) {
   int16_t numOfCols = pQueryMsg->numOfCols;
   int16_t numOfOutput = pQueryMsg->numOfOutput;
 
@@ -6259,7 +6269,9 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   // todo refactor
   pQInfo->query.queryBlockDist = (numOfOutput == 1 && pExprs[0].base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX);
 
-  qDebug("qmsg:%p QInfo:%p created", pQueryMsg, pQInfo);
+  pQInfo->qId = atomic_add_fetch_64(&queryHandleId, 1);
+  *qId = pQInfo->qId;
+  qDebug("qmsg:%p QInfo:%" PRIu64 "-%p created", pQueryMsg, pQInfo->qId, pQInfo);
   return pQInfo;
 
 _cleanup_qinfo:
@@ -6549,8 +6561,15 @@ static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type
     return;
   }
 
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    memcpy(output, val, varDataTLen(val));
+  if (IS_VAR_DATA_TYPE(type)) {
+    // Binary data overflows for sort of unknown reasons. Let trim the overflow data
+    if (varDataTLen(val) > bytes) {
+      int32_t len = bytes - VARSTR_HEADER_SIZE;   // remain available space
+      memcpy(varDataVal(output), varDataVal(val), len);
+      varDataSetLen(output, len);
+    } else {
+      varDataCopy(output, val);
+    }
   } else {
     memcpy(output, val, bytes);
   }

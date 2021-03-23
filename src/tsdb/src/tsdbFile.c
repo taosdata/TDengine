@@ -523,7 +523,7 @@ static int tsdbApplyDFileChange(SDFile *from, SDFile *to) {
           tsdbRollBackDFile(to);
         }
       } else {
-        tsdbRemoveDFile(from);
+        (void)tsdbRemoveDFile(from);
       }
     }
   }
