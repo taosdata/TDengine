@@ -1,0 +1,190 @@
+/**
+@page page-tutorial Tutorial
+
+@tableofcontents
+
+@section common-usage Common usage
+
+This page contains a description of basic library usage for the most
+common usage cases.
+
+Additionally, the @ref page-examples page contains full examples for
+common use cases, which are also included in the 'examples' directory
+of the source code distribution.
+
+@subsection reading Reading miniSEED data
+
+A common task is to read a file of miniSEED records and perform some
+action based on the header values or apply some process to the data
+samples.  There are two patterns to support this in the library, one
+to iterate over the file record-by-record and another to read all data
+into a collection of continuous series.
+
+@subsubsection reading-records Reading miniSEED records from files
+
+The ms3_readmsr() routine will open a specified file and return
+MS3Record structures for each miniSEED record it reads from the file.
+Called iteratively in a loop, all records are returned in the order
+discovered.
+
+A code snippet for reading miniSEED from a file record-by-record:
+@anchor msr3-readmsr-snippet
+@code
+int main ()
+{
+  char *filename = "datafile.mseed";
+  MS3Record *msr = NULL;
+  uint32_t flags = MSF_SKIPNOTDATA & MSF_UNPACKDATA;
+  int verbose    = 0;
+  int retcode;
+
+  while ((retcode = ms3_readmsr (&msr, filename, NULL, NULL, flags, verbose)) == MS_NOERROR)
+  {
+    /* Do something with the record here, e.g. print */
+    msr3_print (msr, verbose);
+  }
+
+  if (retcode != MS_ENDOFFILE)
+    ms_log (2, "Cannot read %s: %s\n", filename, ms_errorstr (retcode));
+
+  /* Cleanup memory and close file */
+  ms3_readmsr (&msr, NULL, NULL, NULL, flags, verbose);
+
+  return 0;
+}
+@endcode
+
+It is important to call ms3_readmsr() for cleanup as illustrated to
+free memory and close files.
+
+There are more advanced versions of this routine.  The ms3_readmsr_r()
+function is a thread-safe version that can be used in threaded
+programs to read files in parallel.  The ms3_readmsr_selection()
+function is a thread-safe version that can additionally accept @ref
+data-selections to efficiently return only selected data.
+
+@subsubsection reading-tracelists Reading miniSEED from files into traces lists
+
+Another option is to read all miniSEED into a @ref trace-list without
+any handling of records.  This is done with ms3_readtraces(), which is
+very useful for quickly reading data for processing.  The data are
+returned in ordered, continuous segments ready for processing.
+
+A code snippet for reading miniSEED from a file into a @ref trace-list :
+@anchor msr3-readtracelist-snippet
+@code
+int main ()
+{
+  char *filename1    = "datafile1.mseed";
+  char *filename2    = "datafile2.mseed";
+  MS3TraceList *mstl = NULL;
+  uint32_t flags     = MSF_SKIPNOTDATA & MSF_UNPACKDATA;
+  int verbose        = 0;
+  int retcode;
+
+  retcode = ms3_readtracelist (&mstl, filename1, -1.0, -1.0, 0, flags, verbose);
+
+  if (retcode != MS_NOERROR)
+    ms_log (2, "Cannot read %s: %s\n", filename1, ms_errorstr (retcode));
+
+  retcode = ms3_readtracelist (&mstl, filename2, -1.0, -1.0, 0, flags, verbose);
+
+  if (retcode != MS_NOERROR)
+    ms_log (2, "Cannot read %s: %s\n", filename2, ms_errorstr (retcode));
+
+  if (!mstl)
+  {
+    fprintf (stderr, "Error reading file\\n");
+    return -1;
+  }
+
+  /* Do something with the traces here, e.g. print */
+  mstl3_printtracelist (mstl, 0, verbose, 0);
+
+  mstl3_free (&mstl, 1);
+
+  return 0;
+}
+@endcode
+
+There are more advanced versions of this routine.  The
+ms3_readtracelist_timewin() function allows data to be limited to a
+specific time range while reading.  The ms3_readtracelist_selection()
+can additionally accept @ref data-selections to efficiently return
+only selected data.
+
+@subsubsection reading-buffers Reading miniSEED from memory
+
+If an application is not designed to read miniSEED from files the
+library provides functions functionality to read data from memory.
+The mstl3_readbuffer() function will read all data from a buffer into
+a @ref trace-list.  The low-level functions ms3_detect() and
+msr3_parse() can be used to detect and parse miniSEED records in
+memory buffers.
+
+@subsection writing Writing miniSEED records
+
+Another common task is to create miniSEED records.  There are two
+patterns to support this in the library: one is to write data from
+library containers to files and another to create records and provide
+them back to the caller in a memory buffer via a callback function.
+
+@subsubsection callback Callback design
+
+If not writing directly to files, the packing interfaces use a
+callback design, where the caller specifies a function that will be
+called for every record that is created.  It is the responsibility of
+the callback function to handle the record before returning.  This
+design allows a program to do whatever is needed with generated
+miniSEED, i.e. write to files, send over the network, or even
+injection of more information.
+
+@subsubsection writing-files Writing miniSEED data to files
+
+The library supports writing miniSEED directly to files from either
+MS3Record or MS3TraceList containers using msr3_writemseed() or
+mstl3_writemseed() respectively.
+
+A code snippet for writing miniSEED to a file from an MS3Record using msr3_writemseed():
+@anchor msr3-writemseed-snippet
+@code
+int main()
+{
+  int packedrecords;
+  int verbose = 0;
+  char *msfile = "output.mseed";
+  int32_t datasamples[] = {0,1,2,3,4,5,6,7,8,9,10};
+  MS3Record *msr;
+
+  msr = msr3_init (NULL);
+
+  /* Populate MS3Record values */
+  strcpy (msr->sid, "XX_TEXT__B_H_E");
+  msr->formatversion = 3;
+  msr->reclen = 512;
+  msr->encoding = DE_STEIM2;
+  msr->starttime = ms_timestr2nstime ("2018-12-01T00:00:00.000000000");
+  msr->samprate = 20.0;
+
+  msr->datasamples = datasamples;  /* pointer to 32-bit integer data samples */
+  msr->numsamples = 11;
+  msr->sampletype = 'i';  /* declare data type to be 32-bit integers */
+
+  /* Write all data in MS3Record to output file, using MSF_FLUSHDATA flag */
+  packedrecords = msr3_writemseed (msr, msfile, 1, MSF_FLUSHDATA, verbose);
+
+  ms_log (0, "Wrote %d records to %s\n", packedrecords, msfile);
+
+  /* Disconnect datasamples pointer, otherwise msr3_free() will attempt to free() it */
+  msr->datasamples = NULL;
+
+  msr3_free (&msr);
+}
+@endcode
+
+@subsubsection creating-records Creating miniSEED records
+
+Records can be generated from data in either MS3Record or MS3TraceList
+containers using, respectively, msr3_pack() or and mstl3_pack().
+
+*/

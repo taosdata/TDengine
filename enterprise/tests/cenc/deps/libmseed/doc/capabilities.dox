@@ -1,0 +1,78 @@
+/**
+@page page-capabilities Capabilities
+
+@tableofcontents
+
+@section overview Overview
+
+This section describes the capabilities and fundamentals of the
+library.
+
+@subsection data-records Data Records
+
+@note miniSEED data are constructed as records, typically anywhere
+from 128 to 4096 bytes in length.  Each record is independent,
+identifying the data source, encoding type, etc. in header structures.
+Reconstructing a continuous time series from an arbitrary number of
+data records is an excersize for a format reader, e.g. this library.
+
+A miniSEED record is represented in the library using the MS3Record
+structure.  This structure is used for both unpacking and packing of
+miniSEED records.  When unpacking with msr3_parse() this structure is
+populated.  When packing with msr3_pack() this structure is used as a
+template for the resulting data records and as a source of samples to
+be packed.
+
+@subsubsection Data Sample Encodings
+
+The library supports all commonly used @ref encoding-values for
+decoding and a subset of the most common values for encoding.  The
+following data encoding formats are supported for both unpacking and
+packing: ASCII, INT16, INT32, FLOAT32, FLOAT64, STEIM1 and STEIM2.
+The INT and FLOAT encodings each have two versions for quantities with
+a different number of bits of representation.  The STEIM compression
+encodings work with 32-bit integers.  The following data encoding
+formats are supported for unpacking only: GEOSCOPE (24-bit, 16/3 and
+16/4 gain ranged), CDSN, SRO and DWWSSN.
+
+@subsection traces Traces
+
+In order to reconstruct, manage and process continuous trace segments
+the library provides @ref trace-list functionality.
+
+@ref trace-list structures are nested to contain an arbitrary number
+of identified time series, each containing an arbitrary number
+continuous time series segments, aka traces.  While a trace list is
+normally used to hold trace information and associated data samples
+they can also be used without data samples as a means of tracking data
+coverage without actual sample values.
+
+@subsection time-representation Time representation
+
+Internally, time stamps are represented as nanoseconds since the
+Unix/POSIX epoch via the nstime_t data type.  A number of functions
+exist to parse or generate date-time strings to or from this
+representation.  See @ref time-related.
+
+*Note:* nanosecond time resolution does not mean the data included
+ this resolution.
+
+@subsection time-series-data Time series data formats
+
+Time series data samples are supported in a few different formats
+depending on how they are unpacked or will be packed.  Samples can be
+either ASCII, 32-bit integer, 32-bit floats or 64-bit double precision
+floats.  These types are represented internally using the
+single-character @ref sample-types.
+
+@subsection log-messages Log messages
+
+All of the log and diagnostic messages emitted by the library
+functions use a central logging facility.  It is common for programs
+that use the library to also use these logging functions.
+Furthermore, the output from these logging interfaces can be
+controlled by directing output to callback functions.  This is useful
+when the library will be embedded in a larger system with it's own
+logging facility.  See the @ref logging page for more details.
+
+*/

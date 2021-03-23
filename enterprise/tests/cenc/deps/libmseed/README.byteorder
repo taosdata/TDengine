@@ -1,0 +1,25 @@
+
+                 -- Byte order handling in libmseed --
+
+The miniSEED 3 format is defined as little-endian headers with the
+endianess of the data payload explicitly defined by the encoding
+value.
+
+The SEED 2.4 standard allows data only SEED (miniSEED) to be either in
+big (most significant byte first) or little (least significant byte
+first) endian byte order.  One exception is that Steim-1 and Steim-2
+data compression are only defined as big-endian.
+
+How libmseed determines the byte order of a 2.x record:
+
+The byte order of a miniSEED 2.x record header including blockettes is
+determined by checking if the record start year and day is a sane
+value (e.g. year between 1900 and 2100 and day between 1 and 366).
+The byte order of encoded data samples is determined by the byte order
+flag in the Blockette 1000, if a Blockette 1000 is not present the
+byte order is assumed to be the same as the header.
+
+In what byte order libmseed creates 2.x records:
+
+If the library ever creates miniSEED 2.x records, they will be in
+big-endian byte order for maximum compatibility.

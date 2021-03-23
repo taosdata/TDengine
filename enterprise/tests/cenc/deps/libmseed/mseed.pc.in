@@ -1,0 +1,11 @@
+prefix=@PREFIX@
+exec_prefix=@EXEC_PREFIX@
+libdir=@LIBDIR@
+includedir=@INCLUDEDIR@
+
+Name: libmseed
+Description: Read and write miniSEED data records (seismological format)
+URL: https://iris-edu.github.io/libmseed/
+Version: @VERSION@
+Cflags: -I${includedir}
+Libs: -L${libdir} -lmseed

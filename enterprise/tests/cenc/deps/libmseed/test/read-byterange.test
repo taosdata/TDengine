@@ -1,0 +1,4 @@
+#!/bin/sh
+LD_LIBRARY_PATH=.. \
+DYLD_LIBRARY_PATH=.. \
+./lm_parse ../example/test.mseed@1024-2047
