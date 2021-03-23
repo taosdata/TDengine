@@ -243,10 +243,11 @@ class TDTestCase:
         tdLog.info("==========step3: query join again")
         self.sqlsquery()
 
-    def stop(self):
-        tdSql.close()
         rm_cmd = f"rm -f /tmp/insert* > /dev/null 2>&1"
         _ = subprocess.check_output(rm_cmd, shell=True).decode("utf-8")
+
+    def stop(self):
+        tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
 
 tdCases.addLinux(__file__, TDTestCase())
