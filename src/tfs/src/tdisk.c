@@ -27,7 +27,7 @@ SDisk *tfsNewDisk(int level, int id, const char *dir) {
 
   pDisk->level = level;
   pDisk->id = id;
-  strncpy(pDisk->dir, dir, TSDB_FILENAME_LEN);
+  tstrncpy(pDisk->dir, dir, TSDB_FILENAME_LEN);
 
   return pDisk;
 }

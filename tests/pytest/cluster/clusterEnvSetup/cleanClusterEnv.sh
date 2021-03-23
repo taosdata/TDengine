@@ -28,7 +28,7 @@ function removeDockerContainers {
 
 function cleanEnv {
   echo "Clean up docker environment"    
-  for i in {1..5}
+  for i in {1..10}
   do    
     rm -rf $DOCKER_DIR/node$i/data/*    
     rm -rf $DOCKER_DIR/node$i/log/*
