@@ -44,7 +44,7 @@ def cancelPreviousBuilds() {
 //     build.doKill()    //doTerm(),doKill(),doTerm()
 //   }
 // }
-// //abort previous build
+ //abort previous build
 // abortPreviousBuilds()
 // def abort_previous(){
 //   def buildNumber = env.BUILD_NUMBER as int
