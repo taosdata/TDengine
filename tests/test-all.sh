@@ -101,7 +101,9 @@ function runSimCaseOneByOnefq {
           rm -rf ../../sim/case.log
         fi
         dohavecore $2
-        exit 8
+        if [[ $2 == 1 ]];then
+          exit 8
+        fi
       fi
       end_time=`date +%s`
       echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
@@ -174,7 +176,9 @@ function runPyCaseOneByOnefq() {
           cat ../../sim/case.log
           rm -rf ../../sim/case.log
           dohavecore $2
-          exit 8
+          if [[ $2 == 1 ]];then
+            exit 8
+          fi
         fi
         echo execution time of $case was `expr $end_time - $start_time`s. | tee -a pytest-out.log
       else
