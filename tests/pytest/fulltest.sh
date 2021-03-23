@@ -230,6 +230,15 @@ python3 client/twoClients.py
 python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
 
+# subscribe
+python3 test.py -f subscribe/singlemeter.py
+#python3 test.py -f subscribe/stability.py  
+python3 test.py -f subscribe/supertable.py
+
+
+#======================p3-end===============
+#======================p4-start===============
+
 # tools
 python3 test.py -f tools/taosdemoTest.py
 python3 test.py -f tools/taosdemoTestWithoutMetric.py
@@ -239,15 +248,7 @@ python3 test.py -f tools/taosdumpTest.py
 python3 test.py -f tools/taosdemoTest2.py
 python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
-
-# subscribe
-python3 test.py -f subscribe/singlemeter.py
-#python3 test.py -f subscribe/stability.py  
-python3 test.py -f subscribe/supertable.py
-
-
-#======================p3-end===============
-#======================p4-start===============
+python3 test.py -f tools/taosdumpTestQuery.py
 
 python3 ./test.py -f update/merge_commit_data-0.py
 # wal
