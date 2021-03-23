@@ -317,7 +317,7 @@ static int32_t updateMetaBeforeRetryQuery(SSqlObj* pSql, STableMetaInfo* pTableM
   // update the pExpr info, colList info, number of table columns
   // TODO Re-parse this sql and issue the corresponding subquery as an alternative for this case.
   if (pSql->retryReason == TSDB_CODE_TDB_INVALID_TABLE_ID) {
-    int32_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+    int32_t numOfExprs = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
     int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     int32_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
 
