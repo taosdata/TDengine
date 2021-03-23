@@ -33,10 +33,7 @@ def abort_previous(){
   milestone(buildNumber)
 }
 def pre_test(){
-    script{
-      abort_previous()
-      abortPreviousBuilds()
-    }
+    
     
     sh '''
     sudo rmtaos || echo "taosd has not installed"

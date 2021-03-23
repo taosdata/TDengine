@@ -172,7 +172,7 @@ function runPyCaseOneByOnefq() {
         out_log=`tail -1 pytest-out.log  `
         if [[ $out_log =~ 'failed' ]];then
           cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
-          echo '=====================log====================='
+          echo '=====================log===================== '
           cat ../../sim/case.log
           rm -rf ../../sim/case.log
           dohavecore $2
