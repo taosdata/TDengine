@@ -50,6 +50,7 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
 static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
+static int32_t mnodeProcessSyncDbMsg(SMnodeMsg *pMsg);
 int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
 
 #ifndef _TOPIC
@@ -178,6 +179,7 @@ int32_t mnodeInitDbs() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DB, mnodeProcessCreateDbMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_DB, mnodeProcessAlterDbMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mnodeProcessDropDbMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_SYNC_DB, mnodeProcessSyncDbMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mnodeGetDbMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mnodeRetrieveDbs);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DB, mnodeCancelGetNextDb);
@@ -1182,6 +1184,10 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
 
   mDebug("db:%s, all vgroups is dropped", pMsg->pDb->name);
   return mnodeDropDb(pMsg);
+}
+
+static int32_t mnodeProcessSyncDbMsg(SMnodeMsg *pMsg) {
+  return 0;
 }
 
 void  mnodeDropAllDbs(SAcctObj *pAcct)  {

@@ -100,6 +100,7 @@ static SKeyword keywordTable[] = {
     {"ACCOUNT",      TK_ACCOUNT},
     {"USE",          TK_USE},
     {"DESCRIBE",     TK_DESCRIBE},
+    {"SYNCDB",       TK_SYNCDB},
     {"ALTER",        TK_ALTER},
     {"PASS",         TK_PASS},
     {"PRIVILEGE",    TK_PRIVILEGE},
