@@ -134,6 +134,7 @@ void tfsUpdateInfo(SFSMeta *pFSMeta) {
     tfsUpdateTierInfo(pTier, &tierMeta);
     pFSMeta->tsize += tierMeta.size;
     pFSMeta->avail += tierMeta.free;
+    pFSMeta->used += tierMeta.used;
   }
 
   tfsLock();
@@ -186,7 +187,7 @@ void tfsInitFile(TFILE *pf, int level, int id, const char *bname) {
 
   pf->level = level;
   pf->id = id;
-  strncpy(pf->rname, bname, TSDB_FILENAME_LEN);
+  tstrncpy(pf->rname, bname, TSDB_FILENAME_LEN);
 
   char tmpName[TMPNAME_LEN] = {0};
   snprintf(tmpName, TMPNAME_LEN, "%s/%s", DISK_DIR(pDisk), bname);
@@ -229,15 +230,15 @@ void *tfsDecodeFile(void *buf, TFILE *pf) {
 void tfsbasename(const TFILE *pf, char *dest) {
   char tname[TSDB_FILENAME_LEN] = "\0";
 
-  strncpy(tname, pf->aname, TSDB_FILENAME_LEN);
-  strncpy(dest, basename(tname), TSDB_FILENAME_LEN);
+  tstrncpy(tname, pf->aname, TSDB_FILENAME_LEN);
+  tstrncpy(dest, basename(tname), TSDB_FILENAME_LEN);
 }
 
 void tfsdirname(const TFILE *pf, char *dest) {
   char tname[TSDB_FILENAME_LEN] = "\0";
 
-  strncpy(tname, pf->aname, TSDB_FILENAME_LEN);
-  strncpy(dest, dirname(tname), TSDB_FILENAME_LEN);
+  tstrncpy(tname, pf->aname, TSDB_FILENAME_LEN);
+  tstrncpy(dest, dirname(tname), TSDB_FILENAME_LEN);
 }
 
 // DIR APIs ====================================
@@ -343,7 +344,7 @@ TDIR *tfsOpendir(const char *rname) {
   }
 
   tfsInitDiskIter(&(tdir->iter));
-  strncpy(tdir->dirname, rname, TSDB_FILENAME_LEN);
+  tstrncpy(tdir->dirname, rname, TSDB_FILENAME_LEN);
 
   if (tfsOpendirImpl(tdir) < 0) {
     free(tdir);
@@ -585,6 +586,7 @@ void taosGetDisk() {
   if (tscEmbedded) {
     tfsUpdateInfo(&fsMeta);
     tsTotalDataDirGB = (float)(fsMeta.tsize / unit);
+    tsUsedDataDirGB = (float)(fsMeta.used / unit);
     tsAvailDataDirGB = (float)(fsMeta.avail / unit);
   }
 

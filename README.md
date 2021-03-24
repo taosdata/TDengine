@@ -6,6 +6,8 @@
 
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
+English | [简体中文](./README-CN.md) 
+
 # What is TDengine？
 
 TDengine is an open-sourced big data platform under [GNU AGPL v3.0](http://www.gnu.org/licenses/agpl-3.0.html), designed and optimized for the Internet of Things (IoT), Connected Cars, Industrial IoT, and IT Infrastructure and Application Monitoring. Besides the 10x faster time-series database, it provides caching, stream computing, message queuing and other functionalities to reduce the complexity and cost of development and operation.
@@ -29,7 +31,7 @@ For user manual, system design and architecture, engineering blogs, refer to [TD
 # Building
 At the moment, TDengine only supports building and running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
 
-To build TDengine, use [CMake](https://cmake.org/) 3.5 or higher versions in the project directory. 
+To build TDengine, use [CMake](https://cmake.org/) 2.8.12.x or higher versions in the project directory. 
 
 ## Install tools
 
@@ -248,3 +250,6 @@ Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to th
 
 Add WeChat “tdengine” to join the group，you can communicate with other users.
 
+# [User List](https://github.com/taosdata/TDengine/issues/2432)
+
+If you are using TDengine and feel it helps or you'd like to do some contributions, please add your company to [user list](https://github.com/taosdata/TDengine/issues/2432) and let us know your needs.

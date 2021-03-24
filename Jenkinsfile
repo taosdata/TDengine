@@ -6,6 +6,7 @@ node {
 }
 
 def skipstage=0
+
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -24,7 +25,7 @@ def abortPreviousBuilds() {
     build.doKill()    //doTerm(),doKill(),doTerm()
   }
 }
-//abort previous build
+//  abort previous build
 abortPreviousBuilds()
 def abort_previous(){
   def buildNumber = env.BUILD_NUMBER as int
@@ -32,11 +33,11 @@ def abort_previous(){
   milestone(buildNumber)
 }
 def pre_test(){
-    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                sudo rmtaos
-                '''
-    }
+    
+    
+    sh '''
+    sudo rmtaos || echo "taosd has not installed"
+    '''
     sh '''
     
     cd ${WKC}
@@ -80,6 +81,10 @@ pipeline {
               changeRequest()
           }
           steps {
+            script{
+              abort_previous()
+              abortPreviousBuilds()
+            }
           sh'''
           cp -r ${WORKSPACE} ${WORKSPACE}.tes
           cd ${WORKSPACE}.tes

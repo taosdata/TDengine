@@ -35,7 +35,7 @@
 #include "mnodeSdb.h"
 
 #define SDB_TABLE_LEN 12
-#define MAX_QUEUED_MSG_NUM 10000
+#define MAX_QUEUED_MSG_NUM 100000
 
 typedef enum {
   SDB_ACTION_INSERT = 0,
@@ -552,7 +552,7 @@ static int32_t sdbInsertHash(SSdbTable *pTable, SSdbRow *pRow) {
 
   int32_t code = (*pTable->fpInsert)(pRow);
   if (code != TSDB_CODE_SUCCESS) {
-    sdbError("vgId:1, sdb:%s, failed to insert key:%s to hash, remove it", pTable->name,
+    sdbError("vgId:1, sdb:%s, failed to perform insert action for key:%s, remove it", pTable->name,
              sdbGetRowStr(pTable, pRow->pObj));
     sdbDeleteHash(pTable, pRow);
   }

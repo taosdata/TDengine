@@ -147,7 +147,7 @@ static int32_t vnodeAlterImp(SVnodeObj *pVnode, SCreateVnodeMsg *pVnodeCfg) {
 
   vDebug("vgId:%d, tsdbchanged:%d syncchanged:%d while alter vnode", pVnode->vgId, tsdbCfgChanged, syncCfgChanged);
 
-  if (tsdbCfgChanged || syncCfgChanged) {
+  if (/*tsdbCfgChanged || */syncCfgChanged) {
     // vnode in non-ready state and still needs to return success instead of TSDB_CODE_VND_INVALID_STATUS
     // dbCfgVersion can be corrected by status msg
     if (!vnodeSetUpdatingStatus(pVnode)) {
