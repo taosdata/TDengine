@@ -41,6 +41,7 @@ extern int fsDebugFlag;
 // tdisk.c ======================================================
 typedef struct {
   int64_t size;
+  int64_t used;
   int64_t free;
 } SDiskMeta;
 
@@ -56,6 +57,7 @@ typedef struct SDisk {
 #define DISK_DIR(pd) ((pd)->dir)
 #define DISK_META(pd) ((pd)->dmeta)
 #define DISK_SIZE(pd) ((pd)->dmeta.size)
+#define DISK_USED_SIZE(pd) ((pd)->dmeta.used)
 #define DISK_FREE_SIZE(pd) ((pd)->dmeta.free)
 
 SDisk *tfsNewDisk(int level, int id, const char *dir);
@@ -65,6 +67,7 @@ int    tfsUpdateDiskInfo(SDisk *pDisk);
 // ttier.c ======================================================
 typedef struct {
   int64_t size;
+  int64_t used;
   int64_t free;
   int16_t nAvailDisks;  // # of Available disks
 } STierMeta;

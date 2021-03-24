@@ -580,6 +580,7 @@ typedef struct {
 typedef struct {
   char     name[TSDB_FUNC_NAME_LEN];
   char     path[PATH_MAX];
+  int32_t  funcType;
   uint8_t  outputType;
   int16_t  outputLen;
   int32_t  codeLen;
@@ -593,6 +594,7 @@ typedef struct {
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
+  int32_t funcType;
   int8_t  resType;
   int16_t resBytes;
   int32_t len;

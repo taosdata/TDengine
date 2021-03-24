@@ -126,8 +126,7 @@ $tb_ = table
 $tbs = tables
 $db_ = database
 $dbs = databases
-$mt_ = metric
-$mts = metrics
+$ses = session
 $int = int
 $bint = bigint
 $binary = binary
@@ -145,8 +144,7 @@ sql_error create table $mt (ts timestamp, col1 int) tags ( $tb_ int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $tbs int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $db_ int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $dbs int) 
-sql_error create table $mt (ts timestamp, col1 int) tags ( $mt_ int)
-sql_error create table $mt (ts timestamp, col1 int) tags ( $mts int) 
+sql_error create table $mt (ts timestamp, col1 int) tags ( $ses int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $int int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $bint int)
 sql_error create table $mt (ts timestamp, col1 int) tags ( $binary int)

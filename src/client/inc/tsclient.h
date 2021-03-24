@@ -47,9 +47,6 @@ enum {
   DATA_FROM_DATA_FILE  = 2,
 };
 
-#define TSDB_UDF_TYPE_SCALAR       1
-#define TSDB_UDF_TYPE_AGGREGATE    2
-
 typedef void (*__async_cb_func_t)(void *param, TAOS_RES *tres, int32_t numOfRows);
 
 typedef struct STableComInfo {

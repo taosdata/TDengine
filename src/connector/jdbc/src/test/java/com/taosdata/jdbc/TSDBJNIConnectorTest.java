@@ -15,12 +15,12 @@ public class TSDBJNIConnectorTest {
     public void test() {
         try {
             // init
-            TSDBJNIConnector.init(null, null, null, null);
+            TSDBJNIConnector.init("/etc/taos/taos.cfg", null, null, null);
             // connect
             TSDBJNIConnector connector = new TSDBJNIConnector();
-            connector.connect("127.0.0.1", 6030, null, "root", "taosdata");
+            connector.connect("127.0.0.1", 6030, "unsign_jni", "root", "taosdata");
             // executeQuery
-            long pSql = connector.executeQuery("show variables");
+            long pSql = connector.executeQuery("select * from unsign_jni.us_table");
             if (connector.isUpdateQuery(pSql)) {
                 connector.freeResultSet(pSql);
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_WITH_EXECUTEQUERY);
@@ -29,13 +29,13 @@ public class TSDBJNIConnectorTest {
             List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
             int code = connector.getSchemaMetaData(pSql, columnMetaDataList);
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
             }
             if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_RESULT_SET_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
             }
             if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_NUM_OF_FIELDS_0));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
             }
             int columnSize = columnMetaDataList.size();
             // print metadata

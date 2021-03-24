@@ -206,10 +206,8 @@ static SKeyword keywordTable[] = {
     {"PREV",         TK_PREV},
     {"LINEAR",       TK_LINEAR},
     {"IMPORT",       TK_IMPORT},
-    {"METRIC",       TK_METRIC},
     {"TBNAME",       TK_TBNAME},
     {"JOIN",         TK_JOIN},
-    {"METRICS",      TK_METRICS},
     {"STABLE",       TK_STABLE},
     {"FILE",         TK_FILE},
     {"VNODES",       TK_VNODES},
@@ -221,7 +219,8 @@ static SKeyword keywordTable[] = {
     {"TOPICS",       TK_TOPICS},
     {"FUNCTION",     TK_FUNCTION},
     {"FUNCTIONS",    TK_FUNCTIONS},
-    {"OUTPUTTYPE",   TK_OUTPUTTYPE}
+    {"OUTPUTTYPE",   TK_OUTPUTTYPE},
+    {"AGGREGATE",    TK_AGGREGATE}
 };
 
 static const char isIdChar[] = {

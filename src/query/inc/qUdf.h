@@ -16,7 +16,7 @@
 #ifndef TDENGINE_QUDF_H
 #define TDENGINE_QUDF_H
 
-enum { TSDB_UDF_FUNC_NORMAL = 0, TSDB_UDF_FUNC_INIT, TSDB_UDF_FUNC_AGG, TSDB_UDF_FUNC_MAX_NUM };
+enum { TSDB_UDF_FUNC_NORMAL = 0, TSDB_UDF_FUNC_INIT, TSDB_UDF_FUNC_FINALIZE, TSDB_UDF_FUNC_MAX_NUM };
 
 
 
@@ -31,7 +31,7 @@ typedef struct SUdfInit{
 
 typedef struct SUdfInfo {
   int32_t functionId;  // system assigned function id
-  int8_t  funcType;    // scalar function or aggregate function
+  int32_t funcType;    // scalar function or aggregate function
   int8_t  resType;     // result type
   int16_t resBytes;    // result byte
   int32_t contLen;     // content length
@@ -48,6 +48,8 @@ typedef struct SUdfInfo {
 typedef void (*udfNormalFunc)(char* data, int8_t type, int32_t numOfRows, int64_t* ts, char* dataOutput, char* tsOutput,
                         int32_t* numOfOutput, char* buf);
 typedef void (*udfInitFunc)(SUdfInit* data);
+typedef void (*udfFinalizeFunc)(char* data, int8_t type, int32_t numOfRows, int64_t* ts, char* dataOutput, char* tsOutput,
+                        int32_t* numOfOutput, char* buf);
 
 
 #endif  // TDENGINE_QUDF_H

@@ -23,6 +23,7 @@ extern "C" {
 // TAOS_OS_FUNC_SYSINFO
 typedef struct {
   int64_t tsize;
+  int64_t used;
   int64_t avail;
 } SysDiskSize;
 

@@ -56,7 +56,7 @@ int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
 #ifndef _TOPIC
 int32_t tpInit() { return 0; }
 void    tpCleanUp() {}
-void    tpUpdateTs(int32_t *seq, void *pMsg) {}
+void    tpUpdateTs(int32_t vgId, int64_t *seq, void *pMsg) {}
 #endif
 
 static void mnodeDestroyDb(SDbObj *pDb) {

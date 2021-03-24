@@ -1409,7 +1409,7 @@ int tscEstimateCreateTableMsgLength(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &(pSql->cmd);
   int32_t size = minMsgSize() + sizeof(SCMCreateTableMsg) + sizeof(SCreateTableMsg);
 
-  SCreateTableSQL *pCreateTableInfo = pInfo->pCreateTableInfo;
+  SCreateTableSql *pCreateTableInfo = pInfo->pCreateTableInfo;
   if (pCreateTableInfo->type == TSQL_CREATE_TABLE_FROM_STABLE) {
     int32_t numOfTables = (int32_t)taosArrayGetSize(pInfo->pCreateTableInfo->childTableInfo);
     size += numOfTables * (sizeof(SCreateTableMsg) + TSDB_MAX_TAGS_LEN);
@@ -1418,7 +1418,7 @@ int tscEstimateCreateTableMsgLength(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   if (pCreateTableInfo->pSelect != NULL) {
-    size += (pCreateTableInfo->pSelect->selectToken.n + 1);
+    size += (pCreateTableInfo->pSelect->sqlstr.n + 1);
   }
 
   return size + TSDB_EXTRA_PAYLOAD_SIZE;
@@ -1476,7 +1476,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     int32_t code = tNameExtractFullName(&pTableMetaInfo->name, pCreateMsg->tableName);
     assert(code == 0);
 
-    SCreateTableSQL *pCreateTable = pInfo->pCreateTableInfo;
+    SCreateTableSql *pCreateTable = pInfo->pCreateTableInfo;
 
     pCreateMsg->igExists = pCreateTable->existCheck ? 1 : 0;
     pCreateMsg->numOfColumns = htons(pCmd->numOfCols);
@@ -1499,11 +1499,11 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
     pMsg = (char *)pSchema;
     if (type == TSQL_CREATE_STREAM) {  // check if it is a stream sql
-      SQuerySQL *pQuerySql = pInfo->pCreateTableInfo->pSelect;
+      SQuerySqlNode *pQuerySql = pInfo->pCreateTableInfo->pSelect;
 
-      strncpy(pMsg, pQuerySql->selectToken.z, pQuerySql->selectToken.n + 1);
-      pCreateMsg->sqlLen = htons(pQuerySql->selectToken.n + 1);
-      pMsg += pQuerySql->selectToken.n + 1;
+      strncpy(pMsg, pQuerySql->sqlstr.z, pQuerySql->sqlstr.n + 1);
+      pCreateMsg->sqlLen = htons(pQuerySql->sqlstr.n + 1);
+      pMsg += pQuerySql->sqlstr.n + 1;
     }
   }
 
@@ -2790,3 +2790,4 @@ void tscInitMsgsFp() {
   tscKeepConn[TSDB_SQL_FETCH] = 1;
   tscKeepConn[TSDB_SQL_HB] = 1;
 }
+                                                                                                        

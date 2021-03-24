@@ -194,7 +194,7 @@ static void tsdbMayTakeMemSnapshot(STsdbQueryHandle* pQueryHandle, SArray* psTab
 
   SMemRef* pMemRef = pQueryHandle->pMemRef;
   if (pQueryHandle->pMemRef->ref++ == 0) {
-    tsdbTakeMemSnapshot(pQueryHandle->pTsdb, (SMemTable**)&(pMemRef->mem), (SMemTable**)&(pMemRef->imem), psTable);
+    tsdbTakeMemSnapshot(pQueryHandle->pTsdb, &(pMemRef->snapshot), psTable);
   }
 
   taosArrayDestroy(psTable);
@@ -208,9 +208,7 @@ static void tsdbMayUnTakeMemSnapshot(STsdbQueryHandle* pQueryHandle) {
   }
 
   if (--pMemRef->ref == 0) {
-    tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, pMemRef->mem, pMemRef->imem);
-    pMemRef->mem = NULL;
-    pMemRef->imem = NULL;
+    tsdbUnTakeMemSnapShot(pQueryHandle->pTsdb, &(pMemRef->snapshot));
   }
 
   pQueryHandle->pMemRef = NULL;
@@ -229,10 +227,10 @@ int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle) {
   if (pMemRef == NULL) { return rows; }
 
   STableData* pMem  = NULL;
-  STableData* pIMem = NULL; 
+  STableData* pIMem = NULL;
 
-  SMemTable *pMemT  = (SMemTable *)(pMemRef->mem);  
-  SMemTable *pIMemT = (SMemTable *)(pMemRef->imem);
+  SMemTable* pMemT = pMemRef->snapshot.mem;
+  SMemTable* pIMemT = pMemRef->snapshot.imem;
 
   if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
     pMem = pMemT->tData[pCheckInfo->tableId.tid];
@@ -605,7 +603,7 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
   int32_t order = pHandle->order;
 
   // no data in buffer, abort
-  if (pHandle->pMemRef->mem == NULL && pHandle->pMemRef->imem == NULL) {
+  if (pHandle->pMemRef->snapshot.mem == NULL && pHandle->pMemRef->snapshot.imem == NULL) {
     return false;
   }
 
@@ -614,8 +612,8 @@ static bool initTableMemIterator(STsdbQueryHandle* pHandle, STableCheckInfo* pCh
   STableData* pMem = NULL;
   STableData* pIMem = NULL;
 
-  SMemTable* pMemT = pHandle->pMemRef->mem;
-  SMemTable* pIMemT = pHandle->pMemRef->imem;
+  SMemTable* pMemT = pHandle->pMemRef->snapshot.mem;
+  SMemTable* pIMemT = pHandle->pMemRef->snapshot.imem;
 
   if (pMemT && pCheckInfo->tableId.tid < pMemT->maxTables) {
     pMem = pMemT->tData[pCheckInfo->tableId.tid];
@@ -844,6 +842,10 @@ static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile, int32_t precisio
     return INT32_MIN;
   }
 
+  if (key < 0) {
+    key -= (daysPerFile * tsMsPerDay[precision]);
+  }
+  
   int64_t fid = (int64_t)(key / (daysPerFile * tsMsPerDay[precision]));  // set the starting fileId
   if (fid < 0L && llabs(fid) > INT32_MAX) { // data value overflow for INT32
     fid = INT32_MIN;
@@ -1020,6 +1022,14 @@ static int32_t doLoadFileDataBlock(STsdbQueryHandle* pQueryHandle, SBlock* pBloc
   assert(pCols->numOfRows != 0 && pCols->numOfRows <= pBlock->numOfRows);
 
   pBlock->numOfRows = pCols->numOfRows;
+
+  // Convert from TKEY to TSKEY for primary timestamp column if current block has timestamp before 1970-01-01T00:00:00Z
+  if(pBlock->keyFirst < 0 && colIds[0] == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    int64_t* src = pCols->cols[0].pData;
+    for(int32_t i = 0; i < pBlock->numOfRows; ++i) {
+      src[i] = tdGetKey(src[i]);
+    }
+  }
 
   int64_t elapsedTime = (taosGetTimestampUs() - st);
   pQueryHandle->cost.blockLoadTime += elapsedTime;
@@ -1277,13 +1287,7 @@ int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t capacity
     }
 
     if (pColInfo->info.colId == src->colId) {
-
-      if (pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-        for (int32_t n = 0; n < num; n++) {
-          TKEY tkey = *(TKEY *)((char*)src->pData + bytes * start + n * sizeof(TKEY));
-          *(TSKEY *)(pData + n * sizeof(TSKEY)) = tdGetKey(tkey);
-        }
-      } else if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
+      if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
         memmove(pData, (char*)src->pData + bytes * start, bytes * num);
       } else {  // handle the var-string
         char* dst = pData;

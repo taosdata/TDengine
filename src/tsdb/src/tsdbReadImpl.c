@@ -139,7 +139,7 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
     ptr = tsdbDecodeSBlockIdx(ptr, &blkIdx);
     ASSERT(ptr != NULL);
 
-    if (taosArrayPush(pReadh->aBlkIdx, (void *)(&blkIdx)) < 0) {
+    if (taosArrayPush(pReadh->aBlkIdx, (void *)(&blkIdx)) == NULL) {
       terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
       return -1;
     }
