@@ -187,6 +187,7 @@ typedef struct SArguments_S {
   char *   tb_prefix;
   char *   sqlFile;
   bool     use_metric;
+  bool     drop_database;
   bool     insert_only;
   bool     answer_yes;
   bool     debug_print;
@@ -314,7 +315,7 @@ typedef struct SDbCfg_S {
 
 typedef struct SDataBase_S {
   char         dbName[MAX_DB_NAME_SIZE];
-  int          drop;  // 0: use exists, 1: if exists, drop then new create
+  bool         drop;  // 0: use exists, 1: if exists, drop then new create
   SDbCfg       dbCfg;
   int          superTblCount;
   SSuperTable  superTbls[MAX_SUPER_TABLE_COUNT];
@@ -524,6 +525,7 @@ SArguments g_args = {
                      "t",             // tb_prefix
                      NULL,            // sqlFile
                      true,            // use_metric
+                     true,            // drop_database
                      true,            // insert_only
                      false,           // debug_print
                      false,           // verbose_print
@@ -2099,6 +2101,7 @@ static int getAllChildNameOfSuperTable(TAOS * taos, char* dbName,
 
 static int getSuperTableFromServer(TAOS * taos, char* dbName,
         SSuperTable*  superTbls) {
+
   char command[BUFFER_SIZE] = "\0";
   TAOS_RES * res;  
   TAOS_ROW row = NULL;
@@ -2324,7 +2327,7 @@ static int createDatabases() {
   }
   char command[BUFFER_SIZE] = "\0";
 
-  for (int i = 0; i < g_Dbs.dbCount; i++) {   
+  for (int i = 0; i < g_Dbs.dbCount; i++) {
     if (g_Dbs.db[i].drop) {
       sprintf(command, "drop database if exists %s;", g_Dbs.db[i].dbName);
       verbosePrint("%s() %d command: %s\n", __func__, __LINE__, command);
@@ -2335,7 +2338,7 @@ static int createDatabases() {
     }
 
     int dataLen = 0;
-    dataLen += snprintf(command + dataLen, 
+    dataLen += snprintf(command + dataLen,
         BUFFER_SIZE - dataLen, "create database if not exists %s", g_Dbs.db[i].dbName);
 
     if (g_Dbs.db[i].dbCfg.blocks > 0) {
@@ -2412,25 +2415,38 @@ static int createDatabases() {
     debugPrint("%s() %d supertbl count:%d\n",
             __func__, __LINE__, g_Dbs.db[i].superTblCount);
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-      // describe super table, if exists
+      if ((g_Dbs.db[i].drop) || (g_Dbs.db[i].superTbls[j].superTblExists == TBL_NO_EXISTS)) {
+        ret = createSuperTable(taos, g_Dbs.db[i].dbName,
+                &g_Dbs.db[i].superTbls[j], g_Dbs.use_metric);
+      
+        if (0 != ret) {
+          errorPrint("\ncreate super table %d failed!\n\n", j);
+          taos_close(taos);
+          return -1;
+        }
+      }
+
+      /* describe super table, if exists
       sprintf(command, "describe %s.%s;", g_Dbs.db[i].dbName,
               g_Dbs.db[i].superTbls[j].sTblName);
       verbosePrint("%s() %d command: %s\n", __func__, __LINE__, command);
+
       if (0 != queryDbExec(taos, command, NO_INSERT_TYPE)) {
         g_Dbs.db[i].superTbls[j].superTblExists = TBL_NO_EXISTS;
-        ret = createSuperTable(taos, g_Dbs.db[i].dbName,
-                &g_Dbs.db[i].superTbls[j], g_Dbs.use_metric);
+
       } else {      
+        */
         g_Dbs.db[i].superTbls[j].superTblExists = TBL_ALREADY_EXISTS;
         ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
                 &g_Dbs.db[i].superTbls[j]);
-      }
+      //}
+        if (0 != ret) {
+          errorPrint("\nget super table %s.%s info failed!\n\n", g_Dbs.db[i].dbName,
+                  g_Dbs.db[i].superTbls[j].sTblName);
+          taos_close(taos);
+          return -1;
+        }
 
-      if (0 != ret) {
-        printf("\ncreate super table %d failed!\n\n", j);
-        taos_close(taos);
-        return -1;
-      }
     }
   }
 
@@ -3099,15 +3115,16 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
     cJSON *drop = cJSON_GetObjectItem(dbinfo, "drop");
     if (drop && drop->type == cJSON_String && drop->valuestring != NULL) {
-      if (0 == strncasecmp(drop->valuestring, "yes", 3)) {
-        g_Dbs.db[i].drop = 1;
+      if (0 == strncasecmp(drop->valuestring, "yes", strlen("yes"))) {
+        g_Dbs.db[i].drop = true;
       } else {
-        g_Dbs.db[i].drop = 0;
+        g_Dbs.db[i].drop = false;
       }        
     } else if (!drop) {
-      g_Dbs.db[i].drop = 0;
+      g_Dbs.db[i].drop = g_args.drop_database;
     } else {
-      printf("ERROR: failed to read json, drop not found\n");
+      errorPrint("%s() LN%d, failed to read json, drop input mistake\n",
+              __func__, __LINE__);
       goto PARSE_OVER;
     }
 
@@ -5884,7 +5901,8 @@ static void initOfInsertMeta() {
   tstrncpy(g_Dbs.user, TSDB_DEFAULT_USER, MAX_DB_NAME_SIZE);
   tstrncpy(g_Dbs.password, TSDB_DEFAULT_PASS, MAX_DB_NAME_SIZE);
   g_Dbs.threadCount = 2;
-  g_Dbs.use_metric = true;
+
+  g_Dbs.use_metric = g_args.use_metric;
 }
 
 static void initOfQueryMeta() {
@@ -6093,16 +6111,23 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
 
 static void testMetaFile() {
     if (INSERT_TEST == g_args.test_mode) {
-      if (g_Dbs.cfgDir[0]) taos_options(TSDB_OPTION_CONFIGDIR, g_Dbs.cfgDir);
+      if (g_Dbs.cfgDir[0])
+          taos_options(TSDB_OPTION_CONFIGDIR, g_Dbs.cfgDir);
+
       insertTestProcess();
+
     } else if (QUERY_TEST == g_args.test_mode) {
       if (g_queryInfo.cfgDir[0])
           taos_options(TSDB_OPTION_CONFIGDIR, g_queryInfo.cfgDir);
+
       queryTestProcess();
+
     } else if (SUBSCRIBE_TEST == g_args.test_mode) {
       if (g_queryInfo.cfgDir[0])
           taos_options(TSDB_OPTION_CONFIGDIR, g_queryInfo.cfgDir);
+
       subscribeTestProcess();
+
     }  else {
       ;
     }
