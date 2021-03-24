@@ -670,7 +670,18 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if ((code = setKillInfo(pSql, pInfo, pInfo->type)) != TSDB_CODE_SUCCESS) {
         return code;
       }
+      break;
+    }
 
+    case TSDB_SQL_SYNC_DB_REPLICA: {
+      const char* msg1 = "invalid db name";
+      SStrToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
+
+      assert(taosArrayGetSize(pInfo->pMiscInfo->a) == 1);
+      code = tNameSetDbName(&pTableMetaInfo->name, getAccountId(pSql), pzName);
+      if (code != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
       break;
     }
 
