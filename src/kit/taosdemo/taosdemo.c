@@ -86,7 +86,7 @@ enum TEST_MODE {
 #define   MAX_COLUMN_COUNT       1024
 #define   MAX_TAG_COUNT          128
 
-#define   MAX_QUERY_SQL_COUNT    10
+#define   MAX_QUERY_SQL_COUNT    100
 #define   MAX_QUERY_SQL_LENGTH   256
 
 #define   MAX_DATABASE_COUNT     256
