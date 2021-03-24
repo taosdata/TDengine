@@ -2075,7 +2075,8 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
 
     pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
     if (pInfo->vgroupList->numOfVgroups <= 0) {
-      tfree(pInfo->vgroupList);
+      //tfree(pInfo->vgroupList);
+      tscError("%p empty vgroup info", pSql);
     } else {
       for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
         //just init, no need to lock
