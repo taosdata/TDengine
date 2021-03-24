@@ -100,7 +100,10 @@ function runSimCaseOneByOnefq {
           cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
           rm -rf ../../sim/case.log
         fi
-        exit 8
+        dohavecore $2
+        if [[ $2 == 1 ]];then
+          exit 8
+        fi
       fi
       end_time=`date +%s`
       echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
@@ -169,10 +172,13 @@ function runPyCaseOneByOnefq() {
         out_log=`tail -1 pytest-out.log  `
         if [[ $out_log =~ 'failed' ]];then
           cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
-          echo '=====================log====================='
+          echo '=====================log===================== '
           cat ../../sim/case.log
           rm -rf ../../sim/case.log
-          exit 8
+          dohavecore $2
+          if [[ $2 == 1 ]];then
+            exit 8
+          fi
         fi
         echo execution time of $case was `expr $end_time - $start_time`s. | tee -a pytest-out.log
       else
