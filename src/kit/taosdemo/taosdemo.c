@@ -2435,11 +2435,8 @@ static int createDatabases() {
                 &g_Dbs.db[i].superTbls[j], g_Dbs.use_metric);
       } else {      
         g_Dbs.db[i].superTbls[j].superTblExists = TBL_ALREADY_EXISTS;
-
-        if (g_Dbs.db[i].superTbls[j].childTblExists != TBL_ALREADY_EXISTS) {
-            ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
+        ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
                 &g_Dbs.db[i].superTbls[j]);
-        }
       }
 
       if (0 != ret) {
@@ -2447,16 +2444,16 @@ static int createDatabases() {
         taos_close(taos);
         return -1;
       }
-    }    
+    }
   }
 
   taos_close(taos);
   return 0;
 }
 
-static void* createTable(void *sarg) 
-{  
-  threadInfo *winfo = (threadInfo *)sarg; 
+static void* createTable(void *sarg)
+{
+  threadInfo *winfo = (threadInfo *)sarg;
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
   int64_t  lastPrintTime = taosGetTimestampMs();
@@ -2476,19 +2473,19 @@ static void* createTable(void *sarg)
   int len = 0;
   int batchNum = 0;
 
-  verbosePrint("%s() LN%d: Creating table from %d to %d\n", 
+  verbosePrint("%s() LN%d: Creating table from %d to %d\n",
           __func__, __LINE__,
           winfo->start_table_from, winfo->end_table_to);
 
   for (int i = winfo->start_table_from; i <= winfo->end_table_to; i++) {
     if (0 == g_Dbs.use_metric) {
-      snprintf(buffer, buff_len, 
+      snprintf(buffer, buff_len,
               "create table if not exists %s.%s%d %s;",
               winfo->db_name,
               g_args.tb_prefix, i,
               winfo->cols);
     } else {
-      if (0 == len) {  
+      if (0 == len) {
         batchNum = 0;
         memset(buffer, 0, buff_len);
         len += snprintf(buffer + len,
@@ -2507,7 +2504,7 @@ static void* createTable(void *sarg)
         free(buffer);
         return NULL;
       }
-      
+
       len += snprintf(buffer + len,
               superTblInfo->maxSqlLen - len,
               "if not exists %s.%s%d using %s.%s tags %s ",
@@ -2518,7 +2515,7 @@ static void* createTable(void *sarg)
       batchNum++;
 
       if ((batchNum < superTblInfo->batchCreateTableNum)
-              && ((superTblInfo->maxSqlLen - len) 
+              && ((superTblInfo->maxSqlLen - len)
                   >= (superTblInfo->lenOfTagOfOneRow + 256))) {
         continue;
       }
@@ -2527,8 +2524,8 @@ static void* createTable(void *sarg)
     len = 0;
     verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
     if (0 != queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE)){
-      errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
       free(buffer);
+      errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
       return NULL;
     }
 
@@ -2591,7 +2588,7 @@ static int startMultiThreadCreateChildTable(
     if (t_info->taos == NULL) {
       errorPrint( "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
       free(pids);
-      free(infos);  
+      free(infos);
       return -1;
     }
 
@@ -4554,7 +4551,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       recOfBatch += batchPerTbl;
       startTime += batchPerTbl * superTblInfo->timeStampStep;
       pThreadInfo->totalInsertRows += batchPerTbl;
-
       verbosePrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 batchPerTbl, recOfBatch);

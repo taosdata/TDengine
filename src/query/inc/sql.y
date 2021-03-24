@@ -726,6 +726,9 @@ expritem(A) ::= .                              {A = 0;}
 ///////////////////////////////////reset query cache//////////////////////////////////////
 cmd ::= RESET QUERY CACHE.  { setDCLSqlElems(pInfo, TSDB_SQL_RESET_CACHE, 0);}
 
+///////////////////////////////////sync replica database//////////////////////////////////
+cmd ::= SYNCDB ids(X) REPLICA.{ setDCLSqlElems(pInfo, TSDB_SQL_SYNC_DB_REPLICA, 1, &X);}
+
 ///////////////////////////////////ALTER TABLE statement//////////////////////////////////
 cmd ::= ALTER TABLE ids(X) cpxName(F) ADD COLUMN columnlist(A).     {
     X.n += F.n;

@@ -367,7 +367,7 @@ typedef struct SSqlObj {
   int64_t          svgroupRid;
 
   int64_t          squeryLock;
-
+  int32_t          retryReason;  // previous error code
   struct SSqlObj  *prev, *next;
   int64_t          self;
 } SSqlObj;
