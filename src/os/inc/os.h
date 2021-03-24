@@ -68,6 +68,7 @@ extern "C" {
 #include "osSysinfo.h"
 #include "osTime.h"
 #include "osTimer.h"
+#include "osSystem.h"
 
 void osInit();
 

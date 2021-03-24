@@ -184,7 +184,7 @@ do { \
 #define TSDB_TABLE_NAME_LEN       193     // it is a null-terminated string
 #define TSDB_DB_NAME_LEN          33
 #define TSDB_FUNC_NAME_LEN        65
-#define TSDB_FUNC_CODE_LEN        (4096 - 512)
+#define TSDB_FUNC_CODE_LEN        (65535 - 512)
 #define TSDB_TYPE_STR_MAX_LEN     32
 #define TSDB_TABLE_FNAME_LEN      (TSDB_ACCT_ID_LEN + TSDB_DB_NAME_LEN + TSDB_TABLE_NAME_LEN)
 #define TSDB_COL_NAME_LEN         65

@@ -231,7 +231,7 @@ int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code
   pFunc = calloc(1, sizeof(SFuncObj));
   tstrncpy(pFunc->name, name, TSDB_FUNC_NAME_LEN);
   tstrncpy(pFunc->path, path, tListLen(pFunc->path));
-  tstrncpy(pFunc->cont, codeScript, codeLen);
+  memcpy(pFunc->cont, codeScript, codeLen);
   pFunc->contLen     = codeLen;
   pFunc->createdTime = taosGetTimestampMs();
   pFunc->resType     = outputType;
@@ -429,7 +429,7 @@ static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg) {
   SRetrieveFuncMsg *pInfo = pMsg->rpcMsg.pCont;
   pInfo->num = htonl(pInfo->num);
 
-  int32_t t = sizeof(SUdfFuncMsg) + sizeof(SFunctionInfoMsg) * pInfo->num + 16384;
+  int32_t t = sizeof(SUdfFuncMsg) + (sizeof(SFunctionInfoMsg) + TSDB_FUNC_CODE_LEN) * pInfo->num + 16384;
 
   SUdfFuncMsg *pFuncMsg = rpcMallocCont(t);
   pFuncMsg->num = htonl(pInfo->num);
@@ -441,6 +441,11 @@ static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg) {
     tstrncpy(buf, name->data, TSDB_FUNC_NAME_LEN);
 
     SFuncObj* pFuncObj = mnodeGetFunc(buf);
+    if (pFuncObj == NULL) {
+      mError("function %s does not exist", buf);
+      return TSDB_CODE_MND_INVALID_FUNC;
+    }
+    
     SFunctionInfoMsg* pFuncInfo = (SFunctionInfoMsg*) pOutput;
 
     strcpy(pFuncInfo->name, buf);

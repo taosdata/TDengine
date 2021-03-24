@@ -261,6 +261,7 @@ typedef struct SQueryRuntimeEnv {
 
   SRspResultInfo        resultInfo;
   SHashObj             *pTableRetrieveTsMap;
+  SUdfInfo             *pUdfInfo;
 } SQueryRuntimeEnv;
 
 enum {
@@ -432,7 +433,7 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t nu
 
 SSqlGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code);
 SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
-                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, bool stableQuery, char* sql, uint64_t *qId);
+                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, bool stableQuery, char* sql, uint64_t *qId, SUdfInfo* pUdfInfo);
 int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *pQInfo, SQueryParam* param, bool isSTable);
 void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 
@@ -440,6 +441,8 @@ bool isQueryKilled(SQInfo *pQInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
 bool doBuildResCheck(SQInfo* pQInfo);
 void setQueryStatus(SQueryRuntimeEnv *pRuntimeEnv, int8_t status);
+
+void destroyUdfInfo(SUdfInfo* pUdfInfo);
 
 bool onlyQueryTags(SQuery* pQuery);
 bool isValidQInfo(void *param);

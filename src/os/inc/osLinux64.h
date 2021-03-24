@@ -80,6 +80,7 @@ extern "C" {
 #endif
 #include <linux/sysctl.h>
 #include <math.h>
+#include <dlfcn.h>
 
 #ifdef __cplusplus
 }

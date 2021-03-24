@@ -187,7 +187,7 @@ static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* 
 static int32_t getGroupbyColumnIndex(SSqlGroupbyExpr *pGroupbyExpr, SSDataBlock* pDataBlock);
 static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SGroupbyOperatorInfo *pInfo, int32_t numOfCols, char *pData, int16_t type, int16_t bytes, int32_t groupIndex);
 
-static void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size);
+static void initCtxOutputBuffer(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t size);
 static void getAlignQueryTimeWindow(SQuery *pQuery, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *win);
 static bool isPointInterpoQuery(SQuery *pQuery);
 static void setResultBufSize(SQuery* pQuery, SRspResultInfo* pResultInfo);
@@ -753,9 +753,18 @@ static int32_t getNumOfRowsInTimeWindow(SQuery *pQuery, SDataBlockInfo *pDataBlo
   return num;
 }
 
-static void doInvokeUdf(char* data, int8_t type, int32_t numOfRows, int64_t* ts, char* dataOutput, char* tsOutput,
+static void doInvokeUdf(SUdfInfo* pUdfInfo, char* data, int8_t type, int32_t numOfRows, int64_t* ts, char* dataOutput, char* tsOutput,
                         int32_t* numOfOutput, char* buf) {
+  if (pUdfInfo && pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]) {
+    qDebug("invoke udf function:%s,%p", pUdfInfo->name, pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]);
+    
+    (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])(data, type, numOfRows, ts, dataOutput, tsOutput, numOfOutput, buf);
 
+    return;
+  }
+  
+  qError("empty udf function");
+  return;
 }
 
 static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, STimeWindow* pWin, int32_t offset,
@@ -792,8 +801,8 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
         int32_t output = 0;
         char* buf = GET_ROWCELL_INTERBUF(pCtx[k].resultInfo);
 
-        doInvokeUdf(pCtx[k].pInput, pCtx[k].inputType, pCtx[k].size, pCtx[k].ptsList, pCtx[k].pOutput,
-            pCtx[k].ptsOutputBuf, &output, buf);
+        doInvokeUdf(pRuntimeEnv->pUdfInfo, pCtx[k].pInput, pCtx[k].inputType, pCtx[k].size, pCtx[k].ptsList, pCtx[k].pOutput,
+                  pCtx[k].ptsOutputBuf, &output, buf);
 
         // set the output value exist
         pCtx[k].resultInfo->numOfRes = output;
@@ -1031,8 +1040,18 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
       pCtx[k].startTs = startTs;// this can be set during create the struct
 //      aAggs[functionId].xFunction(&pCtx[k]);
       if (functionId < 0) {
-        // load the script and exec, pRuntimeEnv->pUdfInfo
+        int32_t output = 0;
+        char* buf = GET_ROWCELL_INTERBUF(pCtx[k].resultInfo);
+      
+        doInvokeUdf(pRuntimeEnv->pUdfInfo, pCtx[k].pInput, pCtx[k].inputType, pCtx[k].size, pCtx[k].ptsList, pCtx[k].pOutput,
+                  pCtx[k].ptsOutputBuf, &output, buf);
 
+        // set the output value exist
+        pCtx[k].resultInfo->numOfRes = output;
+        if (output > 0) {
+          pCtx[k].resultInfo->hasResult = DATA_SET_FLAG;
+        }
+                  
       } else {
         aAggs[functionId].xFunction(&pCtx[k]);
       }
@@ -1051,7 +1070,7 @@ static void arithmeticApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionC
       int32_t output = 0;
       char* buf = GET_ROWCELL_INTERBUF(pCtx[k].resultInfo);
 
-      doInvokeUdf(pCtx[k].pInput, pCtx[k].inputType, pCtx[k].size, pCtx[k].ptsList, pCtx[k].pOutput,
+      doInvokeUdf(pRuntimeEnv->pUdfInfo, pCtx[k].pInput, pCtx[k].inputType, pCtx[k].size, pCtx[k].ptsList, pCtx[k].pOutput,
                   pCtx[k].ptsOutputBuf, &output, buf);
 
       // set the output value exist
@@ -1486,7 +1505,7 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SGroupbyOp
   }
 
   setResultOutputBuf(pRuntimeEnv, pResultRow, pCtx, numOfCols, rowCellInfoOffset);
-  initCtxOutputBuffer(pCtx, numOfCols);
+  initCtxOutputBuffer(pRuntimeEnv, pCtx, numOfCols);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1873,6 +1892,8 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
     tfree(pRuntimeEnv->sasArray);
   }
+  
+  destroyUdfInfo(pRuntimeEnv->pUdfInfo);
 
   destroyResultBuf(pRuntimeEnv->pResultBuf);
   doFreeQueryHandle(pRuntimeEnv);
@@ -3064,7 +3085,7 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
     }
   }
 
-  initCtxOutputBuffer(pCtx, pDataBlock->info.numOfCols);
+  initCtxOutputBuffer(pRuntimeEnv, pCtx, pDataBlock->info.numOfCols);
 }
 
 void updateOutputBuf(SArithOperatorInfo* pInfo, int32_t numOfInputRows) {
@@ -3100,7 +3121,7 @@ void updateOutputBuf(SArithOperatorInfo* pInfo, int32_t numOfInputRows) {
   }
 }
 
-void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size) {
+void initCtxOutputBuffer(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t size) {
   for (int32_t j = 0; j < size; ++j) {
     SResultRowCellInfo* pResInfo = GET_RES_INFO(&pCtx[j]);
     if (pResInfo->initialized) {
@@ -3108,7 +3129,9 @@ void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size) {
     }
 
     if (pCtx[j].functionId < 0) { // todo udf initialization
-
+      if (pRuntimeEnv->pUdfInfo && pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_INIT]) {
+        (*(udfInitFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_INIT])(&pRuntimeEnv->pUdfInfo->init);
+      }
     } else {
       aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
     }
@@ -5859,7 +5882,43 @@ static int32_t updateOutputBufForTopBotQuery(SQueryTableMsg* pQueryMsg, SColumnI
   return TSDB_CODE_SUCCESS;
 }
 
-static UNUSED_FUNC int32_t flushUdfContentToDisk(SUdfInfo* pUdfInfo) {
+void destroyUdfInfo(SUdfInfo* pUdfInfo) {
+  if (pUdfInfo == NULL) {
+    return;
+  }
+  
+  tfree(pUdfInfo->name);
+
+  if (pUdfInfo->path) {
+    unlink(pUdfInfo->path);
+  }
+  
+  tfree(pUdfInfo->path);
+  
+  taosCloseDll(pUdfInfo->handle);
+
+  tfree(pUdfInfo);
+}
+
+static char* getUdfFuncName(char* name, int type) {
+  char* funcname = calloc(1, TSDB_FUNCTIONS_NAME_MAX_LENGTH + 10);
+  
+  switch (type) {
+    case TSDB_UDF_FUNC_NORMAL:
+      strcpy(funcname, name);
+      break;
+    case TSDB_UDF_FUNC_INIT:
+      sprintf(funcname, "%s_init", name);
+      break;
+    default:
+      assert(0);
+      break;
+  }
+
+  return funcname;
+}
+
+static int32_t flushUdfContentToDisk(SUdfInfo* pUdfInfo) {
   if (pUdfInfo == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -5875,6 +5934,20 @@ static UNUSED_FUNC int32_t flushUdfContentToDisk(SUdfInfo* pUdfInfo) {
 
   tfree(pUdfInfo->content);
   pUdfInfo->path = strdup(path);
+
+  pUdfInfo->handle = taosLoadDll(path);
+
+  if (NULL == pUdfInfo->handle) {
+    return TSDB_CODE_QRY_SYS_ERROR;
+  }
+
+  pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_NORMAL));
+  if (NULL == pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]) {
+    return TSDB_CODE_QRY_SYS_ERROR;
+  }
+
+  pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_INIT));
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -5885,7 +5958,10 @@ int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutpu
   int32_t code = TSDB_CODE_SUCCESS;
 
   // save the udf script or so file
-//  flushUdfContentToDisk(pUdfInfo);
+  code = flushUdfContentToDisk(pUdfInfo);
+  if (code) {
+    return code;
+  }
 
   SExprInfo *pExprs = (SExprInfo *)calloc(pQueryMsg->numOfOutput, sizeof(SExprInfo));
   if (pExprs == NULL) {
@@ -6189,7 +6265,7 @@ FORCE_INLINE bool checkQIdEqual(void *qHandle, uint64_t qId) {
 
 SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr, SExprInfo* pExprs,
                         SExprInfo* pSecExprs, STableGroupInfo* pTableGroupInfo, SColumnInfo* pTagCols, bool stableQuery,
-                        char* sql, uint64_t *qId) {
+                        char* sql, uint64_t *qId, SUdfInfo* pUdfInfo) {
   int16_t numOfCols = pQueryMsg->numOfCols;
   int16_t numOfOutput = pQueryMsg->numOfOutput;
 
@@ -6202,6 +6278,8 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   pQInfo->signature = pQInfo;
   SQuery* pQuery = &pQInfo->query;
   pQInfo->runtimeEnv.pQuery = pQuery;
+
+  pQInfo->runtimeEnv.pUdfInfo = pUdfInfo;
 
   pQuery->tableGroupInfo  = *pTableGroupInfo;
   pQuery->numOfCols       = numOfCols;

@@ -158,18 +158,19 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     goto _over;
   }
 
-  (*pQInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo, param.pTagColumnInfo, isSTableQuery, param.sql, qId);
+  (*pQInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo, param.pTagColumnInfo, isSTableQuery, param.sql, qId, param.pUdfInfo);
+
+  if ((*pQInfo) == NULL) {
+    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    goto _over;
+  }
 
   param.sql    = NULL;
   param.pExprs = NULL;
   param.pSecExprs = NULL;
   param.pGroupbyExpr = NULL;
   param.pTagColumnInfo = NULL;
-
-  if ((*pQInfo) == NULL) {
-    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    goto _over;
-  }
+  param.pUdfInfo = NULL;
 
   code = initQInfo(pQueryMsg, tsdb, vgId, *pQInfo, &param, isSTableQuery);
 
@@ -177,6 +178,8 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   if (param.pGroupbyExpr != NULL) {
     taosArrayDestroy(param.pGroupbyExpr->columnInfo);
   }
+
+  destroyUdfInfo(param.pUdfInfo);
 
   taosArrayDestroy(param.pTableIdList);
   param.pTableIdList = NULL;
