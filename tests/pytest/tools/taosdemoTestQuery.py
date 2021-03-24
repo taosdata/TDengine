@@ -1,4 +1,4 @@
-##################################################################
+###################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
 #
@@ -13,6 +13,7 @@
 
 import sys
 import os
+import time
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -24,6 +25,9 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
+
+        self.numberOfTables = 1000
+        self.numberOfRecords = 100
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -49,23 +53,22 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
-        taosdemoCmd = "%staosdemo -f tools/insert-interlace.json -pp 2>&1 | grep sleep | wc -l" % binPath
-        sleepTimes = subprocess.check_output(
-            taosdemoCmd, shell=True).decode("utf-8")
-        print("sleep times: %d" % int(sleepTimes))
+        os.system("%staosdemo -y -t %d -n %d" %
+                  (binPath, self.numberOfTables, self.numberOfRecords))
+        print("Sleep 2 seconds..")
+        time.sleep(2)
+        os.system('%staosdemo -f tools/query.json ' % binPath)
+#        taosdemoCmd = '%staosdemo -f tools/query.json ' % binPath
+#        threads = subprocess.check_output(
+#            taosdemoCmd, shell=True).decode("utf-8")
+#        print("threads: %d" % int(threads))
 
-        if (int(sleepTimes) != 16):
-            caller = inspect.getframeinfo(inspect.stack()[0][0])
-            tdLog.exit(
-                "%s(%d) failed: expected sleep times 16, actual %d" %
-                (caller.filename, caller.lineno, int(sleepTimes)))
-
-        tdSql.execute("use db")
-        tdSql.query("select count(tbname) from db.stb")
-        tdSql.checkData(0, 0, 9)
-        tdSql.query("select count(*) from db.stb")
-        tdSql.checkData(0, 0, 2250)
-
+#        if (int(threads) != 8):
+#            caller = inspect.getframeinfo(inspect.stack()[0][0])
+#            tdLog.exit(
+#                "%s(%d) failed: expected threads 8, actual %d" %
+#                (caller.filename, caller.lineno, int(threads)))
+#
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
