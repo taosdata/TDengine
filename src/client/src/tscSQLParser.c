@@ -1723,6 +1723,27 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+void genUdfList(SArray* pUdfInfo, tSQLExpr *pNode) {
+  if (pNode == NULL) {
+    return;
+  }
+  
+  if (pNode->type == SQL_NODE_EXPR) {
+    genUdfList(pUdfInfo, pNode->pLeft);
+    genUdfList(pUdfInfo, pNode->pRight);
+    return;
+  }
+
+  if (pNode->type == SQL_NODE_SQLFUNCTION) {
+    pNode->functionId = isValidFunction(pNode->operand.z, pNode->operand.n);
+    if (pNode->functionId < 0) { // extract all possible user defined function
+      struct SUdfInfo info = {0};
+      info.name = strndup(pNode->operand.z, pNode->operand.n);
+      taosArrayPush(pUdfInfo, &info);
+    }
+  }
+}
+
 static int32_t checkForUdf(SSqlObj* pSql, tSQLExprList* pSelection) {
   SSqlCmd* pCmd = &pSql->cmd;
   if (pCmd->pUdfInfo != NULL) {
@@ -1734,13 +1755,8 @@ static int32_t checkForUdf(SSqlObj* pSql, tSQLExprList* pSelection) {
     tSqlExprItem* pItem = &pSelection->a[i];
 
     int32_t type = pItem->pNode->type;
-    if (type == SQL_NODE_SQLFUNCTION) {
-      pItem->pNode->functionId = isValidFunction(pItem->pNode->operand.z, pItem->pNode->operand.n);
-      if (pItem->pNode->functionId < 0) { // extract all possible user defined function
-        struct SUdfInfo info = {0};
-        info.name = strndup(pItem->pNode->operand.z, pItem->pNode->operand.n);
-        taosArrayPush(pCmd->pUdfInfo, &info);
-      }
+    if (type == SQL_NODE_EXPR || type == SQL_NODE_SQLFUNCTION) {
+      genUdfList(pCmd->pUdfInfo, pItem->pNode);
     }
   }
 
@@ -2129,6 +2145,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg6 = "function applied to tags not allowed";
   const char* msg7 = "normal table can not apply this function";
   const char* msg8 = "multi-columns selection does not support alias column name";
+  const char* msg9 = "invalid function";
   const char* msg10 = "diff can no be applied to unsigned numeric type";
 
   switch (functionId) {
@@ -2648,6 +2665,9 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
     default: {
       SUdfInfo* pUdfInfo = isValidUdf(pCmd->pUdfInfo, pItem->pNode->operand.z, pItem->pNode->operand.n);
+      if (pUdfInfo == NULL) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
+      }
 
       tSqlExprItem* pParamElem = &(pItem->pNode->pParam->a[0]);
       if (pParamElem->pNode->tokenId != TK_ID) {
@@ -2685,6 +2705,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         }
       }
 
+      tscInsertPrimaryTsSourceColumn(pQueryInfo, &index);
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -3810,11 +3831,9 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSQLExpr* pExpr, SQueryInfo* pQuer
     // sql function list in selection clause.
     // Append the sqlExpr into exprList of pQueryInfo structure sequentially
     pExpr->functionId = isValidFunction(pExpr->operand.z, pExpr->operand.n);
-    if (pExpr->functionId < 0) {
-      return TSDB_CODE_TSC_INVALID_SQL;
-    }
 
-    if (addExprAndResultField(pCmd, pQueryInfo, outputIndex, &item, false) != TSDB_CODE_SUCCESS) {
+    int32_t code = addExprAndResultField(pCmd, pQueryInfo, outputIndex, &item, false);
+    if (code != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
