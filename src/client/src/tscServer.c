@@ -350,8 +350,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
         taosMsleep(duration);
       }
 
+      pSql->retryReason = rpcMsg->code;
       rpcMsg->code = tscRenewTableMeta(pSql, 0);
-
       // if there is an error occurring, proceed to the following error handling procedure.
       if (rpcMsg->code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
         taosReleaseRef(tscObjRef, handle);
@@ -1280,6 +1280,23 @@ int32_t tscBuildUseDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   tNameExtractFullName(&pTableMetaInfo->name, pUseDbMsg->db);
   pCmd->msgType = TSDB_MSG_TYPE_CM_USE_DB;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tscBuildSyncDbReplicaMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
+  SSqlCmd *pCmd = &pSql->cmd;
+  pCmd->payloadLen = sizeof(SSyncDbMsg);
+
+  if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
+    tscError("%p failed to malloc for query msg", pSql);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  SSyncDbMsg *pSyncMsg = (SSyncDbMsg *)pCmd->payload;
+  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+  tNameExtractFullName(&pTableMetaInfo->name, pSyncMsg->db);
+  pCmd->msgType = TSDB_MSG_TYPE_CM_SYNC_DB;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -2559,6 +2576,7 @@ void tscInitMsgsFp() {
   tscBuildMsg[TSDB_SQL_DROP_USER] = tscBuildDropUserAcctMsg;
   tscBuildMsg[TSDB_SQL_DROP_ACCT] = tscBuildDropUserAcctMsg;
   tscBuildMsg[TSDB_SQL_DROP_DB] = tscBuildDropDbMsg;
+  tscBuildMsg[TSDB_SQL_SYNC_DB_REPLICA] = tscBuildSyncDbReplicaMsg;
   tscBuildMsg[TSDB_SQL_DROP_TABLE] = tscBuildDropTableMsg;
   tscBuildMsg[TSDB_SQL_ALTER_USER] = tscBuildUserMsg;
   tscBuildMsg[TSDB_SQL_CREATE_DNODE] = tscBuildCreateDnodeMsg;

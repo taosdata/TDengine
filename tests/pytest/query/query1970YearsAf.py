@@ -18,6 +18,7 @@ import json
 import subprocess
 import datetime
 
+
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -39,6 +40,7 @@ class TDTestCase:
         tdLog.debug(f"binPath {binPath}")
         binPath = os.path.realpath(binPath)
         tdLog.debug(f"binPath real path {binPath}")
+
         if path == "":
             self.path = os.path.abspath(binPath + "../../")
         else:
@@ -187,12 +189,12 @@ class TDTestCase:
             "select * from t9 where t9.ts > '1969-12-31 22:00:00.000' and t9.ts <'1970-01-01 02:00:00.000' "
         )
         tdSql.checkRows(719)
-
+        
         tdSql.query(
             "select * from t0,t1 where t0.ts=t1.ts and t1.ts >= '1970-01-01 00:00:00.000' "
         )
         tdSql.checkRows(680)
-
+        
         tdSql.query(
             "select diff(col1) from t0 where t0.ts >= '1970-01-01 00:00:00.000' "
         )
@@ -250,6 +252,7 @@ class TDTestCase:
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
+
 
 tdCases.addLinux(__file__, TDTestCase())
 tdCases.addWindows(__file__, TDTestCase())
