@@ -17,7 +17,7 @@
 #define TSDB_MAX_SUBBLOCKS 8
 static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
   if (key < 0) {
-    return (int)(((key + 1) / tsMsPerDay[precision] / days + 1));
+    return (int)((key + 1) / tsMsPerDay[precision] / days + 1);
   } else {
     return (int)((key / tsMsPerDay[precision] / days));
   }
