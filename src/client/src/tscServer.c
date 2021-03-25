@@ -508,7 +508,7 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, pSql->cmd.clauseIndex);
   pRetrieveMsg->free    = htons(pQueryInfo->type);
-  pRetrieveMsg->qhandle = htobe64(pSql->res.qhandle);
+  pRetrieveMsg->qId     = htobe64(pSql->res.qId);
 
   // todo valid the vgroupId at the client side
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -520,7 +520,7 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
 
       pRetrieveMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
-      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, qhandle:%" PRIX64, pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex, pSql->res.qhandle);
+      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, qhandle:%" PRIX64, pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex, pSql->res.qId);
     } else {
       int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
       assert(vgIndex >= 0 && vgIndex < numOfVgroups);
@@ -528,12 +528,12 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, vgIndex);
 
       pRetrieveMsg->header.vgId = htonl(pTableIdList->vgInfo.vgId);
-      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, qhandle:%" PRIX64, pSql, pTableIdList->vgInfo.vgId, vgIndex, pSql->res.qhandle);
+      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, qId:%" PRIu64, pSql, pTableIdList->vgInfo.vgId, vgIndex, pSql->res.qId);
     }
   } else {
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
     pRetrieveMsg->header.vgId = htonl(pTableMeta->vgId);
-    tscDebug("%p build fetch msg from only one vgroup, vgId:%d, qhandle:%" PRIX64, pSql, pTableMeta->vgId, pSql->res.qhandle);
+    tscDebug("%p build fetch msg from only one vgroup, vgId:%d, qId:%" PRIu64, pSql, pTableMeta->vgId, pSql->res.qId);
   }
 
   pSql->cmd.payloadLen = sizeof(SRetrieveTableMsg);
@@ -1583,7 +1583,7 @@ int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   SRetrieveTableMsg *pRetrieveMsg = (SRetrieveTableMsg*)pCmd->payload;
-  pRetrieveMsg->qhandle = htobe64(pSql->res.qhandle);
+  pRetrieveMsg->qId  = htobe64(pSql->res.qId);
   pRetrieveMsg->free = htons(pQueryInfo->type);
 
   return TSDB_CODE_SUCCESS;
@@ -2134,7 +2134,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
 
   pShow = (SShowRsp *)pRes->pRsp;
   pShow->qhandle = htobe64(pShow->qhandle);
-  pRes->qhandle = pShow->qhandle;
+  pRes->qId = pShow->qhandle;
 
   tscResetForNextRetrieve(pRes);
   pMetaMsg = &(pShow->tableMeta);
@@ -2316,11 +2316,12 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
   SQueryTableRsp *pQuery = (SQueryTableRsp *)pRes->pRsp;
-  pQuery->qhandle = htobe64(pQuery->qhandle);
-  pRes->qhandle = pQuery->qhandle;
+  pQuery->qId = htobe64(pQuery->qId);
+  pRes->qId   = pQuery->qId;
 
   pRes->data = NULL;
   tscResetForNextRetrieve(pRes);
+  tscDebug("%p query rsp received, qId:%"PRIu64, pSql, pRes->qId);
   return 0;
 }
 
@@ -2378,7 +2379,8 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
-  tscDebug("%p numOfRows:%d, offset:%" PRId64 ", complete:%d", pSql, pRes->numOfRows, pRes->offset, pRes->completed);
+  tscDebug("%p numOfRows:%d, offset:%" PRId64 ", complete:%d, qId:%"PRIu64, pSql, pRes->numOfRows, pRes->offset,
+      pRes->completed, pRes->qId);
 
   return 0;
 }

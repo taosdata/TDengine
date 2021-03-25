@@ -91,6 +91,23 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg) {
   return code;
 }
 
+int32_t vnodeSync(int32_t vgId) {
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  if (pVnode == NULL) {
+    vDebug("vgId:%d, failed to sync, vnode not find", vgId);
+    return TSDB_CODE_VND_INVALID_VGROUP_ID;
+  }
+
+  if (pVnode->role != TAOS_SYNC_ROLE_MASTER) {
+    vInfo("vgId:%d, vnode will sync, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+    syncRecover(pVnode->sync);
+  }
+
+  vnodeRelease(pVnode);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t vnodeDrop(int32_t vgId) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {

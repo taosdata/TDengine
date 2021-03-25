@@ -452,6 +452,14 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
     return -1;
   }
 
+  if (tsdbUpdateDFileSetHeader(&(pCommith->wSet)) < 0) {
+    tsdbError("vgId:%d failed to update FSET %d header since %s", REPO_ID(pRepo), fid, tstrerror(terrno));
+    tsdbCloseCommitFile(pCommith, true);
+    // revert the file change
+    tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
+    return -1;
+  }
+
   // Close commit file
   tsdbCloseCommitFile(pCommith, false);
 

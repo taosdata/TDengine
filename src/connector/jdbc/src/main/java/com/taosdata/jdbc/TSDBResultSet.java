@@ -14,9 +14,14 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
+import com.google.common.primitives.Shorts;
+
 import java.math.BigDecimal;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Calendar;
 import java.util.List;
 
 public class TSDBResultSet extends AbstractResultSet implements ResultSet {
@@ -120,158 +125,189 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     }
 
     public String getString(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, this.columnMetaDataList.size());
+
         String res = null;
-        int colIndex = getTrueColumnIndex(columnIndex);
-
         if (this.getBatchFetch())
-            return this.blockData.getString(colIndex);
+            return this.blockData.getString(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(colIndex);
+        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
         if (!lastWasNull) {
-            res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+            res = this.rowData.getString(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
         }
         return res;
     }
 
     public boolean getBoolean(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, this.columnMetaDataList.size());
+
         boolean res = false;
-        int colIndex = getTrueColumnIndex(columnIndex);
-
         if (this.getBatchFetch())
-            return this.blockData.getBoolean(colIndex);
+            return this.blockData.getBoolean(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(colIndex);
+        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
         if (!lastWasNull) {
-            res = this.rowData.getBoolean(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+            res = this.rowData.getBoolean(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
         }
         return res;
     }
 
     public byte getByte(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, this.columnMetaDataList.size());
+
         byte res = 0;
-        int colIndex = getTrueColumnIndex(columnIndex);
-
         if (this.getBatchFetch())
-            return (byte) this.blockData.getInt(colIndex);
+            return (byte) this.blockData.getInt(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(colIndex);
+        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
         if (!lastWasNull) {
-            res = (byte) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+            res = (byte) this.rowData.getInt(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
         }
         return res;
     }
 
     public short getShort(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, this.columnMetaDataList.size());
+
         short res = 0;
-        int colIndex = getTrueColumnIndex(columnIndex);
-
         if (this.getBatchFetch())
-            return (short) this.blockData.getInt(colIndex);
+            return (short) this.blockData.getInt(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(colIndex);
+        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
         if (!lastWasNull) {
-            res = (short) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+            res = (short) this.rowData.getInt(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
         }
         return res;
     }
 
     public int getInt(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, this.columnMetaDataList.size());
+
         int res = 0;
-        int colIndex = getTrueColumnIndex(columnIndex);
-
         if (this.getBatchFetch())
-            return this.blockData.getInt(colIndex);
+            return this.blockData.getInt(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(colIndex);
+        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
         if (!lastWasNull) {
-            res = this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+            res = this.rowData.getInt(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
         }
         return res;
     }
 
     public long getLong(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, this.columnMetaDataList.size());
+
         long res = 0L;
-        int colIndex = getTrueColumnIndex(columnIndex);
-
         if (this.getBatchFetch())
-            return this.blockData.getLong(colIndex);
+            return this.blockData.getLong(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(colIndex);
+        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
         if (!lastWasNull) {
-            res = this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+            res = this.rowData.getLong(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
         }
         return res;
     }
 
     public float getFloat(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, this.columnMetaDataList.size());
+
         float res = 0;
-        int colIndex = getTrueColumnIndex(columnIndex);
-
         if (this.getBatchFetch())
-            return (float) this.blockData.getDouble(colIndex);
+            return (float) this.blockData.getDouble(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(colIndex);
+        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
         if (!lastWasNull)
-            res = this.rowData.getFloat(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+            res = this.rowData.getFloat(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
 
         return res;
     }
 
     public double getDouble(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, this.columnMetaDataList.size());
+
         double res = 0;
-        int colIndex = getTrueColumnIndex(columnIndex);
-
         if (this.getBatchFetch())
-            return this.blockData.getDouble(colIndex);
+            return this.blockData.getDouble(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(colIndex);
+        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
         if (!lastWasNull) {
-            res = this.rowData.getDouble(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+            res = this.rowData.getDouble(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
         }
         return res;
     }
 
-    @Deprecated
-    public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        return new BigDecimal(getLong(columnIndex));
+    public byte[] getBytes(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, this.columnMetaDataList.size());
+
+        Object value = this.rowData.get(columnIndex - 1);
+        if (value == null)
+            return null;
+
+        int colType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+        switch (colType) {
+            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+                return Longs.toByteArray((Long) value);
+            case TSDBConstants.TSDB_DATA_TYPE_INT:
+                return Ints.toByteArray((int) value);
+            case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+                return Shorts.toByteArray((Short) value);
+            case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+                return new byte[]{(byte) value};
+        }
+        return value.toString().getBytes();
     }
 
-    public byte[] getBytes(int columnIndex) throws SQLException {
-        return getString(columnIndex).getBytes();
+    @Override
+    public Date getDate(int columnIndex) throws SQLException {
+        Timestamp timestamp = getTimestamp(columnIndex);
+        return timestamp == null ? null : new Date(timestamp.getTime());
+    }
+
+    @Override
+    public Time getTime(int columnIndex) throws SQLException {
+        Timestamp timestamp = getTimestamp(columnIndex);
+        return timestamp == null ? null : new Time(timestamp.getTime());
     }
 
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, this.columnMetaDataList.size());
+
         Timestamp res = null;
-        int colIndex = getTrueColumnIndex(columnIndex);
 
         if (this.getBatchFetch())
-            return this.blockData.getTimestamp(columnIndex);
+            return this.blockData.getTimestamp(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(colIndex);
+        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
         if (!lastWasNull) {
-            res = this.rowData.getTimestamp(colIndex);
+            res = this.rowData.getTimestamp(columnIndex - 1);
         }
         return res;
     }
 
     public ResultSetMetaData getMetaData() throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
         return new TSDBResultSetMetaData(this.columnMetaDataList);
     }
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        int colIndex = getTrueColumnIndex(columnIndex);
+        checkAvailability(columnIndex, this.columnMetaDataList.size());
 
+        Object res = null;
         if (this.getBatchFetch())
-            return this.blockData.get(colIndex);
+            return this.blockData.get(columnIndex - 1);
 
-        this.lastWasNull = this.rowData.wasNull(colIndex);
-        return this.rowData.get(colIndex);
-    }
-
-    @Override
-    public Object getObject(String columnLabel) throws SQLException {
-        return this.getObject(this.findColumn(columnLabel));
+        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+        if (!lastWasNull) {
+            int colType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            if (colType == TSDBConstants.TSDB_DATA_TYPE_BINARY)
+                res = ((String) this.rowData.get(columnIndex - 1)).getBytes();
+            else
+                res = this.rowData.get(columnIndex - 1);
+        }
+        return res;
     }
 
     public int findColumn(String columnLabel) throws SQLException {
@@ -285,14 +321,31 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        int colIndex = getTrueColumnIndex(columnIndex);
+        if (this.getBatchFetch())
+            return new BigDecimal(this.blockData.getLong(columnIndex - 1));
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            return new BigDecimal(this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType()));
-        } else {
-            return new BigDecimal(this.blockData.getLong(colIndex));
+        this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
+        BigDecimal res = null;
+        if (!lastWasNull) {
+            int colType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            switch (colType) {
+                case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+                case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+                case TSDBConstants.TSDB_DATA_TYPE_INT:
+                case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+                    res = new BigDecimal(Long.valueOf(this.rowData.get(columnIndex - 1).toString()));
+                    break;
+                case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                    res = new BigDecimal(Double.valueOf(this.rowData.get(columnIndex - 1).toString()));
+                    break;
+                case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+                    return new BigDecimal(((Timestamp) this.rowData.get(columnIndex - 1)).getTime());
+                default:
+                    res = new BigDecimal(this.rowData.get(columnIndex - 1).toString());
+            }
         }
+        return res;
     }
 
     @Override
@@ -398,6 +451,12 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         return this.statement;
     }
 
+    @Override
+    public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
+        //TODO：did not use the specified timezone in cal
+        return getTimestamp(columnIndex);
+    }
+
     public boolean isClosed() throws SQLException {
         if (isClosed)
             return true;
@@ -408,17 +467,7 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     }
 
     public String getNString(int columnIndex) throws SQLException {
-        int colIndex = getTrueColumnIndex(columnIndex);
-        return (String) rowData.get(colIndex);
+        return getString(columnIndex);
     }
 
-    private int getTrueColumnIndex(int columnIndex) throws SQLException {
-        if (columnIndex < 1)
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "columnIndex(" + columnIndex + "): < 1");
-
-        int numOfCols = this.columnMetaDataList.size();
-        if (columnIndex > numOfCols)
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "columnIndex: " + columnIndex);
-        return columnIndex - 1;
-    }
 }

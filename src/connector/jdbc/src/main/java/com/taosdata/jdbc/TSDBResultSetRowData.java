@@ -21,16 +21,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 public class TSDBResultSetRowData {
-    private ArrayList<Object> data = null;
+    private ArrayList<Object> data;
     private int colSize = 0;
 
     public TSDBResultSetRowData(int colSize) {
         this.setColSize(colSize);
-    }
-
-    public TSDBResultSetRowData() {
-        this.data = new ArrayList<>();
-        this.setColSize(0);
     }
 
     public void clear() {
@@ -71,9 +66,9 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return ((Long) obj) == 1L ? Boolean.TRUE : Boolean.FALSE;
+            default:
+                return false;
         }
-
-        return Boolean.TRUE;
     }
 
     public void setByte(int col, byte value) {
@@ -198,7 +193,7 @@ public class TSDBResultSetRowData {
         data.set(col, value);
     }
 
-    public float getFloat(int col, int srcType) throws SQLException {
+    public float getFloat(int col, int srcType) {
         Object obj = data.get(col);
 
         switch (srcType) {
@@ -226,7 +221,7 @@ public class TSDBResultSetRowData {
         data.set(col, value);
     }
 
-    public double getDouble(int col, int srcType) throws SQLException {
+    public double getDouble(int col, int srcType) {
         Object obj = data.get(col);
 
         switch (srcType) {
@@ -267,9 +262,8 @@ public class TSDBResultSetRowData {
      *
      * @param col column index
      * @return
-     * @throws SQLException
      */
-    public String getString(int col, int srcType) throws SQLException {
+    public String getString(int col, int srcType) {
         switch (srcType) {
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
@@ -305,11 +299,11 @@ public class TSDBResultSetRowData {
     }
 
     public void setTimestamp(int col, long ts) {
-        data.set(col, ts);
+        data.set(col, new Timestamp(ts));
     }
 
     public Timestamp getTimestamp(int col) {
-        return new Timestamp((Long) data.get(col));
+        return (Timestamp) data.get(col);
     }
 
     public Object get(int col) {
@@ -320,7 +314,7 @@ public class TSDBResultSetRowData {
         return colSize;
     }
 
-    public void setColSize(int colSize) {
+    private void setColSize(int colSize) {
         this.colSize = colSize;
         this.clear();
     }

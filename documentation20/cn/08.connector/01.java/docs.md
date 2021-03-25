@@ -471,9 +471,11 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BIGINT            | java.lang.Long     |
 | FLOAT             | java.lang.Float    |
 | DOUBLE            | java.lang.Double   |
-| SMALLINT, TINYINT | java.lang.Short    |
+| SMALLINT	    | java.lang.Short    |
+| TINYINT           | java.lang.Byte     |
 | BOOL              | java.lang.Boolean  |
-| BINARY, NCHAR     | java.lang.String   |
+| BINARY            | byte array         |
+| NCHAR             | java.lang.String   |
 
 
 
