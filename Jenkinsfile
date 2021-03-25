@@ -39,7 +39,7 @@ def pre_test(){
     sudo rmtaos || echo "taosd has not installed"
     '''
     sh '''
-    
+    ps -ef | grep taosd | grep -v grep | awk '{print $2}' | xargs kill -9 
     cd ${WKC}
     git checkout develop
     git reset --hard HEAD~10 >/dev/null 

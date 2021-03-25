@@ -94,6 +94,7 @@ enum TEST_MODE {
 
 #define DEFAULT_TIMESTAMP_STEP  1
 
+
 typedef enum CREATE_SUB_TALBE_MOD_EN {
   PRE_CREATE_SUBTBL,
   AUTO_CREATE_SUBTBL,
@@ -236,7 +237,7 @@ typedef struct SSuperTable_S {
   int           childTblOffset;
 
   int          multiThreadWriteOneTbl;   // 0: no, 1: yes
-  int          rowsPerTbl;               // 
+  int          interlaceRows;            // 
   int          disorderRatio;            // 0: no disorder, >0: x%
   int          disorderRange;            // ms or us by database precision
   int          maxSqlLen;                // 
@@ -590,6 +591,32 @@ static FILE *          g_fpOfInsertResult = NULL;
 
 static void ERROR_EXIT(const char *msg) { perror(msg); exit(-1); }
 
+#ifndef TAOSDEMO_COMMIT_SHA1
+#define TAOSDEMO_COMMIT_SHA1 "unknown"
+#endif
+
+#ifndef TD_VERNUMBER
+#define TD_VERNUMBER    "unknown"
+#endif
+
+#ifndef TAOSDEMO_STATUS 
+#define TAOSDEMO_STATUS "unknown"
+#endif
+
+static void printVersion() {
+    char tdengine_ver[] = TD_VERNUMBER;
+    char taosdemo_ver[] = TAOSDEMO_COMMIT_SHA1;
+    char taosdemo_status[] = TAOSDEMO_STATUS;
+
+    if (strlen(taosdemo_status) == 0) {
+        printf("taosdemo verison %s-%s\n",
+                tdengine_ver, taosdemo_ver);
+    } else {
+        printf("taosdemo verison %s-%s, status:%s\n",
+                tdengine_ver, taosdemo_ver, taosdemo_status);
+    }
+}
+
 static void printHelp() {
   char indent[10] = "        ";
   printf("%s%s%s%s\n", indent, "-f", indent, 
@@ -647,6 +674,8 @@ static void printHelp() {
           "Out of order data's range, ms, default is 1000.");
   printf("%s%s%s%s\n", indent, "-g", indent, 
           "Print debug info.");
+  printf("%s%s%s%s\n", indent, "-V, --version", indent, 
+          "Print version info.");
 /*    printf("%s%s%s%s\n", indent, "-D", indent, 
           "if elete database if exists. 0: no, 1: yes, default is 1");
           */
@@ -788,6 +817,10 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
               || arguments->method_of_delete > 3) {
         arguments->method_of_delete = 0;
       }
+    } else if ((strcmp(argv[i], "--version") == 0) ||
+        (strcmp(argv[i], "-V") == 0)){
+      printVersion();
+      exit(0);
     } else if (strcmp(argv[i], "--help") == 0) {
       printHelp();
       exit(0);
@@ -1166,8 +1199,8 @@ static int printfInsertMeta() {
       }else {
         printf("      multiThreadWriteOneTbl:  \033[33myes\033[0m\n");
       }
-      printf("      rowsPerTbl:        \033[33m%d\033[0m\n",
-              g_Dbs.db[i].superTbls[j].rowsPerTbl);
+      printf("      interlaceRows:     \033[33m%d\033[0m\n",
+              g_Dbs.db[i].superTbls[j].interlaceRows);
       printf("      disorderRange:     \033[33m%d\033[0m\n",
               g_Dbs.db[i].superTbls[j].disorderRange);
       printf("      disorderRatio:     \033[33m%d\033[0m\n",
@@ -1328,7 +1361,7 @@ static void printfInsertMetaToFile(FILE* fp) {
       }else {
         fprintf(fp, "      multiThreadWriteOneTbl:  yes\n"); 
       }
-      fprintf(fp, "      rowsPerTbl:        %d\n",  g_Dbs.db[i].superTbls[j].rowsPerTbl);     
+      fprintf(fp, "      interlaceRows:     %d\n",  g_Dbs.db[i].superTbls[j].interlaceRows);     
       fprintf(fp, "      disorderRange:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRange);     
       fprintf(fp, "      disorderRatio:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRatio);
       fprintf(fp, "      maxSqlLen:         %d\n",  g_Dbs.db[i].superTbls[j].maxSqlLen);     
@@ -2540,8 +2573,8 @@ static void* createTable(void *sarg)
     len = 0;
     verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
     if (0 != queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE)){
-      free(buffer);
       errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
+      free(buffer);
       return NULL;
     }
 
@@ -3028,9 +3061,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   if (threads2 && threads2->type == cJSON_Number) {
     g_Dbs.threadCountByCreateTbl = threads2->valueint;
   } else if (!threads2) {
-    g_Dbs.threadCountByCreateTbl = 1;
+    g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
   } else {
-    printf("ERROR: failed to read json, threads2 not found\n");
+    errorPrint("%s() LN%d, failed to read json, threads2 not found\n",
+            __func__, __LINE__);
     goto PARSE_OVER;
   } 
 
@@ -3545,13 +3579,15 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      cJSON* rowsPerTbl = cJSON_GetObjectItem(stbInfo, "interlace_rows");
-      if (rowsPerTbl && rowsPerTbl->type == cJSON_Number) {
-        g_Dbs.db[i].superTbls[j].rowsPerTbl = rowsPerTbl->valueint;
-      } else if (!rowsPerTbl) {
-        g_Dbs.db[i].superTbls[j].rowsPerTbl = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
+      cJSON* interlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
+      if (interlaceRows && interlaceRows->type == cJSON_Number) {
+        g_Dbs.db[i].superTbls[j].interlaceRows = interlaceRows->valueint;
+      } else if (!interlaceRows) {
+        g_Dbs.db[i].superTbls[j].interlaceRows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
       } else {
-        errorPrint("%s() LN%d, failed to read json, rowsPerTbl input mistake\n", __func__, __LINE__);
+        errorPrint(
+                "%s() LN%d, failed to read json, interlace rows input mistake\n",
+                __func__, __LINE__);
         goto PARSE_OVER;
       }      
 
@@ -4472,17 +4508,17 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int insertMode;
   char tableName[TSDB_TABLE_NAME_LEN];
 
-  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.interlace_rows;
+  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
 
-  if (rowsPerTbl > 0) {
+  if (interlaceRows > 0) {
     insertMode = INTERLACE_INSERT_MODE;
   } else {
     insertMode = PROGRESSIVE_INSERT_MODE;
   }
 
   // rows per table need be less than insert batch
-  if (rowsPerTbl > g_args.num_of_RPR)
-      rowsPerTbl = g_args.num_of_RPR;
+  if (interlaceRows > g_args.num_of_RPR)
+      interlaceRows = g_args.num_of_RPR;
 
   pThreadInfo->totalInsertRows = 0;
   pThreadInfo->totalAffectedRows = 0;
@@ -4510,13 +4546,13 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   assert(pThreadInfo->ntables > 0);
 
-  if (rowsPerTbl > g_args.num_of_RPR)
-        rowsPerTbl = g_args.num_of_RPR;
+  if (interlaceRows > g_args.num_of_RPR)
+        interlaceRows = g_args.num_of_RPR;
 
-  batchPerTbl = rowsPerTbl;
-  if ((rowsPerTbl > 0) && (pThreadInfo->ntables > 1)) {
+  batchPerTbl = interlaceRows;
+  if ((interlaceRows > 0) && (pThreadInfo->ntables > 1)) {
     batchPerTblTimes =
-        (g_args.num_of_RPR / (rowsPerTbl * pThreadInfo->ntables)) + 1;
+        (g_args.num_of_RPR / (interlaceRows * pThreadInfo->ntables)) + 1;
   } else {
     batchPerTblTimes = 1;
   }
@@ -4797,9 +4833,9 @@ static void* syncWrite(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg; 
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
-  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.interlace_rows;
+  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
 
-  if (rowsPerTbl > 0) {
+  if (interlaceRows > 0) {
     // interlace mode
     return syncWriteInterlace(winfo);
   } else {
@@ -4876,7 +4912,7 @@ static void *asyncWrite(void *sarg) {
   winfo->et = 0;
   winfo->lastTs = winfo->start_time;
   
-  int insert_interval = 
+  int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
   if (insert_interval) {
     winfo->st = taosGetTimestampUs();
@@ -4941,12 +4977,12 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     }  else if (0 == strncasecmp(precision, "us", 2)) {
       timePrec = TSDB_TIME_PRECISION_MICRO;
     }  else {
-      errorPrint( "No support precision: %s\n", precision);
+      errorPrint("Not support precision: %s\n", precision);
       exit(-1);
     }
   }
 
-  int64_t start_time; 
+  int64_t start_time;
   if (superTblInfo) {
     if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
         start_time = taosGetTimestamp(timePrec);
@@ -4973,19 +5009,21 @@ static void startMultiThreadInsertData(int threads, char* db_name,
       startFrom = 0;
 
   // read sample data from file first
-  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource, 
+  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource,
               "sample", strlen("sample")))) {
     if (0 != prepareSampleDataForSTable(superTblInfo)) {
-      errorPrint("%s() LN%d, prepare sample data for stable failed!\n", __func__, __LINE__);
+      errorPrint("%s() LN%d, prepare sample data for stable failed!\n",
+              __func__, __LINE__);
       exit(-1);
     }
   }
 
   // read sample data from file first
-  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource, 
+  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource,
               "sample", strlen("sample")))) {
     if (0 != prepareSampleDataForSTable(superTblInfo)) {
-      errorPrint("%s() LN%d, prepare sample data for stable failed!\n", __func__, __LINE__);
+      errorPrint("%s() LN%d, prepare sample data for stable failed!\n",
+              __func__, __LINE__);
       exit(-1);
     }
   }
@@ -5045,7 +5083,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
               g_Dbs.host, g_Dbs.user,
               g_Dbs.password, db_name, g_Dbs.port);
       if (NULL == t_info->taos) {
-        errorPrint( "connect to server fail from insert sub thread, reason: %s\n",
+        errorPrint(
+                "connect to server fail from insert sub thread, reason: %s\n",
                 taos_errstr(NULL));
         exit(-1);
       }
@@ -5144,7 +5183,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
           avgDelay/1000.0, (double)maxDelay/1000.0, (double)minDelay/1000.0);
   fprintf(g_fpOfInsertResult, "insert delay, avg:%10.6fms, max: %10.6fms, min: %10.6fms\n\n",
           avgDelay/1000.0, (double)maxDelay/1000.0, (double)minDelay/1000.0);
-  
+
   //taos_close(taos);
 
   free(pids);
@@ -5187,7 +5226,8 @@ static void *readTable(void *sarg) {
     double totalT = 0;
     int count = 0;
     for (int i = 0; i < num_of_tables; i++) {
-      sprintf(command, "select %s from %s%d where ts>= %" PRId64, aggreFunc[j], tb_prefix, i, sTime);
+      sprintf(command, "select %s from %s%d where ts>= %" PRId64,
+              aggreFunc[j], tb_prefix, i, sTime);
 
       double t = getCurrentTime();
       TAOS_RES *pSql = taos_query(taos, command);
@@ -5340,10 +5380,10 @@ static int insertTestProcess() {
 
   if (g_totalChildTables > 0) {
     printf("Spent %.4f seconds to create %d tables with %d thread(s)\n\n",
-            end - start, g_totalChildTables, g_Dbs.threadCount);
+            end - start, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
     fprintf(g_fpOfInsertResult,
             "Spent %.4f seconds to create %d tables with %d thread(s)\n\n",
-            end - start, g_totalChildTables, g_Dbs.threadCount);
+            end - start, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
   }
 
   taosMsleep(1000);
@@ -5394,7 +5434,10 @@ static void *superQueryProcess(void *sarg) {
   
   int64_t st = 0;
   int64_t et = 0;
-  while (1) {
+
+  int queryTimes = g_args.query_times;
+
+  while(queryTimes --) {
     if (g_queryInfo.superQueryInfo.rate && (et - st) <
             (int64_t)g_queryInfo.superQueryInfo.rate*1000) {
       taosMsleep(g_queryInfo.superQueryInfo.rate*1000 - (et - st)); // ms
@@ -5464,7 +5507,7 @@ static void *subQueryProcess(void *sarg) {
   int64_t et = (int64_t)g_queryInfo.subQueryInfo.rate*1000;
   int queryTimes = g_args.query_times;
 
-  while (queryTimes --) {
+  while(queryTimes --) {
     if (g_queryInfo.subQueryInfo.rate
             && (et - st) < (int64_t)g_queryInfo.subQueryInfo.rate*1000) {
       taosMsleep(g_queryInfo.subQueryInfo.rate*1000 - (et - st)); // ms
@@ -5509,7 +5552,8 @@ static int queryTestProcess() {
           NULL, 
           g_queryInfo.port);
   if (taos == NULL) {
-    errorPrint( "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
+    errorPrint( "Failed to connect to TDengine, reason:%s\n",
+            taos_errstr(NULL));
     exit(-1);
   }
 
@@ -5830,7 +5874,8 @@ static int subscribeTestProcess() {
           g_queryInfo.dbName,
           g_queryInfo.port);
   if (taos == NULL) {
-    errorPrint( "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
+    errorPrint( "Failed to connect to TDengine, reason:%s\n",
+            taos_errstr(NULL));
     exit(-1);
   }
 
@@ -5961,15 +6006,15 @@ static void setParaFromArg(){
 
   if (g_args.user) {
     strcpy(g_Dbs.user, g_args.user);
-  } 
+  }
 
   if (g_args.password) {
     strcpy(g_Dbs.password, g_args.password);
-  } 
-  
+  }
+
   if (g_args.port) {
     g_Dbs.port = g_args.port;
-  } 
+  }
 
   g_Dbs.threadCount = g_args.num_of_threads;
   g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
@@ -5990,11 +6035,11 @@ static void setParaFromArg(){
 
   char dataString[STRING_LEN];
   char **data_type = g_args.datatype;
-  
+
   memset(dataString, 0, STRING_LEN);
 
-  if (strcasecmp(data_type[0], "BINARY") == 0 
-          || strcasecmp(data_type[0], "BOOL") == 0 
+  if (strcasecmp(data_type[0], "BINARY") == 0
+          || strcasecmp(data_type[0], "BOOL") == 0
           || strcasecmp(data_type[0], "NCHAR") == 0 ) {
     g_Dbs.do_aggreFunc = false;
   }
@@ -6004,7 +6049,7 @@ static void setParaFromArg(){
     tstrncpy(g_Dbs.db[0].superTbls[0].sTblName, "meters", MAX_TB_NAME_SIZE);
     g_Dbs.db[0].superTbls[0].childTblCount = g_args.num_of_tables;
     g_Dbs.threadCount = g_args.num_of_threads;
-    g_Dbs.threadCountByCreateTbl = 1;
+    g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
     g_Dbs.queryMode = g_args.mode;
   
     g_Dbs.db[0].superTbls[0].autoCreateTable = PRE_CREATE_SUBTBL;
@@ -6012,14 +6057,14 @@ static void setParaFromArg(){
     g_Dbs.db[0].superTbls[0].childTblExists = TBL_NO_EXISTS;
     g_Dbs.db[0].superTbls[0].disorderRange = g_args.disorderRange;
     g_Dbs.db[0].superTbls[0].disorderRatio = g_args.disorderRatio;
-    tstrncpy(g_Dbs.db[0].superTbls[0].childTblPrefix, 
+    tstrncpy(g_Dbs.db[0].superTbls[0].childTblPrefix,
             g_args.tb_prefix, MAX_TB_NAME_SIZE);
     tstrncpy(g_Dbs.db[0].superTbls[0].dataSource, "rand", MAX_TB_NAME_SIZE);
     tstrncpy(g_Dbs.db[0].superTbls[0].insertMode, "taosc", MAX_TB_NAME_SIZE);
-    tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp, 
+    tstrncpy(g_Dbs.db[0].superTbls[0].startTimestamp,
             "2017-07-14 10:40:00.000", MAX_TB_NAME_SIZE);
     g_Dbs.db[0].superTbls[0].timeStampStep = DEFAULT_TIMESTAMP_STEP;
-  
+
     g_Dbs.db[0].superTbls[0].insertRows = g_args.num_of_DPT;
     g_Dbs.db[0].superTbls[0].maxSqlLen = TSDB_PAYLOAD_SIZE;
 
@@ -6029,31 +6074,31 @@ static void setParaFromArg(){
         break;
       }
   
-      tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType, 
+      tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType,
               data_type[i], MAX_TB_NAME_SIZE);
-      g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.len_of_binary;    
+      g_Dbs.db[0].superTbls[0].columns[i].dataLen = g_args.len_of_binary;
       g_Dbs.db[0].superTbls[0].columnCount++;
     }
-  
+
     if (g_Dbs.db[0].superTbls[0].columnCount > g_args.num_of_CPR) {
       g_Dbs.db[0].superTbls[0].columnCount = g_args.num_of_CPR;
     } else {
       for (int i = g_Dbs.db[0].superTbls[0].columnCount; i < g_args.num_of_CPR; i++) {
         tstrncpy(g_Dbs.db[0].superTbls[0].columns[i].dataType, "INT", MAX_TB_NAME_SIZE);
-        g_Dbs.db[0].superTbls[0].columns[i].dataLen = 0;    
+        g_Dbs.db[0].superTbls[0].columns[i].dataLen = 0;
         g_Dbs.db[0].superTbls[0].columnCount++;
       }
     }
 
     tstrncpy(g_Dbs.db[0].superTbls[0].tags[0].dataType, "INT", MAX_TB_NAME_SIZE);
-    g_Dbs.db[0].superTbls[0].tags[0].dataLen = 0;    
+    g_Dbs.db[0].superTbls[0].tags[0].dataLen = 0;
   
     tstrncpy(g_Dbs.db[0].superTbls[0].tags[1].dataType, "BINARY", MAX_TB_NAME_SIZE);
-    g_Dbs.db[0].superTbls[0].tags[1].dataLen = g_args.len_of_binary;    
-    g_Dbs.db[0].superTbls[0].tagCount = 2;  
+    g_Dbs.db[0].superTbls[0].tags[1].dataLen = g_args.len_of_binary;
+    g_Dbs.db[0].superTbls[0].tagCount = 2;
   } else {
-    g_Dbs.threadCountByCreateTbl = 1;
-    g_Dbs.db[0].superTbls[0].tagCount = 0; 
+    g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
+    g_Dbs.db[0].superTbls[0].tagCount = 0;
   }
 
 }
@@ -6185,7 +6230,7 @@ static void queryResult() {
         rInfo->ntables = g_Dbs.db[0].superTbls[0].childTblCount;
         rInfo->end_table_to = g_Dbs.db[0].superTbls[0].childTblCount - 1;
         rInfo->superTblInfo = &g_Dbs.db[0].superTbls[0];
-        strcpy(rInfo->tb_prefix, 
+        strcpy(rInfo->tb_prefix,
               g_Dbs.db[0].superTbls[0].childTblPrefix);
       } else {
         rInfo->ntables = g_args.num_of_tables;
@@ -6194,13 +6239,14 @@ static void queryResult() {
       }
 
       rInfo->taos = taos_connect(
-              g_Dbs.host, 
-              g_Dbs.user, 
-              g_Dbs.password, 
-              g_Dbs.db[0].dbName, 
+              g_Dbs.host,
+              g_Dbs.user,
+              g_Dbs.password,
+              g_Dbs.db[0].dbName,
               g_Dbs.port);
       if (rInfo->taos == NULL) {
-        errorPrint( "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
+        errorPrint( "Failed to connect to TDengine, reason:%s\n",
+                taos_errstr(NULL));
         free(rInfo);
         exit(-1);
       }
