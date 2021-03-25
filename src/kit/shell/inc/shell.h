@@ -51,8 +51,8 @@ typedef struct SShellArguments {
   char  file[TSDB_FILENAME_LEN];
   char  dir[TSDB_FILENAME_LEN];
   int   threadNum;
-  char* commands;
   int   check;
+  char* commands;
   int   abort;
   int   port;
   int   pktLen;
