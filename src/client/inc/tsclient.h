@@ -284,7 +284,7 @@ typedef struct {
   char *         pRsp;
   int32_t        rspType;
   int32_t        rspLen;
-  uint64_t       qhandle;
+  uint64_t       qId;
   int64_t        useconds;
   int64_t        offset;  // offset value from vnode during projection query of stable
   int32_t        row;
