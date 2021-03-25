@@ -71,7 +71,7 @@ int32_t tsMaxBinaryDisplayWidth = 30;
 int32_t tsCompressMsgSize = -1;
 
 // client
-int32_t tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
+int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
 int8_t  tsTscEnableRecordSql = 0;
 
 // the maximum number of results for projection query on super table that are returned from

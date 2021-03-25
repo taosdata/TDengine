@@ -259,7 +259,7 @@ do { \
 #define TSDB_MIN_TABLES                 4
 #define TSDB_MAX_TABLES                 10000000
 #define TSDB_DEFAULT_TABLES             1000000
-#define TSDB_TABLES_STEP                1000
+#define TSDB_TABLES_STEP                100
 
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 
@@ -317,7 +317,7 @@ do { \
 #define TSDB_MAX_DB_QUORUM_OPTION       2
 #define TSDB_DEFAULT_DB_QUORUM_OPTION   1
 
-#define TSDB_MAX_JOIN_TABLE_NUM         5
+#define TSDB_MAX_JOIN_TABLE_NUM         10
 #define TSDB_MAX_UNION_CLAUSE           5
 
 #define TSDB_MAX_BINARY_LEN            (TSDB_MAX_BYTES_PER_ROW-TSDB_KEYSIZE)
