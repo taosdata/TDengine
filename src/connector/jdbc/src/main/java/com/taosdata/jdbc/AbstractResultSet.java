@@ -214,12 +214,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     public abstract ResultSetMetaData getMetaData() throws SQLException;
 
     @Override
-    public Object getObject(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
+    public abstract Object getObject(int columnIndex) throws SQLException;
 
     @Override
     public Object getObject(String columnLabel) throws SQLException {

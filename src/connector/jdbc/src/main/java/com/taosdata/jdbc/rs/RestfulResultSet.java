@@ -16,7 +16,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     private final String database;
     private final Statement statement;
-//    private final JSONObject resultJson;
+    //    private final JSONObject resultJson;
     // data
     private final ArrayList<ArrayList<Object>> resultSet;
     // meta
@@ -73,7 +73,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             case TSDBConstants.TSDB_DATA_TYPE_INT:
                 return row.getInteger(colIndex);
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-                return row.getBigInteger(colIndex);
+                return row.getLong(colIndex);
             case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
                 return row.getFloat(colIndex);
             case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
@@ -296,8 +296,15 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     }
 
     @Override
-    public Object getObject(String columnLabel) throws SQLException {
-        return getObject(findColumn(columnLabel));
+    public Object getObject(int columnIndex) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+
+        if (columnIndex > resultSet.get(pos).size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+
+        columnIndex = getTrueColumnIndex(columnIndex);
+        return resultSet.get(pos).get(columnIndex);
     }
 
     @Override

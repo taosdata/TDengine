@@ -1,5 +1,6 @@
-package com.taosdata.jdbc.rs;
+package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.rs.RestfulResultSet;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -12,10 +13,9 @@ import java.sql.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
-public class RestfulResultSetTest {
+public class TSDBResultSetTest {
 
-    //    private static final String host = "127.0.0.1";
-    private static final String host = "master";
+    private static final String host = "127.0.0.1";
 
     private static Connection conn;
     private static Statement stmt;
@@ -606,8 +606,8 @@ public class RestfulResultSetTest {
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata");
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
+            conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/restful_test?user=root&password=taosdata");
             stmt = conn.createStatement();
             stmt.execute("create database if not exists restful_test");
             stmt.execute("use restful_test");
