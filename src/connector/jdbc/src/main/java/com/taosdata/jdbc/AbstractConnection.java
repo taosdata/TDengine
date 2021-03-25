@@ -30,8 +30,11 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         // do nothing
+
         return sql;
     }
+
+
 
     @Override
     public void setAutoCommit(boolean autoCommit) throws SQLException {
