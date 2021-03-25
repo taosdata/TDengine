@@ -2461,7 +2461,8 @@ static int createDatabases() {
     debugPrint("%s() %d supertbl count:%d\n",
             __func__, __LINE__, g_Dbs.db[i].superTblCount);
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-      if ((g_Dbs.db[i].drop) || (g_Dbs.db[i].superTbls[j].superTblExists == TBL_NO_EXISTS)) {
+      if ((g_Dbs.db[i].drop) ||
+              (g_Dbs.db[i].superTbls[j].superTblExists == TBL_NO_EXISTS)) {
         ret = createSuperTable(taos, g_Dbs.db[i].dbName,
                 &g_Dbs.db[i].superTbls[j], g_Dbs.use_metric);
       
@@ -2470,6 +2471,8 @@ static int createDatabases() {
           taos_close(taos);
           return -1;
         }
+
+        g_Dbs.db[i].superTbls[j].superTblExists = TBL_ALREADY_EXISTS;
       }
 
       /* describe super table, if exists
@@ -2482,16 +2485,15 @@ static int createDatabases() {
 
       } else {      
         */
-        g_Dbs.db[i].superTbls[j].superTblExists = TBL_ALREADY_EXISTS;
-        ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
+      ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
                 &g_Dbs.db[i].superTbls[j]);
       //}
-        if (0 != ret) {
-          errorPrint("\nget super table %s.%s info failed!\n\n", g_Dbs.db[i].dbName,
+      if (0 != ret) {
+        errorPrint("\nget super table %s.%s info failed!\n\n", g_Dbs.db[i].dbName,
                   g_Dbs.db[i].superTbls[j].sTblName);
-          taos_close(taos);
-          return -1;
-        }
+        taos_close(taos);
+        return -1;
+      }
 
     }
   }
@@ -2684,8 +2686,8 @@ static void createChildTables() {
         int startFrom = 0;
         g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
 
-        verbosePrint("%s() LN%d: create %d child tables from %d\n", __func__, __LINE__,
-              g_totalChildTables, startFrom);
+        verbosePrint("%s() LN%d: create %d child tables from %d\n",
+                __func__, __LINE__, g_totalChildTables, startFrom);
         startMultiThreadCreateChildTable(
               g_Dbs.db[i].superTbls[j].colsOfCreateChildTable,
               g_Dbs.threadCountByCreateTbl,
@@ -3614,7 +3616,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!insertRows) {
         g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
       } else {
-        errorPrint("%s() LN%d, failed to read json, insert_rows input mistake\n", __func__, __LINE__);
+        errorPrint("%s() LN%d, failed to read json, insert_rows input mistake\n",
+                __func__, __LINE__);
         goto PARSE_OVER;
       }
 
@@ -3626,15 +3629,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 __func__, __LINE__, g_args.insert_interval);
         g_Dbs.db[i].superTbls[j].insertInterval = g_args.insert_interval;
       } else {
-        errorPrint("%s() LN%d, failed to read json, insert_interval input mistake\n", __func__, __LINE__);
+        errorPrint("%s() LN%d, failed to read json, insert_interval input mistake\n",
+                __func__, __LINE__);
         goto PARSE_OVER;
       }
-
-/* CBD      if (NO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable
-              || (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists)) {
-        continue;
-      }
-      */
 
       int retVal = getColumnAndTagTypeFromInsertJsonFile(
               stbInfo, &g_Dbs.db[i].superTbls[j]);
