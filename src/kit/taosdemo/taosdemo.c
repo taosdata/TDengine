@@ -5428,7 +5428,10 @@ static void *superQueryProcess(void *sarg) {
   
   int64_t st = 0;
   int64_t et = 0;
-  while (1) {
+
+  int queryTimes = g_args.query_times;
+
+  while(queryTimes --) {
     if (g_queryInfo.superQueryInfo.rate && (et - st) <
             (int64_t)g_queryInfo.superQueryInfo.rate*1000) {
       taosMsleep(g_queryInfo.superQueryInfo.rate*1000 - (et - st)); // ms
@@ -5498,7 +5501,7 @@ static void *subQueryProcess(void *sarg) {
   int64_t et = (int64_t)g_queryInfo.subQueryInfo.rate*1000;
   int queryTimes = g_args.query_times;
 
-  while (queryTimes --) {
+  while(queryTimes --) {
     if (g_queryInfo.subQueryInfo.rate
             && (et - st) < (int64_t)g_queryInfo.subQueryInfo.rate*1000) {
       taosMsleep(g_queryInfo.subQueryInfo.rate*1000 - (et - st)); // ms
