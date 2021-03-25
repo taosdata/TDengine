@@ -220,14 +220,12 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        
+        setObject(parameterIndex,x);
     }
 
     @Override
     public void setObject(int parameterIndex, Object x) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-
         if (parameterIndex < 1 && parameterIndex >= parameters.length)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 

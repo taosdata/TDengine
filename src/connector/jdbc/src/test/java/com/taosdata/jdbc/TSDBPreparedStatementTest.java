@@ -333,9 +333,9 @@ public class TSDBPreparedStatementTest {
             Class.forName("com.taosdata.jdbc.TSDBDriver");
             conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
             try (Statement stmt = conn.createStatement()) {
-                stmt.execute("drop database if exists test_pstmt");
-                stmt.execute("create database if not exists test_pstmt");
-                stmt.execute("use test_pstmt");
+                stmt.execute("drop database if exists test_pstmt_jni");
+                stmt.execute("create database if not exists test_pstmt_jni");
+                stmt.execute("use test_pstmt_jni");
                 stmt.execute("create table weather(ts timestamp, f1 int, f2 bigint, f3 float, f4 double, f5 smallint, f6 tinyint, f7 bool, f8 binary(64), f9 nchar(64)) tags(loc nchar(64))");
                 stmt.execute("create table t1 using weather tags('beijing')");
             }
