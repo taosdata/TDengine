@@ -51,7 +51,7 @@ class TDTestCase:
         os.system("yes | %staosdemo -f tools/taosdemoAllTest//insert-1s1tnr.json" % binPath)
 
         tdSql.execute("use db01")
-        tdSql.query("show test.stables")
+        tdSql.query("show stables")
         tdSql.checkData(0, 4, 10)
         tdSql.query("select count(*) from stb01")
         tdSql.checkData(0, 0, 2000)                
