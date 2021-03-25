@@ -3969,7 +3969,6 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   pQuery->stabledev = isStabledev(pQuery);
 
   pRuntimeEnv->prevResult = prevResult;
-  pRuntimeEnv->qinfo = pQInfo;
 
   setScanLimitationByResultBuffer(pQuery);
 
@@ -6308,7 +6307,9 @@ int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *p
   int32_t code = TSDB_CODE_SUCCESS;
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
-  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
+  pRuntimeEnv->qinfo = pQInfo;
+
+  SQuery *pQuery = pRuntimeEnv->pQuery;
 
   STSBuf *pTsBuf = NULL;
   if (pQueryMsg->tsLen > 0) { // open new file to save the result
