@@ -94,6 +94,7 @@ enum TEST_MODE {
 
 #define DEFAULT_TIMESTAMP_STEP  1
 
+
 typedef enum CREATE_SUB_TALBE_MOD_EN {
   PRE_CREATE_SUBTBL,
   AUTO_CREATE_SUBTBL,
@@ -590,6 +591,32 @@ static FILE *          g_fpOfInsertResult = NULL;
 
 static void ERROR_EXIT(const char *msg) { perror(msg); exit(-1); }
 
+#ifndef TAOSDEMO_COMMIT_SHA1
+#define TAOSDEMO_COMMIT_SHA1 "unknown"
+#endif
+
+#ifndef TD_VERNUMBER
+#define TD_VERNUMBER    "unknown"
+#endif
+
+#ifndef TAOSDEMO_STATUS 
+#define TAOSDEMO_STATUS "unknown"
+#endif
+
+static void printVersion() {
+    char tdengine_ver[] = TD_VERNUMBER;
+    char taosdemo_ver[] = TAOSDEMO_COMMIT_SHA1;
+    char taosdemo_status[] = TAOSDEMO_STATUS;
+
+    if (strlen(taosdemo_status) == 0) {
+        printf("taosdemo verison %s-%s\n",
+                tdengine_ver, taosdemo_ver);
+    } else {
+        printf("taosdemo verison %s-%s, status:%s\n",
+                tdengine_ver, taosdemo_ver, taosdemo_status);
+    }
+}
+
 static void printHelp() {
   char indent[10] = "        ";
   printf("%s%s%s%s\n", indent, "-f", indent, 
@@ -647,6 +674,8 @@ static void printHelp() {
           "Out of order data's range, ms, default is 1000.");
   printf("%s%s%s%s\n", indent, "-g", indent, 
           "Print debug info.");
+  printf("%s%s%s%s\n", indent, "-V, --version", indent, 
+          "Print version info.");
 /*    printf("%s%s%s%s\n", indent, "-D", indent, 
           "if elete database if exists. 0: no, 1: yes, default is 1");
           */
@@ -788,6 +817,10 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
               || arguments->method_of_delete > 3) {
         arguments->method_of_delete = 0;
       }
+    } else if ((strcmp(argv[i], "--version") == 0) ||
+        (strcmp(argv[i], "-V") == 0)){
+      printVersion();
+      exit(0);
     } else if (strcmp(argv[i], "--help") == 0) {
       printHelp();
       exit(0);
@@ -4876,7 +4909,7 @@ static void *asyncWrite(void *sarg) {
   winfo->et = 0;
   winfo->lastTs = winfo->start_time;
   
-  int insert_interval = 
+  int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
   if (insert_interval) {
     winfo->st = taosGetTimestampUs();
@@ -4946,7 +4979,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     }
   }
 
-  int64_t start_time; 
+  int64_t start_time;
   if (superTblInfo) {
     if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
         start_time = taosGetTimestamp(timePrec);
@@ -4973,7 +5006,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
       startFrom = 0;
 
   // read sample data from file first
-  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource, 
+  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource,
               "sample", strlen("sample")))) {
     if (0 != prepareSampleDataForSTable(superTblInfo)) {
       errorPrint("%s() LN%d, prepare sample data for stable failed!\n", __func__, __LINE__);
@@ -4982,7 +5015,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   }
 
   // read sample data from file first
-  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource, 
+  if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource,
               "sample", strlen("sample")))) {
     if (0 != prepareSampleDataForSTable(superTblInfo)) {
       errorPrint("%s() LN%d, prepare sample data for stable failed!\n", __func__, __LINE__);
@@ -5144,7 +5177,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
           avgDelay/1000.0, (double)maxDelay/1000.0, (double)minDelay/1000.0);
   fprintf(g_fpOfInsertResult, "insert delay, avg:%10.6fms, max: %10.6fms, min: %10.6fms\n\n",
           avgDelay/1000.0, (double)maxDelay/1000.0, (double)minDelay/1000.0);
-  
+
   //taos_close(taos);
 
   free(pids);
@@ -5187,7 +5220,8 @@ static void *readTable(void *sarg) {
     double totalT = 0;
     int count = 0;
     for (int i = 0; i < num_of_tables; i++) {
-      sprintf(command, "select %s from %s%d where ts>= %" PRId64, aggreFunc[j], tb_prefix, i, sTime);
+      sprintf(command, "select %s from %s%d where ts>= %" PRId64,
+              aggreFunc[j], tb_prefix, i, sTime);
 
       double t = getCurrentTime();
       TAOS_RES *pSql = taos_query(taos, command);
