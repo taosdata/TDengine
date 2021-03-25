@@ -56,14 +56,8 @@ pipeline {
             cd ${WKC}/tests
             ./test-all.sh b1
             date'''
-            sh '''
-            cd ${WKC}/tests
-            ./test-all.sh full jdbc
-            date'''
-            sh '''
-            cd ${WKC}/tests
-            ./test-all.sh full unit
-            date'''
+            
+            
           }
         }
 
@@ -136,6 +130,10 @@ pipeline {
             ./test-all.sh b2
             date
             '''
+            sh '''
+            cd ${WKC}/tests
+            ./test-all.sh full unit
+            date'''
           }
         }
 
@@ -153,6 +151,10 @@ pipeline {
                 
                 '''
             }
+            sh '''
+            cd ${WKC}/tests
+            ./test-all.sh full jdbc
+            date'''
             sh '''
             cd ${WKC}/tests/pytest
             ./valgrind-test.sh 2>&1 > mem-error-out.log
