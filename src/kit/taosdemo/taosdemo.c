@@ -236,7 +236,7 @@ typedef struct SSuperTable_S {
   int           childTblOffset;
 
   int          multiThreadWriteOneTbl;   // 0: no, 1: yes
-  int          rowsPerTbl;               // 
+  int          interlaceRows;            // 
   int          disorderRatio;            // 0: no disorder, >0: x%
   int          disorderRange;            // ms or us by database precision
   int          maxSqlLen;                // 
@@ -1166,8 +1166,8 @@ static int printfInsertMeta() {
       }else {
         printf("      multiThreadWriteOneTbl:  \033[33myes\033[0m\n");
       }
-      printf("      rowsPerTbl:        \033[33m%d\033[0m\n",
-              g_Dbs.db[i].superTbls[j].rowsPerTbl);
+      printf("      interlaceRows:     \033[33m%d\033[0m\n",
+              g_Dbs.db[i].superTbls[j].interlaceRows);
       printf("      disorderRange:     \033[33m%d\033[0m\n",
               g_Dbs.db[i].superTbls[j].disorderRange);
       printf("      disorderRatio:     \033[33m%d\033[0m\n",
@@ -1328,7 +1328,7 @@ static void printfInsertMetaToFile(FILE* fp) {
       }else {
         fprintf(fp, "      multiThreadWriteOneTbl:  yes\n"); 
       }
-      fprintf(fp, "      rowsPerTbl:        %d\n",  g_Dbs.db[i].superTbls[j].rowsPerTbl);     
+      fprintf(fp, "      interlaceRows:     %d\n",  g_Dbs.db[i].superTbls[j].interlaceRows);     
       fprintf(fp, "      disorderRange:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRange);     
       fprintf(fp, "      disorderRatio:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRatio);
       fprintf(fp, "      maxSqlLen:         %d\n",  g_Dbs.db[i].superTbls[j].maxSqlLen);     
@@ -3546,13 +3546,15 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      cJSON* rowsPerTbl = cJSON_GetObjectItem(stbInfo, "interlace_rows");
-      if (rowsPerTbl && rowsPerTbl->type == cJSON_Number) {
-        g_Dbs.db[i].superTbls[j].rowsPerTbl = rowsPerTbl->valueint;
-      } else if (!rowsPerTbl) {
-        g_Dbs.db[i].superTbls[j].rowsPerTbl = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
+      cJSON* interlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
+      if (interlaceRows && interlaceRows->type == cJSON_Number) {
+        g_Dbs.db[i].superTbls[j].interlaceRows = interlaceRows->valueint;
+      } else if (!interlaceRows) {
+        g_Dbs.db[i].superTbls[j].interlaceRows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
       } else {
-        errorPrint("%s() LN%d, failed to read json, rowsPerTbl input mistake\n", __func__, __LINE__);
+        errorPrint(
+                "%s() LN%d, failed to read json, interlace rows input mistake\n",
+                __func__, __LINE__);
         goto PARSE_OVER;
       }      
 
@@ -4473,17 +4475,17 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int insertMode;
   char tableName[TSDB_TABLE_NAME_LEN];
 
-  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.interlace_rows;
+  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
 
-  if (rowsPerTbl > 0) {
+  if (interlaceRows > 0) {
     insertMode = INTERLACE_INSERT_MODE;
   } else {
     insertMode = PROGRESSIVE_INSERT_MODE;
   }
 
   // rows per table need be less than insert batch
-  if (rowsPerTbl > g_args.num_of_RPR)
-      rowsPerTbl = g_args.num_of_RPR;
+  if (interlaceRows > g_args.num_of_RPR)
+      interlaceRows = g_args.num_of_RPR;
 
   pThreadInfo->totalInsertRows = 0;
   pThreadInfo->totalAffectedRows = 0;
@@ -4511,13 +4513,13 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   assert(pThreadInfo->ntables > 0);
 
-  if (rowsPerTbl > g_args.num_of_RPR)
-        rowsPerTbl = g_args.num_of_RPR;
+  if (interlaceRows > g_args.num_of_RPR)
+        interlaceRows = g_args.num_of_RPR;
 
-  batchPerTbl = rowsPerTbl;
-  if ((rowsPerTbl > 0) && (pThreadInfo->ntables > 1)) {
+  batchPerTbl = interlaceRows;
+  if ((interlaceRows > 0) && (pThreadInfo->ntables > 1)) {
     batchPerTblTimes =
-        (g_args.num_of_RPR / (rowsPerTbl * pThreadInfo->ntables)) + 1;
+        (g_args.num_of_RPR / (interlaceRows * pThreadInfo->ntables)) + 1;
   } else {
     batchPerTblTimes = 1;
   }
@@ -4798,9 +4800,9 @@ static void* syncWrite(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg; 
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
-  int rowsPerTbl = superTblInfo?superTblInfo->rowsPerTbl:g_args.interlace_rows;
+  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
 
-  if (rowsPerTbl > 0) {
+  if (interlaceRows > 0) {
     // interlace mode
     return syncWriteInterlace(winfo);
   } else {
