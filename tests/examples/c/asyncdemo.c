@@ -30,6 +30,7 @@ int     points = 5;
 int     numOfTables = 3;
 int     tablesProcessed = 0;
 int64_t st, et;
+int     done = 0;
 
 typedef struct {
   int       id;
@@ -162,6 +163,16 @@ int main(int argc, char *argv[])
   }
 
   getchar();
+
+  while(1) {
+    if (tablesProcessed < numOfTables) {
+       printf("wait for process finished\n");
+       sleep(1);
+       continue;
+    }  
+
+    break;
+  }
 
   taos_close(taos);
   free(tableList);
