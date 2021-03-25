@@ -1,0 +1,174 @@
+[1m[40;32m================ tools/taosdemoAllTest/insert-1s1tntnr.json parse result START ================[0m
+host:                       127.0.0.1:6030
+user:                       root
+resultFile:                 ./insert_res.txt
+thread num of insert data:  4
+thread num of create table: 4
+insert interval:            0
+number of records per req:  1
+max sql length:             1024000
+database count:          1
+database[0]:
+  database[0] name:       db
+  drop:                  yes
+  blocks:                8
+  cache:                 16
+  days:                  10
+  keep:                  365
+  replica:               1
+  minRows:               100
+  maxRows:               4096
+  comp:                  2
+  walLevel:              1
+  fsync:                 3000
+  quorum:                1
+  precision:             ms
+  super table count:     1
+  super table[0]:
+      stbName:           stb_0
+      autoCreateTable:   no
+      childTblExists:    no
+      childTblCount:     100
+      childTblPrefix:    s_0_tb_
+      dataSource:        rand
+      insertMode:        taosc
+      insertRows:        1000
+      insert interval:   0
+      multiThreadWriteOneTbl:  no
+      interlaceRows:     0
+      disorderRange:     1000
+      disorderRatio:     0
+      maxSqlLen:         1024000
+      timeStampStep:     1
+      startTimestamp:    2020-10-01 00:00:00.000
+      sampleFormat:      csv
+      sampleFile:        ./sample.csv
+      tagsFile:          
+      columnCount:       20
+        column[0]:INT column[1]:DOUBLE column[2]:DOUBLE column[3]:DOUBLE column[4]:DOUBLE column[5]:DOUBLE column[6]:DOUBLE column[7]:DOUBLE column[8]:DOUBLE column[9]:DOUBLE column[10]:DOUBLE column[11]:BINARY(16) column[12]:BINARY(16) column[13]:BINARY(16) column[14]:BINARY(32) column[15]:BINARY(32) column[16]:BINARY(32) column[17]:BINARY(32) column[18]:BINARY(32) column[19]:BINARY(32) 
+      tagCount:            7
+        tag[0]:TINYINT tag[1]:TINYINT tag[2]:BINARY(16) tag[3]:BINARY(16) tag[4]:BINARY(16) tag[5]:BINARY(16) tag[6]:BINARY(16) 
+
+[1m[40;32m================ tools/taosdemoAllTest/insert-1s1tntnr.json parse result END================[0m
+Spent 0.4712 seconds to create 100 tables with 4 thread(s)
+
+Spent 0.0119 seconds to insert rows: 4, affected rows: 0 with 4 thread(s) into db.stb_0. 335 records/second
+
+insert delay, avg:  1.097000ms, max:   2.197000ms, min:   0.317000ms
+
+[1m[40;32m================ tools/taosdemoAllTest/insert-1s1tntnr.json parse result START ================[0m
+host:                       127.0.0.1:6030
+user:                       root
+resultFile:                 ./insert_res.txt
+thread num of insert data:  4
+thread num of create table: 4
+insert interval:            0
+number of records per req:  1
+max sql length:             1024000
+database count:          1
+database[0]:
+  database[0] name:       db
+  drop:                  yes
+  blocks:                8
+  cache:                 16
+  days:                  10
+  keep:                  365
+  replica:               1
+  minRows:               100
+  maxRows:               4096
+  comp:                  2
+  walLevel:              1
+  fsync:                 3000
+  quorum:                1
+  precision:             ms
+  super table count:     1
+  super table[0]:
+      stbName:           stb_0
+      autoCreateTable:   no
+      childTblExists:    no
+      childTblCount:     100
+      childTblPrefix:    stb_
+      dataSource:        rand
+      insertMode:        taosc
+      insertRows:        1000
+      insert interval:   0
+      multiThreadWriteOneTbl:  no
+      interlaceRows:     0
+      disorderRange:     1000
+      disorderRatio:     0
+      maxSqlLen:         1024000
+      timeStampStep:     1
+      startTimestamp:    2020-10-01 00:00:00.000
+      sampleFormat:      csv
+      sampleFile:        ./sample.csv
+      tagsFile:          
+      columnCount:       20
+        column[0]:INT column[1]:DOUBLE column[2]:DOUBLE column[3]:DOUBLE column[4]:DOUBLE column[5]:DOUBLE column[6]:DOUBLE column[7]:DOUBLE column[8]:DOUBLE column[9]:DOUBLE column[10]:DOUBLE column[11]:BINARY(16) column[12]:BINARY(16) column[13]:BINARY(16) column[14]:BINARY(32) column[15]:BINARY(32) column[16]:BINARY(32) column[17]:BINARY(32) column[18]:BINARY(32) column[19]:BINARY(32) 
+      tagCount:            7
+        tag[0]:TINYINT tag[1]:TINYINT tag[2]:BINARY(16) tag[3]:BINARY(16) tag[4]:BINARY(16) tag[5]:BINARY(16) tag[6]:BINARY(16) 
+
+[1m[40;32m================ tools/taosdemoAllTest/insert-1s1tntnr.json parse result END================[0m
+Spent 0.4359 seconds to create 100 tables with 4 thread(s)
+
+Spent 0.0089 seconds to insert rows: 4, affected rows: 0 with 4 thread(s) into db.stb_0. 450 records/second
+
+insert delay, avg:  2.330250ms, max:   3.335000ms, min:   1.757000ms
+
+[1m[40;32m================ tools/taosdemoAllTest/insert-1s1tntnr.json parse result START ================[0m
+host:                       127.0.0.1:6030
+user:                       root
+resultFile:                 ./insert_res.txt
+thread num of insert data:  4
+thread num of create table: 4
+insert interval:            0
+number of records per req:  1
+max sql length:             1024000
+database count:          1
+database[0]:
+  database[0] name:       db
+  drop:                  yes
+  blocks:                8
+  cache:                 16
+  days:                  10
+  keep:                  365
+  replica:               1
+  minRows:               100
+  maxRows:               4096
+  comp:                  2
+  walLevel:              1
+  fsync:                 3000
+  quorum:                1
+  precision:             ms
+  super table count:     1
+  super table[0]:
+      stbName:           stb_0
+      autoCreateTable:   no
+      childTblExists:    no
+      childTblCount:     100
+      childTblPrefix:    stb00_
+      dataSource:        rand
+      insertMode:        taosc
+      insertRows:        1000
+      insert interval:   0
+      multiThreadWriteOneTbl:  no
+      interlaceRows:     0
+      disorderRange:     1000
+      disorderRatio:     0
+      maxSqlLen:         1024000
+      timeStampStep:     1
+      startTimestamp:    2020-10-01 00:00:00.000
+      sampleFormat:      csv
+      sampleFile:        ./sample.csv
+      tagsFile:          
+      columnCount:       20
+        column[0]:INT column[1]:DOUBLE column[2]:DOUBLE column[3]:DOUBLE column[4]:DOUBLE column[5]:DOUBLE column[6]:DOUBLE column[7]:DOUBLE column[8]:DOUBLE column[9]:DOUBLE column[10]:DOUBLE column[11]:BINARY(16) column[12]:BINARY(16) column[13]:BINARY(16) column[14]:BINARY(32) column[15]:BINARY(32) column[16]:BINARY(32) column[17]:BINARY(32) column[18]:BINARY(32) column[19]:BINARY(32) 
+      tagCount:            7
+        tag[0]:TINYINT tag[1]:TINYINT tag[2]:BINARY(16) tag[3]:BINARY(16) tag[4]:BINARY(16) tag[5]:BINARY(16) tag[6]:BINARY(16) 
+
+[1m[40;32m================ tools/taosdemoAllTest/insert-1s1tntnr.json parse result END================[0m
+Spent 0.4083 seconds to create 100 tables with 4 thread(s)
+
+Spent 0.0064 seconds to insert rows: 4, affected rows: 0 with 4 thread(s) into db.stb_0. 627 records/second
+
+insert delay, avg:  0.820750ms, max:   1.333000ms, min:   0.128000ms
+
