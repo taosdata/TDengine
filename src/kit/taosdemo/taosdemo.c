@@ -119,11 +119,11 @@ typedef enum enum_INSERT_MODE {
     INVALID_INSERT_MODE
 } INSERT_MODE;
 
-enum QUERY_TYPE {
+typedef enum enumQUERY_TYPE {
   NO_INSERT_TYPE,
   INSERT_TYPE, 
   QUERY_TYPE_BUT
-} ;  
+} QUERY_TYPE;
 
 enum _show_db_index {
   TSDB_SHOW_DB_NAME_INDEX,
@@ -142,7 +142,7 @@ enum _show_db_index {
   TSDB_SHOW_DB_FSYNC_INDEX,
   TSDB_SHOW_DB_COMP_INDEX,
   TSDB_SHOW_DB_CACHELAST_INDEX,
-  TSDB_SHOW_DB_PRECISION_INDEX,  
+  TSDB_SHOW_DB_PRECISION_INDEX,
   TSDB_SHOW_DB_UPDATE_INDEX,
   TSDB_SHOW_DB_STATUS_INDEX,
   TSDB_MAX_SHOW_DB
@@ -226,7 +226,6 @@ typedef struct SColumn_S {
 typedef struct SSuperTable_S {
   char         sTblName[MAX_TB_NAME_SIZE+1];
   int          childTblCount;
-  bool         superTblExists;    // 0: no, 1: yes
   bool         childTblExists;    // 0: no, 1: yes  
   int          batchCreateTableNum;  // 0: no batch,  > 0: batch table number in one sql
   int8_t       autoCreateTable;                  // 0: create sub table, 1: auto create sub table
@@ -500,7 +499,7 @@ static int taosRandom()
 
 static int createDatabases();
 static void createChildTables();
-static int queryDbExec(TAOS *taos, char *command, int type);
+static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
 
 /* ************ Global variables ************  */
 
@@ -892,7 +891,7 @@ static void tmfree(char *buf) {
   }
 }
 
-static int queryDbExec(TAOS *taos, char *command, int type) {
+static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet) {
   int i;
   TAOS_RES *res = NULL;
   int32_t   code = -1;
@@ -907,12 +906,14 @@ static int queryDbExec(TAOS *taos, char *command, int type) {
     code = taos_errno(res);
     if (0 == code) {
       break;
-    }    
+    }
   }
 
   if (code != 0) {
-    debugPrint("%s() LN%d - command: %s\n", __func__, __LINE__, command);
-    errorPrint( "Failed to run %s, reason: %s\n", command, taos_errstr(res));
+    if (!quiet) {
+      debugPrint("%s() LN%d - command: %s\n", __func__, __LINE__, command);
+      errorPrint("Failed to run %s, reason: %s\n", command, taos_errstr(res));
+    }
     taos_free_result(res);
     //taos_close(taos);
     return -1;
@@ -923,7 +924,7 @@ static int queryDbExec(TAOS *taos, char *command, int type) {
     taos_free_result(res);
     return affectedRows;
   }
-  
+
   taos_free_result(res);
   return 0;
 }
@@ -2353,7 +2354,7 @@ static int createSuperTable(TAOS * taos, char* dbName, SSuperTable*  superTbls, 
             dbName, superTbls->sTblName, cols, tags);
     verbosePrint("%s() LN%d: %s\n", __func__, __LINE__, command);
 
-    if (0 != queryDbExec(taos, command, NO_INSERT_TYPE)) {
+    if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
         errorPrint( "create supertable %s failed!\n\n",
                 superTbls->sTblName);
         return -1;
@@ -2377,7 +2378,7 @@ static int createDatabases() {
     if (g_Dbs.db[i].drop) {
       sprintf(command, "drop database if exists %s;", g_Dbs.db[i].dbName);
       verbosePrint("%s() %d command: %s\n", __func__, __LINE__, command);
-      if (0 != queryDbExec(taos, command, NO_INSERT_TYPE)) {
+      if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
         taos_close(taos);
         return -1;
       }
@@ -2451,7 +2452,7 @@ static int createDatabases() {
     }
 
     debugPrint("%s() %d command: %s\n", __func__, __LINE__, command);
-    if (0 != queryDbExec(taos, command, NO_INSERT_TYPE)) {
+    if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
       taos_close(taos);
       errorPrint( "\ncreate database %s failed!\n\n", g_Dbs.db[i].dbName);
       return -1;
@@ -2461,7 +2462,13 @@ static int createDatabases() {
     debugPrint("%s() %d supertbl count:%d\n",
             __func__, __LINE__, g_Dbs.db[i].superTblCount);
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-      if ((g_Dbs.db[i].drop) || (g_Dbs.db[i].superTbls[j].superTblExists == TBL_NO_EXISTS)) {
+      sprintf(command, "describe %s.%s;", g_Dbs.db[i].dbName,
+              g_Dbs.db[i].superTbls[j].sTblName);
+      verbosePrint("%s() %d command: %s\n", __func__, __LINE__, command);
+
+      ret = queryDbExec(taos, command, NO_INSERT_TYPE, true);
+
+      if ((ret != 0) || (g_Dbs.db[i].drop)) {
         ret = createSuperTable(taos, g_Dbs.db[i].dbName,
                 &g_Dbs.db[i].superTbls[j], g_Dbs.use_metric);
       
@@ -2472,27 +2479,14 @@ static int createDatabases() {
         }
       }
 
-      /* describe super table, if exists
-      sprintf(command, "describe %s.%s;", g_Dbs.db[i].dbName,
-              g_Dbs.db[i].superTbls[j].sTblName);
-      verbosePrint("%s() %d command: %s\n", __func__, __LINE__, command);
-
-      if (0 != queryDbExec(taos, command, NO_INSERT_TYPE)) {
-        g_Dbs.db[i].superTbls[j].superTblExists = TBL_NO_EXISTS;
-
-      } else {      
-        */
-        g_Dbs.db[i].superTbls[j].superTblExists = TBL_ALREADY_EXISTS;
-        ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
+      ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
                 &g_Dbs.db[i].superTbls[j]);
-      //}
-        if (0 != ret) {
-          errorPrint("\nget super table %s.%s info failed!\n\n", g_Dbs.db[i].dbName,
-                  g_Dbs.db[i].superTbls[j].sTblName);
-          taos_close(taos);
-          return -1;
-        }
-
+      if (0 != ret) {
+        errorPrint("\nget super table %s.%s info failed!\n\n",
+                g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].sTblName);
+        taos_close(taos);
+        return -1;
+      }
     }
   }
 
@@ -2572,7 +2566,7 @@ static void* createTable(void *sarg)
 
     len = 0;
     verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
-    if (0 != queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE)){
+    if (0 != queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE, false)){
       errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
       free(buffer);
       return NULL;
@@ -2588,7 +2582,7 @@ static void* createTable(void *sarg)
   
   if (0 != len) {
     verbosePrint("%s() %d buffer: %s\n", __func__, __LINE__, buffer);
-    if (0 != queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE)) {
+    if (0 != queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE, false)) {
       errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
     }
   }
@@ -2684,8 +2678,8 @@ static void createChildTables() {
         int startFrom = 0;
         g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
 
-        verbosePrint("%s() LN%d: create %d child tables from %d\n", __func__, __LINE__,
-              g_totalChildTables, startFrom);
+        verbosePrint("%s() LN%d: create %d child tables from %d\n",
+                __func__, __LINE__, g_totalChildTables, startFrom);
         startMultiThreadCreateChildTable(
               g_Dbs.db[i].superTbls[j].colsOfCreateChildTable,
               g_Dbs.threadCountByCreateTbl,
@@ -3617,7 +3611,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!insertRows) {
         g_Dbs.db[i].superTbls[j].insertRows = 0x7FFFFFFFFFFFFFFF;
       } else {
-        errorPrint("%s() LN%d, failed to read json, insert_rows input mistake\n", __func__, __LINE__);
+        errorPrint("%s() LN%d, failed to read json, insert_rows input mistake\n",
+                __func__, __LINE__);
         goto PARSE_OVER;
       }
 
@@ -3629,15 +3624,10 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                 __func__, __LINE__, g_args.insert_interval);
         g_Dbs.db[i].superTbls[j].insertInterval = g_args.insert_interval;
       } else {
-        errorPrint("%s() LN%d, failed to read json, insert_interval input mistake\n", __func__, __LINE__);
+        errorPrint("%s() LN%d, failed to read json, insert_interval input mistake\n",
+                __func__, __LINE__);
         goto PARSE_OVER;
       }
-
-/* CBD      if (NO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable
-              || (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists)) {
-        continue;
-      }
-      */
 
       int retVal = getColumnAndTagTypeFromInsertJsonFile(
               stbInfo, &g_Dbs.db[i].superTbls[j]);
@@ -4259,7 +4249,7 @@ static int execInsert(threadInfo *pThreadInfo, char *buffer, int k)
             __func__, __LINE__, buffer);
   if (superTblInfo) {
     if (0 == strncasecmp(superTblInfo->insertMode, "taosc", strlen("taosc"))) {
-      affectedRows = queryDbExec(pThreadInfo->taos, buffer, INSERT_TYPE);
+      affectedRows = queryDbExec(pThreadInfo->taos, buffer, INSERT_TYPE, false);
     } else {
       if (0 != postProceSql(g_Dbs.host, g_Dbs.port, buffer)) {
         affectedRows = -1;
@@ -4269,7 +4259,7 @@ static int execInsert(threadInfo *pThreadInfo, char *buffer, int k)
       }
     }
   } else {
-    affectedRows = queryDbExec(pThreadInfo->taos, buffer, 1);
+    affectedRows = queryDbExec(pThreadInfo->taos, buffer, INSERT_TYPE, false);
   }
 
   return affectedRows;
@@ -5600,7 +5590,7 @@ static int queryTestProcess() {
         char sqlStr[MAX_TB_NAME_SIZE*2];
         sprintf(sqlStr, "use %s", g_queryInfo.dbName);
         verbosePrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
-        if (0 != queryDbExec(t_info->taos, sqlStr, NO_INSERT_TYPE)) {
+        if (0 != queryDbExec(t_info->taos, sqlStr, NO_INSERT_TYPE, false)) {
             free(infos);
             free(pids);
             errorPrint( "use database %s failed!\n\n",
@@ -5730,7 +5720,7 @@ static void *subSubscribeProcess(void *sarg) {
   char sqlStr[MAX_TB_NAME_SIZE*2];
   sprintf(sqlStr, "use %s", g_queryInfo.dbName);
   debugPrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
-  if (0 != queryDbExec(winfo->taos, sqlStr, NO_INSERT_TYPE)){
+  if (0 != queryDbExec(winfo->taos, sqlStr, NO_INSERT_TYPE, false)){
     return NULL;
   }
  
@@ -5796,7 +5786,7 @@ static void *superSubscribeProcess(void *sarg) {
   char sqlStr[MAX_TB_NAME_SIZE*2];
   sprintf(sqlStr, "use %s", g_queryInfo.dbName);
   debugPrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
-  if (0 != queryDbExec(winfo->taos, sqlStr, NO_INSERT_TYPE)) {
+  if (0 != queryDbExec(winfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
     return NULL;
   }
  
@@ -6053,7 +6043,6 @@ static void setParaFromArg(){
     g_Dbs.queryMode = g_args.mode;
   
     g_Dbs.db[0].superTbls[0].autoCreateTable = PRE_CREATE_SUBTBL;
-    g_Dbs.db[0].superTbls[0].superTblExists = TBL_NO_EXISTS;
     g_Dbs.db[0].superTbls[0].childTblExists = TBL_NO_EXISTS;
     g_Dbs.db[0].superTbls[0].disorderRange = g_args.disorderRange;
     g_Dbs.db[0].superTbls[0].disorderRatio = g_args.disorderRatio;
@@ -6171,8 +6160,9 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
 
     memcpy(cmd + cmd_len, line, read_len);
     verbosePrint("%s() LN%d cmd: %s\n", __func__, __LINE__, cmd);
-    if (0 != queryDbExec(taos, cmd, NO_INSERT_TYPE)) {
-        printf("queryDbExec %s failed!\n", cmd);
+    if (0 != queryDbExec(taos, cmd, NO_INSERT_TYPE, false)) {
+        errorPrint("%s() LN%d, queryDbExec %s failed!\n",
+               __func__, __LINE__, cmd);
         tmfree(cmd);
         tmfree(line);
         tmfclose(fp);
