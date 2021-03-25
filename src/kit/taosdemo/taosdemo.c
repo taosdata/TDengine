@@ -2540,8 +2540,8 @@ static void* createTable(void *sarg)
     len = 0;
     verbosePrint("%s() LN%d %s\n", __func__, __LINE__, buffer);
     if (0 != queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE)){
-      free(buffer);
       errorPrint( "queryDbExec() failed. buffer:\n%s\n", buffer);
+      free(buffer);
       return NULL;
     }
 
@@ -4942,7 +4942,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     }  else if (0 == strncasecmp(precision, "us", 2)) {
       timePrec = TSDB_TIME_PRECISION_MICRO;
     }  else {
-      errorPrint( "No support precision: %s\n", precision);
+      errorPrint("Not support precision: %s\n", precision);
       exit(-1);
     }
   }
@@ -4977,7 +4977,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource, 
               "sample", strlen("sample")))) {
     if (0 != prepareSampleDataForSTable(superTblInfo)) {
-      errorPrint("%s() LN%d, prepare sample data for stable failed!\n", __func__, __LINE__);
+      errorPrint("%s() LN%d, prepare sample data for stable failed!\n",
+              __func__, __LINE__);
       exit(-1);
     }
   }
@@ -4986,7 +4987,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource, 
               "sample", strlen("sample")))) {
     if (0 != prepareSampleDataForSTable(superTblInfo)) {
-      errorPrint("%s() LN%d, prepare sample data for stable failed!\n", __func__, __LINE__);
+      errorPrint("%s() LN%d, prepare sample data for stable failed!\n",
+              __func__, __LINE__);
       exit(-1);
     }
   }
@@ -5046,7 +5048,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
               g_Dbs.host, g_Dbs.user,
               g_Dbs.password, db_name, g_Dbs.port);
       if (NULL == t_info->taos) {
-        errorPrint( "connect to server fail from insert sub thread, reason: %s\n",
+        errorPrint(
+                "connect to server fail from insert sub thread, reason: %s\n",
                 taos_errstr(NULL));
         exit(-1);
       }
@@ -5513,7 +5516,8 @@ static int queryTestProcess() {
           NULL, 
           g_queryInfo.port);
   if (taos == NULL) {
-    errorPrint( "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
+    errorPrint( "Failed to connect to TDengine, reason:%s\n",
+            taos_errstr(NULL));
     exit(-1);
   }
 
@@ -5834,7 +5838,8 @@ static int subscribeTestProcess() {
           g_queryInfo.dbName,
           g_queryInfo.port);
   if (taos == NULL) {
-    errorPrint( "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
+    errorPrint( "Failed to connect to TDengine, reason:%s\n",
+            taos_errstr(NULL));
     exit(-1);
   }
 
@@ -6204,7 +6209,8 @@ static void queryResult() {
               g_Dbs.db[0].dbName,
               g_Dbs.port);
       if (rInfo->taos == NULL) {
-        errorPrint( "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
+        errorPrint( "Failed to connect to TDengine, reason:%s\n",
+                taos_errstr(NULL));
         free(rInfo);
         exit(-1);
       }
