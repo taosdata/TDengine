@@ -48,7 +48,7 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
-        os.system("yes | %staosdemo -f tools/taosdemoAllTest//insert-1s1tnr.json" % binPath
+        os.system("yes | %staosdemo -f tools/taosdemoAllTest//insert-1s1tnr.json" % binPath)
 
         tdSql.execute("use db01")
         tdSql.query("show test.stables")
