@@ -56,82 +56,83 @@ int32_t treeComparator(const void *pLeft, const void *pRight, void *param) {
   }
 }
 
-static void tscInitSqlContext(SSqlCmd *pCmd, SLocalMerger *pReducer, tOrderDescriptor *pDesc) {
-  /*
-   * the fields and offset attributes in pCmd and pModel may be different due to
-   * merge requirement. So, the final result in pRes structure is formatted in accordance with the pCmd object.
-   */
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+// todo merge with vnode side function
+void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx) {
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   
   for (int32_t i = 0; i < size; ++i) {
-    SQLFunctionCtx *pCtx = &pReducer->pCtx[i];
-    SSqlExpr *      pExpr = tscSqlExprGet(pQueryInfo, i);
+    SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
 
-    pCtx->pOutput = pReducer->pResultBuf->data + pExpr->offset * pReducer->resColModel->capacity;
-    pCtx->order = pQueryInfo->order.order;
-    pCtx->functionId = pExpr->functionId;
+    pCtx[i].order = pQueryInfo->order.order;
+    pCtx[i].functionId = pExpr->functionId;
 
     // input buffer hold only one point data
-    int16_t  offset = getColumnModelOffset(pDesc->pColumnModel, i);
-    SSchema *pSchema = getColumnModelSchema(pDesc->pColumnModel, i);
+    pCtx[i].inputType   = pExpr->colType;
+    pCtx[i].inputBytes  = pExpr->colBytes;
 
-    pCtx->pInput = pReducer->pTempBuffer->data + offset;
+    pCtx[i].outputBytes = pExpr->resBytes;
+    pCtx[i].outputType  = pExpr->resType;
 
-    // input data format comes from pModel
-    pCtx->inputType = pSchema->type;
-    pCtx->inputBytes = pSchema->bytes;
-
-    // output data format yet comes from pCmd.
-    pCtx->outputBytes = pExpr->resBytes;
-    pCtx->outputType = pExpr->resType;
-
-    pCtx->size = 1;
-    pCtx->hasNull = true;
-    pCtx->currentStage = MERGE_STAGE;
+    pCtx[i].size = 1;
+    pCtx[i].hasNull = true;
+    pCtx[i].currentStage = MERGE_STAGE;
 
     // for top/bottom function, the output of timestamp is the first column
     int32_t functionId = pExpr->functionId;
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
-      pCtx->ptsOutputBuf = pReducer->pCtx[0].pOutput;
-      pCtx->param[2].i64 = pQueryInfo->order.order;
-      pCtx->param[2].nType  = TSDB_DATA_TYPE_BIGINT;
-      pCtx->param[1].i64 = pQueryInfo->order.orderColId;
+      pCtx[i].ptsOutputBuf = pCtx[0].pOutput;
+      pCtx[i].param[2].i64 = pQueryInfo->order.order;
+      pCtx[i].param[2].nType  = TSDB_DATA_TYPE_BIGINT;
+      pCtx[i].param[1].i64 = pQueryInfo->order.orderColId;
     } else if (functionId == TSDB_FUNC_APERCT) {
-      pCtx->param[0].i64 = pExpr->param[0].i64;
-      pCtx->param[0].nType  = pExpr->param[0].nType;
+      pCtx[i].param[0].i64 = pExpr->param[0].i64;
+      pCtx[i].param[0].nType  = pExpr->param[0].nType;
     } else if (functionId == TSDB_FUNC_BLKINFO) {
-      pCtx->param[0].i64 = pExpr->param[0].i64;
-      pCtx->param[0].nType = pExpr->param[0].nType;
-      pCtx->numOfParams = 1;
+      pCtx[i].param[0].i64 = pExpr->param[0].i64;
+      pCtx[i].param[0].nType = pExpr->param[0].nType;
+      pCtx[i].numOfParams = 1;
     }
 
-    pCtx->interBufBytes = pExpr->interBytes;
-    pCtx->resultInfo = calloc(1, pCtx->interBufBytes + sizeof(SResultRowCellInfo));
-    pCtx->stableQuery = true;
+    pCtx[i].interBufBytes = pExpr->interBytes;
+    pCtx[i].resultInfo = calloc(1, pCtx[i].interBufBytes + sizeof(SResultRowCellInfo));
+    pCtx[i].stableQuery = true;
   }
 
   int16_t          n = 0;
   int16_t          tagLen = 0;
   SQLFunctionCtx **pTagCtx = calloc(pQueryInfo->fieldsInfo.numOfOutput, POINTER_BYTES);
 
-  SQLFunctionCtx *pCtx = NULL;
+  SQLFunctionCtx *pCtx1 = NULL;
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
     if (pExpr->functionId == TSDB_FUNC_TAG_DUMMY || pExpr->functionId == TSDB_FUNC_TS_DUMMY) {
       tagLen += pExpr->resBytes;
-      pTagCtx[n++] = &pReducer->pCtx[i];
+      pTagCtx[n++] = &pCtx[i];
     } else if ((aAggs[pExpr->functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
-      pCtx = &pReducer->pCtx[i];
+      pCtx1 = &pCtx[i];
     }
   }
 
   if (n == 0 || pCtx == NULL) {
     free(pTagCtx);
   } else {
-    pCtx->tagInfo.pTagCtxList = pTagCtx;
-    pCtx->tagInfo.numOfTagCols = n;
-    pCtx->tagInfo.tagsLen = tagLen;
+    pCtx1->tagInfo.pTagCtxList = pTagCtx;
+    pCtx1->tagInfo.numOfTagCols = n;
+    pCtx1->tagInfo.tagsLen = tagLen;
+  }
+}
+
+static void setCtxInputOutputBuffer(SQueryInfo* pQueryInfo, SQLFunctionCtx *pCtx, SLocalMerger *pReducer,
+                                 tOrderDescriptor *pDesc) {
+  size_t size = tscSqlExprNumOfExprs(pQueryInfo);
+
+  for (int32_t i = 0; i < size; ++i) {
+    SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
+    pCtx[i].pOutput = pReducer->pResultBuf->data + pExpr->offset * pReducer->resColModel->capacity;
+
+    // input buffer hold only one point data
+    int16_t offset = getColumnModelOffset(pDesc->pColumnModel, i);
+    pCtx[i].pInput = pReducer->pTempBuffer->data + offset;
   }
 }
 
@@ -362,8 +363,8 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   pReducer->pTempBuffer->num = 0;
 
   tscCreateResPointerInfo(pRes, pQueryInfo);
-  tscInitSqlContext(pCmd, pReducer, pDesc);
-
+  tsCreateSQLFunctionCtx(pQueryInfo, pReducer->pCtx);
+  setCtxInputOutputBuffer(pQueryInfo, pReducer->pCtx, pReducer, pDesc);
   // we change the capacity of schema to denote that there is only one row in temp buffer
   pReducer->pDesc->pColumnModel->capacity = 1;
 
@@ -1607,7 +1608,7 @@ void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen)
     tscDestroyLocalMerger(pObj);
   }
 
-  pRes->qhandle = 1;  // hack to pass the safety check in fetch_row function
+  pRes->qid = 1;  // hack to pass the safety check in fetch_row function
   pRes->numOfRows = 0;
   pRes->row = 0;
 

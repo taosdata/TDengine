@@ -252,7 +252,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 
     SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->code = code;
-    pRsp->qhandle = 0;
+    pRsp->qid  = 0;
 
     pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
@@ -270,7 +270,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
         return pRsp->code;
       } else {
         assert(*handle == pQInfo);
-        pRsp->qhandle = htobe64(qId);
+        pRsp->qid = htobe64(qId);
       }
 
       if (handle != NULL &&
@@ -343,37 +343,37 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 }
 
 static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
-  void *   pCont = pRead->pCont;
-  SRspRet *pRet = &pRead->rspRet;
+  void    *pCont = pRead->pCont;
+  SRspRet *pRet  = &pRead->rspRet;
 
   SRetrieveTableMsg *pRetrieve = pCont;
   pRetrieve->free = htons(pRetrieve->free);
-  pRetrieve->qhandle = htobe64(pRetrieve->qhandle);
+  pRetrieve->qid  = htobe64(pRetrieve->qid);
 
-  vTrace("vgId:%d, QInfo:%" PRIu64 ", retrieve msg is disposed, free:%d, conn:%p", pVnode->vgId, pRetrieve->qhandle,
+  vTrace("vgId:%d, qid:%" PRIu64 ", retrieve msg is disposed, free:%d, conn:%p", pVnode->vgId, pRetrieve->qid,
          pRetrieve->free, pRead->rpcHandle);
 
   memset(pRet, 0, sizeof(SRspRet));
 
   terrno = TSDB_CODE_SUCCESS;
   int32_t code = TSDB_CODE_SUCCESS;
-  void ** handle = qAcquireQInfo(pVnode->qMgmt, pRetrieve->qhandle);
+  void  **handle = qAcquireQInfo(pVnode->qMgmt, pRetrieve->qid);
   if (handle == NULL) {
     code = terrno;
     terrno = TSDB_CODE_SUCCESS;
-  } else if (!checkQIdEqual(*handle, pRetrieve->qhandle)) {
+  } else if (!checkQIdEqual(*handle, pRetrieve->qid)) {
     code = TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, invalid handle in retrieving result, code:%s, QInfo:%" PRIu64, pVnode->vgId, tstrerror(code), pRetrieve->qhandle);
+    vError("vgId:%d, invalid handle in retrieving result, code:%s, QInfo:%" PRIu64, pVnode->vgId, tstrerror(code), pRetrieve->qid);
     vnodeBuildNoResultQueryRsp(pRet);
     return code;
   }
 
   // kill current query and free corresponding resources.
   if (pRetrieve->free == 1) {
-    vWarn("vgId:%d, QInfo:%"PRIu64 "-%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, pRetrieve->qhandle, *handle);
+    vWarn("vgId:%d, QInfo:%"PRIu64 "-%p, retrieve msg received to kill query and free qhandle", pVnode->vgId, pRetrieve->qid, *handle);
     qKillQuery(*handle);
     qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
 
@@ -384,7 +384,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 
   // register the qhandle to connect to quit query immediate if connection is broken
   if (vnodeNotifyCurrentQhandle(pRead->rpcHandle, *handle, pVnode->vgId) != TSDB_CODE_SUCCESS) {
-    vError("vgId:%d, QInfo:%"PRIu64 "-%p, retrieve discarded since link is broken, %p", pVnode->vgId, pRetrieve->qhandle, *handle, pRead->rpcHandle);
+    vError("vgId:%d, QInfo:%"PRIu64 "-%p, retrieve discarded since link is broken, %p", pVnode->vgId, pRetrieve->qid, *handle, pRead->rpcHandle);
     code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     qKillQuery(*handle);
     qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
@@ -402,7 +402,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     memset(pRet->rsp, 0, sizeof(SRetrieveTableRsp));
     freeHandle = true;
   } else {  // result is not ready, return immediately
-    // Only effects in the non-blocking model
+    // Only affects the non-blocking model
     if (!tsRetrieveBlockingModel) {
       if (!buildRes) {
         assert(pRead->rpcHandle != NULL);

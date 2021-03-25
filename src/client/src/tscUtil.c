@@ -371,11 +371,39 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   }
 }
 
+static SColumnInfo* extractColumnInfoFromResult(STableMeta* pTableMeta, SArray* pTableCols) {
+  int32_t numOfCols = taosArrayGetSize(pTableCols);
+  SColumnInfo* pColInfo = calloc(numOfCols, sizeof(SColumnInfo));
+
+  SSchema *pSchema = pTableMeta->schema;
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumn* pCol = taosArrayGetP(pTableCols, i);
+    int32_t index = pCol->colIndex.columnIndex;
+
+    pColInfo[i].type  = pSchema[index].type;
+    pColInfo[i].bytes = pSchema[index].bytes;
+    pColInfo[i].colId = pSchema[index].colId;
+  }
+
+  return pColInfo;
+}
+
 void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   if (pQueryInfo->pDownstream != NULL && taosArrayGetSize(pQueryInfo->pDownstream) > 0) {
     // handle the following query process
     SQueryInfo* px = taosArrayGetP(pQueryInfo->pDownstream, 0);
     printf("%d\n", px->type);
+
+    SColumnInfo* colInfo = extractColumnInfoFromResult(px->pTableMetaInfo[0]->pTableMeta, px->colList);
+    int32_t numOfOutput = tscSqlExprNumOfExprs(px);
+
+    SExprInfo      *exprInfo = NULL;
+    SQLFunctionCtx *pCtx = calloc(numOfOutput, sizeof(SQLFunctionCtx));
+
+    int32_t numOfCols = taosArrayGetSize(px->colList);
+    SQueriedTableInfo info = {.colList = colInfo, .numOfCols = numOfCols,};
+    /*int32_t code = */createQueryFunc(&info, numOfOutput, &exprInfo, px->exprList->pData, NULL, px->type, NULL);
+    tsCreateSQLFunctionCtx(px, pCtx);
   }
 }
 
@@ -1095,11 +1123,9 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
     if (pInfo->pArithExprInfo != NULL) {
       tExprTreeDestroy(pInfo->pArithExprInfo->pExpr, NULL);
 
-      SSqlFuncMsg* pFuncMsg = &pInfo->pArithExprInfo->base;
+      SSqlExpr* pFuncMsg = &pInfo->pArithExprInfo->base;
       for(int32_t j = 0; j < pFuncMsg->numOfParams; ++j) {
-        if (pFuncMsg->arg[j].argType == TSDB_DATA_TYPE_BINARY) {
-          tfree(pFuncMsg->arg[j].argValue.pz);
-        }
+        tVariantDestroy(&pFuncMsg->param[j]);
       }
 
       tfree(pInfo->pArithExprInfo);
@@ -1125,20 +1151,33 @@ static SSqlExpr* doCreateSqlExpr(SQueryInfo* pQueryInfo, int16_t functionId, SCo
 
   // set the correct columnIndex index
   if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+    SSchema* s = tGetTbnameColumnSchema();
     pExpr->colInfo.colId = TSDB_TBNAME_COLUMN_INDEX;
+    pExpr->colBytes = s->bytes;
+    pExpr->colType  = s->type;
   } else if (pColIndex->columnIndex == TSDB_BLOCK_DIST_COLUMN_INDEX) {
+    SSchema s = tGetBlockDistColumnSchema();
+
     pExpr->colInfo.colId = TSDB_BLOCK_DIST_COLUMN_INDEX;
+    pExpr->colBytes = s.bytes;
+    pExpr->colType  = s.type;
   } else if (pColIndex->columnIndex <= TSDB_UD_COLUMN_INDEX) {
     pExpr->colInfo.colId = pColIndex->columnIndex;
+    pExpr->colBytes = size;
+    pExpr->colType = type;
   } else {
     if (TSDB_COL_IS_TAG(colType)) {
       SSchema* pSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
       pExpr->colInfo.colId = pSchema[pColIndex->columnIndex].colId;
+      pExpr->colBytes = pSchema[pColIndex->columnIndex].bytes;
+      pExpr->colType = pSchema[pColIndex->columnIndex].type;
       tstrncpy(pExpr->colInfo.name, pSchema[pColIndex->columnIndex].name, sizeof(pExpr->colInfo.name));
     } else if (pTableMetaInfo->pTableMeta != NULL) {
       // in handling select database/version/server_status(), the pTableMeta is NULL
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, pColIndex->columnIndex);
       pExpr->colInfo.colId = pSchema->colId;
+      pExpr->colBytes = pSchema->bytes;
+      pExpr->colType = pSchema->type;
       tstrncpy(pExpr->colInfo.name, pSchema->name, sizeof(pExpr->colInfo.name));
     }
   }
@@ -1769,7 +1808,7 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->exprList       = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->colList        = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->udColumnId     = TSDB_UD_COLUMN_INDEX;
-  pQueryInfo->resColumnId    = -1000;
+  pQueryInfo->resColumnId    = TSDB_RES_COL_ID;
   pQueryInfo->limit.limit    = -1;
   pQueryInfo->limit.offset   = 0;
                              
@@ -2128,6 +2167,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   pNewQueryInfo->command = pQueryInfo->command;
+  pnCmd->active = pNewQueryInfo;
+
   memcpy(&pNewQueryInfo->interval, &pQueryInfo->interval, sizeof(pNewQueryInfo->interval));
   pNewQueryInfo->type   = pQueryInfo->type;
   pNewQueryInfo->window = pQueryInfo->window;

@@ -306,6 +306,12 @@ enum {
   QUERY_RESULT_READY     = 2,
 };
 
+typedef struct {
+  int32_t      numOfTags;
+  int32_t      numOfCols;
+  SColumnInfo *colList;
+} SQueriedTableInfo;
+
 typedef struct SQInfo {
   void*            signature;
   uint64_t         qId;
@@ -331,8 +337,8 @@ typedef struct SQueryParam {
   char            *tbnameCond;
   char            *prevResult;
   SArray          *pTableIdList;
-  SSqlFuncMsg    **pExprMsg;
-  SSqlFuncMsg    **pSecExprMsg;
+  SSqlExpr       **pExpr;
+  SSqlExpr       **pSecExpr;
   SExprInfo       *pExprs;
   SExprInfo       *pSecExprs;
 
@@ -423,10 +429,11 @@ typedef struct SSWindowOperatorInfo {
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);
-int32_t createQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo, SSqlFuncMsg **pExprMsg,
-                                   SColumnInfo* pTagCols);
+int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExprInfo** pExprInfo,
+                        SSqlExpr** pExprMsg, SColumnInfo* pTagCols, int32_t queryType, void* pMsg);
+
 int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo,
-                                           SSqlFuncMsg **pExprMsg, SExprInfo *prevExpr);
+                                           SSqlExpr **pExpr, SExprInfo *prevExpr);
 
 SSqlGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code);
 SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,

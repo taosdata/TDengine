@@ -14,7 +14,6 @@
  */
 
 #include "os.h"
-#include "qFill.h"
 #include "taosmsg.h"
 #include "tcache.h"
 #include "tglobal.h"
@@ -23,13 +22,11 @@
 #include "hash.h"
 #include "texpr.h"
 #include "qExecutor.h"
-#include "qResultbuf.h"
 #include "qUtil.h"
 #include "query.h"
 #include "queryLog.h"
 #include "tlosertree.h"
 #include "ttype.h"
-#include "tcompare.h"
 
 typedef struct SQueryMgmt {
   pthread_mutex_t lock;
@@ -58,8 +55,8 @@ void freeParam(SQueryParam *param) {
   tfree(param->tagCond);
   tfree(param->tbnameCond);
   tfree(param->pTableIdList);
-  tfree(param->pExprMsg);
-  tfree(param->pSecExprMsg);
+//  tfree(param->pExprMsg);
+//  tfree(param->pSecExprMsg);
   tfree(param->pExprs);
   tfree(param->pSecExprs);
   tfree(param->pGroupColIndex);
@@ -91,12 +88,14 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     goto _over;
   }
 
-  if ((code = createQueryFuncExprFromMsg(pQueryMsg, pQueryMsg->numOfOutput, &param.pExprs, param.pExprMsg, param.pTagColumnInfo)) != TSDB_CODE_SUCCESS) {
+  SQueriedTableInfo info = { .numOfTags = pQueryMsg->numOfTags, .numOfCols = pQueryMsg->numOfCols, .colList = pQueryMsg->colList};
+  if ((code = createQueryFunc(&info, pQueryMsg->numOfOutput, &param.pExprs, param.pExpr, param.pTagColumnInfo,
+                              pQueryMsg->queryType, pQueryMsg)) != TSDB_CODE_SUCCESS) {
     goto _over;
   }
 
-  if (param.pSecExprMsg != NULL) {
-    if ((code = createIndirectQueryFuncExprFromMsg(pQueryMsg, pQueryMsg->secondStageOutput, &param.pSecExprs, param.pSecExprMsg, param.pExprs)) != TSDB_CODE_SUCCESS) {
+  if (param.pSecExpr != NULL) {
+    if ((code = createIndirectQueryFuncExprFromMsg(pQueryMsg, pQueryMsg->secondStageOutput, &param.pSecExprs, param.pSecExpr, param.pExprs)) != TSDB_CODE_SUCCESS) {
       goto _over;
     }
   }

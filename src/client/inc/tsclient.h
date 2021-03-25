@@ -35,6 +35,7 @@ extern "C" {
 #include "qExecutor.h"
 #include "qSqlparser.h"
 #include "qTsbuf.h"
+#include "qUtil.h"
 #include "tcmdtype.h"
 
 // forward declaration
@@ -95,21 +96,6 @@ typedef struct STableMetaInfo {
   char          aliasName[TSDB_TABLE_NAME_LEN];    // alias name of table specified in query sql
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
 } STableMetaInfo;
-
-/* the structure for sql function in select clause */
-typedef struct SSqlExpr {
-  char      aliasName[TSDB_COL_NAME_LEN];  // as aliasName
-  SColIndex colInfo;
-  uint64_t  uid;            // refactor use the pointer
-  int16_t   functionId;     // function id in aAgg array
-  int16_t   resType;        // return value type
-  int16_t   resBytes;       // length of return value
-  int32_t   interBytes;     // inter result buffer size
-  int16_t   numOfParams;    // argument value of each function
-  tVariant  param[3];       // parameters are not more than 3
-  int32_t   offset;         // sub result column value of arithmetic expression.
-  int16_t   resColId;       // result column id
-} SSqlExpr;
 
 typedef struct SColumnIndex {
   int16_t tableIndex;
@@ -290,7 +276,7 @@ typedef struct {
   char *         pRsp;
   int32_t        rspType;
   int32_t        rspLen;
-  uint64_t       qhandle;
+  uint64_t       qid;
   int64_t        useconds;
   int64_t        offset;  // offset value from vnode during projection query of stable
   int32_t        row;

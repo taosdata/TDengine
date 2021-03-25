@@ -476,7 +476,7 @@ TAOS_ROW taos_fetch_row(TAOS_RES *res) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
   
-  if (pRes->qhandle == 0 ||
+  if (pRes->qid == 0 ||
       pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED ||
       pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       pCmd->command == TSDB_SQL_INSERT) {
@@ -508,7 +508,7 @@ int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  if (pRes->qhandle == 0 ||
+  if (pRes->qid == 0 ||
       pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED ||
       pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       pCmd->command == TSDB_SQL_INSERT) {
@@ -554,7 +554,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
-  if (pRes == NULL || pRes->qhandle == 0) {
+  if (pRes == NULL || pRes->qid == 0) {
     return true;
   }
 
@@ -1050,7 +1050,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
    * If qhandle is NOT set 0, the function of taos_free_result() will send message to server by calling tscProcessSql()
    * to free connection, which may cause segment fault, when the parse phrase is not even successfully executed.
    */
-  pRes->qhandle = 0;
+  pRes->qid = 0;
   free(str);
 
   if (code != TSDB_CODE_SUCCESS) {

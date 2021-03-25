@@ -294,6 +294,8 @@ uint32_t tscGetTableMetaMaxSize();
 int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
 
+void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx);
+
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);

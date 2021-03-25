@@ -34,7 +34,7 @@ int32_t getOutputInterResultBufSize(SQuery* pQuery) {
   int32_t size = 0;
 
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    size += pQuery->pExpr1[i].interBytes;
+    size += pQuery->pExpr1[i].base.interBytes;
   }
 
   assert(size >= 0);
@@ -139,7 +139,7 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
     for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutput; ++i) {
       SResultRowCellInfo *pResultInfo = &pResultRow->pCellInfo[i];
 
-      int16_t size = pRuntimeEnv->pQuery->pExpr1[i].bytes;
+      int16_t size = pRuntimeEnv->pQuery->pExpr1[i].base.resType;
       char * s = getPosInResultPage(pRuntimeEnv->pQuery, page, pResultRow->offset, offset);
       memset(s, 0, size);
 

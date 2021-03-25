@@ -1490,9 +1490,9 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
       SExprInfo* pArithExprInfo = calloc(1, sizeof(SExprInfo));
 
       // arithmetic expression always return result in the format of double float
-      pArithExprInfo->bytes      = sizeof(double);
-      pArithExprInfo->interBytes = sizeof(double);
-      pArithExprInfo->type       = TSDB_DATA_TYPE_DOUBLE;
+      pArithExprInfo->base.resBytes      = sizeof(double);
+      pArithExprInfo->base.interBytes    = sizeof(double);
+      pArithExprInfo->base.resType       = TSDB_DATA_TYPE_DOUBLE;
 
       pArithExprInfo->base.functionId = TSDB_FUNC_ARITHM;
       pArithExprInfo->base.numOfParams = 1;
@@ -1517,10 +1517,10 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
       // TODO: other error handling
     } END_TRY
 
-    SSqlFuncMsg* pFuncMsg = &pInfo->pArithExprInfo->base;
-    pFuncMsg->arg[0].argBytes = (int16_t) tbufTell(&bw);
-    pFuncMsg->arg[0].argValue.pz = tbufGetData(&bw, true);
-    pFuncMsg->arg[0].argType = TSDB_DATA_TYPE_BINARY;
+    SSqlExpr* pFuncMsg = &pInfo->pArithExprInfo->base;
+    pFuncMsg->param[0].nLen = (int16_t) tbufTell(&bw);
+    pFuncMsg->param[0].pz   = tbufGetData(&bw, true);
+    pFuncMsg->param[0].nType = TSDB_DATA_TYPE_BINARY;
 
 //    tbufCloseWriter(&bw); // TODO there is a memory leak
   }
@@ -6630,6 +6630,10 @@ static STableMeta* extractTempTableMetaFromNestQuery(SQueryInfo* pUpstream) {
 
   return meta;
 }
+
+//static SColumnInfo* getColumnInfoFromSchema(SQueryInfo* pUpstream) {
+//
+//}
 
 int32_t validateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t index) {
   assert(pQuerySqlNode != NULL && (pQuerySqlNode->from == NULL || taosArrayGetSize(pQuerySqlNode->from->tableList) > 0));

@@ -214,8 +214,8 @@ static SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32
   res->pDataBlock = taosArrayInit(numOfOutput, sizeof(SColumnInfoData));
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColumnInfoData idata = {{0}};
-    idata.info.type = pExpr[i].type;
-    idata.info.bytes = pExpr[i].bytes;
+    idata.info.type  = pExpr[i].base.resType;
+    idata.info.bytes = pExpr[i].base.resBytes;
     idata.info.colId = pExpr[i].base.resColId;
 
     idata.pData = calloc(1, MAX(idata.info.bytes * numOfRows, minSize));  // at least to hold a pointer on x64 platform
@@ -1607,10 +1607,10 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    SSqlFuncMsg *pSqlFuncMsg = &pExpr[i].base;
+    SSqlExpr *pSqlExpr = &pExpr[i].base;
     SQLFunctionCtx* pCtx = &pFuncCtx[i];
 
-    SColIndex *pIndex = &pSqlFuncMsg->colInfo;
+    SColIndex *pIndex = &pSqlExpr->colInfo;
 
     if (TSDB_COL_REQ_NULL(pIndex->flag)) {
       pCtx->requireNull = true;
@@ -1619,33 +1619,33 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
       pCtx->requireNull = false;
     }
 
-    pCtx->inputBytes = pSqlFuncMsg->colBytes;
-    pCtx->inputType  = pSqlFuncMsg->colType;
+    pCtx->inputBytes = pSqlExpr->colBytes;
+    pCtx->inputType  = pSqlExpr->colType;
 
     pCtx->ptsOutputBuf = NULL;
 
-    pCtx->outputBytes  = pExpr[i].bytes;
-    pCtx->outputType   = pExpr[i].type;
+    pCtx->outputBytes  = pSqlExpr->resBytes;
+    pCtx->outputType   = pSqlExpr->resType;
 
     pCtx->order        = pQuery->order.order;
-    pCtx->functionId   = pSqlFuncMsg->functionId;
+    pCtx->functionId   = pSqlExpr->functionId;
     pCtx->stableQuery  = pQuery->stableQuery;
-    pCtx->interBufBytes = pExpr[i].interBytes;
+    pCtx->interBufBytes = pSqlExpr->interBytes;
     pCtx->start.key    = INT64_MIN;
     pCtx->end.key      = INT64_MIN;
 
-    pCtx->numOfParams  = pSqlFuncMsg->numOfParams;
+    pCtx->numOfParams  = pSqlExpr->numOfParams;
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
-      int16_t type = pSqlFuncMsg->arg[j].argType;
-      int16_t bytes = pSqlFuncMsg->arg[j].argBytes;
-      if (pSqlFuncMsg->functionId == TSDB_FUNC_STDDEV_DST) {
+      int16_t type = pSqlExpr->param[j].nType;
+      int16_t bytes = pSqlExpr->param[j].nLen;
+      if (pSqlExpr->functionId == TSDB_FUNC_STDDEV_DST) {
         continue;
       }
 
       if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-        tVariantCreateFromBinary(&pCtx->param[j], pSqlFuncMsg->arg[j].argValue.pz, bytes, type);
+        tVariantCreateFromBinary(&pCtx->param[j], pSqlExpr->param[j].pz, bytes, type);
       } else {
-        tVariantCreateFromBinary(&pCtx->param[j], (char *)&pSqlFuncMsg->arg[j].argValue.i64, bytes, type);
+        tVariantCreateFromBinary(&pCtx->param[j], (char *)&pSqlExpr->param[j].i64, bytes, type);
       }
     }
 
@@ -1688,7 +1688,7 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
 
   for(int32_t i = 1; i < numOfOutput; ++i) {
     (*rowCellInfoOffset)[i] = (int32_t)((*rowCellInfoOffset)[i - 1] + sizeof(SResultRowCellInfo) +
-        pExpr[i - 1].interBytes * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery));
+        pExpr[i - 1].base.interBytes * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery));
   }
 
   setCtxTagColumnInfo(pFuncCtx, numOfOutput);
@@ -1801,7 +1801,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
 
     setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
 
-    if (pQuery->pExpr2 != NULL) {
+    if (pQuery->pExpr2 != NULL && !pQuery->stableQuery) {
       pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQuery->pExpr2, pQuery->numOfExpr2);
     }
   } else {  // diff/add/multiply/subtract/division
@@ -1916,19 +1916,19 @@ static bool isFixedOutputQuery(SQuery* pQuery) {
   }
 
   for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    SSqlFuncMsg *pExprMsg = &pQuery->pExpr1[i].base;
+    SSqlExpr *pExpr = &pQuery->pExpr1[i].base;
 
     // ignore the ts_comp function
-    if (i == 0 && pExprMsg->functionId == TSDB_FUNC_PRJ && pExprMsg->numOfParams == 1 &&
-        pExprMsg->colInfo.colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    if (i == 0 && pExpr->functionId == TSDB_FUNC_PRJ && pExpr->numOfParams == 1 &&
+        pExpr->colInfo.colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
       continue;
     }
 
-    if (pExprMsg->functionId == TSDB_FUNC_TS || pExprMsg->functionId == TSDB_FUNC_TS_DUMMY) {
+    if (pExpr->functionId == TSDB_FUNC_TS || pExpr->functionId == TSDB_FUNC_TS_DUMMY) {
       continue;
     }
 
-    if (!IS_MULTIOUTPUT(aAggs[pExprMsg->functionId].status)) {
+    if (!IS_MULTIOUTPUT(aAggs[pExpr->functionId].status)) {
       return true;
     }
   }
@@ -1989,7 +1989,7 @@ static bool needReverseScan(SQuery *pQuery) {
 
     if (functionId == TSDB_FUNC_LAST || functionId == TSDB_FUNC_LAST_DST) {
       // the scan order to acquire the last result of the specified column
-      int32_t order = (int32_t)pQuery->pExpr1[i].base.arg->argValue.i64;
+      int32_t order = (int32_t)pQuery->pExpr1[i].base.param[0].i64;
       if (order != pQuery->order.order) {
         return true;
       }
@@ -2048,12 +2048,12 @@ static void setScanLimitationByResultBuffer(SQuery *pQuery) {
   } else {
     bool hasMultioutput = false;
     for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-      SSqlFuncMsg *pExprMsg = &pQuery->pExpr1[i].base;
-      if (pExprMsg->functionId == TSDB_FUNC_TS || pExprMsg->functionId == TSDB_FUNC_TS_DUMMY) {
+      SSqlExpr *pExpr = &pQuery->pExpr1[i].base;
+      if (pExpr->functionId == TSDB_FUNC_TS || pExpr->functionId == TSDB_FUNC_TS_DUMMY) {
         continue;
       }
 
-      hasMultioutput = IS_MULTIOUTPUT(aAggs[pExprMsg->functionId].status);
+      hasMultioutput = IS_MULTIOUTPUT(aAggs[pExpr->functionId].status);
       if (!hasMultioutput) {
         break;
       }
@@ -2554,7 +2554,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
 
     if (pQuery->stableQuery) {  // todo refactor
       SExprInfo*   pExprInfo = &pTableScanInfo->pExpr[0];
-      int16_t      tagId = (int16_t)pExprInfo->base.arg->argValue.i64;
+      int16_t      tagId = (int16_t)pExprInfo->base.param[0].i64;
       SColumnInfo* pColInfo = doGetTagColumnInfoById(pQuery->tagColList, pQuery->numOfTags, tagId);
 
       // compare tag first
@@ -2781,7 +2781,7 @@ void setTagValue(SOperatorInfo* pOperatorInfo, void *pTable, SQLFunctionCtx* pCt
   if (pQuery->numOfOutput == 1 && pExprInfo->base.functionId == TSDB_FUNC_TS_COMP && pQuery->stableQuery) {
     assert(pExprInfo->base.numOfParams == 1);
 
-    int16_t      tagColId = (int16_t)pExprInfo->base.arg->argValue.i64;
+    int16_t      tagColId = (int16_t)pExprInfo->base.param[0].i64;
     SColumnInfo* pColInfo = doGetTagColumnInfoById(pQuery->tagColList, pQuery->numOfTags, tagColId);
 
     doSetTagValueInParam(pTable, tagColId, &pCtx[0].tag, pColInfo->type, pColInfo->bytes);
@@ -2800,16 +2800,16 @@ void setTagValue(SOperatorInfo* pOperatorInfo, void *pTable, SQLFunctionCtx* pCt
       }
 
       // todo use tag column index to optimize performance
-      doSetTagValueInParam(pTable, pLocalExprInfo->base.colInfo.colId, &pCtx[idx].tag, pLocalExprInfo->type,
-                           pLocalExprInfo->bytes);
+      doSetTagValueInParam(pTable, pLocalExprInfo->base.colInfo.colId, &pCtx[idx].tag, pLocalExprInfo->base.resType,
+                           pLocalExprInfo->base.resBytes);
 
-      if (IS_NUMERIC_TYPE(pLocalExprInfo->type) || pLocalExprInfo->type == TSDB_DATA_TYPE_BOOL) {
-        memcpy(pRuntimeEnv->tagVal + offset, &pCtx[idx].tag.i64, pLocalExprInfo->bytes);
+      if (IS_NUMERIC_TYPE(pLocalExprInfo->base.resType) || pLocalExprInfo->base.resType == TSDB_DATA_TYPE_BOOL) {
+        memcpy(pRuntimeEnv->tagVal + offset, &pCtx[idx].tag.i64, pLocalExprInfo->base.resBytes);
       } else {
         memcpy(pRuntimeEnv->tagVal + offset, pCtx[idx].tag.pz, pCtx[idx].tag.nLen);
       }
 
-      offset += pLocalExprInfo->bytes;
+      offset += pLocalExprInfo->base.resBytes;
     }
 
     //todo : use index to avoid iterator all possible output columns
@@ -2901,25 +2901,25 @@ void UNUSED_FUNC displayInterResult(tFilePage **pdata, SQueryRuntimeEnv* pRuntim
   for (int32_t j = 0; j < numOfRows; ++j) {
     for (int32_t i = 0; i < numOfCols; ++i) {
 
-      switch (pQuery->pExpr1[i].type) {
+      switch (pQuery->pExpr1[i].base.resType) {
         case TSDB_DATA_TYPE_BINARY: {
-          int32_t type = pQuery->pExpr1[i].type;
-          printBinaryData(pQuery->pExpr1[i].base.functionId, pdata[i]->data + pQuery->pExpr1[i].bytes * j,
+          int32_t type = pQuery->pExpr1[i].base.resType;
+          printBinaryData(pQuery->pExpr1[i].base.functionId, pdata[i]->data + pQuery->pExpr1[i].base.resBytes * j,
                           type);
           break;
         }
         case TSDB_DATA_TYPE_TIMESTAMP:
         case TSDB_DATA_TYPE_BIGINT:
-          printf("%" PRId64 "\t", *(int64_t *)(pdata[i]->data + pQuery->pExpr1[i].bytes * j));
+          printf("%" PRId64 "\t", *(int64_t *)(pdata[i]->data + pQuery->pExpr1[i].base.resBytes * j));
           break;
         case TSDB_DATA_TYPE_INT:
-          printf("%d\t", *(int32_t *)(pdata[i]->data + pQuery->pExpr1[i].bytes * j));
+          printf("%d\t", *(int32_t *)(pdata[i]->data + pQuery->pExpr1[i].base.resBytes * j));
           break;
         case TSDB_DATA_TYPE_FLOAT:
-          printf("%f\t", *(float *)(pdata[i]->data + pQuery->pExpr1[i].bytes * j));
+          printf("%f\t", *(float *)(pdata[i]->data + pQuery->pExpr1[i].base.resBytes * j));
           break;
         case TSDB_DATA_TYPE_DOUBLE:
-          printf("%lf\t", *(double *)(pdata[i]->data + pQuery->pExpr1[i].bytes * j));
+          printf("%lf\t", *(double *)(pdata[i]->data + pQuery->pExpr1[i].base.resBytes * j));
           break;
       }
     }
@@ -3298,13 +3298,13 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLF
 void setCtxTagForJoin(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, SExprInfo* pExprInfo, void* pTable) {
   SQuery* pQuery = pRuntimeEnv->pQuery;
 
-  SSqlFuncMsg* pFuncMsg = &pExprInfo->base;
+  SSqlExpr* pExpr = &pExprInfo->base;
   if (pQuery->stableQuery && (pRuntimeEnv->pTsBuf != NULL) &&
-      (pFuncMsg->functionId == TSDB_FUNC_TS || pFuncMsg->functionId == TSDB_FUNC_PRJ) &&
-      (pFuncMsg->colInfo.colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
-    assert(pFuncMsg->numOfParams == 1);
+      (pExpr->functionId == TSDB_FUNC_TS || pExpr->functionId == TSDB_FUNC_PRJ) &&
+      (pExpr->colInfo.colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX)) {
+    assert(pExpr->numOfParams == 1);
 
-    int16_t      tagColId = (int16_t)pExprInfo->base.arg->argValue.i64;
+    int16_t      tagColId = (int16_t)pExprInfo->base.param[0].i64;
     SColumnInfo* pColInfo = doGetTagColumnInfoById(pQuery->tagColList, pQuery->numOfTags, tagColId);
 
     doSetTagValueInParam(pTable, tagColId, &pCtx->tag, pColInfo->type, pColInfo->bytes);
@@ -3312,10 +3312,10 @@ void setCtxTagForJoin(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, SExpr
     int16_t tagType = pCtx[0].tag.nType;
     if (tagType == TSDB_DATA_TYPE_BINARY || tagType == TSDB_DATA_TYPE_NCHAR) {
       qDebug("QInfo:%p set tag value for join comparison, colId:%" PRId64 ", val:%s", pRuntimeEnv->qinfo,
-             pExprInfo->base.arg->argValue.i64, pCtx[0].tag.pz);
+             pExprInfo->base.param[0].i64, pCtx[0].tag.pz);
     } else {
       qDebug("QInfo:%p set tag value for join comparison, colId:%" PRId64 ", val:%" PRId64, pRuntimeEnv->qinfo,
-             pExprInfo->base.arg->argValue.i64, pCtx[0].tag.i64);
+             pExprInfo->base.param[0].i64, pCtx[0].tag.i64);
     }
   }
 }
@@ -3362,17 +3362,17 @@ int32_t setTimestampListJoinInfo(SQueryRuntimeEnv* pRuntimeEnv, tVariant* pTag, 
   return 0;
 }
 
-void setParamForStableStddev(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput, SExprInfo* pExpr) {
+void setParamForStableStddev(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput, SExprInfo* pExprInfo) {
   SQuery* pQuery = pRuntimeEnv->pQuery;
 
   int32_t numOfExprs = pQuery->numOfOutput;
   for(int32_t i = 0; i < numOfExprs; ++i) {
-    SExprInfo* pExprInfo = &(pExpr[i]);
+    SExprInfo* pExprInfo1 = &(pExprInfo[i]);
     if (pExprInfo->base.functionId != TSDB_FUNC_STDDEV_DST) {
       continue;
     }
 
-    SSqlFuncMsg* pFuncMsg = &pExprInfo->base;
+    SSqlExpr* pExpr = &pExprInfo1->base;
 
     pCtx[i].param[0].arr = NULL;
     pCtx[i].param[0].nType = TSDB_DATA_TYPE_INT;  // avoid freeing the memory by setting the type to be int
@@ -3385,7 +3385,7 @@ void setParamForStableStddev(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
         int32_t numOfCols = (int32_t)taosArrayGetSize(p->pResult);
         for (int32_t k = 0; k < numOfCols; ++k) {
           SStddevInterResult* pres = taosArrayGet(p->pResult, k);
-          if (pres->colId == pFuncMsg->colInfo.colId) {
+          if (pres->colId == pExpr->colInfo.colId) {
             pCtx[i].param[0].arr = pres->pResult;
             break;
           }
@@ -3943,15 +3943,15 @@ static SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, in
   for(int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExprInfo   = &pExpr[i];
 
-    pFillCol[i].col.bytes  = pExprInfo->bytes;
-    pFillCol[i].col.type   = (int8_t)pExprInfo->type;
+    pFillCol[i].col.bytes  = pExprInfo->base.resBytes;
+    pFillCol[i].col.type   = (int8_t)pExprInfo->base.resBytes;
     pFillCol[i].col.offset = offset;
     pFillCol[i].tagIndex   = -2;
     pFillCol[i].flag       = TSDB_COL_NORMAL;    // always be ta normal column for table query
     pFillCol[i].functionId = pExprInfo->base.functionId;
     pFillCol[i].fillVal.i  = fillVal[i];
 
-    offset += pExprInfo->bytes;
+    offset += pExprInfo->base.resBytes;
   }
 
   return pFillCol;
@@ -5211,12 +5211,12 @@ static SSDataBlock* doTagScan(void* param) {
     assert(pQuery->numOfOutput == 1);
 
     SExprInfo* pExprInfo = &pOperator->pExpr[0];
-    int32_t rsize = pExprInfo->bytes;
+    int32_t rsize = pExprInfo->base.resBytes;
 
     count = 0;
 
-    int16_t bytes = pExprInfo->bytes;
-    int16_t type  = pExprInfo->type;
+    int16_t bytes = pExprInfo->base.resBytes;
+    int16_t type  = pExprInfo->base.resType;
 
     for(int32_t i = 0; i < pQuery->numOfTags; ++i) {
       if (pQuery->tagColList[i].colId == pExprInfo->base.colInfo.colId) {
@@ -5287,8 +5287,8 @@ static SSDataBlock* doTagScan(void* param) {
         }
 
         SColumnInfoData* pColInfo = taosArrayGet(pRes->pDataBlock, j);
-        type  = pExprInfo[j].type;
-        bytes = pExprInfo[j].bytes;
+        type  = pExprInfo[j].base.resType;
+        bytes = pExprInfo[j].base.resBytes;
 
         if (pExprInfo[j].base.colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
           data = tsdbGetTableName(item->pTable);
@@ -5296,7 +5296,7 @@ static SSDataBlock* doTagScan(void* param) {
           data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.colInfo.colId, type, bytes);
         }
 
-        dst  = pColInfo->pData + count * pExprInfo[j].bytes;
+        dst  = pColInfo->pData + count * pExprInfo[j].base.resBytes;
         doSetTagValueToResultBuf(dst, data, type, bytes);
       }
 
@@ -5339,30 +5339,30 @@ SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInf
   return pOperator;
 }
 
-static int32_t getColumnIndexInSource(SQueryTableMsg *pQueryMsg, SSqlFuncMsg *pExprMsg, SColumnInfo* pTagCols) {
+static int32_t getColumnIndexInSource(SQueriedTableInfo *pTableInfo, SSqlExpr *pExpr, SColumnInfo* pTagCols) {
   int32_t j = 0;
 
-  if (TSDB_COL_IS_TAG(pExprMsg->colInfo.flag)) {
-    if (pExprMsg->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
+  if (TSDB_COL_IS_TAG(pExpr->colInfo.flag)) {
+    if (pExpr->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) {
       return TSDB_TBNAME_COLUMN_INDEX;
-    } else if (pExprMsg->colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
+    } else if (pExpr->colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX) {
       return TSDB_BLOCK_DIST_COLUMN_INDEX;     
     }
     
 
-    while(j < pQueryMsg->numOfTags) {
-      if (pExprMsg->colInfo.colId == pTagCols[j].colId) {
+    while(j < pTableInfo->numOfTags) {
+      if (pExpr->colInfo.colId == pTagCols[j].colId) {
         return j;
       }
 
       j += 1;
     }
 
-  } else if (TSDB_COL_IS_UD_COL(pExprMsg->colInfo.flag)) {  // user specified column data
+  } else if (TSDB_COL_IS_UD_COL(pExpr->colInfo.flag)) {  // user specified column data
     return TSDB_UD_COLUMN_INDEX;
   } else {
-    while (j < pQueryMsg->numOfCols) {
-      if (pExprMsg->colInfo.colId == pQueryMsg->colList[j].colId) {
+    while (j < pTableInfo->numOfCols) {
+      if (pExpr->colInfo.colId == pTableInfo->colList[j].colId) {
         return j;
       }
 
@@ -5373,8 +5373,8 @@ static int32_t getColumnIndexInSource(SQueryTableMsg *pQueryMsg, SSqlFuncMsg *pE
   return INT32_MIN;  // return a less than TSDB_TBNAME_COLUMN_INDEX value
 }
 
-bool validateExprColumnInfo(SQueryTableMsg *pQueryMsg, SSqlFuncMsg *pExprMsg, SColumnInfo* pTagCols) {
-  int32_t j = getColumnIndexInSource(pQueryMsg, pExprMsg, pTagCols);
+bool validateExprColumnInfo(SQueriedTableInfo *pTableInfo, SSqlExpr *pExpr, SColumnInfo* pTagCols) {
+  int32_t j = getColumnIndexInSource(pTableInfo, pExpr, pTagCols);
   return j != INT32_MIN;
 }
 
@@ -5413,21 +5413,21 @@ static bool validateQueryMsg(SQueryTableMsg *pQueryMsg) {
   return true;
 }
 
-static bool validateQuerySourceCols(SQueryTableMsg *pQueryMsg, SSqlFuncMsg** pExprMsg, SColumnInfo* pTagCols) {
-  int32_t numOfTotal = pQueryMsg->numOfCols + pQueryMsg->numOfTags;
-  if (pQueryMsg->numOfCols < 0 || pQueryMsg->numOfTags < 0 || numOfTotal > TSDB_MAX_COLUMNS) {
-    qError("qmsg:%p illegal value of numOfCols %d numOfTags:%d", pQueryMsg, pQueryMsg->numOfCols, pQueryMsg->numOfTags);
+static UNUSED_FUNC bool validateQueryTableCols(SQueriedTableInfo* pTableInfo, SSqlExpr** pExpr, int32_t numOfOutput,
+                                   SColumnInfo* pTagCols, void* pMsg) {
+  int32_t numOfTotal = pTableInfo->numOfCols + pTableInfo->numOfTags;
+  if (pTableInfo->numOfCols < 0 || pTableInfo->numOfTags < 0 || numOfTotal > TSDB_MAX_COLUMNS) {
+    qError("qmsg:%p illegal value of numOfCols %d numOfTags:%d", pMsg, pTableInfo->numOfCols, pTableInfo->numOfTags);
     return false;
   }
 
-  if (numOfTotal == 0) {
-    for(int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
-      SSqlFuncMsg* pFuncMsg = pExprMsg[i];
-
-      if ((pFuncMsg->functionId == TSDB_FUNC_TAGPRJ) ||
-          (pFuncMsg->functionId == TSDB_FUNC_TID_TAG && pFuncMsg->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) ||
-          (pFuncMsg->functionId == TSDB_FUNC_COUNT && pFuncMsg->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) ||
-          (pFuncMsg->functionId == TSDB_FUNC_BLKINFO)) {
+  if (numOfTotal == 0) {  // table total columns are not required.
+    for(int32_t i = 0; i < numOfOutput; ++i) {
+      SSqlExpr* p = pExpr[i];
+      if ((p->functionId == TSDB_FUNC_TAGPRJ) ||
+          (p->functionId == TSDB_FUNC_TID_TAG && p->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) ||
+          (p->functionId == TSDB_FUNC_COUNT && p->colInfo.colId == TSDB_TBNAME_COLUMN_INDEX) ||
+          (p->functionId == TSDB_FUNC_BLKINFO)) {
         continue;
       }
 
@@ -5435,8 +5435,8 @@ static bool validateQuerySourceCols(SQueryTableMsg *pQueryMsg, SSqlFuncMsg** pEx
     }
   }
 
-  for(int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
-    if (!validateExprColumnInfo(pQueryMsg, pExprMsg[i], pTagCols)) {
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    if (!validateExprColumnInfo(pTableInfo, pExpr[i], pTagCols)) {
       return TSDB_CODE_QRY_INVALID_MSG;
     }
   }
@@ -5569,38 +5569,41 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     }
   }
 
-  param->pExprMsg = calloc(pQueryMsg->numOfOutput, POINTER_BYTES);
-  if (param->pExprMsg == NULL) {
+  param->pExpr = calloc(pQueryMsg->numOfOutput, POINTER_BYTES);
+  if (param->pExpr == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _cleanup;
   }
 
-  SSqlFuncMsg *pExprMsg = (SSqlFuncMsg *)pMsg;
+  SSqlExpr *pExprMsg = (SSqlExpr *)pMsg;
 
   for (int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
-    param->pExprMsg[i] = pExprMsg;
+    param->pExpr[i] = pExprMsg;
 
     pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
     pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
     pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
-    pExprMsg->colType       = htons(pExprMsg->colType);
     pExprMsg->colBytes      = htons(pExprMsg->colBytes);
+    pExprMsg->colType       = htons(pExprMsg->colType);
+
+    pExprMsg->resType       = htons(pExprMsg->resType);
+    pExprMsg->resBytes      = htons(pExprMsg->resBytes);
 
     pExprMsg->functionId    = htons(pExprMsg->functionId);
     pExprMsg->numOfParams   = htons(pExprMsg->numOfParams);
     pExprMsg->resColId      = htons(pExprMsg->resColId);
 
-    pMsg += sizeof(SSqlFuncMsg);
+    pMsg += sizeof(SSqlExpr);
 
     for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
-      pExprMsg->arg[j].argType = htons(pExprMsg->arg[j].argType);
-      pExprMsg->arg[j].argBytes = htons(pExprMsg->arg[j].argBytes);
+      pExprMsg->param[j].nType = htons(pExprMsg->param[j].nType);
+      pExprMsg->param[j].nLen = htons(pExprMsg->param[j].nLen);
 
-      if (pExprMsg->arg[j].argType == TSDB_DATA_TYPE_BINARY) {
-        pExprMsg->arg[j].argValue.pz = pMsg;
-        pMsg += pExprMsg->arg[j].argBytes;  // one more for the string terminated char.
+      if (pExprMsg->param[j].nType == TSDB_DATA_TYPE_BINARY) {
+        pExprMsg->param[j].pz = pMsg;
+        pMsg += pExprMsg->param[j].nLen;  // one more for the string terminated char.
       } else {
-        pExprMsg->arg[j].argValue.i64 = htobe64(pExprMsg->arg[j].argValue.i64);
+        pExprMsg->param[j].i64 = htobe64(pExprMsg->param[j].i64);
       }
     }
 
@@ -5612,36 +5615,38 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       }
     }
 
-    pExprMsg = (SSqlFuncMsg *)pMsg;
+    pExprMsg = (SSqlExpr *)pMsg;
   }
 
   if (pQueryMsg->secondStageOutput) {
-    pExprMsg = (SSqlFuncMsg *)pMsg;
-    param->pSecExprMsg = calloc(pQueryMsg->secondStageOutput, POINTER_BYTES);
+    pExprMsg = (SSqlExpr *)pMsg;
+    param->pSecExpr = calloc(pQueryMsg->secondStageOutput, POINTER_BYTES);
 
     for (int32_t i = 0; i < pQueryMsg->secondStageOutput; ++i) {
-      param->pSecExprMsg[i] = pExprMsg;
+      param->pSecExpr[i] = pExprMsg;
 
       pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
       pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
       pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
-      pExprMsg->colType       = htons(pExprMsg->colType);
+      pExprMsg->resType       = htons(pExprMsg->resType);
+      pExprMsg->resBytes      = htons(pExprMsg->resBytes);
       pExprMsg->colBytes      = htons(pExprMsg->colBytes);
+      pExprMsg->colType       = htons(pExprMsg->colType);
 
       pExprMsg->functionId = htons(pExprMsg->functionId);
       pExprMsg->numOfParams = htons(pExprMsg->numOfParams);
 
-      pMsg += sizeof(SSqlFuncMsg);
+      pMsg += sizeof(SSqlExpr);
 
       for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
-        pExprMsg->arg[j].argType = htons(pExprMsg->arg[j].argType);
-        pExprMsg->arg[j].argBytes = htons(pExprMsg->arg[j].argBytes);
+        pExprMsg->param[j].nType = htons(pExprMsg->param[j].nType);
+        pExprMsg->param[j].nLen = htons(pExprMsg->param[j].nLen);
 
-        if (pExprMsg->arg[j].argType == TSDB_DATA_TYPE_BINARY) {
-          pExprMsg->arg[j].argValue.pz = pMsg;
-          pMsg += pExprMsg->arg[j].argBytes;  // one more for the string terminated char.
+        if (pExprMsg->param[j].nType == TSDB_DATA_TYPE_BINARY) {
+          pExprMsg->param[j].pz = pMsg;
+          pMsg += pExprMsg->param[j].nLen;  // one more for the string terminated char.
         } else {
-          pExprMsg->arg[j].argValue.i64 = htobe64(pExprMsg->arg[j].argValue.i64);
+          pExprMsg->param[j].i64 = htobe64(pExprMsg->param[j].i64);
         }
       }
 
@@ -5653,7 +5658,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
         }
       }
 
-      pExprMsg = (SSqlFuncMsg *)pMsg;
+      pExprMsg = (SSqlExpr *)pMsg;
     }
   }
 
@@ -5757,7 +5762,8 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
 
   param->sql = strndup(pMsg, pQueryMsg->sqlstrLen);
 
-  if (!validateQuerySourceCols(pQueryMsg, param->pExprMsg, param->pTagColumnInfo)) {
+  SQueriedTableInfo info = { .numOfTags = pQueryMsg->numOfTags, .numOfCols = pQueryMsg->numOfCols, .colList = pQueryMsg->colList};
+  if (!validateQueryTableCols(&info, param->pExpr, pQueryMsg->numOfOutput, param->pTagColumnInfo, pQueryMsg)) {
     code = TSDB_CODE_QRY_INVALID_MSG;
     goto _cleanup;
   }
@@ -5781,15 +5787,15 @@ static int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQuer
 
   tExprNode* pExprNode = NULL;
   TRY(TSDB_MAX_TAG_CONDITIONS) {
-    pExprNode = exprTreeFromBinary(pArithExprInfo->base.arg[0].argValue.pz, pArithExprInfo->base.arg[0].argBytes);
+    pExprNode = exprTreeFromBinary(pArithExprInfo->base.param[0].pz, pArithExprInfo->base.param[0].nLen);
   } CATCH( code ) {
     CLEANUP_EXECUTE();
-    qError("qmsg:%p failed to create arithmetic expression string from:%s, reason: %s", pQueryMsg, pArithExprInfo->base.arg[0].argValue.pz, tstrerror(code));
+    qError("qmsg:%p failed to create arithmetic expression string from:%s, reason: %s", pQueryMsg, pArithExprInfo->base.param[0].pz, tstrerror(code));
     return code;
   } END_TRY
 
   if (pExprNode == NULL) {
-    qError("qmsg:%p failed to create arithmetic expression string from:%s", pQueryMsg, pArithExprInfo->base.arg[0].argValue.pz);
+    qError("qmsg:%p failed to create arithmetic expression string from:%s", pQueryMsg, pArithExprInfo->base.param[0].pz);
     return TSDB_CODE_QRY_APP_ERROR;
   }
 
@@ -5797,18 +5803,19 @@ static int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQuer
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t updateOutputBufForTopBotQuery(SQueryTableMsg* pQueryMsg, SColumnInfo* pTagCols, SExprInfo* pExprs, int32_t numOfOutput, int32_t tagLen, bool superTable) {
+
+static int32_t updateOutputBufForTopBotQuery(SQueriedTableInfo* pTableInfo, SColumnInfo* pTagCols, SExprInfo* pExprs, int32_t numOfOutput, int32_t tagLen, bool superTable) {
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int16_t functId = pExprs[i].base.functionId;
 
     if (functId == TSDB_FUNC_TOP || functId == TSDB_FUNC_BOTTOM) {
-      int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].base, pTagCols);
-      if (j < 0 || j >= pQueryMsg->numOfCols) {
+      int32_t j = getColumnIndexInSource(pTableInfo, &pExprs[i].base, pTagCols);
+      if (j < 0 || j >= pTableInfo->numOfCols) {
         return TSDB_CODE_QRY_INVALID_MSG;
       } else {
-        SColumnInfo* pCol = &pQueryMsg->colList[j];
-        int32_t ret = getResultDataInfo(pCol->type, pCol->bytes, functId, (int32_t)pExprs[i].base.arg[0].argValue.i64,
-                                        &pExprs[i].type, &pExprs[i].bytes, &pExprs[i].interBytes, tagLen, superTable);
+        SColumnInfo* pCol = &pTableInfo->colList[j];
+        int32_t ret = getResultDataInfo(pCol->type, pCol->bytes, functId, (int32_t)pExprs[i].base.param[0].i64,
+                                        &pExprs[i].base.resType, &pExprs[i].base.resBytes, &pExprs[i].base.interBytes, tagLen, superTable);
         assert(ret == TSDB_CODE_SUCCESS);
       }
     }
@@ -5818,16 +5825,8 @@ static int32_t updateOutputBufForTopBotQuery(SQueryTableMsg* pQueryMsg, SColumnI
 }
 
 // TODO tag length should be passed from client
-typedef struct {
-  int32_t numOfOutput;
-  int32_t numOfTags;
-  int32_t numOfCols;
-  SColumnInfo* colList;
-  int32_t queryTest;
-} SQueriedTableMeta;
-
-int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutput, SExprInfo** pExprInfo,
-                                   SSqlFuncMsg** pExprMsg, SColumnInfo* pTagCols, bool isSuperTable) {
+int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExprInfo** pExprInfo,
+                        SSqlExpr** pExprMsg, SColumnInfo* pTagCols, int32_t queryType, void* pMsg) {
   *pExprInfo = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -5836,19 +5835,18 @@ int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutpu
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
-//  bool    isSuperTable = QUERY_IS_STABLE_QUERY(pQueryMsg->queryType);
+  bool    isSuperTable = QUERY_IS_STABLE_QUERY(queryType);
   int16_t tagLen = 0;
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pExprs[i].base = *pExprMsg[i];
-    pExprs[i].bytes = 0;
 
     int16_t type = 0;
     int16_t bytes = 0;
 
     // parse the arithmetic expression
     if (pExprs[i].base.functionId == TSDB_FUNC_ARITHM) {
-      code = buildArithmeticExprFromMsg(&pExprs[i], pQueryMsg);
+      code = buildArithmeticExprFromMsg(&pExprs[i], pMsg);
 
       if (code != TSDB_CODE_SUCCESS) {
         tfree(pExprs);
@@ -5865,30 +5863,29 @@ int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutpu
       SSchema s = tGetBlockDistColumnSchema(); 
       type = s.type;
       bytes = s.bytes;
-    } else if (pExprs[i].base.colInfo.colId <= TSDB_UD_COLUMN_INDEX) {
+    } else if (pExprs[i].base.colInfo.colId <= TSDB_UD_COLUMN_INDEX && pExprs[i].base.colInfo.colId > TSDB_RES_COL_ID) {
       // it is a user-defined constant value column
       assert(pExprs[i].base.functionId == TSDB_FUNC_PRJ);
 
-      type = pExprs[i].base.arg[1].argType;
-      bytes = pExprs[i].base.arg[1].argBytes;
-
+      type = pExprs[i].base.param[1].nType;
+      bytes = pExprs[i].base.param[1].nLen;
       if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
         bytes += VARSTR_HEADER_SIZE;
       }
     } else {
-      int32_t j = getColumnIndexInSource(pQueryMsg, &pExprs[i].base, pTagCols);
+      int32_t j = getColumnIndexInSource(pTableInfo, &pExprs[i].base, pTagCols);
       if (TSDB_COL_IS_TAG(pExprs[i].base.colInfo.flag)) {
-        if (j < TSDB_BLOCK_DIST_COLUMN_INDEX || j >= pQueryMsg->numOfTags) {
+        if (j < TSDB_BLOCK_DIST_COLUMN_INDEX || j >= pTableInfo->numOfTags) {
           return TSDB_CODE_QRY_INVALID_MSG;
         }
       } else {
-        if (j < PRIMARYKEY_TIMESTAMP_COL_INDEX || j >= pQueryMsg->numOfCols) {
+        if (j < PRIMARYKEY_TIMESTAMP_COL_INDEX || j >= pTableInfo->numOfCols) {
           return TSDB_CODE_QRY_INVALID_MSG;
         }
       }
 
       if (pExprs[i].base.colInfo.colId != TSDB_TBNAME_COLUMN_INDEX && j >= 0) {
-        SColumnInfo* pCol = (TSDB_COL_IS_TAG(pExprs[i].base.colInfo.flag))? &pTagCols[j]:&pQueryMsg->colList[j];
+        SColumnInfo* pCol = (TSDB_COL_IS_TAG(pExprs[i].base.colInfo.flag))? &pTagCols[j]:&pTableInfo->colList[j];
         type = pCol->type;
         bytes = pCol->bytes;
       } else {
@@ -5899,35 +5896,35 @@ int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutpu
       }
     }
 
-    int32_t param = (int32_t)pExprs[i].base.arg[0].argValue.i64;
+    int32_t param = (int32_t)pExprs[i].base.param[0].i64;
     if (pExprs[i].base.functionId != TSDB_FUNC_ARITHM &&
-       (type != pExprs[i].base.colType || bytes != pExprs[i].base.colBytes)) {
+       (type != pExprs[i].base.resType || bytes != pExprs[i].base.resBytes)) {
       tfree(pExprs);
       return TSDB_CODE_QRY_INVALID_MSG;
     }
 
-    if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].type, &pExprs[i].bytes,
-                          &pExprs[i].interBytes, 0, isSuperTable) != TSDB_CODE_SUCCESS) {
+    if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType, &pExprs[i].base.resBytes,
+                          &pExprs[i].base.interBytes, 0, isSuperTable) != TSDB_CODE_SUCCESS) {
       tfree(pExprs);
       return TSDB_CODE_QRY_INVALID_MSG;
     }
 
     if (pExprs[i].base.functionId == TSDB_FUNC_TAG_DUMMY || pExprs[i].base.functionId == TSDB_FUNC_TS_DUMMY) {
-      tagLen += pExprs[i].bytes;
+      tagLen += pExprs[i].base.resBytes;
     }
 
-    assert(isValidDataType(pExprs[i].type));
+    assert(isValidDataType(pExprs[i].base.resType));
   }
 
   // the tag length is affected by other tag columns, so this should be update.
-  updateOutputBufForTopBotQuery(pQueryMsg, pTagCols, pExprs, numOfOutput, tagLen, isSuperTable);
+  updateOutputBufForTopBotQuery(pTableInfo, pTagCols, pExprs, numOfOutput, tagLen, isSuperTable);
 
   *pExprInfo = pExprs;
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo,
-    SSqlFuncMsg **pExprMsg, SExprInfo *prevExpr) {
+int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutput, SExprInfo** pExprInfo,
+                                           SSqlExpr** pExpr, SExprInfo* prevExpr) {
   *pExprInfo = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -5939,8 +5936,8 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t nu
   bool isSuperTable = QUERY_IS_STABLE_QUERY(pQueryMsg->queryType);
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    pExprs[i].base = *pExprMsg[i];
-    pExprs[i].bytes = 0;
+    pExprs[i].base = *pExpr[i];
+    pExprs[i].base.resType = 0;
 
     int16_t type = 0;
     int16_t bytes = 0;
@@ -5960,18 +5957,18 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t nu
       int32_t index = pExprs[i].base.colInfo.colIndex;
       assert(prevExpr[index].base.resColId == pExprs[i].base.colInfo.colId);
 
-      type  = prevExpr[index].type;
-      bytes = prevExpr[index].bytes;
+      type  = prevExpr[index].base.resType;
+      bytes = prevExpr[index].base.resBytes;
     }
 
-    int32_t param = (int32_t)pExprs[i].base.arg[0].argValue.i64;
-    if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].type, &pExprs[i].bytes,
-                          &pExprs[i].interBytes, 0, isSuperTable) != TSDB_CODE_SUCCESS) {
+    int32_t param = (int32_t)pExprs[i].base.param[0].i64;
+    if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].base.resType, &pExprs[i].base.resBytes,
+                          &pExprs[i].base.interBytes, 0, isSuperTable) != TSDB_CODE_SUCCESS) {
       tfree(pExprs);
       return TSDB_CODE_QRY_INVALID_MSG;
     }
 
-    assert(isValidDataType(pExprs[i].type));
+    assert(isValidDataType(pExprs[i].base.resType));
   }
 
   *pExprInfo = pExprs;
@@ -6062,7 +6059,7 @@ static void doUpdateExprColumnIndex(SQuery *pQuery) {
   assert(pQuery->pExpr1 != NULL && pQuery != NULL);
 
   for (int32_t k = 0; k < pQuery->numOfOutput; ++k) {
-    SSqlFuncMsg *pSqlExprMsg = &pQuery->pExpr1[k].base;
+    SSqlExpr *pSqlExprMsg = &pQuery->pExpr1[k].base;
     if (pSqlExprMsg->functionId == TSDB_FUNC_ARITHM) {
       continue;
     }
@@ -6179,12 +6176,12 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
 
   // calculate the result row size
   for (int16_t col = 0; col < numOfOutput; ++col) {
-    assert(pExprs[col].bytes > 0);
-    pQuery->resultRowSize += pExprs[col].bytes;
+    assert(pExprs[col].base.resBytes > 0);
+    pQuery->resultRowSize += pExprs[col].base.resBytes;
 
     // keep the tag length
     if (TSDB_COL_IS_TAG(pExprs[col].base.colInfo.flag)) {
-      pQuery->tagLen += pExprs[col].bytes;
+      pQuery->tagLen += pExprs[col].base.resBytes;
     }
   }
 

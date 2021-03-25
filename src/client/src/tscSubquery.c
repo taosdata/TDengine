@@ -1584,7 +1584,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
   SSqlCmd *   pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   
-  pSql->res.qhandle = 0x1;
+  pSql->res.qid = 0x1;
   assert(pSql->res.numOfRows == 0);
 
   if (pSql->pSubs == NULL) {
@@ -2179,7 +2179,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   SColumnModel     *pModel = NULL;
   SColumnModel     *pFinalModel = NULL;
 
-  pRes->qhandle = 0x1;  // hack the qhandle check
+  pRes->qid = 0x1;  // hack the qhandle check
   
   const uint32_t nBufferSize = (1u << 16u);  // 64KB
   
@@ -2727,7 +2727,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   tscDebug("%p sub:%p query complete, ep:%s, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSql, pSql,
              pVgroup->epAddr[0].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
 
-  if (pSql->res.qhandle == 0) { // qhandle is NULL, code is TSDB_CODE_SUCCESS means no results generated from this vnode
+  if (pSql->res.qid == 0) { // qhandle is 0, code is TSDB_CODE_SUCCESS means no results generated from this vnode
     tscRetrieveFromDnodeCallBack(param, pSql, 0);
   } else {
     taos_fetch_rows_a(tres, tscRetrieveFromDnodeCallBack, param);
