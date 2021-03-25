@@ -5,11 +5,13 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.io.Serializable;
 import java.sql.*;
 
 public class RestfulPreparedStatementTest {
-    private static final String host = "127.0.0.1";
-    //    private static final String host = "master";
+    //    private static final String host = "127.0.0.1";
+    private static final String host = "master";
     private static Connection conn;
     private static final String sql_insert = "insert into t1 values(?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     private static PreparedStatement pstmt_insert;
@@ -38,48 +40,73 @@ public class RestfulPreparedStatementTest {
     @Test
     public void executeUpdate() throws SQLException {
         pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
-        pstmt_insert.setFloat(2, 3.14f);
+        pstmt_insert.setFloat(4, 3.14f);
         int result = pstmt_insert.executeUpdate();
         Assert.assertEquals(1, result);
     }
 
     @Test
     public void setNull() throws SQLException {
-        pstmt_insert.setNull(2, Types.FLOAT);
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setNull(2, Types.INTEGER);
+        int result = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, result);
     }
 
     @Test
     public void setBoolean() throws SQLException {
-        pstmt_insert.setBoolean(2, true);
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setBoolean(8, true);
+        int ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void setByte() throws SQLException {
-        pstmt_insert.setByte(1, (byte) 0x001);
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setByte(7, (byte) 0x001);
+        int ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
     }
 
     @Test
-    public void setShort() {
-
+    public void setShort() throws SQLException {
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setShort(6, (short) 2);
+        int ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
     }
 
     @Test
-    public void setInt() {
-
+    public void setInt() throws SQLException {
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setInt(2, 10086);
+        int ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
     }
 
     @Test
-    public void setLong() {
-
+    public void setLong() throws SQLException {
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setLong(3, Long.MAX_VALUE);
+        int ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
     }
 
     @Test
-    public void setFloat() {
-
+    public void setFloat() throws SQLException {
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setFloat(4, 3.14f);
+        int ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
     }
 
     @Test
-    public void setDouble() {
+    public void setDouble() throws SQLException {
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setDouble(5, 3.14444);
+        int ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -88,12 +115,56 @@ public class RestfulPreparedStatementTest {
     }
 
     @Test
-    public void setString() {
+    public void setString() throws SQLException {
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setString(10, "aaaa");
+        boolean execute = pstmt_insert.execute();
+        Assert.assertFalse(execute);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setString(10, new Person("john", 33, true).toString());
+        Assert.assertFalse(pstmt_insert.execute());
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setString(10, new Person("john", 33, true).toString().replaceAll("'", "\""));
+        Assert.assertFalse(pstmt_insert.execute());
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
-    public void setBytes() throws SQLException {
-        pstmt_insert.setBytes(1, new byte[]{});
+    class Person implements Serializable {
+        String name;
+        int age;
+        boolean sex;
+
+        public Person(String name, int age, boolean sex) {
+            this.name = name;
+            this.age = age;
+            this.sex = sex;
+        }
+
+        @Override
+        public String toString() {
+            return "Person{" +
+                    "name='" + name + '\'' +
+                    ", age=" + age +
+                    ", sex=" + sex +
+                    '}';
+        }
+    }
+
+    @Test
+    public void setBytes() throws SQLException, IOException {
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+
+//        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+//        ObjectOutputStream oos = new ObjectOutputStream(baos);
+//        oos.writeObject(new Person("john", 33, true));
+//        oos.flush();
+//        byte[] bytes = baos.toByteArray();
+//        pstmt_insert.setBytes(9, bytes);
+
+        pstmt_insert.setBytes(9, new Person("john", 33, true).toString().getBytes());
+        int ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -107,8 +178,10 @@ public class RestfulPreparedStatementTest {
     }
 
     @Test
-    public void setTimestamp() {
-        //TODO
+    public void setTimestamp() throws SQLException {
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        int ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -122,24 +195,69 @@ public class RestfulPreparedStatementTest {
     }
 
     @Test
-    public void clearParameters() {
-        //TODO
+    public void clearParameters() throws SQLException {
+        pstmt_insert.clearParameters();
     }
 
     @Test
     public void setObject() throws SQLException {
-        pstmt_insert.setObject(1, System.currentTimeMillis());
-        //TODO
+        pstmt_insert.setObject(1, new Timestamp(System.currentTimeMillis()));
+        int ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setObject(2, 111);
+        ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setObject(3, Long.MAX_VALUE);
+        ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setObject(4, 3.14159265354f);
+        ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setObject(5, Double.MAX_VALUE);
+        ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setObject(6, Short.MAX_VALUE);
+        ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setObject(7, Byte.MAX_VALUE);
+        ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setObject(8, true);
+        ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setObject(9, "hello".getBytes());
+        ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
+
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        pstmt_insert.setObject(10, "Hello");
+        ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
     }
 
     @Test
-    public void execute() {
-        //TODO
-    }
+    public void execute() throws SQLException {
+        pstmt_insert.setTimestamp(1, new Timestamp(System.currentTimeMillis()));
+        int ret = pstmt_insert.executeUpdate();
+        Assert.assertEquals(1, ret);
 
-    @Test
-    public void addBatch() {
-        //TODO:
+        executeQuery();
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -180,8 +298,8 @@ public class RestfulPreparedStatementTest {
     @Test
     public void getParameterMetaData() throws SQLException {
         ParameterMetaData parameterMetaData = pstmt_insert.getParameterMetaData();
-        Assert.assertNull(parameterMetaData);
-        //TODO:
+        Assert.assertNotNull(parameterMetaData);
+        //TODO: modify the test case
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)

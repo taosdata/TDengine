@@ -7,6 +7,7 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.sql.*;
 import java.util.Calendar;
 
@@ -30,7 +31,9 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
             parameters = new Object[parameterCnt];
             this.isPrepared = true;
         }
-        //TODO: build parameterMetaData
+
+        // build parameterMetaData
+        this.parameterMetaData = new RestfulParameterMetaData(parameters);
     }
 
     @Override
@@ -60,8 +63,15 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
         for (int i = 0; i < parameters.length; ++i) {
             Object para = parameters[i];
             if (para != null) {
-                String paraStr = para.toString();
-                if (para instanceof Timestamp || para instanceof String) {
+                String paraStr;
+                if (para instanceof byte[]) {
+                    paraStr = new String((byte[]) para, Charset.forName("UTF-8"));
+                } else {
+                    paraStr = para.toString();
+                }
+                // if para is timestamp or String or byte[] need to translate ' character
+                if (para instanceof Timestamp || para instanceof String || para instanceof byte[]) {
+                    paraStr = paraStr.replaceAll("'", "\\\\\\\\'");
                     paraStr = "'" + paraStr + "'";
                 }
                 sql = sql.replaceFirst("[?]", paraStr);
@@ -92,7 +102,7 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
     public void setByte(int parameterIndex, byte x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        setObject(parameterIndex, x);
     }
 
     @Override
@@ -153,7 +163,7 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
     public void setBytes(int parameterIndex, byte[] x) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        setObject(parameterIndex, x);
     }
 
     @Override
@@ -222,7 +232,6 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
         parameters[parameterIndex - 1] = x;
-
     }
 
     @Override

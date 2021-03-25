@@ -41,7 +41,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     private boolean isSaved;
 
     private SavedPreparedStatement savedPreparedStatement;
-    private ParameterMetaData parameterMetaData;
+    private volatile TSDBParameterMetaData parameterMetaData;
 
     TSDBPreparedStatement(TSDBConnection connection, TSDBJNIConnector connecter, String sql) {
         super(connection, connecter);
@@ -491,9 +491,16 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public ParameterMetaData getParameterMetaData() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        //TODO: parameterMetaData not supported
-//        return null;
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+
+        if (parameterMetaData == null){
+            Object[] params = new Object[parameters.size()];
+            for (int i = 0; i < parameters.size(); i++) {
+                params[i] = parameters.get(i);
+            }
+            this.parameterMetaData = new TSDBParameterMetaData(params);
+        }
+
+        return this.parameterMetaData;
     }
 
     @Override
