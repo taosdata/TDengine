@@ -30,7 +30,6 @@ int     points = 5;
 int     numOfTables = 3;
 int     tablesProcessed = 0;
 int64_t st, et;
-int     done = 0;
 
 typedef struct {
   int       id;
