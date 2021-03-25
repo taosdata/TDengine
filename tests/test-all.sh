@@ -29,7 +29,25 @@ function dohavecore(){
   proc=`echo $corefile|cut -d "_" -f3`
   if [ -n "$corefile" ];then
     echo 'taosd or taos has generated core'
-    tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz /usr/local/taos/
+    if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]] && [[ $1 == 1 ]]; then
+      cd ../../../
+      tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz debug/build/bin/taosd debug/build/bin/tsim debug/build/lib/libtaos*so*
+      if [[ $2 == 1 ]];then
+        cp -r sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S"`
+        rm -rf sim/case.log
+      else
+        cd community
+        cp -r sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
+        rm -rf sim/case.log
+      fi
+    else 
+      cd ../../
+      if [[ $1 == 1 ]];then 
+        tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz debug/build/bin/taosd debug/build/bin/tsim debug/build/lib/libtaos*so*
+        cp -r sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
+        rm -rf sim/case.log
+      fi
+    fi
     if [[ $1 == 1 ]];then
       echo '\n'|gdb /usr/local/taos/bin/$proc $core_file -ex "bt 10" -ex quit
       exit 8
@@ -100,14 +118,14 @@ function runSimCaseOneByOnefq {
           cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
           rm -rf ../../sim/case.log
         fi
-        dohavecore $2
+        dohavecore $2 1
         if [[ $2 == 1 ]];then
           exit 8
         fi
       fi
       end_time=`date +%s`
       echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
-      dohavecore $2
+      dohavecore $2 1
     fi
   done 
   rm -rf ../../../sim/case.log
@@ -175,7 +193,7 @@ function runPyCaseOneByOnefq() {
           echo '=====================log===================== '
           cat ../../sim/case.log
           rm -rf ../../sim/case.log
-          dohavecore $2
+          dohavecore $2 2
           if [[ $2 == 1 ]];then
             exit 8
           fi
@@ -184,7 +202,7 @@ function runPyCaseOneByOnefq() {
       else
         $line > /dev/null 2>&1
       fi
-      dohavecore $2
+      dohavecore $2 2
     fi
   done 
   rm -rf ../../sim/case.log
