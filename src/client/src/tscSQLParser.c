@@ -977,12 +977,18 @@ int32_t parseSlidingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SStrToken* pSl
 int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pTableName, SSqlObj* pSql) {
   const char* msg1 = "name too long";
   const char* msg2 = "acctId too long";
+  const char* msg3 = "no acctId";
 
   SSqlCmd* pCmd = &pSql->cmd;
   int32_t  code = TSDB_CODE_SUCCESS;
 
   if (hasSpecifyDB(pTableName)) { // db has been specified in sql string so we ignore current db path
-    code = tNameSetAcctId(&pTableMetaInfo->name, getAccountId(pSql));
+    char* acctId = getAccountId(pSql);
+    if (acctId == NULL || strlen(acctId) <= 0) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
+    
+    code = tNameSetAcctId(&pTableMetaInfo->name, acctId);
     if (code != 0) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
