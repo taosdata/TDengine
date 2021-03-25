@@ -3353,23 +3353,25 @@ static int32_t getColumnQueryCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSq
   }
 }
 
-static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr) {
-  const char* msg1 = "invalid join query condition";
-  const char* msg2 = "invalid table name in join query";
+static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr) {
+  int32_t code = 0;
+  const char* msg1 = "timestamp required for join tables";
   const char* msg3 = "type of join columns must be identical";
   const char* msg4 = "invalid column name in join condition";
+  const char* msg5 = "only support one join tag for each table";
 
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
   if (!tSqlExprIsParentOfLeaf(pExpr)) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    code = checkAndSetJoinCondInfo(pCmd, pQueryInfo, pExpr->pLeft);
+    if (code) {
+      return code;
+    }
+    
+    return checkAndSetJoinCondInfo(pCmd, pQueryInfo, pExpr->pRight);
   }
-
-  STagCond*  pTagCond = &pQueryInfo->tagCond;
-  SJoinNode* pLeft = &pTagCond->joinInfo.left;
-  SJoinNode* pRight = &pTagCond->joinInfo.right;
 
   SColumnIndex index = COLUMN_INDEX_INITIALIZER;
   if (getColumnIndexByName(pCmd, &pExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
@@ -3379,13 +3381,28 @@ static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   SSchema* pTagSchema1 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
-  pLeft->uid = pTableMetaInfo->pTableMeta->id.uid;
-  pLeft->tagColId = pTagSchema1->colId;
+  assert(index.tableIndex >= 0 && index.tableIndex < TSDB_MAX_JOIN_TABLE_NUM);
 
-  int32_t code = tNameExtractFullName(&pTableMetaInfo->name, pLeft->tableName);
-  if (code != TSDB_CODE_SUCCESS) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  SJoinNode **leftNode = &pQueryInfo->tagCond.joinInfo.joinTables[index.tableIndex];
+  if (*leftNode == NULL) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
+  
+  (*leftNode)->uid = pTableMetaInfo->pTableMeta->id.uid;
+  (*leftNode)->tagColId = pTagSchema1->colId;
+
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    index.columnIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+    if (!tscColumnExists(pTableMetaInfo->tagColList, &index)) {
+      tscColumnListInsert(pTableMetaInfo->tagColList, &index);
+      if (taosArrayGetSize(pTableMetaInfo->tagColList) > 1) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+      }
+    }
+  }
+
+  int16_t leftIdx = index.tableIndex;
+
 
   index = (SColumnIndex)COLUMN_INDEX_INITIALIZER;
   if (getColumnIndexByName(pCmd, &pExpr->pRight->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
@@ -3395,20 +3412,55 @@ static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* 
   pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   SSchema* pTagSchema2 = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
-  pRight->uid = pTableMetaInfo->pTableMeta->id.uid;
-  pRight->tagColId = pTagSchema2->colId;
+  assert(index.tableIndex >= 0 && index.tableIndex < TSDB_MAX_JOIN_TABLE_NUM);
 
-  code = tNameExtractFullName(&pTableMetaInfo->name, pRight->tableName);
-  if (code != TSDB_CODE_SUCCESS) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+  SJoinNode **rightNode = &pQueryInfo->tagCond.joinInfo.joinTables[index.tableIndex];
+  if (*rightNode == NULL) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
+
+  (*rightNode)->uid = pTableMetaInfo->pTableMeta->id.uid;
+  (*rightNode)->tagColId = pTagSchema2->colId;
+
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    index.columnIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+    if (!tscColumnExists(pTableMetaInfo->tagColList, &index)) {
+      tscColumnListInsert(pTableMetaInfo->tagColList, &index);
+      if (taosArrayGetSize(pTableMetaInfo->tagColList) > 1) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+      }
+    }
+  }
+
+  int16_t rightIdx = index.tableIndex;
 
   if (pTagSchema1->type != pTagSchema2->type) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
-  pTagCond->joinInfo.hasJoin = true;
+  if ((*leftNode)->tagJoin == NULL) {
+    (*leftNode)->tagJoin = taosArrayInit(2, sizeof(int16_t));
+  }
+  
+  if ((*rightNode)->tagJoin == NULL) {
+    (*rightNode)->tagJoin = taosArrayInit(2, sizeof(int16_t));
+  }      
+  
+  taosArrayPush((*leftNode)->tagJoin, &rightIdx);
+  taosArrayPush((*rightNode)->tagJoin, &leftIdx);
+  
+  pQueryInfo->tagCond.joinInfo.hasJoin = true;
+  
   return TSDB_CODE_SUCCESS;
+
+}
+
+static int32_t getJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr) {
+  if (pExpr == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  return checkAndSetJoinCondInfo(pCmd, pQueryInfo, pExpr);
 }
 
 static int32_t validateSQLExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList,
@@ -3674,7 +3726,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   const char* msg1 = "table query cannot use tags filter";
   const char* msg2 = "illegal column name";
   const char* msg3 = "only one query time range allowed";
-  const char* msg4 = "only one join condition allowed";
+  const char* msg4 = "too many join tables";
   const char* msg5 = "not support ordinary column join";
   const char* msg6 = "only one query condition on tbname allowed";
   const char* msg7 = "only in/like allowed in filter table name";
@@ -3705,6 +3757,47 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY);
       pCondExpr->tsJoin = true;
 
+      assert(index.tableIndex >= 0 && index.tableIndex < TSDB_MAX_JOIN_TABLE_NUM);
+      SJoinNode **leftNode = &pQueryInfo->tagCond.joinInfo.joinTables[index.tableIndex];
+      if (*leftNode == NULL) {
+        *leftNode = calloc(1, sizeof(SJoinNode));
+        if (*leftNode == NULL) {
+          return TSDB_CODE_TSC_OUT_OF_MEMORY;
+        }
+      }
+      
+      int16_t leftIdx = index.tableIndex;
+
+      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+      if (getColumnIndexByName(pCmd, &pRight->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      if (index.tableIndex < 0 || index.tableIndex >= TSDB_MAX_JOIN_TABLE_NUM) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+      }
+
+      SJoinNode **rightNode = &pQueryInfo->tagCond.joinInfo.joinTables[index.tableIndex];
+      if (*rightNode == NULL) {
+        *rightNode = calloc(1, sizeof(SJoinNode));
+        if (*rightNode == NULL) {
+          return TSDB_CODE_TSC_OUT_OF_MEMORY;
+        }
+      }
+      
+      int16_t rightIdx = index.tableIndex;
+
+      if ((*leftNode)->tsJoin == NULL) {
+        (*leftNode)->tsJoin = taosArrayInit(2, sizeof(int16_t));
+      }
+      
+      if ((*rightNode)->tsJoin == NULL) {
+        (*rightNode)->tsJoin = taosArrayInit(2, sizeof(int16_t));
+      }      
+      
+      taosArrayPush((*leftNode)->tsJoin, &rightIdx);
+      taosArrayPush((*rightNode)->tsJoin, &leftIdx);
+      
       /*
        * to release expression, e.g., m1.ts = m2.ts,
        * since this expression is used to set the join query type
@@ -3760,10 +3853,6 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       if (pRight != NULL && pRight->tokenId == TK_ID) {  // join on tag columns for stable query
         if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
           return TSDB_CODE_TSC_INVALID_SQL;
-        }
-
-        if (pCondExpr->pJoinExpr != NULL) {
-          return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
         }
 
         pQueryInfo->type |= TSDB_QUERY_TYPE_JOIN_QUERY;
@@ -3993,7 +4082,8 @@ static bool validateFilterExpr(SQueryInfo* pQueryInfo) {
 static int32_t getTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr) {
   const char* msg0 = "invalid timestamp";
   const char* msg1 = "only one time stamp window allowed";
-
+  int32_t code = 0;
+  
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -4003,8 +4093,11 @@ static int32_t getTimeRangeFromExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlE
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pLeft);
-
+    code = getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pLeft);
+    if (code) {
+      return code;
+    }
+    
     return getTimeRangeFromExpr(pCmd, pQueryInfo, pExpr->pRight);
   } else {
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
@@ -4085,6 +4178,7 @@ static void cleanQueryExpr(SCondExpr* pCondExpr) {
   }
 }
 
+/*
 static void doAddJoinTagsColumnsIntoTagList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondExpr* pCondExpr) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   if (QUERY_IS_JOIN_QUERY(pQueryInfo->type) && UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
@@ -4107,6 +4201,7 @@ static void doAddJoinTagsColumnsIntoTagList(SSqlCmd* pCmd, SQueryInfo* pQueryInf
     tscColumnListInsert(pTableMetaInfo->tagColList, &index);
   }
 }
+*/
 
 static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
   const char *msg1 = "invalid tag operator";
@@ -4250,6 +4345,102 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
   return ret;
 }
 
+int32_t validateJoinNodes(SQueryInfo* pQueryInfo, SSqlObj* pSql) {
+  const char* msg1 = "timestamp required for join tables";
+  const char* msg2 = "tag required for join stables";
+  
+  for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
+    SJoinNode *node = pQueryInfo->tagCond.joinInfo.joinTables[i];  
+    
+    if (node == NULL || node->tsJoin == NULL || taosArrayGetSize(node->tsJoin) <= 0) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(&pSql->cmd), msg1);
+    }
+  }
+
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
+      SJoinNode *node = pQueryInfo->tagCond.joinInfo.joinTables[i];  
+      
+      if (node == NULL || node->tagJoin == NULL || taosArrayGetSize(node->tagJoin) <= 0) {
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(&pSql->cmd), msg2);
+      }
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+void mergeJoinNodesImpl(int8_t* r, int8_t* p, int16_t* tidx, SJoinNode** nodes, int32_t type) {
+  SJoinNode *node = nodes[*tidx];  
+  SArray* arr = (type == 0) ? node->tsJoin : node->tagJoin;
+  size_t size = taosArrayGetSize(arr);
+
+  p[*tidx] = 1;
+  
+  for (int32_t j = 0; j < size; j++) {
+    int16_t* idx = taosArrayGet(arr, j);
+    r[*idx] = 1;
+    if (p[*idx] == 0) {
+      mergeJoinNodesImpl(r, p, idx, nodes, type);
+    }
+  }
+}
+
+int32_t mergeJoinNodes(SQueryInfo* pQueryInfo, SSqlObj* pSql) {
+  const char* msg1 = "not all join tables have same timestamp";
+  const char* msg2 = "not all join tables have same tag";
+  
+  int8_t r[TSDB_MAX_JOIN_TABLE_NUM] = {0};
+  int8_t p[TSDB_MAX_JOIN_TABLE_NUM] = {0};
+  
+  for (int16_t i = 0; i < pQueryInfo->numOfTables; ++i) {
+    mergeJoinNodesImpl(r, p, &i, pQueryInfo->tagCond.joinInfo.joinTables, 0);
+    
+    taosArrayClear(pQueryInfo->tagCond.joinInfo.joinTables[i]->tsJoin);
+  
+    for (int32_t j = 0; j < TSDB_MAX_JOIN_TABLE_NUM; ++j) {
+      if (r[j]) {
+        taosArrayPush(pQueryInfo->tagCond.joinInfo.joinTables[i]->tsJoin, &j);
+      }
+    }
+    
+    memset(r, 0, sizeof(r));
+    memset(p, 0, sizeof(p));
+  }
+
+  if (taosArrayGetSize(pQueryInfo->tagCond.joinInfo.joinTables[0]->tsJoin) != pQueryInfo->numOfTables) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(&pSql->cmd), msg1);
+  }
+  
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    for (int16_t i = 0; i < pQueryInfo->numOfTables; ++i) {
+      mergeJoinNodesImpl(r, p, &i, pQueryInfo->tagCond.joinInfo.joinTables, 1);
+      
+      taosArrayClear(pQueryInfo->tagCond.joinInfo.joinTables[i]->tagJoin);
+    
+      for (int32_t j = 0; j < TSDB_MAX_JOIN_TABLE_NUM; ++j) {
+        if (r[j]) {
+          taosArrayPush(pQueryInfo->tagCond.joinInfo.joinTables[i]->tagJoin, &j);
+        }
+      }
+      
+      memset(r, 0, sizeof(r));
+      memset(p, 0, sizeof(p));
+    }
+
+    if (taosArrayGetSize(pQueryInfo->tagCond.joinInfo.joinTables[0]->tagJoin) != pQueryInfo->numOfTables) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(&pSql->cmd), msg2);
+    }
+
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -4295,17 +4486,17 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql
 
   // 4. get the table name query condition
   if ((ret = getTablenameCond(&pSql->cmd, pQueryInfo, condExpr.pTableCond, &sb)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT;
   }
 
   // 5. other column query condition
   if ((ret = getColumnQueryCondInfo(&pSql->cmd, pQueryInfo, condExpr.pColumnCond, TK_AND)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT;
   }
 
   // 6. join condition
   if ((ret = getJoinCondInfo(&pSql->cmd, pQueryInfo, condExpr.pJoinExpr)) != TSDB_CODE_SUCCESS) {
-    return ret;
+    goto PARSE_WHERE_EXIT;
   }
 
   // 7. query condition for table name
@@ -4313,12 +4504,29 @@ int32_t parseWhereClause(SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SSqlObj* pSql
 
   ret = setTableCondForSTableQuery(&pSql->cmd, pQueryInfo, getAccountId(pSql), condExpr.pTableCond, condExpr.tableCondIndex, &sb);
   taosStringBuilderDestroy(&sb);
-
-  if (!validateFilterExpr(pQueryInfo)) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(&pSql->cmd), msg2);
+  if (ret) {
+    goto PARSE_WHERE_EXIT;
   }
 
-  doAddJoinTagsColumnsIntoTagList(&pSql->cmd, pQueryInfo, &condExpr);
+  if (!validateFilterExpr(pQueryInfo)) {
+    ret = invalidSqlErrMsg(tscGetErrorMsgPayload(&pSql->cmd), msg2);
+    goto PARSE_WHERE_EXIT;
+  }
+
+  //doAddJoinTagsColumnsIntoTagList(&pSql->cmd, pQueryInfo, &condExpr);
+  if (condExpr.tsJoin) {
+    ret = validateJoinNodes(pQueryInfo, pSql);
+    if (ret) {
+      goto PARSE_WHERE_EXIT;
+    }
+
+    ret = mergeJoinNodes(pQueryInfo, pSql);
+    if (ret) {
+      goto PARSE_WHERE_EXIT;
+    }    
+  }
+
+PARSE_WHERE_EXIT:
 
   cleanQueryExpr(&condExpr);
   return ret;
@@ -6531,7 +6739,6 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
   const char* msg1 = "point interpolation query needs timestamp";
   const char* msg2 = "fill only available for interval query";
   const char* msg3 = "start(end) time of query range required or time range too large";
-  const char* msg4 = "illegal number of tables in from clause";
   const char* msg5 = "too many columns in selection clause";
   const char* msg6 = "too many tables in from clause";
   const char* msg7 = "invalid table alias name";
@@ -6568,14 +6775,11 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
   }
 
   size_t fromSize = taosArrayGetSize(pQuerySqlNode->from->tableList);
-  if (fromSize > TSDB_MAX_JOIN_TABLE_NUM) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4);
+  if (fromSize > TSDB_MAX_JOIN_TABLE_NUM * 2) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
 
   pQueryInfo->command = TSDB_SQL_SELECT;
-  if (fromSize > 2) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
-  }
 
   // set all query tables, which are maybe more than one.
   for (int32_t i = 0; i < fromSize; ++i) {
