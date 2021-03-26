@@ -7,7 +7,7 @@ FIND_PACKAGE(Git)
 IF (GIT_FOUND)
     MESSAGE("Git found")
     EXECUTE_PROCESS(
-        COMMAND ${GIT_EXECUTABLE} log --pretty=oneline -n 1 ../src/kit/taosdemo/taosdemo.c
+        COMMAND ${GIT_EXECUTABLE} log --pretty=oneline -n 1 ${CMAKE_CURRENT_LIST_DIR}/taosdemo.c
         RESULT_VARIABLE RESULT
         OUTPUT_VARIABLE TAOSDEMO_COMMIT)
     EXECUTE_PROCESS(
@@ -15,7 +15,7 @@ IF (GIT_FOUND)
         RESULT_VARIABLE RESULT
         OUTPUT_VARIABLE TAOSDEMO_COMMIT_SHA1)
     EXECUTE_PROCESS(
-        COMMAND ${GIT_EXECUTABLE} status -z -s ../src/kit/taosdemo/taosdemo.c
+        COMMAND ${GIT_EXECUTABLE} status -z -s ${CMAKE_CURRENT_LIST_DIR}/taosdemo.c
         RESULT_VARIABLE RESULT
         OUTPUT_VARIABLE TAOSDEMO_STATUS)
     EXECUTE_PROCESS(
