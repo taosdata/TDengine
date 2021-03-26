@@ -22,6 +22,7 @@
 #include "tbuffer.h"
 #include "tlosertree.h"
 #include "queryLog.h"
+#include "tscompression.h"
 
 typedef struct SCompSupporter {
   STableQueryInfo **pTableQueryInfo;
@@ -41,12 +42,11 @@ int32_t getOutputInterResultBufSize(SQuery* pQuery) {
 }
 
 int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size, int16_t type) {
-  pResultRowInfo->capacity = size;
-
-  pResultRowInfo->type = type;
-  pResultRowInfo->curIndex = -1;
+  pResultRowInfo->type     = type;
   pResultRowInfo->size     = 0;
   pResultRowInfo->prevSKey = TSKEY_INITIAL_VAL;
+  pResultRowInfo->curIndex = -1;
+  pResultRowInfo->capacity = size;
 
   pResultRowInfo->pResult = calloc(pResultRowInfo->capacity, POINTER_BYTES);
   if (pResultRowInfo->pResult == NULL) {
@@ -135,20 +135,22 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
   if (pResultRow->pageId >= 0) {
     tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResultRow->pageId);
 
+    int16_t offset = 0;
     for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutput; ++i) {
       SResultRowCellInfo *pResultInfo = &pResultRow->pCellInfo[i];
 
-      char * s = getPosInResultPage(pRuntimeEnv, i, pResultRow, page);
-      size_t size = pRuntimeEnv->pQuery->pExpr1[i].bytes;
+      int16_t size = pRuntimeEnv->pQuery->pExpr1[i].bytes;
+      char * s = getPosInResultPage(pRuntimeEnv->pQuery, page, pResultRow->offset, offset);
       memset(s, 0, size);
 
+      offset += size;
       RESET_RESULT_INFO(pResultInfo);
     }
   }
 
   pResultRow->numOfRows = 0;
   pResultRow->pageId = -1;
-  pResultRow->rowId = -1;
+  pResultRow->offset = -1;
   pResultRow->closed = false;
 
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
@@ -158,13 +160,15 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
   }
 }
 
-SResultRowCellInfo* getResultCell(SQueryRuntimeEnv* pRuntimeEnv, const SResultRow* pRow, int32_t index) {
-  assert(index >= 0 && index < pRuntimeEnv->pQuery->numOfOutput);
-  return (SResultRowCellInfo*)((char*) pRow->pCellInfo + pRuntimeEnv->rowCellInfoOffset[index]);
+// TODO refactor: use macro
+SResultRowCellInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset) {
+  assert(index >= 0 && offset != NULL);
+  return (SResultRowCellInfo*)((char*) pRow->pCellInfo + offset[index]);
 }
 
 size_t getResultRowSize(SQueryRuntimeEnv* pRuntimeEnv) {
-  return (pRuntimeEnv->pQuery->numOfOutput * sizeof(SResultRowCellInfo)) + pRuntimeEnv->interBufSize + sizeof(SResultRow);
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  return (pQuery->numOfOutput * sizeof(SResultRowCellInfo)) + pQuery->interBufSize + sizeof(SResultRow);
 }
 
 SResultRowPool* initResultRowPool(size_t size) {
@@ -340,23 +344,31 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   pGroupResInfo->index     = 0;
 }
 
-void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo, int32_t offset) {
+void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo) {
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);
   }
 
   pGroupResInfo->pRows = taosArrayFromList(pResultInfo->pResult, pResultInfo->size, POINTER_BYTES);
-  pGroupResInfo->index = offset;
+  pGroupResInfo->index = 0;
 
   assert(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
 
-bool hasRemainData(SGroupResInfo* pGroupResInfo) {
+bool hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo) {
   if (pGroupResInfo->pRows == NULL) {
     return false;
   }
 
   return pGroupResInfo->index < taosArrayGetSize(pGroupResInfo->pRows);
+}
+
+bool hasRemainData(SGroupResInfo* pGroupResInfo) {
+  if (hasRemainDataInCurrentGroup(pGroupResInfo)) {
+    return true;
+  }
+
+  return pGroupResInfo->currentGroup < pGroupResInfo->totalGroup;
 }
 
 bool incNextGroup(SGroupResInfo* pGroupResInfo) {
@@ -372,7 +384,7 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
   return (int32_t) taosArrayGetSize(pGroupResInfo->pRows);
 }
 
-static int64_t getNumOfResultWindowRes(SQueryRuntimeEnv* pRuntimeEnv, SResultRow *pResultRow) {
+static int64_t getNumOfResultWindowRes(SQueryRuntimeEnv* pRuntimeEnv, SResultRow *pResultRow, int32_t* rowCellInfoOffset) {
   SQuery* pQuery = pRuntimeEnv->pQuery;
 
   for (int32_t j = 0; j < pQuery->numOfOutput; ++j) {
@@ -386,7 +398,7 @@ static int64_t getNumOfResultWindowRes(SQueryRuntimeEnv* pRuntimeEnv, SResultRow
       continue;
     }
 
-    SResultRowCellInfo *pResultInfo = getResultCell(pRuntimeEnv, pResultRow, j);
+    SResultRowCellInfo *pResultInfo = getResultCell(pResultRow, j, rowCellInfoOffset);
     assert(pResultInfo != NULL);
 
     if (pResultInfo->numOfRes > 0) {
@@ -437,7 +449,8 @@ static int32_t tableResultComparFn(const void *pLeft, const void *pRight, void *
   }
 }
 
-static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList, void* qinfo) {
+static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList,
+    int32_t* rowCellInfoOffset) {
   bool ascQuery = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQuery);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -455,7 +468,7 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
   pTableQueryInfoList = malloc(POINTER_BYTES * size);
 
   if (pTableQueryInfoList == NULL || posList == NULL || pGroupResInfo->pRows == NULL || pGroupResInfo->pRows == NULL) {
-    qError("QInfo:%p failed alloc memory", qinfo);
+    qError("QInfo:%"PRIu64" failed alloc memory", GET_QID(pRuntimeEnv));
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _end;
   }
@@ -491,7 +504,7 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
     SResultRowInfo *pWindowResInfo = &pTableQueryInfoList[tableIndex]->resInfo;
     SResultRow  *pWindowRes = getResultRow(pWindowResInfo, cs.rowIndex[tableIndex]);
 
-    int64_t num = getNumOfResultWindowRes(pRuntimeEnv, pWindowRes);
+    int64_t num = getNumOfResultWindowRes(pRuntimeEnv, pWindowRes, rowCellInfoOffset);
     if (num <= 0) {
       cs.rowIndex[tableIndex] += 1;
 
@@ -527,7 +540,7 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
 
   int64_t endt = taosGetTimestampMs();
 
-  qDebug("QInfo:%p result merge completed for group:%d, elapsed time:%" PRId64 " ms", qinfo,
+  qDebug("QInfo:%"PRIu64" result merge completed for group:%d, elapsed time:%" PRId64 " ms", GET_QID(pRuntimeEnv),
          pGroupResInfo->currentGroup, endt - startt);
 
   _end:
@@ -538,13 +551,13 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
   return code;
 }
 
-int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQInfo *pQInfo) {
+int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv* pRuntimeEnv, int32_t* offset) {
   int64_t st = taosGetTimestampUs();
 
   while (pGroupResInfo->currentGroup < pGroupResInfo->totalGroup) {
-    SArray *group = GET_TABLEGROUP(pQInfo, pGroupResInfo->currentGroup);
+    SArray *group = GET_TABLEGROUP(pRuntimeEnv, pGroupResInfo->currentGroup);
 
-    int32_t ret = mergeIntoGroupResultImpl(&pQInfo->runtimeEnv, pGroupResInfo, group, pQInfo);
+    int32_t ret = mergeIntoGroupResultImpl(pRuntimeEnv, pGroupResInfo, group, offset);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
@@ -554,19 +567,83 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQInfo *pQInfo) {
       break;
     }
 
-    qDebug("QInfo:%p no result in group %d, continue", pQInfo, pGroupResInfo->currentGroup);
+    qDebug("QInfo:%"PRIu64" no result in group %d, continue", GET_QID(pRuntimeEnv), pGroupResInfo->currentGroup);
     cleanupGroupResInfo(pGroupResInfo);
     incNextGroup(pGroupResInfo);
   }
 
-  if (pGroupResInfo->currentGroup >= pGroupResInfo->totalGroup && !hasRemainData(pGroupResInfo)) {
-    SET_STABLE_QUERY_OVER(pQInfo);
-  }
-
   int64_t elapsedTime = taosGetTimestampUs() - st;
-  qDebug("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", pQInfo,
+  qDebug("QInfo:%"PRIu64" merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", GET_QID(pRuntimeEnv),
          pGroupResInfo->currentGroup, pGroupResInfo->totalGroup, elapsedTime);
 
-  pQInfo->runtimeEnv.summary.firstStageMergeTime += elapsedTime;
+//  pQInfo->summary.firstStageMergeTime += elapsedTime;
   return TSDB_CODE_SUCCESS;
 }
+
+void blockDistInfoToBinary(STableBlockDist* pDist, struct SBufferWriter* bw) {
+  tbufWriteUint32(bw, pDist->numOfTables);
+  tbufWriteUint16(bw, pDist->numOfFiles);
+  tbufWriteUint64(bw, pDist->totalSize);
+  tbufWriteUint32(bw, pDist->numOfRowsInMemTable);
+  tbufWriteUint64(bw, taosArrayGetSize(pDist->dataBlockInfos));
+
+  // compress the binary string
+  char* p = TARRAY_GET_START(pDist->dataBlockInfos);
+
+  // compress extra bytes
+  size_t x = taosArrayGetSize(pDist->dataBlockInfos) * pDist->dataBlockInfos->elemSize;
+  char* tmp = malloc(x + 2);
+
+  bool comp = false;
+  int32_t len = tsCompressString(p, (int32_t)x, 1, tmp, (int32_t)x, ONE_STAGE_COMP, NULL, 0);
+  if (len == -1 || len >= x) { // compress failed, do not compress this binary data
+    comp = false;
+    len = (int32_t)x;
+  } else {
+    comp = true;
+  }
+
+  tbufWriteUint8(bw, comp);
+  tbufWriteUint32(bw, len);
+  if (comp) {
+    tbufWriteBinary(bw, tmp, len);
+  } else {
+    tbufWriteBinary(bw, p, len);
+  }
+  tfree(tmp);
+}
+
+void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist) {
+  SBufferReader br = tbufInitReader(data, len, false);
+
+  pDist->numOfTables = tbufReadUint32(&br);
+  pDist->numOfFiles  = tbufReadUint16(&br);
+  pDist->totalSize   = tbufReadUint64(&br);
+  pDist->numOfRowsInMemTable = tbufReadUint32(&br);
+  int64_t numOfBlocks = tbufReadUint64(&br);
+
+  bool comp = tbufReadUint8(&br);
+  uint32_t compLen = tbufReadUint32(&br);
+
+  size_t originalLen = (size_t) (numOfBlocks*sizeof(SFileBlockInfo));
+
+  char* outputBuf = NULL;
+  if (comp) {
+    outputBuf = malloc(originalLen);
+
+    size_t actualLen = compLen;
+    const char* compStr = tbufReadBinary(&br, &actualLen);
+
+    int32_t orignalLen = tsDecompressString(compStr, compLen, 1, outputBuf,
+                                            (int32_t)originalLen , ONE_STAGE_COMP, NULL, 0);
+    assert(orignalLen == numOfBlocks*sizeof(SFileBlockInfo));
+  } else {
+    outputBuf = (char*) tbufReadBinary(&br, &originalLen);
+  }
+
+  pDist->dataBlockInfos = taosArrayFromList(outputBuf, (uint32_t) numOfBlocks, sizeof(SFileBlockInfo));
+  if (comp) {
+    tfree(outputBuf);
+  }
+}
+

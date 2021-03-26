@@ -1,17 +1,19 @@
-/***************************************************************************
+/**
+ * *************************************************************************
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- *
+ * <p>
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
- *
+ * <p>
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.
- *
+ * <p>
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
- *****************************************************************************/
+ * ***************************************************************************
+ */
 package com.taosdata.jdbc;
 
 import com.taosdata.jdbc.utils.TaosInfo;
@@ -20,6 +22,9 @@ import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
 
+/**
+ * JNI connector
+ */
 public class TSDBJNIConnector {
     private static volatile Boolean isInitialized = false;
 
@@ -68,13 +73,13 @@ public class TSDBJNIConnector {
             if (!isInitialized) {
                 initImp(configDir);
                 if (setOptions(0, locale) < 0) {
-                    throw new SQLWarning(TSDBConstants.WrapErrMsg("Failed to set locale: " + locale + ". System default will be used."));
+                    throw TSDBError.createSQLWarning("Failed to set locale: " + locale + ". System default will be used.");
                 }
                 if (setOptions(1, charset) < 0) {
-                    throw new SQLWarning(TSDBConstants.WrapErrMsg("Failed to set charset: " + charset + ". System default will be used."));
+                    throw TSDBError.createSQLWarning("Failed to set charset: " + charset + ". System default will be used.");
                 }
                 if (setOptions(2, timezone) < 0) {
-                    throw new SQLWarning(TSDBConstants.WrapErrMsg("Failed to set timezone: " + timezone + ". System default will be used."));
+                    throw TSDBError.createSQLWarning("Failed to set timezone: " + timezone + ". System default will be used.");
                 }
                 isInitialized = true;
                 TaosGlobalConfig.setCharset(getTsCharset());

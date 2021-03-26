@@ -52,4 +52,14 @@ public class ColumnMetaData {
     public void setColIndex(int colIndex) {
         this.colIndex = colIndex;
     }
+
+    @Override
+    public String toString() {
+        return "ColumnMetaData{" +
+                "colType=" + colType +
+                ", colName='" + colName + '\'' +
+                ", colSize=" + colSize +
+                ", colIndex=" + colIndex +
+                '}';
+    }
 }

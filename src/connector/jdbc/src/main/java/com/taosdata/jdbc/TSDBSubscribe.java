@@ -21,27 +21,23 @@ public class TSDBSubscribe {
     private final long id;
 
     TSDBSubscribe(TSDBJNIConnector connecter, long id) throws SQLException {
-        if (null != connecter) {
-            this.connecter = connecter;
-            this.id = id;
-        } else {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
-        }
+        if (connecter == null)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+
+        this.connecter = connecter;
+        this.id = id;
     }
 
     /**
      * consume
-     *
      */
     public TSDBResultSet consume() throws SQLException {
-        if (this.connecter.isClosed()) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
-        }
+        if (this.connecter.isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
 
         long resultSetPointer = this.connecter.consume(this.id);
-
         if (resultSetPointer == TSDBConstants.JNI_CONNECTION_NULL) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
         } else if (resultSetPointer == TSDBConstants.JNI_NULL_POINTER) {
             return null;
         } else {
@@ -56,9 +52,9 @@ public class TSDBSubscribe {
      * @throws SQLException
      */
     public void close(boolean keepProgress) throws SQLException {
-        if (this.connecter.isClosed()) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
-        }
+        if (this.connecter.isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
+
         this.connecter.unsubscribe(this.id, keepProgress);
     }
 }

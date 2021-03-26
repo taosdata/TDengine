@@ -20,18 +20,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class TSDBResultSet extends AbstractResultSet implements ResultSet {
-    private TSDBJNIConnector jniConnector;
-
+    private final TSDBJNIConnector jniConnector;
     private final TSDBStatement statement;
-    private long resultSetPointer = 0L;
+    private final long resultSetPointer;
     private List<ColumnMetaData> columnMetaDataList = new ArrayList<>();
+    private final TSDBResultSetRowData rowData;
+    private final TSDBResultSetBlockData blockData;
 
-    private TSDBResultSetRowData rowData;
-    private TSDBResultSetBlockData blockData;
-
-    private boolean batchFetch = false;
-    private boolean lastWasNull = false;
-    private final int COLUMN_INDEX_START_VALUE = 1;
+    private boolean batchFetch;
+    private boolean lastWasNull;
+    private boolean isClosed;
 
     public void setBatchFetch(boolean batchFetch) {
         this.batchFetch = batchFetch;
@@ -56,13 +54,13 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
         int code = this.jniConnector.getSchemaMetaData(this.resultSetPointer, this.columnMetaDataList);
         if (code == TSDBConstants.JNI_CONNECTION_NULL) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
         }
         if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_RESULT_SET_NULL));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
         }
         if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
-            throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_NUM_OF_FIELDS_0));
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
         }
         this.rowData = new TSDBResultSetRowData(this.columnMetaDataList.size());
         this.blockData = new TSDBResultSetBlockData(this.columnMetaDataList, this.columnMetaDataList.size());
@@ -78,28 +76,23 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
             this.blockData.reset();
 
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
             } else if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_RESULT_SET_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
             } else if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_NUM_OF_FIELDS_0));
-            } else if (code == TSDBConstants.JNI_FETCH_END) {
-                return false;
-            }
-
-            return true;
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
+            } else return code != TSDBConstants.JNI_FETCH_END;
         } else {
             if (rowData != null) {
                 this.rowData.clear();
             }
-
             int code = this.jniConnector.fetchRow(this.resultSetPointer, this.rowData);
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
             } else if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_RESULT_SET_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
             } else if (code == TSDBConstants.JNI_NUM_OF_FIELDS_0) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_NUM_OF_FIELDS_0));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_NUM_OF_FIELDS_0);
             } else if (code == TSDBConstants.JNI_FETCH_END) {
                 return false;
             } else {
@@ -109,14 +102,17 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     }
 
     public void close() throws SQLException {
+        if (isClosed)
+            return;
         if (this.jniConnector != null) {
             int code = this.jniConnector.freeResultSet(this.resultSetPointer);
             if (code == TSDBConstants.JNI_CONNECTION_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_CONNECTION_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_CONNECTION_NULL);
             } else if (code == TSDBConstants.JNI_RESULT_SET_NULL) {
-                throw new SQLException(TSDBConstants.FixErrMsg(TSDBConstants.JNI_RESULT_SET_NULL));
+                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_JNI_RESULT_SET_NULL);
             }
         }
+        isClosed = true;
     }
 
     public boolean wasNull() throws SQLException {
@@ -127,30 +123,27 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         String res = null;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getString(colIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getString(colIndex, this.columnMetaDataList.get(colIndex).getColType());
         }
+        return res;
     }
 
     public boolean getBoolean(int columnIndex) throws SQLException {
         boolean res = false;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getBoolean(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getBoolean(colIndex);
-        }
 
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getBoolean(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+        }
         return res;
     }
 
@@ -158,91 +151,84 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         byte res = 0;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = (byte) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return (byte) this.blockData.getInt(colIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = (byte) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
         }
+        return res;
     }
 
     public short getShort(int columnIndex) throws SQLException {
         short res = 0;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = (short) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return (short) this.blockData.getInt(colIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = (short) this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
         }
+        return res;
     }
 
     public int getInt(int columnIndex) throws SQLException {
         int res = 0;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getInt(colIndex);
-        }
 
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getInt(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+        }
+        return res;
     }
 
     public long getLong(int columnIndex) throws SQLException {
         long res = 0L;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getLong(colIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getLong(colIndex, this.columnMetaDataList.get(colIndex).getColType());
         }
+        return res;
     }
 
     public float getFloat(int columnIndex) throws SQLException {
         float res = 0;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getFloat(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return (float) this.blockData.getDouble(colIndex);
-        }
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull)
+            res = this.rowData.getFloat(colIndex, this.columnMetaDataList.get(colIndex).getColType());
+
+        return res;
     }
 
     public double getDouble(int columnIndex) throws SQLException {
         double res = 0;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getDouble(colIndex, this.columnMetaDataList.get(colIndex).getColType());
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getDouble(colIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getDouble(colIndex, this.columnMetaDataList.get(colIndex).getColType());
         }
+        return res;
     }
 
     @Deprecated
@@ -258,15 +244,14 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         Timestamp res = null;
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            if (!lastWasNull) {
-                res = this.rowData.getTimestamp(colIndex);
-            }
-            return res;
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.getTimestamp(columnIndex);
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        if (!lastWasNull) {
+            res = this.rowData.getTimestamp(colIndex);
         }
+        return res;
     }
 
     public ResultSetMetaData getMetaData() throws SQLException {
@@ -277,12 +262,11 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     public Object getObject(int columnIndex) throws SQLException {
         int colIndex = getTrueColumnIndex(columnIndex);
 
-        if (!this.getBatchFetch()) {
-            this.lastWasNull = this.rowData.wasNull(colIndex);
-            return this.rowData.get(colIndex);
-        } else {
+        if (this.getBatchFetch())
             return this.blockData.get(colIndex);
-        }
+
+        this.lastWasNull = this.rowData.wasNull(colIndex);
+        return this.rowData.get(colIndex);
     }
 
     @Override
@@ -415,8 +399,8 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     }
 
     public boolean isClosed() throws SQLException {
-        //TODO: check if need release resources
-        boolean isClosed = true;
+        if (isClosed)
+            return true;
         if (jniConnector != null) {
             isClosed = jniConnector.isResultsetClosed();
         }
@@ -429,14 +413,12 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
     }
 
     private int getTrueColumnIndex(int columnIndex) throws SQLException {
-        if (columnIndex < this.COLUMN_INDEX_START_VALUE) {
-            throw new SQLException("Column Index out of range, " + columnIndex + " < " + this.COLUMN_INDEX_START_VALUE);
-        }
+        if (columnIndex < 1)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "columnIndex(" + columnIndex + "): < 1");
 
         int numOfCols = this.columnMetaDataList.size();
-        if (columnIndex > numOfCols) {
-            throw new SQLException("Column Index out of range, " + columnIndex + " > " + numOfCols);
-        }
+        if (columnIndex > numOfCols)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "columnIndex: " + columnIndex);
         return columnIndex - 1;
     }
 }

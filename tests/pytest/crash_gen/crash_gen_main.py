@@ -1785,7 +1785,7 @@ class TdSuperTable:
                     'top(speed, 50)', # TODO: not supported?
                     'bottom(speed, 50)', # TODO: not supported?
                     'apercentile(speed, 10)', # TODO: TD-1316
-                    'last_row(speed)',
+                    # 'last_row(speed)', # TODO: commented out per TD-3231, we should re-create
                     # Transformation Functions
                     # 'diff(speed)', # TODO: no supported?!
                     'spread(speed)'

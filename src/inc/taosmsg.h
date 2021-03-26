@@ -77,6 +77,7 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_DB, "create-db" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_DB, "drop-db" )	  
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_DB, "use-db" )	 
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_DB, "alter-db" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_SYNC_DB, "sync-db-replica" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_TABLE, "create-table" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TABLE, "drop-table" )	
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TABLE, "alter-table" )
@@ -106,6 +107,12 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY12, "dummy12" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY13, "dummy13" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DUMMY14, "dummy14" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_NETWORK_TEST, "nettest" )
+
+// message for topic
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_CREATE_TP, "create-tp" )
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TP, "drop-tp" )	  
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_TP, "use-tp" )	 
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TP, "alter-tp" )
 
 #ifndef TAOS_MESSAGE_C
   TSDB_MSG_TYPE_MAX  // 105
@@ -141,6 +148,7 @@ enum _mgmt_table {
   TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_CLUSTER,
+  TSDB_MGMT_TABLE_TP,
   TSDB_MGMT_TABLE_MAX,
 };
 
@@ -387,7 +395,7 @@ typedef struct SColIndex {
   int16_t  colId;      // column id
   int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
   uint16_t flag;       // denote if it is a tag or a normal column
-  char     name[TSDB_COL_NAME_LEN];
+  char     name[TSDB_COL_NAME_LEN];  // TODO remove it
 } SColIndex;
 
 
@@ -417,7 +425,10 @@ typedef struct SColumnFilterInfo {
 typedef struct SSqlFuncMsg {
   int16_t functionId;
   int16_t numOfParams;
+
   int16_t resColId;      // result column id, id of the current output column
+  int16_t colType;
+  int16_t colBytes;
 
   SColIndex colInfo;
   struct ArgElem {
@@ -481,12 +492,13 @@ typedef struct {
   int16_t     orderColId;
   int16_t     numOfCols;        // the number of columns will be load from vnode
   SInterval   interval;
+  SSessionWindow sw;            // session window
   uint16_t    tagCondLen;       // tag length in current query
   uint32_t    tbnameCondLen;    // table name filter condition string length
   int16_t     numOfGroupCols;   // num of group by columns
   int16_t     orderByIdx;
   int16_t     orderType;        // used in group by xx order by xxx
-  int64_t     vgroupLimit;       // limit the number of rows for each table, used in order by + limit in stable projection query.
+  int64_t     vgroupLimit;      // limit the number of rows for each table, used in order by + limit in stable projection query.
   int16_t     prjOrder;         // global order in super table projection query.
   int64_t     limit;
   int64_t     offset;
@@ -508,12 +520,13 @@ typedef struct {
 
 typedef struct {
   int32_t  code;
-  uint64_t qhandle; // query handle
+  union{uint64_t qhandle; uint64_t qId;}; // query handle
 } SQueryTableRsp;
 
+// todo: the show handle should be replaced with id
 typedef struct {
   SMsgHead header;
-  uint64_t qhandle;
+  union{uint64_t qhandle; uint64_t qId;}; // query handle
   uint16_t free;
 } SRetrieveTableMsg;
 
@@ -561,13 +574,15 @@ typedef struct {
   int8_t   ignoreExist;
   int8_t   update;
   int8_t   cacheLastRow;
-  int8_t   reserve[8];
+  int8_t   dbType;
+  int16_t  partitions;
+  int8_t   reserve[5];
 } SCreateDbMsg, SAlterDbMsg;
 
 typedef struct {
   char    db[TSDB_TABLE_FNAME_LEN];
   uint8_t ignoreNotExists;
-} SDropDbMsg, SUseDbMsg;
+} SDropDbMsg, SUseDbMsg, SSyncDbMsg;
 
 // IMPORTANT: sizeof(SVnodeStatisticInfo) should not exceed
 // TSDB_FILE_HEADER_LEN/4 - TSDB_FILE_HEADER_VERSION_SIZE
@@ -622,6 +637,7 @@ typedef struct {
   int32_t  maxtablesPerVnode;
   int32_t  maxVgroupsPerDb;
   char     arbitrator[TSDB_EP_LEN];   // tsArbitrator
+  char     reserve[2];                // to solve arm32 bus error
   char     timezone[64];              // tsTimezone
   int64_t  checkTime;                 // 1970-01-01 00:00:00.000
   char     locale[TSDB_LOCALE_LEN];   // tsLocale
@@ -680,7 +696,8 @@ typedef struct {
   int8_t   cacheLastRow;
   int32_t  vgCfgVersion;
   int8_t   dbReplica;
-  int8_t   reserved[9];
+  int8_t   dbType;
+  int8_t   reserved[8];
 } SVnodeCfg;
 
 typedef struct {

@@ -153,15 +153,15 @@ typedef struct SCond {
 } SCond;
 
 typedef struct SJoinNode {
-  char     tableName[TSDB_TABLE_FNAME_LEN];
   uint64_t uid;
   int16_t  tagColId;
+  SArray*  tsJoin;
+  SArray*  tagJoin;
 } SJoinNode;
 
 typedef struct SJoinInfo {
-  bool      hasJoin;
-  SJoinNode left;
-  SJoinNode right;
+  bool      hasJoin;  
+  SJoinNode*  joinTables[TSDB_MAX_JOIN_TABLE_NUM];
 } SJoinInfo;
 
 typedef struct STagCond {
@@ -209,9 +209,10 @@ typedef struct STableDataBlocks {
 typedef struct SQueryInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
+  STimeWindow      window;        // the whole query time window
 
-  STimeWindow      window;        // query time window
-  SInterval        interval;
+  SInterval        interval;      // tumble time window
+  SSessionWindow   sessionWindow; // session time window
 
   SSqlGroupbyExpr  groupbyExpr;   // group by tags info
   SArray *         colList;       // SArray<SColumn*>
@@ -244,6 +245,7 @@ typedef struct SQueryInfo {
 typedef struct {
   int     command;
   uint8_t msgType;
+  char    reserve1[3];        // fix bus error on arm32
   bool    autoCreated;        // create table if it is not existed during retrieve table meta in mnode
 
   union {
@@ -256,8 +258,10 @@ typedef struct {
 
   char *       curSql;       // current sql, resume position of sql after parsing paused
   int8_t       parseFinished;
+  char    reserve2[3];        // fix bus error on arm32
 
   int16_t      numOfCols;
+  char    reserve3[2];        // fix bus error on arm32
   uint32_t     allocSize;
   char *       payload;
   int32_t      payloadLen;
@@ -267,7 +271,9 @@ typedef struct {
   int32_t      numOfParams;
 
   int8_t       dataSourceType;     // load data from file or not
+  char    reserve4[3];        // fix bus error on arm32
   int8_t       submitSchema;   // submit block is built with table schema
+  char    reserve5[3];        // fix bus error on arm32
   STagData     tagData;        // NOTE: pTagData->data is used as a variant length array
 
   SName      **pTableNameList; // all involved tableMeta list of current insert sql statement.
@@ -290,7 +296,7 @@ typedef struct {
   char *         pRsp;
   int32_t        rspType;
   int32_t        rspLen;
-  uint64_t       qhandle;
+  uint64_t       qId;
   int64_t        useconds;
   int64_t        offset;  // offset value from vnode during projection query of stable
   int32_t        row;
@@ -373,7 +379,7 @@ typedef struct SSqlObj {
   int64_t          svgroupRid;
 
   int64_t          squeryLock;
-
+  int32_t          retryReason;  // previous error code
   struct SSqlObj  *prev, *next;
   int64_t          self;
 } SSqlObj;
@@ -408,7 +414,6 @@ typedef struct SSqlStream {
 } SSqlStream;
 
 void tscSetStreamDestTable(SSqlStream* pStream, const char* dstTable);
-
 
 int  tscAcquireRpc(const char *key, const char *user, const char *secret,void **pRpcObj);
 void tscReleaseRpc(void *param);

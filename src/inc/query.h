@@ -28,7 +28,7 @@ typedef void* qinfo_t;
  * @param qinfo
  * @return
  */
-int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMsg, qinfo_t* qinfo);
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMsg, qinfo_t* qinfo, uint64_t *qId);
 
 
 /**
@@ -38,7 +38,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMs
  * @param qinfo
  * @return
  */
-bool qTableQuery(qinfo_t qinfo);
+bool qTableQuery(qinfo_t qinfo, uint64_t *qId);
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,
@@ -88,9 +88,10 @@ void* qOpenQueryMgmt(int32_t vgId);
 void  qQueryMgmtNotifyClosed(void* pExecutor);
 void  qQueryMgmtReOpen(void *pExecutor);
 void  qCleanupQueryMgmt(void* pExecutor);
-void** qRegisterQInfo(void* pMgmt, uint64_t qInfo);
+void** qRegisterQInfo(void* pMgmt, uint64_t qId, uint64_t qInfo);
 void** qAcquireQInfo(void* pMgmt, uint64_t key);
 void** qReleaseQInfo(void* pMgmt, void* pQInfo, bool freeHandle);
+bool checkQIdEqual(void *qHandle, uint64_t qId);
 
 #ifdef __cplusplus
 }

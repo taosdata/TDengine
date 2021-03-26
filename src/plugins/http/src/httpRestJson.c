@@ -162,6 +162,18 @@ bool restBuildSqlJson(HttpContext *pContext, HttpSqlCmd *cmd, TAOS_RES *result, 
         case TSDB_DATA_TYPE_BIGINT:
           httpJsonInt64(jsonBuf, *((int64_t *)row[i]));
           break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          httpJsonUInt(jsonBuf, *((uint8_t *)row[i]));
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          httpJsonUInt(jsonBuf, *((uint16_t *)row[i]));
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          httpJsonUInt(jsonBuf, *((uint32_t *)row[i]));
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          httpJsonUInt64(jsonBuf, *((uint64_t *)row[i]));
+          break;
         case TSDB_DATA_TYPE_FLOAT:
           httpJsonFloat(jsonBuf, GET_FLOAT_VAL(row[i]));
           break;

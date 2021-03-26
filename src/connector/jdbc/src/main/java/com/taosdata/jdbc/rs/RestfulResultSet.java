@@ -9,7 +9,6 @@ import com.taosdata.jdbc.TSDBErrorNumbers;
 
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.List;
 
 public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     private volatile boolean isClosed;
@@ -17,8 +16,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     private final String database;
     private final Statement statement;
+//    private final JSONObject resultJson;
     // data
-    private ArrayList<ArrayList<Object>> resultSet;
+    private final ArrayList<ArrayList<Object>> resultSet;
     // meta
     private ArrayList<String> columnNames;
     private ArrayList<Field> columns;
@@ -32,6 +32,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     public RestfulResultSet(String database, Statement statement, JSONObject resultJson) throws SQLException {
         this.database = database;
         this.statement = statement;
+//        this.resultJson = resultJson;
+
         // column metadata
         JSONArray columnMeta = resultJson.getJSONArray("column_meta");
         columnNames = new ArrayList<>();
@@ -39,10 +41,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         for (int colIndex = 0; colIndex < columnMeta.size(); colIndex++) {
             JSONArray col = columnMeta.getJSONArray(colIndex);
             String col_name = col.getString(0);
-            int col_type = TSDBConstants.taosType2JdbcType(col.getInteger(1));
+            int taos_type = col.getInteger(1);
+            int col_type = TSDBConstants.taosType2JdbcType(taos_type);
             int col_length = col.getInteger(2);
             columnNames.add(col_name);
-            columns.add(new Field(col_name, col_type, col_length, ""));
+            columns.add(new Field(col_name, col_type, col_length, "", taos_type));
         }
         this.metaData = new RestfulResultSetMetaData(this.database, columns, this);
 
@@ -53,105 +56,50 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             ArrayList row = new ArrayList();
             JSONArray jsonRow = data.getJSONArray(rowIndex);
             for (int colIndex = 0; colIndex < jsonRow.size(); colIndex++) {
-                row.add(parseColumnData(jsonRow, colIndex, columns.get(colIndex).type));
+                row.add(parseColumnData(jsonRow, colIndex, columns.get(colIndex).taos_type));
             }
             resultSet.add(row);
         }
-
-        /*
-        int columnIndex = 0;
-        for (; columnIndex < data.size(); columnIndex++) {
-            ArrayList oneRow = new ArrayList<>();
-            JSONArray one = data.getJSONArray(columnIndex);
-            for (int j = 0; j < one.size(); j++) {
-                oneRow.add(one.getString(j));
-            }
-            resultSet.add(oneRow);
-        }
-
-        // column only names
-        JSONArray head = resultJson.getJSONArray("head");
-        for (int i = 0; i < head.size(); i++) {
-            String name = head.getString(i);
-            columnNames.add(name);
-            columns.add(new Field(name, "", 0, ""));
-        }
-        this.metaData = new RestfulResultSetMetaData(this.database, columns, this);
-         */
     }
 
-    private Object parseColumnData(JSONArray row, int colIndex, int sqlType) {
-        switch (sqlType) {
-            case Types.NULL:
-                return null;
-            case Types.BOOLEAN:
+    private Object parseColumnData(JSONArray row, int colIndex, int taosType) {
+        switch (taosType) {
+            case TSDBConstants.TSDB_DATA_TYPE_BOOL:
                 return row.getBoolean(colIndex);
-            case Types.TINYINT:
-            case Types.SMALLINT:
+            case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+                return row.getByte(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
                 return row.getShort(colIndex);
-            case Types.INTEGER:
+            case TSDBConstants.TSDB_DATA_TYPE_INT:
                 return row.getInteger(colIndex);
-            case Types.BIGINT:
+            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return row.getBigInteger(colIndex);
-            case Types.FLOAT:
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
                 return row.getFloat(colIndex);
-            case Types.DOUBLE:
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
                 return row.getDouble(colIndex);
-            case Types.TIMESTAMP:
+            case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
                 return new Timestamp(row.getDate(colIndex).getTime());
-            case Types.BINARY:
-            case Types.NCHAR:
+            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+            case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
             default:
                 return row.getString(colIndex);
         }
     }
-
-//    /**
-//     * 由多个resultSet的JSON构造结果集
-//     *
-//     * @param resultJson: 包含data信息的结果集，有sql返回的结果集
-//     * @param fieldJson:  包含多个（最多2个）meta信息的结果集，有describe xxx
-//     **/
-//    public RestfulResultSet(String database, Statement statement, JSONObject resultJson, List<JSONObject> fieldJson) throws SQLException {
-//        this(database, statement, resultJson);
-//        ArrayList<Field> newColumns = new ArrayList<>();
-//
-//        for (Field column : columns) {
-//            Field field = findField(column.name, fieldJson);
-//            if (field != null) {
-//                newColumns.add(field);
-//            } else {
-//                newColumns.add(column);
-//            }
-//        }
-//        this.columns = newColumns;
-//        this.metaData = new RestfulResultSetMetaData(this.database, this.columns, this);
-//    }
-
-//    public Field findField(String columnName, List<JSONObject> fieldJsonList) {
-//        for (JSONObject fieldJSON : fieldJsonList) {
-//            JSONArray fieldDataJson = fieldJSON.getJSONArray("data");
-//            for (int i = 0; i < fieldDataJson.size(); i++) {
-//                JSONArray field = fieldDataJson.getJSONArray(i);
-//                if (columnName.equalsIgnoreCase(field.getString(0))) {
-//                    return new Field(field.getString(0), field.getString(1), field.getInteger(2), field.getString(3));
-//                }
-//            }
-//        }
-//        return null;
-//    }
 
     public class Field {
         String name;
         int type;
         int length;
         String note;
+        int taos_type;
 
-        public Field(String name, int type, int length, String note) {
+        public Field(String name, int type, int length, String note, int taos_type) {
             this.name = name;
             this.type = type;
             this.length = length;
             this.note = note;
+            this.taos_type = taos_type;
         }
     }
 
@@ -184,19 +132,20 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     public String getString(int columnIndex) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
-        if (columnIndex > resultSet.get(pos).size()) {
-            throw new SQLException(TSDBConstants.WrapErrMsg("Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size()));
-        }
+        if (columnIndex > resultSet.get(pos).size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
 
         columnIndex = getTrueColumnIndex(columnIndex);
-        return resultSet.get(pos).get(columnIndex).toString();
+        Object value = resultSet.get(pos).get(columnIndex);
+        return value == null ? null : value.toString();
     }
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        if (columnIndex > resultSet.get(pos).size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
 
         columnIndex = getTrueColumnIndex(columnIndex);
         int result = getInt(columnIndex);
@@ -204,33 +153,98 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     }
 
     @Override
+    public byte getByte(int columnIndex) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        if (columnIndex > resultSet.get(pos).size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+
+        columnIndex = getTrueColumnIndex(columnIndex);
+        Object value = resultSet.get(pos).get(columnIndex);
+        if (value == null)
+            return 0;
+        long valueAsLong = Long.parseLong(value.toString());
+        if (valueAsLong == Byte.MIN_VALUE)
+            return 0;
+        if (valueAsLong < Byte.MIN_VALUE || valueAsLong > Byte.MAX_VALUE)
+            throwRangeException(value.toString(), columnIndex, Types.TINYINT);
+
+        return (byte) valueAsLong;
+    }
+
+    private void throwRangeException(String valueAsString, int columnIndex, int jdbcType) throws SQLException {
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE,
+                "'" + valueAsString + "' in column '" + columnIndex + "' is outside valid range for the jdbcType " + TSDBConstants.jdbcType2TaosTypeName(jdbcType));
+    }
+
+    @Override
     public short getShort(int columnIndex) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        if (columnIndex > resultSet.get(pos).size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+
         columnIndex = getTrueColumnIndex(columnIndex);
-        return Short.parseShort(resultSet.get(pos).get(columnIndex).toString());
+        Object value = resultSet.get(pos).get(columnIndex);
+        if (value == null)
+            return 0;
+        long valueAsLong = Long.parseLong(value.toString());
+        if (valueAsLong == Short.MIN_VALUE)
+            return 0;
+        if (valueAsLong < Short.MIN_VALUE || valueAsLong > Short.MAX_VALUE)
+            throwRangeException(value.toString(), columnIndex, Types.SMALLINT);
+        return (short) valueAsLong;
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        if (columnIndex > resultSet.get(pos).size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+
         columnIndex = getTrueColumnIndex(columnIndex);
-        return Integer.parseInt(resultSet.get(pos).get(columnIndex).toString());
+        Object value = resultSet.get(pos).get(columnIndex);
+        if (value == null)
+            return 0;
+        long valueAsLong = Long.parseLong(value.toString());
+        if (valueAsLong == Integer.MIN_VALUE)
+            return 0;
+        if (valueAsLong < Integer.MIN_VALUE || valueAsLong > Integer.MAX_VALUE)
+            throwRangeException(value.toString(), columnIndex, Types.INTEGER);
+        return (int) valueAsLong;
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        if (columnIndex > resultSet.get(pos).size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+
         columnIndex = getTrueColumnIndex(columnIndex);
-        return Long.parseLong(resultSet.get(pos).get(columnIndex).toString());
+        Object value = resultSet.get(pos).get(columnIndex);
+        if (value == null)
+            return 0;
+
+        long valueAsLong = 0;
+        try {
+            valueAsLong = Long.parseLong(value.toString());
+            if (valueAsLong == Long.MIN_VALUE)
+                return 0;
+        } catch (NumberFormatException e) {
+            throwRangeException(value.toString(), columnIndex, Types.BIGINT);
+        }
+        return valueAsLong;
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        if (columnIndex > resultSet.get(pos).size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+
         columnIndex = getTrueColumnIndex(columnIndex);
         return Float.parseFloat(resultSet.get(pos).get(columnIndex).toString());
     }
@@ -239,6 +253,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     public double getDouble(int columnIndex) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        if (columnIndex > resultSet.get(pos).size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
 
         columnIndex = getTrueColumnIndex(columnIndex);
         return Double.parseDouble(resultSet.get(pos).get(columnIndex).toString());
@@ -246,12 +262,14 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     private int getTrueColumnIndex(int columnIndex) throws SQLException {
         if (columnIndex < 1) {
-            throw new SQLException("Column Index out of range, " + columnIndex + " < 1");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE
+                    , "Column Index out of range, " + columnIndex + " < 1");
         }
 
         int numOfCols = resultSet.get(pos).size();
         if (columnIndex > numOfCols) {
-            throw new SQLException("Column Index out of range, " + columnIndex + " > " + numOfCols);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE
+                    , "Column Index out of range, " + columnIndex + " > " + numOfCols);
         }
 
         return columnIndex - 1;

@@ -25,9 +25,10 @@
   } while (0)
 
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
+#define GET_QID(_r)  (((SQInfo*)((_r)->qinfo))->qId)
 
 #define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
-#define GET_ROW_PARAM_FOR_MULTIOUTPUT(_q, tbq, sq) (((tbq) && (!sq))? (_q)->pExpr1[1].base.arg->argValue.i64:1)
+#define GET_ROW_PARAM_FOR_MULTIOUTPUT(_q, tbq, sq) (((tbq) && (!(sq)))? (_q)->pExpr1[1].base.arg->argValue.i64:1)
 
 int32_t getOutputInterResultBufSize(SQuery* pQuery);
 
@@ -44,22 +45,18 @@ void    closeResultRow(SResultRowInfo* pResultRowInfo, int32_t slot);
 bool    isResultRowClosed(SResultRowInfo *pResultRowInfo, int32_t slot);
 void    clearResultRow(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pResultRow, int16_t type);
 
-SResultRowCellInfo* getResultCell(SQueryRuntimeEnv* pRuntimeEnv, const SResultRow* pRow, int32_t index);
+SResultRowCellInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset);
 
 static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
   assert(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
   return pResultRowInfo->pResult[slot];
 }
 
-static FORCE_INLINE char *getPosInResultPage(SQueryRuntimeEnv *pRuntimeEnv, int32_t columnIndex, SResultRow *pResult,
-    tFilePage* page) {
-  assert(pResult != NULL && pRuntimeEnv != NULL);
+static FORCE_INLINE char *getPosInResultPage(SQuery *pQuery, tFilePage* page, int32_t rowOffset, int16_t offset) {
+  assert(rowOffset >= 0 && pQuery != NULL);
 
-  SQuery *pQuery = pRuntimeEnv->pQuery;
-
-  int32_t realRowId = (int32_t)(pResult->rowId * GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pRuntimeEnv->topBotQuery, pRuntimeEnv->stableQuery));
-  return ((char *)page->data) + pRuntimeEnv->offset[columnIndex] * pRuntimeEnv->numOfRowsPerPage +
-      pQuery->pExpr1[columnIndex].bytes * realRowId;
+  int32_t numOfRows = (int32_t)GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery);
+  return ((char *)page->data) + rowOffset + offset * numOfRows;
 }
 
 bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
@@ -74,8 +71,6 @@ void* destroyResultRowPool(SResultRowPool* p);
 int32_t getNumOfAllocatedResultRows(SResultRowPool* p);
 int32_t getNumOfUsedResultRows(SResultRowPool* p);
 
-bool isPointInterpoQuery(SQuery *pQuery);
-
 typedef struct {
   SArray* pResult;     // SArray<SResPair>
   int32_t colId;
@@ -85,12 +80,14 @@ void interResToBinary(SBufferWriter* bw, SArray* pRes, int32_t tagLen);
 SArray* interResFromBinary(const char* data, int32_t len);
 void freeInterResult(void* param);
 
-void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo, int32_t offset);
+void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo);
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
+bool    hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo);
 bool    hasRemainData(SGroupResInfo* pGroupResInfo);
+
 bool    incNextGroup(SGroupResInfo* pGroupResInfo);
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
-int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQInfo *pQInfo);
+int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, int32_t* offset);
 
 #endif  // TDENGINE_QUERYUTIL_H

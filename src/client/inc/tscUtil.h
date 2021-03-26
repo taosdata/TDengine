@@ -83,6 +83,22 @@ typedef struct SJoinSupporter {
   SArray*         pVgroupTables;
 } SJoinSupporter;
 
+
+typedef struct SMergeCtx {
+  SJoinSupporter* p;
+  int32_t         idx;
+  SArray*         res;
+  int8_t          compared;
+}SMergeCtx;
+
+typedef struct SMergeTsCtx {
+  SJoinSupporter* p;
+  STSBuf*         res;
+  int64_t         numOfInput;
+  int8_t          compared;
+}SMergeTsCtx;
+
+
 typedef struct SVgroupTableInfo {
   SVgroupInfo vgInfo;
   SArray*     itemList;   //SArray<STableIdInfo>
@@ -123,6 +139,7 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
+bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
 
 bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
 bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
@@ -133,6 +150,7 @@ bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);
 bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryTags(SQueryInfo* pQueryInfo);
 bool tscMultiRoundQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscQueryBlockInfo(SQueryInfo* pQueryInfo);
 
 SSqlExpr* tscAddFuncInSelectClause(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId,
                                        SColumnIndex* pIndex, SSchema* pColSchema, int16_t colType);
@@ -152,7 +170,6 @@ SInternalField* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_F
 SInternalField* tscFieldInfoGetInternalField(SFieldInfo* pFieldInfo, int32_t index);
 TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index);
 
-void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
 void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
 
 int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
@@ -182,6 +199,7 @@ int32_t   tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deep
 void      tscSqlExprInfoDestroy(SArray* pExprInfo);
 
 SColumn* tscColumnClone(const SColumn* src);
+bool tscColumnExists(SArray* pColumnList, SColumnIndex* pColIndex);
 SColumn* tscColumnListInsert(SArray* pColList, SColumnIndex* colIndex);
 SArray* tscColumnListClone(const SArray* src, int16_t tableIndex);
 void tscColumnListDestroy(SArray* pColList);

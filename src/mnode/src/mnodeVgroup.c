@@ -367,6 +367,11 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
     maxIdPoolSize = MAX(maxIdPoolSize, idPoolSize);
   }
 
+  // create one table each vnode
+  if (pDb->cfg.dbType == TSDB_DB_TYPE_TOPIC) {
+    maxIdPoolSize = 1;
+  }
+
   // new vgroup
   if (pInputVgroup->idPool == NULL) {
     pInputVgroup->idPool = taosInitIdPool(maxIdPoolSize);
@@ -377,6 +382,11 @@ static int32_t mnodeAllocVgroupIdPool(SVgObj *pInputVgroup) {
       mDebug("vgId:%d, init idPool for vgroup, size:%d", pInputVgroup->vgId, maxIdPoolSize);
       return TSDB_CODE_SUCCESS;
     }
+  }
+
+  // create one table each vnode
+  if (pDb->cfg.dbType == TSDB_DB_TYPE_TOPIC) {
+    return TSDB_CODE_SUCCESS;
   }
 
   // realloc all vgroups in db
@@ -433,6 +443,7 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
       mDebug("msg:%p, app:%p db:%s, no enough sid in vgId:%d", pMsg, pMsg->rpcMsg.ahandle, pDb->name, pVgroup->vgId);
       continue;
     }
+    mTrace("vgId:%d, alloc tid:%d", pVgroup->vgId, sid);
 
     *pSid = sid;
     *ppVgroup = pVgroup;
@@ -447,6 +458,10 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
     maxVgroupsPerDb = mnodeGetOnlinDnodesCpuCoreNum();
     maxVgroupsPerDb = MAX(maxVgroupsPerDb, TSDB_MIN_VNODES_PER_DB);
     maxVgroupsPerDb = MIN(maxVgroupsPerDb, TSDB_MAX_VNODES_PER_DB);
+  }
+
+  if (pDb->cfg.dbType == TSDB_DB_TYPE_TOPIC) {
+    maxVgroupsPerDb = TSDB_MAX_DB_PARTITON_OPTION;
   }
 
   int32_t code = TSDB_CODE_MND_NO_ENOUGH_DNODES;
@@ -493,6 +508,7 @@ int32_t mnodeGetAvailableVgroup(SMnodeMsg *pMsg, SVgObj **ppVgroup, int32_t *pSi
   pDb->vgListIndex = 0;
   pthread_mutex_unlock(&pDb->mutex);
 
+  mTrace("vgId:%d, alloc tid:%d", pVgroup->vgId, sid);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -818,26 +834,37 @@ static int32_t mnodeRetrieveVgroups(SShowObj *pShow, char *data, int32_t rows, v
   return numOfRows;
 }
 
-void mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
+int32_t mnodeAddTableIntoVgroup(SVgObj *pVgroup, SCTableObj *pTable, bool needCheck) {
   int32_t idPoolSize = taosIdPoolMaxSize(pVgroup->idPool);
   if (pTable->tid > idPoolSize) {
     mnodeAllocVgroupIdPool(pVgroup);
   }
 
   if (pTable->tid >= 1) {
-    taosIdPoolMarkStatus(pVgroup->idPool, pTable->tid);
-    pVgroup->numOfTables++;
-    // The create vgroup message may be received later than the create table message
-    // and the writing order in sdb is therefore uncertain
-    // which will cause the reference count of the vgroup to be incorrect when restarting
-    // mnodeIncVgroupRef(pVgroup);
+    if (taosIdPoolMarkStatus(pVgroup->idPool, pTable->tid) || !needCheck) {
+      pVgroup->numOfTables++;
+      mTrace("table:%s, vgId:%d tid:%d, mark tid used, uid:%" PRIu64, pTable->info.tableId, pTable->vgId, pTable->tid,
+             pTable->uid);
+      // The create vgroup message may be received later than the create table message
+      // and the writing order in sdb is therefore uncertain
+      // which will cause the reference count of the vgroup to be incorrect when restarting
+      // mnodeIncVgroupRef(pVgroup);
+    } else {
+      mError("table:%s, vgId:%d tid:%d, failed to mark tid, uid:%" PRIu64, pTable->info.tableId, pTable->vgId,
+             pTable->tid, pTable->uid);
+      return -1;
+    }
   }
+
+  return 0;
 }
 
 void mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SCTableObj *pTable) {
   if (pTable->tid >= 1) {
     taosFreeId(pVgroup->idPool, pTable->tid);
     pVgroup->numOfTables--;
+    mTrace("table:%s, vgId:%d tid:%d, put tid back uid:%" PRIu64, pTable->info.tableId, pTable->vgId, pTable->tid,
+           pTable->uid);
     // The create vgroup message may be received later than the create table message
     // and the writing order in sdb is therefore uncertain
     // which will cause the reference count of the vgroup to be incorrect when restarting
@@ -881,6 +908,7 @@ static SCreateVnodeMsg *mnodeBuildVnodeMsg(SVgObj *pVgroup) {
   pCfg->update              = pDb->cfg.update;
   pCfg->cacheLastRow        = pDb->cfg.cacheLastRow;
   pCfg->dbReplica           = pDb->cfg.replications;
+  pCfg->dbType              = pDb->cfg.dbType;
   
   SVnodeDesc *pNodes = pVnode->nodes;
   for (int32_t j = 0; j < pVgroup->numOfVnodes; ++j) {

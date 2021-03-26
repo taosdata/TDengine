@@ -93,6 +93,7 @@ $halfTbNum = $tbNum / 2
     $nchar = 'nchar . $c
     $nchar = $nchar . '
 
+    $ts = $ts + 1
     sql insert into $tb5 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb6 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb7 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb8 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar ) $tb9 values ( $ts , NULL , $c , NULL , $c , NULL , $c , NULL, NULL , $nchar )
     $x = $x + 1
   endw
