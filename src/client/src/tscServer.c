@@ -1076,6 +1076,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       STR_TO_VARSTR(pMsg, pUdfInfo->name);
 
       pMsg += varDataTLen(pMsg);
+
+      *(int32_t*) pMsg = htonl(pUdfInfo->funcType);
+      pMsg += sizeof(pUdfInfo->funcType);
+      
       pQueryMsg->udfContentLen = htonl(pUdfInfo->contLen);
       memcpy(pMsg, pUdfInfo->content, pUdfInfo->contLen);
 
@@ -1844,8 +1848,8 @@ int tscBuildRetrieveFuncMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sizeof(SRetrieveFuncMsg);
   for(int32_t i = 0; i < numOfFuncs; ++i) {
     SUdfInfo* pUdf = taosArrayGet(pCmd->pUdfInfo, i);
-    STR_TO_VARSTR(pMsg, pUdf->name);
-    pMsg += varDataTLen(pMsg);
+    STR_TO_NET_VARSTR(pMsg, pUdf->name);
+    pMsg += varDataNetTLen(pMsg);
   }
 
   pCmd->msgType = TSDB_MSG_TYPE_CM_RETRIEVE_FUNC;
@@ -2131,9 +2135,13 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
         continue;
       }
 
+      if (pUdfInfo->content) {
+        continue;
+      }
+
       pUdfInfo->resBytes = htons(pFunc->resBytes);
       pUdfInfo->resType  = pFunc->resType;
-      pUdfInfo->funcType = TSDB_UDF_TYPE_SCALAR;
+      pUdfInfo->funcType = htonl(pFunc->funcType);
       pUdfInfo->contLen  = htonl(pFunc->len);
 
       pUdfInfo->content = malloc(pUdfInfo->contLen);
@@ -2790,4 +2798,3 @@ void tscInitMsgsFp() {
   tscKeepConn[TSDB_SQL_FETCH] = 1;
   tscKeepConn[TSDB_SQL_HB] = 1;
 }
-                                                                                                        

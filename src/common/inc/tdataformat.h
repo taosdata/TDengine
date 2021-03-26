@@ -34,6 +34,14 @@ extern "C" {
     memcpy(varDataVal(x), (str), __len);          \
   } while (0);
 
+#define STR_TO_NET_VARSTR(x, str)                   \
+    do {                                            \
+      VarDataLenT __len = (VarDataLenT)strlen(str); \
+      *(VarDataLenT *)(x) = htons(__len);           \
+      memcpy(varDataVal(x), (str), __len);          \
+    } while (0);
+
+
 #define STR_WITH_MAXSIZE_TO_VARSTR(x, str, _maxs)                         \
   do {                                                                    \
     char *_e = stpncpy(varDataVal(x), (str), (_maxs)-VARSTR_HEADER_SIZE); \

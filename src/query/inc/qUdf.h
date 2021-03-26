@@ -16,7 +16,7 @@
 #ifndef TDENGINE_QUDF_H
 #define TDENGINE_QUDF_H
 
-enum { TSDB_UDF_FUNC_NORMAL = 0, TSDB_UDF_FUNC_INIT, TSDB_UDF_FUNC_FINALIZE, TSDB_UDF_FUNC_MAX_NUM };
+enum { TSDB_UDF_FUNC_NORMAL = 0, TSDB_UDF_FUNC_INIT, TSDB_UDF_FUNC_FINALIZE, TSDB_UDF_FUNC_DESTROY, TSDB_UDF_FUNC_MAX_NUM };
 
 
 
@@ -46,10 +46,10 @@ typedef struct SUdfInfo {
 } SUdfInfo;
 
 typedef void (*udfNormalFunc)(char* data, int8_t type, int32_t numOfRows, int64_t* ts, char* dataOutput, char* tsOutput,
-                        int32_t* numOfOutput, char* buf);
-typedef void (*udfInitFunc)(SUdfInit* data);
-typedef void (*udfFinalizeFunc)(char* data, int8_t type, int32_t numOfRows, int64_t* ts, char* dataOutput, char* tsOutput,
-                        int32_t* numOfOutput, char* buf);
+                        int32_t* numOfOutput, SUdfInit* buf);
+typedef int32_t (*udfInitFunc)(SUdfInit* data);
+typedef void (*udfFinalizeFunc)(char* dataOutput, int32_t* numOfOutput, SUdfInit* buf);
+typedef void (*udfDestroyFunc)(SUdfInit* buf);
 
 
 #endif  // TDENGINE_QUDF_H

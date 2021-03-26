@@ -22,13 +22,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != INT then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != INT then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -54,13 +54,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != BOOL then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != BOOL then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -88,13 +88,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != TINYINT then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != TINYINT then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -123,13 +123,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != SMALLINT then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != SMALLINT then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -159,13 +159,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != INT then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != INT then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -199,13 +199,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != BIGINT then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != BIGINT then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -237,13 +237,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != FLOAT then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != FLOAT then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -274,13 +274,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != DOUBLE then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != DOUBLE then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -311,13 +311,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != BINARY(0) then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != BINARY(0) then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -343,13 +343,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != BINARY(10) then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != BINARY(10) then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -375,13 +375,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != TIMESTAMP then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != TIMESTAMP then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -407,13 +407,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != NCHAR(0) then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != NCHAR(0) then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -439,13 +439,13 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data02 != NCHAR(10) then 
+if $data02 != 0 then 
   return -1
 endi
-if $data04 != 5 then 
+if $data03 != NCHAR(10) then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -473,10 +473,10 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data04 != 5 then 
+if $data02 != 0 then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -503,10 +503,10 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data04 != 5 then 
+if $data02 != 0 then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -532,10 +532,10 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data04 != 5 then 
+if $data02 != 0 then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
@@ -562,14 +562,42 @@ endi
 if $data01 != /tmp/normal then 
   return -1
 endi
-if $data04 != 5 then 
+if $data02 != 0 then 
   return -1
 endi
-if $data05 != hello then 
+if $data05 != 5 then 
   return -1
 endi
 
 sql drop function n17;
+
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
+
+sql create aggregate function n18 as '/tmp/normal' outputtype BIGINT UNSIGNED;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+
+
+if $data00 != n18 then 
+  return -1
+endi
+if $data01 != /tmp/normal then 
+  return -1
+endi
+if $data02 != 1 then 
+  return -1
+endi
+if $data05 != 5 then 
+  return -1
+endi
+
+sql drop function n18;
 
 sql show functions;
 if $rows != 0 then

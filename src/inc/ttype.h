@@ -26,6 +26,10 @@ typedef struct tstr {
 #define varDataSetLen(v, _len) (((VarDataLenT *)(v))[0] = (VarDataLenT) (_len))
 #define IS_VAR_DATA_TYPE(t) (((t) == TSDB_DATA_TYPE_BINARY) || ((t) == TSDB_DATA_TYPE_NCHAR))
 
+#define varDataNetLen(v)       (htons(((VarDataLenT *)(v))[0]))
+#define varDataNetTLen(v)      (sizeof(VarDataLenT) + varDataNetLen(v))
+
+
 // this data type is internally used only in 'in' query to hold the values
 #define TSDB_DATA_TYPE_ARRAY      (1000)
 

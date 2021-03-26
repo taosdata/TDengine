@@ -326,12 +326,6 @@ static int32_t mnodeGetFuncMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
-  pShow->bytes[cols] = TSDB_FUNC_CODE_LEN + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "code");
-  pSchema[cols].bytes = htons(pShow->bytes[cols]);
-  cols++;
-
   pMeta->numOfColumns = htons(cols);
   strcpy(pMeta->tableFname, "show funcs");
   pShow->numOfColumns = cols;
@@ -404,10 +398,6 @@ static int32_t mnodeRetrieveFuncs(SShowObj *pShow, char *data, int32_t rows, voi
     *(int32_t *)pWrite = pFunc->contLen;
     cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pFunc->cont, pShow->bytes[cols]);
-    cols++;
-
     numOfRows++;
     mnodeDecFuncRef(pFunc);
   }
@@ -446,11 +436,11 @@ static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg) {
   SUdfFuncMsg *pFuncMsg = rpcMallocCont(t);
   pFuncMsg->num = htonl(pInfo->num);
   char* pOutput = pFuncMsg->content;
-  for(int32_t i = 0; i < pInfo->num; ++i) {
-    tstr* name = (tstr*) pInfo->name;
+  tstr* name = (tstr*) pInfo->name;
 
+  for(int32_t i = 0; i < pInfo->num; ++i) {
     char buf[TSDB_FUNC_NAME_LEN] = {0};
-    tstrncpy(buf, name->data, TSDB_FUNC_NAME_LEN);
+    tstrncpy(buf, name->data, htons(name->len) + 1);
 
     SFuncObj* pFuncObj = mnodeGetFunc(buf);
     if (pFuncObj == NULL) {
@@ -467,7 +457,9 @@ static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg) {
     pFuncInfo->funcType = htonl(pFuncObj->funcType);
     pFuncInfo->resType = pFuncObj->resType;
     pFuncInfo->resBytes = htons(pFuncObj->resBytes);
+    
     pOutput += sizeof(SFunctionInfoMsg) + pFuncObj->contLen;
+    name =(void *)name + sizeof(*name) + htons(name->len);
   }
 
   pMsg->rpcRsp.rsp = pFuncMsg;
