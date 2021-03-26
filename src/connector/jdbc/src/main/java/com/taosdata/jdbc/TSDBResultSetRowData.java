@@ -21,7 +21,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 
 public class TSDBResultSetRowData {
-    private ArrayList<Object> data = null;
+    private ArrayList<Object> data;
     private int colSize = 0;
 
     public TSDBResultSetRowData(int colSize) {
@@ -299,11 +299,11 @@ public class TSDBResultSetRowData {
     }
 
     public void setTimestamp(int col, long ts) {
-        data.set(col, ts);
+        data.set(col, new Timestamp(ts));
     }
 
     public Timestamp getTimestamp(int col) {
-        return new Timestamp((Long) data.get(col));
+        return (Timestamp) data.get(col);
     }
 
     public Object get(int col) {
