@@ -48,13 +48,21 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
+        # insert: create one table per sql and insert multiple rows
         os.system("yes | %staosdemo -f tools/taosdemoAllTest//insert-1s1tnr.json" % binPath)
-
         tdSql.execute("use db01")
         tdSql.query("show stables")
         tdSql.checkData(0, 4, 10)
         tdSql.query("select count(*) from stb01")
-        tdSql.checkData(0, 0, 2000)                
+        tdSql.checkData(0, 0, 2000)   
+        # insert: insert-highspeed.json
+        os.system("yes | %staosdemo -f tools/taosdemoAllTest//insert-highspeed.json" % binPath)
+        tdSql.execute("use db01")
+        tdSql.query("show stables")
+        tdSql.checkData(0, 4, 10)
+        tdSql.query("select count(*) from stb01")
+        tdSql.checkData(0, 0, 200000)   
+
 
     def stop(self):
         tdSql.close()
