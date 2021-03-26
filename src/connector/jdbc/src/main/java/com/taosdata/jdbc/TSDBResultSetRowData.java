@@ -28,11 +28,6 @@ public class TSDBResultSetRowData {
         this.setColSize(colSize);
     }
 
-    public TSDBResultSetRowData() {
-        this.data = new ArrayList<>();
-        this.setColSize(0);
-    }
-
     public void clear() {
         if (this.data != null) {
             this.data.clear();
@@ -46,10 +41,6 @@ public class TSDBResultSetRowData {
 
     public boolean wasNull(int col) {
         return data.get(col) == null;
-    }
-
-    public void setBoolean(int col, boolean value) {
-        data.set(col, value);
     }
 
     public boolean getBoolean(int col, int srcType) throws SQLException {
@@ -71,17 +62,9 @@ public class TSDBResultSetRowData {
             case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
             case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
                 return ((Long) obj) == 1L ? Boolean.TRUE : Boolean.FALSE;
+            default:
+                return false;
         }
-
-        return Boolean.TRUE;
-    }
-
-    public void setByte(int col, byte value) {
-        data.set(col, value);
-    }
-
-    public void setShort(int col, short value) {
-        data.set(col, value);
     }
 
     public void setInt(int col, int value) {
@@ -139,10 +122,6 @@ public class TSDBResultSetRowData {
         return 0;
     }
 
-    public void setLong(int col, long value) {
-        data.set(col, value);
-    }
-
     public long getLong(int col, int srcType) throws SQLException {
         Object obj = data.get(col);
 
@@ -194,11 +173,7 @@ public class TSDBResultSetRowData {
         return 0;
     }
 
-    public void setFloat(int col, float value) {
-        data.set(col, value);
-    }
-
-    public float getFloat(int col, int srcType) throws SQLException {
+    public float getFloat(int col, int srcType) {
         Object obj = data.get(col);
 
         switch (srcType) {
@@ -222,11 +197,7 @@ public class TSDBResultSetRowData {
         return 0;
     }
 
-    public void setDouble(int col, double value) {
-        data.set(col, value);
-    }
-
-    public double getDouble(int col, int srcType) throws SQLException {
+    public double getDouble(int col, int srcType) {
         Object obj = data.get(col);
 
         switch (srcType) {
@@ -254,22 +225,13 @@ public class TSDBResultSetRowData {
         data.set(col, value);
     }
 
-    public void setByteArray(int col, byte[] value) {
-        try {
-            data.set(col, new String(value, TaosGlobalConfig.getCharset()));
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
     /**
      * The original type may not be a string type, but will be converted to by calling this method
      *
      * @param col column index
      * @return
-     * @throws SQLException
      */
-    public String getString(int col, int srcType) throws SQLException {
+    public String getString(int col, int srcType) {
         switch (srcType) {
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
@@ -304,10 +266,6 @@ public class TSDBResultSetRowData {
         }
     }
 
-    public void setTimestamp(int col, long ts) {
-        data.set(col, ts);
-    }
-
     public Timestamp getTimestamp(int col) {
         return new Timestamp((Long) data.get(col));
     }
@@ -320,7 +278,7 @@ public class TSDBResultSetRowData {
         return colSize;
     }
 
-    public void setColSize(int colSize) {
+    private void setColSize(int colSize) {
         this.colSize = colSize;
         this.clear();
     }

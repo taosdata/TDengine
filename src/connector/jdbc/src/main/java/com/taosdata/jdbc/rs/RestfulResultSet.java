@@ -2,13 +2,18 @@ package com.taosdata.jdbc.rs;
 
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
+import com.google.common.primitives.Shorts;
 import com.taosdata.jdbc.AbstractResultSet;
 import com.taosdata.jdbc.TSDBConstants;
 import com.taosdata.jdbc.TSDBError;
 import com.taosdata.jdbc.TSDBErrorNumbers;
 
+import java.math.BigDecimal;
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.Calendar;
 
 public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     private volatile boolean isClosed;
@@ -16,7 +21,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     private final String database;
     private final Statement statement;
-    //    private final JSONObject resultJson;
     // data
     private final ArrayList<ArrayList<Object>> resultSet;
     // meta
@@ -32,7 +36,6 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     public RestfulResultSet(String database, Statement statement, JSONObject resultJson) throws SQLException {
         this.database = database;
         this.statement = statement;
-//        this.resultJson = resultJson;
 
         // column metadata
         JSONArray columnMeta = resultJson.getJSONArray("column_meta");
@@ -81,9 +84,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
                 return new Timestamp(row.getDate(colIndex).getTime());
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+                return row.getString(colIndex).getBytes();
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-            default:
                 return row.getString(colIndex);
+            default:
+                return row.get(colIndex);
         }
     }
 
@@ -130,37 +135,33 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public String getString(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        if (columnIndex > resultSet.get(pos).size())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        Object value = resultSet.get(pos).get(columnIndex);
-        return value == null ? null : value.toString();
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof byte[])
+            return new String((byte[]) value);
+        return value.toString();
     }
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        if (columnIndex > resultSet.get(pos).size())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        int result = getInt(columnIndex);
-        return result == 0 ? false : true;
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return false;
+        if (value instanceof Boolean)
+            return (boolean) value;
+        return Boolean.valueOf(value.toString());
     }
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        if (columnIndex > resultSet.get(pos).size())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        Object value = resultSet.get(pos).get(columnIndex);
+        Object value = resultSet.get(pos).get(columnIndex - 1);
         if (value == null)
             return 0;
         long valueAsLong = Long.parseLong(value.toString());
@@ -179,13 +180,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        if (columnIndex > resultSet.get(pos).size())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        Object value = resultSet.get(pos).get(columnIndex);
+        Object value = resultSet.get(pos).get(columnIndex - 1);
         if (value == null)
             return 0;
         long valueAsLong = Long.parseLong(value.toString());
@@ -198,13 +195,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        if (columnIndex > resultSet.get(pos).size())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        Object value = resultSet.get(pos).get(columnIndex);
+        Object value = resultSet.get(pos).get(columnIndex - 1);
         if (value == null)
             return 0;
         long valueAsLong = Long.parseLong(value.toString());
@@ -217,13 +210,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        if (columnIndex > resultSet.get(pos).size())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        Object value = resultSet.get(pos).get(columnIndex);
+        Object value = resultSet.get(pos).get(columnIndex - 1);
         if (value == null)
             return 0;
 
@@ -240,71 +229,99 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        if (columnIndex > resultSet.get(pos).size())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        return Float.parseFloat(resultSet.get(pos).get(columnIndex).toString());
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return 0;
+        if (value instanceof Float || value instanceof Double)
+            return (float) value;
+        return Float.parseFloat(value.toString());
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        if (columnIndex > resultSet.get(pos).size())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        return Double.parseDouble(resultSet.get(pos).get(columnIndex).toString());
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return 0;
+        if (value instanceof Double || value instanceof Float)
+            return (double) value;
+        return Double.parseDouble(value.toString());
     }
 
-    private int getTrueColumnIndex(int columnIndex) throws SQLException {
-        if (columnIndex < 1) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE
-                    , "Column Index out of range, " + columnIndex + " < 1");
-        }
+    @Override
+    public byte[] getBytes(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        int numOfCols = resultSet.get(pos).size();
-        if (columnIndex > numOfCols) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE
-                    , "Column Index out of range, " + columnIndex + " > " + numOfCols);
-        }
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof byte[])
+            return (byte[]) value;
+        if (value instanceof String)
+            return ((String) value).getBytes();
+        if (value instanceof Long)
+            return Longs.toByteArray((long) value);
+        if (value instanceof Integer)
+            return Ints.toByteArray((int) value);
+        if (value instanceof Short)
+            return Shorts.toByteArray((short) value);
+        if (value instanceof Byte)
+            return new byte[]{(byte) value};
 
-        return columnIndex - 1;
+        return value.toString().getBytes();
+    }
+
+    @Override
+    public Date getDate(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof Timestamp)
+            return new Date(((Timestamp) value).getTime());
+        return Date.valueOf(value.toString());
+    }
+
+    @Override
+    public Time getTime(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof Timestamp)
+            return new Time(((Timestamp) value).getTime());
+        return Time.valueOf(value.toString());
     }
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        columnIndex = getTrueColumnIndex(columnIndex);
-        String strDate = resultSet.get(pos).get(columnIndex).toString();
-//        strDate = strDate.substring(1, strDate.length() - 1);
-        return Timestamp.valueOf(strDate);
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+        if (value instanceof Timestamp)
+            return (Timestamp) value;
+        return Timestamp.valueOf(value.toString());
     }
 
-    /*************************************************************************************************************/
     @Override
     public ResultSetMetaData getMetaData() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
         return this.metaData;
     }
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        checkAvailability(columnIndex, resultSet.get(pos).size());
 
-        if (columnIndex > resultSet.get(pos).size())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + resultSet.get(pos).size());
-
-        columnIndex = getTrueColumnIndex(columnIndex);
-        return resultSet.get(pos).get(columnIndex);
+        return resultSet.get(pos).get(columnIndex - 1);
     }
 
     @Override
@@ -316,6 +333,23 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         if (columnIndex == -1)
             throw new SQLException("cannot find Column in resultSet");
         return columnIndex + 1;
+    }
+
+    @Override
+    public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
+        checkAvailability(columnIndex, resultSet.get(pos).size());
+
+        Object value = resultSet.get(pos).get(columnIndex - 1);
+        if (value == null)
+            return null;
+
+        if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte)
+            return new BigDecimal(Long.valueOf(value.toString()));
+        if (value instanceof Double || value instanceof Float)
+            return new BigDecimal(Double.valueOf(value.toString()));
+        if (value instanceof Timestamp)
+            return new BigDecimal(((Timestamp) value).getTime());
+        return new BigDecimal(value.toString());
     }
 
     @Override
@@ -476,6 +510,12 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         return this.statement;
+    }
+
+    @Override
+    public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
+        //TODO：did not use the specified timezone in cal
+        return getTimestamp(columnIndex);
     }
 
     @Override

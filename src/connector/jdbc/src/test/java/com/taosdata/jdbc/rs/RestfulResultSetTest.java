@@ -1,5 +1,8 @@
 package com.taosdata.jdbc.rs;
 
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
+import com.google.common.primitives.Shorts;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -14,7 +17,7 @@ import java.text.SimpleDateFormat;
 
 public class RestfulResultSetTest {
 
-    //    private static final String host = "127.0.0.1";
+    //        private static final String host = "127.0.0.1";
     private static final String host = "master";
 
     private static Connection conn;
@@ -90,24 +93,75 @@ public class RestfulResultSetTest {
         Assert.assertEquals(3.1415926, f5, 0.0);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void getBigDecimal() throws SQLException {
-        rs.getBigDecimal("f1");
+        BigDecimal f1 = rs.getBigDecimal("f1");
+        Assert.assertEquals(1609430400000l, f1.longValue());
+
+        BigDecimal f2 = rs.getBigDecimal("f2");
+        Assert.assertEquals(1, f2.intValue());
+
+        BigDecimal f3 = rs.getBigDecimal("f3");
+        Assert.assertEquals(100l, f3.longValue());
+
+        BigDecimal f4 = rs.getBigDecimal("f4");
+        Assert.assertEquals(3.1415f, f4.floatValue(), 0.00000f);
+
+        BigDecimal f5 = rs.getBigDecimal("f5");
+        Assert.assertEquals(3.1415926, f5.doubleValue(), 0.0000000);
+
+        BigDecimal f7 = rs.getBigDecimal("f7");
+        Assert.assertEquals(10, f7.intValue());
+
+        BigDecimal f8 = rs.getBigDecimal("f8");
+        Assert.assertEquals(10, f8.intValue());
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void getBytes() throws SQLException {
-        rs.getBytes("f1");
+        byte[] f1 = rs.getBytes("f1");
+        Assert.assertEquals("2021-01-01 00:00:00.0", new String(f1));
+
+        byte[] f2 = rs.getBytes("f2");
+        Assert.assertEquals(1, Ints.fromByteArray(f2));
+
+        byte[] f3 = rs.getBytes("f3");
+        Assert.assertEquals(100l, Longs.fromByteArray(f3));
+
+        byte[] f4 = rs.getBytes("f4");
+        Assert.assertEquals(3.1415f, Float.valueOf(new String(f4)), 0.000000f);
+
+        byte[] f5 = rs.getBytes("f5");
+        Assert.assertEquals(3.1415926, Double.valueOf(new String(f5)), 0.000000f);
+
+        byte[] f6 = rs.getBytes("f6");
+        Assert.assertEquals("abc", new String(f6));
+
+        byte[] f7 = rs.getBytes("f7");
+        Assert.assertEquals((short) 10, Shorts.fromByteArray(f7));
+
+        byte[] f8 = rs.getBytes("f8");
+        Assert.assertEquals(1, f8.length);
+        Assert.assertEquals((byte) 10, f8[0]);
+
+        byte[] f9 = rs.getBytes("f9");
+        Assert.assertEquals("true",new String(f9));
+
+        byte[] f10 = rs.getBytes("f10");
+        Assert.assertEquals("涛思数据",new String(f10));
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
-    public void getDate() throws SQLException {
-        rs.getDate("f1");
+    @Test
+    public void getDate() throws SQLException, ParseException {
+        Date f1 = rs.getDate("f1");
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
+        Assert.assertEquals(sdf.parse("2021-01-01"), f1);
     }
 
-    @Test(expected = SQLFeatureNotSupportedException.class)
+    @Test
     public void getTime() throws SQLException {
-        rs.getTime("f1");
+        Time f1 = rs.getTime("f1");
+        Assert.assertEquals("00:00:00", f1.toString());
     }
 
     @Test
@@ -179,8 +233,8 @@ public class RestfulResultSetTest {
         Assert.assertEquals(3.1415926, f5);
 
         Object f6 = rs.getObject("f6");
-        Assert.assertEquals(String.class, f6.getClass());
-        Assert.assertEquals("abc", f6);
+        Assert.assertEquals(byte[].class, f6.getClass());
+        Assert.assertEquals("abc", new String((byte[]) f6));
 
         Object f7 = rs.getObject("f7");
         Assert.assertEquals(Short.class, f7.getClass());

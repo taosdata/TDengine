@@ -43,7 +43,6 @@
             <version>4.13</version>
             <scope>test</scope>
         </dependency>
-
         <!-- for restful -->
         <dependency>
             <groupId>org.apache.httpcomponents</groupId>
@@ -55,7 +54,11 @@
             <artifactId>fastjson</artifactId>
             <version>1.2.58</version>
         </dependency>
-
+        <dependency>
+            <groupId>com.google.guava</groupId>
+            <artifactId>guava</artifactId>
+            <version>29.0-jre</version>
+        </dependency>
     </dependencies>
 
     <build>
