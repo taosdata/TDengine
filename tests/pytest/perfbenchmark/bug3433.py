@@ -235,7 +235,7 @@ class TDTestCase:
         tdSql.checkData(0, 4, 1000)
         tdSql.checkData(1, 4, 1000)
 
-        # self.droptmpfile()
+        self.droptmpfile()
 
     def stop(self):
         tdSql.close()
