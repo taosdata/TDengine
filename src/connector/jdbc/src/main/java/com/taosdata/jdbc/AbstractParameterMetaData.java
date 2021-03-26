@@ -30,15 +30,15 @@ public abstract class AbstractParameterMetaData extends WrapperImpl implements P
 
         if (parameters[param - 1] instanceof Byte)
             return true;
-        if (parameters[param] instanceof Short)
+        if (parameters[param - 1] instanceof Short)
             return true;
-        if (parameters[param] instanceof Integer)
+        if (parameters[param - 1] instanceof Integer)
             return true;
-        if (parameters[param] instanceof Long)
+        if (parameters[param - 1] instanceof Long)
             return true;
-        if (parameters[param] instanceof Float)
+        if (parameters[param - 1] instanceof Float)
             return true;
-        if (parameters[param] instanceof Double)
+        if (parameters[param - 1] instanceof Double)
             return true;
 
         return false;
@@ -50,9 +50,9 @@ public abstract class AbstractParameterMetaData extends WrapperImpl implements P
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
         if (parameters[param - 1] instanceof String)
-            return ((String) parameters[param]).length();
+            return ((String) parameters[param - 1]).length();
         if (parameters[param - 1] instanceof byte[])
-            return ((byte[]) parameters[param]).length;
+            return ((byte[]) parameters[param - 1]).length;
         return 0;
     }
 
