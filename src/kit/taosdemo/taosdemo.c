@@ -393,6 +393,7 @@ typedef struct SThreadInfo_S {
   TAOS *taos;
   int threadID;
   char db_name[MAX_DB_NAME_SIZE+1];
+  uint32_t time_precision;
   char fp[4096];
   char tb_prefix[MAX_TB_NAME_SIZE];
   int start_table_from;
@@ -1269,7 +1270,6 @@ static void printfInsertMetaToFile(FILE* fp) {
   fprintf(fp, "resultFile:                 %s\n", g_Dbs.resultFile);
   fprintf(fp, "thread num of insert data:  %d\n", g_Dbs.threadCount);
   fprintf(fp, "thread num of create table: %d\n", g_Dbs.threadCountByCreateTbl);
-  fprintf(fp, "insert interval:            %d\n", g_args.insert_interval);
   fprintf(fp, "number of records per req:  %d\n", g_args.num_of_RPR);
   fprintf(fp, "max sql length:             %d\n", g_args.max_sql_len);
   fprintf(fp, "database count:          %d\n", g_Dbs.dbCount);
@@ -1355,7 +1355,10 @@ static void printfInsertMetaToFile(FILE* fp) {
       fprintf(fp, "      dataSource:        %s\n",  g_Dbs.db[i].superTbls[j].dataSource);      
       fprintf(fp, "      insertMode:        %s\n",  g_Dbs.db[i].superTbls[j].insertMode);      
       fprintf(fp, "      insertRows:        %"PRId64"\n", g_Dbs.db[i].superTbls[j].insertRows); 
-      fprintf(fp, "      insert interval:   %d\n", g_Dbs.db[i].superTbls[j].insertInterval);
+      fprintf(fp, "      interlace rows:    %d\n", g_Dbs.db[i].superTbls[j].interlaceRows);
+      if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
+        fprintf(fp, "      insert interval:   %d\n", g_Dbs.db[i].superTbls[j].insertInterval);
+      }
 
       if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
         fprintf(fp, "      multiThreadWriteOneTbl:  no\n");     
@@ -4444,7 +4447,7 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
   return len;
 }
 
-static int generateDataBuffer(char *pTblName,
+static int generateProgressiveDataBuffer(char *pTblName,
         int32_t tableSeq,
         threadInfo *pThreadInfo, char *buffer,
         int64_t insertRows,
@@ -4584,6 +4587,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       verbosePrint("[%d] %s() LN%d i=%d batchPerTblTimes=%d batchPerTbl = %d\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 i, batchPerTblTimes, batchPerTbl);
+      if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
+        startTime = taosGetTimestamp(pThreadInfo->time_precision);
+      }
       generateDataTail(
         tableName, tableSeq, pThreadInfo, superTblInfo,
         batchPerTbl, pstr, insertRows, 0,
@@ -4716,10 +4722,11 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
   int timeStampStep =
       superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
-  int insert_interval =
+/*  int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
   uint64_t st = 0;
   uint64_t et = 0xffffffff;
+  */
 
   pThreadInfo->totalInsertRows = 0;
   pThreadInfo->totalAffectedRows = 0;
@@ -4735,9 +4742,11 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     verbosePrint("%s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__, insertRows);
 
     for (int64_t i = 0; i < insertRows;) {
+        /*
       if (insert_interval) {
             st = taosGetTimestampUs();
       }
+      */
 
       char tableName[TSDB_TABLE_NAME_LEN];
       getTableName(tableName, pThreadInfo, tableSeq);
@@ -4745,7 +4754,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
              __func__, __LINE__,
              pThreadInfo->threadID, tableSeq, tableName);
 
-      int generated = generateDataBuffer(
+      int generated = generateProgressiveDataBuffer(
               tableName, tableSeq, pThreadInfo, buffer, insertRows,
             i, start_time,
             &(pThreadInfo->samplePos));
@@ -4787,7 +4796,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
       if (i >= insertRows)
         break;
-
+/*
       if (insert_interval) {
         et = taosGetTimestampUs();
 
@@ -4798,6 +4807,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             taosMsleep(sleep_time); // ms
         }
       }
+      */
     }   // num_of_DPT
 
     if ((tableSeq == pThreadInfo->ntables - 1) && superTblInfo &&
@@ -5061,6 +5071,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     threadInfo *t_info = infos + i;
     t_info->threadID = i;
     tstrncpy(t_info->db_name, db_name, MAX_DB_NAME_SIZE);
+    t_info->time_precision = timePrec;
     t_info->superTblInfo = superTblInfo;
 
     t_info->start_time = start_time;
