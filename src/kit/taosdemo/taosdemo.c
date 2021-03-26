@@ -86,7 +86,7 @@ enum TEST_MODE {
 #define   MAX_COLUMN_COUNT       1024
 #define   MAX_TAG_COUNT          128
 
-#define   MAX_QUERY_SQL_COUNT    10
+#define   MAX_QUERY_SQL_COUNT    100
 #define   MAX_QUERY_SQL_LENGTH   256
 
 #define   MAX_DATABASE_COUNT     256
@@ -1422,11 +1422,11 @@ static void printfQueryMeta() {
   printf("database name:           \033[33m%s\033[0m\n", g_queryInfo.dbName);
 
   printf("\n");
-  printf("specified table query info:                   \n");  
+  printf("specified table query info:                   \n");
   printf("query interval: \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.rate);
   printf("query times:    \033[33m%d\033[0m\n", g_args.query_times);
   printf("concurrent:     \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.concurrent);
-  printf("sqlCount:       \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.sqlCount); 
+  printf("sqlCount:       \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.sqlCount);
 
   if (SUBSCRIBE_TEST == g_args.test_mode) {
     printf("mod:            \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.subscribeMode);
@@ -1439,7 +1439,7 @@ static void printfQueryMeta() {
     printf("  sql[%d]: \033[33m%s\033[0m\n", i, g_queryInfo.superQueryInfo.sql[i]);
   }
   printf("\n");
-  printf("super table query info:                   \n");  
+  printf("super table query info:                   \n");
   printf("query interval: \033[33m%d\033[0m\n", g_queryInfo.subQueryInfo.rate);
   printf("threadCnt:      \033[33m%d\033[0m\n", g_queryInfo.subQueryInfo.threadCnt);
   printf("childTblCount:  \033[33m%d\033[0m\n", g_queryInfo.subQueryInfo.childTblCount);
@@ -1451,11 +1451,11 @@ static void printfQueryMeta() {
     printf("restart:        \033[33m%d\033[0m\n", g_queryInfo.subQueryInfo.subscribeRestart);
     printf("keepProgress:   \033[33m%d\033[0m\n", g_queryInfo.subQueryInfo.subscribeKeepProgress);
   }
-  
-  printf("sqlCount:       \033[33m%d\033[0m\n", g_queryInfo.subQueryInfo.sqlCount);  
+
+  printf("sqlCount:       \033[33m%d\033[0m\n", g_queryInfo.subQueryInfo.sqlCount);
   for (int i = 0; i < g_queryInfo.subQueryInfo.sqlCount; i++) {
     printf("  sql[%d]: \033[33m%s\033[0m\n", i, g_queryInfo.subQueryInfo.sql[i]);
-  }  
+  }
   printf("\n");
 
   SHOW_PARSE_RESULT_END();
@@ -5476,12 +5476,12 @@ static void replaceSubTblName(char* inSql, char* outSql, int tblIndex) {
           g_queryInfo.subQueryInfo.childTblName + tblIndex*TSDB_TABLE_NAME_LEN);
 
   //printf("inSql: %s\n", inSql);
-  
+
   char* pos = strstr(inSql, sourceString);
   if (0 == pos) {
     return;
   }
-  
+
   tstrncpy(outSql, inSql, pos - inSql + 1);
   //printf("1: %s\n", outSql);
   strcat(outSql, subTblName);
@@ -5519,7 +5519,7 @@ static void *subQueryProcess(void *sarg) {
       }
     }
     et = taosGetTimestampUs();
-    printf("####thread[%"PRId64"] complete all sqls to allocate all sub-tables[%d - %d] once queries duration:%.4fs\n\n", 
+    printf("####thread[%"PRId64"] complete all sqls to allocate all sub-tables[%d - %d] once queries duration:%.4fs\n\n",
             taosGetSelfPthreadId(),
             winfo->start_table_from,
             winfo->end_table_to,
@@ -5891,7 +5891,7 @@ static int subscribeTestProcess() {
   pids  = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(pthread_t));
   infos = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(threadInfo));
   if ((NULL == pids) || (NULL == infos)) {
-      printf("malloc failed for create threads\n");
+      errorPrint("%s() LN%d, malloc failed for create threads\n", __func__, __LINE__);
       taos_close(taos);
       exit(-1);
   }
@@ -5966,7 +5966,7 @@ static int subscribeTestProcess() {
 
 static void initOfInsertMeta() {
   memset(&g_Dbs, 0, sizeof(SDbs));
-   
+
   // set default values
   tstrncpy(g_Dbs.host, "127.0.0.1", MAX_DB_NAME_SIZE);
   g_Dbs.port = 6030;
@@ -5979,7 +5979,7 @@ static void initOfInsertMeta() {
 
 static void initOfQueryMeta() {
   memset(&g_queryInfo, 0, sizeof(SQueryMetaInfo));
-   
+
   // set default values
   tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_DB_NAME_SIZE);
   g_queryInfo.port = 6030;
@@ -6089,7 +6089,6 @@ static void setParaFromArg(){
     g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
     g_Dbs.db[0].superTbls[0].tagCount = 0;
   }
-
 }
 
 /* Function to do regular expression check */
