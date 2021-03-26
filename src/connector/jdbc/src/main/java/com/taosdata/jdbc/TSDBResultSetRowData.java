@@ -43,6 +43,10 @@ public class TSDBResultSetRowData {
         return data.get(col) == null;
     }
 
+    public void setBoolean(int col, boolean value) {
+        data.set(col, value);
+    }
+
     public boolean getBoolean(int col, int srcType) throws SQLException {
         Object obj = data.get(col);
 
@@ -65,6 +69,14 @@ public class TSDBResultSetRowData {
             default:
                 return false;
         }
+    }
+
+    public void setByte(int col, byte value) {
+        data.set(col, value);
+    }
+
+    public void setShort(int col, short value) {
+        data.set(col, value);
     }
 
     public void setInt(int col, int value) {
@@ -122,6 +134,10 @@ public class TSDBResultSetRowData {
         return 0;
     }
 
+    public void setLong(int col, long value) {
+        data.set(col, value);
+    }
+
     public long getLong(int col, int srcType) throws SQLException {
         Object obj = data.get(col);
 
@@ -173,6 +189,10 @@ public class TSDBResultSetRowData {
         return 0;
     }
 
+    public void setFloat(int col, float value) {
+        data.set(col, value);
+    }
+
     public float getFloat(int col, int srcType) {
         Object obj = data.get(col);
 
@@ -195,6 +215,10 @@ public class TSDBResultSetRowData {
         }
 
         return 0;
+    }
+
+    public void setDouble(int col, double value) {
+        data.set(col, value);
     }
 
     public double getDouble(int col, int srcType) {
@@ -272,6 +296,10 @@ public class TSDBResultSetRowData {
             default:
                 return String.valueOf(data.get(col));
         }
+    }
+
+    public void setTimestamp(int col, long ts) {
+        data.set(col, ts);
     }
 
     public Timestamp getTimestamp(int col) {
