@@ -283,12 +283,9 @@ public class TSDBResultSetTest {
         rs.getCharacterStream(1);
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void isBeforeFirst() throws SQLException {
-        Assert.assertFalse(rs.isBeforeFirst());
-        rs.beforeFirst();
-        Assert.assertTrue(rs.isBeforeFirst());
-        rs.next();
+        rs.isBeforeFirst();
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)

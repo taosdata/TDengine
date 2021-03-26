@@ -300,8 +300,13 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
             return this.blockData.get(columnIndex - 1);
 
         this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
-        if (!lastWasNull)
-            res = this.rowData.get(columnIndex - 1);
+        if (!lastWasNull) {
+            int colType = this.columnMetaDataList.get(columnIndex - 1).getColType();
+            if (colType == TSDBConstants.TSDB_DATA_TYPE_BINARY)
+                res = ((String) this.rowData.get(columnIndex - 1)).getBytes();
+            else
+                res = this.rowData.get(columnIndex - 1);
+        }
         return res;
     }
 
@@ -334,6 +339,8 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
                 case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
                     res = new BigDecimal((Double) this.rowData.get(columnIndex - 1));
                     break;
+                case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
+                    return new BigDecimal(((Timestamp) this.rowData.get(columnIndex - 1)).getTime());
                 default:
                     res = new BigDecimal(this.rowData.get(columnIndex - 1).toString());
             }
