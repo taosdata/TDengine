@@ -142,13 +142,13 @@ print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1  $data5_1  $data6_1  $dat
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2  $data5_2  $data6_2  $data7_2  $data8_2  $data9_2
 print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $data7_3  $data8_3  $data9_3
 $dnode4Vtatus = $data5_2
-$dnode3Vtatus = $data7_2
+$dnode2Vtatus = $data9_2
 
 if $dnode4Vtatus != offline then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
-if $dnode3Vtatus != master then
+if $dnode2Vtatus != master then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
@@ -202,7 +202,7 @@ print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1  $data5_1  $data6_1  $dat
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2  $data5_2  $data6_2  $data7_2  $data8_2  $data9_2
 print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $data7_3  $data8_3  $data9_3
 $dnode4Vtatus = $data5_2
-$dnode3Vtatus = $data7_2
+$dnode2Vtatus = $data9_2
 
 print dnode4Vtatus: $dnode4Vtatus
 print dnode3Vtatus: $dnode3Vtatus 
@@ -210,7 +210,7 @@ if $dnode4Vtatus != slave then
   sleep 2000
   goto wait_dnode4_vgroup_slave
 endi
-if $dnode3Vtatus != master then
+if $dnode2Vtatus != master then
   sleep 2000
   goto wait_dnode4_vgroup_slave
 endi
@@ -301,12 +301,12 @@ print show vgroups:
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1  $data5_1  $data6_1  $data7_1  $data8_1  $data9_1
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2  $data5_2  $data6_2  $data7_2  $data8_2  $data9_2
 print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $data7_3  $data8_3  $data9_3
-$dnode4Vtatus = $data5_2
+$dnode2Vtatus = $data9_2
 $dnode3Vtatus = $data7_2
 
-print dnode4Vtatus: $dnode4Vtatus
+print dnode2Vtatus: $dnode2Vtatus
 print dnode3Vtatus: $dnode3Vtatus 
-if $dnode4Vtatus != master then
+if $dnode2Vtatus != master then
   sleep 2000
   goto wait_dnode3_vgroup_slave
 endi
@@ -422,11 +422,11 @@ $dnode3Vtatus = $data7_2
 
 print dnode4Vtatus: $dnode4Vtatus
 print dnode3Vtatus: $dnode3Vtatus 
-if $dnode4Vtatus != master then
+if $dnode3Vtatus != master then
   sleep 2000
   goto wait_dnode2_vgroup_slave
 endi
-if $dnode3Vtatus != slave then
+if $dnode4Vtatus != slave then
   sleep 2000
   goto wait_dnode2_vgroup_slave
 endi
