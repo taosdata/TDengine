@@ -59,6 +59,7 @@ class TDTestCase:
         tdSql.checkData(0, 2, "2018-09-17 09:00:00")
         tdSql.checkData(1, 4, 1)
 
+
                 
     def stop(self):
         tdSql.close()
