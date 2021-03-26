@@ -132,13 +132,13 @@ public class TSDBParameterMetaDataTest {
 
     @Test
     public void unwrap() throws SQLException {
-        RestfulParameterMetaData unwrap = parameterMetaData_insert.unwrap(RestfulParameterMetaData.class);
+        TSDBParameterMetaData unwrap = parameterMetaData_insert.unwrap(TSDBParameterMetaData.class);
         Assert.assertNotNull(unwrap);
     }
 
     @Test
     public void isWrapperFor() throws SQLException {
-        Assert.assertTrue(parameterMetaData_insert.isWrapperFor(RestfulParameterMetaData.class));
+        Assert.assertTrue(parameterMetaData_insert.isWrapperFor(TSDBParameterMetaData.class));
     }
 
     @BeforeClass
