@@ -39,8 +39,8 @@ def pre_test(){
     sudo rmtaos || echo "taosd has not installed"
     '''
     sh '''
-    killall -9 taosd
-    killall -9 gdb
+    killall -9 taosd ||echo "no taosd running"
+    killall -9 gdb || echo "no gdb running"
     cd ${WKC}
     git checkout develop
     git reset --hard HEAD~10 >/dev/null 
