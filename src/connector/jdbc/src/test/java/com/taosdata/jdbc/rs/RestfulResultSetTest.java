@@ -17,8 +17,8 @@ import java.text.SimpleDateFormat;
 
 public class RestfulResultSetTest {
 
-    //        private static final String host = "127.0.0.1";
-    private static final String host = "master";
+    private static final String host = "127.0.0.1";
+//    private static final String host = "master";
 
     private static Connection conn;
     private static Statement stmt;
@@ -145,10 +145,10 @@ public class RestfulResultSetTest {
         Assert.assertEquals((byte) 10, f8[0]);
 
         byte[] f9 = rs.getBytes("f9");
-        Assert.assertEquals("true",new String(f9));
+        Assert.assertEquals("true", new String(f9));
 
         byte[] f10 = rs.getBytes("f10");
-        Assert.assertEquals("涛思数据",new String(f10));
+        Assert.assertEquals("涛思数据", new String(f10));
     }
 
     @Test
