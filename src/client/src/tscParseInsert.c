@@ -394,7 +394,7 @@ static int32_t tsCheckTimestamp(STableDataBlocks *pDataBlocks, const char *start
 
   TSKEY k = *(TSKEY *)start;
 
-  if (k == 0) {
+  if (k == INT64_MIN) {
     if (pDataBlocks->tsSource == TSDB_USE_CLI_TS) {
       return -1;
     } else if (pDataBlocks->tsSource == -1) {
@@ -1360,7 +1360,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
       }
     }
   } else {
-    SSqlInfo SQLInfo = qSQLParse(pSql->sqlstr);
+    SSqlInfo SQLInfo = qSqlParse(pSql->sqlstr);
     ret = tscToSQLCmd(pSql, &SQLInfo);
     if (ret == TSDB_CODE_TSC_INVALID_SQL && pSql->parseRetry == 0 && SQLInfo.type == TSDB_SQL_NULL) {
       tscResetSqlCmd(pCmd, true);

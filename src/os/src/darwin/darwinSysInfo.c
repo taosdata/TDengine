@@ -138,6 +138,8 @@ void taosPrintOsInfo() {
   // uInfo(" os streamMax:           %" PRId64, tsStreamMax);
   uInfo(" os numOfCores:          %d", tsNumOfCores);
   uInfo(" os totalDisk:           %f(GB)", tsTotalDataDirGB);
+  uInfo(" os usedDisk:            %f(GB)", tsUsedDataDirGB);
+  uInfo(" os availDisk:           %f(GB)", tsAvailDataDirGB);
   uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
 
   struct utsname buf;
@@ -222,6 +224,7 @@ int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   } else {
     diskSize->tsize = info.f_blocks * info.f_frsize;
     diskSize->avail = info.f_bavail * info.f_frsize;
+    diskSize->used = (info.f_blocks - info.f_bfree) * info.f_frsize;
     return 0;
   }
 }
