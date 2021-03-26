@@ -310,12 +310,12 @@ static FORCE_INLINE int32_t tStrTokenCompare(SStrToken* left, SStrToken* right) 
 }
 
 
-int32_t tSqlExprCompare(tSQLExpr *left, tSQLExpr *right) {
+int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
   if ((left == NULL && right) || (left && right == NULL)) {
     return 1;
   }
   
-  if (left->nSQLOptr != right->nSQLOptr) {
+  if (left->type != right->type) {
     return 1;
   }
 
@@ -328,7 +328,7 @@ int32_t tSqlExprCompare(tSQLExpr *left, tSQLExpr *right) {
     return 1;
   }
 
-  if (tVariantCompare(&left->val, &right->val)) {
+  if (tVariantCompare(&left->value, &right->value)) {
     return 1;
   }
 
@@ -336,14 +336,17 @@ int32_t tSqlExprCompare(tSQLExpr *left, tSQLExpr *right) {
     return 1;
   }
 
-  if (left->pParam && left->pParam->nExpr != right->pParam->nExpr) {
+  size_t size = taosArrayGetSize(right->pParam);
+  if (left->pParam && taosArrayGetSize(left->pParam) != size) {
     return 1;
   }
 
   if (right->pParam && left->pParam) {
-    for (int32_t i = 0; i < right->pParam->nExpr; i++) {
-      tSQLExpr* pSubLeft = left->pParam->a[i].pNode;
-      tSQLExpr* pSubRight = right->pParam->a[i].pNode;
+    for (int32_t i = 0; i < size; i++) {      
+      tSqlExprItem* pLeftElem = taosArrayGet(left->pParam, i);
+      tSqlExpr* pSubLeft = pLeftElem->pNode;
+      tSqlExprItem* pRightElem = taosArrayGet(left->pParam, i);
+      tSqlExpr* pSubRight = pRightElem->pNode;
     
       if (tSqlExprCompare(pSubLeft, pSubRight)) {
         return 1;
@@ -690,7 +693,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SFromInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
                                 SSessionWindowVal *pSession, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
-                                SLimitVal *psLimit, tSQLExpr *pHaving) {
+                                SLimitVal *psLimit, tSqlExpr *pHaving) {
   assert(pSelectList != NULL);
 
   SQuerySqlNode *pSqlNode = calloc(1, sizeof(SQuerySqlNode));

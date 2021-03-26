@@ -132,7 +132,7 @@ typedef struct SSqlExpr {
 } SSqlExpr;
 
 typedef struct SExprFilter {
-  tSQLExpr       *pExpr;     //used for having parse
+  tSqlExpr       *pExpr;     //used for having parse
   SSqlExpr       *pSqlExpr;
   SArray         *fp;
   SColumn        *pFilters;  //having filter info

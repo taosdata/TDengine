@@ -98,7 +98,7 @@ typedef struct SQuerySqlNode {
   SLimitVal          limit;        // limit offset [optional]
   SLimitVal          slimit;       // group limit offset [optional]
   SStrToken          sqlstr;       // sql string in select clause
-  struct tSQLExpr *    pHaving;      // having clause [optional]
+  struct tSqlExpr   *pHaving;      // having clause [optional]
 } SQuerySqlNode;
 
 typedef struct STableNamePair {
@@ -118,7 +118,6 @@ typedef struct SFromInfo {
     SArray          *tableList;   // SArray<STableNamePair>
   };
 } SFromInfo;
->>>>>>> develop
 
 typedef struct SCreatedTableInfo {
   SStrToken          name;        // table name token
@@ -255,11 +254,11 @@ SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
 SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
 SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 
-tSQLExpr *tSqlExprCreate(tSQLExpr *pLeft, tSQLExpr *pRight, int32_t optrType);
+tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType);
 
-int32_t tSqlExprCompare(tSQLExpr *left, tSQLExpr *right);
+int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right);
 
-tSQLExpr *tSqlExprClone(tSQLExpr *pSrc);
+tSqlExpr *tSqlExprClone(tSqlExpr *pSrc);
 SFromInfo *setTableNameList(SFromInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
 SFromInfo *setSubquery(SFromInfo* pFromInfo, SQuerySqlNode *pSqlNode);
 void      *destroyFromInfo(SFromInfo* pFromInfo);
@@ -279,7 +278,7 @@ void      tSqlExprListDestroy(SArray *pList);
 
 SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SFromInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,
-                                SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit, tSQLExpr *pHaving);
+                                SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit, tSqlExpr *pHaving);
 
 SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SQuerySqlNode *pSelect, int32_t type);
 

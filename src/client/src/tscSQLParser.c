@@ -1098,40 +1098,6 @@ static bool validateTableColumnInfo(SArray* pFieldList, SSqlCmd* pCmd) {
   return true;
 }
 
-static void exchangeExpr(tSQLExpr* pExpr) {
-  tSQLExpr* pLeft = pExpr->pLeft;
-  tSQLExpr* pRight = pExpr->pRight;
-
-  if ((pRight->nSQLOptr == TK_ID || (pRight->nSQLOptr >= TK_COUNT && pRight->nSQLOptr <= TK_AVG_IRATE)) && 
-     (pLeft->nSQLOptr == TK_INTEGER || pLeft->nSQLOptr == TK_FLOAT || pLeft->nSQLOptr == TK_STRING || pLeft->nSQLOptr == TK_BOOL)) {
-    /*
-     * exchange value of the left handside and the value of the right-handside
-     * to make sure that the value of filter expression always locates in
-     * right-handside and
-     * the column-id/function is at the left handside.
-     */
-    uint32_t optr = 0;
-    switch (pExpr->nSQLOptr) {
-      case TK_LE:
-        optr = TK_GE;
-        break;
-      case TK_LT:
-        optr = TK_GT;
-        break;
-      case TK_GT:
-        optr = TK_LT;
-        break;
-      case TK_GE:
-        optr = TK_LE;
-        break;
-      default:
-        optr = pExpr->nSQLOptr;
-    }
-
-    pExpr->nSQLOptr = optr;
-    SWAP(pExpr->pLeft, pExpr->pRight, void*);
-  }
-}
 
 static bool validateTagParams(SArray* pTagsList, SArray* pFieldList, SSqlCmd* pCmd) {
   assert(pTagsList != NULL);
@@ -3118,6 +3084,7 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
 
   tSqlExpr*       pRight = pExpr->pRight;
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, columnIndex->tableIndex);
+  SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex->columnIndex);
 
   int16_t colType = pSchema->type;
 
@@ -3324,10 +3291,8 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
   }
 
   pColumn->colIndex = *pIndex;
-
-  int16_t colType = pSchema->type;
   
-  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, colType, pExpr);
+  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pIndex, pExpr);
 }
 
 static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pTableCond, SStringBuilder* sb) {
@@ -6766,7 +6731,7 @@ static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
 }
 
 
- int32_t tscInsertExprFields(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SInternalField** interField) {
+ int32_t tscInsertExprFields(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SInternalField** interField) {
   tSqlExprItem item = {.pNode = pExpr, .aliasName = NULL, .distinct = false};
 
   int32_t outputIndex = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
@@ -6811,7 +6776,7 @@ static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscGetExprFilters(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SInternalField** pField) {
+int32_t tscGetExprFilters(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SInternalField** pField) {
   SInternalField* pInfo = NULL;
 
   for (int32_t i = pQueryInfo->havingFieldNum - 1; i >= 0; --i) {
@@ -6861,7 +6826,7 @@ static int32_t genExprFilter(SExprFilter    * exprFilter) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr, int32_t sqlOptr) {
+static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, int32_t sqlOptr) {
   const char* msg1 = "non binary column not support like operator";
   const char* msg2 = "invalid operator for binary column in having clause";  
   const char* msg3 = "invalid operator for bool column in having clause";
@@ -6913,27 +6878,32 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       ((pInfo->field.type == TSDB_DATA_TYPE_BINARY || pInfo->field.type == TSDB_DATA_TYPE_NCHAR) ? 1 : 0);
 
   if (pColFilter->filterstr) {
-    if (pExpr->nSQLOptr != TK_EQ
-      && pExpr->nSQLOptr != TK_NE
-      && pExpr->nSQLOptr != TK_ISNULL
-      && pExpr->nSQLOptr != TK_NOTNULL
-      && pExpr->nSQLOptr != TK_LIKE
+    if (pExpr->tokenId != TK_EQ
+      && pExpr->tokenId != TK_NE
+      && pExpr->tokenId != TK_ISNULL
+      && pExpr->tokenId != TK_NOTNULL
+      && pExpr->tokenId != TK_LIKE
       ) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
   } else {
-    if (pExpr->nSQLOptr == TK_LIKE) {
+    if (pExpr->tokenId == TK_LIKE) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
     
     if (pInfo->field.type == TSDB_DATA_TYPE_BOOL) {
-      if (pExpr->nSQLOptr != TK_EQ && pExpr->nSQLOptr != TK_NE) {
+      if (pExpr->tokenId != TK_EQ && pExpr->tokenId != TK_NE) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
     }
   }
 
-  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pInfo->field.type, pExpr);
+  SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+  if (getColumnIndexByName(pCmd, &pExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+
+  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, &index, pExpr);
   if (ret) {
     return ret; 
   }
@@ -6941,38 +6911,30 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
   return genExprFilter(pInfo->pFieldFilters);
 }
 
-int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr, int32_t parentOptr) {
+int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, int32_t parentOptr) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
 
   const char* msg1 = "invalid having clause";
 
-  tSQLExpr* pLeft = pExpr->pLeft;
-  tSQLExpr* pRight = pExpr->pRight;
+  tSqlExpr* pLeft = pExpr->pLeft;
+  tSqlExpr* pRight = pExpr->pRight;
 
-  if (pExpr->nSQLOptr == TK_AND || pExpr->nSQLOptr == TK_OR) {
-    int32_t ret = getHavingExpr(pCmd, pQueryInfo, pExpr->pLeft, pExpr->nSQLOptr);
+  if (pExpr->tokenId == TK_AND || pExpr->tokenId == TK_OR) {
+    int32_t ret = getHavingExpr(pCmd, pQueryInfo, pExpr->pLeft, pExpr->tokenId);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
 
-    return getHavingExpr(pCmd, pQueryInfo, pExpr->pRight, pExpr->nSQLOptr);
+    return getHavingExpr(pCmd, pQueryInfo, pExpr->pRight, pExpr->tokenId);
   }
 
   if (pLeft == NULL || pRight == NULL) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if ((pLeft->nSQLOptr >= TK_COUNT && pLeft->nSQLOptr <= TK_AVG_IRATE) && 
-    (pRight->nSQLOptr >= TK_COUNT && pRight->nSQLOptr <= TK_AVG_IRATE)) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-  }
-
-  if (pLeft->nSQLOptr >= TK_BOOL
-    && pLeft->nSQLOptr <= TK_BINARY
-    && pRight->nSQLOptr >= TK_BOOL
-    && pRight->nSQLOptr <= TK_BINARY) {
+  if (pLeft->type == pRight->type) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
@@ -6981,15 +6943,16 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr, in
   pLeft = pExpr->pLeft;
   pRight = pExpr->pRight;
 
-  if (!(pLeft->nSQLOptr >= TK_COUNT && pLeft->nSQLOptr <= TK_AVG_IRATE)) {
+
+  if (pLeft->type != SQL_NODE_SQLFUNCTION) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  }
+  
+  if (pRight->type != SQL_NODE_VALUE) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  if (!(pRight->nSQLOptr >= TK_BOOL && pRight->nSQLOptr <= TK_BINARY)) {
-    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-  }
-
-  if (pExpr->nSQLOptr >= TK_BITAND) {
+  if (pExpr->tokenId >= TK_BITAND) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
@@ -6998,21 +6961,22 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr, in
   //}
 
   if (pLeft->pParam) {
-    for (int32_t i = 0; i < pLeft->pParam->nExpr; i++) {
-      tSqlExprItem* pParamElem = &(pLeft->pParam->a[i]);
-      if (pParamElem->pNode->nSQLOptr != TK_ALL && 
-          pParamElem->pNode->nSQLOptr != TK_ID &&
-          pParamElem->pNode->nSQLOptr != TK_STRING &&
-          pParamElem->pNode->nSQLOptr != TK_INTEGER &&
-          pParamElem->pNode->nSQLOptr != TK_FLOAT) {
+    size_t size = taosArrayGetSize(pLeft->pParam);
+    for (int32_t i = 0; i < size; i++) {
+      tSqlExprItem* pParamElem = taosArrayGet(pLeft->pParam, i);
+      if (pParamElem->pNode->tokenId != TK_ALL && 
+          pParamElem->pNode->tokenId != TK_ID &&
+          pParamElem->pNode->tokenId != TK_STRING &&
+          pParamElem->pNode->tokenId != TK_INTEGER &&
+          pParamElem->pNode->tokenId != TK_FLOAT) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
       
-      if (pParamElem->pNode->nSQLOptr == TK_ID && (pParamElem->pNode->colInfo.z == NULL && pParamElem->pNode->colInfo.n == 0)) {
+      if (pParamElem->pNode->tokenId == TK_ID && (pParamElem->pNode->colInfo.z == NULL && pParamElem->pNode->colInfo.n == 0)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      if (pParamElem->pNode->nSQLOptr == TK_ID) {
+      if (pParamElem->pNode->tokenId == TK_ID) {
         SColumnIndex index = COLUMN_INDEX_INITIALIZER;
         if ((getColumnIndexByName(pCmd, &pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS)) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -7029,12 +6993,17 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSQLExpr* pExpr, in
     }
   }
 
+  pLeft->functionId = isValidFunction(pLeft->operand.z, pLeft->operand.n);
+  if (pLeft->functionId < 0) {
+    return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  }
+
   return handleExprInHavingClause(pCmd, pQueryInfo, pExpr, parentOptr);
 }
 
 
 
-int32_t parseHavingClause(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SSqlCmd* pCmd, bool isSTable, int32_t joinQuery, int32_t intervalQuery) {
+int32_t parseHavingClause(SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SSqlCmd* pCmd, bool isSTable, int32_t joinQuery, int32_t timeWindowQuery) {
   const char* msg1 = "having only works with group by";
   const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "invalid expression in having clause";
@@ -7062,7 +7031,7 @@ int32_t parseHavingClause(SQueryInfo* pQueryInfo, tSQLExpr* pExpr, SSqlCmd* pCmd
   }
 
   //REDO function check
-  if (!functionCompatibleCheck(pQueryInfo, joinQuery, intervalQuery)) {
+  if (!functionCompatibleCheck(pQueryInfo, joinQuery, timeWindowQuery)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -7239,7 +7208,7 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
   }
 
   // parse the having clause in the first place
-  if (parseHavingClause(pQueryInfo, pQuerySql->pHaving, pCmd, isSTable, joinQuery, intervalQuery) != TSDB_CODE_SUCCESS) {
+  if (parseHavingClause(pQueryInfo, pQuerySqlNode->pHaving, pCmd, isSTable, joinQuery, timeWindowQuery) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 

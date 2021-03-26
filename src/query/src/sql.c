@@ -2905,7 +2905,7 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 161: /* select ::= SELECT selcollist */
 {
-  yylhsminor.yy254 = tSetQuerySqlNode(&yymsp[-1].minor.yy0, yymsp[0].minor.yy429, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+  yylhsminor.yy254 = tSetQuerySqlNode(&yymsp[-1].minor.yy0, yymsp[0].minor.yy429, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
   yymsp[-1].minor.yy254 = yylhsminor.yy254;
         break;
