@@ -202,10 +202,11 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
       char clusterId[TSDB_CLUSTER_ID_LEN];
       dnodeGetClusterId(clusterId);
       if (clusterId[0] != '\0') {
-	dError("exit zombie dropped dnode");
-	exit(EXIT_FAILURE);
+        dError("exit zombie dropped dnode");
+        exit(EXIT_FAILURE);
       }
     }
+
     taosTmrReset(dnodeSendStatusMsg, tsStatusInterval * 1000, NULL, tsDnodeTmr, &tsStatusTimer);
     return;
   }

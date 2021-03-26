@@ -49,6 +49,7 @@ void    mnodeRemoveTableFromVgroup(SVgObj *pVgroup, SCTableObj *pTable);
 void    mnodeSendDropVnodeMsg(int32_t vgId, SRpcEpSet *epSet, void *ahandle);
 void    mnodeSendCreateVgroupMsg(SVgObj *pVgroup, void *ahandle);
 void    mnodeSendAlterVgroupMsg(SVgObj *pVgroup);
+void    mnodeSendSyncVgroupMsg(SVgObj *pVgroup);
 
 SRpcEpSet mnodeGetEpSetFromVgroup(SVgObj *pVgroup);
 SRpcEpSet mnodeGetEpSetFromIp(char *ep);

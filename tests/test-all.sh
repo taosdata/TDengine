@@ -29,7 +29,25 @@ function dohavecore(){
   proc=`echo $corefile|cut -d "_" -f3`
   if [ -n "$corefile" ];then
     echo 'taosd or taos has generated core'
-    tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz /usr/local/taos/
+    if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]] && [[ $1 == 1 ]]; then
+      cd ../../../
+      tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz debug/build/bin/taosd debug/build/bin/tsim debug/build/lib/libtaos*so*
+      if [[ $2 == 1 ]];then
+        cp -r sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S"`
+        rm -rf sim/case.log
+      else
+        cd community
+        cp -r sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
+        rm -rf sim/case.log
+      fi
+    else 
+      cd ../../
+      if [[ $1 == 1 ]];then 
+        tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz debug/build/bin/taosd debug/build/bin/tsim debug/build/lib/libtaos*so*
+        cp -r sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
+        rm -rf sim/case.log
+      fi
+    fi
     if [[ $1 == 1 ]];then
       echo '\n'|gdb /usr/local/taos/bin/$proc $core_file -ex "bt 10" -ex quit
       exit 8
@@ -100,11 +118,14 @@ function runSimCaseOneByOnefq {
           cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
           rm -rf ../../sim/case.log
         fi
-        exit 8
+        dohavecore $2 1
+        if [[ $2 == 1 ]];then
+          exit 8
+        fi
       fi
       end_time=`date +%s`
       echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
-      dohavecore $2
+      dohavecore $2 1
     fi
   done 
   rm -rf ../../../sim/case.log
@@ -169,16 +190,19 @@ function runPyCaseOneByOnefq() {
         out_log=`tail -1 pytest-out.log  `
         if [[ $out_log =~ 'failed' ]];then
           cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
-          echo '=====================log====================='
+          echo '=====================log===================== '
           cat ../../sim/case.log
           rm -rf ../../sim/case.log
-          exit 8
+          dohavecore $2 2
+          if [[ $2 == 1 ]];then
+            exit 8
+          fi
         fi
         echo execution time of $case was `expr $end_time - $start_time`s. | tee -a pytest-out.log
       else
         $line > /dev/null 2>&1
       fi
-      dohavecore $2
+      dohavecore $2 2
     fi
   done 
   rm -rf ../../sim/case.log
@@ -205,15 +229,15 @@ if [ "$2" != "jdbc" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]; then
     echo "### run TSIM b1 test ###"
     runSimCaseOneByOnefq b1 0
     runSimCaseOneByOnefq b4 0
-    runSimCaseOneByOnefq b5 0
-    runSimCaseOneByOnefq b6 0
     runSimCaseOneByOnefq b7 0
   elif [ "$1" == "b2" ]; then
     echo "### run TSIM b2 test ###"
     runSimCaseOneByOnefq b2 0
+    runSimCaseOneByOnefq b5 0
   elif [ "$1" == "b3" ]; then
     echo "### run TSIM b3 test ###"
     runSimCaseOneByOnefq b3 0
+    runSimCaseOneByOnefq b6 0
   elif [ "$1" == "b1fq" ]; then
     echo "### run TSIM b1 test ###"
     runSimCaseOneByOnefq b1 1
