@@ -451,7 +451,7 @@ typedef struct SColumnInfo {
   int16_t            numOfFilters;
   union{
     int64_t placeholder;
-    SColumnFilterInfo *filters;
+    SColumnFilterInfo *filterInfo;
   };
 } SColumnInfo;
 
@@ -465,6 +465,13 @@ typedef struct STimeWindow {
   TSKEY skey;
   TSKEY ekey;
 } STimeWindow;
+
+typedef struct {
+  int32_t     tsOffset;         // offset value in current msg body, NOTE: ts list is compressed
+  int32_t     tsLen;            // total length of ts comp block
+  int32_t     tsNumOfBlocks;    // ts comp block numbers
+  int32_t     tsOrder;          // ts comp block order
+} STsBufInfo;
 
 typedef struct {
   SMsgHead    head;
@@ -492,10 +499,7 @@ typedef struct {
   int16_t     fillType;         // interpolate type
   uint64_t    fillVal;          // default value array list
   int32_t     secondStageOutput;
-  int32_t     tsOffset;         // offset value in current msg body, NOTE: ts list is compressed
-  int32_t     tsLen;            // total length of ts comp block
-  int32_t     tsNumOfBlocks;    // ts comp block numbers
-  int32_t     tsOrder;          // ts comp block order
+  STsBufInfo  tsBuf;            // tsBuf info
   int32_t     numOfTags;        // number of tags columns involved
   int32_t     sqlstrLen;        // sql query string
   int32_t     prevResultLen;    // previous result length

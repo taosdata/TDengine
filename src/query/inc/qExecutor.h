@@ -177,6 +177,8 @@ typedef struct SSDataBlock {
   SDataBlockInfo info;
 } SSDataBlock;
 
+// The basic query information extracted from the SQueryNodeInfo tree to support the
+// execution of query in a data node.
 typedef struct SQuery {
   SLimitVal        limit;
 
@@ -187,6 +189,10 @@ typedef struct SQuery {
   bool             timeWindowInterpo;// if the time window start/end required interpolation
   bool             queryBlockDist;    // if query data block distribution
   bool             stabledev;        // super table stddev query
+  bool             tsCompQuery;      // is tscomp query
+  bool             simpleAgg;
+  bool             pointInterpQuery; // point interpolation query
+  bool             needReverseScan;  // need reverse scan
   int32_t          interBufSize;     // intermediate buffer sizse
 
   SOrderVal        order;
@@ -199,7 +205,6 @@ typedef struct SQuery {
   int16_t          precision;
   int16_t          numOfOutput;
   int16_t          fillType;
-  int16_t          checkResultBuf;   // check if the buffer is full during scan each block
 
   int32_t          srcRowSize;       // todo extract struct
   int32_t          resultRowSize;
@@ -438,8 +443,12 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t nu
 SSqlGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code);
 SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
                         SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, bool stableQuery, char* sql, uint64_t *qId);
-int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *pQInfo, SQueryParam* param, bool isSTable);
+int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, int32_t vgId, SQInfo* pQInfo, SQueryParam* param, char* start,
+                  int32_t prevResultLen, bool isSTable);
+
 void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
+
+STableQueryInfo *createTableQueryInfo(SQuery* pQuery, void* pTable, bool groupbyColumn, STimeWindow win, void* buf);
 
 bool isQueryKilled(SQInfo *pQInfo);
 int32_t checkForQueryBuf(size_t numOfTables);

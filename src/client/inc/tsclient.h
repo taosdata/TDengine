@@ -105,8 +105,7 @@ typedef struct SColumnIndex {
 typedef struct SInternalField {
   TAOS_FIELD      field;
   bool            visible;
-  SExprInfo      *pArithExprInfo;
-  SSqlExpr       *pSqlExpr;
+  SExprInfo      *pExpr;
 } SInternalField;
 
 typedef struct SFieldInfo {
@@ -117,8 +116,7 @@ typedef struct SFieldInfo {
 
 typedef struct SColumn {
   SColumnIndex       colIndex;
-  int32_t            numOfFilters;
-  SColumnFilterInfo *filterInfo;
+  SColumnInfo        info;
 } SColumn;
 
 typedef struct SCond {
@@ -181,7 +179,7 @@ typedef struct STableDataBlocks {
   SParamInfo *params;
 } STableDataBlocks;
 
-typedef struct SQueryInfo {
+typedef struct SQueryNodeInfo {
   int16_t          command;       // the command may be different for each subclause, so keep it seperately.
   uint32_t         type;          // query/insert type
   STimeWindow      window;        // the whole query time window
@@ -196,6 +194,7 @@ typedef struct SQueryInfo {
   SLimitVal        limit;
   SLimitVal        slimit;
   STagCond         tagCond;
+
   SOrderVal        order;
   int16_t          fillType;      // final result fill type
   int16_t          numOfTables;
@@ -215,10 +214,13 @@ typedef struct SQueryInfo {
   int32_t          bufLen;
   char*            buf;
 
-  struct SQueryInfo *sibling;     // sibling
-  SArray            *pUpstream;   // SArray<struct SQueryInfo>
-  SArray            *pDownstream; // SArray<struct SQueryInfo>
-} SQueryInfo;
+  SArray*          pDSOperator;
+  SArray*          pPhyOperator;
+
+  struct SQueryNodeInfo *sibling;     // sibling
+  SArray          *pUpstream;   // SArray<struct SQueryNodeInfo>
+  SArray          *pDownstream; // SArray<struct SQueryNodeInfo>
+} SQueryNodeInfo;
 
 typedef struct {
   int     command;
@@ -242,10 +244,10 @@ typedef struct {
   char *       payload;
   int32_t      payloadLen;
 
-  SQueryInfo **pQueryInfo;
+  SQueryNodeInfo **pQueryInfo;
   int32_t      numOfClause;
   int32_t      clauseIndex;  // index of multiple subclause query
-  SQueryInfo  *active;       // current active query info
+  SQueryNodeInfo  *active;       // current active query info
 
   int32_t      batchSize;    // for parameter ('?') binding and batch processing
   int32_t      numOfParams;
@@ -402,7 +404,7 @@ void tscInitMsgsFp();
 int tsParseSql(SSqlObj *pSql, bool initial);
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
-int  tscProcessSql(SSqlObj *pSql, SQueryInfo* pQueryInfo);
+int  tscProcessSql(SSqlObj *pSql, SQueryNodeInfo* pQueryInfo);
 
 int  tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex);
 void tscAsyncResultOnError(SSqlObj *pSql);
@@ -412,12 +414,12 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code);
 int tscProcessLocalCmd(SSqlObj *pSql);
 int tscCfgDynamicOptions(char *msg);
 
-int32_t tscTansformFuncForSTableQuery(SQueryInfo *pQueryInfo);
-void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
+int32_t tscTansformFuncForSTableQuery(SQueryNodeInfo *pQueryInfo);
+void    tscRestoreFuncForSTableQuery(SQueryNodeInfo *pQueryInfo);
 
-int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
-void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
-void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo);
+int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryNodeInfo *pQueryInfo);
+void tscSetResRawPtr(SSqlRes* pRes, SQueryNodeInfo* pQueryInfo);
+void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryNodeInfo* pQueryInfo);
 
 void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
 
@@ -452,7 +454,7 @@ bool tscIsUpdateQuery(SSqlObj* pSql);
 char* tscGetSqlStr(SSqlObj* pSql);
 bool tscIsQueryWithLimit(SSqlObj* pSql);
 
-bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
+bool tscHasReachLimitation(SQueryNodeInfo *pQueryInfo, SSqlRes *pRes);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 
@@ -471,15 +473,15 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
   UNUSED(pData);
 
 //   user defined constant value output columns
-  if (pInfo->pSqlExpr != NULL && TSDB_COL_IS_UD_COL(pInfo->pSqlExpr->colInfo.flag)) {
+  if (pInfo->pExpr != NULL && TSDB_COL_IS_UD_COL(pInfo->pExpr->base.colInfo.flag)) {
     if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
-      pData = pInfo->pSqlExpr->param[1].pz;
-      pRes->length[columnIndex] = pInfo->pSqlExpr->param[1].nLen;
-      pRes->tsrow[columnIndex] = (pInfo->pSqlExpr->param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : (unsigned char*)pData;
+      pData = pInfo->pExpr->base.param[1].pz;
+      pRes->length[columnIndex] = pInfo->pExpr->base.param[1].nLen;
+      pRes->tsrow[columnIndex] = (pInfo->pExpr->base.param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : (unsigned char*)pData;
     } else {
       assert(bytes == tDataTypes[type].bytes);
 
-      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)&pInfo->pSqlExpr->param[1].i64;
+      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)&pInfo->pExpr->base.param[1].i64;
       pRes->length[columnIndex] = bytes;
     }
   } else {
@@ -488,7 +490,7 @@ static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pField
       assert(realLen <= bytes - VARSTR_HEADER_SIZE);
 
       pRes->tsrow[columnIndex] = (isNull(pData, type)) ? NULL : (unsigned char*)((tstr *)pData)->data;
-      if (realLen < pInfo->pSqlExpr->resBytes - VARSTR_HEADER_SIZE) {  // todo refactor
+      if (realLen < pInfo->pExpr->base.resBytes - VARSTR_HEADER_SIZE) {  // todo refactor
         *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
       }
 
@@ -516,7 +518,7 @@ extern int   tscNumOfObj;     // number of existed sqlObj in current process.
 extern int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo);
 
 void tscBuildVgroupTableInfo(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SArray* tables);
-int16_t getNewResColId(SQueryInfo* pQueryInfo);
+int16_t getNewResColId(SQueryNodeInfo* pQueryInfo);
 
 #ifdef __cplusplus
 }

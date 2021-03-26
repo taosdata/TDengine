@@ -170,7 +170,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     goto _over;
   }
 
-  code = initQInfo(pQueryMsg, tsdb, vgId, *pQInfo, &param, isSTableQuery);
+  code = initQInfo(&pQueryMsg->tsBuf, tsdb, vgId, *pQInfo, &param, (char*)pQueryMsg, pQueryMsg->prevResultLen, isSTableQuery);
 
   _over:
   if (param.pGroupbyExpr != NULL) {
@@ -184,7 +184,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   for (int32_t i = 0; i < pQueryMsg->numOfCols; i++) {
     SColumnInfo* column = pQueryMsg->colList + i;
-    freeColumnFilterInfo(column->filters, column->numOfFilters);
+    freeColumnFilterInfo(column->filterInfo, column->numOfFilters);
   }
 
   //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null;

@@ -373,7 +373,7 @@ int taos_num_fields(TAOS_RES *res) {
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
   int32_t num = 0;
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
+  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     return num;
   }
@@ -407,7 +407,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
+  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     return NULL;
   }
@@ -558,7 +558,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
     return true;
   }
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
+  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
 
   if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     return true;
@@ -671,7 +671,7 @@ char *taos_get_client_info() { return version; }
 static void tscKillSTableQuery(SSqlObj *pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     return;
@@ -722,7 +722,7 @@ void taos_stop_query(TAOS_RES *res) {
   // set the error code for master pSqlObj firstly
   pSql->res.code = TSDB_CODE_TSC_QUERY_CANCELLED;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
     assert(pSql->rpcRid <= 0);
@@ -752,7 +752,7 @@ bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
     return true;
   }
 
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
+  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   if (pQueryInfo == NULL) {
     return true;
   }
@@ -932,7 +932,7 @@ static int tscParseTblNameList(SSqlObj *pSql, const char *tblNameList, int32_t t
   int   code = TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   char *str = (char *)tblNameList;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
+  SQueryNodeInfo *pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
   if (pQueryInfo == NULL) {
     pSql->res.code = terrno;
     return terrno;

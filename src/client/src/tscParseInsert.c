@@ -759,7 +759,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql) {
   const int32_t STABLE_INDEX = 1;
   
   SSqlCmd *   pCmd = &pSql->cmd;
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
+  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
 
   char *sql = *sqlstr;
 
@@ -1055,7 +1055,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
   int32_t totalNum = 0;
   int32_t code = TSDB_CODE_SUCCESS;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
+  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(pCmd, 0);
   assert(pQueryInfo != NULL);
 
   STableMetaInfo *pTableMetaInfo = (pQueryInfo->numOfTables == 0)? tscAddEmptyMetaInfo(pQueryInfo):tscGetMetaInfo(pQueryInfo, 0);
@@ -1313,7 +1313,7 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   pCmd->count = 0;
   pCmd->command = TSDB_SQL_INSERT;
 
-  SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
+  SQueryNodeInfo *pQueryInfo = tscGetQueryInfoS(pCmd, pCmd->clauseIndex);
 
   TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT | pCmd->insertType);
 
