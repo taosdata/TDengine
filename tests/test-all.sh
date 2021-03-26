@@ -229,15 +229,15 @@ if [ "$2" != "jdbc" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]; then
     echo "### run TSIM b1 test ###"
     runSimCaseOneByOnefq b1 0
     runSimCaseOneByOnefq b4 0
-    runSimCaseOneByOnefq b5 0
-    runSimCaseOneByOnefq b6 0
     runSimCaseOneByOnefq b7 0
   elif [ "$1" == "b2" ]; then
     echo "### run TSIM b2 test ###"
     runSimCaseOneByOnefq b2 0
+    runSimCaseOneByOnefq b5 0
   elif [ "$1" == "b3" ]; then
     echo "### run TSIM b3 test ###"
     runSimCaseOneByOnefq b3 0
+    runSimCaseOneByOnefq b6 0
   elif [ "$1" == "b1fq" ]; then
     echo "### run TSIM b1 test ###"
     runSimCaseOneByOnefq b1 1
