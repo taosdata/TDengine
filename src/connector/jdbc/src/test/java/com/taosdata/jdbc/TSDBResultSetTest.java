@@ -594,7 +594,7 @@ public class TSDBResultSetTest {
 
     @Test
     public void unwrap() throws SQLException {
-        RestfulResultSet unwrap = rs.unwrap(RestfulResultSet.class);
+        TSDBResultSet unwrap = rs.unwrap(TSDBResultSet.class);
         Assert.assertNotNull(unwrap);
     }
 
