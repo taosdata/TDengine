@@ -39,14 +39,14 @@ def pre_test(){
     sudo rmtaos || echo "taosd has not installed"
     '''
     sh '''
-    ps -ef | grep taosd | grep -v grep | awk '{print $2}' | xargs kill -9 
+    killall -9 taosd ||echo "no taosd running"
+    killall -9 gdb || echo "no gdb running"
     cd ${WKC}
     git checkout develop
     git reset --hard HEAD~10 >/dev/null 
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile'
     find ${WKC}/tests/pytest -name \'*\'.sql -exec rm -rf {} \\;
     cd ${WK}
     git reset --hard HEAD~10
