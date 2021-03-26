@@ -514,12 +514,13 @@ typedef struct {
 
 typedef struct {
   int32_t  code;
-  uint64_t qhandle; // query handle
+  union{uint64_t qhandle; uint64_t qId;}; // query handle
 } SQueryTableRsp;
 
+// todo: the show handle should be replaced with id
 typedef struct {
   SMsgHead header;
-  uint64_t qhandle;
+  union{uint64_t qhandle; uint64_t qId;}; // query handle
   uint16_t free;
 } SRetrieveTableMsg;
 

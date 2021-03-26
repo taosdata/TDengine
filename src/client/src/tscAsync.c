@@ -160,8 +160,8 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  if ((pRes->qhandle == 0 || numOfRows != 0) && pCmd->command < TSDB_SQL_LOCAL) {
-    if (pRes->qhandle == 0 && numOfRows != 0) {
+  if ((pRes->qId == 0 || numOfRows != 0) && pCmd->command < TSDB_SQL_LOCAL) {
+    if (pRes->qId == 0 && numOfRows != 0) {
       tscError("qhandle is NULL");
     } else {
       pRes->code = numOfRows;
@@ -208,7 +208,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
   pSql->fetchFp = fp;
   pSql->fp = tscAsyncFetchRowsProxy;
 
-  if (pRes->qhandle == 0) {
+  if (pRes->qId == 0) {
     tscError("qhandle is NULL");
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
     pSql->param = param;
