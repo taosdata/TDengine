@@ -1,9 +1,8 @@
 def pre_test(){
-    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                sudo rmtaos
-                '''
-    }
+   
+    sh '''
+    sudo rmtaos||echo 'no taosd installed'
+    '''
     sh '''
     cd ${WKC}
     git reset --hard
