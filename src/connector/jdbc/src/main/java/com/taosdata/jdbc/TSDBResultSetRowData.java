@@ -225,6 +225,14 @@ public class TSDBResultSetRowData {
         data.set(col, value);
     }
 
+    public void setByteArray(int col, byte[] value) {
+        try {
+            data.set(col, new String(value, TaosGlobalConfig.getCharset()));
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
     /**
      * The original type may not be a string type, but will be converted to by calling this method
      *
