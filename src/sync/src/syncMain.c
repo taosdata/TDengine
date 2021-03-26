@@ -161,8 +161,12 @@ void syncCleanUp() {
   sInfo("sync module is cleaned up");
 }
 
+static int node_cmp(const void *l, const void *r) {
+  return ((SNodeInfo *)l)->nodeId - ((SNodeInfo *)r)->nodeId;
+}
+
 int64_t syncStart(const SSyncInfo *pInfo) {
-  const SSyncCfg *pCfg = &pInfo->syncCfg;
+  SSyncCfg *pCfg = (SSyncCfg *)&pInfo->syncCfg;
 
   SSyncNode *pNode = calloc(sizeof(SSyncNode), 1);
   if (pNode == NULL) {
@@ -170,6 +174,8 @@ int64_t syncStart(const SSyncInfo *pInfo) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
+
+  qsort(pCfg->nodeInfo, pCfg->replica, sizeof(pCfg->nodeInfo[0]), node_cmp);
 
   tstrncpy(pNode->path, pInfo->path, sizeof(pNode->path));
   pthread_mutex_init(&pNode->mutex, NULL);
@@ -292,7 +298,7 @@ void syncStop(int64_t rid) {
   taosRemoveRef(tsNodeRefId, rid);
 }
 
-int32_t syncReconfig(int64_t rid, const SSyncCfg *pNewCfg) {
+int32_t syncReconfig(int64_t rid, SSyncCfg *pNewCfg) {
   int32_t i, j;
 
   SSyncNode *pNode = syncAcquireNode(rid);
@@ -300,6 +306,8 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg *pNewCfg) {
 
   sInfo("vgId:%d, reconfig, role:%s replica:%d old:%d", pNode->vgId, syncRole[nodeRole], pNewCfg->replica,
         pNode->replica);
+
+  qsort(pNewCfg->nodeInfo, pNewCfg->replica, sizeof(pNewCfg->nodeInfo[0]), node_cmp);
 
   pthread_mutex_lock(&pNode->mutex);
 
