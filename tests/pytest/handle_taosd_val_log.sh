@@ -19,9 +19,9 @@ VALGRIND_ERR=taosd_valgrind.err
 rm -rf /var/lib/taos/*
 # nohup valgrind  --tool=memcheck --leak-check=yes $TAOSD_DIR > $TDIR/$VALGRIND_OUT 2> $TDIR/$VALGRIND_ERR  &
 nohup valgrind  --leak-check=yes $TAOSD_DIR > $TDIR/$VALGRIND_OUT 2> $TDIR/$VALGRIND_ERR  &
-sleep 5
+sleep 20
 cd -
-./crash_gen.sh  -p -t 3 -s 200 
+./crash_gen.sh  -p -t 10 -s 200 
 ps -ef |grep valgrind|grep -v grep|awk '{print $2}'|xargs kill -term
 while true 
 do
@@ -40,7 +40,6 @@ grep 'start to execute\|ERROR SUMMARY' $VALGRIND_ERR | grep -v 'grep' | uniq | t
 for memError in `grep 'ERROR SUMMARY' taosd_mem_err.log | awk '{print $4}'`
 do
 memError=(${memError//,/})
-echo $memError
 if [ -n "$memError" ]; then
     if [ "$memError" -gt 12 ]; then
     echo -e "${RED} ## Memory errors number valgrind reports is $memError.\
