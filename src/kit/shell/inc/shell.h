@@ -74,6 +74,7 @@ void source_file(TAOS* con, char* fptr);
 void source_dir(TAOS* con, SShellArguments* args);
 void shellCheck(TAOS* con, SShellArguments* args);
 void get_history_path(char* history);
+void shellCheck(TAOS* con, SShellArguments* args);
 void cleanup_handler(void* arg);
 void exitShell();
 int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);

@@ -410,7 +410,7 @@ void syncConfirmForward(int64_t rid, uint64_t version, int32_t code, bool force)
   syncReleaseNode(pNode);
 }
 
-#if 0
+#if 1
 void syncRecover(int64_t rid) {
   SSyncPeer *pPeer;
 

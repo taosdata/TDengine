@@ -393,6 +393,7 @@ typedef struct SThreadInfo_S {
   TAOS *taos;
   int threadID;
   char db_name[MAX_DB_NAME_SIZE+1];
+  uint32_t time_precision;
   char fp[4096];
   char tb_prefix[MAX_TB_NAME_SIZE];
   int start_table_from;
@@ -1269,7 +1270,6 @@ static void printfInsertMetaToFile(FILE* fp) {
   fprintf(fp, "resultFile:                 %s\n", g_Dbs.resultFile);
   fprintf(fp, "thread num of insert data:  %d\n", g_Dbs.threadCount);
   fprintf(fp, "thread num of create table: %d\n", g_Dbs.threadCountByCreateTbl);
-  fprintf(fp, "insert interval:            %d\n", g_args.insert_interval);
   fprintf(fp, "number of records per req:  %d\n", g_args.num_of_RPR);
   fprintf(fp, "max sql length:             %d\n", g_args.max_sql_len);
   fprintf(fp, "database count:          %d\n", g_Dbs.dbCount);
@@ -1355,7 +1355,10 @@ static void printfInsertMetaToFile(FILE* fp) {
       fprintf(fp, "      dataSource:        %s\n",  g_Dbs.db[i].superTbls[j].dataSource);      
       fprintf(fp, "      insertMode:        %s\n",  g_Dbs.db[i].superTbls[j].insertMode);      
       fprintf(fp, "      insertRows:        %"PRId64"\n", g_Dbs.db[i].superTbls[j].insertRows); 
-      fprintf(fp, "      insert interval:   %d\n", g_Dbs.db[i].superTbls[j].insertInterval);
+      fprintf(fp, "      interlace rows:    %d\n", g_Dbs.db[i].superTbls[j].interlaceRows);
+      if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
+        fprintf(fp, "      insert interval:   %d\n", g_Dbs.db[i].superTbls[j].insertInterval);
+      }
 
       if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
         fprintf(fp, "      multiThreadWriteOneTbl:  no\n");     
@@ -4444,7 +4447,7 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
   return len;
 }
 
-static int generateDataBuffer(char *pTblName,
+static int generateProgressiveDataBuffer(char *pTblName,
         int32_t tableSeq,
         threadInfo *pThreadInfo, char *buffer,
         int64_t insertRows,
@@ -4584,6 +4587,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       verbosePrint("[%d] %s() LN%d i=%d batchPerTblTimes=%d batchPerTbl = %d\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 i, batchPerTblTimes, batchPerTbl);
+      if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
+        startTime = taosGetTimestamp(pThreadInfo->time_precision);
+      }
       generateDataTail(
         tableName, tableSeq, pThreadInfo, superTblInfo,
         batchPerTbl, pstr, insertRows, 0,
@@ -4716,10 +4722,11 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
   int timeStampStep =
       superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
-  int insert_interval =
+/*  int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
   uint64_t st = 0;
   uint64_t et = 0xffffffff;
+  */
 
   pThreadInfo->totalInsertRows = 0;
   pThreadInfo->totalAffectedRows = 0;
@@ -4735,9 +4742,11 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     verbosePrint("%s() LN%d insertRows=%"PRId64"\n", __func__, __LINE__, insertRows);
 
     for (int64_t i = 0; i < insertRows;) {
+        /*
       if (insert_interval) {
             st = taosGetTimestampUs();
       }
+      */
 
       char tableName[TSDB_TABLE_NAME_LEN];
       getTableName(tableName, pThreadInfo, tableSeq);
@@ -4745,7 +4754,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
              __func__, __LINE__,
              pThreadInfo->threadID, tableSeq, tableName);
 
-      int generated = generateDataBuffer(
+      int generated = generateProgressiveDataBuffer(
               tableName, tableSeq, pThreadInfo, buffer, insertRows,
             i, start_time,
             &(pThreadInfo->samplePos));
@@ -4787,7 +4796,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
       if (i >= insertRows)
         break;
-
+/*
       if (insert_interval) {
         et = taosGetTimestampUs();
 
@@ -4798,6 +4807,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
             taosMsleep(sleep_time); // ms
         }
       }
+      */
     }   // num_of_DPT
 
     if ((tableSeq == pThreadInfo->ntables - 1) && superTblInfo &&
@@ -5061,6 +5071,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     threadInfo *t_info = infos + i;
     t_info->threadID = i;
     tstrncpy(t_info->db_name, db_name, MAX_DB_NAME_SIZE);
+    t_info->time_precision = timePrec;
     t_info->superTblInfo = superTblInfo;
 
     t_info->start_time = start_time;
@@ -5418,6 +5429,22 @@ static int insertTestProcess() {
 static void *superQueryProcess(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg;
 
+  if (winfo->taos == NULL) {
+    TAOS * taos = NULL;
+    taos = taos_connect(g_queryInfo.host,
+          g_queryInfo.user,
+          g_queryInfo.password,
+          NULL,
+          g_queryInfo.port);
+    if (taos == NULL) {
+      errorPrint("[%d] Failed to connect to TDengine, reason:%s\n",
+            winfo->threadID, taos_errstr(NULL));
+      return NULL;
+    } else {
+      winfo->taos = taos;
+    }
+  }
+
   //char sqlStr[MAX_TB_NAME_SIZE*2];
   //sprintf(sqlStr, "use %s", g_queryInfo.dbName);
   //queryDB(winfo->taos, sqlStr);
@@ -5493,6 +5520,23 @@ static void replaceSubTblName(char* inSql, char* outSql, int tblIndex) {
 static void *subQueryProcess(void *sarg) {
   char sqlstr[1024];
   threadInfo *winfo = (threadInfo *)sarg;
+
+  if (winfo->taos == NULL) {
+    TAOS * taos = NULL;
+    taos = taos_connect(g_queryInfo.host,
+          g_queryInfo.user,
+          g_queryInfo.password,
+          NULL,
+          g_queryInfo.port);
+    if (taos == NULL) {
+      errorPrint("[%d] Failed to connect to TDengine, reason:%s\n",
+            winfo->threadID, taos_errstr(NULL));
+      return NULL;
+    } else {
+      winfo->taos = taos;
+    }
+  }
+
   int64_t st = 0;
   int64_t et = (int64_t)g_queryInfo.subQueryInfo.rate*1000;
   int queryTimes = g_args.query_times;
@@ -5534,12 +5578,12 @@ static int queryTestProcess() {
   setupForAnsiEscape();
   printfQueryMeta();
   resetAfterAnsiEscape();
-  
-  TAOS * taos = NULL;  
-  taos = taos_connect(g_queryInfo.host, 
-          g_queryInfo.user, 
-          g_queryInfo.password, 
-          NULL, 
+
+  TAOS * taos = NULL;
+  taos = taos_connect(g_queryInfo.host,
+          g_queryInfo.user,
+          g_queryInfo.password,
+          NULL,
           g_queryInfo.port);
   if (taos == NULL) {
     errorPrint( "Failed to connect to TDengine, reason:%s\n",
@@ -5554,14 +5598,14 @@ static int queryTestProcess() {
             &g_queryInfo.subQueryInfo.childTblName,
             &g_queryInfo.subQueryInfo.childTblCount);
   }
-  
+
   if (!g_args.answer_yes) {
     printf("Press enter key to continue\n\n");
     (void)getchar();
   }
  
   printfQuerySystemInfo(taos);
-  
+
   pthread_t  *pids  = NULL;
   threadInfo *infos = NULL;
   //==== create sub threads for query from specify table
@@ -5585,27 +5629,29 @@ static int queryTestProcess() {
       t_info->threadID = i;
 
       if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", 5)) {
-        t_info->taos = taos;
 
         char sqlStr[MAX_TB_NAME_SIZE*2];
         sprintf(sqlStr, "use %s", g_queryInfo.dbName);
         verbosePrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
-        if (0 != queryDbExec(t_info->taos, sqlStr, NO_INSERT_TYPE, false)) {
+        if (0 != queryDbExec(taos, sqlStr, NO_INSERT_TYPE, false)) {
+            taos_close(taos);
             free(infos);
             free(pids);
             errorPrint( "use database %s failed!\n\n",
                 g_queryInfo.dbName);
             return -1;
         }
-      } else {
-        t_info->taos = NULL;
       }
+
+      t_info->taos = NULL;// TODO: workaround to use separate taos connection;
 
       pthread_create(pids + i, NULL, superQueryProcess, t_info);
     }
-  }else {
+  } else {
     g_queryInfo.superQueryInfo.concurrent = 0;
   }
+
+  taos_close(taos);
 
   pthread_t  *pidsOfSub  = NULL;
   threadInfo *infosOfSub = NULL;
@@ -5614,7 +5660,6 @@ static int queryTestProcess() {
           && (g_queryInfo.subQueryInfo.threadCnt > 0)) {
     pidsOfSub  = malloc(g_queryInfo.subQueryInfo.threadCnt * sizeof(pthread_t));
     if (NULL == pidsOfSub) {
-      taos_close(taos);
       free(infos);
       free(pids);
 
@@ -5623,7 +5668,6 @@ static int queryTestProcess() {
 
     infosOfSub = malloc(g_queryInfo.subQueryInfo.threadCnt * sizeof(threadInfo));
     if (NULL == infosOfSub) {
-      taos_close(taos);
       free(pidsOfSub);
       free(infos);
       free(pids);
@@ -5653,7 +5697,7 @@ static int queryTestProcess() {
       t_info->ntables = i<b?a+1:a;
       t_info->end_table_to = i < b ? startFrom + a : startFrom + a - 1;
       startFrom = t_info->end_table_to + 1;
-      t_info->taos = taos;
+      t_info->taos = NULL; // TODO: workaround to use separate taos connection;
       pthread_create(pidsOfSub + i, NULL, subQueryProcess, t_info);
     }
 
@@ -5676,7 +5720,7 @@ static int queryTestProcess() {
   tmfree((char*)pidsOfSub);
   tmfree((char*)infosOfSub);
  
-  taos_close(taos);
+//  taos_close(taos);// TODO: workaround to use separate taos connection;
   return 0;
 }
 
@@ -5717,10 +5761,27 @@ static void *subSubscribeProcess(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg;
   char subSqlstr[1024];
 
+  if (winfo->taos == NULL) {
+    TAOS * taos = NULL;
+    taos = taos_connect(g_queryInfo.host,
+          g_queryInfo.user,
+          g_queryInfo.password,
+          g_queryInfo.dbName,
+          g_queryInfo.port);
+    if (taos == NULL) {
+      errorPrint("[%d] Failed to connect to TDengine, reason:%s\n",
+            winfo->threadID, taos_errstr(NULL));
+      return NULL;
+    } else {
+      winfo->taos = taos;
+    }
+  }
+
   char sqlStr[MAX_TB_NAME_SIZE*2];
   sprintf(sqlStr, "use %s", g_queryInfo.dbName);
   debugPrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
-  if (0 != queryDbExec(winfo->taos, sqlStr, NO_INSERT_TYPE, false)){
+  if (0 != queryDbExec(winfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
+    taos_close(winfo->taos);
     return NULL;
   }
  
@@ -5742,8 +5803,10 @@ static void *subSubscribeProcess(void *sarg) {
       if (g_queryInfo.subQueryInfo.result[i][0] != 0) {
         sprintf(tmpFile, "%s-%d", g_queryInfo.subQueryInfo.result[i], winfo->threadID);
       }
-      g_queryInfo.subQueryInfo.tsub[i] = subscribeImpl(winfo->taos, subSqlstr, topic, tmpFile); 
+      g_queryInfo.subQueryInfo.tsub[i] = subscribeImpl(
+              winfo->taos, subSqlstr, topic, tmpFile); 
       if (NULL == g_queryInfo.subQueryInfo.tsub[i]) {
+        taos_close(winfo->taos);
         return NULL;
       }
     }
@@ -5777,16 +5840,35 @@ static void *subSubscribeProcess(void *sarg) {
     taos_unsubscribe(g_queryInfo.subQueryInfo.tsub[i],
             g_queryInfo.subQueryInfo.subscribeKeepProgress);
   }
+
+  taos_close(winfo->taos);
   return NULL;
 }
 
 static void *superSubscribeProcess(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg;
 
+  if (winfo->taos == NULL) {
+    TAOS * taos = NULL;
+    taos = taos_connect(g_queryInfo.host,
+          g_queryInfo.user,
+          g_queryInfo.password,
+          g_queryInfo.dbName,
+          g_queryInfo.port);
+    if (taos == NULL) {
+      errorPrint("[%d] Failed to connect to TDengine, reason:%s\n",
+            winfo->threadID, taos_errstr(NULL));
+      return NULL;
+    } else {
+      winfo->taos = taos;
+    }
+  }
+
   char sqlStr[MAX_TB_NAME_SIZE*2];
   sprintf(sqlStr, "use %s", g_queryInfo.dbName);
   debugPrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
   if (0 != queryDbExec(winfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
+    taos_close(winfo->taos);
     return NULL;
   }
  
@@ -5812,6 +5894,7 @@ static void *superSubscribeProcess(void *sarg) {
                   g_queryInfo.superQueryInfo.sql[i],
                   topic, tmpFile);
       if (NULL == g_queryInfo.superQueryInfo.tsub[i]) {
+        taos_close(winfo->taos);
         return NULL;
       }
     }
@@ -5844,6 +5927,8 @@ static void *superSubscribeProcess(void *sarg) {
     taos_unsubscribe(g_queryInfo.superQueryInfo.tsub[i],
             g_queryInfo.superQueryInfo.subscribeKeepProgress);
   }
+
+  taos_close(winfo->taos);
   return NULL;
 }
 
@@ -5851,10 +5936,10 @@ static int subscribeTestProcess() {
   setupForAnsiEscape();
   printfQueryMeta();
   resetAfterAnsiEscape();
-  
+
   if (!g_args.answer_yes) {
     printf("Press enter key to continue\n\n");
-    (void)getchar();
+    (void) getchar();
   }
 
   TAOS * taos = NULL;
@@ -5877,6 +5962,8 @@ static int subscribeTestProcess() {
             &g_queryInfo.subQueryInfo.childTblCount);
   }
 
+  taos_close(taos); // TODO: workaround to use separate taos connection;
+
   pthread_t  *pids = NULL;
   threadInfo *infos = NULL;
   //==== create sub threads for query from super table
@@ -5892,18 +5979,17 @@ static int subscribeTestProcess() {
   infos = malloc(g_queryInfo.superQueryInfo.concurrent * sizeof(threadInfo));
   if ((NULL == pids) || (NULL == infos)) {
       errorPrint("%s() LN%d, malloc failed for create threads\n", __func__, __LINE__);
-      taos_close(taos);
       exit(-1);
   }
 
   for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
       threadInfo *t_info = infos + i;
       t_info->threadID = i;
-      t_info->taos = taos;
+      t_info->taos = NULL;  // TODO: workaround to use separate taos connection;
       pthread_create(pids + i, NULL, superSubscribeProcess, t_info);
   }
  
-  //==== create sub threads for query from sub table  
+  //==== create sub threads for query from sub table
   pthread_t  *pidsOfSub  = NULL;
   threadInfo *infosOfSub = NULL;
   if ((g_queryInfo.subQueryInfo.sqlCount > 0)
@@ -5913,8 +5999,9 @@ static int subscribeTestProcess() {
     infosOfSub = malloc(g_queryInfo.subQueryInfo.threadCnt * 
             sizeof(threadInfo));
     if ((NULL == pidsOfSub) || (NULL == infosOfSub)) {
-      printf("malloc failed for create threads\n");
-      taos_close(taos);
+      errorPrint("%s() LN%d, malloc failed for create threads\n",
+              __func__, __LINE__);
+      // taos_close(taos);
       exit(-1);
     }
 
@@ -5941,7 +6028,7 @@ static int subscribeTestProcess() {
       t_info->ntables = i<b?a+1:a;
       t_info->end_table_to = i < b ? startFrom + a : startFrom + a - 1;
       startFrom = t_info->end_table_to + 1;
-      t_info->taos = taos;
+      t_info->taos = NULL; // TODO: workaround to use separate taos connection;
       pthread_create(pidsOfSub + i, NULL, subSubscribeProcess, t_info);
     }
     g_queryInfo.subQueryInfo.threadCnt = threads;
@@ -5949,7 +6036,7 @@ static int subscribeTestProcess() {
  
   for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
     pthread_join(pids[i], NULL);
-  }  
+  }
 
   tmfree((char*)pids);
   tmfree((char*)infos);
@@ -5960,7 +6047,7 @@ static int subscribeTestProcess() {
 
   tmfree((char*)pidsOfSub);
   tmfree((char*)infosOfSub);
-  taos_close(taos);
+//   taos_close(taos);
   return 0;
 }
 

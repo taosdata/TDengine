@@ -1607,7 +1607,7 @@ void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen)
     tscDestroyLocalMerger(pObj);
   }
 
-  pRes->qhandle = 1;  // hack to pass the safety check in fetch_row function
+  pRes->qId = 1;  // hack to pass the safety check in fetch_row function
   pRes->numOfRows = 0;
   pRes->row = 0;
 
