@@ -397,28 +397,6 @@ typedef struct SColIndex {
   char     name[TSDB_COL_NAME_LEN];  // TODO remove it
 } SColIndex;
 
-/* sql function msg, to describe the message to vnode about sql function
- * operations in select  */
-//typedef struct SSqlFuncMsg {
-//  int16_t functionId;
-//  int16_t numOfParams;
-//
-//  int16_t resColId;      // result column id, id of the current output column
-//  int16_t colType;
-//  int16_t colBytes;
-//
-//  SColIndex colInfo;
-//  struct ArgElem {
-//    int16_t argType;
-//    int16_t argBytes;
-//    union {
-//      double  d;
-//      int64_t i64;
-//      char *  pz;
-//    } argValue;
-//  } arg[3];
-//} SSqlFuncMsg;
-
 typedef struct SColumnFilterInfo {
   int16_t lowerRelOptr;
   int16_t upperRelOptr;

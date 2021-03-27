@@ -1463,7 +1463,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
     int32_t tableIndexOfSub = -1;
     for (int32_t j = 0; j < pQueryInfo->numOfTables; ++j) {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, j);
-      if (pTableMetaInfo->pTableMeta->id.uid == pExpr->uid) {
+      if (pTableMetaInfo->pTableMeta->id.uid == pExpr->base.uid) {
         tableIndexOfSub = j;
         break;
       }

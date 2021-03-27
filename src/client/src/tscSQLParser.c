@@ -126,7 +126,7 @@ static int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSql
 static int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo);
 static int32_t validateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t index);
-static int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQueryNodeInfo* pQueryInfo, SArray* pCols, int64_t *uid);
+static int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQueryNodeInfo* pQueryInfo, SArray* pCols, uint64_t *uid);
 static bool    validateDebugFlag(int32_t v);
 static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryNodeInfo* pQueryInfo);
 
@@ -709,7 +709,7 @@ static bool isTopBottomQuery(SQueryNodeInfo* pQueryInfo) {
 
 // need to add timestamp column in result set, if it is a time window query
 static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryNodeInfo* pQueryInfo) {
-  uint64_t uid = tscSqlExprGet(pQueryInfo, 0)->uid;
+  uint64_t uid = tscSqlExprGet(pQueryInfo, 0)->base.uid;
 
   int32_t  tableIndex = COLUMN_INDEX_INITIAL_VAL;
   for (int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
@@ -1499,7 +1499,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
       pArithExprInfo->base.numOfParams = 1;
       pArithExprInfo->base.resColId = getNewResColId(pQueryInfo);
 
-      int32_t ret = exprTreeFromSqlExpr(pCmd, &pArithExprInfo->pExpr, pItem->pNode, pQueryInfo, NULL, &pArithExprInfo->uid);
+      int32_t ret = exprTreeFromSqlExpr(pCmd, &pArithExprInfo->pExpr, pItem->pNode, pQueryInfo, NULL, &(pArithExprInfo->base.uid));
       if (ret != TSDB_CODE_SUCCESS) {
         tExprTreeDestroy(pArithExprInfo->pExpr, NULL);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "invalid expression in select clause");
@@ -3476,8 +3476,8 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryNodeInfo* p
       }
 
       if (i == 0) {
-        id = p1->uid;
-      } else if (id != p1->uid) {
+        id = p1->base.uid;
+      } else if (id != p1->base.uid) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
     }
@@ -6126,7 +6126,8 @@ void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex) {
     char    tmpBuf[1024] = {0};
     int32_t tmpLen = 0;
     tmpLen =
-        sprintf(tmpBuf, "%s(uid:%" PRId64 ", %d)", aAggs[pExpr->base.functionId].name, pExpr->uid, pExpr->base.colInfo.colId);
+        sprintf(tmpBuf, "%s(uid:%" PRIu64 ", %d)", aAggs[pExpr->base.functionId].name, pExpr->base.uid,
+            pExpr->base.colInfo.colId);
 
     if (tmpLen + offset >= totalBufSize - 1) break;
 
@@ -6842,7 +6843,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t ind
   return TSDB_CODE_SUCCESS;  // Does not build query message here
 }
 
-int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQueryNodeInfo* pQueryInfo, SArray* pCols, int64_t *uid) {
+int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pSqlExpr, SQueryNodeInfo* pQueryInfo, SArray* pCols, uint64_t *uid) {
   tExprNode* pLeft = NULL;
   tExprNode* pRight= NULL;
   
@@ -6892,7 +6893,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
           (*pExpr)->pSchema->colId = p1->base.resColId;
 
           if (uid != NULL) {
-            *uid = p1->uid;
+            *uid = p1->base.uid;
           }
 
           break;

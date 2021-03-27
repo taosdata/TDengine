@@ -214,8 +214,9 @@ typedef struct SQueryNodeInfo {
   int32_t          bufLen;
   char*            buf;
 
-  SArray*          pDSOperator;
-  SArray*          pPhyOperator;
+  SArray*          pDSOperator;    // data source operator
+  SArray*          pPhyOperator;   // physical query execution plan
+  SQuery*          pQuery;         // query object
 
   struct SQueryNodeInfo *sibling;     // sibling
   SArray          *pUpstream;   // SArray<struct SQueryNodeInfo>

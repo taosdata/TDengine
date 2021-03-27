@@ -1291,7 +1291,7 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
 }
 
 static SExprInfo* doCreateSqlExpr(SQueryNodeInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-    int16_t size, int16_t resColId, int16_t interSize, int32_t colType) {
+                                  int16_t size, int16_t resColId, int16_t interSize, int32_t colType) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pColIndex->tableIndex);
   
   SExprInfo* pExpr = calloc(1, sizeof(SExprInfo));
@@ -1344,7 +1344,7 @@ static SExprInfo* doCreateSqlExpr(SQueryNodeInfo* pQueryInfo, int16_t functionId
   p->interBytes    = interSize;
 
   if (pTableMetaInfo->pTableMeta) {
-    pExpr->uid = pTableMetaInfo->pTableMeta->id.uid;
+    p->uid = pTableMetaInfo->pTableMeta->id.uid;
   }
   
   return pExpr;
@@ -1460,8 +1460,7 @@ int32_t tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepco
   for (int32_t i = 0; i < size; ++i) {
     SExprInfo* pExpr = taosArrayGetP(src, i);
     
-    if (pExpr->uid == uid) {
-      
+    if (pExpr->base.uid == uid) {
       if (deepcopy) {
         SExprInfo* p1 = calloc(1, sizeof(SExprInfo));
         tscSqlExprAssign(p1, pExpr);
@@ -1983,7 +1982,6 @@ void tscInitQueryInfo(SQueryNodeInfo* pQueryInfo) {
   pQueryInfo->slimit.offset  = 0;
   pQueryInfo->pUpstream      = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->pDownstream    = taosArrayInit(4, POINTER_BYTES);
-
 }
 
 int32_t tscAddQueryInfo(SSqlCmd* pCmd) {
@@ -3103,7 +3101,7 @@ SQuery* tscCreateQueryFromQueryNodeInfo(SQueryNodeInfo* pQueryNodeInfo) {
   pQuery->vgId = 0;
   pQuery->stableQuery = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
   pQuery->groupbyColumn = tscGroupbyColumn(pQueryNodeInfo);
-  pQuery->interBufSize = getOutputInterResultBufSize(pQuery);
+  pQuery->window = pQueryNodeInfo->window;
 
   {
     pQuery->numOfOutput = tscSqlExprNumOfExprs(pQueryNodeInfo);
@@ -3112,6 +3110,12 @@ SQuery* tscCreateQueryFromQueryNodeInfo(SQueryNodeInfo* pQueryNodeInfo) {
     for(int32_t i = 0; i < pQuery->numOfOutput; ++i) {
       SExprInfo* pExpr = tscSqlExprGet(pQueryNodeInfo, i);
       tscSqlExprAssign(&pQuery->pExpr1[i], pExpr);
+    }
+
+    pQuery->colList = calloc(numOfCols, sizeof(SColumnInfo));
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      SColumn* pCol = taosArrayGetP(pQueryNodeInfo->colList, i);
+      pQuery->colList[i] = pCol->info;
     }
   }
 
@@ -3154,6 +3158,7 @@ SQuery* tscCreateQueryFromQueryNodeInfo(SQueryNodeInfo* pQueryNodeInfo) {
     }
   }
 
+  pQuery->interBufSize = getOutputInterResultBufSize(pQuery);
   return pQuery;
 }
 

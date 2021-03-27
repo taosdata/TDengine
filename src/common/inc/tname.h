@@ -64,7 +64,6 @@ typedef struct SSqlExpr {
 
 typedef struct SExprInfo {
   SSqlExpr    base;
-  int64_t     uid;
   struct tExprNode* pExpr;
 } SExprInfo;
 
