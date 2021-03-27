@@ -185,12 +185,14 @@ pipeline {
             rm -rf /var/log/taos/*
             ./handle_crash_gen_val_log.sh
             '''
-            sh '''
-            cd ${WKC}/tests/pytest
-            rm -rf /var/lib/taos/*
-            rm -rf /var/log/taos/*
-            ./handle_taosd_val_log.sh
-            '''
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/pytest
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
+                ./handle_crash_gen_val_log.sh
+                '''
+            }
             timeout(time: 45, unit: 'MINUTES'){
                 sh '''
                 date
