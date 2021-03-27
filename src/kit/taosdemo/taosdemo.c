@@ -3076,16 +3076,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     goto PARSE_OVER;
   }
 
-  cJSON* gQueryTimes = cJSON_GetObjectItem(root, "query_times");
-  if (gQueryTimes && gQueryTimes->type == cJSON_Number) {
-    g_args.query_times = gQueryTimes->valueint;
-  } else if (!gQueryTimes) {
-    g_args.query_times = 1;
-  } else {
-    errorPrint("%s() LN%d, failed to read json, query_times input mistake\n", __func__, __LINE__);
-    goto PARSE_OVER;
-  }
-
   cJSON* interlaceRows = cJSON_GetObjectItem(root, "interlace_rows");
   if (interlaceRows && interlaceRows->type == cJSON_Number) {
     g_args.interlace_rows = interlaceRows->valueint;
@@ -3729,6 +3719,16 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     goto PARSE_OVER;
   }
 
+  cJSON* gQueryTimes = cJSON_GetObjectItem(root, "query_times");
+  if (gQueryTimes && gQueryTimes->type == cJSON_Number) {
+    g_args.query_times = gQueryTimes->valueint;
+  } else if (!gQueryTimes) {
+    g_args.query_times = 1;
+  } else {
+    errorPrint("%s() LN%d, failed to read json, query_times input mistake\n", __func__, __LINE__);
+    goto PARSE_OVER;
+  }
+
   cJSON* dbs = cJSON_GetObjectItem(root, "databases");
   if (dbs && dbs->type == cJSON_String && dbs->valuestring != NULL) {
     tstrncpy(g_queryInfo.dbName, dbs->valuestring, MAX_DB_NAME_SIZE);
@@ -4050,12 +4050,12 @@ static bool getInfoFromJsonFile(char* file) {
 
   if (INSERT_TEST == g_args.test_mode) {
     ret = getMetaFromInsertJsonFile(root);
-  } else if (QUERY_TEST == g_args.test_mode) {
-    ret = getMetaFromQueryJsonFile(root);
-  } else if (SUBSCRIBE_TEST == g_args.test_mode) {
+  } else if ((QUERY_TEST == g_args.test_mode)
+          || (SUBSCRIBE_TEST == g_args.test_mode)) {
     ret = getMetaFromQueryJsonFile(root);
   } else {
-    errorPrint("%s() LN%d, input json file type error! please input correct file type: insert or query or subscribe\n", __func__, __LINE__);
+    errorPrint("%s() LN%d, input json file type error! please input correct file type: insert or query or subscribe\n",
+            __func__, __LINE__);
     goto PARSE_OVER;
   }
 
