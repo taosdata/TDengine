@@ -658,6 +658,10 @@ static void syncChooseMaster(SSyncNode *pNode) {
     // if all peers are online, peer with highest version shall be master
     index = 0;
     for (int32_t i = 1; i < pNode->replica; ++i) {
+      sDebug("vgId:%d, node/version %s %d:%" PRIu64 " %s %d:%" PRIu64, pNode->vgId,
+	     pNode->peerInfo[i]->id, i, pNode->peerInfo[i]->version,
+	     pNode->peerInfo[index]->id, index, pNode->peerInfo[index]->version);
+
       if (pNode->peerInfo[i]->version > pNode->peerInfo[index]->version) {
         index = i;
       }
@@ -833,7 +837,7 @@ static void syncCheckRole(SSyncPeer *pPeer, SPeerStatus* peersStatus, int8_t new
     }
 
     if (consistent) {
-      sDebug("vgId:%d, choose master, replica:%d", pNode->vgId, pNode->replica);
+      sDebug("vgId:%d, start choosing master, replica:%d", pNode->vgId, pNode->replica);
       syncChooseMaster(pNode);
     } else {
       sDebug("vgId:%d, cannot choose master since roles inequality, replica:%d", pNode->vgId, pNode->replica);
