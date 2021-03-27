@@ -98,9 +98,9 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-print ============== step3: stop dnode4/dnode2
+print ============== step3: stop dnode4/dnode3
 system sh/exec.sh -n dnode4 -s stop -x SIGINT
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s stop -x SIGINT
 sleep $sleepTimer
 
 $loopCnt = 0
@@ -130,7 +130,7 @@ if $dnode4Status != offline then
   sleep 2000
   goto wait_dnode4_offline_0
 endi
-if $dnode2Status != offline then
+if $dnode3Status != offline then
   sleep 2000
   goto wait_dnode4_offline_0
 endi
@@ -152,13 +152,13 @@ print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1  $data5_1  $data6_1  $dat
 print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2  $data5_2  $data6_2  $data7_2  $data8_2  $data9_2
 print $data0_3  $data1_3  $data2_3  $data3_3  $data4_3  $data5_3  $data6_3  $data7_3  $data8_3  $data9_3
 $dnode4Vtatus = $data5_2
-$dnode3Vtatus = $data7_2
+$dnode2Vtatus = $data9_2
 
 if $dnode4Vtatus != offline then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
-if $dnode3Vtatus != master then
+if $dnode2Vtatus != master then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
@@ -168,8 +168,8 @@ s31:
 #sql_error insert into $tb values (now, 9988) -x s32
 #s32:
 
-print ============== step4: restart dnode2, then create database with replica 2, and create table, insert data
-system sh/exec.sh -n dnode2 -s start
+print ============== step4: restart dnode3, then create database with replica 2, and create table, insert data
+system sh/exec.sh -n dnode3 -s start
 sleep 2000
 
 $totalTableNum = 10

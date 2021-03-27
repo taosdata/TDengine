@@ -142,13 +142,13 @@ endi
 print show vgroups:
 print $data00  $data01  $data02  $data03  $data04  $data05  $data06  $data07  $data08  $data09
 $dnode4Vtatus = $data05
-$dnode3Vtatus = $data07
+$dnode2Vtatus = $data09
 
 if $dnode4Vtatus != offline then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
-if $dnode3Vtatus != master then
+if $dnode2Vtatus != master then
   sleep 2000
   goto wait_dnode4_vgroup_offline
 endi
