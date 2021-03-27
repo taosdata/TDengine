@@ -5578,9 +5578,9 @@ static void *subQueryProcess(void *sarg) {
         memset(sqlstr,0,sizeof(sqlstr));
         replaceSubTblName(g_queryInfo.subQueryInfo.sql[j], sqlstr, i);
         char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
-        if (g_queryInfo.subQueryInfo.result[i][0] != 0) {
+        if (g_queryInfo.subQueryInfo.result[j][0] != 0) {
           sprintf(tmpFile, "%s-%d",
-                  g_queryInfo.subQueryInfo.result[i],
+                  g_queryInfo.subQueryInfo.result[j],
                   winfo->threadID);
         }
         selectAndGetResult(winfo->taos, sqlstr, tmpFile);
@@ -5825,7 +5825,8 @@ static void *subSubscribeProcess(void *sarg) {
       replaceSubTblName(g_queryInfo.subQueryInfo.sql[i], subSqlstr, i);
       char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
       if (g_queryInfo.subQueryInfo.result[i][0] != 0) {
-        sprintf(tmpFile, "%s-%d", g_queryInfo.subQueryInfo.result[i], winfo->threadID);
+        sprintf(tmpFile, "%s-%d",
+                g_queryInfo.subQueryInfo.result[i], winfo->threadID);
       }
       g_queryInfo.subQueryInfo.tsub[i] = subscribeImpl(
               winfo->taos, subSqlstr, topic, tmpFile); 
