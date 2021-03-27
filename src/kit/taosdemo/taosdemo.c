@@ -696,6 +696,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
       wordfree(&full_path);
+
     } else if (strcmp(argv[i], "-h") == 0) {
       arguments->host = argv[++i];
     } else if (strcmp(argv[i], "-p") == 0) {
@@ -3088,6 +3089,17 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   cJSON* interlaceRows = cJSON_GetObjectItem(root, "interlace_rows");
   if (interlaceRows && interlaceRows->type == cJSON_Number) {
     g_args.interlace_rows = interlaceRows->valueint;
+
+    // rows per table need be less than insert batch
+    if (g_args.interlace_rows > g_args.num_of_RPR) {
+      printf("NOTICE: interlace rows value %d > num_of_records_per_request %d\n\n",
+              g_args.interlace_rows, g_args.num_of_RPR);
+      printf("        interlace rows value will be set to num_of_records_per_request %d\n\n",
+              g_args.num_of_RPR);
+      printf("        press Enter key to continue or Ctrl+C to stop.");
+      (void)getchar();
+      g_args.interlace_rows = g_args.num_of_RPR;
+    }
   } else if (!interlaceRows) {
     g_args.interlace_rows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
   } else {
@@ -3581,6 +3593,16 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       cJSON* interlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
       if (interlaceRows && interlaceRows->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].interlaceRows = interlaceRows->valueint;
+        // rows per table need be less than insert batch
+        if (g_Dbs.db[i].superTbls[j].interlaceRows > g_args.num_of_RPR) {
+          printf("NOTICE: db[%d].superTbl[%d]'s interlace rows value %d > num_of_records_per_request %d\n\n",
+                  i, j, g_Dbs.db[i].superTbls[j].interlaceRows, g_args.num_of_RPR);
+          printf("        interlace rows value will be set to num_of_records_per_request %d\n\n",
+                  g_args.num_of_RPR);
+          printf("        press Enter key to continue or Ctrl+C to stop.");
+          (void)getchar();
+          g_Dbs.db[i].superTbls[j].interlaceRows = g_args.num_of_RPR;
+        }
       } else if (!interlaceRows) {
         g_Dbs.db[i].superTbls[j].interlaceRows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
       } else {
@@ -4491,6 +4513,18 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
          pThreadInfo->threadID, __func__, __LINE__);
 
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
+  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
+
+  int insertMode;
+
+  if (interlaceRows > 0) {
+    insertMode = INTERLACE_INSERT_MODE;
+  } else {
+    insertMode = PROGRESSIVE_INSERT_MODE;
+  }
+
+  // TODO: prompt tbl count multple interlace rows and batch
+  //
 
   char* buffer = calloc(superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len, 1);
   if (NULL == buffer) {
@@ -4500,20 +4534,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     return NULL;
   }
 
-  int insertMode;
+
   char tableName[TSDB_TABLE_NAME_LEN];
-
-  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
-
-  if (interlaceRows > 0) {
-    insertMode = INTERLACE_INSERT_MODE;
-  } else {
-    insertMode = PROGRESSIVE_INSERT_MODE;
-  }
-
-  // rows per table need be less than insert batch
-  if (interlaceRows > g_args.num_of_RPR)
-      interlaceRows = g_args.num_of_RPR;
 
   pThreadInfo->totalInsertRows = 0;
   pThreadInfo->totalAffectedRows = 0;
