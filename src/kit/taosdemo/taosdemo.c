@@ -69,6 +69,7 @@ enum TEST_MODE {
 
 #define MAX_SQL_SIZE       65536
 #define BUFFER_SIZE        (65536*2)
+#define MAX_USERNAME_SIZE   64
 #define MAX_DB_NAME_SIZE   64
 #define MAX_TB_NAME_SIZE   64
 #define MAX_DATA_SIZE      16000
@@ -326,7 +327,7 @@ typedef struct SDbs_S {
   char         cfgDir[MAX_FILE_NAME_LEN+1];
   char         host[MAX_DB_NAME_SIZE];
   uint16_t     port;
-  char         user[MAX_DB_NAME_SIZE];
+  char         user[MAX_USERNAME_SIZE];
   char         password[MAX_DB_NAME_SIZE];
   char         resultFile[MAX_FILE_NAME_LEN+1];
   bool         use_metric;
@@ -6090,7 +6091,7 @@ static void initOfInsertMeta() {
   // set default values
   tstrncpy(g_Dbs.host, "127.0.0.1", MAX_DB_NAME_SIZE);
   g_Dbs.port = 6030;
-  tstrncpy(g_Dbs.user, TSDB_DEFAULT_USER, MAX_DB_NAME_SIZE);
+  tstrncpy(g_Dbs.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
   tstrncpy(g_Dbs.password, TSDB_DEFAULT_PASS, MAX_DB_NAME_SIZE);
   g_Dbs.threadCount = 2;
 
@@ -6103,7 +6104,7 @@ static void initOfQueryMeta() {
   // set default values
   tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_DB_NAME_SIZE);
   g_queryInfo.port = 6030;
-  tstrncpy(g_queryInfo.user, TSDB_DEFAULT_USER, MAX_DB_NAME_SIZE);
+  tstrncpy(g_queryInfo.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
   tstrncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, MAX_DB_NAME_SIZE);
 }
 
@@ -6115,7 +6116,7 @@ static void setParaFromArg(){
   }
 
   if (g_args.user) {
-    strcpy(g_Dbs.user, g_args.user);
+    tstrncpy(g_Dbs.user, g_args.user, MAX_USERNAME_SIZE);
   }
 
   if (g_args.password) {
