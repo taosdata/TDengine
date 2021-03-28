@@ -6063,7 +6063,12 @@ static int subscribeTestProcess() {
       t_info->taos = NULL; // TODO: workaround to use separate taos connection;
       pthread_create(pidsOfSub + i, NULL, subSubscribeProcess, t_info);
     }
+
     g_queryInfo.subQueryInfo.threadCnt = threads;
+
+    for (int i = 0; i < g_queryInfo.subQueryInfo.threadCnt; i++) {
+      pthread_join(pidsOfSub[i], NULL);
+    }
   }
 
   for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
@@ -6072,10 +6077,6 @@ static int subscribeTestProcess() {
 
   tmfree((char*)pids);
   tmfree((char*)infos);
-
-  for (int i = 0; i < g_queryInfo.subQueryInfo.threadCnt; i++) {
-    pthread_join(pidsOfSub[i], NULL);
-  }
 
   tmfree((char*)pidsOfSub);
   tmfree((char*)infosOfSub);
