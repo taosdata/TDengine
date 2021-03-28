@@ -4622,8 +4622,13 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       verbosePrint("[%d] %s() LN%d i=%d batchPerTblTimes=%d batchPerTbl = %d\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 i, batchPerTblTimes, batchPerTbl);
-      if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
-        startTime = taosGetTimestamp(pThreadInfo->time_precision);
+
+      if (superTblInfo) {
+        if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
+          startTime = taosGetTimestamp(pThreadInfo->time_precision);
+        }
+      } else {
+          startTime = 1500000000000;
       }
       generateDataTail(
         tableName, tableSeq, pThreadInfo, superTblInfo,
