@@ -493,7 +493,7 @@ static void resetAfterAnsiEscape(void) {
 
 static int taosRandom()
 {
-    return random();
+    return arc4random();
 }
 
 #endif
