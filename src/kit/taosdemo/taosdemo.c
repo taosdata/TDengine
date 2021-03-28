@@ -2532,39 +2532,46 @@ static void* createTable(void *sarg)
               g_args.tb_prefix, i,
               winfo->cols);
     } else {
-      if (0 == len) {
-        batchNum = 0;
-        memset(buffer, 0, buff_len);
-        len += snprintf(buffer + len,
-                buff_len - len, "create table ");
-      }
-
-      char* tagsValBuf = NULL;
-      if (0 == superTblInfo->tagSource) {
-        tagsValBuf = generateTagVaulesForStb(superTblInfo);
-      } else {
-        tagsValBuf = getTagValueFromTagSample(
-                superTblInfo,
-                i % superTblInfo->tagSampleCount);
-      }
-      if (NULL == tagsValBuf) {
+      if (superTblInfo == NULL) {
+        errorPrint("%s() LN%d, use metric, but super table info is NULL\n",
+                  __func__, __LINE__);
         free(buffer);
-        return NULL;
-      }
-
-      len += snprintf(buffer + len,
-              superTblInfo->maxSqlLen - len,
-              "if not exists %s.%s%d using %s.%s tags %s ",
-              winfo->db_name, superTblInfo->childTblPrefix,
-              i, winfo->db_name,
-              superTblInfo->sTblName, tagsValBuf);
-      free(tagsValBuf);
-      batchNum++;
-
-      if ((batchNum < superTblInfo->batchCreateTableNum)
-              && ((superTblInfo->maxSqlLen - len)
-                  >= (superTblInfo->lenOfTagOfOneRow + 256))) {
-        continue;
+        exit(-1);
+      } else {
+        if (0 == len) {
+          batchNum = 0;
+          memset(buffer, 0, buff_len);
+          len += snprintf(buffer + len,
+                  buff_len - len, "create table ");
+        }
+  
+        char* tagsValBuf = NULL;
+        if (0 == superTblInfo->tagSource) {
+          tagsValBuf = generateTagVaulesForStb(superTblInfo);
+        } else {
+          tagsValBuf = getTagValueFromTagSample(
+                  superTblInfo,
+                  i % superTblInfo->tagSampleCount);
+        }
+        if (NULL == tagsValBuf) {
+          free(buffer);
+          return NULL;
+        }
+  
+        len += snprintf(buffer + len,
+                superTblInfo->maxSqlLen - len,
+                "if not exists %s.%s%d using %s.%s tags %s ",
+                winfo->db_name, superTblInfo->childTblPrefix,
+                i, winfo->db_name,
+                superTblInfo->sTblName, tagsValBuf);
+        free(tagsValBuf);
+        batchNum++;
+  
+        if ((batchNum < superTblInfo->batchCreateTableNum)
+                && ((superTblInfo->maxSqlLen - len)
+                    >= (superTblInfo->lenOfTagOfOneRow + 256))) {
+          continue;
+        }
       }
     }
 
