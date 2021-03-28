@@ -69,7 +69,10 @@ enum TEST_MODE {
 
 #define MAX_SQL_SIZE       65536
 #define BUFFER_SIZE        (65536*2)
+#define MAX_USERNAME_SIZE  64
+#define MAX_PASSWORD_SIZE  64
 #define MAX_DB_NAME_SIZE   64
+#define MAX_HOSTNAME_SIZE  64
 #define MAX_TB_NAME_SIZE   64
 #define MAX_DATA_SIZE      16000
 #define MAX_NUM_DATATYPE   10
@@ -324,10 +327,10 @@ typedef struct SDataBase_S {
 
 typedef struct SDbs_S {
   char         cfgDir[MAX_FILE_NAME_LEN+1];
-  char         host[MAX_DB_NAME_SIZE];
+  char         host[MAX_HOSTNAME_SIZE];
   uint16_t     port;
-  char         user[MAX_DB_NAME_SIZE];
-  char         password[MAX_DB_NAME_SIZE];
+  char         user[MAX_USERNAME_SIZE];
+  char         password[MAX_PASSWORD_SIZE];
   char         resultFile[MAX_FILE_NAME_LEN+1];
   bool         use_metric;
   bool         insert_only;
@@ -378,10 +381,10 @@ typedef struct SubQueryInfo_S {
 
 typedef struct SQueryMetaInfo_S {
   char         cfgDir[MAX_FILE_NAME_LEN+1];
-  char         host[MAX_DB_NAME_SIZE];
+  char         host[MAX_HOSTNAME_SIZE];
   uint16_t     port;
-  char         user[MAX_DB_NAME_SIZE];
-  char         password[MAX_DB_NAME_SIZE];
+  char         user[MAX_USERNAME_SIZE];
+  char         password[MAX_PASSWORD_SIZE];
   char         dbName[MAX_DB_NAME_SIZE+1];
   char         queryMode[MAX_TB_NAME_SIZE];  // taosc, restful
 
@@ -491,9 +494,12 @@ static void resetAfterAnsiEscape(void) {
   printf("\x1b[0m");
 }
 
+#include <time.h>
+
 static int taosRandom()
 {
-    return random();
+  srand(time(NULL));
+  return rand();
 }
 
 #endif
@@ -2532,39 +2538,46 @@ static void* createTable(void *sarg)
               g_args.tb_prefix, i,
               winfo->cols);
     } else {
-      if (0 == len) {
-        batchNum = 0;
-        memset(buffer, 0, buff_len);
-        len += snprintf(buffer + len,
-                buff_len - len, "create table ");
-      }
-
-      char* tagsValBuf = NULL;
-      if (0 == superTblInfo->tagSource) {
-        tagsValBuf = generateTagVaulesForStb(superTblInfo);
-      } else {
-        tagsValBuf = getTagValueFromTagSample(
-                superTblInfo,
-                i % superTblInfo->tagSampleCount);
-      }
-      if (NULL == tagsValBuf) {
+      if (superTblInfo == NULL) {
+        errorPrint("%s() LN%d, use metric, but super table info is NULL\n",
+                  __func__, __LINE__);
         free(buffer);
-        return NULL;
-      }
-
-      len += snprintf(buffer + len,
-              superTblInfo->maxSqlLen - len,
-              "if not exists %s.%s%d using %s.%s tags %s ",
-              winfo->db_name, superTblInfo->childTblPrefix,
-              i, winfo->db_name,
-              superTblInfo->sTblName, tagsValBuf);
-      free(tagsValBuf);
-      batchNum++;
-
-      if ((batchNum < superTblInfo->batchCreateTableNum)
-              && ((superTblInfo->maxSqlLen - len)
-                  >= (superTblInfo->lenOfTagOfOneRow + 256))) {
-        continue;
+        exit(-1);
+      } else {
+        if (0 == len) {
+          batchNum = 0;
+          memset(buffer, 0, buff_len);
+          len += snprintf(buffer + len,
+                  buff_len - len, "create table ");
+        }
+  
+        char* tagsValBuf = NULL;
+        if (0 == superTblInfo->tagSource) {
+          tagsValBuf = generateTagVaulesForStb(superTblInfo);
+        } else {
+          tagsValBuf = getTagValueFromTagSample(
+                  superTblInfo,
+                  i % superTblInfo->tagSampleCount);
+        }
+        if (NULL == tagsValBuf) {
+          free(buffer);
+          return NULL;
+        }
+  
+        len += snprintf(buffer + len,
+                superTblInfo->maxSqlLen - len,
+                "if not exists %s.%s%d using %s.%s tags %s ",
+                winfo->db_name, superTblInfo->childTblPrefix,
+                i, winfo->db_name,
+                superTblInfo->sTblName, tagsValBuf);
+        free(tagsValBuf);
+        batchNum++;
+  
+        if ((batchNum < superTblInfo->batchCreateTableNum)
+                && ((superTblInfo->maxSqlLen - len)
+                    >= (superTblInfo->lenOfTagOfOneRow + 256))) {
+          continue;
+        }
       }
     }
 
@@ -2699,10 +2712,10 @@ static void createChildTables() {
             if ((strncasecmp(g_args.datatype[j], "BINARY", strlen("BINARY")) == 0)
                     || (strncasecmp(g_args.datatype[j],
                         "NCHAR", strlen("NCHAR")) == 0)) {
-                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
+                snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
                         ", COL%d %s(60)", j, g_args.datatype[j]);
             } else {
-                len = snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
+                snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
                         ", COL%d %s", j, g_args.datatype[j]);
             }
             len = strlen(tblColsBuf);
@@ -3009,9 +3022,9 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
   cJSON* host = cJSON_GetObjectItem(root, "host");
   if (host && host->type == cJSON_String && host->valuestring != NULL) {
-    tstrncpy(g_Dbs.host, host->valuestring, MAX_DB_NAME_SIZE);
+    tstrncpy(g_Dbs.host, host->valuestring, MAX_HOSTNAME_SIZE);
   } else if (!host) {
-    tstrncpy(g_Dbs.host, "127.0.0.1", MAX_DB_NAME_SIZE);
+    tstrncpy(g_Dbs.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
   } else {
     printf("ERROR: failed to read json, host not found\n");
     goto PARSE_OVER;
@@ -3026,16 +3039,16 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
 
   cJSON* user = cJSON_GetObjectItem(root, "user");
   if (user && user->type == cJSON_String && user->valuestring != NULL) {
-    tstrncpy(g_Dbs.user, user->valuestring, MAX_DB_NAME_SIZE);
+    tstrncpy(g_Dbs.user, user->valuestring, MAX_USERNAME_SIZE);
   } else if (!user) {
-    tstrncpy(g_Dbs.user, "root", MAX_DB_NAME_SIZE);
+    tstrncpy(g_Dbs.user, "root", MAX_USERNAME_SIZE);
   }
 
   cJSON* password = cJSON_GetObjectItem(root, "password");
   if (password && password->type == cJSON_String && password->valuestring != NULL) {
-    tstrncpy(g_Dbs.password, password->valuestring, MAX_DB_NAME_SIZE);
+    tstrncpy(g_Dbs.password, password->valuestring, MAX_PASSWORD_SIZE);
   } else if (!password) {
-    tstrncpy(g_Dbs.password, "taosdata", MAX_DB_NAME_SIZE);
+    tstrncpy(g_Dbs.password, "taosdata", MAX_PASSWORD_SIZE);
   }
 
   cJSON* resultfile = cJSON_GetObjectItem(root, "result_file");
@@ -3673,9 +3686,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
   cJSON* host = cJSON_GetObjectItem(root, "host");
   if (host && host->type == cJSON_String && host->valuestring != NULL) {
-    tstrncpy(g_queryInfo.host, host->valuestring, MAX_DB_NAME_SIZE);
+    tstrncpy(g_queryInfo.host, host->valuestring, MAX_HOSTNAME_SIZE);
   } else if (!host) {
-    tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_DB_NAME_SIZE);
+    tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
   } else {
     printf("ERROR: failed to read json, host not found\n");
     goto PARSE_OVER;
@@ -3690,16 +3703,16 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
   cJSON* user = cJSON_GetObjectItem(root, "user");
   if (user && user->type == cJSON_String && user->valuestring != NULL) {
-    tstrncpy(g_queryInfo.user, user->valuestring, MAX_DB_NAME_SIZE);   
+    tstrncpy(g_queryInfo.user, user->valuestring, MAX_USERNAME_SIZE);   
   } else if (!user) {
-    tstrncpy(g_queryInfo.user, "root", MAX_DB_NAME_SIZE); ;
+    tstrncpy(g_queryInfo.user, "root", MAX_USERNAME_SIZE); ;
   }
 
   cJSON* password = cJSON_GetObjectItem(root, "password");
   if (password && password->type == cJSON_String && password->valuestring != NULL) {
-    tstrncpy(g_queryInfo.password, password->valuestring, MAX_DB_NAME_SIZE);
+    tstrncpy(g_queryInfo.password, password->valuestring, MAX_PASSWORD_SIZE);
   } else if (!password) {
-    tstrncpy(g_queryInfo.password, "taosdata", MAX_DB_NAME_SIZE);;
+    tstrncpy(g_queryInfo.password, "taosdata", MAX_PASSWORD_SIZE);;
   }
 
   cJSON *answerPrompt = cJSON_GetObjectItem(root, "confirm_parameter_prompt"); // yes, no,
@@ -4611,8 +4624,13 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       verbosePrint("[%d] %s() LN%d i=%d batchPerTblTimes=%d batchPerTbl = %d\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 i, batchPerTblTimes, batchPerTbl);
-      if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
-        startTime = taosGetTimestamp(pThreadInfo->time_precision);
+
+      if (superTblInfo) {
+        if (0 == strncasecmp(superTblInfo->startTimestamp, "now", 3)) {
+          startTime = taosGetTimestamp(pThreadInfo->time_precision);
+        }
+      } else {
+          startTime = 1500000000000;
       }
       generateDataTail(
         tableName, tableSeq, pThreadInfo, superTblInfo,
@@ -6056,7 +6074,12 @@ static int subscribeTestProcess() {
       t_info->taos = NULL; // TODO: workaround to use separate taos connection;
       pthread_create(pidsOfSub + i, NULL, subSubscribeProcess, t_info);
     }
+
     g_queryInfo.subQueryInfo.threadCnt = threads;
+
+    for (int i = 0; i < g_queryInfo.subQueryInfo.threadCnt; i++) {
+      pthread_join(pidsOfSub[i], NULL);
+    }
   }
 
   for (int i = 0; i < g_queryInfo.superQueryInfo.concurrent; i++) {
@@ -6065,10 +6088,6 @@ static int subscribeTestProcess() {
 
   tmfree((char*)pids);
   tmfree((char*)infos);
-
-  for (int i = 0; i < g_queryInfo.subQueryInfo.threadCnt; i++) {
-    pthread_join(pidsOfSub[i], NULL);
-  }
 
   tmfree((char*)pidsOfSub);
   tmfree((char*)infosOfSub);
@@ -6080,10 +6099,10 @@ static void initOfInsertMeta() {
   memset(&g_Dbs, 0, sizeof(SDbs));
 
   // set default values
-  tstrncpy(g_Dbs.host, "127.0.0.1", MAX_DB_NAME_SIZE);
+  tstrncpy(g_Dbs.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
   g_Dbs.port = 6030;
-  tstrncpy(g_Dbs.user, TSDB_DEFAULT_USER, MAX_DB_NAME_SIZE);
-  tstrncpy(g_Dbs.password, TSDB_DEFAULT_PASS, MAX_DB_NAME_SIZE);
+  tstrncpy(g_Dbs.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
+  tstrncpy(g_Dbs.password, TSDB_DEFAULT_PASS, MAX_PASSWORD_SIZE);
   g_Dbs.threadCount = 2;
 
   g_Dbs.use_metric = g_args.use_metric;
@@ -6093,25 +6112,25 @@ static void initOfQueryMeta() {
   memset(&g_queryInfo, 0, sizeof(SQueryMetaInfo));
 
   // set default values
-  tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_DB_NAME_SIZE);
+  tstrncpy(g_queryInfo.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
   g_queryInfo.port = 6030;
-  tstrncpy(g_queryInfo.user, TSDB_DEFAULT_USER, MAX_DB_NAME_SIZE);
-  tstrncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, MAX_DB_NAME_SIZE);
+  tstrncpy(g_queryInfo.user, TSDB_DEFAULT_USER, MAX_USERNAME_SIZE);
+  tstrncpy(g_queryInfo.password, TSDB_DEFAULT_PASS, MAX_PASSWORD_SIZE);
 }
 
 static void setParaFromArg(){
   if (g_args.host) {
-    strcpy(g_Dbs.host, g_args.host);
+    tstrncpy(g_Dbs.host, g_args.host, MAX_HOSTNAME_SIZE);
   } else {
-    tstrncpy(g_Dbs.host, "127.0.0.1", MAX_DB_NAME_SIZE);
+    tstrncpy(g_Dbs.host, "127.0.0.1", MAX_HOSTNAME_SIZE);
   }
 
   if (g_args.user) {
-    strcpy(g_Dbs.user, g_args.user);
+    tstrncpy(g_Dbs.user, g_args.user, MAX_USERNAME_SIZE);
   }
 
   if (g_args.password) {
-    strcpy(g_Dbs.password, g_args.password);
+    tstrncpy(g_Dbs.password, g_args.password, MAX_PASSWORD_SIZE);
   }
 
   if (g_args.port) {
@@ -6331,12 +6350,12 @@ static void queryResult() {
         rInfo->ntables = g_Dbs.db[0].superTbls[0].childTblCount;
         rInfo->end_table_to = g_Dbs.db[0].superTbls[0].childTblCount - 1;
         rInfo->superTblInfo = &g_Dbs.db[0].superTbls[0];
-        strcpy(rInfo->tb_prefix,
-              g_Dbs.db[0].superTbls[0].childTblPrefix);
+        tstrncpy(rInfo->tb_prefix,
+              g_Dbs.db[0].superTbls[0].childTblPrefix, MAX_TB_NAME_SIZE);
       } else {
         rInfo->ntables = g_args.num_of_tables;
         rInfo->end_table_to = g_args.num_of_tables -1;
-        strcpy(rInfo->tb_prefix, g_args.tb_prefix);
+        tstrncpy(rInfo->tb_prefix, g_args.tb_prefix, MAX_TB_NAME_SIZE);
       }
 
       rInfo->taos = taos_connect(
@@ -6352,7 +6371,7 @@ static void queryResult() {
         exit(-1);
       }
 
-      strcpy(rInfo->fp, g_Dbs.resultFile);
+      tstrncpy(rInfo->fp, g_Dbs.resultFile, MAX_FILE_NAME_LEN);
 
       if (!g_Dbs.use_metric) {
         pthread_create(&read_id, NULL, readTable, rInfo);
