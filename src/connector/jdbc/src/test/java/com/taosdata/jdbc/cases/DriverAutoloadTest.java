@@ -3,7 +3,6 @@ package com.taosdata.jdbc.cases;
 import com.taosdata.jdbc.TSDBDriver;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 import java.sql.Connection;
@@ -15,10 +14,10 @@ public class DriverAutoloadTest {
 
     private Properties properties;
     private String host = "127.0.0.1";
-    //    private String host = "master";
 
     @Test
     public void testRestful() throws SQLException {
+//        Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
         final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
         Connection conn = DriverManager.getConnection(url, properties);
         Assert.assertNotNull(conn);
