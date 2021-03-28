@@ -6,6 +6,7 @@ node {
 }
 
 def skipstage=0
+
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -24,7 +25,7 @@ def abortPreviousBuilds() {
     build.doKill()    //doTerm(),doKill(),doTerm()
   }
 }
-//abort previous build
+//  abort previous build
 abortPreviousBuilds()
 def abort_previous(){
   def buildNumber = env.BUILD_NUMBER as int
@@ -32,19 +33,20 @@ def abort_previous(){
   milestone(buildNumber)
 }
 def pre_test(){
-
+    
+    
     sh '''
     sudo rmtaos || echo "taosd has not installed"
     '''
     sh '''
-    
+    killall -9 taosd ||echo "no taosd running"
+    killall -9 gdb || echo "no gdb running"
     cd ${WKC}
     git checkout develop
     git reset --hard HEAD~10 >/dev/null 
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile'
     find ${WKC}/tests/pytest -name \'*\'.sql -exec rm -rf {} \\;
     cd ${WK}
     git reset --hard HEAD~10
@@ -79,6 +81,10 @@ pipeline {
               changeRequest()
           }
           steps {
+            script{
+              abort_previous()
+              abortPreviousBuilds()
+            }
           sh'''
           cp -r ${WORKSPACE} ${WORKSPACE}.tes
           cd ${WORKSPACE}.tes

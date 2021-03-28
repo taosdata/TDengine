@@ -38,7 +38,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryTableMs
  * @param qinfo
  * @return
  */
-bool qTableQuery(qinfo_t qinfo);
+bool qTableQuery(qinfo_t qinfo, uint64_t *qId);
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,
