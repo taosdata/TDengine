@@ -911,6 +911,7 @@ void setDCLSqlElems(SSqlInfo *pInfo, int32_t type, int32_t nParam, ...) {
     SStrToken *pToken = va_arg(va, SStrToken *);
     taosArrayPush(pInfo->pMiscInfo->a, pToken);
   }
+
   va_end(va);
 }
 

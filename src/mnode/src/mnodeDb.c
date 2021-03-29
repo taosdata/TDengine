@@ -50,7 +50,7 @@ static int32_t mnodeGetDbMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn
 static int32_t mnodeRetrieveDbs(SShowObj *pShow, char *data, int32_t rows, void *pConn);
 static int32_t mnodeProcessCreateDbMsg(SMnodeMsg *pMsg);
 static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg);
-
+static int32_t mnodeProcessSyncDbMsg(SMnodeMsg *pMsg);
 int32_t mnodeProcessAlterDbMsg(SMnodeMsg *pMsg);
 
 #ifndef _TOPIC
@@ -179,6 +179,7 @@ int32_t mnodeInitDbs() {
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_CREATE_DB, mnodeProcessCreateDbMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_ALTER_DB, mnodeProcessAlterDbMsg);
   mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_DROP_DB, mnodeProcessDropDbMsg);
+  mnodeAddWriteMsgHandle(TSDB_MSG_TYPE_CM_SYNC_DB, mnodeProcessSyncDbMsg);
   mnodeAddShowMetaHandle(TSDB_MGMT_TABLE_DB, mnodeGetDbMeta);
   mnodeAddShowRetrieveHandle(TSDB_MGMT_TABLE_DB, mnodeRetrieveDbs);
   mnodeAddShowFreeIterHandle(TSDB_MGMT_TABLE_DB, mnodeCancelGetNextDb);
@@ -1186,6 +1187,46 @@ static int32_t mnodeProcessDropDbMsg(SMnodeMsg *pMsg) {
 
   mDebug("db:%s, all vgroups is dropped", pMsg->pDb->name);
   return mnodeDropDb(pMsg);
+}
+
+static int32_t mnodeSyncDb(SDbObj *pDb, SMnodeMsg *pMsg) {
+  void *pIter = NULL;
+  SVgObj *pVgroup = NULL;
+    while (1) {
+    pIter = mnodeGetNextVgroup(pIter, &pVgroup);
+    if (pVgroup == NULL) break;
+    if (pVgroup->pDb == pDb) {
+      mnodeSendSyncVgroupMsg(pVgroup);
+    }
+    mnodeDecVgroupRef(pVgroup);
+  }
+
+  mLInfo("db:%s, is synced by %s", pDb->name, mnodeGetUserFromMsg(pMsg));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t mnodeProcessSyncDbMsg(SMnodeMsg *pMsg) {
+  SSyncDbMsg *pSyncDb = pMsg->rpcMsg.pCont;
+  mDebug("db:%s, syncdb is received from thandle:%p, ignore:%d", pSyncDb->db, pMsg->rpcMsg.handle, pSyncDb->ignoreNotExists);
+
+  if (pMsg->pDb == NULL) pMsg->pDb = mnodeGetDb(pSyncDb->db);
+  if (pMsg->pDb == NULL) {
+        if (pSyncDb->ignoreNotExists) {
+          mDebug("db:%s, db is not exist, treat as success", pSyncDb->db);
+          return TSDB_CODE_SUCCESS;
+        } else {
+          mError("db:%s, failed to sync, invalid db", pSyncDb->db);
+          return TSDB_CODE_MND_INVALID_DB;
+        }
+  }
+
+  if (pMsg->pDb->status != TSDB_DB_STATUS_READY) {
+    mError("db:%s, status:%d, in dropping", pSyncDb->db, pMsg->pDb->status);
+    return TSDB_CODE_MND_DB_IN_DROPPING;
+  }
+
+  return mnodeSyncDb(pMsg->pDb, pMsg);
 }
 
 void  mnodeDropAllDbs(SAcctObj *pAcct)  {
