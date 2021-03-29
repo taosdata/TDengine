@@ -3761,29 +3761,29 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   }
 
   // super_table_query 
-  cJSON *superQuery = cJSON_GetObjectItem(root, "specified_table_query");
-  if (!superQuery) {
+  cJSON *specifiedQuery = cJSON_GetObjectItem(root, "specified_table_query");
+  if (!specifiedQuery) {
     g_queryInfo.specifiedQueryInfo.concurrent = 0;
     g_queryInfo.specifiedQueryInfo.sqlCount = 0;
-  } else if (superQuery->type != cJSON_Object) {
+  } else if (specifiedQuery->type != cJSON_Object) {
     printf("ERROR: failed to read json, super_table_query not found\n");
     goto PARSE_OVER;
   } else {
-    cJSON* rate = cJSON_GetObjectItem(superQuery, "query_interval");
+    cJSON* rate = cJSON_GetObjectItem(specifiedQuery, "query_interval");
     if (rate && rate->type == cJSON_Number) {
       g_queryInfo.specifiedQueryInfo.rate = rate->valueint;
     } else if (!rate) {
       g_queryInfo.specifiedQueryInfo.rate = 0;
     }
 
-    cJSON* concurrent = cJSON_GetObjectItem(superQuery, "concurrent");
+    cJSON* concurrent = cJSON_GetObjectItem(specifiedQuery, "concurrent");
     if (concurrent && concurrent->type == cJSON_Number) {
       g_queryInfo.specifiedQueryInfo.concurrent = concurrent->valueint;
     } else if (!concurrent) {
       g_queryInfo.specifiedQueryInfo.concurrent = 1;
     }
 
-    cJSON* mode = cJSON_GetObjectItem(superQuery, "mode");
+    cJSON* mode = cJSON_GetObjectItem(specifiedQuery, "mode");
     if (mode && mode->type == cJSON_String && mode->valuestring != NULL) {
       if (0 == strcmp("sync", mode->valuestring)) {
         g_queryInfo.specifiedQueryInfo.subscribeMode = 0;
@@ -3797,7 +3797,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.specifiedQueryInfo.subscribeMode = 0;
     }
 
-    cJSON* interval = cJSON_GetObjectItem(superQuery, "interval");
+    cJSON* interval = cJSON_GetObjectItem(specifiedQuery, "interval");
     if (interval && interval->type == cJSON_Number) {
       g_queryInfo.specifiedQueryInfo.subscribeInterval = interval->valueint;
     } else if (!interval) {
@@ -3806,7 +3806,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.specifiedQueryInfo.subscribeInterval = 10000;
     }
 
-    cJSON* restart = cJSON_GetObjectItem(superQuery, "restart");
+    cJSON* restart = cJSON_GetObjectItem(specifiedQuery, "restart");
     if (restart && restart->type == cJSON_String && restart->valuestring != NULL) {
       if (0 == strcmp("yes", restart->valuestring)) {
         g_queryInfo.specifiedQueryInfo.subscribeRestart = 1;
@@ -3820,7 +3820,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.specifiedQueryInfo.subscribeRestart = 1;
     }
 
-    cJSON* keepProgress = cJSON_GetObjectItem(superQuery, "keepProgress");
+    cJSON* keepProgress = cJSON_GetObjectItem(specifiedQuery, "keepProgress");
     if (keepProgress
             && keepProgress->type == cJSON_String
             && keepProgress->valuestring != NULL) {
@@ -3837,7 +3837,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     }
 
     // sqls
-    cJSON* superSqls = cJSON_GetObjectItem(superQuery, "sqls");
+    cJSON* superSqls = cJSON_GetObjectItem(specifiedQuery, "sqls");
     if (!superSqls) {
       g_queryInfo.specifiedQueryInfo.sqlCount = 0;
     } else if (superSqls->type != cJSON_Array) {
@@ -3876,37 +3876,37 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   }
 
   // sub_table_query 
-  cJSON *subQuery = cJSON_GetObjectItem(root, "super_table_query");
-  if (!subQuery) {
+  cJSON *superQuery = cJSON_GetObjectItem(root, "super_table_query");
+  if (!superQuery) {
     g_queryInfo.superQueryInfo.threadCnt = 0;
     g_queryInfo.superQueryInfo.sqlCount = 0;
-  } else if (subQuery->type != cJSON_Object) {
+  } else if (superQuery->type != cJSON_Object) {
     printf("ERROR: failed to read json, sub_table_query not found\n");
     ret = true;
     goto PARSE_OVER;
   } else {
-    cJSON* subrate = cJSON_GetObjectItem(subQuery, "query_interval");
+    cJSON* subrate = cJSON_GetObjectItem(superQuery, "query_interval");
     if (subrate && subrate->type == cJSON_Number) {
       g_queryInfo.superQueryInfo.rate = subrate->valueint;
     } else if (!subrate) {
       g_queryInfo.superQueryInfo.rate = 0;
     }
 
-    cJSON* threads = cJSON_GetObjectItem(subQuery, "threads");
+    cJSON* threads = cJSON_GetObjectItem(superQuery, "threads");
     if (threads && threads->type == cJSON_Number) {
       g_queryInfo.superQueryInfo.threadCnt = threads->valueint;
     } else if (!threads) {
       g_queryInfo.superQueryInfo.threadCnt = 1;
     }
 
-    //cJSON* subTblCnt = cJSON_GetObjectItem(subQuery, "childtable_count");
+    //cJSON* subTblCnt = cJSON_GetObjectItem(superQuery, "childtable_count");
     //if (subTblCnt && subTblCnt->type == cJSON_Number) {
     //  g_queryInfo.superQueryInfo.childTblCount = subTblCnt->valueint;
     //} else if (!subTblCnt) {
     //  g_queryInfo.superQueryInfo.childTblCount = 0;
     //}
 
-    cJSON* stblname = cJSON_GetObjectItem(subQuery, "stblname");
+    cJSON* stblname = cJSON_GetObjectItem(superQuery, "stblname");
     if (stblname && stblname->type == cJSON_String && stblname->valuestring != NULL) {
       tstrncpy(g_queryInfo.superQueryInfo.sTblName, stblname->valuestring, MAX_TB_NAME_SIZE);
     } else {
@@ -3914,7 +3914,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       goto PARSE_OVER;
     }
 
-    cJSON* submode = cJSON_GetObjectItem(subQuery, "mode");
+    cJSON* submode = cJSON_GetObjectItem(superQuery, "mode");
     if (submode && submode->type == cJSON_String && submode->valuestring != NULL) {
       if (0 == strcmp("sync", submode->valuestring)) {
         g_queryInfo.superQueryInfo.subscribeMode = 0;
@@ -3928,7 +3928,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.superQueryInfo.subscribeMode = 0;
     }
 
-    cJSON* subinterval = cJSON_GetObjectItem(subQuery, "interval");
+    cJSON* subinterval = cJSON_GetObjectItem(superQuery, "interval");
     if (subinterval && subinterval->type == cJSON_Number) {
       g_queryInfo.superQueryInfo.subscribeInterval = subinterval->valueint;
     } else if (!subinterval) {    
@@ -3937,7 +3937,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.superQueryInfo.subscribeInterval = 10000;
     }
 
-    cJSON* subrestart = cJSON_GetObjectItem(subQuery, "restart");
+    cJSON* subrestart = cJSON_GetObjectItem(superQuery, "restart");
     if (subrestart && subrestart->type == cJSON_String && subrestart->valuestring != NULL) {
       if (0 == strcmp("yes", subrestart->valuestring)) {
         g_queryInfo.superQueryInfo.subscribeRestart = 1;
@@ -3951,7 +3951,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.superQueryInfo.subscribeRestart = 1;
     }
 
-    cJSON* subkeepProgress = cJSON_GetObjectItem(subQuery, "keepProgress");
+    cJSON* subkeepProgress = cJSON_GetObjectItem(superQuery, "keepProgress");
     if (subkeepProgress &&
             subkeepProgress->type == cJSON_String
             && subkeepProgress->valuestring != NULL) {
@@ -3968,7 +3968,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     }
 
     // sqls
-    cJSON* subsqls = cJSON_GetObjectItem(subQuery, "sqls");
+    cJSON* subsqls = cJSON_GetObjectItem(superQuery, "sqls");
     if (!subsqls) {
       g_queryInfo.superQueryInfo.sqlCount = 0;
     } else if (subsqls->type != cJSON_Array) {
