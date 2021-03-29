@@ -3104,7 +3104,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
               g_args.interlace_rows, g_args.num_of_RPR);
       printf("        interlace rows value will be set to num_of_records_per_request %d\n\n",
               g_args.num_of_RPR);
-      printf("        press Enter key to continue or Ctrl+C to stop.");
+      printf("        press Enter key to continue or Ctrl-C to stop.");
       (void)getchar();
       g_args.interlace_rows = g_args.num_of_RPR;
     }
@@ -3607,7 +3607,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                   i, j, g_Dbs.db[i].superTbls[j].interlaceRows, g_args.num_of_RPR);
           printf("        interlace rows value will be set to num_of_records_per_request %d\n\n",
                   g_args.num_of_RPR);
-          printf("        press Enter key to continue or Ctrl+C to stop.");
+          printf("        press Enter key to continue or Ctrl-C to stop.");
           (void)getchar();
           g_Dbs.db[i].superTbls[j].interlaceRows = g_args.num_of_RPR;
         }
@@ -4994,39 +4994,14 @@ static void *asyncWrite(void *sarg) {
 static void startMultiThreadInsertData(int threads, char* db_name,
         char* precision,SSuperTable* superTblInfo) {
 
-    pthread_t *pids = malloc(threads * sizeof(pthread_t));
-    assert(pids != NULL);
+  pthread_t *pids = malloc(threads * sizeof(pthread_t));
+  assert(pids != NULL);
 
-    threadInfo *infos = malloc(threads * sizeof(threadInfo));
-    assert(infos != NULL);
+  threadInfo *infos = malloc(threads * sizeof(threadInfo));
+  assert(infos != NULL);
 
-    memset(pids, 0, threads * sizeof(pthread_t));
-    memset(infos, 0, threads * sizeof(threadInfo));
-
-    int ntables = 0;
-    if (superTblInfo) {
-
-        if ((superTblInfo->childTblOffset >= 0)
-            && (superTblInfo->childTblLimit > 0)) {
-
-            ntables = superTblInfo->childTblLimit;
-        } else {
-            ntables = superTblInfo->childTblCount;
-        }
-    } else {
-        ntables = g_args.num_of_tables;
-    }
-
-    int a = ntables / threads;
-    if (a < 1) {
-        threads = ntables;
-        a = 1;
-    }
-
-    int b = 0;
-    if (threads != 0) {
-        b = ntables % threads;
-    }
+  memset(pids, 0, threads * sizeof(pthread_t));
+  memset(infos, 0, threads * sizeof(threadInfo));
 
   //TAOS* taos;
   //if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {
@@ -5068,13 +5043,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
   double start = getCurrentTime();
 
-  int startFrom;
-
-  if ((superTblInfo) && (superTblInfo->childTblOffset >= 0))
-      startFrom = superTblInfo->childTblOffset;
-  else
-      startFrom = 0;
-
   // read sample data from file first
   if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource,
               "sample", strlen("sample")))) {
@@ -5104,17 +5072,35 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     exit(-1);
   }
 
-  if (superTblInfo) {
+  int ntables = 0;
+  int startFrom;
 
+  if (superTblInfo) {
     int limit, offset;
-    if (superTblInfo && (superTblInfo->childTblOffset >= 0)
-            && (superTblInfo->childTblLimit > 0)) {
-        limit = superTblInfo->childTblLimit;
-        offset = superTblInfo->childTblOffset;
+
+    if (superTblInfo->childTblOffset >= superTblInfo->childTblCount) {
+      printf("WARNING: specified offset >= child table count! \n");
+      if (!g_args.answer_yes) {
+        printf("         Press enter key to continue or Ctrl-C to stop\n\n");
+        (void)getchar();
+      }
+    }
+
+    if (superTblInfo->childTblOffset >= 0) {
+      if (superTblInfo->childTblLimit <= 0) {
+        superTblInfo->childTblLimit =
+            superTblInfo->childTblCount - superTblInfo->childTblOffset;
+      }
+
+      offset = superTblInfo->childTblOffset;
+      limit = superTblInfo->childTblLimit;
     } else {
         limit = superTblInfo->childTblCount;
         offset = 0;
     }
+
+    ntables = limit;
+    startFrom = offset;
 
     superTblInfo->childTblName = (char*)calloc(1,
         limit * TSDB_TABLE_NAME_LEN);
@@ -5131,8 +5117,23 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         &superTblInfo->childTblName, &childTblCount,
         limit,
         offset);
+  } else {
+    ntables = g_args.num_of_tables;
+    startFrom = 0;
   }
+
   taos_close(taos);
+
+  int a = ntables / threads;
+  if (a < 1) {
+    threads = ntables;
+    a = 1;
+  }
+
+  int b = 0;
+  if (threads != 0) {
+    b = ntables % threads;
+  }
 
   for (int i = 0; i < threads; i++) {
     threadInfo *t_info = infos + i;
