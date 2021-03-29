@@ -8,7 +8,7 @@
 CFLAGS += -I/usr/local/include -g -Wall
 
 LDFLAGS += -L/usr/local/lib
-LDLIBS := -lmseed -ltaos -lm $(LDLIBS)
+LDLIBS := -lmseed -ltaos -lm -lcurl $(LDLIBS)
 
 # Build all *.c source as independent programs
 SRCS := $(sort $(wildcard *.c))
