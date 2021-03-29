@@ -354,6 +354,7 @@ typedef struct SpecifiedQueryInfo_S {
   int          sqlCount;
   int          subscribeMode; // 0: sync, 1: async
   int          subscribeInterval; // ms
+  int          queryTimes;
   int          subscribeRestart;
   int          subscribeKeepProgress;
   char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
@@ -369,6 +370,7 @@ typedef struct SuperQueryInfo_S {
   int          subscribeInterval; // ms
   int          subscribeRestart;
   int          subscribeKeepProgress;
+  int          queryTimes;
   int          childTblCount;
   char         childTblPrefix[MAX_TB_NAME_SIZE];
   int          sqlCount;
@@ -3776,6 +3778,16 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.specifiedQueryInfo.rate = 0;
     }
 
+    cJSON* specifiedQueryTimes = cJSON_GetObjectItem(specifiedQuery, "query_times");
+    if (specifiedQueryTimes && specifiedQueryTimes->type == cJSON_Number) {
+      g_queryInfo.specifiedQueryInfo.queryTimes = specifiedQueryTimes->valueint;
+    } else if (!specifiedQueryTimes) {
+      g_queryInfo.specifiedQueryInfo.queryTimes = g_args.query_times;
+    } else {
+      errorPrint("%s() LN%d, failed to read json, query_times input mistake\n", __func__, __LINE__);
+      goto PARSE_OVER;
+    }
+
     cJSON* concurrent = cJSON_GetObjectItem(specifiedQuery, "concurrent");
     if (concurrent && concurrent->type == cJSON_Number) {
       g_queryInfo.specifiedQueryInfo.concurrent = concurrent->valueint;
@@ -3890,6 +3902,16 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.superQueryInfo.rate = subrate->valueint;
     } else if (!subrate) {
       g_queryInfo.superQueryInfo.rate = 0;
+    }
+
+    cJSON* superQueryTimes = cJSON_GetObjectItem(superQuery, "query_times");
+    if (superQueryTimes && superQueryTimes->type == cJSON_Number) {
+      g_queryInfo.superQueryInfo.queryTimes = superQueryTimes->valueint;
+    } else if (!superQueryTimes) {
+      g_queryInfo.superQueryInfo.queryTimes = g_args.query_times;
+    } else {
+      errorPrint("%s() LN%d, failed to read json, query_times input mistake\n", __func__, __LINE__);
+      goto PARSE_OVER;
     }
 
     cJSON* threads = cJSON_GetObjectItem(superQuery, "threads");
