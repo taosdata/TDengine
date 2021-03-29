@@ -319,6 +319,14 @@ int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
     return 1;
   }
 
+  if (left->tokenId != right->tokenId) {
+    return 1;
+  }
+
+  if (left->functionId != right->functionId) {
+    return 1;
+  }
+
   if ((left->pLeft && right->pLeft == NULL) 
     || (left->pLeft == NULL && right->pLeft)
     || (left->pRight && right->pRight == NULL) 
@@ -336,12 +344,13 @@ int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
     return 1;
   }
 
-  size_t size = taosArrayGetSize(right->pParam);
-  if (left->pParam && taosArrayGetSize(left->pParam) != size) {
-    return 1;
-  }
 
   if (right->pParam && left->pParam) {
+    size_t size = taosArrayGetSize(right->pParam);
+    if (left->pParam && taosArrayGetSize(left->pParam) != size) {
+      return 1;
+    }
+
     for (int32_t i = 0; i < size; i++) {      
       tSqlExprItem* pLeftElem = taosArrayGet(left->pParam, i);
       tSqlExpr* pSubLeft = pLeftElem->pNode;

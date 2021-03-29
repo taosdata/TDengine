@@ -3079,14 +3079,10 @@ static SColumnFilterInfo* addColumnFilterInfo(SColumn* pColumn) {
 }
 
 static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SColumnFilterInfo* pColumnFilter,
-                                         SColumnIndex* columnIndex, tSqlExpr* pExpr) {
+                                         int16_t colType, tSqlExpr* pExpr) {
   const char* msg = "not supported filter condition";
 
   tSqlExpr*       pRight = pExpr->pRight;
-  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, columnIndex->tableIndex);
-  SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, columnIndex->columnIndex);
-
-  int16_t colType = pSchema->type;
 
   if (colType >= TSDB_DATA_TYPE_TINYINT && colType <= TSDB_DATA_TYPE_BIGINT) {
     colType = TSDB_DATA_TYPE_BIGINT;
@@ -3291,8 +3287,10 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
   }
 
   pColumn->colIndex = *pIndex;
+
+  int16_t colType = pSchema->type;
   
-  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pIndex, pExpr);
+  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, colType, pExpr);
 }
 
 static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pTableCond, SStringBuilder* sb) {
@@ -6898,12 +6896,7 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     }
   }
 
-  SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-  if (getColumnIndexByName(pCmd, &pExpr->pLeft->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
-    return TSDB_CODE_TSC_INVALID_SQL;
-  }
-
-  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, &index, pExpr);
+  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pInfo->field.type, pExpr);
   if (ret) {
     return ret; 
   }

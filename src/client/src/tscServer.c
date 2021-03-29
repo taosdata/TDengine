@@ -862,7 +862,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pSqlFuncExpr->functionId  = htons(pExpr->functionId);
     pSqlFuncExpr->numOfParams = htons(pExpr->numOfParams);
     pSqlFuncExpr->resColId    = htons(pExpr->resColId);
-    if (pExpr->pFilter && pExpr->pFilter->numOfFilters > 0) {
+    if (pTableMeta->tableType != TSDB_SUPER_TABLE && pExpr->pFilter && pExpr->pFilter->numOfFilters > 0) {
       pSqlFuncExpr->filterNum    = htonl(pExpr->pFilter->numOfFilters);
     } else {
       pSqlFuncExpr->filterNum = 0;
