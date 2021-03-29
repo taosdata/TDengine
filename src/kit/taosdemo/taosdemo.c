@@ -348,7 +348,7 @@ typedef struct SDbs_S {
 
 } SDbs;
 
-typedef struct SuperQueryInfo_S {
+typedef struct SpecifiedQueryInfo_S {
   int          rate;  // 0: unlimit  > 0   loop/s
   int          concurrent;
   int          sqlCount;
@@ -359,9 +359,9 @@ typedef struct SuperQueryInfo_S {
   char         sql[MAX_QUERY_SQL_COUNT][MAX_QUERY_SQL_LENGTH+1];
   char         result[MAX_QUERY_SQL_COUNT][MAX_FILE_NAME_LEN+1];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
-} SuperQueryInfo;
+} SpecifiedQueryInfo;
 
-typedef struct SubQueryInfo_S {
+typedef struct SuperQueryInfo_S {
   char         sTblName[MAX_TB_NAME_SIZE+1];
   int          rate;  // 0: unlimit  > 0   loop/s
   int          threadCnt;
@@ -377,7 +377,7 @@ typedef struct SubQueryInfo_S {
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT];
 
   char*        childTblName;
-} SubQueryInfo;
+} SuperQueryInfo;
 
 typedef struct SQueryMetaInfo_S {
   char         cfgDir[MAX_FILE_NAME_LEN+1];
@@ -388,8 +388,8 @@ typedef struct SQueryMetaInfo_S {
   char         dbName[MAX_DB_NAME_SIZE+1];
   char         queryMode[MAX_TB_NAME_SIZE];  // taosc, restful
 
-  SuperQueryInfo  superQueryInfo;
-  SubQueryInfo    subQueryInfo;
+  SpecifiedQueryInfo  superQueryInfo;
+  SuperQueryInfo    subQueryInfo;
 } SQueryMetaInfo;
 
 typedef struct SThreadInfo_S {
