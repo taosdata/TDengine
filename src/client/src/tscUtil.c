@@ -1285,8 +1285,6 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
       for(int32_t j = 0; j < pSqlExpr->numOfParams; ++j) {
         tVariantDestroy(&pSqlExpr->param[j]);
       }
-
-      tfree(pInfo->pExpr->pExpr);
     }
   }
   
@@ -1486,6 +1484,7 @@ void tscSqlExprAssign(SExprInfo* dst, const SExprInfo* src) {
   assert(dst != NULL && src != NULL);
 
   *dst = *src;
+  dst->pExpr = exprdup(src->pExpr);
 
   memset(dst->base.param, 0, sizeof(tVariant) * tListLen(dst->base.param));
   for (int32_t j = 0; j < src->base.numOfParams; ++j) {

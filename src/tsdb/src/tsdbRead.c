@@ -3428,7 +3428,7 @@ static void applyFilterToSkipListNode(SSkipList *pSkipList, tExprNode *pExpr, SA
   // Scan each node in the skiplist by using iterator
   while (tSkipListIterNext(iter)) {
     SSkipListNode *pNode = tSkipListIterGet(iter);
-    if (exprTreeApplayFilter(pExpr, pNode, param)) {
+    if (exprTreeApplyFilter(pExpr, pNode, param)) {
       taosArrayPush(pResult, &(SL_GET_NODE_DATA(pNode)));
     }
   }
