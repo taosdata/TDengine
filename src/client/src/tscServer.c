@@ -24,6 +24,7 @@
 #include "tsclient.h"
 #include "ttimer.h"
 #include "tlockfree.h"
+#include "qPlan.h"
 
 int (*tscBuildMsg[TSDB_SQL_MAX])(SSqlObj *pSql, SSqlInfo *pInfo) = {0};
 
@@ -705,8 +706,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
   
   SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
-  SQuery* pQuery = tscCreateQueryFromQueryNodeInfo(pQueryInfo);
-  UNUSED(pQuery);
+  SQuery query = {0};
+  tscCreateQueryFromQueryInfo(pQueryInfo, &query);
+  SArray* tableScanOperator = createTableScanPlan(&query);
+  SArray* queryOperator = createExecOperatorPlan(&query);
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
@@ -731,54 +734,63 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 */
 
   {
+
+
     SQueryTableMsg *pQueryMsg = (SQueryTableMsg *)pCmd->payload;
     tstrncpy(pQueryMsg->version, version, tListLen(pQueryMsg->version));
 
-    int32_t numOfTags = pQuery->numOfTags;
+    int32_t numOfTags = query.numOfTags;
     int32_t sqlLen = (int32_t) strlen(pSql->sqlstr);
 
-    if (pQuery->order.order == TSDB_ORDER_ASC) {
-      pQueryMsg->window.skey = htobe64(pQuery->window.skey);
-      pQueryMsg->window.ekey = htobe64(pQuery->window.ekey);
+    if (taosArrayGetSize(tableScanOperator) == 0) {
+      pQueryMsg->tableScanOperator = htonl(-1);
     } else {
-      pQueryMsg->window.skey = htobe64(pQuery->window.ekey);
-      pQueryMsg->window.ekey = htobe64(pQuery->window.skey);
+      int32_t* tablescanOp = taosArrayGet(tableScanOperator, 0);
+      pQueryMsg->tableScanOperator = htonl(*tablescanOp);
     }
 
-    pQueryMsg->order          = htons(pQuery->order.order);
-    pQueryMsg->orderColId     = htons(pQuery->order.orderColId);
-    pQueryMsg->fillType       = htons(pQuery->fillType);
-    pQueryMsg->limit          = htobe64(pQuery->limit.limit);
-    pQueryMsg->offset         = htobe64(pQuery->limit.offset);
+    if (query.order.order == TSDB_ORDER_ASC) {
+      pQueryMsg->window.skey = htobe64(query.window.skey);
+      pQueryMsg->window.ekey = htobe64(query.window.ekey);
+    } else {
+      pQueryMsg->window.skey = htobe64(query.window.ekey);
+      pQueryMsg->window.ekey = htobe64(query.window.skey);
+    }
 
-    pQueryMsg->numOfCols      = htons(pQuery->numOfCols);
+    pQueryMsg->order          = htons(query.order.order);
+    pQueryMsg->orderColId     = htons(query.order.orderColId);
+    pQueryMsg->fillType       = htons(query.fillType);
+    pQueryMsg->limit          = htobe64(query.limit.limit);
+    pQueryMsg->offset         = htobe64(query.limit.offset);
+    pQueryMsg->numOfCols      = htons(query.numOfCols);
 
-    pQueryMsg->interval.interval = htobe64(pQuery->interval.interval);
-    pQueryMsg->interval.sliding  = htobe64(pQuery->interval.sliding);
-    pQueryMsg->interval.offset   = htobe64(pQuery->interval.offset);
-    pQueryMsg->interval.intervalUnit = pQuery->interval.intervalUnit;
-    pQueryMsg->interval.slidingUnit  = pQuery->interval.slidingUnit;
-    pQueryMsg->interval.offsetUnit   = pQuery->interval.offsetUnit;
+    pQueryMsg->interval.interval = htobe64(query.interval.interval);
+    pQueryMsg->interval.sliding  = htobe64(query.interval.sliding);
+    pQueryMsg->interval.offset   = htobe64(query.interval.offset);
+    pQueryMsg->interval.intervalUnit = query.interval.intervalUnit;
+    pQueryMsg->interval.slidingUnit  = query.interval.slidingUnit;
+    pQueryMsg->interval.offsetUnit   = query.interval.offsetUnit;
+
+    pQueryMsg->numOfTags      = htonl(numOfTags);
+    pQueryMsg->sqlstrLen      = htonl(sqlLen);
+    pQueryMsg->sw.gap         = htobe64(query.sw.gap);
+    pQueryMsg->sw.primaryColId = htonl(PRIMARYKEY_TIMESTAMP_COL_INDEX);
+
+    pQueryMsg->secondStageOutput = htonl(query.numOfExpr2);
+    pQueryMsg->numOfOutput = htons((int16_t)query.numOfOutput);  // this is the stage one output column number
 
     pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
     pQueryMsg->tagNameRelType = htons(pQueryInfo->tagCond.relType);
     pQueryMsg->tbnameCondLen  = htonl(pQueryInfo->tagCond.tbnameCond.len);
-    pQueryMsg->numOfTags      = htonl(numOfTags);
     pQueryMsg->queryType      = htonl(pQueryInfo->type);
-//    pQueryMsg->vgroupLimit    = htobe64(pQueryInfo->vgroupLimit);
-    pQueryMsg->sqlstrLen      = htonl(sqlLen);
     pQueryMsg->prevResultLen  = htonl(pQueryInfo->bufLen);
-    pQueryMsg->sw.gap         = htobe64(pQuery->sw.gap);
-    pQueryMsg->sw.primaryColId = htonl(PRIMARYKEY_TIMESTAMP_COL_INDEX);
-
-    pQueryMsg->numOfOutput = htons((int16_t)pQuery->numOfOutput);  // this is the stage one output column number
 
     // set column list ids
     size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
     char *pMsg = (char *)(pQueryMsg->colList) + numOfCols * sizeof(SColumnInfo);
 
     for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfo *pCol = &pQuery->colList[i];
+      SColumnInfo *pCol = &query.colList[i];
 
       pQueryMsg->colList[i].colId = htons(pCol->colId);
       pQueryMsg->colList[i].bytes = htons(pCol->bytes);
@@ -814,23 +826,23 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
 
     {
-      pQueryMsg->stableQuery      = pQuery->stableQuery;
-      pQueryMsg->topBotQuery      = pQuery->topBotQuery;
-      pQueryMsg->groupbyColumn    = pQuery->groupbyColumn;
-      pQueryMsg->hasTagResults    = pQuery->hasTagResults;
-      pQueryMsg->timeWindowInterpo = pQuery->timeWindowInterpo;
-      pQueryMsg->queryBlockDist   = pQuery->queryBlockDist;
-      pQueryMsg->stabledev        = pQuery->stabledev;
-      pQueryMsg->tsCompQuery      = pQuery->tsCompQuery;
-      pQueryMsg->simpleAgg        = pQuery->simpleAgg;
-      pQueryMsg->pointInterpQuery = pQuery->pointInterpQuery;
-      pQueryMsg->needReverseScan  = pQuery->needReverseScan;
+      pQueryMsg->stableQuery      = query.stableQuery;
+      pQueryMsg->topBotQuery      = query.topBotQuery;
+      pQueryMsg->groupbyColumn    = query.groupbyColumn;
+      pQueryMsg->hasTagResults    = query.hasTagResults;
+      pQueryMsg->timeWindowInterpo = query.timeWindowInterpo;
+      pQueryMsg->queryBlockDist   = query.queryBlockDist;
+      pQueryMsg->stabledev        = query.stabledev;
+      pQueryMsg->tsCompQuery      = query.tsCompQuery;
+      pQueryMsg->simpleAgg        = query.simpleAgg;
+      pQueryMsg->pointInterpQuery = query.pointInterpQuery;
+      pQueryMsg->needReverseScan  = query.needReverseScan;
     }
 
     SSqlExpr *pSqlExpr = (SSqlExpr *)pMsg;
 
-    for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-      SSqlExpr *pExpr = &pQuery->pExpr1[i].base;
+    for (int32_t i = 0; i < query.numOfOutput; ++i) {
+      SSqlExpr *pExpr = &query.pExpr1[i].base;
 
       // the queried table has been removed and a new table with the same name has already been created already
       // return error msg
@@ -849,17 +861,16 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pSqlExpr->colInfo.colId    = htons(pExpr->colInfo.colId);
       pSqlExpr->colInfo.colIndex = htons(pExpr->colInfo.colIndex);
       pSqlExpr->colInfo.flag     = htons(pExpr->colInfo.flag);
+      pSqlExpr->uid              = htobe64(pExpr->uid);
+      pSqlExpr->colType          = htons(pExpr->colType);
+      pSqlExpr->colBytes         = htons(pExpr->colBytes);
+      pSqlExpr->resType          = htons(pExpr->resType);
+      pSqlExpr->resBytes         = htons(pExpr->resBytes);
+      pSqlExpr->functionId       = htons(pExpr->functionId);
+      pSqlExpr->numOfParams      = htons(pExpr->numOfParams);
+      pSqlExpr->resColId         = htons(pExpr->resColId);
 
-      pSqlExpr->colType  = htons(pExpr->colType);
-      pSqlExpr->colBytes = htons(pExpr->colBytes);
-      pSqlExpr->resType  = htons(pExpr->resType);
-      pSqlExpr->resBytes = htons(pExpr->resBytes);
-
-      pSqlExpr->functionId  = htons(pExpr->functionId);
-      pSqlExpr->numOfParams = htons(pExpr->numOfParams);
-      pSqlExpr->resColId    = htons(pExpr->resColId);
       pMsg += sizeof(SSqlExpr);
-
       for (int32_t j = 0; j < pExpr->numOfParams; ++j) { // todo add log
         pSqlExpr->param[j].nType = htons((uint16_t)pExpr->param[j].nType);
         pSqlExpr->param[j].nLen = htons(pExpr->param[j].nLen);
@@ -875,9 +886,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pSqlExpr = (SSqlExpr *)pMsg;
     }
 
-    if (pQuery->numOfExpr2 > 0) {
-      for (int32_t i = 0; i < pQuery->numOfExpr2; ++i) {
-        SSqlExpr *pExpr = &pQuery->pExpr2[i].base;
+    if (query.numOfExpr2 > 0) {
+      for (int32_t i = 0; i < query.numOfExpr2; ++i) {
+        SSqlExpr *pExpr = &query.pExpr2[i].base;
 
         // the queried table has been removed and a new table with the same name has already been created already
         // return error msg
@@ -886,23 +897,19 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
           return TSDB_CODE_TSC_INVALID_TABLE_NAME;
         }
 
-        if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
-          tscError("%p table schema is not matched with parsed sql", pSql);
-          return TSDB_CODE_TSC_INVALID_SQL;
-        }
-
         assert(pExpr->resColId < 0);
 
         pSqlExpr->colInfo.colId = htons(pExpr->colInfo.colId);
         pSqlExpr->colInfo.colIndex = htons(pExpr->colInfo.colIndex);
         pSqlExpr->colInfo.flag = htons(pExpr->colInfo.flag);
+        pSqlExpr->uid = htobe64(pExpr->uid);
 
-        pSqlExpr->colType = htons(pExpr->colType);
+        pSqlExpr->colType  = htons(pExpr->colType);
         pSqlExpr->colBytes = htons(pExpr->colBytes);
-        pSqlExpr->resType = htons(pExpr->resType);
+        pSqlExpr->resType  = htons(pExpr->resType);
         pSqlExpr->resBytes = htons(pExpr->resBytes);
 
-        pSqlExpr->functionId = htons(pExpr->functionId);
+        pSqlExpr->functionId  = htons(pExpr->functionId);
         pSqlExpr->numOfParams = htons(pExpr->numOfParams);
         pSqlExpr->resColId = htons(pExpr->resColId);
         pMsg += sizeof(SSqlExpr);
@@ -921,14 +928,12 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
         pSqlExpr = (SSqlExpr *)pMsg;
       }
-    } else {
-      pQueryMsg->secondStageOutput = 0;
     }
 
     // serialize the table info (sid, uid, tags)
     pMsg = doSerializeTableInfo(pQueryMsg, pSql, pMsg);
 
-    SSqlGroupbyExpr *pGroupbyExpr = pQuery->pGroupbyExpr;
+    SSqlGroupbyExpr *pGroupbyExpr = query.pGroupbyExpr;
     if (pGroupbyExpr != NULL && pGroupbyExpr->numOfGroupCols > 0) {
       pQueryMsg->orderByIdx = htons(pGroupbyExpr->orderIndex);
       pQueryMsg->orderType = htons(pGroupbyExpr->orderType);
@@ -950,16 +955,16 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       }
     }
 
-    if (pQuery->fillType != TSDB_FILL_NONE) {
-      for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-        *((int64_t *)pMsg) = htobe64(pQuery->fillVal[i]);
-        pMsg += sizeof(pQuery->fillVal[0]);
+    if (query.fillType != TSDB_FILL_NONE) {
+      for (int32_t i = 0; i < query.numOfOutput; ++i) {
+        *((int64_t *)pMsg) = htobe64(query.fillVal[i]);
+        pMsg += sizeof(query.fillVal[0]);
       }
     }
 
-    if (pQuery->numOfTags > 0) {
-      for (int32_t i = 0; i < pQuery->numOfTags; ++i) {
-        SColumnInfo* pTag = &pQuery->tagColList[i];
+    if (query.numOfTags > 0) {
+      for (int32_t i = 0; i < query.numOfTags; ++i) {
+        SColumnInfo* pTag = &query.tagColList[i];
 
         SColumnInfo* pTagCol = (SColumnInfo*) pMsg;
         pTagCol->colId = htons(pTag->colId);
@@ -1011,6 +1016,15 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pQueryMsg->tsBuf.tsOrder = htonl(pQueryInfo->tsBuf->tsOrder);
       pQueryMsg->tsBuf.tsLen   = htonl(pQueryMsg->tsBuf.tsLen);
       pQueryMsg->tsBuf.tsNumOfBlocks = htonl(pQueryMsg->tsBuf.tsNumOfBlocks);
+    }
+
+    int32_t numOfOperator = taosArrayGetSize(queryOperator);
+    pQueryMsg->numOfOperator = htonl(numOfOperator);
+    for(int32_t i = 0; i < numOfOperator; ++i) {
+      int32_t *operator = taosArrayGet(queryOperator, i);
+      *(int32_t*)pMsg = htonl(*operator);
+
+      pMsg += sizeof(int32_t);
     }
 
     memcpy(pMsg, pSql->sqlstr, sqlLen);

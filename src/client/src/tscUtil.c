@@ -211,7 +211,7 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
     assert(pExpr != NULL);
 
     int32_t functionId = pExpr->base.functionId;
-    if (functionId == TSDB_FUNC_TAG) {
+    if (functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TS) {
       continue;
     }
 
@@ -555,7 +555,7 @@ void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
     int32_t numOfCols = taosArrayGetSize(px->colList);
     SQueriedTableInfo info = {.colList = colInfo, .numOfCols = numOfCols,};
     /*int32_t code = */createQueryFunc(&info, numOfOutput, &exprInfo, px->exprList->pData, NULL, px->type, NULL);
-    tsCreateSQLFunctionCtx(px, pCtx);
+    tsCreateSQLFunctionCtx(px, pCtx, NULL);
 
     STableGroupInfo tableGroupInfo = {0};
     tableGroupInfo.numOfTables = 1;
@@ -3073,20 +3073,24 @@ STableMeta* tscTableMetaDup(STableMeta* pTableMeta) {
   return p;
 }
 
-SQuery* tscCreateQueryFromQueryNodeInfo(SQueryInfo* pQueryInfo) {
-  SQuery* pQuery = calloc(1, sizeof(SQuery));
+int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQuery* pQuery) {
+  memset(pQuery, 0, sizeof(SQuery));
 
-  int16_t numOfCols   = taosArrayGetSize(pQueryInfo->colList);
-  int16_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
-
-  pQuery->tsdb  = NULL;
-  pQuery->topBotQuery = tscIsTopBotQuery(pQueryInfo);
-  pQuery->hasTagResults = hasTagValOutput(pQueryInfo);
+  pQuery->tsdb             = NULL;
+  pQuery->topBotQuery      = tscIsTopBotQuery(pQueryInfo);
+  pQuery->hasTagResults    = hasTagValOutput(pQueryInfo);
+  pQuery->stabledev        = isStabledev(pQueryInfo);
+  pQuery->tsCompQuery      = isTsCompQuery(pQueryInfo);
+  pQuery->simpleAgg        = isSimpleAggregate(pQueryInfo);
+  pQuery->needReverseScan  = tscNeedReverseScan(pQueryInfo);
+  pQuery->stableQuery      = QUERY_IS_STABLE_QUERY(pQueryInfo->type);
+  pQuery->groupbyColumn    = tscGroupbyColumn(pQueryInfo);
+  pQuery->queryBlockDist   = isBlockDistQuery(pQueryInfo);
+  pQuery->pointInterpQuery = tscIsPointInterpQuery(pQueryInfo);
   pQuery->timeWindowInterpo = timeWindowInterpoRequired(pQueryInfo);
-  pQuery->stabledev = isStabledev(pQueryInfo);
-  pQuery->tsCompQuery = isTsCompQuery(pQueryInfo);
-  pQuery->simpleAgg = isSimpleAggregate(pQueryInfo);
-  pQuery->needReverseScan = tscNeedReverseScan(pQueryInfo);
+
+  int16_t numOfCols       = taosArrayGetSize(pQueryInfo->colList);
+  int16_t numOfOutput     = pQueryInfo->fieldsInfo.numOfOutput;
 
   pQuery->numOfCols       = numOfCols;
   pQuery->numOfOutput     = numOfOutput;
@@ -3096,11 +3100,11 @@ SQuery* tscCreateQueryFromQueryNodeInfo(SQueryInfo* pQueryInfo) {
   pQuery->pExpr2          = NULL;   // not support yet.
   pQuery->numOfExpr2      = 0;
   pQuery->pGroupbyExpr    = NULL;
-  memcpy(&pQuery->interval, &pQueryInfo->interval, sizeof(pQuery->interval));
-
   pQuery->fillType        = pQueryInfo->fillType;
   pQuery->numOfTags       = 0;
   pQuery->tagColList      = NULL;
+
+  memcpy(&pQuery->interval, &pQueryInfo->interval, sizeof(pQuery->interval));
 
   STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
 
@@ -3108,6 +3112,7 @@ SQuery* tscCreateQueryFromQueryNodeInfo(SQueryInfo* pQueryInfo) {
   pQuery->stableQuery = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
   pQuery->groupbyColumn = tscGroupbyColumn(pQueryInfo);
   pQuery->window = pQueryInfo->window;
+
   pQuery->pGroupbyExpr = calloc(1, sizeof(SSqlGroupbyExpr));
   *pQuery->pGroupbyExpr = pQueryInfo->groupbyExpr;
 
@@ -3128,6 +3133,7 @@ SQuery* tscCreateQueryFromQueryNodeInfo(SQueryInfo* pQueryInfo) {
       }
 
       pQuery->colList[i] = pCol->info;
+      pQuery->colList[i].filterInfo = tFilterInfoDup(pCol->info.filterInfo, pQuery->colList[i].numOfFilters);
     }
   }
 
@@ -3139,34 +3145,48 @@ SQuery* tscCreateQueryFromQueryNodeInfo(SQueryInfo* pQueryInfo) {
       for (int32_t i = 0; i < pQuery->numOfExpr2; ++i) {
         SInternalField* pField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
 
-        SExprInfo *pExpr = pField->pExpr;
-        SSqlExpr *pse = &pQuery->pExpr2[i].base;
+        SExprInfo* pExpr = pField->pExpr;
+
+        SSqlExpr* pse = &pQuery->pExpr2[i].base;
+        pse->uid = pTableMetaInfo->pTableMeta->id.uid;
 
         // this should be switched to projection query
         if (pExpr->pExpr == NULL) {
-          pse->numOfParams   = 0;  // no params for projection query
-          pse->functionId    = TSDB_FUNC_PRJ;
+          pse->numOfParams = 0;  // no params for projection query
+          pse->functionId = TSDB_FUNC_PRJ;
           pse->colInfo.colId = pExpr->base.resColId;
-          pse->colInfo.flag  = TSDB_COL_NORMAL;
-          pse->colType       = pExpr->base.resType;
-          pse->colBytes      = pExpr->base.resBytes;
-          pse->resType       = pExpr->base.resType;
-          pse->resBytes      = pExpr->base.resBytes;
+
+          for (int32_t j = 0; j < pQuery->numOfOutput; ++j) {
+            if (pQuery->pExpr1[j].base.resColId == pse->colInfo.colId) {
+              pse->colInfo.colIndex = j;
+            }
+          }
+          pse->colInfo.flag = TSDB_COL_NORMAL;
+          pse->colType = pExpr->base.resType;
+          pse->colBytes = pExpr->base.resBytes;
+          pse->resType = pExpr->base.resType;
+          pse->resBytes = pExpr->base.resBytes;
         } else {
           assert(pField->pExpr->pExpr != NULL);
 
           pse->colInfo.colId = pExpr->base.colInfo.colId;
-          pse->colType  = pExpr->base.colType;
+          pse->colType = pExpr->base.colType;
           pse->colBytes = pExpr->base.colBytes;
           pse->resBytes = sizeof(double);
-          pse->resType  = TSDB_DATA_TYPE_DOUBLE;
+          pse->resType = TSDB_DATA_TYPE_DOUBLE;
 
-          pse->functionId  = pExpr->base.functionId;
+          pse->functionId = pExpr->base.functionId;
           pse->numOfParams = pExpr->base.numOfParams;
+
+          memset(pse->param, 0, sizeof(tVariant) * tListLen(pse->param));
+          for (int32_t j = 0; j < pExpr->base.numOfParams; ++j) {
+            tVariantAssign(&pse->param[j], &pExpr->base.param[j]);
+          }
         }
+
+        pse->resColId = pExpr->base.resColId;
+        pse->uid = pTableMetaInfo->pTableMeta->id.uid;
       }
-    } else {
-      pQuery->numOfExpr2 = 0;
     }
   }
 
@@ -3195,7 +3215,7 @@ SQuery* tscCreateQueryFromQueryNodeInfo(SQueryInfo* pQueryInfo) {
 //          tscError("%p tid:%d uid:%" PRIu64 " id:%s, tag index out of range, totalCols:%d, numOfTags:%d, index:%d, column name:%s",
 //                   pSql, pTableMeta->id.tid, pTableMeta->id.uid, n, total, numOfTagColumns, pCol->colIndex.columnIndex, pColSchema->name);
 
-          return NULL;
+          return TSDB_CODE_SUCCESS;
         }
 
         SColumnInfo* pTagCol = &pQuery->tagColList[i];
@@ -3208,20 +3228,20 @@ SQuery* tscCreateQueryFromQueryNodeInfo(SQueryInfo* pQueryInfo) {
     }
   }
 
-  pQuery->stableQuery = QUERY_IS_STABLE_QUERY(pQueryInfo->type);
-  pQuery->topBotQuery = tscIsTopBotQuery(pQueryInfo);
-  pQuery->groupbyColumn = tscGroupbyColumn(pQueryInfo);
-  pQuery->hasTagResults = hasTagValOutput(pQueryInfo);
-  pQuery->timeWindowInterpo = timeWindowInterpoRequired(pQueryInfo);
-  pQuery->queryBlockDist = isBlockDistQuery(pQueryInfo);
-  pQuery->stabledev = isStabledev(pQueryInfo);
-  pQuery->tsCompQuery = isTsCompQuery(pQueryInfo);
-  pQuery->simpleAgg = isSimpleAggregate(pQueryInfo);
-  pQuery->pointInterpQuery = tscIsPointInterpQuery(pQueryInfo);
-  pQuery->needReverseScan = tscNeedReverseScan(pQueryInfo);
+  if (pQuery->fillType != TSDB_FILL_NONE) {
+    pQuery->fillVal = calloc(pQuery->numOfOutput, sizeof(int64_t));
+    memcpy(pQuery->fillVal, pQueryInfo->fillVal, pQuery->numOfOutput * sizeof(int64_t));
+  }
+
+  pQuery->srcRowSize = 0;
+  pQuery->maxSrcColumnSize = 0;
+  for (int16_t i = 0; i < numOfCols; ++i) {
+    pQuery->srcRowSize += pQuery->colList[i].bytes;
+    if (pQuery->maxSrcColumnSize < pQuery->colList[i].bytes) {
+      pQuery->maxSrcColumnSize = pQuery->colList[i].bytes;
+    }
+  }
 
   pQuery->interBufSize = getOutputInterResultBufSize(pQuery);
-  return pQuery;
+  return TSDB_CODE_SUCCESS;
 }
-
-

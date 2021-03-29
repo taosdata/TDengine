@@ -350,6 +350,8 @@ typedef struct SQueryParam {
   SColIndex       *pGroupColIndex;
   SColumnInfo     *pTagColumnInfo;
   SSqlGroupbyExpr *pGroupbyExpr;
+  int32_t          tableScanOperator;
+  SArray          *pOperator;
 } SQueryParam;
 
 typedef struct STableScanInfo {
@@ -442,9 +444,10 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t nu
 
 SSqlGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pColIndex, int32_t *code);
 SQInfo *createQInfoImpl(SQueryTableMsg *pQueryMsg, SSqlGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
-                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, bool stableQuery, char* sql, uint64_t *qId);
-int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, int32_t vgId, SQInfo* pQInfo, SQueryParam* param, char* start,
-                  int32_t prevResultLen, bool isSTable);
+                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, int32_t vgId, char* sql, uint64_t *qId);
+
+int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, SQInfo* pQInfo, SQueryParam* param, char* start,
+                  int32_t prevResultLen);
 
 void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 

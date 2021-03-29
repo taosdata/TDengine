@@ -57,7 +57,7 @@ int32_t treeComparator(const void *pLeft, const void *pRight, void *param) {
 }
 
 // todo merge with vnode side function
-void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx) {
+void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx, SSchemaEx* pSchema) {
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   
   for (int32_t i = 0; i < size; ++i) {
@@ -66,9 +66,15 @@ void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx) {
     pCtx[i].order = pQueryInfo->order.order;
     pCtx[i].functionId = pExpr->base.functionId;
 
+    pCtx[i].order = pQueryInfo->order.order;
+    pCtx[i].functionId = pExpr->base.functionId;
+
     // input buffer hold only one point data
-    pCtx[i].inputType   = pExpr->base.colType;
-    pCtx[i].inputBytes  = pExpr->base.colBytes;
+    SSchema *s = &pSchema[i].field;
+
+    // input data format comes from pModel
+    pCtx[i].inputType = s->type;
+    pCtx[i].inputBytes = s->bytes;
 
     pCtx[i].outputBytes = pExpr->base.resBytes;
     pCtx[i].outputType  = pExpr->base.resType;
@@ -133,6 +139,11 @@ static void setCtxInputOutputBuffer(SQueryInfo* pQueryInfo, SQLFunctionCtx *pCtx
     // input buffer hold only one point data
     int16_t offset = getColumnModelOffset(pDesc->pColumnModel, i);
     pCtx[i].pInput = pReducer->pTempBuffer->data + offset;
+
+    int32_t functionId = pCtx[i].functionId;
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
+      pCtx[i].ptsOutputBuf = pCtx[0].pOutput;
+    }
   }
 }
 
@@ -144,7 +155,7 @@ static SFillColInfo* createFillColInfo(SQueryInfo* pQueryInfo) {
   for(int32_t i = 0; i < numOfCols; ++i) {
     SInternalField* pIField = taosArrayGet(pQueryInfo->fieldsInfo.internalField, i);
 
-    if (pIField->pExpr->pExpr != NULL) {
+    if (pIField->pExpr->pExpr == NULL) {
       SExprInfo* pExpr = pIField->pExpr;
 
       pFillCol[i].col.bytes  = pExpr->base.resBytes;
@@ -363,8 +374,9 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   pReducer->pTempBuffer->num = 0;
 
   tscCreateResPointerInfo(pRes, pQueryInfo);
-  tsCreateSQLFunctionCtx(pQueryInfo, pReducer->pCtx);
+  tsCreateSQLFunctionCtx(pQueryInfo, pReducer->pCtx, pDesc->pColumnModel->pFields);
   setCtxInputOutputBuffer(pQueryInfo, pReducer->pCtx, pReducer, pDesc);
+
   // we change the capacity of schema to denote that there is only one row in temp buffer
   pReducer->pDesc->pColumnModel->capacity = 1;
 

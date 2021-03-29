@@ -1711,7 +1711,7 @@ static void* destroySQLFunctionCtx(SQLFunctionCtx* pCtx, int32_t numOfOutput) {
   return NULL;
 }
 
-static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOfTables) {
+static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOfTables, SArray* pOperator) {
   qDebug("QInfo:%p setup runtime env", pRuntimeEnv->qinfo);
   SQuery *pQuery = pRuntimeEnv->pQuery;
 
@@ -1749,6 +1749,85 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
 
   // group by normal column, sliding window query, interval query are handled by interval query processor
   // interval (down sampling operation)
+  int32_t numOfOperator = taosArrayGetSize(pOperator);
+  for(int32_t i = 0; i < numOfOperator; ++i) {
+    int32_t* op = taosArrayGet(pOperator, i);
+
+    switch (*op) {
+      case OP_TagScan: {
+        pRuntimeEnv->proot = createTagScanOperatorInfo(pRuntimeEnv, pQuery->pExpr1, pQuery->numOfOutput);
+        break;
+      }
+      case OP_MultiTableTimeInterval: {
+        pRuntimeEnv->proot =
+            createMultiTableTimeIntervalOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQuery->pExpr1, pQuery->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+        break;
+      }
+      case OP_TimeWindow: {
+        pRuntimeEnv->proot =
+            createTimeIntervalOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQuery->pExpr1, pQuery->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+        break;
+      }
+      case OP_Groupby: {
+        pRuntimeEnv->proot =
+            createGroupbyOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQuery->pExpr1, pQuery->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+        break;
+      }
+      case OP_SessionWindow: {
+        pRuntimeEnv->proot =
+            createSWindowOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQuery->pExpr1, pQuery->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+        break;
+      }
+      case OP_MultiTableAggregate: {
+        pRuntimeEnv->proot =
+            createMultiTableAggOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQuery->pExpr1, pQuery->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+        break;
+      }
+      case OP_Aggregate: {
+        pRuntimeEnv->proot =
+            createAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQuery->pExpr1, pQuery->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+        break;
+      }
+
+      case OP_Arithmetic: {
+        SOperatorInfo* prev = pRuntimeEnv->pTableScanner;
+        if (i >= 1) {
+          prev = pRuntimeEnv->proot;
+        }
+
+        pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQuery->pExpr1, pQuery->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+        break;
+      }
+
+      case OP_Limit: {
+        pRuntimeEnv->proot = createLimitOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot);
+        break;
+      }
+
+      case OP_Offset: {
+        pRuntimeEnv->proot = createOffsetOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot);
+        break;
+      }
+
+      case OP_Fill: {
+        SOperatorInfo* pInfo = pRuntimeEnv->proot;
+        pRuntimeEnv->proot = createFillOperatorInfo(pRuntimeEnv, pInfo, pInfo->pExpr, pInfo->numOfOutput);
+        break;
+      }
+
+      default: {
+        assert(0);
+      }
+    }
+  }
+  /*
   if (onlyQueryTags(pQuery)) {  // do nothing for tags query
 
   } else if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
@@ -1816,7 +1895,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   if (pQuery->limit.limit > 0) {
     pRuntimeEnv->proot = createLimitOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot);
   }
-
+*/
   return TSDB_CODE_SUCCESS;
 
 _clean:
@@ -1960,29 +2039,6 @@ static bool isFirstLastRowQuery(SQuery *pQuery) {
     int32_t functionID = pQuery->pExpr1[i].base.functionId;
     if (functionID == TSDB_FUNC_LAST_ROW) {
       return true;
-    }
-  }
-
-  return false;
-}
-
-static bool needReverseScan(SQuery *pQuery) {
-  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    int32_t functionId = pQuery->pExpr1[i].base.functionId;
-    if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG) {
-      continue;
-    }
-
-    if ((functionId == TSDB_FUNC_FIRST || functionId == TSDB_FUNC_FIRST_DST) && !QUERY_IS_ASC_QUERY(pQuery)) {
-      return true;
-    }
-
-    if (functionId == TSDB_FUNC_LAST || functionId == TSDB_FUNC_LAST_DST) {
-      // the scan order to acquire the last result of the specified column
-      int32_t order = (int32_t)pQuery->pExpr1[i].base.param[0].i64;
-      if (order != pQuery->order.order) {
-        return true;
-      }
     }
   }
 
@@ -3911,7 +3967,7 @@ static SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, in
     SExprInfo* pExprInfo   = &pExpr[i];
 
     pFillCol[i].col.bytes  = pExprInfo->base.resBytes;
-    pFillCol[i].col.type   = (int8_t)pExprInfo->base.resBytes;
+    pFillCol[i].col.type   = (int8_t)pExprInfo->base.resType;
     pFillCol[i].col.offset = offset;
     pFillCol[i].tagIndex   = -2;
     pFillCol[i].flag       = TSDB_COL_NORMAL;    // always be ta normal column for table query
@@ -3924,42 +3980,36 @@ static SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, in
   return pFillCol;
 }
 
-int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *tsdb, int32_t vgId, bool isSTableQuery) {
+int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *tsdb, int32_t tbScanner, SArray* pOperator) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
   pQuery->tsdb  = tsdb;
 
-//  pQuery->topBotQuery = isTopBottomQuery(pQuery);
-//  pQuery->hasTagResults = hasTagValOutput(pQuery);
-//  pQuery->timeWindowInterpo = timeWindowInterpoRequired(pQuery);
-//  pQuery->stabledev = isStabledev(pQuery);
-
   pRuntimeEnv->prevResult = prevResult;
   pRuntimeEnv->qinfo = pQInfo;
 
   if (tsdb != NULL) {
-    int32_t code = setupQueryHandle(tsdb, pQInfo, isSTableQuery);
+    int32_t code = setupQueryHandle(tsdb, pQInfo, pQuery->stableQuery);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
   }
 
   pQuery->tsdb = tsdb;
-  pQuery->vgId = vgId;
-  pQuery->stableQuery = isSTableQuery;
   pQuery->interBufSize = getOutputInterResultBufSize(pQuery);
 
-  pRuntimeEnv->groupResInfo.totalGroup = (int32_t) (isSTableQuery? GET_NUM_OF_TABLEGROUP(pRuntimeEnv):0);
+  pRuntimeEnv->groupResInfo.totalGroup = (int32_t) (pQuery->stableQuery? GET_NUM_OF_TABLEGROUP(pRuntimeEnv):0);
 
   pRuntimeEnv->pQuery = pQuery;
   pRuntimeEnv->pTsBuf = pTsBuf;
   pRuntimeEnv->cur.vgroupIndex = -1;
   setResultBufSize(pQuery, &pRuntimeEnv->resultInfo);
 
+  /*
   if (onlyQueryTags(pQuery)) {
-    pRuntimeEnv->resultInfo.capacity = 4096;
-    pRuntimeEnv->proot = createTagScanOperatorInfo(pRuntimeEnv, pQuery->pExpr1, pQuery->numOfOutput);
+//    pRuntimeEnv->resultInfo.capacity = 4096;
+//    pRuntimeEnv->proot = createTagScanOperatorInfo(pRuntimeEnv, pQuery->pExpr1, pQuery->numOfOutput);
   } else if (pQuery->queryBlockDist) {
     pRuntimeEnv->pTableScanner = createTableBlockInfoScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
   } else if (pQuery->tsCompQuery || pQuery->pointInterpQuery) {
@@ -3969,7 +4019,29 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   } else {
     pRuntimeEnv->pTableScanner = createTableScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQuery));
   }
-
+*/
+  switch(tbScanner) {
+    case OP_TableBlockInfoScan: {
+      pRuntimeEnv->pTableScanner = createTableBlockInfoScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
+      break;
+    }
+    case OP_TableSeqScan: {
+      pRuntimeEnv->pTableScanner = createTableSeqScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
+      break;
+    }
+    case OP_DataBlocksOptScan: {
+      pRuntimeEnv->pTableScanner = createDataBlocksOptScanInfo(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQuery), 1);
+      break;
+    }
+    case OP_TableScan: {
+      pRuntimeEnv->pTableScanner = createTableScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQuery));
+      break;
+    }
+    default: {
+      // do nothing
+      break;
+    }
+  }
   if (pTsBuf != NULL) {
     int16_t order = (pQuery->order.order == pRuntimeEnv->pTsBuf->tsOrder) ? TSDB_ORDER_ASC : TSDB_ORDER_DESC;
     tsBufSetTraverseOrder(pRuntimeEnv->pTsBuf, order);
@@ -3987,7 +4059,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   // create runtime environment
   int32_t numOfTables = (int32_t)pQuery->tableGroupInfo.numOfTables;
   pQInfo->summary.tableInfoSize += (numOfTables * sizeof(STableQueryInfo));
-  code = setupQueryRuntimeEnv(pRuntimeEnv, (int32_t) pQuery->tableGroupInfo.numOfTables);
+  code = setupQueryRuntimeEnv(pRuntimeEnv, (int32_t) pQuery->tableGroupInfo.numOfTables, pOperator);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -5446,7 +5518,6 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   }
 
   pQueryMsg->numOfTables = htonl(pQueryMsg->numOfTables);
-
   pQueryMsg->window.skey = htobe64(pQueryMsg->window.skey);
   pQueryMsg->window.ekey = htobe64(pQueryMsg->window.ekey);
   pQueryMsg->interval.interval = htobe64(pQueryMsg->interval.interval);
@@ -5476,6 +5547,8 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   pQueryMsg->prevResultLen = htonl(pQueryMsg->prevResultLen);
   pQueryMsg->sw.gap = htobe64(pQueryMsg->sw.gap);
   pQueryMsg->sw.primaryColId = htonl(pQueryMsg->sw.primaryColId);
+  pQueryMsg->tableScanOperator = htonl(pQueryMsg->tableScanOperator);
+  pQueryMsg->numOfOperator = htonl(pQueryMsg->numOfOperator);
 
   // query msg safety check
   if (!validateQueryMsg(pQueryMsg)) {
@@ -5536,6 +5609,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     }
   }
 
+  param->tableScanOperator = pQueryMsg->tableScanOperator;
   param->pExpr = calloc(pQueryMsg->numOfOutput, POINTER_BYTES);
   if (param->pExpr == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -5725,6 +5799,14 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   //skip ts buf
   if ((pQueryMsg->tsBuf.tsOffset + pQueryMsg->tsBuf.tsLen) > 0) {
     pMsg = (char *)pQueryMsg + pQueryMsg->tsBuf.tsOffset + pQueryMsg->tsBuf.tsLen;
+  }
+
+  param->pOperator = taosArrayInit(pQueryMsg->numOfOperator, sizeof(int32_t));
+  for(int32_t i = 0; i < pQueryMsg->numOfOperator; ++i) {
+    int32_t op = htonl(*(int32_t*)pMsg);
+    taosArrayPush(param->pOperator, &op);
+
+    pMsg += sizeof(int32_t);
   }
 
   param->sql = strndup(pMsg, pQueryMsg->sqlstrLen);
@@ -6091,7 +6173,7 @@ FORCE_INLINE bool checkQIdEqual(void *qHandle, uint64_t qId) {
 }
 
 SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr, SExprInfo* pExprs,
-                        SExprInfo* pSecExprs, STableGroupInfo* pTableGroupInfo, SColumnInfo* pTagCols, bool stableQuery,
+                        SExprInfo* pSecExprs, STableGroupInfo* pTableGroupInfo, SColumnInfo* pTagCols, int32_t vgId,
                         char* sql, uint64_t *qId) {
   int16_t numOfCols = pQueryMsg->numOfCols;
   int16_t numOfOutput = pQueryMsg->numOfOutput;
@@ -6136,6 +6218,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   pQuery->simpleAgg       = pQueryMsg->simpleAgg;
   pQuery->pointInterpQuery = pQueryMsg->pointInterpQuery;
   pQuery->needReverseScan  = pQueryMsg->needReverseScan;
+  pQuery->vgId            = vgId;
 
   pQuery->colList = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQuery->colList == NULL) {
@@ -6203,11 +6286,9 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   tsem_init(&pQInfo->ready, 0, 0);
 
   pQuery->window = pQueryMsg->window;
-  changeExecuteScanOrder(pQInfo, pQueryMsg, stableQuery);
+  changeExecuteScanOrder(pQInfo, pQueryMsg, pQuery->stableQuery);
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
-//  bool groupByCol = isGroupbyColumn(pQuery->pGroupbyExpr);
-
   STimeWindow window = pQuery->window;
 
   int32_t index = 0;
@@ -6242,9 +6323,6 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   }
 
   colIdCheck(pQuery, pQInfo);
-
-  // todo refactor
-  pQInfo->query.queryBlockDist = (numOfOutput == 1 && pExprs[0].base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX);
 
   pQInfo->qId = atomic_add_fetch_64(&queryHandleId, 1);
   *qId = pQInfo->qId;
@@ -6289,8 +6367,7 @@ bool isValidQInfo(void *param) {
   return (sig == (uint64_t)pQInfo);
 }
 
-int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, int32_t vgId, SQInfo* pQInfo, SQueryParam* param, char* start,
-                  int32_t prevResultLen, bool isSTable) {
+int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, SQInfo* pQInfo, SQueryParam* param, char* start, int32_t prevResultLen) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
@@ -6299,7 +6376,8 @@ int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, int32_t vgId, SQInfo* pQIn
   STSBuf *pTsBuf = NULL;
   if (pTsBufInfo->tsLen > 0) { // open new file to save the result
     char *tsBlock = start + pTsBufInfo->tsOffset;
-    pTsBuf = tsBufCreateFromCompBlocks(tsBlock, pTsBufInfo->tsNumOfBlocks, pTsBufInfo->tsLen, pTsBufInfo->tsOrder, vgId);
+    pTsBuf = tsBufCreateFromCompBlocks(tsBlock, pTsBufInfo->tsNumOfBlocks, pTsBufInfo->tsLen, pTsBufInfo->tsOrder,
+        pQuery->vgId);
 
     tsBufResetPos(pTsBuf);
     bool ret = tsBufNextPos(pTsBuf);
@@ -6332,7 +6410,7 @@ int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, int32_t vgId, SQInfo* pQIn
   }
 
   // filter the qualified
-  if ((code = doInitQInfo(pQInfo, pTsBuf, prevResult, tsdb, vgId, isSTable)) != TSDB_CODE_SUCCESS) {
+  if ((code = doInitQInfo(pQInfo, pTsBuf, prevResult, tsdb, param->tableScanOperator, param->pOperator)) != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 

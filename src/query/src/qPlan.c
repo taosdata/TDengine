@@ -36,7 +36,7 @@ SQueryNode* queryPlanFromString() {
   return NULL;
 }
 
-UNUSED_FUNC SArray* createTableScanPlan(SQuery* pQuery) {
+SArray* createTableScanPlan(SQuery* pQuery) {
   SArray* plan = taosArrayInit(4, sizeof(int32_t));
 
   int32_t op = 0;
@@ -56,7 +56,7 @@ UNUSED_FUNC SArray* createTableScanPlan(SQuery* pQuery) {
   return plan;
 }
 
-UNUSED_FUNC SArray* createExecOperatorPlan(SQuery* pQuery) {
+SArray* createExecOperatorPlan(SQuery* pQuery) {
   SArray* plan = taosArrayInit(4, sizeof(int32_t));
   int32_t op = 0;
 

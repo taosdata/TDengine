@@ -3218,8 +3218,6 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
 void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
                                    uint64_t* qId, char* sql) {
   assert(pQueryNodeInfo != NULL);
-
-  int16_t numOfCols = taosArrayGetSize(pQueryNodeInfo->colList);
   int16_t numOfOutput = pQueryNodeInfo->fieldsInfo.numOfOutput;
 
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
@@ -3229,42 +3227,10 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs
 
   // to make sure third party won't overwrite this structure
   pQInfo->signature = pQInfo;
-  SQuery* pQuery = &pQInfo->query;
+  SQuery *pQuery = &pQInfo->query;
+
+  tscCreateQueryFromQueryInfo(pQueryNodeInfo, pQuery);
   pQInfo->runtimeEnv.pQuery = pQuery;
-
-  pQuery->tableGroupInfo  = *pTableGroupInfo;
-  pQuery->numOfCols       = numOfCols;
-  pQuery->numOfOutput     = numOfOutput;
-  pQuery->limit           = pQueryNodeInfo->limit;
-  pQuery->order           = pQueryNodeInfo->order;
-  pQuery->pExpr1          = pExprs;
-  pQuery->pExpr2          = NULL;   // not support yet.
-  pQuery->numOfExpr2      = 0;
-  pQuery->pGroupbyExpr    = NULL;
-  memcpy(&pQuery->interval, &pQueryNodeInfo->interval, sizeof(pQuery->interval));
-  pQuery->fillType        = pQueryNodeInfo->fillType;
-  pQuery->numOfTags       = 0;
-  pQuery->tagColList      = NULL;
-//  pQuery->prjInfo.vgroupLimit = pQueryNodeInfo->vgroupLimit;
-  pQuery->prjInfo.ts      = (pQueryNodeInfo->order.order == TSDB_ORDER_ASC)? INT64_MIN:INT64_MAX;
-  pQuery->sw              = pQueryNodeInfo->sessionWindow;
-  pQuery->colList = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
-  if (pQuery->colList == NULL) {
-    goto _cleanup;
-  }
-
-  pQuery->srcRowSize = 0;
-  pQuery->maxSrcColumnSize = 0;
-  for (int16_t i = 0; i < numOfCols; ++i) {
-    SColumn* pCol = taosArrayGet(pQueryNodeInfo->colList, i);
-    pQuery->colList[i] = pCol->info;
-    pQuery->colList[i].filterInfo = tFilterInfoDup(pCol->info.filterInfo, pQuery->colList[i].numOfFilters);
-
-    pQuery->srcRowSize += pQuery->colList[i].bytes;
-    if (pQuery->maxSrcColumnSize < pQuery->colList[i].bytes) {
-      pQuery->maxSrcColumnSize = pQuery->colList[i].bytes;
-    }
-  }
 
   // calculate the result row size
   for (int16_t col = 0; col < numOfOutput; ++col) {
@@ -3282,16 +3248,6 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs
 //  if (ret != TSDB_CODE_SUCCESS) {
 //    goto _cleanup;
 //  }
-
-  if (pQuery->fillType != TSDB_FILL_NONE) {
-    pQuery->fillVal = malloc(sizeof(int64_t) * pQuery->numOfOutput);
-    if (pQuery->fillVal == NULL) {
-      goto _cleanup;
-    }
-
-    // the first column is the timestamp
-    memcpy(pQuery->fillVal, (char *)pQueryNodeInfo->fillVal, pQuery->numOfOutput * sizeof(int64_t));
-  }
 
   size_t numOfGroups = 0;
   if (pTableGroupInfo->pGroupList != NULL) {
@@ -3311,14 +3267,13 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs
   pQInfo->dataReady = QUERY_RESULT_NOT_READY;
   pQInfo->rspContext = NULL;
   pQInfo->sql = sql;
+
   pthread_mutex_init(&pQInfo->lock, NULL);
   tsem_init(&pQInfo->ready, 0, 0);
 
-  pQuery->window = pQueryNodeInfo->window;
 //  changeExecuteScanOrder(pQInfo, pQueryMsg, stableQuery);
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
-  bool groupByCol = false;//isGroupbyColumn(pQuery->pGroupbyExpr);
 
   STimeWindow window = pQuery->window;
 
@@ -3339,7 +3294,7 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs
       window.skey = info->lastKey;
 
       void* buf = (char*) pQInfo->pBuf + index * sizeof(STableQueryInfo);
-      STableQueryInfo* item = createTableQueryInfo(pQuery, info->pTable, groupByCol, window, buf);
+      STableQueryInfo* item = createTableQueryInfo(pQuery, info->pTable, pQuery->groupbyColumn, window, buf);
       if (item == NULL) {
         goto _cleanup;
       }
@@ -3347,7 +3302,6 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs
       item->groupIndex = i;
       taosArrayPush(p1, &item);
 
-//      STableId* id = TSDB_TABLEID(info->pTable);
       STableId id = {.tid = 0, .uid = 0};
       taosHashPut(pRuntimeEnv->tableqinfoGroupInfo.map, &id.tid, sizeof(id.tid), &item, POINTER_BYTES);
       index += 1;
@@ -3356,10 +3310,7 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs
 
 //  colIdCheck(pQuery, pQInfo);
 
-  // todo refactor
-  pQInfo->query.queryBlockDist = (numOfOutput == 1 && pExprs[0].base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX);
-
-  pQInfo->qId = 0;//atomic_add_fetch_64(&queryHandleId, 1);
+  pQInfo->qId = 0;
   if (qId != NULL) {
     *qId = pQInfo->qId;
   }
@@ -3384,7 +3335,7 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs
 
   STsBufInfo bufInfo = {0};
   SQueryParam param = {0};
-  /*int32_t code = */initQInfo(&bufInfo, NULL, 0, pQInfo, &param, NULL, 0, false);
+  /*int32_t code = */initQInfo(&bufInfo, NULL,  pQInfo, &param, NULL, 0);
   qTableQuery(pQInfo);
 
   return pQInfo;

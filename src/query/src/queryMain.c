@@ -157,7 +157,9 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     goto _over;
   }
 
-  (*pQInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo, param.pTagColumnInfo, isSTableQuery, param.sql, qId);
+  assert(pQueryMsg->stableQuery == isSTableQuery);
+  (*pQInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo,
+      param.pTagColumnInfo, vgId, param.sql, qId);
 
   param.sql    = NULL;
   param.pExprs = NULL;
@@ -170,7 +172,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     goto _over;
   }
 
-  code = initQInfo(&pQueryMsg->tsBuf, tsdb, vgId, *pQInfo, &param, (char*)pQueryMsg, pQueryMsg->prevResultLen, isSTableQuery);
+  code = initQInfo(&pQueryMsg->tsBuf, tsdb, *pQInfo, &param, (char*)pQueryMsg, pQueryMsg->prevResultLen);
 
   _over:
   if (param.pGroupbyExpr != NULL) {

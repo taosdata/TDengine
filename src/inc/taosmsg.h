@@ -493,6 +493,8 @@ typedef struct {
   int32_t     numOfTags;        // number of tags columns involved
   int32_t     sqlstrLen;        // sql query string
   int32_t     prevResultLen;    // previous result length
+  int32_t     numOfOperator;
+  int32_t     tableScanOperator;// table scan operator. -1 means no scan operator
   SColumnInfo colList[];
 } SQueryTableMsg;
 

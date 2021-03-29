@@ -300,9 +300,9 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
 uint32_t tscGetTableMetaMaxSize();
 int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
-SQuery* tscCreateQueryFromQueryNodeInfo(SQueryInfo* pQueryNodeInfo);
+int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryNodeInfo, SQuery* pQuery);
 
-void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx);
+void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx, SSchemaEx* pSchema);
 void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
                                    uint64_t* qId, char* sql);
 
