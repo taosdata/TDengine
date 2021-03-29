@@ -1110,7 +1110,7 @@ static int printfInsertMeta() {
   printf("resultFile:                 \033[33m%s\033[0m\n", g_Dbs.resultFile);
   printf("thread num of insert data:  \033[33m%d\033[0m\n", g_Dbs.threadCount);
   printf("thread num of create table: \033[33m%d\033[0m\n", g_Dbs.threadCountByCreateTbl);
-  printf("insert interval:            \033[33m%d\033[0m\n", g_args.insert_interval);
+  printf("top insert interval:        \033[33m%d\033[0m\n", g_args.insert_interval);
   printf("number of records per req:  \033[33m%d\033[0m\n", g_args.num_of_RPR);
   printf("max sql length:             \033[33m%d\033[0m\n", g_args.max_sql_len);
 
@@ -1213,6 +1213,12 @@ static int printfInsertMeta() {
       }
       printf("      interlaceRows:     \033[33m%d\033[0m\n",
               g_Dbs.db[i].superTbls[j].interlaceRows);
+
+      if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
+        printf("      stable insert interval:   \033[33m%d\033[0m\n",
+            g_Dbs.db[i].superTbls[j].insertInterval);
+      }
+
       printf("      disorderRange:     \033[33m%d\033[0m\n",
               g_Dbs.db[i].superTbls[j].disorderRange);
       printf("      disorderRatio:     \033[33m%d\033[0m\n",
@@ -1360,14 +1366,21 @@ static void printfInsertMetaToFile(FILE* fp) {
         fprintf(fp, "      childTblExists:    %s\n",  "error");
       }
 
-      fprintf(fp, "      childTblCount:     %d\n",  g_Dbs.db[i].superTbls[j].childTblCount);
-      fprintf(fp, "      childTblPrefix:    %s\n",  g_Dbs.db[i].superTbls[j].childTblPrefix);
-      fprintf(fp, "      dataSource:        %s\n",  g_Dbs.db[i].superTbls[j].dataSource);
-      fprintf(fp, "      insertMode:        %s\n",  g_Dbs.db[i].superTbls[j].insertMode);
-      fprintf(fp, "      insertRows:        %"PRId64"\n", g_Dbs.db[i].superTbls[j].insertRows);
-      fprintf(fp, "      interlace rows:    %d\n", g_Dbs.db[i].superTbls[j].interlaceRows);
+      fprintf(fp, "      childTblCount:     %d\n",
+              g_Dbs.db[i].superTbls[j].childTblCount);
+      fprintf(fp, "      childTblPrefix:    %s\n",
+              g_Dbs.db[i].superTbls[j].childTblPrefix);
+      fprintf(fp, "      dataSource:        %s\n",
+              g_Dbs.db[i].superTbls[j].dataSource);
+      fprintf(fp, "      insertMode:        %s\n",
+              g_Dbs.db[i].superTbls[j].insertMode);
+      fprintf(fp, "      insertRows:        %"PRId64"\n",
+              g_Dbs.db[i].superTbls[j].insertRows);
+      fprintf(fp, "      interlace rows:    %d\n",
+              g_Dbs.db[i].superTbls[j].interlaceRows);
       if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
-        fprintf(fp, "      insert interval:   %d\n", g_Dbs.db[i].superTbls[j].insertInterval);
+        fprintf(fp, "      stable insert interval:   %d\n",
+                g_Dbs.db[i].superTbls[j].insertInterval);
       }
 
       if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
@@ -1375,7 +1388,8 @@ static void printfInsertMetaToFile(FILE* fp) {
       }else {
         fprintf(fp, "      multiThreadWriteOneTbl:  yes\n");
       }
-      fprintf(fp, "      interlaceRows:     %d\n",  g_Dbs.db[i].superTbls[j].interlaceRows);
+      fprintf(fp, "      interlaceRows:     %d\n",
+              g_Dbs.db[i].superTbls[j].interlaceRows);
       fprintf(fp, "      disorderRange:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRange);
       fprintf(fp, "      disorderRatio:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRatio);
       fprintf(fp, "      maxSqlLen:         %d\n",  g_Dbs.db[i].superTbls[j].maxSqlLen);
@@ -3652,7 +3666,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       if (insertInterval && insertInterval->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].insertInterval = insertInterval->valueint;
       } else if (!insertInterval) {
-        debugPrint("%s() LN%d: stable insert interval be overrided by global %d.\n",
+        verbosePrint("%s() LN%d: stable insert interval be overrided by global %d.\n",
                 __func__, __LINE__, g_args.insert_interval);
         g_Dbs.db[i].superTbls[j].insertInterval = g_args.insert_interval;
       } else {
