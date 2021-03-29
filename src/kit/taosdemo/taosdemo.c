@@ -5526,9 +5526,14 @@ static void *superQueryProcess(void *sarg) {
     }
   }
 
-  //char sqlStr[MAX_TB_NAME_SIZE*2];
-  //sprintf(sqlStr, "use %s", g_queryInfo.dbName);
-  //queryDB(winfo->taos, sqlStr);
+  char sqlStr[MAX_DB_NAME_SIZE + 5];
+  sprintf(sqlStr, "use %s", g_queryInfo.dbName);
+  if (0 != queryDbExec(winfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
+    taos_close(winfo->taos);
+    errorPrint( "use database %s failed!\n\n",
+                g_queryInfo.dbName);
+    return NULL;
+  }
 
   int64_t st = 0;
   int64_t et = 0;
@@ -5861,9 +5866,10 @@ static void *subSubscribeProcess(void *sarg) {
 
   char sqlStr[MAX_TB_NAME_SIZE*2];
   sprintf(sqlStr, "use %s", g_queryInfo.dbName);
-  debugPrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
   if (0 != queryDbExec(winfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
     taos_close(winfo->taos);
+    errorPrint( "use database %s failed!\n\n",
+                g_queryInfo.dbName);
     return NULL;
   }
 
