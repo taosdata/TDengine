@@ -25,6 +25,8 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
         self.ts = 1538548685000
+        self.tables = 10
+        self.rows = 1000
 
     def updateMetadata(self):
         self.host = "127.0.0.1"
@@ -36,6 +38,29 @@ class TDTestCase:
         self.cursor = self.conn.cursor()    
         self.cursor.execute("alter table db.tb add column col2 int")
         print("alter table done")
+
+    def deleteTableAndRecreate(self):
+        self.host = "127.0.0.1"
+        self.user = "root"
+        self.password = "taosdata"
+        self.config = tdDnodes.getSimCfgPath()
+
+        self.conn = taos.connect(host = self.host, user = self.user, password = self.password, config = self.config)
+        self.cursor = self.conn.cursor() 
+        
+        self.cursor.execute("use test")
+        print("drop table stb")
+        self.cursor.execute("drop table stb")
+
+        print("create table stb")
+        self.cursor.execute("create table if not exists stb (ts timestamp, col1 int) tags(areaid int, city nchar(20))")
+        print("insert data")
+        for i in range(self.tables):
+            city = "beijing" if i % 2 == 0 else "shanghai"
+            self.cursor.execute("create table tb%d using stb tags(%d, '%s')" % (i, i, city))
+            for j in range(self.rows):
+                self.cursor.execute("insert into tb%d values(%d, %d)" % (i, self.ts + j, j * 100000))
+
 
     def run(self):
         tdSql.prepare()
@@ -58,6 +83,36 @@ class TDTestCase:
         print("==============step2")
         tdSql.query("select * from tb")
         tdSql.checkRows(2)
+
+        # Add test case: https://jira.taosdata.com:18080/browse/TD-3474
+
+        print("==============step1")
+        tdSql.execute("create database test")
+        tdSql.execute("use test")
+        tdSql.execute("create table if not exists stb (ts timestamp, col1 int) tags(areaid int, city nchar(20))")
+
+        for i in range(self.tables):
+            city = "beijing" if i % 2 == 0 else "shanghai"
+            tdSql.execute("create table tb%d using stb tags(%d, '%s')" % (i, i, city))
+            for j in range(self.rows):
+                tdSql.execute("insert into tb%d values(%d, %d)" % (i, self.ts + j, j * 100000))
+        
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 10000)
+
+        tdSql.query("select count(*) from tb1")
+        tdSql.checkData(0, 0, 1000)
+
+        p = Process(target=self.deleteTableAndRecreate, args=())
+        p.start()        
+        p.join()
+        p.terminate()
+
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 10000)
+
+        tdSql.query("select count(*) from tb1")
+        tdSql.checkData(0, 0, 1000)
 
     def stop(self):
         tdSql.close()
