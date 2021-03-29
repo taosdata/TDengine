@@ -455,6 +455,18 @@ typedef struct {
   SMsgHead    head;
   char        version[TSDB_VERSION_LEN];
 
+  bool        stableQuery;      // super table query or not
+  bool        topBotQuery;      // TODO used bitwise flag
+  bool        groupbyColumn;    // denote if this is a groupby normal column query
+  bool        hasTagResults;    // if there are tag values in final result or not
+  bool        timeWindowInterpo;// if the time window start/end required interpolation
+  bool        queryBlockDist;    // if query data block distribution
+  bool        stabledev;        // super table stddev query
+  bool        tsCompQuery;      // is tscomp query
+  bool        simpleAgg;
+  bool        pointInterpQuery; // point interpolation query
+  bool        needReverseScan;  // need reverse scan
+
   STimeWindow window;
   int32_t     numOfTables;
   int16_t     order;

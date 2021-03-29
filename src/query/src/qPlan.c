@@ -3,6 +3,39 @@
 #include "qUtil.h"
 #include "texpr.h"
 
+#define QNODE_PROJECT    1
+#define QNODE_FILTER     2
+#define QNODE_RELATION   3
+#define QNODE_AGGREGATE  4
+#define QNODE_GROUPBY    5
+#define QNODE_LIMIT      6
+#define QNODE_JOIN       7
+#define QNODE_DIST       8
+#define QNODE_SORT       9
+#define QNODE_UNIONALL   10
+#define QNODE_TIMEWINDOW 11
+
+typedef struct SQueryNode {
+  int32_t type;
+  // previous operator to generated result for current node to process
+  // in case of join, multiple prev nodes exist.
+  struct SQueryNode* prevNode;
+
+} SQueryNode;
+
+// TODO create the query plan
+SQueryNode* qCreateQueryPlan(SQueryInfo* pQueryInfo) {
+  return NULL;
+}
+
+char* queryPlanToString() {
+  return NULL;
+}
+
+SQueryNode* queryPlanFromString() {
+  return NULL;
+}
+
 UNUSED_FUNC SArray* createTableScanPlan(SQuery* pQuery) {
   SArray* plan = taosArrayInit(4, sizeof(int32_t));
 

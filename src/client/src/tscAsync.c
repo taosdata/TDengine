@@ -69,7 +69,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
     return;
   }
 
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   executeQuery(pSql, pQueryInfo);
 }
 
@@ -255,7 +255,7 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
       pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     }
 
-    SQueryNodeInfo* pQueryInfo1 = tscGetActiveQueryInfo(&pSql->cmd);
+    SQueryInfo* pQueryInfo1 = tscGetActiveQueryInfo(&pSql->cmd);
     tscProcessSql(pSql, pQueryInfo1);
   }
 }
@@ -333,7 +333,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
 
   tscDebug("%p get %s successfully", pSql, msg);
   if (pSql->pStream == NULL) {
-    SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+    SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
     // check if it is a sub-query of super table query first, if true, enter another routine
     if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY|TSDB_QUERY_TYPE_SUBQUERY|TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
@@ -414,7 +414,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
         } else if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
           tscHandleMultivnodeInsert(pSql);
         } else {
-          SQueryNodeInfo* pQueryInfo1 = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+          SQueryInfo* pQueryInfo1 = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
           executeQuery(pSql, pQueryInfo1);
         }
 

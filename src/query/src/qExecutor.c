@@ -196,7 +196,7 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SGroupbyOp
 
 static void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size);
 static void getAlignQueryTimeWindow(SQuery *pQuery, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *win);
-static bool isPointInterpoQuery(SQuery *pQuery);
+//static bool isPointInterpoQuery(SQuery *pQuery);
 static void setResultBufSize(SQuery* pQuery, SRspResultInfo* pResultInfo);
 static void setCtxTagForJoin(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, SExprInfo* pExprInfo, void* pTable);
 static void setParamForStableStddev(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput, SExprInfo* pExpr);
@@ -275,36 +275,36 @@ static void clearNumOfRes(SQLFunctionCtx* pCtx, int32_t numOfOutput) {
   }
 }
 
-static bool isGroupbyColumn(SSqlGroupbyExpr *pGroupbyExpr) {
-  if (pGroupbyExpr == NULL || pGroupbyExpr->numOfGroupCols == 0) {
-    return false;
-  }
+//static bool isGroupbyColumn(SSqlGroupbyExpr *pGroupbyExpr) {
+//  if (pGroupbyExpr == NULL || pGroupbyExpr->numOfGroupCols == 0) {
+//    return false;
+//  }
+//
+//  for (int32_t i = 0; i < pGroupbyExpr->numOfGroupCols; ++i) {
+//    SColIndex *pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, i);
+//    if (TSDB_COL_IS_NORMAL_COL(pColIndex->flag)) {
+//      //make sure the normal column locates at the second position if tbname exists in group by clause
+//      if (pGroupbyExpr->numOfGroupCols > 1) {
+//        assert(pColIndex->colIndex > 0);
+//      }
+//
+//      return true;
+//    }
+//  }
+//
+//  return false;
+//}
 
-  for (int32_t i = 0; i < pGroupbyExpr->numOfGroupCols; ++i) {
-    SColIndex *pColIndex = taosArrayGet(pGroupbyExpr->columnInfo, i);
-    if (TSDB_COL_IS_NORMAL_COL(pColIndex->flag)) {
-      //make sure the normal column locates at the second position if tbname exists in group by clause
-      if (pGroupbyExpr->numOfGroupCols > 1) {
-        assert(pColIndex->colIndex > 0);
-      }
-
-      return true;
-    }
-  }
-
-  return false;
-}
-
-static bool isStabledev(SQuery* pQuery) {
-  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    int32_t functId = pQuery->pExpr1[i].base.functionId;
-    if (functId == TSDB_FUNC_STDDEV_DST) {
-      return true;
-    }
-  }
-
-  return false;
-}
+//static UNUSED_FUNC bool isStabledev(SQuery* pQuery) {
+//  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+//    int32_t functId = pQuery->pExpr1[i].base.functionId;
+//    if (functId == TSDB_FUNC_STDDEV_DST) {
+//      return true;
+//    }
+//  }
+//
+//  return false;
+//}
 
 static bool isSelectivityWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
   bool    hasTags = false;
@@ -336,51 +336,48 @@ static bool isProjQuery(SQuery *pQuery) {
   return true;
 }
 
-static bool isTsCompQuery(SQuery *pQuery) { return pQuery->pExpr1[0].base.functionId == TSDB_FUNC_TS_COMP; }
-
-static bool isTopBottomQuery(SQuery *pQuery) {
-  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    int32_t functionId = pQuery->pExpr1[i].base.functionId;
-    if (functionId == TSDB_FUNC_TS) {
-      continue;
-    }
-
-    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-static bool timeWindowInterpoRequired(SQuery *pQuery) {
-  for(int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    int32_t functionId = pQuery->pExpr1[i].base.functionId;
-    if (functionId == TSDB_FUNC_TWA || functionId == TSDB_FUNC_INTERP) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-static bool hasTagValOutput(SQuery* pQuery) {
-  SExprInfo *pExprInfo = &pQuery->pExpr1[0];
-  if (pQuery->numOfOutput == 1 && pExprInfo->base.functionId == TSDB_FUNC_TS_COMP) {
-    return true;
-  } else {  // set tag value, by which the results are aggregated.
-    for (int32_t idx = 0; idx < pQuery->numOfOutput; ++idx) {
-      SExprInfo *pLocalExprInfo = &pQuery->pExpr1[idx];
-
-      // ts_comp column required the tag value for join filter
-      if (TSDB_COL_IS_TAG(pLocalExprInfo->base.colInfo.flag)) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
+//static bool isTsCompQuery(SQuery *pQuery) { return pQuery->pExpr1[0].base.functionId == TSDB_FUNC_TS_COMP; }
+//static UNUSED_FUNC bool isTopBottomQuery(SQuery *pQuery) {
+//  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+//    int32_t functionId = pQuery->pExpr1[i].base.functionId;
+//    if (functionId == TSDB_FUNC_TS) {
+//      continue;
+//    }
+//
+//    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
+//      return true;
+//    }
+//  }
+//
+//  return false;
+//}
+//static UNUSED_FUNC bool timeWindowInterpoRequired(SQuery *pQuery) {
+//  for(int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+//    int32_t functionId = pQuery->pExpr1[i].base.functionId;
+//    if (functionId == TSDB_FUNC_TWA || functionId == TSDB_FUNC_INTERP) {
+//      return true;
+//    }
+//  }
+//
+//  return false;
+//}
+//static UNUSED_FUNC bool hasTagValOutput(SQuery* pQuery) {
+//  SExprInfo *pExprInfo = &pQuery->pExpr1[0];
+//  if (pQuery->numOfOutput == 1 && pExprInfo->base.functionId == TSDB_FUNC_TS_COMP) {
+//    return true;
+//  } else {  // set tag value, by which the results are aggregated.
+//    for (int32_t idx = 0; idx < pQuery->numOfOutput; ++idx) {
+//      SExprInfo *pLocalExprInfo = &pQuery->pExpr1[idx];
+//
+//      // ts_comp column required the tag value for join filter
+//      if (TSDB_COL_IS_TAG(pLocalExprInfo->base.colInfo.flag)) {
+//        return true;
+//      }
+//    }
+//  }
+//
+//  return false;
+//}
 
 static bool hasNullRv(SColIndex* pColIndex, SDataStatis *pStatis) {
   if (TSDB_COL_IS_TAG(pColIndex->flag) || TSDB_COL_IS_UD_COL(pColIndex->flag) || pColIndex->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
@@ -1194,7 +1191,7 @@ static void doWindowBorderInterpolation(SOperatorInfo* pOperatorInfo, SSDataBloc
   }
 
   // point interpolation does not require the end key time window interpolation.
-  if (isPointInterpoQuery(pQuery)) {
+  if (pQuery->pointInterpQuery) {
     return;
   }
 
@@ -1769,7 +1766,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
             createArithOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQuery->pExpr2, pQuery->numOfExpr2);
       }
 
-      if (pQuery->fillType != TSDB_FILL_NONE && !isPointInterpoQuery(pQuery)) {
+      if (pQuery->fillType != TSDB_FILL_NONE && !pQuery->pointInterpQuery) {
         SOperatorInfo* pInfo = pRuntimeEnv->proot;
         pRuntimeEnv->proot = createFillOperatorInfo(pRuntimeEnv, pInfo, pInfo->pExpr, pInfo->numOfOutput);
       }
@@ -1930,16 +1927,16 @@ void setQueryKilled(SQInfo *pQInfo) { pQInfo->code = TSDB_CODE_TSC_QUERY_CANCELL
 //}
 
 // todo refactor with isLastRowQuery
-bool isPointInterpoQuery(SQuery *pQuery) {
-  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    int32_t functionId = pQuery->pExpr1[i].base.functionId;
-    if (functionId == TSDB_FUNC_INTERP) {
-      return true;
-    }
-  }
-
-  return false;
-}
+//bool isPointInterpoQuery(SQuery *pQuery) {
+//  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+//    int32_t functionId = pQuery->pExpr1[i].base.functionId;
+//    if (functionId == TSDB_FUNC_INTERP) {
+//      return true;
+//    }
+//  }
+//
+//  return false;
+//}
 
 // TODO REFACTOR:MERGE WITH CLIENT-SIDE FUNCTION
 static UNUSED_FUNC bool isSumAvgRateQuery(SQuery *pQuery) {
@@ -2109,7 +2106,7 @@ static void changeExecuteScanOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bo
     return;
   }
 
-  if (isGroupbyColumn(pQuery->pGroupbyExpr) && pQuery->order.order == TSDB_ORDER_DESC) {
+  if (pQuery->groupbyColumn && pQuery->order.order == TSDB_ORDER_DESC) {
     pQuery->order.order = TSDB_ORDER_ASC;
     if (pQuery->window.skey > pQuery->window.ekey) {
       SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
@@ -2119,7 +2116,7 @@ static void changeExecuteScanOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bo
     return;
   }
 
-  if (isPointInterpoQuery(pQuery) && pQuery->interval.interval == 0) {
+  if (pQuery->pointInterpQuery && pQuery->interval.interval == 0) {
     if (!QUERY_IS_ASC_QUERY(pQuery)) {
       qDebug(msg, pQInfo, "interp", pQuery->order.order, TSDB_ORDER_ASC, pQuery->window.skey, pQuery->window.ekey, pQuery->window.ekey, pQuery->window.skey);
       SWAP(pQuery->window.skey, pQuery->window.ekey, TSKEY);
@@ -2563,7 +2560,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
                                   pTableScanInfo->rowCellInfoOffset) != TSDB_CODE_SUCCESS) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
-    } else if (pQuery->stableQuery && (!isTsCompQuery(pQuery))) { // stable aggregate, not interval aggregate or normal column aggregate
+    } else if (pQuery->stableQuery && (!pQuery->tsCompQuery)) { // stable aggregate, not interval aggregate or normal column aggregate
       doSetTableGroupOutputBuf(pRuntimeEnv, pTableScanInfo->pResultRowInfo, pTableScanInfo->pCtx,
                                pTableScanInfo->rowCellInfoOffset, pTableScanInfo->numOfOutput,
                                pQuery->current->groupIndex);
@@ -3855,7 +3852,7 @@ static int32_t setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) 
   }
 
   STsdbQueryCond cond = createTsdbQueryCond(pQuery, &pQuery->window);
-  if (isTsCompQuery(pQuery) || isPointInterpoQuery(pQuery)) {
+  if (pQuery->tsCompQuery || pQuery->pointInterpQuery) {
     cond.type = BLOCK_LOAD_TABLE_SEQ_ORDER;
   }
 
@@ -3893,7 +3890,7 @@ static int32_t setupQueryHandle(void* tsdb, SQInfo* pQInfo, bool isSTableQuery) 
         }
       }
     }
-  } else if (isPointInterpoQuery(pQuery)) {
+  } else if (pQuery->pointInterpQuery) {
     pRuntimeEnv->pQueryHandle = tsdbQueryRowsInExternalWindow(tsdb, &cond, &pQuery->tableGroupInfo, pQInfo, &pQuery->memRef);
   } else {
     pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQuery->tableGroupInfo, pQInfo, &pQuery->memRef);
@@ -3933,10 +3930,10 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
   pQuery->tsdb  = tsdb;
 
-  pQuery->topBotQuery = isTopBottomQuery(pQuery);
-  pQuery->hasTagResults = hasTagValOutput(pQuery);
-  pQuery->timeWindowInterpo = timeWindowInterpoRequired(pQuery);
-  pQuery->stabledev = isStabledev(pQuery);
+//  pQuery->topBotQuery = isTopBottomQuery(pQuery);
+//  pQuery->hasTagResults = hasTagValOutput(pQuery);
+//  pQuery->timeWindowInterpo = timeWindowInterpoRequired(pQuery);
+//  pQuery->stabledev = isStabledev(pQuery);
 
   pRuntimeEnv->prevResult = prevResult;
   pRuntimeEnv->qinfo = pQInfo;
@@ -3951,7 +3948,6 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   pQuery->tsdb = tsdb;
   pQuery->vgId = vgId;
   pQuery->stableQuery = isSTableQuery;
-  pQuery->groupbyColumn = isGroupbyColumn(pQuery->pGroupbyExpr);
   pQuery->interBufSize = getOutputInterResultBufSize(pQuery);
 
   pRuntimeEnv->groupResInfo.totalGroup = (int32_t) (isSTableQuery? GET_NUM_OF_TABLEGROUP(pRuntimeEnv):0);
@@ -3966,7 +3962,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
     pRuntimeEnv->proot = createTagScanOperatorInfo(pRuntimeEnv, pQuery->pExpr1, pQuery->numOfOutput);
   } else if (pQuery->queryBlockDist) {
     pRuntimeEnv->pTableScanner = createTableBlockInfoScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
-  } else if (isTsCompQuery(pQuery) || isPointInterpoQuery(pQuery)) {
+  } else if (pQuery->tsCompQuery || pQuery->pointInterpQuery) {
     pRuntimeEnv->pTableScanner = createTableSeqScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
   } else if (needReverseScan(pQuery)) {
     pRuntimeEnv->pTableScanner = createDataBlocksOptScanInfo(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQuery), 1);
@@ -6128,6 +6124,19 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   pQuery->prjInfo.vgroupLimit = pQueryMsg->vgroupLimit;
   pQuery->prjInfo.ts      = (pQueryMsg->order == TSDB_ORDER_ASC)? INT64_MIN:INT64_MAX;
   pQuery->sw              = pQueryMsg->sw;
+
+  pQuery->stableQuery     = pQueryMsg->stableQuery;
+  pQuery->topBotQuery     = pQueryMsg->topBotQuery;
+  pQuery->groupbyColumn   = pQueryMsg->groupbyColumn;
+  pQuery->hasTagResults   = pQueryMsg->hasTagResults;
+  pQuery->timeWindowInterpo = pQueryMsg->timeWindowInterpo;
+  pQuery->queryBlockDist  = pQueryMsg->queryBlockDist;
+  pQuery->stabledev       = pQueryMsg->stabledev;
+  pQuery->tsCompQuery     = pQueryMsg->tsCompQuery;
+  pQuery->simpleAgg       = pQueryMsg->simpleAgg;
+  pQuery->pointInterpQuery = pQueryMsg->pointInterpQuery;
+  pQuery->needReverseScan  = pQueryMsg->needReverseScan;
+
   pQuery->colList = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQuery->colList == NULL) {
     goto _cleanup;
@@ -6197,7 +6206,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   changeExecuteScanOrder(pQInfo, pQueryMsg, stableQuery);
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
-  bool groupByCol = isGroupbyColumn(pQuery->pGroupbyExpr);
+//  bool groupByCol = isGroupbyColumn(pQuery->pGroupbyExpr);
 
   STimeWindow window = pQuery->window;
 
@@ -6218,7 +6227,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
       window.skey = info->lastKey;
 
       void* buf = (char*) pQInfo->pBuf + index * sizeof(STableQueryInfo);
-      STableQueryInfo* item = createTableQueryInfo(pQuery, info->pTable, groupByCol, window, buf);
+      STableQueryInfo* item = createTableQueryInfo(pQuery, info->pTable, pQuery->groupbyColumn, window, buf);
       if (item == NULL) {
         goto _cleanup;
       }
@@ -6454,7 +6463,7 @@ int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
 
   // load data from file to msg buffer
-  if (isTsCompQuery(pQuery)) {
+  if (pQuery->tsCompQuery) {
     SColumnInfoData* pColInfoData = taosArrayGet(pRuntimeEnv->outputBuf->pDataBlock, 0);
     FILE *f = *(FILE **)pColInfoData->pData;  // TODO refactor
 

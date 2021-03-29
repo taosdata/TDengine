@@ -117,7 +117,7 @@ static bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
 }
 
 static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJoinSupporter* pSupporter2, STimeWindow * win) {
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, pSql->cmd.clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, pSql->cmd.clauseIndex);
 
   STSBuf* output1 = tsBufCreate(true, pQueryInfo->order.order);
   STSBuf* output2 = tsBufCreate(true, pQueryInfo->order.order);
@@ -128,8 +128,8 @@ static int64_t doTSBlockIntersect(SSqlObj* pSql, SJoinSupporter* pSupporter1, SJ
   SLimitVal* pLimit = &pQueryInfo->limit;
   int32_t    order = pQueryInfo->order.order;
 
-  SQueryNodeInfo* pSubQueryInfo1 = tscGetQueryInfo(&pSql->pSubs[0]->cmd, 0);
-  SQueryNodeInfo* pSubQueryInfo2 = tscGetQueryInfo(&pSql->pSubs[1]->cmd, 0);
+  SQueryInfo* pSubQueryInfo1 = tscGetQueryInfo(&pSql->pSubs[0]->cmd, 0);
+  SQueryInfo* pSubQueryInfo2 = tscGetQueryInfo(&pSql->pSubs[1]->cmd, 0);
 
   pSubQueryInfo1->tsBuf = output1;
   pSubQueryInfo2->tsBuf = output2;
@@ -272,7 +272,7 @@ SJoinSupporter* tscCreateJoinSupporter(SSqlObj* pSql, int32_t index) {
   pSupporter->pObj = pSql;
 
   pSupporter->subqueryIndex = index;
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, pSql->cmd.clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, pSql->cmd.clauseIndex);
   
   memcpy(&pSupporter->interval, &pQueryInfo->interval, sizeof(pSupporter->interval));
   pSupporter->limit = pQueryInfo->limit;
@@ -333,7 +333,7 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
  * primary timestamp column , the secondary query is not necessary
  *
  */
-static UNUSED_FUNC bool needSecondaryQuery(SQueryNodeInfo* pQueryInfo) {
+static UNUSED_FUNC bool needSecondaryQuery(SQueryInfo* pQueryInfo) {
   size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
   
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -346,7 +346,7 @@ static UNUSED_FUNC bool needSecondaryQuery(SQueryNodeInfo* pQueryInfo) {
   return false;
 }
 
-static void filterVgroupTables(SQueryNodeInfo* pQueryInfo, SArray* pVgroupTables) {
+static void filterVgroupTables(SQueryInfo* pQueryInfo, SArray* pVgroupTables) {
   int32_t  num = 0;
   int32_t* list = NULL;
   tsBufGetGroupIdList(pQueryInfo->tsBuf, &num, &list);
@@ -378,7 +378,7 @@ static void filterVgroupTables(SQueryNodeInfo* pQueryInfo, SArray* pVgroupTables
   tfree(list);
 }
 
-static SArray* buildVgroupTableByResult(SQueryNodeInfo* pQueryInfo, SArray* pVgroupTables) {
+static SArray* buildVgroupTableByResult(SQueryInfo* pQueryInfo, SArray* pVgroupTables) {
   int32_t  num = 0;
   int32_t* list = NULL;
   tsBufGetGroupIdList(pQueryInfo->tsBuf, &num, &list);
@@ -446,7 +446,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       continue;
     }
   
-    SQueryNodeInfo *pSubQueryInfo = tscGetQueryInfo(&pPrevSub->cmd, 0);
+    SQueryInfo *pSubQueryInfo = tscGetQueryInfo(&pPrevSub->cmd, 0);
     STSBuf     *pTsBuf = pSubQueryInfo->tsBuf;
     pSubQueryInfo->tsBuf = NULL;
   
@@ -465,7 +465,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     tscClearSubqueryInfo(&pNew->cmd);
     pSql->pSubs[i] = pNew;
   
-    SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
+    SQueryInfo *pQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
     pQueryInfo->tsBuf = pTsBuf;  // transfer the ownership of timestamp comp-z data to the new created object
 
     // set the second stage sub query for join process
@@ -563,7 +563,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     }
 
 //    tscDoQuery(pSql->pSubs[i]);
-    SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(&pSql->pSubs[i]->cmd, 0);
+    SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->pSubs[i]->cmd, 0);
     executeQuery(pSql->pSubs[i], pQueryInfo);
   }
 
@@ -606,7 +606,7 @@ static int32_t quitAllSubquery(SSqlObj* pSqlSub, SSqlObj* pSqlObj, SJoinSupporte
 }
 
 // update the query time range according to the join results on timestamp
-static void updateQueryTimeRange(SQueryNodeInfo* pQueryInfo, STimeWindow* win) {
+static void updateQueryTimeRange(SQueryInfo* pQueryInfo, STimeWindow* win) {
   assert(pQueryInfo->window.skey <= win->skey && pQueryInfo->window.ekey >= win->ekey);
   pQueryInfo->window = *win;
 
@@ -702,7 +702,7 @@ static void issueTsCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   tscClearSubqueryInfo(pCmd);
   tscFreeSqlResult(pSql);
 
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(pCmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, 0);
   assert(pQueryInfo->numOfTables == 1);
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -768,7 +768,7 @@ static bool checkForDuplicateTagVal(SSchema* pColSchema, SJoinSupporter* p1, SSq
   return true;
 }
 
-static int32_t getIntersectionOfTableTuple(SQueryNodeInfo* pQueryInfo, SSqlObj* pParentSql, SArray** s1, SArray** s2) {
+static int32_t getIntersectionOfTableTuple(SQueryInfo* pQueryInfo, SSqlObj* pParentSql, SArray** s1, SArray** s2) {
   SJoinSupporter* p1 = pParentSql->pSubs[0]->param;
   SJoinSupporter* p2 = pParentSql->pSubs[1]->param;
 
@@ -847,7 +847,7 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   // todo, the type may not include TSDB_QUERY_TYPE_TAG_FILTER_QUERY
   assert(TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY));
@@ -967,11 +967,11 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
     SSqlCmd* pSubCmd1 = &pParentSql->pSubs[0]->cmd;
     SSqlCmd* pSubCmd2 = &pParentSql->pSubs[1]->cmd;
 
-    SQueryNodeInfo*     pQueryInfo1 = tscGetQueryInfo(pSubCmd1, 0);
+    SQueryInfo*     pQueryInfo1 = tscGetQueryInfo(pSubCmd1, 0);
     STableMetaInfo* pTableMetaInfo1 = tscGetMetaInfo(pQueryInfo1, 0);
     tscBuildVgroupTableInfo(pParentSql, pTableMetaInfo1, s1);
 
-    SQueryNodeInfo*     pQueryInfo2 = tscGetQueryInfo(pSubCmd2, 0);
+    SQueryInfo*     pQueryInfo2 = tscGetQueryInfo(pSubCmd2, 0);
     STableMetaInfo* pTableMetaInfo2 = tscGetMetaInfo(pQueryInfo2, 0);
     tscBuildVgroupTableInfo(pParentSql, pTableMetaInfo2, s2);
 
@@ -1005,7 +1005,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   assert(!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE));
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
@@ -1141,7 +1141,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
   }
 
   // launch the query the retrieve actual results from vnode along with the filtered timestamp
-  SQueryNodeInfo* pPQueryInfo = tscGetQueryInfo(&pParentSql->cmd, pParentSql->cmd.clauseIndex);
+  SQueryInfo* pPQueryInfo = tscGetQueryInfo(&pParentSql->cmd, pParentSql->cmd.clauseIndex);
   updateQueryTimeRange(pPQueryInfo, &win);
 
   //update the vgroup that involved in real data query
@@ -1157,7 +1157,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   if (pParentSql->res.code != TSDB_CODE_SUCCESS) {
     tscError("%p abort query due to other subquery failure. code:%d, global code:%d", pSql, numOfRows, pParentSql->res.code);
@@ -1266,7 +1266,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
 
     SSqlRes *pRes = &pSub->res;
 
-    SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(&pSub->cmd, 0);
+    SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSub->cmd, 0);
     if (!tscHasReachLimitation(pQueryInfo, pRes)) {
       if (pRes->row >= pRes->numOfRows) {
         // no data left in current result buffer
@@ -1318,7 +1318,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
         continue;
       }
 
-      SQueryNodeInfo* p = tscGetQueryInfo(&pSub->cmd, 0);
+      SQueryInfo* p = tscGetQueryInfo(&pSub->cmd, 0);
       orderedPrjQuery = tscNonOrderedProjectionQueryOnSTable(p, 0);
       if (orderedPrjQuery) {
         break;
@@ -1342,7 +1342,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
         continue;
       }
 
-      SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(&pSub->cmd, 0);
+      SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSub->cmd, 0);
 
       if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) && pSub->res.row >= pSub->res.numOfRows &&
           pSub->res.completed) {
@@ -1417,7 +1417,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
     pSupporter = (SJoinSupporter*)pSql1->param;
 
     // wait for all subqueries completed
-    SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(pCmd1, 0);
+    SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd1, 0);
     assert(pRes1->numOfRows >= 0 && pQueryInfo->numOfTables == 1);
 
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -1448,7 +1448,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
     return;
   }
 
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   int32_t numOfExprs = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
   pRes->pColumnIndex = calloc(1, sizeof(SColumnIndex) * numOfExprs);
@@ -1472,7 +1472,7 @@ void tscSetupOutputColumnIndex(SSqlObj* pSql) {
     assert(tableIndexOfSub >= 0 && tableIndexOfSub < pQueryInfo->numOfTables);
     
     SSqlCmd* pSubCmd = &pSql->pSubs[tableIndexOfSub]->cmd;
-    SQueryNodeInfo* pSubQueryInfo = tscGetQueryInfo(pSubCmd, 0);
+    SQueryInfo* pSubQueryInfo = tscGetQueryInfo(pSubCmd, 0);
     
     size_t numOfSubExpr = taosArrayGetSize(pSubQueryInfo->exprList);
     for (int32_t k = 0; k < numOfSubExpr; ++k) {
@@ -1496,7 +1496,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   SSqlObj* pParentSql = pSupporter->pObj;
   
   // There is only one subquery and table for each subquery.
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   assert(pQueryInfo->numOfTables == 1 && pSql->cmd.numOfClause == 1);
@@ -1580,7 +1580,7 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
 
 int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter *pSupporter) {
   SSqlCmd *   pCmd = &pSql->cmd;
-  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   
   pSql->res.qid = 0x1;
   assert(pSql->res.numOfRows == 0);
@@ -1603,7 +1603,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     addGroupInfoForSubquery(pSql, pNew, 0, tableIndex);
     
     // refactor as one method
-    SQueryNodeInfo *pNewQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
+    SQueryInfo *pNewQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
     assert(pNewQueryInfo != NULL);
     
     // update the table index
@@ -1712,7 +1712,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     }
   } else {
     assert(0);
-    SQueryNodeInfo *pNewQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
+    SQueryInfo *pNewQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
     pNewQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
   }
 
@@ -1723,7 +1723,7 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
   SSqlCmd* pCmd = &pSql->cmd;
   SSqlRes* pRes = &pSql->res;
 
-  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   assert((pQueryInfo->type & TSDB_QUERY_TYPE_SUBQUERY) == 0);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -1844,7 +1844,7 @@ typedef struct SFirstRoundQuerySup {
   int32_t   bufLen;
 } SFirstRoundQuerySup;
 
-void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, SQueryNodeInfo* pQueryInfo) {
+void doAppendData(SInterResult* pInterResult, TAOS_ROW row, int32_t numOfCols, SQueryInfo* pQueryInfo) {
   TSKEY key = INT64_MIN;
   for(int32_t i = 0; i < numOfCols; ++i) {
     SExprInfo* pExpr = tscSqlExprGet(pQueryInfo, i);
@@ -1908,7 +1908,7 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   SFirstRoundQuerySup* pSup = param;
 
   SSqlObj*     pParent = pSup->pParent;
-  SQueryNodeInfo*  pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
+  SQueryInfo*  pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
 
   int32_t code = taos_errno(pSql);
   if (code != TSDB_CODE_SUCCESS) {
@@ -1991,7 +1991,7 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
 
   // set the parameters for the second round query process
   SSqlCmd    *pPCmd   = &pParent->cmd;
-  SQueryNodeInfo *pQueryInfo1 = tscGetQueryInfo(pPCmd, 0);
+  SQueryInfo *pQueryInfo1 = tscGetQueryInfo(pPCmd, 0);
   int32_t resRows = pSup->numOfRows;
   
   if (pSup->numOfRows > 0) {
@@ -2042,7 +2042,7 @@ void tscFirstRoundCallback(void* param, TAOS_RES* tres, int code) {
 }
 
 int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   STableMetaInfo* pTableMetaInfo1 = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
 
   SFirstRoundQuerySup *pSup = calloc(1, sizeof(SFirstRoundQuerySup));
@@ -2058,7 +2058,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
   tscClearSubqueryInfo(pCmd);
   tscFreeSqlResult(pSql);
 
-  SQueryNodeInfo* pNewQueryInfo = tscGetQueryInfo(pCmd, 0);
+  SQueryInfo* pNewQueryInfo = tscGetQueryInfo(pCmd, 0);
   assert(pQueryInfo->numOfTables == 1);
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pNewQueryInfo, 0);
@@ -2181,7 +2181,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   const uint32_t nBufferSize = (1u << 16u);  // 64KB
   
-  SQueryNodeInfo     *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSubqueryState *pState = &pSql->subState;
 
@@ -2263,7 +2263,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     
     // todo handle multi-vnode situation
     if (pQueryInfo->tsBuf) {
-      SQueryNodeInfo *pNewQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
+      SQueryInfo *pNewQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
       pNewQueryInfo->tsBuf = tsBufClone(pQueryInfo->tsBuf);
       assert(pNewQueryInfo->tsBuf != NULL);
     }
@@ -2451,7 +2451,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
   tscFreeRetrieveSup(pSql);
 
   // in case of second stage join subquery, invoke its callback function instead of regular QueueAsyncRes
-  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(&pParentSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pParentSql->cmd, 0);
 
   if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
     (*pParentSql->fp)(pParentSql->param, pParentSql, pParentSql->res.code);
@@ -2468,7 +2468,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   tOrderDescriptor *pDesc = trsupport->pOrderDescriptor;
   
   SSubqueryState* pState = &pParentSql->subState;
-  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   
   STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
   
@@ -2516,7 +2516,7 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   tscDebug("%p retrieve from %d vnodes completed.final NumOfRows:%" PRId64 ",start to build loser tree", pParentSql,
            pState->numOfSub, pState->numOfRetrievedRows);
   
-  SQueryNodeInfo *pPQueryInfo = tscGetQueryInfo(&pParentSql->cmd, 0);
+  SQueryInfo *pPQueryInfo = tscGetQueryInfo(&pParentSql->cmd, 0);
   tscClearInterpInfo(pPQueryInfo);
   
   tscCreateLocalMerger(trsupport->pExtMemBuffer, pState->numOfSub, pDesc, trsupport->pFinalColModel, trsupport->pFFColModel, pParentSql);
@@ -2592,7 +2592,7 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   }
   
   SSqlRes *   pRes = &pSql->res;
-  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   
   if (numOfRows > 0) {
     assert(pRes->numOfRows == numOfRows);
@@ -2644,7 +2644,7 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
   
   SSqlObj *pNew = createSubqueryObj(pSql, table_index, tscRetrieveDataRes, trsupport, TSDB_SQL_SELECT, prevSqlObj);
   if (pNew != NULL) {  // the sub query of two-stage super table query
-    SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
+    SQueryInfo *pQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
 
     pQueryInfo->type |= TSDB_QUERY_TYPE_STABLE_SUBQUERY;
 
@@ -2678,7 +2678,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   SSqlObj*  pParentSql = trsupport->pParentSql;
   SSqlObj*  pSql = (SSqlObj *) tres;
 
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, 0);
   assert(pSql->cmd.numOfClause == 1 && pQueryInfo->numOfTables == 1);
   
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0, 0);
@@ -2816,7 +2816,7 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
 
         // clean up tableMeta in cache
         tscFreeQueryInfo(&pSql->cmd, false);
-        SQueryNodeInfo* pQueryInfo = tscGetQueryInfoS(&pSql->cmd, 0);
+        SQueryInfo* pQueryInfo = tscGetQueryInfoS(&pSql->cmd, 0);
         STableMetaInfo* pMasterTableMetaInfo = tscGetTableMetaInfoFromCmd(&pParentObj->cmd, pSql->cmd.clauseIndex, 0);
         tscAddTableMetaInfo(pQueryInfo, &pMasterTableMetaInfo->name, NULL, NULL, NULL, NULL);
 
@@ -2988,7 +2988,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
 }
 
 static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t columnIndex, int16_t* bytes) {
-  SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   SInternalField* pInfo = (SInternalField*) TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, columnIndex);
   assert(pInfo->pExpr->pExpr == NULL);
@@ -3002,7 +3002,7 @@ static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t column
 static void doBuildResFromSubqueries(SSqlObj* pSql) {
   SSqlRes* pRes = &pSql->res;
 
-  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, pSql->cmd.clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(&pSql->cmd, pSql->cmd.clauseIndex);
 
   int32_t numOfRes = INT32_MAX;
   for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
@@ -3085,7 +3085,7 @@ void tscBuildResFromSubqueries(SSqlObj *pSql) {
   }
 
   if (pRes->tsrow == NULL) {
-    SQueryNodeInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, pSql->cmd.clauseIndex);
+    SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->cmd, pSql->cmd.clauseIndex);
     pRes->numOfCols = (int16_t) tscSqlExprNumOfExprs(pQueryInfo);
 
     pRes->tsrow  = calloc(pRes->numOfCols, POINTER_BYTES);
@@ -3139,7 +3139,7 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql) {
     return pRes->tsrow;
   }
 
-  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   size_t size = tscNumOfFields(pQueryInfo);
   for (int i = 0; i < size; ++i) {
@@ -3166,7 +3166,7 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   bool     hasData = true;
   SSqlCmd *pCmd = &pSql->cmd;
   
-  SQueryNodeInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
   if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
     bool allSubqueryExhausted = true;
     
@@ -3178,7 +3178,7 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
       SSqlRes *pRes1 = &pSql->pSubs[i]->res;
       SSqlCmd *pCmd1 = &pSql->pSubs[i]->cmd;
       
-      SQueryNodeInfo *pQueryInfo1 = tscGetQueryInfo(pCmd1, pCmd1->clauseIndex);
+      SQueryInfo *pQueryInfo1 = tscGetQueryInfo(pCmd1, pCmd1->clauseIndex);
       assert(pQueryInfo1->numOfTables == 1);
       
       STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo1, 0);
@@ -3202,7 +3202,7 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
       }
       
       SSqlRes *   pRes1 = &pSql->pSubs[i]->res;
-      SQueryNodeInfo *pQueryInfo1 = tscGetQueryInfo(&pSql->pSubs[i]->cmd, 0);
+      SQueryInfo *pQueryInfo1 = tscGetQueryInfo(&pSql->pSubs[i]->cmd, 0);
       
       if ((pRes1->row >= pRes1->numOfRows && tscHasReachLimitation(pQueryInfo1, pRes1) &&
           tscIsProjectionQuery(pQueryInfo1)) || (pRes1->numOfRows == 0)) {
@@ -3215,7 +3215,7 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   return hasData;
 }
 
-void* createQueryInfoFromQueryNode(SQueryNodeInfo* pQueryNodeInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
+void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
                                    uint64_t* qId, char* sql) {
   assert(pQueryNodeInfo != NULL);
 
@@ -3366,9 +3366,6 @@ void* createQueryInfoFromQueryNode(SQueryNodeInfo* pQueryNodeInfo, SExprInfo* pE
 
   //  qDebug("qmsg:%p QInfo:%" PRIu64 "-%p created", pQueryMsg, pQInfo->qId, pQInfo);
 //  return pQInfo;
-
-
-
 //  if (pGroupbyExpr != NULL) {
 //    taosArrayDestroy(pGroupbyExpr->columnInfo);
 //    free(pGroupbyExpr);

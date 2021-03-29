@@ -177,7 +177,7 @@ typedef struct SSDataBlock {
   SDataBlockInfo info;
 } SSDataBlock;
 
-// The basic query information extracted from the SQueryNodeInfo tree to support the
+// The basic query information extracted from the SQueryInfo tree to support the
 // execution of query in a data node.
 typedef struct SQuery {
   SLimitVal        limit;

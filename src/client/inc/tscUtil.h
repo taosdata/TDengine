@@ -88,7 +88,7 @@ typedef struct SVgroupTableInfo {
   SArray*     itemList;   //SArray<STableIdInfo>
 } SVgroupTableInfo;
 
-static FORCE_INLINE SQueryNodeInfo* tscGetQueryInfo(SSqlCmd* pCmd, int32_t subClauseIndex) {
+static FORCE_INLINE SQueryInfo* tscGetQueryInfo(SSqlCmd* pCmd, int32_t subClauseIndex) {
   assert(pCmd != NULL && subClauseIndex >= 0);
   if (pCmd->pQueryInfo == NULL || subClauseIndex >= pCmd->numOfClause) {
     return NULL;
@@ -97,7 +97,7 @@ static FORCE_INLINE SQueryNodeInfo* tscGetQueryInfo(SSqlCmd* pCmd, int32_t subCl
   return pCmd->pQueryInfo[subClauseIndex];
 }
 
-SQueryNodeInfo* tscGetActiveQueryInfo(SSqlCmd* pCmd);
+SQueryInfo* tscGetActiveQueryInfo(SSqlCmd* pCmd);
 
 int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks);
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta);
@@ -121,33 +121,34 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
  * @param pSql  sql object
  * @return
  */
-bool tscIsPointInterpQuery(SQueryNodeInfo* pQueryInfo);
-bool tscIsTWAQuery(SQueryNodeInfo* pQueryInfo);
-bool tscIsSecondStageQuery(SQueryNodeInfo* pQueryInfo);
-bool tscGroupbyColumn(SQueryNodeInfo* pQueryInfo);
-bool tscIsTopBotQuery(SQueryNodeInfo* pQueryInfo);
-bool hasTagValOutput(SQueryNodeInfo* pQueryInfo);
-bool timeWindowInterpoRequired(SQueryNodeInfo *pQueryNodeInfo);
-bool isStabledev(SQueryNodeInfo* pQueryInfo);
-bool isTsCompQuery(SQueryNodeInfo* pQueryNodeInfo);
-bool isSimpleAggregate(SQueryNodeInfo* pQueryNodeInfo);
+bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
+bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
+bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
+bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
+bool tscIsTopBotQuery(SQueryInfo* pQueryInfo);
+bool hasTagValOutput(SQueryInfo* pQueryInfo);
+bool timeWindowInterpoRequired(SQueryInfo *pQueryNodeInfo);
+bool isStabledev(SQueryInfo* pQueryInfo);
+bool isTsCompQuery(SQueryInfo* pQueryNodeInfo);
+bool isSimpleAggregate(SQueryInfo* pQueryNodeInfo);
+bool isBlockDistQuery(SQueryInfo* pQueryInfo);
 
-bool tscNonOrderedProjectionQueryOnSTable(SQueryNodeInfo *pQueryInfo, int32_t tableIndex);
-bool tscOrderedProjectionQueryOnSTable(SQueryNodeInfo* pQueryInfo, int32_t tableIndex);
-bool tscIsProjectionQueryOnSTable(SQueryNodeInfo* pQueryInfo, int32_t tableIndex);
+bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
+bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
 
-bool tscIsProjectionQuery(SQueryNodeInfo* pQueryInfo);
+bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);
 
-bool tscIsTwoStageSTableQuery(SQueryNodeInfo* pQueryInfo, int32_t tableIndex);
-bool tscQueryTags(SQueryNodeInfo* pQueryInfo);
-bool tscMultiRoundQuery(SQueryNodeInfo* pQueryInfo, int32_t tableIndex);
-bool tscQueryBlockInfo(SQueryNodeInfo* pQueryInfo);
+bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscQueryTags(SQueryInfo* pQueryInfo);
+bool tscMultiRoundQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscQueryBlockInfo(SQueryInfo* pQueryInfo);
 
-SExprInfo* tscAddFuncInSelectClause(SQueryNodeInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId,
+SExprInfo* tscAddFuncInSelectClause(SQueryInfo* pQueryInfo, int32_t outputColIndex, int16_t functionId,
                                        SColumnIndex* pIndex, SSchema* pColSchema, int16_t colType);
 
 int32_t tscSetTableFullName(STableMetaInfo* pTableMetaInfo, SStrToken* pzTableName, SSqlObj* pSql);
-void    tscClearInterpInfo(SQueryNodeInfo* pQueryInfo);
+void    tscClearInterpInfo(SQueryInfo* pQueryInfo);
 
 bool tscIsInsertData(char* sqlstr);
 
@@ -161,12 +162,12 @@ SInternalField* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_F
 SInternalField* tscFieldInfoGetInternalField(SFieldInfo* pFieldInfo, int32_t index);
 TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index);
 
-void tscFieldInfoUpdateOffset(SQueryNodeInfo* pQueryInfo);
+void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
 
-int16_t tscFieldInfoGetOffset(SQueryNodeInfo* pQueryInfo, int32_t index);
+int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
 void    tscFieldInfoClear(SFieldInfo* pFieldInfo);
 
-static FORCE_INLINE int32_t tscNumOfFields(SQueryNodeInfo* pQueryInfo) { return pQueryInfo->fieldsInfo.numOfOutput; }
+static FORCE_INLINE int32_t tscNumOfFields(SQueryInfo* pQueryInfo) { return pQueryInfo->fieldsInfo.numOfOutput; }
 
 int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2);
 
@@ -174,18 +175,18 @@ void addExprParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t bytes)
 
 int32_t   tscGetResRowLength(SArray* pExprList);
 
-SExprInfo* tscSqlExprInsert(SQueryNodeInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+SExprInfo* tscSqlExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
     int16_t size, int16_t resColId, int16_t interSize, bool isTagCol);
 
-SExprInfo* tscSqlExprAppend(SQueryNodeInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+SExprInfo* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
                            int16_t size, int16_t resColId, int16_t interSize, bool isTagCol);
 
-SExprInfo* tscSqlExprUpdate(SQueryNodeInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
+SExprInfo* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int16_t size);
-size_t   tscSqlExprNumOfExprs(SQueryNodeInfo* pQueryInfo);
-void tscInsertPrimaryTsSourceColumn(SQueryNodeInfo* pQueryInfo, SColumnIndex* pIndex);
+size_t   tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo);
+void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
 
-SExprInfo* tscSqlExprGet(SQueryNodeInfo* pQueryInfo, int32_t index);
+SExprInfo* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index);
 int32_t   tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
 void      tscSqlExprAssign(SExprInfo* dst, const SExprInfo* src);
 void      tscSqlExprInfoDestroy(SArray* pExprInfo);
@@ -208,25 +209,25 @@ void   tsSetSTableQueryCond(STagCond* pTagCond, uint64_t uid, SBufferWriter* bw)
 int32_t tscTagCondCopy(STagCond* dest, const STagCond* src);
 void tscTagCondRelease(STagCond* pCond);
 
-void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryNodeInfo* pQueryInfo);
+void tscGetSrcColumnInfo(SSrcColumnInfo* pColInfo, SQueryInfo* pQueryInfo);
 
 bool tscShouldBeFreed(SSqlObj* pSql);
 
 STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd *pCmd, int32_t subClauseIndex, int32_t tableIndex);
-STableMetaInfo* tscGetMetaInfo(SQueryNodeInfo *pQueryInfo, int32_t tableIndex);
+STableMetaInfo* tscGetMetaInfo(SQueryInfo *pQueryInfo, int32_t tableIndex);
 
-void        tscInitQueryInfo(SQueryNodeInfo* pQueryInfo);
+void        tscInitQueryInfo(SQueryInfo* pQueryInfo);
 void        tscClearSubqueryInfo(SSqlCmd* pCmd);
 int32_t     tscAddQueryInfo(SSqlCmd *pCmd);
-SQueryNodeInfo *tscGetQueryInfo(SSqlCmd* pCmd, int32_t subClauseIndex);
-SQueryNodeInfo *tscGetQueryInfoS(SSqlCmd *pCmd, int32_t subClauseIndex);
+SQueryInfo *tscGetQueryInfo(SSqlCmd* pCmd, int32_t subClauseIndex);
+SQueryInfo *tscGetQueryInfoS(SSqlCmd *pCmd, int32_t subClauseIndex);
 
 void tscClearTableMetaInfo(STableMetaInfo* pTableMetaInfo);
 
-STableMetaInfo* tscAddTableMetaInfo(SQueryNodeInfo* pQueryInfo, SName* name, STableMeta* pTableMeta,
+STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableMeta* pTableMeta,
                                     SVgroupsInfo* vgroupList, SArray* pTagCols, SArray* pVgroupTables);
 
-STableMetaInfo* tscAddEmptyMetaInfo(SQueryNodeInfo *pQueryInfo);
+STableMetaInfo* tscAddEmptyMetaInfo(SQueryInfo *pQueryInfo);
 
 void tscFreeVgroupTableInfo(SArray* pVgroupTables);
 SArray* tscVgroupTableInfoDup(SArray* pVgroupTables);
@@ -239,8 +240,8 @@ int  tscGetTableMetaEx(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, bool creat
 
 void tscResetForNextRetrieve(SSqlRes* pRes);
 void tscDoQuery(SSqlObj* pSql);
-void executeQuery(SSqlObj* pSql, SQueryNodeInfo* pQueryInfo);
-void doExecuteQuery(SSqlObj* pSql, SQueryNodeInfo* pQueryInfo);
+void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
+void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo);
 
 SVgroupsInfo* tscVgroupInfoClone(SVgroupsInfo *pInfo);
 void* tscVgroupInfoClear(SVgroupsInfo *pInfo);
@@ -269,7 +270,7 @@ void registerSqlObj(SSqlObj* pSql);
 SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t fp, void* param, int32_t cmd, SSqlObj* pPrevSql);
 void     addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClauseIndex, int32_t tableIndex);
 
-void doAddGroupColumnForSubquery(SQueryNodeInfo* pQueryInfo, int32_t tagIndex);
+void doAddGroupColumnForSubquery(SQueryInfo* pQueryInfo, int32_t tagIndex);
 
 int16_t tscGetJoinTagColIdByUid(STagCond* pTagCond, uint64_t uid);
 int16_t tscGetTagColIndexById(STableMeta* pTableMeta, int16_t colId);
@@ -288,7 +289,7 @@ int  tscSetMgmtEpSetFromCfg(const char *first, const char *second, SRpcCorEpSet 
 
 bool tscSetSqlOwner(SSqlObj* pSql);
 void tscClearSqlOwner(SSqlObj* pSql);
-int32_t doArithmeticCalculate(SQueryNodeInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
+int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize);
 
 char*   serializeTagData(STagData* pTagData, char* pMsg);
 int32_t copyTagData(STagData* dst, const STagData* src);
@@ -299,10 +300,10 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
 uint32_t tscGetTableMetaMaxSize();
 int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
-SQuery* tscCreateQueryFromQueryNodeInfo(SQueryNodeInfo* pQueryNodeInfo);
+SQuery* tscCreateQueryFromQueryNodeInfo(SQueryInfo* pQueryNodeInfo);
 
-void tsCreateSQLFunctionCtx(SQueryNodeInfo* pQueryInfo, SQLFunctionCtx* pCtx);
-void* createQueryInfoFromQueryNode(SQueryNodeInfo* pQueryNodeInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
+void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx);
+void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
                                    uint64_t* qId, char* sql);
 
 void* malloc_throw(size_t size);
