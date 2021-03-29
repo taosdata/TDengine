@@ -134,13 +134,13 @@ int tsdbCreateMFile(SMFile *pMFile, bool updateHeader) {
     return 0;
   }
 
+  pMFile->info.size += TSDB_FILE_HEAD_SIZE;
+
   if (tsdbUpdateMFileHeader(pMFile) < 0) {
     tsdbCloseMFile(pMFile);
     tsdbRemoveMFile(pMFile);
     return -1;
   }
-
-  pMFile->info.size += TSDB_FILE_HEAD_SIZE;
 
   return 0;
 }
@@ -378,13 +378,13 @@ int tsdbCreateDFile(SDFile *pDFile, bool updateHeader) {
     return 0;
   }
 
+  pDFile->info.size += TSDB_FILE_HEAD_SIZE;
+
   if (tsdbUpdateDFileHeader(pDFile) < 0) {
     tsdbCloseDFile(pDFile);
     tsdbRemoveDFile(pDFile);
     return -1;
   }
-
-  pDFile->info.size += TSDB_FILE_HEAD_SIZE;
 
   return 0;
 }
