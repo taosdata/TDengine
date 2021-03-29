@@ -779,8 +779,8 @@ static void doInvokeUdf(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int
   if (pUdfInfo && pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]) {
     qDebug("invoke udf function:%s,%p", pUdfInfo->name, pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]);
 
-    (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])(pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->size, pCtx->ptsList, pCtx->pOutput,
-                  pCtx->ptsOutputBuf, &output, &pUdfInfo->init);
+    (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->size, pCtx->ptsList, pCtx->pOutput,
+                  (char *)pCtx->ptsOutputBuf, &output, &pUdfInfo->init);
 
     // set the output value exist
     pCtx->resultInfo->numOfRes += output;

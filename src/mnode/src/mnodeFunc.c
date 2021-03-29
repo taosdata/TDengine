@@ -459,10 +459,10 @@ static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg) {
     pFuncInfo->resBytes = htons(pFuncObj->resBytes);
     
     pOutput += sizeof(SFunctionInfoMsg) + pFuncObj->contLen;
-    name =(void *)name + sizeof(*name) + htons(name->len);
+    name =(tstr *)((char *)name + sizeof(*name) + htons(name->len));
   }
 
   pMsg->rpcRsp.rsp = pFuncMsg;
-  pMsg->rpcRsp.len = (pOutput - (char*)pFuncMsg);
+  pMsg->rpcRsp.len = (int32_t)(pOutput - (char*)pFuncMsg);
   return TSDB_CODE_SUCCESS;
 }

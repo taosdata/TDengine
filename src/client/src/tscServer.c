@@ -1867,7 +1867,7 @@ int tscBuildRetrieveFuncMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
   char *pMsg = pCmd->payload;
-  int32_t numOfFuncs = taosArrayGetSize(pCmd->pUdfInfo);
+  int32_t numOfFuncs = (int32_t)taosArrayGetSize(pCmd->pUdfInfo);
 
   SRetrieveFuncMsg *pRetrieveFuncMsg = (SRetrieveFuncMsg *)pMsg;
   pRetrieveFuncMsg->num = htonl(numOfFuncs);

@@ -1757,7 +1757,7 @@ void genUdfList(SArray* pUdfInfo, tSqlExpr *pNode) {
     if (pNode->functionId < 0) { // extract all possible user defined function
       struct SUdfInfo info = {0};
       info.name = strndup(pNode->operand.z, pNode->operand.n);
-      int32_t functionId = taosArrayGetSize(pUdfInfo) * (-1) - 1;
+      int32_t functionId = (int32_t)taosArrayGetSize(pUdfInfo) * (-1) - 1;
       info.functionId = functionId;
       
       taosArrayPush(pUdfInfo, &info);
@@ -3212,7 +3212,7 @@ static bool functionCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, bool 
     }
   }
 
-  aggNum = size - prjNum - aggUdf - scalarUdf;
+  aggNum = (int32_t)size - prjNum - aggUdf - scalarUdf;
 
   assert(aggNum >= 0);
 
