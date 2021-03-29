@@ -160,8 +160,8 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
-  if ((pRes->qhandle == 0 || numOfRows != 0) && pCmd->command < TSDB_SQL_LOCAL) {
-    if (pRes->qhandle == 0 && numOfRows != 0) {
+  if ((pRes->qId == 0 || numOfRows != 0) && pCmd->command < TSDB_SQL_LOCAL) {
+    if (pRes->qId == 0 && numOfRows != 0) {
       tscError("qhandle is NULL");
     } else {
       pRes->code = numOfRows;
@@ -208,7 +208,7 @@ void taos_fetch_rows_a(TAOS_RES *taosa, __async_cb_func_t fp, void *param) {
   pSql->fetchFp = fp;
   pSql->fp = tscAsyncFetchRowsProxy;
 
-  if (pRes->qhandle == 0) {
+  if (pRes->qId == 0) {
     tscError("qhandle is NULL");
     pRes->code = TSDB_CODE_TSC_INVALID_QHANDLE;
     pSql->param = param;
@@ -310,9 +310,50 @@ void tscAsyncResultOnError(SSqlObj* pSql) {
   taosScheduleTask(tscQhandle, &schedMsg);
 }
 
-
-
 int tscSendMsgToServer(SSqlObj *pSql);
+
+static int32_t updateMetaBeforeRetryQuery(SSqlObj* pSql, STableMetaInfo* pTableMetaInfo, SQueryInfo* pQueryInfo) {
+  // handle the invalid table error code for super table.
+  // update the pExpr info, colList info, number of table columns
+  // TODO Re-parse this sql and issue the corresponding subquery as an alternative for this case.
+  if (pSql->retryReason == TSDB_CODE_TDB_INVALID_TABLE_ID) {
+    int32_t numOfExprs = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+    int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+    int32_t numOfTags = tscGetNumOfTags(pTableMetaInfo->pTableMeta);
+
+    SSchema *pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
+    for (int32_t i = 0; i < numOfExprs; ++i) {
+      SSqlExpr *pExpr = tscSqlExprGet(pQueryInfo, i);
+      pExpr->uid = pTableMetaInfo->pTableMeta->id.uid;
+
+      if (pExpr->colInfo.colIndex >= 0) {
+        int32_t index = pExpr->colInfo.colIndex;
+
+        if ((TSDB_COL_IS_NORMAL_COL(pExpr->colInfo.flag) && index >= numOfCols) ||
+            (TSDB_COL_IS_TAG(pExpr->colInfo.flag) && (index < numOfCols || index >= (numOfCols + numOfTags)))) {
+          return pSql->retryReason;
+        }
+
+        if ((pSchema[pExpr->colInfo.colIndex].colId != pExpr->colInfo.colId) &&
+            strcasecmp(pExpr->colInfo.name, pSchema[pExpr->colInfo.colIndex].name) != 0) {
+          return pSql->retryReason;
+        }
+      }
+    }
+
+    // validate the table columns information
+    for (int32_t i = 0; i < taosArrayGetSize(pQueryInfo->colList); ++i) {
+      SColumn *pCol = taosArrayGetP(pQueryInfo->colList, i);
+      if (pCol->colIndex.columnIndex >= numOfCols) {
+        return pSql->retryReason;
+      }
+    }
+  } else {
+    // do nothing
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
 
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)param);
@@ -339,7 +380,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY|TSDB_QUERY_TYPE_SUBQUERY|TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
       tscDebug("%p update local table meta, continue to process sql and send the corresponding query", pSql);
 
-      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+      STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+
       code = tscGetTableMeta(pSql, pTableMetaInfo);
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS || code == TSDB_CODE_SUCCESS);
 
@@ -349,6 +391,10 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       }
 
       assert((tscGetNumOfTags(pTableMetaInfo->pTableMeta) != 0));
+      code = updateMetaBeforeRetryQuery(pSql, pTableMetaInfo, pQueryInfo);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _error;
+      }
 
       // tscProcessSql can add error into async res
       tscProcessSql(pSql);

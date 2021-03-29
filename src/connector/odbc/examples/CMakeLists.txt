@@ -1,0 +1,4 @@
+PROJECT(TDengine)
+
+ADD_SUBDIRECTORY(c)
+

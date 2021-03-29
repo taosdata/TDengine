@@ -39,6 +39,13 @@
 #include "dnodeMPeer.h"
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
+#include "module.h"
+
+#if !defined(_MODULE) || !defined(_TD_LINUX)
+int32_t moduleStart() { return 0; }
+void    moduleStop() {}
+#endif
+
 
 void *tsDnodeTmr = NULL;
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
@@ -149,6 +156,7 @@ int32_t dnodeInitSystem() {
   }
 
   dnodeSetRunStatus(TSDB_RUN_STATUS_RUNING);
+  moduleStart();
 
   dnodeReportStep("TDengine", "initialized successfully", 1);
   dInfo("TDengine is initialized successfully");
@@ -158,6 +166,7 @@ int32_t dnodeInitSystem() {
 
 void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_RUN_STATUS_STOPPED) {
+    moduleStop();
     dnodeSetRunStatus(TSDB_RUN_STATUS_STOPPED);
     dnodeCleanupTmr();
     dnodeCleanupComponents();

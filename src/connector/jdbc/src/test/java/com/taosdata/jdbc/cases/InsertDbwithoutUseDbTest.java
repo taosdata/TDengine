@@ -14,7 +14,6 @@ import java.util.Random;
 public class InsertDbwithoutUseDbTest {
 
     private static String host = "127.0.0.1";
-    //    private static String host = "master";
     private static Properties properties;
     private static Random random = new Random(System.currentTimeMillis());
 
