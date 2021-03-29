@@ -215,6 +215,11 @@ pipeline {
               cd ${WKC}/tests
               ./test-all.sh b3fq
               date'''
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh full example
+              date'''
             }
           }
         }
@@ -272,7 +277,7 @@ pipeline {
               date
               cd ${WKC}/tests
               ./test-all.sh b7fq
-              date'''
+              date'''              
             }
           }
         }        
