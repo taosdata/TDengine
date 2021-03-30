@@ -39,8 +39,69 @@ class taosdemoPerformace:
             self.host,
             self.user,
             self.password,
-            self.config)    
+            self.config)
+        self.insertDB = "insertDB";    
     
+    def generateJson(self):
+        db = {
+            "name": "%s" % self.insertDB,
+            "drop": "yes",
+            "replica": 1
+        }
+
+        stb = {
+            "name": "meters",
+            "child_table_exists":"no",
+            "childtable_count": 10000,
+            "childtable_prefix": "stb_",
+            "auto_create_table": "no",
+            "data_source": "rand",
+            "batch_create_tbl_num": 10,
+            "insert_mode": "taosc",
+            "insert_rows": 100000,
+            "multi_thread_write_one_tbl": "no",
+            "number_of_tbl_in_one_sql": 0,
+            "rows_per_tbl": 100,
+            "max_sql_len": 1024000,
+            "disorder_ratio": 0,
+            "disorder_range": 1000,
+            "timestamp_step": 1,
+            "start_timestamp": "2020-10-01 00:00:00.000",
+            "sample_format": "csv",
+            "sample_file": "./sample.csv",
+            "tags_file": "",
+            "columns": [{
+                "columns": [{"type": "INT", "count": 4}],
+            }],
+            "tags": [{"type": "INT", "count":1}, {"type": "BINARY", "len": 16}]
+        }
+
+        stables = []
+        stables.append(stb)
+
+        db = {
+            "dbinfo": db,
+            "super_tables": stables
+        }
+
+        insert_data = {
+            "filetype": "insert",
+            "cfgdir": "/etc/taosperf",
+            "host": "127.0.0.1",
+            "port": 6030,
+            "user": "root",
+            "password": "taosdata",
+            "thread_count": 10,
+            "thread_count_create_tbl": 10,
+            "result_file": "./insert_res.txt",
+            "confirm_parameter_prompt": "no",
+            "insert_interval": 0,
+            "num_of_records_per_req": 30000,
+            "databases": [db]
+        }
+
+        return insert_data
+
     def createTablesAndStoreData(self):
         cursor = self.conn.cursor()
                     
@@ -55,7 +116,7 @@ class taosdemoPerformace:
         print("max delay: %f" % self.maxDelay)
         print("min delay: %f" % self.minDelay)        
         cursor.execute("insert into taosdemo_perf values(now, %f, %f, %f, '%s', %f, %f, %f)" % (self.createTableTime, self.insertRecordsTime, self.recordsPerSecond, self.commitID, self.avgDelay, self.maxDelay, self.minDelay))
-        cursor.execute("drop database if exists taosdemo_insert_test")
+        cursor.execute("drop database if exists %s" % self.insertDB)
 
         cursor.close()
 

@@ -50,7 +50,7 @@ function buildTDengine {
 		echo "repo up-to-date"
 	else
 		echo "repo need to pull"
-		git pull > /dev/null
+		git pull > /dev/null 2>&1
 
 		LOCAL_COMMIT=`git rev-parse --short @`
 		cd debug
@@ -72,11 +72,11 @@ function runQueryPerfTest {
 
 	python3 insert/insertFromCSVPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
 
-	yes | taosdemo -c /etc/taosperf/ -d taosdemo_insert_test -x > taosdemoperf.txt
+	taosdemo -f /home/ubuntu/pxiao/insert.json > taosdemoperf.txt
 
 	CREATETABLETIME=`grep 'Spent' taosdemoperf.txt | awk 'NR==1{print $2}'`
 	INSERTRECORDSTIME=`grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $2}'`
-	REQUESTSPERSECOND=`grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $13}'`
+	REQUESTSPERSECOND=`grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $16}'`
 	delay=`grep 'delay' taosdemoperf.txt | awk '{print $4}'`
 	AVGDELAY=`echo ${delay:0:${#delay}-3}`
 	delay=`grep 'delay' taosdemoperf.txt | awk '{print $6}'`		
@@ -91,7 +91,7 @@ function runQueryPerfTest {
 
 function sendReport {
 	echo "send report"
-	receiver="pxiao@taosdata.com"
+	receiver="develop@taosdata.com"
 	mimebody="MIME-Version: 1.0\nContent-Type: text/html; charset=utf-8\n"
 
 	cd $TDENGINE_DIR
