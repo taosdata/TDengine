@@ -4389,7 +4389,7 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, int tableSeq)
 
 static int generateDataTail(char *tableName, int32_t tableSeq,
         threadInfo* pThreadInfo, SSuperTable* superTblInfo,
-        int batch, char* buffer, int64_t insertRows,
+        int batch, char* buffer, int remainderBufLen, int64_t insertRows,
         int64_t startFrom, uint64_t startTime, int *pSamplePos, int *dataLen) {
   int len = 0;
   int ncols_per_record = 1; // count first col ts
@@ -4563,20 +4563,25 @@ static int generateProgressiveDataBuffer(char *pTblName,
 
   assert(buffer != NULL);
 
-  memset(buffer, 0, superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len);
+  int maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
+  int remainderBufLen = maxSqlLen;
+
+  memset(buffer, 0, maxSqlLen);
 
   char *pstr = buffer;
 
   int headLen = generateSQLHead(pTblName, tableSeq, pThreadInfo, superTblInfo,
           buffer);
   pstr += headLen;
+  remainderBufLen -= headLen;
 
   int k;
   int dataLen;
   k = generateDataTail(pTblName, tableSeq, pThreadInfo, superTblInfo,
-          g_args.num_of_RPR, pstr, insertRows, startFrom,
+          g_args.num_of_RPR, pstr, remainderBufLen, insertRows, startFrom,
           startTime,
           pSamplePos, &dataLen);
+
   return k;
 }
 
@@ -4649,13 +4654,18 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int generatedRecPerTbl = 0;
   bool flagSleep = true;
   int sleepTimeTotal = 0;
+
+  int maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
+  int remainderBufLen;
+
   while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
     if ((flagSleep) && (insert_interval)) {
         st = taosGetTimestampUs();
         flagSleep = false;
     }
     // generate data
-    memset(buffer, 0, superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len);
+    memset(buffer, 0, maxSqlLen);
+    remainderBufLen = maxSqlLen;
 
     char *pstr = buffer;
     int recOfBatch = 0;
@@ -4678,6 +4688,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
                 pThreadInfo->threadID, __func__, __LINE__, i, buffer);
 
       pstr += headLen;
+      remainderBufLen -= headLen;
+
       int dataLen = 0;
 
       verbosePrint("[%d] %s() LN%d i=%d batchPerTblTimes=%d batchPerTbl = %d\n",
@@ -4691,13 +4703,20 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       } else {
           startTime = 1500000000000;
       }
-      generateDataTail(
+      int generated = generateDataTail(
         tableName, tableSeq, pThreadInfo, superTblInfo,
-        batchPerTbl, pstr, insertRows, 0,
+        batchPerTbl, pstr, remainderBufLen, insertRows, 0,
         startTime,
         &(pThreadInfo->samplePos), &dataLen);
 
+      if (generated < 0) {
+        debugPrint("[%d] %s() LN%d, generated data is %d\n",
+                  pThreadInfo->threadID, __func__, __LINE__, generated);
+        goto free_and_statistics_interlace;
+      }
       pstr += dataLen;
+      remainderBufLen -= dataLen;
+
       recOfBatch += batchPerTbl;
       startTime += batchPerTbl * superTblInfo->timeStampStep;
       pThreadInfo->totalInsertRows += batchPerTbl;
