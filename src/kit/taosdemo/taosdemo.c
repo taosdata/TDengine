@@ -2530,7 +2530,8 @@ static int createDatabasesAndStb() {
           return -1;
         }
 
-        g_Dbs.db[i].superTbls[j].childTblLimit = -1;
+        if (g_Dbs.db[i].superTbls[j].childTblLimit == 0)
+          g_Dbs.db[i].superTbls[j].childTblLimit = -1;
       }
 
       ret = getSuperTableFromServer(taos, g_Dbs.db[i].dbName,
