@@ -1110,7 +1110,7 @@ static int printfInsertMeta() {
   printf("resultFile:                 \033[33m%s\033[0m\n", g_Dbs.resultFile);
   printf("thread num of insert data:  \033[33m%d\033[0m\n", g_Dbs.threadCount);
   printf("thread num of create table: \033[33m%d\033[0m\n", g_Dbs.threadCountByCreateTbl);
-  printf("insert interval:            \033[33m%d\033[0m\n", g_args.insert_interval);
+  printf("top insert interval:        \033[33m%d\033[0m\n", g_args.insert_interval);
   printf("number of records per req:  \033[33m%d\033[0m\n", g_args.num_of_RPR);
   printf("max sql length:             \033[33m%d\033[0m\n", g_args.max_sql_len);
 
@@ -1213,6 +1213,12 @@ static int printfInsertMeta() {
       }
       printf("      interlaceRows:     \033[33m%d\033[0m\n",
               g_Dbs.db[i].superTbls[j].interlaceRows);
+
+      if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
+        printf("      stable insert interval:   \033[33m%d\033[0m\n",
+            g_Dbs.db[i].superTbls[j].insertInterval);
+      }
+
       printf("      disorderRange:     \033[33m%d\033[0m\n",
               g_Dbs.db[i].superTbls[j].disorderRange);
       printf("      disorderRatio:     \033[33m%d\033[0m\n",
@@ -1360,14 +1366,21 @@ static void printfInsertMetaToFile(FILE* fp) {
         fprintf(fp, "      childTblExists:    %s\n",  "error");
       }
 
-      fprintf(fp, "      childTblCount:     %d\n",  g_Dbs.db[i].superTbls[j].childTblCount);
-      fprintf(fp, "      childTblPrefix:    %s\n",  g_Dbs.db[i].superTbls[j].childTblPrefix);
-      fprintf(fp, "      dataSource:        %s\n",  g_Dbs.db[i].superTbls[j].dataSource);
-      fprintf(fp, "      insertMode:        %s\n",  g_Dbs.db[i].superTbls[j].insertMode);
-      fprintf(fp, "      insertRows:        %"PRId64"\n", g_Dbs.db[i].superTbls[j].insertRows);
-      fprintf(fp, "      interlace rows:    %d\n", g_Dbs.db[i].superTbls[j].interlaceRows);
+      fprintf(fp, "      childTblCount:     %d\n",
+              g_Dbs.db[i].superTbls[j].childTblCount);
+      fprintf(fp, "      childTblPrefix:    %s\n",
+              g_Dbs.db[i].superTbls[j].childTblPrefix);
+      fprintf(fp, "      dataSource:        %s\n",
+              g_Dbs.db[i].superTbls[j].dataSource);
+      fprintf(fp, "      insertMode:        %s\n",
+              g_Dbs.db[i].superTbls[j].insertMode);
+      fprintf(fp, "      insertRows:        %"PRId64"\n",
+              g_Dbs.db[i].superTbls[j].insertRows);
+      fprintf(fp, "      interlace rows:    %d\n",
+              g_Dbs.db[i].superTbls[j].interlaceRows);
       if (g_Dbs.db[i].superTbls[j].interlaceRows > 0) {
-        fprintf(fp, "      insert interval:   %d\n", g_Dbs.db[i].superTbls[j].insertInterval);
+        fprintf(fp, "      stable insert interval:   %d\n",
+                g_Dbs.db[i].superTbls[j].insertInterval);
       }
 
       if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
@@ -1375,7 +1388,8 @@ static void printfInsertMetaToFile(FILE* fp) {
       }else {
         fprintf(fp, "      multiThreadWriteOneTbl:  yes\n");
       }
-      fprintf(fp, "      interlaceRows:     %d\n",  g_Dbs.db[i].superTbls[j].interlaceRows);
+      fprintf(fp, "      interlaceRows:     %d\n",
+              g_Dbs.db[i].superTbls[j].interlaceRows);
       fprintf(fp, "      disorderRange:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRange);
       fprintf(fp, "      disorderRatio:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRatio);
       fprintf(fp, "      maxSqlLen:         %d\n",  g_Dbs.db[i].superTbls[j].maxSqlLen);
@@ -1437,9 +1451,11 @@ static void printfQueryMeta() {
   printf("\n");
   printf("specified table query info:                   \n");
   printf("query interval: \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.rate);
-  printf("query times:    \033[33m%d\033[0m\n", g_args.query_times);
+  printf("top query times:\033[33m%d\033[0m\n", g_args.query_times);
   printf("concurrent:     \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.concurrent);
   printf("sqlCount:       \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.sqlCount);
+  printf("specified tbl query times:\n");
+  printf("                \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.queryTimes);
 
   if (SUBSCRIBE_TEST == g_args.test_mode) {
     printf("mod:            \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.subscribeMode);
@@ -1457,6 +1473,7 @@ static void printfQueryMeta() {
   printf("threadCnt:      \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.threadCnt);
   printf("childTblCount:  \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.childTblCount);
   printf("stable name:    \033[33m%s\033[0m\n", g_queryInfo.superQueryInfo.sTblName);
+  printf("stb query times:\033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.queryTimes);
 
   if (SUBSCRIBE_TEST == g_args.test_mode) {
     printf("mod:            \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.subscribeMode);
@@ -3101,7 +3118,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
               g_args.interlace_rows, g_args.num_of_RPR);
       printf("        interlace rows value will be set to num_of_records_per_request %d\n\n",
               g_args.num_of_RPR);
-      printf("        press Enter key to continue or Ctrl+C to stop.");
+      printf("        press Enter key to continue or Ctrl-C to stop.");
       (void)getchar();
       g_args.interlace_rows = g_args.num_of_RPR;
     }
@@ -3604,7 +3621,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
                   i, j, g_Dbs.db[i].superTbls[j].interlaceRows, g_args.num_of_RPR);
           printf("        interlace rows value will be set to num_of_records_per_request %d\n\n",
                   g_args.num_of_RPR);
-          printf("        press Enter key to continue or Ctrl+C to stop.");
+          printf("        press Enter key to continue or Ctrl-C to stop.");
           (void)getchar();
           g_Dbs.db[i].superTbls[j].interlaceRows = g_args.num_of_RPR;
         }
@@ -3652,7 +3669,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       if (insertInterval && insertInterval->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].insertInterval = insertInterval->valueint;
       } else if (!insertInterval) {
-        debugPrint("%s() LN%d: stable insert interval be overrided by global %d.\n",
+        verbosePrint("%s() LN%d: stable insert interval be overrided by global %d.\n",
                 __func__, __LINE__, g_args.insert_interval);
         g_Dbs.db[i].superTbls[j].insertInterval = g_args.insert_interval;
       } else {
@@ -4991,39 +5008,14 @@ static void *asyncWrite(void *sarg) {
 static void startMultiThreadInsertData(int threads, char* db_name,
         char* precision,SSuperTable* superTblInfo) {
 
-    pthread_t *pids = malloc(threads * sizeof(pthread_t));
-    assert(pids != NULL);
+  pthread_t *pids = malloc(threads * sizeof(pthread_t));
+  assert(pids != NULL);
 
-    threadInfo *infos = malloc(threads * sizeof(threadInfo));
-    assert(infos != NULL);
+  threadInfo *infos = malloc(threads * sizeof(threadInfo));
+  assert(infos != NULL);
 
-    memset(pids, 0, threads * sizeof(pthread_t));
-    memset(infos, 0, threads * sizeof(threadInfo));
-
-    int ntables = 0;
-    if (superTblInfo) {
-
-        if ((superTblInfo->childTblOffset >= 0)
-            && (superTblInfo->childTblLimit > 0)) {
-
-            ntables = superTblInfo->childTblLimit;
-        } else {
-            ntables = superTblInfo->childTblCount;
-        }
-    } else {
-        ntables = g_args.num_of_tables;
-    }
-
-    int a = ntables / threads;
-    if (a < 1) {
-        threads = ntables;
-        a = 1;
-    }
-
-    int b = 0;
-    if (threads != 0) {
-        b = ntables % threads;
-    }
+  memset(pids, 0, threads * sizeof(pthread_t));
+  memset(infos, 0, threads * sizeof(threadInfo));
 
   //TAOS* taos;
   //if (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5)) {
@@ -5065,13 +5057,6 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
   double start = getCurrentTime();
 
-  int startFrom;
-
-  if ((superTblInfo) && (superTblInfo->childTblOffset >= 0))
-      startFrom = superTblInfo->childTblOffset;
-  else
-      startFrom = 0;
-
   // read sample data from file first
   if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource,
               "sample", strlen("sample")))) {
@@ -5101,17 +5086,35 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     exit(-1);
   }
 
-  if (superTblInfo) {
+  int ntables = 0;
+  int startFrom;
 
+  if (superTblInfo) {
     int limit, offset;
-    if (superTblInfo && (superTblInfo->childTblOffset >= 0)
-            && (superTblInfo->childTblLimit > 0)) {
-        limit = superTblInfo->childTblLimit;
-        offset = superTblInfo->childTblOffset;
+
+    if (superTblInfo->childTblOffset >= superTblInfo->childTblCount) {
+      printf("WARNING: specified offset >= child table count! \n");
+      if (!g_args.answer_yes) {
+        printf("         Press enter key to continue or Ctrl-C to stop\n\n");
+        (void)getchar();
+      }
+    }
+
+    if (superTblInfo->childTblOffset >= 0) {
+      if (superTblInfo->childTblLimit <= 0) {
+        superTblInfo->childTblLimit =
+            superTblInfo->childTblCount - superTblInfo->childTblOffset;
+      }
+
+      offset = superTblInfo->childTblOffset;
+      limit = superTblInfo->childTblLimit;
     } else {
         limit = superTblInfo->childTblCount;
         offset = 0;
     }
+
+    ntables = limit;
+    startFrom = offset;
 
     superTblInfo->childTblName = (char*)calloc(1,
         limit * TSDB_TABLE_NAME_LEN);
@@ -5128,8 +5131,23 @@ static void startMultiThreadInsertData(int threads, char* db_name,
         &superTblInfo->childTblName, &childTblCount,
         limit,
         offset);
+  } else {
+    ntables = g_args.num_of_tables;
+    startFrom = 0;
   }
+
   taos_close(taos);
+
+  int a = ntables / threads;
+  if (a < 1) {
+    threads = ntables;
+    a = 1;
+  }
+
+  int b = 0;
+  if (threads != 0) {
+    b = ntables % threads;
+  }
 
   for (int i = 0; i < threads; i++) {
     threadInfo *t_info = infos + i;
@@ -5509,9 +5527,14 @@ static void *superQueryProcess(void *sarg) {
     }
   }
 
-  //char sqlStr[MAX_TB_NAME_SIZE*2];
-  //sprintf(sqlStr, "use %s", g_queryInfo.dbName);
-  //queryDB(winfo->taos, sqlStr);
+  char sqlStr[MAX_DB_NAME_SIZE + 5];
+  sprintf(sqlStr, "use %s", g_queryInfo.dbName);
+  if (0 != queryDbExec(winfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
+    taos_close(winfo->taos);
+    errorPrint( "use database %s failed!\n\n",
+                g_queryInfo.dbName);
+    return NULL;
+  }
 
   int64_t st = 0;
   int64_t et = 0;
@@ -5844,9 +5867,10 @@ static void *subSubscribeProcess(void *sarg) {
 
   char sqlStr[MAX_TB_NAME_SIZE*2];
   sprintf(sqlStr, "use %s", g_queryInfo.dbName);
-  debugPrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
   if (0 != queryDbExec(winfo->taos, sqlStr, NO_INSERT_TYPE, false)) {
     taos_close(winfo->taos);
+    errorPrint( "use database %s failed!\n\n",
+                g_queryInfo.dbName);
     return NULL;
   }
 
