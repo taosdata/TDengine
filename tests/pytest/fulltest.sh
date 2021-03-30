@@ -166,6 +166,7 @@ python3 ./test.py -f stable/query_after_reset.py
 
 # perfbenchmark
 python3 ./test.py -f perfbenchmark/bug3433.py
+python3 ./test.py -f perfbenchmark/bug3589.py
 
 
 #query
