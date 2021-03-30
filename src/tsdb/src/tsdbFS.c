@@ -1217,7 +1217,7 @@ static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo) {
 
     tsdbDebug("vgId:%d scan DFileSet %d header", REPO_ID(pRepo), fset.fid);
 
-    if (tsdbOpenDFileSet(&fset, O_RDONLY) < 0) {
+    if (tsdbOpenDFileSet(&fset, O_RDWR) < 0) {
       tsdbError("vgId:%d failed to open DFileSet %d since %s, continue", REPO_ID(pRepo), fset.fid, tstrerror(terrno));
       continue;
     }
