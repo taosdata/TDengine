@@ -1235,7 +1235,7 @@ static bool saveGroupResultInfo(SSqlObj *pSql) {
 }
 
 
-bool doFilterFieldData(SQueryInfo* pQueryInfo, char *input, tFilePage* pOutput, SExprFilter* pFieldFilters, int16_t type, bool* notSkipped) {
+bool doFilterFieldData(char *input, SExprFilter* pFieldFilters, int16_t type, bool* notSkipped) {
   bool qualified = false;
   
   for(int32_t k = 0; k < pFieldFilters->pFilters->numOfFilters; ++k) {
@@ -1293,7 +1293,7 @@ int32_t doHavingFilter(SQueryInfo* pQueryInfo, tFilePage* pOutput, bool* notSkip
 
     char* pInput = pOutput->data + pOutput->num* pFieldFilters->pSqlExpr->offset;
     
-    doFilterFieldData(pQueryInfo, pInput, pOutput, pFieldFilters, type, notSkipped);
+    doFilterFieldData(pInput, pFieldFilters, type, notSkipped);
     if (*notSkipped == false) {
       return TSDB_CODE_SUCCESS;
     }
