@@ -1225,7 +1225,8 @@ static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo) {
     for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
       SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);
 
-      if (tsdbLoadDFileHeader(pDFile, &info) < 0 || memcmp(&(pDFile->info), &info, sizeof(info)) != 0) {
+      if ((tsdbLoadDFileHeader(pDFile, &info) < 0) || pDFile->info.size != info.size ||
+          pDFile->info.magic != info.magic) {
         if (tsdbUpdateDFileHeader(pDFile) < 0) {
           tsdbError("vgId:%d failed to update DFile header of %s since %s, continue", REPO_ID(pRepo),
                     TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno));

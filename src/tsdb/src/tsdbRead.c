@@ -806,7 +806,9 @@ static int32_t getFileCompInfo(STsdbQueryHandle* pQueryHandle, int32_t* numOfBlo
       pCheckInfo->compSize = compIndex->len;
     }
 
-    tsdbLoadBlockInfo(&(pQueryHandle->rhelper), (void *)(pCheckInfo->pCompInfo));
+    if (tsdbLoadBlockInfo(&(pQueryHandle->rhelper), (void*)(pCheckInfo->pCompInfo)) < 0) {
+      return terrno;
+    }
     SBlockInfo* pCompInfo = pCheckInfo->pCompInfo;
 
     TSKEY s = TSKEY_INITIAL_VAL, e = TSKEY_INITIAL_VAL;
@@ -2576,7 +2578,9 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
   }
 
   int64_t stime = taosGetTimestampUs();
-  tsdbLoadBlockStatis(&pHandle->rhelper, pBlockInfo->compBlock);
+  if (tsdbLoadBlockStatis(&pHandle->rhelper, pBlockInfo->compBlock) < 0) {
+    return terrno;
+  }
 
   int16_t* colIds = pHandle->defaultLoadColumn->pData;
 

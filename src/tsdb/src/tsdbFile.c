@@ -565,6 +565,7 @@ void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t v
 }
 
 void tsdbInitDFileSetEx(SDFileSet *pSet, SDFileSet *pOSet) {
+  pSet->fid = pOSet->fid;
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     tsdbInitDFileEx(TSDB_DFILE_IN_SET(pSet, ftype), TSDB_DFILE_IN_SET(pOSet, ftype));
   }
