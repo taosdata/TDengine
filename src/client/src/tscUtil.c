@@ -2187,6 +2187,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pnCmd->tagData.data = NULL;
   pnCmd->tagData.dataLen = 0;
 
+  pnCmd->pUdfInfo = taosArrayDup(pCmd->pUdfInfo);
+
   if (tscAddSubqueryInfo(pnCmd) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
