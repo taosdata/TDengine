@@ -57,7 +57,7 @@ class TDTestCase:
             os.system("%staosdemo -y -t %d -n %d" %
                       (binPath, self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
-            time.sleep(2)
+            time.sleep(5)
             print("use test")
             while True:
                 try:
@@ -65,7 +65,7 @@ class TDTestCase:
                     break
                 except Exception as e:
                     tdLog.info("use database test failed")
-                    time.sleep(1)
+                    time.sleep(3)
                     continue
 
             # check if all the tables have heen created
@@ -78,7 +78,7 @@ class TDTestCase:
                         break
                 except Exception as e:
                     tdLog.info("show tables test failed")
-                    time.sleep(1)
+                    time.sleep(3)
                     continue
             # check if there are any records in the last created table
             while True:
@@ -91,7 +91,7 @@ class TDTestCase:
                         break
                 except Exception as e:
                     tdLog.info("select test failed")
-                    time.sleep(1)
+                    time.sleep(3)
                     continue
 
             print("alter table test.meters add column col10 int")
