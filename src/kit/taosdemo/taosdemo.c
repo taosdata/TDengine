@@ -1194,17 +1194,24 @@ static int printfInsertMeta() {
         printf("      childTblExists:    \033[33m%s\033[0m\n",  "error");
       }
 
-      printf("      childTblCount:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblCount);
-      printf("      childTblPrefix:    \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblPrefix);
-      printf("      dataSource:        \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].dataSource);
-      printf("      insertMode:        \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].insertMode);
+      printf("      childTblCount:     \033[33m%d\033[0m\n",
+              g_Dbs.db[i].superTbls[j].childTblCount);
+      printf("      childTblPrefix:    \033[33m%s\033[0m\n",
+              g_Dbs.db[i].superTbls[j].childTblPrefix);
+      printf("      dataSource:        \033[33m%s\033[0m\n",
+              g_Dbs.db[i].superTbls[j].dataSource);
+      printf("      insertMode:        \033[33m%s\033[0m\n",
+              g_Dbs.db[i].superTbls[j].insertMode);
       if (g_Dbs.db[i].superTbls[j].childTblLimit > 0) {
-        printf("      childTblLimit:     \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblLimit);
+        printf("      childTblLimit:     \033[33m%d\033[0m\n",
+                g_Dbs.db[i].superTbls[j].childTblLimit);
       }
       if (g_Dbs.db[i].superTbls[j].childTblOffset >= 0) {
-        printf("      childTblOffset:    \033[33m%d\033[0m\n",  g_Dbs.db[i].superTbls[j].childTblOffset);
+        printf("      childTblOffset:    \033[33m%d\033[0m\n",
+                g_Dbs.db[i].superTbls[j].childTblOffset);
       }
-      printf("      insertRows:        \033[33m%"PRId64"\033[0m\n", g_Dbs.db[i].superTbls[j].insertRows);
+      printf("      insertRows:        \033[33m%"PRId64"\033[0m\n",
+              g_Dbs.db[i].superTbls[j].insertRows);
 
       if (0 == g_Dbs.db[i].superTbls[j].multiThreadWriteOneTbl) {
         printf("      multiThreadWriteOneTbl:  \033[33mno\033[0m\n");
@@ -1257,8 +1264,10 @@ static int printfInsertMeta() {
               g_Dbs.db[i].superTbls[j].tagCount);
       for (int k = 0; k < g_Dbs.db[i].superTbls[j].tagCount; k++) {
         //printf("dataType:%s, dataLen:%d\t", g_Dbs.db[i].superTbls[j].tags[k].dataType, g_Dbs.db[i].superTbls[j].tags[k].dataLen);
-        if ((0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType, "binary", 6))
-                || (0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType, "nchar", 5))) {
+        if ((0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType,
+                        "binary", strlen("binary")))
+                || (0 == strncasecmp(g_Dbs.db[i].superTbls[j].tags[k].dataType,
+                        "nchar", strlen("nchar")))) {
           printf("tag[%d]:\033[33m%s(%d)\033[0m ", k,
                   g_Dbs.db[i].superTbls[j].tags[k].dataType,
                   g_Dbs.db[i].superTbls[j].tags[k].dataLen);
@@ -1630,7 +1639,10 @@ static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {
 
   while ((row = taos_fetch_row(res)) != NULL) {
     // sys database name : 'log'
-    if (strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "log", fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0) continue;
+    if (strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "log",
+                fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0) {
+      continue;
+    }
 
     dbInfos[count] = (SDbInfo *)calloc(1, sizeof(SDbInfo));
     if (dbInfos[count] == NULL) {
@@ -1677,7 +1689,8 @@ static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {
   return count;
 }
 
-static void printfDbInfoForQueryToFile(char* filename, SDbInfo* dbInfos, int index) {
+static void printfDbInfoForQueryToFile(
+        char* filename, SDbInfo* dbInfos, int index) {
   if (filename[0] == 0)
       return;
 
@@ -1869,7 +1882,8 @@ static int postProceSql(char* host, uint16_t port, char* sqlstr)
     for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++)
       base64_buf[encoded_len - 1 - l] = '=';
 
-    debugPrint("%s() LN%d: auth string base64 encoded: %s\n", __func__, __LINE__, base64_buf);
+    debugPrint("%s() LN%d: auth string base64 encoded: %s\n",
+            __func__, __LINE__, base64_buf);
     char *auth = base64_buf;
 
     int r = snprintf(request_buf,
@@ -2108,7 +2122,8 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
   }
 
   //get all child table name use cmd: select tbname from superTblName;
-  snprintf(command, BUFFER_SIZE, "select tbname from %s.%s %s", dbName, sTblName, limitBuf);
+  snprintf(command, BUFFER_SIZE, "select tbname from %s.%s %s",
+          dbName, sTblName, limitBuf);
 
   res = taos_query(taos, command);
   int32_t code = taos_errno(res);
@@ -2256,7 +2271,8 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
   return 0;
 }
 
-static int createSuperTable(TAOS * taos, char* dbName, SSuperTable*  superTbls, bool use_metric) {
+static int createSuperTable(TAOS * taos, char* dbName,
+        SSuperTable*  superTbls, bool use_metric) {
   char command[BUFFER_SIZE] = "\0";
 
   char cols[STRING_LEN] = "\0";
@@ -2907,7 +2923,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     superTbls->tagCount    = 0;
     return true;
   }
- 
+
   int columnSize = cJSON_GetArraySize(columns);
   if (columnSize > MAX_COLUMN_COUNT) {
     errorPrint("%s() LN%d, failed to read json, column size overflow, max column size is %d\n",
@@ -2963,7 +2979,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     }
   }
   superTbls->columnCount = index;
- 
+
   count = 1;
   index = 0;
   // tags 
@@ -3364,22 +3380,24 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     } else if (!fsync) {
       g_Dbs.db[i].dbCfg.fsync = -1;
     } else {
-     printf("ERROR: failed to read json, fsync not found\n");
-     goto PARSE_OVER;
+      errorPrint("%s() LN%d, failed to read json, fsync input mistake\n",
+              __func__, __LINE__);
+      goto PARSE_OVER;
     }
 
     // super_talbes
     cJSON *stables = cJSON_GetObjectItem(dbinfos, "super_tables");
     if (!stables || stables->type != cJSON_Array) {
-      printf("ERROR: failed to read json, super_tables not found\n");
+      errorPrint("%s() LN%d, failed to read json, super_tables not found\n",
+              __func__, __LINE__);
       goto PARSE_OVER;
     }
 
     int stbSize = cJSON_GetArraySize(stables);
     if (stbSize > MAX_SUPER_TABLE_COUNT) {
       errorPrint(
-              "ERROR: failed to read json, databases size overflow, max database is %d\n",
-              MAX_SUPER_TABLE_COUNT);
+              "%s() LN%d, failed to read json, supertable size overflow, max supertable is %d\n",
+              __func__, __LINE__, MAX_SUPER_TABLE_COUNT);
       goto PARSE_OVER;
     }
 
@@ -3391,7 +3409,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       // dbinfo
       cJSON *stbName = cJSON_GetObjectItem(stbInfo, "name");
       if (!stbName || stbName->type != cJSON_String || stbName->valuestring == NULL) {
-        printf("ERROR: failed to read json, stb name not found\n");
+        errorPrint("%s() LN%d, failed to read json, stb name not found\n",
+                __func__, __LINE__);
         goto PARSE_OVER;
       }
       tstrncpy(g_Dbs.db[i].superTbls[j].sTblName, stbName->valuestring, MAX_TB_NAME_SIZE);
@@ -4351,7 +4370,8 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, int tableSeq)
     if ((superTblInfo->childTblOffset >= 0)
             && (superTblInfo->childTblLimit > 0)) {
         snprintf(pTblName, TSDB_TABLE_NAME_LEN, "%s",
-            superTblInfo->childTblName + (tableSeq - superTblInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
+            superTblInfo->childTblName +
+            (tableSeq - superTblInfo->childTblOffset) * TSDB_TABLE_NAME_LEN);
     } else {
 
         verbosePrint("[%d] %s() LN%d: from=%d count=%d seq=%d\n",
