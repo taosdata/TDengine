@@ -9,9 +9,9 @@
     "thread_count_create_tbl": 4,
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
-    "insert_interval": 0,
-    "interlace_rows": 10,
-    "num_of_records_per_req": 1000,
+    "insert_interval": 100,
+    "interlace_rows": 0,
+    "num_of_records_per_req": 3000,
     "max_sql_len": 1024000,
     "databases": [{
         "dbinfo": {
@@ -19,7 +19,7 @@
             "drop": "yes",
             "replica": 1,
             "days": 10,
-            "cache": 50,
+            "cache": 16,
             "blocks": 8,
             "precision": "ms",
             "keep": 365,
@@ -33,20 +33,20 @@
             "update": 0
         },
         "super_tables": [{
-            "name": "stb_1",
+            "name": "stb1",
             "child_table_exists":"no",
-            "childtable_count": 10,
+            "childtable_count": 15,
             "childtable_prefix": "stb01_",
             "auto_create_table": "no",
             "batch_create_tbl_num": 10,
             "data_source": "rand",
             "insert_mode": "taosc",
             "insert_rows": 20000,
-            "childtable_limit": 10,
-            "childtable_offset":0,
+            "childtable_limit": 2,
+            "childtable_offset":4,
             "multi_thread_write_one_tbl": "no",
             "interlace_rows": 0,
-            "insert_interval":0,
+            "insert_interval": 0,
             "max_sql_len": 1024000,
             "disorder_ratio": 0,
             "disorder_range": 1000,
@@ -55,7 +55,7 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
+            "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":6}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
         }]
     }]

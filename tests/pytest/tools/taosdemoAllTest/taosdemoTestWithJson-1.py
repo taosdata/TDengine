@@ -49,63 +49,65 @@ class TDTestCase:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath+ "/build/bin/"
 
-        # # insert: create one  or mutiple tables per sql and insert multiple rows per sql 
-        # os.system("yes | %staosdemo -f tools/taosdemoAllTest/insert-1s1tntmr.json" % binPath)
-        # tdSql.execute("use db")
-        # tdSql.query("show stables")
-        # tdSql.checkData(0, 4, 1000)
-        # # tdSql.checkData(1, 4, 1000)        
-        # tdSql.query("select count(*) from stb00_0")
-        # tdSql.checkData(0, 0, 100)
-        # tdSql.query("select count(*) from stb_0")
-        # tdSql.checkData(0, 0, 100000)
-        # # tdSql.query("select count(*) from stb01_1")
-        # # tdSql.checkData(0, 0, 200)
-        # # tdSql.query("select count(*) from stb_1")
-        # # tdSql.checkData(0, 0, 200000)        
+        # insert: create one  or mutiple tables per sql and insert multiple rows per sql 
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-1s1tnt1r.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("show stables")
+        tdSql.checkData(0, 4, 1000)
+        tdSql.checkData(1, 4, 1000)        
+        tdSql.query("select count(*) from stb00_0")
+        tdSql.checkData(0, 0, 100)
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 100000)
+        tdSql.query("select count(*) from stb01_1")
+        tdSql.checkData(0, 0, 200)
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 200000)        
 
 
-        # insert: create  mutiple tables per sql and insert one rows per sql 
-        os.system("yes | %staosdemo -f tools/taosdemoAllTest/insert-1snt1r.json" % binPath)
+        # insert: create  mutiple tables per sql and insert one rows per sql . 
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-1s1tntmr.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("show stables")
         tdSql.checkData(0, 4, 10)
+        tdSql.checkData(1, 4, 20)
         tdSql.query("select count(*) from stb00_0")
         tdSql.checkData(0, 0, 10000)   
-        tdSql.query("select count(*) from stb_0")
+        tdSql.query("select count(*) from stb0")
         tdSql.checkData(0, 0, 100000) 
-
-        # insert: create  mutiple tables per sql and insert multiple rows per sql 
-        os.system("yes | %staosdemo -f tools/taosdemoAllTest/insert-1sntmr.json" % binPath)
-        tdSql.execute("use db")
-        tdSql.query("show stables")
-        tdSql.checkData(0, 4, 10)
         tdSql.query("select count(*) from stb01_0")
         tdSql.checkData(0, 0, 20000)   
-        tdSql.query("select count(*) from stb_1")
-        tdSql.checkData(0, 0, 200000)           
-        # # insert: create one table per sql and insert multiple rows
-        # os.system("yes | %staosdemo -f tools/taosdemoAllTest/insert-1snt1r.json" % binPath)
-        # tdSql.execute("use db01")
-        # tdSql.query("show stables")
-        # tdSql.checkData(0, 4, 10)
-        # tdSql.query("select count(*) from stb01")
-        # tdSql.checkData(0, 0, 2000) 
-        # # insert: create one table per sql and insert multiple rows
-        # os.system("yes | %staosdemo -f tools/taosdemoAllTest/insert-1sntnr.json" % binPath)
-        # tdSql.execute("use db01")
-        # tdSql.query("show stables")
-        # tdSql.checkData(0, 4, 10)
-        # tdSql.query("select count(*) from stb01")
-        # tdSql.checkData(0, 0, 2000)     
-        # # insert: inser unlimted_speed .json
-        # os.system("yes | %staosdemo -f tools/taosdemoAllTest//insert-highspeed.json" % binPath)
-        # tdSql.execute("use db01")
-        # tdSql.query("show stables")
-        # tdSql.checkData(0, 4, 10)
-        # tdSql.query("select count(*) from stb01")
-        # tdSql.checkData(0, 0, 200000)   
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 400000) 
 
+        # insert: using parament "insert_interval to controls spped  of insert. 
+        # but We need to have accurate methods to control the speed, such as getting the speed value, checking the count and so on。
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-unlimitedspeed.json -y" % binPath)
+        tdSql.execute("use db")
+        tdSql.query("show stables")
+        tdSql.checkData(0, 4, 100)
+        tdSql.query("select count(*) from stb00_0")
+        tdSql.checkData(0, 0, 20000)   
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 2000000) 
+        tdSql.query("show stables")
+        tdSql.checkData(1, 4, 100)
+        tdSql.query("select count(*) from stb01_0")
+        tdSql.checkData(0, 0, 20000)   
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 2000000)           
+        
+        #spend 2min30s for 3 testcases.
+
+        # # insert: using parament "childtable_offset and childtable_limit" to control  table'offset point and offset 
+        # os.system("%staosdemo -f tools/taosdemoAllTest/insert-offset.json -y" % binPath)
+        # tdSql.execute("use db")
+        # tdSql.query("show stables")
+        # tdSql.checkData(0, 4, 10)
+        # tdSql.query("select count(*) from stb01_0")
+        # tdSql.checkData(0, 0, 2000)   
+        # tdSql.query("select count(*) from stb1")
+        # tdSql.checkData(0, 0, 20000) 
 
     def stop(self):
         tdSql.close()

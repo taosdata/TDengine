@@ -19,7 +19,7 @@
             "drop": "yes",
             "replica": 1,
             "days": 10,
-            "cache": 16,
+            "cache": 50,
             "blocks": 8,
             "precision": "ms",
             "keep": 365,
@@ -33,7 +33,7 @@
             "update": 0
         },
         "super_tables": [{
-            "name": "stb_0",
+            "name": "stb0",
             "child_table_exists":"no",
             "childtable_count": 1000,
             "childtable_prefix": "stb00_",
@@ -57,9 +57,9 @@
             "tags_file": "",
             "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
-        }],
-        "super_tables": [{
-            "name": "stb_1",
+        },
+        {
+            "name": "stb1",
             "child_table_exists":"no",
             "childtable_count": 1000,
             "childtable_prefix": "stb01_",
