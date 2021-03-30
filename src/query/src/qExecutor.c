@@ -35,13 +35,6 @@
 
 #define SWITCH_ORDER(n) (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
 
-#define CHECK_IF_QUERY_KILLED(_q)                        \
-  do {                                                   \
-    if (isQueryKilled((_q)->qinfo)) {                    \
-      longjmp((_q)->env, TSDB_CODE_TSC_QUERY_CANCELLED); \
-    }                                                    \
-  } while (0)
-
 #define SDATA_BLOCK_INITIALIZER (SDataBlockInfo) {{0}, 0}
 
 #define TIME_WINDOW_COPY(_dst, _src)  do {\
@@ -98,7 +91,6 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #define GET_NUM_OF_TABLEGROUP(q)    taosArrayGetSize((q)->tableqinfoGroupInfo.pGroupList)
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
-
 uint64_t queryHandleId = 0;
 
 int32_t getMaximumIdleDurationSec() {
@@ -143,8 +135,8 @@ static void getNextTimeWindow(SQueryAttr* pQueryAttr, STimeWindow* tw) {
 }
 
 static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, int16_t bytes);
-static void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLFunctionCtx* pCtx,
-    int32_t numOfCols, int32_t* rowCellInfoOffset);
+static void setResultOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SResultRow* pResult, SQLFunctionCtx* pCtx,
+                               int32_t numOfCols, int32_t* rowCellInfoOffset);
 
 void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
 static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t functionId);
@@ -163,7 +155,6 @@ static STableIdInfo createTableIdInfo(STableQueryInfo* pTableQueryInfo);
 static void setTableScanFilterOperatorInfo(STableScanInfo* pTableScanInfo, SOperatorInfo* pDownstream);
 
 static int32_t getNumOfScanTimes(SQueryAttr* pQueryAttr);
-//static bool isFixedOutputQuery(SQueryAttr* pQueryAttr);
 
 static SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime, int32_t reverseTime);
 static SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime);
@@ -1732,7 +1723,9 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
         SOperatorInfo* prev = pRuntimeEnv->pTableScanner;
         if (i == 0) {
           pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-          setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+          if (pRuntimeEnv->pTableScanner != NULL) {  // TODO refactor
+            setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+          }
         } else {
           prev = pRuntimeEnv->proot;
           pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
@@ -3949,7 +3942,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
 
   SQueryAttr *pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
-  pQueryAttr->tsdb  = tsdb;
+  pQueryAttr->tsdb = tsdb;
 
   pRuntimeEnv->prevResult = prevResult;
   pRuntimeEnv->qinfo = pQInfo;
@@ -3971,20 +3964,6 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   pRuntimeEnv->cur.vgroupIndex = -1;
   setResultBufSize(pQueryAttr, &pRuntimeEnv->resultInfo);
 
-  /*
-  if (onlyQueryTags(pQueryAttr)) {
-//    pRuntimeEnv->resultInfo.capacity = 4096;
-//    pRuntimeEnv->proot = createTagScanOperatorInfo(pRuntimeEnv, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-  } else if (pQueryAttr->queryBlockDist) {
-    pRuntimeEnv->pTableScanner = createTableBlockInfoScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
-  } else if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery) {
-    pRuntimeEnv->pTableScanner = createTableSeqScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
-  } else if (needReverseScan(pQueryAttr)) {
-    pRuntimeEnv->pTableScanner = createDataBlocksOptScanInfo(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr), 1);
-  } else {
-    pRuntimeEnv->pTableScanner = createTableScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr));
-  }
-*/
   switch(tbScanner) {
     case OP_TableBlockInfoScan: {
       pRuntimeEnv->pTableScanner = createTableBlockInfoScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
@@ -4002,8 +3981,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
       pRuntimeEnv->pTableScanner = createTableScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr));
       break;
     }
-    default: {
-      // do nothing
+    default: { // do nothing
       break;
     }
   }
@@ -4531,14 +4509,19 @@ static SSDataBlock* doArithmeticOperation(void* param) {
     STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
 
     // todo dynamic set tags
-    setTagValue(pOperator, pTableQueryInfo->pTable, pInfo->pCtx, pOperator->numOfOutput);
+    if (pTableQueryInfo != NULL) {
+      setTagValue(pOperator, pTableQueryInfo->pTable, pInfo->pCtx, pOperator->numOfOutput);
+    }
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
     updateOutputBuf(pArithInfo, pBlock->info.rows);
 
     arithmeticApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
-    updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
+
+    if (pTableQueryInfo != NULL) { // TODO refactor
+      updateTableIdInfo(pTableQueryInfo, pBlock, pRuntimeEnv->pTableRetrieveTsMap, order);
+    }
 
     pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
     if (pRes->info.rows >= pRuntimeEnv->resultInfo.threshold) {

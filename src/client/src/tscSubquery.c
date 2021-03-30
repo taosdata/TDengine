@@ -24,6 +24,7 @@
 #include "tschemautil.h"
 #include "tsclient.h"
 #include "qUtil.h"
+#include "qPlan.h"
 
 typedef struct SInsertSupporter {
   SSqlObj*  pSql;
@@ -3216,8 +3217,7 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   return hasData;
 }
 
-void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
-                                   uint64_t* qId, char* sql, void* addr) {
+void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pOperator, char* sql, void* addr) {
   assert(pQueryInfo != NULL);
   int16_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
 
@@ -3230,8 +3230,12 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
   pQInfo->signature = pQInfo;
 
   SQueryAttr *pQueryAttr = &pQInfo->query;
-  pQInfo->runtimeEnv.pQueryAttr = pQueryAttr;
+  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
+
+  pRuntimeEnv->pQueryAttr = pQueryAttr;
   tscCreateQueryFromQueryInfo(pQueryInfo, pQueryAttr, addr);
+
+  pQueryAttr->tableGroupInfo = *pTableGroupInfo;
 
   // calculate the result row size
   for (int16_t col = 0; col < numOfOutput; ++col) {
@@ -3243,12 +3247,6 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
       pQueryAttr->tagLen += pExprs[col].base.resBytes;
     }
   }
-
-//  doUpdateExprColumnIndex(pQueryAttr);
-//  int32_t ret = createFilterInfo(pQInfo, pQueryAttr);
-//  if (ret != TSDB_CODE_SUCCESS) {
-//    goto _cleanup;
-//  }
 
   size_t numOfGroups = 0;
   if (pTableGroupInfo->pGroupList != NULL) {
@@ -3272,12 +3270,6 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
   pthread_mutex_init(&pQInfo->lock, NULL);
   tsem_init(&pQInfo->ready, 0, 0);
 
-//  changeExecuteScanOrder(pQInfo, pQueryMsg, stableQuery);
-
-  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
-
-  STimeWindow window = pQueryAttr->window;
-
   int32_t index = 0;
   for(int32_t i = 0; i < numOfGroups; ++i) {
     SArray* pa = taosArrayGetP(pQueryAttr->tableGroupInfo.pGroupList, i);
@@ -3290,6 +3282,7 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
 
     taosArrayPush(pRuntimeEnv->tableqinfoGroupInfo.pGroupList, &p1);
 
+    STimeWindow window = pQueryAttr->window;
     for(int32_t j = 0; j < s; ++j) {
       STableKeyInfo* info = taosArrayGet(pa, j);
       window.skey = info->lastKey;
@@ -3307,13 +3300,6 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
       taosHashPut(pRuntimeEnv->tableqinfoGroupInfo.map, &id.tid, sizeof(id.tid), &item, POINTER_BYTES);
       index += 1;
     }
-  }
-
-//  colIdCheck(pQueryAttr, pQInfo);
-
-  pQInfo->qId = 0;
-  if (qId != NULL) {
-    *qId = pQInfo->qId;
   }
 
   //  qDebug("qmsg:%p QInfo:%" PRIu64 "-%p created", pQueryMsg, pQInfo->qId, pQInfo);
@@ -3334,9 +3320,13 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
 
   tfree(pExprs);
 
+  SArray* pa = createExecOperatorPlan(pQueryAttr);
+
   STsBufInfo bufInfo = {0};
-  SQueryParam param = {0};
+  SQueryParam param = {.pOperator = pa};
   /*int32_t code = */initQInfo(&bufInfo, NULL,  pQInfo, &param, NULL, 0);
+
+  pQInfo->runtimeEnv.proot->upstream = pOperator;
   qTableQuery(pQInfo);
 
   return pQInfo;

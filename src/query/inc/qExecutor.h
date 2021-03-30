@@ -289,6 +289,7 @@ enum OPERATOR_TYPE_E {
   OP_Fill              = 13,
   OP_MultiTableAggregate     = 14,
   OP_MultiTableTimeInterval  = 15,
+  OP_DummyInput        = 16,   //TODO remove it after fully refactor.
 };
 
 typedef struct SOperatorInfo {

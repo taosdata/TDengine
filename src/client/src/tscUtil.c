@@ -539,6 +539,62 @@ static SColumnInfo* extractColumnInfoFromResult(STableMeta* pTableMeta, SArray* 
   return pColInfo;
 }
 
+typedef struct SDummyInputInfo {
+  SSDataBlock     block;
+  SSqlRes        *pRes;  // refactor: remove it
+} SDummyInputInfo;
+
+SSDataBlock* doGetDataBlock(void* param) {
+  SOperatorInfo *pOperator = (SOperatorInfo*) param;
+
+  SDummyInputInfo *pInput = pOperator->info;
+  char* pData = pInput->pRes->data;
+
+  SSDataBlock* pBlock = &pInput->block;
+  pBlock->info.rows = pInput->pRes->numOfRows;
+  if (pBlock->info.rows == 0) {
+    return NULL;
+  }
+
+  int32_t offset = 0;
+  for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+    SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
+    pColData->pData = pData + offset * pBlock->info.rows;
+
+    offset += pColData->info.bytes;
+  }
+
+  pInput->pRes->numOfRows = 0;
+  return pBlock;
+}
+
+SOperatorInfo* createDummyInputOperator(char* pResult, SSchema* pSchema, int32_t numOfCols) {
+  assert(numOfCols > 0);
+
+  SDummyInputInfo* pInfo = calloc(1, sizeof(SDummyInputInfo));
+  pInfo->pRes = (SSqlRes*) pResult;
+
+  pInfo->block.info.numOfCols = numOfCols;
+  pInfo->block.pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData colData = {0};
+    colData.info.bytes = pSchema[i].bytes;
+    colData.info.type  = pSchema[i].type;
+    colData.info.colId = pSchema[i].colId;
+
+    taosArrayPush(pInfo->block.pDataBlock, &colData);
+  }
+
+  SOperatorInfo* pOptr = calloc(1, sizeof(SOperatorInfo));
+  pOptr->name          = "DummyInputOperator";
+  pOptr->operatorType  = OP_DummyInput;
+  pOptr->blockingOptr  = false;
+  pOptr->info          = pInfo;
+  pOptr->exec          = doGetDataBlock;
+
+  return pOptr;
+}
+
 void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   if (pQueryInfo->pDownstream != NULL && taosArrayGetSize(pQueryInfo->pDownstream) > 0) {
     // handle the following query process
@@ -553,22 +609,29 @@ void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 
     int32_t numOfCols = taosArrayGetSize(px->colList);
     SQueriedTableInfo info = {.colList = colInfo, .numOfCols = numOfCols,};
+
     /*int32_t code = */createQueryFunc(&info, numOfOutput, &exprInfo, px->exprList->pData, NULL, px->type, NULL);
-    tsCreateSQLFunctionCtx(px, pCtx, NULL);
+    SSchema* pSchema = tscGetTableSchema(px->pTableMetaInfo[0]->pTableMeta);
+    tsCreateSQLFunctionCtx(px, pCtx, pSchema);
 
-    STableGroupInfo tableGroupInfo = {0};
-    tableGroupInfo.numOfTables = 1;
-    tableGroupInfo.pGroupList = taosArrayInit(1, POINTER_BYTES);
-
-    SArray* group = taosArrayInit(1, sizeof(STableKeyInfo));
+    STableGroupInfo tableGroupInfo = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES),};
+    tableGroupInfo.map = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
     STableKeyInfo tableKeyInfo = {.pTable = NULL, .lastKey = INT64_MIN};
+
+    SArray* group = taosArrayInit(1, sizeof(STableKeyInfo));
     taosArrayPush(group, &tableKeyInfo);
 
     taosArrayPush(tableGroupInfo.pGroupList, &group);
 
-    SQInfo* pQInfo = createQueryInfoFromQueryNode(px, exprInfo, &tableGroupInfo, 0, NULL, NULL);
-    printf("%p\n", pQInfo);
+    SOperatorInfo* pSourceOptr = createDummyInputOperator((char*)pRes, pSchema, numOfOutput);
+
+    SQInfo* pQInfo = createQueryInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOptr, NULL, NULL);
+    //printf("%p\n", pQInfo);
+    SSDataBlock* pres = pQInfo->runtimeEnv.outputBuf;
+
+    // build result
+    pRes->numOfRows = pres->info.rows;
   }
 }
 
@@ -3121,6 +3184,10 @@ static int32_t createSecondaryExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
 }
 
 static int32_t createTagColumnInfo(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo) {
+  if (pTableMetaInfo->tagColList == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   pQueryAttr->numOfTags = (int32_t)taosArrayGetSize(pTableMetaInfo->tagColList);
   if (pQueryAttr->numOfTags == 0) {
     return TSDB_CODE_SUCCESS;

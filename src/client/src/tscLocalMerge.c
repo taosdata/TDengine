@@ -57,7 +57,7 @@ int32_t treeComparator(const void *pLeft, const void *pRight, void *param) {
 }
 
 // todo merge with vnode side function
-void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx, SSchemaEx* pSchema) {
+void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx, SSchema* pSchema) {
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   
   for (int32_t i = 0; i < size; ++i) {
@@ -69,16 +69,14 @@ void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx, SSchem
     pCtx[i].order = pQueryInfo->order.order;
     pCtx[i].functionId = pExpr->base.functionId;
 
-    // input buffer hold only one point data
-    SSchema *s = &pSchema[i].field;
-
     // input data format comes from pModel
-    pCtx[i].inputType = s->type;
-    pCtx[i].inputBytes = s->bytes;
+    pCtx[i].inputType = pSchema[i].type;
+    pCtx[i].inputBytes = pSchema[i].bytes;
 
     pCtx[i].outputBytes = pExpr->base.resBytes;
     pCtx[i].outputType  = pExpr->base.resType;
 
+    // input buffer hold only one point data
     pCtx[i].size = 1;
     pCtx[i].hasNull = true;
     pCtx[i].currentStage = MERGE_STAGE;
@@ -374,7 +372,13 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   pReducer->pTempBuffer->num = 0;
 
   tscCreateResPointerInfo(pRes, pQueryInfo);
-  tsCreateSQLFunctionCtx(pQueryInfo, pReducer->pCtx, pDesc->pColumnModel->pFields);
+
+  SSchema* pschema = calloc(pDesc->pColumnModel->numOfCols, sizeof(SSchema));
+  for(int32_t i = 0; i < pDesc->pColumnModel->numOfCols; ++i) {
+    pschema[i] = pDesc->pColumnModel->pFields[i].field;
+  }
+
+  tsCreateSQLFunctionCtx(pQueryInfo, pReducer->pCtx, pschema);
   setCtxInputOutputBuffer(pQueryInfo, pReducer->pCtx, pReducer, pDesc);
 
   // we change the capacity of schema to denote that there is only one row in temp buffer
