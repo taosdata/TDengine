@@ -7159,6 +7159,11 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
+  code = checkForUdf(pSql, pQuerySqlNode->pSelectList);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
   // set where info
   STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
 
@@ -7167,7 +7172,13 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
+    if (tinfo.precision == TSDB_TIME_PRECISION_MILLI) {
+      pQueryInfo->window.skey = pQueryInfo->window.skey / 1000;
+      pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
+    }
+    
     pQuerySqlNode->pWhere = NULL;
+    
   } else {  // set the time rang
     if (taosArrayGetSize(pQuerySqlNode->from->tableList) > 1) { // it is a join query, no where clause is not allowed.
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "condition missing for join query ");
@@ -7177,17 +7188,6 @@ int32_t doValidateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t i
   int32_t joinQuery = (pQuerySqlNode->from != NULL && taosArrayGetSize(pQuerySqlNode->from->tableList) > 1);
   int32_t timeWindowQuery =
       (TPARSER_HAS_TOKEN(pQuerySqlNode->interval.interval) || TPARSER_HAS_TOKEN(pQuerySqlNode->sessionVal.gap));
-
-
-  code = checkForUdf(pSql, pQuerySqlNode->pSelectList);
-  if (code != TSDB_CODE_SUCCESS) {
-    return code;
-  }
-
-  if (tinfo.precision == TSDB_TIME_PRECISION_MILLI) {
-    pQueryInfo->window.skey = pQueryInfo->window.skey / 1000;
-    pQueryInfo->window.ekey = pQueryInfo->window.ekey / 1000;
-  }
 
   if (parseSelectClause(pCmd, index, pQuerySqlNode->pSelectList, isSTable, joinQuery, timeWindowQuery) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
