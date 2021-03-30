@@ -1948,7 +1948,7 @@ static char* getTagValueFromTagSample(SSuperTable* stbInfo, int tagUsePos) {
   return dataBuf;
 }
 
-static char* generateTagVaulesForStb(SSuperTable* stbInfo) {
+static char* generateTagVaulesForStb(SSuperTable* stbInfo, int tableSeq) {
   char*  dataBuf = (char*)calloc(TSDB_MAX_SQL_LEN+1, 1);
   if (NULL == dataBuf) {
     printf("calloc failed! size:%d\n", TSDB_MAX_SQL_LEN+1);
@@ -1973,14 +1973,20 @@ static char* generateTagVaulesForStb(SSuperTable* stbInfo) {
         tmfree(dataBuf);
         return NULL;
       }
-      rand_string(buf, stbInfo->tags[i].dataLen);
+
+      if (tableSeq % 2) {
+          strcpy(buf, "beijing");
+      } else {
+          strcpy(buf, "shanghai");
+      }
+      //rand_string(buf, stbInfo->tags[i].dataLen);
       dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
               "\'%s\', ", buf);
       tmfree(buf);
     } else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                 "int", strlen("int"))) {
       dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
-              "%d, ", rand_int());
+              "%d, ", tableSeq);
     } else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                 "bigint", strlen("bigint"))) {
       dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
@@ -2569,10 +2575,10 @@ static void* createTable(void *sarg)
           len += snprintf(buffer + len,
                   buff_len - len, "create table ");
         }
-  
+
         char* tagsValBuf = NULL;
         if (0 == superTblInfo->tagSource) {
-          tagsValBuf = generateTagVaulesForStb(superTblInfo);
+          tagsValBuf = generateTagVaulesForStb(superTblInfo, i);
         } else {
           tagsValBuf = getTagValueFromTagSample(
                   superTblInfo,
@@ -2582,7 +2588,7 @@ static void* createTable(void *sarg)
           free(buffer);
           return NULL;
         }
-  
+
         len += snprintf(buffer + len,
                 superTblInfo->maxSqlLen - len,
                 "if not exists %s.%s%d using %s.%s tags %s ",
@@ -2591,7 +2597,7 @@ static void* createTable(void *sarg)
                 superTblInfo->sTblName, tagsValBuf);
         free(tagsValBuf);
         batchNum++;
-  
+
         if ((batchNum < superTblInfo->batchCreateTableNum)
                 && ((superTblInfo->maxSqlLen - len)
                     >= (superTblInfo->lenOfTagOfOneRow + 256))) {
@@ -2680,7 +2686,7 @@ static int startMultiThreadCreateChildTable(
     t_info->minDelay = INT16_MAX;
     pthread_create(pids + i, NULL, createTable, t_info);
   }
- 
+
   for (int i = 0; i < threads; i++) {
     pthread_join(pids[i], NULL);
   }
@@ -4479,9 +4485,9 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
     if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
       char* tagsValBuf = NULL;
       if (0 == superTblInfo->tagSource) {
-            tagsValBuf = generateTagVaulesForStb(superTblInfo);
+        tagsValBuf = generateTagVaulesForStb(superTblInfo, tableSeq);
       } else {
-            tagsValBuf = getTagValueFromTagSample(
+        tagsValBuf = getTagValueFromTagSample(
                     superTblInfo,
                     tableSeq % superTblInfo->tagSampleCount);
       }
