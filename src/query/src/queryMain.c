@@ -273,14 +273,14 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
     code = pQInfo->code;
   } else {
     SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
-    SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
+    SQueryAttr *pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
 
     pthread_mutex_lock(&pQInfo->lock);
 
     assert(pQInfo->rspContext == NULL);
     if (pQInfo->dataReady == QUERY_RESULT_READY) {
       *buildRes = true;
-      qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%d, code:%s", pQInfo, pQuery->resultRowSize,
+      qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%d, code:%s", pQInfo, pQueryAttr->resultRowSize,
              GET_NUM_OF_RESULTS(pRuntimeEnv), tstrerror(pQInfo->code));
     } else {
       *buildRes = false;
@@ -303,11 +303,11 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
-  SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
+  SQueryAttr *pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
 
   int32_t s = GET_NUM_OF_RESULTS(pRuntimeEnv);
-  size_t size = pQuery->resultRowSize * s;
+  size_t size = pQueryAttr->resultRowSize * s;
   size += sizeof(int32_t);
   size += sizeof(STableIdInfo) * taosHashGetSize(pRuntimeEnv->pTableRetrieveTsMap);
 
@@ -329,7 +329,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     (*pRsp)->useconds = htobe64(pQInfo->summary.elapsedTime);
   }
 
-  (*pRsp)->precision = htons(pQuery->precision);
+  (*pRsp)->precision = htons(pQueryAttr->precision);
   if (GET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv)) > 0 && pQInfo->code == TSDB_CODE_SUCCESS) {
     doDumpQueryResult(pQInfo, (*pRsp)->data);
   } else {

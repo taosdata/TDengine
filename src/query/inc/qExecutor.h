@@ -179,7 +179,7 @@ typedef struct SSDataBlock {
 
 // The basic query information extracted from the SQueryInfo tree to support the
 // execution of query in a data node.
-typedef struct SQuery {
+typedef struct SQueryAttr {
   SLimitVal        limit;
 
   bool             stableQuery;      // super table query or not
@@ -226,7 +226,7 @@ typedef struct SQuery {
   SMemRef          memRef;
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   int32_t          vgId;
-} SQuery;
+} SQueryAttr;
 
 typedef SSDataBlock* (*__operator_fn_t)(void* param);
 typedef void (*__optr_cleanup_fn_t)(void* param, int32_t num);
@@ -235,7 +235,7 @@ struct SOperatorInfo;
 
 typedef struct SQueryRuntimeEnv {
   jmp_buf               env;
-  SQuery*               pQuery;
+  SQueryAttr*               pQueryAttr;
   uint32_t              status;           // query status
   void*                 qinfo;
   uint8_t               scanFlag;         // denotes reversed scan of data or not
@@ -324,7 +324,7 @@ typedef struct SQInfo {
   int64_t          owner;       // if it is in execution
 
   SQueryRuntimeEnv runtimeEnv;
-  SQuery           query;
+  SQueryAttr       query;
   void*            pBuf;        // allocated buffer for STableQueryInfo, sizeof(STableQueryInfo)*numOfTables;
 
   pthread_mutex_t  lock;        // used to synchronize the rsp/query threads
@@ -451,14 +451,14 @@ int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, SQInfo* pQInfo, SQueryPara
 
 void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 
-STableQueryInfo *createTableQueryInfo(SQuery* pQuery, void* pTable, bool groupbyColumn, STimeWindow win, void* buf);
+STableQueryInfo *createTableQueryInfo(SQueryAttr* pQueryAttr, void* pTable, bool groupbyColumn, STimeWindow win, void* buf);
 
 bool isQueryKilled(SQInfo *pQInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
 bool doBuildResCheck(SQInfo* pQInfo);
 void setQueryStatus(SQueryRuntimeEnv *pRuntimeEnv, int8_t status);
 
-bool onlyQueryTags(SQuery* pQuery);
+bool onlyQueryTags(SQueryAttr* pQueryAttr);
 bool isValidQInfo(void *param);
 
 int32_t doDumpQueryResult(SQInfo *pQInfo, char *data);

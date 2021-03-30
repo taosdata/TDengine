@@ -29,7 +29,7 @@
 #define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
 #define GET_ROW_PARAM_FOR_MULTIOUTPUT(_q, tbq, sq) (((tbq) && (!(sq)))? (_q)->pExpr1[1].base.param[0].i64:1)
 
-int32_t getOutputInterResultBufSize(SQuery* pQuery);
+int32_t getOutputInterResultBufSize(SQueryAttr* pQueryAttr);
 
 size_t  getResultRowSize(SQueryRuntimeEnv* pRuntimeEnv);
 int32_t initResultRowInfo(SResultRowInfo* pResultRowInfo, int32_t size, int16_t type);
@@ -51,10 +51,10 @@ static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int
   return pResultRowInfo->pResult[slot];
 }
 
-static FORCE_INLINE char *getPosInResultPage(SQuery *pQuery, tFilePage* page, int32_t rowOffset, int16_t offset) {
-  assert(rowOffset >= 0 && pQuery != NULL);
+static FORCE_INLINE char *getPosInResultPage(SQueryAttr *pQueryAttr, tFilePage* page, int32_t rowOffset, int16_t offset) {
+  assert(rowOffset >= 0 && pQueryAttr != NULL);
 
-  int32_t numOfRows = (int32_t)GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery);
+  int32_t numOfRows = (int32_t)GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
   return ((char *)page->data) + rowOffset + offset * numOfRows;
 }
 

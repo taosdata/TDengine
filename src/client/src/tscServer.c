@@ -703,7 +703,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
   
   SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
-  SQuery query = {0};
+  SQueryAttr query = {0};
   tscCreateQueryFromQueryInfo(pQueryInfo, &query, pSql);
   SArray* tableScanOperator = createTableScanPlan(&query);
   SArray* queryOperator = createExecOperatorPlan(&query);
@@ -2584,10 +2584,10 @@ int tscProcessShowCreateRsp(SSqlObj *pSql) {
 int tscProcessQueryRsp(SSqlObj *pSql) {
   SSqlRes *pRes = &pSql->res;
 
-  SQueryTableRsp *pQuery = (SQueryTableRsp *)pRes->pRsp;
-  pQuery->qid = htobe64(pQuery->qid);
+  SQueryTableRsp *pQueryAttr = (SQueryTableRsp *)pRes->pRsp;
+  pQueryAttr->qid = htobe64(pQueryAttr->qid);
 
-  pRes->qid  = pQuery->qid;
+  pRes->qid  = pQueryAttr->qid;
   pRes->data = NULL;
 
   tscResetForNextRetrieve(pRes);

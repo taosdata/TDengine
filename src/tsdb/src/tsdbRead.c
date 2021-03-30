@@ -123,7 +123,7 @@ typedef struct STsdbQueryHandle {
   SMemRef       *pMemRef;
   SArray        *defaultLoadColumn;// default load column
   SDataBlockLoadInfo dataBlockLoadInfo; /* record current block load information */
-  SLoadCompBlockInfo compBlockLoadInfo; /* record current compblock information in SQuery */
+  SLoadCompBlockInfo compBlockLoadInfo; /* record current compblock information in SQueryAttr */
 
   SArray        *prev;             // previous row which is before than time window
   SArray        *next;             // next row which is after the query time window

@@ -30,11 +30,11 @@ typedef struct SCompSupporter {
   int32_t           order;
 } SCompSupporter;
 
-int32_t getOutputInterResultBufSize(SQuery* pQuery) {
+int32_t getOutputInterResultBufSize(SQueryAttr* pQueryAttr) {
   int32_t size = 0;
 
-  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
-    size += pQuery->pExpr1[i].base.interBytes;
+  for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
+    size += pQueryAttr->pExpr1[i].base.interBytes;
   }
 
   assert(size >= 0);
@@ -136,11 +136,11 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
     tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResultRow->pageId);
 
     int16_t offset = 0;
-    for (int32_t i = 0; i < pRuntimeEnv->pQuery->numOfOutput; ++i) {
+    for (int32_t i = 0; i < pRuntimeEnv->pQueryAttr->numOfOutput; ++i) {
       SResultRowCellInfo *pResultInfo = &pResultRow->pCellInfo[i];
 
-      int16_t size = pRuntimeEnv->pQuery->pExpr1[i].base.resType;
-      char * s = getPosInResultPage(pRuntimeEnv->pQuery, page, pResultRow->offset, offset);
+      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resType;
+      char * s = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResultRow->offset, offset);
       memset(s, 0, size);
 
       offset += size;
@@ -167,8 +167,8 @@ SResultRowCellInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t
 }
 
 size_t getResultRowSize(SQueryRuntimeEnv* pRuntimeEnv) {
-  SQuery* pQuery = pRuntimeEnv->pQuery;
-  return (pQuery->numOfOutput * sizeof(SResultRowCellInfo)) + pQuery->interBufSize + sizeof(SResultRow);
+  SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
+  return (pQueryAttr->numOfOutput * sizeof(SResultRowCellInfo)) + pQueryAttr->interBufSize + sizeof(SResultRow);
 }
 
 SResultRowPool* initResultRowPool(size_t size) {
@@ -385,10 +385,10 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
 }
 
 static int64_t getNumOfResultWindowRes(SQueryRuntimeEnv* pRuntimeEnv, SResultRow *pResultRow, int32_t* rowCellInfoOffset) {
-  SQuery* pQuery = pRuntimeEnv->pQuery;
+  SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
 
-  for (int32_t j = 0; j < pQuery->numOfOutput; ++j) {
-    int32_t functionId = pQuery->pExpr1[j].base.functionId;
+  for (int32_t j = 0; j < pQueryAttr->numOfOutput; ++j) {
+    int32_t functionId = pQueryAttr->pExpr1[j].base.functionId;
 
     /*
      * ts, tag, tagprj function can not decide the output number of current query
@@ -451,7 +451,7 @@ static int32_t tableResultComparFn(const void *pLeft, const void *pRight, void *
 
 static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList,
     int32_t* rowCellInfoOffset) {
-  bool ascQuery = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQuery);
+  bool ascQuery = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQueryAttr);
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -487,7 +487,7 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
     goto _end;
   }
 
-  SCompSupporter cs = {pTableQueryInfoList, posList, pRuntimeEnv->pQuery->order.order};
+  SCompSupporter cs = {pTableQueryInfoList, posList, pRuntimeEnv->pQueryAttr->order.order};
 
   int32_t ret = tLoserTreeCreate(&pTree, numOfTables, &cs, tableResultComparFn);
   if (ret != TSDB_CODE_SUCCESS) {

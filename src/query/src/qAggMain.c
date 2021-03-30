@@ -3318,8 +3318,6 @@ static void col_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   INC_INIT_VAL(pCtx, 1);
   char *pData = GET_INPUT_DATA(pCtx, index);
   memcpy(pCtx->pOutput, pData, pCtx->inputBytes);
-
-  pCtx->pOutput += pCtx->inputBytes;
 }
 
 /**

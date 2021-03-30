@@ -2018,7 +2018,6 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
   }
 
   pQueryInfo1->round = 1;
-//  tscDoQuery(pParent);
   executeQuery(pParent, pQueryInfo1);
 }
 
@@ -3228,23 +3227,23 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
   // to make sure third party won't overwrite this structure
   pQInfo->signature = pQInfo;
 
-  SQuery *pQuery = &pQInfo->query;
-  pQInfo->runtimeEnv.pQuery = pQuery;
-  tscCreateQueryFromQueryInfo(pQueryInfo, pQuery, addr);
+  SQueryAttr *pQueryAttr = &pQInfo->query;
+  pQInfo->runtimeEnv.pQueryAttr = pQueryAttr;
+  tscCreateQueryFromQueryInfo(pQueryInfo, pQueryAttr, addr);
 
   // calculate the result row size
   for (int16_t col = 0; col < numOfOutput; ++col) {
     assert(pExprs[col].base.resBytes > 0);
-    pQuery->resultRowSize += pExprs[col].base.resBytes;
+    pQueryAttr->resultRowSize += pExprs[col].base.resBytes;
 
     // keep the tag length
     if (TSDB_COL_IS_TAG(pExprs[col].base.colInfo.flag)) {
-      pQuery->tagLen += pExprs[col].base.resBytes;
+      pQueryAttr->tagLen += pExprs[col].base.resBytes;
     }
   }
 
-//  doUpdateExprColumnIndex(pQuery);
-//  int32_t ret = createFilterInfo(pQInfo, pQuery);
+//  doUpdateExprColumnIndex(pQueryAttr);
+//  int32_t ret = createFilterInfo(pQInfo, pQueryAttr);
 //  if (ret != TSDB_CODE_SUCCESS) {
 //    goto _cleanup;
 //  }
@@ -3275,11 +3274,11 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
 
-  STimeWindow window = pQuery->window;
+  STimeWindow window = pQueryAttr->window;
 
   int32_t index = 0;
   for(int32_t i = 0; i < numOfGroups; ++i) {
-    SArray* pa = taosArrayGetP(pQuery->tableGroupInfo.pGroupList, i);
+    SArray* pa = taosArrayGetP(pQueryAttr->tableGroupInfo.pGroupList, i);
 
     size_t s = taosArrayGetSize(pa);
     SArray* p1 = taosArrayInit(s, POINTER_BYTES);
@@ -3294,7 +3293,7 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
       window.skey = info->lastKey;
 
       void* buf = (char*) pQInfo->pBuf + index * sizeof(STableQueryInfo);
-      STableQueryInfo* item = createTableQueryInfo(pQuery, info->pTable, pQuery->groupbyColumn, window, buf);
+      STableQueryInfo* item = createTableQueryInfo(pQueryAttr, info->pTable, pQueryAttr->groupbyColumn, window, buf);
       if (item == NULL) {
         goto _cleanup;
       }
@@ -3308,7 +3307,7 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
     }
   }
 
-//  colIdCheck(pQuery, pQInfo);
+//  colIdCheck(pQueryAttr, pQInfo);
 
   pQInfo->qId = 0;
   if (qId != NULL) {

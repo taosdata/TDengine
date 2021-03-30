@@ -36,17 +36,17 @@ SQueryNode* queryPlanFromString() {
   return NULL;
 }
 
-SArray* createTableScanPlan(SQuery* pQuery) {
+SArray* createTableScanPlan(SQueryAttr* pQueryAttr) {
   SArray* plan = taosArrayInit(4, sizeof(int32_t));
 
   int32_t op = 0;
-  if (onlyQueryTags(pQuery)) {
+  if (onlyQueryTags(pQueryAttr)) {
 //    op = OP_TagScan;
-  } else if (pQuery->queryBlockDist) {
+  } else if (pQueryAttr->queryBlockDist) {
     op = OP_TableBlockInfoScan;
-  } else if (pQuery->tsCompQuery || pQuery->pointInterpQuery) {
+  } else if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery) {
     op = OP_TableSeqScan;
-  } else if (pQuery->needReverseScan) {
+  } else if (pQueryAttr->needReverseScan) {
     op = OP_DataBlocksOptScan;
   } else {
     op = OP_TableScan;
@@ -56,50 +56,50 @@ SArray* createTableScanPlan(SQuery* pQuery) {
   return plan;
 }
 
-SArray* createExecOperatorPlan(SQuery* pQuery) {
+SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
   SArray* plan = taosArrayInit(4, sizeof(int32_t));
   int32_t op = 0;
 
-  if (onlyQueryTags(pQuery)) {  // do nothing for tags query
+  if (onlyQueryTags(pQueryAttr)) {  // do nothing for tags query
     op = OP_TagScan;
     taosArrayPush(plan, &op);
-  } else if (pQuery->interval.interval > 0) {
-    if (pQuery->stableQuery) {
+  } else if (pQueryAttr->interval.interval > 0) {
+    if (pQueryAttr->stableQuery) {
       op = OP_MultiTableTimeInterval;
       taosArrayPush(plan, &op);
     } else {
       op = OP_TimeWindow;
       taosArrayPush(plan, &op);
 
-      if (pQuery->pExpr2 != NULL) {
+      if (pQueryAttr->pExpr2 != NULL) {
         op = OP_Arithmetic;
         taosArrayPush(plan, &op);
       }
 
-      if (pQuery->fillType != TSDB_FILL_NONE && (!pQuery->pointInterpQuery)) {
+      if (pQueryAttr->fillType != TSDB_FILL_NONE && (!pQueryAttr->pointInterpQuery)) {
         op = OP_Fill;
         taosArrayPush(plan, &op);
       }
     }
 
-  } else if (pQuery->groupbyColumn) {
+  } else if (pQueryAttr->groupbyColumn) {
     op = OP_Groupby;
     taosArrayPush(plan, &op);
 
-    if (pQuery->pExpr2 != NULL) {
+    if (pQueryAttr->pExpr2 != NULL) {
       op = OP_Arithmetic;
       taosArrayPush(plan, &op);
     }
-  } else if (pQuery->sw.gap > 0) {
+  } else if (pQueryAttr->sw.gap > 0) {
     op = OP_SessionWindow;
     taosArrayPush(plan, &op);
 
-    if (pQuery->pExpr2 != NULL) {
+    if (pQueryAttr->pExpr2 != NULL) {
       op = OP_Arithmetic;
       taosArrayPush(plan, &op);
     }
-  } else if (pQuery->simpleAgg) {
-    if (pQuery->stableQuery && !pQuery->tsCompQuery) {
+  } else if (pQueryAttr->simpleAgg) {
+    if (pQueryAttr->stableQuery && !pQueryAttr->tsCompQuery) {
       op = OP_MultiTableAggregate;
     } else {
       op = OP_Aggregate;
@@ -107,7 +107,7 @@ SArray* createExecOperatorPlan(SQuery* pQuery) {
 
     taosArrayPush(plan, &op);
 
-    if (pQuery->pExpr2 != NULL && !pQuery->stableQuery) {
+    if (pQueryAttr->pExpr2 != NULL && !pQueryAttr->stableQuery) {
       op = OP_Arithmetic;
       taosArrayPush(plan, &op);
     }
@@ -116,12 +116,12 @@ SArray* createExecOperatorPlan(SQuery* pQuery) {
     taosArrayPush(plan, &op);
   }
 
-  if (pQuery->limit.offset > 0) {
+  if (pQueryAttr->limit.offset > 0) {
     op = OP_Offset;
     taosArrayPush(plan, &op);
   }
 
-  if (pQuery->limit.limit > 0) {
+  if (pQueryAttr->limit.limit > 0) {
     op = OP_Limit;
     taosArrayPush(plan, &op);
   }

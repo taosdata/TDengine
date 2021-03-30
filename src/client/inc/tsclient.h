@@ -216,7 +216,7 @@ typedef struct SQueryInfo {
 
   SArray*          pDSOperator;    // data source operator
   SArray*          pPhyOperator;   // physical query execution plan
-  SQuery*          pQuery;         // query object
+  SQueryAttr*          pQueryAttr;         // query object
 
   struct SQueryInfo *sibling;     // sibling
   SArray          *pUpstream;   // SArray<struct SQueryInfo>
