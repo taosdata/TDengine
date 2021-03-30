@@ -46,14 +46,14 @@ class TDTestCase:
         return buildPath
 
     def insertDataAndAlterTable(self, threadID):
-        if(threadID == 0):
-            buildPath = self.getBuildPath()
-            if (buildPath == ""):
-                tdLog.exit("taosd not found!")
-            else:
-                tdLog.info("taosd found in %s" % buildPath)
-            binPath = buildPath + "/build/bin/"
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+        binPath = buildPath + "/build/bin/"
 
+        if(threadID == 0):
             os.system("%staosdemo -y -t %d -n %d" %
                       (binPath, self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
@@ -70,21 +70,30 @@ class TDTestCase:
 
             # check if all the tables have heen created
             while True:
-                tdSql.query("show tables")
-                rows = tdSql.queryRows
-                print("number of tables: %d" % rows)
-                if(rows == self.numberOfTables):
-                    break
-                time.sleep(1)
+                try:
+                    tdSql.query("show tables")
+                    rows = tdSql.queryRows
+                    print("number of tables: %d" % rows)
+                    if(rows == self.numberOfTables):
+                        break
+                except Exception as e:
+                    tdLog.info("show tables test failed")
+                    time.sleep(1)
+                    continue
             # check if there are any records in the last created table
             while True:
                 print("query started")
-                tdSql.query("select * from test.t9")
-                rows = tdSql.queryRows
-                print("number of records: %d" % rows)
-                if(rows > 0):
-                    break
-                time.sleep(1)
+                try:
+                    tdSql.query("select * from test.t9")
+                    rows = tdSql.queryRows
+                    print("number of records: %d" % rows)
+                    if(rows > 0):
+                        break
+                except Exception as e:
+                    tdLog.info("select test failed")
+                    time.sleep(1)
+                    continue
+
             print("alter table test.meters add column col10 int")
             tdSql.execute("alter table test.meters add column col10 int")
             print("insert into test.t0 values (now, 1, 2, 3, 4, 0.1, 0.01,'test', '测试', TRUE, 1610000000000, 0)")
