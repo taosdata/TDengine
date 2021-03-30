@@ -723,7 +723,9 @@ static void issueTsCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     SExprInfo *pExpr = tscSqlExprGet(pQueryInfo, 0);
     int16_t tagColId = tscGetJoinTagColIdByUid(&pSupporter->tagCond, pTableMetaInfo->pTableMeta->id.uid);
-    pExpr->base.param->i64 = tagColId;
+    pExpr->base.param[0].i64 = tagColId;
+    pExpr->base.param[0].nLen = sizeof(int64_t);
+    pExpr->base.param[0].nType = TSDB_DATA_TYPE_BIGINT;
     pExpr->base.numOfParams = 1;
   }
 
