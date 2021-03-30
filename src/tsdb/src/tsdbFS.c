@@ -33,6 +33,7 @@ static int  tsdbScanDataDir(STsdbRepo *pRepo);
 static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf);
 static int  tsdbRestoreCurrent(STsdbRepo *pRepo);
 static int  tsdbComparTFILE(const void *arg1, const void *arg2);
+static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo);
 
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
@@ -246,6 +247,8 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
       tsdbError("vgId:%d failed to open FS since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
+
+    tsdbScanAndTryFixDFilesHeader(pRepo);
   } else {
     if (tsdbRestoreCurrent(pRepo) < 0) {
       tsdbError("vgId:%d failed to restore current file since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -1200,5 +1203,41 @@ static int tsdbComparTFILE(const void *arg1, const void *arg2) {
     } else {
       return 0;
     }
+  }
+}
+
+static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo) {
+  STsdbFS *  pfs = REPO_FS(pRepo);
+  SFSStatus *pStatus = pfs->cstatus;
+  SDFInfo    info;
+
+  for (size_t i = 0; i < taosArrayGetSize(pStatus->df); i++) {
+    SDFileSet fset;
+    tsdbInitDFileSetEx(&fset, (SDFileSet *)taosArrayGet(pStatus->df, i));
+
+    tsdbDebug("vgId:%d scan DFileSet %d header", REPO_ID(pRepo), fset.fid);
+
+    if (tsdbOpenDFileSet(&fset, O_RDWR) < 0) {
+      tsdbError("vgId:%d failed to open DFileSet %d since %s, continue", REPO_ID(pRepo), fset.fid, tstrerror(terrno));
+      continue;
+    }
+
+    for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+      SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);
+
+      if (tsdbLoadDFileHeader(pDFile, &info) < 0 || memcmp(&(pDFile->info), &info, sizeof(info)) != 0) {
+        if (tsdbUpdateDFileHeader(pDFile) < 0) {
+          tsdbError("vgId:%d failed to update DFile header of %s since %s, continue", REPO_ID(pRepo),
+                    TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno));
+        } else {
+          tsdbInfo("vgId:%d DFile header of %s is updated", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
+          TSDB_FILE_FSYNC(pDFile);
+        }
+      } else {
+        tsdbDebug("vgId:%d DFile header of %s is correct", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
+      }
+    }
+
+    tsdbCloseDFileSet(&fset);
   }
 }
