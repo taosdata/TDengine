@@ -1,8 +1,9 @@
-package com.taosdata.jdbc.rs;
+package com.taosdata.jdbc;
 
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
+import com.taosdata.jdbc.rs.RestfulResultSet;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
@@ -15,10 +16,9 @@ import java.sql.*;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 
-public class RestfulResultSetTest {
+public class TSDBResultSetTest {
 
     private static final String host = "127.0.0.1";
-
     private static Connection conn;
     private static Statement stmt;
     private static ResultSet rs;
@@ -283,63 +283,49 @@ public class RestfulResultSetTest {
         rs.getCharacterStream(1);
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void isBeforeFirst() throws SQLException {
-        Assert.assertFalse(rs.isBeforeFirst());
-        rs.beforeFirst();
-        Assert.assertTrue(rs.isBeforeFirst());
-        rs.next();
+        rs.isBeforeFirst();
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void isAfterLast() throws SQLException {
-        Assert.assertFalse(rs.isAfterLast());
+        rs.isAfterLast();
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void isFirst() throws SQLException {
-        Assert.assertTrue(rs.isFirst());
+        rs.isFirst();
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void isLast() throws SQLException {
-        Assert.assertTrue(rs.isLast());
+        rs.isLast();
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void beforeFirst() throws SQLException {
         rs.beforeFirst();
-        Assert.assertTrue(rs.isBeforeFirst());
-        rs.next();
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void afterLast() throws SQLException {
         rs.afterLast();
-        Assert.assertTrue(rs.isAfterLast());
-        rs.first();
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void first() throws SQLException {
         rs.first();
-        Assert.assertEquals("2021-01-01 00:00:00.0", rs.getTimestamp("f1").toString());
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void last() throws SQLException {
         rs.last();
-        Assert.assertEquals("2021-01-01 00:00:00.0", rs.getTimestamp("f1").toString());
     }
 
-    @Test
+    @Test(expected = SQLFeatureNotSupportedException.class)
     public void getRow() throws SQLException {
         int row = rs.getRow();
-        Assert.assertEquals(1, row);
-        rs.beforeFirst();
-        row = rs.getRow();
-        Assert.assertEquals(0, row);
-        rs.first();
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
@@ -647,20 +633,20 @@ public class RestfulResultSetTest {
 
     @Test
     public void unwrap() throws SQLException {
-        RestfulResultSet unwrap = rs.unwrap(RestfulResultSet.class);
+        TSDBResultSet unwrap = rs.unwrap(TSDBResultSet.class);
         Assert.assertNotNull(unwrap);
     }
 
     @Test
     public void isWrapperFor() throws SQLException {
-        Assert.assertTrue(rs.isWrapperFor(RestfulResultSet.class));
+        Assert.assertTrue(rs.isWrapperFor(TSDBResultSet.class));
     }
 
     @BeforeClass
     public static void beforeClass() {
         try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata");
+            Class.forName("com.taosdata.jdbc.TSDBDriver");
+            conn = DriverManager.getConnection("jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata");
             stmt = conn.createStatement();
             stmt.execute("create database if not exists restful_test");
             stmt.execute("use restful_test");

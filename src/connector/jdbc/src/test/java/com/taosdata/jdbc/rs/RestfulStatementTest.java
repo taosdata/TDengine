@@ -12,7 +12,6 @@ import java.util.UUID;
 
 public class RestfulStatementTest {
     private static final String host = "127.0.0.1";
-    // private static final String host = "master";
     private static Connection conn;
     private static Statement stmt;
 
