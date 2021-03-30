@@ -5129,7 +5129,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     }
 
     if (superTblInfo->childTblOffset >= 0) {
-      if (superTblInfo->childTblLimit <= 0) {
+      if (superTblInfo->childTblLimit < 0) {
         superTblInfo->childTblLimit =
             superTblInfo->childTblCount - superTblInfo->childTblOffset;
       }
@@ -5137,8 +5137,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
       offset = superTblInfo->childTblOffset;
       limit = superTblInfo->childTblLimit;
     } else {
-        limit = superTblInfo->childTblCount;
-        offset = 0;
+      limit = superTblInfo->childTblCount;
+      offset = 0;
     }
 
     ntables = limit;
