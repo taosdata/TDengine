@@ -426,15 +426,12 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
     (*pSql->fp)(pSql->param, pSql, rpcMsg->code);
   }
 
-  
-
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
     taosRemoveRef(tscObjRef, handle);
     tscDebug("%p sqlObj is automatically freed", pSql); 
   }
 
   taosReleaseRef(tscObjRef, handle);
-
   rpcFreeCont(rpcMsg->pCont);
 }
 
@@ -707,35 +704,14 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
   SQuery query = {0};
-  tscCreateQueryFromQueryInfo(pQueryInfo, &query);
+  tscCreateQueryFromQueryInfo(pQueryInfo, &query, pSql);
   SArray* tableScanOperator = createTableScanPlan(&query);
   SArray* queryOperator = createExecOperatorPlan(&query);
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
-/*
-  size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
-  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
-    tscError("%p illegal value of numOfCols in query msg: %" PRIu64 ", table cols:%d", pSql, (uint64_t)numOfSrcCols,
-        tscGetNumOfColumns(pTableMeta));
-
-    return TSDB_CODE_TSC_INVALID_SQL;
-  }
-  
-  if (pQueryInfo->interval.interval < 0) {
-    tscError("%p illegal value of aggregation time interval in query msg: %" PRId64, pSql, (int64_t)pQueryInfo->interval.interval);
-    return TSDB_CODE_TSC_INVALID_SQL;
-  }
-  
-  if (pQueryInfo->groupbyExpr.numOfGroupCols < 0) {
-    tscError("%p illegal value of numOfGroupCols in query msg: %d", pSql, pQueryInfo->groupbyExpr.numOfGroupCols);
-    return TSDB_CODE_TSC_INVALID_SQL;
-  }
-*/
 
   {
-
-
     SQueryTableMsg *pQueryMsg = (SQueryTableMsg *)pCmd->payload;
     tstrncpy(pQueryMsg->version, version, tListLen(pQueryMsg->version));
 
@@ -764,17 +740,29 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->offset         = htobe64(query.limit.offset);
     pQueryMsg->numOfCols      = htons(query.numOfCols);
 
-    pQueryMsg->interval.interval = htobe64(query.interval.interval);
-    pQueryMsg->interval.sliding  = htobe64(query.interval.sliding);
-    pQueryMsg->interval.offset   = htobe64(query.interval.offset);
+    pQueryMsg->interval.interval     = htobe64(query.interval.interval);
+    pQueryMsg->interval.sliding      = htobe64(query.interval.sliding);
+    pQueryMsg->interval.offset       = htobe64(query.interval.offset);
     pQueryMsg->interval.intervalUnit = query.interval.intervalUnit;
     pQueryMsg->interval.slidingUnit  = query.interval.slidingUnit;
     pQueryMsg->interval.offsetUnit   = query.interval.offsetUnit;
 
-    pQueryMsg->numOfTags      = htonl(numOfTags);
-    pQueryMsg->sqlstrLen      = htonl(sqlLen);
-    pQueryMsg->sw.gap         = htobe64(query.sw.gap);
-    pQueryMsg->sw.primaryColId = htonl(PRIMARYKEY_TIMESTAMP_COL_INDEX);
+    pQueryMsg->stableQuery      = query.stableQuery;
+    pQueryMsg->topBotQuery      = query.topBotQuery;
+    pQueryMsg->groupbyColumn    = query.groupbyColumn;
+    pQueryMsg->hasTagResults    = query.hasTagResults;
+    pQueryMsg->timeWindowInterpo = query.timeWindowInterpo;
+    pQueryMsg->queryBlockDist   = query.queryBlockDist;
+    pQueryMsg->stabledev        = query.stabledev;
+    pQueryMsg->tsCompQuery      = query.tsCompQuery;
+    pQueryMsg->simpleAgg        = query.simpleAgg;
+    pQueryMsg->pointInterpQuery = query.pointInterpQuery;
+    pQueryMsg->needReverseScan  = query.needReverseScan;
+
+    pQueryMsg->numOfTags        = htonl(numOfTags);
+    pQueryMsg->sqlstrLen        = htonl(sqlLen);
+    pQueryMsg->sw.gap           = htobe64(query.sw.gap);
+    pQueryMsg->sw.primaryColId  = htonl(PRIMARYKEY_TIMESTAMP_COL_INDEX);
 
     pQueryMsg->secondStageOutput = htonl(query.numOfExpr2);
     pQueryMsg->numOfOutput = htons((int16_t)query.numOfOutput);  // this is the stage one output column number
@@ -823,20 +811,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
           return TSDB_CODE_TSC_INVALID_SQL;
         }
       }
-    }
-
-    {
-      pQueryMsg->stableQuery      = query.stableQuery;
-      pQueryMsg->topBotQuery      = query.topBotQuery;
-      pQueryMsg->groupbyColumn    = query.groupbyColumn;
-      pQueryMsg->hasTagResults    = query.hasTagResults;
-      pQueryMsg->timeWindowInterpo = query.timeWindowInterpo;
-      pQueryMsg->queryBlockDist   = query.queryBlockDist;
-      pQueryMsg->stabledev        = query.stabledev;
-      pQueryMsg->tsCompQuery      = query.tsCompQuery;
-      pQueryMsg->simpleAgg        = query.simpleAgg;
-      pQueryMsg->pointInterpQuery = query.pointInterpQuery;
-      pQueryMsg->needReverseScan  = query.needReverseScan;
     }
 
     SSqlExpr *pSqlExpr = (SSqlExpr *)pMsg;

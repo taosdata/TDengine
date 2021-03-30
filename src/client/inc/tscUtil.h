@@ -127,10 +127,10 @@ bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
 bool tscIsTopBotQuery(SQueryInfo* pQueryInfo);
 bool hasTagValOutput(SQueryInfo* pQueryInfo);
-bool timeWindowInterpoRequired(SQueryInfo *pQueryNodeInfo);
+bool timeWindowInterpoRequired(SQueryInfo *pQueryInfo);
 bool isStabledev(SQueryInfo* pQueryInfo);
-bool isTsCompQuery(SQueryInfo* pQueryNodeInfo);
-bool isSimpleAggregate(SQueryInfo* pQueryNodeInfo);
+bool isTsCompQuery(SQueryInfo* pQueryInfo);
+bool isSimpleAggregate(SQueryInfo* pQueryInfo);
 bool isBlockDistQuery(SQueryInfo* pQueryInfo);
 
 bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
@@ -300,11 +300,11 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta);
 uint32_t tscGetTableMetaMaxSize();
 int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name);
 STableMeta* tscTableMetaDup(STableMeta* pTableMeta);
-int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryNodeInfo, SQuery* pQuery);
+int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQuery* pQuery, void* addr);
 
 void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx, SSchemaEx* pSchema);
-void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
-                                   uint64_t* qId, char* sql);
+void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
+                                   uint64_t* qId, char* sql, void* addr);
 
 void* malloc_throw(size_t size);
 void* calloc_throw(size_t nmemb, size_t size);

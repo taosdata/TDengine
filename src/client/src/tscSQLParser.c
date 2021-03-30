@@ -6642,10 +6642,6 @@ static STableMeta* extractTempTableMetaFromNestQuery(SQueryInfo* pUpstream) {
   return meta;
 }
 
-//static SColumnInfo* getColumnInfoFromSchema(SQueryInfo* pUpstream) {
-//
-//}
-
 int32_t validateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t index) {
   assert(pQuerySqlNode != NULL && (pQuerySqlNode->from == NULL || taosArrayGetSize(pQuerySqlNode->from->tableList) > 0));
 

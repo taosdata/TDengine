@@ -487,11 +487,13 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     if (pSql == NULL) {
       return NULL;
     }
+
     if (pSub->pSql->self != 0) {
       taosReleaseRef(tscObjRef, pSub->pSql->self);
     } else {
       tscFreeSqlObj(pSub->pSql);
     }
+
     pSub->pSql = pSql;
     pSql->pSubscription = pSub;
   }

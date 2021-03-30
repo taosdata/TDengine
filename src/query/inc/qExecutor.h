@@ -209,7 +209,7 @@ typedef struct SQuery {
   int32_t          srcRowSize;       // todo extract struct
   int32_t          resultRowSize;
   int32_t          intermediateResultRowSize; // intermediate result row size, in case of top-k query.
-  int32_t          maxSrcColumnSize;
+  int32_t          maxTableColumnWidth;
   int32_t          tagLen;           // tag value length of current query
   SSqlGroupbyExpr* pGroupbyExpr;
   SExprInfo*       pExpr1;
@@ -222,7 +222,6 @@ typedef struct SQuery {
   SOrderedPrjQueryInfo prjInfo;        // limit value for each vgroup, only available in global order projection query.
   SSingleColumnFilterInfo* pFilterInfo;
 
-  STableQueryInfo* current;
   void*            tsdb;
   SMemRef          memRef;
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
@@ -263,6 +262,7 @@ typedef struct SQueryRuntimeEnv {
   SGroupResInfo         groupResInfo;
   int64_t               currentOffset;   // dynamic offset value
 
+  STableQueryInfo      *current;
   SRspResultInfo        resultInfo;
   SHashObj             *pTableRetrieveTsMap;
 } SQueryRuntimeEnv;

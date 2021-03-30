@@ -3215,10 +3215,10 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   return hasData;
 }
 
-void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
-                                   uint64_t* qId, char* sql) {
-  assert(pQueryNodeInfo != NULL);
-  int16_t numOfOutput = pQueryNodeInfo->fieldsInfo.numOfOutput;
+void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
+                                   uint64_t* qId, char* sql, void* addr) {
+  assert(pQueryInfo != NULL);
+  int16_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
 
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
   if (pQInfo == NULL) {
@@ -3227,10 +3227,10 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryNodeInfo, SExprInfo* pExprs
 
   // to make sure third party won't overwrite this structure
   pQInfo->signature = pQInfo;
-  SQuery *pQuery = &pQInfo->query;
 
-  tscCreateQueryFromQueryInfo(pQueryNodeInfo, pQuery);
+  SQuery *pQuery = &pQInfo->query;
   pQInfo->runtimeEnv.pQuery = pQuery;
+  tscCreateQueryFromQueryInfo(pQueryInfo, pQuery, addr);
 
   // calculate the result row size
   for (int16_t col = 0; col < numOfOutput; ++col) {
