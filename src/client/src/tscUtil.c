@@ -435,6 +435,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
 
   pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList, removeMeta);
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
+  pCmd->pUdfInfo = tscDestroyUdfArrayList(pCmd->pUdfInfo);
   tscFreeQueryInfo(pCmd, removeMeta);
 }
 
@@ -609,6 +610,26 @@ void*  tscDestroyBlockArrayList(SArray* pDataBlockList) {
   taosArrayDestroy(pDataBlockList);
   return NULL;
 }
+
+void*  tscDestroyUdfArrayList(SArray* pUdfList) {
+  if (pUdfList == NULL) {
+    return NULL;
+  }
+
+  size_t size = taosArrayGetSize(pUdfList);
+  for (int32_t i = 0; i < size; i++) {
+    SUdfInfo* udf = taosArrayGet(pUdfList, i);
+    if (udf) {
+      tfree(udf->content);
+      tfree(udf->name);
+    }
+  }
+
+  taosArrayDestroy(pUdfList);
+  return NULL;
+}
+
+
 
 void* tscDestroyBlockHashTable(SHashObj* pBlockHashTable, bool removeMeta) {
   if (pBlockHashTable == NULL) {
