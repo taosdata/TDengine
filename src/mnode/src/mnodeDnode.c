@@ -722,6 +722,10 @@ int32_t mnodeDropDnode(SDnodeObj *pDnode, void *pMsg) {
 static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
   SDnodeObj *pDnode = mnodeGetDnodeByEp(ep);
   if (pDnode == NULL) {
+    if (strspn(ep, "0123456789 ;") != strlen(ep)) {
+      return TSDB_CODE_MND_DNODE_NOT_EXIST;
+    }
+
     int32_t dnodeId = (int32_t)strtol(ep, NULL, 10);
     pDnode = mnodeGetDnode(dnodeId);
     if (pDnode == NULL) {
