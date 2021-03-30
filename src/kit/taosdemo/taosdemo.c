@@ -506,7 +506,7 @@ static int taosRandom()
 
 #endif
 
-static int createDatabases();
+static int createDatabasesAndStb();
 static void createChildTables();
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
 
@@ -1967,7 +1967,8 @@ static char* generateTagVaulesForStb(SSuperTable* stbInfo, int tableSeq) {
         return NULL;
       }
 
-      char* buf = (char*)calloc(stbInfo->tags[i].dataLen+1, 1);
+      int tagLen = stbInfo->tags[i].dataLen + 1;
+      char* buf = (char*)calloc(tagLen, 1);
       if (NULL == buf) {
         printf("calloc failed! size:%d\n", stbInfo->tags[i].dataLen);
         tmfree(dataBuf);
@@ -1975,14 +1976,15 @@ static char* generateTagVaulesForStb(SSuperTable* stbInfo, int tableSeq) {
       }
 
       if (tableSeq % 2) {
-          strcpy(buf, "beijing");
+          tstrncpy(buf, "beijing", tagLen);
       } else {
-          strcpy(buf, "shanghai");
+          tstrncpy(buf, "shanghai", tagLen);
       }
       //rand_string(buf, stbInfo->tags[i].dataLen);
       dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
               "\'%s\', ", buf);
       tmfree(buf);
+
     } else if (0 == strncasecmp(stbInfo->tags[i].dataType,
                 "int", strlen("int"))) {
       dataLen += snprintf(dataBuf + dataLen, TSDB_MAX_SQL_LEN - dataLen,
@@ -2399,7 +2401,7 @@ static int createSuperTable(TAOS * taos, char* dbName, SSuperTable*  superTbls, 
   return 0;
 }
 
-static int createDatabases() {
+static int createDatabasesAndStb() {
   TAOS * taos = NULL;
   int    ret = 0;
   taos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, NULL, g_Dbs.port);
@@ -2556,7 +2558,7 @@ static void* createTable(void *sarg)
           winfo->start_table_from, winfo->end_table_to);
 
   for (int i = winfo->start_table_from; i <= winfo->end_table_to; i++) {
-    if (0 == g_Dbs.use_metric) {
+    if (false == g_Dbs.use_metric) {
       snprintf(buffer, buff_len,
               "create table if not exists %s.%s%d %s;",
               winfo->db_name,
@@ -5451,7 +5453,7 @@ static int insertTestProcess() {
   init_rand_data();
 
   // create database and super tables
-  if(createDatabases() != 0) {
+  if(createDatabasesAndStb() != 0) {
     fclose(g_fpOfInsertResult);
     return -1;
   }
