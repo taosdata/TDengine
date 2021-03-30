@@ -29,10 +29,33 @@ class TDTestCase:
         self.numberOfTables = 10
         self.numberOfRecords = 1000000
 
+    def getBuildPath(self):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        for root, dirs, files in os.walk(projPath):
+            if ("taosd" in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    buildPath = root[:len(root) - len("/build/bin")]
+                    break
+        return buildPath
+
     def insertDataAndAlterTable(self, threadID):
         if(threadID == 0):
-            os.system("taosdemo -y -t %d -n %d" %
-                      (self.numberOfTables, self.numberOfRecords))
+            buildPath = self.getBuildPath()
+            if (buildPath == ""):
+                tdLog.exit("taosd not found!")
+            else:
+                tdLog.info("taosd found in %s" % buildPath)
+            binPath = buildPath + "/build/bin/"
+
+            os.system("%staosdemo -y -t %d -n %d" %
+                      (binPath, self.numberOfTables, self.numberOfRecords))
         if(threadID == 1):
             time.sleep(2)
             print("use test")
