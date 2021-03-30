@@ -6486,12 +6486,12 @@ void freeQInfo(SQInfo *pQInfo) {
     }
   }
 
+  tsdbDestroyTableGroup(&pQueryAttr->tableGroupInfo);
+
   doDestroyTableQueryInfo(&pRuntimeEnv->tableqinfoGroupInfo);
 
   tfree(pQInfo->pBuf);
   tfree(pQInfo->sql);
-
-  tsdbDestroyTableGroup(&pQueryAttr->tableGroupInfo);
 
   taosArrayDestroy(pRuntimeEnv->groupResInfo.pRows);
   pQInfo->signature = 0;
@@ -6639,3 +6639,38 @@ void releaseQueryBuf(size_t numOfTables) {
   // restore value is not enough buffer available
   atomic_add_fetch_64(&tsQueryBufferSizeBytes, t);
 }
+
+void freeQueryAttr(SQueryAttr* pQueryAttr) {
+  if (pQueryAttr != NULL) {
+    if (pQueryAttr->fillVal != NULL) {
+      tfree(pQueryAttr->fillVal);
+    }
+
+    for (int32_t i = 0; i < pQueryAttr->numOfFilterCols; ++i) {
+      SSingleColumnFilterInfo* pColFilter = &pQueryAttr->pFilterInfo[i];
+      if (pColFilter->numOfFilters > 0) {
+        tfree(pColFilter->pFilters);
+      }
+    }
+
+    pQueryAttr->pExpr1 = destroyQueryFuncExpr(pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+    pQueryAttr->pExpr2 = destroyQueryFuncExpr(pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
+
+    tfree(pQueryAttr->tagColList);
+    tfree(pQueryAttr->pFilterInfo);
+
+    if (pQueryAttr->colList != NULL) {
+      for (int32_t i = 0; i < pQueryAttr->numOfCols; i++) {
+        SColumnInfo* column = pQueryAttr->colList + i;
+        freeColumnFilterInfo(column->filterInfo, column->numOfFilters);
+      }
+      tfree(pQueryAttr->colList);
+    }
+
+    if (pQueryAttr->pGroupbyExpr != NULL) {
+      taosArrayDestroy(pQueryAttr->pGroupbyExpr->columnInfo);
+      tfree(pQueryAttr->pGroupbyExpr);
+    }
+  }
+}
+

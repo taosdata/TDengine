@@ -2027,6 +2027,9 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
 
   tfree(pQueryInfo->fillVal);
   tfree(pQueryInfo->buf);
+
+  taosArrayDestroy(pQueryInfo->pUpstream);
+  taosArrayDestroy(pQueryInfo->pDownstream);
 }
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd) {
@@ -3183,7 +3186,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
 
   STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[0];
 
-  pQueryAttr->pGroupbyExpr   = calloc(1, sizeof(SSqlGroupbyExpr));
+  pQueryAttr->pGroupbyExpr    = calloc(1, sizeof(SSqlGroupbyExpr));
   *(pQueryAttr->pGroupbyExpr) = pQueryInfo->groupbyExpr;
 
   pQueryAttr->pExpr1 = calloc(pQueryAttr->numOfOutput, sizeof(SExprInfo));

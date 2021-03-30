@@ -467,6 +467,7 @@ size_t getResultSize(SQInfo *pQInfo, int64_t *numOfRows);
 void setQueryKilled(SQInfo *pQInfo);
 void queryCostStatis(SQInfo *pQInfo);
 void freeQInfo(SQInfo *pQInfo);
+void freeQueryAttr(SQueryAttr *pQuery);
 
 int32_t getMaximumIdleDurationSec();
 
