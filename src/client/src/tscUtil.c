@@ -1273,19 +1273,6 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
   if (pFieldInfo == NULL) {
     return;
   }
-
-  for(int32_t i = 0; i < pFieldInfo->numOfOutput; ++i) {
-    SInternalField* pInfo = taosArrayGet(pFieldInfo->internalField, i);
-    
-    if (pInfo->pExpr != NULL && pInfo->pExpr->pExpr != NULL) {
-      tExprTreeDestroy(pInfo->pExpr->pExpr, NULL);
-
-      SSqlExpr* pSqlExpr = &pInfo->pExpr->base;
-      for(int32_t j = 0; j < pSqlExpr->numOfParams; ++j) {
-        tVariantDestroy(&pSqlExpr->param[j]);
-      }
-    }
-  }
   
   taosArrayDestroy(pFieldInfo->internalField);
   tfree(pFieldInfo->final);
@@ -1435,6 +1422,10 @@ void* sqlExprDestroy(SExprInfo* pExpr) {
   SSqlExpr* p = &pExpr->base;
   for(int32_t i = 0; i < tListLen(p->param); ++i) {
     tVariantDestroy(&p->param[i]);
+  }
+
+  if (pExpr->pExpr != NULL) {
+    tExprTreeDestroy(pExpr->pExpr, NULL);
   }
   
   tfree(pExpr);
