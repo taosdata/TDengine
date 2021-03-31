@@ -4204,19 +4204,12 @@ static int getRowDataFromSample(char*  dataBuf, int maxLen, int64_t timestamp,
   return dataLen;
 }
 
-static int generateRowData(char*  dataBuf, int remainderBufLen, int64_t timestamp, SSuperTable* stbInfo) {
+static int generateRowData(char* recBuf, int64_t timestamp, SSuperTable* stbInfo) {
   int   dataLen = 0;
-  int   maxLen = remainderBufLen;
+  char  *pstr = recBuf;
+  int maxLen = MAX_DATA_SIZE;
 
-  char *tmpBuf = malloc(16*1024);
-  if (tmpBuf == NULL) {
-      debugPrint("%s() LN%d, tmpBuf(16K) cannot be allocated!\n",
-              __func__, __LINE__);
-      return -1;
-  }
-
-  dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "(%" PRId64 ", ", timestamp);
-  maxLen -= dataLen;
+  dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "(%" PRId64 ", ", timestamp);
 
   for (int i = 0; i < stbInfo->columnCount; i++) {
     if ((0 == strncasecmp(stbInfo->columns[i].dataType, "binary", 6))
@@ -4224,68 +4217,60 @@ static int generateRowData(char*  dataBuf, int remainderBufLen, int64_t timestam
       if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
         errorPrint( "binary or nchar length overflow, max size:%u\n",
                 (uint32_t)TSDB_MAX_BINARY_LEN);
-        goto free_tmpbuf;
+        return -1;
       }
 
       char* buf = (char*)calloc(stbInfo->columns[i].dataLen+1, 1);
       if (NULL == buf) {
         errorPrint( "calloc failed! size:%d\n", stbInfo->columns[i].dataLen);
-        goto free_tmpbuf;
+        return -1;
       }
       rand_string(buf, stbInfo->columns[i].dataLen);
-      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "\'%s\', ", buf);
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\', ", buf);
       tmfree(buf);
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                 "int", 3)) {
-      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen,
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
               "%d, ", rand_int());
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                 "bigint", 6)) {
-      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen,
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
               "%"PRId64", ", rand_bigint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                 "float", 5)) {
-      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen,
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
               "%f, ", rand_float());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                 "double", 6)) {
-      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen,
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
               "%f, ", rand_double());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                 "smallint", 8)) {
-      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "%d, ", rand_smallint());
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "%d, ", rand_smallint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType, "tinyint", 7)) {
-      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "%d, ", rand_tinyint());
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "%d, ", rand_tinyint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType, "bool", 4)) {
-      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "%d, ", rand_bool());
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "%d, ", rand_bool());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType, "timestamp", 9)) {
-      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "%"PRId64", ", rand_bigint());
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "%"PRId64", ", rand_bigint());
     }  else {
       errorPrint( "No support data type: %s\n", stbInfo->columns[i].dataType);
-      goto free_tmpbuf;
+      return -1;
     }
   }
 
   dataLen -= 2;
-  dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, ")");
+  dataLen += snprintf(pstr + dataLen, maxLen - dataLen, ")");
 
-  verbosePrint("%s() LN%d, tmpBuf:\n\t%s\n", __func__, __LINE__, tmpBuf);
+  verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
 
-  if (dataLen + 1> remainderBufLen) {
-    dataLen = 0;
-  } else {
-    tstrncpy(dataBuf, tmpBuf, dataLen+1);
-  }
-
-free_tmpbuf:
-  free(tmpBuf);
-  return dataLen;
+  return strlen(recBuf);
 }
 
-static int32_t generateData(char *res, char **data_type,
+static int32_t generateData(char *recBuf, char **data_type,
         int num_of_cols, int64_t timestamp, int lenOfBinary) {
-  memset(res, 0, MAX_DATA_SIZE);
-  char *pstr = res;
+  memset(recBuf, 0, MAX_DATA_SIZE);
+  char *pstr = recBuf;
   pstr += sprintf(pstr, "(%" PRId64, timestamp);
   int c = 0;
 
@@ -4329,7 +4314,7 @@ static int32_t generateData(char *res, char **data_type,
       free(s);
     }
 
-    if (pstr - res > MAX_DATA_SIZE) {
+    if (strlen(recBuf) > MAX_DATA_SIZE) {
       perror("column length too long, abort");
       exit(-1);
     }
@@ -4337,7 +4322,7 @@ static int32_t generateData(char *res, char **data_type,
 
   pstr += sprintf(pstr, ")");
 
-  return (int32_t)(pstr - res);
+  return (int32_t)strlen(recBuf);
 }
 
 static int prepareSampleDataForSTable(SSuperTable *superTblInfo) {
@@ -4434,18 +4419,19 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
 
   int k = 0;
   for (k = 0; k < batch;) {
-    if (superTblInfo) {
-        int retLen = 0;
+    char data[MAX_DATA_SIZE];
+    int retLen = 0;
 
-        if (0 == strncasecmp(superTblInfo->dataSource,
+    if (superTblInfo) {
+      if (0 == strncasecmp(superTblInfo->dataSource,
                     "sample", strlen("sample"))) {
           retLen = getRowDataFromSample(
-                    buffer + len,
+                    data,
                     remainderBufLen,
                     startTime + superTblInfo->timeStampStep * k,
                     superTblInfo,
                     pSamplePos);
-       } else if (0 == strncasecmp(superTblInfo->dataSource,
+      } else if (0 == strncasecmp(superTblInfo->dataSource,
                    "rand", strlen("rand"))) {
           int rand_num = rand_tinyint() % 100;
           if (0 != superTblInfo->disorderRatio
@@ -4454,53 +4440,51 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
                 + superTblInfo->timeStampStep * k
                 - taosRandom() % superTblInfo->disorderRange;
             retLen = generateRowData(
-                      buffer + len,
-                      remainderBufLen,
+                      data,
                       d,
                       superTblInfo);
           } else {
             retLen = generateRowData(
-                      buffer + len,
-                      remainderBufLen,
+                      data,
                       startTime + superTblInfo->timeStampStep * k,
                       superTblInfo);
-          }
-       }
+        }
+      }
 
-       if (retLen < 0) {
-         return -1;
-       } else if (retLen == 0) {
-         break;
-       }
+      if (retLen > remainderBufLen) {
+        break;
+      }
 
-       k++;
-       len += retLen;
-       remainderBufLen -= retLen;
+      buffer += sprintf(buffer, " %s", data);
+      k++;
+      len += retLen;
+      remainderBufLen -= retLen;
     } else {
       int rand_num = taosRandom() % 100;
-          char data[MAX_DATA_SIZE];
-          char **data_type = g_args.datatype;
-          int lenOfBinary = g_args.len_of_binary;
+      char **data_type = g_args.datatype;
+      int lenOfBinary = g_args.len_of_binary;
 
       if ((g_args.disorderRatio != 0)
                 && (rand_num < g_args.disorderRange)) {
 
         int64_t d = startTime + DEFAULT_TIMESTAMP_STEP * k 
             - taosRandom() % 1000000 + rand_num;
-        len = generateData(data, data_type,
+        retLen = generateData(data, data_type,
                   ncols_per_record, d, lenOfBinary);
       } else {
-            len = generateData(data, data_type,
+        retLen = generateData(data, data_type,
                   ncols_per_record,
                   startTime + DEFAULT_TIMESTAMP_STEP * k,
                   lenOfBinary);
       }
 
+      if (len > remainderBufLen)
+        break;
+
       buffer += sprintf(buffer, " %s", data);
-      if (strlen(buffer) >= (g_args.max_sql_len - 256)) { // too long
-          k++;
-          break;
-      }
+      k++;
+      len += retLen;
+      remainderBufLen -= retLen;
     }
 
     verbosePrint("%s() LN%d len=%d k=%d \nbuffer=%s\n",
@@ -4991,7 +4975,7 @@ static void* syncWrite(void *sarg) {
 }
 
 static void callBack(void *param, TAOS_RES *res, int code) {
-  threadInfo* winfo = (threadInfo*)param; 
+  threadInfo* winfo = (threadInfo*)param;
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
   int insert_interval =
@@ -5004,7 +4988,7 @@ static void callBack(void *param, TAOS_RES *res, int code) {
   }
 
   char *buffer = calloc(1, winfo->superTblInfo->maxSqlLen);
-  char *data   = calloc(1, MAX_DATA_SIZE);
+  char data[MAX_DATA_SIZE];
   char *pstr = buffer;
   pstr += sprintf(pstr, "insert into %s.%s%d values", winfo->db_name, winfo->tb_prefix,
           winfo->start_table_from);
@@ -5016,7 +5000,6 @@ static void callBack(void *param, TAOS_RES *res, int code) {
   if (winfo->start_table_from > winfo->end_table_to) {
     tsem_post(&winfo->lock_sem);
     free(buffer);
-    free(data);
     taos_free_result(res);
     return;
   }
@@ -5026,11 +5009,9 @@ static void callBack(void *param, TAOS_RES *res, int code) {
     if (0 != winfo->superTblInfo->disorderRatio
             && rand_num < winfo->superTblInfo->disorderRatio) {
       int64_t d = winfo->lastTs - taosRandom() % 1000000 + rand_num;
-      //generateData(data, datatype, ncols_per_record, d, len_of_binary);
-      generateRowData(data, MAX_DATA_SIZE, d, winfo->superTblInfo);
+      generateRowData(data, d, winfo->superTblInfo);
     } else {
-      //generateData(data, datatype, ncols_per_record, start_time += 1000, len_of_binary);
-      generateRowData(data, MAX_DATA_SIZE, winfo->lastTs += 1000, winfo->superTblInfo);
+      generateRowData(data, winfo->lastTs += 1000, winfo->superTblInfo);
     }
     pstr += sprintf(pstr, "%s", data);
     winfo->counter++;
@@ -5045,7 +5026,6 @@ static void callBack(void *param, TAOS_RES *res, int code) {
   }
   taos_query_a(winfo->taos, buffer, callBack, winfo);
   free(buffer);
-  free(data);
 
   taos_free_result(res);
 }
