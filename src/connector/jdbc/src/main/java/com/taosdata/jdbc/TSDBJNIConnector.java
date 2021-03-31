@@ -41,7 +41,10 @@ public class TSDBJNIConnector {
             BufferedInputStream reader = null;
             FileOutputStream writer = null;
             try {
-                reader = new BufferedInputStream(TSDBJNIConnector.class.getResourceAsStream("/" + libName));
+                InputStream in = TSDBJNIConnector.class.getResourceAsStream("/" + libName);
+                if (in == null)
+                    in = TSDBJNIConnector.class.getResourceAsStream(libName);
+                reader = new BufferedInputStream(in);
                 writer = new FileOutputStream(extractedLibFile);
                 byte[] buffer = new byte[1024];
                 while (reader.read(buffer) > 0) {
