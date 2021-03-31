@@ -368,7 +368,7 @@ if $data00 != @21-01-01 01:01:03.000@ then
 endi
 
 sql select * from ttm2 where k<>false
-if $row != 2 then
+if $row != 1 then
   return -1
 endi
 
