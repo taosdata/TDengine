@@ -4193,64 +4193,85 @@ static int getRowDataFromSample(char*  dataBuf, int maxLen, int64_t timestamp,
   dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, ")");
 
   (*sampleUsePos)++;
- 
+
   return dataLen;
 }
 
-static int generateRowData(char*  dataBuf, int maxLen, int64_t timestamp, SSuperTable* stbInfo) {
-  int    dataLen = 0;
-  dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, "(%" PRId64 ", ", timestamp);
+static int generateRowData(char*  dataBuf, int remainderBufLen, int64_t timestamp, SSuperTable* stbInfo) {
+  int   dataLen = 0;
+  int   maxLen = remainderBufLen;
+
+  char *tmpBuf = malloc(16*1024);
+  if (tmpBuf == NULL) {
+      debugPrint("%s() LN%d, tmpBuf(16K) cannot be allocated!\n",
+              __func__, __LINE__);
+      return -1;
+  }
+
+  dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "(%" PRId64 ", ", timestamp);
+  maxLen -= dataLen;
+
   for (int i = 0; i < stbInfo->columnCount; i++) {
     if ((0 == strncasecmp(stbInfo->columns[i].dataType, "binary", 6))
             || (0 == strncasecmp(stbInfo->columns[i].dataType, "nchar", 5))) {
       if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
         errorPrint( "binary or nchar length overflow, max size:%u\n",
                 (uint32_t)TSDB_MAX_BINARY_LEN);
-        return (-1);
+        goto free_tmpbuf;
       }
 
       char* buf = (char*)calloc(stbInfo->columns[i].dataLen+1, 1);
       if (NULL == buf) {
         errorPrint( "calloc failed! size:%d\n", stbInfo->columns[i].dataLen);
-        return (-1);
+        goto free_tmpbuf;
       }
       rand_string(buf, stbInfo->columns[i].dataLen);
-      dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, "\'%s\', ", buf);
+      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "\'%s\', ", buf);
       tmfree(buf);
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                 "int", 3)) {
-      dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
+      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen,
               "%d, ", rand_int());
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                 "bigint", 6)) {
-      dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
+      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen,
               "%"PRId64", ", rand_bigint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                 "float", 5)) {
-      dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
+      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen,
               "%f, ", rand_float());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                 "double", 6)) {
-      dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen,
+      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen,
               "%f, ", rand_double());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                 "smallint", 8)) {
-      dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, "%d, ", rand_smallint());
+      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "%d, ", rand_smallint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType, "tinyint", 7)) {
-      dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, "%d, ", rand_tinyint());
+      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "%d, ", rand_tinyint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType, "bool", 4)) {
-      dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, "%d, ", rand_bool());
+      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "%d, ", rand_bool());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType, "timestamp", 9)) {
-      dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, "%"PRId64", ", rand_bigint());
+      dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, "%"PRId64", ", rand_bigint());
     }  else {
       errorPrint( "No support data type: %s\n", stbInfo->columns[i].dataType);
-      return (-1);
+      goto free_tmpbuf;
     }
   }
 
   dataLen -= 2;
-  dataLen += snprintf(dataBuf + dataLen, maxLen - dataLen, ")");
+  dataLen += snprintf(tmpBuf + dataLen, maxLen - dataLen, ")");
 
+  verbosePrint("%s() LN%d, tmpBuf:\n\t%s\n", __func__, __LINE__, tmpBuf);
+
+  if (dataLen + 1> remainderBufLen) {
+    dataLen = 0;
+  } else {
+    tstrncpy(dataBuf, tmpBuf, dataLen+1);
+  }
+
+free_tmpbuf:
+  free(tmpBuf);
   return dataLen;
 }
 
@@ -4413,7 +4434,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
                     "sample", strlen("sample"))) {
           retLen = getRowDataFromSample(
                     buffer + len,
-                    superTblInfo->maxSqlLen - len,
+                    remainderBufLen,
                     startTime + superTblInfo->timeStampStep * k,
                     superTblInfo,
                     pSamplePos);
@@ -4427,13 +4448,13 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
                 - taosRandom() % superTblInfo->disorderRange;
             retLen = generateRowData(
                       buffer + len,
-                      superTblInfo->maxSqlLen - len,
+                      remainderBufLen,
                       d,
                       superTblInfo);
           } else {
             retLen = generateRowData(
                       buffer + len,
-                      superTblInfo->maxSqlLen - len,
+                      remainderBufLen,
                       startTime + superTblInfo->timeStampStep * k,
                       superTblInfo);
           }
@@ -4441,14 +4462,13 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
 
        if (retLen < 0) {
          return -1;
-       }
-
-       len += retLen;
-
-       if (len >= (superTblInfo->maxSqlLen - 256)) {    // reserve for overwrite
+       } else if (retLen == 0) {
          k++;
          break;
        }
+
+       len += retLen;
+       remainderBufLen -= retLen;
     } else {
       int rand_num = taosRandom() % 100;
           char data[MAX_DATA_SIZE];
