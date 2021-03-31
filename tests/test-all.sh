@@ -463,10 +463,10 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
   echo "Running tests"
   ./apitest > /dev/null 2>&1
   if [ $? != "0" ]; then
-    echo "prepare failed"
+    echo "apitest failed"
     totalExampleFailed=`expr $totalExampleFailed + 1`    
   else
-    echo "prepare pass"
+    echo "apitest pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi 
 
@@ -481,19 +481,19 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
 
   ./subscribe -test > /dev/null 2>&1
   if [ $? != "0" ]; then
-    echo "prepare failed"
+    echo "subscribe failed"
     totalExampleFailed=`expr $totalExampleFailed + 1`    
   else
-    echo "prepare pass"
+    echo "subscribe pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi
 
   yes |./asyncdemo 127.0.0.1 test 1000 10 > /dev/null 2>&1
   if [ $? != "0" ]; then
-    echo "prepare failed"
+    echo "asyncdemo failed"
     totalExampleFailed=`expr $totalExampleFailed + 1`    
   else
-    echo "prepare pass"
+    echo "asyncdemo pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi
   
