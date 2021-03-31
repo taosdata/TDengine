@@ -1870,14 +1870,15 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   taosHashCleanup(pRuntimeEnv->pResultRowHashTable);
   pRuntimeEnv->pResultRowHashTable = NULL;
 
-  pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
-  taosArrayDestroyEx(pRuntimeEnv->prevResult, freeInterResult);
-  pRuntimeEnv->prevResult = NULL;
-
   taosHashCleanup(pRuntimeEnv->pTableRetrieveTsMap);
   pRuntimeEnv->pTableRetrieveTsMap = NULL;
 
   destroyOperatorInfo(pRuntimeEnv->proot);
+
+  pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
+  taosArrayDestroyEx(pRuntimeEnv->prevResult, freeInterResult);
+  pRuntimeEnv->prevResult = NULL;
+
 }
 
 static bool needBuildResAfterQueryComplete(SQInfo* pQInfo) {

@@ -86,7 +86,8 @@ typedef struct SResultRow {
   bool          closed;      // this result status: closed or opened
   uint32_t      numOfRows;   // number of rows of current time window
   SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
-  union {STimeWindow win; char* key;};  // start key of current result row
+  STimeWindow win; 
+  char* key;                 // start key of current result row
 } SResultRow;
 
 typedef struct SGroupResInfo {
