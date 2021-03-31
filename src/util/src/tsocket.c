@@ -22,7 +22,7 @@
   #define SIGPIPE EPIPE
 #endif
 
-#define TCP_CONN_TIMEOUT 3  // conn timeout
+#define TCP_CONN_TIMEOUT 3000  // conn timeout
 
 int32_t taosGetFqdn(char *fqdn) {
   char hostname[1024];
