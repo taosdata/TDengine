@@ -1945,7 +1945,9 @@ void tscVgroupTableCopy(SVgroupTableInfo* info, SVgroupTableInfo* pInfo) {
     info->vgInfo.epAddr[j].fqdn = strdup(pInfo->vgInfo.epAddr[j].fqdn);
   }
 
-  info->itemList = taosArrayDup(pInfo->itemList);
+  if (pInfo->itemList) {
+    info->itemList = taosArrayDup(pInfo->itemList);
+  }
 }
 
 SArray* tscVgroupTableInfoDup(SArray* pVgroupTables) {
@@ -2187,8 +2189,10 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pnCmd->tagData.data = NULL;
   pnCmd->tagData.dataLen = 0;
 
-  pnCmd->pUdfInfo = taosArrayDup(pCmd->pUdfInfo);
-
+  if (pCmd->pUdfInfo) {
+    pnCmd->pUdfInfo = taosArrayDup(pCmd->pUdfInfo);
+  }
+  
   if (tscAddSubqueryInfo(pnCmd) != TSDB_CODE_SUCCESS) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
