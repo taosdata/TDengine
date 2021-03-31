@@ -150,6 +150,7 @@ python3 test.py -f tools/taosdemoTestTblAlt.py
 python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestWithJson-1.py
 
 # update
 python3 ./test.py -f update/allow_update.py
