@@ -194,8 +194,8 @@ static int32_t tsdbSyncRecvMeta(SSyncH *pSynch) {
     return 0;
   }
 
-  if (pLMFile == NULL || memcmp(&(pSynch->pmf->info), &(pLMFile->info), sizeof(SMFInfo)) != 0 ||
-      TSDB_FILE_IS_BAD(pLMFile)) {
+  if (pLMFile == NULL || pSynch->pmf->info.size != pLMFile->info.size ||
+      pSynch->pmf->info.magic != pLMFile->info.magic || TSDB_FILE_IS_BAD(pLMFile)) {
     // Local has no meta file or has a different meta file, need to copy from remote
     pSynch->mfChanged = true;
 
@@ -536,7 +536,7 @@ static bool tsdbIsTowFSetSame(SDFileSet *pSet1, SDFileSet *pSet2) {
     SDFile *pDFile1 = TSDB_DFILE_IN_SET(pSet1, ftype);
     SDFile *pDFile2 = TSDB_DFILE_IN_SET(pSet2, ftype);
 
-    if (memcmp((void *)(TSDB_FILE_INFO(pDFile1)), (void *)(TSDB_FILE_INFO(pDFile2)), sizeof(SDFInfo)) != 0) {
+    if (pDFile1->info.size != pDFile2->info.size || pDFile1->info.magic != pDFile2->info.magic) {
       return false;
     }
   }
