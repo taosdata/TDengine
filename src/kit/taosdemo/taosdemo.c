@@ -5875,6 +5875,7 @@ static TAOS_SUB* subscribeImpl(TAOS *taos, char *sql, char* topic, char* resultF
 static void *subSubscribeProcess(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg;
   char subSqlstr[1024];
+  TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT] = {0};
 
   if (winfo->taos == NULL) {
     TAOS * taos = NULL;
@@ -5920,9 +5921,8 @@ static void *subSubscribeProcess(void *sarg) {
         sprintf(tmpFile, "%s-%d",
                 g_queryInfo.superQueryInfo.result[i], winfo->threadID);
       }
-      g_queryInfo.superQueryInfo.tsub[i] = subscribeImpl(
-              winfo->taos, subSqlstr, topic, tmpFile); 
-      if (NULL == g_queryInfo.superQueryInfo.tsub[i]) {
+      tsub[i] = subscribeImpl(winfo->taos, subSqlstr, topic, tmpFile); 
+      if (NULL == tsub[i]) {
         taos_close(winfo->taos);
         return NULL;
       }
@@ -5939,7 +5939,7 @@ static void *subSubscribeProcess(void *sarg) {
         continue;
       }
 
-      res = taos_consume(g_queryInfo.superQueryInfo.tsub[i]);
+      res = taos_consume(tsub[i]);
       if (res) {
         char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
         if (g_queryInfo.superQueryInfo.result[i][0] != 0) {
@@ -5954,8 +5954,7 @@ static void *subSubscribeProcess(void *sarg) {
   taos_free_result(res);
 
   for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
-    taos_unsubscribe(g_queryInfo.superQueryInfo.tsub[i],
-            g_queryInfo.superQueryInfo.subscribeKeepProgress);
+    taos_unsubscribe(tsub[i], g_queryInfo.superQueryInfo.subscribeKeepProgress);
   }
 
   taos_close(winfo->taos);
@@ -5964,6 +5963,7 @@ static void *subSubscribeProcess(void *sarg) {
 
 static void *superSubscribeProcess(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg;
+  TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT] = {0};
 
   if (winfo->taos == NULL) {
     TAOS * taos = NULL;
@@ -6006,10 +6006,7 @@ static void *superSubscribeProcess(void *sarg) {
         sprintf(tmpFile, "%s-%d",
                 g_queryInfo.specifiedQueryInfo.result[i], winfo->threadID);
       }
-      g_queryInfo.specifiedQueryInfo.tsub[i] =
-          subscribeImpl(winfo->taos,
-                  g_queryInfo.specifiedQueryInfo.sql[i],
-                  topic, tmpFile);
+      tsub[i] = subscribeImpl(winfo->taos, g_queryInfo.specifiedQueryInfo.sql[i], topic, tmpFile);
       if (NULL == g_queryInfo.specifiedQueryInfo.tsub[i]) {
         taos_close(winfo->taos);
         return NULL;
@@ -6027,7 +6024,7 @@ static void *superSubscribeProcess(void *sarg) {
         continue;
       }
 
-      res = taos_consume(g_queryInfo.specifiedQueryInfo.tsub[i]);
+      res = taos_consume(tsub[i]);
       if (res) {
         char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
         if (g_queryInfo.specifiedQueryInfo.result[i][0] != 0) {
@@ -6041,8 +6038,7 @@ static void *superSubscribeProcess(void *sarg) {
   taos_free_result(res);
 
   for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
-    taos_unsubscribe(g_queryInfo.specifiedQueryInfo.tsub[i],
-            g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
+    taos_unsubscribe(tsub[i], g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
   }
 
   taos_close(winfo->taos);
