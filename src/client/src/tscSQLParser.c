@@ -3293,7 +3293,8 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
     }
     
     if (pSchema->type == TSDB_DATA_TYPE_BOOL) {
-      if (pExpr->tokenId != TK_EQ && pExpr->tokenId != TK_NE) {
+      int32_t t = pExpr->tokenId;
+      if (t != TK_EQ && t != TK_NE && t != TK_NOTNULL && t != TK_ISNULL) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
     }
