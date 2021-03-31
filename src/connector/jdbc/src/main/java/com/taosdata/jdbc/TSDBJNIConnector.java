@@ -16,8 +16,11 @@
  */
 package com.taosdata.jdbc;
 
+import com.taosdata.jdbc.utils.NativeLoader;
 import com.taosdata.jdbc.utils.TaosInfo;
 
+import java.io.File;
+import java.net.URL;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
@@ -31,7 +34,13 @@ public class TSDBJNIConnector {
     private TaosInfo taosInfo = TaosInfo.getInstance();
 
     static {
-        System.loadLibrary("taos");
+//        if (NativeLoader.load()) {
+//            System.out.println("successfully loaded tdengine lib");
+//        }
+        URL base = TSDBJNIConnector.class.getClassLoader().getResource("");
+        String absolutePath = new File(base.getFile(), "/libtaos.so").getAbsolutePath();
+        System.load(absolutePath);
+//        System.loadLibrary("taos");
         System.out.println("java.library.path:" + System.getProperty("java.library.path"));
     }
 

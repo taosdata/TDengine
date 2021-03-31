@@ -15,7 +15,7 @@ public abstract class AbstractParameterMetaData extends WrapperImpl implements P
 
     @Override
     public int getParameterCount() throws SQLException {
-        return parameters.length;
+        return parameters == null ? 0 : parameters.length;
     }
 
     @Override
