@@ -39,6 +39,13 @@
 #include "dnodeMPeer.h"
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
+#include "module.h"
+
+#if !defined(_MODULE) || !defined(_TD_LINUX)
+int32_t moduleStart() { return 0; }
+void    moduleStop() {}
+#endif
+
 
 void *tsDnodeTmr = NULL;
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
@@ -63,13 +70,16 @@ static SStep tsDnodeSteps[] = {
   {"dnode-vread",     dnodeInitVRead,      dnodeCleanupVRead},
   {"dnode-vwrite",    dnodeInitVWrite,     dnodeCleanupVWrite},
   {"dnode-vmgmt",     dnodeInitVMgmt,      dnodeCleanupVMgmt},
-  {"dnode-mread",     dnodeInitMRead,      dnodeCleanupMRead},
-  {"dnode-mwrite",    dnodeInitMWrite,     dnodeCleanupMWrite},
-  {"dnode-mpeer",     dnodeInitMPeer,      dnodeCleanupMPeer},  
+  {"dnode-mread",     dnodeInitMRead,      NULL},
+  {"dnode-mwrite",    dnodeInitMWrite,     NULL},
+  {"dnode-mpeer",     dnodeInitMPeer,      NULL},  
   {"dnode-client",    dnodeInitClient,     dnodeCleanupClient},
   {"dnode-server",    dnodeInitServer,     dnodeCleanupServer},
   {"dnode-vnodes",    dnodeInitVnodes,     dnodeCleanupVnodes},
   {"dnode-modules",   dnodeInitModules,    dnodeCleanupModules},
+  {"dnode-mread",     NULL,                dnodeCleanupMRead},
+  {"dnode-mwrite",    NULL,                dnodeCleanupMWrite},
+  {"dnode-mpeer",     NULL,                dnodeCleanupMPeer},  
   {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
   {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
@@ -146,6 +156,7 @@ int32_t dnodeInitSystem() {
   }
 
   dnodeSetRunStatus(TSDB_RUN_STATUS_RUNING);
+  moduleStart();
 
   dnodeReportStep("TDengine", "initialized successfully", 1);
   dInfo("TDengine is initialized successfully");
@@ -155,6 +166,7 @@ int32_t dnodeInitSystem() {
 
 void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_RUN_STATUS_STOPPED) {
+    moduleStop();
     dnodeSetRunStatus(TSDB_RUN_STATUS_STOPPED);
     dnodeCleanupTmr();
     dnodeCleanupComponents();

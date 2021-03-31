@@ -142,15 +142,15 @@ typedef struct SCond {
 } SCond;
 
 typedef struct SJoinNode {
-  char     tableName[TSDB_TABLE_FNAME_LEN];
   uint64_t uid;
   int16_t  tagColId;
+  SArray*  tsJoin;
+  SArray*  tagJoin;
 } SJoinNode;
 
 typedef struct SJoinInfo {
-  bool      hasJoin;
-  SJoinNode left;
-  SJoinNode right;
+  bool      hasJoin;  
+  SJoinNode*  joinTables[TSDB_MAX_JOIN_TABLE_NUM];
 } SJoinInfo;
 
 typedef struct STagCond {
@@ -439,6 +439,8 @@ void tscFreeSqlResult(SSqlObj *pSql);
  * @param pObj
  */
 void tscFreeSqlObj(SSqlObj *pSql);
+void tscFreeSubobj(SSqlObj* pSql);
+
 void tscFreeRegisteredSqlObj(void *pSql);
 
 void tscCloseTscObj(void *pObj);

@@ -250,3 +250,6 @@ Please follow the [contribution guidelines](CONTRIBUTING.md) to contribute to th
 
 Add WeChat “tdengine” to join the group，you can communicate with other users.
 
+# [User List](https://github.com/taosdata/TDengine/issues/2432)
+
+If you are using TDengine and feel it helps or you'd like to do some contributions, please add your company to [user list](https://github.com/taosdata/TDengine/issues/2432) and let us know your needs.

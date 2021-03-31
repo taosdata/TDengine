@@ -164,6 +164,11 @@ python3 ./test.py -f user/pass_len.py
 # stable
 python3 ./test.py -f stable/query_after_reset.py
 
+# perfbenchmark
+python3 ./test.py -f perfbenchmark/bug3433.py
+python3 ./test.py -f perfbenchmark/bug3589.py
+
+
 #query
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterCombo.py
@@ -196,6 +201,9 @@ python3 ./test.py -f query/bug2119.py
 python3 ./test.py -f query/isNullTest.py
 python3 ./test.py -f query/queryWithTaosdKilled.py
 python3 ./test.py -f query/floatCompare.py
+python3 ./test.py -f query/bug3375.py
+
+
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -230,16 +238,6 @@ python3 client/twoClients.py
 python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
 
-# tools
-python3 test.py -f tools/taosdemoTest.py
-python3 test.py -f tools/taosdemoTestWithoutMetric.py
-python3 test.py -f tools/taosdemoTestWithJson.py
-python3 test.py -f tools/taosdemoTestLimitOffset.py
-python3 test.py -f tools/taosdumpTest.py
-python3 test.py -f tools/taosdemoTest2.py
-python3 test.py -f tools/taosdemoTestSampleData.py
-python3 test.py -f tools/taosdemoTestInterlace.py
-
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
 #python3 test.py -f subscribe/stability.py  
@@ -248,6 +246,18 @@ python3 test.py -f subscribe/supertable.py
 
 #======================p3-end===============
 #======================p4-start===============
+
+# tools
+python3 test.py -f tools/taosdumpTest.py
+
+python3 test.py -f tools/taosdemoTest.py
+python3 test.py -f tools/taosdemoTestWithoutMetric.py
+python3 test.py -f tools/taosdemoTestWithJson.py
+python3 test.py -f tools/taosdemoTestLimitOffset.py
+python3 test.py -f tools/taosdemoTest2.py
+python3 test.py -f tools/taosdemoTestSampleData.py
+python3 test.py -f tools/taosdemoTestInterlace.py
+python3 test.py -f tools/taosdemoTestQuery.py
 
 python3 ./test.py -f update/merge_commit_data-0.py
 # wal

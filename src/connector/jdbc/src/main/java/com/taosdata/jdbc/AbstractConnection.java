@@ -30,8 +30,11 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
         // do nothing
+
         return sql;
     }
+
+
 
     @Override
     public void setAutoCommit(boolean autoCommit) throws SQLException {
@@ -447,7 +450,6 @@ public abstract class AbstractConnection extends WrapperImpl implements Connecti
     public void setClientInfo(Properties properties) throws SQLClientInfoException {
         if (isClosed)
             throw (SQLClientInfoException) TSDBError.createSQLException(TSDBErrorNumbers.ERROR_SQLCLIENT_EXCEPTION_ON_CONNECTION_CLOSED);
-
 
         for (Enumeration<Object> enumer = properties.keys(); enumer.hasMoreElements(); ) {
             String name = (String) enumer.nextElement();
