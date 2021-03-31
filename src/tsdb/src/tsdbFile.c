@@ -134,13 +134,13 @@ int tsdbCreateMFile(SMFile *pMFile, bool updateHeader) {
     return 0;
   }
 
+  pMFile->info.size += TSDB_FILE_HEAD_SIZE;
+
   if (tsdbUpdateMFileHeader(pMFile) < 0) {
     tsdbCloseMFile(pMFile);
     tsdbRemoveMFile(pMFile);
     return -1;
   }
-
-  pMFile->info.size += TSDB_FILE_HEAD_SIZE;
 
   return 0;
 }
@@ -378,13 +378,13 @@ int tsdbCreateDFile(SDFile *pDFile, bool updateHeader) {
     return 0;
   }
 
+  pDFile->info.size += TSDB_FILE_HEAD_SIZE;
+
   if (tsdbUpdateDFileHeader(pDFile) < 0) {
     tsdbCloseDFile(pDFile);
     tsdbRemoveDFile(pDFile);
     return -1;
   }
-
-  pDFile->info.size += TSDB_FILE_HEAD_SIZE;
 
   return 0;
 }
@@ -567,6 +567,7 @@ void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t v
 }
 
 void tsdbInitDFileSetEx(SDFileSet *pSet, SDFileSet *pOSet) {
+  pSet->fid = pOSet->fid;
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     tsdbInitDFileEx(TSDB_DFILE_IN_SET(pSet, ftype), TSDB_DFILE_IN_SET(pOSet, ftype));
   }

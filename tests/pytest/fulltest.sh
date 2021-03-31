@@ -164,6 +164,10 @@ python3 ./test.py -f user/pass_len.py
 # stable
 python3 ./test.py -f stable/query_after_reset.py
 
+# perfbenchmark
+python3 ./test.py -f perfbenchmark/bug3433.py
+
+
 #query
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterCombo.py

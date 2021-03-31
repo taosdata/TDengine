@@ -22,136 +22,160 @@ import java.util.List;
 
 public class TSDBResultSetMetaData extends WrapperImpl implements ResultSetMetaData {
 
-	List<ColumnMetaData> colMetaDataList = null;
+    List<ColumnMetaData> colMetaDataList;
 
-	public TSDBResultSetMetaData(List<ColumnMetaData> metaDataList) {
-		this.colMetaDataList = metaDataList;
-	}
+    public TSDBResultSetMetaData(List<ColumnMetaData> metaDataList) {
+        this.colMetaDataList = metaDataList;
+    }
 
-	public int getColumnCount() throws SQLException {
-		return colMetaDataList.size();
-	}
+    public int getColumnCount() throws SQLException {
+        return colMetaDataList.size();
+    }
 
-	public boolean isAutoIncrement(int column) throws SQLException {
-		return false;
-	}
+    public boolean isAutoIncrement(int column) throws SQLException {
+        return false;
+    }
 
-	public boolean isCaseSensitive(int column) throws SQLException {
-		return false;
-	}
+    public boolean isCaseSensitive(int column) throws SQLException {
+        return false;
+    }
 
-	public boolean isSearchable(int column) throws SQLException {
-		if (column == 1) {
-			return true;
-		}
-		return false;
-	}
+    public boolean isSearchable(int column) throws SQLException {
+        if (column == 1) {
+            return true;
+        }
+        return false;
+    }
 
-	public boolean isCurrency(int column) throws SQLException {
-		return false;
-	}
+    public boolean isCurrency(int column) throws SQLException {
+        return false;
+    }
 
-	public int isNullable(int column) throws SQLException {
-		if (column == 1) {
-			return columnNoNulls;
-		}
-		return columnNullable;
-	}
+    public int isNullable(int column) throws SQLException {
+        if (column < 1 && column >= colMetaDataList.size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
-	public boolean isSigned(int column) throws SQLException {
-		ColumnMetaData meta = this.colMetaDataList.get(column - 1);
-		switch (meta.getColType()) {
-		case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
-		case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
-		case TSDBConstants.TSDB_DATA_TYPE_INT:
-		case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
-		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
-		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
-			return true;
-		default:
-			return false;
-		}
-	}
+        if (column == 1) {
+            return columnNoNulls;
+        }
+        return columnNullable;
+    }
 
-	public int getColumnDisplaySize(int column) throws SQLException {
-		return colMetaDataList.get(column - 1).getColSize();
-	}
+    public boolean isSigned(int column) throws SQLException {
+        if (column < 1 && column >= colMetaDataList.size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
-	public String getColumnLabel(int column) throws SQLException {
-		return colMetaDataList.get(column - 1).getColName();
-	}
+        ColumnMetaData meta = this.colMetaDataList.get(column - 1);
+        switch (meta.getColType()) {
+            case TSDBConstants.TSDB_DATA_TYPE_TINYINT:
+            case TSDBConstants.TSDB_DATA_TYPE_SMALLINT:
+            case TSDBConstants.TSDB_DATA_TYPE_INT:
+            case TSDBConstants.TSDB_DATA_TYPE_BIGINT:
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                return true;
+            default:
+                return false;
+        }
+    }
 
-	public String getColumnName(int column) throws SQLException {
-		return colMetaDataList.get(column - 1).getColName();
-	}
+    public int getColumnDisplaySize(int column) throws SQLException {
+        if (column < 1 && column >= colMetaDataList.size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
-	public String getSchemaName(int column) throws SQLException {
-		throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-	}
+        return colMetaDataList.get(column - 1).getColSize();
+    }
 
-	public int getPrecision(int column) throws SQLException {
-		ColumnMetaData columnMetaData = this.colMetaDataList.get(column - 1);
-		switch (columnMetaData.getColType()) {
-		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
-			return 5;
-		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
-			return 9;
-		case TSDBConstants.TSDB_DATA_TYPE_BINARY:
-		case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-			return columnMetaData.getColSize();
-		default:
-			return 0;
-		}
-	}
+    public String getColumnLabel(int column) throws SQLException {
+        if (column < 1 && column >= colMetaDataList.size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
-	public int getScale(int column) throws SQLException {
-		ColumnMetaData meta = this.colMetaDataList.get(column - 1);
-		switch (meta.getColType()) {
-		case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
-			return 5;
-		case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
-			return 9;
-		default:
-			return 0;
-		}
-	}
+        return colMetaDataList.get(column - 1).getColName();
+    }
 
-	public String getTableName(int column) throws SQLException {
-		throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-	}
+    public String getColumnName(int column) throws SQLException {
+        if (column < 1 && column >= colMetaDataList.size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
-	public String getCatalogName(int column) throws SQLException {
-		throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-	}
+        return colMetaDataList.get(column - 1).getColName();
+    }
 
-	public int getColumnType(int column) throws SQLException {
-		ColumnMetaData meta = this.colMetaDataList.get(column - 1);
-		return TSDBConstants.taosType2JdbcType(meta.getColType());
-	}
+    public String getSchemaName(int column) throws SQLException {
+        if (column < 1 && column >= colMetaDataList.size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
-	public String getColumnTypeName(int column) throws SQLException {
-		ColumnMetaData meta = this.colMetaDataList.get(column - 1);
-		return TSDBConstants.taosType2JdbcTypeName(meta.getColType());
-	}
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+    }
 
-	public boolean isReadOnly(int column) throws SQLException {
-		return true;
-	}
+    public int getPrecision(int column) throws SQLException {
+        if (column < 1 && column >= colMetaDataList.size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
-	public boolean isWritable(int column) throws SQLException {
-		return false;
-	}
+        ColumnMetaData columnMetaData = this.colMetaDataList.get(column - 1);
+        switch (columnMetaData.getColType()) {
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                return 5;
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                return 9;
+            case TSDBConstants.TSDB_DATA_TYPE_BINARY:
+            case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+                return columnMetaData.getColSize();
+            default:
+                return 0;
+        }
+    }
 
-	public boolean isDefinitelyWritable(int column) throws SQLException {
-		throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-	}
+    public int getScale(int column) throws SQLException {
+        if (column < 1 && column >= colMetaDataList.size())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE);
 
-	public String getColumnClassName(int column) throws SQLException {
-		int columnType = getColumnType(column);
-		String columnClassName = "";
-		switch (columnType) {
-		    case Types.TIMESTAMP:
-		        columnClassName = Timestamp.class.getName();
+        ColumnMetaData meta = this.colMetaDataList.get(column - 1);
+        switch (meta.getColType()) {
+            case TSDBConstants.TSDB_DATA_TYPE_FLOAT:
+                return 5;
+            case TSDBConstants.TSDB_DATA_TYPE_DOUBLE:
+                return 9;
+            default:
+                return 0;
+        }
+    }
+
+    public String getTableName(int column) throws SQLException {
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+    }
+
+    public String getCatalogName(int column) throws SQLException {
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+    }
+
+    public int getColumnType(int column) throws SQLException {
+        ColumnMetaData meta = this.colMetaDataList.get(column - 1);
+        return TSDBConstants.taosType2JdbcType(meta.getColType());
+    }
+
+    public String getColumnTypeName(int column) throws SQLException {
+        ColumnMetaData meta = this.colMetaDataList.get(column - 1);
+        return TSDBConstants.taosType2JdbcTypeName(meta.getColType());
+    }
+
+    public boolean isReadOnly(int column) throws SQLException {
+        return true;
+    }
+
+    public boolean isWritable(int column) throws SQLException {
+        return false;
+    }
+
+    public boolean isDefinitelyWritable(int column) throws SQLException {
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+    }
+
+    public String getColumnClassName(int column) throws SQLException {
+        int columnType = getColumnType(column);
+        String columnClassName = "";
+        switch (columnType) {
+            case Types.TIMESTAMP:
+                columnClassName = Timestamp.class.getName();
                 break;
             case Types.CHAR:
                 columnClassName = String.class.getName();
@@ -168,8 +192,8 @@ public class TSDBResultSetMetaData extends WrapperImpl implements ResultSetMetaD
             case Types.INTEGER:
                 columnClassName = Integer.class.getName();
                 break;
-			case Types.SMALLINT:
-				columnClassName = Short.class.getName();
+            case Types.SMALLINT:
+                columnClassName = Short.class.getName();
                 break;
             case Types.TINYINT:
                 columnClassName = Byte.class.getName();
@@ -177,7 +201,7 @@ public class TSDBResultSetMetaData extends WrapperImpl implements ResultSetMetaD
             case Types.BIT:
                 columnClassName = Boolean.class.getName();
                 break;
-		}
+        }
         return columnClassName;
-	}
+    }
 }

@@ -36,7 +36,15 @@ class TDTestCase:
         if(threadID == 1):
             time.sleep(2)
             print("use test")
-            tdSql.execute("use test")
+            while True:
+                try:
+                    tdSql.execute("use test")
+                    break
+                except Exception as e:
+                    tdLog.info("use database test failed")
+                    time.sleep(1)
+                    continue
+
             # check if all the tables have heen created
             while True:
                 tdSql.query("show tables")
