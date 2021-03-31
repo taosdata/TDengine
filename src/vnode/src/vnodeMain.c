@@ -329,11 +329,13 @@ int32_t vnodeOpen(int32_t vgId) {
     pVnode->version = walGetVersion(pVnode->wal);
   }
 
-  code = tsdbSyncCommit(pVnode->tsdb);
-  if (code != 0) {
-    vError("vgId:%d, failed to commit after restore from wal since %s", pVnode->vgId, tstrerror(code));
-    vnodeCleanUp(pVnode);
-    return code;
+  if (pVnode->syncCfg.replica == 1) {
+    code = tsdbSyncCommit(pVnode->tsdb);
+    if (code != 0) {
+      vError("vgId:%d, failed to commit after restore from wal since %s", pVnode->vgId, tstrerror(code));
+      vnodeCleanUp(pVnode);
+      return code;
+    }
   }
 
   walRemoveAllOldFiles(pVnode->wal);
@@ -407,7 +409,12 @@ void vnodeDestroy(SVnodeObj *pVnode) {
   }
 
   if (pVnode->tsdb) {
-    code = tsdbCloseRepo(pVnode->tsdb, 1);
+    bool toCommit = false;
+    if (pVnode->syncCfg.replica == 1) {
+      toCommit = true;
+    }
+
+    code = tsdbCloseRepo(pVnode->tsdb, toCommit);
     pVnode->tsdb = NULL;
   }
 
@@ -422,7 +429,9 @@ void vnodeDestroy(SVnodeObj *pVnode) {
     if (code != 0) {
       vError("vgId:%d, failed to commit while close tsdb repo, keep wal", pVnode->vgId);
     } else {
-      walRemoveAllOldFiles(pVnode->wal);
+      if (pVnode->syncCfg.replica == 1) {
+        walRemoveAllOldFiles(pVnode->wal);
+      }
     }
     walClose(pVnode->wal);
     pVnode->wal = NULL;

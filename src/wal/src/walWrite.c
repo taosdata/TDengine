@@ -458,4 +458,6 @@ void walResetVersion(twalh param, uint64_t newVer) {
   wInfo("vgId:%d, version reset from %" PRIu64 " to %" PRIu64, pWal->vgId, pWal->version, newVer);
 
   pWal->version = newVer;
+  walRemoveAllOldFiles(param);
+  walRenew(param);
 }
