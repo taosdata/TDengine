@@ -520,7 +520,7 @@ static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno) {
     pVnode->fversion = pVnode->cversion;
     vInfo("vgId:%d, commit over, fver:%" PRIu64 " vver:%" PRIu64, pVnode->vgId, pVnode->fversion, pVnode->version);
     if (!vnodeInInitStatus(pVnode)) {
-      walRemoveOneOldFile(pVnode->wal);
+      walRemoveAllOldFiles(pVnode->wal);
     }
     return vnodeSaveVersion(pVnode);
   }
