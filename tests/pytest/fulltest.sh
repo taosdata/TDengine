@@ -258,7 +258,6 @@ python3 test.py -f tools/taosdemoTest2.py
 python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
-python3 test.py -f tools/taosdemoTestQuery.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestWithJson-1.py
 
 python3 ./test.py -f update/merge_commit_data-0.py
