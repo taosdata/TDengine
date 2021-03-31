@@ -124,7 +124,7 @@ typedef enum enum_INSERT_MODE {
 
 typedef enum enumQUERY_TYPE {
   NO_INSERT_TYPE,
-  INSERT_TYPE, 
+  INSERT_TYPE,
   QUERY_TYPE_BUT
 } QUERY_TYPE;
 
@@ -229,7 +229,7 @@ typedef struct SColumn_S {
 typedef struct SSuperTable_S {
   char         sTblName[MAX_TB_NAME_SIZE+1];
   int          childTblCount;
-  bool         childTblExists;    // 0: no, 1: yes  
+  bool         childTblExists;    // 0: no, 1: yes
   int          batchCreateTableNum;  // 0: no batch,  > 0: batch table number in one sql
   int8_t       autoCreateTable;                  // 0: create sub table, 1: auto create sub table
   char         childTblPrefix[MAX_TB_NAME_SIZE];
@@ -239,15 +239,15 @@ typedef struct SSuperTable_S {
   int           childTblOffset;
 
   int          multiThreadWriteOneTbl;   // 0: no, 1: yes
-  int          interlaceRows;            // 
+  int          interlaceRows;            //
   int          disorderRatio;            // 0: no disorder, >0: x%
   int          disorderRange;            // ms or us by database precision
-  int          maxSqlLen;                // 
+  int          maxSqlLen;                //
 
   int          insertInterval;          // insert interval, will override global insert interval
   int64_t      insertRows;               // 0: no limit
   int          timeStampStep;
-  char         startTimestamp[MAX_TB_NAME_SIZE];  // 
+  char         startTimestamp[MAX_TB_NAME_SIZE];  //
   char         sampleFormat[MAX_TB_NAME_SIZE];  // csv, json
   char         sampleFile[MAX_FILE_NAME_LEN+1];
   char         tagsFile[MAX_FILE_NAME_LEN+1];
@@ -539,7 +539,7 @@ SArguments g_args = {
                      true,            // insert_only
                      false,           // debug_print
                      false,           // verbose_print
-                     false,           // performance statistic print 
+                     false,           // performance statistic print
                      false,           // answer_yes;
                      "./output.txt",  // output_file
                      0,               // mode : sync or async
@@ -641,7 +641,7 @@ static void printHelp() {
           "The password to use when connecting to the server. Default is 'taosdata'.");
   printf("%s%s%s%s\n", indent, "-c", indent,
           "Configuration directory. Default is '/etc/taos/'.");
-#endif  
+#endif
   printf("%s%s%s%s\n", indent, "-h", indent,
           "The host to connect to TDengine. Default is localhost.");
   printf("%s%s%s%s\n", indent, "-p", indent,
@@ -684,7 +684,7 @@ static void printHelp() {
           "Print debug info.");
   printf("%s%s%s%s\n", indent, "-V, --version", indent,
           "Print version info.");
-/*    printf("%s%s%s%s\n", indent, "-D", indent, 
+/*    printf("%s%s%s%s\n", indent, "-D", indent,
           "if elete database if exists. 0: no, 1: yes, default is 1");
           */
 }
@@ -749,7 +749,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 && strcasecmp(argv[i], "SMALLINT")
                 && strcasecmp(argv[i], "BIGINT")
                 && strcasecmp(argv[i], "DOUBLE")
-                && strcasecmp(argv[i], "BINARY") 
+                && strcasecmp(argv[i], "BINARY")
                 && strcasecmp(argv[i], "NCHAR")) {
           printHelp();
           ERROR_EXIT( "Invalid data_type!\n");
@@ -1762,7 +1762,7 @@ static void printfQuerySystemInfo(TAOS * taos) {
   }
 
   for (int i = 0; i < dbCount; i++) {
-    // printf database info 
+    // printf database info
     printfDbInfoForQueryToFile(filename, dbInfos[i], i);
 
     // show db.vgroups
@@ -2098,7 +2098,7 @@ static int calcRowLen(SSuperTable*  superTbls) {
       lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 6;
     } else if (strcasecmp(dataType, "FLOAT") == 0) {
       lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 22;
-    } else if (strcasecmp(dataType, "DOUBLE") == 0) { 
+    } else if (strcasecmp(dataType, "DOUBLE") == 0) {
       lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 42;
     } else {
       printf("get error tag type : %s\n", dataType);
@@ -2262,7 +2262,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
 
 /*
   if (TBL_ALREADY_EXISTS == superTbls->childTblExists) {
-    //get all child table name use cmd: select tbname from superTblName;  
+    //get all child table name use cmd: select tbname from superTblName;
     int childTblCount = 10000;
     superTbls->childTblName = (char*)calloc(1, childTblCount * TSDB_TABLE_NAME_LEN);
     if (superTbls->childTblName == NULL) {
@@ -2289,7 +2289,7 @@ static int createSuperTable(TAOS * taos, char* dbName,
   int  lenOfOneRow = 0;
   for (colIndex = 0; colIndex < superTbls->columnCount; colIndex++) {
     char* dataType = superTbls->columns[colIndex].dataType;
- 
+
     if (strcasecmp(dataType, "BINARY") == 0) {
       len += snprintf(cols + len, STRING_LEN - len,
           ", col%d %s(%d)", colIndex, "BINARY",
@@ -2386,7 +2386,7 @@ static int createSuperTable(TAOS * taos, char* dbName,
         len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
                 "FLOAT");
         lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 22;
-      } else if (strcasecmp(dataType, "DOUBLE") == 0) { 
+      } else if (strcasecmp(dataType, "DOUBLE") == 0) {
         len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
                 "DOUBLE");
         lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 42;
@@ -2703,7 +2703,7 @@ static int startMultiThreadCreateChildTable(
     t_info->minDelay = INT16_MAX;
     pthread_create(pids + i, NULL, createTable, t_info);
   }
- 
+
   for (int i = 0; i < threads; i++) {
     pthread_join(pids[i], NULL);
   }
@@ -2920,7 +2920,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
         cJSON* stbInfo, SSuperTable* superTbls) {
   bool  ret = false;
 
-  // columns 
+  // columns
   cJSON *columns = cJSON_GetObjectItem(stbInfo, "columns");
   if (columns && columns->type != cJSON_Array) {
     printf("ERROR: failed to read json, columns not found\n");
@@ -2958,7 +2958,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
       count = 1;
     }
 
-    // column info 
+    // column info
     memset(&columnCase, 0, sizeof(StrColumn));
     cJSON *dataType = cJSON_GetObjectItem(column, "type");
     if (!dataType || dataType->type != cJSON_String || dataType->valuestring == NULL) {
@@ -2989,7 +2989,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
 
   count = 1;
   index = 0;
-  // tags 
+  // tags
   cJSON *tags = cJSON_GetObjectItem(stbInfo, "tags");
   if (!tags || tags->type != cJSON_Array) {
     debugPrint("%s() LN%d, failed to read json, tags not found\n", __func__, __LINE__);
@@ -3018,7 +3018,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
       count = 1;
     }
 
-    // column info 
+    // column info
     memset(&columnCase, 0, sizeof(StrColumn));
     cJSON *dataType = cJSON_GetObjectItem(tag, "type");
     if (!dataType || dataType->type != cJSON_String || dataType->valuestring == NULL) {
@@ -3209,7 +3209,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
     cJSON* dbinfos = cJSON_GetArrayItem(dbs, i);
     if (dbinfos == NULL) continue;
 
-    // dbinfo 
+    // dbinfo
     cJSON *dbinfo = cJSON_GetObjectItem(dbinfos, "dbinfo");
     if (!dbinfo || dbinfo->type != cJSON_Object) {
       printf("ERROR: failed to read json, dbinfo not found\n");
@@ -3748,7 +3748,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
   cJSON* user = cJSON_GetObjectItem(root, "user");
   if (user && user->type == cJSON_String && user->valuestring != NULL) {
-    tstrncpy(g_queryInfo.user, user->valuestring, MAX_USERNAME_SIZE);   
+    tstrncpy(g_queryInfo.user, user->valuestring, MAX_USERNAME_SIZE);
   } else if (!user) {
     tstrncpy(g_queryInfo.user, "root", MAX_USERNAME_SIZE); ;
   }
@@ -3805,7 +3805,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     goto PARSE_OVER;
   }
 
-  // super_table_query 
+  // super_table_query
   cJSON *specifiedQuery = cJSON_GetObjectItem(root, "specified_table_query");
   if (!specifiedQuery) {
     g_queryInfo.specifiedQueryInfo.concurrent = 0;
@@ -3930,7 +3930,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     }
   }
 
-  // sub_table_query 
+  // sub_table_query
   cJSON *superQuery = cJSON_GetObjectItem(root, "super_table_query");
   if (!superQuery) {
     g_queryInfo.superQueryInfo.threadCnt = 0;
@@ -3996,7 +3996,7 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     cJSON* subinterval = cJSON_GetObjectItem(superQuery, "interval");
     if (subinterval && subinterval->type == cJSON_Number) {
       g_queryInfo.superQueryInfo.subscribeInterval = subinterval->valueint;
-    } else if (!subinterval) {    
+    } else if (!subinterval) {
       //printf("failed to read json, subscribe interval no found\n");
       //goto PARSE_OVER;
       g_queryInfo.superQueryInfo.subscribeInterval = 10000;
@@ -4291,7 +4291,7 @@ static int32_t generateData(char *recBuf, char **data_type,
     } else if (strcasecmp(data_type[i % c], "smallint") == 0) {
       pstr += sprintf(pstr, ", %d", rand_smallint());
     } else if (strcasecmp(data_type[i % c], "int") == 0) {
-      pstr += sprintf(pstr, ", %d", rand_int()); 
+      pstr += sprintf(pstr, ", %d", rand_int());
     } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
       pstr += sprintf(pstr, ", %" PRId64, rand_bigint());
     } else if (strcasecmp(data_type[i % c], "float") == 0) {
@@ -4331,9 +4331,9 @@ static int prepareSampleDataForSTable(SSuperTable *superTblInfo) {
   sampleDataBuf = calloc(
             superTblInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE, 1);
   if (sampleDataBuf == NULL) {
-      errorPrint("%s() LN%d, Failed to calloc %d Bytes, reason:%s\n", 
+      errorPrint("%s() LN%d, Failed to calloc %d Bytes, reason:%s\n",
               __func__, __LINE__,
-              superTblInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE, 
+              superTblInfo->lenOfOneRow * MAX_SAMPLES_ONCE_FROM_FILE,
               strerror(errno));
       return -1;
   }
@@ -4467,7 +4467,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
       if ((g_args.disorderRatio != 0)
                 && (rand_num < g_args.disorderRange)) {
 
-        int64_t d = startTime + DEFAULT_TIMESTAMP_STEP * k 
+        int64_t d = startTime + DEFAULT_TIMESTAMP_STEP * k
             - taosRandom() % 1000000 + rand_num;
         retLen = generateData(data, data_type,
                   ncols_per_record, d, lenOfBinary);
@@ -5391,7 +5391,7 @@ static void *readTable(void *sarg) {
 }
 
 static void *readMetric(void *sarg) {
-#if 1  
+#if 1
   threadInfo *rinfo = (threadInfo *)sarg;
   TAOS *taos = rinfo->taos;
   char command[BUFFER_SIZE] = "\0";
@@ -5939,7 +5939,7 @@ static void *subSubscribeProcess(void *sarg) {
         sprintf(tmpFile, "%s-%d",
                 g_queryInfo.superQueryInfo.result[i], winfo->threadID);
       }
-      tsub[i] = subscribeImpl(winfo->taos, subSqlstr, topic, tmpFile); 
+      tsub[i] = subscribeImpl(winfo->taos, subSqlstr, topic, tmpFile);
       if (NULL == tsub[i]) {
         taos_close(winfo->taos);
         return NULL;
@@ -6127,7 +6127,7 @@ static int subscribeTestProcess() {
           && (g_queryInfo.superQueryInfo.threadCnt > 0)) {
     pidsOfSub  = malloc(g_queryInfo.superQueryInfo.threadCnt *
             sizeof(pthread_t));
-    infosOfSub = malloc(g_queryInfo.superQueryInfo.threadCnt * 
+    infosOfSub = malloc(g_queryInfo.superQueryInfo.threadCnt *
             sizeof(threadInfo));
     if ((NULL == pidsOfSub) || (NULL == infosOfSub)) {
       errorPrint("%s() LN%d, malloc failed for create threads\n",
