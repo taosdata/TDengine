@@ -169,7 +169,6 @@ python3 ./test.py -f update/bug_td2279.py
 #======================p3-start===============
 
 
-
 # user
 python3 ./test.py -f user/user_create.py
 python3 ./test.py -f user/pass_len.py
@@ -261,19 +260,6 @@ python3 test.py -f subscribe/supertable.py
 
 #======================p3-end===============
 #======================p4-start===============
-
-# tools
-python3 test.py -f tools/taosdumpTest.py
-
-python3 test.py -f tools/taosdemoTest.py
-python3 test.py -f tools/taosdemoTestWithoutMetric.py
-python3 test.py -f tools/taosdemoTestWithJson.py
-python3 test.py -f tools/taosdemoTestLimitOffset.py
-python3 test.py -f tools/taosdemoTest2.py
-python3 test.py -f tools/taosdemoTestSampleData.py
-python3 test.py -f tools/taosdemoTestInterlace.py
-python3 test.py -f tools/taosdemoTestQuery.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestWithJson-1.py
 
 python3 ./test.py -f update/merge_commit_data-0.py
 # wal
