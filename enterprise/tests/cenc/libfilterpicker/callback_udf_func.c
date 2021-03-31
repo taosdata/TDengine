@@ -81,9 +81,10 @@ callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dat
         return;
     }
 
-    if (buf) {
-        mem = (FilterPicker5_Memory *) buf->ptr;
-    }
+    /* applications always pass in buf */
+    //if (buf) {
+    //    mem = (FilterPicker5_Memory *) buf->ptr;
+    //}
 
     Pick(0.01,
          amps,
@@ -139,11 +140,12 @@ callback_udf_func(char *data, char type, int numOfRows, long long *ts, char *dat
 #endif
     }
 
-    if (buf) {
-        buf->ptr = (char *) mem;
-    } else {
+    /* applications always pass in buf */
+    //if (buf) {
+    //    buf->ptr = (char *) mem;
+    //} else {
         free_FilterPicker5_Memory(&mem);
-    }
+    //}
 
     if (numOfOutput) {
         *numOfOutput = num_picks;
