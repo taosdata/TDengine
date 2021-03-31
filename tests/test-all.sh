@@ -25,7 +25,9 @@ function stopTaosd {
 function dohavecore(){
   corefile=`find $corepath -mmin 1`  
   core_file=`echo $corefile|cut -d " " -f2`
-  echo $core_file
+  echo "corefile:$core_file"
+  echo "corepath:$corepath"
+  ls -l $corepath
   proc=`echo $corefile|cut -d "_" -f3`
   if [ -n "$corefile" ];then
     echo 'taosd or taos has generated core'
