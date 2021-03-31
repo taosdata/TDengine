@@ -70,7 +70,13 @@ class TDTestCase:
 
             # check if all the tables have heen created
             while True:
-                tdSql.query("show tables")
+                try:
+                    tdSql.query("show tables")
+                except Exception as e:
+                    tdLog.info("show tables test failed")
+                    time.sleep(1)
+                    continue
+
                 rows = tdSql.queryRows
                 print("number of tables: %d" % rows)
                 if(rows == self.numberOfTables):
@@ -79,16 +85,23 @@ class TDTestCase:
             # check if there are any records in the last created table
             while True:
                 print("query started")
-                tdSql.query("select * from test.t9")
+                try:
+                    tdSql.query("select * from test.t9")
+                except Exception as e:
+                    tdLog.info("select * test failed")
+                    time.sleep(2)
+                    continue
+
                 rows = tdSql.queryRows
                 print("number of records: %d" % rows)
                 if(rows > 0):
                     break
                 time.sleep(1)
+
             print("alter table test.meters add column col10 int")
             tdSql.execute("alter table test.meters add column col10 int")
-            print("insert into test.t0 values (now, 1, 2, 3, 4, 0.1, 0.01,'test', '测试', TRUE, 1610000000000, 0)")
-            tdSql.execute("insert into test.t0 values (now, 1, 2, 3, 4, 0.1, 0.01,'test', '测试', TRUE, 1610000000000, 0)")
+            print("insert into test.t9 values (now, 1, 2, 3, 4, 0.1, 0.01,'test', '测试', TRUE, 1610000000000, 0)")
+            tdSql.execute("insert into test.t9 values (now, 1, 2, 3, 4, 0.1, 0.01,'test', '测试', TRUE, 1610000000000, 0)")
 
     def run(self):
         tdSql.prepare()
