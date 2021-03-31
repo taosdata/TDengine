@@ -75,6 +75,7 @@ extern "C" {
 #include <fcntl.h>
 #include <sys/utsname.h>
 #include <sys/resource.h>
+#include <poll.h>
 #ifndef _ALPINE
 #include <error.h>
 #endif

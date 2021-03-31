@@ -78,6 +78,7 @@ extern "C" {
 #include <error.h>
 #include <linux/sysctl.h>
 #include <math.h>
+#include <poll.h>
 
 #ifdef __cplusplus
 }
