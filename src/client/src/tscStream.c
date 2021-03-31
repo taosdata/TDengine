@@ -299,6 +299,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
     tfree(pTableMetaInfo->pTableMeta);
 
     tscFreeSqlResult(pSql);
+    tscFreeSubobj(pSql);
     tfree(pSql->pSubs);
     pSql->subState.numOfSub = 0;
     pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);

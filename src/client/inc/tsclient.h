@@ -439,6 +439,7 @@ void tscFreeSqlResult(SSqlObj *pSql);
  * @param pObj
  */
 void tscFreeSqlObj(SSqlObj *pSql);
+void tscFreeSubobj(SSqlObj* pSql);
 void tscFreeRegisteredSqlObj(void *pSql);
 
 void tscCloseTscObj(void *pObj);
