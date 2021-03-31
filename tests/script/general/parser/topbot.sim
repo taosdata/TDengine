@@ -335,7 +335,8 @@ if $row !=  2 then
   return -1
 endi
 
-if $data00 != @21-1-1 1:1:1.000@ then
+if $data00 != @21-01-01 01:01:01.000@ then
+  print expect 21-01-01 01:01:01.000, actual $data00
   return -1
 endi
 
@@ -344,7 +345,7 @@ if $row != 1 then
   return -1
 endi
 
-if $data00 != @21-1-1 1:1:2.000@ then
+if $data00 != @21-01-01 01:01:02.000@ then
   return -1
 endi
 
@@ -353,7 +354,7 @@ if $row != 1 then
   return -1
 endi
 
-if $data00 != @21-1-1 1:1:1.000@ then
+if $data00 != @21-01-01 01:01:01.000@ then
   return -1
 endi
 
@@ -362,7 +363,7 @@ if $row != 1 then
   return -1
 endi
 
-if $data00 != @21-1-1 1:1:3.000@ then
+if $data00 != @21-01-01 01:01:03.000@ then
   return -1
 endi
 
