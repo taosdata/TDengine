@@ -447,7 +447,7 @@ void tscFreeSqlResult(SSqlObj* pSql) {
   memset(&pSql->res, 0, sizeof(SSqlRes));
 }
 
-static void tscFreeSubobj(SSqlObj* pSql) {
+void tscFreeSubobj(SSqlObj* pSql) {
   if (pSql->subState.numOfSub == 0) {
     return;
   }
