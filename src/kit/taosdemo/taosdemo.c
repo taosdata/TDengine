@@ -2638,7 +2638,7 @@ static void* createTable(void *sarg)
       lastPrintTime = currentPrintTime;
     }
   }
-  
+
   if (0 != len) {
     verbosePrint("%s() %d buffer: %s\n", __func__, __LINE__, buffer);
     if (0 != queryDbExec(winfo->taos, buffer, NO_INSERT_TYPE, false)) {
@@ -3166,7 +3166,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   if (numRecPerReq && numRecPerReq->type == cJSON_Number) {
     g_args.num_of_RPR = numRecPerReq->valueint;
   } else if (!numRecPerReq) {
-    g_args.num_of_RPR = 100;
+    g_args.num_of_RPR = 0xffff;
   } else {
     errorPrint("%s() LN%d, failed to read json, num_of_records_per_req not found\n", __func__, __LINE__);
     goto PARSE_OVER;
@@ -3615,7 +3615,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         }
         g_Dbs.db[i].superTbls[j].maxSqlLen = len;
       } else if (!maxSqlLen) {
-        g_Dbs.db[i].superTbls[j].maxSqlLen = TSDB_MAX_SQL_LEN;
+        g_Dbs.db[i].superTbls[j].maxSqlLen = g_args.max_sql_len;
       } else {
         printf("ERROR: failed to read json, maxSqlLen not found\n");
         goto PARSE_OVER;
@@ -4470,10 +4470,10 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
        if (retLen < 0) {
          return -1;
        } else if (retLen == 0) {
-         k++;
          break;
        }
 
+       k++;
        len += retLen;
        remainderBufLen -= retLen;
     } else {
@@ -4506,7 +4506,6 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
     verbosePrint("%s() LN%d len=%d k=%d \nbuffer=%s\n",
             __func__, __LINE__, len, k, buffer);
 
-    k++;
     startFrom ++;
 
     if (startFrom >= insertRows) {
@@ -4835,9 +4834,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 free_and_statistics_interlace:
   tmfree(buffer);
 
-  printf("====thread[%d] completed total inserted rows: %"PRId64 ", total affected rows: %"PRId64 "====\n", 
-          pThreadInfo->threadID, 
-          pThreadInfo->totalInsertRows, 
+  printf("====thread[%d] completed total inserted rows: %"PRId64 ", total affected rows: %"PRId64 "====\n",
+          pThreadInfo->threadID,
+          pThreadInfo->totalInsertRows,
           pThreadInfo->totalAffectedRows);
   return NULL;
 }
@@ -4968,16 +4967,16 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 free_and_statistics_2:
   tmfree(buffer);
 
-  printf("====thread[%d] completed total inserted rows: %"PRId64 ", total affected rows: %"PRId64 "====\n", 
-          pThreadInfo->threadID, 
-          pThreadInfo->totalInsertRows, 
+  printf("====thread[%d] completed total inserted rows: %"PRId64 ", total affected rows: %"PRId64 "====\n",
+          pThreadInfo->threadID,
+          pThreadInfo->totalInsertRows,
           pThreadInfo->totalAffectedRows);
   return NULL;
 }
 
 static void* syncWrite(void *sarg) {
 
-  threadInfo *winfo = (threadInfo *)sarg; 
+  threadInfo *winfo = (threadInfo *)sarg;
   SSuperTable* superTblInfo = winfo->superTblInfo;
 
   int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
@@ -5563,7 +5562,7 @@ static int insertTestProcess() {
 
   //int64_t    totalInsertRows = 0;
   //int64_t    totalAffectedRows = 0;
-  //for (int i = 0; i < g_Dbs.dbCount; i++) {    
+  //for (int i = 0; i < g_Dbs.dbCount; i++) {
   //  for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
   //  totalInsertRows+= g_Dbs.db[i].superTbls[j].totalInsertRows;
   //  totalAffectedRows += g_Dbs.db[i].superTbls[j].totalAffectedRows;
@@ -6295,7 +6294,7 @@ static void setParaFromArg(){
     g_Dbs.db[0].superTbls[0].timeStampStep = DEFAULT_TIMESTAMP_STEP;
 
     g_Dbs.db[0].superTbls[0].insertRows = g_args.num_of_DPT;
-    g_Dbs.db[0].superTbls[0].maxSqlLen = TSDB_PAYLOAD_SIZE;
+    g_Dbs.db[0].superTbls[0].maxSqlLen = g_args.max_sql_len;
 
     g_Dbs.db[0].superTbls[0].columnCount = 0;
     for (int i = 0; i < MAX_NUM_DATATYPE; i++) {
