@@ -3737,6 +3737,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   const char* msg6 = "only one query condition on tbname allowed";
   const char* msg7 = "only in/like allowed in filter table name";
   const char* msg8 = "wildcard string should be less than 20 characters";
+  const char* msg9 = "only support is [not] null";
   
   tSqlExpr* pLeft  = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
@@ -3878,6 +3879,10 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
 
     if (pRight->tokenId == TK_ID) {  // other column cannot be served as the join column
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+    }
+
+    if (pRight->tokenId == TK_NULL && (!((*pExpr)->tokenId == TK_ISNULL || (*pExpr)->tokenId == TK_NOTNULL))) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
     }
 
     ret = setExprToCond(&pCondExpr->pColumnCond, *pExpr, NULL, parentOptr, pQueryInfo->msg);

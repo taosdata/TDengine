@@ -325,4 +325,55 @@ if $row != 0 then
   return -1
 endi
 
+print ===============================>td-3621
+sql create table ttm2(ts timestamp, k bool);
+sql insert into ttm2 values('2021-1-1 1:1:1', true)
+sql insert into ttm2 values('2021-1-1 1:1:2', NULL)
+sql insert into ttm2 values('2021-1-1 1:1:3', false)
+sql select * from ttm2 where k is not null
+if $row !=  2 then
+  return -1
+endi
+
+if $data00 != @2021-1-1 1:1:1@ then
+  return -1
+endi
+
+sql select * from ttm2 where k is null
+if $row != 1 then
+  return -1
+endi
+
+if $data00 != @2021-1-1 1:1:2@ then
+  return -1
+endi
+
+sql select * from ttm2 where k=true
+if $row != 1 then
+  return -1
+endi
+
+if $data00 != @2021-1-1 1:1:1@ then
+  return -1
+endi
+
+sql select * from ttm2 where k=false
+if $row != 1 then
+  return -1
+endi
+
+if $data00 != @2021-1-1 1:1:3@ then
+  return -1
+endi
+
+sql select * from ttm2 where k<>false
+if $row != 2 then
+  return -1
+endi
+
+sql_error select * from ttm2 where k=null
+sql_error select * from ttm2 where k<>null
+sql_error select * from ttm2 where k like null
+sql_error select * from ttm2 where k<null
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
