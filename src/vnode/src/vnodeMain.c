@@ -336,9 +336,9 @@ int32_t vnodeOpen(int32_t vgId) {
       vnodeCleanUp(pVnode);
       return code;
     }
+    walRemoveAllOldFiles(pVnode->wal);
   }
 
-  walRemoveAllOldFiles(pVnode->wal);
   walRenew(pVnode->wal);
 
   pVnode->qMgmt = qOpenQueryMgmt(pVnode->vgId);
