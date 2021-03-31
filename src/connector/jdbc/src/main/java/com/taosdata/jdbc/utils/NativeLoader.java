@@ -13,9 +13,8 @@ public class NativeLoader {
 
 
     public static void main(String[] args) throws IOException {
-        URL base = NativeLoader.class.getClassLoader().getResource("");
-        String path = new File(base.getFile(), "/libtaos.so").getAbsolutePath();
-        System.out.println(path);
+        InputStream in = NativeLoader.class.getResourceAsStream("libtaos.so");
+        System.out.println(in == null);
     }
 
     public static boolean load() throws Exception {

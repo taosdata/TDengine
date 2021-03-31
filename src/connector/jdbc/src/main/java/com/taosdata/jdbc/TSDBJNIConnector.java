@@ -19,7 +19,7 @@ package com.taosdata.jdbc;
 import com.taosdata.jdbc.utils.NativeLoader;
 import com.taosdata.jdbc.utils.TaosInfo;
 
-import java.io.File;
+import java.io.*;
 import java.net.URL;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
@@ -34,12 +34,35 @@ public class TSDBJNIConnector {
     private TaosInfo taosInfo = TaosInfo.getInstance();
 
     static {
-//        if (NativeLoader.load()) {
-//            System.out.println("successfully loaded tdengine lib");
-//        }
-        URL base = TSDBJNIConnector.class.getClassLoader().getResource("");
-        String absolutePath = new File(base.getFile(), "/libtaos.so").getAbsolutePath();
-        System.load(absolutePath);
+        String libName = "libtaos.so";
+        String nativeTempDir = System.getProperty("java.io.tmpdir");
+        File extractedLibFile = new File(nativeTempDir + File.separator + libName);
+        if (!extractedLibFile.exists()) {
+            BufferedInputStream reader = null;
+            FileOutputStream writer = null;
+            try {
+                reader = new BufferedInputStream(TSDBJNIConnector.class.getResourceAsStream("/" + libName));
+                writer = new FileOutputStream(extractedLibFile);
+                byte[] buffer = new byte[1024];
+                while (reader.read(buffer) > 0) {
+                    writer.write(buffer);
+                    buffer = new byte[1024];
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                try {
+                    if (reader != null)
+                        reader.close();
+                    if (writer != null)
+                        writer.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+        System.load(extractedLibFile.getAbsolutePath());
+
 //        System.loadLibrary("taos");
         System.out.println("java.library.path:" + System.getProperty("java.library.path"));
     }
