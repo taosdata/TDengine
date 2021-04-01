@@ -139,6 +139,18 @@ python3 ./test.py -f import_merge/importInsertThenImport.py
 python3 ./test.py -f import_merge/importCSV.py
 #======================p1-end===============
 #======================p2-start===============
+# tools
+python3 test.py -f tools/taosdumpTest.py
+
+python3 test.py -f tools/taosdemoTest.py
+python3 test.py -f tools/taosdemoTestWithoutMetric.py
+python3 test.py -f tools/taosdemoTestWithJson.py
+python3 test.py -f tools/taosdemoTestLimitOffset.py
+python3 test.py -f tools/taosdemoTestTblAlt.py
+python3 test.py -f tools/taosdemoTestSampleData.py
+python3 test.py -f tools/taosdemoTestInterlace.py
+python3 test.py -f tools/taosdemoTestQuery.py
+
 # update
 python3 ./test.py -f update/allow_update.py
 python3 ./test.py -f update/allow_update-0.py
@@ -163,6 +175,11 @@ python3 ./test.py -f user/pass_len.py
 
 # stable
 python3 ./test.py -f stable/query_after_reset.py
+
+# perfbenchmark
+python3 ./test.py -f perfbenchmark/bug3433.py
+python3 ./test.py -f perfbenchmark/bug3589.py
+
 
 #query
 python3 ./test.py -f query/filter.py
@@ -196,6 +213,11 @@ python3 ./test.py -f query/bug2119.py
 python3 ./test.py -f query/isNullTest.py
 python3 ./test.py -f query/queryWithTaosdKilled.py
 python3 ./test.py -f query/floatCompare.py
+python3 ./test.py -f query/query1970YearsAf.py
+python3 ./test.py -f query/bug3351.py
+python3 ./test.py -f query/bug3375.py
+
+
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -229,15 +251,6 @@ python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 client/twoClients.py
 python3 test.py -f query/queryInterval.py
 python3 test.py -f query/queryFillTest.py
-
-# tools
-python3 test.py -f tools/taosdemoTest.py
-python3 test.py -f tools/taosdemoTestWithoutMetric.py
-python3 test.py -f tools/taosdemoTestWithJson.py
-python3 test.py -f tools/taosdemoTestLimitOffset.py
-python3 test.py -f tools/taosdumpTest.py
-python3 test.py -f tools/taosdemoTest2.py
-python3 test.py -f tools/taosdemoTestSampleData.py
 
 # subscribe
 python3 test.py -f subscribe/singlemeter.py

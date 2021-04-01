@@ -285,7 +285,7 @@ JDBC连接器可能报错的错误码包括3种：JDBC driver本身的报错（�
 * https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
 * https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
 
-### 订阅
+### <a class="anchor" id="subscribe"></a>订阅
 
 #### 创建
 
@@ -451,7 +451,8 @@ Query OK, 1 row(s) in set (0.000141s)
 
 | taos-jdbcdriver 版本 | TDengine 版本     | JDK 版本 |
 | -------------------- | ----------------- | -------- |
-| 2.0.12 及以上        | 2.0.8.0 及以上    | 1.8.x    |
+| 2.0.22              | 2.0.18.0 及以上     | 1.8.x    |
+| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.0 | 1.8.x    |
 | 2.0.4 - 2.0.11       | 2.0.0.0 - 2.0.7.x | 1.8.x    |
 | 1.0.3                | 1.6.1.x 及以上    | 1.8.x    |
 | 1.0.2                | 1.6.1.x 及以上    | 1.8.x    |
@@ -470,9 +471,11 @@ TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对�
 | BIGINT            | java.lang.Long     |
 | FLOAT             | java.lang.Float    |
 | DOUBLE            | java.lang.Double   |
-| SMALLINT, TINYINT | java.lang.Short    |
+| SMALLINT	    | java.lang.Short    |
+| TINYINT           | java.lang.Byte     |
 | BOOL              | java.lang.Boolean  |
-| BINARY, NCHAR     | java.lang.String   |
+| BINARY            | byte array         |
+| NCHAR             | java.lang.String   |
 
 
 

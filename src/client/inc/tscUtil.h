@@ -83,6 +83,22 @@ typedef struct SJoinSupporter {
   SArray*         pVgroupTables;
 } SJoinSupporter;
 
+
+typedef struct SMergeCtx {
+  SJoinSupporter* p;
+  int32_t         idx;
+  SArray*         res;
+  int8_t          compared;
+}SMergeCtx;
+
+typedef struct SMergeTsCtx {
+  SJoinSupporter* p;
+  STSBuf*         res;
+  int64_t         numOfInput;
+  int8_t          compared;
+}SMergeTsCtx;
+
+
 typedef struct SVgroupTableInfo {
   SVgroupInfo vgInfo;
   SArray*     itemList;   //SArray<STableIdInfo>
@@ -183,6 +199,7 @@ int32_t   tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deep
 void      tscSqlExprInfoDestroy(SArray* pExprInfo);
 
 SColumn* tscColumnClone(const SColumn* src);
+bool tscColumnExists(SArray* pColumnList, SColumnIndex* pColIndex);
 SColumn* tscColumnListInsert(SArray* pColList, SColumnIndex* colIndex);
 SArray* tscColumnListClone(const SArray* src, int16_t tableIndex);
 void tscColumnListDestroy(SArray* pColList);

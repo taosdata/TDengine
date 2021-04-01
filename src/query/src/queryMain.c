@@ -197,29 +197,30 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   return code;
 }
 
-bool qTableQuery(qinfo_t qinfo) {
+bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
   assert(pQInfo && pQInfo->signature == pQInfo);
   int64_t threadId = taosGetSelfPthreadId();
 
   int64_t curOwner = 0;
   if ((curOwner = atomic_val_compare_exchange_64(&pQInfo->owner, 0, threadId)) != 0) {
-    qError("QInfo:%p qhandle is now executed by thread:%p", pQInfo, (void*) curOwner);
+    qError("QInfo:%"PRIu64"-%p qhandle is now executed by thread:%p", pQInfo->qId, pQInfo, (void*) curOwner);
     pQInfo->code = TSDB_CODE_QRY_IN_EXEC;
     return false;
   }
 
 
+  *qId = pQInfo->qId;
   pQInfo->startExecTs = taosGetTimestampSec();
 
   if (isQueryKilled(pQInfo)) {
-    qDebug("QInfo:%p it is already killed, abort", pQInfo);
+    qDebug("QInfo:%"PRIu64" it is already killed, abort", pQInfo->qId);
     return doBuildResCheck(pQInfo);
   }
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   if (pRuntimeEnv->tableqinfoGroupInfo.numOfTables == 0) {
-    qDebug("QInfo:%p no table exists for query, abort", pQInfo);
+    qDebug("QInfo:%"PRIu64" no table exists for query, abort", pQInfo->qId);
     setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
     return doBuildResCheck(pQInfo);
   }
@@ -228,22 +229,22 @@ bool qTableQuery(qinfo_t qinfo) {
   int32_t ret = setjmp(pQInfo->runtimeEnv.env);
   if (ret != TSDB_CODE_SUCCESS) {
     pQInfo->code = ret;
-    qDebug("QInfo:%p query abort due to error/cancel occurs, code:%s", pQInfo, tstrerror(pQInfo->code));
+    qDebug("QInfo:%"PRIu64" query abort due to error/cancel occurs, code:%s", pQInfo->qId, tstrerror(pQInfo->code));
     return doBuildResCheck(pQInfo);
   }
 
-  qDebug("QInfo:%p query task is launched", pQInfo);
+  qDebug("QInfo:%"PRIu64" query task is launched", pQInfo->qId);
 
   pRuntimeEnv->outputBuf = pRuntimeEnv->proot->exec(pRuntimeEnv->proot);
 
   if (isQueryKilled(pQInfo)) {
-    qDebug("QInfo:%p query is killed", pQInfo);
+    qDebug("QInfo:%"PRIu64" query is killed", pQInfo->qId);
   } else if (GET_NUM_OF_RESULTS(pRuntimeEnv) == 0) {
-    qDebug("QInfo:%p over, %u tables queried, %"PRId64" rows are returned", pQInfo, pRuntimeEnv->tableqinfoGroupInfo.numOfTables,
+    qDebug("QInfo:%"PRIu64" over, %u tables queried, %"PRId64" rows are returned", pQInfo->qId, pRuntimeEnv->tableqinfoGroupInfo.numOfTables,
            pRuntimeEnv->resultInfo.total);
   } else {
-    qDebug("QInfo:%p query paused, %d rows returned, numOfTotal:%" PRId64 " rows",
-           pQInfo, GET_NUM_OF_RESULTS(pRuntimeEnv), pRuntimeEnv->resultInfo.total + GET_NUM_OF_RESULTS(pRuntimeEnv));
+    qDebug("QInfo:%"PRIu64" query paused, %d rows returned, numOfTotal:%" PRId64 " rows",
+           pQInfo->qId, GET_NUM_OF_RESULTS(pRuntimeEnv), pRuntimeEnv->resultInfo.total + GET_NUM_OF_RESULTS(pRuntimeEnv));
   }
 
   return doBuildResCheck(pQInfo);
@@ -253,13 +254,13 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
   SQInfo *pQInfo = (SQInfo *)qinfo;
 
   if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
-    qError("QInfo:%p invalid qhandle", pQInfo);
+    qError("QInfo:%"PRIu64" invalid qhandle", pQInfo->qId);
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
   *buildRes = false;
   if (IS_QUERY_KILLED(pQInfo)) {
-    qDebug("QInfo:%p query is killed, code:0x%08x", pQInfo, pQInfo->code);
+    qDebug("QInfo:%"PRIu64" query is killed, code:0x%08x", pQInfo->qId, pQInfo->code);
     return pQInfo->code;
   }
 
@@ -279,11 +280,11 @@ int32_t qRetrieveQueryResultInfo(qinfo_t qinfo, bool* buildRes, void* pRspContex
     assert(pQInfo->rspContext == NULL);
     if (pQInfo->dataReady == QUERY_RESULT_READY) {
       *buildRes = true;
-      qDebug("QInfo:%p retrieve result info, rowsize:%d, rows:%d, code:%s", pQInfo, pQuery->resultRowSize,
+      qDebug("QInfo:%"PRIu64" retrieve result info, rowsize:%d, rows:%d, code:%s", pQInfo->qId, pQuery->resultRowSize,
              GET_NUM_OF_RESULTS(pRuntimeEnv), tstrerror(pQInfo->code));
     } else {
       *buildRes = false;
-      qDebug("QInfo:%p retrieve req set query return result after paused", pQInfo);
+      qDebug("QInfo:%"PRIu64" retrieve req set query return result after paused", pQInfo->qId);
       pQInfo->rspContext = pRspContext;
       assert(pQInfo->rspContext != NULL);
     }
@@ -342,9 +343,10 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     // here current thread hold the refcount, so it is safe to free tsdbQueryHandle.
     *continueExec = false;
     (*pRsp)->completed = 1;  // notify no more result to client
+    qDebug("QInfo:%"PRIu64" no more results to retrieve", pQInfo->qId);
   } else {
     *continueExec = true;
-    qDebug("QInfo:%p has more results to retrieve", pQInfo);
+    qDebug("QInfo:%"PRIu64" has more results to retrieve", pQInfo->qId);
   }
 
   // the memory should be freed if the code of pQInfo is not TSDB_CODE_SUCCESS
@@ -397,7 +399,7 @@ void qDestroyQueryInfo(qinfo_t qHandle) {
     return;
   }
 
-  qDebug("QInfo:%p query completed", pQInfo);
+  qDebug("QInfo:%"PRIu64" query completed", pQInfo->qId);
   queryCostStatis(pQInfo);   // print the query cost summary
   freeQInfo(pQInfo);
 }
@@ -480,7 +482,7 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qId, uint64_t qInfo) {
 
   SQueryMgmt *pQueryMgmt = pMgmt;
   if (pQueryMgmt->qinfoPool == NULL) {
-    qError("QInfo:%p failed to add qhandle into qMgmt, since qMgmt is closed", (void *)qInfo);
+    qError("QInfo:%"PRIu64"-%p failed to add qhandle into qMgmt, since qMgmt is closed", qId, (void*)qInfo);
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     return NULL;
   }
@@ -488,7 +490,7 @@ void** qRegisterQInfo(void* pMgmt, uint64_t qId, uint64_t qInfo) {
   pthread_mutex_lock(&pQueryMgmt->lock);
   if (pQueryMgmt->closed) {
     pthread_mutex_unlock(&pQueryMgmt->lock);
-    qError("QInfo:%p failed to add qhandle into cache, since qMgmt is colsing", (void *)qInfo);
+    qError("QInfo:%"PRIu64"-%p failed to add qhandle into cache, since qMgmt is colsing", qId, (void*)qInfo);
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     return NULL;
   } else {
