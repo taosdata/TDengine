@@ -6,6 +6,7 @@
 #include <string.h>
 #include <signal.h>
 #include "libmseed.h"
+#include "taos.h"
 
 
 #define  MAX_TSQL_LEN  65535
@@ -22,41 +23,59 @@ void handler(int sig) {
 
 int main(int argc, char *argv[])
 {
-    int               opt, n, i, retcode;
-    int               status       = 0;
-    int               verbose      = 0;
-    uint32_t          flags        = 0;
-    MS3Record        *msr          = NULL;
-    const char       *if_name      = NULL;
-    const char       *of_name      = NULL;
-    FILE             *fp           = NULL;
-    char              net[LM_SIDLEN], stat[LM_SIDLEN], loc[LM_SIDLEN], chan[LM_SIDLEN];
+    int               opt, np;
+    const char       *host      = "localhost";
+    const char       *user      = "root";
+    const char       *passwd    = "taosdata";
+    const char       *port      = "6030";
+    const char       *db_name   = "detail";
+    const char       *tb_name;
+    const char       *of_name   = NULL;
+    FILE             *fp        = NULL;
+    TAOS             *taos      = NULL;
+    TAOS_RES         *res       = NULL;
+    TAOS_ROW          row       = NULL;
+    char              cmd[MAX_TSQL_LEN];
     char              timestr[64];
-    int32_t          *idata;
-    int64_t           samples, npts, time;
+    int64_t           samples, time;
     struct sigaction  act;
 
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s -i infile -o outfile\r\n", argv[0]);
+        fprintf(stderr, "Usage: %s -t tb_name[ -h host -u user -p passwd -P port -d db_name] -o outfile\r\n", argv[0]);
         exit(1);
     } 
 
-    while ((opt = getopt(argc, argv, "i:o:")) != -1) {   
+    while ((opt = getopt(argc, argv, "t:h:u:p:P:o:")) != -1) {   
         switch (opt) {
-            case 'i':
-                if_name = strdup(optarg);
+            case 't':
+                tb_name = strdup(optarg);
+                break;
+            case 'h':
+                host = strdup(optarg);
+                break;
+            case 'u':
+                user = strdup(optarg);
+                break;
+            case 'p':
+                passwd = strdup(optarg);
+                break;
+            case 'P':
+                port = strdup(optarg);
+                break;
+            case 'd':
+                db_name = strdup(optarg);
                 break;
             case 'o':
                 of_name = strdup(optarg);
                 break;
             default:
-                fprintf(stderr, "Usage: %s -i infile -o outfile\r\n", argv[0]);
+                fprintf(stderr, "Usage: %s -i url -o outfile\r\n", argv[0]);
                 exit(1);
         }
     }
 
-    if (if_name == NULL || if_name[0] == '\0') {
-        fprintf(stderr, "the option -i was missing!\r\n");
+    if (tb_name == NULL || tb_name[0] == '\0') {
+        fprintf(stderr, "the option -t was missing!\r\n");
         exit(1);
     }
 
@@ -78,61 +97,55 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
-    fprintf(stderr, "running extract data from %s to %s, please wait...\r\n", if_name, of_name);
+    fprintf(stderr, "running extract data from %s to %s, please wait...\r\n", tb_name, of_name);
+
+    // init TAOS
+    taos_init();
+
+    taos = taos_connect(host, user, passwd, "", atoi(port));
+    if (taos == NULL) {
+        fprintf(stderr, "failed to connect to db, reason:%s\r\n", taos_errstr(taos));
+        goto failed;
+    }
+
+    taos_select_db(taos, db_name);
+
+    // get data
+    np = snprintf(cmd, sizeof(cmd), "select * from %s;", tb_name);
+    if (np <= 0) {
+        fprintf(stderr, "fnprintf error cmd: %s\r\n", cmd);
+        goto failed;
+    }
+
+    cmd[np] = '\0';
+
+    res = taos_query(taos, cmd);
+    if (res == NULL || taos_errno(res) != 0) {
+        fprintf(stderr, "taos_query error\r\n");
+        goto failed;
+    }
 
     samples = 0;
-    flags = MSF_UNPACKDATA | MSF_VALIDATECRC |  MSF_PNAMERANGE;
 
-    // read from miniseed and inert into database
-    while ((retcode = ms3_readmsr(&msr, if_name, NULL, NULL, flags, verbose)) == MS_NOERROR) {
-        if (quit == 1) {
-            break;
-        }
-
-        npts = msr->numsamples;
-        if (npts <= 0) {
-            continue;
-        }
-
-        samples += npts;
-
-        time = (int64_t) round(msr->starttime);
-        idata = (int32_t *) msr->datasamples;
-        n = (int) round(1000 * 1000 * 1000.0 / msr->samprate);
-
-        memset(net, 0, LM_SIDLEN);
-        memset(stat, 0, LM_SIDLEN);
-        memset(loc, 0, LM_SIDLEN);
-        memset(chan, 0, LM_SIDLEN);
-
-        if (ms_sid2nslc(msr->sid, net, stat, loc, chan)) {
-            fprintf(stderr, "failed to parse sid: %s\r\n", msr->sid);
-            break;
-        }
-
-        for (i = 0; i < npts; i++) {
-            ms_nstime2timestrz(time, timestr, ISOMONTHDAY, MICRO);
-            fprintf(fp, "%s %d\n", timestr, idata[i]);
-            time += n;
-        }
+    while ((row = taos_fetch_row(res))) {
+        time = *((int64_t *) row[0]) * 1000 * 1000;
+        ms_nstime2timestrz(time, timestr, ISOMONTHDAY, MICRO);
+        fprintf(fp, "%s %.1f\n", timestr, (float) (*((int *) row[1])));
+        samples++;
     }
 
-    if (retcode != MS_ENDOFFILE) {
-        ms_log(2, "cannot read %s: %s\r\n", if_name, ms_errorstr (retcode));
-    }
+    taos_free_result(res);
 
-    if (status == 0) {
-        fprintf(stderr, "done, inserted %ld record(s)\r\n", samples);
-    }
+failed:
+    fprintf(stderr, "done, inserted %ld record(s)\r\n", samples);
  
-    /* cleanup memory and close file */
-    if (msr) {
-        ms3_readmsr(&msr, NULL, NULL, NULL, flags, verbose);
+    if (taos) {
+        taos_close(taos);
     }
 
     if (fp) {
         fclose(fp);
     }
 
-    return status;
+    return 0;
 }

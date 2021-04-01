@@ -16,11 +16,11 @@ make
 ### 使用方法
 
 ```bash
-./seedToPickerFmt -i infile -o outfile
+./seedToPickerFmt -t tb_name[-d db_name -h host -u user -p passwd -P port]  -o outfile
 ```
 
 **注意**
-执行这两个程序前，需要设置 LD_LIBRARY_PATH 环境变量：
+执行这个程序前，需要设置 LD_LIBRARY_PATH 环境变量：
 
 ```bash
 source setenv.sh
