@@ -3494,7 +3494,8 @@ static int32_t validateSQLExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQuer
     }
 
     pList->ids[pList->num++] = index;
-  } else if (pExpr->tokenId == TK_FLOAT && (isnan(pExpr->value.dKey) || isinf(pExpr->value.dKey))) {
+  } else if ((pExpr->tokenId == TK_FLOAT && (isnan(pExpr->value.dKey) || isinf(pExpr->value.dKey))) ||
+             pExpr->tokenId == TK_NULL) {
     return TSDB_CODE_TSC_INVALID_SQL;
   } else if (pExpr->type == SQL_NODE_SQLFUNCTION) {
     if (*type == NON_ARITHMEIC_EXPR) {
