@@ -67,7 +67,9 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
   }
 
   for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
-    tfree(pResultRowInfo->pResult[i]->key);
+    if (pResultRowInfo->pResult[i]) {
+      tfree(pResultRowInfo->pResult[i]->key);
+    }
   }
   
   tfree(pResultRowInfo->pResult);
