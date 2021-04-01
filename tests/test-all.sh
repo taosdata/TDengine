@@ -25,9 +25,6 @@ function stopTaosd {
 function dohavecore(){
   corefile=`find $corepath -mmin 1`  
   core_file=`echo $corefile|cut -d " " -f2`
-  echo "corefile:$core_file"
-  echo "corepath:$corepath"
-  ls -l $corepath
   proc=`echo $corefile|cut -d "_" -f3`
   if [ -n "$corefile" ];then
     echo 'taosd or taos has generated core'
@@ -82,7 +79,6 @@ function runSimCaseOneByOne {
       # fi
       end_time=`date +%s`
       echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
-      dohavecore 0
     fi
   done < $1
 }
@@ -159,7 +155,6 @@ function runPyCaseOneByOne {
       else
         $line > /dev/null 2>&1
       fi
-      dohavecore 0
     fi
   done < $1
 }
