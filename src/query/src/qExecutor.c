@@ -6385,27 +6385,27 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
     }
   }
 
+  for (int16_t col = 0; col < numOfOutput; ++col) {
+    assert(pExprs[col].bytes > 0);
+    pQuery->resultRowSize += pExprs[col].bytes;
+  
+    // keep the tag length
+    if (TSDB_COL_IS_TAG(pExprs[col].base.colInfo.flag)) {
+      pQuery->tagLen += pExprs[col].bytes;
+    }
+  }
+
   if (pSecExprs != NULL) {
+    int32_t resultRowSize = 0;
+    
     // calculate the result row size
     for (int16_t col = 0; col < pQuery->numOfExpr2; ++col) {
       assert(pSecExprs[col].bytes > 0);
-      pQuery->resultRowSize += pSecExprs[col].bytes;
-
-      // keep the tag length
-      if (TSDB_COL_IS_TAG(pSecExprs[col].base.colInfo.flag)) {
-        pQuery->tagLen += pSecExprs[col].bytes;
-      }
+      resultRowSize += pSecExprs[col].bytes;
     }
-  } else {
-    // calculate the result row size
-    for (int16_t col = 0; col < numOfOutput; ++col) {
-      assert(pExprs[col].bytes > 0);
-      pQuery->resultRowSize += pExprs[col].bytes;
 
-      // keep the tag length
-      if (TSDB_COL_IS_TAG(pExprs[col].base.colInfo.flag)) {
-        pQuery->tagLen += pExprs[col].bytes;
-      }
+    if (resultRowSize > pQuery->resultRowSize) {
+      pQuery->resultRowSize = resultRowSize;
     }
   }
 
