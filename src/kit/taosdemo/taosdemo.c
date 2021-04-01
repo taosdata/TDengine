@@ -4455,7 +4455,7 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
         break;
       }
 
-      buffer += sprintf(buffer, "%s", data);
+      buffer += snprintf(buffer, retLen + 1, "%s", data);
       k++;
       len += retLen;
       remainderBufLen -= retLen;
