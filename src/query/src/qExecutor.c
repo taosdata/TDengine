@@ -4709,7 +4709,7 @@ void doHavingImpl(SOperatorInfo *pOperator, SSDataBlock *pBlock) {
         //SColIndex* colIdx = &pExprInfo->base.colInfo;
         SColumnInfoData* p = taosArrayGet(pBlock->pDataBlock, i);
 
-        SColumnFilterElem filterElem = {.filterInfo = *pExprInfo->pFilter};
+        SColumnFilterElem filterElem = {.filterInfo = pExprInfo->pFilter[m]};
         
         if (doFilterData(p, r, &filterElem, fp)) {
           exprQualified = 1;
@@ -5205,12 +5205,14 @@ int32_t initFilterFp(SExprInfo* pExpr, int32_t numOfOutput, SArray** fps) {
       int32_t upper = filterInfo->upperRelOptr;
       if (lower == TSDB_RELATION_INVALID && upper == TSDB_RELATION_INVALID) {
         qError("invalid rel optr");
+        taosArrayDestroy(es);
         return TSDB_CODE_QRY_APP_ERROR;
       }
 
       __filter_func_t ffp = getFilterOperator(lower, upper);
       if (ffp == NULL) {
         qError("invalid filter info");
+        taosArrayDestroy(es);
         return TSDB_CODE_QRY_APP_ERROR;
       }
       

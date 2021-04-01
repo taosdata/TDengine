@@ -769,7 +769,46 @@ sql_error select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 ha
 
 sql_error select avg(f1),count(tb1.*),sum(f1),stddev(f1),LEASTSQUARES(f1,1,1) from tb1 group by f1 having LEASTSQUARES(f1,1,1) > 2;
 
-sql_error select avg(f1),count(tb1.*),sum(f1),stddev(f1),LEASTSQUARES(f1,1,1) from tb1 group by f1 having sum(f1) > 2;
+sql select avg(f1),count(tb1.*),sum(f1),stddev(f1),LEASTSQUARES(f1,1,1) from tb1 group by f1 having sum(f1) > 2;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 4 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi                                                                                                                                                                                           
+if $data11 != 2 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data12 != 6 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi
+if $data13 != 0.000000000 then                                                                                                                                                                 
+  return -1                                                                                                                                                                                    
+endi 
+if $data20 != 4.000000000 then
+  return -1
+endi                                                                                                                                                                                           
+if $data21 != 2 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data22 != 8 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi
+if $data23 != 0.000000000 then                                                                                                                                                                 
+  return -1                                                                                                                                                                                    
+endi
 
 sql select avg(f1),count(tb1.*),sum(f1),stddev(f1) from tb1 group by f1 having min(f1) > 2;
 if $rows != 2 then
@@ -1072,7 +1111,13 @@ sql_error select avg(f1),count(tb1.*),sum(f1),stddev(f1),min(f1),max(f1),first(f
 
 sql_error select PERCENTILE(f1) from tb1 group by f1 having sum(f1) > 1;
 
-sql_error select PERCENTILE(f1,20) from tb1 group by f1 having sum(f1) > 1;
+sql select PERCENTILE(f1,20) from tb1 group by f1 having sum(f1) = 4;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
 
 sql select aPERCENTILE(f1,20) from tb1 group by f1 having sum(f1) > 1;
 if $rows != 4 then
@@ -1396,30 +1441,28 @@ sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by id1 having avg(f
 
 sql_error select avg(f1),spread(f1,f2,tb1.f1),avg(id1) from tb1 group by id1 having avg(f1) > id1;
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by id1 having avg(f1) > 0;
+sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by id1 having avg(f1) > 0;
+
+sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having avg(f1) > 0 and avg(f1) = 3;
 if $rows != 1 then
   return -1
 endi
-if $data00 != 2.500000000 then
+if $data00 != 3.000000000 then
   return -1
 endi
-if $data01 != 3.000000000 then
+if $data01 != 0.000000000 then
   return -1
 endi
-if $data02 != 3.000000000 then
+if $data02 != 0.000000000 then
   return -1
 endi      
-if $data03 != 3.000000000 then
-  return -1
-endi
-if $data04 != 1 then          
+if $data03 != 0.000000000 then
   return -1
 endi
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by id1 having avg(f1) < 2;
-if $rows != 0 then
-  return -1
-endi
+sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having avg(f1) < 0 and avg(f1) = 3;
+
+sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by id1 having avg(f1) < 2;
 
 sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f1 > 0 group by f1 having avg(f1) > 0;
 if $rows != 4 then
@@ -1814,23 +1857,32 @@ sql_error select avg(f1),spread(f1,f2,tb1.f1),f1,f6 from tb1 where f2 > 1 group 
 
 sql_error select avg(f1),spread(f1,f2,tb1.f1),f1,f6 from tb1 where f2 > 1 group by id1 having last(f6) > 0;
 
-sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 1 group by id1 having last(f6) > 0;
-if $rows != 1 then
+sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f2 > 1 and f2 < 4 group by f1 having last(f6) > 0;
+if $rows != 2 then
   return -1
 endi
-if $data00 != 3.000000000 then
+if $data00 != 2.000000000 then
   return -1
 endi
-if $data01 != 2.000000000 then
+if $data01 != 0.000000000 then
   return -1
 endi
-if $data02 != 2.000000000 then
+if $data02 != 0.000000000 then
   return -1
 endi
-if $data03 != 2.000000000 then
+if $data03 != 0.000000000 then
   return -1
 endi
-if $data04 != 1 then
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
   return -1
 endi
 
