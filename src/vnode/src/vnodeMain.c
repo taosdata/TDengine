@@ -364,7 +364,6 @@ int32_t vnodeOpen(int32_t vgId) {
   syncInfo.startSyncFileFp = vnodeStartSyncFile;
   syncInfo.stopSyncFileFp = vnodeStopSyncFile;
   syncInfo.getVersionFp = vnodeGetVersion;
-  syncInfo.resetVersionFp = vnodeResetVersion;
   syncInfo.sendFileFp = tsdbSyncSend;
   syncInfo.recvFileFp = tsdbSyncRecv;
   syncInfo.pTsdb = pVnode->tsdb;
