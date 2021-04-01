@@ -237,6 +237,18 @@ static int32_t dnodeInitStorage() {
     return -1;
   }
 
+  TDIR *tdir = tfsOpendir("vnode_bak/.staging");
+  if (tfsReaddir(tdir) != NULL) {
+    dError("vnode_bak/.staging dir not empty, fix it first.");
+    tfsClosedir(tdir);
+    return -1;
+  }
+
+  if (tfsMkdir("vnode_bak/.staging") < 0) {
+    dError("failed to create vnode_bak/.staging dir since %s", tstrerror(terrno));
+    return -1;
+  }
+
   dnodeCheckDataDirOpenned(tsDnodeDir);
 
   dInfo("dnode storage is initialized at %s", tsDnodeDir);
