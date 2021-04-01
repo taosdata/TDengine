@@ -85,7 +85,7 @@ enum TEST_MODE {
 #define   MAX_NUM_DATATYPE 10
 
 #define   MAX_DB_COUNT           8
-#define   MAX_SUPER_TABLE_COUNT  8
+#define   MAX_SUPER_TABLE_COUNT  100000
 #define   MAX_COLUMN_COUNT       1024
 #define   MAX_TAG_COUNT          128
 
@@ -4090,7 +4090,7 @@ static bool getInfoFromJsonFile(char* file) {
   }
 
   bool  ret = false;
-  int   maxLen = 64000;
+  int   maxLen = 6400000;
   char *content = calloc(1, maxLen + 1);
   int   len = fread(content, 1, maxLen, fp);
   if (len <= 0) {
