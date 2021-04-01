@@ -48,7 +48,6 @@ def pre_test(){
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
     git clean -dfx
-    find ${WKC}/tests/pytest -name \'*\'.sql -exec rm -rf {} \\;
     cd ${WK}
     git reset --hard HEAD~10
     git checkout develop 
@@ -57,7 +56,6 @@ def pre_test(){
     export TZ=Asia/Harbin
     date
     git clean -dfx
-    rm -rf ${WK}/debug
     mkdir debug
     cd debug
     cmake .. > /dev/null
