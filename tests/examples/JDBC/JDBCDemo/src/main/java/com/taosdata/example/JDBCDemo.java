@@ -68,12 +68,12 @@ public class JDBCDemo {
     }
 
     private void insert() {
-        final String sql = "insert into test.weather (ts, temperature, humidity) values(now, 20.5, 34)";
+        final String sql = "insert into  " + dbName + "." + tbName + " (ts, temperature, humidity) values(now, 20.5, 34)";
         exuete(sql);
     }
 
     private void select() {
-        final String sql = "select * from test.weather";
+        final String sql = "select * from "+ dbName + "." + tbName;
         executeQuery(sql);
     }
 
