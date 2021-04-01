@@ -331,10 +331,10 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
 
     np = snprintf(cmd, sizeof(cmd),
                   "insert into %s_%s_%s_%s "
-                  "using %s tags ('%s', '%s', '%s', '%s') values (%ld, %f);",
+                  "using %s tags ('%s', '%s', '%s', '%s') values (%ld, now);",
                   net, stat, loc, chan,
                   stb_name, net, stat, loc, chan,
-                  (int64_t) (samps.time[index] * 0.001 * 0.001), samps.samples[index]);
+                  (int64_t) (samps.time[index] * 0.001 * 0.001));
 
     if (np <= 0) {
       fprintf(stderr, "fnprintf error for result table: %s, %s, %s, %s\r\n",
@@ -427,7 +427,7 @@ int main(int argc, char *argv[]) {
   const char         *port      = "6030";
   const char         *sql       = "select * from ps;";
   const char         *topic     = "packet";
-  const char         *result    = "detail";
+  const char         *fpicker   = "fpicker";
   const char         *stb_name  = "ms";
   TAOS               *taos      = NULL;
   TAOS               *res_taos  = NULL;
@@ -466,8 +466,8 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
-    if (strncmp(argv[i], "-d=", 3) == 0) {
-      result = argv[i] + 3;
+    if (strncmp(argv[i], "-f=", 3) == 0) {
+      fpicker = argv[i] + 3;
       continue;
     }
 
@@ -479,7 +479,7 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[i], "-help") == 0) {
       fprintf(stderr,
               "Usage: %s[ -h=host -u=user -p=password -P=port "
-              "-t=topic -d=result_db_name -s=result_stb_name "
+              "-t=topic -f=result_db_name -s=result_stb_name "
               "-sync -restart -nokeep -help]\r\n", argv[0]);
 
       exit(0);
@@ -506,7 +506,7 @@ int main(int argc, char *argv[]) {
   fprintf(stderr, "# User:                            %s\r\n", user);
   fprintf(stderr, "# Port:                            %s\r\n", port);
   fprintf(stderr, "# Topic:                           %s\r\n", topic);
-  fprintf(stderr, "# Result Database Name:            %s\r\n", result);
+  fprintf(stderr, "# Result Database Name:            %s\r\n", fpicker);
   fprintf(stderr, "# Result Super Table Name:         %s\r\n", stb_name);
   fprintf(stderr, "# Async:                           %d\r\n", async);
   fprintf(stderr, "# Restart:                         %d\r\n", restart);
@@ -553,7 +553,7 @@ int main(int argc, char *argv[]) {
   }
 
   // create databse for result
-  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s;", result);
+  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s;", fpicker);
   if (np <= 0) {
     fprintf(stderr, "fnprintf error cmd: %s\r\n", cmd);
     goto failed;
@@ -570,11 +570,11 @@ int main(int argc, char *argv[]) {
   params.data = (void *) stb_name;
 
   taos_select_db(taos, topic);
-  taos_select_db(res_taos, result);
+  taos_select_db(res_taos, fpicker);
 
-  // create super table for result
+  // create super table for fpicker
   np = snprintf(cmd, sizeof(cmd),
-                "create stable if not exists %s (ts timestamp, data int) "
+                "create stable if not exists %s (ts timestamp, calc_ts timestamp) "
                 "tags (network binary(20), station binary(20), location binary(20), channel binary(20));",
                 stb_name);
 
