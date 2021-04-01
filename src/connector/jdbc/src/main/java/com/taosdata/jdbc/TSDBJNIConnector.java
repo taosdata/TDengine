@@ -16,11 +16,8 @@
  */
 package com.taosdata.jdbc;
 
-import com.taosdata.jdbc.utils.NativeLoader;
 import com.taosdata.jdbc.utils.TaosInfo;
 
-import java.io.*;
-import java.net.URL;
 import java.sql.SQLException;
 import java.sql.SQLWarning;
 import java.util.List;
@@ -32,77 +29,25 @@ public class TSDBJNIConnector {
     private static volatile Boolean isInitialized = false;
 
     private TaosInfo taosInfo = TaosInfo.getInstance();
-
-    static {
-        String libName = "libtaos.so";
-        String nativeTempDir = System.getProperty("java.io.tmpdir");
-        File extractedLibFile = new File(nativeTempDir + File.separator + libName);
-        if (!extractedLibFile.exists()) {
-            BufferedInputStream reader = null;
-            FileOutputStream writer = null;
-            try {
-                InputStream in = TSDBJNIConnector.class.getResourceAsStream("/" + libName);
-                if (in == null)
-                    in = TSDBJNIConnector.class.getResourceAsStream(libName);
-                reader = new BufferedInputStream(in);
-                writer = new FileOutputStream(extractedLibFile);
-                byte[] buffer = new byte[1024];
-                while (reader.read(buffer) > 0) {
-                    writer.write(buffer);
-                    buffer = new byte[1024];
-                }
-            } catch (Exception e) {
-                e.printStackTrace();
-            } finally {
-                try {
-                    if (reader != null)
-                        reader.close();
-                    if (writer != null)
-                        writer.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-        System.load(extractedLibFile.getAbsolutePath());
-
-//        System.loadLibrary("taos");
-        System.out.println("java.library.path:" + System.getProperty("java.library.path"));
-    }
-
-    /**
-     * Connection pointer used in C
-     */
+    // Connection pointer used in C
     private long taos = TSDBConstants.JNI_NULL_POINTER;
-
-    /**
-     * Result set pointer for the current connection
-     */
-//    private long taosResultSetPointer = TSDBConstants.JNI_NULL_POINTER;
-
-    /**
-     * result set status in current connection
-     */
+    // result set status in current connection
     private boolean isResultsetClosed = true;
     private int affectedRows = -1;
 
-    /**
-     * Whether the connection is closed
-     */
+    static {
+        System.loadLibrary("taos");
+        System.out.println("java.library.path:" + System.getProperty("java.library.path"));
+    }
+
     public boolean isClosed() {
         return this.taos == TSDBConstants.JNI_NULL_POINTER;
     }
 
-    /**
-     * Returns the status of last result set in current connection
-     */
     public boolean isResultsetClosed() {
         return this.isResultsetClosed;
     }
 
-    /**
-     * Initialize static variables in JNI to optimize performance
-     */
     public static void init(String configDir, String locale, String charset, String timezone) throws SQLWarning {
         synchronized (isInitialized) {
             if (!isInitialized) {
@@ -128,11 +73,6 @@ public class TSDBJNIConnector {
 
     public static native String getTsCharset();
 
-    /**
-     * Get connection pointer
-     *
-     * @throws SQLException
-     */
     public boolean connect(String host, int port, String dbName, String user, String password) throws SQLException {
         if (this.taos != TSDBConstants.JNI_NULL_POINTER) {
 //            this.closeConnectionImp(this.taos);
@@ -220,13 +160,6 @@ public class TSDBJNIConnector {
 
     private native String getErrMsgImp(long pSql);
 
-    /**
-     * Get resultset pointer
-     * Each connection should have a single open result set at a time
-     */
-//    public long getResultSet() {
-//        return taosResultSetPointer;
-//    }
     private native long getResultSetImp(long connection, long pSql);
 
     public boolean isUpdateQuery(long pSql) {
@@ -266,6 +199,7 @@ public class TSDBJNIConnector {
 //        }
 //        return resCode;
 //    }
+
     private native int freeResultSetImp(long connection, long result);
 
     /**
@@ -358,8 +292,7 @@ public class TSDBJNIConnector {
      * Validate if a <I>create table</I> sql statement is correct without actually creating that table
      */
     public boolean validateCreateTableSql(String sql) {
-        long connection = taos;
-        int res = validateCreateTableSqlImp(connection, sql.getBytes());
+        int res = validateCreateTableSqlImp(taos, sql.getBytes());
         return res != 0 ? false : true;
     }
 
