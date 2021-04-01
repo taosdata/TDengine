@@ -5,11 +5,7 @@
 #include <math.h>
 #include "taos.h"
 #include "libmseed.h"
-#include "sachdr.h"
-#include "ew_bridge.h"
-#include "PickData.h"
-#include "FilterPicker5_Memory.h"
-#include "FilterPicker5.h"
+#include "callback_udf_func.h"
 
 
 #define  MAX_TSQL_LEN  65535
@@ -184,23 +180,10 @@ int check_and_free_res(TAOS_RES **res, const char *cmd) {
 
 void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
 {
-  int                    n, np;
-  BOOLEAN_INT            useMemory            = TRUE_INT;
-  double                 longTermWindow       = 10.0; 
-  double                 threshold1           = 8.0;
-  double                 threshold2           = 8.0;
-  double                 tUpEvent             = 0.5;
-  double                 filterWindow         = 4.0;
-  double                 dt                   = 0.01;
-
-  /* array of num_picks ptrs to PickData structures/objects containing returned picks */
-  PickData             **pick_list            = NULL;
-  int                    num_picks            = 0;
-  int                    index, numsamples;
+  int                    n;
+  int                    inumsamples, onumsamples;
   int                   *samples;
-  long                   iFilterWindow;
-  long                   ilongTermWindow;
-  long                   itUpEvent;
+  char                  *osamples, *ots;
   MS3TraceID            *id;
   MS3TraceSeg           *seg;
   nstime_t               dtime;
@@ -211,39 +194,15 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
 #endif
   cenc_samples_t         samps;
   callback_params_t     *p;
-  FilterPicker5_Memory  *memory = NULL;
-  PickData              *pick = NULL;
   memory_table_t       **t;
-  TAOS_RES              *res = NULL;
-  char                  *stb_name;
-  char                   cmd[MAX_TSQL_LEN];
+  SUdfInit               init;
 
   p = (callback_params_t *) param;
   if (p == NULL) {
     return;
   }
 
-  stb_name = (char *) p->data;
-
-  filterWindow = 300.0 * dt;
-  iFilterWindow = (long) (0.5 + filterWindow * 1000.0);
-  if (iFilterWindow > 1) {
-    filterWindow = (double) iFilterWindow / 1000.0;
-  }
-
-  longTermWindow = 500.0 * dt; 
-  ilongTermWindow = (long) (0.5 + longTermWindow * 1000.0);
-  if (ilongTermWindow > 1) {
-    longTermWindow = (double) ilongTermWindow / 1000.0;
-  }
-
-  tUpEvent = 20.0 * dt;
-  itUpEvent = (long) (0.5 + tUpEvent * 1000.0);
-  if (itUpEvent > 1) {
-    tUpEvent = (double) itUpEvent / 1000.0;
-  }
-
-  numsamples = 0;
+  inumsamples = 0;
 
   memset(&samps.time, 0, sizeof(samps.time));
   memset(&samps.samples, 0, sizeof(samps.samples));
@@ -259,7 +218,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
     seg = id->first;
     memcpy(sid, id->sid, strlen(id->sid));
 
-    samps.time[numsamples] = id->earliest;
+    samps.time[inumsamples] = id->earliest;
 
     t = get_memory_table(sid, p->mtb);
     if (*t == NULL) {
@@ -267,7 +226,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
       return;
     }
 
-    memory = (*t)->memory;
+    init.ptr = (char *) ((*t)->memory);
 
     while (seg) {
       if (seg->numsamples <= 0) {
@@ -280,15 +239,15 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
       samples = (int *) seg->datasamples;
 
       for (n = 0; n < seg->numsamples; n++) {
-        samps.time[numsamples + n] = samps.time[0] + n * dtime;
-        samps.samples[numsamples + n] = (float) samples[n];
+        samps.time[inumsamples + n] = samps.time[0] + n * dtime;
+        samps.samples[inumsamples + n] = (float) samples[n];
 #if 0
-        ms_nstime2timestrz(samps.time[numsamples + n], timestr, ISOMONTHDAY, MICRO);
-        fprintf(stderr, "%s %f\n", timestr, samps.samples[numsamples + n]);
+        ms_nstime2timestrz(samps.time[inumsamples + n], timestr, ISOMONTHDAY, MICRO);
+        fprintf(stderr, "%s %f\n", timestr, samps.samples[inumsamples + n]);
 #endif
       }
 
-      numsamples += seg->numsamples;
+      inumsamples += seg->numsamples;
       nTotalSamples += seg->numsamples;
 
       seg = seg->next;
@@ -297,67 +256,16 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
     id = id->next;
   }
 
-  if (numsamples) {
-    Pick(0.01, samps.samples,
-         numsamples,
-         filterWindow,   // 多少道滤波
-         longTermWindow, // 长期平均值时间窗
-         threshold1,     // 平均值阈值
-         threshold2,     // 积分阈值
-         tUpEvent,       // 积分时间窗
-         &memory,
-         useMemory,
-         &pick_list,
-         &num_picks,
-         "cenc_picker_func"
-    );
-  }
+  onumsamples = inumsamples;
+  osamples = (char *) malloc(onumsamples * sizeof(float));
+  ots = (char *) malloc(onumsamples * sizeof(long long));
 
-  (*t)->memory = memory;
+  callback_udf_func((char *) samps.samples, 4, inumsamples, samps.time, osamples, ots, &onumsamples, &init);
 
-  for (n = 0; n < num_picks; n++) {
-    pick = *(pick_list + n);
-    index = (int) (pick->indices[0] * 0.5 + pick->indices[1] * 0.5);
+  free(osamples);
+  free(ots);
 
-    if (index < 0) {
-      continue;
-    }
-
-    if (ms_sid2nslc(sid, net, stat, loc, chan)) {
-        fprintf(stderr, "ms_sid2nslc() error\r\n");
-
-        goto failed;
-    }
-
-    np = snprintf(cmd, sizeof(cmd),
-                  "insert into %s_%s_%s_%s "
-                  "using %s tags ('%s', '%s', '%s', '%s') values (%ld, now);",
-                  net, stat, loc, chan,
-                  stb_name, net, stat, loc, chan,
-                  (int64_t) (samps.time[index] * 0.001 * 0.001));
-
-    if (np <= 0) {
-      fprintf(stderr, "fnprintf error for result table: %s, %s, %s, %s\r\n",
-              net, stat, loc, chan);
-
-      goto failed;
-    }
-
-    cmd[np] = '\0';
-
-    res = taos_query(p->res_taos, cmd);
-    check_and_free_res(&res, cmd);
-
-#if 0
-    ms_nstime2timestrz(samps.time[index], timestr, ISOMONTHDAY, MICRO);
-    fprintf(stderr, "%s %f\n", timestr, samps.samples[index]);
-#endif
-  }
-
-failed:
-  if (pick_list) {
-    free(pick_list);
-  }
+  (*t)->memory = (FilterPicker5_Memory *) init.ptr;
 }
 
 
@@ -427,10 +335,9 @@ int main(int argc, char *argv[]) {
   const char         *port      = "6030";
   const char         *sql       = "select * from ps;";
   const char         *topic     = "packet";
-  const char         *fpicker   = "fpicker";
+  const char         *result    = "detail";
   const char         *stb_name  = "ms";
   TAOS               *taos      = NULL;
-  TAOS               *res_taos  = NULL;
   TAOS_RES           *res       = NULL;
   TAOS_SUB           *tsub      = NULL;
   char                cmd[MAX_TSQL_LEN];
@@ -466,8 +373,8 @@ int main(int argc, char *argv[]) {
       continue;
     }
 
-    if (strncmp(argv[i], "-f=", 3) == 0) {
-      fpicker = argv[i] + 3;
+    if (strncmp(argv[i], "-d=", 3) == 0) {
+      result = argv[i] + 3;
       continue;
     }
 
@@ -479,7 +386,7 @@ int main(int argc, char *argv[]) {
     if (strcmp(argv[i], "-help") == 0) {
       fprintf(stderr,
               "Usage: %s[ -h=host -u=user -p=password -P=port "
-              "-t=topic -f=result_db_name -s=result_stb_name "
+              "-t=topic -d=result_db_name -s=result_stb_name "
               "-sync -restart -nokeep -help]\r\n", argv[0]);
 
       exit(0);
@@ -506,7 +413,7 @@ int main(int argc, char *argv[]) {
   fprintf(stderr, "# User:                            %s\r\n", user);
   fprintf(stderr, "# Port:                            %s\r\n", port);
   fprintf(stderr, "# Topic:                           %s\r\n", topic);
-  fprintf(stderr, "# Result Database Name:            %s\r\n", fpicker);
+  fprintf(stderr, "# Result Database Name:            %s\r\n", result);
   fprintf(stderr, "# Result Super Table Name:         %s\r\n", stb_name);
   fprintf(stderr, "# Async:                           %d\r\n", async);
   fprintf(stderr, "# Restart:                         %d\r\n", restart);
@@ -546,14 +453,8 @@ int main(int argc, char *argv[]) {
     goto failed;
   }
 
-  res_taos = taos_connect(host, user, passwd, "", 0);
-  if (res_taos == NULL) {
-    fprintf(stderr, "failed to connect to result database, reason:%s\r\n", taos_errstr(taos));
-    goto failed;
-  }
-
   // create databse for result
-  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s;", fpicker);
+  np = snprintf(cmd, sizeof(cmd), "create database if not exists %s;", result);
   if (np <= 0) {
     fprintf(stderr, "fnprintf error cmd: %s\r\n", cmd);
     goto failed;
@@ -566,29 +467,7 @@ int main(int argc, char *argv[]) {
     goto failed;
   }
 
-  params.res_taos = res_taos;
-  params.data = (void *) stb_name;
-
   taos_select_db(taos, topic);
-  taos_select_db(res_taos, fpicker);
-
-  // create super table for fpicker
-  np = snprintf(cmd, sizeof(cmd),
-                "create stable if not exists %s (ts timestamp, calc_ts timestamp) "
-                "tags (network binary(20), station binary(20), location binary(20), channel binary(20));",
-                stb_name);
-
-  if (np <= 0) {
-    fprintf(stderr, "fnprintf error cmd: %s\r\n", cmd);
-    goto failed;
-  }
-
-  cmd[np] = '\0';
-
-  res = taos_query(res_taos, cmd);
-  if (check_and_free_res(&res, cmd) != 0) {
-    goto failed;
-  }
 
   fprintf(stderr, "start time: %ld\r\n", time(NULL));
 
@@ -625,10 +504,6 @@ int main(int argc, char *argv[]) {
 failed:
   if (taos) {
     taos_close(taos);
-  }
-
-  if (res_taos) {
-    taos_close(res_taos);
   }
 
   if (params.mtb) {
