@@ -11,13 +11,13 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
 import taos
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
 from util.dnodes import tdDnodes
-from multiprocessing import  Process
+from multiprocessing import Process
+import subprocess
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -40,27 +40,22 @@ class TDTestCase:
         print("alter table done")
 
     def deleteTableAndRecreate(self):
-        self.host = "127.0.0.1"
-        self.user = "root"
-        self.password = "taosdata"
         self.config = tdDnodes.getSimCfgPath()
 
-        self.conn = taos.connect(host = self.host, user = self.user, password = self.password, config = self.config)
-        self.cursor = self.conn.cursor() 
-        
-        self.cursor.execute("use test")
-        print("drop table stb")
-        self.cursor.execute("drop table stb")
-
-        print("create table stb")
-        self.cursor.execute("create table if not exists stb (ts timestamp, col1 int) tags(areaid int, city nchar(20))")
-        print("insert data")
+        sqlCmds = "use test; drop table stb;"
+        sqlCmds += "create table if not exists stb (ts timestamp, col1 int) tags(areaid int, city nchar(20));"
         for i in range(self.tables):
             city = "beijing" if i % 2 == 0 else "shanghai"
-            self.cursor.execute("create table tb%d using stb tags(%d, '%s')" % (i, i, city))
-            for j in range(self.rows):
-                self.cursor.execute("insert into tb%d values(%d, %d)" % (i, self.ts + j, j * 100000))
-
+            sqlCmds += "create table tb%d using stb tags(%d, '%s');" % (i, i, city)
+            for j in range(5):
+                sqlCmds += "insert into tb%d values(%d, %d);" % (i, self.ts + j, j * 100000)
+        command = ["taos", "-c", self.config, "-s", sqlCmds]
+        print("drop stb, recreate stb and insert data ")
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+        if result.returncode == 0:
+            print("success:", result)
+        else:
+            print("error:", result)
 
     def run(self):
         tdSql.prepare()
@@ -100,19 +95,17 @@ class TDTestCase:
         tdSql.query("select count(*) from stb")
         tdSql.checkData(0, 0, 10000)
 
-        tdSql.query("select count(*) from tb1")
+        tdSql.query("select count(*) from tb0")
         tdSql.checkData(0, 0, 1000)
 
-        p = Process(target=self.deleteTableAndRecreate, args=())
-        p.start()        
-        p.join()
-        p.terminate()
+        # drop stable in subprocess
+        self.deleteTableAndRecreate()
 
         tdSql.query("select count(*) from stb")
-        tdSql.checkData(0, 0, 10000)
+        tdSql.checkData(0, 0, 5 * self.tables)
 
-        tdSql.query("select count(*) from tb1")
-        tdSql.checkData(0, 0, 1000)
+        tdSql.query("select count(*) from tb0")
+        tdSql.checkData(0, 0, 5)
 
     def stop(self):
         tdSql.close()
