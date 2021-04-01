@@ -17,7 +17,6 @@ public class DriverAutoloadTest {
 
     @Test
     public void testRestful() throws SQLException {
-//        Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
         final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
         Connection conn = DriverManager.getConnection(url, properties);
         Assert.assertNotNull(conn);

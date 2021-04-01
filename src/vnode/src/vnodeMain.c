@@ -27,6 +27,7 @@
 #include "vnodeVersion.h"
 #include "vnodeMgmt.h"
 #include "vnodeWorker.h"
+#include "vnodeBackup.h"
 #include "vnodeMain.h"
 
 static int32_t vnodeProcessTsdbStatus(void *arg, int32_t status, int32_t eno);
@@ -364,7 +365,6 @@ int32_t vnodeOpen(int32_t vgId) {
   syncInfo.startSyncFileFp = vnodeStartSyncFile;
   syncInfo.stopSyncFileFp = vnodeStopSyncFile;
   syncInfo.getVersionFp = vnodeGetVersion;
-  syncInfo.resetVersionFp = vnodeResetVersion;
   syncInfo.sendFileFp = tsdbSyncSend;
   syncInfo.recvFileFp = tsdbSyncRecv;
   syncInfo.pTsdb = pVnode->tsdb;
@@ -448,18 +448,14 @@ void vnodeDestroy(SVnodeObj *pVnode) {
 
   if (pVnode->dropped) {
     char rootDir[TSDB_FILENAME_LEN] = {0};    
-    char newDir[TSDB_FILENAME_LEN] = {0};
+    char stagingDir[TSDB_FILENAME_LEN] = {0};
     sprintf(rootDir, "%s/vnode%d", "vnode", vgId);
-    sprintf(newDir, "%s/vnode%d", "vnode_bak", vgId);
+    sprintf(stagingDir, "%s/.staging/vnode%d", "vnode_bak", vgId);
 
-    if (0 == tsEnableVnodeBak) {
-      vInfo("vgId:%d, vnode backup not enabled", pVnode->vgId);
-    } else {
-      tfsRmdir(newDir);
-      tfsRename(rootDir, newDir);
-    }
+    tfsRename(rootDir, stagingDir);
 
-    tfsRmdir(rootDir);
+    vnodeBackup(vgId);
+
     dnodeSendStatusMsgToMnode();
   }
 

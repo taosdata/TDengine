@@ -96,6 +96,7 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   // write into WAL
   code = walWrite(pVnode->wal, pHead);
   if (code < 0) {
+    if (syncCode > 0) atomic_sub_fetch_32(&pWrite->processedCount, 1);
     vError("vgId:%d, hver:%" PRIu64 " vver:%" PRIu64 " code:0x%x", pVnode->vgId, pHead->version, pVnode->version, code);
     return code;
   }
@@ -104,7 +105,10 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
 
   // write data locally
   code = (*vnodeProcessWriteMsgFp[pHead->msgType])(pVnode, pHead->cont, pRspRet);
-  if (code < 0) return code;
+  if (code < 0) {
+    if (syncCode > 0) atomic_sub_fetch_32(&pWrite->processedCount, 1);
+    return code;
+  }
 
   return syncCode;
 }
