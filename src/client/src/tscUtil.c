@@ -309,7 +309,7 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 
   int32_t offset = 0;
 
-  for (int32_t i = 0; i < pRes->numOfCols; ++i) {
+  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
 
     pRes->urow[i] = pRes->data + offset * pRes->numOfRows;

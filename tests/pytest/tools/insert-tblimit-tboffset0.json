@@ -15,7 +15,7 @@
     "databases": [{
         "dbinfo": {
             "name": "db",
-            "drop": "yes",
+            "drop": "no",
             "replica": 1,
             "days": 10,
             "cache": 16,
@@ -33,7 +33,7 @@
         },
         "super_tables": [{
             "name": "stb",
-            "child_table_exists":"no",
+            "child_table_exists":"yes",
             "childtable_count": 100,
             "childtable_prefix": "stb_",
             "auto_create_table": "no",

@@ -91,13 +91,17 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   int32_t syncCode = 0;
   bool    force = (pWrite == NULL ? false : pWrite->pHead.msgType != TSDB_MSG_TYPE_SUBMIT);
   syncCode = syncForwardToPeer(pVnode->sync, pHead, pWrite, qtype, force);
-  if (syncCode < 0) return syncCode;
+  if (syncCode < 0) {
+    pHead->version = 0;
+    return syncCode;
+  }
 
   // write into WAL
   code = walWrite(pVnode->wal, pHead);
   if (code < 0) {
     if (syncCode > 0) atomic_sub_fetch_32(&pWrite->processedCount, 1);
     vError("vgId:%d, hver:%" PRIu64 " vver:%" PRIu64 " code:0x%x", pVnode->vgId, pHead->version, pVnode->version, code);
+    pHead->version = 0;
     return code;
   }
 

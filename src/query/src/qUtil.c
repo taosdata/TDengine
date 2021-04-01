@@ -66,8 +66,8 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
     return;
   }
 
-  if (pResultRowInfo->type == TSDB_DATA_TYPE_BINARY || pResultRowInfo->type == TSDB_DATA_TYPE_NCHAR) {
-    for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
+  for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
+    if (pResultRowInfo->pResult[i]) {
       tfree(pResultRowInfo->pResult[i]->key);
     }
   }
@@ -153,11 +153,8 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
   pResultRow->offset = -1;
   pResultRow->closed = false;
 
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    tfree(pResultRow->key);
-  } else {
-    pResultRow->win = TSWINDOW_INITIALIZER;
-  }
+  tfree(pResultRow->key);
+  pResultRow->win = TSWINDOW_INITIALIZER;
 }
 
 // TODO refactor: use macro
