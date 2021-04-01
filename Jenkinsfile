@@ -42,12 +42,12 @@ def pre_test(){
     killall -9 taosd ||echo "no taosd running"
     killall -9 gdb || echo "no gdb running"
     cd ${WKC}
-    git checkout develop
     git reset --hard HEAD~10 >/dev/null 
+    git checkout develop
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    find ${WKC}/tests/pytest -name \'*\'.sql -exec rm -rf {} \\;
+    git clean -dfx
     cd ${WK}
     git reset --hard HEAD~10
     git checkout develop 
@@ -55,7 +55,7 @@ def pre_test(){
     cd ${WK}
     export TZ=Asia/Harbin
     date
-    rm -rf ${WK}/debug
+    git clean -dfx
     mkdir debug
     cd debug
     cmake .. > /dev/null
@@ -185,6 +185,14 @@ pipeline {
             rm -rf /var/log/taos/*
             ./handle_crash_gen_val_log.sh
             '''
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/pytest
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
+                ./handle_taosd_val_log.sh
+                '''
+            }
             timeout(time: 45, unit: 'MINUTES'){
                 sh '''
                 date
@@ -214,6 +222,11 @@ pipeline {
               date
               cd ${WKC}/tests
               ./test-all.sh b3fq
+              date'''
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh full example
               date'''
             }
           }
@@ -272,7 +285,7 @@ pipeline {
               date
               cd ${WKC}/tests
               ./test-all.sh b7fq
-              date'''
+              date'''              
             }
           }
         }        

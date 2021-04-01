@@ -70,13 +70,16 @@ static SStep tsDnodeSteps[] = {
   {"dnode-vread",     dnodeInitVRead,      dnodeCleanupVRead},
   {"dnode-vwrite",    dnodeInitVWrite,     dnodeCleanupVWrite},
   {"dnode-vmgmt",     dnodeInitVMgmt,      dnodeCleanupVMgmt},
-  {"dnode-mread",     dnodeInitMRead,      dnodeCleanupMRead},
-  {"dnode-mwrite",    dnodeInitMWrite,     dnodeCleanupMWrite},
-  {"dnode-mpeer",     dnodeInitMPeer,      dnodeCleanupMPeer},  
+  {"dnode-mread",     dnodeInitMRead,      NULL},
+  {"dnode-mwrite",    dnodeInitMWrite,     NULL},
+  {"dnode-mpeer",     dnodeInitMPeer,      NULL},  
   {"dnode-client",    dnodeInitClient,     dnodeCleanupClient},
   {"dnode-server",    dnodeInitServer,     dnodeCleanupServer},
   {"dnode-vnodes",    dnodeInitVnodes,     dnodeCleanupVnodes},
   {"dnode-modules",   dnodeInitModules,    dnodeCleanupModules},
+  {"dnode-mread",     NULL,                dnodeCleanupMRead},
+  {"dnode-mwrite",    NULL,                dnodeCleanupMWrite},
+  {"dnode-mpeer",     NULL,                dnodeCleanupMPeer},  
   {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
   {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
@@ -231,6 +234,18 @@ static int32_t dnodeInitStorage() {
 
   if (tfsMkdir("vnode_bak") < 0) {
     dError("failed to create vnode_bak dir since %s", tstrerror(terrno));
+    return -1;
+  }
+
+  TDIR *tdir = tfsOpendir("vnode_bak/.staging");
+  if (tfsReaddir(tdir) != NULL) {
+    dError("vnode_bak/.staging dir not empty, fix it first.");
+    tfsClosedir(tdir);
+    return -1;
+  }
+
+  if (tfsMkdir("vnode_bak/.staging") < 0) {
+    dError("failed to create vnode_bak/.staging dir since %s", tstrerror(terrno));
     return -1;
   }
 
