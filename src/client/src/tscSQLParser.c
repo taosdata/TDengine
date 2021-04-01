@@ -3728,6 +3728,39 @@ static int32_t setExprToCond(tSqlExpr** parent, tSqlExpr* pExpr, const char* msg
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t validateNullExpr(tSqlExpr* pExpr, char* msgBuf) {
+  const char* msg = "only support is [not] null";
+
+  tSqlExpr* pRight = pExpr->pRight;
+  if (pRight->tokenId == TK_NULL && (!(pExpr->tokenId == TK_ISNULL || pExpr->tokenId == TK_NOTNULL))) {
+    return invalidSqlErrMsg(msgBuf, msg);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+// check for like expression
+static int32_t validateLikeExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t index, char* msgBuf) {
+  const char* msg1 = "wildcard string should be less than 20 characters";
+  const char* msg2 = "illegal column name";
+
+  tSqlExpr* pLeft  = pExpr->pLeft;
+  tSqlExpr* pRight = pExpr->pRight;
+
+  if (pExpr->tokenId == TK_LIKE) {
+    if (pRight->value.nLen > TSDB_PATTERN_STRING_MAX_LEN) {
+      return invalidSqlErrMsg(msgBuf, msg1);
+    }
+
+    SSchema* pSchema = tscGetTableSchema(pTableMeta);
+    if ((!isTablenameToken(&pLeft->colInfo)) && !IS_VAR_DATA_TYPE(pSchema[index].type)) {
+      return invalidSqlErrMsg(msgBuf, msg2);
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr, SCondExpr* pCondExpr,
                                      int32_t* type, int32_t parentOptr) {
   const char* msg1 = "table query cannot use tags filter";
@@ -3737,9 +3770,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   const char* msg5 = "not support ordinary column join";
   const char* msg6 = "only one query condition on tbname allowed";
   const char* msg7 = "only in/like allowed in filter table name";
-  const char* msg8 = "wildcard string should be less than 20 characters";
-  const char* msg9 = "only support is [not] null";
-  
+
   tSqlExpr* pLeft  = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
 
@@ -3754,6 +3785,18 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
   STableMeta*     pTableMeta = pTableMetaInfo->pTableMeta;
+
+  // validate the null expression
+  int32_t code = validateNullExpr(*pExpr, tscGetErrorMsgPayload(pCmd));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  // validate the like expression
+  code = validateLikeExpr(*pExpr, pTableMeta, index.columnIndex, tscGetErrorMsgPayload(pCmd));
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
 
   if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX) {  // query on time range
     if (!validateJoinExprNode(pCmd, pQueryInfo, *pExpr, &index)) {
@@ -3776,7 +3819,6 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       
       int16_t leftIdx = index.tableIndex;
 
-      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
       if (getColumnIndexByName(pCmd, &pRight->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
@@ -3823,20 +3865,6 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    // check for like expression
-    if ((*pExpr)->tokenId == TK_LIKE) {
-      if (pRight->value.nLen > TSDB_PATTERN_STRING_MAX_LEN) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
-      }
-
-      SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
-
-      if ((!isTablenameToken(&pLeft->colInfo)) && pSchema[index.columnIndex].type != TSDB_DATA_TYPE_BINARY &&
-          pSchema[index.columnIndex].type != TSDB_DATA_TYPE_NCHAR) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
-      }
-    }
-
     // in case of in operator, keep it in a seprate attribute
     if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
       if (!validTableNameOptr(*pExpr)) {
@@ -3880,10 +3908,6 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
 
     if (pRight->tokenId == TK_ID) {  // other column cannot be served as the join column
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
-    }
-
-    if (pRight->tokenId == TK_NULL && (!((*pExpr)->tokenId == TK_ISNULL || (*pExpr)->tokenId == TK_NOTNULL))) {
-      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg9);
     }
 
     ret = setExprToCond(&pCondExpr->pColumnCond, *pExpr, NULL, parentOptr, pQueryInfo->msg);
