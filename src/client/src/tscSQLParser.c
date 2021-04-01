@@ -34,7 +34,7 @@
 #include "tstoken.h"
 #include "tstrbuild.h"
 #include "ttokendef.h"
-#include "qutil.h"
+#include "qUtil.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
