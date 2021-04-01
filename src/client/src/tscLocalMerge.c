@@ -22,7 +22,7 @@
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
-#include "qutil.h"
+#include "qUtil.h"
 
 typedef struct SCompareParam {
   SLocalDataSource **pLocalData;
