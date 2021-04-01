@@ -42,12 +42,12 @@ def pre_test(){
     killall -9 taosd ||echo "no taosd running"
     killall -9 gdb || echo "no gdb running"
     cd ${WKC}
-    git checkout develop
     git reset --hard HEAD~10 >/dev/null 
+    git checkout develop
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    find ${WKC}/tests/pytest -name \'*\'.sql -exec rm -rf {} \\;
+    git clean -dfx
     cd ${WK}
     git reset --hard HEAD~10
     git checkout develop 
@@ -55,7 +55,7 @@ def pre_test(){
     cd ${WK}
     export TZ=Asia/Harbin
     date
-    rm -rf ${WK}/debug
+    git clean -dfx
     mkdir debug
     cd debug
     cmake .. > /dev/null
