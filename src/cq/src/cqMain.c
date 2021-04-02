@@ -326,8 +326,10 @@ void *cqCreate(void *handle, uint64_t uid, int32_t sid, const char* dstTable, ch
 
   pObj->rid = taosAddRef(cqObjRef, pObj);
 
-  if(start) {
+  if(start && pContext->master) {
     cqCreateStream(pContext, pObj);
+  } else {
+    pObj->pContext = pContext;
   }
 
   rid = pObj->rid;
