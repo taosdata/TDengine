@@ -2503,13 +2503,15 @@ static int createDatabasesAndStables() {
               " precision \'%s\';", g_Dbs.db[i].dbCfg.precision);
     }
 
-    debugPrint("%s() %d command: %s\n", __func__, __LINE__, command);
-    if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
-      taos_close(taos);
-      errorPrint( "\ncreate database %s failed!\n\n", g_Dbs.db[i].dbName);
-      return -1;
+    if (g_Dbs.db[i].drop) {
+      debugPrint("%s() %d command: %s\n", __func__, __LINE__, command);
+      if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
+        taos_close(taos);
+        errorPrint( "\ncreate database %s failed!\n\n", g_Dbs.db[i].dbName);
+        return -1;
+      }
+      printf("\ncreate database %s success!\n\n", g_Dbs.db[i].dbName);
     }
-    printf("\ncreate database %s success!\n\n", g_Dbs.db[i].dbName);
 
     debugPrint("%s() %d supertbl count:%d\n",
             __func__, __LINE__, g_Dbs.db[i].superTblCount);
@@ -5146,7 +5148,13 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   if (superTblInfo) {
     int limit, offset;
 
-    if (superTblInfo->childTblOffset >= 0) {
+    if ((superTblInfo->childTblExists == TBL_NO_EXISTS) &&
+            ((superTblInfo->childTblOffset != 0) || (superTblInfo->childTblLimit != 0))) {
+      printf("WARNING: offset and limit will not be used since the child tables are not exists!\n");
+    }
+
+    if ((superTblInfo->childTblExists == TBL_ALREADY_EXISTS)
+            && (superTblInfo->childTblOffset >= 0)) {
       if (superTblInfo->childTblLimit < 0) {
         superTblInfo->childTblLimit =
             superTblInfo->childTblCount - superTblInfo->childTblOffset;
@@ -5162,16 +5170,18 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     ntables = limit;
     startFrom = offset;
 
-    if ((superTblInfo->childTblOffset + superTblInfo->childTblLimit )
-            > superTblInfo->childTblCount) {
-      printf("WARNING: specified offset + limit > child table count! \n");
+    if ((superTblInfo->childTblExists != TBL_NO_EXISTS)
+        && ((superTblInfo->childTblOffset + superTblInfo->childTblLimit )
+            > superTblInfo->childTblCount)) {
+      printf("WARNING: specified offset + limit > child table count!\n");
       if (!g_args.answer_yes) {
         printf("         Press enter key to continue or Ctrl-C to stop\n\n");
         (void)getchar();
       }
     }
 
-    if (0 == superTblInfo->childTblLimit) {
+    if ((superTblInfo->childTblExists != TBL_NO_EXISTS)
+            && (0 == superTblInfo->childTblLimit)) {
       printf("WARNING: specified limit = 0, which cannot find table name to insert or query! \n");
       if (!g_args.answer_yes) {
         printf("         Press enter key to continue or Ctrl-C to stop\n\n");
