@@ -35,15 +35,18 @@ import os
 import signal
 import traceback
 import resource
-from guppy import hpy
+# from guppy import hpy
 import gc
 
 from crash_gen.service_manager import ServiceManager, TdeInstance
 from crash_gen.misc import Logging, Status, CrashGenError, Dice, Helper, Progress
 from crash_gen.db import DbConn, MyTDSql, DbConnNative, DbManager
+import crash_gen.settings 
 
 import taos
 import requests
+
+crash_gen.settings.init()
 
 # Require Python 3
 if sys.version_info[0] < 3:
@@ -259,6 +262,7 @@ class ThreadCoordinator:
         self._execStats = ExecutionStats()
         self._runStatus = Status.STATUS_RUNNING
         self._initDbs()
+        self._stepStartTime = None  # Track how long it takes to execute each step
 
     def getTaskExecutor(self):
         return self._te
@@ -354,10 +358,11 @@ class ThreadCoordinator:
                 # end, and maybe signal them to stop
             if isinstance(err, CrashGenError): # our own transition failure
                 Logging.info("State transition error")
+                # TODO: saw an error here once, let's print out stack info for err?
                 traceback.print_stack()
                 transitionFailed = True
                 self._te = None  # Not running any more
-                self._execStats.registerFailure("State transition error")
+                self._execStats.registerFailure("State transition error: {}".format(err))
             else:
                 raise
         # return transitionFailed # Why did we have this??!!
@@ -393,6 +398,10 @@ class ThreadCoordinator:
             try:
                 self._syncAtBarrier() # For now just cross the barrier
                 Progress.emit(Progress.END_THREAD_STEP)
+                if self._stepStartTime :
+                    stepExecTime = time.time() - self._stepStartTime
+                    Progress.emitStr('{:.3f}s/{}'.format(stepExecTime, DbConnNative.totalRequests))
+                    DbConnNative.resetTotalRequests() # reset to zero
             except threading.BrokenBarrierError as err:
                 self._execStats.registerFailure("Aborted due to worker thread timeout")
                 Logging.error("\n")
@@ -432,6 +441,7 @@ class ThreadCoordinator:
 
             # Then we move on to the next step
             Progress.emit(Progress.BEGIN_THREAD_STEP)
+            self._stepStartTime = time.time()
             self._releaseAllWorkerThreads(transitionFailed)                    
 
         if hasAbortedTask or transitionFailed : # abnormal ending, workers waiting at "gate"
@@ -690,7 +700,7 @@ class AnyState:
     def canDropDb(self):
         # If user requests to run up to a number of DBs,
         # we'd then not do drop_db operations any more
-        if gConfig.max_dbs > 0 : 
+        if gConfig.max_dbs > 0 or gConfig.use_shadow_db : 
             return False
         return self._info[self.CAN_DROP_DB]
 
@@ -698,6 +708,8 @@ class AnyState:
         return self._info[self.CAN_CREATE_FIXED_SUPER_TABLE]
 
     def canDropFixedSuperTable(self):
+        if gConfig.use_shadow_db: # duplicate writes to shaddow DB, in which case let's disable dropping s-table
+            return False
         return self._info[self.CAN_DROP_FIXED_SUPER_TABLE]
 
     def canAddData(self):
@@ -882,8 +894,12 @@ class StateMechine:
         self._stateWeights = [1, 2, 10, 40]
 
     def init(self, dbc: DbConn): # late initailization, don't save the dbConn
-        self._curState = self._findCurrentState(dbc)  # starting state
-        Logging.debug("Found Starting State: {}".format(self._curState))
+        try:
+            self._curState = self._findCurrentState(dbc)  # starting state
+        except taos.error.ProgrammingError as err:            
+            Logging.error("Failed to initialized state machine, cannot find current state: {}".format(err))
+            traceback.print_stack()
+            raise # re-throw
 
     # TODO: seems no lnoger used, remove?
     def getCurrentState(self):
@@ -951,6 +967,8 @@ class StateMechine:
 
     # We transition the system to a new state by examining the current state itself
     def transition(self, tasks, dbc: DbConn):
+        global gSvcMgr
+        
         if (len(tasks) == 0):  # before 1st step, or otherwise empty
             Logging.debug("[STT] Starting State: {}".format(self._curState))
             return  # do nothing
@@ -1030,7 +1048,7 @@ class Database:
     _clsLock = threading.Lock() # class wide lock
     _lastInt = 101  # next one is initial integer
     _lastTick = 0
-    _lastLaggingTick = 0 # lagging tick, for unsequenced insersions
+    _lastLaggingTick = 0 # lagging tick, for out-of-sequence (oos) data insertions
 
     def __init__(self, dbNum: int, dbc: DbConn): # TODO: remove dbc
         self._dbNum = dbNum # we assign a number to databases, for our testing purpose
@@ -1086,21 +1104,24 @@ class Database:
         t3 = datetime.datetime(2012, 1, 1)  # default "keep" is 10 years
         t4 = datetime.datetime.fromtimestamp(
             t3.timestamp() + elSec2)  # see explanation above
-        Logging.debug("Setting up TICKS to start from: {}".format(t4))
+        Logging.info("Setting up TICKS to start from: {}".format(t4))
         return t4
 
     @classmethod
-    def getNextTick(cls):        
+    def getNextTick(cls):       
+        '''
+            Fetch a timestamp tick, with some random factor, may not be unique.
+        ''' 
         with cls._clsLock:  # prevent duplicate tick
             if cls._lastLaggingTick==0 or cls._lastTick==0 : # not initialized
                 # 10k at 1/20 chance, should be enough to avoid overlaps
                 tick = cls.setupLastTick()
                 cls._lastTick = tick
-                cls._lastLaggingTick = tick + datetime.timedelta(0, -10000)                 
+                cls._lastLaggingTick = tick + datetime.timedelta(0, -60*2)  # lagging behind 2 minutes, should catch up fast
                 # if : # should be quite a bit into the future
 
-            if Dice.throw(20) == 0:  # 1 in 20 chance, return lagging tick
-                cls._lastLaggingTick += datetime.timedelta(0, 1) # Go back in time 100 seconds
+            if gConfig.mix_oos_data and Dice.throw(20) == 0:  # if asked to do so, and 1 in 20 chance, return lagging tick
+                cls._lastLaggingTick += datetime.timedelta(0, 1) # pick the next sequence from the lagging tick sequence
                 return cls._lastLaggingTick 
             else:  # regular
                 # add one second to it
@@ -1276,6 +1297,7 @@ class Task():
                 0x510,  # vnode not in ready state
                 0x14,   # db not ready, errno changed
                 0x600,  # Invalid table ID, why?
+                0x218,  # Table does not exist
                 1000  # REST catch-all error
             ]: 
             return True # These are the ALWAYS-ACCEPTABLE ones
@@ -1326,7 +1348,8 @@ class Task():
             elif self._isErrAcceptable(errno2, err.__str__()):
                 self.logDebug("[=] Acceptable Taos library exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                         errno2, err, wt.getDbConn().getLastSql()))
-                print("_", end="", flush=True)
+                # print("_", end="", flush=True)
+                Progress.emit(Progress.ACCEPTABLE_ERROR)
                 self._err = err
             else: # not an acceptable error
                 errMsg = "[=] Unexpected Taos library exception ({}): errno=0x{:X}, msg: {}, SQL: {}".format(
@@ -1555,8 +1578,11 @@ class TaskCreateDb(StateTransitionTask):
             # numReplica = Dice.throw(gConfig.max_replicas) + 1 # 1,2 ... N
             numReplica = gConfig.max_replicas # fixed, always
             repStr = "replica {}".format(numReplica)
-        self.execWtSql(wt, "create database {} {}"
-            .format(self._db.getName(), repStr) )
+        updatePostfix = "update 1" if gConfig.verify_data else "" # allow update only when "verify data" is active
+        dbName = self._db.getName()
+        self.execWtSql(wt, "create database {} {} {} ".format(dbName, repStr, updatePostfix ) )
+        if dbName == "db_0" and gConfig.use_shadow_db:
+            self.execWtSql(wt, "create database {} {} {} ".format("db_s", repStr, updatePostfix ) )
 
 class TaskDropDb(StateTransitionTask):
     @classmethod
@@ -1759,20 +1785,20 @@ class TdSuperTable:
                     'top(speed, 50)', # TODO: not supported?
                     'bottom(speed, 50)', # TODO: not supported?
                     'apercentile(speed, 10)', # TODO: TD-1316
-                    'last_row(speed)',
+                    # 'last_row(speed)', # TODO: commented out per TD-3231, we should re-create
                     # Transformation Functions
                     # 'diff(speed)', # TODO: no supported?!
                     'spread(speed)'
                     ]) # TODO: add more from 'top'
 
             
-                if aggExpr not in ['stddev(speed)']: #TODO: STDDEV not valid for super tables?!
-                    sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
-                    if Dice.throw(3) == 0: # 1 in X chance
-                        sql = sql + ' GROUP BY color'
-                        Progress.emit(Progress.QUERY_GROUP_BY)
-                        # Logging.info("Executing GROUP-BY query: " + sql)
-                    ret.append(SqlQuery(sql))
+                # if aggExpr not in ['stddev(speed)']: # STDDEV not valid for super tables?! (Done in TD-1049)
+                sql = "select {} from {}.{}".format(aggExpr, self._dbName, self.getName())
+                if Dice.throw(3) == 0: # 1 in X chance
+                    sql = sql + ' GROUP BY color'
+                    Progress.emit(Progress.QUERY_GROUP_BY)
+                    # Logging.info("Executing GROUP-BY query: " + sql)
+                ret.append(SqlQuery(sql))
 
         return ret        
 
@@ -1980,7 +2006,7 @@ class TaskAddData(StateTransitionTask):
         numRecords = self.LARGE_NUMBER_OF_RECORDS if gConfig.larger_data else self.SMALL_NUMBER_OF_RECORDS        
         fullTableName = db.getName() + '.' + regTableName
 
-        sql = "insert into {} values ".format(fullTableName)
+        sql = "INSERT INTO {} VALUES ".format(fullTableName)
         for j in range(numRecords):  # number of records per table
             nextInt = db.getNextInt()
             nextTick = db.getNextTick()
@@ -2008,12 +2034,24 @@ class TaskAddData(StateTransitionTask):
                 # print("_w" + str(nextInt % 100), end="", flush=True) # Trace what was written
 
             try:
-                sql = "insert into {} values ('{}', {}, '{}');".format( # removed: tags ('{}', {})
+                sql = "INSERT INTO {} VALUES ('{}', {}, '{}');".format( # removed: tags ('{}', {})
                     fullTableName,
                     # ds.getFixedSuperTableName(),
                     # ds.getNextBinary(), ds.getNextFloat(),
                     nextTick, nextInt, nextColor)
                 dbc.execute(sql)
+
+                # Quick hack, attach an update statement here. TODO: create an "update" task
+                if (not gConfig.use_shadow_db) and Dice.throw(5) == 0: # 1 in N chance, plus not using shaddow DB
+                    nextInt = db.getNextInt()
+                    nextColor = db.getNextColor()
+                    sql = "INSERt INTO {} VALUES ('{}', {}, '{}');".format( # "INSERt" means "update" here
+                    fullTableName,
+                    nextTick, nextInt, nextColor)
+                    # sql = "UPDATE {} set speed={}, color='{}' WHERE ts='{}'".format(
+                    #     fullTableName, db.getNextInt(), db.getNextColor(), nextTick)
+                    dbc.execute(sql)
+
             except: # Any exception at all
                 if gConfig.verify_data:
                     self.unlockTable(fullTableName)     
@@ -2062,7 +2100,8 @@ class TaskAddData(StateTransitionTask):
         random.shuffle(tblSeq) # now we have random sequence
         for i in tblSeq:
             if (i in self.activeTable):  # wow already active
-                print("x", end="", flush=True) # concurrent insertion
+                # print("x", end="", flush=True) # concurrent insertion
+                Progress.emit(Progress.CONCURRENT_INSERTION)
             else:
                 self.activeTable.add(i)  # marking it active
             
@@ -2366,10 +2405,15 @@ class MainExec:
             action='store_true',
             help='Write larger amount of data during write operations (default: false)')
         parser.add_argument(
+            '-m',
+            '--mix-oos-data',
+            action='store_false',
+            help='Mix out-of-sequence data into the test data stream (default: true)')
+        parser.add_argument(
             '-n',
             '--dynamic-db-table-names',
             action='store_true',
-            help='Use non-fixed names for dbs/tables, useful for multi-instance executions (default: false)')        
+            help='Use non-fixed names for dbs/tables, for -b, useful for multi-instance executions (default: false)')        
         parser.add_argument(
             '-o',
             '--num-dnodes',
@@ -2407,6 +2451,11 @@ class MainExec:
             action='store_true',
             help='Verify data written in a number of places by reading back (default: false)')
         parser.add_argument(
+            '-w',
+            '--use-shadow-db',
+            action='store_true',
+            help='Use a shaddow database to verify data integrity (default: false)')
+        parser.add_argument(
             '-x',
             '--continue-on-exception',
             action='store_true',
@@ -2414,6 +2463,11 @@ class MainExec:
 
         global gConfig
         gConfig = parser.parse_args()
+        crash_gen.settings.gConfig = gConfig # TODO: fix this hack, consolidate this global var
+
+        # Sanity check for arguments
+        if gConfig.use_shadow_db and gConfig.max_dbs>1 :
+            raise CrashGenError("Cannot combine use-shadow-db with max-dbs of more than 1")
 
         Logging.clsInit(gConfig)
 

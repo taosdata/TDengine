@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdb.h"
-#include "tsdbMain.h"
+#include "tsdbint.h"
 
 #define POOL_IS_EMPTY(b) (listNEles((b)->bufBlockList) == 0)
 

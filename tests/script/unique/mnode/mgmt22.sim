@@ -46,7 +46,7 @@ print should not drop master
 
 print ============== step4
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 sql_error show mnodes
 print error of no master
 

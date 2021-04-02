@@ -25,7 +25,7 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+sleep 2000
 
 sql show dnodes
 print dnode1 $data4_1

@@ -538,6 +538,7 @@ $offset = $offset + 1
 sql select max(c1), min(c2), avg(c3), count(c4), sum(c5), spread(c6), first(c7), last(c8), first(c9) from $stb where ts >= $ts0 and ts <= $tsu and t1 > 1 and t1 < 8 interval(5m) limit $offset offset $offset
 $val = $rowNum - $offset
 if $rows != $val then
+  print expect $val, actual:$rows
   return -1
 endi
 if $data00 != @18-10-22 02:30:00.000@ then

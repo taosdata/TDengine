@@ -650,6 +650,7 @@ namespace TDengineDriver
             tester.CloseConnection();
 
             Console.WriteLine("End.");
+            CleanAndExitProgram(0);
         }
 
         public class InsertDataThread

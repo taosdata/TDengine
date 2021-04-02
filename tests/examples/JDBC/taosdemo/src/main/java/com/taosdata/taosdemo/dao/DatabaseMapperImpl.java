@@ -21,27 +21,27 @@ public class DatabaseMapperImpl implements DatabaseMapper {
     public void createDatabase(String dbname) {
         String sql = "create database if not exists " + dbname;
         jdbcTemplate.execute(sql);
-        logger.info("SQL >>> " + sql);
+        logger.debug("SQL >>> " + sql);
     }
 
     @Override
     public void dropDatabase(String dbname) {
         String sql = "drop database if exists " + dbname;
         jdbcTemplate.update(sql);
-        logger.info("SQL >>> " + sql);
+        logger.debug("SQL >>> " + sql);
     }
 
     @Override
     public void createDatabaseWithParameters(Map<String, String> map) {
         String sql = SqlSpeller.createDatabase(map);
         jdbcTemplate.execute(sql);
-        logger.info("SQL >>> " + sql);
+        logger.debug("SQL >>> " + sql);
     }
 
     @Override
     public void useDatabase(String dbname) {
         String sql = "use " + dbname;
         jdbcTemplate.execute(sql);
-        logger.info("SQL >>> " + sql);
+        logger.debug("SQL >>> " + sql);
     }
 }

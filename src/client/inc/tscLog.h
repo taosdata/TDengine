@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TSC_LOG_H
-#define TDENGINE_TSC_LOG_H
+#ifndef TDENGINE_TSCLOG_H
+#define TDENGINE_TSCLOG_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +22,7 @@ extern "C" {
 
 #include "tlog.h"
 
-extern int32_t cDebugFlag;
+extern uint32_t cDebugFlag;
 extern int8_t  tscEmbedded;
 
 #define tscFatal(...)  do { if (cDebugFlag & DEBUG_FATAL) { taosPrintLog("TSC FATAL ", tscEmbedded ? 255 : cDebugFlag, __VA_ARGS__); }} while(0)

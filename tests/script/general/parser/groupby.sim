@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
 sleep 100
@@ -609,6 +609,11 @@ sql insert into t2 values ('2020-03-27 04:21:16.000', 1)('2020-03-27 04:31:17.00
 print =================>TD-2665
 sql_error create table txx as select avg(c) as t from st;
 sql_error create table txx1 as select avg(c) as t from t1;
+
+sql select stddev(c),stddev(c) from st group by c;
+if $rows != 4 then
+  return -1
+endi
 
 print =================>TD-2236
 sql select first(ts),last(ts) from t1 group by c;

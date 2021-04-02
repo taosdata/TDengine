@@ -32,7 +32,7 @@ endi
 print ============== step2
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-sleep 5000
+sleep 3000
 
 sql create dnode $hostname2
 sql create dnode $hostname3

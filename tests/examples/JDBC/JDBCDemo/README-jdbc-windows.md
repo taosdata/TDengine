@@ -137,7 +137,7 @@ Welcome to the TDengine shell from Linux, Client Version:2.0.1.1
 Copyright (c) 2017 by TAOS Data, Inc. All rights reserved.
 
 taos> show databases;
-              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |    keep1,keep2,keep(D)     |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | precision |    status    |
+              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |    keep0,keep1,keep(D)     |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | precision |    status    |
 ===================================================================================================================================================================================================================================================================
  test                           | 2020-08-19 18:43:50.731 |           1 |           1 |       1 |      1 |      2 | 3650,3650,3650             |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 | ms        | ready        |
  log                            | 2020-08-19 18:40:28.064 |           4 |           1 |       1 |      1 |     10 | 30,30,30                   |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 | us        | ready        |

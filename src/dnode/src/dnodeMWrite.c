@@ -60,7 +60,7 @@ int32_t dnodeInitMWrite() {
 void dnodeCleanupMWrite() {
   for (int32_t i = 0; i < tsMWriteWP.maxNum; ++i) {
     SMWriteWorker *pWorker = tsMWriteWP.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(tsMWriteQset);
     }
     dDebug("dnode mwrite worker:%d is closed", i);
@@ -69,7 +69,7 @@ void dnodeCleanupMWrite() {
   for (int32_t i = 0; i < tsMWriteWP.maxNum; ++i) {
     SMWriteWorker *pWorker = tsMWriteWP.worker + i;
     dDebug("dnode mwrite worker:%d start to join", i);
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
     }
     dDebug("dnode mwrite worker:%d join success", i);
@@ -142,6 +142,14 @@ void dnodeSendRpcMWriteRsp(void *pMsg, int32_t code) {
   if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) return;
   if (code == TSDB_CODE_MND_ACTION_NEED_REPROCESSED) {
     dnodeReprocessMWriteMsg(pWrite);
+    return;
+  }
+
+  dTrace("msg:%p, app:%p type:%s master:%p will be responsed", pWrite, pWrite->rpcMsg.ahandle,
+         taosMsg[pWrite->rpcMsg.msgType], pWrite->pBatchMasterMsg);
+  if (pWrite->pBatchMasterMsg && pWrite != pWrite->pBatchMasterMsg) {
+    dError("msg:%p, app:%p type:%s master:%p sub message should not response!", pWrite, pWrite->rpcMsg.ahandle,
+           taosMsg[pWrite->rpcMsg.msgType], pWrite->pBatchMasterMsg);
     return;
   }
 

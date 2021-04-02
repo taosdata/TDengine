@@ -23,7 +23,6 @@ public class DataSourceFactory {
                     properties.load(is);
 
                     HikariConfig config = new HikariConfig();
-
                     if (properties.containsKey("jdbc.driver")) {
 //                        String driverName = properties.getProperty("jdbc.driver");
 //                        System.out.println(">>> load driver : " + driverName);

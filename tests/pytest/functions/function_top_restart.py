@@ -75,6 +75,26 @@ class TDTestCase:
         tdSql.checkData(0, 1, 9)
         tdSql.checkData(1, 1, 10)
 
+        tdSql.query("select top(col11, 2) from test")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(1, 1, 10)
+
+        tdSql.query("select top(col12, 2) from test")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(1, 1, 10)
+
+        tdSql.query("select top(col13, 2) from test")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(1, 1, 10)
+
+        tdSql.query("select top(col14, 2) from test")
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(1, 1, 10)
+        
         tdSql.query("select top(col5, 2) from test")
         tdSql.checkRows(2)
         tdSql.checkData(0, 1, 8.1)

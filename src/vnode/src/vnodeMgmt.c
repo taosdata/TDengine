@@ -17,6 +17,7 @@
 #include "os.h"
 #include "dnode.h"
 #include "vnodeStatus.h"
+#include "vnodeBackup.h"
 #include "vnodeWorker.h"
 #include "vnodeRead.h"
 #include "vnodeWrite.h"
@@ -29,6 +30,7 @@ static void    vnodeCleanupHash(void);
 static void    vnodeIncRef(void *ptNode);
 
 static SStep tsVnodeSteps[] = {
+  {"vnode-backup", vnodeInitBackup,    vnodeCleanupBackup},
   {"vnode-worker", vnodeInitMWorker,    vnodeCleanupMWorker},
   {"vnode-write",  vnodeInitWrite,      vnodeCleanupWrite},
   {"vnode-read",   vnodeInitRead,       vnodeCleanupRead},
@@ -128,7 +130,7 @@ static void vnodeBuildVloadMsg(SVnodeObj *pVnode, SStatusMsg *pStatus) {
   int64_t compStorage = 0;
   int64_t pointsWritten = 0;
 
-  if (!vnodeInReadyStatus(pVnode)) return;
+  if (vnodeInClosingStatus(pVnode)) return;
   if (pStatus->openVnodes >= TSDB_MAX_VNODES) return;
 
   if (pVnode->tsdb) {

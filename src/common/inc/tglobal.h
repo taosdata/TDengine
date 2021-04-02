@@ -16,6 +16,8 @@
 #ifndef TDENGINE_COMMON_GLOBAL_H
 #define TDENGINE_COMMON_GLOBAL_H
 
+#include "taosdef.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -57,7 +59,8 @@ extern int32_t  tsCompressMsgSize;
 extern char     tsTempDir[];
 
 //query buffer management
-extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer for each data node during query processing
+extern int32_t  tsQueryBufferSize;      // maximum allowed usage buffer size in MB for each data node during query processing
+extern int64_t  tsQueryBufferSizeBytes; // maximum allowed usage buffer size in byte for each data node during query processing
 extern int32_t  tsRetrieveBlockingModel;// retrieve threads will be blocked
 
 extern int8_t   tsKeepOriginalColumnName;
@@ -88,10 +91,11 @@ extern int32_t tsMinRowsInFileBlock;
 extern int32_t tsMaxRowsInFileBlock;
 extern int16_t tsCommitTime;  // seconds
 extern int32_t tsTimePrecision;
-extern int16_t tsCompression;
-extern int16_t tsWAL;
+extern int8_t  tsCompression;
+extern int8_t  tsWAL;
 extern int32_t tsFsyncPeriod;
 extern int32_t tsReplications;
+extern int16_t tsPartitons;
 extern int32_t tsQuorum;
 extern int8_t  tsUpdate;
 extern int8_t  tsCacheLastRow;
@@ -146,7 +150,6 @@ extern char    tsDataDir[];
 extern char    tsLogDir[];
 extern char    tsScriptDir[];
 extern int64_t tsMsPerDay[3];
-extern char    tsVnodeBakDir[];
 
 // system info
 extern char    tsOsName[];
@@ -160,6 +163,7 @@ extern float   tsTotalDataDirGB;
 extern float   tsAvailLogDirGB;
 extern float   tsAvailTmpDirectorySpace;
 extern float   tsAvailDataDirGB;
+extern float   tsUsedDataDirGB;
 extern float   tsMinimalLogDirGB;
 extern float   tsReservedTmpDirectorySpace;
 extern float   tsMinimalDataDirGB;
@@ -180,7 +184,7 @@ extern int32_t tsLogKeepDays;
 extern int32_t dDebugFlag;
 extern int32_t vDebugFlag;
 extern int32_t mDebugFlag;
-extern int32_t cDebugFlag;
+extern uint32_t cDebugFlag;
 extern int32_t jniDebugFlag;
 extern int32_t tmrDebugFlag;
 extern int32_t sdbDebugFlag;
@@ -195,6 +199,14 @@ extern int32_t wDebugFlag;
 extern int32_t cqDebugFlag;
 extern int32_t debugFlag;
 
+typedef struct {
+  char dir[TSDB_FILENAME_LEN];
+  int  level;
+  int  primary;
+} SDiskCfg;
+extern int32_t  tsDiskCfgNum;
+extern SDiskCfg tsDiskCfg[];
+
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 void    taosInitGlobalCfg();
@@ -203,6 +215,9 @@ void    taosSetAllDebugFlag();
 bool    taosCfgDynamicOptions(char *msg);
 int     taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port);
 bool    taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);
+void    taosAddDataDir(int index, char *v1, int level, int primary);
+void    taosReadDataDirCfg(char *v1, char *v2, char *v3);
+void    taosPrintDataDirCfg();
 
 #ifdef __cplusplus
 }

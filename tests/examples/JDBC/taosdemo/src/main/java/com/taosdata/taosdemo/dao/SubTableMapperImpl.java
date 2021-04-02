@@ -21,14 +21,14 @@ public class SubTableMapperImpl implements SubTableMapper {
     @Override
     public void createUsingSuperTable(SubTableMeta subTableMeta) {
         String sql = SqlSpeller.createTableUsingSuperTable(subTableMeta);
-        logger.info("SQL >>> " + sql);
+        logger.debug("SQL >>> " + sql);
         jdbcTemplate.execute(sql);
     }
 
     @Override
     public int insertOneTableMultiValues(SubTableValue subTableValue) {
         String sql = SqlSpeller.insertOneTableMultiValues(subTableValue);
-        logger.info("SQL >>> " + sql);
+        logger.debug("SQL >>> " + sql);
 
         int affectRows = 0;
         try {
@@ -42,7 +42,7 @@ public class SubTableMapperImpl implements SubTableMapper {
     @Override
     public int insertOneTableMultiValuesUsingSuperTable(SubTableValue subTableValue) {
         String sql = SqlSpeller.insertOneTableMultiValuesUsingSuperTable(subTableValue);
-        logger.info("SQL >>> " + sql);
+        logger.debug("SQL >>> " + sql);
 
         int affectRows = 0;
         try {
@@ -56,7 +56,7 @@ public class SubTableMapperImpl implements SubTableMapper {
     @Override
     public int insertMultiTableMultiValues(List<SubTableValue> tables) {
         String sql = SqlSpeller.insertMultiSubTableMultiValues(tables);
-        logger.info("SQL >>> " + sql);
+        logger.debug("SQL >>> " + sql);
         int affectRows = 0;
         try {
             affectRows = jdbcTemplate.update(sql);
@@ -69,7 +69,7 @@ public class SubTableMapperImpl implements SubTableMapper {
     @Override
     public int insertMultiTableMultiValuesUsingSuperTable(List<SubTableValue> tables) {
         String sql = SqlSpeller.insertMultiTableMultiValuesUsingSuperTable(tables);
-        logger.info("SQL >>> " + sql);
+        logger.debug("SQL >>> " + sql);
         int affectRows = 0;
         try {
             affectRows = jdbcTemplate.update(sql);

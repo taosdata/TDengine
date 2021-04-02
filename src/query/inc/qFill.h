@@ -24,6 +24,8 @@ extern "C" {
 #include "qExtbuffer.h"
 #include "taosdef.h"
 
+struct SSDataBlock;
+
 typedef struct {
   STColumn col;             // column info
   int16_t  functionId;      // sql function id
@@ -68,7 +70,7 @@ typedef struct SPoint {
   void *  val;
 } SPoint;
 
-SFillInfo* taosInitFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
+SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
                             int64_t slidingTime, int8_t slidingUnit, int8_t precision, int32_t fillType,
                             SFillColInfo* pFillCol, void* handle);
 
@@ -78,17 +80,17 @@ void* taosDestroyFillInfo(SFillInfo *pFillInfo);
 
 void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
 
-void taosFillCopyInputDataFromFilePage(SFillInfo* pFillInfo, const tFilePage** pInput);
+void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
 
 void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage* pInput);
 
-int64_t getNumOfResWithFill(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
+bool taosFillHasMoreResults(SFillInfo* pFillInfo);
 
-int32_t taosNumOfRemainRows(SFillInfo *pFillInfo);
+int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t maxNumOfRows);
 
-int32_t taosGetLinearInterpolationVal(int32_t type, SPoint *point1, SPoint *point2, SPoint *point);
+int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType);
 
-int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, tFilePage** output, int32_t capacity);
+int64_t taosFillResultDataBlock(SFillInfo* pFillInfo, void** output, int32_t capacity);
 
 #ifdef __cplusplus
 }

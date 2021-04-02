@@ -1,7 +1,7 @@
 system sh/stop_dnodes.sh
 
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
 system sh/exec.sh -n dnode1 -s start
 
@@ -324,7 +324,7 @@ while $i < 1
 endw
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 2000
+sleep 500
 
 system sh/exec.sh -n dnode1 -s start
 
@@ -348,6 +348,14 @@ endi
 sql select * from wh_mt0 where c3 is not null and tbname in ('test_null_filter');
 if $rows != 0 then
   return -1
+endi
+
+print ==========================>td-3318
+sql create table tu(ts timestamp,  k int, b binary(12))
+sql insert into tu values(now, 1, 'abc')
+sql select stddev(k) from tu where b <>'abc' interval(1s)
+if $rows != 0 then
+ return -1
 endi
 
 

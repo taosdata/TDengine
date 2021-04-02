@@ -16,13 +16,13 @@ sql create dnode $hostname2
 sql create dnode $hostname3
 system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
-sleep 3000
+sleep 2000
 
 $N = 10
 $table = table_r3
 $db = db1
 
-sleep 3000
+sleep 2000
 
 print =================== step 1 
 

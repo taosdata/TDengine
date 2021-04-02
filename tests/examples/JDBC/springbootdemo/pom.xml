@@ -8,7 +8,7 @@
         <version>2.2.1.RELEASE</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
-    <groupId>com.taosdata.jdbc</groupId>
+    <groupId>com.taosdata.example</groupId>
     <artifactId>springbootdemo</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>springbootdemo</name>
@@ -63,7 +63,9 @@
         <dependency>
             <groupId>com.taosdata.jdbc</groupId>
             <artifactId>taos-jdbcdriver</artifactId>
-            <version>2.0.4</version>
+            <version>2.0.20</version>
+<!--            <scope>system</scope>-->
+<!--            <systemPath>${project.basedir}/src/main/resources/taos-jdbcdriver-2.0.20-dist.jar</systemPath>-->
         </dependency>
 
         <dependency>
@@ -71,8 +73,6 @@
             <artifactId>druid-spring-boot-starter</artifactId>
             <version>1.1.17</version>
         </dependency>
-
-
     </dependencies>
 
     <build>

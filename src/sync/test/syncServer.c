@@ -296,11 +296,10 @@ void initSync() {
   pCfg->replica = 1;
   pCfg->quorum = 1;
   syncInfo.vgId = 1;
-  syncInfo.getFileInfo = getFileInfo;
-  syncInfo.getWalInfo = getWalInfo;
-  syncInfo.writeToCache = writeToCache;
+  syncInfo.getWalInfoFp = getWalInfo;
+  syncInfo.writeToCacheFp = writeToCache;
   syncInfo.confirmForward = confirmForward;
-  syncInfo.notifyRole = notifyRole;
+  syncInfo.notifyRoleFp = notifyRole;
 
   pCfg->nodeInfo[0].nodeId = 1;
   pCfg->nodeInfo[0].nodePort = 7010;

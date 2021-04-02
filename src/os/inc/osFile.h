@@ -20,10 +20,13 @@
 extern "C" {
 #endif
 
+#include "osSocket.h"
+
 int64_t taosReadImp(int32_t fd, void *buf, int64_t count);
 int64_t taosWriteImp(int32_t fd, void *buf, int64_t count);
 int64_t taosLSeekImp(int32_t fd, int64_t offset, int32_t whence);
 int32_t taosRenameFile(char *fullPath, char *suffix, char delimiter, char **dstPath);
+int64_t taosCopy(char *from, char *to);
 
 #define taosRead(fd, buf, count) taosReadImp(fd, buf, count)
 #define taosWrite(fd, buf, count) taosWriteImp(fd, buf, count)
@@ -37,7 +40,7 @@ int32_t taosRenameFile(char *fullPath, char *suffix, char delimiter, char **dstP
   }
 
 // TAOS_OS_FUNC_FILE_SENDIFLE
-int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t *offset, int64_t size);
+int64_t taosSendFile(SOCKET dfd, int32_t sfd, int64_t *offset, int64_t size);
 int64_t taosFSendFile(FILE *outfile, FILE *infile, int64_t *offset, int64_t size);
 
 #ifdef TAOS_RANDOM_FILE_FAIL

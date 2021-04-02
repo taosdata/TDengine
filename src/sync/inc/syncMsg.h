@@ -37,7 +37,8 @@ typedef enum {
   TAOS_SMSG_SETUP_RSP     = 12,
   TAOS_SMSG_SYNC_FILE     = 13,
   TAOS_SMSG_SYNC_FILE_RSP = 14,
-  TAOS_SMSG_END           = 15,
+  TAOS_SMSG_TEST          = 15,
+  TAOS_SMSG_END           = 16
 } ESyncMsgType;
 
 typedef enum {
@@ -98,16 +99,12 @@ typedef struct {
 
 typedef struct {
   SSyncHead head;
-  char      name[TSDB_FILENAME_LEN];
-  uint32_t  magic;
-  uint32_t  index;
   uint64_t  fversion;
-  int64_t   size;
-} SFileInfo;
+} SFileVersion;
 
 typedef struct {
   SSyncHead head;
-  int8_t    sync;
+  int8_t    ack;
 } SFileAck;
 
 typedef struct {
@@ -132,9 +129,10 @@ void syncBuildSyncReqMsg(SSyncMsg *pMsg, int32_t vgId);
 void syncBuildSyncDataMsg(SSyncMsg *pMsg, int32_t vgId);
 void syncBuildSyncSetupMsg(SSyncMsg *pMsg, int32_t vgId);
 void syncBuildPeersStatus(SPeersStatus *pMsg, int32_t vgId);
+void syncBuildSyncTestMsg(SSyncMsg *pMsg, int32_t vgId);
 
 void syncBuildFileAck(SFileAck *pMsg, int32_t vgId);
-void syncBuildFileInfo(SFileInfo *pMsg, int32_t vgId);
+void syncBuildFileVersion(SFileVersion *pMsg, int32_t vgId);
 
 #ifdef __cplusplus
 }

@@ -1,4 +1,4 @@
-const ref = require('ref');
+const ref = require('ref-napi');
 require('./globalfunc.js')
 const CTaosInterface = require('./cinterface')
 const errors = require ('./error')

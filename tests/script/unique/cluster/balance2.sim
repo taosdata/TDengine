@@ -335,8 +335,8 @@ print dnode5 ==> $dnode5Role
 
 print ============================== step6
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
-print stop dnode1 and sleep 10000
-sleep 5000
+print stop dnode1 and sleep 3000
+sleep 3000
 
 sql drop dnode $hostname1
 print drop dnode1 and sleep 9000

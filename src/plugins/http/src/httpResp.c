@@ -74,7 +74,7 @@ void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
     httpCode = 404;
   else if (errNo == TSDB_CODE_HTTP_UNSUPPORT_URL)
     httpCode = 404;
-  else if (errNo == TSDB_CODE_HTTP_INVLALID_URL)
+  else if (errNo == TSDB_CODE_HTTP_INVALID_URL)
     httpCode = 404;
   else if (errNo == TSDB_CODE_HTTP_NO_ENOUGH_MEMORY)
     httpCode = 507;
@@ -160,8 +160,9 @@ void httpSendTaosdInvalidSqlErrorResp(HttpContext *pContext, char *errMsg) {
     if (temp[i] == '\"') {
       temp[i] = '\'';
     } else if (temp[i] == '\n') {
-        temp[i] = ' ';
-    } else {}
+      temp[i] = ' ';
+    } else {
+    }
   }
 
   httpSendErrorRespImp(pContext, httpCode, "Bad Request", TSDB_CODE_TSC_INVALID_SQL & 0XFFFF, temp);

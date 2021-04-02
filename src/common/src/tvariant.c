@@ -86,43 +86,53 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->i64 = GET_INT8_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->u64 = GET_UINT8_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->i64 = GET_INT16_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_USMALLINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->u64 = GET_UINT16_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_INT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->i64 = GET_INT32_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_UINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->u64 = GET_UINT32_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->i64 = GET_INT64_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_UBIGINT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->u64 = GET_UINT64_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->dKey = GET_DOUBLE_VAL(pz);
       break;
     }
     case TSDB_DATA_TYPE_FLOAT: {
+      pVar->nLen = tDataTypes[type].bytes;
       pVar->dKey = GET_FLOAT_VAL(pz);
       break;
     }
@@ -144,6 +154,7 @@ void tVariantCreateFromBinary(tVariant *pVar, const char *pz, size_t len, uint32
     
     default:
       pVar->i64 = GET_INT32_VAL(pz);
+      pVar->nLen = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
   }
   
   pVar->nType = type;
@@ -205,7 +216,7 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
   }
 
   if (pDst->nType != TSDB_DATA_TYPE_ARRAY) {
-    pDst->nLen = tDataTypeDesc[pDst->nType].nSize;
+    pDst->nLen = tDataTypes[pDst->nType].bytes;
   }
 }
 
@@ -425,12 +436,12 @@ static FORCE_INLINE int32_t convertToDouble(char *pStr, int32_t len, double *val
 
 static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result, int32_t type, bool issigned, bool releaseVariantPtr) {
   if (pVariant->nType == TSDB_DATA_TYPE_NULL) {
-    setNull((char *)result, type, tDataTypeDesc[type].nSize);
+    setNull((char *)result, type, tDataTypes[type].bytes);
     return 0;
   }
 
   errno = 0;
-  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType)) {
+  if (IS_SIGNED_NUMERIC_TYPE(pVariant->nType) || (pVariant->nType == TSDB_DATA_TYPE_BOOL)) {
     *result = pVariant->i64;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(pVariant->nType)) {
     *result = pVariant->u64;
@@ -446,7 +457,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
         pVariant->nLen = 0;
       }
 
-      setNull((char *)result, type, tDataTypeDesc[type].nSize);
+      setNull((char *)result, type, tDataTypes[type].bytes);
       return 0;
     }
 
@@ -496,7 +507,7 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
         free(pVariant->pz);
         pVariant->nLen = 0;
       }
-      setNull((char *)result, type, tDataTypeDesc[type].nSize);
+      setNull((char *)result, type, tDataTypes[type].bytes);
       return 0;
     } else {
       int64_t val = wcstoll(pVariant->wpz, &endPtr, 10);
@@ -775,7 +786,7 @@ int32_t tVariantDump(tVariant *pVariant, char *payload, int16_t type, bool inclu
               return -1;
             }
           } else {
-            wcsncpy((wchar_t *)p, pVariant->wpz, pVariant->nLen);
+            memcpy(p, pVariant->wpz, pVariant->nLen);
             newlen = pVariant->nLen;
           }
 

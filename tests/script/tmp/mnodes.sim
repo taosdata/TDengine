@@ -107,7 +107,7 @@ if $data4_3 != ready then
 endi
 
 $x = $x + 1
-sleep 5000
+sleep 3000
 if $x == 100000 then
   return -1
 endi

@@ -869,6 +869,91 @@ class TDTestCase:
         # TSIM: sql alter table $mt drop tag tgcol6
         tdLog.info('alter table %s drop tag tgcol6' % (mt))
         tdSql.execute('alter table %s drop tag tgcol6' % (mt))
+        tdLog.info('=============== step14')
+        # TSIM: $i = 14
+        i = 14
+        # TSIM: $mt = $mtPrefix . $i
+        mt = "%s%d" % (mtPrefix, i)
+        # TSIM: $tb = $tbPrefix . $i
+        tb = "%s%d" % (tbPrefix, i)
+        # TSIM: sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol1
+        # binary(10), tgcol2 int, tgcol3 smallint, tgcol4 binary(11), tgcol5
+        # double, tgcol6 binary(20))
+        tdLog.info(
+            'create table %s (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 int unsigned, tgcol3 smallint unsigned, tgcol4 binary(11), tgcol5 double, tgcol6 binary(20), tgcol7 tinyint unsigned, tgcol8 bigint unsigned)' %
+            (mt))
+        tdSql.execute(
+            'create table %s (ts timestamp, tbcol int) TAGS(tgcol1 binary(10), tgcol2 int unsigned, tgcol3 smallint unsigned, tgcol4 binary(11), tgcol5 double, tgcol6 binary(20), tgcol7 tinyint unsigned, tgcol8 bigint unsigned)' %
+            (mt))
+        # TSIM: sql create table $tb using $mt tags( '1', 2, 3, '4', 5, '6' )
+        tdLog.info(
+            'create table %s using %s tags( "1", 2, 3, "4", 5, "6", 7, 8 )' %
+            (tb, mt))
+        tdSql.execute(
+            'create table %s using %s tags( "1", 2, 3, "4", 5, "6", 7, 8 )' %
+            (tb, mt))
+        # TSIM: sql insert into $tb values(now, 1)
+        tdLog.info('insert into %s values(now, 1)' % (tb))
+        tdSql.execute('insert into %s values(now, 1)' % (tb))
+        # TSIM: sql select * from $mt where tgcol1 = '1'
+        tdLog.info('select * from %s where tgcol1 = "1"' % (mt))
+        tdSql.query('select * from %s where tgcol1 = "1"' % (mt))
+        # TSIM: if $rows != 1 then
+        tdLog.info('tdSql.checkRow(1)')
+        tdSql.checkRows(1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data01 != 1 then
+        tdLog.info('tdSql.checkData(0, 1, 1)')
+        tdSql.checkData(0, 1, 1)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data02 != 1 then
+        tdLog.info('tdSql.checkData(0, 2, "1")')
+        tdSql.checkData(0, 2, "1")
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data03 != 2 then
+        tdLog.info('tdSql.checkData(0, 3, 2)')
+        tdSql.checkData(0, 3, 2)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data04 != 3 then
+        tdLog.info('tdSql.checkData(0, 4, 3)')
+        tdSql.checkData(0, 4, 3)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data05 != 4 then
+        tdLog.info('tdSql.checkData(0, 5, "4")')
+        tdSql.checkData(0, 5, "4")
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data06 != 5.000000000 then
+        tdLog.info('tdSql.checkData(0, 6, 5.000000000)')
+        tdSql.checkData(0, 6, 5.000000000)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM: if $data07 != 6 then
+        tdLog.info('tdSql.checkData(0, 7, "6")')
+        tdSql.checkData(0, 7, "6")
+        tdLog.info('tdSql.checkData(0, 8, 7)')
+        tdSql.checkData(0, 8, 7)
+        tdLog.info('tdSql.checkData(0, 9, 8)')
+        tdSql.checkData(0, 9, 8)
+        # TSIM: return -1
+        # TSIM: endi
+        # TSIM:
+        # TSIM: sql alter table $mt drop tag tgcol3
+        tdLog.info('alter table %s drop tag tgcol3' % (mt))
+        tdSql.execute('alter table %s drop tag tgcol3' % (mt))
+        # TSIM: sql alter table $mt drop tag tgcol4
+        tdLog.info('alter table %s drop tag tgcol4' % (mt))
+        tdSql.execute('alter table %s drop tag tgcol4' % (mt))
+        # TSIM: sql alter table $mt drop tag tgcol6
+        tdLog.info('alter table %s drop tag tgcol6' % (mt))
+        tdSql.execute('alter table %s drop tag tgcol6' % (mt))
+        tdLog.info('alter table %s drop tag tgcol8' % (mt))
+        tdSql.execute('alter table %s drop tag tgcol8' % (mt))
         # TSIM:
         # TSIM: sleep 5000
         # TSIM:
@@ -1556,7 +1641,7 @@ class TDTestCase:
         # TSIM: print =============== step14
         tdLog.info('=============== step14')
         # TSIM: $i = 14
-        i = 14
+        i = 20
         # TSIM: $mt = $mtPrefix . $i
         mt = "%s%d" % (mtPrefix, i)
         # TSIM: $tb = $tbPrefix . $i

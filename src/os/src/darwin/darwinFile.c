@@ -17,41 +17,49 @@
 #include "os.h"
 #include "tulog.h"
 
-#define _SEND_FILE_STEP_ 1000
-
 int64_t taosFSendFile(FILE *out_file, FILE *in_file, int64_t *offset, int64_t count) {
-  fseek(in_file, (int32_t)(*offset), 0);
-  int     writeLen = 0;
-  uint8_t buffer[_SEND_FILE_STEP_] = {0};
-
-  for (int len = 0; len < (count - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
-    size_t rlen = fread(buffer, 1, _SEND_FILE_STEP_, in_file);
-    if (rlen <= 0) {
-      return writeLen;
-    } else if (rlen < _SEND_FILE_STEP_) {
-      fwrite(buffer, 1, rlen, out_file);
-      return (int)(writeLen + rlen);
-    } else {
-      fwrite(buffer, 1, _SEND_FILE_STEP_, in_file);
-      writeLen += _SEND_FILE_STEP_;
-    }
+  int r = 0;
+  if (offset) {
+    r = fseek(in_file, *offset, SEEK_SET);
+    if (r==-1) return -1;
   }
-
-  int remain = count - writeLen;
-  if (remain > 0) {
-    size_t rlen = fread(buffer, 1, remain, in_file);
-    if (rlen <= 0) {
-      return writeLen;
-    } else {
-      fwrite(buffer, 1, remain, out_file);
-      writeLen += remain;
+  off_t len = count;
+  while (len>0) {
+    char buf[1024*16];
+    off_t n = sizeof(buf);
+    if (len<n) n = len;
+    size_t m = fread(buf, 1, n, in_file);
+    if (m<n) {
+      int e = ferror(in_file);
+      if (e) return -1;
     }
+    if (m==0) break;
+    if (m!=fwrite(buf, 1, m, out_file)) {
+      return -1;
+    }
+    len -= m;
   }
-
-  return writeLen;
+  return count - len;
 }
 
-int64_t taosSendFile(int32_t dfd, int32_t sfd, int64_t* offset, int64_t size) {
-  uError("taosSendFile not implemented yet");
-  return -1;
+int64_t taosSendFile(SOCKET dfd, int32_t sfd, int64_t* offset, int64_t count) {
+  int r = 0;
+  if (offset) {
+    r = lseek(sfd, *offset, SEEK_SET);
+    if (r==-1) return -1;
+  }
+  off_t len = count;
+  while (len>0) {
+    char buf[1024*16];
+    off_t n = sizeof(buf);
+    if (len<n) n = len;
+    size_t m = read(sfd, buf, n);
+    if (m==-1) return -1;
+    if (m==0) break;
+    size_t l = write(dfd, buf, m);
+    if (l==-1) return -1;
+    len -= l;
+  }
+  return count - len;
 }
+

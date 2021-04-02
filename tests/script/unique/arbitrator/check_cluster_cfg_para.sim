@@ -90,7 +90,7 @@ system sh/exec_tarbitrator.sh -s start
 
 print ============== step1: start dnode1
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 print ============== step2: start dnode2~7 and add into cluster 

@@ -30,6 +30,7 @@ extern uint32_t qDebugFlag;
 #define qInfo(...)  do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY ", 255, __VA_ARGS__); }}        while(0)
 #define qDebug(...) do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
 #define qTrace(...) do { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
+#define qDump(a, l) do { if (qDebugFlag & DEBUG_DUMP)  { taosDumpData((unsigned char *)a, l); }} while(0)
 
 #ifdef __cplusplus
 }

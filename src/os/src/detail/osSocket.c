@@ -53,6 +53,16 @@ void taosBlockSIGPIPE() {
   }
 }
 
+void taosSetMaskSIGPIPE() {
+  sigset_t signal_mask;
+  sigemptyset(&signal_mask);
+  sigaddset(&signal_mask, SIGPIPE);
+  int32_t rc = pthread_sigmask(SIG_SETMASK, &signal_mask, NULL);
+  if (rc != 0) {
+    uError("failed to setmask SIGPIPE");
+  }
+}
+
 #endif
 
 #ifndef TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
@@ -61,6 +71,9 @@ int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *op
   return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
 }
 
+int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t* optlen) {
+  return getsockopt(socketfd, level, optname, optval, (socklen_t *)optlen);
+} 
 #endif
 
 #ifndef TAOS_OS_FUNC_SOCKET_INET

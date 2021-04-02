@@ -21,7 +21,7 @@
 #include "tconfig.h"
 #include "tfile.h"
 #include "twal.h"
-// #include "tfs.h"
+#include "tfs.h"
 #include "tsync.h"
 #include "dnodeStep.h"
 #include "dnodePeer.h"
@@ -39,6 +39,13 @@
 #include "dnodeMPeer.h"
 #include "dnodeShell.h"
 #include "dnodeTelemetry.h"
+#include "module.h"
+
+#if !defined(_MODULE) || !defined(_TD_LINUX)
+int32_t moduleStart() { return 0; }
+void    moduleStop() {}
+#endif
+
 
 void *tsDnodeTmr = NULL;
 static SRunStatus tsRunStatus = TSDB_RUN_STATUS_STOPPED;
@@ -63,13 +70,16 @@ static SStep tsDnodeSteps[] = {
   {"dnode-vread",     dnodeInitVRead,      dnodeCleanupVRead},
   {"dnode-vwrite",    dnodeInitVWrite,     dnodeCleanupVWrite},
   {"dnode-vmgmt",     dnodeInitVMgmt,      dnodeCleanupVMgmt},
-  {"dnode-mread",     dnodeInitMRead,      dnodeCleanupMRead},
-  {"dnode-mwrite",    dnodeInitMWrite,     dnodeCleanupMWrite},
-  {"dnode-mpeer",     dnodeInitMPeer,      dnodeCleanupMPeer},  
+  {"dnode-mread",     dnodeInitMRead,      NULL},
+  {"dnode-mwrite",    dnodeInitMWrite,     NULL},
+  {"dnode-mpeer",     dnodeInitMPeer,      NULL},  
   {"dnode-client",    dnodeInitClient,     dnodeCleanupClient},
   {"dnode-server",    dnodeInitServer,     dnodeCleanupServer},
   {"dnode-vnodes",    dnodeInitVnodes,     dnodeCleanupVnodes},
   {"dnode-modules",   dnodeInitModules,    dnodeCleanupModules},
+  {"dnode-mread",     NULL,                dnodeCleanupMRead},
+  {"dnode-mwrite",    NULL,                dnodeCleanupMWrite},
+  {"dnode-mpeer",     NULL,                dnodeCleanupMPeer},  
   {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
   {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
@@ -146,6 +156,7 @@ int32_t dnodeInitSystem() {
   }
 
   dnodeSetRunStatus(TSDB_RUN_STATUS_RUNING);
+  moduleStart();
 
   dnodeReportStep("TDengine", "initialized successfully", 1);
   dInfo("TDengine is initialized successfully");
@@ -155,6 +166,7 @@ int32_t dnodeInitSystem() {
 
 void dnodeCleanUpSystem() {
   if (dnodeGetRunStatus() != TSDB_RUN_STATUS_STOPPED) {
+    moduleStop();
     dnodeSetRunStatus(TSDB_RUN_STATUS_STOPPED);
     dnodeCleanupTmr();
     dnodeCleanupComponents();
@@ -189,32 +201,54 @@ static void dnodeCheckDataDirOpenned(char *dir) {
 }
 
 static int32_t dnodeInitStorage() {
-  if (dnodeCreateDir(tsDataDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
-   return -1;
+  if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
+    dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
+    return -1;
+  } 
+  
+  if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
+    dError("failed to init TFS since %s", tstrerror(terrno));
+    return -1;
   }
+  strncpy(tsDataDir, TFS_PRIMARY_PATH(), TSDB_FILENAME_LEN);
   sprintf(tsMnodeDir, "%s/mnode", tsDataDir);
   sprintf(tsVnodeDir, "%s/vnode", tsDataDir);
   sprintf(tsDnodeDir, "%s/dnode", tsDataDir);
-  sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
+  // sprintf(tsVnodeBakDir, "%s/vnode_bak", tsDataDir);
 
   //TODO(dengyihao): no need to init here 
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
   } 
-  //TODO(dengyihao): no need to init here
-  if (dnodeCreateDir(tsVnodeDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsVnodeDir, strerror(errno));
-   return -1;
-  }
+
   if (dnodeCreateDir(tsDnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsDnodeDir, strerror(errno));
    return -1;
-  } 
-  if (dnodeCreateDir(tsVnodeBakDir) < 0) {
-   dError("failed to create dir: %s, reason: %s", tsVnodeBakDir, strerror(errno));
-   return -1;
+  }
+
+  if (tfsMkdir("vnode") < 0) {
+    dError("failed to create vnode dir since %s", tstrerror(terrno));
+    return -1;
+  }
+
+  if (tfsMkdir("vnode_bak") < 0) {
+    dError("failed to create vnode_bak dir since %s", tstrerror(terrno));
+    return -1;
+  }
+
+  TDIR *tdir = tfsOpendir("vnode_bak/.staging");
+  bool stagingNotEmpty = tfsReaddir(tdir) != NULL;
+  tfsClosedir(tdir);
+
+  if (stagingNotEmpty) {
+    dError("vnode_bak/.staging dir not empty, fix it first.");
+    return -1;
+  }
+
+  if (tfsMkdir("vnode_bak/.staging") < 0) {
+    dError("failed to create vnode_bak/.staging dir since %s", tstrerror(terrno));
+    return -1;
   }
 
   dnodeCheckDataDirOpenned(tsDnodeDir);
@@ -223,7 +257,7 @@ static int32_t dnodeInitStorage() {
   return 0;
 }
 
-static void dnodeCleanupStorage() {}
+static void dnodeCleanupStorage() { tfsDestroy(); }
 
 bool  dnodeIsFirstDeploy() {
   return strcmp(tsFirst, tsLocalEp) == 0;

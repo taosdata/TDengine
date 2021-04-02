@@ -72,6 +72,11 @@ typedef struct SInterval {
   int64_t offset;
 } SInterval;
 
+typedef struct SSessionWindow {
+  int64_t gap;             // gap between two session window(in microseconds)
+  int32_t primaryColId;    // primary timestamp column
+} SSessionWindow;
+
 int64_t taosTimeAdd(int64_t t, int64_t duration, char unit, int32_t precision);
 int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precision);
 int32_t taosTimeCountInterval(int64_t skey, int64_t ekey, int64_t interval, char unit, int32_t precision);

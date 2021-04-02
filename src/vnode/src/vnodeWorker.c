@@ -109,7 +109,7 @@ static void vnodeStopMWorker() {
 void vnodeCleanupMWorker() {
   for (int32_t i = 0; i < tsVMWorkerPool.maxNum; ++i) {
     SVMWorker *pWorker = tsVMWorkerPool.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(tsVMWorkerQset);
     }
     vDebug("vmworker:%d is closed", i);
@@ -118,7 +118,7 @@ void vnodeCleanupMWorker() {
   for (int32_t i = 0; i < tsVMWorkerPool.maxNum; ++i) {
     SVMWorker *pWorker = tsVMWorkerPool.worker + i;
     vDebug("vmworker:%d start to join", i);
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
     }
     vDebug("vmworker:%d join success", i);

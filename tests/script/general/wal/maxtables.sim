@@ -32,11 +32,11 @@ endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
-sleep 3000
+sleep 2000
 
 print ===============  step4
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 
 sql select * from st;
 if $rows != 100 then

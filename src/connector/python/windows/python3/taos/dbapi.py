@@ -4,6 +4,7 @@
 import time
 import datetime
 
+
 class DBAPITypeObject(object):
     def __init__(self, *values):
         self.values = values
@@ -16,18 +17,23 @@ class DBAPITypeObject(object):
         else:
             return -1
 
+
 Date = datetime.date
 Time = datetime.time
 Timestamp = datetime.datetime
 
+
 def DataFromTicks(ticks):
     return Date(*time.localtime(ticks)[:3])
+
 
 def TimeFromTicks(ticks):
     return Time(*time.localtime(ticks)[3:6])
 
+
 def TimestampFromTicks(ticks):
     return Timestamp(*time.localtime(ticks)[:6])
+
 
 Binary = bytes
 

@@ -6,6 +6,7 @@ import org.junit.Test;
 import java.sql.*;
 
 public class RestfulDriverTest {
+    private static final String host = "127.0.0.1";
 
     @Test
     public void connect() {
@@ -15,9 +16,9 @@ public class RestfulDriverTest {
     @Test
     public void acceptsURL() throws SQLException {
         Driver driver = new RestfulDriver();
-        boolean isAccept = driver.acceptsURL("jdbc:TAOS-RS://master:6041");
+        boolean isAccept = driver.acceptsURL("jdbc:TAOS-RS://" + host + ":6041");
         Assert.assertTrue(isAccept);
-        isAccept = driver.acceptsURL("jdbc:TAOS://master:6041");
+        isAccept = driver.acceptsURL("jdbc:TAOS://" + host + ":6041");
         Assert.assertFalse(isAccept);
     }
 
@@ -26,6 +27,9 @@ public class RestfulDriverTest {
         Driver driver = new RestfulDriver();
         final String url = "";
         DriverPropertyInfo[] propertyInfo = driver.getPropertyInfo(url, null);
+        for (DriverPropertyInfo prop : propertyInfo) {
+            System.out.println(prop);
+        }
     }
 
     @Test

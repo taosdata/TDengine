@@ -111,6 +111,18 @@ class TDTestCase:
         tdSql.query("select * from tb where c5 = 'true' ")
         tdSql.checkRows(5)
 
+        # For jira: https://jira.taosdata.com:18080/browse/TD-2850
+        tdSql.execute("create database 'Test' ")
+        tdSql.execute("use 'Test' ")
+        tdSql.execute("create table 'TB'(ts timestamp, 'Col1' int) tags('Tag1' int)")
+        tdSql.execute("insert into 'Tb0' using tb tags(1) values(now, 1)")
+        tdSql.query("select * from tb")
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from tb0")
+        tdSql.checkRows(1)
+        
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

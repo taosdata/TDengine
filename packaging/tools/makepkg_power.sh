@@ -36,12 +36,17 @@ fi
 #  strip ${build_dir}/bin/taos
 #  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${script_dir}/remove_power.sh"
 #else 
-#  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${build_dir}/bin/powerdemo ${build_dir}/bin/tarbitrator ${script_dir}/remove_power.sh ${script_dir}/set_core.sh"
+#  bin_files="${build_dir}/bin/powerd ${build_dir}/bin/power ${build_dir}/bin/powerdemo ${build_dir}/bin/tarbitrator ${script_dir}/remove_power.sh\
+#              ${script_dir}/set_core.sh ${script_dir}/startPre.sh  ${script_dir}/taosd-dump-cfg.gdb"
 #fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
-cfg_dir="${top_dir}/packaging/cfg"
+if [ "$verMode" == "cluster" ]; then
+  cfg_dir="${top_dir}/../enterprise/packaging/cfg"
+else
+  cfg_dir="${top_dir}/packaging/cfg"
+fi
 install_files="${script_dir}/install_power.sh"
 nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 
@@ -77,11 +82,12 @@ else
   cp ${build_dir}/bin/taosd         ${install_dir}/bin/powerd
   cp ${script_dir}/remove_power.sh  ${install_dir}/bin
   cp ${build_dir}/bin/taosdemo      ${install_dir}/bin/powerdemo   
-  cp ${build_dir}/bin/taosdemox     ${install_dir}/bin/powerdemox   
   cp ${build_dir}/bin/taosdump      ${install_dir}/bin/powerdump  
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin
   cp ${script_dir}/set_core.sh      ${install_dir}/bin
   cp ${script_dir}/get_client.sh    ${install_dir}/bin
+  cp ${script_dir}/startPre.sh      ${install_dir}/bin
+  cp ${script_dir}/taosd-dump-cfg.gdb  ${install_dir}/bin
 fi
 chmod a+x ${install_dir}/bin/* || :
 

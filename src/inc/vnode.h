@@ -60,6 +60,7 @@ int32_t vnodeCreate(SCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeDrop(int32_t vgId);
 int32_t vnodeOpen(int32_t vgId);
 int32_t vnodeAlter(void *pVnode, SCreateVnodeMsg *pVnodeCfg);
+int32_t vnodeSync(int32_t vgId);
 int32_t vnodeClose(int32_t vgId);
 
 // vnodeMgmt
@@ -78,7 +79,7 @@ void    vnodeFreeFromWQueue(void *pVnode, SVWriteMsg *pWrite);
 int32_t vnodeProcessWrite(void *pVnode, void *pHead, int32_t qtype, void *pRspRet);
 
 // vnodeSync
-void    vnodeConfirmForward(void *pVnode, uint64_t version, int32_t code);
+void    vnodeConfirmForward(void *pVnode, uint64_t version, int32_t code, bool force);
 
 // vnodeRead
 int32_t vnodeWriteToRQueue(void *pVnode, void *pCont, int32_t contLen, int8_t qtype, void *rparam);

@@ -169,7 +169,7 @@ sleep 200
 
 print ========= step4
 system sh/exec.sh -n dnode2 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 
 sql insert into d1.t1 values(now, 3) -x s41
 s41:

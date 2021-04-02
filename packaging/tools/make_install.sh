@@ -24,7 +24,7 @@ data_dir="/var/lib/taos"
 if [ "$osType" != "Darwin" ]; then
     log_dir="/var/log/taos"
 else
-    log_dir="~/TDengineLog"
+    log_dir=~/TDengine/log
 fi
 
 data_link_dir="/usr/local/taos/data"
@@ -149,10 +149,12 @@ function install_bin() {
     ${csudo} rm -f ${bin_link_dir}/rmtaos       || :
 
     ${csudo} cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin
+    ${csudo} cp -r ${script_dir}/taosd-dump-cfg.gdb   ${install_main_dir}/bin
 
     if [ "$osType" != "Darwin" ]; then
-        ${csudo} cp -r ${script_dir}/remove.sh   ${install_main_dir}/bin
+        ${csudo} cp -r ${script_dir}/remove.sh     ${install_main_dir}/bin
         ${csudo} cp -r ${script_dir}/set_core.sh   ${install_main_dir}/bin
+        ${csudo} cp -r ${script_dir}/startPre.sh   ${install_main_dir}/bin
     else
         ${csudo} cp -r ${script_dir}/remove_client.sh   ${install_main_dir}/bin
     fi
@@ -178,7 +180,9 @@ function install_bin() {
 function install_lib() {
     # Remove links
     ${csudo} rm -f ${lib_link_dir}/libtaos.*     || :
-    ${csudo} rm -f ${lib64_link_dir}/libtaos.*   || :
+    if [ "$osType" != "Darwin" ]; then
+      ${csudo} rm -f ${lib64_link_dir}/libtaos.*   || :
+    fi
     
     if [ "$osType" != "Darwin" ]; then
         ${csudo} cp ${binary_dir}/build/lib/libtaos.so.${verNumber} ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
@@ -190,12 +194,14 @@ function install_lib() {
           ${csudo} ln -sf ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so
         fi
     else
-        ${csudo} cp ${binary_dir}/build/lib/libtaos.* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
-        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.* ${lib_link_dir}/libtaos.1.dylib
+        ${csudo} cp -Rf ${binary_dir}/build/lib/libtaos.* ${install_main_dir}/driver && ${csudo} chmod 777 ${install_main_dir}/driver/*
+        ${csudo} ln -sf ${install_main_dir}/driver/libtaos.1.dylib ${lib_link_dir}/libtaos.1.dylib
         ${csudo} ln -sf ${lib_link_dir}/libtaos.1.dylib ${lib_link_dir}/libtaos.dylib
     fi
     
-    ${csudo} ldconfig
+    if [ "$osType" != "Darwin" ]; then
+        ${csudo} ldconfig
+    fi
 }
 
 function install_header() {
@@ -326,6 +332,7 @@ function install_service_on_systemd() {
     ${csudo} bash -c "echo '[Service]'                          >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'ExecStart=/usr/bin/taosd'           >> ${taosd_service_config}"
+    ${csudo} bash -c "echo 'ExecStartPre=/usr/local/taos/bin/startPre.sh'           >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNOFILE=infinity'               >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitNPROC=infinity'                >> ${taosd_service_config}"
     ${csudo} bash -c "echo 'LimitCORE=infinity'                 >> ${taosd_service_config}"

@@ -70,7 +70,7 @@ system sh/exec_tarbitrator.sh -s start
 
 print ============== step1: start dnode1, only deploy mnode
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 print ============== step2: start dnode2/dnode3 and add into cluster, then create database replica 2, create table , and insert data
@@ -78,7 +78,7 @@ system sh/exec.sh -n dnode2 -s start
 system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname2
 sql create dnode $hostname3
-sleep 3000
+sleep 2000
 
 $rowNum = 100
 $tblNum = 16
@@ -139,7 +139,7 @@ if $data00 != $totalRows then
 	return -1
 endi
 
-#sleep 3000
+#sleep 2000
 #sql show dnodes
 #print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
 #print $data0_2  $data1_2  $data2_2  $data3_2  $data4_2
@@ -175,7 +175,7 @@ endi
 
 sql show dnodes
 if $rows != 3 then
-  sleep 3000
+  sleep 2000
   goto wait_drop
 endi
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
@@ -218,7 +218,7 @@ system sh/cfg.sh -n dnode3 -c maxVgroupsPerDb -v 16
 
 system sh/exec.sh -n dnode3 -s start
 sql create dnode $hostname3
-sleep 3000
+sleep 2000
 
 $loopCnt = 0
 wait_dnode3_ready:
@@ -230,7 +230,7 @@ endi
 sql show dnodes
 print rows: $rows
 if $rows != 4 then
-  sleep 3000
+  sleep 2000
   goto wait_dnode3_ready
 endi
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
@@ -271,7 +271,7 @@ sql drop database $db
 sleep 1000
 system sh/exec.sh -n dnode5 -s start
 sql create dnode $hostname5
-sleep 3000
+sleep 2000
 $loopCnt = 0
 wait_dnode5:
 $loopCnt = $loopCnt + 1
@@ -281,7 +281,7 @@ endi
 
 sql show dnodes
 if $rows != 5 then
-  sleep 3000
+  sleep 2000
   goto wait_dnode5
 endi
 print $data0_1  $data1_1  $data2_1  $data3_1  $data4_1
@@ -352,7 +352,7 @@ endw
 print       info: select count(*) from $stb
 sleep 2000
 sql reset query cache
-sleep 3000
+sleep 2000
 sql select count(*) from $stb
 print data00 $data00
 if $data00 != $totalRows then

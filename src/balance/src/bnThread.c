@@ -56,7 +56,7 @@ int32_t bnInitThread() {
   pthread_attr_destroy(&thattr);
 
   if (ret != 0) {
-    mError("failed to create balance thread since %s", strerror(errno));
+    mError("failed to create balance thread since %s", strerror(ret));
     return -1;
   }
 
@@ -119,13 +119,13 @@ static void bnProcessTimer(void *handle, void *tmrId) {
   }
 }
 
-void bnStartTimer(int64_t mseconds) {
+void bnStartTimer(int32_t mseconds) {
   if (tsBnThread.stop) return;
 
   bool updateSoon = (mseconds != -1);
   if (updateSoon) {
-    mTrace("balance function will be called after %" PRId64 " ms", mseconds);
-    taosTmrReset(bnProcessTimer, mseconds, (void *)mseconds, tsMnodeTmr, &tsBnThread.timer);
+    mTrace("balance function will be called after %d ms", mseconds);
+    taosTmrReset(bnProcessTimer, mseconds, (void *)(int64_t)mseconds, tsMnodeTmr, &tsBnThread.timer);
   } else {
     taosTmrReset(bnProcessTimer, tsStatusInterval * 1000, NULL, tsMnodeTmr, &tsBnThread.timer);
   }

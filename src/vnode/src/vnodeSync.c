@@ -20,6 +20,7 @@
 #include "dnode.h"
 #include "vnodeVersion.h"
 #include "vnodeMain.h"
+#include "vnodeStatus.h"
 
 uint32_t vnodeGetFileInfo(int32_t vgId, char *name, uint32_t *index, uint32_t eindex, int64_t *size, uint64_t *fver) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
@@ -83,22 +84,35 @@ void vnodeCtrlFlow(int32_t vgId, int32_t level) {
   vnodeRelease(pVnode);
 }
 
-int32_t vnodeNotifyFileSynced(int32_t vgId, uint64_t fversion) {
+void vnodeStartSyncFile(int32_t vgId) {
   SVnodeObj *pVnode = vnodeAcquire(vgId);
   if (pVnode == NULL) {
-    vError("vgId:%d, vnode not found while notify file synced", vgId);
-    return 0;
+    vError("vgId:%d, vnode not found while start filesync", vgId);
+    return;
+  }
+
+  vInfo("vgId:%d, datafile will be synced", vgId);
+  vnodeSetResetStatus(pVnode);
+
+  vnodeRelease(pVnode);
+}
+
+void vnodeStopSyncFile(int32_t vgId, uint64_t fversion) {
+  SVnodeObj *pVnode = vnodeAcquire(vgId);
+  if (pVnode == NULL) {
+    vError("vgId:%d, vnode not found while stop filesync", vgId);
+    return;
   }
 
   pVnode->fversion = fversion;
   pVnode->version = fversion;
   vnodeSaveVersion(pVnode);
+  walResetVersion(pVnode->wal, fversion);
 
-  vDebug("vgId:%d, data file is synced, fver:%" PRIu64 " vver:%" PRIu64, vgId, fversion, fversion);
-  int32_t code = vnodeReset(pVnode);
+  vInfo("vgId:%d, datafile is synced, fver:%" PRIu64 " vver:%" PRIu64, vgId, fversion, fversion);
+  vnodeSetReadyStatus(pVnode);
 
   vnodeRelease(pVnode);
-  return code;
 }
 
 void vnodeConfirmForard(int32_t vgId, void *wparam, int32_t code) {
@@ -134,7 +148,7 @@ int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver) {
 
   int32_t code = 0;
   if (pVnode->isCommiting) {
-    vDebug("vgId:%d, vnode is commiting while get version", vgId);
+    vInfo("vgId:%d, vnode is commiting while get version", vgId);
     code = -1;
   } else {
     *fver = pVnode->fversion;
@@ -145,7 +159,7 @@ int32_t vnodeGetVersion(int32_t vgId, uint64_t *fver, uint64_t *wver) {
   return code;
 }
 
-void vnodeConfirmForward(void *vparam, uint64_t version, int32_t code) {
+void vnodeConfirmForward(void *vparam, uint64_t version, int32_t code, bool force) {
   SVnodeObj *pVnode = vparam;
-  syncConfirmForward(pVnode->sync, version, code);
+  syncConfirmForward(pVnode->sync, version, code, force);
 }

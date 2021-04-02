@@ -23,14 +23,14 @@ system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 4
 
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
 sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
-sleep 5000
+sleep 3000
 
 sql show dnodes
 print dnode1 $data5_1

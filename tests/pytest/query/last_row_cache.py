@@ -25,18 +25,23 @@ class TDTestCase:
 
         self.tables = 10
         self.rows = 20
+        self.columns = 50
         self.perfix = 't'
         self.ts = 1601481600000
     
     def insertData(self):
-        print("==============step1")        
-        tdSql.execute("create table st (ts timestamp, c1 int) tags(t1 int)")
+        print("==============step1")
+        sql = "create table st(ts timestamp, "
+        for i in range(self.columns - 1):
+            sql += "c%d int, " % (i + 1)
+        sql += "c50 int) tags(t1 int)"
+        tdSql.execute(sql)
         
         for i in range(self.tables):
             tdSql.execute("create table %s%d using st tags(%d)" % (self.perfix, i, i))
             for j in range(self.rows):
                 tc = self.ts + j * 60000
-                tdSql.execute("insert into %s%d values(%d, %d)" %(self.perfix, i, tc, j))    
+                tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %(self.perfix, i, tc, j))    
 
     def executeQueries(self):
         print("==============step2")
@@ -66,29 +71,29 @@ class TDTestCase:
         tdSql.checkData(0, 0, 19)        
 
         tc = self.ts + 1 * 3600000
-        tdSql.execute("insert into %s%d values(%d, %d)" %(self.perfix, 1, tc, 10))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %(self.perfix, 1, tc, 10))
 
         tc = self.ts + 3 * 3600000
-        tdSql.execute("insert into %s%d values(%d, null)" %(self.perfix, 1, tc))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %(self.perfix, 1, tc))
 
         tc = self.ts + 5 * 3600000
-        tdSql.execute("insert into %s%d values(%d, %d)" %(self.perfix, 1, tc, -1))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %(self.perfix, 1, tc, -1))
 
         tc = self.ts + 7 * 3600000
-        tdSql.execute("insert into %s%d values(%d, null)" %(self.perfix, 1, tc))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %(self.perfix, 1, tc))
 
     def insertData2(self):
         tc = self.ts + 1 * 3600000
-        tdSql.execute("insert into %s%d values(%d, %d)" %(self.perfix, 1, tc, 10))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %(self.perfix, 1, tc, 10))
 
         tc = self.ts + 3 * 3600000
-        tdSql.execute("insert into %s%d values(%d, null)" %(self.perfix, 1, tc))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %(self.perfix, 1, tc))
 
         tc = self.ts + 5 * 3600000
-        tdSql.execute("insert into %s%d values(%d, %d)" %(self.perfix, 1, tc, -1))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, %d)" %(self.perfix, 1, tc, -1))
 
         tc = self.ts + 7 * 3600000
-        tdSql.execute("insert into %s%d values(%d, null)" %(self.perfix, 1, tc))
+        tdSql.execute("insert into %s%d(ts, c1) values(%d, null)" %(self.perfix, 1, tc))
 
     def executeQueries2(self): 
         # For stable
@@ -163,6 +168,9 @@ class TDTestCase:
         self.insertData()
         self.executeQueries()
         self.insertData2()
+        self.executeQueries2()
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
         self.executeQueries2()
         
         tdSql.execute("alter database test2 cachelast 0")        

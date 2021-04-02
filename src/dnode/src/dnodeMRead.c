@@ -40,7 +40,7 @@ static void *dnodeProcessMReadQueue(void *param);
 int32_t dnodeInitMRead() {
   tsMReadQset = taosOpenQset();
 
-  tsMReadWP.maxNum = tsNumOfCores * tsNumOfThreadsPerCore / 2;
+  tsMReadWP.maxNum = (int32_t)(tsNumOfCores * tsNumOfThreadsPerCore / 2);
   tsMReadWP.maxNum = MAX(2, tsMReadWP.maxNum);
   tsMReadWP.maxNum = MIN(4, tsMReadWP.maxNum);
   tsMReadWP.curNum = 0;
@@ -60,7 +60,7 @@ int32_t dnodeInitMRead() {
 void dnodeCleanupMRead() {
   for (int32_t i = 0; i < tsMReadWP.maxNum; ++i) {
     SMReadWorker *pWorker = tsMReadWP.worker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(tsMReadQset);
     }
     dDebug("dnode mread worker:%d is closed", i);
@@ -69,7 +69,7 @@ void dnodeCleanupMRead() {
   for (int32_t i = 0; i < tsMReadWP.maxNum; ++i) {
     SMReadWorker *pWorker = tsMReadWP.worker + i;
     dDebug("dnode mread worker:%d start to join", i);
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
     }
     dDebug("dnode mread worker:%d start to join", i);

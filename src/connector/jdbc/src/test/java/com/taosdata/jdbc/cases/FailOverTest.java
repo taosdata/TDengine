@@ -4,7 +4,6 @@ import org.junit.Test;
 
 import java.sql.*;
 import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.concurrent.TimeUnit;
 
 public class FailOverTest {
@@ -18,13 +17,17 @@ public class FailOverTest {
 
         long end = System.currentTimeMillis() + 1000 * 60 * 5;
         while (System.currentTimeMillis() < end) {
-            try (Connection conn = DriverManager.getConnection(url)) {
-                Statement stmt = conn.createStatement();
-                ResultSet resultSet = stmt.executeQuery("select server_status()");
-                resultSet.next();
-                int status = resultSet.getInt("server_status()");
-                System.out.println(">>>>>>>>>" + sdf.format(new Date()) + " status : " + status);
-                stmt.close();
+            try (Connection conn = DriverManager.getConnection(url); Statement stmt = conn.createStatement()) {
+                ResultSet rs = stmt.executeQuery("show dnodes");
+                ResultSetMetaData meta = rs.getMetaData();
+                while (rs.next()) {
+                    for (int i = 1; i <= meta.getColumnCount(); i++) {
+                        System.out.print(meta.getColumnLabel(i) + ": " + rs.getString(i) + "\t");
+                    }
+                    System.out.println();
+                }
+                System.out.println("=======================");
+                rs.close();
                 TimeUnit.SECONDS.sleep(5);
             } catch (SQLException | InterruptedException e) {
                 e.printStackTrace();

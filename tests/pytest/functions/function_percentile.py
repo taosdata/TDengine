@@ -34,10 +34,10 @@ class TDTestCase:
         floatData = []
 
         tdSql.execute('''create table test(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
-                    col7 bool, col8 binary(20), col9 nchar(20))''')
+                    col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned)''')
         for i in range(self.rowNum):
-            tdSql.execute("insert into test values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d')" 
-                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1))
+            tdSql.execute("insert into test values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
+                        % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))
             intData.append(i + 1)            
             floatData.append(i + 0.1)                        
 
@@ -101,6 +101,58 @@ class TDTestCase:
         tdSql.query("select percentile(col4, 100) from test")
         tdSql.checkData(0, 0, np.percentile(intData, 100)) 
         tdSql.query("select apercentile(col4, 100) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+
+        tdSql.query("select percentile(col11, 0) from test")        
+        tdSql.checkData(0, 0, np.percentile(intData, 0))
+        tdSql.query("select apercentile(col11, 0) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+        tdSql.query("select percentile(col11, 50) from test")
+        tdSql.checkData(0, 0, np.percentile(intData, 50))
+        tdSql.query("select apercentile(col11, 50) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+        tdSql.query("select percentile(col11, 100) from test")
+        tdSql.checkData(0, 0, np.percentile(intData, 100))
+        tdSql.query("select apercentile(col11, 100) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))  
+
+        tdSql.query("select percentile(col12, 0) from test")
+        tdSql.checkData(0, 0, np.percentile(intData, 0))
+        tdSql.query("select apercentile(col12, 0) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+        tdSql.query("select percentile(col12, 50) from test")
+        tdSql.checkData(0, 0, np.percentile(intData, 50))
+        tdSql.query("select apercentile(col12, 50) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+        tdSql.query("select percentile(col12, 100) from test")
+        tdSql.checkData(0, 0, np.percentile(intData, 100)) 
+        tdSql.query("select apercentile(col12, 100) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+
+        tdSql.query("select percentile(col13, 0) from test")
+        tdSql.checkData(0, 0, np.percentile(intData, 0))
+        tdSql.query("select apercentile(col13, 0) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+        tdSql.query("select percentile(col13, 50) from test")
+        tdSql.checkData(0, 0, np.percentile(intData, 50))
+        tdSql.query("select apercentile(col13, 50) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+        tdSql.query("select percentile(col13, 100) from test")
+        tdSql.checkData(0, 0, np.percentile(intData, 100))
+        tdSql.query("select apercentile(col13, 100) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+
+        tdSql.query("select percentile(col14, 0) from test")
+        tdSql.checkData(0, 0, np.percentile(intData, 0))
+        tdSql.query("select apercentile(col14, 0) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+        tdSql.query("select percentile(col14, 50) from test")
+        tdSql.checkData(0, 0, np.percentile(intData, 50))
+        tdSql.query("select apercentile(col14, 50) from test")
+        print("apercentile result: %s" % tdSql.getData(0, 0))
+        tdSql.query("select percentile(col14, 100) from test")
+        tdSql.checkData(0, 0, np.percentile(intData, 100)) 
+        tdSql.query("select apercentile(col14, 100) from test")
         print("apercentile result: %s" % tdSql.getData(0, 0))
 
         tdSql.query("select percentile(col5, 0) from test")        

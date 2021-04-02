@@ -3,7 +3,7 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/exec.sh -n dnode1 -s start
 #system sh/exec.sh -n monitor -s 1
 system sh/exec.sh -n monitorInterval -s 1
-sleep 3000
+sleep 2000
 sql connect
 
 print =============== show accounts

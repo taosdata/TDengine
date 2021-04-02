@@ -7,7 +7,7 @@ system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 
 print ========= start dnode1 as master
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 sql connect
 
 print ======== step1 
@@ -141,9 +141,9 @@ endi
 
 print ============= step10
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 5000
+sleep 3000
 
 sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
 if $data00 != 24 then
@@ -250,9 +250,9 @@ endi
 
 print ============== step18
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 5000
+sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 5000
+sleep 3000
 
 #sql select count(g) from tb
 #if $data00 != 12 then

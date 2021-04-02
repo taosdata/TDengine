@@ -18,14 +18,14 @@ public class SuperTableMapperImpl implements SuperTableMapper {
     @Override
     public void createSuperTable(SuperTableMeta tableMetadata) {
         String sql = SqlSpeller.createSuperTable(tableMetadata);
-        logger.info("SQL >>> " + sql);
+        logger.debug("SQL >>> " + sql);
         jdbcTemplate.execute(sql);
     }
 
     @Override
     public void dropSuperTable(String database, String name) {
         String sql = "drop table if exists " + database + "." + name;
-        logger.info("SQL >>> " + sql);
+        logger.debug("SQL >>> " + sql);
         jdbcTemplate.execute(sql);
     }
 }

@@ -59,11 +59,11 @@ bool gcGetUserFromUrl(HttpContext* pContext) {
 
 bool gcGetPassFromUrl(HttpContext* pContext) {
   HttpParser* pParser = pContext->parser;
-  if (pParser->path[GC_PASS_URL_POS].pos >= TSDB_KEY_LEN || pParser->path[GC_PASS_URL_POS].pos <= 0) {
+  if (pParser->path[GC_PASS_URL_POS].pos >= HTTP_PASSWORD_LEN || pParser->path[GC_PASS_URL_POS].pos <= 0) {
     return false;
   }
 
-  tstrncpy(pContext->pass, pParser->path[GC_PASS_URL_POS].str, TSDB_KEY_LEN);
+  tstrncpy(pContext->pass, pParser->path[GC_PASS_URL_POS].str, HTTP_PASSWORD_LEN);
   return true;
 }
 
@@ -192,7 +192,7 @@ bool gcProcessQueryRequest(HttpContext* pContext) {
       break;
     }
 
-    cJSON* alias = cJSON_GetObjectItem(query, "alias");
+    cJSON*  alias = cJSON_GetObjectItem(query, "alias");
     int32_t aliasBuffer = -1;
     if (!(alias == NULL || alias->valuestring == NULL || strlen(alias->valuestring) == 0)) {
       aliasBuffer = httpAddToSqlCmdBuffer(pContext, alias->valuestring);

@@ -6,7 +6,7 @@ system sh/cfg.sh -n dnode1 -c wallevel -v 2
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 3000
+sleep 2000
 
 print ========== step3
 sql create database d1
@@ -20,7 +20,7 @@ sql insert into d1.t1 values(now+5s, 31)
 print ========== step4
 system sh/exec.sh -n dnode1 -s stop  -x SIGINT
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sleep 2000
 
 print ========== step5
 sql select * from d1.t1 order by t desc

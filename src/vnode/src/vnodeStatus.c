@@ -109,6 +109,8 @@ bool vnodeSetResetStatus(SVnodeObj* pVnode) {
     taosMsleep(1);
   }
 
+  vInfo("vgId:%d, set to reset status", pVnode->vgId);
+
   // release local resources only after cutting off outside connections
   qQueryMgmtNotifyClosed(pVnode->qMgmt);
   vnodeWaitReadCompleted(pVnode);
@@ -146,6 +148,18 @@ bool vnodeInReadyOrUpdatingStatus(SVnodeObj* pVnode) {
   pthread_mutex_lock(&pVnode->statusMutex);
 
   if (pVnode->status == TAOS_VN_STATUS_READY || pVnode->status == TAOS_VN_STATUS_UPDATING) {
+    in = true;
+  }
+
+  pthread_mutex_unlock(&pVnode->statusMutex);
+  return in;
+}
+
+bool vnodeInClosingStatus(SVnodeObj* pVnode) {
+  bool in = false;
+  pthread_mutex_lock(&pVnode->statusMutex);
+
+  if (pVnode->status == TAOS_VN_STATUS_CLOSING) {
     in = true;
   }
 

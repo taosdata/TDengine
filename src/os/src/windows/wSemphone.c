@@ -20,6 +20,7 @@
 #include "ttimer.h"
 #include "tulog.h"
 #include "tutil.h"
+#include <windows.h>
 
 bool taosCheckPthreadValid(pthread_t thread) { return thread.p != NULL; }
 
@@ -33,7 +34,9 @@ int64_t taosGetPthreadId(pthread_t thread) {
 #endif
 }
 
-int64_t taosGetSelfPthreadId() { return taosGetPthreadId(pthread_self()); }
+int64_t taosGetSelfPthreadId() {
+  return GetCurrentThreadId();
+}
 
 bool taosComparePthread(pthread_t first, pthread_t second) {
   return first.p == second.p;

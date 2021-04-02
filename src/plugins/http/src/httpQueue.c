@@ -38,16 +38,16 @@ typedef struct {
 } SHttpWorkerPool;
 
 typedef struct {
-  void *  param;
-  void *  result;
-  int32_t code;
-  int32_t rows;
+  void *        param;
+  void *        result;
+  int32_t       code;
+  int32_t       rows;
   FHttpResultFp fp;
 } SHttpResult;
 
 static SHttpWorkerPool tsHttpPool;
-static taos_qset tsHttpQset;
-static taos_queue tsHttpQueue;
+static taos_qset       tsHttpQset;
+static taos_queue      tsHttpQueue;
 
 void httpDispatchToResultQueue(void *param, TAOS_RES *result, int32_t code, int32_t rows, FHttpResultFp fp) {
   if (tsHttpQueue != NULL) {
@@ -59,7 +59,9 @@ void httpDispatchToResultQueue(void *param, TAOS_RES *result, int32_t code, int3
     pMsg->fp = fp;
     taosWriteQitem(tsHttpQueue, TAOS_QTYPE_RPC, pMsg);
   } else {
-    (*fp)(param, result, code, rows);
+    taos_stop_query(result);
+    taos_free_result(result);
+    //(*fp)(param, result, code, rows);
   }
 }
 
@@ -105,7 +107,7 @@ static bool httpAllocateResultQueue() {
     httpDebug("http result worker:%d is launched, total:%d", pWorker->workerId, tsHttpPool.num);
   }
 
-   httpInfo("http result queue is opened");
+  httpInfo("http result queue is opened");
   return true;
 }
 
@@ -134,14 +136,14 @@ void httpCleanupResultQueue() {
 
   for (int32_t i = 0; i < tsHttpPool.num; ++i) {
     SHttpWorker *pWorker = tsHttpPool.httpWorker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       taosQsetThreadResume(tsHttpQset);
     }
   }
 
   for (int32_t i = 0; i < tsHttpPool.num; ++i) {
     SHttpWorker *pWorker = tsHttpPool.httpWorker + i;
-    if (pWorker->thread) {
+    if (taosCheckPthreadValid(pWorker->thread)) {
       pthread_join(pWorker->thread, NULL);
     }
   }

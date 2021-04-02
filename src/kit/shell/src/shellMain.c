@@ -21,7 +21,7 @@
 pthread_t pid;
 static tsem_t cancelSem;
 
-void shellQueryInterruptHandler(int signum) {
+void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
   tsem_post(&cancelSem);
 }
 
@@ -110,7 +110,10 @@ int main(int argc, char* argv[]) {
   }
 
   if (args.netTestRole && args.netTestRole[0] != 0) {
-    taos_init();
+    if (taos_init()) {
+      printf("Failed to init taos");
+      exit(EXIT_FAILURE);
+    }
     taosNetTest(args.netTestRole, args.host, args.port, args.pktLen);
     exit(0);
   }
@@ -130,12 +133,10 @@ int main(int argc, char* argv[]) {
   pthread_create(&spid, NULL, cancelHandler, NULL);
 
   /* Interrupt handler. */
-  struct sigaction act;
-  memset(&act, 0, sizeof(struct sigaction));
-  
-  act.sa_handler = shellQueryInterruptHandler;
-  sigaction(SIGTERM, &act, NULL);
-  sigaction(SIGINT, &act, NULL);
+  taosSetSignal(SIGTERM, shellQueryInterruptHandler);
+  taosSetSignal(SIGINT, shellQueryInterruptHandler);
+  taosSetSignal(SIGHUP, shellQueryInterruptHandler);
+  taosSetSignal(SIGABRT, shellQueryInterruptHandler);
 
   /* Get grant information */
   shellGetGrantInfo(con);

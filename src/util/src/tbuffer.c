@@ -191,7 +191,8 @@ double tbufReadDouble(SBufferReader* buf) {
 // writer functions
 
 void tbufCloseWriter( SBufferWriter* buf ) {
-  (*buf->allocator)( buf->data, 0 );
+  tfree(buf->data);
+//  (*buf->allocator)( buf->data, 0 );  // potential memory leak.
   buf->data = NULL;
   buf->pos = 0;
   buf->size = 0;

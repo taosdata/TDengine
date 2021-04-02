@@ -9,8 +9,7 @@
 #define GET_DATA_PAYLOAD(_p) ((char *)(_p)->pData + POINTER_BYTES)
 #define NO_IN_MEM_AVAILABLE_PAGES(_b) (listNEles((_b)->lruList) >= (_b)->inMemPages)
 
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t rowSize, int32_t pagesize,
-                                    int32_t inMemBufSize, const void* handle) {
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId) {
   *pResultBuf = calloc(1, sizeof(SDiskbasedResultBuf));
 
   SDiskbasedResultBuf* pResBuf = *pResultBuf;
@@ -25,13 +24,12 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t ro
   pResBuf->allocateId   = -1;
   pResBuf->comp         = true;
   pResBuf->file         = NULL;
-  pResBuf->handle       = handle;
+  pResBuf->qId          = qId;
   pResBuf->fileSize     = 0;
 
   // at least more than 2 pages must be in memory
   assert(inMemBufSize >= pagesize * 2);
 
-  pResBuf->numOfRowsPerPage = (pagesize - sizeof(tFilePage)) / rowSize;
   pResBuf->lruList = tdListNew(POINTER_BYTES);
 
   // init id hash table
@@ -45,7 +43,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t ro
 
   pResBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
 
-  qDebug("QInfo:%p create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", handle, pResBuf->pageSize,
+  qDebug("QInfo:%"PRIu64" create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId, pResBuf->pageSize,
          pResBuf->inMemPages, pResBuf->path);
 
   return TSDB_CODE_SUCCESS;
@@ -387,8 +385,6 @@ void releaseResBufPageInfo(SDiskbasedResultBuf* pResultBuf, SPageInfo* pi) {
   pResultBuf->statis.releasePages += 1;
 }
 
-size_t getNumOfRowsPerPage(const SDiskbasedResultBuf* pResultBuf) { return pResultBuf->numOfRowsPerPage; }
-
 size_t getNumOfResultBufGroupId(const SDiskbasedResultBuf* pResultBuf) { return taosHashGetSize(pResultBuf->groupSet); }
 
 size_t getResBufSize(const SDiskbasedResultBuf* pResultBuf) { return (size_t)pResultBuf->totalBufSize; }
@@ -410,13 +406,13 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   }
 
   if (pResultBuf->file != NULL) {
-    qDebug("QInfo:%p res output buffer closed, total:%.2f Kb, inmem size:%.2f Kb, file size:%.2f Kb",
-        pResultBuf->handle, pResultBuf->totalBufSize/1024.0, listNEles(pResultBuf->lruList) * pResultBuf->pageSize / 1024.0,
+    qDebug("QInfo:%"PRIu64" res output buffer closed, total:%.2f Kb, inmem size:%.2f Kb, file size:%.2f Kb",
+        pResultBuf->qId, pResultBuf->totalBufSize/1024.0, listNEles(pResultBuf->lruList) * pResultBuf->pageSize / 1024.0,
         pResultBuf->fileSize/1024.0);
 
     fclose(pResultBuf->file);
   } else {
-    qDebug("QInfo:%p res output buffer closed, total:%.2f Kb, no file created", pResultBuf->handle,
+    qDebug("QInfo:%"PRIu64" res output buffer closed, total:%.2f Kb, no file created", pResultBuf->qId,
            pResultBuf->totalBufSize/1024.0);
   }
 

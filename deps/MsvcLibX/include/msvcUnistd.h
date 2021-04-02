@@ -89,11 +89,12 @@ pid_t getppid(void);	/* Get parent PID */
 
 /* Path management */
 #if defined(_WIN32)
-#if defined(_UTF8_SOURCE) || defined(_BSD_SOURCE) || defined(_GNU_SOURCE)
 #define realpath realpathU
+#if defined(_UTF8_SOURCE) || defined(_BSD_SOURCE) || defined(_GNU_SOURCE)
+// #define realpath realpathU
 #define CompactPath CompactPathU
 #else /* _ANSI_SOURCE */
-#define realpath realpathA
+// #define realpath realpathA
 #define CompactPath CompactPathA
 #endif
 #endif /* defined(_WIN32) */

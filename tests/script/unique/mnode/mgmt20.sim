@@ -68,7 +68,7 @@ if $data2_2 != slave then
 	goto show4
 endi
 
-sleep 3000
+sleep 2000
 sql select * from log.dn1
 $d1_second  = $rows
 sql select * from log.dn2

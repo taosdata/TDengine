@@ -1,0 +1,46 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 3000
+sql connect
+
+print =============== create database
+sql create database db
+sql show databases
+if $rows != 1 then
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+print =============== create super table
+sql create table db.st1 (ts timestamp, i int) tags (j int)
+sql create table db.st2 (ts timestamp, i int, j int) tags (t1 int, t2 int, t3 int)
+sql show db.stables
+if $rows != 2 then
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+print =============== create multiple child tables
+sql create table db.ct1 using db.st1 tags(1) db.ct2 using db.st1 tags(2);
+
+sql show db.tables
+if $rows != 2 then
+  return -1
+endi
+
+sql create table db.ct3 using db.st2 tags(1, 1, 1) db.ct4 using db.st2 tags(2, 2, 2);
+sql show db.tables
+if $rows != 4 then
+  return -1
+endi
+
+sql create table db.ct5 using db.st1 tags(3) db.ct6 using db.st2 tags(3, 3, 3);
+sql show db.tables
+if $rows != 6 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

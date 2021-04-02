@@ -16,6 +16,9 @@ fi
 logDir=`grep "^logDir" /etc/taos/taos.cfg | awk '{print $2}'`
 dataDir=`grep "^dataDir" /etc/taos/taos.cfg | awk '{print $2}'`
 
+[ -z "$logDir" ] && logDir="/var/log/taos"
+[ -z "$dataDir" ] && dataDir="/var/lib/taos"
+
 # Coloured Echoes                                                                                                       #
 function red_echo      { echo -e "\033[31m$@\033[0m";   }                                                               #
 function green_echo    { echo -e "\033[32m$@\033[0m";   }                                                               #

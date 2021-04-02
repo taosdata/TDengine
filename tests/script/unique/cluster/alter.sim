@@ -28,11 +28,11 @@ system sh/cfg.sh -n dnode4 -c balance -v 0
 print ========== step1
 system sh/exec.sh -n dnode1 -s start
 sql connect
-sleep 3000
+sleep 2000
 
 sql create dnode $hostname2
 system sh/exec.sh -n dnode2 -s start
-sleep 3000
+sleep 2000
 
 print ========== step2
 sql create database d1

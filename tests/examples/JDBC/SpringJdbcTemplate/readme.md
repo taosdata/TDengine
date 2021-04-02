@@ -8,18 +8,16 @@
 修改 `src/main/resources/applicationContext.xml` 文件中 TDengine 的配置信息：
 
 ```xml
+<bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
+    <property name="driverClassName" value="com.taosdata.jdbc.TSDBDriver"></property>
+    <property name="url" value="jdbc:TAOS://127.0.0.1:6030/log"></property>
+    <property name="username" value="root"></property>
+    <property name="password" value="taosdata"></property>
+</bean>
 
- <bean id="dataSource" class="org.springframework.jdbc.datasource.DriverManagerDataSource">
-        <property name="driverClassName" value="com.taosdata.jdbc.TSDBDriver"></property>
-        <property name="url" value="jdbc:TAOS://127.0.0.1:6030/log"></property>
-        <property name="username" value="root"></property>
-        <property name="password" value="taosdata"></property>
-    </bean>
-
-
-    <bean id = "jdbcTemplate"  class="org.springframework.jdbc.core.JdbcTemplate" >
-        <property name="dataSource" ref = "dataSource" ></property>
-    </bean>
+<bean id = "jdbcTemplate"  class="org.springframework.jdbc.core.JdbcTemplate" >
+    <property name="dataSource" ref = "dataSource" ></property>
+</bean>
 ```
 
 ### 打包运行

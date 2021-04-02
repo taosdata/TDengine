@@ -32,7 +32,6 @@ taos_errstr
 taos_errno
 taos_query_a
 taos_fetch_rows_a
-taos_fetch_row_a
 taos_subscribe
 taos_consume
 taos_unsubscribe
