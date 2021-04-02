@@ -5163,8 +5163,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     startFrom = offset;
 
     if ((superTblInfo->childTblOffset + superTblInfo->childTblLimit )
-            >= superTblInfo->childTblCount) {
-      printf("WARNING: specified offset + limit >= child table count! \n");
+            > superTblInfo->childTblCount) {
+      printf("WARNING: specified offset + limit > child table count! \n");
       if (!g_args.answer_yes) {
         printf("         Press enter key to continue or Ctrl-C to stop\n\n");
         (void)getchar();
