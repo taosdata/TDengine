@@ -448,13 +448,13 @@ typedef struct SSqlFuncMsg {
 
 
 typedef struct SExprInfo {
-  SSqlFuncMsg base;
   SColumnFilterInfo * pFilter;
   struct tExprNode* pExpr;
   int16_t     bytes;
   int16_t     type;
   int32_t     interBytes;
   int64_t     uid;
+  SSqlFuncMsg base;
 } SExprInfo;
 
 /*
