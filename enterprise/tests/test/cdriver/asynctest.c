@@ -199,35 +199,12 @@ void tscRetrieveCallBack(void *param, TAOS_RES *tres, int numOfRows)
   }
 }
 
-void tscFetchRowCallBack(void *param, TAOS_RES *tres, TAOS_ROW row)
-{
-  struct timeval systemTime;
-  STable *pTable = (STable *) param;
-
-  if ( row ) {
-    //printf("row:%d %lld %lld\n", pTable->rowsRetrieved, *((int64_t *)row[0]), *((int64_t *)row[1]));
-    pTable->rowsRetrieved++;
-    taos_fetch_row_a(tres, tscFetchRowCallBack, pTable);
-  } else {
-    tablesProcessed ++;
-    taos_free_result(tres);
-    //printf("index:%d, %d rows data retrieved\n", pTable->id, pTable->rowsRetrieved);
-
-    if ( tablesProcessed >= numOfTables ) {
-      gettimeofday(&systemTime, NULL);
-      et = systemTime.tv_sec*1000000 + systemTime.tv_usec;
-      printf("%.3f mseconds to query %d data points\n", (et-st)/1000.0, points*numOfTables);
-    }
-  }
-}
-
 void tscSelectCallBack(void *param, TAOS_RES *tres, int code)
 {
   STable *pTable = (STable *) param;
 
   if ( code == 0 && tres ) {
     taos_fetch_rows_a(tres, tscRetrieveCallBack, pTable);
-    // taos_fetch_row_a(tres, tscFetchRowCallBack, pTable);
   } else {
     printf("id:%d, select failed, code:%d\n", pTable->id, code);
     exit(1);

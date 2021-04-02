@@ -17,6 +17,7 @@
 #include "os.h"
 #include "tglobal.h"
 #include "taoserror.h"
+#include "machine.h"
 #include "httpAdminHandle.h"
 #include "httpAdminJson.h"
 
@@ -109,6 +110,35 @@ bool adminProcessLoginRequest(HttpContext* pContext) {
 bool adminProcessLogoutRequest(HttpContext* pContext) {
   httpDebug("context:%p, fd:%d, user:%s, process admin logout msg", pContext, pContext->fd, pContext->user);
   httpSendSuccResp(pContext, "logout success");
+  pContext->reqType = HTTP_REQTYPE_OTHERS;
+  return false;
+}
+
+bool adminProcessGrantRequest(HttpContext* pContext) {
+  httpDebug("context:%p, fd:%d, user:%s, process admin grant msg", pContext, pContext->fd, pContext->user);
+
+#ifndef _GRANT
+  httpSendSuccResp(pContext, "not support");
+#else
+  extern SGrantObj grantObj;
+  extern SGrantStatus grantStatus;
+
+  char       buf[64] = {0};
+
+  char       expire[22] = {0};
+  time_t     tt = grantObj.expireTimeSec;
+
+  if (!grantObj.officialVersion) {
+    tt = grantStatus.expireTimeSec;
+  }
+
+  struct tm *ptm = localtime(&tt);
+  strftime(expire, 21, "%Y-%m-%d %H:%M:%S", ptm);
+
+  sprintf(buf, "%s version %s", grantObj.officialVersion ? "official" : "trial", expire);
+  httpSendSuccResp(pContext, buf);
+#endif
+
   pContext->reqType = HTTP_REQTYPE_OTHERS;
   return false;
 }
@@ -310,9 +340,11 @@ bool adminProcessRequest(struct HttpContext* pContext) {
     return adminProcessLogoutRequest(pContext);
   } else if (httpUrlMatch(pContext, ADMIN_ACTION_URL_POS, "all")) {
     return adminProcessSqlAllRequest(pContext);
+  } else if (httpUrlMatch(pContext, ADMIN_ACTION_URL_POS, "grant")) {
+    return adminProcessGrantRequest(pContext);
   } else {
   }
 
-  httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVLALID_URL);
+  httpSendErrorResp(pContext, TSDB_CODE_HTTP_INVALID_URL);
   return false;
 }

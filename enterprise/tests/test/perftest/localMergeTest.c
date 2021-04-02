@@ -253,7 +253,7 @@ static void singleTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
     printf("create loser tree!\n----------------------------------------\n");
 
     initSQLCmd(pCmd, &model);
-    tscCreateLocalReducer(pMemoryBuf, 1, &model, &reModel, pCmd, pRes);
+    tscCreateLocalMerger(pMemoryBuf, 1, &model, &reModel, pCmd, pRes);
 
     tscLocalDoReduce(pObj);
     tColModelDisplay(&model, pRes->data, pRes->numOfRows, pRes->numOfRows);
@@ -307,7 +307,7 @@ static void multiTagMergeTest(int32_t numOfVnodeSource, int32_t numOfRows) {
     printf("create loser tree!\n----------------------------------------\n");
 
     initMultiTagSQLCmd(pCmd, model, numCols);
-    tscCreateLocalReducer(pMemoryBuf, 1, model, resModel, pCmd, pRes);
+    tscCreateLocalMerger(pMemoryBuf, 1, model, resModel, pCmd, pRes);
 
     tscLocalDoReduce(pObj);
     tColModelDisplay(model, pRes->data, pRes->numOfRows, pRes->numOfRows);
