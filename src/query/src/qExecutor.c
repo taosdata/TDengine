@@ -1876,14 +1876,15 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   taosHashCleanup(pRuntimeEnv->pResultRowHashTable);
   pRuntimeEnv->pResultRowHashTable = NULL;
 
-  pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
-  taosArrayDestroyEx(pRuntimeEnv->prevResult, freeInterResult);
-  pRuntimeEnv->prevResult = NULL;
-
   taosHashCleanup(pRuntimeEnv->pTableRetrieveTsMap);
   pRuntimeEnv->pTableRetrieveTsMap = NULL;
 
   destroyOperatorInfo(pRuntimeEnv->proot);
+
+  pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
+  taosArrayDestroyEx(pRuntimeEnv->prevResult, freeInterResult);
+  pRuntimeEnv->prevResult = NULL;
+
 }
 
 static bool needBuildResAfterQueryComplete(SQInfo* pQInfo) {
@@ -6463,6 +6464,9 @@ void freeQInfo(SQInfo *pQInfo) {
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   releaseQueryBuf(pRuntimeEnv->tableqinfoGroupInfo.numOfTables);
+
+  doDestroyTableQueryInfo(&pRuntimeEnv->tableqinfoGroupInfo);
+
   teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
@@ -6498,7 +6502,6 @@ void freeQInfo(SQInfo *pQInfo) {
     }
   }
 
-  doDestroyTableQueryInfo(&pRuntimeEnv->tableqinfoGroupInfo);
 
   tfree(pQInfo->pBuf);
   tfree(pQInfo->sql);
