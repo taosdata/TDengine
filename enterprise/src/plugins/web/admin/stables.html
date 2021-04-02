@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="description" content="">
 	<meta name="author" content="">
-	<title>Users</title>
+	<title>Stables</title>
 	<link rel="icon" href="images/db.png">
 	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
 	<link type="text/css" href="css/info.css" rel="stylesheet">
@@ -33,9 +33,9 @@
 			<div id="navbar" class="navbar-collapse collapse">
 				<ul class="nav navbar-nav">					
 					<li><a href="dbs.html">DBs</a></li>
-					<li><a href="stables.html">Stables</a></li>
+                    <li class="active"><a href="stables.html">Stables</a></li>
 					<li><a href="tables.html">Tables</a></li>
-					<li class="active"><a href="users.html">Users</a></li>
+					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
 					<li><a href="usage.html">Usage</a></li>
@@ -55,8 +55,8 @@
 	<div class="container">
 		<div class="panel panel-default dbpanel">
 			<div class="panel-heading dbhead">
-				<label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">User List</label>
-				<a id="download" style="display:none" download="user.csv" href="#">download</a>  
+				<label id="dbDbName" class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Table List</label>
+				<a id="download" style="display:none" download="table.csv" href="#">download</a>  
 				<button type="button" class="btn btn-default btn-sm" style="float:right;" onclick="dbAdd()">
 					<span class="glyphicon glyphicon-plus-sign"></span> 
 					Add
@@ -67,8 +67,9 @@
 				<thead id="dbTableHead">
 					<tr>
 						<th style="font-weight: normal">No</th>
-						<th style="font-weight: normal">User Name</th>
+						<th style="font-weight: normal">Table Name</th>
 						<th style="font-weight: normal">created time</th>
+						<th style="font-weight: normal">columns</th>
 						<th style="font-weight: normal">operation</th>
 					</tr>
 				</thead>
@@ -81,7 +82,7 @@
 					<span class="glyphicon glyphicon-export"></span> 
 					Export
 				</button>
-				<div class="btn-group btn-group-sm" style="float:right">
+				<div class="btn-group btn-group-sm"  style="float:right;">
 					<button class="btn btn-default" type="button" onclick="DbCache.First()">
 						<span><<</span> 
 					</button>
@@ -141,7 +142,18 @@
 		DbSession.ValidSession();
 		DbCache.Clear();
 		DbCache.Init(dbFillTableHead, dbFillTableBody);
-		dbQuery("sql");
+		
+		if (DbSession.GetCacheFlag()) {
+			if (DbSession.GetTableList()) {
+				DbCache.Refresh();
+			}
+			else {
+				dbUseDbThenShowTable();
+			}
+		}
+		else {		
+			dbUseDbThenShowTable();
+		}
 	}
 		
 	//file the head of dbTableHead
@@ -177,8 +189,17 @@
 		var colBegin = "<td>";
 		var colEnd = "</td>";
 		
-		var operBegin = '<a class="dboper" onclick="dbDelete(\'';
-		var operEnd = '\')">Delete</a>';
+		var operInfoBegin = '<a class="dboper" onclick="dbInfo(\'';
+		var operInfoEnd = '\')">Info</a>&nbsp&nbsp';
+		
+		var operDelBegin = '<a class="dboper" onclick="dbDelete(\'';
+		var operDelEnd = '\')">Delete</a>&nbsp&nbsp';
+
+		var operAddBegin = '<a class="dboper" onclick="dbAddSub(\'';
+		var operAddEnd = '\')">Add</a>&nbsp&nbsp';
+
+		var operSubBegin = '<a class="dboper" onclick="dbShowSubs(\'';
+		var operSubEnd = '\')">Sub</a>';
 		
 		var rowIndex = 0;
 		var bodyContent = "";
@@ -189,8 +210,11 @@
 				row = row + colBegin + data[colIndex] + colEnd;
 			}
 			
-			var oper = operBegin + data[0] + operEnd;
-			row = row + colBegin + oper + colEnd + rowEnd;	
+			var operInfo = operInfoBegin + data[0] + operInfoEnd;
+			var operDel = operDelBegin + data[0] + operDelEnd;
+			var operAdd = operAddBegin + data[0] + operAddEnd;
+			var operSub = operSubBegin + data[0] + operSubEnd;
+			row = row + colBegin + operInfo + operDel + operAdd + operSub + colEnd + rowEnd;	
 			bodyContent += row;
 		}
 		for (; rowIndex < DbCache.RowsPerPage(); ++rowIndex) {
@@ -204,16 +228,31 @@
 		}
 		
 		$('#dbTableBody').html(bodyContent);
+	}		
+
+	function dbInfo(id)
+	{
+		dbTableName = id;
+		DbSession.SetTableList();
+		DbUtil.GotoPage("stableInfo.html?stable=" + dbTableName);
 	}
 	
 	//while push delete button
-	var dbUserName = "";
+	var dbTableName = "";
 	function dbDelete(id)
 	{		
-		dbUserName = id;
-		DbUtil.ConfirmDialog(DB_CODE_CONFIRM, "drop user: " + dbUserName);
-	}
+		dbTableName = id;
+		DbUtil.ConfirmDialog(DB_CODE_CONFIRM, "drop stable " + DbSession.GetDb() + "." + dbTableName);
+	}	
 	
+	function dbAddSub(id){
+		DbUtil.GotoPage("table.html?Stable=" + id);
+	}
+
+	function dbShowSubs(id){
+		DbUtil.GotoPage("tables.html?Stable=" + id);
+	}
+
 	//while confirm delete
 	function dbExecuteDelete()
 	{
@@ -223,7 +262,7 @@
 			headers: {
 				'Authorization' : "Taosd " + DbSession.GetToken()
 			},
-			data: "drop user " + dbUserName,
+			data: "drop stable " + DbSession.GetDb() + "." + dbTableName,
 			dataType: "json",
 			success: dbExecuteDeleteCb,
 			error: function(msg) { 
@@ -237,7 +276,7 @@
 			}		
 		});		
 	}
-	
+			
 	function dbExecuteDeleteCb(d)
 	{
 		if (d == null || d.status == null) {
@@ -252,27 +291,27 @@
 				DbUtil.Error(DB_CODE_EXEC_ERROR);
 			}
 			else {
-				DbUtil.GotoPage("users.html");
+				DbUtil.GotoPage("stables.html");
 			}
 		}	
 		else{
 			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
-					
+			
 	function dbAdd()
 	{
-		DbUtil.GotoPage("user.html");
+		DbUtil.GotoPage("stable.html");
 	}
-	
-	function dbQuery(path) {
+
+	function dbQuery() {
 		$.ajax({
 			type: "post",
-			url: "admin/" + path,
+			url: "admin/sql",
 			headers: {
 				'Authorization' : "Taosd " + DbSession.GetToken()
 			},
-			data: "show users",
+			data: "show " + DbSession.GetDb() +".stables",
 			dataType: "json",
 			success: dbQueryCb,
 			error: function(msg) { 
@@ -303,6 +342,84 @@
 			DbUtil.Error(DB_CODE_UNKNOWN);
 		}
 	}
+	
+	function dbShowDbName()
+	{
+		var db = DbSession.GetDb();
+		$('#dbDbName').html("<a href='#' onclick='dbGotoDatabase()'>DB</a>: " + db + "/Stable List");
+	}
+	
+	function dbGotoDatabase()
+	{
+		DbSession.SetCacheFlag();
+		DbUtil.GotoPage("dbs.html");
+	}
+	
+	function dbUseDbThenShowTable()
+	{
+		var db = DbSession.GetDb();
+		if (db == "")
+		{
+			dbGetDefaultDb();
+		}
+		else {
+			dbUseDb(db);
+		}
+	}
+	
+	function dbUseDb(db)
+	{
+		dbShowDbName();
+		dbQuery();
+	}
+	
+	function dbGetDefaultDb()
+	{
+		$.ajax({
+			type: "post",
+			url: "admin/sql",
+			headers: {
+				'Authorization' : "Taosd " + DbSession.GetToken()
+			},
+			data: "show databases",
+			dataType: "json",
+			success: dbGetDefaultDbCb,
+			error: function(msg) { 
+				if (msg != null && msg.responseJSON != null) {
+					dbGetDefaultDbCb(msg.responseJSON);
+				} else if (msg != null) {
+					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+				} else {
+					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+				}
+			}		
+		});
+	}
+	
+	function dbGetDefaultDbCb(d)
+	{
+		if (d == null || d.status == null) {
+			DbUtil.Error(DB_CODE_INVALID_FORMAT);
+			return;
+		} 
+		if (d.status == "error") {
+			DbUtil.HandleError(d);
+		}
+		else if (d.status == "succ") {
+			if (d.data.length == 0) {
+				DbUtil.ErrorDialog("no database exists.");
+			}
+			else {
+				var db = d.data[0][0];
+				DbSession.SetDb(db);
+				dbUseDb(db);
+			}
+		}	
+		else{
+			DbUtil.Error(DB_CODE_UNKNOWN);
+		}
+	}
+	
 	</script>
 	
 	<!-- Bootstrap core JavaScript
