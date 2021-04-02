@@ -372,6 +372,7 @@ int32_t qKillQuery(qinfo_t qinfo) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
+  qDebug("QInfo:%"PRIu64" query killed", pQInfo->qId);
   setQueryKilled(pQInfo);
 
   // Wait for the query executing thread being stopped/

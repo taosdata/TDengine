@@ -22,6 +22,8 @@
   #define SIGPIPE EPIPE
 #endif
 
+#define TCP_CONN_TIMEOUT 3000  // conn timeout
+
 int32_t taosGetFqdn(char *fqdn) {
   char hostname[1024];
   hostname[1023] = '\0';
@@ -346,10 +348,47 @@ SOCKET taosOpenTcpClientSocket(uint32_t destIp, uint16_t destPort, uint32_t clie
   serverAddr.sin_addr.s_addr = destIp;
   serverAddr.sin_port = (uint16_t)htons((uint16_t)destPort);
 
-  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr));
+#ifdef _TD_LINUX 
+  taosSetNonblocking(sockFd, 1);   
+  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)); 
+  if (ret == -1) {
+    if (errno == EHOSTUNREACH) {
+      uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
+      taosCloseSocket(sockFd);
+      return -1; 
+    } else if (errno == EINPROGRESS || errno == EAGAIN || errno == EWOULDBLOCK) {
+      struct pollfd wfd[1]; 
+
+      wfd[0].fd = sockFd;
+      wfd[0].events = POLLOUT;
+    
+      int res = poll(wfd, 1, TCP_CONN_TIMEOUT);
+      if (res == -1 || res == 0) {
+        uError("failed to connect socket, ip:0x%x, port:%hu(poll error/conn timeout)", destIp, destPort);
+        taosCloseSocket(sockFd); //  
+        return -1;
+      }
+      int optVal = -1, optLen = sizeof(int);  
+      if ((0 != taosGetSockOpt(sockFd, SOL_SOCKET, SO_ERROR, &optVal, &optLen)) || (optVal != 0)) {
+        uError("failed to connect socket, ip:0x%x, port:%hu(connect host error)", destIp, destPort);
+        taosCloseSocket(sockFd); //  
+        return -1;
+      }
+      ret = 0;
+    } else { // Other error
+      uError("failed to connect socket, ip:0x%x, port:%hu(target host cannot be reached)", destIp, destPort);
+      taosCloseSocket(sockFd); //  
+      return -1; 
+    } 
+  }
+  taosSetNonblocking(sockFd, 0);   
+
+#else
+  ret = connect(sockFd, (struct sockaddr *)&serverAddr, sizeof(serverAddr)); 
+#endif
 
   if (ret != 0) {
-    // uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
+    uError("failed to connect socket, ip:0x%x, port:%hu(%s)", destIp, destPort, strerror(errno));
     taosCloseSocket(sockFd);
     sockFd = -1;
   } else {
