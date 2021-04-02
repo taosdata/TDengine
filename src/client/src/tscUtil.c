@@ -548,6 +548,11 @@ void tscFreeSqlObj(SSqlObj* pSql) {
   free(pSql);
 }
 
+void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo) {
+  tfree(pColInfo->boundedColumns);
+  tfree(pColInfo->cols);
+}
+
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
   if (pDataBlock == NULL) {
     return;
@@ -568,6 +573,7 @@ void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta) {
     taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
   }
 
+  tscDestroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
   tfree(pDataBlock);
 }
 
@@ -678,7 +684,7 @@ int32_t tscCopyDataBlockToPayload(SSqlObj* pSql, STableDataBlocks* pDataBlock) {
  * @param dataBlocks
  * @return
  */
-int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOffset, SName* name,
+int32_t tscCreateDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, SName* name,
                            STableMeta* pTableMeta, STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
@@ -686,10 +692,12 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  dataBuf->nAllocSize = (uint32_t)initialSize;
-  dataBuf->headerSize = startOffset; // the header size will always be the startOffset value, reserved for the subumit block header
+  dataBuf->nAllocSize = (uint32_t)defaultSize;
+  dataBuf->headerSize = startOffset;
+
+  // the header size will always be the startOffset value, reserved for the subumit block header
   if (dataBuf->nAllocSize <= dataBuf->headerSize) {
-    dataBuf->nAllocSize = dataBuf->headerSize*2;
+    dataBuf->nAllocSize = dataBuf->headerSize * 2;
   }
   
   dataBuf->pData = calloc(1, dataBuf->nAllocSize);
@@ -699,25 +707,31 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  dataBuf->ordered = true;
-  dataBuf->prevTS = INT64_MIN;
+  //Here we keep the tableMeta to avoid it to be remove by other threads.
+  dataBuf->pTableMeta = tscTableMetaDup(pTableMeta);
 
-  dataBuf->rowSize = rowSize;
-  dataBuf->size = startOffset;
+  SParsedDataColInfo* pColInfo = &dataBuf->boundColumnInfo;
+  SSchema* pSchema = tscGetTableSchema(dataBuf->pTableMeta);
+  tscSetBoundColumnInfo(pColInfo, pSchema, dataBuf->pTableMeta->tableInfo.numOfColumns);
+
+  dataBuf->ordered  = true;
+  dataBuf->prevTS   = INT64_MIN;
+  dataBuf->rowSize  = rowSize;
+  dataBuf->size     = startOffset;
   dataBuf->tsSource = -1;
+  dataBuf->vgId     = dataBuf->pTableMeta->vgId;
 
   tNameAssign(&dataBuf->tableName, name);
 
-  //Here we keep the tableMeta to avoid it to be remove by other threads.
-  dataBuf->pTableMeta = tscTableMetaDup(pTableMeta);
-  assert(initialSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
+  assert(defaultSize > 0 && pTableMeta != NULL && dataBuf->pTableMeta != NULL);
 
   *dataBlocks = dataBuf;
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
-    SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList) {
+                                SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks,
+                                SArray* pBlockList) {
   *dataBlocks = NULL;
   STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pHashList, (const char*)&id, sizeof(id));
   if (t1 != NULL) {
@@ -942,7 +956,7 @@ bool tscIsInsertData(char* sqlstr) {
   int32_t index = 0;
 
   do {
-    SStrToken t0 = tStrGetToken(sqlstr, &index, false, 0, NULL);
+    SStrToken t0 = tStrGetToken(sqlstr, &index, false);
     if (t0.type != TK_LP) {
       return t0.type == TK_INSERT || t0.type == TK_IMPORT;
     }
