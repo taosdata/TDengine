@@ -506,7 +506,7 @@ static int taosRandom()
 
 #endif
 
-static int createDatabases();
+static int createDatabasesAndStables();
 static void createChildTables();
 static int queryDbExec(TAOS *taos, char *command, QUERY_TYPE type, bool quiet);
 
@@ -2416,7 +2416,7 @@ static int createSuperTable(TAOS * taos, char* dbName,
   return 0;
 }
 
-static int createDatabases() {
+static int createDatabasesAndStables() {
   TAOS * taos = NULL;
   int    ret = 0;
   taos = taos_connect(g_Dbs.host, g_Dbs.user, g_Dbs.password, NULL, g_Dbs.port);
@@ -4682,6 +4682,12 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
     for (int i = 0; i < batchPerTblTimes; i ++) {
       getTableName(tableName, pThreadInfo, tableSeq);
+      if (0 == strlen(tableName)) {
+        errorPrint("[%d] %s() LN%d, getTableName return null\n",
+            pThreadInfo->threadID, __func__, __LINE__);
+        return NULL;
+        exit(-1);
+      }
 
       int headLen;
       if (i == 0) {
@@ -4728,7 +4734,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       remainderBufLen -= dataLen;
 
       recOfBatch += batchPerTbl;
-      startTime += batchPerTbl * superTblInfo->timeStampStep;
+//      startTime += batchPerTbl * superTblInfo->timeStampStep;
       pThreadInfo->totalInsertRows += batchPerTbl;
       verbosePrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
                 pThreadInfo->threadID, __func__, __LINE__,
@@ -4738,9 +4744,12 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       if (insertMode == INTERLACE_INSERT_MODE) {
           if (tableSeq == pThreadInfo->start_table_from + pThreadInfo->ntables) {
             // turn to first table
-            startTime += batchPerTbl * superTblInfo->timeStampStep;
             tableSeq = pThreadInfo->start_table_from;
             generatedRecPerTbl += batchPerTbl;
+
+            startTime = pThreadInfo->start_time
+              + generatedRecPerTbl * superTblInfo->timeStampStep;
+
             flagSleep = true;
             if (generatedRecPerTbl >= insertRows)
               break;
@@ -5490,7 +5499,7 @@ static int insertTestProcess() {
   init_rand_data();
 
   // create database and super tables
-  if(createDatabases() != 0) {
+  if(createDatabasesAndStables() != 0) {
     fclose(g_fpOfInsertResult);
     return -1;
   }
