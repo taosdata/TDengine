@@ -6422,6 +6422,9 @@ void freeQInfo(SQInfo *pQInfo) {
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   releaseQueryBuf(pRuntimeEnv->tableqinfoGroupInfo.numOfTables);
+
+  doDestroyTableQueryInfo(&pRuntimeEnv->tableqinfoGroupInfo);
+
   teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
@@ -6457,7 +6460,6 @@ void freeQInfo(SQInfo *pQInfo) {
     }
   }
 
-  doDestroyTableQueryInfo(&pRuntimeEnv->tableqinfoGroupInfo);
 
   tfree(pQInfo->pBuf);
   tfree(pQInfo->sql);
