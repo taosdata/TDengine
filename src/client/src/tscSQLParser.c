@@ -6020,7 +6020,7 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
   
     if (TSDB_COL_IS_TAG(pColIndex->flag)) {
       SColumnIndex index = {.tableIndex = pQueryInfo->groupbyExpr.tableIndex, .columnIndex = colIndex};
-      SSqlExpr* pExpr = tscSqlExprInsert(pQueryInfo, size - pQueryInfo->havingFieldNum, TSDB_FUNC_TAG, &index, type, bytes, getNewResColId(pQueryInfo), bytes, true);
+      SSqlExpr* pExpr = tscSqlExprInsert(pQueryInfo, (int32_t)size - pQueryInfo->havingFieldNum, TSDB_FUNC_TAG, &index, type, bytes, getNewResColId(pQueryInfo), bytes, true);
       
       memset(pExpr->aliasName, 0, sizeof(pExpr->aliasName));
       tstrncpy(pExpr->aliasName, name, sizeof(pExpr->aliasName));
@@ -6773,7 +6773,7 @@ static int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   ++pQueryInfo->havingFieldNum;
 
   size_t n = tscSqlExprNumOfExprs(pQueryInfo);
-  SSqlExpr* pSqlExpr = tscSqlExprGet(pQueryInfo, n - 1);
+  SSqlExpr* pSqlExpr = tscSqlExprGet(pQueryInfo, (int32_t)n - 1);
 
   int32_t slot = tscNumOfFields(pQueryInfo) - 1;
   SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, slot);
@@ -7446,4 +7446,3 @@ bool hasNormalColumnFilter(SQueryInfo* pQueryInfo) {
 
 
 
-                  
