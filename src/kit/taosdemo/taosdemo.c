@@ -263,7 +263,6 @@ typedef struct SSuperTable_S {
   int          lenOfTagOfOneRow;
 
   char*        sampleDataBuf;
-  int          sampleDataBufSize;
   //int          sampleRowCount;
   //int          sampleUsePos;
 
@@ -3549,19 +3548,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         g_Dbs.db[i].superTbls[j].timeStampStep = DEFAULT_TIMESTAMP_STEP;
       } else {
         printf("ERROR: failed to read json, timestamp_step not found\n");
-        goto PARSE_OVER;
-      }
-
-      cJSON* sampleDataBufSize = cJSON_GetObjectItem(stbInfo, "sample_buf_size");
-      if (sampleDataBufSize && sampleDataBufSize->type == cJSON_Number) {
-        g_Dbs.db[i].superTbls[j].sampleDataBufSize = sampleDataBufSize->valueint;
-        if (g_Dbs.db[i].superTbls[j].sampleDataBufSize < 1024*1024) {
-          g_Dbs.db[i].superTbls[j].sampleDataBufSize = 1024*1024 + 1024;
-        }
-      } else if (!sampleDataBufSize) {
-        g_Dbs.db[i].superTbls[j].sampleDataBufSize = 1024*1024 + 1024;
-      } else {
-        printf("ERROR: failed to read json, sample_buf_size not found\n");
         goto PARSE_OVER;
       }
 
