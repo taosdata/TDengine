@@ -71,6 +71,9 @@ int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *op
   return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
 }
 
+int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t* optlen) {
+  return getsockopt(socketfd, level, optname, optval, (socklen_t *)optlen);
+} 
 #endif
 
 #ifndef TAOS_OS_FUNC_SOCKET_INET
