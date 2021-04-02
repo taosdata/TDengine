@@ -127,7 +127,12 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     pSqlExpr->token = *pToken;
   }
 
-  if (optrType == TK_INTEGER || optrType == TK_STRING || optrType == TK_FLOAT || optrType == TK_BOOL) {
+  if (optrType == TK_NULL) {
+    pToken->type = TSDB_DATA_TYPE_NULL;
+    tVariantCreate(&pSqlExpr->value, pToken);
+    pSqlExpr->tokenId = optrType;
+    pSqlExpr->type    = SQL_NODE_VALUE;
+  } else if (optrType == TK_INTEGER || optrType == TK_STRING || optrType == TK_FLOAT || optrType == TK_BOOL) {
     toTSDBType(pToken->type);
 
     tVariantCreate(&pSqlExpr->value, pToken);
@@ -427,7 +432,11 @@ void tSqlExprCompact(tSqlExpr** pExpr) {
 
 bool tSqlExprIsLeaf(tSqlExpr* pExpr) {
   return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
-         (pExpr->tokenId == 0 || pExpr->tokenId == TK_ID || (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) || pExpr->tokenId == TK_SET);
+         (pExpr->tokenId == 0 ||
+         (pExpr->tokenId == TK_ID) ||
+         (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) ||
+         (pExpr->tokenId == TK_NULL) ||
+         (pExpr->tokenId == TK_SET));
 }
 
 bool tSqlExprIsParentOfLeaf(tSqlExpr* pExpr) {
