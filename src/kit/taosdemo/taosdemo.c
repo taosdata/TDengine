@@ -2278,7 +2278,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
 }
 
 static int createSuperTable(TAOS * taos, char* dbName,
-        SSuperTable*  superTbls, bool use_metric) {
+        SSuperTable*  superTbl) {
   char command[BUFFER_SIZE] = "\0";
 
   char cols[STRING_LEN] = "\0";
@@ -2286,19 +2286,26 @@ static int createSuperTable(TAOS * taos, char* dbName,
   int len = 0;
 
   int  lenOfOneRow = 0;
-  for (colIndex = 0; colIndex < superTbls->columnCount; colIndex++) {
-    char* dataType = superTbls->columns[colIndex].dataType;
+
+  if (superTbl->columnCount == 0) {
+    errorPrint("%s() LN%d, super table column count is %d\n",
+            __func__, __LINE__, superTbl->columnCount);
+    return -1;
+  }
+
+  for (colIndex = 0; colIndex < superTbl->columnCount; colIndex++) {
+    char* dataType = superTbl->columns[colIndex].dataType;
 
     if (strcasecmp(dataType, "BINARY") == 0) {
       len += snprintf(cols + len, STRING_LEN - len,
           ", col%d %s(%d)", colIndex, "BINARY",
-          superTbls->columns[colIndex].dataLen);
-      lenOfOneRow += superTbls->columns[colIndex].dataLen + 3;
+          superTbl->columns[colIndex].dataLen);
+      lenOfOneRow += superTbl->columns[colIndex].dataLen + 3;
     } else if (strcasecmp(dataType, "NCHAR") == 0) {
       len += snprintf(cols + len, STRING_LEN - len,
           ", col%d %s(%d)", colIndex, "NCHAR",
-          superTbls->columns[colIndex].dataLen);
-      lenOfOneRow += superTbls->columns[colIndex].dataLen + 3;
+          superTbl->columns[colIndex].dataLen);
+      lenOfOneRow += superTbl->columns[colIndex].dataLen + 3;
     } else if (strcasecmp(dataType, "INT") == 0)  {
       len += snprintf(cols + len, STRING_LEN - len, ", col%d %s", colIndex, "INT");
       lenOfOneRow += 11;
@@ -2330,88 +2337,95 @@ static int createSuperTable(TAOS * taos, char* dbName,
     }
   }
 
-  superTbls->lenOfOneRow = lenOfOneRow + 20; // timestamp
-  //printf("%s.%s column count:%d, column length:%d\n\n", g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].sTblName, g_Dbs.db[i].superTbls[j].columnCount, lenOfOneRow);
+  superTbl->lenOfOneRow = lenOfOneRow + 20; // timestamp
+  //printf("%s.%s column count:%d, column length:%d\n\n", g_Dbs.db[i].dbName, g_Dbs.db[i].superTbl[j].sTblName, g_Dbs.db[i].superTbl[j].columnCount, lenOfOneRow);
 
   // save for creating child table
-  superTbls->colsOfCreateChildTable = (char*)calloc(len+20, 1);
-  if (NULL == superTbls->colsOfCreateChildTable) {
-    printf("Failed when calloc, size:%d", len+1);
+  superTbl->colsOfCreateChildTable = (char*)calloc(len+20, 1);
+  if (NULL == superTbl->colsOfCreateChildTable) {
+    errorPrint("%s() LN%d, Failed when calloc, size:%d",
+           __func__, __LINE__, len+1);
     taos_close(taos);
     exit(-1);
   }
-  snprintf(superTbls->colsOfCreateChildTable, len+20, "(ts timestamp%s)", cols);
-  verbosePrint("%s() LN%d: %s\n", __func__, __LINE__, superTbls->colsOfCreateChildTable);
 
-  if (use_metric) {
-    char tags[STRING_LEN] = "\0";
-    int tagIndex;
-    len = 0;
+  snprintf(superTbl->colsOfCreateChildTable, len+20, "(ts timestamp%s)", cols);
+  verbosePrint("%s() LN%d: %s\n", __func__, __LINE__, superTbl->colsOfCreateChildTable);
 
-    int lenOfTagOfOneRow = 0;
-    len += snprintf(tags + len, STRING_LEN - len, "(");
-    for (tagIndex = 0; tagIndex < superTbls->tagCount; tagIndex++) {
-      char* dataType = superTbls->tags[tagIndex].dataType;
-
-      if (strcasecmp(dataType, "BINARY") == 0) {
-        len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ", tagIndex,
-                "BINARY", superTbls->tags[tagIndex].dataLen);
-        lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 3;
-      } else if (strcasecmp(dataType, "NCHAR") == 0) {
-        len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ", tagIndex,
-                "NCHAR", superTbls->tags[tagIndex].dataLen);
-        lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 3;
-      } else if (strcasecmp(dataType, "INT") == 0)  {
-        len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                "INT");
-        lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 11;
-      } else if (strcasecmp(dataType, "BIGINT") == 0)  {
-        len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                "BIGINT");
-        lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 21;
-      } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
-        len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                "SMALLINT");
-        lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 6;
-      } else if (strcasecmp(dataType, "TINYINT") == 0)  {
-        len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                "TINYINT");
-        lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 4;
-      } else if (strcasecmp(dataType, "BOOL") == 0)  {
-        len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                "BOOL");
-        lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 6;
-      } else if (strcasecmp(dataType, "FLOAT") == 0) {
-        len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                "FLOAT");
-        lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 22;
-      } else if (strcasecmp(dataType, "DOUBLE") == 0) {
-        len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
-                "DOUBLE");
-        lenOfTagOfOneRow += superTbls->tags[tagIndex].dataLen + 42;
-      } else {
-        taos_close(taos);
-        printf("config error tag type : %s\n", dataType);
-        exit(-1);
-      }
-    }
-    len -= 2;
-    len += snprintf(tags + len, STRING_LEN - len, ")");
-
-    superTbls->lenOfTagOfOneRow = lenOfTagOfOneRow;
-
-    snprintf(command, BUFFER_SIZE,
-            "create table if not exists %s.%s (ts timestamp%s) tags %s",
-            dbName, superTbls->sTblName, cols, tags);
-    verbosePrint("%s() LN%d: %s\n", __func__, __LINE__, command);
-
-    if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
-        errorPrint( "create supertable %s failed!\n\n",
-                superTbls->sTblName);
-        return -1;
-    }
-    debugPrint("create supertable %s success!\n\n", superTbls->sTblName);
+  if (superTbl->tagCount == 0) {
+    errorPrint("%s() LN%d, super table tag count is %d\n",
+            __func__, __LINE__, superTbl->tagCount);
+    return -1;
   }
+
+  char tags[STRING_LEN] = "\0";
+  int tagIndex;
+  len = 0;
+
+  int lenOfTagOfOneRow = 0;
+  len += snprintf(tags + len, STRING_LEN - len, "(");
+  for (tagIndex = 0; tagIndex < superTbl->tagCount; tagIndex++) {
+    char* dataType = superTbl->tags[tagIndex].dataType;
+
+    if (strcasecmp(dataType, "BINARY") == 0) {
+      len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ", tagIndex,
+              "BINARY", superTbl->tags[tagIndex].dataLen);
+      lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 3;
+    } else if (strcasecmp(dataType, "NCHAR") == 0) {
+      len += snprintf(tags + len, STRING_LEN - len, "t%d %s(%d), ", tagIndex,
+              "NCHAR", superTbl->tags[tagIndex].dataLen);
+      lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 3;
+    } else if (strcasecmp(dataType, "INT") == 0)  {
+      len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
+              "INT");
+      lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 11;
+    } else if (strcasecmp(dataType, "BIGINT") == 0)  {
+      len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
+              "BIGINT");
+      lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 21;
+    } else if (strcasecmp(dataType, "SMALLINT") == 0)  {
+      len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
+              "SMALLINT");
+      lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 6;
+    } else if (strcasecmp(dataType, "TINYINT") == 0)  {
+      len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
+              "TINYINT");
+      lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 4;
+    } else if (strcasecmp(dataType, "BOOL") == 0)  {
+      len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
+              "BOOL");
+      lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 6;
+    } else if (strcasecmp(dataType, "FLOAT") == 0) {
+      len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
+              "FLOAT");
+      lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 22;
+    } else if (strcasecmp(dataType, "DOUBLE") == 0) {
+      len += snprintf(tags + len, STRING_LEN - len, "t%d %s, ", tagIndex,
+              "DOUBLE");
+      lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 42;
+    } else {
+      taos_close(taos);
+      printf("config error tag type : %s\n", dataType);
+      exit(-1);
+    }
+  }
+
+  len -= 2;
+  len += snprintf(tags + len, STRING_LEN - len, ")");
+
+  superTbl->lenOfTagOfOneRow = lenOfTagOfOneRow;
+
+  snprintf(command, BUFFER_SIZE,
+          "create table if not exists %s.%s (ts timestamp%s) tags %s",
+          dbName, superTbl->sTblName, cols, tags);
+  verbosePrint("%s() LN%d: %s\n", __func__, __LINE__, command);
+
+  if (0 != queryDbExec(taos, command, NO_INSERT_TYPE, false)) {
+      errorPrint( "create supertable %s failed!\n\n",
+              superTbl->sTblName);
+      return -1;
+  }
+  debugPrint("create supertable %s success!\n\n", superTbl->sTblName);
   return 0;
 }
 
@@ -2512,6 +2526,9 @@ static int createDatabasesAndStables() {
 
     debugPrint("%s() %d supertbl count:%d\n",
             __func__, __LINE__, g_Dbs.db[i].superTblCount);
+
+    int validStbCount = 0;
+
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
       sprintf(command, "describe %s.%s;", g_Dbs.db[i].dbName,
               g_Dbs.db[i].superTbls[j].sTblName);
@@ -2521,12 +2538,11 @@ static int createDatabasesAndStables() {
 
       if ((ret != 0) || (g_Dbs.db[i].drop)) {
         ret = createSuperTable(taos, g_Dbs.db[i].dbName,
-                &g_Dbs.db[i].superTbls[j], g_Dbs.use_metric);
+                &g_Dbs.db[i].superTbls[j]);
 
         if (0 != ret) {
-          errorPrint("\ncreate super table %d failed!\n\n", j);
-          taos_close(taos);
-          return -1;
+          errorPrint("create super table %d failed!\n\n", j);
+          continue;
         }
       }
 
@@ -2535,10 +2551,13 @@ static int createDatabasesAndStables() {
       if (0 != ret) {
         errorPrint("\nget super table %s.%s info failed!\n\n",
                 g_Dbs.db[i].dbName, g_Dbs.db[i].superTbls[j].sTblName);
-        taos_close(taos);
-        return -1;
+        continue;
       }
+
+      validStbCount ++;
     }
+
+    g_Dbs.db[i].superTblCount = validStbCount;
   }
 
   taos_close(taos);
@@ -2723,27 +2742,29 @@ static void createChildTables() {
     int len;
 
   for (int i = 0; i < g_Dbs.dbCount; i++) {
-    if (g_Dbs.db[i].superTblCount > 0) {
-        // with super table
-      for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-        if ((AUTO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable)
-              || (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists)) {
-          continue;
+    if (g_Dbs.use_metric) {
+      if (g_Dbs.db[i].superTblCount > 0) {
+          // with super table
+        for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
+          if ((AUTO_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable)
+                || (TBL_ALREADY_EXISTS == g_Dbs.db[i].superTbls[j].childTblExists)) {
+            continue;
+          }
+
+          verbosePrint("%s() LN%d: %s\n", __func__, __LINE__,
+                  g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
+          int startFrom = 0;
+          g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
+
+          verbosePrint("%s() LN%d: create %d child tables from %d\n",
+                  __func__, __LINE__, g_totalChildTables, startFrom);
+          startMultiThreadCreateChildTable(
+                g_Dbs.db[i].superTbls[j].colsOfCreateChildTable,
+                g_Dbs.threadCountByCreateTbl,
+                startFrom,
+                g_Dbs.db[i].superTbls[j].childTblCount,
+                g_Dbs.db[i].dbName, &(g_Dbs.db[i].superTbls[j]));
         }
-
-        verbosePrint("%s() LN%d: %s\n", __func__, __LINE__,
-                g_Dbs.db[i].superTbls[j].colsOfCreateChildTable);
-        int startFrom = 0;
-        g_totalChildTables += g_Dbs.db[i].superTbls[j].childTblCount;
-
-        verbosePrint("%s() LN%d: create %d child tables from %d\n",
-                __func__, __LINE__, g_totalChildTables, startFrom);
-        startMultiThreadCreateChildTable(
-              g_Dbs.db[i].superTbls[j].colsOfCreateChildTable,
-              g_Dbs.threadCountByCreateTbl,
-              startFrom,
-              g_Dbs.db[i].superTbls[j].childTblCount,
-              g_Dbs.db[i].dbName, &(g_Dbs.db[i].superTbls[j]));
       }
     } else {
         // normal table
@@ -5530,18 +5551,21 @@ static int insertTestProcess() {
   // create sub threads for inserting data
   //start = getCurrentTime();
   for (int i = 0; i < g_Dbs.dbCount; i++) {
-    if (g_Dbs.db[i].superTblCount > 0) {
-      for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
-        SSuperTable* superTblInfo = &g_Dbs.db[i].superTbls[j];
-        if (0 == g_Dbs.db[i].superTbls[j].insertRows) {
-          continue;
+    if (g_Dbs.use_metric) {
+      if (g_Dbs.db[i].superTblCount > 0) {
+        for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
+
+          SSuperTable* superTblInfo = &g_Dbs.db[i].superTbls[j];
+
+          if (superTblInfo && (superTblInfo->insertRows > 0)) {
+            startMultiThreadInsertData(
+              g_Dbs.threadCount,
+              g_Dbs.db[i].dbName,
+              g_Dbs.db[i].dbCfg.precision,
+              superTblInfo);
+          }
         }
-        startMultiThreadInsertData(
-          g_Dbs.threadCount,
-          g_Dbs.db[i].dbName,
-          g_Dbs.db[i].dbCfg.precision,
-          superTblInfo);
-        }
+      }
     } else {
         startMultiThreadInsertData(
           g_Dbs.threadCount,
