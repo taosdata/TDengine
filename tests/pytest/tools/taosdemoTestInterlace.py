@@ -1,4 +1,4 @@
-###################################################################
+##################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
 #
@@ -24,9 +24,6 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
-
-        self.numberOfTables = 10000
-        self.numberOfRecords = 100
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))

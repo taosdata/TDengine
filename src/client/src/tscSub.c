@@ -149,7 +149,7 @@ static SSub* tscCreateSubscription(STscObj* pObj, const char* topic, const char*
   }
 
   strtolower(pSql->sqlstr, pSql->sqlstr);
-  pRes->qid = 0;
+  pRes->qId = 0;
   pRes->numOfRows = 1;
 
   code = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
@@ -448,7 +448,7 @@ SSqlObj* recreateSqlObj(SSub* pSub) {
     return NULL;
   }
 
-  pRes->qid = 0;
+  pRes->qId = 0;
   pRes->numOfRows = 1;
 
   int code = tscAllocPayload(pCmd, TSDB_DEFAULT_PAYLOAD_SIZE);
@@ -548,7 +548,7 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     uint32_t type = pQueryInfo->type;
     tscFreeSqlResult(pSql);
     pRes->numOfRows = 1;
-    pRes->qid = 0;
+    pRes->qId = 0;
     pSql->cmd.command = TSDB_SQL_SELECT;
     pQueryInfo->type = type;
 

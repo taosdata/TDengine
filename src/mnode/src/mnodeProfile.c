@@ -420,7 +420,7 @@ static int32_t mnodeRetrieveQueries(SShowObj *pShow, char *data, int32_t rows, v
       cols++;
 
       char handleBuf[24] = {0};
-      snprintf(handleBuf, tListLen(handleBuf), "%p", (void*)htobe64(pDesc->qid));
+      snprintf(handleBuf, tListLen(handleBuf), "%"PRIu64, htobe64(pDesc->qId));
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
 
       STR_WITH_MAXSIZE_TO_VARSTR(pWrite, handleBuf, pShow->bytes[cols]);

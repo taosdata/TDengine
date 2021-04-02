@@ -117,7 +117,6 @@ typedef struct SSyncNode {
   FStartSyncFile    startSyncFileFp;
   FStopSyncFile     stopSyncFileFp;
   FGetVersion       getVersionFp;
-  FResetVersion     resetVersionFp;
   FSendFile         sendFileFp;
   FRecvFile         recvFileFp;
   pthread_mutex_t   mutex;

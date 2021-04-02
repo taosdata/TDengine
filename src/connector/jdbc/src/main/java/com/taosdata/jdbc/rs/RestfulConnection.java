@@ -1,8 +1,14 @@
 package com.taosdata.jdbc.rs;
 
-import com.taosdata.jdbc.*;
+import com.taosdata.jdbc.AbstractConnection;
+import com.taosdata.jdbc.TSDBDriver;
+import com.taosdata.jdbc.TSDBError;
+import com.taosdata.jdbc.TSDBErrorNumbers;
 
-import java.sql.*;
+import java.sql.DatabaseMetaData;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Statement;
 import java.util.Properties;
 
 public class RestfulConnection extends AbstractConnection {
@@ -55,7 +61,6 @@ public class RestfulConnection extends AbstractConnection {
     public DatabaseMetaData getMetaData() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-        ;
 
         return this.metadata;
     }

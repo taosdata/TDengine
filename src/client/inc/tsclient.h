@@ -126,15 +126,15 @@ typedef struct SCond {
 } SCond;
 
 typedef struct SJoinNode {
-  char     tableName[TSDB_TABLE_FNAME_LEN];
   uint64_t uid;
   int16_t  tagColId;
+  SArray*  tsJoin;
+  SArray*  tagJoin;
 } SJoinNode;
 
 typedef struct SJoinInfo {
   bool      hasJoin;
-  SJoinNode left;
-  SJoinNode right;
+  SJoinNode*  joinTables[TSDB_MAX_JOIN_TABLE_NUM];
 } SJoinInfo;
 
 typedef struct STagCond {
@@ -279,7 +279,7 @@ typedef struct {
   char *         pRsp;
   int32_t        rspType;
   int32_t        rspLen;
-  uint64_t       qid;
+  uint64_t       qId;
   int64_t        useconds;
   int64_t        offset;  // offset value from vnode during projection query of stable
   int32_t        row;
@@ -362,7 +362,7 @@ typedef struct SSqlObj {
   int64_t          svgroupRid;
 
   int64_t          squeryLock;
-
+  int32_t          retryReason;  // previous error code
   struct SSqlObj  *prev, *next;
   int64_t          self;
 } SSqlObj;
@@ -435,6 +435,8 @@ void tscFreeSqlResult(SSqlObj *pSql);
  * @param pObj
  */
 void tscFreeSqlObj(SSqlObj *pSql);
+void tscFreeSubobj(SSqlObj* pSql);
+
 void tscFreeRegisteredSqlObj(void *pSql);
 
 void tscCloseTscObj(void *pObj);

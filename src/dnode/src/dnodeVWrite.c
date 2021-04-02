@@ -205,7 +205,7 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
              pWrite->rpcMsg.ahandle, taosMsg[pWrite->pHead.msgType], qtypeStr[qtype], pWrite->pHead.version);
 
       pWrite->code = vnodeProcessWrite(pVnode, &pWrite->pHead, qtype, pWrite);
-      if (pWrite->code <= 0) pWrite->processedCount = 1;
+      if (pWrite->code <= 0) atomic_add_fetch_32(&pWrite->processedCount, 1);
       if (pWrite->code > 0) pWrite->code = 0;
       if (pWrite->code == 0 && pWrite->pHead.msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
 

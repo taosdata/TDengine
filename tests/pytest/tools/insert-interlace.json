@@ -10,7 +10,7 @@
     "result_file": "./insert_res.txt",
     "confirm_parameter_prompt": "no",
     "insert_interval": 5000,
-    "rows_per_tbl": 50,
+    "interlace_rows": 50,
     "num_of_records_per_req": 100,
     "max_sql_len": 1024000,
     "databases": [{
@@ -42,7 +42,7 @@
             "insert_mode": "taosc",
             "insert_rows": 250,
             "multi_thread_write_one_tbl": "no",
-            "rows_per_tbl": 80,
+            "interlace_rows": 80,
             "max_sql_len": 1024000,
             "disorder_ratio": 0,
             "disorder_range": 1000,

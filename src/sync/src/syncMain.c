@@ -182,7 +182,6 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   pNode->startSyncFileFp = pInfo->startSyncFileFp;
   pNode->stopSyncFileFp = pInfo->stopSyncFileFp;
   pNode->getVersionFp = pInfo->getVersionFp;
-  pNode->resetVersionFp = pInfo->resetVersionFp;
   pNode->sendFileFp = pInfo->sendFileFp;
   pNode->recvFileFp = pInfo->recvFileFp;
 
@@ -410,7 +409,7 @@ void syncConfirmForward(int64_t rid, uint64_t version, int32_t code, bool force)
   syncReleaseNode(pNode);
 }
 
-#if 0
+#if 1
 void syncRecover(int64_t rid) {
   SSyncPeer *pPeer;
 

@@ -878,5 +878,7 @@ if $rows != 0 then
 endi
 
 sql drop topic t2
+sql_error drop topic abc
+sql drop topic if exists abc;
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

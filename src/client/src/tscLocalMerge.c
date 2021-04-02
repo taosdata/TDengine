@@ -381,6 +381,8 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   tsCreateSQLFunctionCtx(pQueryInfo, pReducer->pCtx, pschema);
   setCtxInputOutputBuffer(pQueryInfo, pReducer->pCtx, pReducer, pDesc);
 
+  tfree(pschema);
+
   // we change the capacity of schema to denote that there is only one row in temp buffer
   pReducer->pDesc->pColumnModel->capacity = 1;
 
@@ -1624,7 +1626,7 @@ void tscInitResObjForLocalQuery(SSqlObj *pObj, int32_t numOfRes, int32_t rowLen)
     tscDestroyLocalMerger(pObj);
   }
 
-  pRes->qid = 1;  // hack to pass the safety check in fetch_row function
+  pRes->qId = 1;  // hack to pass the safety check in fetch_row function
   pRes->numOfRows = 0;
   pRes->row = 0;
 
