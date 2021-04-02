@@ -415,6 +415,20 @@ void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta) {
   tfree(pCmd->pQueryInfo);
 }
 
+void destroyTableNameList(SSqlCmd* pCmd) {
+  if (pCmd->numOfTables == 0) {
+    assert(pCmd->pTableNameList == NULL);
+    return;
+  }
+
+  for(int32_t i = 0; i < pCmd->numOfTables; ++i) {
+    tfree(pCmd->pTableNameList[i]);
+  }
+
+  pCmd->numOfTables = 0;
+  tfree(pCmd->pTableNameList);
+}
+
 void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
   pCmd->command   = 0;
   pCmd->numOfCols = 0;
@@ -424,14 +438,7 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
   pCmd->parseFinished = 0;
   pCmd->autoCreated = 0;
 
-  for(int32_t i = 0; i < pCmd->numOfTables; ++i) {
-    if (pCmd->pTableNameList && pCmd->pTableNameList[i]) {
-      tfree(pCmd->pTableNameList[i]);
-    }
-  }
-
-  pCmd->numOfTables = 0;
-  tfree(pCmd->pTableNameList);
+  destroyTableNameList(pCmd);
 
   pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList, removeMeta);
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
@@ -840,6 +847,8 @@ static void extractTableNameList(SSqlCmd* pCmd, bool freeBlockMap) {
   int32_t i = 0;
   while(p1) {
     STableDataBlocks* pBlocks = *p1;
+    tfree(pCmd->pTableNameList[i]);
+
     pCmd->pTableNameList[i++] = tNameDup(&pBlocks->tableName);
     p1 = taosHashIterate(pCmd->pTableBlockHashList, p1);
   }

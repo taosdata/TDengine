@@ -440,6 +440,7 @@ void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
+void destroyTableNameList(SSqlCmd* pCmd);
 
 void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
 

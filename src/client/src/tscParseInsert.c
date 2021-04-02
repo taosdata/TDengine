@@ -1420,7 +1420,8 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
   STableMeta *    pTableMeta = pTableMetaInfo->pTableMeta;
   STableComInfo   tinfo = tscGetTableInfo(pTableMeta);
 
-  tfree(pCmd->pTableNameList);
+  destroyTableNameList(pCmd);
+
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
 
   if (pCmd->pTableBlockHashList == NULL) {
