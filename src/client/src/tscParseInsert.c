@@ -1114,7 +1114,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     }
 
     pCmd->curSql = sToken.z;
-    char buf[TSDB_TABLE_FNAME_LEN];
+    char      buf[TSDB_TABLE_FNAME_LEN];
     SStrToken sTblToken;
     sTblToken.z = buf;
     // Check if the table name available or not
@@ -1127,7 +1127,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
       goto _clean;
     }
 
-    char* bindedColumns = NULL;
+    char *bindedColumns = NULL;
     if ((code = tscCheckIfCreateTable(&str, pSql, &bindedColumns)) != TSDB_CODE_SUCCESS) {
       /*
        * After retrieving the table meta from server, the sql string will be parsed from the paused position.
@@ -1136,7 +1136,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
       if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
         return code;
       }
-      
+
       tscError("%p async insert parse error, code:%s", pSql, tstrerror(code));
       pCmd->curSql = NULL;
       goto _clean;
@@ -1151,32 +1151,13 @@ int tsParseInsertSql(SSqlObj *pSql) {
     sToken = tStrGetToken(str, &index, false);
     str += index;
 
-    if (sToken.n == 0) {
+    if (sToken.n == 0 || (sToken.type != TK_FILE && sToken.type != TK_VALUES)) {
       code = tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES or FILE required", sToken.z);
       goto _clean;
     }
-    
+
     STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
-    
-    if (bindedColumns == NULL) {
-      STableMeta *pTableMeta = pTableMetaInfo->pTableMeta;
-
-      if (validateDataSource(pCmd, DATA_FROM_SQL_STRING, sToken.z) != TSDB_CODE_SUCCESS) {
-        goto _clean;
-      }
-
-      STableDataBlocks *dataBuf = NULL;
-      int32_t ret = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
-                                            sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta, &dataBuf, NULL);
-      if (ret != TSDB_CODE_SUCCESS) {
-        goto _clean;
-      }
-
-      code = doParseInsertStatement(pCmd, &str, dataBuf, &totalNum);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _clean;
-      }
-    } else if (sToken.type == TK_FILE) {
+    if (sToken.type == TK_FILE) {
       if (validateDataSource(pCmd, DATA_FROM_DATA_FILE, sToken.z) != TSDB_CODE_SUCCESS) {
         goto _clean;
       }
@@ -1206,44 +1187,63 @@ int tsParseInsertSql(SSqlObj *pSql) {
       tstrncpy(pCmd->payload, full_path.we_wordv[0], pCmd->allocSize);
       wordfree(&full_path);
 
-    } else if (bindedColumns != NULL) {
-      // insert into tablename(col1, col2,..., coln) values(v1, v2,... vn);
-      STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
-
-      if (validateDataSource(pCmd, DATA_FROM_SQL_STRING, sToken.z) != TSDB_CODE_SUCCESS) {
-        goto _clean;
-      }
-
-      STableDataBlocks *dataBuf = NULL;
-      int32_t ret = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
-                                            sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta, &dataBuf, NULL);
-      if (ret != TSDB_CODE_SUCCESS) {
-        goto _clean;
-      }
-
-      SSchema* pSchema = tscGetTableSchema(pTableMeta);
-      code = parseBoundColumns(pCmd, &dataBuf->boundColumnInfo, pSchema, bindedColumns, NULL);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _clean;
-      }
-
-      if (dataBuf->boundColumnInfo.cols[0].hasVal == false) {
-        code = tscInvalidSQLErrMsg(pCmd->payload, "primary timestamp column can not be null", NULL);
-        goto _clean;
-      }
-
-      if (sToken.type != TK_VALUES) {
-        code = tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES is expected", sToken.z);
-        goto _clean;
-      }
-
-      code = doParseInsertStatement(pCmd, &str, dataBuf, &totalNum);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _clean;
-      }
     } else {
-      code = tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES or FILE are required", sToken.z);
-      goto _clean;
+      if (bindedColumns == NULL) {
+        STableMeta *pTableMeta = pTableMetaInfo->pTableMeta;
+
+        if (validateDataSource(pCmd, DATA_FROM_SQL_STRING, sToken.z) != TSDB_CODE_SUCCESS) {
+          goto _clean;
+        }
+
+        STableDataBlocks *dataBuf = NULL;
+        int32_t ret = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
+                                              sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta,
+                                              &dataBuf, NULL);
+        if (ret != TSDB_CODE_SUCCESS) {
+          goto _clean;
+        }
+
+        code = doParseInsertStatement(pCmd, &str, dataBuf, &totalNum);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _clean;
+        }
+      } else {  // bindedColumns != NULL
+        // insert into tablename(col1, col2,..., coln) values(v1, v2,... vn);
+        STableMeta *pTableMeta = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0)->pTableMeta;
+
+        if (validateDataSource(pCmd, DATA_FROM_SQL_STRING, sToken.z) != TSDB_CODE_SUCCESS) {
+          goto _clean;
+        }
+
+        STableDataBlocks *dataBuf = NULL;
+        int32_t ret = tscGetDataBlockFromList(pCmd->pTableBlockHashList, pTableMeta->id.uid, TSDB_DEFAULT_PAYLOAD_SIZE,
+                                              sizeof(SSubmitBlk), tinfo.rowSize, &pTableMetaInfo->name, pTableMeta,
+                                              &dataBuf, NULL);
+        if (ret != TSDB_CODE_SUCCESS) {
+          goto _clean;
+        }
+
+        SSchema *pSchema = tscGetTableSchema(pTableMeta);
+        code = parseBoundColumns(pCmd, &dataBuf->boundColumnInfo, pSchema, bindedColumns, NULL);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _clean;
+        }
+
+        if (dataBuf->boundColumnInfo.cols[0].hasVal == false) {
+          code = tscInvalidSQLErrMsg(pCmd->payload, "primary timestamp column can not be null", NULL);
+          goto _clean;
+        }
+
+        if (sToken.type != TK_VALUES) {
+          code = tscInvalidSQLErrMsg(pCmd->payload, "keyword VALUES is expected", sToken.z);
+          goto _clean;
+        }
+
+        code = doParseInsertStatement(pCmd, &str, dataBuf, &totalNum);
+        if (code != TSDB_CODE_SUCCESS) {
+          goto _clean;
+        }
+      }
     }
   }
 
@@ -1460,7 +1460,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     strtolower(line, line);
 
     int32_t len = 0;
-    code = tsParseOneRow(&lineptr, pTableDataBlock, pCmd, tinfo.precision, &code, tokenBuf);
+    code = tsParseOneRow(&lineptr, pTableDataBlock, pCmd, tinfo.precision, &len, tokenBuf);
     if (code != TSDB_CODE_SUCCESS || pTableDataBlock->numOfParams > 0) {
       pSql->res.code = code;
       break;
