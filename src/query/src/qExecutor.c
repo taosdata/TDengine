@@ -6051,7 +6051,7 @@ int32_t cloneExprFilterInfo(SColumnFilterInfo **dst, SColumnFilterInfo* src, int
   
   for (int32_t i = 0; i < filterNum; i++) {
     if ((*dst)[i].filterstr && dst[i]->len > 0) {
-      void *pz = calloc(1, (*dst)[i].len + 1); 
+      void *pz = calloc(1, (size_t)(*dst)[i].len + 1); 
     
       if (pz == NULL) {
         if (i == 0) {
@@ -6063,7 +6063,7 @@ int32_t cloneExprFilterInfo(SColumnFilterInfo **dst, SColumnFilterInfo* src, int
         return TSDB_CODE_QRY_OUT_OF_MEMORY;
       }
 
-      memcpy(pz, (void *)src->pz, src->len + 1);
+      memcpy(pz, (void *)src->pz, (size_t)src->len + 1);
 
       (*dst)[i].pz = (int64_t)pz;
     }
