@@ -1459,7 +1459,12 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
 
     if ((pNode->quorum > 1 || force) && code == 0) {
       code = syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
-      if (code >= 0) code = 1;
+      if (code >= 0) {
+        code = 1;
+      } else {
+        pthread_mutex_unlock(&pNode->mutex);
+        return code;
+      }
     }
 
     int32_t retLen = taosWriteMsg(pPeer->peerFd, pSyncHead, fwdLen);
