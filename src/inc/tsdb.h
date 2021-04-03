@@ -51,7 +51,7 @@ typedef struct {
   void *cqH;
   int (*notifyStatus)(void *, int status, int eno);
   int (*eventCallBack)(void *);
-  void *(*cqCreateFunc)(void *handle, uint64_t uid, int32_t sid, const char *dstTable, char *sqlStr, STSchema *pSchema);
+  void *(*cqCreateFunc)(void *handle, uint64_t uid, int32_t sid, const char *dstTable, char *sqlStr, STSchema *pSchema, int start);
   void (*cqDropFunc)(void *handle);
 } STsdbAppH;
 
