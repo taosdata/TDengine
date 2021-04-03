@@ -39,6 +39,22 @@ typedef struct {
   int8_t type;
 } SOColInfo;
 
+#define debugPrint(fmt, ...) \
+    do { if (g_args.debug_print || g_args.verbose_print) \
+      fprintf(stderr, "DEBG: "fmt, __VA_ARGS__); } while(0)
+
+#define verbosePrint(fmt, ...) \
+    do { if (g_args.verbose_print) \
+        fprintf(stderr, "VERB: "fmt, __VA_ARGS__); } while(0)
+
+#define performancePrint(fmt, ...) \
+    do { if (g_args.performance_print) \
+        fprintf(stderr, "VERB: "fmt, __VA_ARGS__); } while(0)
+
+#define errorPrint(fmt, ...) \
+    do { fprintf(stderr, "ERROR: "fmt, __VA_ARGS__); } while(0)
+
+
 // -------------------------- SHOW DATABASE INTERFACE-----------------------
 enum _show_db_index {
   TSDB_SHOW_DB_NAME_INDEX,
@@ -46,7 +62,7 @@ enum _show_db_index {
   TSDB_SHOW_DB_NTABLES_INDEX,
   TSDB_SHOW_DB_VGROUPS_INDEX,
   TSDB_SHOW_DB_REPLICA_INDEX,
-  TSDB_SHOW_DB_QUORUM_INDEX,  
+  TSDB_SHOW_DB_QUORUM_INDEX,
   TSDB_SHOW_DB_DAYS_INDEX,
   TSDB_SHOW_DB_KEEP_INDEX,
   TSDB_SHOW_DB_CACHE_INDEX,
@@ -101,10 +117,10 @@ typedef struct {
   char     name[TSDB_DB_NAME_LEN + 1];
   char     create_time[32];
   int32_t  ntables;
-  int32_t  vgroups;  
+  int32_t  vgroups;
   int16_t  replica;
   int16_t  quorum;
-  int16_t  days;  
+  int16_t  days;
   char     keeplist[32];
   //int16_t  daysToKeep;
   //int16_t  daysToKeep1;
@@ -172,48 +188,50 @@ static char args_doc[] = "dbname [tbname ...]\n--databases dbname ...\n--all-dat
 /* The options we understand. */
 static struct argp_option options[] = {
   // connection option
-  {"host",          'h', "HOST",        0,  "Server host dumping data from. Default is localhost.",        0},
-  {"user",          'u', "USER",        0,  "User name used to connect to server. Default is root.",       0},
+  {"host",          'h', "HOST",        0,  "Server host dumping data from. Default is localhost.",         0},
+  {"user",          'u', "USER",        0,  "User name used to connect to server. Default is root.",        0},
   #ifdef _TD_POWER_
-  {"password",      'p', "PASSWORD",    0,  "User password to connect to server. Default is powerdb.",     0},
+  {"password",      'p', "PASSWORD",    0,  "User password to connect to server. Default is powerdb.",      0},
   #else
-  {"password",      'p', "PASSWORD",    0,  "User password to connect to server. Default is taosdata.",    0},
+  {"password",      'p', "PASSWORD",    0,  "User password to connect to server. Default is taosdata.",     0},
   #endif
-  {"port",          'P', "PORT",        0,  "Port to connect",                                             0},
-  {"cversion",      'v', "CVERION",     0,  "client version",                                              0},
-  {"mysqlFlag",     'q', "MYSQLFLAG",   0,  "mysqlFlag, Default is 0",                                     0},
+  {"port",          'P', "PORT",        0,  "Port to connect",                                              0},
+  {"cversion",      'v', "CVERION",     0,  "client version",                                               0},
+  {"mysqlFlag",     'q', "MYSQLFLAG",   0,  "mysqlFlag, Default is 0",                                      0},
   // input/output file
-  {"outpath",       'o', "OUTPATH",     0,  "Output file path.",                                          1},
-  {"inpath",        'i', "INPATH",      0,  "Input file path.",                                           1},
-  {"resultFile",    'r', "RESULTFILE",  0,  "DumpOut/In Result file path and name.",                      1},
+  {"outpath",       'o', "OUTPATH",     0,  "Output file path.",                                            1},
+  {"inpath",        'i', "INPATH",      0,  "Input file path.",                                             1},
+  {"resultFile",    'r', "RESULTFILE",  0,  "DumpOut/In Result file path and name.",                        1},
   #ifdef _TD_POWER_
-  {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.",       1},
+  {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/power/taos.cfg.",         1},
   #else
-  {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.",        1},
+  {"config",        'c', "CONFIG_DIR",  0,  "Configure directory. Default is /etc/taos/taos.cfg.",          1},
   #endif
-  {"encode",        'e', "ENCODE",      0,  "Input file encoding.",                                       1},
+  {"encode",        'e', "ENCODE",      0,  "Input file encoding.",                                         1},
   // dump unit options
-  {"all-databases", 'A', 0,             0,  "Dump all databases.",                                         2},
-  {"databases",     'B', 0,             0,  "Dump assigned databases",                                     2},
+  {"all-databases", 'A', 0,             0,  "Dump all databases.",                                          2},
+  {"databases",     'B', 0,             0,  "Dump assigned databases",                                      2},
   // dump format options
-  {"schemaonly",    's', 0,             0,  "Only dump schema.",                                           3},
-  {"with-property", 'M', 0,             0,  "Dump schema with properties.",                                3},
-  {"start-time",    'S', "START_TIME",  0,  "Start time to dump.",                                         3},
-  {"end-time",      'E', "END_TIME",    0,  "End time to dump.",                                           3},
-  {"data-batch",    'N', "DATA_BATCH",  0,  "Number of data point per insert statement. Default is 1.",    3},
-  {"max-sql-len",   'L', "SQL_LEN",     0,  "Max length of one sql. Default is 65480.",                    3},
-  {"table-batch",   't', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.", 3},
-  {"thread_num",    'T', "THREAD_NUM",  0,  "Number of thread for dump in file. Default is 5.",            3},  
-  {"allow-sys",     'a', 0,             0,  "Allow to dump sys database",                                  3},
+  {"schemaonly",    's', 0,             0,  "Only dump schema.",                                            3},
+  {"with-property", 'M', 0,             0,  "Dump schema with properties.",                                 3},
+  {"start-time",    'S', "START_TIME",  0,  "Start time to dump.",                                          3},
+  {"end-time",      'E', "END_TIME",    0,  "End time to dump. Epoch or ISO8601/RFC3339 format is acceptable. For example: 2017-10-01T18:00:00+0800",  3},
+  {"data-batch",    'N', "DATA_BATCH",  0,  "Number of data point per insert statement. Default is 1.",     3},
+  {"max-sql-len",   'L', "SQL_LEN",     0,  "Max length of one sql. Default is 65480.",                     3},
+  {"table-batch",   't', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.",  3},
+  {"thread_num",    'T', "THREAD_NUM",  0,  "Number of thread for dump in file. Default is 5.",             3},
+  {"allow-sys",     'a', 0,             0,  "Allow to dump sys database",                                   3},
+  {"debug",         'g', 0,             0,  "Print debug info.",                                            1},
+  {"verbose",       'v', 0,             0,  "Print verbose debug info.",                                    1},
   {0}};
 
 /* Used by main to communicate with parse_opt. */
-struct arguments {
+typedef struct arguments {
   // connection option
   char    *host;
   char    *user;
   char    *password;
-  uint16_t port;  
+  uint16_t port;
   char     cversion[12];
   uint16_t mysqlFlag;
   // output file
@@ -238,9 +256,12 @@ struct arguments {
   int32_t  thread_num;
   int      abort;
   char   **arg_list;
-  int      arg_list_len;
-  bool     isDumpIn;
-};
+  int       arg_list_len;
+  bool      isDumpIn;
+  bool      debug_print;
+  bool      verbose_print;
+  bool      performance_print;
+} SArguments;
 
 /* Parse a single option. */
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -285,6 +306,9 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
       }
       tstrncpy(arguments->outpath, full_path.we_wordv[0], TSDB_FILENAME_LEN);
       wordfree(&full_path);
+      break;
+    case 'g':
+      arguments->debug_print = true;
       break;
     case 'i':
       arguments->isDumpIn = true;
@@ -387,7 +411,7 @@ int taosCheckParam(struct arguments *arguments);
 void taosFreeDbInfos();
 static void taosStartDumpOutWorkThreads(void* taosCon, struct arguments* args, int32_t  numOfThread, char *dbName);
 
-struct arguments tsArguments = {
+struct arguments g_args = {
   // connection option
   NULL, 
   "root", 
@@ -400,18 +424,18 @@ struct arguments tsArguments = {
   "",
   0,
   // outpath and inpath
-  "", 
+  "",
   "",
   "./dump_result.txt",
   NULL,
   // dump unit option
-  false, 
+  false,
   false,
   // dump format option
-  false, 
-  false, 
-  0, 
-  INT64_MAX, 
+  false,
+  false,
+  0,
+  INT64_MAX,
   1,
   TSDB_MAX_SQL_LEN,
   1,
@@ -419,11 +443,14 @@ struct arguments tsArguments = {
   // other options
   5,
   0,
-  NULL, 
-  0, 
-  false
+  NULL,
+  0,
+  false,
+  false,    // debug_print
+  false,    // verbose_print
+  false     // performance_print
 };
-  
+
 static int queryDbImpl(TAOS *taos, char *command) {
   int i;
   TAOS_RES *res = NULL;
@@ -434,7 +461,7 @@ static int queryDbImpl(TAOS *taos, char *command) {
       taos_free_result(res);
       res = NULL;
     }
-    
+
     res = taos_query(taos, command);
     code = taos_errno(res);
     if (0 == code) {
@@ -453,13 +480,40 @@ static int queryDbImpl(TAOS *taos, char *command) {
   return 0;
 }
 
+static void parse_args(int argc, char *argv[], SArguments *arguments) {
+  for (int i = 1; i < argc; i++) {
+    if (strcmp(argv[i], "-E") == 0) {
+      char *tmp = argv[++i];
+      int64_t tmpEpoch;
+      if (strchr(tmp, ':') && strchr(tmp, '-')) {
+        if (TSDB_CODE_SUCCESS != taosParseTime(
+                    tmp, &tmpEpoch, strlen(tmp), TSDB_TIME_PRECISION_MILLI, 0)) {
+          fprintf(stderr, "Input end time error!\n");
+          return;
+        }
+      } else {
+        tmpEpoch = atoll(tmp);
+      }
+
+      sprintf(argv[i], "%"PRId64"", tmpEpoch);
+      debugPrint("%s() LN%d, tmp is: %s, argv[%d]: %s\n",
+             __func__, __LINE__, tmp, i, argv[i]);
+
+    } else if (strcmp(argv[i], "-g") == 0) {
+      arguments->debug_print = true;
+    }
+  }
+}
+
 int main(int argc, char *argv[]) {
 
   /* Parse our arguments; every option seen by parse_opt will be
      reflected in arguments. */
-  argp_parse(&argp, argc, argv, 0, 0, &tsArguments);
+  parse_args(argc, argv, &g_args);
 
-  if (tsArguments.abort) {
+  argp_parse(&argp, argc, argv, 0, 0, &g_args);
+
+  if (g_args.abort) {
     #ifndef _ALPINE
       error(10, 0, "ABORTED");
     #else
@@ -469,81 +523,82 @@ int main(int argc, char *argv[]) {
 
   printf("====== arguments config ======\n");
   {
-    printf("host: %s\n", tsArguments.host);
-    printf("user: %s\n", tsArguments.user);
-    printf("password: %s\n", tsArguments.password);
-    printf("port: %u\n", tsArguments.port);
-    printf("cversion: %s\n", tsArguments.cversion);    
-    printf("mysqlFlag: %d\n", tsArguments.mysqlFlag);    
-    printf("outpath: %s\n", tsArguments.outpath);
-    printf("inpath: %s\n", tsArguments.inpath);
-    printf("resultFile: %s\n", tsArguments.resultFile);
-    printf("encode: %s\n", tsArguments.encode);
-    printf("all_databases: %d\n", tsArguments.all_databases);
-    printf("databases: %d\n", tsArguments.databases);
-    printf("schemaonly: %d\n", tsArguments.schemaonly);
-    printf("with_property: %d\n", tsArguments.with_property);
-    printf("start_time: %" PRId64 "\n", tsArguments.start_time);
-    printf("end_time: %" PRId64 "\n", tsArguments.end_time);
-    printf("data_batch: %d\n", tsArguments.data_batch);
-    printf("max_sql_len: %d\n", tsArguments.max_sql_len);
-    printf("table_batch: %d\n", tsArguments.table_batch);
-    printf("thread_num: %d\n", tsArguments.thread_num);    
-    printf("allow_sys: %d\n", tsArguments.allow_sys);
-    printf("abort: %d\n", tsArguments.abort);
-    printf("isDumpIn: %d\n", tsArguments.isDumpIn);
-    printf("arg_list_len: %d\n", tsArguments.arg_list_len);
+    printf("host: %s\n", g_args.host);
+    printf("user: %s\n", g_args.user);
+    printf("password: %s\n", g_args.password);
+    printf("port: %u\n", g_args.port);
+    printf("cversion: %s\n", g_args.cversion);
+    printf("mysqlFlag: %d\n", g_args.mysqlFlag);
+    printf("outpath: %s\n", g_args.outpath);
+    printf("inpath: %s\n", g_args.inpath);
+    printf("resultFile: %s\n", g_args.resultFile);
+    printf("encode: %s\n", g_args.encode);
+    printf("all_databases: %d\n", g_args.all_databases);
+    printf("databases: %d\n", g_args.databases);
+    printf("schemaonly: %d\n", g_args.schemaonly);
+    printf("with_property: %d\n", g_args.with_property);
+    printf("start_time: %" PRId64 "\n", g_args.start_time);
+    printf("end_time: %" PRId64 "\n", g_args.end_time);
+    printf("data_batch: %d\n", g_args.data_batch);
+    printf("max_sql_len: %d\n", g_args.max_sql_len);
+    printf("table_batch: %d\n", g_args.table_batch);
+    printf("thread_num: %d\n", g_args.thread_num);
+    printf("allow_sys: %d\n", g_args.allow_sys);
+    printf("abort: %d\n", g_args.abort);
+    printf("isDumpIn: %d\n", g_args.isDumpIn);
+    printf("arg_list_len: %d\n", g_args.arg_list_len);
+    printf("debug_print: %d\n", g_args.debug_print);
 
-    for (int32_t i = 0; i < tsArguments.arg_list_len; i++) {
-      printf("arg_list[%d]: %s\n", i, tsArguments.arg_list[i]);
+    for (int32_t i = 0; i < g_args.arg_list_len; i++) {
+      printf("arg_list[%d]: %s\n", i, g_args.arg_list[i]);
     }
-  }  
+  }
   printf("==============================\n");
 
-  if (tsArguments.cversion[0] != 0){
-    tstrncpy(version, tsArguments.cversion, 11);
+  if (g_args.cversion[0] != 0){
+    tstrncpy(version, g_args.cversion, 11);
   }
 
-  if (taosCheckParam(&tsArguments) < 0) {
+  if (taosCheckParam(&g_args) < 0) {
     exit(EXIT_FAILURE);
   }
-  
-  g_fpOfResult = fopen(tsArguments.resultFile, "a");
+
+  g_fpOfResult = fopen(g_args.resultFile, "a");
   if (NULL == g_fpOfResult) {
-    fprintf(stderr, "Failed to open %s for save result\n", tsArguments.resultFile);
+    fprintf(stderr, "Failed to open %s for save result\n", g_args.resultFile);
     return 1;
   };
 
   fprintf(g_fpOfResult, "#############################################################################\n");
   fprintf(g_fpOfResult, "============================== arguments config =============================\n");
   {
-    fprintf(g_fpOfResult, "host: %s\n", tsArguments.host);
-    fprintf(g_fpOfResult, "user: %s\n", tsArguments.user);
-    fprintf(g_fpOfResult, "password: %s\n", tsArguments.password);
-    fprintf(g_fpOfResult, "port: %u\n", tsArguments.port);
-    fprintf(g_fpOfResult, "cversion: %s\n", tsArguments.cversion);    
-    fprintf(g_fpOfResult, "mysqlFlag: %d\n", tsArguments.mysqlFlag);    
-    fprintf(g_fpOfResult, "outpath: %s\n", tsArguments.outpath);
-    fprintf(g_fpOfResult, "inpath: %s\n", tsArguments.inpath);
-    fprintf(g_fpOfResult, "resultFile: %s\n", tsArguments.resultFile);
-    fprintf(g_fpOfResult, "encode: %s\n", tsArguments.encode);
-    fprintf(g_fpOfResult, "all_databases: %d\n", tsArguments.all_databases);
-    fprintf(g_fpOfResult, "databases: %d\n", tsArguments.databases);
-    fprintf(g_fpOfResult, "schemaonly: %d\n", tsArguments.schemaonly);
-    fprintf(g_fpOfResult, "with_property: %d\n", tsArguments.with_property);
-    fprintf(g_fpOfResult, "start_time: %" PRId64 "\n", tsArguments.start_time);
-    fprintf(g_fpOfResult, "end_time: %" PRId64 "\n", tsArguments.end_time);
-    fprintf(g_fpOfResult, "data_batch: %d\n", tsArguments.data_batch);
-    fprintf(g_fpOfResult, "max_sql_len: %d\n", tsArguments.max_sql_len);
-    fprintf(g_fpOfResult, "table_batch: %d\n", tsArguments.table_batch);
-    fprintf(g_fpOfResult, "thread_num: %d\n", tsArguments.thread_num);    
-    fprintf(g_fpOfResult, "allow_sys: %d\n", tsArguments.allow_sys);
-    fprintf(g_fpOfResult, "abort: %d\n", tsArguments.abort);
-    fprintf(g_fpOfResult, "isDumpIn: %d\n", tsArguments.isDumpIn);
-    fprintf(g_fpOfResult, "arg_list_len: %d\n", tsArguments.arg_list_len);
+    fprintf(g_fpOfResult, "host: %s\n", g_args.host);
+    fprintf(g_fpOfResult, "user: %s\n", g_args.user);
+    fprintf(g_fpOfResult, "password: %s\n", g_args.password);
+    fprintf(g_fpOfResult, "port: %u\n", g_args.port);
+    fprintf(g_fpOfResult, "cversion: %s\n", g_args.cversion);
+    fprintf(g_fpOfResult, "mysqlFlag: %d\n", g_args.mysqlFlag);
+    fprintf(g_fpOfResult, "outpath: %s\n", g_args.outpath);
+    fprintf(g_fpOfResult, "inpath: %s\n", g_args.inpath);
+    fprintf(g_fpOfResult, "resultFile: %s\n", g_args.resultFile);
+    fprintf(g_fpOfResult, "encode: %s\n", g_args.encode);
+    fprintf(g_fpOfResult, "all_databases: %d\n", g_args.all_databases);
+    fprintf(g_fpOfResult, "databases: %d\n", g_args.databases);
+    fprintf(g_fpOfResult, "schemaonly: %d\n", g_args.schemaonly);
+    fprintf(g_fpOfResult, "with_property: %d\n", g_args.with_property);
+    fprintf(g_fpOfResult, "start_time: %" PRId64 "\n", g_args.start_time);
+    fprintf(g_fpOfResult, "end_time: %" PRId64 "\n", g_args.end_time);
+    fprintf(g_fpOfResult, "data_batch: %d\n", g_args.data_batch);
+    fprintf(g_fpOfResult, "max_sql_len: %d\n", g_args.max_sql_len);
+    fprintf(g_fpOfResult, "table_batch: %d\n", g_args.table_batch);
+    fprintf(g_fpOfResult, "thread_num: %d\n", g_args.thread_num);
+    fprintf(g_fpOfResult, "allow_sys: %d\n", g_args.allow_sys);
+    fprintf(g_fpOfResult, "abort: %d\n", g_args.abort);
+    fprintf(g_fpOfResult, "isDumpIn: %d\n", g_args.isDumpIn);
+    fprintf(g_fpOfResult, "arg_list_len: %d\n", g_args.arg_list_len);
 
-    for (int32_t i = 0; i < tsArguments.arg_list_len; i++) {
-      fprintf(g_fpOfResult, "arg_list[%d]: %s\n", i, tsArguments.arg_list[i]);
+    for (int32_t i = 0; i < g_args.arg_list_len; i++) {
+      fprintf(g_fpOfResult, "arg_list[%d]: %s\n", i, g_args.arg_list[i]);
     }
   }
 
@@ -552,11 +607,11 @@ int main(int argc, char *argv[]) {
   time_t tTime = time(NULL);
   struct tm tm = *localtime(&tTime);
 
-  if (tsArguments.isDumpIn) {    
+  if (g_args.isDumpIn) {
     fprintf(g_fpOfResult, "============================== DUMP IN ============================== \n");
     fprintf(g_fpOfResult, "# DumpIn start time:                   %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
           tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-    if (taosDumpIn(&tsArguments) < 0) {
+    if (taosDumpIn(&g_args) < 0) {
       fprintf(g_fpOfResult, "\n");
       fclose(g_fpOfResult);
       return -1;
@@ -565,7 +620,7 @@ int main(int argc, char *argv[]) {
     fprintf(g_fpOfResult, "============================== DUMP OUT ============================== \n");
     fprintf(g_fpOfResult, "# DumpOut start time:                   %d-%02d-%02d %02d:%02d:%02d\n", tm.tm_year + 1900, tm.tm_mon + 1,
           tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec);
-    if (taosDumpOut(&tsArguments) < 0) {
+    if (taosDumpOut(&g_args) < 0) {
       fprintf(g_fpOfResult, "\n");
       fclose(g_fpOfResult);
       return -1;
@@ -573,9 +628,9 @@ int main(int argc, char *argv[]) {
 
     fprintf(g_fpOfResult, "\n============================== TOTAL STATISTICS ============================== \n");
     fprintf(g_fpOfResult, "# total database count:     %d\n", g_resultStatistics.totalDatabasesOfDumpOut);
-    fprintf(g_fpOfResult, "# total super table count:  %d\n", g_resultStatistics.totalSuperTblsOfDumpOut);    
-    fprintf(g_fpOfResult, "# total child table count:  %"PRId64"\n", g_resultStatistics.totalChildTblsOfDumpOut);   
-    fprintf(g_fpOfResult, "# total row count:          %"PRId64"\n", g_resultStatistics.totalRowsOfDumpOut);    
+    fprintf(g_fpOfResult, "# total super table count:  %d\n", g_resultStatistics.totalSuperTblsOfDumpOut);
+    fprintf(g_fpOfResult, "# total child table count:  %"PRId64"\n", g_resultStatistics.totalChildTblsOfDumpOut);
+    fprintf(g_fpOfResult, "# total row count:          %"PRId64"\n", g_resultStatistics.totalRowsOfDumpOut);
   }
 
   fprintf(g_fpOfResult, "\n");
@@ -1236,8 +1291,8 @@ void* taosDumpOutWorkThreadFp(void *arg)
   FILE *fp = NULL;
   memset(tmpBuf, 0, TSDB_FILENAME_LEN + 128);
   
-  if (tsArguments.outpath[0] != 0) {
-    sprintf(tmpBuf, "%s/%s.tables.%d.sql", tsArguments.outpath, pThread->dbName, pThread->threadIndex);
+  if (g_args.outpath[0] != 0) {
+    sprintf(tmpBuf, "%s/%s.tables.%d.sql", g_args.outpath, pThread->dbName, pThread->threadIndex);
   } else {
     sprintf(tmpBuf, "%s.tables.%d.sql", pThread->dbName, pThread->threadIndex);
   }
@@ -1270,7 +1325,7 @@ void* taosDumpOutWorkThreadFp(void *arg)
     ssize_t readLen = read(fd, &tableRecord, sizeof(STableRecord));
     if (readLen <= 0) break;
 
-    int ret = taosDumpTable(tableRecord.name, tableRecord.metric, &tsArguments, fp, pThread->taosCon, pThread->dbName);
+    int ret = taosDumpTable(tableRecord.name, tableRecord.metric, &g_args, fp, pThread->taosCon, pThread->dbName);
     if (ret >= 0) {
       // TODO: sum table count and table rows by self
       pThread->tablesOfDumpOut++;
@@ -1282,13 +1337,13 @@ void* taosDumpOutWorkThreadFp(void *arg)
       }
 
       tablesInOneFile++;
-      if (tablesInOneFile >= tsArguments.table_batch) {
+      if (tablesInOneFile >= g_args.table_batch) {
         fclose(fp);
         tablesInOneFile = 0;
         
         memset(tmpBuf, 0, TSDB_FILENAME_LEN + 128);        
-        if (tsArguments.outpath[0] != 0) {
-          sprintf(tmpBuf, "%s/%s.tables.%d-%d.sql", tsArguments.outpath, pThread->dbName, pThread->threadIndex, fileNameIndex);
+        if (g_args.outpath[0] != 0) {
+          sprintf(tmpBuf, "%s/%s.tables.%d-%d.sql", g_args.outpath, pThread->dbName, pThread->threadIndex, fileNameIndex);
         } else {
           sprintf(tmpBuf, "%s.tables.%d-%d.sql", pThread->dbName, pThread->threadIndex, fileNameIndex);
         }
@@ -1491,14 +1546,14 @@ int taosDumpDb(SDbInfo *dbInfo, struct arguments *arguments, FILE *fp, TAOS *tao
   taos_free_result(res);
   lseek(fd, 0, SEEK_SET);
 
-  int maxThreads = tsArguments.thread_num;
+  int maxThreads = g_args.thread_num;
   int tableOfPerFile ;
-  if (numOfTable <= tsArguments.thread_num) {
+  if (numOfTable <= g_args.thread_num) {
     tableOfPerFile = 1;
     maxThreads = numOfTable;
   } else {
-    tableOfPerFile = numOfTable / tsArguments.thread_num;
-    if (0 != numOfTable % tsArguments.thread_num) {
+    tableOfPerFile = numOfTable / g_args.thread_num;
+    if (0 != numOfTable % g_args.thread_num) {
       tableOfPerFile += 1;
     }    
   }
@@ -1806,9 +1861,9 @@ int taosDumpTableData(FILE *fp, char *tbname, struct arguments *arguments, TAOS*
     //}
   }
 
-  fprintf(fp, "\n");  
+  fprintf(fp, "\n");
   atomic_add_fetch_64(&totalDumpOutRows, totalRows);
-  
+
   taos_free_result(tmpResult);
   free(tmpBuffer);
   return totalRows;
@@ -1824,7 +1879,7 @@ int taosCheckParam(struct arguments *arguments) {
     fprintf(stderr, "start time is larger than end time\n");
     return -1;
   }
-  
+
   if (arguments->arg_list_len == 0) {
     if ((!arguments->all_databases) && (!arguments->isDumpIn)) {
       fprintf(stderr, "taosdump requires parameters\n");
@@ -2214,7 +2269,7 @@ void* taosDumpInWorkThreadFp(void *arg)
         continue;
       }
       fprintf(stderr, "Success Open input file: %s\n", SQLFileName);
-      taosDumpInOneFile(pThread->taosCon, fp, tsfCharset, tsArguments.encode, SQLFileName);
+      taosDumpInOneFile(pThread->taosCon, fp, tsfCharset, g_args.encode, SQLFileName);
     }
   }
 

@@ -205,7 +205,7 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
              pWrite->rpcMsg.ahandle, taosMsg[pWrite->pHead.msgType], qtypeStr[qtype], pWrite->pHead.version);
 
       pWrite->code = vnodeProcessWrite(pVnode, &pWrite->pHead, qtype, pWrite);
-      if (pWrite->code <= 0) pWrite->processedCount = 1;
+      if (pWrite->code <= 0) atomic_add_fetch_32(&pWrite->processedCount, 1);
       if (pWrite->code > 0) pWrite->code = 0;
       if (pWrite->code == 0 && pWrite->pHead.msgType != TSDB_MSG_TYPE_SUBMIT) forceFsync = true;
 
@@ -222,7 +222,7 @@ static void *dnodeProcessVWriteQueue(void *wparam) {
         dnodeSendRpcVWriteRsp(pVnode, pWrite, pWrite->code);
       } else {
         if (qtype == TAOS_QTYPE_FWD) {
-          vnodeConfirmForward(pVnode, pWrite->pHead.version, 0, pWrite->pHead.msgType != TSDB_MSG_TYPE_SUBMIT);
+          vnodeConfirmForward(pVnode, pWrite->pHead.version, pWrite->code, pWrite->pHead.msgType != TSDB_MSG_TYPE_SUBMIT);
         }
         if (pWrite->rspRet.rsp) {
           rpcFreeCont(pWrite->rspRet.rsp);

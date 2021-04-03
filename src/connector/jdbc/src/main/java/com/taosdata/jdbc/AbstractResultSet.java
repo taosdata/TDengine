@@ -11,6 +11,15 @@ import java.util.Map;
 public abstract class AbstractResultSet extends WrapperImpl implements ResultSet {
     private int fetchSize;
 
+    protected void checkAvailability(int columnIndex, int bounds) throws SQLException {
+        if (isClosed())
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+        if (columnIndex < 1)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " < 1");
+        if (columnIndex > bounds)
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PARAMETER_INDEX_OUT_RANGE, "Column Index out of range, " + columnIndex + " > " + bounds);
+    }
+
     @Override
     public abstract boolean next() throws SQLException;
 
@@ -46,38 +55,20 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     @Override
     public abstract double getDouble(int columnIndex) throws SQLException;
 
+    @Deprecated
     @Override
     public BigDecimal getBigDecimal(int columnIndex, int scale) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return getBigDecimal(columnIndex);
     }
 
     @Override
-    public byte[] getBytes(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
+    public abstract byte[] getBytes(int columnIndex) throws SQLException;
 
     @Override
-    public Date getDate(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-
-    }
+    public abstract Date getDate(int columnIndex) throws SQLException;
 
     @Override
-    public Time getTime(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
+    public abstract Time getTime(int columnIndex) throws SQLException;
 
     @Override
     public abstract Timestamp getTimestamp(int columnIndex) throws SQLException;
@@ -147,9 +138,10 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
         return getDouble(findColumn(columnLabel));
     }
 
+    @Deprecated
     @Override
     public BigDecimal getBigDecimal(String columnLabel, int scale) throws SQLException {
-        return getBigDecimal(findColumn(columnLabel));
+        return getBigDecimal(findColumn(columnLabel), scale);
     }
 
     @Override
@@ -214,12 +206,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     public abstract ResultSetMetaData getMetaData() throws SQLException;
 
     @Override
-    public Object getObject(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
+    public abstract Object getObject(int columnIndex) throws SQLException;
 
     @Override
     public Object getObject(String columnLabel) throws SQLException {
@@ -243,12 +230,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
     }
 
     @Override
-    public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
+    public abstract BigDecimal getBigDecimal(int columnIndex) throws SQLException;
 
     @Override
     public BigDecimal getBigDecimal(String columnLabel) throws SQLException {
@@ -718,9 +700,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
 
     @Override
     public Object getObject(String columnLabel, Map<String, Class<?>> map) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return getObject(findColumn(columnLabel), map);
     }
 
     @Override
@@ -760,9 +740,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
 
     @Override
     public Date getDate(String columnLabel, Calendar cal) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return getDate(findColumn(columnLabel), cal);
     }
 
     @Override
@@ -774,23 +752,15 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
 
     @Override
     public Time getTime(String columnLabel, Calendar cal) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return getTime(findColumn(columnLabel), cal);
     }
 
     @Override
-    public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
-    }
+    public abstract Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException;
 
     @Override
     public Timestamp getTimestamp(String columnLabel, Calendar cal) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return getTimestamp(findColumn(columnLabel), cal);
     }
 
     @Override
@@ -1198,9 +1168,7 @@ public abstract class AbstractResultSet extends WrapperImpl implements ResultSet
 
     @Override
     public <T> T getObject(String columnLabel, Class<T> type) throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+        return getObject(findColumn(columnLabel), type);
     }
 
 }

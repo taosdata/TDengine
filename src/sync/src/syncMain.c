@@ -182,7 +182,6 @@ int64_t syncStart(const SSyncInfo *pInfo) {
   pNode->startSyncFileFp = pInfo->startSyncFileFp;
   pNode->stopSyncFileFp = pInfo->stopSyncFileFp;
   pNode->getVersionFp = pInfo->getVersionFp;
-  pNode->resetVersionFp = pInfo->resetVersionFp;
   pNode->sendFileFp = pInfo->sendFileFp;
   pNode->recvFileFp = pInfo->recvFileFp;
 
@@ -1460,7 +1459,12 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
 
     if ((pNode->quorum > 1 || force) && code == 0) {
       code = syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
-      if (code >= 0) code = 1;
+      if (code >= 0) {
+        code = 1;
+      } else {
+        pthread_mutex_unlock(&pNode->mutex);
+        return code;
+      }
     }
 
     int32_t retLen = taosWriteMsg(pPeer->peerFd, pSyncHead, fwdLen);
