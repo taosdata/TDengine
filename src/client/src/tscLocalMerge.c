@@ -338,12 +338,19 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   pReducer->resColModel->capacity = pReducer->nResultBufSize;
   pReducer->finalModel = pFFModel;
 
+  int32_t expandFactor = 1;
   if (finalmodel->rowSize > 0) {
-    pReducer->resColModel->capacity /= finalmodel->rowSize;
+    bool topBotQuery = tscIsTopbotQuery(pQueryInfo);
+    if (topBotQuery) {
+      expandFactor = tscGetTopbotQueryParam(pQueryInfo);
+      pReducer->resColModel->capacity /= (finalmodel->rowSize * expandFactor);
+    } else {
+      pReducer->resColModel->capacity /= finalmodel->rowSize;
+    }
   }
 
   assert(finalmodel->rowSize > 0 && finalmodel->rowSize <= pReducer->rowSize);
-  pReducer->pFinalRes = calloc(1, pReducer->rowSize * pReducer->resColModel->capacity);
+  pReducer->pFinalRes = calloc(1, pReducer->rowSize * pReducer->resColModel->capacity * expandFactor);
 
   if (pReducer->pTempBuffer == NULL || pReducer->discardData == NULL || pReducer->pResultBuf == NULL ||
       pReducer->pFinalRes == NULL || pReducer->prevRowOfInput == NULL) {
