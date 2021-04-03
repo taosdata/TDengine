@@ -117,7 +117,7 @@ int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int1
     if (sToken.type == TK_PLUS) {
       useconds += interval;
     } else {
-      useconds = (useconds >= interval) ? useconds - interval : 0;
+      useconds = useconds - interval;
     }
 
     *next = pTokenEnd;
