@@ -298,7 +298,7 @@ int32_t tscGetTopbotQueryParam(SQueryInfo* pQueryInfo) {
 
     int32_t functionId = pExpr->functionId;
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
-      return pExpr->param[0].i64;
+      return (int32_t) pExpr->param[0].i64;
     }
   }
 
