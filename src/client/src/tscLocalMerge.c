@@ -351,7 +351,6 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   }
 
   assert(finalmodel->rowSize > 0 && finalmodel->rowSize <= pReducer->rowSize);
-  printf("------xxxx:%d\n", pReducer->rowSize * pReducer->resColModel->capacity);
 
   pReducer->pFinalRes = calloc(1, pReducer->rowSize * pReducer->resColModel->capacity);
 
@@ -944,7 +943,6 @@ static void genFinalResWithoutFill(SSqlRes* pRes, SLocalMerger *pLocalMerge, SQu
     savePrevRecordAndSetupFillInfo(pLocalMerge, pQueryInfo, pLocalMerge->pFillInfo);
   }
 
-  printf("size: %d\n", pRes->numOfRows * pLocalMerge->finalModel->rowSize);
   memcpy(pRes->data, pBeforeFillData->data, (size_t)(pRes->numOfRows * pLocalMerge->finalModel->rowSize));
 
   pRes->numOfClauseTotal += pRes->numOfRows;
