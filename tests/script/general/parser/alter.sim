@@ -204,7 +204,13 @@ if $data03 != NULL then
   return -1
 endi
 
-sql reset query cache
+print ============================>TD-3366 TD-3486
+sql insert into td_3366(ts, c3, c1) using mt(t1) tags(911) values('2018-1-1 11:11:11', 'new1', 12);
+sql insert into td_3486(ts, c3, c1) using mt(t1) tags(-12) values('2018-1-1 11:11:11', 'new1', 12);
+sql insert into ttxu(ts, c3, c1) using mt(t1) tags('-121') values('2018-1-1 11:11:11', 'new1', 12);
+
+sql insert into tb(ts, c1, c3) using mt(t1) tags(123) values('2018-11-01 16:29:58.000', 2, 'port')
+
 sql insert into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
 sql import into tb values ('2018-11-01 16:29:58.000', 2, 'import', 3)
 sql import into tb values ('2018-11-01 16:39:58.000', 2, 'import', 3)
@@ -212,6 +218,7 @@ sql select * from tb order by ts desc
 if $rows != 4 then
   return -1
 endi
+
 if $data03 != 3 then
   return -1
 endi
@@ -233,10 +240,10 @@ sql_error alter table mt add column c1 int
 # drop non-existing columns
 sql_error alter table mt drop column c9
 
-sql drop database $db
-sql show databases
-if $rows != 0 then 
-  return -1
-endi
+#sql drop database $db
+#sql show databases
+#if $rows != 0 then
+#  return -1
+#endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
