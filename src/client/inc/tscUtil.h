@@ -129,6 +129,8 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
+bool tscIsTopbotQuery(SQueryInfo* pQueryInfo);
+int32_t tscGetTopbotQueryParam(SQueryInfo* pQueryInfo);
 
 bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
 bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
