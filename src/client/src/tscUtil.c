@@ -271,6 +271,41 @@ bool tscIsTWAQuery(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+bool tscIsTopbotQuery(SQueryInfo* pQueryInfo) {
+  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    if (pExpr == NULL) {
+      continue;
+    }
+
+    int32_t functionId = pExpr->functionId;
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+int32_t tscGetTopbotQueryParam(SQueryInfo* pQueryInfo) {
+  size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    if (pExpr == NULL) {
+      continue;
+    }
+
+    int32_t functionId = pExpr->functionId;
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
+      return (int32_t) pExpr->param[0].i64;
+    }
+  }
+
+  return 0;
+}
+
+
 void tscClearInterpInfo(SQueryInfo* pQueryInfo) {
   if (!tscIsPointInterpQuery(pQueryInfo)) {
     return;
