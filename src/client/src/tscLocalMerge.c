@@ -344,13 +344,14 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
     if (topBotQuery) {
       expandFactor = tscGetTopbotQueryParam(pQueryInfo);
       pReducer->resColModel->capacity /= (finalmodel->rowSize * expandFactor);
+      pReducer->resColModel->capacity *= expandFactor;
     } else {
       pReducer->resColModel->capacity /= finalmodel->rowSize;
     }
   }
 
   assert(finalmodel->rowSize > 0 && finalmodel->rowSize <= pReducer->rowSize);
-  pReducer->pFinalRes = calloc(1, pReducer->rowSize * pReducer->resColModel->capacity * expandFactor);
+  pReducer->pFinalRes = calloc(1, pReducer->rowSize * pReducer->resColModel->capacity);
 
   if (pReducer->pTempBuffer == NULL || pReducer->discardData == NULL || pReducer->pResultBuf == NULL ||
       pReducer->pFinalRes == NULL || pReducer->prevRowOfInput == NULL) {
@@ -1157,7 +1158,7 @@ static void fillMultiRowsOfTagsVal(SQueryInfo *pQueryInfo, int32_t numOfRes, SLo
     memset(buf, 0, (size_t)maxBufSize);
     memcpy(buf, pCtx->pOutput, (size_t)pCtx->outputBytes);
 
-    for (int32_t i = 0; i < inc; ++i) {
+    for (int32_t i = 1; i < inc; ++i) {
       pCtx->pOutput += pCtx->outputBytes;
       memcpy(pCtx->pOutput, buf, (size_t)pCtx->outputBytes);
     }
