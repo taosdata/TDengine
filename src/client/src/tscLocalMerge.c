@@ -1159,7 +1159,7 @@ static void fillMultiRowsOfTagsVal(SQueryInfo *pQueryInfo, int32_t numOfRes, SLo
     memset(buf, 0, (size_t)maxBufSize);
     memcpy(buf, pCtx->pOutput, (size_t)pCtx->outputBytes);
 
-    for (int32_t i = 1; i < inc; ++i) {
+    for (int32_t i = 0; i < inc; ++i) {
       pCtx->pOutput += pCtx->outputBytes;
       memcpy(pCtx->pOutput, buf, (size_t)pCtx->outputBytes);
     }
@@ -1449,6 +1449,11 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
   SQueryInfo    *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   tFilePage     *tmpBuffer = pLocalMerge->pTempBuffer;
 
+  int32_t remain = 1;
+  if (tscIsTopbotQuery(pQueryInfo)) {
+    remain = tscGetTopbotQueryParam(pQueryInfo);
+  }
+
   if (doHandleLastRemainData(pSql)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1537,7 +1542,7 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
          * if the previous group does NOT generate any result (pResBuf->num == 0),
          * continue to process results instead of return results.
          */
-        if ((!sameGroup && pResBuf->num > 0) || (pResBuf->num == pLocalMerge->resColModel->capacity)) {
+        if ((!sameGroup && pResBuf->num > 0) || (pResBuf->num + remain >= pLocalMerge->resColModel->capacity)) {
           // does not belong to the same group
           bool notSkipped = genFinalResults(pSql, pLocalMerge, !sameGroup);
 
