@@ -699,7 +699,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     if (strcmp(argv[i], "-f") == 0) {
       arguments->metaFile = argv[++i];
     } else if (strcmp(argv[i], "-c") == 0) {
-      strcpy(configDir, argv[++i]);
+      tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
 
     } else if (strcmp(argv[i], "-h") == 0) {
       arguments->host = argv[++i];
@@ -2780,7 +2780,7 @@ static void createChildTables() {
             j++;
         }
 
-        len = snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
+        snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
 
         verbosePrint("%s() LN%d: dbName: %s num of tb: %d schema: %s\n",
                 __func__, __LINE__,
@@ -4431,6 +4431,8 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
   int k = 0;
   for (k = 0; k < batch;) {
     char data[MAX_DATA_SIZE];
+    memset(data, 0, MAX_DATA_SIZE);
+
     int retLen = 0;
 
     if (superTblInfo) {
@@ -4633,11 +4635,12 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     return NULL;
   }
 
-
   char tableName[TSDB_TABLE_NAME_LEN];
 
   pThreadInfo->totalInsertRows = 0;
   pThreadInfo->totalAffectedRows = 0;
+
+  int nTimeStampStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
 
   int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
   int insert_interval =
@@ -4697,8 +4700,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       if (0 == strlen(tableName)) {
         errorPrint("[%d] %s() LN%d, getTableName return null\n",
             pThreadInfo->threadID, __func__, __LINE__);
+        free(buffer);
         return NULL;
-        exit(-1);
       }
 
       int headLen;
@@ -4760,7 +4763,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
             generatedRecPerTbl += batchPerTbl;
 
             startTime = pThreadInfo->start_time
-              + generatedRecPerTbl * superTblInfo->timeStampStep;
+              + generatedRecPerTbl * nTimeStampStep;
 
             flagSleep = true;
             if (generatedRecPerTbl >= insertRows)
