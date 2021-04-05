@@ -27,6 +27,7 @@
 #include "tlosertree.h"
 #include "ttype.h"
 #include "tscompression.h"
+#include "qScript.h"
 
 #define IS_MASTER_SCAN(runtime)        ((runtime)->scanFlag == MASTER_SCAN)
 #define IS_REVERSE_SCAN(runtime)       ((runtime)->scanFlag == REVERSE_SCAN)
@@ -779,8 +780,8 @@ static void doInvokeUdf(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int
   if (pUdfInfo && pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]) {
     qDebug("invoke udf function:%s,%p", pUdfInfo->name, pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]);
 
-    (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->size, pCtx->ptsList, pCtx->pOutput,
-                  (char *)pCtx->ptsOutputBuf, &output, &pUdfInfo->init);
+    (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList, pCtx->pOutput,
+                  (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes, &pUdfInfo->init);
 
     // set the output value exist
     pCtx->resultInfo->numOfRes += output;
@@ -3144,6 +3145,7 @@ void initCtxOutputBuffer(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, in
     }
 
     if (pCtx[j].functionId < 0) { // todo udf initialization
+        
       continue;
     } else {
       aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
@@ -5982,40 +5984,59 @@ static int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
   if (pUdfInfo == NULL) {
     return TSDB_CODE_SUCCESS;
   }
+  if (isValidScript(pUdfInfo->content)) {
+    //refactor(dengyihao)
+    ScriptCtx *pScriptCtx = createScriptCtx(pUdfInfo->content);                 
+    pUdfInfo->init.script_ctx = pScriptCtx;
 
-  char path[PATH_MAX] = {0};
-  taosGetTmpfilePath("script", path);
+    pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] = taosLoadScriptInit;  
+    if (pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] == NULL 
+        || (*(udfInitFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_INIT])(&pUdfInfo->init) != TSDB_CODE_SUCCESS) {
+      return TSDB_CODE_QRY_SYS_ERROR;
+    }
 
-  FILE* file = fopen(path, "w+");
+    pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL] = taosLoadScriptNormal; 
 
-  // TODO check for failure of flush to disk
-  /*size_t t = */ fwrite(pUdfInfo->content, pUdfInfo->contLen, 1, file);
-  fclose(file);
+    if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
+      pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] =  taosLoadScriptFinalize;
+    }
+    pUdfInfo->funcs[TSDB_UDF_FUNC_DESTROY] = taosLoadScriptDestroy;
+    
+  } else {
+    char path[PATH_MAX] = {0};
+    taosGetTmpfilePath("script", path);
 
-  tfree(pUdfInfo->content);
-  pUdfInfo->path = strdup(path);
+    FILE* file = fopen(path, "w+");
 
-  pUdfInfo->handle = taosLoadDll(path);
+    // TODO check for failure of flush to disk
+    /*size_t t = */ fwrite(pUdfInfo->content, pUdfInfo->contLen, 1, file);
+    fclose(file);
+    tfree(pUdfInfo->content);
+    
+    pUdfInfo->path = strdup(path);
 
-  if (NULL == pUdfInfo->handle) {
-    return TSDB_CODE_QRY_SYS_ERROR;
-  }
+    pUdfInfo->handle = taosLoadDll(path);
 
-  pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_NORMAL));
-  if (NULL == pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]) {
-    return TSDB_CODE_QRY_SYS_ERROR;
-  }
+    if (NULL == pUdfInfo->handle) {
+      return TSDB_CODE_QRY_SYS_ERROR;
+    }
 
-  pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_INIT));
-  
-  if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
-    pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_FINALIZE));
-  }
+    pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_NORMAL));
+    if (NULL == pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]) {
+      return TSDB_CODE_QRY_SYS_ERROR;
+    }
 
-  pUdfInfo->funcs[TSDB_UDF_FUNC_DESTROY] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_DESTROY));
+    pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_INIT));
+    
+    if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
+      pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_FINALIZE));
+    }
 
-  if (pUdfInfo->funcs[TSDB_UDF_FUNC_INIT]) {
-    return (*(udfInitFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_INIT])(&pUdfInfo->init);
+    pUdfInfo->funcs[TSDB_UDF_FUNC_DESTROY] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_DESTROY));
+
+    if (pUdfInfo->funcs[TSDB_UDF_FUNC_INIT]) {
+      return (*(udfInitFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_INIT])(&pUdfInfo->init);
+    }
   }
   
   return TSDB_CODE_SUCCESS;

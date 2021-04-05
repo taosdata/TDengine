@@ -34,6 +34,7 @@
 #include "tstoken.h"
 #include "tstrbuild.h"
 #include "ttokendef.h"
+#include "qScript.h"
 
 #define DEFAULT_PRIMARY_TIMESTAMP_COL_NAME "_c0"
 
@@ -285,6 +286,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char *msg1 = "function name is too long";
   const char *msg2 = "path is too long";
   const char *msg3 = "invalid outputtype";
+  const char *msg4 = "invalid script";
   SSqlCmd *pCmd = &pSql->cmd;
   
   switch (pInfo->type) {
@@ -317,8 +319,9 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (ret) {
       return ret;
     }
-
-
+    if (isValidScript(buf)) {
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4); 
+    } 
 
     //TODO CHECK CODE
     if (len + sizeof(SCreateFuncMsg) > pSql->cmd.allocSize) {

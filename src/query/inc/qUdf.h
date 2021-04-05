@@ -26,6 +26,10 @@ typedef struct SUdfInit{
  uint64_t length;       /* For string functions */
  char  *ptr;            /* free pointer for function data */
  int32_t const_item;       /* 0 if result is independent of arguments */
+
+ // script like lua/javascript
+ void* script_ctx;
+ void (*destroyCtxFunc)(void *script_ctx);
 } SUdfInit;
 
 
@@ -45,8 +49,8 @@ typedef struct SUdfInfo {
   };
 } SUdfInfo;
 
-typedef void (*udfNormalFunc)(char* data, int16_t type, int32_t numOfRows, int64_t* ts, char* dataOutput, char* tsOutput,
-                        int32_t* numOfOutput, SUdfInit* buf);
+typedef void (*udfNormalFunc)(char* data, int16_t itype, int16_t iBytes, int32_t numOfRows, int64_t* ts, char* dataOutput, char* tsOutput,
+                        int32_t* numOfOutput, int16_t oType, int16_t oByte, SUdfInit* buf);
 typedef int32_t (*udfInitFunc)(SUdfInit* data);
 typedef void (*udfFinalizeFunc)(char* dataOutput, int32_t* numOfOutput, SUdfInit* buf);
 typedef void (*udfDestroyFunc)(SUdfInit* buf);
