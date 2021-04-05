@@ -645,8 +645,12 @@ bool simCreateRestFulConnect(SScript *script, char *user, char *pass) {
 bool simCreateNativeConnect(SScript *script, char *user, char *pass) {
   simCloseTaosdConnect(script);
   void *taos = NULL;
-  taosMsleep(2000);
   for (int32_t attempt = 0; attempt < 10; ++attempt) {
+    if (abortExecution) {
+      script->killed = true;
+      return false;
+    }
+
     taos = taos_connect(NULL, user, pass, NULL, tsDnodeShellPort);
     if (taos == NULL) {
       simDebug("script:%s, user:%s connect taosd failed:%s, attempt:%d", script->fileName, user, taos_errstr(NULL),
@@ -697,6 +701,11 @@ bool simExecuteNativeSqlCommand(SScript *script, char *rest, bool isSlow) {
   TAOS_RES *pSql = NULL;
 
   for (int32_t attempt = 0; attempt < 10; ++attempt) {
+    if (abortExecution) {
+      script->killed = true;
+      return false;
+    }
+
     simLogSql(rest, false);
     pSql = taos_query(script->taos, rest);
     ret = taos_errno(pSql);
