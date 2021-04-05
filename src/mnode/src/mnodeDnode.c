@@ -628,6 +628,11 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
     bnNotify();
   }
 
+  if (!tsEnableBalance) {
+    int32_t numOfMnodes = mnodeGetMnodesNum();
+    if (numOfMnodes < tsNumOfMnodes) bnNotify();
+  }
+
   if (openVnodes != pDnode->openVnodes) {
     mnodeCheckUnCreatedVgroup(pDnode, pStatus->load, openVnodes);
   }

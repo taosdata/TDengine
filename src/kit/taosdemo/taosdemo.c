@@ -694,19 +694,12 @@ static void printHelp() {
 
 static void parse_args(int argc, char *argv[], SArguments *arguments) {
   char **sptr;
-  wordexp_t full_path;
 
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-f") == 0) {
       arguments->metaFile = argv[++i];
     } else if (strcmp(argv[i], "-c") == 0) {
-        char *configPath = argv[++i];
-      if (wordexp(configPath, &full_path, 0) != 0) {
-          errorPrint( "Invalid path %s\n", configPath);
-          return;
-      }
-      taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
-      wordfree(&full_path);
+      tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
 
     } else if (strcmp(argv[i], "-h") == 0) {
       arguments->host = argv[++i];
@@ -801,8 +794,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       arguments->verbose_print = true;
     } else if (strcmp(argv[i], "-pp") == 0) {
       arguments->performance_print = true;
-    } else if (strcmp(argv[i], "-c") == 0) {
-      strcpy(configDir, argv[++i]);
     } else if (strcmp(argv[i], "-O") == 0) {
 
       arguments->disorderRatio = atoi(argv[++i]);
@@ -1112,6 +1103,7 @@ static int printfInsertMeta() {
   printf("host:                       \033[33m%s:%u\033[0m\n", g_Dbs.host, g_Dbs.port);
   printf("user:                       \033[33m%s\033[0m\n", g_Dbs.user);
   printf("password:                   \033[33m%s\033[0m\n", g_Dbs.password);
+  printf("configDir:                  \033[33m%s\033[0m\n", configDir);
   printf("resultFile:                 \033[33m%s\033[0m\n", g_Dbs.resultFile);
   printf("thread num of insert data:  \033[33m%d\033[0m\n", g_Dbs.threadCount);
   printf("thread num of create table: \033[33m%d\033[0m\n", g_Dbs.threadCountByCreateTbl);
@@ -1297,6 +1289,7 @@ static void printfInsertMetaToFile(FILE* fp) {
 
   fprintf(fp, "host:                       %s:%u\n", g_Dbs.host, g_Dbs.port);
   fprintf(fp, "user:                       %s\n", g_Dbs.user);
+  fprintf(fp, "configDir:                  %s\n", configDir);
   fprintf(fp, "resultFile:                 %s\n", g_Dbs.resultFile);
   fprintf(fp, "thread num of insert data:  %d\n", g_Dbs.threadCount);
   fprintf(fp, "thread num of create table: %d\n", g_Dbs.threadCountByCreateTbl);
@@ -2616,7 +2609,6 @@ static void* createTable(void *sarg)
           len += snprintf(buffer + len,
                   buff_len - len, "create table ");
         }
-
         char* tagsValBuf = NULL;
         if (0 == superTblInfo->tagSource) {
           tagsValBuf = generateTagVaulesForStb(superTblInfo, i);
@@ -2629,7 +2621,6 @@ static void* createTable(void *sarg)
           free(buffer);
           return NULL;
         }
-
         len += snprintf(buffer + len,
                 superTblInfo->maxSqlLen - len,
                 "if not exists %s.%s%d using %s.%s tags %s ",
@@ -2638,7 +2629,6 @@ static void* createTable(void *sarg)
                 superTblInfo->sTblName, tagsValBuf);
         free(tagsValBuf);
         batchNum++;
-
         if ((batchNum < superTblInfo->batchCreateTableNum)
                 && ((superTblInfo->maxSqlLen - len)
                     >= (superTblInfo->lenOfTagOfOneRow + 256))) {
@@ -2790,7 +2780,7 @@ static void createChildTables() {
             j++;
         }
 
-        len = snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
+        snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
 
         verbosePrint("%s() LN%d: dbName: %s num of tb: %d schema: %s\n",
                 __func__, __LINE__,
@@ -4441,6 +4431,8 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
   int k = 0;
   for (k = 0; k < batch;) {
     char data[MAX_DATA_SIZE];
+    memset(data, 0, MAX_DATA_SIZE);
+
     int retLen = 0;
 
     if (superTblInfo) {
@@ -4643,11 +4635,12 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     return NULL;
   }
 
-
   char tableName[TSDB_TABLE_NAME_LEN];
 
   pThreadInfo->totalInsertRows = 0;
   pThreadInfo->totalAffectedRows = 0;
+
+  int nTimeStampStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
 
   int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
   int insert_interval =
@@ -4707,8 +4700,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       if (0 == strlen(tableName)) {
         errorPrint("[%d] %s() LN%d, getTableName return null\n",
             pThreadInfo->threadID, __func__, __LINE__);
+        free(buffer);
         return NULL;
-        exit(-1);
       }
 
       int headLen;
@@ -4770,7 +4763,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
             generatedRecPerTbl += batchPerTbl;
 
             startTime = pThreadInfo->start_time
-              + generatedRecPerTbl * superTblInfo->timeStampStep;
+              + generatedRecPerTbl * nTimeStampStep;
 
             flagSleep = true;
             if (generatedRecPerTbl >= insertRows)
@@ -6524,6 +6517,16 @@ static void queryResult() {
 }
 
 static void testCmdLine() {
+
+  if (strlen(configDir)) {
+    wordexp_t full_path;
+    if (wordexp(configDir, &full_path, 0) != 0) {
+      errorPrint( "Invalid path %s\n", configDir);
+      return;
+    }
+    taos_options(TSDB_OPTION_CONFIGDIR, full_path.we_wordv[0]);
+    wordfree(&full_path);
+  }
 
   g_args.test_mode = INSERT_TEST;
   insertTestProcess();

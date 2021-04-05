@@ -2631,6 +2631,21 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
     tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->pQueryHandle, &pBlock->pBlockStatis);
 
     if (pQuery->topBotQuery && pBlock->pBlockStatis != NULL) {
+      { // set previous window
+        if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
+          SResultRow* pResult = NULL;
+
+          bool  masterScan = IS_MASTER_SCAN(pRuntimeEnv);
+          TSKEY k = ascQuery? pBlock->info.window.skey : pBlock->info.window.ekey;
+
+          STimeWindow win = getActiveTimeWindow(pTableScanInfo->pResultRowInfo, k, pQuery);
+          if (setWindowOutputBufByKey(pRuntimeEnv, pTableScanInfo->pResultRowInfo, &win, masterScan, &pResult, groupId,
+                                      pTableScanInfo->pCtx, pTableScanInfo->numOfOutput,
+                                      pTableScanInfo->rowCellInfoOffset) != TSDB_CODE_SUCCESS) {
+            longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
+          }
+        }
+      }
       bool load = false;
       for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
         int32_t functionId = pTableScanInfo->pCtx[i].functionId;
