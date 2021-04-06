@@ -6,7 +6,7 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta name="description" content="">
 	<meta name="author" content="">
-	<title>Table</title>
+	<title>Stable</title>
 	<link rel="icon" href="images/db.png">
 	<link type="text/css" href="bootstrap-3.3.7-dist/css/bootstrap.min.css" rel="stylesheet">
 	<link type="text/css" href="css/info.css" rel="stylesheet">
@@ -33,8 +33,8 @@
 			<div id="navbar" class="navbar-collapse collapse">
 				<ul class="nav navbar-nav">					
 					<li><a href="dbs.html">DBs</a></li>
-					<li><a href="stables.html">Stables</a></li>
-					<li class="active"><a href="tables.html">Tables</a></li>
+                    <li class="active"><a href="stables.html">Stables</a></li>
+					<li><a href="tables.html">Tables</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
 					<li id="monitorLiId" style="display:none"><a href="monitor.html">Monitor</a></li>
@@ -54,30 +54,47 @@
 	<!-- content begin -->
 	<div class="container">
 		<div class="panel panel-default dbpanel">
-		<div class="panel-heading dbhead"><label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Create Table</label></div>
+		<div class="panel-heading dbhead"><label class="control-label" style="font-weight:bold;padding-top:4px;height:1px">Create Stable</label></div>
 			<form id="dbFrom" role="form" style="max-width: 300px;margin: 0 auto;padding-top:24px;padding-bottom:14px">
-				<div class="input-group input-group-sm" style="width:300px;padding-bottom:14px">  
-					<span class="input-group-addon" style="width:40%">Table Name</span>  
-					<input id="dbTableName" type="text" class="form-control" placeholder="table name">
-				</div> 
-				<label>Columns:</label>
-				<div class="input-group input-group-sm" style="width:300px;padding-bottom:14px">  
-					<span class="input-group-addon" style="width:40%">Timestamp</span>  
-					<input id="dbTimestampColumn" type="text" class="form-control" placeholder="column name">
-					<span class="input-group-btn">
-						<button id="dbTimestampColumnBtn" class="btn btn-default " type="button" onclick="dbAddColumn(-1)">+</button>
-					</span> 
-				</div> 
 				<div id="dbFrom1">
-				</div>
-				<label>Using Stable<input type="checkbox" id="isUScheckbox" onchange="handleUScheckboxChange()" style="position: relative;top: 2px;left: 5px;"></input></label>
-				<div class="input-group input-group-sm" style="width:300px;padding-bottom:14px">  
-					<select class="form-control" value="0" style="border-radius: 3px;" id="stableSelect" onchange="handleUSselectChange()" disabled> 
-						<option value="0">Not use Stable</option>
-					</select>
-				</div> 
+					<div class="input-group input-group-sm" style="width:300px;padding-bottom:14px">  
+						<span class="input-group-addon" style="width:40%">Stable Name</span>  
+						<input id="dbStableName" type="text" class="form-control" placeholder="stable name">
+					</div> 
+					<label>Columns:</label>
 
+					<div class="input-group input-group-sm" style="width:300px;padding-bottom:14px">  
+						<span class="input-group-addon" style="width:40%">Timestamp</span>  
+						<input id="dbTimestampColumn" type="text" class="form-control" placeholder="column name">
+						<span class="input-group-btn">
+							<button class="btn btn-default " type="button" onclick="dbAddColumn(-1)">+</button>
+						</span> 
+					</div> 
+				</div>
+				<label>Tags:</label>
 				<div id="dbFrom2">
+					<div id="dbGroup_0" class="input-group input-group-sm" style="width:300px;padding-bottom:14px">
+						<div class="input-group-btn" >
+							<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" style="width:120px" aria-expanded="false"><span id="dbGroupType_0">Data Type</span> <span class="caret"></span></button>
+							<ul class="dropdown-menu dropdown-menu-right" style="width:30px">
+								<li><a onclick="dbSetTagType(0, 'bool')">bool</a></li>
+								<li><a onclick="dbSetTagType(0, 'tinyint')">tinyint</a></li>
+								<li><a onclick="dbSetTagType(0, 'smallint')">smallint</a></li>
+								<li><a onclick="dbSetTagType(0, 'int')">int</a></li>
+								<li><a onclick="dbSetTagType(0, 'bigint')">bigint</a></li>
+								<li><a onclick="dbSetTagType(0, 'float')">float</a></li>
+								<li><a onclick="dbSetTagType(0, 'double')">double</a></li>
+								<li><a onclick="dbSetTagType(0, 'binary')">binary</a></li>
+								<li><a onclick="dbSetTagType(0, 'timestamp')">timestamp</a></li>
+							</ul>
+						</div>
+						<input id="dbGroupName_0" type="text" class="form-control"  placeholder="tag name" aria-label="...">
+						<span class="input-group-btn">
+							<button class="btn btn-default" type="button" onclick="dbRemoveTag(0)">-</button>
+							<button class="btn btn-default" type="button" onclick="dbAddTag(0)">+</button>
+						</span>
+					</div>		
+			
 				</div>
 			</form>	 
 			
@@ -121,25 +138,18 @@
 	function dbOnLoad()
 	{
 		DbSession.ValidSession();
-		var dbSTableName = DbUtil.GetUrlFirstPara();
-		if (dbSTableName != null && dbSTableName != "") {
-			$('#isUScheckbox').attr("checked", "checked");
-			$('#stableSelect').removeAttr("disabled");
-			dbQueryStables(dbSTableName);
-			useStable(dbSTableName);
-		}
 	}	
 	
 	var dbColumnIndex = -1;
 	var dbColumnTypes = [];
 	var dbColumnNames = [];
 	var dbColumnLengths = [];
-	var dbTableName = "";
-	var dbTableFirstKey = "";
-	var dbTagIndex = -1;
+	var dbTagIndex = 0;
 	var dbTagTypes = [];
 	var dbTagNames = [];
 	var dbTagLengths = [];
+	var dbStableName = "";
+	var dbTableFirstKey = "";
 
 	/**
 	 * read all value of ctrls
@@ -147,7 +157,7 @@
 	 */
 	function dbFetchCtrlValue()
 	{
-		dbTableName = $.trim($('#dbTableName').val());
+		dbStableName = $.trim($('#dbStableName').val());
 		dbTableFirstKey = $.trim($('#dbTimestampColumn').val());
 		
 		dbColumnTypes.length = 0;
@@ -177,7 +187,6 @@
 				dbTagLengths[i] = dbGetBinaryLength(name);
 			}
 		}
-
 	}
 
 	/**
@@ -246,6 +255,18 @@
 			$('#dbGroupType' + i).text(columnType);
 			$('#dbGroupName' + i).val(columnName);
 		}
+
+		for (var i = 0; i <= dbTagIndex; ++i) {
+			var tagType = dbTagTypes[i];
+			var tagName = dbTagNames[i];
+			var tagLength = dbTagLengths[i];
+			if (tagType == "binary" && tagLength != 0) {
+				tagName = tagName + "(" + tagLength + ")";
+			}
+			
+			$('#dbGroupType_' + i).text(tagType);
+			$('#dbGroupName_' + i).val(tagName);
+		}
 	}
 
 	/**
@@ -297,57 +318,49 @@
 		dbResetCtrlValue();
 	}
 
-	function dbSetColumn(name, type, colLength){
-		dbColumnIndex++;
-		dbColumnTypes[dbColumnIndex] = type;
-		dbColumnNames[dbColumnIndex] = name;
-		dbColumnLengths[dbColumnIndex] = colLength;
+	function dbAddTag(index)
+	{
+		if (dbTagIndex >= 30) {
+			return DbUtil.Error(DB_CODE_STABLE_MAX_TAGS);
+		}
+		
+		dbFetchCtrlValue();
+
+		var i = 0;
+		for (i = dbTagIndex + 1; i > index + 1; --i) {
+			dbTagTypes[i] = dbTagTypes[i-1];
+			dbTagNames[i] = dbTagNames[i-1];
+			dbTagLengths[i] = dbTagLengths[i-1];
+		}
+		dbTagTypes[i] = "Data Type";
+		dbTagNames[i] = "";
+		dbTagLengths[i] = 0;
 			
-		var html = '<div id="dbGroup' + dbColumnIndex + '" class="input-group input-group-sm"  style="width:300px">'
-			+ '<div class="input-group-btn" >'
-			+ '	<button disabled type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" style="width:120px" aria-expanded="false"><span id="dbGroupType' + dbColumnIndex + '">' + type + '</span> <span class="caret"></span></button>'
-			+ '	<ul class="dropdown-menu dropdown-menu-right" style="width:30px">'
-			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'bool\')">bool</a></li>'
-			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'tinyint\')">tinyint</a></li>'
-			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'smallint\')">smallint</a></li>'
-			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'int\')">int</a></li>'
-			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'bigint\')">bigint</a></li>'
-			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'float\')">float</a></li>'
-			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'double\')">double</a></li>'
-			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'binary\')">binary</a></li>'
-			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'timestamp\')">timestamp</a></li>'
-			+ '	</ul>'
-			+ '</div>'
-			+ '<input disabled id="dbGroupName' + dbColumnIndex + '" type="text" class="form-control" value="'+ name +'"  placeholder="column name" aria-label="...">'
-			+ '<span class="input-group-btn">'
-			+ '	<button class="btn btn-default " type="button" disabled onclick="dbRemoveColumn(' + dbColumnIndex + ')">-</button>'
-			+ '	<button class="btn btn-default " type="button" disabled onclick="dbAddColumn(' + dbColumnIndex + ')">+</button>'+ '</span>'
-			+ '</div>'
-			+ '<br id="dbGroupBr' + dbColumnIndex + '">';
-		
-		$('#dbFrom1').append(html);
-	}
-	
-	function dbSetTag(name, type, colLength){
 		dbTagIndex++;
-		dbTagTypes[dbTagIndex] = type;
-		dbTagNames[dbTagIndex] = "";
-		dbTagLengths[dbTagIndex] = colLength;
-		
-		var html = '<div id="dbGroup' + dbTagIndex + '" class="input-group input-group-sm"  style="width:300px">'
+		var html = '<div id="dbGroup_' + dbTagIndex + '" class="input-group input-group-sm"  style="width:300px">'
 			+ '<div class="input-group-btn" >'
-			+ '	<button disabled type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" style="width:120px" aria-expanded="false"><span id="dbGroupType_' + dbTagIndex + '">' + type + '</span> <span class="caret"></span></button>'
+			+ '	<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" style="width:120px" aria-expanded="false"><span id="dbGroupType_' + dbTagIndex + '">Data Type</span> <span class="caret"></span></button>'
 			+ '	<ul class="dropdown-menu dropdown-menu-right" style="width:30px">'
+			+ '		<li><a onclick="dbSetTagType(' + dbTagIndex + ', \'bool\')">bool</a></li>'
+			+ '		<li><a onclick="dbSetTagType(' + dbTagIndex + ', \'tinyint\')">tinyint</a></li>'
+			+ '		<li><a onclick="dbSetTagType(' + dbTagIndex + ', \'smallint\')">smallint</a></li>'
+			+ '		<li><a onclick="dbSetTagType(' + dbTagIndex + ', \'int\')">int</a></li>'
+			+ '		<li><a onclick="dbSetTagType(' + dbTagIndex + ', \'bigint\')">bigint</a></li>'
+			+ '		<li><a onclick="dbSetTagType(' + dbTagIndex + ', \'float\')">float</a></li>'
+			+ '		<li><a onclick="dbSetTagType(' + dbTagIndex + ', \'double\')">double</a></li>'
+			+ '		<li><a onclick="dbSetTagType(' + dbTagIndex + ', \'binary\')">binary</a></li>'
+			+ '		<li><a onclick="dbSetTagType(' + dbTagIndex + ', \'timestamp\')">timestamp</a></li>'
 			+ '	</ul>'
 			+ '</div>'
-			+ '<input id="dbGroupName_' + dbTagIndex + '" type="text" class="form-control" placeholder="'+ name +'" aria-label="...">'
+			+ '<input id="dbGroupName_' + dbTagIndex + '" type="text" class="form-control"  placeholder="tag name" aria-label="...">'
 			+ '<span class="input-group-btn">'
-			+ '	<button class="btn btn-default " type="button" disabled onclick="dbRemoveColumn(' + dbTagIndex + ')">-</button>'
-			+ '	<button class="btn btn-default " type="button" disabled onclick="dbAddColumn(' + dbTagIndex + ')">+</button>'+ '</span>'
+			+ '	<button class="btn btn-default " type="button" onclick="dbRemoveTag(' + dbTagIndex + ')">-</button>'
+			+ '	<button class="btn btn-default " type="button" onclick="dbAddTag(' + dbTagIndex + ')">+</button>'+ '</span>'
 			+ '</div>'
-			+ '<br id="dbGroupBr' + dbTagIndex + '">';
+			+ '<br id="dbGroupBr_' + dbTagIndex + '">';
 		
 		$('#dbFrom2').append(html);
+		dbResetCtrlValue();
 	}
 
 	/**
@@ -386,6 +399,38 @@
 		dbResetCtrlValue();
 	}
 
+	function dbRemoveTag(index)
+	{
+		if (dbTagIndex <= 0 ) {
+			return DbUtil.Error(DB_CODE_STABLE_MIN_TAGS);
+		}
+		
+		dbFetchCtrlValue();
+		for (i = index; i < dbTagIndex; ++i) {
+			dbTagTypes[i] = dbTagTypes[i+1];
+			dbTagNames[i] = dbTagNames[i+1];
+			dbTagLengths[i] = dbTagLengths[i+1];
+		}
+		dbTagTypes.length = dbTagTypes.length - 1;
+		dbTagNames.length = dbTagNames.length - 1;
+		dbTagLengths.length = dbTagLengths.length - 1;
+		
+		var tagDivID = "dbGroup_" + dbTagIndex;
+		var tagDiv = $('#' + tagDivID);
+		if (tagDiv != null) {
+			tagDiv.remove();
+		}
+
+		var tagBrID = "dbGroupBr_" + dbTagIndex;
+		var tagBrID = $('#' + tagBrID);
+		if (tagBrID != null) {
+			tagBrID.remove();
+		}
+		
+		dbTagIndex--;
+		dbResetCtrlValue();
+	}
+
 	/**
 	* Set the type of current column
 	* @index the index of current column
@@ -404,7 +449,12 @@
 		var btn = $('#dbGroupType' + index);
 		btn.text(type);
 	}
-			
+	
+	function dbSetTagType(index, type)
+	{
+		var btn = $('#dbGroupType_' + index);
+		btn.text(type);
+	}
 	/**
 	 * Set the type of current column
 	 */
@@ -412,7 +462,7 @@
 	{
 		dbFetchCtrlValue();
 
-		if (!DbUtil.CheckName(dbTableName, "table name"))
+		if (!DbUtil.CheckName(dbStableName, "stable name"))
 		{
 			return;
 		}
@@ -424,68 +474,73 @@
 		if (dbColumnIndex < 0) {
 			return DbUtil.Error(DB_CODE_TABLE_COL_NUM_ZERO);
 		}
-
-		var sql = "create table ";
-		if($('#stableSelect').val()=="0"){
-			//create table SQL
-			sql += DbSession.GetDb() + "." + dbTableName + "(" + dbTableFirstKey + " timestamp";
-			for (var i = 0; i <= dbColumnIndex; ++i)
-			{
-				var columnType = dbColumnTypes[i];
-				var columnName = dbColumnNames[i];
-				var columnLength = dbColumnLengths[i];
-				if (columnType == "Data Type") {
-					return DbUtil.Error(DB_CODE_TABLE_COL_TYPE_NULL);
-				}
-				if (!DbUtil.CheckName(columnName, "the name of column"))
-				{
-					return;
-				}
-				
-				//if (columnName == "") {
-				//	return DbUtil.Error(DB_CODE_TABLE_COL_NAME_NULL);
-				//}
-				if (columnType == "binary")
-				{
-					if (columnLength <= 0) {
-						return DbUtil.Error(DB_CODE_TABLE_COL_BINARY_NULL);
-					}
-					else {
-						columnType = columnType + "(" + columnLength + ")";
-					}
-				}
-				sql = sql + ", " + columnName + " " + columnType;
+		
+		
+		var sql = "create stable " + DbSession.GetDb() + "." + dbStableName + "(" + dbTableFirstKey + " timestamp";
+		for (var i = 0; i <= dbColumnIndex; ++i)
+		{
+			var columnType = dbColumnTypes[i];
+			var columnName = dbColumnNames[i];
+			var columnLength = dbColumnLengths[i];
+			if (columnType == "Data Type") {
+				return DbUtil.Error(DB_CODE_TABLE_COL_TYPE_NULL);
 			}
-			sql += ")";
-		} else {
-			//create table using stable SQL
-			var stableName = $('#stableSelect').val();
-			sql += DbSession.GetDb() + "." + dbTableName + " using " + DbSession.GetDb() + "." + stableName + " tags (";
-
-			for (var i = 0; i <= dbTagIndex; ++i)
+			if (!DbUtil.CheckName(columnName, "the name of column"))
 			{
-				var tagType = dbTagTypes[i];
-				var tagName = dbTagNames[i];
-				var tagLength = dbTagLengths[i];
-				if (!DbUtil.CheckNULL(tagName, "the value of tag"))
-				{
-					return;
-				}
-
-				if (!DbUtil.CheckTagType(i, tagType, tagName))
-				{
-					return;
-				}
-
-				if(i != 0){
-					sql = sql + ", " + tagName;
-				}else {
-					sql = sql + tagName;
-				}	
+				return;
 			}
-			sql += ")";
+			
+			//if (columnName == "") {
+			//	return DbUtil.Error(DB_CODE_TABLE_COL_NAME_NULL);
+			//}
+			if (columnType == "binary")
+			{
+				if (columnLength <= 0) {
+					return DbUtil.Error(DB_CODE_TABLE_COL_BINARY_NULL);
+				}
+				else {
+					columnType = columnType + "(" + columnLength + ")";
+				}
+			}
+			sql = sql + ", " + columnName + " " + columnType;
 		}
-				
+		sql += ") tags (";
+
+		for (var i = 0; i <= dbTagIndex; ++i)
+		{
+			var tagType = dbTagTypes[i];
+			var tagName = dbTagNames[i];
+			var tagLength = dbTagLengths[i];
+			if (tagType == "Data Type") {
+				return DbUtil.Error(DB_CODE_TABLE_COL_TYPE_NULL);
+			}
+			if (!DbUtil.CheckName(tagName, "the name of tag"))
+			{
+				return;
+			}
+			
+			//if (columnName == "") {
+			//	return DbUtil.Error(DB_CODE_TABLE_COL_NAME_NULL);
+			//}
+			if (tagType == "binary")
+			{
+				if (tagLength <= 0) {
+					return DbUtil.Error(DB_CODE_TABLE_COL_BINARY_NULL);
+				}
+				else {
+					tagType = tagType + "(" + tagLength + ")";
+				}
+			}
+			if(i != 0){
+				sql = sql + ", " + tagName + " " + tagType;
+			}else {
+				sql = sql + tagName + " " + tagType;
+			}
+			
+		}
+
+		sql += ")"
+		
 		$.ajax({
 			type: "post",
 			url: "admin/sql",
@@ -505,6 +560,7 @@
 				}
 			}		
 		});		
+	
 	}
 	
 	function dbCreateCb(d)
@@ -521,7 +577,7 @@
 				DbUtil.Error(DB_CODE_EXEC_ERROR);
 			}
 			else {
-				DbUtil.GotoPage("tables.html");
+				DbUtil.GotoPage("stables.html");
 			}
 		}	
 		else{
@@ -535,166 +591,7 @@
 	function dbReturn()
 	{
 		DbSession.SetCacheFlag();
-		DbUtil.GotoPage("tables.html");
-	}
-
-	function handleUScheckboxChange(){
-		if($('#isUScheckbox').prop("checked")){
-			dbQueryStables();
-			$('#stableSelect').removeAttr("disabled");
-		} else {
-			removeStable();
-		}
-	}
-
-	function handleUSselectChange(){
-		if($('#stableSelect').val()!="0"){
-			useStable($('#stableSelect').val());
-		} else {
-			removeStable();	
-		}
-	}
-
-	function removeStable(){
-		$('#stableSelect').attr("disabled", "disabled");
-		$('#stableSelect').html('<option value="0">Not use Stable</option>');
-		$('#stableSelect').val("0");
-		$('#isUScheckbox').removeAttr("checked")
-
-		dbColumnIndex = -1;
-		dbColumnTypes = [];
-		dbColumnNames = [];
-		dbColumnLengths = [];
-
-		dbTagIndex = -1;
-		dbTagTypes = [];
-		dbTagNames = [];
-		dbTagLengths = [];
-		
-		$('#dbFrom1').html("");
-		$('#dbFrom2').html("");
-
-		$('#dbTimestampColumn').removeAttr("disabled");
-		$('#dbTimestampColumnBtn').removeAttr("disabled");
-		$('#dbTimestampColumn').val("");
-	}
-
-	function useStable(stableName){
-		$.ajax({
-			type: "post",
-			url: "admin/sql",
-			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
-			},
-			data: "DESCRIBE " + DbSession.GetDb() + "." + stableName,
-			dataType: "json",
-			success: function(d){
-				if (d == null || d.status == null) {
-					DbUtil.Error(DB_CODE_INVALID_FORMAT);
-					return;
-				} 
-				if (d.status == "error") {
-					DbUtil.HandleError(d);
-				}
-				else if (d.status == "succ") {
-					assembleForm(d.data);
-				}
-				else{
-					DbUtil.Error(DB_CODE_UNKNOWN);
-				}
-			},
-			error: function(msg) { 
-				if (msg != null && msg.responseJSON != null) {
-					dbOnLoadCb(msg.responseJSON);
-				} else if (msg != null) {
-					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
-				} else {
-					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
-				}
-			}		
-		});		
-	
-	}
-
-	function dbQueryStables(selected)
-	{
-		$.ajax({
-			type: "post",
-			url: "admin/sql",
-			headers: {
-				'Authorization' : "Taosd " + DbSession.GetToken()
-			},
-			data: "show " + DbSession.GetDb() +".stables",
-			dataType: "json",
-			success: function(d){
-				dbQueryStablesCallback(d, selected)
-			},
-			error: function(msg) { 
-				if (msg != null && msg.responseJSON != null) {
-					dbQueryStablesCallback(msg.responseJSON);
-				} else if (msg != null) {
-					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
-				} else {
-					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
-				}
-			}		
-		});		
-	}
-	
-	function dbQueryStablesCallback(d, selected)
-	{
-		if (d == null || d.status == null) {
-			DbUtil.Error(DB_CODE_INVALID_FORMAT);
-			return;
-		} 
-		if (d.status == "error") {
-			DbUtil.HandleError(d);
-		}
-		else if (d.status == "succ") {
-			setUSselect(d.data, selected)
-		}	
-		else{
-			DbUtil.Error(DB_CODE_UNKNOWN);
-		}
-	}
-
-	function setUSselect(data, selected){
-		var len = data.length;
-		var html = '<option value="0">Not use Stable</option>';
-		for (var i = 0; i < len; ++i) {
-			html += '<option value="' + data[i][0] + '">' + data[i][0] + '</option>';
-		}
-		$('#stableSelect').html(html);
-		if(selected){
-			$('#stableSelect').val(selected);
-		}
-	}
-	
-	function assembleForm(data){
-		$('#dbTimestampColumn').attr("disabled", "disabled");
-		$('#dbTimestampColumnBtn').attr("disabled", "disabled");
-		$('#dbTimestampColumn').val(data[0][0]);
-		var len = data.length;
-
-		dbColumnIndex = -1;
-		dbColumnTypes = [];
-		dbColumnNames = [];
-		dbColumnLengths = [];
-
-		dbTagIndex = -1;
-		dbTagTypes = [];
-		dbTagNames = [];
-		dbTagLengths = [];
-		
-		$('#dbFrom1').html("");
-		$('#dbFrom2').html("<label>Tags:</label>");
-		for(var i=1; i<len; ++i){
-			if(!data[i][3]){
-				dbSetColumn(data[i][0], data[i][1], data[i][2])
-			}else{
-				dbSetTag(data[i][0], data[i][1], data[i][2])
-			}
-		}
+		DbUtil.GotoPage("stables.html");
 	}
 
 	</script>
