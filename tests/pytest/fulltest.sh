@@ -216,7 +216,7 @@ python3 ./test.py -f query/floatCompare.py
 python3 ./test.py -f query/query1970YearsAf.py
 python3 ./test.py -f query/bug3351.py
 python3 ./test.py -f query/bug3375.py
-
+python3 ./test.py -f query/queryJoin10tables.py
 
 
 #stream
