@@ -1159,9 +1159,10 @@ static void fillMultiRowsOfTagsVal(SQueryInfo *pQueryInfo, int32_t numOfRes, SLo
     memset(buf, 0, (size_t)maxBufSize);
     memcpy(buf, pCtx->pOutput, (size_t)pCtx->outputBytes);
 
+    char* next = pCtx->pOutput;
     for (int32_t i = 0; i < inc; ++i) {
-      pCtx->pOutput += pCtx->outputBytes;
-      memcpy(pCtx->pOutput, buf, (size_t)pCtx->outputBytes);
+      next += pCtx->outputBytes;
+      memcpy(next, buf, (size_t)pCtx->outputBytes);
     }
   }
 
