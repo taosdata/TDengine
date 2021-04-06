@@ -769,6 +769,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                   && strcasecmp(token, "BINARY")
                   && strcasecmp(token, "NCHAR")) {
             printHelp();
+            free(dupstr);
             ERROR_EXIT("Invalid data_type!\n");
             exit(EXIT_FAILURE);
           }
@@ -776,6 +777,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
           token = strsep(&running, ",");
           if (index >= MAX_NUM_DATATYPE) break;
         }
+        free(dupstr);
         sptr[index] = NULL;
       }
     } else if (strcmp(argv[i], "-w") == 0) {
