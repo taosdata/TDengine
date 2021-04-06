@@ -48,7 +48,16 @@ def pre_test(){
     find ${WKC}/tests/pytest -name \'*\'.sql -exec rm -rf {} \\;
     cd ${WK}
     git reset --hard HEAD~10
-    git checkout develop 
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh 'git checkout master'
+        }
+      else {
+        sh 'git checkout develop'
+      } 
+    }
+    sh '''
     git pull >/dev/null 
     cd ${WK}
     export TZ=Asia/Harbin
@@ -86,7 +95,8 @@ pipeline {
           git pull
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
-          '''
+          '''     
+          
           script{
             env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
           }
