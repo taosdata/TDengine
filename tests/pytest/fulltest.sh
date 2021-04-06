@@ -22,6 +22,7 @@ python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
 python3 ./test.py -f insert/before_1970.py
 python3 bug2265.py
+python3 ./test.py -f insert/bug3654.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
