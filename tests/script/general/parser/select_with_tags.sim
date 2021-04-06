@@ -159,6 +159,15 @@ if $data03 != @abc15@ then
    return -1
 endi
 
+sql select top(c6, 3) from select_tags_mt0 interval(10a)
+sql select top(c3,10) from select_tags_mt0 interval(10a) group by tbname
+sql select top(c6, 3) from select_tags_mt0 interval(10a) group by tbname;
+
+sql select top(c6, 10) from select_tags_mt0 interval(10a);
+if $rows != 12800 then
+  return -1
+endi
+
 sql select top(c1, 100), tbname, t1, t2 from select_tags_mt0;
 if $rows != 100 then
    return -1

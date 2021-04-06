@@ -36,19 +36,6 @@ extern "C" {
 #define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo)\
   (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
 
-
-typedef struct SParsedColElem {
-  int16_t colIndex;
-  uint16_t offset;
-} SParsedColElem;
-
-typedef struct SParsedDataColInfo {
-  int16_t        numOfCols;
-  int16_t        numOfAssignedCols;
-  SParsedColElem elems[TSDB_MAX_COLUMNS];
-  bool           hasVal[TSDB_MAX_COLUMNS];
-} SParsedDataColInfo;
-
 #pragma pack(push,1)
 // this struct is transfered as binary, padding two bytes to avoid
 // an 'uid' whose low bytes is 0xff being recoginized as NULL,
@@ -118,6 +105,8 @@ int32_t tscCreateDataBlock(size_t initialSize, int32_t rowSize, int32_t startOff
 void tscDestroyDataBlock(STableDataBlocks* pDataBlock, bool removeMeta);
 void tscSortRemoveDataBlockDupRows(STableDataBlocks* dataBuf);
 
+void tscDestroyBoundColumnInfo(SParsedDataColInfo* pColInfo);
+
 SParamInfo* tscAddParamToDataBlock(STableDataBlocks* pDataBlock, char type, uint8_t timePrec, int16_t bytes,
                                    uint32_t offset);
 
@@ -141,6 +130,8 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
 bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
+bool tscIsTopbotQuery(SQueryInfo* pQueryInfo);
+int32_t tscGetTopbotQueryParam(SQueryInfo* pQueryInfo);
 
 bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
 bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
