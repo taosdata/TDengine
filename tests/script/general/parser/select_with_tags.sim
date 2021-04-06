@@ -160,7 +160,7 @@ if $data03 != @abc15@ then
 endi
 
 sql select top(c6, 3) from select_tags_mt0 interval(10a)
-sql select top(c3,10) from select_tags_mt0 interval(10a) group by tbname
+sql select top(c3,10) from select_tags_mt0 interval(10a) group by tbname,t1,t2
 sql select top(c6, 3) from select_tags_mt0 interval(10a) group by tbname;
 
 sql select top(c6, 10) from select_tags_mt0 interval(10a);
