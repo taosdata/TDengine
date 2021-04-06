@@ -14,7 +14,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 | **Python**  | ●               | ●               | ●               | ○               | ●         | ●         | ○               | --               | ○              |
 | **Go**      | ●               | ●               | ●               | ○               | ●         | ●         | ○               | --               | --             |
 | **NodeJs**  | ●               | ●               | ○               | ○               | ●         | ●         | ○               | --               | --             |
-| **C#**      | ○               | ●               | ●               | ○               | ○         | ○         | ○               | --               | --             |
+| **C#**      | ●               | ●               | ○               | ○               | ○         | ○         | ○               | --               | --             |
 | **RESTful** | ●               | ●               | ●               | ●               | ●         | ●         | ○               | ○                | ○              |
 
 其中 ● 表示经过官方测试验证， ○ 表示非官方测试验证。
@@ -23,7 +23,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 * 在没有安装TDengine服务端软件的系统中使用连接器（除RESTful外）访问 TDengine 数据库，需要安装相应版本的客户端安装包来使应用驱动（Linux系统中文件名为libtaos.so，Windows系统中为taos.dll）被安装在系统中，否则会产生无法找到相应库文件的错误。
 * 所有执行 SQL 语句的 API，例如 C/C++ Connector 中的 `tao_query`、`taos_query_a`、`taos_subscribe` 等，以及其它语言中与它们对应的API，每次都只能执行一条 SQL 语句，如果实际参数中包含了多条语句，它们的行为是未定义的。
-* 升级到TDengine到2.0.8.0版本的用户，必须更新JDBC连接TDengine必须升级taos-jdbcdriver到2.0.12及以上。
+* 升级到TDengine到2.0.8.0版本的用户，必须更新JDBC连接TDengine必须升级taos-jdbcdriver到2.0.12及以上。详细的版本依赖关系请参见 [taos-jdbcdriver 文档](https://www.taosdata.com/cn/documentation/connector/java#version)。
 * 无论选用何种编程语言的连接器，2.0 及以上版本的 TDengine 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池，以避免连接内的“USE statement”状态量在线程之间相互干扰（但连接的查询和写入操作都是线程安全的）。
 
 ## <a class="anchor" id="driver"></a>安装连接器驱动步骤
