@@ -283,12 +283,14 @@ enum OPERATOR_TYPE_E {
   OP_Arithmetic        = 7,
   OP_Groupby           = 8,
   OP_Limit             = 9,
-  OP_TimeWindow        = 10,
-  OP_SessionWindow     = 11,
-  OP_Fill              = 12,
-  OP_MultiTableAggregate     = 13,
-  OP_MultiTableTimeInterval  = 14,
-  OP_DummyInput        = 15,   //TODO remove it after fully refactor.
+  OP_SLimit            = 10,
+  OP_TimeWindow        = 11,
+  OP_SessionWindow     = 12,
+  OP_Fill              = 13,
+  OP_MultiTableAggregate     = 14,
+  OP_MultiTableTimeInterval  = 15,
+  OP_DummyInput        = 16,   //TODO remove it after fully refactor.
+  OP_MultiwayMerge     = 17,   // multi-way merge process for partial results from different vnodes
 };
 
 typedef struct SOperatorInfo {
@@ -433,6 +435,23 @@ typedef struct SSWindowOperatorInfo {
   int32_t        numOfRows;  // number of rows
   int32_t        start;      // start row index
 } SSWindowOperatorInfo;
+
+SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime, int32_t reverseTime);
+SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime);
+SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
+
+SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
+SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
+
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);
