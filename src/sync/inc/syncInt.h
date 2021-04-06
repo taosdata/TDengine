@@ -35,7 +35,7 @@ extern "C" {
 #define SYNC_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead) + sizeof(SSyncHead) + 16)
 #define SYNC_RECV_BUFFER_SIZE (5*1024*1024)
 
-#define SYNC_MAX_FWDS 512
+#define SYNC_MAX_FWDS 1024
 #define SYNC_FWD_TIMER 300
 #define SYNC_ROLE_TIMER 15000             // ms
 #define SYNC_CHECK_INTERVAL 1000          // ms

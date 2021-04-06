@@ -101,7 +101,7 @@ $ taos -h 192.168.0.1 -s "use db; show tables;"
 
 ### 运行SQL命令脚本
 
-TDengine终端可以通过`source`命令来运行SQL命令脚本.
+TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本.
 
 ```mysql
 taos> source <filename>;
@@ -109,10 +109,10 @@ taos> source <filename>;
 
 ### Shell小技巧
 
-- 可以使用上下光标键查看已经历史输入的命令
-- 修改用户密码。在shell中使用alter user命令
+- 可以使用上下光标键查看历史输入的指令
+- 修改用户密码。在 shell 中使用 alter user 指令
 - ctrl+c 中止正在进行中的查询
-- 执行`RESET QUERY CACHE`清空本地缓存的表的schema
+- 执行 `RESET QUERY CACHE` 清空本地缓存的表 schema
 
 
 ## <a class="anchor" id="demo"></a>TDengine 极速体验
@@ -212,7 +212,7 @@ taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 | **Python**  | ●               | ●         | ●         | ○               | ●         | ●         | ●                   | --                   | ●                  |
 | **Go**      | ●               | ●         | ●         | ○               | ●         | ●         | ○                   | --                   | --                 |
 | **NodeJs**  | ●               | ●         | ○         | ○               | ●         | ●         | ○                   | --                   | --                 |
-| **C#**      | ○               | ●         | ●         | ○               | ○         | ○         | ○                   | --                   | --                 |
+| **C#**      | ●               | ●         | ○         | ○               | ○         | ○         | ○                   | --                   | --                 |
 | **RESTful** | ●               | ●         | ●         | ●               | ●         | ●         | ●                   | ●                    | ●                  |
 
 注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。

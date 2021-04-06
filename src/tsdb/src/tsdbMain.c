@@ -526,7 +526,7 @@ static void tsdbStartStream(STsdbRepo *pRepo) {
     STable *pTable = pMeta->tables[i];
     if (pTable && pTable->type == TSDB_STREAM_TABLE) {
       pTable->cqhandle = (*pRepo->appH.cqCreateFunc)(pRepo->appH.cqH, TABLE_UID(pTable), TABLE_TID(pTable), TABLE_NAME(pTable)->data, pTable->sql,
-                                                     tsdbGetTableSchemaImpl(pTable, false, false, -1));
+                                                     tsdbGetTableSchemaImpl(pTable, false, false, -1), 0);
     }
   }
 }

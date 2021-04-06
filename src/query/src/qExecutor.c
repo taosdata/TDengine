@@ -1876,14 +1876,15 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   taosHashCleanup(pRuntimeEnv->pResultRowHashTable);
   pRuntimeEnv->pResultRowHashTable = NULL;
 
-  pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
-  taosArrayDestroyEx(pRuntimeEnv->prevResult, freeInterResult);
-  pRuntimeEnv->prevResult = NULL;
-
   taosHashCleanup(pRuntimeEnv->pTableRetrieveTsMap);
   pRuntimeEnv->pTableRetrieveTsMap = NULL;
 
   destroyOperatorInfo(pRuntimeEnv->proot);
+
+  pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
+  taosArrayDestroyEx(pRuntimeEnv->prevResult, freeInterResult);
+  pRuntimeEnv->prevResult = NULL;
+
 }
 
 static bool needBuildResAfterQueryComplete(SQInfo* pQInfo) {
@@ -2630,6 +2631,21 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
     tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->pQueryHandle, &pBlock->pBlockStatis);
 
     if (pQuery->topBotQuery && pBlock->pBlockStatis != NULL) {
+      { // set previous window
+        if (QUERY_IS_INTERVAL_QUERY(pQuery)) {
+          SResultRow* pResult = NULL;
+
+          bool  masterScan = IS_MASTER_SCAN(pRuntimeEnv);
+          TSKEY k = ascQuery? pBlock->info.window.skey : pBlock->info.window.ekey;
+
+          STimeWindow win = getActiveTimeWindow(pTableScanInfo->pResultRowInfo, k, pQuery);
+          if (setWindowOutputBufByKey(pRuntimeEnv, pTableScanInfo->pResultRowInfo, &win, masterScan, &pResult, groupId,
+                                      pTableScanInfo->pCtx, pTableScanInfo->numOfOutput,
+                                      pTableScanInfo->rowCellInfoOffset) != TSDB_CODE_SUCCESS) {
+            longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
+          }
+        }
+      }
       bool load = false;
       for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
         int32_t functionId = pTableScanInfo->pCtx[i].functionId;
@@ -6463,6 +6479,9 @@ void freeQInfo(SQInfo *pQInfo) {
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   releaseQueryBuf(pRuntimeEnv->tableqinfoGroupInfo.numOfTables);
+
+  doDestroyTableQueryInfo(&pRuntimeEnv->tableqinfoGroupInfo);
+
   teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
@@ -6498,7 +6517,6 @@ void freeQInfo(SQInfo *pQInfo) {
     }
   }
 
-  doDestroyTableQueryInfo(&pRuntimeEnv->tableqinfoGroupInfo);
 
   tfree(pQInfo->pBuf);
   tfree(pQInfo->sql);
