@@ -283,13 +283,12 @@ enum OPERATOR_TYPE_E {
   OP_Arithmetic        = 7,
   OP_Groupby           = 8,
   OP_Limit             = 9,
-  OP_Offset            = 10,
-  OP_TimeWindow        = 11,
-  OP_SessionWindow     = 12,
-  OP_Fill              = 13,
-  OP_MultiTableAggregate     = 14,
-  OP_MultiTableTimeInterval  = 15,
-  OP_DummyInput        = 16,   //TODO remove it after fully refactor.
+  OP_TimeWindow        = 10,
+  OP_SessionWindow     = 11,
+  OP_Fill              = 12,
+  OP_MultiTableAggregate     = 13,
+  OP_MultiTableTimeInterval  = 14,
+  OP_DummyInput        = 15,   //TODO remove it after fully refactor.
 };
 
 typedef struct SOperatorInfo {

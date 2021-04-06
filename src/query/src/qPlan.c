@@ -116,12 +116,8 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     taosArrayPush(plan, &op);
   }
 
-  if (pQueryAttr->limit.offset > 0) {
-    op = OP_Offset;
-    taosArrayPush(plan, &op);
-  }
 
-  if (pQueryAttr->limit.limit > 0) {
+  if (pQueryAttr->limit.limit > 0 || pQueryAttr->limit.offset > 0) {
     op = OP_Limit;
     taosArrayPush(plan, &op);
   }

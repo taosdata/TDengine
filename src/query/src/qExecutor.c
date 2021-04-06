@@ -163,7 +163,6 @@ static SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryR
 static SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 static SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 static SOperatorInfo* createLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
-static SOperatorInfo* createOffsetOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream);
 static SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 static SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 static SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
@@ -1736,11 +1735,6 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
 
       case OP_Limit: {
         pRuntimeEnv->proot = createLimitOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot);
-        break;
-      }
-
-      case OP_Offset: {
-        pRuntimeEnv->proot = createOffsetOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot);
         break;
       }
 
@@ -4535,23 +4529,45 @@ static SSDataBlock* doArithmeticOperation(void* param) {
 }
 
 static SSDataBlock* doLimit(void* param) {
-  SOperatorInfo* pOperator = (SOperatorInfo*) param;
+  SOperatorInfo* pOperator = (SOperatorInfo*)param;
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
   SLimitOperatorInfo* pInfo = pOperator->info;
+  SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
 
-  SSDataBlock* pBlock = pOperator->upstream->exec(pOperator->upstream);
-  if (pBlock == NULL) {
-    setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
-    pOperator->status = OP_EXEC_DONE;
-    return NULL;
+  SSDataBlock* pBlock = NULL;
+  while (1) {
+    pBlock = pOperator->upstream->exec(pOperator->upstream);
+    if (pBlock == NULL) {
+      setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
+      pOperator->status = OP_EXEC_DONE;
+      return NULL;
+    }
+
+    if (pRuntimeEnv->currentOffset == 0) {
+      break;
+    } else if (pRuntimeEnv->currentOffset >= pBlock->info.rows) {
+      pRuntimeEnv->currentOffset -= pBlock->info.rows;
+    } else {
+      int32_t remain = (int32_t)(pBlock->info.rows - pRuntimeEnv->currentOffset);
+      pBlock->info.rows = remain;
+
+      for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+        SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+
+        int16_t bytes = pColInfoData->info.bytes;
+        memmove(pColInfoData->pData, pColInfoData->pData + bytes * pRuntimeEnv->currentOffset, remain * bytes);
+      }
+
+      pRuntimeEnv->currentOffset = 0;
+      break;
+    }
   }
 
   if (pInfo->total + pBlock->info.rows >= pInfo->limit) {
-    pBlock->info.rows = (int32_t) (pInfo->limit - pInfo->total);
-
+    pBlock->info.rows = (int32_t)(pInfo->limit - pInfo->total);
     pInfo->total = pInfo->limit;
 
     setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
@@ -4561,44 +4577,6 @@ static SSDataBlock* doLimit(void* param) {
   }
 
   return pBlock;
-}
-
-// TODO add log
-static SSDataBlock* doOffset(void* param) {
-  SOperatorInfo *pOperator = (SOperatorInfo *)param;
-  if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
-  }
-
-  SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
-
-  while (1) {
-    SSDataBlock *pBlock = pOperator->upstream->exec(pOperator->upstream);
-    if (pBlock == NULL) {
-      setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
-      pOperator->status = OP_EXEC_DONE;
-      return NULL;
-    }
-
-    if (pRuntimeEnv->currentOffset == 0) {
-      return pBlock;
-    } else if (pRuntimeEnv->currentOffset >= pBlock->info.rows) {
-      pRuntimeEnv->currentOffset -= pBlock->info.rows;
-    } else {
-      int32_t remain = (int32_t)(pBlock->info.rows - pRuntimeEnv->currentOffset);
-      pBlock->info.rows = remain;
-
-      for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-        SColumnInfoData *pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
-
-        int16_t bytes = pColInfoData->info.bytes;
-        memmove(pColInfoData->pData, pColInfoData->pData + bytes * pRuntimeEnv->currentOffset, remain * bytes);
-      }
-
-      pRuntimeEnv->currentOffset = 0;
-      return pBlock;
-    }
-  }
 }
 
 static SSDataBlock* doIntervalAgg(void* param) {
@@ -5019,24 +4997,6 @@ SOperatorInfo* createLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->upstream     = upstream;
   pOperator->exec         = doLimit;
-  pOperator->info         = pInfo;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
-
-  return pOperator;
-}
-
-SOperatorInfo* createOffsetOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream) {
-  SOffsetOperatorInfo* pInfo = calloc(1, sizeof(SOffsetOperatorInfo));
-
-  pInfo->offset = pRuntimeEnv->pQueryAttr->limit.offset;
-  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-
-  pOperator->name         = "OffsetOperator";
-  pOperator->operatorType = OP_Offset;
-  pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->upstream     = upstream;
-  pOperator->exec         = doOffset;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
