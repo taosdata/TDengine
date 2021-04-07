@@ -5193,7 +5193,7 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySqlNode*
         pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
 
         // orderby ts query on super table
-        if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+        if (tscOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0)) {
           addPrimaryTsColIntoResult(pQueryInfo);
         }
       }
@@ -5817,13 +5817,13 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
   // todo refactor
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     if (!tscQueryTags(pQueryInfo)) {  // local handle the super table tag query
-      if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
+      if (tscIsProjectionQueryOnSTable(pCmd, pQueryInfo, 0)) {
         if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
 
         // for projection query on super table, all queries are subqueries
-        if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
+        if (tscNonOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0) &&
             !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY)) {
           pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
         }
@@ -5859,7 +5859,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
     pQueryInfo->prjOffset   = pQueryInfo->limit.offset;
     pQueryInfo->vgroupLimit = -1;
 
-    if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+    if (tscOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0)) {
       /*
        * the offset value should be removed during retrieve data from virtual node, since the
        * global order are done in client side, so the offset is applied at the client side
@@ -6462,7 +6462,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     }
 
     // projection query on super table does not compatible with "group by" syntax
-    if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+    if (tscNonOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 

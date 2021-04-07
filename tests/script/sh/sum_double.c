@@ -35,27 +35,27 @@ void sum_double(char* data, short itype, short ibytes, int numOfRows, long long*
 void sum_double_finalize(char* dataOutput, int* numOfOutput, SUdfInit* buf) {
    int i;
    int r = 0;
-   printf("sum_double_finalize dataoutput:%p, numOfOutput:%p, buf:%p\n", dataOutput, numOfOutput, buf);
+   printf("sum_double_finalize dataoutput:%p:%d, numOfOutput:%d, buf:%p\n", dataOutput, *dataOutput, *numOfOutput, buf);
    *numOfOutput=1;
    *(int*)(buf->ptr)=*(int*)dataOutput*2;
    *(int*)dataOutput=*(int*)(buf->ptr);
    printf("sum_double finalize, dataoutput:%d, numOfOutput:%d\n", *(int *)dataOutput, *numOfOutput);
 }
 
-void sum_double_merge(char* dataOutput, int* numOfOutput, SUdfInit* buf) {
+void sum_double_merge(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf) {
    int r = 0;
    int sum = 0;
    
-   printf("sum_double_merge dataoutput:%p, numOfOutput:%p, buf:%p\n", dataOutput, numOfOutput, buf);
-   for (int i = 0; i < *numOfOutput; ++i) {
-     printf("sum_double_merge %d - %d\n", i, *((int*)dataOutput + i));
-     sum +=*((int*)dataOutput + i);
+   printf("sum_double_merge dataoutput:%p, numOfOutput:%d, buf:%p\n", dataOutput, *numOfOutput, buf);
+   for (int i = 0; i < numOfRows; ++i) {
+     printf("sum_double_merge %d - %d\n", i, *((int*)data + i));
+     sum +=*((int*)data + i);
    }
    
-   *(int*)dataOutput=sum;
+   *(int*)dataOutput+=sum;
    *numOfOutput=1;
    
-   printf("sum_double sum_double_merge, dataoutput:%d, numOfOutput:%d\n", *(int *)dataOutput, *numOfOutput);
+   printf("sum_double_merge, dataoutput:%d, numOfOutput:%d\n", *(int *)dataOutput, *numOfOutput);
 }
 
 
