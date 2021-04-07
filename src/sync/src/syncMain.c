@@ -1372,7 +1372,7 @@ static void syncMonitorNodeRole(void *param, void *tmrId) {
     if (/*pPeer->role > TAOS_SYNC_ROLE_UNSYNCED && */ nodeRole > TAOS_SYNC_ROLE_UNSYNCED) continue;
     if (/*pPeer->sstatus > TAOS_SYNC_STATUS_INIT || */ nodeSStatus > TAOS_SYNC_STATUS_INIT) continue;
 
-    sDebug("%s, check roles since self:%s sstatus:%s, peer:%s sstatus:%s", pPeer->id, syncRole[pPeer->role],
+    sDebug("%s, check roles since peer:%s sstatus:%s, self:%s sstatus:%s", pPeer->id, syncRole[pPeer->role],
            syncStatus[pPeer->sstatus], syncRole[nodeRole], syncStatus[nodeSStatus]);
     syncSendPeersStatusMsgToPeer(pPeer, 1, SYNC_STATUS_CHECK_ROLE, syncGenTranId());
     break;
@@ -1459,7 +1459,12 @@ static int32_t syncForwardToPeerImpl(SSyncNode *pNode, void *data, void *mhandle
 
     if ((pNode->quorum > 1 || force) && code == 0) {
       code = syncSaveFwdInfo(pNode, pWalHead->version, mhandle);
-      if (code >= 0) code = 1;
+      if (code >= 0) {
+        code = 1;
+      } else {
+        pthread_mutex_unlock(&pNode->mutex);
+        return code;
+      }
     }
 
     int32_t retLen = taosWriteMsg(pPeer->peerFd, pSyncHead, fwdLen);
