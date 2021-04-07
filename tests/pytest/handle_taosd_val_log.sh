@@ -21,7 +21,7 @@ rm -rf /var/lib/taos/*
 nohup valgrind  --leak-check=yes $TAOSD_DIR > $TDIR/$VALGRIND_OUT 2> $TDIR/$VALGRIND_ERR  &
 sleep 20
 cd -
-./crash_gen.sh  -p -t 10 -s 200 
+./crash_gen.sh  -p -t 10 -s 1000 
 ps -ef |grep valgrind|grep -v grep|awk '{print $2}'|xargs kill -term
 while true 
 do
