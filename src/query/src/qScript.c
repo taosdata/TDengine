@@ -107,7 +107,7 @@ int taosLoadScriptInit(SUdfInit* pInit) {
   pInit->destroyCtxFunc = destroyScriptCtx;
 
   ScriptCtx *pCtx = pInit->script_ctx; 
-  char funcName[MAX_FUNC_NAME] = {0};
+  char funcName[MAX_FUNC_NAME + 10] = {0};
   sprintf(funcName, "%s_init", pCtx->funcName);
 
   lua_State* lua = pCtx->pEnv->lua_state;   
@@ -129,7 +129,7 @@ int taosLoadScriptNormal(char *pInput, int16_t iType, int16_t iBytes, int32_t nu
     int16_t oType, int16_t oBytes, SUdfInit *pInit) {
   ScriptCtx* pCtx = pInit->script_ctx;
 
-  char funcName[MAX_FUNC_NAME] = {0};
+  char funcName[MAX_FUNC_NAME + 10] = {0};
   sprintf(funcName, "%s_add", pCtx->funcName);
   lua_State* lua  = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);
