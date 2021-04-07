@@ -24,7 +24,9 @@ void demo(char* data, short itype, short ibytes, int numOfRows, long long* ts, c
    printf("demo input data:%p, type:%d, rows:%d, ts:%p,%lld, dataoutput:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, itype, numOfRows, ts, *ts, dataOutput, tsOutput, numOfOutput, buf);
 
    for(i=0;i<numOfRows;++i) {
-     if (itype == 6) {
+     if (itype == 4) {
+       r=*((int *)data+i);
+     } else if (itype == 6) {
        r=*((float *)data+i);
      } else if (itype == 7) {
        r=*((double *)data+i);
