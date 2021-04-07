@@ -338,11 +338,20 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   pReducer->resColModel->capacity = pReducer->nResultBufSize;
   pReducer->finalModel = pFFModel;
 
+  int32_t expandFactor = 1;
   if (finalmodel->rowSize > 0) {
-    pReducer->resColModel->capacity /= finalmodel->rowSize;
+    bool topBotQuery = tscIsTopbotQuery(pQueryInfo);
+    if (topBotQuery) {
+      expandFactor = tscGetTopbotQueryParam(pQueryInfo);
+      pReducer->resColModel->capacity /= (finalmodel->rowSize * expandFactor);
+      pReducer->resColModel->capacity *= expandFactor;
+    } else {
+      pReducer->resColModel->capacity /= finalmodel->rowSize;
+    }
   }
 
   assert(finalmodel->rowSize > 0 && finalmodel->rowSize <= pReducer->rowSize);
+
   pReducer->pFinalRes = calloc(1, pReducer->rowSize * pReducer->resColModel->capacity);
 
   if (pReducer->pTempBuffer == NULL || pReducer->discardData == NULL || pReducer->pResultBuf == NULL ||
@@ -1150,9 +1159,10 @@ static void fillMultiRowsOfTagsVal(SQueryInfo *pQueryInfo, int32_t numOfRes, SLo
     memset(buf, 0, (size_t)maxBufSize);
     memcpy(buf, pCtx->pOutput, (size_t)pCtx->outputBytes);
 
+    char* next = pCtx->pOutput;
     for (int32_t i = 0; i < inc; ++i) {
-      pCtx->pOutput += pCtx->outputBytes;
-      memcpy(pCtx->pOutput, buf, (size_t)pCtx->outputBytes);
+      next += pCtx->outputBytes;
+      memcpy(next, buf, (size_t)pCtx->outputBytes);
     }
   }
 
@@ -1440,6 +1450,11 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
   SQueryInfo    *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
   tFilePage     *tmpBuffer = pLocalMerge->pTempBuffer;
 
+  int32_t remain = 1;
+  if (tscIsTopbotQuery(pQueryInfo)) {
+    remain = tscGetTopbotQueryParam(pQueryInfo);
+  }
+
   if (doHandleLastRemainData(pSql)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -1528,7 +1543,7 @@ int32_t tscDoLocalMerge(SSqlObj *pSql) {
          * if the previous group does NOT generate any result (pResBuf->num == 0),
          * continue to process results instead of return results.
          */
-        if ((!sameGroup && pResBuf->num > 0) || (pResBuf->num == pLocalMerge->resColModel->capacity)) {
+        if ((!sameGroup && pResBuf->num > 0) || (pResBuf->num + remain >= pLocalMerge->resColModel->capacity)) {
           // does not belong to the same group
           bool notSkipped = genFinalResults(pSql, pLocalMerge, !sameGroup);
 

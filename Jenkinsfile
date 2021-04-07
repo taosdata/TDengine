@@ -42,20 +42,53 @@ def pre_test(){
     killall -9 taosd ||echo "no taosd running"
     killall -9 gdb || echo "no gdb running"
     cd ${WKC}
-    git checkout develop
-    git reset --hard HEAD~10 >/dev/null 
+    git reset --hard HEAD~10 >/dev/null
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh '''
+        cd ${WKC}
+        git checkout master
+        '''
+        }
+      else {
+        sh '''
+        cd ${WKC}
+        git checkout develop
+        '''
+      } 
+    }
+    sh'''
+    cd ${WKC}
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    find ${WKC}/tests/pytest -name \'*\'.sql -exec rm -rf {} \\;
+    git clean -dfx
     cd ${WK}
     git reset --hard HEAD~10
-    git checkout develop 
-    git pull >/dev/null 
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh '''
+        cd ${WK}
+        git checkout master
+        '''
+        }
+      else {
+        sh '''
+        cd ${WK}
+        git checkout develop
+        '''
+      } 
+    }
+    sh '''
+
     cd ${WK}
+    git pull >/dev/null 
+
     export TZ=Asia/Harbin
     date
-    rm -rf ${WK}/debug
+    git clean -dfx
     mkdir debug
     cd debug
     cmake .. > /dev/null
@@ -92,7 +125,8 @@ pipeline {
           git pull
           git fetch origin +refs/pull/${CHANGE_ID}/merge
           git checkout -qf FETCH_HEAD
-          '''
+          '''     
+          
           script{
             env.skipstage=sh(script:"cd ${WORKSPACE}.tes && git --no-pager diff --name-only FETCH_HEAD develop|grep -v -E '.*md|//src//connector|Jenkinsfile|test-all.sh' || echo 0 ",returnStdout:true) 
           }
@@ -185,14 +219,12 @@ pipeline {
             rm -rf /var/log/taos/*
             ./handle_crash_gen_val_log.sh
             '''
-            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                rm -rf /var/lib/taos/*
-                rm -rf /var/log/taos/*
-                ./handle_taosd_val_log.sh
-                '''
-            }
+            sh '''
+            cd ${WKC}/tests/pytest
+            rm -rf /var/lib/taos/*
+            rm -rf /var/log/taos/*
+            ./handle_taosd_val_log.sh
+            '''
             timeout(time: 45, unit: 'MINUTES'){
                 sh '''
                 date

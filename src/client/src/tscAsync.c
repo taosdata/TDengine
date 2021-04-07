@@ -301,7 +301,7 @@ static void tscAsyncResultCallback(SSchedMsg *pMsg) {
   taosReleaseRef(tscObjRef, pSql->self);
 }
 
-void tscAsyncResultOnError(SSqlObj* pSql) { 
+void tscAsyncResultOnError(SSqlObj* pSql) {
   SSchedMsg schedMsg = {0};
   schedMsg.fp = tscAsyncResultCallback;
   schedMsg.ahandle = (void *)pSql->self;
@@ -505,10 +505,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   return;
 
   _error:
-  if (code != TSDB_CODE_SUCCESS) {
-    pSql->res.code = code;
-    tscAsyncResultOnError(pSql);
-  }
-
+  pRes->code = code;
+  tscAsyncResultOnError(pSql);
   taosReleaseRef(tscObjRef, pSql->self);
 }

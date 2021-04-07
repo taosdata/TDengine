@@ -259,7 +259,7 @@ do { \
 #define TSDB_MIN_TABLES                 4
 #define TSDB_MAX_TABLES                 10000000
 #define TSDB_DEFAULT_TABLES             1000000
-#define TSDB_TABLES_STEP                100
+#define TSDB_TABLES_STEP                1000
 
 #define TSDB_MIN_DAYS_PER_FILE          1
 #define TSDB_MAX_DAYS_PER_FILE          3650 

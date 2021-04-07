@@ -120,7 +120,7 @@ function clean_service_on_systemd() {
   
     if [ "$verMode" == "cluster" ]; then
 		  nginx_service_config="${service_config_dir}/${nginx_service_name}.service"	
-   	 	if [ -d ${bin_dir}/web ]; then
+   	 	if [ -d ${install_nginxd_dir} ]; then
    	    if systemctl is-active --quiet ${nginx_service_name}; then
    	      echo "Nginx for TDengine is running, stopping it..."
    	      ${csudo} systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null

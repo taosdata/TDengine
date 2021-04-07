@@ -25,27 +25,24 @@ function stopTaosd {
 function dohavecore(){
   corefile=`find $corepath -mmin 1`  
   core_file=`echo $corefile|cut -d " " -f2`
-  echo $core_file
   proc=`echo $corefile|cut -d "_" -f3`
   if [ -n "$corefile" ];then
     echo 'taosd or taos has generated core'
+    rm case.log
     if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]] && [[ $1 == 1 ]]; then
       cd ../../../
       tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz debug/build/bin/taosd debug/build/bin/tsim debug/build/lib/libtaos*so*
       if [[ $2 == 1 ]];then
         cp -r sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S"`
-        rm -rf sim/case.log
       else
         cd community
         cp -r sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
-        rm -rf sim/case.log
       fi
     else 
       cd ../../
       if [[ $1 == 1 ]];then 
         tar -zcPf $corepath'taos_'`date "+%Y_%m_%d_%H_%M_%S"`.tar.gz debug/build/bin/taosd debug/build/bin/tsim debug/build/lib/libtaos*so*
         cp -r sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
-        rm -rf sim/case.log
       fi
     fi
     if [[ $1 == 1 ]];then
@@ -80,7 +77,6 @@ function runSimCaseOneByOne {
       # fi
       end_time=`date +%s`
       echo execution time of $case was `expr $end_time - $start_time`s. | tee -a out.log
-      dohavecore 0
     fi
   done < $1
 }
@@ -97,26 +93,25 @@ function runSimCaseOneByOnefq {
       date +%F\ %T | tee -a out.log
       if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
         echo -n $case
-        ./test.sh -f $case > ../../../sim/case.log 2>&1 && \
+        ./test.sh -f $case > case.log 2>&1 && \
         ( grep -q 'script.*'$case'.*failed.*, err.*lineNum' ../../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
         ( grep -q 'script.*success.*m$' ../../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
-        ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' && cat ../../../sim/case.log )
+        ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' && cat case.log )
       else
         echo -n $case
         ./test.sh -f $case > ../../sim/case.log 2>&1 && \
         ( grep -q 'script.*'$case'.*failed.*, err.*lineNum' ../../sim/tsim/log/taoslog0.0 && echo -e "${RED} failed${NC}" | tee -a out.log  ||  echo -e "${GREEN} success${NC}" | tee -a out.log )|| \
         ( grep -q 'script.*success.*m$' ../../sim/tsim/log/taoslog0.0 && echo -e "${GREEN} success${NC}" | tee -a out.log )  || \
-        ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' &&  cat ../../sim/case.log )
+        ( echo -e "${RED} failed${NC}" | tee -a out.log && echo '=====================log=====================' &&  cat case.log )
       fi
       
       out_log=`tail -1 out.log  `
       if [[ $out_log =~ 'failed' ]];then
+        rm case.log
         if [[ "$tests_dir" == *"$IN_TDINTERNAL"* ]]; then
           cp -r ../../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S"`
-          rm -rf ../../../sim/case.log
         else 
           cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
-          rm -rf ../../sim/case.log
         fi
         dohavecore $2 1
         if [[ $2 == 1 ]];then
@@ -157,7 +152,6 @@ function runPyCaseOneByOne {
       else
         $line > /dev/null 2>&1
       fi
-      dohavecore 0
     fi
   done < $1
 }
@@ -183,7 +177,7 @@ function runPyCaseOneByOnefq() {
         start_time=`date +%s`
         date +%F\ %T | tee -a pytest-out.log
         echo -n $case
-        $line > ../../sim/case.log 2>&1 && \
+        $line > case.log 2>&1 && \
           echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
           echo -e "${RED} failed${NC}" | tee -a pytest-out.log 
         end_time=`date +%s`
@@ -191,8 +185,8 @@ function runPyCaseOneByOnefq() {
         if [[ $out_log =~ 'failed' ]];then
           cp -r ../../sim ~/sim_`date "+%Y_%m_%d_%H:%M:%S" `
           echo '=====================log===================== '
-          cat ../../sim/case.log
-          rm -rf ../../sim/case.log
+          cat case.log
+          rm -rf case.log
           dohavecore $2 2
           if [[ $2 == 1 ]];then
             exit 8
@@ -463,10 +457,10 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
   echo "Running tests"
   ./apitest > /dev/null 2>&1
   if [ $? != "0" ]; then
-    echo "prepare failed"
+    echo "apitest failed"
     totalExampleFailed=`expr $totalExampleFailed + 1`    
   else
-    echo "prepare pass"
+    echo "apitest pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi 
 
@@ -481,19 +475,19 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
 
   ./subscribe -test > /dev/null 2>&1
   if [ $? != "0" ]; then
-    echo "prepare failed"
+    echo "subscribe failed"
     totalExampleFailed=`expr $totalExampleFailed + 1`    
   else
-    echo "prepare pass"
+    echo "subscribe pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi
 
   yes |./asyncdemo 127.0.0.1 test 1000 10 > /dev/null 2>&1
   if [ $? != "0" ]; then
-    echo "prepare failed"
+    echo "asyncdemo failed"
     totalExampleFailed=`expr $totalExampleFailed + 1`    
   else
-    echo "prepare pass"
+    echo "asyncdemo pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi
   

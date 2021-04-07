@@ -22,6 +22,7 @@ python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
 python3 ./test.py -f insert/before_1970.py
 python3 bug2265.py
+python3 ./test.py -f insert/bug3654.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -139,6 +140,18 @@ python3 ./test.py -f import_merge/importInsertThenImport.py
 python3 ./test.py -f import_merge/importCSV.py
 #======================p1-end===============
 #======================p2-start===============
+# tools
+python3 test.py -f tools/taosdumpTest.py
+
+python3 test.py -f tools/taosdemoTest.py
+python3 test.py -f tools/taosdemoTestWithoutMetric.py
+python3 test.py -f tools/taosdemoTestWithJson.py
+python3 test.py -f tools/taosdemoTestLimitOffset.py
+python3 test.py -f tools/taosdemoTestTblAlt.py
+python3 test.py -f tools/taosdemoTestSampleData.py
+python3 test.py -f tools/taosdemoTestInterlace.py
+python3 test.py -f tools/taosdemoTestQuery.py
+
 # update
 python3 ./test.py -f update/allow_update.py
 python3 ./test.py -f update/allow_update-0.py
@@ -166,6 +179,7 @@ python3 ./test.py -f stable/query_after_reset.py
 
 # perfbenchmark
 python3 ./test.py -f perfbenchmark/bug3433.py
+#python3 ./test.py -f perfbenchmark/bug3589.py
 
 
 #query
@@ -200,6 +214,8 @@ python3 ./test.py -f query/bug2119.py
 python3 ./test.py -f query/isNullTest.py
 python3 ./test.py -f query/queryWithTaosdKilled.py
 python3 ./test.py -f query/floatCompare.py
+python3 ./test.py -f query/query1970YearsAf.py
+python3 ./test.py -f query/bug3351.py
 python3 ./test.py -f query/bug3375.py
 
 
@@ -245,18 +261,6 @@ python3 test.py -f subscribe/supertable.py
 
 #======================p3-end===============
 #======================p4-start===============
-
-# tools
-python3 test.py -f tools/taosdumpTest.py
-
-python3 test.py -f tools/taosdemoTest.py
-python3 test.py -f tools/taosdemoTestWithoutMetric.py
-python3 test.py -f tools/taosdemoTestWithJson.py
-python3 test.py -f tools/taosdemoTestLimitOffset.py
-python3 test.py -f tools/taosdemoTest2.py
-python3 test.py -f tools/taosdemoTestSampleData.py
-python3 test.py -f tools/taosdemoTestInterlace.py
-python3 test.py -f tools/taosdemoTestQuery.py
 
 python3 ./test.py -f update/merge_commit_data-0.py
 # wal
