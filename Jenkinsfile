@@ -70,13 +70,13 @@ def pre_test(){
     script {
       if (env.CHANGE_TARGET == 'master') {
         sh '''
-        cd ${WKC}
+        cd ${WK}
         git checkout master
         '''
         }
       else {
         sh '''
-        cd ${WKC}
+        cd ${WK}
         git checkout develop
         '''
       } 
