@@ -71,10 +71,10 @@ static void luaLoadLibraries(lua_State *lua) {
   luaLoadLib(lua, LUA_STRLIBNAME, luaopen_string);
   luaLoadLib(lua, LUA_MATHLIBNAME, luaopen_math);
   luaLoadLib(lua, LUA_DBLIBNAME, luaopen_debug);
-  luaLoadLib(lua, "cjson", luaopen_cjson);
-  luaLoadLib(lua, "struct", luaopen_struct);
-  luaLoadLib(lua, "cmsgpack", luaopen_cmsgpack);
-  luaLoadLib(lua, "bit", luaopen_bit);
+  //luaLoadLib(lua, "cjson", luaopen_cjson);
+  //luaLoadLib(lua, "struct", luaopen_struct);
+  //luaLoadLib(lua, "cmsgpack", luaopen_cmsgpack);
+  //luaLoadLib(lua, "bit", luaopen_bit);
 }
 static void luaRemoveUnsupportedFunctions(lua_State *lua) {
   lua_pushnil(lua);
@@ -158,6 +158,7 @@ int taosLoadScriptNormal(char *pInput, int16_t iType, int16_t iBytes, int32_t nu
   return 0;
 }
 int taosLoadScriptFinalize(char *pOutput, int32_t output, SUdfInit *pInit) {
+  //do not support agg now
   return 0;
 }
 int taosLoadScriptDestroy(SUdfInit* pInit) {
@@ -165,7 +166,7 @@ int taosLoadScriptDestroy(SUdfInit* pInit) {
   return 0;
 }
 
-ScriptCtx* createScriptCtx(const char *script) {
+ScriptCtx* createScriptCtx(char *script) {
   ScriptCtx *pCtx = (ScriptCtx *)calloc(1, sizeof(ScriptCtx)); 
   pCtx->state = SCRIPT_STATE_INIT; 
   pCtx->pEnv = getScriptEnvFromPool();  //  
@@ -183,7 +184,7 @@ ScriptCtx* createScriptCtx(const char *script) {
     return NULL;
   } 
   lua_getglobal(lua, USER_FUNC_NAME);
-  char *name = lua_tostring(lua, -1); 
+  const char *name = lua_tostring(lua, -1); 
   if (name == NULL) {
     lua_pop(lua, 1);
     qError("SCRIPT ERROR: invalid script");
@@ -470,7 +471,7 @@ bool isValidScript(const char *script) {
     return false;
   }
   lua_getglobal(lua, USER_FUNC_NAME);
-  char *name = lua_tostring(lua, -1);
+  const char *name = lua_tostring(lua, -1);
   if (name == NULL || strlen(name) >= USER_FUNC_NAME_LIMIT) {
     lua_pop(lua, 1);
     addScriptEnvToPool(pEnv); 

@@ -71,7 +71,7 @@ typedef struct {
   pthread_mutex_t mutex;
 } ScriptEnvPool;
 
-ScriptCtx* createScriptCtx(const char *str);
+ScriptCtx* createScriptCtx(char *str);
 void       destroyScriptCtx(void *pScriptCtx);
 
 int32_t scriptEnvPoolInit();
@@ -79,7 +79,7 @@ void    scriptEnvPoolCleanup();
 bool    isValidScript(const char *sript);
 
 
-void execUdf(struct ScriptCtx*ctx, char *input, int16_t iType, int16_t iBytes, int32_t numOfInput, 
-    int64_t* ts, char* dataOutput, char *tsOutput, int32_t* numOfOutput, char *interbuf, int16_t oType, int16_t oBytes);  
+//void execUdf(struct ScriptCtx*ctx, char *input, int16_t iType, int16_t iBytes, int32_t numOfInput, 
+//    int64_t* ts, char* dataOutput, char *tsOutput, int32_t* numOfOutput, char *interbuf, int16_t oType, int16_t oBytes);  
 
 #endif //TDENGINE_QSCRIPT_H 

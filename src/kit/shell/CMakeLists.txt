@@ -12,9 +12,9 @@ IF (TD_LINUX)
   ADD_EXECUTABLE(shell ${SRC})
 
   IF (TD_SOMODE_STATIC)
-    TARGET_LINK_LIBRARIES(shell taos_static)
+    TARGET_LINK_LIBRARIES(shell taos_static lua)
   ELSE ()
-    TARGET_LINK_LIBRARIES(shell taos)
+    TARGET_LINK_LIBRARIES(shell taos lua)
   ENDIF ()
 
   SET_TARGET_PROPERTIES(shell PROPERTIES OUTPUT_NAME taos)
