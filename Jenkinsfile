@@ -85,6 +85,7 @@ def pre_test(){
 
     cd ${WK}
     git pull >/dev/null 
+
     export TZ=Asia/Harbin
     date
     git clean -dfx
