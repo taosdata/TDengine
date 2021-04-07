@@ -3479,9 +3479,11 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       if (childTblExists
               && childTblExists->type == cJSON_String
               && childTblExists->valuestring != NULL) {
-        if (0 == strncasecmp(childTblExists->valuestring, "yes", 3)) {
+        if ((0 == strncasecmp(childTblExists->valuestring, "yes", 3))
+            && (g_Dbs.db[i].drop == false)) {
           g_Dbs.db[i].superTbls[j].childTblExists = TBL_ALREADY_EXISTS;
-        } else if (0 == strncasecmp(childTblExists->valuestring, "no", 2)) {
+        } else if ((0 == strncasecmp(childTblExists->valuestring, "no", 2)
+              || (g_Dbs.db[i].drop == true))) {
           g_Dbs.db[i].superTbls[j].childTblExists = TBL_NO_EXISTS;
         } else {
           g_Dbs.db[i].superTbls[j].childTblExists = TBL_NO_EXISTS;
@@ -3527,7 +3529,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       }
 
       cJSON* childTbl_limit = cJSON_GetObjectItem(stbInfo, "childtable_limit");
-      if ((childTbl_limit) && (g_Dbs.db[i].drop != true)) {
+      if ((childTbl_limit) && (g_Dbs.db[i].drop != true)
+          && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
         if (childTbl_limit->type != cJSON_Number) {
             printf("ERROR: failed to read json, childtable_limit\n");
             goto PARSE_OVER;
@@ -3538,7 +3541,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       }
 
       cJSON* childTbl_offset = cJSON_GetObjectItem(stbInfo, "childtable_offset");
-      if ((childTbl_offset) && (g_Dbs.db[i].drop != true)) {
+      if ((childTbl_offset) && (g_Dbs.db[i].drop != true)
+          && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
         if (childTbl_offset->type != cJSON_Number || 0 > childTbl_offset->valueint) {
             printf("ERROR: failed to read json, childtable_offset\n");
             goto PARSE_OVER;
