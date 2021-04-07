@@ -6,6 +6,7 @@ node {
 }
 
 def skipstage=0
+
 def abortPreviousBuilds() {
   def currentJobName = env.JOB_NAME
   def currentBuildNumber = env.BUILD_NUMBER.toInteger()
@@ -24,7 +25,7 @@ def abortPreviousBuilds() {
     build.doKill()    //doTerm(),doKill(),doTerm()
   }
 }
-//abort previous build
+//  abort previous build
 abortPreviousBuilds()
 def abort_previous(){
   def buildNumber = env.BUILD_NUMBER as int
@@ -32,20 +33,30 @@ def abort_previous(){
   milestone(buildNumber)
 }
 def pre_test(){
-
+    
+    
     sh '''
     sudo rmtaos || echo "taosd has not installed"
     '''
     sh '''
-    
+    killall -9 taosd ||echo "no taosd running"
+    killall -9 gdb || echo "no gdb running"
     cd ${WKC}
-    git checkout develop
-    git reset --hard HEAD~10 >/dev/null 
+    git reset --hard HEAD~10 >/dev/null
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh 'git checkout master'
+        }
+      else {
+        sh 'git checkout develop'
+      } 
+    }
+    sh'''
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git --no-pager diff --name-only FETCH_HEAD $(git merge-base FETCH_HEAD develop)|grep -v -E '.*md|//src//connector|Jenkinsfile'
-    find ${WKC}/tests/pytest -name \'*\'.sql -exec rm -rf {} \\;
+    git clean -dfx
     cd ${WK}
     git reset --hard HEAD~10
     '''
@@ -62,7 +73,7 @@ def pre_test(){
     cd ${WK}
     export TZ=Asia/Harbin
     date
-    rm -rf ${WK}/debug
+    git clean -dfx
     mkdir debug
     cd debug
     cmake .. > /dev/null
@@ -88,6 +99,10 @@ pipeline {
               changeRequest()
           }
           steps {
+            script{
+              abort_previous()
+              abortPreviousBuilds()
+            }
           sh'''
           cp -r ${WORKSPACE} ${WORKSPACE}.tes
           cd ${WORKSPACE}.tes
@@ -189,6 +204,12 @@ pipeline {
             rm -rf /var/log/taos/*
             ./handle_crash_gen_val_log.sh
             '''
+            sh '''
+            cd ${WKC}/tests/pytest
+            rm -rf /var/lib/taos/*
+            rm -rf /var/log/taos/*
+            ./handle_taosd_val_log.sh
+            '''
             timeout(time: 45, unit: 'MINUTES'){
                 sh '''
                 date
@@ -218,6 +239,11 @@ pipeline {
               date
               cd ${WKC}/tests
               ./test-all.sh b3fq
+              date'''
+              sh '''
+              date
+              cd ${WKC}/tests
+              ./test-all.sh full example
               date'''
             }
           }
@@ -276,7 +302,7 @@ pipeline {
               date
               cd ${WKC}/tests
               ./test-all.sh b7fq
-              date'''
+              date'''              
             }
           }
         }        
