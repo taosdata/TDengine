@@ -137,7 +137,7 @@ class TDTestCase:
         tdSql.query("select count(*) from stb2")
         tdSql.checkData(0, 0, 360) 
         tdSql.query("select count(*) from stb3")
-        tdSql.checkData(0, 0, 180)
+        tdSql.checkData(0, 0, 340)
         tdSql.query("select count(*) from stb4")
         tdSql.checkData(0, 0, 400)
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-renewdb.json -y" % binPath)
