@@ -82,6 +82,7 @@ def pre_test(){
       } 
     }
     sh '''
+
     cd ${WK}
     git pull >/dev/null 
 
