@@ -769,6 +769,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                   && strcasecmp(token, "BINARY")
                   && strcasecmp(token, "NCHAR")) {
             printHelp();
+            free(dupstr);
             ERROR_EXIT("Invalid data_type!\n");
             exit(EXIT_FAILURE);
           }
@@ -776,6 +777,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
           token = strsep(&running, ",");
           if (index >= MAX_NUM_DATATYPE) break;
         }
+        free(dupstr);
         sptr[index] = NULL;
       }
     } else if (strcmp(argv[i], "-w") == 0) {
@@ -3525,18 +3527,18 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       }
 
       cJSON* childTbl_limit = cJSON_GetObjectItem(stbInfo, "childtable_limit");
-      if (childTbl_limit) {
+      if ((childTbl_limit) && (g_Dbs.db[i].drop != true)) {
         if (childTbl_limit->type != cJSON_Number) {
             printf("ERROR: failed to read json, childtable_limit\n");
             goto PARSE_OVER;
         }
         g_Dbs.db[i].superTbls[j].childTblLimit = childTbl_limit->valueint;
       } else {
-        g_Dbs.db[i].superTbls[j].childTblLimit = -1;    // select ... limit -1 means all query result
+        g_Dbs.db[i].superTbls[j].childTblLimit = -1;    // select ... limit -1 means all query result, drop = yes mean all table need recreate, limit value is invalid.
       }
 
       cJSON* childTbl_offset = cJSON_GetObjectItem(stbInfo, "childtable_offset");
-      if (childTbl_offset) {
+      if ((childTbl_offset) && (g_Dbs.db[i].drop != true)) {
         if (childTbl_offset->type != cJSON_Number || 0 > childTbl_offset->valueint) {
             printf("ERROR: failed to read json, childtable_offset\n");
             goto PARSE_OVER;
@@ -5168,7 +5170,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
     if ((superTblInfo->childTblExists == TBL_ALREADY_EXISTS)
             && (superTblInfo->childTblOffset >= 0)) {
-      if (superTblInfo->childTblLimit < 0) {
+      if ((superTblInfo->childTblLimit < 0) 
+          || ((superTblInfo->childTblOffset + superTblInfo->childTblLimit) 
+            > (superTblInfo->childTblCount))) {
         superTblInfo->childTblLimit =
             superTblInfo->childTblCount - superTblInfo->childTblOffset;
       }
