@@ -1,4 +1,4 @@
-package com.taosdata.tsync;
+package com.taosdata.tsync.socket;
 
 import java.io.*;
 import java.net.Socket;
@@ -13,7 +13,6 @@ public class SocketClient {
             out.println("[" + i + "] : this is a test String ");
             out.flush();
         }
-
         socket.close();
     }
 }

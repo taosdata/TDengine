@@ -1,4 +1,4 @@
-package com.taosdata.tsync;
+package com.taosdata.tsync.socket;
 
 import java.io.*;
 import java.net.ServerSocket;
