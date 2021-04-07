@@ -41,7 +41,6 @@ class TDTestCase:
         return buildPath
         
     def run(self):
-        tdSql.prepare()
         buildPath = self.getBuildPath()
         if (buildPath == ""):
             tdLog.exit("taosd not found!")
@@ -102,10 +101,10 @@ class TDTestCase:
         # # spend 2min30s for 3 testcases.
 
         # insert: using parament "childtable_offset and childtable_limit" to control  table'offset point and offset 
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-ctbexist.json -y" % binPath)
-        tdSql.query("show db.tables")
+        os.system("%staosdemo -f tools/taosdemoAllTest/nodbnodrop.json -y" % binPath)
+        tdSql.query("show databases")
         tdSql.checkRows(0)
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-dbexist.json -y" % binPath)
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-newdb.json -y" % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 5)
@@ -129,6 +128,31 @@ class TDTestCase:
         tdSql.checkData(0, 0, 180)
         tdSql.query("select count(*) from stb4")
         tdSql.checkData(0, 0, 160)
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-newtable.json -y" % binPath)
+        tdSql.execute("use db")             
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 150) 
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 360) 
+        tdSql.query("select count(*) from stb2")
+        tdSql.checkData(0, 0, 360) 
+        tdSql.query("select count(*) from stb3")
+        tdSql.checkData(0, 0, 180)
+        tdSql.query("select count(*) from stb4")
+        tdSql.checkData(0, 0, 400)
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-renewdb.json -y" % binPath)
+        tdSql.execute("use db")             
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 50) 
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 120) 
+        tdSql.query("select count(*) from stb2")
+        tdSql.checkData(0, 0, 140) 
+        tdSql.query("select count(*) from stb3")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from stb4")
+        tdSql.checkData(0, 0, 160)
+
 
         # # insert:  let parament in json file  is illegal ，i need know how to write  exception.
         # os.system("%staosdemo -f tools/taosdemoAllTest/insert-illegal.json -y " % binPath)

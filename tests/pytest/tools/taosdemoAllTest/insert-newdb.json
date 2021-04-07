@@ -19,7 +19,7 @@
             "drop": "yes",
             "replica": 1,
             "days": 10,
-            "cache": 16,
+            "cache": 16,    
             "blocks": 8,
             "precision": "ms",
             "keep": 365,
@@ -33,8 +33,8 @@
             "update": 1
         },
         "super_tables": [{
-            "name": "stb0",
-            "child_table_exists":"no",
+            "name": "stb0", 
+            "child_table_exists":"yes",
             "childtable_count": 5,
             "childtable_prefix": "stb00_",
             "auto_create_table": "no",
