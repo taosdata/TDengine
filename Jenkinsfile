@@ -70,13 +70,13 @@ def pre_test(){
     script {
       if (env.CHANGE_TARGET == 'master') {
         sh '''
-        cd ${WKC}
+        cd ${WK}
         git checkout master
         '''
         }
       else {
         sh '''
-        cd ${WKC}
+        cd ${WK}
         git checkout develop
         '''
       } 
@@ -84,6 +84,7 @@ def pre_test(){
     sh '''
     cd ${WK}
     git pull >/dev/null 
+
     export TZ=Asia/Harbin
     date
     git clean -dfx
