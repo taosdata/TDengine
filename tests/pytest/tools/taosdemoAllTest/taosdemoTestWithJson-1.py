@@ -99,31 +99,36 @@ class TDTestCase:
         # tdSql.query("select count(*) from stb1")
         # tdSql.checkData(0, 0, 2000000)           
         
-        # #spend 2min30s for 3 testcases.
+        # # spend 2min30s for 3 testcases.
 
-        # # insert: using parament "childtable_offset and childtable_limit" to control  table'offset point and offset 
-        # os.system("%staosdemo -f tools/taosdemoAllTest/insert-offset.json -y" % binPath)
-        # tdSql.execute("use db")
-        # tdSql.query("select count (tbname) from stb0")
-        # tdSql.checkData(0, 0, 5)
-        # tdSql.query("select count (tbname) from stb1")
-        # tdSql.checkData(0, 0, 6)
-        # tdSql.query("select count (tbname) from stb2")
-        # tdSql.checkData(0, 0, 7)
-        # tdSql.query("select count (tbname) from stb3")
-        # tdSql.checkData(0, 0, 8)        
-        # tdSql.query("select count (tbname) from stb4")
-        # tdSql.checkData(0, 0, 8)       
-        # tdSql.query("select count(*) from stb0")
-        # tdSql.checkData(0, 0, 0) 
-        # tdSql.query("select count(*) from stb1")
-        # tdSql.checkData(0, 0, 120) 
-        # tdSql.query("select count(*) from stb2")
-        # tdSql.checkData(0, 0, 80) 
-        # tdSql.query("select count(*) from stb3")
-        # tdSql.checkData(0, 0, 20) 
-        # tdSql.query("select count(*) from stb3")
-        # tdSql.checkData(0, 0, 0) 
+        # insert: using parament "childtable_offset and childtable_limit" to control  table'offset point and offset 
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-ctbexist.json -y" % binPath)
+        tdSql.query("show db.tables")
+        tdSql.checkRows(0)
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-dbexist.json -y" % binPath)
+        tdSql.execute("use db")
+        tdSql.query("select count (tbname) from stb0")
+        tdSql.checkData(0, 0, 5)
+        tdSql.query("select count (tbname) from stb1")
+        tdSql.checkData(0, 0, 6)
+        tdSql.query("select count (tbname) from stb2")
+        tdSql.checkData(0, 0, 7)
+        tdSql.query("select count (tbname) from stb3")
+        tdSql.checkData(0, 0, 8)        
+        tdSql.query("select count (tbname) from stb4")
+        tdSql.checkData(0, 0, 8)  
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-offset.json -y" % binPath)
+        tdSql.execute("use db")             
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 50) 
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 240) 
+        tdSql.query("select count(*) from stb2")
+        tdSql.checkData(0, 0, 220) 
+        tdSql.query("select count(*) from stb3")
+        tdSql.checkData(0, 0, 180)
+        tdSql.query("select count(*) from stb4")
+        tdSql.checkData(0, 0, 160)
 
         # # insert:  let parament in json file  is illegal ，i need know how to write  exception.
         # os.system("%staosdemo -f tools/taosdemoAllTest/insert-illegal.json -y " % binPath)
@@ -132,7 +137,7 @@ class TDTestCase:
         # tdSql.checkData(0, 4, 10)
         # tdSql.checkData(1, 4, 20)
 
-        # # # insert: timestamp and step 
+        # # insert: timestamp and step 
         # os.system("%staosdemo -f tools/taosdemoAllTest/insert-timestep.json -y " % binPath)
         # tdSql.execute("use db")
         # tdSql.query("show stables")
@@ -149,7 +154,7 @@ class TDTestCase:
         # tdSql.query("select count(*) from stb1")
         # tdSql.checkData(0, 0, 400) 
 
-        # # insert:  disorder_ratio
+        # # # insert:  disorder_ratio
         # os.system("%staosdemo -f tools/taosdemoAllTest/insert-disorder.json -y " % binPath)
         # tdSql.execute("use db")
         # tdSql.query("select count (tbname) from stb0")
@@ -165,14 +170,30 @@ class TDTestCase:
         # tdSql.query("select count(*) from stb1")
         # tdSql.checkData(0, 0, 400) 
 
-        # insert:  query json
-        os.system("%staosdemo -f tools/taosdemoAllTest/query-interrupt.json -y " % binPath)
-        tdSql.execute("use db")
-        tdSql.query("select count (tbname) from stb0")
-        tdSql.checkData(0, 0, 100)
+        # # insert:  query json
+        # os.system("%staosdemo -f tools/taosdemoAllTest/query-interrupt.json -y " % binPath)
+        # tdSql.execute("use db")
+        # tdSql.query("select count (tbname) from stb0")
+        # tdSql.checkData(0, 0, 100)
+
+        # # # insert:  disorder_ratio
+        # os.system("%staosdemo -f tools/taosdemoAllTest/insert-disorder.json -y " % binPath)
+        # tdSql.execute("use db")
+        # tdSql.query("select count (tbname) from stb0")
+        # tdSql.checkData(0, 0, 1)
+        # tdSql.query("select count (tbname) from stb1")
+        # tdSql.checkData(0, 0, 1)
+        # tdSql.query("select last(ts) from db.stb00_0")
+        # tdSql.checkData(0, 0, "2020-10-01 00:00:00.019000")   
+        # tdSql.query("select count(*) from stb0")
+        # tdSql.checkData(0, 0, 200) 
+        # tdSql.query("select last(ts) from db.stb01_0")
+        # tdSql.checkData(0, 0, "2020-10-01 00:00:00.190000")   
+        # tdSql.query("select count(*) from stb1")
+        # tdSql.checkData(0, 0, 400)         
+
         
-        
-        os.system("rm -rf insert_res.txt")
+        os.system("rm -rf insert_res.txt")        
         
         
     def stop(self):
