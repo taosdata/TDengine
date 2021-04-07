@@ -171,6 +171,8 @@ matrix:
           - build-essential
           - cmake
           - binutils-2.26
+          - unixodbc
+          - unixodbc-dev
     env: 
       - DESC="trusty/gcc-4.8/bintuils-2.26 build"
 
@@ -198,6 +200,8 @@ matrix:
         packages:
           - build-essential
           - cmake
+          - unixodbc
+          - unixodbc-dev
 
     before_script:
       - export TZ=Asia/Harbin
@@ -252,6 +256,8 @@ matrix:
         packages:
           - build-essential
           - cmake
+          - unixodbc
+          - unixodbc-dev
     env:
       - DESC="arm64 xenial build"
 
@@ -280,6 +286,7 @@ matrix:
     addons:
       homebrew:
         - cmake
+        - unixodbc
 
     script:
       - cd ${TRAVIS_BUILD_DIR}

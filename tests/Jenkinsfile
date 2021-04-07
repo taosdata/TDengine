@@ -1,9 +1,8 @@
 def pre_test(){
-    catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                sudo rmtaos
-                '''
-    }
+   
+    sh '''
+    sudo rmtaos||echo 'no taosd installed'
+    '''
     sh '''
     cd ${WKC}
     git reset --hard
@@ -56,14 +55,8 @@ pipeline {
             cd ${WKC}/tests
             ./test-all.sh b1
             date'''
-            sh '''
-            cd ${WKC}/tests
-            ./test-all.sh full jdbc
-            date'''
-            sh '''
-            cd ${WKC}/tests
-            ./test-all.sh full unit
-            date'''
+            
+            
           }
         }
 
@@ -83,9 +76,20 @@ pipeline {
             catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
                 sh '''
                 cd ${WKC}/tests/pytest
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
                 ./handle_crash_gen_val_log.sh
                 '''
             }
+            catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+                sh '''
+                cd ${WKC}/tests/pytest
+                rm -rf /var/lib/taos/*
+                rm -rf /var/log/taos/*
+                ./handle_taosd_val_log.sh
+                '''
+            }
+            
             sh'''
             systemctl start taosd 
             sleep 10
@@ -136,6 +140,10 @@ pipeline {
             ./test-all.sh b2
             date
             '''
+            sh '''
+            cd ${WKC}/tests
+            ./test-all.sh full unit
+            date'''
           }
         }
 
@@ -154,6 +162,10 @@ pipeline {
                 '''
             }
             sh '''
+            cd ${WKC}/tests
+            ./test-all.sh full jdbc
+            date'''
+            sh '''
             cd ${WKC}/tests/pytest
             ./valgrind-test.sh 2>&1 > mem-error-out.log
             ./handle_val_log.sh
@@ -161,6 +173,11 @@ pipeline {
             date
             cd ${WKC}/tests
             ./test-all.sh b3
+            date'''
+            sh '''
+            date
+            cd ${WKC}/tests
+            ./test-all.sh full example
             date'''
           }
         }

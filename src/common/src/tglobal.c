@@ -51,7 +51,7 @@ int32_t tsMaxShellConns  = 50000;
 int32_t tsMaxConnections = 5000;
 int32_t tsShellActivityTimer  = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0f;
-int32_t tsNumOfCommitThreads = 1;
+int32_t tsNumOfCommitThreads = 4;
 float   tsRatioOfQueryCores = 1.0f;
 int8_t  tsDaylight       = 0;
 char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
@@ -71,7 +71,7 @@ int32_t tsMaxBinaryDisplayWidth = 30;
 int32_t tsCompressMsgSize = -1;
 
 // client
-int32_t tsMaxSQLStringLen = TSDB_MAX_SQL_LEN;
+int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
 int8_t  tsTscEnableRecordSql = 0;
 
 // the maximum number of results for projection query on super table that are returned from

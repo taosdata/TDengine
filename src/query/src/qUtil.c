@@ -66,8 +66,8 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
     return;
   }
 
-  if (pResultRowInfo->type == TSDB_DATA_TYPE_BINARY || pResultRowInfo->type == TSDB_DATA_TYPE_NCHAR) {
-    for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
+  for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
+    if (pResultRowInfo->pResult[i]) {
       tfree(pResultRowInfo->pResult[i]->key);
     }
   }
@@ -153,11 +153,8 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
   pResultRow->offset = -1;
   pResultRow->closed = false;
 
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    tfree(pResultRow->key);
-  } else {
-    pResultRow->win = TSWINDOW_INITIALIZER;
-  }
+  tfree(pResultRow->key);
+  pResultRow->win = TSWINDOW_INITIALIZER;
 }
 
 // TODO refactor: use macro
@@ -468,7 +465,7 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
   pTableQueryInfoList = malloc(POINTER_BYTES * size);
 
   if (pTableQueryInfoList == NULL || posList == NULL || pGroupResInfo->pRows == NULL || pGroupResInfo->pRows == NULL) {
-    qError("QInfo:%p failed alloc memory", pRuntimeEnv->qinfo);
+    qError("QInfo:%"PRIu64" failed alloc memory", GET_QID(pRuntimeEnv));
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _end;
   }
@@ -540,7 +537,7 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
 
   int64_t endt = taosGetTimestampMs();
 
-  qDebug("QInfo:%p result merge completed for group:%d, elapsed time:%" PRId64 " ms", pRuntimeEnv->qinfo,
+  qDebug("QInfo:%"PRIu64" result merge completed for group:%d, elapsed time:%" PRId64 " ms", GET_QID(pRuntimeEnv),
          pGroupResInfo->currentGroup, endt - startt);
 
   _end:
@@ -567,13 +564,13 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, SQueryRuntimeEnv* pRu
       break;
     }
 
-    qDebug("QInfo:%p no result in group %d, continue", pRuntimeEnv->qinfo, pGroupResInfo->currentGroup);
+    qDebug("QInfo:%"PRIu64" no result in group %d, continue", GET_QID(pRuntimeEnv), pGroupResInfo->currentGroup);
     cleanupGroupResInfo(pGroupResInfo);
     incNextGroup(pGroupResInfo);
   }
 
   int64_t elapsedTime = taosGetTimestampUs() - st;
-  qDebug("QInfo:%p merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", pRuntimeEnv->qinfo,
+  qDebug("QInfo:%"PRIu64" merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", GET_QID(pRuntimeEnv),
          pGroupResInfo->currentGroup, pGroupResInfo->totalGroup, elapsedTime);
 
 //  pQInfo->summary.firstStageMergeTime += elapsedTime;

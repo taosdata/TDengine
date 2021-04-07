@@ -381,6 +381,8 @@ static bool mnodeAllOnline() {
   void *pIter = NULL;
   bool  allOnline = true;
 
+  sdbUpdateMnodeRoles();
+
   while (1) {
     SMnodeObj *pMnode = NULL;
     pIter = mnodeGetNextMnode(pIter, &pMnode);

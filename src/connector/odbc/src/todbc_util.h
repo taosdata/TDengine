@@ -23,11 +23,24 @@
 
 const char* sql_sql_type(int type);
 const char* sql_c_type(int type);
+const char* sql_handle_type(int type);
+const char* sql_env_attr_type(int type);
+const char* sql_conn_attr_type(int type);
+const char* sql_info_type(int type);
+const char* sql_field_identifier(int type);
+const char* sql_diag_identifier(int type);
+const char* sql_input_output_type(int type);
+const char* sql_stmt_attr_type(int type);
+const char* sql_function_type(int type);
+const char* sql_freestmt_option_type(int type);
+const char* sql_soi_type(int soi);
+const char* sql_nullable_type(int type);
 
 int is_valid_sql_c_type(int type);
 int is_valid_sql_sql_type(int type);
 
 int utf8_chars(const char *src);
+int charset_chars(const char *charset, const unsigned char *src);
 
 #endif // _TODBC_UTIL_H_
 

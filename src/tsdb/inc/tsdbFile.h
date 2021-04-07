@@ -334,7 +334,7 @@ static FORCE_INLINE int tsdbOpenDFileSet(SDFileSet* pSet, int flags) {
 
 static FORCE_INLINE void tsdbRemoveDFileSet(SDFileSet* pSet) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    tsdbRemoveDFile(TSDB_DFILE_IN_SET(pSet, ftype));
+    (void)tsdbRemoveDFile(TSDB_DFILE_IN_SET(pSet, ftype));
   }
 }
 

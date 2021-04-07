@@ -309,7 +309,7 @@ TAOS_ROW tscFetchRow(void *param) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
   
-  if (pRes->qhandle == 0 ||
+  if (pRes->qId == 0 ||
       pCmd->command == TSDB_SQL_RETRIEVE_EMPTY_RESULT ||
       pCmd->command == TSDB_SQL_INSERT) {
     return NULL;
@@ -905,7 +905,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
      * set the qhandle to be 1 in order to pass the qhandle check, and to call partial release function to
      * free allocated resources and remove the SqlObj from sql query linked list
      */
-    pRes->qhandle = 0x1;
+    pRes->qId = 0x1;
     pRes->numOfRows = 0;
   } else if (pCmd->command == TSDB_SQL_SHOW_CREATE_TABLE) {
     pRes->code = tscProcessShowCreateTable(pSql); 

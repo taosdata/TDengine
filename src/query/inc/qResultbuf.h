@@ -72,7 +72,7 @@ typedef struct SDiskbasedResultBuf {
   bool      comp;                // compressed before flushed to disk
   int32_t   nextPos;             // next page flush position
 
-  const void*      handle;       // for debug purpose
+  uint64_t  qId;                 // for debug purpose
   SResultBufStatis statis;
 } SDiskbasedResultBuf;
 
@@ -88,7 +88,7 @@ typedef struct SDiskbasedResultBuf {
  * @param handle
  * @return
  */
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, const void* handle);
+int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId);
 
 /**
  *

@@ -142,15 +142,15 @@ typedef struct SCond {
 } SCond;
 
 typedef struct SJoinNode {
-  char     tableName[TSDB_TABLE_FNAME_LEN];
   uint64_t uid;
   int16_t  tagColId;
+  SArray*  tsJoin;
+  SArray*  tagJoin;
 } SJoinNode;
 
 typedef struct SJoinInfo {
-  bool      hasJoin;
-  SJoinNode left;
-  SJoinNode right;
+  bool      hasJoin;  
+  SJoinNode*  joinTables[TSDB_MAX_JOIN_TABLE_NUM];
 } SJoinInfo;
 
 typedef struct STagCond {
@@ -175,6 +175,19 @@ typedef struct SParamInfo {
   uint32_t offset;
 } SParamInfo;
 
+
+typedef struct SBoundColumn {
+  bool    hasVal;  // denote if current column has bound or not
+  int32_t offset;  // all column offset value
+} SBoundColumn;
+
+typedef struct SParsedDataColInfo {
+  int16_t         numOfCols;
+  int16_t         numOfBound;
+  int32_t        *boundedColumns;
+  SBoundColumn   *cols;
+} SParsedDataColInfo;
+
 typedef struct STableDataBlocks {
   SName       tableName;
   int8_t      tsSource;     // where does the UNIX timestamp come from, server or client
@@ -188,6 +201,8 @@ typedef struct STableDataBlocks {
   uint32_t    size;
   STableMeta *pTableMeta;   // the tableMeta of current table, the table meta will be used during submit, keep a ref to avoid to be removed from cache
   char       *pData;
+
+  SParsedDataColInfo  boundColumnInfo;
 
   // for parameter ('?') binding
   uint32_t    numOfAllocedParams;
@@ -284,7 +299,7 @@ typedef struct {
   char *         pRsp;
   int32_t        rspType;
   int32_t        rspLen;
-  uint64_t       qhandle;
+  uint64_t       qId;
   int64_t        useconds;
   int64_t        offset;  // offset value from vnode during projection query of stable
   int32_t        row;
@@ -367,7 +382,7 @@ typedef struct SSqlObj {
   int64_t          svgroupRid;
 
   int64_t          squeryLock;
-
+  int32_t          retryReason;  // previous error code
   struct SSqlObj  *prev, *next;
   int64_t          self;
 } SSqlObj;
@@ -425,6 +440,7 @@ void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
+void destroyTableNameList(SSqlCmd* pCmd);
 
 void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
 
@@ -439,6 +455,8 @@ void tscFreeSqlResult(SSqlObj *pSql);
  * @param pObj
  */
 void tscFreeSqlObj(SSqlObj *pSql);
+void tscFreeSubobj(SSqlObj* pSql);
+
 void tscFreeRegisteredSqlObj(void *pSql);
 
 void tscCloseTscObj(void *pObj);
@@ -460,6 +478,7 @@ char* tscGetSqlStr(SSqlObj* pSql);
 bool tscIsQueryWithLimit(SSqlObj* pSql);
 
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
+void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32_t numOfCols);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 

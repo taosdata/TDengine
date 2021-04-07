@@ -249,8 +249,8 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     pQdesc->stime = htobe64(pSql->stime);
     pQdesc->queryId = htonl(pSql->queryId);
     //pQdesc->useconds = htobe64(pSql->res.useconds);
-    pQdesc->useconds = htobe64(now - pSql->stime);
-    pQdesc->qHandle = htobe64(pSql->res.qhandle);
+    pQdesc->useconds = htobe64(now - pSql->stime);  // use local time instead of sever rsp elapsed time
+    pQdesc->qHandle = htobe64(pSql->res.qId);
 
     pHeartbeat->numOfQueries++;
     pQdesc++;
