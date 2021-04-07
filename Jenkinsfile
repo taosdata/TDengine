@@ -42,8 +42,17 @@ def pre_test(){
     killall -9 taosd ||echo "no taosd running"
     killall -9 gdb || echo "no gdb running"
     cd ${WKC}
-    git reset --hard HEAD~10 >/dev/null 
-    git checkout develop
+    git reset --hard HEAD~10 >/dev/null
+    '''
+    script {
+      if (env.CHANGE_TARGET == 'master') {
+        sh 'git checkout master'
+        }
+      else {
+        sh 'git checkout develop'
+      } 
+    }
+    sh'''
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
