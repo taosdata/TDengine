@@ -5936,7 +5936,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     param->pUdfInfo->funcType = htonl(*(int32_t*)pMsg);
     pMsg += sizeof(int32_t);
     
-    param->pUdfInfo->content = malloc(pQueryMsg->udfContentLen);
+    param->pUdfInfo->content = calloc(1, pQueryMsg->udfContentLen + 1);
     memcpy(param->pUdfInfo->content, pMsg, pQueryMsg->udfContentLen);
 
     pMsg += pQueryMsg->udfContentLen;
@@ -6061,6 +6061,7 @@ static int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
   
   pUdfInfo->isScript = 0; 
 
+  qError("script created: %s", pUdfInfo->content);
   if (isValidScript(pUdfInfo->content)) {
     //refactor(dengyihao)
     pUdfInfo->isScript   = 1; 

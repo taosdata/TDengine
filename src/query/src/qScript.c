@@ -434,7 +434,6 @@ void addScriptEnvToPool(ScriptEnv *pEnv) {
     return;
   }
   pthread_mutex_lock(&pool->mutex); 
-  lua_pop(pEnv->lua_state, -1);
   tdListAppend(pool->scriptEnvs, (void *)(&pEnv));  
   pool->cSize++;
   pthread_mutex_unlock(&pool->mutex); 
