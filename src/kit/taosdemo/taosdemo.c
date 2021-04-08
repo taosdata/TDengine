@@ -5168,14 +5168,14 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     int limit, offset;
 
     if ((superTblInfo->childTblExists == TBL_NO_EXISTS) &&
-            ((superTblInfo->childTblOffset != 0) || (superTblInfo->childTblLimit != 0))) {
+            ((superTblInfo->childTblOffset != 0) || (superTblInfo->childTblLimit >= 0))) {
       printf("WARNING: offset and limit will not be used since the child tables are not exists!\n");
     }
 
     if ((superTblInfo->childTblExists == TBL_ALREADY_EXISTS)
             && (superTblInfo->childTblOffset >= 0)) {
-      if ((superTblInfo->childTblLimit < 0) 
-          || ((superTblInfo->childTblOffset + superTblInfo->childTblLimit) 
+      if ((superTblInfo->childTblLimit < 0)
+          || ((superTblInfo->childTblOffset + superTblInfo->childTblLimit)
             > (superTblInfo->childTblCount))) {
         superTblInfo->childTblLimit =
             superTblInfo->childTblCount - superTblInfo->childTblOffset;
