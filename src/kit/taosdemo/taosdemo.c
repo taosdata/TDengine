@@ -435,6 +435,8 @@ typedef struct SThreadInfo_S {
   int64_t maxDelay;
   int64_t minDelay;
 
+  // query
+  int querySeq;   // sequence number of sql command
 } threadInfo;
 
 #ifdef WINDOWS
@@ -992,7 +994,8 @@ static void getResult(TAOS_RES *res, char* resultFileName) {
 static void selectAndGetResult(TAOS *taos, char *command, char* resultFileName) {
   TAOS_RES *res = taos_query(taos, command);
   if (res == NULL || taos_errno(res) != 0) {
-    printf("failed to sql:%s, reason:%s\n", command, taos_errstr(res));
+    errorPrint("%s() LN%d, failed to execute sql:%s, reason:%s\n",
+       __func__, __LINE__, command, taos_errstr(res));
     taos_free_result(res);
     return;
   }
@@ -5711,33 +5714,35 @@ static void *specifiedQueryProcess(void *sarg) {
     }
 
     st = taosGetTimestampUs();
-    for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
-      if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", 5)) {
-        int64_t t1 = taosGetTimestampUs();
-        char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
-        if (g_queryInfo.specifiedQueryInfo.result[i][0] != 0) {
-          sprintf(tmpFile, "%s-%d",
-                  g_queryInfo.specifiedQueryInfo.result[i], winfo->threadID);
-        }
-        selectAndGetResult(winfo->taos,
-            g_queryInfo.specifiedQueryInfo.sql[i], tmpFile);
-        int64_t t2 = taosGetTimestampUs();
-        printf("=[taosc] thread[%"PRId64"] complete one sql, Spent %f s\n",
-                taosGetSelfPthreadId(), (t2 - t1)/1000000.0);
-      } else {
-        int64_t t1 = taosGetTimestampUs();
-        int retCode = postProceSql(g_queryInfo.host,
-                g_queryInfo.port, g_queryInfo.specifiedQueryInfo.sql[i]);
-        int64_t t2 = taosGetTimestampUs();
-        printf("=[restful] thread[%"PRId64"] complete one sql, Spent %f s\n",
-                taosGetSelfPthreadId(), (t2 - t1)/1000000.0);
 
-        if (0 != retCode) {
-          printf("====restful return fail, threadID[%d]\n", winfo->threadID);
-          return NULL;
-        }
+    if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", 5)) {
+      int64_t t1 = taosGetTimestampUs();
+      char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
+      if (g_queryInfo.specifiedQueryInfo.result[winfo->querySeq][0] != 0) {
+        sprintf(tmpFile, "%s-%d",
+                g_queryInfo.specifiedQueryInfo.result[winfo->querySeq],
+                winfo->threadID);
+      }
+      selectAndGetResult(winfo->taos,
+          g_queryInfo.specifiedQueryInfo.sql[winfo->querySeq], tmpFile);
+      int64_t t2 = taosGetTimestampUs();
+      printf("=[taosc] thread[%"PRId64"] complete one sql, Spent %f s\n",
+              taosGetSelfPthreadId(), (t2 - t1)/1000000.0);
+    } else {
+      int64_t t1 = taosGetTimestampUs();
+      int retCode = postProceSql(g_queryInfo.host,
+              g_queryInfo.port,
+              g_queryInfo.specifiedQueryInfo.sql[winfo->querySeq]);
+      int64_t t2 = taosGetTimestampUs();
+      printf("=[restful] thread[%"PRId64"] complete one sql, Spent %f s\n",
+              taosGetSelfPthreadId(), (t2 - t1)/1000000.0);
+
+      if (0 != retCode) {
+        printf("====restful return fail, threadID[%d]\n", winfo->threadID);
+        return NULL;
       }
     }
+
     et = taosGetTimestampUs();
     printf("==thread[%"PRId64"] complete all sqls to specify tables once queries duration:%.6fs\n\n",
             taosGetSelfPthreadId(), (double)(et - st)/1000.0);
@@ -5860,39 +5865,45 @@ static int queryTestProcess() {
   pthread_t  *pids  = NULL;
   threadInfo *infos = NULL;
   //==== create sub threads for query from specify table
-  if (g_queryInfo.specifiedQueryInfo.sqlCount > 0
-          && g_queryInfo.specifiedQueryInfo.concurrent > 0) {
+  int nConcurrent = g_queryInfo.specifiedQueryInfo.concurrent;
+  int nSqlCount = g_queryInfo.specifiedQueryInfo.sqlCount;
 
-    pids  = malloc(g_queryInfo.specifiedQueryInfo.concurrent * sizeof(pthread_t));
-    infos = malloc(g_queryInfo.specifiedQueryInfo.concurrent * sizeof(threadInfo));
+  if ((nSqlCount > 0) && (nConcurrent > 0)) {
+
+    pids  = malloc(nConcurrent * nSqlCount * sizeof(pthread_t));
+    infos = malloc(nConcurrent * nSqlCount * sizeof(threadInfo));
 
     if ((NULL == pids) || (NULL == infos)) {
       taos_close(taos);
       ERROR_EXIT("memory allocation failed for create threads\n");
     }
 
-    for (int i = 0; i < g_queryInfo.specifiedQueryInfo.concurrent; i++) {
-      threadInfo *t_info = infos + i;
-      t_info->threadID = i;
+    for (int i = 0; i < nConcurrent; i++) {
+      for (int j = 0; j < nSqlCount; j++) {
+        threadInfo *t_info = infos + i * nSqlCount + j;
+        t_info->threadID = i * nSqlCount + j;
+        t_info->querySeq = j;
 
-      if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", 5)) {
+        if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", 5)) {
 
-        char sqlStr[MAX_TB_NAME_SIZE*2];
-        sprintf(sqlStr, "use %s", g_queryInfo.dbName);
-        verbosePrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
-        if (0 != queryDbExec(taos, sqlStr, NO_INSERT_TYPE, false)) {
+          char sqlStr[MAX_TB_NAME_SIZE*2];
+          sprintf(sqlStr, "use %s", g_queryInfo.dbName);
+          verbosePrint("%s() %d sqlStr: %s\n", __func__, __LINE__, sqlStr);
+          if (0 != queryDbExec(taos, sqlStr, NO_INSERT_TYPE, false)) {
             taos_close(taos);
             free(infos);
             free(pids);
             errorPrint( "use database %s failed!\n\n",
                 g_queryInfo.dbName);
             return -1;
+          }
         }
+
+        t_info->taos = NULL;// TODO: workaround to use separate taos connection;
+
+        pthread_create(pids + i * nSqlCount + j, NULL, specifiedQueryProcess,
+            t_info);
       }
-
-      t_info->taos = NULL;// TODO: workaround to use separate taos connection;
-
-      pthread_create(pids + i, NULL, specifiedQueryProcess, t_info);
     }
   } else {
     g_queryInfo.specifiedQueryInfo.concurrent = 0;
@@ -5947,8 +5958,12 @@ static int queryTestProcess() {
     g_queryInfo.superQueryInfo.threadCnt = 0;
   }
 
-  for (int i = 0; i < g_queryInfo.specifiedQueryInfo.concurrent; i++) {
-    pthread_join(pids[i], NULL);
+  if ((nSqlCount > 0) && (nConcurrent > 0)) {
+    for (int i = 0; i < nConcurrent; i++) {
+      for (int j = 0; j < nSqlCount; j++) {
+        pthread_join(pids[i * nSqlCount + j], NULL);
+      }
+    }
   }
 
   tmfree((char*)pids);
