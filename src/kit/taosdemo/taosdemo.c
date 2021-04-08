@@ -68,8 +68,8 @@ enum TEST_MODE {
 };
 
 enum QUERY_MODE {
-  SYNC_MODE,                // 0
-  ASYNC_MODE,               // 1
+  SYNC_QUERY_MODE,          // 0
+  ASYNC_QUERY_MODE,         // 1
   INVALID_MODE
 };
 
@@ -1465,41 +1465,61 @@ static void printfQueryMeta() {
 
   printf("\n");
   printf("specified table query info:                   \n");
-  printf("query interval: \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.rate);
+  printf("query interval: \033[33m%d\033[0m\n",
+      g_queryInfo.specifiedQueryInfo.rate);
   printf("top query times:\033[33m%d\033[0m\n", g_args.query_times);
-  printf("concurrent:     \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.concurrent);
-  printf("sqlCount:       \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.sqlCount);
+  printf("concurrent:     \033[33m%d\033[0m\n",
+      g_queryInfo.specifiedQueryInfo.concurrent);
+  printf("sqlCount:       \033[33m%d\033[0m\n",
+      g_queryInfo.specifiedQueryInfo.sqlCount);
   printf("specified tbl query times:\n");
-  printf("                \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.queryTimes);
+  printf("                \033[33m%d\033[0m\n",
+      g_queryInfo.specifiedQueryInfo.queryTimes);
 
   if (SUBSCRIBE_TEST == g_args.test_mode) {
-    printf("mod:            \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.mode);
-    printf("interval:       \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.subscribeInterval);
-    printf("restart:        \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.subscribeRestart);
-    printf("keepProgress:   \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
+    printf("mod:            \033[33m%d\033[0m\n",
+        g_queryInfo.specifiedQueryInfo.mode);
+    printf("interval:       \033[33m%d\033[0m\n",
+        g_queryInfo.specifiedQueryInfo.subscribeInterval);
+    printf("restart:        \033[33m%d\033[0m\n",
+        g_queryInfo.specifiedQueryInfo.subscribeRestart);
+    printf("keepProgress:   \033[33m%d\033[0m\n",
+        g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
   }
 
   for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
-    printf("  sql[%d]: \033[33m%s\033[0m\n", i, g_queryInfo.specifiedQueryInfo.sql[i]);
+    printf("  sql[%d]: \033[33m%s\033[0m\n",
+        i, g_queryInfo.specifiedQueryInfo.sql[i]);
   }
   printf("\n");
-  printf("super table query info:                   \n");
-  printf("query interval: \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.rate);
-  printf("threadCnt:      \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.threadCnt);
-  printf("childTblCount:  \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.childTblCount);
-  printf("stable name:    \033[33m%s\033[0m\n", g_queryInfo.superQueryInfo.sTblName);
-  printf("stb query times:\033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.queryTimes);
+  printf("super table query info:\n");
+  printf("query interval: \033[33m%d\033[0m\n",
+      g_queryInfo.superQueryInfo.rate);
+  printf("threadCnt:      \033[33m%d\033[0m\n",
+      g_queryInfo.superQueryInfo.threadCnt);
+  printf("childTblCount:  \033[33m%d\033[0m\n",
+      g_queryInfo.superQueryInfo.childTblCount);
+  printf("stable name:    \033[33m%s\033[0m\n",
+      g_queryInfo.superQueryInfo.sTblName);
+  printf("stb query times:\033[33m%d\033[0m\n",
+      g_queryInfo.superQueryInfo.queryTimes);
 
   if (SUBSCRIBE_TEST == g_args.test_mode) {
-    printf("mod:            \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.mode);
-    printf("interval:       \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.subscribeInterval);
-    printf("restart:        \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.subscribeRestart);
-    printf("keepProgress:   \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.subscribeKeepProgress);
+    printf("mod:            \033[33m%d\033[0m\n",
+        g_queryInfo.superQueryInfo.mode);
+    printf("interval:       \033[33m%d\033[0m\n",
+        g_queryInfo.superQueryInfo.subscribeInterval);
+    printf("restart:        \033[33m%d\033[0m\n",
+        g_queryInfo.superQueryInfo.subscribeRestart);
+    printf("keepProgress:   \033[33m%d\033[0m\n",
+        g_queryInfo.superQueryInfo.subscribeKeepProgress);
   }
 
-  printf("sqlCount:       \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.sqlCount);
+  printf("sqlCount:       \033[33m%d\033[0m\n",
+      g_queryInfo.superQueryInfo.sqlCount);
   for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
-    printf("  sql[%d]: \033[33m%s\033[0m\n", i, g_queryInfo.superQueryInfo.sql[i]);
+    printf("  sql[%d]: \033[33m%s\033[0m\n",
+        i, g_queryInfo.superQueryInfo.sql[i]);
   }
   printf("\n");
 
@@ -1676,7 +1696,8 @@ static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {
     dbInfos[count]->wallevel = *((int8_t *)row[TSDB_SHOW_DB_WALLEVEL_INDEX]);
     dbInfos[count]->fsync = *((int32_t *)row[TSDB_SHOW_DB_FSYNC_INDEX]);
     dbInfos[count]->comp = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_COMP_INDEX]));
-    dbInfos[count]->cachelast = (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
+    dbInfos[count]->cachelast =
+      (int8_t)(*((int8_t *)row[TSDB_SHOW_DB_CACHELAST_INDEX]));
 
     tstrncpy(dbInfos[count]->precision,
             (char *)row[TSDB_SHOW_DB_PRECISION_INDEX],
@@ -1687,7 +1708,8 @@ static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {
 
     count++;
     if (count > MAX_DATABASE_COUNT) {
-      errorPrint( "The database count overflow than %d\n", MAX_DATABASE_COUNT);
+      errorPrint("%s() LN%d, The database count overflow than %d\n",
+         __func__, __LINE__, MAX_DATABASE_COUNT);
       break;
     }
   }
@@ -1697,6 +1719,7 @@ static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {
 
 static void printfDbInfoForQueryToFile(
         char* filename, SDbInfo* dbInfos, int index) {
+
   if (filename[0] == 0)
       return;
 
@@ -3839,19 +3862,27 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.specifiedQueryInfo.rate = 0;
     }
 
-    cJSON* specifiedQueryTimes = cJSON_GetObjectItem(specifiedQuery, "query_times");
+    cJSON* specifiedQueryTimes = cJSON_GetObjectItem(specifiedQuery,
+        "query_times");
     if (specifiedQueryTimes && specifiedQueryTimes->type == cJSON_Number) {
       g_queryInfo.specifiedQueryInfo.queryTimes = specifiedQueryTimes->valueint;
     } else if (!specifiedQueryTimes) {
       g_queryInfo.specifiedQueryInfo.queryTimes = g_args.query_times;
     } else {
-      errorPrint("%s() LN%d, failed to read json, query_times input mistake\n", __func__, __LINE__);
+      errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
+          __func__, __LINE__);
       goto PARSE_OVER;
     }
 
     cJSON* concurrent = cJSON_GetObjectItem(specifiedQuery, "concurrent");
     if (concurrent && concurrent->type == cJSON_Number) {
       g_queryInfo.specifiedQueryInfo.concurrent = concurrent->valueint;
+      if (g_queryInfo.specifiedQueryInfo.concurrent <= 0) {
+        errorPrint("%s() LN%d, query sqlCount %d or concurrent %d is not correct.\n",
+              __func__, __LINE__, g_queryInfo.specifiedQueryInfo.sqlCount,
+              g_queryInfo.specifiedQueryInfo.concurrent);
+        goto PARSE_OVER;
+      }
     } else if (!concurrent) {
       g_queryInfo.specifiedQueryInfo.concurrent = 1;
     }
@@ -3860,16 +3891,16 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     if (queryMode && queryMode->type == cJSON_String
         && queryMode->valuestring != NULL) {
       if (0 == strcmp("sync", queryMode->valuestring)) {
-        g_queryInfo.specifiedQueryInfo.mode = SYNC_MODE;
+        g_queryInfo.specifiedQueryInfo.mode = SYNC_QUERY_MODE;
       } else if (0 == strcmp("async", queryMode->valuestring)) {
-        g_queryInfo.specifiedQueryInfo.mode = ASYNC_MODE;
+        g_queryInfo.specifiedQueryInfo.mode = ASYNC_QUERY_MODE;
       } else {
         errorPrint("%s() LN%d, failed to read json, query mode input error\n",
             __func__, __LINE__);
         goto PARSE_OVER;
       }
     } else {
-      g_queryInfo.specifiedQueryInfo.mode = SYNC_MODE;
+      g_queryInfo.specifiedQueryInfo.mode = SYNC_QUERY_MODE;
     }
 
     cJSON* interval = cJSON_GetObjectItem(specifiedQuery, "interval");
@@ -3992,7 +4023,8 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     //}
 
     cJSON* stblname = cJSON_GetObjectItem(superQuery, "stblname");
-    if (stblname && stblname->type == cJSON_String && stblname->valuestring != NULL) {
+    if (stblname && stblname->type == cJSON_String
+        && stblname->valuestring != NULL) {
       tstrncpy(g_queryInfo.superQueryInfo.sTblName, stblname->valuestring,
           MAX_TB_NAME_SIZE);
     } else {
@@ -4002,18 +4034,19 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     }
 
     cJSON* submode = cJSON_GetObjectItem(superQuery, "mode");
-    if (submode && submode->type == cJSON_String && submode->valuestring != NULL) {
+    if (submode && submode->type == cJSON_String
+        && submode->valuestring != NULL) {
       if (0 == strcmp("sync", submode->valuestring)) {
-        g_queryInfo.superQueryInfo.mode = SYNC_MODE;
+        g_queryInfo.superQueryInfo.mode = SYNC_QUERY_MODE;
       } else if (0 == strcmp("async", submode->valuestring)) {
-        g_queryInfo.superQueryInfo.mode = ASYNC_MODE;
+        g_queryInfo.superQueryInfo.mode = ASYNC_QUERY_MODE;
       } else {
         errorPrint("%s() LN%d, failed to read json, query mode input error\n",
             __func__, __LINE__);
         goto PARSE_OVER;
       }
     } else {
-      g_queryInfo.superQueryInfo.mode = SYNC_MODE;
+      g_queryInfo.superQueryInfo.mode = SYNC_QUERY_MODE;
     }
 
     cJSON* subinterval = cJSON_GetObjectItem(superQuery, "interval");
@@ -5810,14 +5843,10 @@ static int queryTestProcess() {
           && g_queryInfo.specifiedQueryInfo.concurrent > 0) {
 
     pids  = malloc(g_queryInfo.specifiedQueryInfo.concurrent * sizeof(pthread_t));
-    if (NULL == pids) {
-        taos_close(taos);
-        ERROR_EXIT("memory allocation failed\n");
-    }
     infos = malloc(g_queryInfo.specifiedQueryInfo.concurrent * sizeof(threadInfo));
-    if (NULL == infos) {
+
+    if ((NULL == pids) || (NULL == infos)) {
       taos_close(taos);
-      free(pids);
       ERROR_EXIT("memory allocation failed for create threads\n");
     }
 
@@ -6088,7 +6117,8 @@ static void *superSubscribeProcess(void *sarg) {
         sprintf(tmpFile, "%s-%d",
                 g_queryInfo.specifiedQueryInfo.result[i], winfo->threadID);
       }
-      tsub[i] = subscribeImpl(winfo->taos, g_queryInfo.specifiedQueryInfo.sql[i], topic, tmpFile);
+      tsub[i] = subscribeImpl(winfo->taos,
+          g_queryInfo.specifiedQueryInfo.sql[i], topic, tmpFile);
       if (NULL == g_queryInfo.specifiedQueryInfo.tsub[i]) {
         taos_close(winfo->taos);
         return NULL;
@@ -6102,7 +6132,7 @@ static void *superSubscribeProcess(void *sarg) {
   TAOS_RES* res = NULL;
   while (1) {
     for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
-      if (SYNC_MODE == g_queryInfo.specifiedQueryInfo.mode) {
+      if (SYNC_QUERY_MODE == g_queryInfo.specifiedQueryInfo.mode) {
         continue;
       }
 
@@ -6120,7 +6150,8 @@ static void *superSubscribeProcess(void *sarg) {
   taos_free_result(res);
 
   for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
-    taos_unsubscribe(tsub[i], g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
+    taos_unsubscribe(tsub[i],
+        g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
   }
 
   taos_close(winfo->taos);
