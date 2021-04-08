@@ -10,6 +10,9 @@ typedef struct SUdfInit{
  int const_item;       /* 0 if result is independent of arguments */
 } SUdfInit;
 
+#define TSDB_DATA_INT_NULL              0x80000000L
+
+
 void sum_double(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* tsOutput,
                         int* numOfOutput, short otype, short obytes, SUdfInit* buf) {
    int i;
@@ -17,14 +20,17 @@ void sum_double(char* data, short itype, short ibytes, int numOfRows, long long*
    printf("sum_double input data:%p, type:%d, rows:%d, ts:%p,%lld, dataoutput:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, itype, numOfRows, ts, *ts, dataOutput, tsOutput, numOfOutput, buf);
    if (itype == 4) {
      r=*(int *)dataOutput;
+     *numOfOutput=0;
+
      for(i=0;i<numOfRows;++i) {
-       r+=*((int *)data + i);
-       if (tsOutput) {
-         *(long long*)tsOutput=1000000;
+       if (*((int *)data + i) == TSDB_DATA_INT_NULL) {
+         continue;
        }
+
+       *numOfOutput=1;
+       r+=*((int *)data + i);
+       *(int *)dataOutput=r;
      }
-     *(int *)dataOutput=r;
-     *numOfOutput=1;
 
      printf("sum_double out, dataoutput:%d, numOfOutput:%d\n", *(int *)dataOutput, *numOfOutput);
    }
@@ -46,14 +52,18 @@ void sum_double_merge(char* data, int32_t numOfRows, char* dataOutput, int32_t* 
    int r = 0;
    int sum = 0;
    
-   printf("sum_double_merge dataoutput:%p, numOfOutput:%d, buf:%p\n", dataOutput, *numOfOutput, buf);
+   printf("sum_double_merge numOfRows:%d, dataoutput:%p, buf:%p\n", numOfRows, dataOutput, buf);
    for (int i = 0; i < numOfRows; ++i) {
      printf("sum_double_merge %d - %d\n", i, *((int*)data + i));
      sum +=*((int*)data + i);
    }
    
    *(int*)dataOutput+=sum;
-   *numOfOutput=1;
+   if (numOfRows > 0) {
+     *numOfOutput=1;
+   } else {
+     *numOfOutput=0;
+   }
    
    printf("sum_double_merge, dataoutput:%d, numOfOutput:%d\n", *(int *)dataOutput, *numOfOutput);
 }

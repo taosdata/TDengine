@@ -121,6 +121,8 @@ static void tscInitSqlContext(SSqlCmd *pCmd, SLocalMerger *pReducer, tOrderDescr
     if (pExpr->functionId == TSDB_FUNC_TAG_DUMMY || pExpr->functionId == TSDB_FUNC_TS_DUMMY) {
       tagLen += pExpr->resBytes;
       pTagCtx[n++] = &pReducer->pCtx[i];
+    } else if (pExpr->functionId < 0) {
+      continue;
     } else if ((aAggs[pExpr->functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
       pCtx = &pReducer->pCtx[i];
     }
@@ -1321,7 +1323,7 @@ bool genFinalResults(SSqlObj *pSql, SLocalMerger *pLocalMerge, bool noMoreCurren
 
   tColModelCompact(pModel, pResBuf, pModel->capacity);
 
-  if (tscIsSecondStageQuery(pQueryInfo)) {
+  if (tscIsSecondStageQuery(pCmd, pQueryInfo)) {
     doArithmeticCalculate(pQueryInfo, pResBuf, pModel->rowSize, pLocalMerge->finalModel->rowSize);
   }
 

@@ -633,7 +633,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     if ((pExpr->colInfo.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) ||
         (funcId != TSDB_FUNC_TS && funcId != TSDB_FUNC_TS_DUMMY && funcId != TSDB_FUNC_PRJ)) {
 
-      int16_t functionId = tscIsProjectionQuery(pQueryInfo)? TSDB_FUNC_PRJ : TSDB_FUNC_TS;
+      int16_t functionId = tscIsProjectionQuery(&pNew->cmd, pQueryInfo)? TSDB_FUNC_PRJ : TSDB_FUNC_TS;
 
       tscAddFuncInSelectClause(pQueryInfo, 0, functionId, &index, s, TSDB_COL_NORMAL);
       tscPrintSelectClause(pNew, 0);
@@ -3486,7 +3486,7 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
       SQueryInfo *pQueryInfo1 = tscGetQueryInfoDetail(&pSql->pSubs[i]->cmd, 0);
       
       if ((pRes1->row >= pRes1->numOfRows && tscHasReachLimitation(pQueryInfo1, pRes1) &&
-          tscIsProjectionQuery(pQueryInfo1)) || (pRes1->numOfRows == 0)) {
+          tscIsProjectionQuery(&pSql->pSubs[i]->cmd, pQueryInfo1)) || (pRes1->numOfRows == 0)) {
         hasData = false;
         break;
       }

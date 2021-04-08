@@ -198,11 +198,20 @@ bool tscOrderedProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, in
   return pQueryInfo->order.orderColId >= 0;
 }
 
-bool tscIsProjectionQuery(SQueryInfo* pQueryInfo) {
+bool tscIsProjectionQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
 
   for (int32_t i = 0; i < size; ++i) {
     int32_t functionId = tscSqlExprGet(pQueryInfo, i)->functionId;
+
+    if (functionId < 0) {
+      SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, -1 * functionId - 1);
+      if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
+        return false;
+      }
+    
+      continue;
+    }
 
     if (functionId != TSDB_FUNC_PRJ && functionId != TSDB_FUNC_TAGPRJ && functionId != TSDB_FUNC_TAG &&
         functionId != TSDB_FUNC_TS && functionId != TSDB_FUNC_ARITHM) {
@@ -232,17 +241,17 @@ bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo) {
   return true;
 }
 
-bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo) {
-  if (tscIsProjectionQuery(pQueryInfo)) {
-    return false;
-  }
-
+bool tscIsSecondStageQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   size_t numOfOutput = tscNumOfFields(pQueryInfo);
   for(int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExprInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i)->pArithExprInfo;
     if (pExprInfo != NULL) {
       return true;
     }
+  }
+
+  if (tscIsProjectionQuery(pCmd, pQueryInfo)) {
+    return false;
   }
 
   return false;
