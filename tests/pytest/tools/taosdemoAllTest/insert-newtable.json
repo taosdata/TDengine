@@ -34,7 +34,7 @@
         },
         "super_tables": [{
             "name": "stb0",
-            "child_table_exists":"no",
+            "child_table_exists":"yes",
             "childtable_count": 5,
             "childtable_prefix": "stb00_",
             "auto_create_table": "no",
