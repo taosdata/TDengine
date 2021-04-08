@@ -399,36 +399,6 @@ typedef struct SColIndex {
   char     name[TSDB_COL_NAME_LEN];  // TODO remove it
 } SColIndex;
 
-/* sql function msg, to describe the message to vnode about sql function
- * operations in select clause */
-typedef struct SSqlFuncMsg {
-  int16_t functionId;
-  int16_t numOfParams;
-
-  int16_t resColId;      // result column id, id of the current output column
-  int16_t colType;
-  int16_t colBytes;
-
-  SColIndex colInfo;
-  struct ArgElem {
-    int16_t argType;
-    int16_t argBytes;
-    union {
-      double  d;
-      int64_t i64;
-      char *  pz;
-    } argValue;
-  } arg[3];
-} SSqlFuncMsg;
-
-typedef struct SExprInfo {
-  SSqlFuncMsg base;
-  struct tExprNode* pExpr;
-  int16_t     bytes;
-  int16_t     type;
-  int32_t     interBytes;
-  int64_t     uid;
-} SExprInfo;
 
 typedef struct SColumnFilterInfo {
   int16_t lowerRelOptr;
@@ -450,6 +420,42 @@ typedef struct SColumnFilterInfo {
     };
   };
 } SColumnFilterInfo;
+
+/* sql function msg, to describe the message to vnode about sql function
+ * operations in select clause */
+typedef struct SSqlFuncMsg {
+  int16_t functionId;
+  int16_t numOfParams;
+
+  int16_t resColId;      // result column id, id of the current output column
+  int16_t colType;
+  int16_t colBytes;
+
+  SColIndex colInfo;
+  struct ArgElem {
+    int16_t argType;
+    int16_t argBytes;
+    union {
+      double  d;
+      int64_t i64;
+      char *  pz;
+    } argValue;
+  } arg[3];
+
+  int32_t filterNum;
+  SColumnFilterInfo filterInfo[];
+} SSqlFuncMsg;
+
+
+typedef struct SExprInfo {
+  SColumnFilterInfo * pFilter;
+  struct tExprNode* pExpr;
+  int16_t     bytes;
+  int16_t     type;
+  int32_t     interBytes;
+  int64_t     uid;
+  SSqlFuncMsg base;
+} SExprInfo;
 
 /*
  * for client side struct, we only need the column id, type, bytes are not necessary
