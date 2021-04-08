@@ -54,11 +54,11 @@ class TDTestCase:
 
 
         tdSql.execute("use db")
-        tdSql.execute("create table test(ts timestamp, value int)")
-        tdSql.execute("insert into test values(%d, 1)" % self.ts)
-        tdSql.execute("insert into test values(%d, 1)" % (self.ts + 1))
-        tdSql.execute("insert into test values(%d, 1)" % (self.ts + 2))
-        tdSql.execute("insert into test values(%d, 1)" % (self.ts + 3))
+        tdSql.execute("create table test(ts timestamp, start timestamp, value int)")
+        tdSql.execute("insert into test values(%d, %d, 1)" % (self.ts, self.ts))
+        tdSql.execute("insert into test values(%d, %d, 1)" % (self.ts + 1, self.ts + 1))
+        tdSql.execute("insert into test values(%d, %d, 1)" % (self.ts + 2, self.ts + 2))
+        tdSql.execute("insert into test values(%d, %d, 1)" % (self.ts + 3, self.ts + 3))
 
         tdSql.query("select * from test")
         tdSql.checkRows(4)
@@ -70,6 +70,15 @@ class TDTestCase:
         tdSql.checkRows(3)
 
         tdSql.query("select * from test where ts = %d" % self.ts)
+        tdSql.checkRows(1)
+
+        tdSql.query("select * from test where start >= %d" % self.ts)
+        tdSql.checkRows(4)
+
+        tdSql.query("select * from test where start > %d" % self.ts)
+        tdSql.checkRows(3)
+
+        tdSql.query("select * from test where start = %d" % self.ts)
         tdSql.checkRows(1)
 
         
