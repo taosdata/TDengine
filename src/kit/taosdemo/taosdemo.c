@@ -2996,7 +2996,8 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     if (countObj && countObj->type == cJSON_Number) {
       count = countObj->valueint;
     } else if (countObj && countObj->type != cJSON_Number) {
-      errorPrint("%s() LN%d, failed to read json, column count not found\n", __func__, __LINE__);
+      errorPrint("%s() LN%d, failed to read json, column count not found\n",
+          __func__, __LINE__);
       goto PARSE_OVER;
     } else {
       count = 1;
@@ -3005,8 +3006,10 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     // column info
     memset(&columnCase, 0, sizeof(StrColumn));
     cJSON *dataType = cJSON_GetObjectItem(column, "type");
-    if (!dataType || dataType->type != cJSON_String || dataType->valuestring == NULL) {
-      errorPrint("%s() LN%d: failed to read json, column type not found\n", __func__, __LINE__);
+    if (!dataType || dataType->type != cJSON_String
+        || dataType->valuestring == NULL) {
+      errorPrint("%s() LN%d: failed to read json, column type not found\n",
+          __func__, __LINE__);
       goto PARSE_OVER;
     }
     //tstrncpy(superTbls->columns[k].dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
@@ -3016,7 +3019,8 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     if (dataLen && dataLen->type == cJSON_Number) {
       columnCase.dataLen = dataLen->valueint;
     } else if (dataLen && dataLen->type != cJSON_Number) {
-      debugPrint("%s() LN%d: failed to read json, column len not found\n", __func__, __LINE__);
+      debugPrint("%s() LN%d: failed to read json, column len not found\n",
+          __func__, __LINE__);
       goto PARSE_OVER;
     } else {
       columnCase.dataLen = 8;
@@ -3036,13 +3040,15 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
   // tags
   cJSON *tags = cJSON_GetObjectItem(stbInfo, "tags");
   if (!tags || tags->type != cJSON_Array) {
-    debugPrint("%s() LN%d, failed to read json, tags not found\n", __func__, __LINE__);
+    errorPrint("%s() LN%d, failed to read json, tags not found\n",
+        __func__, __LINE__);
     goto PARSE_OVER;
   }
 
   int tagSize = cJSON_GetArraySize(tags);
   if (tagSize > MAX_TAG_COUNT) {
-    debugPrint("%s() LN%d, failed to read json, tags size overflow, max tag size is %d\n", __func__, __LINE__, MAX_TAG_COUNT);
+    errorPrint("%s() LN%d, failed to read json, tags size overflow, max tag size is %d\n",
+        __func__, __LINE__, MAX_TAG_COUNT);
     goto PARSE_OVER;
   }
 
@@ -3065,8 +3071,10 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     // column info
     memset(&columnCase, 0, sizeof(StrColumn));
     cJSON *dataType = cJSON_GetObjectItem(tag, "type");
-    if (!dataType || dataType->type != cJSON_String || dataType->valuestring == NULL) {
-      printf("ERROR: failed to read json, tag type not found\n");
+    if (!dataType || dataType->type != cJSON_String
+        || dataType->valuestring == NULL) {
+      errorPrint("%s() LN%d, failed to read json, tag type not found\n",
+          __func__, __LINE__);
       goto PARSE_OVER;
     }
     tstrncpy(columnCase.dataType, dataType->valuestring, MAX_TB_NAME_SIZE);
@@ -3075,14 +3083,16 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     if (dataLen && dataLen->type == cJSON_Number) {
       columnCase.dataLen = dataLen->valueint;
     } else if (dataLen && dataLen->type != cJSON_Number) {
-      printf("ERROR: failed to read json, column len not found\n");
+      errorPrint("%s() LN%d, failed to read json, column len not found\n",
+          __func__, __LINE__);
       goto PARSE_OVER;
     } else {
       columnCase.dataLen = 0;
     }
 
     for (int n = 0; n < count; ++n) {
-      tstrncpy(superTbls->tags[index].dataType, columnCase.dataType, MAX_TB_NAME_SIZE);
+      tstrncpy(superTbls->tags[index].dataType, columnCase.dataType,
+          MAX_TB_NAME_SIZE);
       superTbls->tags[index].dataLen = columnCase.dataLen;
       index++;
     }
@@ -4004,7 +4014,8 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     } else if (!superQueryTimes) {
       g_queryInfo.superQueryInfo.queryTimes = g_args.query_times;
     } else {
-      errorPrint("%s() LN%d, failed to read json, query_times input mistake\n", __func__, __LINE__);
+      errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
+          __func__, __LINE__);
       goto PARSE_OVER;
     }
 
@@ -4110,7 +4121,8 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
         if (sql == NULL) continue;
 
         cJSON *sqlStr = cJSON_GetObjectItem(sql, "sql");
-        if (!sqlStr || sqlStr->type != cJSON_String || sqlStr->valuestring == NULL) {
+        if (!sqlStr || sqlStr->type != cJSON_String
+            || sqlStr->valuestring == NULL) {
           errorPrint("%s() LN%d, failed to read json, sql not found\n",
               __func__, __LINE__);
           goto PARSE_OVER;
@@ -4119,12 +4131,15 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
             MAX_QUERY_SQL_LENGTH);
 
         cJSON *result = cJSON_GetObjectItem(sql, "result");
-        if (result != NULL && result->type == cJSON_String && result->valuestring != NULL){
-          tstrncpy(g_queryInfo.superQueryInfo.result[j], result->valuestring, MAX_FILE_NAME_LEN);
+        if (result != NULL && result->type == cJSON_String
+            && result->valuestring != NULL){
+          tstrncpy(g_queryInfo.superQueryInfo.result[j],
+              result->valuestring, MAX_FILE_NAME_LEN);
         } else if (NULL == result) {
           memset(g_queryInfo.superQueryInfo.result[j], 0, MAX_FILE_NAME_LEN);
         }  else {
-          printf("ERROR: failed to read json, sub query result file not found\n");
+          errorPrint("%s() LN%d, failed to read json, sub query result file not found\n",
+              __func__, __LINE__);
           goto PARSE_OVER;
         }
       }
@@ -6519,52 +6534,50 @@ static void testMetaFile() {
 }
 
 static void queryResult() {
-    // select
-    if (false == g_Dbs.insert_only) {
-      // query data
+  // query data
 
-      pthread_t read_id;
-      threadInfo *rInfo = malloc(sizeof(threadInfo));
-      rInfo->start_time = 1500000000000;  // 2017-07-14 10:40:00.000
-      rInfo->start_table_from = 0;
+  pthread_t read_id;
+  threadInfo *rInfo = malloc(sizeof(threadInfo));
+  assert(rInfo);
+  rInfo->start_time = 1500000000000;  // 2017-07-14 10:40:00.000
+  rInfo->start_table_from = 0;
 
-      //rInfo->do_aggreFunc = g_Dbs.do_aggreFunc;
-      if (g_args.use_metric) {
-        rInfo->ntables = g_Dbs.db[0].superTbls[0].childTblCount;
-        rInfo->end_table_to = g_Dbs.db[0].superTbls[0].childTblCount - 1;
-        rInfo->superTblInfo = &g_Dbs.db[0].superTbls[0];
-        tstrncpy(rInfo->tb_prefix,
-              g_Dbs.db[0].superTbls[0].childTblPrefix, MAX_TB_NAME_SIZE);
-      } else {
-        rInfo->ntables = g_args.num_of_tables;
-        rInfo->end_table_to = g_args.num_of_tables -1;
-        tstrncpy(rInfo->tb_prefix, g_args.tb_prefix, MAX_TB_NAME_SIZE);
-      }
+  //rInfo->do_aggreFunc = g_Dbs.do_aggreFunc;
+  if (g_args.use_metric) {
+    rInfo->ntables = g_Dbs.db[0].superTbls[0].childTblCount;
+    rInfo->end_table_to = g_Dbs.db[0].superTbls[0].childTblCount - 1;
+    rInfo->superTblInfo = &g_Dbs.db[0].superTbls[0];
+    tstrncpy(rInfo->tb_prefix,
+          g_Dbs.db[0].superTbls[0].childTblPrefix, MAX_TB_NAME_SIZE);
+  } else {
+    rInfo->ntables = g_args.num_of_tables;
+    rInfo->end_table_to = g_args.num_of_tables -1;
+    tstrncpy(rInfo->tb_prefix, g_args.tb_prefix, MAX_TB_NAME_SIZE);
+  }
 
-      rInfo->taos = taos_connect(
-              g_Dbs.host,
-              g_Dbs.user,
-              g_Dbs.password,
-              g_Dbs.db[0].dbName,
-              g_Dbs.port);
-      if (rInfo->taos == NULL) {
-        errorPrint( "Failed to connect to TDengine, reason:%s\n",
-                taos_errstr(NULL));
-        free(rInfo);
-        exit(-1);
-      }
+  rInfo->taos = taos_connect(
+          g_Dbs.host,
+          g_Dbs.user,
+          g_Dbs.password,
+          g_Dbs.db[0].dbName,
+          g_Dbs.port);
+  if (rInfo->taos == NULL) {
+    errorPrint( "Failed to connect to TDengine, reason:%s\n",
+            taos_errstr(NULL));
+    free(rInfo);
+    exit(-1);
+  }
 
-      tstrncpy(rInfo->fp, g_Dbs.resultFile, MAX_FILE_NAME_LEN);
+  tstrncpy(rInfo->fp, g_Dbs.resultFile, MAX_FILE_NAME_LEN);
 
-      if (!g_Dbs.use_metric) {
-        pthread_create(&read_id, NULL, readTable, rInfo);
-      } else {
-        pthread_create(&read_id, NULL, readMetric, rInfo);
-      }
-      pthread_join(read_id, NULL);
-      taos_close(rInfo->taos);
-      free(rInfo);
-    }
+  if (!g_Dbs.use_metric) {
+    pthread_create(&read_id, NULL, readTable, rInfo);
+  } else {
+    pthread_create(&read_id, NULL, readMetric, rInfo);
+  }
+  pthread_join(read_id, NULL);
+  taos_close(rInfo->taos);
+  free(rInfo);
 }
 
 static void testCmdLine() {
@@ -6582,9 +6595,7 @@ static void testCmdLine() {
   g_args.test_mode = INSERT_TEST;
   insertTestProcess();
 
-  if (g_Dbs.insert_only)
-    return;
-  else
+  if (false == g_Dbs.insert_only)
     queryResult();
 }
 
