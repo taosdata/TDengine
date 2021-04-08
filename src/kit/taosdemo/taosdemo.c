@@ -764,7 +764,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         char *dupstr = strdup(argv[i]);
         char *running = dupstr;
         char *token = strsep(&running, ",");
-        while (token != NULL) {
+        while(token != NULL) {
           if (strcasecmp(token, "INT")
                   && strcasecmp(token, "FLOAT")
                   && strcasecmp(token, "TINYINT")
@@ -970,7 +970,7 @@ static void getResult(TAOS_RES *res, char* resultFileName) {
   char  temp[16000];
 
   // fetch the records row by row
-  while ((row = taos_fetch_row(res))) {
+  while((row = taos_fetch_row(res))) {
     if (totalLen >= 100*1024*1024 - 32000) {
       if (fp) fprintf(fp, "%s", databuf);
       totalLen = 0;
@@ -1169,7 +1169,8 @@ static int printfInsertMeta() {
     if (g_Dbs.db[i].dbCfg.precision[0] != 0) {
       if ((0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "ms", 2))
               || (0 == strncasecmp(g_Dbs.db[i].dbCfg.precision, "us", 2))) {
-        printf("  precision:             \033[33m%s\033[0m\n", g_Dbs.db[i].dbCfg.precision);
+        printf("  precision:             \033[33m%s\033[0m\n",
+            g_Dbs.db[i].dbCfg.precision);
       } else {
         printf("\033[1m\033[40;31m  precision error:       %s\033[0m\n",
                 g_Dbs.db[i].dbCfg.precision);
@@ -1177,11 +1178,13 @@ static int printfInsertMeta() {
       }
     }
 
-    printf("  super table count:     \033[33m%d\033[0m\n", g_Dbs.db[i].superTblCount);
+    printf("  super table count:     \033[33m%d\033[0m\n",
+        g_Dbs.db[i].superTblCount);
     for (int j = 0; j < g_Dbs.db[i].superTblCount; j++) {
       printf("  super table[\033[33m%d\033[0m]:\n", j);
 
-      printf("      stbName:           \033[33m%s\033[0m\n",  g_Dbs.db[i].superTbls[j].sTblName);
+      printf("      stbName:           \033[33m%s\033[0m\n",
+          g_Dbs.db[i].superTbls[j].sTblName);
 
       if (PRE_CREATE_SUBTBL == g_Dbs.db[i].superTbls[j].autoCreateTable) {
         printf("      autoCreateTable:   \033[33m%s\033[0m\n",  "no");
@@ -1247,7 +1250,7 @@ static int printfInsertMeta() {
               g_Dbs.db[i].superTbls[j].sampleFile);
       printf("      tagsFile:          \033[33m%s\033[0m\n",
               g_Dbs.db[i].superTbls[j].tagsFile);
-      printf("      columnCount:       \033[33m%d\033[0m\n        ",
+      printf("      columnCount:       \033[33m%d\033[0m\n",
               g_Dbs.db[i].superTbls[j].columnCount);
       for (int k = 0; k < g_Dbs.db[i].superTbls[j].columnCount; k++) {
         //printf("dataType:%s, dataLen:%d\t", g_Dbs.db[i].superTbls[j].columns[k].dataType, g_Dbs.db[i].superTbls[j].columns[k].dataLen);
@@ -1663,7 +1666,7 @@ static int getDbFromServer(TAOS * taos, SDbInfo** dbInfos) {
 
   TAOS_FIELD *fields = taos_fetch_fields(res);
 
-  while ((row = taos_fetch_row(res)) != NULL) {
+  while((row = taos_fetch_row(res)) != NULL) {
     // sys database name : 'log'
     if (strncasecmp(row[TSDB_SHOW_DB_NAME_INDEX], "log",
                 fields[TSDB_SHOW_DB_NAME_INDEX].bytes) == 0) {
@@ -1938,7 +1941,7 @@ static int postProceSql(char* host, uint16_t port, char* sqlstr)
         if (bytes == 0)
             break;
         sent+=bytes;
-    } while (sent < req_str_len);
+    } while(sent < req_str_len);
 
     memset(response_buf, 0, RESP_BUF_LEN);
     resp_len = sizeof(response_buf) - 1;
@@ -1956,7 +1959,7 @@ static int postProceSql(char* host, uint16_t port, char* sqlstr)
         if (bytes == 0)
             break;
         received += bytes;
-    } while (received < resp_len);
+    } while(received < resp_len);
 
     if (received == resp_len) {
         free(request_buf);
@@ -1980,7 +1983,8 @@ static int postProceSql(char* host, uint16_t port, char* sqlstr)
 static char* getTagValueFromTagSample(SSuperTable* stbInfo, int tagUsePos) {
   char*  dataBuf = (char*)calloc(TSDB_MAX_SQL_LEN+1, 1);
   if (NULL == dataBuf) {
-    errorPrint("%s() LN%d, calloc failed! size:%d\n", __func__, __LINE__, TSDB_MAX_SQL_LEN+1);
+    errorPrint("%s() LN%d, calloc failed! size:%d\n",
+        __func__, __LINE__, TSDB_MAX_SQL_LEN+1);
     return NULL;
   }
 
@@ -2184,7 +2188,7 @@ static int getChildNameOfSuperTableWithLimitAndOffset(TAOS * taos,
   }
 
   char* pTblName = childTblName;
-  while ((row = taos_fetch_row(res)) != NULL) {
+  while((row = taos_fetch_row(res)) != NULL) {
     int32_t* len = taos_fetch_lengths(res);
     tstrncpy(pTblName, (char *)row[0], len[0]+1);
     //printf("==== sub table name: %s\n", pTblName);
@@ -2247,7 +2251,7 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
   int tagIndex = 0;
   int columnIndex = 0;
   TAOS_FIELD *fields = taos_fetch_fields(res);
-  while ((row = taos_fetch_row(res)) != NULL) {
+  while((row = taos_fetch_row(res)) != NULL) {
     if (0 == count) {
       count++;
       continue;
@@ -2794,7 +2798,7 @@ static void createChildTables() {
         // normal table
         len = snprintf(tblColsBuf, MAX_SQL_SIZE, "(TS TIMESTAMP");
         int j = 0;
-        while (g_args.datatype[j]) {
+        while(g_args.datatype[j]) {
             if ((strncasecmp(g_args.datatype[j], "BINARY", strlen("BINARY")) == 0)
                     || (strncasecmp(g_args.datatype[j],
                         "NCHAR", strlen("NCHAR")) == 0)) {
@@ -2853,7 +2857,7 @@ static int readTagFromCsvFileToMem(SSuperTable  * superTblInfo) {
     return -1;
   }
 
-  while ((readLen = tgetline(&line, &n, fp)) != -1) {
+  while((readLen = tgetline(&line, &n, fp)) != -1) {
     if (('\r' == line[readLen - 1]) || ('\n' == line[readLen - 1])) {
       line[--readLen] = 0;
     }
@@ -2917,7 +2921,7 @@ static int readSampleFromCsvFileToMem(
   assert(superTblInfo->sampleDataBuf);
   memset(superTblInfo->sampleDataBuf, 0,
           MAX_SAMPLES_ONCE_FROM_FILE * superTblInfo->lenOfOneRow);
-  while (1) {
+  while(1) {
     readLen = tgetline(&line, &n, fp);
     if (-1 == readLen) {
       if(0 != fseek(fp, 0, SEEK_SET)) {
@@ -3102,9 +3106,6 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
   ret = true;
 
 PARSE_OVER:
-  //free(content);
-  //cJSON_Delete(root);
-  //fclose(fp);
   return ret;
 }
 
@@ -3181,7 +3182,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   } else if (!gInsertInterval) {
     g_args.insert_interval = 0;
   } else {
-    errorPrint("%s() LN%d, failed to read json, insert_interval input mistake\n", __func__, __LINE__);
+    errorPrint("%s() LN%d, failed to read json, insert_interval input mistake\n",
+        __func__, __LINE__);
     goto PARSE_OVER;
   }
 
@@ -3202,7 +3204,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   } else if (!interlaceRows) {
     g_args.interlace_rows = 0; // 0 means progressive mode, > 0 mean interlace mode. max value is less or equ num_of_records_per_req
   } else {
-    errorPrint("%s() LN%d, failed to read json, interlace_rows input mistake\n", __func__, __LINE__);
+    errorPrint("%s() LN%d, failed to read json, interlace_rows input mistake\n",
+        __func__, __LINE__);
     goto PARSE_OVER;
   }
 
@@ -3212,7 +3215,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   } else if (!maxSqlLen) {
     g_args.max_sql_len = TSDB_PAYLOAD_SIZE;
   } else {
-    errorPrint("%s() LN%d, failed to read json, max_sql_len input mistake\n", __func__, __LINE__);
+    errorPrint("%s() LN%d, failed to read json, max_sql_len input mistake\n",
+        __func__, __LINE__);
     goto PARSE_OVER;
   }
 
@@ -3222,7 +3226,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   } else if (!numRecPerReq) {
     g_args.num_of_RPR = 0xffff;
   } else {
-    errorPrint("%s() LN%d, failed to read json, num_of_records_per_req not found\n", __func__, __LINE__);
+    errorPrint("%s() LN%d, failed to read json, num_of_records_per_req not found\n",
+        __func__, __LINE__);
     goto PARSE_OVER;
   }
 
@@ -3548,7 +3553,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       } else if (!dataSource) {
         tstrncpy(g_Dbs.db[i].superTbls[j].dataSource, "rand", MAX_DB_NAME_SIZE);
       } else {
-        errorPrint("%s() LN%d, failed to read json, data_source not found\n", __func__, __LINE__);
+        errorPrint("%s() LN%d, failed to read json, data_source not found\n",
+            __func__, __LINE__);
         goto PARSE_OVER;
       }
 
@@ -3623,7 +3629,8 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       }
 
       cJSON *sampleFile = cJSON_GetObjectItem(stbInfo, "sample_file");
-      if (sampleFile && sampleFile->type == cJSON_String && sampleFile->valuestring != NULL) {
+      if (sampleFile && sampleFile->type == cJSON_String
+          && sampleFile->valuestring != NULL) {
         tstrncpy(g_Dbs.db[i].superTbls[j].sampleFile,
                 sampleFile->valuestring, MAX_FILE_NAME_LEN);
       } else if (!sampleFile) {
@@ -3766,9 +3773,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   ret = true;
 
 PARSE_OVER:
-  //free(content);
-  //cJSON_Delete(root);
-  //fclose(fp);
   return ret;
 }
 
@@ -3834,7 +3838,8 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   } else if (!gQueryTimes) {
     g_args.query_times = 1;
   } else {
-    errorPrint("%s() LN%d, failed to read json, query_times input mistake\n", __func__, __LINE__);
+    errorPrint("%s() LN%d, failed to read json, query_times input mistake\n",
+        __func__, __LINE__);
     goto PARSE_OVER;
   }
 
@@ -3957,12 +3962,14 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     if (!superSqls) {
       g_queryInfo.specifiedQueryInfo.sqlCount = 0;
     } else if (superSqls->type != cJSON_Array) {
-      printf("ERROR: failed to read json, super sqls not found\n");
+      errorPrint("%s() LN%d, failed to read json, super sqls not found\n",
+          __func__, __LINE__);
       goto PARSE_OVER;
     } else {
       int superSqlSize = cJSON_GetArraySize(superSqls);
       if (superSqlSize > MAX_QUERY_SQL_COUNT) {
-        printf("ERROR: failed to read json, query sql size overflow, max is %d\n", MAX_QUERY_SQL_COUNT);
+        errorPrint("%s() LN%d, failed to read json, query sql size overflow, max is %d\n",
+           __func__, __LINE__, MAX_QUERY_SQL_COUNT);
         goto PARSE_OVER;
       }
 
@@ -4105,7 +4112,8 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     if (!subsqls) {
       g_queryInfo.superQueryInfo.sqlCount = 0;
     } else if (subsqls->type != cJSON_Array) {
-      printf("ERROR: failed to read json, super sqls not found\n");
+      errorPrint("%s() LN%d: failed to read json, super sqls not found\n",
+          __func__, __LINE__);
       goto PARSE_OVER;
     } else {
       int superSqlSize = cJSON_GetArraySize(subsqls);
@@ -4149,9 +4157,6 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   ret = true;
 
 PARSE_OVER:
-  //free(content);
-  //cJSON_Delete(root);
-  //fclose(fp);
   return ret;
 }
 
@@ -5478,7 +5483,7 @@ static void *readTable(void *sarg) {
         return NULL;
       }
 
-      while (taos_fetch_row(pSql) != NULL) {
+      while(taos_fetch_row(pSql) != NULL) {
         count++;
       }
 
@@ -5554,7 +5559,7 @@ static void *readMetric(void *sarg) {
         return NULL;
       }
       int count = 0;
-      while (taos_fetch_row(pSql) != NULL) {
+      while(taos_fetch_row(pSql) != NULL) {
         count++;
       }
       t = getCurrentTimeUs() - t;
@@ -5714,7 +5719,8 @@ static void *specifiedQueryProcess(void *sarg) {
           sprintf(tmpFile, "%s-%d",
                   g_queryInfo.specifiedQueryInfo.result[i], winfo->threadID);
         }
-        selectAndGetResult(winfo->taos, g_queryInfo.specifiedQueryInfo.sql[i], tmpFile);
+        selectAndGetResult(winfo->taos,
+            g_queryInfo.specifiedQueryInfo.sql[i], tmpFile);
         int64_t t2 = taosGetTimestampUs();
         printf("=[taosc] thread[%"PRId64"] complete one sql, Spent %f s\n",
                 taosGetSelfPthreadId(), (t2 - t1)/1000000.0);
@@ -6049,11 +6055,11 @@ static void *subSubscribeProcess(void *sarg) {
     }
     //et = taosGetTimestampMs();
     //printf("========thread[%"PRId64"] complete all sqls to super table once queries duration:%.4fs\n", taosGetSelfPthreadId(), (double)(et - st)/1000.0);
-  } while (0);
+  } while(0);
 
   // start loop to consume result
   TAOS_RES* res = NULL;
-  while (1) {
+  while(1) {
     for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
       if (1 == g_queryInfo.superQueryInfo.mode) {
         continue;
@@ -6135,11 +6141,11 @@ static void *superSubscribeProcess(void *sarg) {
     }
     //et = taosGetTimestampMs();
     //printf("========thread[%"PRId64"] complete all sqls to super table once queries duration:%.4fs\n", taosGetSelfPthreadId(), (double)(et - st)/1000.0);
-  } while (0);
+  } while(0);
 
   // start loop to consume result
   TAOS_RES* res = NULL;
-  while (1) {
+  while(1) {
     for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
       if (SYNC_QUERY_MODE == g_queryInfo.specifiedQueryInfo.mode) {
         continue;
@@ -6465,7 +6471,7 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
 
   double t = getCurrentTimeUs();
 
-  while ((read_len = tgetline(&line, &line_len, fp)) != -1) {
+  while((read_len = tgetline(&line, &line_len, fp)) != -1) {
     if (read_len >= MAX_SQL_SIZE) continue;
     line[--read_len] = '\0';
 
