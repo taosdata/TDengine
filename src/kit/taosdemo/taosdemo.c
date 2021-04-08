@@ -2573,10 +2573,7 @@ static void* createTable(void *sarg)
   int64_t  lastPrintTime = taosGetTimestampMs();
 
   int buff_len;
-  if (superTblInfo)
-    buff_len = superTblInfo->maxSqlLen;
-  else
-    buff_len = BUFFER_SIZE;
+  buff_len = BUFFER_SIZE / 8;
 
   char *buffer = calloc(buff_len, 1);
   if (buffer == NULL) {
@@ -2624,7 +2621,7 @@ static void* createTable(void *sarg)
           return NULL;
         }
         len += snprintf(buffer + len,
-                superTblInfo->maxSqlLen - len,
+                buff_len - len,
                 "if not exists %s.%s%d using %s.%s tags %s ",
                 winfo->db_name, superTblInfo->childTblPrefix,
                 i, winfo->db_name,
@@ -2632,7 +2629,7 @@ static void* createTable(void *sarg)
         free(tagsValBuf);
         batchNum++;
         if ((batchNum < superTblInfo->batchCreateTableNum)
-                && ((superTblInfo->maxSqlLen - len)
+                && ((buff_len - len)
                     >= (superTblInfo->lenOfTagOfOneRow + 256))) {
           continue;
         }
@@ -5170,8 +5167,8 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
     if ((superTblInfo->childTblExists == TBL_ALREADY_EXISTS)
             && (superTblInfo->childTblOffset >= 0)) {
-      if ((superTblInfo->childTblLimit < 0) 
-          || ((superTblInfo->childTblOffset + superTblInfo->childTblLimit) 
+      if ((superTblInfo->childTblLimit < 0)
+          || ((superTblInfo->childTblOffset + superTblInfo->childTblLimit)
             > (superTblInfo->childTblCount))) {
         superTblInfo->childTblLimit =
             superTblInfo->childTblCount - superTblInfo->childTblOffset;
