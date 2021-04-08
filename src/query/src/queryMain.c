@@ -172,7 +172,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     goto _over;
   }
 
-  code = initQInfo(&pQueryMsg->tsBuf, tsdb, *pQInfo, &param, (char*)pQueryMsg, pQueryMsg->prevResultLen);
+  code = initQInfo(&pQueryMsg->tsBuf, tsdb, *pQInfo, &param, (char*)pQueryMsg, pQueryMsg->prevResultLen, NULL);
 
   _over:
   if (param.pGroupbyExpr != NULL) {

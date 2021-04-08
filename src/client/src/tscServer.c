@@ -1573,12 +1573,40 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
     return code;
   }
 
-  pRes->code = tscDoLocalMerge(pSql);
+  SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
+  if (pQueryInfo->pQInfo == NULL) {
+    STableGroupInfo tableGroupInfo = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES),};
+    tableGroupInfo.map = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+
+    STableKeyInfo tableKeyInfo = {.pTable = NULL, .lastKey = INT64_MIN};
+
+    SArray* group = taosArrayInit(1, sizeof(STableKeyInfo));
+    taosArrayPush(group, &tableKeyInfo);
+    taosArrayPush(tableGroupInfo.pGroupList, &group);
+
+    SExprInfo* list = calloc(tscSqlExprNumOfExprs(pQueryInfo), sizeof(SExprInfo));
+    for(int32_t i = 0; i < tscSqlExprNumOfExprs(pQueryInfo); ++i) {
+      SExprInfo* pExprInfo = tscSqlExprGet(pQueryInfo, i);
+      list[i] = *pExprInfo;
+    }
+
+    pQueryInfo->pQInfo = createQueryInfoFromQueryNode(pQueryInfo, list, &tableGroupInfo, NULL, NULL, pRes->pLocalMerger, MERGE_STAGE);
+  }
+
+  uint64_t localQueryId = 0;
+  SMultiwayMergeInfo* pInfo = (SMultiwayMergeInfo*) pQueryInfo->pQInfo->runtimeEnv.proot->info;
+  pInfo->pMerge = pRes->pLocalMerger;
+
+  qTableQuery(pQueryInfo->pQInfo, &localQueryId);
+  SSDataBlock* p = pQueryInfo->pQInfo->runtimeEnv.outputBuf;
+  pRes->numOfRows = (p != NULL)? p->info.rows: 0;
+
+  //pRes->code = tscDoLocalMerge(pSql);
 
   if (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows > 0) {
-    SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
     tscCreateResPointerInfo(pRes, pQueryInfo);
-    tscSetResRawPtr(pRes, pQueryInfo);
+    tscSetResRawPtrRv(pRes, pQueryInfo, p);
+//    tscSetResRawPtr(pRes, pQueryInfo);
   }
 
   pRes->row = 0;

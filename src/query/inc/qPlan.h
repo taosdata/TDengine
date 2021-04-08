@@ -19,5 +19,6 @@
 //TODO refactor
 SArray* createTableScanPlan(SQueryAttr* pQueryAttr);
 SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr);
+SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr);
 
 #endif  // TDENGINE_QPLAN_H

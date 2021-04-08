@@ -180,7 +180,7 @@ static void doSetTableGroupOutputBuf(SQueryRuntimeEnv* pRuntimeEnv, SResultRowIn
                                      int32_t groupIndex);
 
 // setup the output buffer for each operator
-static SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows) {
+SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows) {
   const static int32_t minSize = 8;
 
   SSDataBlock *res = calloc(1, sizeof(SSDataBlock));
@@ -351,7 +351,6 @@ static SResultRow *doPrepareResultRowFromKey(SQueryRuntimeEnv *pRuntimeEnv, SRes
     prepareResultListBuffer(pResultRowInfo, pRuntimeEnv);
 
     SResultRow *pResult = NULL;
-
     if (p1 == NULL) {
       pResult = getNewResultRow(pRuntimeEnv->pool);
       int32_t ret = initResultRow(pResult);
@@ -879,7 +878,7 @@ static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SQLFunctionCtx* pC
   }
 }
 
-static void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order) {
+void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order) {
   if (pCtx[0].functionId == TSDB_FUNC_ARITHM) {
     SArithmeticSupport* pSupport = (SArithmeticSupport*) pCtx[0].param[1].pz;
     if (pSupport->colList == NULL) {
@@ -1618,7 +1617,7 @@ static void* destroySQLFunctionCtx(SQLFunctionCtx* pCtx, int32_t numOfOutput) {
   return NULL;
 }
 
-static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOfTables, SArray* pOperator) {
+static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOfTables, SArray* pOperator, void* merger) {
   qDebug("QInfo:%"PRIu64" setup runtime env", GET_QID(pRuntimeEnv));
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
@@ -1728,80 +1727,24 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
         break;
       }
 
+      case OP_MultiwaySort: {
+        pRuntimeEnv->proot = createMultiwaySortOperatorInfo(pRuntimeEnv, pQueryAttr->pExpr3, pQueryAttr->numOfExpr3,
+            4096, merger); // TODO hack it
+        break;
+      }
+
+      case OP_GlobalAggregate: {
+        pRuntimeEnv->proot = createGlobalAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
+            pQueryAttr->numOfExpr3, &pQueryAttr->order.orderColId, 1);
+        break;
+      }
+
       default: {
         assert(0);
       }
     }
   }
-  /*
-  if (onlyQueryTags(pQueryAttr)) {  // do nothing for tags query
 
-  } else if (QUERY_IS_INTERVAL_QUERY(pQueryAttr)) {
-    if (pQueryAttr->stableQuery) {
-      pRuntimeEnv->proot = createMultiTableTimeIntervalOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner,
-                                                                    pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-      setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
-    } else {
-      pRuntimeEnv->proot =
-          createTimeIntervalOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-      setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
-
-      if (pQueryAttr->pExpr2 != NULL) {
-        pRuntimeEnv->proot =
-            createArithOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
-      }
-
-      if (pQueryAttr->fillType != TSDB_FILL_NONE && !pQueryAttr->pointInterpQuery) {
-        SOperatorInfo* pInfo = pRuntimeEnv->proot;
-        pRuntimeEnv->proot = createFillOperatorInfo(pRuntimeEnv, pInfo, pInfo->pExpr, pInfo->numOfOutput);
-      }
-    }
-
-  } else if (pQueryAttr->groupbyColumn) {
-    pRuntimeEnv->proot =
-        createGroupbyOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-    setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
-
-    if (pQueryAttr->pExpr2 != NULL) {
-      pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
-    }
-  } else if (pQueryAttr->sw.gap > 0) {
-    pRuntimeEnv->proot = createSWindowOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-    setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
-
-    if (pQueryAttr->pExpr2 != NULL) {
-      pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
-    }
-  } else if (pQueryAttr->simpleAgg) {
-    if (pQueryAttr->stableQuery && !pQueryAttr->tsCompQuery) {
-      pRuntimeEnv->proot =
-          createMultiTableAggOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-    } else {
-      pRuntimeEnv->proot =
-          createAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-    }
-
-    setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
-
-    if (pQueryAttr->pExpr2 != NULL && !pQueryAttr->stableQuery) {
-      pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
-    }
-  } else {  // diff/add/multiply/subtract/division
-    if (!onlyQueryTags(pQueryAttr)) {
-      pRuntimeEnv->proot =
-          createArithOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-      setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
-    }
-  }
-
-  if (pQueryAttr->limit.offset > 0) {
-    pRuntimeEnv->proot = createOffsetOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot);
-  }
-
-  if (pQueryAttr->limit.limit > 0) {
-    pRuntimeEnv->proot = createLimitOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot);
-  }
-*/
   return TSDB_CODE_SUCCESS;
 
 _clean:
@@ -3918,7 +3861,8 @@ static SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, in
   return pFillCol;
 }
 
-int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *tsdb, int32_t tbScanner, SArray* pOperator) {
+int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *tsdb, int32_t tbScanner, SArray* pOperator,
+    void* param) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
 
   SQueryAttr *pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
@@ -3981,7 +3925,7 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   // create runtime environment
   int32_t numOfTables = (int32_t)pQueryAttr->tableGroupInfo.numOfTables;
   pQInfo->summary.tableInfoSize += (numOfTables * sizeof(STableQueryInfo));
-  code = setupQueryRuntimeEnv(pRuntimeEnv, (int32_t) pQueryAttr->tableGroupInfo.numOfTables, pOperator);
+  code = setupQueryRuntimeEnv(pRuntimeEnv, (int32_t) pQueryAttr->tableGroupInfo.numOfTables, pOperator, param);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -4353,6 +4297,55 @@ SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntime
   pOptr->exec          = doTableScan;
 
   return pOptr;
+}
+
+SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput,
+    int32_t* orderColumn, int32_t numOfOrder) {
+  SMultiwayMergeInfo* pInfo = calloc(1, sizeof(SMultiwayMergeInfo));
+
+  SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
+  int32_t     numOfRows =
+      (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
+
+  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, numOfRows);
+  pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+
+  // TODO refactor
+  int32_t len = 0;
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    len += pExpr[i].base.resBytes;
+  }
+
+  pInfo->prevRow = taosArrayInit(numOfOrder, (POINTER_BYTES * numOfOrder + len));
+  int32_t offset = POINTER_BYTES * numOfOutput;
+  for(int32_t i = 0; i < numOfOrder; ++i) {
+    pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
+
+    int32_t index = orderColumn[i];
+    offset += pExpr[index].base.resBytes;
+  }
+
+  pInfo->orderColumnList = taosArrayFromList(orderColumn, numOfOrder, sizeof(int32_t));
+
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
+
+  pInfo->seed = rand();
+  setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed);
+
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+  pOperator->name = "GlobalAggregate";
+  pOperator->operatorType = OP_GlobalAggregate;
+  pOperator->blockingOptr = true;
+  pOperator->status = OP_IN_EXECUTING;
+  pOperator->info = pInfo;
+  pOperator->upstream = upstream;
+  pOperator->pExpr = pExpr;
+  pOperator->numOfOutput = numOfOutput;
+  pOperator->pRuntimeEnv = pRuntimeEnv;
+
+  pOperator->exec = doGlobalAggregate;
+  pOperator->cleanup = destroyBasicOperatorInfo;
+  return pOperator;
 }
 
 static int32_t getTableScanOrder(STableScanInfo* pTableScanInfo) {
@@ -5121,6 +5114,25 @@ SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorIn
 
   return pOperator;
 }
+
+SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream) {
+  SLimitOperatorInfo* pInfo = calloc(1, sizeof(SLimitOperatorInfo));
+  pInfo->limit = pRuntimeEnv->pQueryAttr->limit.limit;
+
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+
+  pOperator->name         = "SLimitOperator";
+  pOperator->operatorType = OP_SLimit;
+  pOperator->blockingOptr = false;
+  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->upstream     = upstream;
+  pOperator->exec         = doLimit;
+  pOperator->info         = pInfo;
+  pOperator->pRuntimeEnv  = pRuntimeEnv;
+
+  return pOperator;
+}
+
 
 static SSDataBlock* doTagScan(void* param) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
@@ -6264,7 +6276,8 @@ bool isValidQInfo(void *param) {
   return (sig == (uint64_t)pQInfo);
 }
 
-int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, SQInfo* pQInfo, SQueryParam* param, char* start, int32_t prevResultLen) {
+int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, SQInfo* pQInfo, SQueryParam* param, char* start,
+                  int32_t prevResultLen, void* merger) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
@@ -6309,7 +6322,7 @@ int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, SQInfo* pQInfo, SQueryPara
   }
 
   // filter the qualified
-  if ((code = doInitQInfo(pQInfo, pTsBuf, prevResult, tsdb, param->tableScanOperator, param->pOperator)) != TSDB_CODE_SUCCESS) {
+  if ((code = doInitQInfo(pQInfo, pTsBuf, prevResult, tsdb, param->tableScanOperator, param->pOperator, merger)) != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 

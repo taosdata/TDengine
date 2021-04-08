@@ -213,7 +213,7 @@ typedef struct SQueryInfo {
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;
-
+  SQInfo*          pQInfo;      // global merge operator
   SArray*          pDSOperator;    // data source operator
   SArray*          pPhyOperator;   // physical query execution plan
   SQueryAttr*          pQueryAttr;         // query object
@@ -420,6 +420,8 @@ void    tscRestoreFuncForSTableQuery(SQueryInfo *pQueryInfo);
 
 int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
+void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock);
+
 void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo);
 
 void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);

@@ -522,6 +522,75 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   }
 }
 
+void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock) {
+  assert(pRes->numOfCols > 0);
+
+  int32_t offset = 0;
+
+  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
+    SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
+
+    SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
+
+    pRes->urow[i] = pColData->pData + offset * pColData->info.bytes;
+    pRes->length[i] = pInfo->field.bytes;
+
+    offset += pInfo->field.bytes;
+
+    // generated the user-defined column result
+    if (pInfo->pExpr->pExpr == NULL && TSDB_COL_IS_UD_COL(pInfo->pExpr->base.colInfo.flag)) {
+      if (pInfo->pExpr->base.param[1].nType == TSDB_DATA_TYPE_NULL) {
+        setNullN(pRes->urow[i], pInfo->field.type, pInfo->field.bytes, (int32_t) pRes->numOfRows);
+      } else {
+        if (pInfo->field.type == TSDB_DATA_TYPE_NCHAR || pInfo->field.type == TSDB_DATA_TYPE_BINARY) {
+          assert(pInfo->pExpr->base.param[1].nLen <= pInfo->field.bytes);
+
+          for (int32_t k = 0; k < pRes->numOfRows; ++k) {
+            char* p = ((char**)pRes->urow)[i] + k * pInfo->field.bytes;
+
+            memcpy(varDataVal(p), pInfo->pExpr->base.param[1].pz, pInfo->pExpr->base.param[1].nLen);
+            varDataSetLen(p, pInfo->pExpr->base.param[1].nLen);
+          }
+        } else {
+          for (int32_t k = 0; k < pRes->numOfRows; ++k) {
+            char* p = ((char**)pRes->urow)[i] + k * pInfo->field.bytes;
+            memcpy(p, &pInfo->pExpr->base.param[1].i64, pInfo->field.bytes);
+          }
+        }
+      }
+
+    } else if (pInfo->field.type == TSDB_DATA_TYPE_NCHAR) {
+      // convert unicode to native code in a temporary buffer extra one byte for terminated symbol
+      pRes->buffer[i] = realloc(pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+
+      // string terminated char for binary data
+      memset(pRes->buffer[i], 0, pInfo->field.bytes * pRes->numOfRows);
+
+      char* p = pRes->urow[i];
+      for (int32_t k = 0; k < pRes->numOfRows; ++k) {
+        char* dst = pRes->buffer[i] + k * pInfo->field.bytes;
+
+        if (isNull(p, TSDB_DATA_TYPE_NCHAR)) {
+          memcpy(dst, p, varDataTLen(p));
+        } else if (varDataLen(p) > 0) {
+          int32_t length = taosUcs4ToMbs(varDataVal(p), varDataLen(p), varDataVal(dst));
+          varDataSetLen(dst, length);
+
+          if (length == 0) {
+            tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, (char*)p);
+          }
+        } else {
+          varDataSetLen(dst, 0);
+        }
+
+        p += pInfo->field.bytes;
+      }
+
+      memcpy(pRes->urow[i], pRes->buffer[i], pInfo->field.bytes * pRes->numOfRows);
+    }
+  }
+}
+
 static SColumnInfo* extractColumnInfoFromResult(STableMeta* pTableMeta, SArray* pTableCols) {
   int32_t numOfCols = taosArrayGetSize(pTableCols);
   SColumnInfo* pColInfo = calloc(numOfCols, sizeof(SColumnInfo));
@@ -626,8 +695,7 @@ void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 
     SOperatorInfo* pSourceOptr = createDummyInputOperator((char*)pRes, pSchema, numOfOutput);
 
-    SQInfo* pQInfo = createQueryInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOptr, NULL, NULL);
-    //printf("%p\n", pQInfo);
+    SQInfo* pQInfo = createQueryInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOptr, NULL, NULL, MASTER_SCAN);
     SSDataBlock* pres = pQInfo->runtimeEnv.outputBuf;
 
     // build result
@@ -3250,6 +3318,60 @@ static int32_t createSecondaryExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInfo) {
+  assert(tscIsTwoStageSTableQuery(pQueryInfo, 0));
+
+  pQueryAttr->numOfExpr3 = tscNumOfFields(pQueryInfo);
+  pQueryAttr->pExpr3 = calloc(pQueryAttr->numOfExpr3, sizeof(SExprInfo));
+  if (pQueryAttr->pExpr3 == NULL) {
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  for (int32_t i = 0; i < pQueryAttr->numOfExpr3; ++i) {
+    SExprInfo* pExpr = &pQueryAttr->pExpr1[i];
+    SSqlExpr*  pse = &pQueryAttr->pExpr3[i].base;
+
+    *pse = pExpr->base;
+    pse->colInfo.colId = pExpr->base.resColId;
+    pse->colInfo.colIndex = i;
+
+    pse->colType = pExpr->base.resType;
+    pse->colBytes = pExpr->base.resBytes;
+
+    for (int32_t j = 0; j < pExpr->base.numOfParams; ++j) {
+      tVariantAssign(&pse->param[j], &pExpr->base.param[j]);
+    }
+  }
+    {
+      for (int32_t i = 0; i < pQueryAttr->numOfExpr3; ++i) {
+        SExprInfo* pExpr = &pQueryAttr->pExpr1[i];
+        SSqlExpr*  pse = &pQueryAttr->pExpr3[i].base;
+
+        // the final result size and type in the same as query on single table.
+        // so here, set the flag to be false;
+        int32_t inter = 0;
+
+        int32_t functionId = pExpr->base.functionId;
+        if (functionId >= TSDB_FUNC_TS && functionId <= TSDB_FUNC_DIFF) {
+          continue;
+        }
+
+        if (functionId == TSDB_FUNC_FIRST_DST) {
+          functionId = TSDB_FUNC_FIRST;
+        } else if (functionId == TSDB_FUNC_LAST_DST) {
+          functionId = TSDB_FUNC_LAST;
+        } else if (functionId == TSDB_FUNC_STDDEV_DST) {
+          functionId = TSDB_FUNC_STDDEV;
+        }
+
+        getResultDataInfo(pExpr->base.colType, pExpr->base.colBytes, functionId, 0, &pse->resType,
+            &pse->resBytes, &inter, 0, false);
+      }
+    }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t createTagColumnInfo(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaInfo) {
   if (pTableMetaInfo->tagColList == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -3350,6 +3472,11 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   int32_t code = createSecondaryExpr(pQueryAttr, pQueryInfo, pTableMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
+  }
+
+  // global aggregate query
+  if (pQueryAttr->stableQuery && (pQueryAttr->simpleAgg || pQueryAttr->interval.interval > 0) && tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+    createGlobalAggregateExpr(pQueryAttr, pQueryInfo);
   }
 
   // tag column info

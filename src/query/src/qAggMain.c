@@ -375,12 +375,6 @@ int32_t isValidFunction(const char* name, int32_t len) {
   return -1;
 }
 
-// set the query flag to denote that query is completed
-static void no_next_step(SQLFunctionCtx *pCtx) {
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  pResInfo->complete = true;
-}
-
 static bool function_setup(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pResInfo->initialized) {
@@ -1540,7 +1534,7 @@ static void stddev_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   }
 }
 
-static void stddev_next_step(SQLFunctionCtx *pCtx) {
+static UNUSED_FUNC void stddev_next_step(SQLFunctionCtx *pCtx) {
   /*
    * the stddevInfo and the average info struct share the same buffer area
    * And the position of each element in their struct is exactly the same matched
@@ -2907,7 +2901,7 @@ static void percentile_finalizer(SQLFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
-static void percentile_next_step(SQLFunctionCtx *pCtx) {
+static UNUSED_FUNC void percentile_next_step(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *    pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
@@ -4891,7 +4885,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               count_function,
                               count_function_f,
-                              no_next_step,
                               doFinalizer,
                               count_func_merge,
                               countRequired,
@@ -4905,7 +4898,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               sum_function,
                               sum_function_f,
-                              no_next_step,
                               function_finalizer,
                               sum_func_merge,
                               statisRequired,
@@ -4919,7 +4911,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               avg_function,
                               avg_function_f,
-                              no_next_step,
                               avg_finalizer,
                               avg_func_merge,
                               statisRequired,
@@ -4933,7 +4924,6 @@ SAggFunctionInfo aAggs[] = {{
                               min_func_setup,
                               min_function,
                               min_function_f,
-                              no_next_step,
                               function_finalizer,
                               min_func_merge,
                               statisRequired,
@@ -4947,7 +4937,6 @@ SAggFunctionInfo aAggs[] = {{
                               max_func_setup,
                               max_function,
                               max_function_f,
-                              no_next_step,
                               function_finalizer,
                               max_func_merge,
                               statisRequired,
@@ -4961,7 +4950,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               stddev_function,
                               stddev_function_f,
-                              stddev_next_step,
                               stddev_finalizer,
                               noop1,
                               dataBlockRequired,
@@ -4975,7 +4963,6 @@ SAggFunctionInfo aAggs[] = {{
                               percentile_function_setup,
                               percentile_function,
                               percentile_function_f,
-                              percentile_next_step,
                               percentile_finalizer,
                               noop1,
                               dataBlockRequired,
@@ -4989,7 +4976,6 @@ SAggFunctionInfo aAggs[] = {{
                               apercentile_function_setup,
                               apercentile_function,
                               apercentile_function_f,
-                              no_next_step,
                               apercentile_finalizer,
                               apercentile_func_merge,
                               dataBlockRequired,
@@ -5003,7 +4989,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               first_function,
                               first_function_f,
-                              no_next_step,
                               function_finalizer,
                               noop1,
                               firstFuncRequired,
@@ -5017,7 +5002,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               last_function,
                               last_function_f,
-                              no_next_step,
                               function_finalizer,
                               noop1,
                               lastFuncRequired,
@@ -5032,7 +5016,6 @@ SAggFunctionInfo aAggs[] = {{
                               first_last_function_setup,
                               last_row_function,
                               noop2,
-                              no_next_step,
                               last_row_finalizer,
                               last_dist_func_merge,
                               dataBlockRequired,
@@ -5047,7 +5030,6 @@ SAggFunctionInfo aAggs[] = {{
                               top_bottom_function_setup,
                               top_function,
                               top_function_f,
-                              no_next_step,
                               top_bottom_func_finalizer,
                               top_func_merge,
                               dataBlockRequired,
@@ -5062,7 +5044,6 @@ SAggFunctionInfo aAggs[] = {{
                               top_bottom_function_setup,
                               bottom_function,
                               bottom_function_f,
-                              no_next_step,
                               top_bottom_func_finalizer,
                               bottom_func_merge,
                               dataBlockRequired,
@@ -5076,7 +5057,6 @@ SAggFunctionInfo aAggs[] = {{
                               spread_function_setup,
                               spread_function,
                               spread_function_f,
-                              no_next_step,
                               spread_function_finalizer,
                               spread_func_merge,
                               countRequired,
@@ -5090,7 +5070,6 @@ SAggFunctionInfo aAggs[] = {{
                               twa_function_setup,
                               twa_function,
                               twa_function_f,
-                              no_next_step,
                               twa_function_finalizer,
                               twa_function_copy,
                               dataBlockRequired,
@@ -5104,7 +5083,6 @@ SAggFunctionInfo aAggs[] = {{
                               leastsquares_function_setup,
                               leastsquares_function,
                               leastsquares_function_f,
-                              no_next_step,
                               leastsquares_finalizer,
                               noop1,
                               dataBlockRequired,
@@ -5118,7 +5096,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               date_col_output_function,
                               date_col_output_function_f,
-                              no_next_step,
                               doFinalizer,
                               copy_function,
                               noDataRequired,
@@ -5132,7 +5109,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               noop1,
                               noop2,
-                              no_next_step,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,
@@ -5146,7 +5122,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               tag_function,
                               noop2,
-                              no_next_step,
                               doFinalizer,
                               copy_function,
                               noDataRequired,
@@ -5160,7 +5135,6 @@ SAggFunctionInfo aAggs[] = {{
                               ts_comp_function_setup,
                               ts_comp_function,
                               ts_comp_function_f,
-                              no_next_step,
                               ts_comp_finalize,
                               copy_function,
                               dataBlockRequired,
@@ -5174,7 +5148,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               tag_function,
                               tag_function_f,
-                              no_next_step,
                               doFinalizer,
                               copy_function,
                               noDataRequired,
@@ -5188,7 +5161,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               col_project_function,
                               col_project_function_f,
-                              no_next_step,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,
@@ -5202,7 +5174,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               tag_project_function,
                               tag_project_function_f,
-                              no_next_step,
                               doFinalizer,
                               copy_function,
                               noDataRequired,
@@ -5216,7 +5187,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               arithmetic_function,
                               arithmetic_function_f,
-                              no_next_step,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,
@@ -5230,7 +5200,6 @@ SAggFunctionInfo aAggs[] = {{
                               diff_function_setup,
                               diff_function,
                               diff_function_f,
-                              no_next_step,
                               doFinalizer,
                               noop1,
                               dataBlockRequired,
@@ -5245,7 +5214,6 @@ SAggFunctionInfo aAggs[] = {{
                               first_last_function_setup,
                               first_dist_function,
                               first_dist_function_f,
-                              no_next_step,
                               function_finalizer,
                               first_dist_func_merge,
                               firstDistFuncRequired,
@@ -5259,7 +5227,6 @@ SAggFunctionInfo aAggs[] = {{
                               first_last_function_setup,
                               last_dist_function,
                               last_dist_function_f,
-                              no_next_step,
                               function_finalizer,
                               last_dist_func_merge,
                               lastDistFuncRequired,
@@ -5273,7 +5240,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               stddev_dst_function,
                               stddev_dst_function_f,
-                              no_next_step,
                               stddev_dst_finalizer,
                               stddev_dst_merge,
                               dataBlockRequired,
@@ -5287,7 +5253,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               interp_function,
                               do_sum_f,  // todo filter handle
-                              no_next_step,
                               doFinalizer,
                               copy_function,
                               dataBlockRequired,
@@ -5301,7 +5266,6 @@ SAggFunctionInfo aAggs[] = {{
                               rate_function_setup,
                               rate_function,
                               rate_function_f,
-                              no_next_step,
                               rate_finalizer,
                               rate_func_copy,
                               dataBlockRequired,
@@ -5315,7 +5279,6 @@ SAggFunctionInfo aAggs[] = {{
                               rate_function_setup,
                               irate_function,
                               irate_function_f,
-                              no_next_step,
                               rate_finalizer,
                               rate_func_copy,
                               dataBlockRequired,
@@ -5329,7 +5292,6 @@ SAggFunctionInfo aAggs[] = {{
                               rate_function_setup,
                               rate_function,
                               rate_function_f,
-                              no_next_step,
                               sumrate_finalizer,
                               sumrate_func_merge,
                               dataBlockRequired,
@@ -5343,7 +5305,6 @@ SAggFunctionInfo aAggs[] = {{
                               rate_function_setup,
                               irate_function,
                               irate_function_f,
-                              no_next_step,
                               sumrate_finalizer,
                               sumrate_func_merge,
                               dataBlockRequired,
@@ -5357,7 +5318,6 @@ SAggFunctionInfo aAggs[] = {{
                               rate_function_setup,
                               rate_function,
                               rate_function_f,
-                              no_next_step,
                               sumrate_finalizer,
                               sumrate_func_merge,
                               dataBlockRequired,
@@ -5371,7 +5331,6 @@ SAggFunctionInfo aAggs[] = {{
                               rate_function_setup,
                               irate_function,
                               irate_function_f,
-                              no_next_step,
                               sumrate_finalizer,
                               sumrate_func_merge,
                               dataBlockRequired,
@@ -5385,7 +5344,6 @@ SAggFunctionInfo aAggs[] = {{
                               function_setup,
                               noop1,
                               noop2,
-                              no_next_step,
                               noop1,
                               noop1,
                               dataBlockRequired,
@@ -5399,7 +5357,6 @@ SAggFunctionInfo aAggs[] = {{
                                 function_setup,
                                 blockInfo_func,
                                 noop2,
-                                no_next_step,
                                 blockinfo_func_finalizer,
                                 block_func_merge,
                                 dataBlockRequired,

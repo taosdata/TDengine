@@ -62,6 +62,8 @@ typedef struct SLocalMerger {
   bool                   discard;
   int32_t                offset;             // limit offset value
   bool                   orderPrjOnSTable;   // projection query on stable
+  char*                  tagBuf;             // max tag buffer
+  int32_t                tagBufLen;
 } SLocalMerger;
 
 typedef struct SRetrieveSupport {

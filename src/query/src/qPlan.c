@@ -125,4 +125,37 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
   return plan;
 }
 
+SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
+  SArray* plan = taosArrayInit(4, sizeof(int32_t));
 
+  if (!pQueryAttr->stableQuery) {
+    return plan;
+  }
+
+  // todo: exchange operator?
+  int32_t op = OP_MultiwaySort;
+  taosArrayPush(plan, &op);
+
+  // fill operator
+  if (pQueryAttr->fillType != TSDB_FILL_NONE && (!pQueryAttr->pointInterpQuery)) {
+    op = OP_Fill;
+    taosArrayPush(plan, &op);
+  }
+
+  // arithmetic operator
+  if (!pQueryAttr->simpleAgg && pQueryAttr->interval.interval == 0) {
+    op = OP_Arithmetic;
+    taosArrayPush(plan, &op);
+  } else {
+    op = OP_GlobalAggregate;
+    taosArrayPush(plan, &op);
+  }
+
+  // limit/offset operator
+  if (pQueryAttr->limit.limit > 0 || pQueryAttr->limit.offset > 0) {
+    op = OP_SLimit;
+    taosArrayPush(plan, &op);
+  }
+
+  return plan;
+}

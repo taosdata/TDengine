@@ -3467,7 +3467,8 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
       SQueryInfo *pQueryInfo1 = tscGetQueryInfo(&pSql->pSubs[i]->cmd, 0);
       
       if ((pRes1->row >= pRes1->numOfRows && tscHasReachLimitation(pQueryInfo1, pRes1) &&
-          tscIsProjectionQuery(pQueryInfo1)) || (pRes1->numOfRows == 0)) {
+           tscIsProjectionQuery(pQueryInfo1)) ||
+          (pRes1->numOfRows == 0)) {
         hasData = false;
         break;
       }
@@ -3477,7 +3478,8 @@ static UNUSED_FUNC bool tscHasRemainDataInSubqueryResultSet(SSqlObj *pSql) {
   return hasData;
 }
 
-void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo, SOperatorInfo* pOperator, char* sql, void* addr) {
+void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, STableGroupInfo* pTableGroupInfo,
+                                   SOperatorInfo* pSourceOperator, char* sql, void* merger, int32_t stage) {
   assert(pQueryInfo != NULL);
   int16_t numOfOutput = pQueryInfo->fieldsInfo.numOfOutput;
 
@@ -3493,7 +3495,7 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
 
   pRuntimeEnv->pQueryAttr = pQueryAttr;
-  tscCreateQueryFromQueryInfo(pQueryInfo, pQueryAttr, addr);
+  tscCreateQueryFromQueryInfo(pQueryInfo, pQueryAttr, NULL);
 
   pQueryAttr->tableGroupInfo = *pTableGroupInfo;
 
@@ -3580,15 +3582,17 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
 
   tfree(pExprs);
 
-  SArray* pa = createExecOperatorPlan(pQueryAttr);
+  SArray* pa = NULL;
+  if (stage == MASTER_SCAN) {
+    pa = createExecOperatorPlan(pQueryAttr);
+  } else {
+    pa = createGlobalMergePlan(pQueryAttr);
+  }
 
   STsBufInfo bufInfo = {0};
   SQueryParam param = {.pOperator = pa};
-  /*int32_t code = */initQInfo(&bufInfo, NULL,  pQInfo, &param, NULL, 0);
-  pQInfo->runtimeEnv.proot->upstream = pOperator;
-
-  qTableQuery(pQInfo, NULL);
-
+  /*int32_t code = */initQInfo(&bufInfo, NULL,  pQInfo, &param, NULL, 0, merger);
+//  pQInfo->runtimeEnv.proot->upstream = pSourceOperator;
   return pQInfo;
 
   _cleanup:
