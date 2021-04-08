@@ -149,6 +149,7 @@ extern int32_t  simScriptSucced;
 extern int32_t  simDebugFlag;
 extern char     tsScriptDir[];
 extern bool     simAsyncQuery;
+extern bool     abortExecution;
 
 SScript *simParseScript(char *fileName);
 SScript *simProcessCallOver(SScript *script);

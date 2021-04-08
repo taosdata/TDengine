@@ -21,10 +21,13 @@
 
 bool simAsyncQuery = false;
 bool simExecSuccess = false;
+bool abortExecution = false;
 
 void simHandleSignal(int32_t signo, void *sigInfo, void *context) {
   simSystemCleanUp();
-  exit(1);
+  abortExecution = true;
+//  runningScript->killed = true;
+//  exit(1);
 }
 
 int32_t main(int32_t argc, char *argv[]) {
@@ -57,6 +60,11 @@ int32_t main(int32_t argc, char *argv[]) {
   SScript *script = simParseScript(scriptFile);
   if (script == NULL) {
     simError("parse script file:%s failed", scriptFile);
+    return -1;
+  }
+
+  if (abortExecution) {
+    simError("execute abort");
     return -1;
   }
 

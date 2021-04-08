@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash 
 
 # This is the script for us to try to cause the TDengine server or client to crash
 #    
