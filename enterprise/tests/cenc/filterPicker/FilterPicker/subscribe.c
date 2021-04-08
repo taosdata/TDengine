@@ -33,8 +33,8 @@ static signed char index_64[128] = {
 
 
 typedef struct cenc_samples_s {
-  nstime_t time[4096];
-  float    samples[4096];
+  nstime_t time[131072];
+  float    samples[131072];
 } cenc_samples_t;
 
 
@@ -373,8 +373,10 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
   TAOS_ROW           row               = NULL;
 
   /* Set bit flags to validate CRC and unpack data samples */
-  flags |= MSF_VALIDATECRC;
+  //flags |= MSF_VALIDATECRC;
   flags |= MSF_UNPACKDATA;
+
+  fprintf(stderr, "start time: %ld\r\n", time(NULL));
 
   while ((row = taos_fetch_row(res))) {
     fields = taos_fetch_fields(res);
@@ -401,14 +403,18 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
 
         records = mstl3_readbuffer(&mstl, (char *) p, len, 0, flags, NULL, 0);
         if (records < 0) {
-          fprintf(stderr, "mstl3_readbuffer error\r\n");
+          fprintf(stderr, "mstl3_readbuffer error, p = %s, len = %d\r\n", (char *) row[i], len);
+
+          mstl3_free(&mstl, 0);
+          free(p);
+
           continue;
         }
 
         cenc_picker_func(mstl, param);
 
-        free(p);
         mstl3_free(&mstl, 0);
+        free(p);
       }
     }
   }
@@ -425,22 +431,29 @@ int main(int argc, char *argv[]) {
   const char         *user      = "root";
   const char         *passwd    = "taosdata";
   const char         *port      = "6030";
-  const char         *sql       = "select * from ps;";
   const char         *topic     = "packet";
   const char         *fpicker   = "fpicker";
   const char         *stb_name  = "ms";
+  const char         *index     = NULL;
   TAOS               *taos      = NULL;
   TAOS               *res_taos  = NULL;
   TAOS_RES           *res       = NULL;
   TAOS_SUB           *tsub      = NULL;
+  char                sql[MAX_TSQL_LEN];
   char                cmd[MAX_TSQL_LEN];
   int                 i;
   int                 async     = 1;
   int                 restart   = 0;
   int                 keep      = 1;
+  long                num;
   callback_params_t   params;
 
   for (i = 1; i < argc; i++) {
+    if (strncmp(argv[i], "-i=", 3) == 0) {
+      index = argv[i] + 3;
+      continue;
+    }
+
     if (strncmp(argv[i], "-h=", 3) == 0) {
       host = argv[i] + 3;
       continue;
@@ -478,7 +491,7 @@ int main(int argc, char *argv[]) {
 
     if (strcmp(argv[i], "-help") == 0) {
       fprintf(stderr,
-              "Usage: %s[ -h=host -u=user -p=password -P=port "
+              "Usage: %s -i=index[ -h=host -u=user -p=password -P=port "
               "-t=topic -f=result_db_name -s=result_stb_name "
               "-sync -restart -nokeep -help]\r\n", argv[0]);
 
@@ -501,11 +514,27 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  if (index == NULL) {
+    fprintf(stderr,
+            "Usage: %s -i=index[ -h=host -u=user -p=password -P=port "
+            "-t=topic -f=result_db_name -s=result_stb_name "
+            "-sync -restart -nokeep -help]\r\n", argv[0]);
+
+    exit(0);
+  }
+
+  num = strtol(index, NULL, 10);
+  if (num < 1 || num > 4) {
+    fprintf(stderr, "index must be between 1 and 4\r\n");
+    exit(0);
+  }
+
   fprintf(stderr, "################################################################\r\n");
   fprintf(stderr, "# Server:                          %s\r\n", host);
   fprintf(stderr, "# User:                            %s\r\n", user);
   fprintf(stderr, "# Port:                            %s\r\n", port);
   fprintf(stderr, "# Topic:                           %s\r\n", topic);
+  fprintf(stderr, "# TQueue Index:                    %s\r\n", index);
   fprintf(stderr, "# Result Database Name:            %s\r\n", fpicker);
   fprintf(stderr, "# Result Super Table Name:         %s\r\n", stb_name);
   fprintf(stderr, "# Async:                           %d\r\n", async);
@@ -590,7 +619,8 @@ int main(int argc, char *argv[]) {
     goto failed;
   }
 
-  fprintf(stderr, "start time: %ld\r\n", time(NULL));
+  memset(sql, 0, MAX_TSQL_LEN);
+  snprintf(sql, MAX_TSQL_LEN, "select * from p%s;", index);
 
   if (async) {
     // create an asynchronized subscription, the callback function will be called every 1s
