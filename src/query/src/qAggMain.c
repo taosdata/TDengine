@@ -2771,14 +2771,16 @@ static void percentile_function(SQLFunctionCtx *pCtx) {
   SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pCtx->currentStage == REPEAT_SCAN && pInfo->stage == 0) {
+    pInfo->stage += 1;
+
     // all data are null, set it completed
     if (pInfo->numOfElems == 0) {
       pResInfo->complete = true;
+      
+      return;
     } else {
       pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, pInfo->minval, pInfo->maxval);
     }
-
-    pInfo->stage += 1;
   }
 
   // the first stage, only acquire the min/max value
@@ -2857,14 +2859,16 @@ static void percentile_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SPercentileInfo *pInfo = (SPercentileInfo *)GET_ROWCELL_INTERBUF(pResInfo);
 
   if (pCtx->currentStage == REPEAT_SCAN && pInfo->stage == 0) {
+    pInfo->stage += 1;
+
     // all data are null, set it completed
     if (pInfo->numOfElems == 0) {
       pResInfo->complete = true;
+
+      return;
     } else {
       pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, pInfo->minval, pInfo->maxval);
     }
-
-    pInfo->stage += 1;
   }
 
   if (pInfo->stage == 0) {
