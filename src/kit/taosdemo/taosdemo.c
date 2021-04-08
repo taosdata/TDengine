@@ -2573,10 +2573,7 @@ static void* createTable(void *sarg)
   int64_t  lastPrintTime = taosGetTimestampMs();
 
   int buff_len;
-  if (superTblInfo)
-    buff_len = superTblInfo->maxSqlLen;
-  else
-    buff_len = BUFFER_SIZE;
+  buff_len = BUFFER_SIZE / 8;
 
   char *buffer = calloc(buff_len, 1);
   if (buffer == NULL) {
@@ -2624,7 +2621,7 @@ static void* createTable(void *sarg)
           return NULL;
         }
         len += snprintf(buffer + len,
-                superTblInfo->maxSqlLen - len,
+                buff_len - len,
                 "if not exists %s.%s%d using %s.%s tags %s ",
                 winfo->db_name, superTblInfo->childTblPrefix,
                 i, winfo->db_name,
@@ -2632,7 +2629,7 @@ static void* createTable(void *sarg)
         free(tagsValBuf);
         batchNum++;
         if ((batchNum < superTblInfo->batchCreateTableNum)
-                && ((superTblInfo->maxSqlLen - len)
+                && ((buff_len - len)
                     >= (superTblInfo->lenOfTagOfOneRow + 256))) {
           continue;
         }
@@ -3479,9 +3476,11 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       if (childTblExists
               && childTblExists->type == cJSON_String
               && childTblExists->valuestring != NULL) {
-        if (0 == strncasecmp(childTblExists->valuestring, "yes", 3)) {
+        if ((0 == strncasecmp(childTblExists->valuestring, "yes", 3))
+            && (g_Dbs.db[i].drop == false)) {
           g_Dbs.db[i].superTbls[j].childTblExists = TBL_ALREADY_EXISTS;
-        } else if (0 == strncasecmp(childTblExists->valuestring, "no", 2)) {
+        } else if ((0 == strncasecmp(childTblExists->valuestring, "no", 2)
+              || (g_Dbs.db[i].drop == true))) {
           g_Dbs.db[i].superTbls[j].childTblExists = TBL_NO_EXISTS;
         } else {
           g_Dbs.db[i].superTbls[j].childTblExists = TBL_NO_EXISTS;
@@ -3527,18 +3526,20 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
       }
 
       cJSON* childTbl_limit = cJSON_GetObjectItem(stbInfo, "childtable_limit");
-      if (childTbl_limit) {
+      if ((childTbl_limit) && (g_Dbs.db[i].drop != true)
+          && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
         if (childTbl_limit->type != cJSON_Number) {
             printf("ERROR: failed to read json, childtable_limit\n");
             goto PARSE_OVER;
         }
         g_Dbs.db[i].superTbls[j].childTblLimit = childTbl_limit->valueint;
       } else {
-        g_Dbs.db[i].superTbls[j].childTblLimit = -1;    // select ... limit -1 means all query result
+        g_Dbs.db[i].superTbls[j].childTblLimit = -1;    // select ... limit -1 means all query result, drop = yes mean all table need recreate, limit value is invalid.
       }
 
       cJSON* childTbl_offset = cJSON_GetObjectItem(stbInfo, "childtable_offset");
-      if (childTbl_offset) {
+      if ((childTbl_offset) && (g_Dbs.db[i].drop != true)
+          && (g_Dbs.db[i].superTbls[j].childTblExists == TBL_ALREADY_EXISTS)) {
         if (childTbl_offset->type != cJSON_Number || 0 > childTbl_offset->valueint) {
             printf("ERROR: failed to read json, childtable_offset\n");
             goto PARSE_OVER;
@@ -5170,7 +5171,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
     if ((superTblInfo->childTblExists == TBL_ALREADY_EXISTS)
             && (superTblInfo->childTblOffset >= 0)) {
-      if (superTblInfo->childTblLimit < 0) {
+      if ((superTblInfo->childTblLimit < 0)
+          || ((superTblInfo->childTblOffset + superTblInfo->childTblLimit)
+            > (superTblInfo->childTblCount))) {
         superTblInfo->childTblLimit =
             superTblInfo->childTblCount - superTblInfo->childTblOffset;
       }
