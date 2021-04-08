@@ -22,6 +22,7 @@
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
+#include "qUtil.h"
 
 typedef struct SCompareParam {
   SLocalDataSource **pLocalData;
@@ -1243,6 +1244,76 @@ static bool saveGroupResultInfo(SSqlObj *pSql) {
   return false;
 }
 
+
+bool doFilterFieldData(char *input, SExprFilter* pFieldFilters, int16_t type, bool* notSkipped) {
+  bool qualified = false;
+  
+  for(int32_t k = 0; k < pFieldFilters->pFilters->numOfFilters; ++k) {
+    __filter_func_t fp = taosArrayGetP(pFieldFilters->fp, k);
+    SColumnFilterElem filterElem = {.filterInfo = pFieldFilters->pFilters->filterInfo[k]};
+    
+    bool isnull = isNull(input, type);
+    if (isnull) {
+      if (fp == isNullOperator) {
+        qualified = true;
+        break;
+      } else {
+        continue;
+      }
+    } else {
+      if (fp == notNullOperator) {
+        qualified = true;
+        break;
+      } else if (fp == isNullOperator) {
+        continue;
+      }
+    }
+
+    if (fp(&filterElem, input, input, type)) {
+      qualified = true;
+      break;
+    }
+  }
+
+  *notSkipped = qualified;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t doHavingFilter(SQueryInfo* pQueryInfo, tFilePage* pOutput, bool* notSkipped) {
+  *notSkipped = true;
+  
+  if (pQueryInfo->havingFieldNum <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  //int32_t exprNum  = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+
+  size_t numOfOutput = tscNumOfFields(pQueryInfo);
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    SInternalField* pInterField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
+    SExprFilter* pFieldFilters = pInterField->pFieldFilters;
+
+    if (pFieldFilters == NULL) {
+      continue;
+    }
+
+    int32_t type = pInterField->field.type;
+
+    char* pInput = pOutput->data + pOutput->num* pFieldFilters->pSqlExpr->offset;
+    
+    doFilterFieldData(pInput, pFieldFilters, type, notSkipped);
+    if (*notSkipped == false) {
+      return TSDB_CODE_SUCCESS;
+    }
+  } 
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
 /**
  *
  * @param pSql
@@ -1281,6 +1352,22 @@ bool genFinalResults(SSqlObj *pSql, SLocalMerger *pLocalMerge, bool noMoreCurren
 
   if (tscIsSecondStageQuery(pQueryInfo)) {
     doArithmeticCalculate(pQueryInfo, pResBuf, pModel->rowSize, pLocalMerge->finalModel->rowSize);
+  }
+
+  bool notSkipped = true;
+  
+  doHavingFilter(pQueryInfo, pResBuf, &notSkipped);
+
+  if (!notSkipped) {
+    pRes->numOfRows = 0;
+    pLocalMerge->discard = !noMoreCurrentGroupRes;
+
+    if (pLocalMerge->discard) {
+      SColumnModel *pInternModel = pLocalMerge->pDesc->pColumnModel;
+      tColModelAppend(pInternModel, pLocalMerge->discardData, pLocalMerge->pTempBuffer->data, 0, 1, 1);
+    }    
+    
+    return notSkipped;
   }
 
   // no interval query, no fill operation
