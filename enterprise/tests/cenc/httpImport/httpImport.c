@@ -39,6 +39,7 @@ typedef struct recv_buf_info_s
 
 #define BUF_SKIP_LEN                1
 #define MAX_TSQL_LEN                65535
+#define MAX_BUFF_LEN                7168
 #define hash(key, c)                ((uint64_t) key * 31 + c)
 #define BUF_UNPROC_LEN(info)        (info)->readlength - (info)->readoffset
 #define BUF_TOREAD_PTR(info)        (info)->readbuffer + (info)->readoffset
@@ -61,6 +62,13 @@ void shift_buffer(recv_buf_info_t *info, int shift);
 int seed_read_from(SNETIO *io, recv_buf_info_t *info, uint32_t flags, char *sid, int sidlen, int *reclen);
 int seed_detect(char *record, int recbuflen, uint32_t flags, char *sid, int sidlen, int *readlen);
 char *seed_recordsid(char *record, char *sid, int sidlen);
+int seed_write_to(
+#if !defined(HTTP_IMPORT_DEBUG)
+TAOS *taos, char *sid, int sidlen,
+#else
+FILE *fp, const char *ofile,
+#endif
+const char *pos, const int len);
 #if !defined(HTTP_IMPORT_DEBUG)
 int check_and_free_res(TAOS_RES **res, const char *cmd);
 uint64_t hash_key(char *data, size_t len);
@@ -78,22 +86,20 @@ int main(int argc, char *argv[])
     recv_buf_info_t  info;
     uint32_t         flags   = MSF_SKIPNOTDATA;
     const char      *url     = NULL;
-    const char      *bpos    = NULL;
+    char             bpos[MAX_BUFF_LEN];
+    int              offset;
 #if !defined(HTTP_IMPORT_DEBUG)
     int              np;
-    int              id;
     TAOS            *taos    = NULL;
     TAOS_RES        *res     = NULL;
     char             cmd[MAX_TSQL_LEN];
     char             sid[LM_SIDLEN];
-    uint64_t         hash    = 0;
     long             numport;
     const char      *host    = "localhost";
     const char      *user    = "root";
     const char      *passwd  = "taosdata";
     const char      *port    = "6030";
     const char      *topic   = "packet";
-    char            *base64  = NULL;
 #else
     FILE            *fp      = NULL;
     const char      *ofile   = NULL;
@@ -224,6 +230,10 @@ int main(int argc, char *argv[])
     }
 #endif
 
+    reclen = 0;
+    offset = 0;
+    memset(bpos, 0, MAX_BUFF_LEN);
+
     for ( ;; ) {
         ret = seed_read_from(&io, &info, flags,
 #if !defined(HTTP_IMPORT_DEBUG)
@@ -233,45 +243,42 @@ int main(int argc, char *argv[])
 #endif
                              &reclen);
         if (ret != MS_NOERROR) {
-            break;
-        }
-
-        bpos = info.readbuffer + info.readoffset - reclen;
-
+            if (offset) {
+                seed_write_to(
 #if !defined(HTTP_IMPORT_DEBUG)
-        hash = hash_key(sid, strlen(sid));
-        id = (int) (hash % 4) + 1;
-
-        base64 = base64_encode((const unsigned char *) bpos, reclen);
-
-        np = snprintf(cmd, sizeof(cmd),
-                      "insert into p%d using ps tags (%d) values (now, now, '%s');",
-                      id, id, base64);
-
-        free(base64);
-
-        if (np < 0) {
-            fprintf(stderr, "fprintf error cmd in loop: %s\r\n", cmd);
-            goto failed;
-        }
-
-        cmd[np] = '\0';
-
-        res = taos_query(taos, cmd);
-        if (check_and_free_res(&res, cmd) != 0) {
-            break;
-        }
+                              taos, sid, strlen(sid),
 #else
-        if (fwrite(bpos, 1, reclen, fp) != reclen) {
-            fprintf(stderr, "failed to write to %s\r\n", ofile);
+                              fp, ofile,
+#endif
+                              bpos, offset);
+            }
+
             break;
         }
-#endif
 
         packets++;
-        if (packets % 100 == 0) {
-            fprintf(stderr, "%ld packet(s) transfered\r\n", packets);
+
+        if (offset + reclen < MAX_BUFF_LEN) {
+            memmove(bpos + offset, info.readbuffer + info.readoffset - reclen, reclen);
+            offset += reclen;
+            continue;
+        } else {
+            if (seed_write_to(
+#if !defined(HTTP_IMPORT_DEBUG)
+                              taos, sid, strlen(sid),
+#else
+                              fp, ofile,
+#endif
+                              bpos, offset) != 0)
+            {
+                break;
+            }
+
+            memmove(bpos, info.readbuffer + info.readoffset - reclen, reclen);
+            offset = reclen;
         }
+
+        fprintf(stderr, "%ld packet(s) transfered\r\n", packets);
     }
 
     end = time(NULL);
@@ -717,6 +724,56 @@ seed_recordsid(char *record, char *sid, int sidlen)
     }
 
     return sid;
+}
+
+
+int
+seed_write_to(
+#if !defined(HTTP_IMPORT_DEBUG)
+TAOS *taos, char *sid, int sidlen,
+#else
+FILE *fp, const char *ofile,
+#endif
+const char *pos, const int len)
+{
+#if !defined(HTTP_IMPORT_DEBUG)
+    int              np;
+    int              id;
+    uint64_t         hash;
+    char             cmd[MAX_TSQL_LEN];
+    char            *base64;
+    TAOS_RES        *res;
+
+    hash = hash_key(sid, sidlen);
+    id = (int) (hash % 4) + 1;
+
+    base64 = base64_encode((const unsigned char *) pos, len);
+
+    np = snprintf(cmd, sizeof(cmd),
+                  "insert into p%d using ps tags (%d) values (now, now, '%s');",
+                  id, id, base64);
+
+    free(base64);
+
+    if (np < 0) {
+        fprintf(stderr, "fprintf error cmd in loop: %s\r\n", cmd);
+        return -1;
+    }
+
+    cmd[np] = '\0';
+
+    res = taos_query(taos, cmd);
+    if (check_and_free_res(&res, cmd) != 0) {
+        return -1;
+    }
+#else
+    if (fwrite(pos, 1, len, fp) != len) {
+        fprintf(stderr, "failed to write to %s\r\n", ofile);
+        return -1;
+    }
+#endif
+
+    return 0;
 }
 
 
