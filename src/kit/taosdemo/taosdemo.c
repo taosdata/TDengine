@@ -5665,7 +5665,7 @@ static int insertTestProcess() {
   return 0;
 }
 
-static void *superQueryProcess(void *sarg) {
+static void *specifiedQueryProcess(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg;
 
   if (winfo->taos == NULL) {
@@ -5761,7 +5761,7 @@ static void replaceSubTblName(char* inSql, char* outSql, int tblIndex) {
   //printf("3: %s\n", outSql);
 }
 
-static void *subQueryProcess(void *sarg) {
+static void *superQueryProcess(void *sarg) {
   char sqlstr[1024];
   threadInfo *winfo = (threadInfo *)sarg;
 
@@ -5886,7 +5886,7 @@ static int queryTestProcess() {
 
       t_info->taos = NULL;// TODO: workaround to use separate taos connection;
 
-      pthread_create(pids + i, NULL, superQueryProcess, t_info);
+      pthread_create(pids + i, NULL, specifiedQueryProcess, t_info);
     }
   } else {
     g_queryInfo.specifiedQueryInfo.concurrent = 0;
@@ -5900,18 +5900,12 @@ static int queryTestProcess() {
   if ((g_queryInfo.superQueryInfo.sqlCount > 0)
           && (g_queryInfo.superQueryInfo.threadCnt > 0)) {
     pidsOfSub  = malloc(g_queryInfo.superQueryInfo.threadCnt * sizeof(pthread_t));
-    if (NULL == pidsOfSub) {
-      free(infos);
-      free(pids);
-
-      ERROR_EXIT("memory allocation failed for create threads\n");
-    }
-
     infosOfSub = malloc(g_queryInfo.superQueryInfo.threadCnt * sizeof(threadInfo));
-    if (NULL == infosOfSub) {
-      free(pidsOfSub);
+
+    if ((NULL == pidsOfSub) || (NULL == infosOfSub)) {
       free(infos);
       free(pids);
+
       ERROR_EXIT("memory allocation failed for create threads\n");
     }
 
@@ -5939,7 +5933,7 @@ static int queryTestProcess() {
       t_info->end_table_to = i < b ? startFrom + a : startFrom + a - 1;
       startFrom = t_info->end_table_to + 1;
       t_info->taos = NULL; // TODO: workaround to use separate taos connection;
-      pthread_create(pidsOfSub + i, NULL, subQueryProcess, t_info);
+      pthread_create(pidsOfSub + i, NULL, superQueryProcess, t_info);
     }
 
     g_queryInfo.superQueryInfo.threadCnt = threads;
