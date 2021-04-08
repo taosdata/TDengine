@@ -67,6 +67,12 @@ enum TEST_MODE {
     INVAID_TEST
 };
 
+enum QUERY_MODE {
+  SYNC_MODE,                // 0
+  ASYNC_MODE,               // 1
+  INVALID_MODE
+};
+
 #define MAX_SQL_SIZE       65536
 #define BUFFER_SIZE        (65536*2)
 #define MAX_USERNAME_SIZE  64
@@ -198,7 +204,7 @@ typedef struct SArguments_S {
   bool     verbose_print;
   bool     performance_print;
   char *   output_file;
-  int      mode;
+  int      query_mode;
   char *   datatype[MAX_NUM_DATATYPE + 1];
   int      len_of_binary;
   int      num_of_CPR;
@@ -351,7 +357,7 @@ typedef struct SpecifiedQueryInfo_S {
   int          rate;  // 0: unlimit  > 0   loop/s
   int          concurrent;
   int          sqlCount;
-  int          subscribeMode; // 0: sync, 1: async
+  int          mode; // 0: sync, 1: async
   int          subscribeInterval; // ms
   int          queryTimes;
   int          subscribeRestart;
@@ -365,7 +371,7 @@ typedef struct SuperQueryInfo_S {
   char         sTblName[MAX_TB_NAME_SIZE+1];
   int          rate;  // 0: unlimit  > 0   loop/s
   int          threadCnt;
-  int          subscribeMode; // 0: sync, 1: async
+  int          mode; // 0: sync, 1: async
   int          subscribeInterval; // ms
   int          subscribeRestart;
   int          subscribeKeepProgress;
@@ -714,7 +720,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     } else if (strcmp(argv[i], "-s") == 0) {
       arguments->sqlFile = argv[++i];
     } else if (strcmp(argv[i], "-q") == 0) {
-      arguments->mode = atoi(argv[++i]);
+      arguments->query_mode = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-T") == 0) {
       arguments->num_of_threads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") == 0) {
@@ -1467,7 +1473,7 @@ static void printfQueryMeta() {
   printf("                \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.queryTimes);
 
   if (SUBSCRIBE_TEST == g_args.test_mode) {
-    printf("mod:            \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.subscribeMode);
+    printf("mod:            \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.mode);
     printf("interval:       \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.subscribeInterval);
     printf("restart:        \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.subscribeRestart);
     printf("keepProgress:   \033[33m%d\033[0m\n", g_queryInfo.specifiedQueryInfo.subscribeKeepProgress);
@@ -1485,7 +1491,7 @@ static void printfQueryMeta() {
   printf("stb query times:\033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.queryTimes);
 
   if (SUBSCRIBE_TEST == g_args.test_mode) {
-    printf("mod:            \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.subscribeMode);
+    printf("mod:            \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.mode);
     printf("interval:       \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.subscribeInterval);
     printf("restart:        \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.subscribeRestart);
     printf("keepProgress:   \033[33m%d\033[0m\n", g_queryInfo.superQueryInfo.subscribeKeepProgress);
@@ -3850,18 +3856,20 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.specifiedQueryInfo.concurrent = 1;
     }
 
-    cJSON* mode = cJSON_GetObjectItem(specifiedQuery, "mode");
-    if (mode && mode->type == cJSON_String && mode->valuestring != NULL) {
-      if (0 == strcmp("sync", mode->valuestring)) {
-        g_queryInfo.specifiedQueryInfo.subscribeMode = 0;
-      } else if (0 == strcmp("async", mode->valuestring)) {
-        g_queryInfo.specifiedQueryInfo.subscribeMode = 1;
+    cJSON* queryMode = cJSON_GetObjectItem(specifiedQuery, "mode");
+    if (queryMode && queryMode->type == cJSON_String
+        && queryMode->valuestring != NULL) {
+      if (0 == strcmp("sync", queryMode->valuestring)) {
+        g_queryInfo.specifiedQueryInfo.mode = SYNC_MODE;
+      } else if (0 == strcmp("async", queryMode->valuestring)) {
+        g_queryInfo.specifiedQueryInfo.mode = ASYNC_MODE;
       } else {
-        printf("ERROR: failed to read json, subscribe mod error\n");
+        errorPrint("%s() LN%d, failed to read json, query mode input error\n",
+            __func__, __LINE__);
         goto PARSE_OVER;
       }
     } else {
-      g_queryInfo.specifiedQueryInfo.subscribeMode = 0;
+      g_queryInfo.specifiedQueryInfo.mode = SYNC_MODE;
     }
 
     cJSON* interval = cJSON_GetObjectItem(specifiedQuery, "interval");
@@ -3985,24 +3993,27 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
     cJSON* stblname = cJSON_GetObjectItem(superQuery, "stblname");
     if (stblname && stblname->type == cJSON_String && stblname->valuestring != NULL) {
-      tstrncpy(g_queryInfo.superQueryInfo.sTblName, stblname->valuestring, MAX_TB_NAME_SIZE);
+      tstrncpy(g_queryInfo.superQueryInfo.sTblName, stblname->valuestring,
+          MAX_TB_NAME_SIZE);
     } else {
-      printf("ERROR: failed to read json, super table name not found\n");
+      errorPrint("%s() LN%d, failed to read json, super table name input error\n",
+          __func__, __LINE__);
       goto PARSE_OVER;
     }
 
     cJSON* submode = cJSON_GetObjectItem(superQuery, "mode");
     if (submode && submode->type == cJSON_String && submode->valuestring != NULL) {
       if (0 == strcmp("sync", submode->valuestring)) {
-        g_queryInfo.superQueryInfo.subscribeMode = 0;
+        g_queryInfo.superQueryInfo.mode = SYNC_MODE;
       } else if (0 == strcmp("async", submode->valuestring)) {
-        g_queryInfo.superQueryInfo.subscribeMode = 1;
+        g_queryInfo.superQueryInfo.mode = ASYNC_MODE;
       } else {
-        printf("ERROR: failed to read json, subscribe mod error\n");
+        errorPrint("%s() LN%d, failed to read json, query mode input error\n",
+            __func__, __LINE__);
         goto PARSE_OVER;
       }
     } else {
-      g_queryInfo.superQueryInfo.subscribeMode = 0;
+      g_queryInfo.superQueryInfo.mode = SYNC_MODE;
     }
 
     cJSON* subinterval = cJSON_GetObjectItem(superQuery, "interval");
@@ -4015,7 +4026,8 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     }
 
     cJSON* subrestart = cJSON_GetObjectItem(superQuery, "restart");
-    if (subrestart && subrestart->type == cJSON_String && subrestart->valuestring != NULL) {
+    if (subrestart && subrestart->type == cJSON_String
+        && subrestart->valuestring != NULL) {
       if (0 == strcmp("yes", subrestart->valuestring)) {
         g_queryInfo.superQueryInfo.subscribeRestart = 1;
       } else if (0 == strcmp("no", subrestart->valuestring)) {
@@ -4054,7 +4066,8 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     } else {
       int superSqlSize = cJSON_GetArraySize(subsqls);
       if (superSqlSize > MAX_QUERY_SQL_COUNT) {
-        printf("ERROR: failed to read json, query sql size overflow, max is %d\n", MAX_QUERY_SQL_COUNT);
+        errorPrint("%s() LN%d, failed to read json, query sql size overflow, max is %d\n",
+           __func__, __LINE__, MAX_QUERY_SQL_COUNT);
         goto PARSE_OVER;
       }
 
@@ -4065,10 +4078,12 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
 
         cJSON *sqlStr = cJSON_GetObjectItem(sql, "sql");
         if (!sqlStr || sqlStr->type != cJSON_String || sqlStr->valuestring == NULL) {
-          printf("ERROR: failed to read json, sql not found\n");
+          errorPrint("%s() LN%d, failed to read json, sql not found\n",
+              __func__, __LINE__);
           goto PARSE_OVER;
         }
-        tstrncpy(g_queryInfo.superQueryInfo.sql[j], sqlStr->valuestring, MAX_QUERY_SQL_LENGTH);
+        tstrncpy(g_queryInfo.superQueryInfo.sql[j], sqlStr->valuestring,
+            MAX_QUERY_SQL_LENGTH);
 
         cJSON *result = cJSON_GetObjectItem(sql, "result");
         if (result != NULL && result->type == cJSON_String && result->valuestring != NULL){
@@ -5920,7 +5935,7 @@ static void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int c
 static TAOS_SUB* subscribeImpl(TAOS *taos, char *sql, char* topic, char* resultFileName) {
   TAOS_SUB* tsub = NULL;
 
-  if (g_queryInfo.specifiedQueryInfo.subscribeMode) {
+  if (g_queryInfo.specifiedQueryInfo.mode) {
     tsub = taos_subscribe(taos,
             g_queryInfo.specifiedQueryInfo.subscribeRestart,
             topic, sql, subscribe_callback, (void*)resultFileName,
@@ -6002,7 +6017,7 @@ static void *subSubscribeProcess(void *sarg) {
   TAOS_RES* res = NULL;
   while (1) {
     for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
-      if (1 == g_queryInfo.superQueryInfo.subscribeMode) {
+      if (1 == g_queryInfo.superQueryInfo.mode) {
         continue;
       }
 
@@ -6087,7 +6102,7 @@ static void *superSubscribeProcess(void *sarg) {
   TAOS_RES* res = NULL;
   while (1) {
     for (int i = 0; i < g_queryInfo.specifiedQueryInfo.sqlCount; i++) {
-      if (1 == g_queryInfo.specifiedQueryInfo.subscribeMode) {
+      if (SYNC_MODE == g_queryInfo.specifiedQueryInfo.mode) {
         continue;
       }
 
@@ -6308,7 +6323,7 @@ static void setParaFromArg(){
     g_Dbs.db[0].superTbls[0].childTblCount = g_args.num_of_tables;
     g_Dbs.threadCount = g_args.num_of_threads;
     g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
-    g_Dbs.queryMode = g_args.mode;
+    g_Dbs.queryMode = g_args.query_mode;
 
     g_Dbs.db[0].superTbls[0].autoCreateTable = PRE_CREATE_SUBTBL;
     g_Dbs.db[0].superTbls[0].childTblExists = TBL_NO_EXISTS;
