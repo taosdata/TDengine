@@ -294,7 +294,7 @@ void cqStop(void *handle) {
   pthread_mutex_unlock(&pContext->mutex);
 }
 
-void *cqCreate(void *handle, uint64_t uid, int32_t sid, const char* dstTable, char *sqlStr, STSchema *pSchema) {
+void *cqCreate(void *handle, uint64_t uid, int32_t sid, const char* dstTable, char *sqlStr, STSchema *pSchema, int start) {
   if (tsEnableStream == 0) {
     return NULL;
   }
@@ -326,7 +326,11 @@ void *cqCreate(void *handle, uint64_t uid, int32_t sid, const char* dstTable, ch
 
   pObj->rid = taosAddRef(cqObjRef, pObj);
 
-  cqCreateStream(pContext, pObj);
+  if(start && pContext->master) {
+    cqCreateStream(pContext, pObj);
+  } else {
+    pObj->pContext = pContext;
+  }
 
   rid = pObj->rid;
 
