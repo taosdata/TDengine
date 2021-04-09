@@ -560,7 +560,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
 
-  if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+  if ((pQueryInfo == NULL) || tscIsTwoStageSTableQuery(pCmd, pQueryInfo, 0)) {
     return true;
   }
 
@@ -673,7 +673,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
-  if (!tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+  if (!tscIsTwoStageSTableQuery(pCmd, pQueryInfo, 0)) {
     return;
   }
 
@@ -724,7 +724,7 @@ void taos_stop_query(TAOS_RES *res) {
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
-  if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+  if (tscIsTwoStageSTableQuery(pCmd, pQueryInfo, 0)) {
     assert(pSql->rpcRid <= 0);
     tscKillSTableQuery(pSql);
   } else {

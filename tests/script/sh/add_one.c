@@ -10,12 +10,12 @@ typedef struct SUdfInit{
  int const_item;       /* 0 if result is independent of arguments */
 } SUdfInit;
 
-void add_one(char* data, char type, int numOfRows, long long* ts, char* dataOutput, char* tsOutput,
-                        int* numOfOutput, SUdfInit* buf) {
+void add_one(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* tsOutput,
+                        int* numOfOutput, short otype, short obytes, SUdfInit* buf) {
    int i;
    int r = 0;
-   printf("add_one input data:%p, type:%d, rows:%d, ts:%p,%lld, dataoutput:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, type, numOfRows, ts, *ts, dataOutput, tsOutput, numOfOutput, buf);
-   if (type == 4) {
+   printf("add_one input data:%p, type:%d, rows:%d, ts:%p,%lld, dataoutput:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, itype, numOfRows, ts, *ts, dataOutput, tsOutput, numOfOutput, buf);
+   if (itype == 4) {
      for(i=0;i<numOfRows;++i) {
        printf("input %d - %d", i, *((int *)data + i));
        *((int *)dataOutput+i)=*((int *)data + i) + 1;

@@ -784,9 +784,13 @@ static void doInvokeUdf(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int
     (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList, pCtx->pOutput,
                   (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes, &pUdfInfo->init);
 
-    // set the output value exist
-    pCtx->resultInfo->numOfRes += output;
-    if (output > 0) {
+    if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
+      pCtx->resultInfo->numOfRes = output;
+    } else {
+      pCtx->resultInfo->numOfRes += output;
+    }
+    
+    if (pCtx->resultInfo->numOfRes > 0) {
       pCtx->resultInfo->hasResult = DATA_SET_FLAG;
     }
 
@@ -6008,6 +6012,8 @@ void destroyUdfInfo(SUdfInfo* pUdfInfo) {
   }
   
   tfree(pUdfInfo->path);
+
+  tfree(pUdfInfo->content);
   
   taosCloseDll(pUdfInfo->handle);
 
@@ -6027,6 +6033,9 @@ static char* getUdfFuncName(char* name, int type) {
     case TSDB_UDF_FUNC_FINALIZE:
       sprintf(funcname, "%s_finalize", name);
       break;
+    case TSDB_UDF_FUNC_MERGE:
+      sprintf(funcname, "%s_merge", name);
+      break;    
     case TSDB_UDF_FUNC_DESTROY:
       sprintf(funcname, "%s_destroy", name);
       break;
@@ -6038,7 +6047,7 @@ static char* getUdfFuncName(char* name, int type) {
   return funcname;
 }
 
-static int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
+int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
   if (pUdfInfo == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -6088,6 +6097,7 @@ static int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
     
     if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
       pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_FINALIZE));
+      pUdfInfo->funcs[TSDB_UDF_FUNC_MERGE] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_MERGE));
     }
 
     pUdfInfo->funcs[TSDB_UDF_FUNC_DESTROY] = taosLoadSym(pUdfInfo->handle, getUdfFuncName(pUdfInfo->name, TSDB_UDF_FUNC_DESTROY));

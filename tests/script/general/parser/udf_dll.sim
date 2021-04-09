@@ -393,32 +393,7 @@ if $rows != 28 then
   return -1
 endi
 
-sql select add_one(f1) from tb1 group by f1;
-if $rows != 7 then
-  return -1
-endi
-
-if $data00 != 2 then 
-   return -1
-endi
-if $data10 != 3 then 
-   return -1
-endi
-if $data20 != 4 then 
-   return -1
-endi
-if $data30 != 5 then 
-   return -1
-endi
-if $data40 != 6 then 
-   return -1
-endi
-if $data50 != 7 then 
-   return -1
-endi
-if $data60 != 8 then 
-   return -1
-endi
+sql_error select add_one(f1) from tb1 group by f1;
 
 sql select sum_double(f1) from tb1 group by f1;
 if $rows != 7 then

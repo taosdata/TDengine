@@ -3112,6 +3112,10 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
   size_t size = tscSqlExprNumOfExprs(pQueryInfo);
   for (int32_t i = 0; i < size; ++i) {
     int32_t functionId = tscSqlExprGet(pQueryInfo, i)->functionId;
+    if (functionId < 0) {
+      continue;
+    }
+    
     if ((aAggs[functionId].status & TSDB_FUNCSTATE_STABLE) == 0) {
       invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       return true;
@@ -5193,7 +5197,7 @@ int32_t parseOrderbyClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SQuerySqlNode*
         pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
 
         // orderby ts query on super table
-        if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+        if (tscOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0)) {
           addPrimaryTsColIntoResult(pQueryInfo);
         }
       }
@@ -5817,13 +5821,13 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
   // todo refactor
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     if (!tscQueryTags(pQueryInfo)) {  // local handle the super table tag query
-      if (tscIsProjectionQueryOnSTable(pQueryInfo, 0)) {
+      if (tscIsProjectionQueryOnSTable(pCmd, pQueryInfo, 0)) {
         if (pQueryInfo->slimit.limit > 0 || pQueryInfo->slimit.offset > 0) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
 
         // for projection query on super table, all queries are subqueries
-        if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0) &&
+        if (tscNonOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0) &&
             !TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_QUERY)) {
           pQueryInfo->type |= TSDB_QUERY_TYPE_SUBQUERY;
         }
@@ -5859,7 +5863,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
     pQueryInfo->prjOffset   = pQueryInfo->limit.offset;
     pQueryInfo->vgroupLimit = -1;
 
-    if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+    if (tscOrderedProjectionQueryOnSTable(pCmd, pQueryInfo, 0)) {
       /*
        * the offset value should be removed during retrieve data from virtual node, since the
        * global order are done in client side, so the offset is applied at the client side
@@ -6462,7 +6466,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     }
 
     // projection query on super table does not compatible with "group by" syntax
-    if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+    if (tscIsProjectionQuery(pCmd, pQueryInfo)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
@@ -6641,8 +6645,17 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex) {
 
     char    tmpBuf[1024] = {0};
     int32_t tmpLen = 0;
+    char   *name = NULL;
+    
+    if (pExpr->functionId < 0) {
+      SUdfInfo* pUdfInfo = taosArrayGet(pSql->cmd.pUdfInfo, -1 * pExpr->functionId - 1);
+      name = pUdfInfo->name;
+    } else {
+      name = aAggs[pExpr->functionId].name;
+    }
+    
     tmpLen =
-        sprintf(tmpBuf, "%s(uid:%" PRId64 ", %d)", aAggs[pExpr->functionId].name, pExpr->uid, pExpr->colInfo.colId);
+        sprintf(tmpBuf, "%s(uid:%" PRId64 ", %d)", name, pExpr->uid, pExpr->colInfo.colId);
 
     if (tmpLen + offset >= totalBufSize - 1) break;
 
@@ -6988,7 +7001,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
-  if (!tscIsProjectionQuery(pQueryInfo) && pQueryInfo->interval.interval == 0) {
+  if (!tscIsProjectionQuery(pCmd, pQueryInfo) && pQueryInfo->interval.interval == 0) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg7);
   }
 

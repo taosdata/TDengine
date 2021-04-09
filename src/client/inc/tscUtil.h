@@ -128,18 +128,18 @@ int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, i
  */
 bool tscIsPointInterpQuery(SQueryInfo* pQueryInfo);
 bool tscIsTWAQuery(SQueryInfo* pQueryInfo);
-bool tscIsSecondStageQuery(SQueryInfo* pQueryInfo);
+bool tscIsSecondStageQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 bool tscGroupbyColumn(SQueryInfo* pQueryInfo);
 bool tscIsTopbotQuery(SQueryInfo* pQueryInfo);
 int32_t tscGetTopbotQueryParam(SQueryInfo* pQueryInfo);
 
-bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo *pQueryInfo, int32_t tableIndex);
-bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
-bool tscIsProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscNonOrderedProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo *pQueryInfo, int32_t tableIndex);
+bool tscOrderedProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscIsProjectionQueryOnSTable(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t tableIndex);
 
-bool tscIsProjectionQuery(SQueryInfo* pQueryInfo);
+bool tscIsProjectionQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
 
-bool tscIsTwoStageSTableQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
+bool tscIsTwoStageSTableQuery(SSqlCmd *pCmd, SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryTags(SQueryInfo* pQueryInfo);
 bool tscMultiRoundQuery(SQueryInfo* pQueryInfo, int32_t tableIndex);
 bool tscQueryBlockInfo(SQueryInfo* pQueryInfo);

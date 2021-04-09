@@ -16,7 +16,7 @@
 #ifndef TDENGINE_QUDF_H
 #define TDENGINE_QUDF_H
 
-enum { TSDB_UDF_FUNC_NORMAL = 0, TSDB_UDF_FUNC_INIT, TSDB_UDF_FUNC_FINALIZE, TSDB_UDF_FUNC_DESTROY, TSDB_UDF_FUNC_MAX_NUM };
+enum { TSDB_UDF_FUNC_NORMAL = 0, TSDB_UDF_FUNC_INIT, TSDB_UDF_FUNC_FINALIZE, TSDB_UDF_FUNC_MERGE, TSDB_UDF_FUNC_DESTROY, TSDB_UDF_FUNC_MAX_NUM };
 
 
 
@@ -43,16 +43,15 @@ typedef struct SUdfInfo {
   void   *handle;      // handle loaded in mem
   void   *funcs[TSDB_UDF_FUNC_MAX_NUM];     // function ptr
   SUdfInit init;
-  union {              // file path or [in memory] binary content
-    char *content;
-    char *path;
-  };
+  char *content;
+  char *path;
 } SUdfInfo;
 
 typedef void (*udfNormalFunc)(char* data, int16_t itype, int16_t iBytes, int32_t numOfRows, int64_t* ts, char* dataOutput, char* tsOutput,
-                        int32_t* numOfOutput, int16_t oType, int16_t oByte, SUdfInit* buf);
+                        int32_t* numOfOutput, int16_t oType, int16_t oBytes, SUdfInit* buf);
 typedef int32_t (*udfInitFunc)(SUdfInit* data);
 typedef void (*udfFinalizeFunc)(char* dataOutput, int32_t* numOfOutput, SUdfInit* buf);
+typedef void (*udfMergeFunc)(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf);
 typedef void (*udfDestroyFunc)(SUdfInit* buf);
 
 
