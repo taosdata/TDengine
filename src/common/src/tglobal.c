@@ -212,7 +212,7 @@ float   tsAvailTmpDirectorySpace = 0;
 float   tsAvailDataDirGB = 0;
 float   tsUsedDataDirGB = 0;
 float   tsReservedTmpDirectorySpace = 1.0f;
-float   tsMinimalDataDirGB = 1.0f;
+float   tsMinimalDataDirGB = 2.0f;
 int32_t tsTotalMemoryMB = 0;
 uint32_t tsVersion = 0;
 
