@@ -4718,7 +4718,12 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
          pThreadInfo->threadID, __func__, __LINE__);
 
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
+
+  int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
   int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
+
+  if (interlaceRows > insertRows)
+    interlaceRows = insertRows;
 
   int insertMode;
 
@@ -4746,7 +4751,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   int nTimeStampStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
 
-  int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
   int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
   uint64_t st = 0;
