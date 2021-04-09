@@ -318,9 +318,9 @@ if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] && [ "$2" != "unit" ]  && [ "$2" != "
   TOP_DIR=`pwd`
   TAOSLIB_DIR=`find . -name "${TAOSLIB}"|grep -w lib|head -n1`
   if [[ "$TAOSLIB_DIR" == *"$IN_TDINTERNAL"* ]]; then
-    LIB_DIR=`find . -name "${TAOSLIB}"|grep -w lib|head -n1|cut -d '/' --fields=2,3,4,5`
+    LIB_DIR=`find . -name "${TAOSLIB}"|grep -w lib|head -n1|cut -d '/' -f 2,3,4,5`
   else
-    LIB_DIR=`find . -name "${TAOSLIB}"|grep -w lib|head -n1|cut -d '/' --fields=2,3,4`
+    LIB_DIR=`find . -name "${TAOSLIB}"|grep -w lib|head -n1|cut -d '/' -f 2,3,4`
   fi
 
   export LD_LIBRARY_PATH=$TOP_DIR/$LIB_DIR:$LD_LIBRARY_PATH
