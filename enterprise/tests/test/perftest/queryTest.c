@@ -385,8 +385,8 @@ int main(int argc, char** argv) {
 //      TAOS_RES*  taos_query(conn, t);
 //      taos_free_result(res);
 //    }
-    executeSQL(conn, "use group_db0", NULL);
-    executeSQL(conn, "select stddev(c) from st group by c;", NULL);
+    executeSQL(conn, "use select_tags_db0", NULL);
+    executeSQL(conn, "select count(*) from select_tags_mt0 interval(500a) group by tbname", NULL);
 
 //    executeSQL(conn, "select top(c1, 1) from lm_stb0 where ts >= 1537146000000 and ts <= 1537151400009 limit 5 offset 1;", NULL);
 //    executeSQL(conn, "select count(*) from t2m1 where ts<'2015-6-11 1:1:1.3' and ts>='2015-6-11 1:1:1' interval(20a) fill(next)", NULL);
