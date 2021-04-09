@@ -1062,12 +1062,98 @@ if $data11 != 4 then
    return -1
 endi
 
+sql select sum_double(f1) from stb1 group by id1;
 
-sql_error select ts,sum_double(f1),f1 from stb1;
-sql_error select add_one(f1),count(f1) from stb1;
-sql_error select sum_double(f1),count(f1) from stb1;
-sql_error select add_one(f1),top(f1,3) from stb1;
-sql_error select add_one(f1) from stb1 interval(10a);
+if $rows != 6 then
+  return -1
+endi
+
+if $data00 != 56 then 
+   return -1
+endi
+if $data01 != 1 then 
+   return -1
+endi
+if $data10 != 6 then 
+   return -1
+endi
+if $data11 != 2 then 
+   return -1
+endi
+if $data20 != 14 then 
+   return -1
+endi
+if $data21 != 3 then 
+   return -1
+endi
+if $data30 != 12 then 
+   return -1
+endi
+if $data31 != 5 then 
+   return -1
+endi
+if $data40 != 6 then 
+   return -1
+endi
+if $data41 != 6 then 
+   return -1
+endi
+if $data50 != 8 then 
+   return -1
+endi
+if $data51 != 9 then 
+   return -1
+endi
+
+
+sql select sum_double(f1) from tb1 where ts>="2021-03-23 17:00:00.000" and ts<="2021-03-24 20:00:00.000" interval (1h) sliding (30m);
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != @21-03-23 16:30:00.000@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != @21-03-23 17:00:00.000@ then 
+   return -1
+endi
+if $data11 != 2 then 
+   return -1
+endi
+if $data20 != @21-03-23 18:30:00.000@ then 
+   return -1
+endi
+if $data21 != 4 then 
+   return -1
+endi
+if $data30 != @21-03-23 19:00:00.000@ then 
+   return -1
+endi
+if $data31 != 18 then 
+   return -1
+endi
+if $data40 != @21-03-23 19:30:00.000@ then 
+   return -1
+endi
+if $data41 != 14 then 
+   return -1
+endi
+if $data50 != @21-03-24 18:30:00.000@ then 
+   return -1
+endi
+if $data51 != 22 then 
+   return -1
+endi
+if $data60 != @21-03-24 19:00:00.000@ then 
+   return -1
+endi
+if $data61 != 22 then 
+   return -1
+endi
+
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 
