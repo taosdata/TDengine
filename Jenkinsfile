@@ -46,13 +46,20 @@ def pre_test(){
     '''
     script {
       if (env.CHANGE_TARGET == 'master') {
-        sh 'git checkout master'
+        sh '''
+        cd ${WKC}
+        git checkout master
+        '''
         }
       else {
-        sh 'git checkout develop'
+        sh '''
+        cd ${WKC}
+        git checkout develop
+        '''
       } 
     }
     sh'''
+    cd ${WKC}
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
@@ -62,15 +69,22 @@ def pre_test(){
     '''
     script {
       if (env.CHANGE_TARGET == 'master') {
-        sh 'git checkout master'
+        sh '''
+        cd ${WK}
+        git checkout master
+        '''
         }
       else {
-        sh 'git checkout develop'
+        sh '''
+        cd ${WK}
+        git checkout develop
+        '''
       } 
     }
     sh '''
-    git pull >/dev/null 
     cd ${WK}
+    git pull >/dev/null 
+
     export TZ=Asia/Harbin
     date
     git clean -dfx

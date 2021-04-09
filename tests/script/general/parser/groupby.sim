@@ -220,6 +220,7 @@ sql_error select sum(c3), ts, c2 from group_tb0 where c1 < 20 group by c1;
 sql_error select sum(c3), first(ts), c2 from group_tb0 where c1 < 20 group by c1;
 sql_error select first(c3), ts, c1, c2 from group_tb0 where c1 < 20 group by c1;
 sql_error select first(c3), last(c3), ts, c1 from group_tb0 where c1 < 20 group by c1;
+sql_error select ts from group_tb0 group by c1;
 
 #===========================interval=====not support======================
 sql_error select count(*), c1 from group_tb0 where c1<20 interval(1y) group by c1;
