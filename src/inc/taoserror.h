@@ -163,6 +163,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_TABLE_NAME        TAOS_DEF_ERROR_CODE(0, 0x0362)  //"Table does not exist")
 #define TSDB_CODE_MND_INVALID_TABLE_TYPE        TAOS_DEF_ERROR_CODE(0, 0x0363)  //"Invalid table type in tsdb")
 #define TSDB_CODE_MND_TOO_MANY_TAGS             TAOS_DEF_ERROR_CODE(0, 0x0364)  //"Too many tags")
+#define TSDB_CODE_MND_TOO_MANY_COLUMNS          TAOS_DEF_ERROR_CODE(0, 0x0365)  //"Too many columns")
 #define TSDB_CODE_MND_TOO_MANY_TIMESERIES       TAOS_DEF_ERROR_CODE(0, 0x0366)  //"Too many time series")
 #define TSDB_CODE_MND_NOT_SUPER_TABLE           TAOS_DEF_ERROR_CODE(0, 0x0367)  //"Not super table")           // operation only available for super table
 #define TSDB_CODE_MND_COL_NAME_TOO_LONG         TAOS_DEF_ERROR_CODE(0, 0x0368)  //"Tag name too long")
