@@ -1120,13 +1120,16 @@ static void doExecuteFinalMerge( SLocalMerger *pLocalMerge, int32_t numOfExpr, b
 }
 
 static void savePrevOrderColumns(SMultiwayMergeInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex) {
-  int32_t size = taosArrayGetSize(pInfo->orderColumnList);
+  int32_t size = pInfo->pMerge->pDesc->orderInfo.numOfCols;
   for(int32_t i = 0; i < size; ++i) {
-    int32_t index = *(int16_t*)taosArrayGet(pInfo->orderColumnList, i);
+    int32_t index = pInfo->pMerge->pDesc->orderInfo.colIndex[i];
+//    int32_t index = *(int16_t*)taosArrayGet(pInfo->orderColumnList, i);
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, index);
 
     memcpy(pInfo->prevRow[i], pColInfo->pData + pColInfo->info.bytes * rowIndex, pColInfo->info.bytes);
   }
+
+  pInfo->hasPrev = true;
 }
 
 static void doExecuteFinalMergeRv(SMultiwayMergeInfo* pInfo, int32_t numOfExpr, SSDataBlock* pBlock, bool needInit) {
@@ -1141,10 +1144,26 @@ static void doExecuteFinalMergeRv(SMultiwayMergeInfo* pInfo, int32_t numOfExpr, 
             continue;
           }
 
+          pCtx[j].size = 1;
           aAggs[functionId].mergeFunc(&pCtx[j]);
         }
       } else {
-        // todo finalize the result
+        for(int32_t j = 0; j < numOfExpr; ++j) {
+          int32_t functionId = pCtx[j].functionId;
+          if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
+            continue;
+          }
+
+          pCtx[j].size = 1;
+          aAggs[functionId].xFinalize(&pCtx[j]);
+        }
+
+        pInfo->binfo.pRes->info.rows += 1;
+
+        for(int32_t j = 0; j < numOfExpr; ++j) {
+          pCtx[j].pOutput += pCtx[j].outputBytes;
+          pCtx[j].pInput += pCtx[j].inputBytes;
+        }
 
         for (int32_t j = 0; j < numOfExpr; ++j) {
           int32_t functionId = pCtx[j].functionId;
@@ -1152,13 +1171,10 @@ static void doExecuteFinalMergeRv(SMultiwayMergeInfo* pInfo, int32_t numOfExpr, 
             continue;
           }
 
-          pCtx[j].pOutput += pCtx[j].outputBytes;
-          pCtx[j].pInput += pCtx[j].inputBytes;
-
+          pCtx[j].size = 1;
           aAggs[functionId].mergeFunc(&pCtx[j]);
         }
 
-        pInfo->binfo.pRes->info.rows += 1;
       }
     } else {
       for (int32_t j = 0; j < numOfExpr; ++j) {
@@ -1167,13 +1183,24 @@ static void doExecuteFinalMergeRv(SMultiwayMergeInfo* pInfo, int32_t numOfExpr, 
           continue;
         }
 
+        pCtx[j].size = 1;
         aAggs[functionId].mergeFunc(&pCtx[j]);
       }
     }
 
     savePrevOrderColumns(pInfo, pBlock, i);
-    pInfo->hasPrev = true;
   }
+
+  for(int32_t j = 0; j < numOfExpr; ++j) {
+    int32_t functionId = pCtx[j].functionId;
+    if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
+      continue;
+    }
+    aAggs[functionId].xFinalize(&pCtx[j]);
+  }
+
+  pInfo->binfo.pRes->info.rows += 1;
+
 }
 
 static void handleUnprocessedRow(SSqlCmd *pCmd, SLocalMerger *pLocalMerge, tFilePage *tmpBuffer) {
@@ -1887,12 +1914,6 @@ SSDataBlock* doGlobalAggregate(void* param) {
     setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pBlock, TSDB_ORDER_ASC);
     doExecuteFinalMergeRv(pAggInfo, pOperator->numOfOutput, pBlock, false);
   }
-
-  pOperator->status = OP_EXEC_DONE;
-  setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
-
-//  finalizeQueryResult(pOperator, pAggInfo->binfo.pCtx, &pAggInfo->binfo.resultRowInfo, pAggInfo->binfo.rowCellInfoOffset);
-  pAggInfo->binfo.pRes->info.rows = getNumOfResult(pRuntimeEnv, pAggInfo->binfo.pCtx, pOperator->numOfOutput);
 
   pOperator->status = OP_EXEC_DONE;
   setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);

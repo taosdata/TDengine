@@ -525,17 +525,17 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock) {
   assert(pRes->numOfCols > 0);
 
-  int32_t offset = 0;
+//  int32_t offset = 0;
 
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
 
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
 
-    pRes->urow[i] = pColData->pData + offset * pColData->info.bytes;
+    pRes->urow[i] = pColData->pData/* + offset * pColData->info.bytes*/;
     pRes->length[i] = pInfo->field.bytes;
 
-    offset += pInfo->field.bytes;
+    //offset += pInfo->field.bytes;
 
     // generated the user-defined column result
     if (pInfo->pExpr->pExpr == NULL && TSDB_COL_IS_UD_COL(pInfo->pExpr->base.colInfo.flag)) {
@@ -3337,6 +3337,7 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
 
     pse->colType = pExpr->base.resType;
     pse->colBytes = pExpr->base.resBytes;
+    pse->colInfo.flag = TSDB_COL_NORMAL;
 
     for (int32_t j = 0; j < pExpr->base.numOfParams; ++j) {
       tVariantAssign(&pse->param[j], &pExpr->base.param[j]);

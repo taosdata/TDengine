@@ -485,25 +485,6 @@ int32_t compare_aRv(SSDataBlock* pBlock, int16_t* colIndex, int32_t numOfCols, i
         return ret;
       }
     }
-//    char *f1 = COLMODEL_GET_VAL(data1, pDescriptor->pColumnModel, numOfRows1, s1, colIdx);
-//    char *f2 = COLMODEL_GET_VAL(data2, pDescriptor->pColumnModel, numOfRows2, s2, colIdx);
-
-//    if (pDescriptor->pColumnModel->pFields[colIdx].field.type == TSDB_DATA_TYPE_TIMESTAMP) {
-//      int32_t ret = primaryKeyComparator(*(int64_t *)f1, *(int64_t *)f2, colIdx, pDescriptor->tsOrder);
-//      if (ret == 0) {
-//        continue;
-//      } else {
-//        return ret;
-//      }
-//    } else {
-//      SSchemaEx *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
-//      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes);
-//      if (ret == 0) {
-//        continue;
-//      } else {
-//        return ret;
-//      }
-//    }
   }
 
   return 0;

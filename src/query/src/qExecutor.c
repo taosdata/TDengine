@@ -1734,8 +1734,9 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
 
       case OP_GlobalAggregate: {
-        pRuntimeEnv->proot = createGlobalAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
-            pQueryAttr->numOfExpr3, &pQueryAttr->order.orderColId, 1);
+        pRuntimeEnv->proot =
+            createGlobalAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
+                                              pQueryAttr->numOfExpr3, &pQueryAttr->order.orderColId, 1);
         break;
       }
 
@@ -3861,8 +3862,8 @@ static SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, in
   return pFillCol;
 }
 
-int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *tsdb, int32_t tbScanner, SArray* pOperator,
-    void* param) {
+int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, SArray* prevResult, void* tsdb, int32_t tbScanner,
+                    SArray* pOperator, void* param) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
 
   SQueryAttr *pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
@@ -4299,13 +4300,15 @@ SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntime
   return pOptr;
 }
 
-SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput,
-    int32_t* orderColumn, int32_t numOfOrder) {
+SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream,
+                                                 SExprInfo* pExpr, int32_t numOfOutput, int32_t* orderColumn,
+                                                 int32_t numOfOrder) {
   SMultiwayMergeInfo* pInfo = calloc(1, sizeof(SMultiwayMergeInfo));
 
-  SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  int32_t     numOfRows =
-      (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
+//  SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
+  int32_t numOfRows = 4096;
+//  int32_t     numOfRows =
+//      (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
 
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, numOfRows);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
@@ -4322,7 +4325,9 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
     pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
 
     int32_t index = orderColumn[i];
-    offset += pExpr[index].base.resBytes;
+    if (index != INT32_MIN) {
+      offset += pExpr[index].base.resBytes;
+    }
   }
 
   pInfo->orderColumnList = taosArrayFromList(orderColumn, numOfOrder, sizeof(int32_t));
