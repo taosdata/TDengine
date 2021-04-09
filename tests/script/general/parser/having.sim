@@ -1,0 +1,1841 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+print ======================== dnode1 start
+
+$db = testdb
+
+sql create database $db
+sql use $db
+
+sql create stable st2 (ts timestamp, f1 int, f2 float, f3 double, f4 bigint, f5 smallint, f6 tinyint, f7 bool, f8 binary(10), f9 nchar(10)) tags (id1 int, id2 float, id3 nchar(10), id4 double, id5 smallint, id6 bigint, id7 binary(10))
+
+sql create table tb1 using st2 tags (1,1.0,"1",1.0,1,1,"1");
+sql create table tb2 using st2 tags (2,2.0,"2",2.0,2,2,"2");
+sql create table tb3 using st2 tags (3,3.0,"3",3.0,3,3,"3");
+sql create table tb4 using st2 tags (4,4.0,"4",4.0,4,4,"4");
+ 
+sql insert into tb1 values (now-200s,1,1.0,1.0,1,1,1,true ,"1","1")
+sql insert into tb1 values (now-150s,1,1.0,1.0,1,1,1,false,"1","1")
+sql insert into tb1 values (now-100s,2,2.0,2.0,2,2,2,true ,"2","2")
+sql insert into tb1 values (now-50s ,2,2.0,2.0,2,2,2,false,"2","2")
+sql insert into tb1 values (now     ,3,3.0,3.0,3,3,3,true ,"3","3")
+sql insert into tb1 values (now+50s ,3,3.0,3.0,3,3,3,false,"3","3")
+sql insert into tb1 values (now+100s,4,4.0,4.0,4,4,4,true ,"4","4")
+sql insert into tb1 values (now+150s,4,4.0,4.0,4,4,4,false,"4","4")
+
+
+sql select count(*),f1 from st2 group by f1 having count(f1) > 0;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 2 then 
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data21 != 3 then 
+  return -1
+endi
+if $data30 != 2 then 
+  return -1
+endi
+if $data31 != 4 then 
+  return -1
+endi
+
+
+
+
+sql select count(*),f1 from st2 group by f1 having count(*) > 0;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 2 then 
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data21 != 3 then 
+  return -1
+endi
+if $data30 != 2 then 
+  return -1
+endi
+if $data31 != 4 then 
+  return -1
+endi
+
+
+sql select count(*),f1 from st2 group by f1 having count(f2) > 0;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 2 then 
+  return -1
+endi
+if $data01 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data20 != 2 then 
+  return -1
+endi
+if $data21 != 3 then 
+  return -1
+endi
+if $data30 != 2 then 
+  return -1
+endi
+if $data31 != 4 then 
+  return -1
+endi
+
+sql_error select top(f1,2) from st2 group by f1 having count(f2) > 0;
+
+sql select last(f1) from st2 group by f1 having count(f2) > 0;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1 then 
+  return -1
+endi
+if $data10 != 2 then 
+  return -1
+endi
+if $data20 != 3 then 
+  return -1
+endi
+if $data30 != 4 then 
+  return -1
+endi
+
+sql_error select top(f1,2) from st2 group by f1 having count(f2) > 0;
+
+sql_error select top(f1,2) from st2 group by f1 having count(f2) > 0;
+
+sql_error select top(f1,2) from st2 group by f1 having avg(f1) > 0;
+
+sql select avg(f1),count(f1) from st2 group by f1 having avg(f1) > 2;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 3.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data10 != 4.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+
+
+sql select avg(f1),count(f1) from st2 group by f1 having avg(f1) > 2 and sum(f1) > 0;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 3.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data10 != 4.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having avg(f1) > 2 and sum(f1) > 0;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 3.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 6 then 
+  return -1
+endi
+if $data10 != 4.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data12 != 8 then 
+  return -1
+endi
+
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having avg(f1) > 2;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 3.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 6 then 
+  return -1
+endi
+if $data10 != 4.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data12 != 8 then 
+  return -1
+endi
+
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 0;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 2 then 
+  return -1
+endi
+if $data10 != 2.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data12 != 4 then 
+  return -1
+endi
+if $data20 != 3.000000000 then 
+  return -1
+endi
+if $data21 != 2 then 
+  return -1
+endi
+if $data22 != 6 then 
+  return -1
+endi
+if $data30 != 4.000000000 then 
+  return -1
+endi
+if $data31 != 2 then 
+  return -1
+endi
+if $data32 != 8 then 
+  return -1
+endi
+
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 2 and sum(f1) < 6;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 4 then 
+  return -1
+endi
+
+
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having 1 <= sum(f1) and 5 >= sum(f1);
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 1.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 2 then 
+  return -1
+endi
+if $data10 != 2.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data12 != 4 then 
+  return -1
+endi
+
+sql select avg(f1),count(f1),sum(f1),twa(f1) from st2 group by tbname having twa(f1) > 0;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.500000000 then 
+  return -1
+endi
+if $data01 != 8 then 
+  return -1
+endi
+if $data02 != 20 then 
+  return -1
+endi
+if $data04 != tb1 then 
+  return -1
+endi
+
+sql_error select avg(f1),count(f1),sum(f1),twa(f1) from st2 group by f1 having twa(f1) > 0;
+
+sql select avg(f1),count(f1),sum(f1),twa(f1) from st2 group by tbname having sum(f1) > 0;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.500000000 then 
+  return -1
+endi
+if $data01 != 8 then 
+  return -1
+endi
+if $data02 != 20 then 
+  return -1
+endi
+if $data04 != tb1 then 
+  return -1
+endi
+
+sql_error select avg(f1),count(f1),sum(f1),twa(f1) from st2 group by f1 having sum(f1) > 0;
+
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 0;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 2 then 
+  return -1
+endi
+if $data10 != 2.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data12 != 4 then 
+  return -1
+endi
+if $data20 != 3.000000000 then 
+  return -1
+endi
+if $data21 != 2 then 
+  return -1
+endi
+if $data22 != 6 then 
+  return -1
+endi
+if $data30 != 4.000000000 then 
+  return -1
+endi
+if $data31 != 2 then 
+  return -1
+endi
+if $data32 != 8 then 
+  return -1
+endi
+
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 3;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 4 then 
+  return -1
+endi
+if $data10 != 3.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data12 != 6 then 
+  return -1
+endi
+if $data20 != 4.000000000 then 
+  return -1
+endi
+if $data21 != 2 then 
+  return -1
+endi
+if $data22 != 8 then 
+  return -1
+endi
+
+###########and issue
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 3 and sum(f1) > 1;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 2 then 
+  return -1
+endi
+if $data10 != 2.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data12 != 4 then 
+  return -1
+endi
+if $data20 != 3.000000000 then 
+  return -1
+endi
+if $data21 != 2 then 
+  return -1
+endi
+if $data22 != 6 then 
+  return -1
+endi
+if $data30 != 4.000000000 then 
+  return -1
+endi
+if $data31 != 2 then 
+  return -1
+endi
+if $data32 != 8 then 
+  return -1
+endi
+
+
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 3 or sum(f1) > 1;
+if $rows != 4 then 
+  return -1
+endi
+if $data00 != 1.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 2 then 
+  return -1
+endi
+if $data10 != 2.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data12 != 4 then 
+  return -1
+endi
+if $data20 != 3.000000000 then 
+  return -1
+endi
+if $data21 != 2 then 
+  return -1
+endi
+if $data22 != 6 then 
+  return -1
+endi
+if $data30 != 4.000000000 then 
+  return -1
+endi
+if $data31 != 2 then 
+  return -1
+endi
+if $data32 != 8 then 
+  return -1
+endi
+
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 3 or sum(f1) > 4;
+if $rows != 3 then 
+  return -1
+endi
+if $data00 != 2.000000000 then 
+  return -1
+endi
+if $data01 != 2 then 
+  return -1
+endi
+if $data02 != 4 then 
+  return -1
+endi
+if $data10 != 3.000000000 then 
+  return -1
+endi
+if $data11 != 2 then 
+  return -1
+endi
+if $data12 != 6 then 
+  return -1
+endi
+if $data20 != 4.000000000 then 
+  return -1
+endi
+if $data21 != 2 then 
+  return -1
+endi
+if $data22 != 8 then 
+  return -1
+endi
+
+############or issue
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having sum(f1) > 3 or avg(f1) > 4;
+if $rows != 0 then                                                                                                                                                                             
+  return -1
+endi
+
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having (sum(f1) > 3);
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 4 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 6 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data22 != 8 then
+  return -1
+endi
+
+sql_error select avg(f1),count(f1),sum(f1) from st2 group by f1 having (sum(*) > 3);
+
+sql select avg(f1),count(f1),sum(f1) from st2 group by f1 having (sum(st2.f1) > 3);
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 4 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 6 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data22 != 8 then
+  return -1
+endi
+
+sql select avg(f1),count(st2.*),sum(f1) from st2 group by f1 having (sum(st2.f1) > 3);
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 4 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 6 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data22 != 8 then
+  return -1
+endi
+
+sql select avg(f1),count(st2.*),sum(f1),stddev(f1),stddev(f1) from st2 group by f1;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 2 then                                                                                                                                                                           
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data04 != 0.000000000 then
+  return -1
+endi
+if $data10 != 2.000000000 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 4 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data14 != 0.000000000 then
+  return -1
+endi
+if $data20 != 3.000000000 then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data22 != 6 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+if $data24 != 0.000000000 then
+  return -1
+endi
+if $data30 != 4.000000000 then
+  return -1
+endi
+if $data31 != 2 then
+  return -1
+endi
+if $data32 != 8 then
+  return -1
+endi
+if $data33 != 0.000000000 then
+  return -1
+endi
+if $data34 != 0.000000000 then
+  return -1
+endi
+
+sql select avg(f1),count(st2.*),sum(f1),stddev(f1) from st2 group by f1 having (stddev(st2.f1) > 3);
+if $rows != 0 then
+  return -1
+endi
+
+sql select avg(f1),count(st2.*),sum(f1),stddev(f1) from st2 group by f1 having (stddev(st2.f1) < 1);
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 2 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 2.000000000 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 4 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data20 != 3.000000000 then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data22 != 6 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+if $data30 != 4.000000000 then                                                                                                                                                                 
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data31 != 2 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data32 != 8 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data33 != 0.000000000 then                                                                                                                                                                 
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1) from st2 group by f1 having (LEASTSQUARES(f1) < 1);
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1) from st2 group by f1 having LEASTSQUARES(f1) < 1;
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1) from st2 group by f1 having LEASTSQUARES(f1,1,1) < 1;
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1) from st2 group by f1 having LEASTSQUARES(f1,1,1) > 2;
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),LEASTSQUARES(f1,1,1) from st2 group by f1 having LEASTSQUARES(f1,1,1) > 2;
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),LEASTSQUARES(f1,1,1) from st2 group by f1 having sum(f1) > 2;
+
+sql select avg(f1),count(st2.*),sum(f1),stddev(f1) from st2 group by f1 having min(f1) > 2;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 3.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 6 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 4.000000000 then
+  return -1
+endi                                                                                                                                                                                           
+if $data11 != 2 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data12 != 8 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data13 != 0.000000000 then                                                                                                                                                                 
+  return -1                                                                                                                                                                                    
+endi  
+
+sql select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1) from st2 group by f1 having min(f1) > 2;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 3.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 6 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data04 != 3 then
+  return -1
+endi
+if $data10 != 4.000000000 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 8 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data14 != 4 then
+  return -1
+endi
+
+sql select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1) from st2 group by f1 having max(f1) > 2;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 3.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 6 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data04 != 3 then
+  return -1
+endi
+if $data10 != 4.000000000 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 8 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data14 != 4 then
+  return -1
+endi
+
+sql select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1) from st2 group by f1 having max(f1) != 2;
+if $rows != 3 then                                                                                                                                                                             
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data00 != 1.000000000 then                                                                                                                                                                 
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data01 != 2 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data02 != 2 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data03 != 0.000000000 then                                                                                                                                                                 
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data04 != 1 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data05 != 1 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 6 then
+  return -1                                                                                                                                                                                    
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data14 != 3 then
+  return -1
+endi
+if $data15 != 3 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data22 != 8 then
+  return -1                                                                                                                                                                                    
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+if $data24 != 4 then
+  return -1
+endi
+if $data25 != 4 then
+  return -1
+endi
+
+sql select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1) from st2 group by f1 having first(f1) != 2;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 2 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data04 != 1 then
+  return -1
+endi
+if $data05 != 1 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 6 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1                                                                                                                                                                                    
+endi
+if $data14 != 3 then
+  return -1
+endi
+if $data15 != 3 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data22 != 8 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+if $data24 != 4 then
+  return -1
+endi
+if $data25 != 4 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi 
+
+
+
+sql select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1) from st2 group by f1 having first(f1) != 2;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data01 != 2 then
+  return -1
+endi
+if $data02 != 2 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data04 != 1 then
+  return -1
+endi
+if $data05 != 1 then
+  return -1
+endi
+if $data06 != 1 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 2 then
+  return -1
+endi
+if $data12 != 6 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data14 != 3 then
+  return -1
+endi
+if $data15 != 3 then
+  return -1
+endi
+if $data16 != 3 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data21 != 2 then
+  return -1
+endi
+if $data22 != 8 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+if $data24 != 4 then
+  return -1
+endi
+if $data25 != 4 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi  
+if $data26 != 4 then                                                                                                                                                                           
+  return -1                                                                                                                                                                                    
+endi  
+
+
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1),last(f1) from st2 group by f1 having top(f1,1);
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1),last(f1) from st2 group by f1 having top(f1,1) > 1;
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1),last(f1) from st2 group by f1 having bottom(f1,1) > 1;
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1),last(f1),top(f1,1),bottom(f1,1) from st2 group by f1 having bottom(f1,1) > 1;
+
+sql_error select avg(f1),count(st2.*),sum(f1),stddev(f1),min(f1),max(f1),first(f1),last(f1),top(f1,1),bottom(f1,1) from st2 group by f1 having sum(f1) > 1;
+
+sql_error select PERCENTILE(f1) from st2 group by f1 having sum(f1) > 1;
+
+sql_error select PERCENTILE(f1,20) from st2 group by f1 having sum(f1) > 1;
+
+sql select aPERCENTILE(f1,20) from st2 group by f1 having sum(f1) > 1;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data10 != 2.000000000 then
+  return -1
+endi
+if $data20 != 3.000000000 then
+  return -1
+endi
+if $data30 != 4.000000000 then
+  return -1
+endi
+
+sql select aPERCENTILE(f1,20) from st2 group by f1 having apercentile(f1,1) > 1;
+if $rows != 3 then                                                                                                                                                                             
+  return -1
+endi
+if $data00 != 2.000000000 then                                                                                                                                                                 
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data10 != 3.000000000 then                                                                                                                                                                 
+  return -1                                                                                                                                                                                    
+endi                                                                                                                                                                                           
+if $data20 != 4.000000000 then
+  return -1                                                                                                                                                                                    
+endi 
+
+sql select aPERCENTILE(f1,20) from st2 group by f1 having apercentile(f1,1) > 1 and apercentile(f1,1) < 50;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+
+sql select aPERCENTILE(f1,20) from st2 group by f1 having apercentile(f1,1) > 1 and apercentile(f1,1) < 3;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+
+sql select aPERCENTILE(f1,20) from st2 group by f1 having apercentile(f1,1) > 1 and apercentile(f1,3) < 3;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+
+sql_error select aPERCENTILE(f1,20) from st2 group by f1 having apercentile(1) > 1;
+
+sql_error select aPERCENTILE(f1,20),LAST_ROW(f1) from st2 group by f1 having apercentile(1) > 1;
+
+sql_error select aPERCENTILE(f1,20),LAST_ROW(f1) from st2 group by f1 having apercentile(f1,1) > 1;
+
+sql_error select sum(f1) from st2 group by f1 having last_row(f1) > 1;
+
+sql_error select avg(f1) from st2 group by f1 having diff(f1) > 0;
+
+sql_error select avg(f1),diff(f1) from st2 group by f1 having avg(f1) > 0;
+
+sql_error select avg(f1),diff(f1) from st2 group by f1 having spread(f2) > 0;
+
+sql select avg(f1) from st2 group by f1 having spread(f2) > 0;
+if $rows != 0 then
+  return -1
+endi
+
+sql select avg(f1) from st2 group by f1 having spread(f2) = 0;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data10 != 2.000000000 then
+  return -1
+endi
+if $data20 != 3.000000000 then
+  return -1
+endi 
+if $data30 != 4.000000000 then
+  return -1
+endi
+
+sql select avg(f1),spread(f2) from st2 group by f1;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1.000000000 then                                                                                                                                                                 
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data10 != 2.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then                                                                                                                                                                 
+  return -1
+endi
+if $data20 != 3.000000000 then
+  return -1
+endi
+if $data21 != 0.000000000 then
+  return -1
+endi
+if $data30 != 4.000000000 then                                                                                                                                                                 
+  return -1
+endi
+if $data31 != 0.000000000 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) = 0;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then                                                                                                                                                                 
+  return -1                                                                                                                                                                                    
+endi 
+if $data03 != 0.000000000 then                                                                                                                                                                 
+  return -1                                                                                                                                                                                    
+endi 
+if $data10 != 2.000000000 then                                                                                                                                                                 
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data20 != 3.000000000 then                                                                                                                                                                 
+  return -1
+endi
+if $data21 != 0.000000000 then
+  return -1
+endi
+if $data22 != 0.000000000 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+if $data30 != 4.000000000 then
+  return -1
+endi
+if $data31 != 0.000000000 then
+  return -1
+endi
+if $data32 != 0.000000000 then
+  return -1
+endi
+if $data33 != 0.000000000 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) != 0;
+if $rows != 0 then                                                                                                                                                                             
+  return -1                                                                                                                                                                                    
+endi 
+
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) + 1 > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) + 1;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) + sum(f1);
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) + sum(f1) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) - sum(f1) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) * sum(f1) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) / sum(f1) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) > sum(f1);
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) and sum(f1);
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) 0 and sum(f1);
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) + 0 and sum(f1);
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) - f1 and sum(f1);
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) - id1 and sum(f1);
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) > id1 and sum(f1);
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) > id1 and sum(f1) > 1;
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) > 2 and sum(f1) > 1;
+if $rows != 0 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) = 0 and sum(f1) > 1;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 2.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data20 != 3.000000000 then
+  return -1
+endi
+if $data21 != 0.000000000 then
+  return -1
+endi
+if $data22 != 0.000000000 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+if $data30 != 4.000000000 then
+  return -1
+endi
+if $data31 != 0.000000000 then
+  return -1
+endi
+if $data32 != 0.000000000 then
+  return -1
+endi
+if $data33 != 0.000000000 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 group by f1 having spread(f1) = 0 and avg(f1) > 1;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data21 != 0.000000000 then
+  return -1
+endi
+if $data22 != 0.000000000 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by c1 having spread(f1) = 0 and avg(f1) > 1;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by id1 having avg(id1) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 group by id1 having avg(f1) > id1;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1),avg(id1) from st2 group by id1 having avg(f1) > id1;
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 group by id1 having avg(f1) > 0;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.500000000 then
+  return -1
+endi
+if $data01 != 3.000000000 then
+  return -1
+endi
+if $data02 != 3.000000000 then
+  return -1
+endi      
+if $data03 != 3.000000000 then
+  return -1
+endi
+if $data04 != 1 then          
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 group by id1 having avg(f1) < 2;
+if $rows != 0 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f1 > 0 group by f1 having avg(f1) > 0;
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 1.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 2.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data20 != 3.000000000 then
+  return -1
+endi
+if $data21 != 0.000000000 then
+  return -1
+endi
+if $data22 != 0.000000000 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+if $data30 != 4.000000000 then
+  return -1
+endi
+if $data31 != 0.000000000 then
+  return -1
+endi
+if $data32 != 0.000000000 then
+  return -1
+endi
+if $data33 != 0.000000000 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f1 > 2 group by f1 having avg(f1) > 0;
+if $rows != 2 then
+  return -1
+endi
+if $data00 != 3.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 4.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 2 group by f1 having avg(f1) > 0;
+if $rows != 2 then                                                                                                                                                                             
+  return -1
+endi
+if $data00 != 3.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 4.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f3 > 2 group by f1 having avg(f1) > 0;
+if $rows != 2 then                                                                                                                                                                             
+  return -1
+endi
+if $data00 != 3.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 4.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 3 group by f1 having avg(f1) > 0;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 3 group by f1 having avg(ts) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 3 group by f1 having avg(f7) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 3 group by f1 having avg(f8) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 3 group by f1 having avg(f9) > 0;
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 3 group by f1 having count(f9) > 0;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then                                                                                                                                                                 
+  return -1
+endi
+
+sql_error select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 3 group by f1 having last(f9) > 0;
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 3 group by f1 having last(f2) > 0;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then                                                                                                                                                                 
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 3 group by f1 having last(f3) > 0;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 4.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then                                                                                                                                                                 
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 1 group by f1 having last(f3) > 0;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data21 != 0.000000000 then
+  return -1
+endi
+if $data22 != 0.000000000 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 1 group by f1 having last(f4) > 0;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data21 != 0.000000000 then
+  return -1
+endi
+if $data22 != 0.000000000 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 1 group by f1 having last(f5) > 0;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data21 != 0.000000000 then
+  return -1
+endi
+if $data22 != 0.000000000 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 1 group by f1 having last(f6) > 0;
+if $rows != 3 then
+  return -1
+endi
+if $data00 != 2.000000000 then
+  return -1
+endi
+if $data01 != 0.000000000 then
+  return -1
+endi
+if $data02 != 0.000000000 then
+  return -1
+endi
+if $data03 != 0.000000000 then
+  return -1
+endi
+if $data10 != 3.000000000 then
+  return -1
+endi
+if $data11 != 0.000000000 then
+  return -1
+endi
+if $data12 != 0.000000000 then
+  return -1
+endi
+if $data13 != 0.000000000 then
+  return -1
+endi
+if $data20 != 4.000000000 then
+  return -1
+endi
+if $data21 != 0.000000000 then
+  return -1
+endi
+if $data22 != 0.000000000 then
+  return -1
+endi
+if $data23 != 0.000000000 then
+  return -1
+endi
+
+
+sql_error select avg(f1),spread(f1,f2,st2.f1),f1,f2 from st2 where f2 > 1 group by f1 having last(f6) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1),f1,f6 from st2 where f2 > 1 group by f1 having last(f6) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1),f1,f6 from st2 where f2 > 1 group by f1,f2 having last(f6) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1),f1,f6 from st2 where f2 > 1 group by f1,id1 having last(f6) > 0;
+
+sql_error select avg(f1),spread(f1,f2,st2.f1),f1,f6 from st2 where f2 > 1 group by id1 having last(f6) > 0;
+
+sql select avg(f1),spread(f1,f2,st2.f1) from st2 where f2 > 1 group by id1 having last(f6) > 0;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 3.000000000 then
+  return -1
+endi
+if $data01 != 2.000000000 then
+  return -1
+endi
+if $data02 != 2.000000000 then
+  return -1
+endi
+if $data03 != 2.000000000 then
+  return -1
+endi
+if $data04 != 1 then
+  return -1
+endi
+
+sql_error select top(f1,2) from tb1 group by f1 having count(f1) > 0;
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
