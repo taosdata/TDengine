@@ -937,6 +937,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       return ret;
     }
 
+    if (sql == NULL) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
     code = tscGetTableMetaEx(pSql, pTableMetaInfo, true);
     if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
       return code;
@@ -945,6 +949,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
   } else {
     sql = sToken.z;
 
+    if (sql == NULL) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
     code = tscGetTableMetaEx(pSql, pTableMetaInfo, false);
     if (pCmd->curSql == NULL) {
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS);
@@ -952,10 +960,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
   }
 
   *sqlstr = sql;
-
-  if (*sqlstr == NULL) {
-    code = TSDB_CODE_TSC_INVALID_SQL;
-  }
   
   return code;
 }

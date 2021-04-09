@@ -175,6 +175,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_ID,         "Table name too long")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_NAME,       "Table does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_TABLE_TYPE,       "Invalid table type in tsdb")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TAGS,            "Too many tags")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_COLUMNS,         "Too many columns")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TIMESERIES,      "Too many time series")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_NOT_SUPER_TABLE,          "Not super table")           // operation only available for super table
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COL_NAME_TOO_LONG,        "Tag name too long")

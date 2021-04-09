@@ -287,6 +287,10 @@ static void lruListMoveToFront(SList *pList, SPageInfo* pi) {
   tdListPrependNode(pList, pi->pn);
 }
 
+static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) {
+  return pageSize + POINTER_BYTES + 2 + sizeof(tFilePage);
+}
+
 tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32_t* pageId) {
   pResultBuf->statis.getPages += 1;
 
@@ -311,7 +315,7 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
 
   // allocate buf
   if (availablePage == NULL) {
-    pi->pData = calloc(1, pResultBuf->pageSize + POINTER_BYTES + 2);  // add extract bytes in case of zipped buffer increased.
+    pi->pData = calloc(1, getAllocPageSize(pResultBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
   } else {
     pi->pData = availablePage;
   }
@@ -355,7 +359,7 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
     }
 
     if (availablePage == NULL) {
-      (*pi)->pData = calloc(1, pResultBuf->pageSize + POINTER_BYTES);
+      (*pi)->pData = calloc(1, getAllocPageSize(pResultBuf->pageSize));
     } else {
       (*pi)->pData = availablePage;
     }
