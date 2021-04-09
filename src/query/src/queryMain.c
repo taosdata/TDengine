@@ -475,7 +475,7 @@ void qCleanupQueryMgmt(void* pQMgmt) {
   qDebug("vgId:%d, queryMgmt cleanup completed", vgId);
 }
 
-void** qRegisterQInfo(void* pMgmt, uint64_t qId, uint64_t qInfo) {
+void** qRegisterQInfo(void* pMgmt, uint64_t qId, void *qInfo) {
   if (pMgmt == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
     return NULL;
@@ -516,8 +516,7 @@ void** qAcquireQInfo(void* pMgmt, uint64_t _key) {
     return NULL;
   }
 
-  TSDB_CACHE_PTR_TYPE key = (TSDB_CACHE_PTR_TYPE)_key;
-  void** handle = taosCacheAcquireByKey(pQueryMgmt->qinfoPool, &key, sizeof(TSDB_CACHE_PTR_TYPE));
+  void** handle = taosCacheAcquireByKey(pQueryMgmt->qinfoPool, &_key, sizeof(_key));
   if (handle == NULL || *handle == NULL) {
     terrno = TSDB_CODE_QRY_INVALID_QHANDLE;
     return NULL;
