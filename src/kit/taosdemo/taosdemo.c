@@ -3124,6 +3124,11 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
 
   superTbls->tagCount = index;
 
+  if ((superTbls->columnCount + superTbls->tagCount) > MAX_COLUMN_COUNT) {
+    errorPrint("%s() LN%d, columns + tags is more than max columns count: %d\n",
+        __func__, __LINE__, MAX_TAG_COUNT);
+    goto PARSE_OVER;
+  }
   ret = true;
 
 PARSE_OVER:
