@@ -1728,7 +1728,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
 
       case OP_MultiwaySort: {
-        pRuntimeEnv->proot = createMultiwaySortOperatorInfo(pRuntimeEnv, pQueryAttr->pExpr3, pQueryAttr->numOfExpr3,
+        pRuntimeEnv->proot = createMultiwaySortOperatorInfo(pRuntimeEnv, pQueryAttr->pExpr1, pQueryAttr->numOfOutput,
             4096, merger); // TODO hack it
         break;
       }
@@ -1736,7 +1736,12 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       case OP_GlobalAggregate: {
         pRuntimeEnv->proot =
             createGlobalAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
-                                              pQueryAttr->numOfExpr3, &pQueryAttr->order.orderColId, 1);
+                                              pQueryAttr->numOfExpr3);
+        break;
+      }
+
+      case OP_SLimit: {
+        pRuntimeEnv->proot = createSLimitOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot);
         break;
       }
 
@@ -2925,12 +2930,11 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
   initCtxOutputBuffer(pCtx, pDataBlock->info.numOfCols);
 }
 
-void updateOutputBuf(SArithOperatorInfo* pInfo, int32_t numOfInputRows) {
-  SOptrBasicInfo* pBInfo = &pInfo->binfo;
+void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows) {
   SSDataBlock* pDataBlock = pBInfo->pRes;
 
   int32_t newSize = pDataBlock->info.rows + numOfInputRows;
-  if (pInfo->bufCapacity < newSize) {
+  if ((*bufCapacity) < newSize) {
     for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
       char* p = realloc(pColInfo->pData, newSize * pColInfo->info.bytes);
@@ -2939,7 +2943,7 @@ void updateOutputBuf(SArithOperatorInfo* pInfo, int32_t numOfInputRows) {
 
         // it starts from the tail of the previously generated results.
         pBInfo->pCtx[i].pOutput = pColInfo->pData;
-        pInfo->bufCapacity = newSize;
+        (*bufCapacity) = newSize;
       } else {
         // longjmp
       }
@@ -4300,18 +4304,39 @@ SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntime
   return pOptr;
 }
 
+SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
+  int32_t numOfCols = pQuery->pGroupbyExpr->numOfGroupCols;
+
+  SArray* pOrderColumns = NULL;
+  if (numOfCols > 0) {
+    pOrderColumns = taosArrayDup(pQuery->pGroupbyExpr->columnInfo);
+  }
+
+  if (pQuery->interval.interval > 0) {
+    if (pOrderColumns == NULL) {
+      pOrderColumns = taosArrayInit(1, sizeof(SColIndex));
+    }
+
+    SColIndex colIndex = {.colIndex = 0, .colId = 0, .flag = TSDB_COL_NORMAL};
+    taosArrayPush(pOrderColumns, &colIndex);
+  }
+
+  return pOrderColumns;
+}
+
+
 SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream,
-                                                 SExprInfo* pExpr, int32_t numOfOutput, int32_t* orderColumn,
-                                                 int32_t numOfOrder) {
+                                                 SExprInfo* pExpr, int32_t numOfOutput) {
   SMultiwayMergeInfo* pInfo = calloc(1, sizeof(SMultiwayMergeInfo));
 
-//  SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  int32_t numOfRows = 4096;
 //  int32_t     numOfRows =
 //      (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
 
-  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, numOfRows);
+  pInfo->bufCapacity = 4096;
+  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+
+  pInfo->orderColumnList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
 
   // TODO refactor
   int32_t len = 0;
@@ -4319,18 +4344,16 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
     len += pExpr[i].base.resBytes;
   }
 
-  pInfo->prevRow = taosArrayInit(numOfOrder, (POINTER_BYTES * numOfOrder + len));
+  int32_t numOfCols = pInfo->orderColumnList != NULL? taosArrayGetSize(pInfo->orderColumnList):0;
+  pInfo->prevRow = calloc(1, (POINTER_BYTES * numOfCols + len));
   int32_t offset = POINTER_BYTES * numOfOutput;
-  for(int32_t i = 0; i < numOfOrder; ++i) {
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
     pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
 
-    int32_t index = orderColumn[i];
-    if (index != INT32_MIN) {
-      offset += pExpr[index].base.resBytes;
-    }
+    SColIndex* index = taosArrayGet(pInfo->orderColumnList, i);
+    offset += pExpr[index->colIndex].base.resBytes;
   }
-
-  pInfo->orderColumnList = taosArrayFromList(orderColumn, numOfOrder, sizeof(int32_t));
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
@@ -4338,18 +4361,18 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name = "GlobalAggregate";
+  pOperator->name         = "GlobalAggregate";
   pOperator->operatorType = OP_GlobalAggregate;
   pOperator->blockingOptr = true;
-  pOperator->status = OP_IN_EXECUTING;
-  pOperator->info = pInfo;
-  pOperator->upstream = upstream;
-  pOperator->pExpr = pExpr;
-  pOperator->numOfOutput = numOfOutput;
-  pOperator->pRuntimeEnv = pRuntimeEnv;
+  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->info         = pInfo;
+  pOperator->upstream     = upstream;
+  pOperator->pExpr        = pExpr;
+  pOperator->numOfOutput  = numOfOutput;
+  pOperator->pRuntimeEnv  = pRuntimeEnv;
 
-  pOperator->exec = doGlobalAggregate;
-  pOperator->cleanup = destroyBasicOperatorInfo;
+  pOperator->exec         = doGlobalAggregate;
+  pOperator->cleanup      = destroyBasicOperatorInfo;
   return pOperator;
 }
 
@@ -4492,7 +4515,7 @@ static SSDataBlock* doArithmeticOperation(void* param) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
-    updateOutputBuf(pArithInfo, pBlock->info.rows);
+    updateOutputBuf(&pArithInfo->binfo, &pArithInfo->bufCapacity, pBlock->info.rows);
 
     arithmeticApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
 
@@ -5120,9 +5143,28 @@ SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorIn
   return pOperator;
 }
 
-SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream) {
-  SLimitOperatorInfo* pInfo = calloc(1, sizeof(SLimitOperatorInfo));
-  pInfo->limit = pRuntimeEnv->pQueryAttr->limit.limit;
+SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
+  SSLimitOperatorInfo* pInfo = calloc(1, sizeof(SSLimitOperatorInfo));
+  pInfo->limit = pRuntimeEnv->pQueryAttr->slimit.limit;
+
+  pInfo->orderColumnList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
+
+  // TODO refactor
+  int32_t len = 0;
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    len += pExpr[i].base.resBytes;
+  }
+
+  int32_t numOfCols = pInfo->orderColumnList != NULL? taosArrayGetSize(pInfo->orderColumnList):0;
+  pInfo->prevRow = calloc(1, (POINTER_BYTES * numOfCols + len));
+  int32_t offset = POINTER_BYTES * numOfOutput;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
+
+    SColIndex* index = taosArrayGet(pInfo->orderColumnList, i);
+    offset += pExpr[index->colIndex].base.resBytes;
+  }
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
@@ -5131,7 +5173,7 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->upstream     = upstream;
-  pOperator->exec         = doLimit;
+  pOperator->exec         = doSLimit;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 

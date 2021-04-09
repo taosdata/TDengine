@@ -181,6 +181,7 @@ typedef struct SSDataBlock {
 // execution of query in a data node.
 typedef struct SQueryAttr {
   SLimitVal        limit;
+  SLimitVal        slimit;
 
   bool             stableQuery;      // super table query or not
   bool             topBotQuery;      // TODO used bitwise flag
@@ -412,10 +413,13 @@ typedef struct SArithOperatorInfo {
   uint32_t       seed;
 } SArithOperatorInfo;
 
-typedef struct SLimitOperatorInfo {
-  int64_t limit;
-  int64_t total;
-} SLimitOperatorInfo;
+typedef struct SSLimitOperatorInfo {
+  int64_t   limit;
+  int64_t   total;
+  char    **prevRow;
+  bool      hasPrev;
+  SArray   *orderColumnList;
+} SSLimitOperatorInfo;
 
 typedef struct SFillOperatorInfo {
   SFillInfo   *pFillInfo;
@@ -442,6 +446,7 @@ struct SLocalMerger;
 typedef struct SMultiwayMergeInfo {
   struct SLocalMerger *pMerge;
   SOptrBasicInfo       binfo;
+  int32_t              bufCapacity;
   int64_t              seed;
   char               **prevRow;
   bool                 hasPrev;
@@ -465,12 +470,16 @@ SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInf
 SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createMultiwaySortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
                                               int32_t numOfRows, void* merger);
-SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, int32_t* orderColumn, int32_t numOfOrder);
+SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+
 SSDataBlock* doGlobalAggregate(void* param);
+SSDataBlock* doSLimit(void* param);
 SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows);
 void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
 int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
+void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows);
 
 void freeParam(SQueryParam *param);
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param);

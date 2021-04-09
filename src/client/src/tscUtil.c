@@ -3434,6 +3434,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->numOfCols         = numOfCols;
   pQueryAttr->numOfOutput       = numOfOutput;
   pQueryAttr->limit             = pQueryInfo->limit;
+  pQueryAttr->slimit            = pQueryInfo->slimit;
   pQueryAttr->order             = pQueryInfo->order;
   pQueryAttr->fillType          = pQueryInfo->fillType;
   pQueryAttr->groupbyColumn     = tscGroupbyColumn(pQueryInfo);
