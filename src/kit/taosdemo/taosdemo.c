@@ -507,11 +507,6 @@ static void resetAfterAnsiEscape(void) {
 
 static int taosRandom()
 {
-  struct timeval tv;
-
-  gettimeofday(&tv, NULL);
-  srand(tv.tv_usec);
-
   return rand();
 }
 
