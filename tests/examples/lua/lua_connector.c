@@ -23,7 +23,7 @@ static int l_connect(lua_State *L){
 
   luaL_checktype(L, 1, LUA_TTABLE);
 
-  lua_getfield(L,-1,"host");
+  lua_getfield(L,1,"host");
   if (lua_isstring(L,-1)){
     host = lua_tostring(L, -1);
     // printf("host = %s\n", host);
