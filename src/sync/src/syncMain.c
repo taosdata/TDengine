@@ -997,16 +997,23 @@ static void syncProcessForwardFromPeer(char *cont, SSyncPeer *pPeer) {
 
   sTrace("%s, forward is received, hver:%" PRIu64 ", len:%d", pPeer->id, pHead->version, pHead->len);
 
+  int32_t code = 0;
   if (nodeRole == TAOS_SYNC_ROLE_SLAVE) {
     // nodeVersion = pHead->version;
-    (*pNode->writeToCacheFp)(pNode->vgId, pHead, TAOS_QTYPE_FWD, NULL);
+    code = (*pNode->writeToCacheFp)(pNode->vgId, pHead, TAOS_QTYPE_FWD, NULL);
   } else {
     if (nodeSStatus != TAOS_SYNC_STATUS_INIT) {
-      syncSaveIntoBuffer(pPeer, pHead);
+      code = syncSaveIntoBuffer(pPeer, pHead);
     } else {
       sError("%s, forward discarded since sstatus:%s, hver:%" PRIu64, pPeer->id, syncStatus[nodeSStatus],
              pHead->version);
+      code = -1;
     }
+  }
+
+  if (code != 0) {
+    sError("%s, failed to process fwd msg, hver:%" PRIu64 ", len:%d", pPeer->id, pHead->version, pHead->len);
+    syncRestartConnection(pPeer);
   }
 }
 

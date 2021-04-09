@@ -507,11 +507,6 @@ static void resetAfterAnsiEscape(void) {
 
 static int taosRandom()
 {
-  struct timeval tv;
-
-  gettimeofday(&tv, NULL);
-  srand(tv.tv_usec);
-
   return rand();
 }
 
@@ -4520,22 +4515,23 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
                     pSamplePos);
       } else if (0 == strncasecmp(superTblInfo->dataSource,
                    "rand", strlen("rand"))) {
-          int rand_num = taosRandom() % 100;
-          if (0 != superTblInfo->disorderRatio
+        int rand_num = taosRandom() % 100;
+        int randTail;
+        if (0 != superTblInfo->disorderRatio
                     && rand_num < superTblInfo->disorderRatio) {
-            int64_t d = startTime
-                + superTblInfo->timeStampStep * k
-                - taosRandom() % superTblInfo->disorderRange;
-            retLen = generateRowData(
+          randTail = (superTblInfo->timeStampStep * k
+            + (taosRandom() % superTblInfo->disorderRange + 1)) * (-1);
+          debugPrint("rand data generated, back %d\n", randTail);
+        } else {
+          randTail = superTblInfo->timeStampStep * k;
+        }
+
+        uint64_t d = startTime
+                + randTail;
+        retLen = generateRowData(
                       data,
                       d,
                       superTblInfo);
-          } else {
-            retLen = generateRowData(
-                      data,
-                      startTime + superTblInfo->timeStampStep * k,
-                      superTblInfo);
-        }
       }
 
       if (retLen > remainderBufLen) {
@@ -4551,20 +4547,21 @@ static int generateDataTail(char *tableName, int32_t tableSeq,
       int lenOfBinary = g_args.len_of_binary;
 
       int rand_num = taosRandom() % 100;
+      int randTail;
+
       if ((g_args.disorderRatio != 0)
                 && (rand_num < g_args.disorderRatio)) {
-
-        int64_t d = startTime + DEFAULT_TIMESTAMP_STEP * k
-            - taosRandom() % g_args.disorderRange;
-
-        retLen = generateData(data, data_type,
-                  ncols_per_record, d, lenOfBinary);
+        randTail = (DEFAULT_TIMESTAMP_STEP * k
+          + (taosRandom() % g_args.disorderRange + 1)) * (-1);
+        debugPrint("rand data generated, back %d\n", randTail);
       } else {
-        retLen = generateData(data, data_type,
-                  ncols_per_record,
-                  startTime + DEFAULT_TIMESTAMP_STEP * k,
-                  lenOfBinary);
+        randTail = DEFAULT_TIMESTAMP_STEP * k;
       }
+
+      retLen = generateData(data, data_type,
+                  ncols_per_record,
+                  startTime + randTail,
+                  lenOfBinary);
 
       if (len > remainderBufLen)
         break;
@@ -5106,7 +5103,7 @@ static void callBack(void *param, TAOS_RES *res, int code) {
     int rand_num = taosRandom() % 100;
     if (0 != winfo->superTblInfo->disorderRatio
             && rand_num < winfo->superTblInfo->disorderRatio) {
-      int64_t d = winfo->lastTs - taosRandom() % winfo->superTblInfo->disorderRange;
+      int64_t d = winfo->lastTs - (taosRandom() % winfo->superTblInfo->disorderRange + 1);
       generateRowData(data, d, winfo->superTblInfo);
     } else {
       generateRowData(data, winfo->lastTs += 1000, winfo->superTblInfo);
