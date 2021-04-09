@@ -1368,7 +1368,7 @@ static void rpcProcessConnError(void *param, void *id) {
   tDebug("%s %p, connection error happens", pRpc->label, pContext->ahandle);
 
   if (pContext->numOfTry >= pContext->epSet.numOfEps 
-      || pContex->msgType == TSDB_MSG_TYPE_FETCH) {
+      || pContext->msgType == TSDB_MSG_TYPE_FETCH) {
     rpcMsg.msgType = pContext->msgType+1;
     rpcMsg.ahandle = pContext->ahandle;
     rpcMsg.code = pContext->code;
