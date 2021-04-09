@@ -174,7 +174,7 @@ public class TSDBPreparedStatementTest {
         Assert.assertFalse(pstmt_insert.execute());
     }
 
-    class Person implements Serializable {
+    class Person {
         String name;
         int age;
         boolean sex;
