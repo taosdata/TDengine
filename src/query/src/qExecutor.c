@@ -4020,7 +4020,7 @@ static SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, in
   return pFillCol;
 }
 
-int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *tsdb, int32_t vgId, bool isSTableQuery) {
+int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, void *tsdb, int32_t vgId, bool isSTableQuery) {
   SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
 
   SQuery *pQuery = pQInfo->runtimeEnv.pQuery;
@@ -4030,8 +4030,6 @@ int32_t doInitQInfo(SQInfo *pQInfo, STSBuf *pTsBuf, SArray* prevResult, void *ts
   pQuery->hasTagResults = hasTagValOutput(pQuery);
   pQuery->timeWindowInterpo = timeWindowInterpoRequired(pQuery);
   pQuery->stabledev = isStabledev(pQuery);
-
-  pRuntimeEnv->prevResult = prevResult;
 
   setScanLimitationByResultBuffer(pQuery);
 
@@ -6654,6 +6652,8 @@ int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *p
   SArray* prevResult = NULL;
   if (pQueryMsg->prevResultLen > 0) {
     prevResult = interResFromBinary(param->prevResult, pQueryMsg->prevResultLen);
+    
+    pRuntimeEnv->prevResult = prevResult;    
   }
 
   pQuery->precision = tsdbGetCfg(tsdb)->precision;
@@ -6675,7 +6675,7 @@ int32_t initQInfo(SQueryTableMsg *pQueryMsg, void *tsdb, int32_t vgId, SQInfo *p
   }
 
   // filter the qualified
-  if ((code = doInitQInfo(pQInfo, pTsBuf, prevResult, tsdb, vgId, isSTable)) != TSDB_CODE_SUCCESS) {
+  if ((code = doInitQInfo(pQInfo, pTsBuf, tsdb, vgId, isSTable)) != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 

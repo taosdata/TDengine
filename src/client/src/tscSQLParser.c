@@ -6156,7 +6156,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     }
 
     // projection query on super table does not compatible with "group by" syntax
-    if (tscNonOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+    if (tscIsProjectionQuery(pQueryInfo)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
