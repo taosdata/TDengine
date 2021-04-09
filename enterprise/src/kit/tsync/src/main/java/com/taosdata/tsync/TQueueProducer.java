@@ -43,6 +43,24 @@ public class TQueueProducer {
         return task;
     }
 
+    public void send(ProducerRecord record, Callback callback) {
+        String topic = record.getTopic();
+        if (!topics.containsKey(topic)) {
+            callback.onCompletion(null, new Exception("topic[ " + topic + " ] not exists"));
+            return;
+        }
+
+        Future<RecordMetadata> task = threadPool.submit(new ProducerTask(record));
+        RecordMetadata recordMetadata = null;
+        try {
+            recordMetadata = task.get();
+            callback.onCompletion(recordMetadata, null);
+        } catch (InterruptedException | ExecutionException e) {
+            callback.onCompletion(null, e);
+        }
+
+    }
+
     private class ProducerTask implements Callable {
         private final ProducerRecord record;
         private volatile AtomicLong offset = new AtomicLong();
@@ -78,7 +96,6 @@ public class TQueueProducer {
             return new RecordMetadata(record.getTopic(), record.getPartition(), offset, ts, serializedValueSize);
         }
     }
-
 
     private void flushTopics() {
         topics.clear();
