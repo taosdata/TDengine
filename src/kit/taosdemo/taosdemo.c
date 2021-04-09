@@ -2364,7 +2364,8 @@ static int createSuperTable(TAOS * taos, char* dbName,
       lenOfOneRow += 21;
     } else {
       taos_close(taos);
-      printf("config error data type : %s\n", dataType);
+      errorPrint("%s() LN%d, config error data type : %s\n",
+         __func__, __LINE__, dataType);
       exit(-1);
     }
   }
@@ -2382,7 +2383,8 @@ static int createSuperTable(TAOS * taos, char* dbName,
   }
 
   snprintf(superTbl->colsOfCreateChildTable, len+20, "(ts timestamp%s)", cols);
-  verbosePrint("%s() LN%d: %s\n", __func__, __LINE__, superTbl->colsOfCreateChildTable);
+  verbosePrint("%s() LN%d: %s\n",
+      __func__, __LINE__, superTbl->colsOfCreateChildTable);
 
   if (superTbl->tagCount == 0) {
     errorPrint("%s() LN%d, super table tag count is %d\n",
@@ -2437,7 +2439,8 @@ static int createSuperTable(TAOS * taos, char* dbName,
       lenOfTagOfOneRow += superTbl->tags[tagIndex].dataLen + 42;
     } else {
       taos_close(taos);
-      printf("config error tag type : %s\n", dataType);
+      errorPrint("%s() LN%d, config error tag type : %s\n",
+         __func__, __LINE__, dataType);
       exit(-1);
     }
   }
@@ -2732,7 +2735,8 @@ static int startMultiThreadCreateChildTable(
             db_name,
             g_Dbs.port);
     if (t_info->taos == NULL) {
-      errorPrint( "Failed to connect to TDengine, reason:%s\n", taos_errstr(NULL));
+      errorPrint( "%s() LN%d, Failed to connect to TDengine, reason:%s\n",
+         __func__, __LINE__, taos_errstr(NULL));
       free(pids);
       free(infos);
       return -1;
@@ -2793,35 +2797,35 @@ static void createChildTables() {
         }
       }
     } else {
-        // normal table
-        len = snprintf(tblColsBuf, MAX_SQL_SIZE, "(TS TIMESTAMP");
-        int j = 0;
-        while(g_args.datatype[j]) {
-            if ((strncasecmp(g_args.datatype[j], "BINARY", strlen("BINARY")) == 0)
-                    || (strncasecmp(g_args.datatype[j],
-                        "NCHAR", strlen("NCHAR")) == 0)) {
-                snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
-                        ", COL%d %s(60)", j, g_args.datatype[j]);
-            } else {
-                snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
-                        ", COL%d %s", j, g_args.datatype[j]);
-            }
-            len = strlen(tblColsBuf);
-            j++;
-        }
+      // normal table
+      len = snprintf(tblColsBuf, MAX_SQL_SIZE, "(TS TIMESTAMP");
+      int j = 0;
+      while(g_args.datatype[j]) {
+          if ((strncasecmp(g_args.datatype[j], "BINARY", strlen("BINARY")) == 0)
+                  || (strncasecmp(g_args.datatype[j],
+                      "NCHAR", strlen("NCHAR")) == 0)) {
+              snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
+                      ", COL%d %s(60)", j, g_args.datatype[j]);
+          } else {
+              snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
+                      ", COL%d %s", j, g_args.datatype[j]);
+          }
+          len = strlen(tblColsBuf);
+          j++;
+      }
 
-        snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
+      snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
 
-        verbosePrint("%s() LN%d: dbName: %s num of tb: %d schema: %s\n",
-                __func__, __LINE__,
-                g_Dbs.db[i].dbName, g_args.num_of_tables, tblColsBuf);
-        startMultiThreadCreateChildTable(
-              tblColsBuf,
-              g_Dbs.threadCountByCreateTbl,
-              0,
-              g_args.num_of_tables,
-              g_Dbs.db[i].dbName,
-              NULL);
+      verbosePrint("%s() LN%d: dbName: %s num of tb: %d schema: %s\n",
+              __func__, __LINE__,
+              g_Dbs.db[i].dbName, g_args.num_of_tables, tblColsBuf);
+      startMultiThreadCreateChildTable(
+            tblColsBuf,
+            g_Dbs.threadCountByCreateTbl,
+            0,
+            g_args.num_of_tables,
+            g_Dbs.db[i].dbName,
+            NULL);
     }
   }
 }
@@ -3035,6 +3039,13 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
       index++;
     }
   }
+
+  if (index > MAX_COLUMN_COUNT) {
+    errorPrint("%s() LN%d, failed to read json, column size overflow, max column size is %d\n",
+            __func__, __LINE__, MAX_COLUMN_COUNT);
+    goto PARSE_OVER;
+  }
+
   superTbls->columnCount = index;
 
   count = 1;
@@ -3099,8 +3110,20 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
       index++;
     }
   }
+
+  if (index > MAX_TAG_COUNT) {
+    errorPrint("%s() LN%d, failed to read json, tags size overflow, max tag size is %d\n",
+        __func__, __LINE__, MAX_TAG_COUNT);
+    goto PARSE_OVER;
+  }
+
   superTbls->tagCount = index;
 
+  if ((superTbls->columnCount + superTbls->tagCount) > MAX_COLUMN_COUNT) {
+    errorPrint("%s() LN%d, columns + tags is more than max columns count: %d\n",
+        __func__, __LINE__, MAX_TAG_COUNT);
+    goto PARSE_OVER;
+  }
   ret = true;
 
 PARSE_OVER:
@@ -4324,13 +4347,20 @@ static int generateRowData(char* recBuf, int64_t timestamp, SSuperTable* stbInfo
               "%f, ", rand_double());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
                 "smallint", 8)) {
-      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "%d, ", rand_smallint());
-    }  else if (0 == strncasecmp(stbInfo->columns[i].dataType, "tinyint", 7)) {
-      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "%d, ", rand_tinyint());
-    }  else if (0 == strncasecmp(stbInfo->columns[i].dataType, "bool", 4)) {
-      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "%d, ", rand_bool());
-    }  else if (0 == strncasecmp(stbInfo->columns[i].dataType, "timestamp", 9)) {
-      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "%"PRId64", ", rand_bigint());
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+          "%d, ", rand_smallint());
+    }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+          "tinyint", strlen("tinyint"))) {
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+          "%d, ", rand_tinyint());
+    }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+          "bool", strlen("bool"))) {
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+          "%d, ", rand_bool());
+    }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
+          "timestamp", strlen("timestamp"))) {
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
+          "%"PRId64", ", rand_bigint());
     }  else {
       errorPrint( "No support data type: %s\n", stbInfo->columns[i].dataType);
       return -1;
@@ -4422,7 +4452,8 @@ static int prepareSampleDataForSTable(SSuperTable *superTblInfo) {
   int ret = readSampleFromCsvFileToMem(superTblInfo);
 
   if (0 != ret) {
-      errorPrint("%s() LN%d, read sample from csv file failed.\n", __func__, __LINE__);
+      errorPrint("%s() LN%d, read sample from csv file failed.\n",
+          __func__, __LINE__);
       tmfree(sampleDataBuf);
       superTblInfo->sampleDataBuf = NULL;
       return -1;
@@ -4444,7 +4475,8 @@ static int execInsert(threadInfo *pThreadInfo, char *buffer, int k)
     } else {
       if (0 != postProceSql(g_Dbs.host, g_Dbs.port, buffer)) {
         affectedRows = -1;
-        printf("========restful return fail, threadID[%d]\n", pThreadInfo->threadID);
+        printf("========restful return fail, threadID[%d]\n",
+            pThreadInfo->threadID);
       } else {
         affectedRows = k;
       }
@@ -4601,7 +4633,8 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
                     tableSeq % superTblInfo->tagSampleCount);
       }
       if (NULL == tagsValBuf) {
-        errorPrint("%s() LN%d, tag buf failed to allocate  memory\n", __func__, __LINE__);
+        errorPrint("%s() LN%d, tag buf failed to allocate  memory\n",
+            __func__, __LINE__);
         return -1;
       }
 
@@ -4698,11 +4731,11 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   // TODO: prompt tbl count multple interlace rows and batch
   //
 
-  char* buffer = calloc(superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len, 1);
+  int maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
+  char* buffer = calloc(maxSqlLen, 1);
   if (NULL == buffer) {
-    errorPrint( "Failed to alloc %d Bytes, reason:%s\n",
-              superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len,
-              strerror(errno));
+    errorPrint( "%s() LN%d, Failed to alloc %d Bytes, reason:%s\n",
+              __func__, __LINE__, maxSqlLen, strerror(errno));
     return NULL;
   }
 
@@ -4751,7 +4784,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   bool flagSleep = true;
   int sleepTimeTotal = 0;
 
-  int maxSqlLen = superTblInfo?superTblInfo->maxSqlLen:g_args.max_sql_len;
   int remainderBufLen;
 
   while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
