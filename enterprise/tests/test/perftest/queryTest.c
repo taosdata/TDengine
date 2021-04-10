@@ -387,7 +387,7 @@ int main(int argc, char** argv) {
 //    }
     executeSQL(conn, "use test", NULL);
 //    executeSQL(conn, "select first(ts),count(*) from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') interval(1s) group by tbname", NULL);
-    executeSQL(conn, "select count(*) from m2 where tbname in ('t2m0', 't2m20') interval(1s) group by tbname slimit 1", NULL);
+    executeSQL(conn, "select count(*) from m2 where tbname in ('t2m0', 't2m20') interval(1s) group by tbname slimit 1 soffset 1", NULL);
 
 //    executeSQL(conn, "select top(c1, 1) from lm_stb0 where ts >= 1537146000000 and ts <= 1537151400009 limit 5 offset 1;", NULL);
 //    executeSQL(conn, "select count(*) from t2m1 where ts<'2015-6-11 1:1:1.3' and ts>='2015-6-11 1:1:1' interval(20a) fill(next)", NULL);
