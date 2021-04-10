@@ -125,7 +125,6 @@ typedef struct SInternalField {
 
 typedef struct SFieldInfo {
   int16_t      numOfOutput;   // number of column in result
-  TAOS_FIELD*  final;
   SArray      *internalField; // SArray<SInternalField>
 } SFieldInfo;
 
@@ -316,6 +315,7 @@ typedef struct {
   char **        buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex*  pColumnIndex;
 
+  TAOS_FIELD*           final;
   SArithmeticSupport   *pArithSup;   // support the arithmetic expression calculation on agg functions
   struct SLocalMerger  *pLocalMerger;
 } SSqlRes;
