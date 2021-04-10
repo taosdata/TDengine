@@ -409,23 +409,22 @@ void syncConfirmForward(int64_t rid, uint64_t version, int32_t code, bool force)
   syncReleaseNode(pNode);
 }
 
-#if 1
 void syncRecover(int64_t rid) {
   SSyncPeer *pPeer;
 
   SSyncNode *pNode = syncAcquireNode(rid);
   if (pNode == NULL) return;
 
-  // to do: add a few lines to check if recover is OK
-  // if take this node to unsync state, the whole system may not work
-
   nodeRole = TAOS_SYNC_ROLE_UNSYNCED;
   (*pNode->notifyRoleFp)(pNode->vgId, nodeRole);
-  nodeVersion = 0;
 
   pthread_mutex_lock(&pNode->mutex);
 
+  nodeVersion = 0;
+
   for (int32_t i = 0; i < pNode->replica; ++i) {
+    if (i == pNode->selfIndex) continue;
+
     pPeer = pNode->peerInfo[i];
     if (pPeer->peerFd >= 0) {
       syncRestartConnection(pPeer);
@@ -436,7 +435,6 @@ void syncRecover(int64_t rid) {
 
   syncReleaseNode(pNode);
 }
-#endif
 
 int32_t syncGetNodesRole(int64_t rid, SNodesRole *pNodesRole) {
   SSyncNode *pNode = syncAcquireNode(rid);
