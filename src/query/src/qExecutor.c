@@ -105,6 +105,30 @@ int32_t getMaximumIdleDurationSec() {
   return tsShellActivityTimer * 2;
 }
 
+
+int64_t genQueryId(void) {
+  int64_t uid = 0;
+  int64_t did = tsDnodeId;
+  
+  uid = did << 54;
+  
+  int64_t pid = ((int64_t)taosGetPId()) & 0x3FF;
+
+  uid |= pid << 44;
+  
+  int64_t ts = taosGetTimestampMs() & 0x1FFFFFFFF;
+
+  uid |= ts << 11;
+  
+  int64_t sid = atomic_add_fetch_64(&queryHandleId, 1) & 0x7FF;
+
+  uid |= sid;
+
+  return uid;
+}
+
+
+
 static void getNextTimeWindow(SQuery* pQuery, STimeWindow* tw) {
   int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pQuery->order.order);
   if (pQuery->interval.intervalUnit != 'n' && pQuery->interval.intervalUnit != 'y') {
@@ -6184,6 +6208,8 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
     goto _cleanup_qinfo;
   }
 
+  pQInfo->qId = *qId;
+
   // to make sure third party won't overwrite this structure
   pQInfo->signature = pQInfo;
   SQuery* pQuery = &pQInfo->query;
@@ -6316,8 +6342,6 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   // todo refactor
   pQInfo->query.queryBlockDist = (numOfOutput == 1 && pExprs[0].base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX);
 
-  pQInfo->qId = atomic_add_fetch_64(&queryHandleId, 1);
-  *qId = pQInfo->qId;
   qDebug("qmsg:%p QInfo:%" PRIu64 "-%p created", pQueryMsg, pQInfo->qId, pQInfo);
   return pQInfo;
 

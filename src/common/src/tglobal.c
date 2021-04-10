@@ -43,6 +43,7 @@ int8_t   tsEnableVnodeBak = 1;
 int8_t   tsEnableTelemetryReporting = 1;
 int8_t   tsArbOnline = 0;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
+int32_t  tsDnodeId = 0;
 
 // common
 int32_t tsRpcTimer       = 1000;
