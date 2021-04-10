@@ -53,15 +53,10 @@ for defiMemError in `grep 'definitely lost:' taosd-definitely-lost-out.log | awk
 do
 defiMemError=(${defiMemError//,/})
 if [ -n "$defiMemError" ]; then
-    if [ "$defiMemError" -gt 0 -a "$defiMemError" -lt 1013 ]; then
+    if [ "$defiMemError" -gt 0 ]; then
       cat $VALGRIND_ERR
       echo -e "${RED} ## Memory errors number valgrind reports \
                   Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
-      exit 8
-    elif [ "$defiMemError" -gt 1013 ];then           #add for azure
-      cat $VALGRIND_ERR
-      echo -e "${RED} ## Memory errors number valgrind reports \
-                Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
       exit 8
     fi
 fi
