@@ -4622,6 +4622,10 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
         char *buffer, int remainderBufLen)
 {
   int len;
+
+  int headBufLen = 1024 * 24;  // 16*1024 + (192+32)*2 + insert into ..
+  char headBuf[headBufLen];
+
   if (superTblInfo) {
     if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
       char* tagsValBuf = NULL;
@@ -4638,8 +4642,9 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
         return -1;
       }
 
-      len = snprintf(buffer,
-                  superTblInfo->maxSqlLen,
+      len = snprintf(
+          headBuf,
+                  headBufLen,
                   "insert into %s.%s using %s.%s tags %s values",
                   pThreadInfo->db_name,
                   tableName,
@@ -4648,25 +4653,33 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
                   tagsValBuf);
       tmfree(tagsValBuf);
     } else if (TBL_ALREADY_EXISTS == superTblInfo->childTblExists) {
-      len = snprintf(buffer,
-                  superTblInfo->maxSqlLen,
+      len = snprintf(
+          headBuf,
+                  headBufLen,
                   "insert into %s.%s values",
                   pThreadInfo->db_name,
                   tableName);
     } else {
-      len = snprintf(buffer,
-                  superTblInfo->maxSqlLen,
+      len = snprintf(
+          headBuf,
+                  headBufLen,
                   "insert into %s.%s values",
                   pThreadInfo->db_name,
                   tableName);
     }
   } else {
-      len = snprintf(buffer,
-                  g_args.max_sql_len,
+      len = snprintf(
+          headBuf,
+                  headBufLen,
                   "insert into %s.%s values",
                   pThreadInfo->db_name,
                   tableName);
   }
+
+  if (len > remainderBufLen)
+    return -1;
+
+  tstrncpy(buffer, headBuf, len);
 
   return len;
 }
@@ -5102,11 +5115,13 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       */
     }   // num_of_DPT
 
-    if ((tableSeq == pThreadInfo->ntables - 1) && superTblInfo &&
+    if (g_args.verbose_print) {
+      if ((tableSeq == pThreadInfo->ntables - 1) && superTblInfo &&
         (0 == strncasecmp(
                     superTblInfo->dataSource, "sample", strlen("sample")))) {
-          printf("%s() LN%d samplePos=%d\n",
+          verbosePrint("%s() LN%d samplePos=%d\n",
                   __func__, __LINE__, pThreadInfo->samplePos);
+      }
     }
   } // tableSeq
 
