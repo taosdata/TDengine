@@ -994,6 +994,7 @@ void mnodeSendSyncVgroupMsg(SVgObj *pVgroup) {
   mDebug("vgId:%d, send sync all vnodes msg, numOfVnodes:%d db:%s", pVgroup->vgId, pVgroup->numOfVnodes,
          pVgroup->dbName);
   for (int32_t i = 0; i < pVgroup->numOfVnodes; ++i) {
+    if (pVgroup->vnodeGid[i].role != TAOS_SYNC_ROLE_SLAVE) continue;
     SRpcEpSet epSet = mnodeGetEpSetFromIp(pVgroup->vnodeGid[i].pDnode->dnodeEp);
     mDebug("vgId:%d, index:%d, send sync vnode msg to dnode %s", pVgroup->vgId, i,
            pVgroup->vnodeGid[i].pDnode->dnodeEp);

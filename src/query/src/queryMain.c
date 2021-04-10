@@ -197,6 +197,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   return code;
 }
 
+
 bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
   SQInfo *pQInfo = (SQInfo *)qinfo;
   assert(pQInfo && pQInfo->signature == pQInfo);

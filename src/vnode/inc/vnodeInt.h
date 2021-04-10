@@ -37,6 +37,7 @@ extern int32_t vDebugFlag;
 typedef struct {
   int32_t  vgId;      // global vnode group ID
   int32_t  refCount;  // reference count
+  int64_t  queuedWMsgSize;
   int32_t  queuedWMsg;
   int32_t  queuedRMsg;
   int32_t  flowctrlLevel;

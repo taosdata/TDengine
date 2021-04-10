@@ -43,6 +43,7 @@ int8_t   tsEnableVnodeBak = 1;
 int8_t   tsEnableTelemetryReporting = 1;
 int8_t   tsArbOnline = 0;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
+int32_t  tsDnodeId = 0;
 
 // common
 int32_t tsRpcTimer       = 1000;
@@ -212,7 +213,7 @@ float   tsAvailTmpDirectorySpace = 0;
 float   tsAvailDataDirGB = 0;
 float   tsUsedDataDirGB = 0;
 float   tsReservedTmpDirectorySpace = 1.0f;
-float   tsMinimalDataDirGB = 1.0f;
+float   tsMinimalDataDirGB = 2.0f;
 int32_t tsTotalMemoryMB = 0;
 uint32_t tsVersion = 0;
 
