@@ -429,6 +429,8 @@ static void tscDestroyResPointerInfo(SSqlRes* pRes) {
     tfree(pRes->pArithSup->data);
     tfree(pRes->pArithSup);
   }
+
+  tfree(pRes->final);
   
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
 }
@@ -1153,7 +1155,6 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
   }
   
   taosArrayDestroy(pFieldInfo->internalField);
-  tfree(pFieldInfo->final);
 
   memset(pFieldInfo, 0, sizeof(SFieldInfo));
 }
