@@ -34,6 +34,7 @@ int tscKeepConn[TSDB_SQL_MAX] = {0};
 TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid, TSKEY dflt);
 void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts);
 void tscSaveSubscriptionProgress(void* sub);
+static int32_t extractSTableQueryVgroupId(STableMetaInfo* pTableMetaInfo);
 
 static int32_t minMsgSize() { return tsRpcHeadSize + 100; }
 static int32_t getWaitingTimeInterval(int32_t count) {
@@ -78,7 +79,8 @@ static void tscEpSetHtons(SRpcEpSet *s) {
    for (int32_t i = 0; i < s->numOfEps; i++) {
       s->port[i] = htons(s->port[i]);    
    }
-} 
+}
+
 bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2) {
    if (s1->numOfEps != s2->numOfEps || s1->inUse != s2->inUse) {
      return false;
@@ -118,11 +120,14 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
     return;
   }
 
-  int32_t vgId = pTableMetaInfo->pTableMeta->vgId;
+  int32_t vgId = -1;
   if (pTableMetaInfo->pTableMeta->tableType == TSDB_SUPER_TABLE) {
-    assert(vgId == 0);
-    return;
+    vgId = extractSTableQueryVgroupId(pTableMetaInfo);
+  } else {
+    vgId = pTableMetaInfo->pTableMeta->vgId;
   }
+
+  assert(vgId > 0);
 
   SNewVgroupInfo vgroupInfo = {.vgId = -1};
   taosHashGetClone(tscVgroupMap, &vgId, sizeof(vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
@@ -138,6 +143,27 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
 
   tscDebug("after: EndPoint in use:%d, numOfEps:%d", vgroupInfo.inUse, vgroupInfo.numOfEps);
   taosHashPut(tscVgroupMap, &vgId, sizeof(vgId), &vgroupInfo, sizeof(SNewVgroupInfo));
+}
+
+int32_t extractSTableQueryVgroupId(STableMetaInfo* pTableMetaInfo) {
+  assert(pTableMetaInfo != NULL);
+
+  int32_t vgIndex = pTableMetaInfo->vgroupIndex;
+  int32_t vgId = -1;
+
+  if (pTableMetaInfo->pVgroupTables == NULL) {
+    SVgroupsInfo *pVgroupInfo = pTableMetaInfo->vgroupList;
+    assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
+    vgId = pVgroupInfo->vgroups[vgIndex].vgId;
+  } else {
+    int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+    assert(vgIndex >= 0 && vgIndex < numOfVgroups);
+
+    SVgroupTableInfo *pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, vgIndex);
+    vgId = pTableIdList->vgInfo.vgId;
+  }
+
+  return vgId;
 }
 
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
@@ -515,21 +541,22 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     int32_t vgIndex = pTableMetaInfo->vgroupIndex;
+    int32_t vgId = -1;
+
     if (pTableMetaInfo->pVgroupTables == NULL) {
       SVgroupsInfo *pVgroupInfo = pTableMetaInfo->vgroupList;
       assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
-
-      pRetrieveMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
-      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, qId:%" PRIu64, pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex, pSql->res.qId);
+      vgId = pVgroupInfo->vgroups[vgIndex].vgId;
     } else {
       int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
       assert(vgIndex >= 0 && vgIndex < numOfVgroups);
 
       SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, vgIndex);
-
-      pRetrieveMsg->header.vgId = htonl(pTableIdList->vgInfo.vgId);
-      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, qId:%" PRIu64, pSql, pTableIdList->vgInfo.vgId, vgIndex, pSql->res.qId);
+      vgId = pTableIdList->vgInfo.vgId;
     }
+
+    pRetrieveMsg->header.vgId = htonl(vgId);
+    tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, qId:%" PRIu64, pSql, vgId, vgIndex, pSql->res.qId);
   } else {
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
     pRetrieveMsg->header.vgId = htonl(pTableMeta->vgId);
