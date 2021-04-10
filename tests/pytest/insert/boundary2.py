@@ -50,14 +50,16 @@ class TDTestCase:
             sql += "'%s')" % self.get_random_string(22)
             tdSql.execute(sql % (self.ts + i))
 
-        tdSql.query("select * from stb")
-        tdSql.checkRows(4096)
+        time.sleep(10)
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 4096)
 
         tdDnodes.stop(1)
         tdDnodes.start(1)
-        
-        tdSql.query("select * from stb")
-        tdSql.checkRows(4096)
+
+        time.sleep(1)
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 4096)
 
         endTime = time.time()
 
