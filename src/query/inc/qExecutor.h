@@ -413,9 +413,22 @@ typedef struct SArithOperatorInfo {
   uint32_t       seed;
 } SArithOperatorInfo;
 
-typedef struct SSLimitOperatorInfo {
+typedef struct SLimitOperatorInfo {
   int64_t   limit;
   int64_t   total;
+} SLimitOperatorInfo;
+
+typedef struct SSLimitOperatorInfo {
+  int64_t   groupTotal;
+  int64_t   currentGroupOffset;
+
+  int64_t   rowsTotal;
+  int64_t   currentOffset;
+
+  SLimitVal limit;
+  SLimitVal slimit;
+
+  struct SLocalMerger *pMerger;
   char    **prevRow;
   bool      hasPrev;
   SArray   *orderColumnList;
@@ -449,8 +462,15 @@ typedef struct SMultiwayMergeInfo {
   int32_t              bufCapacity;
   int64_t              seed;
   char               **prevRow;
-  bool                 hasPrev;
   SArray              *orderColumnList;
+
+  char               **groupPrevRow;
+  SArray              *groupColumnList;
+  bool                 hasDataBlockForNewGroup;
+  SSDataBlock         *pExistBlock;
+
+  bool                 hasPrev;
+  bool                 groupMix;
 } SMultiwayMergeInfo;
 
 SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime, int32_t reverseTime);
@@ -469,12 +489,14 @@ SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRunti
 SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createMultiwaySortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
-                                              int32_t numOfRows, void* merger);
-SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
-SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+                                              int32_t numOfRows, void* merger, bool groupMix);
+SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param);
+SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger);
 
 SSDataBlock* doGlobalAggregate(void* param);
+SSDataBlock* doMultiwaySort(void* param);
 SSDataBlock* doSLimit(void* param);
+
 SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows);
 void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
 int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput);

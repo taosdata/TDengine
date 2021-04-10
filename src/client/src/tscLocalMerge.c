@@ -1119,21 +1119,28 @@ static void doExecuteFinalMerge( SLocalMerger *pLocalMerge, int32_t numOfExpr, b
   }
 }
 
-static void savePrevOrderColumns(SMultiwayMergeInfo* pInfo, SSDataBlock* pBlock, int32_t rowIndex) {
-  int32_t size = pInfo->pMerge->pDesc->orderInfo.numOfCols;
-  for(int32_t i = 0; i < size; ++i) {
-    int32_t index = pInfo->pMerge->pDesc->orderInfo.colIndex[i];
-//    int32_t index = *(int16_t*)taosArrayGet(pInfo->orderColumnList, i);
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, index);
+//TODO it is not ordered, fix it
+static void savePrevOrderColumns(char** prevRow, SArray* pColumnList, SSDataBlock* pBlock, int32_t rowIndex, bool* hasPrev) {
+  int32_t size = (int32_t) taosArrayGetSize(pColumnList);
 
-    memcpy(pInfo->prevRow[i], pColInfo->pData + pColInfo->info.bytes * rowIndex, pColInfo->info.bytes);
+  for(int32_t i = 0; i < size; ++i) {
+    SColIndex* index = taosArrayGet(pColumnList, i);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, index->colIndex);
+    assert(index->colId == pColInfo->info.colId);
+
+    memcpy(prevRow[i], pColInfo->pData + pColInfo->info.bytes * rowIndex, pColInfo->info.bytes);
   }
 
-  pInfo->hasPrev = true;
+  (*hasPrev) = true;
 }
 
 static void doExecuteFinalMergeRv(SMultiwayMergeInfo* pInfo, int32_t numOfExpr, SSDataBlock* pBlock, bool needInit) {
   SQLFunctionCtx* pCtx = pInfo->binfo.pCtx;
+
+  char** add = calloc(pBlock->info.numOfCols, POINTER_BYTES);
+  for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+    add[i] = pCtx[i].pInput;
+  }
 
   for(int32_t i = 0; i < pBlock->info.rows; ++i) {
     if (pInfo->hasPrev) {
@@ -1159,6 +1166,23 @@ static void doExecuteFinalMergeRv(SMultiwayMergeInfo* pInfo, int32_t numOfExpr, 
         }
 
         pInfo->binfo.pRes->info.rows += 1;
+
+        if (i == 0) {
+          for(int32_t j = 0; j < numOfExpr; ++j) {
+            pCtx[j].pOutput += pCtx[j].outputBytes;
+            aAggs[pCtx[j].functionId].init(&pCtx[j]);
+          }
+
+          for (int32_t j = 0; j < numOfExpr; ++j) {
+            int32_t functionId = pCtx[j].functionId;
+            if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
+              continue;
+            }
+
+            pCtx[j].size = 1;
+            aAggs[functionId].mergeFunc(&pCtx[j]);
+          }
+        }
 
         for(int32_t j = 0; j < numOfExpr; ++j) {
           pCtx[j].pOutput += pCtx[j].outputBytes;
@@ -1188,9 +1212,16 @@ static void doExecuteFinalMergeRv(SMultiwayMergeInfo* pInfo, int32_t numOfExpr, 
         aAggs[functionId].mergeFunc(&pCtx[j]);
       }
     }
-
-    savePrevOrderColumns(pInfo, pBlock, i);
+    savePrevOrderColumns(pInfo->prevRow, pInfo->orderColumnList, pBlock, i, &pInfo->hasPrev);
   }
+
+  {
+    for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+      pCtx[i].pInput = add[i];
+    }
+  }
+
+  tfree(add);
 }
 
 static void handleUnprocessedRow(SSqlCmd *pCmd, SLocalMerger *pLocalMerge, tFilePage *tmpBuffer) {
@@ -1804,16 +1835,14 @@ static void appendOneRowToDataBlock(SSDataBlock *pBlock, char *buf, SColumnModel
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
     char* p = pColInfo->pData + pBlock->info.rows * pColInfo->info.bytes;
 
-//    char *dst = COLMODEL_GET_VAL(dstPage->data, dstModel, dstModel->capacity, dstPage->num, col);
     char *src = COLMODEL_GET_VAL(buf, pModel, maxRows, rowIndex, i);
-//    char* src = buf + rowIndex * pColInfo->info.bytes;
     memmove(p, src, pColInfo->info.bytes);
   }
 
   pBlock->info.rows += 1;
 }
 
-static SSDataBlock* doMultiwaySort(void* param) {
+SSDataBlock* doMultiwaySort(void* param) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -1841,6 +1870,50 @@ static SSDataBlock* doMultiwaySort(void* param) {
 
     // chosen from loser tree
     SLocalDataSource *pOneDataSrc = pMerger->pLocalDataSrc[pTree->pNode[0].index];
+    bool sameGroup = true;
+    if (pInfo->hasPrev) {
+      int32_t numOfCols = (int32_t)taosArrayGetSize(pInfo->orderColumnList);
+
+      // if this row belongs to current result set group
+      for (int32_t i = 0; i < numOfCols; ++i) {
+        SColIndex *      pIndex = taosArrayGet(pInfo->orderColumnList, i);
+        SColumnInfoData *pColInfo = taosArrayGet(pInfo->binfo.pRes->pDataBlock, pIndex->colIndex);
+
+        char *newRow =
+            COLMODEL_GET_VAL(pOneDataSrc->filePage.data, pModel, pOneDataSrc->pMemBuffer->pColumnModel->capacity,
+                             pOneDataSrc->rowIdx, pIndex->colIndex);
+
+        char *  data = pInfo->prevRow[i];
+        int32_t ret = columnValueAscendingComparator(data, newRow, pColInfo->info.type, pColInfo->info.bytes);
+        if (ret == 0) {
+          continue;
+        } else {
+          sameGroup = false;
+          break;
+        }
+      }
+    }
+
+    if (!sameGroup || !pInfo->hasPrev) { //save the data
+      int32_t numOfCols = (int32_t)taosArrayGetSize(pInfo->orderColumnList);
+
+      for (int32_t i = 0; i < numOfCols; ++i) {
+        SColIndex *      pIndex = taosArrayGet(pInfo->orderColumnList, i);
+        SColumnInfoData *pColInfo = taosArrayGet(pInfo->binfo.pRes->pDataBlock, pIndex->colIndex);
+
+        char *curCol =
+            COLMODEL_GET_VAL(pOneDataSrc->filePage.data, pModel, pOneDataSrc->pMemBuffer->pColumnModel->capacity,
+                             pOneDataSrc->rowIdx, pIndex->colIndex);
+        memcpy(pInfo->prevRow[i], curCol, pColInfo->info.bytes);
+      }
+
+      pInfo->hasPrev = true;
+    }
+
+    if (!sameGroup && pInfo->binfo.pRes->info.rows > 0) {
+      return pInfo->binfo.pRes;
+    }
+
     appendOneRowToDataBlock(pInfo->binfo.pRes, pOneDataSrc->filePage.data, pModel, pOneDataSrc->rowIdx, pOneDataSrc->pMemBuffer->pColumnModel->capacity);
 
 #if defined(_DEBUG_VIEW)
@@ -1854,32 +1927,12 @@ static SSDataBlock* doMultiwaySort(void* param) {
     pOneDataSrc->rowIdx += 1;
     adjustLoserTreeFromNewData(pMerger, pOneDataSrc, pTree);
 
-    if (pInfo->binfo.pRes->info.rows >= 4096) { // TODO threshold
+    if (pInfo->binfo.pRes->info.rows >= pInfo->bufCapacity) {
       return pInfo->binfo.pRes;
     }
   }
 
   return (pInfo->binfo.pRes->info.rows > 0)? pInfo->binfo.pRes:NULL;
-}
-
-SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SExprInfo *pExpr, int32_t numOfOutput,
-                                              int32_t numOfRows, void *merger) {
-  SMultiwayMergeInfo* pInfo = calloc(1, sizeof(SMultiwayMergeInfo));
-
-  pInfo->pMerge = merger;
-  pInfo->binfo.pRes  = createOutputBuf(pExpr, numOfOutput, numOfRows);
-
-  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-  pOperator->name         = "MultiwaySortOperator";
-  pOperator->operatorType = OP_MultiwaySort;
-  pOperator->blockingOptr = false;
-  pOperator->status       = OP_IN_EXECUTING;
-  pOperator->info         = pInfo;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->numOfOutput  = pRuntimeEnv->pQueryAttr->numOfCols;
-  pOperator->exec         = doMultiwaySort;
-
-  return pOperator;
 }
 
 SSDataBlock* doGlobalAggregate(void* param) {
@@ -1890,13 +1943,53 @@ SSDataBlock* doGlobalAggregate(void* param) {
 
   SMultiwayMergeInfo* pAggInfo = pOperator->info;
 
-  SQueryRuntimeEnv *pRuntimeEnv = pOperator->pRuntimeEnv;
+//  SQueryRuntimeEnv *pRuntimeEnv = pOperator->pRuntimeEnv;
   SOperatorInfo    *upstream = pOperator->upstream;
+
+  {
+    if (pAggInfo->hasDataBlockForNewGroup) {
+      // not belongs to the same group, return the result of current group;
+      setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pAggInfo->pExistBlock, TSDB_ORDER_ASC);
+      updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pAggInfo->pExistBlock->info.rows);
+
+      doExecuteFinalMergeRv(pAggInfo, pOperator->numOfOutput, pAggInfo->pExistBlock, false);
+
+      savePrevOrderColumns(pAggInfo->groupPrevRow, pAggInfo->groupColumnList, pAggInfo->pExistBlock, 0,
+                           &pAggInfo->hasPrev);
+      pAggInfo->pExistBlock = NULL;
+      pAggInfo->hasDataBlockForNewGroup = false;
+    }
+  }
 
   while(1) {
     SSDataBlock* pBlock = upstream->exec(upstream);
     if (pBlock == NULL) {
       break;
+    }
+
+    if (pAggInfo->hasPrev) {
+      bool sameGroup = true;
+      int32_t numOfCols = (int32_t) taosArrayGetSize(pAggInfo->groupColumnList);
+      for (int32_t i = 0; i < numOfCols; ++i) {
+        SColIndex *pIndex = taosArrayGet(pAggInfo->groupColumnList, i);
+        SColumnInfoData *pColInfo = taosArrayGet(pAggInfo->binfo.pRes->pDataBlock, pIndex->colIndex);
+
+        char *data = pAggInfo->groupPrevRow[i];
+        int32_t ret = columnValueAscendingComparator(data, pColInfo->pData, pColInfo->info.type, pColInfo->info.bytes);
+        if (ret == 0) {
+          continue;
+        } else {
+          sameGroup = false;
+          break;
+        }
+      }
+
+      if (!sameGroup) {
+        pAggInfo->hasDataBlockForNewGroup = true;
+        pAggInfo->pExistBlock = pBlock;
+        savePrevOrderColumns(pAggInfo->prevRow, pAggInfo->groupColumnList, pBlock, 0, &pAggInfo->hasPrev);
+        break;
+      }
     }
 
     // not belongs to the same group, return the result of current group;
@@ -1911,13 +2004,14 @@ SSDataBlock* doGlobalAggregate(void* param) {
     if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
       continue;
     }
+
     aAggs[functionId].xFinalize(&pAggInfo->binfo.pCtx[j]);
   }
 
   pAggInfo->binfo.pRes->info.rows += 1;
 
-  pOperator->status = OP_EXEC_DONE;
-  setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
+//  pOperator->status = OP_EXEC_DONE;
+//  setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
 
   return pAggInfo->binfo.pRes;
 }
@@ -1929,7 +2023,6 @@ SSDataBlock* doSLimit(void* param) {
   }
 
   SSLimitOperatorInfo *pInfo = pOperator->info;
-  SQueryRuntimeEnv   *pRuntimeEnv = pOperator->pRuntimeEnv;
 
   SSDataBlock* pBlock = NULL;
   while (1) {
@@ -1940,34 +2033,96 @@ SSDataBlock* doSLimit(void* param) {
       return NULL;
     }
 
-    if (pRuntimeEnv->currentOffset == 0) {
-      break;
-    } else if (pRuntimeEnv->currentOffset >= pBlock->info.rows) {
-      pRuntimeEnv->currentOffset -= pBlock->info.rows;
-    } else {
-      int32_t remain = (int32_t)(pBlock->info.rows - pRuntimeEnv->currentOffset);
-      pBlock->info.rows = remain;
+    if (pInfo->currentGroupOffset == 0) {
+      if (pInfo->currentOffset == 0) {    // TODO refactor
+        break;
+      } else if (pInfo->currentOffset >= pBlock->info.rows) {
+        pInfo->currentOffset -= pBlock->info.rows;
+      } else {
+        int32_t remain = (int32_t)(pBlock->info.rows - pInfo->currentOffset);
+        pBlock->info.rows = remain;
 
-      for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-        SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+        // move the remain rows of this data block to the front.
+        for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+          SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
 
-        int16_t bytes = pColInfoData->info.bytes;
-        memmove(pColInfoData->pData, pColInfoData->pData + bytes * pRuntimeEnv->currentOffset, remain * bytes);
+          int16_t bytes = pColInfoData->info.bytes;
+          memmove(pColInfoData->pData, pColInfoData->pData + bytes * pInfo->currentOffset, remain * bytes);
+        }
+
+        pInfo->currentOffset = 0;
+        break;
       }
+    } else {
+      if (pInfo->hasPrev) {
+        // Check if current data block belongs to current result group or not
+//        if (needToMergeRv(pBlock, pInfo->pMerger, 0, pInfo->prevRow)) {
+        bool sameGroup = true;
+        int32_t numOfCols = (int32_t) taosArrayGetSize(pInfo->orderColumnList);
+        for (int32_t i = 0; i < numOfCols; ++i) {
+          SColIndex *pIndex = taosArrayGet(pInfo->orderColumnList, i);
+          SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, pIndex->colIndex);
 
-      pRuntimeEnv->currentOffset = 0;
-      break;
+          char *data = pInfo->prevRow[i];
+          int32_t ret = columnValueAscendingComparator(data, pColInfo->pData, pColInfo->info.type, pColInfo->info.bytes);
+          if (ret == 0) {
+            continue;
+          } else {
+            sameGroup = false;
+            break;
+          }
+        }
+
+        if (sameGroup) {
+          continue;  // ignore the data block of the same group and try next
+        } else {
+          savePrevOrderColumns(pInfo->prevRow, pInfo->orderColumnList, pBlock, 0, &pInfo->hasPrev);
+          pInfo->currentOffset = pInfo->limit.offset; // set the offset value for a new group
+          pInfo->rowsTotal = 0;
+
+          if ((--pInfo->currentGroupOffset) == 0) {
+            if (pInfo->currentOffset == 0) {    // TODO refactor
+              break;
+            } else if (pInfo->currentOffset >= pBlock->info.rows) {
+              pInfo->currentOffset -= pBlock->info.rows;
+            } else {
+              int32_t remain = (int32_t)(pBlock->info.rows - pInfo->currentOffset);
+              pBlock->info.rows = remain;
+
+              // move the remain rows of this data block to the front.
+              for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+                SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+
+                int16_t bytes = pColInfoData->info.bytes;
+                memmove(pColInfoData->pData, pColInfoData->pData + bytes * pInfo->currentOffset, remain * bytes);
+              }
+
+              pInfo->currentOffset = 0;
+              break;
+            }
+          }
+        }
+      } else {
+        savePrevOrderColumns(pInfo->prevRow, pInfo->orderColumnList, pBlock, 0, &pInfo->hasPrev);
+      }
     }
   }
 
-  if (pInfo->total + pBlock->info.rows >= pInfo->limit) {
-    pBlock->info.rows = (int32_t)(pInfo->limit - pInfo->total);
-    pInfo->total = pInfo->limit;
+  if (!pInfo->hasPrev || !needToMergeRv(pBlock, pInfo->pMerger, 0, pInfo->prevRow)) {
+    pInfo->groupTotal += 1;
+    if (pInfo->groupTotal > pInfo->slimit.limit) {    // reach the group limit, abort
+      return NULL;
+    }
+  }
+
+  if (pInfo->limit.limit > 0 && (pInfo->rowsTotal + pBlock->info.rows >= pInfo->limit.limit)) {
+    pBlock->info.rows = (int32_t)(pInfo->limit.limit - pInfo->rowsTotal);
+    pInfo->rowsTotal = pInfo->limit.limit;
 
     setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
     pOperator->status = OP_EXEC_DONE;
   } else {
-    pInfo->total += pBlock->info.rows;
+    pInfo->rowsTotal += pBlock->info.rows;
   }
 
   return pBlock;

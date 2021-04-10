@@ -152,7 +152,7 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
   }
 
   // limit/offset operator
-  if (pQueryAttr->limit.limit > 0 || pQueryAttr->limit.offset > 0) {
+  if (pQueryAttr->slimit.limit > 0 || pQueryAttr->slimit.offset > 0) {
     op = OP_SLimit;
     taosArrayPush(plan, &op);
   }

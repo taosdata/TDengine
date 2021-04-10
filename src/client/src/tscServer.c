@@ -1594,8 +1594,8 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   }
 
   uint64_t localQueryId = 0;
-  SMultiwayMergeInfo* pInfo = (SMultiwayMergeInfo*) pQueryInfo->pQInfo->runtimeEnv.proot->info;
-  pInfo->pMerge = pRes->pLocalMerger;
+//  SMultiwayMergeInfo* pInfo = (SMultiwayMergeInfo*) pQueryInfo->pQInfo->runtimeEnv.proot->info;
+//  pInfo->pMerge = pRes->pLocalMerger;
 
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
   SSDataBlock* p = pQueryInfo->pQInfo->runtimeEnv.outputBuf;

@@ -364,7 +364,7 @@ static int32_t tsCompareFunc(TSKEY k1, TSKEY k2, int32_t order) {
   }
 }
 
-static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
+int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
       int32_t first  = *(int32_t *) f1;

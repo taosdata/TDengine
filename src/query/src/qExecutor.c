@@ -1728,20 +1728,25 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
 
       case OP_MultiwaySort: {
+        bool groupMix = true;
+        if(pQueryAttr->slimit.offset != 0 || pQueryAttr->slimit.limit != -1) {
+          groupMix = false;
+        }
         pRuntimeEnv->proot = createMultiwaySortOperatorInfo(pRuntimeEnv, pQueryAttr->pExpr1, pQueryAttr->numOfOutput,
-            4096, merger); // TODO hack it
+            4096, merger, groupMix); // TODO hack it
         break;
       }
 
       case OP_GlobalAggregate: {
         pRuntimeEnv->proot =
             createGlobalAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
-                                              pQueryAttr->numOfExpr3);
+                                              pQueryAttr->numOfExpr3, merger);
         break;
       }
 
       case OP_SLimit: {
-        pRuntimeEnv->proot = createSLimitOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot);
+        pRuntimeEnv->proot = createSLimitOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
+            pQueryAttr->numOfExpr3, merger);
         break;
       }
 
@@ -4321,22 +4326,56 @@ SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
     taosArrayPush(pOrderColumns, &colIndex);
   }
 
+  {
+    numOfCols = (int32_t) taosArrayGetSize(pOrderColumns);
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      SColIndex* index = taosArrayGet(pOrderColumns, i);
+      for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
+        if (index->colId == pQuery->pExpr1[j].base.colInfo.colId) {
+          index->colIndex = j;
+          index->colId = pQuery->pExpr1[j].base.resColId;
+        }
+      }
+    }
+  }
   return pOrderColumns;
 }
 
+SArray* getResultGroupCheckColumns(SQueryAttr* pQuery) {
+  int32_t numOfCols = pQuery->pGroupbyExpr->numOfGroupCols;
+
+  SArray* pOrderColumns = NULL;
+  if (numOfCols > 0) {
+    pOrderColumns = taosArrayDup(pQuery->pGroupbyExpr->columnInfo);
+  }
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColIndex* index = taosArrayGet(pOrderColumns, i);
+    for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
+      if (index->colId == pQuery->pExpr1[j].base.colInfo.colId) {
+        index->colIndex = j;
+        index->colId = pQuery->pExpr1[j].base.resColId;
+      }
+    }
+  }
+
+  return pOrderColumns;
+}
 
 SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream,
-                                                 SExprInfo* pExpr, int32_t numOfOutput) {
+                                                 SExprInfo* pExpr, int32_t numOfOutput, void* param) {
   SMultiwayMergeInfo* pInfo = calloc(1, sizeof(SMultiwayMergeInfo));
 
 //  int32_t     numOfRows =
 //      (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
 
+  pInfo->pMerge = param;
   pInfo->bufCapacity = 4096;
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
 
   pInfo->orderColumnList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
+  pInfo->groupColumnList = getResultGroupCheckColumns(pRuntimeEnv->pQueryAttr);
 
   // TODO refactor
   int32_t len = 0;
@@ -4344,7 +4383,7 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
     len += pExpr[i].base.resBytes;
   }
 
-  int32_t numOfCols = pInfo->orderColumnList != NULL? taosArrayGetSize(pInfo->orderColumnList):0;
+  int32_t numOfCols = (pInfo->orderColumnList != NULL)? taosArrayGetSize(pInfo->orderColumnList):0;
   pInfo->prevRow = calloc(1, (POINTER_BYTES * numOfCols + len));
   int32_t offset = POINTER_BYTES * numOfOutput;
 
@@ -4352,6 +4391,17 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
     pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
 
     SColIndex* index = taosArrayGet(pInfo->orderColumnList, i);
+    offset += pExpr[index->colIndex].base.resBytes;
+  }
+
+  numOfCols = (pInfo->groupColumnList != NULL)? taosArrayGetSize(pInfo->groupColumnList):0;
+  pInfo->groupPrevRow = calloc(1, (POINTER_BYTES * numOfCols + len));
+  offset = POINTER_BYTES * numOfOutput;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    pInfo->groupPrevRow[i] = (char*)pInfo->groupPrevRow + offset;
+
+    SColIndex* index = taosArrayGet(pInfo->groupColumnList, i);
     offset += pExpr[index->colIndex].base.resBytes;
   }
 
@@ -4373,6 +4423,48 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
 
   pOperator->exec         = doGlobalAggregate;
   pOperator->cleanup      = destroyBasicOperatorInfo;
+  return pOperator;
+}
+
+SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SExprInfo *pExpr, int32_t numOfOutput,
+                                              int32_t numOfRows, void *merger, bool groupMix) {
+  SMultiwayMergeInfo* pInfo = calloc(1, sizeof(SMultiwayMergeInfo));
+
+  pInfo->pMerge     = merger;
+  pInfo->groupMix   = groupMix;
+  pInfo->bufCapacity = numOfRows;
+
+  pInfo->orderColumnList = getResultGroupCheckColumns(pRuntimeEnv->pQueryAttr);
+  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, numOfRows);
+
+  {
+    int32_t len = 0;
+    for(int32_t i = 0; i < numOfOutput; ++i) {
+      len += pExpr[i].base.resBytes;
+    }
+
+    int32_t numOfCols = (pInfo->orderColumnList != NULL)? taosArrayGetSize(pInfo->orderColumnList):0;
+    pInfo->prevRow = calloc(1, (POINTER_BYTES * numOfCols + len));
+    int32_t offset = POINTER_BYTES * numOfOutput;
+
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
+
+      SColIndex* index = taosArrayGet(pInfo->orderColumnList, i);
+      offset += pExpr[index->colIndex].base.resBytes;
+    }
+  }
+
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+  pOperator->name         = "MultiwaySortOperator";
+  pOperator->operatorType = OP_MultiwaySort;
+  pOperator->blockingOptr = false;
+  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->info         = pInfo;
+  pOperator->pRuntimeEnv  = pRuntimeEnv;
+  pOperator->numOfOutput  = pRuntimeEnv->pQueryAttr->numOfCols;
+  pOperator->exec         = doMultiwaySort;
+
   return pOperator;
 }
 
@@ -5143,11 +5235,18 @@ SOperatorInfo* createFillOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorIn
   return pOperator;
 }
 
-SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
+SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* pMerger) {
   SSLimitOperatorInfo* pInfo = calloc(1, sizeof(SSLimitOperatorInfo));
-  pInfo->limit = pRuntimeEnv->pQueryAttr->slimit.limit;
 
-  pInfo->orderColumnList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
+  SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
+
+  pInfo->orderColumnList = getResultGroupCheckColumns(pQueryAttr);
+  pInfo->pMerger = pMerger;
+  pInfo->slimit = pQueryAttr->slimit;
+  pInfo->limit  = pQueryAttr->limit;
+
+  pInfo->currentGroupOffset = pQueryAttr->slimit.offset;
+  pInfo->currentOffset = pQueryAttr->limit.offset;
 
   // TODO refactor
   int32_t len = 0;
