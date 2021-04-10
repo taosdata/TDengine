@@ -240,7 +240,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 
     // current connect is broken
     if (code == TSDB_CODE_SUCCESS) {
-      handle = qRegisterQInfo(pVnode->qMgmt, qId, (uint64_t)pQInfo);
+      handle = qRegisterQInfo(pVnode->qMgmt, qId, pQInfo);
       if (handle == NULL) {  // failed to register qhandle
         pRsp->code = terrno;
         terrno = 0;
