@@ -4623,8 +4623,8 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
 {
   int len;
 
-  int headBufLen = 1024 * 24;  // 16*1024 + (192+32)*2 + insert into ..
-  char headBuf[headBufLen];
+#define HEAD_BUFF_LEN    1024*24  // 16*1024 + (192+32)*2 + insert into ..
+  char headBuf[HEAD_BUFF_LEN];
 
   if (superTblInfo) {
     if (AUTO_CREATE_SUBTBL == superTblInfo->autoCreateTable) {
@@ -4644,7 +4644,7 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
 
       len = snprintf(
           headBuf,
-                  headBufLen,
+                  HEAD_BUFF_LEN,
                   "insert into %s.%s using %s.%s tags %s values",
                   pThreadInfo->db_name,
                   tableName,
@@ -4655,14 +4655,14 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
     } else if (TBL_ALREADY_EXISTS == superTblInfo->childTblExists) {
       len = snprintf(
           headBuf,
-                  headBufLen,
+                  HEAD_BUFF_LEN,
                   "insert into %s.%s values",
                   pThreadInfo->db_name,
                   tableName);
     } else {
       len = snprintf(
           headBuf,
-                  headBufLen,
+                  HEAD_BUFF_LEN,
                   "insert into %s.%s values",
                   pThreadInfo->db_name,
                   tableName);
@@ -4670,7 +4670,7 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
   } else {
       len = snprintf(
           headBuf,
-                  headBufLen,
+                  HEAD_BUFF_LEN,
                   "insert into %s.%s values",
                   pThreadInfo->db_name,
                   tableName);
