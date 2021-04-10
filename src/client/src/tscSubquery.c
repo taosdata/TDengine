@@ -2986,7 +2986,7 @@ void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code) {
   }
 
   tscDebug("%p sub:%p query complete, ep:%s, vgId:%d, orderOfSub:%d, retrieve data", trsupport->pParentSql, pSql,
-             pVgroup->epAddr[0].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
+             pVgroup->epAddr[pSql->epSet.inUse].fqdn, pVgroup->vgId, trsupport->subqueryIndex);
 
   if (pSql->res.qId == 0) { // qhandle is NULL, code is TSDB_CODE_SUCCESS means no results generated from this vnode
     tscRetrieveFromDnodeCallBack(param, pSql, 0);
