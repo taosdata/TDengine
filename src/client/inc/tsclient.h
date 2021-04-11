@@ -146,17 +146,6 @@ typedef struct SInternalField {
   SExprFilter    *pFieldFilters;
 } SInternalField;
 
-typedef struct SFieldInfo {
-  int16_t      numOfOutput;   // number of column in result
-  SArray      *internalField; // SArray<SInternalField>
-} SFieldInfo;
-
-typedef struct SColumn {
-  SColumnIndex       colIndex;
-  int32_t            numOfFilters;
-  SColumnFilterInfo *filterInfo;
-} SColumn;
-
 typedef struct SCond {
   uint64_t uid;
   int32_t  len;  // length of tag query condition data
