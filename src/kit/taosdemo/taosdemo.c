@@ -18,6 +18,7 @@
    when in some thread query return error, thread don't exit, but return, otherwise coredump in other thread.
 */
 
+#include <stdint.h>
 #define _GNU_SOURCE
 #define CURL_STATICLIB
 
@@ -3242,7 +3243,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   if (numRecPerReq && numRecPerReq->type == cJSON_Number) {
     g_args.num_of_RPR = numRecPerReq->valueint;
   } else if (!numRecPerReq) {
-    g_args.num_of_RPR = 0xffff;
+    g_args.num_of_RPR = INT32_MAX;
   } else {
     errorPrint("%s() LN%d, failed to read json, num_of_records_per_req not found\n",
         __func__, __LINE__);
@@ -4737,6 +4738,7 @@ static int generateInterlaceDataBuffer(
   } else {
     pstr -= headLen;
     pstr[0] = '\0';
+    k = 0;
   }
 
   return k;
@@ -4890,6 +4892,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         return NULL;
       }
 
+      int oldRemainderLen = remainderBufLen;
       int generated = generateInterlaceDataBuffer(
         tableName, batchPerTbl, i, batchPerTblTimes,
         tableSeq,
@@ -4908,7 +4911,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
       tableSeq ++;
       recOfBatch += batchPerTbl;
-      pstr += (maxSqlLen - remainderBufLen);
+      pstr += (oldRemainderLen - remainderBufLen);
 //      startTime += batchPerTbl * superTblInfo->timeStampStep;
       pThreadInfo->totalInsertRows += batchPerTbl;
       verbosePrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
