@@ -174,7 +174,7 @@ public class RestfulPreparedStatementTest {
         Assert.assertFalse(pstmt_insert.execute());
     }
 
-    class Person implements Serializable {
+    private class Person {
         String name;
         int age;
         boolean sex;
