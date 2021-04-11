@@ -127,7 +127,12 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     pSqlExpr->token = *pToken;
   }
 
-  if (optrType == TK_INTEGER || optrType == TK_STRING || optrType == TK_FLOAT || optrType == TK_BOOL) {
+  if (optrType == TK_NULL) {
+    pToken->type = TSDB_DATA_TYPE_NULL;
+    tVariantCreate(&pSqlExpr->value, pToken);
+    pSqlExpr->tokenId = optrType;
+    pSqlExpr->type    = SQL_NODE_VALUE;
+  } else if (optrType == TK_INTEGER || optrType == TK_STRING || optrType == TK_FLOAT || optrType == TK_BOOL) {
     toTSDBType(pToken->type);
 
     tVariantCreate(&pSqlExpr->value, pToken);
@@ -305,6 +310,77 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
   return pExpr;
 }
 
+static FORCE_INLINE int32_t tStrTokenCompare(SStrToken* left, SStrToken* right) {
+  return (left->type == right->type && left->n == right->n && strncasecmp(left->z, right->z, left->n) == 0) ? 0 : 1;
+}
+
+
+int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
+  if ((left == NULL && right) || (left && right == NULL)) {
+    return 1;
+  }
+  
+  if (left->type != right->type) {
+    return 1;
+  }
+
+  if (left->tokenId != right->tokenId) {
+    return 1;
+  }
+
+  if (left->functionId != right->functionId) {
+    return 1;
+  }
+
+  if ((left->pLeft && right->pLeft == NULL) 
+    || (left->pLeft == NULL && right->pLeft)
+    || (left->pRight && right->pRight == NULL) 
+    || (left->pRight == NULL && right->pRight)
+    || (left->pParam && right->pParam == NULL) 
+    || (left->pParam == NULL && right->pParam)) {
+    return 1;
+  }
+
+  if (tVariantCompare(&left->value, &right->value)) {
+    return 1;
+  }
+
+  if (tStrTokenCompare(&left->colInfo, &right->colInfo)) {
+    return 1;
+  }
+
+
+  if (right->pParam && left->pParam) {
+    size_t size = taosArrayGetSize(right->pParam);
+    if (left->pParam && taosArrayGetSize(left->pParam) != size) {
+      return 1;
+    }
+
+    for (int32_t i = 0; i < size; i++) {      
+      tSqlExprItem* pLeftElem = taosArrayGet(left->pParam, i);
+      tSqlExpr* pSubLeft = pLeftElem->pNode;
+      tSqlExprItem* pRightElem = taosArrayGet(left->pParam, i);
+      tSqlExpr* pSubRight = pRightElem->pNode;
+    
+      if (tSqlExprCompare(pSubLeft, pSubRight)) {
+        return 1;
+      }
+    }
+  }
+
+  if (left->pLeft && tSqlExprCompare(left->pLeft, right->pLeft)) {
+    return 1;
+  }
+
+  if (left->pRight && tSqlExprCompare(left->pRight, right->pRight)) {
+    return 1;
+  }
+
+  return 0;
+}
+
+
+
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
 
@@ -356,7 +432,11 @@ void tSqlExprCompact(tSqlExpr** pExpr) {
 
 bool tSqlExprIsLeaf(tSqlExpr* pExpr) {
   return (pExpr->pRight == NULL && pExpr->pLeft == NULL) &&
-         (pExpr->tokenId == 0 || pExpr->tokenId == TK_ID || (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) || pExpr->tokenId == TK_SET);
+         (pExpr->tokenId == 0 ||
+         (pExpr->tokenId == TK_ID) ||
+         (pExpr->tokenId >= TK_BOOL && pExpr->tokenId <= TK_NCHAR) ||
+         (pExpr->tokenId == TK_NULL) ||
+         (pExpr->tokenId == TK_SET));
 }
 
 bool tSqlExprIsParentOfLeaf(tSqlExpr* pExpr) {
@@ -631,7 +711,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SFromInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
                                 SSessionWindowVal *pSession, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
-                                SLimitVal *psLimit) {
+                                SLimitVal *psLimit, tSqlExpr *pHaving) {
   assert(pSelectList != NULL);
 
   SQuerySqlNode *pSqlNode = calloc(1, sizeof(SQuerySqlNode));
@@ -646,6 +726,7 @@ SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SF
   pSqlNode->pSortOrder  = pSortOrder;
   pSqlNode->pWhere      = pWhere;
   pSqlNode->fillType    = pFill;
+  pSqlNode->pHaving = pHaving;
 
   if (pLimit != NULL) {
     pSqlNode->limit = *pLimit;
@@ -708,6 +789,9 @@ void destroyQuerySqlNode(SQuerySqlNode *pQuerySql) {
 
   tSqlExprDestroy(pQuerySql->pWhere);
   pQuerySql->pWhere = NULL;
+
+  tSqlExprDestroy(pQuerySql->pHaving);
+  pQuerySql->pHaving = NULL;
   
   taosArrayDestroyEx(pQuerySql->pSortOrder, freeVariant);
   pQuerySql->pSortOrder = NULL;

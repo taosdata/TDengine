@@ -520,7 +520,7 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
 
       pRetrieveMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
-      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, qhandle:%" PRIX64, pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex, pSql->res.qId);
+      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, qId:%" PRIu64, pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex, pSql->res.qId);
     } else {
       int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
       assert(vgIndex >= 0 && vgIndex < numOfVgroups);
@@ -862,7 +862,43 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pSqlFuncExpr->functionId  = htons(pExpr->functionId);
     pSqlFuncExpr->numOfParams = htons(pExpr->numOfParams);
     pSqlFuncExpr->resColId    = htons(pExpr->resColId);
+    if (pTableMeta->tableType != TSDB_SUPER_TABLE && pExpr->pFilter && pExpr->pFilter->numOfFilters > 0) {
+      pSqlFuncExpr->filterNum    = htonl(pExpr->pFilter->numOfFilters);
+    } else {
+      pSqlFuncExpr->filterNum = 0;
+    }
+
     pMsg += sizeof(SSqlFuncMsg);
+
+    if (pSqlFuncExpr->filterNum) {
+      pMsg += sizeof(SColumnFilterInfo) * pExpr->pFilter->numOfFilters;
+
+      // append the filter information after the basic column information
+      for (int32_t f = 0; f < pExpr->pFilter->numOfFilters; ++f) {
+        SColumnFilterInfo *pColFilter = &pExpr->pFilter->filterInfo[f];
+
+        SColumnFilterInfo *pFilterMsg = &pSqlFuncExpr->filterInfo[f];
+        pFilterMsg->filterstr = htons(pColFilter->filterstr);
+
+        if (pColFilter->filterstr) {
+          pFilterMsg->len = htobe64(pColFilter->len);
+          memcpy(pMsg, (void *)pColFilter->pz, (size_t)(pColFilter->len + 1));
+          pMsg += (pColFilter->len + 1);  // append the additional filter binary info
+        } else {
+          pFilterMsg->lowerBndi = htobe64(pColFilter->lowerBndi);
+          pFilterMsg->upperBndi = htobe64(pColFilter->upperBndi);
+        }
+
+        pFilterMsg->lowerRelOptr = htons(pColFilter->lowerRelOptr);
+        pFilterMsg->upperRelOptr = htons(pColFilter->upperRelOptr);
+
+        if (pColFilter->lowerRelOptr == TSDB_RELATION_INVALID && pColFilter->upperRelOptr == TSDB_RELATION_INVALID) {
+          tscError("invalid filter info");
+          return TSDB_CODE_TSC_INVALID_SQL;
+        }
+      }
+    }
+
 
     for (int32_t j = 0; j < pExpr->numOfParams; ++j) { // todo add log
       pSqlFuncExpr->arg[j].argType = htons((uint16_t)pExpr->param[j].nType);
@@ -2647,7 +2683,6 @@ void tscInitMsgsFp() {
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_TABLE] = tscProcessShowCreateRsp;
   tscProcessMsgRsp[TSDB_SQL_SHOW_CREATE_DATABASE] = tscProcessShowCreateRsp;
   
-
   tscKeepConn[TSDB_SQL_SHOW] = 1;
   tscKeepConn[TSDB_SQL_RETRIEVE] = 1;
   tscKeepConn[TSDB_SQL_SELECT] = 1;

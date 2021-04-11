@@ -11,13 +11,13 @@
 
 # -*- coding: utf-8 -*-
 
-import sys
 import taos
 from util.log import tdLog
 from util.cases import tdCases
 from util.sql import tdSql
 from util.dnodes import tdDnodes
-from multiprocessing import  Process
+from multiprocessing import Process
+import subprocess
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -25,6 +25,8 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
         self.ts = 1538548685000
+        self.tables = 10
+        self.rows = 1000
 
     def updateMetadata(self):
         self.host = "127.0.0.1"
@@ -36,6 +38,24 @@ class TDTestCase:
         self.cursor = self.conn.cursor()    
         self.cursor.execute("alter table db.tb add column col2 int")
         print("alter table done")
+
+    def deleteTableAndRecreate(self):
+        self.config = tdDnodes.getSimCfgPath()
+
+        sqlCmds = "use test; drop table stb;"
+        sqlCmds += "create table if not exists stb (ts timestamp, col1 int) tags(areaid int, city nchar(20));"
+        for i in range(self.tables):
+            city = "beijing" if i % 2 == 0 else "shanghai"
+            sqlCmds += "create table tb%d using stb tags(%d, '%s');" % (i, i, city)
+            for j in range(5):
+                sqlCmds += "insert into tb%d values(%d, %d);" % (i, self.ts + j, j * 100000)
+        command = ["taos", "-c", self.config, "-s", sqlCmds]
+        print("drop stb, recreate stb and insert data ")
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8")
+        if result.returncode == 0:
+            print("success:", result)
+        else:
+            print("error:", result)
 
     def run(self):
         tdSql.prepare()
@@ -58,6 +78,34 @@ class TDTestCase:
         print("==============step2")
         tdSql.query("select * from tb")
         tdSql.checkRows(2)
+
+        # Add test case: https://jira.taosdata.com:18080/browse/TD-3474
+
+        print("==============step1")
+        tdSql.execute("create database test")
+        tdSql.execute("use test")
+        tdSql.execute("create table if not exists stb (ts timestamp, col1 int) tags(areaid int, city nchar(20))")
+
+        for i in range(self.tables):
+            city = "beijing" if i % 2 == 0 else "shanghai"
+            tdSql.execute("create table tb%d using stb tags(%d, '%s')" % (i, i, city))
+            for j in range(self.rows):
+                tdSql.execute("insert into tb%d values(%d, %d)" % (i, self.ts + j, j * 100000))
+        
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 10000)
+
+        tdSql.query("select count(*) from tb0")
+        tdSql.checkData(0, 0, 1000)
+
+        # drop stable in subprocess
+        self.deleteTableAndRecreate()
+
+        tdSql.query("select count(*) from stb")
+        tdSql.checkData(0, 0, 5 * self.tables)
+
+        tdSql.query("select count(*) from tb0")
+        tdSql.checkData(0, 0, 5)
 
     def stop(self):
         tdSql.close()

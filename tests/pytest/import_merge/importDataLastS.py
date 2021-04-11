@@ -54,8 +54,8 @@ class TDTestCase:
         tdSql.execute(" ".join(sqlcmd))
 
         tdLog.info("================= step3")
-        tdSql.query('select * from tb1')
-        tdSql.checkRows(205)
+        tdSql.query('select count(*) from tb1')
+        tdSql.checkData(0, 0, 205)
 
         tdLog.info("================= step4")
         tdDnodes.stop(1)
@@ -71,8 +71,8 @@ class TDTestCase:
         tdSql.execute(" ".join(sqlcmd))
 
         tdLog.info("================= step6")
-        tdSql.query('select * from tb1')
-        tdSql.checkRows(250)
+        tdSql.query('select count(*) from tb1')
+        tdSql.checkData(0, 0, 250)
 
     def stop(self):
         tdSql.close()

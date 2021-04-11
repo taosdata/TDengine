@@ -233,7 +233,7 @@ public class TSDBConnectionTest {
         int status = rs.getInt("server_status()");
         Assert.assertEquals(1, status);
 
-        conn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
+        conn.createStatement(ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY, ResultSet.HOLD_CURSORS_OVER_COMMIT);
     }
 
     @Test(expected = SQLFeatureNotSupportedException.class)
