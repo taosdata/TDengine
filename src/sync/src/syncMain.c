@@ -549,7 +549,10 @@ static void syncClosePeerConn(SSyncPeer *pPeer) {
   if (pPeer->peerFd >= 0) {
     pPeer->peerFd = -1;
     void *pConn = pPeer->pConn;
-    if (pConn != NULL) syncFreeTcpConn(pPeer->pConn);
+    if (pConn != NULL) {
+      syncFreeTcpConn(pPeer->pConn);
+      pPeer->pConn = NULL;
+    }
   }
 }
 
