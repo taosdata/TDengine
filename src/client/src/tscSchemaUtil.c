@@ -144,8 +144,9 @@ SNewVgroupInfo createNewVgroupInfo(SVgroupMsg *pVgroupMsg) {
   SNewVgroupInfo info = {0};
   info.numOfEps = pVgroupMsg->numOfEps;
   info.vgId     = pVgroupMsg->vgId;
-  info.inUse    = 0;
+  info.inUse    = 0;   // 0 is the default value of inUse in case of multiple replica
 
+  assert(info.numOfEps >= 1 && info.vgId >= 1);
   for(int32_t i = 0; i < pVgroupMsg->numOfEps; ++i) {
     tstrncpy(info.ep[i].fqdn, pVgroupMsg->epAddr[i].fqdn, TSDB_FQDN_LEN);
     info.ep[i].port = pVgroupMsg->epAddr[i].port;
