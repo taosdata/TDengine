@@ -2400,6 +2400,11 @@ class MainExec:
             type=int,
             help='Number (fixed) of replicas to use, when testing against clusters. (default: 1)')
         parser.add_argument(
+            '-k',
+            '--track-memory-leaks',
+            action='store_true',
+            help='Use Valgrind tool to track memory leaks (default: false)')
+        parser.add_argument(
             '-l',
             '--larger-data',
             action='store_true',
