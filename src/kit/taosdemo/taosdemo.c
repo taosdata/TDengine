@@ -2980,7 +2980,7 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
   }
 
   int columnSize = cJSON_GetArraySize(columns);
-  if (columnSize > MAX_COLUMN_COUNT) {
+  if ((columnSize + 1/* ts */) > MAX_COLUMN_COUNT) {
     errorPrint("%s() LN%d, failed to read json, column size overflow, max column size is %d\n",
             __func__, __LINE__, MAX_COLUMN_COUNT);
     goto PARSE_OVER;
@@ -3038,8 +3038,8 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
     }
   }
 
-  if (index > MAX_COLUMN_COUNT) {
-    errorPrint("%s() LN%d, failed to read json, column size overflow, max column size is %d\n",
+  if ((index + 1 /* ts */) > MAX_COLUMN_COUNT) {
+    errorPrint("%s() LN%d, failed to read json, column size overflow, allowed max column size is %d\n",
             __func__, __LINE__, MAX_COLUMN_COUNT);
     goto PARSE_OVER;
   }
@@ -3110,16 +3110,16 @@ static bool getColumnAndTagTypeFromInsertJsonFile(
   }
 
   if (index > MAX_TAG_COUNT) {
-    errorPrint("%s() LN%d, failed to read json, tags size overflow, max tag size is %d\n",
+    errorPrint("%s() LN%d, failed to read json, tags size overflow, allowed max tag count is %d\n",
         __func__, __LINE__, MAX_TAG_COUNT);
     goto PARSE_OVER;
   }
 
   superTbls->tagCount = index;
 
-  if ((superTbls->columnCount + superTbls->tagCount) > MAX_COLUMN_COUNT) {
-    errorPrint("%s() LN%d, columns + tags is more than max columns count: %d\n",
-        __func__, __LINE__, MAX_TAG_COUNT);
+  if ((superTbls->columnCount + superTbls->tagCount + 1 /* ts */) > MAX_COLUMN_COUNT) {
+    errorPrint("%s() LN%d, columns + tags is more than allowed max columns count: %d\n",
+        __func__, __LINE__, MAX_COLUMN_COUNT);
     goto PARSE_OVER;
   }
   ret = true;
