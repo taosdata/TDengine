@@ -703,7 +703,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     if (strcmp(argv[i], "-f") == 0) {
       arguments->metaFile = argv[++i];
     } else if (strcmp(argv[i], "-c") == 0) {
-      tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
+      tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
 
     } else if (strcmp(argv[i], "-h") == 0) {
       arguments->host = argv[++i];
