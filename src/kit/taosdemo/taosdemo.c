@@ -3525,7 +3525,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      /*
       cJSON* batchCreateTbl = cJSON_GetObjectItem(stbInfo, "batch_create_tbl_num");
       if (batchCreateTbl && batchCreateTbl->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].batchCreateTableNum = batchCreateTbl->valueint;
@@ -3535,7 +3534,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         printf("ERROR: failed to read json, batch_create_tbl_num not found\n");
         goto PARSE_OVER;
       }
-      */
 
       cJSON *childTblExists = cJSON_GetObjectItem(stbInfo, "child_table_exists"); // yes, no
       if (childTblExists
@@ -3694,7 +3692,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             __func__, __LINE__);
         goto PARSE_OVER;
       }
-
+/*
       cJSON *multiThreadWriteOneTbl =
           cJSON_GetObjectItem(stbInfo, "multi_thread_write_one_tbl"); // no , yes
       if (multiThreadWriteOneTbl
@@ -3711,7 +3709,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         printf("ERROR: failed to read json, multiThreadWriteOneTbl not found\n");
         goto PARSE_OVER;
       }
-
+*/
       cJSON* interlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
       if (interlaceRows && interlaceRows->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].interlaceRows = interlaceRows->valueint;
