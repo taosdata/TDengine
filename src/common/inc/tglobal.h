@@ -39,6 +39,7 @@ extern int8_t   tsEnableTelemetryReporting;
 extern char     tsEmail[];
 extern char     tsArbitrator[];
 extern int8_t   tsArbOnline;
+extern int32_t  tsDnodeId;
 
 // common
 extern int      tsRpcTimer;

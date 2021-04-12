@@ -437,14 +437,14 @@ static int32_t mnodeCheckClusterCfgPara(const SClusterCfg *clusterCfg) {
     return TAOS_DN_OFF_TIME_ZONE_NOT_MATCH;
   }
 
-  if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale))) {
-    mError("\"locale\"[%s - %s]  cfg parameters inconsistent", clusterCfg->locale, tsLocale);
-    return TAOS_DN_OFF_LOCALE_NOT_MATCH;
-  }
-  if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset))) {
-    mError("\"charset\"[%s - %s] cfg parameters inconsistent.", clusterCfg->charset, tsCharset);
-    return TAOS_DN_OFF_CHARSET_NOT_MATCH;
-  }
+  // if (0 != strncasecmp(clusterCfg->locale, tsLocale, strlen(tsLocale))) {
+  //   mError("\"locale\"[%s - %s]  cfg parameters inconsistent", clusterCfg->locale, tsLocale);
+  //   return TAOS_DN_OFF_LOCALE_NOT_MATCH;
+  // }
+  // if (0 != strncasecmp(clusterCfg->charset, tsCharset, strlen(tsCharset))) {
+  //   mError("\"charset\"[%s - %s] cfg parameters inconsistent.", clusterCfg->charset, tsCharset);
+  //   return TAOS_DN_OFF_CHARSET_NOT_MATCH;
+  // }
 
   if (clusterCfg->enableBalance != tsEnableBalance) {
     mError("\"balance\"[%d - %d] cfg parameters inconsistent", clusterCfg->enableBalance, tsEnableBalance);

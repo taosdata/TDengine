@@ -1037,6 +1037,19 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
 
   SCreateTableMsg* pCreate = (SCreateTableMsg*)((char*)pCreate1 + sizeof(SCMCreateTableMsg));
 
+  int16_t numOfTags = htons(pCreate->numOfTags);
+  if (numOfTags > TSDB_MAX_TAGS) {
+    mError("msg:%p, app:%p table:%s, failed to create, too many tags", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
+    return TSDB_CODE_MND_TOO_MANY_TAGS;
+  }
+
+  int16_t numOfColumns = htons(pCreate->numOfColumns);
+  int32_t numOfCols = numOfColumns + numOfTags;
+  if (numOfCols > TSDB_MAX_COLUMNS) {
+    mError("msg:%p, app:%p table:%s, failed to create, too many columns", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
+    return TSDB_CODE_MND_TOO_MANY_COLUMNS;
+  }
+
   SSTableObj *   pStable = calloc(1, sizeof(SSTableObj));
   if (pStable == NULL) {
     mError("msg:%p, app:%p table:%s, failed to create, no enough memory", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
@@ -1050,10 +1063,9 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   pStable->uid          = (us << 24) + ((sdbGetVersion() & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
   pStable->sversion     = 0;
   pStable->tversion     = 0;
-  pStable->numOfColumns = htons(pCreate->numOfColumns);
-  pStable->numOfTags    = htons(pCreate->numOfTags);
+  pStable->numOfColumns = numOfColumns;
+  pStable->numOfTags    = numOfTags;
 
-  int32_t numOfCols = pStable->numOfColumns + pStable->numOfTags;
   int32_t schemaSize = numOfCols * sizeof(SSchema);
   pStable->schema = (SSchema *)calloc(1, schemaSize);
   if (pStable->schema == NULL) {
@@ -1063,11 +1075,6 @@ static int32_t mnodeProcessCreateSuperTableMsg(SMnodeMsg *pMsg) {
   }
 
   memcpy(pStable->schema, pCreate->schema, numOfCols * sizeof(SSchema));
-
-  if (pStable->numOfColumns > TSDB_MAX_COLUMNS || pStable->numOfTags > TSDB_MAX_TAGS) {
-    mError("msg:%p, app:%p table:%s, failed to create, too many columns", pMsg, pMsg->rpcMsg.ahandle, pCreate->tableName);
-    return TSDB_CODE_MND_INVALID_TABLE_NAME;
-  }
 
   pStable->nextColId = 0;
 
@@ -1338,6 +1345,11 @@ static int32_t mnodeAddSuperTableColumn(SMnodeMsg *pMsg, SSchema schema[], int32
   if (ncols <= 0) {
     mError("msg:%p, app:%p stable:%s, add column, ncols:%d <= 0", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId, ncols);
     return TSDB_CODE_MND_APP_ERROR;
+  }
+
+  if (pStable->numOfColumns + ncols + pStable->numOfTags > TSDB_MAX_COLUMNS) {
+    mError("msg:%p, app:%p stable:%s, add column, too many columns", pMsg, pMsg->rpcMsg.ahandle, pStable->info.tableId);
+    return TSDB_CODE_MND_TOO_MANY_COLUMNS;
   }
 
   for (int32_t i = 0; i < ncols; i++) {
