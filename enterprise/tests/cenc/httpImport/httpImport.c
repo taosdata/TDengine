@@ -55,7 +55,7 @@ typedef struct recv_buf_info_s
 
 int seed_net_open(SNETIO *io, const char *login, const char *url);
 size_t seed_net_read(SNETIO *io, void *buffer, size_t size);
-void seed_net_close(SNETIO *io);
+void seed_net_close(SNETIO *io, const char *logout);
 int seed_net_eof(SNETIO *io);
 size_t recv_callback(char *buffer, size_t size, size_t num, void *userdata);
 void shift_buffer(recv_buf_info_t *info, int shift);
@@ -79,11 +79,13 @@ int main(int argc, char *argv[])
     recv_buf_info_t  info;
     uint32_t         flags   = MSF_SKIPNOTDATA;
     const char      *login   = NULL;
+    const char      *logout  = NULL;
     const char      *url     = NULL;
 #if !defined(HTTP_IMPORT_DEBUG)
     int              np;
     int              id;
     int              offset;
+    int              iretry  = 1;
     TAOS            *taos    = NULL;
     TAOS_RES        *res     = NULL;
     char             cmd[MAX_TSQL_LEN];
@@ -94,6 +96,7 @@ int main(int argc, char *argv[])
     const char      *passwd  = "taosdata";
     const char      *port    = "6030";
     const char      *topic   = "packet";
+    const char      *retry   = NULL;
     char            *base64;
     uint64_t         hash;
 #else
@@ -102,10 +105,13 @@ int main(int argc, char *argv[])
 #endif 
 
 #if !defined(HTTP_IMPORT_DEBUG)
-    while ((opt = getopt(argc, argv, "l:i:h:u:p:P:t:")) != -1) {   
+    while ((opt = getopt(argc, argv, "l:L:i:h:u:p:P:t:r:")) != -1) {   
         switch (opt) {
         case 'l':
             login = strdup(optarg);
+            break;
+        case 'L':
+            logout = strdup(optarg);
             break;
         case 'i':
             url = strdup(optarg);
@@ -125,8 +131,11 @@ int main(int argc, char *argv[])
         case 't':
             topic = strdup(optarg);
             break;
+        case 'r':
+            retry = strdup(optarg);
+            break;
         default:
-	    fprintf(stderr, "Usage: %s -i url[ -l login -h host -u user -P port -t topic]\r\n", argv[0]);
+	    fprintf(stderr, "Usage: %s -i url[ -l login -L logout -h host -u user -P port -t topic -r retry]\r\n", argv[0]);
 	    exit(1);
         }
     }
@@ -134,6 +143,21 @@ int main(int argc, char *argv[])
     if (url == NULL || url[0] == '\0') {
         fprintf(stderr, "the option -i was missing!\r\n");
         exit(1);
+    }
+
+    if (retry) {
+        if (strncasecmp(retry, "on", strlen(retry)) && strncasecmp(retry, "off", strlen(retry))) {
+          fprintf(stderr, "invalid retry option: %s!\r\n", retry);
+          exit(1);
+        }
+
+        if (strncasecmp(retry, "on", strlen(retry)) == 0) {
+          iretry = 1;
+        } else {
+          iretry = 0;
+        }
+    } else {
+        retry = "on";
     }
 
     numport = strtol(port, NULL, 10);
@@ -144,11 +168,13 @@ int main(int argc, char *argv[])
 
     fprintf(stderr, "################################################################\r\n");
     fprintf(stderr, "# Login URL:                             %s\r\n", login);
+    fprintf(stderr, "# Logout URL:                            %s\r\n", logout);
     fprintf(stderr, "# URL:                                   %s\r\n", url);
     fprintf(stderr, "# Host:                                  %s\r\n", host);
     fprintf(stderr, "# User:                                  %s\r\n", user);
     fprintf(stderr, "# Port:                                  %s\r\n", port);
     fprintf(stderr, "# Topic:                                 %s\r\n", topic);
+    fprintf(stderr, "# Retry:                                 %s\r\n", retry);
     fprintf(stderr, "################################################################\r\n");
 #else
     while ((opt = getopt(argc, argv, "i:o:")) != -1) {   
@@ -181,6 +207,7 @@ int main(int argc, char *argv[])
     fprintf(stderr, "################################################################\r\n");
 #endif
 
+retry:
     packets = 0;
     memset(&io, 0, sizeof(SNETIO));
     memset(&info, 0, sizeof(info));
@@ -275,9 +302,11 @@ remain_data:
             hash = hash_key(sid, strlen(sid));
             id = (int) (hash % 4) + 1;
 
+            memset(cmd, 0, sizeof(cmd));
+
             offset = snprintf(cmd, sizeof(cmd), "insert into p%d using ps tags (%d) values ", id, id);
 
-            if (np < 0) {
+            if (offset < 0) {
                 id = 0;
                 fprintf(stderr, "fprintf error cmd for inserting data: %s\r\n", cmd);
                 continue;
@@ -305,7 +334,6 @@ remain_data:
             }
 
             cmd[offset] = ';';
-            cmd[++offset] = '\0';
 
             res = taos_query(taos, cmd);
             if (check_and_free_res(&res, cmd) != 0) {
@@ -337,7 +365,7 @@ remain_data:
 
 failed:
 
-    seed_net_close(&io);
+    seed_net_close(&io, logout);
 
 #if !defined(HTTP_IMPORT_DEBUG)
     if (taos) {
@@ -348,6 +376,10 @@ failed:
         fclose(fp);
     }
 #endif
+
+    if (iretry == 1) {
+      goto retry;
+    }
 
     return 0;
 }
@@ -538,9 +570,23 @@ seed_net_read(SNETIO *io, void *buffer, size_t size)
 
 
 void
-seed_net_close(SNETIO *io)
+seed_net_close(SNETIO *io, const char *logout)
 {
+    CURLcode res;
+
     if (io && io->curl) {
+        if (logout) {
+            /* Set Logout URL */
+            if (curl_easy_setopt(io->curl, CURLOPT_URL, logout) != CURLE_OK) {
+                fprintf(stderr, "could not set CURLOPT_URL: %s\r\n", logout);
+            }
+
+            res = curl_easy_perform(io->curl);
+            if (res != CURLE_OK) {
+                fprintf(stderr, "curl perform failed for logout: %s\n", curl_easy_strerror(res));
+            }
+        }
+
         if (io->curlm) {
             curl_multi_remove_handle (io->curlm, io->curl);
             curl_multi_cleanup(io->curlm);

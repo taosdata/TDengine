@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     const char       *passwd    = "taosdata";
     const char       *port      = "6030";
     const char       *db_name   = "detail";
-    const char       *tb_name;
+    const char       *tb_name   = NULL;
     const char       *of_name   = NULL;
     const char       *start_time = NULL;
     const char       *end_time  = NULL;
@@ -49,7 +49,7 @@ int main(int argc, char *argv[])
         exit(1);
     } 
 
-    while ((opt = getopt(argc, argv, "t:h:u:p:P:s:e:o:")) != -1) {   
+    while ((opt = getopt(argc, argv, "t:h:u:p:P:d:s:e:o:")) != -1) {   
         switch (opt) {
             case 't':
                 tb_name = strdup(optarg);
@@ -152,8 +152,10 @@ int main(int argc, char *argv[])
         np = snprintf(cmd, sizeof(cmd), "select * from %s where ts >= '%s' and ts < '%s';", tb_name, start_time, end_time);
     } else if (ns_start_time) {
         np = snprintf(cmd, sizeof(cmd), "select * from %s where ts >= '%s';", tb_name, start_time);
-    } else {
+    } else if (ns_end_time) {
         np = snprintf(cmd, sizeof(cmd), "select * from %s where ts < '%s';", tb_name, end_time);
+    } else {
+        np = snprintf(cmd, sizeof(cmd), "select * from %s;", tb_name);
     }
 
     if (np <= 0) {

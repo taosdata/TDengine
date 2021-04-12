@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <math.h>
+#include <sys/time.h>
 #include "taos.h"
 #include "libmseed.h"
 
@@ -11,6 +12,7 @@
 
 
 int nTotalRows = 0;
+time_t nTotalTime = 0;
 int nTotalSamples = 0;
 
 
@@ -68,7 +70,13 @@ unsigned char *base64_decode(const char *value, int inlen, int *outlen) {
       if (c4 != '=') {
         *out++ = (unsigned char)(((CHAR64(c3) << 6) & 0xc0) | CHAR64(c4));
         *outlen += 1;
+      } else {
+        *out = '\0';
+        return result;
       }
+    } else {
+      *out = '\0';
+      return result;
     }
   }
 
@@ -146,6 +154,17 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
 
     start_time = (int64_t) round(id->earliest * 0.001 * 0.001);
 
+    np = snprintf(cmd, sizeof(cmd),
+                  "insert into %s_%s_%s_%s using %s tags ('%s', '%s', '%s', '%s') values ",
+                  net, stat, loc, chan, stb_name, net, stat, loc, chan);
+    if (np <= 0) {
+      fprintf(stderr, "fnprintf error cmd: %s\r\n", cmd);
+      break;
+    }
+
+    cmd[np] = '\0';
+    cp = cmd + np;
+
     while (seg) {
       if (seg->numsamples <= 0) {
         seg = seg->next;
@@ -154,17 +173,6 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
 
       samples = (int32_t *) seg->datasamples;
       dtime = (int) round(1000.0 / seg->samprate);
-
-      np = snprintf(cmd, sizeof(cmd),
-                    "insert into %s_%s_%s_%s using %s tags ('%s', '%s', '%s', '%s') values ",
-                    net, stat, loc, chan, stb_name, net, stat, loc, chan);
-      if (np <= 0) {
-        fprintf(stderr, "fnprintf error cmd: %s\r\n", cmd);
-        break;
-      }
-
-      cmd[np] = '\0';
-      cp = cmd + np;
 
       for (i = 0; i < seg->numsamples; i++) {
         if (i != seg->numsamples - 1) {
@@ -184,14 +192,14 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
       *cp++ = ';';
       *cp = '\0';
 
-      res = taos_query(p->res_taos, cmd);
-      check_and_free_res(&res, cmd);
-
       numsamples += seg->numsamples;
       nTotalSamples += seg->numsamples;
 
       seg = seg->next;
     }
+
+    res = taos_query(p->res_taos, cmd);
+    check_and_free_res(&res, cmd);
 
     id = id->next;
   }
@@ -208,12 +216,13 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
   int                i, len, nfields;
   uint32_t           flags             = 0;
   TAOS_ROW           row               = NULL;
+  struct timeval     start_time, end_time;
 
   /* Set bit flags to validate CRC and unpack data samples */
   //flags |= MSF_VALIDATECRC;
   flags |= MSF_UNPACKDATA;
 
-  fprintf(stderr, "start time: %ld\r\n", time(NULL));
+  gettimeofday(&start_time, NULL);
 
   while ((row = taos_fetch_row(res))) {
     fields = taos_fetch_fields(res);
@@ -257,7 +266,8 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
   }
 
   nTotalRows += nRows;
-  fprintf(stderr, "end time: %ld\r\n", time(NULL));
+  gettimeofday(&end_time, NULL);
+  nTotalTime += (end_time.tv_sec * 1000000 + end_time.tv_usec) - (start_time.tv_sec * 1000000 + start_time.tv_usec);
   fprintf(stderr, "%d rows consumed.\r\n", nRows);
 }
 
@@ -313,6 +323,11 @@ int main(int argc, char *argv[]) {
 
     if (strncmp(argv[i], "-t=", 3) == 0) {
       topic = argv[i] + 3;
+      continue;
+    }
+
+    if (strncmp(argv[i], "-f=", 3) == 0) {
+      result = argv[i] + 3;
       continue;
     }
 
@@ -479,6 +494,7 @@ int main(int argc, char *argv[]) {
 
   fprintf(stderr, "total samples consumed: %d\r\n", nTotalSamples);
   fprintf(stderr, "total rows consumed: %d\r\n", nTotalRows);
+  fprintf(stderr, "total time consumed: %ld\r\n", nTotalTime);
   taos_unsubscribe(tsub, keep);
 
 failed:

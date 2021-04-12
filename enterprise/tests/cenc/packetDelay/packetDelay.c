@@ -12,6 +12,7 @@
 
 
 int nTotalRows = 0;
+time_t nTotalTime = 0;
 int nTotalSamples = 0;
 
 
@@ -69,7 +70,13 @@ unsigned char *base64_decode(const char *value, int inlen, int *outlen) {
       if (c4 != '=') {
         *out++ = (unsigned char)(((CHAR64(c3) << 6) & 0xc0) | CHAR64(c4));
         *outlen += 1;
+      } else {
+        *out = '\0';
+        return result;
       }
+    } else {
+      *out = '\0';
+      return result;
     }
   }
 
@@ -203,12 +210,13 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
   int                i, len, nfields;
   uint32_t           flags             = 0;
   TAOS_ROW           row               = NULL;
+  struct timeval     start_time, end_time;
 
   /* Set bit flags to validate CRC and unpack data samples */
   //flags |= MSF_VALIDATECRC;
   flags |= MSF_UNPACKDATA;
 
-  fprintf(stderr, "start time: %ld\r\n", time(NULL));
+  gettimeofday(&start_time, NULL);
 
   while ((row = taos_fetch_row(res))) {
     fields = taos_fetch_fields(res);
@@ -252,7 +260,8 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
   }
 
   nTotalRows += nRows;
-  fprintf(stderr, "end time: %ld\r\n", time(NULL));
+  gettimeofday(&end_time, NULL);
+  nTotalTime += (end_time.tv_sec * 1000000 + end_time.tv_usec) - (start_time.tv_sec * 1000000 + start_time.tv_usec);
   fprintf(stderr, "%d rows consumed.\r\n", nRows);
 }
 
@@ -474,6 +483,7 @@ int main(int argc, char *argv[]) {
 
   fprintf(stderr, "total samples consumed: %d\r\n", nTotalSamples);
   fprintf(stderr, "total rows consumed: %d\r\n", nTotalRows);
+  fprintf(stderr, "total time consumed: %ld\r\n", nTotalTime);
   taos_unsubscribe(tsub, keep);
 
 failed:
