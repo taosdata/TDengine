@@ -73,6 +73,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row);
 static void cqCreateStream(SCqContext *pContext, SCqObj *pObj);
 
 int32_t    cqObjRef = -1;
+int32_t    cqVnodeNum = 0;
 
 void cqRmFromList(SCqObj *pObj) {
   //LOCK in caller
@@ -166,6 +167,8 @@ void *cqOpen(void *ahandle, const SCqCfg *pCfg) {
     return NULL;
   }
 
+  atomic_add_fetch_32(&cqVnodeNum, 1);
+  
   cqCreateRef();
 
   pContext->tmrCtrl = taosTmrInit(0, 0, 0, "CQ");
@@ -239,6 +242,13 @@ void cqClose(void *handle) {
 
   if (hasCq == 0) {
     freeSCqContext(pContext);
+  }
+
+  int32_t remainn = atomic_sub_fetch_32(&cqVnodeNum, 1);
+  if (remainn <= 0) {
+    int32_t ref = cqObjRef;
+    cqObjRef = -1;    
+    taosCloseRef(ref);
   }
 }
 

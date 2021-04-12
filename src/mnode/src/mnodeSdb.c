@@ -315,6 +315,10 @@ void sdbUpdateAsync() {
   taosTmrReset(sdbUpdateSyncTmrFp, 200, NULL, tsMnodeTmr, &tsSdbTmr);
 }
 
+static int node_cmp(const void *l, const void *r) {
+  return ((SNodeInfo *)l)->nodeId - ((SNodeInfo *)r)->nodeId;
+}
+
 int32_t sdbUpdateSync(void *pMnodes) {
   SMInfos *pMinfos = pMnodes;
   if (!mnodeIsRunning()) {
@@ -381,6 +385,8 @@ int32_t sdbUpdateSync(void *pMnodes) {
     sdbDebug("vgId:1, update sync config, info not changed");
     return TSDB_CODE_SUCCESS;
   }
+
+  qsort(syncCfg.nodeInfo, syncCfg.replica, sizeof(syncCfg.nodeInfo[0]), node_cmp);
 
   sdbInfo("vgId:1, work as mnode, replica:%d", syncCfg.replica);
   for (int32_t i = 0; i < syncCfg.replica; ++i) {
