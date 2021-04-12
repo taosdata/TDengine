@@ -99,8 +99,13 @@ int32_t vnodeSync(int32_t vgId) {
     return TSDB_CODE_VND_INVALID_VGROUP_ID;
   }
 
-  if (pVnode->role != TAOS_SYNC_ROLE_MASTER) {
+  if (pVnode->role == TAOS_SYNC_ROLE_SLAVE) {
     vInfo("vgId:%d, vnode will sync, refCount:%d pVnode:%p", pVnode->vgId, pVnode->refCount, pVnode);
+
+    pVnode->version = 0;
+    pVnode->fversion = 0;
+    walResetVersion(pVnode->wal, pVnode->fversion);
+
     syncRecover(pVnode->sync);
   }
 

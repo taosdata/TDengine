@@ -238,7 +238,7 @@ void resetCommand(Command *cmd, const char s[]) {
   clearScreen(cmd->endOffset + prompt_size, cmd->screenOffset + prompt_size);
   memset(cmd->buffer, 0, MAX_COMMAND_SIZE);
   memset(cmd->command, 0, MAX_COMMAND_SIZE);
-  strcpy(cmd->command, s);
+  strncpy(cmd->command, s, MAX_COMMAND_SIZE);
   int size = 0;
   int width = 0;
   getMbSizeInfo(s, &size, &width);

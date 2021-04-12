@@ -2861,12 +2861,6 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT* pQueryHandle, SDataSta
     if (pHandle->statis[i].numOfNull == -1) { // set the column data are all NULL
       pHandle->statis[i].numOfNull = pBlockInfo->compBlock->numOfRows;
     }
-
-    SColumnInfo* pColInfo = taosArrayGet(pHandle->pColumns, i);
-    if (pColInfo->type == TSDB_DATA_TYPE_TIMESTAMP) {
-      pHandle->statis[i].min = pBlockInfo->compBlock->keyFirst;
-      pHandle->statis[i].max = pBlockInfo->compBlock->keyLast;
-    }
   }
 
   int64_t elapsed = taosGetTimestampUs() - stime;
