@@ -43,6 +43,9 @@ class TDTestCase:
         tdSql.query("select * from tb")
         tdSql.checkRows(insertRows + 4)
 
+        # test case for https://jira.taosdata.com:18080/browse/TD-3716:
+        tdSql.error("insert into tb(now, 1)")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

@@ -217,8 +217,8 @@ python3 ./test.py -f query/floatCompare.py
 python3 ./test.py -f query/query1970YearsAf.py
 python3 ./test.py -f query/bug3351.py
 python3 ./test.py -f query/bug3375.py
-
-
+python3 ./test.py -f query/queryJoin10tables.py
+python3 ./test.py -f query/queryStddevWithGroupby.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -258,6 +258,8 @@ python3 test.py -f subscribe/singlemeter.py
 #python3 test.py -f subscribe/stability.py  
 python3 test.py -f subscribe/supertable.py
 
+# topic
+python3 ./test.py -f topic/topicQuery.py
 
 #======================p3-end===============
 #======================p4-start===============

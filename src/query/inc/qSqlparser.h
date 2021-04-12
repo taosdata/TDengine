@@ -98,6 +98,7 @@ typedef struct SQuerySqlNode {
   SLimitVal          limit;        // limit offset [optional]
   SLimitVal          slimit;       // group limit offset [optional]
   SStrToken          sqlstr;       // sql string in select clause
+  struct tSqlExpr   *pHaving;      // having clause [optional]
 } SQuerySqlNode;
 
 typedef struct STableNamePair {
@@ -253,6 +254,11 @@ SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
 SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
 SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 
+tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType);
+
+int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right);
+
+tSqlExpr *tSqlExprClone(tSqlExpr *pSrc);
 SFromInfo *setTableNameList(SFromInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
 SFromInfo *setSubquery(SFromInfo* pFromInfo, SQuerySqlNode *pSqlNode);
 void      *destroyFromInfo(SFromInfo* pFromInfo);
@@ -272,7 +278,7 @@ void      tSqlExprListDestroy(SArray *pList);
 
 SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SFromInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,
-                                SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit);
+                                SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit, tSqlExpr *pHaving);
 
 SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SQuerySqlNode *pSelect, int32_t type);
 
