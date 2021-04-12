@@ -2902,7 +2902,7 @@ int32_t initResultRow(SResultRow *pResultRow) {
  * +------------+-------------------------------------------+-------------------------------------------+
  *           offset[0]                                  offset[1]
  */
-void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, int64_t uid) {
+void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, int64_t uid, int32_t stage) {
   SQLFunctionCtx* pCtx           = pInfo->pCtx;
   SSDataBlock* pDataBlock        = pInfo->pRes;
   int32_t* rowCellInfoOffset     = pInfo->rowCellInfoOffset;
@@ -2921,8 +2921,9 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
     SResultRowCellInfo* pCellInfo = getResultCell(pRow, i, rowCellInfoOffset);
     RESET_RESULT_INFO(pCellInfo);
 
-    pCtx[i].resultInfo = pCellInfo;
-    pCtx[i].pOutput = pData->pData;
+    pCtx[i].resultInfo   = pCellInfo;
+    pCtx[i].pOutput      = pData->pData;
+    pCtx[i].currentStage = stage;
     assert(pCtx[i].pOutput != NULL);
 
     // set the timestamp output buffer for top/bottom/diff query
@@ -4315,6 +4316,8 @@ SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
   SArray* pOrderColumns = NULL;
   if (numOfCols > 0) {
     pOrderColumns = taosArrayDup(pQuery->pGroupbyExpr->columnInfo);
+  } else {
+    pOrderColumns = taosArrayInit(4, sizeof(SColIndex));
   }
 
   if (pQuery->interval.interval > 0) {
@@ -4347,6 +4350,8 @@ SArray* getResultGroupCheckColumns(SQueryAttr* pQuery) {
   SArray* pOrderColumns = NULL;
   if (numOfCols > 0) {
     pOrderColumns = taosArrayDup(pQuery->pGroupbyExpr->columnInfo);
+  } else {
+    pOrderColumns = taosArrayInit(4, sizeof(SColIndex));
   }
 
   for(int32_t i = 0; i < numOfCols; ++i) {
@@ -4368,6 +4373,8 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
 
 //  int32_t     numOfRows =
 //      (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
+
+  pRuntimeEnv->scanFlag = MERGE_STAGE;  // TODO init when creating pCtx
 
   pInfo->pMerge = param;
   pInfo->bufCapacity = 4096;
@@ -4395,11 +4402,11 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   }
 
   numOfCols = (pInfo->groupColumnList != NULL)? taosArrayGetSize(pInfo->groupColumnList):0;
-  pInfo->groupPrevRow = calloc(1, (POINTER_BYTES * numOfCols + len));
+  pInfo->currentGroupColData = calloc(1, (POINTER_BYTES * numOfCols + len));
   offset = POINTER_BYTES * numOfOutput;
 
   for(int32_t i = 0; i < numOfCols; ++i) {
-    pInfo->groupPrevRow[i] = (char*)pInfo->groupPrevRow + offset;
+    pInfo->currentGroupColData[i] = (char*)pInfo->currentGroupColData + offset;
 
     SColIndex* index = taosArrayGet(pInfo->groupColumnList, i);
     offset += pExpr[index->colIndex].base.resBytes;
@@ -4408,7 +4415,7 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   pInfo->seed = rand();
-  setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed);
+  setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed, MERGE_STAGE);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "GlobalAggregate";
@@ -4971,7 +4978,7 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   pInfo->seed = rand();
-  setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed);
+  setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed, MASTER_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "TableAggregate";
@@ -5063,7 +5070,7 @@ SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
   pBInfo->pCtx  = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset);
 
   initResultRowInfo(&pBInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
-  setDefaultOutputBuf(pRuntimeEnv, pBInfo, pInfo->seed);
+  setDefaultOutputBuf(pRuntimeEnv, pBInfo, pInfo->seed, MASTER_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "ArithmeticOperator";

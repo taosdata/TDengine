@@ -464,7 +464,8 @@ typedef struct SMultiwayMergeInfo {
   char               **prevRow;
   SArray              *orderColumnList;
 
-  char               **groupPrevRow;
+  bool                 hasGroupColData;
+  char               **currentGroupColData;
   SArray              *groupColumnList;
   bool                 hasDataBlockForNewGroup;
   SSDataBlock         *pExistBlock;
