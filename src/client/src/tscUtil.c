@@ -3278,8 +3278,9 @@ static int32_t createSecondaryExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
   for (int32_t i = 0; i < pQueryAttr->numOfExpr2; ++i) {
     SInternalField* pField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
     SExprInfo*      pExpr = pField->pExpr;
+//    SExprInfo *pExpr = &pQueryAttr->pExpr3[i];
 
-    SSqlExpr* pse = &pQueryAttr->pExpr2[i].base;
+    SSqlExpr *pse = &pQueryAttr->pExpr2[i].base;
     pse->uid      = pTableMetaInfo->pTableMeta->id.uid;
     pse->resColId = pExpr->base.resColId;
 
@@ -3295,10 +3296,16 @@ static int32_t createSecondaryExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
       }
 
       pse->colInfo.flag = TSDB_COL_NORMAL;
-      pse->colType  = pExpr->base.resType;
-      pse->colBytes = pExpr->base.resBytes;
       pse->resType  = pExpr->base.resType;
       pse->resBytes = pExpr->base.resBytes;
+
+      // TODO restore refactor
+      int32_t inter = 0;
+      getResultDataInfo(pExpr->base.colType, pExpr->base.colBytes, pExpr->base.functionId, 0, &pse->resType,
+          &pse->resBytes, &inter, 0, false);
+      pse->colType  = pse->resType;
+      pse->colBytes = pse->resBytes;
+
     } else {  // arithmetic expression
       pse->colInfo.colId = pExpr->base.colInfo.colId;
       pse->colType  = pExpr->base.colType;
@@ -3311,6 +3318,7 @@ static int32_t createSecondaryExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
 
       for (int32_t j = 0; j < pExpr->base.numOfParams; ++j) {
         tVariantAssign(&pse->param[j], &pExpr->base.param[j]);
+        buildArithmeticExprFromMsg(&pQueryAttr->pExpr2[i], NULL);
       }
     }
   }
@@ -3321,7 +3329,7 @@ static int32_t createSecondaryExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
 static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInfo) {
   assert(tscIsTwoStageSTableQuery(pQueryInfo, 0));
 
-  pQueryAttr->numOfExpr3 = tscNumOfFields(pQueryInfo);
+  pQueryAttr->numOfExpr3 = tscSqlExprNumOfExprs(pQueryInfo);
   pQueryAttr->pExpr3 = calloc(pQueryAttr->numOfExpr3, sizeof(SExprInfo));
   if (pQueryAttr->pExpr3 == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -3343,32 +3351,33 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
       tVariantAssign(&pse->param[j], &pExpr->base.param[j]);
     }
   }
-    {
-      for (int32_t i = 0; i < pQueryAttr->numOfExpr3; ++i) {
-        SExprInfo* pExpr = &pQueryAttr->pExpr1[i];
-        SSqlExpr*  pse = &pQueryAttr->pExpr3[i].base;
 
-        // the final result size and type in the same as query on single table.
-        // so here, set the flag to be false;
-        int32_t inter = 0;
+  {
+    for (int32_t i = 0; i < pQueryAttr->numOfExpr3; ++i) {
+      SExprInfo* pExpr = &pQueryAttr->pExpr1[i];
+      SSqlExpr*  pse = &pQueryAttr->pExpr3[i].base;
 
-        int32_t functionId = pExpr->base.functionId;
-        if (functionId >= TSDB_FUNC_TS && functionId <= TSDB_FUNC_DIFF) {
-          continue;
-        }
+      // the final result size and type in the same as query on single table.
+      // so here, set the flag to be false;
+      int32_t inter = 0;
 
-        if (functionId == TSDB_FUNC_FIRST_DST) {
-          functionId = TSDB_FUNC_FIRST;
-        } else if (functionId == TSDB_FUNC_LAST_DST) {
-          functionId = TSDB_FUNC_LAST;
-        } else if (functionId == TSDB_FUNC_STDDEV_DST) {
-          functionId = TSDB_FUNC_STDDEV;
-        }
-
-        getResultDataInfo(pExpr->base.colType, pExpr->base.colBytes, functionId, 0, &pse->resType,
-            &pse->resBytes, &inter, 0, false);
+      int32_t functionId = pExpr->base.functionId;
+      if (functionId >= TSDB_FUNC_TS && functionId <= TSDB_FUNC_DIFF) {
+        continue;
       }
+
+      if (functionId == TSDB_FUNC_FIRST_DST) {
+        functionId = TSDB_FUNC_FIRST;
+      } else if (functionId == TSDB_FUNC_LAST_DST) {
+        functionId = TSDB_FUNC_LAST;
+      } else if (functionId == TSDB_FUNC_STDDEV_DST) {
+        functionId = TSDB_FUNC_STDDEV;
+      }
+
+      getResultDataInfo(pExpr->base.colType, pExpr->base.colBytes, functionId, 0, &pse->resType, &pse->resBytes, &inter,
+                        0, false);
     }
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -3470,15 +3479,15 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
     pQueryAttr->colList[i].filterInfo = tFilterInfoDup(pCol->info.filterInfo, pQueryAttr->colList[i].numOfFilters);
   }
 
+  // global aggregate query
+  if (pQueryAttr->stableQuery && (pQueryAttr->simpleAgg || pQueryAttr->interval.interval > 0) && tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
+    createGlobalAggregateExpr(pQueryAttr, pQueryInfo);
+  }
+
   // for simple table, not for super table
   int32_t code = createSecondaryExpr(pQueryAttr, pQueryInfo, pTableMetaInfo);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
-  }
-
-  // global aggregate query
-  if (pQueryAttr->stableQuery && (pQueryAttr->simpleAgg || pQueryAttr->interval.interval > 0) && tscIsTwoStageSTableQuery(pQueryInfo, 0)) {
-    createGlobalAggregateExpr(pQueryAttr, pQueryInfo);
   }
 
   // tag column info

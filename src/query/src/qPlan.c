@@ -136,18 +136,23 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
   int32_t op = OP_MultiwaySort;
   taosArrayPush(plan, &op);
 
-  // fill operator
-  if (pQueryAttr->fillType != TSDB_FILL_NONE && (!pQueryAttr->pointInterpQuery)) {
-    op = OP_Fill;
-    taosArrayPush(plan, &op);
-  }
-
   // arithmetic operator
   if (!pQueryAttr->simpleAgg && pQueryAttr->interval.interval == 0) {
     op = OP_Arithmetic;
     taosArrayPush(plan, &op);
   } else {
     op = OP_GlobalAggregate;
+    taosArrayPush(plan, &op);
+
+    if (pQueryAttr->pExpr2 != NULL) {
+      op = OP_Arithmetic;
+      taosArrayPush(plan, &op);
+    }
+  }
+
+  // fill operator
+  if (pQueryAttr->fillType != TSDB_FILL_NONE && (!pQueryAttr->pointInterpQuery)) {
+    op = OP_Fill;
     taosArrayPush(plan, &op);
   }
 

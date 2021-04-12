@@ -913,7 +913,7 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, 
 
         // in case of the block distribution query, the inputBytes is not a constant value.
         pCtx[i].pInput = p->pData;
-        assert(p->info.colId == pColIndex->colId && pCtx[i].inputType == p->info.type);// && pCtx[i].inputBytes == p->info.bytes);
+        assert(p->info.colId == pColIndex->colId && pCtx[i].inputType == p->info.type);
 
         uint32_t status = aAggs[pCtx[i].functionId].status;
         if ((status & (TSDB_FUNCSTATE_SELECTIVITY | TSDB_FUNCSTATE_NEED_TS)) != 0) {
@@ -3936,6 +3936,7 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, SArray* prevResult, void* ts
   // create runtime environment
   int32_t numOfTables = (int32_t)pQueryAttr->tableGroupInfo.numOfTables;
   pQInfo->summary.tableInfoSize += (numOfTables * sizeof(STableQueryInfo));
+
   code = setupQueryRuntimeEnv(pRuntimeEnv, (int32_t) pQueryAttr->tableGroupInfo.numOfTables, pOperator, param);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -5890,24 +5891,24 @@ _cleanup:
   return code;
 }
 
-static int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQueryMsg) {
+int32_t buildArithmeticExprFromMsg(SExprInfo *pExprInfo, void *pQueryMsg) {
   qDebug("qmsg:%p create arithmetic expr from binary", pQueryMsg);
 
   tExprNode* pExprNode = NULL;
   TRY(TSDB_MAX_TAG_CONDITIONS) {
-    pExprNode = exprTreeFromBinary(pArithExprInfo->base.param[0].pz, pArithExprInfo->base.param[0].nLen);
+    pExprNode = exprTreeFromBinary(pExprInfo->base.param[0].pz, pExprInfo->base.param[0].nLen);
   } CATCH( code ) {
     CLEANUP_EXECUTE();
-    qError("qmsg:%p failed to create arithmetic expression string from:%s, reason: %s", pQueryMsg, pArithExprInfo->base.param[0].pz, tstrerror(code));
+    qError("qmsg:%p failed to create arithmetic expression string from:%s, reason: %s", pQueryMsg, pExprInfo->base.param[0].pz, tstrerror(code));
     return code;
   } END_TRY
 
   if (pExprNode == NULL) {
-    qError("qmsg:%p failed to create arithmetic expression string from:%s", pQueryMsg, pArithExprInfo->base.param[0].pz);
+    qError("qmsg:%p failed to create arithmetic expression string from:%s", pQueryMsg, pExprInfo->base.param[0].pz);
     return TSDB_CODE_QRY_APP_ERROR;
   }
 
-  pArithExprInfo->pExpr = pExprNode;
+  pExprInfo->pExpr = pExprNode;
   return TSDB_CODE_SUCCESS;
 }
 
