@@ -1,4 +1,4 @@
-package com.taosdata.tsync;
+package com.taosdata.tsync.domain;
 
 public class ProducerRecord {
     private final String topic;

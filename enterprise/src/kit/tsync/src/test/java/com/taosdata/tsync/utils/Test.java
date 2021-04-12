@@ -1,7 +1,8 @@
-package com.taosdata.tsync;
+package com.taosdata.tsync.utils;
 
-import java.util.Random;
-import java.util.concurrent.*;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.util.Date;
 
 public class Test {
 
@@ -10,29 +11,9 @@ public class Test {
 
     public static void main(String[] args) {
 
-        ExecutorService executor = Executors.newCachedThreadPool();
-        Future<Double> future = executor.submit(new Callable<Double>() {
-            @Override
-            public Double call() throws Exception {
-                TimeUnit.SECONDS.sleep(1);
-                return new Random(System.currentTimeMillis()).nextDouble();
-            }
-        });
+        System.out.println(new Timestamp(new Date().getTime()));
 
-        try {
-            Double result = future.get(10, TimeUnit.SECONDS);
-            System.out.println("result >> " + result);
-        } catch (ExecutionException e) {
-            System.out.println("计算抛出异常");
-            e.printStackTrace();
-        } catch (TimeoutException e) {
-            System.out.println("超时");
-            e.printStackTrace();
-        } catch (InterruptedException e) {
-            System.out.println("线程等待过程中被打断");
-            e.printStackTrace();
-        }
-
+        System.out.println(new Timestamp(new Time(12, 0, 0).getTime()));
 //        for (int i = 0; i < 10; i++) {
 //            long current = System.currentTimeMillis();
 //            long expirationTime = calculateExpirationTime(current);

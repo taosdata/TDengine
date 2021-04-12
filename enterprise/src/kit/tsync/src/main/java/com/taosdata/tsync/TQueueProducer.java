@@ -1,36 +1,22 @@
 package com.taosdata.tsync;
 
-import com.taosdata.jdbc.TSDBDriver;
-import com.taosdata.tsync.domain.Topic;
-import com.taosdata.tsync.domain.TopicPartition;
+import com.taosdata.tsync.domain.ProducerRecord;
+import com.taosdata.tsync.domain.RecordMetadata;
 
-import java.sql.*;
-import java.util.HashMap;
-import java.util.Map;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.sql.Timestamp;
 import java.util.Properties;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class TQueueProducer {
+public class TQueueProducer extends TQueueBase {
 
-    private Connection connection;
-    private Map<String, Topic> topics = new HashMap<>();
-    private Map<Integer, TopicPartition> partitions = new HashMap<>();
     private ExecutorService threadPool = Executors.newCachedThreadPool();
 
     public TQueueProducer(Properties properties) {
-        String host = properties.getProperty(TSDBDriver.PROPERTY_KEY_HOST);
-        String port = properties.getProperty(TSDBDriver.PROPERTY_KEY_PORT);
-        String user = properties.getProperty(TSDBDriver.PROPERTY_KEY_USER);
-        String password = properties.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD);
-
-        final String url = "jdbc:TAOS-RS://" + host + ":" + port + "/?user=" + user + "&password=" + password;
-        try {
-            this.connection = DriverManager.getConnection(url, properties);
-            flushTopics();
-        } catch (SQLException e) {
-            throw new RuntimeException(e.getMessage());
-        }
+        super(properties);
     }
 
     public Future<RecordMetadata> send(ProducerRecord record) throws Exception {
@@ -97,19 +83,5 @@ public class TQueueProducer {
         }
     }
 
-    private void flushTopics() {
-        topics.clear();
-        // get all topics in tqueue
-        try (Statement stmt = connection.createStatement()) {
-            ResultSet rs = stmt.executeQuery("show topics");
-            while (rs.next()) {
-                String topic = rs.getString("name");
-                Timestamp created_time = rs.getTimestamp("created_time");
-                int partitions = rs.getInt("partitions");
-                topics.put(topic, new Topic(topic, partitions, created_time));
-            }
-        } catch (SQLException e) {
-            e.printStackTrace();
-        }
-    }
+
 }
