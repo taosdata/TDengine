@@ -82,8 +82,6 @@ class TDTestCase:
             "data_source": "rand",
             "insert_mode": "taosc",
             "insert_rows": 5000,
-            "multi_thread_write_one_tbl": "no",
-            "number_of_tbl_in_one_sql": 0,
             "rows_per_tbl": 1,
             "max_sql_len": 65480,
             "disorder_ratio": 0,
