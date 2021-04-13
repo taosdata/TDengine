@@ -49,8 +49,6 @@ class taosdemoPerformace:
             "batch_create_tbl_num": 10,
             "insert_mode": "taosc",
             "insert_rows": 100000,
-            "multi_thread_write_one_tbl": "no",
-            "number_of_tbl_in_one_sql": 0,
             "interlace_rows": 100,
             "max_sql_len": 1024000,
             "disorder_ratio": 0,

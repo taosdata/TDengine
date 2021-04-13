@@ -42,8 +42,6 @@
             "insert_rows": 1000,
             "childtable_limit": 20,
             "childtable_offset": 0,
-            "multi_thread_write_one_tbl": "no",
-            "number_of_tbl_in_one_sql": 0,
             "max_sql_len": 1024000,
             "disorder_ratio": 0,
             "disorder_range": 1000,

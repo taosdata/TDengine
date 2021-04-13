@@ -22,8 +22,6 @@
 			"insert_mode": "taosc",
 			"insert_rate": 0,
 			"insert_rows": 20,
-			"multi_thread_write_one_tbl": "no",
-			"number_of_tbl_in_one_sql": 0,
 			"max_sql_len": 1048000,
 			"timestamp_step": 1000,
 			"start_timestamp": "2020-1-1 00:00:00",

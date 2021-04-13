@@ -3697,7 +3697,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
             __func__, __LINE__);
         goto PARSE_OVER;
       }
-
+/*
       cJSON *multiThreadWriteOneTbl =
           cJSON_GetObjectItem(stbInfo, "multi_thread_write_one_tbl"); // no , yes
       if (multiThreadWriteOneTbl
@@ -3714,7 +3714,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         printf("ERROR: failed to read json, multiThreadWriteOneTbl not found\n");
         goto PARSE_OVER;
       }
-
+*/
       cJSON* interlaceRows = cJSON_GetObjectItem(stbInfo, "interlace_rows");
       if (interlaceRows && interlaceRows->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].interlaceRows = interlaceRows->valueint;

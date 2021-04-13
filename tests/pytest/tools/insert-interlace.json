@@ -41,7 +41,6 @@
             "data_source": "rand",
             "insert_mode": "taosc",
             "insert_rows": 250,
-            "multi_thread_write_one_tbl": "no",
             "interlace_rows": 80,
             "max_sql_len": 1024000,
             "disorder_ratio": 0,
