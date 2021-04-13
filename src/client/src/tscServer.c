@@ -127,13 +127,22 @@ static void tscUpdateVgroupInfo(SSqlObj *pSql, SRpcEpSet *pEpSet) {
     vgId = pTableMetaInfo->pTableMeta->vgId;
   }
 
-  assert(vgId > 0);
+  if (vgId <= 0) {
+    tscWarn("%p No vgId now", pSql);
+    return;
+  }
 
   SNewVgroupInfo vgroupInfo = {.vgId = -1};
   taosHashGetClone(tscVgroupMap, &vgId, sizeof(vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
-  assert(vgroupInfo.numOfEps > 0 && vgroupInfo.vgId > 0);
-
-  tscDebug("before: Endpoint in use:%d, numOfEps:%d", vgroupInfo.inUse, vgroupInfo.numOfEps);
+  
+  if (vgroupInfo.numOfEps > 0 && vgroupInfo.vgId > 0) {
+    tscDebug("before: Endpoint in use:%d, numOfEps:%d", vgroupInfo.inUse, vgroupInfo.numOfEps);
+  } else {
+    vgroupInfo.vgId = vgId;
+    
+    tscDebug("before: no Epinfo for vgId:%d", vgId);
+  }
+  
   vgroupInfo.inUse    = pEpSet->inUse;
   vgroupInfo.numOfEps = pEpSet->numOfEps;
   for (int32_t i = 0; i < vgroupInfo.numOfEps; i++) {
@@ -159,14 +168,17 @@ int32_t extractSTableQueryVgroupId(STableMetaInfo* pTableMetaInfo) {
 
   if (pTableMetaInfo->pVgroupTables == NULL) {
     SVgroupsInfo *pVgroupInfo = pTableMetaInfo->vgroupList;
-    assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
-    vgId = pVgroupInfo->vgroups[vgIndex].vgId;
+    if (pVgroupInfo && pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups) {
+      vgId = pVgroupInfo->vgroups[vgIndex].vgId;
+    }
   } else {
-    int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
-    assert(vgIndex >= 0 && vgIndex < numOfVgroups);
-
-    SVgroupTableInfo *pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, vgIndex);
-    vgId = pTableIdList->vgInfo.vgId;
+    if (pTableMetaInfo->pVgroupTables) {
+      int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+      if (vgIndex >= 0 && vgIndex < numOfVgroups) {
+        SVgroupTableInfo *pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, vgIndex);
+        vgId = pTableIdList->vgInfo.vgId;
+      }
+    }
   }
 
   return vgId;
