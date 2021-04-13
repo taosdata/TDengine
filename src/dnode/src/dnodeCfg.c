@@ -17,6 +17,7 @@
 #include "os.h"
 #include "cJSON.h"
 #include "dnodeCfg.h"
+#include "tglobal.h"
 
 static SDnodeCfg tsCfg = {0};
 static pthread_mutex_t tsCfgMutex;
@@ -70,6 +71,7 @@ static void dnodeResetCfg(SDnodeCfg *cfg) {
 
   pthread_mutex_lock(&tsCfgMutex);
   tsCfg.dnodeId = cfg->dnodeId;
+  tsDnodeId = cfg->dnodeId;
   tstrncpy(tsCfg.clusterId, cfg->clusterId, TSDB_CLUSTER_ID_LEN);
   dnodePrintCfg(cfg);
   dnodeWriteCfg();

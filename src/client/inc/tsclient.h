@@ -96,6 +96,25 @@ typedef struct STableMetaInfo {
   SArray       *tagColList;                        // SArray<SColumn*>, involved tag columns
 } STableMetaInfo;
 
+
+typedef struct SColumnIndex {
+  int16_t tableIndex;
+  int16_t columnIndex;
+} SColumnIndex;
+
+
+typedef struct SFieldInfo {
+  int16_t      numOfOutput;   // number of column in result
+  TAOS_FIELD*  final;
+  SArray      *internalField; // SArray<SInternalField>
+} SFieldInfo;
+
+typedef struct SColumn {
+  SColumnIndex       colIndex;
+  int32_t            numOfFilters;
+  SColumnFilterInfo *filterInfo;
+} SColumn;
+
 /* the structure for sql function in select clause */
 typedef struct SSqlExpr {
   char      aliasName[TSDB_COL_NAME_LEN];  // as aliasName
@@ -109,30 +128,23 @@ typedef struct SSqlExpr {
   tVariant  param[3];       // parameters are not more than 3
   int32_t   offset;         // sub result column value of arithmetic expression.
   int16_t   resColId;       // result column id
+  SColumn  *pFilter;        // expr filter
 } SSqlExpr;
 
-typedef struct SColumnIndex {
-  int16_t tableIndex;
-  int16_t columnIndex;
-} SColumnIndex;
+typedef struct SExprFilter {
+  tSqlExpr       *pExpr;     //used for having parse
+  SSqlExpr       *pSqlExpr;
+  SArray         *fp;
+  SColumn        *pFilters;  //having filter info
+}SExprFilter;
 
 typedef struct SInternalField {
   TAOS_FIELD      field;
   bool            visible;
   SExprInfo      *pArithExprInfo;
   SSqlExpr       *pSqlExpr;
+  SExprFilter    *pFieldFilters;
 } SInternalField;
-
-typedef struct SFieldInfo {
-  int16_t      numOfOutput;   // number of column in result
-  SArray      *internalField; // SArray<SInternalField>
-} SFieldInfo;
-
-typedef struct SColumn {
-  SColumnIndex       colIndex;
-  int32_t            numOfFilters;
-  SColumnFilterInfo *filterInfo;
-} SColumn;
 
 typedef struct SCond {
   uint64_t uid;
@@ -242,6 +254,7 @@ typedef struct SQueryInfo {
   int32_t          round;         // 0/1/....
   int32_t          bufLen;
   char*            buf;
+  int32_t          havingFieldNum;
 } SQueryInfo;
 
 typedef struct {
@@ -260,10 +273,10 @@ typedef struct {
 
   char *       curSql;       // current sql, resume position of sql after parsing paused
   int8_t       parseFinished;
-  char    reserve2[3];        // fix bus error on arm32
+  char         reserve2[3];        // fix bus error on arm32
 
   int16_t      numOfCols;
-  char    reserve3[2];        // fix bus error on arm32
+  char         reserve3[2];        // fix bus error on arm32
   uint32_t     allocSize;
   char *       payload;
   int32_t      payloadLen;
@@ -273,9 +286,9 @@ typedef struct {
   int32_t      numOfParams;
 
   int8_t       dataSourceType;     // load data from file or not
-  char    reserve4[3];        // fix bus error on arm32
+  char         reserve4[3];        // fix bus error on arm32
   int8_t       submitSchema;   // submit block is built with table schema
-  char    reserve5[3];        // fix bus error on arm32
+  char         reserve5[3];        // fix bus error on arm32
   STagData     tagData;        // NOTE: pTagData->data is used as a variant length array
 
   SName      **pTableNameList; // all involved tableMeta list of current insert sql statement.

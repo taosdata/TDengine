@@ -52,11 +52,20 @@ static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int
   return pResultRowInfo->pResult[slot];
 }
 
-static FORCE_INLINE char *getPosInResultPage(SQuery *pQuery, tFilePage* page, int32_t rowOffset, int16_t offset) {
-  assert(rowOffset >= 0 && pQuery != NULL);
+static FORCE_INLINE char* getPosInResultPage(SQueryRuntimeEnv* pRuntimeEnv, tFilePage* page, int32_t rowOffset,
+                                             int16_t offset, int32_t size) {
+  assert(rowOffset >= 0 && pRuntimeEnv != NULL);
+
+  SQuery* pQuery = pRuntimeEnv->pQuery;
+  int64_t pageSize = pRuntimeEnv->pResultBuf->pageSize;
 
   int32_t numOfRows = (int32_t)GET_ROW_PARAM_FOR_MULTIOUTPUT(pQuery, pQuery->topBotQuery, pQuery->stableQuery);
-  return ((char *)page->data) + rowOffset + offset * numOfRows;
+
+  // buffer overflow check
+  int64_t bufEnd = (rowOffset + offset * numOfRows + size);
+  assert(page->num <= pageSize && bufEnd <= page->num);
+
+  return ((char*)page->data) + rowOffset + offset * numOfRows;
 }
 
 bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
