@@ -5851,7 +5851,7 @@ static void *specifiedQueryProcess(void *sarg) {
   return NULL;
 }
 
-static void replaceSubTblName(char* inSql, char* outSql, int tblIndex) {
+static void replaceChildTblName(char* inSql, char* outSql, int tblIndex) {
   char sourceString[32] = "xxxx";
   char subTblName[MAX_TB_NAME_SIZE*3];
   sprintf(subTblName, "%s.%s",
@@ -5909,7 +5909,7 @@ static void *superQueryProcess(void *sarg) {
     for (int i = winfo->start_table_from; i <= winfo->end_table_to; i++) {
       for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
         memset(sqlstr,0,sizeof(sqlstr));
-        replaceSubTblName(g_queryInfo.superQueryInfo.sql[j], sqlstr, i);
+        replaceChildTblName(g_queryInfo.superQueryInfo.sql[j], sqlstr, i);
         char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
         if (g_queryInfo.superQueryInfo.result[j][0] != 0) {
           sprintf(tmpFile, "%s-%d",
@@ -6157,7 +6157,7 @@ static void *subSubscribeProcess(void *sarg) {
     for (int i = 0; i < g_queryInfo.superQueryInfo.sqlCount; i++) {
       sprintf(topic, "taosdemo-subscribe-%d", i);
       memset(subSqlstr,0,sizeof(subSqlstr));
-      replaceSubTblName(g_queryInfo.superQueryInfo.sql[i], subSqlstr, i);
+      replaceChildTblName(g_queryInfo.superQueryInfo.sql[i], subSqlstr, i);
       char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
       if (g_queryInfo.superQueryInfo.result[i][0] != 0) {
         sprintf(tmpFile, "%s-%d",
