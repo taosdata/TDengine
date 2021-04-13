@@ -5774,7 +5774,7 @@ static int insertTestProcess() {
   return 0;
 }
 
-static void *specifiedQueryProcess(void *sarg) {
+static void *specifiedQuery(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg;
 
   if (winfo->taos == NULL) {
@@ -5873,7 +5873,7 @@ static void replaceChildTblName(char* inSql, char* outSql, int tblIndex) {
   //printf("3: %s\n", outSql);
 }
 
-static void *superQueryProcess(void *sarg) {
+static void *superQuery(void *sarg) {
   char sqlstr[1024];
   threadInfo *winfo = (threadInfo *)sarg;
 
@@ -6002,7 +6002,7 @@ static int queryTestProcess() {
 
         t_info->taos = NULL;// TODO: workaround to use separate taos connection;
 
-        pthread_create(pids + i * nSqlCount + j, NULL, specifiedQueryProcess,
+        pthread_create(pids + i * nSqlCount + j, NULL, specifiedQuery,
             t_info);
       }
     }
@@ -6051,7 +6051,7 @@ static int queryTestProcess() {
       t_info->end_table_to = i < b ? startFrom + a : startFrom + a - 1;
       startFrom = t_info->end_table_to + 1;
       t_info->taos = NULL; // TODO: workaround to use separate taos connection;
-      pthread_create(pidsOfSub + i, NULL, superQueryProcess, t_info);
+      pthread_create(pidsOfSub + i, NULL, superQuery, t_info);
     }
 
     g_queryInfo.superQueryInfo.threadCnt = threads;
@@ -6114,7 +6114,7 @@ static TAOS_SUB* subscribeImpl(TAOS *taos, char *sql, char* topic, char* resultF
   return tsub;
 }
 
-static void *subSubscribeProcess(void *sarg) {
+static void *superSubscribe(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg;
   char subSqlstr[1024];
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT] = {0};
@@ -6203,7 +6203,7 @@ static void *subSubscribeProcess(void *sarg) {
   return NULL;
 }
 
-static void *superSubscribeProcess(void *sarg) {
+static void *specifiedSubscribe(void *sarg) {
   threadInfo *winfo = (threadInfo *)sarg;
   TAOS_SUB*    tsub[MAX_QUERY_SQL_COUNT] = {0};
 
@@ -6343,7 +6343,7 @@ static int subscribeTestProcess() {
       threadInfo *t_info = infos + i;
       t_info->threadID = i;
       t_info->taos = NULL;  // TODO: workaround to use separate taos connection;
-      pthread_create(pids + i, NULL, superSubscribeProcess, t_info);
+      pthread_create(pids + i, NULL, specifiedSubscribe, t_info);
   }
 
   //==== create sub threads for query from sub table
@@ -6386,7 +6386,7 @@ static int subscribeTestProcess() {
       t_info->end_table_to = i < b ? startFrom + a : startFrom + a - 1;
       startFrom = t_info->end_table_to + 1;
       t_info->taos = NULL; // TODO: workaround to use separate taos connection;
-      pthread_create(pidsOfSub + i, NULL, subSubscribeProcess, t_info);
+      pthread_create(pidsOfSub + i, NULL, superSubscribe, t_info);
     }
 
     g_queryInfo.superQueryInfo.threadCnt = threads;
