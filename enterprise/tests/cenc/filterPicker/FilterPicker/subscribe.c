@@ -51,6 +51,7 @@ typedef struct memories_table_s memory_table_t;
 
 struct memories_table_s {
   char                   sid[LM_SIDLEN];
+  cenc_hsamples_t        history;
   FilterPicker5_Memory  *memory;
   memory_table_t        *next;
 };
@@ -59,8 +60,7 @@ struct memories_table_s {
 typedef struct callback_params_s {
   TAOS             *res_taos;
   memory_table_t  **mtb;
-  void             *data1;
-  void             *data2;
+  void             *data;
 } callback_params_t;
 
 
@@ -97,6 +97,7 @@ memory_table_t **get_memory_table(const char *sid, memory_table_t **mtb)
     *t = (memory_table_t *) malloc(sizeof(memory_table_t));
     if (*t) {
       memset(*t, 0, sizeof(memory_table_t));
+      (*t)->history.first_call = 1;
       strncpy((*t)->sid, sid, strlen(sid));
     }
   }
@@ -108,13 +109,16 @@ memory_table_t **get_memory_table(const char *sid, memory_table_t **mtb)
 void free_memory_table(memory_table_t **mtb)
 {
   int               i;
+  memory_table_t   *l;
   memory_table_t  **t;
 
   for (i = 0; i < MEM_TAB_MOD; i++) {
     if (mtb[i]) {
-      for (t = &mtb[i]; *t; t = &(*t)->next) {
+      for (t = &mtb[i]; *t; /* void */) {
         free_FilterPicker5_Memory(&(*t)->memory);
+        l = (*t)->next;
         free(*t);
+        t = &l;
       }
     }
   }
@@ -223,7 +227,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
   nstime_t               dtime;
   char                   sid[LM_SIDLEN];
   char                   net[LM_SIDLEN], stat[LM_SIDLEN], loc[LM_SIDLEN], chan[LM_SIDLEN];
-#if 0
+#if 1
   char                   timestr[64];
 #endif
   cenc_samples_t         samps;
@@ -243,8 +247,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
     return;
   }
 
-  stb_name = (char *) p->data1;
-  h = (cenc_hsamples_t *) p->data2;
+  stb_name = (char *) p->data;
 
   filterWindow = 300.0 * dt;
   iFilterWindow = (long) (0.5 + filterWindow * 1000.0);
@@ -295,6 +298,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
       return;
     }
 
+    h = &(*t)->history;
     memory = (*t)->memory;
 
     while (seg) {
@@ -377,7 +381,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
 
           np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%ld, now) ",
                         (int64_t) (h->history[h->count + index] * 0.001 * 0.001));
-#if 0
+#if 1
       ms_nstime2timestrz(h->history[h->count + index], timestr, ISOMONTHDAY, MICRO);
       fprintf(stderr, "%s\n", timestr);
 #endif
@@ -385,7 +389,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
       } else {
         np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%ld, now) ",
                       (int64_t) (samps.time[index] * 0.001 * 0.001));
-#if 0
+#if 1
       ms_nstime2timestrz(samps.time[index], timestr, ISOMONTHDAY, MICRO);
       fprintf(stderr, "%s\n", timestr);
 #endif
@@ -437,8 +441,8 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
         *pos++ = ';';
         *pos++ = '\0';
 
-        res = taos_query(p->res_taos, cmd);
-        check_and_free_res(&res, cmd);
+        //res = taos_query(p->res_taos, cmd);
+        //check_and_free_res(&res, cmd);
       }
     }
 
@@ -544,7 +548,6 @@ int main(int argc, char *argv[]) {
   int                 restart   = 0;
   int                 keep      = 1;
   long                num;
-  cenc_hsamples_t     hsamples;
   callback_params_t   params;
 
   for (i = 1; i < argc; i++) {
@@ -694,12 +697,8 @@ int main(int argc, char *argv[]) {
     goto failed;
   }
 
-  memset(&hsamples, 0, sizeof(hsamples));
-  hsamples.first_call = 1;
-
   params.res_taos = res_taos;
-  params.data1 = (void *) stb_name;
-  params.data2 = (void *) &hsamples;
+  params.data = (void *) stb_name;
 
   taos_select_db(taos, topic);
   taos_select_db(res_taos, fpicker);
