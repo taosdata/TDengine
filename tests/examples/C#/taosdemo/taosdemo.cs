@@ -385,7 +385,7 @@ namespace TDengineDriver
         public void CreateDb()
         {
             StringBuilder sql = new StringBuilder();
-            sql.Append("CREATE DATABASE IF NOT EXISTS ").Append(this.dbName).Append(" replica ").Append(this.replica);
+            sql.Append("CREATE DATABASE IF NOT EXISTS ").Append(this.dbName).Append(" replica ").Append(this.replica).Append(" keep 36500");
             IntPtr res = TDengine.Query(this.conn, sql.ToString());
             if (res != IntPtr.Zero)
             {
@@ -728,7 +728,7 @@ namespace TDengineDriver
                 int m = now.Minute;
                 int s = now.Second;
 
-                long baseTimestamp = 1609430400000;    // 2021/01/01 0:0:0
+                long baseTimestamp = -16094304000;    // 2021/01/01 0:0:0
                 VerbosePrintFormat("beginTime is {0} + {1}h:{2}m:{3}s\n", baseTimestamp, h, m, s);
                 long beginTimestamp = baseTimestamp + ((h * 60 + m) * 60 + s) * 1000;
                 Random random = new Random();
