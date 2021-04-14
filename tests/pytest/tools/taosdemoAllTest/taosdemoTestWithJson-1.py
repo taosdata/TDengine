@@ -159,8 +159,11 @@ class TDTestCase:
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-illegal-columns-lmax.json -y " % binPath)
         tdSql.error("select * from db.stb0")
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-illegal-columns-count-0.json -y " % binPath)
+        tdSql.execute("use db") 
         tdSql.query("select count(*) from db.stb0")
-        tdSql.checkData(0, 0, 10000)               
+        tdSql.checkData(0, 0, 10000)
+        os.system("%staosdemo -f tools/taosdemoAllTest/insert-illegal-tags-count129.json -y " % binPath)   
+        tdSql.error("use db1") 
 
         # insert: timestamp and step 
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-timestep.json -y " % binPath)
