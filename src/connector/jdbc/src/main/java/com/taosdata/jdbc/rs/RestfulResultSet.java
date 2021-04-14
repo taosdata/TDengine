@@ -89,7 +89,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
                 String timestampFormat = this.statement.getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT);
                 if ("TIMESTAMP".equalsIgnoreCase(timestampFormat)) {
                     Long value = row.getLong(colIndex);
-                    if (1_0000_0000_0000_0L > value)
+                    //TODO:
+                    if (value < 1_0000_0000_0000_0L)
                         return new Timestamp(value);
                     long epochSec = value / 1000_000l;
                     long nanoAdjustment = value % 1000_000l * 1000l;
