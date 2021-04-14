@@ -516,6 +516,15 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
     echo "asyncdemo pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi
+
+  ./demo 127.0.0.1 > /dev/null 2>&1
+  if [ $? != "0" ]; then
+    echo "demo failed"
+    totalExampleFailed=`expr $totalExampleFailed + 1`    
+  else
+    echo "demo pass"
+    totalExamplePass=`expr $totalExamplePass + 1`
+  fi
   
   if [ "$totalExamplePass" -gt "0" ]; then
     echo -e "\n${GREEN} ### Total $totalExamplePass examples succeed! ### ${NC}"
