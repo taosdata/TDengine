@@ -178,7 +178,7 @@ TDengine 分布式架构的逻辑结构图如下：
 
 **FQDN配置**：一个数据节点有一个或多个FQDN，可以在系统配置文件taos.cfg通过参数“fqdn"进行指定，如果没有指定，系统将自动获取计算机的hostname作为其FQDN。如果节点没有配置FQDN，可以直接将该节点的配置参数fqdn设置为它的IP地址。但不建议使用IP，因为IP地址可变，一旦变化，将让集群无法正常工作。一个数据节点的EP(End Point)由FQDN + Port组成。采用FQDN，需要保证DNS服务正常工作，或者在节点以及应用所在的节点配置好hosts文件。
 
-**端口配置：**一个数据节点对外的端口由TDengine的系统配置参数serverPort决定，对集群内部通讯的端口是serverPort+5。集群内数据节点之间的数据复制操作还占有一个TCP端口，是serverPort+10. 为支持多线程高效的处理UDP数据，每个对内和对外的UDP连接，都需要占用5个连续的端口。因此一个数据节点总的端口范围为serverPort到serverPort + 10，总共11个TCP/UDP端口。（另外还可能有 RESTful、Arbitrator 所使用的端口，那样的话就一共是 13 个。）使用时，需要确保防火墙将这些端口打开，以备使用。每个数据节点可以配置不同的serverPort。
+**端口配置：**一个数据节点对外的端口由TDengine的系统配置参数serverPort决定，对集群内部通讯的端口是serverPort+5。集群内数据节点之间的数据复制操作还占有一个TCP端口，是serverPort+10. 为支持多线程高效的处理UDP数据，每个对内和对外的UDP连接，都需要占用5个连续的端口。因此一个数据节点总的端口范围为serverPort到serverPort + 10，总共11个TCP/UDP端口。（另外还可能有 RESTful、Arbitrator 所使用的端口，那样的话就一共是 13 个。）使用时，需要确保防火墙将这些端口打开，以备使用。每个数据节点可以配置不同的serverPort。（详细的端口情况请参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)）
 
 **集群对外连接:** TDengine集群可以容纳单个、多个甚至几千个数据节点。应用只需要向集群中任何一个数据节点发起连接即可，连接需要提供的网络参数是一数据节点的End Point(FQDN加配置的端口号）。通过命令行CLI启动应用taos时，可以通过选项-h来指定数据节点的FQDN, -P来指定其配置的端口号，如果端口不配置，将采用TDengine的系统配置参数serverPort。
 
