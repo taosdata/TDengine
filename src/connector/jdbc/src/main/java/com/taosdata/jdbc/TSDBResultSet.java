@@ -277,7 +277,6 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, this.columnMetaDataList.size());
 
         Timestamp res = null;
-
         if (this.getBatchFetch())
             return this.blockData.getTimestamp(columnIndex - 1);
 

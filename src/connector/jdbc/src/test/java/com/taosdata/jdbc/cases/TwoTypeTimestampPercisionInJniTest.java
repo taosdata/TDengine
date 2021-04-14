@@ -41,6 +41,7 @@ public class TwoTypeTimestampPercisionInJniTest {
             rs.next();
 
             Timestamp timestamp = rs.getTimestamp(1);
+            System.out.println(timestamp);
             long ts = timestamp.getTime();
             Assert.assertEquals(timestamp1, ts);
             int nanos = timestamp.getNanos();
