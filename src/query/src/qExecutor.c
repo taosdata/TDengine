@@ -1878,6 +1878,17 @@ static void doFreeQueryHandle(SQueryRuntimeEnv* pRuntimeEnv) {
   assert(pMemRef->ref == 0 && pMemRef->snapshot.imem == NULL && pMemRef->snapshot.mem == NULL);
 }
 
+static void destroyTsComp(SQueryRuntimeEnv *pRuntimeEnv, SQuery *pQuery) {
+  if (isTsCompQuery(pQuery)) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pRuntimeEnv->outputBuf->pDataBlock, 0);
+    FILE *f = *(FILE **)pColInfoData->pData;  // TODO refactor
+    if (f) {
+      fclose(f);
+      *(FILE **)pColInfoData->pData = NULL;
+    }
+  }
+}
+
 static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   SQInfo* pQInfo = (SQInfo*) pRuntimeEnv->qinfo;
@@ -1896,6 +1907,8 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   destroyResultBuf(pRuntimeEnv->pResultBuf);
   doFreeQueryHandle(pRuntimeEnv);
 
+  destroyTsComp(pRuntimeEnv, pQuery);
+  
   pRuntimeEnv->pTsBuf = tsBufDestroy(pRuntimeEnv->pTsBuf);
 
   tfree(pRuntimeEnv->keyBuf);
@@ -6863,6 +6876,7 @@ int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
       }
 
       fclose(f);
+      *(FILE **)pColInfoData->pData = NULL;
     }
 
     // all data returned, set query over
