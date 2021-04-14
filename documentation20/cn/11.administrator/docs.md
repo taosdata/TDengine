@@ -463,7 +463,7 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 
 | 关键字列表 |             |              |            |           |
 | ---------- | ----------- | ------------ | ---------- | --------- |
-| ABLOCKS    | CONNECTIONS | GT           | MNODES     | SLIDING   |
+| ABLOCKS    | CONNECTIONS | HAVING       | MNODES     | SLIDING   |
 | ABORT      | COPY        | ID           | MODULES    | SLIMIT    |
 | ACCOUNT    | COUNT       | IF           | NCHAR      | SMALLINT  |
 | ACCOUNTS   | CREATE      | IGNORE       | NE         | SPREAD    |
@@ -499,5 +499,5 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 | CONCAT     | GLOB        | METRICS      | SET        | VIEW      |
 | CONFIGS    | GRANTS      | MIN          | SHOW       | WAVG      |
 | CONFLICT   | GROUP       | MINUS        | SLASH      | WHERE     |
-| CONNECTION |             |              |            |           |
+| CONNECTION | GT          |              |            |           |
 
