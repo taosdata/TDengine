@@ -106,7 +106,7 @@ $ root@cdf548465318:~/TDengine-server-2.0.13.0# taosdemo
 
 回车后，该命令将新建一个数据库 test，并且自动创建一张超级表 meters，并以超级表 meters 为模版创建了 1 万张表，表名从 "t0" 到 "t9999"。每张表有 10 万条记录，每条记录有 f1，f2，f3 三个字段，时间戳 ts 字段从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:41:39 999"。每张表带有 areaid 和 loc 两个标签 TAG，areaid 被设置为 1 到 10，loc 被设置为 "beijing" 或 "shanghai"。
 
-3，运行 taodemo 命令的结果，可以进入 TDengine 终端，进行验证。
+3，进入 TDengine 终端，查看 taosdemo 生成的数据。
 
 - **进入命令行。**
 
