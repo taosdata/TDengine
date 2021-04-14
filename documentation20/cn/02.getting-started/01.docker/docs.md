@@ -201,7 +201,7 @@ $ curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
 - 第一条命令，启动一个运行了 TDengine 的 docker 容器，并且将容器的 6041 端口映射到宿主机的 6041 端口上。
 - 第二条命令，通过 RESTful 接口访问 TDengine，这时连接的是本机的 6041 端口，可见连接成功。
 
-注意：在这个示例中，出于方便性考虑，只映射了 RESTful 需要的 6041 端口。如果希望以非 RESTful 方式连接 TDengine 服务，则需要映射从 6030 开始的共 11 个端口。在例子中，挂载本地目录也只是处理了配置文件所在的 /etc/taos 目录，而没有挂载数据存储目录。
+注意：在这个示例中，出于方便性考虑，只映射了 RESTful 需要的 6041 端口。如果希望以非 RESTful 方式连接 TDengine 服务，则需要映射从 6030 开始的共 11 个端口（完整的端口情况请参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)）。在例子中，挂载本地目录也只是处理了配置文件所在的 /etc/taos 目录，而没有挂载数据存储目录。
 
 2，直接通过 exec 命令，进入到 docker 容器中去做开发。也即，把程序代码放在 TDengine 服务端所在的同一个 Docker 容器中，连接容器本地的 TDengine 服务。
 
