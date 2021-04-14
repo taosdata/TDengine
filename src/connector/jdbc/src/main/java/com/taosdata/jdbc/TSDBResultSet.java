@@ -203,7 +203,11 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
         this.lastWasNull = this.rowData.wasNull(columnIndex - 1);
         if (!lastWasNull) {
-            res = this.rowData.getLong(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
+            Object value = this.rowData.get(columnIndex - 1);
+            if (value instanceof Timestamp)
+                res = ((Timestamp) value).getTime();
+            else
+                res = this.rowData.getLong(columnIndex - 1, this.columnMetaDataList.get(columnIndex - 1).getColType());
         }
         return res;
     }
