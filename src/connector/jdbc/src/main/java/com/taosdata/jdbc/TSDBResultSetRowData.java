@@ -14,8 +14,6 @@
  *****************************************************************************/
 package com.taosdata.jdbc;
 
-import com.sun.tools.corba.se.idl.constExpr.Times;
-
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.sql.Timestamp;
