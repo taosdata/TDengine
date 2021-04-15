@@ -706,7 +706,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     if (strcmp(argv[i], "-f") == 0) {
       arguments->metaFile = argv[++i];
     } else if (strcmp(argv[i], "-c") == 0) {
-      tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
+      tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
 
     } else if (strcmp(argv[i], "-h") == 0) {
       arguments->host = argv[++i];
@@ -3528,7 +3528,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      /*
       cJSON* batchCreateTbl = cJSON_GetObjectItem(stbInfo, "batch_create_tbl_num");
       if (batchCreateTbl && batchCreateTbl->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].batchCreateTableNum = batchCreateTbl->valueint;
@@ -3538,7 +3537,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         printf("ERROR: failed to read json, batch_create_tbl_num not found\n");
         goto PARSE_OVER;
       }
-      */
 
       cJSON *childTblExists = cJSON_GetObjectItem(stbInfo, "child_table_exists"); // yes, no
       if (childTblExists

@@ -10,7 +10,9 @@ TDengine软件分为服务器、客户端和报警模块三部分，目前2.0版
 
 ### 通过Docker容器运行
 
-请参考[TDengine官方Docker镜像的发布、下载和使用](https://www.taosdata.com/blog/2020/05/13/1509.html)
+暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 Mac OSX 和 Windows 环境下尝试 TDengine。
+
+详细操作方法请参照 [通过Docker快速体验TDengine](https://www.taosdata.com/cn/documentation/getting-started/docker)。
 
 ### <a class="anchor" id="package-install"></a>通过安装包安装
 
