@@ -41,7 +41,6 @@ callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long lon
 #if 0
     char                   timestr[64];
 #endif
-    char                  *cp;
     short                 *sp;
     long long             *llp;
     int                   *ip;
@@ -151,28 +150,13 @@ callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long lon
 
                 if (dataOutput) {
                     switch(otype) {
-                    case TSDB_DATA_TYPE_BOOL:
-                    case TSDB_DATA_TYPE_TINYINT:
-                        cp = &dataOutput[valid++];
-                        *cp = (char) cbp->history.samples[cbp->history.count + index];
-                        break;
-                    case TSDB_DATA_TYPE_SMALLINT:
-                        sp = (short *) &dataOutput[valid];
-                        valid += 2;
-                        *sp = (short) cbp->history.samples[cbp->history.count + index];
-                        break;
-                    case TSDB_DATA_TYPE_INT:
-                        ip = (int *) &dataOutput[valid];
-                        valid += 4;
-                        *ip = (int) cbp->history.samples[cbp->history.count + index];
-                        break;
                     case TSDB_DATA_TYPE_TIMESTAMP:
                         llp = (long long *) &dataOutput[valid];
                         valid += 8;
-                        *llp = (long long) cbp->history.samples[cbp->history.count + index];
+                        *llp = (long long) cbp->history.time[cbp->history.count + index];
                         break;
                     default:
-                        return;
+                        break;
                     }
                 }
 
@@ -188,28 +172,13 @@ callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long lon
         } else {
             if (dataOutput) {
                 switch(otype) {
-                case TSDB_DATA_TYPE_BOOL:
-                case TSDB_DATA_TYPE_TINYINT:
-                    cp = &dataOutput[valid++];
-                    *cp = (char) amps[index];
-                    break;
-                case TSDB_DATA_TYPE_SMALLINT:
-                    sp = (short *) &dataOutput[valid];
-                    valid += 2;
-                    *sp = (short) amps[index];
-                    break;
-                case TSDB_DATA_TYPE_INT:
-                    ip = (int *) &dataOutput[valid];
-                    valid += 4;
-                    *ip = (int) amps[index];
-                    break;
                 case TSDB_DATA_TYPE_TIMESTAMP:
                     llp = (long long *) &dataOutput[valid];
                     valid += 8;
-                    *llp = (long long) amps[index];
+                    *llp = (long long) ts[index];
                     break;
                 default:
-                    return;
+                    break;
                 }
             }
 
@@ -300,6 +269,8 @@ callback_udf_func_init(SUdfInit *buf)
         return -1;
     }
 
+    memset(buf->ptr, 0, sizeof(cb_udf_params_t));
+
     return 0;
 }
 
@@ -315,9 +286,11 @@ callback_udf_func_destroy(SUdfInit *buf)
     }
 
     cbp = (cb_udf_params_t *) buf->ptr;
-
+    
     mem = cbp->memory;
-    free_FilterPicker5_Memory(&mem);
+    if (mem) {
+        free_FilterPicker5_Memory(&mem);
+    }
 
     free(buf->ptr);
     buf->ptr = NULL;
