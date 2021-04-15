@@ -199,7 +199,7 @@ void updateBuffer(Command *cmd) {
 }
 
 int isReadyGo(Command *cmd) {
-  char total[MAX_COMMAND_SIZE];
+  char *total = malloc(MAX_COMMAND_SIZE);
   memset(total, 0, MAX_COMMAND_SIZE);
   sprintf(total, "%s%s", cmd->buffer, cmd->command);
 
