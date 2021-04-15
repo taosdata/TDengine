@@ -4801,6 +4801,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
   int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
 
+  if (interlaceRows > insertRows)
+        interlaceRows = insertRows;
+
   if (interlaceRows > g_args.num_of_RPR)
     interlaceRows = g_args.num_of_RPR;
 
@@ -4848,9 +4851,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int64_t startTime = pThreadInfo->start_time;
 
   assert(pThreadInfo->ntables > 0);
-
-  if (interlaceRows > g_args.num_of_RPR)
-        interlaceRows = g_args.num_of_RPR;
 
   int batchPerTbl = interlaceRows;
 
