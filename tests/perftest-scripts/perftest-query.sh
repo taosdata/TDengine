@@ -40,8 +40,8 @@ function buildTDengine {
 
 	git remote update > /dev/null
 	git reset --hard HEAD
-	git checkout develop
-	REMOTE_COMMIT=`git rev-parse --short remotes/origin/develop`
+	git checkout master
+	REMOTE_COMMIT=`git rev-parse --short remotes/origin/master`
 	LOCAL_COMMIT=`git rev-parse --short @`
 
 	echo " LOCAL: $LOCAL_COMMIT"
