@@ -1,24 +1,33 @@
-local Pipeline(version, arch) = {
-  kind: "pipeline",
-  name: "test-on-"+arch,
-  platform: {
-    arch: arch,
-  }
-  steps: [
-    {
-      name: "test",
-      image: "gcc",
-      commands: [
-        "./configure",
-        "make",
-        "make test"
-      ]
-    }
-  ]
-};
+---
+kind: pipeline
+name: test-on-amd64
 
-[
-  Pipeline("arm"),
-  Pipeline("arm64"),
-  Pipeline("amd64"),
-]
+platform:
+  arch: amd64
+
+steps:
+- name: test
+  image: gcc
+  commands:
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make
+
+---
+kind: pipeline
+name: test-on-arm64
+
+platform:
+  arch: arm64
+
+steps:
+- name: test
+  image: gcc
+  commands:
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make
+
+---
