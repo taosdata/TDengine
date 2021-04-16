@@ -206,8 +206,12 @@ int isReadyGo(Command *cmd) {
   char *reg_str =
       "(^.*;\\s*$)|(^\\s*$)|(^\\s*exit\\s*$)|(^\\s*q\\s*$)|(^\\s*quit\\s*$)|(^"
       "\\s*clear\\s*$)";
-  if (regex_match(total, reg_str, REG_EXTENDED | REG_ICASE)) return 1;
+  if (regex_match(total, reg_str, REG_EXTENDED | REG_ICASE)) {
+    free(total);
+    return 1;
+  }
 
+  free(total);
   return 0;
 }
 
