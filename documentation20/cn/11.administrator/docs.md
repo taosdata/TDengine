@@ -149,7 +149,7 @@ TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数�
 - maxTablesPerVnode: 每个vnode中能够创建的最大表个数。默认值：1000000。
 - maxVgroupsPerDb: 每个数据库中能够使用的最大vgroup个数。
 - arbitrator: 系统中裁决器的end point，缺省为空。
-- timezone、locale、charset 的配置见客户端配置。（2.0.19.1 及以上的版本里，集群中加入新节点已不要求 locale 和 charset 参数取值一致）
+- timezone、locale、charset 的配置见客户端配置。（2.0.20.0 及以上的版本里，集群中加入新节点已不要求 locale 和 charset 参数取值一致）
 
 为方便调试，可通过SQL语句临时调整每个dnode的日志配置，系统重启后会失效：
 
