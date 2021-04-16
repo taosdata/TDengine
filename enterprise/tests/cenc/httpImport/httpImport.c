@@ -85,7 +85,8 @@ int main(int argc, char *argv[])
     int              np;
     int              id;
     int              offset;
-    int              iretry  = 1;
+    int              iretry  = 0;
+    int              icount  = 0;
     TAOS            *taos    = NULL;
     TAOS_RES        *res     = NULL;
     char             cmd[MAX_TSQL_LEN];
@@ -97,6 +98,7 @@ int main(int argc, char *argv[])
     const char      *port    = "6030";
     const char      *topic   = "packet";
     const char      *retry   = NULL;
+    const char      *count   = NULL;
     char            *base64;
     uint64_t         hash;
 #else
@@ -105,7 +107,7 @@ int main(int argc, char *argv[])
 #endif 
 
 #if !defined(HTTP_IMPORT_DEBUG)
-    while ((opt = getopt(argc, argv, "l:L:i:h:u:p:P:t:r:")) != -1) {   
+    while ((opt = getopt(argc, argv, "l:L:i:h:u:p:P:t:r:c:")) != -1) {   
         switch (opt) {
         case 'l':
             login = strdup(optarg);
@@ -134,8 +136,11 @@ int main(int argc, char *argv[])
         case 'r':
             retry = strdup(optarg);
             break;
+        case 'c':
+            count = strdup(optarg);
+            break;
         default:
-	    fprintf(stderr, "Usage: %s -i url[ -l login -L logout -h host -u user -P port -t topic -r retry]\r\n", argv[0]);
+	    fprintf(stderr, "Usage: %s -i url[ -l login -L logout -h host -u user -P port -t topic -r <on|off> -c count]\r\n", argv[0]);
 	    exit(1);
         }
     }
@@ -153,11 +158,21 @@ int main(int argc, char *argv[])
 
         if (strncasecmp(retry, "on", strlen(retry)) == 0) {
           iretry = 1;
-        } else {
-          iretry = 0;
+        }
+    }
+
+    if (iretry == 0) {
+        if (count) {
+            fprintf(stderr, "-r option not specified or retry specified as \"off\", -c option ignored!\r\n");
         }
     } else {
-        retry = "on";
+        if (count) {
+            icount = (int) strtol(count, NULL, 10);
+            if (errno == EINVAL || errno == ERANGE || icount < 0) {
+                fprintf(stderr, "the option -c with invalid number!\r\n");
+                exit(1);
+            }
+        }
     }
 
     numport = strtol(port, NULL, 10);
@@ -175,6 +190,7 @@ int main(int argc, char *argv[])
     fprintf(stderr, "# Port:                                  %s\r\n", port);
     fprintf(stderr, "# Topic:                                 %s\r\n", topic);
     fprintf(stderr, "# Retry:                                 %s\r\n", retry);
+    fprintf(stderr, "# Retry Count:                           %s\r\n", count);
     fprintf(stderr, "################################################################\r\n");
 #else
     while ((opt = getopt(argc, argv, "i:o:")) != -1) {   
@@ -378,7 +394,14 @@ failed:
 #endif
 
     if (iretry == 1) {
-      goto retry;
+      if (count) {
+        if (icount > 0) {
+          icount--;
+          goto retry;
+        }
+      } else {
+        goto retry;
+      }
     }
 
     return 0;
@@ -395,20 +418,25 @@ seed_net_open(SNETIO *io, const char *login, const char *url)
         return -1;
     }
 
-    io->curl = curl_easy_init();
-    if (io->curl == NULL) {
-        fprintf(stderr, "failed to initialize curl\r\n");
-        exit(1);
-    }
-
     if (login) {
+        io->curl = curl_easy_init();
+        if (io->curl == NULL) {
+            fprintf(stderr, "failed to initialize curl for login\r\n");
+            exit(1);
+        }
+
         /* Set Login URL */
         if (curl_easy_setopt(io->curl, CURLOPT_URL, login) != CURLE_OK) {
             fprintf(stderr, "could not set CURLOPT_URL: %s\r\n", login);
             goto failed;
         }
 
-        if (curl_easy_setopt(io->curl, CURLOPT_COOKIEFILE, "/tmp/mycookie") != CURLE_OK) {
+        if (curl_easy_setopt(io->curl, CURLOPT_COOKIEJAR, "/tmp/cookies.txt") != CURLE_OK) {
+            fprintf(stderr, "could not set CURLOPT_COOKIEJAR\r\n");
+            goto failed;
+        }
+
+        if (curl_easy_setopt(io->curl, CURLOPT_COOKIEFILE, "/tmp/cookies.txt") != CURLE_OK) {
             fprintf(stderr, "could not set CURLOPT_COOKIEFILE\r\n");
             goto failed;
         }
@@ -418,6 +446,14 @@ seed_net_open(SNETIO *io, const char *login, const char *url)
             fprintf(stderr, "curl perform failed for login: %s\n", curl_easy_strerror(res));
             goto failed;
         }
+
+        curl_easy_cleanup(io->curl);
+    }
+
+    io->curl = curl_easy_init();
+    if (io->curl == NULL) {
+        fprintf(stderr, "failed to initialize curl\r\n");
+        exit(1);
     }
 
     /* Set URL */
@@ -480,6 +516,15 @@ seed_net_open(SNETIO *io, const char *login, const char *url)
     return 0;
 
 failed:
+    if (io->curl) {
+        if (io->curlm) {
+            curl_multi_remove_handle(io->curlm, io->curl);
+            curl_multi_cleanup(io->curlm);
+        }
+
+        curl_easy_cleanup(io->curl);
+    }
+
     return -1;
 }
 
@@ -588,7 +633,7 @@ seed_net_close(SNETIO *io, const char *logout)
         }
 
         if (io->curlm) {
-            curl_multi_remove_handle (io->curlm, io->curl);
+            curl_multi_remove_handle(io->curlm, io->curl);
             curl_multi_cleanup(io->curlm);
         }
 
