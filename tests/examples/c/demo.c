@@ -66,7 +66,7 @@ int main(int argc, char *argv[]) {
     printf("failed to connect to server, reason:%s\n", "null taos"/*taos_errstr(taos)*/);
     exit(1);
   }
-  for (int i = 0; i < 4000000; i++) {
+  for (int i = 0; i < 100; i++) {
     Test(taos, qstr, i);
   }
   taos_close(taos);
