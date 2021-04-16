@@ -99,11 +99,10 @@ int32_t executeSQL(TAOS *conn, char *sql, ResultInfo *pRes) {
     return -1;
   }
 
-  char        temp[4096 + 512 + 1] = {0};
   int         num_fields = taos_field_count(pSql);
   TAOS_FIELD *fields = taos_fetch_fields(pSql);
 
-  displayData(pSql, num_fields, fields, temp, pRes);
+  displayData(pSql, num_fields, fields);
   taos_free_result(pSql);
   return 0;
 }
@@ -183,7 +182,7 @@ void printRow(char *temp, int32_t num_fields, TAOS_FIELD *fields, TAOS_ROW row) 
 //  pRes->pVal = realloc(pRes->pVal, pRes->numOfCols * pRes->numOfRows * sizeof(tVariant));
 //}
 
-void displayData(void *result, int32_t num_fields, TAOS_FIELD *fields, char *temp, ResultInfo *pRes) {
+void displayData(void *result, int32_t num_fields, TAOS_FIELD *fields) {
   TAOS_ROW row = NULL;
   int64_t  numOfRows = 0;
 
@@ -200,8 +199,9 @@ void displayData(void *result, int32_t num_fields, TAOS_FIELD *fields, char *tem
 
   printf("%s\n", field);
 
+  char temp[4096 + 512 + 1] = {0};
   while ((row = taos_fetch_row(result))) {
-    temp[0] = 0;
+    memset(temp, 0, sizeof(temp)/sizeof(temp[0]));
     numOfRows++;
 
     taos_print_row(temp, row, fields, num_fields);

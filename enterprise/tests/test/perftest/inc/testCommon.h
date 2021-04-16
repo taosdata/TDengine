@@ -14,7 +14,7 @@ typedef struct {
 
 int32_t executeSQL(TAOS *conn, char *sql, ResultInfo* pRes);
 void    createEnvironment(TAOS *conn, int32_t count, int32_t insertTbl, int32_t pointsPerTbl, int64_t timeDelta);
-void    displayData(void* result, int32_t num_fields, TAOS_FIELD* fields, char* temp, ResultInfo* pRes);
+void    displayData(void* result, int32_t num_fields, TAOS_FIELD* fields);
 void    setResultInfo(ResultInfo* pRes, int32_t col, int32_t row);
 TAOS*   connectdb();
 
