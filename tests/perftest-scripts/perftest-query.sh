@@ -40,8 +40,8 @@ function buildTDengine {
 
 	git remote update > /dev/null
 	git reset --hard HEAD
-	git checkout develop
-	REMOTE_COMMIT=`git rev-parse --short remotes/origin/develop`
+	git checkout master
+	REMOTE_COMMIT=`git rev-parse --short remotes/origin/master`
 	LOCAL_COMMIT=`git rev-parse --short @`
 
 	echo " LOCAL: $LOCAL_COMMIT"
@@ -73,6 +73,9 @@ function runQueryPerfTest {
 	python3 insert/insertFromCSVPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
 	
 	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT | tee -a $PERFORMANCE_TEST_REPORT
+
+	python3 perfbenchmark/joinPerformance.py  | tee -a $PERFORMANCE_TEST_REPORT
+	
 }
 
 
