@@ -6326,7 +6326,7 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex) {
 
   int32_t totalBufSize = 1024;
 
-  char    str[1024] = {0};
+  char    str[1024+1] = {0};
   int32_t offset = 0;
 
   offset += sprintf(str, "num:%d [", size);
