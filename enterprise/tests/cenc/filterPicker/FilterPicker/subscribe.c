@@ -227,7 +227,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
   nstime_t               dtime;
   char                   sid[LM_SIDLEN];
   char                   net[LM_SIDLEN], stat[LM_SIDLEN], loc[LM_SIDLEN], chan[LM_SIDLEN];
-#if 1
+#if 0
   char                   timestr[64];
 #endif
   cenc_samples_t         samps;
@@ -381,7 +381,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
 
           np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%ld, now) ",
                         (int64_t) (h->history[h->count + index] * 0.001 * 0.001));
-#if 1
+#if 0
       ms_nstime2timestrz(h->history[h->count + index], timestr, ISOMONTHDAY, MICRO);
       fprintf(stderr, "%s\n", timestr);
 #endif
@@ -389,7 +389,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
       } else {
         np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%ld, now) ",
                       (int64_t) (samps.time[index] * 0.001 * 0.001));
-#if 1
+#if 0
       ms_nstime2timestrz(samps.time[index], timestr, ISOMONTHDAY, MICRO);
       fprintf(stderr, "%s\n", timestr);
 #endif
@@ -441,8 +441,8 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
         *pos++ = ';';
         *pos++ = '\0';
 
-        //res = taos_query(p->res_taos, cmd);
-        //check_and_free_res(&res, cmd);
+        res = taos_query(p->res_taos, cmd);
+        check_and_free_res(&res, cmd);
       }
     }
 
