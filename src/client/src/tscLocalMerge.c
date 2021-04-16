@@ -327,7 +327,6 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   pMerger->pCtx = (SQLFunctionCtx *)calloc(tscSqlExprNumOfExprs(pQueryInfo), sizeof(SQLFunctionCtx));
   pMerger->rowSize = pMemBuffer[0]->nElemSize;
 
-//  tscRestoreFuncForSTableQuery(pQueryInfo);
   tscFieldInfoUpdateOffset(pQueryInfo);
 
   if (pMerger->rowSize > pMemBuffer[0]->pageSize) {

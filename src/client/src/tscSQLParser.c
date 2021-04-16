@@ -3379,9 +3379,9 @@ static int32_t getColumnQueryCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSq
 static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr) {
   int32_t code = 0;
   const char* msg1 = "timestamp required for join tables";
+  const char* msg2 = "only support one join tag for each table";
   const char* msg3 = "type of join columns must be identical";
   const char* msg4 = "invalid column name in join condition";
-  const char* msg5 = "only support one join tag for each table";
 
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
@@ -3415,11 +3415,14 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
   (*leftNode)->tagColId = pTagSchema1->colId;
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+
     index.columnIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
     if (!tscColumnExists(pTableMetaInfo->tagColList, index.columnIndex, pTableMetaInfo->pTableMeta->id.uid)) {
-//      tscColumnListInsert(pTableMetaInfo->tagColList, &index, );
+      tscColumnListInsert(pTableMetaInfo->tagColList, index.columnIndex, pTableMeta->id.uid, pTagSchema1);
+
       if (taosArrayGetSize(pTableMetaInfo->tagColList) > 1) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
     }
   }
@@ -3451,7 +3454,7 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
 
       tscColumnListInsert(pTableMetaInfo->tagColList, index.columnIndex, pTableMeta->id.uid, pTagSchema2);
       if (taosArrayGetSize(pTableMetaInfo->tagColList) > 1) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
     }
   }

@@ -2353,7 +2353,7 @@ STableMetaInfo* tscAddTableMetaInfo(SQueryInfo* pQueryInfo, SName* name, STableM
   }
 
   if (pTagCols != NULL) {
-    tscColumnListCopy(pTableMetaInfo->tagColList, pTagCols, -1);
+    tscColumnListCopy(pTableMetaInfo->tagColList, pTagCols, pTableMetaInfo->pTableMeta->id.uid);
   }
 
   pTableMetaInfo->pVgroupTables = tscVgroupTableInfoDup(pVgroupTables);
@@ -2584,8 +2584,9 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;
   }
-  
-  tscColumnListCopy(pNewQueryInfo->colList, pQueryInfo->colList, (int16_t)tableIndex);
+
+  uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
+  tscColumnListCopy(pNewQueryInfo->colList, pQueryInfo->colList, uid);
 
   // set the correct query type
   if (pPrevSql != NULL) {
@@ -2595,7 +2596,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
     TSDB_QUERY_SET_TYPE(pNewQueryInfo->type, TSDB_QUERY_TYPE_SUBQUERY);// it must be the subquery
   }
 
-  uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
   if (tscSqlExprCopy(pNewQueryInfo->exprList, pQueryInfo->exprList, uid, true) != 0) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto _error;

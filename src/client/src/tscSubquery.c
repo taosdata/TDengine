@@ -604,7 +604,7 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
      * during the timestamp intersection.
      */
     pSupporter->limit = pQueryInfo->limit;
-    pQueryInfo->limit = pSupporter->limit;
+//    pQueryInfo->limit = pSupporter->limit;
 
     SColumnIndex index = {.tableIndex = 0, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
     SSchema* s = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, 0);
@@ -3239,9 +3239,11 @@ static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t column
   assert(pInfo->pExpr->pExpr == NULL);
 
   *bytes = pInfo->pExpr->base.resBytes;
-  char* pData = pRes->data + pInfo->pExpr->base.offset * pRes->numOfRows + pRes->row * (*bytes);
-
-  return pData;
+  if (pRes->data != NULL) {
+    return pRes->data + pInfo->pExpr->base.offset * pRes->numOfRows + pRes->row * (*bytes);
+  } else {
+    return pRes->urow[columnIndex] + pRes->row * (*bytes);
+  }
 }
 
 static void doBuildResFromSubqueries(SSqlObj* pSql) {
@@ -3265,6 +3267,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     return;
   }
 
+  tscRestoreFuncForSTableQuery(pQueryInfo);
   int32_t rowSize = tscGetResRowLength(pQueryInfo->exprList);
 
   assert(numOfRes * rowSize > 0);
@@ -3283,6 +3286,19 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
   char* data = pRes->data;
 
   int16_t bytes = 0;
+
+  tscRestoreFuncForSTableQuery(pQueryInfo);
+  tscFieldInfoUpdateOffset(pQueryInfo);
+  for (int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
+    SSqlObj* pSub = pSql->pSubs[i];
+    if (pSub == NULL) {
+      continue;
+    }
+
+    SQueryInfo* pSubQueryInfo = pSub->cmd.pQueryInfo[0];
+    tscRestoreFuncForSTableQuery(pSubQueryInfo);
+    tscFieldInfoUpdateOffset(pSubQueryInfo);
+  }
 
   size_t numOfExprs = tscSqlExprNumOfExprs(pQueryInfo);
   for(int32_t i = 0; i < numOfExprs; ++i) {
