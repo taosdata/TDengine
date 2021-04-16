@@ -1608,7 +1608,7 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
 
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelectList, bool isSTable, bool joinQuery, bool timeWindowQuery) {
   assert(pSelectList != NULL && pCmd != NULL);
-
+  const char* msg1 = "too many columns in selection clause";
   const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "not support query expression";
   const char* msg5 = "invalid function name";
@@ -1657,7 +1657,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelectLis
     }
 
     if (pQueryInfo->fieldsInfo.numOfOutput > TSDB_MAX_COLUMNS) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
   }
 
