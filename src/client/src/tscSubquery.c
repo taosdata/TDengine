@@ -451,25 +451,6 @@ static void tscDestroyJoinSupporter(SJoinSupporter* pSupporter) {
   free(pSupporter);
 }
 
-/*
- * need the secondary query process
- * In case of count(ts)/count(*)/spread(ts) query, that are only applied to
- * primary timestamp column , the secondary query is not necessary
- *
- */
-static UNUSED_FUNC bool needSecondaryQuery(SQueryInfo* pQueryInfo) {
-  size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
-  
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumn* base = taosArrayGet(pQueryInfo->colList, i);
-    if (base->colIndex.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 static void filterVgroupTables(SQueryInfo* pQueryInfo, SArray* pVgroupTables) {
   int32_t  num = 0;
   int32_t* list = NULL;
@@ -598,10 +579,12 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
 
     tscTagCondCopy(&pQueryInfo->tagCond, &pSupporter->tagCond);
 
-    pQueryInfo->colList = pSupporter->colList;
-    pQueryInfo->exprList = pSupporter->exprList;
-    pQueryInfo->fieldsInfo = pSupporter->fieldsInfo;
+    pQueryInfo->colList     = pSupporter->colList;
+    pQueryInfo->exprList    = pSupporter->exprList;
+    pQueryInfo->fieldsInfo  = pSupporter->fieldsInfo;
     pQueryInfo->groupbyExpr = pSupporter->groupInfo;
+    pQueryInfo->pUpstream   = taosArrayInit(4, sizeof(POINTER_BYTES));
+    pQueryInfo->pDownstream = taosArrayInit(4, sizeof(POINTER_BYTES));
 
     assert(pNew->subState.numOfSub == 0 && pNew->cmd.numOfClause == 1 && pQueryInfo->numOfTables == 1);
   
@@ -1868,11 +1851,10 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
     assert(pNewQueryInfo != NULL);
     
     // update the table index
-    size_t num = taosArrayGetSize(pNewQueryInfo->colList);
-    for (int32_t i = 0; i < num; ++i) {
-      SColumn* pCol = taosArrayGetP(pNewQueryInfo->colList, i);
-      pCol->colIndex.tableIndex = 0;
-    }
+//    size_t num = taosArrayGetSize(pNewQueryInfo->colList);
+//    for (int32_t i = 0; i < num; ++i) {
+//      SColumn* pCol = taosArrayGetP(pNewQueryInfo->colList, i);
+//    }
     
     pSupporter->colList = pNewQueryInfo->colList;
     pNewQueryInfo->colList = NULL;
@@ -2402,9 +2384,7 @@ int32_t tscHandleFirstRoundStableQuery(SSqlObj *pSql) {
     }
   }
 
-  SColumnIndex columnIndex = {.tableIndex = 0, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-  tscInsertPrimaryTsSourceColumn(pNewQueryInfo, &columnIndex);
-
+  tscInsertPrimaryTsSourceColumn(pNewQueryInfo, pTableMetaInfo->pTableMeta->id.uid);
   tscTansformFuncForSTableQuery(pNewQueryInfo);
 
   tscDebug(
@@ -2791,7 +2771,10 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   tscFreeRetrieveSup(pSql);
 
   // set the command flag must be after the semaphore been correctly set.
-  pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
+  if (pParentSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
+  }
+
   if (pParentSql->res.code == TSDB_CODE_SUCCESS) {
     (*pParentSql->fp)(pParentSql->param, pParentSql, 0);
   } else {

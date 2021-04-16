@@ -705,10 +705,11 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
     return TSDB_CODE_TSC_INVALID_TABLE_NAME;
   }
 
-  if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
-    tscError("%p table schema is not matched with parsed sql", addr);
-    return TSDB_CODE_TSC_INVALID_SQL;
-  }
+  //TODO disable it temporarily
+//  if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
+//    tscError("%p table schema is not matched with parsed sql", addr);
+//    return TSDB_CODE_TSC_INVALID_SQL;
+//  }
 
   assert(pExpr->resColId < 0);
   SSqlExpr* pSqlExpr = (SSqlExpr *)(*pMsg);
@@ -777,13 +778,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->tableScanOperator = htonl(*tablescanOp);
   }
 
-  if (query.order.order == TSDB_ORDER_ASC) {
-    pQueryMsg->window.skey = htobe64(query.window.skey);
-    pQueryMsg->window.ekey = htobe64(query.window.ekey);
-  } else {
-    pQueryMsg->window.skey = htobe64(query.window.ekey);
-    pQueryMsg->window.ekey = htobe64(query.window.skey);
-  }
+  pQueryMsg->window.skey = htobe64(query.window.skey);
+  pQueryMsg->window.ekey = htobe64(query.window.ekey);
 
   pQueryMsg->order          = htons(query.order.order);
   pQueryMsg->orderColId     = htons(query.order.orderColId);
@@ -1594,9 +1590,6 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   }
 
   uint64_t localQueryId = 0;
-//  SMultiwayMergeInfo* pInfo = (SMultiwayMergeInfo*) pQueryInfo->pQInfo->runtimeEnv.proot->info;
-//  pInfo->pMerge = pRes->pLocalMerger;
-
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
   SSDataBlock* p = pQueryInfo->pQInfo->runtimeEnv.outputBuf;
   pRes->numOfRows = (p != NULL)? p->info.rows: 0;
@@ -2108,10 +2101,11 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   
   SColumnIndex index = {0};
   pSchema = pMetaMsg->schema;
-  
+
+  uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
   for (int16_t i = 0; i < pMetaMsg->numOfColumns; ++i, ++pSchema) {
     index.columnIndex = i;
-    tscColumnListInsert(pQueryInfo->colList, &index, &pSchema[i]);
+    tscColumnListInsert(pQueryInfo->colList, i, uid, &pSchema[i]);
     
     TAOS_FIELD f = tscCreateField(pSchema->type, pSchema->name, pSchema->bytes);
     SInternalField* pInfo = tscFieldInfoAppend(pFieldInfo, &f);

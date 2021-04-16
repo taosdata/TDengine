@@ -598,7 +598,7 @@ static SColumnInfo* extractColumnInfoFromResult(STableMeta* pTableMeta, SArray* 
   SSchema *pSchema = pTableMeta->schema;
   for(int32_t i = 0; i < numOfCols; ++i) {
     SColumn* pCol = taosArrayGetP(pTableCols, i);
-    int32_t index = pCol->colIndex.columnIndex;
+    int32_t index = pCol->columnIndex;
 
     pColInfo[i].type  = pSchema[index].type;
     pColInfo[i].bytes = pSchema[index].bytes;
@@ -613,7 +613,7 @@ typedef struct SDummyInputInfo {
   SSqlRes        *pRes;  // refactor: remove it
 } SDummyInputInfo;
 
-SSDataBlock* doGetDataBlock(void* param) {
+SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
   SOperatorInfo *pOperator = (SOperatorInfo*) param;
 
   SDummyInputInfo *pInput = pOperator->info;
@@ -634,6 +634,7 @@ SSDataBlock* doGetDataBlock(void* param) {
   }
 
   pInput->pRes->numOfRows = 0;
+  *newgroup = false;
   return pBlock;
 }
 
@@ -1601,19 +1602,18 @@ int32_t tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepco
   return 0;
 }
 
-bool tscColumnExists(SArray* pColumnList, SColumnIndex* pColIndex) {
+bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid) {
   // ignore the tbname columnIndex to be inserted into source list
-  if (pColIndex->columnIndex < 0) {
+  if (columnIndex < 0) {
     return false;
   }
 
   size_t numOfCols = taosArrayGetSize(pColumnList);
-  int16_t col = pColIndex->columnIndex;
 
   int32_t i = 0;
   while (i < numOfCols) {
     SColumn* pCol = taosArrayGetP(pColumnList, i);
-    if ((pCol->colIndex.columnIndex != col) || (pCol->colIndex.tableIndex != pColIndex->tableIndex)) {
+    if ((pCol->columnIndex != columnIndex) || (pCol->tableUid != uid)) {
       ++i;
       continue;
     } else {
@@ -1640,22 +1640,20 @@ void tscSqlExprAssign(SExprInfo* dst, const SExprInfo* src) {
   }
 }
 
-// TODO refactor
-SColumn* tscColumnListInsert(SArray* pColumnList, SColumnIndex* pColIndex, SSchema* pSchema) {
+SColumn* tscColumnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema) {
   // ignore the tbname columnIndex to be inserted into source list
-  if (pColIndex->columnIndex < 0) {
+  if (columnIndex < 0) {
     return NULL;
   }
   
   size_t numOfCols = taosArrayGetSize(pColumnList);
-  int16_t col = pColIndex->columnIndex;
 
   int32_t i = 0;
   while (i < numOfCols) {
     SColumn* pCol = taosArrayGetP(pColumnList, i);
-    if (pCol->colIndex.columnIndex < col) {
+    if (pCol->columnIndex < columnIndex) {
       i++;
-    } else if (pCol->colIndex.tableIndex < pColIndex->tableIndex) {
+    } else if (pCol->tableUid < uid) {
       i++;
     } else {
       break;
@@ -1668,22 +1666,24 @@ SColumn* tscColumnListInsert(SArray* pColumnList, SColumnIndex* pColIndex, SSche
       return NULL;
     }
 
-    b->colIndex = *pColIndex;
-    b->info.colId = pSchema->colId;
-    b->info.bytes = pSchema->bytes;
-    b->info.type  = pSchema->type;
+    b->columnIndex = columnIndex;
+    b->tableUid    = uid;
+    b->info.colId  = pSchema->colId;
+    b->info.bytes  = pSchema->bytes;
+    b->info.type   = pSchema->type;
 
     taosArrayInsert(pColumnList, i, &b);
   } else {
     SColumn* pCol = taosArrayGetP(pColumnList, i);
   
-    if (i < numOfCols && (pCol->colIndex.columnIndex > col || pCol->colIndex.tableIndex != pColIndex->tableIndex)) {
+    if (i < numOfCols && (pCol->columnIndex > columnIndex || pCol->tableUid != uid)) {
       SColumn* b = calloc(1, sizeof(SColumn));
       if (b == NULL) {
         return NULL;
       }
 
-      b->colIndex = *pColIndex;
+      b->columnIndex = columnIndex;
+      b->tableUid    = uid;
       b->info.colId = pSchema->colId;
       b->info.bytes = pSchema->bytes;
       b->info.type  = pSchema->type;
@@ -1713,7 +1713,8 @@ SColumn* tscColumnClone(const SColumn* src) {
     return NULL;
   }
 
-  dst->colIndex          = src->colIndex;
+  dst->columnIndex       = src->columnIndex;
+  dst->tableUid          = src->tableUid;
   dst->info.numOfFilters = src->info.numOfFilters;
   dst->info.filterInfo   = tFilterInfoDup(src->info.filterInfo, src->info.numOfFilters);
   dst->info.type         = src->info.type;
@@ -1727,14 +1728,14 @@ static void tscColumnDestroy(SColumn* pCol) {
   free(pCol);
 }
 
-void tscColumnListCopy(SArray* dst, const SArray* src, int16_t tableIndex) {
+void tscColumnListCopy(SArray* dst, const SArray* src, uint64_t tableUid) {
   assert(src != NULL && dst != NULL);
   
   size_t num = taosArrayGetSize(src);
   for (int32_t i = 0; i < num; ++i) {
     SColumn* pCol = taosArrayGetP(src, i);
 
-    if (pCol->colIndex.tableIndex == tableIndex || tableIndex < 0) {
+    if (pCol->tableUid == tableUid) {
       SColumn* p = tscColumnClone(pCol);
       taosArrayPush(dst, &p);
     }
@@ -2223,6 +2224,9 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
 
   taosArrayDestroy(pQueryInfo->pUpstream);
   taosArrayDestroy(pQueryInfo->pDownstream);
+
+  pQueryInfo->pUpstream = NULL;
+  pQueryInfo->pDownstream = NULL;
 }
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd) {
@@ -3339,13 +3343,24 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
     SExprInfo* pExpr = &pQueryAttr->pExpr1[i];
     SSqlExpr*  pse = &pQueryAttr->pExpr3[i].base;
 
-    *pse = pExpr->base;
+    memcpy(pse->aliasName, pExpr->base.aliasName, tListLen(pse->aliasName));
+
+    pse->uid = pExpr->base.uid;
+    pse->functionId = pExpr->base.functionId;
+    pse->resType    = pExpr->base.resType;
+    pse->resBytes   = pExpr->base.resBytes;
+    pse->interBytes = pExpr->base.interBytes;
+    pse->resColId   = pExpr->base.resColId;
+    pse->offset     = pExpr->base.offset;
+    pse->numOfParams = pExpr->base.numOfParams;
+
+    pse->colInfo    = pExpr->base.colInfo;
     pse->colInfo.colId = pExpr->base.resColId;
     pse->colInfo.colIndex = i;
 
     pse->colType = pExpr->base.resType;
     pse->colBytes = pExpr->base.resBytes;
-    pse->colInfo.flag = TSDB_COL_NORMAL;
+    pse->colInfo.flag = pExpr->base.colInfo.flag;
 
     for (int32_t j = 0; j < pExpr->base.numOfParams; ++j) {
       tVariantAssign(&pse->param[j], &pExpr->base.param[j]);
@@ -3404,9 +3419,9 @@ static int32_t createTagColumnInfo(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
   SSchema* pSchema = tscGetTableTagSchema(pTableMeta);
   for (int32_t i = 0; i < pQueryAttr->numOfTags; ++i) {
     SColumn* pCol = taosArrayGetP(pTableMetaInfo->tagColList, i);
-    SSchema* pColSchema = &pSchema[pCol->colIndex.columnIndex];
+    SSchema* pColSchema = &pSchema[pCol->columnIndex];
 
-    if ((pCol->colIndex.columnIndex >= numOfTagColumns || pCol->colIndex.columnIndex < TSDB_TBNAME_COLUMN_INDEX) ||
+    if ((pCol->columnIndex >= numOfTagColumns || pCol->columnIndex < TSDB_TBNAME_COLUMN_INDEX) ||
         (!isValidDataType(pColSchema->type))) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
@@ -3447,7 +3462,13 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->order             = pQueryInfo->order;
   pQueryAttr->fillType          = pQueryInfo->fillType;
   pQueryAttr->groupbyColumn     = tscGroupbyColumn(pQueryInfo);
-  pQueryAttr->window            = pQueryInfo->window;
+
+  if (pQueryInfo->order.order == TSDB_ORDER_ASC) {   // TODO refactor
+    pQueryAttr->window = pQueryInfo->window;
+  } else {
+    pQueryAttr->window.skey = pQueryInfo->window.ekey;
+    pQueryAttr->window.ekey = pQueryInfo->window.skey;
+  }
 
   memcpy(&pQueryAttr->interval, &pQueryInfo->interval, sizeof(pQueryAttr->interval));
 

@@ -233,14 +233,14 @@ typedef struct SQueryAttr {
   int32_t          vgId;
 } SQueryAttr;
 
-typedef SSDataBlock* (*__operator_fn_t)(void* param);
+typedef SSDataBlock* (*__operator_fn_t)(void* param, bool* newgroup);
 typedef void (*__optr_cleanup_fn_t)(void* param, int32_t num);
 
 struct SOperatorInfo;
 
 typedef struct SQueryRuntimeEnv {
   jmp_buf               env;
-  SQueryAttr*               pQueryAttr;
+  SQueryAttr*           pQueryAttr;
   uint32_t              status;           // query status
   void*                 qinfo;
   uint8_t               scanFlag;         // denotes reversed scan of data or not
@@ -411,6 +411,8 @@ typedef struct SArithOperatorInfo {
   SOptrBasicInfo binfo;
   int32_t        bufCapacity;
   uint32_t       seed;
+
+  SSDataBlock   *existDataBlock;
 } SArithOperatorInfo;
 
 typedef struct SLimitOperatorInfo {
@@ -438,6 +440,8 @@ typedef struct SFillOperatorInfo {
   SFillInfo   *pFillInfo;
   SSDataBlock *pRes;
   int64_t      totalInputRows;
+
+  SSDataBlock *existNewGroupBlock;
 } SFillOperatorInfo;
 
 typedef struct SGroupbyOperatorInfo {
@@ -494,9 +498,9 @@ SOperatorInfo* createMultiwaySortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SEx
 SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param);
 SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger);
 
-SSDataBlock* doGlobalAggregate(void* param);
-SSDataBlock* doMultiwaySort(void* param);
-SSDataBlock* doSLimit(void* param);
+SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
+SSDataBlock* doMultiwaySort(void* param, bool* newgroup);
+SSDataBlock* doSLimit(void* param, bool* newgroup);
 
 SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows);
 void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);

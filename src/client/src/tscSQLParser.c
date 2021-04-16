@@ -1399,10 +1399,9 @@ int32_t setObjFullName(char* fullName, const char* account, SStrToken* pDB, SStr
   return (totalLen < TSDB_TABLE_FNAME_LEN) ? TSDB_CODE_SUCCESS : TSDB_CODE_TSC_INVALID_SQL;
 }
 
-void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
-  SColumnIndex tsCol = {.tableIndex = pIndex->tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
+void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, uint64_t tableUid) {
   SSchema s = {.type = TSDB_DATA_TYPE_TIMESTAMP, .bytes = TSDB_KEYSIZE, .colId = PRIMARYKEY_TIMESTAMP_COL_INDEX};
-  tscColumnListInsert(pQueryInfo->colList, &tsCol, &s);
+  tscColumnListInsert(pQueryInfo->colList, PRIMARYKEY_TIMESTAMP_COL_INDEX, tableUid, &s);
 }
 
 static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t exprIndex, tSqlExprItem* pItem) {
@@ -1482,7 +1481,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t 
     insertResultField(pQueryInfo, exprIndex, &columnList, sizeof(double), TSDB_DATA_TYPE_DOUBLE, pExpr->base.aliasName, pExpr);
 
     // add ts column
-    tscInsertPrimaryTsSourceColumn(pQueryInfo, &index);
+    tscInsertPrimaryTsSourceColumn(pQueryInfo, pExpr->base.uid);
 
     tbufCloseWriter(&bw);
     taosArrayDestroy(colList);
@@ -1706,15 +1705,16 @@ int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SColumnLi
                           int8_t type, char* fieldName, SExprInfo* pSqlExpr) {
   for (int32_t i = 0; i < pColList->num; ++i) {
     int32_t tableIndex = pColList->ids[i].tableIndex;
-    STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[tableIndex];
-    
-    int32_t numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+    STableMeta* pTableMeta = pQueryInfo->pTableMetaInfo[tableIndex]->pTableMeta;
+
+    int32_t numOfCols = tscGetNumOfColumns(pTableMeta);
     if (pColList->ids[i].columnIndex >= numOfCols) {
       continue;
     }
 
-    SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
-    tscColumnListInsert(pQueryInfo->colList, &pColList->ids[i], &pSchema[pColList->ids[i].columnIndex]);
+    uint64_t uid = pTableMeta->id.uid;
+    SSchema* pSchema = tscGetTableSchema(pTableMeta);
+    tscColumnListInsert(pQueryInfo->colList, pColList->ids[i].columnIndex, uid, &pSchema[pColList->ids[i].columnIndex]);
   }
   
   TAOS_FIELD f = tscCreateField(type, fieldName, bytes);
@@ -1736,7 +1736,7 @@ SExprInfo* doAddProjectCol(SQueryInfo* pQueryInfo, int32_t colIndex, int32_t tab
   
   if (functionId == TSDB_FUNC_TAGPRJ) {
     index.columnIndex = colIndex - tscGetNumOfColumns(pTableMeta);
-    tscColumnListInsert(pTableMetaInfo->tagColList, &index, pSchema);
+    tscColumnListInsert(pTableMetaInfo->tagColList, index.columnIndex, pTableMeta->id.uid, pSchema);
   } else {
     index.columnIndex = colIndex;
   }
@@ -1765,7 +1765,7 @@ SExprInfo* tscAddFuncInSelectClause(SQueryInfo* pQueryInfo, int32_t outputColInd
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pIndex->tableIndex);
   
   if (TSDB_COL_IS_TAG(flag)) {
-    tscColumnListInsert(pTableMetaInfo->tagColList, pIndex, pColSchema);
+    tscColumnListInsert(pTableMetaInfo->tagColList, pIndex->columnIndex, pTableMetaInfo->pTableMeta->id.uid, pColSchema);
   }
 
   return pExpr;
@@ -1828,8 +1828,9 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     }
 
     // add the primary timestamp column even though it is not required by user
-    if (pQueryInfo->pTableMetaInfo[index.tableIndex]->pTableMeta->tableType != TSDB_TEMP_TABLE) {
-      tscInsertPrimaryTsSourceColumn(pQueryInfo, &index);
+    STableMeta* pTableMeta = pQueryInfo->pTableMetaInfo[index.tableIndex]->pTableMeta;
+    if (pTableMeta->tableType != TSDB_TEMP_TABLE) {
+      tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMeta->id.uid);
     }
   } else if (optr == TK_STRING || optr == TK_INTEGER || optr == TK_FLOAT) {  // simple column projection query
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
@@ -1871,7 +1872,8 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     }
 
     // add the primary timestamp column even though it is not required by user
-    tscInsertPrimaryTsSourceColumn(pQueryInfo, &index);
+    STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+    tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMetaInfo->pTableMeta->id.uid);
   } else {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
@@ -1916,16 +1918,15 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   }
   
   // for all queries, the timestamp column needs to be loaded
-  SColumnIndex index = {.tableIndex = pColIndex->tableIndex, .columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX};
   SSchema s = {.colId = PRIMARYKEY_TIMESTAMP_COL_INDEX, .bytes = TSDB_KEYSIZE, .type = TSDB_DATA_TYPE_TIMESTAMP,};
-  tscColumnListInsert(pQueryInfo->colList, &index, &s);
+  tscColumnListInsert(pQueryInfo->colList, PRIMARYKEY_TIMESTAMP_COL_INDEX, pExpr->base.uid, &s);
 
   // if it is not in the final result, do not add it
   SColumnList ids = createColumnList(1, pColIndex->tableIndex, pColIndex->columnIndex);
   if (finalResult) {
     insertResultField(pQueryInfo, resColIdx, &ids, bytes, (int8_t)type, pExpr->base.aliasName, pExpr);
   } else {
-    tscColumnListInsert(pQueryInfo->colList, &(ids.ids[0]), pSchema);
+    tscColumnListInsert(pQueryInfo->colList, ids.ids[0].columnIndex, pExpr->base.uid, pSchema);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2065,13 +2066,14 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       } else {
         for (int32_t i = 0; i < list.num; ++i) {
           SSchema* ps = tscGetTableSchema(pTableMetaInfo->pTableMeta);
-          tscColumnListInsert(pQueryInfo->colList, &list.ids[i], &ps[list.ids[i].columnIndex]);
+          tscColumnListInsert(pQueryInfo->colList, list.ids[i].columnIndex, pTableMetaInfo->pTableMeta->id.uid,
+              &ps[list.ids[i].columnIndex]);
         }
       }
 
       // the time stamp may be always needed
       if (index.tableIndex < tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
-        tscInsertPrimaryTsSourceColumn(pQueryInfo, &index);
+        tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMetaInfo->pTableMeta->id.uid);
       }
 
       return TSDB_CODE_SUCCESS;
@@ -2176,10 +2178,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
                           pExpr->base.aliasName, pExpr);
       } else {
         assert(ids.num == 1);
-        tscColumnListInsert(pQueryInfo->colList, &(ids.ids[0]), pSchema);
+        tscColumnListInsert(pQueryInfo->colList, ids.ids[0].columnIndex, pExpr->base.uid, pSchema);
       }
 
-      tscInsertPrimaryTsSourceColumn(pQueryInfo, &index);
+      tscInsertPrimaryTsSourceColumn(pQueryInfo, pExpr->base.uid);
       return TSDB_CODE_SUCCESS;
     }
     case TSDB_FUNC_FIRST:
@@ -2338,7 +2340,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       int8_t  resultType = pSchema->type;
       int16_t resultSize = pSchema->bytes;
 
-      char    val[8] = {0};
+      char val[8] = {0};
 
       SExprInfo* pExpr = NULL;
       if (functionId == TSDB_FUNC_PERCT || functionId == TSDB_FUNC_APERCT) {
@@ -2357,7 +2359,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
          * for dp = 0, it is actually min,
          * for dp = 100, it is max,
          */
-        tscInsertPrimaryTsSourceColumn(pQueryInfo, &index);
+        tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMetaInfo->pTableMeta->id.uid);
         colIndex += 1;  // the first column is ts
 
         pExpr = tscSqlExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pQueryInfo), resultSize, false);
@@ -2398,7 +2400,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         insertResultField(pQueryInfo, colIndex, &ids, resultSize, resultType, pExpr->base.aliasName, pExpr);
       } else {
         assert(ids.num == 1);
-        tscColumnListInsert(pQueryInfo->colList, &ids.ids[0], pSchema);
+        tscColumnListInsert(pQueryInfo->colList, ids.ids[0].columnIndex, pExpr->base.uid, pSchema);
       }
 
       return TSDB_CODE_SUCCESS;
@@ -2448,9 +2450,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      tscColumnListInsert(pTableMetaInfo->tagColList, &index, &pSchema[index.columnIndex]);
+      tscColumnListInsert(pTableMetaInfo->tagColList, index.columnIndex, pTableMetaInfo->pTableMeta->id.uid,
+                          &pSchema[index.columnIndex]);
       SSchema* pTagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
-      
+
       SSchema s = {0};
       if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
         s = *tGetTbnameColumnSchema();
@@ -3054,14 +3057,14 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
       taosArrayPush(pGroupExpr->columnInfo, &colIndex);
       
       index.columnIndex = relIndex;
-      tscColumnListInsert(pTableMetaInfo->tagColList, &index, pSchema);
+      tscColumnListInsert(pTableMetaInfo->tagColList, index.columnIndex, pTableMeta->id.uid, pSchema);
     } else {
       // check if the column type is valid, here only support the bool/tinyint/smallint/bigint group by
       if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP || pSchema->type == TSDB_DATA_TYPE_FLOAT || pSchema->type == TSDB_DATA_TYPE_DOUBLE) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg8);
       }
 
-      tscColumnListInsert(pQueryInfo->colList, &index, pSchema);
+      tscColumnListInsert(pQueryInfo->colList, index.columnIndex, pTableMeta->id.uid, pSchema);
       
       SColIndex colIndex = { .colIndex = index.columnIndex, .flag = TSDB_COL_NORMAL, .colId = pSchema->colId };
       taosArrayPush(pGroupExpr->columnInfo, &colIndex);
@@ -3259,7 +3262,7 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
   const char* msg2 = "binary column not support this operator";  
   const char* msg3 = "bool column not support this operator";
 
-  SColumn* pColumn = tscColumnListInsert(pQueryInfo->colList, pIndex, pSchema);
+  SColumn* pColumn = tscColumnListInsert(pQueryInfo->colList, pIndex->columnIndex, pTableMeta->id.uid, pSchema);
   SColumnFilterInfo* pColFilter = NULL;
 
   /*
@@ -3312,7 +3315,8 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
     }
   }
 
-  pColumn->colIndex = *pIndex;
+  pColumn->columnIndex = pIndex->columnIndex;
+  pColumn->tableUid = pTableMeta->id.uid;
   return doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pIndex, pExpr);
 }
 
@@ -3412,7 +3416,7 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     index.columnIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-    if (!tscColumnExists(pTableMetaInfo->tagColList, &index)) {
+    if (!tscColumnExists(pTableMetaInfo->tagColList, index.columnIndex, pTableMetaInfo->pTableMeta->id.uid)) {
 //      tscColumnListInsert(pTableMetaInfo->tagColList, &index, );
       if (taosArrayGetSize(pTableMetaInfo->tagColList) > 1) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
@@ -3441,10 +3445,11 @@ static int32_t checkAndSetJoinCondInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tS
   (*rightNode)->tagColId = pTagSchema2->colId;
 
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
-    index.columnIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
-    if (!tscColumnExists(pTableMetaInfo->tagColList, &index)) {
+    STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+    index.columnIndex = index.columnIndex - tscGetNumOfColumns(pTableMeta);
+    if (!tscColumnExists(pTableMetaInfo->tagColList, index.columnIndex, pTableMeta->id.uid)) {
 
-      tscColumnListInsert(pTableMetaInfo->tagColList, &index, pTagSchema2);
+      tscColumnListInsert(pTableMetaInfo->tagColList, index.columnIndex, pTableMeta->id.uid, pTagSchema2);
       if (taosArrayGetSize(pTableMetaInfo->tagColList) > 1) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg5);
       }
@@ -4373,7 +4378,8 @@ static int32_t getTagQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SCondE
       SColumnIndex index = {.tableIndex = i, .columnIndex = pIndex->colIndex - numOfCols};
 
       SSchema* s = tscGetTableSchema(pTableMetaInfo->pTableMeta);
-      tscColumnListInsert(pTableMetaInfo->tagColList, &index, &s[pIndex->colIndex]);
+      tscColumnListInsert(pTableMetaInfo->tagColList, index.columnIndex, pTableMetaInfo->pTableMeta->id.uid,
+                          &s[pIndex->colIndex]);
     }
     
     tsSetSTableQueryCond(&pQueryInfo->tagCond, uid, &bw);
@@ -5755,7 +5761,8 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
     if (pExpr == NULL || pExpr->base.functionId != TSDB_FUNC_TAG) {
       STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pParentQueryInfo, tableIndex);
 
-      int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, pTableMetaInfo->pTableMeta->id.uid);
+      uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
+      int16_t colId = tscGetJoinTagColIdByUid(&pQueryInfo->tagCond, uid);
 
       SSchema* pTagSchema = tscGetColumnSchemaById(pTableMetaInfo->pTableMeta, colId);
       int16_t colIndex = tscGetTagColIndexById(pTableMetaInfo->pTableMeta, colId);
@@ -5778,8 +5785,7 @@ void addGroupInfoForSubquery(SSqlObj* pParentObj, SSqlObj* pSql, int32_t subClau
       SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, 0);
       pColIndex->colIndex = relIndex;
 
-      index = (SColumnIndex) {.tableIndex = tableIndex, .columnIndex = relIndex};
-      tscColumnListInsert(pTableMetaInfo->tagColList, &index, pTagSchema);
+      tscColumnListInsert(pTableMetaInfo->tagColList, relIndex, uid, pTagSchema);
     }
   }
 }
@@ -6035,34 +6041,26 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, SSqlCmd* pCmd)
 }
 
 static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
-  const char* msg2 = "interval not allowed in group by normal column";
+  const char* msg1 = "interval not allowed in group by normal column";
 
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
-  SSchema s = *tGetTbnameColumnSchema();
   SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
-  int16_t  bytes = 0;
-  int16_t  type = 0;
-  char*    name = NULL;
+  SSchema* tagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+
+  SSchema* s = NULL;
 
   for (int32_t i = 0; i < pQueryInfo->groupbyExpr.numOfGroupCols; ++i) {
     SColIndex* pColIndex = taosArrayGet(pQueryInfo->groupbyExpr.columnInfo, i);
     int16_t colIndex = pColIndex->colIndex;
+
     if (colIndex == TSDB_TBNAME_COLUMN_INDEX) {
-      type  = s.type;
-      bytes = s.bytes;
-      name  = s.name;
+      s = tGetTbnameColumnSchema();
     } else {
       if (TSDB_COL_IS_TAG(pColIndex->flag)) {
-        SSchema* tagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
-        
-        type  = tagSchema[colIndex].type;
-        bytes = tagSchema[colIndex].bytes;
-        name  = tagSchema[colIndex].name;
+        s = &tagSchema[colIndex];
       } else {
-        type  = pSchema[colIndex].type;
-        bytes = pSchema[colIndex].bytes;
-        name  = pSchema[colIndex].name;
+        s = &pSchema[colIndex];
       }
     }
   
@@ -6070,34 +6068,33 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
   
     if (TSDB_COL_IS_TAG(pColIndex->flag)) {
       SColumnIndex index = {.tableIndex = pQueryInfo->groupbyExpr.tableIndex, .columnIndex = colIndex};
-      SExprInfo* pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TAG, &index, type, bytes, getNewResColId(pQueryInfo), bytes, true);
-      
+      SExprInfo*   pExpr = tscSqlExprAppend(pQueryInfo, TSDB_FUNC_TAG, &index, s->type, s->bytes,
+                                          getNewResColId(pQueryInfo), s->bytes, true);
+
       memset(pExpr->base.aliasName, 0, sizeof(pExpr->base.aliasName));
-      tstrncpy(pExpr->base.aliasName, name, sizeof(pExpr->base.aliasName));
-      
+      tstrncpy(pExpr->base.aliasName, s->name, sizeof(pExpr->base.aliasName));
+
       pExpr->base.colInfo.flag = TSDB_COL_TAG;
 
       // NOTE: tag column does not add to source column list
       SColumnList ids = createColumnList(1, 0, pColIndex->colIndex);
-      insertResultField(pQueryInfo, (int32_t)size, &ids, bytes, (int8_t)type, name, pExpr);
+      insertResultField(pQueryInfo, (int32_t)size, &ids, s->bytes, (int8_t)s->type, s->name, pExpr);
     } else {
       // if this query is "group by" normal column, time window query is not allowed
       if (isTimeWindowQuery(pQueryInfo)) {
-        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
       bool hasGroupColumn = false;
       for (int32_t j = 0; j < size; ++j) {
         SExprInfo* pExpr = tscSqlExprGet(pQueryInfo, j);
-        if (pExpr->base.colInfo.colId == pColIndex->colId) {
+        if ((pExpr->base.functionId == TSDB_FUNC_PRJ) && pExpr->base.colInfo.colId == pColIndex->colId) {
+          hasGroupColumn = true;
           break;
         }
       }
 
-      /*
-       * if the group by column does not required by user, add this column into the final result set
-       * but invisible to user
-       */
+      //if the group by column does not required by user, add an invisible column into the final result set.
       if (!hasGroupColumn) {
         doAddGroupColumnForSubquery(pQueryInfo, i);
       }
@@ -6154,6 +6151,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     // check if all the tags prj columns belongs to the group by columns
     if (onlyTagPrjFunction(pQueryInfo) && allTagPrjInGroupby(pQueryInfo)) {
+      // It is a groupby aggregate query, the tag project function is not suitable for this case.
       updateTagPrjFunction(pQueryInfo);
       return doAddGroupbyColumnsOnDemand(pCmd, pQueryInfo);
     }

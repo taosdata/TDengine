@@ -199,7 +199,7 @@ SExprInfo* tscSqlExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnI
 SExprInfo* tscSqlExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int16_t size);
 size_t   tscSqlExprNumOfExprs(SQueryInfo* pQueryInfo);
-void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, SColumnIndex* pIndex);
+void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, uint64_t uid);
 
 SExprInfo* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index);
 int32_t   tscSqlExprCopy(SArray* dst, const SArray* src, uint64_t uid, bool deepcopy);
@@ -207,9 +207,8 @@ void      tscSqlExprAssign(SExprInfo* dst, const SExprInfo* src);
 void      tscSqlExprInfoDestroy(SArray* pExprInfo);
 
 SColumn* tscColumnClone(const SColumn* src);
-bool tscColumnExists(SArray* pColumnList, SColumnIndex* pColIndex);
-SColumn* tscColumnListInsert(SArray* pColList, SColumnIndex* colIndex, SSchema* pSchema);
-SArray* tscColumnListClone(const SArray* src, int16_t tableIndex);
+bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid);
+SColumn* tscColumnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema);
 void tscColumnListDestroy(SArray* pColList);
 
 void tscDequoteAndTrimToken(SStrToken* pToken);

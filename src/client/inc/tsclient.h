@@ -115,8 +115,10 @@ typedef struct SFieldInfo {
 } SFieldInfo;
 
 typedef struct SColumn {
-  SColumnIndex       colIndex;
-  SColumnInfo        info;
+  uint64_t     tableUid;
+  int32_t      columnIndex;
+//  SColumnIndex colIndex;
+  SColumnInfo  info;
 } SColumn;
 
 typedef struct SCond {

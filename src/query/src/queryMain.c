@@ -236,7 +236,8 @@ bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
 
   qDebug("QInfo:%"PRIu64" query task is launched", pQInfo->qId);
 
-  pRuntimeEnv->outputBuf = pRuntimeEnv->proot->exec(pRuntimeEnv->proot);
+  bool newgroup = false;
+  pRuntimeEnv->outputBuf = pRuntimeEnv->proot->exec(pRuntimeEnv->proot, &newgroup);
 
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:%"PRIu64" query is killed", pQInfo->qId);

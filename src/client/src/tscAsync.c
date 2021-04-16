@@ -344,7 +344,7 @@ static int32_t updateMetaBeforeRetryQuery(SSqlObj* pSql, STableMetaInfo* pTableM
     // validate the table columns information
     for (int32_t i = 0; i < taosArrayGetSize(pQueryInfo->colList); ++i) {
       SColumn *pCol = taosArrayGetP(pQueryInfo->colList, i);
-      if (pCol->colIndex.columnIndex >= numOfCols) {
+      if (pCol->columnIndex >= numOfCols) {
         return pSql->retryReason;
       }
     }

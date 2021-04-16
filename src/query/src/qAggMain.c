@@ -3006,7 +3006,7 @@ static void apercentile_func_merge(SQLFunctionCtx *pCtx) {
   
   pInput->pHisto = (SHistogramInfo*) ((char *)pInput + sizeof(SAPercentileInfo));
   pInput->pHisto->elems = (SHistBin*) ((char *)pInput->pHisto + sizeof(SHistogramInfo));
-  
+
   if (pInput->pHisto->numOfElems <= 0) {
     return;
   }
@@ -3025,7 +3025,7 @@ static void apercentile_func_merge(SQLFunctionCtx *pCtx) {
     pHisto->elems = (SHistBin*) ((char *)pHisto + sizeof(SHistogramInfo));
     tHistogramDestroy(&pRes);
   }
-  
+
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   pResInfo->hasResult = DATA_SET_FLAG;
   SET_VAL(pCtx, 1, 1);
@@ -3036,7 +3036,11 @@ static void apercentile_finalizer(SQLFunctionCtx *pCtx) {
   
   SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo *pOutput = GET_ROWCELL_INTERBUF(pResInfo);
-  
+
+  if (pOutput->pHisto->numOfElems > 1000) {
+    printf("%d\n", pOutput->pHisto->numOfElems);
+  }
+
   if (pCtx->currentStage == MERGE_STAGE) {
     if (pResInfo->hasResult == DATA_SET_FLAG) {  // check for null
       assert(pOutput->pHisto->numOfElems > 0);
@@ -3349,9 +3353,15 @@ static void tag_project_function_f(SQLFunctionCtx *pCtx, int32_t index) {
  * @param pCtx
  * @return
  */
+static void copy_function(SQLFunctionCtx *pCtx);
+
 static void tag_function(SQLFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
-  tVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->outputType, true);
+  if (pCtx->currentStage == MERGE_STAGE) {
+    copy_function(pCtx);
+  } else {
+    tVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->outputType, true);
+  }
 }
 
 static void tag_function_f(SQLFunctionCtx *pCtx, int32_t index) {
@@ -5102,7 +5112,7 @@ SAggFunctionInfo aAggs[] = {{
                           },
                           {
                               // 17
-                              "ts",
+                              "ts_dummy",
                               TSDB_FUNC_TS_DUMMY,
                               TSDB_FUNC_TS_DUMMY,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
@@ -5115,7 +5125,7 @@ SAggFunctionInfo aAggs[] = {{
                           },
                           {
                               // 18
-                              "tag",
+                              "tag_dummy",
                               TSDB_FUNC_TAG_DUMMY,
                               TSDB_FUNC_TAG_DUMMY,
                               TSDB_BASE_FUNC_SO,

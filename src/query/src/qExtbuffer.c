@@ -464,10 +464,13 @@ int32_t compare_a(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
   return 0;
 }
 
-int32_t compare_aRv(SSDataBlock* pBlock, int16_t* colIndex, int32_t numOfCols, int32_t rowIndex, char** buffer, int32_t order) {
+int32_t compare_aRv(SSDataBlock* pBlock, SArray* colIndex, int32_t numOfCols, int32_t rowIndex, char** buffer, int32_t order) {
   for (int32_t i = 0; i < numOfCols; ++i) {
-    int32_t index = colIndex[i];
+    SColIndex* pColIndex = taosArrayGet(colIndex, i);
+    int32_t index = pColIndex->colIndex;
+
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, index);
+    assert(pColIndex->colId == pColInfo->info.colId);
 
     char* data = pColInfo->pData + rowIndex * pColInfo->info.bytes;
     if (pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
