@@ -744,7 +744,7 @@ static int32_t firstDistFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32
   if (pInfo->hasResult != DATA_SET_FLAG) {
     return BLK_DATA_ALL_NEEDED;
   } else {  // data in current block is not earlier than current result
-    return (pInfo->ts <= w->skey) ? BLK_DATA_DISCARD : BLK_DATA_ALL_NEEDED;
+    return (pInfo->ts <= w->skey) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
   }
 }
 
@@ -764,7 +764,7 @@ static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_
   if (pInfo->hasResult != DATA_SET_FLAG) {
     return BLK_DATA_ALL_NEEDED;
   } else {
-    return (pInfo->ts > w->ekey) ? BLK_DATA_DISCARD : BLK_DATA_ALL_NEEDED;
+    return (pInfo->ts > w->ekey) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
   }
 }
 
