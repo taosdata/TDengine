@@ -1042,7 +1042,7 @@ static void rpcReportBrokenLinkToServer(SRpcConn *pConn) {
   pConn->pReqMsg = NULL;
   pConn->reqMsgLen = 0;
   if (pRpc->cfp) {
-    taosTmrStart(doRpcReportBrokenLinkToServer, 0, rpcMsg, pRpc->tmrCtrl);
+    pConn->pTimer = taosTmrStart(doRpcReportBrokenLinkToServer, 0, rpcMsg, pRpc->tmrCtrl);
   } else {
     free(rpcMsg);
   }
@@ -1060,7 +1060,7 @@ static void rpcProcessBrokenLink(SRpcConn *pConn) {
     pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     pContext->pConn = NULL;
     pConn->pReqMsg = NULL;
-    taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
+    pConn->pTimer = taosTmrStart(rpcProcessConnError, 0, pContext, pRpc->tmrCtrl);
   }
    
   if (pConn->inType) rpcReportBrokenLinkToServer(pConn); 
@@ -1405,7 +1405,7 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
         pConn->pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         pConn->pContext->pConn = NULL;
         pConn->pReqMsg = NULL;
-        taosTmrStart(rpcProcessConnError, 1, pConn->pContext, pRpc->tmrCtrl);
+        tpConn->pTimer = taosTmrStart(rpcProcessConnError, 1, pConn->pContext, pRpc->tmrCtrl);
         rpcReleaseConn(pConn);
       }
     }
