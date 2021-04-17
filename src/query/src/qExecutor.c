@@ -2639,7 +2639,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
   }
 
   SDataBlockInfo* pBlockInfo = &pBlock->info;
-  if ((*status) == BLK_DATA_NO_NEEDED) {
+  if ((*status) == BLK_DATA_NO_NEEDED || (*status) == BLK_DATA_DISCARD) {
     qDebug("QInfo:%"PRIu64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId, pBlockInfo->window.skey,
            pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->discardBlocks += 1;
