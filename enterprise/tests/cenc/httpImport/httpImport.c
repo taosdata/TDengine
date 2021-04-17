@@ -436,11 +436,6 @@ seed_net_open(SNETIO *io, const char *login, const char *url)
             goto failed;
         }
 
-        if (curl_easy_setopt(io->curl, CURLOPT_COOKIEFILE, "/tmp/cookies.txt") != CURLE_OK) {
-            fprintf(stderr, "could not set CURLOPT_COOKIEFILE\r\n");
-            goto failed;
-        }
-
         res = curl_easy_perform(io->curl);
         if (res != CURLE_OK) {
             fprintf(stderr, "curl perform failed for login: %s\n", curl_easy_strerror(res));
@@ -466,6 +461,13 @@ seed_net_open(SNETIO *io, const char *login, const char *url)
     if (curl_easy_setopt (io->curl, CURLOPT_NOSIGNAL, 1L) != CURLE_OK) {
         fprintf(stderr, "could not set CURLOPT_NOSIGNAL\r\n");
         goto failed;
+    }
+
+    if (login) {
+        if (curl_easy_setopt(io->curl, CURLOPT_COOKIEFILE, "/tmp/cookies.txt") != CURLE_OK) {
+            fprintf(stderr, "could not set CURLOPT_COOKIEFILE\r\n");
+            goto failed;
+        }
     }
 
     /* Return failure codes on errors */
@@ -620,21 +622,25 @@ seed_net_close(SNETIO *io, const char *logout)
     CURLcode res;
 
     if (io && io->curl) {
-        if (logout) {
-            /* Set Logout URL */
-            if (curl_easy_setopt(io->curl, CURLOPT_URL, logout) != CURLE_OK) {
-                fprintf(stderr, "could not set CURLOPT_URL: %s\r\n", logout);
-            }
-
-            res = curl_easy_perform(io->curl);
-            if (res != CURLE_OK) {
-                fprintf(stderr, "curl perform failed for logout: %s\n", curl_easy_strerror(res));
-            }
-        }
-
         if (io->curlm) {
             curl_multi_remove_handle(io->curlm, io->curl);
             curl_multi_cleanup(io->curlm);
+        }
+
+        curl_easy_cleanup(io->curl);
+    }
+
+    if (logout) {
+        /* Set Logout URL */
+        io->curl = curl_easy_init();
+
+        if (curl_easy_setopt(io->curl, CURLOPT_URL, logout) != CURLE_OK) {
+            fprintf(stderr, "could not set CURLOPT_URL: %s\r\n", logout);
+        }
+
+        res = curl_easy_perform(io->curl);
+        if (res != CURLE_OK) {
+            fprintf(stderr, "curl perform failed for logout: %s\n", curl_easy_strerror(res));
         }
 
         curl_easy_cleanup(io->curl);

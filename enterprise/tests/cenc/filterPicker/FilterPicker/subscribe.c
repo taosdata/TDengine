@@ -34,7 +34,7 @@ static signed char index_64[128] = {
 
 
 typedef struct cenc_hsamples_s {
-  nstime_t history[131072];
+  nstime_t history[4096];
   int      first_call;
   int      offset;
   int      count;
@@ -42,8 +42,8 @@ typedef struct cenc_hsamples_s {
 
 
 typedef struct cenc_samples_s {
-  nstime_t time[131072];
-  float    samples[131072];
+  nstime_t time[4096];
+  float    samples[4096];
 } cenc_samples_t;
 
 
