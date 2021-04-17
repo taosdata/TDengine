@@ -954,6 +954,12 @@ static void arithmeticApplyFunctions(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionC
 
   for (int32_t k = 0; k < numOfOutput; ++k) {
     pCtx[k].startTs = pQueryAttr->window.skey;
+
+    // Always set the asc order for merge stage process
+    if (pCtx[k].currentStage == MERGE_STAGE) {
+      pCtx[k].order = TSDB_ORDER_ASC;
+    }
+
     aAggs[pCtx[k].functionId].xFunction(&pCtx[k]);
   }
 }
@@ -4500,7 +4506,7 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->numOfOutput  = pRuntimeEnv->pQueryAttr->numOfCols;
-  pOperator->exec         = doMultiwaySort;
+  pOperator->exec         = doMultiwayMergeSort;
 
   return pOperator;
 }

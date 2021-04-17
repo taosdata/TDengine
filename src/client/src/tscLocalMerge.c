@@ -1837,7 +1837,7 @@ static void appendOneRowToDataBlock(SSDataBlock *pBlock, char *buf, SColumnModel
   pBlock->info.rows += 1;
 }
 
-SSDataBlock* doMultiwaySort(void* param, bool* newgroup) {
+SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -2043,8 +2043,15 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
     if (pInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP && pRes->info.rows > 0) {
       STimeWindow* w = &pRes->info.window;
+
+      // TODO in case of desc order, swap it
       w->skey = *(int64_t*)pInfoData->pData;
       w->ekey = *(int64_t*)(((char*)pInfoData->pData) + TSDB_KEYSIZE * (pRes->info.rows - 1));
+
+      if (pOperator->pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_DESC) {
+        SWAP(w->skey, w->ekey, TSKEY);
+        assert(w->skey <= w->ekey);
+      }
     }
   }
 

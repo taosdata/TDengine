@@ -499,7 +499,7 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
 SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger);
 
 SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
-SSDataBlock* doMultiwaySort(void* param, bool* newgroup);
+SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);
 SSDataBlock* doSLimit(void* param, bool* newgroup);
 
 SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numOfRows);

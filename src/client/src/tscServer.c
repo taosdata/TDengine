@@ -1599,7 +1599,6 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   if (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows > 0) {
     tscCreateResPointerInfo(pRes, pQueryInfo);
     tscSetResRawPtrRv(pRes, pQueryInfo, p);
-//    tscSetResRawPtr(pRes, pQueryInfo);
   }
 
   pRes->row = 0;

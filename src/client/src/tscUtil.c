@@ -3282,7 +3282,6 @@ static int32_t createSecondaryExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
   for (int32_t i = 0; i < pQueryAttr->numOfExpr2; ++i) {
     SInternalField* pField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
     SExprInfo*      pExpr = pField->pExpr;
-//    SExprInfo *pExpr = &pQueryAttr->pExpr3[i];
 
     SSqlExpr *pse = &pQueryAttr->pExpr2[i].base;
     pse->uid      = pTableMetaInfo->pTableMeta->id.uid;
@@ -3304,8 +3303,17 @@ static int32_t createSecondaryExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
       pse->resBytes = pExpr->base.resBytes;
 
       // TODO restore refactor
+      int32_t functionId = pExpr->base.functionId;
+      if (pExpr->base.functionId == TSDB_FUNC_FIRST_DST) {
+        functionId = TSDB_FUNC_FIRST;
+      } else if (pExpr->base.functionId == TSDB_FUNC_LAST_DST) {
+        functionId = TSDB_FUNC_LAST;
+      } else if (pExpr->base.functionId == TSDB_FUNC_STDDEV_DST) {
+        functionId = TSDB_FUNC_STDDEV;
+      }
+
       int32_t inter = 0;
-      getResultDataInfo(pExpr->base.colType, pExpr->base.colBytes, pExpr->base.functionId, 0, &pse->resType,
+      getResultDataInfo(pExpr->base.colType, pExpr->base.colBytes, functionId, 0, &pse->resType,
           &pse->resBytes, &inter, 0, false);
       pse->colType  = pse->resType;
       pse->colBytes = pse->resBytes;

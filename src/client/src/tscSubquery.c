@@ -3591,7 +3591,6 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
   STsBufInfo bufInfo = {0};
   SQueryParam param = {.pOperator = pa};
   /*int32_t code = */initQInfo(&bufInfo, NULL,  pQInfo, &param, NULL, 0, merger);
-//  pQInfo->runtimeEnv.proot->upstream = pSourceOperator;
   return pQInfo;
 
   _cleanup:
