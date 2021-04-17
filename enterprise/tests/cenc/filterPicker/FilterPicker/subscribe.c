@@ -118,6 +118,7 @@ void free_memory_table(memory_table_t **mtb)
         free_FilterPicker5_Memory(&(*t)->memory);
         l = (*t)->next;
         free(*t);
+        *t = NULL;
         t = &l;
       }
     }
