@@ -2229,7 +2229,7 @@ void tscFirstRoundRetrieveCallback(void* param, TAOS_RES* tres, int numOfRows) {
     }
   }
 
-  if (!pRes->completed) {
+  if (!pRes->completed && numOfRows > 0) {
     taos_fetch_rows_a(tres, tscFirstRoundRetrieveCallback, param);
     return;
   }
