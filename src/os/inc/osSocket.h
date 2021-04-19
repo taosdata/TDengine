@@ -68,6 +68,8 @@ void    taosSetMaskSIGPIPE();
 // TAOS_OS_FUNC_SOCKET_SETSOCKETOPT
 int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen);
 
+int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t* optlen);
+
 // TAOS_OS_FUNC_SOCKET_INET
 uint32_t    taosInetAddr(char *ipAddr);
 const char *taosInetNtoa(struct in_addr ipInt);

@@ -15,7 +15,7 @@
     "databases": [{
         "dbinfo": {
             "name": "db",
-            "drop": "yes",
+            "drop": "no",
             "replica": 1,
             "days": 10,
             "cache": 16,
@@ -33,7 +33,7 @@
         },
         "super_tables": [{
             "name": "stb",
-            "child_table_exists":"no",
+            "child_table_exists":"yes",
             "childtable_count": 100,
             "childtable_prefix": "stb_",
             "auto_create_table": "no",
@@ -42,8 +42,6 @@
             "insert_rows": 1000,
             "childtable_limit": 1,
             "childtable_offset": 50,
-            "multi_thread_write_one_tbl": "no",
-            "number_of_tbl_in_one_sql": 0,
             "max_sql_len": 1024000,
             "disorder_ratio": 0,
             "disorder_range": 1000,

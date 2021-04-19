@@ -84,9 +84,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
                 return new Timestamp(row.getDate(colIndex).getTime());
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
-                return row.getString(colIndex).getBytes();
+                return row.getString(colIndex) == null ? null : row.getString(colIndex).getBytes();
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-                return row.getString(colIndex);
+                return row.getString(colIndex) == null ? null : row.getString(colIndex);
             default:
                 return row.get(colIndex);
         }

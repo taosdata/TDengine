@@ -405,6 +405,7 @@ int taos_affected_rows(TAOS_RES *tres) {
 
 TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
   SSqlObj *pSql = (SSqlObj *)res;
+  SSqlRes *pRes = &pSql->res;
   if (pSql == NULL || pSql->signature != pSql) return 0;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
@@ -419,7 +420,7 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
 
   SFieldInfo *pFieldInfo = &pQueryInfo->fieldsInfo;
 
-  if (pFieldInfo->final == NULL) {
+  if (pRes->final == NULL) {
     TAOS_FIELD* f = calloc(pFieldInfo->numOfOutput, sizeof(TAOS_FIELD));
 
     int32_t j = 0;
@@ -439,10 +440,10 @@ TAOS_FIELD *taos_fetch_fields(TAOS_RES *res) {
       }
     }
 
-    pFieldInfo->final = f;
+    pRes->final = f;
   }
 
-  return pFieldInfo->final;
+  return pRes->final;
 }
 
 static bool needToFetchNewBlock(SSqlObj* pSql) {

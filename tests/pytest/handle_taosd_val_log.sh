@@ -21,7 +21,7 @@ rm -rf /var/lib/taos/*
 nohup valgrind  --leak-check=yes $TAOSD_DIR > $TDIR/$VALGRIND_OUT 2> $TDIR/$VALGRIND_ERR  &
 sleep 20
 cd -
-./crash_gen.sh  -p -t 10 -s 200 
+./crash_gen.sh  -p -t 10 -s 1000 
 ps -ef |grep valgrind|grep -v grep|awk '{print $2}'|xargs kill -term
 while true 
 do
@@ -53,15 +53,10 @@ for defiMemError in `grep 'definitely lost:' taosd-definitely-lost-out.log | awk
 do
 defiMemError=(${defiMemError//,/})
 if [ -n "$defiMemError" ]; then
-    if [ "$defiMemError" -gt 0 -a "$defiMemError" -lt 1013 ]; then
+    if [ "$defiMemError" -gt 0 ]; then
       cat $VALGRIND_ERR
       echo -e "${RED} ## Memory errors number valgrind reports \
                   Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
-      exit 8
-    elif [ "$defiMemError" -gt 1013 ];then           #add for azure
-      cat $VALGRIND_ERR
-      echo -e "${RED} ## Memory errors number valgrind reports \
-                Definitely lost is $defiMemError. More than our threshold! ## ${NC}"
       exit 8
     fi
 fi
