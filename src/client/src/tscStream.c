@@ -473,6 +473,10 @@ static int32_t tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
 
 static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, int64_t stime) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+
+  if (stime == INT64_MIN) {
+    return stime;
+  }
   
   if (pStream->isProject) {
     // no data in table, flush all data till now to destination meter, 10sec delay

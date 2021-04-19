@@ -273,7 +273,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     pSdesc->num = htobe64(pStream->num);
 
     pSdesc->useconds = htobe64(pStream->useconds);
-    pSdesc->stime = htobe64(pStream->stime - pStream->interval.interval);
+    pSdesc->stime = (pStream->stime == INT64_MIN) ? htobe64(pStream->stime) : htobe64(pStream->stime - pStream->interval.interval);
     pSdesc->ctime = htobe64(pStream->ctime);
 
     pSdesc->slidingTime = htobe64(pStream->interval.sliding);

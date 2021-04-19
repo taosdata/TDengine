@@ -391,6 +391,11 @@ int regex_match(const char *s, const char *reg, int cflags) {
 
 
 static char* formatTimestamp(char* buf, int64_t val, int precision) {
+  if (val == INT64_MIN) {
+    memset(buf, ' ', 23);
+    return buf;
+  }
+  
   if (args.is_raw_time) {
     sprintf(buf, "%" PRId64, val);
     return buf;
