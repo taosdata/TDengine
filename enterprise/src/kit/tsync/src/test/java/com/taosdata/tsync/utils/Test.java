@@ -1,19 +1,28 @@
 package com.taosdata.tsync.utils;
 
-import java.sql.Time;
 import java.sql.Timestamp;
-import java.util.Date;
+import java.text.ParseException;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 
 public class Test {
 
     private static final long sessionTimeout = 30000;
     private static final long expirationInterval = 2000;
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws ParseException {
 
-        System.out.println(new Timestamp(new Date().getTime()));
 
-        System.out.println(new Timestamp(new Time(12, 0, 0).getTime()));
+//        long start = System.nanoTime();
+//        do {
+//            System.out.println(System.currentTimeMillis());
+//        } while (System.nanoTime() - start < Duration.ofSeconds(5).toNanos());
+
+
+//        System.out.println(new Timestamp(new Date().getTime()));
+//        System.out.println(new Timestamp(new Time(12, 0, 0).getTime()));
 //        for (int i = 0; i < 10; i++) {
 //            long current = System.currentTimeMillis();
 //            long expirationTime = calculateExpirationTime(current);

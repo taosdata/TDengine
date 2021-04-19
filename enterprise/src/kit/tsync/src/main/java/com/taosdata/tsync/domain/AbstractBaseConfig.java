@@ -1,11 +1,14 @@
 package com.taosdata.tsync.domain;
 
+import com.taosdata.jdbc.TSDBDriver;
+
 public abstract class AbstractBaseConfig {
-    public static final String HOST_CONFIG = "host";
-    public static final String PORT_CONFIG = "port";
-    public static final String USER_CONFIG = "user";
-    public static final String PASSWORD_CONFIG = "password";
-    public static final String CHARSET_CONFIG = "charset";
-    public static final String LOCALE_CONFIG = "locale";
-    public static final String TIMEZONE_CONFIG = "timezone";
+    public static final String HOST_CONFIG = TSDBDriver.PROPERTY_KEY_HOST;
+    public static final String PORT_CONFIG = TSDBDriver.PROPERTY_KEY_PORT;
+    public static final String USER_CONFIG = TSDBDriver.PROPERTY_KEY_USER;
+    public static final String PASSWORD_CONFIG = TSDBDriver.PROPERTY_KEY_PASSWORD;
+    public static final String CHARSET_CONFIG = TSDBDriver.PROPERTY_KEY_CHARSET;
+    public static final String LOCALE_CONFIG = TSDBDriver.PROPERTY_KEY_LOCALE;
+    public static final String TIMEZONE_CONFIG = TSDBDriver.PROPERTY_KEY_TIME_ZONE;
+    public static final String TIMESTAMP_FORMAT = TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT;
 }

@@ -21,6 +21,14 @@ public class TopicPartition {
         return topic;
     }
 
+    public static int hashCode(String topic,int partition){
+        final int prime = 31;
+        int result = 1;
+        result = prime * result + partition;
+        result = prime * result + Objects.hashCode(topic);
+        return result;
+    }
+
     @Override
     public int hashCode() {
         if (hash != 0)

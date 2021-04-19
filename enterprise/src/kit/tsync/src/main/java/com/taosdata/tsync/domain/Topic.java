@@ -13,4 +13,16 @@ public class Topic {
         this.created_time = created_time;
     }
 
+    public String topic() {
+        return this.topic;
+    }
+
+    public int partitions() {
+        return this.partitions;
+    }
+
+    public Timestamp createTime() {
+        return this.created_time;
+    }
+
 }

@@ -1,13 +1,13 @@
 package com.taosdata.tsync;
 
-import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.tsync.domain.Person;
 import com.taosdata.tsync.domain.ProducerConfig;
 import com.taosdata.tsync.domain.ProducerRecord;
 
-import java.sql.SQLException;
+import java.util.List;
 import java.util.Properties;
 import java.util.Random;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 public class TQueueProducerTest {
@@ -15,7 +15,7 @@ public class TQueueProducerTest {
     private static final String TOPIC = "tq_test";
     private static final Random random = new Random(System.currentTimeMillis());
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
 
         Properties props = new Properties();
         props.setProperty(ProducerConfig.HOST_CONFIG, "master");
@@ -27,7 +27,9 @@ public class TQueueProducerTest {
         props.setProperty(ProducerConfig.TIMEZONE_CONFIG, "UTC-8");
 
         TQueueProducer producer = new TQueueProducer(props);
-        IntStream.range(1, 11).forEach(partition -> {
+//        while (true) {
+
+        List<Thread> threads = IntStream.range(1, 11).mapToObj(partition -> new Thread(() -> {
             try {
                 for (int i = 0; i < 1000; i++) {
                     ProducerRecord record = new ProducerRecord(
@@ -36,8 +38,6 @@ public class TQueueProducerTest {
                             new Person("name_" + i, random.nextInt(), random.nextBoolean()).toString()
                     );
 
-//                    RecordMetadata metadata = producer.send(record).get();
-//                    System.out.println(metadata);
                     producer.send(record, (metadata, e) -> {
                         if (e != null)
                             e.printStackTrace();
@@ -47,7 +47,19 @@ public class TQueueProducerTest {
             } catch (Exception e) {
                 e.printStackTrace();
             }
-        });
+        })).collect(Collectors.toList());
+
+        // start threads
+        threads.forEach(Thread::start);
+
+        // wait threads
+        for (Thread t : threads) {
+            t.join();
+        }
+
+//        }
+        producer.close();
+
     }
 
 }
