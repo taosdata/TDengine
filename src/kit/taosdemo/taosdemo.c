@@ -3950,12 +3950,12 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.specifiedQueryInfo.concurrent = 1;
     }
 
-    cJSON* queryMode = cJSON_GetObjectItem(specifiedQuery, "mode");
-    if (queryMode && queryMode->type == cJSON_String
-        && queryMode->valuestring != NULL) {
-      if (0 == strcmp("sync", queryMode->valuestring)) {
+    cJSON* mode = cJSON_GetObjectItem(specifiedQuery, "mode");
+    if (mode && mode->type == cJSON_String
+        && mode->valuestring != NULL) {
+      if (0 == strcmp("sync", mode->valuestring)) {
         g_queryInfo.specifiedQueryInfo.mode = SYNC_QUERY_MODE;
-      } else if (0 == strcmp("async", queryMode->valuestring)) {
+      } else if (0 == strcmp("async", mode->valuestring)) {
         g_queryInfo.specifiedQueryInfo.mode = ASYNC_QUERY_MODE;
       } else {
         errorPrint("%s() LN%d, failed to read json, query mode input error\n",
