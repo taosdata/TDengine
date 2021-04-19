@@ -101,11 +101,19 @@ static void doLaunchQuery(void* param, TAOS_RES* tres, int32_t code) {
     return;
   }
 
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) && (pTableMetaInfo->pVgroupTables == NULL) && (pTableMetaInfo->vgroupList == NULL || pTableMetaInfo->vgroupList->numOfVgroups <= 0)) {
+    tscDebug("%p empty vgroup list", pSql);
+    pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
+    code = TSDB_CODE_TSC_APP_ERROR;
+  }
+
   // failed to get table Meta or vgroup list, retry in 10sec.
   if (code == TSDB_CODE_SUCCESS) {
     tscTansformFuncForSTableQuery(pQueryInfo);
     tscDebug("%p stream:%p, start stream query on:%s", pSql, pStream, tNameGetTableName(&pTableMetaInfo->name));
 
+    pQueryInfo->command = TSDB_SQL_SELECT;
+    
     pSql->fp = tscProcessStreamQueryCallback;
     pSql->fetchFp = tscProcessStreamQueryCallback;
     tscDoQuery(pSql);
