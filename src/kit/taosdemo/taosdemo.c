@@ -667,7 +667,7 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, "-o", indent,
           "Direct output to the named file. Default is './output.txt'.");
   printf("%s%s%s%s\n", indent, "-q", indent,
-          "Query mode--0: SYNC, 1: ASYNC. Default is SYNC.");
+          "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
   printf("%s%s%s%s\n", indent, "-b", indent,
           "The data_type of columns, default: TINYINT,SMALLINT,INT,BIGINT,FLOAT,DOUBLE,BINARY,NCHAR,BOOL,TIMESTAMP.");
   printf("%s%s%s%s\n", indent, "-w", indent,
@@ -699,6 +699,21 @@ static void printHelp() {
           */
 }
 
+static bool isStringNumber(char *input)
+{
+  int len = strlen(input);
+  if (0 == len) {
+    return false;
+  }
+
+  for (int i = 0; i < len; i++) {
+    if (!isdigit(input[i]))
+      return false;
+  }
+
+  return true;
+}
+
 static void parse_args(int argc, char *argv[], SArguments *arguments) {
   char **sptr;
 
@@ -721,6 +736,12 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     } else if (strcmp(argv[i], "-s") == 0) {
       arguments->sqlFile = argv[++i];
     } else if (strcmp(argv[i], "-q") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "-q need a query mode value following!\nQuery mode -- 0: SYNC, 1: ASYNC. Default is SYNC.\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->query_mode = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-T") == 0) {
       arguments->num_of_threads = atoi(argv[++i]);
@@ -755,7 +776,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 && strcasecmp(argv[i], "BINARY")
                 && strcasecmp(argv[i], "NCHAR")) {
           printHelp();
-          ERROR_EXIT( "Invalid data_type!\n");
+          errorPrint("%s", "-b: Invalid data_type!\n");
           exit(EXIT_FAILURE);
         }
         sptr[0] = argv[i];
@@ -777,7 +798,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                   && strcasecmp(token, "NCHAR")) {
             printHelp();
             free(dupstr);
-            ERROR_EXIT("Invalid data_type!\n");
+            errorPrint("%s", "-b: Invalid data_type!\n");
             exit(EXIT_FAILURE);
           }
           sptr[index++] = token;
@@ -839,7 +860,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       exit(0);
     } else {
       printHelp();
-      ERROR_EXIT("ERROR: wrong options\n");
+      errorPrint("%s", "ERROR: wrong options\n");
       exit(EXIT_FAILURE);
     }
   }
@@ -1831,8 +1852,10 @@ static int postProceSql(char* host, uint16_t port, char* sqlstr)
     int req_buf_len = strlen(sqlstr) + REQ_EXTRA_BUF_LEN;
 
     request_buf = malloc(req_buf_len);
-    if (NULL == request_buf)
-        ERROR_EXIT("ERROR, cannot allocate memory.");
+    if (NULL == request_buf) {
+      errorPrint("%s", "ERROR, cannot allocate memory.\n");
+      exit(EXIT_FAILURE);
+    }
 
     char userpass_buf[INPUT_BUF_LEN];
     int mod_table[] = {0, 2, 1};
