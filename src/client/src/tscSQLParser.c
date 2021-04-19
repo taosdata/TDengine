@@ -77,7 +77,7 @@ static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SC
 
 static uint8_t convertOptr(SStrToken *pToken);
 
-static int32_t validateSelectNodeList(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelNodeList, bool isSTable, bool joinQuery, bool timeWindowQuery);
+static int32_t validateSelectNodeList(SSqlCmd* pCmd, int32_t clauseIndex, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool isSTable, bool joinQuery, bool timeWindowQuery);
 
 static bool validateIpAddress(const char* ip, size_t size);
 static bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
@@ -1607,7 +1607,7 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
   return false;
 }
 
-int32_t validateSelectNodeList(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelNodeList, bool isSTable, bool joinQuery,
+int32_t validateSelectNodeList(SSqlCmd* pCmd, int32_t clauseIndex, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool isSTable, bool joinQuery,
                                bool timeWindowQuery) {
   assert(pSelNodeList != NULL && pCmd != NULL);
 
@@ -1616,8 +1616,6 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelN
   const char* msg3 = "not support query expression";
   const char* msg4 = "only support distinct one tag";
   const char* msg5 = "invalid function name";
-
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, clauseIndex);
 
   // too many result columns not support order by in query
   if (taosArrayGetSize(pSelNodeList) > TSDB_MAX_COLUMNS) {
@@ -6710,7 +6708,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-  if (validateSelectNodeList(&pSql->cmd, 0, pQuerySqlNode->pSelNodeList, isSTable, false, false) != TSDB_CODE_SUCCESS) {
+  if (validateSelectNodeList(&pSql->cmd, 0, pQueryInfo, pQuerySqlNode->pSelNodeList, isSTable, false, false) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
@@ -6932,18 +6930,30 @@ int32_t validateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t ind
   }
 
   if (pQuerySqlNode->from->type == SQL_NODE_FROM_SUBQUERY) {
-    // support only one nestquery
+    // parse the subquery in the first place
+    code = validateSqlNode(pSql, pQuerySqlNode->from->pNode.pClause[0], 0);
+    if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
+      return code;
+    }
+
     pQueryInfo = pCmd->pQueryInfo[0];
 
+    SQueryInfo* current = calloc(1, sizeof(SQueryInfo));
+
+    tscInitQueryInfo(current);
+    taosArrayPush(current->pUpstream, &pQueryInfo);
+
+    STableMeta* pTableMeta = extractTempTableMetaFromNestQuery(pQueryInfo);
     STableMetaInfo* pTableMetaInfo1 = calloc(1, sizeof(STableMetaInfo));
-    STableMeta* pTableMeta = extractTempTableMetaFromNestQuery(taosArrayGetP(pQueryInfo->pUpstream, 0));
     pTableMetaInfo1->pTableMeta = pTableMeta;
 
-    pQueryInfo->pTableMetaInfo = calloc(1, POINTER_BYTES);
-    pQueryInfo->pTableMetaInfo[0] = pTableMetaInfo1;
+    current->pTableMetaInfo = calloc(1, POINTER_BYTES);
+    current->pTableMetaInfo[0] = pTableMetaInfo1;
 
-    // parse the group by clause in the first place
-    if (validateSelectNodeList(pCmd, index, pQuerySqlNode->pSelNodeList, false, false, false) != TSDB_CODE_SUCCESS) {
+    pCmd->pQueryInfo[0] = current;
+    pQueryInfo->pDownstream = current;
+
+    if (validateSelectNodeList(pCmd, index, current, pQuerySqlNode->pSelNodeList, false, false, false) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
@@ -7002,7 +7012,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SQuerySqlNode* pQuerySqlNode, int32_t ind
     int32_t timeWindowQuery =
         (TPARSER_HAS_TOKEN(pQuerySqlNode->interval.interval) || TPARSER_HAS_TOKEN(pQuerySqlNode->sessionVal.gap));
 
-    if (validateSelectNodeList(pCmd, index, pQuerySqlNode->pSelNodeList, isSTable, joinQuery, timeWindowQuery) !=
+    if (validateSelectNodeList(pCmd, index, pQueryInfo, pQuerySqlNode->pSelNodeList, isSTable, joinQuery, timeWindowQuery) !=
         TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }

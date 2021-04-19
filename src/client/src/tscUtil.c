@@ -665,12 +665,24 @@ SOperatorInfo* createDummyInputOperator(char* pResult, SSchema* pSchema, int32_t
   return pOptr;
 }
 
-void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
-  if (pQueryInfo->pDownstream != NULL && taosArrayGetSize(pQueryInfo->pDownstream) > 0) {
-    // handle the following query process
-    SQueryInfo* px = taosArrayGetP(pQueryInfo->pDownstream, 0);
-    printf("%d\n", px->type);
+void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
+  // set the correct result
+  SSDataBlock* p = pQueryInfo->pQInfo->runtimeEnv.outputBuf;
+  pRes->numOfRows = (p != NULL)? p->info.rows: 0;
 
+  if (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows > 0) {
+    tscCreateResPointerInfo(pRes, pQueryInfo);
+    tscSetResRawPtrRv(pRes, pQueryInfo, p);
+  }
+
+  pRes->row = 0;
+  pRes->completed = (pRes->numOfRows == 0);
+}
+
+void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
+  if (pQueryInfo->pDownstream != NULL) {
+    // handle the following query process
+    SQueryInfo *px = pQueryInfo->pDownstream;
     SColumnInfo* colInfo = extractColumnInfoFromResult(px->pTableMetaInfo[0]->pTableMeta, px->colList);
     int32_t numOfOutput = tscSqlExprNumOfExprs(px);
 
@@ -696,11 +708,11 @@ void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 
     SOperatorInfo* pSourceOptr = createDummyInputOperator((char*)pRes, pSchema, numOfOutput);
 
-    SQInfo* pQInfo = createQueryInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOptr, NULL, NULL, MASTER_SCAN);
-    SSDataBlock* pres = pQInfo->runtimeEnv.outputBuf;
+    px->pQInfo = createQueryInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOptr, NULL, NULL, MASTER_SCAN);
 
-    // build result
-    pRes->numOfRows = pres->info.rows;
+    uint64_t qId = 0;
+    qTableQuery(px->pQInfo, &qId);
+    convertQueryResult(pRes, px);
   }
 }
 
@@ -2172,7 +2184,6 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
   pQueryInfo->slimit.limit   = -1;
   pQueryInfo->slimit.offset  = 0;
   pQueryInfo->pUpstream      = taosArrayInit(4, POINTER_BYTES);
-  pQueryInfo->pDownstream    = taosArrayInit(4, POINTER_BYTES);
 }
 
 int32_t tscAddQueryInfo(SSqlCmd* pCmd) {
@@ -2223,10 +2234,7 @@ static void freeQueryInfoImpl(SQueryInfo* pQueryInfo) {
   tfree(pQueryInfo->buf);
 
   taosArrayDestroy(pQueryInfo->pUpstream);
-  taosArrayDestroy(pQueryInfo->pDownstream);
-
   pQueryInfo->pUpstream = NULL;
-  pQueryInfo->pDownstream = NULL;
 }
 
 void tscClearSubqueryInfo(SSqlCmd* pCmd) {
@@ -2697,6 +2705,8 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
     SQueryInfo* pq = taosArrayGetP(pQueryInfo->pUpstream, 0);
 
     pSql->cmd.active = pq;
+    pSql->cmd.command = TSDB_SQL_SELECT;
+
     executeQuery(pSql, pq);
 
     // merge nest query result and generate final results

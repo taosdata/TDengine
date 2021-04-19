@@ -218,11 +218,11 @@ typedef struct SQueryInfo {
   SQInfo*          pQInfo;      // global merge operator
   SArray*          pDSOperator;    // data source operator
   SArray*          pPhyOperator;   // physical query execution plan
-  SQueryAttr*          pQueryAttr;         // query object
+  SQueryAttr*      pQueryAttr;     // query object
 
   struct SQueryInfo *sibling;     // sibling
-  SArray          *pUpstream;   // SArray<struct SQueryInfo>
-  SArray          *pDownstream; // SArray<struct SQueryInfo>
+  SArray            *pUpstream;   // SArray<struct SQueryInfo>
+  struct SQueryInfo *pDownstream;
 } SQueryInfo;
 
 typedef struct {

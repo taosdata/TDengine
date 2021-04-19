@@ -615,8 +615,8 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql, int32_t clauseIndex) {
          tableSerialize + sqlLen + 4096 + pQueryInfo->bufLen;
 }
 
-static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char *pMsg, int32_t *succeed) {
-  STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, pSql->cmd.clauseIndex, 0);
+static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STableMetaInfo *pTableMetaInfo, char *pMsg,
+                                  int32_t *succeed) {
   TSKEY dfltKey = htobe64(pQueryMsg->window.skey);
 
   STableMeta * pTableMeta = pTableMetaInfo->pTableMeta;
@@ -878,7 +878,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   int32_t succeed = 1;
 
   // serialize the table info (sid, uid, tags)
-  pMsg = doSerializeTableInfo(pQueryMsg, pSql, pMsg, &succeed);
+  pMsg = doSerializeTableInfo(pQueryMsg, pSql, pTableMetaInfo, pMsg, &succeed);
   if (succeed == 0) {
     return TSDB_CODE_TSC_APP_ERROR;
   }
@@ -1591,18 +1591,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
 
   uint64_t localQueryId = 0;
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
-  SSDataBlock* p = pQueryInfo->pQInfo->runtimeEnv.outputBuf;
-  pRes->numOfRows = (p != NULL)? p->info.rows: 0;
-
-  //pRes->code = tscDoLocalMerge(pSql);
-
-  if (pRes->code == TSDB_CODE_SUCCESS && pRes->numOfRows > 0) {
-    tscCreateResPointerInfo(pRes, pQueryInfo);
-    tscSetResRawPtrRv(pRes, pQueryInfo, p);
-  }
-
-  pRes->row = 0;
-  pRes->completed = (pRes->numOfRows == 0);
+  convertQueryResult(pRes, pQueryInfo);
 
   code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {

@@ -584,7 +584,6 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
     pQueryInfo->fieldsInfo  = pSupporter->fieldsInfo;
     pQueryInfo->groupbyExpr = pSupporter->groupInfo;
     pQueryInfo->pUpstream   = taosArrayInit(4, sizeof(POINTER_BYTES));
-    pQueryInfo->pDownstream = taosArrayInit(4, sizeof(POINTER_BYTES));
 
     assert(pNew->subState.numOfSub == 0 && pNew->cmd.numOfClause == 1 && pQueryInfo->numOfTables == 1);
   
@@ -3590,7 +3589,7 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
 
   STsBufInfo bufInfo = {0};
   SQueryParam param = {.pOperator = pa};
-  /*int32_t code = */initQInfo(&bufInfo, NULL,  pQInfo, &param, NULL, 0, merger);
+  /*int32_t code = */initQInfo(&bufInfo, NULL, pSourceOperator, pQInfo, &param, NULL, 0, merger);
   return pQInfo;
 
   _cleanup:

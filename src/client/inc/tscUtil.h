@@ -211,6 +211,8 @@ bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid);
 SColumn* tscColumnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema);
 void tscColumnListDestroy(SArray* pColList);
 
+void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo);
+
 void tscDequoteAndTrimToken(SStrToken* pToken);
 int32_t tscValidateName(SStrToken* pToken);
 
