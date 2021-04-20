@@ -303,6 +303,11 @@ python3 ./test.py -f insert/unsignedSmallint.py
 python3 ./test.py -f insert/unsignedTinyint.py
 python3 ./test.py -f query/filterAllUnsignedIntTypes.py
 
+python3 ./test.py -f tag_lite/unsignedInt.py
+python3 ./test.py -f tag_lite/unsignedBigint.py
+python3 ./test.py -f tag_lite/unsignedSmallint.py
+python3 ./test.py -f tag_lite/unsignedTinyint.py
+
 python3 ./test.py -f functions/function_percentile2.py
 python3 ./test.py -f insert/boundary2.py
 python3 ./test.py -f alter/alter_debugFlag.py
