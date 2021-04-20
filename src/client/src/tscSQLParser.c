@@ -7369,7 +7369,7 @@ int32_t parseHavingClause(SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SSqlCmd* pCmd
   }
 
   //REDO function check
-  if (!functionCompatibleCheck(pQueryInfo, joinQuery, timeWindowQuery)) {
+  if (!functionCompatibleCheck(pCmd, pQueryInfo, joinQuery, timeWindowQuery)) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -7767,4 +7767,3 @@ bool hasNormalColumnFilter(SQueryInfo* pQueryInfo) {
 
 
 
-      
