@@ -1405,7 +1405,7 @@ static void rpcProcessRetryTimer(void *param, void *tmrId) {
         pConn->pContext->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         pConn->pContext->pConn = NULL;
         pConn->pReqMsg = NULL;
-        pConn->pTimer = taosTmrStart(rpcProcessConnError, 1, pConn->pContext, pRpc->tmrCtrl);
+        taosTmrStart(rpcProcessConnError, 1, pConn->pContext, pRpc->tmrCtrl);
         rpcReleaseConn(pConn);
       }
     }
