@@ -571,8 +571,8 @@ SArguments g_args = {
                      0,               // insert_interval
                      1,               // query_times
                      0,               // interlace_rows;
-                     100,             // num_of_RPR
-                     TSDB_PAYLOAD_SIZE,  // max_sql_len
+                     30000,           // num_of_RPR
+                     1024000,         // max_sql_len
                      10000,           // num_of_tables
                      10000,           // num_of_DPT
                      0,               // abort
@@ -667,7 +667,7 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, "-o", indent,
           "Direct output to the named file. Default is './output.txt'.");
   printf("%s%s%s%s\n", indent, "-q", indent,
-          "Query mode--0: SYNC, 1: ASYNC. Default is SYNC.");
+          "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
   printf("%s%s%s%s\n", indent, "-b", indent,
           "The data_type of columns, default: TINYINT,SMALLINT,INT,BIGINT,FLOAT,DOUBLE,BINARY,NCHAR,BOOL,TIMESTAMP.");
   printf("%s%s%s%s\n", indent, "-w", indent,
@@ -679,7 +679,7 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, "-i", indent,
           "The sleep time (ms) between insertion. Default is 0.");
   printf("%s%s%s%s\n", indent, "-r", indent,
-          "The number of records per request. Default is 100.");
+          "The number of records per request. Default is 30000.");
   printf("%s%s%s%s\n", indent, "-t", indent,
           "The number of tables. Default is 10000.");
   printf("%s%s%s%s\n", indent, "-n", indent,
@@ -697,6 +697,21 @@ static void printHelp() {
 /*    printf("%s%s%s%s\n", indent, "-D", indent,
           "if elete database if exists. 0: no, 1: yes, default is 1");
           */
+}
+
+static bool isStringNumber(char *input)
+{
+  int len = strlen(input);
+  if (0 == len) {
+    return false;
+  }
+
+  for (int i = 0; i < len; i++) {
+    if (!isdigit(input[i]))
+      return false;
+  }
+
+  return true;
 }
 
 static void parse_args(int argc, char *argv[], SArguments *arguments) {
@@ -721,6 +736,12 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     } else if (strcmp(argv[i], "-s") == 0) {
       arguments->sqlFile = argv[++i];
     } else if (strcmp(argv[i], "-q") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "-q need a query mode value following!\nQuery mode -- 0: SYNC, 1: ASYNC. Default is SYNC.\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->query_mode = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-T") == 0) {
       arguments->num_of_threads = atoi(argv[++i]);
@@ -755,7 +776,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                 && strcasecmp(argv[i], "BINARY")
                 && strcasecmp(argv[i], "NCHAR")) {
           printHelp();
-          ERROR_EXIT( "Invalid data_type!\n");
+          errorPrint("%s", "-b: Invalid data_type!\n");
           exit(EXIT_FAILURE);
         }
         sptr[0] = argv[i];
@@ -777,7 +798,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
                   && strcasecmp(token, "NCHAR")) {
             printHelp();
             free(dupstr);
-            ERROR_EXIT("Invalid data_type!\n");
+            errorPrint("%s", "-b: Invalid data_type!\n");
             exit(EXIT_FAILURE);
           }
           sptr[index++] = token;
@@ -839,7 +860,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       exit(0);
     } else {
       printHelp();
-      ERROR_EXIT("ERROR: wrong options\n");
+      errorPrint("%s", "ERROR: wrong options\n");
       exit(EXIT_FAILURE);
     }
   }
@@ -1820,8 +1841,10 @@ static int postProceSql(char* host, uint16_t port, char* sqlstr)
     int req_buf_len = strlen(sqlstr) + REQ_EXTRA_BUF_LEN;
 
     request_buf = malloc(req_buf_len);
-    if (NULL == request_buf)
-        ERROR_EXIT("ERROR, cannot allocate memory.");
+    if (NULL == request_buf) {
+      errorPrint("%s", "ERROR, cannot allocate memory.\n");
+      exit(EXIT_FAILURE);
+    }
 
     char userpass_buf[INPUT_BUF_LEN];
     int mod_table[] = {0, 2, 1};
@@ -3224,7 +3247,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
     g_args.max_sql_len = maxSqlLen->valueint;
   } else if (!maxSqlLen) {
-    g_args.max_sql_len = TSDB_PAYLOAD_SIZE;
+    g_args.max_sql_len = 1024000;
   } else {
     errorPrint("%s() LN%d, failed to read json, max_sql_len input mistake\n",
         __func__, __LINE__);
@@ -3916,12 +3939,12 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
       g_queryInfo.specifiedQueryInfo.concurrent = 1;
     }
 
-    cJSON* queryMode = cJSON_GetObjectItem(specifiedQuery, "mode");
-    if (queryMode && queryMode->type == cJSON_String
-        && queryMode->valuestring != NULL) {
-      if (0 == strcmp("sync", queryMode->valuestring)) {
+    cJSON* mode = cJSON_GetObjectItem(specifiedQuery, "mode");
+    if (mode && mode->type == cJSON_String
+        && mode->valuestring != NULL) {
+      if (0 == strcmp("sync", mode->valuestring)) {
         g_queryInfo.specifiedQueryInfo.mode = SYNC_QUERY_MODE;
-      } else if (0 == strcmp("async", queryMode->valuestring)) {
+      } else if (0 == strcmp("async", mode->valuestring)) {
         g_queryInfo.specifiedQueryInfo.mode = ASYNC_QUERY_MODE;
       } else {
         errorPrint("%s() LN%d, failed to read json, query mode input error\n",
