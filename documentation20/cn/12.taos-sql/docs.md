@@ -407,10 +407,10 @@ SELECT select_expr [, select_expr ...]
     [INTERVAL (interval_val [, interval_offset])]
     [SLIDING sliding_val]
     [FILL fill_val]
-    [GROUP BY col_list]
+    [GROUP BY col_list [HAVING having_condition]]
     [ORDER BY col_list { DESC | ASC }]
-    [SLIMIT limit_val [, SOFFSET offset_val]]
-    [LIMIT limit_val [, OFFSET offset_val]]
+    [SLIMIT limit_val [SOFFSET offset_val]]
+    [LIMIT limit_val [OFFSET offset_val]]
     [>> export_file];
 ```
 
@@ -626,7 +626,8 @@ Query OK, 1 row(s) in set (0.001091s)
 - WHERE 语句可以使用各种逻辑判断来过滤数字值，或使用通配符来过滤字符串
 - 输出结果缺省按首列时间戳升序排序，但可以指定按降序排序( _c0 指首列时间戳)。使用 ORDER BY 对其他字段进行排序为非法操作。
 - 参数 LIMIT 控制输出条数，OFFSET 指定从第几条开始输出。LIMIT/OFFSET 对结果集的执行顺序在 ORDER BY 之后。
-- 参数 SLIMIT 控制由 GROUP BY 指令划分的每个分组中的输出条数。
+  * 在有 GROUP BY 子句的情况下，LIMIT 参数控制的是每个分组中至多允许输出的条数。
+- 参数 SLIMIT 控制由 GROUP BY 指令划分的分组中，至多允许输出几个分组的数据。
 - 通过”>>"输出结果可以导出到指定文件
 
 ### 支持的条件过滤操作
@@ -646,6 +647,15 @@ Query OK, 1 row(s) in set (0.001091s)
 1. 同时进行多个字段的范围过滤，需要使用关键词 AND 来连接不同的查询条件，暂不支持 OR 连接的不同列之间的查询过滤条件。
 2. 针对单一字段的过滤，如果是时间过滤条件，则一条语句中只支持设定一个；但针对其他的（普通）列或标签列，则可以使用 `OR` 关键字进行组合条件的查询过滤。例如：((value > 20 AND value < 30) OR (value < 12)) 。
 3. 从 2.0.17 版本开始，条件过滤开始支持 BETWEEN AND 语法，例如 `WHERE col2 BETWEEN 1.5 AND 3.25` 表示查询条件为“1.5 ≤ col2 ≤ 3.25”。
+
+### GROUP BY 之后的 HAVING 过滤
+
+从 2.0.20 版本开始，GROUP BY 之后允许再跟一个 HAVING 子句，对成组后的各组数据再做筛选。HAVING 子句可以使用聚合函数和选择函数作为过滤条件（但暂时不支持 LEASTSQUARES、TOP、BOTTOM、LAST_ROW）。
+
+例如，如下语句只会输出 `AVG(f1) > 0` 的分组：
+```mysql
+SELECT AVG(f1), SPREAD(f1, f2, st2.f1) FROM st2 WHERE f1 > 0 GROUP BY f1 HAVING AVG(f1) > 0;
+```
 
 ### SQL 示例 
 
@@ -950,7 +960,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```mysql
     SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
     ```
-    功能说明： 统计表/超级表中某列的值最大*k*个非NULL值。若多于k个列值并列最大，则返回时间戳小的。
+    功能说明： 统计表/超级表中某列的值最大 *k* 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
 
     返回结果数据类型：同应用的字段。
 
@@ -984,7 +994,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```mysql
     SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
     ```
-    功能说明：统计表/超级表中某列的值最小*k*个非NULL值。若多于k个列值并列最小，则返回时间戳小的。
+    功能说明：统计表/超级表中某列的值最小 *k* 个非 NULL 值。如果多条数据取值一样，全部取用又会超出 k 条限制时，系统会从相同值中随机选取符合要求的数量返回。
 
     返回结果数据类型：同应用的字段。
 
@@ -1216,6 +1226,7 @@ SELECT AVG(current), MAX(current), LEASTSQUARES(current, start_val, step_val), P
 - 列名最大长度为 64，最多允许 1024 列，最少需要 2 列，第一列必须是时间戳
 - 标签最多允许 128 个，可以 1 个，标签总长度不超过 16k 个字符
 - SQL 语句最大长度 65480 个字符，但可通过系统配置参数 maxSQLLength 修改，最长可配置为 1M
+- SELECT 语句的查询结果，最多允许返回 1024 列（语句中的函数调用可能也会占用一些列空间），超限时需要显式指定较少的返回数据列，以避免语句执行报错。
 - 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制
 
 ##  TAOS SQL其他约定

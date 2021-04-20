@@ -447,6 +447,8 @@ static void tscDestroyResPointerInfo(SSqlRes* pRes) {
     tfree(pRes->pArithSup->data);
     tfree(pRes->pArithSup);
   }
+
+  tfree(pRes->final);
   
   pRes->data = NULL;  // pRes->data points to the buffer of pRsp, no need to free
 }
@@ -1105,6 +1107,7 @@ SInternalField* tscFieldInfoAppend(SFieldInfo* pFieldInfo, TAOS_FIELD* pField) {
     .pSqlExpr = NULL,
     .pArithExprInfo = NULL,
     .visible = true,
+    .pFieldFilters = NULL,
   };
 
   info.field = *pField;
@@ -1117,6 +1120,7 @@ SInternalField* tscFieldInfoInsert(SFieldInfo* pFieldInfo, int32_t index, TAOS_F
       .pSqlExpr = NULL,
       .pArithExprInfo = NULL,
       .visible = true,
+      .pFieldFilters = NULL,
   };
 
   info.field = *field;
@@ -1190,6 +1194,22 @@ int32_t tscGetResRowLength(SArray* pExprList) {
   return size;
 }
 
+static void destroyFilterInfo(SColumnFilterInfo* pFilterInfo, int32_t numOfFilters) {
+  for(int32_t i = 0; i < numOfFilters; ++i) {
+    if (pFilterInfo[i].filterstr) {
+      tfree(pFilterInfo[i].pz);
+    }
+  }
+  
+  tfree(pFilterInfo);
+}
+
+static void tscColumnDestroy(SColumn* pCol) {
+  destroyFilterInfo(pCol->filterInfo, pCol->numOfFilters);
+  free(pCol);
+}
+
+
 void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
   if (pFieldInfo == NULL) {
     return;
@@ -1210,10 +1230,14 @@ void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
 
       tfree(pInfo->pArithExprInfo);
     }
+
+    if (pInfo->pFieldFilters != NULL) {
+      tscColumnDestroy(pInfo->pFieldFilters->pFilters);
+      tfree(pInfo->pFieldFilters);
+    }
   }
   
   taosArrayDestroy(pFieldInfo->internalField);
-  tfree(pFieldInfo->final);
 
   memset(pFieldInfo, 0, sizeof(SFieldInfo));
 }
@@ -1471,15 +1495,7 @@ SColumn* tscColumnListInsert(SArray* pColumnList, SColumnIndex* pColIndex) {
   return taosArrayGetP(pColumnList, i);
 }
 
-static void destroyFilterInfo(SColumnFilterInfo* pFilterInfo, int32_t numOfFilters) {
-  for(int32_t i = 0; i < numOfFilters; ++i) {
-    if (pFilterInfo[i].filterstr) {
-      tfree(pFilterInfo[i].pz);
-    }
-  }
-  
-  tfree(pFilterInfo);
-}
+
 
 SColumn* tscColumnClone(const SColumn* src) {
   assert(src != NULL);
@@ -1496,10 +1512,6 @@ SColumn* tscColumnClone(const SColumn* src) {
   return dst;
 }
 
-static void tscColumnDestroy(SColumn* pCol) {
-  destroyFilterInfo(pCol->filterInfo, pCol->numOfFilters);
-  free(pCol);
-}
 
 void tscColumnListCopy(SArray* dst, const SArray* src, int16_t tableIndex) {
   assert(src != NULL && dst != NULL);

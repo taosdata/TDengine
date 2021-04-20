@@ -484,24 +484,33 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
   for (int i = 1; i < argc; i++) {
     if (strcmp(argv[i], "-E") == 0) {
       if (argv[i+1]) {
-        char *tmp = argv[++i];
-        int64_t tmpEpoch;
-        if (strchr(tmp, ':') && strchr(tmp, '-')) {
-          if (TSDB_CODE_SUCCESS != taosParseTime(
-                    tmp, &tmpEpoch, strlen(tmp), TSDB_TIME_PRECISION_MILLI, 0)) {
-            fprintf(stderr, "Input end time error!\n");
-            return;
-          }
-        } else {
-          tmpEpoch = atoll(tmp);
-        }
+        char *tmp = strdup(argv[++i]);
 
-        sprintf(argv[i], "%"PRId64"", tmpEpoch);
-        debugPrint("%s() LN%d, tmp is: %s, argv[%d]: %s\n",
-             __func__, __LINE__, tmp, i, argv[i]);
+        if (tmp) {
+          int64_t tmpEpoch;
+          if (strchr(tmp, ':') && strchr(tmp, '-')) {
+            if (TSDB_CODE_SUCCESS != taosParseTime(
+                        tmp, &tmpEpoch, strlen(tmp), TSDB_TIME_PRECISION_MILLI, 0)) {
+              fprintf(stderr, "Input end time error!\n");
+              free(tmp);
+              return;
+            }
+          } else {
+            tmpEpoch = atoll(tmp);
+          }
+
+          sprintf(argv[i], "%"PRId64"", tmpEpoch);
+          debugPrint("%s() LN%d, tmp is: %s, argv[%d]: %s\n",
+                 __func__, __LINE__, tmp, i, argv[i]);
+
+          free(tmp);
+        } else {
+          errorPrint("%s() LN%d, strdup() cannot allocate memory\n", __func__, __LINE__);
+          exit(-1);
+        }
       } else {
-        fprintf(stderr, "Input end time error!\n");
-        return;
+        errorPrint("%s() LN%d, -E need a valid value following!\n", __func__, __LINE__);
+        exit(-1);
       }
     } else if (strcmp(argv[i], "-g") == 0) {
       arguments->debug_print = true;

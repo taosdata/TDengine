@@ -191,6 +191,8 @@ typedef struct SQuery {
   bool             stabledev;        // super table stddev query
   int32_t          interBufSize;     // intermediate buffer sizse
 
+  int32_t          havingNum;        // having expr number
+
   SOrderVal        order;
   int16_t          numOfCols;
   int16_t          numOfTags;
@@ -287,6 +289,7 @@ enum OPERATOR_TYPE_E {
   OP_Fill              = 13,
   OP_MultiTableAggregate     = 14,
   OP_MultiTableTimeInterval  = 15,
+  OP_Having            = 16,
 };
 
 typedef struct SOperatorInfo {
@@ -404,6 +407,11 @@ typedef struct SLimitOperatorInfo {
 typedef struct SOffsetOperatorInfo {
   int64_t offset;
 } SOffsetOperatorInfo;
+
+typedef struct SHavingOperatorInfo {  
+  SArray* fp;
+} SHavingOperatorInfo;
+
 
 typedef struct SFillOperatorInfo {
   SFillInfo   *pFillInfo;

@@ -2925,7 +2925,7 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 160: /* select ::= SELECT selcollist from where_opt interval_opt session_option fill_opt sliding_opt groupby_opt orderby_opt having_opt slimit_opt limit_opt */
 {
-  yylhsminor.yy286 = tSetQuerySqlNode(&yymsp[-12].minor.yy0, yymsp[-11].minor.yy193, yymsp[-10].minor.yy370, yymsp[-9].minor.yy454, yymsp[-4].minor.yy193, yymsp[-3].minor.yy193, &yymsp[-8].minor.yy392, &yymsp[-7].minor.yy447, &yymsp[-5].minor.yy0, yymsp[-6].minor.yy193, &yymsp[0].minor.yy482, &yymsp[-1].minor.yy482);
+  yylhsminor.yy286 = tSetQuerySqlNode(&yymsp[-12].minor.yy0, yymsp[-11].minor.yy193, yymsp[-10].minor.yy370, yymsp[-9].minor.yy454, yymsp[-4].minor.yy193, yymsp[-3].minor.yy193, &yymsp[-8].minor.yy392, &yymsp[-7].minor.yy447, &yymsp[-5].minor.yy0, yymsp[-6].minor.yy193, &yymsp[0].minor.yy482, &yymsp[-1].minor.yy482, yymsp[-2].minor.yy454);
 }
   yymsp[-12].minor.yy286 = yylhsminor.yy286;
         break;
@@ -2945,7 +2945,7 @@ static YYACTIONTYPE yy_reduce(
         break;
       case 165: /* select ::= SELECT selcollist */
 {
-  yylhsminor.yy286 = tSetQuerySqlNode(&yymsp[-1].minor.yy0, yymsp[0].minor.yy193, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+  yylhsminor.yy286 = tSetQuerySqlNode(&yymsp[-1].minor.yy0, yymsp[0].minor.yy193, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);
 }
   yymsp[-1].minor.yy286 = yylhsminor.yy286;
         break;

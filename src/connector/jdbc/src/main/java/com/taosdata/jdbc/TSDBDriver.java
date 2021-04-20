@@ -95,6 +95,11 @@ public class TSDBDriver extends AbstractDriver {
      */
     public static final String PROPERTY_KEY_BATCH_LOAD = "batchfetch";
 
+    /**
+     * timestamp format for JDBC-RESTful,should one of the options: string or timestamp or utc
+     */
+    public static final String PROPERTY_KEY_TIMESTAMP_FORMAT = "timestampFormat";
+
     private TSDBDatabaseMetaData dbMetaData = null;
 
     static {
