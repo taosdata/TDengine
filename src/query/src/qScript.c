@@ -38,7 +38,7 @@ static void destroyLuaEnv(lua_State *state);
 
 static void destroyScriptEnv(ScriptEnv *pEnv);
 
-static void luaValueToTaosType(lua_State *lua, int16_t iType, char *interBuf, int16_t oType, int32_t *numOfOutput, int16_t oBytes);
+static void luaValueToTaosType(lua_State *lua, int16_t iType, char *interBuf, int32_t *numOfOutput, int16_t oType, int16_t oBytes);
 static void taosValueToLuaType(lua_State *lua, int32_t type, char *val);
 
 static bool hasBaseFuncDefinedInScript(lua_State *lua, const char *funcPrefix, int32_t len);
@@ -101,13 +101,10 @@ void taosValueToLuaType(lua_State *lua, int32_t type, char *val) {
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
   } 
 } 
-int taosLoadScriptInit(SUdfInit* pInit) {
-  if (pInit->script_ctx == NULL) { return -1;}
+int taosLoadScriptInit(void* pInit) {
+  ScriptCtx *pCtx = pInit;   
+  char funcName[MAX_FUNC_NAME] = {0};
 
-  pInit->destroyCtxFunc = destroyScriptCtx;
-
-  ScriptCtx *pCtx = pInit->script_ctx; 
-  char funcName[MAX_FUNC_NAME + 10] = {0};
   sprintf(funcName, "%s_init", pCtx->funcName);
 
   lua_State* lua = pCtx->pEnv->lua_state;   
@@ -124,12 +121,10 @@ int taosLoadScriptInit(SUdfInit* pInit) {
   } 
   return 0;
 }
-int taosLoadScriptNormal(char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
-    int64_t *ptsList, char* pOutput, char *ptsOutput, int32_t *numOfOutput, 
-    int16_t oType, int16_t oBytes, SUdfInit *pInit) {
-  ScriptCtx* pCtx = pInit->script_ctx;
-
-  char funcName[MAX_FUNC_NAME + 10] = {0};
+void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
+    int64_t *ptsList, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes) { 
+  ScriptCtx* pCtx = pInit;
+  char funcName[MAX_FUNC_NAME] = {0};
   sprintf(funcName, "%s_add", pCtx->funcName);
   lua_State* lua  = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);
@@ -148,22 +143,24 @@ int taosLoadScriptNormal(char *pInput, int16_t iType, int16_t iBytes, int32_t nu
   if (lua_pcall(lua, 2, 1, 0) != 0) {
     qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
     lua_pop(lua, -1);
-    return -1;
+    return;
   }
 
   int tNumOfOutput = 0; 
-  luaValueToTaosType(lua, iType, pOutput, oType, &tNumOfOutput, oBytes);
-  pCtx->numOfOutput += tNumOfOutput; 
-  *numOfOutput = pCtx->numOfOutput;
-  return 0;
+  luaValueToTaosType(lua, iType, pOutput, &tNumOfOutput, oType, oBytes);
+  *numOfOutput = tNumOfOutput;
+  //pCtx->numOfOutput += tNumOfOutput; 
+  //*numOfOutput = pCtx->numOfOutput;
 }
-int taosLoadScriptFinalize(char *pOutput, int32_t output, SUdfInit *pInit) {
-  //do not support agg now
-  return 0;
+
+//do not support agg now
+void taosLoadScriptFinalize(void *pInit, char *pOutput, int32_t output) {
+  ScriptCtx *pScriptCtx = pInit;
+  UNUSED(pScriptCtx);
 }
-int taosLoadScriptDestroy(SUdfInit* pInit) {
-  pInit->destroyCtxFunc(pInit->script_ctx);  
-  return 0;
+
+void taosLoadScriptDestroy(void *pInit) {
+  destroyScriptCtx(pInit);
 }
 
 ScriptCtx* createScriptCtx(char *script) {
@@ -282,8 +279,7 @@ void destroyScriptCtx(void *pCtx) {
 //  }
 //}
 
-
-void luaValueToTaosType(lua_State *lua, int16_t iType, char *interBuf, int16_t oType, int32_t *numOfOutput, int16_t oBytes) {
+void luaValueToTaosType(lua_State *lua, int16_t iType, char *interBuf, int32_t *numOfOutput, int16_t oType, int16_t oBytes) {
   int t = lua_type(lua,-1); 
   int32_t sz = 0;
   switch (t) {

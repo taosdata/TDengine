@@ -57,12 +57,11 @@ typedef struct ScriptCtx {
   
 } ScriptCtx;
 
-int taosLoadScriptInit(SUdfInit* pSUdfInit);
-int taosLoadScriptNormal(char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
-    int64_t *ptsList, char* pOutput, char *ptsOutput, int32_t *numOfOutput, 
-    int16_t oType, int16_t oBytes, SUdfInit *init);
-int taosLoadScriptFinalize(char *pOutput, int32_t output, SUdfInit *init);
-int taosLoadScriptDestroy(SUdfInit* pSUdfInit);
+int taosLoadScriptInit(void *pInit);
+void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
+    int64_t *ptsList, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes);
+void taosLoadScriptFinalize(void *pInit, char *pOutput, int32_t output);
+void taosLoadScriptDestroy(void *pInit);
 
 typedef struct {
   SList     *scriptEnvs; //  

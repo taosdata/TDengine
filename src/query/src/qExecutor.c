@@ -800,22 +800,23 @@ static int32_t getNumOfRowsInTimeWindow(SQuery *pQuery, SDataBlockInfo *pDataBlo
 }
 
 static void doInvokeUdf(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int32_t idx) {
-  int32_t output = 0;
   SUdfInfo* pUdfInfo = pRuntimeEnv->pUdfInfo;
                         
   if (pUdfInfo && pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]) {
     qDebug("invoke udf function:%s,%p", pUdfInfo->name, pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL]);
 
-    (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList, pCtx->pOutput,
-                  (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes, &pUdfInfo->init);
-
-    if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
-      pCtx->resultInfo->numOfRes = output;
+    int32_t output = 0;
+    if (pUdfInfo->isScript) {
+      (*(scriptNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])(pUdfInfo->pScriptCtx,  
+                   (char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList, pCtx->pOutput,
+                  (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes);
     } else {
-      pCtx->resultInfo->numOfRes += output;
+      (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType,pCtx->size, pCtx->ptsList, pCtx->pOutput,
+                  (char *)pCtx->ptsOutputBuf, &output, &pUdfInfo->init);
     }
-    
-    if (pCtx->resultInfo->numOfRes > 0) {
+    // set the output value exist
+    pCtx->resultInfo->numOfRes += output;
+    if (output > 0) {
       pCtx->resultInfo->hasResult = DATA_SET_FLAG;
     }
 
@@ -3313,7 +3314,11 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
           int32_t output = 0;
         
           if (pRuntimeEnv->pUdfInfo && pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE]) {
-            (*(udfFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx[j].pOutput, &output, &pRuntimeEnv->pUdfInfo->init);
+            if (pRuntimeEnv->pUdfInfo->isScript) {
+              (*(scriptFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pRuntimeEnv->pUdfInfo->pScriptCtx, pCtx[j].pOutput, &output);
+            } else {
+              (*(udfFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx[j].pOutput, &output, &pRuntimeEnv->pUdfInfo->init);
+            }
           }
 
           // set the output value exist
@@ -3340,7 +3345,11 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
         int32_t output = 0;
       
         if (pRuntimeEnv->pUdfInfo && pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE]) {
-          (*(udfFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx[j].pOutput, &output, &pRuntimeEnv->pUdfInfo->init);
+            if (pRuntimeEnv->pUdfInfo->isScript) {
+              (*(scriptFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pRuntimeEnv->pUdfInfo->pScriptCtx, pCtx[j].pOutput, &output);
+            } else {
+              (*(udfFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx[j].pOutput, &output, &pRuntimeEnv->pUdfInfo->init);
+            }
         }
 
         // set the output value exist
@@ -6218,7 +6227,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     param->pUdfInfo->funcType = htonl(*(int32_t*)pMsg);
     pMsg += sizeof(int32_t);
     
-    param->pUdfInfo->content = malloc(pQueryMsg->udfContentLen);
+    param->pUdfInfo->content = calloc(1, pQueryMsg->udfContentLen + 1);
     memcpy(param->pUdfInfo->content, pMsg, pQueryMsg->udfContentLen);
 
     pMsg += pQueryMsg->udfContentLen;
@@ -6328,9 +6337,13 @@ void destroyUdfInfo(SUdfInfo* pUdfInfo) {
   }
 
   if (pUdfInfo->funcs[TSDB_UDF_FUNC_DESTROY]) {
-    (*(udfDestroyFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_DESTROY])(&pUdfInfo->init);
+    if (pUdfInfo->isScript) {
+      (*(scriptDestroyFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_DESTROY])(pUdfInfo->pScriptCtx);
+      tfree(pUdfInfo->content);
+    } else {
+      (*(udfDestroyFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_DESTROY])(&pUdfInfo->init);
+    }  
   }
-  
   tfree(pUdfInfo->name);
 
   if (pUdfInfo->path) {
@@ -6377,14 +6390,22 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
   if (pUdfInfo == NULL) {
     return TSDB_CODE_SUCCESS;
   }
+  
+  pUdfInfo->isScript = 0; 
+
+  qError("script created: %s", pUdfInfo->content);
   if (isValidScript(pUdfInfo->content)) {
     //refactor(dengyihao)
-    ScriptCtx *pScriptCtx = createScriptCtx(pUdfInfo->content);                 
-    pUdfInfo->init.script_ctx = pScriptCtx;
-
+    pUdfInfo->isScript   = 1; 
+    pUdfInfo->pScriptCtx = createScriptCtx(pUdfInfo->content);                 
+    if (pUdfInfo->pScriptCtx == NULL) {
+      return TSDB_CODE_QRY_SYS_ERROR;
+    }
+    tfree(pUdfInfo->content);
+   
     pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] = taosLoadScriptInit;  
     if (pUdfInfo->funcs[TSDB_UDF_FUNC_INIT] == NULL 
-        || (*(udfInitFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_INIT])(&pUdfInfo->init) != TSDB_CODE_SUCCESS) {
+        || (*(scriptInitFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_INIT])(pUdfInfo->pScriptCtx) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_QRY_SYS_ERROR;
     }
 
