@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <math.h>
+#include <sys/time.h>
 #include "taos.h"
 #include "libmseed.h"
 #include "sachdr.h"
@@ -18,6 +19,7 @@
 
 
 int nTotalRows = 0;
+time_t nTotalTime = 0;
 int nTotalSamples = 0;
 
 
@@ -31,10 +33,17 @@ static signed char index_64[128] = {
 #define  CHAR64(c)     (((c) < 0 || (c) > 127) ? -1 : index_64[(c)])
 
 
+typedef struct cenc_hsamples_s {
+  nstime_t history[4096];
+  int      first_call;
+  int      offset;
+  int      count;
+} cenc_hsamples_t;
+
 
 typedef struct cenc_samples_s {
-  nstime_t time[131072];
-  float    samples[131072];
+  nstime_t time[4096];
+  float    samples[4096];
 } cenc_samples_t;
 
 
@@ -42,6 +51,7 @@ typedef struct memories_table_s memory_table_t;
 
 struct memories_table_s {
   char                   sid[LM_SIDLEN];
+  cenc_hsamples_t        history;
   FilterPicker5_Memory  *memory;
   memory_table_t        *next;
 };
@@ -87,6 +97,7 @@ memory_table_t **get_memory_table(const char *sid, memory_table_t **mtb)
     *t = (memory_table_t *) malloc(sizeof(memory_table_t));
     if (*t) {
       memset(*t, 0, sizeof(memory_table_t));
+      (*t)->history.first_call = 1;
       strncpy((*t)->sid, sid, strlen(sid));
     }
   }
@@ -98,13 +109,17 @@ memory_table_t **get_memory_table(const char *sid, memory_table_t **mtb)
 void free_memory_table(memory_table_t **mtb)
 {
   int               i;
+  memory_table_t   *l;
   memory_table_t  **t;
 
   for (i = 0; i < MEM_TAB_MOD; i++) {
     if (mtb[i]) {
-      for (t = &mtb[i]; *t; t = &(*t)->next) {
+      for (t = &mtb[i]; *t; /* void */) {
         free_FilterPicker5_Memory(&(*t)->memory);
+        l = (*t)->next;
         free(*t);
+        *t = NULL;
+        t = &l;
       }
     }
   }
@@ -149,7 +164,13 @@ unsigned char *base64_decode(const char *value, int inlen, int *outlen) {
       if (c4 != '=') {
         *out++ = (unsigned char)(((CHAR64(c3) << 6) & 0xc0) | CHAR64(c4));
         *outlen += 1;
+      } else {
+        *out = '\0';
+        return result;
       }
+    } else {
+      *out = '\0';
+      return result;
     }
   }
 
@@ -196,7 +217,8 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
   /* array of num_picks ptrs to PickData structures/objects containing returned picks */
   PickData             **pick_list            = NULL;
   int                    num_picks            = 0;
-  int                    index, numsamples;
+  int                    index, numsamples, hcount;
+  int                    samprate;
   int                   *samples;
   long                   iFilterWindow;
   long                   ilongTermWindow;
@@ -216,7 +238,10 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
   memory_table_t       **t;
   TAOS_RES              *res = NULL;
   char                  *stb_name;
+  char                  *pos;
   char                   cmd[MAX_TSQL_LEN];
+  int                    ulen;
+  cenc_hsamples_t       *h;
 
   p = (callback_params_t *) param;
   if (p == NULL) {
@@ -244,20 +269,27 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
   }
 
   numsamples = 0;
-
-  memset(&samps.time, 0, sizeof(samps.time));
-  memset(&samps.samples, 0, sizeof(samps.samples));
-  memset(sid, 0, LM_SIDLEN);
-  memset(net, 0, LM_SIDLEN);
-  memset(stat, 0, LM_SIDLEN);
-  memset(loc, 0, LM_SIDLEN);
-  memset(chan, 0, LM_SIDLEN);
+  samprate = 0;
 
   id = mstl->traces;
 
   while (id) {
     seg = id->first;
+
+    memset(&samps.time, 0, sizeof(samps.time));
+    memset(&samps.samples, 0, sizeof(samps.samples));
+
+    memset(sid, 0, LM_SIDLEN);
     memcpy(sid, id->sid, strlen(id->sid));
+
+    memset(net, 0, LM_SIDLEN);
+    memset(stat, 0, LM_SIDLEN);
+    memset(loc, 0, LM_SIDLEN);
+    memset(chan, 0, LM_SIDLEN);
+    if (ms_sid2nslc(sid, net, stat, loc, chan)) {
+      fprintf(stderr, "ms_sid2nslc() error\r\n");
+      continue;
+    }
 
     samps.time[numsamples] = id->earliest;
 
@@ -267,6 +299,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
       return;
     }
 
+    h = &(*t)->history;
     memory = (*t)->memory;
 
     while (seg) {
@@ -276,6 +309,7 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
       }
 
       dtime = 1000 * 1000 * 1000.0 / seg->samprate;
+      samprate = (int) seg->samprate;
 
       samples = (int *) seg->datasamples;
 
@@ -294,64 +328,131 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
       seg = seg->next;
     }
 
-    id = id->next;
-  }
-
-  if (numsamples) {
-    Pick(0.01, samps.samples,
-         numsamples,
-         filterWindow,   // 多少道滤波
-         longTermWindow, // 长期平均值时间窗
-         threshold1,     // 平均值阈值
-         threshold2,     // 积分阈值
-         tUpEvent,       // 积分时间窗
-         &memory,
-         useMemory,
-         &pick_list,
-         &num_picks,
-         "cenc_picker_func"
-    );
-  }
-
-  (*t)->memory = memory;
-
-  for (n = 0; n < num_picks; n++) {
-    pick = *(pick_list + n);
-    index = (int) (pick->indices[0] * 0.5 + pick->indices[1] * 0.5);
-
-    if (index < 0) {
-      continue;
+    if (numsamples) {
+      Pick(0.01, samps.samples,
+           numsamples,
+           filterWindow,   // 多少道滤波
+           longTermWindow, // 长期平均值时间窗
+           threshold1,     // 平均值阈值
+           threshold2,     // 积分阈值
+           tUpEvent,       // 积分时间窗
+           &memory,
+           useMemory,
+           &pick_list,
+           &num_picks,
+           "cenc_picker_func"
+      );
     }
 
-    if (ms_sid2nslc(sid, net, stat, loc, chan)) {
-        fprintf(stderr, "ms_sid2nslc() error\r\n");
+    (*t)->memory = memory;
+
+    pos = cmd;
+
+    if (num_picks) {
+      np = snprintf(cmd, sizeof(cmd),
+                    "insert into %s_%s_%s_%s "
+                    "using %s tags ('%s', '%s', '%s', '%s') values ",
+                    net, stat, loc, chan, stb_name, net, stat, loc, chan);
+
+      if (np <= 0) {
+        fprintf(stderr, "fnprintf error for result table: %s, %s, %s, %s\r\n",
+                net, stat, loc, chan);
 
         goto failed;
+      }
+
+      pos = cmd + np;
     }
 
-    np = snprintf(cmd, sizeof(cmd),
-                  "insert into %s_%s_%s_%s "
-                  "using %s tags ('%s', '%s', '%s', '%s') values (%ld, now);",
-                  net, stat, loc, chan,
-                  stb_name, net, stat, loc, chan,
-                  (int64_t) (samps.time[index] * 0.001 * 0.001));
+    hcount = (int) longTermWindow * samprate;
 
-    if (np <= 0) {
-      fprintf(stderr, "fnprintf error for result table: %s, %s, %s, %s\r\n",
-              net, stat, loc, chan);
+    for (n = 0; n < num_picks; n++) {
+      pick = *(pick_list + n);
+      index = (int) (pick->indices[0] * 0.5 + pick->indices[1] * 0.5);
 
-      goto failed;
-    }
+      if (index < 0) {
+        if (h->first_call) {
+            fprintf(stderr, "no history data\r\n");
+            continue;
+        } else {
+          if (h->count + index < 0) {
+            fprintf(stderr, "no enough history data\r\n");
+            continue;
+          }
 
-    cmd[np] = '\0';
-
-    res = taos_query(p->res_taos, cmd);
-    check_and_free_res(&res, cmd);
-
+          np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%ld, now) ",
+                        (int64_t) (h->history[h->count + index] * 0.001 * 0.001));
 #if 0
-    ms_nstime2timestrz(samps.time[index], timestr, ISOMONTHDAY, MICRO);
-    fprintf(stderr, "%s %f\n", timestr, samps.samples[index]);
+      ms_nstime2timestrz(h->history[h->count + index], timestr, ISOMONTHDAY, MICRO);
+      fprintf(stderr, "%s\n", timestr);
 #endif
+        }
+      } else {
+        np = snprintf(pos, cmd + MAX_TSQL_LEN - pos, "(%ld, now) ",
+                      (int64_t) (samps.time[index] * 0.001 * 0.001));
+#if 0
+      ms_nstime2timestrz(samps.time[index], timestr, ISOMONTHDAY, MICRO);
+      fprintf(stderr, "%s\n", timestr);
+#endif
+      }
+
+      if (np <= 0) {
+        fprintf(stderr, "fnprintf error for result table: %s, %s, %s, %s\r\n",
+                net, stat, loc, chan);
+
+        goto failed;
+      }
+
+      pos += np;
+    }
+
+    ulen = sizeof(nstime_t);
+
+    if (h->first_call) {
+      h->first_call = 0;
+
+      if (numsamples < hcount) {
+        memcpy((void *) h->history, (void *) samps.time, numsamples * ulen);
+        h->offset = numsamples;
+        h->count = numsamples;
+      } else {
+        memcpy((void *) h->history, (void *) &samps.time[numsamples - hcount], hcount * ulen);
+        h->count = hcount;
+      }
+    } else {
+      if (numsamples + h->count < hcount) {
+        memcpy((void *) &h->history[h->offset], (void *) samps.time, numsamples * ulen);
+        h->offset += numsamples;
+        h->count += numsamples;
+      } else {
+        if (numsamples >= hcount) {
+          memcpy((void *) h->history, (void *) &samps.time[numsamples - hcount], hcount * ulen);
+        } else {
+          memmove((void *) h->history, (void *) &h->history[h->count + numsamples - hcount], (hcount - numsamples) * ulen);
+          memmove((void *) &h->history[hcount - numsamples], (void *) samps.time, numsamples * ulen);
+        }
+
+        h->offset = 0;
+        h->count = hcount;
+      }
+    }
+
+    if (num_picks) {
+      if (pos < cmd + MAX_TSQL_LEN - 1) {
+        *pos++ = ';';
+        *pos++ = '\0';
+
+        res = taos_query(p->res_taos, cmd);
+        check_and_free_res(&res, cmd);
+      }
+    }
+
+    num_picks = 0;
+    numsamples = 0;
+    free(pick_list);
+    pick_list = NULL;
+
+    id = id->next;
   }
 
 failed:
@@ -371,12 +472,13 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
   int                i, len, nfields;
   uint32_t           flags             = 0;
   TAOS_ROW           row               = NULL;
+  struct timeval     start_time, end_time;
 
   /* Set bit flags to validate CRC and unpack data samples */
   //flags |= MSF_VALIDATECRC;
   flags |= MSF_UNPACKDATA;
 
-  fprintf(stderr, "start time: %ld\r\n", time(NULL));
+  gettimeofday(&start_time, NULL);
 
   while ((row = taos_fetch_row(res))) {
     fields = taos_fetch_fields(res);
@@ -420,7 +522,8 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
   }
 
   nTotalRows += nRows;
-  fprintf(stderr, "end time: %ld\r\n", time(NULL));
+  gettimeofday(&end_time, NULL);
+  nTotalTime += (end_time.tv_sec * 1000000 + end_time.tv_usec) - (start_time.tv_sec * 1000000 + start_time.tv_usec);
   fprintf(stderr, "%d rows consumed.\r\n", nRows);
 }
 
@@ -650,6 +753,7 @@ int main(int argc, char *argv[]) {
 
   fprintf(stderr, "total samples consumed: %d\r\n", nTotalSamples);
   fprintf(stderr, "total rows consumed: %d\r\n", nTotalRows);
+  fprintf(stderr, "total time consumed: %ld\r\n", nTotalTime);
   taos_unsubscribe(tsub, keep);
 
 failed:

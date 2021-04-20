@@ -10,8 +10,8 @@
 
 CC            = gcc
 CXX           = g++
-CFLAGS        = -pipe -g -Wall
-CXXFLAGS      = -pipe -g -Wall
+CFLAGS        = -O2 -pipe -g -Wall
+CXXFLAGS      = -O2 -pipe -g -Wall
 INCPATH       = -I. -I/usr/local/include
 LINK          = gcc
 LFLAGS        = -L/usr/local/lib -lmseed -ltaos -lcurl -lm

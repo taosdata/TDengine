@@ -38,8 +38,8 @@ typedef struct recv_buf_info_s
 
 
 #define BUF_SKIP_LEN                1
-#define MAX_TSQL_LEN                65535
-#define MAX_BUFF_LEN                7168
+#define MAX_TSQL_LEN                (MAXRECLEN << 1)
+#define MAX_BUFF_LEN                MAXRECLEN
 #define hash(key, c)                ((uint64_t) key * 31 + c)
 #define BUF_UNPROC_LEN(info)        (info)->readlength - (info)->readoffset
 #define BUF_TOREAD_PTR(info)        (info)->readbuffer + (info)->readoffset
@@ -53,22 +53,15 @@ typedef struct recv_buf_info_s
 #define pMS3FSDH_SID(record)        ((char *)((uint8_t *) record + 40))
 
 
-int seed_net_open(SNETIO *io, const char *url);
+int seed_net_open(SNETIO *io, const char *login, const char *url);
 size_t seed_net_read(SNETIO *io, void *buffer, size_t size);
-void seed_net_close(SNETIO *io);
+void seed_net_close(SNETIO *io, const char *logout);
 int seed_net_eof(SNETIO *io);
 size_t recv_callback(char *buffer, size_t size, size_t num, void *userdata);
 void shift_buffer(recv_buf_info_t *info, int shift);
 int seed_read_from(SNETIO *io, recv_buf_info_t *info, uint32_t flags, char *sid, int sidlen, int *reclen);
 int seed_detect(char *record, int recbuflen, uint32_t flags, char *sid, int sidlen, int *readlen);
 char *seed_recordsid(char *record, char *sid, int sidlen);
-int seed_write_to(
-#if !defined(HTTP_IMPORT_DEBUG)
-TAOS *taos, char *sid, int sidlen,
-#else
-FILE *fp, const char *ofile,
-#endif
-const char *pos, const int len);
 #if !defined(HTTP_IMPORT_DEBUG)
 int check_and_free_res(TAOS_RES **res, const char *cmd);
 uint64_t hash_key(char *data, size_t len);
@@ -85,11 +78,15 @@ int main(int argc, char *argv[])
     SNETIO           io;
     recv_buf_info_t  info;
     uint32_t         flags   = MSF_SKIPNOTDATA;
+    const char      *login   = NULL;
+    const char      *logout  = NULL;
     const char      *url     = NULL;
-    char             bpos[MAX_BUFF_LEN];
-    int              offset;
 #if !defined(HTTP_IMPORT_DEBUG)
     int              np;
+    int              id;
+    int              offset;
+    int              iretry  = 0;
+    int              icount  = 0;
     TAOS            *taos    = NULL;
     TAOS_RES        *res     = NULL;
     char             cmd[MAX_TSQL_LEN];
@@ -100,14 +97,24 @@ int main(int argc, char *argv[])
     const char      *passwd  = "taosdata";
     const char      *port    = "6030";
     const char      *topic   = "packet";
+    const char      *retry   = NULL;
+    const char      *count   = NULL;
+    char            *base64;
+    uint64_t         hash;
 #else
     FILE            *fp      = NULL;
     const char      *ofile   = NULL;
 #endif 
 
 #if !defined(HTTP_IMPORT_DEBUG)
-    while ((opt = getopt(argc, argv, "i:h:u:p:P:t:")) != -1) {   
+    while ((opt = getopt(argc, argv, "l:L:i:h:u:p:P:t:r:c:")) != -1) {   
         switch (opt) {
+        case 'l':
+            login = strdup(optarg);
+            break;
+        case 'L':
+            logout = strdup(optarg);
+            break;
         case 'i':
             url = strdup(optarg);
             break;
@@ -126,8 +133,14 @@ int main(int argc, char *argv[])
         case 't':
             topic = strdup(optarg);
             break;
+        case 'r':
+            retry = strdup(optarg);
+            break;
+        case 'c':
+            count = strdup(optarg);
+            break;
         default:
-	    fprintf(stderr, "Usage: %s -i url[ -h host -u user -P port -t topic]\r\n", argv[0]);
+	    fprintf(stderr, "Usage: %s -i url[ -l login -L logout -h host -u user -P port -t topic -r <on|off> -c count]\r\n", argv[0]);
 	    exit(1);
         }
     }
@@ -137,6 +150,31 @@ int main(int argc, char *argv[])
         exit(1);
     }
 
+    if (retry) {
+        if (strncasecmp(retry, "on", strlen(retry)) && strncasecmp(retry, "off", strlen(retry))) {
+          fprintf(stderr, "invalid retry option: %s!\r\n", retry);
+          exit(1);
+        }
+
+        if (strncasecmp(retry, "on", strlen(retry)) == 0) {
+          iretry = 1;
+        }
+    }
+
+    if (iretry == 0) {
+        if (count) {
+            fprintf(stderr, "-r option not specified or retry specified as \"off\", -c option ignored!\r\n");
+        }
+    } else {
+        if (count) {
+            icount = (int) strtol(count, NULL, 10);
+            if (errno == EINVAL || errno == ERANGE || icount < 0) {
+                fprintf(stderr, "the option -c with invalid number!\r\n");
+                exit(1);
+            }
+        }
+    }
+
     numport = strtol(port, NULL, 10);
     if (errno == EINVAL || errno == ERANGE || (numport < 0 || numport > 65535)) {
         fprintf(stderr, "the option -p with invalid number!\r\n");
@@ -144,11 +182,15 @@ int main(int argc, char *argv[])
     }
 
     fprintf(stderr, "################################################################\r\n");
+    fprintf(stderr, "# Login URL:                             %s\r\n", login);
+    fprintf(stderr, "# Logout URL:                            %s\r\n", logout);
     fprintf(stderr, "# URL:                                   %s\r\n", url);
     fprintf(stderr, "# Host:                                  %s\r\n", host);
     fprintf(stderr, "# User:                                  %s\r\n", user);
     fprintf(stderr, "# Port:                                  %s\r\n", port);
     fprintf(stderr, "# Topic:                                 %s\r\n", topic);
+    fprintf(stderr, "# Retry:                                 %s\r\n", retry);
+    fprintf(stderr, "# Retry Count:                           %s\r\n", count);
     fprintf(stderr, "################################################################\r\n");
 #else
     while ((opt = getopt(argc, argv, "i:o:")) != -1) {   
@@ -181,13 +223,14 @@ int main(int argc, char *argv[])
     fprintf(stderr, "################################################################\r\n");
 #endif
 
+retry:
     packets = 0;
     memset(&io, 0, sizeof(SNETIO));
     memset(&info, 0, sizeof(info));
 
     start = time(NULL);
 
-    ret = seed_net_open(&io, url);
+    ret = seed_net_open(&io, login, url);
     if (ret != 0) {
         fprintf(stderr, "failed to open %s\r\n", url);
         exit(1);
@@ -230,9 +273,13 @@ int main(int argc, char *argv[])
     }
 #endif
 
+#if !defined(HTTP_IMPORT_DEBUG)
+    np = 0;
+    id = 0;
     reclen = 0;
     offset = 0;
-    memset(bpos, 0, MAX_BUFF_LEN);
+    memset(sid, 0, LM_SIDLEN);
+#endif
 
     for ( ;; ) {
         ret = seed_read_from(&io, &info, flags,
@@ -243,40 +290,82 @@ int main(int argc, char *argv[])
 #endif
                              &reclen);
         if (ret != MS_NOERROR) {
-            if (offset) {
-                seed_write_to(
 #if !defined(HTTP_IMPORT_DEBUG)
-                              taos, sid, strlen(sid),
-#else
-                              fp, ofile,
-#endif
-                              bpos, offset);
+            if (offset) {
+                res = taos_query(taos, cmd);
+                if (check_and_free_res(&res, cmd) != 0) {
+                    goto failed;
+                }
             }
+#endif
 
             break;
         }
 
         packets++;
 
-        if (offset + reclen < MAX_BUFF_LEN) {
-            memmove(bpos + offset, info.readbuffer + info.readoffset - reclen, reclen);
-            offset += reclen;
-            continue;
-        } else {
-            if (seed_write_to(
 #if !defined(HTTP_IMPORT_DEBUG)
-                              taos, sid, strlen(sid),
-#else
-                              fp, ofile,
-#endif
-                              bpos, offset) != 0)
-            {
-                break;
+        base64 = base64_encode((const unsigned char *) info.readbuffer + info.readoffset - reclen, reclen);
+        if (base64 == NULL) {
+            id = 0;
+            fprintf(stderr, "base64 error\r\n");
+            continue;
+        }
+
+remain_data:
+
+        if (id == 0) {
+            hash = hash_key(sid, strlen(sid));
+            id = (int) (hash % 4) + 1;
+
+            memset(cmd, 0, sizeof(cmd));
+
+            offset = snprintf(cmd, sizeof(cmd), "insert into p%d using ps tags (%d) values ", id, id);
+
+            if (offset < 0) {
+                id = 0;
+                fprintf(stderr, "fprintf error cmd for inserting data: %s\r\n", cmd);
+                continue;
+            }
+        }
+
+        if (offset + strlen(base64) < MAX_TSQL_LEN - 64) {
+            np = snprintf(cmd + offset, sizeof(cmd) - offset, "(now, now, '%s') ", base64);
+
+            free(base64);
+
+            if (np <= 0) {
+                id = 0;
+                fprintf(stderr, "fprintf error cmd for preparing data: %s\r\n", cmd);
+                continue;;
             }
 
-            memmove(bpos, info.readbuffer + info.readoffset - reclen, reclen);
-            offset = reclen;
+            offset += np;
+        } else {
+            if (offset == 0) {
+                free(base64);
+
+                fprintf(stderr, "too long record length: %d\r\n", reclen);
+                goto failed;
+            }
+
+            cmd[offset] = ';';
+
+            res = taos_query(taos, cmd);
+            if (check_and_free_res(&res, cmd) != 0) {
+                goto failed;
+            }
+
+            id = 0;
+            offset = 0;
+            goto remain_data;
         }
+#else
+        if (fwrite(info.readbuffer + info.readoffset - reclen, 1, reclen, fp) != reclen) {
+            fprintf(stderr, "failed to write to %s\r\n", ofile);
+            goto failed;
+        }
+#endif
 
         fprintf(stderr, "%ld packet(s) transfered\r\n", packets);
     }
@@ -292,7 +381,7 @@ int main(int argc, char *argv[])
 
 failed:
 
-    seed_net_close(&io);
+    seed_net_close(&io, logout);
 
 #if !defined(HTTP_IMPORT_DEBUG)
     if (taos) {
@@ -304,17 +393,56 @@ failed:
     }
 #endif
 
+    if (iretry == 1) {
+      if (count) {
+        if (icount > 0) {
+          icount--;
+          goto retry;
+        }
+      } else {
+        goto retry;
+      }
+    }
+
     return 0;
 }
 
 
 int
-seed_net_open(SNETIO *io, const char *url)
+seed_net_open(SNETIO *io, const char *login, const char *url)
 {
-    long  http_code;
+    long     http_code;
+    CURLcode res;
 
     if (io == NULL || url == NULL) {
         return -1;
+    }
+
+    if (login) {
+        io->curl = curl_easy_init();
+        if (io->curl == NULL) {
+            fprintf(stderr, "failed to initialize curl for login\r\n");
+            exit(1);
+        }
+
+        /* Set Login URL */
+        if (curl_easy_setopt(io->curl, CURLOPT_URL, login) != CURLE_OK) {
+            fprintf(stderr, "could not set CURLOPT_URL: %s\r\n", login);
+            goto failed;
+        }
+
+        if (curl_easy_setopt(io->curl, CURLOPT_COOKIEJAR, "/tmp/cookies.txt") != CURLE_OK) {
+            fprintf(stderr, "could not set CURLOPT_COOKIEJAR\r\n");
+            goto failed;
+        }
+
+        res = curl_easy_perform(io->curl);
+        if (res != CURLE_OK) {
+            fprintf(stderr, "curl perform failed for login: %s\n", curl_easy_strerror(res));
+            goto failed;
+        }
+
+        curl_easy_cleanup(io->curl);
     }
 
     io->curl = curl_easy_init();
@@ -333,6 +461,13 @@ seed_net_open(SNETIO *io, const char *url)
     if (curl_easy_setopt (io->curl, CURLOPT_NOSIGNAL, 1L) != CURLE_OK) {
         fprintf(stderr, "could not set CURLOPT_NOSIGNAL\r\n");
         goto failed;
+    }
+
+    if (login) {
+        if (curl_easy_setopt(io->curl, CURLOPT_COOKIEFILE, "/tmp/cookies.txt") != CURLE_OK) {
+            fprintf(stderr, "could not set CURLOPT_COOKIEFILE\r\n");
+            goto failed;
+        }
     }
 
     /* Return failure codes on errors */
@@ -383,6 +518,15 @@ seed_net_open(SNETIO *io, const char *url)
     return 0;
 
 failed:
+    if (io->curl) {
+        if (io->curlm) {
+            curl_multi_remove_handle(io->curlm, io->curl);
+            curl_multi_cleanup(io->curlm);
+        }
+
+        curl_easy_cleanup(io->curl);
+    }
+
     return -1;
 }
 
@@ -473,12 +617,30 @@ seed_net_read(SNETIO *io, void *buffer, size_t size)
 
 
 void
-seed_net_close(SNETIO *io)
+seed_net_close(SNETIO *io, const char *logout)
 {
+    CURLcode res;
+
     if (io && io->curl) {
         if (io->curlm) {
-            curl_multi_remove_handle (io->curlm, io->curl);
+            curl_multi_remove_handle(io->curlm, io->curl);
             curl_multi_cleanup(io->curlm);
+        }
+
+        curl_easy_cleanup(io->curl);
+    }
+
+    if (logout) {
+        /* Set Logout URL */
+        io->curl = curl_easy_init();
+
+        if (curl_easy_setopt(io->curl, CURLOPT_URL, logout) != CURLE_OK) {
+            fprintf(stderr, "could not set CURLOPT_URL: %s\r\n", logout);
+        }
+
+        res = curl_easy_perform(io->curl);
+        if (res != CURLE_OK) {
+            fprintf(stderr, "curl perform failed for logout: %s\n", curl_easy_strerror(res));
         }
 
         curl_easy_cleanup(io->curl);
@@ -724,56 +886,6 @@ seed_recordsid(char *record, char *sid, int sidlen)
     }
 
     return sid;
-}
-
-
-int
-seed_write_to(
-#if !defined(HTTP_IMPORT_DEBUG)
-TAOS *taos, char *sid, int sidlen,
-#else
-FILE *fp, const char *ofile,
-#endif
-const char *pos, const int len)
-{
-#if !defined(HTTP_IMPORT_DEBUG)
-    int              np;
-    int              id;
-    uint64_t         hash;
-    char             cmd[MAX_TSQL_LEN];
-    char            *base64;
-    TAOS_RES        *res;
-
-    hash = hash_key(sid, sidlen);
-    id = (int) (hash % 4) + 1;
-
-    base64 = base64_encode((const unsigned char *) pos, len);
-
-    np = snprintf(cmd, sizeof(cmd),
-                  "insert into p%d using ps tags (%d) values (now, now, '%s');",
-                  id, id, base64);
-
-    free(base64);
-
-    if (np < 0) {
-        fprintf(stderr, "fprintf error cmd in loop: %s\r\n", cmd);
-        return -1;
-    }
-
-    cmd[np] = '\0';
-
-    res = taos_query(taos, cmd);
-    if (check_and_free_res(&res, cmd) != 0) {
-        return -1;
-    }
-#else
-    if (fwrite(pos, 1, len, fp) != len) {
-        fprintf(stderr, "failed to write to %s\r\n", ofile);
-        return -1;
-    }
-#endif
-
-    return 0;
 }
 
 
