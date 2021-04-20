@@ -4409,6 +4409,11 @@ SArray* getResultGroupCheckColumns(SQueryAttr* pQuery) {
   return pOrderColumns;
 }
 
+static void destroyGlobalAggOperatorInfo(void* param, int32_t numOfOutput) {
+  SMultiwayMergeInfo *pInfo = (SMultiwayMergeInfo*) param;
+  destroyBasicOperatorInfo(&pInfo->binfo, numOfOutput);
+}
+
 SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream,
                                                  SExprInfo* pExpr, int32_t numOfOutput, void* param) {
   SMultiwayMergeInfo* pInfo = calloc(1, sizeof(SMultiwayMergeInfo));
@@ -4471,7 +4476,7 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   pOperator->pRuntimeEnv  = pRuntimeEnv;
 
   pOperator->exec         = doGlobalAggregate;
-  pOperator->cleanup      = destroyBasicOperatorInfo;
+  pOperator->cleanup      = destroyGlobalAggOperatorInfo;
   return pOperator;
 }
 

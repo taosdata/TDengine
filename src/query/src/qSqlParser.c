@@ -744,7 +744,7 @@ void destroyAllSqlNode(SArray *pList) {
 
   size_t size = taosArrayGetSize(pList);
   for(int32_t i = 0; i < size; ++i) {
-    SSqlNode *pNode = taosArrayGetP(pList, 0);
+    SSqlNode *pNode = taosArrayGetP(pList, i);
     destroySqlNode(pNode);
   }
 
