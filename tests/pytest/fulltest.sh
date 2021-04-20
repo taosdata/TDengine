@@ -302,6 +302,10 @@ python3 ./test.py -f insert/unsignedBigint.py
 python3 ./test.py -f insert/unsignedSmallint.py
 python3 ./test.py -f insert/unsignedTinyint.py
 python3 ./test.py -f query/filterAllUnsignedIntTypes.py
+python3 ./test.py -f unsignedBigint.py  
+python3 ./test.py -f unsignedInt.py  
+python3 ./test.py -f unsignedSmallint.py  
+python3 ./test.py -f unsignedTinyint.py
 
 python3 ./test.py -f functions/function_percentile2.py
 python3 ./test.py -f insert/boundary2.py
