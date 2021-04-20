@@ -571,8 +571,8 @@ SArguments g_args = {
                      0,               // insert_interval
                      1,               // query_times
                      0,               // interlace_rows;
-                     100,             // num_of_RPR
-                     TSDB_PAYLOAD_SIZE,  // max_sql_len
+                     30000,           // num_of_RPR
+                     1024000,         // max_sql_len
                      10000,           // num_of_tables
                      10000,           // num_of_DPT
                      0,               // abort
@@ -679,7 +679,7 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, "-i", indent,
           "The sleep time (ms) between insertion. Default is 0.");
   printf("%s%s%s%s\n", indent, "-r", indent,
-          "The number of records per request. Default is 100.");
+          "The number of records per request. Default is 30000.");
   printf("%s%s%s%s\n", indent, "-t", indent,
           "The number of tables. Default is 10000.");
   printf("%s%s%s%s\n", indent, "-n", indent,
@@ -3258,7 +3258,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   if (maxSqlLen && maxSqlLen->type == cJSON_Number) {
     g_args.max_sql_len = maxSqlLen->valueint;
   } else if (!maxSqlLen) {
-    g_args.max_sql_len = TSDB_PAYLOAD_SIZE;
+    g_args.max_sql_len = 1024000;
   } else {
     errorPrint("%s() LN%d, failed to read json, max_sql_len input mistake\n",
         __func__, __LINE__);
