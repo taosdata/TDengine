@@ -692,8 +692,10 @@ static void printHelp() {
           "Out of order data's range, ms, default is 1000.");
   printf("%s%s%s%s\n", indent, "-g", indent,
           "Print debug info.");
-  printf("%s%s%s%s\n", indent, "-V, --version", indent,
+  printf("%s%s%s\n", indent, "-V, --version\t",
           "Print version info.");
+  printf("%s%s%s%s\n", indent, "--help\t", indent,
+          "Print command line arguments list info.");
 /*    printf("%s%s%s%s\n", indent, "-D", indent,
           "if elete database if exists. 0: no, 1: yes, default is 1");
           */
@@ -726,6 +728,12 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     } else if (strcmp(argv[i], "-h") == 0) {
       arguments->host = argv[++i];
     } else if (strcmp(argv[i], "-p") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-p need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-u") == 0) {
       arguments->user = argv[++i];
@@ -739,27 +747,63 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       if ((argc == i+1) ||
         (!isStringNumber(argv[i+1]))) {
         printHelp();
-        errorPrint("%s", "-q need a query mode value following!\nQuery mode -- 0: SYNC, 1: ASYNC. Default is SYNC.\n");
+        errorPrint("%s", "\n\t-q need a number following!\nQuery mode -- 0: SYNC, 1: ASYNC. Default is SYNC.\n");
         exit(EXIT_FAILURE);
       }
       arguments->query_mode = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-T") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-T need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->num_of_threads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-i need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->insert_interval = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-qt") == 0) {
       arguments->query_times = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-B") == 0) {
       arguments->interlace_rows = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-r need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->num_of_RPR = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-t") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-t need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->num_of_tables = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-n") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-n need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->num_of_DPT = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d") == 0) {
       arguments->database = argv[++i];
     } else if (strcmp(argv[i], "-l") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-l need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->num_of_CPR = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-b") == 0) {
       sptr = arguments->datatype;
@@ -809,6 +853,12 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
         sptr[index] = NULL;
       }
     } else if (strcmp(argv[i], "-w") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-w need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->len_of_binary = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m") == 0) {
       arguments->tb_prefix = argv[++i];
@@ -825,22 +875,42 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     } else if (strcmp(argv[i], "-pp") == 0) {
       arguments->performance_print = true;
     } else if (strcmp(argv[i], "-O") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-O need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
 
       arguments->disorderRatio = atoi(argv[++i]);
 
-      if (arguments->disorderRatio > 50)
+      if (arguments->disorderRatio > 50) {
         arguments->disorderRatio = 50;
+      }
 
-      if (arguments->disorderRatio < 0)
+      if (arguments->disorderRatio < 0) {
         arguments->disorderRatio = 0;
+      }
 
     } else if (strcmp(argv[i], "-R") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-R need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
 
       arguments->disorderRange = atoi(argv[++i]);
       if (arguments->disorderRange < 0)
         arguments->disorderRange = 1000;
 
     } else if (strcmp(argv[i], "-a") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-a need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->replica = atoi(argv[++i]);
       if (arguments->replica > 3 || arguments->replica < 1) {
           arguments->replica = 1;
