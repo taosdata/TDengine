@@ -1878,6 +1878,19 @@ static void doFreeQueryHandle(SQueryRuntimeEnv* pRuntimeEnv) {
   assert(pMemRef->ref == 0 && pMemRef->snapshot.imem == NULL && pMemRef->snapshot.mem == NULL);
 }
 
+static void destroyTsComp(SQueryRuntimeEnv *pRuntimeEnv, SQuery *pQuery) {
+  if (isTsCompQuery(pQuery) && pRuntimeEnv->outputBuf && pRuntimeEnv->outputBuf->pDataBlock && taosArrayGetSize(pRuntimeEnv->outputBuf->pDataBlock) > 0) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pRuntimeEnv->outputBuf->pDataBlock, 0);
+    if (pColInfoData) {
+      FILE *f = *(FILE **)pColInfoData->pData;  // TODO refactor
+      if (f) {
+        fclose(f);
+        *(FILE **)pColInfoData->pData = NULL;
+      }
+    }
+  }
+}
+
 static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   SQuery *pQuery = pRuntimeEnv->pQuery;
   SQInfo* pQInfo = (SQInfo*) pRuntimeEnv->qinfo;
@@ -1896,6 +1909,8 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   destroyResultBuf(pRuntimeEnv->pResultBuf);
   doFreeQueryHandle(pRuntimeEnv);
 
+  destroyTsComp(pRuntimeEnv, pQuery);
+  
   pRuntimeEnv->pTsBuf = tsBufDestroy(pRuntimeEnv->pTsBuf);
 
   tfree(pRuntimeEnv->keyBuf);
@@ -2136,6 +2151,40 @@ static bool onlyOneQueryType(SQuery *pQuery, int32_t functId, int32_t functIdDst
 static bool onlyFirstQuery(SQuery *pQuery) { return onlyOneQueryType(pQuery, TSDB_FUNC_FIRST, TSDB_FUNC_FIRST_DST); }
 
 static bool onlyLastQuery(SQuery *pQuery) { return onlyOneQueryType(pQuery, TSDB_FUNC_LAST, TSDB_FUNC_LAST_DST); }
+
+static int32_t updateBlockLoadStatus(SQuery *pQuery, int32_t status) {
+  bool hasFirstLastFunc = false;
+  bool hasOtherFunc = false;
+
+  if (status == BLK_DATA_ALL_NEEDED || status == BLK_DATA_DISCARD) {
+    return status;
+  }
+
+  for (int32_t i = 0; i < pQuery->numOfOutput; ++i) {
+    int32_t functionId = pQuery->pExpr1[i].base.functionId;
+
+    if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG ||
+        functionId == TSDB_FUNC_TAG_DUMMY) {
+      continue;
+    }
+
+    if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_LAST_DST) {
+      hasFirstLastFunc = true;
+    } else {
+      hasOtherFunc = true;
+    }
+  }
+
+  if (hasFirstLastFunc && status == BLK_DATA_NO_NEEDED) {
+    if(!hasOtherFunc) {
+      return BLK_DATA_DISCARD;
+    } else{
+      return BLK_DATA_ALL_NEEDED;
+    }
+  }
+
+  return status;
+}
 
 static void doExchangeTimeWindow(SQInfo* pQInfo, STimeWindow* win) {
   SQuery* pQuery = &pQInfo->query;
@@ -2578,11 +2627,12 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
   pBlock->pDataBlock = NULL;
   pBlock->pBlockStatis = NULL;
 
+  SQInfo* pQInfo = pRuntimeEnv->qinfo;
   SQuery* pQuery = pRuntimeEnv->pQuery;
+
   int64_t groupId = pQuery->current->groupIndex;
   bool    ascQuery = QUERY_IS_ASC_QUERY(pQuery);
 
-  SQInfo*         pQInfo = pRuntimeEnv->qinfo;
   SQueryCostInfo* pCost = &pQInfo->summary;
 
   if (pRuntimeEnv->pTsBuf != NULL) {
@@ -2639,7 +2689,9 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
   }
 
   SDataBlockInfo* pBlockInfo = &pBlock->info;
-  if ((*status) == BLK_DATA_NO_NEEDED) {
+  *status = updateBlockLoadStatus(pRuntimeEnv->pQuery, *status);
+
+  if ((*status) == BLK_DATA_NO_NEEDED || (*status) == BLK_DATA_DISCARD) {
     qDebug("QInfo:%"PRIu64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId, pBlockInfo->window.skey,
            pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->discardBlocks += 1;
@@ -6863,6 +6915,7 @@ int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
       }
 
       fclose(f);
+      *(FILE **)pColInfoData->pData = NULL;
     }
 
     // all data returned, set query over
