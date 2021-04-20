@@ -214,10 +214,11 @@ namespace TDengineDriver
       IntPtr res = TDengine.Query(this.conn, sql.ToString());
       if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
       {
-        Console.WriteLine(sql.ToString() + " failure, ");
+        Console.Write(sql.ToString() + " failure, ");
         if (res != IntPtr.Zero) {
-          Console.WriteLine("reason: " + TDengine.Error(res));
+          Console.Write("reason: " + TDengine.Error(res));
         }
+        Console.WriteLine("");
         ExitProgram();
       }
       else
@@ -231,10 +232,11 @@ namespace TDengineDriver
       res = TDengine.Query(this.conn, sql.ToString());
       if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
       {
-        Console.WriteLine(sql.ToString() + " failure, ");
+        Console.Write(sql.ToString() + " failure, ");
         if (res != IntPtr.Zero) {
-          Console.WriteLine("reason: " + TDengine.Error(res));
+          Console.Write("reason: " + TDengine.Error(res));
         }
+        Console.WriteLine("");
         ExitProgram();
       }
       else
@@ -248,10 +250,11 @@ namespace TDengineDriver
       res = TDengine.Query(this.conn, sql.ToString());
       if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
       {
-        Console.WriteLine(sql.ToString() + " failure, ");
+        Console.Write(sql.ToString() + " failure, ");
         if (res != IntPtr.Zero) {
-          Console.WriteLine("reason: " + TDengine.Error(res));
+          Console.Write("reason: " + TDengine.Error(res));
         }
+        Console.WriteLine("");
         ExitProgram();
       }
       else
@@ -268,10 +271,11 @@ namespace TDengineDriver
         res = TDengine.Query(this.conn, sql.ToString());
         if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
         {
-          Console.WriteLine(sql.ToString() + " failure, ");
+          Console.Write(sql.ToString() + " failure, ");
           if (res != IntPtr.Zero) {
-            Console.WriteLine("reason: " + TDengine.Error(res));
+            Console.Write("reason: " + TDengine.Error(res));
           }
+          Console.WriteLine("");
           ExitProgram();
         }
         else
@@ -299,7 +303,7 @@ namespace TDengineDriver
         for (long loop = 0; loop < loopCount; loop++)
         {
           StringBuilder sql = new StringBuilder();
-          sql.Append("insert into ").Append(this.dbName).Append(".").Append(this.tablePrefix).Append(table).Append(" values");
+          sql.Append("insert into ").Append(this.tablePrefix).Append(table).Append(" values");
           for (int batch = 0; batch < this.batchRows; ++batch)
           {
             long rows = loop * this.batchRows + batch;
@@ -312,10 +316,11 @@ namespace TDengineDriver
           IntPtr res = TDengine.Query(this.conn, sql.ToString());
           if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
           {
-            Console.WriteLine(sql.ToString() + " failure, ");
+            Console.Write(sql.ToString() + " failure, ");
             if (res != IntPtr.Zero) {
-              Console.WriteLine("reason: " + TDengine.Error(res));
+              Console.Write("reason: " + TDengine.Error(res));
             }
+            Console.WriteLine("");
           }
 
           int affectRows = TDengine.AffectRows(res);
@@ -341,7 +346,7 @@ namespace TDengineDriver
 
       System.DateTime start = new System.DateTime();
       long queryRows = 0;
-      
+
       for (int i = 0; i < 1/*this.tableCount*/; ++i)
       {
         String sql = "select * from " + this.dbName + "." + tablePrefix + i;
@@ -350,10 +355,11 @@ namespace TDengineDriver
         IntPtr res = TDengine.Query(conn, sql);
         if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
         {
-          Console.WriteLine(sql.ToString() + " failure, ");
+          Console.Write(sql.ToString() + " failure, ");
           if (res != IntPtr.Zero) {
-            Console.WriteLine("reason: " + TDengine.Error(res));
+            Console.Write("reason: " + TDengine.Error(res));
           }
+          Console.WriteLine("");
           ExitProgram();
         }
 
@@ -441,8 +447,10 @@ namespace TDengineDriver
 
         if (TDengine.ErrorNo(res) != 0)
         {
-          Console.Write("Query is not complete, Error {0:G}", TDengine.ErrorNo(res), TDengine.Error(res));
+          Console.Write("Query is not complete, Error {0:G}",
+              TDengine.ErrorNo(res), TDengine.Error(res));
         }
+        Console.WriteLine("");
 
         TDengine.FreeResult(res);
       }
