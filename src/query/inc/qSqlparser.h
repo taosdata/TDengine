@@ -40,8 +40,8 @@ enum SQL_NODE_TYPE {
 };
 
 enum SQL_NODE_FROM_TYPE {
-  SQL_NODE_FROM_SUBQUERY  = 1,
-  SQL_NODE_FROM_NAMELIST  = 2,
+  SQL_NODE_FROM_SUBQUERY   = 1,
+  SQL_NODE_FROM_TABLELIST  = 2,
 };
 
 extern char tTokenTypeSwitcher[13];
@@ -83,11 +83,11 @@ typedef struct SSessionWindowVal {
   SStrToken          gap;
 } SSessionWindowVal;
 
-struct SFromInfo;
+struct SRelationInfo;
 
-typedef struct SQuerySqlNode {
+typedef struct SSqlNode {
   struct SArray     *pSelNodeList; // select clause
-  struct SFromInfo  *from;         // from clause SArray<SQuerySqlNode>
+  struct SRelationInfo  *from;     // from clause SArray<SSqlNode>
   struct tSqlExpr   *pWhere;       // where clause [optional]
   SArray            *pGroupby;     // groupby clause, only for tags[optional], SArray<tVariantListItem>
   SArray            *pSortOrder;   // orderby [optional],  SArray<tVariantListItem>
@@ -98,25 +98,22 @@ typedef struct SQuerySqlNode {
   SLimitVal          limit;        // limit offset [optional]
   SLimitVal          slimit;       // group limit offset [optional]
   SStrToken          sqlstr;       // sql string in select clause
-} SQuerySqlNode;
+} SSqlNode;
 
 typedef struct STableNamePair {
   SStrToken name;
   SStrToken aliasName;
 } STableNamePair;
 
-typedef struct SSubclauseInfo {  // "UNION" multiple select sub-clause
-  SQuerySqlNode    **pClause;
-  int32_t            numOfClause;
-} SSubclauseInfo;
+//typedef struct SSubclauseInfo {  // "UNION" multiple select sub-clause
+//  SSqlNode    **pClause;
+//  int32_t       numOfClause;
+//} SSubclauseInfo;
 
-typedef struct SFromInfo {
-  int32_t            type;        // nested query|table name list
-  union {
-    SSubclauseInfo   pNode;
-    SArray          *tableList;   // SArray<STableNamePair>
-  };
-} SFromInfo;
+typedef struct SRelationInfo {
+  int32_t       type;        // nested query|table name list
+  SArray       *list;        // SArray<STableNamePair>|SArray<SSqlNode*>
+} SRelationInfo;
 
 typedef struct SCreatedTableInfo {
   SStrToken          name;        // table name token
@@ -139,7 +136,7 @@ typedef struct SCreateTableSql {
   } colInfo;
 
   SArray            *childTableInfo;        // SArray<SCreatedTableInfo>
-  SQuerySqlNode     *pSelect;
+  SSqlNode     *pSelect;
 } SCreateTableSql;
 
 typedef struct SAlterTableInfo {
@@ -216,7 +213,7 @@ typedef struct SMiscInfo {
 typedef struct SSqlInfo {
   int32_t            type;
   bool               valid;
-  SSubclauseInfo     subclauseInfo;
+  SArray            *list;    // todo refactor
   char               msg[256];
   union {
     SCreateTableSql *pCreateTableInfo;
@@ -253,9 +250,9 @@ SArray *tVariantListAppend(SArray *pList, tVariant *pVar, uint8_t sortOrder);
 SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int32_t index);
 SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t sortOrder);
 
-SFromInfo *setTableNameList(SFromInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
-SFromInfo *setSubquery(SFromInfo* pFromInfo, SSubclauseInfo* pSqlNode);
-void      *destroyFromInfo(SFromInfo* pFromInfo);
+SRelationInfo *setTableNameList(SRelationInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
+SRelationInfo *setSubquery(SRelationInfo* pFromInfo, SArray* pSqlNode);
+void      *destroyFromInfo(SRelationInfo* pFromInfo);
 
 // sql expr leaf node
 tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType);
@@ -270,23 +267,22 @@ void      tSqlExprDestroy(tSqlExpr *pExpr);
 SArray   *tSqlExprListAppend(SArray *pList, tSqlExpr *pNode, SStrToken *pDistinct, SStrToken *pToken);
 void      tSqlExprListDestroy(SArray *pList);
 
-SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SFromInfo *pFrom, tSqlExpr *pWhere,
+SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,
                                 SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit);
 
-SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SQuerySqlNode *pSelect, int32_t type);
+SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSelect, int32_t type);
 
 SAlterTableInfo *tSetAlterTableInfo(SStrToken *pTableName, SArray *pCols, SArray *pVals, int32_t type, int16_t tableTable);
 SCreatedTableInfo createNewChildTableInfo(SStrToken *pTableName, SArray *pTagNames, SArray *pTagVals, SStrToken *pToken, SStrToken* igExists);
 
-void destroyAllSelectClause(SSubclauseInfo *pSql);
-void destroyQuerySqlNode(SQuerySqlNode *pSql);
+void destroyAllSqlNode(SArray *pSqlNode);
+void destroySqlNode(SSqlNode *pSql);
 void freeCreateTableInfo(void* p);
 
-SSqlInfo       *setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pTableName, int32_t type);
-SSubclauseInfo *setSubclause(SSubclauseInfo *pClause, void *pSqlExprInfo);
-
-SSubclauseInfo *appendSelectClause(SSubclauseInfo *pInfo, void *pSubclause);
+SSqlInfo *setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pTableName, int32_t type);
+SArray   *setSubclause(SArray *pList, void *pSqlNode);
+SArray   *appendSelectClause(SArray *pList, void *pSubclause);
 
 void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken *pIfNotExists);
 

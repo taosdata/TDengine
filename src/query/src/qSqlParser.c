@@ -452,13 +452,13 @@ SArray *tVariantListInsert(SArray *pList, tVariant *pVar, uint8_t sortOrder, int
   return pList;
 }
 
-SFromInfo *setTableNameList(SFromInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias) {
-  if (pFromInfo == NULL) {
-    pFromInfo = calloc(1, sizeof(SFromInfo));
-    pFromInfo->tableList = taosArrayInit(4, sizeof(STableNamePair));
+SRelationInfo *setTableNameList(SRelationInfo* pRelationInfo, SStrToken *pName, SStrToken* pAlias) {
+  if (pRelationInfo == NULL) {
+    pRelationInfo = calloc(1, sizeof(SRelationInfo));
+    pRelationInfo->list = taosArrayInit(4, sizeof(STableNamePair));
   }
 
-  pFromInfo->type = SQL_NODE_FROM_NAMELIST;
+  pRelationInfo->type = SQL_NODE_FROM_TABLELIST;
   STableNamePair p = {.name = *pName};
   if (pAlias != NULL) {
     p.aliasName = *pAlias;
@@ -466,34 +466,39 @@ SFromInfo *setTableNameList(SFromInfo* pFromInfo, SStrToken *pName, SStrToken* p
     TPARSER_SET_NONE_TOKEN(p.aliasName);
   }
 
-  taosArrayPush(pFromInfo->tableList, &p);
-
-  return pFromInfo;
+  taosArrayPush(pRelationInfo->list, &p);
+  return pRelationInfo;
 }
 
-SFromInfo *setSubquery(SFromInfo* pFromInfo, SSubclauseInfo* pSqlNode) {
-  if (pFromInfo == NULL) {
-    pFromInfo = calloc(1, sizeof(SFromInfo));
+SRelationInfo* setSubquery(SRelationInfo* pRelationInfo, SArray* pList) {
+  if (pRelationInfo == NULL) {
+    pRelationInfo = calloc(1, sizeof(SRelationInfo));
+    pRelationInfo->list = taosArrayInit(4, POINTER_BYTES);
   }
 
-  pFromInfo->type = SQL_NODE_FROM_SUBQUERY;
-  pFromInfo->pNode = *pSqlNode;
+  pRelationInfo->type = SQL_NODE_FROM_SUBQUERY;
+  taosArrayPush(pRelationInfo->list, &pList);
 
-  return pFromInfo;
+  return pRelationInfo;
 }
 
-void* destroyFromInfo(SFromInfo* pFromInfo) {
-  if (pFromInfo == NULL) {
+void* destroyFromInfo(SRelationInfo* pRelationInfo) {
+  if (pRelationInfo == NULL) {
     return NULL;
   }
 
-  if (pFromInfo->type == SQL_NODE_FROM_NAMELIST) {
-    taosArrayDestroy(pFromInfo->tableList);
+  if (pRelationInfo->type == SQL_NODE_FROM_TABLELIST) {
+    taosArrayDestroy(pRelationInfo->list);
   } else {
-    destroyAllSelectClause(&pFromInfo->pNode);
+    size_t size = taosArrayGetSize(pRelationInfo->list);
+    for(int32_t i = 0; i < size; ++i) {
+      SArray* pa = taosArrayGetP(pRelationInfo->list, 0);
+      destroyAllSqlNode(pa);
+    }
+    taosArrayDestroy(pRelationInfo->list);
   }
 
-  tfree(pFromInfo);
+  tfree(pRelationInfo);
   return NULL;
 }
 
@@ -637,13 +642,13 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 /*
  * extract the select info out of sql string
  */
-SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SFromInfo *pFrom, tSqlExpr *pWhere,
+SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
                                 SSessionWindowVal *pSession, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
                                 SLimitVal *psLimit) {
   assert(pSelNodeList != NULL);
 
-  SQuerySqlNode *pSqlNode = calloc(1, sizeof(SQuerySqlNode));
+  SSqlNode *pSqlNode = calloc(1, sizeof(SSqlNode));
 
   // all later sql string are belonged to the stream sql
   pSqlNode->sqlstr   = *pSelectToken;
@@ -706,46 +711,47 @@ void freeCreateTableInfo(void* p) {
   tfree(pInfo->tagdata.data);
 }
 
-void destroyQuerySqlNode(SQuerySqlNode *pQuerySql) {
-  if (pQuerySql == NULL) {
+void destroySqlNode(SSqlNode *pSqlNode) {
+  if (pSqlNode == NULL) {
     return;
   }
 
-  tSqlExprListDestroy(pQuerySql->pSelNodeList);
+  tSqlExprListDestroy(pSqlNode->pSelNodeList);
   
-  pQuerySql->pSelNodeList = NULL;
+  pSqlNode->pSelNodeList = NULL;
 
-  tSqlExprDestroy(pQuerySql->pWhere);
-  pQuerySql->pWhere = NULL;
+  tSqlExprDestroy(pSqlNode->pWhere);
+  pSqlNode->pWhere = NULL;
   
-  taosArrayDestroyEx(pQuerySql->pSortOrder, freeVariant);
-  pQuerySql->pSortOrder = NULL;
+  taosArrayDestroyEx(pSqlNode->pSortOrder, freeVariant);
+  pSqlNode->pSortOrder = NULL;
 
-  taosArrayDestroyEx(pQuerySql->pGroupby, freeVariant);
-  pQuerySql->pGroupby = NULL;
+  taosArrayDestroyEx(pSqlNode->pGroupby, freeVariant);
+  pSqlNode->pGroupby = NULL;
 
-  pQuerySql->from = destroyFromInfo(pQuerySql->from);
+  pSqlNode->from = destroyFromInfo(pSqlNode->from);
 
-  taosArrayDestroyEx(pQuerySql->fillType, freeVariant);
-  pQuerySql->fillType = NULL;
+  taosArrayDestroyEx(pSqlNode->fillType, freeVariant);
+  pSqlNode->fillType = NULL;
 
-  free(pQuerySql);
+  free(pSqlNode);
 }
 
-void destroyAllSelectClause(SSubclauseInfo *pClause) {
-  if (pClause == NULL || pClause->numOfClause == 0) {
+void destroyAllSqlNode(SArray *pList) {
+  if (pList == NULL) {
     return;
   }
 
-  for(int32_t i = 0; i < pClause->numOfClause; ++i) {
-    SQuerySqlNode *pQuerySql = pClause->pClause[i];
-    destroyQuerySqlNode(pQuerySql);
+  size_t size = taosArrayGetSize(pList);
+  for(int32_t i = 0; i < size; ++i) {
+    SSqlNode *pNode = taosArrayGetP(pList, 0);
+    destroySqlNode(pNode);
   }
-  
-  tfree(pClause->pClause);
+
+  taosArrayDestroy(pList);
 }
 
-SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SQuerySqlNode *pSelect, int32_t type) {
+SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSelect, int32_t type) {
   SCreateTableSql *pCreate = calloc(1, sizeof(SCreateTableSql));
 
   switch (type) {
@@ -813,7 +819,7 @@ SAlterTableInfo *tSetAlterTableInfo(SStrToken *pTableName, SArray *pCols, SArray
 }
 
 void* destroyCreateTableSql(SCreateTableSql* pCreate) {
-  destroyQuerySqlNode(pCreate->pSelect);
+  destroySqlNode(pCreate->pSelect);
 
   taosArrayDestroy(pCreate->colInfo.pColumns);
   taosArrayDestroy(pCreate->colInfo.pTagColumns);
@@ -828,7 +834,7 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
   if (pInfo == NULL) return;
 
   if (pInfo->type == TSDB_SQL_SELECT) {
-    destroyAllSelectClause(&pInfo->subclauseInfo);
+    destroyAllSqlNode(pInfo->list);
   } else if (pInfo->type == TSDB_SQL_CREATE_TABLE) {
     pInfo->pCreateTableInfo = destroyCreateTableSql(pInfo->pCreateTableInfo);
   } else if (pInfo->type == TSDB_SQL_ALTER_TABLE) {
@@ -849,31 +855,20 @@ void SqlInfoDestroy(SSqlInfo *pInfo) {
   }
 }
 
-SSubclauseInfo* setSubclause(SSubclauseInfo* pSubclause, void *pSqlExprInfo) {
-  if (pSubclause == NULL) {
-    pSubclause = calloc(1, sizeof(SSubclauseInfo));
+SArray* setSubclause(SArray* pList, void *pSqlNode) {
+  if (pList == NULL) {
+    pList = taosArrayInit(1, POINTER_BYTES);
   }
   
-  int32_t newSize = pSubclause->numOfClause + 1;
-  char* tmp = realloc(pSubclause->pClause, newSize * POINTER_BYTES);
-  if (tmp == NULL) {
-    return pSubclause;
-  }
-  
-  pSubclause->pClause = (SQuerySqlNode**) tmp;
-  
-  pSubclause->pClause[newSize - 1] = pSqlExprInfo;
-  pSubclause->numOfClause++;
-  
-  return pSubclause;
+  taosArrayPush(pList, &pSqlNode);
+  return pList;
 }
 
 SSqlInfo* setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pTableName, int32_t type) {
   pInfo->type = type;
   
   if (type == TSDB_SQL_SELECT) {
-    pInfo->subclauseInfo = *(SSubclauseInfo*) pSqlExprInfo;
-    free(pSqlExprInfo);
+    pInfo->list = (SArray*) pSqlExprInfo;
   } else {
     pInfo->pCreateTableInfo = pSqlExprInfo;
   }
@@ -885,16 +880,9 @@ SSqlInfo* setSqlInfo(SSqlInfo *pInfo, void *pSqlExprInfo, SStrToken *pTableName,
   return pInfo;
 }
 
-SSubclauseInfo* appendSelectClause(SSubclauseInfo *pQueryInfo, void *pSubclause) {
-  char* tmp = realloc(pQueryInfo->pClause, (pQueryInfo->numOfClause + 1) * POINTER_BYTES);
-  if (tmp == NULL) {  // out of memory
-    return pQueryInfo;
-  }
-  
-  pQueryInfo->pClause = (SQuerySqlNode**) tmp;
-  pQueryInfo->pClause[pQueryInfo->numOfClause++] = pSubclause;
-  
-  return pQueryInfo;
+SArray* appendSelectClause(SArray *pList, void *pSubclause) {
+  taosArrayPush(pList, &pSubclause);
+  return pList;
 }
 
 void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken *pIfNotExists) {

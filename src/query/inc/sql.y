@@ -450,16 +450,16 @@ tagitem(A) ::= PLUS(X) FLOAT(Y).  {
 }
 
 //////////////////////// The SELECT statement /////////////////////////////////
-%type select {SQuerySqlNode*}
-%destructor select {destroyQuerySqlNode($$);}
+%type select {SSqlNode*}
+%destructor select {destroySqlNode($$);}
 select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) session_option(H) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
   A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &S, F, &L, &G);
 }
 
 select(A) ::= LP select(B) RP. {A = B;}
 
-%type union {SSubclauseInfo*}
-%destructor union {destroyAllSelectClause($$);}
+%type union {SArray*}
+%destructor union {destroyAllSqlNode($$);}
 union(Y) ::= select(X). { Y = setSubclause(NULL, X); }
 union(Y) ::= union(Z) UNION ALL select(X). { Y = appendSelectClause(Z, X); }
 
@@ -505,11 +505,11 @@ distinct(X) ::= DISTINCT(Y). { X = Y;  }
 distinct(X) ::= .            { X.n = 0;}
 
 // A complete FROM clause.
-%type from {SFromInfo*}
+%type from {SRelationInfo*}
 from(A) ::= FROM tablelist(X).                 {A = X;}
 from(A) ::= FROM LP union(Y) RP.               {A = setSubquery(NULL, Y);}
 
-%type tablelist {SFromInfo*}
+%type tablelist {SRelationInfo*}
 tablelist(A) ::= ids(X) cpxName(Y).                     {
   X.n += Y.n;
   A = setTableNameList(NULL, &X, NULL);

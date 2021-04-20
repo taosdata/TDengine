@@ -525,17 +525,13 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock) {
   assert(pRes->numOfCols > 0);
 
-//  int32_t offset = 0;
-
   for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
     SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
 
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
 
-    pRes->urow[i] = pColData->pData/* + offset * pColData->info.bytes*/;
+    pRes->urow[i] = pColData->pData;
     pRes->length[i] = pInfo->field.bytes;
-
-    //offset += pInfo->field.bytes;
 
     // generated the user-defined column result
     if (pInfo->pExpr->pExpr == NULL && TSDB_COL_IS_UD_COL(pInfo->pExpr->base.colInfo.flag)) {
@@ -609,7 +605,7 @@ static SColumnInfo* extractColumnInfoFromResult(STableMeta* pTableMeta, SArray* 
 }
 
 typedef struct SDummyInputInfo {
-  SSDataBlock     block;
+  SSDataBlock    *block;
   SSqlRes        *pRes;  // refactor: remove it
 } SDummyInputInfo;
 
@@ -619,7 +615,7 @@ SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
   SDummyInputInfo *pInput = pOperator->info;
   char* pData = pInput->pRes->data;
 
-  SSDataBlock* pBlock = &pInput->block;
+  SSDataBlock* pBlock = pInput->block;
   pBlock->info.rows = pInput->pRes->numOfRows;
   if (pBlock->info.rows == 0) {
     return NULL;
@@ -638,30 +634,47 @@ SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
   return pBlock;
 }
 
+static void destroyDummyInputOperator(void* param, int32_t numOfOutput) {
+  SDummyInputInfo* pInfo = (SDummyInputInfo*) param;
+
+  // tricky
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pInfo->block->pDataBlock, i);
+    pColInfoData->pData = NULL;
+  }
+
+  pInfo->block = destroyOutputBuf(pInfo->block);
+  pInfo->pRes = NULL;
+}
+
+// todo this operator servers as the adapter for Operator tree and SqlRes result, remove it later
 SOperatorInfo* createDummyInputOperator(char* pResult, SSchema* pSchema, int32_t numOfCols) {
   assert(numOfCols > 0);
-
   SDummyInputInfo* pInfo = calloc(1, sizeof(SDummyInputInfo));
+
   pInfo->pRes = (SSqlRes*) pResult;
 
-  pInfo->block.info.numOfCols = numOfCols;
-  pInfo->block.pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  pInfo->block = calloc(numOfCols, sizeof(SSDataBlock));
+  pInfo->block->info.numOfCols = numOfCols;
+
+  pInfo->block->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
   for(int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData colData = {0};
     colData.info.bytes = pSchema[i].bytes;
     colData.info.type  = pSchema[i].type;
     colData.info.colId = pSchema[i].colId;
 
-    taosArrayPush(pInfo->block.pDataBlock, &colData);
+    taosArrayPush(pInfo->block->pDataBlock, &colData);
   }
 
   SOperatorInfo* pOptr = calloc(1, sizeof(SOperatorInfo));
   pOptr->name          = "DummyInputOperator";
   pOptr->operatorType  = OP_DummyInput;
+  pOptr->numOfOutput   = numOfCols;
   pOptr->blockingOptr  = false;
   pOptr->info          = pInfo;
   pOptr->exec          = doGetDataBlock;
-
+  pOptr->cleanup       = destroyDummyInputOperator;
   return pOptr;
 }
 
@@ -683,18 +696,12 @@ void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   if (pQueryInfo->pDownstream != NULL) {
     // handle the following query process
     SQueryInfo *px = pQueryInfo->pDownstream;
-    SColumnInfo* colInfo = extractColumnInfoFromResult(px->pTableMetaInfo[0]->pTableMeta, px->colList);
+    SColumnInfo* pColumnInfo = extractColumnInfoFromResult(px->pTableMetaInfo[0]->pTableMeta, px->colList);
     int32_t numOfOutput = tscSqlExprNumOfExprs(px);
 
-    SExprInfo      *exprInfo = NULL;
-    SQLFunctionCtx *pCtx = calloc(numOfOutput, sizeof(SQLFunctionCtx));
-
     int32_t numOfCols = taosArrayGetSize(px->colList);
-    SQueriedTableInfo info = {.colList = colInfo, .numOfCols = numOfCols,};
-
-    /*int32_t code = */createQueryFunc(&info, numOfOutput, &exprInfo, px->exprList->pData, NULL, px->type, NULL);
+    SQueriedTableInfo info = {.colList = pColumnInfo, .numOfCols = numOfCols,};
     SSchema* pSchema = tscGetTableSchema(px->pTableMetaInfo[0]->pTableMeta);
-    tsCreateSQLFunctionCtx(px, pCtx, pSchema);
 
     STableGroupInfo tableGroupInfo = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES),};
     tableGroupInfo.map = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
@@ -708,11 +715,15 @@ void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 
     SOperatorInfo* pSourceOptr = createDummyInputOperator((char*)pRes, pSchema, numOfOutput);
 
+    SExprInfo *exprInfo = NULL;
+    /*int32_t code = */createQueryFunc(&info, numOfOutput, &exprInfo, px->exprList->pData, NULL, px->type, NULL);
     px->pQInfo = createQueryInfoFromQueryNode(px, exprInfo, &tableGroupInfo, pSourceOptr, NULL, NULL, MASTER_SCAN);
 
     uint64_t qId = 0;
     qTableQuery(px->pQInfo, &qId);
     convertQueryResult(pRes, px);
+
+    tfree(pColumnInfo);
   }
 }
 
@@ -750,9 +761,28 @@ void tscFreeQueryInfo(SSqlCmd* pCmd, bool removeMeta) {
   
   for (int32_t i = 0; i < pCmd->numOfClause; ++i) {
     SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, i);
+
+    // recursive call it
+    if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {
+      SQueryInfo* pUp = taosArrayGetP(pQueryInfo->pUpstream, 0);
+      freeQueryInfoImpl(pUp);
+      clearAllTableMetaInfo(pUp, removeMeta);
+      if (pUp->pQInfo != NULL) {
+        qDestroyQueryInfo(pUp->pQInfo);
+        pUp->pQInfo = NULL;
+      }
+
+      tfree(pUp);
+    }
     
     freeQueryInfoImpl(pQueryInfo);
     clearAllTableMetaInfo(pQueryInfo, removeMeta);
+
+    if (pQueryInfo->pQInfo != NULL) {
+      qDestroyQueryInfo(pQueryInfo->pQInfo);
+      pQueryInfo->pQInfo = NULL;
+    }
+
     tfree(pQueryInfo);
   }
   
@@ -2312,7 +2342,11 @@ void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta) {
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
 
-    if (removeMeta) {  
+    if (pTableMetaInfo->pTableMeta && pTableMetaInfo->pTableMeta->tableType == TSDB_TEMP_TABLE) {
+      tfree(pTableMetaInfo->pTableMeta);
+    }
+
+    if (removeMeta) {
       char name[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(&pTableMetaInfo->name, name);
     

@@ -3414,14 +3414,16 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
     size_t numOfTables = taosArrayGetSize(p);
     for(int32_t j = 0; j < numOfTables; ++j) {
       STable* pTable = taosArrayGetP(p, j);
-      assert(pTable != NULL);
-
-      tsdbUnRefTable(pTable);
+      if (pTable != NULL) { // in case of handling retrieve data from tsdb
+        tsdbUnRefTable(pTable);
+      }
+      //assert(pTable != NULL);
     }
 
     taosArrayDestroy(p);
   }
 
+  taosHashCleanup(pGroupList->map);
   taosArrayDestroy(pGroupList->pGroupList);
   pGroupList->numOfTables = 0;
 }

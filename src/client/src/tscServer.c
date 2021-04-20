@@ -1383,7 +1383,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
     pMsg = (char *)pSchema;
     if (type == TSQL_CREATE_STREAM) {  // check if it is a stream sql
-      SQuerySqlNode *pQuerySql = pInfo->pCreateTableInfo->pSelect;
+      SSqlNode *pQuerySql = pInfo->pCreateTableInfo->pSelect;
 
       strncpy(pMsg, pQuerySql->sqlstr.z, pQuerySql->sqlstr.n + 1);
       pCreateMsg->sqlLen = htons(pQuerySql->sqlstr.n + 1);

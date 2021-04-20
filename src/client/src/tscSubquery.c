@@ -3590,6 +3590,8 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
   STsBufInfo bufInfo = {0};
   SQueryParam param = {.pOperator = pa};
   /*int32_t code = */initQInfo(&bufInfo, NULL, pSourceOperator, pQInfo, &param, NULL, 0, merger);
+  taosArrayDestroy(pa);
+
   return pQInfo;
 
   _cleanup:

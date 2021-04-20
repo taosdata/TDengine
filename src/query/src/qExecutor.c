@@ -201,7 +201,7 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
   return res;
 }
 
-static void* destroyOutputBuf(SSDataBlock* pBlock) {
+void* destroyOutputBuf(SSDataBlock* pBlock) {
   if (pBlock == NULL) {
     return NULL;
   }
