@@ -219,6 +219,8 @@ python3 ./test.py -f query/bug3351.py
 python3 ./test.py -f query/bug3375.py
 python3 ./test.py -f query/queryJoin10tables.py
 python3 ./test.py -f query/queryStddevWithGroupby.py
+python3 ./test.py -f query/querySecondtscolumnTowherenow.py
+
 
 #stream
 python3 ./test.py -f stream/metric_1.py
