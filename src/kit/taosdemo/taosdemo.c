@@ -97,7 +97,7 @@ enum QUERY_MODE {
 #define   MAX_TAG_COUNT          128
 
 #define   MAX_QUERY_SQL_COUNT    100
-#define   MAX_QUERY_SQL_LENGTH   256
+#define   MAX_QUERY_SQL_LENGTH   1024
 
 #define   MAX_DATABASE_COUNT     256
 #define INPUT_BUF_LEN   256
