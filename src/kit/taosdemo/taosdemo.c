@@ -97,7 +97,7 @@ enum QUERY_MODE {
 #define   MAX_TAG_COUNT          128
 
 #define   MAX_QUERY_SQL_COUNT    100
-#define   MAX_QUERY_SQL_LENGTH   256
+#define   MAX_QUERY_SQL_LENGTH   1024
 
 #define   MAX_DATABASE_COUNT     256
 #define INPUT_BUF_LEN   256
@@ -355,7 +355,7 @@ typedef struct SDbs_S {
 } SDbs;
 
 typedef struct SpecifiedQueryInfo_S {
-  int          rate;  // 0: unlimit  > 0   loop/s
+  int          queryInterval;  // 0: unlimit  > 0   loop/s
   int          concurrent;
   int          sqlCount;
   int          mode; // 0: sync, 1: async
@@ -371,7 +371,7 @@ typedef struct SpecifiedQueryInfo_S {
 
 typedef struct SuperQueryInfo_S {
   char         sTblName[MAX_TB_NAME_SIZE+1];
-  int          rate;  // 0: unlimit  > 0   loop/s
+  int          queryInterval;  // 0: unlimit  > 0   loop/s
   int          threadCnt;
   int          mode; // 0: sync, 1: async
   int          subscribeInterval; // ms
@@ -1094,17 +1094,6 @@ static void selectAndGetResult(TAOS *taos, char *command, char* resultFileName) 
   taos_free_result(res);
 }
 
-static double getCurrentTimeUs() {
-  struct timeval tv;
-
-  if (gettimeofday(&tv, NULL) != 0) {
-    perror("Failed to get current time in ms");
-    return 0.0;
-  }
-
-  return tv.tv_sec + tv.tv_usec / 1E6;
-}
-
 static int32_t rand_bool(){
   static int cursor;
   cursor++;
@@ -1561,8 +1550,8 @@ static void printfQueryMeta() {
 
   printf("\n");
   printf("specified table query info:                   \n");
-  printf("query interval: \033[33m%d\033[0m\n",
-      g_queryInfo.specifiedQueryInfo.rate);
+  printf("query interval: \033[33m%d ms\033[0m\n",
+      g_queryInfo.specifiedQueryInfo.queryInterval);
   printf("top query times:\033[33m%d\033[0m\n", g_args.query_times);
   printf("concurrent:     \033[33m%d\033[0m\n",
       g_queryInfo.specifiedQueryInfo.concurrent);
@@ -1590,7 +1579,7 @@ static void printfQueryMeta() {
   printf("\n");
   printf("super table query info:\n");
   printf("query interval: \033[33m%d\033[0m\n",
-      g_queryInfo.superQueryInfo.rate);
+      g_queryInfo.superQueryInfo.queryInterval);
   printf("threadCnt:      \033[33m%d\033[0m\n",
       g_queryInfo.superQueryInfo.threadCnt);
   printf("childTblCount:  \033[33m%d\033[0m\n",
@@ -3988,11 +3977,11 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
     printf("ERROR: failed to read json, super_table_query not found\n");
     goto PARSE_OVER;
   } else {
-    cJSON* rate = cJSON_GetObjectItem(specifiedQuery, "query_interval");
-    if (rate && rate->type == cJSON_Number) {
-      g_queryInfo.specifiedQueryInfo.rate = rate->valueint;
-    } else if (!rate) {
-      g_queryInfo.specifiedQueryInfo.rate = 0;
+    cJSON* queryInterval = cJSON_GetObjectItem(specifiedQuery, "query_interval");
+    if (queryInterval && queryInterval->type == cJSON_Number) {
+      g_queryInfo.specifiedQueryInfo.queryInterval = queryInterval->valueint;
+    } else if (!queryInterval) {
+      g_queryInfo.specifiedQueryInfo.queryInterval = 0;
     }
 
     cJSON* specifiedQueryTimes = cJSON_GetObjectItem(specifiedQuery,
@@ -4128,9 +4117,9 @@ static bool getMetaFromQueryJsonFile(cJSON* root) {
   } else {
     cJSON* subrate = cJSON_GetObjectItem(superQuery, "query_interval");
     if (subrate && subrate->type == cJSON_Number) {
-      g_queryInfo.superQueryInfo.rate = subrate->valueint;
+      g_queryInfo.superQueryInfo.queryInterval = subrate->valueint;
     } else if (!subrate) {
-      g_queryInfo.superQueryInfo.rate = 0;
+      g_queryInfo.superQueryInfo.queryInterval = 0;
     }
 
     cJSON* superQueryTimes = cJSON_GetObjectItem(superQuery, "query_times");
@@ -4932,7 +4921,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   uint64_t et = 0xffffffff;
 
   int64_t lastPrintTime = taosGetTimestampMs();
-  int64_t startTs = taosGetTimestampUs();
+  int64_t startTs = taosGetTimestampMs();
   int64_t endTs;
 
   int tableSeq = pThreadInfo->start_table_from;
@@ -4964,7 +4953,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   while(pThreadInfo->totalInsertRows < pThreadInfo->ntables * insertRows) {
     if ((flagSleep) && (insert_interval)) {
-        st = taosGetTimestampUs();
+        st = taosGetTimestampMs();
         flagSleep = false;
     }
     // generate data
@@ -5050,14 +5039,14 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     verbosePrint("[%d] %s() LN%d, buffer=%s\n",
            pThreadInfo->threadID, __func__, __LINE__, buffer);
 
-    startTs = taosGetTimestampUs();
+    startTs = taosGetTimestampMs();
 
     int affectedRows = execInsert(pThreadInfo, buffer, recOfBatch);
 
-    endTs = taosGetTimestampUs();
+    endTs = taosGetTimestampMs();
     int64_t delay = endTs - startTs;
-    performancePrint("%s() LN%d, insert execution time is %10.6fms\n",
-            __func__, __LINE__, delay/1000.0);
+    performancePrint("%s() LN%d, insert execution time is %"PRId64"ms\n",
+            __func__, __LINE__, delay);
 
     if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
     if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
@@ -5085,10 +5074,10 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     }
 
     if ((insert_interval) && flagSleep) {
-      et = taosGetTimestampUs();
+      et = taosGetTimestampMs();
 
-      if (insert_interval > ((et - st)/1000) ) {
-        int sleepTime = insert_interval - (et -st)/1000;
+      if (insert_interval > (et - st) ) {
+        int sleepTime = insert_interval - (et -st);
         performancePrint("%s() LN%d sleep: %d ms for insert interval\n",
                     __func__, __LINE__, sleepTime);
         taosMsleep(sleepTime); // ms
@@ -5130,7 +5119,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
   }
 
   int64_t lastPrintTime = taosGetTimestampMs();
-  int64_t startTs = taosGetTimestampUs();
+  int64_t startTs = taosGetTimestampMs();
   int64_t endTs;
 
   int timeStampStep =
@@ -5157,7 +5146,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
     for (int64_t i = 0; i < insertRows;) {
         /*
       if (insert_interval) {
-            st = taosGetTimestampUs();
+            st = taosGetTimestampMs();
       }
       */
 
@@ -5189,14 +5178,14 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
       start_time +=  generated * timeStampStep;
       pThreadInfo->totalInsertRows += generated;
 
-      startTs = taosGetTimestampUs();
+      startTs = taosGetTimestampMs();
 
       int affectedRows = execInsert(pThreadInfo, buffer, generated);
 
-      endTs = taosGetTimestampUs();
+      endTs = taosGetTimestampMs();
       int64_t delay = endTs - startTs;
-      performancePrint("%s() LN%d, insert execution time is %10.6fms\n",
-              __func__, __LINE__, delay/1000.0);
+      performancePrint("%s() LN%d, insert execution time is %"PRId64"ms\n",
+              __func__, __LINE__, delay);
 
       if (delay > pThreadInfo->maxDelay) pThreadInfo->maxDelay = delay;
       if (delay < pThreadInfo->minDelay) pThreadInfo->minDelay = delay;
@@ -5221,10 +5210,10 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
         break;
 /*
       if (insert_interval) {
-        et = taosGetTimestampUs();
+        et = taosGetTimestampMs();
 
-        if (insert_interval > ((et - st)/1000) ) {
-            int sleep_time = insert_interval - (et -st)/1000;
+        if (insert_interval > ((et - st)) ) {
+            int sleep_time = insert_interval - (et -st);
             performancePrint("%s() LN%d sleep: %d ms for insert interval\n",
                     __func__, __LINE__, sleep_time);
             taosMsleep(sleep_time); // ms
@@ -5276,9 +5265,9 @@ static void callBack(void *param, TAOS_RES *res, int code) {
   int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
   if (insert_interval) {
-    pThreadInfo->et = taosGetTimestampUs();
-    if (((pThreadInfo->et - pThreadInfo->st)/1000) < insert_interval) {
-      taosMsleep(insert_interval - (pThreadInfo->et - pThreadInfo->st)/1000); // ms
+    pThreadInfo->et = taosGetTimestampMs();
+    if ((pThreadInfo->et - pThreadInfo->st) < insert_interval) {
+      taosMsleep(insert_interval - (pThreadInfo->et - pThreadInfo->st)); // ms
     }
   }
 
@@ -5317,7 +5306,7 @@ static void callBack(void *param, TAOS_RES *res, int code) {
   }
 
   if (insert_interval) {
-    pThreadInfo->st = taosGetTimestampUs();
+    pThreadInfo->st = taosGetTimestampMs();
   }
   taos_query_a(pThreadInfo->taos, buffer, callBack, pThreadInfo);
   free(buffer);
@@ -5336,7 +5325,7 @@ static void *asyncWrite(void *sarg) {
   int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
   if (insert_interval) {
-    pThreadInfo->st = taosGetTimestampUs();
+    pThreadInfo->st = taosGetTimestampMs();
   }
   taos_query_a(pThreadInfo->taos, "show databases", callBack, pThreadInfo);
 
@@ -5395,7 +5384,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
      start_time = 1500000000000;
   }
 
-  double start = getCurrentTimeUs();
+  int64_t start = taosGetTimestampMs();
 
   // read sample data from file first
   if ((superTblInfo) && (0 == strncasecmp(superTblInfo->dataSource,
@@ -5592,39 +5581,39 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   if (cntDelay == 0)    cntDelay = 1;
   avgDelay = (double)totalDelay / cntDelay;
 
-  double end = getCurrentTimeUs();
-  double t = end - start;
+  int64_t end = taosGetTimestampMs();
+  int64_t t = end - start;
 
   if (superTblInfo) {
-    printf("Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s. %2.f records/second\n\n",
-          t, superTblInfo->totalInsertRows,
+    printf("Spent %.2f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s. %2.f records/second\n\n",
+          t / 1000.0, superTblInfo->totalInsertRows,
           superTblInfo->totalAffectedRows,
           threads, db_name, superTblInfo->sTblName,
-          superTblInfo->totalInsertRows / t);
+          (double)superTblInfo->totalInsertRows / (t / 1000.0));
     fprintf(g_fpOfInsertResult,
-          "Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s. %2.f records/second\n\n",
-          t, superTblInfo->totalInsertRows,
+          "Spent %.2f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s.%s. %2.f records/second\n\n",
+          t / 1000.0, superTblInfo->totalInsertRows,
           superTblInfo->totalAffectedRows,
           threads, db_name, superTblInfo->sTblName,
-          superTblInfo->totalInsertRows/ t);
+          (double)superTblInfo->totalInsertRows / (t / 1000.0));
   } else {
-    printf("Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s %2.f records/second\n\n",
-          t, g_args.totalInsertRows,
+    printf("Spent %.2f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s %2.f records/second\n\n",
+          t / 1000.0, g_args.totalInsertRows,
           g_args.totalAffectedRows,
           threads, db_name,
-          g_args.totalInsertRows / t);
+          (double)g_args.totalInsertRows / (t / 1000.0));
     fprintf(g_fpOfInsertResult,
-          "Spent %.4f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s %2.f records/second\n\n",
-          t, g_args.totalInsertRows,
+          "Spent %.2f seconds to insert rows: %"PRId64", affected rows: %"PRId64" with %d thread(s) into %s %2.f records/second\n\n",
+          t * 1000.0, g_args.totalInsertRows,
           g_args.totalAffectedRows,
           threads, db_name,
-          g_args.totalInsertRows / t);
+          (double)g_args.totalInsertRows / (t / 1000.0));
   }
 
-  printf("insert delay, avg: %10.6fms, max: %10.6fms, min: %10.6fms\n\n",
-          avgDelay/1000.0, (double)maxDelay/1000.0, (double)minDelay/1000.0);
-  fprintf(g_fpOfInsertResult, "insert delay, avg:%10.6fms, max: %10.6fms, min: %10.6fms\n\n",
-          avgDelay/1000.0, (double)maxDelay/1000.0, (double)minDelay/1000.0);
+  printf("insert delay, avg: %10.2fms, max: %"PRId64"ms, min: %"PRId64"ms\n\n",
+          avgDelay, maxDelay, minDelay);
+  fprintf(g_fpOfInsertResult, "insert delay, avg:%10.2fms, max: %"PRId64"ms, min: %"PRId64"ms\n\n",
+          avgDelay, maxDelay, minDelay);
 
   //taos_close(taos);
 
@@ -5671,7 +5660,7 @@ static void *readTable(void *sarg) {
       sprintf(command, "select %s from %s%d where ts>= %" PRId64,
               aggreFunc[j], tb_prefix, i, sTime);
 
-      double t = getCurrentTimeUs();
+      double t = taosGetTimestampMs();
       TAOS_RES *pSql = taos_query(taos, command);
       int32_t code = taos_errno(pSql);
 
@@ -5687,7 +5676,7 @@ static void *readTable(void *sarg) {
         count++;
       }
 
-      t = getCurrentTimeUs() - t;
+      t = taosGetTimestampMs() - t;
       totalT += t;
 
       taos_free_result(pSql);
@@ -5696,7 +5685,7 @@ static void *readTable(void *sarg) {
     fprintf(fp, "|%10s  |   %10d   |  %12.2f   |   %10.2f  |\n",
             aggreFunc[j][0] == '*' ? "   *   " : aggreFunc[j], totalData,
             (double)(num_of_tables * num_of_DPT) / totalT, totalT * 1000);
-    printf("select %10s took %.6f second(s)\n", aggreFunc[j], totalT);
+    printf("select %10s took %.6f second(s)\n", aggreFunc[j], totalT * 1000);
   }
   fprintf(fp, "\n");
   fclose(fp);
@@ -5746,7 +5735,7 @@ static void *readMetric(void *sarg) {
       printf("Where condition: %s\n", condition);
       fprintf(fp, "%s\n", command);
 
-      double t = getCurrentTimeUs();
+      double t = taosGetTimestampMs();
 
       TAOS_RES *pSql = taos_query(taos, command);
       int32_t code = taos_errno(pSql);
@@ -5762,11 +5751,11 @@ static void *readMetric(void *sarg) {
       while(taos_fetch_row(pSql) != NULL) {
         count++;
       }
-      t = getCurrentTimeUs() - t;
+      t = taosGetTimestampMs() - t;
 
       fprintf(fp, "| Speed: %12.2f(per s) | Latency: %.4f(ms) |\n",
-              num_of_tables * num_of_DPT / t, t * 1000);
-      printf("select %10s took %.6f second(s)\n\n", aggreFunc[j], t);
+              num_of_tables * num_of_DPT / (t * 1000.0), t);
+      printf("select %10s took %.6f second(s)\n\n", aggreFunc[j], t * 1000.0);
 
       taos_free_result(pSql);
     }
@@ -5816,21 +5805,21 @@ static int insertTestProcess() {
   double end;
 
   // create child tables
-  start = getCurrentTimeUs();
+  start = taosGetTimestampMs();
   createChildTables();
-  end = getCurrentTimeUs();
+  end = taosGetTimestampMs();
 
   if (g_totalChildTables > 0) {
     printf("Spent %.4f seconds to create %d tables with %d thread(s)\n\n",
-            end - start, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
+            (end - start)/1000.0, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
     fprintf(g_fpOfInsertResult,
             "Spent %.4f seconds to create %d tables with %d thread(s)\n\n",
-            end - start, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
+            (end - start)/1000.0, g_totalChildTables, g_Dbs.threadCountByCreateTbl);
   }
 
   taosMsleep(1000);
   // create sub threads for inserting data
-  //start = getCurrentTimeUs();
+  //start = taosGetTimestampMs();
   for (int i = 0; i < g_Dbs.dbCount; i++) {
     if (g_Dbs.use_metric) {
       if (g_Dbs.db[i].superTblCount > 0) {
@@ -5855,7 +5844,7 @@ static int insertTestProcess() {
           NULL);
     }
   }
-  //end = getCurrentTimeUs();
+  //end = taosGetTimestampMs();
 
   //int64_t    totalInsertRows = 0;
   //int64_t    totalAffectedRows = 0;
@@ -5908,16 +5897,15 @@ static void *specifiedTableQuery(void *sarg) {
   int64_t  startTs = taosGetTimestampMs();
 
   while(queryTimes --) {
-    if (g_queryInfo.specifiedQueryInfo.rate && (et - st) <
-            (int64_t)g_queryInfo.specifiedQueryInfo.rate*1000) {
-      taosMsleep(g_queryInfo.specifiedQueryInfo.rate*1000 - (et - st)); // ms
-      //printf("========sleep duration:%"PRId64 "========inserted rows:%d, table range:%d - %d\n", (1000 - (et - st)), i, pThreadInfo->start_table_from, pThreadInfo->end_table_to);
+    if (g_queryInfo.specifiedQueryInfo.queryInterval && (et - st) <
+            (int64_t)g_queryInfo.specifiedQueryInfo.queryInterval) {
+      taosMsleep(g_queryInfo.specifiedQueryInfo.queryInterval - (et - st)); // ms
     }
 
-    st = taosGetTimestampUs();
+    st = taosGetTimestampMs();
 
     if (0 == strncasecmp(g_queryInfo.queryMode, "taosc", 5)) {
-      int64_t t1 = taosGetTimestampUs();
+      int64_t t1 = taosGetTimestampMs();
       char tmpFile[MAX_FILE_NAME_LEN*2] = {0};
       if (g_queryInfo.specifiedQueryInfo.result[pThreadInfo->querySeq][0] != 0) {
         sprintf(tmpFile, "%s-%d",
@@ -5926,11 +5914,11 @@ static void *specifiedTableQuery(void *sarg) {
       }
       selectAndGetResult(pThreadInfo->taos,
           g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq], tmpFile);
-      int64_t t2 = taosGetTimestampUs();
-      printf("=[taosc] thread[%"PRId64"] complete one sql, Spent %f s\n",
-              taosGetSelfPthreadId(), (t2 - t1)/1000000.0);
+      int64_t t2 = taosGetTimestampMs();
+      printf("=[taosc] thread[%"PRId64"] complete one sql, Spent %10.3f s\n",
+              taosGetSelfPthreadId(), (t2 - t1)/1000.0);
     } else {
-      int64_t t1 = taosGetTimestampUs();
+      int64_t t1 = taosGetTimestampMs();
       int retCode = postProceSql(g_queryInfo.host,
               g_queryInfo.port,
               g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq]);
@@ -5938,25 +5926,25 @@ static void *specifiedTableQuery(void *sarg) {
         printf("====restful return fail, threadID[%d]\n", pThreadInfo->threadID);
         return NULL;
       }
-      int64_t t2 = taosGetTimestampUs();
-      printf("=[restful] thread[%"PRId64"] complete one sql, Spent %f s\n",
-              taosGetSelfPthreadId(), (t2 - t1)/1000000.0);
+      int64_t t2 = taosGetTimestampMs();
+      printf("=[restful] thread[%"PRId64"] complete one sql, Spent %10.3f s\n",
+              taosGetSelfPthreadId(), (t2 - t1)/1000.0);
 
     }
     totalQueried ++;
     g_queryInfo.specifiedQueryInfo.totalQueried ++;
 
-    et = taosGetTimestampUs();
-    printf("==thread[%"PRId64"] complete all sqls to specify tables once queries duration:%.6fs\n\n",
-            taosGetSelfPthreadId(), (double)(et - st)/1000.0);
+    et = taosGetTimestampMs();
 
     int64_t  currentPrintTime = taosGetTimestampMs();
     int64_t  endTs = taosGetTimestampMs();
     if (currentPrintTime - lastPrintTime > 30*1000) {
-      printf("thread[%d] has currently completed queries: %d, QPS: %10.2f\n",
+      debugPrint("%s() LN%d, endTs=%"PRId64"ms, startTs=%"PRId64"ms\n",
+          __func__, __LINE__, endTs, startTs);
+      printf("thread[%d] has currently completed queries: %d, QPS: %10.6f\n",
                     pThreadInfo->threadID,
                     totalQueried,
-                    totalQueried/((endTs-startTs)/1000.0));
+                    (double)(totalQueried/((endTs-startTs)/1000.0)));
     }
     lastPrintTime = currentPrintTime;
   }
@@ -6006,7 +5994,7 @@ static void *superTableQuery(void *sarg) {
   }
 
   int64_t st = 0;
-  int64_t et = (int64_t)g_queryInfo.superQueryInfo.rate*1000;
+  int64_t et = (int64_t)g_queryInfo.superQueryInfo.queryInterval;
 
   int queryTimes = g_queryInfo.superQueryInfo.queryTimes;
   int totalQueried = 0;
@@ -6014,13 +6002,13 @@ static void *superTableQuery(void *sarg) {
 
   int64_t  lastPrintTime = taosGetTimestampMs();
   while(queryTimes --) {
-    if (g_queryInfo.superQueryInfo.rate
-            && (et - st) < (int64_t)g_queryInfo.superQueryInfo.rate*1000) {
-      taosMsleep(g_queryInfo.superQueryInfo.rate*1000 - (et - st)); // ms
+    if (g_queryInfo.superQueryInfo.queryInterval
+            && (et - st) < (int64_t)g_queryInfo.superQueryInfo.queryInterval) {
+      taosMsleep(g_queryInfo.superQueryInfo.queryInterval - (et - st)); // ms
       //printf("========sleep duration:%"PRId64 "========inserted rows:%d, table range:%d - %d\n", (1000 - (et - st)), i, pThreadInfo->start_table_from, pThreadInfo->end_table_to);
     }
 
-    st = taosGetTimestampUs();
+    st = taosGetTimestampMs();
     for (int i = pThreadInfo->start_table_from; i <= pThreadInfo->end_table_to; i++) {
       for (int j = 0; j < g_queryInfo.superQueryInfo.sqlCount; j++) {
         memset(sqlstr,0,sizeof(sqlstr));
@@ -6039,20 +6027,20 @@ static void *superTableQuery(void *sarg) {
         int64_t  currentPrintTime = taosGetTimestampMs();
         int64_t  endTs = taosGetTimestampMs();
         if (currentPrintTime - lastPrintTime > 30*1000) {
-          printf("thread[%d] has currently completed queries: %d, QPS: %10.2f\n",
+          printf("thread[%d] has currently completed queries: %d, QPS: %10.3f\n",
                     pThreadInfo->threadID,
                     totalQueried,
-                    totalQueried/((endTs-startTs)/1000.0));
+                    (double)(totalQueried/((endTs-startTs)/1000.0)));
         }
         lastPrintTime = currentPrintTime;
       }
     }
-    et = taosGetTimestampUs();
+    et = taosGetTimestampMs();
     printf("####thread[%"PRId64"] complete all sqls to allocate all sub-tables[%d - %d] once queries duration:%.4fs\n\n",
             taosGetSelfPthreadId(),
             pThreadInfo->start_table_from,
             pThreadInfo->end_table_to,
-            (double)(et - st)/1000000.0);
+            (double)(et - st)/1000.0);
   }
 
   return NULL;
@@ -6213,9 +6201,9 @@ static int queryTestProcess() {
   int totalQueried = g_queryInfo.specifiedQueryInfo.totalQueried +
     g_queryInfo.superQueryInfo.totalQueried;
 
-  printf("==== completed total queries: %d, the QPS of all threads: %10.2f====\n",
+  printf("==== completed total queries: %d, the QPS of all threads: %10.3f====\n",
           totalQueried,
-          totalQueried/((endTs-startTs)/1000.0));
+          (double)(totalQueried/((endTs-startTs)/1000.0)));
   return 0;
 }
 
@@ -6285,8 +6273,8 @@ static void *superSubscribe(void *sarg) {
   //int64_t st = 0;
   //int64_t et = 0;
   do {
-    //if (g_queryInfo.specifiedQueryInfo.rate && (et - st) < g_queryInfo.specifiedQueryInfo.rate*1000) {
-    //  taosMsleep(g_queryInfo.specifiedQueryInfo.rate*1000 - (et - st)); // ms
+    //if (g_queryInfo.specifiedQueryInfo.queryInterval && (et - st) < g_queryInfo.specifiedQueryInfo.queryInterval) {
+    //  taosMsleep(g_queryInfo.specifiedQueryInfo.queryInterval- (et - st)); // ms
     //  //printf("========sleep duration:%"PRId64 "========inserted rows:%d, table range:%d - %d\n", (1000 - (et - st)), i, pThreadInfo->start_table_from, pThreadInfo->end_table_to);
     //}
 
@@ -6372,8 +6360,8 @@ static void *specifiedSubscribe(void *sarg) {
   //int64_t st = 0;
   //int64_t et = 0;
   do {
-    //if (g_queryInfo.specifiedQueryInfo.rate && (et - st) < g_queryInfo.specifiedQueryInfo.rate*1000) {
-    //  taosMsleep(g_queryInfo.specifiedQueryInfo.rate*1000 - (et - st)); // ms
+    //if (g_queryInfo.specifiedQueryInfo.queryInterval && (et - st) < g_queryInfo.specifiedQueryInfo.queryInterval) {
+    //  taosMsleep(g_queryInfo.specifiedQueryInfo.queryInterval- (et - st)); // ms
     //  //printf("========sleep duration:%"PRId64 "========inserted rows:%d, table range:%d - %d\n", (1000 - (et - st)), i, pThreadInfo->start_table_from, pThreadInfo->end_table_to);
     //}
 
@@ -6723,7 +6711,7 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
   char *    line = NULL;
   size_t    line_len = 0;
 
-  double t = getCurrentTimeUs();
+  double t = taosGetTimestampMs();
 
   while((read_len = tgetline(&line, &line_len, fp)) != -1) {
     if (read_len >= MAX_SQL_SIZE) continue;
@@ -6754,7 +6742,7 @@ static void querySqlFile(TAOS* taos, char* sqlFile)
     cmd_len = 0;
   }
 
-  t = getCurrentTimeUs() - t;
+  t = taosGetTimestampMs() - t;
   printf("run %s took %.6f second(s)\n\n", sqlFile, t);
 
   tmfree(cmd);
