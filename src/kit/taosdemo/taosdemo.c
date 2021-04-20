@@ -5845,7 +5845,7 @@ static void *specifiedTableQuery(void *sarg) {
       selectAndGetResult(pThreadInfo->taos,
           g_queryInfo.specifiedQueryInfo.sql[pThreadInfo->querySeq], tmpFile);
       int64_t t2 = taosGetTimestampMs();
-      printf("=[taosc] thread[%"PRId64"] complete one sql, Spent %f s\n",
+      printf("=[taosc] thread[%"PRId64"] complete one sql, Spent %10.3f s\n",
               taosGetSelfPthreadId(), (t2 - t1)/1000.0);
     } else {
       int64_t t1 = taosGetTimestampMs();
@@ -5857,7 +5857,7 @@ static void *specifiedTableQuery(void *sarg) {
         return NULL;
       }
       int64_t t2 = taosGetTimestampMs();
-      printf("=[restful] thread[%"PRId64"] complete one sql, Spent %f s\n",
+      printf("=[restful] thread[%"PRId64"] complete one sql, Spent %10.3f s\n",
               taosGetSelfPthreadId(), (t2 - t1)/1000.0);
 
     }
@@ -5869,7 +5869,9 @@ static void *specifiedTableQuery(void *sarg) {
     int64_t  currentPrintTime = taosGetTimestampMs();
     int64_t  endTs = taosGetTimestampMs();
     if (currentPrintTime - lastPrintTime > 30*1000) {
-      printf("thread[%d] has currently completed queries: %d, QPS: %10.2f\n",
+      debugPrint("%s() LN%d, endTs=%"PRId64"ms, startTs=%"PRId64"ms\n",
+          __func__, __LINE__, endTs, startTs);
+      printf("thread[%d] has currently completed queries: %d, QPS: %10.6f\n",
                     pThreadInfo->threadID,
                     totalQueried,
                     (double)(totalQueried/((endTs-startTs)/1000.0)));
@@ -5955,7 +5957,7 @@ static void *superTableQuery(void *sarg) {
         int64_t  currentPrintTime = taosGetTimestampMs();
         int64_t  endTs = taosGetTimestampMs();
         if (currentPrintTime - lastPrintTime > 30*1000) {
-          printf("thread[%d] has currently completed queries: %d, QPS: %10.2f\n",
+          printf("thread[%d] has currently completed queries: %d, QPS: %10.3f\n",
                     pThreadInfo->threadID,
                     totalQueried,
                     (double)(totalQueried/((endTs-startTs)/1000.0)));
@@ -6129,7 +6131,7 @@ static int queryTestProcess() {
   int totalQueried = g_queryInfo.specifiedQueryInfo.totalQueried +
     g_queryInfo.superQueryInfo.totalQueried;
 
-  printf("==== completed total queries: %d, the QPS of all threads: %10.2f====\n",
+  printf("==== completed total queries: %d, the QPS of all threads: %10.3f====\n",
           totalQueried,
           (double)(totalQueried/((endTs-startTs)/1000.0)));
   return 0;
