@@ -331,7 +331,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   pRetrieve->free = htons(pRetrieve->free);
   pRetrieve->qId = htobe64(pRetrieve->qId);
 
-  vTrace("vgId:%d, qId:%" PRIu64 ", retrieve msg is disposed, free:%d, conn:%p", pVnode->vgId, pRetrieve->qId,
+  vTrace("vgId:%d, qId:0x%" PRIx64 ", retrieve msg is disposed, free:%d, conn:%p", pVnode->vgId, pRetrieve->qId,
          pRetrieve->free, pRead->rpcHandle);
 
   memset(pRet, 0, sizeof(SRspRet));
