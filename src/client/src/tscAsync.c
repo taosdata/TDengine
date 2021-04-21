@@ -57,7 +57,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
   strntolower(pSql->sqlstr, sqlstr, (int32_t)sqlLen);
 
-  tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
+  tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
   pCmd->curSql = pSql->sqlstr;
 
   int32_t code = tsParseSql(pSql, true);
