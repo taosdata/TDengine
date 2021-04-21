@@ -42,7 +42,7 @@ class TDTestCase:
 
         tdLog.info("=============== step3")
         start = time.time()
-        tdSql.waitedQuery("select * from st", 1, 120)
+        tdSql.waitedQuery("select * from st", 1, 180)
         delay = int(time.time() - start) + 80
         v = tdSql.getData(0, 3)
         if v >= 51:
