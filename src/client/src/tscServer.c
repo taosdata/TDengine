@@ -562,11 +562,12 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
 
     pRetrieveMsg->header.vgId = htonl(vgId);
-    tscDebug("0x%"PRIx64" build fetch msg from vgId:%d, vgIndex:%d, qId:%" PRIu64, pSql->self, vgId, vgIndex, pSql->res.qId);
+    tscDebug("0x%"PRIx64" build fetch msg from vgId:%d, vgIndex:%d, qId:0x%" PRIx64, pSql->self, vgId, vgIndex, pSql->res.qId);
   } else {
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
     pRetrieveMsg->header.vgId = htonl(pTableMeta->vgId);
-    tscDebug("0x%"PRIx64" build fetch msg from only one vgroup, vgId:%d, qId:%" PRIu64, pSql->self, pTableMeta->vgId, pSql->res.qId);
+    tscDebug("0x%"PRIx64" build fetch msg from only one vgroup, vgId:%d, qId:0x%" PRIx64, pSql->self, pTableMeta->vgId,
+        pSql->res.qId);
   }
 
   pSql->cmd.payloadLen = sizeof(SRetrieveTableMsg);
@@ -2405,7 +2406,7 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
 
   pRes->data = NULL;
   tscResetForNextRetrieve(pRes);
-  tscDebug("0x%"PRIx64" query rsp received, qId:%"PRIu64, pSql->self, pRes->qId);
+  tscDebug("0x%"PRIx64" query rsp received, qId:0x%"PRIx64, pSql->self, pRes->qId);
   return 0;
 }
 
@@ -2463,7 +2464,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
-  tscDebug("0x%"PRIx64" numOfRows:%d, offset:%" PRId64 ", complete:%d, qId:%"PRIu64, pSql->self, pRes->numOfRows, pRes->offset,
+  tscDebug("0x%"PRIx64" numOfRows:%d, offset:%" PRId64 ", complete:%d, qId:0x%"PRIx64, pSql->self, pRes->numOfRows, pRes->offset,
       pRes->completed, pRes->qId);
 
   return 0;
