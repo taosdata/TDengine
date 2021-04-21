@@ -220,6 +220,7 @@ python3 ./test.py -f query/bug3375.py
 python3 ./test.py -f query/queryJoin10tables.py
 python3 ./test.py -f query/queryStddevWithGroupby.py
 
+
 #stream
 python3 ./test.py -f stream/metric_1.py
 python3 ./test.py -f stream/metric_n.py
@@ -234,6 +235,7 @@ python3 ./test.py -f stream/table_n.py
 
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py
+python3 ./test.py -f alter/alterTabAddTagWithNULL.py
 
 # client
 python3 ./test.py -f client/client.py

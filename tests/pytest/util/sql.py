@@ -105,6 +105,14 @@ class TDSql:
             args = (caller.filename, caller.lineno, self.sql, self.queryRows, expectRows)
             tdLog.exit("%s(%d) failed: sql:%s, queryRows:%d != expect:%d" % args)
 
+    def checkCols(self, expectCols):
+        if self.queryCols == expectCols:
+            tdLog.info("sql:%s, queryCols:%d == expect:%d" % (self.sql, self.queryCols, expectCols))
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, self.queryCols, expectCols)
+            tdLog.exit("%s(%d) failed: sql:%s, queryCols:%d != expect:%d" % args)
+
     def checkRowCol(self, row, col):
         caller = inspect.getframeinfo(inspect.stack()[2][0])
         if row < 0:
