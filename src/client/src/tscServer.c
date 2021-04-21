@@ -823,15 +823,15 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // set column list ids
   size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
-  char *pMsg = (char *)(pQueryMsg->colList) + numOfCols * sizeof(SColumnInfo);
+  char *pMsg = (char *)(pQueryMsg->tableCols) + numOfCols * sizeof(SColumnInfo);
 
   for (int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfo *pCol = &query.colList[i];
+    SColumnInfo *pCol = &query.tableCols[i];
 
-    pQueryMsg->colList[i].colId = htons(pCol->colId);
-    pQueryMsg->colList[i].bytes = htons(pCol->bytes);
-    pQueryMsg->colList[i].type  = htons(pCol->type);
-    pQueryMsg->colList[i].numOfFilters = htons(pCol->numOfFilters);
+    pQueryMsg->tableCols[i].colId = htons(pCol->colId);
+    pQueryMsg->tableCols[i].bytes = htons(pCol->bytes);
+    pQueryMsg->tableCols[i].type  = htons(pCol->type);
+    pQueryMsg->tableCols[i].numOfFilters = htons(pCol->numOfFilters);
 
     // append the filter information after the basic column information
     for (int32_t f = 0; f < pCol->numOfFilters; ++f) {
@@ -1569,6 +1569,7 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
     return code;
   }
 
+  // global aggregation may be the upstream for parent query
   SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
   if (pQueryInfo->pQInfo == NULL) {
     STableGroupInfo tableGroupInfo = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES),};
@@ -1592,6 +1593,8 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
   uint64_t localQueryId = 0;
   qTableQuery(pQueryInfo->pQInfo, &localQueryId);
   convertQueryResult(pRes, pQueryInfo);
+
+  handleDownstreamOperator(pRes, pQueryInfo);
 
   code = pRes->code;
   if (pRes->code == TSDB_CODE_SUCCESS) {
@@ -2289,7 +2292,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
     tscSetResRawPtr(pRes, pQueryInfo);
   }
 
-  prepareInputDataFromUpstream(pRes, pQueryInfo);
+  handleDownstreamOperator(pRes, pQueryInfo);
 
   if (pSql->pSubscription != NULL) {
     int32_t numOfCols = pQueryInfo->fieldsInfo.numOfOutput;

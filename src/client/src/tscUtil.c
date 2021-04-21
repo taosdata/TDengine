@@ -621,10 +621,15 @@ SSDataBlock* doGetDataBlock(void* param, bool* newgroup) {
     return NULL;
   }
 
+  //TODO refactor
   int32_t offset = 0;
   for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
     SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, i);
-    pColData->pData = pData + offset * pBlock->info.rows;
+    if (pData != NULL) {
+      pColData->pData = pData + offset * pBlock->info.rows;
+    } else {
+      pColData->pData = pInput->pRes->urow[i];
+    }
 
     offset += pColData->info.bytes;
   }
@@ -692,7 +697,7 @@ void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   pRes->completed = (pRes->numOfRows == 0);
 }
 
-void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
+void handleDownstreamOperator(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
   if (pQueryInfo->pDownstream != NULL) {
     // handle the following query process
     SQueryInfo *px = pQueryInfo->pDownstream;
@@ -713,7 +718,7 @@ void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
 
     taosArrayPush(tableGroupInfo.pGroupList, &group);
 
-    SOperatorInfo* pSourceOptr = createDummyInputOperator((char*)pRes, pSchema, numOfOutput);
+    SOperatorInfo* pSourceOptr = createDummyInputOperator((char*)pRes, pSchema, numOfCols);
 
     SExprInfo *exprInfo = NULL;
     /*int32_t code = */createQueryFunc(&info, numOfOutput, &exprInfo, px->exprList->pData, NULL, px->type, NULL);
@@ -2535,8 +2540,9 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
-  
-  STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, tableIndex);
+
+  SQueryInfo* pQueryInfo = tscGetActiveQueryInfo(pCmd);
+  STableMetaInfo* pTableMetaInfo = pQueryInfo->pTableMetaInfo[tableIndex];
 
   pNew->pTscObj   = pSql->pTscObj;
   pNew->signature = pNew;
@@ -2567,7 +2573,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   }
 
   SQueryInfo* pNewQueryInfo = tscGetQueryInfo(pnCmd, 0);
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   pNewQueryInfo->command = pQueryInfo->command;
   pnCmd->active = pNewQueryInfo;
@@ -3331,7 +3336,7 @@ static int32_t createSecondaryExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
     pse->uid      = pTableMetaInfo->pTableMeta->id.uid;
     pse->resColId = pExpr->base.resColId;
 
-    if (pExpr->pExpr == NULL) {  // this should be switched to projection query
+    if (pExpr->base.functionId != TSDB_FUNC_ARITHM) {  // this should be switched to projection query
       pse->numOfParams = 0;      // no params for projection query
       pse->functionId  = TSDB_FUNC_PRJ;
       pse->colInfo.colId = pExpr->base.resColId;
@@ -3539,17 +3544,23 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   for(int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
     SExprInfo* pExpr = tscSqlExprGet(pQueryInfo, i);
     tscSqlExprAssign(&pQueryAttr->pExpr1[i], pExpr);
+
+    if (pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_ARITHM) {
+      for (int32_t j = 0; j < pQueryAttr->pExpr1[i].base.numOfParams; ++j) {
+        buildArithmeticExprFromMsg(&pQueryAttr->pExpr1[i], NULL);
+      }
+    }
   }
 
-  pQueryAttr->colList = calloc(numOfCols, sizeof(SColumnInfo));
+  pQueryAttr->tableCols = calloc(numOfCols, sizeof(SColumnInfo));
   for(int32_t i = 0; i < numOfCols; ++i) {
     SColumn* pCol = taosArrayGetP(pQueryInfo->colList, i);
     if (!isValidDataType(pCol->info.type) || pCol->info.type == TSDB_DATA_TYPE_NULL) {
       assert(0);
     }
 
-    pQueryAttr->colList[i] = pCol->info;
-    pQueryAttr->colList[i].filterInfo = tFilterInfoDup(pCol->info.filterInfo, pQueryAttr->colList[i].numOfFilters);
+    pQueryAttr->tableCols[i] = pCol->info;
+    pQueryAttr->tableCols[i].filterInfo = tFilterInfoDup(pCol->info.filterInfo, pQueryAttr->tableCols[i].numOfFilters);
   }
 
   // global aggregate query
@@ -3577,9 +3588,9 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->srcRowSize = 0;
   pQueryAttr->maxTableColumnWidth = 0;
   for (int16_t i = 0; i < numOfCols; ++i) {
-    pQueryAttr->srcRowSize += pQueryAttr->colList[i].bytes;
-    if (pQueryAttr->maxTableColumnWidth < pQueryAttr->colList[i].bytes) {
-      pQueryAttr->maxTableColumnWidth = pQueryAttr->colList[i].bytes;
+    pQueryAttr->srcRowSize += pQueryAttr->tableCols[i].bytes;
+    if (pQueryAttr->maxTableColumnWidth < pQueryAttr->tableCols[i].bytes) {
+      pQueryAttr->maxTableColumnWidth = pQueryAttr->tableCols[i].bytes;
     }
   }
 

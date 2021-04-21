@@ -2422,7 +2422,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   const uint32_t nBufferSize = (1u << 16u);  // 64KB
   
-  SQueryInfo     *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo     *pQueryInfo = tscGetActiveQueryInfo(pCmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SSubqueryState *pState = &pSql->subState;
 
@@ -2890,6 +2890,7 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
   if (pNew != NULL) {  // the sub query of two-stage super table query
     SQueryInfo *pQueryInfo = tscGetQueryInfo(&pNew->cmd, 0);
 
+    pNew->cmd.active = pQueryInfo;
     pQueryInfo->type |= TSDB_QUERY_TYPE_STABLE_SUBQUERY;
 
     // clear the limit/offset info, since it should not be sent to vnode to be executed.
@@ -3562,14 +3563,6 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
     }
   }
 
-  //  qDebug("qmsg:%p QInfo:%" PRIu64 "-%p created", pQueryMsg, pQInfo->qId, pQInfo);
-//  return pQInfo;
-//  if (pGroupbyExpr != NULL) {
-//    taosArrayDestroy(pGroupbyExpr->columnInfo);
-//    free(pGroupbyExpr);
-//  }
-//
-//  tfree(pTagCols);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExprInfo = &pExprs[i];
     if (pExprInfo->pExpr != NULL) {

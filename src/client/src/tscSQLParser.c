@@ -77,7 +77,7 @@ static int32_t insertResultField(SQueryInfo* pQueryInfo, int32_t outputIndex, SC
 
 static uint8_t convertOptr(SStrToken *pToken);
 
-static int32_t validateSelectNodeList(SSqlCmd* pCmd, int32_t clauseIndex, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool isSTable, bool joinQuery, bool timeWindowQuery);
+static int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool isSTable, bool joinQuery, bool timeWindowQuery);
 
 static bool validateIpAddress(const char* ip, size_t size);
 static bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo);
@@ -1405,14 +1405,11 @@ void tscInsertPrimaryTsSourceColumn(SQueryInfo* pQueryInfo, uint64_t tableUid) {
   tscColumnListInsert(pQueryInfo->colList, PRIMARYKEY_TIMESTAMP_COL_INDEX, tableUid, &s);
 }
 
-static int32_t handleArithmeticExpr(SSqlCmd* pCmd, int32_t clauseIndex, int32_t exprIndex, tSqlExprItem* pItem) {
+static int32_t handleArithmeticExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t exprIndex, tSqlExprItem* pItem) {
   const char* msg1 = "invalid column name, illegal column type, or columns in arithmetic expression from two tables";
   const char* msg2 = "invalid arithmetic expression in select clause";
   const char* msg3 = "tag columns can not be used in arithmetic expression";
   const char* msg4 = "columns from different table mixed up in arithmetic expression";
-
-  // arithmetic function in select clause
-  SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd, clauseIndex);
 
   SColumnList columnList = {0};
   int32_t     arithmeticType = NON_ARITHMEIC_EXPR;
@@ -1608,7 +1605,7 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
   return false;
 }
 
-int32_t validateSelectNodeList(SSqlCmd* pCmd, int32_t clauseIndex, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool isSTable, bool joinQuery,
+int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelNodeList, bool isSTable, bool joinQuery,
                                bool timeWindowQuery) {
   assert(pSelNodeList != NULL && pCmd != NULL);
 
@@ -1655,7 +1652,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, int32_t clauseIndex, SQueryInfo* p
           return TSDB_CODE_TSC_INVALID_SQL;
         }
     } else if (type == SQL_NODE_EXPR) {
-      int32_t code = handleArithmeticExpr(pCmd, clauseIndex, i, pItem);
+      int32_t code = handleArithmeticExpr(pCmd, pQueryInfo, i, pItem);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -6709,7 +6706,7 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
   }
 
   bool isSTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
-  if (validateSelectNodeList(&pSql->cmd, 0, pQueryInfo, pSqlNode->pSelNodeList, isSTable, false, false) != TSDB_CODE_SUCCESS) {
+  if (validateSelectNodeList(&pSql->cmd, pQueryInfo, pSqlNode->pSelNodeList, isSTable, false, false) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 
@@ -6940,6 +6937,10 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
       return code;
     }
 
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
     pQueryInfo = pCmd->pQueryInfo[0];
 
     SQueryInfo* current = calloc(1, sizeof(SQueryInfo));
@@ -6954,11 +6955,12 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
     current->pTableMetaInfo = calloc(1, POINTER_BYTES);
     current->pTableMetaInfo[0] = pTableMetaInfo1;
     current->numOfTables = 1;
+    current->order = pQueryInfo->order;
 
     pCmd->pQueryInfo[0] = current;
     pQueryInfo->pDownstream = current;
 
-    if (validateSelectNodeList(pCmd, index, current, pSqlNode->pSelNodeList, false, false, false) != TSDB_CODE_SUCCESS) {
+    if (validateSelectNodeList(pCmd, current, pSqlNode->pSelNodeList, false, false, false) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
@@ -7017,7 +7019,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
     int32_t timeWindowQuery =
         (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) || TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap));
 
-    if (validateSelectNodeList(pCmd, index, pQueryInfo, pSqlNode->pSelNodeList, isSTable, joinQuery, timeWindowQuery) !=
+    if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, isSTable, joinQuery, timeWindowQuery) !=
         TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }

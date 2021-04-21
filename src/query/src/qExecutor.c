@@ -851,7 +851,7 @@ static TSKEY getStartTsKey(SQueryAttr* pQueryAttr, STimeWindow* win, const TSKEY
 
 static void setArithParams(SArithmeticSupport* sas, SExprInfo *pExprInfo, SSDataBlock* pSDataBlock) {
   sas->numOfCols = (int32_t) pSDataBlock->info.numOfCols;
-  sas->pArithExpr = pExprInfo;
+  sas->pExprInfo = pExprInfo;
 
   sas->colList = calloc(1, pSDataBlock->info.numOfCols*sizeof(SColumnInfo));
   for(int32_t i = 0; i < sas->numOfCols; ++i) {
@@ -1663,7 +1663,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
     char* start = POINTER_BYTES * pQueryAttr->numOfCols + (char*) pRuntimeEnv->prevRow;
     pRuntimeEnv->prevRow[0] = start;
     for(int32_t i = 1; i < pQueryAttr->numOfCols; ++i) {
-      pRuntimeEnv->prevRow[i] = pRuntimeEnv->prevRow[i - 1] + pQueryAttr->colList[i-1].bytes;
+      pRuntimeEnv->prevRow[i] = pRuntimeEnv->prevRow[i - 1] + pQueryAttr->tableCols[i-1].bytes;
     }
 
     *(int64_t*) pRuntimeEnv->prevRow[0] = INT64_MIN;
@@ -1725,7 +1725,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
         SOperatorInfo* prev = pRuntimeEnv->pTableScanner;
         if (i == 0) {
           pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-          if (pRuntimeEnv->pTableScanner != NULL) {  // TODO refactor
+          if (pRuntimeEnv->pTableScanner != NULL && pRuntimeEnv->pTableScanner->operatorType != OP_DummyInput) {  // TODO refactor
             setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
           }
         } else {
@@ -1973,7 +1973,7 @@ void getAlignQueryTimeWindow(SQueryAttr *pQueryAttr, int64_t key, int64_t keyFir
 bool colIdCheck(SQueryAttr *pQueryAttr, uint64_t qId) {
   // load data column information is incorrect
   for (int32_t i = 0; i < pQueryAttr->numOfCols - 1; ++i) {
-    if (pQueryAttr->colList[i].colId == pQueryAttr->colList[i + 1].colId) {
+    if (pQueryAttr->tableCols[i].colId == pQueryAttr->tableCols[i + 1].colId) {
       qError("QInfo:%"PRIu64" invalid data load column for query", qId);
       return false;
     }
@@ -3990,7 +3990,7 @@ static void doTableQueryInfoTimeWindowCheck(SQueryAttr* pQueryAttr, STableQueryI
 
 STsdbQueryCond createTsdbQueryCond(SQueryAttr* pQueryAttr, STimeWindow* win) {
   STsdbQueryCond cond = {
-      .colList   = pQueryAttr->colList,
+      .colList   = pQueryAttr->tableCols,
       .order     = pQueryAttr->order.order,
       .numOfCols = pQueryAttr->numOfCols,
       .type      = BLOCK_LOAD_OFFSET_SEQ_ORDER,
@@ -5757,9 +5757,9 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     goto _cleanup;
   }
 
-  char *pMsg = (char *)(pQueryMsg->colList) + sizeof(SColumnInfo) * pQueryMsg->numOfCols;
+  char *pMsg = (char *)(pQueryMsg->tableCols) + sizeof(SColumnInfo) * pQueryMsg->numOfCols;
   for (int32_t col = 0; col < pQueryMsg->numOfCols; ++col) {
-    SColumnInfo *pColInfo = &pQueryMsg->colList[col];
+    SColumnInfo *pColInfo = &pQueryMsg->tableCols[col];
 
     pColInfo->colId = htons(pColInfo->colId);
     pColInfo->type = htons(pColInfo->type);
@@ -6012,7 +6012,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
 
   param->sql = strndup(pMsg, pQueryMsg->sqlstrLen);
 
-  SQueriedTableInfo info = { .numOfTags = pQueryMsg->numOfTags, .numOfCols = pQueryMsg->numOfCols, .colList = pQueryMsg->colList};
+  SQueriedTableInfo info = { .numOfTags = pQueryMsg->numOfTags, .numOfCols = pQueryMsg->numOfCols, .colList = pQueryMsg->tableCols};
   if (!validateQueryTableCols(&info, param->pExpr, pQueryMsg->numOfOutput, param->pTagColumnInfo, pQueryMsg)) {
     code = TSDB_CODE_QRY_INVALID_MSG;
     goto _cleanup;
@@ -6251,7 +6251,7 @@ SSqlGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *
 
 static int32_t createFilterInfo(SQueryAttr *pQueryAttr, uint64_t qId) {
   for (int32_t i = 0; i < pQueryAttr->numOfCols; ++i) {
-    if (pQueryAttr->colList[i].numOfFilters > 0) {
+    if (pQueryAttr->tableCols[i].numOfFilters > 0) {
       pQueryAttr->numOfFilterCols++;
     }
   }
@@ -6266,13 +6266,13 @@ static int32_t createFilterInfo(SQueryAttr *pQueryAttr, uint64_t qId) {
   }
 
   for (int32_t i = 0, j = 0; i < pQueryAttr->numOfCols; ++i) {
-    if (pQueryAttr->colList[i].numOfFilters > 0) {
+    if (pQueryAttr->tableCols[i].numOfFilters > 0) {
       SSingleColumnFilterInfo *pFilterInfo = &pQueryAttr->pFilterInfo[j];
 
-      memcpy(&pFilterInfo->info, &pQueryAttr->colList[i], sizeof(SColumnInfo));
-      pFilterInfo->info = pQueryAttr->colList[i];
+      memcpy(&pFilterInfo->info, &pQueryAttr->tableCols[i], sizeof(SColumnInfo));
+      pFilterInfo->info = pQueryAttr->tableCols[i];
 
-      pFilterInfo->numOfFilters = pQueryAttr->colList[i].numOfFilters;
+      pFilterInfo->numOfFilters = pQueryAttr->tableCols[i].numOfFilters;
       pFilterInfo->pFilters = calloc(pFilterInfo->numOfFilters, sizeof(SColumnFilterElem));
       if (pFilterInfo->pFilters == NULL) {
         return TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -6280,7 +6280,7 @@ static int32_t createFilterInfo(SQueryAttr *pQueryAttr, uint64_t qId) {
 
       for (int32_t f = 0; f < pFilterInfo->numOfFilters; ++f) {
         SColumnFilterElem *pSingleColFilter = &pFilterInfo->pFilters[f];
-        pSingleColFilter->filterInfo = pQueryAttr->colList[i].filterInfo[f];
+        pSingleColFilter->filterInfo = pQueryAttr->tableCols[i].filterInfo[f];
 
         int32_t lower = pSingleColFilter->filterInfo.lowerRelOptr;
         int32_t upper = pSingleColFilter->filterInfo.upperRelOptr;
@@ -6295,7 +6295,7 @@ static int32_t createFilterInfo(SQueryAttr *pQueryAttr, uint64_t qId) {
           return TSDB_CODE_QRY_INVALID_MSG;
         }
 
-        pSingleColFilter->bytes = pQueryAttr->colList[i].bytes;
+        pSingleColFilter->bytes = pQueryAttr->tableCols[i].bytes;
       }
 
       j++;
@@ -6319,7 +6319,7 @@ static void doUpdateExprColumnIndex(SQueryAttr *pQueryAttr) {
     if (TSDB_COL_IS_NORMAL_COL(pColIndex->flag)) {
       int32_t f = 0;
       for (f = 0; f < pQueryAttr->numOfCols; ++f) {
-        if (pColIndex->colId == pQueryAttr->colList[f].colId) {
+        if (pColIndex->colId == pQueryAttr->tableCols[f].colId) {
           pColIndex->colIndex = f;
           break;
         }
@@ -6421,20 +6421,20 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   pQueryAttr->needReverseScan  = pQueryMsg->needReverseScan;
   pQueryAttr->vgId            = vgId;
 
-  pQueryAttr->colList = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
-  if (pQueryAttr->colList == NULL) {
+  pQueryAttr->tableCols = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
+  if (pQueryAttr->tableCols == NULL) {
     goto _cleanup;
   }
 
   pQueryAttr->srcRowSize = 0;
   pQueryAttr->maxTableColumnWidth = 0;
   for (int16_t i = 0; i < numOfCols; ++i) {
-    pQueryAttr->colList[i] = pQueryMsg->colList[i];
-    pQueryAttr->colList[i].filterInfo = tFilterInfoDup(pQueryMsg->colList[i].filterInfo, pQueryAttr->colList[i].numOfFilters);
+    pQueryAttr->tableCols[i] = pQueryMsg->tableCols[i];
+    pQueryAttr->tableCols[i].filterInfo = tFilterInfoDup(pQueryMsg->tableCols[i].filterInfo, pQueryAttr->tableCols[i].numOfFilters);
 
-    pQueryAttr->srcRowSize += pQueryAttr->colList[i].bytes;
-    if (pQueryAttr->maxTableColumnWidth < pQueryAttr->colList[i].bytes) {
-      pQueryAttr->maxTableColumnWidth = pQueryAttr->colList[i].bytes;
+    pQueryAttr->srcRowSize += pQueryAttr->tableCols[i].bytes;
+    if (pQueryAttr->maxTableColumnWidth < pQueryAttr->tableCols[i].bytes) {
+      pQueryAttr->maxTableColumnWidth = pQueryAttr->tableCols[i].bytes;
     }
   }
 
@@ -6713,12 +6713,12 @@ void freeQInfo(SQInfo *pQInfo) {
     tfree(pQueryAttr->tagColList);
     tfree(pQueryAttr->pFilterInfo);
 
-    if (pQueryAttr->colList != NULL) {
+    if (pQueryAttr->tableCols != NULL) {
       for (int32_t i = 0; i < pQueryAttr->numOfCols; i++) {
-        SColumnInfo *column = pQueryAttr->colList + i;
+        SColumnInfo *column = pQueryAttr->tableCols + i;
         freeColumnFilterInfo(column->filterInfo, column->numOfFilters);
       }
-      tfree(pQueryAttr->colList);
+      tfree(pQueryAttr->tableCols);
     }
 
     if (pQueryAttr->pGroupbyExpr != NULL) {
@@ -6900,12 +6900,12 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
     tfree(pQueryAttr->tagColList);
     tfree(pQueryAttr->pFilterInfo);
 
-    if (pQueryAttr->colList != NULL) {
+    if (pQueryAttr->tableCols != NULL) {
       for (int32_t i = 0; i < pQueryAttr->numOfCols; i++) {
-        SColumnInfo* column = pQueryAttr->colList + i;
+        SColumnInfo* column = pQueryAttr->tableCols + i;
         freeColumnFilterInfo(column->filterInfo, column->numOfFilters);
       }
-      tfree(pQueryAttr->colList);
+      tfree(pQueryAttr->tableCols);
     }
 
     if (pQueryAttr->pGroupbyExpr != NULL) {

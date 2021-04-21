@@ -3698,7 +3698,7 @@ static void arithmetic_function(SQLFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
   SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
   
-  arithmeticTreeTraverse(sas->pArithExpr->pExpr, pCtx->size, pCtx->pOutput, sas, pCtx->order, getArithColumnData);
+  arithmeticTreeTraverse(sas->pExprInfo->pExpr, pCtx->size, pCtx->pOutput, sas, pCtx->order, getArithColumnData);
 }
 
 static void arithmetic_function_f(SQLFunctionCtx *pCtx, int32_t index) {
@@ -3706,7 +3706,7 @@ static void arithmetic_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   SArithmeticSupport *sas = (SArithmeticSupport *)pCtx->param[1].pz;
   
   sas->offset = index;
-  arithmeticTreeTraverse(sas->pArithExpr->pExpr, 1, pCtx->pOutput, sas, pCtx->order, getArithColumnData);
+  arithmeticTreeTraverse(sas->pExprInfo->pExpr, 1, pCtx->pOutput, sas, pCtx->order, getArithColumnData);
   
   pCtx->pOutput += pCtx->outputBytes;
 }

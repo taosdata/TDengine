@@ -220,7 +220,7 @@ typedef struct SQueryAttr {
   SExprInfo*       pExpr3;
   int32_t          numOfExpr3;
 
-  SColumnInfo*     colList;
+  SColumnInfo*     tableCols;
   SColumnInfo*     tagColList;
   int32_t          numOfFilterCols;
   int64_t*         fillVal;

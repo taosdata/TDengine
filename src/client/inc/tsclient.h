@@ -424,7 +424,7 @@ int32_t tscCreateResPointerInfo(SSqlRes *pRes, SQueryInfo *pQueryInfo);
 void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
 void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock);
 
-void prepareInputDataFromUpstream(SSqlRes* pRes, SQueryInfo* pQueryInfo);
+void handleDownstreamOperator(SSqlRes* pRes, SQueryInfo* pQueryInfo);
 
 void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
 

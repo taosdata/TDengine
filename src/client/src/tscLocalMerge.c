@@ -540,7 +540,7 @@ void tscDestroyLocalMerger(SSqlObj *pSql) {
 
 static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCmd, SColumnModel *pModel) {
   int32_t     numOfGroupByCols = 0;
-  SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
 
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
     numOfGroupByCols = pQueryInfo->groupbyExpr.numOfGroupCols;
@@ -662,7 +662,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
   SColumnModel *pModel = NULL;
   *pFinalModel = NULL;
 
-  SQueryInfo *    pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
+  SQueryInfo *    pQueryInfo = tscGetActiveQueryInfo(pCmd);
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   (*pMemBuffer) = (tExtMemBuffer **)malloc(POINTER_BYTES * pSql->subState.numOfSub);
@@ -1153,8 +1153,8 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
     
     // calculate the result from several other columns
     if (pSup->pExpr->pExpr != NULL) {
-      arithSup.pArithExpr = pSup->pExpr;
-      arithmeticTreeTraverse(arithSup.pArithExpr->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
+      arithSup.pExprInfo = pSup->pExpr;
+      arithmeticTreeTraverse(arithSup.pExprInfo->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
     } else {
       SExprInfo* pExpr = pSup->pExpr;
       memcpy(pbuf + pOutput->num * offset, pExpr->base.offset * pOutput->num + pOutput->data, (size_t)(pExpr->base.resBytes * pOutput->num));

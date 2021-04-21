@@ -88,7 +88,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     goto _over;
   }
 
-  SQueriedTableInfo info = { .numOfTags = pQueryMsg->numOfTags, .numOfCols = pQueryMsg->numOfCols, .colList = pQueryMsg->colList};
+  SQueriedTableInfo info = { .numOfTags = pQueryMsg->numOfTags, .numOfCols = pQueryMsg->numOfCols, .colList = pQueryMsg->tableCols};
   if ((code = createQueryFunc(&info, pQueryMsg->numOfOutput, &param.pExprs, param.pExpr, param.pTagColumnInfo,
                               pQueryMsg->queryType, pQueryMsg)) != TSDB_CODE_SUCCESS) {
     goto _over;
@@ -185,7 +185,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   freeParam(&param);
 
   for (int32_t i = 0; i < pQueryMsg->numOfCols; i++) {
-    SColumnInfo* column = pQueryMsg->colList + i;
+    SColumnInfo* column = pQueryMsg->tableCols + i;
     freeColumnFilterInfo(column->filterInfo, column->numOfFilters);
   }
 
@@ -209,7 +209,6 @@ bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
     pQInfo->code = TSDB_CODE_QRY_IN_EXEC;
     return false;
   }
-
 
   *qId = pQInfo->qId;
   pQInfo->startExecTs = taosGetTimestampSec();

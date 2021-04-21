@@ -497,7 +497,7 @@ typedef struct {
   int32_t     prevResultLen;    // previous result length
   int32_t     numOfOperator;
   int32_t     tableScanOperator;// table scan operator. -1 means no scan operator
-  SColumnInfo colList[];
+  SColumnInfo tableCols[];
 } SQueryTableMsg;
 
 typedef struct {
