@@ -137,6 +137,9 @@ endi
 sql select first(ts,val),last(ts,val) from (select count(*) val from sub_stb0 interval(10h))
 sql select top(val, 5) from (select count(*) val from sub_stb0 interval(10h))
 sql select diff(val) from (select count(*) val from sub_stb0 interval(10h))
+sql select apercentile(val, 50) from (select count(*) val from sub_stb0 interval(10h))
+
+# not support yet
 sql select percentile(val, 50) from (select count(*) val from sub_stb0 interval(10h))
 sql select stddev(val) from (select count(*) val from sub_stb0 interval(10h))
 
