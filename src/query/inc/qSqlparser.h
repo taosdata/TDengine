@@ -44,6 +44,10 @@ enum SQL_NODE_FROM_TYPE {
   SQL_NODE_FROM_NAMELIST  = 2,
 };
 
+enum SQL_EXPR_FLAG {
+  EXPR_FLAG_NOW = 1
+};
+
 extern char tTokenTypeSwitcher[13];
 
 #define toTSDBType(x)                          \
@@ -237,7 +241,8 @@ typedef struct tSqlExpr {
   SStrToken          colInfo;     // table column info
   tVariant           value;       // the use input value
   SStrToken          token;       // original sql expr string
-
+  uint32_t           flags;
+  
   struct tSqlExpr   *pLeft;       // left child
   struct tSqlExpr   *pRight;      // right child
   struct SArray     *pParam;      // function parameters list

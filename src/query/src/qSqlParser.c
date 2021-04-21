@@ -144,6 +144,7 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
     pSqlExpr->type    = SQL_NODE_VALUE;
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_NOW;
   } else if (optrType == TK_VARIABLE) {
     int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64);
     if (ret != TSDB_CODE_SUCCESS) {
@@ -217,6 +218,7 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
       pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
       pExpr->tokenId = pLeft->tokenId;
       pExpr->type    = SQL_NODE_VALUE;
+      pExpr->flags   = pLeft->flags | pRight->flags;
 
       switch (optrType) {
         case TK_PLUS: {

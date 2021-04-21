@@ -3078,7 +3078,7 @@ static SColumnFilterInfo* addColumnFilterInfo(SColumn* pColumn) {
   return pColFilterInfo;
 }
 
-static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SColumnFilterInfo* pColumnFilter,
+static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, STableMeta* pTableMeta, SColumnFilterInfo* pColumnFilter,
                                          int16_t colType, tSqlExpr* pExpr) {
   const char* msg = "not supported filter condition";
 
@@ -3092,6 +3092,12 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     int retVal = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, &pRight->value);
     if (TSDB_CODE_SUCCESS != retVal) {
       return retVal;
+    }
+  } else if ((colType == TSDB_DATA_TYPE_TIMESTAMP) && (TSDB_DATA_TYPE_BIGINT == pRight->value.nType)) {
+    STableComInfo tinfo = tscGetTableInfo(pTableMeta);
+
+    if ((tinfo.precision == TSDB_TIME_PRECISION_MILLI) && (pRight->flags & (1 << EXPR_FLAG_NOW))) {
+      pRight->value.i64 /= 1000;
     }
   }
 
@@ -3291,7 +3297,7 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
 
   int16_t colType = pSchema->type;
   
-  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, colType, pExpr);
+  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pTableMeta, pColFilter, colType, pExpr);
 }
 
 static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pTableCond, SStringBuilder* sb) {
@@ -6927,7 +6933,10 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     }
   }
 
-  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pInfo->field.type, pExpr);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+
+  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pTableMeta, pColFilter, pInfo->field.type, pExpr);
   if (ret) {
     return ret; 
   }
