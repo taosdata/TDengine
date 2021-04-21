@@ -390,7 +390,7 @@ int main(int argc, char** argv) {
 //    executeSQL(conn, "select count(*) from m2 where tbname in ('t2m0') and ts>=1433955690870 and ts<=1433955690930 interval(30a) group by tbname", NULL);
 //    executeSQL(conn, "select count(k) from m2 where tbname in ('t2m0', 't2m1') and ts>=1433955690790 and "
 //                     "ts<=1433955690850 interval(10a) fill(value, 911) group by tbname", NULL);
-    executeSQL(conn, "select first(ts,val),last(ts,val) from (select count(*) val from sub_stb0 interval(10h))", NULL);
+    executeSQL(conn, "select diff(val) from (select count(*) val from sub_stb0 interval(10h))", NULL);
 //    executeSQL(conn, "select top(c1, 1) from lm_stb0 where ts >= 1537146000000 and ts <= 1537151400009 limit 5 offset 1;", NULL);
 //    executeSQL(conn, "select count(*) from t2m1 where ts<'2015-6-11 1:1:1.3' and ts>='2015-6-11 1:1:1' interval(20a) fill(next)", NULL);
 //    executeSQL(conn, "describe tux1", NULL);
