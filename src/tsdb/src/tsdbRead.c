@@ -1406,7 +1406,11 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
           SET_DOUBLE_PTR(pData, value);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          *(TSKEY *)pData = tdGetKey(*(TKEY *)value);
+          if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+            *(TSKEY *)pData = tdGetKey(*(TKEY *)value);
+          } else {
+            *(TSKEY *)pData = *(TSKEY *)value;
+          }
           break;
         default:
           memcpy(pData, value, pColInfo->info.bytes);
