@@ -434,6 +434,22 @@ namespace TDengineDriver
                 string v10 = Marshal.PtrToStringAnsi(data);
                 builder.Append(v10);
                 break;
+              case TDengineDataType.TSDB_DATA_TYPE_UTINYINT:
+                  byte v11 = Marshal.ReadByte(data);
+                  builder.Append(v11);
+                  break;
+              case TDengineDataType.TSDB_DATA_TYPE_USMALLINT:
+                  ushort v12 = (ushort)Marshal.ReadInt16(data);
+                  builder.Append(v12);
+                  break;
+              case TDengineDataType.TSDB_DATA_TYPE_UINT:
+                  uint v13 = (uint)Marshal.ReadInt32(data);
+                  builder.Append(v13);
+                  break;
+              case TDengineDataType.TSDB_DATA_TYPE_UBIGINT:
+                  ulong v14 = (ulong)Marshal.ReadInt64(data);
+                  builder.Append(v14);
+                  break;
             }
           }
           builder.Append("---");
