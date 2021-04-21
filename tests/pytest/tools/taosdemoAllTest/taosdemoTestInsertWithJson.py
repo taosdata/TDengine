@@ -154,14 +154,16 @@ class TDTestCase:
 
 
         # insert:  let parament in json file  is illegal ，i need know how to write  exception.
+        tdSql.execute("drop database if exists db") 
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-illegal-columns.json -y " % binPath)
-        tdSql.error("select * from db.stb0")
+        tdSql.error("use db")
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-illegal-columns-lmax.json -y " % binPath)
         tdSql.error("select * from db.stb0")
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-illegal-columns-count-0.json -y " % binPath)
         tdSql.execute("use db") 
         tdSql.query("select count(*) from db.stb0")
         tdSql.checkData(0, 0, 10000)
+        tdSql.execute("drop database if exists db") 
         os.system("%staosdemo -f tools/taosdemoAllTest/insert-illegal-tags-count129.json -y " % binPath)   
         tdSql.error("use db1") 
 
@@ -214,7 +216,7 @@ class TDTestCase:
 
 
         os.system("rm -rf ./insert_res.txt")
-        os.system("rm -rf tools/taosdemoAllTest/taosdemoTestWithJson-1.py.sql")        
+        os.system("rm -rf tools/taosdemoAllTest/taosdemoTestInsertWithJson.py.sql")        
         
         
         
