@@ -196,7 +196,7 @@
 		}
 		// insert into a
 		// insert into a values()
-		// insert into t1 using stable1 tags(1) values(now,1); 自动建表功能
+		// insert into t1 using stable1 tags(1) values(now,1)
 		// import   into  dc values values()
 		// import  xx into dc value 
 		// insert into cc dd values()
@@ -216,16 +216,7 @@
 							console.log(sql.substring(0, into+5) + dbPrefix + table + " using " + dbPrefix + stable + sql.substring(tags-1))
 							return sql.substring(0, into+5) + dbPrefix + table + " using " + dbPrefix + stable + sql.substring(tags-1);
 						}
-					}
-					// if (dot == -1 && using == -1) {
-					// 	return sql.substring(0, into+4) + " " + dbPrefix + table + " " + sql.substring(values);
-					// } 
-					// else if (dot == -1 && using != -1) {
-					// 	var stable = dbRemoveFirstBlank(sql.substring(using+5, values));
-					// 	console.log(stable);
-					// 	return sql.substring(0, into+4) + " " + dbPrefix + table + " " + sql.substring(values);
-					// }
-					
+					}					
 				}
 			}
 			if (into != -1 && values != -1) {
@@ -233,7 +224,7 @@
 				if (table != "") {
 					table = table.split(' ')[0];
 					var dot = table.indexOf(".");
-					if (dot == -1 && using == -1) {
+					if (dot == -1) {
 						return sql.substring(0, into+4) + " " + dbPrefix + table + " " + sql.substring(values);
 					} 
 				}
@@ -281,7 +272,6 @@
 				}
 			}
 		}
-		console.log("2", sql)
 		return sql;
 	}
 	
@@ -457,7 +447,6 @@
 	
 	function dbUseDbCallback(d)
 	{		
-		console.log("dbUseDbCallback")
 		for (i = 0; i < d.data.length; ++i) {
 			dbname = d.data[i][0];
 			if (dbUseDbParseResult == dbname) {
