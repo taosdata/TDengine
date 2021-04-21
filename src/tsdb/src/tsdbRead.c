@@ -1406,7 +1406,11 @@ static void copyOneRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity, 
           SET_DOUBLE_PTR(pData, value);
           break;
         case TSDB_DATA_TYPE_TIMESTAMP:
-          *(TSKEY *)pData = tdGetKey(*(TKEY *)value);
+          if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+            *(TSKEY *)pData = tdGetKey(*(TKEY *)value);
+          } else {
+            *(TSKEY *)pData = *(TSKEY *)value;
+          }
           break;
         default:
           memcpy(pData, value, pColInfo->info.bytes);
@@ -3206,9 +3210,10 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
     pGroupInfo->numOfTables = (uint32_t) taosArrayGetSize(res);
     pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, skey);
 
-    tsdbDebug("%p no table name/tag condition, all tables belong to one group, numOfTables:%u", tsdb, pGroupInfo->numOfTables);
-    taosArrayDestroy(res);
+    tsdbDebug("%p no table name/tag condition, all tables qualified, numOfTables:%u, group:%zu", tsdb,
+              pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList));
 
+    taosArrayDestroy(res);
     if (tsdbUnlockRepoMeta(tsdb) < 0) goto _error;
     return ret;
   }

@@ -319,7 +319,7 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
 
 int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
   struct statvfs info;
-  if (statvfs(tsDataDir, &info)) {
+  if (statvfs(dataDir, &info)) {
     uError("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
