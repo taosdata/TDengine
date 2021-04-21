@@ -354,45 +354,14 @@ static FORCE_INLINE int32_t primaryKeyComparator(int64_t f1, int64_t f2, int32_t
 
 static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
   switch (type) {
-    case TSDB_DATA_TYPE_INT: {
-      int32_t first  = *(int32_t *) f1;
-      int32_t second = *(int32_t *) f2;
-      if (first == second) {
-        return 0;
-      }
-      return (first < second) ? -1 : 1;
-    };
-    case TSDB_DATA_TYPE_DOUBLE: {
-      DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
-    };
-    case TSDB_DATA_TYPE_FLOAT: {
-      DEFAULT_FLOAT_COMP(GET_FLOAT_VAL(f1), GET_FLOAT_VAL(f2));
-    };
-    case TSDB_DATA_TYPE_BIGINT: {
-      int64_t first = *(int64_t *)f1;
-      int64_t second = *(int64_t *)f2;
-      if (first == second) {
-        return 0;
-      }
-      return (first < second) ? -1 : 1;
-    };
-    case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t first = *(int16_t *)f1;
-      int16_t second = *(int16_t *)f2;
-      if (first == second) {
-        return 0;
-      }
-      return (first < second) ? -1 : 1;
-    };
+    case TSDB_DATA_TYPE_INT:     DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
+    case TSDB_DATA_TYPE_DOUBLE:  DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
+    case TSDB_DATA_TYPE_FLOAT:   DEFAULT_FLOAT_COMP(GET_FLOAT_VAL(f1), GET_FLOAT_VAL(f2));
+    case TSDB_DATA_TYPE_BIGINT:  DEFAULT_COMP(GET_INT64_VAL(f1), GET_INT64_VAL(f2));
+    case TSDB_DATA_TYPE_SMALLINT:DEFAULT_COMP(GET_INT16_VAL(f1), GET_INT16_VAL(f2));
     case TSDB_DATA_TYPE_BOOL:
-    case TSDB_DATA_TYPE_TINYINT: {
-      int8_t first = *(int8_t *)f1;
-      int8_t second = *(int8_t *)f2;
-      if (first == second) {
-        return 0;
-      }
-      return (first < second) ? -1 : 1;
-    };
+    case TSDB_DATA_TYPE_TINYINT: DEFAULT_COMP(GET_INT8_VAL(f1), GET_INT8_VAL(f2));
+
     case TSDB_DATA_TYPE_BINARY: {
       int32_t len1 = varDataLen(f1);
       int32_t len2 = varDataLen(f2);
@@ -415,6 +384,10 @@ static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, i
       }
       return (ret < 0) ? -1 : 1;
     };
+    case TSDB_DATA_TYPE_UTINYINT:  DEFAULT_COMP(GET_UINT8_VAL(f1), GET_UINT8_VAL(f2));
+    case TSDB_DATA_TYPE_USMALLINT: DEFAULT_COMP(GET_UINT16_VAL(f1), GET_UINT16_VAL(f2));
+    case TSDB_DATA_TYPE_UINT:      DEFAULT_COMP(GET_UINT32_VAL(f1), GET_UINT32_VAL(f2));
+    case TSDB_DATA_TYPE_UBIGINT:   DEFAULT_COMP(GET_UINT64_VAL(f1), GET_UINT64_VAL(f2));
   }
   
   return 0;
