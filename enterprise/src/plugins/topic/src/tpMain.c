@@ -30,7 +30,7 @@
 #include "mnodeWrite.h"
 
 #define TP_SCHEMA_SQL_LEN 4096
-#define TP_BINARY_LEN     16000
+#define TP_BINARY_LEN     1024
 
 extern void *  tsDbSdb;
 extern char *  mnodeGetDbStr(char *src);
