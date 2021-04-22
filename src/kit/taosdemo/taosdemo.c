@@ -554,19 +554,10 @@ SArguments g_args = {
                      "./output.txt",  // output_file
                      0,               // mode : sync or async
                      {
-                     "TINYINT",           // datatype
-                     "SMALLINT",
-                     "INT",
-                     "BIGINT",
-                     "FLOAT",
-                     "DOUBLE",
-                     "BINARY",
-                     "NCHAR",
-                     "BOOL",
-                     "TIMESTAMP"
+                     "INT",           // datatype
                      },
                      16,              // len_of_binary
-                     10,              // num_of_CPR
+                     4,               // num_of_CPR
                      10,              // num_of_connections/thread
                      0,               // insert_interval
                      1,               // query_times
@@ -2395,8 +2386,10 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
   return 0;
 }
 
-static int createSuperTable(TAOS * taos, char* dbName,
+static int createSuperTable(
+        TAOS * taos, char* dbName,
         SSuperTable*  superTbl) {
+
   char command[BUFFER_SIZE] = "\0";
 
   char cols[STRING_LEN] = "\0";
@@ -5421,9 +5414,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   if (superTblInfo) {
     int limit, offset;
 
-    if ((superTblInfo->childTblExists == TBL_NO_EXISTS) &&
+    if ((NULL != g_args.sqlFile) && (superTblInfo->childTblExists == TBL_NO_EXISTS) &&
             ((superTblInfo->childTblOffset != 0) || (superTblInfo->childTblLimit >= 0))) {
-      printf("WARNING: offset and limit will not be used since the child tables are not exists!\n");
+      printf("WARNING: offset and limit will not be used since the child tables not exists!\n");
     }
 
     if ((superTblInfo->childTblExists == TBL_ALREADY_EXISTS)
