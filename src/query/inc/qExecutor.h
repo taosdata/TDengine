@@ -476,6 +476,7 @@ typedef struct SMultiwayMergeInfo {
   int64_t              seed;
   char               **prevRow;
   SArray              *orderColumnList;
+  int32_t              resultRowFactor;
 
   bool                 hasGroupColData;
   char               **currentGroupColData;

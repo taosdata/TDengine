@@ -191,7 +191,6 @@ static int32_t setGroupResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SGroupbyOp
 
 static void initCtxOutputBuffer(SQLFunctionCtx* pCtx, int32_t size);
 static void getAlignQueryTimeWindow(SQueryAttr *pQueryAttr, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *win);
-//static bool isPointInterpoQuery(SQueryAttr *pQueryAttr);
 static void setResultBufSize(SQueryAttr* pQueryAttr, SRspResultInfo* pResultInfo);
 static void setCtxTagForJoin(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, SExprInfo* pExprInfo, void* pTable);
 static void setParamForStableStddev(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput, SExprInfo* pExpr);
@@ -4511,20 +4510,27 @@ SArray* getResultGroupCheckColumns(SQueryAttr* pQuery) {
 static void destroyGlobalAggOperatorInfo(void* param, int32_t numOfOutput) {
   SMultiwayMergeInfo *pInfo = (SMultiwayMergeInfo*) param;
   destroyBasicOperatorInfo(&pInfo->binfo, numOfOutput);
+
+  taosArrayDestroy(pInfo->orderColumnList);
+  taosArrayDestroy(pInfo->groupColumnList);
+  tfree(pInfo->prevRow);
+  tfree(pInfo->currentGroupColData);
 }
 
 SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream,
                                                  SExprInfo* pExpr, int32_t numOfOutput, void* param) {
   SMultiwayMergeInfo* pInfo = calloc(1, sizeof(SMultiwayMergeInfo));
 
-//  int32_t     numOfRows =
-//      (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
+  pInfo->resultRowFactor =
+      (int32_t)(GET_ROW_PARAM_FOR_MULTIOUTPUT(pRuntimeEnv->pQueryAttr, pRuntimeEnv->pQueryAttr->topBotQuery,
+                                              false));
 
   pRuntimeEnv->scanFlag = MERGE_STAGE;  // TODO init when creating pCtx
 
   pInfo->pMerge = param;
   pInfo->bufCapacity = 4096;
-  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity);
+
+  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity * pInfo->resultRowFactor);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
 
   pInfo->orderColumnList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
@@ -4533,7 +4539,7 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   // TODO refactor
   int32_t len = 0;
   for(int32_t i = 0; i < numOfOutput; ++i) {
-    len += pExpr[i].base.resBytes;
+    len += pExpr[i].base.colBytes;
   }
 
   int32_t numOfCols = (pInfo->orderColumnList != NULL)? taosArrayGetSize(pInfo->orderColumnList):0;
@@ -4593,7 +4599,7 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
   {
     int32_t len = 0;
     for(int32_t i = 0; i < numOfOutput; ++i) {
-      len += pExpr[i].base.resBytes;
+      len += pExpr[i].base.colBytes;
     }
 
     int32_t numOfCols = (pInfo->orderColumnList != NULL)? taosArrayGetSize(pInfo->orderColumnList):0;
@@ -4617,7 +4623,7 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
   pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->numOfOutput  = pRuntimeEnv->pQueryAttr->numOfCols;
   pOperator->exec         = doMultiwayMergeSort;
-
+  pOperator->cleanup      = destroyGlobalAggOperatorInfo;
   return pOperator;
 }
 
@@ -7081,6 +7087,7 @@ void freeQInfo(SQInfo *pQInfo) {
 
     pQueryAttr->pExpr1 = destroyQueryFuncExpr(pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
     pQueryAttr->pExpr2 = destroyQueryFuncExpr(pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
+    pQueryAttr->pExpr3 = destroyQueryFuncExpr(pQueryAttr->pExpr3, pQueryAttr->numOfExpr3);
 
     tfree(pQueryAttr->tagColList);
     tfree(pQueryAttr->pFilterInfo);
