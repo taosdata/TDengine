@@ -554,19 +554,13 @@ SArguments g_args = {
                      "./output.txt",  // output_file
                      0,               // mode : sync or async
                      {
-                     "TINYINT",           // datatype
-                     "SMALLINT",
-                     "INT",
-                     "BIGINT",
-                     "FLOAT",
-                     "DOUBLE",
-                     "BINARY",
-                     "NCHAR",
-                     "BOOL",
-                     "TIMESTAMP"
+                     "INT",           // datatype
+                     "INT",           // datatype
+                     "INT",           // datatype
+                     "INT",           // datatype
                      },
                      16,              // len_of_binary
-                     10,              // num_of_CPR
+                     4,               // num_of_CPR
                      10,              // num_of_connections/thread
                      0,               // insert_interval
                      1,               // query_times
@@ -2395,8 +2389,10 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
   return 0;
 }
 
-static int createSuperTable(TAOS * taos, char* dbName,
+static int createSuperTable(
+        TAOS * taos, char* dbName,
         SSuperTable*  superTbl) {
+
   char command[BUFFER_SIZE] = "\0";
 
   char cols[STRING_LEN] = "\0";
@@ -2885,19 +2881,17 @@ static void createChildTables() {
     } else {
       // normal table
       len = snprintf(tblColsBuf, MAX_SQL_SIZE, "(TS TIMESTAMP");
-      int j = 0;
-      while(g_args.datatype[j]) {
+      for (int j = 0; j < g_args.num_of_CPR; j++) {
           if ((strncasecmp(g_args.datatype[j], "BINARY", strlen("BINARY")) == 0)
                   || (strncasecmp(g_args.datatype[j],
                       "NCHAR", strlen("NCHAR")) == 0)) {
               snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
-                      ", COL%d %s(60)", j, g_args.datatype[j]);
+                      ", COL%d %s(%d)", j, g_args.datatype[j], g_args.len_of_binary);
           } else {
               snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
                       ", COL%d %s", j, g_args.datatype[j]);
           }
           len = strlen(tblColsBuf);
-          j++;
       }
 
       snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
@@ -4479,7 +4473,7 @@ static int32_t generateData(char *recBuf, char **data_type,
     exit(-1);
   }
 
-  for (int i = 0; i < num_of_cols; i++) {
+  for (int i = 0; i < c; i++) {
     if (strcasecmp(data_type[i % c], "tinyint") == 0) {
       pstr += sprintf(pstr, ", %d", rand_tinyint() );
     } else if (strcasecmp(data_type[i % c], "smallint") == 0) {
@@ -4501,7 +4495,7 @@ static int32_t generateData(char *recBuf, char **data_type,
       rand_string(s, lenOfBinary);
       pstr += sprintf(pstr, ", \"%s\"", s);
       free(s);
-    }else if (strcasecmp(data_type[i % c], "nchar") == 0) {
+    } else if (strcasecmp(data_type[i % c], "nchar") == 0) {
       char *s = malloc(lenOfBinary);
       rand_string(s, lenOfBinary);
       pstr += sprintf(pstr, ", \"%s\"", s);
@@ -4685,7 +4679,7 @@ static int generateDataTail(
       if (len > remainderBufLen)
         break;
 
-      pstr += sprintf(pstr, " %s", data);
+      pstr += sprintf(pstr, "%s", data);
       k++;
       len += retLen;
       remainderBufLen -= retLen;
@@ -5421,9 +5415,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   if (superTblInfo) {
     int limit, offset;
 
-    if ((superTblInfo->childTblExists == TBL_NO_EXISTS) &&
+    if ((NULL != g_args.sqlFile) && (superTblInfo->childTblExists == TBL_NO_EXISTS) &&
             ((superTblInfo->childTblOffset != 0) || (superTblInfo->childTblLimit >= 0))) {
-      printf("WARNING: offset and limit will not be used since the child tables are not exists!\n");
+      printf("WARNING: offset and limit will not be used since the child tables not exists!\n");
     }
 
     if ((superTblInfo->childTblExists == TBL_ALREADY_EXISTS)
