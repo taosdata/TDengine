@@ -38,6 +38,7 @@ typedef struct recv_buf_info_s
 
 
 #define BUF_SKIP_LEN                1
+#define TQ_CHAN_NUM                 10
 #define MAX_TSQL_LEN                (MAXRECLEN << 1)
 #define MAX_BUFF_LEN                MAXRECLEN
 #define hash(key, c)                ((uint64_t) key * 31 + c)
@@ -84,6 +85,7 @@ int main(int argc, char *argv[])
 #if !defined(HTTP_IMPORT_DEBUG)
     int              np;
     int              id;
+    int              begin;
     int              offset;
     int              iretry  = 0;
     int              icount  = 0;
@@ -91,6 +93,8 @@ int main(int argc, char *argv[])
     TAOS_RES        *res     = NULL;
     char             cmd[MAX_TSQL_LEN];
     char             sid[LM_SIDLEN];
+    const char      *prefix  = "insert into";
+    const int        pfxlen  = sizeof("insert into") - 1;
     long             numport;
     const char      *host    = "localhost";
     const char      *user    = "root";
@@ -223,8 +227,12 @@ int main(int argc, char *argv[])
     fprintf(stderr, "################################################################\r\n");
 #endif
 
-retry:
     packets = 0;
+
+#if !defined(HTTP_IMPORT_DEBUG)
+retry:
+#endif
+
     memset(&io, 0, sizeof(SNETIO));
     memset(&info, 0, sizeof(info));
 
@@ -248,7 +256,7 @@ retry:
     }
 
     // create topic if not exists
-    np = snprintf(cmd, sizeof(cmd), "create topic if not exists %s partitions 4;", topic);
+    np = snprintf(cmd, sizeof(cmd), "create topic if not exists %s partitions %d;", topic, TQ_CHAN_NUM);
     if (np <= 0) {
         fprintf(stderr, "fprintf error cmd: %s\r\n", cmd);
         goto failed;
@@ -277,6 +285,7 @@ retry:
     np = 0;
     id = 0;
     reclen = 0;
+    begin = 1;
     offset = 0;
     memset(sid, 0, LM_SIDLEN);
 #endif
@@ -292,6 +301,9 @@ retry:
         if (ret != MS_NOERROR) {
 #if !defined(HTTP_IMPORT_DEBUG)
             if (offset) {
+                cmd[offset++] = ';';
+                cmd[offset] = '\0';
+
                 res = taos_query(taos, cmd);
                 if (check_and_free_res(&res, cmd) != 0) {
                     goto failed;
@@ -307,37 +319,30 @@ retry:
 #if !defined(HTTP_IMPORT_DEBUG)
         base64 = base64_encode((const unsigned char *) info.readbuffer + info.readoffset - reclen, reclen);
         if (base64 == NULL) {
-            id = 0;
             fprintf(stderr, "base64 error\r\n");
             continue;
         }
 
 remain_data:
 
-        if (id == 0) {
-            hash = hash_key(sid, strlen(sid));
-            id = (int) (hash % 4) + 1;
+        hash = hash_key(sid, strlen(sid));
+        id = (int) (hash % TQ_CHAN_NUM) + 1;
 
+        if (begin == 1) {
+            begin = 0;
             memset(cmd, 0, sizeof(cmd));
-
-            offset = snprintf(cmd, sizeof(cmd), "insert into p%d using ps tags (%d) values ", id, id);
-
-            if (offset < 0) {
-                id = 0;
-                fprintf(stderr, "fprintf error cmd for inserting data: %s\r\n", cmd);
-                continue;
-            }
+            memcpy(cmd, prefix, pfxlen);
+            offset += pfxlen;
         }
 
-        if (offset + strlen(base64) < MAX_TSQL_LEN - 64) {
-            np = snprintf(cmd + offset, sizeof(cmd) - offset, "(now, now, '%s') ", base64);
+        if (offset + strlen(base64) < MAX_TSQL_LEN - 256) {
+            np = snprintf(cmd + offset, sizeof(cmd) - offset, " p%d using ps tags (%d) values (now, now, '%s')", id, id, base64);
 
             free(base64);
 
             if (np <= 0) {
-                id = 0;
                 fprintf(stderr, "fprintf error cmd for preparing data: %s\r\n", cmd);
-                continue;;
+                continue;
             }
 
             offset += np;
@@ -356,7 +361,7 @@ remain_data:
                 goto failed;
             }
 
-            id = 0;
+            begin = 1;
             offset = 0;
             goto remain_data;
         }
@@ -387,11 +392,6 @@ failed:
     if (taos) {
         taos_close(taos);
     }
-#else
-    if (fp) {
-        fclose(fp);
-    }
-#endif
 
     if (iretry == 1) {
       if (count) {
@@ -403,6 +403,11 @@ failed:
         goto retry;
       }
     }
+#else
+    if (fp) {
+        fclose(fp);
+    }
+#endif
 
     return 0;
 }
