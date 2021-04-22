@@ -3096,7 +3096,7 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
   } else if ((colType == TSDB_DATA_TYPE_TIMESTAMP) && (TSDB_DATA_TYPE_BIGINT == pRight->value.nType)) {
     STableComInfo tinfo = tscGetTableInfo(pTableMeta);
 
-    if ((tinfo.precision == TSDB_TIME_PRECISION_MILLI) && (pRight->flags & (1 << EXPR_FLAG_NOW))) {
+    if ((tinfo.precision == TSDB_TIME_PRECISION_MILLI) && (pRight->flags & (1 << EXPR_FLAG_US_TIMESTAMP))) {
       pRight->value.i64 /= 1000;
     }
   }

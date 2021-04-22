@@ -144,13 +144,14 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
     pSqlExpr->type    = SQL_NODE_VALUE;
-    pSqlExpr->flags  |= 1 << EXPR_FLAG_NOW;
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_US_TIMESTAMP;
   } else if (optrType == TK_VARIABLE) {
     int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64);
     if (ret != TSDB_CODE_SUCCESS) {
       terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
 
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_US_TIMESTAMP;
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;
     pSqlExpr->type    = SQL_NODE_VALUE;

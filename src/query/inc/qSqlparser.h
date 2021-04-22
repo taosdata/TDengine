@@ -45,7 +45,7 @@ enum SQL_NODE_FROM_TYPE {
 };
 
 enum SQL_EXPR_FLAG {
-  EXPR_FLAG_NOW = 1
+  EXPR_FLAG_US_TIMESTAMP = 1
 };
 
 extern char tTokenTypeSwitcher[13];
