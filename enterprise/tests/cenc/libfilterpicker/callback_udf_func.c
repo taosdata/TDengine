@@ -110,23 +110,37 @@ callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long lon
     /* applications always pass in buf */
     if (buf && buf->ptr) {
         cbp = (cb_udf_params_t *) buf->ptr;
-        mem = cbp->memory;
-    }
 
-    Pick(0.01,
-         amps,
-         numOfRows,
-         filterWindow,   //多少道滤波
-         longTermWindow, //长期平均值时间窗
-         threshold1,     //平均值阈值
-         threshold2,     //积分阈值
-         tUpEvent,       //积分时间窗
-         &mem,
-         useMemory,
-         &pick_list,
-         &num_picks,
-         "UDF"
-    );
+        Pick(0.01,
+             amps,
+             numOfRows,
+             filterWindow,   //多少道滤波
+             longTermWindow, //长期平均值时间窗
+             threshold1,     //平均值阈值
+             threshold2,     //积分阈值
+             tUpEvent,       //积分时间窗
+             &cbp->memory,
+             useMemory,
+             &pick_list,
+             &num_picks,
+             "UDF"
+        );
+    } else {
+        Pick(0.01,
+             amps,
+             numOfRows,
+             filterWindow,   //多少道滤波
+             longTermWindow, //长期平均值时间窗
+             threshold1,     //平均值阈值
+             threshold2,     //积分阈值
+             tUpEvent,       //积分时间窗
+             &mem,
+             useMemory,
+             &pick_list,
+             &num_picks,
+             "UDF"
+        );
+    }
 
     hcount = (int) longTermWindow * 100;
 
@@ -239,7 +253,6 @@ callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long lon
 
     /* applications always pass in buf */
     if (buf) {
-        cbp->memory = mem;
         buf->ptr = (char *) cbp;
     } else {
         free_FilterPicker5_Memory(&mem);

@@ -262,7 +262,6 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
   cenc_samples_t         samps;
   int                    idx;
   callback_params_t     *p;
-  FilterPicker5_Memory  *memory = NULL;
   PickData              *pick = NULL;
   memory_table_t       **t;
   TAOS_RES              *res = NULL;
@@ -345,7 +344,6 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
     pthread_mutex_unlock(&mutex);
 
     h = &(*t)->history;
-    memory = (*t)->memory;
 
     while (seg) {
       if (seg->numsamples <= 0) {
@@ -384,15 +382,13 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
            threshold1,     // 平均值阈值
            threshold2,     // 积分阈值
            tUpEvent,       // 积分时间窗
-           &memory,
+           &(*t)->memory,
            useMemory,
            &pick_list,
            &num_picks,
            "cenc_picker_func"
       );
     }
-
-    (*t)->memory = memory;
 
     pos = cmd;
 
