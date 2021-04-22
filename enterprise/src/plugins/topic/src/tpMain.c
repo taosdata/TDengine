@@ -379,6 +379,13 @@ static void *tpProcessDropTp(void *param) {
 
   mDebug("topic:%s, start to drop", pDrop->db);
   pDb = mnodeGetDb(pDrop->db);
+  if (pDb == NULL) {
+    if (pDrop->ignoreNotExists) {
+      mDebug("topic:%s, tp already exist, ignore exist is set", pDrop->db);
+      goto dtp_over;
+    } 
+  }
+
   if (pDb == NULL || pDb->cfg.dbType != TSDB_DB_TYPE_TOPIC) {
     mError("topic:%s, failed to drop, invalid topic", pDrop->db);
     code = TSDB_CODE_MND_INVALID_TOPIC;

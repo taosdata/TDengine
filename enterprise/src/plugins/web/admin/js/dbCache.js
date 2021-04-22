@@ -29,31 +29,56 @@ var DbCache = new function() {
 	 * rows -> integer
 	 * data -> [[], []]
 	 **/
-	this.Append = function(d)
+	this.Append = function(d, stableName)
 	{
 		if (d == null) {
 			return;
 		}
+
 		if (d.rows != d.data.length) {
 			DbUtil.Error(DB_CODE_CACHE_INVALID_ROW);
 		}
-		
-		this.cacheTotal += d.rows;
-		this.cacheHead = d.head;
-		
-		var remain = this.cacheTotal % this.rowPerPage;
-		this.pagesTotal = parseInt(this.cacheTotal / this.rowPerPage);
-		if (remain > 0) {
-			this.pagesTotal++;
+	
+		if(stableName){
+			var filteredData = d.data.filter(function(x){
+				return x[3] == stableName;
+			});
+			this.cacheTotal += filteredData.length;
+			this.cacheHead = d.head;
+			
+			var remain = this.cacheTotal % this.rowPerPage;
+			this.pagesTotal = parseInt(this.cacheTotal / this.rowPerPage);
+			if (remain > 0) {
+				this.pagesTotal++;
+			}
+			
+			if (filteredData.length != 0) {
+				this.cacheContent = this.cacheContent.concat(filteredData);
+			}
+			
+			if (this.cacheTotal != this.cacheContent.length) {
+				DbUtil.Error(DB_CODE_CACHE_INVALID_ROW);
+			}
+		} else {
+			this.cacheTotal += d.rows;
+			this.cacheHead = d.head;
+			
+			var remain = this.cacheTotal % this.rowPerPage;
+			this.pagesTotal = parseInt(this.cacheTotal / this.rowPerPage);
+			if (remain > 0) {
+				this.pagesTotal++;
+			}
+			
+			if (d.rows != 0) {
+				this.cacheContent = this.cacheContent.concat(d.data);
+			}
+			
+			if (this.cacheTotal != this.cacheContent.length) {
+				DbUtil.Error(DB_CODE_CACHE_INVALID_ROW);
+			}
 		}
 		
-		if (d.rows != 0) {
-			this.cacheContent = this.cacheContent.concat(d.data);
-		}
-		
-		if (this.cacheTotal != this.cacheContent.length) {
-			DbUtil.Error(DB_CODE_CACHE_INVALID_ROW);
-		}
+	
 	}
 
 	this.AppendForNext = function(d)
@@ -242,13 +267,13 @@ var DbCache = new function() {
 	}
 
 	//ajax callback
-	this.OnData = function(data)
+	this.OnData = function(data, stableName)
 	{
 		//if (data.rows == 0) {
 			//dbSuccess(DB_CODE_NO_DATAS);
 		//}
 		//else {
-			this.Append(data);
+			this.Append(data, stableName);
 			var d = this.Fetch();
 			if (this.fillHeadFp != null) this.fillHeadFp(d);
 			if (this.fileBodyFp != null) this.fileBodyFp(d);

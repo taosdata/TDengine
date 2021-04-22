@@ -33,6 +33,7 @@
 			<div id="navbar" class="navbar-collapse collapse">
 				<ul class="nav navbar-nav">					
 					<li><a href="dbs.html">DBs</a></li>
+					<li><a href="stables.html">Stables</a></li>
 					<li class="active"><a href="tables.html">Tables</a></li>
 					<li><a href="users.html">Users</a></li>
 					<li id="dnodeLiId" style="display:none"><a href="dnodes.html">DNodes</a></li>
@@ -59,13 +60,25 @@
 					<span class="input-group-addon" style="width:40%">Table Name</span>  
 					<input id="dbTableName" type="text" class="form-control" placeholder="table name">
 				</div> 
+				<label>Columns:</label>
 				<div class="input-group input-group-sm" style="width:300px;padding-bottom:14px">  
 					<span class="input-group-addon" style="width:40%">Timestamp</span>  
 					<input id="dbTimestampColumn" type="text" class="form-control" placeholder="column name">
 					<span class="input-group-btn">
-						<button class="btn btn-default " type="button" onclick="dbAddColumn(-1)">+</button>
+						<button id="dbTimestampColumnBtn" class="btn btn-default " type="button" onclick="dbAddColumn(-1)">+</button>
 					</span> 
 				</div> 
+				<div id="dbFrom1">
+				</div>
+				<label>Using Stable<input type="checkbox" id="isUScheckbox" onchange="handleUScheckboxChange()" style="position: relative;top: 2px;left: 5px;"></input></label>
+				<div class="input-group input-group-sm" style="width:300px;padding-bottom:14px">  
+					<select class="form-control" value="0" style="border-radius: 3px;" id="stableSelect" onchange="handleUSselectChange()" disabled> 
+						<option value="0">Not use Stable</option>
+					</select>
+				</div> 
+
+				<div id="dbFrom2">
+				</div>
 			</form>	 
 			
 			<form id="dbBtnForm" role="form" style="max-width: 300px;margin: 0 auto;padding-bottom:45px">
@@ -108,6 +121,13 @@
 	function dbOnLoad()
 	{
 		DbSession.ValidSession();
+		var dbSTableName = DbUtil.GetUrlFirstPara();
+		if (dbSTableName != null && dbSTableName != "") {
+			$('#isUScheckbox').attr("checked", "checked");
+			$('#stableSelect').removeAttr("disabled");
+			dbQueryStables(dbSTableName);
+			useStable(dbSTableName);
+		}
 	}	
 	
 	var dbColumnIndex = -1;
@@ -116,6 +136,10 @@
 	var dbColumnLengths = [];
 	var dbTableName = "";
 	var dbTableFirstKey = "";
+	var dbTagIndex = -1;
+	var dbTagTypes = [];
+	var dbTagNames = [];
+	var dbTagLengths = [];
 
 	/**
 	 * read all value of ctrls
@@ -139,6 +163,21 @@
 				dbColumnLengths[i] = dbGetBinaryLength(name);
 			}
 		}
+
+		dbTagTypes.length = 0;
+		dbTagNames.length = 0;
+		dbTagLengths.length = 0;
+		for (var i = 0; i <= dbTagIndex; ++i) {
+			dbTagTypes[i] = $.trim($('#dbGroupType_' + i).text());
+			dbTagNames[i] = $.trim($('#dbGroupName_' + i).val());
+			dbTagLengths[i] = 0;
+			if (dbTagTypes[i] == "binary") {
+				var name = dbTagNames[i];
+				dbTagNames[i] = dbGetBinaryName(name);
+				dbTagLengths[i] = dbGetBinaryLength(name);
+			}
+		}
+
 	}
 
 	/**
@@ -254,8 +293,61 @@
 			+ '</div>'
 			+ '<br id="dbGroupBr' + dbColumnIndex + '">';
 		
-		$('#dbFrom').append(html);
+		$('#dbFrom1').append(html);
 		dbResetCtrlValue();
+	}
+
+	function dbSetColumn(name, type, colLength){
+		dbColumnIndex++;
+		dbColumnTypes[dbColumnIndex] = type;
+		dbColumnNames[dbColumnIndex] = name;
+		dbColumnLengths[dbColumnIndex] = colLength;
+			
+		var html = '<div id="dbGroup' + dbColumnIndex + '" class="input-group input-group-sm"  style="width:300px">'
+			+ '<div class="input-group-btn" >'
+			+ '	<button disabled type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" style="width:120px" aria-expanded="false"><span id="dbGroupType' + dbColumnIndex + '">' + type + '</span> <span class="caret"></span></button>'
+			+ '	<ul class="dropdown-menu dropdown-menu-right" style="width:30px">'
+			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'bool\')">bool</a></li>'
+			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'tinyint\')">tinyint</a></li>'
+			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'smallint\')">smallint</a></li>'
+			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'int\')">int</a></li>'
+			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'bigint\')">bigint</a></li>'
+			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'float\')">float</a></li>'
+			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'double\')">double</a></li>'
+			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'binary\')">binary</a></li>'
+			+ '		<li><a onclick="dbSetColumnType(' + dbColumnIndex + ', \'timestamp\')">timestamp</a></li>'
+			+ '	</ul>'
+			+ '</div>'
+			+ '<input disabled id="dbGroupName' + dbColumnIndex + '" type="text" class="form-control" value="'+ name +'"  placeholder="column name" aria-label="...">'
+			+ '<span class="input-group-btn">'
+			+ '	<button class="btn btn-default " type="button" disabled onclick="dbRemoveColumn(' + dbColumnIndex + ')">-</button>'
+			+ '	<button class="btn btn-default " type="button" disabled onclick="dbAddColumn(' + dbColumnIndex + ')">+</button>'+ '</span>'
+			+ '</div>'
+			+ '<br id="dbGroupBr' + dbColumnIndex + '">';
+		
+		$('#dbFrom1').append(html);
+	}
+	
+	function dbSetTag(name, type, colLength){
+		dbTagIndex++;
+		dbTagTypes[dbTagIndex] = type;
+		dbTagNames[dbTagIndex] = "";
+		dbTagLengths[dbTagIndex] = colLength;
+		
+		var html = '<div id="dbGroup' + dbTagIndex + '" class="input-group input-group-sm"  style="width:300px">'
+			+ '<div class="input-group-btn" >'
+			+ '	<button disabled type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" style="width:120px" aria-expanded="false"><span id="dbGroupType_' + dbTagIndex + '">' + type + '</span> <span class="caret"></span></button>'
+			+ '	<ul class="dropdown-menu dropdown-menu-right" style="width:30px">'
+			+ '	</ul>'
+			+ '</div>'
+			+ '<input id="dbGroupName_' + dbTagIndex + '" type="text" class="form-control" placeholder="'+ name +'" aria-label="...">'
+			+ '<span class="input-group-btn">'
+			+ '	<button class="btn btn-default " type="button" disabled onclick="dbRemoveColumn(' + dbTagIndex + ')">-</button>'
+			+ '	<button class="btn btn-default " type="button" disabled onclick="dbAddColumn(' + dbTagIndex + ')">+</button>'+ '</span>'
+			+ '</div>'
+			+ '<br id="dbGroupBr' + dbTagIndex + '">';
+		
+		$('#dbFrom2').append(html);
 	}
 
 	/**
@@ -332,37 +424,68 @@
 		if (dbColumnIndex < 0) {
 			return DbUtil.Error(DB_CODE_TABLE_COL_NUM_ZERO);
 		}
-		
-		var sql = "create table " + DbSession.GetDb() + "." + dbTableName + "(" + dbTableFirstKey + " timestamp";
-		for (var i = 0; i <= dbColumnIndex; ++i)
-		{
-			var columnType = dbColumnTypes[i];
-			var columnName = dbColumnNames[i];
-			var columnLength = dbColumnLengths[i];
-			if (columnType == "Data Type") {
-				return DbUtil.Error(DB_CODE_TABLE_COL_TYPE_NULL);
-			}
-			if (!DbUtil.CheckName(columnName, "the name of column"))
+
+		var sql = "create table ";
+		if($('#stableSelect').val()=="0"){
+			//create table SQL
+			sql += DbSession.GetDb() + "." + dbTableName + "(" + dbTableFirstKey + " timestamp";
+			for (var i = 0; i <= dbColumnIndex; ++i)
 			{
-				return;
+				var columnType = dbColumnTypes[i];
+				var columnName = dbColumnNames[i];
+				var columnLength = dbColumnLengths[i];
+				if (columnType == "Data Type") {
+					return DbUtil.Error(DB_CODE_TABLE_COL_TYPE_NULL);
+				}
+				if (!DbUtil.CheckName(columnName, "the name of column"))
+				{
+					return;
+				}
+				
+				//if (columnName == "") {
+				//	return DbUtil.Error(DB_CODE_TABLE_COL_NAME_NULL);
+				//}
+				if (columnType == "binary")
+				{
+					if (columnLength <= 0) {
+						return DbUtil.Error(DB_CODE_TABLE_COL_BINARY_NULL);
+					}
+					else {
+						columnType = columnType + "(" + columnLength + ")";
+					}
+				}
+				sql = sql + ", " + columnName + " " + columnType;
 			}
-			
-			//if (columnName == "") {
-			//	return DbUtil.Error(DB_CODE_TABLE_COL_NAME_NULL);
-			//}
-			if (columnType == "binary")
+			sql += ")";
+		} else {
+			//create table using stable SQL
+			var stableName = $('#stableSelect').val();
+			sql += DbSession.GetDb() + "." + dbTableName + " using " + DbSession.GetDb() + "." + stableName + " tags (";
+
+			for (var i = 0; i <= dbTagIndex; ++i)
 			{
-				if (columnLength <= 0) {
-					return DbUtil.Error(DB_CODE_TABLE_COL_BINARY_NULL);
+				var tagType = dbTagTypes[i];
+				var tagName = dbTagNames[i];
+				var tagLength = dbTagLengths[i];
+				if (!DbUtil.CheckNULL(tagName, "the value of tag"))
+				{
+					return;
 				}
-				else {
-					columnType = columnType + "(" + columnLength + ")";
+
+				if (!DbUtil.CheckTagType(i, tagType, tagName))
+				{
+					return;
 				}
+
+				if(i != 0){
+					sql = sql + ", " + tagName;
+				}else {
+					sql = sql + tagName;
+				}	
 			}
-			sql = sql + ", " + columnName + " " + columnType;
+			sql += ")";
 		}
-		sql += ")";
-		
+				
 		$.ajax({
 			type: "post",
 			url: "admin/sql",
@@ -413,6 +536,165 @@
 	{
 		DbSession.SetCacheFlag();
 		DbUtil.GotoPage("tables.html");
+	}
+
+	function handleUScheckboxChange(){
+		if($('#isUScheckbox').prop("checked")){
+			dbQueryStables();
+			$('#stableSelect').removeAttr("disabled");
+		} else {
+			removeStable();
+		}
+	}
+
+	function handleUSselectChange(){
+		if($('#stableSelect').val()!="0"){
+			useStable($('#stableSelect').val());
+		} else {
+			removeStable();	
+		}
+	}
+
+	function removeStable(){
+		$('#stableSelect').attr("disabled", "disabled");
+		$('#stableSelect').html('<option value="0">Not use Stable</option>');
+		$('#stableSelect').val("0");
+		$('#isUScheckbox').removeAttr("checked")
+
+		dbColumnIndex = -1;
+		dbColumnTypes = [];
+		dbColumnNames = [];
+		dbColumnLengths = [];
+
+		dbTagIndex = -1;
+		dbTagTypes = [];
+		dbTagNames = [];
+		dbTagLengths = [];
+		
+		$('#dbFrom1').html("");
+		$('#dbFrom2').html("");
+
+		$('#dbTimestampColumn').removeAttr("disabled");
+		$('#dbTimestampColumnBtn').removeAttr("disabled");
+		$('#dbTimestampColumn').val("");
+	}
+
+	function useStable(stableName){
+		$.ajax({
+			type: "post",
+			url: "admin/sql",
+			headers: {
+				'Authorization' : "Taosd " + DbSession.GetToken()
+			},
+			data: "DESCRIBE " + DbSession.GetDb() + "." + stableName,
+			dataType: "json",
+			success: function(d){
+				if (d == null || d.status == null) {
+					DbUtil.Error(DB_CODE_INVALID_FORMAT);
+					return;
+				} 
+				if (d.status == "error") {
+					DbUtil.HandleError(d);
+				}
+				else if (d.status == "succ") {
+					assembleForm(d.data);
+				}
+				else{
+					DbUtil.Error(DB_CODE_UNKNOWN);
+				}
+			},
+			error: function(msg) { 
+				if (msg != null && msg.responseJSON != null) {
+					dbOnLoadCb(msg.responseJSON);
+				} else if (msg != null) {
+					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+				} else {
+					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+				}
+			}		
+		});		
+	
+	}
+
+	function dbQueryStables(selected)
+	{
+		$.ajax({
+			type: "post",
+			url: "admin/sql",
+			headers: {
+				'Authorization' : "Taosd " + DbSession.GetToken()
+			},
+			data: "show " + DbSession.GetDb() +".stables",
+			dataType: "json",
+			success: function(d){
+				dbQueryStablesCallback(d, selected)
+			},
+			error: function(msg) { 
+				if (msg != null && msg.responseJSON != null) {
+					dbQueryStablesCallback(msg.responseJSON);
+				} else if (msg != null) {
+					DbUtil.ErrorWithMsg(DB_CODE_INVALID_FORMAT, msg);
+				} else {
+					DbUtil.ErrorWithMsg(DB_CODE_SERVER_NULL, msg);
+				}
+			}		
+		});		
+	}
+	
+	function dbQueryStablesCallback(d, selected)
+	{
+		if (d == null || d.status == null) {
+			DbUtil.Error(DB_CODE_INVALID_FORMAT);
+			return;
+		} 
+		if (d.status == "error") {
+			DbUtil.HandleError(d);
+		}
+		else if (d.status == "succ") {
+			setUSselect(d.data, selected)
+		}	
+		else{
+			DbUtil.Error(DB_CODE_UNKNOWN);
+		}
+	}
+
+	function setUSselect(data, selected){
+		var len = data.length;
+		var html = '<option value="0">Not use Stable</option>';
+		for (var i = 0; i < len; ++i) {
+			html += '<option value="' + data[i][0] + '">' + data[i][0] + '</option>';
+		}
+		$('#stableSelect').html(html);
+		if(selected){
+			$('#stableSelect').val(selected);
+		}
+	}
+	
+	function assembleForm(data){
+		$('#dbTimestampColumn').attr("disabled", "disabled");
+		$('#dbTimestampColumnBtn').attr("disabled", "disabled");
+		$('#dbTimestampColumn').val(data[0][0]);
+		var len = data.length;
+
+		dbColumnIndex = -1;
+		dbColumnTypes = [];
+		dbColumnNames = [];
+		dbColumnLengths = [];
+
+		dbTagIndex = -1;
+		dbTagTypes = [];
+		dbTagNames = [];
+		dbTagLengths = [];
+		
+		$('#dbFrom1').html("");
+		$('#dbFrom2').html("<label>Tags:</label>");
+		for(var i=1; i<len; ++i){
+			if(!data[i][3]){
+				dbSetColumn(data[i][0], data[i][1], data[i][2])
+			}else{
+				dbSetTag(data[i][0], data[i][1], data[i][2])
+			}
+		}
 	}
 
 	</script>

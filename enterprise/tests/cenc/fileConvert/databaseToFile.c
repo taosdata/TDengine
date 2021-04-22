@@ -43,9 +43,9 @@ int main(int argc, char *argv[])
     int               opt, i, np, nfields, rv;
     int               status       = 0;
     int               verbose      = 0;
-    int               reclen       = -1;
+    int               reclen       = 512;
     int               data[500];
-    uint32_t          flags;
+    uint32_t          flags        = MSF_PACKVER2;
     MS3Record        *msr          = NULL;
     const char       *file_name    = NULL;
     const char       *tsdb_server  = "localhost";
@@ -237,7 +237,7 @@ int main(int argc, char *argv[])
 
     records = 0;
     np = 0;
-    flags = MSF_FLUSHDATA;
+    flags |= MSF_FLUSHDATA;
 
     switch (time_present) {
     case begin:
