@@ -5508,15 +5508,15 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
   pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
   pQueryInfo->slimit = pQuerySqlNode->slimit;
   
-  tscDebug("%p limit:%" PRId64 ", offset:%" PRId64 " slimit:%" PRId64 ", soffset:%" PRId64, pSql, pQueryInfo->limit.limit,
-      pQueryInfo->limit.offset, pQueryInfo->slimit.limit, pQueryInfo->slimit.offset);
+  tscDebug("0x%"PRIx64" limit:%" PRId64 ", offset:%" PRId64 " slimit:%" PRId64 ", soffset:%" PRId64, pSql->self,
+      pQueryInfo->limit.limit, pQueryInfo->limit.offset, pQueryInfo->slimit.limit, pQueryInfo->slimit.offset);
   
   if (pQueryInfo->slimit.offset < 0 || pQueryInfo->limit.offset < 0) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
   }
 
   if (pQueryInfo->limit.limit == 0) {
-    tscDebug("%p limit 0, no output result", pSql);
+    tscDebug("0x%"PRIx64" limit 0, no output result", pSql->self);
     pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
     return TSDB_CODE_SUCCESS;
   }
@@ -5538,7 +5538,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
     }
 
     if (pQueryInfo->slimit.limit == 0) {
-      tscDebug("%p slimit 0, no output result", pSql);
+      tscDebug("0x%"PRIx64" slimit 0, no output result", pSql->self);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
       return TSDB_CODE_SUCCESS;
     }
@@ -5556,7 +5556,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
 
     // No tables included. No results generated. Query results are empty.
     if (pTableMetaInfo->vgroupList->numOfVgroups == 0) {
-      tscDebug("%p no table in super table, no output result", pSql);
+      tscDebug("0x%"PRIx64" no table in super table, no output result", pSql->self);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
       return TSDB_CODE_SUCCESS;
     }
@@ -6351,7 +6351,7 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex) {
   assert(offset < totalBufSize);
   str[offset] = ']';
   assert(offset < totalBufSize);
-  tscDebug("%p select clause:%s", pSql, str);
+  tscDebug("0x%"PRIx64" select clause:%s", pSql->self, str);
 }
 
 int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* pInfo) {

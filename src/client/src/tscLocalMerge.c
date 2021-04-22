@@ -193,7 +193,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   for (int32_t i = 0; i < numOfBuffer; ++i) {
     int32_t len = pMemBuffer[i]->fileMeta.flushoutData.nLength;
     if (len == 0) {
-      tscDebug("%p no data retrieved from orderOfVnode:%d", pSql, i + 1);
+      tscDebug("0x%"PRIx64" no data retrieved from orderOfVnode:%d", pSql->self, i + 1);
       continue;
     }
 
@@ -203,7 +203,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   if (numOfFlush == 0 || numOfBuffer == 0) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
     pCmd->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT; // no result, set the result empty
-    tscDebug("%p retrieved no data", pSql);
+    tscDebug("0x%"PRIx64" retrieved no data", pSql->self);
     return;
   }
 
@@ -235,7 +235,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   pReducer->numOfVnode = numOfBuffer;
 
   pReducer->pDesc = pDesc;
-  tscDebug("%p the number of merged leaves is: %d", pSql, pReducer->numOfBuffer);
+  tscDebug("0x%"PRIx64" the number of merged leaves is: %d", pSql->self, pReducer->numOfBuffer);
 
   int32_t idx = 0;
   for (int32_t i = 0; i < numOfBuffer; ++i) {
@@ -258,7 +258,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
       ds->pageId = 0;
       ds->rowIdx = 0;
 
-      tscDebug("%p load data from disk into memory, orderOfVnode:%d, total:%d", pSql, i + 1, idx + 1);
+      tscDebug("0x%"PRIx64" load data from disk into memory, orderOfVnode:%d, total:%d", pSql->self, i + 1, idx + 1);
       tExtMemBufferLoadData(pMemBuffer[i], &(ds->filePage), j, 0);
 #ifdef _DEBUG_VIEW
       printf("load data page into mem for build loser tree: %" PRIu64 " rows\n", ds->filePage.num);
@@ -272,7 +272,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
 #endif
       
       if (ds->filePage.num == 0) {  // no data in this flush, the index does not increase
-        tscDebug("%p flush data is empty, ignore %d flush record", pSql, idx);
+        tscDebug("0x%"PRIx64" flush data is empty, ignore %d flush record", pSql->self, idx);
         tfree(ds);
         continue;
       }
@@ -547,10 +547,10 @@ void tscDestroyLocalMerger(SSqlObj *pSql) {
     pLocalMerge->numOfCompleted = 0;
     free(pLocalMerge);
   } else {
-    tscDebug("%p already freed or another free function is invoked", pSql);
+    tscDebug("0x%"PRIx64" already freed or another free function is invoked", pSql->self);
   }
 
-  tscDebug("%p free local reducer finished", pSql);
+  tscDebug("0x%"PRIx64" free local reducer finished", pSql->self);
 }
 
 static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCmd, SColumnModel *pModel) {

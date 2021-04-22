@@ -292,7 +292,7 @@ void taos_close(TAOS *taos) {
         pHb->rpcRid = -1;
       }
 
-      tscDebug("%p HB is freed", pHb);
+      tscDebug("0x%"PRIx64" HB is freed", pHb->self);
       taosReleaseRef(tscObjRef, pHb->self);
 #ifdef __APPLE__
       // to satisfy later tsem_destroy in taos_free_result
@@ -576,7 +576,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
        cmd == TSDB_SQL_FETCH)) {
     pQueryInfo->type = TSDB_QUERY_TYPE_FREE_RESOURCE;
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
-    tscDebug("%p send msg to dnode to free qhandle ASAP before free sqlObj, command:%s", pSql, sqlCmd[pCmd->command]);
+    tscDebug("0x%"PRIx64" send msg to dnode to free qhandle ASAP before free sqlObj, command:%s", pSql->self, sqlCmd[pCmd->command]);
 
     tscProcessSql(pSql);
     return false;
@@ -594,7 +594,7 @@ void taos_free_result(TAOS_RES *res) {
 
   bool freeNow = tscKillQueryInDnode(pSql);
   if (freeNow) {
-    tscDebug("%p free sqlObj in cache", pSql);
+    tscDebug("0x%"PRIx64" free sqlObj in cache", pSql->self);
     taosReleaseRef(tscObjRef, pSql->self);
   }
 }
@@ -708,7 +708,7 @@ static void tscKillSTableQuery(SSqlObj *pSql) {
 
   tscUnlockByThread(&pSql->squeryLock);
 
-  tscDebug("%p super table query cancelled", pSql);
+  tscDebug("0x%"PRIx64" super table query cancelled", pSql->self);
 }
 
 void taos_stop_query(TAOS_RES *res) {
@@ -717,7 +717,7 @@ void taos_stop_query(TAOS_RES *res) {
     return;
   }
 
-  tscDebug("%p start to cancel query", res);
+  tscDebug("0x%"PRIx64" start to cancel query", pSql->self);
   SSqlCmd *pCmd = &pSql->cmd;
 
   // set the error code for master pSqlObj firstly
@@ -744,7 +744,7 @@ void taos_stop_query(TAOS_RES *res) {
     }
   }
 
-  tscDebug("%p query is cancelled", res);
+  tscDebug("0x%"PRIx64" query is cancelled", pSql->self);
 }
 
 bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
@@ -877,7 +877,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   pRes->numOfClauseTotal = 0;
 
 
-  tscDebug("%p Valid SQL: %s pObj:%p", pSql, sql, pObj);
+  tscDebug("0x%"PRIx64" Valid SQL: %s pObj:%p", pSql->self, sql, pObj);
 
   int32_t sqlLen = (int32_t)strlen(sql);
   if (sqlLen > tsMaxSQLStringLen) {
@@ -889,7 +889,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   pSql->sqlstr = realloc(pSql->sqlstr, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
     tscError("%p failed to malloc sql string buffer", pSql);
-    tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, pRes->code, taos_errstr(pSql), pObj);
+    tscDebug("0x%"PRIx64" Valid SQL result:%d, %s pObj:%p", pSql->self, pRes->code, taos_errstr(pSql), pObj);
     tfree(pSql);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -914,7 +914,7 @@ int taos_validate_sql(TAOS *taos, const char *sql) {
   }
 
   if (code != TSDB_CODE_SUCCESS) {
-    tscDebug("%p Valid SQL result:%d, %s pObj:%p", pSql, code, taos_errstr(pSql), pObj);
+    tscDebug("0x%"PRIx64" Valid SQL result:%d, %s pObj:%p", pSql->self, code, taos_errstr(pSql), pObj);
   }
 
   taos_free_result(pSql);
@@ -1027,7 +1027,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
   pRes->numOfClauseTotal = 0;
 
   assert(pSql->fp == NULL);
-  tscDebug("%p tableNameList: %s pObj:%p", pSql, tableNameList, pObj);
+  tscDebug("0x%"PRIx64" tableNameList: %s pObj:%p", pSql->self, tableNameList, pObj);
 
   int32_t tblListLen = (int32_t)strlen(tableNameList);
   if (tblListLen > MAX_TABLE_NAME_LENGTH) {
@@ -1061,7 +1061,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   tscDoQuery(pSql);
 
-  tscDebug("%p load multi table meta result:%d %s pObj:%p", pSql, pRes->code, taos_errstr(pSql), pObj);
+  tscDebug("0x%"PRIx64" load multi table meta result:%d %s pObj:%p", pSql->self, pRes->code, taos_errstr(pSql), pObj);
   if ((code = pRes->code) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
   }

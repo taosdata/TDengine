@@ -42,7 +42,7 @@ class TDengineCursor(object):
     def __iter__(self):
         return self
 
-    def __next__(self):
+    def next(self):
         if self._result is None or self._fields is None:
             raise OperationalError("Invalid use of fetch iterator")
 
