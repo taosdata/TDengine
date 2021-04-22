@@ -18,6 +18,7 @@
 #include "ttype.h"
 #include "tstrbuild.h"
 #include "queryLog.h"
+#include "ttokendef.h"
 
 static ScriptEnvPool *pool = NULL;  
 
@@ -226,9 +227,23 @@ void luaValueToTaosType(lua_State *lua, char *interBuf, int32_t *numOfOutput, in
       break;
     case LUA_TNUMBER:
       {
-        float v = lua_tonumber(lua, -1);
-        memcpy(interBuf, (char *)&v, oBytes);
-        sz = 1;
+        if (oType == TSDB_DATA_TYPE_FLOAT) {
+          float v = lua_tonumber(lua, -1);
+          memcpy(interBuf, (char *)&v, oBytes);
+          sz = 1;
+        } else if (oType == TSDB_DATA_TYPE_DOUBLE) {
+          double v = lua_tonumber(lua, -1);
+          memcpy(interBuf, (char *)&v, oBytes);
+          sz = 1;
+        } else if (oType == TSDB_DATA_TYPE_BIGINT) {
+          int64_t v = lua_tonumber(lua, -1);
+          memcpy(interBuf, (char *)&v, oBytes);
+          sz = 1;
+        } else if (oType <= TSDB_DATA_TYPE_INT) {
+          int32_t v = lua_tonumber(lua, -1);
+          memcpy(interBuf, (char *)&v, oBytes);
+          sz = 1;
+        }
       }
       break;
     case LUA_TTABLE: 

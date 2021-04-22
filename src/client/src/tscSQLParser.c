@@ -311,7 +311,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     createInfo->path.z[createInfo->path.n] = 0;
 
     strdequote(createInfo->path.z);
-
+    
     if (strlen(createInfo->path.z) >= PATH_MAX) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
@@ -320,7 +320,9 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (ret) {
       return ret;
     }
-    if (!isValidScript(buf, len)) {
+    //distinguish  *.lua and *.so  
+    int32_t pathLen = (int32_t)strlen(createInfo->path.z);
+    if ((pathLen > 3) && (0 == strncmp(createInfo->path.z + pathLen - 3, "lua", 3)) && !isValidScript(buf, len)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4); 
     } 
 
