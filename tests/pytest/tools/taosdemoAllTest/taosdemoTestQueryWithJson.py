@@ -59,7 +59,7 @@ class TDTestCase:
         tdSql.execute("use db")
         tdSql.execute('create table result0 using stb0 tags(121,43,"beijing","beijing","beijing","beijing","beijing")')
         os.system("python3 tools/taosdemoAllTest/convertResFile.py")
-        tdSql.execute("insert into result0 file './test_query_res0.txt-0'")   
+        tdSql.execute("insert into result0 file './test_query_res0.txt'")   
         tdSql.query("select ts from result0")
         tdSql.checkData(0, 0, "2020-11-01 00:00:00.099000") 
         tdSql.query("select count(*) from result0")
