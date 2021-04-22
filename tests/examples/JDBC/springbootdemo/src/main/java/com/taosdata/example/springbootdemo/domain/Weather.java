@@ -8,8 +8,8 @@ public class Weather {
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss.SSS", timezone = "GMT+8")
     private Timestamp ts;
-    private float temperature;
-    private float humidity;
+    private Float temperature;
+    private Float humidity;
     private String location;
     private int groupId;
 
@@ -30,19 +30,19 @@ public class Weather {
         this.ts = ts;
     }
 
-    public float getTemperature() {
+    public Float getTemperature() {
         return temperature;
     }
 
-    public void setTemperature(float temperature) {
+    public void setTemperature(Float temperature) {
         this.temperature = temperature;
     }
 
-    public float getHumidity() {
+    public Float getHumidity() {
         return humidity;
     }
 
-    public void setHumidity(float humidity) {
+    public void setHumidity(Float humidity) {
         this.humidity = humidity;
     }
 
