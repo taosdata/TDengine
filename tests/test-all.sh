@@ -80,6 +80,7 @@ function runSimCaseOneByOne {
     fi
   done < $1
 }
+
 function runSimCaseOneByOnefq {
 
   start=`sed -n "/$1-start/=" jenkins/basic.txt`
@@ -155,6 +156,7 @@ function runPyCaseOneByOne {
     fi
   done < $1
 }
+
 function runPyCaseOneByOnefq() {
   cd $tests_dir/pytest
   if [[ $1 =~ full ]] ; then
@@ -202,13 +204,37 @@ function runPyCaseOneByOnefq() {
   rm -rf ../../sim/case.log
 }
 
+######################
+# main entry
+######################
+
+unameOut="$(uname -s)"
+case "${unameOut}" in
+    Linux*)     OS=Linux;;
+    Darwin*)    OS=Darwin;;
+    CYGWIN*)    OS=Windows;;
+    *)          OS=Unknown;;
+esac
+
+case "${OS}" in
+    Linux*)     TAOSLIB=libtaos.so;;
+    Darwin*)    TAOSLIB=libtaos.dylib;;
+    Windows*)    TAOSLIB=taos.dll;;
+    Unknown)          TAOSLIB="UNKNOWN:${unameOut}";;
+esac
+
+echo TAOSLIB is ${TAOSLIB}
+
 totalFailed=0
 totalPyFailed=0
 totalJDBCFailed=0
 totalUnitFailed=0
 totalExampleFailed=0
 
-corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
+if [ "${OS}" == "Linux" ]; then
+    corepath=`grep -oP '.*(?=core_)' /proc/sys/kernel/core_pattern||grep -oP '.*(?=core-)' /proc/sys/kernel/core_pattern`
+fi
+
 if [ "$2" != "jdbc" ] && [ "$2" != "python" ] && [ "$2" != "unit" ]  && [ "$2" != "example" ]; then
   echo "### run TSIM test case ###"
   cd $tests_dir/script
@@ -290,11 +316,11 @@ if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] && [ "$2" != "unit" ]  && [ "$2" != "
   fi
 
   TOP_DIR=`pwd`
-  TAOSLIB_DIR=`find . -name "libtaos.so"|grep -w lib|head -n1`
+  TAOSLIB_DIR=`find . -name "${TAOSLIB}"|grep -w lib|head -n1`
   if [[ "$TAOSLIB_DIR" == *"$IN_TDINTERNAL"* ]]; then
-    LIB_DIR=`find . -name "libtaos.so"|grep -w lib|head -n1|cut -d '/' --fields=2,3,4,5`
+    LIB_DIR=`find . -name "${TAOSLIB}"|grep -w lib|head -n1|cut -d '/' -f 2,3,4,5`
   else
-    LIB_DIR=`find . -name "libtaos.so"|grep -w lib|head -n1|cut -d '/' --fields=2,3,4`
+    LIB_DIR=`find . -name "${TAOSLIB}"|grep -w lib|head -n1|cut -d '/' -f 2,3,4`
   fi
 
   export LD_LIBRARY_PATH=$TOP_DIR/$LIB_DIR:$LD_LIBRARY_PATH
@@ -490,6 +516,15 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
     echo "asyncdemo pass"
     totalExamplePass=`expr $totalExamplePass + 1`
   fi
+
+  ./demo 127.0.0.1 > /dev/null 2>&1
+  if [ $? != "0" ]; then
+    echo "demo failed"
+    totalExampleFailed=`expr $totalExampleFailed + 1`    
+  else
+    echo "demo pass"
+    totalExamplePass=`expr $totalExamplePass + 1`
+  fi
   
   if [ "$totalExamplePass" -gt "0" ]; then
     echo -e "\n${GREEN} ### Total $totalExamplePass examples succeed! ### ${NC}"
@@ -499,7 +534,9 @@ if [ "$2" != "sim" ] && [ "$2" != "python" ] && [ "$2" != "jdbc" ] && [ "$2" != 
     echo -e "\n${RED} ### Total $totalExampleFailed examples failed! ### ${NC}"
   fi
 
-  dohavecore 1
+  if [ "${OS}" == "Linux" ]; then
+    dohavecore 1
+  fi
 fi
 
 

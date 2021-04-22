@@ -124,7 +124,7 @@ bool greaterEqualOperator(SColumnFilterElem *pFilter, const char *minval, const 
 bool equalOperator(SColumnFilterElem *pFilter, const char *minval, const char *maxval, int16_t type) {
   SColumnFilterInfo *pFilterInfo = &pFilter->filterInfo;
 
-  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_TIMESTAMP) {
     int64_t minv = -1, maxv = -1;
     GET_TYPED_DATA(minv, int64_t, type, minval);
     GET_TYPED_DATA(maxv, int64_t, type, maxval);
@@ -202,7 +202,7 @@ bool likeOperator(SColumnFilterElem *pFilter, const char *minval, const char *ma
 bool notEqualOperator(SColumnFilterElem *pFilter, const char *minval, const char *maxval, int16_t type) {
   SColumnFilterInfo *pFilterInfo = &pFilter->filterInfo;
 
-  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL || type == TSDB_DATA_TYPE_TIMESTAMP) {
     int64_t minv = -1, maxv = -1;
     GET_TYPED_DATA(minv, int64_t, type, minval);
     GET_TYPED_DATA(maxv, int64_t, type, maxval);

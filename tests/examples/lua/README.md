@@ -19,6 +19,10 @@ Run lua sample:
 lua test.lua
 ```
 
+## Run performance test:
+```
+time lua benchmark.lua
+```
 ## OpenResty Dependencies
 - OpenResty: 
 ```
