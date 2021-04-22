@@ -47,4 +47,3 @@ steps:
   - cmake .. 
   - make
 
----
