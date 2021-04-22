@@ -8,8 +8,7 @@ import java.sql.*;
 import java.util.Properties;
 
 public class TD3841Test {
-    //    private static final String host = "127.0.0.1";
-    private static final String host = "master";
+    private static final String host = "127.0.0.1";
     private static Properties properties;
     private static Connection conn_restful;
     private static Connection conn_jni;
