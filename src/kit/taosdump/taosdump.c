@@ -214,8 +214,8 @@ static struct argp_option options[] = {
   // dump format options
   {"schemaonly",    's', 0,             0,  "Only dump schema.",                                            3},
   {"with-property", 'M', 0,             0,  "Dump schema with properties.",                                 3},
-  {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Epoch or ISO8601/RFC3339 format is acceptable. For example: 2017-10-01T18:00:00+0800",  3},
-  {"end-time",      'E', "END_TIME",    0,  "End time to dump. Epoch or ISO8601/RFC3339 format is acceptable. For example: 2017-10-01T18:00:00+0800",  3},
+  {"start-time",    'S', "START_TIME",  0,  "Start time to dump. Either Epoch or ISO8601/RFC3339 format is acceptable. Epoch precision millisecond. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  3},
+  {"end-time",      'E', "END_TIME",    0,  "End time to dump. Either Epoch or ISO8601/RFC3339 format is acceptable. Epoch precision millisecond. ISO8601 format example: 2017-10-01T18:00:00.000+0800 or 2017-10-0100:00:00.000+0800 or '2017-10-01 00:00:00.000+0800'",  3},
   {"data-batch",    'N', "DATA_BATCH",  0,  "Number of data point per insert statement. Default is 1.",     3},
   {"max-sql-len",   'L', "SQL_LEN",     0,  "Max length of one sql. Default is 65480.",                     3},
   {"table-batch",   't', "TABLE_BATCH", 0,  "Number of table dumpout into one output file. Default is 1.",  3},
