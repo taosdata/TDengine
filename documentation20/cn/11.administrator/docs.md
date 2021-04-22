@@ -144,7 +144,7 @@ TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数�
 - numOfMnodes：系统中管理节点个数。默认值：3。
 - balance：是否启动负载均衡。0：否，1：是。默认值：1。
 - mnodeEqualVnodeNum: 一个mnode等同于vnode消耗的个数。默认值：4。
-- offlineThreshold: dnode离线阈值，超过该时间将导致该dnode从集群中删除。单位为秒，默认值：86400*10（即10天）。
+- offlineThreshold: dnode离线阈值，超过该时间将导致该dnode从集群中删除。单位为秒，默认值：86400*100（即100天）。
 - statusInterval: dnode向mnode报告状态时长。单位为秒，默认值：1。
 - maxTablesPerVnode: 每个vnode中能够创建的最大表个数。默认值：1000000。
 - maxVgroupsPerDb: 每个数据库中能够使用的最大vgroup个数。
