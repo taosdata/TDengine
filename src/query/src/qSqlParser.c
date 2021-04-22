@@ -152,6 +152,7 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     }
 
     pSqlExpr->flags  |= 1 << EXPR_FLAG_US_TIMESTAMP;
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_TIMESTAMP_VAR;
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;
     pSqlExpr->type    = SQL_NODE_VALUE;
@@ -221,6 +222,14 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
       pExpr->type    = SQL_NODE_VALUE;
       pExpr->flags   = pLeft->flags | pRight->flags;
 
+      if ((pLeft->flags & (1 << EXPR_FLAG_TIMESTAMP_VAR)) && (pRight->flags & (1 << EXPR_FLAG_TIMESTAMP_VAR))) {
+        pExpr->flags |= 1 << EXPR_FLAG_TS_ERROR;
+      } else {
+        pExpr->flags &= ~(1 << EXPR_FLAG_TIMESTAMP_VAR);
+        pExpr->flags &= ~(1 << EXPR_FLAG_TS_ERROR);
+      }
+
+
       switch (optrType) {
         case TK_PLUS: {
           pExpr->value.i64 = pLeft->value.i64 + pRight->value.i64;
@@ -248,7 +257,6 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
 
       tSqlExprDestroy(pLeft);
       tSqlExprDestroy(pRight);
-
     } else if ((pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_INTEGER) ||
                (pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_FLOAT) ||
                (pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_FLOAT)) {

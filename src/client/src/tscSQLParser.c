@@ -3922,6 +3922,10 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
 
   const char* msg1 = "query condition between different columns must use 'AND'";
 
+  if ((*pExpr)->flags & (1 << EXPR_FLAG_TS_ERROR)) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+
   tSqlExpr* pLeft = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
 
@@ -3958,6 +3962,14 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   }
 
   exchangeExpr(*pExpr);
+
+  if (pLeft->tokenId == TK_ID && pRight->tokenId == TK_TIMESTAMP && (pRight->flags & (1 << EXPR_FLAG_TIMESTAMP_VAR))) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+
+  if ((pLeft->flags & (1 << EXPR_FLAG_TS_ERROR)) || (pRight->flags & (1 << EXPR_FLAG_TS_ERROR))) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
 
   return handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, parentOptr);
 }
