@@ -320,7 +320,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (ret) {
       return ret;
     }
-    if (isValidScript(buf)) {
+    if (!isValidScript(buf, len)) {
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg4); 
     } 
 

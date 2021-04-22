@@ -42,13 +42,28 @@ typedef struct SUdfInfo {
   char   *name;        // function name
   void   *handle;      // handle loaded in mem
   void   *funcs[TSDB_UDF_FUNC_MAX_NUM];     // function ptr
+
+  // for script like lua/javascript only
+  int    isScript;
+  void   *pScriptCtx;
+
   SUdfInit init;
   char *content;
   char *path;
 } SUdfInfo;
 
+//script 
+
+typedef int32_t (*scriptInitFunc)(void *pCtx);
+typedef void (*scriptNormalFunc)(void *pCtx, char* data, int16_t iType, int16_t iBytes, int32_t numOfRows,
+                                 int64_t* ts, char* dataOutput, char* tsOutput, int32_t* numOfOutput, int16_t oType, int16_t oBytes);
+typedef void (*scriptFinalizeFunc)(void *pCtx, char* dataOutput, int32_t* numOfOutput);
+typedef void (*scriptMergeFunc)(void *pCtx, char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput);
+typedef void (*scriptDestroyFunc)(void* pCtx);
+
+// dynamic lib
 typedef void (*udfNormalFunc)(char* data, int16_t itype, int16_t iBytes, int32_t numOfRows, int64_t* ts, char* dataOutput, char* tsOutput,
-                        int32_t* numOfOutput, int16_t oType, int16_t oBytes, SUdfInit* buf);
+    int32_t* numOfOutput, int16_t oType, int16_t oBytes, SUdfInit* buf);
 typedef int32_t (*udfInitFunc)(SUdfInit* data);
 typedef void (*udfFinalizeFunc)(char* dataOutput, int32_t* numOfOutput, SUdfInit* buf);
 typedef void (*udfMergeFunc)(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf);

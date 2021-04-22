@@ -46,23 +46,21 @@ typedef struct ScriptCtx {
   int8_t      state; 
   ScriptEnv  *pEnv;
   int8_t      isAgg; // agg function or not
-  //void(*callback)(struct ScriptCtx*ctx,  char *input, int16_t iType, int16_t iBytes, int32_t numOfInput, int64_t* ts, char* dataOutput, 
-  //  char *tsOutput, int32_t* numOfOutput, char *interbuf, int16_t oType, int16_t oBytes);  
   
   // init value of udf script
-  int8_t      type;
-  union       {int64_t i; double d;} initValue;
+  int8_t      resType;
+  int16_t     resBytes; 
+
   int32_t     numOfOutput; 
   int32_t     offset;
   
 } ScriptCtx;
 
-int taosLoadScriptInit(SUdfInit* pSUdfInit);
-int taosLoadScriptNormal(char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
-    int64_t *ptsList, char* pOutput, char *ptsOutput, int32_t *numOfOutput, 
-    int16_t oType, int16_t oBytes, SUdfInit *init);
-int taosLoadScriptFinalize(char *pOutput, int32_t output, SUdfInit *init);
-int taosLoadScriptDestroy(SUdfInit* pSUdfInit);
+int taosLoadScriptInit(void *pInit);
+void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
+    int64_t *ptsList, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes);
+void taosLoadScriptFinalize(void *pInit, char *pOutput, int32_t *output);
+void taosLoadScriptDestroy(void *pInit);
 
 typedef struct {
   SList     *scriptEnvs; //  
@@ -71,15 +69,11 @@ typedef struct {
   pthread_mutex_t mutex;
 } ScriptEnvPool;
 
-ScriptCtx* createScriptCtx(char *str);
+ScriptCtx* createScriptCtx(char *str, int8_t resType, int16_t resBytes);
 void       destroyScriptCtx(void *pScriptCtx);
 
 int32_t scriptEnvPoolInit();
 void    scriptEnvPoolCleanup();
-bool    isValidScript(const char *sript);
-
-
-//void execUdf(struct ScriptCtx*ctx, char *input, int16_t iType, int16_t iBytes, int32_t numOfInput, 
-//    int64_t* ts, char* dataOutput, char *tsOutput, int32_t* numOfOutput, char *interbuf, int16_t oType, int16_t oBytes);  
+bool    isValidScript(char *script, int32_t len);
 
 #endif //TDENGINE_QSCRIPT_H 

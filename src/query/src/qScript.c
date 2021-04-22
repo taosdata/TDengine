@@ -22,11 +22,6 @@
 static ScriptEnvPool *pool = NULL;  
 
 
-typedef int(*ScriptInit)(SUdfInit *init); 
-typedef int(*ScriptNormal)(char *pInput, int8_t iType, int32_t size, int64_t *ptsList, char* pOutput, char *ptsOutput, int32_t *output, SUdfInit *init); 
-typedef int(*ScriptFinalize)(char *pOutput, int32_t output, SUdfInit *init); 
-typedef int(*ScriptDestroy)(SUdfInit *init);
-
 #define USER_FUNC_NAME "funcName" 
 #define USER_FUNC_NAME_LIMIT 48
 
@@ -38,7 +33,7 @@ static void destroyLuaEnv(lua_State *state);
 
 static void destroyScriptEnv(ScriptEnv *pEnv);
 
-static void luaValueToTaosType(lua_State *lua, int16_t iType, char *interBuf, int16_t oType, int32_t *numOfOutput, int16_t oBytes);
+static void luaValueToTaosType(lua_State *lua, char *interBuf, int32_t *numOfOutput, int16_t oType, int16_t oBytes);
 static void taosValueToLuaType(lua_State *lua, int32_t type, char *val);
 
 static bool hasBaseFuncDefinedInScript(lua_State *lua, const char *funcPrefix, int32_t len);
@@ -71,10 +66,6 @@ static void luaLoadLibraries(lua_State *lua) {
   luaLoadLib(lua, LUA_STRLIBNAME, luaopen_string);
   luaLoadLib(lua, LUA_MATHLIBNAME, luaopen_math);
   luaLoadLib(lua, LUA_DBLIBNAME, luaopen_debug);
-  //luaLoadLib(lua, "cjson", luaopen_cjson);
-  //luaLoadLib(lua, "struct", luaopen_struct);
-  //luaLoadLib(lua, "cmsgpack", luaopen_cmsgpack);
-  //luaLoadLib(lua, "bit", luaopen_bit);
 }
 static void luaRemoveUnsupportedFunctions(lua_State *lua) {
   lua_pushnil(lua);
@@ -101,13 +92,9 @@ void taosValueToLuaType(lua_State *lua, int32_t type, char *val) {
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
   } 
 } 
-int taosLoadScriptInit(SUdfInit* pInit) {
-  if (pInit->script_ctx == NULL) { return -1;}
-
-  pInit->destroyCtxFunc = destroyScriptCtx;
-
-  ScriptCtx *pCtx = pInit->script_ctx; 
-  char funcName[MAX_FUNC_NAME + 10] = {0};
+int taosLoadScriptInit(void* pInit) {
+  ScriptCtx *pCtx = pInit;   
+  char funcName[MAX_FUNC_NAME] = {0};
   sprintf(funcName, "%s_init", pCtx->funcName);
 
   lua_State* lua = pCtx->pEnv->lua_state;   
@@ -115,22 +102,15 @@ int taosLoadScriptInit(SUdfInit* pInit) {
   if (lua_pcall(lua, 0, -1, 0)) {
     lua_pop(lua, -1);
   }
-  if (lua_isnumber(lua, -1)) {
-    pCtx->initValue.d = lua_tonumber(lua, -1); 
-  } else if (lua_isboolean(lua, -1)){
-    pCtx->initValue.i = lua_tointeger(lua, -1); 
-  } else if (lua_istable(lua, -1)) {
-    // TODO(dengyihao) handle more type 
-  } 
+  lua_setglobal(lua, "global"); 
   return 0;
 }
-int taosLoadScriptNormal(char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
-    int64_t *ptsList, char* pOutput, char *ptsOutput, int32_t *numOfOutput, 
-    int16_t oType, int16_t oBytes, SUdfInit *pInit) {
-  ScriptCtx* pCtx = pInit->script_ctx;
-
-  char funcName[MAX_FUNC_NAME + 10] = {0};
+void taosLoadScriptNormal(void *pInit, char *pInput, int16_t iType, int16_t iBytes, int32_t numOfRows, 
+    int64_t *ptsList, char* pOutput, char *ptsOutput, int32_t *numOfOutput, int16_t oType, int16_t oBytes) { 
+  ScriptCtx* pCtx = pInit;
+  char funcName[MAX_FUNC_NAME] = {0};
   sprintf(funcName, "%s_add", pCtx->funcName);
+
   lua_State* lua  = pCtx->pEnv->lua_state;   
   lua_getglobal(lua, funcName);
 
@@ -142,34 +122,57 @@ int taosLoadScriptNormal(char *pInput, int16_t iType, int16_t iBytes, int32_t nu
     lua_rawseti(lua, -2, i+1);
     offset += iBytes;
   } 
-
-  lua_pushnumber(lua, pCtx->initValue.d); 
+  int isGlobalState = false; 
+  lua_getglobal(lua, "global"); 
+  if (lua_istable(lua, -1)) {
+    isGlobalState = true; 
+  }
   // do call lua script 
   if (lua_pcall(lua, 2, 1, 0) != 0) {
     qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
     lua_pop(lua, -1);
-    return -1;
+    return;
   }
-
   int tNumOfOutput = 0; 
-  luaValueToTaosType(lua, iType, pOutput, oType, &tNumOfOutput, oBytes);
-  pCtx->numOfOutput += tNumOfOutput; 
-  *numOfOutput = pCtx->numOfOutput;
-  return 0;
-}
-int taosLoadScriptFinalize(char *pOutput, int32_t output, SUdfInit *pInit) {
-  //do not support agg now
-  return 0;
-}
-int taosLoadScriptDestroy(SUdfInit* pInit) {
-  pInit->destroyCtxFunc(pInit->script_ctx);  
-  return 0;
+  if (isGlobalState == false) {
+    luaValueToTaosType(lua, pOutput, &tNumOfOutput, oType, oBytes);
+  } else {
+    lua_setglobal(lua, "global");
+  }
+  *numOfOutput = tNumOfOutput;
 }
 
-ScriptCtx* createScriptCtx(char *script) {
+//do not support agg now
+void taosLoadScriptFinalize(void *pInit, char *pOutput, int32_t* numOfOutput) {
+  ScriptCtx *pCtx = pInit;
+  char funcName[MAX_FUNC_NAME] = {0};
+  sprintf(funcName, "%s_finalize", pCtx->funcName);
+  
+  lua_State* lua  = pCtx->pEnv->lua_state;   
+  lua_getglobal(lua, funcName);
+
+  lua_getglobal(lua, "global"); 
+
+  if (lua_pcall(lua, 1, 1, 0) != 0) {
+    qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
+    lua_pop(lua, -1);
+    return;
+  }
+  int tNumOfOutput = 0; 
+  luaValueToTaosType(lua, pOutput, &tNumOfOutput, pCtx->resType, pCtx->resBytes);
+  *numOfOutput = tNumOfOutput;
+}
+
+void taosLoadScriptDestroy(void *pInit) {
+  destroyScriptCtx(pInit);
+}
+
+ScriptCtx* createScriptCtx(char *script, int8_t resType, int16_t resBytes) {
   ScriptCtx *pCtx = (ScriptCtx *)calloc(1, sizeof(ScriptCtx)); 
   pCtx->state = SCRIPT_STATE_INIT; 
-  pCtx->pEnv = getScriptEnvFromPool();  //  
+  pCtx->pEnv  = getScriptEnvFromPool();  //  
+  pCtx->resType  = resType;
+  pCtx->resBytes = resBytes; 
   
   if (pCtx->pEnv == NULL) {
     destroyScriptCtx(pCtx);
@@ -202,104 +205,31 @@ void destroyScriptCtx(void *pCtx) {
   free(pCtx);
 }
 
-//void XXXX_init(ScriptCtx *pCtx) {
-//}
-//
-//void XXXX_add(ScriptCtx *pCtx, char *input, int16_t iType, int16_t iBytes, int32_t numOfRows, 
-//    char *dataOutput, int16_t oType, int32_t *numOfOutput, int16_t oBytes) {
-//  char funcName[MAX_FUNC_NAME] = {0};
-//  sprintf(funcName, "%s_add", pCtx->funcName);
-//
-//  lua_State* lua = pCtx->pEnv->lua_state;   
-//  lua_getglobal(lua, funcName);
-//
-//  // set first param of XXXX_add;
-//  lua_newtable(lua); 
-//  int32_t offset = 0;
-//  for (int32_t i = 0; i < numOfRows; i++) {
-//    taosValueToLuaType(lua, iType, input + offset); 
-//    lua_rawseti(lua, -2, i+1);
-//    offset += iBytes;
-//  } 
-//
-//  // set second param of XXXX_add;
-//  lua_pushnumber(lua, pCtx->initValue.d); 
-//  // do call lua script 
-//  if (lua_pcall(lua, 2, 1, 0) != 0) {
-//    qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
-//    lua_pop(lua, -1);
-//    return;
-//  }
-//  int tNumOfOutput = 0; 
-//  luaValueToTaosType(lua, iType, dataOutput, oType, &tNumOfOutput, oBytes);
-//  pCtx->numOfOutput += tNumOfOutput; 
-//  *numOfOutput = pCtx->numOfOutput;
-//}
-//void XXXX_merge(ScriptCtx *pCtx) {
-//  char funcName[MAX_FUNC_NAME] = {0};
-//  sprintf(funcName, "%s_merge", pCtx->funcName);
-//
-//  lua_State* lua = pCtx->pEnv->lua_state;   
-//  lua_getglobal(lua, funcName);
-//  
-//  // set first param of XXXX_merge;
-//  //lua_newtable(lua); 
-//  //int32_t offset = 0;
-//  //for (int32_t i = 0; i < numOfRows; i++) {
-//  //  taosValueToLuaType(lua, iType, input + offset); 
-//  //  lua_rawseti(lua, -2, i+1);
-//  //  offset += iBytes;
-//  //} 
-//
-//  // set second param of XXXX_merge;
-//  //lua_newtable(lua); 
-//  //offset = 0;
-//  //for (int32_t i = 0; i < numOfRows; i++) {
-//  //  taosValueToLuaType(lua, iType, input + offset); 
-//  //  lua_rawseti(lua, -2, i+1);
-//  //  offset += iBytes;
-//  //} 
-//  // push two table 
-//  //if (lua_pcall(lua, 2, 1, 0) != 0) {
-//  //  qError("SCRIPT ERROR: %s", lua_tostring(lua, -1)); 
-//  //  lua_pop(lua, -1);
-//  //  return;
-//  //}
-//  //int tNumOfOutput = 0; 
-//  //luaValueToTaosType(lua, iType, dataOutput, oType, &tNumOfOutput, oBytes);
-//  //pCtx->numOfOutput += tNumOfOutput; 
-//  //*numOfOutput = pCtx->numOfOutput;
-//}
-//
-//void XXXX_finalize(ScriptCtx *pCtx) {
-//  char funcName[MAX_FUNC_NAME] = {0};
-//  sprintf(funcName, "%s_finalize", pCtx->funcName);
-//
-//  lua_State* lua = pCtx->pEnv->lua_state;   
-//  lua_getglobal(lua, funcName);
-//  // push two paramter
-//  if (lua_pcall(lua, 2, 1, 0) != 0) {
-//  }
-//}
-
-
-void luaValueToTaosType(lua_State *lua, int16_t iType, char *interBuf, int16_t oType, int32_t *numOfOutput, int16_t oBytes) {
+void luaValueToTaosType(lua_State *lua, char *interBuf, int32_t *numOfOutput, int16_t oType, int16_t oBytes) {
   int t = lua_type(lua,-1); 
   int32_t sz = 0;
   switch (t) {
     case LUA_TSTRING:
-      //char *result = lua_tostring(lua, -1);
-      sz = 1; 
-      // agg
+      //TODO(yihaodeng): handle str type
+      {
+        const char *v = lua_tostring(lua, -1);
+        memcpy(interBuf, v, strlen(v));
+        sz = 1; 
+      }
       break;
     case LUA_TBOOLEAN: 
-      //int64_t result = lua_tonumber(lua, -1);
-      sz = 1;
-      // agg
+      {
+        double v = lua_tonumber(lua, -1);
+        memcpy(interBuf, (char *)&v, oBytes);
+        sz = 1;
+      }
       break;
     case LUA_TNUMBER:
-      //int64_t result = lua_tonumber(lua, -1);
-      sz = 1;
+      {
+        float v = lua_tonumber(lua, -1);
+        memcpy(interBuf, (char *)&v, oBytes);
+        sz = 1;
+      }
       break;
     case LUA_TTABLE: 
       {
@@ -321,27 +251,6 @@ void luaValueToTaosType(lua_State *lua, int16_t iType, char *interBuf, int16_t o
   *numOfOutput = sz; 
 }
 
-//void execUdf(ScriptCtx *pCtx, char *input, int16_t iType, int16_t iBytes, int32_t numOfInput, 
-//    int64_t* ts, char* dataOutput, char *tsOutput, int32_t* numOfOutput, char *interBuf, int16_t oType, int16_t oBytes) {
-//  int8_t state = pCtx->state; 
-//  switch (state) {
-//    case SCRIPT_STATE_INIT:
-//      XXXX_init(pCtx);       
-//      XXXX_add(pCtx, input, iType, iBytes, numOfInput, dataOutput, oType, numOfOutput, oBytes);       
-//      break;
-//    case SCRIPT_STATE_ADD:
-//      XXXX_add(pCtx, input, iType, iBytes, numOfInput, dataOutput, oType, numOfOutput, oBytes);       
-//      break;
-//    case SCRIPT_STATE_MERGE:
-//      XXXX_merge(pCtx);       
-//      break;
-//    case SCRIPT_STATE_FINALIZE:
-//      XXXX_finalize(pCtx); 
-//      break;
-//    default:  
-//      return;
-//  }
-//}
 
 /*
 *Initialize the scripting environment.
@@ -438,6 +347,7 @@ void addScriptEnvToPool(ScriptEnv *pEnv) {
     return;
   }
   pthread_mutex_lock(&pool->mutex); 
+  lua_settop(pEnv->lua_state, 0);
   tdListAppend(pool->scriptEnvs, (void *)(&pEnv));  
   pool->cSize++;
   pthread_mutex_unlock(&pool->mutex); 
@@ -451,23 +361,27 @@ bool hasBaseFuncDefinedInScript(lua_State *lua, const char *funcPrefix, int32_t 
   const char *base[] = {"_init", "_add"};
   for (int i = 0; (i < sizeof(base)/sizeof(base[0])) && (ret == true); i++) {
     memcpy(funcName + len, base[i], strlen(base[i])); 
-    funcName[len + strlen(base[i])] = 0;
-
+    memset(funcName + len + strlen(base[i]), 0, MAX_FUNC_NAME - len - strlen(base[i]));
     lua_getglobal(lua, funcName);   
     ret = lua_isfunction(lua, -1); // exsit function or not 
     lua_pop(lua, 1);
   }
   return ret;
 } 
-bool isValidScript(const char *script) {
+
+bool isValidScript(char *script, int32_t len) {
   ScriptEnv *pEnv = getScriptEnvFromPool();  //  
   if (pEnv == NULL) {
     return false;
   }  
   lua_State *lua = pEnv->lua_state; 
+  if (len < strlen(script)) {
+    script[len] = 0; 
+  }  
   if (luaL_dostring(lua, script)) {
     lua_pop(lua, 1);
     addScriptEnvToPool(pEnv); 
+    qError("error at %s and %d", script, (int)(strlen(script)));
     return false;
   }
   lua_getglobal(lua, USER_FUNC_NAME);
@@ -475,6 +389,7 @@ bool isValidScript(const char *script) {
   if (name == NULL || strlen(name) >= USER_FUNC_NAME_LIMIT) {
     lua_pop(lua, 1);
     addScriptEnvToPool(pEnv); 
+    qError("error at %s name: %s, len = %d", script, name, (int)(strlen(name)));
     return false;
   } 
   bool ret = hasBaseFuncDefinedInScript(lua, name, strlen(name));
