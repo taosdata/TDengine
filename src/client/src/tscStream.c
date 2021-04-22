@@ -402,10 +402,12 @@ static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
       taos_close_stream(pStream);
       return;
     }
-    
-    timer = pStream->stime - taosGetTimestamp(pStream->precision);
-    if (timer < 0) {
-      timer = 0;
+
+    if (pStream->stime > 0) {
+      timer = pStream->stime - taosGetTimestamp(pStream->precision);
+      if (timer < 0) {
+        timer = 0;
+      }
     }
   }
 
