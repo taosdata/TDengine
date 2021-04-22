@@ -482,7 +482,7 @@ static int queryDbImpl(TAOS *taos, char *command) {
 
 static void parse_args(int argc, char *argv[], SArguments *arguments) {
   for (int i = 1; i < argc; i++) {
-    if ((strcmp(argv[i], "-E") == 0)
+    if ((strcmp(argv[i], "-S") == 0)
         || (strcmp(argv[i], "-E") == 0)) {
       if (argv[i+1]) {
         char *tmp = strdup(argv[++i]);
@@ -510,7 +510,7 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
           exit(-1);
         }
       } else {
-        errorPrint("%s() LN%d, -E need a valid value following!\n", __func__, __LINE__);
+        errorPrint("%s need a valid value following!\n", argv[i]);
         exit(-1);
       }
     } else if (strcmp(argv[i], "-g") == 0) {
@@ -523,7 +523,8 @@ int main(int argc, char *argv[]) {
 
   /* Parse our arguments; every option seen by parse_opt will be
      reflected in arguments. */
-  parse_args(argc, argv, &g_args);
+  if (argc > 1)
+    parse_args(argc, argv, &g_args);
 
   argp_parse(&argp, argc, argv, 0, 0, &g_args);
 
