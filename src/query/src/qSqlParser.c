@@ -310,6 +310,77 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
   return pExpr;
 }
 
+static FORCE_INLINE int32_t tStrTokenCompare(SStrToken* left, SStrToken* right) {
+  return (left->type == right->type && left->n == right->n && strncasecmp(left->z, right->z, left->n) == 0) ? 0 : 1;
+}
+
+
+int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
+  if ((left == NULL && right) || (left && right == NULL)) {
+    return 1;
+  }
+
+  if (left->type != right->type) {
+    return 1;
+  }
+
+  if (left->tokenId != right->tokenId) {
+    return 1;
+  }
+
+  if (left->functionId != right->functionId) {
+    return 1;
+  }
+
+  if ((left->pLeft && right->pLeft == NULL)
+    || (left->pLeft == NULL && right->pLeft)
+    || (left->pRight && right->pRight == NULL)
+    || (left->pRight == NULL && right->pRight)
+    || (left->pParam && right->pParam == NULL)
+    || (left->pParam == NULL && right->pParam)) {
+    return 1;
+  }
+
+  if (tVariantCompare(&left->value, &right->value)) {
+    return 1;
+  }
+
+  if (tStrTokenCompare(&left->colInfo, &right->colInfo)) {
+    return 1;
+  }
+
+
+  if (right->pParam && left->pParam) {
+    size_t size = taosArrayGetSize(right->pParam);
+    if (left->pParam && taosArrayGetSize(left->pParam) != size) {
+      return 1;
+    }
+
+    for (int32_t i = 0; i < size; i++) {
+      tSqlExprItem* pLeftElem = taosArrayGet(left->pParam, i);
+      tSqlExpr* pSubLeft = pLeftElem->pNode;
+      tSqlExprItem* pRightElem = taosArrayGet(left->pParam, i);
+      tSqlExpr* pSubRight = pRightElem->pNode;
+
+      if (tSqlExprCompare(pSubLeft, pSubRight)) {
+        return 1;
+      }
+    }
+  }
+
+  if (left->pLeft && tSqlExprCompare(left->pLeft, right->pLeft)) {
+    return 1;
+  }
+
+  if (left->pRight && tSqlExprCompare(left->pRight, right->pRight)) {
+    return 1;
+  }
+
+  return 0;
+}
+
+
+
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
 
@@ -645,7 +716,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
                                 SSessionWindowVal *pSession, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
-                                SLimitVal *psLimit) {
+                                SLimitVal *psLimit, tSqlExpr *pHaving) {
   assert(pSelNodeList != NULL);
 
   SSqlNode *pSqlNode = calloc(1, sizeof(SSqlNode));
@@ -660,6 +731,7 @@ SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelat
   pSqlNode->pSortOrder  = pSortOrder;
   pSqlNode->pWhere      = pWhere;
   pSqlNode->fillType    = pFill;
+  pSqlNode->pHaving = pHaving;
 
   if (pLimit != NULL) {
     pSqlNode->limit = *pLimit;

@@ -10,7 +10,9 @@ TDengine软件分为服务器、客户端和报警模块三部分，目前2.0版
 
 ### 通过Docker容器运行
 
-请参考[TDengine官方Docker镜像的发布、下载和使用](https://www.taosdata.com/blog/2020/05/13/1509.html)
+暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 Mac OSX 和 Windows 环境下尝试 TDengine。
+
+详细操作方法请参照 [通过Docker快速体验TDengine](https://www.taosdata.com/cn/documentation/getting-started/docker)。
 
 ### <a class="anchor" id="package-install"></a>通过安装包安装
 
@@ -101,7 +103,7 @@ $ taos -h 192.168.0.1 -s "use db; show tables;"
 
 ### 运行SQL命令脚本
 
-TDengine终端可以通过`source`命令来运行SQL命令脚本.
+TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本.
 
 ```mysql
 taos> source <filename>;
@@ -109,10 +111,10 @@ taos> source <filename>;
 
 ### Shell小技巧
 
-- 可以使用上下光标键查看已经历史输入的命令
-- 修改用户密码。在shell中使用alter user命令
+- 可以使用上下光标键查看历史输入的指令
+- 修改用户密码。在 shell 中使用 alter user 指令
 - ctrl+c 中止正在进行中的查询
-- 执行`RESET QUERY CACHE`清空本地缓存的表的schema
+- 执行 `RESET QUERY CACHE` 清空本地缓存的表 schema
 
 
 ## <a class="anchor" id="demo"></a>TDengine 极速体验
@@ -212,7 +214,7 @@ taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 | **Python**  | ●               | ●         | ●         | ○               | ●         | ●         | ●                   | --                   | ●                  |
 | **Go**      | ●               | ●         | ●         | ○               | ●         | ●         | ○                   | --                   | --                 |
 | **NodeJs**  | ●               | ●         | ○         | ○               | ●         | ●         | ○                   | --                   | --                 |
-| **C#**      | ○               | ●         | ●         | ○               | ○         | ○         | ○                   | --                   | --                 |
+| **C#**      | ●               | ●         | ○         | ○               | ○         | ○         | ○                   | --                   | --                 |
 | **RESTful** | ●               | ●         | ●         | ●               | ●         | ●         | ●                   | ●                    | ●                  |
 
 注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。

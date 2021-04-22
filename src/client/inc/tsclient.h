@@ -102,10 +102,24 @@ typedef struct SColumnIndex {
   int16_t columnIndex;
 } SColumnIndex;
 
+typedef struct SColumn {
+  uint64_t     tableUid;
+  int32_t      columnIndex;
+  SColumnInfo  info;
+} SColumn;
+
+typedef struct SExprFilter {
+  tSqlExpr       *pExpr;     //used for having parse
+  SExprInfo      *pExprInfo;
+  SArray         *fp;
+  SColumn        *pFilters;  //having filter info
+}SExprFilter;
+
 typedef struct SInternalField {
   TAOS_FIELD      field;
   bool            visible;
   SExprInfo      *pExpr;
+  SExprFilter    *pFieldFilters;
 } SInternalField;
 
 typedef struct SFieldInfo {
@@ -114,12 +128,6 @@ typedef struct SFieldInfo {
   SArray      *internalField; // SArray<SInternalField>
 } SFieldInfo;
 
-typedef struct SColumn {
-  uint64_t     tableUid;
-  int32_t      columnIndex;
-//  SColumnIndex colIndex;
-  SColumnInfo  info;
-} SColumn;
 
 typedef struct SCond {
   uint64_t uid;
@@ -161,6 +169,19 @@ typedef struct SParamInfo {
   uint32_t offset;
 } SParamInfo;
 
+
+typedef struct SBoundColumn {
+  bool    hasVal;  // denote if current column has bound or not
+  int32_t offset;  // all column offset value
+} SBoundColumn;
+
+typedef struct SParsedDataColInfo {
+  int16_t         numOfCols;
+  int16_t         numOfBound;
+  int32_t        *boundedColumns;
+  SBoundColumn   *cols;
+} SParsedDataColInfo;
+
 typedef struct STableDataBlocks {
   SName       tableName;
   int8_t      tsSource;     // where does the UNIX timestamp come from, server or client
@@ -174,6 +195,8 @@ typedef struct STableDataBlocks {
   uint32_t    size;
   STableMeta *pTableMeta;   // the tableMeta of current table, the table meta will be used during submit, keep a ref to avoid to be removed from cache
   char       *pData;
+
+  SParsedDataColInfo  boundColumnInfo;
 
   // for parameter ('?') binding
   uint32_t    numOfAllocedParams;
@@ -223,6 +246,7 @@ typedef struct SQueryInfo {
   struct SQueryInfo *sibling;     // sibling
   SArray            *pUpstream;   // SArray<struct SQueryInfo>
   struct SQueryInfo *pDownstream;
+  int32_t          havingFieldNum;
 } SQueryInfo;
 
 typedef struct {
@@ -239,10 +263,10 @@ typedef struct {
   uint32_t     insertType;   // TODO remove it
   char *       curSql;       // current sql, resume position of sql after parsing paused
   int8_t       parseFinished;
-  char    reserve2[3];        // fix bus error on arm32
+  char         reserve2[3];        // fix bus error on arm32
 
   int16_t      numOfCols;
-  char    reserve3[2];        // fix bus error on arm32
+  char         reserve3[2];        // fix bus error on arm32
   uint32_t     allocSize;
   char *       payload;
   int32_t      payloadLen;
@@ -298,6 +322,7 @@ typedef struct {
   char **        buffer;  // Buffer used to put multibytes encoded using unicode (wchar_t)
   SColumnIndex*  pColumnIndex;
 
+  TAOS_FIELD*           final;
   SArithmeticSupport   *pArithSup;   // support the arithmetic expression calculation on agg functions
   struct SLocalMerger  *pLocalMerger;
 } SSqlRes;
@@ -425,6 +450,7 @@ void tscSetResRawPtr(SSqlRes* pRes, SQueryInfo* pQueryInfo);
 void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBlock);
 
 void handleDownstreamOperator(SSqlRes* pRes, SQueryInfo* pQueryInfo);
+void destroyTableNameList(SSqlCmd* pCmd);
 
 void tscResetSqlCmd(SSqlCmd *pCmd, bool removeMeta);
 
@@ -462,6 +488,7 @@ char* tscGetSqlStr(SSqlObj* pSql);
 bool tscIsQueryWithLimit(SSqlObj* pSql);
 
 bool tscHasReachLimitation(SQueryInfo *pQueryInfo, SSqlRes *pRes);
+void tscSetBoundColumnInfo(SParsedDataColInfo *pColInfo, SSchema *pSchema, int32_t numOfCols);
 
 char *tscGetErrorMsgPayload(SSqlCmd *pCmd);
 

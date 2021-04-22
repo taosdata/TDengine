@@ -14,7 +14,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 | **Python**  | ●               | ●               | ●               | ○               | ●         | ●         | ○               | --               | ○              |
 | **Go**      | ●               | ●               | ●               | ○               | ●         | ●         | ○               | --               | --             |
 | **NodeJs**  | ●               | ●               | ○               | ○               | ●         | ●         | ○               | --               | --             |
-| **C#**      | ○               | ●               | ●               | ○               | ○         | ○         | ○               | --               | --             |
+| **C#**      | ●               | ●               | ○               | ○               | ○         | ○         | ○               | --               | --             |
 | **RESTful** | ●               | ●               | ●               | ●               | ●         | ●         | ○               | ○                | ○              |
 
 其中 ● 表示经过官方测试验证， ○ 表示非官方测试验证。
@@ -23,7 +23,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 * 在没有安装TDengine服务端软件的系统中使用连接器（除RESTful外）访问 TDengine 数据库，需要安装相应版本的客户端安装包来使应用驱动（Linux系统中文件名为libtaos.so，Windows系统中为taos.dll）被安装在系统中，否则会产生无法找到相应库文件的错误。
 * 所有执行 SQL 语句的 API，例如 C/C++ Connector 中的 `tao_query`、`taos_query_a`、`taos_subscribe` 等，以及其它语言中与它们对应的API，每次都只能执行一条 SQL 语句，如果实际参数中包含了多条语句，它们的行为是未定义的。
-* 升级到TDengine到2.0.8.0版本的用户，必须更新JDBC连接TDengine必须升级taos-jdbcdriver到2.0.12及以上。
+* 升级到TDengine到2.0.8.0版本的用户，必须更新JDBC连接TDengine必须升级taos-jdbcdriver到2.0.12及以上。详细的版本依赖关系请参见 [taos-jdbcdriver 文档](https://www.taosdata.com/cn/documentation/connector/java#version)。
 * 无论选用何种编程语言的连接器，2.0 及以上版本的 TDengine 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池，以避免连接内的“USE statement”状态量在线程之间相互干扰（但连接的查询和写入操作都是线程安全的）。
 
 ## <a class="anchor" id="driver"></a>安装连接器驱动步骤
@@ -377,6 +377,7 @@ TDengine提供时间驱动的实时流式计算API。可以每隔一指定的时
     * res：查询结果集，注意结果集中可能没有记录
     * param：调用 `taos_subscribe`时客户程序提供的附加参数
     * code：错误码
+  **注意**：在这个回调函数里不可以做耗时过长的处理，尤其是对于返回的结果集中数据较多的情况，否则有可能导致客户端阻塞等异常状态。如果必须进行复杂计算，则建议在另外的线程中进行处理。
 
 * `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
@@ -743,7 +744,7 @@ HTTP请求URL采用`sqlutc`时，返回结果集的时间戳将采用UTC时间�
 
 下面仅列出一些与RESTful接口有关的配置参数，其他系统参数请看配置文件里的说明。注意：配置修改后，需要重启taosd服务才能生效
 
-- httpPort: 对外提供RESTful服务的端口号，默认绑定到6041
+- 对外提供RESTful服务的端口号，默认绑定到 6041（实际取值是 serverPort + 11，因此可以通过修改 serverPort 参数的设置来修改）
 - httpMaxThreads: 启动的线程数量，默认为2（2.0.17版本开始，默认值改为CPU核数的一半向下取整）
 - restfulRowLimit: 返回结果集（JSON格式）的最大条数，默认值为10240
 - httpEnableCompress: 是否支持压缩，默认不支持，目前TDengine仅支持gzip压缩格式

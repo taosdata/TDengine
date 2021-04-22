@@ -22,6 +22,7 @@ python3 ./test.py -f insert/alterTableAndInsert.py
 python3 ./test.py -f insert/insertIntoTwoTables.py
 python3 ./test.py -f insert/before_1970.py
 python3 bug2265.py
+python3 ./test.py -f insert/bug3654.py
 
 #table
 python3 ./test.py -f table/alter_wal0.py
@@ -178,7 +179,7 @@ python3 ./test.py -f stable/query_after_reset.py
 
 # perfbenchmark
 python3 ./test.py -f perfbenchmark/bug3433.py
-python3 ./test.py -f perfbenchmark/bug3589.py
+#python3 ./test.py -f perfbenchmark/bug3589.py
 
 
 #query
@@ -216,8 +217,8 @@ python3 ./test.py -f query/floatCompare.py
 python3 ./test.py -f query/query1970YearsAf.py
 python3 ./test.py -f query/bug3351.py
 python3 ./test.py -f query/bug3375.py
-
-
+python3 ./test.py -f query/queryJoin10tables.py
+python3 ./test.py -f query/queryStddevWithGroupby.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -257,6 +258,8 @@ python3 test.py -f subscribe/singlemeter.py
 #python3 test.py -f subscribe/stability.py  
 python3 test.py -f subscribe/supertable.py
 
+# topic
+python3 ./test.py -f topic/topicQuery.py
 
 #======================p3-end===============
 #======================p4-start===============

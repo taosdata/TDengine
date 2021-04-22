@@ -560,7 +560,7 @@ uint32_t tSQLGetToken(char* z, uint32_t* tokenId) {
   return 0;
 }
 
-SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgnoreToken, uint32_t* ignoreTokenTypes) {
+SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
   SStrToken t0 = {0};
 
   // here we reach the end of sql string, null-terminated string
@@ -585,7 +585,10 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgn
     }
 
     t0.n = tSQLGetToken(&str[*i], &t0.type);
+    break;
 
+    // not support user specfied ignored symbol list
+#if 0
     bool ignore = false;
     for (uint32_t k = 0; k < numOfIgnoreToken; k++) {
       if (t0.type == ignoreTokenTypes[k]) {
@@ -597,6 +600,7 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr, uint32_t numOfIgn
     if (!ignore) {
       break;
     }
+#endif
   }
 
   if (t0.type == TK_SEMI) {

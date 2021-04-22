@@ -86,7 +86,8 @@ typedef struct SResultRow {
   bool          closed;      // this result status: closed or opened
   uint32_t      numOfRows;   // number of rows of current time window
   SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
-  union {STimeWindow win; char* key;};  // start key of current result row
+  STimeWindow win;
+  char* key;                 // start key of current result row
 } SResultRow;
 
 typedef struct SGroupResInfo {
@@ -196,6 +197,8 @@ typedef struct SQueryAttr {
   bool             needReverseScan;  // need reverse scan
   int32_t          interBufSize;     // intermediate buffer sizse
 
+  int32_t          havingNum;        // having expr number
+
   SOrderVal        order;
   int16_t          numOfCols;
   int16_t          numOfTags;
@@ -297,6 +300,7 @@ enum OPERATOR_TYPE_E {
   OP_DummyInput        = 16,   //TODO remove it after fully refactor.
   OP_MultiwaySort      = 17,   // multi-way data merge into one input stream.
   OP_GlobalAggregate   = 18,   // global merge for the multi-way data sources.
+  OP_Having            = 19,
 };
 
 typedef struct SOperatorInfo {
@@ -436,6 +440,11 @@ typedef struct SSLimitOperatorInfo {
   SArray   *orderColumnList;
 } SSLimitOperatorInfo;
 
+typedef struct SHavingOperatorInfo {
+  SArray* fp;
+} SHavingOperatorInfo;
+
+
 typedef struct SFillOperatorInfo {
   SFillInfo   *pFillInfo;
   SSDataBlock *pRes;
@@ -497,6 +506,7 @@ SOperatorInfo* createMultiwaySortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SEx
                                               int32_t numOfRows, void* merger, bool groupMix);
 SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param);
 SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger);
+SOperatorInfo* createHavingOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 
 SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
 SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);

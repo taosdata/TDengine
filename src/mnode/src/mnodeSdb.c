@@ -315,6 +315,10 @@ void sdbUpdateAsync() {
   taosTmrReset(sdbUpdateSyncTmrFp, 200, NULL, tsMnodeTmr, &tsSdbTmr);
 }
 
+static int node_cmp(const void *l, const void *r) {
+  return ((SNodeInfo *)l)->nodeId - ((SNodeInfo *)r)->nodeId;
+}
+
 int32_t sdbUpdateSync(void *pMnodes) {
   SMInfos *pMinfos = pMnodes;
   if (!mnodeIsRunning()) {
@@ -381,6 +385,8 @@ int32_t sdbUpdateSync(void *pMnodes) {
     sdbDebug("vgId:1, update sync config, info not changed");
     return TSDB_CODE_SUCCESS;
   }
+
+  qsort(syncCfg.nodeInfo, syncCfg.replica, sizeof(syncCfg.nodeInfo[0]), node_cmp);
 
   sdbInfo("vgId:1, work as mnode, replica:%d", syncCfg.replica);
   for (int32_t i = 0; i < syncCfg.replica; ++i) {
@@ -1019,7 +1025,7 @@ static int32_t sdbWriteToQueue(SSdbRow *pRow, int32_t qtype) {
 
   int32_t queued = atomic_add_fetch_32(&tsSdbMgmt.queuedMsg, 1);
   if (queued > MAX_QUEUED_MSG_NUM) {
-    sdbDebug("vgId:1, too many msg:%d in sdb queue, flow control", queued);
+    sdbInfo("vgId:1, too many msg:%d in sdb queue, flow control", queued);
     taosMsleep(1);
   }
 

@@ -98,6 +98,7 @@ typedef struct SSqlNode {
   SLimitVal          limit;        // limit offset [optional]
   SLimitVal          slimit;       // group limit offset [optional]
   SStrToken          sqlstr;       // sql string in select clause
+  struct tSqlExpr   *pHaving;      // having clause [optional]
 } SSqlNode;
 
 typedef struct STableNamePair {
@@ -269,7 +270,8 @@ void      tSqlExprListDestroy(SArray *pList);
 
 SSqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelNodeList, SRelationInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval, SSessionWindowVal *ps,
-                                SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit);
+                                SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit, SLimitVal *pgLimit, tSqlExpr *pHaving);
+int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right);
 
 SCreateTableSql *tSetCreateTableInfo(SArray *pCols, SArray *pTags, SSqlNode *pSelect, int32_t type);
 
