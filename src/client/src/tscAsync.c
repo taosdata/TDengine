@@ -283,7 +283,7 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
 static void tscAsyncResultCallback(SSchedMsg *pMsg) {
   SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pMsg->ahandle);
   if (pSql == NULL || pSql->signature != pSql) {
-    tscDebug("0x%"PRIx64" SqlObj is freed, not add into queue async res", pSql->self);
+    tscDebug("%p SqlObj is freed, not add into queue async res", pMsg->ahandle);
     return;
   }
 
