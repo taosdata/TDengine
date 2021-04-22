@@ -19,7 +19,6 @@
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
-#include <openssl/sha.h>
 
 #include "tutil.h"
 #include "hash.h"
@@ -27,6 +26,9 @@
 #include "qUdf.h"
 
 #define MAX_FUNC_NAME 64
+
+#define USER_FUNC_NAME "funcName" 
+#define USER_FUNC_NAME_LIMIT 48
 
 enum ScriptState {
   SCRIPT_STATE_INIT,
@@ -42,7 +44,7 @@ typedef struct {
 } ScriptEnv;   
 
 typedef struct ScriptCtx {
-  char        funcName[MAX_FUNC_NAME]; 
+  char        funcName[USER_FUNC_NAME_LIMIT]; 
   int8_t      state; 
   ScriptEnv  *pEnv;
   int8_t      isAgg; // agg function or not

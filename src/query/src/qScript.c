@@ -22,10 +22,6 @@
 
 static ScriptEnvPool *pool = NULL;  
 
-
-#define USER_FUNC_NAME "funcName" 
-#define USER_FUNC_NAME_LIMIT 48
-
 static ScriptEnv* getScriptEnvFromPool();
 static void addScriptEnvToPool(ScriptEnv *pEnv);
 
