@@ -728,6 +728,38 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
   return pMsg;
 }
 
+// TODO refactor
+static int32_t serializeColFilterInfo(SColumnFilterInfo* pColFilters, int16_t numOfFilters, char** pMsg) {
+  // append the filter information after the basic column information
+  for (int32_t f = 0; f < numOfFilters; ++f) {
+    SColumnFilterInfo *pColFilter = &pColFilters[f];
+
+    SColumnFilterInfo *pFilterMsg = (SColumnFilterInfo *)(*pMsg);
+    pFilterMsg->filterstr = htons(pColFilter->filterstr);
+
+    (*pMsg) += sizeof(SColumnFilterInfo);
+
+    if (pColFilter->filterstr) {
+      pFilterMsg->len = htobe64(pColFilter->len);
+      memcpy(*pMsg, (void *)pColFilter->pz, (size_t)(pColFilter->len + 1));
+      (*pMsg) += (pColFilter->len + 1);  // append the additional filter binary info
+    } else {
+      pFilterMsg->lowerBndi = htobe64(pColFilter->lowerBndi);
+      pFilterMsg->upperBndi = htobe64(pColFilter->upperBndi);
+    }
+
+    pFilterMsg->lowerRelOptr = htons(pColFilter->lowerRelOptr);
+    pFilterMsg->upperRelOptr = htons(pColFilter->upperRelOptr);
+
+    if (pColFilter->lowerRelOptr == TSDB_RELATION_INVALID && pColFilter->upperRelOptr == TSDB_RELATION_INVALID) {
+      tscError("invalid filter info");
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo, char** pMsg, void* addr) {
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
 
@@ -760,6 +792,7 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   pSqlExpr->functionId  = htons(pExpr->functionId);
   pSqlExpr->numOfParams = htons(pExpr->numOfParams);
   pSqlExpr->resColId    = htons(pExpr->resColId);
+  pSqlExpr->flist.numOfFilters = htons(pExpr->flist.numOfFilters);
 
   (*pMsg) += sizeof(SSqlExpr);
   for (int32_t j = 0; j < pExpr->numOfParams; ++j) { // todo add log
@@ -773,6 +806,8 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
       pSqlExpr->param[j].i64 = htobe64(pExpr->param[j].i64);
     }
   }
+
+  serializeColFilterInfo(pExpr->flist.filterInfo, pExpr->flist.numOfFilters, pMsg);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -864,34 +899,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->tableCols[i].colId = htons(pCol->colId);
     pQueryMsg->tableCols[i].bytes = htons(pCol->bytes);
     pQueryMsg->tableCols[i].type  = htons(pCol->type);
-    pQueryMsg->tableCols[i].numOfFilters = htons(pCol->numOfFilters);
+    pQueryMsg->tableCols[i].flist.numOfFilters = htons(pCol->flist.numOfFilters);
 
     // append the filter information after the basic column information
-    for (int32_t f = 0; f < pCol->numOfFilters; ++f) {
-      SColumnFilterInfo *pColFilter = &pCol->filterInfo[f];
-
-      SColumnFilterInfo *pFilterMsg = (SColumnFilterInfo *)pMsg;
-      pFilterMsg->filterstr = htons(pColFilter->filterstr);
-
-      pMsg += sizeof(SColumnFilterInfo);
-
-      if (pColFilter->filterstr) {
-        pFilterMsg->len = htobe64(pColFilter->len);
-        memcpy(pMsg, (void *)pColFilter->pz, (size_t)(pColFilter->len + 1));
-        pMsg += (pColFilter->len + 1);  // append the additional filter binary info
-      } else {
-        pFilterMsg->lowerBndi = htobe64(pColFilter->lowerBndi);
-        pFilterMsg->upperBndi = htobe64(pColFilter->upperBndi);
-      }
-
-      pFilterMsg->lowerRelOptr = htons(pColFilter->lowerRelOptr);
-      pFilterMsg->upperRelOptr = htons(pColFilter->upperRelOptr);
-
-      if (pColFilter->lowerRelOptr == TSDB_RELATION_INVALID && pColFilter->upperRelOptr == TSDB_RELATION_INVALID) {
-        tscError("invalid filter info");
-        return TSDB_CODE_TSC_INVALID_SQL;
-      }
-    }
+    serializeColFilterInfo(pCol->flist.filterInfo, pCol->flist.numOfFilters, &pMsg);
   }
 
   for (int32_t i = 0; i < query.numOfOutput; ++i) {
@@ -953,7 +964,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       pTagCol->colId = htons(pTag->colId);
       pTagCol->bytes = htons(pTag->bytes);
       pTagCol->type  = htons(pTag->type);
-      pTagCol->numOfFilters = 0;
+      pTagCol->flist.numOfFilters = 0;
 
       pMsg += sizeof(SColumnInfo);
     }

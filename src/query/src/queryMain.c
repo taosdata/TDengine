@@ -186,7 +186,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   for (int32_t i = 0; i < pQueryMsg->numOfCols; i++) {
     SColumnInfo* column = pQueryMsg->tableCols + i;
-    freeColumnFilterInfo(column->filterInfo, column->numOfFilters);
+    freeColumnFilterInfo(column->flist.filterInfo, column->flist.numOfFilters);
   }
 
   //pQInfo already freed in initQInfo, but *pQInfo may not pointer to null;

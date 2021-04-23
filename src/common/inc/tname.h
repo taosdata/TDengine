@@ -62,8 +62,7 @@ typedef struct SSqlExpr {
   int32_t   offset;         // sub result column value of arithmetic expression.
   int16_t   resColId;       // result column id
 
-  int32_t   filterNum;
-  SColumnFilterInfo *pFilter;
+  SColumnFilterList flist;
 } SSqlExpr;
 
 typedef struct SExprInfo {

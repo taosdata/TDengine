@@ -842,7 +842,7 @@ static void issueTsCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
     for (int32_t i = 0; i < s; ++i) {
       SColumn *pCol = taosArrayGetP(pSupporter->colList, i);
       
-      if (pCol->info.numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
+      if (pCol->info.flist.numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
         SColumn *p = tscColumnClone(pCol);
         taosArrayPush(pQueryInfo->colList, &p);
       }
@@ -1939,7 +1939,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
         for (int32_t i = 0; i < s; ++i) {
           SColumn *pCol = taosArrayGetP(pSupporter->colList, i);
 
-          if (pCol->info.numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
+          if (pCol->info.flist.numOfFilters > 0) {  // copy to the pNew->cmd.colList if it is filtered.
             SColumn *p = tscColumnClone(pCol);
             taosArrayPush(pNewQueryInfo->colList, &p);
           }
@@ -3490,8 +3490,8 @@ void* createQueryInfoFromQueryNode(SQueryInfo* pQueryInfo, SExprInfo* pExprs, ST
   // to make sure third party won't overwrite this structure
   pQInfo->signature = pQInfo;
 
-  SQueryAttr *pQueryAttr = &pQInfo->query;
-  SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
+  SQueryRuntimeEnv *pRuntimeEnv = &pQInfo->runtimeEnv;
+  SQueryAttr       *pQueryAttr  = &pQInfo->query;
 
   pRuntimeEnv->pQueryAttr = pQueryAttr;
   tscCreateQueryFromQueryInfo(pQueryInfo, pQueryAttr, NULL);

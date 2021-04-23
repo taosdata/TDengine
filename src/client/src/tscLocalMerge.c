@@ -102,32 +102,8 @@ void tsCreateSQLFunctionCtx(SQueryInfo* pQueryInfo, SQLFunctionCtx* pCtx, SSchem
     }
 
     pCtx[i].interBufBytes = pExpr->base.interBytes;
-//    pCtx[i].resultInfo = calloc(1, pCtx[i].interBufBytes + sizeof(SResultRowCellInfo));
     pCtx[i].stableQuery = true;
   }
-
-//  int16_t          n = 0;
-//  int16_t          tagLen = 0;
-//  SQLFunctionCtx **pTagCtx = calloc(pQueryInfo->fieldsInfo.numOfOutput, POINTER_BYTES);
-//
-//  SQLFunctionCtx *pCtx1 = NULL;
-//  for (int32_t i = 0; i < pQueryInfo->fieldsInfo.numOfOutput; ++i) {
-//    SExprInfo *pExpr = tscSqlExprGet(pQueryInfo, i);
-//    if (pExpr->base.functionId == TSDB_FUNC_TAG_DUMMY || pExpr->base.functionId == TSDB_FUNC_TS_DUMMY) {
-//      tagLen += pExpr->base.resBytes;
-//      pTagCtx[n++] = &pCtx[i];
-//    } else if ((aAggs[pExpr->base.functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
-//      pCtx1 = &pCtx[i];
-//    }
-//  }
-//
-//  if (n == 0 || pCtx == NULL) {
-//    free(pTagCtx);
-//  } else {
-//    pCtx1->tagInfo.pTagCtxList = pTagCtx;
-//    pCtx1->tagInfo.numOfTagCols = n;
-//    pCtx1->tagInfo.tagsLen = tagLen;
-//  }
 }
 
 void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrderDescriptor *pDesc,
@@ -892,6 +868,7 @@ bool needToMergeRv(SSDataBlock* pBlock, SArray* columnIndexList, int32_t index, 
   if (size > 0) {
     ret = compare_aRv(pBlock, columnIndexList, size, index, buf, TSDB_ORDER_ASC);
   }
+
   // if ret == 0, means the result belongs to the same group
   return (ret == 0);
 }

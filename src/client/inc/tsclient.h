@@ -113,13 +113,13 @@ typedef struct SExprFilter {
   SExprInfo      *pExprInfo;
   SArray         *fp;
   SColumn        *pFilters;  //having filter info
-}SExprFilter;
+} SExprFilter;
 
 typedef struct SInternalField {
   TAOS_FIELD      field;
   bool            visible;
   SExprInfo      *pExpr;
-  SExprFilter    *pFieldFilters;
+//  SExprFilter    *pFieldFilters;
 } SInternalField;
 
 typedef struct SFieldInfo {
@@ -127,7 +127,6 @@ typedef struct SFieldInfo {
   TAOS_FIELD*  final;
   SArray      *internalField; // SArray<SInternalField>
 } SFieldInfo;
-
 
 typedef struct SCond {
   uint64_t uid;
@@ -246,7 +245,7 @@ typedef struct SQueryInfo {
   struct SQueryInfo *sibling;     // sibling
   SArray            *pUpstream;   // SArray<struct SQueryInfo>
   struct SQueryInfo *pDownstream;
-  int32_t          havingFieldNum;
+  int32_t            havingFieldNum;
 } SQueryInfo;
 
 typedef struct {

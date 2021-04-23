@@ -1473,14 +1473,15 @@ int32_t tscGetResRowLength(SArray* pExprList) {
   return size;
 }
 
-static void destroyFilterInfo(SColumnFilterInfo* pFilterInfo, int32_t numOfFilters) {
-  for(int32_t i = 0; i < numOfFilters; ++i) {
-    if (pFilterInfo[i].filterstr) {
-      tfree(pFilterInfo[i].pz);
+static void destroyFilterInfo(SColumnFilterList* pFilterList) {
+  for(int32_t i = 0; i < pFilterList->numOfFilters; ++i) {
+    if (pFilterList->filterInfo[i].filterstr) {
+      tfree(pFilterList->filterInfo[i].pz);
     }
   }
 
-  tfree(pFilterInfo);
+  tfree(pFilterList->filterInfo);
+  pFilterList->numOfFilters = 0;
 }
 
 void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
@@ -1714,6 +1715,9 @@ void tscSqlExprAssign(SExprInfo* dst, const SExprInfo* src) {
   assert(dst != NULL && src != NULL);
 
   *dst = *src;
+  dst->base.flist.filterInfo = calloc(src->base.flist.numOfFilters, sizeof(SColumnFilterInfo));
+  memcpy(dst->base.flist.filterInfo, src->base.flist.filterInfo, sizeof(SColumnFilterInfo) * src->base.flist.numOfFilters);
+
   dst->pExpr = exprdup(src->pExpr);
 
   memset(dst->base.param, 0, sizeof(tVariant) * tListLen(dst->base.param));
@@ -1789,8 +1793,8 @@ SColumn* tscColumnClone(const SColumn* src) {
 
   dst->columnIndex       = src->columnIndex;
   dst->tableUid          = src->tableUid;
-  dst->info.numOfFilters = src->info.numOfFilters;
-  dst->info.filterInfo   = tFilterInfoDup(src->info.filterInfo, src->info.numOfFilters);
+  dst->info.flist.numOfFilters = src->info.flist.numOfFilters;
+  dst->info.flist.filterInfo   = tFilterInfoDup(src->info.flist.filterInfo, src->info.flist.numOfFilters);
   dst->info.type         = src->info.type;
   dst->info.colId        = src->info.colId;
   dst->info.bytes        = src->info.bytes;
@@ -1798,7 +1802,7 @@ SColumn* tscColumnClone(const SColumn* src) {
 }
 
 static void tscColumnDestroy(SColumn* pCol) {
-  destroyFilterInfo(pCol->info.filterInfo, pCol->info.numOfFilters);
+  destroyFilterInfo(&pCol->info.flist);
   free(pCol);
 }
 
@@ -3427,28 +3431,12 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
     SExprInfo* pExpr = &pQueryAttr->pExpr1[i];
     SSqlExpr*  pse = &pQueryAttr->pExpr3[i].base;
 
-    memcpy(pse->aliasName, pExpr->base.aliasName, tListLen(pse->aliasName));
-
-    pse->uid = pExpr->base.uid;
-    pse->functionId = pExpr->base.functionId;
-    pse->resType    = pExpr->base.resType;
-    pse->resBytes   = pExpr->base.resBytes;
-    pse->interBytes = pExpr->base.interBytes;
-    pse->resColId   = pExpr->base.resColId;
-    pse->offset     = pExpr->base.offset;
-    pse->numOfParams = pExpr->base.numOfParams;
-
-    pse->colInfo    = pExpr->base.colInfo;
+    tscSqlExprAssign(&pQueryAttr->pExpr3[i], pExpr);
     pse->colInfo.colId = pExpr->base.resColId;
     pse->colInfo.colIndex = i;
 
     pse->colType = pExpr->base.resType;
     pse->colBytes = pExpr->base.resBytes;
-    pse->colInfo.flag = pExpr->base.colInfo.flag;
-
-    for (int32_t j = 0; j < pExpr->base.numOfParams; ++j) {
-      tVariantAssign(&pse->param[j], &pExpr->base.param[j]);
-    }
   }
 
   {
@@ -3515,7 +3503,7 @@ static int32_t createTagColumnInfo(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
     pTagCol->colId = pColSchema->colId;
     pTagCol->bytes = pColSchema->bytes;
     pTagCol->type  = pColSchema->type;
-    pTagCol->numOfFilters = 0;
+    pTagCol->flist.numOfFilters = 0;
   }
 
   return TSDB_CODE_SUCCESS;
@@ -3546,6 +3534,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->order             = pQueryInfo->order;
   pQueryAttr->fillType          = pQueryInfo->fillType;
   pQueryAttr->groupbyColumn     = tscGroupbyColumn(pQueryInfo);
+  pQueryAttr->havingNum         = pQueryInfo->havingFieldNum;
 
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {   // TODO refactor
     pQueryAttr->window = pQueryInfo->window;
@@ -3587,7 +3576,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
     }
 
     pQueryAttr->tableCols[i] = pCol->info;
-    pQueryAttr->tableCols[i].filterInfo = tFilterInfoDup(pCol->info.filterInfo, pQueryAttr->tableCols[i].numOfFilters);
+    pQueryAttr->tableCols[i].flist.filterInfo = tFilterInfoDup(pCol->info.flist.filterInfo, pQueryAttr->tableCols[i].flist.numOfFilters);
   }
 
   // global aggregate query

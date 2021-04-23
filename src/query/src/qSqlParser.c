@@ -349,7 +349,6 @@ int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
     return 1;
   }
 
-
   if (right->pParam && left->pParam) {
     size_t size = taosArrayGetSize(right->pParam);
     if (left->pParam && taosArrayGetSize(left->pParam) != size) {

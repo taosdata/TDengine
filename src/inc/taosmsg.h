@@ -420,6 +420,13 @@ typedef struct SColumnFilterInfo {
   };
 } SColumnFilterInfo;
 
+typedef struct SColumnFilterList {
+  int16_t              numOfFilters;
+  union{
+    int64_t placeholder;
+    SColumnFilterInfo *filterInfo;
+  };
+} SColumnFilterList;
 /*
  * for client side struct, we only need the column id, type, bytes are not necessary
  * But for data in vnode side, we need all the following information.
@@ -428,11 +435,7 @@ typedef struct SColumnInfo {
   int16_t            colId;
   int16_t            type;
   int16_t            bytes;
-  int16_t            numOfFilters;
-  union{
-    int64_t placeholder;
-    SColumnFilterInfo *filterInfo;
-  };
+  SColumnFilterList  flist;
 } SColumnInfo;
 
 typedef struct STableIdInfo {

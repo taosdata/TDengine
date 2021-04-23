@@ -1988,7 +1988,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         if ((pToken->z == NULL || pToken->n == 0) 
             && (TK_INTEGER != sqlOptr)) /*select count(1) from table*/ {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
-        } 
+        }
+
         if (sqlOptr == TK_ALL) {
           // select table.*
           // check if the table name is valid or not
@@ -3067,23 +3068,19 @@ int32_t validateGroupbyNode(SQueryInfo* pQueryInfo, SArray* pList, SSqlCmd* pCmd
 }
 
 
-static SColumnFilterInfo* addColumnFilterInfo(SColumn* pColumn) {
-  if (pColumn == NULL) {
-    return NULL;
-  }
+static SColumnFilterInfo* addColumnFilterInfo(SColumnFilterList* filterList) {
+  int32_t size = (filterList->numOfFilters) + 1;
 
-  int32_t size = pColumn->info.numOfFilters + 1;
-
-  char* tmp = (char*) realloc((void*)(pColumn->info.filterInfo), sizeof(SColumnFilterInfo) * (size));
+  char* tmp = (char*) realloc((void*)(filterList->filterInfo), sizeof(SColumnFilterInfo) * (size));
   if (tmp != NULL) {
-    pColumn->info.filterInfo = (SColumnFilterInfo*)tmp;
+    filterList->filterInfo = (SColumnFilterInfo*)tmp;
   } else {
     return NULL;
   }
 
-  pColumn->info.numOfFilters++;
+  filterList->numOfFilters = size;
 
-  SColumnFilterInfo* pColFilterInfo = &pColumn->info.filterInfo[pColumn->info.numOfFilters - 1];
+  SColumnFilterInfo* pColFilterInfo = &(filterList->filterInfo[size - 1]);
   memset(pColFilterInfo, 0, sizeof(SColumnFilterInfo));
 
   return pColFilterInfo;
@@ -3254,10 +3251,10 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
    */
   if (sqlOptr == TK_AND) {
     // this is a new filter condition on this column
-    if (pColumn->info.numOfFilters == 0) {
-      pColFilter = addColumnFilterInfo(pColumn);
+    if (pColumn->info.flist.numOfFilters == 0) {
+      pColFilter = addColumnFilterInfo(&pColumn->info.flist);
     } else {  // update the existed column filter information, find the filter info here
-      pColFilter = &pColumn->info.filterInfo[0];
+      pColFilter = &pColumn->info.flist.filterInfo[0];
     }
 
     if (pColFilter == NULL) {
@@ -3265,7 +3262,7 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
     }
   } else if (sqlOptr == TK_OR) {
     // TODO fixme: failed to invalid the filter expression: "col1 = 1 OR col2 = 2"
-    pColFilter = addColumnFilterInfo(pColumn);
+    pColFilter = addColumnFilterInfo(&pColumn->info.flist);
     if (pColFilter == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -4099,8 +4096,8 @@ static bool validateFilterExpr(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < num; ++i) {
     SColumn* pCol = taosArrayGetP(pColList, i);
 
-    for (int32_t j = 0; j < pCol->info.numOfFilters; ++j) {
-      SColumnFilterInfo* pColFilter = &pCol->info.filterInfo[j];
+    for (int32_t j = 0; j < pCol->info.flist.numOfFilters; ++j) {
+      SColumnFilterInfo* pColFilter = &pCol->info.flist.filterInfo[j];
       int32_t            lowerOptr = pColFilter->lowerRelOptr;
       int32_t            upperOptr = pColFilter->upperRelOptr;
 
@@ -6794,8 +6791,46 @@ int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
     return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscInsertExprFields(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SInternalField** interField) {
-  tSqlExprItem item = {.pNode = pExpr, .aliasName = NULL, .distinct = false};
+// TODO normalize the function expression and compare it
+int32_t tscGetExprFilters(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelectNodeList, tSqlExpr* pSqlExpr,
+                          SExprInfo** pExpr) {
+  *pExpr = NULL;
+
+  size_t num = taosArrayGetSize(pSelectNodeList);
+  for(int32_t i = 0; i < num; ++i) {
+    tSqlExprItem* pItem = taosArrayGet(pSelectNodeList, i);
+    if (tSqlExprCompare(pItem->pNode, pSqlExpr) == 0) { // exists, not added it,
+
+      int32_t functionId = isValidFunction(pSqlExpr->operand.z, pSqlExpr->operand.n);
+      tSqlExprItem* pParamElem = taosArrayGet(pSqlExpr->pParam, 0);
+      SStrToken* pToken = &pParamElem->pNode->colInfo;
+
+      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+      getColumnIndexByName(pCmd, pToken, pQueryInfo, &index);
+
+      size_t numOfNodeInSel = tscSqlExprNumOfExprs(pQueryInfo);
+      for(int32_t k = 0; k < numOfNodeInSel; ++k) {
+        SExprInfo* pExpr1 = tscSqlExprGet(pQueryInfo, k);
+
+        if (pExpr1->base.functionId != functionId) {
+          continue;
+        }
+
+        if (pExpr1->base.colInfo.colIndex != index.columnIndex) {
+          continue;
+        }
+
+        ++pQueryInfo->havingFieldNum;
+        *pExpr = pExpr1;
+        break;
+      }
+
+      assert(*pExpr != NULL);
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  tSqlExprItem item = {.pNode = pSqlExpr, .aliasName = NULL, .distinct = false};
 
   int32_t outputIndex = (int32_t)tscSqlExprNumOfExprs(pQueryInfo);
 
@@ -6807,129 +6842,47 @@ int32_t tscInsertExprFields(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pEx
   ++pQueryInfo->havingFieldNum;
 
   size_t n = tscSqlExprNumOfExprs(pQueryInfo);
-  SExprInfo* pExprInfo = tscSqlExprGet(pQueryInfo, (int32_t)n - 1);
-
-  int32_t slot = tscNumOfFields(pQueryInfo) - 1;
-  SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, slot);
-  pInfo->visible = false;
-
-  if (pInfo->pFieldFilters == NULL) {
-    SExprFilter* pFieldFilters = calloc(1, sizeof(SExprFilter));
-    if (pFieldFilters == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-
-    SColumn* pFilters = calloc(1, sizeof(SColumn));
-    if (pFilters == NULL) {
-      tfree(pFieldFilters);
-
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-
-    pFieldFilters->pFilters = pFilters;
-    pFieldFilters->pExprInfo = pExprInfo;
-    pExprInfo->base.pFilter = pFilters->info.filterInfo;
-    pInfo->pFieldFilters = pFieldFilters;
-  }
-
-  pInfo->pFieldFilters->pExpr = pExpr;
-
-  *interField = pInfo;
-
+  *pExpr = tscSqlExprGet(pQueryInfo, (int32_t)n - 1);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tscGetExprFilters(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SInternalField** pField) {
-  SInternalField* pInfo = NULL;
-
-  for (int32_t i = pQueryInfo->havingFieldNum - 1; i >= 0; --i) {
-    pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, pQueryInfo->fieldsInfo.numOfOutput - 1 - i);
-
-    if (pInfo->pFieldFilters && 0 == tSqlExprCompare(pInfo->pFieldFilters->pExpr, pExpr)) {
-      *pField = pInfo;
-      return TSDB_CODE_SUCCESS;
-    }
-  }
-
-  int32_t ret = tscInsertExprFields(pCmd, pQueryInfo, pExpr, &pInfo);
-  if (ret) {
-    return ret;
-  }
-
-  *pField = pInfo;
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t genExprFilter(SExprFilter* exprFilter) {
-  exprFilter->fp = taosArrayInit(4, sizeof(__filter_func_t));
-  if (exprFilter->fp == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-
-  for (int32_t i = 0; i < exprFilter->pFilters->info.numOfFilters; ++i) {
-    SColumnFilterInfo *filterInfo = &exprFilter->pFilters->info.filterInfo[i];
-
-    int32_t lower = filterInfo->lowerRelOptr;
-    int32_t upper = filterInfo->upperRelOptr;
-    if (lower == TSDB_RELATION_INVALID && upper == TSDB_RELATION_INVALID) {
-      tscError("invalid rel optr");
-      return TSDB_CODE_TSC_APP_ERROR;
-    }
-
-    __filter_func_t ffp = getFilterOperator(lower, upper);
-    if (ffp == NULL) {
-      tscError("invalid filter info");
-      return TSDB_CODE_TSC_APP_ERROR;
-    }
-
-    taosArrayPush(exprFilter->fp, &ffp);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, int32_t sqlOptr) {
+static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelectNodeList, tSqlExpr* pExpr, int32_t sqlOptr) {
   const char* msg1 = "non binary column not support like operator";
   const char* msg2 = "invalid operator for binary column in having clause";
   const char* msg3 = "invalid operator for bool column in having clause";
 
-  SColumn* pColumn = NULL;
   SColumnFilterInfo* pColFilter = NULL;
-  SInternalField* pInfo = NULL;
 
   /*
    * in case of TK_AND filter condition, we first find the corresponding column and build the query condition together
    * the already existed condition.
    */
+  SExprInfo *expr = NULL;
   if (sqlOptr == TK_AND) {
-    int32_t ret = tscGetExprFilters(pCmd, pQueryInfo, pExpr->pLeft, &pInfo);
+    int32_t ret = tscGetExprFilters(pCmd, pQueryInfo, pSelectNodeList, pExpr->pLeft, &expr);
     if (ret) {
       return ret;
     }
 
-    pColumn = pInfo->pFieldFilters->pFilters;
-
     // this is a new filter condition on this column
-    if (pColumn->info.numOfFilters == 0) {
-      pColFilter = addColumnFilterInfo(pColumn);
+    if (expr->base.flist.numOfFilters == 0) {
+      pColFilter = addColumnFilterInfo(&expr->base.flist);
     } else {  // update the existed column filter information, find the filter info here
-      pColFilter = &pColumn->info.filterInfo[0];
+      pColFilter = &expr->base.flist.filterInfo[0];
     }
 
     if (pColFilter == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
   } else if (sqlOptr == TK_OR) {
-    int32_t ret = tscGetExprFilters(pCmd, pQueryInfo, pExpr->pLeft, &pInfo);
+    int32_t ret = tscGetExprFilters(pCmd, pQueryInfo, pSelectNodeList, pExpr->pLeft, &expr);
     if (ret) {
       return ret;
     }
 
-    pColumn = pInfo->pFieldFilters->pFilters;
-
     // TODO fixme: failed to invalid the filter expression: "col1 = 1 OR col2 = 2"
-    pColFilter = addColumnFilterInfo(pColumn);
+    // TODO refactor
+    pColFilter = addColumnFilterInfo(&expr->base.flist);
     if (pColFilter == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -6938,7 +6891,7 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
   }
 
   pColFilter->filterstr =
-      ((pInfo->field.type == TSDB_DATA_TYPE_BINARY || pInfo->field.type == TSDB_DATA_TYPE_NCHAR) ? 1 : 0);
+      ((expr->base.resType == TSDB_DATA_TYPE_BINARY || expr->base.resType == TSDB_DATA_TYPE_NCHAR) ? 1 : 0);
 
   if (pColFilter->filterstr) {
     if (pExpr->tokenId != TK_EQ
@@ -6954,22 +6907,23 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    if (pInfo->field.type == TSDB_DATA_TYPE_BOOL) {
+    if (expr->base.resType == TSDB_DATA_TYPE_BOOL) {
       if (pExpr->tokenId != TK_EQ && pExpr->tokenId != TK_NE) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
     }
   }
 
-  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pInfo->field.type, pExpr);
+  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, expr->base.resType, pExpr);
   if (ret) {
     return ret;
   }
 
-  return genExprFilter(pInfo->pFieldFilters);
+  return TSDB_CODE_SUCCESS;
+//  return genExprFilter(pInfo->pFieldFilters);
 }
 
-int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, int32_t parentOptr) {
+int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelectNodeList, tSqlExpr* pExpr, int32_t parentOptr) {
   if (pExpr == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -6980,12 +6934,12 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, in
   tSqlExpr* pRight = pExpr->pRight;
 
   if (pExpr->tokenId == TK_AND || pExpr->tokenId == TK_OR) {
-    int32_t ret = getHavingExpr(pCmd, pQueryInfo, pExpr->pLeft, pExpr->tokenId);
+    int32_t ret = getHavingExpr(pCmd, pQueryInfo, pSelectNodeList, pExpr->pLeft, pExpr->tokenId);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
 
-    return getHavingExpr(pCmd, pQueryInfo, pExpr->pRight, pExpr->tokenId);
+    return getHavingExpr(pCmd, pQueryInfo, pSelectNodeList, pExpr->pRight, pExpr->tokenId);
   }
 
   if (pLeft == NULL || pRight == NULL) {
@@ -6998,7 +6952,7 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, in
 
   exchangeExpr(pExpr);
 
-  pLeft = pExpr->pLeft;
+  pLeft  = pExpr->pLeft;
   pRight = pExpr->pRight;
 
 
@@ -7014,29 +6968,27 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, in
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  //if (pLeft->pParam == NULL || pLeft->pParam->nExpr < 1) {
-  //  return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
-  //}
-
   if (pLeft->pParam) {
     size_t size = taosArrayGetSize(pLeft->pParam);
     for (int32_t i = 0; i < size; i++) {
-      tSqlExprItem* pParamElem = taosArrayGet(pLeft->pParam, i);
-      if (pParamElem->pNode->tokenId != TK_ALL &&
-          pParamElem->pNode->tokenId != TK_ID &&
-          pParamElem->pNode->tokenId != TK_STRING &&
-          pParamElem->pNode->tokenId != TK_INTEGER &&
-          pParamElem->pNode->tokenId != TK_FLOAT) {
+      tSqlExprItem* pParamItem = taosArrayGet(pLeft->pParam, i);
+
+      tSqlExpr* pExpr1 = pParamItem->pNode;
+      if (pExpr1->tokenId != TK_ALL &&
+          pExpr1->tokenId != TK_ID &&
+          pExpr1->tokenId != TK_STRING &&
+          pExpr1->tokenId != TK_INTEGER &&
+          pExpr1->tokenId != TK_FLOAT) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      if (pParamElem->pNode->tokenId == TK_ID && (pParamElem->pNode->colInfo.z == NULL && pParamElem->pNode->colInfo.n == 0)) {
+      if (pExpr1->tokenId == TK_ID && (pExpr1->colInfo.z == NULL && pExpr1->colInfo.n == 0)) {
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      if (pParamElem->pNode->tokenId == TK_ID) {
+      if (pExpr1->tokenId == TK_ID) {
         SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-        if ((getColumnIndexByName(pCmd, &pParamElem->pNode->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS)) {
+        if ((getColumnIndexByName(pCmd, &pExpr1->colInfo, pQueryInfo, &index) != TSDB_CODE_SUCCESS)) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
         }
 
@@ -7056,10 +7008,11 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pExpr, in
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
 
-  return handleExprInHavingClause(pCmd, pQueryInfo, pExpr, parentOptr);
+  return handleExprInHavingClause(pCmd, pQueryInfo, pSelectNodeList, pExpr, parentOptr);
 }
 
-int32_t validateHavingClause(SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SSqlCmd* pCmd, bool isSTable, int32_t joinQuery, int32_t timeWindowQuery) {
+int32_t validateHavingClause(SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SSqlCmd* pCmd, SArray* pSelectNodeList,
+                             int32_t joinQuery, int32_t timeWindowQuery) {
   const char* msg1 = "having only works with group by";
   const char* msg2 = "functions or others can not be mixed up";
   const char* msg3 = "invalid expression in having clause";
@@ -7082,7 +7035,7 @@ int32_t validateHavingClause(SQueryInfo* pQueryInfo, tSqlExpr* pExpr, SSqlCmd* p
 
   int32_t ret = 0;
 
-  if ((ret = getHavingExpr(pCmd, pQueryInfo, pExpr, TK_AND)) != TSDB_CODE_SUCCESS) {
+  if ((ret = getHavingExpr(pCmd, pQueryInfo, pSelectNodeList, pExpr, TK_AND)) != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
@@ -7328,7 +7281,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
     }
 
     // parse the having clause in the first place
-    if (validateHavingClause(pQueryInfo, pSqlNode->pHaving, pCmd, isSTable, joinQuery, timeWindowQuery) !=
+    if (validateHavingClause(pQueryInfo, pSqlNode->pHaving, pCmd, pSqlNode->pSelNodeList, joinQuery, timeWindowQuery) !=
         TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
@@ -7515,7 +7468,7 @@ bool hasNormalColumnFilter(SQueryInfo* pQueryInfo) {
   size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumn* pCol = taosArrayGetP(pQueryInfo->colList, i);
-    if (pCol->info.numOfFilters > 0) {
+    if (pCol->info.flist.numOfFilters > 0) {
       return true;
     }
   }

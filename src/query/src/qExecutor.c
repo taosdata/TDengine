@@ -174,6 +174,9 @@ static STsdbQueryCond createTsdbQueryCond(SQueryAttr* pQueryAttr, STimeWindow* w
 static STableIdInfo createTableIdInfo(STableQueryInfo* pTableQueryInfo);
 
 static void setTableScanFilterOperatorInfo(STableScanInfo* pTableScanInfo, SOperatorInfo* pDownstream);
+static int32_t doCreateFilterInfo(SColumnInfo* pCols, int32_t numOfCols, int32_t numOfFilterCols,
+                                  SSingleColumnFilterInfo** pFilterInfo, uint64_t qId);
+static void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols);
 
 static int32_t getNumOfScanTimes(SQueryAttr* pQueryAttr);
 
@@ -1753,13 +1756,6 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
           assert(pQueryAttr->pExpr2 != NULL);
           pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
         }
-
-        {
-
-//          if (pQueryAttr->limit.offset > 0) {
-//            pRuntimeEnv->proot = createOffsetOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot);
-//          }
-        }
         break;
       }
 
@@ -1768,9 +1764,12 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
         break;
       }
 
-      case OP_Having: {
-        if (pQueryAttr->havingNum > 0) {
-          pRuntimeEnv->proot = createHavingOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+      case OP_Condition: {  // todo refactor
+        assert(pQueryAttr->havingNum > 0);
+        if (pQueryAttr->stableQuery) {
+          pRuntimeEnv->proot = createConditionOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3, pQueryAttr->numOfExpr3);
+        } else {
+          pRuntimeEnv->proot = createConditionOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
         }
         break;
       }
@@ -2355,7 +2354,7 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key, bool asc
 }
 
 void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols,
-                        SSDataBlock* pBlock, bool ascQuery) {
+                           SSDataBlock* pBlock, bool ascQuery) {
   int32_t numOfRows = pBlock->info.rows;
 
   int8_t *p = calloc(numOfRows, sizeof(int8_t));
@@ -2504,18 +2503,18 @@ static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSData
   return status;
 }
 
-static void doSetFilterColumnInfo(SQueryAttr* pQueryAttr, SSDataBlock* pBlock) {
-  if (pQueryAttr->numOfFilterCols > 0 && pQueryAttr->pFilterInfo[0].pData != NULL) {
+static void doSetFilterColumnInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols, SSDataBlock* pBlock) {
+  if (numOfFilterCols > 0 && pFilterInfo[0].pData != NULL) {
     return;
   }
 
   // set the initial static data value filter expression
-  for (int32_t i = 0; i < pQueryAttr->numOfFilterCols; ++i) {
+  for (int32_t i = 0; i < numOfFilterCols; ++i) {
     for (int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
       SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, j);
 
-      if (pQueryAttr->pFilterInfo[i].info.colId == pColInfo->info.colId) {
-        pQueryAttr->pFilterInfo[i].pData = pColInfo->pData;
+      if (pFilterInfo[i].info.colId == pColInfo->info.colId) {
+        pFilterInfo[i].pData = pColInfo->pData;
         break;
       }
     }
@@ -2660,7 +2659,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
       return terrno;
     }
 
-    doSetFilterColumnInfo(pQueryAttr, pBlock);
+    doSetFilterColumnInfo(pQueryAttr->pFilterInfo, pQueryAttr->numOfFilterCols, pBlock);
     if (pQueryAttr->numOfFilterCols > 0 || pRuntimeEnv->pTsBuf != NULL) {
       filterRowsInDataBlock(pRuntimeEnv, pQueryAttr->pFilterInfo, pQueryAttr->numOfFilterCols, pBlock, ascQuery);
     }
@@ -4610,7 +4609,7 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
       pInfo->prevRow[i] = (char*)pInfo->prevRow + offset;
 
       SColIndex* index = taosArrayGet(pInfo->orderColumnList, i);
-      offset += pExpr[index->colIndex].base.resBytes;
+      offset += pExpr[index->colIndex].base.colBytes;
     }
   }
 
@@ -4900,89 +4899,34 @@ bool doFilterData(SColumnInfoData* p, int32_t rid, SColumnFilterElem *filterElem
   return false;
 }
 
-
-void doHavingImpl(SOperatorInfo *pOperator, SSDataBlock *pBlock) {
-  SHavingOperatorInfo* pInfo = pOperator->info;
-  int32_t f = 0;
-  int32_t allQualified = 1;
-  int32_t exprQualified = 0;
-
-  for (int32_t r = 0; r < pBlock->info.rows; ++r) {
-    allQualified = 1;
-
-    for (int32_t i = 0; i < pOperator->numOfOutput; ++i) {
-      SExprInfo* pExprInfo = &(pOperator->pExpr[i]);
-      if (pExprInfo->base.pFilter == NULL) {
-        continue;
-      }
-
-      SArray* es = taosArrayGetP(pInfo->fp, i);
-      assert(es);
-
-      size_t fpNum = taosArrayGetSize(es);
-
-      exprQualified = 0;
-      for (int32_t m = 0; m < fpNum; ++m) {
-        __filter_func_t fp = taosArrayGetP(es, m);
-
-        assert(fp);
-
-        //SColIndex* colIdx = &pExprInfo->base.colInfo;
-        SColumnInfoData* p = taosArrayGet(pBlock->pDataBlock, i);
-
-        SColumnFilterElem filterElem = {.filterInfo = pExprInfo->base.pFilter[m]};
-
-        if (doFilterData(p, r, &filterElem, fp)) {
-          exprQualified = 1;
-          break;
-        }
-      }
-
-      if (exprQualified == 0) {
-        allQualified = 0;
-        break;
-      }
-    }
-
-    if (allQualified == 0) {
-      continue;
-    }
-
-    for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-      SColumnInfoData *pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
-
-      int16_t bytes = pColInfoData->info.bytes;
-      memmove(pColInfoData->pData + f * bytes, pColInfoData->pData + bytes * r, bytes);
-    }
-
-    ++f;
-  }
-
-  pBlock->info.rows = f;
-}
-
-static SSDataBlock* doHaving(void* param, bool* newgroup) {
+static SSDataBlock* doFilter(void* param, bool* newgroup) {
   SOperatorInfo *pOperator = (SOperatorInfo *)param;
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
+  SConditionOperatorInfo* pCondInfo = pOperator->info;
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
 
   while (1) {
     SSDataBlock *pBlock = pOperator->upstream->exec(pOperator->upstream, newgroup);
     if (pBlock == NULL) {
-      setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
-      pOperator->status = OP_EXEC_DONE;
-      return NULL;
+      break;
     }
 
-    doHavingImpl(pOperator, pBlock);
+    doSetFilterColumnInfo(pCondInfo->pFilterInfo, pCondInfo->numOfFilterCols, pBlock);
+    assert(pRuntimeEnv->pTsBuf == NULL);
+    filterRowsInDataBlock(pRuntimeEnv, pCondInfo->pFilterInfo, pCondInfo->numOfFilterCols, pBlock, true);
 
-    return pBlock;
+    if (pBlock->info.rows > 0) {
+      return pBlock;
+    }
   }
-}
 
+  setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
+  pOperator->status = OP_EXEC_DONE;
+  return NULL;
+}
 
 static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
@@ -5383,11 +5327,9 @@ static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   pInfo->pRes = destroyOutputBuf(pInfo->pRes);
 }
 
-static void destroyHavingOperatorInfo(void* param, int32_t numOfOutput) {
-  SHavingOperatorInfo* pInfo = (SHavingOperatorInfo*) param;
-  if (pInfo->fp) {
-    taosArrayDestroy(pInfo->fp);
-  }
+static void destroyConditionOperatorInfo(void* param, int32_t numOfOutput) {
+  SConditionOperatorInfo* pInfo = (SConditionOperatorInfo*) param;
+  doDestroyFilterInfo(pInfo->pFilterInfo, pInfo->numOfFilterCols);
 }
 
 SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
@@ -5446,82 +5388,55 @@ SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
   return pOperator;
 }
 
+SOperatorInfo* createConditionOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,
+                                           int32_t numOfOutput) {
+  SConditionOperatorInfo* pInfo = calloc(1, sizeof(SConditionOperatorInfo));
 
-int32_t initFilterFp(SExprInfo* pExpr, int32_t numOfOutput, SArray** fps) {
-  __filter_func_t fp = NULL;
+  {
+    SColumnInfo* pCols = calloc(numOfOutput, sizeof(SColumnInfo));
 
-  *fps = taosArrayInit(numOfOutput, sizeof(SArray*));
-  if (*fps == NULL) {
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    SExprInfo* pExprInfo = &(pExpr[i]);
-    SColIndex* colIdx = &pExprInfo->base.colInfo;
-
-    if (pExprInfo->base.pFilter == NULL || !TSDB_COL_IS_NORMAL_COL(colIdx->flag)) {
-      taosArrayPush(*fps, &fp);
-
-      continue;
-    }
-
-    int32_t filterNum = pExprInfo->base.filterNum;
-    SColumnFilterInfo *filterInfo = pExprInfo->base.pFilter;
-
-    SArray* es = taosArrayInit(filterNum, sizeof(__filter_func_t));
-
-    for (int32_t j = 0; j < filterNum; ++j) {
-      int32_t lower = filterInfo->lowerRelOptr;
-      int32_t upper = filterInfo->upperRelOptr;
-      if (lower == TSDB_RELATION_INVALID && upper == TSDB_RELATION_INVALID) {
-        qError("invalid rel optr");
-        taosArrayDestroy(es);
-        return TSDB_CODE_QRY_APP_ERROR;
+    int32_t numOfFilter = 0;
+    for(int32_t i = 0; i < numOfOutput; ++i) {
+      if (pExpr[i].base.flist.numOfFilters > 0) {
+        numOfFilter += 1;
       }
 
-      __filter_func_t ffp = getFilterOperator(lower, upper);
-      if (ffp == NULL) {
-        qError("invalid filter info");
-        taosArrayDestroy(es);
-        return TSDB_CODE_QRY_APP_ERROR;
-      }
+      pCols[i].type = pExpr[i].base.resType;
+      pCols[i].bytes = pExpr[i].base.resBytes;
+      pCols[i].colId = pExpr[i].base.resColId;
 
-      taosArrayPush(es, &ffp);
-
-      filterInfo += 1;
+      pCols[i].flist.numOfFilters = pExpr[i].base.flist.numOfFilters;
+      pCols[i].flist.filterInfo = calloc(pCols[i].flist.numOfFilters, sizeof(SColumnFilterInfo));
+      memcpy(pCols[i].flist.filterInfo, pExpr[i].base.flist.filterInfo, pCols[i].flist.numOfFilters * sizeof(SColumnFilterInfo));
     }
 
-    taosArrayPush(*fps, &es);
+    assert(numOfFilter > 0);
+    doCreateFilterInfo(pCols, numOfOutput, numOfFilter, &pInfo->pFilterInfo, 0);
+    pInfo->numOfFilterCols = numOfFilter;
+
+    for(int32_t i = 0; i < numOfOutput; ++i) {
+      tfree(pCols[i].flist.filterInfo);
+    }
+
+    tfree(pCols);
   }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-SOperatorInfo* createHavingOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
-  SHavingOperatorInfo* pInfo = calloc(1, sizeof(SHavingOperatorInfo));
-
-  initFilterFp(pExpr, numOfOutput, &pInfo->fp);
-
-  assert(pInfo->fp);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
-  pOperator->name         = "HavingOperator";
-  pOperator->operatorType = OP_Having;
+  pOperator->name         = "ConditionOperator";
+  pOperator->operatorType = OP_Condition;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->pExpr        = pExpr;
   pOperator->upstream     = upstream;
-  pOperator->exec         = doHaving;
+  pOperator->exec         = doFilter;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-  pOperator->cleanup      = destroyHavingOperatorInfo;
+  pOperator->cleanup      = destroyConditionOperatorInfo;
 
   return pOperator;
 }
-
-
 
 SOperatorInfo* createLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream) {
   SLimitOperatorInfo* pInfo = calloc(1, sizeof(SLimitOperatorInfo));
@@ -5997,6 +5912,37 @@ static char *createTableIdList(SQueryTableMsg *pQueryMsg, char *pMsg, SArray **p
   return pMsg;
 }
 
+static int32_t deserializeColFilterInfo(SColumnFilterInfo* pColFilters, int16_t numOfFilters, char** pMsg) {
+  for (int32_t f = 0; f < numOfFilters; ++f) {
+    SColumnFilterInfo *pFilterMsg = (SColumnFilterInfo *)(*pMsg);
+
+    SColumnFilterInfo *pColFilter = &pColFilters[f];
+    pColFilter->filterstr = htons(pFilterMsg->filterstr);
+
+    (*pMsg) += sizeof(SColumnFilterInfo);
+
+    if (pColFilter->filterstr) {
+      pColFilter->len = htobe64(pFilterMsg->len);
+
+      pColFilter->pz = (int64_t)calloc(1, (size_t)(pColFilter->len + 1 * TSDB_NCHAR_SIZE)); // note: null-terminator
+      if (pColFilter->pz == 0) {
+        return TSDB_CODE_QRY_OUT_OF_MEMORY;
+      }
+
+      memcpy((void *)pColFilter->pz, (*pMsg), (size_t)pColFilter->len);
+      (*pMsg) += (pColFilter->len + 1);
+    } else {
+      pColFilter->lowerBndi = htobe64(pFilterMsg->lowerBndi);
+      pColFilter->upperBndi = htobe64(pFilterMsg->upperBndi);
+    }
+
+    pColFilter->lowerRelOptr = htons(pFilterMsg->lowerRelOptr);
+    pColFilter->upperRelOptr = htons(pFilterMsg->upperRelOptr);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 /**
  * pQueryMsg->head has been converted before this function is called.
  *
@@ -6058,7 +6004,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     pColInfo->colId = htons(pColInfo->colId);
     pColInfo->type = htons(pColInfo->type);
     pColInfo->bytes = htons(pColInfo->bytes);
-    pColInfo->numOfFilters = htons(pColInfo->numOfFilters);
+    pColInfo->flist.numOfFilters = htons(pColInfo->flist.numOfFilters);
 
     if (!isValidDataType(pColInfo->type)) {
       qDebug("qmsg:%p, invalid data type in source column, index:%d, type:%d", pQueryMsg, col, pColInfo->type);
@@ -6066,41 +6012,18 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       goto _cleanup;
     }
 
-    int32_t numOfFilters = pColInfo->numOfFilters;
+    int32_t numOfFilters = pColInfo->flist.numOfFilters;
     if (numOfFilters > 0) {
-      pColInfo->filterInfo = calloc(numOfFilters, sizeof(SColumnFilterInfo));
-      if (pColInfo->filterInfo == NULL) {
+      pColInfo->flist.filterInfo = calloc(numOfFilters, sizeof(SColumnFilterInfo));
+      if (pColInfo->flist.filterInfo == NULL) {
         code = TSDB_CODE_QRY_OUT_OF_MEMORY;
         goto _cleanup;
       }
     }
 
-    for (int32_t f = 0; f < numOfFilters; ++f) {
-      SColumnFilterInfo *pFilterMsg = (SColumnFilterInfo *)pMsg;
-
-      SColumnFilterInfo *pColFilter = &pColInfo->filterInfo[f];
-      pColFilter->filterstr = htons(pFilterMsg->filterstr);
-
-      pMsg += sizeof(SColumnFilterInfo);
-
-      if (pColFilter->filterstr) {
-        pColFilter->len = htobe64(pFilterMsg->len);
-
-        pColFilter->pz = (int64_t)calloc(1, (size_t)(pColFilter->len + 1 * TSDB_NCHAR_SIZE)); // note: null-terminator
-        if (pColFilter->pz == 0) {
-          code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-          goto _cleanup;
-        }
-
-        memcpy((void *)pColFilter->pz, pMsg, (size_t)pColFilter->len);
-        pMsg += (pColFilter->len + 1);
-      } else {
-        pColFilter->lowerBndi = htobe64(pFilterMsg->lowerBndi);
-        pColFilter->upperBndi = htobe64(pFilterMsg->upperBndi);
-      }
-
-      pColFilter->lowerRelOptr = htons(pFilterMsg->lowerRelOptr);
-      pColFilter->upperRelOptr = htons(pFilterMsg->upperRelOptr);
+    code = deserializeColFilterInfo(pColInfo->flist.filterInfo, numOfFilters, &pMsg);
+    if (code != TSDB_CODE_SUCCESS) {
+      goto _cleanup;
     }
   }
 
@@ -6128,34 +6051,8 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     pExprMsg->functionId    = htons(pExprMsg->functionId);
     pExprMsg->numOfParams   = htons(pExprMsg->numOfParams);
     pExprMsg->resColId      = htons(pExprMsg->resColId);
-    pExprMsg->filterNum     = htonl(pExprMsg->filterNum);
-
+    pExprMsg->flist.numOfFilters  = htons(pExprMsg->flist.numOfFilters);
     pMsg += sizeof(SSqlExpr);
-
-    SColumnFilterInfo* pExprFilterInfo = pExprMsg->pFilter;
-
-    pMsg += sizeof(SColumnFilterInfo) * pExprMsg->filterNum;
-
-    for (int32_t f = 0; f < pExprMsg->filterNum; ++f) {
-      SColumnFilterInfo *pFilterMsg = (SColumnFilterInfo *)pExprFilterInfo;
-
-      pFilterMsg->filterstr = htons(pFilterMsg->filterstr);
-
-      if (pFilterMsg->filterstr) {
-        pFilterMsg->len = htobe64(pFilterMsg->len);
-
-        pFilterMsg->pz = (int64_t)pMsg;
-        pMsg += (pFilterMsg->len + 1);
-      } else {
-        pFilterMsg->lowerBndi = htobe64(pFilterMsg->lowerBndi);
-        pFilterMsg->upperBndi = htobe64(pFilterMsg->upperBndi);
-      }
-
-      pFilterMsg->lowerRelOptr = htons(pFilterMsg->lowerRelOptr);
-      pFilterMsg->upperRelOptr = htons(pFilterMsg->upperRelOptr);
-
-      pExprFilterInfo++;
-    }
 
     for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
       pExprMsg->param[j].nType = htons(pExprMsg->param[j].nType);
@@ -6177,6 +6074,11 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       }
     }
 
+    if (pExprMsg->flist.numOfFilters > 0) {
+      pExprMsg->flist.filterInfo = calloc(pExprMsg->flist.numOfFilters, sizeof(SColumnFilterInfo));
+    }
+
+    deserializeColFilterInfo(pExprMsg->flist.filterInfo, pExprMsg->flist.numOfFilters, &pMsg);
     pExprMsg = (SSqlExpr *)pMsg;
   }
 
@@ -6276,7 +6178,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       pTagCol->colId = htons(pTagCol->colId);
       pTagCol->bytes = htons(pTagCol->bytes);
       pTagCol->type  = htons(pTagCol->type);
-      pTagCol->numOfFilters = 0;
+      pTagCol->flist.numOfFilters = 0;
 
       param->pTagColumnInfo[i] = *pTagCol;
       pMsg += sizeof(SColumnInfo);
@@ -6500,9 +6402,9 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
         bytes = s->bytes;
       }
 
-      if (pExprs[i].base.filterNum > 0) {
-        int32_t ret = cloneExprFilterInfo(&pExprs[i].base.pFilter, pExprMsg[i]->pFilter,
-            pExprMsg[i]->filterNum);
+      if (pExprs[i].base.flist.numOfFilters > 0) {
+        int32_t ret = cloneExprFilterInfo(&pExprs[i].base.flist.filterInfo, pExprMsg[i]->flist.filterInfo,
+            pExprMsg[i]->flist.numOfFilters);
         if (ret) {
           return ret;
         }
@@ -6612,9 +6514,67 @@ SSqlGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *
   return pGroupbyExpr;
 }
 
-static int32_t createFilterInfo(SQueryAttr *pQueryAttr, uint64_t qId) {
+static int32_t doCreateFilterInfo(SColumnInfo* pCols, int32_t numOfCols, int32_t numOfFilterCols,
+                                  SSingleColumnFilterInfo** pFilterInfo, uint64_t qId) {
+  *pFilterInfo = calloc(1, sizeof(SSingleColumnFilterInfo) * numOfFilterCols);
+  if (pFilterInfo == NULL) {
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
+
+  for (int32_t i = 0, j = 0; i < numOfCols; ++i) {
+    if (pCols[i].flist.numOfFilters > 0) {
+      SSingleColumnFilterInfo* pFilter = &((*pFilterInfo)[j]);
+
+      memcpy(&pFilter->info, &pCols[i], sizeof(SColumnInfo));
+      pFilter->info = pCols[i];
+
+      pFilter->numOfFilters = pCols[i].flist.numOfFilters;
+      pFilter->pFilters = calloc(pFilter->numOfFilters, sizeof(SColumnFilterElem));
+      if (pFilter->pFilters == NULL) {
+        return TSDB_CODE_QRY_OUT_OF_MEMORY;
+      }
+
+      for (int32_t f = 0; f < pFilter->numOfFilters; ++f) {
+        SColumnFilterElem* pSingleColFilter = &pFilter->pFilters[f];
+        pSingleColFilter->filterInfo = pCols[i].flist.filterInfo[f];
+
+        int32_t lower = pSingleColFilter->filterInfo.lowerRelOptr;
+        int32_t upper = pSingleColFilter->filterInfo.upperRelOptr;
+        if (lower == TSDB_RELATION_INVALID && upper == TSDB_RELATION_INVALID) {
+          qError("QInfo:%" PRIu64 " invalid filter info", qId);
+          return TSDB_CODE_QRY_INVALID_MSG;
+        }
+
+        pSingleColFilter->fp = getFilterOperator(lower, upper);
+        if (pSingleColFilter->fp == NULL) {
+          qError("QInfo:%" PRIu64 " invalid filter info", qId);
+          return TSDB_CODE_QRY_INVALID_MSG;
+        }
+
+        pSingleColFilter->bytes = pCols[i].bytes;
+      }
+
+      j++;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols) {
+  for (int32_t i = 0; i < numOfFilterCols; ++i) {
+    if (pFilterInfo[i].numOfFilters > 0) {
+      tfree(pFilterInfo[i].pFilters);
+    }
+  }
+
+  tfree(pFilterInfo);
+  return NULL;
+}
+
+static int32_t createFilterInfo(SQueryAttr* pQueryAttr, uint64_t qId) {
   for (int32_t i = 0; i < pQueryAttr->numOfCols; ++i) {
-    if (pQueryAttr->tableCols[i].numOfFilters > 0) {
+    if (pQueryAttr->tableCols[i].flist.numOfFilters > 0) {
       pQueryAttr->numOfFilterCols++;
     }
   }
@@ -6623,47 +6583,8 @@ static int32_t createFilterInfo(SQueryAttr *pQueryAttr, uint64_t qId) {
     return TSDB_CODE_SUCCESS;
   }
 
-  pQueryAttr->pFilterInfo = calloc(1, sizeof(SSingleColumnFilterInfo) * pQueryAttr->numOfFilterCols);
-  if (pQueryAttr->pFilterInfo == NULL) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
-  }
-
-  for (int32_t i = 0, j = 0; i < pQueryAttr->numOfCols; ++i) {
-    if (pQueryAttr->tableCols[i].numOfFilters > 0) {
-      SSingleColumnFilterInfo *pFilterInfo = &pQueryAttr->pFilterInfo[j];
-
-      memcpy(&pFilterInfo->info, &pQueryAttr->tableCols[i], sizeof(SColumnInfo));
-      pFilterInfo->info = pQueryAttr->tableCols[i];
-
-      pFilterInfo->numOfFilters = pQueryAttr->tableCols[i].numOfFilters;
-      pFilterInfo->pFilters = calloc(pFilterInfo->numOfFilters, sizeof(SColumnFilterElem));
-      if (pFilterInfo->pFilters == NULL) {
-        return TSDB_CODE_QRY_OUT_OF_MEMORY;
-      }
-
-      for (int32_t f = 0; f < pFilterInfo->numOfFilters; ++f) {
-        SColumnFilterElem *pSingleColFilter = &pFilterInfo->pFilters[f];
-        pSingleColFilter->filterInfo = pQueryAttr->tableCols[i].filterInfo[f];
-
-        int32_t lower = pSingleColFilter->filterInfo.lowerRelOptr;
-        int32_t upper = pSingleColFilter->filterInfo.upperRelOptr;
-        if (lower == TSDB_RELATION_INVALID && upper == TSDB_RELATION_INVALID) {
-          qError("QInfo:%"PRIu64" invalid filter info", qId);
-          return TSDB_CODE_QRY_INVALID_MSG;
-        }
-
-        pSingleColFilter->fp = getFilterOperator(lower, upper);
-        if (pSingleColFilter->fp == NULL) {
-          qError("QInfo:%"PRIu64" invalid filter info", qId);
-          return TSDB_CODE_QRY_INVALID_MSG;
-        }
-
-        pSingleColFilter->bytes = pQueryAttr->tableCols[i].bytes;
-      }
-
-      j++;
-    }
-  }
+  doCreateFilterInfo(pQueryAttr->tableCols, pQueryAttr->numOfCols, pQueryAttr->numOfFilterCols,
+                     &pQueryAttr->pFilterInfo, qId);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -6795,7 +6716,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   pQueryAttr->maxTableColumnWidth = 0;
   for (int16_t i = 0; i < numOfCols; ++i) {
     pQueryAttr->tableCols[i] = pQueryMsg->tableCols[i];
-    pQueryAttr->tableCols[i].filterInfo = tFilterInfoDup(pQueryMsg->tableCols[i].filterInfo, pQueryAttr->tableCols[i].numOfFilters);
+    pQueryAttr->tableCols[i].flist.filterInfo = tFilterInfoDup(pQueryMsg->tableCols[i].flist.filterInfo, pQueryAttr->tableCols[i].flist.numOfFilters);
 
     pQueryAttr->srcRowSize += pQueryAttr->tableCols[i].bytes;
     if (pQueryAttr->maxTableColumnWidth < pQueryAttr->tableCols[i].bytes) {
@@ -6813,7 +6734,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
       pQueryAttr->tagLen += pExprs[col].base.resBytes;
     }
 
-    if (pExprs[col].base.pFilter) {
+    if (pExprs[col].base.flist.filterInfo) {
       ++pQueryAttr->havingNum;
     }
   }
@@ -6916,8 +6837,8 @@ _cleanup_qinfo:
       pExprInfo->pExpr = NULL;
     }
 
-    if (pExprInfo->base.pFilter) {
-      freeColumnFilterInfo(pExprInfo->base.pFilter, pExprInfo->base.filterNum);
+    if (pExprInfo->base.flist.filterInfo) {
+      freeColumnFilterInfo(pExprInfo->base.flist.filterInfo, pExprInfo->base.flist.numOfFilters);
     }
   }
 
@@ -7000,6 +6921,7 @@ _error:
   return code;
 }
 
+//TODO refactor
 void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters) {
     if (pFilter == NULL || numOfFilters == 0) {
       return;
@@ -7049,8 +6971,8 @@ static void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr) {
       tExprTreeDestroy(pExprInfo[i].pExpr, NULL);
     }
 
-    if (pExprInfo[i].base.pFilter) {
-      freeColumnFilterInfo(pExprInfo[i].base.pFilter, pExprInfo[i].base.filterNum);
+    if (pExprInfo[i].base.flist.filterInfo) {
+      freeColumnFilterInfo(pExprInfo[i].base.flist.filterInfo, pExprInfo[i].base.flist.numOfFilters);
     }
   }
 
@@ -7078,24 +7000,18 @@ void freeQInfo(SQInfo *pQInfo) {
       tfree(pQueryAttr->fillVal);
     }
 
-    for (int32_t i = 0; i < pQueryAttr->numOfFilterCols; ++i) {
-      SSingleColumnFilterInfo *pColFilter = &pQueryAttr->pFilterInfo[i];
-      if (pColFilter->numOfFilters > 0) {
-        tfree(pColFilter->pFilters);
-      }
-    }
+    pQueryAttr->pFilterInfo = doDestroyFilterInfo(pQueryAttr->pFilterInfo, pQueryAttr->numOfFilterCols);
 
     pQueryAttr->pExpr1 = destroyQueryFuncExpr(pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
     pQueryAttr->pExpr2 = destroyQueryFuncExpr(pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
     pQueryAttr->pExpr3 = destroyQueryFuncExpr(pQueryAttr->pExpr3, pQueryAttr->numOfExpr3);
 
     tfree(pQueryAttr->tagColList);
-    tfree(pQueryAttr->pFilterInfo);
 
     if (pQueryAttr->tableCols != NULL) {
       for (int32_t i = 0; i < pQueryAttr->numOfCols; i++) {
         SColumnInfo *column = pQueryAttr->tableCols + i;
-        freeColumnFilterInfo(column->filterInfo, column->numOfFilters);
+        freeColumnFilterInfo(column->flist.filterInfo, column->flist.numOfFilters);
       }
       tfree(pQueryAttr->tableCols);
     }
@@ -7282,7 +7198,7 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
     if (pQueryAttr->tableCols != NULL) {
       for (int32_t i = 0; i < pQueryAttr->numOfCols; i++) {
         SColumnInfo* column = pQueryAttr->tableCols + i;
-        freeColumnFilterInfo(column->filterInfo, column->numOfFilters);
+        freeColumnFilterInfo(column->flist.filterInfo, column->flist.numOfFilters);
       }
       tfree(pQueryAttr->tableCols);
     }
