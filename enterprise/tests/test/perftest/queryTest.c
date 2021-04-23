@@ -330,7 +330,6 @@ void generatedData(TAOS* taos) {
 int main(int argc, char** argv) {
 //  taos_options(TSDB_OPTION_CONFIGDIR, "~/first/cfg");
   taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/sim/tsim/cfg");
-//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/lisa/Documents/workspace/TDinternal/community/sim/psim/cfg");
   taos_init();
   TAOS* conn = taos_connect("ubuntu", "root", "taosdata", 0, 0);
   if (conn == NULL) {
@@ -385,12 +384,12 @@ int main(int argc, char** argv) {
 //      TAOS_RES*  taos_query(conn, t);
 //      taos_free_result(res);
 //    }
-    executeSQL(conn, "use subdb0;", NULL);
+    executeSQL(conn, "use testdb;", NULL);
 //    executeSQL(conn, "select first(ts),count(*) from select_tags_mt0 where tbname in ('select_tags_tb0', 'select_tags_tb1') interval(1s) group by tbname", NULL);
 //    executeSQL(conn, "select count(*) from m2 where tbname in ('t2m0') and ts>=1433955690870 and ts<=1433955690930 interval(30a) group by tbname", NULL);
 //    executeSQL(conn, "select count(k) from m2 where tbname in ('t2m0', 't2m1') and ts>=1433955690790 and "
 //                     "ts<=1433955690850 interval(10a) fill(value, 911) group by tbname", NULL);
-    executeSQL(conn, "select diff(val) from (select count(*) val from sub_stb0 interval(10h))", NULL);
+    executeSQL(conn, "select ts from tb1", NULL);
 //    executeSQL(conn, "select top(c1, 1) from lm_stb0 where ts >= 1537146000000 and ts <= 1537151400009 limit 5 offset 1;", NULL);
 //    executeSQL(conn, "select count(*) from t2m1 where ts<'2015-6-11 1:1:1.3' and ts>='2015-6-11 1:1:1' interval(20a) fill(next)", NULL);
 //    executeSQL(conn, "describe tux1", NULL);
