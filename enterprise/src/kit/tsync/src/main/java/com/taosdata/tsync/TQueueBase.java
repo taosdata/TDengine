@@ -89,6 +89,12 @@ public class TQueueBase {
             while (rs.next()) {
                 offset = Utils.toMicroSecond(rs.getTimestamp(1));
             }
+            if (offset == INVALID_OFFSET) {
+                // TODO: should change to "select count(off) from topic.p1"
+                ResultSet rss = stmt.executeQuery("select * from " + topic + ".p" + partition);
+                if (rss.wasNull())
+                    offset = 0;
+            }
         } catch (SQLException e) {
             logger.error(e.getMessage());
             e.printStackTrace();

@@ -77,11 +77,13 @@ public class TQueueConsumer extends TQueueBase {
             logger.error(message);
             throw new Exception(message);
         }
+
         if (timeout.isNegative()) {
             String message = "timeout value is negative";
             logger.error(message);
             throw new Exception(message);
         }
+
         if (partitionOffsets.get(cur_topic_partition_hash).get() == INVALID_OFFSET) {
             String message = "the offset for topic-partition:" + topic + "-" + partition + " is " + INVALID_OFFSET;
             logger.error(message);

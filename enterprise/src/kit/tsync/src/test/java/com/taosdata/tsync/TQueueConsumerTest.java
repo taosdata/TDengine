@@ -1,13 +1,9 @@
 package com.taosdata.tsync;
 
-import com.sun.javaws.exceptions.InvalidArgumentException;
-import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.tsync.domain.ConsumerConfig;
 import com.taosdata.tsync.domain.ConsumerRecord;
-import com.taosdata.tsync.domain.ConsumerRecords;
 
 import java.time.Duration;
-import java.util.Collections;
 import java.util.List;
 import java.util.Properties;
 
