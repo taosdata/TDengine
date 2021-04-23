@@ -64,7 +64,7 @@ function runQueryPerfTest {
 	[ -f $PERFORMANCE_TEST_REPORT ] && rm $PERFORMANCE_TEST_REPORT
 	nohup $WORK_DIR/TDengine/debug/build/bin/taosd -c /etc/taosperf/ > /dev/null 2>&1 &
 	echoInfo "Wait TDengine to start"
-	sleep 120
+	sleep 300
 	echoInfo "Run Performance Test"	
 	cd $WORK_DIR/TDengine/tests/pytest
 	
