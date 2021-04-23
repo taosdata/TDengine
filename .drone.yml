@@ -8,10 +8,12 @@ platform:
 
 steps:
 - name: en
-  image: alpine
+  image: clangbuiltlinux/ubuntu
   commands:
-  - echo hello
-  - echo world
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make 
 
 - name: es
   image: alpine
