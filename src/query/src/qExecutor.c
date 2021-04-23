@@ -1696,7 +1696,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
 
   // group by normal column, sliding window query, interval query are handled by interval query processor
   // interval (down sampling operation)
-  int32_t numOfOperator = taosArrayGetSize(pOperator);
+  int32_t numOfOperator = (int32_t) taosArrayGetSize(pOperator);
   for(int32_t i = 0; i < numOfOperator; ++i) {
     int32_t* op = taosArrayGet(pOperator, i);
 
