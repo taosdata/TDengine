@@ -717,9 +717,19 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     if (strcmp(argv[i], "-f") == 0) {
       arguments->metaFile = argv[++i];
     } else if (strcmp(argv[i], "-c") == 0) {
+      if (argc == i+1) {
+        printHelp();
+        errorPrint("%s", "\n\t-c need a valid path following!\n");
+        exit(EXIT_FAILURE);
+      }
       tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
 
     } else if (strcmp(argv[i], "-h") == 0) {
+      if (argc == i+1) {
+        printHelp();
+        errorPrint("%s", "\n\t-h need a valid string following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->host = argv[++i];
     } else if (strcmp(argv[i], "-p") == 0) {
       if ((argc == i+1) ||
@@ -730,12 +740,32 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-u") == 0) {
+      if (argc == i+1) {
+        printHelp();
+        errorPrint("%s", "\n\t-u need a valid string following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->user = argv[++i];
     } else if (strcmp(argv[i], "-P") == 0) {
+      if (argc == i+1) {
+        printHelp();
+        errorPrint("%s", "\n\t-P need a valid string following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->password = argv[++i];
     } else if (strcmp(argv[i], "-o") == 0) {
+      if (argc == i+1) {
+        printHelp();
+        errorPrint("%s", "\n\t-o need a valid string following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->output_file = argv[++i];
     } else if (strcmp(argv[i], "-s") == 0) {
+      if (argc == i+1) {
+        printHelp();
+        errorPrint("%s", "\n\t-s need a valid string following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->sqlFile = argv[++i];
     } else if (strcmp(argv[i], "-q") == 0) {
       if ((argc == i+1) ||
@@ -762,8 +792,20 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->insert_interval = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-qt") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-qt need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->query_times = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-B") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-B need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->interlace_rows = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
       if ((argc == i+1) ||
@@ -790,6 +832,11 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->num_of_DPT = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d") == 0) {
+      if (argc == i+1) {
+        printHelp();
+        errorPrint("%s", "\n\t-d need a valid string following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->database = argv[++i];
     } else if (strcmp(argv[i], "-l") == 0) {
       if ((argc == i+1) ||
@@ -855,6 +902,12 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->len_of_binary = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m") == 0) {
+      if ((argc == i+1) ||
+        (!isStringNumber(argv[i+1]))) {
+        printHelp();
+        errorPrint("%s", "\n\t-m need a number following!\n");
+        exit(EXIT_FAILURE);
+      }
       arguments->tb_prefix = argv[++i];
     } else if (strcmp(argv[i], "-N") == 0) {
       arguments->use_metric = false;
