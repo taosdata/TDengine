@@ -435,11 +435,15 @@ void verify_async(TAOS* taos) {
 }
 
 void stream_callback(void *param, TAOS_RES *res, TAOS_ROW row) {
+  if (res == NULL || row == NULL) {
+    return;
+  }
+  
   int         num_fields = taos_num_fields(res);
   TAOS_FIELD* fields = taos_fetch_fields(res);
 
   printf("got one row from stream_callback\n");
-  char temp[256];
+  char temp[256] = {0};
   taos_print_row(temp, row, fields, num_fields);
   puts(temp);
 }
