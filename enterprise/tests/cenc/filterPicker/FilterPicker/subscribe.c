@@ -339,8 +339,6 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
       continue;
     }
 
-    fprintf(stderr, "sub(%d): channel: %s\r\n", idx, chan);
-
     samps.time[numsamples] = id->earliest;
 
     pthread_mutex_lock(&mutex);
