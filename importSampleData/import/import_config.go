@@ -14,23 +14,23 @@ var (
 	once sync.Once
 )
 
-// Config inclue all scene import config
+// Config include all scene import config
 type Config struct {
 	UserCases map[string]CaseConfig
 }
 
 // CaseConfig include the sample data config and tdengine config
 type CaseConfig struct {
-	Format                string
-	FilePath              string
-	Separator             string
-	Stname                string
-	SubTableName          string
-	Timestamp             string
-	TimestampType   	  string
-	TimestampTypeFormat   string
-	Tags                  []FieldInfo
-	Fields                []FieldInfo
+	Format              string
+	FilePath            string
+	Separator           string
+	StName              string
+	SubTableName        string
+	Timestamp           string
+	TimestampType       string
+	TimestampTypeFormat string
+	Tags                []FieldInfo
+	Fields              []FieldInfo
 }
 
 // FieldInfo is field or tag info
