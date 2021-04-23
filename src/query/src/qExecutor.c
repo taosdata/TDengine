@@ -2470,11 +2470,11 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
 
     if (start > 0) {
       SColumnInfoData* pColumnInfoData = taosArrayGet(pBlock->pDataBlock, 0);
-      assert(pColumnInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP &&
-             pColumnInfoData->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX);
-
-      pBlock->info.window.skey = *(int64_t*)pColumnInfoData->pData;
-      pBlock->info.window.ekey = *(int64_t*)(pColumnInfoData->pData + TSDB_KEYSIZE * (start - 1));
+      if (pColumnInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP &&
+             pColumnInfoData->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+        pBlock->info.window.skey = *(int64_t*)pColumnInfoData->pData;
+        pBlock->info.window.ekey = *(int64_t*)(pColumnInfoData->pData + TSDB_KEYSIZE * (start - 1));
+      }
     }
   }
 
