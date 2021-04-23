@@ -3403,20 +3403,26 @@ TAOS_ROW doSetResultRowData(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
 
   size_t size = tscNumOfFields(pQueryInfo);
+
+  int32_t j = 0;
   for (int i = 0; i < size; ++i) {
     SInternalField* pInfo = (SInternalField*)TARRAY_GET_ELEM(pQueryInfo->fieldsInfo.internalField, i);
+    if (!pInfo->visible) {
+      continue;
+    }
 
     int32_t type  = pInfo->field.type;
     int32_t bytes = pInfo->field.bytes;
 
     if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR) {
-      pRes->tsrow[i] = isNull(pRes->urow[i], type) ? NULL : pRes->urow[i];
+      pRes->tsrow[j] = isNull(pRes->urow[i], type) ? NULL : pRes->urow[i];
     } else {
-      pRes->tsrow[i] = isNull(pRes->urow[i], type) ? NULL : varDataVal(pRes->urow[i]);
-      pRes->length[i] = varDataLen(pRes->urow[i]);
+      pRes->tsrow[j] = isNull(pRes->urow[i], type) ? NULL : varDataVal(pRes->urow[i]);
+      pRes->length[j] = varDataLen(pRes->urow[i]);
     }
 
     ((char**) pRes->urow)[i] += bytes;
+    j += 1;
   }
 
   pRes->row++;  // index increase one-step

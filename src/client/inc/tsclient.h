@@ -496,47 +496,6 @@ int32_t tscSQLSyntaxErrMsg(char* msg, const char* additionalInfo,  const char* s
 
 int32_t tscToSQLCmd(SSqlObj *pSql, struct SSqlInfo *pInfo);
 
-static FORCE_INLINE void tscGetResultColumnChr(SSqlRes* pRes, SFieldInfo* pFieldInfo, int32_t columnIndex, int32_t offset) {
-  SInternalField* pInfo = (SInternalField*) TARRAY_GET_ELEM(pFieldInfo->internalField, columnIndex);
-
-  int32_t type = pInfo->field.type;
-  int32_t bytes = pInfo->field.bytes;
-
-  char* pData = pRes->data + (int32_t)(offset * pRes->numOfRows + bytes * pRes->row);
-  UNUSED(pData);
-
-//   user defined constant value output columns
-  if (pInfo->pExpr != NULL && TSDB_COL_IS_UD_COL(pInfo->pExpr->base.colInfo.flag)) {
-    if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
-      pData = pInfo->pExpr->base.param[1].pz;
-      pRes->length[columnIndex] = pInfo->pExpr->base.param[1].nLen;
-      pRes->tsrow[columnIndex] = (pInfo->pExpr->base.param[1].nType == TSDB_DATA_TYPE_NULL) ? NULL : (unsigned char*)pData;
-    } else {
-      assert(bytes == tDataTypes[type].bytes);
-
-      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)&pInfo->pExpr->base.param[1].i64;
-      pRes->length[columnIndex] = bytes;
-    }
-  } else {
-    if (type == TSDB_DATA_TYPE_NCHAR || type == TSDB_DATA_TYPE_BINARY) {
-      int32_t realLen = varDataLen(pData);
-      assert(realLen <= bytes - VARSTR_HEADER_SIZE);
-
-      pRes->tsrow[columnIndex] = (isNull(pData, type)) ? NULL : (unsigned char*)((tstr *)pData)->data;
-      if (realLen < pInfo->pExpr->base.resBytes - VARSTR_HEADER_SIZE) {  // todo refactor
-        *(pData + realLen + VARSTR_HEADER_SIZE) = 0;
-      }
-
-      pRes->length[columnIndex] = realLen;
-    } else {
-      assert(bytes == tDataTypes[type].bytes);
-
-      pRes->tsrow[columnIndex] = isNull(pData, type) ? NULL : (unsigned char*)pData;
-      pRes->length[columnIndex] = bytes;
-    }
-  }
-}
-
 extern int32_t    sentinel;
 extern SHashObj  *tscVgroupMap;
 extern SHashObj  *tscTableMetaInfo;

@@ -358,7 +358,7 @@ int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
     for (int32_t i = 0; i < size; i++) {
       tSqlExprItem* pLeftElem = taosArrayGet(left->pParam, i);
       tSqlExpr* pSubLeft = pLeftElem->pNode;
-      tSqlExprItem* pRightElem = taosArrayGet(left->pParam, i);
+      tSqlExprItem* pRightElem = taosArrayGet(right->pParam, i);
       tSqlExpr* pSubRight = pRightElem->pNode;
 
       if (tSqlExprCompare(pSubLeft, pSubRight)) {

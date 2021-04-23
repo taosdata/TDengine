@@ -6801,12 +6801,16 @@ int32_t tscGetExprFilters(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelect
     tSqlExprItem* pItem = taosArrayGet(pSelectNodeList, i);
     if (tSqlExprCompare(pItem->pNode, pSqlExpr) == 0) { // exists, not added it,
 
-      int32_t functionId = isValidFunction(pSqlExpr->operand.z, pSqlExpr->operand.n);
-      tSqlExprItem* pParamElem = taosArrayGet(pSqlExpr->pParam, 0);
-      SStrToken* pToken = &pParamElem->pNode->colInfo;
-
       SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-      getColumnIndexByName(pCmd, pToken, pQueryInfo, &index);
+      int32_t functionId = pSqlExpr->functionId;
+      if (pSqlExpr->pParam == NULL) {
+        index.columnIndex = 0;
+        index.tableIndex = 0;
+      } else {
+        tSqlExprItem* pParamElem = taosArrayGet(pSqlExpr->pParam, 0);
+        SStrToken* pToken = &pParamElem->pNode->colInfo;
+        getColumnIndexByName(pCmd, pToken, pQueryInfo, &index);
+      }
 
       size_t numOfNodeInSel = tscSqlExprNumOfExprs(pQueryInfo);
       for(int32_t k = 0; k < numOfNodeInSel; ++k) {
@@ -6843,6 +6847,10 @@ int32_t tscGetExprFilters(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelect
 
   size_t n = tscSqlExprNumOfExprs(pQueryInfo);
   *pExpr = tscSqlExprGet(pQueryInfo, (int32_t)n - 1);
+
+  SInternalField* pField = taosArrayGet(pQueryInfo->fieldsInfo.internalField, n - 1);
+  pField->visible = false;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -6920,7 +6928,6 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, S
   }
 
   return TSDB_CODE_SUCCESS;
-//  return genExprFilter(pInfo->pFieldFilters);
 }
 
 int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelectNodeList, tSqlExpr* pExpr, int32_t parentOptr) {
