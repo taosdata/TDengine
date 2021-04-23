@@ -7,8 +7,14 @@
   "password": "taosdata",
   "confirm_parameter_prompt": "no",
   "databases": "db",
-  "specified_table_query":
-    {"query_interval":1, "concurrent":1,
-     "sqls": [{"sql": "select * from stb0", "result": ""}]
-    }
+  "specified_table_query":{
+    "query_interval":1, 
+    "concurrent":1,
+    "sqls":[
+      {
+        "sql": "select * from stb0",
+        "result": ""
+      }
+    ]
+  }
 }
