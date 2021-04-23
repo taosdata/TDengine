@@ -87,6 +87,7 @@ class TDSql:
                 self.queryResult = self.cursor.fetchall()
                 self.queryRows = len(self.queryResult)
                 self.queryCols = len(self.cursor.description)
+                tdLog.info("sql: %s, try to retrieve %d rows,get %d rows" % (sql, expectRows, self.queryRows))
                 if self.queryRows >= expectRows:
                     return (self.queryRows, i)
                 time.sleep(1)
