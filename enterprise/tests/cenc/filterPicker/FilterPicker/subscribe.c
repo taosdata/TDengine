@@ -43,6 +43,8 @@ const char      *port      = "6030";
 const char      *topic     = "packet";
 const char      *fpicker   = "fpicker";
 const char      *stb_name  = "ms";
+const char      *channel   = NULL;
+char             cchan     = '\0';
 
 
 static signed char index_64[128] = {
@@ -328,8 +330,16 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
     memset(chan, 0, LM_SIDLEN);
     if (ms_sid2nslc(sid, net, stat, loc, chan)) {
       fprintf(stderr, "sub(%d): ms_sid2nslc() error\r\n", idx);
+      id = id->next;
       continue;
     }
+
+    if (cchan != '\0' && (chan[strlen(chan) - 1] | 0x20) != cchan) {
+      id = id->next;
+      continue;
+    }
+
+    fprintf(stderr, "sub(%d): channel: %s\r\n", idx, chan);
 
     samps.time[numsamples] = id->earliest;
 
@@ -493,8 +503,10 @@ void cenc_picker_func(MS3TraceList *mstl, callback_params_t *param)
 
     num_picks = 0;
     numsamples = 0;
-    free(pick_list);
-    pick_list = NULL;
+    if (pick_list) {
+      free(pick_list);
+      pick_list = NULL;
+    }
 
     id = id->next;
   }
@@ -815,11 +827,16 @@ int main(int argc, char *argv[])
       continue;
     }
 
+    if (strncmp(argv[i], "-c=", 3) == 0) {
+      channel = argv[i] + 3;
+      continue;
+    }
+
     if (strcmp(argv[i], "-help") == 0) {
       fprintf(stderr,
               "Usage: %s [-h=host -u=user -p=password -P=port "
               "-t=topic -f=result_db_name -s=result_stb_name "
-              "-async -restart -nokeep -help]\r\n", argv[0]);
+              "-c=channel -async -restart -nokeep -help]\r\n", argv[0]);
 
       exit(0);
     }
@@ -840,6 +857,19 @@ int main(int argc, char *argv[])
     }
   }
 
+  if (channel) {
+    if (strlen(channel) != 1) {
+      fprintf(stderr, "channel must be 'E', 'N' and 'Z' or 'e', 'n' and 'z'\r\n");
+      exit(0);
+    }
+
+    cchan = (channel[0] | 0x20);
+    if (cchan != 'e' && cchan != 'n' && cchan != 'z') {
+      fprintf(stderr, "channel must be 'E', 'N' and 'Z' or 'e', 'n' and 'z'\r\n");
+      exit(0);
+    }
+  }
+
   fprintf(stdout, "################################################################\r\n");
   fprintf(stdout, "# Server:                          %s\r\n", host);
   fprintf(stdout, "# User:                            %s\r\n", user);
@@ -850,6 +880,7 @@ int main(int argc, char *argv[])
   fprintf(stdout, "# Async:                           %d\r\n", async);
   fprintf(stdout, "# Restart:                         %d\r\n", restart);
   fprintf(stdout, "# Keep:                            %d\r\n", keep);
+  fprintf(stdout, "# Channel:                         %s\r\n", channel);
   fprintf(stdout, "################################################################\r\n");
 
   act.sa_handler = handler;
