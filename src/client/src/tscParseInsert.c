@@ -829,6 +829,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     index = 0;
     sToken = tStrGetToken(sql, &index, false);
     if (sToken.type != TK_TAGS && sToken.type != TK_LP) {
+      tscDestroyBoundColumnInfo(&spd);
       return tscInvalidSQLErrMsg(pCmd->payload, "keyword TAGS expected", sToken.z);
     }
 
@@ -841,6 +842,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       char* end = NULL;
       code = parseBoundColumns(pCmd, &spd, pTagSchema, sql, &end);
       if (code != TSDB_CODE_SUCCESS) {
+        tscDestroyBoundColumnInfo(&spd);
         return code;
       }
 
@@ -858,11 +860,13 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
     sql += index;
 
     if (sToken.type != TK_LP) {
+      tscDestroyBoundColumnInfo(&spd);
       return tscInvalidSQLErrMsg(pCmd->payload, "( is expected", sToken.z);
     }
     
     SKVRowBuilder kvRowBuilder = {0};
     if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+      tscDestroyBoundColumnInfo(&spd);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
@@ -875,6 +879,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
 
       if (TK_ILLEGAL == sToken.type) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
+        tscDestroyBoundColumnInfo(&spd);
         return TSDB_CODE_TSC_INVALID_SQL;
       }
 
@@ -892,6 +897,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       code = tsParseOneColumn(pSchema, &sToken, tagVal, pCmd->payload, &sql, false, tinfo.precision);
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
+        tscDestroyBoundColumnInfo(&spd);
         return code;
       }
 

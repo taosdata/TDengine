@@ -119,7 +119,6 @@ typedef struct SInternalField {
   TAOS_FIELD      field;
   bool            visible;
   SExprInfo      *pExpr;
-//  SExprFilter    *pFieldFilters;
 } SInternalField;
 
 typedef struct SFieldInfo {

@@ -788,7 +788,6 @@ void destroySqlNode(SSqlNode *pSqlNode) {
   }
 
   tSqlExprListDestroy(pSqlNode->pSelNodeList);
-  
   pSqlNode->pSelNodeList = NULL;
 
   tSqlExprDestroy(pSqlNode->pWhere);
@@ -805,6 +804,7 @@ void destroySqlNode(SSqlNode *pSqlNode) {
   taosArrayDestroyEx(pSqlNode->fillType, freeVariant);
   pSqlNode->fillType = NULL;
 
+  tSqlExprDestroy(pSqlNode->pHaving);
   free(pSqlNode);
 }
 

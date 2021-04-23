@@ -1484,11 +1484,43 @@ static void destroyFilterInfo(SColumnFilterList* pFilterList) {
   pFilterList->numOfFilters = 0;
 }
 
+void* sqlExprDestroy(SExprInfo* pExpr) {
+  if (pExpr == NULL) {
+    return NULL;
+  }
+
+  SSqlExpr* p = &pExpr->base;
+  for(int32_t i = 0; i < tListLen(p->param); ++i) {
+    tVariantDestroy(&p->param[i]);
+  }
+
+  if (p->flist.numOfFilters > 0) {
+    tfree(p->flist.filterInfo);
+  }
+
+  if (pExpr->pExpr != NULL) {
+    tExprTreeDestroy(pExpr->pExpr, NULL);
+  }
+
+  tfree(pExpr);
+  return NULL;
+}
+
 void tscFieldInfoClear(SFieldInfo* pFieldInfo) {
   if (pFieldInfo == NULL) {
     return;
   }
-  
+
+  if (pFieldInfo->internalField != NULL) {
+    size_t num = taosArrayGetSize(pFieldInfo->internalField);
+    for (int32_t i = 0; i < num; ++i) {
+      SInternalField* pfield = taosArrayGet(pFieldInfo->internalField, i);
+      if (pfield->pExpr != NULL && pfield->pExpr->pExpr != NULL) {
+        sqlExprDestroy(pfield->pExpr);
+      }
+    }
+  }
+
   taosArrayDestroy(pFieldInfo->internalField);
   tfree(pFieldInfo->final);
 
@@ -1629,25 +1661,6 @@ SExprInfo* tscSqlExprGet(SQueryInfo* pQueryInfo, int32_t index) {
   return taosArrayGetP(pQueryInfo->exprList, index);
 }
 
-void* sqlExprDestroy(SExprInfo* pExpr) {
-  if (pExpr == NULL) {
-    return NULL;
-  }
-
-  SSqlExpr* p = &pExpr->base;
-  for(int32_t i = 0; i < tListLen(p->param); ++i) {
-    tVariantDestroy(&p->param[i]);
-  }
-
-  if (pExpr->pExpr != NULL) {
-    tExprTreeDestroy(pExpr->pExpr, NULL);
-  }
-  
-  tfree(pExpr);
-  
-  return NULL;
-}
-
 /*
  * NOTE: Does not release SExprInfo here.
  */
@@ -1715,8 +1728,11 @@ void tscSqlExprAssign(SExprInfo* dst, const SExprInfo* src) {
   assert(dst != NULL && src != NULL);
 
   *dst = *src;
-  dst->base.flist.filterInfo = calloc(src->base.flist.numOfFilters, sizeof(SColumnFilterInfo));
-  memcpy(dst->base.flist.filterInfo, src->base.flist.filterInfo, sizeof(SColumnFilterInfo) * src->base.flist.numOfFilters);
+
+  if (src->base.flist.numOfFilters > 0) {
+    dst->base.flist.filterInfo = calloc(src->base.flist.numOfFilters, sizeof(SColumnFilterInfo));
+    memcpy(dst->base.flist.filterInfo, src->base.flist.filterInfo, sizeof(SColumnFilterInfo) * src->base.flist.numOfFilters);
+  }
 
   dst->pExpr = exprdup(src->pExpr);
 

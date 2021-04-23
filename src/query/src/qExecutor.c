@@ -1879,7 +1879,6 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   pRuntimeEnv->pool = destroyResultRowPool(pRuntimeEnv->pool);
   taosArrayDestroyEx(pRuntimeEnv->prevResult, freeInterResult);
   pRuntimeEnv->prevResult = NULL;
-
 }
 
 static bool needBuildResAfterQueryComplete(SQInfo* pQInfo) {
@@ -4516,6 +4515,12 @@ static void destroyGlobalAggOperatorInfo(void* param, int32_t numOfOutput) {
   tfree(pInfo->currentGroupColData);
 }
 
+static void destroySlimitOperatorInfo(void* param, int32_t numOfOutput) {
+  SSLimitOperatorInfo *pInfo = (SSLimitOperatorInfo*) param;
+  taosArrayDestroy(pInfo->orderColumnList);
+  tfree(pInfo->prevRow);
+}
+
 SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream,
                                                  SExprInfo* pExpr, int32_t numOfOutput, void* param) {
   SMultiwayMergeInfo* pInfo = calloc(1, sizeof(SMultiwayMergeInfo));
@@ -5598,9 +5603,8 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   pInfo->orderColumnList = getResultGroupCheckColumns(pQueryAttr);
-  pInfo->pMerger = pMerger;
-  pInfo->slimit = pQueryAttr->slimit;
-  pInfo->limit  = pQueryAttr->limit;
+  pInfo->slimit          = pQueryAttr->slimit;
+  pInfo->limit           = pQueryAttr->limit;
 
   pInfo->currentGroupOffset = pQueryAttr->slimit.offset;
   pInfo->currentOffset = pQueryAttr->limit.offset;
@@ -5632,7 +5636,7 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   pOperator->exec         = doSLimit;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-
+  pOperator->cleanup      = destroySlimitOperatorInfo;
   return pOperator;
 }
 
@@ -6974,6 +6978,10 @@ static void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr) {
     if (pExprInfo[i].base.flist.filterInfo) {
       freeColumnFilterInfo(pExprInfo[i].base.flist.filterInfo, pExprInfo[i].base.flist.numOfFilters);
     }
+
+    for(int32_t j = 0; j < pExprInfo[i].base.numOfParams; ++j) {
+      tVariantDestroy(&pExprInfo[i].base.param[j]);
+    }
   }
 
   tfree(pExprInfo);
@@ -6991,39 +6999,12 @@ void freeQInfo(SQInfo *pQInfo) {
   releaseQueryBuf(pRuntimeEnv->tableqinfoGroupInfo.numOfTables);
 
   doDestroyTableQueryInfo(&pRuntimeEnv->tableqinfoGroupInfo);
-
   teardownQueryRuntimeEnv(&pQInfo->runtimeEnv);
 
   SQueryAttr *pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
-  if (pQueryAttr != NULL) {
-    if (pQueryAttr->fillVal != NULL) {
-      tfree(pQueryAttr->fillVal);
-    }
-
-    pQueryAttr->pFilterInfo = doDestroyFilterInfo(pQueryAttr->pFilterInfo, pQueryAttr->numOfFilterCols);
-
-    pQueryAttr->pExpr1 = destroyQueryFuncExpr(pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-    pQueryAttr->pExpr2 = destroyQueryFuncExpr(pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
-    pQueryAttr->pExpr3 = destroyQueryFuncExpr(pQueryAttr->pExpr3, pQueryAttr->numOfExpr3);
-
-    tfree(pQueryAttr->tagColList);
-
-    if (pQueryAttr->tableCols != NULL) {
-      for (int32_t i = 0; i < pQueryAttr->numOfCols; i++) {
-        SColumnInfo *column = pQueryAttr->tableCols + i;
-        freeColumnFilterInfo(column->flist.filterInfo, column->flist.numOfFilters);
-      }
-      tfree(pQueryAttr->tableCols);
-    }
-
-    if (pQueryAttr->pGroupbyExpr != NULL) {
-      taosArrayDestroy(pQueryAttr->pGroupbyExpr->columnInfo);
-      tfree(pQueryAttr->pGroupbyExpr);
-    }
-  }
+  freeQueryAttr(pQueryAttr);
 
   tsdbDestroyTableGroup(&pQueryAttr->tableGroupInfo);
-
 
   tfree(pQInfo->pBuf);
   tfree(pQInfo->sql);
@@ -7182,15 +7163,11 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
       tfree(pQueryAttr->fillVal);
     }
 
-    for (int32_t i = 0; i < pQueryAttr->numOfFilterCols; ++i) {
-      SSingleColumnFilterInfo* pColFilter = &pQueryAttr->pFilterInfo[i];
-      if (pColFilter->numOfFilters > 0) {
-        tfree(pColFilter->pFilters);
-      }
-    }
+    pQueryAttr->pFilterInfo = doDestroyFilterInfo(pQueryAttr->pFilterInfo, pQueryAttr->numOfFilterCols);
 
     pQueryAttr->pExpr1 = destroyQueryFuncExpr(pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
     pQueryAttr->pExpr2 = destroyQueryFuncExpr(pQueryAttr->pExpr2, pQueryAttr->numOfExpr2);
+    pQueryAttr->pExpr3 = destroyQueryFuncExpr(pQueryAttr->pExpr3, pQueryAttr->numOfExpr3);
 
     tfree(pQueryAttr->tagColList);
     tfree(pQueryAttr->pFilterInfo);

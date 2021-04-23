@@ -430,13 +430,10 @@ typedef struct SSLimitOperatorInfo {
 
   int64_t   rowsTotal;
   int64_t   currentOffset;
-
   SLimitVal limit;
   SLimitVal slimit;
 
-  struct SLocalMerger *pMerger;
   char    **prevRow;
-  bool      hasPrev;
   SArray   *orderColumnList;
 } SSLimitOperatorInfo;
 

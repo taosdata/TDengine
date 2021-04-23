@@ -1504,24 +1504,24 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
     SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, slot);
 
     if (pInfo->pExpr == NULL) {
-      SExprInfo* pArithExprInfo = calloc(1, sizeof(SExprInfo));
+      SExprInfo* pExprInfo = calloc(1, sizeof(SExprInfo));
 
       // arithmetic expression always return result in the format of double float
-      pArithExprInfo->base.resBytes      = sizeof(double);
-      pArithExprInfo->base.interBytes    = sizeof(double);
-      pArithExprInfo->base.resType       = TSDB_DATA_TYPE_DOUBLE;
+      pExprInfo->base.resBytes   = sizeof(double);
+      pExprInfo->base.interBytes = sizeof(double);
+      pExprInfo->base.resType    = TSDB_DATA_TYPE_DOUBLE;
 
-      pArithExprInfo->base.functionId = TSDB_FUNC_ARITHM;
-      pArithExprInfo->base.numOfParams = 1;
-      pArithExprInfo->base.resColId = getNewResColId(pQueryInfo);
+      pExprInfo->base.functionId = TSDB_FUNC_ARITHM;
+      pExprInfo->base.numOfParams = 1;
+      pExprInfo->base.resColId = getNewResColId(pQueryInfo);
 
-      int32_t ret = exprTreeFromSqlExpr(pCmd, &pArithExprInfo->pExpr, pItem->pNode, pQueryInfo, NULL, &(pArithExprInfo->base.uid));
+      int32_t ret = exprTreeFromSqlExpr(pCmd, &pExprInfo->pExpr, pItem->pNode, pQueryInfo, NULL, &(pExprInfo->base.uid));
       if (ret != TSDB_CODE_SUCCESS) {
-        tExprTreeDestroy(pArithExprInfo->pExpr, NULL);
+        tExprTreeDestroy(pExprInfo->pExpr, NULL);
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), "invalid expression in select clause");
       }
 
-      pInfo->pExpr = pArithExprInfo;
+      pInfo->pExpr = pExprInfo;
     }
 
     SBufferWriter bw = tbufInitWriter(NULL, false);
