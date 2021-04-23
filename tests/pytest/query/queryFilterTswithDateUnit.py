@@ -47,7 +47,6 @@ class TDTestCase:
 
         for col in cols:
             tdSql.error(f" select * from tts1 where {col} = 1d ")
-<<<<<<< HEAD
             tdSql.error(f" select * from tts1 where {col} < -1d ")
             tdSql.error(f" select * from tts1 where {col} > 1d ")
             tdSql.error(f" select * from tts1 where {col} >= -1d ")
@@ -95,55 +94,6 @@ class TDTestCase:
             tdSql.error(f" select * from tts1 where {col} >= -1u ")
             tdSql.error(f" select * from tts1 where {col} <= 1u ")
             tdSql.error(f" select * from tts1 where {col} <> u ")
-=======
-            tdSql.error(f" select * from tts1 where {col} < 1d ")
-            tdSql.error(f" select * from tts1 where {col} > 1d ")
-            tdSql.error(f" select * from tts1 where {col} >= 1d ")
-            tdSql.error(f" select * from tts1 where {col} <= 1d ")
-            tdSql.error(f" select * from tts1 where {col} <> 1d ")
-
-            tdSql.error(f" select * from tts1 where {col} = 1m ")
-            tdSql.error(f" select * from tts1 where {col} < 1m ")
-            tdSql.error(f" select * from tts1 where {col} > 1m ")
-            tdSql.error(f" select * from tts1 where {col} >= 1m ")
-            tdSql.error(f" select * from tts1 where {col} <= 1m ")
-            tdSql.error(f" select * from tts1 where {col} <> 1m ")
-
-            tdSql.error(f" select * from tts1 where {col} = 1s ")
-            tdSql.error(f" select * from tts1 where {col} < 1s ")
-            tdSql.error(f" select * from tts1 where {col} > 1s ")
-            tdSql.error(f" select * from tts1 where {col} >= 1s ")
-            tdSql.error(f" select * from tts1 where {col} <= 1s ")
-            tdSql.error(f" select * from tts1 where {col} <> 1s ")
-
-            tdSql.error(f" select * from tts1 where {col} = 1a ")
-            tdSql.error(f" select * from tts1 where {col} < 1a ")
-            tdSql.error(f" select * from tts1 where {col} > 1a ")
-            tdSql.error(f" select * from tts1 where {col} >= 1a ")
-            tdSql.error(f" select * from tts1 where {col} <= 1a ")
-            tdSql.error(f" select * from tts1 where {col} <> 1a ")
-
-            tdSql.error(f" select * from tts1 where {col} = 1h ")
-            tdSql.error(f" select * from tts1 where {col} < 1h ")
-            tdSql.error(f" select * from tts1 where {col} > 1h ")
-            tdSql.error(f" select * from tts1 where {col} >= 1h ")
-            tdSql.error(f" select * from tts1 where {col} <= 1h ")
-            tdSql.error(f" select * from tts1 where {col} <> 1h ")
-
-            tdSql.error(f" select * from tts1 where {col} = 1w ")
-            tdSql.error(f" select * from tts1 where {col} < 1w ")
-            tdSql.error(f" select * from tts1 where {col} > 1w ")
-            tdSql.error(f" select * from tts1 where {col} >= 1w ")
-            tdSql.error(f" select * from tts1 where {col} <= 1w ")
-            tdSql.error(f" select * from tts1 where {col} <> 1w ")
-
-            tdSql.error(f" select * from tts1 where {col} = 1u ")
-            tdSql.error(f" select * from tts1 where {col} < 1u ")
-            tdSql.error(f" select * from tts1 where {col} > 1u ")
-            tdSql.error(f" select * from tts1 where {col} >= 1u ")
-            tdSql.error(f" select * from tts1 where {col} <= 1u ")
-            tdSql.error(f" select * from tts1 where {col} <> 1u ")
->>>>>>> bbaf30ed9130285ad72dbfd58e1e4b7adbfd1d21
 
             tdSql.error(f" select * from tts1 where {col} = 0d ")
             tdSql.error(f" select * from tts1 where {col} < 0s ")
@@ -175,17 +125,12 @@ class TDTestCase:
             tdSql.error(f" select * from tts1 where {col} <> 0/1d ")
             tdSql.error(f" select * from tts1 where {col} <> 1w+'2010-01-01 00:00:00' ")
 
-<<<<<<< HEAD
             tdSql.error(f" select * from tts1 where {col} = 1-1h ")
             tdSql.error(f" select * from tts1 where {col} < 1w-d ")
             tdSql.error(f" select * from tts1 where {col} > 0/u ")
             tdSql.error(f" select * from tts1 where {col} >= d/s ")
             tdSql.error(f" select * from tts1 where {col} <= 1/a ")
             tdSql.error(f" select * from tts1 where {col} <> d/1 ")
-
-
-=======
->>>>>>> bbaf30ed9130285ad72dbfd58e1e4b7adbfd1d21
 
     def run(self):
         tdSql.execute("drop database if exists dbms")
@@ -209,23 +154,12 @@ class TDTestCase:
         # create databases precision is us
         tdSql.execute("create database  if not exists dbus keep 36500 precision 'us' ")
         tdSql.execute("use dbus")
-<<<<<<< HEAD
         tsp2 = tsp2 * 1000
         tsp3 = tsp3 * 1000
-=======
-        tsp2 = -28800000 * 1000
-        tsp3 = -946800000000 * 1000
->>>>>>> bbaf30ed9130285ad72dbfd58e1e4b7adbfd1d21
         self.insertnow(tsp1,tsp2,tsp3)
         self.querynow()
 
-
-<<<<<<< HEAD
-=======
-
-
-
->>>>>>> bbaf30ed9130285ad72dbfd58e1e4b7adbfd1d21
+        
     def stop(self):
         tdSql.close()
         tdLog.success(f"{__file__} successfully executed")
