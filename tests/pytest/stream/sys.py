@@ -47,7 +47,7 @@ class TDTestCase:
             "select * from iostrm",
         ]
         for sql in sqls:
-            (rows, _) = tdSql.waitedQuery(sql, 1, 120)
+            (rows, _) = tdSql.waitedQuery(sql, 1, 240)
             if rows < 1:
                 tdLog.exit("failed: sql:%s, expect at least one row" % sql)
 

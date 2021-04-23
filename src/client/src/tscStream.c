@@ -101,11 +101,19 @@ static void doLaunchQuery(void* param, TAOS_RES* tres, int32_t code) {
     return;
   }
 
+  if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo) && (pTableMetaInfo->pVgroupTables == NULL) && (pTableMetaInfo->vgroupList == NULL || pTableMetaInfo->vgroupList->numOfVgroups <= 0)) {
+    tscDebug("%p empty vgroup list", pSql);
+    pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
+    code = TSDB_CODE_TSC_APP_ERROR;
+  }
+
   // failed to get table Meta or vgroup list, retry in 10sec.
   if (code == TSDB_CODE_SUCCESS) {
     tscTansformFuncForSTableQuery(pQueryInfo);
     tscDebug("0x%"PRIx64" stream:%p, start stream query on:%s", pSql->self, pStream, tNameGetTableName(&pTableMetaInfo->name));
 
+    pQueryInfo->command = TSDB_SQL_SELECT;
+    
     pSql->fp = tscProcessStreamQueryCallback;
     pSql->fetchFp = tscProcessStreamQueryCallback;
     tscDoQuery(pSql);
@@ -402,10 +410,12 @@ static void tscSetNextLaunchTimer(SSqlStream *pStream, SSqlObj *pSql) {
       taos_close_stream(pStream);
       return;
     }
-    
-    timer = pStream->stime - taosGetTimestamp(pStream->precision);
-    if (timer < 0) {
-      timer = 0;
+
+    if (pStream->stime > 0) {
+      timer = pStream->stime - taosGetTimestamp(pStream->precision);
+      if (timer < 0) {
+        timer = 0;
+      }
     }
   }
 
@@ -473,6 +483,10 @@ static int32_t tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
 
 static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, int64_t stime) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
+
+  if (stime == INT64_MIN) {
+    return stime;
+  }
   
   if (pStream->isProject) {
     // no data in table, flush all data till now to destination meter, 10sec delay
