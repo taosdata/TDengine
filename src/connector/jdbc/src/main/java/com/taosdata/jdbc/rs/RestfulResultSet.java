@@ -6,12 +6,10 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
 import com.taosdata.jdbc.*;
-import com.taosdata.jdbc.utils.UtcTimestampUtil;
 
 import java.math.BigDecimal;
 import java.sql.*;
 import java.time.Instant;
-import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -89,7 +87,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
                 String timestampFormat = this.statement.getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT);
                 if ("TIMESTAMP".equalsIgnoreCase(timestampFormat)) {
                     Long value = row.getLong(colIndex);
-                    //TODO:
+                    //TODO: this implementation has bug if the timestamp bigger than 9999_9999_9999_9
                     if (value < 1_0000_0000_0000_0L)
                         return new Timestamp(value);
                     long epochSec = value / 1000_000l;
@@ -164,12 +162,12 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         }
     }
 
-    @Override
-    public boolean wasNull() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        return resultSet.isEmpty();
-    }
+//    @Override
+//    public boolean wasNull() throws SQLException {
+//        if (isClosed())
+//            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
+//        return resultSet.isEmpty();
+//    }
 
     @Override
     public String getString(int columnIndex) throws SQLException {
@@ -188,8 +186,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null)
+        if (value == null) {
+            wasNull = true;
             return false;
+        }
+        wasNull = false;
         if (value instanceof Boolean)
             return (boolean) value;
         return Boolean.valueOf(value.toString());
@@ -200,8 +201,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null)
+        if (value == null) {
+            wasNull = true;
             return 0;
+        }
+        wasNull = false;
         long valueAsLong = Long.parseLong(value.toString());
         if (valueAsLong == Byte.MIN_VALUE)
             return 0;
@@ -221,8 +225,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null)
+        if (value == null) {
+            wasNull = true;
             return 0;
+        }
+        wasNull = false;
         long valueAsLong = Long.parseLong(value.toString());
         if (valueAsLong == Short.MIN_VALUE)
             return 0;
@@ -236,8 +243,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null)
+        if (value == null) {
+            wasNull = true;
             return 0;
+        }
+        wasNull = false;
         long valueAsLong = Long.parseLong(value.toString());
         if (valueAsLong == Integer.MIN_VALUE)
             return 0;
@@ -251,12 +261,14 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null)
+        if (value == null) {
+            wasNull = true;
             return 0;
+        }
+        wasNull = false;
         if (value instanceof Timestamp) {
             return ((Timestamp) value).getTime();
         }
-
         long valueAsLong = 0;
         try {
             valueAsLong = Long.parseLong(value.toString());
@@ -273,8 +285,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null)
+        if (value == null) {
+            wasNull = true;
             return 0;
+        }
+        wasNull = false;
         if (value instanceof Float || value instanceof Double)
             return (float) value;
         return Float.parseFloat(value.toString());
@@ -285,8 +300,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         checkAvailability(columnIndex, resultSet.get(pos).size());
 
         Object value = resultSet.get(pos).get(columnIndex - 1);
-        if (value == null)
+        if (value == null) {
+            wasNull = true;
             return 0;
+        }
+        wasNull = false;
         if (value instanceof Double || value instanceof Float)
             return (double) value;
         return Double.parseDouble(value.toString());
