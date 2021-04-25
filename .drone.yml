@@ -30,6 +30,7 @@ steps:
 - name: crash_gen
   image: python:3.8
   commands:
+  - pip3 install requests
   - pip3 install psutil
   - pip3 install guppy3
   - cd tests/pytest 
@@ -71,23 +72,7 @@ steps:
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
   - make 
----
-kind: pipeline
-name: hello-on-darwin
 
-platform:
-  os: darwin
-  arch: amd64
-
-steps:
-- name: build
-  image: gcc
-  commands:
-  - brew install cmake
-  - mkdir debug
-  - cd debug
-  - cmake .. -DCPUTYPE=aarch32 > /dev/null
-  - make 
 ---
 kind: pipeline
 name: goodbye
