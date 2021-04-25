@@ -3242,7 +3242,7 @@ static char* getResultBlockPosition(SSqlCmd* pCmd, SSqlRes* pRes, int32_t column
   if (pRes->data != NULL) {
     return pRes->data + pInfo->pExpr->base.offset * pRes->numOfRows + pRes->row * (*bytes);
   } else {
-    return pRes->urow[columnIndex] + pRes->row * (*bytes);
+    return ((char*)pRes->urow[columnIndex]) + pRes->row * (*bytes);
   }
 }
 
