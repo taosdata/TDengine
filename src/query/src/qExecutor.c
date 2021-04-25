@@ -6447,6 +6447,7 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
   return TSDB_CODE_SUCCESS;
 }
 
+// todo refactor
 int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutput, SExprInfo** pExprInfo,
                                            SSqlExpr** pExpr, SExprInfo* prevExpr) {
   *pExprInfo = NULL;
@@ -6461,6 +6462,12 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t nu
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pExprs[i].base = *pExpr[i];
+    memset(pExprs[i].base.param, 0, sizeof(tVariant) * tListLen(pExprs[i].base.param));
+
+    for (int32_t j = 0; j < pExpr[i]->numOfParams; ++j) {
+      tVariantAssign(&pExprs[i].base.param[j], &pExpr[i]->param[j]);
+    }
+
     pExprs[i].base.resType = 0;
 
     int16_t type = 0;
