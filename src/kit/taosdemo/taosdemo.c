@@ -4868,6 +4868,8 @@ static int generateInterlaceDataBuffer(
     pstr += dataLen;
     *pRemainderBufLen -= dataLen;
   } else {
+    debugPrint("%s() LN%d, generated data tail: %d, not equal batch per table: %d\n",
+            __func__, __LINE__, k, batchPerTbl);
     pstr -= headLen;
     pstr[0] = '\0';
     k = 0;
@@ -5063,14 +5065,14 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
           if (generatedRecPerTbl >= insertRows)
             break;
 
+          int remainRows = insertRows - generatedRecPerTbl;
+          if ((remainRows > 0) && (batchPerTbl > remainRows))
+            batchPerTbl = remainRows;
+
           if (pThreadInfo->ntables * batchPerTbl < g_args.num_of_RPR)
             break;
         }
       }
-
-      int remainRows = insertRows - generatedRecPerTbl;
-      if ((remainRows > 0) && (batchPerTbl > remainRows))
-        batchPerTbl = remainRows;
 
       verbosePrint("[%d] %s() LN%d generatedRecPerTbl=%d insertRows=%"PRId64"\n",
                    pThreadInfo->threadID, __func__, __LINE__,
