@@ -224,6 +224,7 @@ python3 ./test.py -f query/queryJoin10tables.py
 python3 ./test.py -f query/queryStddevWithGroupby.py
 python3 ./test.py -f query/querySecondtscolumnTowherenow.py
 python3 ./test.py -f query/queryFilterTswithDateUnit.py
+python3 ./test.py -f query/queryTscomputWithNow.py
 
 
 
