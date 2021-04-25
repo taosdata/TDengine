@@ -38,7 +38,6 @@ run general/parser/slimit.sim
 run general/parser/slimit1.sim
 run general/parser/slimit_alter_tags.sim
 run general/parser/tbnameIn.sim
-run general/parser/slimit_alter_tags.sim  # persistent failed
 run general/parser/join.sim
 run general/parser/join_multivnode.sim
 run general/parser/join_manyblocks.sim
@@ -54,7 +53,6 @@ run general/parser/timestamp.sim
 run general/parser/sliding.sim
 run general/parser/function.sim
 run general/parser/stableOp.sim
-run general/parser/slimit_alter_tags.sim
 run general/parser/having.sim
 run general/parser/having_child.sim
 

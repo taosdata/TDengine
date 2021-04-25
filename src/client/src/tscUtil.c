@@ -2394,10 +2394,6 @@ void clearAllTableMetaInfo(SQueryInfo* pQueryInfo, bool removeMeta) {
   for(int32_t i = 0; i < pQueryInfo->numOfTables; ++i) {
     STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, i);
 
-    if (pTableMetaInfo->pTableMeta && pTableMetaInfo->pTableMeta->tableType == TSDB_TEMP_TABLE) {
-      tfree(pTableMetaInfo->pTableMeta);
-    }
-
     if (removeMeta) {
       char name[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(&pTableMetaInfo->name, name);
