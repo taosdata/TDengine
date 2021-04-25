@@ -7360,6 +7360,7 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
   if (pSqlExpr->pRight != NULL) {
     int32_t ret = exprTreeFromSqlExpr(pCmd, &pRight, pSqlExpr->pRight, pQueryInfo, pCols, uid);
     if (ret != TSDB_CODE_SUCCESS) {
+      tExprTreeDestroy(pLeft, NULL);
       return ret;
     }
   }
@@ -7369,7 +7370,9 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
     return TSDB_CODE_SUCCESS;
   }
   
-  if (pSqlExpr->pLeft == NULL) {
+  if (pSqlExpr->pLeft == NULL) {  // it is the leaf node
+    assert(pSqlExpr->pRight == NULL);
+
     if (pSqlExpr->type == SQL_NODE_VALUE) {
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_VALUE;
