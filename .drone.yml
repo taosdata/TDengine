@@ -48,6 +48,7 @@ steps:
 - name: build
   image: gcc
   commands:
+  - cat /proc/cpuinfo
   - apt-get update
   - apt-get install -y cmake build-essential
   - mkdir debug
@@ -66,6 +67,7 @@ steps:
 - name: build
   image: gcc
   commands:
+  - cat /proc/cpuinfo
   - apt-get update
   - apt-get install -y cmake build-essential
   - mkdir debug
