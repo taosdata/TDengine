@@ -370,16 +370,19 @@ namespace TDengineDriver
             StringBuilder sql = new StringBuilder();
             sql.Append("DROP DATABASE IF EXISTS ").Append(this.dbName);
             IntPtr res = TDengine.Query(this.conn, sql.ToString());
-            if (res != IntPtr.Zero)
+            if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
             {
-                VerbosePrint(sql.ToString() + " success\n");
+                Console.Write(sql.ToString() + " failure, ");
+                if (res != IntPtr.Zero) {
+                  Console.Write("reason: " + TDengine.Error(res));
+                }
+                Console.WriteLine("");
+                CleanAndExitProgram(1);
             }
             else
             {
-                Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
-                CleanAndExitProgram(1);
+                VerbosePrint(sql.ToString() + " success\n");
             }
-
         }
 
         public void CreateDb()
@@ -387,14 +390,18 @@ namespace TDengineDriver
             StringBuilder sql = new StringBuilder();
             sql.Append("CREATE DATABASE IF NOT EXISTS ").Append(this.dbName).Append(" replica ").Append(this.replica).Append(" keep 36500");
             IntPtr res = TDengine.Query(this.conn, sql.ToString());
-            if (res != IntPtr.Zero)
+            if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
             {
-                VerbosePrint(sql.ToString() + " success\n");
+                Console.Write(sql.ToString() + " failure, ");
+                if (res != IntPtr.Zero) {
+                  Console.Write("reason: " + TDengine.Error(res));
+                }
+                Console.WriteLine("");
+                CleanAndExitProgram(1);
             }
             else
             {
-                Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
-                CleanAndExitProgram(1);
+                VerbosePrint(sql.ToString() + " success\n");
             }
             TDengine.FreeResult(res);
         }
@@ -408,14 +415,18 @@ namespace TDengineDriver
                 Append(this.dbName).Append(".").Append(this.stablePrefix).
                 Append("(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, v6 float, v7 double, v8 binary(10), v9 nchar(10), v10 tinyint unsigned, v11 smallint unsigned, v12 int unsigned, v13 bigint unsigned) tags(t1 int)");
             IntPtr res = TDengine.Query(this.conn, sql.ToString());
-            if (res != IntPtr.Zero)
+            if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
             {
-                VerbosePrint(sql.ToString() + " success\n");
+                Console.Write(sql.ToString() + " failure, ");
+                if (res != IntPtr.Zero) {
+                  Console.Write("reason: " + TDengine.Error(res));
+                }
+                Console.WriteLine("");
+                CleanAndExitProgram(1);
             }
             else
             {
-                Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
-                CleanAndExitProgram(1);
+                VerbosePrint(sql.ToString() + " success\n");
             }
             TDengine.FreeResult(res);
         }
@@ -495,9 +506,13 @@ namespace TDengineDriver
 
                 IntPtr res = TDengine.Query(conn, sql);
                 DebugPrintFormat("res: {0}\n", res);
-                if (res == IntPtr.Zero)
+                if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
                 {
-                    Console.WriteLine(sql + " failure, reason: " + TDengine.Error(res));
+                    Console.Write(sql.ToString() + " failure, ");
+                    if (res != IntPtr.Zero) {
+                      Console.Write("reason: " + TDengine.Error(res));
+                    }
+                    Console.WriteLine("");
                     CleanAndExitProgram(1);
                 }
 
@@ -782,9 +797,13 @@ namespace TDengineDriver
                         }
                         VerbosePrint(sql.ToString() + "\n");
                         IntPtr res = TDengine.Query(this.conn, sql.ToString());
-                        if (res == IntPtr.Zero)
+                        if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
                         {
-                            VerbosePrint(sql.ToString() + " failure, reason: " + TDengine.Error(res) + "\n");
+                            Console.Write(sql.ToString() + " failure, ");
+                            if (res != IntPtr.Zero) {
+                              Console.Write("reason: " + TDengine.Error(res));
+                            }
+                            Console.WriteLine("");
                         }
 
                         inserted += this.batchRows;
@@ -861,14 +880,18 @@ namespace TDengineDriver
                         sql = sql.Append("(ts timestamp, v1 bool, v2 tinyint, v3 smallint, v4 int, v5 bigint, v6 float, v7 double, v8 binary(10), v9 nchar(10), v10 tinyint unsigned, v11 smallint unsigned, v12 int unsigned, v13 bigint unsigned)");
                     }
                     IntPtr res = TDengine.Query(this.conn, sql.ToString());
-                    if (res != IntPtr.Zero)
+                    if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
                     {
-                        VerbosePrint(sql.ToString() + " success\n");
+                        Console.Write(sql.ToString() + " failure, ");
+                        if (res != IntPtr.Zero) {
+                          Console.Write("reason: " + TDengine.Error(res));
+                        }
+                        Console.WriteLine("");
+                        CleanAndExitProgram(1);
                     }
                     else
                     {
-                        VerbosePrint(sql.ToString() + " failure, reason: " + TDengine.Error(res) + "\n");
-                        CleanAndExitProgram(1);
+                        VerbosePrint(sql.ToString() + " success\n");
                     }
                     TDengine.FreeResult(res);
                 }
