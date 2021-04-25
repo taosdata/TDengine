@@ -16,11 +16,18 @@
 #define QNODE_TIMEWINDOW 11
 
 typedef struct SQueryNode {
-  int32_t type;
+  int32_t    type;         // the type of logic node
+  char      *name;         // the name of logic node
+
+  SSchema   *pSchema;      // the schema of the input SSDatablock
+  int32_t    numOfCols;    // number of input columns
+  SExprInfo *pExpr;        // the query functions or sql aggregations
+  int32_t    numOfOutput;  // number of result columns, which is also the number of pExprs
+
   // previous operator to generated result for current node to process
   // in case of join, multiple prev nodes exist.
   struct SQueryNode* prevNode;
-
+  struct SQueryNode* nextNode;
 } SQueryNode;
 
 // TODO create the query plan

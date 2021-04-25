@@ -1013,7 +1013,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     pQueryMsg->tsBuf.tsNumOfBlocks = htonl(pQueryMsg->tsBuf.tsNumOfBlocks);
   }
 
-  int32_t numOfOperator = taosArrayGetSize(queryOperator);
+  int32_t numOfOperator = (int32_t) taosArrayGetSize(queryOperator);
   pQueryMsg->numOfOperator = htonl(numOfOperator);
   for(int32_t i = 0; i < numOfOperator; ++i) {
     int32_t *operator = taosArrayGet(queryOperator, i);
