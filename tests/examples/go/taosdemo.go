@@ -27,7 +27,6 @@ import (
 	"time"
 
 	_ "github.com/taosdata/driver-go/taosSql"
-	//"golang.org/x/sys/unix"
 )
 
 const (

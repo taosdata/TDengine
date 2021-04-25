@@ -43,7 +43,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pa
 
   pResBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
 
-  qDebug("QInfo:%"PRIu64" create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId, pResBuf->pageSize,
+  qDebug("QInfo:0x%"PRIx64" create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId, pResBuf->pageSize,
          pResBuf->inMemPages, pResBuf->path);
 
   return TSDB_CODE_SUCCESS;
@@ -287,6 +287,10 @@ static void lruListMoveToFront(SList *pList, SPageInfo* pi) {
   tdListPrependNode(pList, pi->pn);
 }
 
+static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) {
+  return pageSize + POINTER_BYTES + 2 + sizeof(tFilePage);
+}
+
 tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32_t* pageId) {
   pResultBuf->statis.getPages += 1;
 
@@ -311,7 +315,7 @@ tFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
 
   // allocate buf
   if (availablePage == NULL) {
-    pi->pData = calloc(1, pResultBuf->pageSize + POINTER_BYTES + 2);  // add extract bytes in case of zipped buffer increased.
+    pi->pData = calloc(1, getAllocPageSize(pResultBuf->pageSize));  // add extract bytes in case of zipped buffer increased.
   } else {
     pi->pData = availablePage;
   }
@@ -355,7 +359,7 @@ tFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
     }
 
     if (availablePage == NULL) {
-      (*pi)->pData = calloc(1, pResultBuf->pageSize + POINTER_BYTES);
+      (*pi)->pData = calloc(1, getAllocPageSize(pResultBuf->pageSize));
     } else {
       (*pi)->pData = availablePage;
     }
@@ -406,13 +410,13 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   }
 
   if (pResultBuf->file != NULL) {
-    qDebug("QInfo:%"PRIu64" res output buffer closed, total:%.2f Kb, inmem size:%.2f Kb, file size:%.2f Kb",
+    qDebug("QInfo:0x%"PRIx64" res output buffer closed, total:%.2f Kb, inmem size:%.2f Kb, file size:%.2f Kb",
         pResultBuf->qId, pResultBuf->totalBufSize/1024.0, listNEles(pResultBuf->lruList) * pResultBuf->pageSize / 1024.0,
         pResultBuf->fileSize/1024.0);
 
     fclose(pResultBuf->file);
   } else {
-    qDebug("QInfo:%"PRIu64" res output buffer closed, total:%.2f Kb, no file created", pResultBuf->qId,
+    qDebug("QInfo:0x%"PRIx64" res output buffer closed, total:%.2f Kb, no file created", pResultBuf->qId,
            pResultBuf->totalBufSize/1024.0);
   }
 

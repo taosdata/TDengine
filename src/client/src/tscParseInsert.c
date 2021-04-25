@@ -937,6 +937,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       return ret;
     }
 
+    if (sql == NULL) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
     code = tscGetTableMetaEx(pSql, pTableMetaInfo, true);
     if (TSDB_CODE_TSC_ACTION_IN_PROGRESS == code) {
       return code;
@@ -945,6 +949,10 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
   } else {
     sql = sToken.z;
 
+    if (sql == NULL) {
+      return TSDB_CODE_TSC_INVALID_SQL;
+    }
+
     code = tscGetTableMetaEx(pSql, pTableMetaInfo, false);
     if (pCmd->curSql == NULL) {
       assert(code == TSDB_CODE_TSC_ACTION_IN_PROGRESS);
@@ -952,10 +960,6 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
   }
 
   *sqlstr = sql;
-
-  if (*sqlstr == NULL) {
-    code = TSDB_CODE_TSC_INVALID_SQL;
-  }
   
   return code;
 }
@@ -1085,7 +1089,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     str = pCmd->curSql;
   }
   
-  tscDebug("%p create data block list hashList:%p", pSql, pCmd->pTableBlockHashList);
+  tscDebug("0x%"PRIx64" create data block list hashList:%p", pSql->self, pCmd->pTableBlockHashList);
 
   while (1) {
     int32_t   index = 0;
@@ -1299,7 +1303,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   if ((!pCmd->parseFinished) && (!initial)) {
-    tscDebug("%p resume to parse sql: %s", pSql, pCmd->curSql);
+    tscDebug("0x%"PRIx64" resume to parse sql: %s", pSql->self, pCmd->curSql);
   }
 
   ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);

@@ -25,7 +25,7 @@ const char *httpContextStateStr(HttpContextState state);
 HttpContext *httpCreateContext(SOCKET fd);
 bool         httpInitContext(HttpContext *pContext);
 HttpContext *httpGetContext(void * pContext);
-void         httpReleaseContext(HttpContext *pContext, bool clearRes);
+void         httpReleaseContext(HttpContext *pContext/*, bool clearRes*/);
 void         httpCloseContextByServer(HttpContext *pContext);
 void         httpCloseContextByApp(HttpContext *pContext);
 void         httpNotifyContextClose(HttpContext *pContext);

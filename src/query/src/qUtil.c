@@ -140,7 +140,7 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
       SResultRowCellInfo *pResultInfo = &pResultRow->pCellInfo[i];
 
       int16_t size = pRuntimeEnv->pQuery->pExpr1[i].bytes;
-      char * s = getPosInResultPage(pRuntimeEnv->pQuery, page, pResultRow->offset, offset);
+      char * s = getPosInResultPage(pRuntimeEnv, page, pResultRow->offset, offset, size);
       memset(s, 0, size);
 
       offset += size;

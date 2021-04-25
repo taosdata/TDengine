@@ -144,12 +144,15 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
     pSqlExpr->type    = SQL_NODE_VALUE;
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_US_TIMESTAMP;
   } else if (optrType == TK_VARIABLE) {
     int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64);
     if (ret != TSDB_CODE_SUCCESS) {
       terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
 
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_US_TIMESTAMP;
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_TIMESTAMP_VAR;
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;
     pSqlExpr->type    = SQL_NODE_VALUE;
@@ -217,6 +220,15 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
       pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
       pExpr->tokenId = pLeft->tokenId;
       pExpr->type    = SQL_NODE_VALUE;
+      pExpr->flags   = pLeft->flags | pRight->flags;
+
+      if ((pLeft->flags & (1 << EXPR_FLAG_TIMESTAMP_VAR)) && (pRight->flags & (1 << EXPR_FLAG_TIMESTAMP_VAR))) {
+        pExpr->flags |= 1 << EXPR_FLAG_TS_ERROR;
+      } else {
+        pExpr->flags &= ~(1 << EXPR_FLAG_TIMESTAMP_VAR);
+        pExpr->flags &= ~(1 << EXPR_FLAG_TS_ERROR);
+      }
+
 
       switch (optrType) {
         case TK_PLUS: {
@@ -245,7 +257,6 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
 
       tSqlExprDestroy(pLeft);
       tSqlExprDestroy(pRight);
-
     } else if ((pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_INTEGER) ||
                (pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_FLOAT) ||
                (pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_FLOAT)) {
@@ -309,6 +320,77 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
 
   return pExpr;
 }
+
+static FORCE_INLINE int32_t tStrTokenCompare(SStrToken* left, SStrToken* right) {
+  return (left->type == right->type && left->n == right->n && strncasecmp(left->z, right->z, left->n) == 0) ? 0 : 1;
+}
+
+
+int32_t tSqlExprCompare(tSqlExpr *left, tSqlExpr *right) {
+  if ((left == NULL && right) || (left && right == NULL)) {
+    return 1;
+  }
+  
+  if (left->type != right->type) {
+    return 1;
+  }
+
+  if (left->tokenId != right->tokenId) {
+    return 1;
+  }
+
+  if (left->functionId != right->functionId) {
+    return 1;
+  }
+
+  if ((left->pLeft && right->pLeft == NULL) 
+    || (left->pLeft == NULL && right->pLeft)
+    || (left->pRight && right->pRight == NULL) 
+    || (left->pRight == NULL && right->pRight)
+    || (left->pParam && right->pParam == NULL) 
+    || (left->pParam == NULL && right->pParam)) {
+    return 1;
+  }
+
+  if (tVariantCompare(&left->value, &right->value)) {
+    return 1;
+  }
+
+  if (tStrTokenCompare(&left->colInfo, &right->colInfo)) {
+    return 1;
+  }
+
+
+  if (right->pParam && left->pParam) {
+    size_t size = taosArrayGetSize(right->pParam);
+    if (left->pParam && taosArrayGetSize(left->pParam) != size) {
+      return 1;
+    }
+
+    for (int32_t i = 0; i < size; i++) {      
+      tSqlExprItem* pLeftElem = taosArrayGet(left->pParam, i);
+      tSqlExpr* pSubLeft = pLeftElem->pNode;
+      tSqlExprItem* pRightElem = taosArrayGet(left->pParam, i);
+      tSqlExpr* pSubRight = pRightElem->pNode;
+    
+      if (tSqlExprCompare(pSubLeft, pSubRight)) {
+        return 1;
+      }
+    }
+  }
+
+  if (left->pLeft && tSqlExprCompare(left->pLeft, right->pLeft)) {
+    return 1;
+  }
+
+  if (left->pRight && tSqlExprCompare(left->pRight, right->pRight)) {
+    return 1;
+  }
+
+  return 0;
+}
+
+
 
 tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
@@ -640,7 +722,7 @@ void tSetColumnType(TAOS_FIELD *pField, SStrToken *type) {
 SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SFromInfo *pFrom, tSqlExpr *pWhere,
                                 SArray *pGroupby, SArray *pSortOrder, SIntervalVal *pInterval,
                                 SSessionWindowVal *pSession, SStrToken *pSliding, SArray *pFill, SLimitVal *pLimit,
-                                SLimitVal *psLimit) {
+                                SLimitVal *psLimit, tSqlExpr *pHaving) {
   assert(pSelectList != NULL);
 
   SQuerySqlNode *pSqlNode = calloc(1, sizeof(SQuerySqlNode));
@@ -655,6 +737,7 @@ SQuerySqlNode *tSetQuerySqlNode(SStrToken *pSelectToken, SArray *pSelectList, SF
   pSqlNode->pSortOrder  = pSortOrder;
   pSqlNode->pWhere      = pWhere;
   pSqlNode->fillType    = pFill;
+  pSqlNode->pHaving = pHaving;
 
   if (pLimit != NULL) {
     pSqlNode->limit = *pLimit;
@@ -717,6 +800,9 @@ void destroyQuerySqlNode(SQuerySqlNode *pQuerySql) {
 
   tSqlExprDestroy(pQuerySql->pWhere);
   pQuerySql->pWhere = NULL;
+
+  tSqlExprDestroy(pQuerySql->pHaving);
+  pQuerySql->pHaving = NULL;
   
   taosArrayDestroyEx(pQuerySql->pSortOrder, freeVariant);
   pQuerySql->pSortOrder = NULL;

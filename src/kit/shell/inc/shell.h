@@ -27,7 +27,7 @@
 #define MAX_IP_SIZE            20
 #define MAX_PASSWORD_SIZE      20
 #define MAX_HISTORY_SIZE       1000
-#define MAX_COMMAND_SIZE       65536
+#define MAX_COMMAND_SIZE       1048586
 #define HISTORY_FILE           ".taos_history"
 
 #define DEFAULT_RES_SHOW_NUM   100

@@ -22,6 +22,7 @@
 #include "tscUtil.h"
 #include "tschemautil.h"
 #include "tsclient.h"
+#include "qUtil.h"
 
 typedef struct SCompareParam {
   SLocalDataSource **pLocalData;
@@ -192,7 +193,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   for (int32_t i = 0; i < numOfBuffer; ++i) {
     int32_t len = pMemBuffer[i]->fileMeta.flushoutData.nLength;
     if (len == 0) {
-      tscDebug("%p no data retrieved from orderOfVnode:%d", pSql, i + 1);
+      tscDebug("0x%"PRIx64" no data retrieved from orderOfVnode:%d", pSql->self, i + 1);
       continue;
     }
 
@@ -202,7 +203,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   if (numOfFlush == 0 || numOfBuffer == 0) {
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);
     pCmd->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT; // no result, set the result empty
-    tscDebug("%p retrieved no data", pSql);
+    tscDebug("0x%"PRIx64" retrieved no data", pSql->self);
     return;
   }
 
@@ -234,7 +235,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   pReducer->numOfVnode = numOfBuffer;
 
   pReducer->pDesc = pDesc;
-  tscDebug("%p the number of merged leaves is: %d", pSql, pReducer->numOfBuffer);
+  tscDebug("0x%"PRIx64" the number of merged leaves is: %d", pSql->self, pReducer->numOfBuffer);
 
   int32_t idx = 0;
   for (int32_t i = 0; i < numOfBuffer; ++i) {
@@ -257,7 +258,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
       ds->pageId = 0;
       ds->rowIdx = 0;
 
-      tscDebug("%p load data from disk into memory, orderOfVnode:%d, total:%d", pSql, i + 1, idx + 1);
+      tscDebug("0x%"PRIx64" load data from disk into memory, orderOfVnode:%d, total:%d", pSql->self, i + 1, idx + 1);
       tExtMemBufferLoadData(pMemBuffer[i], &(ds->filePage), j, 0);
 #ifdef _DEBUG_VIEW
       printf("load data page into mem for build loser tree: %" PRIu64 " rows\n", ds->filePage.num);
@@ -271,7 +272,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
 #endif
       
       if (ds->filePage.num == 0) {  // no data in this flush, the index does not increase
-        tscDebug("%p flush data is empty, ignore %d flush record", pSql, idx);
+        tscDebug("0x%"PRIx64" flush data is empty, ignore %d flush record", pSql->self, idx);
         tfree(ds);
         continue;
       }
@@ -546,10 +547,10 @@ void tscDestroyLocalMerger(SSqlObj *pSql) {
     pLocalMerge->numOfCompleted = 0;
     free(pLocalMerge);
   } else {
-    tscDebug("%p already freed or another free function is invoked", pSql);
+    tscDebug("0x%"PRIx64" already freed or another free function is invoked", pSql->self);
   }
 
-  tscDebug("%p free local reducer finished", pSql);
+  tscDebug("0x%"PRIx64" free local reducer finished", pSql->self);
 }
 
 static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SSqlCmd *pCmd, SColumnModel *pModel) {
@@ -1243,6 +1244,76 @@ static bool saveGroupResultInfo(SSqlObj *pSql) {
   return false;
 }
 
+
+bool doFilterFieldData(char *input, SExprFilter* pFieldFilters, int16_t type, bool* notSkipped) {
+  bool qualified = false;
+  
+  for(int32_t k = 0; k < pFieldFilters->pFilters->numOfFilters; ++k) {
+    __filter_func_t fp = taosArrayGetP(pFieldFilters->fp, k);
+    SColumnFilterElem filterElem = {.filterInfo = pFieldFilters->pFilters->filterInfo[k]};
+    
+    bool isnull = isNull(input, type);
+    if (isnull) {
+      if (fp == isNullOperator) {
+        qualified = true;
+        break;
+      } else {
+        continue;
+      }
+    } else {
+      if (fp == notNullOperator) {
+        qualified = true;
+        break;
+      } else if (fp == isNullOperator) {
+        continue;
+      }
+    }
+
+    if (fp(&filterElem, input, input, type)) {
+      qualified = true;
+      break;
+    }
+  }
+
+  *notSkipped = qualified;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t doHavingFilter(SQueryInfo* pQueryInfo, tFilePage* pOutput, bool* notSkipped) {
+  *notSkipped = true;
+  
+  if (pQueryInfo->havingFieldNum <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  //int32_t exprNum  = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
+
+  size_t numOfOutput = tscNumOfFields(pQueryInfo);
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    SInternalField* pInterField = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, i);
+    SExprFilter* pFieldFilters = pInterField->pFieldFilters;
+
+    if (pFieldFilters == NULL) {
+      continue;
+    }
+
+    int32_t type = pInterField->field.type;
+
+    char* pInput = pOutput->data + pOutput->num* pFieldFilters->pSqlExpr->offset;
+    
+    doFilterFieldData(pInput, pFieldFilters, type, notSkipped);
+    if (*notSkipped == false) {
+      return TSDB_CODE_SUCCESS;
+    }
+  } 
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+
 /**
  *
  * @param pSql
@@ -1281,6 +1352,22 @@ bool genFinalResults(SSqlObj *pSql, SLocalMerger *pLocalMerge, bool noMoreCurren
 
   if (tscIsSecondStageQuery(pQueryInfo)) {
     doArithmeticCalculate(pQueryInfo, pResBuf, pModel->rowSize, pLocalMerge->finalModel->rowSize);
+  }
+
+  bool notSkipped = true;
+  
+  doHavingFilter(pQueryInfo, pResBuf, &notSkipped);
+
+  if (!notSkipped) {
+    pRes->numOfRows = 0;
+    pLocalMerge->discard = !noMoreCurrentGroupRes;
+
+    if (pLocalMerge->discard) {
+      SColumnModel *pInternModel = pLocalMerge->pDesc->pColumnModel;
+      tColModelAppend(pInternModel, pLocalMerge->discardData, pLocalMerge->pTempBuffer->data, 0, 1, 1);
+    }    
+    
+    return notSkipped;
   }
 
   // no interval query, no fill operation
