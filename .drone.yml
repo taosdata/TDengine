@@ -22,6 +22,7 @@ steps:
   commands:
   - pip3 install psutil
   - pip3 install guppy3
+  - pip3 install src/connector/python/linux/python3/
   - cd tests
   - ./test-all.sh smoke
 
@@ -47,7 +48,7 @@ steps:
   image: gcc
   commands:
   - apt-get update
-  - apt-get install -y cmake build-essential git
+  - apt-get install -y cmake build-essential
   - mkdir debug
   - cd debug
   - cmake .. 
