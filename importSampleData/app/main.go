@@ -22,18 +22,26 @@ import (
 )
 
 const (
-	TIMESTAMP                   = "timestamp"
-	DATETIME                    = "datetime"
-	MILLISECOND                 = "millisecond"
-	DefaultStartTime      int64 = -1
-	DefaultInterval       int64 = 1 * 1000
-	DefaultDelay          int64 = -1
-	DefaultStatisticTable       = "statistic"
+	// 主键类型必须为 timestamp
+	TIMESTAMP = "timestamp"
 
-	JsonFormat       = "json"
-	CsvFormat        = "csv"
-	SuperTablePrefix = "s_"
-	SubTablePrefix   = "t_"
+	// 样例数据中主键时间字段是 millisecond 还是 dateTime 格式
+	DATETIME    = "datetime"
+	MILLISECOND = "millisecond"
+
+	DefaultStartTime int64 = -1
+	DefaultInterval  int64 = 1 * 1000 // 导入的记录时间间隔，该设置只会在指定 auto=1 之后生效，否则会根据样例数据自动计算间隔时间。单位为毫秒，默认 1000。
+	DefaultDelay     int64 = -1       //
+
+	// 当 save 为 1 时保存统计信息的表名， 默认 statistic。
+	DefaultStatisticTable = "statistic"
+
+	// 样例数据文件格式，可以是 json 或 csv
+	JsonFormat = "json"
+	CsvFormat  = "csv"
+
+	SuperTablePrefix = "s_" // 超级表前缀
+	SubTablePrefix   = "t_" // 子表前缀
 
 	DriverName      = "taosSql"
 	StartTimeLayout = "2006-01-02 15:04:05.000"
@@ -41,22 +49,22 @@ const (
 )
 
 var (
-	cfg          string
-	cases        string
-	hnum         int
-	vnum         int
-	thread       int
-	batch        int
-	auto         int
-	startTimeStr string
-	interval     int64
-	host         string
-	port         int
-	user         string
-	password     string
-	dropdb       int
-	db           string
-	dbparam      string
+	cfg          string // 导入配置文件路径，包含样例数据文件相关描述及对应 TDengine 配置信息。默认使用 config/cfg.toml
+	cases        string // 需要导入的场景名称，该名称可从 -cfg 指定的配置文件中 [usecase] 查看，可同时导入多个场景，中间使用逗号分隔，如：sensor_info,camera_detection，默认为 sensor_info
+	hnum         int    // 需要将样例数据进行横向扩展的倍数，假设原有样例数据包含 1 张子表 t_0 数据，指定 hnum 为 2 时会根据原有表名创建 t、t_1 两张子表。默认为 100。
+	vnum         int    // 需要将样例数据进行纵向扩展的次数，如果设置为 0 代表将历史数据导入至当前时间后持续按照指定间隔导入。默认为 1000，表示将样例数据在时间轴上纵向复制1000 次
+	thread       int    // 执行导入数据的线程数目，默认为 10
+	batch        int    // 执行导入数据时的批量大小，默认为 100。批量是指一次写操作时，包含多少条记录
+	auto         int    // 是否自动生成样例数据中的主键时间戳，1 是，0 否， 默认 0
+	startTimeStr string // 导入的记录开始时间，格式为 "yyyy-MM-dd HH:mm:ss.SSS"，不设置会使用样例数据中最小时间，设置后会忽略样例数据中的主键时间，会按照指定的 start 进行导入。如果 auto 为 1，则必须设置 start，默认为空
+	interval     int64  // 导入的记录时间间隔，该设置只会在指定 auto=1 之后生效，否则会根据样例数据自动计算间隔时间。单位为毫秒，默认 1000
+	host         string // 导入的 TDengine 服务器 IP，默认为 127.0.0.1
+	port         int    // 导入的 TDengine 服务器端口，默认为 6030
+	user         string // 导入的 TDengine 用户名，默认为 root
+	password     string // 导入的 TDengine 用户密码，默认为 taosdata
+	dropdb       int    // 导入数据之前是否删除数据库，1 是，0 否， 默认 0
+	db           string // 导入的 TDengine 数据库名称，默认为 test_yyyyMMdd
+	dbparam      string // 当指定的数据库不存在时，自动创建数据库时可选项配置参数，如 days 10 cache 16000 ablocks 4，默认为空
 
 	dataSourceName string
 	startTime      int64
@@ -71,10 +79,10 @@ var (
 	lastStaticTime time.Time
 	lastTotalRows  int64
 	timeTicker     *time.Ticker
-	delay          int64 // default 10 milliseconds
-	tick           int64
-	save           int
-	saveTable      string
+	delay          int64  // 当 vnum 设置为 0 时持续导入的时间间隔，默认为所有场景中最小记录间隔时间的一半，单位 ms。
+	tick           int64  // 打印统计信息的时间间隔，默认 2000 ms。
+	save           int    // 是否保存统计信息到 tdengine 的 statistic 表中，1 是，0 否， 默认 0。
+	saveTable      string // 当 save 为 1 时保存统计信息的表名， 默认 statistic。
 )
 
 type superTableConfig struct {
@@ -122,10 +130,10 @@ func getPrimaryKey(value interface{}) int64 {
 }
 
 func init() {
-	parseArg() //parse argument
+	parseArg() // parse argument
 
 	if db == "" {
-		//db = "go"
+		// 导入的 TDengine 数据库名称，默认为 test_yyyyMMdd
 		db = fmt.Sprintf("test_%s", time.Now().Format("20060102"))
 	}
 
@@ -167,7 +175,7 @@ func main() {
 
 		checkUserCaseConfig(userCase, &caseConfig)
 
-		//read file as map array
+		// read file as map array
 		fileRows := readFile(caseConfig)
 		log.Printf("case [%s] sample data file contains %d rows.\n", userCase, len(fileRows.rows))
 
@@ -187,8 +195,8 @@ func main() {
 
 		// set super table's startTime, cycleTime and avgInterval
 		superTableConfigMap[caseConfig.StName].startTime = start
-		superTableConfigMap[caseConfig.StName].avgInterval = avgInterval
 		superTableConfigMap[caseConfig.StName].cycleTime = cycleTime
+		superTableConfigMap[caseConfig.StName].avgInterval = avgInterval
 
 		if caseMinInterval == -1 || caseMinInterval > avgInterval {
 			caseMinInterval = avgInterval
@@ -217,7 +225,7 @@ func main() {
 	createSuperTable(superTableConfigMap)
 	log.Printf("create %d superTable ,used %d ms.\n", superTableNum, time.Since(start)/1e6)
 
-	//create sub table
+	// create sub table
 	start = time.Now()
 	createSubTable(subTableMap)
 	log.Printf("create %d times of %d subtable ,all %d tables, used %d ms.\n", hnum, len(subTableMap), len(scaleTableMap), time.Since(start)/1e6)
@@ -331,6 +339,7 @@ func getSuperTableTimeConfig(fileRows dataRows) (start, cycleTime, avgInterval i
 		maxTime := getPrimaryKey(fileRows.rows[len(fileRows.rows)-1][fileRows.config.Timestamp])
 
 		start = minTime // default startTime use the minTime
+		// 设置了start时间的话 按照start来
 		if DefaultStartTime != startTime {
 			start = startTime
 		}
@@ -349,16 +358,6 @@ func getSuperTableTimeConfig(fileRows dataRows) (start, cycleTime, avgInterval i
 	return
 }
 
-//func createStatisticTable() {
-//	connection := getConnection()
-//	defer connection.Close()
-//
-//	_, err := connection.Exec("create table if not exist " + db + "." + saveTable + "(ts timestamp, speed int)")
-//	if err != nil {
-//		log.Fatalf("createStatisticTable error: %s\n", err)
-//	}
-//}
-
 func createSubTable(subTableMaps map[string]*dataRows) {
 
 	connection := getConnection()
@@ -367,12 +366,12 @@ func createSubTable(subTableMaps map[string]*dataRows) {
 	_, _ = connection.Exec("use " + db)
 
 	createTablePrefix := "create table if not exists "
+	var buffer bytes.Buffer
 	for subTableName := range subTableMaps {
 
 		superTableName := getSuperTableName(subTableMaps[subTableName].config.StName)
-		tagValues := subTableMaps[subTableName].rows[0] // the first rows values as tags
+		firstRowValues := subTableMaps[subTableName].rows[0] // the first rows values as tags
 
-		buffers := bytes.Buffer{}
 		// create table t using superTable tags(...);
 		for i := 0; i < hnum; i++ {
 			tableName := getScaleSubTableName(subTableName, i)
@@ -383,21 +382,21 @@ func createSubTable(subTableMaps map[string]*dataRows) {
 			}
 			scaleTableNames = append(scaleTableNames, tableName)
 
-			buffers.WriteString(createTablePrefix)
-			buffers.WriteString(tableName)
-			buffers.WriteString(" using ")
-			buffers.WriteString(superTableName)
-			buffers.WriteString(" tags(")
+			buffer.WriteString(createTablePrefix)
+			buffer.WriteString(tableName)
+			buffer.WriteString(" using ")
+			buffer.WriteString(superTableName)
+			buffer.WriteString(" tags(")
 			for _, tag := range subTableMaps[subTableName].config.Tags {
-				tagValue := fmt.Sprintf("%v", tagValues[strings.ToLower(tag.Name)])
-				buffers.WriteString("'" + tagValue + "'")
-				buffers.WriteString(",")
+				tagValue := fmt.Sprintf("%v", firstRowValues[strings.ToLower(tag.Name)])
+				buffer.WriteString("'" + tagValue + "'")
+				buffer.WriteString(",")
 			}
-			buffers.Truncate(buffers.Len() - 1)
-			buffers.WriteString(")")
+			buffer.Truncate(buffer.Len() - 1)
+			buffer.WriteString(")")
 
-			createTableSql := buffers.String()
-			buffers.Reset()
+			createTableSql := buffer.String()
+			buffer.Reset()
 
 			//log.Printf("create table: %s\n", createTableSql)
 			_, err := connection.Exec(createTableSql)
@@ -569,13 +568,13 @@ func insertData(threadIndex, start, end int, wg *sync.WaitGroup, successRows []i
 
 	num := 0
 	subTables := scaleTableNames[start:end]
+	var buffer bytes.Buffer
 	for {
 		var currSuccessRows int64
 		var appendRows int
 		var lastTableName string
 
-		buffers := bytes.Buffer{}
-		buffers.WriteString(InsertPrefix)
+		buffer.WriteString(InsertPrefix)
 
 		for _, tableName := range subTables {
 
@@ -604,40 +603,35 @@ func insertData(threadIndex, start, end int, wg *sync.WaitGroup, successRows []i
 					// append
 
 					if lastTableName != tableName {
-						buffers.WriteString(tableName)
-						buffers.WriteString(" values")
+						buffer.WriteString(tableName)
+						buffer.WriteString(" values")
 					}
 					lastTableName = tableName
 
-					buffers.WriteString("(")
-					buffers.WriteString(fmt.Sprintf("%v", currentTime))
-					buffers.WriteString(",")
+					buffer.WriteString("(")
+					buffer.WriteString(fmt.Sprintf("%v", currentTime))
+					buffer.WriteString(",")
 
-					// fieldNum := len(subTableInfo.config.Fields)
 					for _, field := range subTableInfo.config.Fields {
-						buffers.WriteString(getFieldValue(currentRow[strings.ToLower(field.Name)]))
-						buffers.WriteString(",")
-						// if( i != fieldNum -1){
-
-						// }
+						buffer.WriteString(getFieldValue(currentRow[strings.ToLower(field.Name)]))
+						buffer.WriteString(",")
 					}
 
-					buffers.Truncate(buffers.Len() - 1)
-					buffers.WriteString(") ")
+					buffer.Truncate(buffer.Len() - 1)
+					buffer.WriteString(") ")
 
 					appendRows++
 					insertRows++
 					if appendRows == batch {
 						// executeBatch
-						insertSql := buffers.String()
-						_, _ = connection.Exec("use " + db)
+						insertSql := buffer.String()
 						affectedRows := executeBatchInsert(insertSql, connection)
 
 						successRows[threadIndex] += affectedRows
 						currSuccessRows += affectedRows
 
-						buffers.Reset()
-						buffers.WriteString(InsertPrefix)
+						buffer.Reset()
+						buffer.WriteString(InsertPrefix)
 						lastTableName = ""
 						appendRows = 0
 					}
@@ -654,14 +648,13 @@ func insertData(threadIndex, start, end int, wg *sync.WaitGroup, successRows []i
 		// left := len(rows)
 		if appendRows > 0 {
 			// executeBatch
-			insertSql := buffers.String()
-			_, _ = connection.Exec("use " + db)
+			insertSql := buffer.String()
 			affectedRows := executeBatchInsert(insertSql, connection)
 
 			successRows[threadIndex] += affectedRows
 			currSuccessRows += affectedRows
 
-			buffers.Reset()
+			buffer.Reset()
 		}
 
 		// log.Printf("thread-%d finished insert %d rows, used %d ms.", threadIndex, currSuccessRows, time.Since(threadStartTime)/1e6)
@@ -687,61 +680,6 @@ func insertData(threadIndex, start, end int, wg *sync.WaitGroup, successRows []i
 
 }
 
-//func buildSql(rows []tableRows) string {
-//
-//	var lastTableName string
-//
-//	buffers := bytes.Buffer{}
-//
-//	for i, row := range rows {
-//		if i == 0 {
-//			lastTableName = row.tableName
-//			buffers.WriteString(INSERT_PREFIX)
-//			buffers.WriteString(row.tableName)
-//			buffers.WriteString(" values")
-//			buffers.WriteString(row.value)
-//			continue
-//		}
-//
-//		if lastTableName == row.tableName {
-//			buffers.WriteString(row.value)
-//		} else {
-//			buffers.WriteString(" ")
-//			buffers.WriteString(row.tableName)
-//			buffers.WriteString(" values")
-//			buffers.WriteString(row.value)
-//			lastTableName = row.tableName
-//		}
-//	}
-//
-//	insertSql := buffers.String()
-//	return insertSql
-//}
-
-//func buildRow(tableName string, currentTime int64, subTableInfo *dataRows, currentRow map[string]interface{}) tableRows {
-//
-//	tableRows := tableRows{tableName: tableName}
-//
-//	buffers := bytes.Buffer{}
-//
-//	buffers.WriteString("(")
-//	buffers.WriteString(fmt.Sprintf("%v", currentTime))
-//	buffers.WriteString(",")
-//
-//	for _, field := range subTableInfo.config.Fields {
-//		buffers.WriteString(getFieldValue(currentRow[strings.ToLower(field.Name)]))
-//		buffers.WriteString(",")
-//	}
-//
-//	buffers.Truncate(buffers.Len() - 1)
-//	buffers.WriteString(")")
-//
-//	insertSql := buffers.String()
-//	tableRows.value = insertSql
-//
-//	return tableRows
-//}
-
 func executeBatchInsert(insertSql string, connection *sql.DB) int64 {
 	result, err := connection.Exec(insertSql)
 	if err != nil {
@@ -753,7 +691,6 @@ func executeBatchInsert(insertSql string, connection *sql.DB) int64 {
 		affected = 0
 	}
 	return affected
-	// return 0
 }
 
 func getFieldValue(fieldValue interface{}) string {
@@ -771,14 +708,6 @@ func getConnection() *sql.DB {
 func getSubTableNameValue(suffix interface{}) string {
 	return fmt.Sprintf("%v", suffix)
 }
-
-//func hash(s string) int {
-//	v := int(crc32.ChecksumIEEE([]byte(s)))
-//	if v < 0 {
-//		return -v
-//	}
-//	return v
-//}
 
 func readFile(config dataImport.CaseConfig) dataRows {
 	fileFormat := strings.ToLower(config.Format)
