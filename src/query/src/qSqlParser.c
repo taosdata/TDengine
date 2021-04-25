@@ -144,12 +144,15 @@ tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType) {
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
     pSqlExpr->type    = SQL_NODE_VALUE;
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_US_TIMESTAMP;
   } else if (optrType == TK_VARIABLE) {
     int32_t ret = parseAbsoluteDuration(pToken->z, pToken->n, &pSqlExpr->value.i64);
     if (ret != TSDB_CODE_SUCCESS) {
       terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
 
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_US_TIMESTAMP;
+    pSqlExpr->flags  |= 1 << EXPR_FLAG_TIMESTAMP_VAR;
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;
     pSqlExpr->type    = SQL_NODE_VALUE;
@@ -217,6 +220,15 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
       pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
       pExpr->tokenId = pLeft->tokenId;
       pExpr->type    = SQL_NODE_VALUE;
+      pExpr->flags   = pLeft->flags | pRight->flags;
+
+      if ((pLeft->flags & (1 << EXPR_FLAG_TIMESTAMP_VAR)) && (pRight->flags & (1 << EXPR_FLAG_TIMESTAMP_VAR))) {
+        pExpr->flags |= 1 << EXPR_FLAG_TS_ERROR;
+      } else {
+        pExpr->flags &= ~(1 << EXPR_FLAG_TIMESTAMP_VAR);
+        pExpr->flags &= ~(1 << EXPR_FLAG_TS_ERROR);
+      }
+
 
       switch (optrType) {
         case TK_PLUS: {
@@ -245,7 +257,6 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
 
       tSqlExprDestroy(pLeft);
       tSqlExprDestroy(pRight);
-
     } else if ((pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_INTEGER) ||
                (pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_FLOAT) ||
                (pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_FLOAT)) {

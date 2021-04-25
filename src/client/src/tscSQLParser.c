@@ -1663,7 +1663,7 @@ int32_t validateSelectNodeList(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pS
     }
 
     if (pQueryInfo->fieldsInfo.numOfOutput > TSDB_MAX_COLUMNS) {
-      return TSDB_CODE_TSC_INVALID_SQL;
+      return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
   }
 
@@ -3086,7 +3086,7 @@ static SColumnFilterInfo* addColumnFilterInfo(SColumnFilterList* filterList) {
   return pColFilterInfo;
 }
 
-static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SColumnFilterInfo* pColumnFilter,
+static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, STableMeta* pTableMeta, SColumnFilterInfo* pColumnFilter,
                                          int16_t colType, tSqlExpr* pExpr) {
   const char* msg = "not supported filter condition";
 
@@ -3100,6 +3100,12 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     int retVal = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, &pRight->value);
     if (TSDB_CODE_SUCCESS != retVal) {
       return retVal;
+    }
+  } else if ((colType == TSDB_DATA_TYPE_TIMESTAMP) && (TSDB_DATA_TYPE_BIGINT == pRight->value.nType)) {
+    STableComInfo tinfo = tscGetTableInfo(pTableMeta);
+
+    if ((tinfo.precision == TSDB_TIME_PRECISION_MILLI) && (pRight->flags & (1 << EXPR_FLAG_US_TIMESTAMP))) {
+      pRight->value.i64 /= 1000;
     }
   }
 
@@ -3926,6 +3932,10 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
 
   const char* msg1 = "query condition between different columns must use 'AND'";
 
+  if ((*pExpr)->flags & (1 << EXPR_FLAG_TS_ERROR)) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+
   tSqlExpr* pLeft = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
 
@@ -3962,6 +3972,14 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   }
 
   exchangeExpr(*pExpr);
+
+  if (pLeft->tokenId == TK_ID && pRight->tokenId == TK_TIMESTAMP && (pRight->flags & (1 << EXPR_FLAG_TIMESTAMP_VAR))) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+
+  if ((pLeft->flags & (1 << EXPR_FLAG_TS_ERROR)) || (pRight->flags & (1 << EXPR_FLAG_TS_ERROR))) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
 
   return handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, parentOptr);
 }
@@ -5547,15 +5565,15 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseI
   pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
   pQueryInfo->slimit = pSqlNode->slimit;
   
-  tscDebug("%p limit:%" PRId64 ", offset:%" PRId64 " slimit:%" PRId64 ", soffset:%" PRId64, pSql, pQueryInfo->limit.limit,
-      pQueryInfo->limit.offset, pQueryInfo->slimit.limit, pQueryInfo->slimit.offset);
+  tscDebug("0x%"PRIx64" limit:%" PRId64 ", offset:%" PRId64 " slimit:%" PRId64 ", soffset:%" PRId64, pSql->self,
+      pQueryInfo->limit.limit, pQueryInfo->limit.offset, pQueryInfo->slimit.limit, pQueryInfo->slimit.offset);
   
   if (pQueryInfo->slimit.offset < 0 || pQueryInfo->limit.offset < 0) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
   }
 
   if (pQueryInfo->limit.limit == 0) {
-    tscDebug("%p limit 0, no output result", pSql);
+    tscDebug("0x%"PRIx64" limit 0, no output result", pSql->self);
     pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
     return TSDB_CODE_SUCCESS;
   }
@@ -5577,7 +5595,7 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseI
     }
 
     if (pQueryInfo->slimit.limit == 0) {
-      tscDebug("%p slimit 0, no output result", pSql);
+      tscDebug("0x%"PRIx64" slimit 0, no output result", pSql->self);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
       return TSDB_CODE_SUCCESS;
     }
@@ -5595,7 +5613,7 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseI
 
     // No tables included. No results generated. Query results are empty.
     if (pTableMetaInfo->vgroupList->numOfVgroups == 0) {
-      tscDebug("%p no table in super table, no output result", pSql);
+      tscDebug("0x%"PRIx64" no table in super table, no output result", pSql->self);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
       return TSDB_CODE_SUCCESS;
     }
@@ -6357,7 +6375,7 @@ void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex) {
 
   int32_t totalBufSize = 1024;
 
-  char    str[1024] = {0};
+  char    str[1024+1] = {0};
   int32_t offset = 0;
 
   offset += sprintf(str, "num:%d [", size);
@@ -6383,7 +6401,7 @@ void tscPrintSelNodeList(SSqlObj* pSql, int32_t subClauseIndex) {
   assert(offset < totalBufSize);
   str[offset] = ']';
   assert(offset < totalBufSize);
-  tscDebug("%p select clause:%s", pSql, str);
+  tscDebug("0x%"PRIx64" select clause:%s", pSql->self, str);
 }
 
 int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* pInfo) {

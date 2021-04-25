@@ -1272,7 +1272,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
   int16_t     type = pColInfoData->info.type;
 
   if (type == TSDB_DATA_TYPE_FLOAT || type == TSDB_DATA_TYPE_DOUBLE) {
-    qError("QInfo:%"PRIu64" group by not supported on double/float columns, abort", GET_QID(pRuntimeEnv));
+    qError("QInfo:0x%"PRIx64" group by not supported on double/float columns, abort", GET_QID(pRuntimeEnv));
     return;
   }
 
@@ -1659,7 +1659,7 @@ static void* destroySQLFunctionCtx(SQLFunctionCtx* pCtx, int32_t numOfOutput) {
 }
 
 static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOfTables, SArray* pOperator, void* merger) {
-  qDebug("QInfo:%"PRIu64" setup runtime env", GET_QID(pRuntimeEnv));
+  qDebug("QInfo:0x%"PRIx64" setup runtime env", GET_QID(pRuntimeEnv));
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   pRuntimeEnv->prevGroupId = INT32_MIN;
@@ -1692,7 +1692,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
     *(int64_t*) pRuntimeEnv->prevRow[0] = INT64_MIN;
   }
 
-  qDebug("QInfo:%"PRIu64" init runtime environment completed", GET_QID(pRuntimeEnv));
+  qDebug("QInfo:0x%"PRIx64" init runtime environment completed", GET_QID(pRuntimeEnv));
 
   // group by normal column, sliding window query, interval query are handled by interval query processor
   // interval (down sampling operation)
@@ -1832,12 +1832,14 @@ static void doFreeQueryHandle(SQueryRuntimeEnv* pRuntimeEnv) {
 }
 
 static void destroyTsComp(SQueryRuntimeEnv *pRuntimeEnv, SQueryAttr *pQueryAttr) {
-  if (pQueryAttr->tsCompQuery) {
+  if (pQueryAttr->tsCompQuery && pRuntimeEnv->outputBuf && pRuntimeEnv->outputBuf->pDataBlock && taosArrayGetSize(pRuntimeEnv->outputBuf->pDataBlock) > 0) {
     SColumnInfoData* pColInfoData = taosArrayGet(pRuntimeEnv->outputBuf->pDataBlock, 0);
-    FILE *f = *(FILE **)pColInfoData->pData;  // TODO refactor
-    if (f) {
-      fclose(f);
-      *(FILE **)pColInfoData->pData = NULL;
+    if (pColInfoData) {
+      FILE *f = *(FILE **)pColInfoData->pData;  // TODO refactor
+      if (f) {
+        fclose(f);
+        *(FILE **)pColInfoData->pData = NULL;
+      }
     }
   }
 }
@@ -1846,7 +1848,7 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
   SQInfo* pQInfo = (SQInfo*) pRuntimeEnv->qinfo;
 
-  qDebug("QInfo:%"PRIu64" teardown runtime env", pQInfo->qId);
+  qDebug("QInfo:0x%"PRIx64" teardown runtime env", pQInfo->qId);
 
   if (pRuntimeEnv->sasArray != NULL) {
     for(int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
@@ -2019,7 +2021,7 @@ bool colIdCheck(SQueryAttr *pQueryAttr, uint64_t qId) {
   // load data column information is incorrect
   for (int32_t i = 0; i < pQueryAttr->numOfCols - 1; ++i) {
     if (pQueryAttr->tableCols[i].colId == pQueryAttr->tableCols[i + 1].colId) {
-      qError("QInfo:%"PRIu64" invalid data load column for query", qId);
+      qError("QInfo:0x%"PRIx64" invalid data load column for query", qId);
       return false;
     }
   }
@@ -2106,14 +2108,13 @@ static void changeExecuteScanOrder(SQInfo *pQInfo, SQueryTableMsg* pQueryMsg, bo
   SQueryAttr* pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
 
   // in case of point-interpolation query, use asc order scan
-  char msg[] = "QInfo:%"PRIu64" scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%" PRId64
+  char msg[] = "QInfo:0x%"PRIx64" scan order changed for %s query, old:%d, new:%d, qrange exchanged, old qrange:%" PRId64
                "-%" PRId64 ", new qrange:%" PRId64 "-%" PRId64;
 
   // todo handle the case the the order irrelevant query type mixed up with order critical query type
   // descending order query for last_row query
   if (isFirstLastRowQuery(pQueryAttr)) {
-    qDebug("QInfo:%"PRIu64" scan order changed for last_row query, old:%d, new:%d", pQInfo->qId,
-        pQueryAttr->order.order, TSDB_ORDER_ASC);
+    qDebug("QInfo:0x%"PRIx64" scan order changed for last_row query, old:%d, new:%d", pQInfo->qId, pQueryAttr->order.order, TSDB_ORDER_ASC);
 
     pQueryAttr->order.order = TSDB_ORDER_ASC;
     if (pQueryAttr->window.skey > pQueryAttr->window.ekey) {
@@ -2590,7 +2591,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
   *status = updateBlockLoadStatus(pRuntimeEnv->pQueryAttr, *status);
 
   if ((*status) == BLK_DATA_NO_NEEDED || (*status) == BLK_DATA_DISCARD) {
-    qDebug("QInfo:%"PRIu64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId, pBlockInfo->window.skey,
+    qDebug("QInfo:0x%"PRIx64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId, pBlockInfo->window.skey,
            pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->discardBlocks += 1;
   } else if ((*status) == BLK_DATA_STATIS_NEEDED) {
@@ -2633,7 +2634,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
                                          (char*)&(pBlock->pBlockStatis[i].max));
           if (!load) { // current block has been discard due to filter applied
             pCost->discardBlocks += 1;
-            qDebug("QInfo:%"PRIu64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId,
+            qDebug("QInfo:0x%"PRIx64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId,
                    pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
             (*status) = BLK_DATA_DISCARD;
             return TSDB_CODE_SUCCESS;
@@ -2645,7 +2646,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
     // current block has been discard due to filter applied
     if (!doFilterByBlockStatistics(pRuntimeEnv, pBlock->pBlockStatis, pTableScanInfo->pCtx, pBlockInfo->rows)) {
       pCost->discardBlocks += 1;
-      qDebug("QInfo:%"PRIu64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId, pBlockInfo->window.skey,
+      qDebug("QInfo:0x%"PRIx64" data block discard, brange:%" PRId64 "-%" PRId64 ", rows:%d", pQInfo->qId, pBlockInfo->window.skey,
              pBlockInfo->window.ekey, pBlockInfo->rows);
       (*status) = BLK_DATA_DISCARD;
       return TSDB_CODE_SUCCESS;
@@ -3313,10 +3314,10 @@ void setCtxTagForJoin(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx, SExpr
 
     int16_t tagType = pCtx[0].tag.nType;
     if (tagType == TSDB_DATA_TYPE_BINARY || tagType == TSDB_DATA_TYPE_NCHAR) {
-      qDebug("QInfo:%p set tag value for join comparison, colId:%" PRId64 ", val:%s", pRuntimeEnv->qinfo,
+      qDebug("QInfo:0x%"PRIx64" set tag value for join comparison, colId:%" PRId64 ", val:%s", GET_QID(pRuntimeEnv),
              pExprInfo->base.param[0].i64, pCtx[0].tag.pz);
     } else {
-      qDebug("QInfo:%p set tag value for join comparison, colId:%" PRId64 ", val:%" PRId64, pRuntimeEnv->qinfo,
+      qDebug("QInfo:0x%"PRIx64" set tag value for join comparison, colId:%" PRId64 ", val:%" PRId64, GET_QID(pRuntimeEnv),
              pExprInfo->base.param[0].i64, pCtx[0].tag.i64);
     }
   }
@@ -3336,9 +3337,9 @@ int32_t setTimestampListJoinInfo(SQueryRuntimeEnv* pRuntimeEnv, tVariant* pTag, 
     // failed to find data with the specified tag value and vnodeId
     if (!tsBufIsValidElem(&elem)) {
       if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
-        qError("QInfo:%"PRIu64" failed to find tag:%s in ts_comp", GET_QID(pRuntimeEnv), pTag->pz);
+        qError("QInfo:0x%"PRIx64" failed to find tag:%s in ts_comp", GET_QID(pRuntimeEnv), pTag->pz);
       } else {
-        qError("QInfo:%"PRIu64" failed to find tag:%" PRId64 " in ts_comp", GET_QID(pRuntimeEnv), pTag->i64);
+        qError("QInfo:0x%"PRIx64" failed to find tag:%" PRId64 " in ts_comp", GET_QID(pRuntimeEnv), pTag->i64);
       }
 
       return -1;
@@ -3347,17 +3348,17 @@ int32_t setTimestampListJoinInfo(SQueryRuntimeEnv* pRuntimeEnv, tVariant* pTag, 
     // Keep the cursor info of current table
     pTableQueryInfo->cur = tsBufGetCursor(pRuntimeEnv->pTsBuf);
     if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
-      qDebug("QInfo:%"PRIu64" find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->pz, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
+      qDebug("QInfo:0x%"PRIx64" find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->pz, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
     } else {
-      qDebug("QInfo:%"PRIu64" find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->i64, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
+      qDebug("QInfo:0x%"PRIx64" find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->i64, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
     }
 
   } else {
     tsBufSetCursor(pRuntimeEnv->pTsBuf, &pTableQueryInfo->cur);
     if (pTag->nType == TSDB_DATA_TYPE_BINARY || pTag->nType == TSDB_DATA_TYPE_NCHAR) {
-      qDebug("QInfo:%"PRIu64" find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->pz, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
+      qDebug("QInfo:0x%"PRIx64" find tag:%s start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->pz, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
     } else {
-      qDebug("QInfo:%"PRIu64" find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->i64, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
+      qDebug("QInfo:0x%"PRIx64" find tag:%"PRId64" start pos in ts_comp, blockIndex:%d, tsIndex:%d", GET_QID(pRuntimeEnv), pTag->i64, pTableQueryInfo->cur.blockIndex, pTableQueryInfo->cur.tsIndex);
     }
   }
 
@@ -3492,7 +3493,7 @@ static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* 
   int32_t start = 0;
   int32_t step = -1;
 
-  qDebug("QInfo:%"PRIu64" start to copy data from windowResInfo to output buf", GET_QID(pRuntimeEnv));
+  qDebug("QInfo:0x%"PRIx64" start to copy data from windowResInfo to output buf", GET_QID(pRuntimeEnv));
   if (orderType == TSDB_ORDER_ASC) {
     start = pGroupResInfo->index;
     step = 1;
@@ -3532,7 +3533,7 @@ static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* 
     }
   }
 
-  qDebug("QInfo:%"PRIu64" copy data to query buf completed", GET_QID(pRuntimeEnv));
+  qDebug("QInfo:0x%"PRIx64" copy data to query buf completed", GET_QID(pRuntimeEnv));
   pBlock->info.rows = numOfResult;
   return 0;
 }
@@ -3619,11 +3620,11 @@ static void doCopyQueryResultToMsg(SQInfo *pQInfo, int32_t numOfRows, char *data
     data += sizeof(STableIdInfo);
     total++;
 
-    qDebug("QInfo:%"PRIu64" set subscribe info, tid:%d, uid:%"PRIu64", skey:%"PRId64, pQInfo->qId, item->tid, item->uid, item->key);
+    qDebug("QInfo:0x%"PRIx64" set subscribe info, tid:%d, uid:%"PRIu64", skey:%"PRId64, pQInfo->qId, item->tid, item->uid, item->key);
     item = taosHashIterate(pRuntimeEnv->pTableRetrieveTsMap, item);
   }
 
-  qDebug("QInfo:%"PRIu64" set %d subscribe info", pQInfo->qId, total);
+  qDebug("QInfo:0x%"PRIx64" set %d subscribe info", pQInfo->qId, total);
   // Check if query is completed or not for stable query or normal table query respectively.
   if (Q_STATUS_EQUAL(pRuntimeEnv->status, QUERY_COMPLETED) && pRuntimeEnv->proot->status == OP_EXEC_DONE) {
     setQueryStatus(pRuntimeEnv, QUERY_OVER);
@@ -3662,12 +3663,12 @@ void queryCostStatis(SQInfo *pQInfo) {
     pSummary->numOfTimeWindows = 0;
   }
 
-  qDebug("QInfo:%"PRIu64" :cost summary: elapsed time:%"PRId64" us, first merge:%"PRId64" us, total blocks:%d, "
+  qDebug("QInfo:0x%"PRIx64" :cost summary: elapsed time:%"PRId64" us, first merge:%"PRId64" us, total blocks:%d, "
          "load block statis:%d, load data block:%d, total rows:%"PRId64 ", check rows:%"PRId64,
          pQInfo->qId, pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->totalBlocks, pSummary->loadBlockStatis,
          pSummary->loadBlocks, pSummary->totalRows, pSummary->totalCheckedRows);
 
-  qDebug("QInfo:%"PRIu64" :cost summary: winResPool size:%.2f Kb, numOfWin:%"PRId64", tableInfoSize:%.2f Kb, hashTable:%.2f Kb", pQInfo->qId, pSummary->winInfoSize/1024.0,
+  qDebug("QInfo:0x%"PRIx64" :cost summary: winResPool size:%.2f Kb, numOfWin:%"PRId64", tableInfoSize:%.2f Kb, hashTable:%.2f Kb", pQInfo->qId, pSummary->winInfoSize/1024.0,
       pSummary->numOfTimeWindows, pSummary->tableInfoSize/1024.0, pSummary->hashSize/1024.0);
 }
 
@@ -3703,8 +3704,8 @@ void queryCostStatis(SQInfo *pQInfo) {
 //
 //  int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, pBlockInfo, NULL, binarySearchForKey, pDataBlock);
 //
-//  qDebug("QInfo:%"PRIu64" check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%"PRId64, GET_QID(pRuntimeEnv),
-//         pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows, numOfRes, pQueryAttr->current->lastKey);
+//  qDebug("QInfo:0x%"PRIx64" check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%"PRId64, GET_QID(pRuntimeEnv),
+//         pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows, numOfRes, pQuery->current->lastKey);
 //}
 
 //void skipBlocks(SQueryRuntimeEnv *pRuntimeEnv) {
@@ -3733,8 +3734,8 @@ void queryCostStatis(SQInfo *pQInfo) {
 //      pTableQueryInfo->lastKey = (QUERY_IS_ASC_QUERY(pQueryAttr)) ? blockInfo.window.ekey : blockInfo.window.skey;
 //      pTableQueryInfo->lastKey += step;
 //
-//      qDebug("QInfo:%"PRIu64" skip rows:%d, offset:%" PRId64, GET_QID(pRuntimeEnv), blockInfo.rows,
-//             pQueryAttr->limit.offset);
+//      qDebug("QInfo:0x%"PRIx64" skip rows:%d, offset:%" PRId64, GET_QID(pRuntimeEnv), blockInfo.rows,
+//             pQuery->limit.offset);
 //    } else {  // find the appropriated start position in current block
 //      updateOffsetVal(pRuntimeEnv, &blockInfo);
 //      break;
@@ -3781,7 +3782,7 @@ void queryCostStatis(SQInfo *pQInfo) {
 //    int32_t numOfRes = tableApplyFunctionsOnBlock(pRuntimeEnv, pBlockInfo, NULL, binarySearchForKey, pDataBlock);
 //    pRuntimeEnv->resultRowInfo.curIndex = index;  // restore the window index
 //
-//    qDebug("QInfo:%"PRIu64" check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%" PRId64,
+//    qDebug("QInfo:0x%"PRIx64" check data block, brange:%" PRId64 "-%" PRId64 ", numOfRows:%d, numOfRes:%d, lastKey:%" PRId64,
 //           GET_QID(pRuntimeEnv), pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows, numOfRes,
 //           pQueryAttr->current->lastKey);
 //
@@ -4225,7 +4226,7 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
       pResultRowInfo->prevSKey = pResultRowInfo->pResult[0]->win.skey;
     }
 
-    qDebug("QInfo:%"PRIu64" start to repeat scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
+    qDebug("QInfo:0x%"PRIx64" start to repeat scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            GET_QID(pRuntimeEnv), cond.twindow.skey, cond.twindow.ekey);
   }
 
@@ -4236,7 +4237,7 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
     STsdbQueryCond cond = createTsdbQueryCond(pQueryAttr, &pQueryAttr->window);
     tsdbResetQueryHandle(pTableScanInfo->pQueryHandle, &cond);
 
-    qDebug("QInfo:%"PRIu64" start to reverse scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
+    qDebug("QInfo:0x%"PRIx64" start to reverse scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            GET_QID(pRuntimeEnv), cond.twindow.skey, cond.twindow.ekey);
 
     pRuntimeEnv->scanFlag = REVERSE_SCAN;
@@ -5714,14 +5715,14 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
       count += 1;
     }
 
-    qDebug("QInfo:%"PRIu64" create (tableId, tag) info completed, rows:%d", GET_QID(pRuntimeEnv), count);
+    qDebug("QInfo:0x%"PRIx64" create (tableId, tag) info completed, rows:%d", GET_QID(pRuntimeEnv), count);
   } else if (functionId == TSDB_FUNC_COUNT) {// handle the "count(tbname)" query
     SColumnInfoData* pColInfo = taosArrayGet(pRes->pDataBlock, 0);
     *(int64_t*)pColInfo->pData = pInfo->totalTables;
     count = 1;
 
     pOperator->status = OP_EXEC_DONE;
-    qDebug("QInfo:%"PRIu64" create count(tbname) query, res:%d rows:1", GET_QID(pRuntimeEnv), count);
+    qDebug("QInfo:0x%"PRIx64" create count(tbname) query, res:%d rows:1", GET_QID(pRuntimeEnv), count);
   } else {  // return only the tags|table name etc.
     SExprInfo* pExprInfo = pOperator->pExpr;  // todo use the column list instead of exprinfo
 
@@ -5760,7 +5761,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
       pOperator->status = OP_EXEC_DONE;
     }
 
-    qDebug("QInfo:%"PRIu64" create tag values results completed, rows:%d", GET_QID(pRuntimeEnv), count);
+    qDebug("QInfo:0x%"PRIx64" create tag values results completed, rows:%d", GET_QID(pRuntimeEnv), count);
   }
 
   pRes->info.rows = count;
@@ -6557,13 +6558,13 @@ static int32_t doCreateFilterInfo(SColumnInfo* pCols, int32_t numOfCols, int32_t
         int32_t lower = pSingleColFilter->filterInfo.lowerRelOptr;
         int32_t upper = pSingleColFilter->filterInfo.upperRelOptr;
         if (lower == TSDB_RELATION_INVALID && upper == TSDB_RELATION_INVALID) {
-          qError("QInfo:%" PRIu64 " invalid filter info", qId);
+          qError("QInfo:0x%"PRIx64" invalid filter info", qId);
           return TSDB_CODE_QRY_INVALID_MSG;
         }
 
         pSingleColFilter->fp = getFilterOperator(lower, upper);
         if (pSingleColFilter->fp == NULL) {
-          qError("QInfo:%" PRIu64 " invalid filter info", qId);
+          qError("QInfo:0x%"PRIx64" invalid filter info", qId);
           return TSDB_CODE_QRY_INVALID_MSG;
         }
 
@@ -6834,7 +6835,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   // todo refactor
   pQInfo->query.queryBlockDist = (numOfOutput == 1 && pExprs[0].base.colInfo.colId == TSDB_BLOCK_DIST_COLUMN_INDEX);
 
-  qDebug("qmsg:%p QInfo:%" PRIu64 "-%p created", pQueryMsg, pQInfo->qId, pQInfo);
+  qDebug("qmsg:%p QInfo:0x%" PRIx64 "-%p created", pQueryMsg, pQInfo->qId, pQInfo);
   return pQInfo;
 
 _cleanup_qinfo:
@@ -6910,7 +6911,7 @@ int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* 
 
   if ((QUERY_IS_ASC_QUERY(pQueryAttr) && (pQueryAttr->window.skey > pQueryAttr->window.ekey)) ||
       (!QUERY_IS_ASC_QUERY(pQueryAttr) && (pQueryAttr->window.ekey > pQueryAttr->window.skey))) {
-    qDebug("QInfo:%"PRIu64" no result in time range %" PRId64 "-%" PRId64 ", order %d", pQInfo->qId, pQueryAttr->window.skey,
+    qDebug("QInfo:0x%"PRIx64" no result in time range %" PRId64 "-%" PRId64 ", order %d", pQInfo->qId, pQueryAttr->window.skey,
            pQueryAttr->window.ekey, pQueryAttr->order.order);
     setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
     pRuntimeEnv->tableqinfoGroupInfo.numOfTables = 0;
@@ -6919,7 +6920,7 @@ int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* 
   }
 
   if (pRuntimeEnv->tableqinfoGroupInfo.numOfTables == 0) {
-    qDebug("QInfo:%"PRIu64" no table qualified for tag filter, abort query", pQInfo->qId);
+    qDebug("QInfo:0x%"PRIx64" no table qualified for tag filter, abort query", pQInfo->qId);
     setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
     return TSDB_CODE_SUCCESS;
   }
@@ -7005,7 +7006,7 @@ void freeQInfo(SQInfo *pQInfo) {
     return;
   }
 
-  qDebug("QInfo:%"PRIu64" start to free QInfo", pQInfo->qId);
+  qDebug("QInfo:0x%"PRIx64" start to free QInfo", pQInfo->qId);
 
   SQueryRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
   releaseQueryBuf(pRuntimeEnv->tableqinfoGroupInfo.numOfTables);
@@ -7024,7 +7025,7 @@ void freeQInfo(SQInfo *pQInfo) {
   taosArrayDestroy(pRuntimeEnv->groupResInfo.pRows);
   pQInfo->signature = 0;
 
-  qDebug("QInfo:%"PRIu64" QInfo is freed", pQInfo->qId);
+  qDebug("QInfo:0x%"PRIx64" QInfo is freed", pQInfo->qId);
 
   tfree(pQInfo);
 }
@@ -7044,7 +7045,7 @@ int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
       off_t s = lseek(fileno(f), 0, SEEK_END);
       assert(s == pRuntimeEnv->outputBuf->info.rows);
 
-      qDebug("QInfo:%"PRIu64" ts comp data return, file:%p, size:%"PRId64, pQInfo->qId, f, (uint64_t)s);
+      qDebug("QInfo:0x%"PRIx64" ts comp data return, file:%p, size:%"PRId64, pQInfo->qId, f, (uint64_t)s);
       if (fseek(f, 0, SEEK_SET) >= 0) {
         size_t sz = fread(data, 1, s, f);
         if(sz < s) {  // todo handle error
@@ -7076,11 +7077,11 @@ int32_t doDumpQueryResult(SQInfo *pQInfo, char *data) {
   }
 
   pRuntimeEnv->resultInfo.total += pRuntimeEnv->outputBuf->info.rows;
-  qDebug("QInfo:%"PRIu64" current numOfRes rows:%d, total:%" PRId64, pQInfo->qId,
+  qDebug("QInfo:0x%"PRIx64" current numOfRes rows:%d, total:%" PRId64, pQInfo->qId,
          pRuntimeEnv->outputBuf->info.rows, pRuntimeEnv->resultInfo.total);
 
   if (pQueryAttr->limit.limit > 0 && pQueryAttr->limit.limit == pRuntimeEnv->resultInfo.total) {
-    qDebug("QInfo:%"PRIu64" results limitation reached, limitation:%"PRId64, pQInfo->qId, pQueryAttr->limit.limit);
+    qDebug("QInfo:0x%"PRIx64" results limitation reached, limitation:%"PRId64, pQInfo->qId, pQueryAttr->limit.limit);
     setQueryStatus(pRuntimeEnv, QUERY_OVER);
   }
 

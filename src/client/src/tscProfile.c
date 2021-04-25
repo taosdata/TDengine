@@ -61,7 +61,7 @@ void tscAddIntoSqlList(SSqlObj *pSql) {
   pSql->stime = taosGetTimestampMs();
   pSql->listed = 1;
 
-  tscDebug("%p added into sqlList", pSql);
+  tscDebug("0x%"PRIx64" added into sqlList", pSql->self);
 }
 
 void tscSaveSlowQueryFpCb(void *param, TAOS_RES *result, int code) {
@@ -99,7 +99,7 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
     return;
   }
 
-  tscDebug("%p query time:%" PRId64 " sql:%s", pSql, pSql->res.useconds, pSql->sqlstr);
+  tscDebug("0x%"PRIx64" query time:%" PRId64 " sql:%s", pSql->self, pSql->res.useconds, pSql->sqlstr);
   int32_t sqlSize = (int32_t)(TSDB_SLOW_QUERY_SQL_LEN + size);
   
   char *sql = malloc(sqlSize);
@@ -141,7 +141,7 @@ void tscRemoveFromSqlList(SSqlObj *pSql) {
   pSql->listed = 0;
 
   tscSaveSlowQuery(pSql);
-  tscDebug("%p removed from sqlList", pSql);
+  tscDebug("0x%"PRIx64" removed from sqlList", pSql->self);
 }
 
 void tscKillQuery(STscObj *pObj, uint32_t killId) {
@@ -158,7 +158,7 @@ void tscKillQuery(STscObj *pObj, uint32_t killId) {
   if (pSql == NULL) {
     tscError("failed to kill query, id:%d, it may have completed/terminated", killId);
   } else {
-    tscDebug("%p query is killed, queryId:%d", pSql, killId);
+    tscDebug("0x%"PRIx64" query is killed, queryId:%d", pSql->self, killId);
     taos_stop_query(pSql);
   }
 }
@@ -213,7 +213,7 @@ void tscKillStream(STscObj *pObj, uint32_t killId) {
   pthread_mutex_unlock(&pObj->mutex);
 
   if (pStream) {
-    tscDebug("%p stream:%p is killed, streamId:%d", pStream->pSql, pStream, killId);
+    tscDebug("0x%"PRIx64" stream:%p is killed, streamId:%d", pStream->pSql->self, pStream, killId);
     if (pStream->callback) {
       pStream->callback(pStream->param);
     }
@@ -273,7 +273,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
     pSdesc->num = htobe64(pStream->num);
 
     pSdesc->useconds = htobe64(pStream->useconds);
-    pSdesc->stime = htobe64(pStream->stime - pStream->interval.interval);
+    pSdesc->stime = (pStream->stime == INT64_MIN) ? htobe64(pStream->stime) : htobe64(pStream->stime - pStream->interval.interval);
     pSdesc->ctime = htobe64(pStream->ctime);
 
     pSdesc->slidingTime = htobe64(pStream->interval.sliding);

@@ -244,14 +244,18 @@ namespace TDengineDriver
             DateTime dt2 = DateTime.Now;
             TimeSpan span = dt2 - dt1;
 
-            if (res != IntPtr.Zero)
+            if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
             {
-                Console.WriteLine("[OK] time cost: " + span.ToString() + "ms, execute statement ====> " + sql.ToString());
+              Console.Write(sql.ToString() + " failure, ");
+              if (res != IntPtr.Zero) {
+                Console.Write("reason: " + TDengine.Error(res));
+              }
+              Console.WriteLine("");
+              ExitProgram();
             }
             else
             {
-                Console.WriteLine(sql.ToString() + " failure, reason: " + TDengine.Error(res));
-                ExitProgram();
+                Console.WriteLine(sql.ToString() + " success");
             }
             TDengine.FreeResult(res);
         }
@@ -262,10 +266,14 @@ namespace TDengineDriver
             DateTime dt1 = DateTime.Now;
             long queryRows = 0;
             IntPtr res = TDengine.Query(conn, sql);
-            if (res == IntPtr.Zero)
+            if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
             {
-                Console.WriteLine(sql + " failure, reason: " + TDengine.Error(res));
-                ExitProgram();
+              Console.Write(sql.ToString() + " failure, ");
+              if (res != IntPtr.Zero) {
+                Console.Write("reason: " + TDengine.Error(res));
+              }
+              Console.WriteLine("");
+              ExitProgram();
             }
             DateTime dt2 = DateTime.Now;
             TimeSpan span = dt2 - dt1;
@@ -354,6 +362,7 @@ namespace TDengineDriver
             {
                 Console.Write("Query is not complete, Error {0:G}", TDengine.ErrorNo(res), TDengine.Error(res));
             }
+            Console.WriteLine("");
 
             TDengine.FreeResult(res);
 
