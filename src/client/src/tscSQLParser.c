@@ -7240,7 +7240,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, int32_t index) {
     }
 
     // set all query tables, which are maybe more than one.
-    code = doLoadAllTableMeta(pSql, index, pSqlNode, fromSize);
+    code = doLoadAllTableMeta(pSql, index, pSqlNode, (int32_t) fromSize);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

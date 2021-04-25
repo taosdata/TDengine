@@ -825,7 +825,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
 
-  SQueryAttr query = {0};
+  SQueryAttr query = {{0}};
   tscCreateQueryFromQueryInfo(pQueryInfo, &query, pSql);
 
   SArray* tableScanOperator = createTableScanPlan(&query);
