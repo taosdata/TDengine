@@ -588,7 +588,7 @@ void tscSetResRawPtrRv(SSqlRes* pRes, SQueryInfo* pQueryInfo, SSDataBlock* pBloc
 }
 
 static SColumnInfo* extractColumnInfoFromResult(STableMeta* pTableMeta, SArray* pTableCols) {
-  int32_t numOfCols = taosArrayGetSize(pTableCols);
+  int32_t numOfCols = (int32_t) taosArrayGetSize(pTableCols);
   SColumnInfo* pColInfo = calloc(numOfCols, sizeof(SColumnInfo));
 
   SSchema *pSchema = pTableMeta->schema;
@@ -704,7 +704,7 @@ void handleDownstreamOperator(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
     SColumnInfo* pColumnInfo = extractColumnInfoFromResult(px->pTableMetaInfo[0]->pTableMeta, px->colList);
     int32_t numOfOutput = tscSqlExprNumOfExprs(px);
 
-    int32_t numOfCols = taosArrayGetSize(px->colList);
+    int32_t numOfCols = (int32_t) taosArrayGetSize(px->colList);
     SQueriedTableInfo info = {.colList = pColumnInfo, .numOfCols = numOfCols,};
     SSchema* pSchema = tscGetTableSchema(px->pTableMetaInfo[0]->pTableMeta);
 
@@ -3524,8 +3524,8 @@ static int32_t createTagColumnInfo(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
 int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAttr, void* addr) {
   memset(pQueryAttr, 0, sizeof(SQueryAttr));
 
-  int16_t numOfCols        = taosArrayGetSize(pQueryInfo->colList);
-  int16_t numOfOutput      = tscSqlExprNumOfExprs(pQueryInfo);
+  int16_t numOfCols        = (int16_t) taosArrayGetSize(pQueryInfo->colList);
+  int16_t numOfOutput      = (int16_t) tscSqlExprNumOfExprs(pQueryInfo);
 
   pQueryAttr->topBotQuery       = tscIsTopBotQuery(pQueryInfo);
   pQueryAttr->hasTagResults     = hasTagValOutput(pQueryInfo);
