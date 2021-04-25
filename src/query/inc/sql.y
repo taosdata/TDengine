@@ -506,10 +506,12 @@ distinct(X) ::= .            { X.n = 0;}
 
 // A complete FROM clause.
 %type from {SRelationInfo*}
+%destructor from {destroyRelationInfo($$);}
 from(A) ::= FROM tablelist(X).                 {A = X;}
 from(A) ::= FROM LP union(Y) RP.               {A = setSubquery(NULL, Y);}
 
 %type tablelist {SRelationInfo*}
+%destructor tablelist {destroyRelationInfo($$);}
 tablelist(A) ::= ids(X) cpxName(Y).                     {
   X.n += Y.n;
   A = setTableNameList(NULL, &X, NULL);

@@ -2155,7 +2155,7 @@ int tscProcessShowRsp(SSqlObj *pSql) {
   uint64_t uid = pTableMetaInfo->pTableMeta->id.uid;
   for (int16_t i = 0; i < pMetaMsg->numOfColumns; ++i, ++pSchema) {
     index.columnIndex = i;
-    tscColumnListInsert(pQueryInfo->colList, i, uid, &pSchema[i]);
+    tscColumnListInsert(pQueryInfo->colList, i, uid, pSchema);
     
     TAOS_FIELD f = tscCreateField(pSchema->type, pSchema->name, pSchema->bytes);
     SInternalField* pInfo = tscFieldInfoAppend(pFieldInfo, &f);

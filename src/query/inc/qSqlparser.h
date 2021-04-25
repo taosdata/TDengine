@@ -106,11 +106,6 @@ typedef struct STableNamePair {
   SStrToken aliasName;
 } STableNamePair;
 
-//typedef struct SSubclauseInfo {  // "UNION" multiple select sub-clause
-//  SSqlNode    **pClause;
-//  int32_t       numOfClause;
-//} SSubclauseInfo;
-
 typedef struct SRelationInfo {
   int32_t       type;        // nested query|table name list
   SArray       *list;        // SArray<STableNamePair>|SArray<SSqlNode*>
@@ -253,7 +248,7 @@ SArray *tVariantListAppendToken(SArray *pList, SStrToken *pAliasToken, uint8_t s
 
 SRelationInfo *setTableNameList(SRelationInfo* pFromInfo, SStrToken *pName, SStrToken* pAlias);
 SRelationInfo *setSubquery(SRelationInfo* pFromInfo, SArray* pSqlNode);
-void      *destroyFromInfo(SRelationInfo* pFromInfo);
+void          *destroyRelationInfo(SRelationInfo* pFromInfo);
 
 // sql expr leaf node
 tSqlExpr *tSqlExprCreateIdValue(SStrToken *pToken, int32_t optrType);

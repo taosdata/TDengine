@@ -552,7 +552,7 @@ SRelationInfo* setSubquery(SRelationInfo* pRelationInfo, SArray* pList) {
   return pRelationInfo;
 }
 
-void* destroyFromInfo(SRelationInfo* pRelationInfo) {
+void* destroyRelationInfo(SRelationInfo* pRelationInfo) {
   if (pRelationInfo == NULL) {
     return NULL;
   }
@@ -799,7 +799,7 @@ void destroySqlNode(SSqlNode *pSqlNode) {
   taosArrayDestroyEx(pSqlNode->pGroupby, freeVariant);
   pSqlNode->pGroupby = NULL;
 
-  pSqlNode->from = destroyFromInfo(pSqlNode->from);
+  pSqlNode->from = destroyRelationInfo(pSqlNode->from);
 
   taosArrayDestroyEx(pSqlNode->fillType, freeVariant);
   pSqlNode->fillType = NULL;

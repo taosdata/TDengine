@@ -1435,6 +1435,12 @@ destroySqlNode((yypminor->yy116));
 tSqlExprListDestroy((yypminor->yy159));
 }
       break;
+    case 238: /* from */
+    case 254: /* tablelist */
+{
+destroyRelationInfo((yypminor->yy236));
+}
+      break;
     case 239: /* where_opt */
     case 246: /* having_opt */
     case 252: /* expr */
