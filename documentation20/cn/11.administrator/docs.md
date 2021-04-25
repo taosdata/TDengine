@@ -100,8 +100,7 @@ taosd -C
 
 - firstEp: taosd启动时，主动连接的集群中首个dnode的end point, 默认值为localhost:6030。
 - fqdn：数据节点的FQDN，缺省为操作系统配置的第一个hostname。如果习惯IP地址访问，可设置为该节点的IP地址。
-- serverPort：taosd启动后，对外服务的端口号，默认值为6030。
-- httpPort: RESTful服务使用的端口号，所有的HTTP请求（TCP）都需要向该接口发起查询/写入请求, 默认值为6041。
+- serverPort：taosd启动后，对外服务的端口号，默认值为6030。（RESTful服务使用的端口号是在此基础上+11，即默认值为6041。）
 - dataDir: 数据文件目录，所有的数据文件都将写入该目录。默认值：/var/lib/taos。
 - logDir：日志文件目录，客户端和服务器的运行日志文件将写入该目录。默认值：/var/log/taos。
 - arbitrator：系统中裁决器的end point, 缺省值为空。
@@ -115,7 +114,7 @@ taosd -C
 - queryBufferSize: 为所有并发查询占用保留的内存大小。计算规则可以根据实际应用可能的最大并发数和表的数字相乘，再乘 170 。单位为 MB（2.0.15 以前的版本中，此参数的单位是字节）。
 - ratioOfQueryCores: 设置查询线程的最大数量。最小值0 表示只有1个查询线程；最大值2表示最大建立2倍CPU核数的查询线程。默认为1，表示最大和CPU核数相等的查询线程。该值可以为小数，即0.5表示最大建立CPU核数一半的查询线程。
 
-**注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030到6042共13个端口，而且必须TCP和UDP都打开。
+**注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030到6042共13个端口，而且必须TCP和UDP都打开。（详细的端口情况请参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)）
 
 不同应用场景的数据往往具有不同的数据特征，比如保留天数、副本数、采集频次、记录大小、采集点的数量、压缩等都可完全不同。为获得在存储上的最高效率，TDengine提供如下存储相关的系统配置参数：
 
@@ -145,12 +144,12 @@ TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数�
 - numOfMnodes：系统中管理节点个数。默认值：3。
 - balance：是否启动负载均衡。0：否，1：是。默认值：1。
 - mnodeEqualVnodeNum: 一个mnode等同于vnode消耗的个数。默认值：4。
-- offlineThreshold: dnode离线阈值，超过该时间将导致该dnode从集群中删除。单位为秒，默认值：86400*10（即10天）。
+- offlineThreshold: dnode离线阈值，超过该时间将导致该dnode从集群中删除。单位为秒，默认值：86400*100（即100天）。
 - statusInterval: dnode向mnode报告状态时长。单位为秒，默认值：1。
 - maxTablesPerVnode: 每个vnode中能够创建的最大表个数。默认值：1000000。
 - maxVgroupsPerDb: 每个数据库中能够使用的最大vgroup个数。
 - arbitrator: 系统中裁决器的end point，缺省为空。
-- timezone、locale、charset 的配置见客户端配置。
+- timezone、locale、charset 的配置见客户端配置。（2.0.20.0 及以上的版本里，集群中加入新节点已不要求 locale 和 charset 参数取值一致）
 
 为方便调试，可通过SQL语句临时调整每个dnode的日志配置，系统重启后会失效：
 
@@ -463,41 +462,41 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 
 | 关键字列表 |             |              |            |           |
 | ---------- | ----------- | ------------ | ---------- | --------- |
-| ABLOCKS    | CONNECTIONS | GT           | MNODES     | SLIDING   |
-| ABORT      | COPY        | ID           | MODULES    | SLIMIT    |
-| ACCOUNT    | COUNT       | IF           | NCHAR      | SMALLINT  |
-| ACCOUNTS   | CREATE      | IGNORE       | NE         | SPREAD    |
-| ADD        | CTIME       | IMMEDIATE    | NONE       | STABLE    |
-| AFTER      | DATABASE    | IMPORT       | NOT        | STABLES   |
-| ALL        | DATABASES   | IN           | NOTNULL    | STAR      |
-| ALTER      | DAYS        | INITIALLY    | NOW        | STATEMENT |
-| AND        | DEFERRED    | INSERT       | OF         | STDDEV    |
-| AS         | DELIMITERS  | INSTEAD      | OFFSET     | STREAM    |
-| ASC        | DESC        | INTEGER      | OR         | STREAMS   |
-| ATTACH     | DESCRIBE    | INTERVAL     | ORDER      | STRING    |
-| AVG        | DETACH      | INTO         | PASS       | SUM       |
-| BEFORE     | DIFF        | IP           | PERCENTILE | TABLE     |
-| BEGIN      | DISTINCT    | IS           | PLUS       | TABLES    |
-| BETWEEN    | DIVIDE      | ISNULL       | PRAGMA     | TAG       |
-| BIGINT     | DNODE       | JOIN         | PREV       | TAGS      |
-| BINARY     | DNODES      | KEEP         | PRIVILEGE  | TBLOCKS   |
-| BITAND     | DOT         | KEY          | QUERIES    | TBNAME    |
-| BITNOT     | DOUBLE      | KILL         | QUERY      | TIMES     |
-| BITOR      | DROP        | LAST         | RAISE      | TIMESTAMP |
-| BOOL       | EACH        | LE           | REM        | TINYINT   |
-| BOTTOM     | END         | LEASTSQUARES | REPLACE    | TOP       |
-| BY         | EQ          | LIKE         | REPLICA    | TRIGGER   |
-| CACHE      | EXISTS      | LIMIT        | RESET      | UMINUS    |
-| CASCADE    | EXPLAIN     | LINEAR       | RESTRICT   | UPLUS     |
-| CHANGE     | FAIL        | LOCAL        | ROW        | USE       |
-| CLOG       | FILL        | LP           | ROWS       | USER      |
-| CLUSTER    | FIRST       | LSHIFT       | RP         | USERS     |
-| COLON      | FLOAT       | LT           | RSHIFT     | USING     |
-| COLUMN     | FOR         | MATCH        | SCORES     | VALUES    |
-| COMMA      | FROM        | MAX          | SELECT     | VARIABLE  |
-| COMP       | GE          | METRIC       | SEMI       | VGROUPS   |
-| CONCAT     | GLOB        | METRICS      | SET        | VIEW      |
-| CONFIGS    | GRANTS      | MIN          | SHOW       | WAVG      |
-| CONFLICT   | GROUP       | MINUS        | SLASH      | WHERE     |
-| CONNECTION |             |              |            |           |
+| ABLOCKS    | CONNECTIONS | HAVING       | MODULES    | SLIMIT    |
+| ABORT      | COPY        | ID           | NCHAR      | SMALLINT  |
+| ACCOUNT    | COUNT       | IF           | NE         | SPREAD    |
+| ACCOUNTS   | CREATE      | IGNORE       | NONE       | STABLE    |
+| ADD        | CTIME       | IMMEDIATE    | NOT        | STABLES   |
+| AFTER      | DATABASE    | IMPORT       | NOTNULL    | STAR      |
+| ALL        | DATABASES   | IN           | NOW        | STATEMENT |
+| ALTER      | DAYS        | INITIALLY    | OF         | STDDEV    |
+| AND        | DEFERRED    | INSERT       | OFFSET     | STREAM    |
+| AS         | DELIMITERS  | INSTEAD      | OR         | STREAMS   |
+| ASC        | DESC        | INTEGER      | ORDER      | STRING    |
+| ATTACH     | DESCRIBE    | INTERVAL     | PASS       | SUM       |
+| AVG        | DETACH      | INTO         | PERCENTILE | TABLE     |
+| BEFORE     | DIFF        | IP           | PLUS       | TABLES    |
+| BEGIN      | DISTINCT    | IS           | PRAGMA     | TAG       |
+| BETWEEN    | DIVIDE      | ISNULL       | PREV       | TAGS      |
+| BIGINT     | DNODE       | JOIN         | PRIVILEGE  | TBLOCKS   |
+| BINARY     | DNODES      | KEEP         | QUERIES    | TBNAME    |
+| BITAND     | DOT         | KEY          | QUERY      | TIMES     |
+| BITNOT     | DOUBLE      | KILL         | RAISE      | TIMESTAMP |
+| BITOR      | DROP        | LAST         | REM        | TINYINT   |
+| BOOL       | EACH        | LE           | REPLACE    | TOP       |
+| BOTTOM     | END         | LEASTSQUARES | REPLICA    | TOPIC     |
+| BY         | EQ          | LIKE         | RESET      | TRIGGER   |
+| CACHE      | EXISTS      | LIMIT        | RESTRICT   | UMINUS    |
+| CASCADE    | EXPLAIN     | LINEAR       | ROW        | UPLUS     |
+| CHANGE     | FAIL        | LOCAL        | ROWS       | USE       |
+| CLOG       | FILL        | LP           | RP         | USER      |
+| CLUSTER    | FIRST       | LSHIFT       | RSHIFT     | USERS     |
+| COLON      | FLOAT       | LT           | SCORES     | USING     |
+| COLUMN     | FOR         | MATCH        | SELECT     | VALUES    |
+| COMMA      | FROM        | MAX          | SEMI       | VARIABLE  |
+| COMP       | GE          | METRIC       | SET        | VGROUPS   |
+| CONCAT     | GLOB        | METRICS      | SHOW       | VIEW      |
+| CONFIGS    | GRANTS      | MIN          | SLASH      | WAVG      |
+| CONFLICT   | GROUP       | MINUS        | SLIDING    | WHERE     |
+| CONNECTION | GT          | MNODES       |            |           |
 

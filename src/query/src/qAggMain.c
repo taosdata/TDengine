@@ -2482,6 +2482,29 @@ static STopBotInfo *getTopBotOutputInfo(SQLFunctionCtx *pCtx) {
   }
 }
 
+
+/*
+ * keep the intermediate results during scan data blocks in the format of:
+ * +-----------------------------------+-------------one value pair-----------+------------next value pair-----------+
+ * |-------------pointer area----------|----ts---+-----+-----n tags-----------|----ts---+-----+-----n tags-----------|
+ * +..[Value Pointer1][Value Pointer2].|timestamp|value|tags1|tags2|....|tagsn|timestamp|value|tags1|tags2|....|tagsn+
+ */
+static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
+  char *tmp = (char *)pTopBotInfo + sizeof(STopBotInfo);
+  pTopBotInfo->res = (tValuePair**) tmp;
+  tmp += POINTER_BYTES * pCtx->param[0].i64;
+  
+  size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
+//  assert(pCtx->param[0].i64 > 0);
+
+  for (int32_t i = 0; i < pCtx->param[0].i64; ++i) {
+    pTopBotInfo->res[i] = (tValuePair*) tmp;
+    pTopBotInfo->res[i]->pTags = tmp + sizeof(tValuePair);
+    tmp += size;
+  }
+}
+
+
 bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const char *maxval) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   if (pResInfo == NULL) {
@@ -2495,6 +2518,10 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const cha
     return true;
   }
   
+  if ((void *)pTopBotInfo->res[0] != (void *)((char *)pTopBotInfo + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].i64)) {
+    buildTopBotStruct(pTopBotInfo, pCtx);
+  }
+
   tValuePair **pRes = (tValuePair**) pTopBotInfo->res;
   
   if (pCtx->functionId == TSDB_FUNC_TOP) {
@@ -2531,27 +2558,6 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const cha
       default:
         return true;
     }
-  }
-}
-
-/*
- * keep the intermediate results during scan data blocks in the format of:
- * +-----------------------------------+-------------one value pair-----------+------------next value pair-----------+
- * |-------------pointer area----------|----ts---+-----+-----n tags-----------|----ts---+-----+-----n tags-----------|
- * +..[Value Pointer1][Value Pointer2].|timestamp|value|tags1|tags2|....|tagsn|timestamp|value|tags1|tags2|....|tagsn+
- */
-static void buildTopBotStruct(STopBotInfo *pTopBotInfo, SQLFunctionCtx *pCtx) {
-  char *tmp = (char *)pTopBotInfo + sizeof(STopBotInfo);
-  pTopBotInfo->res = (tValuePair**) tmp;
-  tmp += POINTER_BYTES * pCtx->param[0].i64;
-  
-  size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
-//  assert(pCtx->param[0].i64 > 0);
-
-  for (int32_t i = 0; i < pCtx->param[0].i64; ++i) {
-    pTopBotInfo->res[i] = (tValuePair*) tmp;
-    pTopBotInfo->res[i]->pTags = tmp + sizeof(tValuePair);
-    tmp += size;
   }
 }
 
@@ -2609,6 +2615,10 @@ static void top_function_f(SQLFunctionCtx *pCtx, int32_t index) {
   
   STopBotInfo *pRes = getTopBotOutputInfo(pCtx);
   assert(pRes->num >= 0);
+
+  if ((void *)pRes->res[0] != (void *)((char *)pRes + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].i64)) {
+    buildTopBotStruct(pRes, pCtx);
+  }
   
   SET_VAL(pCtx, 1, 1);
   TSKEY ts = GET_TS_DATA(pCtx, index);

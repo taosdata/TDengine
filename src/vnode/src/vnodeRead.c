@@ -183,7 +183,7 @@ static int32_t vnodeDumpQueryResult(SRspRet *pRet, void *pVnode, uint64_t qId, v
       }
     } else {
       *freeHandle = true;
-      vTrace("QInfo:%"PRIu64"-%p exec completed, free handle:%d", qId, *handle, *freeHandle);
+      vTrace("QInfo:0x%"PRIx64"-%p exec completed, free handle:%d", qId, *handle, *freeHandle);
     }
   } else {
     SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
@@ -208,6 +208,7 @@ static void vnodeBuildNoResultQueryRsp(SRspRet *pRet) {
   pRsp->completed = true;
 }
 
+
 static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   void *   pCont = pRead->pCont;
   int32_t  contLen = pRead->contLen;
@@ -226,7 +227,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 
   if (contLen != 0) {
     qinfo_t pQInfo = NULL;
-    uint64_t qId = 0;
+    uint64_t qId = genQueryId();
     code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo, &qId);
 
     SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
@@ -243,7 +244,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
       if (handle == NULL) {  // failed to register qhandle
         pRsp->code = terrno;
         terrno = 0;
-        vError("vgId:%d, QInfo:%"PRIu64 "-%p register qhandle failed, return to app, code:%s", pVnode->vgId, qId, (void *)pQInfo,
+        vError("vgId:%d, QInfo:0x%"PRIx64 "-%p register qhandle failed, return to app, code:%s", pVnode->vgId, qId, (void *)pQInfo,
                tstrerror(pRsp->code));
         qDestroyQueryInfo(pQInfo);  // destroy it directly
         return pRsp->code;
@@ -254,7 +255,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
 
       if (handle != NULL &&
           vnodeNotifyCurrentQhandle(pRead->rpcHandle, qId, *handle, pVnode->vgId) != TSDB_CODE_SUCCESS) {
-        vError("vgId:%d, QInfo:%"PRIu64 "-%p, query discarded since link is broken, %p", pVnode->vgId, qId, *handle,
+        vError("vgId:%d, QInfo:0x%"PRIx64 "-%p, query discarded since link is broken, %p", pVnode->vgId, qId, *handle,
                pRead->rpcHandle);
         pRsp->code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
         qReleaseQInfo(pVnode->qMgmt, (void **)&handle, true);
@@ -265,7 +266,7 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     }
 
     if (handle != NULL) {
-      vTrace("vgId:%d, QInfo:%"PRIu64 "-%p, dnode query msg disposed, create qhandle and returns to app", vgId, qId, *handle);
+      vTrace("vgId:%d, QInfo:0x%"PRIx64 "-%p, dnode query msg disposed, create qhandle and returns to app", vgId, qId, *handle);
       code = vnodePutItemIntoReadQueue(pVnode, handle, pRead->rpcHandle);
       if (code != TSDB_CODE_SUCCESS) {
         pRsp->code = code;
@@ -330,7 +331,7 @@ static int32_t vnodeProcessFetchMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   pRetrieve->free = htons(pRetrieve->free);
   pRetrieve->qId = htobe64(pRetrieve->qId);
 
-  vTrace("vgId:%d, qId:%" PRIu64 ", retrieve msg is disposed, free:%d, conn:%p", pVnode->vgId, pRetrieve->qId,
+  vTrace("vgId:%d, qId:0x%" PRIx64 ", retrieve msg is disposed, free:%d, conn:%p", pVnode->vgId, pRetrieve->qId,
          pRetrieve->free, pRead->rpcHandle);
 
   memset(pRet, 0, sizeof(SRspRet));
@@ -413,7 +414,7 @@ int32_t vnodeNotifyCurrentQhandle(void *handle, uint64_t qId, void *qhandle, int
   pMsg->header.vgId = htonl(vgId);
   pMsg->header.contLen = htonl(sizeof(SRetrieveTableMsg));
 
-  vTrace("QInfo:%"PRIu64"-%p register qhandle to connect:%p", qId, qhandle, handle);
+  vTrace("QInfo:0x%"PRIx64"-%p register qhandle to connect:%p", qId, qhandle, handle);
   return rpcReportProgress(handle, (char *)pMsg, sizeof(SRetrieveTableMsg));
 }
 
