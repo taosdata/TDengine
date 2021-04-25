@@ -50,6 +50,7 @@ bool httpProcessData(HttpContext* pContext) {
        */
       // httpCloseContextByApp(pContext);
     } else {
+      httpClearParser(pContext->parser);
       httpProcessRequest(pContext);
     }
   }

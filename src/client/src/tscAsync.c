@@ -57,7 +57,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
   strntolower(pSql->sqlstr, sqlstr, (int32_t)sqlLen);
 
-  tscDebugL("%p SQL: %s", pSql, pSql->sqlstr);
+  tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
   pCmd->curSql = pSql->sqlstr;
 
   int32_t code = tsParseSql(pSql, true);
@@ -283,7 +283,7 @@ void tscQueueAsyncError(void(*fp), void *param, int32_t code) {
 static void tscAsyncResultCallback(SSchedMsg *pMsg) {
   SSqlObj* pSql = (SSqlObj*)taosAcquireRef(tscObjRef, (int64_t)pMsg->ahandle);
   if (pSql == NULL || pSql->signature != pSql) {
-    tscDebug("%p SqlObj is freed, not add into queue async res", pSql);
+    tscDebug("%p SqlObj is freed, not add into queue async res", pMsg->ahandle);
     return;
   }
 
@@ -372,13 +372,13 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
     goto _error;
   }
 
-  tscDebug("%p get %s successfully", pSql, msg);
+  tscDebug("0x%"PRIx64" get %s successfully", pSql->self, msg);
   if (pSql->pStream == NULL) {
     SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, pCmd->clauseIndex);
 
     // check if it is a sub-query of super table query first, if true, enter another routine
     if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, (TSDB_QUERY_TYPE_STABLE_SUBQUERY|TSDB_QUERY_TYPE_SUBQUERY|TSDB_QUERY_TYPE_TAG_FILTER_QUERY))) {
-      tscDebug("%p update local table meta, continue to process sql and send the corresponding query", pSql);
+      tscDebug("0x%"PRIx64" update local table meta, continue to process sql and send the corresponding query", pSql->self);
 
       STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
@@ -402,7 +402,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       return;
     } else {  // continue to process normal async query
       if (pCmd->parseFinished) {
-        tscDebug("%p update local table meta, continue to process sql and send corresponding query", pSql);
+        tscDebug("0x%"PRIx64" update local table meta, continue to process sql and send corresponding query", pSql->self);
 
         STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
         code = tscGetTableMeta(pSql, pTableMetaInfo);
@@ -416,7 +416,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
         assert(pCmd->command != TSDB_SQL_INSERT);
 
         if (pCmd->command == TSDB_SQL_SELECT) {
-          tscDebug("%p redo parse sql string and proceed", pSql);
+          tscDebug("0x%"PRIx64" redo parse sql string and proceed", pSql->self);
           pCmd->parseFinished = false;
           tscResetSqlCmd(pCmd, true);
 
@@ -436,7 +436,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
         taosReleaseRef(tscObjRef, pSql->self);
         return;
       } else {
-        tscDebug("%p continue parse sql after get table meta", pSql);
+        tscDebug("0x%"PRIx64" continue parse sql after get table meta", pSql->self);
 
         code = tsParseSql(pSql, false);
         if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
@@ -486,7 +486,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
       }
     }
 
-    tscDebug("%p stream:%p meta is updated, start new query, command:%d", pSql, pSql->pStream, pSql->cmd.command);
+    tscDebug("0x%"PRIx64" stream:%p meta is updated, start new query, command:%d", pSql->self, pSql->pStream, pSql->cmd.command);
     if (!pSql->cmd.parseFinished) {
       tsParseSql(pSql, false);
     }

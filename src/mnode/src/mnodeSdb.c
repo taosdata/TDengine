@@ -1025,7 +1025,7 @@ static int32_t sdbWriteToQueue(SSdbRow *pRow, int32_t qtype) {
 
   int32_t queued = atomic_add_fetch_32(&tsSdbMgmt.queuedMsg, 1);
   if (queued > MAX_QUEUED_MSG_NUM) {
-    sdbDebug("vgId:1, too many msg:%d in sdb queue, flow control", queued);
+    sdbInfo("vgId:1, too many msg:%d in sdb queue, flow control", queued);
     taosMsleep(1);
   }
 

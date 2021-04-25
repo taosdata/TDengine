@@ -34,6 +34,7 @@ int tscKeepConn[TSDB_SQL_MAX] = {0};
 TSKEY tscGetSubscriptionProgress(void* sub, int64_t uid, TSKEY dflt);
 void tscUpdateSubscriptionProgress(void* sub, int64_t uid, TSKEY ts);
 void tscSaveSubscriptionProgress(void* sub);
+static int32_t extractSTableQueryVgroupId(STableMetaInfo* pTableMetaInfo);
 
 static int32_t minMsgSize() { return tsRpcHeadSize + 100; }
 static int32_t getWaitingTimeInterval(int32_t count) {
@@ -78,7 +79,8 @@ static void tscEpSetHtons(SRpcEpSet *s) {
    for (int32_t i = 0; i < s->numOfEps; i++) {
       s->port[i] = htons(s->port[i]);    
    }
-} 
+}
+
 bool tscEpSetIsEqual(SRpcEpSet *s1, SRpcEpSet *s2) {
    if (s1->numOfEps != s2->numOfEps || s1->inUse != s2->inUse) {
      return false;
@@ -111,18 +113,21 @@ static void tscDumpEpSetFromVgroupInfo(SRpcEpSet *pEpSet, SNewVgroupInfo *pVgrou
   }
 }
 
-static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
-  SSqlCmd *pCmd = &pObj->cmd;
+static void tscUpdateVgroupInfo(SSqlObj *pSql, SRpcEpSet *pEpSet) {
+  SSqlCmd *pCmd = &pSql->cmd;
   STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
   if (pTableMetaInfo == NULL || pTableMetaInfo->pTableMeta == NULL) {
     return;
   }
 
-  int32_t vgId = pTableMetaInfo->pTableMeta->vgId;
+  int32_t vgId = -1;
   if (pTableMetaInfo->pTableMeta->tableType == TSDB_SUPER_TABLE) {
-    assert(vgId == 0);
-    return;
+    vgId = extractSTableQueryVgroupId(pTableMetaInfo);
+  } else {
+    vgId = pTableMetaInfo->pTableMeta->vgId;
   }
+
+  assert(vgId > 0);
 
   SNewVgroupInfo vgroupInfo = {.vgId = -1};
   taosHashGetClone(tscVgroupMap, &vgId, sizeof(vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
@@ -138,6 +143,33 @@ static void tscUpdateVgroupInfo(SSqlObj *pObj, SRpcEpSet *pEpSet) {
 
   tscDebug("after: EndPoint in use:%d, numOfEps:%d", vgroupInfo.inUse, vgroupInfo.numOfEps);
   taosHashPut(tscVgroupMap, &vgId, sizeof(vgId), &vgroupInfo, sizeof(SNewVgroupInfo));
+
+  // Update the local cached epSet info cached by SqlObj
+  int32_t inUse = pSql->epSet.inUse;
+  tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
+  tscDebug("0x%"PRIx64" update the epSet in SqlObj, in use before:%d, after:%d", pSql->self, inUse, pSql->epSet.inUse);
+
+}
+
+int32_t extractSTableQueryVgroupId(STableMetaInfo* pTableMetaInfo) {
+  assert(pTableMetaInfo != NULL);
+
+  int32_t vgIndex = pTableMetaInfo->vgroupIndex;
+  int32_t vgId = -1;
+
+  if (pTableMetaInfo->pVgroupTables == NULL) {
+    SVgroupsInfo *pVgroupInfo = pTableMetaInfo->vgroupList;
+    assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
+    vgId = pVgroupInfo->vgroups[vgIndex].vgId;
+  } else {
+    int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
+    assert(vgIndex >= 0 && vgIndex < numOfVgroups);
+
+    SVgroupTableInfo *pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, vgIndex);
+    vgId = pTableIdList->vgInfo.vgId;
+  }
+
+  return vgId;
 }
 
 void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
@@ -213,11 +245,11 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
 
   if (pObj->hbrid != 0) {
     int32_t waitingDuring = tsShellActivityTimer * 500;
-    tscDebug("%p send heartbeat in %dms", pSql, waitingDuring);
+    tscDebug("0x%"PRIx64" send heartbeat in %dms", pSql->self, waitingDuring);
 
     taosTmrReset(tscProcessActivityTimer, waitingDuring, (void *)pObj->rid, tscTmr, &pObj->pTimer);
   } else {
-    tscDebug("%p start to close tscObj:%p, not send heartbeat again", pSql, pObj);
+    tscDebug("0x%"PRIx64" start to close tscObj:%p, not send heartbeat again", pSql->self, pObj);
   }
 }
 
@@ -294,7 +326,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   pSql->rpcRid = -1;
 
   if (pObj->signature != pObj) {
-    tscDebug("%p DB connection is closed, cmd:%d pObj:%p signature:%p", pSql, pCmd->command, pObj, pObj->signature);
+    tscDebug("0x%"PRIx64" DB connection is closed, cmd:%d pObj:%p signature:%p", pSql->self, pCmd->command, pObj, pObj->signature);
 
     taosRemoveRef(tscObjRef, handle);
     taosReleaseRef(tscObjRef, handle);
@@ -304,8 +336,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(pCmd, 0);
   if (pQueryInfo != NULL && pQueryInfo->type == TSDB_QUERY_TYPE_FREE_RESOURCE) {
-    tscDebug("%p sqlObj needs to be released or DB connection is closed, cmd:%d type:%d, pObj:%p signature:%p",
-        pSql, pCmd->command, pQueryInfo->type, pObj, pObj->signature);
+    tscDebug("0x%"PRIx64" sqlObj needs to be released or DB connection is closed, cmd:%d type:%d, pObj:%p signature:%p",
+        pSql->self, pCmd->command, pQueryInfo->type, pObj, pObj->signature);
 
     taosRemoveRef(tscObjRef, handle);
     taosReleaseRef(tscObjRef, handle);
@@ -364,13 +396,13 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   pRes->rspLen = 0;
   
   if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
-    tscDebug("%p query is cancelled, code:%s", pSql, tstrerror(pRes->code));
+    tscDebug("0x%"PRIx64" query is cancelled, code:%s", pSql->self, tstrerror(pRes->code));
   } else {
     pRes->code = rpcMsg->code;
   }
 
   if (pRes->code == TSDB_CODE_SUCCESS) {
-    tscDebug("%p reset retry counter to be 0 due to success rsp, old:%d", pSql, pSql->retry);
+    tscDebug("0x%"PRIx64" reset retry counter to be 0 due to success rsp, old:%d", pSql->self, pSql->retry);
     pSql->retry = 0;
   }
 
@@ -405,10 +437,10 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
       pMsg->numOfFailedBlocks = htonl(pMsg->numOfFailedBlocks);
 
       pRes->numOfRows += pMsg->affectedRows;
-      tscDebug("%p SQL cmd:%s, code:%s inserted rows:%d rspLen:%d", pSql, sqlCmd[pCmd->command], 
+      tscDebug("0x%"PRIx64" SQL cmd:%s, code:%s inserted rows:%d rspLen:%d", pSql->self, sqlCmd[pCmd->command],
           tstrerror(pRes->code), pMsg->affectedRows, pRes->rspLen);
     } else {
-      tscDebug("%p SQL cmd:%s, code:%s rspLen:%d", pSql, sqlCmd[pCmd->command], tstrerror(pRes->code), pRes->rspLen);
+      tscDebug("0x%"PRIx64" SQL cmd:%s, code:%s rspLen:%d", pSql->self, sqlCmd[pCmd->command], tstrerror(pRes->code), pRes->rspLen);
     }
   }
   
@@ -429,7 +461,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   if (shouldFree) { // in case of table-meta/vgrouplist query, automatically free it
     taosRemoveRef(tscObjRef, handle);
-    tscDebug("%p sqlObj is automatically freed", pSql); 
+    tscDebug("0x%"PRIx64" sqlObj is automatically freed", pSql->self);
   }
 
   taosReleaseRef(tscObjRef, handle);
@@ -490,7 +522,7 @@ int tscProcessSql(SSqlObj *pSql) {
     assert((pQueryInfo->numOfTables == 0 && pQueryInfo->command == TSDB_SQL_HB) || pQueryInfo->numOfTables > 0);
   }
 
-  tscDebug("%p SQL cmd:%s will be processed, name:%s, type:%d", pSql, sqlCmd[pCmd->command], name, type);
+  tscDebug("0x%"PRIx64" SQL cmd:%s will be processed, name:%s, type:%d", pSql->self, sqlCmd[pCmd->command], name, type);
   if (pCmd->command < TSDB_SQL_MGMT) { // the pTableMetaInfo cannot be NULL
     if (pTableMetaInfo == NULL) {
       pSql->res.code = TSDB_CODE_TSC_APP_ERROR;
@@ -515,25 +547,27 @@ int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   if (UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo)) {
     int32_t vgIndex = pTableMetaInfo->vgroupIndex;
+    int32_t vgId = -1;
+
     if (pTableMetaInfo->pVgroupTables == NULL) {
       SVgroupsInfo *pVgroupInfo = pTableMetaInfo->vgroupList;
       assert(pVgroupInfo->vgroups[vgIndex].vgId > 0 && vgIndex < pTableMetaInfo->vgroupList->numOfVgroups);
-
-      pRetrieveMsg->header.vgId = htonl(pVgroupInfo->vgroups[vgIndex].vgId);
-      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, qId:%" PRIu64, pSql, pVgroupInfo->vgroups[vgIndex].vgId, vgIndex, pSql->res.qId);
+      vgId = pVgroupInfo->vgroups[vgIndex].vgId;
     } else {
       int32_t numOfVgroups = (int32_t)taosArrayGetSize(pTableMetaInfo->pVgroupTables);
       assert(vgIndex >= 0 && vgIndex < numOfVgroups);
 
       SVgroupTableInfo* pTableIdList = taosArrayGet(pTableMetaInfo->pVgroupTables, vgIndex);
-
-      pRetrieveMsg->header.vgId = htonl(pTableIdList->vgInfo.vgId);
-      tscDebug("%p build fetch msg from vgId:%d, vgIndex:%d, qId:%" PRIu64, pSql, pTableIdList->vgInfo.vgId, vgIndex, pSql->res.qId);
+      vgId = pTableIdList->vgInfo.vgId;
     }
+
+    pRetrieveMsg->header.vgId = htonl(vgId);
+    tscDebug("0x%"PRIx64" build fetch msg from vgId:%d, vgIndex:%d, qId:0x%" PRIx64, pSql->self, vgId, vgIndex, pSql->res.qId);
   } else {
     STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
     pRetrieveMsg->header.vgId = htonl(pTableMeta->vgId);
-    tscDebug("%p build fetch msg from only one vgroup, vgId:%d, qId:%" PRIu64, pSql, pTableMeta->vgId, pSql->res.qId);
+    tscDebug("0x%"PRIx64" build fetch msg from only one vgroup, vgId:%d, qId:0x%" PRIx64, pSql->self, pTableMeta->vgId,
+        pSql->res.qId);
   }
 
   pSql->cmd.payloadLen = sizeof(SRetrieveTableMsg);
@@ -572,7 +606,7 @@ int tscBuildSubmitMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   taosHashGetClone(tscVgroupMap, &pTableMeta->vgId, sizeof(pTableMeta->vgId), NULL, &vgroupInfo, sizeof(SNewVgroupInfo));
   tscDumpEpSetFromVgroupInfo(&pSql->epSet, &vgroupInfo);
 
-  tscDebug("%p build submit msg, vgId:%d numOfTables:%d numberOfEP:%d", pSql, pTableMeta->vgId, pSql->cmd.numOfTablesInSubmit,
+  tscDebug("0x%"PRIx64" build submit msg, vgId:%d numOfTables:%d numberOfEP:%d", pSql->self, pTableMeta->vgId, pSql->cmd.numOfTablesInSubmit,
       pSql->epSet.numOfEps);
   return TSDB_CODE_SUCCESS;
 }
@@ -638,7 +672,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
 
       vgId = pVgroupInfo->vgId;
       tscSetDnodeEpSet(&pSql->epSet, pVgroupInfo);
-      tscDebug("%p query on stable, vgIndex:%d, numOfVgroups:%d", pSql, index, pTableMetaInfo->vgroupList->numOfVgroups);
+      tscDebug("0x%"PRIx64" query on stable, vgIndex:%d, numOfVgroups:%d", pSql->self, index, pTableMetaInfo->vgroupList->numOfVgroups);
     } else {
       vgId = pTableMeta->vgId;
 
@@ -671,7 +705,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
     int32_t numOfTables = (int32_t)taosArrayGetSize(pTableIdList->itemList);
     pQueryMsg->numOfTables = htonl(numOfTables);  // set the number of tables
 
-    tscDebug("%p query on stable, vgId:%d, numOfTables:%d, vgIndex:%d, numOfVgroups:%d", pSql,
+    tscDebug("0x%"PRIx64" query on stable, vgId:%d, numOfTables:%d, vgIndex:%d, numOfVgroups:%d", pSql->self,
              pTableIdList->vgInfo.vgId, numOfTables, index, numOfVgroups);
 
     // serialize each table id info
@@ -689,7 +723,7 @@ static char *doSerializeTableInfo(SQueryTableMsg* pQueryMsg, SSqlObj *pSql, char
   char n[TSDB_TABLE_FNAME_LEN] = {0};
   tNameExtractFullName(&pTableMetaInfo->name, n);
 
-  tscDebug("%p vgId:%d, query on table:%s, tid:%d, uid:%" PRIu64, pSql, htonl(pQueryMsg->head.vgId), n, pTableMeta->id.tid, pTableMeta->id.uid);
+  tscDebug("0x%"PRIx64" vgId:%d, query on table:%s, tid:%d, uid:%" PRIu64, pSql->self, htonl(pQueryMsg->head.vgId), n, pTableMeta->id.tid, pTableMeta->id.uid);
   return pMsg;
 }
 
@@ -1106,7 +1140,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   int32_t msgLen = (int32_t)(pMsg - pCmd->payload);
 
-  tscDebug("%p msg built success, len:%d bytes", pSql, msgLen);
+  tscDebug("0x%"PRIx64" msg built success, len:%d bytes", pSql->self, msgLen);
   pCmd->payloadLen = msgLen;
   pSql->cmd.msgType = TSDB_MSG_TYPE_QUERY;
   
@@ -1804,7 +1838,7 @@ int tscBuildMultiMeterMetaMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   assert(pCmd->payloadLen + minMsgSize() <= pCmd->allocSize);
 
-  tscDebug("%p build load multi-metermeta msg completed, numOfTables:%d, msg size:%d", pSql, pCmd->count,
+  tscDebug("0x%"PRIx64" build load multi-metermeta msg completed, numOfTables:%d, msg size:%d", pSql->self, pCmd->count,
            pCmd->payloadLen);
 
   return pCmd->payloadLen;
@@ -1980,11 +2014,11 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
         (vgroupInfo.inUse < 0)) {  // vgroup info exists, compare with it
       vgroupInfo = createNewVgroupInfo(&pMetaMsg->vgroup);
       taosHashPut(tscVgroupMap, &vgId, sizeof(vgId), &vgroupInfo, sizeof(vgroupInfo));
-      tscDebug("add new VgroupInfo, vgId:%d, total:%d", vgId, (int32_t) taosHashGetSize(tscVgroupMap));
+      tscDebug("add new VgroupInfo, vgId:%d, total cached:%d", vgId, (int32_t) taosHashGetSize(tscVgroupMap));
     }
   }
 
-  tscDebug("%p recv table meta, uid:%" PRIu64 ", tid:%d, name:%s", pSql, pTableMeta->id.uid, pTableMeta->id.tid,
+  tscDebug("0x%"PRIx64" recv table meta, uid:%" PRIu64 ", tid:%d, name:%s", pSql->self, pTableMeta->id.uid, pTableMeta->id.tid,
            tNameGetTableName(&pTableMetaInfo->name));
 
   free(pTableMeta);
@@ -2091,7 +2125,7 @@ int tscProcessMultiMeterMetaRsp(SSqlObj *pSql) {
   
   pSql->res.code = TSDB_CODE_SUCCESS;
   pSql->res.numOfTotal = i;
-  tscDebug("%p load multi-metermeta resp from complete num:%d", pSql, pSql->res.numOfTotal);
+  tscDebug("0x%"PRIx64" load multi-metermeta resp from complete num:%d", pSql->self, pSql->res.numOfTotal);
 #endif
   
   return TSDB_CODE_SUCCESS;
@@ -2132,18 +2166,33 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
       tscError("%p empty vgroup info", pSql);
     } else {
       for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
-        //just init, no need to lock
-        SVgroupInfo *pVgroups = &pInfo->vgroupList->vgroups[j];
+        // just init, no need to lock
+        SVgroupInfo *pVgroup = &pInfo->vgroupList->vgroups[j];
 
         SVgroupMsg *vmsg = &pVgroupMsg->vgroups[j];
-        pVgroups->vgId = htonl(vmsg->vgId);
-        pVgroups->numOfEps = vmsg->numOfEps;
+        vmsg->vgId     = htonl(vmsg->vgId);
+        vmsg->numOfEps = vmsg->numOfEps;
+        for (int32_t k = 0; k < vmsg->numOfEps; ++k) {
+          vmsg->epAddr[k].port = htons(vmsg->epAddr[k].port);
+        }
 
-        assert(pVgroups->numOfEps >= 1 && pVgroups->vgId >= 1);
+        SNewVgroupInfo newVi = createNewVgroupInfo(vmsg);
+        pVgroup->numOfEps = newVi.numOfEps;
+        pVgroup->vgId = newVi.vgId;
+        for (int32_t k = 0; k < vmsg->numOfEps; ++k) {
+          pVgroup->epAddr[k].port = newVi.ep[k].port;
+          pVgroup->epAddr[k].fqdn = strndup(newVi.ep[k].fqdn, TSDB_FQDN_LEN);
+        }
 
-        for (int32_t k = 0; k < pVgroups->numOfEps; ++k) {
-          pVgroups->epAddr[k].port = htons(vmsg->epAddr[k].port);
-          pVgroups->epAddr[k].fqdn = strndup(vmsg->epAddr[k].fqdn, tListLen(vmsg->epAddr[k].fqdn));
+        // check if current buffer contains the vgroup info.
+        // If not, add it
+        SNewVgroupInfo existVgroupInfo = {.inUse = -1};
+        taosHashGetClone(tscVgroupMap, &newVi.vgId, sizeof(newVi.vgId), NULL, &existVgroupInfo, sizeof(SNewVgroupInfo));
+
+        if (((existVgroupInfo.inUse >= 0) && !vgroupInfoIdentical(&existVgroupInfo, vmsg)) ||
+            (existVgroupInfo.inUse < 0)) {  // vgroup info exists, compare with it
+          taosHashPut(tscVgroupMap, &newVi.vgId, sizeof(newVi.vgId), &newVi, sizeof(newVi));
+          tscDebug("add new VgroupInfo, vgId:%d, total cached:%d", newVi.vgId, (int32_t) taosHashGetSize(tscVgroupMap));
         }
       }
     }
@@ -2244,7 +2293,7 @@ static void createHbObj(STscObj* pObj) {
   pSql->signature = pSql;
 
   registerSqlObj(pSql);
-  tscDebug("%p HB is allocated, pObj:%p", pSql, pObj);
+  tscDebug("0x%"PRIx64" HB is allocated, pObj:%p", pSql->self, pObj);
 
   pObj->hbrid = pSql->self;
 }
@@ -2270,7 +2319,7 @@ int tscProcessConnectRsp(SSqlObj *pSql) {
     tscUpdateMgmtEpSet(pSql, &pConnect->epSet);
 
     for (int i = 0; i < pConnect->epSet.numOfEps; ++i) {
-      tscDebug("%p epSet.fqdn[%d]: %s, pObj:%p", pSql, i, pConnect->epSet.fqdn[i], pObj);
+      tscDebug("0x%"PRIx64" epSet.fqdn[%d]: %s, pObj:%p", pSql->self, i, pConnect->epSet.fqdn[i], pObj);
     }
   } 
 
@@ -2314,7 +2363,7 @@ int tscProcessDropTableRsp(SSqlObj *pSql) {
   tNameExtractFullName(&pTableMetaInfo->name, name);
 
   taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
-  tscDebug("%p remove table meta after drop table:%s, numOfRemain:%d", pSql, name, (int32_t) taosHashGetSize(tscTableMetaInfo));
+  tscDebug("0x%"PRIx64" remove table meta after drop table:%s, numOfRemain:%d", pSql->self, name, (int32_t) taosHashGetSize(tscTableMetaInfo));
 
   pTableMetaInfo->pTableMeta = NULL;
   return 0;
@@ -2326,7 +2375,7 @@ int tscProcessAlterTableMsgRsp(SSqlObj *pSql) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   tNameExtractFullName(&pTableMetaInfo->name, name);
 
-  tscDebug("%p remove tableMeta in hashMap after alter-table: %s", pSql, name);
+  tscDebug("0x%"PRIx64" remove tableMeta in hashMap after alter-table: %s", pSql->self, name);
 
   bool isSuperTable = UTIL_TABLE_IS_SUPER_TABLE(pTableMetaInfo);
   taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
@@ -2357,7 +2406,7 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
 
   pRes->data = NULL;
   tscResetForNextRetrieve(pRes);
-  tscDebug("%p query rsp received, qId:%"PRIu64, pSql, pRes->qId);
+  tscDebug("0x%"PRIx64" query rsp received, qId:0x%"PRIx64, pSql->self, pRes->qId);
   return 0;
 }
 
@@ -2415,7 +2464,7 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
   }
 
   pRes->row = 0;
-  tscDebug("%p numOfRows:%d, offset:%" PRId64 ", complete:%d, qId:%"PRIu64, pSql, pRes->numOfRows, pRes->offset,
+  tscDebug("0x%"PRIx64" numOfRows:%d, offset:%" PRId64 ", complete:%d, qId:0x%"PRIx64, pSql->self, pRes->numOfRows, pRes->offset,
       pRes->completed, pRes->qId);
 
   return 0;
@@ -2459,14 +2508,14 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
     }
   }
 
-  tscDebug("%p new pSqlObj:%p to get tableMeta, auto create:%d", pSql, pNew, pNew->cmd.autoCreated);
-
   registerSqlObj(pNew);
+  tscDebug("0x%"PRIx64" new pSqlObj:0x%"PRIx64" to get tableMeta, auto create:%d", pSql->self, pNew->self,
+      pNew->cmd.autoCreated);
 
   pNew->fp = tscTableMetaCallBack;
   pNew->param = (void *)pSql->self;
 
-  tscDebug("%p metaRid from %" PRId64 " to %" PRId64 , pSql, pSql->metaRid, pNew->self);
+  tscDebug("0x%"PRIx64" metaRid from %" PRId64 " to %" PRId64 , pSql->self, pSql->metaRid, pNew->self);
   
   pSql->metaRid = pNew->self;
 
@@ -2537,7 +2586,7 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
 
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
   if (pTableMeta) {
-    tscDebug("%p update table meta:%s, old meta numOfTags:%d, numOfCols:%d, uid:%" PRId64, pSql, name,
+    tscDebug("0x%"PRIx64" update table meta:%s, old meta numOfTags:%d, numOfCols:%d, uid:%" PRId64, pSql->self, name,
              tscGetNumOfTags(pTableMeta), tscGetNumOfColumns(pTableMeta), pTableMeta->id.uid);
   }
 
@@ -2597,12 +2646,12 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
   pNewQueryInfo->numOfTables = pQueryInfo->numOfTables;
   registerSqlObj(pNew);
 
-  tscDebug("%p svgroupRid from %" PRId64 " to %" PRId64 , pSql, pSql->svgroupRid, pNew->self);
+  tscDebug("0x%"PRIx64" svgroupRid from %" PRId64 " to %" PRId64 , pSql->self, pSql->svgroupRid, pNew->self);
   
   pSql->svgroupRid = pNew->self;
   
 
-  tscDebug("%p new sqlObj:%p to get vgroupInfo, numOfTables:%d", pSql, pNew, pNewQueryInfo->numOfTables);
+  tscDebug("0x%"PRIx64" new sqlObj:%p to get vgroupInfo, numOfTables:%d", pSql->self, pNew, pNewQueryInfo->numOfTables);
 
   pNew->fp = tscTableMetaCallBack;
   pNew->param = (void *)pSql->self;

@@ -376,6 +376,8 @@ void httpExecCmd(HttpContext *pContext) {
       httpCloseContextByApp(pContext);
       break;
   }
+
+  memset(&pContext->singleCmd, 0, sizeof(HttpSqlCmd));
 }
 
 void httpProcessRequestCb(void *param, TAOS_RES *result, int32_t code) {

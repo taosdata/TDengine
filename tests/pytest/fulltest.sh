@@ -151,6 +151,9 @@ python3 test.py -f tools/taosdemoTestTblAlt.py
 python3 test.py -f tools/taosdemoTestSampleData.py
 python3 test.py -f tools/taosdemoTestInterlace.py
 python3 test.py -f tools/taosdemoTestQuery.py
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
+python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+
 
 # update
 python3 ./test.py -f update/allow_update.py
@@ -219,6 +222,11 @@ python3 ./test.py -f query/bug3351.py
 python3 ./test.py -f query/bug3375.py
 python3 ./test.py -f query/queryJoin10tables.py
 python3 ./test.py -f query/queryStddevWithGroupby.py
+python3 ./test.py -f query/querySecondtscolumnTowherenow.py
+python3 ./test.py -f query/queryFilterTswithDateUnit.py
+python3 ./test.py -f query/queryTscomputWithNow.py
+
+
 
 #stream
 python3 ./test.py -f stream/metric_1.py
@@ -234,6 +242,8 @@ python3 ./test.py -f stream/table_n.py
 
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py
+python3 ./test.py -f alter/alterTabAddTagWithNULL.py
+python3 ./test.py -f alter/alterTimestampColDataProcess.py
 
 # client
 python3 ./test.py -f client/client.py
@@ -274,6 +284,7 @@ python3 ./test.py -f functions/all_null_value.py
 python3 ./test.py -f functions/function_avg.py -r 1
 python3 ./test.py -f functions/function_bottom.py -r 1
 python3 ./test.py -f functions/function_count.py -r 1
+python3 ./test.py -f functions/function_count_last_stab.py
 python3 ./test.py -f functions/function_diff.py -r 1
 python3 ./test.py -f functions/function_first.py -r 1
 python3 ./test.py -f functions/function_last.py -r 1
@@ -302,6 +313,11 @@ python3 ./test.py -f insert/unsignedBigint.py
 python3 ./test.py -f insert/unsignedSmallint.py
 python3 ./test.py -f insert/unsignedTinyint.py
 python3 ./test.py -f query/filterAllUnsignedIntTypes.py
+
+python3 ./test.py -f tag_lite/unsignedInt.py
+python3 ./test.py -f tag_lite/unsignedBigint.py
+python3 ./test.py -f tag_lite/unsignedSmallint.py
+python3 ./test.py -f tag_lite/unsignedTinyint.py
 
 python3 ./test.py -f functions/function_percentile2.py
 python3 ./test.py -f insert/boundary2.py
