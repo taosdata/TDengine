@@ -866,7 +866,7 @@ bool needToMergeRv(SSDataBlock* pBlock, SArray* columnIndexList, int32_t index, 
   int32_t ret = 0;
   size_t  size = taosArrayGetSize(columnIndexList);
   if (size > 0) {
-    ret = compare_aRv(pBlock, columnIndexList, size, index, buf, TSDB_ORDER_ASC);
+    ret = compare_aRv(pBlock, columnIndexList, (int32_t) size, index, buf, TSDB_ORDER_ASC);
   }
 
   // if ret == 0, means the result belongs to the same group
