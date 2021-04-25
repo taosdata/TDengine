@@ -664,7 +664,7 @@ SOperatorInfo* createDummyInputOperator(char* pResult, SSchema* pSchema, int32_t
 
   pInfo->block->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
   for(int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData colData = {0};
+    SColumnInfoData colData = {{0{}};
     colData.info.bytes = pSchema[i].bytes;
     colData.info.type  = pSchema[i].type;
     colData.info.colId = pSchema[i].colId;
