@@ -702,7 +702,7 @@ void handleDownstreamOperator(SSqlRes* pRes, SQueryInfo* pQueryInfo) {
     // handle the following query process
     SQueryInfo *px = pQueryInfo->pDownstream;
     SColumnInfo* pColumnInfo = extractColumnInfoFromResult(px->pTableMetaInfo[0]->pTableMeta, px->colList);
-    int32_t numOfOutput = tscSqlExprNumOfExprs(px);
+    int32_t numOfOutput = (int32_t) tscSqlExprNumOfExprs(px);
 
     int32_t numOfCols = (int32_t) taosArrayGetSize(px->colList);
     SQueriedTableInfo info = {.colList = pColumnInfo, .numOfCols = numOfCols,};
@@ -3433,7 +3433,7 @@ static int32_t createSecondaryExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
 static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInfo) {
   assert(tscIsTwoStageSTableQuery(pQueryInfo, 0));
 
-  pQueryAttr->numOfExpr3 = tscSqlExprNumOfExprs(pQueryInfo);
+  pQueryAttr->numOfExpr3 = (int32_t) tscSqlExprNumOfExprs(pQueryInfo);
   pQueryAttr->pExpr3 = calloc(pQueryAttr->numOfExpr3, sizeof(SExprInfo));
   if (pQueryAttr->pExpr3 == NULL) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
