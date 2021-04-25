@@ -630,7 +630,7 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       assert(pCmd->numOfClause == size);
       for (int32_t i = pCmd->clauseIndex; i < size; ++i) {
         SSqlNode* pSqlNode = taosArrayGetP(pInfo->list, i);
-        tscTrace("%p start to parse %dth subclause, total:%"PRIu64, pSql, i, size);
+        tscTrace("%p start to parse %dth subclause, total:%d", pSql, i, (int32_t) size);
         if ((code = validateSqlNode(pSql, pSqlNode, i)) != TSDB_CODE_SUCCESS) {
           return code;
         }
