@@ -8,8 +8,9 @@ platform:
 
 steps:
 - name: en
-  image: clangbuiltlinux/ubuntu
+  image: gcc
   commands:
+  - sudo apt-get install -y cmake build-essential git
   - mkdir debug
   - cd debug
   - cmake .. 
