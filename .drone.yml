@@ -10,6 +10,7 @@ steps:
 - name: en
   image: gcc
   commands:
+  - apt-get update
   - apt-get install -y cmake build-essential git
   - mkdir debug
   - cd debug
