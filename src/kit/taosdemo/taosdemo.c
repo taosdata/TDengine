@@ -5992,8 +5992,8 @@ static void *specifiedTableQuery(void *sarg) {
                     pThreadInfo->threadID,
                     totalQueried,
                     (double)(totalQueried/((endTs-startTs)/1000.0)));
+      lastPrintTime = currentPrintTime;
     }
-    lastPrintTime = currentPrintTime;
   }
   return NULL;
 }
@@ -6078,8 +6078,8 @@ static void *superTableQuery(void *sarg) {
                     pThreadInfo->threadID,
                     totalQueried,
                     (double)(totalQueried/((endTs-startTs)/1000.0)));
+          lastPrintTime = currentPrintTime;
         }
-        lastPrintTime = currentPrintTime;
       }
     }
     et = taosGetTimestampMs();
