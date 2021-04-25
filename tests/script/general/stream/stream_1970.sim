@@ -1,0 +1,73 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ======================== dnode1 start
+
+$dbPrefix = s3_db
+$tbPrefix = s3_tb
+$mtPrefix = s3_mt
+$stPrefix = s3_st
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+$st = $stPrefix . $i
+
+sql drop databae $db -x step1
+step1:
+sql create database $db keep 36500
+sql use $db
+sql create stable $mt (ts timestamp, tbcol int, tbcol2 float) TAGS(tgcol int)
+
+sql create table cq1 as select count(*) from $mt interval(10s);
+
+sleep 1000
+
+sql create table $st using $mt tags(1);
+
+sql insert into $st values (-50000, 1, 1.0);
+sql insert into $st values (-10000, 1, 1.0);
+sql insert into $st values (10000, 1, 1.0);
+
+
+$i = 0 
+while $i < 12
+  sql select * from cq1;
+  
+  if $rows != 3 then
+      sleep 10000
+  else
+      if $data00 != @70-01-01 07:59:10.000@ then
+         return -1
+      endi
+      if $data01 != 1 then
+         return -1
+      endi
+      if $data10 != @70-01-01 07:59:50.000@ then
+         return -1
+      endi
+      if $data11 != 1 then
+         return -1
+      endi
+      if $data20 != @70-01-01 08:00:10.000@ then
+         return -1
+      endi
+      if $data21 != 1 then
+         return -1
+      endi
+      $i = 12
+  endi
+
+  $i = $i + 1 
+endw 
+

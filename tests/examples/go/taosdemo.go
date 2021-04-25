@@ -18,6 +18,7 @@ import (
 	"database/sql"
 	"flag"
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"runtime"
@@ -26,8 +27,6 @@ import (
 	"time"
 
 	_ "github.com/taosdata/driver-go/taosSql"
-
-	//"golang.org/x/sys/unix"
 )
 
 const (
@@ -48,6 +47,7 @@ type config struct {
 	dbName               string
 	supTblName           string
 	tablePrefix          string
+	mode                 string
 	numOftables          int
 	numOfRecordsPerTable int
 	numOfRecordsPerReq   int
@@ -70,6 +70,7 @@ func init() {
 	flag.StringVar(&configPara.password, "P", "taosdata", "The password to use when connecting to the server.")
 	flag.StringVar(&configPara.dbName, "d", "test", "Destination database.")
 	flag.StringVar(&configPara.tablePrefix, "m", "d", "Table prefix name.")
+	flag.StringVar(&configPara.mode, "M", "r", "mode,r:raw,s:stmt")
 	flag.IntVar(&configPara.numOftables, "t", 2, "The number of tables.")
 	flag.IntVar(&configPara.numOfRecordsPerTable, "n", 10, "The number of records per table.")
 	flag.IntVar(&configPara.numOfRecordsPerReq, "r", 3, "The number of records per request.")
@@ -94,6 +95,7 @@ func printAllArgs() {
 	fmt.Printf("usr:                  %v\n", configPara.user)
 	fmt.Printf("password:             %v\n", configPara.password)
 	fmt.Printf("dbName:               %v\n", configPara.dbName)
+	fmt.Printf("mode:                 %v\n", configPara.mode)
 	fmt.Printf("tablePrefix:          %v\n", configPara.tablePrefix)
 	fmt.Printf("numOftables:          %v\n", configPara.numOftables)
 	fmt.Printf("numOfRecordsPerTable: %v\n", configPara.numOfRecordsPerTable)
@@ -118,6 +120,24 @@ func main() {
 	//}
 	//defer db.Close()
 	rand.Seed(time.Now().Unix())
+
+	if configPara.mode == "s" {
+		fmt.Printf("\n======== start stmt mode test ========\n")
+		db, err := sql.Open("taosSql", url)
+		if err != nil {
+			log.Fatalf("Open database error: %s\n", err)
+		}
+		defer db.Close()
+		demodbStmt := configPara.dbName
+		demotStmt := "demotStmt"
+		drop_database_stmt(db, demodbStmt)
+		create_database_stmt(db, demodbStmt)
+		use_database_stmt(db, demodbStmt)
+		create_table_stmt(db, demotStmt)
+		insert_data_stmt(db, demotStmt)
+		select_data_stmt(db, demotStmt)
+		return
+	}
 
 	createDatabase(configPara.dbName, configPara.supTblName)
 	fmt.Printf("======== create database success! ========\n\n")
@@ -406,6 +426,132 @@ func selectTest(dbName string, tbPrefix string, supTblName string) {
 	if rows.Err() != nil {
 		checkErr(err, "rows next iteration error")
 	}
+}
+func drop_database_stmt(db *sql.DB, demodb string) {
+	st := time.Now().Nanosecond()
+	// drop test db
+	res, err := db.Exec("drop database if exists " + demodb)
+	checkErr(err, "drop database "+demodb)
+
+	affectd, err := res.RowsAffected()
+	checkErr(err, "drop db, res.RowsAffected")
+
+	et := time.Now().Nanosecond()
+	fmt.Printf("drop database result:\n %d row(s) affectd (%6.6fs)\n\n", affectd, (float32(et-st))/1e9)
+}
+
+func create_database_stmt(db *sql.DB, demodb string) {
+	st := time.Now().Nanosecond()
+	// create database
+	//var stmt interface{}
+	stmt, err := db.Prepare("create database ?")
+	checkErr(err, "create db, db.Prepare")
+
+	//var res driver.Result
+	res, err := stmt.Exec(demodb)
+	checkErr(err, "create db, stmt.Exec")
+
+	//fmt.Printf("Query OK, %d row(s) affected()", res.RowsAffected())
+	affectd, err := res.RowsAffected()
+	checkErr(err, "create db, res.RowsAffected")
+
+	et := time.Now().Nanosecond()
+	fmt.Printf("create database result:\n %d row(s) affectd (%6.6fs)\n\n", affectd, (float32(et-st))/1e9)
+}
+
+func use_database_stmt(db *sql.DB, demodb string) {
+	st := time.Now().Nanosecond()
+	// create database
+	//var stmt interface{}
+	stmt, err := db.Prepare("use " + demodb)
+	checkErr(err, "use db, db.Prepare")
+
+	res, err := stmt.Exec()
+	checkErr(err, "use db, stmt.Exec")
+
+	affectd, err := res.RowsAffected()
+	checkErr(err, "use db, res.RowsAffected")
+
+	et := time.Now().Nanosecond()
+	fmt.Printf("use database result:\n %d row(s) affectd (%6.6fs)\n\n", affectd, (float32(et-st))/1e9)
+}
+
+func create_table_stmt(db *sql.DB, demot string) {
+	st := time.Now().Nanosecond()
+	// create table
+	// (ts timestamp, id int, name binary(8), len tinyint, flag bool, notes binary(8), fv float, dv double)
+	stmt, err := db.Prepare("create table ? (? timestamp, ? int, ? binary(10), ? tinyint, ? bool, ? binary(8), ? float, ? double)")
+	checkErr(err, "create table db.Prepare")
+
+	res, err := stmt.Exec(demot, "ts", "id", "name", "len", "flag", "notes", "fv", "dv")
+	checkErr(err, "create table stmt.Exec")
+
+	affectd, err := res.RowsAffected()
+	checkErr(err, "create table res.RowsAffected")
+
+	et := time.Now().Nanosecond()
+	fmt.Printf("create table result:\n %d row(s) affectd (%6.6fs)\n\n", affectd, (float32(et-st))/1e9)
+}
+
+func insert_data_stmt(db *sql.DB, demot string) {
+	st := time.Now().Nanosecond()
+	// insert data into table
+	stmt, err := db.Prepare("insert into ? values(?, ?, ?, ?, ?, ?, ?, ?) (?, ?, ?, ?, ?, ?, ?, ?) (?, ?, ?, ?, ?, ?, ?, ?)")
+	checkErr(err, "insert db.Prepare")
+
+	res, err := stmt.Exec(demot, "now", 1000, "'haidian'", 6, true, "'AI world'", 6987.654, 321.987,
+		"now+1s", 1001, "'changyang'", 7, false, "'DeepMode'", 12356.456, 128634.456,
+		"now+2s", 1002, "'chuangping'", 8, true, "'database'", 3879.456, 65433478.456)
+	checkErr(err, "insert data, stmt.Exec")
+
+	affectd, err := res.RowsAffected()
+	checkErr(err, "res.RowsAffected")
+
+	et := time.Now().Nanosecond()
+	fmt.Printf("insert data result:\n %d row(s) affectd (%6.6fs)\n\n", affectd, (float32(et-st))/1e9)
+}
+
+func select_data_stmt(db *sql.DB, demot string) {
+	st := time.Now().Nanosecond()
+
+	stmt, err := db.Prepare("select ?, ?, ?, ?, ?, ?, ?, ? from ?") // go binary mode
+	checkErr(err, "db.Prepare")
+
+	rows, err := stmt.Query("ts", "id", "name", "len", "flag", "notes", "fv", "dv", demot)
+	checkErr(err, "stmt.Query")
+
+	fmt.Printf("%10s%s%8s %5s %8s%s %s %10s%s %7s%s %8s%s %11s%s %14s%s\n", " ", "ts", " ", "id", " ", "name", " ", "len", " ", "flag", " ", "notes", " ", "fv", " ", " ", "dv")
+	var affectd int
+	for rows.Next() {
+		var ts string
+		var name string
+		var id int
+		var len int8
+		var flag bool
+		var notes string
+		var fv float32
+		var dv float64
+
+		err = rows.Scan(&ts, &id, &name, &len, &flag, &notes, &fv, &dv)
+		//fmt.Println("start scan fields from row.rs, &fv:", &fv)
+		//err = rows.Scan(&fv)
+		checkErr(err, "rows.Scan")
+
+		fmt.Printf("%s\t", ts)
+		fmt.Printf("%d\t", id)
+		fmt.Printf("%10s\t", name)
+		fmt.Printf("%d\t", len)
+		fmt.Printf("%t\t", flag)
+		fmt.Printf("%s\t", notes)
+		fmt.Printf("%06.3f\t", fv)
+		fmt.Printf("%09.6f\n", dv)
+
+		affectd++
+
+	}
+
+	et := time.Now().Nanosecond()
+	fmt.Printf("insert data result:\n %d row(s) affectd (%6.6fs)\n\n", affectd, (float32(et-st))/1e9)
 }
 func checkErr(err error, prompt string) {
 	if err != nil {
