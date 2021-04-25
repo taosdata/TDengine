@@ -4558,7 +4558,7 @@ SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
     offset += pExpr[index->colIndex].base.resBytes;
   }
 
-  numOfCols = (pInfo->groupColumnList != NULL)? taosArrayGetSize(pInfo->groupColumnList):0;
+  numOfCols = (pInfo->groupColumnList != NULL)? (int32_t)taosArrayGetSize(pInfo->groupColumnList):0;
   pInfo->currentGroupColData = calloc(1, (POINTER_BYTES * numOfCols + len));
   offset = POINTER_BYTES * numOfCols;
 

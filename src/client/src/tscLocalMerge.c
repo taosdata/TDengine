@@ -171,7 +171,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
   pMerger->numOfVnode = numOfBuffer;
 
   pMerger->pDesc = pDesc;
-  tscDebug("0x%"PRIx64" the number of merged leaves is: %d", pSql->self, pReducer->numOfBuffer);
+  tscDebug("0x%"PRIx64" the number of merged leaves is: %d", pSql->self, pMerger->numOfBuffer);
 
   int32_t idx = 0;
   for (int32_t i = 0; i < numOfBuffer; ++i) {

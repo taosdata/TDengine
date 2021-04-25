@@ -3086,7 +3086,7 @@ static SColumnFilterInfo* addColumnFilterInfo(SColumnFilterList* filterList) {
   return pColFilterInfo;
 }
 
-static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, STableMeta* pTableMeta, SColumnFilterInfo* pColumnFilter,
+static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t timePrecision, SColumnFilterInfo* pColumnFilter,
                                          int16_t colType, tSqlExpr* pExpr) {
   const char* msg = "not supported filter condition";
 
@@ -3102,9 +3102,7 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
       return retVal;
     }
   } else if ((colType == TSDB_DATA_TYPE_TIMESTAMP) && (TSDB_DATA_TYPE_BIGINT == pRight->value.nType)) {
-    STableComInfo tinfo = tscGetTableInfo(pTableMeta);
-
-    if ((tinfo.precision == TSDB_TIME_PRECISION_MILLI) && (pRight->flags & (1 << EXPR_FLAG_US_TIMESTAMP))) {
+    if ((timePrecision == TSDB_TIME_PRECISION_MILLI) && (pRight->flags & (1 << EXPR_FLAG_US_TIMESTAMP))) {
       pRight->value.i64 /= 1000;
     }
   }
@@ -3303,7 +3301,9 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
 
   pColumn->columnIndex = pIndex->columnIndex;
   pColumn->tableUid = pTableMeta->id.uid;
-  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pColumn->info.type, pExpr);
+
+  STableComInfo tinfo = tscGetTableInfo(pTableMeta);
+  return doExtractColumnFilterInfo(pCmd, pQueryInfo, tinfo.precision, pColFilter, pSchema->type, pExpr);
 }
 
 static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pTableCond, SStringBuilder* sb) {
@@ -6878,7 +6878,7 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, S
   const char* msg3 = "invalid operator for bool column in having clause";
 
   SColumnFilterInfo* pColFilter = NULL;
-
+  // TODO refactor: validate the expression
   /*
    * in case of TK_AND filter condition, we first find the corresponding column and build the query condition together
    * the already existed condition.
@@ -6940,7 +6940,11 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, S
     }
   }
 
-  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, expr->base.resType, pExpr);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+
+  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pTableMeta->tableInfo.precision, pColFilter,
+                                          expr->base.resType, pExpr);
   if (ret) {
     return ret;
   }
@@ -6979,8 +6983,6 @@ int32_t getHavingExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SArray* pSelectNode
 
   pLeft  = pExpr->pLeft;
   pRight = pExpr->pRight;
-
-
   if (pLeft->type != SQL_NODE_SQLFUNCTION) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
   }
