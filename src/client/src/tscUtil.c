@@ -3486,7 +3486,7 @@ static int32_t createTagColumnInfo(SQueryAttr* pQueryAttr, SQueryInfo* pQueryInf
     return TSDB_CODE_SUCCESS;
   }
 
-  pQueryAttr->numOfTags = (int32_t)taosArrayGetSize(pTableMetaInfo->tagColList);
+  pQueryAttr->numOfTags = (int16_t)taosArrayGetSize(pTableMetaInfo->tagColList);
   if (pQueryAttr->numOfTags == 0) {
     return TSDB_CODE_SUCCESS;
   }
