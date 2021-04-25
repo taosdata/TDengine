@@ -6351,6 +6351,11 @@ int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExp
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pExprs[i].base = *pExprMsg[i];
+    memset(pExprs[i].base.param, 0, sizeof(tVariant) * tListLen(pExprs[i].base.param));
+
+    for (int32_t j = 0; j < pExprMsg[i]->numOfParams; ++j) {
+      tVariantAssign(&pExprs[i].base.param[j], &pExprMsg[i]->param[j]);
+    }
 
     int16_t type = 0;
     int16_t bytes = 0;
