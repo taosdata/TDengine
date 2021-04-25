@@ -554,13 +554,19 @@ SArguments g_args = {
                      "./output.txt",  // output_file
                      0,               // mode : sync or async
                      {
-                     "INT",           // datatype
-                     "INT",           // datatype
-                     "INT",           // datatype
-                     "INT",           // datatype
+                     "TINYINT",           // datatype
+                     "SMALLINT",
+                     "INT",
+                     "BIGINT",
+                     "FLOAT",
+                     "DOUBLE",
+                     "BINARY",
+                     "NCHAR",
+                     "BOOL",
+                     "TIMESTAMP"
                      },
                      16,              // len_of_binary
-                     4,               // num_of_CPR
+                     10,              // num_of_CPR
                      10,              // num_of_connections/thread
                      0,               // insert_interval
                      1,               // query_times
@@ -717,19 +723,9 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
     if (strcmp(argv[i], "-f") == 0) {
       arguments->metaFile = argv[++i];
     } else if (strcmp(argv[i], "-c") == 0) {
-      if (argc == i+1) {
-        printHelp();
-        errorPrint("%s", "\n\t-c need a valid path following!\n");
-        exit(EXIT_FAILURE);
-      }
-      tstrncpy(configDir, argv[++i], MAX_FILE_NAME_LEN);
+      tstrncpy(configDir, argv[++i], TSDB_FILENAME_LEN);
 
     } else if (strcmp(argv[i], "-h") == 0) {
-      if (argc == i+1) {
-        printHelp();
-        errorPrint("%s", "\n\t-h need a valid string following!\n");
-        exit(EXIT_FAILURE);
-      }
       arguments->host = argv[++i];
     } else if (strcmp(argv[i], "-p") == 0) {
       if ((argc == i+1) ||
@@ -740,32 +736,12 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-u") == 0) {
-      if (argc == i+1) {
-        printHelp();
-        errorPrint("%s", "\n\t-u need a valid string following!\n");
-        exit(EXIT_FAILURE);
-      }
       arguments->user = argv[++i];
     } else if (strcmp(argv[i], "-P") == 0) {
-      if (argc == i+1) {
-        printHelp();
-        errorPrint("%s", "\n\t-P need a valid string following!\n");
-        exit(EXIT_FAILURE);
-      }
       arguments->password = argv[++i];
     } else if (strcmp(argv[i], "-o") == 0) {
-      if (argc == i+1) {
-        printHelp();
-        errorPrint("%s", "\n\t-o need a valid string following!\n");
-        exit(EXIT_FAILURE);
-      }
       arguments->output_file = argv[++i];
     } else if (strcmp(argv[i], "-s") == 0) {
-      if (argc == i+1) {
-        printHelp();
-        errorPrint("%s", "\n\t-s need a valid string following!\n");
-        exit(EXIT_FAILURE);
-      }
       arguments->sqlFile = argv[++i];
     } else if (strcmp(argv[i], "-q") == 0) {
       if ((argc == i+1) ||
@@ -792,20 +768,8 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->insert_interval = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-qt") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
-        printHelp();
-        errorPrint("%s", "\n\t-qt need a number following!\n");
-        exit(EXIT_FAILURE);
-      }
       arguments->query_times = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-B") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
-        printHelp();
-        errorPrint("%s", "\n\t-B need a number following!\n");
-        exit(EXIT_FAILURE);
-      }
       arguments->interlace_rows = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-r") == 0) {
       if ((argc == i+1) ||
@@ -832,11 +796,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->num_of_DPT = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d") == 0) {
-      if (argc == i+1) {
-        printHelp();
-        errorPrint("%s", "\n\t-d need a valid string following!\n");
-        exit(EXIT_FAILURE);
-      }
       arguments->database = argv[++i];
     } else if (strcmp(argv[i], "-l") == 0) {
       if ((argc == i+1) ||
@@ -902,12 +861,6 @@ static void parse_args(int argc, char *argv[], SArguments *arguments) {
       }
       arguments->len_of_binary = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m") == 0) {
-      if ((argc == i+1) ||
-        (!isStringNumber(argv[i+1]))) {
-        printHelp();
-        errorPrint("%s", "\n\t-m need a number following!\n");
-        exit(EXIT_FAILURE);
-      }
       arguments->tb_prefix = argv[++i];
     } else if (strcmp(argv[i], "-N") == 0) {
       arguments->use_metric = false;
@@ -2442,10 +2395,8 @@ static int getSuperTableFromServer(TAOS * taos, char* dbName,
   return 0;
 }
 
-static int createSuperTable(
-        TAOS * taos, char* dbName,
+static int createSuperTable(TAOS * taos, char* dbName,
         SSuperTable*  superTbl) {
-
   char command[BUFFER_SIZE] = "\0";
 
   char cols[STRING_LEN] = "\0";
@@ -2934,17 +2885,19 @@ static void createChildTables() {
     } else {
       // normal table
       len = snprintf(tblColsBuf, MAX_SQL_SIZE, "(TS TIMESTAMP");
-      for (int j = 0; j < g_args.num_of_CPR; j++) {
+      int j = 0;
+      while(g_args.datatype[j]) {
           if ((strncasecmp(g_args.datatype[j], "BINARY", strlen("BINARY")) == 0)
                   || (strncasecmp(g_args.datatype[j],
                       "NCHAR", strlen("NCHAR")) == 0)) {
               snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
-                      ", COL%d %s(%d)", j, g_args.datatype[j], g_args.len_of_binary);
+                      ", COL%d %s(60)", j, g_args.datatype[j]);
           } else {
               snprintf(tblColsBuf + len, MAX_SQL_SIZE - len,
                       ", COL%d %s", j, g_args.datatype[j]);
           }
           len = strlen(tblColsBuf);
+          j++;
       }
 
       snprintf(tblColsBuf + len, MAX_SQL_SIZE - len, ")");
@@ -3657,7 +3610,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      /*
       cJSON* batchCreateTbl = cJSON_GetObjectItem(stbInfo, "batch_create_tbl_num");
       if (batchCreateTbl && batchCreateTbl->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].batchCreateTableNum = batchCreateTbl->valueint;
@@ -3667,7 +3619,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         printf("ERROR: failed to read json, batch_create_tbl_num not found\n");
         goto PARSE_OVER;
       }
-      */
 
       cJSON *childTblExists = cJSON_GetObjectItem(stbInfo, "child_table_exists"); // yes, no
       if (childTblExists
@@ -4526,7 +4477,7 @@ static int32_t generateData(char *recBuf, char **data_type,
     exit(-1);
   }
 
-  for (int i = 0; i < c; i++) {
+  for (int i = 0; i < num_of_cols; i++) {
     if (strcasecmp(data_type[i % c], "tinyint") == 0) {
       pstr += sprintf(pstr, ", %d", rand_tinyint() );
     } else if (strcasecmp(data_type[i % c], "smallint") == 0) {
@@ -4548,7 +4499,7 @@ static int32_t generateData(char *recBuf, char **data_type,
       rand_string(s, lenOfBinary);
       pstr += sprintf(pstr, ", \"%s\"", s);
       free(s);
-    } else if (strcasecmp(data_type[i % c], "nchar") == 0) {
+    }else if (strcasecmp(data_type[i % c], "nchar") == 0) {
       char *s = malloc(lenOfBinary);
       rand_string(s, lenOfBinary);
       pstr += sprintf(pstr, ", \"%s\"", s);
@@ -4732,7 +4683,7 @@ static int generateDataTail(
       if (len > remainderBufLen)
         break;
 
-      pstr += sprintf(pstr, "%s", data);
+      pstr += sprintf(pstr, " %s", data);
       k++;
       len += retLen;
       remainderBufLen -= retLen;
@@ -5468,9 +5419,9 @@ static void startMultiThreadInsertData(int threads, char* db_name,
   if (superTblInfo) {
     int limit, offset;
 
-    if ((NULL != g_args.sqlFile) && (superTblInfo->childTblExists == TBL_NO_EXISTS) &&
+    if ((superTblInfo->childTblExists == TBL_NO_EXISTS) &&
             ((superTblInfo->childTblOffset != 0) || (superTblInfo->childTblLimit >= 0))) {
-      printf("WARNING: offset and limit will not be used since the child tables not exists!\n");
+      printf("WARNING: offset and limit will not be used since the child tables are not exists!\n");
     }
 
     if ((superTblInfo->childTblExists == TBL_ALREADY_EXISTS)
@@ -5980,6 +5931,7 @@ static void *specifiedTableQuery(void *sarg) {
     }
     totalQueried ++;
     g_queryInfo.specifiedQueryInfo.totalQueried ++;
+
 
     et = taosGetTimestampMs();
 

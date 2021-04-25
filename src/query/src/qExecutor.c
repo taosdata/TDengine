@@ -1879,6 +1879,7 @@ static void doFreeQueryHandle(SQueryRuntimeEnv* pRuntimeEnv) {
 }
 
 static void destroyTsComp(SQueryRuntimeEnv *pRuntimeEnv, SQuery *pQuery) {
+
   if (isTsCompQuery(pQuery) && pRuntimeEnv->outputBuf && pRuntimeEnv->outputBuf->pDataBlock && taosArrayGetSize(pRuntimeEnv->outputBuf->pDataBlock) > 0) {
     SColumnInfoData* pColInfoData = taosArrayGet(pRuntimeEnv->outputBuf->pDataBlock, 0);
     if (pColInfoData) {
