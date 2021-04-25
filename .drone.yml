@@ -7,7 +7,7 @@ platform:
   arch: amd64
 
 steps:
-- name: en
+- name: build
   image: gcc
   commands:
   - apt-get update
@@ -17,17 +17,22 @@ steps:
   - cmake .. 
   - make 
 
-- name: es
-  image: alpine
+- name: test
+  image: python:3.8
   commands:
-  - echo hola
-  - echo mundo
+  - pip3 install psutil
+  - pip3 install guppy3
+  - cd tests
+  - ./test-all.sh smoke
 
-- name: fr
-  image: alpine
+
+- name: crash_gen
+  image: python:3.8
   commands:
-  - echo bonjour
-  - echo monde
+  - pip3 install psutil
+  - pip3 install guppy3
+  - cd tests/pytest 
+  - ./crash_gen.sh -a -p -t 4 -s 200
 
 ---
 kind: pipeline
@@ -38,23 +43,15 @@ platform:
   arch: arm64
 
 steps:
-- name: en
-  image: alpine
+- name: build
+  image: gcc
   commands:
-  - echo hello
-  - echo world
-
-- name: es
-  image: alpine
-  commands:
-  - echo hola
-  - echo mundo
-
-- name: fr
-  image: alpine
-  commands:
-  - echo bonjour
-  - echo monde
+  - apt-get update
+  - apt-get install -y cmake build-essential git
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make 
 
 ---
 kind: pipeline
