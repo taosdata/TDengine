@@ -483,27 +483,26 @@ static int32_t tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
 
 static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, int64_t stime) {
   SQueryInfo* pQueryInfo = tscGetQueryInfoDetail(&pSql->cmd, 0);
-
-  if (stime == INT64_MIN) {
-    return stime;
-  }
   
   if (pStream->isProject) {
     // no data in table, flush all data till now to destination meter, 10sec delay
     pStream->interval.interval = tsProjectExecInterval;
     pStream->interval.sliding = tsProjectExecInterval;
 
-    if (stime != 0) {  // first projection start from the latest event timestamp
+    if (stime != INT64_MIN) {  // first projection start from the latest event timestamp
       assert(stime >= pQueryInfo->window.skey);
       stime += 1;  // exclude the last records from table
     } else {
       stime = pQueryInfo->window.skey;
     }
   } else {             // timewindow based aggregation stream
-    if (stime == 0) {  // no data in meter till now
+    if (stime == INT64_MIN) {  // no data in meter till now
       if (pQueryInfo->window.skey != INT64_MIN) {
         stime = pQueryInfo->window.skey;
+      } else {
+        return stime;
       }
+      
       stime = taosTimeTruncate(stime, &pStream->interval, pStream->precision);
     } else {
       int64_t newStime = taosTimeTruncate(stime, &pStream->interval, pStream->precision);
