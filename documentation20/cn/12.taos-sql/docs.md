@@ -407,7 +407,7 @@ SELECT select_expr [, select_expr ...]
     [INTERVAL (interval_val [, interval_offset])]
     [SLIDING sliding_val]
     [FILL fill_val]
-    [GROUP BY col_list [HAVING having_condition]]
+    [GROUP BY col_list <!-- [HAVING having_condition] -->]
     [ORDER BY col_list { DESC | ASC }]
     [SLIMIT limit_val [SOFFSET offset_val]]
     [LIMIT limit_val [OFFSET offset_val]]
@@ -648,6 +648,7 @@ Query OK, 1 row(s) in set (0.001091s)
 2. 针对单一字段的过滤，如果是时间过滤条件，则一条语句中只支持设定一个；但针对其他的（普通）列或标签列，则可以使用 `OR` 关键字进行组合条件的查询过滤。例如：((value > 20 AND value < 30) OR (value < 12)) 。
 3. 从 2.0.17 版本开始，条件过滤开始支持 BETWEEN AND 语法，例如 `WHERE col2 BETWEEN 1.5 AND 3.25` 表示查询条件为“1.5 ≤ col2 ≤ 3.25”。
 
+<!-- 
 ### GROUP BY 之后的 HAVING 过滤
 
 从 2.0.20 版本开始，GROUP BY 之后允许再跟一个 HAVING 子句，对成组后的各组数据再做筛选。HAVING 子句可以使用聚合函数和选择函数作为过滤条件（但暂时不支持 LEASTSQUARES、TOP、BOTTOM、LAST_ROW）。
@@ -656,6 +657,7 @@ Query OK, 1 row(s) in set (0.001091s)
 ```mysql
 SELECT AVG(f1), SPREAD(f1, f2, st2.f1) FROM st2 WHERE f1 > 0 GROUP BY f1 HAVING AVG(f1) > 0;
 ```
+-->
 
 ### SQL 示例 
 
