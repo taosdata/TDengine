@@ -81,7 +81,7 @@ enum QUERY_MODE {
 #define MAX_DB_NAME_SIZE   64
 #define MAX_HOSTNAME_SIZE  64
 #define MAX_TB_NAME_SIZE   64
-#define MAX_DATA_SIZE      16000
+#define MAX_DATA_SIZE      (16*1024)
 #define MAX_NUM_DATATYPE   10
 #define OPT_ABORT          1 /* –abort */
 #define STRING_LEN         60000
