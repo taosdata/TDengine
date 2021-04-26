@@ -10,9 +10,12 @@ import java.math.BigDecimal;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.sql.*;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class RestfulPreparedStatement extends RestfulStatement implements PreparedStatement {
 
@@ -61,12 +64,17 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
         return executeUpdate(sql);
     }
 
+
     private String getNativeSql(String rawSql) throws SQLException {
-        String sql = rawSql;
-        for (int i = 0; i < parameters.length; ++i) {
-            Object para = parameters[i];
+        String[] sqlArr = rawSql.trim().split("\\?");
+
+        String sql = IntStream.range(0, sqlArr.length).mapToObj(index -> {
+            if (index == sqlArr.length - 1)
+                return sqlArr[index];
+
+            Object para = parameters[index];
+            String paraStr;
             if (para != null) {
-                String paraStr;
                 if (para instanceof byte[]) {
                     paraStr = new String((byte[]) para, Charset.forName("UTF-8"));
                 } else {
@@ -77,16 +85,49 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
                     paraStr = Utils.escapeSingleQuota(paraStr);
                     paraStr = "'" + paraStr + "'";
                 }
-                if (paraStr.contains("$") || paraStr.contains("\\"))
-                    paraStr = Matcher.quoteReplacement(paraStr);
-                sql = Pattern.compile("[?]").matcher(sql).replaceFirst(paraStr);
             } else {
-                sql = Pattern.compile("[?]").matcher(sql).replaceFirst("NULL");
+                paraStr = "NULL";
             }
-        }
-        clearParameters();
+            return sqlArr[index] + paraStr;
+        }).collect(Collectors.joining());
+
         return sql;
+//        StringBuilder sb = new StringBuilder();
+//        for (int i = 0; i < parameters.length; i++) {
+//            sb.append(sqlArr[i]);
+//
+//        }
+
+//        if (sqlArr.length == parameters.length + 1)
+//            sb.append(sqlArr[sqlArr.length - 1]);
     }
+
+//    private String getNativeSql(String rawSql) throws SQLException {
+//        String sql = rawSql;
+//        for (int i = 0; i < parameters.length; ++i) {
+//            Object para = parameters[i];
+//            if (para != null) {
+//                String paraStr;
+//                if (para instanceof byte[]) {
+//                    paraStr = new String((byte[]) para, Charset.forName("UTF-8"));
+//                } else {
+//                    paraStr = para.toString();
+//                }
+//                // if para is timestamp or String or byte[] need to translate ' character
+//                if (para instanceof Timestamp || para instanceof String || para instanceof byte[]) {
+//                    paraStr = Utils.escapeSingleQuota(paraStr);
+//                    paraStr = "'" + paraStr + "'";
+//                }
+//                if (paraStr.contains("$") || paraStr.contains("\\"))
+//                    paraStr = Matcher.quoteReplacement(paraStr);
+//                sql = Pattern.compile("[?]").matcher(sql).replaceFirst(paraStr);
+//            } else {
+//                sql = Pattern.compile("[?]").matcher(sql).replaceFirst("NULL");
+//            }
+//        }
+//        clearParameters();
+//        return sql;
+//    }
 
 
     @Override
