@@ -55,10 +55,13 @@ void freeParam(SQueryParam *param) {
   tfree(param->tagCond);
   tfree(param->tbnameCond);
   tfree(param->pTableIdList);
-//  tfree(param->pExprMsg);
-//  tfree(param->pSecExprMsg);
+  taosArrayDestroy(param->pOperator);
   tfree(param->pExprs);
   tfree(param->pSecExprs);
+
+  tfree(param->pExpr);
+  tfree(param->pSecExpr);
+
   tfree(param->pGroupColIndex);
   tfree(param->pTagColumnInfo);
   tfree(param->pGroupbyExpr);
