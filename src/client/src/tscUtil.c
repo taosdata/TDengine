@@ -2777,7 +2777,7 @@ void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   } else if (pSql->cmd.command > TSDB_SQL_LOCAL) {
     tscProcessLocalCmd(pSql);
   } else { // send request to server directly
-    tscProcessSql(pSql, pQueryInfo);
+    tscBuildAndSendRequest(pSql, pQueryInfo);
   }
 }
 
@@ -2786,6 +2786,10 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   if (pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     (*pSql->fp)(pSql->param, pSql, 0);
     return;
+  }
+
+  if (pSql->cmd.command == TSDB_SQL_SELECT) {
+    tscAddIntoSqlList(pSql);
   }
 
   if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
@@ -2805,6 +2809,7 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
 }
 
 /**
+ * todo remove it
  * To decide if current is a two-stage super table query, join query, or insert. And invoke different
  * procedure accordingly
  * @param pSql
@@ -2835,14 +2840,14 @@ void tscDoQuery(SSqlObj* pSql) {
         tscHandleMasterJoinQuery(pSql);
       } else { // for first stage sub query, iterate all vnodes to get all timestamp
         if (!TSDB_QUERY_HAS_TYPE(type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
-          tscProcessSql(pSql, NULL);
+          tscBuildAndSendRequest(pSql, NULL);
         } else { // secondary stage join query.
           if (tscIsTwoStageSTableQuery(pQueryInfo, 0)) {  // super table query
             tscLockByThread(&pSql->squeryLock);
             tscHandleMasterSTableQuery(pSql);
             tscUnlockByThread(&pSql->squeryLock);
           } else {
-            tscProcessSql(pSql, NULL);
+            tscBuildAndSendRequest(pSql, NULL);
           }
         }
       }
@@ -2857,8 +2862,9 @@ void tscDoQuery(SSqlObj* pSql) {
       tscUnlockByThread(&pSql->squeryLock);
       return;
     }
-    
-    tscProcessSql(pSql, NULL);
+
+    pCmd->active = pQueryInfo;
+    tscBuildAndSendRequest(pSql, NULL);
   }
 }
 
@@ -3074,7 +3080,7 @@ void tscTryQueryNextVnode(SSqlObj* pSql, __async_cb_func_t fp) {
 
     // set the callback function
     pSql->fp = fp;
-    tscProcessSql(pSql, NULL);
+    tscBuildAndSendRequest(pSql, NULL);
   } else {
     tscDebug("0x%"PRIx64" try all %d vnodes, query complete. current numOfRes:%" PRId64, pSql->self, totalVgroups, pRes->numOfClauseTotal);
   }

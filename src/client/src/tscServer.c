@@ -270,7 +270,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
   assert(pHB->self == pObj->hbrid);
 
   pHB->retry = 0;
-  int32_t code = tscProcessSql(pHB, NULL);
+  int32_t code = tscBuildAndSendRequest(pHB, NULL);
   taosReleaseRef(tscObjRef, pObj->hbrid);
 
   if (code != TSDB_CODE_SUCCESS) {
@@ -467,7 +467,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   rpcFreeCont(rpcMsg->pCont);
 }
 
-int doProcessSql(SSqlObj *pSql) {
+int doBuildAndSendMsg(SSqlObj *pSql) {
   SSqlCmd *pCmd = &pSql->cmd;
   SSqlRes *pRes = &pSql->res;
 
@@ -499,7 +499,7 @@ int doProcessSql(SSqlObj *pSql) {
   return TSDB_CODE_SUCCESS;
 }
 
-int tscProcessSql(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
+int tscBuildAndSendRequest(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
 
   SSqlCmd *pCmd = &pSql->cmd;
@@ -533,7 +533,7 @@ int tscProcessSql(SSqlObj *pSql, SQueryInfo* pQueryInfo) {
     return (*tscProcessMsgRsp[pCmd->command])(pSql);
   }
   
-  return doProcessSql(pSql);
+  return doBuildAndSendMsg(pSql);
 }
 
 int tscBuildFetchMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
@@ -816,6 +816,7 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
 int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
 
+  int32_t code = TSDB_CODE_SUCCESS;
   int32_t size = tscEstimateQueryMsgSize(pSql, pCmd->clauseIndex);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
@@ -907,16 +908,16 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   for (int32_t i = 0; i < query.numOfOutput; ++i) {
-    int32_t code = serializeSqlExpr(&query.pExpr1[i].base, pTableMetaInfo, &pMsg, pSql);
+    code = serializeSqlExpr(&query.pExpr1[i].base, pTableMetaInfo, &pMsg, pSql);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      goto _end;
     }
   }
 
   for (int32_t i = 0; i < query.numOfExpr2; ++i) {
-    int32_t code = serializeSqlExpr(&query.pExpr2[i].base, pTableMetaInfo, &pMsg, pSql);
+    code = serializeSqlExpr(&query.pExpr2[i].base, pTableMetaInfo, &pMsg, pSql);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      goto _end;
     }
   }
 
@@ -925,7 +926,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   // serialize the table info (sid, uid, tags)
   pMsg = doSerializeTableInfo(pQueryMsg, pSql, pTableMetaInfo, pMsg, &succeed);
   if (succeed == 0) {
-    return TSDB_CODE_TSC_APP_ERROR;
+    code = TSDB_CODE_TSC_APP_ERROR;
+    goto _end;
   }
   
   SSqlGroupbyExpr *pGroupbyExpr = query.pGroupbyExpr;
@@ -1001,9 +1003,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   if (pQueryInfo->tsBuf != NULL) {
     // note: here used the index instead of actual vnode id.
     int32_t vnodeIndex = pTableMetaInfo->vgroupIndex;
-    int32_t code = dumpFileBlockByGroupId(pQueryInfo->tsBuf, vnodeIndex, pMsg, &pQueryMsg->tsBuf.tsLen, &pQueryMsg->tsBuf.tsNumOfBlocks);
+    code = dumpFileBlockByGroupId(pQueryInfo->tsBuf, vnodeIndex, pMsg, &pQueryMsg->tsBuf.tsLen, &pQueryMsg->tsBuf.tsNumOfBlocks);
     if (code != TSDB_CODE_SUCCESS) {
-      return code;
+      goto _end;
     }
 
     pMsg += pQueryMsg->tsBuf.tsLen;
@@ -1034,11 +1036,11 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->head.contLen = htonl(msgLen);
   assert(msgLen + minMsgSize() <= (int32_t)pCmd->allocSize);
 
+  _end:
   freeQueryAttr(&query);
   taosArrayDestroy(tableScanOperator);
   taosArrayDestroy(queryOperator);
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t tscBuildCreateDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
@@ -2430,7 +2432,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   
   pSql->metaRid = pNew->self;
 
-  int32_t code = tscProcessSql(pNew, NULL);
+  int32_t code = tscBuildAndSendRequest(pNew, NULL);
   if (code == TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;  // notify application that current process needs to be terminated
   }
@@ -2566,7 +2568,7 @@ int tscGetSTableVgroupInfo(SSqlObj *pSql, int32_t clauseIndex) {
 
   pNew->fp = tscTableMetaCallBack;
   pNew->param = (void *)pSql->self;
-  code = tscProcessSql(pNew, NULL);
+  code = tscBuildAndSendRequest(pNew, NULL);
   if (code == TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_TSC_ACTION_IN_PROGRESS;
   }

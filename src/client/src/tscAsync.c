@@ -180,7 +180,7 @@ static void tscProcessAsyncRetrieveImpl(void *param, TAOS_RES *tres, int numOfRo
   if (pCmd->command == TSDB_SQL_TABLE_JOIN_RETRIEVE) {
     tscFetchDatablockForSubquery(pSql);
   } else {
-    tscProcessSql(pSql, NULL);
+    tscBuildAndSendRequest(pSql, NULL);
   }
 }
 
@@ -256,7 +256,7 @@ void taos_fetch_rows_a(TAOS_RES *tres, __async_cb_func_t fp, void *param) {
     }
 
     SQueryInfo* pQueryInfo1 = tscGetActiveQueryInfo(&pSql->cmd);
-    tscProcessSql(pSql, pQueryInfo1);
+    tscBuildAndSendRequest(pSql, pQueryInfo1);
   }
 }
 
@@ -396,8 +396,8 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
         goto _error;
       }
 
-      // tscProcessSql can add error into async res
-      tscProcessSql(pSql, NULL);
+      // tscBuildAndSendRequest can add error into async res
+      tscBuildAndSendRequest(pSql, NULL);
       taosReleaseRef(tscObjRef, pSql->self);
       return;
     } else {  // continue to process normal async query
@@ -428,9 +428,9 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
             goto _error;
           }
 
-          tscProcessSql(pSql, NULL);
+          tscBuildAndSendRequest(pSql, NULL);
         } else {  // in all other cases, simple retry
-          tscProcessSql(pSql, NULL);
+          tscBuildAndSendRequest(pSql, NULL);
         }
 
         taosReleaseRef(tscObjRef, pSql->self);

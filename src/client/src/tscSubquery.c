@@ -855,7 +855,7 @@ static void issueTsCompQuery(SSqlObj* pSql, SJoinSupporter* pSupporter, SSqlObj*
       pParent, pSql, 0, pTableMetaInfo->vgroupIndex, pTableMetaInfo->vgroupList->numOfVgroups, pQueryInfo->type,
       tscSqlExprNumOfExprs(pQueryInfo), numOfCols, pQueryInfo->fieldsInfo.numOfOutput, tNameGetTableName(&pTableMetaInfo->name));
   
-  tscProcessSql(pSql, NULL);
+  tscBuildAndSendRequest(pSql, NULL);
 }
 
 static bool checkForDuplicateTagVal(SSchema* pColSchema, SJoinSupporter* p1, SSqlObj* pPSqlObj) {
@@ -1176,7 +1176,7 @@ static void tidTagRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
     // set the callback function
     pSql->fp = tscJoinQueryCallback;
-    tscProcessSql(pSql, NULL);
+    tscBuildAndSendRequest(pSql, NULL);
     return;
   }
 
@@ -1360,7 +1360,7 @@ static void tsCompRetrieveCallback(void* param, TAOS_RES* tres, int32_t numOfRow
 
     // set the callback function
     pSql->fp = tscJoinQueryCallback;
-    tscProcessSql(pSql, NULL);
+    tscBuildAndSendRequest(pSql, NULL);
     return;
   }
 
@@ -1445,7 +1445,7 @@ static void joinRetrieveFinalResCallback(void* param, TAOS_RES* tres, int numOfR
       pSql->cmd.command = TSDB_SQL_SELECT;
       pSql->fp = tscJoinQueryCallback;
 
-      tscProcessSql(pSql, NULL);
+      tscBuildAndSendRequest(pSql, NULL);
       return;
     } else {
       tscDebug("0x%"PRIx64" no result in current subquery anymore", pSql->self);
@@ -1605,7 +1605,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
           pSub->cmd.command = TSDB_SQL_SELECT;
           pSub->fp = tscJoinQueryCallback;
 
-          tscProcessSql(pSub, NULL);
+          tscBuildAndSendRequest(pSub, NULL);
           tryNextVnode = true;
         } else {
           tscDebug("0x%"PRIx64" no result in current subquery anymore", pSub->self);
@@ -1675,7 +1675,7 @@ void tscFetchDatablockForSubquery(SSqlObj* pSql) {
         pCmd1->command = (pCmd1->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
       }
 
-      tscProcessSql(pSql1, NULL);
+      tscBuildAndSendRequest(pSql1, NULL);
     }
   }
 }
@@ -1775,7 +1775,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TAG_FILTER_QUERY)) {
     pSql->fp = tidTagRetrieveCallback;
     pSql->cmd.command = TSDB_SQL_FETCH;
-    tscProcessSql(pSql, NULL);
+    tscBuildAndSendRequest(pSql, NULL);
     return;
   }
 
@@ -1783,7 +1783,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
   if (!TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_JOIN_SEC_STAGE)) {
     pSql->fp = tsCompRetrieveCallback;
     pSql->cmd.command = TSDB_SQL_FETCH;
-    tscProcessSql(pSql, NULL);
+    tscBuildAndSendRequest(pSql, NULL);
     return;
   }
 
@@ -1804,7 +1804,7 @@ void tscJoinQueryCallback(void* param, TAOS_RES* tres, int code) {
     pSql->fp = joinRetrieveFinalResCallback;  // continue retrieve data
     pSql->cmd.command = TSDB_SQL_FETCH;
     
-    tscProcessSql(pSql, NULL);
+    tscBuildAndSendRequest(pSql, NULL);
   } else {  // first retrieve from vnode during the secondary stage sub-query
     // set the command flag must be after the semaphore been correctly set.
     if (pParentSql->res.code == TSDB_CODE_SUCCESS) {
@@ -2021,7 +2021,7 @@ void tscHandleMasterJoinQuery(SSqlObj* pSql) {
         continue;
       }
       
-      if ((code = tscProcessSql(pSub, NULL)) != TSDB_CODE_SUCCESS) {
+      if ((code = tscBuildAndSendRequest(pSub, NULL)) != TSDB_CODE_SUCCESS) {
         pRes->code = code;
         (*pSub->fp)(pSub->param, pSub, 0);
         fail = 1;
@@ -2531,7 +2531,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     SRetrieveSupport* pSupport = pSub->param;
     
     tscDebug("0x%"PRIx64" sub:%p launch subquery, orderOfSub:%d.", pSql->self, pSub, pSupport->subqueryIndex);
-    tscProcessSql(pSub, NULL);
+    tscBuildAndSendRequest(pSub, NULL);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2611,7 +2611,7 @@ static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32
     return pParentSql->res.code;
   }
 
-  int32_t ret = tscProcessSql(pNew, NULL);
+  int32_t ret = tscBuildAndSendRequest(pNew, NULL);
 
   *sent = 1;
   
@@ -3123,7 +3123,7 @@ int32_t tscHandleInsertRetry(SSqlObj* pParent, SSqlObj* pSql) {
     return code;  // here the pSql may have been released already.
   }
 
-  return tscProcessSql(pSql, NULL);
+  return tscBuildAndSendRequest(pSql, NULL);
 }
 
 int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
@@ -3222,7 +3222,7 @@ int32_t tscHandleMultivnodeInsert(SSqlObj *pSql) {
   for (int32_t j = 0; j < numOfSub; ++j) {
     SSqlObj *pSub = pSql->pSubs[j];
     tscDebug("0x%"PRIx64" sub:%p launch sub insert, orderOfSub:%d", pSql->self, pSub, j);
-    tscProcessSql(pSub, NULL);
+    tscBuildAndSendRequest(pSub, NULL);
   }
 
   return TSDB_CODE_SUCCESS;

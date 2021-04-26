@@ -1381,7 +1381,7 @@ static int doPackSendDataBlock(SSqlObj *pSql, int32_t numOfRows, STableDataBlock
     return code;
   }
 
-  return tscProcessSql(pSql, NULL);
+  return tscBuildAndSendRequest(pSql, NULL);
 }
 
 typedef struct SImportFileSupport {

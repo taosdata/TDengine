@@ -423,7 +423,7 @@ void tscInitMsgsFp();
 int tsParseSql(SSqlObj *pSql, bool initial);
 
 void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet);
-int  tscProcessSql(SSqlObj *pSql, SQueryInfo* pQueryInfo);
+int  tscBuildAndSendRequest(SSqlObj *pSql, SQueryInfo* pQueryInfo);
 
 int  tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex);
 void tscAsyncResultOnError(SSqlObj *pSql);

@@ -1051,6 +1051,7 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
     }
   }
 
+  pOperator->status = OP_EXEC_DONE;
   return (pInfo->binfo.pRes->info.rows > 0)? pInfo->binfo.pRes:NULL;
 }
 

@@ -191,7 +191,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     pSql->fp = syncConnCallback;
     pSql->param = pSql;
 
-    tscProcessSql(pSql, NULL);
+    tscBuildAndSendRequest(pSql, NULL);
     tsem_wait(&pSql->rspSem);
 
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
@@ -265,7 +265,7 @@ TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, 
   if (taos) *taos = pObj;
 
   pSql->fetchFp = fp;
-  pSql->res.code = tscProcessSql(pSql, NULL);
+  pSql->res.code = tscBuildAndSendRequest(pSql, NULL);
   tscDebug("%p DB async connection is opening", taos);
   return pObj;
 }
@@ -578,7 +578,7 @@ static bool tscKillQueryInDnode(SSqlObj* pSql) {
     pCmd->command = (pCmd->command > TSDB_SQL_MGMT) ? TSDB_SQL_RETRIEVE : TSDB_SQL_FETCH;
     tscDebug("0x%"PRIx64" send msg to dnode to free qhandle ASAP before free sqlObj, command:%s", pSql->self, sqlCmd[pCmd->command]);
 
-    tscProcessSql(pSql, NULL);
+    tscBuildAndSendRequest(pSql, NULL);
     return false;
   }
 
@@ -1048,7 +1048,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   /*
    * set the qhandle to 0 before return in order to erase the qhandle value assigned in the previous successful query.
-   * If qhandle is NOT set 0, the function of taos_free_result() will send message to server by calling tscProcessSql()
+   * If qhandle is NOT set 0, the function of taos_free_result() will send message to server by calling tscBuildAndSendRequest()
    * to free connection, which may cause segment fault, when the parse phrase is not even successfully executed.
    */
   pRes->qId = 0;
@@ -1061,7 +1061,7 @@ int taos_load_table_info(TAOS *taos, const char *tableNameList) {
 
   tscDoQuery(pSql);
 
-  tscDebug("0x%"PRIx64" load multi table meta result:%d %s pObj:%p", pSql->self, pRes->code, taos_errstr(pSql), pObj);
+  tscDebug("0x%"PRIx64" load multi-table meta result:%d %s pObj:%p", pSql->self, pRes->code, taos_errstr(pSql), pObj);
   if ((code = pRes->code) != TSDB_CODE_SUCCESS) {
     tscFreeSqlObj(pSql);
   }

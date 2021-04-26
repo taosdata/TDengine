@@ -113,10 +113,11 @@ static void doLaunchQuery(void* param, TAOS_RES* tres, int32_t code) {
     tscDebug("0x%"PRIx64" stream:%p, start stream query on:%s", pSql->self, pStream, tNameGetTableName(&pTableMetaInfo->name));
 
     pQueryInfo->command = TSDB_SQL_SELECT;
+    pSql->cmd.active = pQueryInfo;
 
     pSql->fp = tscProcessStreamQueryCallback;
     pSql->fetchFp = tscProcessStreamQueryCallback;
-    tscDoQuery(pSql);
+    executeQuery(pSql, pQueryInfo);
     tscIncStreamExecutionCount(pStream);
   } else {
     setRetryInfo(pStream, code);

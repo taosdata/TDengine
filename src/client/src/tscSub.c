@@ -557,7 +557,10 @@ TAOS_RES *taos_consume(TAOS_SUB *tsub) {
     pSql->fp = asyncCallback;
     pSql->fetchFp = asyncCallback;
     pSql->param = pSub;
-    tscDoQuery(pSql);
+
+    pSql->cmd.active = pQueryInfo;
+    executeQuery(pSql, pQueryInfo);
+
     tsem_wait(&pSub->sem);
 
     if (pRes->code != TSDB_CODE_SUCCESS) {
