@@ -34,57 +34,57 @@ public class InsertSpecialCharacterJniTest {
         }
     }
 
-    @Test
-    public void testCase02() throws SQLException {
-        final String speicalCharacterStr = "\\asdfsfsf\\\\";
-        final long now = System.currentTimeMillis();
-        // insert
-        final String sql = "insert into specCharTest(ts, f1) values(?, ?)";
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setTimestamp(1, new Timestamp(now));
-            pstmt.setBytes(2, speicalCharacterStr.getBytes());
-            int ret = pstmt.executeUpdate();
-            Assert.assertEquals(1, ret);
-        }
-        // query
-        final String query = "select * from specCharTest";
-        try (Statement stmt = conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery(query);
-            rs.next();
-            long timestamp = rs.getTimestamp(1).getTime();
-            Assert.assertEquals(now, timestamp);
-            String f1 = new String(rs.getBytes(2));
-            Assert.assertEquals(speicalCharacterStr, f1);
-            String f2 = rs.getString(3);
-            Assert.assertNull(f2);
-        }
-    }
-
-    @Test
-    public void testCase03() throws SQLException {
-        final String speicalCharacterStr = "\\\\asdfsfsf\\";
-        final long now = System.currentTimeMillis();
-        // insert
-        final String sql = "insert into specCharTest(ts, f1) values(?, ?)";
-        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setTimestamp(1, new Timestamp(now));
-            pstmt.setBytes(2, speicalCharacterStr.getBytes());
-            int ret = pstmt.executeUpdate();
-            Assert.assertEquals(1, ret);
-        }
-        // query
-        final String query = "select * from specCharTest";
-        try (Statement stmt = conn.createStatement()) {
-            ResultSet rs = stmt.executeQuery(query);
-            rs.next();
-            long timestamp = rs.getTimestamp(1).getTime();
-            Assert.assertEquals(now, timestamp);
-            String f1 = new String(rs.getBytes(2));
-            Assert.assertEquals(speicalCharacterStr, f1);
-            String f2 = rs.getString(3);
-            Assert.assertNull(f2);
-        }
-    }
+//    @Test
+//    public void testCase02() throws SQLException {
+//        final String speicalCharacterStr = "\\asdfsfsf\\\\";
+//        final long now = System.currentTimeMillis();
+//        // insert
+//        final String sql = "insert into specCharTest(ts, f1) values(?, ?)";
+//        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+//            pstmt.setTimestamp(1, new Timestamp(now));
+//            pstmt.setBytes(2, speicalCharacterStr.getBytes());
+//            int ret = pstmt.executeUpdate();
+//            Assert.assertEquals(1, ret);
+//        }
+//        // query
+//        final String query = "select * from specCharTest";
+//        try (Statement stmt = conn.createStatement()) {
+//            ResultSet rs = stmt.executeQuery(query);
+//            rs.next();
+//            long timestamp = rs.getTimestamp(1).getTime();
+//            Assert.assertEquals(now, timestamp);
+//            String f1 = new String(rs.getBytes(2));
+//            Assert.assertEquals(speicalCharacterStr, f1);
+//            String f2 = rs.getString(3);
+//            Assert.assertNull(f2);
+//        }
+//    }
+//
+//    @Test
+//    public void testCase03() throws SQLException {
+//        final String speicalCharacterStr = "\\\\asdfsfsf\\";
+//        final long now = System.currentTimeMillis();
+//        // insert
+//        final String sql = "insert into specCharTest(ts, f1) values(?, ?)";
+//        try (PreparedStatement pstmt = conn.prepareStatement(sql)) {
+//            pstmt.setTimestamp(1, new Timestamp(now));
+//            pstmt.setBytes(2, speicalCharacterStr.getBytes());
+//            int ret = pstmt.executeUpdate();
+//            Assert.assertEquals(1, ret);
+//        }
+//        // query
+//        final String query = "select * from specCharTest";
+//        try (Statement stmt = conn.createStatement()) {
+//            ResultSet rs = stmt.executeQuery(query);
+//            rs.next();
+//            long timestamp = rs.getTimestamp(1).getTime();
+//            Assert.assertEquals(now, timestamp);
+//            String f1 = new String(rs.getBytes(2));
+//            Assert.assertEquals(speicalCharacterStr, f1);
+//            String f2 = rs.getString(3);
+//            Assert.assertNull(f2);
+//        }
+//    }
 
     @Test
     public void testCase04() throws SQLException {
