@@ -252,7 +252,7 @@ typedef struct SSuperTable_S {
   int          maxSqlLen;               //
 
   int          insertInterval;          // insert interval, will override global insert interval
-  int64_t      insertRows;              // 0: no limit
+  int64_t      insertRows;
   int          timeStampStep;
   char         startTimestamp[MAX_TB_NAME_SIZE];
   char         sampleFormat[MAX_TB_NAME_SIZE];  // csv, json
@@ -4868,6 +4868,8 @@ static int generateInterlaceDataBuffer(
     pstr += dataLen;
     *pRemainderBufLen -= dataLen;
   } else {
+    debugPrint("%s() LN%d, generated data tail: %d, not equal batch per table: %d\n",
+            __func__, __LINE__, k, batchPerTbl);
     pstr -= headLen;
     pstr[0] = '\0';
     k = 0;
@@ -4925,13 +4927,27 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   debugPrint("[%d] %s() LN%d: ### interlace write\n",
          pThreadInfo->threadID, __func__, __LINE__);
 
+  int64_t insertRows;
+  int interlaceRows;
+
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
-  int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
-  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
+  if (superTblInfo) {
+    insertRows = superTblInfo->insertRows;
+
+    if ((superTblInfo->interlaceRows == 0)
+        && (g_args.interlace_rows > 0)) {
+      interlaceRows = g_args.interlace_rows;
+    } else {
+      interlaceRows = superTblInfo->interlaceRows;
+    }
+  } else {
+    insertRows = g_args.num_of_DPT;
+    interlaceRows = g_args.interlace_rows;
+  }
 
   if (interlaceRows > insertRows)
-        interlaceRows = insertRows;
+    interlaceRows = insertRows;
 
   if (interlaceRows > g_args.num_of_RPR)
     interlaceRows = g_args.num_of_RPR;
@@ -5063,14 +5079,14 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
             if (generatedRecPerTbl >= insertRows)
               break;
 
+            int remainRows = insertRows - generatedRecPerTbl;
+            if ((remainRows > 0) && (batchPerTbl > remainRows))
+              batchPerTbl = remainRows;
+
             if (pThreadInfo->ntables * batchPerTbl < g_args.num_of_RPR)
                 break;
           }
       }
-
-      int remainRows = insertRows - generatedRecPerTbl;
-      if ((remainRows > 0) && (batchPerTbl > remainRows))
-        batchPerTbl = remainRows;
 
       verbosePrint("[%d] %s() LN%d generatedRecPerTbl=%d insertRows=%"PRId64"\n",
                 pThreadInfo->threadID, __func__, __LINE__,
@@ -5294,7 +5310,18 @@ static void* syncWrite(void *sarg) {
   threadInfo *pThreadInfo = (threadInfo *)sarg;
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
-  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
+  int interlaceRows;
+
+  if (superTblInfo) {
+    if ((superTblInfo->interlaceRows == 0)
+        && (g_args.interlace_rows > 0)) {
+      interlaceRows = g_args.interlace_rows;
+    } else {
+      interlaceRows = superTblInfo->interlaceRows;
+    }
+  } else {
+    interlaceRows = g_args.interlace_rows;
+  }
 
   if (interlaceRows > 0) {
     // interlace mode
