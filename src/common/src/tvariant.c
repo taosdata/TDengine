@@ -48,6 +48,13 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
     case TSDB_DATA_TYPE_INT:{
       ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, true);
       if (ret != 0) {
+        SStrToken t = {0};
+        tSQLGetToken(token->z, &t.type);
+        if (t.type == TK_MINUS) {  // it is a signed number which is greater than INT64_MAX or less than INT64_MIN
+          pVar->nType = -1;   // -1 means error type
+          return;
+        }
+
         // data overflow, try unsigned parse the input number
         ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, false);
         if (ret != 0) {
