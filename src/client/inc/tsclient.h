@@ -262,7 +262,8 @@ typedef struct {
   uint8_t msgType;
   char    reserve1[3];        // fix bus error on arm32
   bool    autoCreated;        // create table if it is not existed during retrieve table meta in mnode
-
+  bool    subCmd;
+  
   union {
     int32_t count;
     int32_t numOfTablesInSubmit;

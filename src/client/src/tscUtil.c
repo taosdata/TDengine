@@ -497,7 +497,11 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
 
   pCmd->pTableBlockHashList = tscDestroyBlockHashTable(pCmd->pTableBlockHashList, removeMeta);
   pCmd->pDataBlocks = tscDestroyBlockArrayList(pCmd->pDataBlocks);
-  pCmd->pUdfInfo = tscDestroyUdfArrayList(pCmd->pUdfInfo);
+  if (pCmd->subCmd) {
+    pCmd->pUdfInfo = taosArrayDestroy(pCmd->pUdfInfo);
+  } else {
+    pCmd->pUdfInfo = tscDestroyUdfArrayList(pCmd->pUdfInfo);
+  }
   tscFreeQueryInfo(pCmd, removeMeta);
 }
 
@@ -2281,6 +2285,8 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
 
   SSqlCmd* pnCmd  = &pNew->cmd;
   memcpy(pnCmd, pCmd, sizeof(SSqlCmd));
+
+  pnCmd->subCmd    = true;
   
   pnCmd->command = cmd;
   pnCmd->payload = NULL;

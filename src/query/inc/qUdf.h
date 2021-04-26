@@ -51,6 +51,8 @@ typedef struct SUdfInfo {
   SUdfInit init;
   char *content;
   char *path;
+
+  bool cloned;
 } SUdfInfo;
 
 //script 
