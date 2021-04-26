@@ -21,6 +21,7 @@ void demo(char* data, short itype, short ibytes, int numOfRows, long long* ts, c
    int i;
    double r = 0;
    SDemo *p = (SDemo *)interBuf;
+   SDemo *q = (SDemo *)dataOutput;
    printf("demo input data:%p, type:%d, rows:%d, ts:%p,%lld, dataoutput:%p, interBUf:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, itype, numOfRows, ts, *ts, dataOutput, interBuf, tsOutput, numOfOutput, buf);
 
    for(i=0;i<numOfRows;++i) {
@@ -37,6 +38,10 @@ void demo(char* data, short itype, short ibytes, int numOfRows, long long* ts, c
 
    p->otype = otype;
    p->num += numOfRows;
+
+   q->sum = p->sum;
+   q->num = p->num;
+   q->otype = p->otype;
 
    *numOfOutput=1;
 

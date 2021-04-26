@@ -2725,7 +2725,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       memset(pExpr->aliasName, 0, tListLen(pExpr->aliasName));
       getColumnName(pItem, pExpr->aliasName, sizeof(pExpr->aliasName) - 1);
 
-      SColumnList ids = getColumnList(1, 0, index.columnIndex);
+      SColumnList ids = getColumnList(1, index.tableIndex, index.columnIndex);
       if (finalResult) {
         insertResultField(pQueryInfo, colIndex, &ids, pUdfInfo->resBytes, pUdfInfo->resType, pExpr->aliasName, pExpr);
       } else {
