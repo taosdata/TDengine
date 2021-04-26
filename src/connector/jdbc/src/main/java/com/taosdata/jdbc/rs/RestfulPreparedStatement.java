@@ -74,7 +74,6 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
                 }
                 // if para is timestamp or String or byte[] need to translate ' character
                 if (para instanceof Timestamp || para instanceof String || para instanceof byte[]) {
-//                    paraStr = paraStr.replaceAll("'", "\\'");
                     paraStr = Utils.escapeSingleQuota(paraStr);
                     paraStr = "'" + paraStr + "'";
                 }

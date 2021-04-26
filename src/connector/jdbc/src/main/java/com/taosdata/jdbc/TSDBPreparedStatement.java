@@ -140,7 +140,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                 }
                 // if para is timestamp or String or byte[] need to translate ' character
                 if (para instanceof Timestamp || para instanceof String || para instanceof byte[]) {
-//                    paraStr = paraStr.replaceAll("'", "\\\\\\\\'");
                     paraStr = Utils.escapeSingleQuota(paraStr);
                     paraStr = "'" + paraStr + "'";
                 }
