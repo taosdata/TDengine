@@ -2415,7 +2415,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   tExtMemBuffer   **pMemoryBuf = NULL;
   tOrderDescriptor *pDesc  = NULL;
   SColumnModel     *pModel = NULL;
-  SColumnModel     *pFinalModel = NULL;
+  SColumnModel     *pFinalModel = NULL; 
 
   pRes->qId = 0x1;  // hack the qhandle check
   
