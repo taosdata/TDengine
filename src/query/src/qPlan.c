@@ -49,17 +49,20 @@ SArray* createTableScanPlan(SQueryAttr* pQueryAttr) {
   int32_t op = 0;
   if (onlyQueryTags(pQueryAttr)) {
 //    op = OP_TagScan;
-  } else if (pQueryAttr->queryBlockDist) {
-    op = OP_TableBlockInfoScan;
-  } else if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery) {
-    op = OP_TableSeqScan;
-  } else if (pQueryAttr->needReverseScan) {
-    op = OP_DataBlocksOptScan;
   } else {
-    op = OP_TableScan;
+    if (pQueryAttr->queryBlockDist) {
+      op = OP_TableBlockInfoScan;
+    } else if (pQueryAttr->tsCompQuery || pQueryAttr->pointInterpQuery) {
+      op = OP_TableSeqScan;
+    } else if (pQueryAttr->needReverseScan) {
+      op = OP_DataBlocksOptScan;
+    } else {
+      op = OP_TableScan;
+    }
+
+    taosArrayPush(plan, &op);
   }
 
-  taosArrayPush(plan, &op);
   return plan;
 }
 
@@ -70,6 +73,10 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
   if (onlyQueryTags(pQueryAttr)) {  // do nothing for tags query
     op = OP_TagScan;
     taosArrayPush(plan, &op);
+    if (pQueryAttr->distinctTag) {
+      op = OP_Distinct;
+      taosArrayPush(plan, &op);
+    }
   } else if (pQueryAttr->interval.interval > 0) {
     if (pQueryAttr->stableQuery) {
       op = OP_MultiTableTimeInterval;
@@ -148,9 +155,13 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
     return plan;
   }
 
-  // todo:
-  int32_t op = OP_MultiwaySort;
+  int32_t op = OP_MultiwayMergeSort;
   taosArrayPush(plan, &op);
+
+  if (pQueryAttr->distinctTag) {
+    op = OP_Distinct;
+    taosArrayPush(plan, &op);
+  }
 
   if (pQueryAttr->simpleAgg || (pQueryAttr->interval.interval > 0 || pQueryAttr->sw.gap > 0)) {
     op = OP_GlobalAggregate;

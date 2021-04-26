@@ -195,6 +195,7 @@ typedef struct SQueryAttr {
   bool             simpleAgg;
   bool             pointInterpQuery; // point interpolation query
   bool             needReverseScan;  // need reverse scan
+  bool             distinctTag;      // distinct tag query
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number
@@ -297,9 +298,10 @@ enum OPERATOR_TYPE_E {
   OP_MultiTableAggregate     = 14,
   OP_MultiTableTimeInterval  = 15,
   OP_DummyInput        = 16,   //TODO remove it after fully refactor.
-  OP_MultiwaySort      = 17,   // multi-way data merge into one input stream.
+  OP_MultiwayMergeSort      = 17,   // multi-way data merge into one input stream.
   OP_GlobalAggregate   = 18,   // global merge for the multi-way data sources.
-  OP_Filter         = 19,
+  OP_Filter            = 19,
+  OP_Distinct          = 20,
 };
 
 typedef struct SOperatorInfo {
@@ -463,6 +465,14 @@ typedef struct SSWindowOperatorInfo {
   int32_t        start;      // start row index
 } SSWindowOperatorInfo;
 
+typedef struct SDistinctOperatorInfo {
+  SHashObj         *pSet;
+  SSDataBlock      *pRes;
+  bool              recordNullVal;  //has already record the null value, no need to try again
+  int64_t           threshold;
+  int64_t           outputCapacity;
+} SDistinctOperatorInfo;
+
 struct SLocalMerger;
 
 typedef struct SMultiwayMergeInfo {
@@ -498,6 +508,7 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
 SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createMultiwaySortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput,
                                               int32_t numOfRows, void* merger, bool groupMix);

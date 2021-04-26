@@ -447,18 +447,22 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
         }
 
         if (pCmd->insertType == TSDB_QUERY_TYPE_STMT_INSERT) {
-          STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
+          STableMetaInfo *pTableMetaInfo = tscGetTableMetaInfoFromCmd(pCmd, pCmd->clauseIndex, 0);
           code = tscGetTableMeta(pSql, pTableMetaInfo);
           if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
             taosReleaseRef(tscObjRef, pSql->self);
             return;
           } else {
-            assert(code == TSDB_CODE_SUCCESS);      
+            assert(code == TSDB_CODE_SUCCESS);
           }
 
           (*pSql->fp)(pSql->param, pSql, code);
         } else if (TSDB_QUERY_HAS_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT)) {
-          tscHandleMultivnodeInsert(pSql);
+          if (pCmd->dataSourceType == DATA_FROM_DATA_FILE) {
+            tscImportDataFromFile(pSql);
+          } else {
+            tscHandleMultivnodeInsert(pSql);
+          }
         } else {
           SQueryInfo* pQueryInfo1 = tscGetQueryInfo(pCmd, pCmd->clauseIndex);
           executeQuery(pSql, pQueryInfo1);

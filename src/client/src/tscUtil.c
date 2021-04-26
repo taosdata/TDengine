@@ -3543,6 +3543,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->queryBlockDist    = isBlockDistQuery(pQueryInfo);
   pQueryAttr->pointInterpQuery  = tscIsPointInterpQuery(pQueryInfo);
   pQueryAttr->timeWindowInterpo = timeWindowInterpoRequired(pQueryInfo);
+  pQueryAttr->distinctTag       = pQueryInfo->distinctTag;
 
   pQueryAttr->numOfCols         = numOfCols;
   pQueryAttr->numOfOutput       = numOfOutput;

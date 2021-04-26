@@ -1527,6 +1527,7 @@ void tscImportDataFromFile(SSqlObj *pSql) {
   }
 
   assert(pCmd->dataSourceType == DATA_FROM_DATA_FILE  && strlen(pCmd->payload) != 0);
+  pCmd->active = pCmd->pQueryInfo[0];
 
   SImportFileSupport *pSupporter = calloc(1, sizeof(SImportFileSupport));
   SSqlObj *pNew = createSubqueryObj(pSql, 0, parseFileSendDataBlock, pSupporter, TSDB_SQL_INSERT, NULL);

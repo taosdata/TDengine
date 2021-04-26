@@ -1780,7 +1780,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
         break;
       }
 
-      case OP_MultiwaySort: {
+      case OP_MultiwayMergeSort: {
         bool groupMix = true;
         if(pQueryAttr->slimit.offset != 0 || pQueryAttr->slimit.limit != -1) {
           groupMix = false;
@@ -1791,15 +1791,19 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
 
       case OP_GlobalAggregate: {
-        pRuntimeEnv->proot =
-            createGlobalAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
-                                              pQueryAttr->numOfExpr3, merger);
+        pRuntimeEnv->proot = createGlobalAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
+                                                               pQueryAttr->numOfExpr3, merger);
         break;
       }
 
       case OP_SLimit: {
         pRuntimeEnv->proot = createSLimitOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3,
-            pQueryAttr->numOfExpr3, merger);
+                                                      pQueryAttr->numOfExpr3, merger);
+        break;
+      }
+
+      case OP_Distinct: {
+        pRuntimeEnv->proot = createDistinctOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
         break;
       }
 
@@ -4621,7 +4625,7 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "MultiwaySortOperator";
-  pOperator->operatorType = OP_MultiwaySort;
+  pOperator->operatorType = OP_MultiwayMergeSort;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
@@ -5338,6 +5342,12 @@ static void destroyConditionOperatorInfo(void* param, int32_t numOfOutput) {
   doDestroyFilterInfo(pInfo->pFilterInfo, pInfo->numOfFilterCols);
 }
 
+static void destroyDistinctOperatorInfo(void* param, int32_t numOfOutput) {
+  SDistinctOperatorInfo* pInfo = (SDistinctOperatorInfo*) param;
+  taosHashCleanup(pInfo->pSet);
+  pInfo->pRes = destroyOutputBuf(pInfo->pRes);
+}
+
 SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
   SAggOperatorInfo* pInfo = calloc(1, sizeof(SAggOperatorInfo));
 
@@ -5641,7 +5651,6 @@ SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperator
   return pOperator;
 }
 
-
 static SSDataBlock* doTagScan(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
   if (pOperator->status == OP_EXEC_DONE) {
@@ -5790,6 +5799,88 @@ SOperatorInfo* createTagScanOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SExprInf
   pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->cleanup      = destroyTagScanOperatorInfo;
 
+  return pOperator;
+}
+
+static SSDataBlock* hashDistinct(void* param, bool* newgroup) {
+  SOperatorInfo* pOperator = (SOperatorInfo*) param;
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  SDistinctOperatorInfo* pInfo = pOperator->info;
+  SSDataBlock* pRes = pInfo->pRes;
+
+  pRes->info.rows = 0;
+  SSDataBlock* pBlock = NULL;
+  while(1) {
+    pBlock = pOperator->upstream->exec(pOperator->upstream, newgroup);
+    if (pBlock == NULL) {
+      setQueryStatus(pOperator->pRuntimeEnv, QUERY_COMPLETED);
+      pOperator->status = OP_EXEC_DONE;
+      return NULL;
+    }
+
+    assert(pBlock->info.numOfCols == 1);
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
+
+    int16_t bytes = pColInfoData->info.bytes;
+    int16_t type = pColInfoData->info.type;
+
+    // ensure the output buffer size
+    SColumnInfoData* pResultColInfoData = taosArrayGet(pRes->pDataBlock, 0);
+    if (pRes->info.rows + pBlock->info.rows > pInfo->outputCapacity) {
+      int32_t newSize = pRes->info.rows + pBlock->info.rows;
+      char* tmp = realloc(pResultColInfoData->pData, newSize * bytes);
+      if (tmp == NULL) {
+        return NULL;
+      } else {
+        pResultColInfoData->pData = tmp;
+        pInfo->outputCapacity = newSize;
+      }
+    }
+
+    for(int32_t i = 0; i < pBlock->info.rows; ++i) {
+      char* val = ((char*)pColInfoData->pData) + bytes * i;
+      if (isNull(val, type)) {
+        continue;
+      }
+
+      void* res = taosHashGet(pInfo->pSet, val, bytes);
+      if (res == NULL) {
+        taosHashPut(pInfo->pSet, val, bytes, NULL, 0);
+        char* start = pResultColInfoData->pData + bytes * pInfo->pRes->info.rows;
+        memcpy(start, val, bytes);
+        pRes->info.rows += 1;
+      }
+    }
+
+    if (pRes->info.rows >= pInfo->threshold) {
+      break;
+    }
+  }
+
+  return (pInfo->pRes->info.rows > 0)? pInfo->pRes:NULL;
+}
+
+SOperatorInfo* createDistinctOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
+  SDistinctOperatorInfo* pInfo = calloc(1, sizeof(SDistinctOperatorInfo));
+
+  pInfo->outputCapacity = 4096;
+  pInfo->pSet = taosHashInit(64, taosGetDefaultHashFunction(pExpr->base.colType), false, HASH_NO_LOCK);
+  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pInfo->outputCapacity);
+
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+  pOperator->name         = "DistinctOperator";
+  pOperator->blockingOptr = false;
+  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->operatorType = OP_Distinct;
+  pOperator->upstream     = upstream;
+  pOperator->numOfOutput  = numOfOutput;
+  pOperator->info         = pInfo;
+  pOperator->pRuntimeEnv  = pRuntimeEnv;
+  pOperator->exec         = hashDistinct;
+  pOperator->cleanup      = destroyDistinctOperatorInfo;
   return pOperator;
 }
 
