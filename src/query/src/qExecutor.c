@@ -1707,49 +1707,49 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
       }
       case OP_MultiTableTimeInterval: {
         pRuntimeEnv->proot =
-            createMultiTableTimeIntervalOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+            createMultiTableTimeIntervalOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
         break;
       }
       case OP_TimeWindow: {
         pRuntimeEnv->proot =
-            createTimeIntervalOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+            createTimeIntervalOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
         break;
       }
       case OP_Groupby: {
         pRuntimeEnv->proot =
-            createGroupbyOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+            createGroupbyOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
         break;
       }
       case OP_SessionWindow: {
         pRuntimeEnv->proot =
-            createSWindowOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+            createSWindowOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
         break;
       }
       case OP_MultiTableAggregate: {
         pRuntimeEnv->proot =
-            createMultiTableAggOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+            createMultiTableAggOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+        setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
         break;
       }
       case OP_Aggregate: {
         pRuntimeEnv->proot =
-            createAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->pTableScanner, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-        if (pRuntimeEnv->pTableScanner->operatorType != OP_DummyInput) {
-          setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+            createAggregateOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+        if (pRuntimeEnv->proot->upstream->operatorType != OP_DummyInput) {
+          setTableScanFilterOperatorInfo(pRuntimeEnv->proot->upstream->info, pRuntimeEnv->proot);
         }
         break;
       }
 
       case OP_Arithmetic: {  // TODO refactor to remove arith operator.
-        SOperatorInfo* prev = pRuntimeEnv->pTableScanner;
+        SOperatorInfo* prev = pRuntimeEnv->proot;
         if (i == 0) {
           pRuntimeEnv->proot = createArithOperatorInfo(pRuntimeEnv, prev, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
-          if (pRuntimeEnv->pTableScanner != NULL && pRuntimeEnv->pTableScanner->operatorType != OP_DummyInput) {  // TODO refactor
-            setTableScanFilterOperatorInfo(pRuntimeEnv->pTableScanner->info, pRuntimeEnv->proot);
+          if (pRuntimeEnv->proot != NULL && pRuntimeEnv->proot->operatorType != OP_DummyInput) {  // TODO refactor
+            setTableScanFilterOperatorInfo(prev->info, pRuntimeEnv->proot);
           }
         } else {
           prev = pRuntimeEnv->proot;
@@ -1764,12 +1764,12 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
         break;
       }
 
-      case OP_Condition: {  // todo refactor
+      case OP_Filter: {  // todo refactor
         assert(pQueryAttr->havingNum > 0);
         if (pQueryAttr->stableQuery) {
-          pRuntimeEnv->proot = createConditionOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3, pQueryAttr->numOfExpr3);
+          pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr3, pQueryAttr->numOfExpr3);
         } else {
-          pRuntimeEnv->proot = createConditionOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
+          pRuntimeEnv->proot = createFilterOperatorInfo(pRuntimeEnv, pRuntimeEnv->proot, pQueryAttr->pExpr1, pQueryAttr->numOfOutput);
         }
         break;
       }
@@ -4019,19 +4019,19 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, SArray* prevResult, void* ts
 
   switch(tbScanner) {
     case OP_TableBlockInfoScan: {
-      pRuntimeEnv->pTableScanner = createTableBlockInfoScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
+      pRuntimeEnv->proot = createTableBlockInfoScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
       break;
     }
     case OP_TableSeqScan: {
-      pRuntimeEnv->pTableScanner = createTableSeqScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
+      pRuntimeEnv->proot = createTableSeqScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
       break;
     }
     case OP_DataBlocksOptScan: {
-      pRuntimeEnv->pTableScanner = createDataBlocksOptScanInfo(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr), 1);
+      pRuntimeEnv->proot = createDataBlocksOptScanInfo(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr), 1);
       break;
     }
     case OP_TableScan: {
-      pRuntimeEnv->pTableScanner = createTableScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr));
+      pRuntimeEnv->proot = createTableScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr));
       break;
     }
     default: { // do nothing
@@ -4040,8 +4040,8 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, SArray* prevResult, void* ts
   }
 
   if (sourceOptr != NULL) {
-    assert(pRuntimeEnv->pTableScanner == NULL);
-    pRuntimeEnv->pTableScanner = sourceOptr;
+    assert(pRuntimeEnv->proot == NULL);
+    pRuntimeEnv->proot = sourceOptr;
   }
 
   if (pTsBuf != NULL) {
@@ -4911,7 +4911,7 @@ static SSDataBlock* doFilter(void* param, bool* newgroup) {
     return NULL;
   }
 
-  SConditionOperatorInfo* pCondInfo = pOperator->info;
+  SFilterOperatorInfo* pCondInfo = pOperator->info;
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
 
   while (1) {
@@ -5334,7 +5334,7 @@ static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
 }
 
 static void destroyConditionOperatorInfo(void* param, int32_t numOfOutput) {
-  SConditionOperatorInfo* pInfo = (SConditionOperatorInfo*) param;
+  SFilterOperatorInfo* pInfo = (SFilterOperatorInfo*) param;
   doDestroyFilterInfo(pInfo->pFilterInfo, pInfo->numOfFilterCols);
 }
 
@@ -5394,9 +5394,9 @@ SOperatorInfo* createArithOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorI
   return pOperator;
 }
 
-SOperatorInfo* createConditionOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,
+SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr,
                                            int32_t numOfOutput) {
-  SConditionOperatorInfo* pInfo = calloc(1, sizeof(SConditionOperatorInfo));
+  SFilterOperatorInfo* pInfo = calloc(1, sizeof(SFilterOperatorInfo));
 
   {
     SColumnInfo* pCols = calloc(numOfOutput, sizeof(SColumnInfo));
@@ -5430,7 +5430,7 @@ SOperatorInfo* createConditionOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
   pOperator->name         = "ConditionOperator";
-  pOperator->operatorType = OP_Condition;
+  pOperator->operatorType = OP_Filter;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->numOfOutput  = numOfOutput;

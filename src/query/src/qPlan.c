@@ -94,7 +94,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     taosArrayPush(plan, &op);
 
     if (!pQueryAttr->stableQuery && pQueryAttr->havingNum > 0) {
-      op = OP_Condition;
+      op = OP_Filter;
       taosArrayPush(plan, &op);
     }
 
@@ -120,7 +120,7 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
     taosArrayPush(plan, &op);
 
     if (!pQueryAttr->stableQuery && pQueryAttr->havingNum > 0) {
-      op = OP_Condition;
+      op = OP_Filter;
       taosArrayPush(plan, &op);
     }
 
@@ -157,7 +157,7 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
     taosArrayPush(plan, &op);
 
     if (pQueryAttr->havingNum > 0) {
-      op = OP_Condition;
+      op = OP_Filter;
       taosArrayPush(plan, &op);
     }
 

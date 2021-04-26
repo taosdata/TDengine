@@ -266,7 +266,6 @@ typedef struct SQueryRuntimeEnv {
   SSDataBlock          *outputBuf;
   STableGroupInfo       tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   struct SOperatorInfo *proot;
-  struct SOperatorInfo *pTableScanner;   // table scan operator
   SGroupResInfo         groupResInfo;
   int64_t               currentOffset;   // dynamic offset value
 
@@ -300,7 +299,7 @@ enum OPERATOR_TYPE_E {
   OP_DummyInput        = 16,   //TODO remove it after fully refactor.
   OP_MultiwaySort      = 17,   // multi-way data merge into one input stream.
   OP_GlobalAggregate   = 18,   // global merge for the multi-way data sources.
-  OP_Condition         = 19,
+  OP_Filter         = 19,
 };
 
 typedef struct SOperatorInfo {
@@ -437,10 +436,10 @@ typedef struct SSLimitOperatorInfo {
   SArray   *orderColumnList;
 } SSLimitOperatorInfo;
 
-typedef struct SConditionOperatorInfo {
+typedef struct SFilterOperatorInfo {
   SSingleColumnFilterInfo *pFilterInfo;
   int32_t numOfFilterCols;
-} SConditionOperatorInfo;
+} SFilterOperatorInfo;
 
 typedef struct SFillOperatorInfo {
   SFillInfo   *pFillInfo;
@@ -504,7 +503,7 @@ SOperatorInfo* createMultiwaySortOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SEx
                                               int32_t numOfRows, void* merger, bool groupMix);
 SOperatorInfo* createGlobalAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* param);
 SOperatorInfo* createSLimitOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput, void* merger);
-SOperatorInfo* createConditionOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createFilterOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput);
 
 SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
 SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);
