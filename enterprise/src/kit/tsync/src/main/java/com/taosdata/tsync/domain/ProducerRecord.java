@@ -1,11 +1,11 @@
 package com.taosdata.tsync.domain;
 
-public class ProducerRecord {
+public class ProducerRecord<T> {
     private final String topic;
     private final int partition;
-    private final String message;
+    private final T message;
 
-    public ProducerRecord(String topic, int partition, String message) {
+    public ProducerRecord(String topic, int partition, T message) {
         this.topic = topic;
         this.partition = partition;
         this.message = message;
@@ -19,7 +19,7 @@ public class ProducerRecord {
         return partition;
     }
 
-    public String getMessage() {
+    public T getMessage() {
         return message;
     }
 }

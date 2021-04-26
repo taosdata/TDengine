@@ -1,9 +1,9 @@
 package com.taosdata.tsync;
 
-import com.taosdata.tsync.domain.ProducerRecord;
-import com.taosdata.tsync.domain.RecordMetadata;
-import com.taosdata.tsync.domain.Topic;
-import com.taosdata.tsync.domain.TopicPartition;
+import com.taosdata.tsync.domain.*;
+import com.taosdata.tsync.serializer.Serializer;
+import com.taosdata.tsync.serializer.TQueueAvroSerializer;
+import com.taosdata.tsync.serializer.TQueueStringSerializer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -13,14 +13,23 @@ import java.util.Properties;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 
-public class TQueueProducer extends TQueueBase {
+public class TQueueProducer<T> extends TQueueBase {
     private static final Logger logger = LogManager.getLogger(TQueueProducer.class);
 
     private ExecutorService threadPool = Executors.newCachedThreadPool();
     private Map<Integer, AtomicLong> partitionOffsets = new HashMap<>();
+    private Serializer<T> serializer;
 
     public TQueueProducer(Properties properties) {
+        // establish connection to TQueue
         super(properties);
+        //TODO: init serializer
+        String serializerType = properties.getProperty(ProducerConfig.SERIALIZER, ProducerConfig.STRING_SERIALIZER);
+        if (ProducerConfig.AVRO_SERIALIZER.equals(serializerType))
+            this.serializer = new TQueueAvroSerializer();
+        else
+            this.serializer = new TQueueStringSerializer();
+
         // init topic-partition offset
         for (String topic : topics.keySet()) {
             Topic t = topics.get(topic);
@@ -38,7 +47,7 @@ public class TQueueProducer extends TQueueBase {
      * @return
      * @throws Exception
      */
-    public Future<RecordMetadata> send(ProducerRecord record) throws Exception {
+    public Future<RecordMetadata> send(ProducerRecord<T> record) throws Exception {
         return send(record, null);
     }
 
@@ -47,7 +56,7 @@ public class TQueueProducer extends TQueueBase {
      * @param record
      * @param callback
      */
-    public Future<RecordMetadata> send(ProducerRecord record, Callback callback) throws Exception {
+    public Future<RecordMetadata> send(ProducerRecord<T> record, Callback callback) throws Exception {
         // check topic
         String topic = record.getTopic();
         if (!topics.containsKey(topic)) {
@@ -101,13 +110,19 @@ public class TQueueProducer extends TQueueBase {
             final int partition = record.getPartition();
             long offset = this.offset;
             final long ts = System.currentTimeMillis();
-            final byte[] messages = record.getMessage().getBytes();
-            final long serializedValueSize = messages.length;
 
-            writeMessage(topic, partition, offset, ts, messages);
+            Object message = record.getMessage();
+
+            final byte[] serializedValue;
+            try {
+                serializedValue = serializer.serialize((T) message);
+            } catch (Exception e) {
+                throw new RuntimeException("Can't convert value of class " + message.getClass().getName() + " to byte[] specified in serializer", e);
+            }
+            final long serializedValueSize = serializedValue.length;
+            writeMessage(topic, partition, offset, ts, serializedValue);
             //TODO: cannot get the real offset in TQueue with flushOffset method
 //            offset = currentOffset(topic, partition);
-
             return new RecordMetadata(record.getTopic(), record.getPartition(), offset, ts, serializedValueSize);
         }
     }

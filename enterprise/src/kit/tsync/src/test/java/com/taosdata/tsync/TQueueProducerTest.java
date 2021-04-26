@@ -25,19 +25,19 @@ public class TQueueProducerTest {
         props.setProperty(ProducerConfig.CHARSET_CONFIG, "UTF-8");
         props.setProperty(ProducerConfig.LOCALE_CONFIG, "en_US.UTF-8");
         props.setProperty(ProducerConfig.TIMEZONE_CONFIG, "UTC-8");
+        props.setProperty(ProducerConfig.SERIALIZER, ProducerConfig.AVRO_SERIALIZER);
 
         TQueueProducer producer = new TQueueProducer(props);
-//        while (true) {
 
         List<Thread> threads = IntStream.range(1, 11).mapToObj(partition -> new Thread(() -> {
             try {
                 for (int i = 0; i < 1000; i++) {
-                    ProducerRecord record = new ProducerRecord(
+
+                    ProducerRecord<Person> record = new ProducerRecord(
                             TOPIC,
                             partition,
-                            new Person("name_" + i, random.nextInt(), random.nextBoolean()).toString()
+                            new Person("name_" + i, random.nextInt(), random.nextBoolean())
                     );
-
                     producer.send(record, (metadata, e) -> {
                         if (e != null)
                             e.printStackTrace();
@@ -57,9 +57,7 @@ public class TQueueProducerTest {
             t.join();
         }
 
-//        }
         producer.close();
-
     }
 
 }

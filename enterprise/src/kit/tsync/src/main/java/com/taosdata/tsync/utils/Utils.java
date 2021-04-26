@@ -21,20 +21,6 @@ public class Utils {
     private Utils() {
     }
 
-//    public static Timestamp parseTimestamp(String timeStr) {
-//        LocalDateTime localDateTime = LocalDateTime.parse(timeStr, formatter);
-//        OffsetDateTime offsetDateTime = localDateTime.atOffset(ZoneOffset.ofHours(+8));
-//        Instant instant = offsetDateTime.toInstant();
-//        return Timestamp.from(instant);
-//    }
-//
-//    public static long parseMicroSecond(String timeStr) {
-//        Timestamp ts = parseTimestamp(timeStr);
-//        long time = ts.getTime();
-//        long nanos = ts.getNanos() / 1000;
-//        return time * 1000 + nanos;
-//    }
-
     public static Map<String, Object> propsToMap(Properties properties) {
         Map<String, Object> map = new HashMap<>(properties.size());
         for (Map.Entry<Object, Object> entry : properties.entrySet()) {
