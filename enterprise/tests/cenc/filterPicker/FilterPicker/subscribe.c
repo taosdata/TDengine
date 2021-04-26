@@ -588,16 +588,16 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
 
   //fprintf(stdout, "\r\ncenc_picker_func in sub(%d) ok\r\n", idx);
 
-  pthread_mutex_lock(&mutex_trows);
-  nTotalRows += nRows;
-  pthread_mutex_unlock(&mutex_trows);
-
-  gettimeofday(&end_time, NULL);
-  pthread_mutex_lock(&mutex_ttime);
-  nTotalTime += (end_time.tv_sec * 1000000 + end_time.tv_usec) - (start_time.tv_sec * 1000000 + start_time.tv_usec);
-  pthread_mutex_unlock(&mutex_ttime);
-
   if (nRows != 0) {
+    pthread_mutex_lock(&mutex_trows);
+    nTotalRows += nRows;
+    pthread_mutex_unlock(&mutex_trows);
+
+    gettimeofday(&end_time, NULL);
+    pthread_mutex_lock(&mutex_ttime);
+    nTotalTime += (end_time.tv_sec * 1000000 + end_time.tv_usec) - (start_time.tv_sec * 1000000 + start_time.tv_usec);
+    pthread_mutex_unlock(&mutex_ttime);
+
     fprintf(stderr, "sub(%d): %d row(s) consumed.\r\n", idx, nRows);
   }
 }

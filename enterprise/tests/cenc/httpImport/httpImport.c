@@ -105,6 +105,8 @@ int main(int argc, char *argv[])
     const char      *count   = NULL;
     char            *base64;
     uint64_t         hash;
+    int64_t          ts;
+    struct timeval   now;
 #else
     FILE            *fp      = NULL;
     const char      *ofile   = NULL;
@@ -336,7 +338,9 @@ remain_data:
         }
 
         if (offset + strlen(base64) < MAX_TSQL_LEN - 256) {
-            np = snprintf(cmd + offset, sizeof(cmd) - offset, " p%d using ps tags (%d) values (now, now, '%s')", id, id, base64);
+            gettimeofday(&now, NULL);
+            ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
+            np = snprintf(cmd + offset, sizeof(cmd) - offset, " p%d using ps tags (%d) values (%ld, %ld, '%s')", id, id, ts, ts, base64);
 
             free(base64);
 

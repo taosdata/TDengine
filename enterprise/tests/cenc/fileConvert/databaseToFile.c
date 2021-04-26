@@ -41,6 +41,7 @@ int taos_check_res(TAOS_RES *res, const char *cmd) {
 int main(int argc, char *argv[])
 {
     int               opt, i, np, nfields, rv;
+    int               first        = 1;
     int               status       = 0;
     int               verbose      = 0;
     int               reclen       = 512;
@@ -310,10 +311,14 @@ int main(int argc, char *argv[])
                 msr->numsamples = records;
                 msr->samplecnt = msr->numsamples;
 
-                rv = msr3_writemseed(msr, file_name, 0, flags, verbose);
+                rv = msr3_writemseed(msr, file_name, first, flags, verbose);
                 if (rv < 0) {
                     fprintf(stderr, "1 msr3_writemseed error (%d)\r\n", rv);
                     break;
+                }
+
+                if (first) {
+                    first = 0;
                 }
 
                 prev_time = (*((int64_t *) row[0])) * 1000 * 1000;
@@ -334,10 +339,14 @@ int main(int argc, char *argv[])
             msr->numsamples = 400;
             msr->samplecnt = msr->numsamples;
 
-            rv = msr3_writemseed(msr, file_name, 0, flags, verbose);
+            rv = msr3_writemseed(msr, file_name, first, flags, verbose);
             if (rv < 0) {
                 fprintf(stderr, "2 msr3_writemseed error (%d)\r\n", rv);
                 break;
+            }
+
+            if (first) {
+                first = 0;
             }
         }
     }
@@ -345,13 +354,11 @@ int main(int argc, char *argv[])
     if (records > 0) {
         msr->numsamples = records;
 
-        rv = msr3_writemseed(msr, file_name, 0, flags, verbose);
+        rv = msr3_writemseed(msr, file_name, first, flags, verbose);
         if (rv < 0) {
             fprintf(stderr, "3 msr3_writemseed error (%d)\r\n", rv);
         }
     }
-
-    msr->datasamples = NULL;
 
     taos_free_result(res);
 
@@ -362,6 +369,7 @@ int main(int argc, char *argv[])
 failed:
 
     if (msr) {
+        msr->datasamples = NULL;
         msr3_free(&msr);
     }
 
