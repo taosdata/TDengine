@@ -141,7 +141,8 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                     paraStr = paraStr.replaceAll("'", "\\\\\\\\'");
                     paraStr = "'" + paraStr + "'";
                 }
-                sql = sql.replaceFirst("[?]", paraStr);
+                sql = Pattern.compile("[?]").matcher(sql).replaceFirst(paraStr);
+//                sql = sql.replaceFirst("[?]", paraStr);
             } else {
                 sql = sql.replaceFirst("[?]", "NULL");
             }
@@ -275,7 +276,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        setObject(parameterIndex,x);
+        setObject(parameterIndex, x);
     }
 
     @Override

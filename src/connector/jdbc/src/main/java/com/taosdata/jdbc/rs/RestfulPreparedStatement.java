@@ -10,6 +10,8 @@ import java.net.URL;
 import java.nio.charset.Charset;
 import java.sql.*;
 import java.util.Calendar;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class RestfulPreparedStatement extends RestfulStatement implements PreparedStatement {
 
@@ -74,7 +76,10 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
                     paraStr = paraStr.replaceAll("'", "\\\\\\\\'");
                     paraStr = "'" + paraStr + "'";
                 }
-                sql = sql.replaceFirst("[?]", paraStr);
+                if (paraStr.contains("$") || paraStr.contains("\\"))
+                    paraStr = Matcher.quoteReplacement(paraStr);
+                sql = Pattern.compile("[?]").matcher(sql).replaceFirst(paraStr);
+//                sql = sql.replaceFirst("[?]", paraStr);
             } else {
                 sql = sql.replaceFirst("[?]", "NULL");
             }
@@ -220,8 +225,8 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        
-        setObject(parameterIndex,x);
+
+        setObject(parameterIndex, x);
     }
 
     @Override
