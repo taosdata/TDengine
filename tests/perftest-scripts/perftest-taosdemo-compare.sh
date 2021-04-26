@@ -103,7 +103,7 @@ function runTaosdemoCompare {
 		taos -s "drop database if exists demodb;"	
 		taosdemo -y -d demodb > taosdemoperf.txt
 
-		echoInfo "==================== taosdemo performance for $release ====================" | tee -a $TAOSDEMO_COMPARE_TEST_REPORT
+		echo "==================== taosdemo performance for $release ====================" | tee -a $TAOSDEMO_COMPARE_TEST_REPORT
 		CREATE_TABLE_TIME=`grep 'Spent' taosdemoperf.txt | awk 'NR==1{print $2}'`
 		INSERT_RECORDS_TIME=`grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $2}'`
 		RECORDS_PER_SECOND=`grep 'Spent' taosdemoperf.txt | awk 'NR==2{print $16}'`
@@ -136,7 +136,7 @@ function sendReport {
 
 	sed -i 's/\x1b\[[0-9;]*m//g' $TAOSDEMO_COMPARE_TEST_REPORT
 	BODY_CONTENT=`cat $TAOSDEMO_COMPARE_TEST_REPORT`
-	echo -e "to: ${receiver}\nsubject: Coverage test report ${today}, commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
+	echo -e "to: ${receiver}\nsubject: taosdemo performance compare test report ${today}, commit ID: ${LOCAL_COMMIT}\n\n${today}:\n${BODY_CONTENT}" | \
 	(cat - && uuencode $TAOSDEMO_COMPARE_TEST_REPORT taosdemo-compare-test-report-$today.log) | \
 	ssmtp "${receiver}" && echo "Report Sent!"
 }
