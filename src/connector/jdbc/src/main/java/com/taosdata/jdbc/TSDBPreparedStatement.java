@@ -141,10 +141,11 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                     paraStr = paraStr.replaceAll("'", "\\\\\\\\'");
                     paraStr = "'" + paraStr + "'";
                 }
+                if (paraStr.contains("$") || paraStr.contains("\\"))
+                    paraStr = Matcher.quoteReplacement(paraStr);
                 sql = Pattern.compile("[?]").matcher(sql).replaceFirst(paraStr);
-//                sql = sql.replaceFirst("[?]", paraStr);
             } else {
-                sql = sql.replaceFirst("[?]", "NULL");
+                sql = Pattern.compile("[?]").matcher(sql).replaceFirst("NULL");
             }
         }
         clearParameters();
