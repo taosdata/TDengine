@@ -4927,17 +4927,22 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   debugPrint("[%d] %s() LN%d: ### interlace write\n",
          pThreadInfo->threadID, __func__, __LINE__);
 
+  int64_t insertRows;
+  int interlaceRows;
+
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
-  int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
-
-  int interlaceRows;
   if (superTblInfo) {
+    insertRows = superTblInfo->insertRows;
+
     if ((superTblInfo->interlaceRows == 0)
         && (g_args.interlace_rows > 0)) {
       interlaceRows = g_args.interlace_rows;
+    } else {
+      interlaceRows = superTblInfo->interlaceRows;
     }
   } else {
+    insertRows = g_args.num_of_DPT;
     interlaceRows = g_args.interlace_rows;
   }
 
@@ -5306,10 +5311,13 @@ static void* syncWrite(void *sarg) {
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
   int interlaceRows;
+
   if (superTblInfo) {
     if ((superTblInfo->interlaceRows == 0)
         && (g_args.interlace_rows > 0)) {
       interlaceRows = g_args.interlace_rows;
+    } else {
+      interlaceRows = superTblInfo->interlaceRows;
     }
   } else {
     interlaceRows = g_args.interlace_rows;
