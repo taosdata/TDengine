@@ -10,7 +10,7 @@ typedef struct SUdfInit{
  int const_item;       /* 0 if result is independent of arguments */
 } SUdfInit;
 
-void add_one(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* tsOutput,
+void add_one(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBUf, char* tsOutput,
                         int* numOfOutput, short otype, short obytes, SUdfInit* buf) {
    int i;
    int r = 0;

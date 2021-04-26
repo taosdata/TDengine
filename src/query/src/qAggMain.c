@@ -26,6 +26,7 @@
 #include "qPercentile.h"
 #include "qTsbuf.h"
 #include "queryLog.h"
+#include "qUdf.h"
 
 #define GET_INPUT_DATA_LIST(x) ((char *)((x)->pInput))
 #define GET_INPUT_DATA(x, y) (GET_INPUT_DATA_LIST(x) + (y) * (x)->inputBytes)
@@ -163,16 +164,13 @@ typedef struct SRateInfo {
 } SRateInfo;
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable) {
+                          int16_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo) {
   if (!isValidDataType(dataType)) {
     qError("Illegal data type %d or data type length %d", dataType, dataBytes);
     return TSDB_CODE_TSC_INVALID_SQL;
   }
+ 
 
-  if (functionId < 0) {
-    return TSDB_CODE_SUCCESS;
-  }
-  
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
       functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP) {
@@ -223,6 +221,20 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   }
   
   if (isSuperTable) {
+    if (functionId < 0) {
+      if (pUdfInfo->bufSize > 0) {
+        *type = TSDB_DATA_TYPE_BINARY;
+        *bytes = pUdfInfo->bufSize;
+        *interBytes = *bytes;
+      } else {
+        *type = pUdfInfo->resType;
+        *bytes = pUdfInfo->resBytes;
+        *interBytes = *bytes;
+      }
+    
+      return TSDB_CODE_SUCCESS;
+    }
+  
     if (functionId == TSDB_FUNC_MIN || functionId == TSDB_FUNC_MAX) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = (int16_t)(dataBytes + DATA_SET_FLAG_SIZE);
@@ -277,7 +289,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       return TSDB_CODE_SUCCESS;
     }
   }
-  
+    
   if (functionId == TSDB_FUNC_SUM) {
     if (IS_SIGNED_NUMERIC_TYPE(dataType)) {
       *type = TSDB_DATA_TYPE_BIGINT;
@@ -302,7 +314,20 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = sizeof(STwaInfo);
     return TSDB_CODE_SUCCESS;
   }
+
+  if (functionId < 0) {
+    *type = pUdfInfo->resType;
+    *bytes = pUdfInfo->resBytes;
+
+    if (pUdfInfo->bufSize > 0) {
+      *interBytes = pUdfInfo->bufSize;
+    } else {
+      *interBytes = *bytes;
+    }
   
+    return TSDB_CODE_SUCCESS;
+  }
+    
   if (functionId == TSDB_FUNC_AVG) {
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = sizeof(double);

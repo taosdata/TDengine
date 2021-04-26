@@ -27,6 +27,7 @@ extern "C" {
 #include "trpc.h"
 #include "tvariant.h"
 #include "tsdb.h"
+#include "qUdf.h"
 
 #define TSDB_FUNC_INVALID_ID  -1
 #define TSDB_FUNC_COUNT        0
@@ -223,7 +224,7 @@ typedef struct SAggFunctionInfo {
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
-                          int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable);
+                          int16_t *len, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo);
 int32_t isValidFunction(const char* name, int32_t len);
 
 #define IS_STREAM_QUERY_VALID(x)  (((x)&TSDB_FUNCSTATE_STREAM) != 0)

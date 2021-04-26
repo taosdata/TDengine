@@ -1158,6 +1158,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
       *(int32_t*) pMsg = htonl(pUdfInfo->funcType);
       pMsg += sizeof(pUdfInfo->funcType);
+
+      *(int32_t*) pMsg = htonl(pUdfInfo->bufSize);
+      pMsg += sizeof(pUdfInfo->bufSize);
       
       pQueryMsg->udfContentLen = htonl(pUdfInfo->contLen);
       memcpy(pMsg, pUdfInfo->content, pUdfInfo->contLen);
@@ -2239,6 +2242,7 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
       pUdfInfo->resType  = pFunc->resType;
       pUdfInfo->funcType = htonl(pFunc->funcType);
       pUdfInfo->contLen  = htonl(pFunc->len);
+      pUdfInfo->bufSize  = htonl(pFunc->bufSize);
 
       pUdfInfo->content = malloc(pUdfInfo->contLen);
       memcpy(pUdfInfo->content, pFunc->content, pUdfInfo->contLen);

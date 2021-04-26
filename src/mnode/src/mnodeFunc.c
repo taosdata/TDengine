@@ -190,7 +190,7 @@ static int32_t mnodeUpdateFunc(SFuncObj *pFunc, void *pMsg) {
   return code;
 }
 */
-int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *codeScript, char *path, uint8_t outputType, int16_t outputLen, int32_t funcType, SMnodeMsg *pMsg) {
+int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *codeScript, char *path, uint8_t outputType, int16_t outputLen, int32_t funcType, int32_t bufSize, SMnodeMsg *pMsg) {
   if (grantCheck(TSDB_GRANT_TIME) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_GRANT_EXPIRED;
   }
@@ -217,8 +217,12 @@ int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code
     return TSDB_CODE_MND_INVALID_FUNC_CODE;
   }
 
-  if (codeLen < 0 || codeLen > TSDB_FUNC_CODE_LEN - 1) {
-    return TSDB_CODE_MND_INVALID_FUNC_LEN;
+  if (codeLen < 0 || codeLen > TSDB_FUNC_CODE_LEN) {
+    return TSDB_CODE_MND_INVALID_FUNC_CODE;
+  }
+
+  if (bufSize < 0 || bufSize > TSDB_FUNC_BUF_SIZE) {
+    return TSDB_CODE_MND_INVALID_FUNC_BUFSIZE;
   }
 
   SFuncObj *pFunc = mnodeGetFunc(name);
@@ -237,6 +241,7 @@ int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code
   pFunc->resType     = outputType;
   pFunc->resBytes    = outputLen;
   pFunc->funcType    = funcType;
+  pFunc->bufSize     = bufSize;
   pFunc->sig  = 0;
   pFunc->type = 1; //lua script, refactor
 
@@ -326,6 +331,12 @@ static int32_t mnodeGetFuncMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+  pShow->bytes[cols] = 4;
+  pSchema[cols].type = TSDB_DATA_TYPE_INT;
+  strcpy(pSchema[cols].name, "bufsize");
+  pSchema[cols].bytes = htons(pShow->bytes[cols]);
+  cols++;
+
   pMeta->numOfColumns = htons(cols);
   strcpy(pMeta->tableFname, "show funcs");
   pShow->numOfColumns = cols;
@@ -398,6 +409,10 @@ static int32_t mnodeRetrieveFuncs(SShowObj *pShow, char *data, int32_t rows, voi
     *(int32_t *)pWrite = pFunc->contLen;
     cols++;
 
+    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    *(int32_t *)pWrite = pFunc->bufSize;
+    cols++;
+
     numOfRows++;
     mnodeDecFuncRef(pFunc);
   }
@@ -412,8 +427,9 @@ static int32_t mnodeProcessCreateFuncMsg(SMnodeMsg *pMsg) {
   pCreate->codeLen       = htonl(pCreate->codeLen);
   pCreate->outputLen     = htons(pCreate->outputLen);
   pCreate->funcType      = htonl(pCreate->funcType);
+  pCreate->bufSize       = htonl(pCreate->bufSize);
 
-  return mnodeCreateFunc(pMsg->pUser->pAcct, pCreate->name, pCreate->codeLen, pCreate->code, pCreate->path, pCreate->outputType, pCreate->outputLen, pCreate->funcType, pMsg);
+  return mnodeCreateFunc(pMsg->pUser->pAcct, pCreate->name, pCreate->codeLen, pCreate->code, pCreate->path, pCreate->outputType, pCreate->outputLen, pCreate->funcType, pCreate->bufSize, pMsg);
 }
 
 static int32_t mnodeProcessDropFuncMsg(SMnodeMsg *pMsg) {
@@ -457,6 +473,7 @@ static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg) {
     pFuncInfo->funcType = htonl(pFuncObj->funcType);
     pFuncInfo->resType = pFuncObj->resType;
     pFuncInfo->resBytes = htons(pFuncObj->resBytes);
+    pFuncInfo->bufSize  = htonl(pFuncObj->bufSize);
     
     pOutput += sizeof(SFunctionInfoMsg) + pFuncObj->contLen;
     name =(tstr *)((char *)name + sizeof(*name) + htons(name->len));

@@ -341,6 +341,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     strcpy(pMsg->path, createInfo->path.z);
 
     pMsg->funcType = htonl(createInfo->type);
+    pMsg->bufSize = htonl(createInfo->bufSize);
 
     pMsg->outputType = createInfo->output.type;
     pMsg->outputLen = htons(createInfo->output.bytes);
@@ -2312,7 +2313,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       int32_t intermediateResSize = 0;
 
       if (getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &resultType, &resultSize,
-                            &intermediateResSize, 0, false) != TSDB_CODE_SUCCESS) {
+                            &intermediateResSize, 0, false, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
 
@@ -2650,7 +2651,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       int16_t type  = 0;
       int32_t inter = 0;
 
-      int32_t ret = getResultDataInfo(s.type, s.bytes, TSDB_FUNC_TID_TAG, 0, &type, &bytes, &inter, 0, 0);
+      int32_t ret = getResultDataInfo(s.type, s.bytes, TSDB_FUNC_TID_TAG, 0, &type, &bytes, &inter, 0, 0, NULL);
       assert(ret == TSDB_CODE_SUCCESS);
       
       s.type = (uint8_t)type;
@@ -2674,7 +2675,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       int32_t inter   = 0;
       int16_t resType = 0;
       int16_t bytes   = 0;
-      getResultDataInfo(TSDB_DATA_TYPE_INT, 4, TSDB_FUNC_BLKINFO, 0, &resType, &bytes, &inter, 0, 0);
+      getResultDataInfo(TSDB_DATA_TYPE_INT, 4, TSDB_FUNC_BLKINFO, 0, &resType, &bytes, &inter, 0, 0, NULL);
 
       s.bytes = bytes;
       s.type = (uint8_t)resType;
@@ -2713,8 +2714,13 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
 
-      SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, functionId, &index, pUdfInfo->resType, pUdfInfo->resBytes,
-                                         getNewResColId(pQueryInfo), pUdfInfo->resBytes, false);
+      int32_t inter   = 0;
+      int16_t resType = 0;
+      int16_t bytes   = 0;
+      getResultDataInfo(TSDB_DATA_TYPE_INT, 4, functionId, 0, &resType, &bytes, &inter, 0, false, pUdfInfo);
+
+      SSqlExpr* pExpr = tscSqlExprAppend(pQueryInfo, functionId, &index, resType, bytes,
+                                         getNewResColId(pQueryInfo), inter, false);
 
       memset(pExpr->aliasName, 0, tListLen(pExpr->aliasName));
       getColumnName(pItem, pExpr->aliasName, sizeof(pExpr->aliasName) - 1);
@@ -3047,7 +3053,7 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
         (functionId >= TSDB_FUNC_FIRST_DST && functionId <= TSDB_FUNC_STDDEV_DST) ||
         (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_AVG_IRATE)) {
       if (getResultDataInfo(pSrcSchema->type, pSrcSchema->bytes, functionId, (int32_t)pExpr->param[0].i64, &type, &bytes,
-                            &interBytes, 0, true) != TSDB_CODE_SUCCESS) {
+                            &interBytes, 0, true, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_SQL;
       }
 
@@ -3078,6 +3084,10 @@ void tscRestoreFuncForSTableQuery(SQueryInfo* pQueryInfo) {
     int32_t inter = 0;
     
     int32_t functionId = pExpr->functionId;
+    if (functionId < 0) {
+      continue;
+    }
+    
     if (functionId >= TSDB_FUNC_TS && functionId <= TSDB_FUNC_DIFF) {
       continue;
     }
@@ -3091,7 +3101,7 @@ void tscRestoreFuncForSTableQuery(SQueryInfo* pQueryInfo) {
     }
     
     getResultDataInfo(pSchema->type, pSchema->bytes, functionId, 0, &pExpr->resType, &pExpr->resBytes,
-                      &inter, 0, false);
+                      &inter, 0, false, NULL);
   }
 }
 
@@ -6071,11 +6081,15 @@ static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
 
   for (int32_t i = 0; i < size; ++i) {
     SSqlExpr* pExpr = tscSqlExprGet(pQueryInfo, i);
+    if (pExpr->functionId < 0) {
+      continue;
+    }
+    
     if ((pExpr->functionId != TSDB_FUNC_TAG_DUMMY && pExpr->functionId != TSDB_FUNC_TS_DUMMY) &&
        !(pExpr->functionId == TSDB_FUNC_PRJ && TSDB_COL_IS_UD_COL(pExpr->colInfo.flag))) {
       SSchema* pColSchema = &pSchema[pExpr->colInfo.colIndex];
       getResultDataInfo(pColSchema->type, pColSchema->bytes, pExpr->functionId, (int32_t)pExpr->param[0].i64, &pExpr->resType,
-                        &pExpr->resBytes, &pExpr->interBytes, tagLength, isSTable);
+                        &pExpr->resBytes, &pExpr->interBytes, tagLength, isSTable, NULL);
     }
   }
 }

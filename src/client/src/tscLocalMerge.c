@@ -756,8 +756,9 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
       bytes = pModel->pFields[i].field.bytes;
     } else if (functionId < 0) {
       SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, -1 * functionId - 1);
-      type = pUdfInfo->resType;
-      bytes = pUdfInfo->resBytes;
+      int32_t ret = getResultDataInfo(p1.type, p1.bytes, functionId, 0, &type, &bytes, &inter, 0, false, pUdfInfo);
+      assert(ret == TSDB_CODE_SUCCESS);
+
     } else {
       if (functionId == TSDB_FUNC_FIRST_DST) {
         functionId = TSDB_FUNC_FIRST;
@@ -767,7 +768,7 @@ int32_t tscLocalReducerEnvCreate(SSqlObj *pSql, tExtMemBuffer ***pMemBuffer, tOr
         functionId = TSDB_FUNC_STDDEV;
       }
 
-      int32_t ret = getResultDataInfo(p1.type, p1.bytes, functionId, 0, &type, &bytes, &inter, 0, false);
+      int32_t ret = getResultDataInfo(p1.type, p1.bytes, functionId, 0, &type, &bytes, &inter, 0, false, NULL);
       assert(ret == TSDB_CODE_SUCCESS);
     }
 
@@ -1204,12 +1205,14 @@ int32_t finalizeRes(SSqlCmd *pCmd, SQueryInfo *pQueryInfo, SLocalMerger *pLocalM
 
     if (pCtx->functionId < 0) {
       int32_t output = 0;
+      SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+      void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
 
       SUdfInfo* pUdfInfo = taosArrayGet(pCmd->pUdfInfo, -1 * pCtx->functionId - 1);
       assert (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE);
     
       if (pUdfInfo && pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE]) {
-        (*(udfFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx->pOutput, &output, &pUdfInfo->init);
+        (*(udfFinalizeFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx->pOutput, interBuf, &output, &pUdfInfo->init);
 
         // set the output value exist
         pCtx->resultInfo->numOfRes = output;

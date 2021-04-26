@@ -13,7 +13,7 @@ typedef struct SUdfInit{
 #define TSDB_DATA_INT_NULL              0x80000000L
 
 
-void sum_double(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* tsOutput,
+void sum_double(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput,
                         int* numOfOutput, short otype, short obytes, SUdfInit* buf) {
    int i;
    int r = 0;
@@ -38,7 +38,7 @@ void sum_double(char* data, short itype, short ibytes, int numOfRows, long long*
 
 
 
-void sum_double_finalize(char* dataOutput, int* numOfOutput, SUdfInit* buf) {
+void sum_double_finalize(char* dataOutput, char* interBuf, int* numOfOutput, SUdfInit* buf) {
    int i;
    int r = 0;
    printf("sum_double_finalize dataoutput:%p:%d, numOfOutput:%d, buf:%p\n", dataOutput, *dataOutput, *numOfOutput, buf);

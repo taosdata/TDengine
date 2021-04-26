@@ -16,12 +16,12 @@ typedef struct SDemo{
   short otype;
 }SDemo;
 
-void demo(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* tsOutput,
+void demo(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput,
                         int* numOfOutput, short otype, short obytes, SUdfInit* buf) {
    int i;
    double r = 0;
-   SDemo *p = (SDemo *)buf->ptr;
-   printf("demo input data:%p, type:%d, rows:%d, ts:%p,%lld, dataoutput:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, itype, numOfRows, ts, *ts, dataOutput, tsOutput, numOfOutput, buf);
+   SDemo *p = (SDemo *)interBuf;
+   printf("demo input data:%p, type:%d, rows:%d, ts:%p,%lld, dataoutput:%p, interBUf:%p, tsOutput:%p, numOfOutput:%p, buf:%p\n", data, itype, numOfRows, ts, *ts, dataOutput, interBuf, tsOutput, numOfOutput, buf);
 
    for(i=0;i<numOfRows;++i) {
      if (itype == 4) {
@@ -40,35 +40,56 @@ void demo(char* data, short itype, short ibytes, int numOfRows, long long* ts, c
 
    *numOfOutput=1;
 
-   printf("demo out, dataoutput:%d, numOfOutput:%d\n", *(int *)dataOutput, *numOfOutput);
+   printf("demo out, sum:%f, num:%d, numOfOutput:%d\n", p->sum, p->num, *numOfOutput);
+}
+
+
+void demo_merge(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf) {
+   int i;
+   SDemo *p = (SDemo *)data;
+   SDemo res = {0};
+   printf("demo_merge input data:%p, rows:%d, dataoutput:%p, numOfOutput:%p, buf:%p\n", data, numOfRows, dataOutput, numOfOutput, buf);
+
+   for(i=0;i<numOfRows;++i) {
+     res.sum += p->sum * p->sum;
+     res.num += p->num;
+     p++;
+   }
+
+   p->sum = res.sum;
+   p->num = res.num;
+
+   *numOfOutput=1;
+
+   printf("demo out, sum:%f, num:%d, numOfOutput:%d\n", p->sum, p->num, *numOfOutput);
 }
 
 
 
-void demo_finalize(char* dataOutput, int* numOfOutput, SUdfInit* buf) {
-   SDemo *p = (SDemo *)buf->ptr;
-   printf("demo_finalize dataoutput:%p, numOfOutput:%p, buf:%p\n", dataOutput, numOfOutput, buf);
+void demo_finalize(char* dataOutput, char* interBuf, int* numOfOutput, SUdfInit* buf) {
+   SDemo *p = (SDemo *)interBuf;
+   printf("demo_finalize interbuf:%p, numOfOutput:%p, buf:%p, sum:%f, num:%d\n", interBuf, numOfOutput, buf, p->sum, p->num);
    if (p->otype == 6) {
-     *(float *)dataOutput = (float)(p->sum / p->num);
+     *(float *)dataOutput = (float)(p->sum / p->num);  
+     printf("finalize values:%f\n", *(float *)dataOutput);
    } else if (p->otype == 7) {
      *(double *)dataOutput = (double)(p->sum / p->num);
+     printf("finalize values:%f\n", *(double *)dataOutput);
    }
 
    *numOfOutput=1;
 
-   printf("demo finalize, dataoutput:%d, numOfOutput:%d\n", *(int *)dataOutput, *numOfOutput);
+   printf("demo finalize, numOfOutput:%d\n", *numOfOutput);
 }
 
 
 int demo_init(SUdfInit* buf) {
-   buf->ptr = calloc(1, sizeof(SDemo));
    printf("demo init\n");
    return 0;
 }
 
 
 void demo_destroy(SUdfInit* buf) {
-   free(buf->ptr);
    printf("demo destroy\n");
 }
 

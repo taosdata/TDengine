@@ -55,4 +55,7 @@ run general/parser/sliding.sim
 run general/parser/function.sim
 run general/parser/stableOp.sim
 run general/parser/slimit_alter_tags.sim
+run general/parser/udf.sim
+run general/parser/udf_dll.sim
+run general/parser/udf_dll_stable.sim
 

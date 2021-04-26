@@ -1919,7 +1919,7 @@ int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter 
       int16_t type  = 0;
       int32_t inter = 0;
 
-      getResultDataInfo(s->type, s->bytes, TSDB_FUNC_TID_TAG, 0, &type, &bytes, &inter, 0, 0);
+      getResultDataInfo(s->type, s->bytes, TSDB_FUNC_TID_TAG, 0, &type, &bytes, &inter, 0, 0, NULL);
 
       SSchema s1 = {.colId = s->colId, .type = (uint8_t)type, .bytes = bytes};
       pSupporter->tagSize = s1.bytes;

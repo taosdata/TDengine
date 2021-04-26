@@ -810,8 +810,12 @@ static void doInvokeUdf(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx *pCtx, int
                    (char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList, pCtx->pOutput,
                   (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes);
     } else {
-      (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList, pCtx->pOutput,
-                  (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes, &pUdfInfo->init);
+      SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+      
+      void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
+      
+      (*(udfNormalFunc)pUdfInfo->funcs[TSDB_UDF_FUNC_NORMAL])((char *)pCtx->pInput + idx * pCtx->inputType, pCtx->inputType, pCtx->inputBytes, pCtx->size, pCtx->ptsList, 
+        pCtx->pOutput, interBuf, (char *)pCtx->ptsOutputBuf, &output, pCtx->outputType, pCtx->outputBytes, &pUdfInfo->init);
     }
 
     if (pUdfInfo->funcType == TSDB_UDF_TYPE_AGGREGATE) {
@@ -3316,12 +3320,14 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
       for (int32_t j = 0; j < numOfOutput; ++j) {
         if (pCtx[j].functionId < 0) {
           int32_t output = 0;
+          SResultRowCellInfo *pResInfo = GET_RES_INFO(&pCtx[j]);
+          void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
         
           if (pRuntimeEnv->pUdfInfo && pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE]) {
             if (pRuntimeEnv->pUdfInfo->isScript) {
               (*(scriptFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pRuntimeEnv->pUdfInfo->pScriptCtx, pCtx[j].pOutput, &output);
             } else {
-              (*(udfFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx[j].pOutput, &output, &pRuntimeEnv->pUdfInfo->init);
+              (*(udfFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx[j].pOutput, interBuf, &output, &pRuntimeEnv->pUdfInfo->init);
             }
           }
 
@@ -3347,12 +3353,14 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
     for (int32_t j = 0; j < numOfOutput; ++j) {
       if (pCtx[j].functionId < 0) {
         int32_t output = 0;
+        SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+        void *interBuf = (void *)GET_ROWCELL_INTERBUF(pResInfo);
       
         if (pRuntimeEnv->pUdfInfo && pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE]) {
             if (pRuntimeEnv->pUdfInfo->isScript) {
               (*(scriptFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pRuntimeEnv->pUdfInfo->pScriptCtx, pCtx[j].pOutput, &output);
             } else {
-              (*(udfFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx[j].pOutput, &output, &pRuntimeEnv->pUdfInfo->init);
+              (*(udfFinalizeFunc)pRuntimeEnv->pUdfInfo->funcs[TSDB_UDF_FUNC_FINALIZE])(pCtx[j].pOutput, interBuf, &output, &pRuntimeEnv->pUdfInfo->init);
             }
         }
 
@@ -6230,6 +6238,9 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     pMsg += varDataTLen(name);
     param->pUdfInfo->funcType = htonl(*(int32_t*)pMsg);
     pMsg += sizeof(int32_t);
+
+    param->pUdfInfo->bufSize = htonl(*(int32_t*)pMsg);
+    pMsg += sizeof(int32_t);
     
     param->pUdfInfo->content = malloc(pQueryMsg->udfContentLen);
     memcpy(param->pUdfInfo->content, pMsg, pQueryMsg->udfContentLen);
@@ -6326,7 +6337,7 @@ static int32_t updateOutputBufForTopBotQuery(SQueryTableMsg* pQueryMsg, SColumnI
       } else {
         SColumnInfo* pCol = &pQueryMsg->colList[j];
         int32_t ret = getResultDataInfo(pCol->type, pCol->bytes, functId, (int32_t)pExprs[i].base.arg[0].argValue.i64,
-                                        &pExprs[i].type, &pExprs[i].bytes, &pExprs[i].interBytes, tagLen, superTable);
+                                        &pExprs[i].type, &pExprs[i].bytes, &pExprs[i].interBytes, tagLen, superTable, NULL);
         assert(ret == TSDB_CODE_SUCCESS);
       }
     }
@@ -6551,15 +6562,10 @@ int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutpu
       return TSDB_CODE_QRY_INVALID_MSG;
     }
 
-    if (pExprs[i].base.functionId < 0) {
-      pExprs[i].type  = pUdfInfo->resType;
-      pExprs[i].bytes = pUdfInfo->resBytes;
-    } else {
-      if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].type, &pExprs[i].bytes,
-                            &pExprs[i].interBytes, 0, isSuperTable) != TSDB_CODE_SUCCESS) {
-        tfree(pExprs);
-        return TSDB_CODE_QRY_INVALID_MSG;
-      }
+    if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].type, &pExprs[i].bytes,
+                          &pExprs[i].interBytes, 0, isSuperTable, pUdfInfo) != TSDB_CODE_SUCCESS) {
+      tfree(pExprs);
+      return TSDB_CODE_QRY_INVALID_MSG;
     }
 
     if (pExprs[i].base.functionId == TSDB_FUNC_TAG_DUMMY || pExprs[i].base.functionId == TSDB_FUNC_TS_DUMMY) {
@@ -6577,7 +6583,7 @@ int32_t createQueryFuncExprFromMsg(SQueryTableMsg* pQueryMsg, int32_t numOfOutpu
 }
 
 int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t numOfOutput, SExprInfo **pExprInfo,
-    SSqlFuncMsg **pExprMsg, SExprInfo *prevExpr) {
+    SSqlFuncMsg **pExprMsg, SExprInfo *prevExpr, SUdfInfo *pUdfInfo) {
   *pExprInfo = NULL;
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -6616,7 +6622,7 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableMsg *pQueryMsg, int32_t nu
 
     int32_t param = (int32_t)pExprs[i].base.arg[0].argValue.i64;
     if (getResultDataInfo(type, bytes, pExprs[i].base.functionId, param, &pExprs[i].type, &pExprs[i].bytes,
-                          &pExprs[i].interBytes, 0, isSuperTable) != TSDB_CODE_SUCCESS) {
+                          &pExprs[i].interBytes, 0, isSuperTable, pUdfInfo) != TSDB_CODE_SUCCESS) {
       tfree(pExprs);
       return TSDB_CODE_QRY_INVALID_MSG;
     }

@@ -179,6 +179,7 @@ typedef struct SCreateFuncInfo {
   SStrToken name;
   SStrToken path;
   int32_t   type;
+  int32_t   bufSize;
   TAOS_FIELD output;
 } SCreateFuncInfo;
 
