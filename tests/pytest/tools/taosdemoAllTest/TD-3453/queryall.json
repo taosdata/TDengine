@@ -1,0 +1,20 @@
+{
+  "filetype":"query",
+  "cfgdir": "/etc/taos",
+  "host": "127.0.0.1",
+  "port": 6030,
+  "user": "root",
+  "password": "taosdata",
+  "confirm_parameter_prompt": "no",
+  "databases": "db",
+  "specified_table_query":{
+    "query_interval":1, 
+    "concurrent":1,
+    "sqls":[
+      {
+        "sql": "select * from stb0",
+        "result": ""
+      }
+    ]
+  }
+}
