@@ -2,6 +2,7 @@ package com.taosdata.jdbc.rs;
 
 import com.taosdata.jdbc.TSDBError;
 import com.taosdata.jdbc.TSDBErrorNumbers;
+import com.taosdata.jdbc.utils.Utils;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -73,7 +74,8 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
                 }
                 // if para is timestamp or String or byte[] need to translate ' character
                 if (para instanceof Timestamp || para instanceof String || para instanceof byte[]) {
-                    paraStr = paraStr.replaceAll("'", "\\\\\\\\'");
+//                    paraStr = paraStr.replaceAll("'", "\\'");
+                    paraStr = Utils.escapeSingleQuota(paraStr);
                     paraStr = "'" + paraStr + "'";
                 }
                 if (paraStr.contains("$") || paraStr.contains("\\"))
@@ -86,6 +88,7 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
         clearParameters();
         return sql;
     }
+
 
     @Override
     public void setNull(int parameterIndex, int sqlType) throws SQLException {
