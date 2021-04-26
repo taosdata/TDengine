@@ -667,7 +667,6 @@ static int32_t tscLaunchRealSubqueries(SSqlObj* pSql) {
       continue;
     }
 
-//    tscDoQuery(pSql->pSubs[i]);
     SQueryInfo* pQueryInfo = tscGetQueryInfo(&pSql->pSubs[i]->cmd, 0);
     executeQuery(pSql->pSubs[i], pQueryInfo);
   }

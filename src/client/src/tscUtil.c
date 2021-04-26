@@ -2783,6 +2783,11 @@ void doExecuteQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
 
 // do execute the query according to the query execution plan
 void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
+  if (pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
+    (*pSql->fp)(pSql->param, pSql, 0);
+    return;
+  }
+
   if (taosArrayGetSize(pQueryInfo->pUpstream) > 0) {  // nest query. do execute it firstly
     SQueryInfo* pq = taosArrayGetP(pQueryInfo->pUpstream, 0);
 
