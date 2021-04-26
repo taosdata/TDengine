@@ -252,7 +252,7 @@ typedef struct SSuperTable_S {
   int          maxSqlLen;               //
 
   int          insertInterval;          // insert interval, will override global insert interval
-  int64_t      insertRows;              // 0: no limit
+  int64_t      insertRows;
   int          timeStampStep;
   char         startTimestamp[MAX_TB_NAME_SIZE];
   char         sampleFormat[MAX_TB_NAME_SIZE];  // csv, json
@@ -4930,10 +4930,19 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
   int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
-  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
+
+  int interlaceRows;
+  if (superTblInfo) {
+    if ((superTblInfo->interlaceRows == 0)
+        && (g_args.interlace_rows > 0)) {
+      interlaceRows = g_args.interlace_rows;
+    }
+  } else {
+    interlaceRows = g_args.interlace_rows;
+  }
 
   if (interlaceRows > insertRows)
-        interlaceRows = insertRows;
+    interlaceRows = insertRows;
 
   if (interlaceRows > g_args.num_of_RPR)
     interlaceRows = g_args.num_of_RPR;
@@ -5296,7 +5305,15 @@ static void* syncWrite(void *sarg) {
   threadInfo *pThreadInfo = (threadInfo *)sarg;
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
-  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
+  int interlaceRows;
+  if (superTblInfo) {
+    if ((superTblInfo->interlaceRows == 0)
+        && (g_args.interlace_rows > 0)) {
+      interlaceRows = g_args.interlace_rows;
+    }
+  } else {
+    interlaceRows = g_args.interlace_rows;
+  }
 
   if (interlaceRows > 0) {
     // interlace mode
