@@ -1089,7 +1089,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     str = pCmd->curSql;
   }
   
-  tscDebug("0x%"PRIx64" create data block list hashList:%p", pSql->self, pCmd->pTableBlockHashList);
+  tscDebug("0x%lx create data block list hashList:%p", pSql->self, pCmd->pTableBlockHashList);
 
   while (1) {
     int32_t   index = 0;
