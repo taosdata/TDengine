@@ -49,6 +49,7 @@ steps:
   - cd ../../
   - find . -name "libtaos.so"|grep -w lib|head -n1
   - cp debug/build/lib/libtaos.so /usr/lib
+  - cd test/pytest
   - ./valgrind-test.sh
   - ./handle_val_log.sh
   when:
