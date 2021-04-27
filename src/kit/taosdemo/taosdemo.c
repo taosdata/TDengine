@@ -81,7 +81,7 @@ enum QUERY_MODE {
 #define MAX_DB_NAME_SIZE   64
 #define MAX_HOSTNAME_SIZE  64
 #define MAX_TB_NAME_SIZE   64
-#define MAX_DATA_SIZE      16000
+#define MAX_DATA_SIZE      (16*1024)
 #define MAX_NUM_DATATYPE   10
 #define OPT_ABORT          1 /* –abort */
 #define STRING_LEN         60000
@@ -252,8 +252,8 @@ typedef struct SSuperTable_S {
   int          maxSqlLen;               //
 
   int          insertInterval;          // insert interval, will override global insert interval
-  int64_t      insertRows;              // 0: no limit
-  int          timeStampStep;
+  int64_t      insertRows;
+  int64_t      timeStampStep;
   char         startTimestamp[MAX_TB_NAME_SIZE];
   char         sampleFormat[MAX_TB_NAME_SIZE];  // csv, json
   char         sampleFile[MAX_FILE_NAME_LEN+1];
@@ -530,50 +530,50 @@ char *aggreFunc[] = {"*", "count(*)", "avg(col0)", "sum(col0)",
     "max(col0)", "min(col0)", "first(col0)", "last(col0)"};
 
 SArguments g_args = {
-    NULL,            // metaFile
-    0,               // test_mode
-    "127.0.0.1",     // host
-    6030,            // port
-    "root",          // user
-#ifdef _TD_POWER_
-    "powerdb",      // password
-#else
-    "taosdata",      // password
-#endif
-    "test",          // database
-    1,               // replica
-    "t",             // tb_prefix
-    NULL,            // sqlFile
-    true,            // use_metric
-    true,            // drop_database
-    true,            // insert_only
-    false,           // debug_print
-    false,           // verbose_print
-    false,           // performance statistic print
-    false,           // answer_yes;
-    "./output.txt",  // output_file
-    0,               // mode : sync or async
-    {
-        "INT",           // datatype
-        "INT",           // datatype
-        "INT",           // datatype
-        "INT",           // datatype
-    },
-    16,              // len_of_binary
-    4,               // num_of_CPR
-    10,              // num_of_connections/thread
-    0,               // insert_interval
-    1,               // query_times
-    0,               // interlace_rows;
-    30000,           // num_of_RPR
-    1024000,         // max_sql_len
-    10000,           // num_of_tables
-    10000,           // num_of_DPT
-    0,               // abort
-    0,               // disorderRatio
-    1000,            // disorderRange
-    1,               // method_of_delete
-    NULL             // arg_list
+                     NULL,            // metaFile
+                     0,               // test_mode
+                     "127.0.0.1",     // host
+                     6030,            // port
+                     "root",          // user
+                     #ifdef _TD_POWER_
+                     "powerdb",      // password
+                     #else
+                     "taosdata",      // password
+                     #endif
+                     "test",          // database
+                     1,               // replica
+                     "t",             // tb_prefix
+                     NULL,            // sqlFile
+                     true,            // use_metric
+                     true,            // drop_database
+                     true,            // insert_only
+                     false,           // debug_print
+                     false,           // verbose_print
+                     false,           // performance statistic print
+                     false,           // answer_yes;
+                     "./output.txt",  // output_file
+                     0,               // mode : sync or async
+                     {
+                     "INT",           // datatype
+                     "INT",           // datatype
+                     "INT",           // datatype
+                     "INT",           // datatype
+                     },
+                     16,              // len_of_binary
+                     4,               // num_of_CPR
+                     10,              // num_of_connections/thread
+                     0,               // insert_interval
+                     1,               // query_times
+                     0,               // interlace_rows;
+                     30000,           // num_of_RPR
+                     1024000,         // max_sql_len
+                     10000,           // num_of_tables
+                     10000,           // num_of_DPT
+                     0,               // abort
+                     0,               // disorderRatio
+                     1000,            // disorderRange
+                     1,               // method_of_delete
+                     NULL             // arg_list
 };
 
 
@@ -1368,9 +1368,9 @@ static int printfInsertMeta() {
       printf("      disorderRatio:     \033[33m%d\033[0m\n",
              g_Dbs.db[i].superTbls[j].disorderRatio);
       printf("      maxSqlLen:         \033[33m%d\033[0m\n",
-             g_Dbs.db[i].superTbls[j].maxSqlLen);
-      printf("      timeStampStep:     \033[33m%d\033[0m\n",
-             g_Dbs.db[i].superTbls[j].timeStampStep);
+              g_Dbs.db[i].superTbls[j].maxSqlLen);
+      printf("      timeStampStep:     \033[33m%"PRId64"\033[0m\n",
+              g_Dbs.db[i].superTbls[j].timeStampStep);
       printf("      startTimestamp:    \033[33m%s\033[0m\n",
              g_Dbs.db[i].superTbls[j].startTimestamp);
       printf("      sampleFormat:      \033[33m%s\033[0m\n",
@@ -1541,7 +1541,7 @@ static void printfInsertMetaToFile(FILE* fp) {
       fprintf(fp, "      disorderRatio:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRatio);
       fprintf(fp, "      maxSqlLen:         %d\n",  g_Dbs.db[i].superTbls[j].maxSqlLen);
 
-      fprintf(fp, "      timeStampStep:     %d\n",  g_Dbs.db[i].superTbls[j].timeStampStep);
+      fprintf(fp, "      timeStampStep:     %"PRId64"\n",  g_Dbs.db[i].superTbls[j].timeStampStep);
       fprintf(fp, "      startTimestamp:    %s\n",  g_Dbs.db[i].superTbls[j].startTimestamp);
       fprintf(fp, "      sampleFormat:      %s\n",  g_Dbs.db[i].superTbls[j].sampleFormat);
       fprintf(fp, "      sampleFile:        %s\n",  g_Dbs.db[i].superTbls[j].sampleFile);
@@ -3657,7 +3657,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         goto PARSE_OVER;
       }
 
-      /*
       cJSON* batchCreateTbl = cJSON_GetObjectItem(stbInfo, "batch_create_tbl_num");
       if (batchCreateTbl && batchCreateTbl->type == cJSON_Number) {
         g_Dbs.db[i].superTbls[j].batchCreateTableNum = batchCreateTbl->valueint;
@@ -3667,7 +3666,6 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
         printf("ERROR: failed to read json, batch_create_tbl_num not found\n");
         goto PARSE_OVER;
       }
-      */
 
       cJSON *childTblExists = cJSON_GetObjectItem(stbInfo, "child_table_exists"); // yes, no
       if (childTblExists
@@ -4646,9 +4644,9 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, int tableSeq)
 }
 
 static int generateDataTail(
-    SSuperTable* superTblInfo,
-    int batch, char* buffer, int remainderBufLen, int64_t insertRows,
-    int64_t startFrom, uint64_t startTime, int *pSamplePos, int *dataLen) {
+        SSuperTable* superTblInfo,
+        int batch, char* buffer, int remainderBufLen, int64_t insertRows,
+        int64_t startFrom, int64_t startTime, int *pSamplePos, int *dataLen) {
   int len = 0;
   int ncols_per_record = 1; // count first col ts
 
@@ -4868,6 +4866,8 @@ static int generateInterlaceDataBuffer(
     pstr += dataLen;
     *pRemainderBufLen -= dataLen;
   } else {
+    debugPrint("%s() LN%d, generated data tail: %d, not equal batch per table: %d\n",
+            __func__, __LINE__, k, batchPerTbl);
     pstr -= headLen;
     pstr[0] = '\0';
     k = 0;
@@ -4925,10 +4925,24 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   debugPrint("[%d] %s() LN%d: ### interlace write\n",
              pThreadInfo->threadID, __func__, __LINE__);
 
+  int64_t insertRows;
+  int interlaceRows;
+
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
-  int64_t insertRows = (superTblInfo)?superTblInfo->insertRows:g_args.num_of_DPT;
-  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
+  if (superTblInfo) {
+    insertRows = superTblInfo->insertRows;
+
+    if ((superTblInfo->interlaceRows == 0)
+        && (g_args.interlace_rows > 0)) {
+      interlaceRows = g_args.interlace_rows;
+    } else {
+      interlaceRows = superTblInfo->interlaceRows;
+    }
+  } else {
+    insertRows = g_args.num_of_DPT;
+    interlaceRows = g_args.interlace_rows;
+  }
 
   if (interlaceRows > insertRows)
     interlaceRows = insertRows;
@@ -4960,7 +4974,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   pThreadInfo->totalInsertRows = 0;
   pThreadInfo->totalAffectedRows = 0;
 
-  int nTimeStampStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
+  int64_t nTimeStampStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
 
   int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
@@ -5059,18 +5073,18 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
           startTime = pThreadInfo->start_time
                       + generatedRecPerTbl * nTimeStampStep;
 
-          flagSleep = true;
-          if (generatedRecPerTbl >= insertRows)
-            break;
+            flagSleep = true;
+            if (generatedRecPerTbl >= insertRows)
+              break;
 
-          if (pThreadInfo->ntables * batchPerTbl < g_args.num_of_RPR)
-            break;
-        }
+            int remainRows = insertRows - generatedRecPerTbl;
+            if ((remainRows > 0) && (batchPerTbl > remainRows))
+              batchPerTbl = remainRows;
+
+            if (pThreadInfo->ntables * batchPerTbl < g_args.num_of_RPR)
+                break;
+          }
       }
-
-      int remainRows = insertRows - generatedRecPerTbl;
-      if ((remainRows > 0) && (batchPerTbl > remainRows))
-        batchPerTbl = remainRows;
 
       verbosePrint("[%d] %s() LN%d generatedRecPerTbl=%d insertRows=%"PRId64"\n",
                    pThreadInfo->threadID, __func__, __LINE__,
@@ -5169,7 +5183,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
   int64_t startTs = taosGetTimestampMs();
   int64_t endTs;
 
-  int timeStampStep =
+  int64_t timeStampStep =
       superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
 /*  int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
@@ -5294,7 +5308,18 @@ static void* syncWrite(void *sarg) {
   threadInfo *pThreadInfo = (threadInfo *)sarg;
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
-  int interlaceRows = superTblInfo?superTblInfo->interlaceRows:g_args.interlace_rows;
+  int interlaceRows;
+
+  if (superTblInfo) {
+    if ((superTblInfo->interlaceRows == 0)
+        && (g_args.interlace_rows > 0)) {
+      interlaceRows = g_args.interlace_rows;
+    } else {
+      interlaceRows = superTblInfo->interlaceRows;
+    }
+  } else {
+    interlaceRows = g_args.interlace_rows;
+  }
 
   if (interlaceRows > 0) {
     // interlace mode
@@ -5993,8 +6018,8 @@ static void *specifiedTableQuery(void *sarg) {
                     pThreadInfo->threadID,
                     totalQueried,
                     (double)(totalQueried/((endTs-startTs)/1000.0)));
+      lastPrintTime = currentPrintTime;
     }
-    lastPrintTime = currentPrintTime;
   }
   return NULL;
 }
@@ -6079,8 +6104,8 @@ static void *superTableQuery(void *sarg) {
                     pThreadInfo->threadID,
                     totalQueried,
                     (double)(totalQueried/((endTs-startTs)/1000.0)));
+          lastPrintTime = currentPrintTime;
         }
-        lastPrintTime = currentPrintTime;
       }
     }
     et = taosGetTimestampMs();
@@ -6424,7 +6449,7 @@ static void *specifiedSubscribe(void *sarg) {
       }
       tsub[i] = subscribeImpl(pThreadInfo->taos,
           g_queryInfo.specifiedQueryInfo.sql[i], topic, tmpFile);
-      if (NULL == g_queryInfo.specifiedQueryInfo.tsub[i]) {
+      if (NULL == tsub[i]) {
         taos_close(pThreadInfo->taos);
         return NULL;
       }

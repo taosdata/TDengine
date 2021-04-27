@@ -222,7 +222,7 @@ void tscProcessHeartBeatRsp(void *param, TAOS_RES *tres, int code) {
     assert(online <= total);
 
     if (online < total) {
-      tscError("HB:%p, total dnode:%d, online dnode:%d", pSql, total, online);
+      tscError("0x%"PRIx64", HB, total dnode:%d, online dnode:%d", pSql->self, total, online);
       pSql->res.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
     }
 
@@ -274,7 +274,7 @@ void tscProcessActivityTimer(void *handle, void *tmrId) {
   taosReleaseRef(tscObjRef, pObj->hbrid);
 
   if (code != TSDB_CODE_SUCCESS) {
-    tscError("%p failed to sent HB to server, reason:%s", pHB, tstrerror(code));
+    tscError("0x%"PRIx64" failed to sent HB to server, reason:%s", pHB->self, tstrerror(code));
   }
 
   taosReleaseRef(tscRefId, rid);
@@ -286,7 +286,7 @@ int tscSendMsgToServer(SSqlObj *pSql) {
   
   char *pMsg = rpcMallocCont(pCmd->payloadLen);
   if (NULL == pMsg) {
-    tscError("%p msg:%s malloc failed", pSql, taosMsg[pSql->cmd.msgType]);
+    tscError("0x%"PRIx64" msg:%s malloc failed", pSql->self, taosMsg[pSql->cmd.msgType]);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -370,11 +370,11 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
        rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
         
     pSql->retry++;
-    tscWarn("%p it shall renew table meta, code:%s, retry:%d", pSql, tstrerror(rpcMsg->code), pSql->retry);
+    tscWarn("0x%"PRIx64" it shall renew table meta, code:%s, retry:%d", pSql->self, tstrerror(rpcMsg->code), pSql->retry);
 
     pSql->res.code = rpcMsg->code;  // keep the previous error code
     if (pSql->retry > pSql->maxRetry) {
-      tscError("%p max retry %d reached, give up", pSql, pSql->maxRetry);
+      tscError("0x%"PRIx64" max retry %d reached, give up", pSql->self, pSql->maxRetry);
     } else {
       // wait for a little bit moment and then retry
       // todo do not sleep in rpc callback thread, add this process into queueu to process
@@ -666,8 +666,8 @@ static char *doSerializeTableInfo(SQueryTableMsg *pQueryMsg, SSqlObj *pSql, STab
         assert(index < pTableMetaInfo->vgroupList->numOfVgroups);
         pVgroupInfo = &pTableMetaInfo->vgroupList->vgroups[index];
       } else {
-        tscError("%p No vgroup info found", pSql);
-
+        tscError("0x%"PRIx64" No vgroup info found", pSql->self);
+        
         *succeed = 0;
         return pMsg;
       }
@@ -767,7 +767,7 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   // the queried table has been removed and a new table with the same name has already been created already
   // return error msg
   if (pExpr->uid != pTableMeta->id.uid) {
-    tscError("%p table has already been destroyed", addr);
+    tscError("0x%"PRIx64" table has already been destroyed", addr->self);
     return TSDB_CODE_TSC_INVALID_TABLE_NAME;
   }
 
@@ -823,7 +823,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     tscError("%p failed to malloc for query msg", pSql);
     return TSDB_CODE_TSC_INVALID_SQL;  // todo add test for this
   }
-  
+
   SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
 
   SQueryAttr query = {{0}};
@@ -1063,7 +1063,7 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCreateDnodeMsg);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1081,7 +1081,7 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCreateAcctMsg);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1127,7 +1127,7 @@ int32_t tscBuildUserMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = sizeof(SCreateUserMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1166,7 +1166,7 @@ int32_t tscBuildDropDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = sizeof(SDropDbMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1188,7 +1188,7 @@ int32_t tscBuildDropTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = sizeof(SCMDropTableMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1209,7 +1209,7 @@ int32_t tscBuildDropDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   pCmd->payloadLen = sizeof(SDropDnodeMsg);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1230,7 +1230,7 @@ int32_t tscBuildDropUserAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->msgType = (pInfo->type == TSDB_SQL_DROP_USER)? TSDB_MSG_TYPE_CM_DROP_USER:TSDB_MSG_TYPE_CM_DROP_ACCT;
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1245,7 +1245,7 @@ int32_t tscBuildUseDbMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = sizeof(SUseDbMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1262,7 +1262,7 @@ int32_t tscBuildSyncDbReplicaMsg(SSqlObj* pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = sizeof(SSyncDbMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1281,7 +1281,7 @@ int32_t tscBuildShowMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = sizeof(SShowMsg) + 100;
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1367,7 +1367,7 @@ int tscBuildCreateTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   // Reallocate the payload size
   size = tscEstimateCreateTableMsgLength(pSql, pInfo);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
-    tscError("%p failed to malloc for create table msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for create table msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1466,7 +1466,7 @@ int tscBuildAlterTableMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SAlterTableInfo *pAlterInfo = pInfo->pAlterInfo;
   int size = tscEstimateAlterTableMsgLength(pCmd);
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
-    tscError("%p failed to malloc for alter table msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for alter table msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
   
@@ -1540,7 +1540,7 @@ int tscBuildRetrieveFromMgmtMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = sizeof(SRetrieveTableMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1662,7 +1662,7 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pCmd->payloadLen = sizeof(SConnectMsg);
 
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, pCmd->payloadLen)) {
-    tscError("%p failed to malloc for query msg", pSql);
+    tscError("0x%"PRIx64" failed to malloc for query msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1802,7 +1802,7 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   int size = numOfQueries * sizeof(SQueryDesc) + numOfStreams * sizeof(SStreamDesc) + sizeof(SHeartBeatMsg) + 100;
   if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
     pthread_mutex_unlock(&pObj->mutex);
-    tscError("%p failed to create heartbeat msg", pSql);
+    tscError("0x%"PRIx64" failed to create heartbeat msg", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1878,7 +1878,7 @@ int tscProcessTableMetaRsp(SSqlObj *pSql) {
 
   STableMeta* pTableMeta = tscCreateTableMetaFromMsg(pMetaMsg);
   if (!tIsValidSchema(pTableMeta->schema, pTableMeta->tableInfo.numOfColumns, pTableMeta->tableInfo.numOfTags)) {
-    tscError("%p invalid table meta from mnode, name:%s", pSql, tNameGetTableName(&pTableMetaInfo->name));
+    tscError("0x%"PRIx64" invalid table meta from mnode, name:%s", pSql->self, tNameGetTableName(&pTableMetaInfo->name));
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
@@ -2072,7 +2072,7 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
     pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
     if (pInfo->vgroupList->numOfVgroups <= 0) {
       //tfree(pInfo->vgroupList);
-      tscError("%p empty vgroup info", pSql);
+      tscError("0x%"PRIx64" empty vgroup info", pSql->self);
     } else {
       for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
         // just init, no need to lock
@@ -2388,7 +2388,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code);
 static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   SSqlObj *pNew = calloc(1, sizeof(SSqlObj));
   if (NULL == pNew) {
-    tscError("%p malloc failed for new sqlobj to get table meta", pSql);
+    tscError("0x%"PRIx64" malloc failed for new sqlobj to get table meta", pSql->self);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -2402,7 +2402,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
 
   pNew->cmd.autoCreated = pSql->cmd.autoCreated;  // create table if not exists
   if (TSDB_CODE_SUCCESS != tscAllocPayload(&pNew->cmd, TSDB_DEFAULT_PAYLOAD_SIZE + pSql->cmd.payloadLen)) {
-    tscError("%p malloc failed for payload to get table meta", pSql);
+    tscError("0x%"PRIx64" malloc failed for payload to get table meta", pSql->self);
     tscFreeSqlObj(pNew);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -2415,7 +2415,7 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
   if (pSql->cmd.autoCreated) {
     int32_t code = copyTagData(&pNew->cmd.tagData, &pSql->cmd.tagData);
     if (code != TSDB_CODE_SUCCESS) {
-      tscError("%p malloc failed for new tag data to get table meta", pSql);
+      tscError("0x%"PRIx64" malloc failed for new tag data to get table meta", pSql->self);
       tscFreeSqlObj(pNew);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -2493,7 +2493,7 @@ int tscRenewTableMeta(SSqlObj *pSql, int32_t tableIndex) {
   char name[TSDB_TABLE_FNAME_LEN] = {0};
   int32_t code = tNameExtractFullName(&pTableMetaInfo->name, name);
   if (code != TSDB_CODE_SUCCESS) {
-    tscError("%p failed to generate the table full name", pSql);
+    tscError("0x%"PRIx64" failed to generate the table full name", pSql->self);
     return TSDB_CODE_TSC_INVALID_SQL;
   }
 

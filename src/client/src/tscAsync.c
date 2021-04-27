@@ -49,7 +49,7 @@ void doAsyncQuery(STscObj* pObj, SSqlObj* pSql, __async_cb_func_t fp, void* para
 
   pSql->sqlstr = calloc(1, sqlLen + 1);
   if (pSql->sqlstr == NULL) {
-    tscError("%p failed to malloc sql string buffer", pSql);
+    tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     pSql->res.code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     tscAsyncResultOnError(pSql);
     return;
@@ -81,7 +81,7 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
 TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
-    tscError("bug!!! pObj:%p", pObj);
+    tscError("pObj:%p is NULL or freed", pObj);
     terrno = TSDB_CODE_TSC_DISCONNECTED;
     tscQueueAsyncError(fp, param, TSDB_CODE_TSC_DISCONNECTED);
     return NULL;
@@ -288,7 +288,7 @@ static void tscAsyncResultCallback(SSchedMsg *pMsg) {
   }
 
   assert(pSql->res.code != TSDB_CODE_SUCCESS);
-  tscError("%p invoke user specified function due to error occurred, code:%s", pSql, tstrerror(pSql->res.code));
+  tscError("0x%"PRIx64" async result callback, code:%s", pSql->self, tstrerror(pSql->res.code));
 
   SSqlRes *pRes = &pSql->res;
   if (pSql->fp == NULL || pSql->fetchFp == NULL){
@@ -368,7 +368,7 @@ void tscTableMetaCallBack(void *param, TAOS_RES *res, int code) {
   SSqlObj *sub = (SSqlObj*) res;
   const char* msg = (sub->cmd.command == TSDB_SQL_STABLEVGROUP)? "vgroup-list":"table-meta";
   if (code != TSDB_CODE_SUCCESS) {
-    tscError("%p get %s failed, code:%s", pSql, msg, tstrerror(code));
+    tscError("0x%"PRIx64" get %s failed, code:%s", pSql->self, msg, tstrerror(code));
     goto _error;
   }
 

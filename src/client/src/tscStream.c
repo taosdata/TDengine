@@ -203,6 +203,14 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
     tNameExtractFullName(&pTableMetaInfo->name, name);
 
     taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+
+    tfree(pTableMetaInfo->pTableMeta);
+
+    tscFreeSqlResult(pStream->pSql);
+    tscFreeSubobj(pStream->pSql);
+    tfree(pStream->pSql->pSubs);
+    pStream->pSql->subState.numOfSub = 0;
+
     pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
 
     tscSetRetryTimer(pStream, pStream->pSql, retryDelay);
@@ -468,8 +476,8 @@ static int32_t tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   }
 
   if (pQueryInfo->interval.sliding > pQueryInfo->interval.interval) {
-    tscWarn("0x%"PRIx64" stream:%p, sliding value:%" PRId64 " can not be larger than interval range, reset to:%" PRId64,
-        pSql->self, pStream, pQueryInfo->interval.sliding, pQueryInfo->interval.interval);
+    tscWarn("0x%"PRIx64" stream:%p, sliding value:%" PRId64 " can not be larger than interval range, reset to:%" PRId64, pSql->self, pStream,
+            pQueryInfo->interval.sliding, pQueryInfo->interval.interval);
 
     pQueryInfo->interval.sliding = pQueryInfo->interval.interval;
   }
@@ -601,7 +609,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 
   SSqlStream *pStream = (SSqlStream *)calloc(1, sizeof(SSqlStream));
   if (pStream == NULL) {
-    tscError("%p open stream failed, sql:%s, reason:%s, code:0x%08x", pSql, sqlstr, pCmd->payload, pRes->code);
+    tscError("0x%"PRIx64" open stream failed, sql:%s, reason:%s, code:0x%08x", pSql->self, sqlstr, pCmd->payload, pRes->code);
     tscFreeSqlObj(pSql);
     return NULL;
   }
@@ -617,7 +625,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 
   pSql->sqlstr = calloc(1, strlen(sqlstr) + 1);
   if (pSql->sqlstr == NULL) {
-    tscError("%p failed to malloc sql string buffer", pSql);
+    tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tscFreeSqlObj(pSql);
     return NULL;
   }

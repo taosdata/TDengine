@@ -5222,7 +5222,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     int32_t size = sizeof(SUpdateTableTagValMsg) + pTagsSchema->bytes + schemaLen + TSDB_EXTRA_PAYLOAD_SIZE;
 
     if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
-      tscError("%p failed to malloc for alter table msg", pSql);
+      tscError("0x%"PRIx64" failed to malloc for alter table msg", pSql->self);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 

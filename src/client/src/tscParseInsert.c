@@ -1147,7 +1147,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         return code;
       }
 
-      tscError("%p async insert parse error, code:%s", pSql, tstrerror(code));
+      tscError("0x%"PRIx64" async insert parse error, code:%s", pSql->self, tstrerror(code));
       pCmd->curSql = NULL;
       goto _clean;
     }
@@ -1415,7 +1415,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     assert(pSql->res.numOfRows == 0);
     int32_t ret = fseek(fp, 0, SEEK_SET);
     if (ret < 0) {
-      tscError("%p failed to seek SEEK_SET since:%s", pSql, tstrerror(errno));
+      tscError("0x%"PRIx64" failed to seek SEEK_SET since:%s", pSql->self, tstrerror(errno));
       code = TAOS_SYSTEM_ERROR(errno);
       goto _error;
     }
@@ -1536,7 +1536,7 @@ void tscImportDataFromFile(SSqlObj *pSql) {
   FILE *fp = fopen(pCmd->payload, "rb");
   if (fp == NULL) {
     pSql->res.code = TAOS_SYSTEM_ERROR(errno);
-    tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));
+    tscError("0x%"PRIx64" failed to open file %s to load data from file, code:%s", pSql->self, pCmd->payload, tstrerror(pSql->res.code));
 
     tfree(pSupporter);
     taos_free_result(pNew);

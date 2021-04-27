@@ -104,7 +104,7 @@ void tscSaveSlowQuery(SSqlObj *pSql) {
   
   char *sql = malloc(sqlSize);
   if (sql == NULL) {
-    tscError("%p failed to allocate memory to sent slow query to dnode", pSql);
+    tscError("0x%"PRIx64" failed to allocate memory to sent slow query to dnode", pSql->self);
     return;
   }
   
