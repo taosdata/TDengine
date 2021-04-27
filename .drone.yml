@@ -43,14 +43,11 @@ steps:
   - pip3 install psutil
   - pip3 install guppy3
   - apt-get update
-  - apt-get install -y valgrind
+  - apt-get install -y valgrind lsof fuser
   - cd tests/pytest 
   - ./crash_gen.sh -a -p -t 4 -s 200
-  - cd ../../
-  - find . -name "libtaos.so"|grep -w lib|head -n1
-  - cp debug/build/lib/libtaos.so /usr/lib
-  - cd tests/pytest
-  - ./valgrind-test.sh
+  - cp ../../debug/build/lib/libtaos.so /usr/lib
+  - ./valgrind-test.sh 2>&1 > mem-error-out.log
   - ./handle_val_log.sh
   when:
     branch:
