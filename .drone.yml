@@ -38,7 +38,9 @@ steps:
   - apt-get install -y valgrind
   - cd tests/pytest 
   - ./crash_gen.sh -a -p -t 4 -s 200
-  - pwd
+  - cd ../../
+  - find . -name "libtaos.so"|grep -w lib|head -n1
+  - cp debug/build/lib/libtaos.so /usr/lib
   - ./valgrind-test.sh
   - ./handle_val_log.sh
 
