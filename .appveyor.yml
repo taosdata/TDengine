@@ -32,7 +32,7 @@ for:
   -
     matrix:
       only:
-        - image: macos-mojave
+        - image: macos
     clone_depth: 1
 
     build_script:
