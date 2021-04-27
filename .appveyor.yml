@@ -33,7 +33,7 @@ for:
     matrix:
       only:
         - image: macos-mojave
-        clone_depth: 1
+    clone_depth: 1
 
     build_script:
       - mkdir debug
