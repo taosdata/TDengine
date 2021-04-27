@@ -154,8 +154,8 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
 
   size_t size = sizeof(SLocalMerger) + POINTER_BYTES * numOfFlush;
   
-  SLocalMerger *pReducer = (SLocalMerger *) calloc(1, size);
-  if (pReducer == NULL) {
+  SLocalMerger *pMerger = (SLocalMerger *) calloc(1, size);
+  if (pMerger == NULL) {
     tscError("0x%"PRIx64" failed to create local merge structure, out of memory", pSql->self);
 
     tscLocalReducerEnvDestroy(pMemBuffer, pDesc, finalmodel, pFFModel, numOfBuffer);

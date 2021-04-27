@@ -761,13 +761,13 @@ static int32_t serializeColFilterInfo(SColumnFilterInfo* pColFilters, int16_t nu
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo, char** pMsg, void* addr) {
+static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo, char** pMsg, int64_t id) {
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
 
   // the queried table has been removed and a new table with the same name has already been created already
   // return error msg
   if (pExpr->uid != pTableMeta->id.uid) {
-    tscError("0x%"PRIx64" table has already been destroyed", addr->self);
+    tscError("0x%"PRIx64" table has already been destroyed", id);
     return TSDB_CODE_TSC_INVALID_TABLE_NAME;
   }
 
@@ -908,14 +908,14 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   for (int32_t i = 0; i < query.numOfOutput; ++i) {
-    code = serializeSqlExpr(&query.pExpr1[i].base, pTableMetaInfo, &pMsg, pSql);
+    code = serializeSqlExpr(&query.pExpr1[i].base, pTableMetaInfo, &pMsg, pSql->self);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
   }
 
   for (int32_t i = 0; i < query.numOfExpr2; ++i) {
-    code = serializeSqlExpr(&query.pExpr2[i].base, pTableMetaInfo, &pMsg, pSql);
+    code = serializeSqlExpr(&query.pExpr2[i].base, pTableMetaInfo, &pMsg, pSql->self);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
