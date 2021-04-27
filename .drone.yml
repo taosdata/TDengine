@@ -75,7 +75,7 @@ steps:
     - master
 ---
 kind: pipeline
-name: test_arm
+name: hello-on-arm
 
 platform:
   os: linux
@@ -177,7 +177,8 @@ steps:
 - name: en
   image: alpine
   commands:
-  - echo 64-bit is good
+  - echo goodbye
+  - echo world
   when:
     branch:
     - develop
@@ -185,5 +186,5 @@ steps:
 
 
 depends_on:
-- test_arm64
-- test_arm64
+- hello-on-arm64
+- hello-on-amd64
