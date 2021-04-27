@@ -29,6 +29,10 @@ steps:
   - pip3 install src/connector/python/linux/python3/
   - cd tests
   - ./test-all.sh smoke
+  when:
+    branch:
+    - develop
+    - master
 
 
 - name: crash_gen
@@ -47,6 +51,10 @@ steps:
   - cp debug/build/lib/libtaos.so /usr/lib
   - ./valgrind-test.sh
   - ./handle_val_log.sh
+  when:
+    branch:
+    - develop
+    - master
 
 
 ---
@@ -67,6 +75,10 @@ steps:
   - cd debug
   - cmake .. -DCPUTYPE=aarch64 > /dev/null
   - make 
+  when:
+    branch:
+    - develop
+    - master
 ---
 kind: pipeline
 name: hello-on-arm
@@ -85,6 +97,10 @@ steps:
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
   - make 
+  when:
+    branch:
+    - develop
+    - master
 
 ---
 kind: pipeline
@@ -105,6 +121,10 @@ steps:
   - cd debug
   - cmake .. 
   - make 
+  when:
+    branch:
+    - develop
+    - master
 
 ---
 kind: pipeline
@@ -124,6 +144,10 @@ steps:
   - cd debug
   - cmake .. 
   - make 
+  when:
+    branch:
+    - develop
+    - master
 
 ---
 kind: pipeline
@@ -142,6 +166,10 @@ steps:
   - cd debug
   - cmake .. 
   - make 
+  when:
+    branch:
+    - develop
+    - master
 
 ---
 kind: pipeline
@@ -157,12 +185,10 @@ steps:
   commands:
   - echo goodbye
   - echo world
-
-- name: es
-  image: alpine
-  commands:
-  - echo adios
-  - echo mundo
+  when:
+    branch:
+    - develop
+    - master
 
 
 depends_on:
