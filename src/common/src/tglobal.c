@@ -69,7 +69,7 @@ int32_t tsMaxBinaryDisplayWidth = 30;
  * -1: all data are not compressed
  * other values: if the message payload size is greater than the tsCompressMsgSize, the message will be compressed.
  */
-int32_t tsCompressMsgSize = 16 * 1048576;
+int32_t tsCompressMsgSize = -1;
 
 // client
 int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
