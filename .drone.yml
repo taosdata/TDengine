@@ -1,3 +1,7 @@
+DRONE_TARGET_BRANCH=master
+DRONE_TARGET_BRANCH=develop
+DRONE_BUILD_EVENT=push
+DRONE_BUILD_EVENT=pull_request
 ---
 kind: pipeline
 name: hello-on-amd64
