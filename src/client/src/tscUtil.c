@@ -832,7 +832,7 @@ void tscFreeSqlResult(SSqlObj* pSql) {
   
   SSqlRes* pRes = &pSql->res;
   tscDestroyResPointerInfo(pRes);
-  
+
   memset(&pSql->res, 0, sizeof(SSqlRes));
 }
 
@@ -2739,13 +2739,14 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
     assert(pFinalInfo->vgroupList != NULL);
   }
 
+  registerSqlObj(pNew);
+
   if (cmd == TSDB_SQL_SELECT) {
     size_t size = taosArrayGetSize(pNewQueryInfo->colList);
     
-    tscDebug(
-        "%p new subquery:%p, tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%" PRIzu ", colList:%" PRIzu ","
+    tscDebug("0x%"PRIx64" new subquery:0x%"PRIx64", tableIndex:%d, vgroupIndex:%d, type:%d, exprInfo:%" PRIzu ", colList:%" PRIzu ","
         "fieldInfo:%d, name:%s, qrang:%" PRId64 " - %" PRId64 " order:%d, limit:%" PRId64,
-        pSql, pNew, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
+        pSql->self, pNew->self, tableIndex, pTableMetaInfo->vgroupIndex, pNewQueryInfo->type, tscSqlExprNumOfExprs(pNewQueryInfo),
         size, pNewQueryInfo->fieldsInfo.numOfOutput, tNameGetTableName(&pFinalInfo->name), pNewQueryInfo->window.skey,
         pNewQueryInfo->window.ekey, pNewQueryInfo->order.order, pNewQueryInfo->limit.limit);
     
@@ -2754,7 +2755,6 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
     tscDebug("0x%"PRIx64" new sub insertion: %p, vnodeIdx:%d", pSql->self, pNew, pTableMetaInfo->vgroupIndex);
   }
 
-  registerSqlObj(pNew);
   return pNew;
 
 _error:

@@ -537,7 +537,7 @@ static int32_t mergeIntoGroupResultImpl(SQueryRuntimeEnv *pRuntimeEnv, SGroupRes
 
   int64_t endt = taosGetTimestampMs();
 
-  qDebug("QInfo:%"PRIu64" result merge completed for group:%d, elapsed time:%" PRId64 " ms", GET_QID(pRuntimeEnv),
+  qDebug("QInfo:%"PRIx64" result merge completed for group:%d, elapsed time:%" PRId64 " ms", GET_QID(pRuntimeEnv),
          pGroupResInfo->currentGroup, endt - startt);
 
   _end:

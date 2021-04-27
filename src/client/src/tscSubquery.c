@@ -2508,11 +2508,12 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
       assert(pNewQueryInfo->tsBuf != NULL);
     }
     
-    tscDebug("0x%"PRIx64" sub:%p create subquery success. orderOfSub:%d", pSql->self, pNew, trs->subqueryIndex);
+    tscDebug("0x%"PRIx64" sub:0x%"PRIx64" create subquery success. orderOfSub:%d", pSql->self, pNew->self,
+        trs->subqueryIndex);
   }
   
   if (i < pState->numOfSub) {
-    tscError("%p failed to prepare subquery structure and launch subqueries", pSql);
+    tscError("0x%"PRIx64" failed to prepare subquery structure and launch subqueries", pSql->self);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     
     tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pFinalModel, pState->numOfSub);
@@ -2715,8 +2716,8 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   // data in from current vnode is stored in cache and disk
   uint32_t numOfRowsFromSubquery = (uint32_t)(trsupport->pExtMemBuffer[idx]->numOfTotalElems + trsupport->localBuffer->num);
   SVgroupsInfo* vgroupsInfo = pTableMetaInfo->vgroupList;
-  tscDebug("0x%"PRIx64" sub:%p all data retrieved from ep:%s, vgId:%d, numOfRows:%d, orderOfSub:%d", pParentSql->self, pSql,
-           vgroupsInfo->vgroups[0].epAddr[0].fqdn, vgroupsInfo->vgroups[0].vgId, numOfRowsFromSubquery, idx);
+  tscDebug("0x%"PRIx64" sub:0x%"PRIx64" all data retrieved from ep:%s, vgId:%d, numOfRows:%d, orderOfSub:%d", pParentSql->self,
+      pSql->self, vgroupsInfo->vgroups[0].epAddr[0].fqdn, vgroupsInfo->vgroups[0].vgId, numOfRowsFromSubquery, idx);
   
   tColModelCompact(pDesc->pColumnModel, trsupport->localBuffer, pDesc->pColumnModel->capacity);
 
@@ -2729,8 +2730,8 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
 #endif
   
   if (tsTotalTmpDirGB != 0 && tsAvailTmpDirectorySpace < tsReservedTmpDirectorySpace) {
-    tscError("%p sub:%p client disk space remain %.3f GB, need at least %.3f GB, stop query", pParentSql, pSql,
-             tsAvailTmpDirectorySpace, tsReservedTmpDirectorySpace);
+    tscError("0x%"PRIx64" sub:0x%"PRIx64" client disk space remain %.3f GB, need at least %.3f GB, stop query",
+        pParentSql->self, pSql->self, tsAvailTmpDirectorySpace, tsReservedTmpDirectorySpace);
     tscAbortFurtherRetryRetrieval(trsupport, pSql, TSDB_CODE_TSC_NO_DISKSPACE);
     return;
   }
@@ -2744,7 +2745,8 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   }
   
   if (!subAndCheckDone(pSql, pParentSql, idx)) {
-    tscDebug("0x%"PRIx64" sub:%p orderOfSub:%d freed, not finished", pParentSql->self, pSql, trsupport->subqueryIndex);
+    tscDebug("0x%"PRIx64" sub:0x%"PRIx64" orderOfSub:%d freed, not finished", pParentSql->self, pSql->self,
+        trsupport->subqueryIndex);
 
     tscFreeRetrieveSup(pSql);
     return;
