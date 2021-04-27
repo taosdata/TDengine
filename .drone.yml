@@ -176,7 +176,7 @@ steps:
 - name: 64-bit
   image: alpine
   commands:
-  - echo 64-bit is good
+  - echo 64-bit is good.
   when:
     branch:
     - develop
