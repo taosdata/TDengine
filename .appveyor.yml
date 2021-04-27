@@ -6,7 +6,7 @@ environment:
   matrix:
     - ARCH: amd64
     - ARCH: x86
-matix:
+matrix:
   exclude:
     - image: macos-mojave
       ARCH: x86
