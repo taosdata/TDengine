@@ -16,6 +16,10 @@ steps:
   - cd debug
   - cmake .. 
   - make 
+  when:
+    branch:
+    - develop
+    - master
 
 - name: smoke_test
   image: python:3.8
