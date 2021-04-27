@@ -253,7 +253,7 @@ typedef struct SSuperTable_S {
 
   int          insertInterval;          // insert interval, will override global insert interval
   int64_t      insertRows;
-  int          timeStampStep;
+  int64_t      timeStampStep;
   char         startTimestamp[MAX_TB_NAME_SIZE];
   char         sampleFormat[MAX_TB_NAME_SIZE];  // csv, json
   char         sampleFile[MAX_FILE_NAME_LEN+1];
@@ -1369,7 +1369,7 @@ static int printfInsertMeta() {
               g_Dbs.db[i].superTbls[j].disorderRatio);
       printf("      maxSqlLen:         \033[33m%d\033[0m\n",
               g_Dbs.db[i].superTbls[j].maxSqlLen);
-      printf("      timeStampStep:     \033[33m%d\033[0m\n",
+      printf("      timeStampStep:     \033[33m%"PRId64"\033[0m\n",
               g_Dbs.db[i].superTbls[j].timeStampStep);
       printf("      startTimestamp:    \033[33m%s\033[0m\n",
               g_Dbs.db[i].superTbls[j].startTimestamp);
@@ -1541,7 +1541,7 @@ static void printfInsertMetaToFile(FILE* fp) {
       fprintf(fp, "      disorderRatio:     %d\n",  g_Dbs.db[i].superTbls[j].disorderRatio);
       fprintf(fp, "      maxSqlLen:         %d\n",  g_Dbs.db[i].superTbls[j].maxSqlLen);
 
-      fprintf(fp, "      timeStampStep:     %d\n",  g_Dbs.db[i].superTbls[j].timeStampStep);
+      fprintf(fp, "      timeStampStep:     %"PRId64"\n",  g_Dbs.db[i].superTbls[j].timeStampStep);
       fprintf(fp, "      startTimestamp:    %s\n",  g_Dbs.db[i].superTbls[j].startTimestamp);
       fprintf(fp, "      sampleFormat:      %s\n",  g_Dbs.db[i].superTbls[j].sampleFormat);
       fprintf(fp, "      sampleFile:        %s\n",  g_Dbs.db[i].superTbls[j].sampleFile);
@@ -4646,7 +4646,7 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, int tableSeq)
 static int generateDataTail(
         SSuperTable* superTblInfo,
         int batch, char* buffer, int remainderBufLen, int64_t insertRows,
-        int64_t startFrom, uint64_t startTime, int *pSamplePos, int *dataLen) {
+        int64_t startFrom, int64_t startTime, int *pSamplePos, int *dataLen) {
   int len = 0;
   int ncols_per_record = 1; // count first col ts
 
@@ -4974,7 +4974,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   pThreadInfo->totalInsertRows = 0;
   pThreadInfo->totalAffectedRows = 0;
 
-  int nTimeStampStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
+  int64_t nTimeStampStep = superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
 
   int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
@@ -5183,7 +5183,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
   int64_t startTs = taosGetTimestampMs();
   int64_t endTs;
 
-  int timeStampStep =
+  int64_t timeStampStep =
       superTblInfo?superTblInfo->timeStampStep:DEFAULT_TIMESTAMP_STEP;
 /*  int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
