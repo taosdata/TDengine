@@ -38,6 +38,7 @@ steps:
   - apt-get install -y valgrind
   - cd tests/pytest 
   - ./crash_gen.sh -a -p -t 4 -s 200
+  - pwd
   - ./valgrind-test.sh
   - ./handle_val_log.sh
 
