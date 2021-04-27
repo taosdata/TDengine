@@ -21,7 +21,7 @@ typedef struct cb_udf_params_s {
 
 
 void
-callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long long *ts, char *dataOutput, char *tsOutput, int *numOfOutput, short otype, short obytes, SUdfInit *buf)
+callback_udf_func(char *data, short itype, short ibytes, int numOfRows, long long *ts, char *dataOutput, char *interbuf, char *tsOutput, int *numOfOutput, short otype, short obytes, SUdfInit *buf)
 {
     BOOLEAN_INT            useMemory        = TRUE_INT;
     double                 longTermWindow   = 10.0; 
