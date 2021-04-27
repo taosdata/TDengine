@@ -16,7 +16,6 @@ steps:
   - cd debug
   - cmake .. 
   - make 
-  - cat /etc/lsb_release
 
 - name: smoke_test
   image: python:3.8
