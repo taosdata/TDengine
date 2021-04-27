@@ -16,8 +16,9 @@ steps:
   - cd debug
   - cmake .. 
   - make 
+  - cat /etc/lsb_release
 
-- name: test
+- name: smoke_test
   image: python:3.8
   commands:
   - pip3 install psutil
@@ -31,10 +32,20 @@ steps:
   image: python:3.8
   commands:
   - pip3 install requests
+  - pip3 install src/connector/python/linux/python3/
   - pip3 install psutil
   - pip3 install guppy3
   - cd tests/pytest 
   - ./crash_gen.sh -a -p -t 4 -s 200
+
+- name: valgrind_test
+  image: gcc
+  commands:
+  - apt-get update
+  - apt-get install -y valgrind
+  - cd tests/pytest
+  - ./valgrind-test.sh
+  - ./handle_val_log.sh
 
 ---
 kind: pipeline
@@ -48,7 +59,6 @@ steps:
 - name: build
   image: gcc
   commands:
-  - cat /proc/cpuinfo
   - apt-get update
   - apt-get install -y cmake build-essential
   - mkdir debug
@@ -67,12 +77,68 @@ steps:
 - name: build
   image: gcc
   commands:
-  - cat /proc/cpuinfo
   - apt-get update
   - apt-get install -y cmake build-essential
   - mkdir debug
   - cd debug
   - cmake .. -DCPUTYPE=aarch32 > /dev/null
+  - make 
+
+---
+kind: pipeline
+name: build_trusty
+
+platform:
+  os: linux
+  arch: amd
+
+steps:
+- name: build
+  image: ubuntu:trusty
+  commands:
+  - apt-get update
+  - apt-get install -y gcc cmake3 build-essential git binutils-2.26
+ 
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make 
+
+---
+kind: pipeline
+name: build_xenial
+
+platform:
+  os: linux
+  arch: amd
+
+steps:
+- name: build
+  image: ubuntu:xenial
+  commands:
+  - apt-get update
+  - apt-get install -y gcc cmake build-essential
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make 
+
+---
+kind: pipeline
+name: build_bionic
+platform:
+  os: linux
+  arch: amd
+
+steps:
+- name: build
+  image: ubuntu:bionic
+  commands:
+  - apt-get update
+  - apt-get install -y gcc cmake build-essential
+  - mkdir debug
+  - cd debug
+  - cmake .. 
   - make 
 
 ---
@@ -96,11 +162,6 @@ steps:
   - echo adios
   - echo mundo
 
-- name: fr
-  image: alpine
-  commands:
-  - echo au revoir
-  - echo monde
 
 depends_on:
 - hello-on-arm64
