@@ -7034,7 +7034,7 @@ FORCE_INLINE bool checkQIdEqual(void *qHandle, uint64_t qId) {
 
 SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr, SExprInfo* pExprs,
                         SExprInfo* pSecExprs, STableGroupInfo* pTableGroupInfo, SColumnInfo* pTagCols, bool stableQuery,
-                        char* sql, uint64_t *qId, SUdfInfo* pUdfInfo) {
+                        char* sql, uint64_t *qId, int32_t vgId, SUdfInfo* pUdfInfo) {
   int16_t numOfCols = pQueryMsg->numOfCols;
   int16_t numOfOutput = pQueryMsg->numOfOutput;
 
@@ -7070,6 +7070,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SSqlGroupbyExpr* pGroupbyExpr
   pQueryAttr->prjInfo.vgroupLimit = pQueryMsg->vgroupLimit;
   pQueryAttr->prjInfo.ts      = (pQueryMsg->order == TSDB_ORDER_ASC)? INT64_MIN:INT64_MAX;
   pQueryAttr->sw              = pQueryMsg->sw;
+  pQueryAttr->vgId            = vgId;
 
   pQueryAttr->stableQuery     = pQueryMsg->stableQuery;
   pQueryAttr->topBotQuery     = pQueryMsg->topBotQuery;

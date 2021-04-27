@@ -162,7 +162,7 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   assert(pQueryMsg->stableQuery == isSTableQuery);
   (*pQInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo,
-                              param.pTagColumnInfo, vgId, param.sql, qId, param.pUdfInfo);
+                              param.pTagColumnInfo, isSTableQuery, param.sql, qId, vgId, param.pUdfInfo);
 
   if ((*pQInfo) == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
