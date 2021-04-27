@@ -46,13 +46,8 @@ steps:
   - pip3 install src/connector/python/linux/python3/
   - pip3 install psutil
   - pip3 install guppy3
-  - apt-get update
-  - apt-get install -y valgrind lsof psmisc
   - cd tests/pytest 
   - ./crash_gen.sh -a -p -t 4 -s 200
-  - cp ../../debug/build/lib/libtaos.so /usr/lib
-  - ./valgrind-test.sh 2>&1 > mem-error-out.log
-  - ./handle_val_log.sh
   when:
     branch:
     - develop
