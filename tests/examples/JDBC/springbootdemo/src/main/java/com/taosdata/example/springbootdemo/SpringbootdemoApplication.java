@@ -7,6 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 @MapperScan(basePackages = {"com.taosdata.example.springbootdemo.dao"})
 @SpringBootApplication
 public class SpringbootdemoApplication {
+
     public static void main(String[] args) {
         SpringApplication.run(SpringbootdemoApplication.class, args);
     }

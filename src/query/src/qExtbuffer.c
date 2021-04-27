@@ -20,6 +20,7 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tulog.h"
+#include "qExecutor.h"
 
 #define COLMODEL_GET_VAL(data, schema, allrow, rowId, colId) \
   (data + (schema)->pFields[colId].offset * (allrow) + (rowId) * (schema)->pFields[colId].field.bytes)
@@ -352,47 +353,28 @@ static FORCE_INLINE int32_t primaryKeyComparator(int64_t f1, int64_t f2, int32_t
   }
 }
 
-static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
+static int32_t tsCompareFunc(TSKEY k1, TSKEY k2, int32_t order) {
+  if (k1 == k2) {
+    return 0;
+  }
+
+  if (order == TSDB_ORDER_DESC) {
+    return (k1 < k2)? 1:-1;
+  } else {
+    return (k1 < k2)? -1:1;
+  }
+}
+
+int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
   switch (type) {
-    case TSDB_DATA_TYPE_INT: {
-      int32_t first  = *(int32_t *) f1;
-      int32_t second = *(int32_t *) f2;
-      if (first == second) {
-        return 0;
-      }
-      return (first < second) ? -1 : 1;
-    };
-    case TSDB_DATA_TYPE_DOUBLE: {
-      DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
-    };
-    case TSDB_DATA_TYPE_FLOAT: {
-      DEFAULT_FLOAT_COMP(GET_FLOAT_VAL(f1), GET_FLOAT_VAL(f2));
-    };
-    case TSDB_DATA_TYPE_BIGINT: {
-      int64_t first = *(int64_t *)f1;
-      int64_t second = *(int64_t *)f2;
-      if (first == second) {
-        return 0;
-      }
-      return (first < second) ? -1 : 1;
-    };
-    case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t first = *(int16_t *)f1;
-      int16_t second = *(int16_t *)f2;
-      if (first == second) {
-        return 0;
-      }
-      return (first < second) ? -1 : 1;
-    };
+    case TSDB_DATA_TYPE_INT:     DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
+    case TSDB_DATA_TYPE_DOUBLE:  DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
+    case TSDB_DATA_TYPE_FLOAT:   DEFAULT_FLOAT_COMP(GET_FLOAT_VAL(f1), GET_FLOAT_VAL(f2));
+    case TSDB_DATA_TYPE_BIGINT:  DEFAULT_COMP(GET_INT64_VAL(f1), GET_INT64_VAL(f2));
+    case TSDB_DATA_TYPE_SMALLINT:DEFAULT_COMP(GET_INT16_VAL(f1), GET_INT16_VAL(f2));
     case TSDB_DATA_TYPE_BOOL:
-    case TSDB_DATA_TYPE_TINYINT: {
-      int8_t first = *(int8_t *)f1;
-      int8_t second = *(int8_t *)f2;
-      if (first == second) {
-        return 0;
-      }
-      return (first < second) ? -1 : 1;
-    };
+    case TSDB_DATA_TYPE_TINYINT: DEFAULT_COMP(GET_INT8_VAL(f1), GET_INT8_VAL(f2));
+
     case TSDB_DATA_TYPE_BINARY: {
       int32_t len1 = varDataLen(f1);
       int32_t len2 = varDataLen(f2);
@@ -415,6 +397,10 @@ static FORCE_INLINE int32_t columnValueAscendingComparator(char *f1, char *f2, i
       }
       return (ret < 0) ? -1 : 1;
     };
+    case TSDB_DATA_TYPE_UTINYINT:  DEFAULT_COMP(GET_UINT8_VAL(f1), GET_UINT8_VAL(f2));
+    case TSDB_DATA_TYPE_USMALLINT: DEFAULT_COMP(GET_UINT16_VAL(f1), GET_UINT16_VAL(f2));
+    case TSDB_DATA_TYPE_UINT:      DEFAULT_COMP(GET_UINT32_VAL(f1), GET_UINT32_VAL(f2));
+    case TSDB_DATA_TYPE_UBIGINT:   DEFAULT_COMP(GET_UINT64_VAL(f1), GET_UINT64_VAL(f2));
   }
   
   return 0;
@@ -441,6 +427,35 @@ int32_t compare_a(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
     } else {
       SSchemaEx *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
       int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes);
+      if (ret == 0) {
+        continue;
+      } else {
+        return ret;
+      }
+    }
+  }
+
+  return 0;
+}
+
+int32_t compare_aRv(SSDataBlock* pBlock, SArray* colIndex, int32_t numOfCols, int32_t rowIndex, char** buffer, int32_t order) {
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    SColIndex* pColIndex = taosArrayGet(colIndex, i);
+    int32_t index = pColIndex->colIndex;
+
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, index);
+    assert(pColIndex->colId == pColInfo->info.colId);
+
+    char* data = pColInfo->pData + rowIndex * pColInfo->info.bytes;
+    if (pColInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      int32_t ret = tsCompareFunc(GET_INT64_VAL(data), GET_INT64_VAL(buffer[i]), order);
+      if (ret == 0) {
+        continue; // The timestamps are identical
+      } else {
+        return ret;
+      }
+    } else {
+      int32_t ret = columnValueAscendingComparator(data, buffer[i], pColInfo->info.type, pColInfo->info.bytes);
       if (ret == 0) {
         continue;
       } else {

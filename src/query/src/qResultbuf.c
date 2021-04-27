@@ -43,7 +43,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pa
 
   pResBuf->emptyDummyIdList = taosArrayInit(1, sizeof(int32_t));
 
-  qDebug("QInfo:%"PRIu64" create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId, pResBuf->pageSize,
+  qDebug("QInfo:0x%"PRIx64" create resBuf for output, page size:%d, inmem buf pages:%d, file:%s", qId, pResBuf->pageSize,
          pResBuf->inMemPages, pResBuf->path);
 
   return TSDB_CODE_SUCCESS;
@@ -410,13 +410,13 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   }
 
   if (pResultBuf->file != NULL) {
-    qDebug("QInfo:%"PRIu64" res output buffer closed, total:%.2f Kb, inmem size:%.2f Kb, file size:%.2f Kb",
+    qDebug("QInfo:0x%"PRIx64" res output buffer closed, total:%.2f Kb, inmem size:%.2f Kb, file size:%.2f Kb",
         pResultBuf->qId, pResultBuf->totalBufSize/1024.0, listNEles(pResultBuf->lruList) * pResultBuf->pageSize / 1024.0,
         pResultBuf->fileSize/1024.0);
 
     fclose(pResultBuf->file);
   } else {
-    qDebug("QInfo:%"PRIu64" res output buffer closed, total:%.2f Kb, no file created", pResultBuf->qId,
+    qDebug("QInfo:0x%"PRIx64" res output buffer closed, total:%.2f Kb, no file created", pResultBuf->qId,
            pResultBuf->totalBufSize/1024.0);
   }
 

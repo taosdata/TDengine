@@ -132,6 +132,7 @@ if [ -n "$FILE_NAME" ]; then
   else
     echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f $FILE_NAME
     $PROGRAM -c $CFG_DIR -f $FILE_NAME
+#    valgrind --tool=memcheck --leak-check=full --show-reachable=no  --track-origins=yes --show-leak-kinds=all  -v  --workaround-gcc296-bugs=yes  --log-file=${CODE_DIR}/../script/valgrind.log $PROGRAM -c $CFG_DIR -f $FILE_NAME
   fi
 else
   echo "ExcuteCmd:" $PROGRAM -c $CFG_DIR -f basicSuite.sim

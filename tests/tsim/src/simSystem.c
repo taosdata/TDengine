@@ -164,10 +164,9 @@ void *simExecuteScript(void *inputScript) {
     }
 
     if (script->killed || script->linePos >= script->numOfLines) {
-      printf("killed ---------------------->\n");
       script = simProcessCallOver(script);
       if (script == NULL) {
-        printf("abort now!\n");
+        simDebug("sim test abort now!");
         break;
       }
     } else {

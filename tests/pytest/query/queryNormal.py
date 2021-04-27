@@ -16,7 +16,7 @@ import taos
 from util.log import *
 from util.cases import *
 from util.sql import *
-
+from util.dnodes import *
 
 class TDTestCase:
     def init(self, conn, logSql):
@@ -121,6 +121,32 @@ class TDTestCase:
         # query ... select server_status ---- bug
         tdSql.query("SELECT server_status()")
         tdSql.checkRows(1)
+
+         # https://jira.taosdata.com:18080/browse/TD-3800
+        tdSql.execute("create table m1(ts timestamp, k int) tags(a int)")
+        tdSql.execute("create table tm0 using m1 tags(1)")
+        tdSql.execute("create table tm1 using m1 tags(2)")
+        tdSql.execute("insert into tm0 values('2020-3-1 1:1:1', 112)")
+        tdSql.execute("insert into tm1 values('2020-1-1 1:1:1', 1)('2020-3-1 0:1:1', 421)")
+
+        tdSql.query("select last(*) from m1 group by tbname")
+        tdSql.checkData(0, 0, "2020-03-01 01:01:01")
+        tdSql.checkData(0, 1, 112)
+        tdSql.checkData(0, 2, "tm0")
+        tdSql.checkData(1, 0, "2020-03-01 00:01:01")
+        tdSql.checkData(1, 1, 421)
+        tdSql.checkData(1, 2, "tm1")
+        
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
+        tdSql.query("select last(*) from m1 group by tbname")
+        tdSql.checkData(0, 0, "2020-03-01 01:01:01")
+        tdSql.checkData(0, 1, 112)
+        tdSql.checkData(0, 2, "tm0")
+        tdSql.checkData(1, 0, "2020-03-01 00:01:01")
+        tdSql.checkData(1, 1, 421)
+        tdSql.checkData(1, 2, "tm1")
 
     def stop(self):
         tdSql.close()

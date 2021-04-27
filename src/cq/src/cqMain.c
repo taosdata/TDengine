@@ -310,8 +310,23 @@ void *cqCreate(void *handle, uint64_t uid, int32_t sid, const char* dstTable, ch
   }
   SCqContext *pContext = handle;
   int64_t rid = 0;
+
+  pthread_mutex_lock(&pContext->mutex);
+
+  SCqObj *pObj = pContext->pHead;
+  while (pObj) {
+    if (pObj->uid == uid) {
+      rid = pObj->rid;
+      pthread_mutex_unlock(&pContext->mutex);
+      return (void *)rid;
+    }
+    
+    pObj = pObj->next;
+  }
   
-  SCqObj *pObj = calloc(sizeof(SCqObj), 1);
+  pthread_mutex_unlock(&pContext->mutex);
+  
+  pObj = calloc(sizeof(SCqObj), 1);
   if (pObj == NULL) return NULL;
 
   pObj->uid = uid;
@@ -386,12 +401,15 @@ static void doCreateStream(void *param, TAOS_RES *result, int32_t code) {
   if (pObj == NULL) {
     return;
   }
-  
+
   SCqContext* pContext = pObj->pContext;
-  SSqlObj* pSql = (SSqlObj*)result;
-  if (atomic_val_compare_exchange_ptr(&(pContext->dbConn), NULL, pSql->pTscObj) != NULL) {
-    taos_close(pSql->pTscObj);
+  SSqlObj* pSql = (SSqlObj*)result;  
+  if (code == TSDB_CODE_SUCCESS) {
+    if (atomic_val_compare_exchange_ptr(&(pContext->dbConn), NULL, pSql->pTscObj) != NULL) {
+      taos_close(pSql->pTscObj);
+    }
   }
+  
   pthread_mutex_lock(&pContext->mutex);
   cqCreateStream(pContext, pObj);
   pthread_mutex_unlock(&pContext->mutex);
@@ -427,10 +445,11 @@ static void cqCreateStream(SCqContext *pContext, SCqObj *pObj) {
     pObj->tmrId = taosTmrStart(cqProcessCreateTimer, 1000, (void *)pObj->rid, pContext->tmrCtrl);
     return;
   }
+
   pObj->tmrId = 0;
 
   if (pObj->pStream == NULL) {
-    pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, 0, (void *)pObj->rid, NULL);
+    pObj->pStream = taos_open_stream(pContext->dbConn, pObj->sqlStr, cqProcessStreamRes, INT64_MIN, (void *)pObj->rid, NULL);
 
     // TODO the pObj->pStream may be released if error happens
     if (pObj->pStream) {

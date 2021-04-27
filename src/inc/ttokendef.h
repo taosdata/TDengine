@@ -209,27 +209,6 @@
 #define TK_INTO                           190
 #define TK_VALUES                         191
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 #define TK_SPACE                          300
 #define TK_COMMENT                        301
 #define TK_ILLEGAL                        302
