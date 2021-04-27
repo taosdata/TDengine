@@ -4930,9 +4930,6 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
   int64_t insertRows;
   int interlaceRows;
 
-  int64_t insertRows;
-  int interlaceRows;
-
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
 
   if (superTblInfo) {
