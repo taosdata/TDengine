@@ -43,7 +43,7 @@ steps:
   - pip3 install psutil
   - pip3 install guppy3
   - apt-get update
-  - apt-get install -y valgrind lsof fuser
+  - apt-get install -y valgrind lsof psmisc
   - cd tests/pytest 
   - ./crash_gen.sh -a -p -t 4 -s 200
   - cp ../../debug/build/lib/libtaos.so /usr/lib
