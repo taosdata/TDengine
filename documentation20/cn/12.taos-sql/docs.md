@@ -414,11 +414,7 @@ SELECT select_expr [, select_expr ...]
     [>> export_file];
 ```
 
-#### SELECT子句
-
-一个选择子句可以是联合查询（UNION）和另一个查询的子查询（SUBQUERY）。
-
-##### 通配符
+#### 通配符
 
 通配符 * 可以用于代指全部列。对于普通表，结果中只有普通列。
 ```mysql
@@ -488,7 +484,7 @@ taos> SELECT FIRST(*) FROM d1001;
 Query OK, 1 row(s) in set (0.000849s)
 ```
 
-##### 标签列
+#### 标签列
 
 从 2.0.14 版本开始，支持在普通表的查询中指定 _标签列_，且标签列的值会与普通列的数据一起返回。
 ```mysql
