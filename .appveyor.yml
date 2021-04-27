@@ -1,14 +1,14 @@
 version: 1.0.{build}
 image: 
   - Visual Studio 2015
-  - macos-mojave
+  - macos
 environment:
   matrix:
     - ARCH: amd64
     - ARCH: x86
 matrix:
   exclude:
-    - image: macos-mojave
+    - image: macos
       ARCH: x86
 for:
   - 
