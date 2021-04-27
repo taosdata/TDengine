@@ -6448,7 +6448,7 @@ static void *specifiedSubscribe(void *sarg) {
       }
       tsub[i] = subscribeImpl(pThreadInfo->taos,
           g_queryInfo.specifiedQueryInfo.sql[i], topic, tmpFile);
-      if (NULL == g_queryInfo.specifiedQueryInfo.tsub[i]) {
+      if (NULL == tsub[i]) {
         taos_close(pThreadInfo->taos);
         return NULL;
       }
