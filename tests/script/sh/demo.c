@@ -16,6 +16,10 @@ typedef struct SDemo{
   short otype;
 }SDemo;
 
+#define FLOAT_NULL            0x7FF00000              // it is an NAN
+#define DOUBLE_NULL           0x7FFFFF0000000000L     // it is an NAN
+
+
 void demo(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput,
                         int* numOfOutput, short otype, short obytes, SUdfInit* buf) {
    int i;
@@ -75,10 +79,18 @@ void demo_finalize(char* dataOutput, char* interBuf, int* numOfOutput, SUdfInit*
    SDemo *p = (SDemo *)interBuf;
    printf("demo_finalize interbuf:%p, numOfOutput:%p, buf:%p, sum:%f, num:%d\n", interBuf, numOfOutput, buf, p->sum, p->num);
    if (p->otype == 6) {
-     *(float *)dataOutput = (float)(p->sum / p->num);  
+     if (p->num != 30000) {
+       *(unsigned int *)dataOutput = FLOAT_NULL;  
+     } else {
+       *(float *)dataOutput = (float)(p->sum / p->num);  
+     }
      printf("finalize values:%f\n", *(float *)dataOutput);
    } else if (p->otype == 7) {
-     *(double *)dataOutput = (double)(p->sum / p->num);
+     if (p->num != 30000) {
+       *(unsigned long long *)dataOutput = DOUBLE_NULL;  
+     } else {    
+       *(double *)dataOutput = (double)(p->sum / p->num);
+     }
      printf("finalize values:%f\n", *(double *)dataOutput);
    }
 
