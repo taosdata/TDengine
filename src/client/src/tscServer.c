@@ -2533,7 +2533,8 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   if (pTableMetaInfo->pTableMeta == NULL) {
     pTableMetaInfo->pTableMeta = calloc(1, size);
   } else {
-    memset(pTableMetaInfo->pTableMeta, 0, size);
+    uint32_t s = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
+    memset(pTableMetaInfo->pTableMeta, 0, s);
   }
 
   pTableMetaInfo->pTableMeta->tableType = -1;
