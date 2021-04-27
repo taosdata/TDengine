@@ -4609,7 +4609,7 @@ static int prepareSampleDataForSTable(SSuperTable *superTblInfo) {
   return 0;
 }
 
-static int execInsert(threadInfo *pThreadInfo, char *buffer, int k)
+static int64_t execInsert(threadInfo *pThreadInfo, char *buffer, int k)
 {
   int affectedRows;
   SSuperTable* superTblInfo = pThreadInfo->superTblInfo;
@@ -4661,7 +4661,7 @@ static void getTableName(char *pTblName, threadInfo* pThreadInfo, int64_t tableS
 
 static int generateDataTail(
         SSuperTable* superTblInfo,
-        int batch, char* buffer, int64_t remainderBufLen, int64_t insertRows,
+        int64_t batch, char* buffer, int64_t remainderBufLen, int64_t insertRows,
         int64_t startFrom, int64_t startTime, int64_t *pSamplePos, int64_t *dataLen) {
   int len = 0;
   int ncols_per_record = 1; // count first col ts
@@ -4676,7 +4676,7 @@ static int generateDataTail(
     }
   }
 
-  verbosePrint("%s() LN%d batch=%d\n", __func__, __LINE__, batch);
+  verbosePrint("%s() LN%d batch=%"PRId64"\n", __func__, __LINE__, batch);
 
   int k = 0;
   for (k = 0; k < batch;) {
@@ -4833,13 +4833,13 @@ static int generateSQLHead(char *tableName, int32_t tableSeq,
   return len;
 }
 
-static int generateInterlaceDataBuffer(
-        char *tableName, int batchPerTbl, int i, int batchPerTblTimes,
-        int32_t tableSeq,
+static int64_t generateInterlaceDataBuffer(
+        char *tableName, int64_t batchPerTbl, int64_t i, int64_t batchPerTblTimes,
+        int64_t tableSeq,
         threadInfo *pThreadInfo, char *buffer,
         int64_t insertRows,
         int64_t startTime,
-        int *pRemainderBufLen)
+        int64_t *pRemainderBufLen)
 {
   assert(buffer);
   char *pstr = buffer;
@@ -4852,7 +4852,7 @@ static int generateInterlaceDataBuffer(
     return 0;
   }
   // generate data buffer
-  verbosePrint("[%d] %s() LN%d i=%d buffer:\n%s\n",
+  verbosePrint("[%d] %s() LN%d i=%"PRId64" buffer:\n%s\n",
             pThreadInfo->threadID, __func__, __LINE__, i, buffer);
 
   pstr += headLen;
@@ -4860,7 +4860,7 @@ static int generateInterlaceDataBuffer(
 
   int64_t dataLen = 0;
 
-  verbosePrint("[%d] %s() LN%d i=%d batchPerTblTimes=%d batchPerTbl = %d\n",
+  verbosePrint("[%d] %s() LN%d i=%"PRId64" batchPerTblTimes=%"PRId64" batchPerTbl = %"PRId64"\n",
             pThreadInfo->threadID, __func__, __LINE__,
             i, batchPerTblTimes, batchPerTbl);
 
@@ -4872,7 +4872,7 @@ static int generateInterlaceDataBuffer(
       startTime = 1500000000000;
   }
 
-  int k = generateDataTail(
+  int64_t k = generateDataTail(
     superTblInfo,
     batchPerTbl, pstr, *pRemainderBufLen, insertRows, 0,
     startTime,
@@ -4882,7 +4882,7 @@ static int generateInterlaceDataBuffer(
     pstr += dataLen;
     *pRemainderBufLen -= dataLen;
   } else {
-    debugPrint("%s() LN%d, generated data tail: %d, not equal batch per table: %d\n",
+    debugPrint("%s() LN%d, generated data tail: %"PRId64", not equal batch per table: %"PRId64"\n",
             __func__, __LINE__, k, batchPerTbl);
     pstr -= headLen;
     pstr[0] = '\0';
@@ -4994,8 +4994,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   int insert_interval =
       superTblInfo?superTblInfo->insertInterval:g_args.insert_interval;
-  uint64_t st = 0;
-  uint64_t et = 0xffffffff;
+  int64_t st = 0;
+  int64_t et = 0xffffffff;
 
   int64_t lastPrintTime = taosGetTimestampMs();
   int64_t startTs = taosGetTimestampMs();
@@ -5011,9 +5011,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
   assert(pThreadInfo->ntables > 0);
 
-  int batchPerTbl = interlaceRows;
+  int64_t batchPerTbl = interlaceRows;
 
-  int batchPerTblTimes;
+  int64_t batchPerTblTimes;
   if ((interlaceRows > 0) && (pThreadInfo->ntables > 1)) {
     batchPerTblTimes =
         g_args.num_of_RPR / interlaceRows;
@@ -5021,9 +5021,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     batchPerTblTimes = 1;
   }
 
-  int generatedRecPerTbl = 0;
+  int64_t generatedRecPerTbl = 0;
   bool flagSleep = true;
-  int sleepTimeTotal = 0;
+  int64_t sleepTimeTotal = 0;
 
   char *strInsertInto = "insert into ";
   int nInsertBufLen = strlen(strInsertInto);
@@ -5035,7 +5035,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     }
     // generate data
     memset(buffer, 0, maxSqlLen);
-    int remainderBufLen = maxSqlLen;
+    int64_t remainderBufLen = maxSqlLen;
 
     char *pstr = buffer;
 
@@ -5043,9 +5043,9 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     pstr += len;
     remainderBufLen -= len;
 
-    int recOfBatch = 0;
+    int64_t recOfBatch = 0;
 
-    for (int i = 0; i < batchPerTblTimes; i ++) {
+    for (int64_t i = 0; i < batchPerTblTimes; i ++) {
       getTableName(tableName, pThreadInfo, tableSeq);
       if (0 == strlen(tableName)) {
         errorPrint("[%d] %s() LN%d, getTableName return null\n",
@@ -5054,8 +5054,8 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         return NULL;
       }
 
-      int oldRemainderLen = remainderBufLen;
-      int generated = generateInterlaceDataBuffer(
+      int64_t oldRemainderLen = remainderBufLen;
+      int64_t generated = generateInterlaceDataBuffer(
         tableName, batchPerTbl, i, batchPerTblTimes,
         tableSeq,
         pThreadInfo, pstr,
@@ -5064,7 +5064,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         &remainderBufLen);
 
       if (generated < 0) {
-        debugPrint("[%d] %s() LN%d, generated data is %d\n",
+        debugPrint("[%d] %s() LN%d, generated data is %"PRId64"\n",
                   pThreadInfo->threadID, __func__, __LINE__, generated);
         goto free_and_statistics_interlace;
       } else if (generated == 0) {
@@ -5076,7 +5076,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
       pstr += (oldRemainderLen - remainderBufLen);
 //      startTime += batchPerTbl * superTblInfo->timeStampStep;
       pThreadInfo->totalInsertRows += batchPerTbl;
-      verbosePrint("[%d] %s() LN%d batchPerTbl=%d recOfBatch=%d\n",
+      verbosePrint("[%d] %s() LN%d batchPerTbl=%"PRId64" recOfBatch=%"PRId64"\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 batchPerTbl, recOfBatch);
 
@@ -5102,7 +5102,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
           }
       }
 
-      verbosePrint("[%d] %s() LN%d generatedRecPerTbl=%d insertRows=%"PRId64"\n",
+      verbosePrint("[%d] %s() LN%d generatedRecPerTbl=%"PRId64" insertRows=%"PRId64"\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 generatedRecPerTbl, insertRows);
 
@@ -5110,7 +5110,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
         break;
     }
 
-    verbosePrint("[%d] %s() LN%d recOfBatch=%d totalInsertRows=%"PRId64"\n",
+    verbosePrint("[%d] %s() LN%d recOfBatch=%"PRId64" totalInsertRows=%"PRId64"\n",
               pThreadInfo->threadID, __func__, __LINE__, recOfBatch,
               pThreadInfo->totalInsertRows);
     verbosePrint("[%d] %s() LN%d, buffer=%s\n",
@@ -5118,7 +5118,7 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
 
     startTs = taosGetTimestampMs();
 
-    int affectedRows = execInsert(pThreadInfo, buffer, recOfBatch);
+    int64_t affectedRows = execInsert(pThreadInfo, buffer, recOfBatch);
 
     endTs = taosGetTimestampMs();
     int64_t delay = endTs - startTs;
@@ -5130,10 +5130,11 @@ static void* syncWriteInterlace(threadInfo *pThreadInfo) {
     pThreadInfo->cntDelay++;
     pThreadInfo->totalDelay += delay;
 
-    verbosePrint("[%d] %s() LN%d affectedRows=%d\n", pThreadInfo->threadID,
+    verbosePrint("[%d] %s() LN%d affectedRows=%"PRId64"\n",
+            pThreadInfo->threadID,
             __func__, __LINE__, affectedRows);
     if ((affectedRows < 0) || (recOfBatch != affectedRows)) {
-        errorPrint("[%d] %s() LN%d execInsert insert %d, affected rows: %d\n%s\n",
+        errorPrint("[%d] %s() LN%d execInsert insert %"PRId64", affected rows: %"PRId64"\n%s\n",
                 pThreadInfo->threadID, __func__, __LINE__,
                 recOfBatch, affectedRows, buffer);
         goto free_and_statistics_interlace;
@@ -5257,7 +5258,7 @@ static void* syncWriteProgressive(threadInfo *pThreadInfo) {
 
       startTs = taosGetTimestampMs();
 
-      int affectedRows = execInsert(pThreadInfo, buffer, generated);
+      int64_t affectedRows = execInsert(pThreadInfo, buffer, generated);
 
       endTs = taosGetTimestampMs();
       int64_t delay = endTs - startTs;
