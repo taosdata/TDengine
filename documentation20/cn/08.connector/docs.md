@@ -213,7 +213,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 - `int taos_result_precision(TAOS_RES *res)`
 
-  返回结果集时间戳字段的精度，`0` 代表毫秒，`1` 代表微秒，`2` 代表纳秒。
+  返回结果集时间戳字段的精度，`0` 代表毫秒，`1` 代表微秒。
 
 - `TAOS_ROW taos_fetch_row(TAOS_RES *res)`
 
