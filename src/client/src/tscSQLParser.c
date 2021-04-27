@@ -6047,7 +6047,11 @@ static int32_t doAddGroupbyColumnsOnDemand(SSqlCmd* pCmd, SQueryInfo* pQueryInfo
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   SSchema* pSchema = tscGetTableSchema(pTableMetaInfo->pTableMeta);
-  SSchema* tagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+
+  SSchema* tagSchema = NULL;
+  if (!UTIL_TABLE_IS_NORMAL_TABLE(pTableMetaInfo)) {
+    tagSchema = tscGetTableTagSchema(pTableMetaInfo->pTableMeta);
+  }
 
   SSchema* s = NULL;
 
@@ -6196,10 +6200,6 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
 
-    /*
-     * group by tag function must be not changed the function name, otherwise, the group operation may fail to
-     * divide the subset of final result.
-     */
     if (doAddGroupbyColumnsOnDemand(pCmd, pQueryInfo) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
