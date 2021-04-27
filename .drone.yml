@@ -1,10 +1,7 @@
-DRONE_TARGET_BRANCH=master
-DRONE_TARGET_BRANCH=develop
-DRONE_BUILD_EVENT=push
-DRONE_BUILD_EVENT=pull_request
+
 ---
 kind: pipeline
-name: hello-on-amd64
+name: test_amd64
 
 platform:
   os: linux
@@ -56,7 +53,7 @@ steps:
 
 ---
 kind: pipeline
-name: hello-on-arm64
+name: test_arm64
 
 platform:
   os: linux
@@ -78,7 +75,7 @@ steps:
     - master
 ---
 kind: pipeline
-name: hello-on-arm
+name: test_arm
 
 platform:
   os: linux
@@ -180,8 +177,7 @@ steps:
 - name: en
   image: alpine
   commands:
-  - echo goodbye
-  - echo world
+  - echo 64-bit is good
   when:
     branch:
     - develop
@@ -189,5 +185,5 @@ steps:
 
 
 depends_on:
-- hello-on-arm64
-- hello-on-amd64
+- test_arm64
+- test_arm64
