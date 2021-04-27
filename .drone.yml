@@ -34,17 +34,13 @@ steps:
   - pip3 install src/connector/python/linux/python3/
   - pip3 install psutil
   - pip3 install guppy3
-  - cd tests/pytest 
-  - ./crash_gen.sh -a -p -t 4 -s 200
-
-- name: valgrind_test
-  image: gcc
-  commands:
   - apt-get update
   - apt-get install -y valgrind
-  - cd tests/pytest
+  - cd tests/pytest 
+  - ./crash_gen.sh -a -p -t 4 -s 200
   - ./valgrind-test.sh
   - ./handle_val_log.sh
+
 
 ---
 kind: pipeline
