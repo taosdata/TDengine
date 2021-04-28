@@ -15,6 +15,8 @@
 
 #include "tsdbint.h"
 
+extern int tsTsdbFSCheckBranch;
+
 #define TSDB_KEY_COL_OFFSET 0
 
 static void tsdbResetReadTable(SReadH *pReadh);
@@ -39,6 +41,7 @@ int tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo) {
   pReadh->aBlkIdx = taosArrayInit(1024, sizeof(SBlockIdx));
   if (pReadh->aBlkIdx == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    tsdbDestroyReadH(pReadh);
     return -1;
   }
 
@@ -152,7 +155,7 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
   return 0;
 }
 
-int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
+int tsdbSetReadTable(SReadH *pReadh, STable *pTable, SBlockIdx *pBlockIndex) {
   STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
 
   pReadh->pTable = pTable;
@@ -165,6 +168,12 @@ int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
   if (tdInitDataCols(pReadh->pDCols[1], pSchema) < 0) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
+  }
+
+  // use the assigned pBlockIndex if not NULL.
+  if (pBlockIndex != NULL) {
+    pReadh->pBlkIdx = pBlockIndex;
+    return 0;
   }
 
   size_t size = taosArrayGetSize(pReadh->aBlkIdx);
