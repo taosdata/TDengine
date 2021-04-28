@@ -761,7 +761,7 @@ static int32_t serializeColFilterInfo(SColumnFilterInfo* pColFilters, int16_t nu
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo, char** pMsg, int64_t id) {
+static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo, char** pMsg, int64_t id, bool validateColumn) {
   STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
 
   // the queried table has been removed and a new table with the same name has already been created already
@@ -771,11 +771,10 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
     return TSDB_CODE_TSC_INVALID_TABLE_NAME;
   }
 
-  //TODO disable it temporarily
-//  if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
-//    tscError("%p table schema is not matched with parsed sql", addr);
-//    return TSDB_CODE_TSC_INVALID_SQL;
-//  }
+  if (validateColumn && !tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId, pExpr->numOfParams)) {
+    tscError("0x%"PRIx64" table schema is not matched with parsed sql", id);
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
 
   assert(pExpr->resColId < 0);
   SSqlExpr* pSqlExpr = (SSqlExpr *)(*pMsg);
@@ -908,14 +907,14 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   for (int32_t i = 0; i < query.numOfOutput; ++i) {
-    code = serializeSqlExpr(&query.pExpr1[i].base, pTableMetaInfo, &pMsg, pSql->self);
+    code = serializeSqlExpr(&query.pExpr1[i].base, pTableMetaInfo, &pMsg, pSql->self, true);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
   }
 
   for (int32_t i = 0; i < query.numOfExpr2; ++i) {
-    code = serializeSqlExpr(&query.pExpr2[i].base, pTableMetaInfo, &pMsg, pSql->self);
+    code = serializeSqlExpr(&query.pExpr2[i].base, pTableMetaInfo, &pMsg, pSql->self, false);
     if (code != TSDB_CODE_SUCCESS) {
       goto _end;
     }
