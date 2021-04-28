@@ -642,14 +642,22 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // set the command/global limit parameters from the first subclause to the sqlcmd object
       SQueryInfo* pQueryInfo1 = tscGetQueryInfoDetail(pCmd, 0);
       pCmd->command = pQueryInfo1->command;
-
+      int32_t diffSize = 0;
+      
       // if there is only one element, the limit of clause is the limit of global result.
       for (int32_t i = 1; i < pCmd->numOfClause; ++i) {
         SQueryInfo* pQueryInfo2 = tscGetQueryInfoDetail(pCmd, i);
 
-        int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
+        int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo, &diffSize);
         if (ret != 0) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+        }
+      }
+
+      if (diffSize) {
+        for (int32_t i = 1; i < pCmd->numOfClause; ++i) {
+          SQueryInfo* pQueryInfo2 = tscGetQueryInfoDetail(pCmd, i);        
+          tscFieldInfoSetSize(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
         }
       }
 
