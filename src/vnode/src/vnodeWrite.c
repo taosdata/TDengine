@@ -347,9 +347,11 @@ static void vnodeFlowCtrlMsgToWQueue(void *param, void *tmrId) {
       vDebug("vgId:%d, msg:%p, write into vwqueue after flowctrl, retry:%d", pVnode->vgId, pWrite,
              pWrite->processedCount);
       pWrite->processedCount = 0;
+      void *handle = pWrite->rpcMsg.handle;
       code = vnodeWriteToWQueueImp(pWrite);
-      if (code != 0) {
-        dnodeSendRpcVWriteRsp(pWrite->pVnode, pWrite, code);
+      if (code != TSDB_CODE_SUCCESS) {
+        SRpcMsg rpcRsp = {.handle = handle, .code = code};
+        rpcSendResponse(&rpcRsp);
       }
     }
   }

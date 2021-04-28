@@ -29,6 +29,7 @@
 #include "mnodeDef.h"
 #include "mnodeInt.h"
 #include "mnodeDnode.h"
+#include "mnodeDb.h"
 #include "mnodeMnode.h"
 #include "mnodeSdb.h"
 #include "mnodeShow.h"
@@ -743,6 +744,14 @@ static int32_t mnodeDropDnodeByEp(char *ep, SMnodeMsg *pMsg) {
     mError("dnode:%d, can't drop dnode:%s which is master", pDnode->dnodeId, ep);
     mnodeDecDnodeRef(pDnode);
     return TSDB_CODE_MND_NO_REMOVE_MASTER;
+  }
+
+  int32_t maxReplica = mnodeGetDbMaxReplica();
+  int32_t dnodesNum = mnodeGetDnodesNum();
+  if (dnodesNum <= maxReplica) {
+    mError("dnode:%d, can't drop dnode:%s, #dnodes: %d, replia: %d", pDnode->dnodeId, ep, dnodesNum, maxReplica);
+    mnodeDecDnodeRef(pDnode);
+    return TSDB_CODE_MND_NO_ENOUGH_DNODES;
   }
 
   mInfo("dnode:%d, start to drop it", pDnode->dnodeId);
