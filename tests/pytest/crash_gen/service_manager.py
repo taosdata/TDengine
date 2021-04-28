@@ -3,12 +3,12 @@ from __future__ import annotations
 import os
 import io
 import sys
+from enum import Enum
 import threading
 import signal
 import logging
 import time
 from subprocess import PIPE, Popen, TimeoutExpired
-
 from typing import IO, List, NewType, Optional
 
 try:
@@ -16,12 +16,12 @@ try:
 except:
     print("Psutil module needed, please install: sudo pip3 install psutil")
     sys.exit(-1)
-
 from queue import Queue, Empty
 
-from .misc import Logging, Status, CrashGenError, Dice, Helper, Progress
-from .db import DbConn, DbTarget
-import crash_gen.settings 
+from crash_gen.misc import CrashGenError, Dice, Helper, Logging, Progress, Status
+from crash_gen.db import DbConn, DbTarget
+from crash_gen.settings import Settings
+from crash_gen.types import DirPath
 
 class TdeInstance():
     """
@@ -70,7 +70,10 @@ class TdeInstance():
         self._fepPort   = fepPort
 
         self._tInstNum    = tInstNum
-        self._smThread    = ServiceManagerThread()
+
+        # An "Tde Instance" will *contain* a "sub process" object, with will/may use a thread internally
+        # self._smThread    = ServiceManagerThread()
+        self._subProcess  = None # type: Optional[TdeSubProcess]
 
     def getDbTarget(self):
         return DbTarget(self.getCfgDir(), self.getHostAddr(), self._port)
@@ -155,21 +158,21 @@ quorum 2
     def getExecFile(self): # .../taosd
         return self._buildDir + "/build/bin/taosd"
 
-    def getRunDir(self): # TODO: rename to "root dir" ?!
-        return self._buildDir + self._subdir
+    def getRunDir(self) -> DirPath : # TODO: rename to "root dir" ?!
+        return DirPath(self._buildDir + self._subdir)
 
-    def getCfgDir(self): # path, not file
-        return self.getRunDir() + "/cfg"
+    def getCfgDir(self) -> DirPath : # path, not file
+        return DirPath(self.getRunDir() + "/cfg")
 
-    def getLogDir(self):
-        return self.getRunDir() + "/log"
+    def getLogDir(self) -> DirPath :
+        return DirPath(self.getRunDir() + "/log")
 
     def getHostAddr(self):
         return "127.0.0.1"
 
     def getServiceCmdLine(self): # to start the instance
         cmdLine = []
-        if crash_gen.settings.gConfig.track_memory_leaks:
+        if Settings.getConfig().track_memory_leaks:
             Logging.info("Invoking VALGRIND on service...")
             cmdLine = ['valgrind', '--leak-check=yes']
         # TODO: move "exec -c" into Popen(), we can both "use shell" and NOT fork so ask to lose kill control
@@ -199,27 +202,46 @@ quorum 2
         dbc.close()
 
     def getStatus(self):
-        return self._smThread.getStatus()
+        # return self._smThread.getStatus()
+        if self._subProcess is None:
+            return Status(Status.STATUS_EMPTY)
+        return self._subProcess.getStatus()
 
-    def getSmThread(self):
-        return self._smThread
+    # def getSmThread(self):
+    #     return self._smThread
 
     def start(self):
-        if not self.getStatus().isStopped():
+        if self.getStatus().isActive():
             raise CrashGenError("Cannot start instance from status: {}".format(self.getStatus()))
 
         Logging.info("Starting TDengine instance: {}".format(self))
         self.generateCfgFile() # service side generates config file, client does not
         self.rotateLogs()
 
-        self._smThread.start(self.getServiceCmdLine(), self.getLogDir()) # May raise exceptions
+        # self._smThread.start(self.getServiceCmdLine(), self.getLogDir()) # May raise exceptions
+        self._subProcess = TdeSubProcess(self.getServiceCmdLine(),  self.getLogDir())
 
     def stop(self):
-        self._smThread.stop()
+        self._subProcess.stop()
+        self._subProcess = None
 
     def isFirst(self):
         return self._tInstNum == 0
 
+    def printFirst10Lines(self):
+        if self._subProcess is None:
+            Logging.warning("Incorrect TI status for procIpcBatch-10 operation")
+            return
+        self._subProcess.procIpcBatch(trimToTarget=10, forceOutput=True)  
+
+    def procIpcBatch(self):
+        if self._subProcess is None:
+            Logging.warning("Incorrect TI status for procIpcBatch operation")
+            return
+        self._subProcess.procIpcBatch() # may enounter EOF and change status to STOPPED
+        if self._subProcess.getStatus().isStopped():
+            self._subProcess.stop()
+            self._subProcess = None
 
 class TdeSubProcess:
     """
@@ -237,16 +259,21 @@ class TdeSubProcess:
     # RET_TIME_OUT = -3
     # RET_SUCCESS = -4
 
-    def __init__(self, po: Popen):
-        self._popen = po # type: Popen
-        # if tInst is None:
-        #     raise CrashGenError("Empty instance not allowed in TdeSubProcess")
-        # self._tInst = tInst # Default create at ServiceManagerThread
+    def __init__(self, cmdLine: List[str], logDir: DirPath):
+        # Create the process + managing thread immediately
+
+        Logging.info("Attempting to start TAOS sub process...")
+        self._popen     = self._start(cmdLine) # the actual sub process
+        self._smThread  = ServiceManagerThread(self, logDir)  # A thread to manage the sub process, mostly to process the IO
+        Logging.info("Successfully started TAOS process: {}".format(self))
+
+
 
     def __repr__(self):
         # if self.subProcess is None:
         #     return '[TdeSubProc: Empty]'
-        return '[TdeSubProc: pid = {}]'.format(self.getPid())
+        return '[TdeSubProc: pid = {}, status = {}]'.format(
+            self.getPid(), self.getStatus() )
 
     def getStdOut(self):
         return self._popen.stdout
@@ -261,14 +288,14 @@ class TdeSubProcess:
     def getPid(self):
         return self._popen.pid
 
-    @classmethod
-    def start(cls, cmdLine):
+    def _start(self, cmdLine) -> Popen :
         ON_POSIX = 'posix' in sys.builtin_module_names
 
         # Sanity check
         # if self.subProcess:  # already there
         #     raise RuntimeError("Corrupt process state")
 
+        
         # Prepare environment variables for coverage information
         # Ref: https://stackoverflow.com/questions/2231227/python-subprocess-popen-with-a-modified-environment
         myEnv = os.environ.copy()
@@ -279,7 +306,7 @@ class TdeSubProcess:
         # print("Starting TDengine via Shell: {}".format(cmdLineStr))
 
         # useShell = True # Needed to pass environments into it
-        popen = Popen(            
+        return Popen(            
             ' '.join(cmdLine), # ' '.join(cmdLine) if useShell else cmdLine,
             shell=True, # Always use shell, since we need to pass ENV vars
             stdout=PIPE,
@@ -287,15 +314,15 @@ class TdeSubProcess:
             close_fds=ON_POSIX,
             env=myEnv
             )  # had text=True, which interferred with reading EOF
-        return cls(popen)
 
     STOP_SIGNAL = signal.SIGINT # signal.SIGKILL/SIGINT # What signal to use (in kill) to stop a taosd process?
     SIG_KILL_RETCODE = 137 # ref: https://stackoverflow.com/questions/43268156/process-finished-with-exit-code-137-in-pycharm
 
-    @classmethod
-    def stop(cls, tsp: TdeSubProcess):
+    def stop(self):
         """
-        Stop a sub process, DO NOT return anything, process all conditions INSIDE
+        Stop a sub process, DO NOT return anything, process all conditions INSIDE.
+
+        Calling function should immediately delete/unreference the object
 
         Common POSIX signal values (from man -7 signal):
         SIGHUP           1
@@ -315,11 +342,17 @@ class TdeSubProcess:
         """
         # self._popen should always be valid.
 
-        # if not self.subProcess:
-        #     Logging.error("Sub process already stopped")
-        #     return
+        Logging.info("Terminating TDengine service running as the sub process...")
+        if self.getStatus().isStopped():
+            Logging.info("Service already stopped")
+            return
+        if self.getStatus().isStopping():
+            Logging.info("Service is already being stopped, pid: {}".format(self.getPid()))
+            return
 
-        retCode = tsp._popen.poll() # ret -N means killed with signal N, otherwise it's from exit(N)
+        self.setStatus(Status.STATUS_STOPPING)
+
+        retCode = self._popen.poll() # ret -N means killed with signal N, otherwise it's from exit(N)
         if retCode:  # valid return code, process ended
             # retCode = -retCode # only if valid
             Logging.warning("TSP.stop(): process ended itself")
@@ -327,9 +360,12 @@ class TdeSubProcess:
             return
 
         # process still alive, let's interrupt it
-        cls._stopForSure(tsp._popen, cls.STOP_SIGNAL) # success if no exception
+        self._stopForSure(self._popen, self.STOP_SIGNAL) # success if no exception
 
-        # sub process should end, then IPC queue should end, causing IO thread to end        
+        # sub process should end, then IPC queue should end, causing IO thread to end  
+        self._smThread.stop() # stop for sure too
+
+        self.setStatus(Status.STATUS_STOPPED)
 
     @classmethod
     def _stopForSure(cls, proc: Popen, sig: int):
@@ -357,13 +393,13 @@ class TdeSubProcess:
             Logging.info("Killing sub-sub process {} with signal {}".format(child.pid, sig))
             child.send_signal(sig)
             try:            
-                retCode = child.wait(20)
-                if (- retCode) == signal.SIGSEGV: # Crashed
+                retCode = child.wait(20) # type: ignore
+                if (- retCode) == signal.SIGSEGV: # type: ignore # Crashed
                     Logging.warning("Process {} CRASHED, please check CORE file!".format(child.pid))
-                elif (- retCode) == sig : 
+                elif (- retCode) == sig : # type: ignore
                     Logging.info("Sub-sub process terminated with expected return code {}".format(sig))
                 else:
-                    Logging.warning("Process terminated, EXPECTING ret code {}, got {}".format(sig, -retCode))
+                    Logging.warning("Process terminated, EXPECTING ret code {}, got {}".format(sig, -retCode)) # type: ignore
                 return True # terminated successfully
             except psutil.TimeoutExpired as err:
                 Logging.warning("Failed to kill sub-sub process {} with signal {}".format(child.pid, sig))
@@ -407,6 +443,15 @@ class TdeSubProcess:
             if hardKill(proc):
                 return 
         raise CrashGenError("Failed to stop process, pid={}".format(pid))
+
+    def getStatus(self):
+        return self._smThread.getStatus()
+
+    def setStatus(self, status):
+        self._smThread.setStatus(status)
+
+    def procIpcBatch(self, trimToTarget=0, forceOutput=False):
+        self._smThread.procIpcBatch(trimToTarget, forceOutput)
 
 class ServiceManager:
     PAUSE_BETWEEN_IPC_CHECK = 1.2  # seconds between checks on STDOUT of sub process
@@ -504,10 +549,10 @@ class ServiceManager:
     def isActive(self):
         """
         Determine if the service/cluster is active at all, i.e. at least
-        one thread is not "stopped".
+        one instance is active
         """
         for ti in self._tInsts:
-            if not ti.getStatus().isStopped():
+            if ti.getStatus().isActive():
                 return True
         return False
 
@@ -545,10 +590,10 @@ class ServiceManager:
             # while self.isRunning() or self.isRestarting() :  # for as long as the svc mgr thread is still here
                 status = ti.getStatus()
                 if  status.isRunning():
-                    th = ti.getSmThread()
-                    th.procIpcBatch()  # regular processing,
+                    # th = ti.getSmThread()
+                    ti.procIpcBatch()  # regular processing,
                     if  status.isStopped():
-                        th.procIpcBatch() # one last time?
+                        ti.procIpcBatch() # one last time?
                     # self._updateThreadStatus()
                     
             time.sleep(self.PAUSE_BETWEEN_IPC_CHECK)  # pause, before next round
@@ -578,7 +623,8 @@ class ServiceManager:
                 if not ti.isFirst():                                    
                     tFirst = self._getFirstInstance()
                     tFirst.createDnode(ti.getDbTarget())
-                ti.getSmThread().procIpcBatch(trimToTarget=10, forceOutput=True)  # for printing 10 lines                                     
+                ti.printFirst10Lines()
+                # ti.getSmThread().procIpcBatch(trimToTarget=10, forceOutput=True)  # for printing 10 lines                                     
 
     def stopTaosServices(self):
         with self._lock:
@@ -624,21 +670,24 @@ class ServiceManagerThread:
     """
     MAX_QUEUE_SIZE = 10000
 
-    def __init__(self):
+    def __init__(self, subProc: TdeSubProcess, logDir: str):
         # Set the sub process
-        self._tdeSubProcess = None # type: TdeSubProcess
+        # self._tdeSubProcess = None # type: TdeSubProcess
 
         # Arrange the TDengine instance
         # self._tInstNum = tInstNum # instance serial number in cluster, ZERO based
         # self._tInst    = tInst or TdeInstance() # Need an instance
 
-        self._thread  = None # The actual thread, # type: threading.Thread
-        self._thread2 = None # watching stderr
+        # self._thread  = None # type: Optional[threading.Thread]  # The actual thread, # type: threading.Thread
+        # self._thread2 = None # type: Optional[threading.Thread] Thread  # watching stderr
         self._status = Status(Status.STATUS_STOPPED) # The status of the underlying service, actually.
 
+        self._start(subProc, logDir)
+
     def __repr__(self):
-        return "[SvcMgrThread: status={}, subProc={}]".format(
-            self.getStatus(), self._tdeSubProcess)
+        raise CrashGenError("SMT status moved to TdeSubProcess")
+        # return "[SvcMgrThread: status={}, subProc={}]".format(
+        #     self.getStatus(), self._tdeSubProcess)
 
     def getStatus(self):
         '''
@@ -646,29 +695,33 @@ class ServiceManagerThread:
         '''
         return self._status
 
+    def setStatus(self, statusVal: int):
+        self._status.set(statusVal)
+
     # Start the thread (with sub process), and wait for the sub service
     # to become fully operational
-    def start(self, cmdLine : str, logDir: str):
+    def _start(self, subProc :TdeSubProcess, logDir: str):
         '''
         Request the manager thread to start a new sub process, and manage it.
 
         :param cmdLine: the command line to invoke
         :param logDir: the logging directory, to hold stdout/stderr files
         '''
-        if self._thread:
-            raise RuntimeError("Unexpected _thread")
-        if self._tdeSubProcess:
-            raise RuntimeError("TDengine sub process already created/running")
+        # if self._thread:
+        #     raise RuntimeError("Unexpected _thread")
+        # if self._tdeSubProcess:
+        #     raise RuntimeError("TDengine sub process already created/running")
 
-        Logging.info("Attempting to start TAOS service: {}".format(self))
+        # Moved to TdeSubProcess
+        # Logging.info("Attempting to start TAOS service: {}".format(self))
 
         self._status.set(Status.STATUS_STARTING)
-        self._tdeSubProcess = TdeSubProcess.start(cmdLine) # TODO: verify process is running
+        # self._tdeSubProcess = TdeSubProcess.start(cmdLine) # TODO: verify process is running
 
         self._ipcQueue = Queue() # type: Queue
         self._thread = threading.Thread( # First thread captures server OUTPUT
             target=self.svcOutputReader,
-            args=(self._tdeSubProcess.getStdOut(), self._ipcQueue, logDir))
+            args=(subProc.getStdOut(), self._ipcQueue, logDir))
         self._thread.daemon = True  # thread dies with the program
         self._thread.start()
         time.sleep(0.01)
@@ -680,7 +733,7 @@ class ServiceManagerThread:
 
         self._thread2 = threading.Thread( # 2nd thread captures server ERRORs
             target=self.svcErrorReader,
-            args=(self._tdeSubProcess.getStdErr(), self._ipcQueue, logDir))
+            args=(subProc.getStdErr(), self._ipcQueue, logDir))
         self._thread2.daemon = True  # thread dies with the program
         self._thread2.start()
         time.sleep(0.01)
@@ -695,14 +748,14 @@ class ServiceManagerThread:
             Progress.emit(Progress.SERVICE_START_NAP)
             # print("_zz_", end="", flush=True)
             if self._status.isRunning():
-                Logging.info("[] TDengine service READY to process requests")
-                Logging.info("[] TAOS service started: {}".format(self))
+                Logging.info("[] TDengine service READY to process requests: pid={}".format(subProc.getPid()))
+                # Logging.info("[] TAOS service started: {}".format(self))
                 # self._verifyDnode(self._tInst) # query and ensure dnode is ready
                 # Logging.debug("[] TAOS Dnode verified: {}".format(self))
                 return  # now we've started
         # TODO: handle failure-to-start  better?
         self.procIpcBatch(100, True) # display output before cronking out, trim to last 20 msgs, force output
-        raise RuntimeError("TDengine service did not start successfully: {}".format(self))
+        raise RuntimeError("TDengine service DID NOT achieve READY status: pid={}".format(subProc.getPid()))
 
     def _verifyDnode(self, tInst: TdeInstance):
         dbc = DbConn.createNative(tInst.getDbTarget())
@@ -722,29 +775,23 @@ class ServiceManagerThread:
                 break
         if not isValid:
             print("Failed to start dnode, sleep for a while")
-            time.sleep(600)
+            time.sleep(10.0)
             raise RuntimeError("Failed to start Dnode, expected port not found: {}".
                 format(tInst.getPort()))
         dbc.close()
 
     def stop(self):
         # can be called from both main thread or signal handler
-        Logging.info("Terminating TDengine service running as the sub process...")
-        if self.getStatus().isStopped():
-            Logging.info("Service already stopped")
-            return
-        if self.getStatus().isStopping():
-            Logging.info("Service is already being stopped, pid: {}".format(self._tdeSubProcess.getPid()))
-            return
+
         # Linux will send Control-C generated SIGINT to the TDengine process
         # already, ref:
         # https://unix.stackexchange.com/questions/176235/fork-and-how-signals-are-delivered-to-processes
-        if not self._tdeSubProcess:
-            raise RuntimeError("sub process object missing")
+        # if not self._tdeSubProcess:
+        #     raise RuntimeError("sub process object missing")
 
-        self._status.set(Status.STATUS_STOPPING)
-        TdeSubProcess.stop(self._tdeSubProcess) # must stop, no matter what
-        self._tdeSubProcess = None
+        # self._status.set(Status.STATUS_STOPPING)
+        # TdeSubProcess.stop(self._tdeSubProcess) # must stop, no matter what
+        # self._tdeSubProcess = None
         # if not self._tdeSubProcess.stop(): # everything withing
         #     if self._tdeSubProcess.isRunning():  # still running, should now never happen
         #         Logging.error("FAILED to stop sub process, it is still running... pid = {}".format(
@@ -757,28 +804,27 @@ class ServiceManagerThread:
         outputLines = 10 # for last output
         if  self.getStatus().isStopped():
             self.procIpcBatch(outputLines)  # one last time
-            Logging.debug("End of TDengine Service Output: {}".format(self))
+            Logging.debug("End of TDengine Service Output")
             Logging.info("----- TDengine Service (managed by SMT) is now terminated -----\n")
         else:
-            print("WARNING: SMT did not terminate as expected: {}".format(self))
+            print("WARNING: SMT did not terminate as expected")
 
     def join(self):
         # TODO: sanity check
-        if not self.getStatus().isStopping():
+        s = self.getStatus()
+        if s.isStopping() or s.isStopped(): # we may be stopping ourselves, or have been stopped/killed by others
+            if self._thread or self._thread2 :
+                if self._thread:
+                    self._thread.join()
+                    self._thread = None
+                if self._thread2: # STD ERR thread            
+                    self._thread2.join()
+                    self._thread2 = None
+            else:
+                Logging.warning("Joining empty thread, doing nothing")
+        else:
             raise RuntimeError(
                 "SMT.Join(): Unexpected status: {}".format(self._status))
-
-        if self._thread or self._thread2 :
-            if self._thread:
-                self._thread.join()
-                self._thread = None
-            if self._thread2: # STD ERR thread            
-                self._thread2.join()
-                self._thread2 = None
-        else:
-            print("Joining empty thread, doing nothing")
-
-        self._status.set(Status.STATUS_STOPPED)
 
     def _trimQueue(self, targetSize):
         if targetSize <= 0:
@@ -798,6 +844,10 @@ class ServiceManagerThread:
     TD_READY_MSG = "TDengine is initialized successfully"
 
     def procIpcBatch(self, trimToTarget=0, forceOutput=False):
+        '''
+        Process a batch of STDOUT/STDERR data, until we read EMPTY from
+        the pipe.
+        '''
         self._trimQueue(trimToTarget)  # trim if necessary
         # Process all the output generated by the underlying sub process,
         # managed by IO thread
@@ -887,7 +937,8 @@ class ServiceManagerThread:
 
             # queue.put(line)
         # meaning sub process must have died
-        Logging.info("EOF for TDengine STDOUT: {}".format(self))
+        Logging.info("EOF found TDengine STDOUT, marking the process as terminated")
+        self.setStatus(Status.STATUS_STOPPED)
         out.close() # Close the stream
         fOut.close() # Close the output file
 
@@ -898,6 +949,6 @@ class ServiceManagerThread:
         for line in iter(err.readline, b''):
             fErr.write(line)
             Logging.info("TDengine STDERR: {}".format(line))
-        Logging.info("EOF for TDengine STDERR: {}".format(self))
+        Logging.info("EOF for TDengine STDERR")
         err.close()
         fErr.close()

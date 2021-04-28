@@ -15,7 +15,7 @@
 # https://stackoverflow.com/questions/33533148/how-do-i-specify-that-the-return-type-of-a-method-is-the-same-as-the-class-itsel
 from __future__ import annotations
 
-from typing import Set
+from typing import Any, Set, Tuple
 from typing import Dict
 from typing import List
 from typing import Optional # Type hinting, ref: https://stackoverflow.com/questions/19202633/python-3-type-hinting-for-none
@@ -57,8 +57,8 @@ if sys.version_info[0] < 3:
 
 # Command-line/Environment Configurations, will set a bit later
 # ConfigNameSpace = argparse.Namespace
-gConfig:    argparse.Namespace 
-gSvcMgr:    ServiceManager # TODO: refactor this hack, use dep injection
+# gConfig:    argparse.Namespace 
+gSvcMgr:    Optional[ServiceManager] # TODO: refactor this hack, use dep injection
 # logger:     logging.Logger
 gContainer: Container
 
@@ -81,20 +81,20 @@ class WorkerThread:
         self._stepGate = threading.Event()
 
         # Let us have a DB connection of our own
-        if (gConfig.per_thread_db_connection):  # type: ignore
+        if (Settings.getConfig().per_thread_db_connection):  # type: ignore
             # print("connector_type = {}".format(gConfig.connector_type))
             tInst = gContainer.defTdeInstance
-            if gConfig.connector_type == 'native':                
+            if Settings.getConfig().connector_type == 'native':                
                 self._dbConn = DbConn.createNative(tInst.getDbTarget()) 
-            elif gConfig.connector_type == 'rest':
+            elif Settings.getConfig().connector_type == 'rest':
                 self._dbConn = DbConn.createRest(tInst.getDbTarget()) 
-            elif gConfig.connector_type == 'mixed':
+            elif Settings.getConfig().connector_type == 'mixed':
                 if Dice.throw(2) == 0: # 1/2 chance
                     self._dbConn = DbConn.createNative(tInst.getDbTarget()) 
                 else:
                     self._dbConn = DbConn.createRest(tInst.getDbTarget()) 
             else:
-                raise RuntimeError("Unexpected connector type: {}".format(gConfig.connector_type))
+                raise RuntimeError("Unexpected connector type: {}".format(Settings.getConfig().connector_type))
 
         # self._dbInUse = False  # if "use db" was executed already
 
@@ -123,14 +123,14 @@ class WorkerThread:
         # self.isSleeping = False
         Logging.info("Starting to run thread: {}".format(self._tid))
 
-        if (gConfig.per_thread_db_connection):  # type: ignore
+        if (Settings.getConfig().per_thread_db_connection):  # type: ignore
             Logging.debug("Worker thread openning database connection")
             self._dbConn.open()
 
         self._doTaskLoop()
 
         # clean up
-        if (gConfig.per_thread_db_connection):  # type: ignore
+        if (Settings.getConfig().per_thread_db_connection):  # type: ignore
             if self._dbConn.isOpen: #sometimes it is not open
                 self._dbConn.close()
             else:
@@ -158,7 +158,7 @@ class WorkerThread:
 
             # Before we fetch the task and run it, let's ensure we properly "use" the database (not needed any more)
             try:
-                if (gConfig.per_thread_db_connection):  # most likely TRUE
+                if (Settings.getConfig().per_thread_db_connection):  # most likely TRUE
                     if not self._dbConn.isOpen:  # might have been closed during server auto-restart
                         self._dbConn.open()
                 # self.useDb() # might encounter exceptions. TODO: catch
@@ -232,7 +232,7 @@ class WorkerThread:
         return self.getDbConn().getQueryResult()
 
     def getDbConn(self) -> DbConn :
-        if (gConfig.per_thread_db_connection):
+        if (Settings.getConfig().per_thread_db_connection):
             return self._dbConn
         else:
             return self._tc.getDbManager().getDbConn()
@@ -254,7 +254,7 @@ class ThreadCoordinator:
         self._pool = pool
         # self._wd = wd
         self._te = None  # prepare for every new step
-        self._dbManager = dbManager
+        self._dbManager = dbManager # type: Optional[DbManager] # may be freed
         self._executedTasks: List[Task] = []  # in a given step
         self._lock = threading.RLock()  # sync access for a few things
 
@@ -266,9 +266,13 @@ class ThreadCoordinator:
         self._stepStartTime = None  # Track how long it takes to execute each step
 
     def getTaskExecutor(self):
+        if self._te is None:
+            raise CrashGenError("Unexpected empty TE")
         return self._te
 
     def getDbManager(self) -> DbManager:
+        if self._dbManager is None:
+            raise ChildProcessError("Unexpected empty _dbManager")
         return self._dbManager
 
     def crossStepBarrier(self, timeout=None):
@@ -279,7 +283,7 @@ class ThreadCoordinator:
         self._execStats.registerFailure("User Interruption")
 
     def _runShouldEnd(self, transitionFailed, hasAbortedTask, workerTimeout):
-        maxSteps = gConfig.max_steps  # type: ignore
+        maxSteps = Settings.getConfig().max_steps  # type: ignore
         if self._curStep >= (maxSteps - 1): # maxStep==10, last curStep should be 9
             return True
         if self._runStatus != Status.STATUS_RUNNING:
@@ -384,7 +388,7 @@ class ThreadCoordinator:
         hasAbortedTask = False
         workerTimeout = False
         while not self._runShouldEnd(transitionFailed, hasAbortedTask, workerTimeout):
-            if not gConfig.debug: # print this only if we are not in debug mode    
+            if not Settings.getConfig().debug: # print this only if we are not in debug mode    
                 Progress.emit(Progress.STEP_BOUNDARY)            
                 # print(".", end="", flush=True)
             # if (self._curStep % 2) == 0: # print memory usage once every 10 steps
@@ -469,7 +473,7 @@ class ThreadCoordinator:
         self._pool = None
         self._te = None  
         self._dbManager = None
-        self._executedTasks = None
+        self._executedTasks = []
         self._lock = None
         self._stepBarrier = None
         self._execStats = None
@@ -508,18 +512,18 @@ class ThreadCoordinator:
         ''' Initialize multiple databases, invoked at __ini__() time '''
         self._dbs = [] # type: List[Database]
         dbc = self.getDbManager().getDbConn()
-        if gConfig.max_dbs == 0:
+        if Settings.getConfig().max_dbs == 0:
             self._dbs.append(Database(0, dbc))
         else:            
             baseDbNumber = int(datetime.datetime.now().timestamp( # Don't use Dice/random, as they are deterministic
-                )*333) % 888 if gConfig.dynamic_db_table_names else 0
-            for i in range(gConfig.max_dbs):
+                )*333) % 888 if Settings.getConfig().dynamic_db_table_names else 0
+            for i in range(Settings.getConfig().max_dbs):
                 self._dbs.append(Database(baseDbNumber + i, dbc))
 
     def pickDatabase(self):
         idxDb = 0
-        if gConfig.max_dbs != 0 :
-            idxDb = Dice.throw(gConfig.max_dbs) # 0 to N-1
+        if Settings.getConfig().max_dbs != 0 :
+            idxDb = Dice.throw(Settings.getConfig().max_dbs) # 0 to N-1
         db = self._dbs[idxDb] # type: Database
         return db
 
@@ -563,7 +567,7 @@ class ThreadPool:
             workerThread._thread.join()
 
     def cleanup(self):
-        self.threadList = None # maybe clean up each?
+        self.threadList = [] # maybe clean up each?
 
 # A queue of continguous POSITIVE integers, used by DbManager to generate continuous numbers
 # for new table names
@@ -673,7 +677,7 @@ class AnyState:
 
     # Each sub state tells us the "info", about itself, so we can determine
     # on things like canDropDB()
-    def getInfo(self):
+    def getInfo(self) -> List[Any]:
         raise RuntimeError("Must be overriden by child classes")
 
     def equals(self, other):
@@ -701,7 +705,7 @@ class AnyState:
     def canDropDb(self):
         # If user requests to run up to a number of DBs,
         # we'd then not do drop_db operations any more
-        if gConfig.max_dbs > 0 or gConfig.use_shadow_db : 
+        if Settings.getConfig().max_dbs > 0 or Settings.getConfig().use_shadow_db : 
             return False
         return self._info[self.CAN_DROP_DB]
 
@@ -709,7 +713,7 @@ class AnyState:
         return self._info[self.CAN_CREATE_FIXED_SUPER_TABLE]
 
     def canDropFixedSuperTable(self):
-        if gConfig.use_shadow_db: # duplicate writes to shaddow DB, in which case let's disable dropping s-table
+        if Settings.getConfig().use_shadow_db: # duplicate writes to shaddow DB, in which case let's disable dropping s-table
             return False
         return self._info[self.CAN_DROP_FIXED_SUPER_TABLE]
 
@@ -911,7 +915,7 @@ class StateMechine:
 
     # May be slow, use cautionsly...
     def getTaskTypes(self):  # those that can run (directly/indirectly) from the current state
-        def typesToStrings(types):
+        def typesToStrings(types) -> List:
             ss = []
             for t in types:
                 ss.append(t.__name__)
@@ -1030,13 +1034,14 @@ class StateMechine:
 
     # ref:
     # https://eli.thegreenplace.net/2010/01/22/weighted-random-generation-in-python/
-    def _weighted_choice_sub(self, weights):
+    def _weighted_choice_sub(self, weights) -> int:
         # TODO: use our dice to ensure it being determinstic?
         rnd = random.random() * sum(weights)
         for i, w in enumerate(weights):
             rnd -= w
             if rnd < 0:
                 return i
+        raise CrashGenError("Unexpected no choice")
 
 class Database:
     ''' We use this to represent an actual TDengine database inside a service instance,
@@ -1048,8 +1053,8 @@ class Database:
     '''
     _clsLock = threading.Lock() # class wide lock
     _lastInt = 101  # next one is initial integer
-    _lastTick = 0
-    _lastLaggingTick = 0 # lagging tick, for out-of-sequence (oos) data insertions
+    _lastTick = None # Optional[datetime]
+    _lastLaggingTick = None # Optional[datetime] # lagging tick, for out-of-sequence (oos) data insertions
 
     def __init__(self, dbNum: int, dbc: DbConn): # TODO: remove dbc
         self._dbNum = dbNum # we assign a number to databases, for our testing purpose
@@ -1114,14 +1119,14 @@ class Database:
             Fetch a timestamp tick, with some random factor, may not be unique.
         ''' 
         with cls._clsLock:  # prevent duplicate tick
-            if cls._lastLaggingTick==0 or cls._lastTick==0 : # not initialized
+            if cls._lastLaggingTick is None or cls._lastTick is None : # not initialized
                 # 10k at 1/20 chance, should be enough to avoid overlaps
                 tick = cls.setupLastTick()
                 cls._lastTick = tick
                 cls._lastLaggingTick = tick + datetime.timedelta(0, -60*2)  # lagging behind 2 minutes, should catch up fast
                 # if : # should be quite a bit into the future
 
-            if gConfig.mix_oos_data and Dice.throw(20) == 0:  # if asked to do so, and 1 in 20 chance, return lagging tick
+            if Settings.getConfig().mix_oos_data and Dice.throw(20) == 0:  # if asked to do so, and 1 in 20 chance, return lagging tick
                 cls._lastLaggingTick += datetime.timedelta(0, 1) # pick the next sequence from the lagging tick sequence
                 return cls._lastLaggingTick 
             else:  # regular
@@ -1303,10 +1308,10 @@ class Task():
             ]: 
             return True # These are the ALWAYS-ACCEPTABLE ones
         # This case handled below already.
-        # elif (errno in [ 0x0B ]) and gConfig.auto_start_service:
+        # elif (errno in [ 0x0B ]) and Settings.getConfig().auto_start_service:
         #     return True # We may get "network unavilable" when restarting service
-        elif gConfig.ignore_errors: # something is specified on command line
-            moreErrnos = [int(v, 0) for v in gConfig.ignore_errors.split(',')]
+        elif Settings.getConfig().ignore_errors: # something is specified on command line
+            moreErrnos = [int(v, 0) for v in Settings.getConfig().ignore_errors.split(',')]
             if errno in moreErrnos:
                 return True
         elif errno == 0x200 : # invalid SQL, we need to div in a bit more
@@ -1342,7 +1347,7 @@ class Task():
             self._executeInternal(te, wt)  # TODO: no return value?
         except taos.error.ProgrammingError as err:
             errno2 = Helper.convertErrno(err.errno)
-            if (gConfig.continue_on_exception):  # user choose to continue
+            if (Settings.getConfig().continue_on_exception):  # user choose to continue
                 self.logDebug("[=] Continue after TAOS exception: errno=0x{:X}, msg: {}, SQL: {}".format(
                         errno2, err, wt.getDbConn().getLastSql()))
                 self._err = err
@@ -1357,7 +1362,7 @@ class Task():
                     self.__class__.__name__,
                     errno2, err, wt.getDbConn().getLastSql())
                 self.logDebug(errMsg)
-                if gConfig.debug:
+                if Settings.getConfig().debug:
                     # raise # so that we see full stack
                     traceback.print_exc()
                 print(
@@ -1422,11 +1427,11 @@ class Task():
 class ExecutionStats:
     def __init__(self):
         # total/success times for a task
-        self._execTimes: Dict[str, [int, int]] = {}
+        self._execTimes: Dict[str, List[int]] = {}
         self._tasksInProgress = 0
         self._lock = threading.Lock()
-        self._firstTaskStartTime = None
-        self._execStartTime = None
+        self._firstTaskStartTime = 0.0
+        self._execStartTime = 0.0
         self._errors = {}
         self._elapsedTime = 0.0  # total elapsed time
         self._accRunTime = 0.0  # accumulated run time
@@ -1471,7 +1476,7 @@ class ExecutionStats:
             self._tasksInProgress -= 1
             if self._tasksInProgress == 0:  # all tasks have stopped
                 self._accRunTime += (time.time() - self._firstTaskStartTime)
-                self._firstTaskStartTime = None
+                self._firstTaskStartTime = 0.0
 
     def registerFailure(self, reason):
         self._failed = True
@@ -1555,7 +1560,7 @@ class StateTransitionTask(Task):
     def getRegTableName(cls, i):
         if ( StateTransitionTask._baseTableNumber is None): # Set it one time
             StateTransitionTask._baseTableNumber = Dice.throw(
-                999) if gConfig.dynamic_db_table_names else 0
+                999) if Settings.getConfig().dynamic_db_table_names else 0
         return "reg_table_{}".format(StateTransitionTask._baseTableNumber + i)
 
     def execute(self, wt: WorkerThread):
@@ -1575,14 +1580,14 @@ class TaskCreateDb(StateTransitionTask):
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # was: self.execWtSql(wt, "create database db")
         repStr = ""
-        if gConfig.num_replicas != 1:
-            # numReplica = Dice.throw(gConfig.max_replicas) + 1 # 1,2 ... N
-            numReplica = gConfig.num_replicas # fixed, always
+        if Settings.getConfig().num_replicas != 1:
+            # numReplica = Dice.throw(Settings.getConfig().max_replicas) + 1 # 1,2 ... N
+            numReplica = Settings.getConfig().num_replicas # fixed, always
             repStr = "replica {}".format(numReplica)
-        updatePostfix = "update 1" if gConfig.verify_data else "" # allow update only when "verify data" is active
+        updatePostfix = "update 1" if Settings.getConfig().verify_data else "" # allow update only when "verify data" is active
         dbName = self._db.getName()
         self.execWtSql(wt, "create database {} {} {} ".format(dbName, repStr, updatePostfix ) )
-        if dbName == "db_0" and gConfig.use_shadow_db:
+        if dbName == "db_0" and Settings.getConfig().use_shadow_db:
             self.execWtSql(wt, "create database {} {} {} ".format("db_s", repStr, updatePostfix ) )
 
 class TaskDropDb(StateTransitionTask):
@@ -1887,7 +1892,7 @@ class TaskDropSuperTable(StateTransitionTask):
         if Dice.throw(2) == 0:
             # print("_7_", end="", flush=True)
             tblSeq = list(range(
-                2 + (self.LARGE_NUMBER_OF_TABLES if gConfig.larger_data else self.SMALL_NUMBER_OF_TABLES)))
+                2 + (self.LARGE_NUMBER_OF_TABLES if Settings.getConfig().larger_data else self.SMALL_NUMBER_OF_TABLES)))
             random.shuffle(tblSeq)
             tickOutput = False  # if we have spitted out a "d" character for "drop regular table"
             isSuccess = True
@@ -1953,13 +1958,13 @@ class TaskRestartService(StateTransitionTask):
 
     @classmethod
     def canBeginFrom(cls, state: AnyState):
-        if gConfig.auto_start_service:
+        if Settings.getConfig().auto_start_service:
             return state.canDropFixedSuperTable()  # Basicallly when we have the super table
         return False # don't run this otherwise
 
     CHANCE_TO_RESTART_SERVICE = 200
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
-        if not gConfig.auto_start_service: # only execute when we are in -a mode
+        if not Settings.getConfig().auto_start_service: # only execute when we are in -a mode
             print("_a", end="", flush=True)
             return
 
@@ -1981,12 +1986,12 @@ class TaskAddData(StateTransitionTask):
     activeTable: Set[int] = set()
 
     # We use these two files to record operations to DB, useful for power-off tests
-    fAddLogReady = None # type: io.TextIOWrapper
-    fAddLogDone  = None # type: io.TextIOWrapper
+    fAddLogReady = None # type: Optional[io.TextIOWrapper]
+    fAddLogDone  = None # type: Optional[io.TextIOWrapper]
 
     @classmethod
     def prepToRecordOps(cls):
-        if gConfig.record_ops:
+        if Settings.getConfig().record_ops:
             if (cls.fAddLogReady is None):
                 Logging.info(
                     "Recording in a file operations to be performed...")
@@ -2004,7 +2009,7 @@ class TaskAddData(StateTransitionTask):
         return state.canAddData()
 
     def _addDataInBatch(self, db, dbc, regTableName, te: TaskExecutor): 
-        numRecords = self.LARGE_NUMBER_OF_RECORDS if gConfig.larger_data else self.SMALL_NUMBER_OF_RECORDS        
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Settings.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS        
         fullTableName = db.getName() + '.' + regTableName
 
         sql = "INSERT INTO {} VALUES ".format(fullTableName)
@@ -2016,21 +2021,23 @@ class TaskAddData(StateTransitionTask):
         dbc.execute(sql)
 
     def _addData(self, db: Database, dbc, regTableName, te: TaskExecutor): # implied: NOT in batches
-        numRecords = self.LARGE_NUMBER_OF_RECORDS if gConfig.larger_data else self.SMALL_NUMBER_OF_RECORDS        
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Settings.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS        
 
         for j in range(numRecords):  # number of records per table
             nextInt = db.getNextInt()
             nextTick = db.getNextTick()
             nextColor = db.getNextColor()
-            if gConfig.record_ops:
+            if Settings.getConfig().record_ops:
                 self.prepToRecordOps()
+                if self.fAddLogReady is None:
+                    raise CrashGenError("Unexpected empty fAddLogReady")
                 self.fAddLogReady.write("Ready to write {} to {}\n".format(nextInt, regTableName))
                 self.fAddLogReady.flush()
                 os.fsync(self.fAddLogReady.fileno())
                 
             # TODO: too ugly trying to lock the table reliably, refactor...
             fullTableName = db.getName() + '.' + regTableName
-            if gConfig.verify_data:
+            if Settings.getConfig().verify_data:
                 self.lockTable(fullTableName) 
                 # print("_w" + str(nextInt % 100), end="", flush=True) # Trace what was written
 
@@ -2043,7 +2050,7 @@ class TaskAddData(StateTransitionTask):
                 dbc.execute(sql)
 
                 # Quick hack, attach an update statement here. TODO: create an "update" task
-                if (not gConfig.use_shadow_db) and Dice.throw(5) == 0: # 1 in N chance, plus not using shaddow DB
+                if (not Settings.getConfig().use_shadow_db) and Dice.throw(5) == 0: # 1 in N chance, plus not using shaddow DB
                     nextInt = db.getNextInt()
                     nextColor = db.getNextColor()
                     sql = "INSERt INTO {} VALUES ('{}', {}, '{}');".format( # "INSERt" means "update" here
@@ -2054,12 +2061,12 @@ class TaskAddData(StateTransitionTask):
                     dbc.execute(sql)
 
             except: # Any exception at all
-                if gConfig.verify_data:
+                if Settings.getConfig().verify_data:
                     self.unlockTable(fullTableName)     
                 raise
 
             # Now read it back and verify, we might encounter an error if table is dropped
-            if gConfig.verify_data: # only if command line asks for it
+            if Settings.getConfig().verify_data: # only if command line asks for it
                 try:
                     readBack = dbc.queryScalar("SELECT speed from {}.{} WHERE ts='{}'".
                         format(db.getName(), regTableName, nextTick))
@@ -2086,7 +2093,9 @@ class TaskAddData(StateTransitionTask):
             # Successfully wrote the data into the DB, let's record it somehow
             te.recordDataMark(nextInt)
 
-            if gConfig.record_ops:
+            if Settings.getConfig().record_ops:
+                if self.fAddLogDone is None:
+                    raise CrashGenError("Unexpected empty fAddLogDone")
                 self.fAddLogDone.write("Wrote {} to {}\n".format(nextInt, regTableName))
                 self.fAddLogDone.flush()
                 os.fsync(self.fAddLogDone.fileno())
@@ -2095,8 +2104,8 @@ class TaskAddData(StateTransitionTask):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
         db = self._db
         dbc = wt.getDbConn()
-        numTables  = self.LARGE_NUMBER_OF_TABLES  if gConfig.larger_data else self.SMALL_NUMBER_OF_TABLES
-        numRecords = self.LARGE_NUMBER_OF_RECORDS if gConfig.larger_data else self.SMALL_NUMBER_OF_RECORDS
+        numTables  = self.LARGE_NUMBER_OF_TABLES  if Settings.getConfig().larger_data else self.SMALL_NUMBER_OF_TABLES
+        numRecords = self.LARGE_NUMBER_OF_RECORDS if Settings.getConfig().larger_data else self.SMALL_NUMBER_OF_RECORDS
         tblSeq = list(range(numTables ))
         random.shuffle(tblSeq) # now we have random sequence
         for i in tblSeq:
@@ -2126,7 +2135,9 @@ class ThreadStacks: # stack info for all threads
     def __init__(self):
         self._allStacks = {}
         allFrames = sys._current_frames()
-        for th in threading.enumerate():                        
+        for th in threading.enumerate():  
+            if th.ident is None:
+                continue          
             stack = traceback.extract_stack(allFrames[th.ident])     
             self._allStacks[th.native_id] = stack
 
@@ -2247,14 +2258,15 @@ class ClientManager:
 
     def run(self, svcMgr):    
         # self._printLastNumbers()
-        global gConfig
+        # global gConfig
 
         # Prepare Tde Instance
         global gContainer
         tInst = gContainer.defTdeInstance = TdeInstance() # "subdir to hold the instance"
 
-        dbManager = DbManager(gConfig.connector_type, tInst.getDbTarget())  # Regular function
-        thPool = ThreadPool(gConfig.num_threads, gConfig.max_steps)
+        cfg = Settings.getConfig()
+        dbManager = DbManager(cfg.connector_type, tInst.getDbTarget())  # Regular function
+        thPool = ThreadPool(cfg.num_threads, cfg.max_steps)
         self.tc = ThreadCoordinator(thPool, dbManager)
         
         Logging.info("Starting client instance: {}".format(tInst))
@@ -2267,7 +2279,8 @@ class ClientManager:
         
 
         # Release global variables
-        gConfig = None
+        # gConfig = None
+        Settings.clearConfig()
         gSvcMgr = None
         logger = None
         
@@ -2298,7 +2311,7 @@ class ClientManager:
 class MainExec:
     def __init__(self):        
         self._clientMgr = None
-        self._svcMgr = None # type: ServiceManager
+        self._svcMgr = None # type: Optional[ServiceManager]
 
         signal.signal(signal.SIGTERM, self.sigIntHandler)
         signal.signal(signal.SIGINT,  self.sigIntHandler)
@@ -2318,7 +2331,7 @@ class MainExec:
 
     def runClient(self):
         global gSvcMgr
-        if gConfig.auto_start_service:
+        if Settings.getConfig().auto_start_service:
             gSvcMgr = self._svcMgr = ServiceManager(1) # hack alert
             gSvcMgr.startTaosServices() # we start, don't run
         
@@ -2327,13 +2340,13 @@ class MainExec:
         try: 
             ret = self._clientMgr.run(self._svcMgr) # stop TAOS service inside
         except requests.exceptions.ConnectionError as err:
-            Logging.warning("Failed to open REST connection to DB: {}".format(err.getMessage()))
+            Logging.warning("Failed to open REST connection to DB: {}".format(err))
             # don't raise
         return ret
 
     def runService(self):
         global gSvcMgr
-        gSvcMgr = self._svcMgr = ServiceManager(gConfig.num_dnodes) # save it in a global variable TODO: hack alert
+        gSvcMgr = self._svcMgr = ServiceManager(Settings.getConfig().num_dnodes) # save it in a global variable TODO: hack alert
 
         gSvcMgr.run() # run to some end state
         gSvcMgr = self._svcMgr = None 
@@ -2467,20 +2480,20 @@ class MainExec:
             action='store_true',
             help='Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)')
 
-        global gConfig
-        gConfig = parser.parse_args()
-        Settings.setConfig(gConfig) # TODO: fix this hack, consolidate this global var
+        # global gConfig
+        config = parser.parse_args()
+        Settings.setConfig(config) # TODO: fix this hack, consolidate this global var
 
         # Sanity check for arguments
-        if gConfig.use_shadow_db and gConfig.max_dbs>1 :
+        if Settings.getConfig().use_shadow_db and Settings.getConfig().max_dbs>1 :
             raise CrashGenError("Cannot combine use-shadow-db with max-dbs of more than 1")
 
-        Logging.clsInit(gConfig)
+        Logging.clsInit(Settings.getConfig())
 
         Dice.seed(0)  # initial seeding of dice
 
     def run(self):
-        if gConfig.run_tdengine:  # run server
+        if Settings.getConfig().run_tdengine:  # run server
             try:
                 self.runService()
                 return 0 # success
