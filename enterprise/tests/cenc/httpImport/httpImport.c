@@ -419,17 +419,6 @@ failed:
 
     seed_net_close(&io, logout);
 
-    if (url) {
-        free(url);
-    }
-
-    if (login) {
-        free(login);
-    }
-
-    if (logout) {
-        free(logout);
-    }
 #if !defined(HTTP_IMPORT_DEBUG)
     if (taos) {
         taos_close(taos);
@@ -444,6 +433,18 @@ failed:
       } else {
         goto retry;
       }
+    }
+
+    if (url) {
+        free(url);
+    }
+
+    if (login) {
+        free(login);
+    }
+
+    if (logout) {
+        free(logout);
     }
 
     if (retry) {
@@ -476,6 +477,10 @@ failed:
 #else
     if (fp) {
         fclose(fp);
+    }
+
+    if (url) {
+        free(url);
     }
 
     if (ofile) {
