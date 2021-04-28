@@ -1129,6 +1129,7 @@ static int tsdbFullCheckAndRestoreDFileSet(SCommitH *pCommitH) {
   int         tvid = 0, tfid = 0;
   TSDB_FILE_T ttype = TSDB_FILE_MAX;
   uint32_t    tversion = 0;
+  bool        isStartOneFSet = true;
   for (size_t index = 0; index < taosArrayGetSize(fArray); ++index) {
     pf = taosArrayGet(fArray, index);
     tvid = 0;
@@ -1144,9 +1145,10 @@ static int tsdbFullCheckAndRestoreDFileSet(SCommitH *pCommitH) {
 
     ASSERT(tvid == REPO_ID(pRepo));
 
-    if (ttype == TSDB_FILE_HEAD) {
+    if (isStartOneFSet) {
       fset.fid = tfid;
-      iFSetSize = 1;
+      iFSetSize = 1;  // start from 1
+      isStartOneFSet = false;
     } else {
       if (tfid != fset.fid) {
         tsdbError("prop:vgId:%d incomplete dFileSet, tfid:%d != fid:%d", REPO_ID(pRepo), tfid, fset.fid);
@@ -1177,12 +1179,15 @@ static int tsdbFullCheckAndRestoreDFileSet(SCommitH *pCommitH) {
                TSDB_SUFFIX_TMP);
       snprintf(rnameHeadT, strlen(pDFile->f.rname) + strlen(TSDB_SUFFIX_TMP) + 1, "%s%s", pDFile->f.rname,
                TSDB_SUFFIX_TMP);
+      continue;
     } else if (ttype == TSDB_FILE_DATA) {
       continue;
+    } else {  // TSDB_FILE_LAST
+      isStartOneFSet = true;
     }
     // check as a file set when ttype equals TSDB_FILE_LAST
-    if (iFSetSize < TSDB_FSET_SIZE_VALID) {
-      // TODO: restriction: fset size equals TSDB_FSET_SIZE_VALID
+    if (iFSetSize != TSDB_FILE_MAX) {
+      // TODO: restriction: fset size equals TSDB_FILE_MAX(3)
       tsdbError("prop:vgId:%d FSET %d skip check as unexpected fset size:%" PRIu64, REPO_ID(pRepo), fset.fid,
                 iFSetSize);
       continue;
