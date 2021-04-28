@@ -1289,51 +1289,8 @@ int tsdbLoadAndCheckBlockData(SCommitH *pCommitH, size_t *nCorrupted, size_t *nS
 
   SReadH *   pReadh = &(pCommitH->readh);
   SBlockIdx *pBlkIdx = pReadh->pBlkIdx;
-  SDFile *   pHeadf = TSDB_READ_HEAD_FILE(pReadh);
+  // SDFile *   pHeadf = TSDB_READ_HEAD_FILE(pReadh);
   SBlock     block;
-
-  if (tsdbMakeRoom((void **)(&(pReadh->pBlkInfo)), pBlkIdx->len) < 0) {
-    tsdbError("prop:vgId:%d failed to load SBlockInfos while read file %s since %s, offset:%" PRIu32 " len:%" PRIu32,
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), pBlkIdx->offset, pBlkIdx->len);
-    return -1;
-  }
-
-  if (tsdbSeekDFile(pHeadf, pBlkIdx->offset, SEEK_SET) < 0) {
-    tsdbError("prop:vgId:%d failed to load SBlockInfos while seek file %s since %s, offset:%" PRIu32 " len:%" PRIu32,
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), pBlkIdx->offset, pBlkIdx->len);
-    return -1;
-  }
-
-  int64_t nread = tsdbReadDFile(pHeadf, (void *)(pReadh->pBlkInfo), pBlkIdx->len);
-  if (nread < 0) {
-    tsdbError("prop:vgId:%d failed to load SBlockInfos while read file %s since %s, offset:%" PRIu32 " len:%" PRIu32,
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), tstrerror(terrno), pBlkIdx->offset, pBlkIdx->len);
-    return -1;
-  }
-  tsdbDebug("prop:vgId:%d file %s, load SBlockInfos. BlkInfo: delimiter %d, tid %d, uid %" PRIu64
-            ", numOfBlocks: %" PRIu32,
-            TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pReadh->pBlkInfo->delimiter, pReadh->pBlkInfo->tid,
-            pReadh->pBlkInfo->uid, pBlkIdx->numOfBlocks);
-
-  if (nread < pBlkIdx->len) {
-    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("prop:vgId:%d load SBlockInfos. SBlockInfo part in file %s is corrupted, offset:%" PRIu32
-              " expected bytes:%" PRIu32 "read bytes:%" PRId64,
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pBlkIdx->offset, pBlkIdx->len, nread);
-    return -1;
-  }
-
-  if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pBlkInfo), pBlkIdx->len)) {
-    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError(
-        "prop:vgId:%d load SBlockInfos. SBlockInfo part in file %s is corrupted since wrong checksum, offset:%" PRIu32
-        " len:%" PRIu32,
-        TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pHeadf), pBlkIdx->offset, pBlkIdx->len);
-    return -1;
-  }
-
-  // To check the data in offset part of .head file in accord with the part in each BlockInx part of .head file.
-  ASSERT(pBlkIdx->tid == pReadh->pBlkInfo->tid && pBlkIdx->uid == pReadh->pBlkInfo->uid);
 
   for (uint32_t iSupBlocks = 0; iSupBlocks < pBlkIdx->numOfBlocks; ++iSupBlocks) {
     SBlock *pSupBlock = pReadh->pBlkInfo->blocks + iSupBlocks;

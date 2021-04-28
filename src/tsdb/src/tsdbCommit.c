@@ -866,7 +866,7 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
 }
 
 int tsdbWriteBlockInfo(SCommitH *pCommih) {
-    SDFile *    pHeadf = TSDB_COMMIT_HEAD_FILE(pCommih);
+  SDFile *    pHeadf = TSDB_COMMIT_HEAD_FILE(pCommih);
   SBlockIdx   blkIdx;
   STable *    pTable = TSDB_COMMIT_TABLE(pCommih);
   SBlock *    pBlock;
