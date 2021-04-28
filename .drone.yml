@@ -43,7 +43,7 @@ steps:
   - pip3 install psutil
   - pip3 install guppy3
   - cd tests/pytest 
-  - ./crash_gen.sh -a -p -t 4 -s 200
+  - ./crash_gen.sh -a -p -t 4 -s 2000
   when:
     branch:
     - develop
