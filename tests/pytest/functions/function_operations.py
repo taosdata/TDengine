@@ -82,14 +82,14 @@ class TDTestCase:
 
         self.ts = self.ts + self.rowNum + 10
 
-        tdSql.execute("insert into test1 values(%d, 1, 1, 1, 1, 1.1, 1.1, 1, NULL, '涛思数据3', 1, 1, 1, 1)"  % (  self.ts + self.rowNum + 1 ))
+        tdSql.execute("insert into test1 values(%d, 1, 1, 1, 1, 1.1, 1.1, 1, NULL, '涛思数据3', 254, 65534, 4294967294, 18446744073709551614)"  % (  self.ts + self.rowNum + 1 ))
         tdSql.execute("insert into test1 values(%d, 1, 1, 1, 1, 1.1, 1.1, 1, 'taosdata', NULL, 1, 1, 1, 1)"  % (  self.ts + self.rowNum + 2 ))
         tdSql.execute("insert into test1 values(%d, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)"  % (  self.ts + self.rowNum + 3 ))
         tdSql.execute("insert into test1 values(%d, 1, 1, 1, 1, NULL, 1.1, 1, NULL, '涛思数据3', 1, 1, 1, 1)"  % (  self.ts + self.rowNum + 4 ))
         tdSql.execute("insert into test1 values(%d, 1, 1, 1, 1, 1.1, NULL, 1, 'taosdata', NULL, 1, 1, 1, 1)"  % (  self.ts + self.rowNum + 5 ))
         self.rowNum = self.rowNum + 5
 
-        col_list = [ 'col1' , 'col2' , 'col3' , 'col4' , 'col5' , 'col6' , 'col7' , 'col8' , 'col9' , 'col11' , 'col12' , 'col13' , 'col14' , '1' , '1.1' , 'NULL' ]
+        col_list = [ 'col1' , 'col2' , 'col3' , 'col4' , 'col5' , 'col6' , 'col7' , 'col8' , 'col9' , 'col11' , 'col12' , 'col13' , 'col14' , '1' , '1.1' , 'NULL' , '18446744073709551614' ]
         op_list = [ '+' , '-' , '*' , '/' , '%' ]
         err_list = [ 'col7' , 'col8' , 'col9' , 'NULL' ]
         order_lsit = [ ' order by ts ', ' order by ts desc ', ' order by ts asc ']

@@ -97,7 +97,6 @@ if $data2_2 != 3 then
 endi
 
 print ========== step3
-sql drop dnode $hostname2
 
 $x = 0
 show3: 
@@ -114,6 +113,7 @@ print dnode2 openVnodes $data2_2
 print ========== step4
 sql create dnode $hostname3
 system sh/exec.sh -n dnode3 -s start
+sql drop dnode $hostname2
 
 $x = 0
 show4: 

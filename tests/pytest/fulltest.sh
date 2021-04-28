@@ -224,6 +224,7 @@ python3 ./test.py -f query/queryJoin10tables.py
 python3 ./test.py -f query/queryStddevWithGroupby.py
 python3 ./test.py -f query/querySecondtscolumnTowherenow.py
 python3 ./test.py -f query/queryFilterTswithDateUnit.py
+python3 ./test.py -f query/queryTscomputWithNow.py
 
 
 
@@ -238,6 +239,8 @@ python3 ./test.py -f stream/history.py
 python3 ./test.py -f stream/sys.py
 python3 ./test.py -f stream/table_1.py
 python3 ./test.py -f stream/table_n.py
+python3 ./test.py -f stream/showStreamExecTimeisNull.py
+python3 ./test.py -f stream/cqSupportBefore1970.py
 
 #alter table
 python3 ./test.py -f alter/alter_table_crash.py
