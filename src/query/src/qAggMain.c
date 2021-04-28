@@ -3051,10 +3051,6 @@ static void apercentile_finalizer(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo *pOutput = GET_ROWCELL_INTERBUF(pResInfo);
 
-  if (pOutput->pHisto->numOfElems > 1000) {
-    printf("%d\n", pOutput->pHisto->numOfElems);
-  }
-
   if (pCtx->currentStage == MERGE_STAGE) {
     if (pResInfo->hasResult == DATA_SET_FLAG) {  // check for null
       assert(pOutput->pHisto->numOfElems > 0);
