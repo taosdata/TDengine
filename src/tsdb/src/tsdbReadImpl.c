@@ -242,6 +242,7 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
     return -1;
   }
 
+  // QA: means bad head file. Return -1??
   ASSERT(pBlkIdx->tid == pReadh->pBlkInfo->tid && pBlkIdx->uid == pReadh->pBlkInfo->uid);
 
   if (pTarget) {

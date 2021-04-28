@@ -1289,7 +1289,6 @@ int tsdbLoadAndCheckBlockData(SCommitH *pCommitH, size_t *nCorrupted, size_t *nS
 
   SReadH *   pReadh = &(pCommitH->readh);
   SBlockIdx *pBlkIdx = pReadh->pBlkIdx;
-  // SDFile *   pHeadf = TSDB_READ_HEAD_FILE(pReadh);
   SBlock     block;
 
   for (uint32_t iSupBlocks = 0; iSupBlocks < pBlkIdx->numOfBlocks; ++iSupBlocks) {
@@ -1331,8 +1330,11 @@ int tsdbLoadAndCheckBlockData(SCommitH *pCommitH, size_t *nCorrupted, size_t *nS
 
       block = *pSupBlock;
       block.offset = sizeof(SBlock) * taosArrayGetSize(pCommitH->aSubBlk);
-      if (tsdbCommitAddBlock(pCommitH, &block, POINTER_SHIFT(pCommitH->readh.pBlkInfo, pSupBlock->offset),
-                             pSupBlock->numOfSubBlocks) < 0) {
+
+      if (tsdbCommitAddBlock(
+              pCommitH, &block,
+              block.numOfSubBlocks > 1 ? POINTER_SHIFT(pCommitH->readh.pBlkInfo, pSupBlock->offset) : NULL,
+              pSupBlock->numOfSubBlocks) < 0) {
         return -1;
       }
       if (tsdbWriteBlockInfo(pCommitH) < 0) {
