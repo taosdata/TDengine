@@ -2422,8 +2422,6 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   
   tExtMemBuffer   **pMemoryBuf = NULL;
   tOrderDescriptor *pDesc  = NULL;
-  SColumnModel     *pModel = NULL;
-  SColumnModel     *pFinalModel = NULL;
 
   pRes->qId = 0x1;  // hack the qhandle check
   
@@ -2442,9 +2440,9 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
 
   assert(pState->numOfSub > 0);
   
-  int32_t ret = tscLocalReducerEnvCreate(pSql, &pMemoryBuf, &pDesc, &pModel, &pFinalModel, nBufferSize);
+  int32_t ret = tscLocalReducerEnvCreate(pQueryInfo, &pMemoryBuf, pSql->subState.numOfSub, &pDesc, nBufferSize, pSql->self);
   if (ret != 0) {
-    pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    pRes->code = ret;
     tscAsyncResultOnError(pSql);
     tfree(pMemoryBuf);
     return ret;
@@ -2455,7 +2453,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
   if (pSql->pSubs == NULL) {
     tfree(pSql->pSubs);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pFinalModel,pState->numOfSub);
+    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc,pState->numOfSub);
 
     tscAsyncResultOnError(pSql);
     return ret;
@@ -2498,8 +2496,6 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     
     trs->subqueryIndex  = i;
     trs->pParentSql     = pSql;
-    trs->pFinalColModel = pModel;
-    trs->pFFColModel    = pFinalModel;
 
     SSqlObj *pNew = tscCreateSTableSubquery(pSql, trs, NULL);
     if (pNew == NULL) {
@@ -2524,13 +2520,13 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     tscError("0x%"PRIx64" failed to prepare subquery structure and launch subqueries", pSql->self);
     pRes->code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     
-    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pFinalModel, pState->numOfSub);
+    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pState->numOfSub);
     doCleanupSubqueries(pSql, i);
     return pRes->code;   // free all allocated resource
   }
   
   if (pRes->code == TSDB_CODE_TSC_QUERY_CANCELLED) {
-    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pModel, pFinalModel, pState->numOfSub);
+    tscLocalReducerEnvDestroy(pMemoryBuf, pDesc, pState->numOfSub);
     doCleanupSubqueries(pSql, i);
     return pRes->code;
   }
@@ -2695,7 +2691,7 @@ void tscHandleSubqueryError(SRetrieveSupport *trsupport, SSqlObj *pSql, int numO
       tstrerror(pParentSql->res.code));
 
   // release allocated resource
-  tscLocalReducerEnvDestroy(trsupport->pExtMemBuffer, trsupport->pOrderDescriptor, trsupport->pFinalColModel, trsupport->pFFColModel,
+  tscLocalReducerEnvDestroy(trsupport->pExtMemBuffer, trsupport->pOrderDescriptor,
                             pState->numOfSub);
   
   tscFreeRetrieveSup(pSql);
@@ -2770,19 +2766,25 @@ static void tscAllDataRetrievedFromDnode(SRetrieveSupport *trsupport, SSqlObj* p
   SQueryInfo *pPQueryInfo = tscGetQueryInfo(&pParentSql->cmd, 0);
   tscClearInterpInfo(pPQueryInfo);
   
-  tscCreateLocalMerger(trsupport->pExtMemBuffer, pState->numOfSub, pDesc, trsupport->pFinalColModel, trsupport->pFFColModel, pParentSql);
+  code = tscCreateLocalMerger(trsupport->pExtMemBuffer, pState->numOfSub, pDesc, pPQueryInfo, &pParentSql->res.pLocalMerger, pParentSql->self);
+  pParentSql->res.code = code;
+
+  if (code == TSDB_CODE_SUCCESS && trsupport->pExtMemBuffer == NULL) {
+    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_EMPTY_RESULT; // no result, set the result empty
+  } else {
+    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
+  }
+
+  tscCreateResPointerInfo(&pParentSql->res, pPQueryInfo);
+
   tscDebug("0x%"PRIx64" build loser tree completed", pParentSql->self);
   
   pParentSql->res.precision = pSql->res.precision;
   pParentSql->res.numOfRows = 0;
   pParentSql->res.row = 0;
-  
-  tscFreeRetrieveSup(pSql);
+  pParentSql->res.numOfGroups = 0;
 
-  // set the command flag must be after the semaphore been correctly set.
-  if (pParentSql->cmd.command != TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
-    pParentSql->cmd.command = TSDB_SQL_RETRIEVE_LOCALMERGE;
-  }
+  tscFreeRetrieveSup(pSql);
 
   if (pParentSql->res.code == TSDB_CODE_SUCCESS) {
     (*pParentSql->fp)(pParentSql->param, pParentSql, 0);

@@ -1615,6 +1615,11 @@ int tscProcessRetrieveLocalMergeRsp(SSqlObj *pSql) {
     return code;
   }
 
+  if (pRes->pLocalMerger == NULL) { // no result from subquery, so abort here directly.
+    (*pSql->fp)(pSql->param, pSql, pRes->numOfRows);
+    return code;
+  }
+
   // global aggregation may be the upstream for parent query
   SQueryInfo *pQueryInfo = tscGetActiveQueryInfo(pCmd);
   if (pQueryInfo->pQInfo == NULL) {

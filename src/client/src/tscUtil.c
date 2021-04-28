@@ -828,11 +828,10 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
 }
 
 void tscFreeSqlResult(SSqlObj* pSql) {
-  tscDestroyLocalMerger(pSql);
-  
   SSqlRes* pRes = &pSql->res;
-  tscDestroyResPointerInfo(pRes);
+  tscDestroyLocalMerger(pRes->pLocalMerger);
 
+  tscDestroyResPointerInfo(pRes);
   memset(&pSql->res, 0, sizeof(SSqlRes));
 }
 
