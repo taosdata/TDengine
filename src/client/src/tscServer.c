@@ -2071,8 +2071,7 @@ int tscProcessSTableVgroupRsp(SSqlObj *pSql) {
 
     pInfo->vgroupList->numOfVgroups = pVgroupMsg->numOfVgroups;
     if (pInfo->vgroupList->numOfVgroups <= 0) {
-      //tfree(pInfo->vgroupList);
-      tscError("0x%"PRIx64" empty vgroup info", pSql->self);
+      tscDebug("0x%"PRIx64" empty vgroup info, no corresponding tables for stable", pSql->self);
     } else {
       for (int32_t j = 0; j < pInfo->vgroupList->numOfVgroups; ++j) {
         // just init, no need to lock

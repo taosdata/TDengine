@@ -84,13 +84,18 @@ static bool allSubqueryDone(SSqlObj *pParentSql) {
   //lock in caller
   tscDebug("0x%"PRIx64" total subqueries: %d", pParentSql->self, subState->numOfSub);
   for (int i = 0; i < subState->numOfSub; i++) {
+    SSqlObj* pSub = pParentSql->pSubs[i];
     if (0 == subState->states[i]) {
       tscDebug("0x%"PRIx64" subquery:0x%"PRIx64", index: %d NOT finished, abort query completion check", pParentSql->self,
-          pParentSql->pSubs[i]->self, i);
+               pSub->self, i);
       done = false;
       break;
     } else {
-      tscDebug("0x%"PRIx64" subquery:0x%"PRIx64", index: %d finished", pParentSql->self, pParentSql->pSubs[i]->self, i);
+      if (pSub != NULL) {
+        tscDebug("0x%"PRIx64" subquery:0x%"PRIx64", index: %d finished", pParentSql->self, pSub->self, i);
+      } else {
+        tscDebug("0x%"PRIx64" subquery:%p, index: %d finished", pParentSql->self, pSub, i);
+      }
     }
   }
 
