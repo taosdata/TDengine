@@ -3,6 +3,13 @@ import argparse
 
 gConfig:    argparse.Namespace 
 
-def init():
-    global gConfig
-    gConfig = []
+class Settings:
+    @classmethod    
+    def init(cls):
+        global gConfig
+        gConfig = []
+
+    @classmethod
+    def setConfig(cls, config):
+        global gConfig
+        gConfig = config

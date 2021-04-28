@@ -32,21 +32,22 @@ import getopt
 
 import sys
 import os
+import io
 import signal
 import traceback
 import resource
 # from guppy import hpy
 import gc
 
-from crash_gen.service_manager import ServiceManager, TdeInstance
-from crash_gen.misc import Logging, Status, CrashGenError, Dice, Helper, Progress
-from crash_gen.db import DbConn, MyTDSql, DbConnNative, DbManager
-import crash_gen.settings 
+# from crash_gen import ServiceManager, TdeInstance, TdeSubProcess
+from crash_gen import ServiceManager, Settings, DbConn, DbConnNative, Dice, DbManager, Status, Logging, Helper, \
+    CrashGenError, Progress, MyTDSql, \
+    TdeInstance
 
 import taos
 import requests
 
-crash_gen.settings.init()
+Settings.init()
 
 # Require Python 3
 if sys.version_info[0] < 3:
@@ -89,9 +90,9 @@ class WorkerThread:
                 self._dbConn = DbConn.createRest(tInst.getDbTarget()) 
             elif gConfig.connector_type == 'mixed':
                 if Dice.throw(2) == 0: # 1/2 chance
-                    self._dbConn = DbConn.createNative() 
+                    self._dbConn = DbConn.createNative(tInst.getDbTarget()) 
                 else:
-                    self._dbConn = DbConn.createRest() 
+                    self._dbConn = DbConn.createRest(tInst.getDbTarget()) 
             else:
                 raise RuntimeError("Unexpected connector type: {}".format(gConfig.connector_type))
 
@@ -1370,13 +1371,13 @@ class Task():
             self._err = e
             self._aborted = True
             traceback.print_exc()
-        except BaseException as e:
+        except BaseException as e2:
             self.logInfo("Python base exception encountered")
-            self._err = e
+            # self._err = e2 # Exception/BaseException incompatible!
             self._aborted = True
             traceback.print_exc()
-        except BaseException: # TODO: what is this again??!!
-            raise RuntimeError("Punt")
+        # except BaseException: # TODO: what is this again??!!
+        #     raise RuntimeError("Punt")
             # self.logDebug(
             #     "[=] Unexpected exception, SQL: {}".format(
             #         wt.getDbConn().getLastSql()))
@@ -1980,8 +1981,8 @@ class TaskAddData(StateTransitionTask):
     activeTable: Set[int] = set()
 
     # We use these two files to record operations to DB, useful for power-off tests
-    fAddLogReady = None # type: TextIOWrapper
-    fAddLogDone  = None # type: TextIOWrapper
+    fAddLogReady = None # type: io.TextIOWrapper
+    fAddLogDone  = None # type: io.TextIOWrapper
 
     @classmethod
     def prepToRecordOps(cls):
@@ -2025,7 +2026,7 @@ class TaskAddData(StateTransitionTask):
                 self.prepToRecordOps()
                 self.fAddLogReady.write("Ready to write {} to {}\n".format(nextInt, regTableName))
                 self.fAddLogReady.flush()
-                os.fsync(self.fAddLogReady)
+                os.fsync(self.fAddLogReady.fileno())
                 
             # TODO: too ugly trying to lock the table reliably, refactor...
             fullTableName = db.getName() + '.' + regTableName
@@ -2088,7 +2089,7 @@ class TaskAddData(StateTransitionTask):
             if gConfig.record_ops:
                 self.fAddLogDone.write("Wrote {} to {}\n".format(nextInt, regTableName))
                 self.fAddLogDone.flush()
-                os.fsync(self.fAddLogDone)
+                os.fsync(self.fAddLogDone.fileno())
 
     def _executeInternal(self, te: TaskExecutor, wt: WorkerThread):
         # ds = self._dbManager # Quite DANGEROUS here, may result in multi-thread client access
@@ -2468,7 +2469,7 @@ class MainExec:
 
         global gConfig
         gConfig = parser.parse_args()
-        crash_gen.settings.gConfig = gConfig # TODO: fix this hack, consolidate this global var
+        Settings.setConfig(gConfig) # TODO: fix this hack, consolidate this global var
 
         # Sanity check for arguments
         if gConfig.use_shadow_db and gConfig.max_dbs>1 :
