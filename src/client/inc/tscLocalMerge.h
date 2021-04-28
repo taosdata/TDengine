@@ -44,23 +44,15 @@ typedef struct SLocalMerger {
   int32_t                numOfCompleted;
   int32_t                numOfVnode;
   SLoserTreeInfo *       pLoserTree;
-  char *                 prevRowOfInput;
   tFilePage *            pResultBuf;
   int32_t                nResultBufSize;
   tFilePage *            pTempBuffer;
   struct SQLFunctionCtx *pCtx;
   int32_t                rowSize;      // size of each intermediate result.
-  bool                   hasPrevRow;   // cannot be released
-  bool                   hasUnprocessedRow;
   tOrderDescriptor *     pDesc;
   SColumnModel *         resColModel;
   SColumnModel*          finalModel;
   tExtMemBuffer **       pExtMemBuffer;      // disk-based buffer
-  SFillInfo*             pFillInfo;          // interpolation support structure
-  char*                  pFinalRes;          // result data after interpo
-  tFilePage*             discardData;
-  bool                   discard;
-  int32_t                offset;             // limit offset value
   bool                   orderPrjOnSTable;   // projection query on stable
 } SLocalMerger;
 
@@ -94,7 +86,7 @@ void tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tOrde
 
 void tscDestroyLocalMerger(SSqlObj *pSql);
 
-int32_t tscDoLocalMerge(SSqlObj *pSql);
+//int32_t tscDoLocalMerge(SSqlObj *pSql);
 
 #ifdef __cplusplus
 }

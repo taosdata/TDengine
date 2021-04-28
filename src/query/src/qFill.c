@@ -31,7 +31,7 @@
 static void setTagsValue(SFillInfo* pFillInfo, void** data, int32_t genRows) {
   for(int32_t j = 0; j < pFillInfo->numOfCols; ++j) {
     SFillColInfo* pCol = &pFillInfo->pFillCol[j];
-    if (TSDB_COL_IS_NORMAL_COL(pCol->flag)) {
+    if (TSDB_COL_IS_NORMAL_COL(pCol->flag) || TSDB_COL_IS_UD_COL(pCol->flag)) {
       continue;
     }
 
@@ -126,10 +126,10 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
     } else {
       setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index);
     }
-  } else { /* fill the default value */
+  } else { // fill the default value */
     for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
       SFillColInfo* pCol = &pFillInfo->pFillCol[i];
-      if (TSDB_COL_IS_TAG(pCol->flag)) {
+      if (TSDB_COL_IS_TAG(pCol->flag)/* || IS_VAR_DATA_TYPE(pCol->col.type)*/) {
         continue;
       }
 
@@ -210,7 +210,7 @@ static int32_t fillResultImpl(SFillInfo* pFillInfo, void** data, int32_t outputR
       // assign rows to dst buffer
       for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
         SFillColInfo* pCol = &pFillInfo->pFillCol[i];
-        if (TSDB_COL_IS_TAG(pCol->flag)) {
+        if (TSDB_COL_IS_TAG(pCol->flag)/* || IS_VAR_DATA_TYPE(pCol->col.type)*/) {
           continue;
         }
 
@@ -275,13 +275,16 @@ static int64_t appendFilledResult(SFillInfo* pFillInfo, void** output, int64_t r
 // there are no duplicated tags in the SFillTagColInfo list
 static int32_t setTagColumnInfo(SFillInfo* pFillInfo, int32_t numOfCols, int32_t capacity) {
   int32_t rowsize = 0;
+  int32_t numOfTags = 0;
 
   int32_t k = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     SFillColInfo* pColInfo = &pFillInfo->pFillCol[i];
     pFillInfo->pData[i] = NULL;
 
-    if (TSDB_COL_IS_TAG(pColInfo->flag)) {
+    if (TSDB_COL_IS_TAG(pColInfo->flag) || pColInfo->col.type == TSDB_DATA_TYPE_BINARY) {
+      numOfTags += 1;
+
       bool exists = false;
       int32_t index = -1;
       for (int32_t j = 0; j < k; ++j) {
@@ -309,6 +312,8 @@ static int32_t setTagColumnInfo(SFillInfo* pFillInfo, int32_t numOfCols, int32_t
 
     rowsize += pColInfo->col.bytes;
   }
+
+  pFillInfo->numOfTags = numOfTags;
 
   assert(k <= pFillInfo->numOfTags);
   return rowsize;
@@ -347,12 +352,13 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
   pFillInfo->interval.slidingUnit  = slidingUnit;
 
   pFillInfo->pData = malloc(POINTER_BYTES * numOfCols);
-  if (numOfTags > 0) {
-    pFillInfo->pTags = calloc(pFillInfo->numOfTags, sizeof(SFillTagColInfo));
-    for (int32_t i = 0; i < numOfTags; ++i) {
+
+//  if (numOfTags > 0) {
+    pFillInfo->pTags = calloc(numOfCols, sizeof(SFillTagColInfo));
+    for (int32_t i = 0; i < numOfCols; ++i) {
       pFillInfo->pTags[i].col.colId = -2;  // TODO
     }
-  }
+//  }
 
   pFillInfo->rowSize = setTagColumnInfo(pFillInfo, pFillInfo->numOfCols, pFillInfo->alloc);
   assert(pFillInfo->rowSize > 0);
@@ -367,6 +373,7 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
 void taosResetFillInfo(SFillInfo* pFillInfo, TSKEY startTimestamp) {
   pFillInfo->start        = startTimestamp;
   pFillInfo->currentKey   = startTimestamp;
+  pFillInfo->end          = startTimestamp;
   pFillInfo->index        = -1;
   pFillInfo->numOfRows    = 0;
   pFillInfo->numOfCurrent = 0;
@@ -425,6 +432,8 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
 
 void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) {
   for (int32_t i = 0; i < pFillInfo->numOfCols; ++i) {
+    SFillColInfo* pCol = &pFillInfo->pFillCol[i];
+
     SColumnInfoData* pColData = taosArrayGet(pInput->pDataBlock, i);
 //    pFillInfo->pData[i] = pColData->pData;
     if (pInput->info.rows > pFillInfo->alloc) {
@@ -436,6 +445,12 @@ void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) 
     }
 
     memcpy(pFillInfo->pData[i], pColData->pData, pColData->info.bytes * pInput->info.rows);
+
+    if (TSDB_COL_IS_TAG(pCol->flag)/* || IS_VAR_DATA_TYPE(pCol->col.type)*/) {  // copy the tag value to tag value buffer
+      SFillTagColInfo* pTag = &pFillInfo->pTags[pCol->tagIndex];
+      assert (pTag->col.colId == pCol->col.colId);
+      memcpy(pTag->tagVal, pColData->pData, pCol->col.bytes);  // TODO not memcpy??
+    }
   }
 }
 
@@ -456,7 +471,7 @@ void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage*
 
     memcpy(pFillInfo->pData[i], data, (size_t)(pCol->col.bytes * pInput->num));
 
-    if (TSDB_COL_IS_TAG(pCol->flag)) {  // copy the tag value to tag value buffer
+    if (TSDB_COL_IS_TAG(pCol->flag)/* || IS_VAR_DATA_TYPE(pCol->col.type)*/) {  // copy the tag value to tag value buffer
       SFillTagColInfo* pTag = &pFillInfo->pTags[pCol->tagIndex];
       assert (pTag->col.colId == pCol->col.colId);
       memcpy(pTag->tagVal, data, pCol->col.bytes);  // TODO not memcpy??
@@ -465,7 +480,17 @@ void taosFillCopyInputDataFromOneFilePage(SFillInfo* pFillInfo, const tFilePage*
 }
 
 bool taosFillHasMoreResults(SFillInfo* pFillInfo) {
-  return taosNumOfRemainRows(pFillInfo) > 0;
+  int32_t remain = taosNumOfRemainRows(pFillInfo);
+  if (remain > 0) {
+    return true;
+  }
+
+  if (pFillInfo->numOfTotal > 0 && (((pFillInfo->end > pFillInfo->start) && FILL_IS_ASC_FILL(pFillInfo)) ||
+                                    (pFillInfo->end < pFillInfo->start && !FILL_IS_ASC_FILL(pFillInfo)))) {
+    return getNumOfResultsAfterFillGap(pFillInfo, pFillInfo->end, 4096) > 0;
+  }
+
+  return false;
 }
 
 int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, TSKEY ekey, int32_t maxNumOfRows) {

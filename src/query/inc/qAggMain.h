@@ -122,7 +122,7 @@ enum {
 #define QUERY_IS_FREE_RESOURCE(type)     (((type)&TSDB_QUERY_TYPE_FREE_RESOURCE) != 0)
 
 typedef struct SArithmeticSupport {
-  SExprInfo   *pArithExpr;
+  SExprInfo   *pExprInfo;
   int32_t      numOfCols;
   SColumnInfo *colList;
   void        *exprList;   // client side used
@@ -209,9 +209,6 @@ typedef struct SAggFunctionInfo {
 
   void (*xFunction)(SQLFunctionCtx *pCtx);                     // blocks version function
   void (*xFunctionF)(SQLFunctionCtx *pCtx, int32_t position);  // single-row function version, todo merge with blockwise function
-
-  // some sql function require scan data twice or more, e.g.,stddev, percentile
-  void (*xNextStep)(SQLFunctionCtx *pCtx);
 
   // finalizer must be called after all xFunction has been executed to generated final result.
   void (*xFinalize)(SQLFunctionCtx *pCtx);
