@@ -3084,13 +3084,14 @@ static void multiVnodeInsertFinalize(void* param, TAOS_RES* tres, int numOfRows)
     tscError("0x%"PRIx64" Async insertion completed, total inserted:%d rows, numOfFailed:%d, numOfTotal:%d", pParentObj->self,
              pParentObj->res.numOfRows, numOfFailed, numOfSub);
 
-    tscDebug("0x%"PRIx64" cleanup %d tableMeta in hashTable", pParentObj->self, pParentObj->cmd.numOfTables);
+    tscDebug("0x%"PRIx64" cleanup %d tableMeta in hashTable before reparse sql", pParentObj->self, pParentObj->cmd.numOfTables);
     for(int32_t i = 0; i < pParentObj->cmd.numOfTables; ++i) {
       char name[TSDB_TABLE_FNAME_LEN] = {0};
       tNameExtractFullName(pParentObj->cmd.pTableNameList[i], name);
       taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
     }
 
+    pParentObj->res.code = TSDB_CODE_SUCCESS;
     pParentObj->cmd.parseFinished = false;
 
     tscResetSqlCmd(&pParentObj->cmd, false);
