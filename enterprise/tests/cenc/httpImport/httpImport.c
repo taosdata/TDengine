@@ -69,6 +69,13 @@ uint64_t hash_key(char *data, size_t len);
 #endif
 
 
+char  *default_host    = "localhost";
+char  *default_user    = "root";
+char  *default_passwd  = "taosdata";
+char  *default_port    = "6030";
+char  *default_topic   = "packet";
+
+
 int main(int argc, char *argv[])
 {
     int              ret;
@@ -79,9 +86,9 @@ int main(int argc, char *argv[])
     SNETIO           io;
     recv_buf_info_t  info;
     uint32_t         flags   = MSF_SKIPNOTDATA;
-    const char      *login   = NULL;
-    const char      *logout  = NULL;
-    const char      *url     = NULL;
+    char            *login   = NULL;
+    char            *logout  = NULL;
+    char            *url     = NULL;
 #if !defined(HTTP_IMPORT_DEBUG)
     int              np;
     int              id;
@@ -96,20 +103,20 @@ int main(int argc, char *argv[])
     const char      *prefix  = "insert into";
     const int        pfxlen  = sizeof("insert into") - 1;
     long             numport;
-    const char      *host    = "localhost";
-    const char      *user    = "root";
-    const char      *passwd  = "taosdata";
-    const char      *port    = "6030";
-    const char      *topic   = "packet";
-    const char      *retry   = NULL;
-    const char      *count   = NULL;
+    char            *host    = NULL;
+    char            *user    = NULL;
+    char            *passwd  = NULL;
+    char            *port    = NULL;
+    char            *topic   = NULL;
+    char            *retry   = NULL;
+    char            *count   = NULL;
     char            *base64;
     uint64_t         hash;
     int64_t          ts;
     struct timeval   now;
 #else
     FILE            *fp      = NULL;
-    const char      *ofile   = NULL;
+    char            *ofile   = NULL;
 #endif 
 
 #if !defined(HTTP_IMPORT_DEBUG)
@@ -147,19 +154,19 @@ int main(int argc, char *argv[])
             break;
         default:
 	    fprintf(stderr, "Usage: %s -i url[ -l login -L logout -h host -u user -P port -t topic -r <on|off> -c count]\r\n", argv[0]);
-	    exit(1);
+	    goto failed;
         }
     }
 
     if (url == NULL || url[0] == '\0') {
-        fprintf(stderr, "the option -i was missing!\r\n");
-        exit(1);
+        fprintf(stderr, "Usage: %s -i url[ -l login -L logout -h host -u user -P port -t topic -r <on|off> -c count]\r\n", argv[0]);
+        goto failed;
     }
 
     if (retry) {
         if (strncasecmp(retry, "on", strlen(retry)) && strncasecmp(retry, "off", strlen(retry))) {
           fprintf(stderr, "invalid retry option: %s!\r\n", retry);
-          exit(1);
+          goto failed;
         }
 
         if (strncasecmp(retry, "on", strlen(retry)) == 0) {
@@ -176,9 +183,29 @@ int main(int argc, char *argv[])
             icount = (int) strtol(count, NULL, 10);
             if (errno == EINVAL || errno == ERANGE || icount < 0) {
                 fprintf(stderr, "the option -c with invalid number!\r\n");
-                exit(1);
+                goto failed;
             }
         }
+    }
+
+    if (host == NULL) {
+        host = default_host;
+    }
+
+    if (user == NULL) {
+        user = default_user;
+    }
+
+    if (passwd == NULL) {
+        passwd = default_passwd;
+    }
+
+    if (port == NULL) {
+        port = default_port;
+    }
+
+    if (topic == NULL) {
+        topic = default_topic;
     }
 
     numport = strtol(port, NULL, 10);
@@ -209,7 +236,7 @@ int main(int argc, char *argv[])
             break;
         default:
 	    fprintf(stderr, "Usage: %s -i url -o filename\r\n", argv[0]);
-	    exit(1);
+	    goto failed;
         }
     }
 
@@ -392,6 +419,17 @@ failed:
 
     seed_net_close(&io, logout);
 
+    if (url) {
+        free(url);
+    }
+
+    if (login) {
+        free(login);
+    }
+
+    if (logout) {
+        free(logout);
+    }
 #if !defined(HTTP_IMPORT_DEBUG)
     if (taos) {
         taos_close(taos);
@@ -407,9 +445,41 @@ failed:
         goto retry;
       }
     }
+
+    if (retry) {
+        free(retry);
+    }
+
+    if (count) {
+        free(count);
+    }
+
+    if (host != default_host) {
+        free(host);
+    }
+
+    if (user != default_user) {
+        free(user);
+    }
+
+    if (passwd != default_passwd) {
+        free(passwd);
+    }
+
+    if (port != default_port) {
+        free(port);
+    }
+
+    if (topic != default_topic) {
+        free(topic);
+    }
 #else
     if (fp) {
         fclose(fp);
+    }
+
+    if (ofile) {
+        free(ofile);
     }
 #endif
 

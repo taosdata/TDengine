@@ -38,26 +38,32 @@ int taos_check_res(TAOS_RES *res, const char *cmd) {
 }
 
 
+char  *default_tsdb_server  = "localhost";
+char  *default_tsdb_usrname = "root";
+char  *default_tsdb_passwd  = "taosdata";
+char  *default_tsdb_port    = "6030";
+char  *default_db_name      = "detail";
+
+
 int main(int argc, char *argv[])
 {
     int               opt, i, np, nfields, rv;
     int               first        = 1;
     int               status       = 0;
     int               verbose      = 0;
-    int               reclen       = 512;
+    int               reclen       = 256;
     int               data[500];
     uint32_t          flags        = MSF_PACKVER2;
     MS3Record        *msr          = NULL;
-    const char       *file_name    = NULL;
-    const char       *tsdb_server  = "localhost";
-    const char       *tsdb_usrname = "root";
-    const char       *tsdb_passwd  = "taosdata";
-    const char       *tsdb_port    = "6030";
-    const char       *db_name      = "detail";
-    const char       *tb_name      = NULL;
-    const char       *stb_name     = "ms";
-    const char       *begin_time   = NULL;
-    const char       *end_time     = NULL;
+    char             *file_name    = NULL;
+    char             *tsdb_server  = NULL;
+    char             *tsdb_usrname = NULL;
+    char             *tsdb_passwd  = NULL;
+    char             *tsdb_port    = NULL;
+    char             *db_name      = NULL;
+    char             *tb_name      = NULL;
+    char             *begin_time   = NULL;
+    char             *end_time     = NULL;
     TAOS             *taos         = NULL;
     TAOS_RES         *res          = NULL;
     TAOS_ROW          row          = NULL;
@@ -83,7 +89,7 @@ int main(int argc, char *argv[])
                 "Usage: %s -o filename -t tb_name[ -b begin_time(YYYY-MM-DD hh:mm:ss.sss) "
                 "-e end_time(YYYY-MM-DD hh:mm:ss.sss) -s tsdb_server -u user "
                 "-p password -P port -d db_name]\r\n", argv[0]);
-        exit(1);
+        goto failed;
     } 
 
     while ((opt = getopt(argc, argv, "o:t:b:e:s:u:p:P:d:")) != -1) {
@@ -120,23 +126,43 @@ int main(int argc, char *argv[])
                         "Usage: %s -o filename -t tb_name[ -b begin_time(YYYY-MM-DD hh:mm:ss.sss) "
                         "-e end_time(YYYY-MM-DD hh:mm:ss.sss) -s tsdb_server -u user "
                         "-p password -P port -d db_name]\r\n", argv[0]);
-                exit(1);
+                goto failed;
         }
     }
 
     if (file_name == NULL || file_name[0] == '\0') {
         fprintf(stderr, "the option -o was missing!\r\n");
-        exit(1);
+        goto failed;
     }
 
     if (tb_name == NULL || tb_name[0] == '\0') {
         fprintf(stderr, "the option -t was missing!\r\n");
-        exit(1);
+        goto failed;
+    }
+
+    if (tsdb_server == NULL) {
+        tsdb_server = default_tsdb_server;
+    }
+
+    if (tsdb_usrname == NULL) {
+        tsdb_usrname = default_tsdb_usrname;
+    }
+
+    if (tsdb_passwd == NULL) {
+        tsdb_passwd = default_tsdb_passwd;
+    }
+
+    if (tsdb_port == NULL) {
+        tsdb_port = default_tsdb_port;
+    }
+
+    if (db_name == NULL) {
+        db_name = default_db_name;
     }
 
     if (strlen(tb_name) >= LM_SIDLEN - (sizeof("XFDSN:") - 1)) {
         fprintf(stderr, "too long table name: %s!\r\n", tb_name);
-        exit(1);
+        goto failed;
     }
 
     memset(sid, 0, LM_SIDLEN);
@@ -144,7 +170,7 @@ int main(int argc, char *argv[])
     (void) snprintf(sid, LM_SIDLEN, "XFDSN:%s", tb_name);
     if (ms_sid2nslc(sid, net, stat, loc, chan)) {
         fprintf(stderr, "ms_sid2nslc() error\r\n");
-        exit(1);
+        goto failed;
     }
 
     time_present = neither;
@@ -155,7 +181,7 @@ int main(int argc, char *argv[])
         nsbegin_time = ms_timestr2nstime(begin_time);
         if (nsbegin_time == NSTERROR) {
             fprintf(stderr, "invalid begin time: %s!\r\n", begin_time);
-            exit(1);
+            goto failed;
         }
     }
 
@@ -169,14 +195,14 @@ int main(int argc, char *argv[])
         nsend_time = ms_timestr2nstime(end_time);
         if (nsend_time == NSTERROR) {
             fprintf(stderr, "invalid end time: %s!\r\n", end_time);
-            exit(1);
+            goto failed;
         }
     }
 
     if (time_present == both) {
         if (nsbegin_time > nsend_time) {
             fprintf(stderr, "begin time MUST be less or eqaul to end time!\r\n");
-            exit(1);
+            goto failed;
         }
     }
 
@@ -186,7 +212,6 @@ int main(int argc, char *argv[])
     fprintf(stderr, "# User:                            %s\r\n", tsdb_usrname);
     fprintf(stderr, "# Server Port:                     %s\r\n", tsdb_port);
     fprintf(stderr, "# Database Name:                   %s\r\n", db_name);
-    fprintf(stderr, "# Super Table Name:                %s\r\n", stb_name);
     fprintf(stderr, "# Table Name:                      %s\r\n", tb_name);
     fprintf(stderr, "# Begin time:                      %s\r\n", begin_time);
     fprintf(stderr, "# End time:                        %s\r\n", end_time);
@@ -333,10 +358,10 @@ int main(int argc, char *argv[])
             }
         }
 
-        if (records >= 400) {
+        if (records >= 50) {
             records = 0;
 
-            msr->numsamples = 400;
+            msr->numsamples = 50;
             msr->samplecnt = msr->numsamples;
 
             rv = msr3_writemseed(msr, file_name, first, flags, verbose);
@@ -375,6 +400,42 @@ failed:
 
     if (taos) {
         taos_close(taos);
+    }
+
+    if (file_name) {
+        free(file_name);
+    }
+
+    if (tsdb_server != default_tsdb_server) {
+        free(tsdb_server);
+    }
+
+    if (tsdb_usrname != default_tsdb_usrname) {
+        free(tsdb_usrname);
+    }
+
+    if (tsdb_passwd != default_tsdb_passwd) {
+        free(tsdb_passwd);
+    }
+
+    if (tsdb_port != default_tsdb_port) {
+        free(tsdb_port);
+    }
+
+    if (db_name != default_db_name) {
+        free(db_name);
+    }
+
+    if (tb_name) {
+        free(tb_name);
+    }
+
+    if (begin_time) {
+        free(begin_time);
+    }
+
+    if (end_time) {
+        free(end_time);
     }
  
     return status;

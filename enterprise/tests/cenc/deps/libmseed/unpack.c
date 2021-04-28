@@ -1449,12 +1449,14 @@ ms_decode_data (const void *input, size_t inputsize, uint8_t encoding,
     break;
   }
 
+#if 0
   if (nsamples >= 0 && nsamples != samplecount)
   {
     ms_log (2, "%s: only decoded %d samples of %" PRId64 " expected\n",
             (sid) ? sid : "", nsamples, samplecount);
     return MS_GENERROR;
   }
+#endif
 
   return nsamples;
 } /* End of ms_decode_data() */

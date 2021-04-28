@@ -543,7 +543,7 @@ void subscribe_callback(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code)
 
   gettimeofday(&start_time, NULL);
 
-  while ((row = taos_fetch_row(res))) {
+  while ((row = taos_fetch_row(res)) && run) {
     fields = taos_fetch_fields(res);
     nfields = taos_num_fields(res);
 
