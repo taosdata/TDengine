@@ -32,7 +32,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 **Linux**
 
-**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载**
+**1.   从[涛思官网](https://www.taosdata.com/cn/all-downloads/)下载**
 
 * X64硬件环境：TDengine-client-2.x.x.x-Linux-x64.tar.gz
 
@@ -68,7 +68,7 @@ TDengine提供了丰富的应用程序开发接口，其中包括C/C++、Java、
 
 **Windows x64/x86**
 
-**1.   从涛思官网（https://www.taosdata.com/cn/all-downloads/）下载 ：**
+**1.   从[涛思官网](https://www.taosdata.com/cn/all-downloads/)下载 ：**
 
 * X64硬件环境：TDengine-client-2.X.X.X-Windows-x64.exe
 
