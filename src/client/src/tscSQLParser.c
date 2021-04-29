@@ -1606,6 +1606,22 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+static bool hasNoneUserDefineExpr(SQueryInfo* pQueryInfo) {
+  size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
+
+    if (TSDB_COL_IS_UD_COL(pExpr->colInfo.flag)) {
+      continue;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelectList, bool isSTable, bool joinQuery, bool timeWindowQuery) {
   assert(pSelectList != NULL && pCmd != NULL);
   const char* msg1 = "too many columns in selection clause";
@@ -1670,7 +1686,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelectLis
   
   // there is only one user-defined column in the final result field, add the timestamp column.
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
-  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
+  if ((numOfSrcCols <= 0 || !hasNoneUserDefineExpr(pQueryInfo)) && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
     addPrimaryTsColIntoResult(pQueryInfo);
   }
 
