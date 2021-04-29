@@ -20,7 +20,6 @@ import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
 import java.net.URL;
-import java.nio.charset.Charset;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -128,30 +127,7 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
      * @return a string of the native sql statement for TSDB
      */
     private String getNativeSql(String rawSql) throws SQLException {
-        String sql = rawSql;
-        for (int i = 0; i < parameters.length; ++i) {
-            Object para = parameters[i];
-            if (para != null) {
-                String paraStr;
-                if (para instanceof byte[]) {
-                    paraStr = new String((byte[]) para, Charset.forName("UTF-8"));
-                } else {
-                    paraStr = para.toString();
-                }
-                // if para is timestamp or String or byte[] need to translate ' character
-                if (para instanceof Timestamp || para instanceof String || para instanceof byte[]) {
-                    paraStr = Utils.escapeSingleQuota(paraStr);
-                    paraStr = "'" + paraStr + "'";
-                }
-                if (paraStr.contains("$") || paraStr.contains("\\"))
-                    paraStr = Matcher.quoteReplacement(paraStr);
-                sql = Pattern.compile("[?]").matcher(sql).replaceFirst(paraStr);
-            } else {
-                sql = Pattern.compile("[?]").matcher(sql).replaceFirst("NULL");
-            }
-        }
-        clearParameters();
-        return sql;
+        return Utils.getNativeSql(rawSql, this.parameters);
     }
 
     @Override
