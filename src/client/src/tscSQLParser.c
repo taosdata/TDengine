@@ -642,14 +642,22 @@ int32_t tscToSQLCmd(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       // set the command/global limit parameters from the first subclause to the sqlcmd object
       SQueryInfo* pQueryInfo1 = tscGetQueryInfoDetail(pCmd, 0);
       pCmd->command = pQueryInfo1->command;
-
+      int32_t diffSize = 0;
+      
       // if there is only one element, the limit of clause is the limit of global result.
       for (int32_t i = 1; i < pCmd->numOfClause; ++i) {
         SQueryInfo* pQueryInfo2 = tscGetQueryInfoDetail(pCmd, i);
 
-        int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
+        int32_t ret = tscFieldInfoCompare(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo, &diffSize);
         if (ret != 0) {
           return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg1);
+        }
+      }
+
+      if (diffSize) {
+        for (int32_t i = 1; i < pCmd->numOfClause; ++i) {
+          SQueryInfo* pQueryInfo2 = tscGetQueryInfoDetail(pCmd, i);        
+          tscFieldInfoSetSize(&pQueryInfo1->fieldsInfo, &pQueryInfo2->fieldsInfo);
         }
       }
 
@@ -1606,6 +1614,22 @@ bool isValidDistinctSql(SQueryInfo* pQueryInfo) {
   return false;
 }
 
+static bool hasNoneUserDefineExpr(SQueryInfo* pQueryInfo) {
+  size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SSqlExpr* pExpr = taosArrayGetP(pQueryInfo->exprList, i);
+
+    if (TSDB_COL_IS_UD_COL(pExpr->colInfo.flag)) {
+      continue;
+    }
+
+    return true;
+  }
+
+  return false;
+}
+
+
 int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelectList, bool isSTable, bool joinQuery, bool timeWindowQuery) {
   assert(pSelectList != NULL && pCmd != NULL);
   const char* msg1 = "too many columns in selection clause";
@@ -1670,7 +1694,7 @@ int32_t parseSelectClause(SSqlCmd* pCmd, int32_t clauseIndex, SArray* pSelectLis
   
   // there is only one user-defined column in the final result field, add the timestamp column.
   size_t numOfSrcCols = taosArrayGetSize(pQueryInfo->colList);
-  if (numOfSrcCols <= 0 && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
+  if ((numOfSrcCols <= 0 || !hasNoneUserDefineExpr(pQueryInfo)) && !tscQueryTags(pQueryInfo) && !tscQueryBlockInfo(pQueryInfo)) {
     addPrimaryTsColIntoResult(pQueryInfo);
   }
 
@@ -3078,7 +3102,7 @@ static SColumnFilterInfo* addColumnFilterInfo(SColumn* pColumn) {
   return pColFilterInfo;
 }
 
-static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SColumnFilterInfo* pColumnFilter,
+static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, STableMeta* pTableMeta, SColumnFilterInfo* pColumnFilter,
                                          int16_t colType, tSqlExpr* pExpr) {
   const char* msg = "not supported filter condition";
 
@@ -3092,6 +3116,12 @@ static int32_t doExtractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, 
     int retVal = setColumnFilterInfoForTimestamp(pCmd, pQueryInfo, &pRight->value);
     if (TSDB_CODE_SUCCESS != retVal) {
       return retVal;
+    }
+  } else if ((colType == TSDB_DATA_TYPE_TIMESTAMP) && (TSDB_DATA_TYPE_BIGINT == pRight->value.nType)) {
+    STableComInfo tinfo = tscGetTableInfo(pTableMeta);
+
+    if ((tinfo.precision == TSDB_TIME_PRECISION_MILLI) && (pRight->flags & (1 << EXPR_FLAG_US_TIMESTAMP))) {
+      pRight->value.i64 /= 1000;
     }
   }
 
@@ -3291,7 +3321,7 @@ static int32_t extractColumnFilterInfo(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SC
 
   int16_t colType = pSchema->type;
   
-  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, colType, pExpr);
+  return doExtractColumnFilterInfo(pCmd, pQueryInfo, pTableMeta, pColFilter, colType, pExpr);
 }
 
 static int32_t getTablenameCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr* pTableCond, SStringBuilder* sb) {
@@ -3916,6 +3946,10 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
 
   const char* msg1 = "query condition between different columns must use 'AND'";
 
+  if ((*pExpr)->flags & (1 << EXPR_FLAG_TS_ERROR)) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+
   tSqlExpr* pLeft = (*pExpr)->pLeft;
   tSqlExpr* pRight = (*pExpr)->pRight;
 
@@ -3952,6 +3986,14 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   }
 
   exchangeExpr(*pExpr);
+
+  if (pLeft->tokenId == TK_ID && pRight->tokenId == TK_TIMESTAMP && (pRight->flags & (1 << EXPR_FLAG_TIMESTAMP_VAR))) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
+
+  if ((pLeft->flags & (1 << EXPR_FLAG_TS_ERROR)) || (pRight->flags & (1 << EXPR_FLAG_TS_ERROR))) {
+    return TSDB_CODE_TSC_INVALID_SQL;
+  }
 
   return handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, parentOptr);
 }
@@ -5169,7 +5211,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     int32_t size = sizeof(SUpdateTableTagValMsg) + pTagsSchema->bytes + schemaLen + TSDB_EXTRA_PAYLOAD_SIZE;
 
     if (TSDB_CODE_SUCCESS != tscAllocPayload(pCmd, size)) {
-      tscError("%p failed to malloc for alter table msg", pSql);
+      tscError("0x%"PRIx64" failed to malloc for alter table msg", pSql->self);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
 
@@ -5508,15 +5550,15 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
   pQueryInfo->clauseLimit = pQueryInfo->limit.limit;
   pQueryInfo->slimit = pQuerySqlNode->slimit;
   
-  tscDebug("%p limit:%" PRId64 ", offset:%" PRId64 " slimit:%" PRId64 ", soffset:%" PRId64, pSql, pQueryInfo->limit.limit,
-      pQueryInfo->limit.offset, pQueryInfo->slimit.limit, pQueryInfo->slimit.offset);
+  tscDebug("0x%"PRIx64" limit:%" PRId64 ", offset:%" PRId64 " slimit:%" PRId64 ", soffset:%" PRId64, pSql->self,
+      pQueryInfo->limit.limit, pQueryInfo->limit.offset, pQueryInfo->slimit.limit, pQueryInfo->slimit.offset);
   
   if (pQueryInfo->slimit.offset < 0 || pQueryInfo->limit.offset < 0) {
     return invalidSqlErrMsg(tscGetErrorMsgPayload(pCmd), msg0);
   }
 
   if (pQueryInfo->limit.limit == 0) {
-    tscDebug("%p limit 0, no output result", pSql);
+    tscDebug("0x%"PRIx64" limit 0, no output result", pSql->self);
     pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
     return TSDB_CODE_SUCCESS;
   }
@@ -5538,7 +5580,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
     }
 
     if (pQueryInfo->slimit.limit == 0) {
-      tscDebug("%p slimit 0, no output result", pSql);
+      tscDebug("0x%"PRIx64" slimit 0, no output result", pSql->self);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
       return TSDB_CODE_SUCCESS;
     }
@@ -5556,7 +5598,7 @@ int32_t parseLimitClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t clauseIn
 
     // No tables included. No results generated. Query results are empty.
     if (pTableMetaInfo->vgroupList->numOfVgroups == 0) {
-      tscDebug("%p no table in super table, no output result", pSql);
+      tscDebug("0x%"PRIx64" no table in super table, no output result", pSql->self);
       pQueryInfo->command = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
       return TSDB_CODE_SUCCESS;
     }
@@ -6351,7 +6393,7 @@ void tscPrintSelectClause(SSqlObj* pSql, int32_t subClauseIndex) {
   assert(offset < totalBufSize);
   str[offset] = ']';
   assert(offset < totalBufSize);
-  tscDebug("%p select clause:%s", pSql, str);
+  tscDebug("0x%"PRIx64" select clause:%s", pSql->self, str);
 }
 
 int32_t doCheckForCreateTable(SSqlObj* pSql, int32_t subClauseIndex, SSqlInfo* pInfo) {
@@ -6927,7 +6969,10 @@ static int32_t handleExprInHavingClause(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     }
   }
 
-  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pColFilter, pInfo->field.type, pExpr);
+  STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
+  STableMeta* pTableMeta = pTableMetaInfo->pTableMeta;
+
+  int32_t ret = doExtractColumnFilterInfo(pCmd, pQueryInfo, pTableMeta, pColFilter, pInfo->field.type, pExpr);
   if (ret) {
     return ret; 
   }

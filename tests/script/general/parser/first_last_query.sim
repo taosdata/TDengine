@@ -270,3 +270,49 @@ if $data14 != @test2@ then
 endi
 
 sql drop table stest
+
+print ===================>td-3779
+sql create table m1(ts timestamp, k int) tags(a int);
+sql create table tm0 using m1 tags(1);
+sql create table tm1 using m1 tags(2);
+sql insert into tm0 values('2020-3-1 1:1:1', 112);
+sql insert into tm1 values('2020-1-1 1:1:1', 1)('2020-3-1 0:1:1', 421);
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 1000
+
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+sleep 1000
+sql connect
+sql use first_db0;
+
+sql select last(*) from m1 group by tbname;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @20-03-01 01:01:01.000@ then
+  return -1
+endi
+
+if $data01 != 112 then
+  return -1
+endi
+
+if $data02 != @tm0@ then
+  return -1
+endi
+
+if $data10 != @20-03-01 00:01:01.000@ then
+  return -1
+endi
+
+if $data11 != 421 then
+  return -1
+endi
+
+if $data12 != @tm1@ then
+  return -1
+endi
+
+sql drop table m1

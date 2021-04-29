@@ -928,6 +928,42 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       return tscSQLSyntaxErrMsg(pCmd->payload, ") expected", sToken.z);
     }
 
+    /* parse columns after super table tags values.
+     * insert into table_name using super_table(tag_name1, tag_name2) tags(tag_val1, tag_val2)
+     * (normal_col1, normal_col2) values(normal_col1_val, normal_col2_val);
+     * */
+    index = 0;
+    sToken = tStrGetToken(sql, &index, false);
+    sql += index;
+    int numOfColsAfterTags = 0;
+    if (sToken.type == TK_LP) {
+      if (*boundColumn != NULL) {
+        return tscSQLSyntaxErrMsg(pCmd->payload, "bind columns again", sToken.z);
+      } else {
+        *boundColumn = &sToken.z[0];
+      }
+
+      while (1) {
+        index = 0;
+        sToken = tStrGetToken(sql, &index, false);
+
+        if (sToken.type == TK_RP) {
+          break;
+        }
+
+        sql += index;
+        ++numOfColsAfterTags;
+      }
+
+      if (numOfColsAfterTags == 0 && (*boundColumn) != NULL) {
+        return TSDB_CODE_TSC_INVALID_SQL;
+      }
+
+      sToken = tStrGetToken(sql, &index, false);
+    }
+
+    sql = sToken.z;
+
     if (tscValidateName(&tableToken) != TSDB_CODE_SUCCESS) {
       return tscInvalidSQLErrMsg(pCmd->payload, "invalid table name", *sqlstr);
     }
@@ -1089,7 +1125,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
     str = pCmd->curSql;
   }
   
-  tscDebug("%p create data block list hashList:%p", pSql, pCmd->pTableBlockHashList);
+  tscDebug("0x%"PRIx64" create data block list hashList:%p", pSql->self, pCmd->pTableBlockHashList);
 
   while (1) {
     int32_t   index = 0;
@@ -1141,7 +1177,7 @@ int tsParseInsertSql(SSqlObj *pSql) {
         return code;
       }
 
-      tscError("%p async insert parse error, code:%s", pSql, tstrerror(code));
+      tscError("0x%"PRIx64" async insert parse error, code:%s", pSql->self, tstrerror(code));
       pCmd->curSql = NULL;
       goto _clean;
     }
@@ -1303,7 +1339,7 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
   SSqlCmd* pCmd = &pSql->cmd;
 
   if ((!pCmd->parseFinished) && (!initial)) {
-    tscDebug("%p resume to parse sql: %s", pSql, pCmd->curSql);
+    tscDebug("0x%"PRIx64" resume to parse sql: %s", pSql->self, pCmd->curSql);
   }
 
   ret = tscAllocPayload(&pSql->cmd, TSDB_DEFAULT_PAYLOAD_SIZE);
@@ -1409,7 +1445,7 @@ static void parseFileSendDataBlock(void *param, TAOS_RES *tres, int32_t numOfRow
     assert(pSql->res.numOfRows == 0);
     int32_t ret = fseek(fp, 0, SEEK_SET);
     if (ret < 0) {
-      tscError("%p failed to seek SEEK_SET since:%s", pSql, tstrerror(errno));
+      tscError("0x%"PRIx64" failed to seek SEEK_SET since:%s", pSql->self, tstrerror(errno));
       code = TAOS_SYSTEM_ERROR(errno);
       goto _error;
     }
@@ -1529,7 +1565,7 @@ void tscImportDataFromFile(SSqlObj *pSql) {
   FILE *fp = fopen(pCmd->payload, "rb");
   if (fp == NULL) {
     pSql->res.code = TAOS_SYSTEM_ERROR(errno);
-    tscError("%p failed to open file %s to load data from file, code:%s", pSql, pCmd->payload, tstrerror(pSql->res.code));
+    tscError("0x%"PRIx64" failed to open file %s to load data from file, code:%s", pSql->self, pCmd->payload, tstrerror(pSql->res.code));
 
     tfree(pSupporter);
     taos_free_result(pNew);

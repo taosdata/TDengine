@@ -48,8 +48,19 @@ void tVariantCreate(tVariant *pVar, SStrToken *token) {
     case TSDB_DATA_TYPE_INT:{
       ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, true);
       if (ret != 0) {
-        pVar->nType = -1;   // -1 means error type
-        return;
+        SStrToken t = {0};
+        tSQLGetToken(token->z, &t.type);
+        if (t.type == TK_MINUS) {  // it is a signed number which is greater than INT64_MAX or less than INT64_MIN
+          pVar->nType = -1;   // -1 means error type
+          return;
+        }
+
+        // data overflow, try unsigned parse the input number
+        ret = tStrToInteger(token->z, token->type, token->n, &pVar->i64, false);
+        if (ret != 0) {
+          pVar->nType = -1;   // -1 means error type
+          return;
+        }
       }
 
       break;
@@ -525,6 +536,8 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
   }
 
   bool code = false;
+
+  uint64_t ui = 0;
   switch(type) {
     case TSDB_DATA_TYPE_TINYINT:
       code = IS_VALID_TINYINT(*result); break;
@@ -535,13 +548,17 @@ static FORCE_INLINE int32_t convertToInteger(tVariant *pVariant, int64_t *result
     case TSDB_DATA_TYPE_BIGINT:
       code = IS_VALID_BIGINT(*result); break;
     case TSDB_DATA_TYPE_UTINYINT:
-      code = IS_VALID_UTINYINT(*result); break;
+      ui = *result;
+      code = IS_VALID_UTINYINT(ui); break;
     case TSDB_DATA_TYPE_USMALLINT:
-      code = IS_VALID_USMALLINT(*result); break;
+      ui = *result;
+      code = IS_VALID_USMALLINT(ui); break;
     case TSDB_DATA_TYPE_UINT:
-      code = IS_VALID_UINT(*result); break;
+      ui = *result;
+      code = IS_VALID_UINT(ui); break;
     case TSDB_DATA_TYPE_UBIGINT:
-      code = IS_VALID_UBIGINT(*result); break;
+      ui = *result;
+      code = IS_VALID_UBIGINT(ui); break;
   }
 
   return code? 0:-1;

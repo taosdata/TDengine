@@ -1,0 +1,188 @@
+---
+kind: pipeline
+name: test_amd64
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: gcc
+  commands:
+  - apt-get update
+  - apt-get install -y cmake build-essential git
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+
+- name: smoke_test
+  image: python:3.8
+  commands:
+  - pip3 install psutil
+  - pip3 install guppy3
+  - pip3 install src/connector/python/linux/python3/
+  - cd tests
+  - ./test-all.sh smoke
+  when:
+    branch:
+    - develop
+    - master
+
+
+- name: crash_gen
+  image: python:3.8
+  commands:
+  - pip3 install requests
+  - pip3 install src/connector/python/linux/python3/
+  - pip3 install psutil
+  - pip3 install guppy3
+  - cd tests/pytest 
+  - ./crash_gen.sh -a -p -t 4 -s 2000
+  when:
+    branch:
+    - develop
+    - master
+
+
+---
+kind: pipeline
+name: test_arm64
+
+platform:
+  os: linux
+  arch: arm64
+
+steps:
+- name: build
+  image: gcc
+  commands:
+  - apt-get update
+  - apt-get install -y cmake build-essential
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch64 > /dev/null
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+---
+kind: pipeline
+name: test_arm
+
+platform:
+  os: linux
+  arch: arm
+
+steps:
+- name: build
+  image: gcc
+  commands:
+  - apt-get update
+  - apt-get install -y cmake build-essential
+  - mkdir debug
+  - cd debug
+  - cmake .. -DCPUTYPE=aarch32 > /dev/null
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+
+---
+kind: pipeline
+name: build_trusty
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: ubuntu:trusty
+  commands:
+  - apt-get update
+  - apt-get install -y gcc cmake3 build-essential git binutils-2.26
+ 
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+
+---
+kind: pipeline
+name: build_xenial
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: ubuntu:xenial
+  commands:
+  - apt-get update
+  - apt-get install -y gcc cmake build-essential
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+
+---
+kind: pipeline
+name: build_bionic
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: build
+  image: ubuntu:bionic
+  commands:
+  - apt-get update
+  - apt-get install -y gcc cmake build-essential
+  - mkdir debug
+  - cd debug
+  - cmake .. 
+  - make 
+  when:
+    branch:
+    - develop
+    - master
+
+---
+kind: pipeline
+name: goodbye
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+- name: 64-bit
+  image: alpine
+  commands:
+  - echo 64-bit is good.
+  when:
+    branch:
+    - develop
+    - master
+
+
+depends_on:
+- test_arm64
+- test_amd64
