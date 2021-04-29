@@ -4,6 +4,7 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.AbstractStatement;
+import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.TSDBError;
 import com.taosdata.jdbc.TSDBErrorNumbers;
 import com.taosdata.jdbc.utils.HttpClientPoolUtil;
@@ -34,14 +35,11 @@ public class RestfulStatement extends AbstractStatement {
         if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "not a valid sql for executeQuery: " + sql);
 
-        final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
         if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
-            return executeOneQuery(url, sql);
+            return executeOneQuery(sql);
         }
 
-//        if (this.database != null && !this.database.trim().replaceAll("\\s","").isEmpty())
-//            HttpClientPoolUtil.execute(url, "use " + this.database);
-        return executeOneQuery(url, sql);
+        return executeOneQuery(sql);
     }
 
     @Override
@@ -56,8 +54,6 @@ public class RestfulStatement extends AbstractStatement {
             return executeOneUpdate(url, sql);
         }
 
-//        if (this.database != null && !this.database.trim().replaceAll("\\s", "").isEmpty())
-//            HttpClientPoolUtil.execute(url, "use " + this.database);
         return executeOneUpdate(url, sql);
     }
 
@@ -78,14 +74,21 @@ public class RestfulStatement extends AbstractStatement {
 
         //如果执行了use操作应该将当前Statement的catalog设置为新的database
         boolean result = true;
-        final String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
+        String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
+        if (conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).equals("TIMESTAMP")) {
+            url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlt";
+        }
+        if (conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).equals("UTC")) {
+            url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlutc";
+        }
+
         if (SqlSyntaxValidator.isUseSql(sql)) {
             HttpClientPoolUtil.execute(url, sql);
             this.database = sql.trim().replace("use", "").trim();
             this.conn.setCatalog(this.database);
             result = false;
         } else if (SqlSyntaxValidator.isDatabaseUnspecifiedQuery(sql)) {
-            executeOneQuery(url, sql);
+            executeOneQuery(sql);
         } else if (SqlSyntaxValidator.isDatabaseUnspecifiedUpdate(sql)) {
             executeOneUpdate(url, sql);
             result = false;
@@ -101,11 +104,18 @@ public class RestfulStatement extends AbstractStatement {
         return result;
     }
 
-    private ResultSet executeOneQuery(String url, String sql) throws SQLException {
+    private ResultSet executeOneQuery(String sql) throws SQLException {
         if (!SqlSyntaxValidator.isValidForExecuteQuery(sql))
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_FOR_EXECUTE_QUERY, "not a valid sql for executeQuery: " + sql);
 
         // row data
+        String url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sql";
+        String timestampFormat = conn.getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT);
+        if ("TIMESTAMP".equalsIgnoreCase(timestampFormat))
+            url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlt";
+        if ("UTC".equalsIgnoreCase(timestampFormat))
+            url = "http://" + conn.getHost() + ":" + conn.getPort() + "/rest/sqlutc";
+
         String result = HttpClientPoolUtil.execute(url, sql);
         JSONObject resultJson = JSON.parseObject(result);
         if (resultJson.getString("status").equals("error")) {

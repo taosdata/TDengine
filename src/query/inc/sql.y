@@ -450,16 +450,16 @@ tagitem(A) ::= PLUS(X) FLOAT(Y).  {
 }
 
 //////////////////////// The SELECT statement /////////////////////////////////
-%type select {SQuerySqlNode*}
-%destructor select {destroyQuerySqlNode($$);}
+%type select {SSqlNode*}
+%destructor select {destroySqlNode($$);}
 select(A) ::= SELECT(T) selcollist(W) from(X) where_opt(Y) interval_opt(K) session_option(H) fill_opt(F) sliding_opt(S) groupby_opt(P) orderby_opt(Z) having_opt(N) slimit_opt(G) limit_opt(L). {
   A = tSetQuerySqlNode(&T, W, X, Y, P, Z, &K, &H, &S, F, &L, &G, N);
 }
 
 select(A) ::= LP select(B) RP. {A = B;}
 
-%type union {SSubclauseInfo*}
-%destructor union {destroyAllSelectClause($$);}
+%type union {SArray*}
+%destructor union {destroyAllSqlNode($$);}
 union(Y) ::= select(X). { Y = setSubclause(NULL, X); }
 union(Y) ::= union(Z) UNION ALL select(X). { Y = appendSelectClause(Z, X); }
 
@@ -505,35 +505,30 @@ distinct(X) ::= DISTINCT(Y). { X = Y;  }
 distinct(X) ::= .            { X.n = 0;}
 
 // A complete FROM clause.
-%type from {SFromInfo*}
+%type from {SRelationInfo*}
+%destructor from {destroyRelationInfo($$);}
 from(A) ::= FROM tablelist(X).                 {A = X;}
-from(A) ::= FROM LP union(Y) RP.               {A = Y;}
+from(A) ::= FROM LP union(Y) RP.               {A = setSubquery(NULL, Y);}
 
-%type tablelist {SArray*}
+%type tablelist {SRelationInfo*}
+%destructor tablelist {destroyRelationInfo($$);}
 tablelist(A) ::= ids(X) cpxName(Y).                     {
-  toTSDBType(X.type);
   X.n += Y.n;
   A = setTableNameList(NULL, &X, NULL);
 }
 
 tablelist(A) ::= ids(X) cpxName(Y) ids(Z).             {
-  toTSDBType(X.type);
-  toTSDBType(Z.type);
   X.n += Y.n;
   A = setTableNameList(NULL, &X, &Z);
 }
 
 tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z).  {
-  toTSDBType(X.type);
   X.n += Z.n;
   A = setTableNameList(Y, &X, NULL);
 }
 
 tablelist(A) ::= tablelist(Y) COMMA ids(X) cpxName(Z) ids(F). {
-  toTSDBType(X.type);
-  toTSDBType(F.type);
   X.n += Z.n;
-
   A = setTableNameList(Y, &X, &F);
 }
 
@@ -674,6 +669,8 @@ expr(A) ::= PLUS(X) FLOAT(Y).    { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCr
 expr(A) ::= STRING(X).           { A = tSqlExprCreateIdValue(&X, TK_STRING);}
 expr(A) ::= NOW(X).              { A = tSqlExprCreateIdValue(&X, TK_NOW); }
 expr(A) ::= VARIABLE(X).         { A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
+expr(A) ::= PLUS(X) VARIABLE(Y).   { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
+expr(A) ::= MINUS(X) VARIABLE(Y).  { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(&X, TK_VARIABLE);}
 expr(A) ::= BOOL(X).             { A = tSqlExprCreateIdValue(&X, TK_BOOL);}
 expr(A) ::= NULL(X).             { A = tSqlExprCreateIdValue(&X, TK_NULL);}
 

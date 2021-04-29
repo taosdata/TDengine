@@ -104,7 +104,7 @@ int32_t walAlter(void *handle, SWalCfg *pCfg) {
 
   pWal->level = pCfg->walLevel;
   pWal->fsyncPeriod = pCfg->fsyncPeriod;
-  pWal->fsyncSeq = pCfg->fsyncPeriod % 1000;
+  pWal->fsyncSeq = pCfg->fsyncPeriod / 1000;
   if (pWal->fsyncSeq <= 0) pWal->fsyncSeq = 1;
 
   return TSDB_CODE_SUCCESS;

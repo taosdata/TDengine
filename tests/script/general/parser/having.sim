@@ -141,9 +141,7 @@ if $data30 != 4 then
 endi
 
 sql_error select top(f1,2) from st2 group by f1 having count(f2) > 0;
-
 sql_error select top(f1,2) from st2 group by f1 having count(f2) > 0;
-
 sql_error select top(f1,2) from st2 group by f1 having avg(f1) > 0;
 
 sql select avg(f1),count(f1) from st2 group by f1 having avg(f1) > 2;

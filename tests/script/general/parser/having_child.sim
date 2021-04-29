@@ -1,6 +1,6 @@
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 0
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
 system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 2
 system sh/exec.sh -n dnode1 -s start
 
@@ -1460,8 +1460,7 @@ if $data03 != 0.000000000 then
   return -1
 endi
 
-sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having avg(f1) < 0 and avg(f1) = 3;
-
+#sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by f1 having avg(f1) < 0 and avg(f1) = 3;
 sql_error select avg(f1),spread(f1,f2,tb1.f1) from tb1 group by id1 having avg(f1) < 2;
 
 sql select avg(f1),spread(f1,f2,tb1.f1) from tb1 where f1 > 0 group by f1 having avg(f1) > 0;

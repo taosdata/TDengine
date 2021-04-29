@@ -17,7 +17,7 @@ run general/parser/first_last.sim
 run general/parser/import_commit1.sim
 run general/parser/import_commit2.sim
 run general/parser/import_commit3.sim
-#run general/parser/import_file.sim
+run general/parser/import_file.sim
 run general/parser/insert_tb.sim
 run general/parser/tags_dynamically_specifiy.sim
 run general/parser/interp.sim
@@ -38,12 +38,12 @@ run general/parser/slimit.sim
 run general/parser/slimit1.sim
 run general/parser/slimit_alter_tags.sim
 run general/parser/tbnameIn.sim
-run general/parser/slimit_alter_tags.sim  # persistent failed
 run general/parser/join.sim
 run general/parser/join_multivnode.sim
 run general/parser/join_manyblocks.sim
 run general/parser/projection_limit_offset.sim
 run general/parser/select_with_tags.sim
+run general/parser/select_distinct_tag.sim
 run general/parser/groupby.sim
 run general/parser/tags_filter.sim
 run general/parser/topbot.sim
@@ -54,5 +54,5 @@ run general/parser/timestamp.sim
 run general/parser/sliding.sim
 run general/parser/function.sim
 run general/parser/stableOp.sim
-run general/parser/slimit_alter_tags.sim
-
+run general/parser/having.sim
+run general/parser/having_child.sim
