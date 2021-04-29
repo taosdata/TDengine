@@ -13,7 +13,7 @@ branches:
 
 matrix:
   - os: linux
-    dist: focal
+    dist: bionic
     language: c
 
     git:
