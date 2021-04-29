@@ -39,8 +39,9 @@ typedef struct recv_buf_info_s
 
 #define BUF_SKIP_LEN                1
 #define TQ_CHAN_NUM                 10
-#define MAX_TSQL_LEN                (MAXRECLEN << 1)
-#define MAX_BUFF_LEN                MAXRECLEN
+#define MAX_TSQL_LEN                ((MAXRECLEN - 100) << 3)
+#define MAX_BUFF_LEN                (MAXRECLEN - 100)
+#define MAX_DB_ROWS                 32767
 #define hash(key, c)                ((uint64_t) key * 31 + c)
 #define BUF_UNPROC_LEN(info)        (info)->readlength - (info)->readoffset
 #define BUF_TOREAD_PTR(info)        (info)->readbuffer + (info)->readoffset
@@ -81,6 +82,7 @@ int main(int argc, char *argv[])
     int              ret;
     int              opt;
     int              reclen;
+    int              rows;
     int64_t          packets;
     time_t           start, end;
     SNETIO           io;
@@ -315,6 +317,7 @@ retry:
     id = 0;
     reclen = 0;
     begin = 1;
+    rows = 0;
     offset = 0;
     memset(sid, 0, LM_SIDLEN);
 #endif
@@ -364,7 +367,7 @@ remain_data:
             offset += pfxlen;
         }
 
-        if (offset + strlen(base64) < MAX_TSQL_LEN - 256) {
+        if (offset + strlen(base64) < (MAX_TSQL_LEN - 256) && rows < MAX_DB_ROWS) {
             gettimeofday(&now, NULL);
             ts = (int64_t) (now.tv_sec * 1000000 + now.tv_usec);
             np = snprintf(cmd + offset, sizeof(cmd) - offset, " p%d using ps tags (%d) values (%ld, %ld, '%s')", id, id, ts, ts, base64);
@@ -377,11 +380,19 @@ remain_data:
             }
 
             offset += np;
+            rows++;
         } else {
             if (offset == 0) {
                 free(base64);
 
                 fprintf(stderr, "too long record length: %d\r\n", reclen);
+                goto failed;
+            }
+
+            if (rows >= MAX_DB_ROWS) {
+                free(base64);
+
+                fprintf(stderr, "too many rows: %d\r\n", rows);
                 goto failed;
             }
 
@@ -394,6 +405,7 @@ remain_data:
 
             begin = 1;
             offset = 0;
+            rows = 0;
             goto remain_data;
         }
 #else

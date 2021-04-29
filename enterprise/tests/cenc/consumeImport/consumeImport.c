@@ -13,6 +13,7 @@
 #define  MAX_TSQL_LEN  1048576
 #define  SEG_TSQL_LEN  65536
 #define  TQ_CHAN_NUM   10
+#define  MAX_DB_ROWS   32767
 
 
 int nTotalRows = 0;
@@ -55,6 +56,7 @@ typedef struct callback_params_s {
   TAOS      *res_taos;
   TAOS_SUB  *tsub;
   char       cmd[MAX_TSQL_LEN];
+  int        rows;
   off_t      offset;
   void      *data;
 } callback_params_t;
@@ -139,7 +141,7 @@ int check_and_free_res(TAOS_RES **res, const char *cmd) {
 
 void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
 {
-  int                    i, np;
+  int                    i, np, rows;
   int                    index;
   char                  *cp;
   int64_t                start_time;
@@ -168,6 +170,7 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
   index = p->index;
   stb_name = (char *) p->data;
 
+  rows = 0;
   numsamples = 0;
 
   id = mstl->traces;
@@ -238,6 +241,7 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
         }
 
         cp += np;
+        rows++;
       }
 
       numsamples += seg->numsamples;
@@ -249,11 +253,12 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
       seg = seg->next;
     }
 
-    if (strlen(cmd) > MAX_TSQL_LEN - p->offset - 1024) {
+    if (strlen(cmd) > (MAX_TSQL_LEN - p->offset - 1024) || (p->rows + rows) >= MAX_DB_ROWS) {
       p->cmd[p->offset++] = ';';
       p->cmd[p->offset] = '\0';
 
       p->offset = 0;
+      p->rows = 0;
 
       //gettimeofday(&s_time, NULL);
       res = taos_query(p->res_taos, p->cmd);
@@ -269,6 +274,7 @@ void cenc_import_detail(MS3TraceList *mstl, callback_params_t *param)
 
     memmove(p->cmd + p->offset, cmd, strlen(cmd));
     p->offset += strlen(cmd);
+    p->rows += rows;
 
     id = id->next;
   }
@@ -353,6 +359,7 @@ void subscribe_routine_init(callback_params_t *params, const int index)
 {
   if (params) {
     params->index = index;
+    params->rows = 0;
     params->offset = 0;
     params->taos = NULL;
     params->res_taos = NULL;
