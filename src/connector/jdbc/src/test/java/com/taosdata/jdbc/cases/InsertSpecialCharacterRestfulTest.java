@@ -6,31 +6,8 @@ import java.sql.*;
 
 public class InsertSpecialCharacterRestfulTest {
 
-    // 插入一条数据
-    static String insert2 = "insert into ? values(?, ?, ?)";
-    // 插入一条数据，指定dbname
-    static String insert3 = "insert into ?.? values(?, ?, ?)";
-    // 插入一条数据，指定values的列
-    static String insert4 = "insert into [?.]? [(?, ?, ?)] values (?,?,?)";
-    // 插入多条数据
-    static String insert5 = "insert into [?.]? values (?, ?, ?),(?, ?, ?)";
-    // 插入多条数据，指定values的列
-    static String insert6 = "insert into [?.]?(?, ?, ?) values (?, ?, ?),(?, ?, ?)";
-    // 插入多个表多条数据
-    static String insert7 = "insert into ?.? values(?,?,?) ?.? values(?, ?, ?)";
-    // 自动建表，插入多条数据
-    static String insert8 = "insert into ?.? using ?.? tags() values()";
-    // 插入多个表多条数据，指定values
-    static String insert = "insert into ?.? using ?.? (?,?,?) Tags(?,?,?) values(?, ?, ?) "
-            + "?.? using ?.? (?,?,?) tags(?,?,?) Values(?, ?, ?) "
-            + " ?.? using ?.? (?,?,?) tags(?,?,?) values(?, ?, ?) "
-            + "   ?.? using ?.? (?,?,?) tags(?,?,?) VALUES(?, ?, ?)";
-
-    String query = "select ?,?,? from ?.? where ? interval () limit ? OFFSET ?";
-
-
-    private static final String host = "127.0.0.1";
-    //    private static final String host = "master";
+    //    private static final String host = "127.0.0.1";
+    private static final String host = "master";
     private static Connection conn;
     private static String dbName = "spec_char_test";
     private static String tbname1 = "test";
@@ -264,7 +241,7 @@ public class InsertSpecialCharacterRestfulTest {
             pstmt.setString(11, special_character_str_5);
 
             int ret = pstmt.executeUpdate();
-            Assert.assertEquals(1, ret);
+            Assert.assertEquals(2, ret);
         }
         // query t1
         String query = "select * from t?";
@@ -314,7 +291,7 @@ public class InsertSpecialCharacterRestfulTest {
             pstmt.setString(11, special_character_str_5);
 
             int ret = pstmt.executeUpdate();
-            Assert.assertEquals(1, ret);
+            Assert.assertEquals(2, ret);
         }
         //query t1
         String query = "select * from ?.t? where ts < ? and ts >= ? and ? is not null";

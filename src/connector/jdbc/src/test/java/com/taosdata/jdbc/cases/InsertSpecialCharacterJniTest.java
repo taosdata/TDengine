@@ -240,7 +240,7 @@ public class InsertSpecialCharacterJniTest {
             pstmt.setString(11, special_character_str_5);
 
             int ret = pstmt.executeUpdate();
-            Assert.assertEquals(1, ret);
+            Assert.assertEquals(2, ret);
         }
         // query t1
         String query = "select * from t?";
@@ -290,7 +290,7 @@ public class InsertSpecialCharacterJniTest {
             pstmt.setString(11, special_character_str_5);
 
             int ret = pstmt.executeUpdate();
-            Assert.assertEquals(1, ret);
+            Assert.assertEquals(2, ret);
         }
         //query t1
         String query = "select * from ?.t? where ts < ? and ts >= ? and ? is not null";
