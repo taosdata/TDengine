@@ -4611,6 +4611,7 @@ static int64_t execInsert(threadInfo *pThreadInfo, char *buffer, int k)
     } else {
       errorPrint("%s() LN%d: unknown insert mode: %s\n",
         __func__, __LINE__, superTblInfo->insertMode);
+      affectedRows = 0;
     }
   } else {
     affectedRows = queryDbExec(pThreadInfo->taos, buffer, INSERT_TYPE, false);
