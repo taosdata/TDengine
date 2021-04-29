@@ -1098,7 +1098,7 @@ int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
   return pInfo->pSqlExpr->offset;
 }
 
-int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2) {
+int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2, int32_t *diffSize) {
   assert(pFieldInfo1 != NULL && pFieldInfo2 != NULL);
 
   if (pFieldInfo1->numOfOutput != pFieldInfo2->numOfOutput) {
@@ -1110,14 +1110,35 @@ int32_t tscFieldInfoCompare(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFi
     TAOS_FIELD* pField2 = tscFieldInfoGetField((SFieldInfo*) pFieldInfo2, i);
 
     if (pField1->type != pField2->type ||
-        pField1->bytes != pField2->bytes ||
         strcasecmp(pField1->name, pField2->name) != 0) {
       return 1;
+    }
+
+    if (pField1->bytes != pField2->bytes) {
+      *diffSize = 1;
+
+      if (pField2->bytes > pField1->bytes) {
+        pField1->bytes = pField2->bytes;
+      }
     }
   }
 
   return 0;
 }
+
+int32_t tscFieldInfoSetSize(const SFieldInfo* pFieldInfo1, const SFieldInfo* pFieldInfo2) {
+  assert(pFieldInfo1 != NULL && pFieldInfo2 != NULL);
+
+  for (int32_t i = 0; i < pFieldInfo1->numOfOutput; ++i) {
+    TAOS_FIELD* pField1 = tscFieldInfoGetField((SFieldInfo*) pFieldInfo1, i);
+    TAOS_FIELD* pField2 = tscFieldInfoGetField((SFieldInfo*) pFieldInfo2, i);
+
+    pField2->bytes = pField1->bytes;
+  }
+
+  return 0;
+}
+
 
 int32_t tscGetResRowLength(SArray* pExprList) {
   size_t num = taosArrayGetSize(pExprList);
@@ -2682,7 +2703,13 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
 
   //backup the total number of result first
   int64_t num = pRes->numOfTotal + pRes->numOfClauseTotal;
+
+
+  // DON't free final since it may be recoreded and used later in APP
+  TAOS_FIELD* finalBk = pRes->final;
+  pRes->final = NULL;
   tscFreeSqlResult(pSql);
+  pRes->final = finalBk;
   
   pRes->numOfTotal = num;
   
