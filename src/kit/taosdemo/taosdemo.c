@@ -1193,6 +1193,7 @@ static float rand_float(){
 
 static const char charNum[] = "0123456789";
 
+static void nonrand_string(char *, int) __attribute__ ((unused));   // reserve for debugging purpose
 static void nonrand_string(char *str, int size)
 {
   str[0] = 0;
@@ -4469,7 +4470,7 @@ static int64_t generateRowData(char* recBuf, int64_t timestamp, SSuperTable* stb
         errorPrint( "calloc failed! size:%d\n", stbInfo->columns[i].dataLen);
         return -1;
       }
-      nonrand_string(buf, stbInfo->columns[i].dataLen);
+      rand_string(buf, stbInfo->columns[i].dataLen);
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\',", buf);
       tmfree(buf);
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
