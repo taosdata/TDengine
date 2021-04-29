@@ -1519,7 +1519,7 @@ void tscColumnListDestroy(SArray* pColumnList) {
 static int32_t validateQuoteToken(SStrToken* pToken) {
   tscDequoteAndTrimToken(pToken);
 
-  int32_t k = tSQLGetToken(pToken->z, &pToken->type);
+  int32_t k = tGetToken(pToken->z, &pToken->type);
 
   if (pToken->type == TK_STRING) {
     return tscValidateName(pToken);
@@ -1587,7 +1587,7 @@ int32_t tscValidateName(SStrToken* pToken) {
       tscStrToLower(pToken->z, pToken->n);
       //pToken->n = (uint32_t)strtrim(pToken->z);
        
-      int len = tSQLGetToken(pToken->z, &pToken->type);
+      int len = tGetToken(pToken->z, &pToken->type);
 
       // single token, validate it
       if (len == pToken->n) {
@@ -1613,7 +1613,7 @@ int32_t tscValidateName(SStrToken* pToken) {
       pToken->n = (uint32_t)strtrim(pToken->z);
     }
 
-    pToken->n = tSQLGetToken(pToken->z, &pToken->type);
+    pToken->n = tGetToken(pToken->z, &pToken->type);
     if (pToken->z[pToken->n] != TS_PATH_DELIMITER[0]) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
@@ -1630,7 +1630,7 @@ int32_t tscValidateName(SStrToken* pToken) {
 
     pToken->z = sep + 1;
     pToken->n = (uint32_t)(oldLen - (sep - pStr) - 1);
-    int32_t len = tSQLGetToken(pToken->z, &pToken->type);
+    int32_t len = tGetToken(pToken->z, &pToken->type);
     if (len != pToken->n || (pToken->type != TK_STRING && pToken->type != TK_ID)) {
       return TSDB_CODE_TSC_INVALID_SQL;
     }
