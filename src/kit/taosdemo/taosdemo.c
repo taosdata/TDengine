@@ -666,11 +666,11 @@ static void printHelp() {
   printf("%s%s%s%s\n", indent, "-q", indent,
           "Query mode -- 0: SYNC, 1: ASYNC. Default is SYNC.");
   printf("%s%s%s%s\n", indent, "-b", indent,
-          "The data_type of columns, default: TINYINT,SMALLINT,INT,BIGINT,FLOAT,DOUBLE,BINARY,NCHAR,BOOL,TIMESTAMP.");
+          "The data_type of columns, default: INT,INT,INT,INT.");
   printf("%s%s%s%s\n", indent, "-w", indent,
           "The length of data_type 'BINARY' or 'NCHAR'. Default is 16");
   printf("%s%s%s%s\n", indent, "-l", indent,
-          "The number of columns per record. Default is 10.");
+          "The number of columns per record. Default is 4.");
   printf("%s%s%s%s\n", indent, "-T", indent,
           "The number of threads. Default is 10.");
   printf("%s%s%s%s\n", indent, "-i", indent,
@@ -3316,7 +3316,7 @@ static bool getMetaFromInsertJsonFile(cJSON* root) {
   if (threads2 && threads2->type == cJSON_Number) {
     g_Dbs.threadCountByCreateTbl = threads2->valueint;
   } else if (!threads2) {
-    g_Dbs.threadCountByCreateTbl = g_args.num_of_threads;
+    g_Dbs.threadCountByCreateTbl = 1;
   } else {
     errorPrint("%s() LN%d, failed to read json, threads2 not found\n",
             __func__, __LINE__);
