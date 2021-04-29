@@ -28,8 +28,8 @@ matrix:
           - build-essential
           - cmake
           - net-tools
-          - python3-pip
-          - python3-setuptools
+          - python3.8
+          - libc6-dbg
           - valgrind
           - psmisc
           - unixodbc
