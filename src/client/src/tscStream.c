@@ -194,7 +194,7 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
   SSqlStream *pStream = (SSqlStream *)param;
   if (tres == NULL || numOfRows < 0) {
     int64_t retryDelay = tscGetRetryDelayTime(pStream, pStream->interval.sliding, pStream->precision);
-    tscError("%p stream:%p, query data failed, code:0x%08x, retry in %" PRId64 "ms", pStream->pSql, pStream, numOfRows,
+    tscError("0x%"PRIx64" stream:%p, query data failed, code:0x%08x, retry in %" PRId64 "ms", pStream->pSql->self, pStream, numOfRows,
              retryDelay);
 
     STableMetaInfo* pTableMetaInfo = tscGetTableMetaInfoFromCmd(&pStream->pSql->cmd, 0, 0);
@@ -203,6 +203,14 @@ static void tscProcessStreamQueryCallback(void *param, TAOS_RES *tres, int numOf
     tNameExtractFullName(&pTableMetaInfo->name, name);
 
     taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
+
+    tfree(pTableMetaInfo->pTableMeta);
+
+    tscFreeSqlResult(pStream->pSql);
+    tscFreeSubobj(pStream->pSql);    
+    tfree(pStream->pSql->pSubs);
+    pStream->pSql->subState.numOfSub = 0;
+
     pTableMetaInfo->vgroupList = tscVgroupInfoClear(pTableMetaInfo->vgroupList);
 
     tscSetRetryTimer(pStream, pStream->pSql, retryDelay);
@@ -259,7 +267,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
 
   if (pSql == NULL || numOfRows < 0) {
     int64_t retryDelayTime = tscGetRetryDelayTime(pStream, pStream->interval.sliding, pStream->precision);
-    tscError("%p stream:%p, retrieve data failed, code:0x%08x, retry in %" PRId64 "ms", pSql, pStream, numOfRows, retryDelayTime);
+    tscError("0x%"PRIx64" stream:%p, retrieve data failed, code:0x%08x, retry in %" PRId64 "ms", pSql->self, pStream, numOfRows, retryDelayTime);
   
     tscSetRetryTimer(pStream, pStream->pSql, retryDelayTime);
     return;
@@ -292,7 +300,7 @@ static void tscProcessStreamRetrieveResult(void *param, TAOS_RES *res, int numOf
         /* no resuls in the query range, retry */
         // todo set retry dynamic time
         int32_t retry = tsProjectExecInterval;
-        tscError("%p stream:%p, retrieve no data, code:0x%08x, retry in %" PRId32 "ms", pSql, pStream, numOfRows, retry);
+        tscError("0x%"PRIx64" stream:%p, retrieve no data, code:0x%08x, retry in %" PRId32 "ms", pSql->self, pStream, numOfRows, retry);
 
         tscSetRetryTimer(pStream, pStream->pSql, retry);
         return;
@@ -440,7 +448,7 @@ static int32_t tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
   }
   
   if (pQueryInfo->interval.intervalUnit != 'n' && pQueryInfo->interval.intervalUnit!= 'y' && pQueryInfo->interval.interval < minIntervalTime) {
-    tscWarn("%p stream:%p, original sample interval:%" PRId64 " too small, reset to:%" PRId64, pSql, pStream,
+    tscWarn("0x%"PRIx64" stream:%p, original sample interval:%" PRId64 " too small, reset to:%" PRId64, pSql->self, pStream,
             (int64_t)pQueryInfo->interval.interval, minIntervalTime);
     pQueryInfo->interval.interval = minIntervalTime;
   }
@@ -457,14 +465,14 @@ static int32_t tscSetSlidingWindowInfo(SSqlObj *pSql, SSqlStream *pStream) {
       (pStream->precision == TSDB_TIME_PRECISION_MICRO) ? tsMinSlidingTime * 1000L : tsMinSlidingTime;
 
   if (pQueryInfo->interval.intervalUnit != 'n' && pQueryInfo->interval.intervalUnit!= 'y' && pQueryInfo->interval.sliding < minSlidingTime) {
-    tscWarn("%p stream:%p, original sliding value:%" PRId64 " too small, reset to:%" PRId64, pSql, pStream,
+    tscWarn("0x%"PRIx64" stream:%p, original sliding value:%" PRId64 " too small, reset to:%" PRId64, pSql->self, pStream,
         pQueryInfo->interval.sliding, minSlidingTime);
 
     pQueryInfo->interval.sliding = minSlidingTime;
   }
 
   if (pQueryInfo->interval.sliding > pQueryInfo->interval.interval) {
-    tscWarn("%p stream:%p, sliding value:%" PRId64 " can not be larger than interval range, reset to:%" PRId64, pSql, pStream,
+    tscWarn("0x%"PRIx64" stream:%p, sliding value:%" PRId64 " can not be larger than interval range, reset to:%" PRId64, pSql->self, pStream,
             pQueryInfo->interval.sliding, pQueryInfo->interval.interval);
 
     pQueryInfo->interval.sliding = pQueryInfo->interval.interval;
@@ -507,7 +515,7 @@ static int64_t tscGetStreamStartTimestamp(SSqlObj *pSql, SSqlStream *pStream, in
     } else {
       int64_t newStime = taosTimeTruncate(stime, &pStream->interval, pStream->precision);
       if (newStime != stime) {
-        tscWarn("%p stream:%p, last timestamp:%" PRId64 ", reset to:%" PRId64, pSql, pStream, stime, newStime);
+        tscWarn("0x%"PRIx64" stream:%p, last timestamp:%" PRId64 ", reset to:%" PRId64, pSql->self, pStream, stime, newStime);
         stime = newStime;
       }
     }
@@ -538,7 +546,7 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
 
   if (code != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
-    tscError("%p open stream failed, sql:%s, reason:%s, code:%s", pSql, pSql->sqlstr, pCmd->payload, tstrerror(code));
+    tscError("0x%"PRIx64" open stream failed, sql:%s, reason:%s, code:%s", pSql->self, pSql->sqlstr, pCmd->payload, tstrerror(code));
 
     pStream->fp(pStream->param, NULL, NULL);
     return;
@@ -557,7 +565,7 @@ static void tscCreateStream(void *param, TAOS_RES *res, int code) {
   if (tscSetSlidingWindowInfo(pSql, pStream) != TSDB_CODE_SUCCESS) {
     pSql->res.code = code;
 
-    tscError("%p stream %p open failed, since the interval value is incorrect", pSql, pStream);
+    tscError("0x%"PRIx64" stream %p open failed, since the interval value is incorrect", pSql->self, pStream);
     pStream->fp(pStream->param, NULL, NULL);
     return;
   }
@@ -597,7 +605,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 
   SSqlStream *pStream = (SSqlStream *)calloc(1, sizeof(SSqlStream));
   if (pStream == NULL) {
-    tscError("%p open stream failed, sql:%s, reason:%s, code:0x%08x", pSql, sqlstr, pCmd->payload, pRes->code);
+    tscError("0x%"PRIx64" open stream failed, sql:%s, reason:%s, code:0x%08x", pSql->self, sqlstr, pCmd->payload, pRes->code);
     tscFreeSqlObj(pSql);
     return NULL;
   }
@@ -613,7 +621,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
 
   pSql->sqlstr = calloc(1, strlen(sqlstr) + 1);
   if (pSql->sqlstr == NULL) {
-    tscError("%p failed to malloc sql string buffer", pSql);
+    tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
     tscFreeSqlObj(pSql);
     return NULL;
   }
@@ -632,7 +640,7 @@ TAOS_STREAM *taos_open_stream(TAOS *taos, const char *sqlstr, void (*fp)(void *p
   if (code == TSDB_CODE_SUCCESS) {
     tscCreateStream(pStream, pSql, code);
   } else if (code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
-    tscError("%p open stream failed, sql:%s, code:%s", pSql, sqlstr, tstrerror(code));
+    tscError("0x%"PRIx64" open stream failed, sql:%s, code:%s", pSql->self, sqlstr, tstrerror(code));
     taosReleaseRef(tscObjRef, pSql->self);
     free(pStream);
     return NULL;
