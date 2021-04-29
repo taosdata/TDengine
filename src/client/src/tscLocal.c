@@ -926,7 +926,7 @@ int tscProcessLocalCmd(SSqlObj *pSql) {
     pRes->code = tscProcessServStatus(pSql);
   } else {
     pRes->code = TSDB_CODE_TSC_INVALID_SQL;
-    tscError("%p not support command:%d", pSql, pCmd->command);
+    tscError("0x%"PRIx64" not support command:%d", pSql->self, pCmd->command);
   }
 
   // keep the code in local variable in order to avoid invalid read in case of async query
