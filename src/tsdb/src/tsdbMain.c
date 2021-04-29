@@ -203,6 +203,70 @@ void tsdbReportStat(void *repo, int64_t *totalPoints, int64_t *totalStorage, int
 
 int32_t tsdbConfigRepo(STsdbRepo *repo, STsdbCfg *pCfg) {
   // TODO: think about multithread cases
+  if (tsdbCheckAndSetDefaultCfg(pCfg) < 0) return -1;
+  
+  STsdbCfg * pRCfg = &repo->config;
+  
+  ASSERT(pRCfg->tsdbId == pCfg->tsdbId);
+  ASSERT(pRCfg->cacheBlockSize == pCfg->cacheBlockSize);
+  ASSERT(pRCfg->daysPerFile == pCfg->daysPerFile);
+  ASSERT(pRCfg->minRowsPerFileBlock == pCfg->minRowsPerFileBlock);
+  ASSERT(pRCfg->maxRowsPerFileBlock == pCfg->maxRowsPerFileBlock);
+  ASSERT(pRCfg->precision == pCfg->precision);
+
+  bool configChanged = false;
+  if (pRCfg->compression != pCfg->compression) {
+    configChanged = true;
+  }
+  if (pRCfg->keep != pCfg->keep) {
+    configChanged = true;
+  }
+  if (pRCfg->keep1 != pCfg->keep1) {
+    configChanged = true;
+  }
+  if (pRCfg->keep2 != pCfg->keep2) {
+    configChanged = true;
+  }
+  if (pRCfg->cacheLastRow != pCfg->cacheLastRow) {
+    configChanged = true;
+  }
+  if (pRCfg->update != pCfg->update) {
+    configChanged = true;
+  }
+
+  if (!configChanged) {
+    tsdbError("vgId:%d no config changed", REPO_ID(repo));
+  }
+
+  int code = pthread_mutex_lock(&repo->save_mutex);
+  if (code != 0) {
+    tsdbError("vgId:%d failed to lock tsdb save config mutex since %s", REPO_ID(repo), strerror(errno));
+    terrno = TAOS_SYSTEM_ERROR(code);
+    return -1;
+  }
+
+  STsdbCfg * pSaveCfg = &repo->save_config;
+  *pSaveCfg = repo->config;
+
+  pSaveCfg->compression = pCfg->compression;
+  pSaveCfg->keep = pCfg->keep;
+  pSaveCfg->keep1 = pCfg->keep1;
+  pSaveCfg->keep2 = pCfg->keep2;
+  pSaveCfg->cacheLastRow = pCfg->cacheLastRow;
+  pSaveCfg->update = pCfg->update;
+
+  tsdbInfo("vgId:%d old config: compression(%d), keep(%d,%d,%d), cacheLastRow(%d), update(%d)",
+    REPO_ID(repo),
+    pRCfg->compression, pRCfg->keep, pRCfg->keep1,pRCfg->keep2,
+    pRCfg->cacheLastRow, pRCfg->update);
+  tsdbInfo("vgId:%d new config: compression(%d), keep(%d,%d,%d), cacheLastRow(%d), update(%d)",
+    REPO_ID(repo),
+    pSaveCfg->compression, pSaveCfg->keep,pSaveCfg->keep1, pSaveCfg->keep2,
+    pSaveCfg->cacheLastRow, pSaveCfg->update);
+
+  repo->config_changed = true;
+
+  pthread_mutex_unlock(&repo->save_mutex);
   return 0;
 #if 0
   STsdbRepo *pRepo = (STsdbRepo *)repo;
@@ -473,6 +537,14 @@ static STsdbRepo *tsdbNewRepo(STsdbCfg *pCfg, STsdbAppH *pAppH) {
     tsdbFreeRepo(pRepo);
     return NULL;
   }
+
+  code = pthread_mutex_init(&(pRepo->save_mutex), NULL);
+  if (code != 0) {
+    terrno = TAOS_SYSTEM_ERROR(code);
+    tsdbFreeRepo(pRepo);
+    return NULL;
+  }
+  pRepo->config_changed = false;
 
   code = tsem_init(&(pRepo->readyToCommit), 0, 1);
   if (code != 0) {

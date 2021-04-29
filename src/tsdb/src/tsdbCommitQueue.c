@@ -112,6 +112,24 @@ int tsdbScheduleCommit(STsdbRepo *pRepo) {
   return 0;
 }
 
+static void tsdbApplyRepoConfig(STsdbRepo *pRepo) {
+  pRepo->config_changed = false;
+  STsdbCfg * pSaveCfg = &pRepo->save_config;
+
+  pRepo->config.compression = pRepo->save_config.compression;
+  pRepo->config.keep = pRepo->save_config.keep;
+  pRepo->config.keep1 = pRepo->save_config.keep1;
+  pRepo->config.keep2 = pRepo->save_config.keep2;
+  pRepo->config.cacheLastRow = pRepo->save_config.cacheLastRow;
+  pRepo->config.update = pRepo->save_config.update;
+
+  tsdbInfo("vgId:%d apply new config: compression(%d), keep(%d,%d,%d), totalBlocks(%d), cacheLastRow(%d), update(%d)",
+    REPO_ID(pRepo),
+    pSaveCfg->compression, pSaveCfg->keep,pSaveCfg->keep1, pSaveCfg->keep2,
+    pSaveCfg->totalBlocks, pSaveCfg->cacheLastRow, pSaveCfg->update);
+
+}
+
 static void *tsdbLoopCommit(void *arg) {
   SCommitQueue *pQueue = &tsCommitQueue;
   SListNode *   pNode = NULL;
@@ -137,6 +155,13 @@ static void *tsdbLoopCommit(void *arg) {
     pthread_mutex_unlock(&(pQueue->lock));
 
     pRepo = ((SCommitReq *)pNode->data)->pRepo;
+
+    // check if need to apply new config
+    if (pRepo->config_changed) {
+      pthread_mutex_lock(&pRepo->save_mutex);       
+      tsdbApplyRepoConfig(pRepo);
+      pthread_mutex_unlock(&pRepo->save_mutex);
+    }
 
     tsdbCommitData(pRepo);
     listNodeFree(pNode);
