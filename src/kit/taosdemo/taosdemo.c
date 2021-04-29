@@ -2898,7 +2898,7 @@ static int startMultiThreadCreateChildTable(
     startFrom = t_info->end_table_to + 1;
     t_info->use_metric = true;
     t_info->cols = cols;
-    t_info->minDelay = INT16_MAX;
+    t_info->minDelay = INT64_MAX;
     pthread_create(pids + i, NULL, createTable, t_info);
   }
 
@@ -5596,7 +5596,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
     t_info->superTblInfo = superTblInfo;
 
     t_info->start_time = start_time;
-    t_info->minDelay = INT16_MAX;
+    t_info->minDelay = INT64_MAX;
 
     if ((NULL == superTblInfo) ||
             (0 == strncasecmp(superTblInfo->insertMode, "taosc", 5))) {
@@ -5641,7 +5641,7 @@ static void startMultiThreadInsertData(int threads, char* db_name,
 
   int64_t totalDelay = 0;
   int64_t maxDelay = 0;
-  int64_t minDelay = INT16_MAX;
+  int64_t minDelay = INT64_MAX;
   int64_t cntDelay = 1;
   double  avgDelay = 0;
 
