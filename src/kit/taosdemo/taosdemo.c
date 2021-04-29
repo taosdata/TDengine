@@ -81,7 +81,7 @@ enum QUERY_MODE {
 #define MAX_DB_NAME_SIZE   64
 #define MAX_HOSTNAME_SIZE  64
 #define MAX_TB_NAME_SIZE   64
-#define MAX_DATA_SIZE      (16*1024)
+#define MAX_DATA_SIZE      (16*1024)+20     // max record len: 16*1024, timestamp string and ,('') need extra space
 #define MAX_NUM_DATATYPE   10
 #define OPT_ABORT          1 /* –abort */
 #define STRING_LEN         60000
@@ -1191,13 +1191,28 @@ static float rand_float(){
   return randfloat[cursor];
 }
 
+static const char charNum[] = "0123456789";
+
+static void nonrand_string(char *str, int size)
+{
+  str[0] = 0;
+  if (size > 0) {
+    int n;
+    for (n = 0; n < size; n++) {
+      str[n] = charNum[n % 10];
+    }
+    str[n] = 0;
+  }
+}
+
 static const char charset[] = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890";
+
 static void rand_string(char *str, int size) {
   str[0] = 0;
   if (size > 0) {
     //--size;
     int n;
-    for (n = 0; n < size - 1; n++) {
+    for (n = 0; n < size; n++) {
       int key = abs(rand_tinyint()) % (int)(sizeof(charset) - 1);
       str[n] = charset[key];
     }
@@ -4438,11 +4453,11 @@ static int64_t generateRowData(char* recBuf, int64_t timestamp, SSuperTable* stb
   char  *pstr = recBuf;
   int64_t maxLen = MAX_DATA_SIZE;
 
-  dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "(%" PRId64 ", ", timestamp);
+  dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "(%" PRId64 ",", timestamp);
 
   for (int i = 0; i < stbInfo->columnCount; i++) {
-    if ((0 == strncasecmp(stbInfo->columns[i].dataType, "binary", 6))
-            || (0 == strncasecmp(stbInfo->columns[i].dataType, "nchar", 5))) {
+    if ((0 == strncasecmp(stbInfo->columns[i].dataType, "BINARY", strlen("BINARY")))
+            || (0 == strncasecmp(stbInfo->columns[i].dataType, "NCHAR", strlen("NCHAR")))) {
       if (stbInfo->columns[i].dataLen > TSDB_MAX_BINARY_LEN) {
         errorPrint( "binary or nchar length overflow, max size:%u\n",
                 (uint32_t)TSDB_MAX_BINARY_LEN);
@@ -4454,48 +4469,48 @@ static int64_t generateRowData(char* recBuf, int64_t timestamp, SSuperTable* stb
         errorPrint( "calloc failed! size:%d\n", stbInfo->columns[i].dataLen);
         return -1;
       }
-      rand_string(buf, stbInfo->columns[i].dataLen);
-      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\', ", buf);
+      nonrand_string(buf, stbInfo->columns[i].dataLen);
+      dataLen += snprintf(pstr + dataLen, maxLen - dataLen, "\'%s\',", buf);
       tmfree(buf);
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "int", 3)) {
+                "INT", 3)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%d, ", rand_int());
+              "%d,", rand_int());
     } else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "bigint", 6)) {
+                "BIGINT", 6)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%"PRId64", ", rand_bigint());
+              "%"PRId64",", rand_bigint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "float", 5)) {
+                "FLOAT", 5)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%f, ", rand_float());
+              "%f,", rand_float());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "double", 6)) {
+                "DOUBLE", 6)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-              "%f, ", rand_double());
+              "%f,", rand_double());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-                "smallint", 8)) {
+                "SMALLINT", 8)) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%d, ", rand_smallint());
+          "%d,", rand_smallint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-          "tinyint", strlen("tinyint"))) {
+          "TINYINT", strlen("TINYINT"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%d, ", rand_tinyint());
+          "%d,", rand_tinyint());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-          "bool", strlen("bool"))) {
+          "BOOL", strlen("BOOL"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%d, ", rand_bool());
+          "%d,", rand_bool());
     }  else if (0 == strncasecmp(stbInfo->columns[i].dataType,
-          "timestamp", strlen("timestamp"))) {
+          "TIMESTAMP", strlen("TIMESTAMP"))) {
       dataLen += snprintf(pstr + dataLen, maxLen - dataLen,
-          "%"PRId64", ", rand_bigint());
+          "%"PRId64",", rand_bigint());
     }  else {
       errorPrint( "No support data type: %s\n", stbInfo->columns[i].dataType);
       return -1;
     }
   }
 
-  dataLen -= 2;
+  dataLen -= 1;
   dataLen += snprintf(pstr + dataLen, maxLen - dataLen, ")");
 
   verbosePrint("%s() LN%d, recBuf:\n\t%s\n", __func__, __LINE__, recBuf);
@@ -4522,31 +4537,31 @@ static int64_t generateData(char *recBuf, char **data_type,
   }
 
   for (int i = 0; i < c; i++) {
-    if (strcasecmp(data_type[i % c], "tinyint") == 0) {
-      pstr += sprintf(pstr, ", %d", rand_tinyint() );
-    } else if (strcasecmp(data_type[i % c], "smallint") == 0) {
-      pstr += sprintf(pstr, ", %d", rand_smallint());
-    } else if (strcasecmp(data_type[i % c], "int") == 0) {
-      pstr += sprintf(pstr, ", %d", rand_int());
-    } else if (strcasecmp(data_type[i % c], "bigint") == 0) {
-      pstr += sprintf(pstr, ", %" PRId64, rand_bigint());
-    } else if (strcasecmp(data_type[i % c], "float") == 0) {
-      pstr += sprintf(pstr, ", %10.4f", rand_float());
-    } else if (strcasecmp(data_type[i % c], "double") == 0) {
+    if (strcasecmp(data_type[i % c], "TINYINT") == 0) {
+      pstr += sprintf(pstr, ",%d", rand_tinyint() );
+    } else if (strcasecmp(data_type[i % c], "SMALLINT") == 0) {
+      pstr += sprintf(pstr, ",%d", rand_smallint());
+    } else if (strcasecmp(data_type[i % c], "INT") == 0) {
+      pstr += sprintf(pstr, ",%d", rand_int());
+    } else if (strcasecmp(data_type[i % c], "BIGINT") == 0) {
+      pstr += sprintf(pstr, ",%" PRId64, rand_bigint());
+    } else if (strcasecmp(data_type[i % c], "FLOAT") == 0) {
+      pstr += sprintf(pstr, ",%10.4f", rand_float());
+    } else if (strcasecmp(data_type[i % c], "DOUBLE") == 0) {
       double t = rand_double();
-      pstr += sprintf(pstr, ", %20.8f", t);
-    } else if (strcasecmp(data_type[i % c], "bool") == 0) {
+      pstr += sprintf(pstr, ",%20.8f", t);
+    } else if (strcasecmp(data_type[i % c], "BOOL") == 0) {
       bool b = taosRandom() & 1;
-      pstr += sprintf(pstr, ", %s", b ? "true" : "false");
-    } else if (strcasecmp(data_type[i % c], "binary") == 0) {
+      pstr += sprintf(pstr, ",%s", b ? "true" : "false");
+    } else if (strcasecmp(data_type[i % c], "BINARY") == 0) {
       char *s = malloc(lenOfBinary);
       rand_string(s, lenOfBinary);
-      pstr += sprintf(pstr, ", \"%s\"", s);
+      pstr += sprintf(pstr, ",\"%s\"", s);
       free(s);
-    } else if (strcasecmp(data_type[i % c], "nchar") == 0) {
+    } else if (strcasecmp(data_type[i % c], "NCHAR") == 0) {
       char *s = malloc(lenOfBinary);
       rand_string(s, lenOfBinary);
-      pstr += sprintf(pstr, ", \"%s\"", s);
+      pstr += sprintf(pstr, ",\"%s\"", s);
       free(s);
     }
 
