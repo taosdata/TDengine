@@ -30,6 +30,7 @@ matrix:
           - net-tools
           - python3-pip
           - python3-setuptools
+          - libc6-dbg
           - valgrind
           - psmisc
           - unixodbc
