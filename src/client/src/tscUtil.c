@@ -829,7 +829,9 @@ void tscResetSqlCmd(SSqlCmd* pCmd, bool removeMeta) {
 
 void tscFreeSqlResult(SSqlObj* pSql) {
   SSqlRes* pRes = &pSql->res;
+
   tscDestroyLocalMerger(pRes->pLocalMerger);
+  pRes->pLocalMerger = NULL;
 
   tscDestroyResPointerInfo(pRes);
   memset(&pSql->res, 0, sizeof(SSqlRes));
@@ -853,7 +855,6 @@ void tscFreeSubobj(SSqlObj* pSql) {
   }
 
   tfree(pSql->subState.states);
-
   pSql->subState.numOfSub = 0;
 }
 

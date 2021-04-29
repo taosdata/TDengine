@@ -14,7 +14,7 @@
  */
 
 #include "tscLocalMerge.h"
-//#include "tscSubquery.h"
+#include "tscSubquery.h"
 #include "os.h"
 #include "texpr.h"
 #include "tlosertree.h"
@@ -96,9 +96,7 @@ int32_t tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tO
     return TSDB_CODE_TSC_APP_ERROR;
   }
 
-  size_t size = sizeof(SLocalMerger) + POINTER_BYTES * numOfFlush;
-  
-  *pMerger = (SLocalMerger *) calloc(1, size);
+  *pMerger = (SLocalMerger *) calloc(1, sizeof(SLocalMerger));
   if ((*pMerger) == NULL) {
     tscError("0x%"PRIx64" failed to create local merge structure, out of memory", id);
 
@@ -107,7 +105,7 @@ int32_t tscCreateLocalMerger(tExtMemBuffer **pMemBuffer, int32_t numOfBuffer, tO
   }
 
   (*pMerger)->pExtMemBuffer = pMemBuffer;
-  (*pMerger)->pLocalDataSrc = (SLocalDataSource **)&pMerger[1];
+  (*pMerger)->pLocalDataSrc = calloc(numOfFlush, POINTER_BYTES);
   assert((*pMerger)->pLocalDataSrc != NULL);
 
   (*pMerger)->numOfBuffer = numOfFlush;
@@ -304,19 +302,22 @@ void tscDestroyLocalMerger(SLocalMerger* pLocalMerger) {
     return;
   }
 
-  if (pLocalMerger->pLoserTree) {
-    tfree(pLocalMerger->pLoserTree->param);
-    tfree(pLocalMerger->pLoserTree);
-  }
-
-  tscLocalReducerEnvDestroy(pLocalMerger->pExtMemBuffer, pLocalMerger->pDesc, pLocalMerger->numOfVnode);
   for (int32_t i = 0; i < pLocalMerger->numOfBuffer; ++i) {
     tfree(pLocalMerger->pLocalDataSrc[i]);
   }
 
   pLocalMerger->numOfBuffer = 0;
+  tscLocalReducerEnvDestroy(pLocalMerger->pExtMemBuffer, pLocalMerger->pDesc, pLocalMerger->numOfVnode);
+
   pLocalMerger->numOfCompleted = 0;
+
+  if (pLocalMerger->pLoserTree) {
+    tfree(pLocalMerger->pLoserTree->param);
+    tfree(pLocalMerger->pLoserTree);
+  }
+
   tfree(pLocalMerger->buf);
+  tfree(pLocalMerger->pLocalDataSrc);
   free(pLocalMerger);
 }
 
@@ -786,11 +787,10 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
         SColIndex *      pIndex = taosArrayGet(pInfo->orderColumnList, i);
         SColumnInfoData *pColInfo = taosArrayGet(pInfo->binfo.pRes->pDataBlock, pIndex->colIndex);
 
-        char *newRow =
-            COLMODEL_GET_VAL(pOneDataSrc->filePage.data, pOneDataSrc->pMemBuffer->pColumnModel,
-                             pOneDataSrc->rowIdx, pIndex->colIndex);
+        char *newRow = COLMODEL_GET_VAL(pOneDataSrc->filePage.data, pOneDataSrc->pMemBuffer->pColumnModel,
+                                        pOneDataSrc->rowIdx, pIndex->colIndex);
 
-        char *  data = pInfo->prevRow[i];
+        char   *data = pInfo->prevRow[i];
         int32_t ret = columnValueAscendingComparator(data, newRow, pColInfo->info.type, pColInfo->info.bytes);
         if (ret == 0) {
           continue;
@@ -809,9 +809,8 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
         SColIndex *      pIndex = taosArrayGet(pInfo->orderColumnList, i);
         SColumnInfoData *pColInfo = taosArrayGet(pInfo->binfo.pRes->pDataBlock, pIndex->colIndex);
 
-        char *curCol =
-            COLMODEL_GET_VAL(pOneDataSrc->filePage.data, pOneDataSrc->pMemBuffer->pColumnModel,
-                             pOneDataSrc->rowIdx, pIndex->colIndex);
+        char *curCol = COLMODEL_GET_VAL(pOneDataSrc->filePage.data, pOneDataSrc->pMemBuffer->pColumnModel,
+                                        pOneDataSrc->rowIdx, pIndex->colIndex);
         memcpy(pInfo->prevRow[i], curCol, pColInfo->info.bytes);
       }
 
@@ -956,7 +955,6 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
     if (pInfoData->info.type == TSDB_DATA_TYPE_TIMESTAMP && pRes->info.rows > 0) {
       STimeWindow* w = &pRes->info.window;
 
-      // TODO in case of desc order, swap it
       w->skey = *(int64_t*)pInfoData->pData;
       w->ekey = *(int64_t*)(((char*)pInfoData->pData) + TSDB_KEYSIZE * (pRes->info.rows - 1));
 

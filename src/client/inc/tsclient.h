@@ -238,6 +238,12 @@ typedef struct SQueryInfo {
   SArray            *pUpstream;   // SArray<struct SQueryInfo>
   struct SQueryInfo *pDownstream;
   int32_t            havingFieldNum;
+  bool               stableQuery;
+  bool               groupbyColumn;
+  bool               simpleAgg;
+  bool               arithmeticOnAgg;
+  bool               projectionQuery;
+  bool               hasFilter;
 } SQueryInfo;
 
 typedef struct {

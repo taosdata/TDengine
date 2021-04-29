@@ -65,15 +65,11 @@ static void skipRemainValue(STSBuf* pTSBuf, tVariant* tag1) {
 }
 
 static void subquerySetState(SSqlObj *pSql, SSubqueryState *subState, int idx, int8_t state) {
-  assert(idx < subState->numOfSub);
-  assert(subState->states);
+  assert(idx < subState->numOfSub && subState->states != NULL);
+  tscDebug("subquery:0x%"PRIx64",%d state set to %d", pSql->self, idx, state);
 
   pthread_mutex_lock(&subState->mutex);
-  
-  tscDebug("subquery:0x%"PRIx64",%d state set to %d", pSql->self, idx, state);
-  
   subState->states[idx] = state;
-
   pthread_mutex_unlock(&subState->mutex);
 }
 
@@ -110,13 +106,9 @@ static bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
   pthread_mutex_lock(&subState->mutex);
 
   bool done = allSubqueryDone(pParentSql);
-
   if (done) {
-    tscDebug("0x%"PRIx64" subquery:0x%"PRIx64",%d all subs already done", pParentSql->self,
-        pSql->self, idx);
-    
+    tscDebug("0x%"PRIx64" subquery:0x%"PRIx64",%d all subs already done", pParentSql->self, pSql->self, idx);
     pthread_mutex_unlock(&subState->mutex);
-    
     return false;
   }
   
@@ -125,9 +117,7 @@ static bool subAndCheckDone(SSqlObj *pSql, SSqlObj *pParentSql, int idx) {
   subState->states[idx] = 1;
 
   done = allSubqueryDone(pParentSql);
-
   pthread_mutex_unlock(&subState->mutex);
-
   return done;
 }
 
@@ -701,8 +691,6 @@ void freeJoinSubqueryObj(SSqlObj* pSql) {
   }
   
   tfree(pSql->subState.states);
-  
-  
   pSql->subState.numOfSub = 0;
 }
 

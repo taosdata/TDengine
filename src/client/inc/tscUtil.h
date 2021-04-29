@@ -200,6 +200,7 @@ SColumn* tscColumnClone(const SColumn* src);
 bool tscColumnExists(SArray* pColumnList, int32_t columnIndex, uint64_t uid);
 SColumn* tscColumnListInsert(SArray* pColumnList, int32_t columnIndex, uint64_t uid, SSchema* pSchema);
 void tscColumnListDestroy(SArray* pColList);
+void tscColumnListCopy(SArray* dst, const SArray* src, uint64_t tableUid);
 
 void convertQueryResult(SSqlRes* pRes, SQueryInfo* pQueryInfo);
 
