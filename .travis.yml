@@ -39,6 +39,8 @@ matrix:
     before_script:
       - export TZ=Asia/Harbin
       - date
+      - curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py && python3.8 get-pip.py
+      - python3.8 -m pip install --upgrade pip setuptools
       - cd ${TRAVIS_BUILD_DIR}
       - mkdir debug
       - cd debug
