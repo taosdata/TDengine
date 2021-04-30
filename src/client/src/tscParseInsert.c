@@ -475,16 +475,6 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, SSqlCmd *pCmd, int1
           continue;
         }
 
-//        if (sToken.z[k] == delim || sToken.z[k] == '\\') {
-//          if (sToken.z[k + 1] == delim) {
-//            cnt++;
-//            tmpTokenBuf[j] = sToken.z[k + 1];
-//            j++;s
-//            k++;
-//            continue;
-//          }
-//        }
-
         tmpTokenBuf[j] = sToken.z[k];
         j++;
       }
