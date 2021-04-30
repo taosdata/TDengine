@@ -1,7 +1,12 @@
 package com.taosdata.jdbc.rs;
 
+import com.google.common.collect.Range;
+import com.google.common.collect.RangeSet;
+import com.google.common.collect.TreeRangeSet;
 import com.taosdata.jdbc.TSDBError;
 import com.taosdata.jdbc.TSDBErrorNumbers;
+import com.taosdata.jdbc.utils.SqlSyntaxValidator;
+import com.taosdata.jdbc.utils.Utils;
 
 import java.io.InputStream;
 import java.io.Reader;
@@ -10,6 +15,12 @@ import java.net.URL;
 import java.nio.charset.Charset;
 import java.sql.*;
 import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class RestfulPreparedStatement extends RestfulStatement implements PreparedStatement {
 
@@ -21,6 +32,7 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
     public RestfulPreparedStatement(RestfulConnection conn, String database, String sql) {
         super(conn, database);
         this.rawSql = sql;
+
         if (sql.contains("?")) {
             int parameterCnt = 0;
             for (int i = 0; i < sql.length(); i++) {
@@ -58,29 +70,14 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
         return executeUpdate(sql);
     }
 
-    private String getNativeSql(String rawSql) throws SQLException {
-        String sql = rawSql;
-        for (int i = 0; i < parameters.length; ++i) {
-            Object para = parameters[i];
-            if (para != null) {
-                String paraStr;
-                if (para instanceof byte[]) {
-                    paraStr = new String((byte[]) para, Charset.forName("UTF-8"));
-                } else {
-                    paraStr = para.toString();
-                }
-                // if para is timestamp or String or byte[] need to translate ' character
-                if (para instanceof Timestamp || para instanceof String || para instanceof byte[]) {
-                    paraStr = paraStr.replaceAll("'", "\\\\\\\\'");
-                    paraStr = "'" + paraStr + "'";
-                }
-                sql = sql.replaceFirst("[?]", paraStr);
-            } else {
-                sql = sql.replaceFirst("[?]", "NULL");
-            }
-        }
-        clearParameters();
-        return sql;
+    /****
+     * 将rawSql转换成一条可执行的sql语句，使用属性parameters中的变脸进行替换
+     * 对于insert into ?.? (?,?,?) using ?.? (?,?,?) tags(?, ?, ?) values(?, ?, ?)
+     * @param rawSql，可能是insert、select或其他，使用?做占位符
+     * @return
+     */
+    private String getNativeSql(String rawSql) {
+        return Utils.getNativeSql(rawSql, this.parameters);
     }
 
     @Override
@@ -220,8 +217,8 @@ public class RestfulPreparedStatement extends RestfulStatement implements Prepar
     public void setObject(int parameterIndex, Object x, int targetSqlType) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_STATEMENT_CLOSED);
-        
-        setObject(parameterIndex,x);
+
+        setObject(parameterIndex, x);
     }
 
     @Override

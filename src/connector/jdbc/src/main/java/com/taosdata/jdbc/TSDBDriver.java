@@ -95,11 +95,16 @@ public class TSDBDriver extends AbstractDriver {
      */
     public static final String PROPERTY_KEY_BATCH_LOAD = "batchfetch";
 
+    /**
+     * timestamp format for JDBC-RESTful,should one of the options: string or timestamp or utc
+     */
+    public static final String PROPERTY_KEY_TIMESTAMP_FORMAT = "timestampFormat";
+
     private TSDBDatabaseMetaData dbMetaData = null;
 
     static {
         try {
-            java.sql.DriverManager.registerDriver(new TSDBDriver());
+            DriverManager.registerDriver(new TSDBDriver());
         } catch (SQLException e) {
             throw TSDBError.createRuntimeException(TSDBErrorNumbers.ERROR_CANNOT_REGISTER_JNI_DRIVER, e);
         }
