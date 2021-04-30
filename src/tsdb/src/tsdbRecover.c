@@ -20,24 +20,10 @@ extern int tsTsdbCheckRestoreMode;
 #define TSDB_FNAME_PREFIX_TMP "t."
 
 typedef struct {
-  // SRtn         rtn;     // retention snapshot
-  // SFSIter      fsIter;  // tsdb file iterator
-  // int          niters;  // memory iterators
-  // SCommitIter *iters;
-  // bool         isRFileSet;  // read and commit FSET
-  SReadH readh;
-  // SDFileSet wSet;
-  // bool      isDFileSame;
-  // bool      isLFileSame;
-  // TSKEY     minKey;
-  // TSKEY     maxKey;
+  SReadH  readh;
   SArray *aBlkIdx;  // SBlockIdx array
-  // STable *pTable;
   SArray *aSupBlk;  // Table super-block array
   SArray *aSubBlk;  // table sub-block array
-  // SDataCols *  pDataCols;
-  // size_t nSupScanned;
-  // size_t nSupCorrupted;
 } SRecoverH;
 
 static int tsdbInitRecoverH(SRecoverH *pRecoverH, STsdbRepo *pRepo);
@@ -71,6 +57,7 @@ static int tsdbCheckBlockDataColsChkSum(SReadH *pReadh, SBlock *pBlock, SDataCol
 
 static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile);
 static int tsdbDestroyHFile(SDFile *pDFile);
+static int tsdbCloseHFile(SDFile *pDFile);
 
 int tsdbRecoverDataMain(STsdbRepo *pRepo) {
   SRecoverH recoverH;
@@ -117,7 +104,10 @@ int tsdbRecoverDataMain(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbBackUpDFileSet(SDFileSet *pFileSet) { return 0; }
+static int tsdbBackUpDFileSet(SDFileSet *pFileSet) {
+  //
+  return 0;
+}
 
 static int tsdbInitRecoverH(SRecoverH *pRecoverH, STsdbRepo *pRepo) {
   memset(pRecoverH, 0, sizeof(SRecoverH));
@@ -211,7 +201,8 @@ static int tsdbCheckDFileChksum(SRecoverH *pRecoverH) {
   }
 
   if (tsdbInitHFile(pTmpHeadF, pHeadF) < 0) {
-    tsdbInfo("vgId:%d failed to init %s since %s", TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pTmpHeadF),tstrerror(terrno));
+    tsdbInfo("vgId:%d failed to init %s since %s", TSDB_READ_REPO_ID(pReadH), TSDB_FILE_FULL_NAME(pTmpHeadF),
+             tstrerror(terrno));
     return -1;
   }
 
@@ -270,10 +261,10 @@ static int tsdbCheckDFileChksum(SRecoverH *pRecoverH) {
     return -1;
   }
 
-  // use the rebuild .head file if
+  // use the rebuilt .head file if partial pass
   if ((nSupBlkCorrupted > 0) || (nBlkIdxChkPassed != taosArrayGetSize(pReadH->aBlkIdx))) {
-    if (taosRename("oldName", "newName") < 0) {
-      // remove t.vdfdddd.head{-ver2}. Use the prefix but not suffix to avoid error
+    // rename t.vdfdddd.head{-ver2}. Use the prefix but not suffix to avoid error
+    if (tsdbRenameDFile(pHeadF, pTmpHeadF) < 0) {  // fsync/close/rename
       tsdbDestroyHFile(pTmpHeadF);
       return -1;
     }
@@ -505,9 +496,10 @@ static int tsdbRecoverCheckBlockData(SRecoverH *pRecoverH, SBlock *pSupBlock, SB
 
 static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile) {
   const TFILE *pf = &pSrcDFile->f;
-  int          tvid, tfid;
-  TSDB_FILE_T  ttype;
-  uint32_t     tversion;
+  int          tvid = -1;
+  int          tfid = -1;
+  TSDB_FILE_T  ttype = TSDB_FILE_MAX;
+  uint32_t     tversion = -1;
   char         aname[TSDB_FILENAME_LEN];
   char         rname[TSDB_FILENAME_LEN];
   char         dname[TSDB_FILENAME_LEN];
@@ -515,13 +507,15 @@ static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile) {
   memset(pDestDFile, 0, sizeof(SDFile));
   pDestDFile->info.magic = TSDB_FILE_INIT_MAGIC;
 
-
   tfsbasename(pf, aname);
   tfsdirname(pf, dname);
   tsdbParseDFilename(aname, &tvid, &tfid, &ttype, &tversion);
+
+  ASSERT(tvid != -1 && tfid != -1 && ttype < TSDB_FILE_MAX && tversion != -1);
+
   tsdbGetAbsoluteNameByPrefix(rname, tvid, tfid, tversion, ttype, TSDB_FNAME_PREFIX_TMP, dname);
   tstrncpy(pDestDFile->f.aname, aname, sizeof(aname));
-  tstrncpy(pDestDFile->f.rname, rname, sizeof(rname));  
+  tstrncpy(pDestDFile->f.rname, rname, sizeof(rname));
 
   if (tsdbCreateDFile(pDestDFile, true) < 0) {
     return -1;
@@ -531,8 +525,14 @@ static int tsdbInitHFile(SDFile *pDestDFile, const SDFile *pSrcDFile) {
 }
 
 static int tsdbDestroyHFile(SDFile *pDFile) {
-  if (tsdbRemoveDFile(pDFile) < 0) {
-    // print error(while has no other impact)
+  tsdbCloseHFile(pDFile);
+  return tsdbRemoveDFile(pDFile);
+}
+
+static int tsdbCloseHFile(SDFile *pDFile) {
+  if (TSDB_FILE_OPENED(pDFile)) {
+    TSDB_FILE_FSYNC(pDFile);
+    tsdbCloseDFile(pDFile);
   }
   return 0;
 }

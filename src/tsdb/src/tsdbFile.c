@@ -721,3 +721,16 @@ void tsdbGetAbsoluteNameByPrefix(char *fname, int vid, int fid, uint32_t ver, TS
     }
   }
 }
+
+int tsdbRenameDFile(SDFile *toDFile, SDFile *fromDFile) {
+  if (TSDB_FILE_OPENED(fromDFile)) {
+    TSDB_FILE_FSYNC(fromDFile);
+    tsdbCloseDFile(fromDFile);
+  }
+  if (TSDB_FILE_OPENED(toDFile)) {
+    TSDB_FILE_FSYNC(toDFile);
+    tsdbCloseDFile(toDFile);
+  }
+
+  return taosRename(TSDB_FILE_FULL_NAME(fromDFile), TSDB_FILE_FULL_NAME(toDFile));
+}

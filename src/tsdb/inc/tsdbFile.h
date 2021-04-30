@@ -189,6 +189,7 @@ int   tsdbGetDFileType(const TFILE* tFile, TSDB_FILE_T* fType);
 void  tsdbGetRelativeNameByPrefix(char* fname, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char* prefix);
 void  tsdbGetAbsoluteNameByPrefix(char* fname, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char* prefix,
                                   const char* dir);
+int   tsdbRenameDFile(SDFile* toDFile, SDFile* fromDFile);
 
 static FORCE_INLINE void tsdbSetDFileInfo(SDFile* pDFile, SDFInfo* pInfo) { pDFile->info = *pInfo; }
 
