@@ -695,3 +695,29 @@ static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, c
     }
   }
 }
+
+void tsdbGetRelativeNameByPrefix(char *fname, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char *prefix) {
+  ASSERT(ftype != TSDB_FILE_MAX);
+
+  if (ftype < TSDB_FILE_MAX) {
+    if (ver == 0) {
+      snprintf(fname, TSDB_FILENAME_LEN, "%sv%df%d.%s", prefix, vid, fid, TSDB_FNAME_SUFFIX[ftype]);
+    } else {
+      snprintf(fname, TSDB_FILENAME_LEN, "%sv%df%d.%s-ver%" PRIu32, prefix, vid, fid, TSDB_FNAME_SUFFIX[ftype], ver);
+    }
+  }
+}
+
+void tsdbGetAbsoluteNameByPrefix(char *fname, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char *prefix,
+                                 const char *dir) {
+  ASSERT(ftype != TSDB_FILE_MAX);
+
+  if (ftype < TSDB_FILE_MAX) {
+    if (ver == 0) {
+      snprintf(fname, TSDB_FILENAME_LEN, "%s/%sv%df%d.%s", dir, prefix, vid, fid, TSDB_FNAME_SUFFIX[ftype]);
+    } else {
+      snprintf(fname, TSDB_FILENAME_LEN, "%s/%sv%df%d.%s-ver%" PRIu32, dir, prefix, vid, fid, TSDB_FNAME_SUFFIX[ftype],
+               ver);
+    }
+  }
+}

@@ -73,6 +73,9 @@
 //   }
 // }
 
-int tsdbRecoverData(STsdbRepo *pRepo);
+/**
+ * check and recover data
+ */
+int tsdbRecoverDataMain(STsdbRepo *pRepo);
 
 #endif /* _TD_TSDB_RECOVER_H_ */

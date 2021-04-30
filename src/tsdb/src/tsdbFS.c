@@ -13,9 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <regex.h>
 #include "os.h"
 #include "tsdbint.h"
-#include <regex.h>
 
 // global variable
 // tsTsdbCheckRestoreMode - for check and restore when open vnode
@@ -312,7 +312,7 @@ int tsdbEndFSTxn(STsdbRepo *pRepo) {
     return -1;
   }
 
-  // Make new 
+  // Make new
   tsdbWLockFS(pfs);
   pStatus = pfs->cstatus;
   pfs->cstatus = pfs->nstatus;
@@ -1088,25 +1088,23 @@ static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
 int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
   ASSERT(fSetArray != NULL && *fSetArray == NULL);
   char         dataDir[TSDB_FILENAME_LEN];
-  SArray *     fArray = NULL; // TFile
-  // STsdbFS *    pfs = REPO_FS(pRepo);
+  SArray *     fArray = NULL;  // TFile
   const TFILE *pf = NULL;
-  // size_t       dFileSetSize = 0;
 
   tsdbGetDataDir(REPO_ID(pRepo), dataDir);
-  
+
   if (tsdbFetchTFileSet(pRepo, &fArray) < 0) {
     tsdbError("vgId:%d failed to fetch DFileSet from %s since %s", REPO_ID(pRepo), dataDir, strerror(terrno));
     return -1;
   }
 
-  size_t fArraySize = taosArrayGetSize(fArray);
-  if (fArraySize <= 0){
+  if (taosArrayGetSize(fArray) <= 0) {
+    tsdbInfo("vgId:%d size of DFileSet from %s is zero", REPO_ID(pRepo), dataDir);
     taosArrayDestroy(fArray);
-    return 0;
+    return -1;
   }
 
-  *fSetArray = taosArrayInit(fArraySize/TSDB_FILE_MAX, sizeof(SDFileSet));
+  *fSetArray = taosArrayInit(taosArrayGetSize(fArray) / TSDB_FILE_MAX, sizeof(SDFileSet));
   if (*fSetArray == NULL) {
     taosArrayDestroy(fArray);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -1165,10 +1163,11 @@ int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
       }
 
       pDFile->f = *pf;
-      
+
       if (tsdbOpenDFile(pDFile, O_RDONLY) < 0) {
         taosArrayDestroy(fArray);
-        tsdbError("vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno));
+        tsdbError("vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
+                  tstrerror(terrno));
         return -1;
       }
 
@@ -1252,9 +1251,10 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       }
 
       pDFile->f = *pf;
-      
+
       if (tsdbOpenDFile(pDFile, O_RDONLY) < 0) {
-        tsdbError("vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno));
+        tsdbError("vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
+                  tstrerror(terrno));
         taosArrayDestroy(fArray);
         return -1;
       }
@@ -1282,7 +1282,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 }
 
 static int tsdbFullCheckRestoreDFileSet(STsdbRepo *pRepo) {
-  SArray *     fSetArray = NULL; // SDFileSet array
+  SArray *fSetArray = NULL;  // SDFileSet array
 
   if (tsdbFetchDFileSet(pRepo, &fSetArray) < 0) {
     tsdbError("vgId:%d failed to fetch DFileSet to restore in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckRestoreMode,
@@ -1290,7 +1290,7 @@ static int tsdbFullCheckRestoreDFileSet(STsdbRepo *pRepo) {
     return -1;
   }
 
-  if (tsdbRecoverData(pRepo) < 0) {
+  if (tsdbRecoverDataMain(pRepo) < 0) {
     tsdbError("vgId:%d failed to check and restore in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckRestoreMode,
               strerror(terrno));
     taosArrayDestroy(fSetArray);
@@ -1302,7 +1302,6 @@ static int tsdbFullCheckRestoreDFileSet(STsdbRepo *pRepo) {
 
   return 0;
 }
-
 
 static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
   // Loop to recover mfile
