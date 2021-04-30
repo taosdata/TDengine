@@ -83,7 +83,7 @@ SDFileSet *tsdbFSIterNext(SFSIter *pIter);
 int        tsdbLoadMetaCache(STsdbRepo *pRepo, bool recoverMeta);
 int        tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray);
 
-static FORCE_INLINE int tsdbRLockFS(STsdbFS *pFs) {
+static FORCE_INLINE int tsdbRLockFS(STsdbFS* pFs) {
   int code = pthread_rwlock_rdlock(&(pFs->lock));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);

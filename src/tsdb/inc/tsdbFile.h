@@ -30,7 +30,6 @@
 #define TSDB_FILE_OPENED(tf) (TSDB_FILE_FD(tf) >= 0)
 #define TSDB_FILE_CLOSED(tf) (!TSDB_FILE_OPENED(tf))
 #define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_FD(f) = -1)
-//#define TSDB_FILE_SET_NULL(f) (TSDB_FILE_F(f) = -1)
 #define TSDB_FILE_LEVEL(tf) TFILE_LEVEL(TSDB_FILE_F(tf))
 #define TSDB_FILE_ID(tf) TFILE_ID(TSDB_FILE_F(tf))
 #define TSDB_FILE_FSYNC(tf) fsync(TSDB_FILE_FD(tf))
@@ -40,7 +39,6 @@
 #define TSDB_FILE_IS_BAD(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_BAD)
 
 typedef enum { TSDB_FILE_HEAD = 0, TSDB_FILE_DATA, TSDB_FILE_LAST, TSDB_FILE_MAX, TSDB_FILE_META } TSDB_FILE_T;
-#define TSDB_FSET_SIZE_VALID (TSDB_FILE_MAX - 1)  // valid fset size, depends on TSDB_FILE_MAX or FSet definition
 
 // =============== SMFile
 typedef struct {

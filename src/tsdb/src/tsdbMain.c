@@ -620,6 +620,3 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
   tsdbDestroyReadH(&readh);
   return 0;
 }
-
-                 
-                 
