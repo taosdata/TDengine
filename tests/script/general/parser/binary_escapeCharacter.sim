@@ -100,7 +100,8 @@ sql insert into tb values(now, '\\\\');
 
 print ------------->sim bug
 # sql_error insert into tb values(now, '\\\');
-# sql_error insert into tb values(now, '\\');
-# sql_error insert into tb values(now, '\\n');
+sql_error insert into tb values(now, '\');
+#sql_error insert into tb values(now, '\\\n');
+sql insert into tb values(now, '\n');
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
