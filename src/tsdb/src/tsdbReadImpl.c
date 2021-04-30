@@ -15,8 +15,6 @@
 
 #include "tsdbint.h"
 
-extern int tsTsdbFSCheckBranch;
-
 #define TSDB_KEY_COL_OFFSET 0
 
 static void tsdbResetReadTable(SReadH *pReadh);
@@ -41,7 +39,6 @@ int tsdbInitReadH(SReadH *pReadh, STsdbRepo *pRepo) {
   pReadh->aBlkIdx = taosArrayInit(1024, sizeof(SBlockIdx));
   if (pReadh->aBlkIdx == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    tsdbDestroyReadH(pReadh);
     return -1;
   }
 
@@ -155,7 +152,7 @@ int tsdbLoadBlockIdx(SReadH *pReadh) {
   return 0;
 }
 
-int tsdbSetReadTable(SReadH *pReadh, STable *pTable, SBlockIdx *pBlockIndex) {
+int tsdbSetReadTable(SReadH *pReadh, STable *pTable) {
   STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
 
   pReadh->pTable = pTable;
@@ -168,12 +165,6 @@ int tsdbSetReadTable(SReadH *pReadh, STable *pTable, SBlockIdx *pBlockIndex) {
   if (tdInitDataCols(pReadh->pDCols[1], pSchema) < 0) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
-  }
-
-  // use the assigned pBlockIndex if not NULL.
-  if (pBlockIndex != NULL) {
-    pReadh->pBlkIdx = pBlockIndex;
-    return 0;
   }
 
   size_t size = taosArrayGetSize(pReadh->aBlkIdx);
@@ -242,7 +233,6 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
     return -1;
   }
 
-  // QA: means bad head file. Return -1??
   ASSERT(pBlkIdx->tid == pReadh->pBlkInfo->tid && pBlkIdx->uid == pReadh->pBlkInfo->uid);
 
   if (pTarget) {

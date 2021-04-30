@@ -571,7 +571,7 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
       STable *pTable = pMeta->tables[i];
       if (pTable == NULL) continue;
 
-      if (tsdbSetReadTable(&readh, pTable, NULL) < 0) {
+      if (tsdbSetReadTable(&readh, pTable) < 0) {
         tsdbDestroyReadH(&readh);
         return -1;
       }
@@ -620,3 +620,6 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
   tsdbDestroyReadH(&readh);
   return 0;
 }
+
+                 
+                 

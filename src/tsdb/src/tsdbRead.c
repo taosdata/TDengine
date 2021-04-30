@@ -891,7 +891,7 @@ static int32_t loadBlockInfo(STsdbQueryHandle * pQueryHandle, int32_t index, int
   STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, index);
   pCheckInfo->numOfBlocks = 0;
 
-  if (tsdbSetReadTable(&pQueryHandle->rhelper, pCheckInfo->pTableObj, NULL) != TSDB_CODE_SUCCESS) {
+  if (tsdbSetReadTable(&pQueryHandle->rhelper, pCheckInfo->pTableObj) != TSDB_CODE_SUCCESS) {
     code = terrno;
     return code;
   }

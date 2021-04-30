@@ -414,9 +414,8 @@ typedef enum {
 } ECheckItemType;
 
 typedef enum {
-  TSDB_CHECK_MODE_DEFAULT = 0,                     // only check header and file size
-  TSDB_CHECK_MODE_FULL_CHECK_IF_NO_CURRENT = 1,    // full check only if the current file doesn't exist
-  TSDB_CHECK_MODE_FULL_CHECK_REBUILD_CURRENT = 2,  // full check and rebuild the current file all the time
+  TSDB_CHECK_MODE_DEFAULT = 0,               // check header and file size
+  TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT = 1,  // check chksum if no current
   TSDB_CHECK_MODE_MAX
 } ETsdbCheckMode;
 

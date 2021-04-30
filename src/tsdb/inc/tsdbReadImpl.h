@@ -38,7 +38,7 @@ typedef struct {
   int16_t numOfSubBlocks;
   int16_t numOfCols;  // not including timestamp column
   TSKEY   keyFirst;
-  TSKEY   keyLast;  // QA: If it's a supBlock with multiple subBlocks, what does it mean?
+  TSKEY   keyLast;
 } SBlock;
 
 typedef struct {
@@ -85,7 +85,7 @@ typedef struct {
 struct SReadH {
   STsdbRepo * pRepo;
   SDFileSet   rSet;     // FSET to read
-  SArray *    aBlkIdx;  // SBlockIdx array: for read
+  SArray *    aBlkIdx;  // SBlockIdx array
   STable *    pTable;   // table to read
   SBlockIdx * pBlkIdx;  // current reading table SBlockIdx
   int         cidx;
@@ -113,7 +113,7 @@ void  tsdbDestroyReadH(SReadH *pReadh);
 int   tsdbSetAndOpenReadFSet(SReadH *pReadh, SDFileSet *pSet);
 void  tsdbCloseAndUnsetFSet(SReadH *pReadh);
 int   tsdbLoadBlockIdx(SReadH *pReadh);
-int   tsdbSetReadTable(SReadH *pReadh, STable *pTable, SBlockIdx *pBlockIndex);
+int   tsdbSetReadTable(SReadH *pReadh, STable *pTable);
 int   tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget);
 int   tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlockInfo);
 int   tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, int16_t *colIds, int numOfColsIds);

@@ -18,19 +18,12 @@
 #include <regex.h>
 
 // global variable
-int tsTsdbCheckAndRestoreMode = TSDB_CHECK_MODE_FULL_CHECK_REBUILD_CURRENT;
-// int tsTsdbCheckAndRestoreMode = TSDB_CHECK_MODE_DEFAULT;
-// int tsTsdbCheckAndRestoreMode = TSDB_CHECK_MODE_FULL_CHECK_IF_NO_CURRENT;
-/**
- * 0 - normal or default branch
- * 1 - full check and restore branch during init
- */
-// QA: add param in function or global variable? global variable problem: lock to avoid conflict?
-int tsTsdbFSCheckBranch = 0;
+// tsTsdbCheckRestoreMode - for check and restore when open vnode
+// int tsTsdbCheckRestoreMode = TSDB_CHECK_MODE_DEFAULT;
+int tsTsdbCheckRestoreMode = TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT;
 
 typedef enum { TSDB_TXN_TEMP_FILE = 0, TSDB_TXN_CURR_FILE } TSDB_TXN_FILE_T;
 static const char *tsdbTxnFname[] = {"current.t", "current"};
-#define TSDB_SUFFIX_TMP ".t"
 #define TSDB_MAX_FSETS(keep, days) ((keep) / (days) + 3)
 
 static int  tsdbComparFidFSet(const void *arg1, const void *arg2);
@@ -46,10 +39,9 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf);
 static int  tsdbRestoreCurrent(STsdbRepo *pRepo);
 static int  tsdbComparTFILE(const void *arg1, const void *arg2);
 static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo);
-static int  tsdbFullCheckAndRestoreDFileSet(SCommitH *pCommitH);
-static int  tsdbLoadAndCacheMeta(STsdbRepo *pRepo);
-// load/check block data, and generate sup/sub blocks for restore;
-static int tsdbLoadAndCheckBlockData(SCommitH *pCommitH, size_t *nCorrupted, size_t *nScanned);
+static int  tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray);
+static int  tsdbRestoreDFileSet(STsdbRepo *pRepo);
+static int  tsdbFullCheckRestoreDFileSet(STsdbRepo *pRepo);
 
 // ================== CURRENT file header info
 static int tsdbEncodeFSHeader(void **buf, SFSHeader *pHeader) {
@@ -250,21 +242,6 @@ void *tsdbFreeFS(STsdbFS *pfs) {
   return NULL;
 }
 
-static int tsdbLoadAndCacheMeta(STsdbRepo *pRepo) {
-  if (tsdbScanAndTryFixMFile(pRepo) < 0) {
-    tsdbError("vgId:%d failed to fix MFile since %s", REPO_ID(pRepo), tstrerror(terrno));
-    return -1;
-  }
-
-  // Load meta cache if has meta file
-  if ((!(pRepo->state & TSDB_STATE_BAD_META)) && tsdbLoadMetaCache(pRepo, true) < 0) {
-    tsdbError("vgId:%d failed to open FS while loading meta cache since %s", REPO_ID(pRepo), tstrerror(terrno));
-    return -1;
-  }
-
-  return 0;
-}
-
 int tsdbOpenFS(STsdbRepo *pRepo) {
   STsdbFS *pfs = REPO_FS(pRepo);
   char     current[TSDB_FILENAME_LEN] = "\0";
@@ -273,19 +250,13 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
 
   tsdbGetTxnFname(REPO_ID(pRepo), TSDB_TXN_CURR_FILE, current);
 
-  tsdbDebug("vgId:%d check and restore mode: %d", REPO_ID(pRepo), tsTsdbCheckAndRestoreMode);
-
-  if (access(current, F_OK) == 0 && tsTsdbCheckAndRestoreMode != TSDB_CHECK_MODE_FULL_CHECK_REBUILD_CURRENT) {
+  if (access(current, F_OK) == 0) {
     if (tsdbOpenFSFromCurrent(pRepo) < 0) {
       tsdbError("vgId:%d failed to open FS since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
     }
 
     tsdbScanAndTryFixDFilesHeader(pRepo);
-
-    if (tsdbLoadAndCacheMeta(pRepo) < 0) {
-      return -1;
-    }
   } else {
     if (tsdbRestoreCurrent(pRepo) < 0) {
       tsdbError("vgId:%d failed to restore current file since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -293,9 +264,14 @@ int tsdbOpenFS(STsdbRepo *pRepo) {
     }
   }
 
-  // check and truncate
   if (tsdbScanAndTryFixFS(pRepo) < 0) {
     tsdbError("vgId:%d failed to scan and fix FS since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  // Load meta cache if has meta file
+  if ((!(pRepo->state & TSDB_STATE_BAD_META)) && tsdbLoadMetaCache(pRepo, true) < 0) {
+    tsdbError("vgId:%d failed to open FS while loading meta cache since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }
 
@@ -705,10 +681,10 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
   STsdbFS *  pfs = REPO_FS(pRepo);
   SFSStatus *pStatus = pfs->cstatus;
 
-  // if (tsdbScanAndTryFixMFile(pRepo) < 0) {
-  //   tsdbError("vgId:%d failed to fix MFile since %s", REPO_ID(pRepo), tstrerror(terrno));
-  //   return -1;
-  // }
+  if (tsdbScanAndTryFixMFile(pRepo) < 0) {
+    tsdbError("vgId:%d failed to fix MFile since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
 
   size_t size = taosArrayGetSize(pStatus->df);
 
@@ -722,10 +698,8 @@ static int tsdbScanAndTryFixFS(STsdbRepo *pRepo) {
   }
 
   // remove those unused files
-  if (tsTsdbCheckAndRestoreMode == -1) {  // QA and TODO: remove the condition when submit to test.
-    tsdbScanRootDir(pRepo);
-    tsdbScanDataDir(pRepo);
-  }
+  tsdbScanRootDir(pRepo);
+  tsdbScanDataDir(pRepo);
   return 0;
 }
 
@@ -1044,340 +1018,23 @@ static int tsdbRestoreMeta(STsdbRepo *pRepo) {
   return 0;
 }
 
-static int tsdbFullCheckAndRestoreDFileSet(SCommitH *pCommitH) {
-  ASSERT(pCommitH != NULL && pCommitH->readh.pRepo != NULL);
-
-  char         dataDir[TSDB_FILENAME_LEN];
-  char         bname[TSDB_FILENAME_LEN];
-  char         anameHeadT[TSDB_FILENAME_LEN];
-  char         rnameHeadT[TSDB_FILENAME_LEN];
-  TDIR *       tdir = NULL;
-  const TFILE *pf = NULL;
-  const char * pattern = "^v[0-9]+f[0-9]+\\.(head|data|last)(-ver[0-9]+)?$";
-  SArray *     fArray = NULL;
-  regex_t      regex;
-  SReadH *     readh = &(pCommitH->readh);
-  STsdbRepo *  pRepo = TSDB_READ_REPO(readh);
-  STsdbFS *    pfs = REPO_FS(pRepo);
-  SDFile       tHeadFile;
-  STable       wTable;
-  size_t       nScanned = 0;    // sup block scanned
-  size_t       nCorrupted = 0;  // sup block  corrupted
-
-  tsdbGetDataDir(REPO_ID(pRepo), dataDir);
-
-  pCommitH->pTable = &wTable;
-
-  // Resource allocation and init
-  regcomp(&regex, pattern, REG_EXTENDED);
-
-  fArray = taosArrayInit(1024, sizeof(TFILE));
-  if (fArray == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    tsdbError("prop:vgId:%d failed to full check and restore DFileSet while open directory %s since %s", REPO_ID(pRepo),
-              dataDir, tstrerror(terrno));
-    regfree(&regex);
-    return -1;
-  }
-
-  tdir = tfsOpendir(dataDir);
-  if (tdir == NULL) {
-    tsdbError("prop:vgId:%d failed to full check and restore DFileSet while open directory %s since %s", REPO_ID(pRepo),
-              dataDir, tstrerror(terrno));
-    taosArrayDestroy(fArray);
-    regfree(&regex);
-    return -1;
-  }
-
-  while ((pf = tfsReaddir(tdir))) {
-    tfsbasename(pf, bname);
-    int code = regexec(&regex, bname, 0, NULL, 0);
-    if (code == 0) {
-      if (taosArrayPush(fArray, (void *)pf) == NULL) {
-        terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-        tfsClosedir(tdir);
-        taosArrayDestroy(fArray);
-        regfree(&regex);
-        return -1;
-      }
-    } else if (code == REG_NOMATCH) {
-      // Not match
-      tsdbInfo("prop:vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), TFILE_NAME(pf));
-      (void)tfsremove(pf);
-      continue;
-    } else {
-      // Has other error
-      tsdbError("prop:vgId:%d failed to restore DFileSet Array while run regexec since %s", REPO_ID(pRepo),
-                strerror(code));
-      terrno = TAOS_SYSTEM_ERROR(code);
-      tfsClosedir(tdir);
-      taosArrayDestroy(fArray);
-      regfree(&regex);
-      return -1;
-    }
-  }
-
-  tfsClosedir(tdir);
-  regfree(&regex);
-
-  // Sort the array according to file name
-  taosArraySort(fArray, tsdbComparTFILE);
-
-  // Loop to recover each file set
-  size_t      iFSetSize = 0;
-  SDFileSet   fset = {0};
-  int         tvid = 0, tfid = 0;
-  TSDB_FILE_T ttype = TSDB_FILE_MAX;
-  uint32_t    tversion = 0;
-  bool        isStartOneFSet = true;
-  for (size_t index = 0; index < taosArrayGetSize(fArray); ++index) {
-    pf = taosArrayGet(fArray, index);
-    tvid = 0;
-    tfid = 0;
-    ttype = TSDB_FILE_MAX;
-    tversion = 0;
-    bname[0] = '\0';
-
-    tfsbasename(pf, bname);
-    tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion);
-
-    tsdbDebug("prop:vgId:%d, fid:%d, file[%" PRIu64 "] %s", REPO_ID(pRepo), fset.fid, index, pf->aname);
-
-    ASSERT(tvid == REPO_ID(pRepo));
-
-    if (isStartOneFSet) {
-      fset.fid = tfid;
-      iFSetSize = 1;  // start from 1
-      isStartOneFSet = false;
-    } else {
-      if (tfid != fset.fid) {
-        tsdbError("prop:vgId:%d incomplete dFileSet, tfid:%d != fid:%d", REPO_ID(pRepo), tfid, fset.fid);
-        continue;
-      }
-      ++iFSetSize;
-    }
-
-    SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ttype);
-    pDFile->f = *pf;
-    tsdbCloseDFile(pDFile);
-    if (tsdbOpenDFile(pDFile, O_RDONLY) < 0) {
-      tsdbError("prop:vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
-                tstrerror(terrno));
-      continue;
-    }
-
-    if (tsdbLoadDFileHeader(pDFile, &(pDFile->info)) < 0) {
-      tsdbError("prop:vgId:%d failed to load %s header since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
-                tstrerror(terrno));
-      tsdbCloseDFile(pDFile);
-      continue;
-    }
-    tsdbCloseDFile(pDFile);
-
-    if (ttype == TSDB_FILE_HEAD) {
-      snprintf(anameHeadT, strlen(pDFile->f.aname) + strlen(TSDB_SUFFIX_TMP) + 1, "%s%s", pDFile->f.aname,
-               TSDB_SUFFIX_TMP);
-      snprintf(rnameHeadT, strlen(pDFile->f.rname) + strlen(TSDB_SUFFIX_TMP) + 1, "%s%s", pDFile->f.rname,
-               TSDB_SUFFIX_TMP);
-      continue;
-    } else if (ttype == TSDB_FILE_DATA) {
-      continue;
-    } else {  // TSDB_FILE_LAST
-      isStartOneFSet = true;
-    }
-    // check as a file set when ttype equals TSDB_FILE_LAST
-    if (iFSetSize != TSDB_FILE_MAX) {
-      // TODO: restriction: fset size equals TSDB_FILE_MAX(3)
-      tsdbError("prop:vgId:%d FSET %d skip check as unexpected fset size:%" PRIu64, REPO_ID(pRepo), fset.fid,
-                iFSetSize);
-      continue;
-    }
-    tsdbInfo("prop:vgId:%d FSET %d would be checked, fset size:%" PRIu64, REPO_ID(pRepo), fset.fid, iFSetSize);
-
-    if (tsdbSetAndOpenReadFSet(readh, &fset) < 0) {
-      tsdbCloseDFileSet(TSDB_READ_FSET(readh));
-      continue;
-    }
-
-    if (tsdbLoadBlockIdx(readh) < 0) {
-      tsdbCloseDFileSet(TSDB_READ_FSET(readh));
-      continue;
-    }
-
-    size_t aBlkIdxSize = taosArrayGetSize(readh->aBlkIdx);
-    if (aBlkIdxSize <= 0) {
-      tsdbCloseDFileSet(TSDB_READ_FSET(readh));
-      continue;
-    }
-
-    // generate head.t
-    memset(&tHeadFile, 0, sizeof(tHeadFile));
-    tHeadFile.info.magic = TSDB_FILE_INIT_MAGIC;
-    tstrncpy(tHeadFile.f.aname, anameHeadT, sizeof(anameHeadT));
-    tstrncpy(tHeadFile.f.rname, anameHeadT, sizeof(rnameHeadT));
-
-    if (tsdbCreateDFile(&tHeadFile, true) < 0) {
-      tsdbError("prop:vgId:%d failed to create file %s to check since %s", REPO_ID(pRepo),
-                TSDB_FILE_FULL_NAME(&tHeadFile), tstrerror(terrno));
-      tsdbCloseDFileSet(TSDB_READ_FSET(readh));
-      continue;
-    }
-    tsdbDebug("prop:vgId:%d success to create file %s to check ", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(&tHeadFile));
-
-    nScanned = 0;
-    nCorrupted = 0;
-    SDFile *pWHeadInCommitH = pCommitH->wSet.files + TSDB_FILE_HEAD;
-    *pWHeadInCommitH = tHeadFile;
-    for (size_t iBlkIdx = 0; iBlkIdx < aBlkIdxSize; ++iBlkIdx) {
-      readh->pBlkIdx = taosArrayGet(readh->aBlkIdx, iBlkIdx);
-      readh->cidx = iBlkIdx;
-      wTable.tableId.tid = readh->pBlkIdx->tid;
-      wTable.tableId.uid = readh->pBlkIdx->uid;
-
-      if (tsdbLoadBlockInfo(readh, NULL) < 0) {
-        continue;
-      }
-
-      // check and prepare BlockInfo
-      if (tsdbLoadAndCheckBlockData(pCommitH, &nCorrupted, &nScanned) < 0) {
-        continue;
-      }
-    }
-    size_t  nIdx = taosArrayGetSize(pCommitH->aBlkIdx);
-    SDFile *pRHeadF = TSDB_READ_HEAD_FILE(readh);
-    tsdbInfo("prop:vgId:%d file %s checked and blkIdx nCorrupt:%" PRIu64 ", nScanned:%" PRIu64 ", nWIdx:%" PRIu64,
-             REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pRHeadF), nCorrupted, nScanned, nIdx);
-    bool headTWriteSuccess = false;
-    bool isUseHeadT = false;
-    if (nCorrupted > 0 && nCorrupted < nScanned && nIdx > 0) {
-      isUseHeadT = true;
-      if (tsdbWriteBlockIdx(pCommitH) < 0) {
-        tsdbError("prop:vgId:%d failed to write blkIdx to %s since %s", REPO_ID(pRepo),
-                  TSDB_FILE_FULL_NAME(pWHeadInCommitH), tstrerror(terrno));
-      } else if (tsdbUpdateDFileHeader(pWHeadInCommitH) < 0) {
-      } else {
-        TSDB_FILE_FSYNC(pWHeadInCommitH);
-        headTWriteSuccess = true;
-      }
-    }
-    tsdbCloseDFile(pWHeadInCommitH);
-
-    if (isUseHeadT && headTWriteSuccess) {
-      // rename head.t to head
-      if (taosRename(TSDB_FILE_FULL_NAME(pWHeadInCommitH), TSDB_FILE_FULL_NAME(pRHeadF)) < 0) {
-        tsdbError("prop:vgId:%d failed to rename %s to %s since %s", REPO_ID(pRepo),
-                  TSDB_FILE_FULL_NAME(pWHeadInCommitH), TSDB_FILE_FULL_NAME(pRHeadF), tstrerror(terrno));
-        tsdbRemoveDFile(pWHeadInCommitH);
-        tsdbCloseDFileSet(TSDB_READ_FSET(readh));
-        continue;
-      }
-    } else {
-      tsdbRemoveDFile(pWHeadInCommitH);
-    }
-
-    // resource release
-    tsdbCloseDFileSet(TSDB_READ_FSET(readh));
-
-    if (isUseHeadT || (nCorrupted <= 0 && nScanned > 0)) {
-      taosArrayPush(pfs->cstatus->df, &fset);
-    }
-  }
-
-  // Resource release
-  taosArrayDestroy(fArray);
-
-  return 0;
-}
-
-int tsdbLoadAndCheckBlockData(SCommitH *pCommitH, size_t *nCorrupted, size_t *nScanned) {
-  ASSERT(pCommitH->readh.pBlkIdx != NULL && pCommitH->readh.cidx >= 0);
-
-  SReadH *   pReadh = &(pCommitH->readh);
-  SBlockIdx *pBlkIdx = pReadh->pBlkIdx;
-  SBlock     block;
-
-  for (uint32_t iSupBlocks = 0; iSupBlocks < pBlkIdx->numOfBlocks; ++iSupBlocks) {
-    SBlock *pSupBlock = pReadh->pBlkInfo->blocks + iSupBlocks;
-    ASSERT(pSupBlock != NULL);
-
-    tsdbDebug("prop:vgId:%d,  tid: %d, uid %" PRIu64 ", tBlock[%d,%" PRIu32 "]: numOfSubBlocks:%" PRId16
-              ",keyFirst:%" PRId64 ",keyLast:%" PRId64 ",keyLen:%d, offset:%" PRId64 "numOfCols:%" PRId16
-              ",algorithm:%d,numOfRows:%d, len:%d, last:%" PRId64,
-              TSDB_READ_REPO_ID(pReadh), pReadh->pBlkInfo->tid, pReadh->pBlkInfo->uid, pReadh->cidx, iSupBlocks,
-              pSupBlock->numOfSubBlocks, pSupBlock->keyFirst, pSupBlock->keyLast, pSupBlock->keyLen,
-              (int64_t)pSupBlock->offset, pSupBlock->numOfCols, (int32_t)pSupBlock->algorithm,
-              (int32_t)pSupBlock->numOfRows, pSupBlock->len, (int64_t)pSupBlock->last);
-
-    // get Table from metaCache
-    STable *pTable = tsdbGetTableByUid(pReadh->pRepo->tsdbMeta, pBlkIdx->uid);
-
-    if (pTable == NULL || TABLE_TID(pTable) != pBlkIdx->tid) {
-      tsdbError("prop:vgId:%d failed to get table since invalid table id %d uid %" PRIu64, REPO_ID(pReadh->pRepo),
-                pBlkIdx->tid, pBlkIdx->uid);
-      terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
-      return -1;
-    }
-
-    if (tsdbSetReadTable(pReadh, pTable, pBlkIdx) < 0) {
-      tsdbError("prop:vgId:%d failed to set table. tid %d uid %" PRIu64 "since %s", REPO_ID(pReadh->pRepo),
-                pBlkIdx->tid, pBlkIdx->uid, tstrerror(terrno));
-      return -1;
-    }
-
-    int checkResult = tsdbLoadBlockData(pReadh, pSupBlock, NULL);
-
-    ++nScanned;
-
-    if (checkResult == 0) {
-      tsdbDebug("prop:vgId:%d,  tid %d, uid %" PRIu64 ", blkIdx %d, blkSeq %d, tName %s, check passed %d",
-                TSDB_READ_REPO_ID(pReadh), pReadh->pBlkInfo->tid, pReadh->pBlkInfo->uid, pReadh->cidx, iSupBlocks,
-                pTable->name->data, checkResult);
-
-      block = *pSupBlock;
-      block.offset = sizeof(SBlock) * taosArrayGetSize(pCommitH->aSubBlk);
-
-      if (tsdbCommitAddBlock(
-              pCommitH, &block,
-              block.numOfSubBlocks > 1 ? POINTER_SHIFT(pCommitH->readh.pBlkInfo, pSupBlock->offset) : NULL,
-              pSupBlock->numOfSubBlocks) < 0) {
-        return -1;
-      }
-      if (tsdbWriteBlockInfo(pCommitH) < 0) {
-        tsdbError("vgId:%d failed to write SBlockInfo part into file %s since %s", REPO_ID(pReadh->pRepo),
-                  TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommitH)), tstrerror(terrno));
-        return -1;
-      }
-
-    } else {
-      ++nCorrupted;
-      tsdbDebug("prop:vgId:%d, tid: %d, uid %" PRIu64 ",  blkIdx %d, blkSeq %" PRIu32 ", tName %s, check failed %d",
-                TSDB_READ_REPO_ID(pReadh), pReadh->pBlkInfo->tid, pReadh->pBlkInfo->uid, pReadh->cidx, iSupBlocks,
-                pTable->name->data, checkResult);
-    }
-  }
-
-  return 0;
-}
-
-static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
+static int tsdbFetchTFileSet(STsdbRepo *pRepo, SArray **fArray) {
   char         dataDir[TSDB_FILENAME_LEN];
   char         bname[TSDB_FILENAME_LEN];
   TDIR *       tdir = NULL;
   const TFILE *pf = NULL;
   const char * pattern = "^v[0-9]+f[0-9]+\\.(head|data|last)(-ver[0-9]+)?$";
-  SArray *     fArray = NULL;
   regex_t      regex;
-  STsdbFS *    pfs = REPO_FS(pRepo);
 
   tsdbGetDataDir(REPO_ID(pRepo), dataDir);
 
   // Resource allocation and init
   regcomp(&regex, pattern, REG_EXTENDED);
 
-  fArray = taosArrayInit(1024, sizeof(TFILE));
-  if (fArray == NULL) {
+  *fArray = taosArrayInit(1024, sizeof(TFILE));
+  if (*fArray == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-    tsdbError("vgId:%d failed to restore DFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
+    tsdbError("vgId:%d failed to fetch TFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
               tstrerror(terrno));
     regfree(&regex);
     return -1;
@@ -1385,9 +1042,9 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
   tdir = tfsOpendir(dataDir);
   if (tdir == NULL) {
-    tsdbError("vgId:%d failed to restore DFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
+    tsdbError("vgId:%d failed to fetch TFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
               tstrerror(terrno));
-    taosArrayDestroy(fArray);
+    taosArrayDestroy(*fArray);
     regfree(&regex);
     return -1;
   }
@@ -1397,10 +1054,10 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
 
     int code = regexec(&regex, bname, 0, NULL, 0);
     if (code == 0) {
-      if (taosArrayPush(fArray, (void *)pf) == NULL) {
+      if (taosArrayPush(*fArray, (void *)pf) == NULL) {
         terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
         tfsClosedir(tdir);
-        taosArrayDestroy(fArray);
+        taosArrayDestroy(*fArray);
         regfree(&regex);
         return -1;
       }
@@ -1411,10 +1068,10 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       continue;
     } else {
       // Has other error
-      tsdbError("vgId:%d failed to restore DFileSet Array while run regexec since %s", REPO_ID(pRepo), strerror(code));
+      tsdbError("vgId:%d failed to fetch TFileSet Array while run regexec since %s", REPO_ID(pRepo), strerror(code));
       terrno = TAOS_SYSTEM_ERROR(code);
       tfsClosedir(tdir);
-      taosArrayDestroy(fArray);
+      taosArrayDestroy(*fArray);
       regfree(&regex);
       return -1;
     }
@@ -1424,7 +1081,126 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   regfree(&regex);
 
   // Sort the array according to file name
-  taosArraySort(fArray, tsdbComparTFILE);
+  taosArraySort(*fArray, tsdbComparTFILE);
+  return 0;
+}
+
+int tsdbFetchDFileSet(STsdbRepo *pRepo, SArray **fSetArray) {
+  ASSERT(fSetArray != NULL && *fSetArray == NULL);
+  char         dataDir[TSDB_FILENAME_LEN];
+  SArray *     fArray = NULL; // TFile
+  // STsdbFS *    pfs = REPO_FS(pRepo);
+  const TFILE *pf = NULL;
+  // size_t       dFileSetSize = 0;
+
+  tsdbGetDataDir(REPO_ID(pRepo), dataDir);
+  
+  if (tsdbFetchTFileSet(pRepo, &fArray) < 0) {
+    tsdbError("vgId:%d failed to fetch DFileSet from %s since %s", REPO_ID(pRepo), dataDir, strerror(terrno));
+    return -1;
+  }
+
+  size_t fArraySize = taosArrayGetSize(fArray);
+  if (fArraySize <= 0){
+    taosArrayDestroy(fArray);
+    return 0;
+  }
+
+  *fSetArray = taosArrayInit(fArraySize/TSDB_FILE_MAX, sizeof(SDFileSet));
+  if (*fSetArray == NULL) {
+    taosArrayDestroy(fArray);
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    tsdbError("vgId:%d failed to fetch DFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
+              tstrerror(terrno));
+    return -1;
+  }
+
+  size_t index = 0;
+  // Loop to recover each file set
+  for (;;) {
+    if (index >= taosArrayGetSize(fArray)) {
+      break;
+    }
+
+    SDFileSet fset = {0};
+
+    TSDB_FSET_SET_CLOSED(&fset);
+
+    // Loop to recover ONE fset
+    for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ++ftype) {
+      SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);
+
+      if (index >= taosArrayGetSize(fArray)) {
+        taosArrayDestroy(fArray);
+        tsdbError("vgId:%d incomplete DFileSet, fid:%d", REPO_ID(pRepo), fset.fid);
+        return -1;
+      }
+
+      pf = taosArrayGet(fArray, index);
+
+      int         tvid, tfid;
+      TSDB_FILE_T ttype;
+      uint32_t    tversion;
+      char        bname[TSDB_FILENAME_LEN];
+
+      tfsbasename(pf, bname);
+      tsdbParseDFilename(bname, &tvid, &tfid, &ttype, &tversion);
+
+      ASSERT(tvid == REPO_ID(pRepo));
+
+      if (ftype == 0) {
+        fset.fid = tfid;
+      } else {
+        if (tfid != fset.fid) {
+          taosArrayDestroy(fArray);
+          tsdbError("vgId:%d incomplete dFileSet, fid:%d", REPO_ID(pRepo), fset.fid);
+          return -1;
+        }
+      }
+
+      if (ttype != ftype) {
+        taosArrayDestroy(fArray);
+        tsdbError("vgId:%d incomplete dFileSet, fid:%d", REPO_ID(pRepo), fset.fid);
+        return -1;
+      }
+
+      pDFile->f = *pf;
+      
+      if (tsdbOpenDFile(pDFile, O_RDONLY) < 0) {
+        taosArrayDestroy(fArray);
+        tsdbError("vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno));
+        return -1;
+      }
+
+      if (tsdbLoadDFileHeader(pDFile, &(pDFile->info)) < 0) {
+        tsdbError("vgId:%d failed to load DFile %s header since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
+                  tstrerror(terrno));
+        tsdbCloseDFile(pDFile);
+        taosArrayDestroy(fArray);
+        continue;
+      }
+
+      tsdbCloseDFile(pDFile);
+      ++index;
+    }
+
+    tsdbInfo("vgId:%d FSET %d is fetched", REPO_ID(pRepo), fset.fid);
+    taosArrayPush(*fSetArray, &fset);
+  }
+  // Resource release
+  taosArrayDestroy(fArray);
+  return 0;
+}
+
+static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
+  const TFILE *pf = NULL;
+  SArray *     fArray = NULL;
+  STsdbFS *    pfs = REPO_FS(pRepo);
+
+  if (tsdbFetchTFileSet(pRepo, &fArray) < 0) {
+    tsdbError("vgId:%d failed to fetch TFileSet to restore since %s", REPO_ID(pRepo), strerror(terrno));
+    return -1;
+  }
 
   size_t index = 0;
   // Loop to recover each file set
@@ -1476,7 +1252,7 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
       }
 
       pDFile->f = *pf;
-
+      
       if (tsdbOpenDFile(pDFile, O_RDONLY) < 0) {
         tsdbError("vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno));
         taosArrayDestroy(fArray);
@@ -1487,11 +1263,12 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
         tsdbError("vgId:%d failed to load DFile %s header since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
                   tstrerror(terrno));
         taosArrayDestroy(fArray);
+        tsdbCloseDFile(pDFile);
         return -1;
       }
 
       tsdbCloseDFile(pDFile);
-      index++;
+      ++index;
     }
 
     tsdbInfo("vgId:%d FSET %d is restored", REPO_ID(pRepo), fset.fid);
@@ -1504,131 +1281,125 @@ static int tsdbRestoreDFileSet(STsdbRepo *pRepo) {
   return 0;
 }
 
-  static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
-    // Loop to recover mfile
-    if (tsdbRestoreMeta(pRepo) < 0) {
-      tsdbError("vgId:%d failed to restore current since %s", REPO_ID(pRepo), tstrerror(terrno));
-      return -1;
-    }
+static int tsdbFullCheckRestoreDFileSet(STsdbRepo *pRepo) {
+  SArray *     fSetArray = NULL; // SDFileSet array
 
-    // Firstly, load the meta cache.
-    ASSERT(pRepo->tsdbMeta != NULL);
-
-    if (pRepo->tsdbMeta == NULL) {
-      tsdbError("vgId:%d no init of tsdb meta", REPO_ID(pRepo));
-      return -1;
-    }
-
-    if (tsdbLoadAndCacheMeta(pRepo) < 0) {
-      return -1;
-    }
-
-    if (tsTsdbCheckAndRestoreMode == TSDB_CHECK_MODE_DEFAULT) {
-      // Loop to recover dfile set
-      if (tsdbRestoreDFileSet(pRepo) < 0) {
-        tsdbError("vgId:%d failed to restore DFileSet since %s", REPO_ID(pRepo), tstrerror(terrno));
-        return -1;
-      }
-    } else {
-      // check the data blocks by the block indices in head file, and restore DFileSet
-      SCommitH *pCommitH = calloc(1, sizeof(SCommitH));
-      if (pCommitH == NULL) {
-        terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
-        tsdbError("vgId:%d failed to alloc mem for commit handle since %s", REPO_ID(pRepo), tstrerror(terrno));
-        return -1;
-      }
-      tsTsdbFSCheckBranch = 1;
-      if (tsdbInitCommitH(pCommitH, pRepo) < 0) {
-        tsTsdbFSCheckBranch = 0;
-        tsdbError("vgId:%d failed to init commit handle since %s", REPO_ID(pRepo), tstrerror(terrno));
-        return -1;
-      }
-      tsTsdbFSCheckBranch = 0;
-
-      if (tsdbFullCheckAndRestoreDFileSet(pCommitH) < 0) {
-        tsdbError("vgId:%d failed to full check and restore DFileSet since %s", REPO_ID(pRepo), tstrerror(terrno));
-        tsdbDestroyCommitH(pCommitH);
-        tfree(pCommitH);
-        return -1;
-      }
-      // free the resources
-      tsdbDestroyCommitH(pCommitH);
-      tfree(pCommitH);
-    }
-
-    if (tsdbSaveFSStatus(pRepo->fs->cstatus, REPO_ID(pRepo)) < 0) {
-      tsdbError("vgId:%d failed to restore current file since %s", REPO_ID(pRepo), tstrerror(terrno));
-      return -1;
-    } else {
-      tsdbInfo("vgId:%d success to restore current file", REPO_ID(pRepo));
-    }
-
-    return 0;
+  if (tsdbFetchDFileSet(pRepo, &fSetArray) < 0) {
+    tsdbError("vgId:%d failed to fetch DFileSet to restore in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckRestoreMode,
+              strerror(terrno));
+    return -1;
   }
 
-  static int tsdbComparTFILE(const void *arg1, const void *arg2) {
-    TFILE *pf1 = (TFILE *)arg1;
-    TFILE *pf2 = (TFILE *)arg2;
+  if (tsdbRecoverData(pRepo) < 0) {
+    tsdbError("vgId:%d failed to check and restore in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckRestoreMode,
+              strerror(terrno));
+    taosArrayDestroy(fSetArray);
+    return -1;
+  }
 
-    int         vid1, fid1, vid2, fid2;
-    TSDB_FILE_T ftype1, ftype2;
-    uint32_t    version1, version2;
-    char        bname1[TSDB_FILENAME_LEN];
-    char        bname2[TSDB_FILENAME_LEN];
+  // Resource release
+  taosArrayDestroy(fSetArray);
 
-    tfsbasename(pf1, bname1);
-    tfsbasename(pf2, bname2);
-    tsdbParseDFilename(bname1, &vid1, &fid1, &ftype1, &version1);
-    tsdbParseDFilename(bname2, &vid2, &fid2, &ftype2, &version2);
+  return 0;
+}
 
-    if (fid1 < fid2) {
+
+static int tsdbRestoreCurrent(STsdbRepo *pRepo) {
+  // Loop to recover mfile
+  if (tsdbRestoreMeta(pRepo) < 0) {
+    tsdbError("vgId:%d failed to restore current since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  // Loop to recover dfile set
+  if (tsTsdbCheckRestoreMode == TSDB_CHECK_MODE_DEFAULT) {
+    if (tsdbRestoreDFileSet(pRepo) < 0) {
+      tsdbError("vgId:%d failed to restore DFileSet since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;
-    } else if (fid1 > fid2) {
+    }
+  } else if (tsTsdbCheckRestoreMode == TSDB_CHECK_MODE_CHKSUM_IF_NO_CURRENT) {
+    if (tsdbFullCheckRestoreDFileSet(pRepo) < 0) {
+      tsdbError("vgId:%d failed to restore DFileSet since %s", REPO_ID(pRepo), tstrerror(terrno));
+      return -1;
+    }
+  } else {
+    terrno = TSDB_CODE_TDB_IVLD_CHECK_MODE;
+    tsdbError("vgId:%d failed to restore current since %s", REPO_ID(pRepo), tstrerror(terrno));
+    return -1;
+  }
+
+  if (tsdbSaveFSStatus(pRepo->fs->cstatus, REPO_ID(pRepo)) < 0) {
+    tsdbError("vgId:%d failed to restore current in mode %d since %s", REPO_ID(pRepo), tsTsdbCheckRestoreMode,
+              tstrerror(terrno));
+    return -1;
+  }
+
+  return 0;
+}
+
+static int tsdbComparTFILE(const void *arg1, const void *arg2) {
+  TFILE *pf1 = (TFILE *)arg1;
+  TFILE *pf2 = (TFILE *)arg2;
+
+  int         vid1, fid1, vid2, fid2;
+  TSDB_FILE_T ftype1, ftype2;
+  uint32_t    version1, version2;
+  char        bname1[TSDB_FILENAME_LEN];
+  char        bname2[TSDB_FILENAME_LEN];
+
+  tfsbasename(pf1, bname1);
+  tfsbasename(pf2, bname2);
+  tsdbParseDFilename(bname1, &vid1, &fid1, &ftype1, &version1);
+  tsdbParseDFilename(bname2, &vid2, &fid2, &ftype2, &version2);
+
+  if (fid1 < fid2) {
+    return -1;
+  } else if (fid1 > fid2) {
+    return 1;
+  } else {
+    if (ftype1 < ftype2) {
+      return -1;
+    } else if (ftype1 > ftype2) {
       return 1;
     } else {
-      if (ftype1 < ftype2) {
-        return -1;
-      } else if (ftype1 > ftype2) {
-        return 1;
-      } else {
-        return 0;
-      }
+      return 0;
     }
   }
+}
 
-  static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo) {
-    STsdbFS *  pfs = REPO_FS(pRepo);
-    SFSStatus *pStatus = pfs->cstatus;
-    SDFInfo    info;
+static void tsdbScanAndTryFixDFilesHeader(STsdbRepo *pRepo) {
+  STsdbFS *  pfs = REPO_FS(pRepo);
+  SFSStatus *pStatus = pfs->cstatus;
+  SDFInfo    info;
 
-    for (size_t i = 0; i < taosArrayGetSize(pStatus->df); i++) {
-      SDFileSet fset;
-      tsdbInitDFileSetEx(&fset, (SDFileSet *)taosArrayGet(pStatus->df, i));
+  for (size_t i = 0; i < taosArrayGetSize(pStatus->df); i++) {
+    SDFileSet fset;
+    tsdbInitDFileSetEx(&fset, (SDFileSet *)taosArrayGet(pStatus->df, i));
 
-      tsdbDebug("vgId:%d scan DFileSet %d header", REPO_ID(pRepo), fset.fid);
+    tsdbDebug("vgId:%d scan DFileSet %d header", REPO_ID(pRepo), fset.fid);
 
-      if (tsdbOpenDFileSet(&fset, O_RDWR) < 0) {
-        tsdbError("vgId:%d failed to open DFileSet %d since %s, continue", REPO_ID(pRepo), fset.fid, tstrerror(terrno));
-        continue;
-      }
+    if (tsdbOpenDFileSet(&fset, O_RDWR) < 0) {
+      tsdbError("vgId:%d failed to open DFileSet %d since %s, continue", REPO_ID(pRepo), fset.fid, tstrerror(terrno));
+      continue;
+    }
 
-      for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-        SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);
+    for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+      SDFile *pDFile = TSDB_DFILE_IN_SET(&fset, ftype);
 
-        if ((tsdbLoadDFileHeader(pDFile, &info) < 0) || pDFile->info.size != info.size ||
-            pDFile->info.magic != info.magic) {
-          if (tsdbUpdateDFileHeader(pDFile) < 0) {
-            tsdbError("vgId:%d failed to update DFile header of %s since %s, continue", REPO_ID(pRepo),
-                      TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno));
-          } else {
-            tsdbInfo("vgId:%d DFile header of %s is updated", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
-            TSDB_FILE_FSYNC(pDFile);
-          }
+      if ((tsdbLoadDFileHeader(pDFile, &info) < 0) || pDFile->info.size != info.size ||
+          pDFile->info.magic != info.magic) {
+        if (tsdbUpdateDFileHeader(pDFile) < 0) {
+          tsdbError("vgId:%d failed to update DFile header of %s since %s, continue", REPO_ID(pRepo),
+                    TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno));
         } else {
-          tsdbDebug("vgId:%d DFile header of %s is correct", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
+          tsdbInfo("vgId:%d DFile header of %s is updated", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
+          TSDB_FILE_FSYNC(pDFile);
         }
+      } else {
+        tsdbDebug("vgId:%d DFile header of %s is correct", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile));
       }
-
-      tsdbCloseDFileSet(&fset);
     }
+
+    tsdbCloseDFileSet(&fset);
   }
+}

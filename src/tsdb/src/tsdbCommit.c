@@ -14,7 +14,6 @@
  */
 #include "tsdbint.h"
 
-extern int tsTsdbFSCheckBranch;
 #define TSDB_MAX_SUBBLOCKS 8
 static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
   if (key < 0) {
@@ -24,9 +23,30 @@ static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) 
   }
 }
 
+typedef struct {
+  SRtn         rtn;     // retention snapshot
+  SFSIter      fsIter;  // tsdb file iterator
+  int          niters;  // memory iterators
+  SCommitIter *iters;
+  bool         isRFileSet;  // read and commit FSET
+  SReadH       readh;
+  SDFileSet    wSet;
+  bool         isDFileSame;
+  bool         isLFileSame;
+  TSKEY        minKey;
+  TSKEY        maxKey;
+  SArray *     aBlkIdx;  // SBlockIdx array
+  STable *     pTable;
+  SArray *     aSupBlk;  // Table super-block array
+  SArray *     aSubBlk;  // table sub-block array
+  SDataCols *  pDataCols;
+} SCommitH;
+
 #define TSDB_COMMIT_REPO(ch) TSDB_READ_REPO(&(ch->readh))
 #define TSDB_COMMIT_REPO_ID(ch) REPO_ID(TSDB_READ_REPO(&(ch->readh)))
+#define TSDB_COMMIT_WRITE_FSET(ch) (&((ch)->wSet))
 #define TSDB_COMMIT_TABLE(ch) ((ch)->pTable)
+#define TSDB_COMMIT_HEAD_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_HEAD)
 #define TSDB_COMMIT_DATA_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_DATA)
 #define TSDB_COMMIT_LAST_FILE(ch) TSDB_DFILE_IN_SET(TSDB_COMMIT_WRITE_FSET(ch), TSDB_FILE_LAST)
 #define TSDB_COMMIT_BUF(ch) TSDB_READ_BUF(&((ch)->readh))
@@ -44,14 +64,19 @@ static int  tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
 static int  tsdbCreateCommitIters(SCommitH *pCommith);
 static void tsdbDestroyCommitIters(SCommitH *pCommith);
 static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key);
+static int  tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo);
+static void tsdbDestroyCommitH(SCommitH *pCommith);
 static int  tsdbGetFidLevel(int fid, SRtn *pRtn);
 static int  tsdbNextCommitFid(SCommitH *pCommith);
 static int  tsdbCommitToTable(SCommitH *pCommith, int tid);
 static int  tsdbSetCommitTable(SCommitH *pCommith, STable *pTable);
 static int  tsdbComparKeyBlock(const void *arg1, const void *arg2);
+static int  tsdbWriteBlockInfo(SCommitH *pCommih);
+static int  tsdbWriteBlockIdx(SCommitH *pCommih);
 static int  tsdbCommitMemData(SCommitH *pCommith, SCommitIter *pIter, TSKEY keyLimit, bool toData);
 static int  tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx);
 static int  tsdbMoveBlock(SCommitH *pCommith, int bidx);
+static int  tsdbCommitAddBlock(SCommitH *pCommith, const SBlock *pSupBlock, const SBlock *pSubBlocks, int nSubBlocks);
 static int  tsdbMergeBlockData(SCommitH *pCommith, SCommitIter *pIter, SDataCols *pDataCols, TSKEY keyLimit,
                                bool isLastOneBlock);
 static void tsdbResetCommitFile(SCommitH *pCommith);
@@ -509,7 +534,7 @@ static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key) {
   }
 }
 
-int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
+static int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
   STsdbCfg *pCfg = REPO_CFG(pRepo);
 
   memset(pCommith, 0, sizeof(*pCommith));
@@ -519,18 +544,15 @@ int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
 
   // Init read handle
   if (tsdbInitReadH(&(pCommith->readh), pRepo) < 0) {
-    tsdbDestroyCommitH(pCommith);
     return -1;
   }
 
-  if (0 == tsTsdbFSCheckBranch) {
-    // Init file iterator
-    tsdbFSIterInit(&(pCommith->fsIter), REPO_FS(pRepo), TSDB_FS_ITER_FORWARD);
+  // Init file iterator
+  tsdbFSIterInit(&(pCommith->fsIter), REPO_FS(pRepo), TSDB_FS_ITER_FORWARD);
 
-    if (tsdbCreateCommitIters(pCommith) < 0) {
-      tsdbDestroyCommitH(pCommith);
-      return -1;
-    }
+  if (tsdbCreateCommitIters(pCommith) < 0) {
+    tsdbDestroyCommitH(pCommith);
+    return -1;
   }
 
   pCommith->aBlkIdx = taosArrayInit(1024, sizeof(SBlockIdx));
@@ -553,19 +575,18 @@ int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
     tsdbDestroyCommitH(pCommith);
     return -1;
   }
-  if (0 == tsTsdbFSCheckBranch) {
-    pCommith->pDataCols = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
-    if (pCommith->pDataCols == NULL) {
-      terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
-      tsdbDestroyCommitH(pCommith);
-      return -1;
-    }
+
+  pCommith->pDataCols = tdNewDataCols(0, 0, pCfg->maxRowsPerFileBlock);
+  if (pCommith->pDataCols == NULL) {
+    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
+    tsdbDestroyCommitH(pCommith);
+    return -1;
   }
 
   return 0;
 }
 
-void tsdbDestroyCommitH(SCommitH *pCommith) {
+static void tsdbDestroyCommitH(SCommitH *pCommith) {
   pCommith->pDataCols = tdFreeDataCols(pCommith->pDataCols);
   pCommith->aSubBlk = taosArrayDestroy(pCommith->aSubBlk);
   pCommith->aSupBlk = taosArrayDestroy(pCommith->aSupBlk);
@@ -709,7 +730,7 @@ static int tsdbSetCommitTable(SCommitH *pCommith, STable *pTable) {
   }
 
   if (pCommith->isRFileSet) {
-    if (tsdbSetReadTable(&(pCommith->readh), pTable, NULL) < 0) {
+    if (tsdbSetReadTable(&(pCommith->readh), pTable) < 0) {
       return -1;
     }
   } else {
@@ -865,7 +886,7 @@ static int tsdbWriteBlock(SCommitH *pCommith, SDFile *pDFile, SDataCols *pDataCo
   return 0;
 }
 
-int tsdbWriteBlockInfo(SCommitH *pCommih) {
+static int tsdbWriteBlockInfo(SCommitH *pCommih) {
   SDFile *    pHeadf = TSDB_COMMIT_HEAD_FILE(pCommih);
   SBlockIdx   blkIdx;
   STable *    pTable = TSDB_COMMIT_TABLE(pCommih);
@@ -936,7 +957,7 @@ int tsdbWriteBlockInfo(SCommitH *pCommih) {
   return 0;
 }
 
-int tsdbWriteBlockIdx(SCommitH *pCommih) {
+static int tsdbWriteBlockIdx(SCommitH *pCommih) {
   SBlockIdx *pBlkIdx;
   SDFile *   pHeadf = TSDB_COMMIT_HEAD_FILE(pCommih);
   size_t     nidx = taosArrayGetSize(pCommih->aBlkIdx);
@@ -1122,7 +1143,7 @@ static int tsdbMoveBlock(SCommitH *pCommith, int bidx) {
   return 0;
 }
 
-int tsdbCommitAddBlock(SCommitH *pCommith, const SBlock *pSupBlock, const SBlock *pSubBlocks, int nSubBlocks) {
+static int tsdbCommitAddBlock(SCommitH *pCommith, const SBlock *pSupBlock, const SBlock *pSubBlocks, int nSubBlocks) {
   if (taosArrayPush(pCommith->aSupBlk, pSupBlock) == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
