@@ -2530,10 +2530,16 @@ static int32_t getTableMetaFromMnode(SSqlObj *pSql, STableMetaInfo *pTableMetaIn
 int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   assert(tIsValidName(&pTableMetaInfo->name));
 
-  tfree(pTableMetaInfo->pTableMeta);
+  //tfree(pTableMetaInfo->pTableMeta);
 
   uint32_t size = tscGetTableMetaMaxSize();
-  pTableMetaInfo->pTableMeta = calloc(1, size);
+
+  if (pTableMetaInfo->pTableMeta == NULL) {
+    pTableMetaInfo->pTableMeta = calloc(1, size);
+  } else {
+    uint32_t s = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
+    memset(pTableMetaInfo->pTableMeta, 0, s);
+  }
 
   pTableMetaInfo->pTableMeta->tableType = -1;
   pTableMetaInfo->pTableMeta->tableInfo.numOfColumns  = -1;
@@ -2544,11 +2550,12 @@ int32_t tscGetTableMeta(SSqlObj *pSql, STableMetaInfo *pTableMetaInfo) {
   size_t len = strlen(name);
   taosHashGetClone(tscTableMetaInfo, name, len, NULL, pTableMetaInfo->pTableMeta, -1);
 
+  char buf[80*1024] = {0};
   // TODO resize the tableMeta
   STableMeta* pMeta = pTableMetaInfo->pTableMeta;
   if (pMeta->id.uid > 0) {
     if (pMeta->tableType == TSDB_CHILD_TABLE) {
-      int32_t code = tscCreateTableMetaFromCChildMeta(pTableMetaInfo->pTableMeta, name);
+      int32_t code = tscCreateTableMetaFromCChildMeta(pTableMetaInfo->pTableMeta, name, buf);
       if (code != TSDB_CODE_SUCCESS) {
         return getTableMetaFromMnode(pSql, pTableMetaInfo);
       }

@@ -2942,12 +2942,10 @@ CChildTableMeta* tscCreateChildMeta(STableMeta* pTableMeta) {
   return cMeta;
 }
 
-int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name) {
-  assert(pChild != NULL);
+int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name, void *buf) {
+  assert(pChild != NULL && buf != NULL);
 
-  uint32_t size = tscGetTableMetaMaxSize();
-  STableMeta* p = calloc(1, size);
-
+  STableMeta* p = buf;
   taosHashGetClone(tscTableMetaInfo, pChild->sTableName, strnlen(pChild->sTableName, TSDB_TABLE_FNAME_LEN), NULL, p, -1);
   if (p->id.uid > 0) { // tableMeta exists, build child table meta and return
     pChild->sversion = p->sversion;
@@ -2958,12 +2956,9 @@ int32_t tscCreateTableMetaFromCChildMeta(STableMeta* pChild, const char* name) {
 
     memcpy(pChild->schema, p->schema, sizeof(SSchema) *total);
 
-    tfree(p);
     return TSDB_CODE_SUCCESS;
   } else { // super table has been removed, current tableMeta is also expired. remove it here
     taosHashRemove(tscTableMetaInfo, name, strnlen(name, TSDB_TABLE_FNAME_LEN));
-
-    tfree(p);
     return -1;
   }
 }
