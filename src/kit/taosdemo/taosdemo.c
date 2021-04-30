@@ -1188,9 +1188,9 @@ static float rand_float(){
   return randfloat[cursor];
 }
 
+#if 0
 static const char charNum[] = "0123456789";
 
-#if 0
 static void nonrand_string(char *, int) __attribute__ ((unused));   // reserve for debugging purpose
 static void nonrand_string(char *str, int size)
 {
