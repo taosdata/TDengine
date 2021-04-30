@@ -123,7 +123,7 @@ typedef struct STsdbQueryHandle {
   SMemRef       *pMemRef;
   SArray        *defaultLoadColumn;// default load column
   SDataBlockLoadInfo dataBlockLoadInfo; /* record current block load information */
-  SLoadCompBlockInfo compBlockLoadInfo; /* record current compblock information in SQuery */
+  SLoadCompBlockInfo compBlockLoadInfo; /* record current compblock information in SQueryAttr */
 
   SArray        *prev;             // previous row which is before than time window
   SArray        *next;             // next row which is after the query time window
@@ -3413,14 +3413,16 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
     size_t numOfTables = taosArrayGetSize(p);
     for(int32_t j = 0; j < numOfTables; ++j) {
       STable* pTable = taosArrayGetP(p, j);
-      assert(pTable != NULL);
-
-      tsdbUnRefTable(pTable);
+      if (pTable != NULL) { // in case of handling retrieve data from tsdb
+        tsdbUnRefTable(pTable);
+      }
+      //assert(pTable != NULL);
     }
 
     taosArrayDestroy(p);
   }
 
+  taosHashCleanup(pGroupList->map);
   taosArrayDestroy(pGroupList->pGroupList);
   pGroupList->numOfTables = 0;
 }
@@ -3431,7 +3433,7 @@ static void applyFilterToSkipListNode(SSkipList *pSkipList, tExprNode *pExpr, SA
   // Scan each node in the skiplist by using iterator
   while (tSkipListIterNext(iter)) {
     SSkipListNode *pNode = tSkipListIterGet(iter);
-    if (exprTreeApplayFilter(pExpr, pNode, param)) {
+    if (exprTreeApplyFilter(pExpr, pNode, param)) {
       taosArrayPush(pResult, &(SL_GET_NODE_DATA(pNode)));
     }
   }

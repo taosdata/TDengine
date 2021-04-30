@@ -232,9 +232,28 @@ int32_t vnodeAlter(void *vparam, SCreateVnodeMsg *pVnodeCfg) {
   return code;
 }
 
+static void vnodeFindWalRootDir(int32_t vgId, char *walRootDir) {
+  char vnodeDir[TSDB_FILENAME_LEN] = "\0";
+  snprintf(vnodeDir, TSDB_FILENAME_LEN, "/vnode/vnode%d/wal", vgId);
+
+  TDIR *tdir = tfsOpendir(vnodeDir);
+  if (!tdir) return;
+
+  const TFILE *tfile = tfsReaddir(tdir);
+  if (!tfile) {
+    tfsClosedir(tdir);
+    return;
+  }
+
+  sprintf(walRootDir, "%s/vnode/vnode%d", TFS_DISK_PATH(tfile->level, tfile->id), vgId);
+
+  tfsClosedir(tdir);
+}
+
 int32_t vnodeOpen(int32_t vgId) {
   char temp[TSDB_FILENAME_LEN * 3];
   char rootDir[TSDB_FILENAME_LEN * 2];
+  char walRootDir[TSDB_FILENAME_LEN * 2] = {0};
   snprintf(rootDir, TSDB_FILENAME_LEN * 2, "%s/vnode%d", tsVnodeDir, vgId);
 
   SVnodeObj *pVnode = calloc(sizeof(SVnodeObj), 1);
@@ -321,7 +340,21 @@ int32_t vnodeOpen(int32_t vgId) {
     }
   }
 
-  sprintf(temp, "%s/wal", rootDir);
+  // walRootDir for wal & syncInfo.path (not empty dir of /vnode/vnode{pVnode->vgId}/wal)
+  vnodeFindWalRootDir(pVnode->vgId, walRootDir);
+  if (walRootDir[0] == 0) {
+    int level = -1, id = -1;
+
+    tfsAllocDisk(TFS_PRIMARY_LEVEL, &level, &id);
+    if (level < 0 || id < 0) {
+      vnodeCleanUp(pVnode);
+      return terrno;
+    }
+
+    sprintf(walRootDir, "%s/vnode/vnode%d", TFS_DISK_PATH(level, id), vgId);
+  }
+
+  sprintf(temp, "%s/wal", walRootDir);
   pVnode->walCfg.vgId = pVnode->vgId;
   pVnode->wal = walOpen(temp, &pVnode->walCfg);
   if (pVnode->wal == NULL) { 
@@ -353,7 +386,7 @@ int32_t vnodeOpen(int32_t vgId) {
 
   pVnode->events = NULL;
 
-  vDebug("vgId:%d, vnode is opened in %s, pVnode:%p", pVnode->vgId, rootDir, pVnode);
+  vDebug("vgId:%d, vnode is opened in %s - %s, pVnode:%p", pVnode->vgId, rootDir, walRootDir, pVnode);
 
   vnodeAddIntoHash(pVnode);
   
@@ -361,7 +394,7 @@ int32_t vnodeOpen(int32_t vgId) {
   syncInfo.vgId = pVnode->vgId;
   syncInfo.version = pVnode->version;
   syncInfo.syncCfg = pVnode->syncCfg;
-  tstrncpy(syncInfo.path, rootDir, TSDB_FILENAME_LEN);
+  tstrncpy(syncInfo.path, walRootDir, TSDB_FILENAME_LEN);
   syncInfo.getWalInfoFp = vnodeGetWalInfo;
   syncInfo.writeToCacheFp = vnodeWriteToCache;
   syncInfo.confirmForward = vnodeConfirmForard; 
