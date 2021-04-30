@@ -84,7 +84,7 @@ steps:
 - name: build
   image: gcc
   commands:
-  - apt-get update
+  - apt-get update || echo 1
   - apt-get install -y cmake build-essential
   - mkdir debug
   - cd debug
