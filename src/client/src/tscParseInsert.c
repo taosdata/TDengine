@@ -713,10 +713,10 @@ static int32_t doParseInsertStatement(SSqlCmd* pCmd, char **str, STableDataBlock
 
   int32_t numOfRows = 0;
   code = tsParseValues(str, dataBuf, maxNumOfRows, pCmd, &numOfRows, tmpTokenBuf);
+  tfree(tmpTokenBuf);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  tfree(tmpTokenBuf);
 
   for (uint32_t i = 0; i < dataBuf->numOfParams; ++i) {
     SParamInfo *param = dataBuf->params + i;
