@@ -1353,15 +1353,15 @@ int tsParseSql(SSqlObj *pSql, bool initial) {
     }
 
     // make a backup as tsParseInsertSql may modify the string
-    char* sqlstr = strdup(pSql->sqlstr);
+//    char* sqlstr = strdup(pSql->sqlstr);
     ret = tsParseInsertSql(pSql);
-    if ((sqlstr == NULL) || (pSql->parseRetry >= 1) ||
+    if (/*(sqlstr == NULL) || */(pSql->parseRetry >= 1) ||
         (ret != TSDB_CODE_TSC_SQL_SYNTAX_ERROR && ret != TSDB_CODE_TSC_INVALID_SQL)) {
-      free(sqlstr);
+//      free(sqlstr);
     } else {
       tscResetSqlCmd(pCmd, true);
-      free(pSql->sqlstr);
-      pSql->sqlstr = sqlstr;
+//      free(pSql->sqlstr);
+//      pSql->sqlstr = sqlstr;
       pSql->parseRetry++;
       if ((ret = tsInsertInitialCheck(pSql)) == TSDB_CODE_SUCCESS) {
         ret = tsParseInsertSql(pSql);
