@@ -462,13 +462,19 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, SSqlCmd *pCmd, int1
     // Remove quotation marks
     if (TK_STRING == sToken.type) {
       // delete escape character: \\, \', \"
+      char delim = sToken.z[0];
+
       int32_t cnt = 0;
       int32_t j = 0;
       for (uint32_t k = 1; k < sToken.n - 1; ++k) {
-        if (sToken.z[k] == '\\') {
-          cnt++;
+        if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
+          if (sToken.z[k] == '\\') {
+            tmpTokenBuf[j] = GET_ESCAPE_CHAR(sToken.z[k+1]);
+          } else {
+            tmpTokenBuf[j] = sToken.z[k + 1];
+          }
 
-          tmpTokenBuf[j] = GET_ESCAPE_CHAR(sToken.z[k+1]);
+          cnt++;
           j++;
           k++;
           continue;
