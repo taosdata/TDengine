@@ -4578,9 +4578,12 @@ SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
     for(int32_t i = 0; i < numOfCols; ++i) {
       SColIndex* index = taosArrayGet(pOrderColumns, i);
       for(int32_t j = 0; j < pQuery->numOfOutput; ++j) {
-        if (index->colId == pQuery->pExpr1[j].base.colInfo.colId) {
+        SSqlExpr* pExpr = &pQuery->pExpr1[j].base;
+        int32_t functionId = pExpr->functionId;
+
+        if (index->colId == pExpr->colInfo.colId && (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG)) {
           index->colIndex = j;
-          index->colId = pQuery->pExpr1[j].base.resColId;
+          index->colId = pExpr->resColId;
         }
       }
     }

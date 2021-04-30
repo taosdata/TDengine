@@ -1094,7 +1094,6 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
   {
     if (pAggInfo->hasDataBlockForNewGroup) {
-      pAggInfo->binfo.pRes->info.rows = 0;
       pAggInfo->hasPrev = false; // now we start from a new group data set.
 
       // not belongs to the same group, return the result of current group;
